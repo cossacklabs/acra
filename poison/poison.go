@@ -14,10 +14,11 @@ import (
 	math_rand "math/rand"
 	"os"
 	"time"
+	"fmt"
 )
 
 const (
-	DEFAULT_POISON_KEY_PATH = "~/.ssession/poison_key"
+	DEFAULT_POISON_KEY_PATH = fmt.Sprintf("%v/poison_key", acra.DEFAULT_KEY_DIR_SHORT)
 	DEFAULT_DATA_LENGTH     = -1
 	MAX_DATA_LENGTH         = 100
 )

@@ -6,7 +6,7 @@ conn = PG.connect( dbname: 'acra', host: '127.0.0.1', port: '9494', user: 'postg
 conn.exec('CREATE TABLE IF NOT EXISTS test(id INTEGER PRIMARY KEY, data BYTEA, raw_data TEXT);')
 
 
-acra_public = File.read(File.expand_path("~/.ssession/client_server.pub"))
+acra_public = File.read(File.expand_path(".acrakeys/client_server.pub"))
 some_data = (0...8).map { (65 + rand(26)).chr }.join
 acrastruct = create_acra_struct(some_data, acra_public)
 rand_id = rand(100000)

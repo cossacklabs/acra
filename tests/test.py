@@ -63,13 +63,13 @@ def tearDownModule():
     home = expanduser('~')
     files = []
     for i in range(1, 3):
-        files.append(home+'/.ssession/keypair{}'.format(i))
-        files.append(home+'/.ssession/keypair{}.pub'.format(i))
-        files.append(home+'/.ssession/keypair{}_server'.format(i))
-        files.append(home+'/.ssession/keypair{}_server.pub'.format(i))
+        files.append('.acrakeys/keypair{}'.format(i))
+        files.append('.acrakeys/keypair{}.pub'.format(i))
+        files.append('.acrakeys/keypair{}_server'.format(i))
+        files.append('.acrakeys/keypair{}_server.pub'.format(i))
     for zone in zones:
-        files.append(home+'/.ssession/{}_zone'.format(zone['id']))
-        files.append(home+'/.ssession/{}_zone.pub'.format(zone['id']))
+        files.append('.acrakeys/{}_zone'.format(zone['id']))
+        files.append('.acrakeys/{}_zone.pub'.format(zone['id']))
 
     for i in ['acraproxy', 'acraserver', 'addzone', 'acra_gen_keys'] + files:
         os.remove(i)
@@ -161,7 +161,7 @@ class HexFormatTest(BaseTestCase):
     def testProxyRead(self):
         """test decrypting with correct acraproxy and not decrypting with
         incorrect acraproxy or using direct connection to db"""
-        with open(expanduser('~') + '/.ssession/keypair1_server.pub', 'rb') as f:
+        with open('.acrakeys/keypair1_server.pub', 'rb') as f:
             server_public1 = f.read()
         data = self.get_random_data()
         acra_struct = create_acra_struct(
@@ -194,7 +194,7 @@ class HexFormatTest(BaseTestCase):
     def testReadAcrastructInAcrastruct(self):
         """test correct decrypting acrastruct when acrastruct concatenated to
         partial another acrastruct"""
-        with open(expanduser('~') + '/.ssession/keypair1_server.pub', 'rb') as f:
+        with open('.acrakeys/keypair1_server.pub', 'rb') as f:
             server_public1 = f.read()
         incorrect_data = self.get_random_data()
         correct_data = self.get_random_data()
@@ -401,8 +401,7 @@ class TestKeyNonExistence(BaseTestCase):
         self.acra.wait()
 
     def delete_key(self, filename):
-        os.remove('{home}{sep}.ssession{sep}{name}'.format(
-            home=os.path.expanduser('~'), sep=os.path.sep, name=filename))
+        os.remove('.acrakeys{sep}{name}'.format(sep=os.path.sep, name=filename))
 
     def test_without_acraproxy_public(self):
         """acraserver without acraproxy public key should drop connection

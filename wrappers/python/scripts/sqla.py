@@ -53,7 +53,7 @@ class AcraString(AcraBinary):
 if __name__ == '__main__':
 
     parser = argparse.ArgumentParser()
-    parser.add_argument('--client_id', type=str, default='test', help='will be used server\'s public key like ~/.ssession/<client_id>_server.pub')
+    parser.add_argument('--client_id', type=str, default='test', help='will be used server\'s public key like .acrakeys/<client_id>_server.pub')
     parser.add_argument('--db_user', type=str, default='test', help='db user to connect')
     parser.add_argument('--db_password', type=str, default='test', help='db password to connect')
     parser.add_argument('--port', type=int, default=5433, help='port of acraproxy to connect')
@@ -63,7 +63,7 @@ if __name__ == '__main__':
     args = parser.parse_args()
 
     metadata = MetaData()
-    with open('{}/.ssession/{}_server.pub'.format(expanduser('~'), args.client_id), 'rb') as f:
+    with open('.acrakeys/{}_server.pub'.format(expanduser('~'), args.client_id), 'rb') as f:
         key = f.read()
     test = Table('test', metadata,
         Column('id', Integer, primary_key=True),

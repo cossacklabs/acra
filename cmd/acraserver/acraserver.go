@@ -40,7 +40,7 @@ func main() {
 	port := flag.Int("port", 9393, "port")
 	commands_port := flag.Int("commands_port", 9090, "commands_port")
 
-	keys_dir := flag.String("keys_dir", "~/.ssession", "dir where private app key and public acra key")
+	keys_dir := flag.String("keys_dir", acra.DEFAULT_KEY_DIR_SHORT, "dir where private app key and public acra key")
 
 	poison_key_path := flag.String("poison_key", poison.DEFAULT_POISON_KEY_PATH, "path to file with poison key")
 
@@ -53,10 +53,10 @@ func main() {
 
 	debug := flag.Bool("d", false, "debug log")
 
-	stop_on_poison := flag.Bool("s", false, "stop on poison record")
-	script_on_poison := flag.String("script", "", "execute script on poison record")
+	stop_on_poison := flag.Bool("poisonshutdown", false, "stop on poison record")
+	script_on_poison := flag.String("poisonscript", "", "execute script on poison record")
 
-	with_zone := flag.Bool("z", false, "with zone")
+	with_zone := flag.Bool("zonemode", false, "with zone")
 
 	flag.Parse()
 

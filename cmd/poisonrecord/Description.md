@@ -27,14 +27,14 @@ go build acra_gen_keys
 ```
 * create poison record using this public key
 ```
-[acra]$ ./poisonrecord -acra_public=~/.ssession/test_server.pub
+[acra]$ ./poisonrecord -acra_public=.acrakeys/test_server.pub
 hSD7VUVDMgAAAC373NQJAz5XMsVP3jXLFkFwfBb7H4NjxL6REJbeNZx/7blJodPfICcEJlQAAAAAAQFADAAAABAAAAAgAAAA6YxpknqByuENYMI9rv2U2AMJNTvmqEv+cro8yWTiQ7vGv/B4fy3Ehv0gruPNEdXGsEYNd654+So+ybg6WQAAAAAAAAAAAQFADAAAABAAAAAtAAAA52Ytsk+bGwXy6UxwMvLIyAFhq/3vzOdxZekHkTeRsTK17GAbnOKQBe3U0IHBvbStzVBjYeidNjW4vQxHYXSUzqHlG9kZm/Wp7A==
 ```
 
 ## Optional args
 ### Poison key
 First run of acra or poisonrecord will create `poison_key` - binary file with 32 
-byte key that will used like identifier of poison record. As default it's `~/.ssession/poison_key` 
+byte key that will used like identifier of poison record. As default it's `.acrakeys/poison_key` 
 or you can explicitly pass another value for acra like `-poison_key=/path/to/key`
 and the same for poisonrecord `-poison_key=/path/to/key`. Key will automatically
 generated key if he isn't exists.
@@ -51,5 +51,5 @@ Usage of ./poisonrecord:
   -data_length int
     	length of random data for data block in acrastruct. -1 is random in range 1..100 (default -1)
   -poison_key string
-    	path to file with poison key (default "~/.ssession/poison_key")
+    	path to file with poison key (default ".acrakeys/poison_key")
 ```

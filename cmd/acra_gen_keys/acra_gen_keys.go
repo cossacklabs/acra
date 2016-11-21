@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/user"
 	"strings"
+	"github.com/cossacklabs/acra"
 )
 
 func absPath(path string) (string, error) {
@@ -24,7 +25,7 @@ func absPath(path string) (string, error) {
 
 func main() {
 	key_name := flag.String("key_name", "client", "filename keys")
-	output_dir := flag.String("output", "~/.ssession", "output dir")
+	output_dir := flag.String("output", acra.DEFAULT_KEY_DIR_SHORT, "output dir")
 	flag.Parse()
 
 	keypair, err := keys.New(keys.KEYTYPE_EC)

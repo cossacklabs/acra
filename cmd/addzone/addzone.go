@@ -9,35 +9,20 @@ import (
 	. "github.com/cossacklabs/acra/utils"
 	"io/ioutil"
 	"os"
-	"os/user"
-	"strings"
 )
 
 func main() {
-	output_dir := flag.String("output_dir", "~/.ssession", "output dir to save public key")
+	output_dir := flag.String("output_dir", acra.DEFAULT_KEY_DIR_SHORT, "output dir to save public key")
 	fs_keystore := flag.Bool("fs", true, "use filesystem key store")
 	//verbose := flag.Bool("v", false, "log to stdout")
 	flag.Parse()
 	//if *verbose{
 	//	log.SetOutput(os.Stdout)
 	//}
-	var output, dir string
-	if len(*output_dir) >= 2 && (*output_dir)[:2] == "~/" {
-		usr, err := user.Current()
-		if err != nil {
-			fmt.Printf("Error: %v\n", ErrorMessage("can't expand '~/'", err))
-			os.Exit(1)
-		}
-		dir = usr.HomeDir
-		output = strings.Replace(*output_dir, "~", dir, 1)
-	}
-	if *output_dir == "." {
-		dir, err := os.Getwd()
-		if err != nil {
-			fmt.Printf("Error: %v\n", ErrorMessage("can't expand current directory '.'", err))
-			os.Exit(1)
-		}
-		output = dir
+	output, err := AbsPath(*output_dir)
+	if err != nil{
+		fmt.Printf("Error: %v\n", ErrorMessage("Can't get absolute path for output dir", err))
+		os.Exit(1)
 	}
 	var key_store acra.KeyStore
 	if *fs_keystore {
