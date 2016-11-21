@@ -11,6 +11,14 @@ import (
 	"time"
 )
 
+const (
+	DEFAULT_KEY_DIR_SHORT = "./.acrakeys"
+)
+
+func GetDefaultKeyDir()(string, error){
+	return AbsPath(DEFAULT_KEY_DIR_SHORT)
+}
+
 type KeyStore interface {
 	GetKey(id []byte) (*keys.PrivateKey, error)
 	HasKey(id []byte) bool
