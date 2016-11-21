@@ -1,8 +1,8 @@
 package acra
 
 import (
-	. "github.com/cossacklabs/acra/utils"
 	"fmt"
+	. "github.com/cossacklabs/acra/utils"
 	"log"
 	"net"
 	"time"

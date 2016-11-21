@@ -1,11 +1,11 @@
 package poison
 
 import (
-	"github.com/cossacklabs/acra"
-	"github.com/cossacklabs/acra/utils"
 	"crypto/rand"
 	"encoding/binary"
 	"errors"
+	"github.com/cossacklabs/acra"
+	"github.com/cossacklabs/acra/utils"
 	"github.com/cossacklabs/themis/gothemis/cell"
 	"github.com/cossacklabs/themis/gothemis/keys"
 	"github.com/cossacklabs/themis/gothemis/message"

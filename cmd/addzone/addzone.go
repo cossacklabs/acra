@@ -1,12 +1,12 @@
 package main
 
 import (
-	"github.com/cossacklabs/acra"
-	. "github.com/cossacklabs/acra/utils"
 	"encoding/base64"
 	"encoding/json"
 	"flag"
 	"fmt"
+	"github.com/cossacklabs/acra"
+	. "github.com/cossacklabs/acra/utils"
 	"io/ioutil"
 	"os"
 	"os/user"

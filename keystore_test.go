@@ -1,9 +1,9 @@
 package acra_test
 
 import (
-	"github.com/cossacklabs/acra"
 	"bytes"
 	"fmt"
+	"github.com/cossacklabs/acra"
 	"github.com/cossacklabs/themis/gothemis/keys"
 	"os"
 	"path/filepath"

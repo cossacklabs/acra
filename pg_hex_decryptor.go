@@ -1,10 +1,10 @@
 package acra
 
 import (
-	. "github.com/cossacklabs/acra/utils"
 	"bytes"
 	"encoding/binary"
 	"encoding/hex"
+	. "github.com/cossacklabs/acra/utils"
 	"io"
 	"log"
 

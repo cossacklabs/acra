@@ -1,10 +1,10 @@
 package acra
 
 import (
-	. "github.com/cossacklabs/acra/utils"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	. "github.com/cossacklabs/acra/utils"
 	"io/ioutil"
 	"os"
 	"os/user"

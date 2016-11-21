@@ -10,8 +10,8 @@ import (
 	"net"
 	"os"
 
-	. "github.com/cossacklabs/acra/utils"
 	"bytes"
+	. "github.com/cossacklabs/acra/utils"
 	"github.com/cossacklabs/themis/gothemis/keys"
 	"github.com/cossacklabs/themis/gothemis/session"
 )

@@ -1,10 +1,10 @@
 package main
 
 import (
-	"github.com/cossacklabs/acra/acrawriter"
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"github.com/cossacklabs/acra/acrawriter"
 	"github.com/cossacklabs/themis/gothemis/keys"
 	_ "github.com/lib/pq"
 	"io/ioutil"

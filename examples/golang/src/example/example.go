@@ -1,10 +1,10 @@
 package main
 
 import (
-	"github.com/cossacklabs/acra/acrawriter"
-	"github.com/cossacklabs/acra/utils"
 	"database/sql"
 	"fmt"
+	"github.com/cossacklabs/acra/acrawriter"
+	"github.com/cossacklabs/acra/utils"
 	_ "github.com/lib/pq"
 	"log"
 	"math/rand"

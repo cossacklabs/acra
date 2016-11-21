@@ -1,11 +1,11 @@
 package acra
 
 import (
-	"github.com/cossacklabs/acra/utils"
 	"bufio"
 	"bytes"
 	"errors"
 	"fmt"
+	"github.com/cossacklabs/acra/utils"
 	"github.com/cossacklabs/themis/gothemis/keys"
 	"io"
 	"log"

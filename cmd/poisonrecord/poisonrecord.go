@@ -1,11 +1,11 @@
 package main
 
 import (
-	"github.com/cossacklabs/acra/poison"
-	"github.com/cossacklabs/acra/utils"
 	"encoding/base64"
 	"flag"
 	"fmt"
+	"github.com/cossacklabs/acra/poison"
+	"github.com/cossacklabs/acra/utils"
 	"os"
 )
 

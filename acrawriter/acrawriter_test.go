@@ -1,11 +1,11 @@
 package acrawriter_test
 
 import (
-	"github.com/cossacklabs/acra"
-	"github.com/cossacklabs/acra/acrawriter"
 	"bytes"
 	"crypto/rand"
 	"encoding/binary"
+	"github.com/cossacklabs/acra"
+	"github.com/cossacklabs/acra/acrawriter"
 	"github.com/cossacklabs/themis/gothemis/cell"
 	"github.com/cossacklabs/themis/gothemis/keys"
 	"github.com/cossacklabs/themis/gothemis/message"

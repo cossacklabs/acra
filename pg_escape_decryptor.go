@@ -1,9 +1,9 @@
 package acra
 
 import (
-	. "github.com/cossacklabs/acra/utils"
 	"bytes"
 	"encoding/binary"
+	. "github.com/cossacklabs/acra/utils"
 	"io"
 	"log"
 	"strconv"

@@ -1,8 +1,8 @@
 package acra_test
 
 import (
-	"github.com/cossacklabs/acra"
 	"encoding/hex"
+	"github.com/cossacklabs/acra"
 	"github.com/cossacklabs/themis/gothemis/keys"
 	"testing"
 )

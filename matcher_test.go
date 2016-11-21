@@ -1,9 +1,9 @@
 package acra_test
 
 import (
-	"github.com/cossacklabs/acra"
 	"encoding/hex"
 	"fmt"
+	"github.com/cossacklabs/acra"
 	"testing"
 )
 

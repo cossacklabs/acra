@@ -1,12 +1,12 @@
 package main
 
 import (
-	"github.com/cossacklabs/acra"
-	"github.com/cossacklabs/acra/poison"
-	"github.com/cossacklabs/acra/utils"
 	"bytes"
 	"flag"
 	"fmt"
+	"github.com/cossacklabs/acra"
+	"github.com/cossacklabs/acra/poison"
+	"github.com/cossacklabs/acra/utils"
 	"io"
 	"io/ioutil"
 	"log"
