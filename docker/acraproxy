@@ -1,0 +1,15 @@
+FROM golang
+RUN apt-get update && apt-get install -y libssl-dev
+RUN git clone https://github.com/cossacklabs/themis.git /themis
+WORKDIR /themis
+RUN make SECURE_COMPARATOR=enable install && ldconfig
+RUN rm -rf /themis
+RUN mkdir /keys
+ARG HTTP_LOGIN
+ARG HTTP_PASSWORD
+RUN git clone https://$HTTP_LOGIN:$HTTP_PASSWORD@ph.cossacklabs.com/diffusion/ACRA/acra.git /acra
+WORKDIR /acra
+ENV GOPATH /acra
+RUN go get github.com/cossacklabs/themis/gothemis/...
+RUN go build cmd/acraproxy/acraproxy.go
+EXPOSE 9494

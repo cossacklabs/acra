@@ -1,0 +1,14 @@
+FROM python
+RUN apt-get update && apt-get install -y libpq-dev git
+RUN git clone https://github.com/cossacklabs/themis.git /themis
+WORKDIR /themis
+RUN make SECURE_COMPARATOR=enable install && ldconfig
+RUN rm -rf /themis
+RUN mkdir /keys
+ARG HTTP_LOGIN
+ARG HTTP_PASSWORD
+RUN git clone https://$HTTP_LOGIN:$HTTP_PASSWORD@ph.cossacklabs.com/diffusion/ACRA/acra.git /acra
+WORKDIR /acra/wrappers/python
+RUN pip3 install -r requirements.txt
+ENV PYTHONPATH /acra/wrappers/python
+ENTRYPOINT ["python3", "acra/sqla.py", "--db_user=acra", "--port=9494", "--host=ssproxy_link"]
