@@ -90,6 +90,14 @@ func (store *FilesystemKeyStore) GenerateKey() ([]byte, []byte, error) {
 	if err != nil {
 		return []byte{}, []byte{}, err
 	}
+	keydir, err := GetDefaultKeyDir()
+	if err != nil{
+		return []byte{}, []byte{}, err
+	}
+	err = os.MkdirAll(keydir, 0700)
+	if err != nil{
+		return []byte{}, []byte{}, err
+	}
 	err = ioutil.WriteFile(store.get_file_path(fmt.Sprintf("%s_zone", string(id))), keypair.Private.Value, 0600)
 	if err != nil {
 		return []byte{}, []byte{}, err
