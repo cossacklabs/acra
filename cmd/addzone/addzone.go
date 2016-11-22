@@ -20,7 +20,7 @@ func main() {
 	//	log.SetOutput(os.Stdout)
 	//}
 	output, err := AbsPath(*output_dir)
-	if err != nil{
+	if err != nil {
 		fmt.Printf("Error: %v\n", ErrorMessage("Can't get absolute path for output dir", err))
 		os.Exit(1)
 	}

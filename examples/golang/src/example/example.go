@@ -3,13 +3,13 @@ package main
 import (
 	"database/sql"
 	"fmt"
+	"github.com/cossacklabs/acra"
 	"github.com/cossacklabs/acra/acrawriter"
 	"github.com/cossacklabs/acra/utils"
 	_ "github.com/lib/pq"
 	"log"
 	"math/rand"
 	"time"
-	"github.com/cossacklabs/acra"
 )
 
 const letterBytes = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
