@@ -70,7 +70,7 @@ func AbsPath(path string) (string, error) {
 		return path, nil
 	} else if path[:2] == "./" {
 		workdir, err := os.Getwd()
-		if err != nil{
+		if err != nil {
 			return path, err
 		}
 		path = strings.Replace(path, ".", workdir, 1)

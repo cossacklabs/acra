@@ -11,15 +11,15 @@ import (
 	"os"
 	"os/exec"
 	"os/user"
-	"strings"
-	"strconv"
 	"runtime"
+	"strconv"
+	"strings"
 
 	"bytes"
+	"github.com/cossacklabs/acra"
 	. "github.com/cossacklabs/acra/utils"
 	"github.com/cossacklabs/themis/gothemis/keys"
 	"github.com/cossacklabs/themis/gothemis/session"
-	"github.com/cossacklabs/acra"
 )
 
 const (
@@ -154,30 +154,30 @@ func proxyAcraConnections(client_connection, acra_connection net.Conn, session *
 func handleClientConnection(config *Config, connection net.Conn) {
 	defer connection.Close()
 
-	if !(config.disableUserCheck){
+	if !(config.disableUserCheck) {
 		host, port, err := net.SplitHostPort(connection.RemoteAddr().String())
-		if nil != err{
+		if nil != err {
 			log.Printf("Error: %v\n", ErrorMessage("can't parse client remote address", err))
 			return
-		}					
-		if host == "127.0.0.1"{
-			netstat, err := exec.Command("sh", "-c", "netstat -atlnpe | awk '/:"+ port +" */ {print $7}'").Output()
-			if nil != err{
+		}
+		if host == "127.0.0.1" {
+			netstat, err := exec.Command("sh", "-c", "netstat -atlnpe | awk '/:"+port+" */ {print $7}'").Output()
+			if nil != err {
 				log.Printf("Error: %v\n", ErrorMessage("can't get owner UID of localhost client connection", err))
 				return
 			}
 			parsed_netstat := strings.Split(string(netstat), "\n")
 			correct_peer := false
 			user_id, err := user.Current()
-			if nil != err{
+			if nil != err {
 				log.Printf("Error: %v\n", ErrorMessage("can't get current user UID", err))
 				return
-			}			
+			}
 			fmt.Printf("Info: %v\ncur_user=%v\n", parsed_netstat, user_id.Uid)
-			for i:=0; i< len(parsed_netstat); i++ {
-				if _, err := strconv.Atoi(parsed_netstat[i]); err == nil && parsed_netstat[i] !=  user_id.Uid{
+			for i := 0; i < len(parsed_netstat); i++ {
+				if _, err := strconv.Atoi(parsed_netstat[i]); err == nil && parsed_netstat[i] != user_id.Uid {
 					correct_peer = true
-					break;
+					break
 				}
 			}
 			if !correct_peer {
@@ -214,12 +214,12 @@ func handleClientConnection(config *Config, connection net.Conn) {
 }
 
 type Config struct {
-	KeysDir  string
-	ClientId []byte
-	AcraId   []byte
-	AcraHost string
-	AcraPort int
-	Port     int
+	KeysDir          string
+	ClientId         []byte
+	AcraId           []byte
+	AcraHost         string
+	AcraPort         int
+	Port             int
 	disableUserCheck bool
 }
 
@@ -278,7 +278,7 @@ func main() {
 	} else {
 		log.SetOutput(ioutil.Discard)
 	}
-	if runtime.GOOS != "linux"{
+	if runtime.GOOS != "linux" {
 		*disable_user_check = true
 	}
 	config := &Config{KeysDir: *keys_dir, ClientId: []byte(*client_id), AcraHost: *acra_host, AcraPort: *acra_port, Port: *port, AcraId: []byte(*acra_id), disableUserCheck: *disable_user_check}
@@ -287,7 +287,7 @@ func main() {
 		log.Printf("Error: %v\n", ErrorMessage("can't start listen connections", err))
 		os.Exit(1)
 	}
-	if *with_zone{
+	if *with_zone {
 		go func() {
 			commands_config := &Config{KeysDir: *keys_dir, ClientId: []byte(*client_id), AcraHost: *acra_host, AcraPort: *acra_commands_port, Port: *commands_port, AcraId: []byte(*acra_id), disableUserCheck: *disable_user_check}
 			commands_listener, err := net.Listen("tcp", fmt.Sprintf(":%v", *commands_port))

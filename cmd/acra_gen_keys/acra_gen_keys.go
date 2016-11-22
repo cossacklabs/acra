@@ -3,11 +3,11 @@ package main
 import (
 	"flag"
 	"fmt"
+	"github.com/cossacklabs/acra"
 	"github.com/cossacklabs/themis/gothemis/keys"
 	"os"
 	"os/user"
 	"strings"
-	"github.com/cossacklabs/acra"
 )
 
 func absPath(path string) (string, error) {

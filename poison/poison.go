@@ -4,6 +4,7 @@ import (
 	"crypto/rand"
 	"encoding/binary"
 	"errors"
+	"fmt"
 	"github.com/cossacklabs/acra"
 	"github.com/cossacklabs/acra/utils"
 	"github.com/cossacklabs/themis/gothemis/cell"
@@ -13,7 +14,6 @@ import (
 	math_rand "math/rand"
 	"os"
 	"time"
-	"fmt"
 )
 
 const (
@@ -22,7 +22,7 @@ const (
 	MAX_DATA_LENGTH         = 100
 )
 
-func GetDefaultPoisonKeyPath()(string, error){
+func GetDefaultPoisonKeyPath() (string, error) {
 	return utils.AbsPath(fmt.Sprintf("%v/poison_key", acra.DEFAULT_KEY_DIR_SHORT))
 }
 
@@ -90,14 +90,14 @@ func GetOrCreatePoisonKey(path string) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	_, err = os.Stat(path);
+	_, err = os.Stat(path)
 	if os.IsNotExist(err) {
 		dir, err := acra.GetDefaultKeyDir()
-		if err != nil{
+		if err != nil {
 			return nil, err
 		}
 		err = os.MkdirAll(dir, 0700)
-		if err != nil{
+		if err != nil {
 			return nil, err
 		}
 		key, err := GeneratePoisonKey(path)
@@ -105,7 +105,7 @@ func GetOrCreatePoisonKey(path string) ([]byte, error) {
 			return nil, err
 		}
 		return key, nil
-	} else if err != nil{
+	} else if err != nil {
 		return nil, err
 	} else {
 		return ioutil.ReadFile(path)
