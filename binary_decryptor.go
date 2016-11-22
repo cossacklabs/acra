@@ -15,7 +15,7 @@ import (
 type BinaryDecryptor struct {
 	current_index    uint8
 	is_with_zone     bool
-	key_block_buffer [KEY_BLOCK_LENGTH]byte
+	key_block_buffer []byte
 	length_buf       [DATA_LENGTH_SIZE]byte
 	buf              []byte
 	key_store        KeyStore
@@ -24,7 +24,9 @@ type BinaryDecryptor struct {
 	callback_storage *PoisonCallbackStorage
 }
 
-func NewBinaryDecryptor() Decryptor { return &BinaryDecryptor{} }
+func NewBinaryDecryptor() Decryptor {
+	return &BinaryDecryptor{key_block_buffer: make([]byte, KEY_BLOCK_LENGTH)}
+}
 
 /* not implemented Decryptor interface */
 func (decryptor *BinaryDecryptor) MatchBeginTag(char byte) bool {
