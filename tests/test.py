@@ -101,7 +101,7 @@ class BaseTestCase(unittest.TestCase):
         return subprocess.Popen(
             ['./acraserver', '-db_host='+db_host, '-db_port={}'.format(db_port),
              '-{}'.format(format), '-host=127.0.0.1', '-port={}'.format(acra_port),
-             '-z' if with_zone else '', '-v', '-d' if self.DEBUG else ''],
+             '-zonemode' if with_zone else '', '-v', '-d' if self.DEBUG else ''],
             stdout=sys.stdout)
 
     def setUp(self):

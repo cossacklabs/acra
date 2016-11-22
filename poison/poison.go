@@ -10,7 +10,6 @@ import (
 	"github.com/cossacklabs/themis/gothemis/keys"
 	"github.com/cossacklabs/themis/gothemis/message"
 	"io/ioutil"
-	"log"
 	math_rand "math/rand"
 	"os"
 	"time"
@@ -18,10 +17,14 @@ import (
 )
 
 const (
-	DEFAULT_POISON_KEY_PATH = fmt.Sprintf("%v/poison_key", acra.DEFAULT_KEY_DIR_SHORT)
+	DEFAULT_POISON_KEY_PATH = "./.acrakeys/poison_key"
 	DEFAULT_DATA_LENGTH     = -1
 	MAX_DATA_LENGTH         = 100
 )
+
+func GetDefaultPoisonKeyPath()(string, error){
+	return utils.AbsPath(fmt.Sprintf("%v/poison_key", acra.DEFAULT_KEY_DIR_SHORT))
+}
 
 func GeneratePoisonKey(path string) ([]byte, error) {
 	key := make([]byte, acra.SYMMETRIC_KEY_SIZE)
@@ -33,15 +36,7 @@ func GeneratePoisonKey(path string) ([]byte, error) {
 		return nil, errors.New("Can't generate random key of correct length")
 	}
 
-	file, err := os.Create(path)
-	if err != nil {
-		return nil, err
-	}
-
-	n, err = file.Write(key)
-	if n != acra.SYMMETRIC_KEY_SIZE {
-		return nil, errors.New("Error in writing poison key")
-	}
+	err = ioutil.WriteFile(path, key, 0600)
 	if err != nil {
 		return nil, err
 	}
@@ -95,17 +90,23 @@ func GetOrCreatePoisonKey(path string) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	if _, err = os.Stat(path); os.IsNotExist(err) {
-		log.Printf("Error: %v\n", utils.ErrorMessage("can't check is exists poison key in fs", err))
+	_, err = os.Stat(path);
+	if os.IsNotExist(err) {
+		dir, err := acra.GetDefaultKeyDir()
+		if err != nil{
+			return nil, err
+		}
+		err = os.MkdirAll(dir, 0700)
+		if err != nil{
+			return nil, err
+		}
 		key, err := GeneratePoisonKey(path)
 		if err != nil {
 			return nil, err
 		}
-		err = ioutil.WriteFile(path, key, 0600)
-		if err != nil {
-			return nil, err
-		}
 		return key, nil
+	} else if err != nil{
+		return nil, err
 	} else {
 		return ioutil.ReadFile(path)
 	}
