@@ -19,14 +19,11 @@ import (
 //[92, 50, 48, 53], 32, [92, 51, 55, 51]
 var ESCAPE_TAG_BEGIN = []byte{92, 50, 48, 53, 32, 92, 51, 55, 51}
 
-const (
-	SLASH_CHAR = 92
-)
 
 func EncodeToOctal(from, to []byte) int {
 	output_length := 0
 	for _, c := range from {
-		if is_printable_octets(c) {
+		if IsPrintableEscapeChar(c) {
 			if c == SLASH_CHAR {
 				to = append(to, []byte{SLASH_CHAR, SLASH_CHAR}...)
 				output_length += 2
@@ -112,14 +109,6 @@ func (decryptor *PgEscapeDecryptor) GetMatched() []byte {
 	return ESCAPE_TAG_BEGIN[:decryptor.current_index]
 }
 
-// return true if character is ascii printable (code between 32 and 126)
-func is_printable_octets(c byte) bool {
-	if c >= 32 && c <= 126 {
-		return true
-	} else {
-		return false
-	}
-}
 func (decryptor *PgEscapeDecryptor) readOctalData(data, oct_data []byte, reader io.Reader) (int, int, error) {
 	data_index := 0
 	oct_data_index := 0
@@ -135,7 +124,7 @@ func (decryptor *PgEscapeDecryptor) readOctalData(data, oct_data []byte, reader 
 		}
 		oct_data[oct_data_index] = char_buf[0]
 		oct_data_index++
-		if !is_printable_octets(char_buf[0]) {
+		if !IsPrintableEscapeChar(char_buf[0]) {
 			return data_index, oct_data_index, FAKE_ACRA_STRUCT
 		}
 

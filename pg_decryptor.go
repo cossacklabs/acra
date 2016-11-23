@@ -7,6 +7,7 @@ import (
 	"errors"
 	"io"
 	"log"
+	acra_io "github.com/cossacklabs/acra/io"
 )
 
 type DataRow struct {
@@ -74,7 +75,7 @@ func (row *DataRow) readByte(reader io.Reader, writer io.Writer, err_ch chan<- e
 	return true
 }
 
-func (row *DataRow) SkipDataDescription(reader *ExtendedBufferedReader, writer *bufio.Writer, err_ch chan<- error) bool {
+func (row *DataRow) SkipDataDescription(reader *acra_io.ExtendedBufferedReader, writer *bufio.Writer, err_ch chan<- error) bool {
 	/* Detect data description packet from postgresql that should start with T and
 	4 byte length of description, proxy data as is and return when should be started data row packets*/
 	packet_begin := true
@@ -133,10 +134,10 @@ func PgDecryptStream(decryptor Decryptor, rr *bufio.Reader, writer *bufio.Writer
 	}
 	var buf_reader = bufio.NewReader(&bytes.Reader{})
 	var buf_writer = bufio.NewWriter(r.column_data_buf)
-	reader := ExtendedBufferedReader{reader: rr}
+	reader := acra_io.NewExtendedBufferedReader(rr)
 	inner_err_ch := make(chan error, 1)
 	for {
-		if !r.SkipDataDescription(&reader, writer, err_ch) {
+		if !r.SkipDataDescription(reader, writer, err_ch) {
 			return
 		}
 		log.Println("Debug: skiped row description")

@@ -1,5 +1,9 @@
 package acra
 
+import (
+	"github.com/cossacklabs/acra/io"
+)
+
 type DbByteReader interface {
 	ReadByte(c byte) (bool, byte, error)
 	GetBuffered() []byte
@@ -19,7 +23,7 @@ func NewPgHexMatcherFactory() MatcherFactory {
 }
 
 func (*PgHexMatcherFactory) CreateMatcher() Matcher {
-	return NewPgMatcher(NewPgHexByteReader())
+	return NewPgMatcher(io.NewPgHexByteReader())
 }
 
 type PgEscapeMatcherFactory struct{}
@@ -29,7 +33,7 @@ func NewPgEscapeMatcherFactory() MatcherFactory {
 }
 
 func (*PgEscapeMatcherFactory) CreateMatcher() Matcher {
-	return NewPgMatcher(NewPgEscapeByteReader())
+	return NewPgMatcher(io.NewPgEscapeByteReader())
 }
 
 /* end custom matcher factories */
@@ -50,7 +54,7 @@ type PgMatcher struct {
 func NewPgMatcher(db_reader DbByteReader) Matcher {
 	return &PgMatcher{
 		pg_matcher:     NewBaseMatcher(db_reader),
-		binary_matcher: NewBaseMatcher(NewBinaryByteReader()),
+		binary_matcher: NewBaseMatcher(io.NewBinaryByteReader()),
 	}
 }
 func (matcher *PgMatcher) Match(c byte) bool {
