@@ -1,14 +1,14 @@
 package fuzz
 
 import (
-	_ "github.com/lib/pq"
+	"bytes"
+	"database/sql"
+	"encoding/base64"
+	"fmt"
 	"github.com/cossacklabs/acra/acrawriter"
 	"github.com/cossacklabs/themis/gothemis/keys"
-	"bytes"
-	"fmt"
-	"database/sql"
+	_ "github.com/lib/pq"
 	"log"
-	"encoding/base64"
 )
 
 var dbConnection *sql.DB

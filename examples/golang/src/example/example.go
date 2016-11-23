@@ -4,12 +4,12 @@ import (
 	"database/sql"
 	"fmt"
 	"github.com/cossacklabs/acra/acrawriter"
+	"github.com/cossacklabs/acra/keystore"
 	"github.com/cossacklabs/acra/utils"
 	_ "github.com/lib/pq"
 	"log"
 	"math/rand"
 	"time"
-	"github.com/cossacklabs/acra/keystore"
 )
 
 const letterBytes = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"

@@ -7,13 +7,13 @@ import (
 	"log"
 	"net"
 
+	"github.com/cossacklabs/acra/config"
+	"github.com/cossacklabs/acra/decryptor/base"
+	"github.com/cossacklabs/acra/decryptor/postgresql"
 	. "github.com/cossacklabs/acra/utils"
 	"github.com/cossacklabs/themis/gothemis/keys"
 	"github.com/cossacklabs/themis/gothemis/session"
 	"io"
-	"github.com/cossacklabs/acra/config"
-	"github.com/cossacklabs/acra/decryptor/postgresql"
-	"github.com/cossacklabs/acra/decryptor/base"
 )
 
 type ClientSession struct {

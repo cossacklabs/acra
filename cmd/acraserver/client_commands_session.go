@@ -8,9 +8,9 @@ import (
 	"net/http"
 	"strings"
 
-	. "github.com/cossacklabs/acra/utils"
-	"github.com/cossacklabs/acra/keystore"
 	"github.com/cossacklabs/acra/config"
+	"github.com/cossacklabs/acra/keystore"
+	. "github.com/cossacklabs/acra/utils"
 )
 
 type ClientCommandsSession struct {

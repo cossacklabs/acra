@@ -10,7 +10,7 @@ type ExtendedBufferedReader struct {
 	reader *bufio.Reader
 }
 
-func NewExtendedBufferedReader(reader *bufio.Reader)*ExtendedBufferedReader{
+func NewExtendedBufferedReader(reader *bufio.Reader) *ExtendedBufferedReader {
 	return &ExtendedBufferedReader{reader: reader}
 }
 

@@ -5,11 +5,11 @@ import (
 	"crypto/rand"
 	"encoding/binary"
 	"github.com/cossacklabs/acra/acrawriter"
+	"github.com/cossacklabs/acra/decryptor/base"
 	"github.com/cossacklabs/themis/gothemis/cell"
 	"github.com/cossacklabs/themis/gothemis/keys"
 	"github.com/cossacklabs/themis/gothemis/message"
 	"testing"
-	"github.com/cossacklabs/acra/decryptor/base"
 )
 
 func TestCreateAcrastruct(t *testing.T) {

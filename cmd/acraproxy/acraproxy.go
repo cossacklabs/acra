@@ -11,10 +11,10 @@ import (
 	"os"
 
 	"bytes"
+	"github.com/cossacklabs/acra/keystore"
 	. "github.com/cossacklabs/acra/utils"
 	"github.com/cossacklabs/themis/gothemis/keys"
 	"github.com/cossacklabs/themis/gothemis/session"
-	"github.com/cossacklabs/acra/keystore"
 )
 
 const (

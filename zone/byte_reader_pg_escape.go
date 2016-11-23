@@ -1,10 +1,9 @@
 package zone
 
 import (
-	"strconv"
 	"github.com/cossacklabs/acra/utils"
+	"strconv"
 )
-
 
 type PgEscapeByteReader struct {
 	current_index byte

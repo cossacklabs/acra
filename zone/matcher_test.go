@@ -3,8 +3,8 @@ package zone_test
 import (
 	"encoding/hex"
 	"fmt"
-	"testing"
 	"github.com/cossacklabs/acra/zone"
+	"testing"
 )
 
 func assertMatchFail(c byte, matcher zone.Matcher, t *testing.T) {

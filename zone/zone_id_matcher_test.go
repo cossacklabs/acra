@@ -2,10 +2,10 @@ package zone_test
 
 import (
 	"encoding/hex"
+	"github.com/cossacklabs/acra/keystore"
+	"github.com/cossacklabs/acra/zone"
 	"github.com/cossacklabs/themis/gothemis/keys"
 	"testing"
-	"github.com/cossacklabs/acra/zone"
-	"github.com/cossacklabs/acra/keystore"
 )
 
 func assertZoneMatchNotFail(c byte, matcher *zone.ZoneIdMatcher, t *testing.T) {

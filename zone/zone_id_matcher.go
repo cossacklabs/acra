@@ -13,7 +13,7 @@ type ZoneIdMatcher struct {
 	matchers     *list.List
 	zone_id      []byte
 	matcher_pool *MatcherPool
-	keychecker     KeyChecker
+	keychecker   KeyChecker
 }
 
 func NewZoneMatcher(matcher_pool *MatcherPool, keychecker KeyChecker) *ZoneIdMatcher {
@@ -21,7 +21,7 @@ func NewZoneMatcher(matcher_pool *MatcherPool, keychecker KeyChecker) *ZoneIdMat
 		matchers:     list.New(),
 		matcher_pool: matcher_pool,
 		matched:      false,
-		keychecker:     keychecker,
+		keychecker:   keychecker,
 	}
 	matcher.addEmptyMatcher()
 	return matcher

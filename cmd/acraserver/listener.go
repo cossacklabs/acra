@@ -7,12 +7,12 @@ import (
 	"net"
 	"time"
 
-	"github.com/cossacklabs/themis/gothemis/session"
+	"github.com/cossacklabs/acra/config"
+	"github.com/cossacklabs/acra/decryptor/base"
+	pg "github.com/cossacklabs/acra/decryptor/postgresql"
 	"github.com/cossacklabs/acra/keystore"
 	"github.com/cossacklabs/acra/zone"
-	"github.com/cossacklabs/acra/config"
-	pg "github.com/cossacklabs/acra/decryptor/postgresql"
-	"github.com/cossacklabs/acra/decryptor/base"
+	"github.com/cossacklabs/themis/gothemis/session"
 )
 
 const (

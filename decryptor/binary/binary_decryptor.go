@@ -4,15 +4,15 @@ import (
 	"bytes"
 	"encoding/binary"
 	"fmt"
+	"github.com/cossacklabs/acra/decryptor/base"
+	"github.com/cossacklabs/acra/keystore"
 	. "github.com/cossacklabs/acra/utils"
+	"github.com/cossacklabs/acra/zone"
 	"github.com/cossacklabs/themis/gothemis/cell"
 	"github.com/cossacklabs/themis/gothemis/keys"
 	"github.com/cossacklabs/themis/gothemis/message"
 	"io"
 	"log"
-	"github.com/cossacklabs/acra/keystore"
-	"github.com/cossacklabs/acra/zone"
-	"github.com/cossacklabs/acra/decryptor/base"
 )
 
 type BinaryDecryptor struct {

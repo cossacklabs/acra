@@ -3,11 +3,11 @@ package keystore_test
 import (
 	"bytes"
 	"fmt"
+	"github.com/cossacklabs/acra/keystore"
 	"github.com/cossacklabs/themis/gothemis/keys"
 	"os"
 	"path/filepath"
 	"testing"
-	"github.com/cossacklabs/acra/keystore"
 )
 
 func TestOneKeyKeyStore(t *testing.T) {

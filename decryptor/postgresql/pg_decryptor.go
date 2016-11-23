@@ -5,11 +5,11 @@ import (
 	"bytes"
 	"encoding/binary"
 	"errors"
-	"io"
-	"log"
+	"github.com/cossacklabs/acra/decryptor/base"
 	acra_io "github.com/cossacklabs/acra/io"
 	"github.com/cossacklabs/acra/zone"
-	"github.com/cossacklabs/acra/decryptor/base"
+	"io"
+	"log"
 )
 
 type DataRow struct {

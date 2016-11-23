@@ -9,19 +9,18 @@ import (
 	"strconv"
 
 	"fmt"
+	"github.com/cossacklabs/acra/decryptor/base"
+	"github.com/cossacklabs/acra/keystore"
+	"github.com/cossacklabs/acra/zone"
 	"github.com/cossacklabs/themis/gothemis/cell"
 	"github.com/cossacklabs/themis/gothemis/keys"
 	"github.com/cossacklabs/themis/gothemis/message"
-	"github.com/cossacklabs/acra/keystore"
-	"github.com/cossacklabs/acra/zone"
-	"github.com/cossacklabs/acra/decryptor/base"
 )
 
 // TAG_BEGIN in hex format
 // 133              32   251
 //[92, 50, 48, 53], 32, [92, 51, 55, 51]
 var ESCAPE_TAG_BEGIN = []byte{92, 50, 48, 53, 32, 92, 51, 55, 51}
-
 
 func EncodeToOctal(from, to []byte) int {
 	output_length := 0

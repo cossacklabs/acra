@@ -4,6 +4,8 @@ import (
 	"bytes"
 	"flag"
 	"fmt"
+	acra_config "github.com/cossacklabs/acra/config"
+	"github.com/cossacklabs/acra/keystore"
 	"github.com/cossacklabs/acra/poison"
 	"github.com/cossacklabs/acra/utils"
 	"io"
@@ -12,8 +14,6 @@ import (
 	"net/http"
 	_ "net/http/pprof"
 	"os"
-	"github.com/cossacklabs/acra/keystore"
-	acra_config "github.com/cossacklabs/acra/config"
 )
 
 var DEBUG_PREFIX = []byte("Debug: ")

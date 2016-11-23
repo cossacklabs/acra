@@ -1,12 +1,12 @@
 package postgresql
 
 import (
-	"github.com/cossacklabs/themis/gothemis/keys"
-	"io"
+	"github.com/cossacklabs/acra/decryptor/base"
+	"github.com/cossacklabs/acra/decryptor/binary"
 	"github.com/cossacklabs/acra/keystore"
 	"github.com/cossacklabs/acra/zone"
-	"github.com/cossacklabs/acra/decryptor/binary"
-	"github.com/cossacklabs/acra/decryptor/base"
+	"github.com/cossacklabs/themis/gothemis/keys"
+	"io"
 )
 
 type PgDecryptor struct {

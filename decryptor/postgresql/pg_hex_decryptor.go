@@ -9,12 +9,12 @@ import (
 	"log"
 
 	"fmt"
+	"github.com/cossacklabs/acra/decryptor/base"
+	"github.com/cossacklabs/acra/keystore"
+	"github.com/cossacklabs/acra/zone"
 	"github.com/cossacklabs/themis/gothemis/cell"
 	"github.com/cossacklabs/themis/gothemis/keys"
 	"github.com/cossacklabs/themis/gothemis/message"
-	"github.com/cossacklabs/acra/zone"
-	"github.com/cossacklabs/acra/keystore"
-	"github.com/cossacklabs/acra/decryptor/base"
 )
 
 // TAG_BEGIN in hex format

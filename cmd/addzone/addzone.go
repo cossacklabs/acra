@@ -5,10 +5,10 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
+	"github.com/cossacklabs/acra/keystore"
 	. "github.com/cossacklabs/acra/utils"
 	"io/ioutil"
 	"os"
-	"github.com/cossacklabs/acra/keystore"
 )
 
 func main() {
@@ -20,7 +20,7 @@ func main() {
 	//	log.SetOutput(os.Stdout)
 	//}
 	output, err := AbsPath(*output_dir)
-	if err != nil{
+	if err != nil {
 		fmt.Printf("Error: %v\n", ErrorMessage("Can't get absolute path for output dir", err))
 		os.Exit(1)
 	}

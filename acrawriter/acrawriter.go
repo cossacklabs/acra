@@ -4,11 +4,11 @@ import (
 	"crypto/rand"
 	"encoding/binary"
 	"errors"
+	"github.com/cossacklabs/acra/decryptor/base"
 	"github.com/cossacklabs/acra/utils"
 	"github.com/cossacklabs/themis/gothemis/cell"
 	"github.com/cossacklabs/themis/gothemis/keys"
 	"github.com/cossacklabs/themis/gothemis/message"
-	"github.com/cossacklabs/acra/decryptor/base"
 )
 
 func CreateAcrastruct(data []byte, acra_public *keys.PublicKey, context []byte) ([]byte, error) {

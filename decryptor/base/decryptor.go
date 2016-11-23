@@ -5,12 +5,12 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"github.com/cossacklabs/acra/keystore"
 	"github.com/cossacklabs/acra/utils"
+	"github.com/cossacklabs/acra/zone"
 	"github.com/cossacklabs/themis/gothemis/keys"
 	"io"
 	"log"
-	"github.com/cossacklabs/acra/zone"
-	"github.com/cossacklabs/acra/keystore"
 )
 
 // error show that failed acra struct recognizing but data is may be valid
