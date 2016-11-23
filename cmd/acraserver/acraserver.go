@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"flag"
 	"fmt"
-	"github.com/cossacklabs/acra"
 	"github.com/cossacklabs/acra/poison"
 	"github.com/cossacklabs/acra/utils"
 	"io"
@@ -14,6 +13,7 @@ import (
 	_ "net/http/pprof"
 	"os"
 	"github.com/cossacklabs/acra/keystore"
+	acra_config "github.com/cossacklabs/acra/config"
 )
 
 var DEBUG_PREFIX = []byte("Debug: ")
@@ -80,7 +80,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	config := acra.NewConfig()
+	config := acra_config.NewConfig()
 	// now it's stub as default values
 	config.SetStopOnPoison(*stop_on_poison)
 	config.SetScriptOnPoison(*script_on_poison)
@@ -94,12 +94,12 @@ func main() {
 	config.SetKeysDir(*keys_dir)
 	config.SetServerId([]byte(*server_id))
 	if *hex_format || !*escape_format {
-		config.SetByteaFormat(acra.HEX_BYTEA_FORMAT)
+		config.SetByteaFormat(acra_config.HEX_BYTEA_FORMAT)
 	} else {
-		config.SetByteaFormat(acra.ESCAPE_BYTEA_FORMAT)
+		config.SetByteaFormat(acra_config.ESCAPE_BYTEA_FORMAT)
 	}
 
-	server, err := acra.NewServer(config)
+	server, err := NewServer(config)
 	if err != nil {
 		panic(err)
 	}

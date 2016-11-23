@@ -1,4 +1,4 @@
-package acra
+package main
 
 import (
 	"fmt"
@@ -10,6 +10,9 @@ import (
 	"github.com/cossacklabs/themis/gothemis/session"
 	"github.com/cossacklabs/acra/keystore"
 	"github.com/cossacklabs/acra/zone"
+	"github.com/cossacklabs/acra/config"
+	pg "github.com/cossacklabs/acra/decryptor/postgresql"
+	"github.com/cossacklabs/acra/decryptor/base"
 )
 
 const (
@@ -17,10 +20,10 @@ const (
 )
 
 type SServer struct {
-	config *Config
+	config *config.Config
 }
 
-func NewServer(config *Config) (server *SServer, err error) {
+func NewServer(config *config.Config) (server *SServer, err error) {
 	server = &SServer{config: config}
 	return
 }
@@ -67,7 +70,7 @@ func (server *SServer) initSSession(connection net.Conn) (*ClientSession, error)
 	}
 }
 
-func (server *SServer) getDecryptor(client_session *ClientSession) Decryptor {
+func (server *SServer) getDecryptor(client_session *ClientSession) base.Decryptor {
 	var keystorage keystore.KeyStore
 	if server.config.GetWithZone() {
 		keystorage = keystore.NewFilesystemKeyStore(server.config.GetKeysDir())
@@ -75,32 +78,32 @@ func (server *SServer) getDecryptor(client_session *ClientSession) Decryptor {
 		keystorage = keystore.NewOneKeyStore(client_session.GetServerPrivateKey())
 	}
 
-	var data_decryptor DataDecryptor
+	var data_decryptor base.DataDecryptor
 	var matcher_pool *zone.MatcherPool
-	if server.config.GetByteaFormat() == HEX_BYTEA_FORMAT {
-		data_decryptor = NewPgHexDecryptor()
+	if server.config.GetByteaFormat() == config.HEX_BYTEA_FORMAT {
+		data_decryptor = pg.NewPgHexDecryptor()
 		matcher_pool = zone.NewMatcherPool(zone.NewPgHexMatcherFactory())
 	} else {
-		data_decryptor = NewPgEscapeDecryptor()
+		data_decryptor = pg.NewPgEscapeDecryptor()
 		matcher_pool = zone.NewMatcherPool(zone.NewPgEscapeMatcherFactory())
 	}
-	decryptor := NewPgDecryptor(data_decryptor)
-	decryptor.SetWithZone(server.config.GetWithZone())
-	decryptor.SetKeyStore(keystorage)
-	decryptor.SetPoisonKey(server.config.GetPoisonKey())
+	decryptor_impl := pg.NewPgDecryptor(data_decryptor)
+	decryptor_impl.SetWithZone(server.config.GetWithZone())
+	decryptor_impl.SetKeyStore(keystorage)
+	decryptor_impl.SetPoisonKey(server.config.GetPoisonKey())
 	zone_matcher := zone.NewZoneMatcher(matcher_pool, keystorage)
-	decryptor.SetZoneMatcher(zone_matcher)
+	decryptor_impl.SetZoneMatcher(zone_matcher)
 
-	poison_callback_storage := NewPoisonCallbackStorage()
+	poison_callback_storage := base.NewPoisonCallbackStorage()
 	if server.config.GetScriptOnPoison() != "" {
-		poison_callback_storage.AddCallback(NewExecuteScriptCallback(server.config.GetScriptOnPoison()))
+		poison_callback_storage.AddCallback(base.NewExecuteScriptCallback(server.config.GetScriptOnPoison()))
 	}
 	// must be last
 	if server.config.GetStopOnPoison() {
-		poison_callback_storage.AddCallback(&StopCallback{})
+		poison_callback_storage.AddCallback(&base.StopCallback{})
 	}
-	decryptor.SetPoisonCallbackStorage(poison_callback_storage)
-	return decryptor
+	decryptor_impl.SetPoisonCallbackStorage(poison_callback_storage)
+	return decryptor_impl
 }
 
 /*

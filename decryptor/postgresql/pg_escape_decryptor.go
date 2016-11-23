@@ -1,4 +1,4 @@
-package acra
+package postgresql
 
 import (
 	"bytes"
@@ -14,6 +14,7 @@ import (
 	"github.com/cossacklabs/themis/gothemis/message"
 	"github.com/cossacklabs/acra/keystore"
 	"github.com/cossacklabs/acra/zone"
+	"github.com/cossacklabs/acra/decryptor/base"
 )
 
 // TAG_BEGIN in hex format
@@ -56,9 +57,9 @@ type PgEscapeDecryptor struct {
 	output_size      int
 	is_with_zone     bool
 	poison_key       []byte
-	callback_storage *PoisonCallbackStorage
+	callback_storage *base.PoisonCallbackStorage
 	// max size can be 4 characters for octal representation per byte
-	oct_key_block_buffer     [KEY_BLOCK_LENGTH * 4]byte
+	oct_key_block_buffer     [base.KEY_BLOCK_LENGTH * 4]byte
 	decoded_key_block_buffer []byte
 	//uint64
 	length_buf [8]byte
@@ -74,7 +75,7 @@ func NewPgEscapeDecryptor() *PgEscapeDecryptor {
 		current_index:            0,
 		is_with_zone:             false,
 		output_size:              0,
-		decoded_key_block_buffer: make([]byte, KEY_BLOCK_LENGTH),
+		decoded_key_block_buffer: make([]byte, base.KEY_BLOCK_LENGTH),
 	}
 }
 
@@ -122,12 +123,12 @@ func (decryptor *PgEscapeDecryptor) readOctalData(data, oct_data []byte, reader 
 		}
 		if n != 1 {
 			log.Println("Debug: readOctalData read 0 bytes")
-			return data_index, oct_data_index, FAKE_ACRA_STRUCT
+			return data_index, oct_data_index, base.FAKE_ACRA_STRUCT
 		}
 		oct_data[oct_data_index] = char_buf[0]
 		oct_data_index++
 		if !IsPrintableEscapeChar(char_buf[0]) {
-			return data_index, oct_data_index, FAKE_ACRA_STRUCT
+			return data_index, oct_data_index, base.FAKE_ACRA_STRUCT
 		}
 
 		// if slash than next char must be slash too
@@ -156,12 +157,12 @@ func (decryptor *PgEscapeDecryptor) readOctalData(data, oct_data []byte, reader 
 						oct_data_index += n
 					}
 					log.Printf("Warning: expected 2 octal symbols, but read %v\n", n)
-					return data_index, oct_data_index, FAKE_ACRA_STRUCT
+					return data_index, oct_data_index, base.FAKE_ACRA_STRUCT
 				}
 				// parse 3 octal symbols
 				num, err := strconv.ParseInt(string(decryptor.oct_char_buf[:]), 8, 9)
 				if err != nil {
-					return data_index, oct_data_index, FAKE_ACRA_STRUCT
+					return data_index, oct_data_index, base.FAKE_ACRA_STRUCT
 				}
 				data[data_index] = byte(num)
 				data_index++
@@ -184,14 +185,14 @@ func (decryptor *PgEscapeDecryptor) ReadSymmetricKey(private_key *keys.PrivateKe
 	if err != nil {
 		return nil, decryptor.oct_key_block_buffer[:oct_data_length], err
 	}
-	if len(decryptor.decoded_key_block_buffer) != KEY_BLOCK_LENGTH || data_length != KEY_BLOCK_LENGTH {
-		return nil, decryptor.oct_key_block_buffer[:oct_data_length], FAKE_ACRA_STRUCT
+	if len(decryptor.decoded_key_block_buffer) != base.KEY_BLOCK_LENGTH || data_length != base.KEY_BLOCK_LENGTH {
+		return nil, decryptor.oct_key_block_buffer[:oct_data_length], base.FAKE_ACRA_STRUCT
 	}
-	smessage := message.New(private_key, &keys.PublicKey{Value: decryptor.decoded_key_block_buffer[:PUBLIC_KEY_LENGTH]})
-	symmetric_key, err := smessage.Unwrap(decryptor.decoded_key_block_buffer[PUBLIC_KEY_LENGTH:])
+	smessage := message.New(private_key, &keys.PublicKey{Value: decryptor.decoded_key_block_buffer[:base.PUBLIC_KEY_LENGTH]})
+	symmetric_key, err := smessage.Unwrap(decryptor.decoded_key_block_buffer[base.PUBLIC_KEY_LENGTH:])
 	if err != nil {
 		log.Printf("Warning: %v\n", ErrorMessage("can't unwrap scell data", err))
-		return nil, decryptor.oct_key_block_buffer[:oct_data_length], FAKE_ACRA_STRUCT
+		return nil, decryptor.oct_key_block_buffer[:oct_data_length], base.FAKE_ACRA_STRUCT
 	}
 	decryptor.output_size += oct_data_length
 	return symmetric_key, decryptor.oct_key_block_buffer[:oct_data_length], nil
@@ -207,7 +208,7 @@ func (decryptor *PgEscapeDecryptor) readDataLength(reader io.Reader) (uint64, []
 	}
 	if len_count != len(decryptor.length_buf) {
 		log.Printf("Warning: incorrect length count, %v!=%v\n", len_count, len(decryptor.length_buf))
-		return 0, decryptor.oct_length_buf[:oct_len_count], FAKE_ACRA_STRUCT
+		return 0, decryptor.oct_length_buf[:oct_len_count], base.FAKE_ACRA_STRUCT
 	}
 	decryptor.output_size += oct_len_count
 	binary.Read(bytes.NewBuffer(decryptor.length_buf[:]), binary.LittleEndian, &length)
@@ -223,7 +224,7 @@ func (decryptor *PgEscapeDecryptor) readScellData(length uint64, reader io.Reade
 	}
 	if n != int(length) {
 		log.Printf("Warning: read incorrect length, %v!=%v\n", n, length)
-		return nil, hex_buf[:oct_n], FAKE_ACRA_STRUCT
+		return nil, hex_buf[:oct_n], base.FAKE_ACRA_STRUCT
 	}
 	decryptor.output_size += oct_n
 	return buf, hex_buf[:oct_n], nil
@@ -248,7 +249,7 @@ func (decryptor *PgEscapeDecryptor) ReadData(symmetric_key, zone_id []byte, read
 	// fill zero symmetric_key
 	FillSlice(byte(0), symmetric_key[:])
 	if err != nil {
-		return append(hex_length_buf, oct_data...), FAKE_ACRA_STRUCT
+		return append(hex_length_buf, oct_data...), base.FAKE_ACRA_STRUCT
 	}
 
 	// 16 - uint64 length in escape encoded format
@@ -293,10 +294,10 @@ func (decryptor *PgEscapeDecryptor) GetMatchedZoneId() []byte {
 	}
 }
 
-func (decryptor *PgEscapeDecryptor) SetPoisonCallbackStorage(storage *PoisonCallbackStorage) {
+func (decryptor *PgEscapeDecryptor) SetPoisonCallbackStorage(storage *base.PoisonCallbackStorage) {
 	decryptor.callback_storage = storage
 }
 
-func (decryptor *PgEscapeDecryptor) GetPoisonCallbackStorage() *PoisonCallbackStorage {
+func (decryptor *PgEscapeDecryptor) GetPoisonCallbackStorage() *base.PoisonCallbackStorage {
 	return decryptor.callback_storage
 }

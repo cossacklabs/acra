@@ -4,12 +4,12 @@ import (
 	"bytes"
 	"crypto/rand"
 	"encoding/binary"
-	"github.com/cossacklabs/acra"
 	"github.com/cossacklabs/acra/acrawriter"
 	"github.com/cossacklabs/themis/gothemis/cell"
 	"github.com/cossacklabs/themis/gothemis/keys"
 	"github.com/cossacklabs/themis/gothemis/message"
 	"testing"
+	"github.com/cossacklabs/acra/decryptor/base"
 )
 
 func TestCreateAcrastruct(t *testing.T) {
@@ -29,21 +29,21 @@ func TestCreateAcrastruct(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if bytes.Compare(acra_struct[:len(acra.TAG_BEGIN)], acra.TAG_BEGIN) != 0 {
+	if bytes.Compare(acra_struct[:len(base.TAG_BEGIN)], base.TAG_BEGIN) != 0 {
 		t.Fatal("Acrastruct has incorrect tag begin")
 	}
-	public_key := acra_struct[len(acra.TAG_BEGIN) : len(acra.TAG_BEGIN)+acra.PUBLIC_KEY_LENGTH]
+	public_key := acra_struct[len(base.TAG_BEGIN) : len(base.TAG_BEGIN)+base.PUBLIC_KEY_LENGTH]
 	smessage := message.New(acra_kp.Private, &keys.PublicKey{Value: public_key})
-	wrapped_key := acra_struct[len(acra.TAG_BEGIN)+acra.PUBLIC_KEY_LENGTH : len(acra.TAG_BEGIN)+acra.KEY_BLOCK_LENGTH]
+	wrapped_key := acra_struct[len(base.TAG_BEGIN)+base.PUBLIC_KEY_LENGTH : len(base.TAG_BEGIN)+base.KEY_BLOCK_LENGTH]
 
 	unwrapped_key, err := smessage.Unwrap(wrapped_key)
 	if err != nil {
 		t.Fatal(err)
 	}
 	scell := cell.New(unwrapped_key, cell.CELL_MODE_SEAL)
-	data_length_buf := acra_struct[len(acra.TAG_BEGIN)+acra.KEY_BLOCK_LENGTH : len(acra.TAG_BEGIN)+acra.KEY_BLOCK_LENGTH+acra.DATA_LENGTH_SIZE]
+	data_length_buf := acra_struct[len(base.TAG_BEGIN)+base.KEY_BLOCK_LENGTH : len(base.TAG_BEGIN)+base.KEY_BLOCK_LENGTH+base.DATA_LENGTH_SIZE]
 	data_length := int(binary.LittleEndian.Uint64(data_length_buf))
-	data := acra_struct[len(acra.TAG_BEGIN)+acra.KEY_BLOCK_LENGTH+acra.DATA_LENGTH_SIZE:]
+	data := acra_struct[len(base.TAG_BEGIN)+base.KEY_BLOCK_LENGTH+base.DATA_LENGTH_SIZE:]
 	if len(data) != data_length {
 		t.Fatal("Incorrect data length")
 	}

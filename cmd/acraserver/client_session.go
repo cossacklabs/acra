@@ -1,4 +1,4 @@
-package acra
+package main
 
 import (
 	"bufio"
@@ -11,12 +11,15 @@ import (
 	"github.com/cossacklabs/themis/gothemis/keys"
 	"github.com/cossacklabs/themis/gothemis/session"
 	"io"
+	"github.com/cossacklabs/acra/config"
+	"github.com/cossacklabs/acra/decryptor/postgresql"
+	"github.com/cossacklabs/acra/decryptor/base"
 )
 
 type ClientSession struct {
 	session            *session.SecureSession
 	server_private_key *keys.PrivateKey
-	config             *Config
+	config             *config.Config
 	client_id          []byte
 	connection         net.Conn
 	connection_to_db   net.Conn
@@ -45,7 +48,7 @@ func get_server_private_key(client_id []byte, keys_dir string) (*keys.PrivateKey
 	return LoadPrivateKey(fmt.Sprintf("%v/%v_server", keys_dir, string(client_id)))
 }
 
-func NewClientSession(client_id []byte, config *Config, connection net.Conn) (*ClientSession, error) {
+func NewClientSession(client_id []byte, config *config.Config, connection net.Conn) (*ClientSession, error) {
 	server_private, err := get_server_private_key(client_id, config.GetKeysDir())
 	if err != nil {
 		return nil, err
@@ -121,7 +124,7 @@ func (client_session *ClientSession) close() {
 /* proxy connections from client to db and decrypt responses from db to client
 if any error occured than end processing
 */
-func (client_session *ClientSession) HandleSecureSession(decryptor Decryptor) {
+func (client_session *ClientSession) HandleSecureSession(decryptor_impl base.Decryptor) {
 	inner_error_channel := make(chan error, 2)
 
 	err := client_session.ConnectToDb()
@@ -140,7 +143,7 @@ func (client_session *ClientSession) HandleSecureSession(decryptor Decryptor) {
 	reader := bufio.NewReaderSize(client_session.connection_to_db, 8192)
 	writer := bufio.NewWriter(client_session)
 	//go DecryptStream(decryptor, reader, writer, inner_error_channel)
-	go PgDecryptStream(decryptor, reader, writer, inner_error_channel)
+	go postgresql.PgDecryptStream(decryptor_impl, reader, writer, inner_error_channel)
 	err = <-inner_error_channel
 	if err == io.EOF {
 		log.Println("Debug: EOF connection closed")

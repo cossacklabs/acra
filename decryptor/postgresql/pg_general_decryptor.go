@@ -1,29 +1,31 @@
-package acra
+package postgresql
 
 import (
 	"github.com/cossacklabs/themis/gothemis/keys"
 	"io"
 	"github.com/cossacklabs/acra/keystore"
 	"github.com/cossacklabs/acra/zone"
+	"github.com/cossacklabs/acra/decryptor/binary"
+	"github.com/cossacklabs/acra/decryptor/base"
 )
 
 type PgDecryptor struct {
 	is_with_zone      bool
 	key_store         keystore.KeyStore
 	zone_matcher      *zone.ZoneIdMatcher
-	pg_decryptor      DataDecryptor
-	binary_decryptor  DataDecryptor
-	matched_decryptor DataDecryptor
+	pg_decryptor      base.DataDecryptor
+	binary_decryptor  base.DataDecryptor
+	matched_decryptor base.DataDecryptor
 
 	poison_key       []byte
-	callback_storage *PoisonCallbackStorage
+	callback_storage *base.PoisonCallbackStorage
 }
 
-func NewPgDecryptor(decryptor DataDecryptor) *PgDecryptor {
+func NewPgDecryptor(decryptor base.DataDecryptor) *PgDecryptor {
 	return &PgDecryptor{
 		is_with_zone:     false,
 		pg_decryptor:     decryptor,
-		binary_decryptor: NewBinaryDecryptor(),
+		binary_decryptor: binary.NewBinaryDecryptor(),
 	}
 }
 
@@ -114,10 +116,10 @@ func (decryptor *PgDecryptor) GetPrivateKey() (*keys.PrivateKey, error) {
 	return decryptor.key_store.GetKey(decryptor.GetMatchedZoneId())
 }
 
-func (decryptor *PgDecryptor) GetPoisonCallbackStorage() *PoisonCallbackStorage {
+func (decryptor *PgDecryptor) GetPoisonCallbackStorage() *base.PoisonCallbackStorage {
 	return decryptor.callback_storage
 }
 
-func (decryptor *PgDecryptor) SetPoisonCallbackStorage(storage *PoisonCallbackStorage) {
+func (decryptor *PgDecryptor) SetPoisonCallbackStorage(storage *base.PoisonCallbackStorage) {
 	decryptor.callback_storage = storage
 }

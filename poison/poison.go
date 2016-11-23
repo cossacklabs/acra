@@ -4,7 +4,6 @@ import (
 	"crypto/rand"
 	"encoding/binary"
 	"errors"
-	"github.com/cossacklabs/acra"
 	"github.com/cossacklabs/acra/utils"
 	"github.com/cossacklabs/themis/gothemis/cell"
 	"github.com/cossacklabs/themis/gothemis/keys"
@@ -15,6 +14,7 @@ import (
 	"time"
 	"fmt"
 	"github.com/cossacklabs/acra/keystore"
+	"github.com/cossacklabs/acra/decryptor/base"
 )
 
 const (
@@ -28,12 +28,12 @@ func GetDefaultPoisonKeyPath()(string, error){
 }
 
 func GeneratePoisonKey(path string) ([]byte, error) {
-	key := make([]byte, acra.SYMMETRIC_KEY_SIZE)
+	key := make([]byte, base.SYMMETRIC_KEY_SIZE)
 	n, err := rand.Read(key)
 	if err != nil {
 		return nil, err
 	}
-	if n != acra.SYMMETRIC_KEY_SIZE {
+	if n != base.SYMMETRIC_KEY_SIZE {
 		return nil, errors.New("Can't generate random key of correct length")
 	}
 
@@ -75,10 +75,10 @@ func CreatePoisonRecord(poison_key []byte, data_length int, acra_public *keys.Pu
 		return nil, err
 	}
 
-	encrypted_data_length := make([]byte, acra.DATA_LENGTH_SIZE)
+	encrypted_data_length := make([]byte, base.DATA_LENGTH_SIZE)
 	binary.LittleEndian.PutUint64(encrypted_data_length, uint64(len(encrypted_data)))
-	output := make([]byte, len(acra.TAG_BEGIN)+acra.KEY_BLOCK_LENGTH+acra.DATA_LENGTH_SIZE+len(encrypted_data))
-	output = append(output[:0], acra.TAG_BEGIN...)
+	output := make([]byte, len(base.TAG_BEGIN)+base.KEY_BLOCK_LENGTH+base.DATA_LENGTH_SIZE+len(encrypted_data))
+	output = append(output[:0], base.TAG_BEGIN...)
 	output = append(output, random_kp.Public.Value...)
 	output = append(output, encrypted_key...)
 	output = append(output, encrypted_data_length...)

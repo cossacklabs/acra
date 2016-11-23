@@ -4,11 +4,11 @@ import (
 	"crypto/rand"
 	"encoding/binary"
 	"errors"
-	"github.com/cossacklabs/acra"
 	"github.com/cossacklabs/acra/utils"
 	"github.com/cossacklabs/themis/gothemis/cell"
 	"github.com/cossacklabs/themis/gothemis/keys"
 	"github.com/cossacklabs/themis/gothemis/message"
+	"github.com/cossacklabs/acra/decryptor/base"
 )
 
 func CreateAcrastruct(data []byte, acra_public *keys.PublicKey, context []byte) ([]byte, error) {
@@ -17,12 +17,12 @@ func CreateAcrastruct(data []byte, acra_public *keys.PublicKey, context []byte) 
 		return nil, err
 	}
 	// generate random symmetric key
-	random_key := make([]byte, acra.SYMMETRIC_KEY_SIZE)
+	random_key := make([]byte, base.SYMMETRIC_KEY_SIZE)
 	n, err := rand.Read(random_key)
 	if err != nil {
 		return nil, err
 	}
-	if n != acra.SYMMETRIC_KEY_SIZE {
+	if n != base.SYMMETRIC_KEY_SIZE {
 		return nil, errors.New("Read incorrect num of random bytes")
 	}
 
@@ -40,10 +40,10 @@ func CreateAcrastruct(data []byte, acra_public *keys.PublicKey, context []byte) 
 	}
 	utils.FillSlice('0', random_key)
 	// pack acrastruct
-	data_length := make([]byte, acra.DATA_LENGTH_SIZE)
+	data_length := make([]byte, base.DATA_LENGTH_SIZE)
 	binary.LittleEndian.PutUint64(data_length, uint64(len(encrypted_data)))
-	output := make([]byte, len(acra.TAG_BEGIN)+acra.KEY_BLOCK_LENGTH+acra.DATA_LENGTH_SIZE+len(encrypted_data))
-	output = append(output[:0], acra.TAG_BEGIN...)
+	output := make([]byte, len(base.TAG_BEGIN)+base.KEY_BLOCK_LENGTH+base.DATA_LENGTH_SIZE+len(encrypted_data))
+	output = append(output[:0], base.TAG_BEGIN...)
 	output = append(output, random_kp.Public.Value...)
 	output = append(output, encrypted_key...)
 	output = append(output, data_length...)

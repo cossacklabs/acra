@@ -1,4 +1,4 @@
-package acra
+package base
 
 import (
 	"bufio"
@@ -70,7 +70,7 @@ type Decryptor interface {
 	ResetZoneMatch()
 }
 
-func check_read_write(n, expected_n int, err error, err_ch chan<- error) bool {
+func CheckReadWrite(n, expected_n int, err error, err_ch chan<- error) bool {
 	if err != nil {
 		err_ch <- err
 		return false
@@ -89,7 +89,7 @@ func DecryptStream(decryptor Decryptor, reader *bufio.Reader, writer *bufio.Writ
 	inner_err_ch := make(chan error, 1)
 	for {
 		n, err := reader.Read(char_buf)
-		if !check_read_write(n, 1, err, err_ch) {
+		if !CheckReadWrite(n, 1, err, err_ch) {
 			/*TODO think how fix case when readed in stream matched begin tags and than EOF.
 			TODO in this case these last bytes
 			TODO but on other side we shouldn't reset in case when used recursively...
@@ -105,7 +105,7 @@ func DecryptStream(decryptor Decryptor, reader *bufio.Reader, writer *bufio.Writ
 			if !decryptor.IsMatchedZone() {
 				decryptor.MatchZone(char_buf[0])
 				n, err = writer.Write(char_buf)
-				if !check_read_write(n, 1, err, err_ch) {
+				if !CheckReadWrite(n, 1, err, err_ch) {
 					return
 				}
 				if reader.Buffered() == 0 {
@@ -127,7 +127,7 @@ func DecryptStream(decryptor Decryptor, reader *bufio.Reader, writer *bufio.Writ
 				if err != nil {
 					if err == FAKE_ACRA_STRUCT {
 						_, err = writer.Write(decryptor.GetMatched())
-						if !check_read_write(1, 1, err, err_ch) {
+						if !CheckReadWrite(1, 1, err, err_ch) {
 							return
 						}
 						decryptor.Reset()
@@ -155,12 +155,12 @@ func DecryptStream(decryptor Decryptor, reader *bufio.Reader, writer *bufio.Writ
 						return
 					}
 					_, err = writer.Write(decryptor.GetMatched())
-					if !check_read_write(1, 1, err, err_ch) {
+					if !CheckReadWrite(1, 1, err, err_ch) {
 						return
 					}
 					decryptor.Reset()
 					_, err = writer.Write(raw_data)
-					if !check_read_write(1, 1, err, err_ch) {
+					if !CheckReadWrite(1, 1, err, err_ch) {
 						return
 					}
 					continue
@@ -171,7 +171,7 @@ func DecryptStream(decryptor Decryptor, reader *bufio.Reader, writer *bufio.Writ
 						log.Println("Warning: can't decrypt data in acrastruct")
 						// write begin tag
 						_, err = writer.Write(decryptor.GetMatched())
-						if !check_read_write(1, 1, err, err_ch) {
+						if !CheckReadWrite(1, 1, err, err_ch) {
 							return
 						}
 						decryptor.ResetZoneMatch()
@@ -193,7 +193,7 @@ func DecryptStream(decryptor Decryptor, reader *bufio.Reader, writer *bufio.Writ
 					}
 				}
 				n, err = writer.Write(data)
-				if !check_read_write(n, len(data), err, err_ch) {
+				if !CheckReadWrite(n, len(data), err, err_ch) {
 					return
 				}
 				decryptor.ResetZoneMatch()
@@ -203,13 +203,13 @@ func DecryptStream(decryptor Decryptor, reader *bufio.Reader, writer *bufio.Writ
 		} else {
 			// write buffered bytes after comparison
 			_, err = writer.Write(decryptor.GetMatched())
-			if !check_read_write(1, 1, err, err_ch) {
+			if !CheckReadWrite(1, 1, err, err_ch) {
 				return
 			}
 			decryptor.Reset()
 
 			n, err = writer.Write(char_buf)
-			if !check_read_write(n, 1, err, err_ch) {
+			if !CheckReadWrite(n, 1, err, err_ch) {
 				return
 			}
 		}

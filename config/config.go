@@ -1,4 +1,4 @@
-package acra
+package config
 
 import (
 	"errors"

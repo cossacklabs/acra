@@ -1,4 +1,4 @@
-package acra
+package main
 
 import (
 	"bufio"
@@ -10,13 +10,14 @@ import (
 
 	. "github.com/cossacklabs/acra/utils"
 	"github.com/cossacklabs/acra/keystore"
+	"github.com/cossacklabs/acra/config"
 )
 
 type ClientCommandsSession struct {
 	ClientSession
 }
 
-func NewClientCommandsSession(client_id []byte, config *Config, connection net.Conn) (*ClientCommandsSession, error) {
+func NewClientCommandsSession(client_id []byte, config *config.Config, connection net.Conn) (*ClientCommandsSession, error) {
 	client_session, err := NewClientSession(client_id, config, connection)
 	if err != nil {
 		return nil, err
