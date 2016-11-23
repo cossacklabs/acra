@@ -78,7 +78,7 @@ class TestCompilation(unittest.TestCase):
         self.assertFalse(subprocess.call(['go', 'build', 'github.com/cossacklabs/acra/cmd/acraserver'], cwd=os.getcwd()))
         self.assertFalse(subprocess.call(['go', 'build', 'github.com/cossacklabs/acra/cmd/acra_addzone'], cwd=os.getcwd()))
         self.assertFalse(subprocess.call(['go', 'build', 'github.com/cossacklabs/acra/cmd/acra_genkeys'], cwd=os.getcwd()))
-        self.assertFalse(subprocess.call(['go', 'build', 'github.com/cossacklabs/acra/cmd/poisonrecord'], cwd=os.getcwd()))
+        self.assertFalse(subprocess.call(['go', 'build', 'github.com/cossacklabs/acra/cmd/acra_genpoisonrecord'], cwd=os.getcwd()))
 
 
 class BaseTestCase(unittest.TestCase):
