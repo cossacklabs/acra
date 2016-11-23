@@ -15,8 +15,8 @@ cd acra
 
 ## Без зон
 Перед запуском:
-* сгенерируйте пару ключей для ssproxy `go run src/acra_gen_keys/acra_gen_keys.go -key_name=client`
-* сгенерируйте пару ключей для acra `go run src/acra_gen_keys/acra_gen_keys.go -key_name=client_server`
+* сгенерируйте пару ключей для ssproxy `go run src/acra_genkeys/acra_genkeys.go -key_name=client`
+* сгенерируйте пару ключей для acra `go run src/acra_genkeys/acra_genkeys.go -key_name=client_server`
 * запустите acra и укажите ip postgresql ((в моем случае запускаю акру, ssproxy и postgresql локально на одной машине) `go run src/acra/main/main.go -db_host=127.0.0.1`
 * запустите ssproxy указав ip акры и client_id `go run src/ssproxy/ssproxy.go -client_id=client -acra_host=127.0.0.1`
 * в examples/golang/src/example/example.go задайте свои параметры в `const CONNECTION_STRING string = "..."`
@@ -39,8 +39,8 @@ raw_data: SyURoaeoRktPlbAPRiLR
 ## С зонами
 
 Перед запуском:
-* сгенерируйте пару ключей для ssproxy `go run src/acra_gen_keys/acra_gen_keys.go -key_name=client`
-* сгенерируйте пару ключей для acra `go run src/acra_gen_keys/acra_gen_keys.go -key_name=client_server`
+* сгенерируйте пару ключей для ssproxy `go run src/acra_genkeys/acra_genkeys.go -key_name=client`
+* сгенерируйте пару ключей для acra `go run src/acra_genkeys/acra_genkeys.go -key_name=client_server`
 * запустите acra и укажите ip postgresql ((в моем случае запускаю акру, ssproxy и postgresql локально на одной машине) `go run src/acra/main/main.go -db_host=127.0.0.1 -z`
 * запустите ssproxy указав ip акры и client_id `go run src/ssproxy/ssproxy.go -client_id=client -acra_host=127.0.0.1`
 * в examples/golang/src/example/example_with_zone.go задайте свои параметры в `const CONNECTION_STRING string = "..."`

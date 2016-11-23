@@ -22,8 +22,8 @@ hSD7VUVDMgAAAC0GPZUAAtxiVBj7+LzTz5+qDQLuIF4MNIPpvuNOoGx5pMFHSmSRICcEJlQAAAAAAQFA
 ## Without zones
 * create key pair for acra:
 ```
-go build acra_gen_keys
-./acra_gen_keys -key_name=test_server
+go build acra_genkeys
+./acra_genkeys -key_name=test_server
 ```
 * create poison record using this public key
 ```
