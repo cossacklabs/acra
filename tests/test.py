@@ -1,3 +1,16 @@
+# Copyright 2016, Cossack Labs Limited
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
 # coding: utf-8
 import json
 import time
@@ -11,6 +24,7 @@ from base64 import b64decode
 from os.path import expanduser
 
 import psycopg2
+import pwd
 import sqlalchemy as sa
 from sqlalchemy.dialects.postgresql import BYTEA
 
@@ -100,7 +114,8 @@ class BaseTestCase(unittest.TestCase):
             ['./acraproxy', '-acra_host=127.0.0.1', '-acra_port={}'.format(acra_port),
              '-client_id={}'.format(client_id), '-port={}'.format(proxy_port), '-v',
              # now it's no matter, so just +100
-             '-command_port={}'.format(proxy_port+100)])
+             '-command_port={}'.format(proxy_port+100),
+             '-disable_user_check'])
 
     def fork_acra(self, db_host: str, db_port: int, format: str, acra_port,
                   with_zone=False):

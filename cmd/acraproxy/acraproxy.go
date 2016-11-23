@@ -1,3 +1,16 @@
+// Copyright 2016, Cossack Labs Limited
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+// http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
 package main
 
 import (
@@ -9,6 +22,11 @@ import (
 	"log"
 	"net"
 	"os"
+	"os/exec"
+	"os/user"
+	"runtime"
+	"strconv"
+	"strings"
 
 	"bytes"
 	"github.com/cossacklabs/acra/keystore"
@@ -149,6 +167,39 @@ func proxyAcraConnections(client_connection, acra_connection net.Conn, session *
 func handleClientConnection(config *Config, connection net.Conn) {
 	defer connection.Close()
 
+	if !(config.disableUserCheck) {
+		host, port, err := net.SplitHostPort(connection.RemoteAddr().String())
+		if nil != err {
+			log.Printf("Error: %v\n", ErrorMessage("can't parse client remote address", err))
+			return
+		}
+		if host == "127.0.0.1" {
+			netstat, err := exec.Command("sh", "-c", "netstat -atlnpe | awk '/:"+port+" */ {print $7}'").Output()
+			if nil != err {
+				log.Printf("Error: %v\n", ErrorMessage("can't get owner UID of localhost client connection", err))
+				return
+			}
+			parsed_netstat := strings.Split(string(netstat), "\n")
+			correct_peer := false
+			user_id, err := user.Current()
+			if nil != err {
+				log.Printf("Error: %v\n", ErrorMessage("can't get current user UID", err))
+				return
+			}
+			fmt.Printf("Info: %v\ncur_user=%v\n", parsed_netstat, user_id.Uid)
+			for i := 0; i < len(parsed_netstat); i++ {
+				if _, err := strconv.Atoi(parsed_netstat[i]); err == nil && parsed_netstat[i] != user_id.Uid {
+					correct_peer = true
+					break
+				}
+			}
+			if !correct_peer {
+				log.Println("Error: client application and ssproxy need to be start from different users")
+				return
+			}
+		}
+	}
+
 	acra_conn, err := net.Dial("tcp", fmt.Sprintf("%v:%v", config.AcraHost, config.AcraPort))
 	if err != nil {
 		log.Printf("Error: %v\n", ErrorMessage("can't connect to acra", err))
@@ -176,12 +227,13 @@ func handleClientConnection(config *Config, connection net.Conn) {
 }
 
 type Config struct {
-	KeysDir  string
-	ClientId []byte
-	AcraId   []byte
-	AcraHost string
-	AcraPort int
-	Port     int
+	KeysDir          string
+	ClientId         []byte
+	AcraId           []byte
+	AcraHost         string
+	AcraPort         int
+	Port             int
+	disableUserCheck bool
 }
 
 func main() {
@@ -194,6 +246,8 @@ func main() {
 	verbose := flag.Bool("v", false, "log to stdout")
 	port := flag.Int("port", 9494, "port for proxy from")
 	commands_port := flag.Int("command_port", 9191, "port for accepting command connection")
+	with_zone := flag.Bool("zonemode", false, "with zone")
+	disable_user_check := flag.Bool("disable_user_check", false, "disable user check")
 	flag.Parse()
 
 	if len(*client_id) <= MIN_LENGTH_CLIENT_ID {
@@ -237,32 +291,35 @@ func main() {
 	} else {
 		log.SetOutput(ioutil.Discard)
 	}
-
-	config := &Config{KeysDir: *keys_dir, ClientId: []byte(*client_id), AcraHost: *acra_host, AcraPort: *acra_port, Port: *port, AcraId: []byte(*acra_id)}
+	if runtime.GOOS != "linux" {
+		*disable_user_check = true
+	}
+	config := &Config{KeysDir: *keys_dir, ClientId: []byte(*client_id), AcraHost: *acra_host, AcraPort: *acra_port, Port: *port, AcraId: []byte(*acra_id), disableUserCheck: *disable_user_check}
 	listener, err := net.Listen("tcp", fmt.Sprintf(":%v", *port))
 	if err != nil {
 		log.Printf("Error: %v\n", ErrorMessage("can't start listen connections", err))
 		os.Exit(1)
 	}
-	go func() {
-		commands_config := &Config{KeysDir: *keys_dir, ClientId: []byte(*client_id), AcraHost: *acra_host, AcraPort: *acra_commands_port, Port: *commands_port, AcraId: []byte(*acra_id)}
-		commands_listener, err := net.Listen("tcp", fmt.Sprintf(":%v", *commands_port))
-		if err != nil {
-			log.Printf("Error: %v\n", ErrorMessage("can't start listen connections to http api", err))
-			os.Exit(1)
-		}
-		fmt.Printf("Info: start listening http api %v\n", *commands_port)
-		for {
-			connection, err := commands_listener.Accept()
+	if *with_zone {
+		go func() {
+			commands_config := &Config{KeysDir: *keys_dir, ClientId: []byte(*client_id), AcraHost: *acra_host, AcraPort: *acra_commands_port, Port: *commands_port, AcraId: []byte(*acra_id), disableUserCheck: *disable_user_check}
+			commands_listener, err := net.Listen("tcp", fmt.Sprintf(":%v", *commands_port))
 			if err != nil {
-				log.Printf("Error: %v\n", ErrorMessage(fmt.Sprintf("can't accept new connection (%v)", connection.RemoteAddr()), err))
-				continue
+				log.Printf("Error: %v\n", ErrorMessage("can't start listen connections to http api", err))
+				os.Exit(1)
 			}
-			log.Printf("Info: new connection to http api: %v\n", connection.RemoteAddr())
-			go handleClientConnection(commands_config, connection)
-		}
-	}()
-
+			fmt.Printf("Info: start listening http api %v\n", *commands_port)
+			for {
+				connection, err := commands_listener.Accept()
+				if err != nil {
+					log.Printf("Error: %v\n", ErrorMessage(fmt.Sprintf("can't accept new connection (%v)", connection.RemoteAddr()), err))
+					continue
+				}
+				log.Printf("Info: new connection to http api: %v\n", connection.RemoteAddr())
+				go handleClientConnection(commands_config, connection)
+			}
+		}()
+	}
 	fmt.Printf("Info: start listening %v\n", *port)
 	for {
 		connection, err := listener.Accept()
