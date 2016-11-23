@@ -3,8 +3,8 @@
 The same like for correct acra structs:
 * add zone like 
 ```
-[acra]$ go build addzone
-[acra]$ ./addzone 
+[acra]$ go build acra_addzone
+[acra]$ ./acra_addzone 
 {"id":"ZXChVYmCtQgasDlqtrz","public_key":"VUVDMgAAAC3e8NhhAjK+wyOntdyqlPg3c89Vu5z3JskxuxgAQVynNOLnel4c"}
 ```
 * save decoded from base64 public key in file (for example ZXChVYmCtQgasDlqtrz.pub). For example:

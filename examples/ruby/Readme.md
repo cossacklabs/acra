@@ -49,7 +49,7 @@ XUFCEDTO | XUFCEDTO
 * запустите acra и укажите ip postgresql ((в моем случае запускаю акру, ssproxy и postgresql локально на одной машине) `go run src/acra/main/main.go -db_host=127.0.0.1 -z`
 * запустите ssproxy указав ip акры и client_id `go run src/ssproxy/ssproxy.go -client_id=client -acra_host=127.0.0.1`
 * в examples/ruby/example_with_zone.rb задайте свои параметры в `PG.connect(...)`
-* добавьте зону `go run src/addzone/addzone.go`. Получите json строку с 
+* добавьте зону `go run src/acra_addzone/acra_addzone.go`. Получите json строку с 
 данными зоны. Подставьте в examples/ruby/example_with_zone.rb в строке `zone_data = JSON.parse('{...}')` 
 
 Запуск:

@@ -16,7 +16,7 @@ __author__ = 'Lagovas <lagovas.lagovas@gmail.com>'
 
 
 def add_zone():
-    output = subprocess.check_output(["../../addzone"])
+    output = subprocess.check_output(["../../acra_addzone"])
     parsed = json.loads(output.decode('utf-8'))
     return parsed['id'], b64decode(parsed['public_key'])
 
