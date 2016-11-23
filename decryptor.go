@@ -9,24 +9,14 @@ import (
 	"github.com/cossacklabs/themis/gothemis/keys"
 	"io"
 	"log"
+	"github.com/cossacklabs/acra/zone"
+	"github.com/cossacklabs/acra/keystore"
 )
 
 // error show that failed acra struct recognizing but data is may be valid
 var FAKE_ACRA_STRUCT = errors.New("fake acra struct")
 
 var TAG_BEGIN = []byte{133, 32, 251}
-
-// should be used ascii symbols as prefix/suffix for using as output and filenames
-
-// were chosen upper symbols because if data is text than it's less possible to
-// catch three upper consonants in a row
-var ZONE_ID_BEGIN = []byte{'Z', 'X', 'C'}
-
-const (
-	ZONE_TAG_LENGTH      = 3
-	ZONE_ID_LENGTH       = 16
-	ZONE_ID_BLOCK_LENGTH = ZONE_TAG_LENGTH + ZONE_ID_LENGTH
-)
 
 const (
 	// length of EC public key
@@ -61,7 +51,7 @@ type DataDecryptor interface {
 type Decryptor interface {
 	DataDecryptor
 	// register key store that will be used for retrieving private keys
-	SetKeyStore(KeyStore)
+	SetKeyStore(keystore.KeyStore)
 	// return private key for current connected client for decrypting symmetric
 	// key with secure message
 	GetPrivateKey() (*keys.PrivateKey, error)
@@ -69,7 +59,7 @@ type Decryptor interface {
 	SetPoisonCallbackStorage(*PoisonCallbackStorage)
 	// get current storage of callbacks for detected poison records
 	GetPoisonCallbackStorage() *PoisonCallbackStorage
-	SetZoneMatcher(*ZoneIdMatcher)
+	SetZoneMatcher(*zone.ZoneIdMatcher)
 	SetPoisonKey([]byte)
 	GetPoisonKey() []byte
 	GetMatchedZoneId() []byte

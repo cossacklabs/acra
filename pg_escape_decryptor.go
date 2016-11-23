@@ -12,6 +12,8 @@ import (
 	"github.com/cossacklabs/themis/gothemis/cell"
 	"github.com/cossacklabs/themis/gothemis/keys"
 	"github.com/cossacklabs/themis/gothemis/message"
+	"github.com/cossacklabs/acra/keystore"
+	"github.com/cossacklabs/acra/zone"
 )
 
 // TAG_BEGIN in hex format
@@ -63,8 +65,8 @@ type PgEscapeDecryptor struct {
 	// 4 oct symbols (\000) ber byte
 	oct_length_buf [8 * 4]byte
 	oct_char_buf   [3]byte
-	key_store      KeyStore
-	zone_matcher   *ZoneIdMatcher
+	key_store      keystore.KeyStore
+	zone_matcher   *zone.ZoneIdMatcher
 }
 
 func NewPgEscapeDecryptor() *PgEscapeDecryptor {
@@ -255,7 +257,7 @@ func (decryptor *PgEscapeDecryptor) ReadData(symmetric_key, zone_id []byte, read
 	return output[:n_data], nil
 }
 
-func (decryptor *PgEscapeDecryptor) SetKeyStore(store KeyStore) {
+func (decryptor *PgEscapeDecryptor) SetKeyStore(store keystore.KeyStore) {
 	decryptor.key_store = store
 }
 
@@ -263,7 +265,7 @@ func (decryptor *PgEscapeDecryptor) GetPrivateKey() (*keys.PrivateKey, error) {
 	return decryptor.key_store.GetKey(decryptor.GetMatchedZoneId())
 }
 
-func (decryptor *PgEscapeDecryptor) SetZoneMatcher(zone_matcher *ZoneIdMatcher) {
+func (decryptor *PgEscapeDecryptor) SetZoneMatcher(zone_matcher *zone.ZoneIdMatcher) {
 	decryptor.zone_matcher = zone_matcher
 }
 

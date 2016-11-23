@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	. "github.com/cossacklabs/acra/utils"
+	"github.com/cossacklabs/acra/keystore"
 )
 
 type ClientCommandsSession struct {
@@ -64,7 +65,7 @@ func (client_session *ClientCommandsSession) HandleSession() {
 	response := "HTTP/1.1 404 Not Found\r\n\r\nincorrect request\r\n\r\n"
 	switch req.URL.Path {
 	case "/getNewZone":
-		new_zone, err := addNewZone(client_session.config.GetKeysDir(), true)
+		new_zone, err := keystore.AddNewZone(client_session.config.GetKeysDir(), true)
 		if err == nil {
 			response = "HTTP/1.1 200 OK Found\r\n\r\n" + new_zone + "\r\n\r\n"
 		}

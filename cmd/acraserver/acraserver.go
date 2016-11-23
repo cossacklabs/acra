@@ -13,6 +13,7 @@ import (
 	"net/http"
 	_ "net/http/pprof"
 	"os"
+	"github.com/cossacklabs/acra/keystore"
 )
 
 var DEBUG_PREFIX = []byte("Debug: ")
@@ -40,7 +41,7 @@ func main() {
 	port := flag.Int("port", 9393, "port")
 	commands_port := flag.Int("commands_port", 9090, "commands_port")
 
-	keys_dir := flag.String("keys_dir", acra.DEFAULT_KEY_DIR_SHORT, "dir where private app key and public acra key")
+	keys_dir := flag.String("keys_dir", keystore.DEFAULT_KEY_DIR_SHORT, "dir where private app key and public acra key")
 
 	poison_key_path := flag.String("poison_key", poison.DEFAULT_POISON_KEY_PATH, "path to file with poison key")
 

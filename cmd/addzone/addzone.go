@@ -5,14 +5,14 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
-	"github.com/cossacklabs/acra"
 	. "github.com/cossacklabs/acra/utils"
 	"io/ioutil"
 	"os"
+	"github.com/cossacklabs/acra/keystore"
 )
 
 func main() {
-	output_dir := flag.String("output_dir", acra.DEFAULT_KEY_DIR_SHORT, "output dir to save public key")
+	output_dir := flag.String("output_dir", keystore.DEFAULT_KEY_DIR_SHORT, "output dir to save public key")
 	fs_keystore := flag.Bool("fs", true, "use filesystem key store")
 	//verbose := flag.Bool("v", false, "log to stdout")
 	flag.Parse()
@@ -24,16 +24,16 @@ func main() {
 		fmt.Printf("Error: %v\n", ErrorMessage("Can't get absolute path for output dir", err))
 		os.Exit(1)
 	}
-	var key_store acra.KeyStore
+	var key_store keystore.KeyStore
 	if *fs_keystore {
-		key_store = acra.NewFilesystemKeyStore(output)
+		key_store = keystore.NewFilesystemKeyStore(output)
 	}
 	id, public_key, err := key_store.GenerateKey()
 	if err != nil {
 		fmt.Printf("Error: %v\n", ErrorMessage("can't add zone", err))
 		os.Exit(1)
 	}
-	public_key_path := fmt.Sprintf("%s/%s", output, acra.GetPublicKeyFilename(id))
+	public_key_path := fmt.Sprintf("%s/%s", output, keystore.GetPublicKeyFilename(id))
 	err = ioutil.WriteFile(public_key_path, public_key, 0644)
 	if err != nil {
 		fmt.Printf("Error: can't save public key at path: %s\n", public_key_path)

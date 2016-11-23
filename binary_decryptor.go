@@ -10,6 +10,8 @@ import (
 	"github.com/cossacklabs/themis/gothemis/message"
 	"io"
 	"log"
+	"github.com/cossacklabs/acra/keystore"
+	"github.com/cossacklabs/acra/zone"
 )
 
 type BinaryDecryptor struct {
@@ -18,8 +20,8 @@ type BinaryDecryptor struct {
 	key_block_buffer []byte
 	length_buf       [DATA_LENGTH_SIZE]byte
 	buf              []byte
-	key_store        KeyStore
-	zone_matcher     *ZoneIdMatcher
+	key_store        keystore.KeyStore
+	zone_matcher     *zone.ZoneIdMatcher
 	poison_key       []byte
 	callback_storage *PoisonCallbackStorage
 }
@@ -130,7 +132,7 @@ func (decryptor *BinaryDecryptor) ReadData(symmetric_key, zone_id []byte, reader
 	return decrypted, nil
 }
 
-func (decryptor *BinaryDecryptor) SetKeyStore(store KeyStore) {
+func (decryptor *BinaryDecryptor) SetKeyStore(store keystore.KeyStore) {
 	decryptor.key_store = store
 }
 
@@ -154,7 +156,7 @@ func (decryptor *BinaryDecryptor) GetPoisonKey() []byte {
 	return decryptor.poison_key
 }
 
-func (decryptor *BinaryDecryptor) SetZoneMatcher(zone_matcher *ZoneIdMatcher) {
+func (decryptor *BinaryDecryptor) SetZoneMatcher(zone_matcher *zone.ZoneIdMatcher) {
 	decryptor.zone_matcher = zone_matcher
 }
 

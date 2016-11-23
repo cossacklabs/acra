@@ -14,6 +14,7 @@ import (
 	"os"
 	"time"
 	"fmt"
+	"github.com/cossacklabs/acra/keystore"
 )
 
 const (
@@ -23,7 +24,7 @@ const (
 )
 
 func GetDefaultPoisonKeyPath()(string, error){
-	return utils.AbsPath(fmt.Sprintf("%v/poison_key", acra.DEFAULT_KEY_DIR_SHORT))
+	return utils.AbsPath(fmt.Sprintf("%v/poison_key", keystore.DEFAULT_KEY_DIR_SHORT))
 }
 
 func GeneratePoisonKey(path string) ([]byte, error) {
@@ -92,7 +93,7 @@ func GetOrCreatePoisonKey(path string) ([]byte, error) {
 	}
 	_, err = os.Stat(path);
 	if os.IsNotExist(err) {
-		dir, err := acra.GetDefaultKeyDir()
+		dir, err := keystore.GetDefaultKeyDir()
 		if err != nil{
 			return nil, err
 		}

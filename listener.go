@@ -8,6 +8,8 @@ import (
 	"time"
 
 	"github.com/cossacklabs/themis/gothemis/session"
+	"github.com/cossacklabs/acra/keystore"
+	"github.com/cossacklabs/acra/zone"
 )
 
 const (
@@ -66,27 +68,27 @@ func (server *SServer) initSSession(connection net.Conn) (*ClientSession, error)
 }
 
 func (server *SServer) getDecryptor(client_session *ClientSession) Decryptor {
-	var keystore KeyStore
+	var keystorage keystore.KeyStore
 	if server.config.GetWithZone() {
-		keystore = NewFilesystemKeyStore(server.config.GetKeysDir())
+		keystorage = keystore.NewFilesystemKeyStore(server.config.GetKeysDir())
 	} else {
-		keystore = NewOneKeyStore(client_session.GetServerPrivateKey())
+		keystorage = keystore.NewOneKeyStore(client_session.GetServerPrivateKey())
 	}
 
 	var data_decryptor DataDecryptor
-	var matcher_pool *MatcherPool
+	var matcher_pool *zone.MatcherPool
 	if server.config.GetByteaFormat() == HEX_BYTEA_FORMAT {
 		data_decryptor = NewPgHexDecryptor()
-		matcher_pool = NewMatcherPool(NewPgHexMatcherFactory())
+		matcher_pool = zone.NewMatcherPool(zone.NewPgHexMatcherFactory())
 	} else {
 		data_decryptor = NewPgEscapeDecryptor()
-		matcher_pool = NewMatcherPool(NewPgEscapeMatcherFactory())
+		matcher_pool = zone.NewMatcherPool(zone.NewPgEscapeMatcherFactory())
 	}
 	decryptor := NewPgDecryptor(data_decryptor)
 	decryptor.SetWithZone(server.config.GetWithZone())
-	decryptor.SetKeyStore(keystore)
+	decryptor.SetKeyStore(keystorage)
 	decryptor.SetPoisonKey(server.config.GetPoisonKey())
-	zone_matcher := NewZoneMatcher(matcher_pool, keystore)
+	zone_matcher := zone.NewZoneMatcher(matcher_pool, keystorage)
 	decryptor.SetZoneMatcher(zone_matcher)
 
 	poison_callback_storage := NewPoisonCallbackStorage()

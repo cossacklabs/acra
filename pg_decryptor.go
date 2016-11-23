@@ -8,6 +8,7 @@ import (
 	"io"
 	"log"
 	acra_io "github.com/cossacklabs/acra/io"
+	"github.com/cossacklabs/acra/zone"
 )
 
 type DataRow struct {
@@ -211,7 +212,7 @@ func PgDecryptStream(decryptor Decryptor, rr *bufio.Reader, writer *bufio.Writer
 				return
 			}
 			// try to skip small piece of data that can't be valuable for us
-			if (decryptor.IsWithZone() && column_data_length >= ZONE_ID_BLOCK_LENGTH) || column_data_length >= KEY_BLOCK_LENGTH {
+			if (decryptor.IsWithZone() && column_data_length >= zone.ZONE_ID_BLOCK_LENGTH) || column_data_length >= KEY_BLOCK_LENGTH {
 				// point reader on new data block
 				buf_reader.Reset(bytes.NewReader(r.output[r.write_index : r.write_index+column_data_length]))
 				decryptor.Reset()

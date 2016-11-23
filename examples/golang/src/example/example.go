@@ -9,7 +9,7 @@ import (
 	"log"
 	"math/rand"
 	"time"
-	"github.com/cossacklabs/acra"
+	"github.com/cossacklabs/acra/keystore"
 )
 
 const letterBytes = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
@@ -25,7 +25,7 @@ func RandString(n int) []byte {
 
 func main() {
 	rand.Seed(time.Now().UnixNano())
-	acra_public, err := utils.LoadPublicKey(fmt.Sprintf("%v/client_server.pub", acra.DEFAULT_KEY_DIR_SHORT))
+	acra_public, err := utils.LoadPublicKey(fmt.Sprintf("%v/client_server.pub", keystore.DEFAULT_KEY_DIR_SHORT))
 	if err != nil {
 		panic(err)
 	}

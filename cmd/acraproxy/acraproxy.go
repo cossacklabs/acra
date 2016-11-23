@@ -14,7 +14,7 @@ import (
 	. "github.com/cossacklabs/acra/utils"
 	"github.com/cossacklabs/themis/gothemis/keys"
 	"github.com/cossacklabs/themis/gothemis/session"
-	"github.com/cossacklabs/acra"
+	"github.com/cossacklabs/acra/keystore"
 )
 
 const (
@@ -185,7 +185,7 @@ type Config struct {
 }
 
 func main() {
-	keys_dir := flag.String("keys_dir", acra.DEFAULT_KEY_DIR_SHORT, "dir where private app key and public acra key")
+	keys_dir := flag.String("keys_dir", keystore.DEFAULT_KEY_DIR_SHORT, "dir where private app key and public acra key")
 	client_id := flag.String("client_id", "", "client id should be name of file with private key")
 	acra_host := flag.String("acra_host", "", "ip or domain to acra daemon")
 	acra_commands_port := flag.Int("acra_commands_port", 9090, "port of acra commands daemon")

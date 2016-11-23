@@ -12,6 +12,8 @@ import (
 	"github.com/cossacklabs/themis/gothemis/cell"
 	"github.com/cossacklabs/themis/gothemis/keys"
 	"github.com/cossacklabs/themis/gothemis/message"
+	"github.com/cossacklabs/acra/zone"
+	"github.com/cossacklabs/acra/keystore"
 )
 
 // TAG_BEGIN in hex format
@@ -30,8 +32,8 @@ type PgHexDecryptor struct {
 	length_buf [DATA_LENGTH_SIZE]byte
 	//uint64 in hex
 	hex_length_buf [DATA_LENGTH_SIZE * 2]byte
-	key_store      KeyStore
-	zone_matcher   *ZoneIdMatcher
+	key_store      keystore.KeyStore
+	zone_matcher   *zone.ZoneIdMatcher
 
 	hex_buf []byte
 	buf     []byte

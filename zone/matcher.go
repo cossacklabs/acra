@@ -1,7 +1,15 @@
-package acra
+package zone
 
-import (
-	"github.com/cossacklabs/acra/io"
+// should be used ascii symbols as prefix/suffix for using as output and filenames
+
+// were chosen upper symbols because if data is text than it's less possible to
+// catch three upper consonants in a row
+var ZONE_ID_BEGIN = []byte{'Z', 'X', 'C'}
+
+const (
+	ZONE_TAG_LENGTH      = 3
+	ZONE_ID_LENGTH       = 16
+	ZONE_ID_BLOCK_LENGTH = ZONE_TAG_LENGTH + ZONE_ID_LENGTH
 )
 
 type DbByteReader interface {
@@ -23,7 +31,7 @@ func NewPgHexMatcherFactory() MatcherFactory {
 }
 
 func (*PgHexMatcherFactory) CreateMatcher() Matcher {
-	return NewPgMatcher(io.NewPgHexByteReader())
+	return NewPgMatcher(NewPgHexByteReader())
 }
 
 type PgEscapeMatcherFactory struct{}
@@ -33,7 +41,7 @@ func NewPgEscapeMatcherFactory() MatcherFactory {
 }
 
 func (*PgEscapeMatcherFactory) CreateMatcher() Matcher {
-	return NewPgMatcher(io.NewPgEscapeByteReader())
+	return NewPgMatcher(NewPgEscapeByteReader())
 }
 
 /* end custom matcher factories */
@@ -54,7 +62,7 @@ type PgMatcher struct {
 func NewPgMatcher(db_reader DbByteReader) Matcher {
 	return &PgMatcher{
 		pg_matcher:     NewBaseMatcher(db_reader),
-		binary_matcher: NewBaseMatcher(io.NewBinaryByteReader()),
+		binary_matcher: NewBaseMatcher(NewBinaryByteReader()),
 	}
 }
 func (matcher *PgMatcher) Match(c byte) bool {

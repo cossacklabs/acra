@@ -1,23 +1,27 @@
-package acra
+package zone
 
 import (
 	"container/list"
 )
+
+type KeyChecker interface {
+	HasKey([]byte) bool
+}
 
 type ZoneIdMatcher struct {
 	matched      bool
 	matchers     *list.List
 	zone_id      []byte
 	matcher_pool *MatcherPool
-	keystore     KeyStore
+	keychecker     KeyChecker
 }
 
-func NewZoneMatcher(matcher_pool *MatcherPool, keystore KeyStore) *ZoneIdMatcher {
+func NewZoneMatcher(matcher_pool *MatcherPool, keychecker KeyChecker) *ZoneIdMatcher {
 	matcher := &ZoneIdMatcher{
 		matchers:     list.New(),
 		matcher_pool: matcher_pool,
 		matched:      false,
-		keystore:     keystore,
+		keychecker:     keychecker,
 	}
 	matcher.addEmptyMatcher()
 	return matcher
@@ -50,7 +54,7 @@ func (zone_matcher *ZoneIdMatcher) Match(c byte) bool {
 		matcher = current_element.Value.(Matcher)
 		if matcher.Match(c) {
 			if matcher.IsMatched() {
-				if zone_matcher.keystore.HasKey(matcher.GetZoneId()) {
+				if zone_matcher.keychecker.HasKey(matcher.GetZoneId()) {
 					zone_matcher.zone_id = matcher.GetZoneId()
 					zone_matcher.matched = true
 					is_matched = true

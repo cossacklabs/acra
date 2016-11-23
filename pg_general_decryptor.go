@@ -3,12 +3,14 @@ package acra
 import (
 	"github.com/cossacklabs/themis/gothemis/keys"
 	"io"
+	"github.com/cossacklabs/acra/keystore"
+	"github.com/cossacklabs/acra/zone"
 )
 
 type PgDecryptor struct {
 	is_with_zone      bool
-	key_store         KeyStore
-	zone_matcher      *ZoneIdMatcher
+	key_store         keystore.KeyStore
+	zone_matcher      *zone.ZoneIdMatcher
 	pg_decryptor      DataDecryptor
 	binary_decryptor  DataDecryptor
 	matched_decryptor DataDecryptor
@@ -37,7 +39,7 @@ func (decryptor *PgDecryptor) SetWithZone(b bool) {
 	decryptor.is_with_zone = b
 }
 
-func (decryptor *PgDecryptor) SetZoneMatcher(zone_matcher *ZoneIdMatcher) {
+func (decryptor *PgDecryptor) SetZoneMatcher(zone_matcher *zone.ZoneIdMatcher) {
 	decryptor.zone_matcher = zone_matcher
 }
 
@@ -104,7 +106,7 @@ func (decryptor *PgDecryptor) ReadData(symmetric_key, zone_id []byte, reader io.
 	return decryptor.matched_decryptor.ReadData(symmetric_key, zone_id, reader)
 }
 
-func (decryptor *PgDecryptor) SetKeyStore(store KeyStore) {
+func (decryptor *PgDecryptor) SetKeyStore(store keystore.KeyStore) {
 	decryptor.key_store = store
 }
 

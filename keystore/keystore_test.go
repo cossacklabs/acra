@@ -1,13 +1,13 @@
-package acra_test
+package keystore_test
 
 import (
 	"bytes"
 	"fmt"
-	"github.com/cossacklabs/acra"
 	"github.com/cossacklabs/themis/gothemis/keys"
 	"os"
 	"path/filepath"
 	"testing"
+	"github.com/cossacklabs/acra/keystore"
 )
 
 func TestOneKeyKeyStore(t *testing.T) {
@@ -15,7 +15,7 @@ func TestOneKeyKeyStore(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	store := acra.NewOneKeyStore(key_pair.Private)
+	store := keystore.NewOneKeyStore(key_pair.Private)
 	// on any id it return true
 	if !store.HasKey([]byte("random id 1")) {
 		t.Fatal("Store hasn't key but should have")
@@ -55,7 +55,7 @@ func TestFileSystemKeyKeyStore(t *testing.T) {
 	defer func() {
 		os.RemoveAll(key_directory)
 	}()
-	store := acra.NewFilesystemKeyStore(key_directory)
+	store := keystore.NewFilesystemKeyStore(key_directory)
 	if store.HasKey([]byte("non-existent key")) {
 		t.Fatal("Expected false on non-existent key")
 	}
