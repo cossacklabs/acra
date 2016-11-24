@@ -16,6 +16,7 @@ dependencies:
   override:
     - rsync -auv $HOME/themis/gothemis/ $HOME/gopath/src/$GOTHEMIS_IMPORT/
     - rsync -auv $HOME/acra/ $HOME/gopath/src/$ACRA_IMPORT/
+    - $GOROOT/bin/go get github.com/lib/pq
 
 ## Customize test commands
 test:
