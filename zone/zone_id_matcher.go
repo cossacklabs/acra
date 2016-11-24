@@ -18,7 +18,7 @@ import (
 )
 
 type KeyChecker interface {
-	HasKey([]byte) bool
+	HasZonePrivateKey([]byte) bool
 }
 
 type ZoneIdMatcher struct {
@@ -67,7 +67,7 @@ func (zone_matcher *ZoneIdMatcher) Match(c byte) bool {
 		matcher = current_element.Value.(Matcher)
 		if matcher.Match(c) {
 			if matcher.IsMatched() {
-				if zone_matcher.keychecker.HasKey(matcher.GetZoneId()) {
+				if zone_matcher.keychecker.HasZonePrivateKey(matcher.GetZoneId()) {
 					zone_matcher.zone_id = matcher.GetZoneId()
 					zone_matcher.matched = true
 					is_matched = true

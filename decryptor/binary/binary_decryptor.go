@@ -151,7 +151,7 @@ func (decryptor *BinaryDecryptor) SetKeyStore(store keystore.KeyStore) {
 }
 
 func (decryptor *BinaryDecryptor) GetPrivateKey() (*keys.PrivateKey, error) {
-	return decryptor.key_store.GetKey(decryptor.GetMatchedZoneId())
+	return decryptor.key_store.GetZonePrivateKey(decryptor.GetMatchedZoneId())
 }
 
 func (decryptor *BinaryDecryptor) GetPoisonCallbackStorage() *base.PoisonCallbackStorage {
@@ -187,7 +187,7 @@ func (decryptor *BinaryDecryptor) ResetZoneMatch() {
 }
 
 func (decryptor *BinaryDecryptor) IsMatchedZone() bool {
-	return decryptor.zone_matcher.IsMatched() && decryptor.key_store.HasKey(decryptor.zone_matcher.GetZoneId())
+	return decryptor.zone_matcher.IsMatched() && decryptor.key_store.HasZonePrivateKey(decryptor.zone_matcher.GetZoneId())
 }
 
 func (decryptor *BinaryDecryptor) MatchZone(b byte) bool {

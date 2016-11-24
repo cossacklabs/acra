@@ -275,7 +275,7 @@ func (decryptor *PgEscapeDecryptor) SetKeyStore(store keystore.KeyStore) {
 }
 
 func (decryptor *PgEscapeDecryptor) GetPrivateKey() (*keys.PrivateKey, error) {
-	return decryptor.key_store.GetKey(decryptor.GetMatchedZoneId())
+	return decryptor.key_store.GetZonePrivateKey(decryptor.GetMatchedZoneId())
 }
 
 func (decryptor *PgEscapeDecryptor) SetZoneMatcher(zone_matcher *zone.ZoneIdMatcher) {

@@ -23,6 +23,7 @@ import (
 	"github.com/cossacklabs/acra/config"
 	"github.com/cossacklabs/acra/decryptor/base"
 	"github.com/cossacklabs/acra/decryptor/postgresql"
+	"github.com/cossacklabs/acra/keystore"
 	. "github.com/cossacklabs/acra/utils"
 	"github.com/cossacklabs/themis/gothemis/keys"
 	"github.com/cossacklabs/themis/gothemis/session"
@@ -30,26 +31,21 @@ import (
 )
 
 type ClientSession struct {
-	session            *session.SecureSession
-	server_private_key *keys.PrivateKey
-	config             *config.Config
-	client_id          []byte
-	connection         net.Conn
-	connection_to_db   net.Conn
-}
-
-func (client_session *ClientSession) GetServerPrivateKey() *keys.PrivateKey {
-	return client_session.server_private_key
+	session          *session.SecureSession
+	config           *config.Config
+	keystorage       keystore.KeyStore
+	connection       net.Conn
+	connection_to_db net.Conn
 }
 
 func (client_session *ClientSession) GetPublicKeyForId(ss *session.SecureSession, id []byte) *keys.PublicKey {
+
 	// try to open file in PUBLIC_KEYS_DIR directory where pub file should be named like <client_id>.pub
 	log.Printf("Debug: load client's public key: %v\n", fmt.Sprintf("%v/%v.pub", client_session.config.GetKeysDir(), string(id)))
 	key, err := LoadPublicKey(fmt.Sprintf("%v/%v.pub", client_session.config.GetKeysDir(), string(id)))
 	if err != nil {
 		log.Printf("Warning: %v\n", ErrorMessage(fmt.Sprintf("can't load public key for id %v", string(id)), err))
 	}
-	client_session.client_id = id
 	return key
 }
 
@@ -61,12 +57,9 @@ func get_server_private_key(client_id []byte, keys_dir string) (*keys.PrivateKey
 	return LoadPrivateKey(fmt.Sprintf("%v/%v_server", keys_dir, string(client_id)))
 }
 
-func NewClientSession(client_id []byte, config *config.Config, connection net.Conn) (*ClientSession, error) {
-	server_private, err := get_server_private_key(client_id, config.GetKeysDir())
-	if err != nil {
-		return nil, err
-	}
-	return &ClientSession{connection: connection, server_private_key: server_private, config: config}, nil
+func NewClientSession(keystorage keystore.KeyStore, config *config.Config, connection net.Conn) (*ClientSession, error) {
+
+	return &ClientSession{connection: connection, keystorage: keystorage, config: config}, nil
 }
 
 func (client_session *ClientSession) ConnectToDb() error {

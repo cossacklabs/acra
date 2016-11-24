@@ -31,14 +31,16 @@ type PgDecryptor struct {
 	matched_decryptor base.DataDecryptor
 
 	poison_key       []byte
+	client_id        []byte
 	callback_storage *base.PoisonCallbackStorage
 }
 
-func NewPgDecryptor(decryptor base.DataDecryptor) *PgDecryptor {
+func NewPgDecryptor(client_id []byte, decryptor base.DataDecryptor) *PgDecryptor {
 	return &PgDecryptor{
 		is_with_zone:     false,
 		pg_decryptor:     decryptor,
 		binary_decryptor: binary.NewBinaryDecryptor(),
+		client_id:        client_id,
 	}
 }
 
@@ -59,7 +61,7 @@ func (decryptor *PgDecryptor) SetZoneMatcher(zone_matcher *zone.ZoneIdMatcher) {
 }
 
 func (decryptor *PgDecryptor) IsMatchedZone() bool {
-	return decryptor.zone_matcher.IsMatched() && decryptor.key_store.HasKey(decryptor.zone_matcher.GetZoneId())
+	return decryptor.zone_matcher.IsMatched() && decryptor.key_store.HasZonePrivateKey(decryptor.zone_matcher.GetZoneId())
 }
 
 func (decryptor *PgDecryptor) MatchZone(b byte) bool {
@@ -126,7 +128,11 @@ func (decryptor *PgDecryptor) SetKeyStore(store keystore.KeyStore) {
 }
 
 func (decryptor *PgDecryptor) GetPrivateKey() (*keys.PrivateKey, error) {
-	return decryptor.key_store.GetKey(decryptor.GetMatchedZoneId())
+	if decryptor.IsWithZone() {
+		return decryptor.key_store.GetZonePrivateKey(decryptor.GetMatchedZoneId())
+	} else {
+		return decryptor.key_store.GetServerPrivateKey(decryptor.client_id)
+	}
 }
 
 func (decryptor *PgDecryptor) GetPoisonCallbackStorage() *base.PoisonCallbackStorage {

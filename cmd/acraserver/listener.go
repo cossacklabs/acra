@@ -33,11 +33,13 @@ const (
 )
 
 type SServer struct {
-	config *config.Config
+	config     *config.Config
+	keystorage keystore.KeyStore
 }
 
 func NewServer(config *config.Config) (server *SServer, err error) {
-	server = &SServer{config: config}
+	keystorage := keystore.NewFilesystemKeyStore(config.GetKeysDir())
+	server = &SServer{config: config, keystorage: keystorage}
 	return
 }
 
@@ -45,52 +47,49 @@ func NewServer(config *config.Config) (server *SServer, err error) {
  initialize SecureSession with new connection
  read client_id, load public key for this client and initialize Secure Session
 */
-func (server *SServer) initSSession(connection net.Conn) (*ClientSession, error) {
+func (server *SServer) initSSession(connection net.Conn) ([]byte, *ClientSession, error) {
 	client_id, err := ReadData(connection)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
-	client_session, err := NewClientSession(client_id, server.config, connection)
+	private_key, err := server.keystorage.GetServerPrivateKey(client_id)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
-	ssession, err := session.New(server.config.GetServerId(), client_session.server_private_key, client_session)
+	client_session, err := NewClientSession(server.keystorage, server.config, connection)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
+	}
+	ssession, err := session.New(server.config.GetServerId(), private_key, client_session)
+	if err != nil {
+		return nil, nil, err
 	}
 	client_session.session = ssession
 	for {
 		data, err := ReadData(connection)
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 		buf, sendPeer, err := ssession.Unwrap(data)
 		if nil != err {
-			return nil, err
+			return nil, nil, err
 		}
 		if !sendPeer {
-			return client_session, nil
+			return client_id, client_session, nil
 		}
 
 		err = SendData(buf, connection)
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 
 		if ssession.GetState() == session.STATE_ESTABLISHED {
-			return client_session, err
+			return client_id, client_session, err
 		}
 	}
 }
 
-func (server *SServer) getDecryptor(client_session *ClientSession) base.Decryptor {
-	var keystorage keystore.KeyStore
-	if server.config.GetWithZone() {
-		keystorage = keystore.NewFilesystemKeyStore(server.config.GetKeysDir())
-	} else {
-		keystorage = keystore.NewOneKeyStore(client_session.GetServerPrivateKey())
-	}
-
+func (server *SServer) getDecryptor(client_id []byte) base.Decryptor {
 	var data_decryptor base.DataDecryptor
 	var matcher_pool *zone.MatcherPool
 	if server.config.GetByteaFormat() == config.HEX_BYTEA_FORMAT {
@@ -100,11 +99,11 @@ func (server *SServer) getDecryptor(client_session *ClientSession) base.Decrypto
 		data_decryptor = pg.NewPgEscapeDecryptor()
 		matcher_pool = zone.NewMatcherPool(zone.NewPgEscapeMatcherFactory())
 	}
-	decryptor_impl := pg.NewPgDecryptor(data_decryptor)
+	decryptor_impl := pg.NewPgDecryptor(client_id, data_decryptor)
 	decryptor_impl.SetWithZone(server.config.GetWithZone())
-	decryptor_impl.SetKeyStore(keystorage)
+	decryptor_impl.SetKeyStore(server.keystorage)
 	decryptor_impl.SetPoisonKey(server.config.GetPoisonKey())
-	zone_matcher := zone.NewZoneMatcher(matcher_pool, keystorage)
+	zone_matcher := zone.NewZoneMatcher(matcher_pool, server.keystorage)
 	decryptor_impl.SetZoneMatcher(zone_matcher)
 
 	poison_callback_storage := base.NewPoisonCallbackStorage()
@@ -126,7 +125,7 @@ to db and decrypting responses from db
 func (server *SServer) handleConnection(connection net.Conn) {
 	// initialization of session should be fast, so limit time for connection activity interval
 	connection.SetDeadline(time.Now().Add(INIT_SSESSION_TIMEOUT))
-	client_session, err := server.initSSession(connection)
+	client_id, client_session, err := server.initSSession(connection)
 	if err != nil {
 		log.Printf("Warning: %v\n", ErrorMessage("can't initialize secure session with acraproxy", err))
 		connection.Close()
@@ -137,7 +136,7 @@ func (server *SServer) handleConnection(connection net.Conn) {
 	connection.SetDeadline(time.Time{})
 
 	log.Println("Debug: secure session initialized")
-	decryptor := server.getDecryptor(client_session)
+	decryptor := server.getDecryptor(client_id)
 	client_session.HandleSecureSession(decryptor)
 }
 
@@ -168,11 +167,15 @@ func (server *SServer) initCommandsSSession(connection net.Conn) (*ClientCommand
 	if err != nil {
 		return nil, err
 	}
-	client_session, err := NewClientCommandsSession(client_id, server.config, connection)
+	private_key, err := server.keystorage.GetServerPrivateKey(client_id)
 	if err != nil {
 		return nil, err
 	}
-	ssession, err := session.New(server.config.GetServerId(), client_session.server_private_key, client_session)
+	client_session, err := NewClientCommandsSession(server.keystorage, server.config, connection)
+	if err != nil {
+		return nil, err
+	}
+	ssession, err := session.New(server.config.GetServerId(), private_key, client_session)
 	if err != nil {
 		return nil, err
 	}

@@ -27,8 +27,22 @@ func assertZoneMatchNotFail(c byte, matcher *zone.ZoneIdMatcher, t *testing.T) {
 	}
 }
 
+type TestKeyStore struct{}
+
+func (storage *TestKeyStore) GetZonePrivateKey(id []byte) (*keys.PrivateKey, error) {
+	return &keys.PrivateKey{Value: []byte{}}, nil
+}
+func (storage *TestKeyStore) HasZonePrivateKey(id []byte) bool { return true }
+func (storage *TestKeyStore) GetProxyPublicKey(id []byte) (*keys.PublicKey, error) {
+	return &keys.PublicKey{Value: []byte{}}, nil
+}
+func (storage *TestKeyStore) GetServerPrivateKey(id []byte) (*keys.PrivateKey, error) {
+	return &keys.PrivateKey{Value: []byte{}}, nil
+}
+func (storage *TestKeyStore) GenerateZoneKey() ([]byte, []byte, error) { return []byte{}, []byte{}, nil }
+
 func testZoneIdMatcher(t *testing.T) {
-	var keystorage keystore.KeyStore = keystore.NewOneKeyStore(&keys.PrivateKey{Value: []byte("aaaaaaaaaaaaaaa")})
+	var keystorage keystore.KeyStore = &TestKeyStore{}
 	matcher_pool := zone.NewMatcherPool(zone.NewPgHexMatcherFactory())
 	zone_matcher := zone.NewZoneMatcher(matcher_pool, keystorage)
 	var HEX_ZONE_ID_BEGIN = []byte(hex.EncodeToString(zone.ZONE_ID_BEGIN))

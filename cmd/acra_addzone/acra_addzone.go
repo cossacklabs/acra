@@ -14,13 +14,12 @@
 package main
 
 import (
-	"encoding/base64"
-	"encoding/json"
 	"flag"
 	"fmt"
 	"github.com/cossacklabs/acra/keystore"
 	. "github.com/cossacklabs/acra/utils"
-	"io/ioutil"
+	"github.com/cossacklabs/acra/zone"
+	"github.com/cossacklabs/themis/gothemis/keys"
 	"os"
 )
 
@@ -41,24 +40,15 @@ func main() {
 	if *fs_keystore {
 		key_store = keystore.NewFilesystemKeyStore(output)
 	}
-	id, public_key, err := key_store.GenerateKey()
+	id, public_key, err := key_store.GenerateZoneKey()
 	if err != nil {
 		fmt.Printf("Error: %v\n", ErrorMessage("can't add zone", err))
 		os.Exit(1)
 	}
-	public_key_path := fmt.Sprintf("%s/%s", output, keystore.GetPublicKeyFilename(id))
-	err = ioutil.WriteFile(public_key_path, public_key, 0644)
-	if err != nil {
-		fmt.Printf("Error: can't save public key at path: %s\n", public_key_path)
-		os.Exit(1)
-	}
-	response := make(map[string]string)
-	response["id"] = string(id)
-	response["public_key"] = base64.StdEncoding.EncodeToString(public_key)
-	json_output, err := json.Marshal(response)
+	json, err := zone.ZoneDataToJson(id, &keys.PublicKey{Value: public_key})
 	if err != nil {
 		fmt.Printf("Error: %v\n", ErrorMessage("can't encode to json", err))
 		os.Exit(1)
 	}
-	fmt.Println(string(json_output))
+	fmt.Println(string(json))
 }

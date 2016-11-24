@@ -43,7 +43,6 @@ func (wr *NotDebugWriter) Write(p []byte) (int, error) {
 		return 0, nil
 	}
 	return wr.writer.Write(p)
-
 }
 
 func main() {
