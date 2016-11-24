@@ -15,7 +15,7 @@ dependencies:
 
   override:
     - rsync -auv $HOME/themis/gothemis/ $HOME/gopath/src/$GOTHEMIS_IMPORT/
-    - rsync -auv acra/ $HOME/gopath/src/$ACRA_IMPORT/
+    - rsync -auv $HOME/acra/ $HOME/gopath/src/$ACRA_IMPORT/
 
 ## Customize test commands
 test:
