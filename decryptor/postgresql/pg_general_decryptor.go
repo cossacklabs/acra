@@ -1,3 +1,16 @@
+// Copyright 2016, Cossack Labs Limited
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+// http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
 package postgresql
 
 import (
@@ -18,14 +31,16 @@ type PgDecryptor struct {
 	matched_decryptor base.DataDecryptor
 
 	poison_key       []byte
+	client_id        []byte
 	callback_storage *base.PoisonCallbackStorage
 }
 
-func NewPgDecryptor(decryptor base.DataDecryptor) *PgDecryptor {
+func NewPgDecryptor(client_id []byte, decryptor base.DataDecryptor) *PgDecryptor {
 	return &PgDecryptor{
 		is_with_zone:     false,
 		pg_decryptor:     decryptor,
 		binary_decryptor: binary.NewBinaryDecryptor(),
+		client_id:        client_id,
 	}
 }
 
@@ -46,7 +61,7 @@ func (decryptor *PgDecryptor) SetZoneMatcher(zone_matcher *zone.ZoneIdMatcher) {
 }
 
 func (decryptor *PgDecryptor) IsMatchedZone() bool {
-	return decryptor.zone_matcher.IsMatched() && decryptor.key_store.HasKey(decryptor.zone_matcher.GetZoneId())
+	return decryptor.zone_matcher.IsMatched() && decryptor.key_store.HasZonePrivateKey(decryptor.zone_matcher.GetZoneId())
 }
 
 func (decryptor *PgDecryptor) MatchZone(b byte) bool {
@@ -113,7 +128,11 @@ func (decryptor *PgDecryptor) SetKeyStore(store keystore.KeyStore) {
 }
 
 func (decryptor *PgDecryptor) GetPrivateKey() (*keys.PrivateKey, error) {
-	return decryptor.key_store.GetKey(decryptor.GetMatchedZoneId())
+	if decryptor.IsWithZone() {
+		return decryptor.key_store.GetZonePrivateKey(decryptor.GetMatchedZoneId())
+	} else {
+		return decryptor.key_store.GetServerPrivateKey(decryptor.client_id)
+	}
 }
 
 func (decryptor *PgDecryptor) GetPoisonCallbackStorage() *base.PoisonCallbackStorage {

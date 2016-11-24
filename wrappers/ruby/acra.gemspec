@@ -1,3 +1,4 @@
+
 Gem::Specification.new do |s|
   s.name        = 'acra'
   s.version     = '1.0.1'

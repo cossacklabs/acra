@@ -1,4 +1,18 @@
+# Copyright 2016, Cossack Labs Limited
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
 # coding: utf-8
+import socket
 import json
 import time
 import os
@@ -37,6 +51,7 @@ def create_client_keypair(name, server_pair=False):
 
 def setUpModule():
     global zones
+    os.environ['GOPATH'] = '/home/lagovas/development/GOPATH'
     # build binaries
     assert subprocess.call(['go', 'build', 'github.com/cossacklabs/acra/cmd/acraproxy'], cwd=os.getcwd()) == 0
     assert subprocess.call(['go', 'build', 'github.com/cossacklabs/acra/cmd/acra_addzone'], cwd=os.getcwd()) == 0
@@ -69,7 +84,10 @@ def tearDownModule():
         files.append('.acrakeys/{}_zone.pub'.format(zone['id']))
 
     for i in ['acraproxy', 'acraserver', 'acra_addzone', 'acra_genkeys'] + files:
-        os.remove(i)
+        try:
+            os.remove(i)
+        except:
+            pass
 
 
 class TestCompilation(unittest.TestCase):
@@ -95,20 +113,31 @@ class BaseTestCase(unittest.TestCase):
     ZONE = False
     DEBUG = False
 
+    def fork(self, func):
+        popen = func()
+        count = 0
+        while count <= 3:
+            if popen.poll() is None:
+                return popen
+            count += 1
+            time.sleep(0.01)
+        self.fail("can't fork")
+
     def fork_proxy(self, proxy_port: int, acra_port: int, client_id: str):
-        return subprocess.Popen(
+        return self.fork(lambda: subprocess.Popen(
             ['./acraproxy', '-acra_host=127.0.0.1', '-acra_port={}'.format(acra_port),
              '-client_id={}'.format(client_id), '-port={}'.format(proxy_port), '-v',
              # now it's no matter, so just +100
-             '-command_port={}'.format(proxy_port+100)])
+             '-command_port={}'.format(proxy_port+100),
+             '-disable_user_check']))
 
     def fork_acra(self, db_host: str, db_port: int, format: str, acra_port,
                   with_zone=False):
-        return subprocess.Popen(
+        return self.fork(lambda: subprocess.Popen(
             ['./acraserver', '-db_host='+db_host, '-db_port={}'.format(db_port),
              '-{}'.format(format), '-host=127.0.0.1', '-port={}'.format(acra_port),
              '-zonemode' if with_zone else '', '-v', '-d' if self.DEBUG else ''],
-            stdout=sys.stdout)
+            stdout=sys.stdout))
 
     def setUp(self):
         self.proxy_1 = self.fork_proxy(
@@ -351,13 +380,25 @@ class TestConnectionClosing(BaseTestCase):
             connection.close()
         return limit
 
+    def checkConnection(self):
+        """check that proxy and acra ready to accept connections"""
+        count = 0
+        while count <= 3:
+            try:
+                con = socket.create_connection(('127.0.0.1', self.ACRA_PORT), 1)
+                con.close()
+                con = socket.create_connection(('127.0.0.1', self.PROXY_PORT_1), 1)
+                con.close()
+                return
+            except:
+                pass
+            count += 1
+            time.sleep(0.1)
+        self.fail("can't connect to acra or proxy")
+
     def testClosingConnections(self):
-        try:
-            connection = psycopg2.connect(self.dsn)
-        except psycopg2.OperationalError:
-            # acraproxy or acra may not started yet
-            time.sleep(0.5)
-            connection = psycopg2.connect(self.dsn)
+        self.checkConnection()
+        connection = psycopg2.connect(self.dsn)
 
         connection.autocommit = True
         cursor = connection.cursor()

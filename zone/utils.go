@@ -11,27 +11,22 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-package utils_test
+
+package zone
 
 import (
-	"github.com/cossacklabs/acra/utils"
-	"os"
-	"testing"
+	"encoding/base64"
+	"encoding/json"
+	"github.com/cossacklabs/themis/gothemis/keys"
 )
 
-func TestFileExists(t *testing.T) {
-	test_path := "/tmp/testfilepath"
-	exists, err := utils.FileExists(test_path)
-	if exists || err != nil {
-		t.Fatalf("File exists or returned any error. err = %v\n", err)
-	}
-	_, err = os.Create(test_path)
-	defer os.Remove(test_path)
+func ZoneDataToJson(id []byte, public_key *keys.PublicKey) ([]byte, error) {
+	response := make(map[string]string)
+	response["id"] = string(id)
+	response["public_key"] = base64.StdEncoding.EncodeToString(public_key.Value)
+	json_output, err := json.Marshal(response)
 	if err != nil {
-		t.Fatalf("Can't create test temporary file %v. err - %v\n", test_path, err)
+		return nil, err
 	}
-	exists, err = utils.FileExists(test_path)
-	if !exists || err != nil {
-		t.Fatalf("File not exists or returned any error. err = %v\n", err)
-	}
+	return json_output, nil
 }
