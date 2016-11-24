@@ -22,4 +22,5 @@ dependencies:
 test:
   override:
     - $GOROOT/bin/go test -v $ACRA_IMPORT/...
+    - pyenv local 3.5.1 && pip install psycopg2 sqlalchemy && python 
 
