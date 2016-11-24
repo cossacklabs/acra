@@ -1,0 +1,25 @@
+machine:
+  environment:
+    GOROOT: $HOME/go
+    GOTHEMIS_IMPORT: github.com/cossacklabs/themis/gothemis
+    ACRA_IMPORT: github.com/cossacklabs/acra
+    GOPATH: $HOME/gopath
+
+## Customize dependencies
+dependencies:
+  pre:
+    - sudo apt-get update && sudo apt-get install libssl-dev build-essential git
+    - cd $HOME && wget https://storage.googleapis.com/golang/go1.6.2.linux-amd64.tar.gz && tar xf go1.6.2.linux-amd64.tar.gz
+    - cd $HOME && git clone https://github.com/cossacklabs/themis && cd themis && sudo make install
+    - mkdir -p $HOME/gopath/src/$GOTHEMIS_IMPORT
+
+  override:
+    - rsync -auv $HOME/themis/gothemis/ $HOME/gopath/src/$GOTHEMIS_IMPORT/
+    - rsync -auv $HOME/acra/ $HOME/gopath/src/$ACRA_IMPORT/
+    - $GOROOT/bin/go get github.com/lib/pq
+
+## Customize test commands
+test:
+  override:
+    - $GOROOT/bin/go test -v $ACRA_IMPORT/...
+
