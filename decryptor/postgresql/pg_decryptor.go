@@ -162,6 +162,7 @@ func PgDecryptStream(decryptor base.Decryptor, rr *bufio.Reader, writer *bufio.W
 		}
 		if !r.IsDataRow(){
 			if !r.skipData(reader, writer, err_ch){return}
+			writer.Flush()
 			continue
 		}
 		//if !r.SkipDataDescription(reader, writer, err_ch) {
