@@ -4,6 +4,7 @@ machine:
     GOTHEMIS_IMPORT: github.com/cossacklabs/themis/gothemis
     ACRA_IMPORT: github.com/cossacklabs/acra
     GOPATH: $HOME/gopath
+    PATH: $HOME/go/bin:$PATH
 
 ## Customize dependencies
 dependencies:
@@ -21,6 +22,6 @@ dependencies:
 ## Customize test commands
 test:
   override:
-    - $GOROOT/bin/go test -v $ACRA_IMPORT/...
-    - pyenv local 3.5.1 && pip install psycopg2 sqlalchemy pythemis && PYTHONPATH=$HOME/acra/wrappers/python python tests/test.py
+    - go test -v $ACRA_IMPORT/...
+    - pwd && pyenv local 3.5.1 && pip install psycopg2 sqlalchemy pythemis && PYTHONPATH=$HOME/acra/wrappers/python python tests/test.py
 
