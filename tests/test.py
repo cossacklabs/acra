@@ -51,10 +51,10 @@ def create_client_keypair(name, server_pair=False):
 
 def setUpModule():
     global zones
-    os.environ['GOPATH'] = '/home/lagovas/development/GOPATH'
+    os.environ['GOPATH'] = '/home/ubuntu/gopath'
     # build binaries
-    assert subprocess.call(['go', 'build', 'src/github.com/cossacklabs/acra/cmd/acraproxy'], cwd=os.getcwd()) == 0
-    assert subprocess.call(['go', 'build', 'src/github.com/cossacklabs/acra/cmd/acra_addzone'], cwd=os.getcwd()) == 0
+    assert subprocess.call(['go', 'build', 'github.com/cossacklabs/acra/cmd/acraproxy'], cwd=os.getcwd()) == 0
+    assert subprocess.call(['go', 'build', 'github.com/cossacklabs/acra/cmd/acra_addzone'], cwd=os.getcwd()) == 0
     assert subprocess.call(
         ['go', 'build', 'src/github.com/cossacklabs/acra/cmd/acra_genkeys'], cwd=os.getcwd()) == 0
     assert subprocess.call(['go', 'build', 'src/github.com/cossacklabs/acra/cmd/acraserver'], cwd=os.getcwd()) == 0
