@@ -148,16 +148,16 @@ class BaseTestCase(unittest.TestCase):
             self.DB_HOST, self.PG_PORT, self.ACRA_BYTEA, self.ACRA_PORT, self.ZONE)
 
         self.engine1 = sa.create_engine(
-            'postgresql://{}:{}@{}:{}/{}'.format(
-                self.DB_USER, self.DB_USER_PASSWORD, self.DB_HOST, self.PROXY_PORT_1,
+            'postgresql://{}@{}:{}/{}'.format(
+                self.DB_USER, self.DB_HOST, self.PROXY_PORT_1,
                 self.DB_NAME))
         self.engine2 = sa.create_engine(
-            'postgresql://{}:{}@{}:{}/{}'.format(
-                self.DB_USER, self.DB_USER_PASSWORD, self.DB_HOST, self.PROXY_PORT_2,
+            'postgresql://{}@{}:{}/{}'.format(
+                self.DB_USER, self.DB_HOST, self.PROXY_PORT_2,
                 self.DB_NAME))
         self.engine_raw = sa.create_engine(
-            'postgresql://{}:{}@{}:{}/{}'.format(
-                self.DB_USER, self.DB_USER_PASSWORD, self.DB_HOST, self.PG_PORT, self.DB_NAME))
+            'postgresql://{}@{}:{}/{}'.format(
+                self.DB_USER, self.DB_HOST, self.PG_PORT, self.DB_NAME))
 
         self.engines = [self.engine1, self.engine2, self.engine_raw]
 
