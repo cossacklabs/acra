@@ -56,8 +56,8 @@ def setUpModule():
     assert subprocess.call(['go', 'build', 'github.com/cossacklabs/acra/cmd/acraproxy'], cwd=os.getcwd()) == 0
     assert subprocess.call(['go', 'build', 'github.com/cossacklabs/acra/cmd/acra_addzone'], cwd=os.getcwd()) == 0
     assert subprocess.call(
-        ['go', 'build', 'src/github.com/cossacklabs/acra/cmd/acra_genkeys'], cwd=os.getcwd()) == 0
-    assert subprocess.call(['go', 'build', 'src/github.com/cossacklabs/acra/cmd/acraserver'], cwd=os.getcwd()) == 0
+        ['go', 'build', 'github.com/cossacklabs/acra/cmd/acra_genkeys'], cwd=os.getcwd()) == 0
+    assert subprocess.call(['go', 'build', 'github.com/cossacklabs/acra/cmd/acraserver'], cwd=os.getcwd()) == 0
     # first keypair for using without zones
     assert create_client_keypair('keypair1') == 0
     assert create_client_keypair('keypair1', server_pair=True) == 0
@@ -92,11 +92,11 @@ def tearDownModule():
 
 class TestCompilation(unittest.TestCase):
     def testCompileAll(self):
-        self.assertFalse(subprocess.call(['go', 'build', 'src/github.com/cossacklabs/acra/cmd/acraproxy'], cwd=os.getcwd()))
-        self.assertFalse(subprocess.call(['go', 'build', 'src/github.com/cossacklabs/acra/cmd/acraserver'], cwd=os.getcwd()))
-        self.assertFalse(subprocess.call(['go', 'build', 'src/github.com/cossacklabs/acra/cmd/acra_addzone'], cwd=os.getcwd()))
-        self.assertFalse(subprocess.call(['go', 'build', 'src/github.com/cossacklabs/acra/cmd/acra_genkeys'], cwd=os.getcwd()))
-        self.assertFalse(subprocess.call(['go', 'build', 'src/github.com/cossacklabs/acra/cmd/acra_genpoisonrecord'], cwd=os.getcwd()))
+        self.assertFalse(subprocess.call(['go', 'build', 'github.com/cossacklabs/acra/cmd/acraproxy'], cwd=os.getcwd()))
+        self.assertFalse(subprocess.call(['go', 'build', 'github.com/cossacklabs/acra/cmd/acraserver'], cwd=os.getcwd()))
+        self.assertFalse(subprocess.call(['go', 'build', 'github.com/cossacklabs/acra/cmd/acra_addzone'], cwd=os.getcwd()))
+        self.assertFalse(subprocess.call(['go', 'build', 'github.com/cossacklabs/acra/cmd/acra_genkeys'], cwd=os.getcwd()))
+        self.assertFalse(subprocess.call(['go', 'build', 'github.com/cossacklabs/acra/cmd/acra_genpoisonrecord'], cwd=os.getcwd()))
 
 
 class BaseTestCase(unittest.TestCase):
