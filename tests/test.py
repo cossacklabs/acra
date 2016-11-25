@@ -101,8 +101,8 @@ class TestCompilation(unittest.TestCase):
 
 class BaseTestCase(unittest.TestCase):
     DB_HOST = '127.0.0.1'
-    DB_USER = 'postgres'
-    DB_USER_PASSWORD = 'postgres'
+    DB_USER = 'ubuntu'
+#    DB_USER_PASSWORD = 'postgres'
     PROXY_PORT_1 = 9090
     PROXY_PORT_2 = 9091
     ACRA_PORT = 10003
