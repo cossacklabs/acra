@@ -140,6 +140,10 @@ func (row *DataRow) SkipDataDescription(reader *acra_io.ExtendedBufferedReader, 
 	}
 }
 
+func (r *DataRow) IsDataRow() bool {
+	return r.buf[0] == DATA_ROW_MESSAGE_TYPE
+}
+
 func PgDecryptStream(decryptor base.Decryptor, rr *bufio.Reader, writer *bufio.Writer, err_ch chan<- error) {
 	r := DataRow{
 		write_index:            0,
@@ -151,10 +155,18 @@ func PgDecryptStream(decryptor base.Decryptor, rr *bufio.Reader, writer *bufio.W
 	var buf_writer = bufio.NewWriter(r.column_data_buf)
 	reader := acra_io.NewExtendedBufferedReader(rr)
 	inner_err_ch := make(chan error, 1)
+	//if !r.skipData(rr, writer, err_ch){return}
 	for {
-		if !r.SkipDataDescription(reader, writer, err_ch) {
+		if !r.readByte(reader, writer, err_ch) {
 			return
 		}
+		if !r.IsDataRow(){
+			if !r.skipData(reader, writer, err_ch){return}
+			continue
+		}
+		//if !r.SkipDataDescription(reader, writer, err_ch) {
+		//	return
+		//}
 		log.Println("Debug: skiped row description")
 
 		r.write_index = 0
