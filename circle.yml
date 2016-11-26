@@ -18,10 +18,9 @@ dependencies:
     - rsync -auv $HOME/themis/gothemis/ $HOME/gopath/src/$GOTHEMIS_IMPORT/
     - rsync -auv $HOME/acra/ $HOME/gopath/src/$ACRA_IMPORT/
     - $GOROOT/bin/go get github.com/lib/pq
-    - sudo -u ubuntu psql -c "ALTER USER ubuntu PASSWORD 'ubuntu';"
 ## Customize test commands
 test:
   override:
     - go test -v $ACRA_IMPORT/...
-    - pwd && pyenv local 3.5.1 && pip install psycopg2 sqlalchemy pythemis && PYTHONPATH=$HOME/acra/wrappers/python python tests/test.py
+    - psql -c "ALTER USER ubuntu PASSWORD 'ubuntu';" && pwd && pyenv local 3.5.1 && pip install psycopg2 sqlalchemy pythemis && PYTHONPATH=$HOME/acra/wrappers/python python tests/test.py
 
