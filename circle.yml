@@ -18,7 +18,7 @@ dependencies:
     - rsync -auv $HOME/themis/gothemis/ $HOME/gopath/src/$GOTHEMIS_IMPORT/
     - rsync -auv $HOME/acra/ $HOME/gopath/src/$ACRA_IMPORT/
     - $GOROOT/bin/go get github.com/lib/pq
-    - sudo -u ubuntu psql -c "ALTER USER ubuntu PASSWORD 'ubuntu'
+    - sudo -u ubuntu psql -c "ALTER USER ubuntu PASSWORD 'ubuntu';"
 ## Customize test commands
 test:
   override:
