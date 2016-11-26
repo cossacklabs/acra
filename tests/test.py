@@ -102,7 +102,7 @@ class TestCompilation(unittest.TestCase):
 class BaseTestCase(unittest.TestCase):
     DB_HOST = '127.0.0.1'
     DB_USER = 'ubuntu'
-#    DB_USER_PASSWORD = 'postgres'
+    DB_USER_PASSWORD = 'ubuntu'
     PROXY_PORT_1 = 9090
     PROXY_PORT_2 = 9091
     ACRA_PORT = 10003
@@ -148,15 +148,18 @@ class BaseTestCase(unittest.TestCase):
             self.DB_HOST, self.PG_PORT, self.ACRA_BYTEA, self.ACRA_PORT, self.ZONE)
 
         self.engine1 = sa.create_engine(
-            'postgresql://{}:{}/{}'.format(
+            'postgresql://{}:{}@{}:{}/{}'.format(
+                self.DB_USER, self.DBUSER_PASSWORD,
                 self.DB_HOST, self.PROXY_PORT_1,
                 self.DB_NAME))
         self.engine2 = sa.create_engine(
-            'postgresql://{}:{}/{}'.format(
+            'postgresql://{}:{}@{}:{}/{}'.format(
+                self.DB_USER, self.DBUSER_PASSWORD,
                 self.DB_HOST, self.PROXY_PORT_2,
                 self.DB_NAME))
         self.engine_raw = sa.create_engine(
-            'postgresql://{}:{}/{}'.format(
+            'postgresql://{}:{}@{}:{}/{}'.format(
+                self.DB_USER, self.DBUSER_PASSWORD,
                 self.DB_HOST, self.PG_PORT, self.DB_NAME))
 
         self.engines = [self.engine1, self.engine2, self.engine_raw]
@@ -354,7 +357,8 @@ class TestConnectionClosing(BaseTestCase):
             self.PROXY_PORT_1, self.ACRA_PORT, 'keypair1')
         self.acra = self.fork_acra(
             self.DB_HOST, self.PG_PORT, self.ACRA_BYTEA, self.ACRA_PORT, self.ZONE)
-        self.dsn = 'postgresql://{}:{}'.format(
+        self.dsn = 'postgresql://{}:{}@{}:{}'.format(
+            self.DB_USER, self.DB_USER_PASSWORD,
             self.DB_HOST, self.PROXY_PORT_1)
 
     def tearDown(self):
@@ -440,7 +444,8 @@ class TestKeyNonExistence(BaseTestCase):
     def setUp(self):
         self.acra = self.fork_acra(
             self.DB_HOST, self.PG_PORT, self.ACRA_BYTEA, self.ACRA_PORT, self.ZONE)
-        self.dsn = 'postgresql://{}:{}'.format(
+        self.dsn = 'postgresql://{}:{}@{}:{}'.format(
+            self.DB_USER, self.DB_USER_PASSWORD,
             self.DB_HOST, self.PROXY_PORT_1)
 
     def tearDown(self):
