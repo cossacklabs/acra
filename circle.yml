@@ -22,5 +22,4 @@ dependencies:
 test:
   override:
     - go test -v $ACRA_IMPORT/...
-    - psql -c "ALTER USER ubuntu PASSWORD 'ubuntu';" && pwd && pyenv local 3.5.1 && pip install psycopg2 sqlalchemy pythemis && PYTHONPATH=$HOME/acra/wrappers/python python tests/test.py
 
