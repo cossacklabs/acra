@@ -51,7 +51,7 @@ def create_client_keypair(name, server_pair=False):
 
 def setUpModule():
     global zones
-    os.environ['GOPATH'] = '/home/ubuntu/gopath'
+    os.environ['GOPATH'] = '/home/lagovas/development/GOPATH'
     # build binaries
     assert subprocess.call(['go', 'build', 'github.com/cossacklabs/acra/cmd/acraproxy'], cwd=os.getcwd()) == 0
     assert subprocess.call(['go', 'build', 'github.com/cossacklabs/acra/cmd/acra_addzone'], cwd=os.getcwd()) == 0
@@ -101,8 +101,8 @@ class TestCompilation(unittest.TestCase):
 
 class BaseTestCase(unittest.TestCase):
     DB_HOST = '127.0.0.1'
-    DB_USER = 'ubuntu'
-    DB_USER_PASSWORD = 'ubuntu'
+    DB_USER = 'postgres'
+    DB_USER_PASSWORD = 'postgres'
     PROXY_PORT_1 = 9090
     PROXY_PORT_2 = 9091
     ACRA_PORT = 10003
@@ -149,18 +149,15 @@ class BaseTestCase(unittest.TestCase):
 
         self.engine1 = sa.create_engine(
             'postgresql://{}:{}@{}:{}/{}'.format(
-                self.DB_USER, self.DB_USER_PASSWORD,
-                self.DB_HOST, self.PROXY_PORT_1,
+                self.DB_USER, self.DB_USER_PASSWORD, self.DB_HOST, self.PROXY_PORT_1,
                 self.DB_NAME))
         self.engine2 = sa.create_engine(
             'postgresql://{}:{}@{}:{}/{}'.format(
-                self.DB_USER, self.DB_USER_PASSWORD,
-                self.DB_HOST, self.PROXY_PORT_2,
+                self.DB_USER, self.DB_USER_PASSWORD, self.DB_HOST, self.PROXY_PORT_2,
                 self.DB_NAME))
         self.engine_raw = sa.create_engine(
             'postgresql://{}:{}@{}:{}/{}'.format(
-                self.DB_USER, self.DB_USER_PASSWORD,
-                self.DB_HOST, self.PG_PORT, self.DB_NAME))
+                self.DB_USER, self.DB_USER_PASSWORD, self.DB_HOST, self.PG_PORT, self.DB_NAME))
 
         self.engines = [self.engine1, self.engine2, self.engine_raw]
 
@@ -358,8 +355,7 @@ class TestConnectionClosing(BaseTestCase):
         self.acra = self.fork_acra(
             self.DB_HOST, self.PG_PORT, self.ACRA_BYTEA, self.ACRA_PORT, self.ZONE)
         self.dsn = 'postgresql://{}:{}@{}:{}'.format(
-            self.DB_USER, self.DB_USER_PASSWORD,
-            self.DB_HOST, self.PROXY_PORT_1)
+            self.DB_USER, self.DB_USER_PASSWORD, self.DB_HOST, self.PROXY_PORT_1)
 
     def tearDown(self):
         self.proxy_1.kill()
@@ -445,8 +441,7 @@ class TestKeyNonExistence(BaseTestCase):
         self.acra = self.fork_acra(
             self.DB_HOST, self.PG_PORT, self.ACRA_BYTEA, self.ACRA_PORT, self.ZONE)
         self.dsn = 'postgresql://{}:{}@{}:{}'.format(
-            self.DB_USER, self.DB_USER_PASSWORD,
-            self.DB_HOST, self.PROXY_PORT_1)
+            self.DB_USER, self.DB_USER_PASSWORD, self.DB_HOST, self.PROXY_PORT_1)
 
     def tearDown(self):
         self.acra.kill()
