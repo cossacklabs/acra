@@ -4,6 +4,7 @@ machine:
     GOTHEMIS_IMPORT: github.com/cossacklabs/themis/gothemis
     ACRA_IMPORT: github.com/cossacklabs/acra
     GOPATH: $HOME/gopath
+    PATH: $HOME/go/bin:$PATH
 
 ## Customize dependencies
 dependencies:
@@ -17,9 +18,8 @@ dependencies:
     - rsync -auv $HOME/themis/gothemis/ $HOME/gopath/src/$GOTHEMIS_IMPORT/
     - rsync -auv $HOME/acra/ $HOME/gopath/src/$ACRA_IMPORT/
     - $GOROOT/bin/go get github.com/lib/pq
-
 ## Customize test commands
 test:
   override:
-    - $GOROOT/bin/go test -v $ACRA_IMPORT/...
+    - go test -v $ACRA_IMPORT/...
 
