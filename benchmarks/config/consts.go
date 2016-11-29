@@ -16,6 +16,6 @@ package config
 
 const (
 	ROW_COUNT     = 10000
-	REQUEST_COUNT = 10000
+	REQUEST_COUNT = 100000
 	ZONE_COUNT    = 100
 )
