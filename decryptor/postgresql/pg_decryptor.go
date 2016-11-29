@@ -118,8 +118,6 @@ func PgDecryptStream(decryptor base.Decryptor, rr *bufio.Reader, writer *bufio.W
 			if r.buf[0] == 'N' {
 				writer.Flush()
 				continue
-				//err_ch <- io.EOF
-				//return
 			}
 			first_byte = false
 		}

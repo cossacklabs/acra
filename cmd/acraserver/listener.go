@@ -150,7 +150,7 @@ func (server *SServer) Start() {
 	for {
 		connection, err := listener.Accept()
 		if err != nil {
-			log.Printf("Error: %v\n", ErrorMessage(fmt.Sprintf("can't accept new connection (%v)", connection.RemoteAddr()), err))
+			log.Printf("Error: %v\n", ErrorMessage(fmt.Sprintf("can't accept new connection (connection=%v)", connection), err))
 			continue
 		}
 		log.Printf("Info: new connection: %v\n", connection.RemoteAddr())

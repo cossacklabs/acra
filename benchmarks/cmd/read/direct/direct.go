@@ -17,20 +17,29 @@ package main
 import (
 	"fmt"
 	"github.com/cossacklabs/acra/benchmarks/common"
+	"github.com/cossacklabs/acra/benchmarks/config"
 	"github.com/cossacklabs/acra/benchmarks/write"
+	"math/rand"
 	"time"
 )
 
 func main() {
 	db := common.Connect()
-	common.DropCreateWithoutZone(db)
-
-	write.CheckOneKey()
-	public_key := write.GetPublicOneKey()
-
+	fmt.Println("Generate rows")
+	if !common.IsExistsData("test_raw", db) {
+		common.DropCreateRaw(db)
+		write.GenerateDataRows(db)
+	}
 	fmt.Println("Start benchmark")
 	start_time := time.Now()
-	write.GenerateAcrastructRowsOneKey(public_key, db)
+	for i := 0; i < config.REQUEST_COUNT; i++ {
+		id := rand.Intn(config.ROW_COUNT)
+		rows, err := db.Query("SELECT id, data FROM test_raw WHERE id=$1;", &id)
+		if err != nil {
+			panic(err)
+		}
+		rows.Close()
+	}
 	end_time := time.Now()
 
 	diff := end_time.Sub(start_time)

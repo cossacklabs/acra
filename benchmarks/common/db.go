@@ -1,11 +1,25 @@
+// Copyright 2016, Cossack Labs Limited
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+// http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 package common
 
 import (
 	"database/sql"
 	"fmt"
+	"github.com/cossacklabs/acra/benchmarks/config"
 	_ "github.com/lib/pq"
 	"os"
-	"github.com/cossacklabs/acra/benchmarks/config"
 )
 
 func connect(connection_string string) *sql.DB {
@@ -20,6 +34,8 @@ func connect(connection_string string) *sql.DB {
 	return db
 }
 
+//ACRA_CONNECTION_STRING = 'dbname=benchmarks user=postgres password=postgres host=127.0.0.1 port=9494 sslmode=disable'
+//PG_CONNECTION_STRING = 'dbname=benchmarks user=postgres password=postgres host=172.17.0.1 port=5433 sslmode=disable'
 func Connect() *sql.DB {
 	connection_string := os.Getenv("PG_CONNECTION_STRING")
 	return connect(connection_string)
@@ -71,16 +87,12 @@ func RunScripts(scripts []string, db *sql.DB) {
 	}
 }
 
-func LoadDataWithoutZone(db *sql.DB){
+func IsExistsData(tablename string, db *sql.DB) bool {
 	var count int
-	db.QueryRow("SELECT count(*) FROM test_without_zone;").Scan(&count)
-	if count == config.ROW_COUNT{
-		fmt.Println("Data in table 'test_without_zone' already exists")
-		return
+	db.QueryRow(fmt.Sprintf("SELECT count(*) FROM %s;", tablename)).Scan(&count)
+	if count == config.ROW_COUNT {
+		fmt.Printf("Data in table '%s' already exists\n", tablename)
+		return true
 	}
-	if count != 0 {
-		panic("Incorrect data count exists in table 'test_without_zone'")
-	}
-	_, err := db.Exec("COPY test_without_zone FROM src/github.com/cossacklabs/acra/benchmarks/fixtures/test_without_zone.sql")
-	if err != nil{panic(err)}
+	return false
 }
