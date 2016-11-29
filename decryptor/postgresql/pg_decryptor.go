@@ -43,6 +43,7 @@ const (
 	BIND_MESSAGE_TYPE             byte = '2'
 	DATA_DESCRIPTION_MESSAGE_TYPE byte = 'T'
 	DATA_ROW_MESSAGE_TYPE         byte = 'D'
+	NO_SSL                        byte = 'N'
 )
 
 /* override size in postgresql data row that starts with 4 byte of size */
@@ -90,54 +91,8 @@ func (row *DataRow) readByte(reader io.Reader, writer io.Writer, err_ch chan<- e
 	return true
 }
 
-func (row *DataRow) SkipDataDescription(reader *acra_io.ExtendedBufferedReader, writer *bufio.Writer, err_ch chan<- error) bool {
-	/* Detect data description packet from postgresql that should start with T and
-	4 byte length of description, proxy data as is and return when should be started data row packets*/
-	packet_begin := true
-	for {
-		if reader.Buffered() == 0 {
-			writer.Flush()
-			packet_begin = true
-		}
-
-		if !row.readByte(reader, writer, err_ch) {
-			return false
-		}
-		if packet_begin {
-			if row.buf[0] == PARSE_MESSAGE_TYPE {
-				log.Println("Debug: skip parse block")
-				if !row.skipData(reader, writer, err_ch) {
-					return false
-				}
-				if !row.readByte(reader, writer, err_ch) {
-					return false
-				}
-			}
-			if row.buf[0] == BIND_MESSAGE_TYPE {
-				log.Println("Debug: skip bind block")
-				if !row.skipData(reader, writer, err_ch) {
-					return false
-				}
-				if !row.readByte(reader, writer, err_ch) {
-					return false
-				}
-			}
-			if row.buf[0] == DATA_DESCRIPTION_MESSAGE_TYPE {
-				log.Println("Debug: skip data description block")
-				if !row.skipData(reader, writer, err_ch) {
-					return false
-				}
-				if !row.readByte(reader, writer, err_ch) {
-					return false
-				}
-			}
-			if row.buf[0] == DATA_ROW_MESSAGE_TYPE {
-				log.Println("Debug: matched data row")
-				return true
-			}
-			packet_begin = false
-		}
-	}
+func (r *DataRow) IsDataRow() bool {
+	return r.buf[0] == DATA_ROW_MESSAGE_TYPE
 }
 
 func PgDecryptStream(decryptor base.Decryptor, rr *bufio.Reader, writer *bufio.Writer, err_ch chan<- error) {
@@ -151,11 +106,31 @@ func PgDecryptStream(decryptor base.Decryptor, rr *bufio.Reader, writer *bufio.W
 	var buf_writer = bufio.NewWriter(r.column_data_buf)
 	reader := acra_io.NewExtendedBufferedReader(rr)
 	inner_err_ch := make(chan error, 1)
+	first_byte := true
 	for {
-		if !r.SkipDataDescription(reader, writer, err_ch) {
+		if !r.readByte(reader, writer, err_ch) {
 			return
 		}
-		log.Println("Debug: skiped row description")
+
+		if first_byte {
+			// https://www.postgresql.org/docs/9.1/static/protocol-flow.html#AEN92112
+			// we should know that we shouldn't read anymore bytes
+			if r.buf[0] == 'N' {
+				writer.Flush()
+				continue
+			}
+			first_byte = false
+		}
+
+		if !r.IsDataRow() {
+			if !r.skipData(reader, writer, err_ch) {
+				return
+			}
+			writer.Flush()
+			continue
+		}
+
+		log.Println("Debug: matched data row")
 
 		r.write_index = 0
 

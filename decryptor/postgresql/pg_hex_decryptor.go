@@ -113,7 +113,7 @@ func (decryptor *PgHexDecryptor) ReadSymmetricKey(private_key *keys.PrivateKey, 
 	smessage := message.New(private_key, pubkey)
 	symmetric_key, err := smessage.Unwrap(decryptor.decoded_key_block_buffer[base.PUBLIC_KEY_LENGTH:])
 	if err != nil {
-		log.Printf("Warning: %v\n", ErrorMessage("can't unwrap scell data", err))
+		log.Printf("Warning: %v\n", ErrorMessage("can't unwrap symmetric key", err))
 		return nil, decryptor.key_block_buffer[:n], base.FAKE_ACRA_STRUCT
 	}
 	return symmetric_key, decryptor.key_block_buffer[:n], nil
@@ -125,9 +125,9 @@ func (decryptor *PgHexDecryptor) readDataLength(reader io.Reader) (uint64, []byt
 	if err != nil {
 		log.Printf("Warning: %v\n", ErrorMessage("can't read data length", err))
 		if err == io.ErrUnexpectedEOF || err == io.EOF {
-			return 0, []byte{}, base.FAKE_ACRA_STRUCT
+			return 0, decryptor.hex_length_buf[:len_count], base.FAKE_ACRA_STRUCT
 		} else {
-			return 0, []byte{}, err
+			return 0, decryptor.hex_length_buf[:len_count], err
 		}
 	}
 	if len_count != len(decryptor.hex_length_buf) {

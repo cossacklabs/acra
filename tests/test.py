@@ -112,6 +112,7 @@ class BaseTestCase(unittest.TestCase):
     DB_BYTEA = 'hex'
     ZONE = False
     DEBUG = False
+    maxDiff = None
 
     def fork(self, func):
         popen = func()
@@ -233,7 +234,7 @@ class HexFormatTest(BaseTestCase):
             server_public1 = f.read()
         incorrect_data = self.get_random_data()
         correct_data = self.get_random_data()
-        fake_offset = (3+45+84) - 1
+        fake_offset = (3+45+84) - 2
         fake_acra_struct = create_acra_struct(
             incorrect_data.encode('ascii'), server_public1)[:fake_offset]
         inner_acra_struct = create_acra_struct(
