@@ -185,10 +185,10 @@ func PgDecryptStream(decryptor base.Decryptor, rr *bufio.Reader, writer *bufio.W
 				break
 			}
 			r.column_data_buf.Reset()
-			if r.column_data_buf.Cap() < column_data_length {
-				log.Printf("Debug: increase column_data_buf size from %v\n", r.column_data_buf.Cap())
-				r.column_data_buf.Grow(column_data_length - r.column_data_buf.Cap())
-			}
+//			if r.column_data_buf.Cap() < column_data_length {
+//				log.Printf("Debug: increase column_data_buf size from %v\n", r.column_data_buf.Cap())
+			r.column_data_buf.Grow(column_data_length)// - r.column_data_buf.Cap())
+//			}
 
 			r.CheckOutputSize(column_data_length)
 			// reassign column_size_p
