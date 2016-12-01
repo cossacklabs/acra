@@ -182,21 +182,30 @@ func main() {
 
 	var data, zone []byte
 	var private_key *keys.PrivateKey
-	
-	for rows.Next() {
+
+	for i:=0; rows.Next(); i++ {
 		if *with_zone {
 			err = rows.Scan(&zone, &data)
-			if err != nil {ErrorExit("Can't read data from row", err)}
+			if err != nil {ErrorExit("Can't read zone & data from row %v", err)}
 			private_key, err = keystorage.GetZonePrivateKey(zone)
-			if err != nil {ErrorExit("Can't get zone private key", err)}
+			if err != nil {
+				fmt.Printf("%v\n", utils.ErrorMessage(fmt.Printf("Can't get zone private key for row with number %v", i), err))
+				continue
+			}
 		} else {
 			err = rows.Scan(&data)
 			if err != nil {ErrorExit("Can't read data from row", err)}
 			private_key, err = keystorage.GetServerPrivateKey([]byte(*client_id))
-			if err != nil{ErrorExit("Can't get private key", err)}
+			if err != nil {
+				fmt.Printf("%v\n", utils.ErrorMessage(fmt.Printf("Can't get private key for row with number %v", i), err))
+				continue
+			}
 		}
 		decrypted, err := base.DecryptAcrastruct(data, private_key, zone)
-		if err != nil {ErrorExit("Can't decrypt acrastruct", err)}
+		if err != nil {
+			fmt.Printf("%v\n", utils.ErrorMessage(fmt.Printf("Can't decrypt acrastruct in row with number %v", i), err))
+			continue
+		}
 		for e := executors.Front(); e != nil; e = e.Next() {
 			executor := e.Value.(Executor)
 			executor.Execute(decrypted)
