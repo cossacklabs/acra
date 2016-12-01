@@ -38,7 +38,11 @@ func main() {
 	}
 	var key_store keystore.KeyStore
 	if *fs_keystore {
-		key_store = keystore.NewFilesystemKeyStore(output)
+		key_store, err = keystore.NewFilesystemKeyStore(output)
+		if err != nil {
+			fmt.Printf("Error: %v\n", ErrorMessage("can't create key store", err))
+			os.Exit(1)
+		}		
 	}
 	id, public_key, err := key_store.GenerateZoneKey()
 	if err != nil {

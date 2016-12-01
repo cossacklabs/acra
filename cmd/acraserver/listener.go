@@ -38,8 +38,10 @@ type SServer struct {
 }
 
 func NewServer(config *config.Config) (server *SServer, err error) {
-	keystorage := keystore.NewFilesystemKeyStore(config.GetKeysDir())
-	server = &SServer{config: config, keystorage: keystorage}
+	keystorage, err := keystore.NewFilesystemKeyStore(config.GetKeysDir())
+	if nil == err {
+		server= &SServer{config: config, keystorage: keystorage}
+	}
 	return
 }
 
