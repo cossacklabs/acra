@@ -60,7 +60,7 @@ func encodeToOctal(from, to []byte) {
 	}
 }
 
-func EncodeToOctal(from []byte)[]byte {
+func EncodeToOctal(from []byte) []byte {
 	// count output size
 	output_length := 0
 	for _, c := range from {
@@ -78,7 +78,6 @@ func EncodeToOctal(from []byte)[]byte {
 	encodeToOctal(from, buffer)
 	return buffer
 }
-
 
 type PgEscapeDecryptor struct {
 	current_index    uint8

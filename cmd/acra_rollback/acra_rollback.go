@@ -2,39 +2,41 @@ package main
 
 import (
 	"bufio"
+	"container/list"
 	"database/sql"
+	"encoding/hex"
 	"flag"
 	"fmt"
 	"github.com/cossacklabs/acra/decryptor/base"
+	"github.com/cossacklabs/acra/decryptor/postgresql"
 	"github.com/cossacklabs/acra/keystore"
 	"github.com/cossacklabs/acra/utils"
+	"github.com/cossacklabs/themis/gothemis/keys"
 	_ "github.com/lib/pq"
 	"os"
-	"container/list"
-	"github.com/cossacklabs/themis/gothemis/keys"
-	"github.com/cossacklabs/acra/decryptor/postgresql"
-	"encoding/hex"
 	"strings"
 )
 
-func ErrorExit(msg string, err error){
+func ErrorExit(msg string, err error) {
 	fmt.Println(utils.ErrorMessage(msg, err))
 	os.Exit(1)
 }
-type BinaryEncoder interface{
-	Encode([]byte)string
+
+type BinaryEncoder interface {
+	Encode([]byte) string
 }
 
 type EscapeEncoder struct{}
-func (e *EscapeEncoder) Encode(data []byte)string{
+
+func (e *EscapeEncoder) Encode(data []byte) string {
 	return QuoteValue(string(postgresql.EncodeToOctal(data)))
 }
 
 type HexEncoder struct{}
-func (*HexEncoder) Encode(data []byte)string{
+
+func (*HexEncoder) Encode(data []byte) string {
 	return fmt.Sprintf("E'\\\\x%s'", hex.EncodeToString(data))
 }
-
 
 type Executor interface {
 	Execute([]byte)
@@ -64,24 +66,26 @@ func (ex *InsertExecutor) Close() {
 
 type WriteToFileExecutor struct {
 	encoder BinaryEncoder
-	file   *os.File
-	sql    string
-	writer *bufio.Writer
+	file    *os.File
+	sql     string
+	writer  *bufio.Writer
 }
 
 func NewWriteToFileExecutor(file_path string, sql string, encoder BinaryEncoder) *WriteToFileExecutor {
 	abs_path, err := utils.AbsPath(file_path)
-	if err != nil{ErrorExit("Can't get absolute path for output file", err)}
+	if err != nil {
+		ErrorExit("Can't get absolute path for output file", err)
+	}
 	file, err := os.Create(abs_path)
-	if err != nil {ErrorExit("Can't create output file", err)}
+	if err != nil {
+		ErrorExit("Can't create output file", err)
+	}
 	writer := bufio.NewWriter(file)
 	return &WriteToFileExecutor{sql: sql, file: file, writer: writer, encoder: encoder}
 }
 
-
 var PLACEHOLDER = "$1"
-var NEWLINE     = []byte{'\n'}
-
+var NEWLINE = []byte{'\n'}
 
 func QuoteValue(name string) string {
 	end := strings.IndexRune(name, 0)
@@ -91,20 +95,23 @@ func QuoteValue(name string) string {
 	return `'` + strings.Replace(name, `'`, `''`, -1) + `'`
 }
 
-
 func (ex *WriteToFileExecutor) Execute(data []byte) {
 	encoded := ex.encoder.Encode(data)
 	output_sql := strings.Replace(ex.sql, PLACEHOLDER, encoded, 1)
 	fmt.Println(len(output_sql))
 	n, err := ex.writer.Write([]byte(output_sql))
-	if err != nil{ErrorExit("Can't write to output file", err)}
-	if n != len(output_sql){
+	if err != nil {
+		ErrorExit("Can't write to output file", err)
+	}
+	if n != len(output_sql) {
 		fmt.Println("Incorrect write count")
 		os.Exit(1)
 	}
 	n, err = ex.writer.Write(NEWLINE)
-	if err != nil{ErrorExit("Can't write newline char to output file", err)}
-	if n != 1{
+	if err != nil {
+		ErrorExit("Can't write newline char to output file", err)
+	}
+	if n != 1 {
 		fmt.Println("Incorrect write count")
 		os.Exit(1)
 	}
@@ -144,7 +151,7 @@ func main() {
 		fmt.Printf("Error: %v\n", utils.ErrorMessage("can't get absolute path for keys_dir", err))
 		os.Exit(1)
 	}
-	if *output_file == "" && !*execute{
+	if *output_file == "" && !*execute {
 		fmt.Println("Error: output_file missing or execute flag")
 		os.Exit(1)
 	}
@@ -165,14 +172,14 @@ func main() {
 	defer rows.Close()
 
 	executors := list.New()
-	if *output_file != ""{
-		if *escape_format{
+	if *output_file != "" {
+		if *escape_format {
 			executors.PushFront(NewWriteToFileExecutor(*output_file, *sql_insert, &EscapeEncoder{}))
 		} else {
 			executors.PushFront(NewWriteToFileExecutor(*output_file, *sql_insert, &HexEncoder{}))
 		}
 	}
-	if *execute{
+	if *execute {
 		executors.PushFront(NewInsertExecutor(*sql_insert, db))
 	}
 	for e := executors.Front(); e != nil; e = e.Next() {
@@ -183,10 +190,12 @@ func main() {
 	var data, zone []byte
 	var private_key *keys.PrivateKey
 
-	for i:=0; rows.Next(); i++ {
+	for i := 0; rows.Next(); i++ {
 		if *with_zone {
 			err = rows.Scan(&zone, &data)
-			if err != nil {ErrorExit("Can't read zone & data from row %v", err)}
+			if err != nil {
+				ErrorExit("Can't read zone & data from row %v", err)
+			}
 			private_key, err = keystorage.GetZonePrivateKey(zone)
 			if err != nil {
 				fmt.Printf("%v\n", utils.ErrorMessage(fmt.Printf("Can't get zone private key for row with number %v", i), err))
@@ -194,7 +203,9 @@ func main() {
 			}
 		} else {
 			err = rows.Scan(&data)
-			if err != nil {ErrorExit("Can't read data from row", err)}
+			if err != nil {
+				ErrorExit("Can't read data from row", err)
+			}
 			private_key, err = keystorage.GetServerPrivateKey([]byte(*client_id))
 			if err != nil {
 				fmt.Printf("%v\n", utils.ErrorMessage(fmt.Printf("Can't get private key for row with number %v", i), err))

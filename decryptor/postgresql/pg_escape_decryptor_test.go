@@ -32,5 +32,3 @@ func TestEncodeToOctal(t *testing.T) {
 		t.Fatal("Expected != Encoded")
 	}
 }
-
-
