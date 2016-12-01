@@ -211,7 +211,7 @@ func main() {
 			}
 			private_key, err = keystorage.GetZonePrivateKey(zone)
 			if err != nil {
-				fmt.Printf("%v\n", utils.ErrorMessage(fmt.Printf("Can't get zone private key for row with number %v", i), err))
+				fmt.Printf("%v\n", utils.ErrorMessage(fmt.Sprintf("Can't get zone private key for row with number %v", i), err))
 				continue
 			}
 		} else {
@@ -221,13 +221,13 @@ func main() {
 			}
 			private_key, err = keystorage.GetServerPrivateKey([]byte(*client_id))
 			if err != nil {
-				fmt.Printf("%v\n", utils.ErrorMessage(fmt.Printf("Can't get private key for row with number %v", i), err))
+				fmt.Printf("%v\n", utils.ErrorMessage(fmt.Sprintf("Can't get private key for row with number %v", i), err))
 				continue
 			}
 		}
 		decrypted, err := base.DecryptAcrastruct(data, private_key, zone)
 		if err != nil {
-			fmt.Printf("%v\n", utils.ErrorMessage(fmt.Printf("Can't decrypt acrastruct in row with number %v", i), err))
+			fmt.Printf("%v\n", utils.ErrorMessage(fmt.Sprintf("Can't decrypt acrastruct in row with number %v", i), err))
 			continue
 		}
 		for e := executors.Front(); e != nil; e = e.Next() {
