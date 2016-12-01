@@ -15,27 +15,12 @@ package keystore
 
 import (
 	. "github.com/cossacklabs/acra/utils"
-	"github.com/cossacklabs/acra/zone"
 	"github.com/cossacklabs/themis/gothemis/keys"
-	"math/rand"
-	"time"
 )
 
 const (
 	DEFAULT_KEY_DIR_SHORT = "./.acrakeys"
 )
-
-const letterBytes = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
-
-func generate_id() []byte {
-	rand.Seed(time.Now().UnixNano())
-	b := make([]byte, zone.ZONE_ID_LENGTH)
-	for i := range b {
-		b[i] = letterBytes[rand.Int63()%int64(len(letterBytes))]
-	}
-	//return append(zone.ZONE_ID_BEGIN, append(b, ZONE_ID_END...)...)
-	return append(zone.ZONE_ID_BEGIN, b...)
-}
 
 type KeyStore interface {
 	GetZonePrivateKey(id []byte) (*keys.PrivateKey, error)
