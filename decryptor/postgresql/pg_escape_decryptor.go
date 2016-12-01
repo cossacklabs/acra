@@ -35,34 +35,54 @@ import (
 //[92, 50, 48, 53], 32, [92, 51, 55, 51]
 var ESCAPE_TAG_BEGIN = []byte{92, 50, 48, 53, 32, 92, 51, 55, 51}
 
-func EncodeToOctal(from, to []byte) int {
+func encodeToOctal(from, to []byte) int {
 	output_length := 0
 	for _, c := range from {
 		if IsPrintableEscapeChar(c) {
 			if c == SLASH_CHAR {
-				to = append(to, []byte{SLASH_CHAR, SLASH_CHAR}...)
+				to = append(to[:output_length], []byte{SLASH_CHAR, SLASH_CHAR}...)
 				output_length += 2
 			} else {
-				to = append(to, c)
+				to = append(to[:output_length], c)
 				output_length++
 			}
 		} else {
-			to = append(to, SLASH_CHAR)
+			to = append(to[:output_length], SLASH_CHAR)
+			output_length++
 			octal := strconv.FormatInt(int64(c), 8)
 			switch len(octal) {
 			case 3:
-				to = append(to, []byte(octal)...)
+				to = append(to[:output_length], []byte(octal)...)
 			case 2:
-				to = append(to, '0', octal[0], octal[1])
+				to = append(to[:output_length], '0', octal[0], octal[1])
 
 			case 1:
-				to = append(to, '0', '0', octal[0])
+				to = append(to[:output_length], '0', '0', octal[0])
 			}
-			output_length += 4
+			output_length += 3
 		}
 	}
 	return output_length
 }
+
+func EncodeToOctal(from []byte)[]byte {
+	output_length := 0
+	for _, c := range from {
+		if IsPrintableEscapeChar(c) {
+			if c == SLASH_CHAR {
+				output_length += 2
+			} else {
+				output_length++
+			}
+		} else {
+			output_length += 4
+		}
+	}
+	buffer := make([]byte, output_length)
+	encodeToOctal(from, buffer)
+	return buffer
+}
+
 
 type PgEscapeDecryptor struct {
 	current_index    uint8
@@ -263,11 +283,7 @@ func (decryptor *PgEscapeDecryptor) ReadData(symmetric_key, zone_id []byte, read
 	if err != nil {
 		return append(hex_length_buf, oct_data...), base.FAKE_ACRA_STRUCT
 	}
-
-	// 16 - uint64 length in escape encoded format
-	output := make([]byte, len(decrypted)*4)
-	n_data := EncodeToOctal(decrypted, output[:0])
-	return output[:n_data], nil
+	return EncodeToOctal(decrypted), nil
 }
 
 func (decryptor *PgEscapeDecryptor) SetKeyStore(store keystore.KeyStore) {
