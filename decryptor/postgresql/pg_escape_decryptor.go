@@ -35,37 +35,33 @@ import (
 //[92, 50, 48, 53], 32, [92, 51, 55, 51]
 var ESCAPE_TAG_BEGIN = []byte{92, 50, 48, 53, 32, 92, 51, 55, 51}
 
-func encodeToOctal(from, to []byte) int {
-	output_length := 0
+func encodeToOctal(from, to []byte) {
+	to = to[:0]
 	for _, c := range from {
 		if IsPrintableEscapeChar(c) {
 			if c == SLASH_CHAR {
-				to = append(to[:output_length], []byte{SLASH_CHAR, SLASH_CHAR}...)
-				output_length += 2
+				to = append(to, []byte{SLASH_CHAR, SLASH_CHAR}...)
 			} else {
-				to = append(to[:output_length], c)
-				output_length++
+				to = append(to, c)
 			}
 		} else {
-			to = append(to[:output_length], SLASH_CHAR)
-			output_length++
+			to = append(to, SLASH_CHAR)
 			octal := strconv.FormatInt(int64(c), 8)
 			switch len(octal) {
 			case 3:
-				to = append(to[:output_length], []byte(octal)...)
+				to = append(to, []byte(octal)...)
 			case 2:
-				to = append(to[:output_length], '0', octal[0], octal[1])
+				to = append(to, '0', octal[0], octal[1])
 
 			case 1:
-				to = append(to[:output_length], '0', '0', octal[0])
+				to = append(to, '0', '0', octal[0])
 			}
-			output_length += 3
 		}
 	}
-	return output_length
 }
 
 func EncodeToOctal(from []byte)[]byte {
+	// count output size
 	output_length := 0
 	for _, c := range from {
 		if IsPrintableEscapeChar(c) {
