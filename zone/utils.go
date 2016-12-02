@@ -18,7 +18,20 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"github.com/cossacklabs/themis/gothemis/keys"
+	"math/rand"
+	"time"
 )
+
+const letterBytes = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
+
+func GenerateZoneId() []byte {
+	rand.Seed(time.Now().UnixNano())
+	b := make([]byte, ZONE_ID_LENGTH)
+	for i := range b {
+		b[i] = letterBytes[rand.Int63()%int64(len(letterBytes))]
+	}
+	return append(ZONE_ID_BEGIN, b...)
+}
 
 func ZoneDataToJson(id []byte, public_key *keys.PublicKey) ([]byte, error) {
 	response := make(map[string]string)

@@ -40,7 +40,7 @@ func main() {
 	var data []byte
 	for i := 0; i < config.REQUEST_COUNT; i++ {
 		id := rand.Intn(config.ROW_COUNT)
-		err := db.QueryRow("SELECT id, data FROM test_raw WHERE id=$1;", &id).Scan(&row_id, &data)
+		err := db.QueryRow("SELECT id, data FROM test_raw WHERE id=$1+1;", &id).Scan(&row_id, &data)
 		if err != nil {
 			panic(err)
 		}

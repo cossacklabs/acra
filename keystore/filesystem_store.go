@@ -17,6 +17,7 @@ package keystore
 import (
 	"fmt"
 	. "github.com/cossacklabs/acra/utils"
+	"github.com/cossacklabs/acra/zone"
 	"github.com/cossacklabs/themis/gothemis/keys"
 	"io/ioutil"
 	"log"
@@ -52,7 +53,7 @@ func (store *FilesystemKeyStore) GenerateZoneKey() ([]byte, []byte, error) {
 	var id []byte
 	for {
 		// generate until key not exists
-		id = generate_id()
+		id = zone.GenerateZoneId()
 		if !store.HasZonePrivateKey(id) {
 			break
 		}
