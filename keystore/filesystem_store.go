@@ -22,6 +22,8 @@ import (
 	"io/ioutil"
 	"log"
 	"os"
+	"errors"
+	"runtime"
 )
 
 func GetPublicKeyFilename(id []byte) string {
@@ -33,8 +35,13 @@ type FilesystemKeyStore struct {
 	directory string
 }
 
-func NewFilesystemKeyStore(directory string) *FilesystemKeyStore {
-	return &FilesystemKeyStore{directory: directory, keys: make(map[string][]byte)}
+func NewFilesystemKeyStore(directory string) (*FilesystemKeyStore, error) {
+	fi, err:=os.Stat(directory)
+	if nil == err && runtime.GOOS == "linux" && fi.Mode().Perm().String() != "-rwx------"{
+		log.Printf("Error: key store folder has an incorrect permissions")
+		return nil, errors.New("key store folder has an incorrect permissions")
+	}
+	return &FilesystemKeyStore{directory: directory, keys: make(map[string][]byte)}, nil
 }
 
 func (*FilesystemKeyStore) get_zone_key_filename(id []byte) string {

@@ -27,7 +27,10 @@ func TestFileSystemKeyKeyStore(t *testing.T) {
 	defer func() {
 		os.RemoveAll(key_directory)
 	}()
-	store := keystore.NewFilesystemKeyStore(key_directory)
+	store, err := keystore.NewFilesystemKeyStore(key_directory)
+	if err != nil{
+		t.Fatal("error")
+	}
 	if store.HasZonePrivateKey([]byte("non-existent key")) {
 		t.Fatal("Expected false on non-existent key")
 	}
