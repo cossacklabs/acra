@@ -36,7 +36,7 @@ type FilesystemKeyStore struct {
 
 func NewFilesystemKeyStore(directory string) (*FilesystemKeyStore, error) {
 	fi, err:=os.Stat(directory)
-	if nil == err && runtime.GOOS != "linux" && fi.Mode().Perm().String() != "-rwx------"{
+	if nil == err && runtime.GOOS == "linux" && fi.Mode().Perm().String() != "-rwx------"{
 		log.Printf("Error: key store folder has an incorrect permissions")
 		return nil, errors.New("key store folder has an incorrect permissions")
 	}
