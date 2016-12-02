@@ -168,7 +168,11 @@ func main() {
 		fmt.Println("Error: output_file missing or execute flag")
 		os.Exit(1)
 	}
-	keystorage := keystore.NewFilesystemKeyStore(abs_keys_dir)
+	keystorage, err := keystore.NewFilesystemKeyStore(abs_keys_dir)
+	if err != nil {
+		fmt.Printf("Error: %v\n", utils.ErrorMessage("can't create key store", err))
+		os.Exit(1)
+	}
 	db, err := sql.Open("postgres", *connection_string)
 	if err != nil {
 		fmt.Printf("Error: %v\n", utils.ErrorMessage("can't connect to db", err))
