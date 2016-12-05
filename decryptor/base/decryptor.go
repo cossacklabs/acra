@@ -81,6 +81,9 @@ type Decryptor interface {
 	SetWithZone(bool)
 	IsMatchedZone() bool
 	ResetZoneMatch()
+	IsWholeMatch() bool
+	DecryptBlock([]byte) ([]byte, error)
+	MatchZoneBlock([]byte)
 }
 
 func CheckReadWrite(n, expected_n int, err error, err_ch chan<- error) bool {

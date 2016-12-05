@@ -15,6 +15,7 @@
 package keystore
 
 import (
+	"errors"
 	"fmt"
 	. "github.com/cossacklabs/acra/utils"
 	"github.com/cossacklabs/acra/zone"
@@ -22,7 +23,6 @@ import (
 	"io/ioutil"
 	"log"
 	"os"
-	"errors"
 	"runtime"
 	"sync"
 )
@@ -39,8 +39,8 @@ type FilesystemKeyStore struct {
 }
 
 func NewFilesystemKeyStore(directory string) (*FilesystemKeyStore, error) {
-	fi, err:=os.Stat(directory)
-	if nil == err && runtime.GOOS == "linux" && fi.Mode().Perm().String() != "-rwx------"{
+	fi, err := os.Stat(directory)
+	if nil == err && runtime.GOOS == "linux" && fi.Mode().Perm().String() != "-rwx------" {
 		log.Printf("Error: key store folder has an incorrect permissions")
 		return nil, errors.New("key store folder has an incorrect permissions")
 	}

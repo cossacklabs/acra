@@ -29,8 +29,14 @@ type DataRow struct {
 	buf                    [1]byte
 	output                 []byte
 	description_length_buf []byte
+	column_size_pointer    []byte
 	column_data_buf        *bytes.Buffer
 	write_index            int
+	column_count           int
+	data_length            int
+	err_ch                 chan<- error
+	reader                 *acra_io.ExtendedBufferedReader
+	writer                 *bufio.Writer
 }
 
 const (
@@ -71,7 +77,7 @@ func (row *DataRow) skipData(reader io.Reader, writer io.Writer, err_ch chan<- e
 	}
 
 	description_length := int(binary.BigEndian.Uint32(row.description_length_buf)) - len(row.description_length_buf)
-	log.Printf("Debug: skip data length (bind or data description): %v\n", description_length)
+	//log.Printf("Debug: skip data length (bind or data description): %v\n", description_length)
 	n2, err = io.CopyN(writer, reader, int64(description_length))
 	if !base.CheckReadWrite(int(n2), description_length, err, err_ch) {
 		return false
@@ -95,16 +101,69 @@ func (r *DataRow) IsDataRow() bool {
 	return r.buf[0] == DATA_ROW_MESSAGE_TYPE
 }
 
+func (r *DataRow) UpdateColumnAndDataSize(old_column_length, new_column_length int) bool {
+	// something was decrypted and size should be less that was before
+	log.Printf("Debug: modify response size: %v -> %v\n", old_column_length, new_column_length)
+
+	// update column data size
+	size_diff := old_column_length - new_column_length
+	log.Printf("Debug: old column size: %v; New column size: %v\n", old_column_length, new_column_length)
+	if new_column_length > old_column_length {
+		r.err_ch <- errors.New("decrypted size is more than encrypted")
+		return false
+	}
+	binary.BigEndian.PutUint32(r.column_size_pointer, uint32(new_column_length))
+	log.Printf("Debug: old data size: %v; new data size: %v\n", r.data_length, r.data_length-size_diff)
+	// update data row size
+	r.data_length -= size_diff
+	r.SetDataSize(r.data_length)
+	return true
+}
+
+func (r *DataRow) ReadDataLength() bool {
+	log.Println("Debug: read data length")
+	// read full data row length
+	n, err := r.reader.Read(r.output[:DATA_ROW_LENGTH_BUF_SIZE])
+	if !base.CheckReadWrite(n, DATA_ROW_LENGTH_BUF_SIZE, err, r.err_ch) {
+		return false
+	}
+	r.write_index += n
+	r.data_length = int(binary.BigEndian.Uint32(r.output[:DATA_ROW_LENGTH_BUF_SIZE]))
+	return true
+}
+
+func (r *DataRow) ReadColumnCount() bool {
+	// read column count
+	column_count_buf := r.output[DATA_ROW_LENGTH_BUF_SIZE : DATA_ROW_LENGTH_BUF_SIZE+2]
+	n, err := r.reader.Read(column_count_buf)
+	if !base.CheckReadWrite(n, 2, err, r.err_ch) {
+		return false
+	}
+	r.write_index += 2
+	r.column_count = int(binary.BigEndian.Uint16(column_count_buf))
+	return true
+}
+
+func (r *DataRow) Flush() bool {
+	n, err := r.writer.Write(r.output[:r.write_index])
+	if !base.CheckReadWrite(n, r.write_index, err, r.err_ch) {
+		return false
+	}
+	return true
+}
+
 func PgDecryptStream(decryptor base.Decryptor, rr *bufio.Reader, writer *bufio.Writer, err_ch chan<- error) {
+	reader := acra_io.NewExtendedBufferedReader(rr)
 	r := DataRow{
 		write_index:            0,
 		output:                 make([]byte, OUTPUT_DEFAULT_SIZE),
 		column_data_buf:        bytes.NewBuffer(make([]byte, COLUMN_DATA_DEFAULT_SIZE)),
 		description_length_buf: make([]byte, 4),
+		reader:                 reader,
+		writer:                 writer,
 	}
 	var buf_reader = bufio.NewReader(&bytes.Reader{})
 	var buf_writer = bufio.NewWriter(r.column_data_buf)
-	reader := acra_io.NewExtendedBufferedReader(rr)
 	inner_err_ch := make(chan error, 1)
 	first_byte := true
 	for {
@@ -134,120 +193,111 @@ func PgDecryptStream(decryptor base.Decryptor, rr *bufio.Reader, writer *bufio.W
 
 		r.write_index = 0
 
-		log.Println("Debug: read data length")
-		// read full data row length
-		n, err := reader.Read(r.output[:DATA_ROW_LENGTH_BUF_SIZE])
-		if !base.CheckReadWrite(n, DATA_ROW_LENGTH_BUF_SIZE, err, err_ch) {
+		if !r.ReadDataLength() {
 			return
 		}
-		r.write_index += n
-		data_length := int(binary.BigEndian.Uint32(r.output[:DATA_ROW_LENGTH_BUF_SIZE]))
-		// read column count
-		column_count_buf := r.output[DATA_ROW_LENGTH_BUF_SIZE : DATA_ROW_LENGTH_BUF_SIZE+2]
-		n, err = reader.Read(column_count_buf)
-		if !base.CheckReadWrite(n, 2, err, err_ch) {
+		if !r.ReadColumnCount() {
 			return
 		}
-		r.write_index += 2
-		field_count := int(binary.BigEndian.Uint16(column_count_buf))
-		if field_count == 0 {
-			log.Printf("Debug: fake column count: %v\n", field_count)
-			n, err := writer.Write(r.output[:r.write_index])
-			if !base.CheckReadWrite(n, r.write_index, err, err_ch) {
+		if r.column_count == 0 {
+			if !r.Flush() {
 				return
 			}
 			break
 		}
-		log.Printf("Debug: read column count: %v\n", field_count)
-		for i := 0; i < field_count; i++ {
+		log.Printf("Debug: read column count: %v\n", r.column_count)
+		for i := 0; i < r.column_count; i++ {
 			// read column length
-			log.Printf("Debug: read %v column length\n", i)
+			//log.Printf("Debug: read %v column length\n", i)
 			r.CheckOutputSize(4)
-			n, err = reader.Read(r.output[r.write_index : r.write_index+4])
+			n, err := reader.Read(r.output[r.write_index : r.write_index+4])
 			if !base.CheckReadWrite(n, 4, err, err_ch) {
 				return
 			}
 			// save pointer on column size
-			column_size_p := r.output[r.write_index : r.write_index+4]
+			r.column_size_pointer = r.output[r.write_index : r.write_index+4]
 			r.write_index += 4
-			column_data_length := int(int32(binary.BigEndian.Uint32(column_size_p)))
-			log.Printf("Debug: column[%v] length: %v\n", i, column_data_length)
+			column_data_length := int(int32(binary.BigEndian.Uint32(r.column_size_pointer)))
+			//log.Printf("Debug: column[%v] length: %v\n", i, column_data_length)
 			if column_data_length == 0 || column_data_length == -1 {
 				log.Println("Debug: empty column")
 				continue
 			}
-			if column_data_length >= data_length {
-				log.Printf("Debug: fake column length: column_data_length=%v, data_length=%v\n", column_data_length, data_length)
-				n, err := writer.Write(r.output[:r.write_index])
-				if !base.CheckReadWrite(n, n, err, err_ch) {
+			if column_data_length >= r.data_length {
+				log.Printf("Debug: fake column length: column_data_length=%v, data_length=%v\n", column_data_length, r.data_length)
+				if !r.Flush() {
 					return
 				}
 				break
 			}
 			r.column_data_buf.Reset()
-//			if r.column_data_buf.Cap() < column_data_length {
-//				log.Printf("Debug: increase column_data_buf size from %v\n", r.column_data_buf.Cap())
-			r.column_data_buf.Grow(column_data_length)// - r.column_data_buf.Cap())
-//			}
 
+			r.column_data_buf.Grow(column_data_length)
 			r.CheckOutputSize(column_data_length)
 			// reassign column_size_p
-			column_size_p = r.output[r.write_index-4 : r.write_index]
+			r.column_size_pointer = r.output[r.write_index-4 : r.write_index]
 
 			// read column data
-			log.Printf("Debug: read %v column data[%v]\n", i, column_data_length)
+			//log.Printf("Debug: read %v column data[%v]\n", i, column_data_length)
 			n, err = reader.Read(r.output[r.write_index : r.write_index+column_data_length])
 			if !base.CheckReadWrite(n, column_data_length, err, err_ch) {
 				return
 			}
 			// try to skip small piece of data that can't be valuable for us
 			if (decryptor.IsWithZone() && column_data_length >= zone.ZONE_ID_BLOCK_LENGTH) || column_data_length >= base.KEY_BLOCK_LENGTH {
-				// point reader on new data block
-				buf_reader.Reset(bytes.NewReader(r.output[r.write_index : r.write_index+column_data_length]))
 				decryptor.Reset()
-				// parse acrastruct
-				base.DecryptStream(decryptor, buf_reader, buf_writer, inner_err_ch)
+				//if !decryptor.IsWholeMatch() || decryptor.MatchBeginTag(r.output[r.write_index]) || decryptor.MatchBeginTag(r.output[r.write_index+2]){
 
-				err = <-inner_err_ch
-				log.Printf("Debug: decryption finished with err=%v\n", err)
-				if err != io.EOF {
-					err_ch <- err
-					return
-				}
-				_, err = buf_writer.Write(decryptor.GetMatched())
-				if !base.CheckReadWrite(1, 1, err, err_ch) {
-					return
-				}
-				decryptor.Reset()
-				buf_writer.Flush()
+				if decryptor.IsWholeMatch() {
+					log.Println("Debug: check whole match")
+					if !decryptor.IsWithZone() || decryptor.IsMatchedZone() {
+						decrypted, err := decryptor.DecryptBlock(r.output[r.write_index : r.write_index+column_data_length])
+						log.Println("Debug: err - ", err)
+						if err == nil {
+							log.Println("Debug: success whole decrypt")
+							copy(r.output[r.write_index:], decrypted)
+							r.UpdateColumnAndDataSize(column_data_length, len(decrypted))
+							r.write_index += len(decrypted)
+							continue
+						}
+					} else {
+						decryptor.MatchZoneBlock(r.output[r.write_index : r.write_index+column_data_length])
+					}
+					r.write_index += column_data_length
+				} else {
+					log.Println("Debug: injected cell")
+					// point reader on new data block
+					buf_reader.Reset(bytes.NewReader(r.output[r.write_index : r.write_index+column_data_length]))
+					//decryptor.Reset()
+					// parse acrastruct
+					base.DecryptStream(decryptor, buf_reader, buf_writer, inner_err_ch)
 
-				if r.column_data_buf.Len() < column_data_length {
-					// something was decrypted and size should be less that was before
-					log.Printf("Debug: modify response size: %v -> %v\n", column_data_length, r.column_data_buf.Len())
-					// update column data size
-					size_diff := column_data_length - r.column_data_buf.Len()
-					new_column_size := column_data_length - size_diff
-					log.Printf("Debug: old column size: %v; New column size: %v\n", column_data_length, new_column_size)
-					if r.column_data_buf.Len() > column_data_length {
-						err_ch <- errors.New("decrypted size is more than encrypted")
+					err = <-inner_err_ch
+					log.Printf("Debug: decryption finished with err=%v\n", err)
+					if err != io.EOF {
+						err_ch <- err
 						return
 					}
-					binary.BigEndian.PutUint32(column_size_p, uint32(new_column_size))
-					log.Printf("Debug: old data size: %v; new data size: %v\n", data_length, data_length-size_diff)
-					// update data row size
-					data_length -= size_diff
-					r.SetDataSize(data_length)
-					// cope encrypted data instead raw data
+					_, err = buf_writer.Write(decryptor.GetMatched())
+					if !base.CheckReadWrite(1, 1, err, err_ch) {
+						return
+					}
+					//decryptor.Reset()
+					buf_writer.Flush()
+
+					if r.column_data_buf.Len() < column_data_length {
+						if !r.UpdateColumnAndDataSize(column_data_length, r.column_data_buf.Len()) {
+							return
+						}
+					}
 					copy(r.output[r.write_index:], r.column_data_buf.Bytes())
+					r.write_index += r.column_data_buf.Len()
 				}
-				r.write_index += r.column_data_buf.Len()
 			} else {
 				r.write_index += column_data_length
 			}
 		}
-		//Read data length
-		n, err = writer.Write(r.output[:r.write_index])
-		if !base.CheckReadWrite(n, r.write_index, err, err_ch) {
+		if !r.Flush() {
 			return
 		}
 		decryptor.Reset()

@@ -40,7 +40,7 @@ type SServer struct {
 func NewServer(config *config.Config) (server *SServer, err error) {
 	keystorage, err := keystore.NewFilesystemKeyStore(config.GetKeysDir())
 	if nil == err {
-		server= &SServer{config: config, keystorage: keystorage}
+		server = &SServer{config: config, keystorage: keystorage}
 	}
 	return
 }
@@ -103,6 +103,7 @@ func (server *SServer) getDecryptor(client_id []byte) base.Decryptor {
 	}
 	decryptor_impl := pg.NewPgDecryptor(client_id, data_decryptor)
 	decryptor_impl.SetWithZone(server.config.GetWithZone())
+	decryptor_impl.SetWholeMatch(server.config.GetWholeMatch())
 	decryptor_impl.SetKeyStore(server.keystorage)
 	decryptor_impl.SetPoisonKey(server.config.GetPoisonKey())
 	zone_matcher := zone.NewZoneMatcher(matcher_pool, server.keystorage)
