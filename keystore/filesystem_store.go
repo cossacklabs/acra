@@ -24,7 +24,10 @@ import (
 	"os"
 	"errors"
 	"runtime"
+	"sync"
 )
+
+var lock = sync.RWMutex{}
 
 func GetPublicKeyFilename(id []byte) string {
 	return fmt.Sprintf("%s_zone.pub", string(id))
@@ -75,6 +78,8 @@ func (store *FilesystemKeyStore) GenerateZoneKey() ([]byte, []byte, error) {
 	if err != nil {
 		return []byte{}, []byte{}, err
 	}
+	lock.Lock()
+	defer lock.Unlock()
 	// cache key
 	store.keys[store.get_zone_key_filename(id)] = keypair.Private.Value
 	return id, keypair.Public.Value, nil
@@ -86,6 +91,8 @@ func (store *FilesystemKeyStore) get_file_path(filename string) string {
 
 func (store *FilesystemKeyStore) GetZonePrivateKey(id []byte) (*keys.PrivateKey, error) {
 	fname := store.get_zone_key_filename(id)
+	lock.Lock()
+	defer lock.Unlock()
 	key, ok := store.keys[fname]
 	if ok {
 		log.Printf("Debug: load cached key: %s\n", fname)
@@ -107,6 +114,8 @@ func (store *FilesystemKeyStore) HasZonePrivateKey(id []byte) bool {
 		return false
 	}
 	fname := store.get_zone_key_filename(id)
+	lock.RLock()
+	defer lock.RUnlock()
 	_, ok := store.keys[fname]
 	if ok {
 		return true
@@ -117,6 +126,8 @@ func (store *FilesystemKeyStore) HasZonePrivateKey(id []byte) bool {
 
 func (store *FilesystemKeyStore) GetProxyPublicKey(id []byte) (*keys.PublicKey, error) {
 	fname := GetPublicKeyFilename(id)
+	lock.Lock()
+	defer lock.Unlock()
 	key, ok := store.keys[fname]
 	if ok {
 		log.Printf("Debug: load cached key: %s\n", fname)
@@ -133,6 +144,8 @@ func (store *FilesystemKeyStore) GetProxyPublicKey(id []byte) (*keys.PublicKey, 
 
 func (store *FilesystemKeyStore) GetServerPrivateKey(id []byte) (*keys.PrivateKey, error) {
 	fname := fmt.Sprintf("%s_server", id)
+	lock.Lock()
+	defer lock.Unlock()
 	key, ok := store.keys[fname]
 	if ok {
 		log.Printf("Debug: load cached key: %s\n", fname)
