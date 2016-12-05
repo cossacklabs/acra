@@ -56,7 +56,7 @@ func main() {
 		panic(err)
 	}
 
-	file, err := os.Create(fmt.Sprintf("%v/%v", *output_dir, *key_name))
+	file, err := os.OpenFile(fmt.Sprintf("%v/%v", *output_dir, *key_name), os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0600)
 	if err != nil {
 		panic(err)
 	}
@@ -70,7 +70,7 @@ func main() {
 	}
 	fmt.Println(file.Name())
 
-	file, err = os.Create(fmt.Sprintf("%v/%v.pub", *output_dir, *key_name))
+	file, err = os.OpenFile(fmt.Sprintf("%v/%v.pub", *output_dir, *key_name), os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0600)
 	if err != nil {
 		panic(err)
 	}
