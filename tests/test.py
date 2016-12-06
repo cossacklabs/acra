@@ -125,15 +125,18 @@ class BaseTestCase(unittest.TestCase):
 
     def fork_acra(self, db_host: str, db_port: int, format: str, acra_port,
                   with_zone=False):
-        return self.fork(lambda: subprocess.Popen(
-            ['./acraserver', '-db_host='+db_host, '-db_port={}'.format(db_port),
-             '-injectedcell=true',
-             '-{}=true'.format(format), '-host=127.0.0.1',
-             '-port={}'.format(self.ACRA_PORT),
-             '-d=true' if self.DEBUG else '',
-             '-commands_port=10055',
-             '-zonemode=true' if with_zone else ''
-             ]))
+        command = [
+            './acraserver', '-db_host='+db_host, '-db_port={}'.format(db_port),
+            '-injectedcell=true',
+            '-{}=true'.format(format), '-host=127.0.0.1',
+            '-port={}'.format(self.ACRA_PORT),
+            '-commands_port=10055',
+        ]
+        if self.DEBUG:
+            command.append('-d=true')
+        if with_zone:
+            command.append('-zonemode=true')
+        return self.fork(lambda: subprocess.Popen(command))
 
     def setUp(self):
         self.proxy_1 = self.fork_proxy(

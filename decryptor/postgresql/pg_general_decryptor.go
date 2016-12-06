@@ -207,11 +207,9 @@ func (decryptor *PgDecryptor) DecryptBlock(block []byte) ([]byte, error) {
 	// we need skip them for correct matching begin tag
 	n := 0
 	if ok && bytes.Equal(block[:2], HEX_PREFIX) {
-		log.Println("Debug: hex decrypt block")
 		block = block[2:]
 		for _, c := range block {
 			if !decryptor.pg_decryptor.MatchBeginTag(c) {
-				log.Println("Debug: not matched begin tag")
 				return []byte{}, base.FAKE_ACRA_STRUCT
 			}
 			n++
@@ -220,7 +218,6 @@ func (decryptor *PgDecryptor) DecryptBlock(block []byte) ([]byte, error) {
 			}
 		}
 	} else {
-		log.Println("Debug: non hex decrypt block")
 		for _, c := range block {
 			if !decryptor.MatchBeginTag(c) {
 				return []byte{}, base.FAKE_ACRA_STRUCT
@@ -231,27 +228,22 @@ func (decryptor *PgDecryptor) DecryptBlock(block []byte) ([]byte, error) {
 			}
 		}
 	}
-	log.Println("Debug: matched - ", decryptor.IsMatched())
 	if !decryptor.IsMatched() {
 		return []byte{}, base.FAKE_ACRA_STRUCT
 	}
 	reader := bytes.NewReader(block[n:])
-	log.Println("Debug: get private key")
 	private_key, err := decryptor.GetPrivateKey()
 	if err != nil {
 		return []byte{}, err
 	}
-	log.Println("Debug: get symm key")
 	key, _, err := decryptor.ReadSymmetricKey(private_key, reader)
 	if err != nil {
 		return []byte{}, err
 	}
-	log.Println("Debug: decrypt data")
 	data, err := decryptor.ReadData(key, decryptor.GetMatchedZoneId(), reader)
 	if err != nil {
 		return []byte{}, err
 	}
-	log.Println("Debug: len(data) ", len(data))
 	if ok {
 		return append(HEX_PREFIX, data...), nil
 	} else {

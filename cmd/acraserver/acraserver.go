@@ -24,6 +24,7 @@ import (
 	"io"
 	"io/ioutil"
 	"log"
+	"net/http"
 	_ "net/http/pprof"
 	"os"
 )
@@ -120,12 +121,12 @@ func main() {
 
 	if *debug {
 		// start http server for pprof
-		//go func() {
-		//	err := http.ListenAndServe("127.0.0.1:6060", nil)
-		//	if err != nil {
-		//		log.Printf("Error: %v\n", utils.ErrorMessage("error from debug server", err))
-		//	}
-		//}()
+		go func() {
+			err := http.ListenAndServe("127.0.0.1:6060", nil)
+			if err != nil {
+				log.Printf("Error: %v\n", utils.ErrorMessage("error from debug server", err))
+			}
+		}()
 	}
 	if *with_zone {
 		go server.StartCommands()
