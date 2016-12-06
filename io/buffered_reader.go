@@ -52,6 +52,7 @@ func (r *ExtendedBufferedReader) Read(buf []byte) (int, error) {
 func (r *ExtendedBufferedReader) Buffered() int {
 	return r.reader.Buffered()
 }
+
 //func (r *ExtendedBufferedReader) Discard(n int) (discarded int, err error) {
 //	return r.reader.Discard(n)
 //}

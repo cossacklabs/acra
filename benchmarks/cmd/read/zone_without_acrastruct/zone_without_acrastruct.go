@@ -37,10 +37,10 @@ func main() {
 
 	start_time := time.Now()
 	var row_id int
-	var data []byte
+	var zone, data []byte
 	for i := 0; i < config.REQUEST_COUNT; i++ {
 		id := rand.Intn(config.ROW_COUNT)
-		err := db.QueryRow("SELECT id, data FROM test_raw WHERE id=$1+1;", &id).Scan(&row_id, &data)
+		err := db.QueryRow("SELECT id, '1111111111111111111', data FROM test_raw WHERE id=$1+1;", &id).Scan(&row_id, &zone, &data)
 		if err != nil {
 			panic(err)
 		}

@@ -34,8 +34,8 @@ func connect(connection_string string) *sql.DB {
 	return db
 }
 
-//ACRA_CONNECTION_STRING = 'dbname=benchmarks user=postgres password=postgres host=127.0.0.1 port=9494 sslmode=disable'
-//PG_CONNECTION_STRING = 'dbname=benchmarks user=postgres password=postgres host=172.17.0.1 port=5433 sslmode=disable'
+//export ACRA_CONNECTION_STRING='dbname=benchmark user=postgres password=postgres host=127.0.0.1 port=9494 sslmode=disable'
+//export PG_CONNECTION_STRING='dbname=benchmark user=postgres password=postgres host=172.17.0.1 port=5433 sslmode=disable'
 func Connect() *sql.DB {
 	connection_string := os.Getenv("PG_CONNECTION_STRING")
 	return connect(connection_string)

@@ -58,6 +58,11 @@ func (zone_matcher *ZoneIdMatcher) GetZoneId() []byte {
 
 }
 
+func (zone_matcher *ZoneIdMatcher) SetMatched(id []byte) {
+	zone_matcher.zone_id = id
+	zone_matcher.matched = true
+}
+
 func (zone_matcher *ZoneIdMatcher) Match(c byte) bool {
 	current_element := zone_matcher.matchers.Front()
 	var to_remove *list.Element = nil

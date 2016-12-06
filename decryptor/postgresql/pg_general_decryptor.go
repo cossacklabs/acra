@@ -14,6 +14,7 @@
 package postgresql
 
 import (
+	"bytes"
 	"github.com/cossacklabs/acra/decryptor/base"
 	"github.com/cossacklabs/acra/decryptor/binary"
 	"github.com/cossacklabs/acra/keystore"
@@ -25,6 +26,7 @@ import (
 
 type PgDecryptor struct {
 	is_with_zone      bool
+	is_whole_match    bool
 	key_store         keystore.KeyStore
 	zone_matcher      *zone.ZoneIdMatcher
 	pg_decryptor      base.DataDecryptor
@@ -42,11 +44,12 @@ func NewPgDecryptor(client_id []byte, decryptor base.DataDecryptor) *PgDecryptor
 	return &PgDecryptor{
 		is_with_zone:     false,
 		pg_decryptor:     decryptor,
-		binary_decryptor: binary.NewBinaryDecryptor(),
+		binary_decryptor: binary.NewBinaryDecryptor(client_id),
 		client_id:        client_id,
 		// longest tag (escape) + bin
-		match_buffer: make([]byte, len(ESCAPE_TAG_BEGIN)+len(base.TAG_BEGIN)),
-		match_index:  0,
+		match_buffer:   make([]byte, len(ESCAPE_TAG_BEGIN)+len(base.TAG_BEGIN)),
+		match_index:    0,
+		is_whole_match: true,
 	}
 }
 
@@ -175,4 +178,83 @@ func (decryptor *PgDecryptor) GetPoisonCallbackStorage() *base.PoisonCallbackSto
 
 func (decryptor *PgDecryptor) SetPoisonCallbackStorage(storage *base.PoisonCallbackStorage) {
 	decryptor.callback_storage = storage
+}
+
+func (decryptor *PgDecryptor) IsWholeMatch() bool {
+	return decryptor.is_whole_match
+}
+
+func (decryptor *PgDecryptor) SetWholeMatch(value bool) {
+	decryptor.is_whole_match = value
+}
+
+func (decryptor *PgDecryptor) MatchZoneBlock(block []byte) {
+	if _, ok := decryptor.pg_decryptor.(*PgHexDecryptor); ok && bytes.Equal(block[:2], HEX_PREFIX) {
+		block = block[2:]
+	}
+	for _, c := range block {
+		if !decryptor.MatchZone(c) {
+			return
+		}
+	}
+}
+
+var HEX_PREFIX = []byte{'\\', 'x'}
+
+func (decryptor *PgDecryptor) DecryptBlock(block []byte) ([]byte, error) {
+	_, ok := decryptor.pg_decryptor.(*PgHexDecryptor)
+	// in hex format can be \x bytes at beginning
+	// we need skip them for correct matching begin tag
+	n := 0
+	if ok && bytes.Equal(block[:2], HEX_PREFIX) {
+		log.Println("Debug: hex decrypt block")
+		block = block[2:]
+		for _, c := range block {
+			if !decryptor.pg_decryptor.MatchBeginTag(c) {
+				log.Println("Debug: not matched begin tag")
+				return []byte{}, base.FAKE_ACRA_STRUCT
+			}
+			n++
+			if decryptor.pg_decryptor.IsMatched() {
+				break
+			}
+		}
+	} else {
+		log.Println("Debug: non hex decrypt block")
+		for _, c := range block {
+			if !decryptor.MatchBeginTag(c) {
+				return []byte{}, base.FAKE_ACRA_STRUCT
+			}
+			n++
+			if decryptor.IsMatched() {
+				break
+			}
+		}
+	}
+	log.Println("Debug: matched - ", decryptor.IsMatched())
+	if !decryptor.IsMatched() {
+		return []byte{}, base.FAKE_ACRA_STRUCT
+	}
+	reader := bytes.NewReader(block[n:])
+	log.Println("Debug: get private key")
+	private_key, err := decryptor.GetPrivateKey()
+	if err != nil {
+		return []byte{}, err
+	}
+	log.Println("Debug: get symm key")
+	key, _, err := decryptor.ReadSymmetricKey(private_key, reader)
+	if err != nil {
+		return []byte{}, err
+	}
+	log.Println("Debug: decrypt data")
+	data, err := decryptor.ReadData(key, decryptor.GetMatchedZoneId(), reader)
+	if err != nil {
+		return []byte{}, err
+	}
+	log.Println("Debug: len(data) ", len(data))
+	if ok {
+		return append(HEX_PREFIX, data...), nil
+	} else {
+		return data, nil
+	}
 }

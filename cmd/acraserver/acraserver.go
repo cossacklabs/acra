@@ -24,7 +24,6 @@ import (
 	"io"
 	"io/ioutil"
 	"log"
-	"net/http"
 	_ "net/http/pprof"
 	"os"
 )
@@ -63,6 +62,8 @@ func main() {
 	server_id := flag.String("server_id", "acra_server", "id that will be sent in secure session")
 
 	verbose := flag.Bool("v", false, "log to stdout")
+	flag.Bool("wholecell", true, "acrastruct will stored in whole data cell")
+	injectedcell := flag.Bool("injectedcell", false, "acrastruct may be injected into any place of data cell")
 
 	debug := flag.Bool("d", false, "debug log")
 
@@ -105,6 +106,7 @@ func main() {
 	config.SetProxyCommandsPort(*commands_port)
 	config.SetKeysDir(*keys_dir)
 	config.SetServerId([]byte(*server_id))
+	config.SetWholeMatch(!(*injectedcell))
 	if *hex_format || !*escape_format {
 		config.SetByteaFormat(acra_config.HEX_BYTEA_FORMAT)
 	} else {
@@ -118,12 +120,12 @@ func main() {
 
 	if *debug {
 		// start http server for pprof
-		go func() {
-			err := http.ListenAndServe("127.0.0.1:6060", nil)
-			if err != nil {
-				log.Printf("Error: %v\n", utils.ErrorMessage("error from debug server", err))
-			}
-		}()
+		//go func() {
+		//	err := http.ListenAndServe("127.0.0.1:6060", nil)
+		//	if err != nil {
+		//		log.Printf("Error: %v\n", utils.ErrorMessage("error from debug server", err))
+		//	}
+		//}()
 	}
 	if *with_zone {
 		go server.StartCommands()

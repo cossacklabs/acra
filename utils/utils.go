@@ -19,13 +19,13 @@ import (
 	"io"
 	"io/ioutil"
 
-	"os"
-	"os/user"
-	"strings"
-	"runtime"
+	"errors"
 	"fmt"
 	"log"
-	"errors"
+	"os"
+	"os/user"
+	"runtime"
+	"strings"
 )
 
 func WriteFull(data []byte, wr io.Writer) (int, error) {
@@ -118,8 +118,8 @@ func LoadPublicKey(path string) (*keys.PublicKey, error) {
 }
 
 func LoadPrivateKey(path string) (*keys.PrivateKey, error) {
-	fi, err:=os.Stat(path)
-	if nil == err && runtime.GOOS == "linux" && fi.Mode().Perm().String() != "-rw-------" && fi.Mode().Perm().String() != "-r--------"{
+	fi, err := os.Stat(path)
+	if nil == err && runtime.GOOS == "linux" && fi.Mode().Perm().String() != "-rw-------" && fi.Mode().Perm().String() != "-r--------" {
 		log.Printf("Error: private key file %v has incorrect permissions", path)
 		return nil, errors.New(fmt.Sprintf("Error: private key file %v has incorrect permissions", path))
 	}

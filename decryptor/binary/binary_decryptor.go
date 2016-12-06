@@ -31,17 +31,19 @@ import (
 type BinaryDecryptor struct {
 	current_index    uint8
 	is_with_zone     bool
+	is_whole_match   bool
 	key_block_buffer []byte
 	length_buf       [base.DATA_LENGTH_SIZE]byte
 	buf              []byte
 	key_store        keystore.KeyStore
 	zone_matcher     *zone.ZoneIdMatcher
 	poison_key       []byte
+	client_id        []byte
 	callback_storage *base.PoisonCallbackStorage
 }
 
-func NewBinaryDecryptor() base.Decryptor {
-	return &BinaryDecryptor{key_block_buffer: make([]byte, base.KEY_BLOCK_LENGTH)}
+func NewBinaryDecryptor(client_id []byte) base.Decryptor {
+	return &BinaryDecryptor{key_block_buffer: make([]byte, base.KEY_BLOCK_LENGTH), client_id: client_id}
 }
 
 /* not implemented Decryptor interface */
@@ -151,7 +153,11 @@ func (decryptor *BinaryDecryptor) SetKeyStore(store keystore.KeyStore) {
 }
 
 func (decryptor *BinaryDecryptor) GetPrivateKey() (*keys.PrivateKey, error) {
-	return decryptor.key_store.GetZonePrivateKey(decryptor.GetMatchedZoneId())
+	if decryptor.IsWithZone() {
+		return decryptor.key_store.GetZonePrivateKey(decryptor.GetMatchedZoneId())
+	} else {
+		return decryptor.key_store.GetServerPrivateKey(decryptor.client_id)
+	}
 }
 
 func (decryptor *BinaryDecryptor) GetPoisonCallbackStorage() *base.PoisonCallbackStorage {
@@ -200,6 +206,35 @@ func (decryptor *BinaryDecryptor) IsWithZone() bool {
 
 func (decryptor *BinaryDecryptor) SetWithZone(b bool) {
 	decryptor.is_with_zone = b
+}
+
+func (decryptor *BinaryDecryptor) SetWholeMatch(value bool) {
+	decryptor.is_whole_match = value
+}
+
+func (decryptor *BinaryDecryptor) IsWholeMatch() bool {
+	return decryptor.is_whole_match
+}
+
+func (decryptor *BinaryDecryptor) DecryptBlock(block []byte) ([]byte, error) {
+	if !bytes.Equal(block[:len(base.TAG_BEGIN)], base.TAG_BEGIN) {
+		return []byte{}, base.FAKE_ACRA_STRUCT
+	}
+	private_key, err := decryptor.GetPrivateKey()
+	if err != nil {
+		return []byte{}, err
+	}
+	decrypted, err := base.DecryptAcrastruct(block, private_key, decryptor.GetMatchedZoneId())
+	if err != nil {
+		return []byte{}, err
+	}
+	return decrypted, nil
+}
+func (decryptor *BinaryDecryptor) MatchZoneBlock(block []byte) {
+	if !(len(block) == zone.ZONE_ID_BLOCK_LENGTH && decryptor.key_store.HasZonePrivateKey(block)) {
+		return
+	}
+	decryptor.zone_matcher.SetMatched(block)
 }
 
 /* end not implemented Decryptor interface */

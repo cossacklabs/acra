@@ -33,12 +33,13 @@ type Config struct {
 	script_on_poison    string
 	stop_on_poison      bool
 	with_zone           bool
+	whole_match         bool
 	server_id           []byte
 	poison_key          []byte
 }
 
 func NewConfig() *Config {
-	return &Config{with_zone: false, stop_on_poison: false}
+	return &Config{with_zone: false, stop_on_poison: false, whole_match: true}
 }
 func (config *Config) SetPoisonKey(key []byte) {
 	config.poison_key = key
@@ -122,4 +123,10 @@ func (config *Config) GetServerId() []byte {
 func (config *Config) SetServerId(server_id []byte) error {
 	config.server_id = server_id
 	return nil
+}
+func (config *Config) GetWholeMatch() bool {
+	return config.whole_match
+}
+func (config *Config) SetWholeMatch(value bool) {
+	config.whole_match = value
 }

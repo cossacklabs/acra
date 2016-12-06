@@ -42,7 +42,7 @@ func main() {
 		if err != nil {
 			fmt.Printf("Error: %v\n", ErrorMessage("can't create key store", err))
 			os.Exit(1)
-		}		
+		}
 	}
 	id, public_key, err := key_store.GenerateZoneKey()
 	if err != nil {
