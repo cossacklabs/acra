@@ -77,7 +77,6 @@ func (row *DataRow) skipData(reader io.Reader, writer io.Writer, err_ch chan<- e
 	}
 
 	description_length := int(binary.BigEndian.Uint32(row.description_length_buf)) - len(row.description_length_buf)
-	//log.Printf("Debug: skip data length (bind or data description): %v\n", description_length)
 	n2, err = io.CopyN(writer, reader, int64(description_length))
 	if !base.CheckReadWrite(int(n2), description_length, err, err_ch) {
 		return false
@@ -208,7 +207,6 @@ func PgDecryptStream(decryptor base.Decryptor, rr *bufio.Reader, writer *bufio.W
 		log.Printf("Debug: read column count: %v\n", r.column_count)
 		for i := 0; i < r.column_count; i++ {
 			// read column length
-			//log.Printf("Debug: read %v column length\n", i)
 			r.CheckOutputSize(4)
 			n, err := reader.Read(r.output[r.write_index : r.write_index+4])
 			if !base.CheckReadWrite(n, 4, err, err_ch) {
@@ -218,7 +216,6 @@ func PgDecryptStream(decryptor base.Decryptor, rr *bufio.Reader, writer *bufio.W
 			r.column_size_pointer = r.output[r.write_index : r.write_index+4]
 			r.write_index += 4
 			column_data_length := int(int32(binary.BigEndian.Uint32(r.column_size_pointer)))
-			//log.Printf("Debug: column[%v] length: %v\n", i, column_data_length)
 			if column_data_length == 0 || column_data_length == -1 {
 				log.Println("Debug: empty column")
 				continue
@@ -238,7 +235,6 @@ func PgDecryptStream(decryptor base.Decryptor, rr *bufio.Reader, writer *bufio.W
 			r.column_size_pointer = r.output[r.write_index-4 : r.write_index]
 
 			// read column data
-			//log.Printf("Debug: read %v column data[%v]\n", i, column_data_length)
 			n, err = reader.Read(r.output[r.write_index : r.write_index+column_data_length])
 			if !base.CheckReadWrite(n, column_data_length, err, err_ch) {
 				return
@@ -246,15 +242,10 @@ func PgDecryptStream(decryptor base.Decryptor, rr *bufio.Reader, writer *bufio.W
 			// try to skip small piece of data that can't be valuable for us
 			if (decryptor.IsWithZone() && column_data_length >= zone.ZONE_ID_BLOCK_LENGTH) || column_data_length >= base.KEY_BLOCK_LENGTH {
 				decryptor.Reset()
-				//if !decryptor.IsWholeMatch() || decryptor.MatchBeginTag(r.output[r.write_index]) || decryptor.MatchBeginTag(r.output[r.write_index+2]){
-
 				if decryptor.IsWholeMatch() {
-					log.Println("Debug: check whole match")
 					if !decryptor.IsWithZone() || decryptor.IsMatchedZone() {
 						decrypted, err := decryptor.DecryptBlock(r.output[r.write_index : r.write_index+column_data_length])
-						log.Println("Debug: err - ", err)
 						if err == nil {
-							log.Println("Debug: success whole decrypt")
 							copy(r.output[r.write_index:], decrypted)
 							r.UpdateColumnAndDataSize(column_data_length, len(decrypted))
 							r.write_index += len(decrypted)
@@ -265,15 +256,12 @@ func PgDecryptStream(decryptor base.Decryptor, rr *bufio.Reader, writer *bufio.W
 					}
 					r.write_index += column_data_length
 				} else {
-					log.Println("Debug: injected cell")
 					// point reader on new data block
 					buf_reader.Reset(bytes.NewReader(r.output[r.write_index : r.write_index+column_data_length]))
-					//decryptor.Reset()
 					// parse acrastruct
 					base.DecryptStream(decryptor, buf_reader, buf_writer, inner_err_ch)
 
 					err = <-inner_err_ch
-					log.Printf("Debug: decryption finished with err=%v\n", err)
 					if err != io.EOF {
 						err_ch <- err
 						return
@@ -282,7 +270,6 @@ func PgDecryptStream(decryptor base.Decryptor, rr *bufio.Reader, writer *bufio.W
 					if !base.CheckReadWrite(1, 1, err, err_ch) {
 						return
 					}
-					//decryptor.Reset()
 					buf_writer.Flush()
 
 					if r.column_data_buf.Len() < column_data_length {
