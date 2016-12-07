@@ -31,7 +31,8 @@ import (
 )
 
 // TAG_BEGIN in hex format
-var HEX_TAG_BEGIN = []byte{56, 53, 50, 48, 102, 98}
+//var HEX_TAG_BEGIN = []byte{56, 53, 50, 48, 102, 98}
+var HEX_TAG_BEGIN = []byte(hex.EncodeToString(base.TAG_BEGIN))
 
 type PgHexDecryptor struct {
 	current_index uint8

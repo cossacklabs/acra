@@ -35,3 +35,37 @@ func TestFileExists(t *testing.T) {
 		t.Fatalf("File not exists or returned any error. err = %v\n", err)
 	}
 }
+
+func TestFindTag(t *testing.T) {
+	symbol := byte('1')
+	count := 4
+	test_data := []byte("00111100")
+	if utils.FindTag(symbol, count, test_data) != 2 {
+		t.Error("Incorrectly found tag")
+	}
+
+	test_data = []byte("11110000")
+	if utils.FindTag(symbol, count, test_data) != 0 {
+		t.Error("Incorrectly found tag")
+	}
+
+	test_data = []byte("00001111")
+	if utils.FindTag(symbol, count, test_data) != 4 {
+		t.Error("Incorrectly found tag")
+	}
+
+	test_data = []byte("10101111")
+	if utils.FindTag(symbol, count, test_data) != 4 {
+		t.Error("Incorrectly found tag")
+	}
+
+	test_data = []byte("01101111")
+	if utils.FindTag(symbol, count, test_data) != 4 {
+		t.Error("Incorrectly found tag")
+	}
+
+	test_data = []byte("11101111")
+	if utils.FindTag(symbol, count, test_data) != 4 {
+		t.Error("Incorrectly found tag")
+	}
+}

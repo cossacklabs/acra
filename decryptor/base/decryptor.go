@@ -29,7 +29,24 @@ import (
 // error show that failed acra struct recognizing but data is may be valid
 var FAKE_ACRA_STRUCT = errors.New("fake acra struct")
 
-var TAG_BEGIN = []byte{133, 32, 251}
+/*
+which symbols can be used - 2 3 4 5 6 7
+hex   char dec  bin
+'22' - " - 34 - 0b100010
+'33' - 3 - 51 - 0b110011
+'44' - D - 68 - 0b1000100
+'55' - U - 85 - 0b1010101
+'66' - f - 102 - 0b1100110
+'77' - w - 119 - 0b1110111
+<"> decided as less possible occurance in sequence as 8 bytes in a row
+*/
+
+//var TAG_BEGIN = []byte{133, 32, 251}
+const (
+	TAG_SYMBOL byte = '"'
+)
+
+var TAG_BEGIN = []byte{TAG_SYMBOL, TAG_SYMBOL, TAG_SYMBOL, TAG_SYMBOL, TAG_SYMBOL, TAG_SYMBOL, TAG_SYMBOL, TAG_SYMBOL}
 
 const (
 	// length of EC public key

@@ -67,6 +67,7 @@ func main() {
 	injectedcell := flag.Bool("injectedcell", false, "acrastruct may be injected into any place of data cell")
 
 	debug := flag.Bool("d", false, "debug log")
+	debug_server := flag.Bool("ds", false, "golang http debug server")
 
 	stop_on_poison := flag.Bool("poisonshutdown", false, "stop on poison record")
 	script_on_poison := flag.String("poisonscript", "", "execute script on poison record")
@@ -119,8 +120,8 @@ func main() {
 		panic(err)
 	}
 
-	if *debug {
-		// start http server for pprof
+	if *debug_server {
+		//start http server for pprof
 		go func() {
 			err := http.ListenAndServe("127.0.0.1:6060", nil)
 			if err != nil {

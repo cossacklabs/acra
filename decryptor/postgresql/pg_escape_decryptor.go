@@ -33,7 +33,8 @@ import (
 // TAG_BEGIN in hex format
 // 133              32   251
 //[92, 50, 48, 53], 32, [92, 51, 55, 51]
-var ESCAPE_TAG_BEGIN = []byte{92, 50, 48, 53, 32, 92, 51, 55, 51}
+//var ESCAPE_TAG_BEGIN = []byte{92, 50, 48, 53, 32, 92, 51, 55, 51}
+var ESCAPE_TAG_BEGIN = EncodeToOctal(base.TAG_BEGIN)
 
 func encodeToOctal(from, to []byte) {
 	to = to[:0]

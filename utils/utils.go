@@ -19,6 +19,7 @@ import (
 	"io"
 	"io/ioutil"
 
+	"bytes"
 	"errors"
 	"fmt"
 	"log"
@@ -149,4 +150,48 @@ func FileExists(path string) (bool, error) {
 		}
 	}
 	return true, nil
+}
+
+const (
+	NOT_FOUND = -1
+)
+
+func Min(x, y int) int {
+	if x < y {
+		return x
+	}
+	return y
+}
+func FindTag(symbol byte, count int, block []byte) int {
+	half_count := count / 2
+	tag := make([]byte, half_count)
+
+	for i := 0; i < half_count; i++ {
+		tag[i] = symbol
+	}
+
+	for i := 0; i <= len(block); i += half_count {
+		if bytes.Equal(tag, block[i:i+half_count]) {
+			start := i
+			if i != 0 {
+				for ; start > i-half_count; start-- {
+					if block[start-1] != symbol {
+						break
+					}
+				}
+			}
+			end := i + half_count - 1
+			right_range := Min(end+half_count-1, len(block)-1)
+			for ; end < right_range; end++ {
+				if block[end+1] != symbol {
+					break
+				}
+			}
+
+			if count == (end-start)+1 {
+				return start
+			}
+		}
+	}
+	return NOT_FOUND
 }

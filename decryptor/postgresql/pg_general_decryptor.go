@@ -107,13 +107,16 @@ func (decryptor *PgDecryptor) IsWithZone() bool {
 }
 
 func (decryptor *PgDecryptor) IsMatched() bool {
-	if decryptor.binary_decryptor.IsMatched() {
-		log.Println("Debug: matched binary decryptor")
-		decryptor.matched_decryptor = decryptor.binary_decryptor
-		return true
-	} else if decryptor.pg_decryptor.IsMatched() {
+	// TODO here pg_decryptor has higher priority than binary_decryptor
+	// but can be case when begin tag is equal for binary and escape formats
+	// in this case may be error in stream mode
+	if decryptor.pg_decryptor.IsMatched() {
 		log.Println("Debug: matched pg decryptor")
 		decryptor.matched_decryptor = decryptor.pg_decryptor
+		return true
+	} else if decryptor.binary_decryptor.IsMatched() {
+		log.Println("Debug: matched binary decryptor")
+		decryptor.matched_decryptor = decryptor.binary_decryptor
 		return true
 	} else {
 		decryptor.matched_decryptor = nil
