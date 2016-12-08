@@ -15,9 +15,11 @@ package postgresql
 
 import (
 	"bytes"
+	"encoding/hex"
 	"github.com/cossacklabs/acra/decryptor/base"
 	"github.com/cossacklabs/acra/decryptor/binary"
 	"github.com/cossacklabs/acra/keystore"
+	"github.com/cossacklabs/acra/utils"
 	"github.com/cossacklabs/acra/zone"
 	"github.com/cossacklabs/themis/gothemis/keys"
 	"io"
@@ -253,3 +255,34 @@ func (decryptor *PgDecryptor) DecryptBlock(block []byte) ([]byte, error) {
 		return data, nil
 	}
 }
+
+var hex_tag_symbols = hex.EncodeToString([]byte{base.TAG_SYMBOL})
+var HEX_SYMBOL byte = byte(hex_tag_symbols[0])
+
+func (decryptor *PgDecryptor) BeginTagIndex(block []byte) (int, int) {
+	_, ok := decryptor.pg_decryptor.(*PgHexDecryptor)
+	if ok {
+		if i := utils.FindTag(HEX_SYMBOL, decryptor.pg_decryptor.GetTagBeginLength(), block); i != utils.NOT_FOUND {
+			decryptor.matched_decryptor = decryptor.pg_decryptor
+			return i, decryptor.pg_decryptor.GetTagBeginLength()
+		}
+	} else {
+		// escape format
+		if i := utils.FindTag(base.TAG_SYMBOL, decryptor.pg_decryptor.GetTagBeginLength(), block); i != utils.NOT_FOUND {
+			decryptor.matched_decryptor = decryptor.pg_decryptor
+			return i, decryptor.pg_decryptor.GetTagBeginLength()
+			// binary format
+		} else if i := utils.FindTag(base.TAG_SYMBOL, decryptor.binary_decryptor.GetTagBeginLength(), block); i != utils.NOT_FOUND {
+			decryptor.matched_decryptor = decryptor.binary_decryptor
+			return i, decryptor.binary_decryptor.GetTagBeginLength()
+		}
+	}
+	decryptor.matched_decryptor = nil
+	return utils.NOT_FOUND, decryptor.GetTagBeginLength()
+}
+
+func (decryptor *PgDecryptor) GetTagBeginLength() int {
+	return decryptor.pg_decryptor.GetTagBeginLength()
+}
+
+//func (decryptor *PgDecryptor) GetAcrastructLength()

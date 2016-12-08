@@ -210,3 +210,7 @@ func (decryptor *PgHexDecryptor) ReadData(symmetric_key, zone_id []byte, reader 
 	decrypted = nil
 	return decryptor.output[:output_length], nil
 }
+
+func (decryptor *PgHexDecryptor) GetTagBeginLength() int {
+	return len(HEX_TAG_BEGIN)
+}

@@ -76,6 +76,7 @@ type DataDecryptor interface {
 	// read and decrypt data or return as is if fail
 	// db specific
 	ReadData([]byte, []byte, io.Reader) ([]byte, error)
+	GetTagBeginLength() int
 }
 
 type Decryptor interface {
@@ -101,6 +102,7 @@ type Decryptor interface {
 	IsWholeMatch() bool
 	DecryptBlock([]byte) ([]byte, error)
 	MatchZoneBlock([]byte)
+	BeginTagIndex([]byte) (int, int)
 }
 
 func CheckReadWrite(n, expected_n int, err error, err_ch chan<- error) bool {

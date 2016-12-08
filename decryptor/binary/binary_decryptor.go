@@ -237,4 +237,9 @@ func (decryptor *BinaryDecryptor) MatchZoneBlock(block []byte) {
 	decryptor.zone_matcher.SetMatched(block)
 }
 
+func (*BinaryDecryptor) GetTagBeginLength() int { return len(base.TAG_BEGIN) }
+func (decryptor *BinaryDecryptor) BeginTagIndex(block []byte) (int, int) {
+	return FindTag(base.TAG_SYMBOL, decryptor.GetTagBeginLength(), block), decryptor.GetTagBeginLength()
+}
+
 /* end not implemented Decryptor interface */

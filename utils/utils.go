@@ -163,6 +163,9 @@ func Min(x, y int) int {
 	return y
 }
 func FindTag(symbol byte, count int, block []byte) int {
+	if len(block) < count {
+		return NOT_FOUND
+	}
 	half_count := count / 2
 	tag := make([]byte, half_count)
 
@@ -170,7 +173,7 @@ func FindTag(symbol byte, count int, block []byte) int {
 		tag[i] = symbol
 	}
 
-	for i := 0; i <= len(block); i += half_count {
+	for i := 0; i+half_count <= len(block); i += half_count {
 		if bytes.Equal(tag, block[i:i+half_count]) {
 			start := i
 			if i != 0 {
@@ -181,7 +184,7 @@ func FindTag(symbol byte, count int, block []byte) int {
 				}
 			}
 			end := i + half_count - 1
-			right_range := Min(end+half_count-1, len(block)-1)
+			right_range := Min(end+half_count, len(block)-1)
 			for ; end < right_range; end++ {
 				if block[end+1] != symbol {
 					break

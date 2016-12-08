@@ -39,33 +39,67 @@ func TestFileExists(t *testing.T) {
 func TestFindTag(t *testing.T) {
 	symbol := byte('1')
 	count := 4
-	test_data := []byte("00111100")
-	if utils.FindTag(symbol, count, test_data) != 2 {
-		t.Error("Incorrectly found tag")
+	test_data := []byte("11110000")
+	if utils.FindTag(symbol, count, test_data) != 0 {
+		t.Fatal("Incorrectly found tag")
 	}
 
-	test_data = []byte("11110000")
-	if utils.FindTag(symbol, count, test_data) != 0 {
-		t.Error("Incorrectly found tag")
+	test_data = []byte("01111000")
+	if utils.FindTag(symbol, count, test_data) != 1 {
+		t.Fatal("Incorrectly found tag")
+	}
+
+	test_data = []byte("00111100")
+	if utils.FindTag(symbol, count, test_data) != 2 {
+		t.Fatal("Incorrectly found tag")
+	}
+
+	test_data = []byte("00011110")
+	if utils.FindTag(symbol, count, test_data) != 3 {
+		t.Fatal("Incorrectly found tag")
 	}
 
 	test_data = []byte("00001111")
 	if utils.FindTag(symbol, count, test_data) != 4 {
-		t.Error("Incorrectly found tag")
+		t.Fatal("Incorrectly found tag")
 	}
 
 	test_data = []byte("10101111")
 	if utils.FindTag(symbol, count, test_data) != 4 {
-		t.Error("Incorrectly found tag")
+		t.Fatal("Incorrectly found tag")
 	}
 
 	test_data = []byte("01101111")
 	if utils.FindTag(symbol, count, test_data) != 4 {
-		t.Error("Incorrectly found tag")
+		t.Fatal("Incorrectly found tag")
 	}
 
 	test_data = []byte("11101111")
 	if utils.FindTag(symbol, count, test_data) != 4 {
-		t.Error("Incorrectly found tag")
+		t.Fatal("Incorrectly found tag")
+	}
+
+	test_data = []byte("11101101")
+	if utils.FindTag(symbol, count, test_data) != utils.NOT_FOUND {
+		t.Fatal("Incorrectly found tag")
+	}
+
+	test_data = []byte("111")
+	if utils.FindTag(symbol, count, test_data) != utils.NOT_FOUND {
+		t.Fatal("Incorrectly found tag")
+	}
+	test_data = []byte{}
+	if utils.FindTag(symbol, count, test_data) != utils.NOT_FOUND {
+		t.Fatal("Incorrectly found tag")
+	}
+	test_data = []byte("1111")
+	if utils.FindTag(symbol, count, test_data) != 0 {
+		t.Fatal("Incorrectly found tag")
+	}
+
+	count = 8
+	test_data = []byte("111111110000000000")
+	if utils.FindTag(symbol, count, test_data) != 0 {
+		t.Fatal("Incorrectly found tag")
 	}
 }

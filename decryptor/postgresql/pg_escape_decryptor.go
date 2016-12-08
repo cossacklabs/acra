@@ -325,3 +325,7 @@ func (decryptor *PgEscapeDecryptor) SetPoisonCallbackStorage(storage *base.Poiso
 func (decryptor *PgEscapeDecryptor) GetPoisonCallbackStorage() *base.PoisonCallbackStorage {
 	return decryptor.callback_storage
 }
+
+func (decryptor *PgEscapeDecryptor) GetTagBeginLength() int {
+	return len(ESCAPE_TAG_BEGIN)
+}

@@ -20,6 +20,7 @@ import (
 	"errors"
 	"github.com/cossacklabs/acra/decryptor/base"
 	acra_io "github.com/cossacklabs/acra/io"
+	"github.com/cossacklabs/acra/utils"
 	"github.com/cossacklabs/acra/zone"
 	"io"
 	"log"
@@ -101,6 +102,9 @@ func (r *DataRow) IsDataRow() bool {
 }
 
 func (r *DataRow) UpdateColumnAndDataSize(old_column_length, new_column_length int) bool {
+	if old_column_length == new_column_length {
+		return true
+	}
 	// something was decrypted and size should be less that was before
 	log.Printf("Debug: modify response size: %v -> %v\n", old_column_length, new_column_length)
 
@@ -256,29 +260,69 @@ func PgDecryptStream(decryptor base.Decryptor, rr *bufio.Reader, writer *bufio.W
 					}
 					r.write_index += column_data_length
 				} else {
-					// point reader on new data block
-					buf_reader.Reset(bytes.NewReader(r.output[r.write_index : r.write_index+column_data_length]))
-					// parse acrastruct
-					base.DecryptStream(decryptor, buf_reader, buf_writer, inner_err_ch)
+					if decryptor.IsWithZone() {
+						// point reader on new data block
+						buf_reader.Reset(bytes.NewReader(r.output[r.write_index : r.write_index+column_data_length]))
+						// parse acrastruct
+						base.DecryptStream(decryptor, buf_reader, buf_writer, inner_err_ch)
 
-					err = <-inner_err_ch
-					if err != io.EOF {
-						err_ch <- err
-						return
-					}
-					_, err = buf_writer.Write(decryptor.GetMatched())
-					if !base.CheckReadWrite(1, 1, err, err_ch) {
-						return
-					}
-					buf_writer.Flush()
-
-					if r.column_data_buf.Len() < column_data_length {
-						if !r.UpdateColumnAndDataSize(column_data_length, r.column_data_buf.Len()) {
+						err = <-inner_err_ch
+						if err != io.EOF {
+							err_ch <- err
 							return
 						}
+						_, err = buf_writer.Write(decryptor.GetMatched())
+						if !base.CheckReadWrite(1, 1, err, err_ch) {
+							return
+						}
+						buf_writer.Flush()
+
+						if r.column_data_buf.Len() < column_data_length {
+							if !r.UpdateColumnAndDataSize(column_data_length, r.column_data_buf.Len()) {
+								return
+							}
+						}
+						copy(r.output[r.write_index:], r.column_data_buf.Bytes())
+						r.write_index += r.column_data_buf.Len()
+					} else {
+						current_index := r.write_index
+						end_index := r.write_index + column_data_length
+						for {
+							begin_tag_index, tag_length := decryptor.BeginTagIndex(r.output[current_index:end_index])
+							if begin_tag_index == utils.NOT_FOUND {
+								r.column_data_buf.Write(r.output[current_index:end_index])
+								break
+							}
+							// convert to absolute index
+							begin_tag_index += current_index
+							r.column_data_buf.Write(r.output[current_index:begin_tag_index])
+							current_index = begin_tag_index
+							key, err := decryptor.GetPrivateKey()
+							if err != nil {
+								log.Println("Warning: can't read private key")
+								break
+							}
+							block_reader := bytes.NewReader(r.output[begin_tag_index+tag_length:])
+							sym_key, _, err := decryptor.ReadSymmetricKey(key, block_reader)
+							if err != nil {
+								r.column_data_buf.Write([]byte{r.output[current_index]})
+								current_index++
+								continue
+							}
+							data, err := decryptor.ReadData(sym_key, nil, block_reader)
+							if err != nil {
+								log.Printf("Warning: %v\n", utils.ErrorMessage("can't decrypt data with unwrapped symmetric key", err))
+								r.column_data_buf.Write([]byte{r.output[current_index]})
+								current_index++
+								continue
+							}
+							r.column_data_buf.Write(data)
+							current_index += tag_length + (int(block_reader.Size()) - block_reader.Len())
+						}
+						copy(r.output[r.write_index:], r.column_data_buf.Bytes())
+						r.write_index += r.column_data_buf.Len()
+						r.UpdateColumnAndDataSize(column_data_length, r.column_data_buf.Len())
 					}
-					copy(r.output[r.write_index:], r.column_data_buf.Bytes())
-					r.write_index += r.column_data_buf.Len()
 				}
 			} else {
 				r.write_index += column_data_length
