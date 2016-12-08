@@ -1,4 +1,4 @@
-# Acra 0.5
+# Acra 0.75
 
 Transparent database encryption layer with strong security guarantees
 
