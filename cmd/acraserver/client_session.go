@@ -148,7 +148,7 @@ func (client_session *ClientSession) HandleSecureSession(decryptor_impl base.Dec
 	// postgresql usually use 8kb for buffers
 	reader := bufio.NewReaderSize(client_session.connection_to_db, 8192)
 	writer := bufio.NewWriter(client_session)
-	//go DecryptStream(decryptor, reader, writer, inner_error_channel)
+
 	go postgresql.PgDecryptStream(decryptor_impl, reader, writer, inner_error_channel)
 	err = <-inner_error_channel
 	if err == io.EOF {

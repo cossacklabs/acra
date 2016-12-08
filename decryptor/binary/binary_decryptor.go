@@ -42,7 +42,7 @@ type BinaryDecryptor struct {
 	callback_storage *base.PoisonCallbackStorage
 }
 
-func NewBinaryDecryptor(client_id []byte) base.Decryptor {
+func NewBinaryDecryptor(client_id []byte) *BinaryDecryptor {
 	return &BinaryDecryptor{key_block_buffer: make([]byte, base.KEY_BLOCK_LENGTH), client_id: client_id}
 }
 
@@ -148,98 +148,6 @@ func (decryptor *BinaryDecryptor) ReadData(symmetric_key, zone_id []byte, reader
 	return decrypted, nil
 }
 
-func (decryptor *BinaryDecryptor) SetKeyStore(store keystore.KeyStore) {
-	decryptor.key_store = store
+func (*BinaryDecryptor) GetTagBeginLength() int {
+	return len(base.TAG_BEGIN)
 }
-
-func (decryptor *BinaryDecryptor) GetPrivateKey() (*keys.PrivateKey, error) {
-	if decryptor.IsWithZone() {
-		return decryptor.key_store.GetZonePrivateKey(decryptor.GetMatchedZoneId())
-	} else {
-		return decryptor.key_store.GetServerPrivateKey(decryptor.client_id)
-	}
-}
-
-func (decryptor *BinaryDecryptor) GetPoisonCallbackStorage() *base.PoisonCallbackStorage {
-	return decryptor.callback_storage
-}
-
-func (decryptor *BinaryDecryptor) SetPoisonCallbackStorage(storage *base.PoisonCallbackStorage) {
-	decryptor.callback_storage = storage
-}
-
-func (decryptor *BinaryDecryptor) SetPoisonKey(key []byte) {
-	decryptor.poison_key = key
-}
-
-func (decryptor *BinaryDecryptor) GetPoisonKey() []byte {
-	return decryptor.poison_key
-}
-
-func (decryptor *BinaryDecryptor) SetZoneMatcher(zone_matcher *zone.ZoneIdMatcher) {
-	decryptor.zone_matcher = zone_matcher
-}
-
-func (decryptor *BinaryDecryptor) GetMatchedZoneId() []byte {
-	if decryptor.IsWithZone() {
-		return decryptor.zone_matcher.GetZoneId()
-	} else {
-		return []byte{}
-	}
-}
-
-func (decryptor *BinaryDecryptor) ResetZoneMatch() {
-	decryptor.zone_matcher.Reset()
-}
-
-func (decryptor *BinaryDecryptor) IsMatchedZone() bool {
-	return decryptor.zone_matcher.IsMatched() && decryptor.key_store.HasZonePrivateKey(decryptor.zone_matcher.GetZoneId())
-}
-
-func (decryptor *BinaryDecryptor) MatchZone(b byte) bool {
-	return decryptor.zone_matcher.Match(b)
-}
-
-func (decryptor *BinaryDecryptor) IsWithZone() bool {
-	return decryptor.is_with_zone
-}
-
-func (decryptor *BinaryDecryptor) SetWithZone(b bool) {
-	decryptor.is_with_zone = b
-}
-
-func (decryptor *BinaryDecryptor) SetWholeMatch(value bool) {
-	decryptor.is_whole_match = value
-}
-
-func (decryptor *BinaryDecryptor) IsWholeMatch() bool {
-	return decryptor.is_whole_match
-}
-
-func (decryptor *BinaryDecryptor) DecryptBlock(block []byte) ([]byte, error) {
-	if !bytes.Equal(block[:len(base.TAG_BEGIN)], base.TAG_BEGIN) {
-		return []byte{}, base.FAKE_ACRA_STRUCT
-	}
-	private_key, err := decryptor.GetPrivateKey()
-	if err != nil {
-		return []byte{}, err
-	}
-	decrypted, err := base.DecryptAcrastruct(block, private_key, decryptor.GetMatchedZoneId())
-	if err != nil {
-		return []byte{}, err
-	}
-	return decrypted, nil
-}
-func (decryptor *BinaryDecryptor) MatchZoneBlock(block []byte) {
-	if !(len(block) == zone.ZONE_ID_BLOCK_LENGTH && decryptor.key_store.HasZonePrivateKey(block)) {
-		return
-	}
-	decryptor.zone_matcher.SetMatched(block)
-}
-
-func (*BinaryDecryptor) GetTagBeginLength() int { return len(base.TAG_BEGIN) }
-func (decryptor *BinaryDecryptor) BeginTagIndex(block []byte) (int, int) {
-	return FindTag(base.TAG_SYMBOL, decryptor.GetTagBeginLength(), block), decryptor.GetTagBeginLength()
-}
-
-/* end not implemented Decryptor interface */

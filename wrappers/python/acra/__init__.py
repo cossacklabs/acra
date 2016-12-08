@@ -36,9 +36,6 @@ else:
         return bytes(bytearray([randint(0, 255) for _ in range(SYMMETRIC_KEY_LENGTH)]))
 
 SYMMETRIC_KEY_LENGTH = 32
-ZONE_BEGIN = b'ZXC'
-#public_key - 45
-#smessage public key - 97
 
 
 def create_acra_struct(data, acra_public_key, context=None):

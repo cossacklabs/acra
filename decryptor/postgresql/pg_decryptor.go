@@ -46,11 +46,7 @@ const (
 	OUTPUT_DEFAULT_SIZE      = 1024
 	COLUMN_DATA_DEFAULT_SIZE = 1024
 	// https://www.postgresql.org/docs/9.4/static/protocol-message-formats.html
-	PARSE_MESSAGE_TYPE            byte = '1'
-	BIND_MESSAGE_TYPE             byte = '2'
-	DATA_DESCRIPTION_MESSAGE_TYPE byte = 'T'
-	DATA_ROW_MESSAGE_TYPE         byte = 'D'
-	NO_SSL                        byte = 'N'
+	DATA_ROW_MESSAGE_TYPE byte = 'D'
 )
 
 /* override size in postgresql data row that starts with 4 byte of size */
@@ -165,9 +161,6 @@ func PgDecryptStream(decryptor base.Decryptor, rr *bufio.Reader, writer *bufio.W
 		reader:                 reader,
 		writer:                 writer,
 	}
-	var buf_reader = bufio.NewReader(&bytes.Reader{})
-	var buf_writer = bufio.NewWriter(r.column_data_buf)
-	inner_err_ch := make(chan error, 1)
 	first_byte := true
 	for {
 		if !r.readByte(reader, writer, err_ch) {
@@ -177,11 +170,11 @@ func PgDecryptStream(decryptor base.Decryptor, rr *bufio.Reader, writer *bufio.W
 		if first_byte {
 			// https://www.postgresql.org/docs/9.1/static/protocol-flow.html#AEN92112
 			// we should know that we shouldn't read anymore bytes
+			first_byte = false
 			if r.buf[0] == 'N' {
 				writer.Flush()
 				continue
 			}
-			first_byte = false
 		}
 
 		if !r.IsDataRow() {
@@ -260,68 +253,55 @@ func PgDecryptStream(decryptor base.Decryptor, rr *bufio.Reader, writer *bufio.W
 					}
 					r.write_index += column_data_length
 				} else {
-					if decryptor.IsWithZone() {
-						// point reader on new data block
-						buf_reader.Reset(bytes.NewReader(r.output[r.write_index : r.write_index+column_data_length]))
-						// parse acrastruct
-						base.DecryptStream(decryptor, buf_reader, buf_writer, inner_err_ch)
-
-						err = <-inner_err_ch
-						if err != io.EOF {
-							err_ch <- err
-							return
+					if decryptor.IsWithZone() && !decryptor.IsMatchedZone() {
+						decryptor.MatchZoneInBlock(r.output[r.write_index : r.write_index+column_data_length])
+						r.write_index += column_data_length
+						continue
+					}
+					// here we are only with matched zone
+					current_index := r.write_index
+					end_index := r.write_index + column_data_length
+					halted := false
+					for {
+						begin_tag_index, tag_length := decryptor.BeginTagIndex(r.output[current_index:end_index])
+						if begin_tag_index == utils.NOT_FOUND {
+							r.column_data_buf.Write(r.output[current_index:end_index])
+							break
 						}
-						_, err = buf_writer.Write(decryptor.GetMatched())
-						if !base.CheckReadWrite(1, 1, err, err_ch) {
-							return
+						// convert to absolute index
+						begin_tag_index += current_index
+						r.column_data_buf.Write(r.output[current_index:begin_tag_index])
+						current_index = begin_tag_index
+						key, err := decryptor.GetPrivateKey()
+						if err != nil {
+							log.Println("Warning: can't read private key")
+							halted = true
+							break
 						}
-						buf_writer.Flush()
-
-						if r.column_data_buf.Len() < column_data_length {
-							if !r.UpdateColumnAndDataSize(column_data_length, r.column_data_buf.Len()) {
-								return
-							}
+						block_reader := bytes.NewReader(r.output[begin_tag_index+tag_length:])
+						sym_key, _, err := decryptor.ReadSymmetricKey(key, block_reader)
+						if err != nil {
+							r.column_data_buf.Write([]byte{r.output[current_index]})
+							current_index++
+							continue
 						}
-						copy(r.output[r.write_index:], r.column_data_buf.Bytes())
-						r.write_index += r.column_data_buf.Len()
-					} else {
-						current_index := r.write_index
-						end_index := r.write_index + column_data_length
-						for {
-							begin_tag_index, tag_length := decryptor.BeginTagIndex(r.output[current_index:end_index])
-							if begin_tag_index == utils.NOT_FOUND {
-								r.column_data_buf.Write(r.output[current_index:end_index])
-								break
-							}
-							// convert to absolute index
-							begin_tag_index += current_index
-							r.column_data_buf.Write(r.output[current_index:begin_tag_index])
-							current_index = begin_tag_index
-							key, err := decryptor.GetPrivateKey()
-							if err != nil {
-								log.Println("Warning: can't read private key")
-								break
-							}
-							block_reader := bytes.NewReader(r.output[begin_tag_index+tag_length:])
-							sym_key, _, err := decryptor.ReadSymmetricKey(key, block_reader)
-							if err != nil {
-								r.column_data_buf.Write([]byte{r.output[current_index]})
-								current_index++
-								continue
-							}
-							data, err := decryptor.ReadData(sym_key, nil, block_reader)
-							if err != nil {
-								log.Printf("Warning: %v\n", utils.ErrorMessage("can't decrypt data with unwrapped symmetric key", err))
-								r.column_data_buf.Write([]byte{r.output[current_index]})
-								current_index++
-								continue
-							}
-							r.column_data_buf.Write(data)
-							current_index += tag_length + (int(block_reader.Size()) - block_reader.Len())
+						data, err := decryptor.ReadData(sym_key, decryptor.GetMatchedZoneId(), block_reader)
+						if err != nil {
+							log.Printf("Warning: %v\n", utils.ErrorMessage("can't decrypt data with unwrapped symmetric key", err))
+							r.column_data_buf.Write([]byte{r.output[current_index]})
+							current_index++
+							continue
 						}
+						r.column_data_buf.Write(data)
+						current_index += tag_length + (int(block_reader.Size()) - block_reader.Len())
+					}
+					if !halted && r.column_data_buf.Len() < column_data_length {
 						copy(r.output[r.write_index:], r.column_data_buf.Bytes())
 						r.write_index += r.column_data_buf.Len()
 						r.UpdateColumnAndDataSize(column_data_length, r.column_data_buf.Len())
+						decryptor.ResetZoneMatch()
+					} else {
+						r.write_index = end_index
 					}
 				}
 			} else {

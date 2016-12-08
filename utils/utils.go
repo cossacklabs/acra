@@ -191,7 +191,7 @@ func FindTag(symbol byte, count int, block []byte) int {
 				}
 			}
 
-			if count == (end-start)+1 {
+			if count <= (end-start)+1 {
 				return start
 			}
 		}

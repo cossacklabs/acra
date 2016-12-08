@@ -34,6 +34,11 @@ import (
 //var HEX_TAG_BEGIN = []byte{56, 53, 50, 48, 102, 98}
 var HEX_TAG_BEGIN = []byte(hex.EncodeToString(base.TAG_BEGIN))
 
+var HEX_ZONE_ID_BEGIN = []byte(hex.EncodeToString(zone.ZONE_ID_BEGIN))
+var HEX_ZONE_TAG_LENGTH = len(HEX_ZONE_ID_BEGIN)
+var HEX_ZONE_ID_LENGTH = hex.EncodedLen(16)
+var HEX_ZONE_ID_BLOCK_LENGTH = int(HEX_ZONE_TAG_LENGTH + HEX_ZONE_ID_LENGTH)
+
 type PgHexDecryptor struct {
 	current_index uint8
 	is_with_zone  bool

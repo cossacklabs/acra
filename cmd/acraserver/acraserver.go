@@ -73,6 +73,7 @@ func main() {
 	script_on_poison := flag.String("poisonscript", "", "execute script on poison record")
 
 	with_zone := flag.Bool("zonemode", false, "with zone")
+	disable_zone_api := flag.Bool("disable_zone_api", false, "disable zone http api")
 
 	flag.Parse()
 
@@ -129,7 +130,7 @@ func main() {
 			}
 		}()
 	}
-	if *with_zone {
+	if *with_zone && !*disable_zone_api {
 		go server.StartCommands()
 	}
 	server.Start()
