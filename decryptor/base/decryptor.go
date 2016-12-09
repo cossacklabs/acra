@@ -23,8 +23,8 @@ import (
 )
 
 // error show that failed acra struct recognizing but data is may be valid
-var FakeAcraStructErr = errors.New("fake acra struct")
-var POISON_RECORD_ERROR = errors.New("poison record detected")
+var ErrFakeAcraStruct = errors.New("fake acra struct")
+var ErrPoisonRecord = errors.New("poison record detected")
 
 /*
 which symbols can be used - 2 3 4 5 6 7

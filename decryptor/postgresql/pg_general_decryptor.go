@@ -146,7 +146,7 @@ func (decryptor *PgDecryptor) ReadSymmetricKey(private_key *keys.PrivateKey, rea
 			log.Printf("Error: unexpected error in poison record callbacks - %v\n", err)
 			return symmetric_key, raw_data, err
 		}
-		return []byte{}, raw_data, base.POISON_RECORD_ERROR
+		return []byte{}, raw_data, base.ErrPoisonRecord
 	}
 	return symmetric_key, raw_data, nil
 }
@@ -228,7 +228,7 @@ func (decryptor *PgDecryptor) DecryptBlock(block []byte) ([]byte, error) {
 		block = block[2:]
 		for _, c := range block {
 			if !decryptor.pg_decryptor.MatchBeginTag(c) {
-				return []byte{}, base.FakeAcraStructErr
+				return []byte{}, base.ErrFakeAcraStruct
 			}
 			n++
 			if decryptor.pg_decryptor.IsMatched() {
@@ -238,7 +238,7 @@ func (decryptor *PgDecryptor) DecryptBlock(block []byte) ([]byte, error) {
 	} else {
 		for _, c := range block {
 			if !decryptor.MatchBeginTag(c) {
-				return []byte{}, base.FakeAcraStructErr
+				return []byte{}, base.ErrFakeAcraStruct
 			}
 			n++
 			if decryptor.IsMatched() {
@@ -247,7 +247,7 @@ func (decryptor *PgDecryptor) DecryptBlock(block []byte) ([]byte, error) {
 		}
 	}
 	if !decryptor.IsMatched() {
-		return []byte{}, base.FakeAcraStructErr
+		return []byte{}, base.ErrFakeAcraStruct
 	}
 	reader := bytes.NewReader(block[n:])
 	private_key, err := decryptor.GetPrivateKey()
