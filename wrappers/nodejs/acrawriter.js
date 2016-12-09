@@ -4,7 +4,7 @@ var int64 = require('int64-buffer').Uint64LE
 
 module.exports = {
 
-    create_acra_struct: function(data, acra_public_key, context){
+    create_acrastruct: function(data, acra_public_key, context){
 	var data_buffer = Buffer.isBuffer(data)?data:(new Buffer(data));
 	var context_buffer = Buffer.isBuffer(context)?context:(new Buffer(context));
 	var random_keypair = new themis.KeyPair();

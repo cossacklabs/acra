@@ -18,7 +18,7 @@ from django import forms
 from django.utils import six
 from django.conf import settings
 from django.utils.translation import ugettext_lazy as _
-import acra
+import acrawriter
 
 __author__ = 'Lagovas <lagovas.lagovas@gmail.com>'
 
@@ -51,7 +51,7 @@ class CharField(models.CharField):
         elif value is None:
             return None
         else:
-            return acra.create_acra_struct(value.encode(self._encoding), self._public_key)
+            return acrawriter.create_acrastruct(value.encode(self._encoding), self._public_key)
 
     def get_internal_type(self):
         return 'BinaryField'

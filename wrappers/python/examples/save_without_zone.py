@@ -13,14 +13,12 @@
 # limitations under the License.
 # coding: utf-8
 import argparse
-import binascii
 import string
-from os.path import expanduser
 from random import randint, choice
 
 from sqlalchemy import Table, Column, Integer, String, MetaData, types, create_engine, select
 
-from wrappers.python import Acra
+from acrawriter import create_acrastruct
 
 __author__ = 'Lagovas <lagovas.lagovas@gmail.com>'
 
@@ -30,43 +28,33 @@ class AcraBinary(types.TypeDecorator):
 
     def __init__(self, public_key, *args, **kwargs):
         super(AcraBinary, self).__init__(*args, **kwargs)
-        self._acra = Acra(public_key)
+        self._public_key = public_key
 
     def process_bind_param(self, value, dialect):
-        return self._acra.create(value)
+        return create_acrastruct(value, self._public_key)
 
     def process_result_value(self, value, dialect):
-        if dialect.name == 'postgresql':
-            return self._acra.unpack(value)
-        else:
-            return value
+        return value
 
 
 class AcraString(AcraBinary):
     def __init__(self, public_key, encoding='utf-8', *args, **kwargs):
         super(AcraString, self).__init__(public_key, *args, **kwargs)
-        self._acra = Acra(public_key)
         self._encoding = encoding
 
     def process_bind_param(self, value, dialect):
         return super(AcraString, self).process_bind_param(value.encode(self._encoding), dialect)
 
     def process_result_value(self, value, dialect):
-        data = super(AcraString, self).process_result_value(value, dialect)
-        if isinstance(data, str):
-            return data
+        if isinstance(value, str):
+            return value
         else:
-            # DEMO ONLY
-            try:
-                return data.decode('utf-8')
-            except UnicodeDecodeError:
-                return binascii.hexlify(data)
+            return value.decode(self._encoding)
 
 
 if __name__ == '__main__':
-
     parser = argparse.ArgumentParser()
-    parser.add_argument('--client_id', type=str, default='test', help='will be used server\'s public key like .acrakeys/<client_id>_server.pub')
+    parser.add_argument('--public_key', type=str, help='path to acraserver public key  (for example .acrakeys/<client_id>_server.pub)')
     parser.add_argument('--db_user', type=str, default='test', help='db user to connect')
     parser.add_argument('--db_password', type=str, default='test', help='db password to connect')
     parser.add_argument('--port', type=int, default=5433, help='port of acraproxy to connect')
@@ -76,11 +64,11 @@ if __name__ == '__main__':
     args = parser.parse_args()
 
     metadata = MetaData()
-    with open('.acrakeys/{}_server.pub'.format(expanduser('~'), args.client_id), 'rb') as f:
+    with open(args.public_key, 'rb') as f:
         key = f.read()
-    test = Table('test', metadata,
+    test = Table('test_example_without_zone', metadata,
         Column('id', Integer, primary_key=True),
-        Column('data', types.Binary),
+        Column('data', AcraString(key)),
         Column('raw_data', String),
     )
 
@@ -92,12 +80,10 @@ if __name__ == '__main__':
         result = result.fetchall()
         print("{:<3} - {:<20} - {}".format("id", "data", "raw_data"))
         for row in result:
-            #print("{:<3} - {} - {:>10}".format(*row))
-            print("{:<3} - {} - {:>10}".format(row['id'], row['data'].decode('utf-8', errors='ignore'), row['raw_data']))
-
+            print("{:<3} - {} - {:>10}".format(row['id'], row['data'], row['raw_data']))
     else:
         data = bytes([randint(32, 126) for _ in range(randint(10, 20))])
         string_data = ''.join(choice(string.ascii_letters) for _ in range(randint(10, 20)))
         data = args.data or string_data
-        print(data)
-        proxy_connection.execute(test.insert(), data=Acra(key).create(data), raw_data=data)
+        print('insert data: {}'.format(data))
+        proxy_connection.execute(test.insert(), data=data, raw_data=data)

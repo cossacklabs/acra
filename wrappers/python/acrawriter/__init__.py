@@ -21,7 +21,7 @@ from pythemis.skeygen import themis_gen_key_pair
 from pythemis.smessage import smessage as smessage_
 
 __author__ = 'Lagovas <lagovas.lagovas@gmail.com>'
-__all__ = ('create_acra_struct', 'Acra')
+__all__ = ('create_acrastruct', 'Acra')
 
 #BEGIN_TAG = [133, 32, 251]
 BEGIN_TAG = [ord('"')]*8
@@ -38,7 +38,7 @@ else:
 SYMMETRIC_KEY_LENGTH = 32
 
 
-def create_acra_struct(data, acra_public_key, context=None):
+def create_acrastruct(data, acra_public_key, context=None):
     random_kp = themis_gen_key_pair('EC')
     smessage = smessage_(random_kp.export_private_key(), acra_public_key)
     random_key = generate_key()
@@ -58,34 +58,6 @@ def create_acra_struct(data, acra_public_key, context=None):
     del random_kp
     del wrapped_random_key
     return acrastruct
-create_acra_struct.__annotations__ = {
+create_acrastruct.__annotations__ = {
     'data': bytes, 'acra_public_key': bytes, 'context': bytes
 }
-
-
-class Acra(object):
-    """class helper if you need load public key once and create acrastructs
-    multiple times. help avoid pass public key every time"""
-    LENGTH_SIZE = 8
-
-    def __init__(self, public_key):
-        self._public_key = public_key
-
-    def create(self, data):
-        return create_acra_struct(data, self._public_key)
-
-    @classmethod
-    def unpack(cls, data):
-        size = struct.unpack('<Q', data[:Acra.LENGTH_SIZE])[0]
-        # size must be less than data so return data as is
-        if size > len(data):
-            return data
-        # check that next characters are the same
-        if data[8+size] != data[8+size+1] != data[-1]:
-            return data
-        return data[Acra.LENGTH_SIZE:Acra.LENGTH_SIZE+size]
-
-    @staticmethod
-    def load_from_file(filepath):
-        with open(filepath, 'rb') as f:
-            return Acra(f.read())

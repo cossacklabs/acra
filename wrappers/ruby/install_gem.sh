@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-gem uninstall acra
+gem uninstall acrawriter
 rm acra-1.*
-gem build acra.gemspec
-gem install ./acra-1.0.1.gem
+gem build acrawriter.gemspec
+gem install ./acrawriter-1.0.0.gem

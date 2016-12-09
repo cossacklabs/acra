@@ -14,12 +14,12 @@
 #!/usr/bin/env python
 from distutils.core import setup
 
-setup(name='acra',
+setup(name='acrawriter',
       version='1.0.0',
       description='Python binding for creating acra structs',
-      author='Dmitriy Kornieiev',
-      author_email='lagovas.lagovas@gmail.com',
-      packages=['acra', 'acra.django'],
+      author='Cossack Labs',
+      author_email='dev@cossacklabs.com',
+      packages=['acrawriter', 'acrawriter.django'],
       classifiers=[
           'Programming Language :: Python :: 2',
           'Programming Language :: Python :: 2.6',
