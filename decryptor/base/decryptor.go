@@ -35,7 +35,7 @@ hex   char dec  bin
 '55' - U - 85 - 0b1010101
 '66' - f - 102 - 0b1100110
 '77' - w - 119 - 0b1110111
-<"> decided as less possible occurance in sequence as 8 bytes in a row
+<"> decided as less possible occurrence in sequence as 8 bytes in a row
 */
 
 //var TAG_BEGIN = []byte{133, 32, 251}

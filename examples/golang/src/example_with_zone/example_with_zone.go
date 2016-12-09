@@ -99,6 +99,9 @@ func main() {
 	fmt.Println("Select from db with command: 'SELECT zone, data, raw_data FROM test2;'")
 	rows, err := db.Query(`SELECT zone, data, raw_data FROM test2;`)
 	defer rows.Close()
+	if err != nil {
+		log.Fatal(err)
+	}
 	var zone, data []byte
 	var raw_data string
 	fmt.Println("zone, data - raw_data")
