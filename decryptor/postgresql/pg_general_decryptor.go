@@ -159,7 +159,7 @@ func (decryptor *PgDecryptor) ReadData(symmetric_key, zone_id []byte, reader io.
 
 	for example case of matching begin tag:
 	BEGIN_TA - failed decryptor1
-	00BEGIN_TAG - successfull decryptor2
+	00BEGIN_TAG - successful decryptor2
 	in this case first decryptor1 matched not full begin_tag and failed on 'G' but
 	at this time was matched decryptor2 and successfully matched next bytes and decrypted data
 	so we need return diff of two matches 'BE' and decrypted data
@@ -228,7 +228,7 @@ func (decryptor *PgDecryptor) DecryptBlock(block []byte) ([]byte, error) {
 		block = block[2:]
 		for _, c := range block {
 			if !decryptor.pg_decryptor.MatchBeginTag(c) {
-				return []byte{}, base.FAKE_ACRA_STRUCT
+				return []byte{}, base.FakeAcraStructErr
 			}
 			n++
 			if decryptor.pg_decryptor.IsMatched() {
@@ -238,7 +238,7 @@ func (decryptor *PgDecryptor) DecryptBlock(block []byte) ([]byte, error) {
 	} else {
 		for _, c := range block {
 			if !decryptor.MatchBeginTag(c) {
-				return []byte{}, base.FAKE_ACRA_STRUCT
+				return []byte{}, base.FakeAcraStructErr
 			}
 			n++
 			if decryptor.IsMatched() {
@@ -247,7 +247,7 @@ func (decryptor *PgDecryptor) DecryptBlock(block []byte) ([]byte, error) {
 		}
 	}
 	if !decryptor.IsMatched() {
-		return []byte{}, base.FAKE_ACRA_STRUCT
+		return []byte{}, base.FakeAcraStructErr
 	}
 	reader := bytes.NewReader(block[n:])
 	private_key, err := decryptor.GetPrivateKey()

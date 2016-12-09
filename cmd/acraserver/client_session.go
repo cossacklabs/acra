@@ -49,7 +49,7 @@ func (client_session *ClientSession) GetPublicKeyForId(ss *session.SecureSession
 	return key
 }
 
-func (session *ClientSession) StateChanged(ss *session.SecureSession, state int) {}
+func (client_session *ClientSession) StateChanged(ss *session.SecureSession, state int) {}
 
 /* return server's private key for this client_id */
 func get_server_private_key(client_id []byte, keys_dir string) (*keys.PrivateKey, error) {
@@ -128,7 +128,7 @@ func (client_session *ClientSession) close() {
 }
 
 /* proxy connections from client to db and decrypt responses from db to client
-if any error occured than end processing
+if any error occurred than end processing
 */
 func (client_session *ClientSession) HandleSecureSession(decryptor_impl base.Decryptor) {
 	inner_error_channel := make(chan error, 2)

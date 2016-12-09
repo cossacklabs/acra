@@ -67,7 +67,7 @@ func (decryptor *BinaryDecryptor) ReadSymmetricKey(private_key *keys.PrivateKey,
 	n, err := io.ReadFull(reader, decryptor.key_block_buffer[:])
 	if err != nil {
 		if err == io.ErrUnexpectedEOF || err == io.EOF {
-			return nil, decryptor.key_block_buffer[:n], base.FAKE_ACRA_STRUCT
+			return nil, decryptor.key_block_buffer[:n], base.FakeAcraStructErr
 		} else {
 			return nil, decryptor.key_block_buffer[:n], err
 		}
@@ -78,7 +78,7 @@ func (decryptor *BinaryDecryptor) ReadSymmetricKey(private_key *keys.PrivateKey,
 	symmetric_key, err := smessage.Unwrap(decryptor.key_block_buffer[base.PUBLIC_KEY_LENGTH:])
 	if err != nil {
 		log.Printf("Warning: %v\n", ErrorMessage("can't unwrap symmetric key", err))
-		return nil, decryptor.key_block_buffer[:n], base.FAKE_ACRA_STRUCT
+		return nil, decryptor.key_block_buffer[:n], base.FakeAcraStructErr
 	}
 	return symmetric_key, decryptor.key_block_buffer[:n], nil
 }
@@ -89,14 +89,14 @@ func (decryptor *BinaryDecryptor) readDataLength(reader io.Reader) (uint64, []by
 	if err != nil {
 		log.Printf("Warning: %v\n", ErrorMessage("can't read data length", err))
 		if err == io.ErrUnexpectedEOF || err == io.EOF {
-			return uint64(len_count), decryptor.length_buf[:len_count], base.FAKE_ACRA_STRUCT
+			return uint64(len_count), decryptor.length_buf[:len_count], base.FakeAcraStructErr
 		} else {
 			return 0, []byte{}, err
 		}
 	}
 	if len_count != len(decryptor.length_buf) {
 		log.Printf("Warning: incorrect length count, %v!=%v\n", len_count, len(decryptor.length_buf))
-		return 0, decryptor.length_buf[:len_count], base.FAKE_ACRA_STRUCT
+		return 0, decryptor.length_buf[:len_count], base.FakeAcraStructErr
 	}
 	// convert from little endian
 	binary.Read(bytes.NewReader(decryptor.length_buf[:]), binary.LittleEndian, &length)
@@ -115,14 +115,14 @@ func (decryptor *BinaryDecryptor) readScellData(length int, reader io.Reader) ([
 	if err != nil {
 		log.Printf("Warning: %v\n", ErrorMessage(fmt.Sprintf("can't read scell data with passed length=%v", length), err))
 		if err == io.ErrUnexpectedEOF || err == io.EOF {
-			return nil, decryptor.buf[:n], base.FAKE_ACRA_STRUCT
+			return nil, decryptor.buf[:n], base.FakeAcraStructErr
 		} else {
 			return nil, decryptor.buf[:n], err
 		}
 	}
 	if n != int(length) {
 		log.Printf("Warning: %v\n", ErrorMessage("can't decode hex data", err))
-		return nil, decryptor.buf[:n], base.FAKE_ACRA_STRUCT
+		return nil, decryptor.buf[:n], base.FakeAcraStructErr
 	}
 	return decryptor.buf[:length], decryptor.buf[:length], nil
 }
@@ -143,7 +143,7 @@ func (decryptor *BinaryDecryptor) ReadData(symmetric_key, zone_id []byte, reader
 	// fill zero symmetric_key
 	FillSlice(byte(0), symmetric_key)
 	if err != nil {
-		return append(raw_length_data, raw_data...), base.FAKE_ACRA_STRUCT
+		return append(raw_length_data, raw_data...), base.FakeAcraStructErr
 	}
 	return decrypted, nil
 }

@@ -106,8 +106,7 @@ func ReadFile(path string) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	key, err := ioutil.ReadAll(file)
-	return key, nil
+	return ioutil.ReadAll(file)
 }
 
 func LoadPublicKey(path string) (*keys.PublicKey, error) {
@@ -132,7 +131,7 @@ func LoadPrivateKey(path string) (*keys.PrivateKey, error) {
 }
 
 func FillSlice(value byte, data []byte) {
-	for i, _ := range data {
+	for i := range data {
 		data[i] = value
 	}
 }

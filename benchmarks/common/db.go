@@ -18,7 +18,6 @@ import (
 	"database/sql"
 	"fmt"
 	"github.com/cossacklabs/acra/benchmarks/config"
-	_ "github.com/lib/pq"
 	"os"
 )
 
