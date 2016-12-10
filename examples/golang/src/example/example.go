@@ -26,7 +26,7 @@ import (
 )
 
 const letterBytes = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
-const CONNECTION_STRING string = "user=andrey dbname=acra host=127.0.0.1 port=9494 sslmode=disable disable_prepared_binary_result=yes"
+const CONNECTION_STRING string = "user=andrey dbname=acra host=127.0.0.1 port=9494 sslmode=disable"
 
 func RandString(n int) []byte {
 	b := make([]byte, n)
@@ -47,6 +47,9 @@ func main() {
 	fmt.Printf("Generated test data: %v\n", string(some_data))
 
 	acrastruct, err := acrawriter.CreateAcrastruct(some_data, acra_public, nil)
+	if err != nil {
+		log.Fatal("Can't create acrastruct - ", err)
+	}
 
 	db, err := sql.Open("postgres", CONNECTION_STRING)
 	if err != nil {
@@ -67,6 +70,9 @@ func main() {
 	fmt.Println("Select from db with command: 'SELECT data, raw_data FROM test;'")
 	rows, err := db.Query(`SELECT data, raw_data FROM test;`)
 	defer rows.Close()
+	if err != nil {
+		log.Fatal(err)
+	}
 	var data []byte
 	var raw_data string
 	fmt.Println("data - raw_data")

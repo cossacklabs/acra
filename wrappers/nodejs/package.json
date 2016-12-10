@@ -1,8 +1,8 @@
 {
-  "name": "acra",
+  "name": "acrawriter",
   "version": "1.0.0",
   "description": "node.js binding for creating acra struct",
-  "main": "acra.js",
+  "main": "acrawriter.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"
   },
@@ -17,7 +17,7 @@
   "author": {
     "name": "Cossack Labs",
     "email": "dev@cossacklabs.com",
-    "url": "http://cossacklabs.com/"
+    "url": "https://cossacklabs.com/"
   },
   "dependencies": {
     "jsthemis": "*",

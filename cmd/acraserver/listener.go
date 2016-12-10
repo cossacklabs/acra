@@ -147,6 +147,7 @@ func (server *SServer) handleConnection(connection net.Conn) {
 func (server *SServer) Start() {
 	listener, err := net.Listen("tcp", fmt.Sprintf("%v:%v", server.config.GetProxyHost(), server.config.GetProxyPort()))
 	if err != nil {
+		log.Printf("Error: %v\n", ErrorMessage("can't start listen connections", err))
 		return
 	}
 	log.Printf("Info: start listening %v:%v\n", server.config.GetProxyHost(), server.config.GetProxyPort())
@@ -233,6 +234,7 @@ func (server *SServer) handleCommandsConnection(connection net.Conn) {
 func (server *SServer) StartCommands() {
 	listener, err := net.Listen("tcp", fmt.Sprintf("%v:%v", server.config.GetProxyHost(), server.config.GetProxyCommandsPort()))
 	if err != nil {
+		log.Printf("Error: %v\n", ErrorMessage("can't start listen command connections", err))
 		return
 	}
 	log.Printf("Info: start listening %v:%v\n", server.config.GetProxyHost(), server.config.GetProxyCommandsPort())

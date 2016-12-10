@@ -15,9 +15,11 @@ package postgresql
 
 import (
 	"bytes"
+	"encoding/hex"
 	"github.com/cossacklabs/acra/decryptor/base"
 	"github.com/cossacklabs/acra/decryptor/binary"
 	"github.com/cossacklabs/acra/keystore"
+	"github.com/cossacklabs/acra/utils"
 	"github.com/cossacklabs/acra/zone"
 	"github.com/cossacklabs/themis/gothemis/keys"
 	"io"
@@ -107,13 +109,16 @@ func (decryptor *PgDecryptor) IsWithZone() bool {
 }
 
 func (decryptor *PgDecryptor) IsMatched() bool {
-	if decryptor.binary_decryptor.IsMatched() {
-		log.Println("Debug: matched binary decryptor")
-		decryptor.matched_decryptor = decryptor.binary_decryptor
-		return true
-	} else if decryptor.pg_decryptor.IsMatched() {
+	// TODO here pg_decryptor has higher priority than binary_decryptor
+	// but can be case when begin tag is equal for binary and escape formats
+	// in this case may be error in stream mode
+	if decryptor.pg_decryptor.IsMatched() {
 		log.Println("Debug: matched pg decryptor")
 		decryptor.matched_decryptor = decryptor.pg_decryptor
+		return true
+	} else if decryptor.binary_decryptor.IsMatched() {
+		log.Println("Debug: matched binary decryptor")
+		decryptor.matched_decryptor = decryptor.binary_decryptor
 		return true
 	} else {
 		decryptor.matched_decryptor = nil
@@ -130,7 +135,20 @@ func (decryptor *PgDecryptor) GetMatched() []byte {
 	return decryptor.match_buffer[:decryptor.match_index]
 }
 func (decryptor *PgDecryptor) ReadSymmetricKey(private_key *keys.PrivateKey, reader io.Reader) ([]byte, []byte, error) {
-	return decryptor.matched_decryptor.ReadSymmetricKey(private_key, reader)
+	symmetric_key, raw_data, err := decryptor.matched_decryptor.ReadSymmetricKey(private_key, reader)
+	if err != nil {
+		return symmetric_key, raw_data, err
+	}
+	if bytes.Equal(symmetric_key, decryptor.GetPoisonKey()) {
+		log.Println("Warning: recognized poison record")
+		err := decryptor.GetPoisonCallbackStorage().Call()
+		if err != nil {
+			log.Printf("Error: unexpected error in poison record callbacks - %v\n", err)
+			return symmetric_key, raw_data, err
+		}
+		return []byte{}, raw_data, base.ErrPoisonRecord
+	}
+	return symmetric_key, raw_data, nil
 }
 
 func (decryptor *PgDecryptor) ReadData(symmetric_key, zone_id []byte, reader io.Reader) ([]byte, error) {
@@ -141,7 +159,7 @@ func (decryptor *PgDecryptor) ReadData(symmetric_key, zone_id []byte, reader io.
 
 	for example case of matching begin tag:
 	BEGIN_TA - failed decryptor1
-	00BEGIN_TAG - successfull decryptor2
+	00BEGIN_TAG - successful decryptor2
 	in this case first decryptor1 matched not full begin_tag and failed on 'G' but
 	at this time was matched decryptor2 and successfully matched next bytes and decrypted data
 	so we need return diff of two matches 'BE' and decrypted data
@@ -210,7 +228,7 @@ func (decryptor *PgDecryptor) DecryptBlock(block []byte) ([]byte, error) {
 		block = block[2:]
 		for _, c := range block {
 			if !decryptor.pg_decryptor.MatchBeginTag(c) {
-				return []byte{}, base.FAKE_ACRA_STRUCT
+				return []byte{}, base.ErrFakeAcraStruct
 			}
 			n++
 			if decryptor.pg_decryptor.IsMatched() {
@@ -220,7 +238,7 @@ func (decryptor *PgDecryptor) DecryptBlock(block []byte) ([]byte, error) {
 	} else {
 		for _, c := range block {
 			if !decryptor.MatchBeginTag(c) {
-				return []byte{}, base.FAKE_ACRA_STRUCT
+				return []byte{}, base.ErrFakeAcraStruct
 			}
 			n++
 			if decryptor.IsMatched() {
@@ -229,7 +247,7 @@ func (decryptor *PgDecryptor) DecryptBlock(block []byte) ([]byte, error) {
 		}
 	}
 	if !decryptor.IsMatched() {
-		return []byte{}, base.FAKE_ACRA_STRUCT
+		return []byte{}, base.ErrFakeAcraStruct
 	}
 	reader := bytes.NewReader(block[n:])
 	private_key, err := decryptor.GetPrivateKey()
@@ -249,4 +267,94 @@ func (decryptor *PgDecryptor) DecryptBlock(block []byte) ([]byte, error) {
 	} else {
 		return data, nil
 	}
+}
+
+var hex_tag_symbols = hex.EncodeToString([]byte{base.TAG_SYMBOL})
+var HEX_SYMBOL byte = byte(hex_tag_symbols[0])
+
+func (decryptor *PgDecryptor) BeginTagIndex(block []byte) (int, int) {
+	_, ok := decryptor.pg_decryptor.(*PgHexDecryptor)
+	if ok {
+		if i := utils.FindTag(HEX_SYMBOL, decryptor.pg_decryptor.GetTagBeginLength(), block); i != utils.NOT_FOUND {
+			decryptor.matched_decryptor = decryptor.pg_decryptor
+			return i, decryptor.pg_decryptor.GetTagBeginLength()
+		}
+	} else {
+		// escape format
+		if i := utils.FindTag(base.TAG_SYMBOL, decryptor.pg_decryptor.GetTagBeginLength(), block); i != utils.NOT_FOUND {
+			decryptor.matched_decryptor = decryptor.pg_decryptor
+			return i, decryptor.pg_decryptor.GetTagBeginLength()
+			// binary format
+		}
+	}
+	if i := utils.FindTag(base.TAG_SYMBOL, decryptor.binary_decryptor.GetTagBeginLength(), block); i != utils.NOT_FOUND {
+		decryptor.matched_decryptor = decryptor.binary_decryptor
+		return i, decryptor.binary_decryptor.GetTagBeginLength()
+	}
+	decryptor.matched_decryptor = nil
+	return utils.NOT_FOUND, decryptor.GetTagBeginLength()
+}
+
+var hex_zone_symbols = hex.EncodeToString([]byte{zone.ZONE_TAG_SYMBOL})
+var HEX_ZONE_SYMBOL byte = byte(hex_zone_symbols[0])
+
+func (decryptor *PgDecryptor) MatchZoneInBlock(block []byte) {
+	_, ok := decryptor.pg_decryptor.(*PgHexDecryptor)
+	if ok {
+		slice_copy := block[:]
+		for {
+			i := utils.FindTag(HEX_ZONE_SYMBOL, HEX_ZONE_TAG_LENGTH, slice_copy)
+			if i == utils.NOT_FOUND {
+				break
+			} else {
+				id := make([]byte, zone.ZONE_ID_BLOCK_LENGTH)
+				hex_id := slice_copy[i : i+HEX_ZONE_ID_BLOCK_LENGTH]
+				hex.Decode(id, hex_id)
+				if decryptor.key_store.HasZonePrivateKey(id) {
+					decryptor.zone_matcher.SetMatched(id)
+					return
+				}
+				slice_copy = slice_copy[i+1:]
+			}
+		}
+	} else {
+		slice_copy := block[:]
+		for {
+			// escape format
+			i := utils.FindTag(zone.ZONE_TAG_SYMBOL, ESCAPE_ZONE_TAG_LENGTH, block)
+			if i == utils.NOT_FOUND {
+				break
+			} else {
+				if decryptor.key_store.HasZonePrivateKey(slice_copy[i : i+ESCAPE_ZONE_ID_BLOCK_LENGTH]) {
+					decryptor.zone_matcher.SetMatched(slice_copy[i : i+ESCAPE_ZONE_ID_BLOCK_LENGTH])
+					return
+				}
+				slice_copy = slice_copy[i+1:]
+			}
+
+		}
+	}
+	slice_copy := block[:]
+	for {
+		// binary format
+		i := utils.FindTag(zone.ZONE_TAG_SYMBOL, zone.ZONE_TAG_LENGTH, block)
+		if i == utils.NOT_FOUND {
+			break
+		} else {
+			if decryptor.key_store.HasZonePrivateKey(slice_copy[i : i+zone.ZONE_ID_BLOCK_LENGTH]) {
+				decryptor.zone_matcher.SetMatched(slice_copy[i : i+ESCAPE_ZONE_ID_BLOCK_LENGTH])
+				return
+			}
+			slice_copy = slice_copy[i+1:]
+		}
+	}
+	return
+}
+
+func (decryptor *PgDecryptor) GetTagBeginLength() int {
+	return decryptor.pg_decryptor.GetTagBeginLength()
+}
+
+func (decryptor *PgDecryptor) GetZoneIdLength() int {
+	return decryptor.pg_decryptor.GetTagBeginLength()
 }

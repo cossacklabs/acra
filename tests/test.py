@@ -19,16 +19,15 @@ import os
 import random
 import string
 import subprocess
-import sys
 import unittest
 from base64 import b64decode
-from os.path import expanduser
 
 import psycopg2
 import sqlalchemy as sa
+from sqlalchemy.exc import OperationalError as SA_OperationalError
 from sqlalchemy.dialects.postgresql import BYTEA
 
-from acra import create_acra_struct, ZONE_BEGIN
+from acra import create_acra_struct
 
 __author__ = 'Lagovas <lagovas.lagovas@gmail.com>'
 
@@ -95,13 +94,17 @@ class BaseTestCase(unittest.TestCase):
     DB_USER_PASSWORD = 'postgres'
     PROXY_PORT_1 = 9090
     PROXY_PORT_2 = 9091
+    # for debugging with manually runned acra server
+    EXTERNAL_ACRA = False
     ACRA_PORT = 10003
+    if EXTERNAL_ACRA:
+        ACRA_PORT = 9393
     PG_PORT = 5433
     DB_NAME = 'postgres'
     ACRA_BYTEA = 'hex_bytea'
     DB_BYTEA = 'hex'
     ZONE = False
-    DEBUG = False
+    DEBUG_LOG = False
     maxDiff = None
 
     def fork(self, func):
@@ -130,9 +133,9 @@ class BaseTestCase(unittest.TestCase):
             '-injectedcell=true',
             '-{}=true'.format(format), '-host=127.0.0.1',
             '-port={}'.format(self.ACRA_PORT),
-            '-commands_port=10055',
+            '-disable_zone_api=true',
         ]
-        if self.DEBUG:
+        if self.DEBUG_LOG:
             command.append('-d=true')
         if with_zone:
             command.append('-zonemode=true')
@@ -143,8 +146,9 @@ class BaseTestCase(unittest.TestCase):
             self.PROXY_PORT_1, self.ACRA_PORT, 'keypair1')
         self.proxy_2 = self.fork_proxy(
             self.PROXY_PORT_2, self.ACRA_PORT, 'keypair2')
-        self.acra = self.fork_acra(
-            self.DB_HOST, self.PG_PORT, self.ACRA_BYTEA, self.ACRA_PORT, self.ZONE)
+        if not self.EXTERNAL_ACRA:
+            self.acra = self.fork_acra(
+                self.DB_HOST, self.PG_PORT, self.ACRA_BYTEA, self.ACRA_PORT, self.ZONE)
 
         self.engine1 = sa.create_engine(
             'postgresql://{}:{}@{}:{}/{}'.format(
@@ -163,21 +167,31 @@ class BaseTestCase(unittest.TestCase):
         metadata.create_all(self.engine_raw)
         self.engine_raw.execute('delete from test;')
         for engine in self.engines:
-            engine.execute(
-                "UPDATE pg_settings SET setting = '{}' "
-                "WHERE name = 'bytea_output'".format(self.DB_BYTEA))
+            count = 0
+            # try with sleep if acra not up yet
+            while count < 3:
+                try:
+                    engine.execute(
+                        "UPDATE pg_settings SET setting = '{}' "
+                        "WHERE name = 'bytea_output'".format(self.DB_BYTEA))
+                except Exception:
+                    time.sleep(0.01)
+                    count += 1
+                break
 
     def tearDown(self):
-        for engine in self.engines:
-            engine.execute(
-                "UPDATE pg_settings SET setting = 'hex' "
-                "WHERE name = 'bytea_output'")
         self.proxy_1.kill()
         self.proxy_2.kill()
-        self.acra.kill()
-        for p in [self.proxy_1, self.proxy_2, self.acra]:
+        processes = [self.proxy_1, self.proxy_2]
+        if not self.EXTERNAL_ACRA:
+            self.acra.kill()
+            processes.append(self.acra)
+        for p in processes:
             p.wait()
-        self.engine_raw.execute('delete from test;')
+        try:
+            self.engine_raw.execute('delete from test;')
+        except:
+            pass
         for engine in self.engines:
             engine.dispose()
 
@@ -225,7 +239,6 @@ class HexFormatTest(BaseTestCase):
         self.assertNotEqual(row['data'].decode('ascii', errors='ignore'),
                             row['raw_data'])
 
-    @unittest.skip
     def testReadAcrastructInAcrastruct(self):
         """test correct decrypting acrastruct when acrastruct concatenated to
         partial another acrastruct"""
@@ -233,7 +246,7 @@ class HexFormatTest(BaseTestCase):
             server_public1 = f.read()
         incorrect_data = self.get_random_data()
         correct_data = self.get_random_data()
-        fake_offset = (3+45+84) - 2
+        fake_offset = (3+45+84) - 4
         fake_acra_struct = create_acra_struct(
             incorrect_data.encode('ascii'), server_public1)[:fake_offset]
         inner_acra_struct = create_acra_struct(
@@ -284,7 +297,7 @@ class ZoneHexFormatTest(BaseTestCase):
             test_table.insert(),
             {'id': row_id, 'data': acra_struct, 'raw_data': data})
 
-        zone = ZONE_BEGIN+zones[0]['id'].encode('ascii')
+        zone = zones[0]['id'].encode('ascii')
         result = self.engine1.execute(
             sa.select([sa.cast(zone, BYTEA), test_table])
             .where(test_table.c.id == row_id))
@@ -301,7 +314,6 @@ class ZoneHexFormatTest(BaseTestCase):
             self.assertNotEqual(row['data'].decode('ascii', errors='ignore'),
                                 row['raw_data'])
 
-    @unittest.skip
     def testReadAcrastructInAcrastruct(self):
         incorrect_data = self.get_random_data()
         correct_data = self.get_random_data()
@@ -316,7 +328,7 @@ class ZoneHexFormatTest(BaseTestCase):
         self.engine1.execute(
             test_table.insert(),
             {'id': row_id, 'data': data, 'raw_data': correct_data})
-        zone = ZONE_BEGIN+zones[0]['id'].encode('ascii')
+        zone = zones[0]['id'].encode('ascii')
         result = self.engine1.execute(
             sa.select([sa.cast(zone, BYTEA), test_table])
             .where(test_table.c.id == row_id))
@@ -353,16 +365,20 @@ class TestConnectionClosing(BaseTestCase):
     def setUp(self):
         self.proxy_1 = self.fork_proxy(
             self.PROXY_PORT_1, self.ACRA_PORT, 'keypair1')
-        self.acra = self.fork_acra(
-            self.DB_HOST, self.PG_PORT, self.ACRA_BYTEA, self.ACRA_PORT, self.ZONE)
+        if not self.EXTERNAL_ACRA:
+            self.acra = self.fork_acra(
+                self.DB_HOST, self.PG_PORT, self.ACRA_BYTEA, self.ACRA_PORT, self.ZONE)
         self.dsn = 'postgresql://{}:{}@{}:{}'.format(
             self.DB_USER, self.DB_USER_PASSWORD, self.DB_HOST, self.PROXY_PORT_1)
 
     def tearDown(self):
         self.proxy_1.kill()
-        self.acra.kill()
-        for p in [self.proxy_1, self.acra]:
-            p.wait()
+        if not self.EXTERNAL_ACRA:
+            self.acra.kill()
+            for p in [self.proxy_1, self.acra]:
+                p.wait()
+        else:
+            self.proxy_1.wait()
 
     def getActiveConnectionCount(self, cursor):
         cursor.execute('select count(*) from pg_stat_activity;')
@@ -439,14 +455,16 @@ class TestKeyNonExistence(BaseTestCase):
     PROXY_STARTUP_DELAY = 0.05
 
     def setUp(self):
-        self.acra = self.fork_acra(
-            self.DB_HOST, self.PG_PORT, self.ACRA_BYTEA, self.ACRA_PORT, self.ZONE)
+        if not self.EXTERNAL_ACRA:
+            self.acra = self.fork_acra(
+                self.DB_HOST, self.PG_PORT, self.ACRA_BYTEA, self.ACRA_PORT, self.ZONE)
         self.dsn = 'postgresql://{}:{}@{}:{}'.format(
             self.DB_USER, self.DB_USER_PASSWORD, self.DB_HOST, self.PROXY_PORT_1)
 
     def tearDown(self):
-        self.acra.kill()
-        self.acra.wait()
+        if not self.EXTERNAL_ACRA:
+            self.acra.kill()
+            self.acra.wait()
 
     def delete_key(self, filename):
         os.remove('.acrakeys{sep}{name}'.format(sep=os.path.sep, name=filename))
@@ -524,6 +542,41 @@ class TestKeyNonExistence(BaseTestCase):
         finally:
             self.proxy.kill()
             self.proxy.wait()
+
+
+class TestShutdownPoisonRecord(BaseTestCase):
+    def setUp(self):
+        super(TestShutdownPoisonRecord, self).setUp()
+        subprocess.run(['go', 'build', 'github.com/cossacklabs/acra/cmd/acra_genpoisonrecord'], cwd=os.getcwd()).check_returncode()
+        poison_record_call = subprocess.run(['./acra_genpoisonrecord', '-acra_public=.acrakeys/keypair1_server.pub'], stdout=subprocess.PIPE)
+        poison_record_call.check_returncode()
+        self.poison_record = b64decode(poison_record_call.stdout)
+
+    def fork_acra(self, db_host: str, db_port: int, format: str, acra_port,
+                  with_zone=False):
+        command = [
+            './acraserver', '-db_host='+db_host, '-db_port={}'.format(db_port),
+            '-injectedcell=true',
+            '-{}=true'.format(format), '-host=127.0.0.1',
+            '-port={}'.format(self.ACRA_PORT),
+            '-poisonshutdown=true',
+            '-disable_zone_api',
+        ]
+        if self.DEBUG_LOG:
+            command.append('-d=true')
+        if with_zone:
+            command.append('-zonemode=true')
+        return self.fork(lambda: subprocess.Popen(command))
+
+    def testShutdown(self):
+        row_id = self.get_random_id()
+        self.engine1.execute(
+            test_table.insert(),
+            {'id': row_id, 'data': self.poison_record, 'raw_data': 'poison_record'})
+        with self.assertRaises(SA_OperationalError):
+            self.engine1.execute(
+                sa.select([test_table])
+                .where(test_table.c.id == row_id))
 
 
 if __name__ == '__main__':

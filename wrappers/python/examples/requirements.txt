@@ -1,0 +1,4 @@
+sqlalchemy
+psycopg2
+pythemis
+acrawriter

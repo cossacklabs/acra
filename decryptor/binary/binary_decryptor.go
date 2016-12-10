@@ -42,7 +42,7 @@ type BinaryDecryptor struct {
 	callback_storage *base.PoisonCallbackStorage
 }
 
-func NewBinaryDecryptor(client_id []byte) base.Decryptor {
+func NewBinaryDecryptor(client_id []byte) *BinaryDecryptor {
 	return &BinaryDecryptor{key_block_buffer: make([]byte, base.KEY_BLOCK_LENGTH), client_id: client_id}
 }
 
@@ -67,7 +67,7 @@ func (decryptor *BinaryDecryptor) ReadSymmetricKey(private_key *keys.PrivateKey,
 	n, err := io.ReadFull(reader, decryptor.key_block_buffer[:])
 	if err != nil {
 		if err == io.ErrUnexpectedEOF || err == io.EOF {
-			return nil, decryptor.key_block_buffer[:n], base.FAKE_ACRA_STRUCT
+			return nil, decryptor.key_block_buffer[:n], base.ErrFakeAcraStruct
 		} else {
 			return nil, decryptor.key_block_buffer[:n], err
 		}
@@ -78,7 +78,7 @@ func (decryptor *BinaryDecryptor) ReadSymmetricKey(private_key *keys.PrivateKey,
 	symmetric_key, err := smessage.Unwrap(decryptor.key_block_buffer[base.PUBLIC_KEY_LENGTH:])
 	if err != nil {
 		log.Printf("Warning: %v\n", ErrorMessage("can't unwrap symmetric key", err))
-		return nil, decryptor.key_block_buffer[:n], base.FAKE_ACRA_STRUCT
+		return nil, decryptor.key_block_buffer[:n], base.ErrFakeAcraStruct
 	}
 	return symmetric_key, decryptor.key_block_buffer[:n], nil
 }
@@ -89,14 +89,14 @@ func (decryptor *BinaryDecryptor) readDataLength(reader io.Reader) (uint64, []by
 	if err != nil {
 		log.Printf("Warning: %v\n", ErrorMessage("can't read data length", err))
 		if err == io.ErrUnexpectedEOF || err == io.EOF {
-			return uint64(len_count), decryptor.length_buf[:len_count], base.FAKE_ACRA_STRUCT
+			return uint64(len_count), decryptor.length_buf[:len_count], base.ErrFakeAcraStruct
 		} else {
 			return 0, []byte{}, err
 		}
 	}
 	if len_count != len(decryptor.length_buf) {
 		log.Printf("Warning: incorrect length count, %v!=%v\n", len_count, len(decryptor.length_buf))
-		return 0, decryptor.length_buf[:len_count], base.FAKE_ACRA_STRUCT
+		return 0, decryptor.length_buf[:len_count], base.ErrFakeAcraStruct
 	}
 	// convert from little endian
 	binary.Read(bytes.NewReader(decryptor.length_buf[:]), binary.LittleEndian, &length)
@@ -115,14 +115,14 @@ func (decryptor *BinaryDecryptor) readScellData(length int, reader io.Reader) ([
 	if err != nil {
 		log.Printf("Warning: %v\n", ErrorMessage(fmt.Sprintf("can't read scell data with passed length=%v", length), err))
 		if err == io.ErrUnexpectedEOF || err == io.EOF {
-			return nil, decryptor.buf[:n], base.FAKE_ACRA_STRUCT
+			return nil, decryptor.buf[:n], base.ErrFakeAcraStruct
 		} else {
 			return nil, decryptor.buf[:n], err
 		}
 	}
 	if n != int(length) {
 		log.Printf("Warning: %v\n", ErrorMessage("can't decode hex data", err))
-		return nil, decryptor.buf[:n], base.FAKE_ACRA_STRUCT
+		return nil, decryptor.buf[:n], base.ErrFakeAcraStruct
 	}
 	return decryptor.buf[:length], decryptor.buf[:length], nil
 }
@@ -143,98 +143,11 @@ func (decryptor *BinaryDecryptor) ReadData(symmetric_key, zone_id []byte, reader
 	// fill zero symmetric_key
 	FillSlice(byte(0), symmetric_key)
 	if err != nil {
-		return append(raw_length_data, raw_data...), base.FAKE_ACRA_STRUCT
+		return append(raw_length_data, raw_data...), base.ErrFakeAcraStruct
 	}
 	return decrypted, nil
 }
 
-func (decryptor *BinaryDecryptor) SetKeyStore(store keystore.KeyStore) {
-	decryptor.key_store = store
+func (*BinaryDecryptor) GetTagBeginLength() int {
+	return len(base.TAG_BEGIN)
 }
-
-func (decryptor *BinaryDecryptor) GetPrivateKey() (*keys.PrivateKey, error) {
-	if decryptor.IsWithZone() {
-		return decryptor.key_store.GetZonePrivateKey(decryptor.GetMatchedZoneId())
-	} else {
-		return decryptor.key_store.GetServerPrivateKey(decryptor.client_id)
-	}
-}
-
-func (decryptor *BinaryDecryptor) GetPoisonCallbackStorage() *base.PoisonCallbackStorage {
-	return decryptor.callback_storage
-}
-
-func (decryptor *BinaryDecryptor) SetPoisonCallbackStorage(storage *base.PoisonCallbackStorage) {
-	decryptor.callback_storage = storage
-}
-
-func (decryptor *BinaryDecryptor) SetPoisonKey(key []byte) {
-	decryptor.poison_key = key
-}
-
-func (decryptor *BinaryDecryptor) GetPoisonKey() []byte {
-	return decryptor.poison_key
-}
-
-func (decryptor *BinaryDecryptor) SetZoneMatcher(zone_matcher *zone.ZoneIdMatcher) {
-	decryptor.zone_matcher = zone_matcher
-}
-
-func (decryptor *BinaryDecryptor) GetMatchedZoneId() []byte {
-	if decryptor.IsWithZone() {
-		return decryptor.zone_matcher.GetZoneId()
-	} else {
-		return []byte{}
-	}
-}
-
-func (decryptor *BinaryDecryptor) ResetZoneMatch() {
-	decryptor.zone_matcher.Reset()
-}
-
-func (decryptor *BinaryDecryptor) IsMatchedZone() bool {
-	return decryptor.zone_matcher.IsMatched() && decryptor.key_store.HasZonePrivateKey(decryptor.zone_matcher.GetZoneId())
-}
-
-func (decryptor *BinaryDecryptor) MatchZone(b byte) bool {
-	return decryptor.zone_matcher.Match(b)
-}
-
-func (decryptor *BinaryDecryptor) IsWithZone() bool {
-	return decryptor.is_with_zone
-}
-
-func (decryptor *BinaryDecryptor) SetWithZone(b bool) {
-	decryptor.is_with_zone = b
-}
-
-func (decryptor *BinaryDecryptor) SetWholeMatch(value bool) {
-	decryptor.is_whole_match = value
-}
-
-func (decryptor *BinaryDecryptor) IsWholeMatch() bool {
-	return decryptor.is_whole_match
-}
-
-func (decryptor *BinaryDecryptor) DecryptBlock(block []byte) ([]byte, error) {
-	if !bytes.Equal(block[:len(base.TAG_BEGIN)], base.TAG_BEGIN) {
-		return []byte{}, base.FAKE_ACRA_STRUCT
-	}
-	private_key, err := decryptor.GetPrivateKey()
-	if err != nil {
-		return []byte{}, err
-	}
-	decrypted, err := base.DecryptAcrastruct(block, private_key, decryptor.GetMatchedZoneId())
-	if err != nil {
-		return []byte{}, err
-	}
-	return decrypted, nil
-}
-func (decryptor *BinaryDecryptor) MatchZoneBlock(block []byte) {
-	if !(len(block) == zone.ZONE_ID_BLOCK_LENGTH && decryptor.key_store.HasZonePrivateKey(block)) {
-		return
-	}
-	decryptor.zone_matcher.SetMatched(block)
-}
-
-/* end not implemented Decryptor interface */

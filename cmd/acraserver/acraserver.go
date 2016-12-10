@@ -67,11 +67,13 @@ func main() {
 	injectedcell := flag.Bool("injectedcell", false, "acrastruct may be injected into any place of data cell")
 
 	debug := flag.Bool("d", false, "debug log")
+	debug_server := flag.Bool("ds", false, "golang http debug server")
 
 	stop_on_poison := flag.Bool("poisonshutdown", false, "stop on poison record")
 	script_on_poison := flag.String("poisonscript", "", "execute script on poison record")
 
 	with_zone := flag.Bool("zonemode", false, "with zone")
+	disable_zone_api := flag.Bool("disable_zone_api", false, "disable zone http api")
 
 	flag.Parse()
 
@@ -119,8 +121,8 @@ func main() {
 		panic(err)
 	}
 
-	if *debug {
-		// start http server for pprof
+	if *debug_server {
+		//start http server for pprof
 		go func() {
 			err := http.ListenAndServe("127.0.0.1:6060", nil)
 			if err != nil {
@@ -128,7 +130,7 @@ func main() {
 			}
 		}()
 	}
-	if *with_zone {
+	if *with_zone && !*disable_zone_api {
 		go server.StartCommands()
 	}
 	server.Start()
