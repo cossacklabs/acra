@@ -3,6 +3,7 @@
 Transparent database encryption layer with strong security guarantees
 
 [![CircleCI](https://circleci.com/gh/cossacklabs/acra/tree/master.svg?style=shield)][circleci]
+[![Go Report Card](https://goreportcard.com/badge/github.com/cossacklabs/acra)](https://goreportcard.com/report/github.com/cossacklabs/acra)
 
 ## What is Acra
 

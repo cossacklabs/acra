@@ -45,6 +45,10 @@ type ZoneData struct {
 	Id         []byte
 	Public_Key []byte
 }
+type JsonData struct {
+	Id         string
+	Public_Key []byte
+}
 
 func LoadZones() []*ZoneData {
 	abs_dir, err := utils.AbsPath("./src/github.com/cossacklabs/acra/benchmarks/.acrakeys")
@@ -57,12 +61,12 @@ func LoadZones() []*ZoneData {
 		panic(err)
 	}
 	for i, zone_data := range bytes.Split(dumped_zone_data, []byte("\n")) {
-		json_data := ZoneData{}
+		json_data := JsonData{}
 		err = json.Unmarshal(zone_data, &json_data)
 		if err != nil {
 			panic(err)
 		}
-		zones[i] = &json_data
+		zones[i] = &ZoneData{Public_Key: json_data.Public_Key, Id: []byte(json_data.Id)}
 	}
 	return zones
 }

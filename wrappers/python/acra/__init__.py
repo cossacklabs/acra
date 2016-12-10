@@ -23,20 +23,19 @@ from pythemis.smessage import smessage as smessage_
 __author__ = 'Lagovas <lagovas.lagovas@gmail.com>'
 __all__ = ('create_acra_struct', 'Acra')
 
+#BEGIN_TAG = [133, 32, 251]
+BEGIN_TAG = [ord('"')]*8
 
 if sys.version[0] == 3:
-    BEGIN_TAG = bytes([133, 32, 251])
+    BEGIN_TAG = bytes(BEGIN_TAG)
     def generate_key():
         return bytes([randint(0, 255) for _ in range(SYMMETRIC_KEY_LENGTH)])
 else:
-    BEGIN_TAG = bytes(bytearray([133, 32, 251]))
+    BEGIN_TAG = bytes(bytearray(BEGIN_TAG))
     def generate_key():
         return bytes(bytearray([randint(0, 255) for _ in range(SYMMETRIC_KEY_LENGTH)]))
 
 SYMMETRIC_KEY_LENGTH = 32
-ZONE_BEGIN = b'ZXC'
-#public_key - 45
-#smessage public key - 97
 
 
 def create_acra_struct(data, acra_public_key, context=None):

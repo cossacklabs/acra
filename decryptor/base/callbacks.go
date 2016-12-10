@@ -27,7 +27,7 @@ type PoisonCallback interface {
 type StopCallback struct{}
 
 func (*StopCallback) Call() error {
-	log.Println("Error: detected poison record, exit")
+	log.Println("Warning: detected poison record, exit")
 	os.Exit(1)
 	return nil
 }
