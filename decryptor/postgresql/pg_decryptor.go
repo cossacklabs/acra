@@ -293,7 +293,7 @@ func PgDecryptStream(decryptor base.Decryptor, rr *bufio.Reader, writer *bufio.W
 							continue
 						}
 						row.column_data_buf.Write(data)
-						current_index += tag_length + (int(block_reader.Size()) - block_reader.Len())
+						current_index += tag_length + (len(row.output[begin_tag_index+tag_length:]) - block_reader.Len())
 					}
 					if !halted && row.column_data_buf.Len() < column_data_length {
 						copy(row.output[row.write_index:], row.column_data_buf.Bytes())
