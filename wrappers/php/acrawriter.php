@@ -14,7 +14,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-    function create_acra_struct($data, $acra_public_key, $context){
+    function create_acrastruct($data, $acra_public_key, $context){
 	$random_keypair=phpthemis_gen_ec_key_pair();
 	$random_key=openssl_random_pseudo_bytes(32);
 	$sm=phpthemis_secure_message_wrap($random_keypair['private_key'], $acra_public_key, $random_key);

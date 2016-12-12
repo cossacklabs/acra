@@ -14,19 +14,19 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-    include 'acra.php';
+    include 'acrawriter.php';
     $message = "Test Message";
 
     $zone = json_decode(file_get_contents("http://127.0.0.1:9191/getNewZone"));
 
 
-    $dbconn = pg_connect("host=localhost port=9494 dbname=acra user=andrey password=andrey")
+    $dbconn = pg_connect("host=localhost port=9494 dbname=acra user=postgres password=postgres")
 	or die('Could not connect: ' . pg_last_error());
 
     $query = 'CREATE TABLE IF NOT EXISTS testphp(id SERIAL PRIMARY KEY, zone BYTEA, data BYTEA, raw_data TEXT)';
     $result = pg_query($query) or die(pg_last_error());
     $zone_id=pg_escape_bytea($zone->{'id'});
-    $acra_struct = pg_escape_bytea(create_acra_struct($message, base64_decode($zone->{'public_key'}), $zone->{'id'}));
+    $acra_struct = pg_escape_bytea(create_acrastruct($message, base64_decode($zone->{'public_key'}), $zone->{'id'}));
 
     $query = "insert into testphp (zone, data, raw_data) values ('$zone_id','$acra_struct','$message')";
     $result = pg_query($query) or die(pg_last_error());
