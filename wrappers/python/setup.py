@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #!/usr/bin/env python
-from distutils.core import setup
+from setuptools import setup
 
 setup(name='acrawriter',
       version='1.0.0',
@@ -20,6 +20,9 @@ setup(name='acrawriter',
       author='Cossack Labs',
       author_email='dev@cossacklabs.com',
       packages=['acrawriter', 'acrawriter.django'],
+      install_requires=[
+          'pythemis',
+      ],
       classifiers=[
           'Programming Language :: Python :: 2',
           'Programming Language :: Python :: 2.6',
