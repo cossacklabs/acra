@@ -51,12 +51,6 @@ func (client_session *ClientSession) GetPublicKeyForId(ss *session.SecureSession
 
 func (client_session *ClientSession) StateChanged(ss *session.SecureSession, state int) {}
 
-/* return server's private key for this client_id */
-func get_server_private_key(client_id []byte, keys_dir string) (*keys.PrivateKey, error) {
-	log.Printf("Debug: load private key: %v\n", fmt.Sprintf("%v/%v_server", keys_dir, string(client_id)))
-	return LoadPrivateKey(fmt.Sprintf("%v/%v_server", keys_dir, string(client_id)))
-}
-
 func NewClientSession(keystorage keystore.KeyStore, config *config.Config, connection net.Conn) (*ClientSession, error) {
 
 	return &ClientSession{connection: connection, keystorage: keystorage, config: config}, nil

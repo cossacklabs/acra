@@ -308,7 +308,7 @@ func main() {
 				log.Printf("Error: %v\n", ErrorMessage("can't start listen connections to http api", err))
 				os.Exit(1)
 			}
-			fmt.Printf("Info: start listening http api %v\n", *commands_port)
+			log.Printf("Info: start listening http api %v\n", *commands_port)
 			for {
 				connection, err := commands_listener.Accept()
 				if err != nil {
@@ -320,11 +320,11 @@ func main() {
 			}
 		}()
 	}
-	fmt.Printf("Info: start listening %v\n", *port)
+	log.Printf("Info: start listening %v\n", *port)
 	for {
 		connection, err := listener.Accept()
 		if err != nil {
-			log.Printf("Error: %v\n", ErrorMessage(fmt.Sprintf("can't accept new connection (%v)", connection.RemoteAddr()), err))
+			log.Printf("Error: %v\n", ErrorMessage("can't accept new connection", err))
 			os.Exit(1)
 		}
 		log.Printf("Info: new connection: %v\n", connection.RemoteAddr())

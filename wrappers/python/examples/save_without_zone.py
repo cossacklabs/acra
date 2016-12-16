@@ -20,8 +20,6 @@ from sqlalchemy import Table, Column, Integer, String, MetaData, types, create_e
 
 from acrawriter import create_acrastruct
 
-__author__ = 'Lagovas <lagovas.lagovas@gmail.com>'
-
 
 class AcraBinary(types.TypeDecorator):
     impl = types.Binary

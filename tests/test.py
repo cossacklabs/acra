@@ -27,9 +27,12 @@ import sqlalchemy as sa
 from sqlalchemy.exc import OperationalError as SA_OperationalError
 from sqlalchemy.dialects.postgresql import BYTEA
 
-from acra import create_acra_struct
+import sys
+# add to path our wrapper until not published to PYPI
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(__file__)), 'wrappers/python'))
 
-__author__ = 'Lagovas <lagovas.lagovas@gmail.com>'
+from acrawriter import create_acrastruct
+
 
 metadata = sa.MetaData()
 test_table = sa.Table('test', metadata,
@@ -41,16 +44,17 @@ test_table = sa.Table('test', metadata,
 zones = []
 
 
-def create_client_keypair(name, server_pair=False):
-    if server_pair:
-        name += '_server'
-    return subprocess.call(
-        ['./acra_genkeys', '-key_name={}'.format(name)], cwd=os.getcwd())
+def create_client_keypair(name, only_server=False, only_client=False):
+    args = ['./acra_genkeys', '-client_id={}'.format(name)]
+    if only_server:
+        args.append('-acraserver')
+    elif only_client:
+        args.append('-acraproxy')
+    return subprocess.call(args, cwd=os.getcwd())
 
 
 def setUpModule():
     global zones
-    os.environ['GOPATH'] = '/home/lagovas/development/GOPATH'
     # build binaries
     assert subprocess.call(['go', 'build', 'github.com/cossacklabs/acra/cmd/acraproxy'], cwd=os.getcwd()) == 0
     assert subprocess.call(['go', 'build', 'github.com/cossacklabs/acra/cmd/acra_addzone'], cwd=os.getcwd()) == 0
@@ -59,9 +63,7 @@ def setUpModule():
     assert subprocess.call(['go', 'build', 'github.com/cossacklabs/acra/cmd/acraserver'], cwd=os.getcwd()) == 0
     # first keypair for using without zones
     assert create_client_keypair('keypair1') == 0
-    assert create_client_keypair('keypair1', server_pair=True) == 0
     assert create_client_keypair('keypair2') == 0
-    assert create_client_keypair('keypair2', server_pair=True) == 0
     # add two zones
     zones.append(json.loads(subprocess.check_output(
         ['./acra_addzone'], cwd=os.getcwd()).decode('utf-8')))
@@ -89,9 +91,12 @@ class TestCompilation(unittest.TestCase):
 
 
 class BaseTestCase(unittest.TestCase):
-    DB_HOST = '127.0.0.1'
-    DB_USER = 'postgres'
-    DB_USER_PASSWORD = 'postgres'
+    DB_HOST = os.environ.get('TEST_DB_HOST', '172.17.0.1')
+    DB_USER = os.environ.get('TEST_DB_USER', 'postgres')
+    DB_USER_PASSWORD = os.environ.get('TEST_DB_USER_PASSWORD', 'postgres')
+    DB_NAME = os.environ.get('TEST_DB_NAME', 'postgres')
+    DB_PORT = os.environ.get('TEST_DB_PORT', 5432)
+
     PROXY_PORT_1 = 9090
     PROXY_PORT_2 = 9091
     # for debugging with manually runned acra server
@@ -99,8 +104,7 @@ class BaseTestCase(unittest.TestCase):
     ACRA_PORT = 10003
     if EXTERNAL_ACRA:
         ACRA_PORT = 9393
-    PG_PORT = 5433
-    DB_NAME = 'postgres'
+
     ACRA_BYTEA = 'hex_bytea'
     DB_BYTEA = 'hex'
     ZONE = False
@@ -118,13 +122,16 @@ class BaseTestCase(unittest.TestCase):
         self.fail("can't fork")
 
     def fork_proxy(self, proxy_port: int, acra_port: int, client_id: str):
-        return self.fork(lambda: subprocess.Popen(
-            ['./acraproxy', '-acra_host=127.0.0.1', '-acra_port={}'.format(acra_port),
+        args = [
+            './acraproxy', '-acra_host=127.0.0.1', '-acra_port={}'.format(acra_port),
              '-client_id={}'.format(client_id), '-port={}'.format(proxy_port),# '-v',
              # now it's no matter, so just +100
              '-command_port={}'.format(proxy_port+100),
-             '-v=true',
-             '-disable_user_check']))
+             '-disable_user_check=true'
+        ]
+        if self.DEBUG_LOG:
+            args.append('-v=true')
+        return self.fork(lambda: subprocess.Popen(args))
 
     def fork_acra(self, db_host: str, db_port: int, format: str, acra_port,
                   with_zone=False):
@@ -148,7 +155,7 @@ class BaseTestCase(unittest.TestCase):
             self.PROXY_PORT_2, self.ACRA_PORT, 'keypair2')
         if not self.EXTERNAL_ACRA:
             self.acra = self.fork_acra(
-                self.DB_HOST, self.PG_PORT, self.ACRA_BYTEA, self.ACRA_PORT, self.ZONE)
+                self.DB_HOST, self.DB_PORT, self.ACRA_BYTEA, self.ACRA_PORT, self.ZONE)
 
         self.engine1 = sa.create_engine(
             'postgresql://{}:{}@{}:{}/{}'.format(
@@ -160,7 +167,7 @@ class BaseTestCase(unittest.TestCase):
                 self.DB_NAME))
         self.engine_raw = sa.create_engine(
             'postgresql://{}:{}@{}:{}/{}'.format(
-                self.DB_USER, self.DB_USER_PASSWORD, self.DB_HOST, self.PG_PORT, self.DB_NAME))
+                self.DB_USER, self.DB_USER_PASSWORD, self.DB_HOST, self.DB_PORT, self.DB_NAME))
 
         self.engines = [self.engine1, self.engine2, self.engine_raw]
 
@@ -212,7 +219,7 @@ class HexFormatTest(BaseTestCase):
         with open('.acrakeys/keypair1_server.pub', 'rb') as f:
             server_public1 = f.read()
         data = self.get_random_data()
-        acra_struct = create_acra_struct(
+        acra_struct = create_acrastruct(
             data.encode('ascii'), server_public1)
         row_id = self.get_random_id()
         self.engine1.execute(
@@ -247,9 +254,9 @@ class HexFormatTest(BaseTestCase):
         incorrect_data = self.get_random_data()
         correct_data = self.get_random_data()
         fake_offset = (3+45+84) - 4
-        fake_acra_struct = create_acra_struct(
+        fake_acra_struct = create_acrastruct(
             incorrect_data.encode('ascii'), server_public1)[:fake_offset]
-        inner_acra_struct = create_acra_struct(
+        inner_acra_struct = create_acrastruct(
             correct_data.encode('ascii'), server_public1)
         data = fake_acra_struct + inner_acra_struct
         row_id = self.get_random_id()
@@ -289,7 +296,7 @@ class ZoneHexFormatTest(BaseTestCase):
     def testProxyRead(self):
         data = self.get_random_data()
         zone_public = b64decode(zones[0]['public_key'].encode('ascii'))
-        acra_struct = create_acra_struct(
+        acra_struct = create_acrastruct(
             data.encode('ascii'), zone_public,
             context=zones[0]['id'].encode('ascii'))
         row_id = self.get_random_id()
@@ -319,9 +326,9 @@ class ZoneHexFormatTest(BaseTestCase):
         correct_data = self.get_random_data()
         zone_public = b64decode(zones[0]['public_key'].encode('ascii'))
         fake_offset = (3+45+84) - 1
-        fake_acra_struct = create_acra_struct(
+        fake_acra_struct = create_acrastruct(
             incorrect_data.encode('ascii'), zone_public, context=zones[0]['id'].encode('ascii'))[:fake_offset]
-        inner_acra_struct = create_acra_struct(
+        inner_acra_struct = create_acrastruct(
             correct_data.encode('ascii'), zone_public, context=zones[0]['id'].encode('ascii'))
         data = fake_acra_struct + inner_acra_struct
         row_id = self.get_random_id()
@@ -367,7 +374,7 @@ class TestConnectionClosing(BaseTestCase):
             self.PROXY_PORT_1, self.ACRA_PORT, 'keypair1')
         if not self.EXTERNAL_ACRA:
             self.acra = self.fork_acra(
-                self.DB_HOST, self.PG_PORT, self.ACRA_BYTEA, self.ACRA_PORT, self.ZONE)
+                self.DB_HOST, self.DB_PORT, self.ACRA_BYTEA, self.ACRA_PORT, self.ZONE)
         self.dsn = 'postgresql://{}:{}@{}:{}'.format(
             self.DB_USER, self.DB_USER_PASSWORD, self.DB_HOST, self.PROXY_PORT_1)
 
@@ -457,7 +464,7 @@ class TestKeyNonExistence(BaseTestCase):
     def setUp(self):
         if not self.EXTERNAL_ACRA:
             self.acra = self.fork_acra(
-                self.DB_HOST, self.PG_PORT, self.ACRA_BYTEA, self.ACRA_PORT, self.ZONE)
+                self.DB_HOST, self.DB_PORT, self.ACRA_BYTEA, self.ACRA_PORT, self.ZONE)
         self.dsn = 'postgresql://{}:{}@{}:{}'.format(
             self.DB_USER, self.DB_USER_PASSWORD, self.DB_HOST, self.PROXY_PORT_1)
 
@@ -474,7 +481,6 @@ class TestKeyNonExistence(BaseTestCase):
         from acraproxy than acraproxy should drop connection from psycopg2"""
         keyname = 'without_acraproxy_public_test'
         result = create_client_keypair(keyname)
-        result |= create_client_keypair(keyname, server_pair=True)
         if result != 0:
             self.fail("Can't create keypairs")
         self.delete_key(keyname + '.pub')
@@ -492,7 +498,6 @@ class TestKeyNonExistence(BaseTestCase):
         """acraproxy shouldn't start without private key"""
         keyname = 'without_acraproxy_private_test'
         result = create_client_keypair(keyname)
-        result |= create_client_keypair(keyname, server_pair=True)
         if result != 0:
             self.fail("Can't create keypairs")
         self.delete_key(keyname)
@@ -511,7 +516,6 @@ class TestKeyNonExistence(BaseTestCase):
         from acraproxy than acraproxy should drop connection from psycopg2"""
         keyname = 'without_acraserver_private_test'
         result = create_client_keypair(keyname)
-        result |= create_client_keypair(keyname, server_pair=True)
         if result != 0:
             self.fail("Can't create keypairs")
         self.delete_key(keyname + '_server')
@@ -529,7 +533,6 @@ class TestKeyNonExistence(BaseTestCase):
         """acraproxy shouldn't start without acraserver public key"""
         keyname = 'without_acraserver_public_test'
         result = create_client_keypair(keyname)
-        result |= create_client_keypair(keyname, server_pair=True)
         if result != 0:
             self.fail("Can't create keypairs")
         self.delete_key(keyname + '_server.pub')
