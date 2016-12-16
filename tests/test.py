@@ -91,7 +91,7 @@ class TestCompilation(unittest.TestCase):
 
 
 class BaseTestCase(unittest.TestCase):
-    DB_HOST = os.environ.get('TEST_DB_HOST', '172.17.0.1')
+    DB_HOST = os.environ.get('TEST_DB_HOST', '127.0.0.1')
     DB_USER = os.environ.get('TEST_DB_USER', 'postgres')
     DB_USER_PASSWORD = os.environ.get('TEST_DB_USER_PASSWORD', 'postgres')
     DB_NAME = os.environ.get('TEST_DB_NAME', 'postgres')
