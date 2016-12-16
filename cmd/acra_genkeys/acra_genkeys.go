@@ -17,38 +17,20 @@ import (
 	"flag"
 	"fmt"
 	"github.com/cossacklabs/acra/keystore"
+	"github.com/cossacklabs/acra/utils"
 	"github.com/cossacklabs/themis/gothemis/keys"
 	"os"
-	"os/user"
-	"strings"
 )
-
-func absPath(path string) (string, error) {
-	if len(path) > 2 && path[:2] == "~/" {
-		usr, err := user.Current()
-		if err != nil {
-			return path, err
-		}
-		dir := usr.HomeDir
-		path = strings.Replace(path, "~", dir, 1)
-		return path, nil
-	} else if path[0] == '.' {
-		dir, err := os.Getwd()
-		if err != nil {
-			return path, err
-		}
-		return strings.Replace(path, ".", dir, 1), nil
-	}
-	return path, nil
-}
 
 func create_keys(filename, output_dir string) {
 	keypair, err := keys.New(keys.KEYTYPE_EC)
 	if err != nil {
 		panic(err)
 	}
-
-	file, err := os.OpenFile(fmt.Sprintf("%v/%v", output_dir, filename), os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0600)
+	if output_dir[len(output_dir)-1] != '/' {
+		output_dir = output_dir + "/"
+	}
+	file, err := os.OpenFile(fmt.Sprintf("%v%v", output_dir, filename), os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0600)
 	if err != nil {
 		panic(err)
 	}
@@ -62,7 +44,7 @@ func create_keys(filename, output_dir string) {
 	}
 	fmt.Println(file.Name())
 
-	file, err = os.OpenFile(fmt.Sprintf("%v/%v.pub", output_dir, filename), os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0600)
+	file, err = os.OpenFile(fmt.Sprintf("%v%v.pub", output_dir, filename), os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0600)
 	if err != nil {
 		panic(err)
 	}
@@ -85,7 +67,7 @@ func main() {
 	flag.Parse()
 
 	var err error
-	*output_dir, err = absPath(*output_dir)
+	*output_dir, err = utils.AbsPath(*output_dir)
 	if err != nil {
 		panic(err)
 	}
