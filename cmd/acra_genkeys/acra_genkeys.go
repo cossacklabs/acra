@@ -17,46 +17,20 @@ import (
 	"flag"
 	"fmt"
 	"github.com/cossacklabs/acra/keystore"
+	"github.com/cossacklabs/acra/utils"
 	"github.com/cossacklabs/themis/gothemis/keys"
 	"os"
-	"os/user"
-	"strings"
 )
 
-func absPath(path string) (string, error) {
-	if path[:2] == "~/" {
-		usr, err := user.Current()
-		if err != nil {
-			return path, err
-		}
-		dir := usr.HomeDir
-		path = strings.Replace(path, "~", dir, 1)
-		return path, nil
-	}
-	return path, nil
-}
-
-func main() {
-	key_name := flag.String("key_name", "client", "filename keys")
-	output_dir := flag.String("output", keystore.DEFAULT_KEY_DIR_SHORT, "output dir")
-	flag.Parse()
-
+func create_keys(filename, output_dir string) {
 	keypair, err := keys.New(keys.KEYTYPE_EC)
 	if err != nil {
 		panic(err)
 	}
-
-	*output_dir, err = absPath(*output_dir)
-	if err != nil {
-		panic(err)
+	if output_dir[len(output_dir)-1] != '/' {
+		output_dir = output_dir + "/"
 	}
-
-	err = os.MkdirAll(*output_dir, 0700)
-	if err != nil {
-		panic(err)
-	}
-
-	file, err := os.OpenFile(fmt.Sprintf("%v/%v", *output_dir, *key_name), os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0600)
+	file, err := os.OpenFile(fmt.Sprintf("%v%v", output_dir, filename), os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0600)
 	if err != nil {
 		panic(err)
 	}
@@ -70,7 +44,7 @@ func main() {
 	}
 	fmt.Println(file.Name())
 
-	file, err = os.OpenFile(fmt.Sprintf("%v/%v.pub", *output_dir, *key_name), os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0600)
+	file, err = os.OpenFile(fmt.Sprintf("%v%v.pub", output_dir, filename), os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0600)
 	if err != nil {
 		panic(err)
 	}
@@ -83,4 +57,32 @@ func main() {
 		panic(err)
 	}
 	fmt.Println(file.Name())
+}
+
+func main() {
+	client_id := flag.String("client_id", "client", "filename keys")
+	acraproxy := flag.Bool("acraproxy", false, "create keypair only for acraproxy")
+	acraserver := flag.Bool("acraserver", false, "create keypair only for acraserver")
+	output_dir := flag.String("output", keystore.DEFAULT_KEY_DIR_SHORT, "output dir")
+	flag.Parse()
+
+	var err error
+	*output_dir, err = utils.AbsPath(*output_dir)
+	if err != nil {
+		panic(err)
+	}
+
+	err = os.MkdirAll(*output_dir, 0700)
+	if err != nil {
+		panic(err)
+	}
+
+	if *acraproxy {
+		create_keys(*client_id, *output_dir)
+	} else if *acraserver {
+		create_keys(fmt.Sprintf("%s_server", *client_id), *output_dir)
+	} else {
+		create_keys(*client_id, *output_dir)
+		create_keys(fmt.Sprintf("%s_server", *client_id), *output_dir)
+	}
 }

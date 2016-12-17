@@ -78,21 +78,26 @@ func ReadData(reader io.Reader) ([]byte, error) {
 }
 
 func AbsPath(path string) (string, error) {
-	if path[:2] == "~/" {
-		usr, err := user.Current()
-		if err != nil {
-			return path, err
-		}
-		dir := usr.HomeDir
-		path = strings.Replace(path, "~", dir, 1)
+	if len(path) == 0 {
 		return path, nil
-	} else if path[:2] == "./" {
-		workdir, err := os.Getwd()
-		if err != nil {
-			return path, err
+	}
+	if len(path) >= 2 {
+		if path[:2] == "~/" {
+			usr, err := user.Current()
+			if err != nil {
+				return path, err
+			}
+			dir := usr.HomeDir
+			path = strings.Replace(path, "~", dir, 1)
+			return path, nil
+		} else if path[:2] == "./" {
+			workdir, err := os.Getwd()
+			if err != nil {
+				return path, err
+			}
+			path = strings.Replace(path, ".", workdir, 1)
+			return path, nil
 		}
-		path = strings.Replace(path, ".", workdir, 1)
-		return path, nil
 	}
 	return path, nil
 }

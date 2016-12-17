@@ -20,7 +20,6 @@ from pythemis.scell import scell_seal
 from pythemis.skeygen import themis_gen_key_pair
 from pythemis.smessage import smessage as smessage_
 
-__author__ = 'Lagovas <lagovas.lagovas@gmail.com>'
 __all__ = ('create_acrastruct', 'Acra')
 
 #BEGIN_TAG = [133, 32, 251]

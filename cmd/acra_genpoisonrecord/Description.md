@@ -23,7 +23,7 @@ hSD7VUVDMgAAAC0GPZUAAtxiVBj7+LzTz5+qDQLuIF4MNIPpvuNOoGx5pMFHSmSRICcEJlQAAAAAAQFA
 * create key pair for acra:
 ```
 go build acra_genkeys
-./acra_genkeys -key_name=test_server
+./acra_genkeys -client_id=test_server -acraserver
 ```
 * create poison record using this public key
 ```

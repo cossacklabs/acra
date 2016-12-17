@@ -20,8 +20,6 @@ from django.conf import settings
 from django.utils.translation import ugettext_lazy as _
 import acrawriter
 
-__author__ = 'Lagovas <lagovas.lagovas@gmail.com>'
-
 __all__ = ('CharField', 'EmailField', 'TextField')
 
 

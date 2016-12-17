@@ -31,8 +31,6 @@ from sqlalchemy.dialects.postgresql import BYTEA
 
 from acrawriter import create_acrastruct
 
-__author__ = 'Lagovas <lagovas.lagovas@gmail.com>'
-
 
 def get_zone():
     response = urlopen('http://127.0.0.1:9191/getNewZone')
