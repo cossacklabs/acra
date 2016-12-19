@@ -33,11 +33,13 @@ import (
 	. "github.com/cossacklabs/acra/utils"
 	"github.com/cossacklabs/themis/gothemis/keys"
 	"github.com/cossacklabs/themis/gothemis/session"
+	"github.com/vharitonsky/iniflags"
 )
 
 const (
 	MIN_LENGTH_CLIENT_ID = 4
 	MAX_LENGTH_CLIENT_ID = 256
+	DEFAULT_CONFIG_PATH  = "configs/acraproxy.conf"
 )
 
 type ClientSession struct {
@@ -248,7 +250,16 @@ func main() {
 	commands_port := flag.Int("command_port", 9191, "port for accepting command connection")
 	with_zone := flag.Bool("zonemode", false, "with zone")
 	disable_user_check := flag.Bool("disable_user_check", false, "disable user check")
-	flag.Parse()
+
+	exists, err := FileExists(DEFAULT_CONFIG_PATH)
+	if err != nil {
+		fmt.Printf("Error: %v\n", ErrorMessage("can't check is exists config file", err))
+		os.Exit(1)
+	}
+	if exists {
+		iniflags.SetConfigFile(DEFAULT_CONFIG_PATH)
+	}
+	iniflags.Parse()
 
 	if len(*client_id) <= MIN_LENGTH_CLIENT_ID {
 		fmt.Printf("Error: client id length <= %v. Use longer than %v\n", MIN_LENGTH_CLIENT_ID, MIN_LENGTH_CLIENT_ID)
@@ -262,7 +273,7 @@ func main() {
 	}
 	client_private_key := fmt.Sprintf("%v%v%v", *keys_dir, string(os.PathSeparator), *client_id)
 	server_public_key := fmt.Sprintf("%v%v%v_server.pub", *keys_dir, string(os.PathSeparator), *client_id)
-	exists, err := FileExists(client_private_key)
+	exists, err = FileExists(client_private_key)
 	if !exists {
 		fmt.Printf("Error: acraproxy private key %s doesn't exists\n", client_private_key)
 		os.Exit(1)
