@@ -24,6 +24,7 @@ import (
 	"github.com/cossacklabs/acra/zone"
 	"io"
 	"log"
+	"os"
 )
 
 type DataRow struct {
@@ -174,6 +175,9 @@ func PgDecryptStream(decryptor base.Decryptor, rr *bufio.Reader, writer *bufio.W
 			if row.buf[0] == 'N' {
 				writer.Flush()
 				continue
+			} else if row.buf[0] == 'S' {
+				log.Println("Error: detected ssl connection. run postgresql without ssl or connect with sslmode=disable (PGSSLMODE=disable psql) and restart AcraServer. exiting")
+				os.Exit(1)
 			}
 		}
 
