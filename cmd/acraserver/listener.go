@@ -20,7 +20,6 @@ import (
 	"net"
 	"time"
 
-	"github.com/cossacklabs/acra/config"
 	"github.com/cossacklabs/acra/decryptor/base"
 	pg "github.com/cossacklabs/acra/decryptor/postgresql"
 	"github.com/cossacklabs/acra/keystore"
@@ -33,11 +32,11 @@ const (
 )
 
 type SServer struct {
-	config     *config.Config
+	config     *Config
 	keystorage keystore.KeyStore
 }
 
-func NewServer(config *config.Config) (server *SServer, err error) {
+func NewServer(config *Config) (server *SServer, err error) {
 	keystorage, err := keystore.NewFilesystemKeyStore(config.GetKeysDir())
 	if nil == err {
 		server = &SServer{config: config, keystorage: keystorage}
@@ -94,7 +93,7 @@ func (server *SServer) initSSession(connection net.Conn) ([]byte, *ClientSession
 func (server *SServer) getDecryptor(client_id []byte) base.Decryptor {
 	var data_decryptor base.DataDecryptor
 	var matcher_pool *zone.MatcherPool
-	if server.config.GetByteaFormat() == config.HEX_BYTEA_FORMAT {
+	if server.config.GetByteaFormat() == HEX_BYTEA_FORMAT {
 		data_decryptor = pg.NewPgHexDecryptor()
 		matcher_pool = zone.NewMatcherPool(zone.NewPgHexMatcherFactory())
 	} else {

@@ -102,8 +102,14 @@ func GetOrCreatePoisonKey(path string) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	_, err = os.Stat(path)
-	if os.IsNotExist(err) {
+	exists, err := utils.FileExists(path)
+	if err != nil {
+		return []byte{}, err
+	}
+
+	if exists {
+		return ioutil.ReadFile(path)
+	} else {
 		dir := filepath.Dir(path)
 		err = os.MkdirAll(dir, 0700)
 		if err != nil {
@@ -116,10 +122,5 @@ func GetOrCreatePoisonKey(path string) ([]byte, error) {
 			return nil, err
 		}
 		return key, nil
-	} else if err != nil {
-		log.Printf("Error: %v\n", utils.ErrorMessage("can't check existence of poison key path", err))
-		return nil, err
-	} else {
-		return ioutil.ReadFile(path)
 	}
 }
