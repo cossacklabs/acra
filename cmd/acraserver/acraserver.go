@@ -29,9 +29,7 @@ import (
 	"os"
 )
 
-const (
-	DEFAULT_CONFIG_PATH = "configs/acraserver.conf"
-)
+var DEFAULT_CONFIG_PATH = utils.GetConfigPathByName("acraserver")
 
 var DEBUG_PREFIX = []byte("Debug: ")
 
@@ -79,14 +77,7 @@ func main() {
 	with_zone := flag.Bool("zonemode", false, "Turn on zone mode")
 	disable_zone_api := flag.Bool("disable_zone_api", false, "Disable zone http api")
 
-	exists, err := utils.FileExists(DEFAULT_CONFIG_PATH)
-	if err != nil {
-		fmt.Printf("Error: %v\n", utils.ErrorMessage("can't check is exists config file", err))
-		os.Exit(1)
-	}
-	if exists {
-		iniflags.SetConfigFile(DEFAULT_CONFIG_PATH)
-	}
+	utils.LoadFromConfig(DEFAULT_CONFIG_PATH)
 	iniflags.Parse()
 
 	if *debug {

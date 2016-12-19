@@ -26,9 +26,12 @@ import (
 	"github.com/cossacklabs/acra/utils"
 	"github.com/cossacklabs/themis/gothemis/keys"
 	_ "github.com/lib/pq"
+	"github.com/vharitonsky/iniflags"
 	"os"
 	"strings"
 )
+
+var DEFAULT_CONFIG_PATH = utils.GetConfigPathByName("acra_rollback")
 
 func ErrorExit(msg string, err error) {
 	fmt.Println(utils.ErrorMessage(msg, err))
@@ -145,7 +148,9 @@ func main() {
 	output_file := flag.String("output_file", "decrypted.sql", "file for store inserts queries")
 	execute := flag.Bool("execute", false, "execute inserts")
 	escape_format := flag.Bool("escape", false, "escape bytea format")
-	flag.Parse()
+
+	utils.LoadFromConfig(DEFAULT_CONFIG_PATH)
+	iniflags.Parse()
 
 	if *connection_string == "" {
 		fmt.Println("Error: connection_string arg is missing")

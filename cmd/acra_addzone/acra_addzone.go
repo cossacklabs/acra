@@ -20,14 +20,20 @@ import (
 	. "github.com/cossacklabs/acra/utils"
 	"github.com/cossacklabs/acra/zone"
 	"github.com/cossacklabs/themis/gothemis/keys"
+	"github.com/vharitonsky/iniflags"
 	"os"
 )
+
+var DEFAULT_CONFIG_PATH = GetConfigPathByName("acra_addzone")
 
 func main() {
 	output_dir := flag.String("output_dir", keystore.DEFAULT_KEY_DIR_SHORT, "output dir to save public key")
 	fs_keystore := flag.Bool("fs", true, "use filesystem key store")
 	//verbose := flag.Bool("v", false, "log to stdout")
-	flag.Parse()
+
+	LoadFromConfig(DEFAULT_CONFIG_PATH)
+	iniflags.Parse()
+
 	//if *verbose{
 	//	log.SetOutput(os.Stdout)
 	//}

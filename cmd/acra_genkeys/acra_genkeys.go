@@ -19,8 +19,11 @@ import (
 	"github.com/cossacklabs/acra/keystore"
 	"github.com/cossacklabs/acra/utils"
 	"github.com/cossacklabs/themis/gothemis/keys"
+	"github.com/vharitonsky/iniflags"
 	"os"
 )
+
+var DEFAULT_CONFIG_PATH = utils.GetConfigPathByName("acra_genkeys")
 
 func create_keys(filename, output_dir string) {
 	keypair, err := keys.New(keys.KEYTYPE_EC)
@@ -64,7 +67,9 @@ func main() {
 	acraproxy := flag.Bool("acraproxy", false, "create keypair only for acraproxy")
 	acraserver := flag.Bool("acraserver", false, "create keypair only for acraserver")
 	output_dir := flag.String("output", keystore.DEFAULT_KEY_DIR_SHORT, "output dir")
-	flag.Parse()
+
+	utils.LoadFromConfig(DEFAULT_CONFIG_PATH)
+	iniflags.Parse()
 
 	var err error
 	*output_dir, err = utils.AbsPath(*output_dir)

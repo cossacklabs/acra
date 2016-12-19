@@ -19,14 +19,20 @@ import (
 	"fmt"
 	"github.com/cossacklabs/acra/poison"
 	"github.com/cossacklabs/acra/utils"
+	"github.com/vharitonsky/iniflags"
 	"os"
 )
+
+var DEFAULT_CONFIG_PATH = utils.GetConfigPathByName("acra_genpoisonrecord")
 
 func main() {
 	poison_key_path := flag.String("poison_key", poison.DEFAULT_POISON_KEY_PATH, "path to file with poison key")
 	acra_public_path := flag.String("acra_public", "", "path to acra public key to use")
 	data_length := flag.Int("data_length", poison.DEFAULT_DATA_LENGTH, fmt.Sprintf("length of random data for data block in acrastruct. -1 is random in range 1..%v", poison.MAX_DATA_LENGTH))
-	flag.Parse()
+
+	utils.LoadFromConfig(DEFAULT_CONFIG_PATH)
+	iniflags.Parse()
+
 	if *acra_public_path == "" {
 		fmt.Println("Error: missing acra public parameter")
 		os.Exit(1)
