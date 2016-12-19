@@ -21,6 +21,7 @@ import (
 	"github.com/cossacklabs/acra/keystore"
 	"github.com/cossacklabs/acra/poison"
 	"github.com/cossacklabs/acra/utils"
+	"github.com/vharitonsky/iniflags"
 	"io"
 	"io/ioutil"
 	"log"
@@ -75,7 +76,7 @@ func main() {
 	with_zone := flag.Bool("zonemode", false, "with zone")
 	disable_zone_api := flag.Bool("disable_zone_api", false, "disable zone http api")
 
-	flag.Parse()
+	iniflags.Parse()
 
 	if *debug {
 		log.SetOutput(os.Stdout)

@@ -124,7 +124,7 @@ class BaseTestCase(unittest.TestCase):
     def fork_proxy(self, proxy_port: int, acra_port: int, client_id: str):
         args = [
             './acraproxy', '-acra_host=127.0.0.1', '-acra_port={}'.format(acra_port),
-             '-client_id={}'.format(client_id), '-port={}'.format(proxy_port),# '-v',
+             '-client_id={}'.format(client_id), '-port={}'.format(proxy_port),
              # now it's no matter, so just +100
              '-command_port={}'.format(proxy_port+100),
              '-disable_user_check=true'
