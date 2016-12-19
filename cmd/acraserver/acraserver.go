@@ -55,7 +55,7 @@ func main() {
 	port := flag.Int("port", 9393, "Port for AcraServer")
 	commands_port := flag.Int("commands_port", 9090, "Port for AcraServer for http api")
 
-	keys_dir := flag.String("keys_dir", keystore.DEFAULT_KEY_DIR_SHORT, "Folder for keys")
+	keys_dir := flag.String("keys_dir", keystore.DEFAULT_KEY_DIR_SHORT, "Folder from which will be loaded keys")
 
 	poison_key_path := flag.String("poison_key", poison.DEFAULT_POISON_KEY_PATH, "Path to file with poison key")
 

@@ -63,10 +63,10 @@ func create_keys(filename, output_dir string) {
 }
 
 func main() {
-	client_id := flag.String("client_id", "client", "filename keys")
-	acraproxy := flag.Bool("acraproxy", false, "create keypair only for acraproxy")
-	acraserver := flag.Bool("acraserver", false, "create keypair only for acraserver")
-	output_dir := flag.String("output", keystore.DEFAULT_KEY_DIR_SHORT, "output dir")
+	client_id := flag.String("client_id", "client", "Client id")
+	acraproxy := flag.Bool("acraproxy", false, "Create keypair only for acraproxy")
+	acraserver := flag.Bool("acraserver", false, "Create keypair only for acraserver")
+	output_dir := flag.String("output", keystore.DEFAULT_KEY_DIR_SHORT, "Folder where will be saved keys")
 
 	utils.LoadFromConfig(DEFAULT_CONFIG_PATH)
 	iniflags.Parse()

@@ -27,16 +27,12 @@ import (
 var DEFAULT_CONFIG_PATH = GetConfigPathByName("acra_addzone")
 
 func main() {
-	output_dir := flag.String("output_dir", keystore.DEFAULT_KEY_DIR_SHORT, "output dir to save public key")
-	fs_keystore := flag.Bool("fs", true, "use filesystem key store")
-	//verbose := flag.Bool("v", false, "log to stdout")
+	output_dir := flag.String("output_dir", keystore.DEFAULT_KEY_DIR_SHORT, "Folder where will be saved generated zone keys")
+	fs_keystore := flag.Bool("fs", true, "Use filesystem key store")
 
 	LoadFromConfig(DEFAULT_CONFIG_PATH)
 	iniflags.Parse()
 
-	//if *verbose{
-	//	log.SetOutput(os.Stdout)
-	//}
 	output, err := AbsPath(*output_dir)
 	if err != nil {
 		fmt.Printf("Error: %v\n", ErrorMessage("Can't get absolute path for output dir", err))
