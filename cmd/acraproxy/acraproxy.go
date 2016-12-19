@@ -33,12 +33,15 @@ import (
 	. "github.com/cossacklabs/acra/utils"
 	"github.com/cossacklabs/themis/gothemis/keys"
 	"github.com/cossacklabs/themis/gothemis/session"
+	"github.com/vharitonsky/iniflags"
 )
 
 const (
 	MIN_LENGTH_CLIENT_ID = 4
 	MAX_LENGTH_CLIENT_ID = 256
 )
+
+var DEFAULT_CONFIG_PATH = GetConfigPathByName("acraproxy")
 
 type ClientSession struct {
 	Config *Config
@@ -237,18 +240,20 @@ type Config struct {
 }
 
 func main() {
-	keys_dir := flag.String("keys_dir", keystore.DEFAULT_KEY_DIR_SHORT, "dir where private app key and public acra key")
-	client_id := flag.String("client_id", "", "client id should be name of file with private key")
-	acra_host := flag.String("acra_host", "", "ip or domain to acra daemon")
-	acra_commands_port := flag.Int("acra_commands_port", 9090, "port of acra commands daemon")
-	acra_port := flag.Int("acra_port", 9393, "port of acra daemon")
-	acra_id := flag.String("acra_id", "acra_server", "expected id from acra server for Secure Session")
-	verbose := flag.Bool("v", false, "log to stdout")
-	port := flag.Int("port", 9494, "port for proxy from")
-	commands_port := flag.Int("command_port", 9191, "port for accepting command connection")
-	with_zone := flag.Bool("zonemode", false, "with zone")
-	disable_user_check := flag.Bool("disable_user_check", false, "disable user check")
-	flag.Parse()
+	keys_dir := flag.String("keys_dir", keystore.DEFAULT_KEY_DIR_SHORT, "Folder from which will be loaded keys")
+	client_id := flag.String("client_id", "", "Client id")
+	acra_host := flag.String("acra_host", "", "IP or domain to acra daemon")
+	acra_commands_port := flag.Int("acra_commands_port", 9090, "Port of acra http api")
+	acra_port := flag.Int("acra_port", 9393, "Port of acra daemon")
+	acra_id := flag.String("acra_id", "acra_server", "Expected id from acraserver for Secure Session")
+	verbose := flag.Bool("v", false, "Log to stdout")
+	port := flag.Int("port", 9494, "Port fo acraproxy")
+	commands_port := flag.Int("command_port", 9191, "Port for acraproxy http api")
+	with_zone := flag.Bool("zonemode", false, "Turn on zone mode")
+	disable_user_check := flag.Bool("disable_user_check", false, "Disable checking that connections from app running from another user")
+
+	LoadFromConfig(DEFAULT_CONFIG_PATH)
+	iniflags.Parse()
 
 	if len(*client_id) <= MIN_LENGTH_CLIENT_ID {
 		fmt.Printf("Error: client id length <= %v. Use longer than %v\n", MIN_LENGTH_CLIENT_ID, MIN_LENGTH_CLIENT_ID)

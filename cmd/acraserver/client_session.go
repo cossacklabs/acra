@@ -20,7 +20,6 @@ import (
 	"log"
 	"net"
 
-	"github.com/cossacklabs/acra/config"
 	"github.com/cossacklabs/acra/decryptor/base"
 	"github.com/cossacklabs/acra/decryptor/postgresql"
 	"github.com/cossacklabs/acra/keystore"
@@ -32,7 +31,7 @@ import (
 
 type ClientSession struct {
 	session          *session.SecureSession
-	config           *config.Config
+	config           *Config
 	keystorage       keystore.KeyStore
 	connection       net.Conn
 	connection_to_db net.Conn
@@ -51,7 +50,7 @@ func (client_session *ClientSession) GetPublicKeyForId(ss *session.SecureSession
 
 func (client_session *ClientSession) StateChanged(ss *session.SecureSession, state int) {}
 
-func NewClientSession(keystorage keystore.KeyStore, config *config.Config, connection net.Conn) (*ClientSession, error) {
+func NewClientSession(keystorage keystore.KeyStore, config *Config, connection net.Conn) (*ClientSession, error) {
 
 	return &ClientSession{connection: connection, keystorage: keystorage, config: config}, nil
 }

@@ -17,33 +17,30 @@ import (
 	"crypto/rand"
 	"encoding/binary"
 	"errors"
-	"fmt"
 	"github.com/cossacklabs/acra/decryptor/base"
-	"github.com/cossacklabs/acra/keystore"
 	"github.com/cossacklabs/acra/utils"
 	"github.com/cossacklabs/themis/gothemis/cell"
 	"github.com/cossacklabs/themis/gothemis/keys"
 	"github.com/cossacklabs/themis/gothemis/message"
 	"io/ioutil"
+	"log"
 	math_rand "math/rand"
 	"os"
+	"path/filepath"
 	"time"
 )
 
 const (
-	DEFAULT_POISON_KEY_PATH = "./.acrakeys/poison_key"
+	DEFAULT_POISON_KEY_PATH = ".acrakeys/poison_key"
 	DEFAULT_DATA_LENGTH     = -1
 	MAX_DATA_LENGTH         = 100
 )
-
-func GetDefaultPoisonKeyPath() (string, error) {
-	return utils.AbsPath(fmt.Sprintf("%v/poison_key", keystore.DEFAULT_KEY_DIR_SHORT))
-}
 
 func GeneratePoisonKey(path string) ([]byte, error) {
 	key := make([]byte, base.SYMMETRIC_KEY_SIZE)
 	n, err := rand.Read(key)
 	if err != nil {
+		return nil, errors.New("Can't generate random key of correct length")
 		return nil, err
 	}
 	if n != base.SYMMETRIC_KEY_SIZE {
@@ -52,6 +49,7 @@ func GeneratePoisonKey(path string) ([]byte, error) {
 
 	err = ioutil.WriteFile(path, key, 0600)
 	if err != nil {
+		log.Println("Error: can't write poison key to file")
 		return nil, err
 	}
 	return key, nil
@@ -104,24 +102,25 @@ func GetOrCreatePoisonKey(path string) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	_, err = os.Stat(path)
-	if os.IsNotExist(err) {
-		dir, err := keystore.GetDefaultKeyDir()
-		if err != nil {
-			return nil, err
-		}
+	exists, err := utils.FileExists(path)
+	if err != nil {
+		return []byte{}, err
+	}
+
+	if exists {
+		return ioutil.ReadFile(path)
+	} else {
+		dir := filepath.Dir(path)
 		err = os.MkdirAll(dir, 0700)
 		if err != nil {
+			log.Printf("Error: %v\n", utils.ErrorMessage("can't create directory for poison key", err))
 			return nil, err
 		}
 		key, err := GeneratePoisonKey(path)
 		if err != nil {
+			log.Printf("Error: %v\n", utils.ErrorMessage("can't generate poison key", err))
 			return nil, err
 		}
 		return key, nil
-	} else if err != nil {
-		return nil, err
-	} else {
-		return ioutil.ReadFile(path)
 	}
 }

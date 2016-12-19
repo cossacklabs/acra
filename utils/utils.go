@@ -22,6 +22,7 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"github.com/vharitonsky/iniflags"
 	"log"
 	"os"
 	"os/user"
@@ -201,4 +202,19 @@ func FindTag(symbol byte, count int, block []byte) int {
 		}
 	}
 	return NOT_FOUND
+}
+
+func GetConfigPathByName(name string) string {
+	return fmt.Sprintf("configs/%s.conf", name)
+}
+
+func LoadFromConfig(config_path string) {
+	exists, err := FileExists(config_path)
+	if err != nil {
+		fmt.Printf("Error: %v\n", ErrorMessage("can't check is exists config file", err))
+		os.Exit(1)
+	}
+	if exists {
+		iniflags.SetConfigFile(config_path)
+	}
 }

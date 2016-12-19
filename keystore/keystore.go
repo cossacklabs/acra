@@ -19,7 +19,7 @@ import (
 )
 
 const (
-	DEFAULT_KEY_DIR_SHORT = "./.acrakeys"
+	DEFAULT_KEY_DIR_SHORT = ".acrakeys"
 )
 
 type KeyStore interface {

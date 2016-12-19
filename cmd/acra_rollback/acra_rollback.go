@@ -26,9 +26,12 @@ import (
 	"github.com/cossacklabs/acra/utils"
 	"github.com/cossacklabs/themis/gothemis/keys"
 	_ "github.com/lib/pq"
+	"github.com/vharitonsky/iniflags"
 	"os"
 	"strings"
 )
+
+var DEFAULT_CONFIG_PATH = utils.GetConfigPathByName("acra_rollback")
 
 func ErrorExit(msg string, err error) {
 	fmt.Println(utils.ErrorMessage(msg, err))
@@ -136,16 +139,18 @@ func (ex *WriteToFileExecutor) Close() {
 }
 
 func main() {
-	keys_dir := flag.String("keys_dir", keystore.DEFAULT_KEY_DIR_SHORT, "dir where private app key and public acra key")
-	client_id := flag.String("client_id", "", "client id should be name of file with private key")
-	connection_string := flag.String("connection_string", "", "connection string for db")
-	sql_select := flag.String("select", "", "query to fetch data for decryption")
-	sql_insert := flag.String("insert", "", "query for insert decrypted data with placeholders (pg: $n)")
-	with_zone := flag.Bool("zonemode", false, "with zone")
-	output_file := flag.String("output_file", "decrypted.sql", "file for store inserts queries")
-	execute := flag.Bool("execute", false, "execute inserts")
-	escape_format := flag.Bool("escape", false, "escape bytea format")
-	flag.Parse()
+	keys_dir := flag.String("keys_dir", keystore.DEFAULT_KEY_DIR_SHORT, "Folder from which will be loaded keys")
+	client_id := flag.String("client_id", "", "Client id should be name of file with private key")
+	connection_string := flag.String("connection_string", "", "Connection string for db")
+	sql_select := flag.String("select", "", "Query to fetch data for decryption")
+	sql_insert := flag.String("insert", "", "Query for insert decrypted data with placeholders (pg: $n)")
+	with_zone := flag.Bool("zonemode", false, "Turn on zon emode")
+	output_file := flag.String("output_file", "decrypted.sql", "File for store inserts queries")
+	execute := flag.Bool("execute", false, "Execute inserts")
+	escape_format := flag.Bool("escape", false, "Escape bytea format")
+
+	utils.LoadFromConfig(DEFAULT_CONFIG_PATH)
+	iniflags.Parse()
 
 	if *connection_string == "" {
 		fmt.Println("Error: connection_string arg is missing")

@@ -21,7 +21,6 @@ import (
 	"strings"
 
 	"errors"
-	"github.com/cossacklabs/acra/config"
 	"github.com/cossacklabs/acra/keystore"
 	. "github.com/cossacklabs/acra/utils"
 	"github.com/cossacklabs/acra/zone"
@@ -33,7 +32,7 @@ type ClientCommandsSession struct {
 	//	keystorage keystore.KeyStore
 }
 
-func NewClientCommandsSession(keystorage keystore.KeyStore, config *config.Config, connection net.Conn) (*ClientCommandsSession, error) {
+func NewClientCommandsSession(keystorage keystore.KeyStore, config *Config, connection net.Conn) (*ClientCommandsSession, error) {
 	client_session, err := NewClientSession(keystorage, config, connection)
 	if err != nil {
 		return nil, err
