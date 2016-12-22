@@ -1,5 +1,5 @@
 <h3 align="center">
-  <a href="https://www.cossacklabs.com"><img src="https://github.com/cossacklabs/acra/wiki/Images/acra_web.jpg" alt="Acra: transparent database encryption server" width="300"></a>
+  <a href="https://www.cossacklabs.com"><img src="https://github.com/cossacklabs/acra/wiki/Images/acra_web.jpg" alt="Acra: transparent database encryption server" width="500"></a>
   <br>
   Transparent database encryption layer with strong security guarantees.
   <br>
