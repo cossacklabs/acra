@@ -1,9 +1,10 @@
 <h3 align="center">
   <a href="https://www.cossacklabs.com"><img src="https://github.com/cossacklabs/acra/wiki/Images/acra_web.jpg" alt="Acra: transparent database encryption server" width="300"></a>
   <br>
+  Transparent database encryption layer with strong security guarantees.
+  <br>
 </h3>
 
-Transparent database encryption layer with strong security guarantees.
 
 [![CircleCI](https://circleci.com/gh/cossacklabs/acra/tree/master.svg?style=shield)][circleci]
 [![Go Report Card](https://goreportcard.com/badge/github.com/cossacklabs/acra)](https://goreportcard.com/report/github.com/cossacklabs/acra)
