@@ -1,3 +1,5 @@
+![](https://github.com/cossacklabs/acra/wiki/Images/acra_web.jpg)
+
 # Acra 0.75
 
 Transparent database encryption layer with strong security guarantees
