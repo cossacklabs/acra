@@ -22,7 +22,6 @@ from pythemis.smessage import smessage as smessage_
 
 __all__ = ('create_acrastruct', 'Acra')
 
-#BEGIN_TAG = [133, 32, 251]
 BEGIN_TAG = [ord('"')]*8
 
 if sys.version[0] == 3:
