@@ -66,28 +66,46 @@ func main() {
 	client_id := flag.String("client_id", "client", "Client id")
 	acraproxy := flag.Bool("acraproxy", false, "Create keypair only for acraproxy")
 	acraserver := flag.Bool("acraserver", false, "Create keypair only for acraserver")
+	data_keys := flag.Bool("data", false, "Create keypair for data encryption/decryption")
 	output_dir := flag.String("output", keystore.DEFAULT_KEY_DIR_SHORT, "Folder where will be saved keys")
 
 	utils.LoadFromConfig(DEFAULT_CONFIG_PATH)
 	iniflags.Parse()
 
-	var err error
-	*output_dir, err = utils.AbsPath(*output_dir)
-	if err != nil {
-		panic(err)
-	}
-
-	err = os.MkdirAll(*output_dir, 0700)
-	if err != nil {
+	store, err := keystore.NewFilesystemKeyStore(*output_dir)
+	if err != nil{
 		panic(err)
 	}
 
 	if *acraproxy {
-		create_keys(*client_id, *output_dir)
+		err = store.GenerateProxyKeys([]byte(*client_id))
+		if err != nil{
+			panic(err)
+		}
 	} else if *acraserver {
-		create_keys(fmt.Sprintf("%s_server", *client_id), *output_dir)
+		err = store.GenerateServerKeys([]byte(*client_id))
+		if err != nil{
+			panic(err)
+		}
+	} else if *data_keys{
+		err = store.GenerateDataEncryptionKeys([]byte(*client_id))
+		if err != nil{
+			panic(err)
+		}
 	} else {
-		create_keys(*client_id, *output_dir)
-		create_keys(fmt.Sprintf("%s_server", *client_id), *output_dir)
+		err = store.GenerateProxyKeys([]byte(*client_id))
+		if err != nil{
+			panic(err)
+		}
+
+		err = store.GenerateServerKeys([]byte(*client_id))
+		if err != nil{
+			panic(err)
+		}
+
+		err = store.GenerateDataEncryptionKeys([]byte(*client_id))
+		if err != nil{
+			panic(err)
+		}
 	}
 }
