@@ -73,38 +73,38 @@ func main() {
 	iniflags.Parse()
 
 	store, err := keystore.NewFilesystemKeyStore(*output_dir)
-	if err != nil{
+	if err != nil {
 		panic(err)
 	}
 
 	if *acraproxy {
 		err = store.GenerateProxyKeys([]byte(*client_id))
-		if err != nil{
+		if err != nil {
 			panic(err)
 		}
 	} else if *acraserver {
 		err = store.GenerateServerKeys([]byte(*client_id))
-		if err != nil{
+		if err != nil {
 			panic(err)
 		}
-	} else if *data_keys{
+	} else if *data_keys {
 		err = store.GenerateDataEncryptionKeys([]byte(*client_id))
-		if err != nil{
+		if err != nil {
 			panic(err)
 		}
 	} else {
 		err = store.GenerateProxyKeys([]byte(*client_id))
-		if err != nil{
+		if err != nil {
 			panic(err)
 		}
 
 		err = store.GenerateServerKeys([]byte(*client_id))
-		if err != nil{
+		if err != nil {
 			panic(err)
 		}
 
 		err = store.GenerateDataEncryptionKeys([]byte(*client_id))
-		if err != nil{
+		if err != nil {
 			panic(err)
 		}
 	}

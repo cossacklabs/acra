@@ -63,7 +63,7 @@ func (*FilesystemKeyStore) get_proxy_key_filename(id []byte) string {
 	return string(id)
 }
 
-func (store *FilesystemKeyStore) generate_key_pair(filename string, id []byte)(*keys.Keypair, error){
+func (store *FilesystemKeyStore) generate_key_pair(filename string, id []byte) (*keys.Keypair, error) {
 	keypair, err := keys.New(keys.KEYTYPE_EC)
 	if err != nil {
 		return nil, err
@@ -99,7 +99,7 @@ func (store *FilesystemKeyStore) GenerateZoneKey() ([]byte, []byte, error) {
 	}
 
 	keypair, err := store.generate_key_pair(store.get_zone_key_filename(id), id)
-	if err != nil{
+	if err != nil {
 		return []byte{}, []byte{}, err
 	}
 	lock.Lock()
@@ -184,7 +184,7 @@ func (store *FilesystemKeyStore) GetServerPrivateKey(id []byte) (*keys.PrivateKe
 	return private_key, nil
 }
 
-func (store *FilesystemKeyStore) GetServerDecryptionPrivateKey(id []byte)(*keys.PrivateKey, error){
+func (store *FilesystemKeyStore) GetServerDecryptionPrivateKey(id []byte) (*keys.PrivateKey, error) {
 	fname := store.get_server_decryption_key_filename(id)
 	lock.Lock()
 	defer lock.Unlock()
@@ -202,24 +202,25 @@ func (store *FilesystemKeyStore) GetServerDecryptionPrivateKey(id []byte)(*keys.
 	return private_key, nil
 }
 
-func (store *FilesystemKeyStore) GenerateProxyKeys(id []byte)(error){
+func (store *FilesystemKeyStore) GenerateProxyKeys(id []byte) error {
 	filename := store.get_proxy_key_filename(id)
 	_, err := store.generate_key_pair(filename, id)
-	if err != nil{
+	if err != nil {
 		return err
 	}
 	return nil
 }
-func (store *FilesystemKeyStore) GenerateServerKeys(id []byte)(error){
+func (store *FilesystemKeyStore) GenerateServerKeys(id []byte) error {
 	filename := store.get_server_key_filename(id)
 	_, err := store.generate_key_pair(filename, id)
-	if err != nil{
+	if err != nil {
 		return err
 	}
 	return nil
 }
+
 // generate key pair for data encryption/decryption
-func (store *FilesystemKeyStore) GenerateDataEncryptionKeys(id []byte)(error) {
+func (store *FilesystemKeyStore) GenerateDataEncryptionKeys(id []byte) error {
 	_, err := store.generate_key_pair(store.get_server_decryption_key_filename(id), id)
 	if err != nil {
 		return err
@@ -228,6 +229,6 @@ func (store *FilesystemKeyStore) GenerateDataEncryptionKeys(id []byte)(error) {
 }
 
 // clear all cached keys
-func (store *FilesystemKeyStore) Reset(){
+func (store *FilesystemKeyStore) Reset() {
 	store.keys = make(map[string][]byte)
 }

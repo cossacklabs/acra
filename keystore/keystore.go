@@ -27,7 +27,7 @@ type KeyStore interface {
 	HasZonePrivateKey(id []byte) bool
 	GetProxyPublicKey(id []byte) (*keys.PublicKey, error)
 	GetServerPrivateKey(id []byte) (*keys.PrivateKey, error)
-	GetServerDecryptionPrivateKey(id []byte)(*keys.PrivateKey, error)
+	GetServerDecryptionPrivateKey(id []byte) (*keys.PrivateKey, error)
 	// return id, public key, error
 	GenerateZoneKey() ([]byte, []byte, error)
 
