@@ -21,6 +21,7 @@ import string
 import subprocess
 import unittest
 from base64 import b64decode
+from tempfile import NamedTemporaryFile
 from urllib.request import urlopen
 
 import psycopg2
@@ -585,6 +586,47 @@ class TestShutdownPoisonRecord(BaseTestCase):
             self.engine1.execute(
                 sa.select([test_table])
                 .where(test_table.c.id == row_id))
+
+
+class TestShutdownPoisonRecordWithZone(BaseTestCase):
+    ZONE = True
+    def setUp(self):
+        super(TestShutdownPoisonRecordWithZone, self).setUp()
+        subprocess.run(['go', 'build', 'github.com/cossacklabs/acra/cmd/acra_genpoisonrecord'], cwd=os.getcwd()).check_returncode()
+        with NamedTemporaryFile('wb', delete=False) as f:
+            zone_public = b64decode(zones[0]['public_key'].encode('ascii'))
+            f.write(zone_public)
+            f.close()
+            poison_record_call = subprocess.run(['./acra_genpoisonrecord', '-acra_public='+f.name],
+                                                stdout=subprocess.PIPE)
+            poison_record_call.check_returncode()
+            self.poison_record = b64decode(poison_record_call.stdout)
+
+    def fork_acra(self, db_host: str, db_port: int, format: str, acra_port,
+                  with_zone=False):
+        command = [
+            './acraserver', '-db_host='+db_host, '-db_port={}'.format(db_port),
+            '-injectedcell=true',
+            '-{}=true'.format(format), '-host=127.0.0.1',
+            '-port={}'.format(self.ACRA_PORT),
+            '-poisonshutdown=true',
+            '-zonemode=true',
+            '-disable_zone_api',
+        ]
+        if self.DEBUG_LOG:
+            command.append('-d=true')
+        return self.fork(lambda: subprocess.Popen(command))
+
+    def testShutdown(self):
+        row_id = self.get_random_id()
+        self.engine1.execute(
+            test_table.insert(),
+            {'id': row_id, 'data': self.poison_record, 'raw_data': 'poison_record'})
+        with self.assertRaises(SA_OperationalError):
+            zone = zones[0]['id'].encode('ascii')
+            self.engine1.execute(
+                sa.select([sa.cast(zone, BYTEA), test_table])
+                    .where(test_table.c.id == row_id))
 
 
 class TestKeyStorageClearing(BaseTestCase):
