@@ -11,26 +11,17 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-package keystore_test
+package keystore
 
 import (
 	"fmt"
-	"github.com/cossacklabs/acra/keystore"
 	"os"
 	"path/filepath"
 	"testing"
+	"github.com/cossacklabs/acra/utils"
 )
 
-func TestFileSystemKeyKeyStore(t *testing.T) {
-	key_directory := fmt.Sprintf(".%s%s", string(filepath.Separator), "keys")
-	os.MkdirAll(key_directory, 0700)
-	defer func() {
-		os.RemoveAll(key_directory)
-	}()
-	store, err := keystore.NewFilesystemKeyStore(key_directory)
-	if err != nil {
-		t.Fatal("error")
-	}
+func test_general(store *FilesystemKeyStore, t *testing.T) {
 	if store.HasZonePrivateKey([]byte("non-existent key")) {
 		t.Fatal("Expected false on non-existent key")
 	}
@@ -57,6 +48,92 @@ func TestFileSystemKeyKeyStore(t *testing.T) {
 	}
 }
 
+func test_generating_data_encryption_keys(store *FilesystemKeyStore, t *testing.T) {
+	test_id := []byte("test id")
+	err := store.GenerateDataEncryptionKeys(test_id)
+	if err != nil{
+		t.Fatal(err)
+	}
+	exists, err := utils.FileExists(
+		store.get_file_path(
+			store.get_server_decryption_key_filename(test_id)))
+	if err != nil{
+		t.Fatal(err)
+	}
+	if !exists{
+		t.Fatal("Private decryption key doesn't exists")
+	}
+
+	exists, err = utils.FileExists(
+		fmt.Sprintf("%s.pub", store.get_file_path(
+			store.get_server_decryption_key_filename(test_id))))
+	if err != nil{
+		t.Fatal(err)
+	}
+	if !exists{
+		t.Fatal("Public decryption key doesn't exists")
+	}
+}
+
+func test_generate_server_keys(store *FilesystemKeyStore, t *testing.T) {
+	test_id := []byte("test id")
+	err := store.GenerateServerKeys(test_id)
+	if err != nil{
+		t.Fatal(err)
+	}
+	expected_paths := []string{
+		store.get_server_key_filename(test_id),
+		fmt.Sprintf("%s.pub", store.get_server_key_filename(test_id)),
+	}
+	for _, name := range expected_paths{
+		abs_path := store.get_file_path(name)
+		exists, err := utils.FileExists(abs_path)
+		if err != nil{
+			t.Fatal(err)
+		}
+		if !exists{
+			t.Fatal(fmt.Sprintf("File <%s> doesn't exists", abs_path))
+		}
+	}
+}
+
+func test_generate_proxy_keys(store *FilesystemKeyStore, t *testing.T) {
+	test_id := []byte("test id")
+	err := store.GenerateProxyKeys(test_id)
+	if err != nil{
+		t.Fatal(err)
+	}
+	expected_paths := []string{
+		store.get_proxy_key_filename(test_id),
+		fmt.Sprintf("%s.pub", store.get_proxy_key_filename(test_id)),
+	}
+	for _, name := range expected_paths{
+		abs_path := store.get_file_path(name)
+		exists, err := utils.FileExists(abs_path)
+		if err != nil{
+			t.Fatal(err)
+		}
+		if !exists{
+			t.Fatal(fmt.Sprintf("File <%s> doesn't exists", abs_path))
+		}
+	}
+}
+
+func TestFilesystemKeyStore(t *testing.T){
+	key_directory := fmt.Sprintf(".%s%s", string(filepath.Separator), "keys")
+	os.MkdirAll(key_directory, 0700)
+	defer func() {
+		os.RemoveAll(key_directory)
+	}()
+	store, err := NewFilesystemKeyStore(key_directory)
+	if err != nil {
+		t.Fatal("error")
+	}
+	test_general(store, t)
+	test_generating_data_encryption_keys(store, t)
+	test_generate_proxy_keys(store, t)
+	test_generate_server_keys(store, t)
+}
 func test_reset(store *FilesystemKeyStore, t *testing.T) {
 	test_id := []byte("some test id")
 	if err := store.GenerateServerKeys(test_id); err != nil{
@@ -79,3 +156,4 @@ func test_reset(store *FilesystemKeyStore, t *testing.T) {
 }
 
 	test_reset(store, t)
+

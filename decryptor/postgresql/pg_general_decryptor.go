@@ -186,7 +186,7 @@ func (decryptor *PgDecryptor) GetPrivateKey() (*keys.PrivateKey, error) {
 	if decryptor.IsWithZone() {
 		return decryptor.key_store.GetZonePrivateKey(decryptor.GetMatchedZoneId())
 	} else {
-		return decryptor.key_store.GetServerPrivateKey(decryptor.client_id)
+		return decryptor.key_store.GetServerDecryptionPrivateKey(decryptor.client_id)
 	}
 }
 
