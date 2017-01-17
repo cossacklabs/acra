@@ -219,13 +219,13 @@ func (store *FilesystemKeyStore) GenerateServerKeys(id []byte)(error){
 	return nil
 }
 // generate key pair for data encryption/decryption
-func (store *FilesystemKeyStore) GenerateDataEncryptionKeys(id []byte)(error){
+func (store *FilesystemKeyStore) GenerateDataEncryptionKeys(id []byte)(error) {
 	_, err := store.generate_key_pair(store.get_server_decryption_key_filename(id), id)
-	if err != nil{
+	if err != nil {
 		return err
 	}
 	return nil
-
+}
 
 // clear all cached keys
 func (store *FilesystemKeyStore) Reset(){
