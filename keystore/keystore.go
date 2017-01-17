@@ -29,6 +29,7 @@ type KeyStore interface {
 	GetServerPrivateKey(id []byte) (*keys.PrivateKey, error)
 	// return id, public key, error
 	GenerateZoneKey() ([]byte, []byte, error)
+	Reset()
 }
 
 func GetDefaultKeyDir() (string, error) {

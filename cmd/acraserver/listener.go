@@ -231,6 +231,7 @@ func (server *SServer) handleCommandsConnection(connection net.Conn) {
 
 // start listening commands connections from proxy
 func (server *SServer) StartCommands() {
+	log.Printf("Info: start listening http api %v\n", server.config.GetProxyCommandsPort())
 	listener, err := net.Listen("tcp", fmt.Sprintf("%v:%v", server.config.GetProxyHost(), server.config.GetProxyCommandsPort()))
 	if err != nil {
 		log.Printf("Error: %v\n", ErrorMessage("can't start listen command connections", err))
