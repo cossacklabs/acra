@@ -88,7 +88,12 @@ func (client_session *ClientCommandsSession) HandleSession() {
 				response = "HTTP/1.1 200 OK Found\r\n\r\n" + string(zone_data) + "\r\n\r\n"
 			}
 		}
+	case "/resetKeyStorage":
+		log.Println("Info: clear key storage cache")
+		client_session.keystorage.Reset()
+		response = "HTTP/1.1 200 OK Found\r\n\r\n"
 	}
+
 	_, err = client_session.Write([]byte(response))
 	if err != nil {
 		log.Printf("Warning: %v\n", ErrorMessage("can't send data with secure session to acraproxy", err))

@@ -30,10 +30,13 @@ type KeyStore interface {
 	GetServerDecryptionPrivateKey(id []byte)(*keys.PrivateKey, error)
 	// return id, public key, error
 	GenerateZoneKey() ([]byte, []byte, error)
+
 	GenerateProxyKeys(id []byte) error
 	GenerateServerKeys(id []byte) error
 	// generate key pair for data encryption/decryption
 	GenerateDataEncryptionKeys(id []byte) error
+
+	Reset()
 }
 
 func GetDefaultKeyDir() (string, error) {

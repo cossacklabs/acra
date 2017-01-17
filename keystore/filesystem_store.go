@@ -225,4 +225,9 @@ func (store *FilesystemKeyStore) GenerateDataEncryptionKeys(id []byte)(error){
 		return err
 	}
 	return nil
+
+
+// clear all cached keys
+func (store *FilesystemKeyStore) Reset(){
+	store.keys = make(map[string][]byte)
 }
