@@ -56,3 +56,26 @@ func TestFileSystemKeyKeyStore(t *testing.T) {
 		t.Fatal("Expected private key")
 	}
 }
+
+func test_reset(store *FilesystemKeyStore, t *testing.T) {
+	test_id := []byte("some test id")
+	if err := store.GenerateServerKeys(test_id); err != nil{
+		t.Fatal(err)
+	}
+	if _, err :=store.GetServerPrivateKey(test_id); err != nil{
+		t.Fatal(err)
+	}
+	store.Reset()
+	if err := os.Remove(store.get_file_path(store.get_server_key_filename(test_id))); err != nil{
+		t.Fatal(err)
+	}
+	if err := os.Remove(fmt.Sprintf("%s.pub", store.get_file_path(store.get_server_key_filename(test_id)))); err != nil{
+		t.Fatal(err)
+	}
+
+	if _, err :=store.GetServerPrivateKey(test_id); err == nil{
+		t.Fatal("Expected error on fetching cleared key")
+	}
+}
+
+	test_reset(store, t)

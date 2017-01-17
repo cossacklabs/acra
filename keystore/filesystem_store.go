@@ -159,3 +159,9 @@ func (store *FilesystemKeyStore) GetServerPrivateKey(id []byte) (*keys.PrivateKe
 	store.keys[fname] = private_key.Value
 	return private_key, nil
 }
+
+
+// clear all cached keys
+func (store *FilesystemKeyStore) Reset(){
+	store.keys = make(map[string][]byte)
+}

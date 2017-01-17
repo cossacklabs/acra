@@ -21,6 +21,7 @@ import string
 import subprocess
 import unittest
 from base64 import b64decode
+from urllib.request import urlopen
 
 import psycopg2
 import sqlalchemy as sa
@@ -97,8 +98,9 @@ class BaseTestCase(unittest.TestCase):
     DB_NAME = os.environ.get('TEST_DB_NAME', 'postgres')
     DB_PORT = os.environ.get('TEST_DB_PORT', 5432)
 
-    PROXY_PORT_1 = 9090
-    PROXY_PORT_2 = 9091
+    PROXY_PORT_1 = 9595
+    PROXY_PORT_2 = 9696
+    PROXY_COMMAND_PORT_1 = 9191
     # for debugging with manually runned acra server
     EXTERNAL_ACRA = False
     ACRA_PORT = 10003
@@ -121,31 +123,34 @@ class BaseTestCase(unittest.TestCase):
             time.sleep(0.01)
         self.fail("can't fork")
 
-    def fork_proxy(self, proxy_port: int, acra_port: int, client_id: str):
+    def fork_proxy(self, proxy_port: int, acra_port: int, client_id: str, commands_port: int=None, zone_mode: bool=False):
         args = [
             './acraproxy', '-acra_host=127.0.0.1', '-acra_port={}'.format(acra_port),
              '-client_id={}'.format(client_id), '-port={}'.format(proxy_port),
              # now it's no matter, so just +100
-             '-command_port={}'.format(proxy_port+100),
+            '-command_port={}'.format(commands_port if commands_port else proxy_port + 100),
              '-disable_user_check=true'
         ]
         if self.DEBUG_LOG:
             args.append('-v=true')
+        if zone_mode:
+            args.append('--zonemode=true')
         return self.fork(lambda: subprocess.Popen(args))
 
     def fork_acra(self, db_host: str, db_port: int, format: str, acra_port,
-                  with_zone=False):
+                  with_zone=False, disable_zone_api: bool=True):
         command = [
             './acraserver', '-db_host='+db_host, '-db_port={}'.format(db_port),
             '-injectedcell=true',
             '-{}=true'.format(format), '-host=127.0.0.1',
             '-port={}'.format(self.ACRA_PORT),
-            '-disable_zone_api=true',
         ]
         if self.DEBUG_LOG:
             command.append('-d=true')
         if with_zone:
             command.append('-zonemode=true')
+        if disable_zone_api:
+            command.append('-disable_zone_api=true')
         return self.fork(lambda: subprocess.Popen(command))
 
     def setUp(self):
@@ -158,12 +163,12 @@ class BaseTestCase(unittest.TestCase):
                 self.DB_HOST, self.DB_PORT, self.ACRA_BYTEA, self.ACRA_PORT, self.ZONE)
 
         self.engine1 = sa.create_engine(
-            'postgresql://{}:{}@{}:{}/{}'.format(
-                self.DB_USER, self.DB_USER_PASSWORD, self.DB_HOST, self.PROXY_PORT_1,
+            'postgresql://{}:{}@127.0.0.1:{}/{}'.format(
+                self.DB_USER, self.DB_USER_PASSWORD, self.PROXY_PORT_1,
                 self.DB_NAME))
         self.engine2 = sa.create_engine(
-            'postgresql://{}:{}@{}:{}/{}'.format(
-                self.DB_USER, self.DB_USER_PASSWORD, self.DB_HOST, self.PROXY_PORT_2,
+            'postgresql://{}:{}@127.0.0.1:{}/{}'.format(
+                self.DB_USER, self.DB_USER_PASSWORD, self.PROXY_PORT_2,
                 self.DB_NAME))
         self.engine_raw = sa.create_engine(
             'postgresql://{}:{}@{}:{}/{}'.format(
@@ -216,7 +221,7 @@ class HexFormatTest(BaseTestCase):
     def testProxyRead(self):
         """test decrypting with correct acraproxy and not decrypting with
         incorrect acraproxy or using direct connection to db"""
-        with open('.acrakeys/keypair1_server.pub', 'rb') as f:
+        with open('.acrakeys/keypair1_decrypt.pub', 'rb') as f:
             server_public1 = f.read()
         data = self.get_random_data()
         acra_struct = create_acrastruct(
@@ -249,7 +254,7 @@ class HexFormatTest(BaseTestCase):
     def testReadAcrastructInAcrastruct(self):
         """test correct decrypting acrastruct when acrastruct concatenated to
         partial another acrastruct"""
-        with open('.acrakeys/keypair1_server.pub', 'rb') as f:
+        with open('.acrakeys/keypair1_decrypt.pub', 'rb') as f:
             server_public1 = f.read()
         incorrect_data = self.get_random_data()
         correct_data = self.get_random_data()
@@ -375,8 +380,8 @@ class TestConnectionClosing(BaseTestCase):
         if not self.EXTERNAL_ACRA:
             self.acra = self.fork_acra(
                 self.DB_HOST, self.DB_PORT, self.ACRA_BYTEA, self.ACRA_PORT, self.ZONE)
-        self.dsn = 'postgresql://{}:{}@{}:{}'.format(
-            self.DB_USER, self.DB_USER_PASSWORD, self.DB_HOST, self.PROXY_PORT_1)
+        self.dsn = 'postgresql://{}:{}@127.0.0.1:{}'.format(
+            self.DB_USER, self.DB_USER_PASSWORD, self.PROXY_PORT_1)
 
     def tearDown(self):
         self.proxy_1.kill()
@@ -465,8 +470,8 @@ class TestKeyNonExistence(BaseTestCase):
         if not self.EXTERNAL_ACRA:
             self.acra = self.fork_acra(
                 self.DB_HOST, self.DB_PORT, self.ACRA_BYTEA, self.ACRA_PORT, self.ZONE)
-        self.dsn = 'postgresql://{}:{}@{}:{}'.format(
-            self.DB_USER, self.DB_USER_PASSWORD, self.DB_HOST, self.PROXY_PORT_1)
+        self.dsn = 'postgresql://127.0.0.1:{}@{}:{}'.format(
+            self.DB_USER, self.DB_USER_PASSWORD, self.PROXY_PORT_1)
 
     def tearDown(self):
         if not self.EXTERNAL_ACRA:
@@ -518,7 +523,7 @@ class TestKeyNonExistence(BaseTestCase):
         result = create_client_keypair(keyname)
         if result != 0:
             self.fail("Can't create keypairs")
-        self.delete_key(keyname + '_server')
+        self.delete_key(keyname + '_decrypt')
         try:
             self.proxy = self.fork_proxy(
                 self.PROXY_PORT_1, self.ACRA_PORT, keyname)
@@ -551,7 +556,7 @@ class TestShutdownPoisonRecord(BaseTestCase):
     def setUp(self):
         super(TestShutdownPoisonRecord, self).setUp()
         subprocess.run(['go', 'build', 'github.com/cossacklabs/acra/cmd/acra_genpoisonrecord'], cwd=os.getcwd()).check_returncode()
-        poison_record_call = subprocess.run(['./acra_genpoisonrecord', '-acra_public=.acrakeys/keypair1_server.pub'], stdout=subprocess.PIPE)
+        poison_record_call = subprocess.run(['./acra_genpoisonrecord', '-acra_public=.acrakeys/keypair1_decrypt.pub'], stdout=subprocess.PIPE)
         poison_record_call.check_returncode()
         self.poison_record = b64decode(poison_record_call.stdout)
 
@@ -580,6 +585,63 @@ class TestShutdownPoisonRecord(BaseTestCase):
             self.engine1.execute(
                 sa.select([test_table])
                 .where(test_table.c.id == row_id))
+
+
+class TestKeyStorageClearing(BaseTestCase):
+    def setUp(self):
+        self.key_name = 'clearing_keypair'
+        create_client_keypair(self.key_name)
+        self.proxy_1 = self.fork_proxy(
+            self.PROXY_PORT_1, self.ACRA_PORT, self.key_name, self.PROXY_COMMAND_PORT_1,
+            zone_mode=True)
+        if not self.EXTERNAL_ACRA:
+            self.acra = self.fork_acra(
+                self.DB_HOST, self.DB_PORT, self.ACRA_BYTEA, self.ACRA_PORT,
+                True, False)
+
+        self.engine1 = sa.create_engine(
+            'postgresql://{}:{}@127.0.0.1:{}/{}'.format(
+                self.DB_USER, self.DB_USER_PASSWORD, self.PROXY_PORT_1,
+                self.DB_NAME))
+
+        self.engine_raw = sa.create_engine(
+            'postgresql://{}:{}@{}:{}/{}'.format(
+                self.DB_USER, self.DB_USER_PASSWORD, self.DB_HOST, self.DB_PORT, self.DB_NAME))
+
+        self.engines = [self.engine1, self.engine_raw]
+
+        metadata.create_all(self.engine_raw)
+        self.engine_raw.execute('delete from test;')
+
+    def tearDown(self):
+        self.proxy_1.kill()
+        processes = [self.proxy_1]
+        if not self.EXTERNAL_ACRA:
+            self.acra.kill()
+            processes.append(self.acra)
+
+        for p in processes:
+            p.wait()
+
+        try:
+            self.engine_raw.execute('delete from test;')
+        except:
+            pass
+
+        for engine in self.engines:
+            engine.dispose()
+
+    def test_clearing(self):
+        # execute any query for loading key by acra
+        result = self.engine1.execute(sa.select([1]).limit(1))
+        result.fetchone()
+        with urlopen('http://127.0.0.1:{}/resetKeyStorage'.format(self.PROXY_COMMAND_PORT_1)) as response:
+            self.assertEqual(response.status, 200)
+        # delete key for excluding reloading from FS
+        os.remove('.acrakeys/{}.pub'.format(self.key_name))
+        # acraserver should close connection when doesn't find key
+        with self.assertRaises(SA_OperationalError):
+            result = self.engine1.execute(test_table.select().limit(1))
 
 
 if __name__ == '__main__':
