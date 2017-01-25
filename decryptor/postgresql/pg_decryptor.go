@@ -240,29 +240,31 @@ func PgDecryptStream(decryptor base.Decryptor, rr *bufio.Reader, writer *bufio.W
 			if !base.CheckReadWrite(n, column_data_length, err, err_ch) {
 				return
 			}
+			// TODO check poison record before zone matching in two modes.
+			// now zone matching executed every time
 			// try to skip small piece of data that can't be valuable for us
 			if (decryptor.IsWithZone() && column_data_length >= zone.ZONE_ID_BLOCK_LENGTH) || column_data_length >= base.KEY_BLOCK_LENGTH {
 				decryptor.Reset()
 				if decryptor.IsWholeMatch() {
-					if !decryptor.IsWithZone() || decryptor.IsMatchedZone() {
-						decrypted, err := decryptor.DecryptBlock(row.output[row.write_index : row.write_index+column_data_length])
-						if err == nil {
-							copy(row.output[row.write_index:], decrypted)
-							row.UpdateColumnAndDataSize(column_data_length, len(decrypted))
-							row.write_index += len(decrypted)
-							continue
-						}
-					} else {
+					if decryptor.IsWithZone() || !decryptor.IsMatchedZone() {
 						decryptor.MatchZoneBlock(row.output[row.write_index : row.write_index+column_data_length])
+					}
+					decrypted, err := decryptor.DecryptBlock(row.output[row.write_index : row.write_index+column_data_length])
+					if err == nil {
+						copy(row.output[row.write_index:], decrypted)
+						row.UpdateColumnAndDataSize(column_data_length, len(decrypted))
+						row.write_index += len(decrypted)
+						continue
+					} else if err == base.ErrPoisonRecord {
+						log.Println("Error: poison record detected")
+						err_ch <- err
+						return
 					}
 					row.write_index += column_data_length
 				} else {
 					if decryptor.IsWithZone() && !decryptor.IsMatchedZone() {
 						decryptor.MatchZoneInBlock(row.output[row.write_index : row.write_index+column_data_length])
-						row.write_index += column_data_length
-						continue
 					}
-					// here we are only with matched zone
 					current_index := row.write_index
 					end_index := row.write_index + column_data_length
 					halted := false
@@ -276,13 +278,25 @@ func PgDecryptStream(decryptor base.Decryptor, rr *bufio.Reader, writer *bufio.W
 						begin_tag_index += current_index
 						row.column_data_buf.Write(row.output[current_index:begin_tag_index])
 						current_index = begin_tag_index
+						// TODO if without zone, continue after check poison if not matched
+						block_reader := bytes.NewReader(row.output[begin_tag_index+tag_length:])
+						poisoned, err := decryptor.CheckPoisonRecord(block_reader)
+						if err != nil {
+							err_ch <- err
+							return
+						}
+						if poisoned {
+							err_ch <- base.ErrPoisonRecord
+							return
+						}
+
 						key, err := decryptor.GetPrivateKey()
 						if err != nil {
 							log.Println("Warning: can't read private key")
 							halted = true
 							break
 						}
-						block_reader := bytes.NewReader(row.output[begin_tag_index+tag_length:])
+						block_reader = bytes.NewReader(row.output[begin_tag_index+tag_length:])
 						sym_key, _, err := decryptor.ReadSymmetricKey(key, block_reader)
 						if err != nil {
 							row.column_data_buf.Write([]byte{row.output[current_index]})

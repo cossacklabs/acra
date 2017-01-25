@@ -55,14 +55,6 @@ func NewPgDecryptor(client_id []byte, decryptor base.DataDecryptor) *PgDecryptor
 	}
 }
 
-func (decryptor *PgDecryptor) SetPoisonKey(key []byte) {
-	decryptor.poison_key = key
-}
-
-func (decryptor *PgDecryptor) GetPoisonKey() []byte {
-	return decryptor.poison_key
-}
-
 func (decryptor *PgDecryptor) SetWithZone(b bool) {
 	decryptor.is_with_zone = b
 }
@@ -134,19 +126,11 @@ func (decryptor *PgDecryptor) Reset() {
 func (decryptor *PgDecryptor) GetMatched() []byte {
 	return decryptor.match_buffer[:decryptor.match_index]
 }
+
 func (decryptor *PgDecryptor) ReadSymmetricKey(private_key *keys.PrivateKey, reader io.Reader) ([]byte, []byte, error) {
 	symmetric_key, raw_data, err := decryptor.matched_decryptor.ReadSymmetricKey(private_key, reader)
 	if err != nil {
 		return symmetric_key, raw_data, err
-	}
-	if bytes.Equal(symmetric_key, decryptor.GetPoisonKey()) {
-		log.Println("Warning: recognized poison record")
-		err := decryptor.GetPoisonCallbackStorage().Call()
-		if err != nil {
-			log.Printf("Error: unexpected error in poison record callbacks - %v\n", err)
-			return symmetric_key, raw_data, err
-		}
-		return []byte{}, raw_data, base.ErrPoisonRecord
 	}
 	return symmetric_key, raw_data, nil
 }
@@ -249,7 +233,17 @@ func (decryptor *PgDecryptor) DecryptBlock(block []byte) ([]byte, error) {
 	if !decryptor.IsMatched() {
 		return []byte{}, base.ErrFakeAcraStruct
 	}
+
 	reader := bytes.NewReader(block[n:])
+	poisoned, err := decryptor.CheckPoisonRecord(reader)
+	if err != nil || poisoned {
+		if err != nil {
+			log.Printf("Error: %v\n", utils.ErrorMessage("error in check poison record", err))
+		}
+		return []byte{}, base.ErrPoisonRecord
+	}
+
+	reader = bytes.NewReader(block[n:])
 	private_key, err := decryptor.GetPrivateKey()
 	if err != nil {
 		return []byte{}, err
@@ -267,6 +261,28 @@ func (decryptor *PgDecryptor) DecryptBlock(block []byte) ([]byte, error) {
 	} else {
 		return data, nil
 	}
+}
+
+func (decryptor *PgDecryptor) CheckPoisonRecord(reader io.Reader) (bool, error) {
+	// check poison record
+	poison_keypair, err := decryptor.key_store.GetPoisonKeyPair()
+	if err != nil {
+		log.Printf("Error: %v\n", utils.ErrorMessage("can't load poison keypair", err))
+		return true, err
+	} else {
+		log.Println("Debug: check on poison record")
+		// try decrypt using poison key pair
+		_, _, err := decryptor.matched_decryptor.ReadSymmetricKey(poison_keypair.Private, reader)
+		if err == nil {
+			log.Println("Warning: recognized poison record")
+			err := decryptor.GetPoisonCallbackStorage().Call()
+			if err != nil {
+				log.Printf("Error: unexpected error in poison record callbacks - %v\n", err)
+			}
+			return true, err
+		}
+	}
+	return false, nil
 }
 
 var hex_tag_symbols = hex.EncodeToString([]byte{base.TAG_SYMBOL})

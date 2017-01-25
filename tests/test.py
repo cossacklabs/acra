@@ -110,6 +110,7 @@ class BaseTestCase(unittest.TestCase):
 
     ACRA_BYTEA = 'hex_bytea'
     DB_BYTEA = 'hex'
+    WHOLECELL_MODE = False
     ZONE = False
     DEBUG_LOG = False
     maxDiff = None
@@ -142,7 +143,7 @@ class BaseTestCase(unittest.TestCase):
                   with_zone=False, disable_zone_api: bool=True):
         command = [
             './acraserver', '-db_host='+db_host, '-db_port={}'.format(db_port),
-            '-injectedcell=true',
+            '-wholecell=true' if self.WHOLECELL_MODE else '-injectedcell=true',
             '-{}=true'.format(format), '-host=127.0.0.1',
             '-port={}'.format(self.ACRA_PORT),
         ]
@@ -374,6 +375,27 @@ class ZoneEscapeFormatTest(ZoneHexFormatTest):
     DB_BYTEA = 'escape'
 
 
+class WholeCellMixinTest(object):
+    def testReadAcrastructInAcrastruct(self):
+        return
+
+
+class HexFormatWholeCellTest(WholeCellMixinTest, HexFormatTest):
+    WHOLECELL_MODE = True
+
+
+class ZoneHexFormatWholeCellTest(WholeCellMixinTest, ZoneHexFormatTest):
+    WHOLECELL_MODE = True
+
+
+class EscapeFormatWholeCellTest(WholeCellMixinTest, EscapeFormatTest):
+    WHOLECELL_MODE = True
+
+
+class ZoneEscapeFormatWholeCellTest(WholeCellMixinTest, ZoneEscapeFormatTest):
+    WHOLECELL_MODE = True
+
+
 class TestConnectionClosing(BaseTestCase):
     def setUp(self):
         self.proxy_1 = self.fork_proxy(
@@ -557,7 +579,7 @@ class TestShutdownPoisonRecord(BaseTestCase):
     def setUp(self):
         super(TestShutdownPoisonRecord, self).setUp()
         subprocess.run(['go', 'build', 'github.com/cossacklabs/acra/cmd/acra_genpoisonrecord'], cwd=os.getcwd()).check_returncode()
-        poison_record_call = subprocess.run(['./acra_genpoisonrecord', '-acra_public=.acrakeys/keypair1_decrypt.pub'], stdout=subprocess.PIPE)
+        poison_record_call = subprocess.run(['./acra_genpoisonrecord'], stdout=subprocess.PIPE)
         poison_record_call.check_returncode()
         self.poison_record = b64decode(poison_record_call.stdout)
 
@@ -565,7 +587,7 @@ class TestShutdownPoisonRecord(BaseTestCase):
                   with_zone=False):
         command = [
             './acraserver', '-db_host='+db_host, '-db_port={}'.format(db_port),
-            '-injectedcell=true',
+            '-wholecell=true' if self.WHOLECELL_MODE else '-injectedcell=true',
             '-{}=true'.format(format), '-host=127.0.0.1',
             '-port={}'.format(self.ACRA_PORT),
             '-poisonshutdown=true',
@@ -587,9 +609,31 @@ class TestShutdownPoisonRecord(BaseTestCase):
                 sa.select([test_table])
                 .where(test_table.c.id == row_id))
 
+    def testShutdown2(self):
+        """check working poison record callback on full select"""
+        row_id = self.get_random_id()
+        self.engine1.execute(
+            test_table.insert(),
+            {'id': row_id, 'data': self.poison_record, 'raw_data': 'poison_record'})
+        with self.assertRaises(SA_OperationalError):
+            self.engine1.execute(
+                sa.select([test_table]))
+
+    def testShutdown3(self):
+        """check working poison record callback on full select inside another data"""
+        row_id = self.get_random_id()
+        data = os.urandom(100) + self.poison_record + os.urandom(100)
+        self.engine1.execute(
+            test_table.insert(),
+            {'id': row_id, 'data': data, 'raw_data': 'poison_record'})
+        with self.assertRaises(SA_OperationalError):
+            self.engine1.execute(
+                sa.select([test_table]))
+
 
 class TestShutdownPoisonRecordWithZone(BaseTestCase):
     ZONE = True
+
     def setUp(self):
         super(TestShutdownPoisonRecordWithZone, self).setUp()
         subprocess.run(['go', 'build', 'github.com/cossacklabs/acra/cmd/acra_genpoisonrecord'], cwd=os.getcwd()).check_returncode()
@@ -597,7 +641,7 @@ class TestShutdownPoisonRecordWithZone(BaseTestCase):
             zone_public = b64decode(zones[0]['public_key'].encode('ascii'))
             f.write(zone_public)
             f.close()
-            poison_record_call = subprocess.run(['./acra_genpoisonrecord', '-acra_public='+f.name],
+            poison_record_call = subprocess.run(['./acra_genpoisonrecord'],
                                                 stdout=subprocess.PIPE)
             poison_record_call.check_returncode()
             self.poison_record = b64decode(poison_record_call.stdout)
@@ -606,7 +650,7 @@ class TestShutdownPoisonRecordWithZone(BaseTestCase):
                   with_zone=False):
         command = [
             './acraserver', '-db_host='+db_host, '-db_port={}'.format(db_port),
-            '-injectedcell=true',
+            '-wholecell=true' if self.WHOLECELL_MODE else '-injectedcell=true',
             '-{}=true'.format(format), '-host=127.0.0.1',
             '-port={}'.format(self.ACRA_PORT),
             '-poisonshutdown=true',
@@ -627,6 +671,41 @@ class TestShutdownPoisonRecordWithZone(BaseTestCase):
             self.engine1.execute(
                 sa.select([sa.cast(zone, BYTEA), test_table])
                     .where(test_table.c.id == row_id))
+
+    def testShutdown2(self):
+        """check working poison record callback on full select"""
+        row_id = self.get_random_id()
+        self.engine1.execute(
+            test_table.insert(),
+            {'id': row_id, 'data': self.poison_record, 'raw_data': 'poison_record'})
+        with self.assertRaises(SA_OperationalError):
+            self.engine1.execute(
+                sa.select([test_table]))
+
+    def testShutdown3(self):
+        """check working poison record callback on full select inside another data"""
+        row_id = self.get_random_id()
+        data = os.urandom(100) + self.poison_record + os.urandom(100)
+        self.engine1.execute(
+            test_table.insert(),
+            {'id': row_id, 'data': data, 'raw_data': 'poison_record'})
+        with self.assertRaises(SA_OperationalError):
+            self.engine1.execute(
+                sa.select([test_table]))
+
+
+class TestShutdownPoisonRecordWholeCell(TestShutdownPoisonRecord):
+    WHOLECELL_MODE = True
+
+    def testShutdown3(self):
+        return
+
+
+class TestShutdownPoisonRecordWithZoneWholeCell(TestShutdownPoisonRecordWithZone):
+    WHOLECELL_MODE = True
+
+    def testShutdown3(self):
+        return
 
 
 class TestKeyStorageClearing(BaseTestCase):

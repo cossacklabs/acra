@@ -34,6 +34,10 @@ type FilesystemKeyStore struct {
 	directory string
 }
 
+const (
+	POISON_KEY_FILENAME = "poison_key"
+)
+
 func NewFilesystemKeyStore(directory string) (*FilesystemKeyStore, error) {
 	fi, err := os.Stat(directory)
 	if nil == err && runtime.GOOS == "linux" && fi.Mode().Perm().String() != "-rwx------" {
@@ -63,16 +67,12 @@ func (*FilesystemKeyStore) get_proxy_key_filename(id []byte) string {
 	return string(id)
 }
 
-func (store *FilesystemKeyStore) generate_key_pair(filename string, id []byte) (*keys.Keypair, error) {
+func (store *FilesystemKeyStore) generate_key_pair(filename string) (*keys.Keypair, error) {
 	keypair, err := keys.New(keys.KEYTYPE_EC)
 	if err != nil {
 		return nil, err
 	}
-	keydir, err := GetDefaultKeyDir()
-	if err != nil {
-		return nil, err
-	}
-	err = os.MkdirAll(keydir, 0700)
+	err = os.MkdirAll(store.directory, 0700)
 	if err != nil {
 		return nil, err
 	}
@@ -98,7 +98,7 @@ func (store *FilesystemKeyStore) GenerateZoneKey() ([]byte, []byte, error) {
 		}
 	}
 
-	keypair, err := store.generate_key_pair(store.get_zone_key_filename(id), id)
+	keypair, err := store.generate_key_pair(store.get_zone_key_filename(id))
 	if err != nil {
 		return []byte{}, []byte{}, err
 	}
@@ -204,7 +204,7 @@ func (store *FilesystemKeyStore) GetServerDecryptionPrivateKey(id []byte) (*keys
 
 func (store *FilesystemKeyStore) GenerateProxyKeys(id []byte) error {
 	filename := store.get_proxy_key_filename(id)
-	_, err := store.generate_key_pair(filename, id)
+	_, err := store.generate_key_pair(filename)
 	if err != nil {
 		return err
 	}
@@ -212,7 +212,7 @@ func (store *FilesystemKeyStore) GenerateProxyKeys(id []byte) error {
 }
 func (store *FilesystemKeyStore) GenerateServerKeys(id []byte) error {
 	filename := store.get_server_key_filename(id)
-	_, err := store.generate_key_pair(filename, id)
+	_, err := store.generate_key_pair(filename)
 	if err != nil {
 		return err
 	}
@@ -221,7 +221,7 @@ func (store *FilesystemKeyStore) GenerateServerKeys(id []byte) error {
 
 // generate key pair for data encryption/decryption
 func (store *FilesystemKeyStore) GenerateDataEncryptionKeys(id []byte) error {
-	_, err := store.generate_key_pair(store.get_server_decryption_key_filename(id), id)
+	_, err := store.generate_key_pair(store.get_server_decryption_key_filename(id))
 	if err != nil {
 		return err
 	}
@@ -231,4 +231,30 @@ func (store *FilesystemKeyStore) GenerateDataEncryptionKeys(id []byte) error {
 // clear all cached keys
 func (store *FilesystemKeyStore) Reset() {
 	store.keys = make(map[string][]byte)
+}
+
+func (store *FilesystemKeyStore) GetPoisonKeyPair() (*keys.Keypair, error) {
+	private_path := store.get_file_path(POISON_KEY_FILENAME)
+	public_path := store.get_file_path(fmt.Sprintf("%s.pub", POISON_KEY_FILENAME))
+	private_exists, err := FileExists(private_path)
+	if err != nil {
+		return nil, err
+	}
+	public_exists, err := FileExists(public_path)
+	if err != nil {
+		return nil, err
+	}
+	if private_exists && public_exists {
+		private, err := LoadPrivateKey(private_path)
+		if err != nil {
+			return nil, err
+		}
+		public, err := LoadPublicKey(public_path)
+		if err != nil {
+			return nil, err
+		}
+		return &keys.Keypair{Public: public, Private: private}, nil
+	} else {
+		return store.generate_key_pair(POISON_KEY_FILENAME)
+	}
 }
