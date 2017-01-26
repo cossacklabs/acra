@@ -44,4 +44,5 @@ func main() {
 
 	diff := end_time.Sub(start_time)
 	fmt.Printf("Took %v sec\n", diff.Seconds())
+	db.Close()
 }

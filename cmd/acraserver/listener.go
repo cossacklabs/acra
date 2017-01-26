@@ -104,7 +104,6 @@ func (server *SServer) getDecryptor(client_id []byte) base.Decryptor {
 	decryptor_impl.SetWithZone(server.config.GetWithZone())
 	decryptor_impl.SetWholeMatch(server.config.GetWholeMatch())
 	decryptor_impl.SetKeyStore(server.keystorage)
-	decryptor_impl.SetPoisonKey(server.config.GetPoisonKey())
 	zone_matcher := zone.NewZoneMatcher(matcher_pool, server.keystorage)
 	decryptor_impl.SetZoneMatcher(zone_matcher)
 

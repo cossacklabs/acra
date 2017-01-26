@@ -36,6 +36,8 @@ type KeyStore interface {
 	// generate key pair for data encryption/decryption
 	GenerateDataEncryptionKeys(id []byte) error
 
+	GetPoisonKeyPair() (*keys.Keypair, error)
+
 	Reset()
 }
 

@@ -18,7 +18,6 @@ import (
 	"flag"
 	"fmt"
 	"github.com/cossacklabs/acra/keystore"
-	"github.com/cossacklabs/acra/poison"
 	"github.com/cossacklabs/acra/utils"
 	"github.com/vharitonsky/iniflags"
 	"io"
@@ -57,8 +56,6 @@ func main() {
 
 	keys_dir := flag.String("keys_dir", keystore.DEFAULT_KEY_DIR_SHORT, "Folder from which will be loaded keys")
 
-	poison_key_path := flag.String("poison_key", poison.DEFAULT_POISON_KEY_PATH, "Path to file with poison key")
-
 	hex_format := flag.Bool("hex_bytea", false, "Hex format for Postgresql bytea data (default)")
 	escape_format := flag.Bool("escape_bytea", false, "Escape format for Postgresql bytea data")
 
@@ -93,18 +90,11 @@ func main() {
 		return
 	}
 
-	poison_key, err := poison.GetOrCreatePoisonKey(*poison_key_path)
-	if err != nil {
-		fmt.Printf("Error: %v\n", utils.ErrorMessage("can't read poison key", err))
-		os.Exit(1)
-	}
-
 	config := NewConfig()
 	// now it's stub as default values
 	config.SetStopOnPoison(*stop_on_poison)
 	config.SetScriptOnPoison(*script_on_poison)
 	config.SetWithZone(*with_zone)
-	config.SetPoisonKey(poison_key)
 	config.SetDBHost(*db_host)
 	config.SetDBPort(*db_port)
 	config.SetProxyHost(*host)

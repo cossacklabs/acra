@@ -195,6 +195,7 @@ func (decryptor *PgEscapeDecryptor) readOctalData(data, oct_data []byte, reader 
 		}
 	}
 }
+
 func (decryptor *PgEscapeDecryptor) ReadSymmetricKey(private_key *keys.PrivateKey, reader io.Reader) ([]byte, []byte, error) {
 	data_length, oct_data_length, err := decryptor.readOctalData(decryptor.decoded_key_block_buffer, decryptor.oct_key_block_buffer[:], reader)
 	if err != nil {
