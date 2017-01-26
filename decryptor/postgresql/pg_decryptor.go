@@ -248,10 +248,10 @@ func PgDecryptStream(decryptor base.Decryptor, rr *bufio.Reader, writer *bufio.W
 				if decryptor.IsWholeMatch() {
 					// poison record check
 					block, err := decryptor.SkipBeginInBlock(row.output[row.write_index : row.write_index+column_data_length])
-					if err == nil{
+					if err == nil {
 						poisoned, err := decryptor.CheckPoisonRecord(bytes.NewReader(block))
 						if err != nil || poisoned {
-							if poisoned{
+							if poisoned {
 								err_ch <- base.ErrPoisonRecord
 							} else {
 								err_ch <- err
@@ -293,7 +293,7 @@ func PgDecryptStream(decryptor base.Decryptor, rr *bufio.Reader, writer *bufio.W
 						block_reader := bytes.NewReader(row.output[current_index+tag_length:])
 						poisoned, err := decryptor.CheckPoisonRecord(block_reader)
 						if err != nil || poisoned {
-							if poisoned{
+							if poisoned {
 								err_ch <- base.ErrPoisonRecord
 							} else {
 								err_ch <- err

@@ -203,7 +203,7 @@ func (decryptor *PgDecryptor) MatchZoneBlock(block []byte) {
 
 var HEX_PREFIX = []byte{'\\', 'x'}
 
-func (decryptor *PgDecryptor) SkipBeginInBlock(block []byte)([]byte, error){
+func (decryptor *PgDecryptor) SkipBeginInBlock(block []byte) ([]byte, error) {
 	_, ok := decryptor.pg_decryptor.(*PgHexDecryptor)
 	// in hex format can be \x bytes at beginning
 	// we need skip them for correct matching begin tag
@@ -238,7 +238,7 @@ func (decryptor *PgDecryptor) SkipBeginInBlock(block []byte)([]byte, error){
 
 func (decryptor *PgDecryptor) DecryptBlock(block []byte) ([]byte, error) {
 	data_block, err := decryptor.SkipBeginInBlock(block)
-	if err != nil{
+	if err != nil {
 		return []byte{}, err
 	}
 

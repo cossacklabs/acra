@@ -48,6 +48,7 @@ func (storage *TestKeyStore) GenerateDataEncryptionKeys(id []byte) error { retur
 func (storage *TestKeyStore) GetServerDecryptionPrivateKey(id []byte) (*keys.PrivateKey, error) {
 	return nil, nil
 }
+func (storage *TestKeyStore) GetPoisonKeyPair() (*keys.Keypair, error) { return nil, nil }
 
 func testZoneIdMatcher(t *testing.T) {
 	var keystorage keystore.KeyStore = &TestKeyStore{}
