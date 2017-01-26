@@ -96,6 +96,7 @@ type Decryptor interface {
 	ResetZoneMatch()
 	IsWholeMatch() bool
 	DecryptBlock([]byte) ([]byte, error)
+	SkipBeginInBlock(block []byte)([]byte, error)
 	MatchZoneBlock([]byte)
 	CheckPoisonRecord(reader io.Reader) (bool, error)
 	// return tag start index and length of tag (depends on decryptor type)

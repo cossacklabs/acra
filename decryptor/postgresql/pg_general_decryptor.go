@@ -203,7 +203,7 @@ func (decryptor *PgDecryptor) MatchZoneBlock(block []byte) {
 
 var HEX_PREFIX = []byte{'\\', 'x'}
 
-func (decryptor *PgDecryptor) DecryptBlock(block []byte) ([]byte, error) {
+func (decryptor *PgDecryptor) SkipBeginInBlock(block []byte)([]byte, error){
 	_, ok := decryptor.pg_decryptor.(*PgHexDecryptor)
 	// in hex format can be \x bytes at beginning
 	// we need skip them for correct matching begin tag
@@ -233,17 +233,16 @@ func (decryptor *PgDecryptor) DecryptBlock(block []byte) ([]byte, error) {
 	if !decryptor.IsMatched() {
 		return []byte{}, base.ErrFakeAcraStruct
 	}
+	return block[n:], nil
+}
 
-	reader := bytes.NewReader(block[n:])
-	poisoned, err := decryptor.CheckPoisonRecord(reader)
-	if err != nil || poisoned {
-		if err != nil {
-			log.Printf("Error: %v\n", utils.ErrorMessage("error in check poison record", err))
-		}
-		return []byte{}, base.ErrPoisonRecord
+func (decryptor *PgDecryptor) DecryptBlock(block []byte) ([]byte, error) {
+	data_block, err := decryptor.SkipBeginInBlock(block)
+	if err != nil{
+		return []byte{}, err
 	}
 
-	reader = bytes.NewReader(block[n:])
+	reader := bytes.NewReader(data_block)
 	private_key, err := decryptor.GetPrivateKey()
 	if err != nil {
 		return []byte{}, err
@@ -256,7 +255,7 @@ func (decryptor *PgDecryptor) DecryptBlock(block []byte) ([]byte, error) {
 	if err != nil {
 		return []byte{}, err
 	}
-	if ok {
+	if _, ok := decryptor.pg_decryptor.(*PgHexDecryptor); ok {
 		return append(HEX_PREFIX, data...), nil
 	} else {
 		return data, nil
