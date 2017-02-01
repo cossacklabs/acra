@@ -269,7 +269,6 @@ func (decryptor *PgDecryptor) CheckPoisonRecord(reader io.Reader) (bool, error) 
 		log.Printf("Error: %v\n", utils.ErrorMessage("can't load poison keypair", err))
 		return true, err
 	} else {
-		log.Println("Debug: check on poison record")
 		// try decrypt using poison key pair
 		_, _, err := decryptor.matched_decryptor.ReadSymmetricKey(poison_keypair.Private, reader)
 		if err == nil {
@@ -280,6 +279,7 @@ func (decryptor *PgDecryptor) CheckPoisonRecord(reader io.Reader) (bool, error) 
 			}
 			return true, err
 		}
+		log.Printf("Debug: error on check poison record - %v\n", err)
 	}
 	return false, nil
 }
@@ -291,18 +291,21 @@ func (decryptor *PgDecryptor) BeginTagIndex(block []byte) (int, int) {
 	_, ok := decryptor.pg_decryptor.(*PgHexDecryptor)
 	if ok {
 		if i := utils.FindTag(HEX_SYMBOL, decryptor.pg_decryptor.GetTagBeginLength(), block); i != utils.NOT_FOUND {
+			log.Println("Debug: matched pg decryptor")
 			decryptor.matched_decryptor = decryptor.pg_decryptor
 			return i, decryptor.pg_decryptor.GetTagBeginLength()
 		}
 	} else {
 		// escape format
 		if i := utils.FindTag(base.TAG_SYMBOL, decryptor.pg_decryptor.GetTagBeginLength(), block); i != utils.NOT_FOUND {
+			log.Println("Debug: matched pg decryptor")
 			decryptor.matched_decryptor = decryptor.pg_decryptor
 			return i, decryptor.pg_decryptor.GetTagBeginLength()
 			// binary format
 		}
 	}
 	if i := utils.FindTag(base.TAG_SYMBOL, decryptor.binary_decryptor.GetTagBeginLength(), block); i != utils.NOT_FOUND {
+		log.Println("Debug: matched binary decryptor")
 		decryptor.matched_decryptor = decryptor.binary_decryptor
 		return i, decryptor.binary_decryptor.GetTagBeginLength()
 	}
