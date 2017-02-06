@@ -242,7 +242,7 @@ class HexFormatTest(BaseTestCase):
     def testProxyRead(self):
         """test decrypting with correct acraproxy and not decrypting with
         incorrect acraproxy or using direct connection to db"""
-        keyname = 'keypair1_decrypt'
+        keyname = 'keypair1_storage'
         with open('.acrakeys/{}.pub'.format(keyname), 'rb') as f:
             server_public1 = f.read()
         data = self.get_random_data()
@@ -278,7 +278,7 @@ class HexFormatTest(BaseTestCase):
     def testReadAcrastructInAcrastruct(self):
         """test correct decrypting acrastruct when acrastruct concatenated to
         partial another acrastruct"""
-        keyname = 'keypair1_decrypt'
+        keyname = 'keypair1_storage'
         with open('.acrakeys/{}.pub'.format(keyname), 'rb') as f:
             server_public1 = f.read()
         incorrect_data = self.get_random_data()
@@ -582,7 +582,7 @@ class TestKeyNonExistence(BaseTestCase):
         result = create_client_keypair(keyname)
         if result != 0:
             self.fail("Can't create keypairs")
-        self.delete_key(keyname + '_decrypt')
+        self.delete_key(keyname + '_storage')
         connection = None
         try:
             self.proxy = self.fork_proxy(
