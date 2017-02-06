@@ -247,16 +247,20 @@ func PgDecryptStream(decryptor base.Decryptor, rr *bufio.Reader, writer *bufio.W
 				decryptor.Reset()
 				if decryptor.IsWholeMatch() {
 					// poison record check
-					block, err := decryptor.SkipBeginInBlock(row.output[row.write_index : row.write_index+column_data_length])
-					if err == nil {
-						poisoned, err := decryptor.CheckPoisonRecord(bytes.NewReader(block))
-						if err != nil || poisoned {
-							if poisoned {
-								err_ch <- base.ErrPoisonRecord
-							} else {
-								err_ch <- err
+					// check only if has any action on detection
+					if decryptor.GetPoisonCallbackStorage().HasCallbacks() {
+						log.Println("Debug: check poison records")
+						block, err := decryptor.SkipBeginInBlock(row.output[row.write_index : row.write_index+column_data_length])
+						if err == nil {
+							poisoned, err := decryptor.CheckPoisonRecord(bytes.NewReader(block))
+							if err != nil || poisoned {
+								if poisoned {
+									err_ch <- base.ErrPoisonRecord
+								} else {
+									err_ch <- err
+								}
+								return
 							}
-							return
 						}
 					}
 					// end poison record check
@@ -283,24 +287,29 @@ func PgDecryptStream(decryptor base.Decryptor, rr *bufio.Reader, writer *bufio.W
 					end_index := row.write_index + column_data_length
 
 					// check poison records
-					for {
-						begin_tag_index, tag_length := decryptor.BeginTagIndex(row.output[current_index:end_index])
-						if begin_tag_index == utils.NOT_FOUND {
-							break
-						}
-						// convert to absolute index
-						current_index += begin_tag_index
-						block_reader := bytes.NewReader(row.output[current_index+tag_length:])
-						poisoned, err := decryptor.CheckPoisonRecord(block_reader)
-						if err != nil || poisoned {
-							if poisoned {
-								err_ch <- base.ErrPoisonRecord
-							} else {
-								err_ch <- err
+					if decryptor.GetPoisonCallbackStorage().HasCallbacks() {
+						log.Println("Debug: check poison records")
+						for {
+							begin_tag_index, tag_length := decryptor.BeginTagIndex(row.output[current_index:end_index])
+							if begin_tag_index == utils.NOT_FOUND {
+								log.Println("Debug: not found begin tag")
+								break
 							}
-							return
+							log.Println("Debug: found begin tag")
+							// convert to absolute index
+							current_index += begin_tag_index
+							block_reader := bytes.NewReader(row.output[current_index+tag_length:])
+							poisoned, err := decryptor.CheckPoisonRecord(block_reader)
+							if err != nil || poisoned {
+								if poisoned {
+									err_ch <- base.ErrPoisonRecord
+								} else {
+									err_ch <- err
+								}
+								return
+							}
+							current_index += tag_length
 						}
-						current_index += tag_length
 					}
 					if decryptor.IsWithZone() && !decryptor.IsMatchedZone() {
 						decryptor.MatchZoneInBlock(row.output[row.write_index : row.write_index+column_data_length])
