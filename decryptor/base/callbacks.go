@@ -74,3 +74,7 @@ func (storage *PoisonCallbackStorage) Call() error {
 	}
 	return nil
 }
+
+func (storage *PoisonCallbackStorage) HasCallbacks() bool {
+	return storage.callbacks.Len() > 0
+}
