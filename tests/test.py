@@ -20,6 +20,7 @@ import random
 import string
 import subprocess
 import unittest
+import stat
 from base64 import b64decode, b64encode
 from tempfile import NamedTemporaryFile
 from urllib.request import urlopen
@@ -33,7 +34,7 @@ import sys
 # add to path our wrapper until not published to PYPI
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(__file__)), 'wrappers/python'))
 
-from acrawriter import create_acrastruct, BEGIN_TAG
+from acrawriter import create_acrastruct
 
 
 metadata = sa.MetaData()
@@ -44,6 +45,19 @@ test_table = sa.Table('test', metadata,
 )
 
 zones = []
+poison_record = None
+
+
+def get_poison_record():
+    """generate one poison record for speed up tests and don't create subprocess
+    for new records"""
+    global poison_record
+    if not poison_record:
+        poison_record_call = subprocess.run(
+            ['./acra_genpoisonrecord'], stdout=subprocess.PIPE)
+        poison_record_call.check_returncode()
+        poison_record = b64decode(poison_record_call.stdout)
+    return poison_record
 
 
 def create_client_keypair(name, only_server=False, only_client=False):
@@ -58,11 +72,16 @@ def create_client_keypair(name, only_server=False, only_client=False):
 def setUpModule():
     global zones
     # build binaries
-    assert subprocess.call(['go', 'build', 'github.com/cossacklabs/acra/cmd/acraproxy'], cwd=os.getcwd()) == 0
-    assert subprocess.call(['go', 'build', 'github.com/cossacklabs/acra/cmd/acra_addzone'], cwd=os.getcwd()) == 0
-    assert subprocess.call(
-        ['go', 'build', 'github.com/cossacklabs/acra/cmd/acra_genkeys'], cwd=os.getcwd()) == 0
-    assert subprocess.call(['go', 'build', 'github.com/cossacklabs/acra/cmd/acraserver'], cwd=os.getcwd()) == 0
+    builds = [
+        ['go', 'build', 'github.com/cossacklabs/acra/cmd/acraproxy'],
+        ['go', 'build', 'github.com/cossacklabs/acra/cmd/acra_addzone'],
+        ['go', 'build', 'github.com/cossacklabs/acra/cmd/acra_genpoisonrecord'],
+        ['go', 'build', 'github.com/cossacklabs/acra/cmd/acra_genkeys'],
+        ['go', 'build', 'github.com/cossacklabs/acra/cmd/acraserver'],
+    ]
+    for build in builds:
+        assert subprocess.call(build, cwd=os.getcwd()) == 0
+
     # first keypair for using without zones
     assert create_client_keypair('keypair1') == 0
     assert create_client_keypair('keypair2') == 0
@@ -76,20 +95,12 @@ def setUpModule():
 def tearDownModule():
     import shutil
     shutil.rmtree('.acrakeys')
-    for i in ['acraproxy', 'acraserver', 'acra_addzone', 'acra_genkeys']:
+    for i in ['acraproxy', 'acraserver', 'acra_addzone', 'acra_genkeys',
+              'acra_genpoisonrecord']:
         try:
             os.remove(i)
         except:
             pass
-
-
-class TestCompilation(unittest.TestCase):
-    def testCompileAll(self):
-        self.assertFalse(subprocess.call(['go', 'build', 'github.com/cossacklabs/acra/cmd/acraproxy'], cwd=os.getcwd()))
-        self.assertFalse(subprocess.call(['go', 'build', 'github.com/cossacklabs/acra/cmd/acraserver'], cwd=os.getcwd()))
-        self.assertFalse(subprocess.call(['go', 'build', 'github.com/cossacklabs/acra/cmd/acra_addzone'], cwd=os.getcwd()))
-        self.assertFalse(subprocess.call(['go', 'build', 'github.com/cossacklabs/acra/cmd/acra_genkeys'], cwd=os.getcwd()))
-        self.assertFalse(subprocess.call(['go', 'build', 'github.com/cossacklabs/acra/cmd/acra_genpoisonrecord'], cwd=os.getcwd()))
 
 
 class BaseTestCase(unittest.TestCase):
@@ -139,21 +150,28 @@ class BaseTestCase(unittest.TestCase):
             args.append('--zonemode=true')
         return self.fork(lambda: subprocess.Popen(args))
 
-    def fork_acra(self, db_host: str, db_port: int, format: str, acra_port,
-                  with_zone=False, disable_zone_api: bool=True):
-        command = [
-            './acraserver', '-db_host='+db_host, '-db_port={}'.format(db_port),
-            '-wholecell=true' if self.WHOLECELL_MODE else '-injectedcell=true',
-            '-{}=true'.format(format), '-host=127.0.0.1',
-            '-port={}'.format(self.ACRA_PORT),
-        ]
-        if self.DEBUG_LOG:
-            command.append('-d=true')
-        if with_zone:
-            command.append('-zonemode=true')
-        if disable_zone_api:
-            command.append('-disable_zone_api=true')
-        return self.fork(lambda: subprocess.Popen(command))
+    def _fork_acra(self, acra_kwargs: dict, popen_kwargs: dict):
+        args = {
+            'db_host': self.DB_HOST,
+            'db_port': self.DB_PORT,
+            self.ACRA_BYTEA: 'true',
+            'port': self.ACRA_PORT,
+            'wholecell': 'true' if self.WHOLECELL_MODE else 'false',
+            'injectedcell': 'false' if self.WHOLECELL_MODE else 'true',
+            'host': '127.0.0.1',
+            'd': 'true' if self.DEBUG_LOG else 'false',
+            'zonemode': 'true' if self.ZONE else 'false',
+            'disable_zone_api': 'false' if self.ZONE else 'true',
+        }
+        args.update(acra_kwargs)
+        if not popen_kwargs:
+            popen_kwargs = {}
+        cli_args = ['--{}={}'.format(k, v) for k, v in args.items()]
+        return self.fork(lambda: subprocess.Popen(['./acraserver'] + cli_args,
+                                                  **popen_kwargs))
+
+    def fork_acra(self, popen_kwargs: dict=None, **acra_kwargs: dict):
+        return self._fork_acra(acra_kwargs, popen_kwargs)
 
     def setUp(self):
         self.proxy_1 = self.fork_proxy(
@@ -161,8 +179,7 @@ class BaseTestCase(unittest.TestCase):
         self.proxy_2 = self.fork_proxy(
             self.PROXY_PORT_2, self.ACRA_PORT, 'keypair2')
         if not self.EXTERNAL_ACRA:
-            self.acra = self.fork_acra(
-                self.DB_HOST, self.DB_PORT, self.ACRA_BYTEA, self.ACRA_PORT, self.ZONE)
+            self.acra = self.fork_acra()
 
         connect_args = {'user': self.DB_USER, 'password': self.DB_USER_PASSWORD}
 
@@ -183,15 +200,17 @@ class BaseTestCase(unittest.TestCase):
         for engine in self.engines:
             count = 0
             # try with sleep if acra not up yet
-            while count < 3:
+            while True:
                 try:
                     engine.execute(
                         "UPDATE pg_settings SET setting = '{}' "
                         "WHERE name = 'bytea_output'".format(self.DB_BYTEA))
+                    break
                 except Exception:
                     time.sleep(0.01)
                     count += 1
-                break
+                    if count == 3:
+                        raise
 
     def tearDown(self):
         self.proxy_1.kill()
@@ -233,6 +252,7 @@ class BaseTestCase(unittest.TestCase):
                 'zone_private': b64encode(zone_private).decode('ascii'),
                 'zone_public': zones[0]['public_key'],
                 'zone_id': zones[0]['id'],
+                'poison_record': b64encode(get_poison_record()).decode('ascii'),
             }
         ))
 
@@ -428,8 +448,7 @@ class TestConnectionClosing(BaseTestCase):
         self.proxy_1 = self.fork_proxy(
             self.PROXY_PORT_1, self.ACRA_PORT, 'keypair1')
         if not self.EXTERNAL_ACRA:
-            self.acra = self.fork_acra(
-                self.DB_HOST, self.DB_PORT, self.ACRA_BYTEA, self.ACRA_PORT, self.ZONE)
+            self.acra = self.fork_acra()
 
     def get_connection(self):
         return psycopg2.connect(database=self.DB_NAME, user=self.DB_USER,
@@ -523,8 +542,7 @@ class TestKeyNonExistence(BaseTestCase):
 
     def setUp(self):
         if not self.EXTERNAL_ACRA:
-            self.acra = self.fork_acra(
-                self.DB_HOST, self.DB_PORT, self.ACRA_BYTEA, self.ACRA_PORT, self.ZONE)
+            self.acra = self.fork_acra()
         self.dsn = 'postgresql://127.0.0.1:{}@{}:{}'.format(
             self.DB_USER, self.DB_USER_PASSWORD, self.PROXY_PORT_1)
 
@@ -614,36 +632,32 @@ class TestKeyNonExistence(BaseTestCase):
             self.proxy.wait()
 
 
-class TestShutdownPoisonRecord(BaseTestCase):
-    def setUp(self):
-        super(TestShutdownPoisonRecord, self).setUp()
-        subprocess.run(['go', 'build', 'github.com/cossacklabs/acra/cmd/acra_genpoisonrecord'], cwd=os.getcwd()).check_returncode()
-        poison_record_call = subprocess.run(['./acra_genpoisonrecord'], stdout=subprocess.PIPE)
-        poison_record_call.check_returncode()
-        self.poison_record = b64decode(poison_record_call.stdout)
-        self.log('poison_key', self.poison_record, b'no matter because poison record')
+class BasePoisonRecordTest(BaseTestCase):
+    SHUTDOWN = True
 
-    def fork_acra(self, db_host: str, db_port: int, format: str, acra_port,
-                  with_zone=False):
-        command = [
-            './acraserver', '-db_host='+db_host, '-db_port={}'.format(db_port),
-            '-wholecell=true' if self.WHOLECELL_MODE else '-injectedcell=true',
-            '-{}=true'.format(format), '-host=127.0.0.1',
-            '-port={}'.format(self.ACRA_PORT),
-            '-poisonshutdown=true',
-            '-disable_zone_api',
-        ]
-        if self.DEBUG_LOG:
-            command.append('-d=true')
-        if with_zone:
-            command.append('-zonemode=true')
-        return self.fork(lambda: subprocess.Popen(command))
+    def setUp(self):
+        super(BasePoisonRecordTest, self).setUp()
+        self.log('poison_key', get_poison_record(), b'no matter because poison record')
+
+    def fork_acra(self, popen_kwargs: dict=None, **acra_kwargs: dict):
+        args = {
+            'poisonshutdown': 'true' if self.SHUTDOWN else 'false',
+        }
+
+        if hasattr(self, 'poisonscript'):
+            args['poisonscript'] = self.poisonscript
+
+        return super(BasePoisonRecordTest, self).fork_acra(popen_kwargs, **args)
+
+
+class TestPoisonRecordShutdown(BasePoisonRecordTest):
+    SHUTDOWN = True
 
     def testShutdown(self):
         row_id = self.get_random_id()
         self.engine1.execute(
             test_table.insert(),
-            {'id': row_id, 'data': self.poison_record, 'raw_data': 'poison_record'})
+            {'id': row_id, 'data': get_poison_record(), 'raw_data': 'poison_record'})
         with self.assertRaises(SA_OperationalError):
             self.engine1.execute(
                 sa.select([test_table])
@@ -654,7 +668,7 @@ class TestShutdownPoisonRecord(BaseTestCase):
         row_id = self.get_random_id()
         self.engine1.execute(
             test_table.insert(),
-            {'id': row_id, 'data': self.poison_record, 'raw_data': 'poison_record'})
+            {'id': row_id, 'data': get_poison_record(), 'raw_data': 'poison_record'})
         with self.assertRaises(SA_OperationalError):
             self.engine1.execute(
                 sa.select([test_table]))
@@ -662,7 +676,7 @@ class TestShutdownPoisonRecord(BaseTestCase):
     def testShutdown3(self):
         """check working poison record callback on full select inside another data"""
         row_id = self.get_random_id()
-        data = os.urandom(100) + self.poison_record + os.urandom(100)
+        data = os.urandom(100) + get_poison_record() + os.urandom(100)
         self.engine1.execute(
             test_table.insert(),
             {'id': row_id, 'data': data, 'raw_data': 'poison_record'})
@@ -671,42 +685,17 @@ class TestShutdownPoisonRecord(BaseTestCase):
                 sa.select([test_table]))
 
 
-class TestShutdownPoisonRecordWithZone(BaseTestCase):
+class TestShutdownPoisonRecordWithZone(TestPoisonRecordShutdown):
     ZONE = True
     WHOLECELL_MODE = False
-
-    def setUp(self):
-        super(TestShutdownPoisonRecordWithZone, self).setUp()
-        subprocess.run(['go', 'build', 'github.com/cossacklabs/acra/cmd/acra_genpoisonrecord'], cwd=os.getcwd()).check_returncode()
-        with NamedTemporaryFile('wb', delete=False) as f:
-            zone_public = b64decode(zones[0]['public_key'].encode('ascii'))
-            f.write(zone_public)
-            f.close()
-            poison_record_call = subprocess.run(['./acra_genpoisonrecord'],
-                                                stdout=subprocess.PIPE)
-            poison_record_call.check_returncode()
-            self.poison_record = b64decode(poison_record_call.stdout)
-
-    def fork_acra(self, db_host: str, db_port: int, format: str, acra_port,
-                  with_zone=False):
-        command = [
-            './acraserver', '-db_host='+db_host, '-db_port={}'.format(db_port),
-            '-wholecell=true' if self.WHOLECELL_MODE else '-injectedcell=true',
-            '-{}=true'.format(format), '-host=127.0.0.1',
-            '-port={}'.format(self.ACRA_PORT),
-            '-poisonshutdown=true',
-            '-zonemode=true',
-            '-disable_zone_api',
-        ]
-        if self.DEBUG_LOG:
-            command.append('-d=true')
-        return self.fork(lambda: subprocess.Popen(command))
+    SHUTDOWN = True
 
     def testShutdown(self):
+        """check callback with select by id and zone"""
         row_id = self.get_random_id()
         self.engine1.execute(
             test_table.insert(),
-            {'id': row_id, 'data': self.poison_record, 'raw_data': 'poison_record'})
+            {'id': row_id, 'data': get_poison_record(), 'raw_data': 'poison_record'})
         with self.assertRaises(SA_OperationalError):
             zone = zones[0]['id'].encode('ascii')
             self.engine1.execute(
@@ -714,29 +703,45 @@ class TestShutdownPoisonRecordWithZone(BaseTestCase):
                     .where(test_table.c.id == row_id))
 
     def testShutdown2(self):
+        """check callback with select by id and without zone"""
+        row_id = self.get_random_id()
+        self.engine1.execute(
+            test_table.insert(),
+            {'id': row_id, 'data': get_poison_record(), 'raw_data': 'poison_record'})
+        with self.assertRaises(SA_OperationalError):
+            self.engine1.execute(
+                sa.select([test_table])
+                    .where(test_table.c.id == row_id))
+
+    def testShutdown3(self):
         """check working poison record callback on full select"""
         row_id = self.get_random_id()
         self.engine1.execute(
             test_table.insert(),
-            {'id': row_id, 'data': self.poison_record, 'raw_data': 'poison_record'})
+            {'id': row_id, 'data': get_poison_record(), 'raw_data': 'poison_record'})
         with self.assertRaises(SA_OperationalError):
             self.engine1.execute(
                 sa.select([test_table]))
 
-    def testShutdown3(self):
+    def testShutdown4(self):
         """check working poison record callback on full select inside another data"""
         row_id = self.get_random_id()
-        data = os.urandom(100) + self.poison_record + os.urandom(100)
+        data = os.urandom(100) + get_poison_record() + os.urandom(100)
+        self.log('poison_key', data, data)
         self.engine1.execute(
             test_table.insert(),
             {'id': row_id, 'data': data, 'raw_data': 'poison_record'})
+
         with self.assertRaises(SA_OperationalError):
-            self.engine1.execute(
+            result = self.engine1.execute(
                 sa.select([test_table]))
+            # here shouldn't execute code and it's debug info
+            print(result.fetchall())
 
 
-class TestShutdownPoisonRecordWholeCell(TestShutdownPoisonRecord):
+class TestPoisonRecordWholeCell(TestPoisonRecordShutdown):
     WHOLECELL_MODE = True
+    SHUTDOWN = True
 
     def testShutdown3(self):
         return
@@ -744,9 +749,92 @@ class TestShutdownPoisonRecordWholeCell(TestShutdownPoisonRecord):
 
 class TestShutdownPoisonRecordWithZoneWholeCell(TestShutdownPoisonRecordWithZone):
     WHOLECELL_MODE = True
+    SHUTDOWN = True
 
-    def testShutdown3(self):
+    def testShutdown4(self):
         return
+
+
+class AcraCatchLogsMixin(object):
+    def fork_acra(self, popen_kwargs: dict=None, **acra_kwargs: dict):
+        popen_args = {
+            'stdout': subprocess.PIPE, 'stderr': subprocess.STDOUT,
+            'close_fds': True
+        }
+        return super(AcraCatchLogsMixin, self).fork_acra(
+            popen_args, **acra_kwargs
+        )
+
+
+class TestNoCheckPoisonRecord(AcraCatchLogsMixin, BasePoisonRecordTest):
+    WHOLECELL_MODE = False
+    SHUTDOWN = False
+    DEBUG_LOG = True
+
+    def testNoDetect(self):
+        row_id = self.get_random_id()
+        self.engine1.execute(
+            test_table.insert(),
+            {'id': row_id, 'data': get_poison_record(), 'raw_data': 'poison_record'})
+        result = self.engine1.execute(test_table.select())
+        result.fetchall()
+        # super() tearDown without killink acra
+        super(TestNoCheckPoisonRecord, self).tearDown()
+
+        try:
+            out, er_ = self.acra.communicate(timeout=1)
+        except subprocess.TimeoutExpired:
+            pass
+        self.assertNotIn(b'Debug: check poison records', out)
+
+    def tearDown(self):
+        """override because it's called in single test method"""
+        pass
+
+
+class TestNoCheckPoisonRecordWithZone(TestNoCheckPoisonRecord):
+    ZONE = True
+
+
+class TestNoCheckPoisonRecordWholeCell(TestNoCheckPoisonRecord):
+    WHOLECELL_MODE = True
+
+
+class TestNoCheckPoisonRecordWithZoneWholeCell(TestNoCheckPoisonRecordWithZone):
+    WHOLECELL_MODE = True
+
+
+class TestCheckLogPoisonRecord(AcraCatchLogsMixin, BasePoisonRecordTest):
+    SHUTDOWN = True
+    DEBUG_LOG = True
+
+    def setUp(self):
+        self.poison_script_file = NamedTemporaryFile('w')
+        # u+rwx
+        os.chmod(self.poison_script_file.name, stat.S_IRWXU)
+        self.poison_script = self.poison_script_file.name
+        super(TestCheckLogPoisonRecord, self).setUp()
+
+    def tearDown(self):
+        self.poison_script_file.close()
+
+    def testDetect(self):
+        row_id = self.get_random_id()
+        self.engine1.execute(
+            test_table.insert(),
+            {'id': row_id, 'data': get_poison_record(), 'raw_data': 'poison_record'})
+
+        with self.assertRaises(SA_OperationalError):
+            self.engine1.execute(test_table.select())
+
+        # super() tearDown without killink acra
+        super(TestCheckLogPoisonRecord, self).tearDown()
+
+        try:
+            out, _ = self.acra.communicate(timeout=1)
+        except subprocess.TimeoutExpired:
+            pass
+        self.assertIn(b'Debug: check poison records', out)
 
 
 class TestKeyStorageClearing(BaseTestCase):
@@ -758,8 +846,7 @@ class TestKeyStorageClearing(BaseTestCase):
             zone_mode=True)
         if not self.EXTERNAL_ACRA:
             self.acra = self.fork_acra(
-                self.DB_HOST, self.DB_PORT, self.ACRA_BYTEA, self.ACRA_PORT,
-                True, False)
+                zonemode='true', disable_zone_api='false')
 
         connect_args = {'user': self.DB_USER, 'password': self.DB_USER_PASSWORD}
 

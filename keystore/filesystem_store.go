@@ -255,6 +255,7 @@ func (store *FilesystemKeyStore) GetPoisonKeyPair() (*keys.Keypair, error) {
 		}
 		return &keys.Keypair{Public: public, Private: private}, nil
 	} else {
+		log.Println("Generate poison key pair")
 		return store.generate_key_pair(POISON_KEY_FILENAME)
 	}
 }
