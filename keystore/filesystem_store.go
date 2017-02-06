@@ -60,7 +60,7 @@ func (*FilesystemKeyStore) get_server_key_filename(id []byte) string {
 }
 
 func (*FilesystemKeyStore) get_server_decryption_key_filename(id []byte) string {
-	return fmt.Sprintf("%s_decrypt", string(id))
+	return fmt.Sprintf("%s_storage", string(id))
 }
 
 func (*FilesystemKeyStore) get_proxy_key_filename(id []byte) string {

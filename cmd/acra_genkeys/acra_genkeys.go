@@ -66,7 +66,7 @@ func main() {
 	client_id := flag.String("client_id", "client", "Client id")
 	acraproxy := flag.Bool("acraproxy", false, "Create keypair only for acraproxy")
 	acraserver := flag.Bool("acraserver", false, "Create keypair only for acraserver")
-	data_keys := flag.Bool("data", false, "Create keypair for data encryption/decryption")
+	data_keys := flag.Bool("storage", false, "Create keypair for data encryption/decryption")
 	output_dir := flag.String("output", keystore.DEFAULT_KEY_DIR_SHORT, "Folder where will be saved keys")
 
 	utils.LoadFromConfig(DEFAULT_CONFIG_PATH)
