@@ -1,0 +1,60 @@
+# Port for AcraServer for http api
+commands_port: 9090
+
+# path to config
+config: 
+
+# Turn on debug logging
+d: false
+
+# Host to db
+db_host: 
+
+# Port to db
+db_port: 5432
+
+# Disable zone http api
+disable_zone_api: false
+
+# Turn on http debug server
+ds: false
+
+# dump config
+dumpconfig: false
+
+# Escape format for Postgresql bytea data
+escape_bytea: false
+
+# Hex format for Postgresql bytea data (default)
+hex_bytea: false
+
+# Host for AcraServer
+host: 0.0.0.0
+
+# Acrastruct may be injected into any place of data cell
+injectedcell: false
+
+# Folder from which will be loaded keys
+keys_dir: .acrakeys
+
+# Execute script on detecting poison record
+poisonscript: 
+
+# Stop on detecting poison record
+poisonshutdown: false
+
+# Port for AcraServer
+port: 9393
+
+# Id that will be sent in secure session
+server_id: acra_server
+
+# Log to stdout
+v: false
+
+# Acrastruct will stored in whole data cell
+wholecell: true
+
+# Turn on zone mode
+zonemode: false
+

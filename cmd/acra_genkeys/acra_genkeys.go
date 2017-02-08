@@ -16,10 +16,10 @@ package main
 import (
 	"flag"
 	"fmt"
+	"github.com/cossacklabs/acra/cmd"
 	"github.com/cossacklabs/acra/keystore"
 	"github.com/cossacklabs/acra/utils"
 	"github.com/cossacklabs/themis/gothemis/keys"
-	"github.com/vharitonsky/iniflags"
 	"os"
 )
 
@@ -69,8 +69,11 @@ func main() {
 	data_keys := flag.Bool("storage", false, "Create keypair for data encryption/decryption")
 	output_dir := flag.String("output", keystore.DEFAULT_KEY_DIR_SHORT, "Folder where will be saved keys")
 
-	utils.LoadFromConfig(DEFAULT_CONFIG_PATH)
-	iniflags.Parse()
+	err := cmd.Parse(DEFAULT_CONFIG_PATH)
+	if err != nil {
+		fmt.Printf("Error: %v\n", utils.ErrorMessage("Can't parse args", err))
+		os.Exit(1)
+	}
 
 	store, err := keystore.NewFilesystemKeyStore(*output_dir)
 	if err != nil {

@@ -1,0 +1,21 @@
+# Create keypair only for acraproxy
+acraproxy: false
+
+# Create keypair only for acraserver
+acraserver: false
+
+# Client id
+client_id: client
+
+# path to config
+config: 
+
+# dump config
+dumpconfig: false
+
+# Folder where will be saved keys
+output: .acrakeys
+
+# Create keypair for data encryption/decryption
+storage: false
+
