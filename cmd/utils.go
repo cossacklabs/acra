@@ -17,6 +17,11 @@ var (
 	dumpconfig = flag_.Bool("dumpconfig", false, "dump config")
 )
 
+func init() {
+	// override default usage message by ours
+	flag_.CommandLine.Usage = PrintDefaults
+}
+
 func isZeroValue(flag *flag_.Flag, value string) bool {
 	/* took from flag/flag.go */
 
@@ -92,21 +97,6 @@ func GenerateYaml(output io.Writer) {
 		s := fmt.Sprintf("# %v\n%v: %v\n", usage, flag.Name, flag.DefValue)
 		fmt.Fprint(output, s, "\n")
 	})
-}
-
-func HandleYamlGeneration(path string) error {
-	path, err := utils.AbsPath(path)
-	if err != nil {
-		return err
-	}
-	file, err := os.Create(path)
-	if err != nil {
-		return err
-	}
-	defer file.Close()
-
-	GenerateYaml(file)
-	return nil
 }
 
 func Parse(config_path string) error {
