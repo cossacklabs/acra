@@ -4,7 +4,7 @@ import (
 	flag_ "flag"
 	"fmt"
 	"github.com/cossacklabs/acra/utils"
-	"gopkg.in/yaml.v2"
+	"github.com/go-yaml/yaml"
 	"io"
 	"io/ioutil"
 	"os"
