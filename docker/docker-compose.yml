@@ -1,0 +1,21 @@
+version: "2"
+
+services:
+  pg2:
+    image: postgres
+
+  acraserver:
+    image: acraserver
+    depends_on:
+      - pg2
+    links:
+      - pg2:postgresql_link
+
+  acraproxy:
+    image: acraproxy
+    depends_on:
+      - acraserver
+    ports:
+      - "9494:9494"
+    links:
+      - acraserver:acraserver_link
