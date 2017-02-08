@@ -1,0 +1,33 @@
+# Client id should be name of file with private key
+client_id: 
+
+# path to config
+config: 
+
+# Connection string for db
+connection_string: 
+
+# dump config
+dumpconfig: false
+
+# Escape bytea format
+escape: false
+
+# Execute inserts
+execute: false
+
+# Query for insert decrypted data with placeholders (pg: $n)
+insert: 
+
+# Folder from which will be loaded keys
+keys_dir: .acrakeys
+
+# File for store inserts queries
+output_file: decrypted.sql
+
+# Query to fetch data for decryption
+select: 
+
+# Turn on zon emode
+zonemode: false
+

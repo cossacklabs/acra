@@ -17,9 +17,9 @@ import (
 	"bytes"
 	"flag"
 	"fmt"
+	"github.com/cossacklabs/acra/cmd"
 	"github.com/cossacklabs/acra/keystore"
 	"github.com/cossacklabs/acra/utils"
-	"github.com/vharitonsky/iniflags"
 	"io"
 	"io/ioutil"
 	"log"
@@ -74,8 +74,11 @@ func main() {
 	with_zone := flag.Bool("zonemode", false, "Turn on zone mode")
 	disable_zone_api := flag.Bool("disable_zone_api", false, "Disable zone http api")
 
-	utils.LoadFromConfig(DEFAULT_CONFIG_PATH)
-	iniflags.Parse()
+	err := cmd.Parse(DEFAULT_CONFIG_PATH)
+	if err != nil {
+		fmt.Printf("Error: %v\n", utils.ErrorMessage("Can't parse args", err))
+		os.Exit(1)
+	}
 
 	if *debug {
 		log.SetOutput(os.Stdout)

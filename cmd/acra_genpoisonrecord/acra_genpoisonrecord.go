@@ -17,10 +17,10 @@ import (
 	"encoding/base64"
 	"flag"
 	"fmt"
+	"github.com/cossacklabs/acra/cmd"
 	"github.com/cossacklabs/acra/keystore"
 	"github.com/cossacklabs/acra/poison"
 	"github.com/cossacklabs/acra/utils"
-	"github.com/vharitonsky/iniflags"
 	"os"
 )
 
@@ -30,8 +30,11 @@ func main() {
 	keys_dir := flag.String("keys_dir", keystore.DEFAULT_KEY_DIR_SHORT, "Folder from which will be loaded keys")
 	data_length := flag.Int("data_length", poison.DEFAULT_DATA_LENGTH, fmt.Sprintf("Length of random data for data block in acrastruct. -1 is random in range 1..%v", poison.MAX_DATA_LENGTH))
 
-	utils.LoadFromConfig(DEFAULT_CONFIG_PATH)
-	iniflags.Parse()
+	err := cmd.Parse(DEFAULT_CONFIG_PATH)
+	if err != nil {
+		fmt.Printf("Error: %v\n", utils.ErrorMessage("Can't parse args", err))
+		os.Exit(1)
+	}
 
 	store, err := keystore.NewFilesystemKeyStore(*keys_dir)
 	if err != nil {

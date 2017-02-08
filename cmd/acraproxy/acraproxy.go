@@ -29,11 +29,11 @@ import (
 	"strings"
 
 	"bytes"
+	"github.com/cossacklabs/acra/cmd"
 	"github.com/cossacklabs/acra/keystore"
 	. "github.com/cossacklabs/acra/utils"
 	"github.com/cossacklabs/themis/gothemis/keys"
 	"github.com/cossacklabs/themis/gothemis/session"
-	"github.com/vharitonsky/iniflags"
 )
 
 const (
@@ -252,8 +252,11 @@ func main() {
 	with_zone := flag.Bool("zonemode", false, "Turn on zone mode")
 	disable_user_check := flag.Bool("disable_user_check", false, "Disable checking that connections from app running from another user")
 
-	LoadFromConfig(DEFAULT_CONFIG_PATH)
-	iniflags.Parse()
+	err := cmd.Parse(DEFAULT_CONFIG_PATH)
+	if err != nil {
+		fmt.Printf("Error: %v\n", ErrorMessage("Can't parse args", err))
+		os.Exit(1)
+	}
 
 	if len(*client_id) <= MIN_LENGTH_CLIENT_ID {
 		fmt.Printf("Error: client id length <= %v. Use longer than %v\n", MIN_LENGTH_CLIENT_ID, MIN_LENGTH_CLIENT_ID)

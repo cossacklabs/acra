@@ -20,13 +20,13 @@ import (
 	"encoding/hex"
 	"flag"
 	"fmt"
+	"github.com/cossacklabs/acra/cmd"
 	"github.com/cossacklabs/acra/decryptor/base"
 	"github.com/cossacklabs/acra/decryptor/postgresql"
 	"github.com/cossacklabs/acra/keystore"
 	"github.com/cossacklabs/acra/utils"
 	"github.com/cossacklabs/themis/gothemis/keys"
 	_ "github.com/lib/pq"
-	"github.com/vharitonsky/iniflags"
 	"os"
 	"strings"
 )
@@ -149,8 +149,11 @@ func main() {
 	execute := flag.Bool("execute", false, "Execute inserts")
 	escape_format := flag.Bool("escape", false, "Escape bytea format")
 
-	utils.LoadFromConfig(DEFAULT_CONFIG_PATH)
-	iniflags.Parse()
+	err := cmd.Parse(DEFAULT_CONFIG_PATH)
+	if err != nil {
+		fmt.Printf("Error: %v\n", utils.ErrorMessage("Can't parse args", err))
+		os.Exit(1)
+	}
 
 	if *connection_string == "" {
 		fmt.Println("Error: connection_string arg is missing")
