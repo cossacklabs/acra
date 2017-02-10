@@ -231,7 +231,7 @@ func main() {
 			if err != nil {
 				ErrorExit("Can't read data from row", err)
 			}
-			private_key, err = keystorage.GetServerPrivateKey([]byte(*client_id))
+			private_key, err = keystorage.GetServerDecryptionPrivateKey([]byte(*client_id))
 			if err != nil {
 				fmt.Printf("%v\n", utils.ErrorMessage(fmt.Sprintf("Can't get private key for row with number %v", i), err))
 				continue

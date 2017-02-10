@@ -1,0 +1,26 @@
+version: "2"
+
+services:
+  pg:
+    image: postgres
+
+  acraserver:
+    image: acraserver
+    depends_on:
+      - pg
+    links:
+      - pg:postgresql_link
+
+    command: ["--db_host=postgresql_link", "-v", "--zonemode"]
+
+  acraproxy:
+    image: acraproxy
+    depends_on:
+      - acraserver
+    ports:
+      - "9494:9494"
+      - "9191:9191"
+    links:
+      - acraserver:acraserver_link
+
+    command: ["--acra_host=acraserver_link", "-v", "--client_id=client", "--zonemode"]
