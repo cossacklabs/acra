@@ -19,6 +19,9 @@ RUN go get github.com/cossacklabs/acra...
 # build acraserver
 RUN go build github.com/cossacklabs/acra/cmd/acraserver
 RUN go build github.com/cossacklabs/acra/cmd/acra_addzone
+RUN go build github.com/cossacklabs/acra/cmd/acra_genpoisonrecord
+RUN go build github.com/cossacklabs/acra/cmd/acra_rollback
+RUN go build github.com/cossacklabs/acra/cmd/acra_genkeys
 
 COPY .acrakeys .acrakeys
 RUN chmod -R 600 .acrakeys && chmod 700 .acrakeys

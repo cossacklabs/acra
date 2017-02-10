@@ -1,15 +1,15 @@
 version: "2"
 
 services:
-  pg2:
+  pg:
     image: postgres
 
   acraserver:
     image: acraserver
     depends_on:
-      - pg2
+      - pg
     links:
-      - pg2:postgresql_link
+      - pg:postgresql_link
 
     command: ["--db_host=postgresql_link", "-v", "--zonemode"]
 
