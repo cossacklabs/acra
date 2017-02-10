@@ -7,6 +7,7 @@ WORKDIR /themis
 RUN make install && ldconfig
 RUN rm -rf /themis
 
+WORKDIR /go
 ENV GOPATH /go
 
 RUN mkdir -p /go/src/github.com/cossacklabs/acra
