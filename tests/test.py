@@ -44,6 +44,10 @@ test_table = sa.Table('test', metadata,
     sa.Column('raw_data', sa.String),
 )
 
+rollback_output_table = sa.Table('acra_rollback_output', metadata,
+    sa.Column('data', sa.LargeBinary),
+)
+
 zones = []
 poison_record = None
 
@@ -74,6 +78,7 @@ def setUpModule():
     # build binaries
     builds = [
         ['go', 'build', 'github.com/cossacklabs/acra/cmd/acraproxy'],
+        ['go', 'build', 'github.com/cossacklabs/acra/cmd/acra_rollback'],
         ['go', 'build', 'github.com/cossacklabs/acra/cmd/acra_addzone'],
         ['go', 'build', 'github.com/cossacklabs/acra/cmd/acra_genpoisonrecord'],
         ['go', 'build', 'github.com/cossacklabs/acra/cmd/acra_genkeys'],
@@ -96,7 +101,7 @@ def tearDownModule():
     import shutil
     shutil.rmtree('.acrakeys')
     for i in ['acraproxy', 'acraserver', 'acra_addzone', 'acra_genkeys',
-              'acra_genpoisonrecord']:
+              'acra_genpoisonrecord', 'acra_rollback']:
         try:
             os.remove(i)
         except:
@@ -892,6 +897,182 @@ class TestKeyStorageClearing(BaseTestCase):
         # acraserver should close connection when doesn't find key
         with self.assertRaises(SA_OperationalError):
             result = self.engine1.execute(test_table.select().limit(1))
+
+
+class TestAcraRollback(BaseTestCase):
+    DATA_COUNT = 5
+
+    def setUp(self):
+        connect_args = {'user': self.DB_USER, 'password': self.DB_USER_PASSWORD}
+        self.engine_raw = sa.create_engine(
+            'postgresql://{}:{}/{}'.format(self.DB_HOST, self.DB_PORT,
+                                           self.DB_NAME),
+            connect_args=connect_args)
+
+        self.output_filename = 'acra_rollback_output.txt'
+        rollback_output_table.create(self.engine_raw, checkfirst=True)
+
+    def tearDown(self):
+        try:
+            self.engine_raw.execute(rollback_output_table.delete())
+            self.engine_raw.execute(test_table.delete())
+        except Exception as exc:
+            print(exc)
+        self.engine_raw.dispose()
+        if os.path.exists(self.output_filename):
+            os.remove(self.output_filename)
+
+    def test_without_zone_to_file(self):
+        keyname = 'keypair1_storage'
+        with open('.acrakeys/{}.pub'.format(keyname), 'rb') as f:
+            server_public1 = f.read()
+
+        rows = []
+        for _ in range(self.DATA_COUNT):
+            data = self.get_random_data()
+            row = {
+                'raw_data': data,
+                'data': create_acrastruct(data.encode('ascii'), server_public1),
+                'id': self.get_random_id()
+            }
+            rows.append(row)
+        self.engine_raw.execute(test_table.insert(), rows)
+
+        subprocess.check_call(
+            ['./acra_rollback', '--client_id=keypair1',
+             '--connection_string=dbname={dbname} user={user} '
+             'password={password} host={host} sslmode=disable '
+             'port={port}'.format(
+                 dbname=self.DB_NAME, user=self.DB_USER, port=self.DB_PORT,
+                 password=self.DB_USER_PASSWORD, host=self.DB_HOST),
+             '--output_file={}'.format(self.output_filename),
+             '--select=select data from {};'.format(test_table.name),
+             '--insert=insert into {} values($1);'.format(
+                 rollback_output_table.name)],
+            cwd=os.getcwd())
+
+        # execute file
+        with open(self.output_filename, 'r') as f:
+            for line in f:
+                self.engine_raw.execute(line)
+
+        source_data = set([i['raw_data'].encode('ascii') for i in rows])
+        result = self.engine_raw.execute(rollback_output_table.select())
+        result = result.fetchall()
+        for data in result:
+            self.assertIn(data[0], source_data)
+
+    def test_with_zone_to_file(self):
+        zone_public = b64decode(zones[0]['public_key'].encode('ascii'))
+        rows = []
+        for _ in range(self.DATA_COUNT):
+            data = self.get_random_data()
+            row = {
+                'raw_data': data,
+                'data': create_acrastruct(
+                    data.encode('ascii'), zone_public,
+                    context=zones[0]['id'].encode('ascii')),
+                'id': self.get_random_id()
+            }
+            rows.append(row)
+        self.engine_raw.execute(test_table.insert(), rows)
+
+        subprocess.check_call(
+            ['./acra_rollback', '--client_id=keypair1',
+             '--connection_string=dbname={dbname} user={user} '
+             'password={password} host={host} sslmode=disable '
+             'port={port}'.format(
+                 dbname=self.DB_NAME, user=self.DB_USER, port=self.DB_PORT,
+                 password=self.DB_USER_PASSWORD, host=self.DB_HOST),
+             '--output_file={}'.format(self.output_filename),
+             '--select=select \'{id}\'::bytea, data from {table};'.format(
+                 id=zones[0]['id'], table=test_table.name),
+             '--zonemode=true',
+             '--insert=insert into {} values($1);'.format(
+                 rollback_output_table.name)],
+            cwd=os.getcwd())
+
+        # execute file
+        with open(self.output_filename, 'r') as f:
+            for line in f:
+                self.engine_raw.execute(line)
+
+        source_data = set([i['raw_data'].encode('ascii') for i in rows])
+        result = self.engine_raw.execute(rollback_output_table.select())
+        result = result.fetchall()
+        for data in result:
+            self.assertIn(data[0], source_data)
+
+    def test_without_zone_execute(self):
+        keyname = 'keypair1_storage'
+        with open('.acrakeys/{}.pub'.format(keyname), 'rb') as f:
+            server_public1 = f.read()
+
+        rows = []
+        for _ in range(self.DATA_COUNT):
+            data = self.get_random_data()
+            row = {
+                'raw_data': data,
+                'data': create_acrastruct(data.encode('ascii'), server_public1),
+                'id': self.get_random_id()
+            }
+            rows.append(row)
+        self.engine_raw.execute(test_table.insert(), rows)
+
+        subprocess.check_call(
+            ['./acra_rollback', '--client_id=keypair1',
+             '--connection_string=dbname={dbname} user={user} '
+             'password={password} host={host} sslmode=disable '
+             'port={port}'.format(
+                 dbname=self.DB_NAME, user=self.DB_USER, port=self.DB_PORT,
+                 password=self.DB_USER_PASSWORD, host=self.DB_HOST),
+             '--execute=true',
+             '--select=select data from {};'.format(test_table.name),
+             '--insert=insert into {} values($1);'.format(
+                 rollback_output_table.name)],
+            cwd=os.getcwd())
+
+        source_data = set([i['raw_data'].encode('ascii') for i in rows])
+        result = self.engine_raw.execute(rollback_output_table.select())
+        result = result.fetchall()
+        for data in result:
+            self.assertIn(data[0], source_data)
+
+    def test_with_zone_execute(self):
+        zone_public = b64decode(zones[0]['public_key'].encode('ascii'))
+        rows = []
+        for _ in range(self.DATA_COUNT):
+            data = self.get_random_data()
+            row = {
+                'raw_data': data,
+                'data': create_acrastruct(
+                    data.encode('ascii'), zone_public,
+                    context=zones[0]['id'].encode('ascii')),
+                'id': self.get_random_id()
+            }
+            rows.append(row)
+        self.engine_raw.execute(test_table.insert(), rows)
+
+        subprocess.check_call(
+            ['./acra_rollback', '--client_id=keypair1',
+             '--connection_string=dbname={dbname} user={user} '
+             'password={password} host={host} sslmode=disable '
+             'port={port}'.format(
+                 dbname=self.DB_NAME, user=self.DB_USER, port=self.DB_PORT,
+                 password=self.DB_USER_PASSWORD, host=self.DB_HOST),
+             '--execute=true',
+             '--select=select \'{id}\'::bytea, data from {table};'.format(
+                 id=zones[0]['id'], table=test_table.name),
+             '--zonemode=true',
+             '--insert=insert into {} values($1);'.format(
+                 rollback_output_table.name)],
+            cwd=os.getcwd())
+
+        source_data = set([i['raw_data'].encode('ascii') for i in rows])
+        result = self.engine_raw.execute(rollback_output_table.select())
+        result = result.fetchall()
+        for data in result:
+            self.assertIn(data[0], source_data)
 
 
 if __name__ == '__main__':

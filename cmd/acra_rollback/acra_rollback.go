@@ -114,7 +114,6 @@ func QuoteValue(name string) string {
 func (ex *WriteToFileExecutor) Execute(data []byte) {
 	encoded := ex.encoder.Encode(data)
 	output_sql := strings.Replace(ex.sql, PLACEHOLDER, encoded, 1)
-	fmt.Println(len(output_sql))
 	n, err := ex.writer.Write([]byte(output_sql))
 	if err != nil {
 		ErrorExit("Can't write to output file", err)
@@ -148,7 +147,6 @@ func main() {
 	output_file := flag.String("output_file", "decrypted.sql", "File for store inserts queries")
 	execute := flag.Bool("execute", false, "Execute inserts")
 	escape_format := flag.Bool("escape", false, "Escape bytea format")
-
 	err := cmd.Parse(DEFAULT_CONFIG_PATH)
 	if err != nil {
 		fmt.Printf("Error: %v\n", utils.ErrorMessage("Can't parse args", err))
@@ -186,13 +184,16 @@ func main() {
 		fmt.Printf("Error: %v\n", utils.ErrorMessage("can't connect to db", err))
 		os.Exit(1)
 	}
+	defer db.Close()
 	err = db.Ping()
 	if err != nil {
 		fmt.Printf("Error: %v\n", utils.ErrorMessage("can't connect to db", err))
+		os.Exit(1)
 	}
 	rows, err := db.Query(*sql_select)
 	if err != nil {
-		fmt.Printf("Error: %v\n", utils.ErrorMessage("error with select query", err))
+		fmt.Printf("Error: %v\n", utils.ErrorMessage(fmt.Sprintf("error with select query '%v'", *sql_select), err))
+		os.Exit(1)
 	}
 	defer rows.Close()
 
