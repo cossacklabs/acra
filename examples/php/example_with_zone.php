@@ -16,25 +16,22 @@
 #
     include 'acrawriter.php';
     $message = "Test Message";
-    $key_path = ".acrakeys/client_storage.pub";
+
+    $zone = json_decode(file_get_contents("http://127.0.0.1:9191/getNewZone"));
+
 
     $dbconn = pg_connect("host=localhost port=9494 dbname=acra user=postgres password=postgres")
 	or die('Could not connect: ' . pg_last_error());
 
-    $query = 'CREATE TABLE IF NOT EXISTS testphp(id SERIAL PRIMARY KEY, data BYTEA, raw_data TEXT)';
+    $query = 'CREATE TABLE IF NOT EXISTS testphp_zone(id SERIAL PRIMARY KEY, zone BYTEA, data BYTEA, raw_data TEXT)';
+    $result = pg_query($query) or die(pg_last_error());
+    $zone_id=pg_escape_bytea($zone->{'id'});
+    $acra_struct = pg_escape_bytea(create_acrastruct($message, base64_decode($zone->{'public_key'}), $zone->{'id'}));
+
+    $query = "insert into testphp_zone (zone, data, raw_data) values ('$zone_id','$acra_struct','$message')";
     $result = pg_query($query) or die(pg_last_error());
 
-    echo "load acra key ".$key_path."\n";
-    $file = fopen($key_path, "r");
-    $acra_key = fread($key_path, filesize($key_path));
-    fclose($file);
-
-    $acra_struct = pg_escape_bytea(create_acrastruct($message, $acra_key, null));
-
-    $query = "insert into testphp (data, raw_data) values ('$acra_struct','$message')";
-    $result = pg_query($query) or die(pg_last_error());
-
-    $query = 'SELECT * FROM testphp';
+    $query = 'SELECT * FROM testphp_zone';
     $result = pg_query($query) or die(pg_last_error());
 
     echo "\n";
