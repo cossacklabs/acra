@@ -64,12 +64,16 @@ if __name__ == '__main__':
     proxy_connection = proxy_engine.connect()
     metadata.create_all(proxy_engine)
 
-    if getattr(args, 'print', False) and args.zone_id:
-        print("use zone_id: ", args.zone_id)
-        result = proxy_connection.execute(
-            select([cast(args.zone_id.encode('utf-8'), BYTEA), test]))
+    if getattr(args, 'print', False):
+        if args.zone_id:
+            print("use zone_id: ", args.zone_id)
+            result = proxy_connection.execute(
+                select([cast(args.zone_id.encode('utf-8'), BYTEA), test]))
+        else:
+            result = proxy_connection.execute(
+                select([cast('without zone'.encode('utf-8'), BYTEA), test]))
         result = result.fetchall()
-        print("{:<3} - {:<20} - {}".format("id", "data", "raw_data"))
+        print("{:<3} - {} - {} - {:>10}".format("id", 'zone', "data", "raw_data"))
         for row in result:
             try:
                 print("{:<3} - {} - {} - {:>10}\n".format(row['id'], row[0], row['data'].decode('utf-8'), row['raw_data']))

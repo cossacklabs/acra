@@ -66,7 +66,7 @@ if __name__ == '__main__':
         key = f.read()
     test = Table('test_example_without_zone', metadata,
         Column('id', Integer, primary_key=True),
-        Column('data', AcraString(key)),
+        Column('data', AcraBinary(key)),
         Column('raw_data', String),
     )
 
