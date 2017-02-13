@@ -18,7 +18,6 @@ dependencies:
     - rsync -auv $HOME/themis/gothemis/ $GOPATH/src/$GOTHEMIS_IMPORT/
     - rsync -auv $HOME/acra/ $GOPATH/src/$ACRA_IMPORT/
     - $GOROOT/bin/go get github.com/lib/pq
-    - $GOROOT/bin/go get github.com/vharitonsky/iniflags
     - $GOROOT/bin/go get github.com/go-yaml/yaml
 ## Customize test commands
 test:
