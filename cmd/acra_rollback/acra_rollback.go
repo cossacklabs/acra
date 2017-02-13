@@ -140,7 +140,7 @@ func (ex *WriteToFileExecutor) Close() {
 func main() {
 	keys_dir := flag.String("keys_dir", keystore.DEFAULT_KEY_DIR_SHORT, "Folder from which will be loaded keys")
 	client_id := flag.String("client_id", "", "Client id should be name of file with private key")
-	connection_string := flag.String("connection_string", "", "Connection string for db")
+	connection_string := flag.String("connection_string", "", "Connection string for db (sslmode=disable parameter will be automatically added)")
 	sql_select := flag.String("select", "", "Query to fetch data for decryption")
 	sql_insert := flag.String("insert", "", "Query for insert decrypted data with placeholders (pg: $n)")
 	with_zone := flag.Bool("zonemode", false, "Turn on zon emode")
@@ -156,6 +156,9 @@ func main() {
 	if *connection_string == "" {
 		fmt.Println("Error: connection_string arg is missing")
 		os.Exit(1)
+	}
+	if !strings.Contains(*connection_string, "sslmode=disable") {
+		*connection_string = fmt.Sprintf("%v sslmode=disable", *connection_string)
 	}
 	if *sql_select == "" {
 		fmt.Println("Error: sql_select arg is missing")

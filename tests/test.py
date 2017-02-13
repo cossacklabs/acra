@@ -941,8 +941,7 @@ class TestAcraRollback(BaseTestCase):
         subprocess.check_call(
             ['./acra_rollback', '--client_id=keypair1',
              '--connection_string=dbname={dbname} user={user} '
-             'password={password} host={host} sslmode=disable '
-             'port={port}'.format(
+             'password={password} host={host} port={port}'.format(
                  dbname=self.DB_NAME, user=self.DB_USER, port=self.DB_PORT,
                  password=self.DB_USER_PASSWORD, host=self.DB_HOST),
              '--output_file={}'.format(self.output_filename),
@@ -980,8 +979,7 @@ class TestAcraRollback(BaseTestCase):
         subprocess.check_call(
             ['./acra_rollback', '--client_id=keypair1',
              '--connection_string=dbname={dbname} user={user} '
-             'password={password} host={host} sslmode=disable '
-             'port={port}'.format(
+             'password={password} host={host} port={port}'.format(
                  dbname=self.DB_NAME, user=self.DB_USER, port=self.DB_PORT,
                  password=self.DB_USER_PASSWORD, host=self.DB_HOST),
              '--output_file={}'.format(self.output_filename),
@@ -1022,8 +1020,7 @@ class TestAcraRollback(BaseTestCase):
         subprocess.check_call(
             ['./acra_rollback', '--client_id=keypair1',
              '--connection_string=dbname={dbname} user={user} '
-             'password={password} host={host} sslmode=disable '
-             'port={port}'.format(
+             'password={password} host={host} port={port}'.format(
                  dbname=self.DB_NAME, user=self.DB_USER, port=self.DB_PORT,
                  password=self.DB_USER_PASSWORD, host=self.DB_HOST),
              '--execute=true',
@@ -1056,8 +1053,7 @@ class TestAcraRollback(BaseTestCase):
         subprocess.check_call(
             ['./acra_rollback', '--client_id=keypair1',
              '--connection_string=dbname={dbname} user={user} '
-             'password={password} host={host} sslmode=disable '
-             'port={port}'.format(
+             'password={password} host={host} port={port}'.format(
                  dbname=self.DB_NAME, user=self.DB_USER, port=self.DB_PORT,
                  password=self.DB_USER_PASSWORD, host=self.DB_HOST),
              '--execute=true',
