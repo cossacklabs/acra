@@ -50,6 +50,7 @@ rollback_output_table = sa.Table('acra_rollback_output', metadata,
 
 zones = []
 poison_record = None
+POISON_KEY_PATH = '.poison_key/poison_key'
 
 
 def get_poison_record():
@@ -70,7 +71,7 @@ def create_client_keypair(name, only_server=False, only_client=False):
         args.append('-acraserver')
     elif only_client:
         args.append('-acraproxy')
-    return subprocess.call(args, cwd=os.getcwd())
+    return subprocess.call(args, cwd=os.getcwd(), timeout=5)
 
 
 def setUpModule():
@@ -642,7 +643,8 @@ class BasePoisonRecordTest(BaseTestCase):
 
     def setUp(self):
         super(BasePoisonRecordTest, self).setUp()
-        self.log('poison_key', get_poison_record(), b'no matter because poison record')
+        self.log(POISON_KEY_PATH, get_poison_record(),
+                 b'no matter because poison record')
 
     def fork_acra(self, popen_kwargs: dict=None, **acra_kwargs: dict):
         args = {
@@ -732,7 +734,7 @@ class TestShutdownPoisonRecordWithZone(TestPoisonRecordShutdown):
         """check working poison record callback on full select inside another data"""
         row_id = self.get_random_id()
         data = os.urandom(100) + get_poison_record() + os.urandom(100)
-        self.log('poison_key', data, data)
+        self.log(POISON_KEY_PATH, data, data)
         self.engine1.execute(
             test_table.insert(),
             {'id': row_id, 'data': data, 'raw_data': 'poison_record'})
@@ -1073,6 +1075,12 @@ class TestAcraRollback(BaseTestCase):
         result = result.fetchall()
         for data in result:
             self.assertIn(data[0], source_data)
+
+
+class TestAcraGenKeys(unittest.TestCase):
+    def test_only_alpha_client_id(self):
+        # call with directory separator in key name
+        self.assertEqual(create_client_keypair(POISON_KEY_PATH), 1)
 
 
 if __name__ == '__main__':

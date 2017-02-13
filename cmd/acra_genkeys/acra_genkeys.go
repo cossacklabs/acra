@@ -19,48 +19,12 @@ import (
 	"github.com/cossacklabs/acra/cmd"
 	"github.com/cossacklabs/acra/keystore"
 	"github.com/cossacklabs/acra/utils"
-	"github.com/cossacklabs/themis/gothemis/keys"
 	"os"
+	"path/filepath"
+	"strings"
 )
 
 var DEFAULT_CONFIG_PATH = utils.GetConfigPathByName("acra_genkeys")
-
-func create_keys(filename, output_dir string) {
-	keypair, err := keys.New(keys.KEYTYPE_EC)
-	if err != nil {
-		panic(err)
-	}
-	if output_dir[len(output_dir)-1] != '/' {
-		output_dir = output_dir + "/"
-	}
-	file, err := os.OpenFile(fmt.Sprintf("%v%v", output_dir, filename), os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0600)
-	if err != nil {
-		panic(err)
-	}
-
-	n, err := file.Write(keypair.Private.Value)
-	if n != len(keypair.Private.Value) {
-		panic("Error in writing private key")
-	}
-	if err != nil {
-		panic(err)
-	}
-	fmt.Println(file.Name())
-
-	file, err = os.OpenFile(fmt.Sprintf("%v%v.pub", output_dir, filename), os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0600)
-	if err != nil {
-		panic(err)
-	}
-
-	n, err = file.Write(keypair.Public.Value)
-	if n != len(keypair.Public.Value) {
-		panic("Error in writing public key")
-	}
-	if err != nil {
-		panic(err)
-	}
-	fmt.Println(file.Name())
-}
 
 func main() {
 	client_id := flag.String("client_id", "client", "Client id")
@@ -74,7 +38,10 @@ func main() {
 		fmt.Printf("Error: %v\n", utils.ErrorMessage("Can't parse args", err))
 		os.Exit(1)
 	}
-
+	if strings.Contains(*client_id, string(filepath.Separator)) {
+		fmt.Println("Error: client id can't contain directory separator")
+		os.Exit(1)
+	}
 	store, err := keystore.NewFilesystemKeyStore(*output_dir)
 	if err != nil {
 		panic(err)
