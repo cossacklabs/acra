@@ -19,8 +19,9 @@ import (
 	"github.com/cossacklabs/acra/cmd"
 	"github.com/cossacklabs/acra/keystore"
 	"github.com/cossacklabs/acra/utils"
-	"github.com/cossacklabs/themis/gothemis/keys"
 	"os"
+	"path/filepath"
+	"strings"
 )
 
 var DEFAULT_CONFIG_PATH = utils.GetConfigPathByName("acra_genkeys")
@@ -37,7 +38,10 @@ func main() {
 		fmt.Printf("Error: %v\n", utils.ErrorMessage("Can't parse args", err))
 		os.Exit(1)
 	}
-
+	if strings.Contains(*client_id, string(filepath.Separator)) {
+		fmt.Println("Error: client id can't contain directory separator")
+		os.Exit(1)
+	}
 	store, err := keystore.NewFilesystemKeyStore(*output_dir)
 	if err != nil {
 		panic(err)

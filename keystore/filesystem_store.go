@@ -23,6 +23,7 @@ import (
 	"io/ioutil"
 	"log"
 	"os"
+	"path/filepath"
 	"runtime"
 	"sync"
 )
@@ -35,13 +36,13 @@ type FilesystemKeyStore struct {
 }
 
 const (
-	POISON_KEY_FILENAME = "poison_key"
+	POISON_KEY_FILENAME = ".poison_key/poison_key"
 )
 
 func NewFilesystemKeyStore(directory string) (*FilesystemKeyStore, error) {
 	fi, err := os.Stat(directory)
 	if nil == err && runtime.GOOS == "linux" && fi.Mode().Perm().String() != "-rwx------" {
-		log.Printf("Error: key store folder has an incorrect permissions")
+		log.Println("Error: key store folder has an incorrect permissions")
 		return nil, errors.New("key store folder has an incorrect permissions")
 	}
 	return &FilesystemKeyStore{directory: directory, keys: make(map[string][]byte)}, nil
@@ -72,7 +73,8 @@ func (store *FilesystemKeyStore) generate_key_pair(filename string) (*keys.Keypa
 	if err != nil {
 		return nil, err
 	}
-	err = os.MkdirAll(store.directory, 0700)
+	dirpath := filepath.Dir(store.get_file_path(filename))
+	err = os.MkdirAll(dirpath, 0700)
 	if err != nil {
 		return nil, err
 	}
