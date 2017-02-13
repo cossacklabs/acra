@@ -35,17 +35,10 @@ type Config struct {
 	with_zone           bool
 	whole_match         bool
 	server_id           []byte
-	poison_key          []byte
 }
 
 func NewConfig() *Config {
 	return &Config{with_zone: false, stop_on_poison: false, whole_match: true}
-}
-func (config *Config) SetPoisonKey(key []byte) {
-	config.poison_key = key
-}
-func (config *Config) GetPoisonKey() []byte {
-	return config.poison_key
 }
 func (config *Config) SetScriptOnPoison(script_path string) {
 	config.script_on_poison = script_path

@@ -16,11 +16,11 @@ package main
 import (
 	"flag"
 	"fmt"
+	"github.com/cossacklabs/acra/cmd"
 	"github.com/cossacklabs/acra/keystore"
 	. "github.com/cossacklabs/acra/utils"
 	"github.com/cossacklabs/acra/zone"
 	"github.com/cossacklabs/themis/gothemis/keys"
-	"github.com/vharitonsky/iniflags"
 	"os"
 )
 
@@ -30,8 +30,13 @@ func main() {
 	output_dir := flag.String("output_dir", keystore.DEFAULT_KEY_DIR_SHORT, "Folder where will be saved generated zone keys")
 	fs_keystore := flag.Bool("fs", true, "Use filesystem key store")
 
-	LoadFromConfig(DEFAULT_CONFIG_PATH)
-	iniflags.Parse()
+	err := cmd.Parse(DEFAULT_CONFIG_PATH)
+	if err != nil {
+		fmt.Printf("Error: %v\n", ErrorMessage("Can't parse args", err))
+		os.Exit(1)
+	}
+	//LoadFromConfig(DEFAULT_CONFIG_PATH)
+	//iniflags.Parse()
 
 	output, err := AbsPath(*output_dir)
 	if err != nil {

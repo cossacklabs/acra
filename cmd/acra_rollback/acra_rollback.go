@@ -20,13 +20,13 @@ import (
 	"encoding/hex"
 	"flag"
 	"fmt"
+	"github.com/cossacklabs/acra/cmd"
 	"github.com/cossacklabs/acra/decryptor/base"
 	"github.com/cossacklabs/acra/decryptor/postgresql"
 	"github.com/cossacklabs/acra/keystore"
 	"github.com/cossacklabs/acra/utils"
 	"github.com/cossacklabs/themis/gothemis/keys"
 	_ "github.com/lib/pq"
-	"github.com/vharitonsky/iniflags"
 	"os"
 	"strings"
 )
@@ -114,7 +114,6 @@ func QuoteValue(name string) string {
 func (ex *WriteToFileExecutor) Execute(data []byte) {
 	encoded := ex.encoder.Encode(data)
 	output_sql := strings.Replace(ex.sql, PLACEHOLDER, encoded, 1)
-	fmt.Println(len(output_sql))
 	n, err := ex.writer.Write([]byte(output_sql))
 	if err != nil {
 		ErrorExit("Can't write to output file", err)
@@ -141,20 +140,25 @@ func (ex *WriteToFileExecutor) Close() {
 func main() {
 	keys_dir := flag.String("keys_dir", keystore.DEFAULT_KEY_DIR_SHORT, "Folder from which will be loaded keys")
 	client_id := flag.String("client_id", "", "Client id should be name of file with private key")
-	connection_string := flag.String("connection_string", "", "Connection string for db")
+	connection_string := flag.String("connection_string", "", "Connection string for db (sslmode=disable parameter will be automatically added)")
 	sql_select := flag.String("select", "", "Query to fetch data for decryption")
 	sql_insert := flag.String("insert", "", "Query for insert decrypted data with placeholders (pg: $n)")
 	with_zone := flag.Bool("zonemode", false, "Turn on zon emode")
 	output_file := flag.String("output_file", "decrypted.sql", "File for store inserts queries")
 	execute := flag.Bool("execute", false, "Execute inserts")
 	escape_format := flag.Bool("escape", false, "Escape bytea format")
-
-	utils.LoadFromConfig(DEFAULT_CONFIG_PATH)
-	iniflags.Parse()
+	err := cmd.Parse(DEFAULT_CONFIG_PATH)
+	if err != nil {
+		fmt.Printf("Error: %v\n", utils.ErrorMessage("Can't parse args", err))
+		os.Exit(1)
+	}
 
 	if *connection_string == "" {
 		fmt.Println("Error: connection_string arg is missing")
 		os.Exit(1)
+	}
+	if !strings.Contains(*connection_string, "sslmode=disable") {
+		*connection_string = fmt.Sprintf("%v sslmode=disable", *connection_string)
 	}
 	if *sql_select == "" {
 		fmt.Println("Error: sql_select arg is missing")
@@ -183,13 +187,16 @@ func main() {
 		fmt.Printf("Error: %v\n", utils.ErrorMessage("can't connect to db", err))
 		os.Exit(1)
 	}
+	defer db.Close()
 	err = db.Ping()
 	if err != nil {
 		fmt.Printf("Error: %v\n", utils.ErrorMessage("can't connect to db", err))
+		os.Exit(1)
 	}
 	rows, err := db.Query(*sql_select)
 	if err != nil {
-		fmt.Printf("Error: %v\n", utils.ErrorMessage("error with select query", err))
+		fmt.Printf("Error: %v\n", utils.ErrorMessage(fmt.Sprintf("error with select query '%v'", *sql_select), err))
+		os.Exit(1)
 	}
 	defer rows.Close()
 
@@ -228,7 +235,7 @@ func main() {
 			if err != nil {
 				ErrorExit("Can't read data from row", err)
 			}
-			private_key, err = keystorage.GetServerPrivateKey([]byte(*client_id))
+			private_key, err = keystorage.GetServerDecryptionPrivateKey([]byte(*client_id))
 			if err != nil {
 				fmt.Printf("%v\n", utils.ErrorMessage(fmt.Sprintf("Can't get private key for row with number %v", i), err))
 				continue

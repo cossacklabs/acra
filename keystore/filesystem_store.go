@@ -23,25 +23,26 @@ import (
 	"io/ioutil"
 	"log"
 	"os"
+	"path/filepath"
 	"runtime"
 	"sync"
 )
 
 var lock = sync.RWMutex{}
 
-func GetPublicKeyFilename(id []byte) string {
-	return fmt.Sprintf("%s_zone.pub", string(id))
-}
-
 type FilesystemKeyStore struct {
 	keys      map[string][]byte
 	directory string
 }
 
+const (
+	POISON_KEY_FILENAME = ".poison_key/poison_key"
+)
+
 func NewFilesystemKeyStore(directory string) (*FilesystemKeyStore, error) {
 	fi, err := os.Stat(directory)
 	if nil == err && runtime.GOOS == "linux" && fi.Mode().Perm().String() != "-rwx------" {
-		log.Printf("Error: key store folder has an incorrect permissions")
+		log.Println("Error: key store folder has an incorrect permissions")
 		return nil, errors.New("key store folder has an incorrect permissions")
 	}
 	return &FilesystemKeyStore{directory: directory, keys: make(map[string][]byte)}, nil
@@ -49,6 +50,43 @@ func NewFilesystemKeyStore(directory string) (*FilesystemKeyStore, error) {
 
 func (*FilesystemKeyStore) get_zone_key_filename(id []byte) string {
 	return fmt.Sprintf("%s_zone", string(id))
+}
+
+func (store *FilesystemKeyStore) get_zone_public_key_filename(id []byte) string {
+	return fmt.Sprintf("%s.pub", store.get_zone_key_filename(id))
+}
+
+func (*FilesystemKeyStore) get_server_key_filename(id []byte) string {
+	return fmt.Sprintf("%s_server", string(id))
+}
+
+func (*FilesystemKeyStore) get_server_decryption_key_filename(id []byte) string {
+	return fmt.Sprintf("%s_storage", string(id))
+}
+
+func (*FilesystemKeyStore) get_proxy_key_filename(id []byte) string {
+	return string(id)
+}
+
+func (store *FilesystemKeyStore) generate_key_pair(filename string) (*keys.Keypair, error) {
+	keypair, err := keys.New(keys.KEYTYPE_EC)
+	if err != nil {
+		return nil, err
+	}
+	dirpath := filepath.Dir(store.get_file_path(filename))
+	err = os.MkdirAll(dirpath, 0700)
+	if err != nil {
+		return nil, err
+	}
+	err = ioutil.WriteFile(store.get_file_path(filename), keypair.Private.Value, 0600)
+	if err != nil {
+		return nil, err
+	}
+	err = ioutil.WriteFile(store.get_file_path(fmt.Sprintf("%s.pub", filename)), keypair.Public.Value, 0644)
+	if err != nil {
+		return nil, err
+	}
+	return keypair, nil
 }
 
 func (store *FilesystemKeyStore) GenerateZoneKey() ([]byte, []byte, error) {
@@ -62,19 +100,7 @@ func (store *FilesystemKeyStore) GenerateZoneKey() ([]byte, []byte, error) {
 		}
 	}
 
-	keypair, err := keys.New(keys.KEYTYPE_EC)
-	if err != nil {
-		return []byte{}, []byte{}, err
-	}
-	keydir, err := GetDefaultKeyDir()
-	if err != nil {
-		return []byte{}, []byte{}, err
-	}
-	err = os.MkdirAll(keydir, 0700)
-	if err != nil {
-		return []byte{}, []byte{}, err
-	}
-	err = ioutil.WriteFile(store.get_file_path(store.get_zone_key_filename(id)), keypair.Private.Value, 0600)
+	keypair, err := store.generate_key_pair(store.get_zone_key_filename(id))
 	if err != nil {
 		return []byte{}, []byte{}, err
 	}
@@ -125,7 +151,7 @@ func (store *FilesystemKeyStore) HasZonePrivateKey(id []byte) bool {
 }
 
 func (store *FilesystemKeyStore) GetProxyPublicKey(id []byte) (*keys.PublicKey, error) {
-	fname := GetPublicKeyFilename(id)
+	fname := store.get_zone_public_key_filename(id)
 	lock.Lock()
 	defer lock.Unlock()
 	key, ok := store.keys[fname]
@@ -143,7 +169,7 @@ func (store *FilesystemKeyStore) GetProxyPublicKey(id []byte) (*keys.PublicKey, 
 }
 
 func (store *FilesystemKeyStore) GetServerPrivateKey(id []byte) (*keys.PrivateKey, error) {
-	fname := fmt.Sprintf("%s_server", id)
+	fname := store.get_server_key_filename(id)
 	lock.Lock()
 	defer lock.Unlock()
 	key, ok := store.keys[fname]
@@ -158,4 +184,80 @@ func (store *FilesystemKeyStore) GetServerPrivateKey(id []byte) (*keys.PrivateKe
 	log.Printf("Debug: load key from fs: %s\n", fname)
 	store.keys[fname] = private_key.Value
 	return private_key, nil
+}
+
+func (store *FilesystemKeyStore) GetServerDecryptionPrivateKey(id []byte) (*keys.PrivateKey, error) {
+	fname := store.get_server_decryption_key_filename(id)
+	lock.Lock()
+	defer lock.Unlock()
+	key, ok := store.keys[fname]
+	if ok {
+		log.Printf("Debug: load cached key: %s\n", fname)
+		return &keys.PrivateKey{Value: key}, nil
+	}
+	private_key, err := LoadPrivateKey(store.get_file_path(fname))
+	if err != nil {
+		return nil, err
+	}
+	log.Printf("Debug: load key from fs: %s\n", fname)
+	store.keys[fname] = private_key.Value
+	return private_key, nil
+}
+
+func (store *FilesystemKeyStore) GenerateProxyKeys(id []byte) error {
+	filename := store.get_proxy_key_filename(id)
+	_, err := store.generate_key_pair(filename)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+func (store *FilesystemKeyStore) GenerateServerKeys(id []byte) error {
+	filename := store.get_server_key_filename(id)
+	_, err := store.generate_key_pair(filename)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+// generate key pair for data encryption/decryption
+func (store *FilesystemKeyStore) GenerateDataEncryptionKeys(id []byte) error {
+	_, err := store.generate_key_pair(store.get_server_decryption_key_filename(id))
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+// clear all cached keys
+func (store *FilesystemKeyStore) Reset() {
+	store.keys = make(map[string][]byte)
+}
+
+func (store *FilesystemKeyStore) GetPoisonKeyPair() (*keys.Keypair, error) {
+	private_path := store.get_file_path(POISON_KEY_FILENAME)
+	public_path := store.get_file_path(fmt.Sprintf("%s.pub", POISON_KEY_FILENAME))
+	private_exists, err := FileExists(private_path)
+	if err != nil {
+		return nil, err
+	}
+	public_exists, err := FileExists(public_path)
+	if err != nil {
+		return nil, err
+	}
+	if private_exists && public_exists {
+		private, err := LoadPrivateKey(private_path)
+		if err != nil {
+			return nil, err
+		}
+		public, err := LoadPublicKey(public_path)
+		if err != nil {
+			return nil, err
+		}
+		return &keys.Keypair{Public: public, Private: private}, nil
+	} else {
+		log.Println("Generate poison key pair")
+		return store.generate_key_pair(POISON_KEY_FILENAME)
+	}
 }

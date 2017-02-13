@@ -41,6 +41,15 @@ func (storage *TestKeyStore) GetServerPrivateKey(id []byte) (*keys.PrivateKey, e
 }
 func (storage *TestKeyStore) GenerateZoneKey() ([]byte, []byte, error) { return []byte{}, []byte{}, nil }
 
+func (storage *TestKeyStore) Reset()                                     {}
+func (storage *TestKeyStore) GenerateProxyKeys(id []byte) error          { return nil }
+func (storage *TestKeyStore) GenerateServerKeys(id []byte) error         { return nil }
+func (storage *TestKeyStore) GenerateDataEncryptionKeys(id []byte) error { return nil }
+func (storage *TestKeyStore) GetServerDecryptionPrivateKey(id []byte) (*keys.PrivateKey, error) {
+	return nil, nil
+}
+func (storage *TestKeyStore) GetPoisonKeyPair() (*keys.Keypair, error) { return nil, nil }
+
 func testZoneIdMatcher(t *testing.T) {
 	var keystorage keystore.KeyStore = &TestKeyStore{}
 	matcher_pool := zone.NewMatcherPool(zone.NewPgHexMatcherFactory())

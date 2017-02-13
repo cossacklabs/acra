@@ -15,12 +15,12 @@
 # limitations under the License.
 #
     function create_acrastruct($data, $acra_public_key, $context){
-	$random_keypair=phpthemis_gen_ec_key_pair();
-	$random_key=openssl_random_pseudo_bytes(32);
-	$sm=phpthemis_secure_message_wrap($random_keypair['private_key'], $acra_public_key, $random_key);
-	$encrypted_data = phpthemis_scell_seal_encrypt($random_key, $data, $context);
-	$begin_tag = "\x85\x20\xfb";
-	$encrypted_data_length = pack("P", strlen($encrypted_data));
-	return $begin_tag . $random_keypair['public_key'] . $sm . $encrypted_data_length . $encrypted_data;
+        $random_keypair=phpthemis_gen_ec_key_pair();
+        $random_key=openssl_random_pseudo_bytes(32);
+        $sm=phpthemis_secure_message_wrap($random_keypair['private_key'], $acra_public_key, $random_key);
+        $encrypted_data = phpthemis_scell_seal_encrypt($random_key, $data, $context);
+        $begin_tag = "\x22\x22\x22\x22\x22\x22\x22\x22";
+        $encrypted_data_length = pack("P", strlen($encrypted_data));
+        return $begin_tag . $random_keypair['public_key'] . $sm . $encrypted_data_length . $encrypted_data;
     }
 ?>

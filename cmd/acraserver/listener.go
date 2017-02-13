@@ -104,7 +104,6 @@ func (server *SServer) getDecryptor(client_id []byte) base.Decryptor {
 	decryptor_impl.SetWithZone(server.config.GetWithZone())
 	decryptor_impl.SetWholeMatch(server.config.GetWholeMatch())
 	decryptor_impl.SetKeyStore(server.keystorage)
-	decryptor_impl.SetPoisonKey(server.config.GetPoisonKey())
 	zone_matcher := zone.NewZoneMatcher(matcher_pool, server.keystorage)
 	decryptor_impl.SetZoneMatcher(zone_matcher)
 
@@ -231,6 +230,7 @@ func (server *SServer) handleCommandsConnection(connection net.Conn) {
 
 // start listening commands connections from proxy
 func (server *SServer) StartCommands() {
+	log.Printf("Info: start listening http api %v\n", server.config.GetProxyCommandsPort())
 	listener, err := net.Listen("tcp", fmt.Sprintf("%v:%v", server.config.GetProxyHost(), server.config.GetProxyCommandsPort()))
 	if err != nil {
 		log.Printf("Error: %v\n", ErrorMessage("can't start listen command connections", err))

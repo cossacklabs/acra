@@ -1,0 +1,39 @@
+# Port of acra http api
+acra_commands_port: 9090
+
+# IP or domain to acra daemon
+acra_host: 
+
+# Expected id from acraserver for Secure Session
+acra_id: acra_server
+
+# Port of acra daemon
+acra_port: 9393
+
+# Client id
+client_id: 
+
+# Port for acraproxy http api
+command_port: 9191
+
+# path to config
+config: 
+
+# Disable checking that connections from app running from another user
+disable_user_check: false
+
+# dump config
+dumpconfig: false
+
+# Folder from which will be loaded keys
+keys_dir: .acrakeys
+
+# Port fo acraproxy
+port: 9494
+
+# Log to stdout
+v: false
+
+# Turn on zone mode
+zonemode: false
+

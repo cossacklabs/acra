@@ -27,8 +27,18 @@ type KeyStore interface {
 	HasZonePrivateKey(id []byte) bool
 	GetProxyPublicKey(id []byte) (*keys.PublicKey, error)
 	GetServerPrivateKey(id []byte) (*keys.PrivateKey, error)
+	GetServerDecryptionPrivateKey(id []byte) (*keys.PrivateKey, error)
 	// return id, public key, error
 	GenerateZoneKey() ([]byte, []byte, error)
+
+	GenerateProxyKeys(id []byte) error
+	GenerateServerKeys(id []byte) error
+	// generate key pair for data encryption/decryption
+	GenerateDataEncryptionKeys(id []byte) error
+
+	GetPoisonKeyPair() (*keys.Keypair, error)
+
+	Reset()
 }
 
 func GetDefaultKeyDir() (string, error) {

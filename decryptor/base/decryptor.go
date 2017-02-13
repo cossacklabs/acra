@@ -88,8 +88,6 @@ type Decryptor interface {
 	// get current storage of callbacks for detected poison records
 	GetPoisonCallbackStorage() *PoisonCallbackStorage
 	SetZoneMatcher(*zone.ZoneIdMatcher)
-	SetPoisonKey([]byte)
-	GetPoisonKey() []byte
 	GetMatchedZoneId() []byte
 	MatchZone(byte) bool
 	IsWithZone() bool
@@ -98,7 +96,9 @@ type Decryptor interface {
 	ResetZoneMatch()
 	IsWholeMatch() bool
 	DecryptBlock([]byte) ([]byte, error)
+	SkipBeginInBlock(block []byte) ([]byte, error)
 	MatchZoneBlock([]byte)
+	CheckPoisonRecord(reader io.Reader) (bool, error)
 	// return tag start index and length of tag (depends on decryptor type)
 	BeginTagIndex([]byte) (int, int)
 	MatchZoneInBlock([]byte)

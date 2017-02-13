@@ -17,44 +17,31 @@ import (
 	"encoding/base64"
 	"flag"
 	"fmt"
+	"github.com/cossacklabs/acra/cmd"
+	"github.com/cossacklabs/acra/keystore"
 	"github.com/cossacklabs/acra/poison"
 	"github.com/cossacklabs/acra/utils"
-	"github.com/vharitonsky/iniflags"
 	"os"
 )
 
 var DEFAULT_CONFIG_PATH = utils.GetConfigPathByName("acra_genpoisonrecord")
 
 func main() {
-	poison_key_path := flag.String("poison_key", poison.DEFAULT_POISON_KEY_PATH, "Path to file with poison key")
-	acra_public_path := flag.String("acra_public", "", "Path to acra public key to use")
+	keys_dir := flag.String("keys_dir", keystore.DEFAULT_KEY_DIR_SHORT, "Folder from which will be loaded keys")
 	data_length := flag.Int("data_length", poison.DEFAULT_DATA_LENGTH, fmt.Sprintf("Length of random data for data block in acrastruct. -1 is random in range 1..%v", poison.MAX_DATA_LENGTH))
 
-	utils.LoadFromConfig(DEFAULT_CONFIG_PATH)
-	iniflags.Parse()
-
-	if *acra_public_path == "" {
-		fmt.Println("Error: missing acra public parameter")
-		os.Exit(1)
-	}
-	acra_public_key, err := utils.LoadPublicKey(*acra_public_path)
+	err := cmd.Parse(DEFAULT_CONFIG_PATH)
 	if err != nil {
-		fmt.Printf("Error: %v\n", utils.ErrorMessage("can't read acra public key", err))
+		fmt.Printf("Error: %v\n", utils.ErrorMessage("Can't parse args", err))
 		os.Exit(1)
 	}
 
-	*poison_key_path, err = utils.AbsPath(*poison_key_path)
+	store, err := keystore.NewFilesystemKeyStore(*keys_dir)
 	if err != nil {
-		fmt.Printf("Error: %v\n", utils.ErrorMessage("can't get absolute path to poison key", err))
+		fmt.Printf("Error: %v\n", utils.ErrorMessage("can't initialize key store", err))
 		os.Exit(1)
 	}
-
-	poison_key, err := poison.GetOrCreatePoisonKey(*poison_key_path)
-	if err != nil {
-		fmt.Printf("Error: %v\n", utils.ErrorMessage("can't create or read poison key", err))
-		os.Exit(1)
-	}
-	poison_record, err := poison.CreatePoisonRecord(poison_key, *data_length, acra_public_key)
+	poison_record, err := poison.CreatePoisonRecord(store, *data_length)
 	if err != nil {
 		fmt.Printf("Error: %v\n", utils.ErrorMessage("can't create poison record", err))
 	}

@@ -31,6 +31,8 @@ func CheckOneKey() {
 		"src/github.com/cossacklabs/acra/benchmarks/.acrakeys/onekey.pub",
 		"src/github.com/cossacklabs/acra/benchmarks/.acrakeys/onekey_server",
 		"src/github.com/cossacklabs/acra/benchmarks/.acrakeys/onekey_server.pub",
+		"src/github.com/cossacklabs/acra/benchmarks/.acrakeys/onekey_storage",
+		"src/github.com/cossacklabs/acra/benchmarks/.acrakeys/onekey_storage.pub",
 	}
 	for _, key := range keys_path {
 		exists, err := utils.FileExists(key)
@@ -44,7 +46,7 @@ func CheckOneKey() {
 	}
 }
 func GetPublicOneKey() *keys.PublicKey {
-	public_key, err := utils.LoadPublicKey("src/github.com/cossacklabs/acra/benchmarks/.acrakeys/onekey_server.pub")
+	public_key, err := utils.LoadPublicKey("src/github.com/cossacklabs/acra/benchmarks/.acrakeys/onekey_storage.pub")
 	if err != nil {
 		panic(err)
 	}

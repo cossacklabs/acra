@@ -55,14 +55,6 @@ func NewPgDecryptor(client_id []byte, decryptor base.DataDecryptor) *PgDecryptor
 	}
 }
 
-func (decryptor *PgDecryptor) SetPoisonKey(key []byte) {
-	decryptor.poison_key = key
-}
-
-func (decryptor *PgDecryptor) GetPoisonKey() []byte {
-	return decryptor.poison_key
-}
-
 func (decryptor *PgDecryptor) SetWithZone(b bool) {
 	decryptor.is_with_zone = b
 }
@@ -134,19 +126,11 @@ func (decryptor *PgDecryptor) Reset() {
 func (decryptor *PgDecryptor) GetMatched() []byte {
 	return decryptor.match_buffer[:decryptor.match_index]
 }
+
 func (decryptor *PgDecryptor) ReadSymmetricKey(private_key *keys.PrivateKey, reader io.Reader) ([]byte, []byte, error) {
 	symmetric_key, raw_data, err := decryptor.matched_decryptor.ReadSymmetricKey(private_key, reader)
 	if err != nil {
 		return symmetric_key, raw_data, err
-	}
-	if bytes.Equal(symmetric_key, decryptor.GetPoisonKey()) {
-		log.Println("Warning: recognized poison record")
-		err := decryptor.GetPoisonCallbackStorage().Call()
-		if err != nil {
-			log.Printf("Error: unexpected error in poison record callbacks - %v\n", err)
-			return symmetric_key, raw_data, err
-		}
-		return []byte{}, raw_data, base.ErrPoisonRecord
 	}
 	return symmetric_key, raw_data, nil
 }
@@ -186,7 +170,7 @@ func (decryptor *PgDecryptor) GetPrivateKey() (*keys.PrivateKey, error) {
 	if decryptor.IsWithZone() {
 		return decryptor.key_store.GetZonePrivateKey(decryptor.GetMatchedZoneId())
 	} else {
-		return decryptor.key_store.GetServerPrivateKey(decryptor.client_id)
+		return decryptor.key_store.GetServerDecryptionPrivateKey(decryptor.client_id)
 	}
 }
 
@@ -219,7 +203,7 @@ func (decryptor *PgDecryptor) MatchZoneBlock(block []byte) {
 
 var HEX_PREFIX = []byte{'\\', 'x'}
 
-func (decryptor *PgDecryptor) DecryptBlock(block []byte) ([]byte, error) {
+func (decryptor *PgDecryptor) SkipBeginInBlock(block []byte) ([]byte, error) {
 	_, ok := decryptor.pg_decryptor.(*PgHexDecryptor)
 	// in hex format can be \x bytes at beginning
 	// we need skip them for correct matching begin tag
@@ -249,7 +233,16 @@ func (decryptor *PgDecryptor) DecryptBlock(block []byte) ([]byte, error) {
 	if !decryptor.IsMatched() {
 		return []byte{}, base.ErrFakeAcraStruct
 	}
-	reader := bytes.NewReader(block[n:])
+	return block[n:], nil
+}
+
+func (decryptor *PgDecryptor) DecryptBlock(block []byte) ([]byte, error) {
+	data_block, err := decryptor.SkipBeginInBlock(block)
+	if err != nil {
+		return []byte{}, err
+	}
+
+	reader := bytes.NewReader(data_block)
 	private_key, err := decryptor.GetPrivateKey()
 	if err != nil {
 		return []byte{}, err
@@ -262,11 +255,33 @@ func (decryptor *PgDecryptor) DecryptBlock(block []byte) ([]byte, error) {
 	if err != nil {
 		return []byte{}, err
 	}
-	if ok {
+	if _, ok := decryptor.pg_decryptor.(*PgHexDecryptor); ok {
 		return append(HEX_PREFIX, data...), nil
 	} else {
 		return data, nil
 	}
+}
+
+func (decryptor *PgDecryptor) CheckPoisonRecord(reader io.Reader) (bool, error) {
+	// check poison record
+	poison_keypair, err := decryptor.key_store.GetPoisonKeyPair()
+	if err != nil {
+		log.Printf("Error: %v\n", utils.ErrorMessage("can't load poison keypair", err))
+		return true, err
+	} else {
+		// try decrypt using poison key pair
+		_, _, err := decryptor.matched_decryptor.ReadSymmetricKey(poison_keypair.Private, reader)
+		if err == nil {
+			log.Println("Warning: recognized poison record")
+			err := decryptor.GetPoisonCallbackStorage().Call()
+			if err != nil {
+				log.Printf("Error: unexpected error in poison record callbacks - %v\n", err)
+			}
+			return true, err
+		}
+		log.Printf("Debug: not recognized poison record. error returned - %v\n", err)
+	}
+	return false, nil
 }
 
 var hex_tag_symbols = hex.EncodeToString([]byte{base.TAG_SYMBOL})
@@ -276,18 +291,21 @@ func (decryptor *PgDecryptor) BeginTagIndex(block []byte) (int, int) {
 	_, ok := decryptor.pg_decryptor.(*PgHexDecryptor)
 	if ok {
 		if i := utils.FindTag(HEX_SYMBOL, decryptor.pg_decryptor.GetTagBeginLength(), block); i != utils.NOT_FOUND {
+			log.Println("Debug: matched pg decryptor")
 			decryptor.matched_decryptor = decryptor.pg_decryptor
 			return i, decryptor.pg_decryptor.GetTagBeginLength()
 		}
 	} else {
 		// escape format
 		if i := utils.FindTag(base.TAG_SYMBOL, decryptor.pg_decryptor.GetTagBeginLength(), block); i != utils.NOT_FOUND {
+			log.Println("Debug: matched pg decryptor")
 			decryptor.matched_decryptor = decryptor.pg_decryptor
 			return i, decryptor.pg_decryptor.GetTagBeginLength()
 			// binary format
 		}
 	}
 	if i := utils.FindTag(base.TAG_SYMBOL, decryptor.binary_decryptor.GetTagBeginLength(), block); i != utils.NOT_FOUND {
+		log.Println("Debug: matched binary decryptor")
 		decryptor.matched_decryptor = decryptor.binary_decryptor
 		return i, decryptor.binary_decryptor.GetTagBeginLength()
 	}

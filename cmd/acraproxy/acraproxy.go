@@ -29,11 +29,11 @@ import (
 	"strings"
 
 	"bytes"
+	"github.com/cossacklabs/acra/cmd"
 	"github.com/cossacklabs/acra/keystore"
 	. "github.com/cossacklabs/acra/utils"
 	"github.com/cossacklabs/themis/gothemis/keys"
 	"github.com/cossacklabs/themis/gothemis/session"
-	"github.com/vharitonsky/iniflags"
 )
 
 const (
@@ -252,8 +252,11 @@ func main() {
 	with_zone := flag.Bool("zonemode", false, "Turn on zone mode")
 	disable_user_check := flag.Bool("disable_user_check", false, "Disable checking that connections from app running from another user")
 
-	LoadFromConfig(DEFAULT_CONFIG_PATH)
-	iniflags.Parse()
+	err := cmd.Parse(DEFAULT_CONFIG_PATH)
+	if err != nil {
+		fmt.Printf("Error: %v\n", ErrorMessage("Can't parse args", err))
+		os.Exit(1)
+	}
 
 	if len(*client_id) <= MIN_LENGTH_CLIENT_ID {
 		fmt.Printf("Error: client id length <= %v. Use longer than %v\n", MIN_LENGTH_CLIENT_ID, MIN_LENGTH_CLIENT_ID)
@@ -308,12 +311,12 @@ func main() {
 	if *with_zone {
 		go func() {
 			commands_config := &Config{KeysDir: *keys_dir, ClientId: []byte(*client_id), AcraHost: *acra_host, AcraPort: *acra_commands_port, Port: *commands_port, AcraId: []byte(*acra_id), disableUserCheck: *disable_user_check}
+			log.Printf("Info: start listening http api %v\n", *commands_port)
 			commands_listener, err := net.Listen("tcp", fmt.Sprintf(":%v", *commands_port))
 			if err != nil {
 				log.Printf("Error: %v\n", ErrorMessage("can't start listen connections to http api", err))
 				os.Exit(1)
 			}
-			log.Printf("Info: start listening http api %v\n", *commands_port)
 			for {
 				connection, err := commands_listener.Accept()
 				if err != nil {

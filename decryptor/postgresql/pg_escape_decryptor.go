@@ -106,18 +106,6 @@ func NewPgEscapeDecryptor() *PgEscapeDecryptor {
 	}
 }
 
-func (decryptor *PgEscapeDecryptor) SetWithZone(b bool) {
-	decryptor.is_with_zone = b
-}
-
-func (decryptor *PgEscapeDecryptor) SetPoisonKey(key []byte) {
-	decryptor.poison_key = key
-}
-
-func (decryptor *PgEscapeDecryptor) GetPoisonKey() []byte {
-	return decryptor.poison_key
-}
-
 func (decryptor *PgEscapeDecryptor) MatchBeginTag(char byte) bool {
 	if char == ESCAPE_TAG_BEGIN[decryptor.current_index] {
 		decryptor.current_index++
@@ -207,6 +195,7 @@ func (decryptor *PgEscapeDecryptor) readOctalData(data, oct_data []byte, reader 
 		}
 	}
 }
+
 func (decryptor *PgEscapeDecryptor) ReadSymmetricKey(private_key *keys.PrivateKey, reader io.Reader) ([]byte, []byte, error) {
 	data_length, oct_data_length, err := decryptor.readOctalData(decryptor.decoded_key_block_buffer, decryptor.oct_key_block_buffer[:], reader)
 	if err != nil {
@@ -279,50 +268,6 @@ func (decryptor *PgEscapeDecryptor) ReadData(symmetric_key, zone_id []byte, read
 		return append(hex_length_buf, oct_data...), base.ErrFakeAcraStruct
 	}
 	return EncodeToOctal(decrypted), nil
-}
-
-func (decryptor *PgEscapeDecryptor) SetKeyStore(store keystore.KeyStore) {
-	decryptor.key_store = store
-}
-
-func (decryptor *PgEscapeDecryptor) GetPrivateKey() (*keys.PrivateKey, error) {
-	return decryptor.key_store.GetZonePrivateKey(decryptor.GetMatchedZoneId())
-}
-
-func (decryptor *PgEscapeDecryptor) SetZoneMatcher(zone_matcher *zone.ZoneIdMatcher) {
-	decryptor.zone_matcher = zone_matcher
-}
-
-func (decryptor *PgEscapeDecryptor) MatchZone(c byte) bool {
-	return decryptor.zone_matcher.Match(c)
-}
-
-func (decryptor *PgEscapeDecryptor) IsWithZone() bool {
-	return decryptor.is_with_zone
-}
-
-func (decryptor *PgEscapeDecryptor) IsMatchedZone() bool {
-	return decryptor.zone_matcher.IsMatched()
-}
-
-func (decryptor *PgEscapeDecryptor) ResetZoneMatch() {
-	decryptor.zone_matcher.Reset()
-}
-
-func (decryptor *PgEscapeDecryptor) GetMatchedZoneId() []byte {
-	if decryptor.IsWithZone() {
-		return decryptor.zone_matcher.GetZoneId()
-	} else {
-		return nil
-	}
-}
-
-func (decryptor *PgEscapeDecryptor) SetPoisonCallbackStorage(storage *base.PoisonCallbackStorage) {
-	decryptor.callback_storage = storage
-}
-
-func (decryptor *PgEscapeDecryptor) GetPoisonCallbackStorage() *base.PoisonCallbackStorage {
-	return decryptor.callback_storage
 }
 
 func (decryptor *PgEscapeDecryptor) GetTagBeginLength() int {

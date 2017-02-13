@@ -16,78 +16,66 @@ package main
 import (
 	"flag"
 	"fmt"
+	"github.com/cossacklabs/acra/cmd"
 	"github.com/cossacklabs/acra/keystore"
 	"github.com/cossacklabs/acra/utils"
-	"github.com/cossacklabs/themis/gothemis/keys"
-	"github.com/vharitonsky/iniflags"
 	"os"
+	"path/filepath"
+	"strings"
 )
 
 var DEFAULT_CONFIG_PATH = utils.GetConfigPathByName("acra_genkeys")
-
-func create_keys(filename, output_dir string) {
-	keypair, err := keys.New(keys.KEYTYPE_EC)
-	if err != nil {
-		panic(err)
-	}
-	if output_dir[len(output_dir)-1] != '/' {
-		output_dir = output_dir + "/"
-	}
-	file, err := os.OpenFile(fmt.Sprintf("%v%v", output_dir, filename), os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0600)
-	if err != nil {
-		panic(err)
-	}
-
-	n, err := file.Write(keypair.Private.Value)
-	if n != len(keypair.Private.Value) {
-		panic("Error in writing private key")
-	}
-	if err != nil {
-		panic(err)
-	}
-	fmt.Println(file.Name())
-
-	file, err = os.OpenFile(fmt.Sprintf("%v%v.pub", output_dir, filename), os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0600)
-	if err != nil {
-		panic(err)
-	}
-
-	n, err = file.Write(keypair.Public.Value)
-	if n != len(keypair.Public.Value) {
-		panic("Error in writing public key")
-	}
-	if err != nil {
-		panic(err)
-	}
-	fmt.Println(file.Name())
-}
 
 func main() {
 	client_id := flag.String("client_id", "client", "Client id")
 	acraproxy := flag.Bool("acraproxy", false, "Create keypair only for acraproxy")
 	acraserver := flag.Bool("acraserver", false, "Create keypair only for acraserver")
+	data_keys := flag.Bool("storage", false, "Create keypair for data encryption/decryption")
 	output_dir := flag.String("output", keystore.DEFAULT_KEY_DIR_SHORT, "Folder where will be saved keys")
 
-	utils.LoadFromConfig(DEFAULT_CONFIG_PATH)
-	iniflags.Parse()
-
-	var err error
-	*output_dir, err = utils.AbsPath(*output_dir)
+	err := cmd.Parse(DEFAULT_CONFIG_PATH)
 	if err != nil {
-		panic(err)
+		fmt.Printf("Error: %v\n", utils.ErrorMessage("Can't parse args", err))
+		os.Exit(1)
 	}
-
-	err = os.MkdirAll(*output_dir, 0700)
+	if strings.Contains(*client_id, string(filepath.Separator)) {
+		fmt.Println("Error: client id can't contain directory separator")
+		os.Exit(1)
+	}
+	store, err := keystore.NewFilesystemKeyStore(*output_dir)
 	if err != nil {
 		panic(err)
 	}
 
 	if *acraproxy {
-		create_keys(*client_id, *output_dir)
+		err = store.GenerateProxyKeys([]byte(*client_id))
+		if err != nil {
+			panic(err)
+		}
 	} else if *acraserver {
-		create_keys(fmt.Sprintf("%s_server", *client_id), *output_dir)
+		err = store.GenerateServerKeys([]byte(*client_id))
+		if err != nil {
+			panic(err)
+		}
+	} else if *data_keys {
+		err = store.GenerateDataEncryptionKeys([]byte(*client_id))
+		if err != nil {
+			panic(err)
+		}
 	} else {
-		create_keys(*client_id, *output_dir)
-		create_keys(fmt.Sprintf("%s_server", *client_id), *output_dir)
+		err = store.GenerateProxyKeys([]byte(*client_id))
+		if err != nil {
+			panic(err)
+		}
+
+		err = store.GenerateServerKeys([]byte(*client_id))
+		if err != nil {
+			panic(err)
+		}
+
+		err = store.GenerateDataEncryptionKeys([]byte(*client_id))
+		if err != nil {
+			panic(err)
+		}
 	}
 }

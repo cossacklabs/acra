@@ -15,7 +15,7 @@
 package config
 
 const (
-	ROW_COUNT     = 10000
+	ROW_COUNT     = 100000
 	REQUEST_COUNT = 10000
 	ZONE_COUNT    = 100
 	// db size will be 100kb * 100000 = 1000mb
