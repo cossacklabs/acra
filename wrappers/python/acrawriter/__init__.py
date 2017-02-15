@@ -13,14 +13,14 @@
 # limitations under the License.
 # coding: utf-8
 import sys
+import struct
 from random import randint
 
-import struct
-from pythemis.scell import scell_seal
-from pythemis.skeygen import themis_gen_key_pair
-from pythemis.smessage import smessage as smessage_
+from pythemis.scell import SCellSeal
+from pythemis.skeygen import GenerateKeyPair, KEY_PAIR_TYPE
+from pythemis.smessage import SMessage
 
-__all__ = ('create_acrastruct', 'Acra')
+__all__ = ('create_acrastruct')
 
 BEGIN_TAG = [ord('"')]*8
 
@@ -37,12 +37,12 @@ SYMMETRIC_KEY_LENGTH = 32
 
 
 def create_acrastruct(data, acra_public_key, context=None):
-    random_kp = themis_gen_key_pair('EC')
-    smessage = smessage_(random_kp.export_private_key(), acra_public_key)
+    random_kp = GenerateKeyPair(KEY_PAIR_TYPE.EC)
+    smessage = SMessage(random_kp.export_private_key(), acra_public_key)
     random_key = generate_key()
     wrapped_random_key = smessage.wrap(random_key)
 
-    scell = scell_seal(random_key)
+    scell = SCellSeal(random_key)
     encrypted_data = scell.encrypt(data, context)
     del random_key
     encrypted_data_len = struct.pack('<Q', len(encrypted_data))
