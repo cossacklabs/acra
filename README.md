@@ -44,10 +44,10 @@ Typical flow looks like this:
 
 ## 4 steps to start
 
-* Read the wiki page on [building and installing](https://github.com/cossacklabs/acra/wiki/Installing,-building-and-running)  all components. Soon enough, they'll be available as pre-built binaries, but for now you'll need to fire a few commands to get the binaries going. 
-* Deploy [AcraServer](https://github.com/cossacklabs/acra/wiki/How-AcraServer-works) binaries in separate virtual machine (docker container soon!). Generate keys, put AcraServer public key into both clients (AcraProxy and AcraWriter, see next).
-* Deploy [AcraProxy](https://github.com/cossacklabs/acra/wiki/Client-side:-AcraProxy-and-AcraWriter#acraproxy) on each server you need to read sensitive data. Generate proxy keys, provide public one to AcraServer. Point your database access code to AcraProxy, access it as if it's your normal database installation!
-* Integrate [AcraWriter](https://github.com/cossacklabs/acra/wiki/Client-side:-AcraProxy-and-AcraWriter#acrawriter) into your code where you need to store sensitive data, supply AcraWriter with proper server key.
+* Read the wiki page on [building and installing](https://github.com/cossacklabs/acra/wiki/Quick-start-guide)  all components. Soon enough, they'll be available as pre-built binaries, but for now you'll need to fire a few commands to get the binaries going. 
+* [Deploy AcraServer](https://github.com/cossacklabs/acra/wiki/Quick-start-guide) binaries in separate virtual machine ( pr [try it in a docker container](https://github.com/cossacklabs/acra/wiki/Trying-Acra-with-Docker)). Generate keys, put AcraServer public key into both clients (AcraProxy and AcraWriter, see next).
+* Deploy [AcraProxy](https://github.com/cossacklabs/acra/wiki/AcraProxy-and-AcraWriter#acraproxy) on each server you need to read sensitive data. Generate proxy keys, provide public one to AcraServer. Point your database access code to AcraProxy, access it as if it's your normal database installation!
+* Integrate [AcraWriter](https://github.com/cossacklabs/acra/wiki/AcraProxy-and-AcraWriter#acrawriter) into your code where you need to store sensitive data, supply AcraWriter with proper server key.
 
 ## Zones
 
@@ -65,4 +65,4 @@ We fill [wiki](https://github.com/cossacklabs/acra/wiki) with useful reads on co
 
 ## Project status
 
-Acra is early alpha. We've built it in cooperation with one of our early partners for their specific security goals, liked the design and then tried to generalize experience received for all other kinds of users. We're giving it out to the security/engineering community in hope that these use-cases are not overly unique and will benefit many other infrastructures. Please let us know in [Issues](https://www.github.com/cossacklabs/acra/issues) whenever you stumble upon a bug, see a possible enhancement or would just generally like to help.
+Acra is early alpha. We've built it in cooperation with one of our early partners for their specific security goals, liked the design and then tried to generalize experience received for all other kinds of users. We're giving it out to the security/engineering community in hope that these use-cases are not overly unique and will benefit many other infrastructures. Please let us know in the [Issues](https://www.github.com/cossacklabs/acra/issues) whenever you stumble upon a bug, see a possible enhancement or would just generally like to help.
