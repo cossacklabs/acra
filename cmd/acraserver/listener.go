@@ -49,7 +49,7 @@ func NewServer(config *Config) (server *SServer, err error) {
  read client_id, load public key for this client and initialize Secure Session
 */
 func (server *SServer) initSSession(connection net.Conn) ([]byte, *ClientSession, error) {
-	client_id, err := ReadData(connection)
+	client_id, err := ReadSessionData(connection)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -67,7 +67,7 @@ func (server *SServer) initSSession(connection net.Conn) ([]byte, *ClientSession
 	}
 	client_session.session = ssession
 	for {
-		data, err := ReadData(connection)
+		data, err := ReadSessionData(connection)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -79,7 +79,7 @@ func (server *SServer) initSSession(connection net.Conn) ([]byte, *ClientSession
 			return client_id, client_session, nil
 		}
 
-		err = SendData(buf, connection)
+		err = SendSessionData(buf, connection)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -129,7 +129,10 @@ func (server *SServer) handleConnection(connection net.Conn) {
 	client_id, client_session, err := server.initSSession(connection)
 	if err != nil {
 		log.Printf("Warning: %v\n", ErrorMessage("can't initialize secure session with acraproxy", err))
-		connection.Close()
+		err = connection.Close()
+		if err != nil {
+			log.Printf("Warning: %v\n", ErrorMessage("can't close connection", err))
+		}
 		return
 	}
 	defer client_session.session.Close()
@@ -165,7 +168,7 @@ func (server *SServer) Start() {
  read client_id, load public key for this client and initialize Secure Session
 */
 func (server *SServer) initCommandsSSession(connection net.Conn) (*ClientCommandsSession, error) {
-	client_id, err := ReadData(connection)
+	client_id, err := ReadSessionData(connection)
 	if err != nil {
 		return nil, err
 	}
@@ -186,7 +189,7 @@ func (server *SServer) initCommandsSSession(connection net.Conn) (*ClientCommand
 		return nil, err
 	}
 	for {
-		data, err := ReadData(connection)
+		data, err := ReadSessionData(connection)
 		if err != nil {
 			return nil, err
 		}
@@ -198,7 +201,7 @@ func (server *SServer) initCommandsSSession(connection net.Conn) (*ClientCommand
 			return client_session, nil
 		}
 
-		err = SendData(buf, connection)
+		err = SendSessionData(buf, connection)
 		if err != nil {
 			return nil, err
 		}
