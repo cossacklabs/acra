@@ -29,7 +29,6 @@ module.exports = {
 	var encrypted_data = context?sc.encrypt(data_buffer, context_buffer):sc.encrypt(data_buffer);
 	var begin_tag = new Buffer([34,34,34,34,34,34,34,34]);
 	var encrypted_data_length = new int64(encrypted_data.length).toBuffer();
-	console.log(encrypted_data_length);
 	return Buffer.concat([begin_tag, random_keypair.public(), wrapped_random_key, encrypted_data_length, encrypted_data]);
     }
 
