@@ -14,6 +14,7 @@
 # coding: utf-8
 import socket
 import json
+import struct
 import time
 import os
 import random
@@ -1077,6 +1078,33 @@ class TestAcraGenKeys(unittest.TestCase):
     def test_only_alpha_client_id(self):
         # call with directory separator in key name
         self.assertEqual(create_client_keypair(POISON_KEY_PATH), 1)
+
+
+class TestIncorrectConnectRequest(BaseTestCase):
+    def setUp(self):
+        if not self.EXTERNAL_ACRA:
+            self.acra = self.fork_acra()
+            time.sleep(1)
+
+    def tearDown(self):
+        if not self.EXTERNAL_ACRA:
+            self.acra.kill()
+            self.acra.wait()
+
+    def test_big_data_block(self):
+        check_size = (8 * 1024) + 1  # 8 kb + 1 extra byte
+        # check that acra will close connection if send block size > 8kb
+        with socket.create_connection(('127.0.0.1', self.ACRA_PORT), 10) as connection:
+            big_size = struct.pack('<I', check_size)
+            connection.send(big_size)
+            # time for closing socket by acraserver and system
+            time.sleep(0.5)
+            with self.assertRaises(BrokenPipeError):
+                # here should be closed connection from acraserver side
+                # first send to try send and get closed flag (but no any raises)
+                connection.send(b'1')
+                # second send to get exception
+                connection.send(b'1')
 
 
 if __name__ == '__main__':

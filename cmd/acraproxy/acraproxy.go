@@ -74,7 +74,7 @@ func NewClientSession(config *Config) (*session.SecureSession, error) {
 }
 
 func initializeSecureSession(config *Config, connection net.Conn) (*session.SecureSession, error) {
-	err := SendData(config.ClientId, connection)
+	err := SendSessionData(config.ClientId, connection)
 	if err != nil {
 		return nil, err
 	}
@@ -87,12 +87,12 @@ func initializeSecureSession(config *Config, connection net.Conn) (*session.Secu
 	if err != nil {
 		return nil, err
 	}
-	err = SendData(connect_request, connection)
+	err = SendSessionData(connect_request, connection)
 	if err != nil {
 		return nil, err
 	}
 	for {
-		data, err := ReadData(connection)
+		data, err := ReadSessionData(connection)
 		if err != nil {
 			return nil, err
 		}
@@ -106,7 +106,7 @@ func initializeSecureSession(config *Config, connection net.Conn) (*session.Secu
 			return ssession, nil
 		}
 
-		err = SendData(buf, connection)
+		err = SendSessionData(buf, connection)
 		if err != nil {
 			return nil, err
 		}
