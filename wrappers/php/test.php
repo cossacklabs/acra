@@ -17,4 +17,5 @@
 require('acrawriter.php');
 
 $random_keypair=phpthemis_gen_ec_key_pair();
-echo create_acrastruct("some data", $random_keypair['public_key'], null);
+create_acrastruct("some data", $random_keypair['public_key'], null);
+echo "work\n";
