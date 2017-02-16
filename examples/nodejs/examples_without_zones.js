@@ -1,5 +1,6 @@
 var acra = require('acrawriter');
 var pg = require('pg');
+var fs = require('fs');
 
 var raw_data = 'Test Message';
 
@@ -13,6 +14,9 @@ var config = {
   idleTimeoutMillis: 30000,
 };
 
+
+var acra_key = fs.readFileSync('client_storage.pub');
+
 var pool = new pg.Pool(config);
 pool.connect(function(err, client, done) {
   if(err) {
@@ -24,7 +28,7 @@ pool.connect(function(err, client, done) {
       return console.error('error running query', err);
     }
   });
-  client.query('insert into testjs (data, raw_data) values ($1, $2)', [acra.create_acra_struct(raw_data, new Buffer(zone.public_key, 'base64'), ""), raw_data], function(err, res) {
+  client.query('insert into testjs (data, raw_data) values ($1, $2)', [acra.create_acra_struct(raw_data, acra_key, ""), raw_data], function(err, res) {
     done();
     if(err) {
       return console.error('error running query', err);
