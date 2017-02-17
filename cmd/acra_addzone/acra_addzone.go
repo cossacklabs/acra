@@ -30,6 +30,8 @@ func main() {
 	output_dir := flag.String("output_dir", keystore.DEFAULT_KEY_DIR_SHORT, "Folder where will be saved generated zone keys")
 	fs_keystore := flag.Bool("fs", true, "Use filesystem key store")
 
+	cmd.SetLogLevel(cmd.LOG_VERBOSE)
+
 	err := cmd.Parse(DEFAULT_CONFIG_PATH)
 	if err != nil {
 		fmt.Printf("Error: %v\n", ErrorMessage("Can't parse args", err))

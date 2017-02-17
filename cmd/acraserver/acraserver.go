@@ -14,14 +14,11 @@
 package main
 
 import (
-	"bytes"
 	"flag"
 	"fmt"
 	"github.com/cossacklabs/acra/cmd"
 	"github.com/cossacklabs/acra/keystore"
 	"github.com/cossacklabs/acra/utils"
-	"io"
-	"io/ioutil"
 	"log"
 	"net/http"
 	_ "net/http/pprof"
@@ -29,22 +26,6 @@ import (
 )
 
 var DEFAULT_CONFIG_PATH = utils.GetConfigPathByName("acraserver")
-
-var DEBUG_PREFIX = []byte("Debug: ")
-
-type NotDebugWriter struct {
-	writer io.Writer
-}
-
-func NewNotDebugWriter(writer io.Writer) *NotDebugWriter {
-	return &NotDebugWriter{writer: writer}
-}
-func (wr *NotDebugWriter) Write(p []byte) (int, error) {
-	if bytes.Contains(p, DEBUG_PREFIX) {
-		return 0, nil
-	}
-	return wr.writer.Write(p)
-}
 
 func main() {
 	db_host := flag.String("db_host", "", "Host to db")
@@ -81,11 +62,11 @@ func main() {
 	}
 
 	if *debug {
-		log.SetOutput(os.Stdout)
+		cmd.SetLogLevel(cmd.LOG_DEBUG)
 	} else if *verbose {
-		log.SetOutput(NewNotDebugWriter(os.Stdout))
+		cmd.SetLogLevel(cmd.LOG_VERBOSE)
 	} else {
-		log.SetOutput(ioutil.Discard)
+		cmd.SetLogLevel(cmd.LOG_DISCARD)
 	}
 	if *db_host == "" {
 		fmt.Println("Error: you must specify db_host")

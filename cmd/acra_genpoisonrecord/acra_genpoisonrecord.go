@@ -30,6 +30,8 @@ func main() {
 	keys_dir := flag.String("keys_dir", keystore.DEFAULT_KEY_DIR_SHORT, "Folder from which will be loaded keys")
 	data_length := flag.Int("data_length", poison.DEFAULT_DATA_LENGTH, fmt.Sprintf("Length of random data for data block in acrastruct. -1 is random in range 1..%v", poison.MAX_DATA_LENGTH))
 
+	cmd.SetLogLevel(cmd.LOG_DISCARD)
+
 	err := cmd.Parse(DEFAULT_CONFIG_PATH)
 	if err != nil {
 		fmt.Printf("Error: %v\n", utils.ErrorMessage("Can't parse args", err))
