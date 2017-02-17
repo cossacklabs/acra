@@ -40,6 +40,10 @@ const (
 )
 
 func NewFilesystemKeyStore(directory string) (*FilesystemKeyStore, error) {
+	directory, err := AbsPath(directory)
+	if err != nil {
+		return nil, err
+	}
 	fi, err := os.Stat(directory)
 	if nil == err && runtime.GOOS == "linux" && fi.Mode().Perm().String() != "-rwx------" {
 		log.Println("Error: key store folder has an incorrect permissions")
@@ -257,7 +261,7 @@ func (store *FilesystemKeyStore) GetPoisonKeyPair() (*keys.Keypair, error) {
 		}
 		return &keys.Keypair{Public: public, Private: private}, nil
 	} else {
-		log.Println("Generate poison key pair")
+		log.Println("Info: Generate poison key pair")
 		return store.generate_key_pair(POISON_KEY_FILENAME)
 	}
 }
