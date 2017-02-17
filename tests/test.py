@@ -75,6 +75,24 @@ def create_client_keypair(name, only_server=False, only_client=False):
     return subprocess.call(args, cwd=os.getcwd(), timeout=5)
 
 
+def wait_connection(port, count=10, sleep=0.1):
+    """try connect to 127.0.0.1:port and close connection
+    if can't then sleep on and try again (<count> times)
+    if <count> times is failed than raise Exception
+    """
+    while count:
+        try:
+            connection = socket.create_connection(('127.0.0.1', port),
+                                                  timeout=10)
+            connection.close()
+            return
+        except ConnectionRefusedError:
+            pass
+        count -= 1
+        time.sleep(sleep)
+    raise Exception("can't wait connection")
+
+
 def setUpModule():
     global zones
     # build binaries
@@ -143,7 +161,7 @@ class BaseTestCase(unittest.TestCase):
             time.sleep(0.01)
         self.fail("can't fork")
 
-    def fork_proxy(self, proxy_port: int, acra_port: int, client_id: str, commands_port: int=None, zone_mode: bool=False):
+    def fork_proxy(self, proxy_port: int, acra_port: int, client_id: str, commands_port: int=None, zone_mode: bool=False, check_connection: bool=True):
         args = [
             './acraproxy', '-acra_host=127.0.0.1', '-acra_port={}'.format(acra_port),
              '-client_id={}'.format(client_id), '-port={}'.format(proxy_port),
@@ -155,7 +173,14 @@ class BaseTestCase(unittest.TestCase):
             args.append('-v=true')
         if zone_mode:
             args.append('--zonemode=true')
-        return self.fork(lambda: subprocess.Popen(args))
+        process = self.fork(lambda: subprocess.Popen(args))
+        if check_connection:
+            try:
+                wait_connection(proxy_port)
+            except:
+                process.kill()
+                raise
+        return process
 
     def _fork_acra(self, acra_kwargs: dict, popen_kwargs: dict):
         args = {
@@ -174,8 +199,15 @@ class BaseTestCase(unittest.TestCase):
         if not popen_kwargs:
             popen_kwargs = {}
         cli_args = ['--{}={}'.format(k, v) for k, v in args.items()]
-        return self.fork(lambda: subprocess.Popen(['./acraserver'] + cli_args,
-                                                  **popen_kwargs))
+
+        process = self.fork(lambda: subprocess.Popen(['./acraserver'] + cli_args,
+                                                     **popen_kwargs))
+        try:
+            wait_connection(self.ACRA_PORT)
+        except:
+            process.kill()
+            raise
+        return process
 
     def fork_acra(self, popen_kwargs: dict=None, **acra_kwargs: dict):
         return self._fork_acra(acra_kwargs, popen_kwargs)
@@ -244,6 +276,8 @@ class BaseTestCase(unittest.TestCase):
         return random.randint(1, 100000)
 
     def log(self, acra_key_name, data, expected):
+        """this function for printing data which used in test and for
+        reproducing error with them if any error detected"""
         with open('.acrakeys/{}_zone'.format(zones[0]['id']), 'rb') as f:
             zone_private = f.read()
         with open('.acrakeys/{}'.format(acra_key_name), 'rb') as f:
@@ -592,7 +626,8 @@ class TestKeyNonExistence(BaseTestCase):
         self.delete_key(keyname)
         try:
             self.proxy = self.fork_proxy(
-                self.PROXY_PORT_1, self.ACRA_PORT, keyname)
+                self.PROXY_PORT_1, self.ACRA_PORT, keyname,
+                check_connection=False)
             # time for start up proxy and validation file existence.
             time.sleep(self.PROXY_STARTUP_DELAY)
             self.assertEqual(self.proxy.poll(), 1)
@@ -630,7 +665,8 @@ class TestKeyNonExistence(BaseTestCase):
         self.delete_key(keyname + '_server.pub')
         try:
             self.proxy = self.fork_proxy(
-                self.PROXY_PORT_1, self.ACRA_PORT, keyname)
+                self.PROXY_PORT_1, self.ACRA_PORT, keyname,
+                check_connection=False)
             # time for start up proxy and validation file existence.
             time.sleep(self.PROXY_STARTUP_DELAY)
             self.assertEqual(self.proxy.poll(), 1)

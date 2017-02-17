@@ -296,9 +296,7 @@ func PgDecryptStream(decryptor base.Decryptor, rr *bufio.Reader, writer *bufio.W
 								break
 							}
 							log.Println("Debug: found begin tag")
-							// convert to absolute index
-							current_index += begin_tag_index
-							block_reader := bytes.NewReader(row.output[current_index+tag_length:])
+							block_reader := bytes.NewReader(row.output[current_index+begin_tag_index+tag_length:])
 							poisoned, err := decryptor.CheckPoisonRecord(block_reader)
 							if err != nil || poisoned {
 								if poisoned {
@@ -308,7 +306,8 @@ func PgDecryptStream(decryptor base.Decryptor, rr *bufio.Reader, writer *bufio.W
 								}
 								return
 							}
-							current_index += tag_length
+							// try to find after founded tag with offset
+							current_index += begin_tag_index + 1
 						}
 					}
 					if decryptor.IsWithZone() && !decryptor.IsMatchedZone() {
