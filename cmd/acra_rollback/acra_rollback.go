@@ -147,6 +147,9 @@ func main() {
 	output_file := flag.String("output_file", "decrypted.sql", "File for store inserts queries")
 	execute := flag.Bool("execute", false, "Execute inserts")
 	escape_format := flag.Bool("escape", false, "Escape bytea format")
+
+	cmd.SetLogLevel(cmd.LOG_VERBOSE)
+
 	err := cmd.Parse(DEFAULT_CONFIG_PATH)
 	if err != nil {
 		fmt.Printf("Error: %v\n", utils.ErrorMessage("Can't parse args", err))

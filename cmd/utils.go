@@ -1,12 +1,14 @@
 package cmd
 
 import (
+	"bytes"
 	flag_ "flag"
 	"fmt"
 	"github.com/cossacklabs/acra/utils"
 	"github.com/go-yaml/yaml"
 	"io"
 	"io/ioutil"
+	"log"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -15,6 +17,12 @@ import (
 var (
 	config     = flag_.String("config", "", "path to config")
 	dumpconfig = flag_.Bool("dumpconfig", false, "dump config")
+)
+
+const (
+	LOG_DEBUG = iota
+	LOG_VERBOSE
+	LOG_DISCARD
 )
 
 func init() {
@@ -185,4 +193,32 @@ func Parse(config_path string) error {
 		os.Exit(0)
 	}
 	return nil
+}
+
+var DEBUG_PREFIX = []byte("Debug: ")
+
+type NotDebugWriter struct {
+	writer io.Writer
+}
+
+func NewNotDebugWriter(writer io.Writer) *NotDebugWriter {
+	return &NotDebugWriter{writer: writer}
+}
+func (wr *NotDebugWriter) Write(p []byte) (int, error) {
+	if bytes.Contains(p, DEBUG_PREFIX) {
+		return 0, nil
+	}
+	return wr.writer.Write(p)
+}
+
+func SetLogLevel(level int) {
+	if level == LOG_DEBUG {
+		log.SetOutput(os.Stdout)
+	} else if level == LOG_VERBOSE {
+		log.SetOutput(NewNotDebugWriter(os.Stdout))
+	} else if level == LOG_DISCARD {
+		log.SetOutput(ioutil.Discard)
+	} else {
+		panic(fmt.Sprintf("Incorrect log level - %v", level))
+	}
 }

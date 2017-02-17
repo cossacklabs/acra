@@ -18,7 +18,6 @@ import (
 	"flag"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"log"
 	"net"
 	"os"
@@ -295,9 +294,9 @@ func main() {
 	}
 
 	if *verbose {
-		log.SetOutput(os.Stdout)
+		cmd.SetLogLevel(cmd.LOG_VERBOSE)
 	} else {
-		log.SetOutput(ioutil.Discard)
+		cmd.SetLogLevel(cmd.LOG_DISCARD)
 	}
 	if runtime.GOOS != "linux" {
 		*disable_user_check = true

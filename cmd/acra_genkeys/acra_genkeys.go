@@ -33,6 +33,8 @@ func main() {
 	data_keys := flag.Bool("storage", false, "Create keypair for data encryption/decryption")
 	output_dir := flag.String("output", keystore.DEFAULT_KEY_DIR_SHORT, "Folder where will be saved keys")
 
+	cmd.SetLogLevel(cmd.LOG_VERBOSE)
+
 	err := cmd.Parse(DEFAULT_CONFIG_PATH)
 	if err != nil {
 		fmt.Printf("Error: %v\n", utils.ErrorMessage("Can't parse args", err))
