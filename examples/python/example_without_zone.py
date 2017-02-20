@@ -84,4 +84,4 @@ if __name__ == '__main__':
         string_data = ''.join(choice(string.ascii_letters) for _ in range(randint(10, 20)))
         data = args.data or string_data
         print('insert data: {}'.format(data))
-        proxy_connection.execute(test.insert(), data=data, raw_data=data)
+        proxy_connection.execute(test.insert(), data=data.encode('utf-8'), raw_data=data)
