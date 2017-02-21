@@ -46,8 +46,8 @@ type ZoneData struct {
 func main() {
 	rand.Seed(time.Now().UnixNano())
 	//some_data := []byte("test data for acra from go")
-	some_data := RandString(20)
-	fmt.Printf("Generated test data: %v\n", string(some_data))
+	someData := RandString(20)
+	fmt.Printf("Generated test data: %v\n", string(someData))
 
 	//get new zone over http
 	resp, err := http.Get("http://127.0.0.1:9191/getNewZone")
@@ -59,19 +59,19 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
-	zone_data := []byte(body)
+	zoneData := []byte(body)
 	//geting zone done
 	//	zone_data := []byte(`{"id":"ZXCxJAAWWbelaVCEcNp","public_key":"VUVDMgAAAC3zSak+Ah5wtcenUuD9PorpT8nmlecK2fG78nWsXZ9NEdotnH1B"}`)
 	//var parsed_zone_data map[string][]byte
-	var parsed_zone_data ZoneData
-	err = json.Unmarshal(zone_data, &parsed_zone_data)
+	var parsedZoneData ZoneData
+	err = json.Unmarshal(zoneData, &parsedZoneData)
 	if err != nil {
 		panic(err)
 	}
-	zone_public := parsed_zone_data.Public_key
-	zone_id := []byte(parsed_zone_data.Id)
+	zonePublic := parsedZoneData.Public_key
+	zoneId := []byte(parsedZoneData.Id)
 
-	acrastruct, err := acrawriter.CreateAcrastruct(some_data, &keys.PublicKey{Value: zone_public}, zone_id)
+	acrastruct, err := acrawriter.CreateAcrastruct(someData, &keys.PublicKey{Value: zonePublic}, zoneId)
 	if err != nil {
 		panic(err)
 	}
@@ -91,7 +91,7 @@ func main() {
 	}
 
 	fmt.Println("Insert test data to table")
-	_, err = db.Exec("insert into test2 (id, zone, data, raw_data) values ($1, $2, $3, $4);", rand.Int31(), zone_id, acrastruct, string(some_data))
+	_, err = db.Exec("insert into test2 (id, zone, data, raw_data) values ($1, $2, $3, $4);", rand.Int31(), zoneId, acrastruct, string(someData))
 	if err != nil {
 		panic(err)
 	}
@@ -103,16 +103,16 @@ func main() {
 		log.Fatal(err)
 	}
 	var zone, data []byte
-	var raw_data string
+	var rawData string
 	fmt.Println("zone, data - raw_data")
 	for rows.Next() {
-		err := rows.Scan(&zone, &data, &raw_data)
+		err := rows.Scan(&zone, &data, &rawData)
 		if err != nil {
 			fmt.Println("ERROR")
 			fmt.Println(err)
 			return
 		}
-		fmt.Printf("zone: %v\ndata: %v\nraw_data: %v\n\n", string(zone), string(data), string(raw_data))
+		fmt.Printf("zone: %v\ndata: %v\nraw_data: %v\n\n", string(zone), string(data), string(rawData))
 	}
 	fmt.Println("Finish")
 }

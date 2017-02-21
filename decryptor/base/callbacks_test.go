@@ -26,13 +26,13 @@ func TestHasCallbacks(t *testing.T) {
 
 func TestCallCallbacks(t *testing.T) {
 	storage := base.NewPoisonCallbackStorage()
-	call_count := 0
-	storage.AddCallback(&TestCallback{CallCount: &call_count})
-	storage.AddCallback(&TestCallback{CallCount: &call_count})
+	callCount := 0
+	storage.AddCallback(&TestCallback{CallCount: &callCount})
+	storage.AddCallback(&TestCallback{CallCount: &callCount})
 	if err := storage.Call(); err != nil {
 		t.Fatal("unexpected error")
 	}
-	if call_count != 2 {
+	if callCount != 2 {
 		t.Fatal("incorrect call count")
 	}
 }

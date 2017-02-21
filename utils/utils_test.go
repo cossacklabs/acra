@@ -20,17 +20,17 @@ import (
 )
 
 func TestFileExists(t *testing.T) {
-	test_path := "/tmp/testfilepath"
-	exists, err := utils.FileExists(test_path)
+	testPath := "/tmp/testfilepath"
+	exists, err := utils.FileExists(testPath)
 	if exists || err != nil {
 		t.Fatalf("File exists or returned any error. err = %v\n", err)
 	}
-	_, err = os.Create(test_path)
-	defer os.Remove(test_path)
+	_, err = os.Create(testPath)
+	defer os.Remove(testPath)
 	if err != nil {
-		t.Fatalf("Can't create test temporary file %v. err - %v\n", test_path, err)
+		t.Fatalf("Can't create test temporary file %v. err - %v\n", testPath, err)
 	}
-	exists, err = utils.FileExists(test_path)
+	exists, err = utils.FileExists(testPath)
 	if !exists || err != nil {
 		t.Fatalf("File not exists or returned any error. err = %v\n", err)
 	}
@@ -39,73 +39,73 @@ func TestFileExists(t *testing.T) {
 func TestFindTag(t *testing.T) {
 	symbol := byte('1')
 	count := 4
-	test_data := []byte("11110000")
-	if utils.FindTag(symbol, count, test_data) != 0 {
+	testData := []byte("11110000")
+	if utils.FindTag(symbol, count, testData) != 0 {
 		t.Fatal("Incorrectly found tag")
 	}
 
-	test_data = []byte("01111000")
-	if utils.FindTag(symbol, count, test_data) != 1 {
+	testData = []byte("01111000")
+	if utils.FindTag(symbol, count, testData) != 1 {
 		t.Fatal("Incorrectly found tag")
 	}
 
-	test_data = []byte("00111100")
-	if utils.FindTag(symbol, count, test_data) != 2 {
+	testData = []byte("00111100")
+	if utils.FindTag(symbol, count, testData) != 2 {
 		t.Fatal("Incorrectly found tag")
 	}
 
-	test_data = []byte("00011110")
-	if utils.FindTag(symbol, count, test_data) != 3 {
+	testData = []byte("00011110")
+	if utils.FindTag(symbol, count, testData) != 3 {
 		t.Fatal("Incorrectly found tag")
 	}
 
-	test_data = []byte("00001111")
-	if utils.FindTag(symbol, count, test_data) != 4 {
+	testData = []byte("00001111")
+	if utils.FindTag(symbol, count, testData) != 4 {
 		t.Fatal("Incorrectly found tag")
 	}
 
-	test_data = []byte("10101111")
-	if utils.FindTag(symbol, count, test_data) != 4 {
+	testData = []byte("10101111")
+	if utils.FindTag(symbol, count, testData) != 4 {
 		t.Fatal("Incorrectly found tag")
 	}
 
-	test_data = []byte("01101111")
-	if utils.FindTag(symbol, count, test_data) != 4 {
+	testData = []byte("01101111")
+	if utils.FindTag(symbol, count, testData) != 4 {
 		t.Fatal("Incorrectly found tag")
 	}
 
-	test_data = []byte("11101111")
-	if utils.FindTag(symbol, count, test_data) != 4 {
+	testData = []byte("11101111")
+	if utils.FindTag(symbol, count, testData) != 4 {
 		t.Fatal("Incorrectly found tag")
 	}
 
-	test_data = []byte("11101101")
-	if utils.FindTag(symbol, count, test_data) != utils.NOT_FOUND {
+	testData = []byte("11101101")
+	if utils.FindTag(symbol, count, testData) != utils.NOT_FOUND {
 		t.Fatal("Incorrectly found tag")
 	}
 
-	test_data = []byte("111")
-	if utils.FindTag(symbol, count, test_data) != utils.NOT_FOUND {
+	testData = []byte("111")
+	if utils.FindTag(symbol, count, testData) != utils.NOT_FOUND {
 		t.Fatal("Incorrectly found tag")
 	}
-	test_data = []byte{}
-	if utils.FindTag(symbol, count, test_data) != utils.NOT_FOUND {
+	testData = []byte{}
+	if utils.FindTag(symbol, count, testData) != utils.NOT_FOUND {
 		t.Fatal("Incorrectly found tag")
 	}
-	test_data = []byte("1111")
-	if utils.FindTag(symbol, count, test_data) != 0 {
-		t.Fatal("Incorrectly found tag")
-	}
-
-	count = 8
-	test_data = []byte("111111110000000000")
-	if utils.FindTag(symbol, count, test_data) != 0 {
+	testData = []byte("1111")
+	if utils.FindTag(symbol, count, testData) != 0 {
 		t.Fatal("Incorrectly found tag")
 	}
 
 	count = 8
-	test_data = []byte("11111110000000000")
-	if utils.FindTag(symbol, count, test_data) != utils.NOT_FOUND {
+	testData = []byte("111111110000000000")
+	if utils.FindTag(symbol, count, testData) != 0 {
+		t.Fatal("Incorrectly found tag")
+	}
+
+	count = 8
+	testData = []byte("11111110000000000")
+	if utils.FindTag(symbol, count, testData) != utils.NOT_FOUND {
 		t.Fatal("Incorrectly found tag")
 	}
 }

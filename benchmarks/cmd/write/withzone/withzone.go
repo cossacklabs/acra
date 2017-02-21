@@ -26,10 +26,10 @@ func main() {
 	common.DropCreateWithZone(db)
 
 	fmt.Println("Start benchmark")
-	start_time := time.Now()
+	startTime := time.Now()
 	write.GenerateAcrastructWithZone(db)
-	end_time := time.Now()
-	diff := end_time.Sub(start_time)
+	endTime := time.Now()
+	diff := endTime.Sub(startTime)
 	fmt.Printf("Took %v sec\n", diff.Seconds())
 	db.Close()
 }

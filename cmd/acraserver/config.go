@@ -23,103 +23,103 @@ const (
 )
 
 type Config struct {
-	proxy_commands_port int
-	bytea_format        int8
-	db_port             int
-	proxy_port          int
-	db_host             string
-	proxy_host          string
-	keys_dir            string
-	script_on_poison    string
-	stop_on_poison      bool
-	with_zone           bool
-	whole_match         bool
-	server_id           []byte
+	proxyCommandsPort int
+	byteaFormat       int8
+	dbPort            int
+	proxyPort         int
+	dbHost            string
+	proxyHost         string
+	keysDir           string
+	scriptOnPoison    string
+	stopOnPoison      bool
+	withZone          bool
+	wholeMatch        bool
+	serverId          []byte
 }
 
 func NewConfig() *Config {
-	return &Config{with_zone: false, stop_on_poison: false, whole_match: true}
+	return &Config{withZone: false, stopOnPoison: false, wholeMatch: true}
 }
-func (config *Config) SetScriptOnPoison(script_path string) {
-	config.script_on_poison = script_path
+func (config *Config) SetScriptOnPoison(scriptPath string) {
+	config.scriptOnPoison = scriptPath
 }
 func (config *Config) GetScriptOnPoison() string {
-	return config.script_on_poison
+	return config.scriptOnPoison
 }
 func (config *Config) SetStopOnPoison(stop bool) {
-	config.stop_on_poison = stop
+	config.stopOnPoison = stop
 }
 func (config *Config) GetStopOnPoison() bool {
-	return config.stop_on_poison
+	return config.stopOnPoison
 }
 func (config *Config) GetWithZone() bool {
-	return config.with_zone
+	return config.withZone
 }
 func (config *Config) SetWithZone(wz bool) {
-	config.with_zone = wz
+	config.withZone = wz
 }
 func (config *Config) GetProxyHost() string {
-	return config.proxy_host
+	return config.proxyHost
 }
 func (config *Config) SetProxyHost(host string) error {
-	config.proxy_host = host
+	config.proxyHost = host
 	return nil
 }
 func (config *Config) GetProxyPort() int {
-	return config.proxy_port
+	return config.proxyPort
 }
 func (config *Config) GetProxyCommandsPort() int {
-	return config.proxy_commands_port
+	return config.proxyCommandsPort
 }
 func (config *Config) SetProxyPort(port int) error {
-	config.proxy_port = port
+	config.proxyPort = port
 	return nil
 }
 func (config *Config) SetProxyCommandsPort(port int) error {
-	config.proxy_commands_port = port
+	config.proxyCommandsPort = port
 	return nil
 }
 func (config *Config) GetDBHost() string {
-	return config.db_host
+	return config.dbHost
 }
 func (config *Config) SetDBHost(host string) error {
-	config.db_host = host
+	config.dbHost = host
 	return nil
 }
 func (config *Config) GetDBPort() int {
-	return config.db_port
+	return config.dbPort
 }
 func (config *Config) SetDBPort(port int) error {
-	config.db_port = port
+	config.dbPort = port
 	return nil
 }
 func (config *Config) SetByteaFormat(format int8) error {
 	if format != HEX_BYTEA_FORMAT && format != ESCAPE_BYTEA_FORMAT {
 		return errors.New("Incorrect bytea format")
 	}
-	config.bytea_format = format
+	config.byteaFormat = format
 	return nil
 }
 func (config *Config) GetByteaFormat() int8 {
-	return config.bytea_format
+	return config.byteaFormat
 }
 func (config *Config) GetKeysDir() string {
-	return config.keys_dir
+	return config.keysDir
 }
-func (config *Config) SetKeysDir(keys_dir string) error {
-	config.keys_dir = keys_dir
+func (config *Config) SetKeysDir(keysDir string) error {
+	config.keysDir = keysDir
 	return nil
 }
 func (config *Config) GetServerId() []byte {
-	return config.server_id
+	return config.serverId
 }
-func (config *Config) SetServerId(server_id []byte) error {
-	config.server_id = server_id
+func (config *Config) SetServerId(serverId []byte) error {
+	config.serverId = serverId
 	return nil
 }
 func (config *Config) GetWholeMatch() bool {
-	return config.whole_match
+	return config.wholeMatch
 }
 func (config *Config) SetWholeMatch(value bool) {
-	config.whole_match = value
+	config.wholeMatch = value
 }

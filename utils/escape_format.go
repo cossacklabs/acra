@@ -21,7 +21,6 @@ const (
 func IsPrintableEscapeChar(c byte) bool {
 	if c >= 32 && c <= 126 {
 		return true
-	} else {
-		return false
 	}
+	return false
 }

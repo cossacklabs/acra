@@ -26,14 +26,14 @@ func main() {
 	common.DropCreateWithoutZone(db)
 
 	write.CheckOneKey()
-	public_key := write.GetPublicOneKey()
+	publicKey := write.GetPublicOneKey()
 
 	fmt.Println("Start benchmark")
-	start_time := time.Now()
-	write.GenerateAcrastructRowsOneKey(public_key, db)
-	end_time := time.Now()
+	startTime := time.Now()
+	write.GenerateAcrastructRowsOneKey(publicKey, db)
+	endTime := time.Now()
 
-	diff := end_time.Sub(start_time)
+	diff := endTime.Sub(startTime)
 	fmt.Printf("Took %v sec\n", diff.Seconds())
 	db.Close()
 }

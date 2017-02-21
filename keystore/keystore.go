@@ -14,7 +14,7 @@
 package keystore
 
 import (
-	. "github.com/cossacklabs/acra/utils"
+	"github.com/cossacklabs/acra/utils"
 	"github.com/cossacklabs/themis/gothemis/keys"
 )
 
@@ -42,5 +42,5 @@ type KeyStore interface {
 }
 
 func GetDefaultKeyDir() (string, error) {
-	return AbsPath(DEFAULT_KEY_DIR_SHORT)
+	return utils.AbsPath(DEFAULT_KEY_DIR_SHORT)
 }

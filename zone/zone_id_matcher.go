@@ -22,113 +22,111 @@ type KeyChecker interface {
 }
 
 type ZoneIdMatcher struct {
-	matched      bool
-	matchers     *list.List
-	zone_id      []byte
-	matcher_pool *MatcherPool
-	keychecker   KeyChecker
+	matched     bool
+	matchers    *list.List
+	zoneId      []byte
+	matcherPool *MatcherPool
+	keychecker  KeyChecker
 }
 
-func NewZoneMatcher(matcher_pool *MatcherPool, keychecker KeyChecker) *ZoneIdMatcher {
+func NewZoneMatcher(matcherPool *MatcherPool, keychecker KeyChecker) *ZoneIdMatcher {
 	matcher := &ZoneIdMatcher{
-		matchers:     list.New(),
-		matcher_pool: matcher_pool,
-		matched:      false,
-		keychecker:   keychecker,
+		matchers:    list.New(),
+		matcherPool: matcherPool,
+		matched:     false,
+		keychecker:  keychecker,
 	}
 	matcher.addEmptyMatcher()
 	return matcher
 }
 
-func (zone_matcher *ZoneIdMatcher) IsMatched() bool {
-	return zone_matcher.matched
+func (zoneMatcher *ZoneIdMatcher) IsMatched() bool {
+	return zoneMatcher.matched
 }
 
-func (zone_matcher *ZoneIdMatcher) Reset() {
-	zone_matcher.matched = false
-	zone_matcher.clearMatchers()
+func (zoneMatcher *ZoneIdMatcher) Reset() {
+	zoneMatcher.matched = false
+	zoneMatcher.clearMatchers()
 }
 
-func (zone_matcher *ZoneIdMatcher) GetZoneId() []byte {
-	if zone_matcher.IsMatched() {
-		return zone_matcher.zone_id
-	} else {
-		return []byte{}
+func (zoneMatcher *ZoneIdMatcher) GetZoneId() []byte {
+	if zoneMatcher.IsMatched() {
+		return zoneMatcher.zoneId
 	}
-
+	return []byte{}
 }
 
-func (zone_matcher *ZoneIdMatcher) SetMatched(id []byte) {
-	zone_matcher.zone_id = id
-	zone_matcher.matched = true
+func (zoneMatcher *ZoneIdMatcher) SetMatched(id []byte) {
+	zoneMatcher.zoneId = id
+	zoneMatcher.matched = true
 }
 
-func (zone_matcher *ZoneIdMatcher) Match(c byte) bool {
-	current_element := zone_matcher.matchers.Front()
-	var to_remove *list.Element = nil
+func (zoneMatcher *ZoneIdMatcher) Match(c byte) bool {
+	currentElement := zoneMatcher.matchers.Front()
+	var toRemove *list.Element
 	var matcher Matcher
-	is_matched := false
+	isMatched := false
 	for {
-		matcher = current_element.Value.(Matcher)
+		matcher = currentElement.Value.(Matcher)
 		if matcher.Match(c) {
 			if matcher.IsMatched() {
-				if zone_matcher.keychecker.HasZonePrivateKey(matcher.GetZoneId()) {
-					zone_matcher.zone_id = matcher.GetZoneId()
-					zone_matcher.matched = true
-					is_matched = true
+				if zoneMatcher.keychecker.HasZonePrivateKey(matcher.GetZoneId()) {
+					zoneMatcher.zoneId = matcher.GetZoneId()
+					zoneMatcher.matched = true
+					isMatched = true
 				}
-				to_remove = current_element
+				toRemove = currentElement
 			} else {
-				is_matched = true
+				isMatched = true
 			}
 		} else {
 			// if no match and it's not last matcher, delete him
-			if current_element != zone_matcher.matchers.Back() {
-				to_remove = current_element
+			if currentElement != zoneMatcher.matchers.Back() {
+				toRemove = currentElement
 			}
 		}
 		// if last matcher (previously was empty) has match, add empty matcher and quit
-		if current_element == zone_matcher.matchers.Back() && matcher.HasAnyMatch() {
-			zone_matcher.addEmptyMatcher()
-			if to_remove != nil {
-				zone_matcher.remove(to_remove)
+		if currentElement == zoneMatcher.matchers.Back() && matcher.HasAnyMatch() {
+			zoneMatcher.addEmptyMatcher()
+			if toRemove != nil {
+				zoneMatcher.remove(toRemove)
 			}
 			break
 		}
 
-		current_element = current_element.Next()
-		if to_remove != nil {
-			zone_matcher.remove(to_remove)
-			to_remove = nil
+		currentElement = currentElement.Next()
+		if toRemove != nil {
+			zoneMatcher.remove(toRemove)
+			toRemove = nil
 		}
-		if current_element == nil {
+		if currentElement == nil {
 			break
 		}
 	}
-	return is_matched
+	return isMatched
 }
 
-func (zone_matcher *ZoneIdMatcher) remove(element *list.Element) {
-	zone_matcher.matchers.Remove(element)
-	zone_matcher.matcher_pool.Release(element.Value.(Matcher))
+func (zoneMatcher *ZoneIdMatcher) remove(element *list.Element) {
+	zoneMatcher.matchers.Remove(element)
+	zoneMatcher.matcherPool.Release(element.Value.(Matcher))
 }
 
-func (zone_matcher *ZoneIdMatcher) clearMatchers() {
+func (zoneMatcher *ZoneIdMatcher) clearMatchers() {
 	/* delete all matcher except the last that should be emptyMatcher */
 	var previous *list.Element
-	element := zone_matcher.matchers.Front()
+	element := zoneMatcher.matchers.Front()
 	for {
 		if element.Next() != nil {
 			previous = element
 			element = element.Next()
-			zone_matcher.remove(previous)
+			zoneMatcher.remove(previous)
 		} else {
 			return
 		}
 	}
 }
 
-func (zone_matcher *ZoneIdMatcher) addEmptyMatcher() {
-	matcher := zone_matcher.matcher_pool.Acquire()
-	zone_matcher.matchers.PushBack(matcher)
+func (zoneMatcher *ZoneIdMatcher) addEmptyMatcher() {
+	matcher := zoneMatcher.matcherPool.Acquire()
+	zoneMatcher.matchers.PushBack(matcher)
 }

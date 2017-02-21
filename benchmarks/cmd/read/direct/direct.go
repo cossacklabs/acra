@@ -31,7 +31,7 @@ func main() {
 		write.GenerateDataRows(db)
 	}
 	fmt.Println("Start benchmark")
-	start_time := time.Now()
+	startTime := time.Now()
 	for i := 0; i < config.REQUEST_COUNT; i++ {
 		id := rand.Intn(config.ROW_COUNT)
 		rows, err := db.Query("SELECT id, data FROM test_raw WHERE id=$1;", &id)
@@ -40,9 +40,9 @@ func main() {
 		}
 		rows.Close()
 	}
-	end_time := time.Now()
+	endTime := time.Now()
 
-	diff := end_time.Sub(start_time)
+	diff := endTime.Sub(startTime)
 	fmt.Printf("Took %v sec\n", diff.Seconds())
 	db.Close()
 }

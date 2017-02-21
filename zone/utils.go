@@ -33,13 +33,13 @@ func GenerateZoneId() []byte {
 	return append(ZONE_ID_BEGIN, b...)
 }
 
-func ZoneDataToJson(id []byte, public_key *keys.PublicKey) ([]byte, error) {
+func ZoneDataToJson(id []byte, publicKey *keys.PublicKey) ([]byte, error) {
 	response := make(map[string]string)
 	response["id"] = string(id)
-	response["public_key"] = base64.StdEncoding.EncodeToString(public_key.Value)
-	json_output, err := json.Marshal(response)
+	response["public_key"] = base64.StdEncoding.EncodeToString(publicKey.Value)
+	jsonOutput, err := json.Marshal(response)
 	if err != nil {
 		return nil, err
 	}
-	return json_output, nil
+	return jsonOutput, nil
 }

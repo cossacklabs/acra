@@ -16,7 +16,7 @@ package postgresql
 import (
 	"bytes"
 	"encoding/binary"
-	. "github.com/cossacklabs/acra/utils"
+	"github.com/cossacklabs/acra/utils"
 	"io"
 	"log"
 	"strconv"
@@ -38,14 +38,14 @@ var ESCAPE_ZONE_ID_BLOCK_LENGTH = zone.ZONE_ID_BLOCK_LENGTH
 func encodeToOctal(from, to []byte) {
 	to = to[:0]
 	for _, c := range from {
-		if IsPrintableEscapeChar(c) {
-			if c == SLASH_CHAR {
-				to = append(to, []byte{SLASH_CHAR, SLASH_CHAR}...)
+		if utils.IsPrintableEscapeChar(c) {
+			if c == utils.SLASH_CHAR {
+				to = append(to, []byte{utils.SLASH_CHAR, utils.SLASH_CHAR}...)
 			} else {
 				to = append(to, c)
 			}
 		} else {
-			to = append(to, SLASH_CHAR)
+			to = append(to, utils.SLASH_CHAR)
 			octal := strconv.FormatInt(int64(c), 8)
 			switch len(octal) {
 			case 3:
@@ -62,210 +62,208 @@ func encodeToOctal(from, to []byte) {
 
 func EncodeToOctal(from []byte) []byte {
 	// count output size
-	output_length := 0
+	outputLength := 0
 	for _, c := range from {
-		if IsPrintableEscapeChar(c) {
-			if c == SLASH_CHAR {
-				output_length += 2
+		if utils.IsPrintableEscapeChar(c) {
+			if c == utils.SLASH_CHAR {
+				outputLength += 2
 			} else {
-				output_length++
+				outputLength++
 			}
 		} else {
-			output_length += 4
+			outputLength += 4
 		}
 	}
-	buffer := make([]byte, output_length)
+	buffer := make([]byte, outputLength)
 	encodeToOctal(from, buffer)
 	return buffer
 }
 
 type PgEscapeDecryptor struct {
-	current_index    uint8
-	output_size      int
-	is_with_zone     bool
-	poison_key       []byte
-	callback_storage *base.PoisonCallbackStorage
+	currentIndex    uint8
+	outputSize      int
+	isWithZone      bool
+	poisonKey       []byte
+	callbackStorage *base.PoisonCallbackStorage
 	// max size can be 4 characters for octal representation per byte
-	oct_key_block_buffer     [base.KEY_BLOCK_LENGTH * 4]byte
-	decoded_key_block_buffer []byte
+	octKeyBlockBuffer     [base.KEY_BLOCK_LENGTH * 4]byte
+	decodedKeyBlockBuffer []byte
 	//uint64
-	length_buf [8]byte
+	lengthBuf [8]byte
 	// 4 oct symbols (\000) ber byte
-	oct_length_buf [8 * 4]byte
-	oct_char_buf   [3]byte
-	key_store      keystore.KeyStore
-	zone_matcher   *zone.ZoneIdMatcher
+	octLengthBuf [8 * 4]byte
+	octCharBuf   [3]byte
+	keyStore     keystore.KeyStore
+	zoneMatcher  *zone.ZoneIdMatcher
 }
 
 func NewPgEscapeDecryptor() *PgEscapeDecryptor {
 	return &PgEscapeDecryptor{
-		current_index:            0,
-		is_with_zone:             false,
-		output_size:              0,
-		decoded_key_block_buffer: make([]byte, base.KEY_BLOCK_LENGTH),
+		currentIndex:          0,
+		isWithZone:            false,
+		outputSize:            0,
+		decodedKeyBlockBuffer: make([]byte, base.KEY_BLOCK_LENGTH),
 	}
 }
 
 func (decryptor *PgEscapeDecryptor) MatchBeginTag(char byte) bool {
-	if char == ESCAPE_TAG_BEGIN[decryptor.current_index] {
-		decryptor.current_index++
-		decryptor.output_size++
+	if char == ESCAPE_TAG_BEGIN[decryptor.currentIndex] {
+		decryptor.currentIndex++
+		decryptor.outputSize++
 		return true
-	} else {
-		return false
 	}
-
+	return false
 }
 func (decryptor *PgEscapeDecryptor) IsMatched() bool {
-	return int(decryptor.current_index) == len(ESCAPE_TAG_BEGIN)
+	return int(decryptor.currentIndex) == len(ESCAPE_TAG_BEGIN)
 }
 func (decryptor *PgEscapeDecryptor) Reset() {
-	decryptor.current_index = 0
-	decryptor.output_size = 0
+	decryptor.currentIndex = 0
+	decryptor.outputSize = 0
 }
 func (decryptor *PgEscapeDecryptor) GetMatched() []byte {
-	return ESCAPE_TAG_BEGIN[:decryptor.current_index]
+	return ESCAPE_TAG_BEGIN[:decryptor.currentIndex]
 }
 
-func (decryptor *PgEscapeDecryptor) readOctalData(data, oct_data []byte, reader io.Reader) (int, int, error) {
-	data_index := 0
-	oct_data_index := 0
-	var char_buf [1]byte
+func (decryptor *PgEscapeDecryptor) readOctalData(data, octData []byte, reader io.Reader) (int, int, error) {
+	dataIndex := 0
+	octDataIndex := 0
+	var charBuf [1]byte
 	for {
-		n, err := reader.Read(char_buf[:])
+		n, err := reader.Read(charBuf[:])
 		if err != nil {
-			return data_index, oct_data_index, err
+			return dataIndex, octDataIndex, err
 		}
 		if n != 1 {
 			log.Println("Debug: readOctalData read 0 bytes")
-			return data_index, oct_data_index, base.ErrFakeAcraStruct
+			return dataIndex, octDataIndex, base.ErrFakeAcraStruct
 		}
-		oct_data[oct_data_index] = char_buf[0]
-		oct_data_index++
-		if !IsPrintableEscapeChar(char_buf[0]) {
-			return data_index, oct_data_index, base.ErrFakeAcraStruct
+		octData[octDataIndex] = charBuf[0]
+		octDataIndex++
+		if !utils.IsPrintableEscapeChar(charBuf[0]) {
+			return dataIndex, octDataIndex, base.ErrFakeAcraStruct
 		}
 
 		// if slash than next char must be slash too
-		if char_buf[0] == SLASH_CHAR {
+		if charBuf[0] == utils.SLASH_CHAR {
 			// read next char
-			_, err := reader.Read(char_buf[:])
+			_, err := reader.Read(charBuf[:])
 			if err != nil {
-				return data_index, oct_data_index, err
+				return dataIndex, octDataIndex, err
 			}
-			oct_data[oct_data_index] = char_buf[0]
-			oct_data_index++
-			if char_buf[0] == SLASH_CHAR {
+			octData[octDataIndex] = charBuf[0]
+			octDataIndex++
+			if charBuf[0] == utils.SLASH_CHAR {
 				// just write slash char
-				data[data_index] = char_buf[0]
-				data_index++
+				data[dataIndex] = charBuf[0]
+				dataIndex++
 			} else {
-				decryptor.oct_char_buf[0] = char_buf[0]
+				decryptor.octCharBuf[0] = charBuf[0]
 				// read next 3 oct bytes
-				n, err := io.ReadFull(reader, decryptor.oct_char_buf[1:])
+				n, err := io.ReadFull(reader, decryptor.octCharBuf[1:])
 				if err != nil {
-					return data_index, oct_data_index, err
+					return dataIndex, octDataIndex, err
 				}
-				if n != len(decryptor.oct_char_buf)-1 {
+				if n != len(decryptor.octCharBuf)-1 {
 					if n != 0 {
-						copy(oct_data[oct_data_index:oct_data_index+n], decryptor.oct_char_buf[1:1+n])
-						oct_data_index += n
+						copy(octData[octDataIndex:octDataIndex+n], decryptor.octCharBuf[1:1+n])
+						octDataIndex += n
 					}
 					log.Printf("Warning: expected 2 octal symbols, but read %v\n", n)
-					return data_index, oct_data_index, base.ErrFakeAcraStruct
+					return dataIndex, octDataIndex, base.ErrFakeAcraStruct
 				}
 				// parse 3 octal symbols
-				num, err := strconv.ParseInt(string(decryptor.oct_char_buf[:]), 8, 9)
+				num, err := strconv.ParseInt(string(decryptor.octCharBuf[:]), 8, 9)
 				if err != nil {
-					return data_index, oct_data_index, base.ErrFakeAcraStruct
+					return dataIndex, octDataIndex, base.ErrFakeAcraStruct
 				}
-				data[data_index] = byte(num)
-				data_index++
+				data[dataIndex] = byte(num)
+				dataIndex++
 
-				copy(oct_data[oct_data_index:oct_data_index+len(decryptor.oct_char_buf)-1], decryptor.oct_char_buf[1:])
-				oct_data_index += 2
+				copy(octData[octDataIndex:octDataIndex+len(decryptor.octCharBuf)-1], decryptor.octCharBuf[1:])
+				octDataIndex += 2
 			}
 		} else {
 			// just write to data
-			data[data_index] = char_buf[0]
-			data_index++
+			data[dataIndex] = charBuf[0]
+			dataIndex++
 		}
-		if data_index == cap(data) {
-			return data_index, oct_data_index, nil
+		if dataIndex == cap(data) {
+			return dataIndex, octDataIndex, nil
 		}
 	}
 }
 
-func (decryptor *PgEscapeDecryptor) ReadSymmetricKey(private_key *keys.PrivateKey, reader io.Reader) ([]byte, []byte, error) {
-	data_length, oct_data_length, err := decryptor.readOctalData(decryptor.decoded_key_block_buffer, decryptor.oct_key_block_buffer[:], reader)
+func (decryptor *PgEscapeDecryptor) ReadSymmetricKey(privateKey *keys.PrivateKey, reader io.Reader) ([]byte, []byte, error) {
+	dataLength, octDataLength, err := decryptor.readOctalData(decryptor.decodedKeyBlockBuffer, decryptor.octKeyBlockBuffer[:], reader)
 	if err != nil {
-		return nil, decryptor.oct_key_block_buffer[:oct_data_length], err
+		return nil, decryptor.octKeyBlockBuffer[:octDataLength], err
 	}
-	if len(decryptor.decoded_key_block_buffer) != base.KEY_BLOCK_LENGTH || data_length != base.KEY_BLOCK_LENGTH {
-		return nil, decryptor.oct_key_block_buffer[:oct_data_length], base.ErrFakeAcraStruct
+	if len(decryptor.decodedKeyBlockBuffer) != base.KEY_BLOCK_LENGTH || dataLength != base.KEY_BLOCK_LENGTH {
+		return nil, decryptor.octKeyBlockBuffer[:octDataLength], base.ErrFakeAcraStruct
 	}
-	smessage := message.New(private_key, &keys.PublicKey{Value: decryptor.decoded_key_block_buffer[:base.PUBLIC_KEY_LENGTH]})
-	symmetric_key, err := smessage.Unwrap(decryptor.decoded_key_block_buffer[base.PUBLIC_KEY_LENGTH:])
+	smessage := message.New(privateKey, &keys.PublicKey{Value: decryptor.decodedKeyBlockBuffer[:base.PUBLIC_KEY_LENGTH]})
+	symmetricKey, err := smessage.Unwrap(decryptor.decodedKeyBlockBuffer[base.PUBLIC_KEY_LENGTH:])
 	if err != nil {
-		log.Printf("Warning: %v\n", ErrorMessage("can't unwrap symmetric key", err))
-		return nil, decryptor.oct_key_block_buffer[:oct_data_length], base.ErrFakeAcraStruct
+		log.Printf("Warning: %v\n", utils.ErrorMessage("can't unwrap symmetric key", err))
+		return nil, decryptor.octKeyBlockBuffer[:octDataLength], base.ErrFakeAcraStruct
 	}
-	decryptor.output_size += oct_data_length
-	return symmetric_key, decryptor.oct_key_block_buffer[:oct_data_length], nil
+	decryptor.outputSize += octDataLength
+	return symmetricKey, decryptor.octKeyBlockBuffer[:octDataLength], nil
 }
 
 func (decryptor *PgEscapeDecryptor) readDataLength(reader io.Reader) (uint64, []byte, error) {
 	var length uint64
 
-	len_count, oct_len_count, err := decryptor.readOctalData(decryptor.length_buf[:], decryptor.oct_length_buf[:], reader)
+	lenCount, octLenCount, err := decryptor.readOctalData(decryptor.lengthBuf[:], decryptor.octLengthBuf[:], reader)
 	if err != nil {
-		log.Printf("Warning: %v\n", ErrorMessage("can't read data length", err))
-		return 0, decryptor.oct_length_buf[:oct_len_count], err
+		log.Printf("Warning: %v\n", utils.ErrorMessage("can't read data length", err))
+		return 0, decryptor.octLengthBuf[:octLenCount], err
 	}
-	if len_count != len(decryptor.length_buf) {
-		log.Printf("Warning: incorrect length count, %v!=%v\n", len_count, len(decryptor.length_buf))
-		return 0, decryptor.oct_length_buf[:oct_len_count], base.ErrFakeAcraStruct
+	if lenCount != len(decryptor.lengthBuf) {
+		log.Printf("Warning: incorrect length count, %v!=%v\n", lenCount, len(decryptor.lengthBuf))
+		return 0, decryptor.octLengthBuf[:octLenCount], base.ErrFakeAcraStruct
 	}
-	decryptor.output_size += oct_len_count
-	binary.Read(bytes.NewBuffer(decryptor.length_buf[:]), binary.LittleEndian, &length)
-	return length, decryptor.oct_length_buf[:oct_len_count], nil
+	decryptor.outputSize += octLenCount
+	binary.Read(bytes.NewBuffer(decryptor.lengthBuf[:]), binary.LittleEndian, &length)
+	return length, decryptor.octLengthBuf[:octLenCount], nil
 }
 func (decryptor *PgEscapeDecryptor) readScellData(length uint64, reader io.Reader) ([]byte, []byte, error) {
-	hex_buf := make([]byte, int(length)*4)
+	hexBuf := make([]byte, int(length)*4)
 	buf := make([]byte, int(length))
-	n, oct_n, err := decryptor.readOctalData(buf, hex_buf, reader)
+	n, octN, err := decryptor.readOctalData(buf, hexBuf, reader)
 	if err != nil {
-		log.Printf("Warning: %v\n", ErrorMessage(fmt.Sprintf("can't read scell data with passed length=%v", length), err))
-		return nil, hex_buf[:oct_n], err
+		log.Printf("Warning: %v\n", utils.ErrorMessage(fmt.Sprintf("can't read scell data with passed length=%v", length), err))
+		return nil, hexBuf[:octN], err
 	}
 	if n != int(length) {
 		log.Printf("Warning: read incorrect length, %v!=%v\n", n, length)
-		return nil, hex_buf[:oct_n], base.ErrFakeAcraStruct
+		return nil, hexBuf[:octN], base.ErrFakeAcraStruct
 	}
-	decryptor.output_size += oct_n
-	return buf, hex_buf[:oct_n], nil
+	decryptor.outputSize += octN
+	return buf, hexBuf[:octN], nil
 }
 
 func (decryptor *PgEscapeDecryptor) getFullDataLength() int {
-	return decryptor.output_size
+	return decryptor.outputSize
 }
 
-func (decryptor *PgEscapeDecryptor) ReadData(symmetric_key, zone_id []byte, reader io.Reader) ([]byte, error) {
-	length, hex_length_buf, err := decryptor.readDataLength(reader)
+func (decryptor *PgEscapeDecryptor) ReadData(symmetricKey, zoneId []byte, reader io.Reader) ([]byte, error) {
+	length, hexLengthBuf, err := decryptor.readDataLength(reader)
 	if err != nil {
-		return hex_length_buf, err
+		return hexLengthBuf, err
 	}
-	data, oct_data, err := decryptor.readScellData(length, reader)
+	data, octData, err := decryptor.readScellData(length, reader)
 	if err != nil {
-		return append(hex_length_buf, oct_data...), err
+		return append(hexLengthBuf, octData...), err
 	}
 
-	scell := cell.New(symmetric_key, cell.CELL_MODE_SEAL)
-	decrypted, err := scell.Unprotect(data, nil, zone_id)
+	scell := cell.New(symmetricKey, cell.CELL_MODE_SEAL)
+	decrypted, err := scell.Unprotect(data, nil, zoneId)
 	// fill zero symmetric_key
-	FillSlice(byte(0), symmetric_key[:])
+	utils.FillSlice(byte(0), symmetricKey[:])
 	if err != nil {
-		return append(hex_length_buf, oct_data...), base.ErrFakeAcraStruct
+		return append(hexLengthBuf, octData...), base.ErrFakeAcraStruct
 	}
 	return EncodeToOctal(decrypted), nil
 }
