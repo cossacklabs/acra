@@ -18,49 +18,50 @@ import (
 	"fmt"
 	"github.com/cossacklabs/acra/cmd"
 	"github.com/cossacklabs/acra/keystore"
-	. "github.com/cossacklabs/acra/utils"
+	"github.com/cossacklabs/acra/utils"
 	"github.com/cossacklabs/acra/zone"
 	"github.com/cossacklabs/themis/gothemis/keys"
 	"os"
 )
 
-var DEFAULT_CONFIG_PATH = GetConfigPathByName("acra_addzone")
+// DEFAULT_CONFIG_PATH relative path to config which will be parsed as default
+var DEFAULT_CONFIG_PATH = utils.GetConfigPathByName("acra_addzone")
 
 func main() {
-	output_dir := flag.String("output_dir", keystore.DEFAULT_KEY_DIR_SHORT, "Folder where will be saved generated zone keys")
-	fs_keystore := flag.Bool("fs", true, "Use filesystem key store")
+	outputDir := flag.String("output_dir", keystore.DEFAULT_KEY_DIR_SHORT, "Folder where will be saved generated zone keys")
+	fsKeystore := flag.Bool("fs", true, "Use filesystem key store")
 
 	cmd.SetLogLevel(cmd.LOG_VERBOSE)
 
 	err := cmd.Parse(DEFAULT_CONFIG_PATH)
 	if err != nil {
-		fmt.Printf("Error: %v\n", ErrorMessage("Can't parse args", err))
+		fmt.Printf("Error: %v\n", utils.ErrorMessage("Can't parse args", err))
 		os.Exit(1)
 	}
 	//LoadFromConfig(DEFAULT_CONFIG_PATH)
 	//iniflags.Parse()
 
-	output, err := AbsPath(*output_dir)
+	output, err := utils.AbsPath(*outputDir)
 	if err != nil {
-		fmt.Printf("Error: %v\n", ErrorMessage("Can't get absolute path for output dir", err))
+		fmt.Printf("Error: %v\n", utils.ErrorMessage("Can't get absolute path for output dir", err))
 		os.Exit(1)
 	}
-	var key_store keystore.KeyStore
-	if *fs_keystore {
-		key_store, err = keystore.NewFilesystemKeyStore(output)
+	var keyStore keystore.KeyStore
+	if *fsKeystore {
+		keyStore, err = keystore.NewFilesystemKeyStore(output)
 		if err != nil {
-			fmt.Printf("Error: %v\n", ErrorMessage("can't create key store", err))
+			fmt.Printf("Error: %v\n", utils.ErrorMessage("can't create key store", err))
 			os.Exit(1)
 		}
 	}
-	id, public_key, err := key_store.GenerateZoneKey()
+	id, publicKey, err := keyStore.GenerateZoneKey()
 	if err != nil {
-		fmt.Printf("Error: %v\n", ErrorMessage("can't add zone", err))
+		fmt.Printf("Error: %v\n", utils.ErrorMessage("can't add zone", err))
 		os.Exit(1)
 	}
-	json, err := zone.ZoneDataToJson(id, &keys.PublicKey{Value: public_key})
+	json, err := zone.ZoneDataToJson(id, &keys.PublicKey{Value: publicKey})
 	if err != nil {
-		fmt.Printf("Error: %v\n", ErrorMessage("can't encode to json", err))
+		fmt.Printf("Error: %v\n", utils.ErrorMessage("can't encode to json", err))
 		os.Exit(1)
 	}
 	fmt.Println(string(json))

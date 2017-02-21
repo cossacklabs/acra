@@ -165,8 +165,8 @@ func testHasAnyMatchWithHexReader(t *testing.T) {
 	}
 
 	matcher = factory.CreateMatcher()
-	incorrect_byte := byte(1)
-	matcher.Match(incorrect_byte)
+	incorrectByte := byte(1)
+	matcher.Match(incorrectByte)
 	if matcher.HasAnyMatch() {
 		t.Fatal("Expected no match")
 	}
@@ -187,8 +187,8 @@ func testHasAnyMatchWithEscapeReader(t *testing.T) {
 	}
 
 	matcher = factory.CreateMatcher()
-	incorrect_byte := byte(1)
-	matcher.Match(incorrect_byte)
+	incorrectByte := byte(1)
+	matcher.Match(incorrectByte)
 	if matcher.HasAnyMatch() {
 		t.Fatal("Expected no match")
 	}
@@ -212,8 +212,8 @@ func testHasAnyMatchWithBinaryReader(t *testing.T) {
 		t.Fatal("Expected no match")
 	}
 	matcher.Reset()
-	incorrect_byte := byte(1)
-	if matcher.Match(incorrect_byte) {
+	incorrectByte := byte(1)
+	if matcher.Match(incorrectByte) {
 		t.Fatal("Expected no match")
 	}
 	if matcher.HasAnyMatch() {
@@ -222,40 +222,40 @@ func testHasAnyMatchWithBinaryReader(t *testing.T) {
 }
 
 func testPgMatcher(t *testing.T) {
-	pg_matcher := zone.NewPgMatcher(zone.NewPgHexByteReader())
+	pgMatcher := zone.NewPgMatcher(zone.NewPgHexByteReader())
 	t.Log("Test binary zone id")
 	t.Log("Fill zone begin")
 	// test correct matching with binary zone_id
 	for _, c := range zone.ZONE_ID_BEGIN {
-		assertMatchNotFail(byte(c), pg_matcher, t)
+		assertMatchNotFail(byte(c), pgMatcher, t)
 	}
 	t.Log("Fill zone id")
 	// fill zone id
 	for i := 0; i < zone.ZONE_ID_LENGTH; i++ {
 		t.Log("Fill ", i)
-		assertMatchNotFail('a', pg_matcher, t)
+		assertMatchNotFail('a', pgMatcher, t)
 	}
 	t.Log("Check matched")
-	if !pg_matcher.IsMatched() {
+	if !pgMatcher.IsMatched() {
 		t.Fatal("Unexpected unmatched status")
 	}
-	pg_matcher.Reset()
-	incorrect_first_byte := byte(1)
-	if pg_matcher.Match(incorrect_first_byte) || pg_matcher.HasAnyMatch() {
+	pgMatcher.Reset()
+	incorrectFirstByte := byte(1)
+	if pgMatcher.Match(incorrectFirstByte) || pgMatcher.HasAnyMatch() {
 		t.Fatal("Unexpected match")
 	}
-	pg_matcher.Reset()
+	pgMatcher.Reset()
 	var HEX_ZONE_ID_BEGIN = []byte(hex.EncodeToString(zone.ZONE_ID_BEGIN))
 	t.Log("Test hex zone id")
 	for _, c := range HEX_ZONE_ID_BEGIN {
-		assertMatchNotFail(byte(c), pg_matcher, t)
+		assertMatchNotFail(byte(c), pgMatcher, t)
 	}
 	// fill zone id
 	for i := 0; i < (zone.ZONE_ID_LENGTH * 2); i++ {
-		assertMatchNotFail('a', pg_matcher, t)
+		assertMatchNotFail('a', pgMatcher, t)
 	}
 
-	if !pg_matcher.IsMatched() {
+	if !pgMatcher.IsMatched() {
 		t.Fatal("Expected matched status")
 	}
 

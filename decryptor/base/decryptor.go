@@ -104,13 +104,13 @@ type Decryptor interface {
 	MatchZoneInBlock([]byte)
 }
 
-func CheckReadWrite(n, expected_n int, err error, err_ch chan<- error) bool {
+func CheckReadWrite(n, expectedN int, err error, errCh chan<- error) bool {
 	if err != nil {
-		err_ch <- err
+		errCh <- err
 		return false
 	}
-	if n != expected_n {
-		err_ch <- errors.New(fmt.Sprintf("incorrect read/write count. %d != %d", n, expected_n))
+	if n != expectedN {
+		errCh <- fmt.Errorf("incorrect read/write count. %d != %d", n, expectedN)
 		return false
 	}
 	return true

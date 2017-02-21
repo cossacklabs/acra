@@ -33,15 +33,15 @@ func (*StopCallback) Call() error {
 }
 
 type ExecuteScriptCallback struct {
-	script_path string
+	scriptPath string
 }
 
 func NewExecuteScriptCallback(path string) *ExecuteScriptCallback {
-	return &ExecuteScriptCallback{script_path: path}
+	return &ExecuteScriptCallback{scriptPath: path}
 }
 func (callback *ExecuteScriptCallback) Call() error {
-	log.Printf("Warning: detected poison record, run script - %v\n", callback.script_path)
-	err := exec.Command(callback.script_path).Start()
+	log.Printf("Warning: detected poison record, run script - %v\n", callback.scriptPath)
+	err := exec.Command(callback.scriptPath).Start()
 	if err != nil {
 		return err
 	}

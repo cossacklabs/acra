@@ -12,18 +12,18 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Package common provides functions for initialization and running benchmarks
 package common
 
 import (
 	"database/sql"
 	"fmt"
 	"github.com/cossacklabs/acra/benchmarks/config"
-	_ "github.com/lib/pq"
 	"os"
 )
 
-func connect(connection_string string) *sql.DB {
-	db, err := sql.Open("postgres", connection_string)
+func connect(connectionString string) *sql.DB {
+	db, err := sql.Open("postgres", connectionString)
 	if err != nil {
 		panic(err)
 	}
@@ -34,18 +34,19 @@ func connect(connection_string string) *sql.DB {
 	return db
 }
 
-//export ACRA_CONNECTION_STRING='dbname=benchmark user=postgres password=postgres host=127.0.0.1 port=9494 sslmode=disable'
-//export PG_CONNECTION_STRING='dbname=benchmark user=postgres password=postgres host=172.17.0.1 port=5433 sslmode=disable'
+// Connect return connection to db using env variable PG_CONNECTION_STRING
 func Connect() *sql.DB {
-	connection_string := os.Getenv("PG_CONNECTION_STRING")
-	return connect(connection_string)
+	return connect(os.Getenv("PG_CONNECTION_STRING"))
 }
 
+// ConnectAcra return connection to acra using env variable ACRA_CONNECTION_STRING
 func ConnectAcra() *sql.DB {
-	connection_string := os.Getenv("ACRA_CONNECTION_STRING")
-	return connect(connection_string)
+	return connect(os.Getenv("ACRA_CONNECTION_STRING"))
 }
 
+// DropCreateWithZone drop table 'test_with_zone' if exists and create table
+// with sequence for primary key. Into this table will be inserted acrastructs
+// encrypted with zone and used in read benchmarks in zonemode
 func DropCreateWithZone(db *sql.DB) {
 	scripts := []string{
 		"DROP TABLE IF EXISTS test_with_zone;",
@@ -56,6 +57,9 @@ func DropCreateWithZone(db *sql.DB) {
 	RunScripts(scripts, db)
 }
 
+// DropCreateWithoutZone drop table 'test_without_zone' if exists and create table
+// with sequence for primary key. Into this table will be inserted acrastructs
+// encrypted with one key and used in read benchmarks without zonemode
 func DropCreateWithoutZone(db *sql.DB) {
 	scripts := []string{
 		"DROP TABLE IF EXISTS test_without_zone;",
@@ -66,6 +70,9 @@ func DropCreateWithoutZone(db *sql.DB) {
 	RunScripts(scripts, db)
 }
 
+// DropCreateRaw drop table 'test_raw' if exists and create table
+// with sequence for primary key. Into this table will be inserted raw data
+// without encryption and used in read benchmarks of reading raw data
 func DropCreateRaw(db *sql.DB) {
 	scripts := []string{
 		"DROP TABLE IF EXISTS test_raw;",
@@ -76,6 +83,7 @@ func DropCreateRaw(db *sql.DB) {
 	RunScripts(scripts, db)
 }
 
+// RunScripts function execute all sql queries in scripts variable using using db
 func RunScripts(scripts []string, db *sql.DB) {
 	for _, script := range scripts {
 		fmt.Println(script)
@@ -87,6 +95,7 @@ func RunScripts(scripts []string, db *sql.DB) {
 	}
 }
 
+// IsExistsData checks is exists table with name <tablename>
 func IsExistsData(tablename string, db *sql.DB) bool {
 	var count int
 	db.QueryRow(fmt.Sprintf("SELECT count(*) FROM %s;", tablename)).Scan(&count)

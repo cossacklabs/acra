@@ -38,15 +38,15 @@ func RandString(n int) []byte {
 
 func main() {
 	rand.Seed(time.Now().UnixNano())
-	acra_public, err := utils.LoadPublicKey(fmt.Sprintf("%v/client_server.pub", keystore.DEFAULT_KEY_DIR_SHORT))
+	acraPublic, err := utils.LoadPublicKey(fmt.Sprintf("%v/client_server.pub", keystore.DEFAULT_KEY_DIR_SHORT))
 	if err != nil {
 		panic(err)
 	}
 	//some_data := []byte("test data for acra from go")
-	some_data := RandString(20)
-	fmt.Printf("Generated test data: %v\n", string(some_data))
+	someData := RandString(20)
+	fmt.Printf("Generated test data: %v\n", string(someData))
 
-	acrastruct, err := acrawriter.CreateAcrastruct(some_data, acra_public, nil)
+	acrastruct, err := acrawriter.CreateAcrastruct(someData, acraPublic, nil)
 	if err != nil {
 		log.Fatal("Can't create acrastruct - ", err)
 	}
@@ -62,7 +62,7 @@ func main() {
 	}
 
 	fmt.Println("Insert test data to table")
-	_, err = db.Exec("insert into test (id, data, raw_data) values ($1, $2, $3);", rand.Int31(), acrastruct, string(some_data))
+	_, err = db.Exec("insert into test (id, data, raw_data) values ($1, $2, $3);", rand.Int31(), acrastruct, string(someData))
 	if err != nil {
 		panic(err)
 	}
@@ -74,16 +74,16 @@ func main() {
 		log.Fatal(err)
 	}
 	var data []byte
-	var raw_data string
+	var rawData string
 	fmt.Println("data - raw_data")
 	for rows.Next() {
-		err := rows.Scan(&data, &raw_data)
+		err := rows.Scan(&data, &rawData)
 		if err != nil {
 			fmt.Println("ERROR")
 			fmt.Println(err)
 			return
 		}
-		fmt.Printf("data: %v\nraw_data: %v\n\n", string(data), string(raw_data))
+		fmt.Printf("data: %v\nraw_data: %v\n\n", string(data), string(rawData))
 	}
 	fmt.Println("Finish")
 }

@@ -20,7 +20,6 @@ import (
 	"io/ioutil"
 
 	"bytes"
-	"errors"
 	"fmt"
 
 	"log"
@@ -34,25 +33,24 @@ const (
 	SESSION_DATA_LIMIT = 8 * 1024 // 8 kb
 )
 
-var ErrBigDataBlockSize = errors.New(
-	fmt.Sprintf("Block size greater than %v", SESSION_DATA_LIMIT))
+var ErrBigDataBlockSize = fmt.Errorf("Block size greater than %v", SESSION_DATA_LIMIT)
 
 func WriteFull(data []byte, wr io.Writer) (int, error) {
 	/* write data to io.Writer. if wr.Write will return n <= len(data) will
 	sent the rest of data until error or total sent byte count == len(data)
 	*/
-	slice_copy := data[:]
-	total_sent := 0
+	sliceCopy := data[:]
+	totalSent := 0
 	for {
-		n, err := wr.Write(slice_copy)
+		n, err := wr.Write(sliceCopy)
 		if err != nil {
 			return 0, err
 		}
-		total_sent += n
-		if total_sent == len(data) {
-			return total_sent, nil
+		totalSent += n
+		if totalSent == len(data) {
+			return totalSent, nil
 		}
-		slice_copy = slice_copy[total_sent:]
+		sliceCopy = sliceCopy[totalSent:]
 	}
 }
 
@@ -94,8 +92,8 @@ func ReadData(reader io.Reader) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	data_size := int(binary.LittleEndian.Uint32(length[:]))
-	buf := make([]byte, data_size)
+	dataSize := int(binary.LittleEndian.Uint32(length[:]))
+	buf := make([]byte, dataSize)
 	_, err = io.ReadFull(reader, buf)
 	if err != nil {
 		return nil, err
@@ -110,11 +108,11 @@ func ReadSessionData(reader io.Reader) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	data_size := int(binary.LittleEndian.Uint32(length[:]))
-	if data_size > SESSION_DATA_LIMIT {
+	dataSize := int(binary.LittleEndian.Uint32(length[:]))
+	if dataSize > SESSION_DATA_LIMIT {
 		return nil, ErrBigDataBlockSize
 	}
-	buf := make([]byte, data_size)
+	buf := make([]byte, dataSize)
 	_, err = io.ReadFull(reader, buf)
 	if err != nil {
 		return nil, err
@@ -148,11 +146,11 @@ func AbsPath(path string) (string, error) {
 }
 
 func ReadFile(path string) ([]byte, error) {
-	abs_path, err := AbsPath(path)
+	absPath, err := AbsPath(path)
 	if err != nil {
 		return nil, err
 	}
-	file, err := os.Open(abs_path)
+	file, err := os.Open(absPath)
 	if err != nil {
 		return nil, err
 	}
@@ -171,7 +169,7 @@ func LoadPrivateKey(path string) (*keys.PrivateKey, error) {
 	fi, err := os.Stat(path)
 	if nil == err && runtime.GOOS == "linux" && fi.Mode().Perm().String() != "-rw-------" && fi.Mode().Perm().String() != "-r--------" {
 		log.Printf("Error: private key file %v has incorrect permissions", path)
-		return nil, errors.New(fmt.Sprintf("Error: private key file %v has incorrect permissions", path))
+		return nil, fmt.Errorf("Error: private key file %v has incorrect permissions", path)
 	}
 	key, err := ReadFile(path)
 	if err != nil {
@@ -187,16 +185,15 @@ func FillSlice(value byte, data []byte) {
 }
 
 func FileExists(path string) (bool, error) {
-	abs_path, err := AbsPath(path)
+	absPath, err := AbsPath(path)
 	if err != nil {
 		return false, err
 	}
-	if _, err := os.Stat(abs_path); err != nil {
+	if _, err := os.Stat(absPath); err != nil {
 		if os.IsNotExist(err) {
 			return false, nil
-		} else {
-			return false, err
 		}
+		return false, err
 	}
 	return true, nil
 }
@@ -215,26 +212,26 @@ func FindTag(symbol byte, count int, block []byte) int {
 	if len(block) < count {
 		return NOT_FOUND
 	}
-	half_count := count / 2
-	tag := make([]byte, half_count)
+	halfCount := count / 2
+	tag := make([]byte, halfCount)
 
-	for i := 0; i < half_count; i++ {
+	for i := 0; i < halfCount; i++ {
 		tag[i] = symbol
 	}
 
-	for i := 0; i+half_count <= len(block); i += half_count {
-		if bytes.Equal(tag, block[i:i+half_count]) {
+	for i := 0; i+halfCount <= len(block); i += halfCount {
+		if bytes.Equal(tag, block[i:i+halfCount]) {
 			start := i
 			if i != 0 {
-				for ; start > i-half_count; start-- {
+				for ; start > i-halfCount; start-- {
 					if block[start-1] != symbol {
 						break
 					}
 				}
 			}
-			end := i + half_count - 1
-			right_range := Min(end+half_count, len(block)-1)
-			for ; end < right_range; end++ {
+			end := i + halfCount - 1
+			rightRange := Min(end+halfCount, len(block)-1)
+			for ; end < rightRange; end++ {
 				if block[end+1] != symbol {
 					break
 				}

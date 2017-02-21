@@ -24,14 +24,15 @@ import (
 	"strings"
 )
 
+// DEFAULT_CONFIG_PATH relative path to config which will be parsed as default
 var DEFAULT_CONFIG_PATH = utils.GetConfigPathByName("acra_genkeys")
 
 func main() {
-	client_id := flag.String("client_id", "client", "Client id")
+	clientId := flag.String("client_id", "client", "Client id")
 	acraproxy := flag.Bool("acraproxy", false, "Create keypair only for acraproxy")
 	acraserver := flag.Bool("acraserver", false, "Create keypair only for acraserver")
-	data_keys := flag.Bool("storage", false, "Create keypair for data encryption/decryption")
-	output_dir := flag.String("output", keystore.DEFAULT_KEY_DIR_SHORT, "Folder where will be saved keys")
+	dataKeys := flag.Bool("storage", false, "Create keypair for data encryption/decryption")
+	outputDir := flag.String("output", keystore.DEFAULT_KEY_DIR_SHORT, "Folder where will be saved keys")
 
 	cmd.SetLogLevel(cmd.LOG_VERBOSE)
 
@@ -40,42 +41,42 @@ func main() {
 		fmt.Printf("Error: %v\n", utils.ErrorMessage("Can't parse args", err))
 		os.Exit(1)
 	}
-	if strings.Contains(*client_id, string(filepath.Separator)) {
+	if strings.Contains(*clientId, string(filepath.Separator)) {
 		fmt.Println("Error: client id can't contain directory separator")
 		os.Exit(1)
 	}
-	store, err := keystore.NewFilesystemKeyStore(*output_dir)
+	store, err := keystore.NewFilesystemKeyStore(*outputDir)
 	if err != nil {
 		panic(err)
 	}
 
 	if *acraproxy {
-		err = store.GenerateProxyKeys([]byte(*client_id))
+		err = store.GenerateProxyKeys([]byte(*clientId))
 		if err != nil {
 			panic(err)
 		}
 	} else if *acraserver {
-		err = store.GenerateServerKeys([]byte(*client_id))
+		err = store.GenerateServerKeys([]byte(*clientId))
 		if err != nil {
 			panic(err)
 		}
-	} else if *data_keys {
-		err = store.GenerateDataEncryptionKeys([]byte(*client_id))
+	} else if *dataKeys {
+		err = store.GenerateDataEncryptionKeys([]byte(*clientId))
 		if err != nil {
 			panic(err)
 		}
 	} else {
-		err = store.GenerateProxyKeys([]byte(*client_id))
+		err = store.GenerateProxyKeys([]byte(*clientId))
 		if err != nil {
 			panic(err)
 		}
 
-		err = store.GenerateServerKeys([]byte(*client_id))
+		err = store.GenerateServerKeys([]byte(*clientId))
 		if err != nil {
 			panic(err)
 		}
 
-		err = store.GenerateDataEncryptionKeys([]byte(*client_id))
+		err = store.GenerateDataEncryptionKeys([]byte(*clientId))
 		if err != nil {
 			panic(err)
 		}

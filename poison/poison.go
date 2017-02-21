@@ -26,22 +26,22 @@ const (
 	MAX_DATA_LENGTH     = 100
 )
 
-func CreatePoisonRecord(keystore keystore.KeyStore, data_length int) ([]byte, error) {
+func CreatePoisonRecord(keystore keystore.KeyStore, dataLength int) ([]byte, error) {
 	// data length can't be zero
-	if data_length == DEFAULT_DATA_LENGTH {
+	if dataLength == DEFAULT_DATA_LENGTH {
 		math_rand.Seed(time.Now().UnixNano())
 		// from 1 to MAX_DATA_LENGTH
-		data_length = 1 + int(math_rand.Int31n(MAX_DATA_LENGTH-1))
+		dataLength = 1 + int(math_rand.Int31n(MAX_DATA_LENGTH-1))
 	}
-	poison_keypair, err := keystore.GetPoisonKeyPair()
+	poisonKeypair, err := keystore.GetPoisonKeyPair()
 	if err != nil {
 		return nil, err
 	}
 	// +1 for excluding 0
-	data := make([]byte, data_length)
+	data := make([]byte, dataLength)
 	_, err = rand.Read(data)
 	if err != nil {
 		return nil, err
 	}
-	return acrawriter.CreateAcrastruct(data, poison_keypair.Public, nil)
+	return acrawriter.CreateAcrastruct(data, poisonKeypair.Public, nil)
 }

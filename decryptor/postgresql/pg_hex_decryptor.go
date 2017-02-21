@@ -17,7 +17,7 @@ import (
 	"bytes"
 	"encoding/binary"
 	"encoding/hex"
-	. "github.com/cossacklabs/acra/utils"
+	"github.com/cossacklabs/acra/utils"
 	"io"
 	"log"
 
@@ -40,34 +40,34 @@ var HEX_ZONE_ID_LENGTH = hex.EncodedLen(16)
 var HEX_ZONE_ID_BLOCK_LENGTH = int(HEX_ZONE_TAG_LENGTH + HEX_ZONE_ID_LENGTH)
 
 type PgHexDecryptor struct {
-	current_index uint8
-	is_with_zone  bool
+	currentIndex uint8
+	isWithZone   bool
 	// buffer for public_key+SM block
 	// 2 hex symbols per byte
-	key_block_buffer [base.KEY_BLOCK_LENGTH * 2]byte
+	keyBlockBuffer [base.KEY_BLOCK_LENGTH * 2]byte
 	// buffer for decoded from hex public_key+SM block
 	//decoded_key_block_buffer [decryptor.KEY_BLOCK_LENGTH]byte
-	decoded_key_block_buffer []byte
+	decodedKeyBlockBuffer []byte
 	//uint64
-	length_buf [base.DATA_LENGTH_SIZE]byte
+	lengthBuf [base.DATA_LENGTH_SIZE]byte
 	//uint64 in hex
-	hex_length_buf [base.DATA_LENGTH_SIZE * 2]byte
-	key_store      keystore.KeyStore
-	zone_matcher   *zone.ZoneIdMatcher
+	hexLengthBuf [base.DATA_LENGTH_SIZE * 2]byte
+	keyStore     keystore.KeyStore
+	zoneMatcher  *zone.ZoneIdMatcher
 
-	hex_buf []byte
-	buf     []byte
-	output  []byte
+	hexBuf []byte
+	buf    []byte
+	output []byte
 
-	poison_key       []byte
-	callback_storage *base.PoisonCallbackStorage
+	poisonKey       []byte
+	callbackStorage *base.PoisonCallbackStorage
 }
 
 func NewPgHexDecryptor() *PgHexDecryptor {
 	return &PgHexDecryptor{
-		current_index:            0,
-		is_with_zone:             false,
-		decoded_key_block_buffer: make([]byte, base.KEY_BLOCK_LENGTH),
+		currentIndex:          0,
+		isWithZone:            false,
+		decodedKeyBlockBuffer: make([]byte, base.KEY_BLOCK_LENGTH),
 	}
 }
 
@@ -79,141 +79,137 @@ func (decryptor *PgHexDecryptor) checkBuf(buf *[]byte, length int) {
 }
 
 func (decryptor *PgHexDecryptor) MatchBeginTag(char byte) bool {
-	if char == HEX_TAG_BEGIN[decryptor.current_index] {
-		decryptor.current_index++
+	if char == HEX_TAG_BEGIN[decryptor.currentIndex] {
+		decryptor.currentIndex++
 		return true
-	} else {
-		return false
 	}
+	return false
 }
 
 func (decryptor *PgHexDecryptor) IsMatched() bool {
-	return int(decryptor.current_index) == len(HEX_TAG_BEGIN)
+	return int(decryptor.currentIndex) == len(HEX_TAG_BEGIN)
 }
 func (decryptor *PgHexDecryptor) Reset() {
-	decryptor.current_index = 0
+	decryptor.currentIndex = 0
 }
 func (decryptor *PgHexDecryptor) GetMatched() []byte {
-	return HEX_TAG_BEGIN[:decryptor.current_index]
+	return HEX_TAG_BEGIN[:decryptor.currentIndex]
 }
-func (decryptor *PgHexDecryptor) ReadSymmetricKey(private_key *keys.PrivateKey, reader io.Reader) ([]byte, []byte, error) {
-	n, err := io.ReadFull(reader, decryptor.key_block_buffer[:])
+func (decryptor *PgHexDecryptor) ReadSymmetricKey(privateKey *keys.PrivateKey, reader io.Reader) ([]byte, []byte, error) {
+	n, err := io.ReadFull(reader, decryptor.keyBlockBuffer[:])
 	if err != nil {
 		if err == io.ErrUnexpectedEOF || err == io.EOF {
-			return nil, decryptor.key_block_buffer[:n], base.ErrFakeAcraStruct
-		} else {
-			return nil, decryptor.key_block_buffer[:n], err
+			return nil, decryptor.keyBlockBuffer[:n], base.ErrFakeAcraStruct
 		}
+		return nil, decryptor.keyBlockBuffer[:n], err
 	}
 	if n != hex.EncodedLen(base.KEY_BLOCK_LENGTH) {
-		log.Printf("Warning: %v\n", ErrorMessage("can't decode hex data", err))
-		return nil, decryptor.key_block_buffer[:n], base.ErrFakeAcraStruct
+		log.Printf("Warning: %v\n", utils.ErrorMessage("can't decode hex data", err))
+		return nil, decryptor.keyBlockBuffer[:n], base.ErrFakeAcraStruct
 	}
-	_, err = hex.Decode(decryptor.decoded_key_block_buffer[:], decryptor.key_block_buffer[:])
+	_, err = hex.Decode(decryptor.decodedKeyBlockBuffer[:], decryptor.keyBlockBuffer[:])
 	if err != nil {
-		log.Printf("Warning: %v\n", ErrorMessage("can't decode hex data", err))
-		return nil, decryptor.key_block_buffer[:n], base.ErrFakeAcraStruct
+		log.Printf("Warning: %v\n", utils.ErrorMessage("can't decode hex data", err))
+		return nil, decryptor.keyBlockBuffer[:n], base.ErrFakeAcraStruct
 	}
-	pubkey := &keys.PublicKey{Value: decryptor.decoded_key_block_buffer[:base.PUBLIC_KEY_LENGTH]}
+	pubkey := &keys.PublicKey{Value: decryptor.decodedKeyBlockBuffer[:base.PUBLIC_KEY_LENGTH]}
 
-	smessage := message.New(private_key, pubkey)
-	symmetric_key, err := smessage.Unwrap(decryptor.decoded_key_block_buffer[base.PUBLIC_KEY_LENGTH:])
+	smessage := message.New(privateKey, pubkey)
+	symmetricKey, err := smessage.Unwrap(decryptor.decodedKeyBlockBuffer[base.PUBLIC_KEY_LENGTH:])
 	if err != nil {
-		log.Printf("Warning: %v\n", ErrorMessage("can't unwrap symmetric key", err))
-		return nil, decryptor.key_block_buffer[:n], base.ErrFakeAcraStruct
+		log.Printf("Warning: %v\n", utils.ErrorMessage("can't unwrap symmetric key", err))
+		return nil, decryptor.keyBlockBuffer[:n], base.ErrFakeAcraStruct
 	}
-	return symmetric_key, decryptor.key_block_buffer[:n], nil
+	return symmetricKey, decryptor.keyBlockBuffer[:n], nil
 }
 
 func (decryptor *PgHexDecryptor) readDataLength(reader io.Reader) (uint64, []byte, error) {
 	var length uint64
-	len_count, err := io.ReadFull(reader, decryptor.hex_length_buf[:])
+	lenCount, err := io.ReadFull(reader, decryptor.hexLengthBuf[:])
 	if err != nil {
-		log.Printf("Warning: %v\n", ErrorMessage("can't read data length", err))
+		log.Printf("Warning: %v\n", utils.ErrorMessage("can't read data length", err))
 		if err == io.ErrUnexpectedEOF || err == io.EOF {
-			return 0, decryptor.hex_length_buf[:len_count], base.ErrFakeAcraStruct
-		} else {
-			return 0, decryptor.hex_length_buf[:len_count], err
+			return 0, decryptor.hexLengthBuf[:lenCount], base.ErrFakeAcraStruct
 		}
+		return 0, decryptor.hexLengthBuf[:lenCount], err
 	}
-	if len_count != len(decryptor.hex_length_buf) {
-		log.Printf("Warning: incorrect length count, %v!=%v\n", len_count, len(decryptor.length_buf))
-		return 0, decryptor.hex_length_buf[:len_count], base.ErrFakeAcraStruct
+	if lenCount != len(decryptor.hexLengthBuf) {
+		log.Printf("Warning: incorrect length count, %v!=%v\n", lenCount, len(decryptor.lengthBuf))
+		return 0, decryptor.hexLengthBuf[:lenCount], base.ErrFakeAcraStruct
 	}
 
 	// decode hex length to binary length
-	n, err := hex.Decode(decryptor.length_buf[:], decryptor.hex_length_buf[:])
+	n, err := hex.Decode(decryptor.lengthBuf[:], decryptor.hexLengthBuf[:])
 	if err != nil {
-		log.Printf("Warning: %v\n", ErrorMessage("can't decode hex data", err))
-		return 0, decryptor.hex_length_buf[:len_count], base.ErrFakeAcraStruct
+		log.Printf("Warning: %v\n", utils.ErrorMessage("can't decode hex data", err))
+		return 0, decryptor.hexLengthBuf[:lenCount], base.ErrFakeAcraStruct
 	}
-	if n != len(decryptor.length_buf) {
-		log.Printf("Warning: %v\n", ErrorMessage("can't decode hex data", err))
-		return 0, decryptor.hex_length_buf[:len_count], base.ErrFakeAcraStruct
+	if n != len(decryptor.lengthBuf) {
+		log.Printf("Warning: %v\n", utils.ErrorMessage("can't decode hex data", err))
+		return 0, decryptor.hexLengthBuf[:lenCount], base.ErrFakeAcraStruct
 	}
 	// convert from little endian
-	binary.Read(bytes.NewReader(decryptor.length_buf[:]), binary.LittleEndian, &length)
-	return length, decryptor.hex_length_buf[:], nil
+	binary.Read(bytes.NewReader(decryptor.lengthBuf[:]), binary.LittleEndian, &length)
+	return length, decryptor.hexLengthBuf[:], nil
 }
 func (decryptor *PgHexDecryptor) readScellData(length int, reader io.Reader) ([]byte, []byte, error) {
-	hex_length := hex.EncodedLen(int(length))
-	decryptor.checkBuf(&decryptor.hex_buf, hex_length)
+	hexLength := hex.EncodedLen(int(length))
+	decryptor.checkBuf(&decryptor.hexBuf, hexLength)
 	decryptor.checkBuf(&decryptor.buf, int(length))
-	n, err := io.ReadFull(reader, decryptor.hex_buf[:hex_length])
+	n, err := io.ReadFull(reader, decryptor.hexBuf[:hexLength])
 	if err != nil {
-		log.Printf("Warning: %v\n", ErrorMessage(fmt.Sprintf("can't read scell data with passed length=%v", length), err))
+		log.Printf("Warning: %v\n", utils.ErrorMessage(fmt.Sprintf("can't read scell data with passed length=%v", length), err))
 		if err == io.ErrUnexpectedEOF || err == io.EOF {
-			return nil, decryptor.hex_buf[:n], base.ErrFakeAcraStruct
-		} else {
-			return nil, decryptor.hex_buf[:n], err
+			return nil, decryptor.hexBuf[:n], base.ErrFakeAcraStruct
 		}
+		return nil, decryptor.hexBuf[:n], err
 	}
 	if n != hex.EncodedLen(length) {
-		return nil, decryptor.hex_buf[:n], base.ErrFakeAcraStruct
+		return nil, decryptor.hexBuf[:n], base.ErrFakeAcraStruct
 	}
-	n, err = hex.Decode(decryptor.buf[:int(length)], decryptor.hex_buf[:hex_length])
+	n, err = hex.Decode(decryptor.buf[:int(length)], decryptor.hexBuf[:hexLength])
 	if err != nil {
-		log.Printf("Warning: %v\n", ErrorMessage("can't decode hex data", err))
-		return nil, decryptor.hex_buf[:n], base.ErrFakeAcraStruct
+		log.Printf("Warning: %v\n", utils.ErrorMessage("can't decode hex data", err))
+		return nil, decryptor.hexBuf[:n], base.ErrFakeAcraStruct
 	}
 	if n != int(length) {
-		log.Printf("Warning: %v\n", ErrorMessage("can't decode hex data", err))
-		return nil, decryptor.hex_buf[:n], base.ErrFakeAcraStruct
+		log.Printf("Warning: %v\n", utils.ErrorMessage("can't decode hex data", err))
+		return nil, decryptor.hexBuf[:n], base.ErrFakeAcraStruct
 	}
-	return decryptor.buf[:int(length)], decryptor.hex_buf[:hex_length], nil
+	return decryptor.buf[:int(length)], decryptor.hexBuf[:hexLength], nil
 }
 
-func (*PgHexDecryptor) getFullDataLength(data_length uint64) int {
+func (*PgHexDecryptor) getFullDataLength(dataLength uint64) int {
 	// original data is tag_begin+key_block+data_length+data
 	// output data length should be hex(original_data)
-	return hex.EncodedLen(len(base.TAG_BEGIN) + base.KEY_BLOCK_LENGTH + 8 + int(data_length))
+	return hex.EncodedLen(len(base.TAG_BEGIN) + base.KEY_BLOCK_LENGTH + 8 + int(dataLength))
 }
 
-func (decryptor *PgHexDecryptor) ReadData(symmetric_key, zone_id []byte, reader io.Reader) ([]byte, error) {
-	length, hex_length_buf, err := decryptor.readDataLength(reader)
+func (decryptor *PgHexDecryptor) ReadData(symmetricKey, zoneId []byte, reader io.Reader) ([]byte, error) {
+	length, hexLengthBuf, err := decryptor.readDataLength(reader)
 	if err != nil {
-		return hex_length_buf, err
+		return hexLengthBuf, err
 	}
-	data, hex_data, err := decryptor.readScellData(int(length), reader)
+	data, hexData, err := decryptor.readScellData(int(length), reader)
 	if err != nil {
-		return append(hex_length_buf, hex_data...), err
+		return append(hexLengthBuf, hexData...), err
 	}
 
-	scell := cell.New(symmetric_key, cell.CELL_MODE_SEAL)
+	scell := cell.New(symmetricKey, cell.CELL_MODE_SEAL)
 
-	decrypted, err := scell.Unprotect(data, nil, zone_id)
+	decrypted, err := scell.Unprotect(data, nil, zoneId)
 	data = nil
 	// fill zero symmetric_key
-	FillSlice(byte(0), symmetric_key)
+	utils.FillSlice(byte(0), symmetricKey)
 	if err != nil {
-		return append(hex_length_buf, hex_data...), base.ErrFakeAcraStruct
+		return append(hexLengthBuf, hexData...), base.ErrFakeAcraStruct
 	}
 
-	output_length := hex.EncodedLen(len(decrypted))
-	decryptor.checkBuf(&decryptor.output, output_length)
-	hex.Encode(decryptor.output[:output_length], decrypted)
+	outputLength := hex.EncodedLen(len(decrypted))
+	decryptor.checkBuf(&decryptor.output, outputLength)
+	hex.Encode(decryptor.output[:outputLength], decrypted)
 	decrypted = nil
-	return decryptor.output[:output_length], nil
+	return decryptor.output[:outputLength], nil
 }
 
 func (decryptor *PgHexDecryptor) GetTagBeginLength() int {

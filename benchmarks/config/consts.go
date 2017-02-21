@@ -15,9 +15,12 @@
 package config
 
 const (
-	ROW_COUNT     = 100000
+	// ROW_COUNT num of rows that will be generated in each write benchmark
+	ROW_COUNT = 10000
+	// REQUEST_COUNT num of requests that will be done in each read benchmark
 	REQUEST_COUNT = 10000
-	ZONE_COUNT    = 100
-	// db size will be 100kb * 100000 = 1000mb
+	// ZONE_COUNT num of zones which will be generated and used
+	ZONE_COUNT = 100
+	// MAX_DATA_LENGTH size of test random data that will be generated and inserted to db (before encrypting)
 	MAX_DATA_LENGTH = 100 * 1024 // 100 kb
 )

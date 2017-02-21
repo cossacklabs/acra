@@ -21,24 +21,24 @@ import (
 var FAKE_DB_BYTE = errors.New("Fake db format byte")
 
 type PgHexByteReader struct {
-	current_index byte
-	buffer        [2]byte
+	currentIndex byte
+	buffer       [2]byte
 }
 
 func NewPgHexByteReader() *PgHexByteReader {
-	return &PgHexByteReader{current_index: 0}
+	return &PgHexByteReader{currentIndex: 0}
 }
 
 func (reader *PgHexByteReader) Reset() {
-	reader.current_index = 0
+	reader.currentIndex = 0
 }
 
 func (reader *PgHexByteReader) GetBuffered() []byte {
-	return reader.buffer[:reader.current_index]
+	return reader.buffer[:reader.currentIndex]
 }
 
 func (reader *PgHexByteReader) reset() {
-	reader.current_index = 0
+	reader.currentIndex = 0
 }
 
 func (reader *PgHexByteReader) returnError() (bool, byte, error) {
@@ -53,16 +53,15 @@ func (reader *PgHexByteReader) ReadByte(c byte) (bool, byte, error) {
 	if c < 48 || (c > 57 && c < 65) || (c > 70 && c < 97) || c > 102 {
 		return reader.returnError()
 	}
-	reader.buffer[reader.current_index] = c
-	if reader.current_index == 1 {
+	reader.buffer[reader.currentIndex] = c
+	if reader.currentIndex == 1 {
 		decoded, err := hex.DecodeString(string(reader.buffer[:]))
 		if err != nil {
 			return reader.returnError()
 		}
 		reader.reset()
 		return true, decoded[0], nil
-	} else {
-		reader.current_index++
-		return false, 0, nil
 	}
+	reader.currentIndex++
+	return false, 0, nil
 }

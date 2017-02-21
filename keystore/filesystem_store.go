@@ -17,7 +17,7 @@ package keystore
 import (
 	"errors"
 	"fmt"
-	. "github.com/cossacklabs/acra/utils"
+	"github.com/cossacklabs/acra/utils"
 	"github.com/cossacklabs/acra/zone"
 	"github.com/cossacklabs/themis/gothemis/keys"
 	"io/ioutil"
@@ -40,7 +40,7 @@ const (
 )
 
 func NewFilesystemKeyStore(directory string) (*FilesystemKeyStore, error) {
-	directory, err := AbsPath(directory)
+	directory, err := utils.AbsPath(directory)
 	if err != nil {
 		return nil, err
 	}
@@ -52,41 +52,41 @@ func NewFilesystemKeyStore(directory string) (*FilesystemKeyStore, error) {
 	return &FilesystemKeyStore{directory: directory, keys: make(map[string][]byte)}, nil
 }
 
-func (*FilesystemKeyStore) get_zone_key_filename(id []byte) string {
+func (*FilesystemKeyStore) getZoneKeyFilename(id []byte) string {
 	return fmt.Sprintf("%s_zone", string(id))
 }
 
-func (store *FilesystemKeyStore) get_zone_public_key_filename(id []byte) string {
-	return fmt.Sprintf("%s.pub", store.get_zone_key_filename(id))
+func (store *FilesystemKeyStore) getZonePublicKeyFilename(id []byte) string {
+	return fmt.Sprintf("%s.pub", store.getZoneKeyFilename(id))
 }
 
-func (*FilesystemKeyStore) get_server_key_filename(id []byte) string {
+func (*FilesystemKeyStore) getServerKeyFilename(id []byte) string {
 	return fmt.Sprintf("%s_server", string(id))
 }
 
-func (*FilesystemKeyStore) get_server_decryption_key_filename(id []byte) string {
+func (*FilesystemKeyStore) getServerDecryptionKeyFilename(id []byte) string {
 	return fmt.Sprintf("%s_storage", string(id))
 }
 
-func (*FilesystemKeyStore) get_proxy_key_filename(id []byte) string {
+func (*FilesystemKeyStore) getProxyKeyFilename(id []byte) string {
 	return string(id)
 }
 
-func (store *FilesystemKeyStore) generate_key_pair(filename string) (*keys.Keypair, error) {
+func (store *FilesystemKeyStore) generateKeyPair(filename string) (*keys.Keypair, error) {
 	keypair, err := keys.New(keys.KEYTYPE_EC)
 	if err != nil {
 		return nil, err
 	}
-	dirpath := filepath.Dir(store.get_file_path(filename))
+	dirpath := filepath.Dir(store.getFilePath(filename))
 	err = os.MkdirAll(dirpath, 0700)
 	if err != nil {
 		return nil, err
 	}
-	err = ioutil.WriteFile(store.get_file_path(filename), keypair.Private.Value, 0600)
+	err = ioutil.WriteFile(store.getFilePath(filename), keypair.Private.Value, 0600)
 	if err != nil {
 		return nil, err
 	}
-	err = ioutil.WriteFile(store.get_file_path(fmt.Sprintf("%s.pub", filename)), keypair.Public.Value, 0644)
+	err = ioutil.WriteFile(store.getFilePath(fmt.Sprintf("%s.pub", filename)), keypair.Public.Value, 0644)
 	if err != nil {
 		return nil, err
 	}
@@ -104,23 +104,23 @@ func (store *FilesystemKeyStore) GenerateZoneKey() ([]byte, []byte, error) {
 		}
 	}
 
-	keypair, err := store.generate_key_pair(store.get_zone_key_filename(id))
+	keypair, err := store.generateKeyPair(store.getZoneKeyFilename(id))
 	if err != nil {
 		return []byte{}, []byte{}, err
 	}
 	lock.Lock()
 	defer lock.Unlock()
 	// cache key
-	store.keys[store.get_zone_key_filename(id)] = keypair.Private.Value
+	store.keys[store.getZoneKeyFilename(id)] = keypair.Private.Value
 	return id, keypair.Public.Value, nil
 }
 
-func (store *FilesystemKeyStore) get_file_path(filename string) string {
+func (store *FilesystemKeyStore) getFilePath(filename string) string {
 	return fmt.Sprintf("%s%s%s", store.directory, string(os.PathSeparator), filename)
 }
 
 func (store *FilesystemKeyStore) GetZonePrivateKey(id []byte) (*keys.PrivateKey, error) {
-	fname := store.get_zone_key_filename(id)
+	fname := store.getZoneKeyFilename(id)
 	lock.Lock()
 	defer lock.Unlock()
 	key, ok := store.keys[fname]
@@ -128,13 +128,13 @@ func (store *FilesystemKeyStore) GetZonePrivateKey(id []byte) (*keys.PrivateKey,
 		log.Printf("Debug: load cached key: %s\n", fname)
 		return &keys.PrivateKey{Value: key}, nil
 	}
-	private_key, err := LoadPrivateKey(store.get_file_path(fname))
+	privateKey, err := utils.LoadPrivateKey(store.getFilePath(fname))
 	if err != nil {
 		return nil, err
 	}
 	log.Printf("Debug: load key from fs: %s\n", fname)
-	store.keys[fname] = private_key.Value
-	return private_key, nil
+	store.keys[fname] = privateKey.Value
+	return privateKey, nil
 }
 
 func (store *FilesystemKeyStore) HasZonePrivateKey(id []byte) bool {
@@ -143,19 +143,19 @@ func (store *FilesystemKeyStore) HasZonePrivateKey(id []byte) bool {
 	if len(id) == 0 {
 		return false
 	}
-	fname := store.get_zone_key_filename(id)
+	fname := store.getZoneKeyFilename(id)
 	lock.RLock()
 	defer lock.RUnlock()
 	_, ok := store.keys[fname]
 	if ok {
 		return true
 	}
-	exists, _ := FileExists(store.get_file_path(fname))
+	exists, _ := utils.FileExists(store.getFilePath(fname))
 	return exists
 }
 
 func (store *FilesystemKeyStore) GetProxyPublicKey(id []byte) (*keys.PublicKey, error) {
-	fname := store.get_zone_public_key_filename(id)
+	fname := store.getZonePublicKeyFilename(id)
 	lock.Lock()
 	defer lock.Unlock()
 	key, ok := store.keys[fname]
@@ -163,17 +163,17 @@ func (store *FilesystemKeyStore) GetProxyPublicKey(id []byte) (*keys.PublicKey, 
 		log.Printf("Debug: load cached key: %s\n", fname)
 		return &keys.PublicKey{Value: key}, nil
 	}
-	public_key, err := LoadPublicKey(store.get_file_path(fname))
+	publicKey, err := utils.LoadPublicKey(store.getFilePath(fname))
 	if err != nil {
 		return nil, err
 	}
 	log.Printf("Debug: load key from fs: %s\n", fname)
-	store.keys[fname] = public_key.Value
-	return public_key, nil
+	store.keys[fname] = publicKey.Value
+	return publicKey, nil
 }
 
 func (store *FilesystemKeyStore) GetServerPrivateKey(id []byte) (*keys.PrivateKey, error) {
-	fname := store.get_server_key_filename(id)
+	fname := store.getServerKeyFilename(id)
 	lock.Lock()
 	defer lock.Unlock()
 	key, ok := store.keys[fname]
@@ -181,17 +181,17 @@ func (store *FilesystemKeyStore) GetServerPrivateKey(id []byte) (*keys.PrivateKe
 		log.Printf("Debug: load cached key: %s\n", fname)
 		return &keys.PrivateKey{Value: key}, nil
 	}
-	private_key, err := LoadPrivateKey(store.get_file_path(fname))
+	privateKey, err := utils.LoadPrivateKey(store.getFilePath(fname))
 	if err != nil {
 		return nil, err
 	}
 	log.Printf("Debug: load key from fs: %s\n", fname)
-	store.keys[fname] = private_key.Value
-	return private_key, nil
+	store.keys[fname] = privateKey.Value
+	return privateKey, nil
 }
 
 func (store *FilesystemKeyStore) GetServerDecryptionPrivateKey(id []byte) (*keys.PrivateKey, error) {
-	fname := store.get_server_decryption_key_filename(id)
+	fname := store.getServerDecryptionKeyFilename(id)
 	lock.Lock()
 	defer lock.Unlock()
 	key, ok := store.keys[fname]
@@ -199,26 +199,26 @@ func (store *FilesystemKeyStore) GetServerDecryptionPrivateKey(id []byte) (*keys
 		log.Printf("Debug: load cached key: %s\n", fname)
 		return &keys.PrivateKey{Value: key}, nil
 	}
-	private_key, err := LoadPrivateKey(store.get_file_path(fname))
+	privateKey, err := utils.LoadPrivateKey(store.getFilePath(fname))
 	if err != nil {
 		return nil, err
 	}
 	log.Printf("Debug: load key from fs: %s\n", fname)
-	store.keys[fname] = private_key.Value
-	return private_key, nil
+	store.keys[fname] = privateKey.Value
+	return privateKey, nil
 }
 
 func (store *FilesystemKeyStore) GenerateProxyKeys(id []byte) error {
-	filename := store.get_proxy_key_filename(id)
-	_, err := store.generate_key_pair(filename)
+	filename := store.getProxyKeyFilename(id)
+	_, err := store.generateKeyPair(filename)
 	if err != nil {
 		return err
 	}
 	return nil
 }
 func (store *FilesystemKeyStore) GenerateServerKeys(id []byte) error {
-	filename := store.get_server_key_filename(id)
-	_, err := store.generate_key_pair(filename)
+	filename := store.getServerKeyFilename(id)
+	_, err := store.generateKeyPair(filename)
 	if err != nil {
 		return err
 	}
@@ -227,7 +227,7 @@ func (store *FilesystemKeyStore) GenerateServerKeys(id []byte) error {
 
 // generate key pair for data encryption/decryption
 func (store *FilesystemKeyStore) GenerateDataEncryptionKeys(id []byte) error {
-	_, err := store.generate_key_pair(store.get_server_decryption_key_filename(id))
+	_, err := store.generateKeyPair(store.getServerDecryptionKeyFilename(id))
 	if err != nil {
 		return err
 	}
@@ -240,28 +240,27 @@ func (store *FilesystemKeyStore) Reset() {
 }
 
 func (store *FilesystemKeyStore) GetPoisonKeyPair() (*keys.Keypair, error) {
-	private_path := store.get_file_path(POISON_KEY_FILENAME)
-	public_path := store.get_file_path(fmt.Sprintf("%s.pub", POISON_KEY_FILENAME))
-	private_exists, err := FileExists(private_path)
+	privatePath := store.getFilePath(POISON_KEY_FILENAME)
+	publicPath := store.getFilePath(fmt.Sprintf("%s.pub", POISON_KEY_FILENAME))
+	privateExists, err := utils.FileExists(privatePath)
 	if err != nil {
 		return nil, err
 	}
-	public_exists, err := FileExists(public_path)
+	publicExists, err := utils.FileExists(publicPath)
 	if err != nil {
 		return nil, err
 	}
-	if private_exists && public_exists {
-		private, err := LoadPrivateKey(private_path)
+	if privateExists && publicExists {
+		private, err := utils.LoadPrivateKey(privatePath)
 		if err != nil {
 			return nil, err
 		}
-		public, err := LoadPublicKey(public_path)
+		public, err := utils.LoadPublicKey(publicPath)
 		if err != nil {
 			return nil, err
 		}
 		return &keys.Keypair{Public: public, Private: private}, nil
-	} else {
-		log.Println("Info: Generate poison key pair")
-		return store.generate_key_pair(POISON_KEY_FILENAME)
 	}
+	log.Println("Info: Generate poison key pair")
+	return store.generateKeyPair(POISON_KEY_FILENAME)
 }

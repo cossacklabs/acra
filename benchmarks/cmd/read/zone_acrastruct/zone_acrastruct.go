@@ -35,19 +35,19 @@ func main() {
 	db = common.ConnectAcra()
 	fmt.Println("Start benchmark")
 
-	start_time := time.Now()
-	var row_id int
+	startTime := time.Now()
+	var rowId int
 	var zone, data []byte
 	for i := 0; i < config.REQUEST_COUNT; i++ {
 		id := rand.Intn(config.ROW_COUNT)
-		err := db.QueryRow("SELECT id, zone, data FROM test_with_zone WHERE id=$1+1;", &id).Scan(&row_id, &zone, &data)
+		err := db.QueryRow("SELECT id, zone, data FROM test_with_zone WHERE id=$1+1;", &id).Scan(&rowId, &zone, &data)
 		if err != nil {
 			panic(err)
 		}
 	}
-	end_time := time.Now()
+	endTime := time.Now()
 
-	diff := end_time.Sub(start_time)
+	diff := endTime.Sub(startTime)
 	fmt.Printf("Took %v sec\n", diff.Seconds())
 	db.Close()
 }

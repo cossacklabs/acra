@@ -11,6 +11,10 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
+
+// Package acrawriter provides public function CreateAcrastruct for generating
+// acrastruct in your applications for encrypting on client-side and inserting
+// to db
 package acrawriter
 
 import (
@@ -24,14 +28,16 @@ import (
 	"github.com/cossacklabs/themis/gothemis/message"
 )
 
-func CreateAcrastruct(data []byte, acra_public *keys.PublicKey, context []byte) ([]byte, error) {
-	random_kp, err := keys.New(keys.KEYTYPE_EC)
+// CreateAcrastruct encrypt your data using acra_public key and context (optional)
+// and pack into correct Acrastruct format
+func CreateAcrastruct(data []byte, acraPublic *keys.PublicKey, context []byte) ([]byte, error) {
+	randomKeyPair, err := keys.New(keys.KEYTYPE_EC)
 	if err != nil {
 		return nil, err
 	}
 	// generate random symmetric key
-	random_key := make([]byte, base.SYMMETRIC_KEY_SIZE)
-	n, err := rand.Read(random_key)
+	randomKey := make([]byte, base.SYMMETRIC_KEY_SIZE)
+	n, err := rand.Read(randomKey)
 	if err != nil {
 		return nil, err
 	}
@@ -40,26 +46,26 @@ func CreateAcrastruct(data []byte, acra_public *keys.PublicKey, context []byte) 
 	}
 
 	// create smessage for encrypting symmetric key
-	smessage := message.New(random_kp.Private, acra_public)
-	encrypted_key, err := smessage.Wrap(random_key)
+	smessage := message.New(randomKeyPair.Private, acraPublic)
+	encryptedKey, err := smessage.Wrap(randomKey)
 	if err != nil {
 		return nil, err
 	}
 	// create scell for encrypting data
-	scell := cell.New(random_key, cell.CELL_MODE_SEAL)
-	encrypted_data, _, err := scell.Protect(data, context)
+	scell := cell.New(randomKey, cell.CELL_MODE_SEAL)
+	encryptedData, _, err := scell.Protect(data, context)
 	if err != nil {
 		return nil, err
 	}
-	utils.FillSlice('0', random_key)
+	utils.FillSlice('0', randomKey)
 	// pack acrastruct
-	data_length := make([]byte, base.DATA_LENGTH_SIZE)
-	binary.LittleEndian.PutUint64(data_length, uint64(len(encrypted_data)))
-	output := make([]byte, len(base.TAG_BEGIN)+base.KEY_BLOCK_LENGTH+base.DATA_LENGTH_SIZE+len(encrypted_data))
+	dateLength := make([]byte, base.DATA_LENGTH_SIZE)
+	binary.LittleEndian.PutUint64(dateLength, uint64(len(encryptedData)))
+	output := make([]byte, len(base.TAG_BEGIN)+base.KEY_BLOCK_LENGTH+base.DATA_LENGTH_SIZE+len(encryptedData))
 	output = append(output[:0], base.TAG_BEGIN...)
-	output = append(output, random_kp.Public.Value...)
-	output = append(output, encrypted_key...)
-	output = append(output, data_length...)
-	output = append(output, encrypted_data...)
+	output = append(output, randomKeyPair.Public.Value...)
+	output = append(output, encryptedKey...)
+	output = append(output, dateLength...)
+	output = append(output, encryptedData...)
 	return output, nil
 }

@@ -34,11 +34,11 @@ func GenerateData() ([]byte, error) {
 }
 
 func GetServerOneKeyPublic() *keys.PublicKey {
-	public_key, err := ioutil.ReadFile("src/github.com/cossacklabs/acra/benchmarks/.acrakeys/onekey_server.pub")
+	publicKey, err := ioutil.ReadFile("src/github.com/cossacklabs/acra/benchmarks/.acrakeys/onekey_server.pub")
 	if err != nil {
 		panic(err)
 	}
-	return &keys.PublicKey{Value: public_key}
+	return &keys.PublicKey{Value: publicKey}
 }
 
 type ZoneData struct {
@@ -51,22 +51,22 @@ type JsonData struct {
 }
 
 func LoadZones() []*ZoneData {
-	abs_dir, err := utils.AbsPath("./src/github.com/cossacklabs/acra/benchmarks/.acrakeys")
+	absDir, err := utils.AbsPath("./src/github.com/cossacklabs/acra/benchmarks/.acrakeys")
 	if err != nil {
 		panic(err)
 	}
 	zones := make([]*ZoneData, config.ZONE_COUNT)
-	dumped_zone_data, err := ioutil.ReadFile(fmt.Sprintf("%v/public_keys.txt", abs_dir))
+	dumpedZoneData, err := ioutil.ReadFile(fmt.Sprintf("%v/public_keys.txt", absDir))
 	if err != nil {
 		panic(err)
 	}
-	for i, zone_data := range bytes.Split(dumped_zone_data, []byte("\n")) {
-		json_data := JsonData{}
-		err = json.Unmarshal(zone_data, &json_data)
+	for i, zoneData := range bytes.Split(dumpedZoneData, []byte("\n")) {
+		jsonData := JsonData{}
+		err = json.Unmarshal(zoneData, &jsonData)
 		if err != nil {
 			panic(err)
 		}
-		zones[i] = &ZoneData{Public_Key: json_data.Public_Key, Id: []byte(json_data.Id)}
+		zones[i] = &ZoneData{Public_Key: jsonData.Public_Key, Id: []byte(jsonData.Id)}
 	}
 	return zones
 }

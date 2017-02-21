@@ -52,47 +52,47 @@ func (storage *TestKeyStore) GetPoisonKeyPair() (*keys.Keypair, error) { return 
 
 func testZoneIdMatcher(t *testing.T) {
 	var keystorage keystore.KeyStore = &TestKeyStore{}
-	matcher_pool := zone.NewMatcherPool(zone.NewPgHexMatcherFactory())
-	zone_matcher := zone.NewZoneMatcher(matcher_pool, keystorage)
+	matcherPool := zone.NewMatcherPool(zone.NewPgHexMatcherFactory())
+	zoneMatcher := zone.NewZoneMatcher(matcherPool, keystorage)
 	var HEX_ZONE_ID_BEGIN = []byte(hex.EncodeToString(zone.ZONE_ID_BEGIN))
 
 	// test correct matching
 	t.Log("Check zone id")
 	for _, c := range HEX_ZONE_ID_BEGIN {
-		assertZoneMatchNotFail(byte(c), zone_matcher, t)
+		assertZoneMatchNotFail(byte(c), zoneMatcher, t)
 	}
 	// fill zone id
 	for i := 0; i < (zone.ZONE_ID_LENGTH * 2); i++ {
-		assertZoneMatchNotFail('a', zone_matcher, t)
+		assertZoneMatchNotFail('a', zoneMatcher, t)
 	}
 
-	if !zone_matcher.IsMatched() {
+	if !zoneMatcher.IsMatched() {
 		t.Fatal("Expected matched status")
 		return
 	}
-	zone_matcher.Reset()
+	zoneMatcher.Reset()
 
 	// test correct matching inner zone id
 	t.Log("Check inner zone id")
 	// feed correct tag begin
 	for _, c := range HEX_ZONE_ID_BEGIN {
-		assertZoneMatchNotFail(byte(c), zone_matcher, t)
+		assertZoneMatchNotFail(byte(c), zoneMatcher, t)
 	}
 	// feed half of correct zone id
 	for i := 0; i < zone.ZONE_ID_LENGTH; i++ {
-		assertZoneMatchNotFail('a', zone_matcher, t)
+		assertZoneMatchNotFail('a', zoneMatcher, t)
 	}
 
 	// feed second correct tag begin in zone_id block
 	for _, c := range HEX_ZONE_ID_BEGIN {
-		assertZoneMatchNotFail(byte(c), zone_matcher, t)
+		assertZoneMatchNotFail(byte(c), zoneMatcher, t)
 	}
 	// feed correct zone id
 	for i := 0; i < (zone.ZONE_ID_LENGTH * 2); i++ {
-		assertZoneMatchNotFail('a', zone_matcher, t)
+		assertZoneMatchNotFail('a', zoneMatcher, t)
 	}
 
-	if !zone_matcher.IsMatched() {
+	if !zoneMatcher.IsMatched() {
 		t.Fatal("Expected matched status")
 		return
 	}

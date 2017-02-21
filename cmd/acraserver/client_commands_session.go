@@ -22,7 +22,7 @@ import (
 
 	"errors"
 	"github.com/cossacklabs/acra/keystore"
-	. "github.com/cossacklabs/acra/utils"
+	"github.com/cossacklabs/acra/utils"
 	"github.com/cossacklabs/acra/zone"
 	"github.com/cossacklabs/themis/gothemis/keys"
 )
@@ -33,71 +33,71 @@ type ClientCommandsSession struct {
 }
 
 func NewClientCommandsSession(keystorage keystore.KeyStore, config *Config, connection net.Conn) (*ClientCommandsSession, error) {
-	client_session, err := NewClientSession(keystorage, config, connection)
+	clientSession, err := NewClientSession(keystorage, config, connection)
 	if err != nil {
 		return nil, err
 	}
-	return &ClientCommandsSession{ClientSession: *client_session}, nil
+	return &ClientCommandsSession{ClientSession: *clientSession}, nil
 
 }
 
-func (client_session *ClientCommandsSession) ConnectToDb() error {
+func (clientSession *ClientCommandsSession) ConnectToDb() error {
 	return errors.New("Error: command session must not connect to any DB")
 }
 
 /* read packets from client app wrapped in ss, unwrap them and send to db as is */
-func (client_session *ClientCommandsSession) proxyConnections() {
+func (clientSession *ClientCommandsSession) proxyConnections() {
 	return
 }
 
-func (client_session *ClientCommandsSession) close() {
+func (clientSession *ClientCommandsSession) close() {
 	log.Println("Debug: close acraproxy connection")
-	err := client_session.connection.Close()
+	err := clientSession.connection.Close()
 	if err != nil {
-		log.Printf("Warning: %v\n", ErrorMessage("error with closing connection to acraproxy", err))
+		log.Printf("Warning: %v\n", utils.ErrorMessage("error with closing connection to acraproxy", err))
 	}
 	log.Println("Debug: all connections closed")
 }
 
-func (client_session *ClientCommandsSession) HandleSession() {
-	data, err := ReadData(client_session.connection)
+func (clientSession *ClientCommandsSession) HandleSession() {
+	data, err := utils.ReadData(clientSession.connection)
 	if err != nil {
-		log.Printf("Warning: %v\n", ErrorMessage("can't initialize secure session with acraproxy", err))
+		log.Printf("Warning: %v\n", utils.ErrorMessage("can't initialize secure session with acraproxy", err))
 		return
 	}
 
-	decrypted_data, _, err := client_session.session.Unwrap(data)
+	decryptedData, _, err := clientSession.session.Unwrap(data)
 	if err != nil {
-		log.Printf("Warning: %v\n", ErrorMessage("can't initialize secure session with acraproxy", err))
+		log.Printf("Warning: %v\n", utils.ErrorMessage("can't initialize secure session with acraproxy", err))
 		return
 	}
-	reader := bufio.NewReader(strings.NewReader(string(decrypted_data[:])))
+	reader := bufio.NewReader(strings.NewReader(string(decryptedData[:])))
 	req, err := http.ReadRequest(reader)
 	if err != nil {
-		log.Printf("Warning: %v\n", ErrorMessage("error reading command request from proxy", err))
-		client_session.close()
+		log.Printf("Warning: %v\n", utils.ErrorMessage("error reading command request from proxy", err))
+		clientSession.close()
 		return
 	}
 	response := "HTTP/1.1 404 Not Found\r\n\r\nincorrect request\r\n\r\n"
 	switch req.URL.Path {
 	case "/getNewZone":
-		id, public_key, err := client_session.keystorage.GenerateZoneKey()
+		id, publicKey, err := clientSession.keystorage.GenerateZoneKey()
 		if err == nil {
-			zone_data, err := zone.ZoneDataToJson(id, &keys.PublicKey{Value: public_key})
+			zoneData, err := zone.ZoneDataToJson(id, &keys.PublicKey{Value: publicKey})
 			if err == nil {
-				response = "HTTP/1.1 200 OK Found\r\n\r\n" + string(zone_data) + "\r\n\r\n"
+				response = "HTTP/1.1 200 OK Found\r\n\r\n" + string(zoneData) + "\r\n\r\n"
 			}
 		}
 	case "/resetKeyStorage":
 		log.Println("Info: clear key storage cache")
-		client_session.keystorage.Reset()
+		clientSession.keystorage.Reset()
 		response = "HTTP/1.1 200 OK Found\r\n\r\n"
 	}
 
-	_, err = client_session.Write([]byte(response))
+	_, err = clientSession.Write([]byte(response))
 	if err != nil {
-		log.Printf("Warning: %v\n", ErrorMessage("can't send data with secure session to acraproxy", err))
+		log.Printf("Warning: %v\n", utils.ErrorMessage("can't send data with secure session to acraproxy", err))
 		return
 	}
-	client_session.close()
+	clientSession.close()
 }

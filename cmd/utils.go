@@ -107,7 +107,7 @@ func GenerateYaml(output io.Writer) {
 	})
 }
 
-func Parse(config_path string) error {
+func Parse(configPath string) error {
 	/*load from yaml config and cli. if dumpconfig option pass than generate config and exit*/
 
 	// first parse using bultin flag
@@ -117,39 +117,39 @@ func Parse(config_path string) error {
 	}
 
 	if *config != "" {
-		config_path = *config
+		configPath = *config
 	}
 	var args []string
 	// parse yaml and add params that wasn't passed from cli
-	if config_path != "" {
-		config_path, err := utils.AbsPath(config_path)
+	if configPath != "" {
+		configPath, err := utils.AbsPath(configPath)
 		if err != nil {
 			return err
 		}
-		exists, err := utils.FileExists(config_path)
+		exists, err := utils.FileExists(configPath)
 		if err != nil {
 			return err
 		}
 		if exists {
-			data, err := ioutil.ReadFile(config_path)
+			data, err := ioutil.ReadFile(configPath)
 			if err != nil {
 				return err
 			}
-			yaml_config := map[string]interface{}{}
-			err = yaml.Unmarshal([]byte(data), &yaml_config)
+			yamlConfig := map[string]interface{}{}
+			err = yaml.Unmarshal([]byte(data), &yamlConfig)
 			if err != nil {
 				return err
 			}
-			set_args := make(map[string]bool)
+			setArgs := make(map[string]bool)
 			flag_.Visit(func(flag *flag_.Flag) {
-				set_args[flag.Name] = true
+				setArgs[flag.Name] = true
 			})
 			// generate args list for flag.Parse as it was from cli args
 			args = make([]string, 0)
 			flag_.VisitAll(func(flag *flag_.Flag) {
 				// generate only args that wasn't set from cli
-				if _, already_set := set_args[flag.Name]; !already_set {
-					if value, yaml_ok := yaml_config[flag.Name]; yaml_ok {
+				if _, alreadySet := setArgs[flag.Name]; !alreadySet {
+					if value, yamlOk := yamlConfig[flag.Name]; yamlOk {
 						if value != nil {
 							args = append(args, fmt.Sprintf("--%v=%v", flag.Name, value))
 						}
@@ -164,26 +164,26 @@ func Parse(config_path string) error {
 		return err
 	}
 	if *dumpconfig {
-		var abs_path string
+		var absPath string
 		if *config == "" {
-			abs_path, err = utils.AbsPath(config_path)
+			absPath, err = utils.AbsPath(configPath)
 			if err != nil {
 				return err
 			}
 		} else {
-			abs_path, err = utils.AbsPath(*config)
+			absPath, err = utils.AbsPath(*config)
 			if err != nil {
 				return err
 			}
 		}
 
-		dir_path := filepath.Dir(abs_path)
-		err = os.MkdirAll(dir_path, 0744)
+		dirPath := filepath.Dir(absPath)
+		err = os.MkdirAll(dirPath, 0744)
 		if err != nil {
 			return err
 		}
 
-		file, err := os.Create(abs_path)
+		file, err := os.Create(absPath)
 		if err != nil {
 			return err
 		}

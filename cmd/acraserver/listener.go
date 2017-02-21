@@ -15,7 +15,7 @@ package main
 
 import (
 	"fmt"
-	. "github.com/cossacklabs/acra/utils"
+	"github.com/cossacklabs/acra/utils"
 	"log"
 	"net"
 	"time"
@@ -49,25 +49,25 @@ func NewServer(config *Config) (server *SServer, err error) {
  read client_id, load public key for this client and initialize Secure Session
 */
 func (server *SServer) initSSession(connection net.Conn) ([]byte, *ClientSession, error) {
-	client_id, err := ReadSessionData(connection)
+	clientId, err := utils.ReadSessionData(connection)
 	if err != nil {
 		return nil, nil, err
 	}
-	private_key, err := server.keystorage.GetServerPrivateKey(client_id)
+	privateKey, err := server.keystorage.GetServerPrivateKey(clientId)
 	if err != nil {
 		return nil, nil, err
 	}
-	client_session, err := NewClientSession(server.keystorage, server.config, connection)
+	clientSession, err := NewClientSession(server.keystorage, server.config, connection)
 	if err != nil {
 		return nil, nil, err
 	}
-	ssession, err := session.New(server.config.GetServerId(), private_key, client_session)
+	ssession, err := session.New(server.config.GetServerId(), privateKey, clientSession)
 	if err != nil {
 		return nil, nil, err
 	}
-	client_session.session = ssession
+	clientSession.session = ssession
 	for {
-		data, err := ReadSessionData(connection)
+		data, err := utils.ReadSessionData(connection)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -76,47 +76,47 @@ func (server *SServer) initSSession(connection net.Conn) ([]byte, *ClientSession
 			return nil, nil, err
 		}
 		if !sendPeer {
-			return client_id, client_session, nil
+			return clientId, clientSession, nil
 		}
 
-		err = SendSessionData(buf, connection)
+		err = utils.SendSessionData(buf, connection)
 		if err != nil {
 			return nil, nil, err
 		}
 
 		if ssession.GetState() == session.STATE_ESTABLISHED {
-			return client_id, client_session, err
+			return clientId, clientSession, err
 		}
 	}
 }
 
-func (server *SServer) getDecryptor(client_id []byte) base.Decryptor {
-	var data_decryptor base.DataDecryptor
-	var matcher_pool *zone.MatcherPool
+func (server *SServer) getDecryptor(clientId []byte) base.Decryptor {
+	var dataDecryptor base.DataDecryptor
+	var matcherPool *zone.MatcherPool
 	if server.config.GetByteaFormat() == HEX_BYTEA_FORMAT {
-		data_decryptor = pg.NewPgHexDecryptor()
-		matcher_pool = zone.NewMatcherPool(zone.NewPgHexMatcherFactory())
+		dataDecryptor = pg.NewPgHexDecryptor()
+		matcherPool = zone.NewMatcherPool(zone.NewPgHexMatcherFactory())
 	} else {
-		data_decryptor = pg.NewPgEscapeDecryptor()
-		matcher_pool = zone.NewMatcherPool(zone.NewPgEscapeMatcherFactory())
+		dataDecryptor = pg.NewPgEscapeDecryptor()
+		matcherPool = zone.NewMatcherPool(zone.NewPgEscapeMatcherFactory())
 	}
-	decryptor_impl := pg.NewPgDecryptor(client_id, data_decryptor)
-	decryptor_impl.SetWithZone(server.config.GetWithZone())
-	decryptor_impl.SetWholeMatch(server.config.GetWholeMatch())
-	decryptor_impl.SetKeyStore(server.keystorage)
-	zone_matcher := zone.NewZoneMatcher(matcher_pool, server.keystorage)
-	decryptor_impl.SetZoneMatcher(zone_matcher)
+	decryptorImpl := pg.NewPgDecryptor(clientId, dataDecryptor)
+	decryptorImpl.SetWithZone(server.config.GetWithZone())
+	decryptorImpl.SetWholeMatch(server.config.GetWholeMatch())
+	decryptorImpl.SetKeyStore(server.keystorage)
+	zoneMatcher := zone.NewZoneMatcher(matcherPool, server.keystorage)
+	decryptorImpl.SetZoneMatcher(zoneMatcher)
 
-	poison_callback_storage := base.NewPoisonCallbackStorage()
+	poisonCallbackStorage := base.NewPoisonCallbackStorage()
 	if server.config.GetScriptOnPoison() != "" {
-		poison_callback_storage.AddCallback(base.NewExecuteScriptCallback(server.config.GetScriptOnPoison()))
+		poisonCallbackStorage.AddCallback(base.NewExecuteScriptCallback(server.config.GetScriptOnPoison()))
 	}
 	// must be last
 	if server.config.GetStopOnPoison() {
-		poison_callback_storage.AddCallback(&base.StopCallback{})
+		poisonCallbackStorage.AddCallback(&base.StopCallback{})
 	}
-	decryptor_impl.SetPoisonCallbackStorage(poison_callback_storage)
-	return decryptor_impl
+	decryptorImpl.SetPoisonCallbackStorage(poisonCallbackStorage)
+	return decryptorImpl
 }
 
 /*
@@ -126,36 +126,36 @@ to db and decrypting responses from db
 func (server *SServer) handleConnection(connection net.Conn) {
 	// initialization of session should be fast, so limit time for connection activity interval
 	connection.SetDeadline(time.Now().Add(INIT_SSESSION_TIMEOUT))
-	client_id, client_session, err := server.initSSession(connection)
+	clientId, clientSession, err := server.initSSession(connection)
 	if err != nil {
-		log.Printf("Warning: %v\n", ErrorMessage("can't initialize secure session with acraproxy", err))
+		log.Printf("Warning: %v\n", utils.ErrorMessage("can't initialize secure session with acraproxy", err))
 		err = connection.Close()
 		if err != nil {
-			log.Printf("Warning: %v\n", ErrorMessage("can't close connection", err))
+			log.Printf("Warning: %v\n", utils.ErrorMessage("can't close connection", err))
 		}
 		return
 	}
-	defer client_session.session.Close()
+	defer clientSession.session.Close()
 	// reset deadline
 	connection.SetDeadline(time.Time{})
 
 	log.Println("Debug: secure session initialized")
-	decryptor := server.getDecryptor(client_id)
-	client_session.HandleSecureSession(decryptor)
+	decryptor := server.getDecryptor(clientId)
+	clientSession.HandleSecureSession(decryptor)
 }
 
 // start listening connections from proxy
 func (server *SServer) Start() {
 	listener, err := net.Listen("tcp", fmt.Sprintf("%v:%v", server.config.GetProxyHost(), server.config.GetProxyPort()))
 	if err != nil {
-		log.Printf("Error: %v\n", ErrorMessage("can't start listen connections", err))
+		log.Printf("Error: %v\n", utils.ErrorMessage("can't start listen connections", err))
 		return
 	}
 	log.Printf("Info: start listening %v:%v\n", server.config.GetProxyHost(), server.config.GetProxyPort())
 	for {
 		connection, err := listener.Accept()
 		if err != nil {
-			log.Printf("Error: %v\n", ErrorMessage(fmt.Sprintf("can't accept new connection (connection=%v)", connection), err))
+			log.Printf("Error: %v\n", utils.ErrorMessage(fmt.Sprintf("can't accept new connection (connection=%v)", connection), err))
 			continue
 		}
 		log.Printf("Info: new connection: %v\n", connection.RemoteAddr())
@@ -168,28 +168,28 @@ func (server *SServer) Start() {
  read client_id, load public key for this client and initialize Secure Session
 */
 func (server *SServer) initCommandsSSession(connection net.Conn) (*ClientCommandsSession, error) {
-	client_id, err := ReadSessionData(connection)
+	clientId, err := utils.ReadSessionData(connection)
 	if err != nil {
 		return nil, err
 	}
-	private_key, err := server.keystorage.GetServerPrivateKey(client_id)
+	privateKey, err := server.keystorage.GetServerPrivateKey(clientId)
 	if err != nil {
 		return nil, err
 	}
-	client_session, err := NewClientCommandsSession(server.keystorage, server.config, connection)
+	clientSession, err := NewClientCommandsSession(server.keystorage, server.config, connection)
 	if err != nil {
 		return nil, err
 	}
-	ssession, err := session.New(server.config.GetServerId(), private_key, client_session)
+	ssession, err := session.New(server.config.GetServerId(), privateKey, clientSession)
 	if err != nil {
 		return nil, err
 	}
-	client_session.session = ssession
+	clientSession.session = ssession
 	if err != nil {
 		return nil, err
 	}
 	for {
-		data, err := ReadSessionData(connection)
+		data, err := utils.ReadSessionData(connection)
 		if err != nil {
 			return nil, err
 		}
@@ -198,16 +198,16 @@ func (server *SServer) initCommandsSSession(connection net.Conn) (*ClientCommand
 			return nil, err
 		}
 		if !sendPeer {
-			return client_session, nil
+			return clientSession, nil
 		}
 
-		err = SendSessionData(buf, connection)
+		err = utils.SendSessionData(buf, connection)
 		if err != nil {
 			return nil, err
 		}
 
 		if ssession.GetState() == session.STATE_ESTABLISHED {
-			return client_session, err
+			return clientSession, err
 		}
 	}
 }
@@ -219,16 +219,16 @@ to db and decrypting responses from db
 func (server *SServer) handleCommandsConnection(connection net.Conn) {
 	// initialization of session should be fast, so limit time for connection activity interval
 	connection.SetDeadline(time.Now().Add(INIT_SSESSION_TIMEOUT))
-	client_session, err := server.initCommandsSSession(connection)
+	clientSession, err := server.initCommandsSSession(connection)
 	if err != nil {
 		log.Println("Error: ", err)
 		return
 	}
-	defer client_session.session.Close()
+	defer clientSession.session.Close()
 	// reset deadline
 	connection.SetDeadline(time.Time{})
 	log.Println("Debug: http api secure session initialized")
-	client_session.HandleSession()
+	clientSession.HandleSession()
 }
 
 // start listening commands connections from proxy
@@ -236,14 +236,14 @@ func (server *SServer) StartCommands() {
 	log.Printf("Info: start listening http api %v\n", server.config.GetProxyCommandsPort())
 	listener, err := net.Listen("tcp", fmt.Sprintf("%v:%v", server.config.GetProxyHost(), server.config.GetProxyCommandsPort()))
 	if err != nil {
-		log.Printf("Error: %v\n", ErrorMessage("can't start listen command connections", err))
+		log.Printf("Error: %v\n", utils.ErrorMessage("can't start listen command connections", err))
 		return
 	}
 	log.Printf("Info: start listening %v:%v\n", server.config.GetProxyHost(), server.config.GetProxyCommandsPort())
 	for {
 		connection, err := listener.Accept()
 		if err != nil {
-			log.Printf("Error: %v\n", ErrorMessage(fmt.Sprintf("can't accept new connection (%v)", connection.RemoteAddr()), err))
+			log.Printf("Error: %v\n", utils.ErrorMessage(fmt.Sprintf("can't accept new connection (%v)", connection.RemoteAddr()), err))
 			continue
 		}
 		log.Printf("Info: new connection to http api: %v\n", connection.RemoteAddr())

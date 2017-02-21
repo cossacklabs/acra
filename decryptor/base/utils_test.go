@@ -24,8 +24,8 @@ import (
 )
 
 func TestDecryptAcrastruct(t *testing.T) {
-	test_data := make([]byte, 1000)
-	_, err := rand.Read(test_data)
+	testData := make([]byte, 1000)
+	_, err := rand.Read(testData)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -34,7 +34,7 @@ func TestDecryptAcrastruct(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	acrastruct, err := acrawriter.CreateAcrastruct(test_data, keypair.Public, nil)
+	acrastruct, err := acrawriter.CreateAcrastruct(testData, keypair.Public, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -43,13 +43,13 @@ func TestDecryptAcrastruct(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !bytes.Equal(decrypted, test_data) {
+	if !bytes.Equal(decrypted, testData) {
 		t.Fatal("decrypted != test_data")
 	}
 
 	t.Log("Test with zone")
 	zone_id := zone.GenerateZoneId()
-	acrastruct, err = acrawriter.CreateAcrastruct(test_data, keypair.Public, zone_id)
+	acrastruct, err = acrawriter.CreateAcrastruct(testData, keypair.Public, zone_id)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -58,7 +58,7 @@ func TestDecryptAcrastruct(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !bytes.Equal(decrypted, test_data) {
+	if !bytes.Equal(decrypted, testData) {
 		t.Fatal("decrypted != test_data")
 	}
 }

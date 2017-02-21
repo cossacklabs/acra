@@ -24,11 +24,12 @@ import (
 	"os"
 )
 
+// DEFAULT_CONFIG_PATH relative path to config which will be parsed as default
 var DEFAULT_CONFIG_PATH = utils.GetConfigPathByName("acra_genpoisonrecord")
 
 func main() {
-	keys_dir := flag.String("keys_dir", keystore.DEFAULT_KEY_DIR_SHORT, "Folder from which will be loaded keys")
-	data_length := flag.Int("data_length", poison.DEFAULT_DATA_LENGTH, fmt.Sprintf("Length of random data for data block in acrastruct. -1 is random in range 1..%v", poison.MAX_DATA_LENGTH))
+	keysDir := flag.String("keys_dir", keystore.DEFAULT_KEY_DIR_SHORT, "Folder from which will be loaded keys")
+	dataLength := flag.Int("data_length", poison.DEFAULT_DATA_LENGTH, fmt.Sprintf("Length of random data for data block in acrastruct. -1 is random in range 1..%v", poison.MAX_DATA_LENGTH))
 
 	cmd.SetLogLevel(cmd.LOG_DISCARD)
 
@@ -38,14 +39,14 @@ func main() {
 		os.Exit(1)
 	}
 
-	store, err := keystore.NewFilesystemKeyStore(*keys_dir)
+	store, err := keystore.NewFilesystemKeyStore(*keysDir)
 	if err != nil {
 		fmt.Printf("Error: %v\n", utils.ErrorMessage("can't initialize key store", err))
 		os.Exit(1)
 	}
-	poison_record, err := poison.CreatePoisonRecord(store, *data_length)
+	poisonRecord, err := poison.CreatePoisonRecord(store, *dataLength)
 	if err != nil {
 		fmt.Printf("Error: %v\n", utils.ErrorMessage("can't create poison record", err))
 	}
-	fmt.Println(base64.StdEncoding.EncodeToString(poison_record))
+	fmt.Println(base64.StdEncoding.EncodeToString(poisonRecord))
 }

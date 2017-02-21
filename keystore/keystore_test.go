@@ -21,7 +21,7 @@ import (
 	"testing"
 )
 
-func test_general(store *FilesystemKeyStore, t *testing.T) {
+func testGeneral(store *FilesystemKeyStore, t *testing.T) {
 	if store.HasZonePrivateKey([]byte("non-existent key")) {
 		t.Fatal("Expected false on non-existent key")
 	}
@@ -48,15 +48,15 @@ func test_general(store *FilesystemKeyStore, t *testing.T) {
 	}
 }
 
-func test_generating_data_encryption_keys(store *FilesystemKeyStore, t *testing.T) {
-	test_id := []byte("test id")
-	err := store.GenerateDataEncryptionKeys(test_id)
+func testGeneratingDataEncryptionKeys(store *FilesystemKeyStore, t *testing.T) {
+	testId := []byte("test id")
+	err := store.GenerateDataEncryptionKeys(testId)
 	if err != nil {
 		t.Fatal(err)
 	}
 	exists, err := utils.FileExists(
-		store.get_file_path(
-			store.get_server_decryption_key_filename(test_id)))
+		store.getFilePath(
+			store.getServerDecryptionKeyFilename(testId)))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -65,8 +65,8 @@ func test_generating_data_encryption_keys(store *FilesystemKeyStore, t *testing.
 	}
 
 	exists, err = utils.FileExists(
-		fmt.Sprintf("%s.pub", store.get_file_path(
-			store.get_server_decryption_key_filename(test_id))))
+		fmt.Sprintf("%s.pub", store.getFilePath(
+			store.getServerDecryptionKeyFilename(testId))))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -75,84 +75,84 @@ func test_generating_data_encryption_keys(store *FilesystemKeyStore, t *testing.
 	}
 }
 
-func test_generate_server_keys(store *FilesystemKeyStore, t *testing.T) {
-	test_id := []byte("test id")
-	err := store.GenerateServerKeys(test_id)
+func testGenerateServerKeys(store *FilesystemKeyStore, t *testing.T) {
+	testId := []byte("test id")
+	err := store.GenerateServerKeys(testId)
 	if err != nil {
 		t.Fatal(err)
 	}
-	expected_paths := []string{
-		store.get_server_key_filename(test_id),
-		fmt.Sprintf("%s.pub", store.get_server_key_filename(test_id)),
+	expectedPaths := []string{
+		store.getServerKeyFilename(testId),
+		fmt.Sprintf("%s.pub", store.getServerKeyFilename(testId)),
 	}
-	for _, name := range expected_paths {
-		abs_path := store.get_file_path(name)
-		exists, err := utils.FileExists(abs_path)
+	for _, name := range expectedPaths {
+		absPath := store.getFilePath(name)
+		exists, err := utils.FileExists(absPath)
 		if err != nil {
 			t.Fatal(err)
 		}
 		if !exists {
-			t.Fatal(fmt.Sprintf("File <%s> doesn't exists", abs_path))
+			t.Fatal(fmt.Sprintf("File <%s> doesn't exists", absPath))
 		}
 	}
 }
 
-func test_generate_proxy_keys(store *FilesystemKeyStore, t *testing.T) {
-	test_id := []byte("test id")
-	err := store.GenerateProxyKeys(test_id)
+func testGenerateProxyKeys(store *FilesystemKeyStore, t *testing.T) {
+	testId := []byte("test id")
+	err := store.GenerateProxyKeys(testId)
 	if err != nil {
 		t.Fatal(err)
 	}
-	expected_paths := []string{
-		store.get_proxy_key_filename(test_id),
-		fmt.Sprintf("%s.pub", store.get_proxy_key_filename(test_id)),
+	expectedPaths := []string{
+		store.getProxyKeyFilename(testId),
+		fmt.Sprintf("%s.pub", store.getProxyKeyFilename(testId)),
 	}
-	for _, name := range expected_paths {
-		abs_path := store.get_file_path(name)
-		exists, err := utils.FileExists(abs_path)
+	for _, name := range expectedPaths {
+		absPath := store.getFilePath(name)
+		exists, err := utils.FileExists(absPath)
 		if err != nil {
 			t.Fatal(err)
 		}
 		if !exists {
-			t.Fatal(fmt.Sprintf("File <%s> doesn't exists", abs_path))
+			t.Fatal(fmt.Sprintf("File <%s> doesn't exists", absPath))
 		}
 	}
 }
 
-func test_reset(store *FilesystemKeyStore, t *testing.T) {
-	test_id := []byte("some test id")
-	if err := store.GenerateServerKeys(test_id); err != nil {
+func testReset(store *FilesystemKeyStore, t *testing.T) {
+	testId := []byte("some test id")
+	if err := store.GenerateServerKeys(testId); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := store.GetServerPrivateKey(test_id); err != nil {
+	if _, err := store.GetServerPrivateKey(testId); err != nil {
 		t.Fatal(err)
 	}
 	store.Reset()
-	if err := os.Remove(store.get_file_path(store.get_server_key_filename(test_id))); err != nil {
+	if err := os.Remove(store.getFilePath(store.getServerKeyFilename(testId))); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.Remove(fmt.Sprintf("%s.pub", store.get_file_path(store.get_server_key_filename(test_id)))); err != nil {
+	if err := os.Remove(fmt.Sprintf("%s.pub", store.getFilePath(store.getServerKeyFilename(testId)))); err != nil {
 		t.Fatal(err)
 	}
 
-	if _, err := store.GetServerPrivateKey(test_id); err == nil {
+	if _, err := store.GetServerPrivateKey(testId); err == nil {
 		t.Fatal("Expected error on fetching cleared key")
 	}
 }
 
 func TestFilesystemKeyStore(t *testing.T) {
-	key_directory := fmt.Sprintf(".%s%s", string(filepath.Separator), "keys")
-	os.MkdirAll(key_directory, 0700)
+	keyDirectory := fmt.Sprintf(".%s%s", string(filepath.Separator), "keys")
+	os.MkdirAll(keyDirectory, 0700)
 	defer func() {
-		os.RemoveAll(key_directory)
+		os.RemoveAll(keyDirectory)
 	}()
-	store, err := NewFilesystemKeyStore(key_directory)
+	store, err := NewFilesystemKeyStore(keyDirectory)
 	if err != nil {
 		t.Fatal("error")
 	}
-	test_general(store, t)
-	test_generating_data_encryption_keys(store, t)
-	test_generate_proxy_keys(store, t)
-	test_generate_server_keys(store, t)
-	test_reset(store, t)
+	testGeneral(store, t)
+	testGeneratingDataEncryptionKeys(store, t)
+	testGenerateProxyKeys(store, t)
+	testGenerateServerKeys(store, t)
+	testReset(store, t)
 }

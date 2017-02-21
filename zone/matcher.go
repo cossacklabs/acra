@@ -69,95 +69,94 @@ type Matcher interface {
 }
 
 type PgMatcher struct {
-	pg_matcher     Matcher
-	binary_matcher Matcher
+	pgMatcher     Matcher
+	binaryMatcher Matcher
 }
 
-func NewPgMatcher(db_reader DbByteReader) Matcher {
+func NewPgMatcher(dbReader DbByteReader) Matcher {
 	return &PgMatcher{
-		pg_matcher:     NewBaseMatcher(db_reader),
-		binary_matcher: NewBaseMatcher(NewBinaryByteReader()),
+		pgMatcher:     NewBaseMatcher(dbReader),
+		binaryMatcher: NewBaseMatcher(NewBinaryByteReader()),
 	}
 }
 func (matcher *PgMatcher) Match(c byte) bool {
-	pg_matched := matcher.pg_matcher.Match(c)
-	bin_matched := matcher.binary_matcher.Match(c)
-	return pg_matched || bin_matched
+	pgMatched := matcher.pgMatcher.Match(c)
+	binMatched := matcher.binaryMatcher.Match(c)
+	return pgMatched || binMatched
 }
 
 func (matcher *PgMatcher) HasAnyMatch() bool {
-	return matcher.pg_matcher.HasAnyMatch() || matcher.binary_matcher.HasAnyMatch()
+	return matcher.pgMatcher.HasAnyMatch() || matcher.binaryMatcher.HasAnyMatch()
 }
 
 func (matcher *PgMatcher) GetZoneId() []byte {
-	if matcher.pg_matcher.IsMatched() {
-		return matcher.pg_matcher.GetZoneId()
-	} else if matcher.binary_matcher.IsMatched() {
-		return matcher.binary_matcher.GetZoneId()
+	if matcher.pgMatcher.IsMatched() {
+		return matcher.pgMatcher.GetZoneId()
+	} else if matcher.binaryMatcher.IsMatched() {
+		return matcher.binaryMatcher.GetZoneId()
 	} else {
 		return []byte{}
 	}
 }
 func (matcher *PgMatcher) Reset() {
-	matcher.pg_matcher.Reset()
-	matcher.binary_matcher.Reset()
+	matcher.pgMatcher.Reset()
+	matcher.binaryMatcher.Reset()
 }
 
 func (matcher *PgMatcher) IsMatched() bool {
-	matched := matcher.pg_matcher.IsMatched()
-	matched = matched || matcher.binary_matcher.IsMatched()
+	matched := matcher.pgMatcher.IsMatched()
+	matched = matched || matcher.binaryMatcher.IsMatched()
 	return matched
 }
 
 type BaseMatcher struct {
-	current_index byte
-	matched       bool
-	has_any_match bool
-	zone_id       []byte
-	db_reader     DbByteReader
+	currentIndex byte
+	matched      bool
+	hasAnyMatch  bool
+	zoneId       []byte
+	dbReader     DbByteReader
 }
 
-func NewBaseMatcher(db_reader DbByteReader) Matcher {
+func NewBaseMatcher(dbReader DbByteReader) Matcher {
 	return &BaseMatcher{
-		current_index: 0,
-		db_reader:     db_reader,
-		has_any_match: false,
-		matched:       false,
-		zone_id:       make([]byte, ZONE_ID_BLOCK_LENGTH)}
+		currentIndex: 0,
+		dbReader:     dbReader,
+		hasAnyMatch:  false,
+		matched:      false,
+		zoneId:       make([]byte, ZONE_ID_BLOCK_LENGTH)}
 }
 
 func (matcher *BaseMatcher) Reset() {
 	// used only for tests
-	matcher.current_index = 0
+	matcher.currentIndex = 0
 	matcher.matched = false
-	matcher.has_any_match = false
+	matcher.hasAnyMatch = false
 }
 
 func (matcher *BaseMatcher) Match(c byte) bool {
-	parsed, b, err := matcher.db_reader.ReadByte(c)
+	parsed, b, err := matcher.dbReader.ReadByte(c)
 	if err != nil {
 		matcher.Reset()
 		return false
 	}
 	// matched part of db byte format
 	if !parsed {
-		matcher.has_any_match = true
+		matcher.hasAnyMatch = true
 		return true
 	}
-	matcher.has_any_match = true
-	if matcher.current_index < byte(len(ZONE_ID_BEGIN)) {
-		if ZONE_ID_BEGIN[matcher.current_index] == b {
-			matcher.zone_id[matcher.current_index] = b
-			matcher.current_index++
+	matcher.hasAnyMatch = true
+	if matcher.currentIndex < byte(len(ZONE_ID_BEGIN)) {
+		if ZONE_ID_BEGIN[matcher.currentIndex] == b {
+			matcher.zoneId[matcher.currentIndex] = b
+			matcher.currentIndex++
 			return true
-		} else {
-			matcher.Reset()
-			return false
 		}
+		matcher.Reset()
+		return false
 	} else {
-		matcher.zone_id[matcher.current_index] = b
-		matcher.current_index++
-		if matcher.current_index == byte(ZONE_ID_BLOCK_LENGTH) {
+		matcher.zoneId[matcher.currentIndex] = b
+		matcher.currentIndex++
+		if matcher.currentIndex == byte(ZONE_ID_BLOCK_LENGTH) {
 			matcher.matched = true
 		}
 		return true
@@ -169,13 +168,12 @@ func (matcher *BaseMatcher) IsMatched() bool {
 }
 
 func (matcher *BaseMatcher) HasAnyMatch() bool {
-	return matcher.has_any_match
+	return matcher.hasAnyMatch
 }
 
 func (matcher *BaseMatcher) GetZoneId() []byte {
 	if matcher.IsMatched() {
-		return matcher.zone_id
-	} else {
-		return []byte{}
+		return matcher.zoneId
 	}
+	return []byte{}
 }
