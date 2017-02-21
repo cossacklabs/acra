@@ -11,15 +11,19 @@
 
 ## What is Acra
 
-Acra helps you to easily secure your databases in distributed, microservice-rich environments. It gives you means to encrypt the data on application side into a special cryptographic container, store it in the database and then decrypt in secure compartmented area (separate virtual machine/container). Cryptographic design ensures that no secret (password, key, anything) leaked from the application or database is sufficient to decrypt protected data chunks which originate from it. 
+Acra helps you to easily secure your databases in distributed, microservice-rich environments. It's security model guarantees that compromising the database or your application does not leak sensitive data, or keys to decrypt it.
+
+Acra gives you means to encrypt the data on application side into a special cryptographic container, store it in the database and then decrypt in secure compartmented area (separate virtual machine/container). Cryptographic design ensures that no secret (password, key, anything) leaked from the application or database is sufficient to decrypt protected data chunks which originate from it. 
 
 Acra was built with specific user experiences in mind: 
 - **quick and easy integration** of security instrumentation.
 - cryptographically protect data in threat model, where **all other parts of infrastructure could be compromised**, and if AcraServer isn't, data is safe. 
 - **proper abstraction** of all cryptographic processes: you don't risk mischoosing key length or algorithm padding. 
 - **strong default settings** to get you going. 
+- **intrusion detection** to let you know early that something wrong is going on.
 - **high degree of configurability** to create perfect balance between extra security features and performance. 
 - **automation-friendly**: most of Acra's features were built to be easily configured / automated from configuration automation environment.
+- **limited attack surface**: to compromise Acra-powered app, attacker will need to compromise separate compartmented server, AcraServer, more specifically it's key storage, and the database. 
 
 Acra currently supports PostgreSQL as database backend, MongoDB and MariaDB (and other MySQL flavours) coming quite soon. Acra components should build on most modern Linux installations, but was built and test in debian-type Linuxes.
 
@@ -69,4 +73,4 @@ We fill [wiki](https://github.com/cossacklabs/acra/wiki) with useful reads on co
 
 ## Project status
 
-Acra is early alpha. We've built it in cooperation with one of our early partners for their specific security goals, liked the design and then tried to generalize experience received for all other kinds of users. We're giving it out to the security/engineering community in hope that these use-cases are not overly unique and will benefit many other infrastructures. Please let us know in the [Issues](https://www.github.com/cossacklabs/acra/issues) whenever you stumble upon a bug, see a possible enhancement or would just generally like to help.
+Acra is early alpha. We've built it in cooperation with one of our early partners for their specific security goals, liked the design and then tried to generalize experience received for all other kinds of users. We're giving it out to the security/engineering community in hope that these use-cases are not overly unique and will benefit someone. Please let us know in the [Issues](https://www.github.com/cossacklabs/acra/issues) whenever you stumble upon a bug, see a possible enhancement or comment on security design.
