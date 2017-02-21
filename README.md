@@ -29,7 +29,7 @@ Acra is available under Apache 2 license.
 
 ## Typical architecture
 
-![](https://github.com/cossacklabs/acra/wiki/Images/generalarch.png)
+![](https://github.com/cossacklabs/acra/wiki/Images/simplified_arch.png)
 
 * Your app talks to **AcraProxy**, local daemon, which emulates your normal PostgreSQL database, forwards all requests to **AcraServer** and reads back plaintext output. It is connected to **AcraServer** via [Secure Session](https://github.com/cossacklabs/themis/wiki/Secure-Session-cryptosystem), ensuring that all plaintext goes over trusted channel. It is highly desirable to run AcraProxy via separate user to compartment it from client-facing code. 
 * **AcraServer** is a core entity, providing decryption services for all encrypted envelopes coming from database and then re-packing database answers for the application.
@@ -37,9 +37,9 @@ Acra is available under Apache 2 license.
 * You can connect to both **AcraProxy** and directly to database when you don't need encrypted reads/writes. However, increased performance might cost design elegance (which is sometimes perfectly fine, when it's conscious choice).
 
 Typical flow looks like this: 
-- App writes some records using AcraWriter, generating AcraStruct with AcraServer public key, updates database. 
+- App encrypts some records using AcraWriter, generating AcraStruct with AcraServer public key, updates database. 
 - App sends SQL request through AcraProxy, which forwards it to AcraServer, AcraServer forwards it to database. 
-- Upon receiving an answer, AcraServer tries to detect encrypted envelopes (AcraStructs), and, if succeeded, replacing them with plaintext answer, which then gets returned to AcraProxy over secure channel. 
+- Upon receiving an answer, AcraServer tries to detect encrypted envelopes (AcraStructs), and, if succeeded, decrypts payload and replacing them with plaintext answer, which then gets returned to AcraProxy over secure channel. 
 - AcraProxy then provides answer to application, as if no complex security instrumentation is ever present within the system.
 
 ## 4 steps to start
