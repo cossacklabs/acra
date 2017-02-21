@@ -29,7 +29,7 @@ Acra is available under Apache 2 license.
 
 ## How Acra works?
 
-<img src="https://github.com/cossacklabs/acra/wiki/Images/simplified_arch.png" alt="Acra: simplified architecture" width="500">
+<p align="center"><img src="https://github.com/cossacklabs/acra/wiki/Images/simplified_arch.png" alt="Acra: simplified architecture" width="500"></p>
 
 After successfully deploying and integrating Acra into your application (see below, 4 steps to start):
 
