@@ -5,7 +5,7 @@ import (
 	flag_ "flag"
 	"fmt"
 	"github.com/cossacklabs/acra/utils"
-	"github.com/go-yaml/yaml"
+	"gopkg.in/yaml.v2"
 	"io"
 	"io/ioutil"
 	"log"
@@ -15,7 +15,7 @@ import (
 )
 
 var (
-	config     = flag_.String("config", "", "path to config")
+	config = flag_.String("config", "", "path to config")
 	dumpconfig = flag_.Bool("dumpconfig", false, "dump config")
 )
 
