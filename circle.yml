@@ -14,7 +14,7 @@ machine:
 dependencies:
   pre:
     - sudo apt-get update && sudo apt-get install libssl-dev build-essential git
-    - mkdir $HOME/go1.6.2 && mkdir $HOME/go1.3.3 && mkdir $HOME/go1.7.5
+    - mkdir $HOME/go.1.6.2 && mkdir $HOME/go.1.3.3 && mkdir $HOME/go.1.7.5
     - cd $HOME/go.1.6.2 && wget https://storage.googleapis.com/golang/go1.6.2.linux-amd64.tar.gz && tar xf go1.6.2.linux-amd64.tar.gz
     - cd $HOME/go.1.3.3 && wget https://storage.googleapis.com/golang/go1.3.3.linux-amd64.tar.gz && tar xf go1.3.3.linux-amd64.tar.gz
     - cd $HOME/go.1.7.5 && wget https://storage.googleapis.com/golang/go1.7.5.linux-amd64.tar.gz && tar xf go1.7.5.linux-amd64.tar.gz
