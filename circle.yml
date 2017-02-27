@@ -10,7 +10,7 @@ dependencies:
     - cd $HOME && for version in $VERSIONS; do mkdir go_root_$version; cd go_root_$version; wget https://storage.googleapis.com/golang/go$version.linux-amd64.tar.gz; tar xf go$version.linux-amd64.tar.gz; cd -; done
 
   override:
-    - cd $HOME && for version in $VERSIONS; do mkdir -p go_path_$version/src/github.com/cossacklabs/themis/gothemis; mkdir -p go_path_$version/src/github.com/cossacklabs/acra; rsync -auv $home/themis/gothemis/ go_path_$version/src/github.com/cossacklabs/themis/gothemis; rsync -auv $home/acra go_path_$version/src/github.com/cossacklabs; done
+    - cd $HOME && for version in $VERSIONS; do mkdir -p go_path_$version/src/github.com/cossacklabs/themis/gothemis; mkdir -p go_path_$version/src/github.com/cossacklabs/acra; rsync -auv $HOME/themis/gothemis/ go_path_$version/src/github.com/cossacklabs/themis/gothemis; rsync -auv $HOME/acra go_path_$version/src/github.com/cossacklabs; done
     - cd $HOME && for version in $VERSIONS; do GOROOT=$HOME/go_root_$version/go PATH=$GOROOT/bin/:$PATH GOPATH=$HOME/go_path_$version go get github.com/cossacklabs/acra/...; done
 ## Customize test commands
 test:
