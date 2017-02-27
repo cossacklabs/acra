@@ -15,7 +15,7 @@ import (
 )
 
 var (
-	config = flag_.String("config", "", "path to config")
+	config     = flag_.String("config", "", "path to config")
 	dumpconfig = flag_.Bool("dumpconfig", false, "dump config")
 )
 
@@ -67,10 +67,6 @@ func PrintDefaults() {
 		} else {
 			s = fmt.Sprintf("  -%s", flag.Name) // Two spaces before -; see next two comments.
 		}
-		name, usage := flag_.UnquoteUsage(flag)
-		if len(name) > 0 {
-			s += " " + name
-		}
 		// Boolean flags of one ASCII letter are so common we
 		// treat them specially, putting their usage on the same line.
 		if len(s) <= 4 {
@@ -81,7 +77,7 @@ func PrintDefaults() {
 			// for both 4- and 8-space tab stops.
 			s += "\n    \t"
 		}
-		s += usage
+		s += flag.Usage
 		if !isZeroValue(flag, flag.DefValue) {
 			getter, ok := flag.Value.(flag_.Getter)
 			if !ok {
@@ -101,8 +97,7 @@ func PrintDefaults() {
 
 func GenerateYaml(output io.Writer) {
 	flag_.CommandLine.VisitAll(func(flag *flag_.Flag) {
-		_, usage := flag_.UnquoteUsage(flag)
-		s := fmt.Sprintf("# %v\n%v: %v\n", usage, flag.Name, flag.DefValue)
+		s := fmt.Sprintf("# %v\n%v: %v\n", flag.Usage, flag.Name, flag.DefValue)
 		fmt.Fprint(output, s, "\n")
 	})
 }
