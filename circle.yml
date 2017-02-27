@@ -1,25 +1,40 @@
 machine:
   environment:
-    GOROOT: $HOME/go
+    GOROOT: $HOME/go1.6.2/go
+    GOROOT1: $HOME/go1.3.3/go
+    GOROOT2: $HOME/go1.7.5/go
     GOTHEMIS_IMPORT: github.com/cossacklabs/themis/gothemis
     ACRA_IMPORT: github.com/cossacklabs/acra
     GOPATH: $HOME/gopath
+    GOPATH1: $HOME/gopath1
+    GOPATH2: $HOME/gopath2
     PATH: $HOME/go/bin:$PATH
 
 ## Customize dependencies
 dependencies:
   pre:
     - sudo apt-get update && sudo apt-get install libssl-dev build-essential git
-    - cd $HOME && wget https://storage.googleapis.com/golang/go1.6.2.linux-amd64.tar.gz && tar xf go1.6.2.linux-amd64.tar.gz
+    - mkdir $HOME/go1.6.2 && mkdir $HOME/go1.3.3 && mkdir $HOME/go1.7.5
+    - cd $HOME/go.1.6.2 && wget https://storage.googleapis.com/golang/go1.6.2.linux-amd64.tar.gz && tar xf go1.6.2.linux-amd64.tar.gz
+    - cd $HOME/go.1.3.3 && wget https://storage.googleapis.com/golang/go1.3.3.linux-amd64.tar.gz && tar xf go1.3.3.linux-amd64.tar.gz
+    - cd $HOME/go.1.7.5 && wget https://storage.googleapis.com/golang/go1.7.5.linux-amd64.tar.gz && tar xf go1.7.5.linux-amd64.tar.gz
     - cd $HOME && git clone https://github.com/cossacklabs/themis && cd themis && sudo make install
     - mkdir -p $HOME/gopath/src/$GOTHEMIS_IMPORT
 
   override:
     - rsync -auv $HOME/themis/gothemis/ $GOPATH/src/$GOTHEMIS_IMPORT/
     - rsync -auv $HOME/acra/ $GOPATH/src/$ACRA_IMPORT/
-    - $GOROOT/bin/go get github.com/cossacklabs/acra/...
+    - rsync -auv $HOME/themis/gothemis/ $GOPATH1/src/$GOTHEMIS_IMPORT/
+    - rsync -auv $HOME/acra/ $GOPATH1/src/$ACRA_IMPORT/
+    - rsync -auv $HOME/themis/gothemis/ $GOPATH2/src/$GOTHEMIS_IMPORT/
+    - rsync -auv $HOME/acra/ $GOPATH2/src/$ACRA_IMPORT/
+    - GOPATH=$GOPATH $GOROOT/bin/go get github.com/cossacklabs/acra/...
+    - GOPATH=$GOPATH1 $GOROOT1/bin/go get github.com/cossacklabs/acra/...
+    - GOPATH=$GOPATH2 $GOROOT2/bin/go get github.com/cossacklabs/acra/...
 ## Customize test commands
 test:
   override:
-    - go test -v $ACRA_IMPORT/...
+    - GOROOT=$GOROOT PATH=$GOROOT/bin/:$PATH GOPATH=$GOPATH go test -v $ACRA_IMPORT/...
+    - GOROOT=$GOROOT1 PATH=$GOROOT1/bin/:$PATH GOPATH=$GOPATH1 go test -v $ACRA_IMPORT/...
+    - GOROOT=$GOROOT2 PATH=$GOROOT2/bin/:$PATH GOPATH=$GOPATH2 go test -v $ACRA_IMPORT/...
 
