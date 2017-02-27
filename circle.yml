@@ -1,25 +1,18 @@
 machine:
   environment:
-    GOROOT: $HOME/go
-    GOTHEMIS_IMPORT: github.com/cossacklabs/themis/gothemis
-    ACRA_IMPORT: github.com/cossacklabs/acra
-    GOPATH: $HOME/gopath
-    PATH: $HOME/go/bin:$PATH
+    VERSIONS: 1.2.2 1.3 1.3.3 1.4 1.4.3 1.5 1.5.4 1.6 1.6.4 1.7 1.7.5 1.8
 
 ## Customize dependencies
 dependencies:
   pre:
     - sudo apt-get update && sudo apt-get install libssl-dev build-essential git
-    - cd $HOME && wget https://storage.googleapis.com/golang/go1.6.2.linux-amd64.tar.gz && tar xf go1.6.2.linux-amd64.tar.gz
     - cd $HOME && git clone https://github.com/cossacklabs/themis && cd themis && sudo make install
-    - mkdir -p $HOME/gopath/src/$GOTHEMIS_IMPORT
+    - cd $HOME && for version in $VERSIONS; do mkdir go_root_$version; cd go_root_$version; wget https://storage.googleapis.com/golang/go$version.linux-amd64.tar.gz; tar xf go$version.linux-amd64.tar.gz; cd -; done
 
   override:
-    - rsync -auv $HOME/themis/gothemis/ $GOPATH/src/$GOTHEMIS_IMPORT/
-    - rsync -auv $HOME/acra/ $GOPATH/src/$ACRA_IMPORT/
-    - $GOROOT/bin/go get github.com/cossacklabs/acra/...
+    - cd $HOME && for version in $VERSIONS; do mkdir -p go_path_$version/src/github.com/cossacklabs/themis/gothemis; mkdir -p go_path_$version/src/github.com/cossacklabs/acra; rsync -auv $HOME/themis/gothemis/ go_path_$version/src/github.com/cossacklabs/themis/gothemis; rsync -auv $HOME/acra go_path_$version/src/github.com/cossacklabs; done
+    - cd $HOME && for version in $VERSIONS; do GOROOT=$HOME/go_root_$version/go PATH=$GOROOT/bin/:$PATH GOPATH=$HOME/go_path_$version go get github.com/cossacklabs/acra/...; done
 ## Customize test commands
 test:
   override:
-    - go test -v $ACRA_IMPORT/...
-
+    - cd $HOME && for version in $VERSIONS; do GOROOT=$HOME/go_root_$version/go PATH=$GOROOT/bin/:$PATH GOPATH=$HOME/go_path_$version go test -v github.com/cossacklabs/acra/...; done
