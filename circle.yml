@@ -20,6 +20,8 @@ dependencies:
     - cd $HOME/go.1.7.5 && wget https://storage.googleapis.com/golang/go1.7.5.linux-amd64.tar.gz && tar xf go1.7.5.linux-amd64.tar.gz
     - cd $HOME && git clone https://github.com/cossacklabs/themis && cd themis && sudo make install
     - mkdir -p $HOME/gopath/src/$GOTHEMIS_IMPORT
+    - mkdir -p $HOME/gopath1/src/$GOTHEMIS_IMPORT
+    - mkdir -p $HOME/gopath2/src/$GOTHEMIS_IMPORT
 
   override:
     - rsync -auv $HOME/themis/gothemis/ $GOPATH/src/$GOTHEMIS_IMPORT/
