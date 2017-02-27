@@ -1,8 +1,8 @@
 machine:
   environment:
-    GOROOT: $HOME/go1.6.2/go
-    GOROOT1: $HOME/go1.3.3/go
-    GOROOT2: $HOME/go1.7.5/go
+    GOROOT: $HOME/go.1.6.2/go
+    GOROOT1: $HOME/go.1.3.3/go
+    GOROOT2: $HOME/go.1.7.5/go
     GOTHEMIS_IMPORT: github.com/cossacklabs/themis/gothemis
     ACRA_IMPORT: github.com/cossacklabs/acra
     GOPATH: $HOME/gopath
