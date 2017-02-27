@@ -1,42 +1,18 @@
 machine:
   environment:
-    GOROOT: $HOME/go.1.6.2/go
-    GOROOT1: $HOME/go.1.3.3/go
-    GOROOT2: $HOME/go.1.7.5/go
-    GOTHEMIS_IMPORT: github.com/cossacklabs/themis/gothemis
-    ACRA_IMPORT: github.com/cossacklabs/acra
-    GOPATH: $HOME/gopath
-    GOPATH1: $HOME/gopath1
-    GOPATH2: $HOME/gopath2
-    PATH: $HOME/go/bin:$PATH
+    VERSIONS: 1.6.2 1.7.5 1.8
 
 ## Customize dependencies
 dependencies:
   pre:
     - sudo apt-get update && sudo apt-get install libssl-dev build-essential git
-    - mkdir $HOME/go.1.6.2 && mkdir $HOME/go.1.3.3 && mkdir $HOME/go.1.7.5
-    - cd $HOME/go.1.6.2 && wget https://storage.googleapis.com/golang/go1.6.2.linux-amd64.tar.gz && tar xf go1.6.2.linux-amd64.tar.gz
-    - cd $HOME/go.1.3.3 && wget https://storage.googleapis.com/golang/go1.3.3.linux-amd64.tar.gz && tar xf go1.3.3.linux-amd64.tar.gz
-    - cd $HOME/go.1.7.5 && wget https://storage.googleapis.com/golang/go1.7.5.linux-amd64.tar.gz && tar xf go1.7.5.linux-amd64.tar.gz
     - cd $HOME && git clone https://github.com/cossacklabs/themis && cd themis && sudo make install
-    - mkdir -p $HOME/gopath/src/$GOTHEMIS_IMPORT
-    - mkdir -p $HOME/gopath1/src/$GOTHEMIS_IMPORT
-    - mkdir -p $HOME/gopath2/src/$GOTHEMIS_IMPORT
+    - for version in $VERSIONS; do mkdir go_root_$version; cd go_root_$version; wget https://storage.googleapis.com/golang/go$version.linux-amd64.tar.gz; tar xf go$version.linux-amd64.tar.gz; cd -; done
 
   override:
-    - rsync -auv $HOME/themis/gothemis/ $GOPATH/src/$GOTHEMIS_IMPORT/
-    - rsync -auv $HOME/acra/ $GOPATH/src/$ACRA_IMPORT/
-    - rsync -auv $HOME/themis/gothemis/ $GOPATH1/src/$GOTHEMIS_IMPORT/
-    - rsync -auv $HOME/acra/ $GOPATH1/src/$ACRA_IMPORT/
-    - rsync -auv $HOME/themis/gothemis/ $GOPATH2/src/$GOTHEMIS_IMPORT/
-    - rsync -auv $HOME/acra/ $GOPATH2/src/$ACRA_IMPORT/
-    - GOROOT=$GOROOT PATH=$GOROOT/bin/:$PATH GOPATH=$GOPATH go get github.com/cossacklabs/acra/...
-    - GOROOT=$GOROOT1 PATH=$GOROOT/bin/:$PATH GOPATH=$GOPATH1 go get github.com/cossacklabs/acra/...
-    - GOROOT=$GOROOT2 PATH=$GOROOT/bin/:$PATH GOPATH2=$GOPATH go get github.com/cossacklabs/acra/...
+    - for version in $VERSIONS; do mkdir -p go_path_$version/src/github.com/cossacklabs/themis/gothemis; mkdir -p go_path_$version/src/github.com/cossacklabs/acra; rsync -auv $home/themis/gothemis/ go_path_$version/src/github.com/cossacklabs/themis/gothemis; rsync -auv $home/acra go_path_$version/src/github.com/cossacklabs; done
+    - for version in $VERSIONS; do GOROOT=$HOME/go_root_$version/go PATH=$GOROOT/bin/:$PATH GOPATH=$HOME/go_path_$version go get github.com/cossacklabs/acra/...; done
 ## Customize test commands
 test:
   override:
-    - GOROOT=$GOROOT PATH=$GOROOT/bin/:$PATH GOPATH=$GOPATH go test -v $ACRA_IMPORT/...
-    - GOROOT=$GOROOT1 PATH=$GOROOT1/bin/:$PATH GOPATH=$GOPATH1 go test -v $ACRA_IMPORT/...
-    - GOROOT=$GOROOT2 PATH=$GOROOT2/bin/:$PATH GOPATH=$GOPATH2 go test -v $ACRA_IMPORT/...
-
+    - for version in $VERSIONS; do GOROOT=$HOME/go_root_$version/go PATH=$GOROOT/bin/:$PATH GOPATH=$HOME/go_path_$version go test -v github.com/cossacklabs/acra/...; done
