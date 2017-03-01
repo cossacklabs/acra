@@ -9,7 +9,7 @@
 [![CircleCI](https://circleci.com/gh/cossacklabs/acra/tree/master.svg?style=shield)][circleci]
 [![Go Report Card](https://goreportcard.com/badge/github.com/cossacklabs/acra)](https://goreportcard.com/report/github.com/cossacklabs/acra)
 
-**[Documentation](https://github.com/cossacklabs/acra/wiki) // [Examples](https://github.com/cossacklabs/acra/tree/master/examples) // [Docker]()**
+**[Documentation](https://github.com/cossacklabs/acra/wiki) // [Python sample project](https://github.com/cossacklabs/djangoproject.com) // [Ruby sample project](https://github.com/cossacklabs/rubygems.org)**
 
 ## What is Acra
 
