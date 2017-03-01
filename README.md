@@ -27,10 +27,6 @@ Acra was built with specific user experiences in mind:
 - **automation-friendly**: most of Acra's features were built to be easily configured / automated from configuration automation environment.
 - **limited attack surface**: to compromise Acra-powered app, attacker will need to compromise separate compartmented server, AcraServer, more specifically it's key storage, and the database. 
 
-## License
-
-Acra is licensed as Apache 2 open source software.
-
 ## Availability
 
 * Acra source builds with Go versions 1.2.2, 1.3, 1.3.3, 1.4, 1.4.3, 1.5, 1.5.4, 1.6, 1.6.4, 1.7, 1.7.5, 1.8.
@@ -73,3 +69,8 @@ We fill [wiki](https://github.com/cossacklabs/acra/wiki) with useful reads on co
 ## Project status
 
 This open source version of Acra is early alpha. We're slowly unifying and moving features from it's previous incarnation into community-friendly edition. Please let us know in the [Issues](https://www.github.com/cossacklabs/acra/issues) whenever you stumble upon a bug, see a possible enhancement or comment on security design.
+
+## License
+
+Acra is licensed as Apache 2 open source software.
+
