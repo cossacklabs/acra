@@ -27,11 +27,16 @@ Acra was built with specific user experiences in mind:
 - **automation-friendly**: most of Acra's features were built to be easily configured / automated from configuration automation environment.
 - **limited attack surface**: to compromise Acra-powered app, attacker will need to compromise separate compartmented server, AcraServer, more specifically it's key storage, and the database. 
 
-Acra currently supports PostgreSQL as database backend, MongoDB and MariaDB (and other MySQL flavours) coming quite soon. Acra components should build on most modern Linux installations, but was built and test in debian-type Linuxes.
+## License
 
-Acra has writer libraries for Ruby, Python, Go and PHP, but you can easily [generate AcraStruct containers](https://github.com/cossacklabs/acra/wiki/AcraStruct)  with [Themis](https://github.com/cossacklabs/themis) for any other platform you desire. 
+Acra is licensed as Apache 2 open source software.
 
-Acra is available under Apache 2 license.
+## Availability
+
+* Acra source builds with Go versions 1.2.2, 1.3, 1.3.3, 1.4, 1.4.3, 1.5, 1.5.4, 1.6, 1.6.4, 1.7, 1.7.5, 1.8.
+* Acra is known to build on: Debian jessie x86_64, Debian jessie i686, CentOS 7(1611) x86_64, CentOS 6.8 i386.
+* Acra currently supports PostgreSQL as database backend, MongoDB and MariaDB (and other MySQL flavours) coming quite soon. 
+* Acra has writer libraries for Ruby, Python, Go and PHP, but you can easily [generate AcraStruct containers](https://github.com/cossacklabs/acra/wiki/AcraStruct)  with [Themis](https://github.com/cossacklabs/themis) for any other platform you desire. 
 
 ## How Acra works?
 
@@ -59,14 +64,6 @@ Typical flow looks like this:
 * Deploy [AcraProxy](https://github.com/cossacklabs/acra/wiki/AcraProxy-and-AcraWriter#acraproxy) on each server you need to read sensitive data. Generate proxy keys, provide public one to AcraServer. Point your database access code to AcraProxy, access it as if it's your normal database installation!
 * Integrate [AcraWriter](https://github.com/cossacklabs/acra/wiki/AcraProxy-and-AcraWriter#acrawriter) into your code where you need to store sensitive data, supply AcraWriter with proper server key.
 
-## Zones
-
-Acra provides means to cryptographically separate pieces of data belonging to different entities (users, clients, etc), by using separate Acra key for each of them. 
-This happens at cost of: 
-- performance of AcraServer during decryption
-- necessity to perform minimal key management on app site to match key to zone during writes
-- stipulating database design decisions: AcraServer, when reading through server response, will need to match detected AcraStructs to zone keys. To achieve that, each AcraStruct needs to be preceeded with ZoneID in query's output.
-
 ## Additionally
 
 We fill [wiki](https://github.com/cossacklabs/acra/wiki) with useful reads on core Acra concepts, use cases, details on cryptographic and security design. You might want to:
@@ -75,4 +72,4 @@ We fill [wiki](https://github.com/cossacklabs/acra/wiki) with useful reads on co
 
 ## Project status
 
-Acra is early alpha. We've built it in cooperation with one of our early partners for their specific security goals, liked the design and then tried to generalize experience received for all other kinds of users. We're giving it out to the security/engineering community in hope that these use-cases are not overly unique and will benefit someone. Please let us know in the [Issues](https://www.github.com/cossacklabs/acra/issues) whenever you stumble upon a bug, see a possible enhancement or comment on security design.
+This open source version of Acra is early alpha. We're slowly unifying and moving features from it's previous incarnation into community-friendly edition. Please let us know in the [Issues](https://www.github.com/cossacklabs/acra/issues) whenever you stumble upon a bug, see a possible enhancement or comment on security design.
