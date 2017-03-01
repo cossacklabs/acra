@@ -1,7 +1,7 @@
 <h3 align="center">
   <a href="https://www.cossacklabs.com"><img src="https://github.com/cossacklabs/acra/wiki/Images/acra_web.jpg" alt="Acra: transparent database encryption server" width="500"></a>
   <br>
-  Transparent database encryption layer with strong security guarantees.
+  Database protection suite with selective encryption and intrusion detection.
   <br>
 </h3>
 
@@ -9,9 +9,11 @@
 [![CircleCI](https://circleci.com/gh/cossacklabs/acra/tree/master.svg?style=shield)][circleci]
 [![Go Report Card](https://goreportcard.com/badge/github.com/cossacklabs/acra)](https://goreportcard.com/report/github.com/cossacklabs/acra)
 
+**Documentation available in [Wiki](https://github.com/cossacklabs/acra/wiki)**
+
 ## What is Acra
 
-Acra helps you to easily secure your databases in distributed, microservice-rich environments. It's security model guarantees that compromising the database or your application does not leak sensitive data, or keys to decrypt it.
+Acra helps you to easily secure your databases in distributed, microservice-rich environments. It allows you to selectively encrypt senstive records with [strong multi-layer cryptography](https://github.com/cossacklabs/acra/wiki/AcraStruct), detect potential intrusions and SQL injections and cryptographically compartment data stored in large sharded schemes. It's security model guarantees that compromising the database or your application does not leak sensitive data, or keys to decrypt it. 
 
 Acra gives you means to encrypt the data on application side into a special cryptographic container, store it in the database and then decrypt in secure compartmented area (separate virtual machine/container). Cryptographic design ensures that no secret (password, key, anything) leaked from the application or database is sufficient to decrypt protected data chunks which originate from it. 
 
