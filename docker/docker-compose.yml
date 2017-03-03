@@ -7,17 +7,22 @@ services:
       - "5432:5432"
 
   acraserver:
-    image: acraserver
+    image: cossacklabs/acraserver
     depends_on:
       - pg
     links:
       - pg:postgresql_link
+    volumes:
+      - ../.acrakeys:/keys
 
   acraproxy:
-    image: acraproxy
+    image: cossacklabs/acraproxy
     depends_on:
       - acraserver
     ports:
       - "9494:9494"
     links:
       - acraserver:acraserver_link
+    volumes:
+      - ../.acrakeys:/keys
+    command: --client_id=client

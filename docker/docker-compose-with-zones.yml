@@ -7,16 +7,19 @@ services:
       - "5432:5432"
 
   acraserver:
-    image: acraserver
+    image: cossacklabs/acraserver
     depends_on:
       - pg
     links:
       - pg:postgresql_link
 
-    command: ["--db_host=postgresql_link", "-v", "--zonemode"]
+    volumes:
+      - ../.acrakeys:/keys
+
+    command: ["--zonemode"]
 
   acraproxy:
-    image: acraproxy
+    image: cossacklabs/acraproxy
     depends_on:
       - acraserver
     ports:
@@ -24,5 +27,7 @@ services:
       - "9191:9191"
     links:
       - acraserver:acraserver_link
+    volumes:
+      - ../.acrakeys:/keys
 
-    command: ["--acra_host=acraserver_link", "-v", "--client_id=client", "--zonemode"]
+    command: ["--client_id=client", "--zonemode"]

@@ -10,26 +10,16 @@ RUN rm -rf /themis
 WORKDIR /go
 ENV GOPATH /go
 
-RUN mkdir -p /go/src/github.com/cossacklabs/acra
-# run from $GOPATH/src/github.com/cossacklabs/acra
-COPY . /go/src/github.com/cossacklabs/acra/
-
-# install dependencies
-RUN go get github.com/cossacklabs/acra...
-
 # build acraserver
+RUN go get github.com/cossacklabs/acra/...
 RUN go build github.com/cossacklabs/acra/cmd/acraserver
 RUN go build github.com/cossacklabs/acra/cmd/acra_addzone
 RUN go build github.com/cossacklabs/acra/cmd/acra_genpoisonrecord
 RUN go build github.com/cossacklabs/acra/cmd/acra_rollback
 RUN go build github.com/cossacklabs/acra/cmd/acra_genkeys
 
-COPY .acrakeys .acrakeys
-RUN chmod -R 600 .acrakeys && chmod 700 .acrakeys
-
-
-ENTRYPOINT ["acraserver"]
-CMD ["--db_host=postgresql_link", "-v"]
+VOLUME ["/keys"]
+ENTRYPOINT ["acraserver", "--db_host=postgresql_link", "-v", "--keys_dir=/keys"]
 
 # acra server port
 EXPOSE 9393
