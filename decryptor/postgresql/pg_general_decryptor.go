@@ -242,14 +242,17 @@ func (decryptor *PgDecryptor) DecryptBlock(block []byte) ([]byte, error) {
 	reader := bytes.NewReader(dataBlock)
 	privateKey, err := decryptor.GetPrivateKey()
 	if err != nil {
+		log.Println("Warning: can't read private key")
 		return []byte{}, err
 	}
 	key, _, err := decryptor.ReadSymmetricKey(privateKey, reader)
 	if err != nil {
+		log.Printf("Warning: %v\n", utils.ErrorMessage("can't unwrap symmetric key", err))
 		return []byte{}, err
 	}
 	data, err := decryptor.ReadData(key, decryptor.GetMatchedZoneId(), reader)
 	if err != nil {
+		log.Printf("Warning: %v\n", utils.ErrorMessage("can't decrypt data with unwrapped symmetric key", err))
 		return []byte{}, err
 	}
 	if _, ok := decryptor.pgDecryptor.(*PgHexDecryptor); ok {

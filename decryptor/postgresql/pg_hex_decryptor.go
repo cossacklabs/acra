@@ -117,7 +117,6 @@ func (decryptor *PgHexDecryptor) ReadSymmetricKey(privateKey *keys.PrivateKey, r
 	smessage := message.New(privateKey, pubkey)
 	symmetricKey, err := smessage.Unwrap(decryptor.decodedKeyBlockBuffer[base.PUBLIC_KEY_LENGTH:])
 	if err != nil {
-		log.Printf("Warning: %v\n", utils.ErrorMessage("can't unwrap symmetric key", err))
 		return nil, decryptor.keyBlockBuffer[:n], base.ErrFakeAcraStruct
 	}
 	return symmetricKey, decryptor.keyBlockBuffer[:n], nil

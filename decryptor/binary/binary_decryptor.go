@@ -76,7 +76,6 @@ func (decryptor *BinaryDecryptor) ReadSymmetricKey(privateKey *keys.PrivateKey, 
 	smessage := message.New(privateKey, pubkey)
 	symmetricKey, err := smessage.Unwrap(decryptor.keyBlockBuffer[base.PUBLIC_KEY_LENGTH:])
 	if err != nil {
-		log.Printf("Warning: %v\n", utils.ErrorMessage("can't unwrap symmetric key", err))
 		return nil, decryptor.keyBlockBuffer[:n], base.ErrFakeAcraStruct
 	}
 	return symmetricKey, decryptor.keyBlockBuffer[:n], nil

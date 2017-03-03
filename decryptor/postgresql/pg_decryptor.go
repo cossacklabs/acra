@@ -337,6 +337,7 @@ func PgDecryptStream(decryptor base.Decryptor, rr *bufio.Reader, writer *bufio.W
 						blockReader := bytes.NewReader(row.output[beginTagIndex+tagLength:])
 						symKey, _, err := decryptor.ReadSymmetricKey(key, blockReader)
 						if err != nil {
+							log.Printf("Warning: %v\n", utils.ErrorMessage("can't unwrap symmetric key", err))
 							row.columnDataBuf.Write([]byte{row.output[currentIndex]})
 							currentIndex++
 							continue

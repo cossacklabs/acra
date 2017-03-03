@@ -205,7 +205,6 @@ func (decryptor *PgEscapeDecryptor) ReadSymmetricKey(privateKey *keys.PrivateKey
 	smessage := message.New(privateKey, &keys.PublicKey{Value: decryptor.decodedKeyBlockBuffer[:base.PUBLIC_KEY_LENGTH]})
 	symmetricKey, err := smessage.Unwrap(decryptor.decodedKeyBlockBuffer[base.PUBLIC_KEY_LENGTH:])
 	if err != nil {
-		log.Printf("Warning: %v\n", utils.ErrorMessage("can't unwrap symmetric key", err))
 		return nil, decryptor.octKeyBlockBuffer[:octDataLength], base.ErrFakeAcraStruct
 	}
 	decryptor.outputSize += octDataLength
