@@ -35,7 +35,7 @@ Acra relies on our cryptographic library [Themis](https://www.github.com/cossack
 
 * Acra source builds with Go versions 1.2.2, 1.3, 1.3.3, 1.4, 1.4.3, 1.5, 1.5.4, 1.6, 1.6.4, 1.7, 1.7.5, 1.8.
 * Acra is known to build on: Debian jessie x86_64, Debian jessie i686, CentOS 7(1611) x86_64, CentOS 6.8 i386.
-* Acra currently supports PostgreSQL as database backend, MongoDB and MariaDB (and other MySQL flavours) coming quite soon. 
+* Acra currently supports PostgreSQL 9.4+ as the database backend, MongoDB and MariaDB (and other MySQL flavours) coming quite soon. 
 * Acra has writer libraries for Ruby, Python, Go and PHP, but you can easily [generate AcraStruct containers](https://github.com/cossacklabs/acra/wiki/AcraStruct)  with [Themis](https://github.com/cossacklabs/themis) for any other platform you desire. 
 
 ## How Acra works?
