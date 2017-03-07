@@ -6,8 +6,8 @@
 </h3>
 
 
-![CircleCI](https://circleci.com/gh/cossacklabs/acra/tree/master.svg?style=shield)
-![Go Report Card](https://goreportcard.com/badge/github.com/cossacklabs/acra)
+[![CircleCI](https://circleci.com/gh/cossacklabs/acra/tree/master.svg?style=shield)](https://circleci.com/gh/cossacklabs/acra)
+[![Go Report Card](https://goreportcard.com/badge/github.com/cossacklabs/acra)](https://goreportcard.com/report/github.com/cossacklabs/acra)
 
 **[Documentation](https://github.com/cossacklabs/acra/wiki) // [Python sample project](https://github.com/cossacklabs/djangoproject.com) // [Ruby sample project](https://github.com/cossacklabs/rubygems.org)**
 
