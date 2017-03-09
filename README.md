@@ -28,6 +28,8 @@ Acra was built with specific user experiences in mind:
 - **automation-friendly**: most of Acra's features were built to be easily configured / automated from configuration automation environment.
 - **limited attack surface**: to compromise Acra-powered app, attacker will need to compromise separate compartmented server, AcraServer, more specifically it's key storage, and the database. 
 
+Acra is very early-stage product: any security tooling requires enourmous human effort to validate methods, code and possible infrastructural weaknesses. Although we do run Acra in production in several instances, continuously enhancing it as we go, to benefit everybody Acra still needs ruthless dissection of all of it's properties to ensure that provided security benefits are not being made useless by implementation problems or increased complexity.
+
 ## Cryptography
 
 Acra relies on our cryptographic library [Themis](https://www.github.com/cossacklabs/themis), which implements high-level cryptosystems based on best availble [open-source implementations](https://github.com/cossacklabs/themis/wiki/Cryptographic-donors) of [most reliable ciphers](https://github.com/cossacklabs/themis/wiki/Soter). Acra does not contain any self-made cryptographic primitives or obscure ciphers, instead, to deliver it's unique guarantees, Acra relies on combination of well-known ciphers and smart key management scheme.
