@@ -17,25 +17,24 @@ import (
 	"errors"
 	"github.com/cossacklabs/themis/gothemis/keys"
 	"strings"
-	"unicode"
 )
 
 const (
 	DEFAULT_KEY_DIR_SHORT = ".acrakeys"
 	VALID_CHARS           = "_- "
 	MAX_CLIENT_ID_LENGTH  = 256
-	MIN_CLIENT_ID_LENGTH  = 4
+	MIN_CLIENT_ID_LENGTH  = 5
 )
 
 var ErrInvalidClientId = errors.New("Invalid client id")
 
 func ValidateId(client_id []byte) bool {
-	if len(client_id) <= MIN_CLIENT_ID_LENGTH || len(client_id) > MAX_CLIENT_ID_LENGTH {
+	if len(client_id) < MIN_CLIENT_ID_LENGTH || len(client_id) > MAX_CLIENT_ID_LENGTH {
 		return false
 	}
 	// letters, digits, VALID_CHARS = '-', '_', ' '
 	for _, c := range string(client_id) {
-		if !unicode.IsLetter(c) && (c < '0' || c > '9') && !strings.ContainsRune(VALID_CHARS, c) {
+		if (c < 'a' || c > 'z') && (c < 'A' || c > 'Z') && (c < '0' || c > '9') && !strings.ContainsRune(VALID_CHARS, c) {
 			return false
 		}
 	}
