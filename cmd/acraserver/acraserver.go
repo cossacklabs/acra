@@ -62,6 +62,8 @@ func main() {
 		os.Exit(1)
 	}
 
+	cmd.ValidateClientId(*serverId)
+
 	if *debug {
 		cmd.SetLogLevel(cmd.LOG_DEBUG)
 	} else if *verbose {

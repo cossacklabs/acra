@@ -15,7 +15,6 @@ package zone_test
 
 import (
 	"encoding/hex"
-	"fmt"
 	"github.com/cossacklabs/acra/zone"
 	"testing"
 )
@@ -262,15 +261,11 @@ func testPgMatcher(t *testing.T) {
 }
 
 func TestMatcher(t *testing.T) {
-	fmt.Println("Test Hex")
 	testMatcherWithHexReader(t)
 	testHasAnyMatchWithHexReader(t)
-	fmt.Println("Test Escape")
 	testMatcherWithEscapeReader(t)
 	testHasAnyMatchWithEscapeReader(t)
-	fmt.Println("Test Binary")
 	testMatcherWithBinaryReader(t)
 	testHasAnyMatchWithBinaryReader(t)
-	fmt.Println("Test PgMatcher")
 	testPgMatcher(t)
 }

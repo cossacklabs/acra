@@ -20,8 +20,6 @@ import (
 	"github.com/cossacklabs/acra/keystore"
 	"github.com/cossacklabs/acra/utils"
 	"os"
-	"path/filepath"
-	"strings"
 )
 
 // DEFAULT_CONFIG_PATH relative path to config which will be parsed as default
@@ -41,10 +39,9 @@ func main() {
 		fmt.Printf("Error: %v\n", utils.ErrorMessage("Can't parse args", err))
 		os.Exit(1)
 	}
-	if strings.Contains(*clientId, string(filepath.Separator)) {
-		fmt.Println("Error: client id can't contain directory separator")
-		os.Exit(1)
-	}
+
+	cmd.ValidateClientId(*clientId)
+
 	store, err := keystore.NewFilesystemKeyStore(*outputDir)
 	if err != nil {
 		panic(err)
