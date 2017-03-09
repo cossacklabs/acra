@@ -14,15 +14,15 @@
 package keystore
 
 import (
-	"testing"
 	"bytes"
+	"testing"
 )
 
 func TestValidateId(t *testing.T) {
 	test_incorrect_input := []string{
-		"qqqq!", // incorrect char at end
-		"!qqqq", // incorrect char at start
-		"qq@qq", // incorrect char in mid
+		"qqqq!",  // incorrect char at end
+		"!qqqq",  // incorrect char at start
+		"qq@qq",  // incorrect char in mid
 		"фдлыво", // non ascii
 		// short id
 		"", "q", "qq", "qqq", "qqqq",
@@ -43,34 +43,33 @@ func TestValidateId(t *testing.T) {
 	}
 
 	// check that return false for chars less than allowed
-	for _, c := range []byte{'0', 'a', 'A'}{
-		incorrect_id := bytes.Repeat([]byte{c-1}, MIN_CLIENT_ID_LENGTH)
+	for _, c := range []byte{'0', 'a', 'A'} {
+		incorrect_id := bytes.Repeat([]byte{c - 1}, MIN_CLIENT_ID_LENGTH)
 		if ValidateId(incorrect_id) {
 			t.Errorf("Incorrect false validation. <%s> took", incorrect_id)
 		}
 	}
 
 	// check that return false for chars greater than allowed
-	for _, c := range []byte{'9', 'z', 'Z'}{
-		incorrect_id := bytes.Repeat([]byte{c+1}, MIN_CLIENT_ID_LENGTH)
+	for _, c := range []byte{'9', 'z', 'Z'} {
+		incorrect_id := bytes.Repeat([]byte{c + 1}, MIN_CLIENT_ID_LENGTH)
 		if ValidateId(incorrect_id) {
 			t.Errorf("Incorrect false validation. <%s> took", incorrect_id)
 		}
 	}
 
 	// check that can used lowest and highest chars
-	for _, c := range []byte{'0', '9', 'a', 'A', 'z', 'Z'}{
+	for _, c := range []byte{'0', '9', 'a', 'A', 'z', 'Z'} {
 		correct_id := bytes.Repeat([]byte{c}, MIN_CLIENT_ID_LENGTH)
-		if !ValidateId(correct_id){
+		if !ValidateId(correct_id) {
 			t.Errorf("Incorrect true validation. <%s> took", correct_id)
 		}
 	}
 
 	max_id := bytes.Repeat([]byte{'1'}, MAX_CLIENT_ID_LENGTH)
-	if !ValidateId(max_id){
+	if !ValidateId(max_id) {
 		t.Errorf("Incorrect true validation. <%s> took", max_id)
 	}
-
 
 	max_id = append(max_id, '1')
 	if ValidateId(max_id) {
