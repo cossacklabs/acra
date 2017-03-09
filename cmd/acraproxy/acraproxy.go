@@ -35,11 +35,6 @@ import (
 	"github.com/cossacklabs/themis/gothemis/session"
 )
 
-const (
-	MIN_LENGTH_CLIENT_ID = 4
-	MAX_LENGTH_CLIENT_ID = 256
-)
-
 // DEFAULT_CONFIG_PATH relative path to config which will be parsed as default
 var DEFAULT_CONFIG_PATH = utils.GetConfigPathByName("acraproxy")
 
@@ -258,16 +253,8 @@ func main() {
 		os.Exit(1)
 	}
 
-	if len(*clientId) <= MIN_LENGTH_CLIENT_ID {
-		fmt.Printf("Error: client id length <= %v. Use longer than %v\n", MIN_LENGTH_CLIENT_ID, MIN_LENGTH_CLIENT_ID)
-		flag.Usage()
-		os.Exit(1)
-	}
-	if len(*clientId) >= MAX_LENGTH_CLIENT_ID {
-		fmt.Printf("Error: client id length >= %v. Use less than %v\n", MAX_LENGTH_CLIENT_ID, MAX_LENGTH_CLIENT_ID)
-		flag.Usage()
-		os.Exit(1)
-	}
+	cmd.ValidateClientId(*clientId)
+
 	clientPrivateKey := fmt.Sprintf("%v%v%v", *keysDir, string(os.PathSeparator), *clientId)
 	serverPublicKey := fmt.Sprintf("%v%v%v_server.pub", *keysDir, string(os.PathSeparator), *clientId)
 	exists, err := utils.FileExists(clientPrivateKey)

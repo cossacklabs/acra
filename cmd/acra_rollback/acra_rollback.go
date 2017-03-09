@@ -157,6 +157,8 @@ func main() {
 		os.Exit(1)
 	}
 
+	cmd.ValidateClientId(*clientId)
+
 	if *connectionString == "" {
 		fmt.Println("Error: connection_string arg is missing")
 		os.Exit(1)

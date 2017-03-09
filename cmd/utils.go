@@ -4,6 +4,7 @@ import (
 	"bytes"
 	flag_ "flag"
 	"fmt"
+	"github.com/cossacklabs/acra/keystore"
 	"github.com/cossacklabs/acra/utils"
 	"gopkg.in/yaml.v2"
 	"io"
@@ -28,6 +29,13 @@ const (
 func init() {
 	// override default usage message by ours
 	flag_.CommandLine.Usage = PrintDefaults
+}
+
+func ValidateClientId(clientId string) {
+	if !keystore.ValidateId([]byte(clientId)) {
+		fmt.Println("Error: invalid client id, user only digits, letters and '_', '-', ' ' characters")
+		os.Exit(1)
+	}
 }
 
 func isZeroValue(flag *flag_.Flag, value string) bool {

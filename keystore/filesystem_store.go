@@ -120,6 +120,9 @@ func (store *FilesystemKeyStore) getFilePath(filename string) string {
 }
 
 func (store *FilesystemKeyStore) GetZonePrivateKey(id []byte) (*keys.PrivateKey, error) {
+	if !ValidateId(id) {
+		return nil, ErrInvalidClientId
+	}
 	fname := store.getZoneKeyFilename(id)
 	lock.Lock()
 	defer lock.Unlock()
@@ -138,6 +141,9 @@ func (store *FilesystemKeyStore) GetZonePrivateKey(id []byte) (*keys.PrivateKey,
 }
 
 func (store *FilesystemKeyStore) HasZonePrivateKey(id []byte) bool {
+	if !ValidateId(id) {
+		return false
+	}
 	// add caching false answers. now if key doesn't exists than always checks on fs
 	// it's system call and slow.
 	if len(id) == 0 {
@@ -155,6 +161,9 @@ func (store *FilesystemKeyStore) HasZonePrivateKey(id []byte) bool {
 }
 
 func (store *FilesystemKeyStore) GetProxyPublicKey(id []byte) (*keys.PublicKey, error) {
+	if !ValidateId(id) {
+		return nil, ErrInvalidClientId
+	}
 	fname := store.getZonePublicKeyFilename(id)
 	lock.Lock()
 	defer lock.Unlock()
@@ -173,6 +182,9 @@ func (store *FilesystemKeyStore) GetProxyPublicKey(id []byte) (*keys.PublicKey, 
 }
 
 func (store *FilesystemKeyStore) GetServerPrivateKey(id []byte) (*keys.PrivateKey, error) {
+	if !ValidateId(id) {
+		return nil, ErrInvalidClientId
+	}
 	fname := store.getServerKeyFilename(id)
 	lock.Lock()
 	defer lock.Unlock()
@@ -191,6 +203,9 @@ func (store *FilesystemKeyStore) GetServerPrivateKey(id []byte) (*keys.PrivateKe
 }
 
 func (store *FilesystemKeyStore) GetServerDecryptionPrivateKey(id []byte) (*keys.PrivateKey, error) {
+	if !ValidateId(id) {
+		return nil, ErrInvalidClientId
+	}
 	fname := store.getServerDecryptionKeyFilename(id)
 	lock.Lock()
 	defer lock.Unlock()
@@ -209,6 +224,9 @@ func (store *FilesystemKeyStore) GetServerDecryptionPrivateKey(id []byte) (*keys
 }
 
 func (store *FilesystemKeyStore) GenerateProxyKeys(id []byte) error {
+	if !ValidateId(id) {
+		return ErrInvalidClientId
+	}
 	filename := store.getProxyKeyFilename(id)
 	_, err := store.generateKeyPair(filename)
 	if err != nil {
@@ -217,6 +235,9 @@ func (store *FilesystemKeyStore) GenerateProxyKeys(id []byte) error {
 	return nil
 }
 func (store *FilesystemKeyStore) GenerateServerKeys(id []byte) error {
+	if !ValidateId(id) {
+		return ErrInvalidClientId
+	}
 	filename := store.getServerKeyFilename(id)
 	_, err := store.generateKeyPair(filename)
 	if err != nil {
@@ -227,6 +248,9 @@ func (store *FilesystemKeyStore) GenerateServerKeys(id []byte) error {
 
 // generate key pair for data encryption/decryption
 func (store *FilesystemKeyStore) GenerateDataEncryptionKeys(id []byte) error {
+	if !ValidateId(id) {
+		return ErrInvalidClientId
+	}
 	_, err := store.generateKeyPair(store.getServerDecryptionKeyFilename(id))
 	if err != nil {
 		return err
