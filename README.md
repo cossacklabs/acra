@@ -14,34 +14,34 @@
 
 ## What is Acra
 
-Acra helps you to easily secure your databases in distributed, microservice-rich environments. It allows you to selectively encrypt sensitive records with [strong multi-layer cryptography](https://github.com/cossacklabs/acra/wiki/AcraStruct), detect potential intrusions and SQL injections and cryptographically compartment data stored in large sharded schemes. It's security model guarantees that compromising the database or your application does not leak sensitive data, or keys to decrypt it. 
+Acra helps you easily secure your databases in distributed, microservice-rich environments. It allows you to selectively encrypt sensitive records with [strong multi-layer cryptography](https://github.com/cossacklabs/acra/wiki/AcraStruct), detect potential intrusions and SQL injections and cryptographically compartmentalize data stored in large sharded schemes. Acra's security model guarantees that if your database or your application become compromised, they will not leak sensitive data, or keys to decrypt them. 
 
-Acra gives you means to encrypt the data on application side into a special cryptographic container, store it in the database and then decrypt in secure compartmented area (separate virtual machine/container). Cryptographic design ensures that no secret (password, key, anything) leaked from the application or database is sufficient to decrypt protected data chunks which originate from it. 
+Acra gives you means to encrypt the data on the application's side into a special cryptographic container, and store it in the database and then decrypt in secure compartmented area (separate virtual machine/container). Cryptographic design ensures that no secret (password, key, anything) leaked from the application or database is sufficient for decryption of the protected data chunks that originate from it. 
 
 Acra was built with specific user experiences in mind: 
 - **quick and easy integration** of security instrumentation.
-- cryptographically protect data in threat model, where **all other parts of infrastructure could be compromised**, and if AcraServer isn't, data is safe. 
-- **proper abstraction** of all cryptographic processes: you don't risk mischoosing key length or algorithm padding. 
+- **cryptographic protection** of data in the threat model where **all other parts of the infrastructure could be compromised**, and if AcraServer isn't compromised, the data is safe. 
+- **proper abstraction** of all cryptographic processes: you're safe from the risk of choosing the wrong key length or algorithm padding. 
 - **strong default settings** to get you going. 
 - **intrusion detection** to let you know early that something wrong is going on.
-- **high degree of configurability** to create perfect balance between extra security features and performance. 
+- **high degree of configurability** to create perfect balance between the extra security features and performance. 
 - **automation-friendly**: most of Acra's features were built to be easily configured / automated from configuration automation environment.
-- **limited attack surface**: to compromise Acra-powered app, attacker will need to compromise separate compartmented server, AcraServer, more specifically it's key storage, and the database. 
+- **limited attack surface**: to compromise Acra-powered app, an attacker will need to compromise the separate compartmented server, AcraServer - more specifically - it's key storage, and the database. 
 
-Acra is very early-stage product: any security tooling requires enourmous human effort to validate methods, code and possible infrastructural weaknesses. Although we do run Acra in production in several instances, continuously enhancing it as we go, to benefit everybody Acra still needs ruthless dissection of all of it's properties to ensure that provided security benefits are not being made useless by implementation problems or increased complexity.
+Acra is still a product on a very early development stage: any security tools require enourmous human efforts for validation of the methods, code, and finding possible infrastructural weaknesses. Although we do run Acra in production in several instances, we're continuously enhancing it as we go to everyone's benefit. And Acra still needs ruthless dissection of all of its properties to ensure that the provided security benefits are not rendered useless through implementation problems or increased complexity.
 
 ## Cryptography
 
-Acra relies on our cryptographic library [Themis](https://www.github.com/cossacklabs/themis), which implements high-level cryptosystems based on best availble [open-source implementations](https://github.com/cossacklabs/themis/wiki/Cryptographic-donors) of [most reliable ciphers](https://github.com/cossacklabs/themis/wiki/Soter). Acra does not contain any self-made cryptographic primitives or obscure ciphers, instead, to deliver it's unique guarantees, Acra relies on combination of well-known ciphers and smart key management scheme.
+Acra relies on our cryptographic library [Themis](https://www.github.com/cossacklabs/themis), which implements high-level cryptosystems based on the best availble [open-source implementations](https://github.com/cossacklabs/themis/wiki/Cryptographic-donors) of the [most reliable ciphers](https://github.com/cossacklabs/themis/wiki/Soter). Acra does not contain any self-made cryptographic primitives or obscure ciphers. Instead, to deliver its unique guarantees, Acra relies on the combination of well-known ciphers and smart key management scheme.
 
 ## Availability
 
 * Acra source builds with Go versions 1.2.2, 1.3, 1.3.3, 1.4, 1.4.3, 1.5, 1.5.4, 1.6, 1.6.4, 1.7, 1.7.5, 1.8.
 * Acra is known to build on: Debian jessie x86_64, Debian jessie i686, CentOS 7(1611) x86_64, CentOS 6.8 i386.
-* Acra currently supports PostgreSQL 9.4+ as the database backend, MongoDB and MariaDB (and other MySQL flavours) coming quite soon. 
-* Acra has writer libraries for Ruby, Python, Go and PHP, but you can easily [generate AcraStruct containers](https://github.com/cossacklabs/acra/wiki/AcraStruct)  with [Themis](https://github.com/cossacklabs/themis) for any other platform you desire. 
+* Acra currently supports PostgreSQL 9.4+ as the database backend; MongoDB and MariaDB (and other MySQL flavours) coming quite soon. 
+* Acra has writer libraries for Ruby, Python, Go, and PHP, but you can easily [generate AcraStruct containers](https://github.com/cossacklabs/acra/wiki/AcraStruct) with [Themis](https://github.com/cossacklabs/themis) for any platform you want. 
 
-## How Acra works?
+## How does Acra work?
 
 <p align="center"><img src="https://github.com/cossacklabs/acra/wiki/Images/simplified_arch.png" alt="Acra: simplified architecture" width="500"></p>
 
