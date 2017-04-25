@@ -33,7 +33,8 @@ func init() {
 
 func ValidateClientId(clientId string) {
 	if !keystore.ValidateId([]byte(clientId)) {
-		fmt.Println("Error: invalid client id, user only digits, letters and '_', '-', ' ' characters")
+		fmt.Printf("Error: invalid client id,  %d <= len(client id) <= %d, only digits, letters and '_', '-', ' ' characters\n",
+			keystore.MIN_CLIENT_ID_LENGTH, keystore.MAX_CLIENT_ID_LENGTH)
 		os.Exit(1)
 	}
 }
