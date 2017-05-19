@@ -28,7 +28,7 @@ from urllib.request import urlopen
 
 import psycopg2
 import sqlalchemy as sa
-from sqlalchemy.exc import OperationalError as SA_OperationalError
+from sqlalchemy.exc import DatabaseError
 from sqlalchemy.dialects.postgresql import BYTEA
 
 import sys
@@ -59,10 +59,8 @@ def get_poison_record():
     for new records"""
     global poison_record
     if not poison_record:
-        poison_record_call = subprocess.run(
-            ['./acra_genpoisonrecord'], stdout=subprocess.PIPE)
-        poison_record_call.check_returncode()
-        poison_record = b64decode(poison_record_call.stdout)
+        poison_record = b64decode(subprocess.check_output(
+            ['./acra_genpoisonrecord']))
     return poison_record
 
 
@@ -149,6 +147,7 @@ class BaseTestCase(unittest.TestCase):
     WHOLECELL_MODE = False
     ZONE = False
     DEBUG_LOG = False
+    TEST_DATA_LOG = False
     maxDiff = None
 
     def fork(self, func):
@@ -278,6 +277,8 @@ class BaseTestCase(unittest.TestCase):
     def log(self, acra_key_name, data, expected):
         """this function for printing data which used in test and for
         reproducing error with them if any error detected"""
+        if not self.TEST_DATA_LOG:
+            return
         with open('.acrakeys/{}_zone'.format(zones[0]['id']), 'rb') as f:
             zone_private = f.read()
         with open('.acrakeys/{}'.format(acra_key_name), 'rb') as f:
@@ -702,7 +703,7 @@ class TestPoisonRecordShutdown(BasePoisonRecordTest):
         self.engine1.execute(
             test_table.insert(),
             {'id': row_id, 'data': get_poison_record(), 'raw_data': 'poison_record'})
-        with self.assertRaises(SA_OperationalError):
+        with self.assertRaises(DatabaseError):
             self.engine1.execute(
                 sa.select([test_table])
                 .where(test_table.c.id == row_id))
@@ -713,7 +714,7 @@ class TestPoisonRecordShutdown(BasePoisonRecordTest):
         self.engine1.execute(
             test_table.insert(),
             {'id': row_id, 'data': get_poison_record(), 'raw_data': 'poison_record'})
-        with self.assertRaises(SA_OperationalError):
+        with self.assertRaises(DatabaseError):
             self.engine1.execute(
                 sa.select([test_table]))
 
@@ -724,7 +725,7 @@ class TestPoisonRecordShutdown(BasePoisonRecordTest):
         self.engine1.execute(
             test_table.insert(),
             {'id': row_id, 'data': data, 'raw_data': 'poison_record'})
-        with self.assertRaises(SA_OperationalError):
+        with self.assertRaises(DatabaseError):
             self.engine1.execute(
                 sa.select([test_table]))
 
@@ -740,7 +741,7 @@ class TestShutdownPoisonRecordWithZone(TestPoisonRecordShutdown):
         self.engine1.execute(
             test_table.insert(),
             {'id': row_id, 'data': get_poison_record(), 'raw_data': 'poison_record'})
-        with self.assertRaises(SA_OperationalError):
+        with self.assertRaises(DatabaseError):
             zone = zones[0]['id'].encode('ascii')
             self.engine1.execute(
                 sa.select([sa.cast(zone, BYTEA), test_table])
@@ -752,7 +753,7 @@ class TestShutdownPoisonRecordWithZone(TestPoisonRecordShutdown):
         self.engine1.execute(
             test_table.insert(),
             {'id': row_id, 'data': get_poison_record(), 'raw_data': 'poison_record'})
-        with self.assertRaises(SA_OperationalError):
+        with self.assertRaises(DatabaseError):
             self.engine1.execute(
                 sa.select([test_table])
                     .where(test_table.c.id == row_id))
@@ -763,7 +764,7 @@ class TestShutdownPoisonRecordWithZone(TestPoisonRecordShutdown):
         self.engine1.execute(
             test_table.insert(),
             {'id': row_id, 'data': get_poison_record(), 'raw_data': 'poison_record'})
-        with self.assertRaises(SA_OperationalError):
+        with self.assertRaises(DatabaseError):
             self.engine1.execute(
                 sa.select([test_table]))
 
@@ -776,7 +777,7 @@ class TestShutdownPoisonRecordWithZone(TestPoisonRecordShutdown):
             test_table.insert(),
             {'id': row_id, 'data': data, 'raw_data': 'poison_record'})
 
-        with self.assertRaises(SA_OperationalError):
+        with self.assertRaises(DatabaseError):
             result = self.engine1.execute(
                 sa.select([test_table]))
             # here shouldn't execute code and it's debug info
@@ -867,12 +868,12 @@ class TestCheckLogPoisonRecord(AcraCatchLogsMixin, BasePoisonRecordTest):
         self.engine1.execute(
             test_table.insert(),
             {'id': row_id, 'data': get_poison_record(), 'raw_data': 'poison_record'})
-
-        with self.assertRaises(SA_OperationalError):
-            self.engine1.execute(test_table.select())
-
-        # super() tearDown without killink acra
-        super(TestCheckLogPoisonRecord, self).tearDown()
+        try:
+            with self.assertRaises(DatabaseError):
+                self.engine1.execute(test_table.select())
+        finally:
+            # super() tearDown without killink acra
+            super(TestCheckLogPoisonRecord, self).tearDown()
 
         try:
             out, _ = self.acra.communicate(timeout=1)
@@ -934,7 +935,7 @@ class TestKeyStorageClearing(BaseTestCase):
         # delete key for excluding reloading from FS
         os.remove('.acrakeys/{}.pub'.format(self.key_name))
         # acraserver should close connection when doesn't find key
-        with self.assertRaises(SA_OperationalError):
+        with self.assertRaises(DatabaseError):
             result = self.engine1.execute(test_table.select().limit(1))
 
 
