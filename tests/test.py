@@ -633,8 +633,11 @@ class TestKeyNonExistence(BaseTestCase):
             time.sleep(self.PROXY_STARTUP_DELAY)
             self.assertEqual(self.proxy.poll(), 1)
         finally:
-            self.proxy.kill()
-            self.proxy.wait()
+            try:
+                self.proxy.kill()
+                self.proxy.wait()
+            except OSError:  # pid not found
+                pass
 
     def test_without_acraserver_private(self):
         """acraserver without private key should drop connection
@@ -672,8 +675,11 @@ class TestKeyNonExistence(BaseTestCase):
             time.sleep(self.PROXY_STARTUP_DELAY)
             self.assertEqual(self.proxy.poll(), 1)
         finally:
-            self.proxy.kill()
-            self.proxy.wait()
+            try:
+                self.proxy.kill()
+                self.proxy.wait()
+            except OSError:  # pid not found
+                pass
 
 
 class BasePoisonRecordTest(BaseTestCase):
