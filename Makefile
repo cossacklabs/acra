@@ -55,7 +55,7 @@ test_python:
 		$(BIN_PATH)/test_env/bin/pip install -r tests/requirements.txt && \
 		GOPATH=$(ABS_TEMP_GOPATH) $(BIN_PATH)/test_env/bin/python $(ABS_TEMP_GOPATH)/src/github.com/cossacklabs/acra/tests/test.py
 
-test: temp_copy test_go test_python
+test: temp_copy test_go
 	
 COSSACKLABS_URL = https://www.cossacklabs.com
 # tag version from VCS
