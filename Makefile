@@ -87,7 +87,7 @@ else
 	OS_NAME = $(shell cat /etc/os-release | grep -e "^ID=\".*\"" | cut -d'"' -f2)
 	OS_VERSION = $(shell cat /etc/os-release | grep -i version_id|cut -d'"' -f2)
 	ARCHITECTURE = $(shell arch)
-	NAME_SUFFIX = $(VERSION).$(OS_NAME)$(OS_VERSION).$(ARCHITECTURE).rpm
+	NAME_SUFFIX = $(shell echo -n "$(VERSION)"|sed s/-/_/g).$(OS_NAME)$(OS_VERSION).$(ARCHITECTURE).rpm
 endif
 
 SHORT_DESCRIPTION = "Acra helps you easily secure your databases in distributed, microservice-rich environments"
@@ -133,7 +133,7 @@ rpm: build
 		--rpm-summary $(RPM_SUMMARY) \
 		--maintainer $(MAINTAINER) \
 		--depends $(RPM_DEPENDENCIES) \
-		--package $(BIN_PATH)/rpm/acra_$(NAME_SUFFIX) \
+		--package $(BIN_PATH)/rpm/acra-$(NAME_SUFFIX) \
 		--version $(VERSION) \
 		--category security \
 		$(TEMP_GOPATH)/bin/=$(PREFIX)/bin/acra 1>/dev/null
