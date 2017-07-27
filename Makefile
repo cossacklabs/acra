@@ -70,13 +70,13 @@ DEBIAN_ARCHITECTURE = `dpkg --print-architecture 2>/dev/null`
 # 9.0 == stretch
 # if found 9. (9.1, 9.2, ...) then it's debian 9.x
 ifeq ($(findstring 9.,$(DEBIAN_VERSION)),9.)
-        DEBIAN_DEPENDENCIES := '$(DEBIAN_STRETCH_VERSION) libthemis'
+        DEBIAN_DEPENDENCIES := --depends $(DEBIAN_STRETCH_VERSION) --depends libthemis
 else ifeq ($(DEBIAN_VERSION),stretch/sid)
-        DEBIAN_DEPENDENCIES := '$(DEBIAN_STRETCH_VERSION) libthemis'
+        DEBIAN_DEPENDENCIES := --depends $(DEBIAN_STRETCH_VERSION) --depends libthemis
 else
-        DEBIAN_DEPENDENCIES := 'openssl libthemis'
+        DEBIAN_DEPENDENCIES := --depends openssl --depends libthemis
 endif
-RPM_DEPENDENCIES = 'openssl libthemis'
+RPM_DEPENDENCIES = --depends openssl --depends libthemis
 
 ifeq ($(shell lsb_release -is 2> /dev/null),Debian)
 	NAME_SUFFIX = $(VERSION)+$(shell lsb_release -cs)_$(DEBIAN_ARCHITECTURE).deb
@@ -114,7 +114,7 @@ deb: build
 		 --package $(BIN_PATH)/deb/acra_$(NAME_SUFFIX) \
 		 --architecture $(DEBIAN_ARCHITECTURE) \
 		 --version $(VERSION)+$(OS_CODENAME) \
-		 --depends $(DEBIAN_DEPENDENCIES) \
+		 $(DEBIAN_DEPENDENCIES) \
 		 --deb-priority optional \
 		 --category security \
 		 $(TEMP_GOPATH)/bin/=$(PREFIX)/bin/acra 1>/dev/null
@@ -133,7 +133,7 @@ rpm: build
 		--description $(SHORT_DESCRIPTION) \
 		--rpm-summary $(RPM_SUMMARY) \
 		--maintainer $(MAINTAINER) \
-		--depends $(RPM_DEPENDENCIES) \
+		$(RPM_DEPENDENCIES) \
 		--package $(BIN_PATH)/rpm/acra-$(NAME_SUFFIX) \
 		--version $(VERSION) \
 		--category security \
