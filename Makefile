@@ -64,25 +64,21 @@ MAINTAINER = "Cossack Labs Limited <dev@cossacklabs.com>"
 # tag version from VCS
 LICENSE_NAME = "Apache License Version 2.0"
 
-DEBIAN_VERSION := $(shell cat /etc/debian_version 2> /dev/null)
+DEBIAN_CODENAME := $(shell lsb_release -cs 2> /dev/null)
 DEBIAN_STRETCH_VERSION := libssl1.0.2
 DEBIAN_ARCHITECTURE = `dpkg --print-architecture 2>/dev/null`
-# 9.0 == stretch
-# if found 9. (9.1, 9.2, ...) then it's debian 9.x
-ifeq ($(findstring 9.,$(DEBIAN_VERSION)),9.)
-        DEBIAN_DEPENDENCIES := --depends $(DEBIAN_STRETCH_VERSION) --depends libthemis
-else ifeq ($(DEBIAN_VERSION),stretch/sid)
-        DEBIAN_DEPENDENCIES := --depends $(DEBIAN_STRETCH_VERSION) --depends libthemis
+ifeq ($(DEBIAN_CODENAME),stretch)
+        DEBIAN_DEPENDENCIES := $(DEBIAN_STRETCH_VERSION)
 else
-        DEBIAN_DEPENDENCIES := --depends openssl --depends libthemis
+        DEBIAN_DEPENDENCIES := openssl
 endif
 RPM_DEPENDENCIES = --depends openssl --depends libthemis
 
 ifeq ($(shell lsb_release -is 2> /dev/null),Debian)
-	NAME_SUFFIX = $(VERSION)+$(shell lsb_release -cs)_$(DEBIAN_ARCHITECTURE).deb
+	NAME_SUFFIX = $(VERSION)+$(DEBIAN_CODENAME)_$(DEBIAN_ARCHITECTURE).deb
 	OS_CODENAME = $(shell lsb_release -cs)
 else ifeq ($(shell lsb_release -is 2> /dev/null),Ubuntu)
-	NAME_SUFFIX = $(VERSION)+$(shell lsb_release -cs)_$(DEBIAN_ARCHITECTURE).deb
+	NAME_SUFFIX = $(VERSION)+$(DEBIAN_CODENAME)_$(DEBIAN_ARCHITECTURE).deb
 	OS_CODENAME = $(shell lsb_release -cs)
 else
 	OS_NAME = $(shell cat /etc/os-release | grep -e "^ID=\".*\"" | cut -d'"' -f2)
