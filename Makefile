@@ -68,9 +68,9 @@ DEBIAN_CODENAME := $(shell lsb_release -cs 2> /dev/null)
 DEBIAN_STRETCH_VERSION := libssl1.0.2
 DEBIAN_ARCHITECTURE = `dpkg --print-architecture 2>/dev/null`
 ifeq ($(DEBIAN_CODENAME),stretch)
-        DEBIAN_DEPENDENCIES := $(DEBIAN_STRETCH_VERSION)
+        DEBIAN_DEPENDENCIES := --depends $(DEBIAN_STRETCH_VERSION) --depends libthemis
 else
-        DEBIAN_DEPENDENCIES := openssl
+        DEBIAN_DEPENDENCIES := --depends openssl --depends libthemis
 endif
 RPM_DEPENDENCIES = --depends openssl --depends libthemis
 
