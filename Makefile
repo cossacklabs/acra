@@ -77,16 +77,16 @@ endif
 RPM_DEPENDENCIES = --depends openssl --depends libthemis
 
 ifeq ($(shell lsb_release -is 2> /dev/null),Debian)
-	NAME_SUFFIX = $(VERSION)+$(DEBIAN_CODENAME)_$(DEBIAN_ARCHITECTURE)
+	NAME_SUFFIX = $(VERSION)+$(DEBIAN_CODENAME)_$(DEBIAN_ARCHITECTURE).deb
 	OS_CODENAME = $(shell lsb_release -cs)
 else ifeq ($(shell lsb_release -is 2> /dev/null),Ubuntu)
-	NAME_SUFFIX = $(VERSION)+$(DEBIAN_CODENAME)_$(DEBIAN_ARCHITECTURE)
+	NAME_SUFFIX = $(VERSION)+$(DEBIAN_CODENAME)_$(DEBIAN_ARCHITECTURE).deb
 	OS_CODENAME = $(shell lsb_release -cs)
 else
 	OS_NAME = $(shell cat /etc/os-release | grep -e "^ID=\".*\"" | cut -d'"' -f2)
 	OS_VERSION = $(shell cat /etc/os-release | grep -i version_id|cut -d'"' -f2)
 	ARCHITECTURE = $(shell arch)
-	NAME_SUFFIX = $(shell echo -n "$(VERSION)"|sed s/-/_/g).$(OS_NAME)$(OS_VERSION).$(ARCHITECTURE)
+	NAME_SUFFIX = $(shell echo -n "$(VERSION)"|sed s/-/_/g).$(OS_NAME)$(OS_VERSION).$(ARCHITECTURE).rpm
 endif
 
 SHORT_DESCRIPTION = "Acra helps you easily secure your databases in distributed, microservice-rich environments"
