@@ -58,6 +58,8 @@ test_python:
 
 test: temp_copy test_go
 	
+
+PACKAGE_NAME = acra
 COSSACKLABS_URL = https://www.cossacklabs.com
 MAINTAINER = "Cossack Labs Limited <dev@cossacklabs.com>"
 
@@ -75,16 +77,16 @@ endif
 RPM_DEPENDENCIES = --depends openssl --depends libthemis
 
 ifeq ($(shell lsb_release -is 2> /dev/null),Debian)
-	NAME_SUFFIX = $(VERSION)+$(DEBIAN_CODENAME)_$(DEBIAN_ARCHITECTURE).deb
+	NAME_SUFFIX = $(VERSION)+$(DEBIAN_CODENAME)_$(DEBIAN_ARCHITECTURE)
 	OS_CODENAME = $(shell lsb_release -cs)
 else ifeq ($(shell lsb_release -is 2> /dev/null),Ubuntu)
-	NAME_SUFFIX = $(VERSION)+$(DEBIAN_CODENAME)_$(DEBIAN_ARCHITECTURE).deb
+	NAME_SUFFIX = $(VERSION)+$(DEBIAN_CODENAME)_$(DEBIAN_ARCHITECTURE)
 	OS_CODENAME = $(shell lsb_release -cs)
 else
 	OS_NAME = $(shell cat /etc/os-release | grep -e "^ID=\".*\"" | cut -d'"' -f2)
 	OS_VERSION = $(shell cat /etc/os-release | grep -i version_id|cut -d'"' -f2)
 	ARCHITECTURE = $(shell arch)
-	NAME_SUFFIX = $(shell echo -n "$(VERSION)"|sed s/-/_/g).$(OS_NAME)$(OS_VERSION).$(ARCHITECTURE).rpm
+	NAME_SUFFIX = $(shell echo -n "$(VERSION)"|sed s/-/_/g).$(OS_NAME)$(OS_VERSION).$(ARCHITECTURE)
 endif
 
 SHORT_DESCRIPTION = "Acra helps you easily secure your databases in distributed, microservice-rich environments"
@@ -102,18 +104,18 @@ deb: build
 
 	@fpm --input-type dir \
 		 --output-type deb \
-		 --name acra \
+		 --name $(PACKAGE_NAME) \
 		 --license $(LICENSE_NAME) \
 		 --url '$(COSSACKLABS_URL)' \
 		 --description $(SHORT_DESCRIPTION) \
 		 --maintainer $(MAINTAINER) \
-		 --package $(BIN_PATH)/deb/acra_$(NAME_SUFFIX) \
+		 --package $(BIN_PATH)/deb/$(PACKAGE_NAME)_$(NAME_SUFFIX) \
 		 --architecture $(DEBIAN_ARCHITECTURE) \
 		 --version $(VERSION)+$(OS_CODENAME) \
 		 $(DEBIAN_DEPENDENCIES) \
 		 --deb-priority optional \
 		 --category security \
-		 $(TEMP_GOPATH)/bin/=$(PREFIX)/bin/acra 1>/dev/null
+		 $(TEMP_GOPATH)/bin/=$(PREFIX)/bin/$(PACKAGE_NAME)
 
 # it's just for printing .deb files
 	@find $(BIN_PATH) -name \*.deb
@@ -123,16 +125,16 @@ rpm: build
 	@mkdir -p $(BIN_PATH)/rpm
 	@fpm --input-type dir \
 		--output-type rpm \
-		--name acra \
+		--name $(PACKAGE_NAME) \
 		--license $(LICENSE_NAME) \
 		--url '$(COSSACKLABS_URL)' \
 		--description $(SHORT_DESCRIPTION) \
 		--rpm-summary $(RPM_SUMMARY) \
 		--maintainer $(MAINTAINER) \
 		$(RPM_DEPENDENCIES) \
-		--package $(BIN_PATH)/rpm/acra-$(NAME_SUFFIX) \
+		--package $(BIN_PATH)/rpm/$(PACKAGE_NAME)-$(NAME_SUFFIX) \
 		--version $(VERSION) \
 		--category security \
-		$(TEMP_GOPATH)/bin/=$(PREFIX)/bin/acra 1>/dev/null
+		$(TEMP_GOPATH)/bin/=$(PREFIX)/bin/$(PACKAGE_NAME)
 # it's just for printing .rpm files
 	@find $(BIN_PATH) -name \*.rpm
