@@ -37,9 +37,12 @@ temp_copy:
 	@GOPATH=$(ABS_TEMP_GOPATH) go get github.com/cossacklabs/acra/cmd/...
 
 
-build: temp_copy
+install: temp_copy
 	@mkdir -p $(BIN_PATH)
 	@cp $(TEMP_GOPATH)/bin/* $(BIN_PATH)
+
+# alias for unification with other products
+install_all: install
 
 clean:
 	@rm -rf $(BIN_PATH)
@@ -57,6 +60,9 @@ test_python:
 		GOPATH=$(ABS_TEMP_GOPATH) $(BIN_PATH)/test_env/bin/python $(ABS_TEMP_GOPATH)/src/github.com/cossacklabs/acra/tests/test.py
 
 test: temp_copy test_go
+
+# alias for unification with other products
+test_all: test
 	
 
 PACKAGE_NAME = acra
@@ -100,7 +106,7 @@ RPM_SUMMARY = "Acra helps you easily secure your databases in distributed, micro
 unpack_dist:
 	@tar -xf $(DIST_FILENAME)
 
-deb: build
+deb: install
 	@mkdir -p '$(BIN_PATH)/deb'
 
 	@fpm --input-type dir \
@@ -122,7 +128,7 @@ deb: build
 	@find $(BIN_PATH) -name \*.deb
 
 
-rpm: build
+rpm: install
 	@mkdir -p $(BIN_PATH)/rpm
 	@fpm --input-type dir \
 		--output-type rpm \
