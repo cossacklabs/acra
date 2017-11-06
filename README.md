@@ -80,6 +80,10 @@ This open source version of Acra is an early alpha. We're slowly unifying and mo
 ## Contributing to us
 If you’d like to contribute your code or other kind of input to Acra, you’re very welcome. Your starting point for contributing should be this [Contribution Wiki page](https://github.com/cossacklabs/acra/wiki/Contributing-to-Acra).
 
+## Contacts
+
+If you have questions for which you don't want to create an Issue or would like to contact the Cossack Labs team directly - email us at info@cossacklabs.com or DM us on Twitter [@cossacklabs](https://twitter.com/cossacklabs).
+
 ## License
 
 Acra is licensed as Apache 2 open source software.
