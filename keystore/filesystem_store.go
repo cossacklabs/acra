@@ -39,6 +39,26 @@ const (
 	POISON_KEY_FILENAME = ".poison_key/poison_key"
 )
 
+func getZoneKeyFilename(id []byte) string {
+	return fmt.Sprintf("%s_zone", string(id))
+}
+
+func getZonePublicKeyFilename(id []byte) string {
+	return fmt.Sprintf("%s.pub", getZoneKeyFilename(id))
+}
+
+func getServerKeyFilename(id []byte) string {
+	return fmt.Sprintf("%s_server", string(id))
+}
+
+func getServerDecryptionKeyFilename(id []byte) string {
+	return fmt.Sprintf("%s_storage", string(id))
+}
+
+func getProxyKeyFilename(id []byte) string {
+	return string(id)
+}
+
 func NewFilesystemKeyStore(directory string) (*FilesystemKeyStore, error) {
 	directory, err := utils.AbsPath(directory)
 	if err != nil {
@@ -50,26 +70,6 @@ func NewFilesystemKeyStore(directory string) (*FilesystemKeyStore, error) {
 		return nil, errors.New("key store folder has an incorrect permissions")
 	}
 	return &FilesystemKeyStore{directory: directory, keys: make(map[string][]byte)}, nil
-}
-
-func (*FilesystemKeyStore) getZoneKeyFilename(id []byte) string {
-	return fmt.Sprintf("%s_zone", string(id))
-}
-
-func (store *FilesystemKeyStore) getZonePublicKeyFilename(id []byte) string {
-	return fmt.Sprintf("%s.pub", store.getZoneKeyFilename(id))
-}
-
-func (*FilesystemKeyStore) getServerKeyFilename(id []byte) string {
-	return fmt.Sprintf("%s_server", string(id))
-}
-
-func (*FilesystemKeyStore) getServerDecryptionKeyFilename(id []byte) string {
-	return fmt.Sprintf("%s_storage", string(id))
-}
-
-func (*FilesystemKeyStore) getProxyKeyFilename(id []byte) string {
-	return string(id)
 }
 
 func (store *FilesystemKeyStore) generateKeyPair(filename string) (*keys.Keypair, error) {
@@ -104,14 +104,14 @@ func (store *FilesystemKeyStore) GenerateZoneKey() ([]byte, []byte, error) {
 		}
 	}
 
-	keypair, err := store.generateKeyPair(store.getZoneKeyFilename(id))
+	keypair, err := store.generateKeyPair(getZoneKeyFilename(id))
 	if err != nil {
 		return []byte{}, []byte{}, err
 	}
 	lock.Lock()
 	defer lock.Unlock()
 	// cache key
-	store.keys[store.getZoneKeyFilename(id)] = keypair.Private.Value
+	store.keys[getZoneKeyFilename(id)] = keypair.Private.Value
 	return id, keypair.Public.Value, nil
 }
 
@@ -123,7 +123,7 @@ func (store *FilesystemKeyStore) GetZonePrivateKey(id []byte) (*keys.PrivateKey,
 	if !ValidateId(id) {
 		return nil, ErrInvalidClientId
 	}
-	fname := store.getZoneKeyFilename(id)
+	fname := getZoneKeyFilename(id)
 	lock.Lock()
 	defer lock.Unlock()
 	key, ok := store.keys[fname]
@@ -149,7 +149,7 @@ func (store *FilesystemKeyStore) HasZonePrivateKey(id []byte) bool {
 	if len(id) == 0 {
 		return false
 	}
-	fname := store.getZoneKeyFilename(id)
+	fname := getZoneKeyFilename(id)
 	lock.RLock()
 	defer lock.RUnlock()
 	_, ok := store.keys[fname]
@@ -164,7 +164,7 @@ func (store *FilesystemKeyStore) GetPeerPublicKey(id []byte) (*keys.PublicKey, e
 	if !ValidateId(id) {
 		return nil, ErrInvalidClientId
 	}
-	fname := store.getZonePublicKeyFilename(id)
+	fname := getZonePublicKeyFilename(id)
 	lock.Lock()
 	defer lock.Unlock()
 	key, ok := store.keys[fname]
@@ -185,7 +185,7 @@ func (store *FilesystemKeyStore) GetPrivateKey(id []byte) (*keys.PrivateKey, err
 	if !ValidateId(id) {
 		return nil, ErrInvalidClientId
 	}
-	fname := store.getServerKeyFilename(id)
+	fname := getServerKeyFilename(id)
 	lock.Lock()
 	defer lock.Unlock()
 	key, ok := store.keys[fname]
@@ -206,7 +206,7 @@ func (store *FilesystemKeyStore) GetServerDecryptionPrivateKey(id []byte) (*keys
 	if !ValidateId(id) {
 		return nil, ErrInvalidClientId
 	}
-	fname := store.getServerDecryptionKeyFilename(id)
+	fname := getServerDecryptionKeyFilename(id)
 	lock.Lock()
 	defer lock.Unlock()
 	key, ok := store.keys[fname]
@@ -227,7 +227,7 @@ func (store *FilesystemKeyStore) GenerateProxyKeys(id []byte) error {
 	if !ValidateId(id) {
 		return ErrInvalidClientId
 	}
-	filename := store.getProxyKeyFilename(id)
+	filename := getProxyKeyFilename(id)
 	_, err := store.generateKeyPair(filename)
 	if err != nil {
 		return err
@@ -238,7 +238,7 @@ func (store *FilesystemKeyStore) GenerateServerKeys(id []byte) error {
 	if !ValidateId(id) {
 		return ErrInvalidClientId
 	}
-	filename := store.getServerKeyFilename(id)
+	filename := getServerKeyFilename(id)
 	_, err := store.generateKeyPair(filename)
 	if err != nil {
 		return err
@@ -251,7 +251,7 @@ func (store *FilesystemKeyStore) GenerateDataEncryptionKeys(id []byte) error {
 	if !ValidateId(id) {
 		return ErrInvalidClientId
 	}
-	_, err := store.generateKeyPair(store.getServerDecryptionKeyFilename(id))
+	_, err := store.generateKeyPair(getServerDecryptionKeyFilename(id))
 	if err != nil {
 		return err
 	}
