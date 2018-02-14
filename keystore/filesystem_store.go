@@ -160,7 +160,7 @@ func (store *FilesystemKeyStore) HasZonePrivateKey(id []byte) bool {
 	return exists
 }
 
-func (store *FilesystemKeyStore) GetProxyPublicKey(id []byte) (*keys.PublicKey, error) {
+func (store *FilesystemKeyStore) GetPeerPublicKey(id []byte) (*keys.PublicKey, error) {
 	if !ValidateId(id) {
 		return nil, ErrInvalidClientId
 	}
@@ -181,7 +181,7 @@ func (store *FilesystemKeyStore) GetProxyPublicKey(id []byte) (*keys.PublicKey, 
 	return publicKey, nil
 }
 
-func (store *FilesystemKeyStore) GetServerPrivateKey(id []byte) (*keys.PrivateKey, error) {
+func (store *FilesystemKeyStore) GetPrivateKey(id []byte) (*keys.PrivateKey, error) {
 	if !ValidateId(id) {
 		return nil, ErrInvalidClientId
 	}

@@ -53,7 +53,7 @@ func (server *SServer) initSSession(connection net.Conn) ([]byte, *ClientSession
 	if err != nil {
 		return nil, nil, err
 	}
-	privateKey, err := server.keystorage.GetServerPrivateKey(clientId)
+	privateKey, err := server.keystorage.GetPrivateKey(clientId)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -172,7 +172,7 @@ func (server *SServer) initCommandsSSession(connection net.Conn) (*ClientCommand
 	if err != nil {
 		return nil, err
 	}
-	privateKey, err := server.keystorage.GetServerPrivateKey(clientId)
+	privateKey, err := server.keystorage.GetPrivateKey(clientId)
 	if err != nil {
 		return nil, err
 	}

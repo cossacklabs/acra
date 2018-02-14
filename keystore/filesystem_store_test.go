@@ -124,7 +124,7 @@ func testReset(store *FilesystemKeyStore, t *testing.T) {
 	if err := store.GenerateServerKeys(testId); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := store.GetServerPrivateKey(testId); err != nil {
+	if _, err := store.GetPrivateKey(testId); err != nil {
 		t.Fatal(err)
 	}
 	store.Reset()
@@ -135,7 +135,7 @@ func testReset(store *FilesystemKeyStore, t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if _, err := store.GetServerPrivateKey(testId); err == nil {
+	if _, err := store.GetPrivateKey(testId); err == nil {
 		t.Fatal("Expected error on fetching cleared key")
 	}
 }

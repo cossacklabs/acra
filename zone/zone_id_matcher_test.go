@@ -33,10 +33,10 @@ func (storage *TestKeyStore) GetZonePrivateKey(id []byte) (*keys.PrivateKey, err
 	return &keys.PrivateKey{Value: []byte{}}, nil
 }
 func (storage *TestKeyStore) HasZonePrivateKey(id []byte) bool { return true }
-func (storage *TestKeyStore) GetProxyPublicKey(id []byte) (*keys.PublicKey, error) {
+func (storage *TestKeyStore) GetPeerPublicKey(id []byte) (*keys.PublicKey, error) {
 	return &keys.PublicKey{Value: []byte{}}, nil
 }
-func (storage *TestKeyStore) GetServerPrivateKey(id []byte) (*keys.PrivateKey, error) {
+func (storage *TestKeyStore) GetPrivateKey(id []byte) (*keys.PrivateKey, error) {
 	return &keys.PrivateKey{Value: []byte{}}, nil
 }
 func (storage *TestKeyStore) GenerateZoneKey() ([]byte, []byte, error) { return []byte{}, []byte{}, nil }
