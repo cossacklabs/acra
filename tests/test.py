@@ -528,10 +528,10 @@ class TestConnectionClosing(BaseTestCase):
         count = 0
         while count <= 3:
             try:
-                con = socket.create_connection(('127.0.0.1', self.ACRA_PORT), 1)
-                con.close()
-                con = socket.create_connection(('127.0.0.1', self.PROXY_PORT_1), 1)
-                con.close()
+                with socket.create_connection(('127.0.0.1', self.ACRA_PORT), 1):
+                    pass
+                with socket.create_connection(('127.0.0.1', self.PROXY_PORT_1), 1):
+                    pass
                 return
             except:
                 pass

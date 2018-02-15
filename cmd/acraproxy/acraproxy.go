@@ -308,7 +308,11 @@ func main() {
 	}
 	if *withZone {
 		go func() {
-			commandsConfig := &Config{KeyStore: keyStore, KeysDir: *keysDir, ClientId: []byte(*clientId), AcraHost: *acraHost, AcraPort: *acraCommandsPort, Port: *commandsPort, AcraId: []byte(*acraId), disableUserCheck: *disableUserCheck}
+			// copy config and replace ports
+			commandsConfig := *config
+			commandsConfig.AcraPort = *acraCommandsPort
+			commandsConfig.Port = *commandsPort
+
 			log.Printf("Info: start listening http api %v\n", *commandsPort)
 			commandsListener, err := net.Listen("tcp", fmt.Sprintf(":%v", *commandsPort))
 			if err != nil {
@@ -322,7 +326,7 @@ func main() {
 					continue
 				}
 				log.Printf("Info: new connection to http api: %v\n", connection.RemoteAddr())
-				go handleClientConnection(commandsConfig, connection)
+				go handleClientConnection(&commandsConfig, connection)
 			}
 		}()
 	}
