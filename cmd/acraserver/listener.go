@@ -51,10 +51,12 @@ func NewServer(config *Config) (server *SServer, err error) {
 func (server *SServer) initSSession(connection net.Conn) ([]byte, *ClientSession, error) {
 	clientId, err := utils.ReadSessionData(connection)
 	if err != nil {
+		log.Println("Error: can't read client id")
 		return nil, nil, err
 	}
 	privateKey, err := server.keystorage.GetPrivateKey(clientId)
 	if err != nil {
+		log.Println("Error: load correct private key")
 		return nil, nil, err
 	}
 	clientSession, err := NewClientSession(server.keystorage, server.config, connection)

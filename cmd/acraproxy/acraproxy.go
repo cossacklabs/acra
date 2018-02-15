@@ -27,31 +27,35 @@ import (
 	"strconv"
 	"strings"
 
-	"bytes"
 	"github.com/cossacklabs/acra/cmd"
 	"github.com/cossacklabs/acra/keystore"
 	"github.com/cossacklabs/acra/utils"
 	"github.com/cossacklabs/themis/gothemis/keys"
 	"github.com/cossacklabs/themis/gothemis/session"
+	"bytes"
 )
 
 // DEFAULT_CONFIG_PATH relative path to config which will be parsed as default
 var DEFAULT_CONFIG_PATH = utils.GetConfigPathByName("acraproxy")
 
 type ClientSession struct {
-	Config *Config
+	keystore keystore.SecureSessionKeyStore
+	id []byte
+	acraId []byte
 }
 
 func (session *ClientSession) StateChanged(ss *session.SecureSession, state int) {}
 
 func (client_session *ClientSession) GetPublicKeyForId(ss *session.SecureSession, id []byte) *keys.PublicKey {
-	if bytes.Compare(client_session.Config.AcraId, id) != 0 {
-		log.Printf("Warning: incorrect server id - %v\n", string(id))
+	if !bytes.Equal(client_session.acraId, id){
+		log.Printf("Warning: incorrect server id - %v, expected %v\n", string(id), string(client_session.acraId))
 		return nil
 	}
-	log.Printf("Debug: use %v server's public key\n", fmt.Sprintf("%v/%v_server.pub", client_session.Config.KeysDir, string(client_session.Config.ClientId)))
-	// try to open file in PUBLIC_KEYS_DIR directory where pub file should be named like <client_id>.pub
-	key, _ := utils.LoadPublicKey(fmt.Sprintf("%v/%v_server.pub", client_session.Config.KeysDir, string(client_session.Config.ClientId)))
+	key, err := client_session.keystore.GetPeerPublicKey(client_session.id)
+	if err != nil {
+		log.Printf("Error: can't fetch public key for id <%v>\n", string(id))
+		return nil
+	}
 	return key
 }
 
@@ -61,7 +65,7 @@ func NewClientSession(config *Config) (*session.SecureSession, error) {
 	if err != nil {
 		return nil, err
 	}
-	ssession, err := session.New(config.ClientId, privateKey, &ClientSession{Config: config})
+	ssession, err := session.New(config.ClientId, privateKey, &ClientSession{acraId: config.AcraId, id: config.ClientId, keystore: config.KeyStore})
 	if err != nil {
 		return nil, err
 	}
@@ -232,6 +236,7 @@ type Config struct {
 	AcraPort         int
 	Port             int
 	disableUserCheck bool
+	KeyStore keystore.SecureSessionKeyStore
 }
 
 func main() {
@@ -289,7 +294,13 @@ func main() {
 	if runtime.GOOS != "linux" {
 		*disableUserCheck = true
 	}
-	config := &Config{KeysDir: *keysDir, ClientId: []byte(*clientId), AcraHost: *acraHost, AcraPort: *acraPort, Port: *port, AcraId: []byte(*acraId), disableUserCheck: *disableUserCheck}
+
+	keyStore, err := keystore.NewProxyFileSystemKeyStore(*keysDir)
+	if err != nil{
+		log.Println("Error: can't initialize keystore")
+		os.Exit(1)
+	}
+	config := &Config{KeyStore: keyStore, KeysDir: *keysDir, ClientId: []byte(*clientId), AcraHost: *acraHost, AcraPort: *acraPort, Port: *port, AcraId: []byte(*acraId), disableUserCheck: *disableUserCheck}
 	listener, err := net.Listen("tcp", fmt.Sprintf(":%v", *port))
 	if err != nil {
 		log.Printf("Error: %v\n", utils.ErrorMessage("can't start listen connections", err))
@@ -297,7 +308,7 @@ func main() {
 	}
 	if *withZone {
 		go func() {
-			commandsConfig := &Config{KeysDir: *keysDir, ClientId: []byte(*clientId), AcraHost: *acraHost, AcraPort: *acraCommandsPort, Port: *commandsPort, AcraId: []byte(*acraId), disableUserCheck: *disableUserCheck}
+			commandsConfig := &Config{KeyStore: keyStore, KeysDir: *keysDir, ClientId: []byte(*clientId), AcraHost: *acraHost, AcraPort: *acraCommandsPort, Port: *commandsPort, AcraId: []byte(*acraId), disableUserCheck: *disableUserCheck}
 			log.Printf("Info: start listening http api %v\n", *commandsPort)
 			commandsListener, err := net.Listen("tcp", fmt.Sprintf(":%v", *commandsPort))
 			if err != nil {

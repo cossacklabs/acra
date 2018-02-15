@@ -30,11 +30,6 @@ import (
 
 var lock = sync.RWMutex{}
 
-type FilesystemKeyStore struct {
-	keys      map[string][]byte
-	directory string
-}
-
 const (
 	POISON_KEY_FILENAME = ".poison_key/poison_key"
 )
@@ -43,8 +38,12 @@ func getZoneKeyFilename(id []byte) string {
 	return fmt.Sprintf("%s_zone", string(id))
 }
 
+func getPublicKeyFilename(id[]byte)string{
+	return fmt.Sprintf("%s.pub", id)
+}
+
 func getZonePublicKeyFilename(id []byte) string {
-	return fmt.Sprintf("%s.pub", getZoneKeyFilename(id))
+	return getPublicKeyFilename([]byte(getZoneKeyFilename(id)))
 }
 
 func getServerKeyFilename(id []byte) string {
@@ -57,6 +56,35 @@ func getServerDecryptionKeyFilename(id []byte) string {
 
 func getProxyKeyFilename(id []byte) string {
 	return string(id)
+}
+
+type ProxyFileSystemKeyStore struct {
+	directory string
+}
+
+func NewProxyFileSystemKeyStore(directory string) (*ProxyFileSystemKeyStore, error) {
+	return &ProxyFileSystemKeyStore{directory: directory}, nil
+}
+
+func (store *ProxyFileSystemKeyStore) GetPrivateKey(id []byte) (*keys.PrivateKey, error) {
+	keyData, err := ioutil.ReadFile(filepath.Join(store.directory, getProxyKeyFilename(id)))
+	if err != nil {
+		return nil, err
+	}
+	return &keys.PrivateKey{Value: keyData}, nil
+}
+
+func (store *ProxyFileSystemKeyStore) GetPeerPublicKey(id []byte) (*keys.PublicKey, error) {
+	keyData, err := ioutil.ReadFile(filepath.Join(store.directory, getPublicKeyFilename([]byte(getServerKeyFilename(id)))))
+	if err != nil {
+		return nil, err
+	}
+	return &keys.PublicKey{Value: keyData}, nil
+}
+
+type FilesystemKeyStore struct {
+	keys      map[string][]byte
+	directory string
 }
 
 func NewFilesystemKeyStore(directory string) (*FilesystemKeyStore, error) {

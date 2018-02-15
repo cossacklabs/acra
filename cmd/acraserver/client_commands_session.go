@@ -62,13 +62,13 @@ func (clientSession *ClientCommandsSession) close() {
 func (clientSession *ClientCommandsSession) HandleSession() {
 	data, err := utils.ReadData(clientSession.connection)
 	if err != nil {
-		log.Printf("Warning: %v\n", utils.ErrorMessage("can't initialize secure session with acraproxy", err))
+		log.Printf("Warning: %v\n", utils.ErrorMessage("can't read command on http api from acraproxy", err))
 		return
 	}
 
 	decryptedData, _, err := clientSession.session.Unwrap(data)
 	if err != nil {
-		log.Printf("Warning: %v\n", utils.ErrorMessage("can't initialize secure session with acraproxy", err))
+		log.Printf("Warning: %v\n", utils.ErrorMessage("can't unwrap http api command from secure session with acraproxy", err))
 		return
 	}
 	reader := bufio.NewReader(strings.NewReader(string(decryptedData[:])))
