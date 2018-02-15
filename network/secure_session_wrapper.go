@@ -19,6 +19,7 @@ import (
 	"net"
 	"github.com/cossacklabs/acra/utils"
 	"github.com/cossacklabs/themis/gothemis/keys"
+	"log"
 )
 
 type SessionCallback struct {
@@ -27,8 +28,10 @@ type SessionCallback struct {
 }
 
 func (callback *SessionCallback) GetPublicKeyForId(ss *session.SecureSession, id []byte) *keys.PublicKey {
+	log.Printf("Info: load public key for id <%v>\n", string(id))
 	key, err := callback.keystorage.GetPeerPublicKey(id)
 	if err != nil {
+		log.Printf("Error: can't load public key for id <%v>\n", string(id))
 		return nil
 	}
 	return key
@@ -44,6 +47,8 @@ type SecureSessionConnectionWrapper struct {
 	keystore keystore.SecureSessionKeyStore
 	session  *session.SecureSession
 	net.Conn
+	currentData []byte
+	returnedIndex int
 }
 
 func NewSecureSessionConnectionWrapper(keystore keystore.SecureSessionKeyStore, ) (*SecureSessionConnectionWrapper, error) {
@@ -105,6 +110,14 @@ func (wrapper *SecureSessionConnectionWrapper) WrapServer(id []byte, conn net.Co
 }
 
 func (wrapper *SecureSessionConnectionWrapper) Read(b []byte) (n int, err error) {
+	if wrapper.currentData != nil {
+		n = copy(b, wrapper.currentData[wrapper.returnedIndex:])
+		wrapper.returnedIndex += n
+		if wrapper.returnedIndex >= cap(wrapper.currentData){
+			wrapper.currentData = nil
+		}
+		return n, err
+	}
 	data, err := utils.ReadData(wrapper.Conn)
 	if err != nil {
 		return len(data), err
@@ -114,6 +127,10 @@ func (wrapper *SecureSessionConnectionWrapper) Read(b []byte) (n int, err error)
 		return len(data), err
 	}
 	n = copy(b, decryptedData)
+	if n != len(decryptedData){
+		wrapper.currentData = decryptedData
+		wrapper.returnedIndex = n
+	}
 	return
 }
 

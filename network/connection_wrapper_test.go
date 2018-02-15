@@ -17,7 +17,7 @@ func wait(ch chan bool, t *testing.T){
 			t.Fatal("some err")
 			os.Exit(1)
 		}
-	case <-time.Tick(time.Second):
+	case <-time.Tick(time.Second*100):
 		t.Fatal("timeout")
 		os.Exit(1)
 	}

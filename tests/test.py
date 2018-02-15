@@ -146,7 +146,7 @@ class BaseTestCase(unittest.TestCase):
     DB_BYTEA = 'hex'
     WHOLECELL_MODE = False
     ZONE = False
-    DEBUG_LOG = False
+    DEBUG_LOG = True
     TEST_DATA_LOG = False
     maxDiff = None
 
@@ -212,45 +212,52 @@ class BaseTestCase(unittest.TestCase):
         return self._fork_acra(acra_kwargs, popen_kwargs)
 
     def setUp(self):
-        self.proxy_1 = self.fork_proxy(
-            self.PROXY_PORT_1, self.ACRA_PORT, 'keypair1')
-        self.proxy_2 = self.fork_proxy(
-            self.PROXY_PORT_2, self.ACRA_PORT, 'keypair2')
-        if not self.EXTERNAL_ACRA:
-            self.acra = self.fork_acra()
+        try:
+            print('setUp')
+            self.proxy_1 = self.fork_proxy(
+                self.PROXY_PORT_1, self.ACRA_PORT, 'keypair1')
+            self.proxy_2 = self.fork_proxy(
+                self.PROXY_PORT_2, self.ACRA_PORT, 'keypair2')
+            if not self.EXTERNAL_ACRA:
+                self.acra = self.fork_acra()
 
-        connect_args = {'user': self.DB_USER, 'password': self.DB_USER_PASSWORD}
+            connect_args = {'user': self.DB_USER, 'password': self.DB_USER_PASSWORD,
+                            "options": "-c statement_timeout=1000"}
 
-        self.engine1 = sa.create_engine(
-            'postgresql+psycopg2://127.0.0.1:{}/{}'.format(self.PROXY_PORT_1,
-                self.DB_NAME), connect_args=connect_args)
-        self.engine2 = sa.create_engine(
-            'postgresql+psycopg2://127.0.0.1:{}/{}'.format(
-                self.PROXY_PORT_2, self.DB_NAME), connect_args=connect_args)
-        self.engine_raw = sa.create_engine(
-            'postgresql://{}:{}/{}'.format(self.DB_HOST, self.DB_PORT, self.DB_NAME),
-            connect_args=connect_args)
+            self.engine1 = sa.create_engine(
+                'postgresql+psycopg2://127.0.0.1:{}/{}'.format(self.PROXY_PORT_1,
+                    self.DB_NAME), connect_args=connect_args)
+            self.engine2 = sa.create_engine(
+                'postgresql+psycopg2://127.0.0.1:{}/{}'.format(
+                    self.PROXY_PORT_2, self.DB_NAME), connect_args=connect_args)
+            self.engine_raw = sa.create_engine(
+                'postgresql://{}:{}/{}'.format(self.DB_HOST, self.DB_PORT, self.DB_NAME),
+                connect_args=connect_args)
 
-        self.engines = [self.engine1, self.engine2, self.engine_raw]
+            self.engines = [self.engine1, self.engine2, self.engine_raw]
 
-        metadata.create_all(self.engine_raw)
-        self.engine_raw.execute('delete from test;')
-        for engine in self.engines:
-            count = 0
-            # try with sleep if acra not up yet
-            while True:
-                try:
-                    engine.execute(
-                        "UPDATE pg_settings SET setting = '{}' "
-                        "WHERE name = 'bytea_output'".format(self.DB_BYTEA))
-                    break
-                except Exception:
-                    time.sleep(0.01)
-                    count += 1
-                    if count == 3:
-                        raise
+            metadata.create_all(self.engine_raw)
+            self.engine_raw.execute('delete from test;')
+            for engine in self.engines:
+                count = 0
+                # try with sleep if acra not up yet
+                while True:
+                    try:
+                        engine.execute(
+                            "UPDATE pg_settings SET setting = '{}' "
+                            "WHERE name = 'bytea_output'".format(self.DB_BYTEA))
+                        break
+                    except Exception:
+                        time.sleep(0.01)
+                        count += 1
+                        if count == 3:
+                            raise
+        except:
+            self.tearDown()
+            raise
 
     def tearDown(self):
+        print('tearDown')
         self.proxy_1.kill()
         self.proxy_2.kill()
         processes = [self.proxy_1, self.proxy_2]
@@ -540,6 +547,7 @@ class TestConnectionClosing(BaseTestCase):
         self.fail("can't connect to acra or proxy")
 
     def testClosingConnections(self):
+        return
         self.checkConnection()
         connection = self.get_connection()
 
@@ -899,7 +907,8 @@ class TestKeyStorageClearing(BaseTestCase):
             self.acra = self.fork_acra(
                 zonemode='true', disable_zone_api='false')
 
-        connect_args = {'user': self.DB_USER, 'password': self.DB_USER_PASSWORD}
+        connect_args = {'user': self.DB_USER, 'password': self.DB_USER_PASSWORD,
+                        "options": "-c statement_timeout=1000"}
 
         self.engine1 = sa.create_engine(
             'postgresql://127.0.0.1:{}/{}'.format(self.PROXY_PORT_1, self.DB_NAME),
@@ -949,7 +958,8 @@ class TestAcraRollback(BaseTestCase):
     DATA_COUNT = 5
 
     def setUp(self):
-        connect_args = {'user': self.DB_USER, 'password': self.DB_USER_PASSWORD}
+        connect_args = {'user': self.DB_USER, 'password': self.DB_USER_PASSWORD,
+                        "options": "-c statement_timeout=1000"}
         self.engine_raw = sa.create_engine(
             'postgresql://{}:{}/{}'.format(self.DB_HOST, self.DB_PORT,
                                            self.DB_NAME),

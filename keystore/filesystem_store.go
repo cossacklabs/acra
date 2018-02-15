@@ -60,10 +60,11 @@ func getProxyKeyFilename(id []byte) string {
 
 type ProxyFileSystemKeyStore struct {
 	directory string
+	clientId []byte
 }
 
-func NewProxyFileSystemKeyStore(directory string) (*ProxyFileSystemKeyStore, error) {
-	return &ProxyFileSystemKeyStore{directory: directory}, nil
+func NewProxyFileSystemKeyStore(directory string, clientId []byte) (*ProxyFileSystemKeyStore, error) {
+	return &ProxyFileSystemKeyStore{directory: directory, clientId: clientId}, nil
 }
 
 func (store *ProxyFileSystemKeyStore) GetPrivateKey(id []byte) (*keys.PrivateKey, error) {
@@ -75,11 +76,11 @@ func (store *ProxyFileSystemKeyStore) GetPrivateKey(id []byte) (*keys.PrivateKey
 }
 
 func (store *ProxyFileSystemKeyStore) GetPeerPublicKey(id []byte) (*keys.PublicKey, error) {
-	keyData, err := ioutil.ReadFile(filepath.Join(store.directory, getPublicKeyFilename([]byte(getServerKeyFilename(id)))))
-	if err != nil {
+	key, err := ioutil.ReadFile(filepath.Join(store.directory, getPublicKeyFilename([]byte(getServerKeyFilename(store.clientId)))))
+	if err != nil{
 		return nil, err
 	}
-	return &keys.PublicKey{Value: keyData}, nil
+	return &keys.PublicKey{Value: key}, nil
 }
 
 type FilesystemKeyStore struct {

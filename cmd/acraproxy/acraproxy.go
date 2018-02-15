@@ -14,7 +14,6 @@
 package main
 
 import (
-	"errors"
 	"flag"
 	"fmt"
 	"io"
@@ -30,144 +29,61 @@ import (
 	"github.com/cossacklabs/acra/cmd"
 	"github.com/cossacklabs/acra/keystore"
 	"github.com/cossacklabs/acra/utils"
-	"github.com/cossacklabs/themis/gothemis/keys"
-	"github.com/cossacklabs/themis/gothemis/session"
-	"bytes"
+	"github.com/cossacklabs/acra/network"
+	"crypto/tls"
 )
 
 // DEFAULT_CONFIG_PATH relative path to config which will be parsed as default
 var DEFAULT_CONFIG_PATH = utils.GetConfigPathByName("acraproxy")
 
-type ClientSession struct {
-	keystore keystore.SecureSessionKeyStore
-	id []byte
-	acraId []byte
-}
-
-func (session *ClientSession) StateChanged(ss *session.SecureSession, state int) {}
-
-func (client_session *ClientSession) GetPublicKeyForId(ss *session.SecureSession, id []byte) *keys.PublicKey {
-	if !bytes.Equal(client_session.acraId, id){
-		log.Printf("Warning: incorrect server id - %v, expected %v\n", string(id), string(client_session.acraId))
-		return nil
-	}
-	key, err := client_session.keystore.GetPeerPublicKey(client_session.id)
-	if err != nil {
-		log.Printf("Error: can't fetch public key for id <%v>\n", string(id))
-		return nil
-	}
-	return key
-}
-
-func NewClientSession(config *Config) (*session.SecureSession, error) {
-	log.Printf("Debug: use private key: %v\n", fmt.Sprintf("%v/%v", config.KeysDir, string(config.ClientId)))
-	privateKey, err := utils.LoadPrivateKey(fmt.Sprintf("%v/%v", config.KeysDir, string(config.ClientId)))
-	if err != nil {
-		return nil, err
-	}
-	ssession, err := session.New(config.ClientId, privateKey, &ClientSession{acraId: config.AcraId, id: config.ClientId, keystore: config.KeyStore})
-	if err != nil {
-		return nil, err
-	}
-	return ssession, nil
-}
-
-func initializeSecureSession(config *Config, connection net.Conn) (*session.SecureSession, error) {
-	err := utils.SendSessionData(config.ClientId, connection)
-	if err != nil {
-		return nil, err
-	}
-	log.Println("Debug: create ssession")
-	ssession, err := NewClientSession(config)
-	if err != nil {
-		return nil, err
-	}
-	connectRequest, err := ssession.ConnectRequest()
-	if err != nil {
-		return nil, err
-	}
-	err = utils.SendSessionData(connectRequest, connection)
-	if err != nil {
-		return nil, err
-	}
-	for {
-		data, err := utils.ReadSessionData(connection)
-		if err != nil {
-			return nil, err
-		}
-		buf, sendPeer, err := ssession.Unwrap(data)
-		if nil != err {
-			return nil, err
-		}
-
-		if !sendPeer {
-			log.Println("Debug: initialized secure session")
-			return ssession, nil
-		}
-
-		err = utils.SendSessionData(buf, connection)
-		if err != nil {
-			return nil, err
-		}
-
-		if ssession.GetState() == session.STATE_ESTABLISHED {
-			return ssession, nil
-		}
-	}
-}
-
-func proxyClientConnections(clientConnection, acraConnection net.Conn, session *session.SecureSession, errCh chan<- error) {
-	// postgresql usually use 8kb for buffers
+func proxy(connFrom, connTo net.Conn, errCh chan<- error) {
 	buf := make([]byte, 8192)
 	for {
-		n, err := clientConnection.Read(buf)
-		if err != nil {
+		n, err := connFrom.Read(buf)
+		if err != nil{
+			log.Println("Error: proxy err", err)
 			errCh <- err
 			return
 		}
-		encryptedData, err := session.Wrap(buf[:n])
-		if err != nil {
-			errCh <- err
-			return
+		if n == 0 {
+			log.Println("Warning: read 0 bytes")
+			continue
 		}
-		err = utils.SendData(encryptedData, acraConnection)
-		if err != nil {
-			errCh <- err
-			return
+		for nTo:=0; nTo < n; {
+			nn, err := connTo.Write(buf[nTo:n])
+			nTo += nn
+			if err != nil{
+				log.Println("can't write")
+				errCh <- err
+				return
+			}
 		}
-		if n == 8192 {
-			log.Printf("Debug: used full acraproxy buffer. Increase size to 2x from %v to %v\n", len(buf), len(buf)*2)
-			buf = make([]byte, len(buf)*2)
-		}
+		log.Printf("proxied %v bytes\n", n)
 	}
 }
 
-func proxyAcraConnections(clientConnection, acraConnection net.Conn, session *session.SecureSession, errCh chan<- error) {
+func proxyAcraConnections(clientConnection, acraConnection net.Conn, errCh chan<- error) {
+	buf := make([]byte, 8192)
 	for {
-		data, err := utils.ReadData(acraConnection)
+		n, err := acraConnection.Read(buf)
 		if err != nil {
 			errCh <- err
 			return
 		}
-		decryptedData, _, err := session.Unwrap(data)
+		_, err = clientConnection.Write(buf[:n])
 		if err != nil {
 			errCh <- err
-			return
-		}
-		n, err := clientConnection.Write(decryptedData)
-		if err != nil {
-			errCh <- err
-			return
-		}
-		if n != len(decryptedData) {
-			errCh <- errors.New("sent incorrect bytes count")
 			return
 		}
 	}
 }
 
 func handleClientConnection(config *Config, connection net.Conn) {
-	defer connection.Close()
+	defer func(){
+		log.Println("acraproxy connection close")
+		connection.Close()
+		log.Println("acraproxy connection closed")
+	}()
 
 	if !(config.disableUserCheck) {
 		host, port, err := net.SplitHostPort(connection.RemoteAddr().String())
@@ -207,16 +123,31 @@ func handleClientConnection(config *Config, connection net.Conn) {
 		log.Printf("Error: %v\n", utils.ErrorMessage("can't connect to acra", err))
 		return
 	}
-	defer acraConn.Close()
-	ssession, err := initializeSecureSession(config, acraConn)
+
+	log.Printf("Info: send client id <%v>\n", string(config.ClientId))
+	err = utils.SendData(config.ClientId, acraConn)
 	if err != nil {
-		log.Printf("Error: %v\n", utils.ErrorMessage("can't initialize secure session", err))
+		acraConn.Close()
+		log.Println("failed sending client id")
 		return
 	}
+
+	acraConn, err = config.ConnectionWrapper.WrapClient(config.ClientId, acraConn)
+	if err != nil{
+		log.Printf("Error: %v\n", utils.ErrorMessage("can't wrap acra connection with secure session", err))
+		log.Println("acraproxy connection with acra close")
+		acraConn.Close()
+		log.Println("acraproxy connection with acra closed")
+		return
+	}
+	defer acraConn.Close()
+
 	errCh := make(chan error)
 	log.Println("Debug: secure session initialized")
-	go proxyClientConnections(connection, acraConn, ssession, errCh)
-	go proxyAcraConnections(connection, acraConn, ssession, errCh)
+	go proxy(connection, acraConn, errCh)
+	go proxy(acraConn, connection, errCh)
+	//go proxyClientConnections(connection, acraConn, errCh)
+	//go proxyAcraConnections(connection, acraConn, errCh)
 	err = <-errCh
 	if err != nil {
 		if err == io.EOF {
@@ -226,6 +157,7 @@ func handleClientConnection(config *Config, connection net.Conn) {
 		}
 		return
 	}
+	log.Println("err == nil")
 }
 
 type Config struct {
@@ -237,6 +169,7 @@ type Config struct {
 	Port             int
 	disableUserCheck bool
 	KeyStore keystore.SecureSessionKeyStore
+	ConnectionWrapper network.ConnectionWrapper
 }
 
 func main() {
@@ -251,6 +184,7 @@ func main() {
 	commandsPort := flag.Int("command_port", 9191, "Port for acraproxy http api")
 	withZone := flag.Bool("zonemode", false, "Turn on zone mode")
 	disableUserCheck := flag.Bool("disable_user_check", false, "Disable checking that connections from app running from another user")
+	useTls := flag.Bool("tls", false, "Use tls")
 
 	err := cmd.Parse(DEFAULT_CONFIG_PATH)
 	if err != nil {
@@ -295,7 +229,7 @@ func main() {
 		*disableUserCheck = true
 	}
 
-	keyStore, err := keystore.NewProxyFileSystemKeyStore(*keysDir)
+	keyStore, err := keystore.NewProxyFileSystemKeyStore(*keysDir, []byte(*clientId))
 	if err != nil{
 		log.Println("Error: can't initialize keystore")
 		os.Exit(1)
@@ -305,6 +239,19 @@ func main() {
 	if err != nil {
 		log.Printf("Error: %v\n", utils.ErrorMessage("can't start listen connections", err))
 		os.Exit(1)
+	}
+	if *useTls {
+		config.ConnectionWrapper, err = network.NewTLSConnectionWrapper(&tls.Config{InsecureSkipVerify:true})
+		if err != nil{
+			log.Println("Error: can't initialize tls connection wrapper")
+			os.Exit(1)
+		}
+	} else {
+		config.ConnectionWrapper, err = network.NewSecureSessionConnectionWrapper(keyStore)
+		if err != nil{
+			log.Println("Error: can't initialize secure session connection wrapper")
+			os.Exit(1)
+		}
 	}
 	if *withZone {
 		go func() {
