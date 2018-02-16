@@ -16,6 +16,7 @@ package network
 import (
 	"github.com/cossacklabs/acra/keystore"
 	"github.com/cossacklabs/themis/gothemis/session"
+	"io"
 	"net"
 	"github.com/cossacklabs/acra/utils"
 	"github.com/cossacklabs/themis/gothemis/keys"
@@ -24,7 +25,6 @@ import (
 
 type SessionCallback struct {
 	keystorage keystore.SecureSessionKeyStore
-	conn       net.Conn
 }
 
 func (callback *SessionCallback) GetPublicKeyForId(ss *session.SecureSession, id []byte) *keys.PublicKey {
@@ -43,19 +43,101 @@ func NewSessionCallback(keystorage keystore.SecureSessionKeyStore) (*SessionCall
 	return &SessionCallback{keystorage: keystorage}, nil
 }
 
-type SecureSessionConnectionWrapper struct {
+type secureSessionConnection struct {
 	keystore keystore.SecureSessionKeyStore
 	session  *session.SecureSession
 	net.Conn
 	currentData []byte
 	returnedIndex int
+	closed bool
+}
+
+func newSecureSessionConnection(keystore keystore.SecureSessionKeyStore, conn net.Conn)(*secureSessionConnection, error){
+	return &secureSessionConnection{keystore: keystore, session: nil, Conn: conn, currentData: nil, returnedIndex:0, closed: false}, nil
+}
+
+func (wrapper *secureSessionConnection) isClosed()bool {
+	return wrapper.closed
+}
+
+func (wrapper *secureSessionConnection) Read(b []byte) (n int, err error) {
+	if wrapper.closed {
+		return 0, io.EOF
+	}
+	if wrapper.currentData != nil {
+		log.Println("SS wrapper: copy cached data")
+		n = copy(b, wrapper.currentData[wrapper.returnedIndex:])
+		log.Printf("SS wrapper: copied %v bytes\n", n)
+		wrapper.returnedIndex += n
+		if wrapper.returnedIndex >= cap(wrapper.currentData){
+			log.Println("SS wrapper: cache empty")
+			wrapper.currentData = nil
+		}
+		return n, err
+	}
+	log.Println("SS wrapper: read data from connection")
+	data, err := utils.ReadData(wrapper.Conn)
+	if err != nil {
+		return len(data), err
+	}
+	log.Printf("SS wrapper: read %v bytes\n", len(data))
+	decryptedData, _, err := wrapper.session.Unwrap(data)
+	if err != nil {
+		return len(data), err
+	}
+	log.Printf("SS wrapper: decrypted into %v bytes\n", len(decryptedData))
+	n = copy(b, decryptedData)
+	log.Printf("SS wrapper: copied decrypted data %v bytes\n", n)
+	if n != len(decryptedData){
+		log.Println("SS wrapper: saved cached least data", n)
+		wrapper.currentData = decryptedData
+		wrapper.returnedIndex = n
+	}
+	return n, nil
+}
+
+// Write writes data to the connection.
+// Write can be made to time out and return a Error with Timeout() == true
+// after a fixed time limit; see SetDeadline and SetWriteDeadline.
+func (wrapper *secureSessionConnection) Write(b []byte) (n int, err error) {
+	if wrapper.closed {
+		return 0, io.EOF
+	}
+	encryptedData, err := wrapper.session.Wrap(b)
+	if err != nil {
+		return 0, err
+	}
+	err = utils.SendData(encryptedData, wrapper.Conn)
+	return len(b), nil
+}
+
+func (wrapper *secureSessionConnection) Close() error {
+	wrapper.closed = true
+	log.Println("close wrapped connection in wrapper")
+	err := wrapper.Conn.Close()
+
+	sessionErr := wrapper.session.Close()
+	if sessionErr != nil{
+		return sessionErr
+	}
+	log.Println("close secure session")
+
+	return err
+}
+
+type SecureSessionConnectionWrapper struct {
+	keystore keystore.SecureSessionKeyStore
 }
 
 func NewSecureSessionConnectionWrapper(keystore keystore.SecureSessionKeyStore, ) (*SecureSessionConnectionWrapper, error) {
-	return &SecureSessionConnectionWrapper{keystore: keystore, session: nil}, nil
+	return &SecureSessionConnectionWrapper{keystore: keystore}, nil
 }
+
 func (wrapper *SecureSessionConnectionWrapper) wrap(id []byte, conn net.Conn, isServer bool) (net.Conn, error) {
-	wrapper.Conn = conn
+	secureConnection, err := newSecureSessionConnection(wrapper.keystore, conn)
+	if err != nil{
+		return conn, err
+	}
 	privateKey, err := wrapper.keystore.GetPrivateKey(id)
 	if err != nil {
 		return conn, err
@@ -64,12 +146,12 @@ func (wrapper *SecureSessionConnectionWrapper) wrap(id []byte, conn net.Conn, is
 	if err != nil {
 		return conn, err
 	}
-	wrapper.session, err = session.New(id, privateKey, callback)
+	secureConnection.session, err = session.New(id, privateKey, callback)
 	if err != nil {
 		return conn, err
 	}
 	if !isServer {
-		connectRequest, err := wrapper.session.ConnectRequest()
+		connectRequest, err := secureConnection.session.ConnectRequest()
 		if err != nil {
 			return conn, err
 		}
@@ -83,12 +165,12 @@ func (wrapper *SecureSessionConnectionWrapper) wrap(id []byte, conn net.Conn, is
 		if err != nil {
 			return conn, err
 		}
-		buf, sendPeer, err := wrapper.session.Unwrap(data)
+		buf, sendPeer, err := secureConnection.session.Unwrap(data)
 		if nil != err {
 			return conn, err
 		}
 		if !sendPeer {
-			return wrapper, nil
+			return secureConnection, nil
 		}
 
 		err = utils.SendData(buf, conn)
@@ -96,8 +178,8 @@ func (wrapper *SecureSessionConnectionWrapper) wrap(id []byte, conn net.Conn, is
 			return conn, err
 		}
 
-		if wrapper.session.GetState() == session.STATE_ESTABLISHED {
-			return wrapper, nil
+		if secureConnection.session.GetState() == session.STATE_ESTABLISHED {
+			return secureConnection, nil
 		}
 	}
 }
@@ -107,50 +189,4 @@ func (wrapper *SecureSessionConnectionWrapper) WrapClient(id []byte, conn net.Co
 }
 func (wrapper *SecureSessionConnectionWrapper) WrapServer(id []byte, conn net.Conn) (net.Conn, error) {
 	return wrapper.wrap(id, conn, true)
-}
-
-func (wrapper *SecureSessionConnectionWrapper) Read(b []byte) (n int, err error) {
-	if wrapper.currentData != nil {
-		n = copy(b, wrapper.currentData[wrapper.returnedIndex:])
-		wrapper.returnedIndex += n
-		if wrapper.returnedIndex >= cap(wrapper.currentData){
-			wrapper.currentData = nil
-		}
-		return n, err
-	}
-	data, err := utils.ReadData(wrapper.Conn)
-	if err != nil {
-		return len(data), err
-	}
-	decryptedData, _, err := wrapper.session.Unwrap(data)
-	if err != nil {
-		return len(data), err
-	}
-	n = copy(b, decryptedData)
-	if n != len(decryptedData){
-		wrapper.currentData = decryptedData
-		wrapper.returnedIndex = n
-	}
-	return
-}
-
-// Write writes data to the connection.
-// Write can be made to time out and return a Error with Timeout() == true
-// after a fixed time limit; see SetDeadline and SetWriteDeadline.
-func (wrapper *SecureSessionConnectionWrapper) Write(b []byte) (n int, err error) {
-	encryptedData, err := wrapper.session.Wrap(b)
-	if err != nil {
-		return 0, err
-	}
-	err = utils.SendData(encryptedData, wrapper.Conn)
-	return len(b), nil
-}
-
-func (wrapper *SecureSessionConnectionWrapper) Close() error {
-	sessionErr := wrapper.session.Close()
-	err := wrapper.Conn.Close()
-	if sessionErr != nil{
-		return sessionErr
-	}
-	return err
 }

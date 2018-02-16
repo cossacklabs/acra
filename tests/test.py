@@ -53,6 +53,11 @@ zones = []
 poison_record = None
 POISON_KEY_PATH = '.poison_key/poison_key'
 
+DB_USER = os.environ.get('TEST_DB_USER', 'postgres')
+DB_USER_PASSWORD = os.environ.get('TEST_DB_USER_PASSWORD', 'postgres')
+connect_args = {
+    'user': DB_USER, 'password': DB_USER_PASSWORD,
+    "options": "-c statement_timeout=1000", 'sslmode': 'disable'}
 
 def get_poison_record():
     """generate one poison record for speed up tests and don't create subprocess
@@ -128,8 +133,6 @@ def tearDownModule():
 
 class BaseTestCase(unittest.TestCase):
     DB_HOST = os.environ.get('TEST_DB_HOST', '127.0.0.1')
-    DB_USER = os.environ.get('TEST_DB_USER', 'postgres')
-    DB_USER_PASSWORD = os.environ.get('TEST_DB_USER_PASSWORD', 'postgres')
     DB_NAME = os.environ.get('TEST_DB_NAME', 'postgres')
     DB_PORT = os.environ.get('TEST_DB_PORT', 5432)
 
@@ -181,7 +184,7 @@ class BaseTestCase(unittest.TestCase):
                 raise
         return process
 
-    def _fork_acra(self, acra_kwargs: dict, popen_kwargs: dict):
+    def _fork_acra(self, acra_kwargs, popen_kwargs):
         args = {
             'db_host': self.DB_HOST,
             'db_port': self.DB_PORT,
@@ -220,9 +223,6 @@ class BaseTestCase(unittest.TestCase):
                 self.PROXY_PORT_2, self.ACRA_PORT, 'keypair2')
             if not self.EXTERNAL_ACRA:
                 self.acra = self.fork_acra()
-
-            connect_args = {'user': self.DB_USER, 'password': self.DB_USER_PASSWORD,
-                            "options": "-c statement_timeout=1000"}
 
             self.engine1 = sa.create_engine(
                 'postgresql+psycopg2://127.0.0.1:{}/{}'.format(self.PROXY_PORT_1,
@@ -416,12 +416,12 @@ class ZoneHexFormatTest(BaseTestCase):
 
         # without zone in another proxy, in the same proxy and without any proxy
         for engine in self.engines:
+            print(engine)
             result = engine.execute(
                 sa.select([test_table])
                 .where(test_table.c.id == row_id))
             row = result.fetchone()
-            self.assertNotEqual(row['data'].decode('ascii', errors='ignore'),
-                                row['raw_data'])
+            self.assertNotEqual(row['data'].decode('ascii', errors='ignore'), row['raw_data'])
 
     def testReadAcrastructInAcrastruct(self):
         incorrect_data = self.get_random_data()
@@ -500,8 +500,8 @@ class TestConnectionClosing(BaseTestCase):
             self.acra = self.fork_acra()
 
     def get_connection(self):
-        return psycopg2.connect(database=self.DB_NAME, user=self.DB_USER,
-                                password=self.DB_USER_PASSWORD, host=self.DB_HOST,
+        return psycopg2.connect(database=self.DB_NAME, user=DB_USER,
+                                password=DB_USER_PASSWORD, host=self.DB_HOST,
                                 port=self.PROXY_PORT_1)
 
     def tearDown(self):
@@ -594,7 +594,7 @@ class TestKeyNonExistence(BaseTestCase):
         if not self.EXTERNAL_ACRA:
             self.acra = self.fork_acra()
         self.dsn = 'postgresql://127.0.0.1:{}@{}:{}'.format(
-            self.DB_USER, self.DB_USER_PASSWORD, self.PROXY_PORT_1)
+            DB_USER, DB_USER_PASSWORD, self.PROXY_PORT_1)
 
     def tearDown(self):
         if not self.EXTERNAL_ACRA:
@@ -907,9 +907,6 @@ class TestKeyStorageClearing(BaseTestCase):
             self.acra = self.fork_acra(
                 zonemode='true', disable_zone_api='false')
 
-        connect_args = {'user': self.DB_USER, 'password': self.DB_USER_PASSWORD,
-                        "options": "-c statement_timeout=1000"}
-
         self.engine1 = sa.create_engine(
             'postgresql://127.0.0.1:{}/{}'.format(self.PROXY_PORT_1, self.DB_NAME),
             connect_args=connect_args)
@@ -958,8 +955,6 @@ class TestAcraRollback(BaseTestCase):
     DATA_COUNT = 5
 
     def setUp(self):
-        connect_args = {'user': self.DB_USER, 'password': self.DB_USER_PASSWORD,
-                        "options": "-c statement_timeout=1000"}
         self.engine_raw = sa.create_engine(
             'postgresql://{}:{}/{}'.format(self.DB_HOST, self.DB_PORT,
                                            self.DB_NAME),
@@ -998,8 +993,8 @@ class TestAcraRollback(BaseTestCase):
             ['./acra_rollback', '--client_id=keypair1',
              '--connection_string=dbname={dbname} user={user} '
              'password={password} host={host} port={port}'.format(
-                 dbname=self.DB_NAME, user=self.DB_USER, port=self.DB_PORT,
-                 password=self.DB_USER_PASSWORD, host=self.DB_HOST),
+                 dbname=self.DB_NAME, user=DB_USER, port=self.DB_PORT,
+                 password=DB_USER_PASSWORD, host=self.DB_HOST),
              '--output_file={}'.format(self.output_filename),
              '--select=select data from {};'.format(test_table.name),
              '--insert=insert into {} values($1);'.format(
@@ -1036,8 +1031,8 @@ class TestAcraRollback(BaseTestCase):
             ['./acra_rollback', '--client_id=keypair1',
              '--connection_string=dbname={dbname} user={user} '
              'password={password} host={host} port={port}'.format(
-                 dbname=self.DB_NAME, user=self.DB_USER, port=self.DB_PORT,
-                 password=self.DB_USER_PASSWORD, host=self.DB_HOST),
+                 dbname=self.DB_NAME, user=DB_USER, port=self.DB_PORT,
+                 password=DB_USER_PASSWORD, host=self.DB_HOST),
              '--output_file={}'.format(self.output_filename),
              '--select=select \'{id}\'::bytea, data from {table};'.format(
                  id=zones[0]['id'], table=test_table.name),
@@ -1077,8 +1072,8 @@ class TestAcraRollback(BaseTestCase):
             ['./acra_rollback', '--client_id=keypair1',
              '--connection_string=dbname={dbname} user={user} '
              'password={password} host={host} port={port}'.format(
-                 dbname=self.DB_NAME, user=self.DB_USER, port=self.DB_PORT,
-                 password=self.DB_USER_PASSWORD, host=self.DB_HOST),
+                 dbname=self.DB_NAME, user=DB_USER, port=self.DB_PORT,
+                 password=DB_USER_PASSWORD, host=self.DB_HOST),
              '--execute=true',
              '--select=select data from {};'.format(test_table.name),
              '--insert=insert into {} values($1);'.format(
@@ -1110,8 +1105,8 @@ class TestAcraRollback(BaseTestCase):
             ['./acra_rollback', '--client_id=keypair1',
              '--connection_string=dbname={dbname} user={user} '
              'password={password} host={host} port={port}'.format(
-                 dbname=self.DB_NAME, user=self.DB_USER, port=self.DB_PORT,
-                 password=self.DB_USER_PASSWORD, host=self.DB_HOST),
+                 dbname=self.DB_NAME, user=DB_USER, port=self.DB_PORT,
+                 password=DB_USER_PASSWORD, host=self.DB_HOST),
              '--execute=true',
              '--select=select \'{id}\'::bytea, data from {table};'.format(
                  id=zones[0]['id'], table=test_table.name),

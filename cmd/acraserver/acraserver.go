@@ -56,6 +56,8 @@ func main() {
 	withZone := flag.Bool("zonemode", false, "Turn on zone mode")
 	disableZoneApi := flag.Bool("disable_zone_api", false, "Disable zone http api")
 
+	log.SetPrefix("Acraserver: ")
+
 	err := cmd.Parse(DEFAULT_CONFIG_PATH)
 	if err != nil {
 		fmt.Printf("Error: %v\n", utils.ErrorMessage("Can't parse args", err))

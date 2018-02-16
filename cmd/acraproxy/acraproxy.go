@@ -26,6 +26,7 @@ import (
 	"strconv"
 	"strings"
 
+
 	"github.com/cossacklabs/acra/cmd"
 	"github.com/cossacklabs/acra/keystore"
 	"github.com/cossacklabs/acra/utils"
@@ -39,6 +40,7 @@ var DEFAULT_CONFIG_PATH = utils.GetConfigPathByName("acraproxy")
 func proxy(connFrom, connTo net.Conn, errCh chan<- error) {
 	buf := make([]byte, 8192)
 	for {
+		log.Println("read from conn")
 		n, err := connFrom.Read(buf)
 		if err != nil{
 			log.Println("Error: proxy err", err)
@@ -50,31 +52,16 @@ func proxy(connFrom, connTo net.Conn, errCh chan<- error) {
 			continue
 		}
 		for nTo:=0; nTo < n; {
+			log.Println("write to conn")
 			nn, err := connTo.Write(buf[nTo:n])
 			nTo += nn
 			if err != nil{
-				log.Println("can't write")
+				log.Println("can't write ", err)
 				errCh <- err
 				return
 			}
 		}
 		log.Printf("proxied %v bytes\n", n)
-	}
-}
-
-func proxyAcraConnections(clientConnection, acraConnection net.Conn, errCh chan<- error) {
-	buf := make([]byte, 8192)
-	for {
-		n, err := acraConnection.Read(buf)
-		if err != nil {
-			errCh <- err
-			return
-		}
-		_, err = clientConnection.Write(buf[:n])
-		if err != nil {
-			errCh <- err
-			return
-		}
 	}
 }
 
@@ -123,6 +110,11 @@ func handleClientConnection(config *Config, connection net.Conn) {
 		log.Printf("Error: %v\n", utils.ErrorMessage("can't connect to acra", err))
 		return
 	}
+	defer func(){
+		log.Println("close acraConn")
+		acraConn.Close()
+		log.Println("closed acraConn")
+	}()
 
 	log.Printf("Info: send client id <%v>\n", string(config.ClientId))
 	err = utils.SendData(config.ClientId, acraConn)
@@ -131,24 +123,31 @@ func handleClientConnection(config *Config, connection net.Conn) {
 		log.Println("failed sending client id")
 		return
 	}
-
-	acraConn, err = config.ConnectionWrapper.WrapClient(config.ClientId, acraConn)
+	//acraConn.SetDeadline(time.Now().Add(time.Second*2))
+	acraConnWrapped, err := config.ConnectionWrapper.WrapClient(config.ClientId, acraConn)
 	if err != nil{
 		log.Printf("Error: %v\n", utils.ErrorMessage("can't wrap acra connection with secure session", err))
-		log.Println("acraproxy connection with acra close")
-		acraConn.Close()
-		log.Println("acraproxy connection with acra closed")
 		return
 	}
-	defer acraConn.Close()
+	log.Println("connection wrapped")
+	//acraConn.SetDeadline(time.Time{})
+	defer func(){
+		log.Println("close acraConnWrapped")
+		acraConnWrapped.Close()
+		log.Println("closed acraConnWrapped")
+	}()
 
-	errCh := make(chan error)
+	toAcraErrCh:= make(chan error)
+	fromAcraErrCh := make(chan error)
 	log.Println("Debug: secure session initialized")
-	go proxy(connection, acraConn, errCh)
-	go proxy(acraConn, connection, errCh)
-	//go proxyClientConnections(connection, acraConn, errCh)
-	//go proxyAcraConnections(connection, acraConn, errCh)
-	err = <-errCh
+	go proxy(connection, acraConnWrapped, toAcraErrCh)
+	go proxy(acraConnWrapped, connection, fromAcraErrCh)
+	select{
+	case err = <-toAcraErrCh:
+		log.Println("to acra chan err")
+	case err = <- fromAcraErrCh:
+		log.Println("from acra chan err")
+	}
 	if err != nil {
 		if err == io.EOF {
 			log.Println("Debug: connection closed")
@@ -185,6 +184,8 @@ func main() {
 	withZone := flag.Bool("zonemode", false, "Turn on zone mode")
 	disableUserCheck := flag.Bool("disable_user_check", false, "Disable checking that connections from app running from another user")
 	useTls := flag.Bool("tls", false, "Use tls")
+
+	log.SetPrefix("Acraproxy: ")
 
 	err := cmd.Parse(DEFAULT_CONFIG_PATH)
 	if err != nil {
