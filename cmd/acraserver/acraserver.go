@@ -14,10 +14,12 @@
 package main
 
 import (
+	"crypto/tls"
 	"flag"
 	"fmt"
 	"github.com/cossacklabs/acra/cmd"
 	"github.com/cossacklabs/acra/keystore"
+	"github.com/cossacklabs/acra/network"
 	"github.com/cossacklabs/acra/utils"
 	"log"
 	"net/http"
@@ -55,6 +57,8 @@ func main() {
 
 	withZone := flag.Bool("zonemode", false, "Turn on zone mode")
 	disableZoneApi := flag.Bool("disable_zone_api", false, "Disable zone http api")
+
+	useTls := flag.Bool("tls", false, "Use tls")
 
 	log.SetPrefix("Acraserver: ")
 
@@ -96,6 +100,25 @@ func main() {
 		config.SetByteaFormat(HEX_BYTEA_FORMAT)
 	} else {
 		config.SetByteaFormat(ESCAPE_BYTEA_FORMAT)
+	}
+
+	keyStore, err := keystore.NewFilesystemKeyStore(*keysDir)
+	if err != nil{
+		log.Println("Error: can't initialize keystore")
+		os.Exit(1)
+	}
+	if *useTls {
+		config.ConnectionWrapper, err = network.NewTLSConnectionWrapper(&tls.Config{InsecureSkipVerify:true})
+		if err != nil{
+			log.Println("Error: can't initialize tls connection wrapper")
+			os.Exit(1)
+		}
+	} else {
+		config.ConnectionWrapper, err = network.NewSecureSessionConnectionWrapper(keyStore)
+		if err != nil{
+			log.Println("Error: can't initialize secure session connection wrapper")
+			os.Exit(1)
+		}
 	}
 
 	server, err := NewServer(config)

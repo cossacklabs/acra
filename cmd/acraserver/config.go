@@ -15,6 +15,7 @@ package main
 
 import (
 	"errors"
+	"github.com/cossacklabs/acra/network"
 )
 
 const (
@@ -35,6 +36,7 @@ type Config struct {
 	withZone          bool
 	wholeMatch        bool
 	serverId          []byte
+	ConnectionWrapper network.ConnectionWrapper
 }
 
 func NewConfig() *Config {

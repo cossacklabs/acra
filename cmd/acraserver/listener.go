@@ -54,42 +54,38 @@ func (server *SServer) initSSession(connection net.Conn) ([]byte, *ClientSession
 		log.Println("Error: can't read client id")
 		return nil, nil, err
 	}
-	privateKey, err := server.keystorage.GetPrivateKey(clientId)
-	if err != nil {
-		log.Println("Error: load correct private key")
-		return nil, nil, err
-	}
 	clientSession, err := NewClientSession(server.keystorage, server.config, connection)
 	if err != nil {
 		return nil, nil, err
 	}
-	ssession, err := session.New(server.config.GetServerId(), privateKey, clientSession)
-	if err != nil {
-		return nil, nil, err
-	}
-	clientSession.session = ssession
-	for {
-		data, err := utils.ReadSessionData(connection)
-		if err != nil {
-			return nil, nil, err
-		}
-		buf, sendPeer, err := ssession.Unwrap(data)
-		if nil != err {
-			return nil, nil, err
-		}
-		if !sendPeer {
-			return clientId, clientSession, nil
-		}
-
-		err = utils.SendSessionData(buf, connection)
-		if err != nil {
-			return nil, nil, err
-		}
-
-		if ssession.GetState() == session.STATE_ESTABLISHED {
-			return clientId, clientSession, err
-		}
-	}
+	return clientId, clientSession, nil
+	//ssession, err := session.New(server.config.GetServerId(), privateKey, clientSession)
+	//if err != nil {
+	//	return nil, nil, err
+	//}
+	//clientSession.session = ssession
+	//for {
+	//	data, err := utils.ReadSessionData(connection)
+	//	if err != nil {
+	//		return nil, nil, err
+	//	}
+	//	buf, sendPeer, err := ssession.Unwrap(data)
+	//	if nil != err {
+	//		return nil, nil, err
+	//	}
+	//	if !sendPeer {
+	//		return clientId, clientSession, nil
+	//	}
+	//
+	//	err = utils.SendSessionData(buf, connection)
+	//	if err != nil {
+	//		return nil, nil, err
+	//	}
+	//
+	//	if ssession.GetState() == session.STATE_ESTABLISHED {
+	//		return clientId, clientSession, err
+	//	}
+	//}
 }
 
 func (server *SServer) getDecryptor(clientId []byte) base.Decryptor {
@@ -126,8 +122,6 @@ handle new connection by iniailizing secure session, starting proxy request
 to db and decrypting responses from db
 */
 func (server *SServer) handleConnection(connection net.Conn) {
-	// initialization of session should be fast, so limit time for connection activity interval
-	connection.SetDeadline(time.Now().Add(INIT_SSESSION_TIMEOUT))
 	clientId, clientSession, err := server.initSSession(connection)
 	if err != nil {
 		log.Printf("Warning: %v\n", utils.ErrorMessage("can't initialize secure session with acraproxy", err))
@@ -137,9 +131,18 @@ func (server *SServer) handleConnection(connection net.Conn) {
 		}
 		return
 	}
-	defer clientSession.session.Close()
+
+	// initialization of session should be fast, so limit time for connection activity interval
+	connection.SetDeadline(time.Now().Add(INIT_SSESSION_TIMEOUT))
+	wrappedConnection, err := server.config.ConnectionWrapper.WrapServer(clientId, connection)
+	if err != nil{
+		log.Println("can't wrap connection from acraproxy")
+		return
+	}
 	// reset deadline
 	connection.SetDeadline(time.Time{})
+	clientSession.connection = wrappedConnection
+
 
 	log.Println("Debug: secure session initialized")
 	decryptor := server.getDecryptor(clientId)
