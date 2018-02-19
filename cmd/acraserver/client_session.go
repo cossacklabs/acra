@@ -17,6 +17,7 @@ import (
 	"bufio"
 	"errors"
 	"fmt"
+	"github.com/cossacklabs/acra/network"
 	"log"
 	"net"
 
@@ -91,20 +92,6 @@ func (clientSession *ClientSession) proxyConnections(errCh chan error) {
 	}
 }
 
-/* io.Writer implementation where all data wraps to SS and send with length as prefix */
-func (clientSession *ClientSession) Write(data []byte) (n int, err error) {
-	encryptedData, err := clientSession.session.Wrap(data)
-	if err != nil {
-		return 0, err
-	}
-	err = utils.SendData(encryptedData, clientSession.connection)
-	if err != nil {
-		return 0, err
-	}
-	n = len(data)
-	return
-}
-
 func (clientSession *ClientSession) close() {
 	log.Println("Debug: close acraproxy connection")
 
@@ -137,10 +124,11 @@ func (clientSession *ClientSession) HandleSecureSession(decryptorImpl base.Decry
 		return
 	}
 
-	go clientSession.proxyConnections(innerErrorChannel)
+	go network.Proxy(clientSession.connection, clientSession.connectionToDb, innerErrorChannel)
+	//go clientSession.proxyConnections(innerErrorChannel)
 	// postgresql usually use 8kb for buffers
 	reader := bufio.NewReaderSize(clientSession.connectionToDb, 8192)
-	writer := bufio.NewWriter(clientSession)
+	writer := bufio.NewWriter(clientSession.connection)
 
 	go postgresql.PgDecryptStream(decryptorImpl, reader, writer, innerErrorChannel)
 	err = <-innerErrorChannel

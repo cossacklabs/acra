@@ -193,7 +193,7 @@ func (store *FilesystemKeyStore) GetPeerPublicKey(id []byte) (*keys.PublicKey, e
 	if !ValidateId(id) {
 		return nil, ErrInvalidClientId
 	}
-	fname := getZonePublicKeyFilename(id)
+	fname := getPublicKeyFilename(id)
 	lock.Lock()
 	defer lock.Unlock()
 	key, ok := store.keys[fname]

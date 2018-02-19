@@ -16,7 +16,7 @@ package main
 import (
 	"fmt"
 	"github.com/cossacklabs/acra/utils"
-	"log"
+	log "github.com/sirupsen/logrus"
 	"net"
 	"time"
 
@@ -24,7 +24,6 @@ import (
 	pg "github.com/cossacklabs/acra/decryptor/postgresql"
 	"github.com/cossacklabs/acra/keystore"
 	"github.com/cossacklabs/acra/zone"
-	"github.com/cossacklabs/themis/gothemis/session"
 )
 
 const (
@@ -42,50 +41,6 @@ func NewServer(config *Config) (server *SServer, err error) {
 		server = &SServer{config: config, keystorage: keystorage}
 	}
 	return
-}
-
-/*
- initialize SecureSession with new connection
- read client_id, load public key for this client and initialize Secure Session
-*/
-func (server *SServer) initSSession(connection net.Conn) ([]byte, *ClientSession, error) {
-	clientId, err := utils.ReadSessionData(connection)
-	if err != nil {
-		log.Println("Error: can't read client id")
-		return nil, nil, err
-	}
-	clientSession, err := NewClientSession(server.keystorage, server.config, connection)
-	if err != nil {
-		return nil, nil, err
-	}
-	return clientId, clientSession, nil
-	//ssession, err := session.New(server.config.GetServerId(), privateKey, clientSession)
-	//if err != nil {
-	//	return nil, nil, err
-	//}
-	//clientSession.session = ssession
-	//for {
-	//	data, err := utils.ReadSessionData(connection)
-	//	if err != nil {
-	//		return nil, nil, err
-	//	}
-	//	buf, sendPeer, err := ssession.Unwrap(data)
-	//	if nil != err {
-	//		return nil, nil, err
-	//	}
-	//	if !sendPeer {
-	//		return clientId, clientSession, nil
-	//	}
-	//
-	//	err = utils.SendSessionData(buf, connection)
-	//	if err != nil {
-	//		return nil, nil, err
-	//	}
-	//
-	//	if ssession.GetState() == session.STATE_ESTABLISHED {
-	//		return clientId, clientSession, err
-	//	}
-	//}
 }
 
 func (server *SServer) getDecryptor(clientId []byte) base.Decryptor {
@@ -122,18 +77,14 @@ handle new connection by iniailizing secure session, starting proxy request
 to db and decrypting responses from db
 */
 func (server *SServer) handleConnection(connection net.Conn) {
-	clientId, clientSession, err := server.initSSession(connection)
-	if err != nil {
-		log.Printf("Warning: %v\n", utils.ErrorMessage("can't initialize secure session with acraproxy", err))
-		err = connection.Close()
-		if err != nil {
-			log.Printf("Warning: %v\n", utils.ErrorMessage("can't close connection", err))
-		}
-		return
-	}
-
 	// initialization of session should be fast, so limit time for connection activity interval
 	connection.SetDeadline(time.Now().Add(INIT_SSESSION_TIMEOUT))
+	clientId, err := utils.ReadSessionData(connection)
+	if err != nil {
+		log.WithError(err).Println("Error: can't read client id")
+		connection.Close()
+		return
+	}
 	wrappedConnection, err := server.config.ConnectionWrapper.WrapServer(clientId, connection)
 	if err != nil{
 		log.Println("can't wrap connection from acraproxy")
@@ -141,8 +92,16 @@ func (server *SServer) handleConnection(connection net.Conn) {
 	}
 	// reset deadline
 	connection.SetDeadline(time.Time{})
-	clientSession.connection = wrappedConnection
 
+	clientSession, err := NewClientSession(server.keystorage, server.config, connection)
+	if err != nil {
+		log.WithError(err).Println("Error: can't initialize client session")
+		if closeErr := connection.Close(); closeErr != nil {
+			log.WithError(closeErr).Println("Error: can't close connection")
+		}
+		return
+	}
+	clientSession.connection = wrappedConnection
 
 	log.Println("Debug: secure session initialized")
 	decryptor := server.getDecryptor(clientId)
@@ -173,48 +132,7 @@ func (server *SServer) Start() {
  read client_id, load public key for this client and initialize Secure Session
 */
 func (server *SServer) initCommandsSSession(connection net.Conn) (*ClientCommandsSession, error) {
-	clientId, err := utils.ReadSessionData(connection)
-	if err != nil {
-		return nil, err
-	}
-	privateKey, err := server.keystorage.GetPrivateKey(clientId)
-	if err != nil {
-		return nil, err
-	}
-	clientSession, err := NewClientCommandsSession(server.keystorage, server.config, connection)
-	if err != nil {
-		return nil, err
-	}
-	ssession, err := session.New(server.config.GetServerId(), privateKey, clientSession)
-	if err != nil {
-		return nil, err
-	}
-	clientSession.session = ssession
-	if err != nil {
-		return nil, err
-	}
-	for {
-		data, err := utils.ReadSessionData(connection)
-		if err != nil {
-			return nil, err
-		}
-		buf, sendPeer, err := ssession.Unwrap(data)
-		if nil != err {
-			return nil, err
-		}
-		if !sendPeer {
-			return clientSession, nil
-		}
-
-		err = utils.SendSessionData(buf, connection)
-		if err != nil {
-			return nil, err
-		}
-
-		if ssession.GetState() == session.STATE_ESTABLISHED {
-			return clientSession, err
-		}
-	}
+	return NewClientCommandsSession(server.keystorage, server.config, connection)
 }
 
 /*
@@ -230,6 +148,15 @@ func (server *SServer) handleCommandsConnection(connection net.Conn) {
 		return
 	}
 	defer clientSession.session.Close()
+	clientId, err := utils.ReadSessionData(connection)
+	if err != nil {
+		return
+	}
+	wrappedConnection, err := server.config.ConnectionWrapper.WrapServer(clientId, connection)
+	if err != nil{
+		return
+	}
+	clientSession.connection = wrappedConnection
 	// reset deadline
 	connection.SetDeadline(time.Time{})
 	log.Println("Debug: http api secure session initialized")

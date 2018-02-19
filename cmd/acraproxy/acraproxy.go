@@ -37,33 +37,7 @@ import (
 // DEFAULT_CONFIG_PATH relative path to config which will be parsed as default
 var DEFAULT_CONFIG_PATH = utils.GetConfigPathByName("acraproxy")
 
-func proxy(connFrom, connTo net.Conn, errCh chan<- error) {
-	buf := make([]byte, 8192)
-	for {
-		log.Println("read from conn")
-		n, err := connFrom.Read(buf)
-		if err != nil{
-			log.Println("Error: proxy err", err)
-			errCh <- err
-			return
-		}
-		if n == 0 {
-			log.Println("Warning: read 0 bytes")
-			continue
-		}
-		for nTo:=0; nTo < n; {
-			log.Println("write to conn")
-			nn, err := connTo.Write(buf[nTo:n])
-			nTo += nn
-			if err != nil{
-				log.Println("can't write ", err)
-				errCh <- err
-				return
-			}
-		}
-		log.Printf("proxied %v bytes\n", n)
-	}
-}
+
 
 func handleClientConnection(config *Config, connection net.Conn) {
 	defer func(){
@@ -140,8 +114,8 @@ func handleClientConnection(config *Config, connection net.Conn) {
 	toAcraErrCh:= make(chan error)
 	fromAcraErrCh := make(chan error)
 	log.Println("Debug: secure session initialized")
-	go proxy(connection, acraConnWrapped, toAcraErrCh)
-	go proxy(acraConnWrapped, connection, fromAcraErrCh)
+	go network.Proxy(connection, acraConnWrapped, toAcraErrCh)
+	go network.Proxy(acraConnWrapped, connection, fromAcraErrCh)
 	select{
 	case err = <-toAcraErrCh:
 		log.Println("to acra chan err")
