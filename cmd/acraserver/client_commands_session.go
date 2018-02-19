@@ -44,11 +44,6 @@ func (clientSession *ClientCommandsSession) ConnectToDb() error {
 	return errors.New("Error: command session must not connect to any DB")
 }
 
-/* read packets from client app wrapped in ss, unwrap them and send to db as is */
-func (clientSession *ClientCommandsSession) proxyConnections() {
-	return
-}
-
 func (clientSession *ClientCommandsSession) close() {
 	log.Println("Debug: close acraproxy connection")
 	err := clientSession.connection.Close()

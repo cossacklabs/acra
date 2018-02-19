@@ -79,15 +79,12 @@ to db and decrypting responses from db
 func (server *SServer) handleConnection(connection net.Conn) {
 	// initialization of session should be fast, so limit time for connection activity interval
 	connection.SetDeadline(time.Now().Add(INIT_SSESSION_TIMEOUT))
-	clientId, err := utils.ReadSessionData(connection)
-	if err != nil {
-		log.WithError(err).Println("Error: can't read client id")
-		connection.Close()
-		return
-	}
-	wrappedConnection, err := server.config.ConnectionWrapper.WrapServer(clientId, connection)
+	wrappedConnection, clientId, err := server.config.ConnectionWrapper.WrapServer(connection)
 	if err != nil{
-		log.Println("can't wrap connection from acraproxy")
+		log.WithError(err).Println("can't wrap connection from acraproxy")
+		if closeErr := connection.Close(); closeErr != nil{
+			log.WithError(closeErr).Println("can't close connection")
+		}
 		return
 	}
 	// reset deadline
@@ -148,11 +145,8 @@ func (server *SServer) handleCommandsConnection(connection net.Conn) {
 		return
 	}
 	defer clientSession.session.Close()
-	clientId, err := utils.ReadSessionData(connection)
-	if err != nil {
-		return
-	}
-	wrappedConnection, err := server.config.ConnectionWrapper.WrapServer(clientId, connection)
+	
+	wrappedConnection, _, err := server.config.ConnectionWrapper.WrapServer(connection)
 	if err != nil{
 		return
 	}

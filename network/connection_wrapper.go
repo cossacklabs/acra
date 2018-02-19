@@ -1,9 +1,10 @@
 package network
 
+import (
+	"net"
+)
 
-import "net"
-
-type ConnectionWrapper interface{
-	WrapClient(id []byte, conn net.Conn)(net.Conn, error)
-	WrapServer(id []byte, conn net.Conn)(net.Conn, error)
+type ConnectionWrapper interface {
+	WrapClient(id []byte, conn net.Conn) (net.Conn, error)
+	WrapServer(conn net.Conn) (net.Conn, []byte, error) // conn, clientId, error
 }

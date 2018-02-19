@@ -46,7 +46,7 @@ func NewPgDecryptor(clientId []byte, decryptor base.DataDecryptor) *PgDecryptor 
 	return &PgDecryptor{
 		isWithZone:      false,
 		pgDecryptor:     decryptor,
-		binaryDecryptor: binary.NewBinaryDecryptor(clientId),
+		binaryDecryptor: binary.NewBinaryDecryptor(),
 		clientId:        clientId,
 		// longest tag (escape) + bin
 		matchBuffer:  make([]byte, len(ESCAPE_TAG_BEGIN)+len(base.TAG_BEGIN)),

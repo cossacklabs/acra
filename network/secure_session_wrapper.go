@@ -50,10 +50,11 @@ type secureSessionConnection struct {
 	currentData []byte
 	returnedIndex int
 	closed bool
+	clientId []byte
 }
 
 func newSecureSessionConnection(keystore keystore.SecureSessionKeyStore, conn net.Conn)(*secureSessionConnection, error){
-	return &secureSessionConnection{keystore: keystore, session: nil, Conn: conn, currentData: nil, returnedIndex:0, closed: false}, nil
+	return &secureSessionConnection{keystore: keystore, session: nil, Conn: conn, currentData: nil, returnedIndex:0, closed: false, clientId: nil}, nil
 }
 
 func (wrapper *secureSessionConnection) isClosed()bool {
@@ -127,66 +128,87 @@ func (wrapper *secureSessionConnection) Close() error {
 
 type SecureSessionConnectionWrapper struct {
 	keystore keystore.SecureSessionKeyStore
+	clientId []byte
 }
 
 func NewSecureSessionConnectionWrapper(keystore keystore.SecureSessionKeyStore, ) (*SecureSessionConnectionWrapper, error) {
-	return &SecureSessionConnectionWrapper{keystore: keystore}, nil
+	return &SecureSessionConnectionWrapper{keystore: keystore, clientId: nil}, nil
 }
 
-func (wrapper *SecureSessionConnectionWrapper) wrap(id []byte, conn net.Conn, isServer bool) (net.Conn, error) {
+func (wrapper *SecureSessionConnectionWrapper) wrap(id []byte, conn net.Conn, isServer bool) (net.Conn, []byte, error) {
 	secureConnection, err := newSecureSessionConnection(wrapper.keystore, conn)
 	if err != nil{
-		return conn, err
-	}
-	privateKey, err := wrapper.keystore.GetPrivateKey(id)
-	if err != nil {
-		return conn, err
+		return conn, nil, err
 	}
 	callback, err := NewSessionCallback(wrapper.keystore)
 	if err != nil {
-		return conn, err
+		return conn, nil, err
 	}
-	secureConnection.session, err = session.New(id, privateKey, callback)
-	if err != nil {
-		return conn, err
-	}
-	if !isServer {
+	var clientId []byte
+	if isServer{
+		clientId, err = utils.ReadData(conn)
+		if err != nil{
+			return conn, nil, err
+		}
+		privateKey, err := wrapper.keystore.GetPrivateKey(clientId)
+		if err != nil {
+			return conn, nil, err
+		}
+		secureConnection.session, err = session.New(clientId, privateKey, callback)
+		if err != nil {
+			return conn, nil, err
+		}
+	} else {
+		clientId = id
+		privateKey, err := wrapper.keystore.GetPrivateKey(id)
+		if err != nil {
+			return conn, nil, err
+		}
+		secureConnection.session, err = session.New(id, privateKey, callback)
+		if err != nil {
+			return conn, nil, err
+		}
+		err = utils.SendData(id, conn)
+		if err != nil{
+			return conn, nil, err
+		}
 		connectRequest, err := secureConnection.session.ConnectRequest()
 		if err != nil {
-			return conn, err
+			return conn, nil, err
 		}
 		err = utils.SendData(connectRequest, conn)
 		if err != nil {
-			return conn, err
+			return conn, nil, err
 		}
 	}
 	for {
 		data, err := utils.ReadData(conn)
 		if err != nil {
-			return conn, err
+			return conn, nil, err
 		}
 		buf, sendPeer, err := secureConnection.session.Unwrap(data)
 		if nil != err {
-			return conn, err
+			return conn, nil, err
 		}
 		if !sendPeer {
-			return secureConnection, nil
+			return secureConnection, clientId, nil
 		}
 
 		err = utils.SendData(buf, conn)
 		if err != nil {
-			return conn, err
+			return conn, nil, err
 		}
 
 		if secureConnection.session.GetState() == session.STATE_ESTABLISHED {
-			return secureConnection, nil
+			return secureConnection, clientId, nil
 		}
 	}
 }
 
 func (wrapper *SecureSessionConnectionWrapper) WrapClient(id []byte, conn net.Conn) (net.Conn, error) {
-	return wrapper.wrap(id, conn, false)
+	newConn, _, err := wrapper.wrap(id, conn, false)
+	return newConn, err
 }
-func (wrapper *SecureSessionConnectionWrapper) WrapServer(id []byte, conn net.Conn) (net.Conn, error) {
-	return wrapper.wrap(id, conn, true)
+func (wrapper *SecureSessionConnectionWrapper) WrapServer(conn net.Conn) (net.Conn, []byte, error) {
+	return wrapper.wrap(nil, conn, true)
 }

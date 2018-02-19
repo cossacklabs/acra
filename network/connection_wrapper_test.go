@@ -46,7 +46,7 @@ func test_wrapper(clientWrapper, serverWrapper ConnectionWrapper, t *testing.T){
 			return
 		}
 		t.Log("wrap server")
-		conn, err = serverWrapper.WrapServer([]byte("some id"), conn)
+		conn, err = serverWrapper.WrapServer(conn)
 		if err != nil{
 			conn.Close()
 			t.Fatal(err)

@@ -23,12 +23,12 @@ func (wrapper *TLSConnectionWrapper) WrapClient(id []byte, conn net.Conn)(net.Co
 	wrapper.Conn = tlsConn
 	return tlsConn, nil
 }
-func (wrapper *TLSConnectionWrapper) WrapServer(id []byte, conn net.Conn)(net.Conn, error){
+func (wrapper *TLSConnectionWrapper) WrapServer(conn net.Conn)(net.Conn, []byte, error){
 	tlsConn := tls.Server(conn, wrapper.config)
 	err := tlsConn.Handshake()
 	if err != nil{
-		return conn, err
+		return conn, nil, err
 	}
 	wrapper.Conn = tlsConn
-	return tlsConn, nil
+	return tlsConn, nil, nil
 }

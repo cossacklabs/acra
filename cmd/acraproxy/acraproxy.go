@@ -25,7 +25,7 @@ import (
 	"runtime"
 	"strconv"
 	"strings"
-
+	"time"
 
 	"github.com/cossacklabs/acra/cmd"
 	"github.com/cossacklabs/acra/keystore"
@@ -91,20 +91,15 @@ func handleClientConnection(config *Config, connection net.Conn) {
 	}()
 
 	log.Printf("Info: send client id <%v>\n", string(config.ClientId))
-	err = utils.SendData(config.ClientId, acraConn)
-	if err != nil {
-		acraConn.Close()
-		log.Println("failed sending client id")
-		return
-	}
-	//acraConn.SetDeadline(time.Now().Add(time.Second*2))
+
+	acraConn.SetDeadline(time.Now().Add(time.Second*2))
 	acraConnWrapped, err := config.ConnectionWrapper.WrapClient(config.ClientId, acraConn)
 	if err != nil{
 		log.Printf("Error: %v\n", utils.ErrorMessage("can't wrap acra connection with secure session", err))
 		return
 	}
 	log.Println("connection wrapped")
-	//acraConn.SetDeadline(time.Time{})
+	acraConn.SetDeadline(time.Time{})
 	defer func(){
 		log.Println("close acraConnWrapped")
 		acraConnWrapped.Close()

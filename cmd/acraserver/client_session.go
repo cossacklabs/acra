@@ -15,7 +15,6 @@ package main
 
 import (
 	"bufio"
-	"errors"
 	"fmt"
 	"github.com/cossacklabs/acra/network"
 	"log"
@@ -25,7 +24,6 @@ import (
 	"github.com/cossacklabs/acra/decryptor/postgresql"
 	"github.com/cossacklabs/acra/keystore"
 	"github.com/cossacklabs/acra/utils"
-	"github.com/cossacklabs/themis/gothemis/keys"
 	"github.com/cossacklabs/themis/gothemis/session"
 	"io"
 )
@@ -38,21 +36,7 @@ type ClientSession struct {
 	connectionToDb net.Conn
 }
 
-func (clientSession *ClientSession) GetPublicKeyForId(ss *session.SecureSession, id []byte) *keys.PublicKey {
-
-	// try to open file in PUBLIC_KEYS_DIR directory where pub file should be named like <client_id>.pub
-	log.Printf("Debug: load client's public key: %v\n", fmt.Sprintf("%v/%v.pub", clientSession.config.GetKeysDir(), string(id)))
-	key, err := utils.LoadPublicKey(fmt.Sprintf("%v/%v.pub", clientSession.config.GetKeysDir(), string(id)))
-	if err != nil {
-		log.Printf("Warning: %v\n", utils.ErrorMessage(fmt.Sprintf("can't load public key for id %v", string(id)), err))
-	}
-	return key
-}
-
-func (clientSession *ClientSession) StateChanged(ss *session.SecureSession, state int) {}
-
 func NewClientSession(keystorage keystore.KeyStore, config *Config, connection net.Conn) (*ClientSession, error) {
-
 	return &ClientSession{connection: connection, keystorage: keystorage, config: config}, nil
 }
 
@@ -63,33 +47,6 @@ func (clientSession *ClientSession) ConnectToDb() error {
 	}
 	clientSession.connectionToDb = conn
 	return nil
-}
-
-/* read packets from client app wrapped in ss, unwrap them and send to db as is */
-func (clientSession *ClientSession) proxyConnections(errCh chan error) {
-	for {
-		data, err := utils.ReadData(clientSession.connection)
-		if err != nil {
-			errCh <- err
-			return
-		}
-
-		decryptedData, _, err := clientSession.session.Unwrap(data)
-		if err != nil {
-			errCh <- err
-			return
-		}
-
-		n, err := clientSession.connectionToDb.Write(decryptedData)
-		if err != nil {
-			errCh <- err
-			return
-		}
-		if n != len(decryptedData) {
-			errCh <- errors.New("sent incorrect bytes count")
-			return
-		}
-	}
 }
 
 func (clientSession *ClientSession) close() {

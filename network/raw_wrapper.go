@@ -7,7 +7,7 @@ func (wrapper *RawConnectionWrapper) WrapClient(id []byte, conn net.Conn)(net.Co
 	wrapper.Conn = conn
 	return conn, nil
 }
-func (wrapper *RawConnectionWrapper) WrapServer(id []byte, conn net.Conn)(net.Conn, error){
+func (wrapper *RawConnectionWrapper) WrapServer(conn net.Conn)(net.Conn, []byte, error){
 	wrapper.Conn = conn
-	return conn, nil
+	return conn, nil, nil
 }
