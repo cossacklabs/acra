@@ -36,11 +36,19 @@ type Config struct {
 	withZone          bool
 	wholeMatch        bool
 	serverId          []byte
+	acraConnectionString  string
+	acraAPIConnectionString string
 	ConnectionWrapper network.ConnectionWrapper
 }
 
 func NewConfig() *Config {
 	return &Config{withZone: false, stopOnPoison: false, wholeMatch: true}
+}
+func (config *Config) SetAcraConnectionString(str string){
+	config.acraConnectionString = str
+}
+func (config *Config) SetAcraAPIConnectionString(str string){
+	config.acraAPIConnectionString = str
 }
 func (config *Config) SetScriptOnPoison(scriptPath string) {
 	config.scriptOnPoison = scriptPath
@@ -124,4 +132,10 @@ func (config *Config) GetWholeMatch() bool {
 }
 func (config *Config) SetWholeMatch(value bool) {
 	config.wholeMatch = value
+}
+func (config *Config) GetAcraConnectionString()string{
+	return config.acraConnectionString
+}
+func (config *Config) GetAcraAPIConnectionString()string{
+	return config.acraAPIConnectionString
 }

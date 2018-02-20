@@ -15,6 +15,7 @@ package main
 
 import (
 	"fmt"
+	"github.com/cossacklabs/acra/network"
 	"github.com/cossacklabs/acra/utils"
 	log "github.com/sirupsen/logrus"
 	"net"
@@ -107,12 +108,12 @@ func (server *SServer) handleConnection(connection net.Conn) {
 
 // start listening connections from proxy
 func (server *SServer) Start() {
-	listener, err := net.Listen("tcp", fmt.Sprintf("%v:%v", server.config.GetProxyHost(), server.config.GetProxyPort()))
+	listener, err := network.Listen(server.config.GetAcraConnectionString())
 	if err != nil {
 		log.Printf("Error: %v\n", utils.ErrorMessage("can't start listen connections", err))
 		return
 	}
-	log.Printf("Info: start listening %v:%v\n", server.config.GetProxyHost(), server.config.GetProxyPort())
+	log.Printf("Info: start listening %s\n", server.config.GetAcraConnectionString())
 	for {
 		connection, err := listener.Accept()
 		if err != nil {
@@ -160,12 +161,12 @@ func (server *SServer) handleCommandsConnection(connection net.Conn) {
 // start listening commands connections from proxy
 func (server *SServer) StartCommands() {
 	log.Printf("Info: start listening http api %v\n", server.config.GetProxyCommandsPort())
-	listener, err := net.Listen("tcp", fmt.Sprintf("%v:%v", server.config.GetProxyHost(), server.config.GetProxyCommandsPort()))
+	listener, err := network.Listen(server.config.GetAcraAPIConnectionString())
 	if err != nil {
 		log.Printf("Error: %v\n", utils.ErrorMessage("can't start listen command connections", err))
 		return
 	}
-	log.Printf("Info: start listening %v:%v\n", server.config.GetProxyHost(), server.config.GetProxyCommandsPort())
+	log.Printf("Info: start listening %s\n", server.config.GetAcraAPIConnectionString())
 	for {
 		connection, err := listener.Accept()
 		if err != nil {

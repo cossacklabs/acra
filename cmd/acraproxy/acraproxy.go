@@ -152,6 +152,7 @@ func main() {
 	disableUserCheck := flag.Bool("disable_user_check", false, "Disable checking that connections from app running from another user")
 	useTls := flag.Bool("tls", false, "Use tls")
 	noEncryption := flag.Bool("no_encryption", false, "Don't use encryption in transport")
+	connectionString := flag.String("connection_string", "", "Connection string like tcp://x.x.x.x:yyyy or unix:///path/to/socket")
 
 	log.SetPrefix("Acraproxy: ")
 
@@ -159,6 +160,10 @@ func main() {
 	if err != nil {
 		fmt.Printf("Error: %v\n", utils.ErrorMessage("Can't parse args", err))
 		os.Exit(1)
+	}
+
+	if *connectionString == "" {
+		*connectionString = network.BuildConnectionString("tcp", "127.0.0.1", *port, "")
 	}
 
 	cmd.ValidateClientId(*clientId)
@@ -204,7 +209,7 @@ func main() {
 		os.Exit(1)
 	}
 	config := &Config{KeyStore: keyStore, KeysDir: *keysDir, ClientId: []byte(*clientId), AcraHost: *acraHost, AcraPort: *acraPort, Port: *port, AcraId: []byte(*acraId), disableUserCheck: *disableUserCheck}
-	listener, err := net.Listen("tcp", fmt.Sprintf(":%v", *port))
+	listener, err := network.Listen(*connectionString)
 	if err != nil {
 		log.Printf("Error: %v\n", utils.ErrorMessage("can't start listen connections", err))
 		os.Exit(1)
