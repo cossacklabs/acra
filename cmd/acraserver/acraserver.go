@@ -59,6 +59,9 @@ func main() {
 	disableZoneApi := flag.Bool("disable_zone_api", false, "Disable zone http api")
 
 	useTls := flag.Bool("tls", false, "Use tls")
+	tlsKey := flag.String("tls_key", "", "Path to tls server key")
+	tlsCert := flag.String("tls_cert", "", "Path to tls server certificate")
+	noEncryption := flag.Bool("no_encryption", false, "Don't use encryption in transport")
 
 	log.SetPrefix("Acraserver: ")
 
@@ -108,12 +111,22 @@ func main() {
 		os.Exit(1)
 	}
 	if *useTls {
-		config.ConnectionWrapper, err = network.NewTLSConnectionWrapper(&tls.Config{InsecureSkipVerify:true})
+		log.Println("Use TLS transport wrapper")
+		cer, err := tls.LoadX509KeyPair(*tlsCert, *tlsKey)
+		if err != nil {
+			log.Println(err)
+			return
+		}
+		config.ConnectionWrapper, err = network.NewTLSConnectionWrapper(&tls.Config{Certificates:[]tls.Certificate{cer}})
 		if err != nil{
 			log.Println("Error: can't initialize tls connection wrapper")
 			os.Exit(1)
 		}
+	} else if *noEncryption {
+		log.Println("Use raw transport wrapper")
+		config.ConnectionWrapper = &network.RawConnectionWrapper{ClientId: []byte(*serverId)}
 	} else {
+		log.Println("Use Secure Session transport wrapper")
 		config.ConnectionWrapper, err = network.NewSecureSessionConnectionWrapper(keyStore)
 		if err != nil{
 			log.Println("Error: can't initialize secure session connection wrapper")

@@ -145,7 +145,7 @@ func (server *SServer) handleCommandsConnection(connection net.Conn) {
 		return
 	}
 	defer clientSession.session.Close()
-	
+
 	wrappedConnection, _, err := server.config.ConnectionWrapper.WrapServer(connection)
 	if err != nil{
 		return

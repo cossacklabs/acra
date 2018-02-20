@@ -6,5 +6,5 @@ import (
 
 type ConnectionWrapper interface {
 	WrapClient(id []byte, conn net.Conn) (net.Conn, error)
-	WrapServer(conn net.Conn) (net.Conn, []byte, error) // conn, clientId, error
+	WrapServer(conn net.Conn) (net.Conn, []byte, error) // conn, ClientId, error
 }

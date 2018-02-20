@@ -27,20 +27,18 @@ import (
 	"strings"
 	"time"
 
+	"crypto/tls"
 	"github.com/cossacklabs/acra/cmd"
 	"github.com/cossacklabs/acra/keystore"
-	"github.com/cossacklabs/acra/utils"
 	"github.com/cossacklabs/acra/network"
-	"crypto/tls"
+	"github.com/cossacklabs/acra/utils"
 )
 
 // DEFAULT_CONFIG_PATH relative path to config which will be parsed as default
 var DEFAULT_CONFIG_PATH = utils.GetConfigPathByName("acraproxy")
 
-
-
 func handleClientConnection(config *Config, connection net.Conn) {
-	defer func(){
+	defer func() {
 		log.Println("acraproxy connection close")
 		connection.Close()
 		log.Println("acraproxy connection closed")
@@ -84,7 +82,7 @@ func handleClientConnection(config *Config, connection net.Conn) {
 		log.Printf("Error: %v\n", utils.ErrorMessage("can't connect to acra", err))
 		return
 	}
-	defer func(){
+	defer func() {
 		log.Println("close acraConn")
 		acraConn.Close()
 		log.Println("closed acraConn")
@@ -92,29 +90,29 @@ func handleClientConnection(config *Config, connection net.Conn) {
 
 	log.Printf("Info: send client id <%v>\n", string(config.ClientId))
 
-	acraConn.SetDeadline(time.Now().Add(time.Second*2))
+	acraConn.SetDeadline(time.Now().Add(time.Second * 2))
 	acraConnWrapped, err := config.ConnectionWrapper.WrapClient(config.ClientId, acraConn)
-	if err != nil{
+	if err != nil {
 		log.Printf("Error: %v\n", utils.ErrorMessage("can't wrap acra connection with secure session", err))
 		return
 	}
 	log.Println("connection wrapped")
 	acraConn.SetDeadline(time.Time{})
-	defer func(){
+	defer func() {
 		log.Println("close acraConnWrapped")
 		acraConnWrapped.Close()
 		log.Println("closed acraConnWrapped")
 	}()
 
-	toAcraErrCh:= make(chan error)
+	toAcraErrCh := make(chan error)
 	fromAcraErrCh := make(chan error)
 	log.Println("Debug: secure session initialized")
 	go network.Proxy(connection, acraConnWrapped, toAcraErrCh)
 	go network.Proxy(acraConnWrapped, connection, fromAcraErrCh)
-	select{
+	select {
 	case err = <-toAcraErrCh:
 		log.Println("to acra chan err")
-	case err = <- fromAcraErrCh:
+	case err = <-fromAcraErrCh:
 		log.Println("from acra chan err")
 	}
 	if err != nil {
@@ -129,14 +127,14 @@ func handleClientConnection(config *Config, connection net.Conn) {
 }
 
 type Config struct {
-	KeysDir          string
-	ClientId         []byte
-	AcraId           []byte
-	AcraHost         string
-	AcraPort         int
-	Port             int
-	disableUserCheck bool
-	KeyStore keystore.SecureSessionKeyStore
+	KeysDir           string
+	ClientId          []byte
+	AcraId            []byte
+	AcraHost          string
+	AcraPort          int
+	Port              int
+	disableUserCheck  bool
+	KeyStore          keystore.SecureSessionKeyStore
 	ConnectionWrapper network.ConnectionWrapper
 }
 
@@ -153,6 +151,7 @@ func main() {
 	withZone := flag.Bool("zonemode", false, "Turn on zone mode")
 	disableUserCheck := flag.Bool("disable_user_check", false, "Disable checking that connections from app running from another user")
 	useTls := flag.Bool("tls", false, "Use tls")
+	noEncryption := flag.Bool("no_encryption", false, "Don't use encryption in transport")
 
 	log.SetPrefix("Acraproxy: ")
 
@@ -200,7 +199,7 @@ func main() {
 	}
 
 	keyStore, err := keystore.NewProxyFileSystemKeyStore(*keysDir, []byte(*clientId))
-	if err != nil{
+	if err != nil {
 		log.Println("Error: can't initialize keystore")
 		os.Exit(1)
 	}
@@ -211,14 +210,19 @@ func main() {
 		os.Exit(1)
 	}
 	if *useTls {
-		config.ConnectionWrapper, err = network.NewTLSConnectionWrapper(&tls.Config{InsecureSkipVerify:true})
-		if err != nil{
+		log.Println("Use TLS transport wrapper")
+		config.ConnectionWrapper, err = network.NewTLSConnectionWrapper(&tls.Config{InsecureSkipVerify: true})
+		if err != nil {
 			log.Println("Error: can't initialize tls connection wrapper")
 			os.Exit(1)
 		}
+	} else if *noEncryption {
+		log.Println("Use raw transport wrapper")
+		config.ConnectionWrapper = &network.RawConnectionWrapper{ClientId: []byte(*clientId)}
 	} else {
+		log.Println("Use Secure Session transport wrapper")
 		config.ConnectionWrapper, err = network.NewSecureSessionConnectionWrapper(keyStore)
-		if err != nil{
+		if err != nil {
 			log.Println("Error: can't initialize secure session connection wrapper")
 			os.Exit(1)
 		}

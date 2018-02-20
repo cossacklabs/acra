@@ -16,15 +16,18 @@ package postgresql
 import (
 	"bufio"
 	"bytes"
+	"crypto/tls"
 	"encoding/binary"
 	"errors"
 	"github.com/cossacklabs/acra/decryptor/base"
 	acra_io "github.com/cossacklabs/acra/io"
+	"github.com/cossacklabs/acra/network"
 	"github.com/cossacklabs/acra/utils"
 	"github.com/cossacklabs/acra/zone"
+	log "github.com/sirupsen/logrus"
 	"io"
-	"log"
-	"os"
+	"net"
+	"time"
 )
 
 type DataRow struct {
@@ -134,7 +137,7 @@ func (row *DataRow) ReadDataLength() bool {
 
 func (row *DataRow) ReadColumnCount() bool {
 	// read column count
-	columnCountBuf := row.output[DATA_ROW_LENGTH_BUF_SIZE : DATA_ROW_LENGTH_BUF_SIZE+2]
+	columnCountBuf := row.output[DATA_ROW_LENGTH_BUF_SIZE: DATA_ROW_LENGTH_BUF_SIZE+2]
 	n, err := row.reader.Read(columnCountBuf)
 	if !base.CheckReadWrite(n, 2, err, row.errCh) {
 		return false
@@ -152,8 +155,10 @@ func (row *DataRow) Flush() bool {
 	return true
 }
 
-func PgDecryptStream(decryptor base.Decryptor, rr *bufio.Reader, writer *bufio.Writer, errCh chan<- error) {
-	reader := acra_io.NewExtendedBufferedReader(rr)
+func PgDecryptStream(decryptor base.Decryptor, dbConnection net.Conn, clientConnection net.Conn, errCh chan<- error) {
+	writer := bufio.NewWriter(clientConnection)
+
+	reader := acra_io.NewExtendedBufferedReader(bufio.NewReader(dbConnection))
 	row := DataRow{
 		writeIndex:           0,
 		output:               make([]byte, OUTPUT_DEFAULT_SIZE),
@@ -176,8 +181,57 @@ func PgDecryptStream(decryptor base.Decryptor, rr *bufio.Reader, writer *bufio.W
 				writer.Flush()
 				continue
 			} else if row.buf[0] == 'S' {
-				log.Println("Error: detected ssl connection. run postgresql without ssl or connect with sslmode=disable (PGSSLMODE=disable psql) and restart AcraServer. exiting")
-				os.Exit(1)
+				cer, err := tls.LoadX509KeyPair("server.crt", "server.key")
+				if err != nil {
+					errCh <- err
+					log.Println(err)
+					return
+				}
+				// stop reading from client in goroutine
+				if err = clientConnection.SetDeadline(time.Now()); err != nil{
+					log.WithError(err).Error("can't set deadline")
+					errCh <- err
+					return
+				}
+				//
+				time.Sleep(time.Millisecond)
+				// reset deadline
+				if err = clientConnection.SetDeadline(time.Time{}); err != nil{
+					log.WithError(err).Error("can't set deadline")
+					errCh <- err
+					return
+				}
+				// convert to tls connection
+				tlsClientConnection := tls.Server(clientConnection, &tls.Config{Certificates: []tls.Certificate{cer}})
+				if err = writer.Flush(); err != nil {
+					log.WithError(err).Error("can't flush writer")
+					errCh <- err
+					return
+				}
+				err = tlsClientConnection.Handshake()
+				if err != nil {
+					log.WithError(err).Error("can't initialize tls connection with client")
+					errCh <- err
+					return
+				}
+
+				dbTLSConnection := tls.Client(dbConnection, &tls.Config{InsecureSkipVerify: true})
+				if err = dbTLSConnection.Handshake(); err != nil {
+					log.WithError(err).Println("can't initialize tls connection with db")
+					errCh <- err
+					return
+				}
+
+				// restart proxing client's requests
+				go network.Proxy(tlsClientConnection, dbTLSConnection, errCh)
+				reader = acra_io.NewExtendedBufferedReader(bufio.NewReader(dbTLSConnection))
+				row.reader = reader
+				writer = bufio.NewWriter(tlsClientConnection)
+				row.writer = writer
+				firstByte = true
+				continue
+				//log.Println("Error: detected ssl connection. run postgresql without ssl or connect with sslmode=disable (PGSSLMODE=disable psql) and restart AcraServer. exiting")
+				//os.Exit(1)
 			}
 		}
 
@@ -209,12 +263,12 @@ func PgDecryptStream(decryptor base.Decryptor, rr *bufio.Reader, writer *bufio.W
 		for i := 0; i < row.columnCount; i++ {
 			// read column length
 			row.CheckOutputSize(4)
-			n, err := reader.Read(row.output[row.writeIndex : row.writeIndex+4])
+			n, err := reader.Read(row.output[row.writeIndex: row.writeIndex+4])
 			if !base.CheckReadWrite(n, 4, err, errCh) {
 				return
 			}
 			// save pointer on column size
-			row.columnSizePointer = row.output[row.writeIndex : row.writeIndex+4]
+			row.columnSizePointer = row.output[row.writeIndex: row.writeIndex+4]
 			row.writeIndex += 4
 			columnDataLength := int(int32(binary.BigEndian.Uint32(row.columnSizePointer)))
 			if columnDataLength == 0 || columnDataLength == -1 {
@@ -233,10 +287,10 @@ func PgDecryptStream(decryptor base.Decryptor, rr *bufio.Reader, writer *bufio.W
 			row.columnDataBuf.Grow(columnDataLength)
 			row.CheckOutputSize(columnDataLength)
 			// reassign column_size_p
-			row.columnSizePointer = row.output[row.writeIndex-4 : row.writeIndex]
+			row.columnSizePointer = row.output[row.writeIndex-4: row.writeIndex]
 
 			// read column data
-			n, err = reader.Read(row.output[row.writeIndex : row.writeIndex+columnDataLength])
+			n, err = reader.Read(row.output[row.writeIndex: row.writeIndex+columnDataLength])
 			if !base.CheckReadWrite(n, columnDataLength, err, errCh) {
 				return
 			}
@@ -250,7 +304,7 @@ func PgDecryptStream(decryptor base.Decryptor, rr *bufio.Reader, writer *bufio.W
 					// check only if has any action on detection
 					if decryptor.GetPoisonCallbackStorage().HasCallbacks() {
 						log.Println("Debug: check poison records")
-						block, err := decryptor.SkipBeginInBlock(row.output[row.writeIndex : row.writeIndex+columnDataLength])
+						block, err := decryptor.SkipBeginInBlock(row.output[row.writeIndex: row.writeIndex+columnDataLength])
 						if err == nil {
 							poisoned, err := decryptor.CheckPoisonRecord(bytes.NewReader(block))
 							if err != nil || poisoned {
@@ -267,7 +321,7 @@ func PgDecryptStream(decryptor base.Decryptor, rr *bufio.Reader, writer *bufio.W
 
 					decryptor.Reset()
 					if !decryptor.IsWithZone() || decryptor.IsMatchedZone() {
-						decrypted, err := decryptor.DecryptBlock(row.output[row.writeIndex : row.writeIndex+columnDataLength])
+						decrypted, err := decryptor.DecryptBlock(row.output[row.writeIndex: row.writeIndex+columnDataLength])
 						if err == nil {
 							copy(row.output[row.writeIndex:], decrypted)
 							row.UpdateColumnAndDataSize(columnDataLength, len(decrypted))
@@ -279,7 +333,7 @@ func PgDecryptStream(decryptor base.Decryptor, rr *bufio.Reader, writer *bufio.W
 							return
 						}
 					} else {
-						decryptor.MatchZoneBlock(row.output[row.writeIndex : row.writeIndex+columnDataLength])
+						decryptor.MatchZoneBlock(row.output[row.writeIndex: row.writeIndex+columnDataLength])
 					}
 					row.writeIndex += columnDataLength
 				} else {
@@ -311,7 +365,7 @@ func PgDecryptStream(decryptor base.Decryptor, rr *bufio.Reader, writer *bufio.W
 						}
 					}
 					if decryptor.IsWithZone() && !decryptor.IsMatchedZone() {
-						decryptor.MatchZoneInBlock(row.output[row.writeIndex : row.writeIndex+columnDataLength])
+						decryptor.MatchZoneInBlock(row.output[row.writeIndex: row.writeIndex+columnDataLength])
 						row.writeIndex += columnDataLength
 						continue
 					}

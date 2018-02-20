@@ -14,7 +14,6 @@
 package main
 
 import (
-	"bufio"
 	"fmt"
 	"github.com/cossacklabs/acra/network"
 	"log"
@@ -83,20 +82,25 @@ func (clientSession *ClientSession) HandleSecureSession(decryptorImpl base.Decry
 
 	go network.Proxy(clientSession.connection, clientSession.connectionToDb, innerErrorChannel)
 	//go clientSession.proxyConnections(innerErrorChannel)
-	// postgresql usually use 8kb for buffers
-	reader := bufio.NewReaderSize(clientSession.connectionToDb, 8192)
-	writer := bufio.NewWriter(clientSession.connection)
 
-	go postgresql.PgDecryptStream(decryptorImpl, reader, writer, innerErrorChannel)
-	err = <-innerErrorChannel
-	if err == io.EOF {
-		log.Println("Debug: EOF connection closed")
-	} else if netErr, ok := err.(net.Error); ok {
-		log.Printf("Error: %v\n", utils.ErrorMessage("network error", netErr))
-	} else if opErr, ok := err.(*net.OpError); ok {
-		log.Printf("Error: %v\n", utils.ErrorMessage("network error", opErr))
-	} else {
-		fmt.Printf("Error: %v\n", utils.ErrorMessage("unexpected error", err))
+	go postgresql.PgDecryptStream(decryptorImpl, clientSession.connectionToDb, clientSession.connection, innerErrorChannel)
+	for{
+		err = <-innerErrorChannel
+
+		if err == io.EOF {
+			log.Println("Debug: EOF connection closed")
+		} else if netErr, ok := err.(net.Error); ok {
+			if netErr.Timeout(){
+				log.Println("Debug: network timeout")
+				continue
+			}
+			log.Printf("Error: %v\n", utils.ErrorMessage("network error", netErr))
+		} else if opErr, ok := err.(*net.OpError); ok {
+			log.Printf("Error: %v\n", utils.ErrorMessage("network error", opErr))
+		} else {
+			fmt.Printf("Error: %v\n", utils.ErrorMessage("unexpected error", err))
+		}
+		break
 	}
 	clientSession.close()
 	// wait second error from closed second connection
