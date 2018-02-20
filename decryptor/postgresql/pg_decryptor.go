@@ -230,8 +230,6 @@ func PgDecryptStream(decryptor base.Decryptor, dbConnection net.Conn, clientConn
 				row.writer = writer
 				firstByte = true
 				continue
-				//log.Println("Error: detected ssl connection. run postgresql without ssl or connect with sslmode=disable (PGSSLMODE=disable psql) and restart AcraServer. exiting")
-				//os.Exit(1)
 			}
 		}
 
