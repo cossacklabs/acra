@@ -16,19 +16,6 @@ jobs:
       - run: cd $HOME && for version in $VERSIONS; do GOROOT=$HOME/go_root_$version/go PATH=$GOROOT/bin/:$PATH GOPATH=$HOME/go_path_$version go get github.com/cossacklabs/acra/...; done
       # test
       - run: cd $HOME && for version in $VERSIONS; do GOROOT=$HOME/go_root_$version/go PATH=$GOROOT/bin/:$PATH GOPATH=$HOME/go_path_$version go test -v github.com/cossacklabs/acra/...; done
-
-#      - restore_cache:
-#          keys:
-#            - valgrind-3.13.0
-#
-#
-#
-#      - save_cache:
-#          key: valgrind-3.13.0
-#          paths:
-#            - ~/valgrind
-
-
 workflows:
   version: 2
   tests:
