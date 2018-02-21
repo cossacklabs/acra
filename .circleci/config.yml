@@ -7,7 +7,7 @@ jobs:
       GOTHEMIS_IMPORT: github.com/cossacklabs/themis/gothemis
     steps:
     # prepare
-      - run: sudo apt-get update && sudo DEBIAN_FRONTEND=noninteractive apt-get -y install libssl-dev python python-setuptools python3 python3-setuptools build-essential git
+      - run: sudo apt-get update && sudo DEBIAN_FRONTEND=noninteractive apt-get -y install libssl-dev python python-setuptools python3 python3-setuptools git rsync
       - run: cd $HOME && git clone https://github.com/cossacklabs/themis && cd themis && sudo make install
       - run: cd $HOME && for version in $VERSIONS; do mkdir go_root_$version; cd go_root_$version; wget https://storage.googleapis.com/golang/go$version.linux-amd64.tar.gz; tar xf go$version.linux-amd64.tar.gz; cd -; done
       - checkout
