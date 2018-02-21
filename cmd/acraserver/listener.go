@@ -113,6 +113,7 @@ func (server *SServer) Start() {
 		log.Printf("Error: %v\n", utils.ErrorMessage("can't start listen connections", err))
 		return
 	}
+	defer listener.Close()
 	log.Printf("Info: start listening %s\n", server.config.GetAcraConnectionString())
 	for {
 		connection, err := listener.Accept()

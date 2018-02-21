@@ -210,11 +210,6 @@ func main() {
 		fmt.Printf("Error: can't check is exists acraserver public key %v, got error - %v\n", serverPublicKey, err)
 		os.Exit(1)
 	}
-	if *acraHost == "" {
-		fmt.Println("Error: you must specify host to acra")
-		flag.Usage()
-		os.Exit(1)
-	}
 
 	if *verbose {
 		cmd.SetLogLevel(cmd.LOG_VERBOSE)
@@ -236,6 +231,7 @@ func main() {
 		log.Printf("Error: %v\n", utils.ErrorMessage("can't start listen connections", err))
 		os.Exit(1)
 	}
+	defer listener.Close()
 	if *useTls {
 		log.Println("Use TLS transport wrapper")
 		config.ConnectionWrapper, err = network.NewTLSConnectionWrapper(&tls.Config{InsecureSkipVerify: true})
@@ -277,7 +273,7 @@ func main() {
 			}
 		}()
 	}
-	log.Printf("Info: start listening %v\n", *port)
+	log.Printf("Info: start listening %s\n", *connectionString)
 	for {
 		connection, err := listener.Accept()
 		if err != nil {

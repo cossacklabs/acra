@@ -59,6 +59,12 @@ connect_args = {
     'user': DB_USER, 'password': DB_USER_PASSWORD,
     "options": "-c statement_timeout=1000", 'sslmode': 'require'}
 
+def get_connect_args(port=5432, sslmode='require'):
+    args = connect_args.copy()
+    args['port'] = port
+    args['sslmode'] = sslmode
+    return args
+
 def get_poison_record():
     """generate one poison record for speed up tests and don't create subprocess
     for new records"""
@@ -95,6 +101,36 @@ def wait_connection(port, count=10, sleep=0.1):
         time.sleep(sleep)
     raise Exception("can't wait connection")
 
+
+def wait_unix_socket(socket_path, count=10, sleep=0.1):
+    while count:
+        try:
+            connection = socket.socket(socket.AF_UNIX)
+            connection.connect(socket_path)
+            connection.close()
+            return
+        except FileNotFoundError:
+            pass
+        count -= 1
+        time.sleep(sleep)
+    raise Exception("can't wait connection")
+
+
+def get_db_connection_string(port, dbname):
+    return 'postgresql+psycopg2:///{}?host=/tmp'.format(dbname)
+
+
+def get_unix_connection_string(port):
+    return "unix://{}".format("/tmp/unix_socket_{}".format(port))
+
+def get_proxy_connection_string(port):
+    return 'unix:///tmp/.s.PGSQL.{}'.format(port)
+
+def socket_path_from_connection_string(connection_string):
+    return connection_string.replace('unix://', '')
+
+def acra_api_connection_string(port):
+    return "unix://{}".format("/tmp/acra_api_unix_socket_{}".format(port+1))
 
 def setUpModule():
     global zones
@@ -164,12 +200,28 @@ class BaseTestCase(unittest.TestCase):
         self.fail("can't fork")
 
     def fork_proxy(self, proxy_port: int, acra_port: int, client_id: str, commands_port: int=None, zone_mode: bool=False, check_connection: bool=True):
+        acra_connection = get_unix_connection_string(acra_port)
+        acra_api_connection = acra_api_connection_string(acra_port)
+        proxy_connection = get_proxy_connection_string(proxy_port)
+        if zone_mode:
+            proxy_api_connection = "tcp://127.0.0.1:{}".format(commands_port)
+        else:
+            # now it's no matter, so just +100
+            proxy_api_connection = get_unix_connection_string(commands_port if commands_port else proxy_port + 100)
+
+        for path in [socket_path_from_connection_string(proxy_connection), socket_path_from_connection_string(proxy_api_connection)]:
+            try:
+                os.remove(path)
+            except:
+                pass
         args = [
-            './acraproxy', '-acra_host=127.0.0.1', '-acra_port={}'.format(acra_port),
-             '-client_id={}'.format(client_id), '-port={}'.format(proxy_port),
-             # now it's no matter, so just +100
-            '-command_port={}'.format(commands_port if commands_port else proxy_port + 100),
-             '-disable_user_check=true'
+            './acraproxy',
+            '-acra_connection_string={}'.format(acra_connection),
+            '-acra_api_connection_string={}'.format(acra_api_connection),
+             '-client_id={}'.format(client_id),
+            '-connection_string={}'.format(proxy_connection),
+            '-connection_api_string={}'.format(proxy_api_connection),
+            '-disable_user_check=true'
         ]
         if self.DEBUG_LOG:
             args.append('-v=true')
@@ -178,21 +230,29 @@ class BaseTestCase(unittest.TestCase):
         process = self.fork(lambda: subprocess.Popen(args))
         if check_connection:
             try:
-                wait_connection(proxy_port)
+                wait_unix_socket(socket_path_from_connection_string(proxy_connection))
             except:
                 process.kill()
                 raise
         return process
 
     def _fork_acra(self, acra_kwargs, popen_kwargs):
+        connection_string = get_unix_connection_string(self.ACRA_PORT)
+        api_connection_string = acra_api_connection_string(self.ACRA_PORT)
+        for path in [socket_path_from_connection_string(connection_string), socket_path_from_connection_string(api_connection_string)]:
+            try:
+                os.remove(path)
+            except:
+                pass
+
         args = {
             'db_host': self.DB_HOST,
             'db_port': self.DB_PORT,
             self.ACRA_BYTEA: 'true',
-            'port': self.ACRA_PORT,
+            'connection_string': connection_string,
+            'connection_api_string': api_connection_string,
             'wholecell': 'true' if self.WHOLECELL_MODE else 'false',
             'injectedcell': 'false' if self.WHOLECELL_MODE else 'true',
-            'host': '127.0.0.1',
             'd': 'true' if self.DEBUG_LOG else 'false',
             'zonemode': 'true' if self.ZONE else 'false',
             'disable_zone_api': 'false' if self.ZONE else 'true',
@@ -205,7 +265,7 @@ class BaseTestCase(unittest.TestCase):
         process = self.fork(lambda: subprocess.Popen(['./acraserver'] + cli_args,
                                                      **popen_kwargs))
         try:
-            wait_connection(self.ACRA_PORT)
+            wait_unix_socket(socket_path_from_connection_string(connection_string))
         except:
             process.kill()
             raise
@@ -217,19 +277,16 @@ class BaseTestCase(unittest.TestCase):
     def setUp(self):
         try:
             print('setUp')
-            self.proxy_1 = self.fork_proxy(
-                self.PROXY_PORT_1, self.ACRA_PORT, 'keypair1')
-            self.proxy_2 = self.fork_proxy(
-                self.PROXY_PORT_2, self.ACRA_PORT, 'keypair2')
+            self.proxy_1 = self.fork_proxy(self.PROXY_PORT_1, self.ACRA_PORT, 'keypair1')
+            self.proxy_2 = self.fork_proxy(self.PROXY_PORT_2, self.ACRA_PORT, 'keypair2')
             if not self.EXTERNAL_ACRA:
                 self.acra = self.fork_acra()
 
             self.engine1 = sa.create_engine(
-                'postgresql+psycopg2://127.0.0.1:{}/{}'.format(self.PROXY_PORT_1,
-                    self.DB_NAME), connect_args=connect_args)
+                get_db_connection_string(self.PROXY_PORT_1, self.DB_NAME), connect_args=get_connect_args(port=self.PROXY_PORT_1))
             self.engine2 = sa.create_engine(
-                'postgresql+psycopg2://127.0.0.1:{}/{}'.format(
-                    self.PROXY_PORT_2, self.DB_NAME), connect_args=connect_args)
+                get_db_connection_string(
+                    self.PROXY_PORT_2, self.DB_NAME), connect_args=get_connect_args(port=self.PROXY_PORT_2))
             self.engine_raw = sa.create_engine(
                 'postgresql://{}:{}/{}'.format(self.DB_HOST, self.DB_PORT, self.DB_NAME),
                 connect_args=connect_args)
@@ -593,8 +650,7 @@ class TestKeyNonExistence(BaseTestCase):
     def setUp(self):
         if not self.EXTERNAL_ACRA:
             self.acra = self.fork_acra()
-        self.dsn = 'postgresql://127.0.0.1:{}@{}:{}'.format(
-            DB_USER, DB_USER_PASSWORD, self.PROXY_PORT_1)
+        self.dsn = {'port': self.PROXY_PORT_1, 'host': '/tmp'}
 
     def tearDown(self):
         if not self.EXTERNAL_ACRA:
@@ -618,7 +674,7 @@ class TestKeyNonExistence(BaseTestCase):
                 self.PROXY_PORT_1, self.ACRA_PORT, keyname)
             self.assertIsNone(self.proxy.poll())
             with self.assertRaises(psycopg2.OperationalError) as exc:
-                connection = psycopg2.connect(self.dsn)
+                connection = psycopg2.connect(**self.dsn)
 
         finally:
             self.proxy.kill()
@@ -661,7 +717,7 @@ class TestKeyNonExistence(BaseTestCase):
                 self.PROXY_PORT_1, self.ACRA_PORT, keyname)
             self.assertIsNone(self.proxy.poll())
             with self.assertRaises(psycopg2.OperationalError):
-                connection = psycopg2.connect(self.dsn)
+                connection = psycopg2.connect(**self.dsn)
         finally:
             self.proxy.kill()
             self.proxy.wait()
@@ -908,8 +964,8 @@ class TestKeyStorageClearing(BaseTestCase):
                 zonemode='true', disable_zone_api='false')
 
         self.engine1 = sa.create_engine(
-            'postgresql://127.0.0.1:{}/{}'.format(self.PROXY_PORT_1, self.DB_NAME),
-            connect_args=connect_args)
+            get_db_connection_string(self.PROXY_PORT_1, self.DB_NAME),
+            connect_args=get_connect_args(port=self.PROXY_PORT_1))
 
         self.engine_raw = sa.create_engine(
             'postgresql://{}:{}/{}'.format(self.DB_HOST, self.DB_PORT, self.DB_NAME),
