@@ -77,7 +77,7 @@ func handleClientConnection(config *Config, connection net.Conn) {
 		}
 	}
 
-	acraConn, err := net.Dial("tcp", fmt.Sprintf("%v:%v", config.AcraHost, config.AcraPort))
+	acraConn, err := network.Dial(config.AcraConnectionString)
 	if err != nil {
 		log.Printf("Error: %v\n", utils.ErrorMessage("can't connect to acra", err))
 		return
@@ -127,32 +127,34 @@ func handleClientConnection(config *Config, connection net.Conn) {
 }
 
 type Config struct {
-	KeysDir           string
-	ClientId          []byte
-	AcraId            []byte
-	AcraHost          string
-	AcraPort          int
-	Port              int
-	disableUserCheck  bool
-	KeyStore          keystore.SecureSessionKeyStore
-	ConnectionWrapper network.ConnectionWrapper
+	KeysDir              string
+	ClientId             []byte
+	AcraId               []byte
+	AcraConnectionString string
+	ConnectionString     string
+	disableUserCheck     bool
+	KeyStore             keystore.SecureSessionKeyStore
+	ConnectionWrapper    network.ConnectionWrapper
 }
 
 func main() {
 	keysDir := flag.String("keys_dir", keystore.DEFAULT_KEY_DIR_SHORT, "Folder from which will be loaded keys")
 	clientId := flag.String("client_id", "", "Client id")
 	acraHost := flag.String("acra_host", "", "IP or domain to acra daemon")
-	acraCommandsPort := flag.Int("acra_commands_port", 9090, "Port of acra http api")
-	acraPort := flag.Int("acra_port", 9393, "Port of acra daemon")
+	acraCommandsPort := flag.Int("acra_commands_port", cmd.DEFAULT_ACRA_API_PORT, "Port of acra http api")
+	acraPort := flag.Int("acra_port", cmd.DEFAULT_ACRA_PORT, "Port of acra daemon")
 	acraId := flag.String("acra_id", "acra_server", "Expected id from acraserver for Secure Session")
 	verbose := flag.Bool("v", false, "Log to stdout")
-	port := flag.Int("port", 9494, "Port fo acraproxy")
-	commandsPort := flag.Int("command_port", 9191, "Port for acraproxy http api")
+	port := flag.Int("port", cmd.DEFAULT_PROXY_PORT, "Port fo acraproxy")
+	commandsPort := flag.Int("command_port", cmd.DEFAULT_PROXY_API_PORT, "Port for acraproxy http api")
 	withZone := flag.Bool("zonemode", false, "Turn on zone mode")
 	disableUserCheck := flag.Bool("disable_user_check", false, "Disable checking that connections from app running from another user")
 	useTls := flag.Bool("tls", false, "Use tls")
 	noEncryption := flag.Bool("no_encryption", false, "Don't use encryption in transport")
-	connectionString := flag.String("connection_string", "", "Connection string like tcp://x.x.x.x:yyyy or unix:///path/to/socket")
+	connectionString := flag.String("connection_string", network.BuildConnectionString(cmd.DEFAULT_PROXY_CONNECTION_PROTOCOL, cmd.DEFAULT_PROXY_HOST, cmd.DEFAULT_PROXY_PORT, ""), "Connection string like tcp://x.x.x.x:yyyy or unix:///path/to/socket")
+	connectionAPIString := flag.String("connection_api_string", network.BuildConnectionString(cmd.DEFAULT_PROXY_CONNECTION_PROTOCOL, cmd.DEFAULT_PROXY_HOST, cmd.DEFAULT_PROXY_API_PORT, ""), "Connection string like tcp://x.x.x.x:yyyy or unix:///path/to/socket")
+	acraConnectionString := flag.String("acra_connection_string", "", "Connection string to Acra server like tcp://x.x.x.x:yyyy or unix:///path/to/socket")
+	acraApiConnectionString := flag.String("acra_api_connection_string", "", "Connection string to Acra's API like tcp://x.x.x.x:yyyy or unix:///path/to/socket")
 
 	log.SetPrefix("Acraproxy: ")
 
@@ -162,8 +164,28 @@ func main() {
 		os.Exit(1)
 	}
 
-	if *connectionString == "" {
-		*connectionString = network.BuildConnectionString("tcp", "127.0.0.1", *port, "")
+	if *port != cmd.DEFAULT_PROXY_PORT {
+		*connectionString = network.BuildConnectionString(cmd.DEFAULT_PROXY_CONNECTION_PROTOCOL, cmd.DEFAULT_PROXY_HOST, *port, "")
+	}
+	if *commandsPort != cmd.DEFAULT_PROXY_API_PORT {
+		*connectionAPIString = network.BuildConnectionString(cmd.DEFAULT_PROXY_CONNECTION_PROTOCOL, cmd.DEFAULT_PROXY_HOST, *commandsPort, "")
+	}
+
+	if *acraHost == "" && *acraConnectionString == "" {
+		fmt.Println("Error: you must pass acra_host or acra_connection_string parameter")
+		os.Exit(1)
+	}
+	if *acraHost != "" {
+		*acraConnectionString = network.BuildConnectionString(cmd.DEFAULT_ACRA_CONNECTION_PROTOCOL, *acraHost, *acraPort, "")
+	}
+	if *withZone {
+		if *acraHost == "" && *acraApiConnectionString == "" {
+			fmt.Println("Error: you must pass acra_host or acra_api_connection_string parameter")
+			os.Exit(1)
+		}
+		if *acraHost != "" {
+			*acraApiConnectionString = network.BuildConnectionString(cmd.DEFAULT_ACRA_CONNECTION_PROTOCOL, *acraHost, *acraCommandsPort, "")
+		}
 	}
 
 	cmd.ValidateClientId(*clientId)
@@ -208,7 +230,7 @@ func main() {
 		log.Println("Error: can't initialize keystore")
 		os.Exit(1)
 	}
-	config := &Config{KeyStore: keyStore, KeysDir: *keysDir, ClientId: []byte(*clientId), AcraHost: *acraHost, AcraPort: *acraPort, Port: *port, AcraId: []byte(*acraId), disableUserCheck: *disableUserCheck}
+	config := &Config{KeyStore: keyStore, KeysDir: *keysDir, ClientId: []byte(*clientId), AcraConnectionString: *acraConnectionString, ConnectionString: *connectionString, AcraId: []byte(*acraId), disableUserCheck: *disableUserCheck}
 	listener, err := network.Listen(*connectionString)
 	if err != nil {
 		log.Printf("Error: %v\n", utils.ErrorMessage("can't start listen connections", err))
@@ -236,11 +258,10 @@ func main() {
 		go func() {
 			// copy config and replace ports
 			commandsConfig := *config
-			commandsConfig.AcraPort = *acraCommandsPort
-			commandsConfig.Port = *commandsPort
+			commandsConfig.AcraConnectionString = *acraApiConnectionString
 
-			log.Printf("Info: start listening http api %v\n", *commandsPort)
-			commandsListener, err := net.Listen("tcp", fmt.Sprintf(":%v", *commandsPort))
+			log.Printf("Info: start listening http api %s\n", *connectionAPIString)
+			commandsListener, err := network.Listen(*connectionAPIString)
 			if err != nil {
 				log.Printf("Error: %v\n", utils.ErrorMessage("can't start listen connections to http api", err))
 				os.Exit(1)

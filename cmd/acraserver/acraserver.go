@@ -30,19 +30,16 @@ import (
 // DEFAULT_CONFIG_PATH relative path to config which will be parsed as default
 var DEFAULT_CONFIG_PATH = utils.GetConfigPathByName("acraserver")
 const (
-	ACRA_DEFAULT_HOST = "0.0.0.0"
-	ACRA_DEFAULT_PORT = 9393
-	ACRA_DEFAULT_API_PORT = 9090
-	ACRA_DEFAULT_CONNECTION_PROTOCOL = "tcp"
+
 )
 
 func main() {
 	dbHost := flag.String("db_host", "", "Host to db")
 	dbPort := flag.Int("db_port", 5432, "Port to db")
 
-	host := flag.String("host", ACRA_DEFAULT_HOST, "Host for AcraServer")
-	port := flag.Int("port", ACRA_DEFAULT_PORT, "Port for AcraServer")
-	commandsPort := flag.Int("commands_port", ACRA_DEFAULT_API_PORT, "Port for AcraServer for http api")
+	host := flag.String("host", cmd.DEFAULT_ACRA_HOST, "Host for AcraServer")
+	port := flag.Int("port", cmd.DEFAULT_ACRA_PORT, "Port for AcraServer")
+	commandsPort := flag.Int("commands_port", cmd.DEFAULT_ACRA_API_PORT, "Port for AcraServer for http api")
 
 	keysDir := flag.String("keys_dir", keystore.DEFAULT_KEY_DIR_SHORT, "Folder from which will be loaded keys")
 
@@ -68,8 +65,8 @@ func main() {
 	tlsKey := flag.String("tls_key", "", "Path to tls server key")
 	tlsCert := flag.String("tls_cert", "", "Path to tls server certificate")
 	noEncryption := flag.Bool("no_encryption", false, "Don't use encryption in transport")
-	acraConnectionString := flag.String("connection_string", network.BuildConnectionString(ACRA_DEFAULT_CONNECTION_PROTOCOL, ACRA_DEFAULT_HOST, ACRA_DEFAULT_PORT, ""), "Connection string like tcp://x.x.x.x:yyyy or unix:///path/to/socket")
-	acraAPIConnectionString := flag.String("connection_api_string", network.BuildConnectionString(ACRA_DEFAULT_CONNECTION_PROTOCOL, ACRA_DEFAULT_HOST, ACRA_DEFAULT_API_PORT, ""), "Connection string for api like tcp://x.x.x.x:yyyy or unix:///path/to/socket")
+	acraConnectionString := flag.String("connection_string", network.BuildConnectionString(cmd.DEFAULT_ACRA_CONNECTION_PROTOCOL, cmd.DEFAULT_ACRA_HOST, cmd.DEFAULT_ACRA_PORT, ""), "Connection string like tcp://x.x.x.x:yyyy or unix:///path/to/socket")
+	acraAPIConnectionString := flag.String("connection_api_string", network.BuildConnectionString(cmd.DEFAULT_ACRA_CONNECTION_PROTOCOL, cmd.DEFAULT_ACRA_HOST, cmd.DEFAULT_ACRA_API_PORT, ""), "Connection string for api like tcp://x.x.x.x:yyyy or unix:///path/to/socket")
 
 	log.SetPrefix("Acraserver: ")
 
@@ -81,10 +78,10 @@ func main() {
 
 	cmd.ValidateClientId(*serverId)
 
-	if *host != ACRA_DEFAULT_HOST || *port != ACRA_DEFAULT_PORT {
+	if *host != cmd.DEFAULT_ACRA_HOST || *port != cmd.DEFAULT_ACRA_PORT {
 		*acraConnectionString = network.BuildConnectionString("tcp", *host, *port, "")
 	}
-	if *commandsPort != ACRA_DEFAULT_API_PORT {
+	if *commandsPort != cmd.DEFAULT_ACRA_API_PORT {
 		*acraConnectionString = network.BuildConnectionString("tcp", *host, *commandsPort, "")
 	}
 
