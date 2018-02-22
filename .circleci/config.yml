@@ -20,6 +20,7 @@ jobs:
       - run: cd $HOME && for version in $VERSIONS; do mkdir -p go_path_$version/src/github.com/cossacklabs/themis/gothemis; mkdir -p go_path_$version/src/github.com/cossacklabs/acra; rsync -auv $HOME/themis/gothemis/ go_path_$version/src/github.com/cossacklabs/themis/gothemis; rsync -auv $HOME/project/ go_path_$version/src/github.com/cossacklabs/acra; done
       - run: cd $HOME && for version in $VERSIONS; do GOROOT=$HOME/go_root_$version/go PATH=$GOROOT/bin/:$PATH GOPATH=$HOME/go_path_$version go get github.com/cossacklabs/acra/...; done
       - run: pip3 install -r $HOME/project/tests/requirements.txt
+      - run: sudo ldconfig
     # testing
       # delete file if exists
       - run: if [ -f $FILEPATH_ERROR_FLAG ]; then rm "$FILEPATH_ERROR_FLAG"; fi
