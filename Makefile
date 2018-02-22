@@ -36,18 +36,13 @@ temp_copy:
 	@rsync -az $(RSYNC_EXCLUDE) ./* $(TEMP_GOPATH)/src/github.com/cossacklabs/acra
 	@GOPATH=$(ABS_TEMP_GOPATH) go get github.com/cossacklabs/acra/cmd/...
 
-
 install: temp_copy
 	@mkdir -p $(BIN_PATH)
 	@cp $(TEMP_GOPATH)/bin/* $(BIN_PATH)
 
-# alias for unification with other products
-install_all: install
-
 clean:
 	@rm -rf $(BIN_PATH)
 	@rm -rf $(TEMP_GOPATH)
-
 
 test_go:
 	@GOPATH=$(ABS_TEMP_GOPATH) go test github.com/cossacklabs/acra/...
@@ -63,7 +58,7 @@ test: temp_copy test_go
 
 # alias for unification with other products
 test_all: test
-	
+
 
 PACKAGE_NAME = acra
 COSSACKLABS_URL = https://www.cossacklabs.com
@@ -122,7 +117,7 @@ deb: install
 		 $(DEBIAN_DEPENDENCIES) \
 		 --deb-priority optional \
 		 --category security \
-		 $(TEMP_GOPATH)/bin/=$(PREFIX)/bin/$(PACKAGE_NAME)
+		 $(TEMP_GOPATH)/bin/=$(PREFIX)/bin
 
 # it's just for printing .deb files
 	@find $(BIN_PATH) -name \*.deb
@@ -142,6 +137,6 @@ rpm: install
 		--package $(BIN_PATH)/rpm/$(PACKAGE_NAME)-$(NAME_SUFFIX) \
 		--version $(RPM_VERSION) \
 		--category security \
-		$(TEMP_GOPATH)/bin/=$(PREFIX)/bin/$(PACKAGE_NAME)
+		$(TEMP_GOPATH)/bin/=$(PREFIX)/bin
 # it's just for printing .rpm files
 	@find $(BIN_PATH) -name \*.rpm
