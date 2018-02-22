@@ -3,7 +3,10 @@ jobs:
   x86_64:
     docker:
       - image: cossacklabs/android-build
-      - image: circleci/postgres:alpine-ram
+      - image: postgres:9.4.16-alpine
+        environment:
+          POSTGRES_PASSWORD=postgres
+          POSTGRES_USER=postgres
     environment:
       GOTHEMIS_IMPORT: github.com/cossacklabs/themis/gothemis
       FILEPATH_ERROR_FLAG: /tmp/test_fail
@@ -19,7 +22,7 @@ jobs:
       - run: pip3 install -r $HOME/project/tests/requirements.txt
     # testing
       # delete file if exists
-      - run: rm "$FILEPATH_ERROR_FLAG" | true
+      - run: if [ -f $FILEPATH_ERROR_FLAG ]; then rm "$FILEPATH_ERROR_FLAG"; fi
       # run test in each go environment and create $FILEPATH_ERROR_FLAG file if was any error. But all tests should
       - run: cd $HOME && for version in $VERSIONS; do export GOROOT=$HOME/go_root_$version/go; export PATH=$GOROOT/bin/:$PATH; export GOPATH=$HOME/go_path_$version; go test -v github.com/cossacklabs/acra/...; if [ "$?" != "0" ]; then echo "$version" >> "$FILEPATH_ERROR_FLAG"; fi done
       # if file exists (exit code of stat == 0 ) then something was wrong. cat file with versions of environments where was error and return exit 1
