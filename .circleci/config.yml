@@ -26,7 +26,8 @@ jobs:
       # run test in each go environment and create $FILEPATH_ERROR_FLAG file if was any error. But all tests should
       - run: cd $HOME && for version in $VERSIONS; do export GOROOT=$HOME/go_root_$version/go; export PATH=$GOROOT/bin/:$PATH; export GOPATH=$HOME/go_path_$version; go test -v github.com/cossacklabs/acra/...; if [ "$?" != "0" ]; then echo "$version" >> "$FILEPATH_ERROR_FLAG"; fi done
       # if file exists (exit code of stat == 0 ) then something was wrong. cat file with versions of environments where was error and return exit 1
-      - run: stat "$FILEPATH_ERROR_FLAG"; if [ "$?" != "1" ]; then cat "$FILEPATH_ERROR_FLAG"; exit 1; fi
+      - run: if [ -f  $FILEPATH_ERROR_FLAG ]; then cat "$FILEPATH_ERROR_FLAG"; rm "$FILEPATH_ERROR_FLAG"; exit 1; fi
+      - run: cd $HOME/project && for version in $VERSIONS; do export GOROOT=$HOME/go_root_$version/go; export PATH=$GOROOT/bin/:$PATH; export GOPATH=$HOME/go_path_$version; python3 tests/test.py; if [ "$?" != "0" ]; then echo "$version" >> "$FILEPATH_ERROR_FLAG"; fi done
 workflows:
   version: 2
   tests:
