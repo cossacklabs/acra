@@ -57,7 +57,7 @@ DB_USER = os.environ.get('TEST_DB_USER', 'postgres')
 DB_USER_PASSWORD = os.environ.get('TEST_DB_USER_PASSWORD', 'postgres')
 connect_args = {
     'user': DB_USER, 'password': DB_USER_PASSWORD,
-    "options": "-c statement_timeout=1000", 'sslmode': 'require'}
+    "options": "-c statement_timeout=1000", 'sslmode': 'allow'}
 
 def get_connect_args(port=5432, sslmode='require'):
     args = connect_args.copy()
