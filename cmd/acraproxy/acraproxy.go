@@ -38,11 +38,7 @@ import (
 var DEFAULT_CONFIG_PATH = utils.GetConfigPathByName("acraproxy")
 
 func handleClientConnection(config *Config, connection net.Conn) {
-	defer func() {
-		log.Println("acraproxy connection close")
-		connection.Close()
-		log.Println("acraproxy connection closed")
-	}()
+	defer connection.Close()
 
 	if !(config.disableUserCheck) {
 		host, port, err := net.SplitHostPort(connection.RemoteAddr().String())

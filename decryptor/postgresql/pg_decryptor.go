@@ -137,7 +137,7 @@ func (row *DataRow) ReadDataLength() bool {
 
 func (row *DataRow) ReadColumnCount() bool {
 	// read column count
-	columnCountBuf := row.output[DATA_ROW_LENGTH_BUF_SIZE: DATA_ROW_LENGTH_BUF_SIZE+2]
+	columnCountBuf := row.output[DATA_ROW_LENGTH_BUF_SIZE : DATA_ROW_LENGTH_BUF_SIZE+2]
 	n, err := row.reader.Read(columnCountBuf)
 	if !base.CheckReadWrite(n, 2, err, row.errCh) {
 		return false
@@ -188,7 +188,7 @@ func PgDecryptStream(decryptor base.Decryptor, dbConnection net.Conn, clientConn
 					return
 				}
 				// stop reading from client in goroutine
-				if err = clientConnection.SetDeadline(time.Now()); err != nil{
+				if err = clientConnection.SetDeadline(time.Now()); err != nil {
 					log.WithError(err).Error("can't set deadline")
 					errCh <- err
 					return
@@ -196,7 +196,7 @@ func PgDecryptStream(decryptor base.Decryptor, dbConnection net.Conn, clientConn
 				//
 				time.Sleep(time.Millisecond)
 				// reset deadline
-				if err = clientConnection.SetDeadline(time.Time{}); err != nil{
+				if err = clientConnection.SetDeadline(time.Time{}); err != nil {
 					log.WithError(err).Error("can't set deadline")
 					errCh <- err
 					return
@@ -261,12 +261,12 @@ func PgDecryptStream(decryptor base.Decryptor, dbConnection net.Conn, clientConn
 		for i := 0; i < row.columnCount; i++ {
 			// read column length
 			row.CheckOutputSize(4)
-			n, err := reader.Read(row.output[row.writeIndex: row.writeIndex+4])
+			n, err := reader.Read(row.output[row.writeIndex : row.writeIndex+4])
 			if !base.CheckReadWrite(n, 4, err, errCh) {
 				return
 			}
 			// save pointer on column size
-			row.columnSizePointer = row.output[row.writeIndex: row.writeIndex+4]
+			row.columnSizePointer = row.output[row.writeIndex : row.writeIndex+4]
 			row.writeIndex += 4
 			columnDataLength := int(int32(binary.BigEndian.Uint32(row.columnSizePointer)))
 			if columnDataLength == 0 || columnDataLength == -1 {
@@ -285,10 +285,10 @@ func PgDecryptStream(decryptor base.Decryptor, dbConnection net.Conn, clientConn
 			row.columnDataBuf.Grow(columnDataLength)
 			row.CheckOutputSize(columnDataLength)
 			// reassign column_size_p
-			row.columnSizePointer = row.output[row.writeIndex-4: row.writeIndex]
+			row.columnSizePointer = row.output[row.writeIndex-4 : row.writeIndex]
 
 			// read column data
-			n, err = reader.Read(row.output[row.writeIndex: row.writeIndex+columnDataLength])
+			n, err = reader.Read(row.output[row.writeIndex : row.writeIndex+columnDataLength])
 			if !base.CheckReadWrite(n, columnDataLength, err, errCh) {
 				return
 			}
@@ -302,7 +302,7 @@ func PgDecryptStream(decryptor base.Decryptor, dbConnection net.Conn, clientConn
 					// check only if has any action on detection
 					if decryptor.GetPoisonCallbackStorage().HasCallbacks() {
 						log.Println("Debug: check poison records")
-						block, err := decryptor.SkipBeginInBlock(row.output[row.writeIndex: row.writeIndex+columnDataLength])
+						block, err := decryptor.SkipBeginInBlock(row.output[row.writeIndex : row.writeIndex+columnDataLength])
 						if err == nil {
 							poisoned, err := decryptor.CheckPoisonRecord(bytes.NewReader(block))
 							if err != nil || poisoned {
@@ -319,7 +319,7 @@ func PgDecryptStream(decryptor base.Decryptor, dbConnection net.Conn, clientConn
 
 					decryptor.Reset()
 					if !decryptor.IsWithZone() || decryptor.IsMatchedZone() {
-						decrypted, err := decryptor.DecryptBlock(row.output[row.writeIndex: row.writeIndex+columnDataLength])
+						decrypted, err := decryptor.DecryptBlock(row.output[row.writeIndex : row.writeIndex+columnDataLength])
 						if err == nil {
 							copy(row.output[row.writeIndex:], decrypted)
 							row.UpdateColumnAndDataSize(columnDataLength, len(decrypted))
@@ -331,7 +331,7 @@ func PgDecryptStream(decryptor base.Decryptor, dbConnection net.Conn, clientConn
 							return
 						}
 					} else {
-						decryptor.MatchZoneBlock(row.output[row.writeIndex: row.writeIndex+columnDataLength])
+						decryptor.MatchZoneBlock(row.output[row.writeIndex : row.writeIndex+columnDataLength])
 					}
 					row.writeIndex += columnDataLength
 				} else {
@@ -363,7 +363,7 @@ func PgDecryptStream(decryptor base.Decryptor, dbConnection net.Conn, clientConn
 						}
 					}
 					if decryptor.IsWithZone() && !decryptor.IsMatchedZone() {
-						decryptor.MatchZoneInBlock(row.output[row.writeIndex: row.writeIndex+columnDataLength])
+						decryptor.MatchZoneInBlock(row.output[row.writeIndex : row.writeIndex+columnDataLength])
 						row.writeIndex += columnDataLength
 						continue
 					}
