@@ -145,4 +145,12 @@ func TestBlacklistFirewall(t *testing.T) {
 	if err == nil {
 		t.Fatal(err)
 	}
+
+	blacklistHandler.RemoveQueriesFromBlacklist([]string{"INSERT INTO dbo.Points (PointValue) VALUES (CONVERT(Point, '1,5'));"})
+
+	err = firewall.HandleQuery("INSERT INTO dbo.Points (PointValue) VALUES (CONVERT(Point, '1,5'));")
+	//now firewall should not block this query
+	if err != nil {
+		t.Fatal(err)
+	}
 }
