@@ -193,7 +193,7 @@ func PgDecryptStream(decryptor base.Decryptor, dbConnection net.Conn, clientConn
 					errCh <- err
 					return
 				}
-				//
+				// back control and allow golang runtime handle deadline in background goroutine
 				time.Sleep(time.Millisecond)
 				// reset deadline
 				if err = clientConnection.SetDeadline(time.Time{}); err != nil {
