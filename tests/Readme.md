@@ -24,7 +24,7 @@ Your database should be up and running.
 # Install python requirements
 
 ```console
-pip install -r tests/requirements.txt
+pip3 install -r tests/requirements.txt
 ```
 
 
