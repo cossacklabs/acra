@@ -110,7 +110,7 @@ func (server *SServer) handleConnection(connection net.Conn) {
 func (server *SServer) Start() {
 	listener, err := network.Listen(server.config.GetAcraConnectionString())
 	if err != nil {
-		log.Printf("Error: %v\n", utils.ErrorMessage("can't start listen connections", err))
+		log.Errorf("%v\n", utils.ErrorMessage("can't start listen connections", err))
 		return
 	}
 	defer listener.Close()
@@ -118,10 +118,15 @@ func (server *SServer) Start() {
 	for {
 		connection, err := listener.Accept()
 		if err != nil {
-			log.Printf("Error: %v\n", utils.ErrorMessage(fmt.Sprintf("can't accept new connection (connection=%v)", connection), err))
+			log.Errorf("%v\n", utils.ErrorMessage(fmt.Sprintf("can't accept new connection (connection=%v)", connection), err))
 			continue
 		}
-		log.Printf("Info: new connection: %v\n", connection.RemoteAddr())
+		// unix socket and value == '@'
+		if len(connection.RemoteAddr().String()) == 1 {
+			log.Printf("Info: new connection to acraserver: <%v>\n", connection.LocalAddr())
+		} else {
+			log.Printf("Info: new connection to acraserver: <%v>\n", connection.RemoteAddr())
+		}
 		go server.handleConnection(connection)
 	}
 }
@@ -161,7 +166,6 @@ func (server *SServer) handleCommandsConnection(connection net.Conn) {
 
 // start listening commands connections from proxy
 func (server *SServer) StartCommands() {
-	log.Printf("Info: start listening http api %v\n", server.config.GetProxyCommandsPort())
 	listener, err := network.Listen(server.config.GetAcraAPIConnectionString())
 	if err != nil {
 		log.Printf("Error: %v\n", utils.ErrorMessage("can't start listen command connections", err))
@@ -174,7 +178,12 @@ func (server *SServer) StartCommands() {
 			log.Printf("Error: %v\n", utils.ErrorMessage(fmt.Sprintf("can't accept new connection (%v)", connection.RemoteAddr()), err))
 			continue
 		}
-		log.Printf("Info: new connection to http api: %v\n", connection.RemoteAddr())
+		// unix socket and value == '@'
+		if len(connection.RemoteAddr().String()) == 1 {
+			log.Printf("Info: new connection to http api: <%v>\n", connection.LocalAddr())
+		} else {
+			log.Printf("Info: new connection to http api: <%v>\n", connection.RemoteAddr())
+		}
 		go server.handleCommandsConnection(connection)
 	}
 }

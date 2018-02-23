@@ -56,13 +56,11 @@ func WriteFull(data []byte, wr io.Writer) (int, error) {
 
 func SendData(data []byte, conn io.Writer) error {
 	var buf [4]byte
-	log.Printf("SendData send length %v bytes\n", len(data))
 	binary.LittleEndian.PutUint32(buf[:], uint32(len(data)))
 	_, err := WriteFull(buf[:], conn)
 	if err != nil {
 		return err
 	}
-	log.Println("SendData send data")
 	_, err = WriteFull(data, conn)
 	if err != nil {
 		return err
@@ -72,14 +70,12 @@ func SendData(data []byte, conn io.Writer) error {
 
 func ReadData(reader io.Reader) ([]byte, error) {
 	var length [4]byte
-	log.Println("ReadData read length")
 	_, err := io.ReadFull(reader, length[:])
 	if err != nil {
 		return nil, err
 	}
 	dataSize := int(binary.LittleEndian.Uint32(length[:]))
 	buf := make([]byte, dataSize)
-	log.Println("ReadData read data")
 	_, err = io.ReadFull(reader, buf)
 	if err != nil {
 		return nil, err

@@ -21,7 +21,7 @@ import (
 	"github.com/cossacklabs/acra/keystore"
 	"github.com/cossacklabs/acra/network"
 	"github.com/cossacklabs/acra/utils"
-	"log"
+	log "github.com/sirupsen/logrus"
 	"net/http"
 	_ "net/http/pprof"
 	"os"
@@ -29,9 +29,6 @@ import (
 
 // DEFAULT_CONFIG_PATH relative path to config which will be parsed as default
 var DEFAULT_CONFIG_PATH = utils.GetConfigPathByName("acraserver")
-const (
-
-)
 
 func main() {
 	dbHost := flag.String("db_host", "", "Host to db")
@@ -68,8 +65,6 @@ func main() {
 	acraConnectionString := flag.String("connection_string", network.BuildConnectionString(cmd.DEFAULT_ACRA_CONNECTION_PROTOCOL, cmd.DEFAULT_ACRA_HOST, cmd.DEFAULT_ACRA_PORT, ""), "Connection string like tcp://x.x.x.x:yyyy or unix:///path/to/socket")
 	acraAPIConnectionString := flag.String("connection_api_string", network.BuildConnectionString(cmd.DEFAULT_ACRA_CONNECTION_PROTOCOL, cmd.DEFAULT_ACRA_HOST, cmd.DEFAULT_ACRA_API_PORT, ""), "Connection string for api like tcp://x.x.x.x:yyyy or unix:///path/to/socket")
 
-	log.SetPrefix("Acraserver: ")
-
 	err := cmd.Parse(DEFAULT_CONFIG_PATH)
 	if err != nil {
 		fmt.Printf("Error: %v\n", utils.ErrorMessage("Can't parse args", err))
@@ -86,10 +81,13 @@ func main() {
 	}
 
 	if *debug {
+		log.SetLevel(log.DebugLevel)
 		cmd.SetLogLevel(cmd.LOG_DEBUG)
 	} else if *verbose {
+		log.SetLevel(log.InfoLevel)
 		cmd.SetLogLevel(cmd.LOG_VERBOSE)
 	} else {
+		log.SetLevel(log.WarnLevel)
 		cmd.SetLogLevel(cmd.LOG_DISCARD)
 	}
 	if *dbHost == "" {
@@ -120,7 +118,7 @@ func main() {
 	}
 
 	keyStore, err := keystore.NewFilesystemKeyStore(*keysDir)
-	if err != nil{
+	if err != nil {
 		log.Println("Error: can't initialize keystore")
 		os.Exit(1)
 	}
@@ -131,8 +129,8 @@ func main() {
 			log.Println(err)
 			return
 		}
-		config.ConnectionWrapper, err = network.NewTLSConnectionWrapper(&tls.Config{Certificates:[]tls.Certificate{cer}})
-		if err != nil{
+		config.ConnectionWrapper, err = network.NewTLSConnectionWrapper(&tls.Config{Certificates: []tls.Certificate{cer}})
+		if err != nil {
 			log.Println("Error: can't initialize tls connection wrapper")
 			os.Exit(1)
 		}
@@ -142,7 +140,7 @@ func main() {
 	} else {
 		log.Println("Use Secure Session transport wrapper")
 		config.ConnectionWrapper, err = network.NewSecureSessionConnectionWrapper(keyStore)
-		if err != nil{
+		if err != nil {
 			log.Println("Error: can't initialize secure session connection wrapper")
 			os.Exit(1)
 		}

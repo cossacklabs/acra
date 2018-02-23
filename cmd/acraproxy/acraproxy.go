@@ -16,8 +16,8 @@ package main
 import (
 	"flag"
 	"fmt"
+	log "github.com/sirupsen/logrus"
 	"io"
-	"log"
 	"net"
 	"os"
 	"os/exec"
@@ -82,11 +82,7 @@ func handleClientConnection(config *Config, connection net.Conn) {
 		log.Printf("Error: %v\n", utils.ErrorMessage("can't connect to acra", err))
 		return
 	}
-	defer func() {
-		log.Println("close acraConn")
-		acraConn.Close()
-		log.Println("closed acraConn")
-	}()
+	defer acraConn.Close()
 
 	log.Printf("Info: send client id <%v>\n", string(config.ClientId))
 
@@ -96,34 +92,28 @@ func handleClientConnection(config *Config, connection net.Conn) {
 		log.Printf("Error: %v\n", utils.ErrorMessage("can't wrap acra connection with secure session", err))
 		return
 	}
-	log.Println("connection wrapped")
 	acraConn.SetDeadline(time.Time{})
-	defer func() {
-		log.Println("close acraConnWrapped")
-		acraConnWrapped.Close()
-		log.Println("closed acraConnWrapped")
-	}()
+	defer acraConnWrapped.Close()
 
 	toAcraErrCh := make(chan error)
 	fromAcraErrCh := make(chan error)
-	log.Println("Debug: secure session initialized")
+	log.Debugln("secure session initialized")
 	go network.Proxy(connection, acraConnWrapped, toAcraErrCh)
 	go network.Proxy(acraConnWrapped, connection, fromAcraErrCh)
 	select {
 	case err = <-toAcraErrCh:
-		log.Println("to acra chan err")
+		log.Debugln("error from connection with client")
 	case err = <-fromAcraErrCh:
-		log.Println("from acra chan err")
+		log.Debugln("error from connection with acra")
 	}
 	if err != nil {
 		if err == io.EOF {
-			log.Println("Debug: connection closed")
+			log.Debugln("connection closed")
 		} else {
 			log.Println("Error: ", err)
 		}
 		return
 	}
-	log.Println("err == nil")
 }
 
 type Config struct {
@@ -155,8 +145,6 @@ func main() {
 	connectionAPIString := flag.String("connection_api_string", network.BuildConnectionString(cmd.DEFAULT_PROXY_CONNECTION_PROTOCOL, cmd.DEFAULT_PROXY_HOST, cmd.DEFAULT_PROXY_API_PORT, ""), "Connection string like tcp://x.x.x.x:yyyy or unix:///path/to/socket")
 	acraConnectionString := flag.String("acra_connection_string", "", "Connection string to Acra server like tcp://x.x.x.x:yyyy or unix:///path/to/socket")
 	acraApiConnectionString := flag.String("acra_api_connection_string", "", "Connection string to Acra's API like tcp://x.x.x.x:yyyy or unix:///path/to/socket")
-
-	log.SetPrefix("Acraproxy: ")
 
 	err := cmd.Parse(DEFAULT_CONFIG_PATH)
 	if err != nil {
@@ -212,9 +200,11 @@ func main() {
 	}
 
 	if *verbose {
+		log.SetLevel(log.InfoLevel)
 		cmd.SetLogLevel(cmd.LOG_VERBOSE)
 	} else {
 		cmd.SetLogLevel(cmd.LOG_DISCARD)
+		log.SetLevel(log.WarnLevel)
 	}
 	if runtime.GOOS != "linux" {
 		*disableUserCheck = true
@@ -222,13 +212,13 @@ func main() {
 
 	keyStore, err := keystore.NewProxyFileSystemKeyStore(*keysDir, []byte(*clientId))
 	if err != nil {
-		log.Println("Error: can't initialize keystore")
+		log.Errorln("Error: can't initialize keystore")
 		os.Exit(1)
 	}
 	config := &Config{KeyStore: keyStore, KeysDir: *keysDir, ClientId: []byte(*clientId), AcraConnectionString: *acraConnectionString, ConnectionString: *connectionString, AcraId: []byte(*acraId), disableUserCheck: *disableUserCheck}
 	listener, err := network.Listen(*connectionString)
 	if err != nil {
-		log.Printf("Error: %v\n", utils.ErrorMessage("can't start listen connections", err))
+		log.Errorf("Error: %v\n", utils.ErrorMessage("can't start listen connections", err))
 		os.Exit(1)
 	}
 	defer listener.Close()
@@ -268,7 +258,12 @@ func main() {
 					log.Printf("Error: %v\n", utils.ErrorMessage(fmt.Sprintf("can't accept new connection (%v)", connection.RemoteAddr()), err))
 					continue
 				}
-				log.Printf("Info: new connection to http api: %v\n", connection.RemoteAddr())
+				// unix socket and value == '@'
+				if len(connection.RemoteAddr().String()) == 1 {
+					log.Printf("Info: new connection to http api: <%v>\n", connection.LocalAddr())
+				} else {
+					log.Printf("Info: new connection to http api: <%v>\n", connection.RemoteAddr())
+				}
 				go handleClientConnection(&commandsConfig, connection)
 			}
 		}()
@@ -280,7 +275,12 @@ func main() {
 			log.Printf("Error: %v\n", utils.ErrorMessage("can't accept new connection", err))
 			os.Exit(1)
 		}
-		log.Printf("Info: new connection: %v\n", connection.RemoteAddr())
+		// unix socket and value == '@'
+		if len(connection.RemoteAddr().String()) == 1 {
+			log.Printf("Info: new connection to acraproxy: <%v>\n", connection.LocalAddr())
+		} else {
+			log.Printf("Info: new connection to acraproxy: <%v>\n", connection.RemoteAddr())
+		}
 		go handleClientConnection(config, connection)
 	}
 }

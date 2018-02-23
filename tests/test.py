@@ -185,7 +185,7 @@ class BaseTestCase(unittest.TestCase):
     DB_BYTEA = 'hex'
     WHOLECELL_MODE = False
     ZONE = False
-    DEBUG_LOG = True
+    DEBUG_LOG = False
     TEST_DATA_LOG = False
     maxDiff = None
 
@@ -276,7 +276,6 @@ class BaseTestCase(unittest.TestCase):
 
     def setUp(self):
         try:
-            print('setUp')
             self.proxy_1 = self.fork_proxy(self.PROXY_PORT_1, self.ACRA_PORT, 'keypair1')
             self.proxy_2 = self.fork_proxy(self.PROXY_PORT_2, self.ACRA_PORT, 'keypair2')
             if not self.EXTERNAL_ACRA:
@@ -314,7 +313,6 @@ class BaseTestCase(unittest.TestCase):
             raise
 
     def tearDown(self):
-        print('tearDown')
         self.proxy_1.kill()
         self.proxy_2.kill()
         processes = [self.proxy_1, self.proxy_2]
@@ -473,7 +471,6 @@ class ZoneHexFormatTest(BaseTestCase):
 
         # without zone in another proxy, in the same proxy and without any proxy
         for engine in self.engines:
-            print(engine)
             result = engine.execute(
                 sa.select([test_table])
                 .where(test_table.c.id == row_id))
@@ -551,10 +548,15 @@ class ZoneEscapeFormatWholeCellTest(WholeCellMixinTest, ZoneEscapeFormatTest):
 
 class TestConnectionClosing(BaseTestCase):
     def setUp(self):
-        self.proxy_1 = self.fork_proxy(
-            self.PROXY_PORT_1, self.ACRA_PORT, 'keypair1')
-        if not self.EXTERNAL_ACRA:
-            self.acra = self.fork_acra()
+        try:
+            self.proxy_1 = self.fork_proxy(
+                self.PROXY_PORT_1, self.ACRA_PORT, 'keypair1')
+            if not self.EXTERNAL_ACRA:
+                self.acra = self.fork_acra()
+        except:
+            self.tearDown()
+            raise
+
 
     def get_connection(self):
         return psycopg2.connect(database=self.DB_NAME, user=DB_USER,
@@ -562,13 +564,15 @@ class TestConnectionClosing(BaseTestCase):
                                 port=self.PROXY_PORT_1)
 
     def tearDown(self):
-        self.proxy_1.kill()
-        if not self.EXTERNAL_ACRA:
+        procs = []
+        if hasattr(self, 'proxy_1'):
+            self.proxy_1.kill()
+            procs.append(self.proxy_1)
+        if not self.EXTERNAL_ACRA and hasattr(self, 'acra'):
             self.acra.kill()
-            for p in [self.proxy_1, self.acra]:
-                p.wait()
-        else:
-            self.proxy_1.wait()
+            procs.append(self.acra)
+        for p in procs:
+            p.wait()
 
     def getActiveConnectionCount(self, cursor):
         cursor.execute('select count(*) from pg_stat_activity;')
@@ -954,32 +958,38 @@ class TestCheckLogPoisonRecord(AcraCatchLogsMixin, BasePoisonRecordTest):
 
 class TestKeyStorageClearing(BaseTestCase):
     def setUp(self):
-        self.key_name = 'clearing_keypair'
-        create_client_keypair(self.key_name)
-        self.proxy_1 = self.fork_proxy(
-            self.PROXY_PORT_1, self.ACRA_PORT, self.key_name, self.PROXY_COMMAND_PORT_1,
-            zone_mode=True)
-        if not self.EXTERNAL_ACRA:
-            self.acra = self.fork_acra(
-                zonemode='true', disable_zone_api='false')
+        try:
+            self.key_name = 'clearing_keypair'
+            create_client_keypair(self.key_name)
+            self.proxy_1 = self.fork_proxy(
+                self.PROXY_PORT_1, self.ACRA_PORT, self.key_name, self.PROXY_COMMAND_PORT_1,
+                zone_mode=True)
+            if not self.EXTERNAL_ACRA:
+                self.acra = self.fork_acra(
+                    zonemode='true', disable_zone_api='false')
 
-        self.engine1 = sa.create_engine(
-            get_db_connection_string(self.PROXY_PORT_1, self.DB_NAME),
-            connect_args=get_connect_args(port=self.PROXY_PORT_1))
+            self.engine1 = sa.create_engine(
+                get_db_connection_string(self.PROXY_PORT_1, self.DB_NAME),
+                connect_args=get_connect_args(port=self.PROXY_PORT_1))
 
-        self.engine_raw = sa.create_engine(
-            'postgresql://{}:{}/{}'.format(self.DB_HOST, self.DB_PORT, self.DB_NAME),
-            connect_args=connect_args)
+            self.engine_raw = sa.create_engine(
+                'postgresql://{}:{}/{}'.format(self.DB_HOST, self.DB_PORT, self.DB_NAME),
+                connect_args=connect_args)
 
-        self.engines = [self.engine1, self.engine_raw]
+            self.engines = [self.engine1, self.engine_raw]
 
-        metadata.create_all(self.engine_raw)
-        self.engine_raw.execute('delete from test;')
+            metadata.create_all(self.engine_raw)
+            self.engine_raw.execute('delete from test;')
+        except:
+            self.tearDown()
+            raise
 
     def tearDown(self):
-        self.proxy_1.kill()
-        processes = [self.proxy_1]
-        if not self.EXTERNAL_ACRA:
+        processes = []
+        if hasattr(self, 'proxy_1'):
+            self.proxy_1.kill()
+            processes.append(self.proxy_1)
+        if not self.EXTERNAL_ACRA and hasattr(self, 'acra'):
             self.acra.kill()
             processes.append(self.acra)
 

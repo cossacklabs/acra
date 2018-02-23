@@ -66,31 +66,23 @@ func (wrapper *secureSessionConnection) Read(b []byte) (n int, err error) {
 		return 0, io.EOF
 	}
 	if wrapper.currentData != nil {
-		log.Println("SS wrapper: copy cached data")
 		n = copy(b, wrapper.currentData[wrapper.returnedIndex:])
-		log.Printf("SS wrapper: copied %v bytes\n", n)
 		wrapper.returnedIndex += n
 		if wrapper.returnedIndex >= cap(wrapper.currentData){
-			log.Println("SS wrapper: cache empty")
 			wrapper.currentData = nil
 		}
 		return n, err
 	}
-	log.Println("SS wrapper: read data from connection")
 	data, err := utils.ReadData(wrapper.Conn)
 	if err != nil {
 		return len(data), err
 	}
-	log.Printf("SS wrapper: read %v bytes\n", len(data))
 	decryptedData, _, err := wrapper.session.Unwrap(data)
 	if err != nil {
 		return len(data), err
 	}
-	log.Printf("SS wrapper: decrypted into %v bytes\n", len(decryptedData))
 	n = copy(b, decryptedData)
-	log.Printf("SS wrapper: copied decrypted data %v bytes\n", n)
 	if n != len(decryptedData){
-		log.Println("SS wrapper: saved cached least data", n)
 		wrapper.currentData = decryptedData
 		wrapper.returnedIndex = n
 	}
@@ -114,15 +106,11 @@ func (wrapper *secureSessionConnection) Write(b []byte) (n int, err error) {
 
 func (wrapper *secureSessionConnection) Close() error {
 	wrapper.closed = true
-	log.Println("close wrapped connection in wrapper")
 	err := wrapper.Conn.Close()
-
 	sessionErr := wrapper.session.Close()
 	if sessionErr != nil{
 		return sessionErr
 	}
-	log.Println("close secure session")
-
 	return err
 }
 
