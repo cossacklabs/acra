@@ -10,4 +10,3 @@ services:
       POSTGRES_PORT: 5432
       PGDATA: /pgdata
     ports: ["5432:5432"]
-    volumes: ["./pgdata:/pgdata"]
