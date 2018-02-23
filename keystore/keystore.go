@@ -41,9 +41,9 @@ func ValidateId(client_id []byte) bool {
 	return true
 }
 
-type SecureSessionKeyStore interface{
-	GetPrivateKey(id []byte)(*keys.PrivateKey, error)
-	GetPeerPublicKey(id []byte)(*keys.PublicKey, error)
+type SecureSessionKeyStore interface {
+	GetPrivateKey(id []byte) (*keys.PrivateKey, error)
+	GetPeerPublicKey(id []byte) (*keys.PublicKey, error)
 }
 
 type KeyStore interface {

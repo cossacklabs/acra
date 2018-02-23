@@ -19,7 +19,7 @@ func Dial(connectionString string) (net.Conn, error) {
 	}
 }
 
-func Listen(connectionString string) (net.Listener, error){
+func Listen(connectionString string) (net.Listener, error) {
 	url, err := url_.Parse(connectionString)
 	if err != nil {
 		return nil, err
@@ -31,6 +31,6 @@ func Listen(connectionString string) (net.Listener, error){
 	}
 }
 
-func BuildConnectionString(protocol, host string, port int, path string)(string){
+func BuildConnectionString(protocol, host string, port int, path string) string {
 	return fmt.Sprintf("%s://%s:%v/%s", protocol, host, port, path)
 }

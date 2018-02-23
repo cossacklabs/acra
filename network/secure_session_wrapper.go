@@ -15,12 +15,12 @@ package network
 
 import (
 	"github.com/cossacklabs/acra/keystore"
-	"github.com/cossacklabs/themis/gothemis/session"
-	"io"
-	"net"
 	"github.com/cossacklabs/acra/utils"
 	"github.com/cossacklabs/themis/gothemis/keys"
+	"github.com/cossacklabs/themis/gothemis/session"
+	"io"
 	"log"
+	"net"
 )
 
 type SessionCallback struct {
@@ -47,17 +47,17 @@ type secureSessionConnection struct {
 	keystore keystore.SecureSessionKeyStore
 	session  *session.SecureSession
 	net.Conn
-	currentData []byte
+	currentData   []byte
 	returnedIndex int
-	closed bool
-	clientId []byte
+	closed        bool
+	clientId      []byte
 }
 
-func newSecureSessionConnection(keystore keystore.SecureSessionKeyStore, conn net.Conn)(*secureSessionConnection, error){
-	return &secureSessionConnection{keystore: keystore, session: nil, Conn: conn, currentData: nil, returnedIndex:0, closed: false, clientId: nil}, nil
+func newSecureSessionConnection(keystore keystore.SecureSessionKeyStore, conn net.Conn) (*secureSessionConnection, error) {
+	return &secureSessionConnection{keystore: keystore, session: nil, Conn: conn, currentData: nil, returnedIndex: 0, closed: false, clientId: nil}, nil
 }
 
-func (wrapper *secureSessionConnection) isClosed()bool {
+func (wrapper *secureSessionConnection) isClosed() bool {
 	return wrapper.closed
 }
 
@@ -68,7 +68,7 @@ func (wrapper *secureSessionConnection) Read(b []byte) (n int, err error) {
 	if wrapper.currentData != nil {
 		n = copy(b, wrapper.currentData[wrapper.returnedIndex:])
 		wrapper.returnedIndex += n
-		if wrapper.returnedIndex >= cap(wrapper.currentData){
+		if wrapper.returnedIndex >= cap(wrapper.currentData) {
 			wrapper.currentData = nil
 		}
 		return n, err
@@ -82,7 +82,7 @@ func (wrapper *secureSessionConnection) Read(b []byte) (n int, err error) {
 		return len(data), err
 	}
 	n = copy(b, decryptedData)
-	if n != len(decryptedData){
+	if n != len(decryptedData) {
 		wrapper.currentData = decryptedData
 		wrapper.returnedIndex = n
 	}
@@ -108,7 +108,7 @@ func (wrapper *secureSessionConnection) Close() error {
 	wrapper.closed = true
 	err := wrapper.Conn.Close()
 	sessionErr := wrapper.session.Close()
-	if sessionErr != nil{
+	if sessionErr != nil {
 		return sessionErr
 	}
 	return err
@@ -119,13 +119,13 @@ type SecureSessionConnectionWrapper struct {
 	clientId []byte
 }
 
-func NewSecureSessionConnectionWrapper(keystore keystore.SecureSessionKeyStore, ) (*SecureSessionConnectionWrapper, error) {
+func NewSecureSessionConnectionWrapper(keystore keystore.SecureSessionKeyStore) (*SecureSessionConnectionWrapper, error) {
 	return &SecureSessionConnectionWrapper{keystore: keystore, clientId: nil}, nil
 }
 
 func (wrapper *SecureSessionConnectionWrapper) wrap(id []byte, conn net.Conn, isServer bool) (net.Conn, []byte, error) {
 	secureConnection, err := newSecureSessionConnection(wrapper.keystore, conn)
-	if err != nil{
+	if err != nil {
 		return conn, nil, err
 	}
 	callback, err := NewSessionCallback(wrapper.keystore)
@@ -133,9 +133,9 @@ func (wrapper *SecureSessionConnectionWrapper) wrap(id []byte, conn net.Conn, is
 		return conn, nil, err
 	}
 	var clientId []byte
-	if isServer{
+	if isServer {
 		clientId, err = utils.ReadData(conn)
-		if err != nil{
+		if err != nil {
 			return conn, nil, err
 		}
 		privateKey, err := wrapper.keystore.GetPrivateKey(clientId)
@@ -157,7 +157,7 @@ func (wrapper *SecureSessionConnectionWrapper) wrap(id []byte, conn net.Conn, is
 			return conn, nil, err
 		}
 		err = utils.SendData(id, conn)
-		if err != nil{
+		if err != nil {
 			return conn, nil, err
 		}
 		connectRequest, err := secureConnection.session.ConnectRequest()

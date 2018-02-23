@@ -81,9 +81,9 @@ func (server *SServer) handleConnection(connection net.Conn) {
 	// initialization of session should be fast, so limit time for connection activity interval
 	connection.SetDeadline(time.Now().Add(INIT_SSESSION_TIMEOUT))
 	wrappedConnection, clientId, err := server.config.ConnectionWrapper.WrapServer(connection)
-	if err != nil{
+	if err != nil {
 		log.WithError(err).Println("can't wrap connection from acraproxy")
-		if closeErr := connection.Close(); closeErr != nil{
+		if closeErr := connection.Close(); closeErr != nil {
 			log.WithError(closeErr).Println("can't close connection")
 		}
 		return
@@ -154,7 +154,7 @@ func (server *SServer) handleCommandsConnection(connection net.Conn) {
 	defer clientSession.session.Close()
 
 	wrappedConnection, _, err := server.config.ConnectionWrapper.WrapServer(connection)
-	if err != nil{
+	if err != nil {
 		return
 	}
 	clientSession.connection = wrappedConnection

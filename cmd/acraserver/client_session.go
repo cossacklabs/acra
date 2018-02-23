@@ -84,13 +84,13 @@ func (clientSession *ClientSession) HandleSecureSession(decryptorImpl base.Decry
 	//go clientSession.proxyConnections(innerErrorChannel)
 
 	go postgresql.PgDecryptStream(decryptorImpl, clientSession.connectionToDb, clientSession.connection, innerErrorChannel)
-	for{
+	for {
 		err = <-innerErrorChannel
 
 		if err == io.EOF {
 			log.Println("Debug: EOF connection closed")
 		} else if netErr, ok := err.(net.Error); ok {
-			if netErr.Timeout(){
+			if netErr.Timeout() {
 				log.Println("Debug: network timeout")
 				continue
 			}

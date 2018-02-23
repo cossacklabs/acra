@@ -38,7 +38,7 @@ func getZoneKeyFilename(id []byte) string {
 	return fmt.Sprintf("%s_zone", string(id))
 }
 
-func getPublicKeyFilename(id[]byte)string{
+func getPublicKeyFilename(id []byte) string {
 	return fmt.Sprintf("%s.pub", id)
 }
 
@@ -60,7 +60,7 @@ func getProxyKeyFilename(id []byte) string {
 
 type ProxyFileSystemKeyStore struct {
 	directory string
-	clientId []byte
+	clientId  []byte
 }
 
 func NewProxyFileSystemKeyStore(directory string, clientId []byte) (*ProxyFileSystemKeyStore, error) {
@@ -77,7 +77,7 @@ func (store *ProxyFileSystemKeyStore) GetPrivateKey(id []byte) (*keys.PrivateKey
 
 func (store *ProxyFileSystemKeyStore) GetPeerPublicKey(id []byte) (*keys.PublicKey, error) {
 	key, err := ioutil.ReadFile(filepath.Join(store.directory, getPublicKeyFilename([]byte(getServerKeyFilename(store.clientId)))))
-	if err != nil{
+	if err != nil {
 		return nil, err
 	}
 	return &keys.PublicKey{Value: key}, nil
