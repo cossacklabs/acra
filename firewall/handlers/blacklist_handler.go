@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"errors"
+
 )
 
 type BlacklistHandler struct {
@@ -16,7 +17,8 @@ func NewBlacklistHandler(blackQueries []string) (*BlacklistHandler, error) {
 }
 
 func(handler * BlacklistHandler) CheckQuery(query string) error {
-	if handler.contains(query) {
+	yes, _ := handler.contains(query)
+	if yes {
 		return ErrQueryInBlacklist
 	}
 	return nil
@@ -28,23 +30,29 @@ func(handler * BlacklistHandler) AddQueriesToBlacklist(queries []string) {
 		handler.blackQueries = append(handler.blackQueries, queries[index])
 	}
 	removeDuplicates(&handler.blackQueries)
+
+
 }
 
 func(handler * BlacklistHandler) RemoveQueriesFromBlacklist(queries []string){
-	for index := 0; index < len(queries); index++ {
-		if handler.contains(queries[index]){
-			//handler.blackQueries[index] = handler.blackQueries[len(handler.blackQueries) - 1]
-			//handler.blackQueries = handler.blackQueries[:len(handler.blackQueries) - 1]
-			handler.blackQueries = append(handler.blackQueries[:index], handler.blackQueries[index + 1:]...)
+
+	for i := 0; i < len(queries); i++ {
+		yes, index := handler.contains(queries[i])
+		if yes {
+			handler.blackQueries = append(handler.blackQueries[:index], handler.blackQueries[index+1:]...)
 		}
 	}
 }
 
-func(handler * BlacklistHandler) contains(query string) bool {
+func(handler * BlacklistHandler) contains(query string) (bool, int) {
+
+	var index int
 	for _, blackQuery := range handler.blackQueries {
 		if blackQuery == query {
-			return true
+
+			return true, index
 		}
+		index++
 	}
-	return false
+	return false, 0
 }

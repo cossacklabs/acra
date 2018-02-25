@@ -20,7 +20,7 @@ func TestWhitelistFirewall(t *testing.T) {
 		"SELECT COUNT(CustomerID), Country FROM Customers GROUP BY Country;",
 		"SELECT SUM(Salary)FROM Employee WHERE Emp_Age < 30;",
 		"SELECT AVG(Price)FROM Products;",
-		"SELECT * FROM Schema.views;",
+		//"SELECT * FROM Schema.views;",
 	}
 
 	sqlInsertQueries := []string {
@@ -69,6 +69,13 @@ func TestWhitelistFirewall(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
+
+	//firewall should block this query because it is not in whitelist
+	err = firewall.HandleQuery("SELECT * FROM Schema.views;")
+	if err == nil {
+		t.Fatal(err)
+	}
+
 
 }
 
