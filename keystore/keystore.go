@@ -41,11 +41,15 @@ func ValidateId(client_id []byte) bool {
 	return true
 }
 
+type SecureSessionKeyStore interface {
+	GetPrivateKey(id []byte) (*keys.PrivateKey, error)
+	GetPeerPublicKey(id []byte) (*keys.PublicKey, error)
+}
+
 type KeyStore interface {
+	SecureSessionKeyStore
 	GetZonePrivateKey(id []byte) (*keys.PrivateKey, error)
 	HasZonePrivateKey(id []byte) bool
-	GetProxyPublicKey(id []byte) (*keys.PublicKey, error)
-	GetServerPrivateKey(id []byte) (*keys.PrivateKey, error)
 	GetServerDecryptionPrivateKey(id []byte) (*keys.PrivateKey, error)
 	// return id, public key, error
 	GenerateZoneKey() ([]byte, []byte, error)

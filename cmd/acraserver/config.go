@@ -15,6 +15,7 @@ package main
 
 import (
 	"errors"
+	"github.com/cossacklabs/acra/network"
 )
 
 const (
@@ -23,22 +24,31 @@ const (
 )
 
 type Config struct {
-	proxyCommandsPort int
-	byteaFormat       int8
-	dbPort            int
-	proxyPort         int
-	dbHost            string
-	proxyHost         string
-	keysDir           string
-	scriptOnPoison    string
-	stopOnPoison      bool
-	withZone          bool
-	wholeMatch        bool
-	serverId          []byte
+	proxyCommandsPort       int
+	byteaFormat             int8
+	dbPort                  int
+	proxyPort               int
+	dbHost                  string
+	proxyHost               string
+	keysDir                 string
+	scriptOnPoison          string
+	stopOnPoison            bool
+	withZone                bool
+	wholeMatch              bool
+	serverId                []byte
+	acraConnectionString    string
+	acraAPIConnectionString string
+	ConnectionWrapper       network.ConnectionWrapper
 }
 
 func NewConfig() *Config {
 	return &Config{withZone: false, stopOnPoison: false, wholeMatch: true}
+}
+func (config *Config) SetAcraConnectionString(str string) {
+	config.acraConnectionString = str
+}
+func (config *Config) SetAcraAPIConnectionString(str string) {
+	config.acraAPIConnectionString = str
 }
 func (config *Config) SetScriptOnPoison(scriptPath string) {
 	config.scriptOnPoison = scriptPath
@@ -122,4 +132,10 @@ func (config *Config) GetWholeMatch() bool {
 }
 func (config *Config) SetWholeMatch(value bool) {
 	config.wholeMatch = value
+}
+func (config *Config) GetAcraConnectionString() string {
+	return config.acraConnectionString
+}
+func (config *Config) GetAcraAPIConnectionString() string {
+	return config.acraAPIConnectionString
 }

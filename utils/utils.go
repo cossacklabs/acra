@@ -68,24 +68,6 @@ func SendData(data []byte, conn io.Writer) error {
 	return nil
 }
 
-func SendSessionData(data []byte, conn io.Writer) error {
-	// as SendData but check that data block less than SESSION_DATA_LIMIT
-	if len(data) > SESSION_DATA_LIMIT {
-		return ErrBigDataBlockSize
-	}
-	var buf [4]byte
-	binary.LittleEndian.PutUint32(buf[:], uint32(len(data)))
-	_, err := WriteFull(buf[:], conn)
-	if err != nil {
-		return err
-	}
-	_, err = WriteFull(data, conn)
-	if err != nil {
-		return err
-	}
-	return nil
-}
-
 func ReadData(reader io.Reader) ([]byte, error) {
 	var length [4]byte
 	_, err := io.ReadFull(reader, length[:])
@@ -93,25 +75,6 @@ func ReadData(reader io.Reader) ([]byte, error) {
 		return nil, err
 	}
 	dataSize := int(binary.LittleEndian.Uint32(length[:]))
-	buf := make([]byte, dataSize)
-	_, err = io.ReadFull(reader, buf)
-	if err != nil {
-		return nil, err
-	}
-	return buf, nil
-}
-
-func ReadSessionData(reader io.Reader) ([]byte, error) {
-	// as ReadData but check that data block less than SESSION_DATA_LIMIT
-	var length [4]byte
-	_, err := io.ReadFull(reader, length[:])
-	if err != nil {
-		return nil, err
-	}
-	dataSize := int(binary.LittleEndian.Uint32(length[:]))
-	if dataSize > SESSION_DATA_LIMIT {
-		return nil, ErrBigDataBlockSize
-	}
 	buf := make([]byte, dataSize)
 	_, err = io.ReadFull(reader, buf)
 	if err != nil {

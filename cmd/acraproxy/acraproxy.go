@@ -14,11 +14,10 @@
 package main
 
 import (
-	"errors"
 	"flag"
 	"fmt"
+	log "github.com/sirupsen/logrus"
 	"io"
-	"log"
 	"net"
 	"os"
 	"os/exec"
@@ -26,141 +25,17 @@ import (
 	"runtime"
 	"strconv"
 	"strings"
+	"time"
 
-	"bytes"
+	"crypto/tls"
 	"github.com/cossacklabs/acra/cmd"
 	"github.com/cossacklabs/acra/keystore"
+	"github.com/cossacklabs/acra/network"
 	"github.com/cossacklabs/acra/utils"
-	"github.com/cossacklabs/themis/gothemis/keys"
-	"github.com/cossacklabs/themis/gothemis/session"
 )
 
 // DEFAULT_CONFIG_PATH relative path to config which will be parsed as default
 var DEFAULT_CONFIG_PATH = utils.GetConfigPathByName("acraproxy")
-
-type ClientSession struct {
-	Config *Config
-}
-
-func (session *ClientSession) StateChanged(ss *session.SecureSession, state int) {}
-
-func (client_session *ClientSession) GetPublicKeyForId(ss *session.SecureSession, id []byte) *keys.PublicKey {
-	if bytes.Compare(client_session.Config.AcraId, id) != 0 {
-		log.Printf("Warning: incorrect server id - %v\n", string(id))
-		return nil
-	}
-	log.Printf("Debug: use %v server's public key\n", fmt.Sprintf("%v/%v_server.pub", client_session.Config.KeysDir, string(client_session.Config.ClientId)))
-	// try to open file in PUBLIC_KEYS_DIR directory where pub file should be named like <client_id>.pub
-	key, _ := utils.LoadPublicKey(fmt.Sprintf("%v/%v_server.pub", client_session.Config.KeysDir, string(client_session.Config.ClientId)))
-	return key
-}
-
-func NewClientSession(config *Config) (*session.SecureSession, error) {
-	log.Printf("Debug: use private key: %v\n", fmt.Sprintf("%v/%v", config.KeysDir, string(config.ClientId)))
-	privateKey, err := utils.LoadPrivateKey(fmt.Sprintf("%v/%v", config.KeysDir, string(config.ClientId)))
-	if err != nil {
-		return nil, err
-	}
-	ssession, err := session.New(config.ClientId, privateKey, &ClientSession{Config: config})
-	if err != nil {
-		return nil, err
-	}
-	return ssession, nil
-}
-
-func initializeSecureSession(config *Config, connection net.Conn) (*session.SecureSession, error) {
-	err := utils.SendSessionData(config.ClientId, connection)
-	if err != nil {
-		return nil, err
-	}
-	log.Println("Debug: create ssession")
-	ssession, err := NewClientSession(config)
-	if err != nil {
-		return nil, err
-	}
-	connectRequest, err := ssession.ConnectRequest()
-	if err != nil {
-		return nil, err
-	}
-	err = utils.SendSessionData(connectRequest, connection)
-	if err != nil {
-		return nil, err
-	}
-	for {
-		data, err := utils.ReadSessionData(connection)
-		if err != nil {
-			return nil, err
-		}
-		buf, sendPeer, err := ssession.Unwrap(data)
-		if nil != err {
-			return nil, err
-		}
-
-		if !sendPeer {
-			log.Println("Debug: initialized secure session")
-			return ssession, nil
-		}
-
-		err = utils.SendSessionData(buf, connection)
-		if err != nil {
-			return nil, err
-		}
-
-		if ssession.GetState() == session.STATE_ESTABLISHED {
-			return ssession, nil
-		}
-	}
-}
-
-func proxyClientConnections(clientConnection, acraConnection net.Conn, session *session.SecureSession, errCh chan<- error) {
-	// postgresql usually use 8kb for buffers
-	buf := make([]byte, 8192)
-	for {
-		n, err := clientConnection.Read(buf)
-		if err != nil {
-			errCh <- err
-			return
-		}
-		encryptedData, err := session.Wrap(buf[:n])
-		if err != nil {
-			errCh <- err
-			return
-		}
-		err = utils.SendData(encryptedData, acraConnection)
-		if err != nil {
-			errCh <- err
-			return
-		}
-		if n == 8192 {
-			log.Printf("Debug: used full acraproxy buffer. Increase size to 2x from %v to %v\n", len(buf), len(buf)*2)
-			buf = make([]byte, len(buf)*2)
-		}
-	}
-}
-
-func proxyAcraConnections(clientConnection, acraConnection net.Conn, session *session.SecureSession, errCh chan<- error) {
-	for {
-		data, err := utils.ReadData(acraConnection)
-		if err != nil {
-			errCh <- err
-			return
-		}
-		decryptedData, _, err := session.Unwrap(data)
-		if err != nil {
-			errCh <- err
-			return
-		}
-		n, err := clientConnection.Write(decryptedData)
-		if err != nil {
-			errCh <- err
-			return
-		}
-		if n != len(decryptedData) {
-			errCh <- errors.New("sent incorrect bytes count")
-			return
-		}
-	}
-}
 
 func handleClientConnection(config *Config, connection net.Conn) {
 	defer connection.Close()
@@ -198,25 +73,38 @@ func handleClientConnection(config *Config, connection net.Conn) {
 		}
 	}
 
-	acraConn, err := net.Dial("tcp", fmt.Sprintf("%v:%v", config.AcraHost, config.AcraPort))
+	acraConn, err := network.Dial(config.AcraConnectionString)
 	if err != nil {
 		log.Printf("Error: %v\n", utils.ErrorMessage("can't connect to acra", err))
 		return
 	}
 	defer acraConn.Close()
-	ssession, err := initializeSecureSession(config, acraConn)
+
+	log.Printf("Info: send client id <%v>\n", string(config.ClientId))
+
+	acraConn.SetDeadline(time.Now().Add(time.Second * 2))
+	acraConnWrapped, err := config.ConnectionWrapper.WrapClient(config.ClientId, acraConn)
 	if err != nil {
-		log.Printf("Error: %v\n", utils.ErrorMessage("can't initialize secure session", err))
+		log.Printf("Error: %v\n", utils.ErrorMessage("can't wrap acra connection with secure session", err))
 		return
 	}
-	errCh := make(chan error)
-	log.Println("Debug: secure session initialized")
-	go proxyClientConnections(connection, acraConn, ssession, errCh)
-	go proxyAcraConnections(connection, acraConn, ssession, errCh)
-	err = <-errCh
+	acraConn.SetDeadline(time.Time{})
+	defer acraConnWrapped.Close()
+
+	toAcraErrCh := make(chan error)
+	fromAcraErrCh := make(chan error)
+	log.Debugln("secure session initialized")
+	go network.Proxy(connection, acraConnWrapped, toAcraErrCh)
+	go network.Proxy(acraConnWrapped, connection, fromAcraErrCh)
+	select {
+	case err = <-toAcraErrCh:
+		log.Debugln("error from connection with client")
+	case err = <-fromAcraErrCh:
+		log.Debugln("error from connection with acra")
+	}
 	if err != nil {
 		if err == io.EOF {
-			log.Println("Debug: connection closed")
+			log.Debugln("connection closed")
 		} else {
 			log.Println("Error: ", err)
 		}
@@ -225,32 +113,63 @@ func handleClientConnection(config *Config, connection net.Conn) {
 }
 
 type Config struct {
-	KeysDir          string
-	ClientId         []byte
-	AcraId           []byte
-	AcraHost         string
-	AcraPort         int
-	Port             int
-	disableUserCheck bool
+	KeysDir              string
+	ClientId             []byte
+	AcraId               []byte
+	AcraConnectionString string
+	ConnectionString     string
+	disableUserCheck     bool
+	KeyStore             keystore.SecureSessionKeyStore
+	ConnectionWrapper    network.ConnectionWrapper
 }
 
 func main() {
 	keysDir := flag.String("keys_dir", keystore.DEFAULT_KEY_DIR_SHORT, "Folder from which will be loaded keys")
 	clientId := flag.String("client_id", "", "Client id")
 	acraHost := flag.String("acra_host", "", "IP or domain to acra daemon")
-	acraCommandsPort := flag.Int("acra_commands_port", 9090, "Port of acra http api")
-	acraPort := flag.Int("acra_port", 9393, "Port of acra daemon")
+	acraCommandsPort := flag.Int("acra_commands_port", cmd.DEFAULT_ACRA_API_PORT, "Port of acra http api")
+	acraPort := flag.Int("acra_port", cmd.DEFAULT_ACRA_PORT, "Port of acra daemon")
 	acraId := flag.String("acra_id", "acra_server", "Expected id from acraserver for Secure Session")
 	verbose := flag.Bool("v", false, "Log to stdout")
-	port := flag.Int("port", 9494, "Port fo acraproxy")
-	commandsPort := flag.Int("command_port", 9191, "Port for acraproxy http api")
+	port := flag.Int("port", cmd.DEFAULT_PROXY_PORT, "Port fo acraproxy")
+	commandsPort := flag.Int("command_port", cmd.DEFAULT_PROXY_API_PORT, "Port for acraproxy http api")
 	withZone := flag.Bool("zonemode", false, "Turn on zone mode")
 	disableUserCheck := flag.Bool("disable_user_check", false, "Disable checking that connections from app running from another user")
+	useTls := flag.Bool("tls", false, "Use tls")
+	noEncryption := flag.Bool("no_encryption", false, "Don't use encryption in transport")
+	connectionString := flag.String("connection_string", network.BuildConnectionString(cmd.DEFAULT_PROXY_CONNECTION_PROTOCOL, cmd.DEFAULT_PROXY_HOST, cmd.DEFAULT_PROXY_PORT, ""), "Connection string like tcp://x.x.x.x:yyyy or unix:///path/to/socket")
+	connectionAPIString := flag.String("connection_api_string", network.BuildConnectionString(cmd.DEFAULT_PROXY_CONNECTION_PROTOCOL, cmd.DEFAULT_PROXY_HOST, cmd.DEFAULT_PROXY_API_PORT, ""), "Connection string like tcp://x.x.x.x:yyyy or unix:///path/to/socket")
+	acraConnectionString := flag.String("acra_connection_string", "", "Connection string to Acra server like tcp://x.x.x.x:yyyy or unix:///path/to/socket")
+	acraApiConnectionString := flag.String("acra_api_connection_string", "", "Connection string to Acra's API like tcp://x.x.x.x:yyyy or unix:///path/to/socket")
 
 	err := cmd.Parse(DEFAULT_CONFIG_PATH)
 	if err != nil {
 		fmt.Printf("Error: %v\n", utils.ErrorMessage("Can't parse args", err))
 		os.Exit(1)
+	}
+
+	if *port != cmd.DEFAULT_PROXY_PORT {
+		*connectionString = network.BuildConnectionString(cmd.DEFAULT_PROXY_CONNECTION_PROTOCOL, cmd.DEFAULT_PROXY_HOST, *port, "")
+	}
+	if *commandsPort != cmd.DEFAULT_PROXY_API_PORT {
+		*connectionAPIString = network.BuildConnectionString(cmd.DEFAULT_PROXY_CONNECTION_PROTOCOL, cmd.DEFAULT_PROXY_HOST, *commandsPort, "")
+	}
+
+	if *acraHost == "" && *acraConnectionString == "" {
+		fmt.Println("Error: you must pass acra_host or acra_connection_string parameter")
+		os.Exit(1)
+	}
+	if *acraHost != "" {
+		*acraConnectionString = network.BuildConnectionString(cmd.DEFAULT_ACRA_CONNECTION_PROTOCOL, *acraHost, *acraPort, "")
+	}
+	if *withZone {
+		if *acraHost == "" && *acraApiConnectionString == "" {
+			fmt.Println("Error: you must pass acra_host or acra_api_connection_string parameter")
+			os.Exit(1)
+		}
+		if *acraHost != "" {
+			*acraApiConnectionString = network.BuildConnectionString(cmd.DEFAULT_ACRA_CONNECTION_PROTOCOL, *acraHost, *acraCommandsPort, "")
+		}
 	}
 
 	cmd.ValidateClientId(*clientId)
@@ -275,11 +194,6 @@ func main() {
 		fmt.Printf("Error: can't check is exists acraserver public key %v, got error - %v\n", serverPublicKey, err)
 		os.Exit(1)
 	}
-	if *acraHost == "" {
-		fmt.Println("Error: you must specify host to acra")
-		flag.Usage()
-		os.Exit(1)
-	}
 
 	if *verbose {
 		cmd.SetLogLevel(cmd.LOG_VERBOSE)
@@ -289,17 +203,45 @@ func main() {
 	if runtime.GOOS != "linux" {
 		*disableUserCheck = true
 	}
-	config := &Config{KeysDir: *keysDir, ClientId: []byte(*clientId), AcraHost: *acraHost, AcraPort: *acraPort, Port: *port, AcraId: []byte(*acraId), disableUserCheck: *disableUserCheck}
-	listener, err := net.Listen("tcp", fmt.Sprintf(":%v", *port))
+
+	keyStore, err := keystore.NewProxyFileSystemKeyStore(*keysDir, []byte(*clientId))
 	if err != nil {
-		log.Printf("Error: %v\n", utils.ErrorMessage("can't start listen connections", err))
+		log.Errorln("Error: can't initialize keystore")
 		os.Exit(1)
+	}
+	config := &Config{KeyStore: keyStore, KeysDir: *keysDir, ClientId: []byte(*clientId), AcraConnectionString: *acraConnectionString, ConnectionString: *connectionString, AcraId: []byte(*acraId), disableUserCheck: *disableUserCheck}
+	listener, err := network.Listen(*connectionString)
+	if err != nil {
+		log.Errorf("Error: %v\n", utils.ErrorMessage("can't start listen connections", err))
+		os.Exit(1)
+	}
+	defer listener.Close()
+	if *useTls {
+		log.Println("Use TLS transport wrapper")
+		config.ConnectionWrapper, err = network.NewTLSConnectionWrapper(&tls.Config{InsecureSkipVerify: true})
+		if err != nil {
+			log.Println("Error: can't initialize tls connection wrapper")
+			os.Exit(1)
+		}
+	} else if *noEncryption {
+		log.Println("Use raw transport wrapper")
+		config.ConnectionWrapper = &network.RawConnectionWrapper{ClientId: []byte(*clientId)}
+	} else {
+		log.Println("Use Secure Session transport wrapper")
+		config.ConnectionWrapper, err = network.NewSecureSessionConnectionWrapper(keyStore)
+		if err != nil {
+			log.Println("Error: can't initialize secure session connection wrapper")
+			os.Exit(1)
+		}
 	}
 	if *withZone {
 		go func() {
-			commandsConfig := &Config{KeysDir: *keysDir, ClientId: []byte(*clientId), AcraHost: *acraHost, AcraPort: *acraCommandsPort, Port: *commandsPort, AcraId: []byte(*acraId), disableUserCheck: *disableUserCheck}
-			log.Printf("Info: start listening http api %v\n", *commandsPort)
-			commandsListener, err := net.Listen("tcp", fmt.Sprintf(":%v", *commandsPort))
+			// copy config and replace ports
+			commandsConfig := *config
+			commandsConfig.AcraConnectionString = *acraApiConnectionString
+
+			log.Printf("Info: start listening http api %s\n", *connectionAPIString)
+			commandsListener, err := network.Listen(*connectionAPIString)
 			if err != nil {
 				log.Printf("Error: %v\n", utils.ErrorMessage("can't start listen connections to http api", err))
 				os.Exit(1)
@@ -310,19 +252,29 @@ func main() {
 					log.Printf("Error: %v\n", utils.ErrorMessage(fmt.Sprintf("can't accept new connection (%v)", connection.RemoteAddr()), err))
 					continue
 				}
-				log.Printf("Info: new connection to http api: %v\n", connection.RemoteAddr())
-				go handleClientConnection(commandsConfig, connection)
+				// unix socket and value == '@'
+				if len(connection.RemoteAddr().String()) == 1 {
+					log.Printf("Info: new connection to http api: <%v>\n", connection.LocalAddr())
+				} else {
+					log.Printf("Info: new connection to http api: <%v>\n", connection.RemoteAddr())
+				}
+				go handleClientConnection(&commandsConfig, connection)
 			}
 		}()
 	}
-	log.Printf("Info: start listening %v\n", *port)
+	log.Printf("Info: start listening %s\n", *connectionString)
 	for {
 		connection, err := listener.Accept()
 		if err != nil {
 			log.Printf("Error: %v\n", utils.ErrorMessage("can't accept new connection", err))
 			os.Exit(1)
 		}
-		log.Printf("Info: new connection: %v\n", connection.RemoteAddr())
+		// unix socket and value == '@'
+		if len(connection.RemoteAddr().String()) == 1 {
+			log.Printf("Info: new connection to acraproxy: <%v>\n", connection.LocalAddr())
+		} else {
+			log.Printf("Info: new connection to acraproxy: <%v>\n", connection.RemoteAddr())
+		}
 		go handleClientConnection(config, connection)
 	}
 }

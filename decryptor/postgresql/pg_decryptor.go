@@ -16,15 +16,18 @@ package postgresql
 import (
 	"bufio"
 	"bytes"
+	"crypto/tls"
 	"encoding/binary"
 	"errors"
 	"github.com/cossacklabs/acra/decryptor/base"
 	acra_io "github.com/cossacklabs/acra/io"
+	"github.com/cossacklabs/acra/network"
 	"github.com/cossacklabs/acra/utils"
 	"github.com/cossacklabs/acra/zone"
+	log "github.com/sirupsen/logrus"
 	"io"
-	"log"
-	"os"
+	"net"
+	"time"
 )
 
 type DataRow struct {
@@ -152,8 +155,10 @@ func (row *DataRow) Flush() bool {
 	return true
 }
 
-func PgDecryptStream(decryptor base.Decryptor, rr *bufio.Reader, writer *bufio.Writer, errCh chan<- error) {
-	reader := acra_io.NewExtendedBufferedReader(rr)
+func PgDecryptStream(decryptor base.Decryptor, dbConnection net.Conn, clientConnection net.Conn, errCh chan<- error) {
+	writer := bufio.NewWriter(clientConnection)
+
+	reader := acra_io.NewExtendedBufferedReader(bufio.NewReader(dbConnection))
 	row := DataRow{
 		writeIndex:           0,
 		output:               make([]byte, OUTPUT_DEFAULT_SIZE),
@@ -176,8 +181,55 @@ func PgDecryptStream(decryptor base.Decryptor, rr *bufio.Reader, writer *bufio.W
 				writer.Flush()
 				continue
 			} else if row.buf[0] == 'S' {
-				log.Println("Error: detected ssl connection. run postgresql without ssl or connect with sslmode=disable (PGSSLMODE=disable psql) and restart AcraServer. exiting")
-				os.Exit(1)
+				cer, err := tls.LoadX509KeyPair("server.crt", "server.key")
+				if err != nil {
+					errCh <- err
+					log.Println(err)
+					return
+				}
+				// stop reading from client in goroutine
+				if err = clientConnection.SetDeadline(time.Now()); err != nil {
+					log.WithError(err).Error("can't set deadline")
+					errCh <- err
+					return
+				}
+				// back control and allow golang runtime handle deadline in background goroutine
+				time.Sleep(time.Millisecond)
+				// reset deadline
+				if err = clientConnection.SetDeadline(time.Time{}); err != nil {
+					log.WithError(err).Error("can't set deadline")
+					errCh <- err
+					return
+				}
+				// convert to tls connection
+				tlsClientConnection := tls.Server(clientConnection, &tls.Config{Certificates: []tls.Certificate{cer}})
+				if err = writer.Flush(); err != nil {
+					log.WithError(err).Error("can't flush writer")
+					errCh <- err
+					return
+				}
+				err = tlsClientConnection.Handshake()
+				if err != nil {
+					log.WithError(err).Error("can't initialize tls connection with client")
+					errCh <- err
+					return
+				}
+
+				dbTLSConnection := tls.Client(dbConnection, &tls.Config{InsecureSkipVerify: true})
+				if err = dbTLSConnection.Handshake(); err != nil {
+					log.WithError(err).Println("can't initialize tls connection with db")
+					errCh <- err
+					return
+				}
+
+				// restart proxing client's requests
+				go network.Proxy(tlsClientConnection, dbTLSConnection, errCh)
+				reader = acra_io.NewExtendedBufferedReader(bufio.NewReader(dbTLSConnection))
+				row.reader = reader
+				writer = bufio.NewWriter(tlsClientConnection)
+				row.writer = writer
+				firstByte = true
+				continue
 			}
 		}
 

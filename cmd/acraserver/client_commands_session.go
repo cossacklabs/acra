@@ -18,7 +18,6 @@ import (
 	"log"
 	"net"
 	"net/http"
-	"strings"
 
 	"errors"
 	"github.com/cossacklabs/acra/keystore"
@@ -45,11 +44,6 @@ func (clientSession *ClientCommandsSession) ConnectToDb() error {
 	return errors.New("Error: command session must not connect to any DB")
 }
 
-/* read packets from client app wrapped in ss, unwrap them and send to db as is */
-func (clientSession *ClientCommandsSession) proxyConnections() {
-	return
-}
-
 func (clientSession *ClientCommandsSession) close() {
 	log.Println("Debug: close acraproxy connection")
 	err := clientSession.connection.Close()
@@ -60,18 +54,7 @@ func (clientSession *ClientCommandsSession) close() {
 }
 
 func (clientSession *ClientCommandsSession) HandleSession() {
-	data, err := utils.ReadData(clientSession.connection)
-	if err != nil {
-		log.Printf("Warning: %v\n", utils.ErrorMessage("can't initialize secure session with acraproxy", err))
-		return
-	}
-
-	decryptedData, _, err := clientSession.session.Unwrap(data)
-	if err != nil {
-		log.Printf("Warning: %v\n", utils.ErrorMessage("can't initialize secure session with acraproxy", err))
-		return
-	}
-	reader := bufio.NewReader(strings.NewReader(string(decryptedData[:])))
+	reader := bufio.NewReader(clientSession.connection)
 	req, err := http.ReadRequest(reader)
 	if err != nil {
 		log.Printf("Warning: %v\n", utils.ErrorMessage("error reading command request from proxy", err))
@@ -94,7 +77,7 @@ func (clientSession *ClientCommandsSession) HandleSession() {
 		response = "HTTP/1.1 200 OK Found\r\n\r\n"
 	}
 
-	_, err = clientSession.Write([]byte(response))
+	_, err = clientSession.connection.Write([]byte(response))
 	if err != nil {
 		log.Printf("Warning: %v\n", utils.ErrorMessage("can't send data with secure session to acraproxy", err))
 		return
