@@ -1,0 +1,36 @@
+version: 2
+jobs:
+  x86_64:
+    docker:
+      - image: cossacklabs/android-build
+      - image: postgres:9.4.16-alpine
+        environment:
+          POSTGRES_PASSWORD=postgres
+          POSTGRES_USER=postgres
+    environment:
+      GOTHEMIS_IMPORT: github.com/cossacklabs/themis/gothemis
+      FILEPATH_ERROR_FLAG: /tmp/test_fail
+      VERSIONS: 1.5 1.5.4 1.6 1.6.4 1.7 1.7.5 1.8 1.9.4 1.10
+    steps:
+    # prepare
+      - run: sudo apt-get update && sudo DEBIAN_FRONTEND=noninteractive apt-get -y install libssl-dev python python-setuptools python3 python3-setuptools python3-pip git rsync
+      - run: cd $HOME && git clone https://github.com/cossacklabs/themis && cd themis && sudo make install
+      - run: cd $HOME && for version in $VERSIONS; do mkdir go_root_$version; cd go_root_$version; wget https://storage.googleapis.com/golang/go$version.linux-amd64.tar.gz; tar xf go$version.linux-amd64.tar.gz; cd -; done
+      - checkout
+      - run: cd $HOME && for version in $VERSIONS; do mkdir -p go_path_$version/src/github.com/cossacklabs/themis/gothemis; mkdir -p go_path_$version/src/github.com/cossacklabs/acra; rsync -auv $HOME/themis/gothemis/ go_path_$version/src/github.com/cossacklabs/themis/gothemis; rsync -auv $HOME/project/ go_path_$version/src/github.com/cossacklabs/acra; done
+      - run: cd $HOME && for version in $VERSIONS; do GOROOT=$HOME/go_root_$version/go PATH=$GOROOT/bin/:$PATH GOPATH=$HOME/go_path_$version go get github.com/cossacklabs/acra/...; done
+      - run: pip3 install -r $HOME/project/tests/requirements.txt
+      - run: sudo ldconfig
+    # testing
+      # delete file if exists
+      - run: if [ -f $FILEPATH_ERROR_FLAG ]; then rm "$FILEPATH_ERROR_FLAG"; fi
+      # run test in each go environment and create $FILEPATH_ERROR_FLAG file if was any error. But all tests should
+      - run: cd $HOME && for version in $VERSIONS; do export GOROOT=$HOME/go_root_$version/go; export PATH=$GOROOT/bin/:$PATH; export GOPATH=$HOME/go_path_$version; go test -v github.com/cossacklabs/acra/...; if [ "$?" != "0" ]; then echo "$version" >> "$FILEPATH_ERROR_FLAG"; fi done
+      # if file exists (exit code of stat == 0 ) then something was wrong. cat file with versions of environments where was error and return exit 1
+      - run: if [ -f  $FILEPATH_ERROR_FLAG ]; then cat "$FILEPATH_ERROR_FLAG"; rm "$FILEPATH_ERROR_FLAG"; exit 1; fi
+      - run: cd $HOME/project && for version in $VERSIONS; do export GOROOT=$HOME/go_root_$version/go; export PATH=$GOROOT/bin/:$PATH; export GOPATH=$HOME/go_path_$version; python3 tests/test.py; if [ "$?" != "0" ]; then echo "$version" >> "$FILEPATH_ERROR_FLAG"; fi done
+workflows:
+  version: 2
+  tests:
+    jobs:
+      - x86_64

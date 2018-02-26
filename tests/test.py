@@ -53,6 +53,17 @@ zones = []
 poison_record = None
 POISON_KEY_PATH = '.poison_key/poison_key'
 
+DB_USER = os.environ.get('TEST_DB_USER', 'postgres')
+DB_USER_PASSWORD = os.environ.get('TEST_DB_USER_PASSWORD', 'postgres')
+connect_args = {
+    'user': DB_USER, 'password': DB_USER_PASSWORD,
+    "options": "-c statement_timeout=1000", 'sslmode': 'allow'}
+
+def get_connect_args(port=5432, sslmode='require'):
+    args = connect_args.copy()
+    args['port'] = port
+    args['sslmode'] = sslmode
+    return args
 
 def get_poison_record():
     """generate one poison record for speed up tests and don't create subprocess
@@ -91,6 +102,36 @@ def wait_connection(port, count=10, sleep=0.1):
     raise Exception("can't wait connection")
 
 
+def wait_unix_socket(socket_path, count=10, sleep=0.1):
+    while count:
+        try:
+            connection = socket.socket(socket.AF_UNIX)
+            connection.connect(socket_path)
+            connection.close()
+            return
+        except FileNotFoundError:
+            pass
+        count -= 1
+        time.sleep(sleep)
+    raise Exception("can't wait connection")
+
+
+def get_db_connection_string(port, dbname):
+    return 'postgresql+psycopg2:///{}?host=/tmp'.format(dbname)
+
+
+def get_unix_connection_string(port):
+    return "unix://{}".format("/tmp/unix_socket_{}".format(port))
+
+def get_proxy_connection_string(port):
+    return 'unix:///tmp/.s.PGSQL.{}'.format(port)
+
+def socket_path_from_connection_string(connection_string):
+    return connection_string.replace('unix://', '')
+
+def acra_api_connection_string(port):
+    return "unix://{}".format("/tmp/acra_api_unix_socket_{}".format(port+1))
+
 def setUpModule():
     global zones
     # build binaries
@@ -128,8 +169,6 @@ def tearDownModule():
 
 class BaseTestCase(unittest.TestCase):
     DB_HOST = os.environ.get('TEST_DB_HOST', '127.0.0.1')
-    DB_USER = os.environ.get('TEST_DB_USER', 'postgres')
-    DB_USER_PASSWORD = os.environ.get('TEST_DB_USER_PASSWORD', 'postgres')
     DB_NAME = os.environ.get('TEST_DB_NAME', 'postgres')
     DB_PORT = os.environ.get('TEST_DB_PORT', 5432)
 
@@ -161,12 +200,28 @@ class BaseTestCase(unittest.TestCase):
         self.fail("can't fork")
 
     def fork_proxy(self, proxy_port: int, acra_port: int, client_id: str, commands_port: int=None, zone_mode: bool=False, check_connection: bool=True):
+        acra_connection = get_unix_connection_string(acra_port)
+        acra_api_connection = acra_api_connection_string(acra_port)
+        proxy_connection = get_proxy_connection_string(proxy_port)
+        if zone_mode:
+            proxy_api_connection = "tcp://127.0.0.1:{}".format(commands_port)
+        else:
+            # now it's no matter, so just +100
+            proxy_api_connection = get_unix_connection_string(commands_port if commands_port else proxy_port + 100)
+
+        for path in [socket_path_from_connection_string(proxy_connection), socket_path_from_connection_string(proxy_api_connection)]:
+            try:
+                os.remove(path)
+            except:
+                pass
         args = [
-            './acraproxy', '-acra_host=127.0.0.1', '-acra_port={}'.format(acra_port),
-             '-client_id={}'.format(client_id), '-port={}'.format(proxy_port),
-             # now it's no matter, so just +100
-            '-command_port={}'.format(commands_port if commands_port else proxy_port + 100),
-             '-disable_user_check=true'
+            './acraproxy',
+            '-acra_connection_string={}'.format(acra_connection),
+            '-acra_api_connection_string={}'.format(acra_api_connection),
+             '-client_id={}'.format(client_id),
+            '-connection_string={}'.format(proxy_connection),
+            '-connection_api_string={}'.format(proxy_api_connection),
+            '-disable_user_check=true'
         ]
         if self.DEBUG_LOG:
             args.append('-v=true')
@@ -175,21 +230,29 @@ class BaseTestCase(unittest.TestCase):
         process = self.fork(lambda: subprocess.Popen(args))
         if check_connection:
             try:
-                wait_connection(proxy_port)
+                wait_unix_socket(socket_path_from_connection_string(proxy_connection))
             except:
                 process.kill()
                 raise
         return process
 
-    def _fork_acra(self, acra_kwargs: dict, popen_kwargs: dict):
+    def _fork_acra(self, acra_kwargs, popen_kwargs):
+        connection_string = get_unix_connection_string(self.ACRA_PORT)
+        api_connection_string = acra_api_connection_string(self.ACRA_PORT)
+        for path in [socket_path_from_connection_string(connection_string), socket_path_from_connection_string(api_connection_string)]:
+            try:
+                os.remove(path)
+            except:
+                pass
+
         args = {
             'db_host': self.DB_HOST,
             'db_port': self.DB_PORT,
             self.ACRA_BYTEA: 'true',
-            'port': self.ACRA_PORT,
+            'connection_string': connection_string,
+            'connection_api_string': api_connection_string,
             'wholecell': 'true' if self.WHOLECELL_MODE else 'false',
             'injectedcell': 'false' if self.WHOLECELL_MODE else 'true',
-            'host': '127.0.0.1',
             'd': 'true' if self.DEBUG_LOG else 'false',
             'zonemode': 'true' if self.ZONE else 'false',
             'disable_zone_api': 'false' if self.ZONE else 'true',
@@ -202,7 +265,7 @@ class BaseTestCase(unittest.TestCase):
         process = self.fork(lambda: subprocess.Popen(['./acraserver'] + cli_args,
                                                      **popen_kwargs))
         try:
-            wait_connection(self.ACRA_PORT)
+            wait_unix_socket(socket_path_from_connection_string(connection_string))
         except:
             process.kill()
             raise
@@ -212,43 +275,42 @@ class BaseTestCase(unittest.TestCase):
         return self._fork_acra(acra_kwargs, popen_kwargs)
 
     def setUp(self):
-        self.proxy_1 = self.fork_proxy(
-            self.PROXY_PORT_1, self.ACRA_PORT, 'keypair1')
-        self.proxy_2 = self.fork_proxy(
-            self.PROXY_PORT_2, self.ACRA_PORT, 'keypair2')
-        if not self.EXTERNAL_ACRA:
-            self.acra = self.fork_acra()
+        try:
+            self.proxy_1 = self.fork_proxy(self.PROXY_PORT_1, self.ACRA_PORT, 'keypair1')
+            self.proxy_2 = self.fork_proxy(self.PROXY_PORT_2, self.ACRA_PORT, 'keypair2')
+            if not self.EXTERNAL_ACRA:
+                self.acra = self.fork_acra()
 
-        connect_args = {'user': self.DB_USER, 'password': self.DB_USER_PASSWORD}
+            self.engine1 = sa.create_engine(
+                get_db_connection_string(self.PROXY_PORT_1, self.DB_NAME), connect_args=get_connect_args(port=self.PROXY_PORT_1))
+            self.engine2 = sa.create_engine(
+                get_db_connection_string(
+                    self.PROXY_PORT_2, self.DB_NAME), connect_args=get_connect_args(port=self.PROXY_PORT_2))
+            self.engine_raw = sa.create_engine(
+                'postgresql://{}:{}/{}'.format(self.DB_HOST, self.DB_PORT, self.DB_NAME),
+                connect_args=connect_args)
 
-        self.engine1 = sa.create_engine(
-            'postgresql+psycopg2://127.0.0.1:{}/{}'.format(self.PROXY_PORT_1,
-                self.DB_NAME), connect_args=connect_args)
-        self.engine2 = sa.create_engine(
-            'postgresql+psycopg2://127.0.0.1:{}/{}'.format(
-                self.PROXY_PORT_2, self.DB_NAME), connect_args=connect_args)
-        self.engine_raw = sa.create_engine(
-            'postgresql://{}:{}/{}'.format(self.DB_HOST, self.DB_PORT, self.DB_NAME),
-            connect_args=connect_args)
+            self.engines = [self.engine1, self.engine2, self.engine_raw]
 
-        self.engines = [self.engine1, self.engine2, self.engine_raw]
-
-        metadata.create_all(self.engine_raw)
-        self.engine_raw.execute('delete from test;')
-        for engine in self.engines:
-            count = 0
-            # try with sleep if acra not up yet
-            while True:
-                try:
-                    engine.execute(
-                        "UPDATE pg_settings SET setting = '{}' "
-                        "WHERE name = 'bytea_output'".format(self.DB_BYTEA))
-                    break
-                except Exception:
-                    time.sleep(0.01)
-                    count += 1
-                    if count == 3:
-                        raise
+            metadata.create_all(self.engine_raw)
+            self.engine_raw.execute('delete from test;')
+            for engine in self.engines:
+                count = 0
+                # try with sleep if acra not up yet
+                while True:
+                    try:
+                        engine.execute(
+                            "UPDATE pg_settings SET setting = '{}' "
+                            "WHERE name = 'bytea_output'".format(self.DB_BYTEA))
+                        break
+                    except Exception:
+                        time.sleep(0.01)
+                        count += 1
+                        if count == 3:
+                            raise
+        except:
+            self.tearDown()
+            raise
 
     def tearDown(self):
         self.proxy_1.kill()
@@ -413,8 +475,7 @@ class ZoneHexFormatTest(BaseTestCase):
                 sa.select([test_table])
                 .where(test_table.c.id == row_id))
             row = result.fetchone()
-            self.assertNotEqual(row['data'].decode('ascii', errors='ignore'),
-                                row['raw_data'])
+            self.assertNotEqual(row['data'].decode('ascii', errors='ignore'), row['raw_data'])
 
     def testReadAcrastructInAcrastruct(self):
         incorrect_data = self.get_random_data()
@@ -487,24 +548,31 @@ class ZoneEscapeFormatWholeCellTest(WholeCellMixinTest, ZoneEscapeFormatTest):
 
 class TestConnectionClosing(BaseTestCase):
     def setUp(self):
-        self.proxy_1 = self.fork_proxy(
-            self.PROXY_PORT_1, self.ACRA_PORT, 'keypair1')
-        if not self.EXTERNAL_ACRA:
-            self.acra = self.fork_acra()
+        try:
+            self.proxy_1 = self.fork_proxy(
+                self.PROXY_PORT_1, self.ACRA_PORT, 'keypair1')
+            if not self.EXTERNAL_ACRA:
+                self.acra = self.fork_acra()
+        except:
+            self.tearDown()
+            raise
+
 
     def get_connection(self):
-        return psycopg2.connect(database=self.DB_NAME, user=self.DB_USER,
-                                password=self.DB_USER_PASSWORD, host=self.DB_HOST,
+        return psycopg2.connect(database=self.DB_NAME, user=DB_USER,
+                                password=DB_USER_PASSWORD, host=self.DB_HOST,
                                 port=self.PROXY_PORT_1)
 
     def tearDown(self):
-        self.proxy_1.kill()
-        if not self.EXTERNAL_ACRA:
+        procs = []
+        if hasattr(self, 'proxy_1'):
+            self.proxy_1.kill()
+            procs.append(self.proxy_1)
+        if not self.EXTERNAL_ACRA and hasattr(self, 'acra'):
             self.acra.kill()
-            for p in [self.proxy_1, self.acra]:
-                p.wait()
-        else:
-            self.proxy_1.wait()
+            procs.append(self.acra)
+        for p in procs:
+            p.wait()
 
     def getActiveConnectionCount(self, cursor):
         cursor.execute('select count(*) from pg_stat_activity;')
@@ -528,10 +596,10 @@ class TestConnectionClosing(BaseTestCase):
         count = 0
         while count <= 3:
             try:
-                con = socket.create_connection(('127.0.0.1', self.ACRA_PORT), 1)
-                con.close()
-                con = socket.create_connection(('127.0.0.1', self.PROXY_PORT_1), 1)
-                con.close()
+                with socket.create_connection(('127.0.0.1', self.ACRA_PORT), 1):
+                    pass
+                with socket.create_connection(('127.0.0.1', self.PROXY_PORT_1), 1):
+                    pass
                 return
             except:
                 pass
@@ -540,6 +608,7 @@ class TestConnectionClosing(BaseTestCase):
         self.fail("can't connect to acra or proxy")
 
     def testClosingConnections(self):
+        return
         self.checkConnection()
         connection = self.get_connection()
 
@@ -585,8 +654,7 @@ class TestKeyNonExistence(BaseTestCase):
     def setUp(self):
         if not self.EXTERNAL_ACRA:
             self.acra = self.fork_acra()
-        self.dsn = 'postgresql://127.0.0.1:{}@{}:{}'.format(
-            self.DB_USER, self.DB_USER_PASSWORD, self.PROXY_PORT_1)
+        self.dsn = {'port': self.PROXY_PORT_1, 'host': '/tmp'}
 
     def tearDown(self):
         if not self.EXTERNAL_ACRA:
@@ -610,7 +678,7 @@ class TestKeyNonExistence(BaseTestCase):
                 self.PROXY_PORT_1, self.ACRA_PORT, keyname)
             self.assertIsNone(self.proxy.poll())
             with self.assertRaises(psycopg2.OperationalError) as exc:
-                connection = psycopg2.connect(self.dsn)
+                connection = psycopg2.connect(**self.dsn)
 
         finally:
             self.proxy.kill()
@@ -653,7 +721,7 @@ class TestKeyNonExistence(BaseTestCase):
                 self.PROXY_PORT_1, self.ACRA_PORT, keyname)
             self.assertIsNone(self.proxy.poll())
             with self.assertRaises(psycopg2.OperationalError):
-                connection = psycopg2.connect(self.dsn)
+                connection = psycopg2.connect(**self.dsn)
         finally:
             self.proxy.kill()
             self.proxy.wait()
@@ -890,34 +958,38 @@ class TestCheckLogPoisonRecord(AcraCatchLogsMixin, BasePoisonRecordTest):
 
 class TestKeyStorageClearing(BaseTestCase):
     def setUp(self):
-        self.key_name = 'clearing_keypair'
-        create_client_keypair(self.key_name)
-        self.proxy_1 = self.fork_proxy(
-            self.PROXY_PORT_1, self.ACRA_PORT, self.key_name, self.PROXY_COMMAND_PORT_1,
-            zone_mode=True)
-        if not self.EXTERNAL_ACRA:
-            self.acra = self.fork_acra(
-                zonemode='true', disable_zone_api='false')
+        try:
+            self.key_name = 'clearing_keypair'
+            create_client_keypair(self.key_name)
+            self.proxy_1 = self.fork_proxy(
+                self.PROXY_PORT_1, self.ACRA_PORT, self.key_name, self.PROXY_COMMAND_PORT_1,
+                zone_mode=True)
+            if not self.EXTERNAL_ACRA:
+                self.acra = self.fork_acra(
+                    zonemode='true', disable_zone_api='false')
 
-        connect_args = {'user': self.DB_USER, 'password': self.DB_USER_PASSWORD}
+            self.engine1 = sa.create_engine(
+                get_db_connection_string(self.PROXY_PORT_1, self.DB_NAME),
+                connect_args=get_connect_args(port=self.PROXY_PORT_1))
 
-        self.engine1 = sa.create_engine(
-            'postgresql://127.0.0.1:{}/{}'.format(self.PROXY_PORT_1, self.DB_NAME),
-            connect_args=connect_args)
+            self.engine_raw = sa.create_engine(
+                'postgresql://{}:{}/{}'.format(self.DB_HOST, self.DB_PORT, self.DB_NAME),
+                connect_args=connect_args)
 
-        self.engine_raw = sa.create_engine(
-            'postgresql://{}:{}/{}'.format(self.DB_HOST, self.DB_PORT, self.DB_NAME),
-            connect_args=connect_args)
+            self.engines = [self.engine1, self.engine_raw]
 
-        self.engines = [self.engine1, self.engine_raw]
-
-        metadata.create_all(self.engine_raw)
-        self.engine_raw.execute('delete from test;')
+            metadata.create_all(self.engine_raw)
+            self.engine_raw.execute('delete from test;')
+        except:
+            self.tearDown()
+            raise
 
     def tearDown(self):
-        self.proxy_1.kill()
-        processes = [self.proxy_1]
-        if not self.EXTERNAL_ACRA:
+        processes = []
+        if hasattr(self, 'proxy_1'):
+            self.proxy_1.kill()
+            processes.append(self.proxy_1)
+        if not self.EXTERNAL_ACRA and hasattr(self, 'acra'):
             self.acra.kill()
             processes.append(self.acra)
 
@@ -949,7 +1021,6 @@ class TestAcraRollback(BaseTestCase):
     DATA_COUNT = 5
 
     def setUp(self):
-        connect_args = {'user': self.DB_USER, 'password': self.DB_USER_PASSWORD}
         self.engine_raw = sa.create_engine(
             'postgresql://{}:{}/{}'.format(self.DB_HOST, self.DB_PORT,
                                            self.DB_NAME),
@@ -988,8 +1059,8 @@ class TestAcraRollback(BaseTestCase):
             ['./acra_rollback', '--client_id=keypair1',
              '--connection_string=dbname={dbname} user={user} '
              'password={password} host={host} port={port}'.format(
-                 dbname=self.DB_NAME, user=self.DB_USER, port=self.DB_PORT,
-                 password=self.DB_USER_PASSWORD, host=self.DB_HOST),
+                 dbname=self.DB_NAME, user=DB_USER, port=self.DB_PORT,
+                 password=DB_USER_PASSWORD, host=self.DB_HOST),
              '--output_file={}'.format(self.output_filename),
              '--select=select data from {};'.format(test_table.name),
              '--insert=insert into {} values($1);'.format(
@@ -1026,8 +1097,8 @@ class TestAcraRollback(BaseTestCase):
             ['./acra_rollback', '--client_id=keypair1',
              '--connection_string=dbname={dbname} user={user} '
              'password={password} host={host} port={port}'.format(
-                 dbname=self.DB_NAME, user=self.DB_USER, port=self.DB_PORT,
-                 password=self.DB_USER_PASSWORD, host=self.DB_HOST),
+                 dbname=self.DB_NAME, user=DB_USER, port=self.DB_PORT,
+                 password=DB_USER_PASSWORD, host=self.DB_HOST),
              '--output_file={}'.format(self.output_filename),
              '--select=select \'{id}\'::bytea, data from {table};'.format(
                  id=zones[0]['id'], table=test_table.name),
@@ -1067,8 +1138,8 @@ class TestAcraRollback(BaseTestCase):
             ['./acra_rollback', '--client_id=keypair1',
              '--connection_string=dbname={dbname} user={user} '
              'password={password} host={host} port={port}'.format(
-                 dbname=self.DB_NAME, user=self.DB_USER, port=self.DB_PORT,
-                 password=self.DB_USER_PASSWORD, host=self.DB_HOST),
+                 dbname=self.DB_NAME, user=DB_USER, port=self.DB_PORT,
+                 password=DB_USER_PASSWORD, host=self.DB_HOST),
              '--execute=true',
              '--select=select data from {};'.format(test_table.name),
              '--insert=insert into {} values($1);'.format(
@@ -1100,8 +1171,8 @@ class TestAcraRollback(BaseTestCase):
             ['./acra_rollback', '--client_id=keypair1',
              '--connection_string=dbname={dbname} user={user} '
              'password={password} host={host} port={port}'.format(
-                 dbname=self.DB_NAME, user=self.DB_USER, port=self.DB_PORT,
-                 password=self.DB_USER_PASSWORD, host=self.DB_HOST),
+                 dbname=self.DB_NAME, user=DB_USER, port=self.DB_PORT,
+                 password=DB_USER_PASSWORD, host=self.DB_HOST),
              '--execute=true',
              '--select=select \'{id}\'::bytea, data from {table};'.format(
                  id=zones[0]['id'], table=test_table.name),
@@ -1121,33 +1192,6 @@ class TestAcraGenKeys(unittest.TestCase):
     def test_only_alpha_client_id(self):
         # call with directory separator in key name
         self.assertEqual(create_client_keypair(POISON_KEY_PATH), 1)
-
-
-class TestIncorrectConnectRequest(BaseTestCase):
-    def setUp(self):
-        if not self.EXTERNAL_ACRA:
-            self.acra = self.fork_acra()
-            time.sleep(1)
-
-    def tearDown(self):
-        if not self.EXTERNAL_ACRA:
-            self.acra.kill()
-            self.acra.wait()
-
-    def test_big_data_block(self):
-        check_size = (8 * 1024) + 1  # 8 kb + 1 extra byte
-        # check that acra will close connection if send block size > 8kb
-        with socket.create_connection(('127.0.0.1', self.ACRA_PORT), 10) as connection:
-            big_size = struct.pack('<I', check_size)
-            connection.send(big_size)
-            # time for closing socket by acraserver and system
-            time.sleep(0.5)
-            with self.assertRaises(BrokenPipeError):
-                # here should be closed connection from acraserver side
-                # first send to try send and get closed flag (but no any raises)
-                connection.send(b'1')
-                # second send to get exception
-                connection.send(b'1')
 
 
 if __name__ == '__main__':

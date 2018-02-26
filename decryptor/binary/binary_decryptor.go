@@ -38,12 +38,11 @@ type BinaryDecryptor struct {
 	keyStore        keystore.KeyStore
 	zoneMatcher     *zone.ZoneIdMatcher
 	poisonKey       []byte
-	clientId        []byte
 	callbackStorage *base.PoisonCallbackStorage
 }
 
-func NewBinaryDecryptor(clientId []byte) *BinaryDecryptor {
-	return &BinaryDecryptor{keyBlockBuffer: make([]byte, base.KEY_BLOCK_LENGTH), clientId: clientId}
+func NewBinaryDecryptor() *BinaryDecryptor {
+	return &BinaryDecryptor{keyBlockBuffer: make([]byte, base.KEY_BLOCK_LENGTH)}
 }
 
 /* not implemented Decryptor interface */

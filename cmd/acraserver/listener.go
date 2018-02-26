@@ -15,8 +15,9 @@ package main
 
 import (
 	"fmt"
+	"github.com/cossacklabs/acra/network"
 	"github.com/cossacklabs/acra/utils"
-	"log"
+	log "github.com/sirupsen/logrus"
 	"net"
 	"time"
 
@@ -24,7 +25,6 @@ import (
 	pg "github.com/cossacklabs/acra/decryptor/postgresql"
 	"github.com/cossacklabs/acra/keystore"
 	"github.com/cossacklabs/acra/zone"
-	"github.com/cossacklabs/themis/gothemis/session"
 )
 
 const (
@@ -42,52 +42,6 @@ func NewServer(config *Config) (server *SServer, err error) {
 		server = &SServer{config: config, keystorage: keystorage}
 	}
 	return
-}
-
-/*
- initialize SecureSession with new connection
- read client_id, load public key for this client and initialize Secure Session
-*/
-func (server *SServer) initSSession(connection net.Conn) ([]byte, *ClientSession, error) {
-	clientId, err := utils.ReadSessionData(connection)
-	if err != nil {
-		return nil, nil, err
-	}
-	privateKey, err := server.keystorage.GetServerPrivateKey(clientId)
-	if err != nil {
-		return nil, nil, err
-	}
-	clientSession, err := NewClientSession(server.keystorage, server.config, connection)
-	if err != nil {
-		return nil, nil, err
-	}
-	ssession, err := session.New(server.config.GetServerId(), privateKey, clientSession)
-	if err != nil {
-		return nil, nil, err
-	}
-	clientSession.session = ssession
-	for {
-		data, err := utils.ReadSessionData(connection)
-		if err != nil {
-			return nil, nil, err
-		}
-		buf, sendPeer, err := ssession.Unwrap(data)
-		if nil != err {
-			return nil, nil, err
-		}
-		if !sendPeer {
-			return clientId, clientSession, nil
-		}
-
-		err = utils.SendSessionData(buf, connection)
-		if err != nil {
-			return nil, nil, err
-		}
-
-		if ssession.GetState() == session.STATE_ESTABLISHED {
-			return clientId, clientSession, err
-		}
-	}
 }
 
 func (server *SServer) getDecryptor(clientId []byte) base.Decryptor {
@@ -124,20 +78,23 @@ handle new connection by iniailizing secure session, starting proxy request
 to db and decrypting responses from db
 */
 func (server *SServer) handleConnection(connection net.Conn) {
-	// initialization of session should be fast, so limit time for connection activity interval
-	connection.SetDeadline(time.Now().Add(INIT_SSESSION_TIMEOUT))
-	clientId, clientSession, err := server.initSSession(connection)
+	wrappedConnection, clientId, err := server.config.ConnectionWrapper.WrapServer(connection)
 	if err != nil {
-		log.Printf("Warning: %v\n", utils.ErrorMessage("can't initialize secure session with acraproxy", err))
-		err = connection.Close()
-		if err != nil {
-			log.Printf("Warning: %v\n", utils.ErrorMessage("can't close connection", err))
+		log.WithError(err).Println("can't wrap connection from acraproxy")
+		if closeErr := connection.Close(); closeErr != nil {
+			log.WithError(closeErr).Println("can't close connection")
 		}
 		return
 	}
-	defer clientSession.session.Close()
-	// reset deadline
-	connection.SetDeadline(time.Time{})
+	clientSession, err := NewClientSession(server.keystorage, server.config, connection)
+	if err != nil {
+		log.WithError(err).Println("Error: can't initialize client session")
+		if closeErr := connection.Close(); closeErr != nil {
+			log.WithError(closeErr).Println("Error: can't close connection")
+		}
+		return
+	}
+	clientSession.connection = wrappedConnection
 
 	log.Println("Debug: secure session initialized")
 	decryptor := server.getDecryptor(clientId)
@@ -146,19 +103,25 @@ func (server *SServer) handleConnection(connection net.Conn) {
 
 // start listening connections from proxy
 func (server *SServer) Start() {
-	listener, err := net.Listen("tcp", fmt.Sprintf("%v:%v", server.config.GetProxyHost(), server.config.GetProxyPort()))
+	listener, err := network.Listen(server.config.GetAcraConnectionString())
 	if err != nil {
-		log.Printf("Error: %v\n", utils.ErrorMessage("can't start listen connections", err))
+		log.Errorf("%v\n", utils.ErrorMessage("can't start listen connections", err))
 		return
 	}
-	log.Printf("Info: start listening %v:%v\n", server.config.GetProxyHost(), server.config.GetProxyPort())
+	defer listener.Close()
+	log.Printf("Info: start listening %s\n", server.config.GetAcraConnectionString())
 	for {
 		connection, err := listener.Accept()
 		if err != nil {
-			log.Printf("Error: %v\n", utils.ErrorMessage(fmt.Sprintf("can't accept new connection (connection=%v)", connection), err))
+			log.Errorf("%v\n", utils.ErrorMessage(fmt.Sprintf("can't accept new connection (connection=%v)", connection), err))
 			continue
 		}
-		log.Printf("Info: new connection: %v\n", connection.RemoteAddr())
+		// unix socket and value == '@'
+		if len(connection.RemoteAddr().String()) == 1 {
+			log.Printf("Info: new connection to acraserver: <%v>\n", connection.LocalAddr())
+		} else {
+			log.Printf("Info: new connection to acraserver: <%v>\n", connection.RemoteAddr())
+		}
 		go server.handleConnection(connection)
 	}
 }
@@ -168,48 +131,7 @@ func (server *SServer) Start() {
  read client_id, load public key for this client and initialize Secure Session
 */
 func (server *SServer) initCommandsSSession(connection net.Conn) (*ClientCommandsSession, error) {
-	clientId, err := utils.ReadSessionData(connection)
-	if err != nil {
-		return nil, err
-	}
-	privateKey, err := server.keystorage.GetServerPrivateKey(clientId)
-	if err != nil {
-		return nil, err
-	}
-	clientSession, err := NewClientCommandsSession(server.keystorage, server.config, connection)
-	if err != nil {
-		return nil, err
-	}
-	ssession, err := session.New(server.config.GetServerId(), privateKey, clientSession)
-	if err != nil {
-		return nil, err
-	}
-	clientSession.session = ssession
-	if err != nil {
-		return nil, err
-	}
-	for {
-		data, err := utils.ReadSessionData(connection)
-		if err != nil {
-			return nil, err
-		}
-		buf, sendPeer, err := ssession.Unwrap(data)
-		if nil != err {
-			return nil, err
-		}
-		if !sendPeer {
-			return clientSession, nil
-		}
-
-		err = utils.SendSessionData(buf, connection)
-		if err != nil {
-			return nil, err
-		}
-
-		if ssession.GetState() == session.STATE_ESTABLISHED {
-			return clientSession, err
-		}
-	}
+	return NewClientCommandsSession(server.keystorage, server.config, connection)
 }
 
 /*
@@ -217,36 +139,42 @@ handle new connection by iniailizing secure session, starting proxy request
 to db and decrypting responses from db
 */
 func (server *SServer) handleCommandsConnection(connection net.Conn) {
-	// initialization of session should be fast, so limit time for connection activity interval
-	connection.SetDeadline(time.Now().Add(INIT_SSESSION_TIMEOUT))
 	clientSession, err := server.initCommandsSSession(connection)
 	if err != nil {
 		log.Println("Error: ", err)
 		return
 	}
 	defer clientSession.session.Close()
-	// reset deadline
-	connection.SetDeadline(time.Time{})
+
+	wrappedConnection, _, err := server.config.ConnectionWrapper.WrapServer(connection)
+	if err != nil {
+		return
+	}
+	clientSession.connection = wrappedConnection
 	log.Println("Debug: http api secure session initialized")
 	clientSession.HandleSession()
 }
 
 // start listening commands connections from proxy
 func (server *SServer) StartCommands() {
-	log.Printf("Info: start listening http api %v\n", server.config.GetProxyCommandsPort())
-	listener, err := net.Listen("tcp", fmt.Sprintf("%v:%v", server.config.GetProxyHost(), server.config.GetProxyCommandsPort()))
+	listener, err := network.Listen(server.config.GetAcraAPIConnectionString())
 	if err != nil {
 		log.Printf("Error: %v\n", utils.ErrorMessage("can't start listen command connections", err))
 		return
 	}
-	log.Printf("Info: start listening %v:%v\n", server.config.GetProxyHost(), server.config.GetProxyCommandsPort())
+	log.Printf("Info: start listening %s\n", server.config.GetAcraAPIConnectionString())
 	for {
 		connection, err := listener.Accept()
 		if err != nil {
 			log.Printf("Error: %v\n", utils.ErrorMessage(fmt.Sprintf("can't accept new connection (%v)", connection.RemoteAddr()), err))
 			continue
 		}
-		log.Printf("Info: new connection to http api: %v\n", connection.RemoteAddr())
+		// unix socket and value == '@'
+		if len(connection.RemoteAddr().String()) == 1 {
+			log.Printf("Info: new connection to http api: <%v>\n", connection.LocalAddr())
+		} else {
+			log.Printf("Info: new connection to http api: <%v>\n", connection.RemoteAddr())
+		}
 		go server.handleCommandsConnection(connection)
 	}
 }

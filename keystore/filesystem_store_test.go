@@ -56,7 +56,7 @@ func testGeneratingDataEncryptionKeys(store *FilesystemKeyStore, t *testing.T) {
 	}
 	exists, err := utils.FileExists(
 		store.getFilePath(
-			store.getServerDecryptionKeyFilename(testId)))
+			getServerDecryptionKeyFilename(testId)))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -66,7 +66,7 @@ func testGeneratingDataEncryptionKeys(store *FilesystemKeyStore, t *testing.T) {
 
 	exists, err = utils.FileExists(
 		fmt.Sprintf("%s.pub", store.getFilePath(
-			store.getServerDecryptionKeyFilename(testId))))
+			getServerDecryptionKeyFilename(testId))))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -82,8 +82,8 @@ func testGenerateServerKeys(store *FilesystemKeyStore, t *testing.T) {
 		t.Fatal(err)
 	}
 	expectedPaths := []string{
-		store.getServerKeyFilename(testId),
-		fmt.Sprintf("%s.pub", store.getServerKeyFilename(testId)),
+		getServerKeyFilename(testId),
+		fmt.Sprintf("%s.pub", getServerKeyFilename(testId)),
 	}
 	for _, name := range expectedPaths {
 		absPath := store.getFilePath(name)
@@ -104,8 +104,8 @@ func testGenerateProxyKeys(store *FilesystemKeyStore, t *testing.T) {
 		t.Fatal(err)
 	}
 	expectedPaths := []string{
-		store.getProxyKeyFilename(testId),
-		fmt.Sprintf("%s.pub", store.getProxyKeyFilename(testId)),
+		getProxyKeyFilename(testId),
+		fmt.Sprintf("%s.pub", getProxyKeyFilename(testId)),
 	}
 	for _, name := range expectedPaths {
 		absPath := store.getFilePath(name)
@@ -124,18 +124,18 @@ func testReset(store *FilesystemKeyStore, t *testing.T) {
 	if err := store.GenerateServerKeys(testId); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := store.GetServerPrivateKey(testId); err != nil {
+	if _, err := store.GetPrivateKey(testId); err != nil {
 		t.Fatal(err)
 	}
 	store.Reset()
-	if err := os.Remove(store.getFilePath(store.getServerKeyFilename(testId))); err != nil {
+	if err := os.Remove(store.getFilePath(getServerKeyFilename(testId))); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.Remove(fmt.Sprintf("%s.pub", store.getFilePath(store.getServerKeyFilename(testId)))); err != nil {
+	if err := os.Remove(fmt.Sprintf("%s.pub", store.getFilePath(getServerKeyFilename(testId)))); err != nil {
 		t.Fatal(err)
 	}
 
-	if _, err := store.GetServerPrivateKey(testId); err == nil {
+	if _, err := store.GetPrivateKey(testId); err == nil {
 		t.Fatal("Expected error on fetching cleared key")
 	}
 }

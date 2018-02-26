@@ -1,7 +1,6 @@
 package cmd
 
 import (
-	"bytes"
 	flag_ "flag"
 	"fmt"
 	"github.com/cossacklabs/acra/keystore"
@@ -9,7 +8,7 @@ import (
 	"gopkg.in/yaml.v2"
 	"io"
 	"io/ioutil"
-	"log"
+	log "github.com/sirupsen/logrus"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -33,7 +32,7 @@ func init() {
 
 func ValidateClientId(clientId string) {
 	if !keystore.ValidateId([]byte(clientId)) {
-		fmt.Printf("Error: invalid client id,  %d <= len(client id) <= %d, only digits, letters and '_', '-', ' ' characters\n",
+		log.Errorf("invalid client id,  %d <= len(client id) <= %d, only digits, letters and '_', '-', ' ' characters",
 			keystore.MIN_CLIENT_ID_LENGTH, keystore.MAX_CLIENT_ID_LENGTH)
 		os.Exit(1)
 	}
@@ -199,27 +198,11 @@ func Parse(configPath string) error {
 	return nil
 }
 
-var DEBUG_PREFIX = []byte("Debug: ")
-
-type NotDebugWriter struct {
-	writer io.Writer
-}
-
-func NewNotDebugWriter(writer io.Writer) *NotDebugWriter {
-	return &NotDebugWriter{writer: writer}
-}
-func (wr *NotDebugWriter) Write(p []byte) (int, error) {
-	if bytes.Contains(p, DEBUG_PREFIX) {
-		return 0, nil
-	}
-	return wr.writer.Write(p)
-}
-
 func SetLogLevel(level int) {
 	if level == LOG_DEBUG {
-		log.SetOutput(os.Stdout)
+		log.SetLevel(log.DebugLevel)
 	} else if level == LOG_VERBOSE {
-		log.SetOutput(NewNotDebugWriter(os.Stdout))
+		log.SetLevel(log.InfoLevel)
 	} else if level == LOG_DISCARD {
 		log.SetOutput(ioutil.Discard)
 	} else {
