@@ -36,12 +36,8 @@ type SServer struct {
 	keystorage keystore.KeyStore
 }
 
-func NewServer(config *Config) (server *SServer, err error) {
-	keystorage, err := keystore.NewFilesystemKeyStore(config.GetKeysDir())
-	if nil == err {
-		server = &SServer{config: config, keystorage: keystorage}
-	}
-	return
+func NewServer(config *Config, keystorage keystore.KeyStore) (server *SServer, err error) {
+	return &SServer{config: config, keystorage: keystorage}, nil
 }
 
 func (server *SServer) getDecryptor(clientId []byte) base.Decryptor {
@@ -127,24 +123,15 @@ func (server *SServer) Start() {
 }
 
 /*
- initialize SecureSession with new connection
- read client_id, load public key for this client and initialize Secure Session
-*/
-func (server *SServer) initCommandsSSession(connection net.Conn) (*ClientCommandsSession, error) {
-	return NewClientCommandsSession(server.keystorage, server.config, connection)
-}
-
-/*
 handle new connection by iniailizing secure session, starting proxy request
 to db and decrypting responses from db
 */
 func (server *SServer) handleCommandsConnection(connection net.Conn) {
-	clientSession, err := server.initCommandsSSession(connection)
+	clientSession, err := NewClientCommandsSession(server.keystorage, server.config, connection)
 	if err != nil {
 		log.Println("Error: ", err)
 		return
 	}
-	defer clientSession.session.Close()
 
 	wrappedConnection, _, err := server.config.ConnectionWrapper.WrapServer(connection)
 	if err != nil {

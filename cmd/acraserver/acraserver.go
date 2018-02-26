@@ -143,7 +143,7 @@ func main() {
 		}
 	}
 
-	server, err := NewServer(config)
+	server, err := NewServer(config, keyStore)
 	if err != nil {
 		panic(err)
 	}
