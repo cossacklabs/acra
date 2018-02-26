@@ -23,12 +23,10 @@ import (
 	"github.com/cossacklabs/acra/decryptor/postgresql"
 	"github.com/cossacklabs/acra/keystore"
 	"github.com/cossacklabs/acra/utils"
-	"github.com/cossacklabs/themis/gothemis/session"
 	"io"
 )
 
 type ClientSession struct {
-	session        *session.SecureSession
 	config         *Config
 	keystorage     keystore.KeyStore
 	connection     net.Conn

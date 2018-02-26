@@ -28,7 +28,6 @@ import (
 
 type ClientCommandsSession struct {
 	ClientSession
-	//	keystorage keystore.KeyStore
 }
 
 func NewClientCommandsSession(keystorage keystore.KeyStore, config *Config, connection net.Conn) (*ClientCommandsSession, error) {
