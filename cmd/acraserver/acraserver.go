@@ -81,13 +81,10 @@ func main() {
 	}
 
 	if *debug {
-		log.SetLevel(log.DebugLevel)
 		cmd.SetLogLevel(cmd.LOG_DEBUG)
 	} else if *verbose {
-		log.SetLevel(log.InfoLevel)
 		cmd.SetLogLevel(cmd.LOG_VERBOSE)
 	} else {
-		log.SetLevel(log.WarnLevel)
 		cmd.SetLogLevel(cmd.LOG_DISCARD)
 	}
 	if *dbHost == "" {

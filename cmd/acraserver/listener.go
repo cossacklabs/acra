@@ -78,8 +78,6 @@ handle new connection by iniailizing secure session, starting proxy request
 to db and decrypting responses from db
 */
 func (server *SServer) handleConnection(connection net.Conn) {
-	// initialization of session should be fast, so limit time for connection activity interval
-	connection.SetDeadline(time.Now().Add(INIT_SSESSION_TIMEOUT))
 	wrappedConnection, clientId, err := server.config.ConnectionWrapper.WrapServer(connection)
 	if err != nil {
 		log.WithError(err).Println("can't wrap connection from acraproxy")
@@ -88,9 +86,6 @@ func (server *SServer) handleConnection(connection net.Conn) {
 		}
 		return
 	}
-	// reset deadline
-	connection.SetDeadline(time.Time{})
-
 	clientSession, err := NewClientSession(server.keystorage, server.config, connection)
 	if err != nil {
 		log.WithError(err).Println("Error: can't initialize client session")
@@ -144,8 +139,6 @@ handle new connection by iniailizing secure session, starting proxy request
 to db and decrypting responses from db
 */
 func (server *SServer) handleCommandsConnection(connection net.Conn) {
-	// initialization of session should be fast, so limit time for connection activity interval
-	connection.SetDeadline(time.Now().Add(INIT_SSESSION_TIMEOUT))
 	clientSession, err := server.initCommandsSSession(connection)
 	if err != nil {
 		log.Println("Error: ", err)
@@ -158,8 +151,6 @@ func (server *SServer) handleCommandsConnection(connection net.Conn) {
 		return
 	}
 	clientSession.connection = wrappedConnection
-	// reset deadline
-	connection.SetDeadline(time.Time{})
 	log.Println("Debug: http api secure session initialized")
 	clientSession.HandleSession()
 }
