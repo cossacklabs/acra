@@ -196,11 +196,9 @@ func main() {
 	}
 
 	if *verbose {
-		log.SetLevel(log.InfoLevel)
 		cmd.SetLogLevel(cmd.LOG_VERBOSE)
 	} else {
 		cmd.SetLogLevel(cmd.LOG_DISCARD)
-		log.SetLevel(log.WarnLevel)
 	}
 	if runtime.GOOS != "linux" {
 		*disableUserCheck = true
