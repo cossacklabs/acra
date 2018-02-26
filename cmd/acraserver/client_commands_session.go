@@ -79,6 +79,7 @@ func (clientSession *ClientCommandsSession) HandleSession() {
 		return
 	}
 	response := "HTTP/1.1 404 Not Found\r\n\r\nincorrect request\r\n\r\n"
+	log.Println(req.URL.Path)
 	switch req.URL.Path {
 	case "/getNewZone":
 		id, publicKey, err := clientSession.keystorage.GenerateZoneKey()
@@ -92,6 +93,22 @@ func (clientSession *ClientCommandsSession) HandleSession() {
 		log.Println("Info: clear key storage cache")
 		clientSession.keystorage.Reset()
 		response = "HTTP/1.1 200 OK Found\r\n\r\n"
+	case "/getConfig":
+		jsonOutput, err := clientSession.config.ToJson()
+		if err != nil {
+			log.Printf("Warning: %v\n", utils.ErrorMessage("can't send data with secure session to acraproxy", err))
+			response = "HTTP/1.1 500 Server error\r\n\r\n\r\n\r\n"
+		} else {
+			log.Println(string(jsonOutput))
+			response = "HTTP/1.1 200 OK Found\r\n\r\n" + string(jsonOutput) + "\r\n\r\n"
+		}
+	case "/setConfig":
+		configFromUI, err := clientSession.config.JsonFromPOST(req)
+		if err != nil {
+			log.Printf("Warning: %v\n", utils.ErrorMessage("can't send data with secure session to acraproxy", err))
+			response = "HTTP/1.1 500 Server error\r\n\r\n\r\n\r\n"
+		}
+		log.Println(configFromUI)
 	}
 
 	_, err = clientSession.Write([]byte(response))
