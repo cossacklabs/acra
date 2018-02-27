@@ -18,8 +18,8 @@ import (
 	"github.com/cossacklabs/acra/utils"
 	"github.com/cossacklabs/themis/gothemis/keys"
 	"github.com/cossacklabs/themis/gothemis/session"
+	log "github.com/sirupsen/logrus"
 	"io"
-	"log"
 	"net"
 )
 
@@ -28,10 +28,10 @@ type SessionCallback struct {
 }
 
 func (callback *SessionCallback) GetPublicKeyForId(ss *session.SecureSession, id []byte) *keys.PublicKey {
-	log.Printf("Info: load public key for id <%v>\n", string(id))
+	log.Infof("load public key for id <%v>", string(id))
 	key, err := callback.keystorage.GetPeerPublicKey(id)
 	if err != nil {
-		log.Printf("Error: can't load public key for id <%v>\n", string(id))
+		log.WithError(err).Errorf("can't load public key for id <%v>", string(id))
 		return nil
 	}
 	return key

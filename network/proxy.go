@@ -1,7 +1,7 @@
 package network
 
 import (
-	"log"
+	log "github.com/sirupsen/logrus"
 	"net"
 )
 
@@ -14,7 +14,7 @@ func Proxy(connFrom, connTo net.Conn, errCh chan<- error) {
 			return
 		}
 		if n == 0 {
-			log.Println("Warning: read 0 bytes")
+			log.Warningln("read 0 bytes")
 			continue
 		}
 		for nTo := 0; nTo < n; {

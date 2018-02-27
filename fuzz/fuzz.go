@@ -21,7 +21,7 @@ import (
 	"github.com/cossacklabs/acra/acrawriter"
 	"github.com/cossacklabs/themis/gothemis/keys"
 	_ "github.com/lib/pq"
-	"log"
+	log "github.com/sirupsen/logrus"
 )
 
 var dbConnection *sql.DB

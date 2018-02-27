@@ -106,17 +106,17 @@ func (row *DataRow) UpdateColumnAndDataSize(oldColumnLength, newColumnLength int
 		return true
 	}
 	// something was decrypted and size should be less that was before
-	log.Printf("Debug: modify response size: %v -> %v\n", oldColumnLength, newColumnLength)
+	log.Debugf("modify response size: %v -> %v", oldColumnLength, newColumnLength)
 
 	// update column data size
 	sizeDiff := oldColumnLength - newColumnLength
-	log.Printf("Debug: old column size: %v; New column size: %v\n", oldColumnLength, newColumnLength)
+	log.Debugf("old column size: %v; New column size: %v", oldColumnLength, newColumnLength)
 	if newColumnLength > oldColumnLength {
 		row.errCh <- errors.New("decrypted size is more than encrypted")
 		return false
 	}
 	binary.BigEndian.PutUint32(row.columnSizePointer, uint32(newColumnLength))
-	log.Printf("Debug: old data size: %v; new data size: %v\n", row.dataLength, row.dataLength-sizeDiff)
+	log.Debugf("old data size: %v; new data size: %v", row.dataLength, row.dataLength-sizeDiff)
 	// update data row size
 	row.dataLength -= sizeDiff
 	row.SetDataSize(row.dataLength)
@@ -124,7 +124,7 @@ func (row *DataRow) UpdateColumnAndDataSize(oldColumnLength, newColumnLength int
 }
 
 func (row *DataRow) ReadDataLength() bool {
-	log.Println("Debug: read data length")
+	log.Debugln("read data length")
 	// read full data row length
 	n, err := row.reader.Read(row.output[:DATA_ROW_LENGTH_BUF_SIZE])
 	if !base.CheckReadWrite(n, DATA_ROW_LENGTH_BUF_SIZE, err, row.errCh) {
@@ -241,7 +241,7 @@ func PgDecryptStream(decryptor base.Decryptor, dbConnection net.Conn, clientConn
 			continue
 		}
 
-		log.Println("Debug: matched data row")
+		log.Debugln("matched data row")
 
 		row.writeIndex = 0
 
@@ -257,7 +257,7 @@ func PgDecryptStream(decryptor base.Decryptor, dbConnection net.Conn, clientConn
 			}
 			break
 		}
-		log.Printf("Debug: read column count: %v\n", row.columnCount)
+		log.Debugf("read column count: %v", row.columnCount)
 		for i := 0; i < row.columnCount; i++ {
 			// read column length
 			row.CheckOutputSize(4)
@@ -270,11 +270,11 @@ func PgDecryptStream(decryptor base.Decryptor, dbConnection net.Conn, clientConn
 			row.writeIndex += 4
 			columnDataLength := int(int32(binary.BigEndian.Uint32(row.columnSizePointer)))
 			if columnDataLength == 0 || columnDataLength == -1 {
-				log.Println("Debug: empty column")
+				log.Debugln("empty column")
 				continue
 			}
 			if columnDataLength >= row.dataLength {
-				log.Printf("Debug: fake column length: column_data_length=%v, data_length=%v\n", columnDataLength, row.dataLength)
+				log.Debugf("fake column length: column_data_length=%v, data_length=%v", columnDataLength, row.dataLength)
 				if !row.Flush() {
 					return
 				}
@@ -301,7 +301,7 @@ func PgDecryptStream(decryptor base.Decryptor, dbConnection net.Conn, clientConn
 					// poison record check
 					// check only if has any action on detection
 					if decryptor.GetPoisonCallbackStorage().HasCallbacks() {
-						log.Println("Debug: check poison records")
+						log.Debugln("check poison records")
 						block, err := decryptor.SkipBeginInBlock(row.output[row.writeIndex : row.writeIndex+columnDataLength])
 						if err == nil {
 							poisoned, err := decryptor.CheckPoisonRecord(bytes.NewReader(block))
@@ -326,7 +326,7 @@ func PgDecryptStream(decryptor base.Decryptor, dbConnection net.Conn, clientConn
 							row.writeIndex += len(decrypted)
 							continue
 						} else if err == base.ErrPoisonRecord {
-							log.Println("Error: poison record detected")
+							log.Errorln(" poison record detected")
 							errCh <- err
 							return
 						}
@@ -340,14 +340,14 @@ func PgDecryptStream(decryptor base.Decryptor, dbConnection net.Conn, clientConn
 
 					// check poison records
 					if decryptor.GetPoisonCallbackStorage().HasCallbacks() {
-						log.Println("Debug: check poison records")
+						log.Debugln("check poison records")
 						for {
 							beginTagIndex, tagLength := decryptor.BeginTagIndex(row.output[currentIndex:endIndex])
 							if beginTagIndex == utils.NOT_FOUND {
-								log.Println("Debug: not found begin tag")
+								log.Debugln("not found begin tag")
 								break
 							}
-							log.Println("Debug: found begin tag")
+							log.Debugln("found begin tag")
 							blockReader := bytes.NewReader(row.output[currentIndex+beginTagIndex+tagLength:])
 							poisoned, err := decryptor.CheckPoisonRecord(blockReader)
 							if err != nil || poisoned {
@@ -382,21 +382,21 @@ func PgDecryptStream(decryptor base.Decryptor, dbConnection net.Conn, clientConn
 
 						key, err := decryptor.GetPrivateKey()
 						if err != nil {
-							log.Println("Warning: can't read private key")
+							log.Warningln("can't read private key")
 							halted = true
 							break
 						}
 						blockReader := bytes.NewReader(row.output[beginTagIndex+tagLength:])
 						symKey, _, err := decryptor.ReadSymmetricKey(key, blockReader)
 						if err != nil {
-							log.Printf("Warning: %v\n", utils.ErrorMessage("can't unwrap symmetric key", err))
+							log.Warningf("%v", utils.ErrorMessage("can't unwrap symmetric key", err))
 							row.columnDataBuf.Write([]byte{row.output[currentIndex]})
 							currentIndex++
 							continue
 						}
 						data, err := decryptor.ReadData(symKey, decryptor.GetMatchedZoneId(), blockReader)
 						if err != nil {
-							log.Printf("Warning: %v\n", utils.ErrorMessage("can't decrypt data with unwrapped symmetric key", err))
+							log.Warningf("%v", utils.ErrorMessage("can't decrypt data with unwrapped symmetric key", err))
 							row.columnDataBuf.Write([]byte{row.output[currentIndex]})
 							currentIndex++
 							continue

@@ -20,7 +20,7 @@ import (
 	"github.com/cossacklabs/acra/keystore"
 	"github.com/cossacklabs/acra/utils"
 	_ "github.com/lib/pq"
-	"log"
+	log "github.com/sirupsen/logrus"
 	"math/rand"
 	"time"
 )
@@ -48,7 +48,7 @@ func main() {
 
 	acrastruct, err := acrawriter.CreateAcrastruct(someData, acraPublic, nil)
 	if err != nil {
-		log.Fatal("Can't create acrastruct - ", err)
+		log.Fatal("can't create acrastruct - ", err)
 	}
 
 	db, err := sql.Open("postgres", CONNECTION_STRING)

@@ -17,8 +17,8 @@ import (
 	"bytes"
 	"encoding/binary"
 	"github.com/cossacklabs/acra/utils"
+	log "github.com/sirupsen/logrus"
 	"io"
-	"log"
 	"strconv"
 
 	"fmt"
@@ -135,7 +135,7 @@ func (decryptor *PgEscapeDecryptor) readOctalData(data, octData []byte, reader i
 			return dataIndex, octDataIndex, err
 		}
 		if n != 1 {
-			log.Println("Debug: readOctalData read 0 bytes")
+			log.Debugln("readOctalData read 0 bytes")
 			return dataIndex, octDataIndex, base.ErrFakeAcraStruct
 		}
 		octData[octDataIndex] = charBuf[0]
@@ -169,7 +169,7 @@ func (decryptor *PgEscapeDecryptor) readOctalData(data, octData []byte, reader i
 						copy(octData[octDataIndex:octDataIndex+n], decryptor.octCharBuf[1:1+n])
 						octDataIndex += n
 					}
-					log.Printf("Warning: expected 2 octal symbols, but read %v\n", n)
+					log.Warningf("expected 2 octal symbols, but read %v", n)
 					return dataIndex, octDataIndex, base.ErrFakeAcraStruct
 				}
 				// parse 3 octal symbols
@@ -216,11 +216,11 @@ func (decryptor *PgEscapeDecryptor) readDataLength(reader io.Reader) (uint64, []
 
 	lenCount, octLenCount, err := decryptor.readOctalData(decryptor.lengthBuf[:], decryptor.octLengthBuf[:], reader)
 	if err != nil {
-		log.Printf("Warning: %v\n", utils.ErrorMessage("can't read data length", err))
+		log.Warningf("%v", utils.ErrorMessage("can't read data length", err))
 		return 0, decryptor.octLengthBuf[:octLenCount], err
 	}
 	if lenCount != len(decryptor.lengthBuf) {
-		log.Printf("Warning: incorrect length count, %v!=%v\n", lenCount, len(decryptor.lengthBuf))
+		log.Warningf("incorrect length count, %v!=%v", lenCount, len(decryptor.lengthBuf))
 		return 0, decryptor.octLengthBuf[:octLenCount], base.ErrFakeAcraStruct
 	}
 	decryptor.outputSize += octLenCount
@@ -232,11 +232,11 @@ func (decryptor *PgEscapeDecryptor) readScellData(length uint64, reader io.Reade
 	buf := make([]byte, int(length))
 	n, octN, err := decryptor.readOctalData(buf, hexBuf, reader)
 	if err != nil {
-		log.Printf("Warning: %v\n", utils.ErrorMessage(fmt.Sprintf("can't read scell data with passed length=%v", length), err))
+		log.Warningf("%v", utils.ErrorMessage(fmt.Sprintf("can't read scell data with passed length=%v", length), err))
 		return nil, hexBuf[:octN], err
 	}
 	if n != int(length) {
-		log.Printf("Warning: read incorrect length, %v!=%v\n", n, length)
+		log.Warningf("read incorrect length, %v!=%v", n, length)
 		return nil, hexBuf[:octN], base.ErrFakeAcraStruct
 	}
 	decryptor.outputSize += octN

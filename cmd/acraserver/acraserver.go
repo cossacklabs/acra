@@ -16,7 +16,6 @@ package main
 import (
 	"crypto/tls"
 	"flag"
-	"fmt"
 	"github.com/cossacklabs/acra/cmd"
 	"github.com/cossacklabs/acra/keystore"
 	"github.com/cossacklabs/acra/network"
@@ -67,7 +66,7 @@ func main() {
 
 	err := cmd.Parse(DEFAULT_CONFIG_PATH)
 	if err != nil {
-		fmt.Printf("Error: %v\n", utils.ErrorMessage("Can't parse args", err))
+		log.WithError(err).Errorln("can't parse args")
 		os.Exit(1)
 	}
 
@@ -88,7 +87,7 @@ func main() {
 		cmd.SetLogLevel(cmd.LOG_DISCARD)
 	}
 	if *dbHost == "" {
-		fmt.Println("Error: you must specify db_host")
+		log.Errorln("you must specify db_host")
 		flag.Usage()
 		return
 	}
@@ -116,11 +115,11 @@ func main() {
 
 	keyStore, err := keystore.NewFilesystemKeyStore(*keysDir)
 	if err != nil {
-		log.Println("Error: can't initialize keystore")
+		log.Errorln(" can't initialize keystore")
 		os.Exit(1)
 	}
 	if *useTls {
-		log.Println("Use TLS transport wrapper")
+		log.Println("use TLS transport wrapper")
 		cer, err := tls.LoadX509KeyPair(*tlsCert, *tlsKey)
 		if err != nil {
 			log.Println(err)
@@ -128,22 +127,22 @@ func main() {
 		}
 		config.ConnectionWrapper, err = network.NewTLSConnectionWrapper(&tls.Config{Certificates: []tls.Certificate{cer}})
 		if err != nil {
-			log.Println("Error: can't initialize tls connection wrapper")
+			log.Errorln(" can't initialize tls connection wrapper")
 			os.Exit(1)
 		}
 	} else if *noEncryption {
-		log.Println("Use raw transport wrapper")
+		log.Println("use raw transport wrapper")
 		config.ConnectionWrapper = &network.RawConnectionWrapper{ClientId: []byte(*serverId)}
 	} else {
-		log.Println("Use Secure Session transport wrapper")
+		log.Println("use Secure Session transport wrapper")
 		config.ConnectionWrapper, err = network.NewSecureSessionConnectionWrapper(keyStore)
 		if err != nil {
-			log.Println("Error: can't initialize secure session connection wrapper")
+			log.Errorln(" can't initialize secure session connection wrapper")
 			os.Exit(1)
 		}
 	}
 
-	server, err := NewServer(config)
+	server, err := NewServer(config, keyStore)
 	if err != nil {
 		panic(err)
 	}
@@ -153,7 +152,7 @@ func main() {
 		go func() {
 			err := http.ListenAndServe("127.0.0.1:6060", nil)
 			if err != nil {
-				log.Printf("Error: %v\n", utils.ErrorMessage("error from debug server", err))
+				log.WithError(err).Errorln("error from debug server")
 			}
 		}()
 	}

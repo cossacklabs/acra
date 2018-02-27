@@ -21,6 +21,7 @@ import (
 	"github.com/cossacklabs/acra/utils"
 	"github.com/cossacklabs/acra/zone"
 	"github.com/cossacklabs/themis/gothemis/keys"
+	log "github.com/sirupsen/logrus"
 	"os"
 )
 
@@ -35,7 +36,7 @@ func main() {
 
 	err := cmd.Parse(DEFAULT_CONFIG_PATH)
 	if err != nil {
-		fmt.Printf("Error: %v\n", utils.ErrorMessage("Can't parse args", err))
+		log.WithError(err).Errorln("can't parse args")
 		os.Exit(1)
 	}
 	//LoadFromConfig(DEFAULT_CONFIG_PATH)
@@ -43,25 +44,25 @@ func main() {
 
 	output, err := utils.AbsPath(*outputDir)
 	if err != nil {
-		fmt.Printf("Error: %v\n", utils.ErrorMessage("Can't get absolute path for output dir", err))
+		log.WithError(err).Errorln("can't get absolute path for output dir")
 		os.Exit(1)
 	}
 	var keyStore keystore.KeyStore
 	if *fsKeystore {
 		keyStore, err = keystore.NewFilesystemKeyStore(output)
 		if err != nil {
-			fmt.Printf("Error: %v\n", utils.ErrorMessage("can't create key store", err))
+			log.WithError(err).Errorln("can't create key store")
 			os.Exit(1)
 		}
 	}
 	id, publicKey, err := keyStore.GenerateZoneKey()
 	if err != nil {
-		fmt.Printf("Error: %v\n", utils.ErrorMessage("can't add zone", err))
+		log.WithError(err).Errorln("can't add zone")
 		os.Exit(1)
 	}
 	json, err := zone.ZoneDataToJson(id, &keys.PublicKey{Value: publicKey})
 	if err != nil {
-		fmt.Printf("Error: %v\n", utils.ErrorMessage("can't encode to json", err))
+		log.WithError(err).Errorln("can't encode to json")
 		os.Exit(1)
 	}
 	fmt.Println(string(json))
