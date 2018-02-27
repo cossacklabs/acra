@@ -93,7 +93,6 @@ func handleClientConnection(config *Config, connection net.Conn) {
 
 	toAcraErrCh := make(chan error)
 	fromAcraErrCh := make(chan error)
-	log.Debugln("secure session initialized")
 	go network.Proxy(connection, acraConnWrapped, toAcraErrCh)
 	go network.Proxy(acraConnWrapped, connection, fromAcraErrCh)
 	select {

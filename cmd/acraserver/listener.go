@@ -84,8 +84,6 @@ func (server *SServer) handleConnection(connection net.Conn) {
 		return
 	}
 	clientSession.connection = wrappedConnection
-
-	log.Debugln("secure session initialized")
 	decryptor := server.getDecryptor(clientId)
 	clientSession.HandleSecureSession(decryptor)
 }
@@ -132,7 +130,6 @@ func (server *SServer) handleCommandsConnection(connection net.Conn) {
 		return
 	}
 	clientSession.connection = wrappedConnection
-	log.Debugln("http api secure session initialized")
 	clientSession.HandleSession()
 }
 

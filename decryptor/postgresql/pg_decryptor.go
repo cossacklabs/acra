@@ -155,7 +155,19 @@ func (row *DataRow) Flush() bool {
 	return true
 }
 
-func PgDecryptStream(decryptor base.Decryptor, dbConnection net.Conn, clientConnection net.Conn, errCh chan<- error) {
+type PgDecryptorConfig struct {
+	serverKeyPath string
+	serverCertPath string
+
+}
+func NewPgDecryptorConfig(tlsKeyPath, tlsCertPath string)(*PgDecryptorConfig, error){
+	return &PgDecryptorConfig{serverKeyPath: tlsKeyPath, serverCertPath: tlsCertPath}, nil
+}
+func (config *PgDecryptorConfig) getCertificate()(tls.Certificate, error){
+	return tls.LoadX509KeyPair(config.serverCertPath, config.serverKeyPath)
+}
+
+func PgDecryptStream(decryptor base.Decryptor, config *PgDecryptorConfig, dbConnection net.Conn, clientConnection net.Conn, errCh chan<- error) {
 	writer := bufio.NewWriter(clientConnection)
 
 	reader := acra_io.NewExtendedBufferedReader(bufio.NewReader(dbConnection))
@@ -181,7 +193,8 @@ func PgDecryptStream(decryptor base.Decryptor, dbConnection net.Conn, clientConn
 				writer.Flush()
 				continue
 			} else if row.buf[0] == 'S' {
-				cer, err := tls.LoadX509KeyPair("server.crt", "server.key")
+				log.Debugln("start tls proxy")
+				cer, err := config.getCertificate()
 				if err != nil {
 					errCh <- err
 					log.Println(err)
@@ -201,6 +214,7 @@ func PgDecryptStream(decryptor base.Decryptor, dbConnection net.Conn, clientConn
 					errCh <- err
 					return
 				}
+				log.Debugln("init tls with client")
 				// convert to tls connection
 				tlsClientConnection := tls.Server(clientConnection, &tls.Config{Certificates: []tls.Certificate{cer}})
 				if err = writer.Flush(); err != nil {
@@ -215,6 +229,7 @@ func PgDecryptStream(decryptor base.Decryptor, dbConnection net.Conn, clientConn
 					return
 				}
 
+				log.Debugln("init tls with db")
 				dbTLSConnection := tls.Client(dbConnection, &tls.Config{InsecureSkipVerify: true})
 				if err = dbTLSConnection.Handshake(); err != nil {
 					log.WithError(err).Println("can't initialize tls connection with db")

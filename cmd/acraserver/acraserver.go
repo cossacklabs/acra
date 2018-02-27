@@ -107,6 +107,8 @@ func main() {
 	config.SetServerId([]byte(*serverId))
 	config.SetAcraConnectionString(*acraConnectionString)
 	config.SetAcraAPIConnectionString(*acraAPIConnectionString)
+	config.SetTLSServerCertPath(*tlsCert)
+	config.SetTLSServerKeyPath(*tlsKey)
 	config.SetWholeMatch(!(*injectedcell))
 	if *hexFormat || !*escapeFormat {
 		config.SetByteaFormat(HEX_BYTEA_FORMAT)
