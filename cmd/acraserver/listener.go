@@ -27,10 +27,26 @@ import (
 type SServer struct {
 	config     *Config
 	keystorage keystore.KeyStore
+	listeners []net.Listener
 }
 
 func NewServer(config *Config, keystorage keystore.KeyStore) (server *SServer, err error) {
 	return &SServer{config: config, keystorage: keystorage}, nil
+}
+
+// Close all listeners and return first error
+func (server *SServer) Close() error {
+	var err error
+	for _, listener := range server.listeners {
+		if err_ := listener.Close(); err_ != nil && err == nil{
+			err = err_
+		}
+	}
+	return err
+}
+
+func (server *SServer) addListener(listener net.Listener){
+	server.listeners = append(server.listeners, listener)
 }
 
 func (server *SServer) getDecryptor(clientId []byte) base.Decryptor {
@@ -96,6 +112,7 @@ func (server *SServer) Start() {
 		return
 	}
 	defer listener.Close()
+	server.addListener(listener)
 	log.Infof("start listening %s", server.config.GetAcraConnectionString())
 	for {
 		connection, err := listener.Accept()
@@ -140,6 +157,8 @@ func (server *SServer) StartCommands() {
 		log.WithError(err).Errorln("can't start listen command connections")
 		return
 	}
+	defer listener.Close()
+	server.addListener(listener)
 	log.Infof("start listening api %s", server.config.GetAcraAPIConnectionString())
 	for {
 		connection, err := listener.Accept()

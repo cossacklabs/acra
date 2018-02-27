@@ -204,6 +204,7 @@ class BaseTestCase(unittest.TestCase):
         acra_api_connection = acra_api_connection_string(acra_port)
         proxy_connection = get_proxy_connection_string(proxy_port)
         if zone_mode:
+            # because standard library can send http requests only through tcp and cannot through unix socket
             proxy_api_connection = "tcp://127.0.0.1:{}".format(commands_port)
         else:
             # now it's no matter, so just +100

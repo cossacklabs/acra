@@ -9,7 +9,9 @@ import (
 	"gopkg.in/yaml.v2"
 	"io"
 	"io/ioutil"
+	"net"
 	"os"
+	"os/signal"
 	"path/filepath"
 	"reflect"
 )
@@ -28,6 +30,38 @@ const (
 func init() {
 	// override default usage message by ours
 	flag_.CommandLine.Usage = PrintDefaults
+}
+
+type SigCallback func()
+type SigIntHandler struct {
+	ch chan os.Signal
+	listeners []net.Listener
+	callbacks []SigCallback
+}
+
+func NewSigIntHandler()(*SigIntHandler, error){
+	return &SigIntHandler{ch: make(chan os.Signal)}, nil
+}
+
+func (handler *SigIntHandler) AddListener(listener net.Listener){
+	handler.listeners = append(handler.listeners, listener)
+}
+
+func (handler *SigIntHandler) AddCallback(callback SigCallback){
+	handler.callbacks = append(handler.callbacks, callback)
+}
+
+// Register should be called as goroutine
+func (handler *SigIntHandler) Register(){
+	signal.Notify(handler.ch, os.Interrupt)
+	<-handler.ch
+	for _, listener := range handler.listeners {
+		listener.Close()
+	}
+	for _, callback := range handler.callbacks {
+		callback()
+	}
+	os.Exit(1)
 }
 
 func ValidateClientId(clientId string) {

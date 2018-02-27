@@ -215,6 +215,14 @@ func main() {
 		os.Exit(1)
 	}
 	defer listener.Close()
+
+	sigHandler, err := cmd.NewSigIntHandler()
+	if err != nil {
+		log.WithError(err).Errorln("can't register SIGINT handler")
+		os.Exit(1)
+	}
+	go sigHandler.Register()
+	sigHandler.AddListener(listener)
 	if *useTls {
 		log.Infoln("use TLS transport wrapper")
 		config.ConnectionWrapper, err = network.NewTLSConnectionWrapper(&tls.Config{InsecureSkipVerify: true})
@@ -245,6 +253,7 @@ func main() {
 				log.WithError(err).Errorln("can't start listen connections to http api")
 				os.Exit(1)
 			}
+			sigHandler.AddListener(commandsListener)
 			for {
 				connection, err := commandsListener.Accept()
 				if err != nil {

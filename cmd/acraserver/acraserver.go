@@ -154,6 +154,14 @@ func main() {
 		panic(err)
 	}
 
+	sigHandler, err := cmd.NewSigIntHandler()
+	if err != nil {
+		log.WithError(err).Errorln("can't register SIGINT handler")
+		os.Exit(1)
+	}
+	go sigHandler.Register()
+	sigHandler.AddCallback(func(){server.Close()})
+
 	if *debugServer {
 		//start http server for pprof
 		go func() {
