@@ -27,6 +27,7 @@ import (
 	"github.com/cossacklabs/acra/utils"
 	"github.com/cossacklabs/themis/gothemis/keys"
 	_ "github.com/lib/pq"
+	log "github.com/sirupsen/logrus"
 	"os"
 	"strings"
 )
@@ -67,14 +68,14 @@ type InsertExecutor struct {
 func NewInsertExecutor(sql string, db *sql.DB) *InsertExecutor {
 	stmt, err := db.Prepare(sql)
 	if err != nil {
-		ErrorExit("Can't prepare sql statement", err)
+		ErrorExit("can't prepare sql statement", err)
 	}
 	return &InsertExecutor{insertStatement: stmt}
 }
 func (ex *InsertExecutor) Execute(data []byte) {
 	_, err := ex.insertStatement.Exec(&data)
 	if err != nil {
-		ErrorExit("Can't bind args to prepared statement", err)
+		ErrorExit("can't bind args to prepared statement", err)
 	}
 }
 func (ex *InsertExecutor) Close() {
@@ -91,11 +92,11 @@ type WriteToFileExecutor struct {
 func NewWriteToFileExecutor(filePath string, sql string, encoder BinaryEncoder) *WriteToFileExecutor {
 	absPath, err := utils.AbsPath(filePath)
 	if err != nil {
-		ErrorExit("Can't get absolute path for output file", err)
+		ErrorExit("can't get absolute path for output file", err)
 	}
 	file, err := os.Create(absPath)
 	if err != nil {
-		ErrorExit("Can't create output file", err)
+		ErrorExit("can't create output file", err)
 	}
 	writer := bufio.NewWriter(file)
 	return &WriteToFileExecutor{sql: sql, file: file, writer: writer, encoder: encoder}
@@ -117,7 +118,7 @@ func (ex *WriteToFileExecutor) Execute(data []byte) {
 	outputSql := strings.Replace(ex.sql, PLACEHOLDER, encoded, 1)
 	n, err := ex.writer.Write([]byte(outputSql))
 	if err != nil {
-		ErrorExit("Can't write to output file", err)
+		ErrorExit("can't write to output file", err)
 	}
 	if n != len(outputSql) {
 		fmt.Println("Incorrect write count")
@@ -125,7 +126,7 @@ func (ex *WriteToFileExecutor) Execute(data []byte) {
 	}
 	n, err = ex.writer.Write(NEWLINE)
 	if err != nil {
-		ErrorExit("Can't write newline char to output file", err)
+		ErrorExit("can't write newline char to output file", err)
 	}
 	if n != 1 {
 		fmt.Println("Incorrect write count")
@@ -153,55 +154,55 @@ func main() {
 
 	err := cmd.Parse(DEFAULT_CONFIG_PATH)
 	if err != nil {
-		fmt.Printf("Error: %v\n", utils.ErrorMessage("Can't parse args", err))
+		log.WithError(err).Errorln("can't parse args")
 		os.Exit(1)
 	}
 
 	cmd.ValidateClientId(*clientId)
 
 	if *connectionString == "" {
-		fmt.Println("Error: connection_string arg is missing")
+		log.Errorln("connection_string arg is missing")
 		os.Exit(1)
 	}
 	if !strings.Contains(*connectionString, "sslmode=disable") {
 		*connectionString = fmt.Sprintf("%v sslmode=disable", *connectionString)
 	}
 	if *sqlSelect == "" {
-		fmt.Println("Error: sql_select arg is missing")
+		log.Errorln("sql_select arg is missing")
 		os.Exit(1)
 	}
 	if *sqlInsert == "" {
-		fmt.Println("Error: sql_insert arg is missing")
+		log.Errorln("sql_insert arg is missing")
 		os.Exit(1)
 	}
 	absKeysDir, err := utils.AbsPath(*keysDir)
 	if err != nil {
-		fmt.Printf("Error: %v\n", utils.ErrorMessage("can't get absolute path for keys_dir", err))
+		log.WithError(err).Errorln("can't get absolute path for keys_dir")
 		os.Exit(1)
 	}
 	if *outputFile == "" && !*execute {
-		fmt.Println("Error: output_file missing or execute flag")
+		log.Errorln("output_file missing or execute flag")
 		os.Exit(1)
 	}
 	keystorage, err := keystore.NewFilesystemKeyStore(absKeysDir)
 	if err != nil {
-		fmt.Printf("Error: %v\n", utils.ErrorMessage("can't create key store", err))
+		log.WithError(err).Errorln("can't create key store")
 		os.Exit(1)
 	}
 	db, err := sql.Open("postgres", *connectionString)
 	if err != nil {
-		fmt.Printf("Error: %v\n", utils.ErrorMessage("can't connect to db", err))
+		log.WithError(err).Errorln("can't connect to db")
 		os.Exit(1)
 	}
 	defer db.Close()
 	err = db.Ping()
 	if err != nil {
-		fmt.Printf("Error: %v\n", utils.ErrorMessage("can't connect to db", err))
+		log.WithError(err).Errorln("can't connect to db")
 		os.Exit(1)
 	}
 	rows, err := db.Query(*sqlSelect)
 	if err != nil {
-		fmt.Printf("Error: %v\n", utils.ErrorMessage(fmt.Sprintf("error with select query '%v'", *sqlSelect), err))
+		log.WithError(err).Errorf("error with select query '%v'", *sqlSelect)
 		os.Exit(1)
 	}
 	defer rows.Close()
@@ -229,27 +230,27 @@ func main() {
 		if *withZone {
 			err = rows.Scan(&zone, &data)
 			if err != nil {
-				ErrorExit("Can't read zone & data from row %v", err)
+				ErrorExit("can't read zone & data from row %v", err)
 			}
 			privateKey, err = keystorage.GetZonePrivateKey(zone)
 			if err != nil {
-				fmt.Printf("%v\n", utils.ErrorMessage(fmt.Sprintf("Can't get zone private key for row with number %v", i), err))
+				log.WithError(err).Errorf("can't get zone private key for row with number %v", i)
 				continue
 			}
 		} else {
 			err = rows.Scan(&data)
 			if err != nil {
-				ErrorExit("Can't read data from row", err)
+				ErrorExit("can't read data from row", err)
 			}
 			privateKey, err = keystorage.GetServerDecryptionPrivateKey([]byte(*clientId))
 			if err != nil {
-				fmt.Printf("%v\n", utils.ErrorMessage(fmt.Sprintf("Can't get private key for row with number %v", i), err))
+				log.WithError(err).Errorf("can't get private key for row with number %v", i)
 				continue
 			}
 		}
 		decrypted, err := base.DecryptAcrastruct(data, privateKey, zone)
 		if err != nil {
-			fmt.Printf("%v\n", utils.ErrorMessage(fmt.Sprintf("Can't decrypt acrastruct in row with number %v", i), err))
+			log.WithError(err).Errorln("can't decrypt acrastruct in row with number %v", i)
 			continue
 		}
 		for e := executors.Front(); e != nil; e = e.Next() {

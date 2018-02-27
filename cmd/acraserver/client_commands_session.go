@@ -15,7 +15,7 @@ package main
 
 import (
 	"bufio"
-	"log"
+	log "github.com/sirupsen/logrus"
 	"net"
 	"net/http"
 
@@ -40,23 +40,23 @@ func NewClientCommandsSession(keystorage keystore.KeyStore, config *Config, conn
 }
 
 func (clientSession *ClientCommandsSession) ConnectToDb() error {
-	return errors.New("Error: command session must not connect to any DB")
+	return errors.New("command session must not connect to any DB")
 }
 
 func (clientSession *ClientCommandsSession) close() {
-	log.Println("Debug: close acraproxy connection")
+	log.Debugln("close acraproxy connection")
 	err := clientSession.connection.Close()
 	if err != nil {
-		log.Printf("Warning: %v\n", utils.ErrorMessage("error with closing connection to acraproxy", err))
+		log.Warningf("%v", utils.ErrorMessage("error with closing connection to acraproxy", err))
 	}
-	log.Println("Debug: all connections closed")
+	log.Debugln("all connections closed")
 }
 
 func (clientSession *ClientCommandsSession) HandleSession() {
 	reader := bufio.NewReader(clientSession.connection)
 	req, err := http.ReadRequest(reader)
 	if err != nil {
-		log.Printf("Warning: %v\n", utils.ErrorMessage("error reading command request from proxy", err))
+		log.Warningf("%v", utils.ErrorMessage("error reading command request from proxy", err))
 		clientSession.close()
 		return
 	}
@@ -78,7 +78,7 @@ func (clientSession *ClientCommandsSession) HandleSession() {
 
 	_, err = clientSession.connection.Write([]byte(response))
 	if err != nil {
-		log.Printf("Warning: %v\n", utils.ErrorMessage("can't send data with secure session to acraproxy", err))
+		log.Warningf("%v", utils.ErrorMessage("can't send data with secure session to acraproxy", err))
 		return
 	}
 	clientSession.close()

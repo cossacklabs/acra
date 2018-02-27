@@ -15,7 +15,7 @@ package base
 
 import (
 	"container/list"
-	"log"
+	log "github.com/sirupsen/logrus"
 	"os"
 	"os/exec"
 )
@@ -27,7 +27,7 @@ type PoisonCallback interface {
 type StopCallback struct{}
 
 func (*StopCallback) Call() error {
-	log.Println("Warning: detected poison record, exit")
+	log.Warningln("detected poison record, exit")
 	os.Exit(1)
 	return nil
 }
@@ -40,7 +40,7 @@ func NewExecuteScriptCallback(path string) *ExecuteScriptCallback {
 	return &ExecuteScriptCallback{scriptPath: path}
 }
 func (callback *ExecuteScriptCallback) Call() error {
-	log.Printf("Warning: detected poison record, run script - %v\n", callback.scriptPath)
+	log.Warningf("detected poison record, run script - %v", callback.scriptPath)
 	err := exec.Command(callback.scriptPath).Start()
 	if err != nil {
 		return err

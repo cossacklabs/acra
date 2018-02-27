@@ -5,10 +5,10 @@ import (
 	"fmt"
 	"github.com/cossacklabs/acra/keystore"
 	"github.com/cossacklabs/acra/utils"
+	log "github.com/sirupsen/logrus"
 	"gopkg.in/yaml.v2"
 	"io"
 	"io/ioutil"
-	log "github.com/sirupsen/logrus"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -204,7 +204,7 @@ func SetLogLevel(level int) {
 	} else if level == LOG_VERBOSE {
 		log.SetLevel(log.InfoLevel)
 	} else if level == LOG_DISCARD {
-		log.SetOutput(ioutil.Discard)
+		log.SetLevel(log.WarnLevel)
 	} else {
 		panic(fmt.Sprintf("Incorrect log level - %v", level))
 	}

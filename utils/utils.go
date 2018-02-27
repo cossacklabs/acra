@@ -22,7 +22,7 @@ import (
 	"bytes"
 	"fmt"
 
-	"log"
+	log "github.com/sirupsen/logrus"
 	"os"
 	"os/user"
 	"runtime"
@@ -131,7 +131,7 @@ func LoadPublicKey(path string) (*keys.PublicKey, error) {
 func LoadPrivateKey(path string) (*keys.PrivateKey, error) {
 	fi, err := os.Stat(path)
 	if nil == err && runtime.GOOS == "linux" && fi.Mode().Perm().String() != "-rw-------" && fi.Mode().Perm().String() != "-r--------" {
-		log.Printf("Error: private key file %v has incorrect permissions", path)
+		log.Errorf("private key file %v has incorrect permissions", path)
 		return nil, fmt.Errorf("Error: private key file %v has incorrect permissions", path)
 	}
 	key, err := ReadFile(path)

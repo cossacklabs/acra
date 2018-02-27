@@ -43,23 +43,23 @@ func handleClientConnection(config *Config, connection net.Conn) {
 	if !(config.disableUserCheck) {
 		host, port, err := net.SplitHostPort(connection.RemoteAddr().String())
 		if nil != err {
-			log.Printf("Error: %v\n", utils.ErrorMessage("can't parse client remote address", err))
+			log.WithError(err).Errorln("can't parse client remote address")
 			return
 		}
 		if host == "127.0.0.1" {
 			netstat, err := exec.Command("sh", "-c", "netstat -atlnpe | awk '/:"+port+" */ {print $7}'").Output()
 			if nil != err {
-				log.Printf("Error: %v\n", utils.ErrorMessage("can't get owner UID of localhost client connection", err))
+				log.WithError(err).Errorln("can't get owner UID of localhost client connection")
 				return
 			}
 			parsedNetstat := strings.Split(string(netstat), "\n")
 			correctPeer := false
 			userId, err := user.Current()
 			if nil != err {
-				log.Printf("Error: %v\n", utils.ErrorMessage("can't get current user UID", err))
+				log.WithError(err).Errorln("can't get current user UID")
 				return
 			}
-			fmt.Printf("Info: %v\ncur_user=%v\n", parsedNetstat, userId.Uid)
+			log.Infof("%v\ncur_user=%v", parsedNetstat, userId.Uid)
 			for i := 0; i < len(parsedNetstat); i++ {
 				if _, err := strconv.Atoi(parsedNetstat[i]); err == nil && parsedNetstat[i] != userId.Uid {
 					correctPeer = true
@@ -67,7 +67,7 @@ func handleClientConnection(config *Config, connection net.Conn) {
 				}
 			}
 			if !correctPeer {
-				log.Println("Error: client application and ssproxy need to be start from different users")
+				log.Errorln("client application and ssproxy need to be start from different users")
 				return
 			}
 		}
@@ -75,17 +75,17 @@ func handleClientConnection(config *Config, connection net.Conn) {
 
 	acraConn, err := network.Dial(config.AcraConnectionString)
 	if err != nil {
-		log.Printf("Error: %v\n", utils.ErrorMessage("can't connect to acra", err))
+		log.WithError(err).Errorln("can't connect to acra")
 		return
 	}
 	defer acraConn.Close()
 
-	log.Printf("Info: send client id <%v>\n", string(config.ClientId))
+	log.Infof("send client id <%v>", string(config.ClientId))
 
 	acraConn.SetDeadline(time.Now().Add(time.Second * 2))
 	acraConnWrapped, err := config.ConnectionWrapper.WrapClient(config.ClientId, acraConn)
 	if err != nil {
-		log.Printf("Error: %v\n", utils.ErrorMessage("can't wrap acra connection with secure session", err))
+		log.WithError(err).Errorln("can't wrap acra connection with secure session")
 		return
 	}
 	acraConn.SetDeadline(time.Time{})
@@ -106,7 +106,7 @@ func handleClientConnection(config *Config, connection net.Conn) {
 		if err == io.EOF {
 			log.Debugln("connection closed")
 		} else {
-			log.Println("Error: ", err)
+			log.WithError(err).Errorln("proxy error")
 		}
 		return
 	}
@@ -144,7 +144,7 @@ func main() {
 
 	err := cmd.Parse(DEFAULT_CONFIG_PATH)
 	if err != nil {
-		fmt.Printf("Error: %v\n", utils.ErrorMessage("Can't parse args", err))
+		log.WithError(err).Errorln("can't parse args")
 		os.Exit(1)
 	}
 
@@ -156,7 +156,7 @@ func main() {
 	}
 
 	if *acraHost == "" && *acraConnectionString == "" {
-		fmt.Println("Error: you must pass acra_host or acra_connection_string parameter")
+		log.Errorln("you must pass acra_host or acra_connection_string parameter")
 		os.Exit(1)
 	}
 	if *acraHost != "" {
@@ -164,7 +164,7 @@ func main() {
 	}
 	if *withZone {
 		if *acraHost == "" && *acraApiConnectionString == "" {
-			fmt.Println("Error: you must pass acra_host or acra_api_connection_string parameter")
+			log.Errorln("you must pass acra_host or acra_api_connection_string parameter")
 			os.Exit(1)
 		}
 		if *acraHost != "" {
@@ -178,20 +178,20 @@ func main() {
 	serverPublicKey := fmt.Sprintf("%v%v%v_server.pub", *keysDir, string(os.PathSeparator), *clientId)
 	exists, err := utils.FileExists(clientPrivateKey)
 	if !exists {
-		fmt.Printf("Error: acraproxy private key %s doesn't exists\n", clientPrivateKey)
+		log.Errorf("acraproxy private key %s doesn't exists", clientPrivateKey)
 		os.Exit(1)
 	}
 	if err != nil {
-		fmt.Printf("Error: can't check is exists acraproxy private key %v, got error - %v\n", clientPrivateKey, err)
+		log.Errorf("can't check is exists acraproxy private key %v, got error - %v", clientPrivateKey, err)
 		os.Exit(1)
 	}
 	exists, err = utils.FileExists(serverPublicKey)
 	if !exists {
-		fmt.Printf("Error: acraserver public key %s doesn't exists\n", serverPublicKey)
+		log.Errorf("acraserver public key %s doesn't exists", serverPublicKey)
 		os.Exit(1)
 	}
 	if err != nil {
-		fmt.Printf("Error: can't check is exists acraserver public key %v, got error - %v\n", serverPublicKey, err)
+		log.Errorf("can't check is exists acraserver public key %v, got error - %v", serverPublicKey, err)
 		os.Exit(1)
 	}
 
@@ -206,31 +206,31 @@ func main() {
 
 	keyStore, err := keystore.NewProxyFileSystemKeyStore(*keysDir, []byte(*clientId))
 	if err != nil {
-		log.Errorln("Error: can't initialize keystore")
+		log.WithError(err).Errorln("can't initialize keystore")
 		os.Exit(1)
 	}
 	config := &Config{KeyStore: keyStore, KeysDir: *keysDir, ClientId: []byte(*clientId), AcraConnectionString: *acraConnectionString, ConnectionString: *connectionString, AcraId: []byte(*acraId), disableUserCheck: *disableUserCheck}
 	listener, err := network.Listen(*connectionString)
 	if err != nil {
-		log.Errorf("Error: %v\n", utils.ErrorMessage("can't start listen connections", err))
+		log.WithError(err).Errorln("can't start listen connections")
 		os.Exit(1)
 	}
 	defer listener.Close()
 	if *useTls {
-		log.Println("Use TLS transport wrapper")
+		log.Infoln("use TLS transport wrapper")
 		config.ConnectionWrapper, err = network.NewTLSConnectionWrapper(&tls.Config{InsecureSkipVerify: true})
 		if err != nil {
-			log.Println("Error: can't initialize tls connection wrapper")
+			log.WithError(err).Errorln("can't initialize tls connection wrapper")
 			os.Exit(1)
 		}
 	} else if *noEncryption {
-		log.Println("Use raw transport wrapper")
+		log.Infoln("use raw transport wrapper")
 		config.ConnectionWrapper = &network.RawConnectionWrapper{ClientId: []byte(*clientId)}
 	} else {
-		log.Println("Use Secure Session transport wrapper")
+		log.Infoln("use Secure Session transport wrapper")
 		config.ConnectionWrapper, err = network.NewSecureSessionConnectionWrapper(keyStore)
 		if err != nil {
-			log.Println("Error: can't initialize secure session connection wrapper")
+			log.WithError(err).Errorln("can't initialize secure session connection wrapper")
 			os.Exit(1)
 		}
 	}
@@ -240,40 +240,40 @@ func main() {
 			commandsConfig := *config
 			commandsConfig.AcraConnectionString = *acraApiConnectionString
 
-			log.Printf("Info: start listening http api %s\n", *connectionAPIString)
+			log.Infof("start listening http api %s", *connectionAPIString)
 			commandsListener, err := network.Listen(*connectionAPIString)
 			if err != nil {
-				log.Printf("Error: %v\n", utils.ErrorMessage("can't start listen connections to http api", err))
+				log.WithError(err).Errorln("can't start listen connections to http api")
 				os.Exit(1)
 			}
 			for {
 				connection, err := commandsListener.Accept()
 				if err != nil {
-					log.Printf("Error: %v\n", utils.ErrorMessage(fmt.Sprintf("can't accept new connection (%v)", connection.RemoteAddr()), err))
+					log.WithError(err).Errorf("can't accept new connection (%v)", connection.RemoteAddr())
 					continue
 				}
 				// unix socket and value == '@'
 				if len(connection.RemoteAddr().String()) == 1 {
-					log.Printf("Info: new connection to http api: <%v>\n", connection.LocalAddr())
+					log.WithError(err).Errorf("new connection to http api: <%v>", connection.LocalAddr())
 				} else {
-					log.Printf("Info: new connection to http api: <%v>\n", connection.RemoteAddr())
+					log.WithError(err).Errorf("new connection to http api: <%v>", connection.RemoteAddr())
 				}
 				go handleClientConnection(&commandsConfig, connection)
 			}
 		}()
 	}
-	log.Printf("Info: start listening %s\n", *connectionString)
+	log.Infof("start listening %s", *connectionString)
 	for {
 		connection, err := listener.Accept()
 		if err != nil {
-			log.Printf("Error: %v\n", utils.ErrorMessage("can't accept new connection", err))
+			log.WithError(err).Errorln("can't accept new connection")
 			os.Exit(1)
 		}
 		// unix socket and value == '@'
 		if len(connection.RemoteAddr().String()) == 1 {
-			log.Printf("Info: new connection to acraproxy: <%v>\n", connection.LocalAddr())
+			log.Infof("new connection to acraproxy: <%v>", connection.LocalAddr())
 		} else {
-			log.Printf("Info: new connection to acraproxy: <%v>\n", connection.RemoteAddr())
+			log.Infof("new connection to acraproxy: <%v>", connection.RemoteAddr())
 		}
 		go handleClientConnection(config, connection)
 	}

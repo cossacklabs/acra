@@ -16,7 +16,7 @@ package main
 import (
 	"fmt"
 	"github.com/cossacklabs/acra/network"
-	"log"
+	log "github.com/sirupsen/logrus"
 	"net"
 
 	"github.com/cossacklabs/acra/decryptor/base"
@@ -47,18 +47,18 @@ func (clientSession *ClientSession) ConnectToDb() error {
 }
 
 func (clientSession *ClientSession) close() {
-	log.Println("Debug: close acraproxy connection")
+	log.Debugln("close acraproxy connection")
 
 	err := clientSession.connection.Close()
 	if err != nil {
-		log.Printf("Warning: %v\n", utils.ErrorMessage("error with closing connection to acraproxy", err))
+		log.Warningf("%v", utils.ErrorMessage("error with closing connection to acraproxy", err))
 	}
-	log.Println("Debug: close db connection")
+	log.Debugln("close db connection")
 	err = clientSession.connectionToDb.Close()
 	if err != nil {
-		log.Printf("Warning: %v\n", utils.ErrorMessage("error with closing connection to db", err))
+		log.Warningf("%v", utils.ErrorMessage("error with closing connection to db", err))
 	}
-	log.Println("Debug: all connections closed")
+	log.Debugln("all connections closed")
 }
 
 /* proxy connections from client to db and decrypt responses from db to client
@@ -69,11 +69,11 @@ func (clientSession *ClientSession) HandleSecureSession(decryptorImpl base.Decry
 
 	err := clientSession.ConnectToDb()
 	if err != nil {
-		log.Printf("Error: %v\n", utils.ErrorMessage("can't connect to db", err))
-		log.Println("Debug: close connection with acraproxy")
+		log.WithError(err).Errorln("can't connect to db")
+		log.Debugln("close connection with acraproxy")
 		err = clientSession.connection.Close()
 		if err != nil {
-			log.Printf("Warning: %v\n", utils.ErrorMessage("error with closing connection to acraproxy", err))
+			log.Warningf("%v", utils.ErrorMessage("error with closing connection to acraproxy", err))
 		}
 		return
 	}
@@ -86,17 +86,17 @@ func (clientSession *ClientSession) HandleSecureSession(decryptorImpl base.Decry
 		err = <-innerErrorChannel
 
 		if err == io.EOF {
-			log.Println("Debug: EOF connection closed")
+			log.Debugln("EOF connection closed")
 		} else if netErr, ok := err.(net.Error); ok {
 			if netErr.Timeout() {
-				log.Println("Debug: network timeout")
+				log.Debugln("network timeout")
 				continue
 			}
-			log.Printf("Error: %v\n", utils.ErrorMessage("network error", netErr))
+			log.WithError(netErr).Errorln("network error")
 		} else if opErr, ok := err.(*net.OpError); ok {
-			log.Printf("Error: %v\n", utils.ErrorMessage("network error", opErr))
+			log.WithError(opErr).Errorln("network error")
 		} else {
-			fmt.Printf("Error: %v\n", utils.ErrorMessage("unexpected error", err))
+			log.WithError(err).Errorln("unexpected error")
 		}
 		break
 	}
