@@ -61,6 +61,7 @@ func main() {
 	tlsKey := flag.String("tls_key", "", "Path to tls server key")
 	tlsCert := flag.String("tls_cert", "", "Path to tls server certificate")
 	noEncryption := flag.Bool("no_encryption", false, "Don't use encryption in transport")
+	clientId := flag.String("client_id", "", "Client id of proxy that will connect")
 	acraConnectionString := flag.String("connection_string", network.BuildConnectionString(cmd.DEFAULT_ACRA_CONNECTION_PROTOCOL, cmd.DEFAULT_ACRA_HOST, cmd.DEFAULT_ACRA_PORT, ""), "Connection string like tcp://x.x.x.x:yyyy or unix:///path/to/socket")
 	acraAPIConnectionString := flag.String("connection_api_string", network.BuildConnectionString(cmd.DEFAULT_ACRA_CONNECTION_PROTOCOL, cmd.DEFAULT_ACRA_HOST, cmd.DEFAULT_ACRA_API_PORT, ""), "Connection string for api like tcp://x.x.x.x:yyyy or unix:///path/to/socket")
 
@@ -131,8 +132,12 @@ func main() {
 			os.Exit(1)
 		}
 	} else if *noEncryption {
+		if *clientId == "" && !*withZone {
+			log.Errorln("Without zone mode and without encryption you must set <client_id> which will be used to connect from acraproxy to acraserver")
+			os.Exit(1)
+		}
 		log.Println("use raw transport wrapper")
-		config.ConnectionWrapper = &network.RawConnectionWrapper{ClientId: []byte(*serverId)}
+		config.ConnectionWrapper = &network.RawConnectionWrapper{ClientId: []byte(*clientId)}
 	} else {
 		log.Println("use Secure Session transport wrapper")
 		config.ConnectionWrapper, err = network.NewSecureSessionConnectionWrapper(keyStore)
