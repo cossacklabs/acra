@@ -24,8 +24,8 @@ import (
 	"github.com/cossacklabs/themis/gothemis/cell"
 	"github.com/cossacklabs/themis/gothemis/keys"
 	"github.com/cossacklabs/themis/gothemis/message"
+	log "github.com/sirupsen/logrus"
 	"io"
-	"log"
 )
 
 type BinaryDecryptor struct {
@@ -84,14 +84,14 @@ func (decryptor *BinaryDecryptor) readDataLength(reader io.Reader) (uint64, []by
 	var length uint64
 	lenCount, err := io.ReadFull(reader, decryptor.lengthBuf[:])
 	if err != nil {
-		log.Printf("Warning: %v\n", utils.ErrorMessage("can't read data length", err))
+		log.Warningf("%v", utils.ErrorMessage("can't read data length", err))
 		if err == io.ErrUnexpectedEOF || err == io.EOF {
 			return uint64(lenCount), decryptor.lengthBuf[:lenCount], base.ErrFakeAcraStruct
 		}
 		return 0, []byte{}, err
 	}
 	if lenCount != len(decryptor.lengthBuf) {
-		log.Printf("Warning: incorrect length count, %v!=%v\n", lenCount, len(decryptor.lengthBuf))
+		log.Warningf("incorrect length count, %v!=%v", lenCount, len(decryptor.lengthBuf))
 		return 0, decryptor.lengthBuf[:lenCount], base.ErrFakeAcraStruct
 	}
 	// convert from little endian
@@ -109,14 +109,14 @@ func (decryptor *BinaryDecryptor) readScellData(length int, reader io.Reader) ([
 	decryptor.checkBuf(&decryptor.buf, int(length))
 	n, err := io.ReadFull(reader, decryptor.buf[:length])
 	if err != nil {
-		log.Printf("Warning: %v\n", utils.ErrorMessage(fmt.Sprintf("can't read scell data with passed length=%v", length), err))
+		log.Warningf("%v", utils.ErrorMessage(fmt.Sprintf("can't read scell data with passed length=%v", length), err))
 		if err == io.ErrUnexpectedEOF || err == io.EOF {
 			return nil, decryptor.buf[:n], base.ErrFakeAcraStruct
 		}
 		return nil, decryptor.buf[:n], err
 	}
 	if n != int(length) {
-		log.Printf("Warning: %v\n", utils.ErrorMessage("can't decode hex data", err))
+		log.Warningf("%v", utils.ErrorMessage("can't decode hex data", err))
 		return nil, decryptor.buf[:n], base.ErrFakeAcraStruct
 	}
 	return decryptor.buf[:length], decryptor.buf[:length], nil

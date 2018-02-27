@@ -26,7 +26,7 @@ func TestEncodeToOctal(t *testing.T) {
 	output := postgresql.EncodeToOctal(data[:])
 	count := len(output)
 	if count != len(expected) {
-		t.Fatal(fmt.Sprintf("Incorrect encoded count: %v != %v\nexpected:%v\noutput:%v\n", count, len(expected), string(expected), string(output)))
+		t.Fatal(fmt.Sprintf("Incorrect encoded count: %v != %v\nexpected:%v\noutput:%v", count, len(expected), string(expected), string(output)))
 	}
 	if !bytes.Equal(expected, output) {
 		t.Fatal("Expected != Encoded")

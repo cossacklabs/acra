@@ -15,10 +15,10 @@ package main
 
 import (
 	"flag"
-	"fmt"
 	"github.com/cossacklabs/acra/cmd"
 	"github.com/cossacklabs/acra/keystore"
 	"github.com/cossacklabs/acra/utils"
+	log "github.com/sirupsen/logrus"
 	"os"
 )
 
@@ -36,7 +36,7 @@ func main() {
 
 	err := cmd.Parse(DEFAULT_CONFIG_PATH)
 	if err != nil {
-		fmt.Printf("Error: %v\n", utils.ErrorMessage("Can't parse args", err))
+		log.WithError(err).Errorln("can't parse args")
 		os.Exit(1)
 	}
 

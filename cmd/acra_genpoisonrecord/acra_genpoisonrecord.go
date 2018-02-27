@@ -21,6 +21,7 @@ import (
 	"github.com/cossacklabs/acra/keystore"
 	"github.com/cossacklabs/acra/poison"
 	"github.com/cossacklabs/acra/utils"
+	log "github.com/sirupsen/logrus"
 	"os"
 )
 
@@ -35,18 +36,18 @@ func main() {
 
 	err := cmd.Parse(DEFAULT_CONFIG_PATH)
 	if err != nil {
-		fmt.Printf("Error: %v\n", utils.ErrorMessage("Can't parse args", err))
+		log.WithError(err).Errorln("can't parse args")
 		os.Exit(1)
 	}
 
 	store, err := keystore.NewFilesystemKeyStore(*keysDir)
 	if err != nil {
-		fmt.Printf("Error: %v\n", utils.ErrorMessage("can't initialize key store", err))
+		log.WithError(err).Errorln("can't initialize key store")
 		os.Exit(1)
 	}
 	poisonRecord, err := poison.CreatePoisonRecord(store, *dataLength)
 	if err != nil {
-		fmt.Printf("Error: %v\n", utils.ErrorMessage("can't create poison record", err))
+		log.WithError(err).Errorln("can't create poison record")
 	}
 	fmt.Println(base64.StdEncoding.EncodeToString(poisonRecord))
 }

@@ -670,7 +670,7 @@ class TestKeyNonExistence(BaseTestCase):
         keyname = 'without_acraproxy_public_test'
         result = create_client_keypair(keyname)
         if result != 0:
-            self.fail("Can't create keypairs")
+            self.fail("can't create keypairs")
         self.delete_key(keyname + '.pub')
         connection = None
         try:
@@ -691,7 +691,7 @@ class TestKeyNonExistence(BaseTestCase):
         keyname = 'without_acraproxy_private_test'
         result = create_client_keypair(keyname)
         if result != 0:
-            self.fail("Can't create keypairs")
+            self.fail("can't create keypairs")
         self.delete_key(keyname)
         try:
             self.proxy = self.fork_proxy(
@@ -713,7 +713,7 @@ class TestKeyNonExistence(BaseTestCase):
         keyname = 'without_acraserver_private_test'
         result = create_client_keypair(keyname)
         if result != 0:
-            self.fail("Can't create keypairs")
+            self.fail("can't create keypairs")
         self.delete_key(keyname + '_storage')
         connection = None
         try:
@@ -733,7 +733,7 @@ class TestKeyNonExistence(BaseTestCase):
         keyname = 'without_acraserver_public_test'
         result = create_client_keypair(keyname)
         if result != 0:
-            self.fail("Can't create keypairs")
+            self.fail("can't create keypairs")
         self.delete_key(keyname + '_server.pub')
         try:
             self.proxy = self.fork_proxy(
@@ -953,7 +953,7 @@ class TestCheckLogPoisonRecord(AcraCatchLogsMixin, BasePoisonRecordTest):
             out, _ = self.acra.communicate(timeout=1)
         except subprocess.TimeoutExpired:
             pass
-        self.assertIn(b'Debug: check poison records', out)
+        self.assertIn(b'check poison records', out)
 
 
 class TestKeyStorageClearing(BaseTestCase):
@@ -1012,6 +1012,8 @@ class TestKeyStorageClearing(BaseTestCase):
             self.assertEqual(response.status, 200)
         # delete key for excluding reloading from FS
         os.remove('.acrakeys/{}.pub'.format(self.key_name))
+        # close connections in pool and reconnect to reinitiate secure session
+        self.engine1.dispose()
         # acraserver should close connection when doesn't find key
         with self.assertRaises(DatabaseError):
             result = self.engine1.execute(test_table.select().limit(1))

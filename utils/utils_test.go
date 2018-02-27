@@ -28,7 +28,7 @@ func TestFileExists(t *testing.T) {
 	_, err = os.Create(testPath)
 	defer os.Remove(testPath)
 	if err != nil {
-		t.Fatalf("Can't create test temporary file %v. err - %v\n", testPath, err)
+		t.Fatalf("can't create test temporary file %v. err - %v\n", testPath, err)
 	}
 	exists, err = utils.FileExists(testPath)
 	if !exists || err != nil {
