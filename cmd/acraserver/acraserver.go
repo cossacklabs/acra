@@ -130,12 +130,12 @@ func main() {
 		}
 		config.ConnectionWrapper, err = network.NewTLSConnectionWrapper(&tls.Config{Certificates: []tls.Certificate{cer}})
 		if err != nil {
-			log.Errorln(" can't initialize tls connection wrapper")
+			log.Errorln("can't initialize tls connection wrapper")
 			os.Exit(1)
 		}
 	} else if *noEncryption {
 		if *clientId == "" && !*withZone {
-			log.Errorln("Without zone mode and without encryption you must set <client_id> which will be used to connect from acraproxy to acraserver")
+			log.Errorln("without zone mode and without encryption you must set <client_id> which will be used to connect from acraproxy to acraserver")
 			os.Exit(1)
 		}
 		log.Println("use raw transport wrapper")
@@ -144,7 +144,7 @@ func main() {
 		log.Println("use Secure Session transport wrapper")
 		config.ConnectionWrapper, err = network.NewSecureSessionConnectionWrapper(keyStore)
 		if err != nil {
-			log.Errorln(" can't initialize secure session connection wrapper")
+			log.Errorln("can't initialize secure session connection wrapper")
 			os.Exit(1)
 		}
 	}
