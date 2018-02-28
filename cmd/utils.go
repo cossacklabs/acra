@@ -3,10 +3,6 @@ package cmd
 import (
 	flag_ "flag"
 	"fmt"
-	"github.com/cossacklabs/acra/keystore"
-	"github.com/cossacklabs/acra/utils"
-	log "github.com/sirupsen/logrus"
-	"gopkg.in/yaml.v2"
 	"io"
 	"io/ioutil"
 	"net"
@@ -14,6 +10,11 @@ import (
 	"os/signal"
 	"path/filepath"
 	"reflect"
+
+	"github.com/cossacklabs/acra/keystore"
+	"github.com/cossacklabs/acra/utils"
+	log "github.com/sirupsen/logrus"
+	"gopkg.in/yaml.v2"
 )
 
 var (
@@ -32,28 +33,29 @@ func init() {
 	flag_.CommandLine.Usage = PrintDefaults
 }
 
-type SigCallback func()
-type SigIntHandler struct {
-	ch chan os.Signal
+type SignalCallback func()
+type SignalHandler struct {
+	ch        chan os.Signal
 	listeners []net.Listener
-	callbacks []SigCallback
+	callbacks []SignalCallback
+	osSignal  os.Signal
 }
 
-func NewSigIntHandler()(*SigIntHandler, error){
-	return &SigIntHandler{ch: make(chan os.Signal)}, nil
+func NewSignalHandler(handledSignal os.Signal) (*SignalHandler, error) {
+	return &SignalHandler{ch: make(chan os.Signal), osSignal: handledSignal}, nil
 }
 
-func (handler *SigIntHandler) AddListener(listener net.Listener){
+func (handler *SignalHandler) AddListener(listener net.Listener) {
 	handler.listeners = append(handler.listeners, listener)
 }
 
-func (handler *SigIntHandler) AddCallback(callback SigCallback){
+func (handler *SignalHandler) AddCallback(callback SignalCallback) {
 	handler.callbacks = append(handler.callbacks, callback)
 }
 
 // Register should be called as goroutine
-func (handler *SigIntHandler) Register(){
-	signal.Notify(handler.ch, os.Interrupt)
+func (handler *SignalHandler) Register() {
+	signal.Notify(handler.ch, handler.osSignal)
 	<-handler.ch
 	for _, listener := range handler.listeners {
 		listener.Close()

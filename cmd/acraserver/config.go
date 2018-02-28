@@ -46,16 +46,16 @@ type Config struct {
 func NewConfig() *Config {
 	return &Config{withZone: false, stopOnPoison: false, wholeMatch: true}
 }
-func (config *Config) GetTLSServerKeyPath()string{
+func (config *Config) GetTLSServerKeyPath() string {
 	return config.tlsServerKeyPath
 }
-func (config *Config) GetTLSServerCertPath()string{
+func (config *Config) GetTLSServerCertPath() string {
 	return config.tlsServerCertPath
 }
-func (config *Config) SetTLSServerKeyPath(path string){
+func (config *Config) SetTLSServerKeyPath(path string) {
 	config.tlsServerKeyPath = path
 }
-func (config *Config) SetTLSServerCertPath(path string){
+func (config *Config) SetTLSServerCertPath(path string) {
 	config.tlsServerCertPath = path
 }
 func (config *Config) SetAcraConnectionString(str string) {

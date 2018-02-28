@@ -156,14 +156,14 @@ func (row *DataRow) Flush() bool {
 }
 
 type PgDecryptorConfig struct {
-	serverKeyPath string
+	serverKeyPath  string
 	serverCertPath string
-
 }
-func NewPgDecryptorConfig(tlsKeyPath, tlsCertPath string)(*PgDecryptorConfig, error){
+
+func NewPgDecryptorConfig(tlsKeyPath, tlsCertPath string) (*PgDecryptorConfig, error) {
 	return &PgDecryptorConfig{serverKeyPath: tlsKeyPath, serverCertPath: tlsCertPath}, nil
 }
-func (config *PgDecryptorConfig) getCertificate()(tls.Certificate, error){
+func (config *PgDecryptorConfig) getCertificate() (tls.Certificate, error) {
 	return tls.LoadX509KeyPair(config.serverCertPath, config.serverKeyPath)
 }
 

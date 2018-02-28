@@ -78,7 +78,7 @@ func (clientSession *ClientSession) HandleSecureSession(decryptorImpl base.Decry
 		return
 	}
 	pgDecryptorConfig, err := postgresql.NewPgDecryptorConfig(clientSession.config.GetTLSServerKeyPath(), clientSession.config.GetTLSServerCertPath())
-	if err != nil{
+	if err != nil {
 		log.WithError(err).Errorln("can't initialize config for postgresql decryptor")
 		err = clientSession.connection.Close()
 		if err != nil {

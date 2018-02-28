@@ -16,7 +16,6 @@ package main
 import (
 	"flag"
 	"fmt"
-	log "github.com/sirupsen/logrus"
 	"io"
 	"net"
 	"os"
@@ -27,7 +26,10 @@ import (
 	"strings"
 	"time"
 
+	log "github.com/sirupsen/logrus"
+
 	"crypto/tls"
+
 	"github.com/cossacklabs/acra/cmd"
 	"github.com/cossacklabs/acra/keystore"
 	"github.com/cossacklabs/acra/network"
@@ -216,7 +218,7 @@ func main() {
 	}
 	defer listener.Close()
 
-	sigHandler, err := cmd.NewSigIntHandler()
+	sigHandler, err := cmd.NewSignalHandler(os.Interrupt)
 	if err != nil {
 		log.WithError(err).Errorln("can't register SIGINT handler")
 		os.Exit(1)

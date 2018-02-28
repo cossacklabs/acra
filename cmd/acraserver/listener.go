@@ -27,7 +27,7 @@ import (
 type SServer struct {
 	config     *Config
 	keystorage keystore.KeyStore
-	listeners []net.Listener
+	listeners  []net.Listener
 }
 
 func NewServer(config *Config, keystorage keystore.KeyStore) (server *SServer, err error) {
@@ -38,14 +38,14 @@ func NewServer(config *Config, keystorage keystore.KeyStore) (server *SServer, e
 func (server *SServer) Close() error {
 	var err error
 	for _, listener := range server.listeners {
-		if err_ := listener.Close(); err_ != nil && err == nil{
+		if err_ := listener.Close(); err_ != nil && err == nil {
 			err = err_
 		}
 	}
 	return err
 }
 
-func (server *SServer) addListener(listener net.Listener){
+func (server *SServer) addListener(listener net.Listener) {
 	server.listeners = append(server.listeners, listener)
 }
 

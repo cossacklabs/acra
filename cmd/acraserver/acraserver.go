@@ -16,14 +16,15 @@ package main
 import (
 	"crypto/tls"
 	"flag"
+	"net/http"
+	_ "net/http/pprof"
+	"os"
+
 	"github.com/cossacklabs/acra/cmd"
 	"github.com/cossacklabs/acra/keystore"
 	"github.com/cossacklabs/acra/network"
 	"github.com/cossacklabs/acra/utils"
 	log "github.com/sirupsen/logrus"
-	"net/http"
-	_ "net/http/pprof"
-	"os"
 )
 
 // DEFAULT_CONFIG_PATH relative path to config which will be parsed as default
@@ -154,13 +155,13 @@ func main() {
 		panic(err)
 	}
 
-	sigHandler, err := cmd.NewSigIntHandler()
+	sigHandler, err := cmd.NewSignalHandler(os.Interrupt)
 	if err != nil {
 		log.WithError(err).Errorln("can't register SIGINT handler")
 		os.Exit(1)
 	}
 	go sigHandler.Register()
-	sigHandler.AddCallback(func(){server.Close()})
+	sigHandler.AddCallback(func() { server.Close() })
 
 	if *debugServer {
 		//start http server for pprof
