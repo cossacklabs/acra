@@ -6,8 +6,8 @@ jobs:
       # postgresql image with ssl support
       - image: nimbustech/postgres-ssl:9.5
         environment:
-          POSTGRES_PASSWORD=postgres
-          POSTGRES_USER=postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_USER: postgres
     environment:
       GOTHEMIS_IMPORT: github.com/cossacklabs/themis/gothemis
       FILEPATH_ERROR_FLAG: /tmp/test_fail
@@ -44,9 +44,9 @@ jobs:
           fi done
 
         environment:
-          TEST_ACRA_PORT=6000
-          TEST_PROXY_PORT=7000
-          TEST_PROXY_COMMAND_PORT=8000
+          TEST_ACRA_PORT: 6000
+          TEST_PROXY_PORT: 7000
+          TEST_PROXY_COMMAND_PORT: 8000
 
 workflows:
   version: 2
