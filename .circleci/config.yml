@@ -29,6 +29,7 @@ jobs:
       - run: cd $HOME && for version in $VERSIONS; do export GOROOT=$HOME/go_root_$version/go; export PATH=$GOROOT/bin/:$PATH; export GOPATH=$HOME/go_path_$version; go test -v github.com/cossacklabs/acra/...; if [ "$?" != "0" ]; then echo "$version" >> "$FILEPATH_ERROR_FLAG"; fi done
       # if file exists (exit code of stat == 0 ) then something was wrong. cat file with versions of environments where was error and return exit 1
       - run: if [ -f  $FILEPATH_ERROR_FLAG ]; then cat "$FILEPATH_ERROR_FLAG"; rm "$FILEPATH_ERROR_FLAG"; exit 1; fi
+      # each iteration pass to test different ports for forks to avoid problems with TCP TIME WAIT between tests
       - run: |
           export TEST_ACRA_PORT=6000
           export TEST_PROXY_PORT=7000
