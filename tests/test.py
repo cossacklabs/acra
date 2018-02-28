@@ -58,6 +58,10 @@ connect_args = {
     'user': DB_USER, 'password': DB_USER_PASSWORD,
     "options": "-c statement_timeout=1000", 'sslmode': 'allow'}
 
+SETUP_SQL_COMMAND_TIMEOUT = 0.1
+FORK_FAIL_SLEEP = 0.1
+CONNECTION_FAIL_SLEEP = 0.1
+
 def get_connect_args(port=5432, sslmode='require', **kwargs):
     args = connect_args.copy()
     args['port'] = port
@@ -172,6 +176,12 @@ def tearDownModule():
         except:
             pass
 
+class ProcessStub(object):
+    def kill(self):
+        pass
+    def wait(self):
+        pass
+
 
 class BaseTestCase(unittest.TestCase):
     DB_HOST = os.environ.get('TEST_DB_HOST', '127.0.0.1')
@@ -191,6 +201,10 @@ class BaseTestCase(unittest.TestCase):
     DEBUG_LOG = False
     TEST_DATA_LOG = False
     maxDiff = None
+    # hack to simplify handling errors on forks and don't check `if hasattr(self, 'proxy_1')`
+    proxy_1 = ProcessStub()
+    proxy_2 = ProcessStub()
+    acra = ProcessStub()
 
     def fork(self, func):
         popen = func()
@@ -199,7 +213,8 @@ class BaseTestCase(unittest.TestCase):
             if popen.poll() is None:
                 return popen
             count += 1
-            time.sleep(0.01)
+            time.sleep(FORK_FAIL_SLEEP)
+        popen.kill()
         self.fail("can't fork")
 
     def wait_acra_connection(self, *args, **kwargs):
@@ -317,7 +332,7 @@ class BaseTestCase(unittest.TestCase):
                             "WHERE name = 'bytea_output'".format(self.DB_BYTEA))
                         break
                     except Exception:
-                        time.sleep(0.01)
+                        time.sleep(SETUP_SQL_COMMAND_TIMEOUT)
                         count += 1
                         if count == 3:
                             raise
@@ -617,7 +632,7 @@ class TestConnectionClosing(BaseTestCase):
             except:
                 pass
             count += 1
-            time.sleep(0.1)
+            time.sleep(CONNECTION_FAIL_SLEEP)
         self.fail("can't connect to acra or proxy")
 
     def testClosingConnections(self):
@@ -1247,7 +1262,7 @@ class SSLPostgresqlConnectionTest(HexFormatTest):
                             "WHERE name = 'bytea_output'".format(self.DB_BYTEA))
                         break
                     except Exception:
-                        time.sleep(0.01)
+                        time.sleep(SETUP_SQL_COMMAND_TIMEOUT)
                         count += 1
                         if count == 3:
                             raise
