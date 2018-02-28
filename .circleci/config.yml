@@ -30,6 +30,10 @@ jobs:
       # if file exists (exit code of stat == 0 ) then something was wrong. cat file with versions of environments where was error and return exit 1
       - run: if [ -f  $FILEPATH_ERROR_FLAG ]; then cat "$FILEPATH_ERROR_FLAG"; rm "$FILEPATH_ERROR_FLAG"; exit 1; fi
       - run:
+        environment:
+          TEST_ACRA_PORT: 6000
+          TEST_PROXY_PORT: 7000
+          TEST_PROXY_COMMAND_PORT: 8000
         command: |
           cd $HOME/project &&
           for version in $VERSIONS; do
@@ -42,11 +46,6 @@ jobs:
           python3 tests/test.py;
           if [ "$?" != "0" ]; then echo "$version" >> "$FILEPATH_ERROR_FLAG";
           fi done
-
-        environment:
-          TEST_ACRA_PORT: 6000
-          TEST_PROXY_PORT: 7000
-          TEST_PROXY_COMMAND_PORT: 8000
 
 workflows:
   version: 2
