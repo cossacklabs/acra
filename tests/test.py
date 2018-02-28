@@ -14,7 +14,6 @@
 # coding: utf-8
 import socket
 import json
-import struct
 import time
 import os
 import random
@@ -179,15 +178,12 @@ class BaseTestCase(unittest.TestCase):
     DB_NAME = os.environ.get('TEST_DB_NAME', 'postgres')
     DB_PORT = os.environ.get('TEST_DB_PORT', 5432)
 
-    PROXY_PORT_1 = 9595
-    PROXY_PORT_2 = 9696
-    PROXY_COMMAND_PORT_1 = 9191
+    PROXY_PORT_1 = os.environ.get('TEST_PROXY_PORT', 9595)
+    PROXY_PORT_2 = PROXY_PORT_1 + 200
+    PROXY_COMMAND_PORT_1 = os.environ.get('TEST_PROXY_COMMAND_PORT', 9595)
     # for debugging with manually runned acra server
     EXTERNAL_ACRA = False
-    ACRA_PORT = 10003
-    if EXTERNAL_ACRA:
-        ACRA_PORT = 9393
-
+    ACRA_PORT = os.environ.get('TEST_ACRA_PORT', 10003)
     ACRA_BYTEA = 'hex_bytea'
     DB_BYTEA = 'hex'
     WHOLECELL_MODE = False
@@ -1262,16 +1258,17 @@ class SSLPostgresqlConnectionTest(HexFormatTest):
     def tearDown(self):
         processes = []
         if not self.EXTERNAL_ACRA:
-            self.acra.kill()
-            processes.append(self.acra)
+            if hasattr(self, 'acra'):
+                self.acra.kill()
+                processes.append(self.acra)
         for p in processes:
             p.wait()
         try:
             self.engine_raw.execute('delete from test;')
+            for engine in self.engines:
+                engine.dispose()
         except:
             pass
-        for engine in self.engines:
-            engine.dispose()
 
 if __name__ == '__main__':
     unittest.main()
