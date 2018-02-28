@@ -107,10 +107,11 @@ def wait_unix_socket(socket_path, count=10, sleep=0.1):
         try:
             connection = socket.socket(socket.AF_UNIX)
             connection.connect(socket_path)
-            connection.close()
             return
         except FileNotFoundError:
             pass
+        finally:
+            connection.close()
         count -= 1
         time.sleep(sleep)
     raise Exception("can't wait connection")
