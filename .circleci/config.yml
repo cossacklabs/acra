@@ -3,7 +3,8 @@ jobs:
   x86_64:
     docker:
       - image: cossacklabs/android-build
-      - image: postgres:9.4.16-alpine
+      # postgresql image with ssl support
+      - image: nimbustech/postgres-ssl:9.5
         environment:
           POSTGRES_PASSWORD=postgres
           POSTGRES_USER=postgres
@@ -29,6 +30,7 @@ jobs:
       # if file exists (exit code of stat == 0 ) then something was wrong. cat file with versions of environments where was error and return exit 1
       - run: if [ -f  $FILEPATH_ERROR_FLAG ]; then cat "$FILEPATH_ERROR_FLAG"; rm "$FILEPATH_ERROR_FLAG"; exit 1; fi
       - run: cd $HOME/project && for version in $VERSIONS; do export GOROOT=$HOME/go_root_$version/go; export PATH=$GOROOT/bin/:$PATH; export GOPATH=$HOME/go_path_$version; python3 tests/test.py; if [ "$?" != "0" ]; then echo "$version" >> "$FILEPATH_ERROR_FLAG"; fi done
+
 workflows:
   version: 2
   tests:
