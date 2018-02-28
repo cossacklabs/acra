@@ -149,7 +149,14 @@ func index(w http.ResponseWriter, r *http.Request) {
 
 	var configParams configParamsJSON
 	for _, item := range outConfigParams.Config {
-		c := paramJSON(item)
+		c := paramJSON{
+			Name: item.Name,
+			Title: item.Title,
+			Value_type: item.Value_type,
+			Input_type: item.Input_type,
+			Values: item.Values,
+			Labels: item.Labels,
+		}
 		configParams.Config = append(configParams.Config, c)
 	}
 	// log.Println(configParams)
