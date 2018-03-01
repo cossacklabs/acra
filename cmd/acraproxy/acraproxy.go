@@ -24,6 +24,7 @@ import (
 	"runtime"
 	"strconv"
 	"strings"
+	"syscall"
 	"time"
 
 	log "github.com/sirupsen/logrus"
@@ -218,7 +219,7 @@ func main() {
 	}
 	defer listener.Close()
 
-	sigHandler, err := cmd.NewSignalHandler(os.Interrupt)
+	sigHandler, err := cmd.NewSignalHandler([]os.Signal{os.Interrupt, syscall.SIGTERM})
 	if err != nil {
 		log.WithError(err).Errorln("can't register SIGINT handler")
 		os.Exit(1)

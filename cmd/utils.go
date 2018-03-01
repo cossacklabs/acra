@@ -38,11 +38,11 @@ type SignalHandler struct {
 	ch        chan os.Signal
 	listeners []net.Listener
 	callbacks []SignalCallback
-	osSignal  os.Signal
+	signals   []os.Signal
 }
 
-func NewSignalHandler(handledSignal os.Signal) (*SignalHandler, error) {
-	return &SignalHandler{ch: make(chan os.Signal), osSignal: handledSignal}, nil
+func NewSignalHandler(handledSignals []os.Signal) (*SignalHandler, error) {
+	return &SignalHandler{ch: make(chan os.Signal), signals: handledSignals}, nil
 }
 
 func (handler *SignalHandler) AddListener(listener net.Listener) {
@@ -55,7 +55,9 @@ func (handler *SignalHandler) AddCallback(callback SignalCallback) {
 
 // Register should be called as goroutine
 func (handler *SignalHandler) Register() {
-	signal.Notify(handler.ch, handler.osSignal)
+	for _, osSignal := range handler.signals {
+		signal.Notify(handler.ch, osSignal)
+	}
 	<-handler.ch
 	for _, listener := range handler.listeners {
 		listener.Close()

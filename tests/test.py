@@ -61,6 +61,8 @@ connect_args = {
 SETUP_SQL_COMMAND_TIMEOUT = 0.1
 FORK_FAIL_SLEEP = 0.1
 CONNECTION_FAIL_SLEEP = 0.1
+SOCKET_CONNECT_TIMEOUT = 10
+KILL_WAIT_TIMEOUT = 10
 
 def get_connect_args(port=5432, sslmode='require', **kwargs):
     args = connect_args.copy()
@@ -183,6 +185,7 @@ def setUpModule():
         ['./acra_addzone'], cwd=os.getcwd(), timeout=PROCESS_CALL_TIMEOUT).decode('utf-8')))
     zones.append(json.loads(subprocess.check_output(
         ['./acra_addzone'], cwd=os.getcwd(), timeout=PROCESS_CALL_TIMEOUT).decode('utf-8')))
+    socket.setdefaulttimeout(SOCKET_CONNECT_TIMEOUT)
 
 def tearDownModule():
     import shutil
@@ -220,14 +223,15 @@ class BaseTestCase(unittest.TestCase):
     acra = ProcessStub()
 
     def fork(self, func):
-        popen = func()
+        process = func()
         count = 0
         while count <= 3:
-            if popen.poll() is None:
-                return popen
+            if process.poll() is None:
+                return process
             count += 1
             time.sleep(FORK_FAIL_SLEEP)
-        popen.kill()
+        process.terminate()
+        process.wait(timeout=KILL_WAIT_TIMEOUT)
         self.fail("can't fork")
 
     def wait_acra_connection(self, *args, **kwargs):
@@ -267,7 +271,8 @@ class BaseTestCase(unittest.TestCase):
             try:
                 wait_unix_socket(socket_path_from_connection_string(proxy_connection))
             except:
-                process.kill()
+                process.terminate()
+                process.wait(timeout=KILL_WAIT_TIMEOUT)
                 raise
         return process
 
@@ -308,7 +313,8 @@ class BaseTestCase(unittest.TestCase):
         try:
             self.wait_acra_connection(socket_path_from_connection_string(connection_string))
         except:
-            process.kill()
+            process.terminate()
+            process.wait(timeout=KILL_WAIT_TIMEOUT)
             raise
         return process
 
@@ -354,14 +360,14 @@ class BaseTestCase(unittest.TestCase):
             raise
 
     def tearDown(self):
-        self.proxy_1.kill()
-        self.proxy_2.kill()
+        self.proxy_1.terminate()
+        self.proxy_2.terminate()
         processes = [self.proxy_1, self.proxy_2]
         if not self.EXTERNAL_ACRA:
-            self.acra.kill()
+            self.acra.terminate()
             processes.append(self.acra)
         for p in processes:
-            p.wait()
+            p.wait(timeout=KILL_WAIT_TIMEOUT)
         try:
             self.engine_raw.execute('delete from test;')
         except:
@@ -600,20 +606,18 @@ class TestConnectionClosing(BaseTestCase):
 
 
     def get_connection(self):
-        return psycopg2.connect(database=self.DB_NAME, user=DB_USER,
-                                password=DB_USER_PASSWORD, host=self.DB_HOST,
-                                port=self.PROXY_PORT_1)
+        return psycopg2.connect(host='/tmp', **get_connect_args(port=self.PROXY_PORT_1))
 
     def tearDown(self):
         procs = []
         if hasattr(self, 'proxy_1'):
-            self.proxy_1.kill()
+            self.proxy_1.terminate()
             procs.append(self.proxy_1)
         if not self.EXTERNAL_ACRA and hasattr(self, 'acra'):
-            self.acra.kill()
+            self.acra.terminate()
             procs.append(self.acra)
         for p in procs:
-            p.wait()
+            p.wait(timeout=KILL_WAIT_TIMEOUT)
 
     def getActiveConnectionCount(self, cursor):
         cursor.execute('select count(*) from pg_stat_activity;')
@@ -632,25 +636,7 @@ class TestConnectionClosing(BaseTestCase):
             connection.close()
         return limit
 
-    def checkConnection(self):
-        """check that proxy and acra ready to accept connections"""
-        count = 0
-        while count <= 3:
-            try:
-                with socket.create_connection(('127.0.0.1', self.ACRA_PORT), 1):
-                    pass
-                with socket.create_connection(('127.0.0.1', self.PROXY_PORT_1), 1):
-                    pass
-                return
-            except:
-                pass
-            count += 1
-            time.sleep(CONNECTION_FAIL_SLEEP)
-        self.fail("can't connect to acra or proxy")
-
     def testClosingConnections(self):
-        return
-        self.checkConnection()
         connection = self.get_connection()
 
         connection.autocommit = True
@@ -699,8 +685,8 @@ class TestKeyNonExistence(BaseTestCase):
 
     def tearDown(self):
         if not self.EXTERNAL_ACRA:
-            self.acra.kill()
-            self.acra.wait()
+            self.acra.terminate()
+            self.acra.wait(timeout=KILL_WAIT_TIMEOUT)
 
     def delete_key(self, filename):
         os.remove('.acrakeys{sep}{name}'.format(sep=os.path.sep, name=filename))
@@ -722,8 +708,8 @@ class TestKeyNonExistence(BaseTestCase):
                 connection = psycopg2.connect(**self.dsn)
 
         finally:
-            self.proxy.kill()
-            self.proxy.wait()
+            self.proxy.terminate()
+            self.proxy.wait(timeout=KILL_WAIT_TIMEOUT)
             if connection:
                 connection.close()
 
@@ -743,8 +729,8 @@ class TestKeyNonExistence(BaseTestCase):
             self.assertEqual(self.proxy.poll(), 1)
         finally:
             try:
-                self.proxy.kill()
-                self.proxy.wait()
+                self.proxy.terminate()
+                self.proxy.wait(timeout=KILL_WAIT_TIMEOUT)
             except OSError:  # pid not found
                 pass
 
@@ -764,8 +750,8 @@ class TestKeyNonExistence(BaseTestCase):
             with self.assertRaises(psycopg2.OperationalError):
                 connection = psycopg2.connect(**self.dsn)
         finally:
-            self.proxy.kill()
-            self.proxy.wait()
+            self.proxy.terminate()
+            self.proxy.wait(timeout=KILL_WAIT_TIMEOUT)
             if connection:
                 connection.close()
 
@@ -785,8 +771,8 @@ class TestKeyNonExistence(BaseTestCase):
             self.assertEqual(self.proxy.poll(), 1)
         finally:
             try:
-                self.proxy.kill()
-                self.proxy.wait()
+                self.proxy.terminate()
+                self.proxy.wait(timeout=KILL_WAIT_TIMEOUT)
             except OSError:  # pid not found
                 pass
 
@@ -1028,14 +1014,14 @@ class TestKeyStorageClearing(BaseTestCase):
     def tearDown(self):
         processes = []
         if hasattr(self, 'proxy_1'):
-            self.proxy_1.kill()
+            self.proxy_1.terminate()
             processes.append(self.proxy_1)
         if not self.EXTERNAL_ACRA and hasattr(self, 'acra'):
-            self.acra.kill()
+            self.acra.terminate()
             processes.append(self.acra)
 
         for p in processes:
-            p.wait()
+            p.wait(timeout=KILL_WAIT_TIMEOUT)
 
         try:
             self.engine_raw.execute('delete from test;')
@@ -1287,10 +1273,10 @@ class SSLPostgresqlConnectionTest(HexFormatTest):
         processes = []
         if not self.EXTERNAL_ACRA:
             if hasattr(self, 'acra'):
-                self.acra.kill()
+                self.acra.terminate()
                 processes.append(self.acra)
         for p in processes:
-            p.wait()
+            p.wait(timeout=KILL_WAIT_TIMEOUT)
         try:
             self.engine_raw.execute('delete from test;')
             for engine in self.engines:

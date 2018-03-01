@@ -19,6 +19,7 @@ import (
 	"net/http"
 	_ "net/http/pprof"
 	"os"
+	"syscall"
 
 	"github.com/cossacklabs/acra/cmd"
 	"github.com/cossacklabs/acra/keystore"
@@ -155,7 +156,7 @@ func main() {
 		panic(err)
 	}
 
-	sigHandler, err := cmd.NewSignalHandler(os.Interrupt)
+	sigHandler, err := cmd.NewSignalHandler([]os.Signal{os.Interrupt, syscall.SIGTERM})
 	if err != nil {
 		log.WithError(err).Errorln("can't register SIGINT handler")
 		os.Exit(1)
