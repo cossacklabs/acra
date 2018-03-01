@@ -16,7 +16,6 @@ package main
 import (
 	"flag"
 	"fmt"
-	log "github.com/sirupsen/logrus"
 	"io"
 	"net"
 	"os"
@@ -27,7 +26,10 @@ import (
 	"strings"
 	"time"
 
+	log "github.com/sirupsen/logrus"
+
 	"crypto/tls"
+
 	"github.com/cossacklabs/acra/cmd"
 	"github.com/cossacklabs/acra/keystore"
 	"github.com/cossacklabs/acra/network"
@@ -93,7 +95,6 @@ func handleClientConnection(config *Config, connection net.Conn) {
 
 	toAcraErrCh := make(chan error)
 	fromAcraErrCh := make(chan error)
-	log.Debugln("secure session initialized")
 	go network.Proxy(connection, acraConnWrapped, toAcraErrCh)
 	go network.Proxy(acraConnWrapped, connection, fromAcraErrCh)
 	select {
@@ -216,6 +217,14 @@ func main() {
 		os.Exit(1)
 	}
 	defer listener.Close()
+
+	sigHandler, err := cmd.NewSignalHandler(os.Interrupt)
+	if err != nil {
+		log.WithError(err).Errorln("can't register SIGINT handler")
+		os.Exit(1)
+	}
+	go sigHandler.Register()
+	sigHandler.AddListener(listener)
 	if *useTls {
 		log.Infoln("use TLS transport wrapper")
 		config.ConnectionWrapper, err = network.NewTLSConnectionWrapper(&tls.Config{InsecureSkipVerify: true})
@@ -246,6 +255,7 @@ func main() {
 				log.WithError(err).Errorln("can't start listen connections to http api")
 				os.Exit(1)
 			}
+			sigHandler.AddListener(commandsListener)
 			for {
 				connection, err := commandsListener.Accept()
 				if err != nil {

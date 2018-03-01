@@ -14,7 +14,6 @@
 # coding: utf-8
 import socket
 import json
-import struct
 import time
 import os
 import random
@@ -59,10 +58,15 @@ connect_args = {
     'user': DB_USER, 'password': DB_USER_PASSWORD,
     "options": "-c statement_timeout=1000", 'sslmode': 'allow'}
 
-def get_connect_args(port=5432, sslmode='require'):
+SETUP_SQL_COMMAND_TIMEOUT = 0.1
+FORK_FAIL_SLEEP = 0.1
+CONNECTION_FAIL_SLEEP = 0.1
+
+def get_connect_args(port=5432, sslmode='require', **kwargs):
     args = connect_args.copy()
     args['port'] = port
     args['sslmode'] = sslmode
+    args.update(kwargs)
     return args
 
 def get_poison_record():
@@ -71,7 +75,7 @@ def get_poison_record():
     global poison_record
     if not poison_record:
         poison_record = b64decode(subprocess.check_output(
-            ['./acra_genpoisonrecord']))
+            ['./acra_genpoisonrecord'], timeout=PROCESS_CALL_TIMEOUT))
     return poison_record
 
 
@@ -81,7 +85,7 @@ def create_client_keypair(name, only_server=False, only_client=False):
         args.append('-acraserver')
     elif only_client:
         args.append('-acraproxy')
-    return subprocess.call(args, cwd=os.getcwd(), timeout=5)
+    return subprocess.call(args, cwd=os.getcwd(), timeout=PROCESS_CALL_TIMEOUT)
 
 
 def wait_connection(port, count=10, sleep=0.1):
@@ -107,18 +111,21 @@ def wait_unix_socket(socket_path, count=10, sleep=0.1):
         try:
             connection = socket.socket(socket.AF_UNIX)
             connection.connect(socket_path)
-            connection.close()
             return
         except FileNotFoundError:
             pass
+        finally:
+            connection.close()
         count -= 1
         time.sleep(sleep)
     raise Exception("can't wait connection")
 
 
-def get_db_connection_string(port, dbname):
+def get_postgresql_unix_connection_string(port, dbname):
     return 'postgresql+psycopg2:///{}?host=/tmp'.format(dbname)
 
+def get_postgresql_tcp_connection_string(port, dbname):
+    return 'postgresql+psycopg2://127.0.0.1:{}/{}'.format(port, dbname)
 
 def get_unix_connection_string(port):
     return "unix://{}".format("/tmp/unix_socket_{}".format(port))
@@ -126,45 +133,67 @@ def get_unix_connection_string(port):
 def get_proxy_connection_string(port):
     return 'unix:///tmp/.s.PGSQL.{}'.format(port)
 
+def get_tcp_connection_string(port):
+    return 'tcp://127.0.0.1:{}'.format(port)
+
 def socket_path_from_connection_string(connection_string):
     return connection_string.replace('unix://', '')
 
 def acra_api_connection_string(port):
     return "unix://{}".format("/tmp/acra_api_unix_socket_{}".format(port+1))
 
+BINARIES = ['acraproxy', 'acraserver', 'acra_addzone', 'acra_genkeys',
+            'acra_genpoisonrecord', 'acra_rollback']
+
+def clean_binaries():
+    for i in BINARIES:
+        try:
+            os.remove(i)
+        except:
+            pass
+
+PROCESS_CALL_TIMEOUT = 120
+
 def setUpModule():
     global zones
+    clean_binaries()
     # build binaries
     builds = [
-        ['go', 'build', 'github.com/cossacklabs/acra/cmd/acraproxy'],
-        ['go', 'build', 'github.com/cossacklabs/acra/cmd/acra_rollback'],
-        ['go', 'build', 'github.com/cossacklabs/acra/cmd/acra_addzone'],
-        ['go', 'build', 'github.com/cossacklabs/acra/cmd/acra_genpoisonrecord'],
-        ['go', 'build', 'github.com/cossacklabs/acra/cmd/acra_genkeys'],
-        ['go', 'build', 'github.com/cossacklabs/acra/cmd/acraserver'],
+        ['go', 'build', '-x', 'github.com/cossacklabs/acra/cmd/{}'.format(binary)]
+        for binary in BINARIES
     ]
     for build in builds:
-        assert subprocess.call(build, cwd=os.getcwd()) == 0
+        print('run: {}'.format(' '.join(build)))
+        # try to build 3 times with timeout
+        build_count = 3
+        for i in range(build_count):
+            try:
+                assert subprocess.call(build, cwd=os.getcwd(), timeout=PROCESS_CALL_TIMEOUT) == 0
+                break
+            except (AssertionError, subprocess.TimeoutExpired):
+                if i == (build_count-1):
+                    raise
+                continue
 
     # first keypair for using without zones
     assert create_client_keypair('keypair1') == 0
     assert create_client_keypair('keypair2') == 0
     # add two zones
     zones.append(json.loads(subprocess.check_output(
-        ['./acra_addzone'], cwd=os.getcwd()).decode('utf-8')))
+        ['./acra_addzone'], cwd=os.getcwd(), timeout=PROCESS_CALL_TIMEOUT).decode('utf-8')))
     zones.append(json.loads(subprocess.check_output(
-        ['./acra_addzone'], cwd=os.getcwd()).decode('utf-8')))
-
+        ['./acra_addzone'], cwd=os.getcwd(), timeout=PROCESS_CALL_TIMEOUT).decode('utf-8')))
 
 def tearDownModule():
     import shutil
     shutil.rmtree('.acrakeys')
-    for i in ['acraproxy', 'acraserver', 'acra_addzone', 'acra_genkeys',
-              'acra_genpoisonrecord', 'acra_rollback']:
-        try:
-            os.remove(i)
-        except:
-            pass
+    clean_binaries()
+
+class ProcessStub(object):
+    def kill(self):
+        pass
+    def wait(self):
+        pass
 
 
 class BaseTestCase(unittest.TestCase):
@@ -172,15 +201,12 @@ class BaseTestCase(unittest.TestCase):
     DB_NAME = os.environ.get('TEST_DB_NAME', 'postgres')
     DB_PORT = os.environ.get('TEST_DB_PORT', 5432)
 
-    PROXY_PORT_1 = 9595
-    PROXY_PORT_2 = 9696
-    PROXY_COMMAND_PORT_1 = 9191
+    PROXY_PORT_1 = int(os.environ.get('TEST_PROXY_PORT', 9595))
+    PROXY_PORT_2 = PROXY_PORT_1 + 200
+    PROXY_COMMAND_PORT_1 = int(os.environ.get('TEST_PROXY_COMMAND_PORT', 9595))
     # for debugging with manually runned acra server
     EXTERNAL_ACRA = False
-    ACRA_PORT = 10003
-    if EXTERNAL_ACRA:
-        ACRA_PORT = 9393
-
+    ACRA_PORT = int(os.environ.get('TEST_ACRA_PORT', 10003))
     ACRA_BYTEA = 'hex_bytea'
     DB_BYTEA = 'hex'
     WHOLECELL_MODE = False
@@ -188,6 +214,10 @@ class BaseTestCase(unittest.TestCase):
     DEBUG_LOG = False
     TEST_DATA_LOG = False
     maxDiff = None
+    # hack to simplify handling errors on forks and don't check `if hasattr(self, 'proxy_1')`
+    proxy_1 = ProcessStub()
+    proxy_2 = ProcessStub()
+    acra = ProcessStub()
 
     def fork(self, func):
         popen = func()
@@ -196,14 +226,19 @@ class BaseTestCase(unittest.TestCase):
             if popen.poll() is None:
                 return popen
             count += 1
-            time.sleep(0.01)
+            time.sleep(FORK_FAIL_SLEEP)
+        popen.kill()
         self.fail("can't fork")
+
+    def wait_acra_connection(self, *args, **kwargs):
+        return wait_unix_socket(*args, **kwargs)
 
     def fork_proxy(self, proxy_port: int, acra_port: int, client_id: str, commands_port: int=None, zone_mode: bool=False, check_connection: bool=True):
         acra_connection = get_unix_connection_string(acra_port)
         acra_api_connection = acra_api_connection_string(acra_port)
         proxy_connection = get_proxy_connection_string(proxy_port)
         if zone_mode:
+            # because standard library can send http requests only through tcp and cannot through unix socket
             proxy_api_connection = "tcp://127.0.0.1:{}".format(commands_port)
         else:
             # now it's no matter, so just +100
@@ -236,9 +271,15 @@ class BaseTestCase(unittest.TestCase):
                 raise
         return process
 
+    def get_acra_connection_string(self):
+        return get_unix_connection_string(self.ACRA_PORT)
+
+    def get_acra_api_connection_string(self):
+        return acra_api_connection_string(self.ACRA_PORT)
+
     def _fork_acra(self, acra_kwargs, popen_kwargs):
-        connection_string = get_unix_connection_string(self.ACRA_PORT)
-        api_connection_string = acra_api_connection_string(self.ACRA_PORT)
+        connection_string = self.get_acra_connection_string()
+        api_connection_string = self.get_acra_api_connection_string()
         for path in [socket_path_from_connection_string(connection_string), socket_path_from_connection_string(api_connection_string)]:
             try:
                 os.remove(path)
@@ -265,7 +306,7 @@ class BaseTestCase(unittest.TestCase):
         process = self.fork(lambda: subprocess.Popen(['./acraserver'] + cli_args,
                                                      **popen_kwargs))
         try:
-            wait_unix_socket(socket_path_from_connection_string(connection_string))
+            self.wait_acra_connection(socket_path_from_connection_string(connection_string))
         except:
             process.kill()
             raise
@@ -282,9 +323,9 @@ class BaseTestCase(unittest.TestCase):
                 self.acra = self.fork_acra()
 
             self.engine1 = sa.create_engine(
-                get_db_connection_string(self.PROXY_PORT_1, self.DB_NAME), connect_args=get_connect_args(port=self.PROXY_PORT_1))
+                get_postgresql_unix_connection_string(self.PROXY_PORT_1, self.DB_NAME), connect_args=get_connect_args(port=self.PROXY_PORT_1))
             self.engine2 = sa.create_engine(
-                get_db_connection_string(
+                get_postgresql_unix_connection_string(
                     self.PROXY_PORT_2, self.DB_NAME), connect_args=get_connect_args(port=self.PROXY_PORT_2))
             self.engine_raw = sa.create_engine(
                 'postgresql://{}:{}/{}'.format(self.DB_HOST, self.DB_PORT, self.DB_NAME),
@@ -304,7 +345,7 @@ class BaseTestCase(unittest.TestCase):
                             "WHERE name = 'bytea_output'".format(self.DB_BYTEA))
                         break
                     except Exception:
-                        time.sleep(0.01)
+                        time.sleep(SETUP_SQL_COMMAND_TIMEOUT)
                         count += 1
                         if count == 3:
                             raise
@@ -604,7 +645,7 @@ class TestConnectionClosing(BaseTestCase):
             except:
                 pass
             count += 1
-            time.sleep(0.1)
+            time.sleep(CONNECTION_FAIL_SLEEP)
         self.fail("can't connect to acra or proxy")
 
     def testClosingConnections(self):
@@ -969,7 +1010,7 @@ class TestKeyStorageClearing(BaseTestCase):
                     zonemode='true', disable_zone_api='false')
 
             self.engine1 = sa.create_engine(
-                get_db_connection_string(self.PROXY_PORT_1, self.DB_NAME),
+                get_postgresql_unix_connection_string(self.PROXY_PORT_1, self.DB_NAME),
                 connect_args=get_connect_args(port=self.PROXY_PORT_1))
 
             self.engine_raw = sa.create_engine(
@@ -1067,7 +1108,7 @@ class TestAcraRollback(BaseTestCase):
              '--select=select data from {};'.format(test_table.name),
              '--insert=insert into {} values($1);'.format(
                  rollback_output_table.name)],
-            cwd=os.getcwd())
+            cwd=os.getcwd(), timeout=PROCESS_CALL_TIMEOUT)
 
         # execute file
         with open(self.output_filename, 'r') as f:
@@ -1107,7 +1148,7 @@ class TestAcraRollback(BaseTestCase):
              '--zonemode=true',
              '--insert=insert into {} values($1);'.format(
                  rollback_output_table.name)],
-            cwd=os.getcwd())
+            cwd=os.getcwd(), timeout=PROCESS_CALL_TIMEOUT)
 
         # execute file
         with open(self.output_filename, 'r') as f:
@@ -1146,7 +1187,7 @@ class TestAcraRollback(BaseTestCase):
              '--select=select data from {};'.format(test_table.name),
              '--insert=insert into {} values($1);'.format(
                  rollback_output_table.name)],
-            cwd=os.getcwd())
+            cwd=os.getcwd(), timeout=PROCESS_CALL_TIMEOUT)
 
         source_data = set([i['raw_data'].encode('ascii') for i in rows])
         result = self.engine_raw.execute(rollback_output_table.select())
@@ -1181,7 +1222,7 @@ class TestAcraRollback(BaseTestCase):
              '--zonemode=true',
              '--insert=insert into {} values($1);'.format(
                  rollback_output_table.name)],
-            cwd=os.getcwd())
+            cwd=os.getcwd(), timeout=PROCESS_CALL_TIMEOUT)
 
         source_data = set([i['raw_data'].encode('ascii') for i in rows])
         result = self.engine_raw.execute(rollback_output_table.select())
@@ -1195,6 +1236,67 @@ class TestAcraGenKeys(unittest.TestCase):
         # call with directory separator in key name
         self.assertEqual(create_client_keypair(POISON_KEY_PATH), 1)
 
+
+class SSLPostgresqlConnectionTest(HexFormatTest):
+    def get_acra_connection_string(self):
+        return get_tcp_connection_string(self.ACRA_PORT)
+
+    def wait_acra_connection(self, *args, **kwargs):
+        wait_connection(self.ACRA_PORT)
+
+    def setUp(self):
+        """don't fork proxy, connect directly to acra, use sslmode=require in connections and tcp protocol on acra side
+        because postgresql support tls only over tcp
+        """
+        try:
+            if not self.EXTERNAL_ACRA:
+                self.acra = self.fork_acra(
+                    tls_key='tests/server.key', tls_cert='tests/server.crt', no_encryption=True, client_id='keypair1')
+            self.engine1 = sa.create_engine(
+                get_postgresql_tcp_connection_string(self.ACRA_PORT, self.DB_NAME), connect_args=get_connect_args(port=self.ACRA_PORT))
+            self.engine_raw = sa.create_engine(
+                'postgresql://{}:{}/{}'.format(self.DB_HOST, self.DB_PORT, self.DB_NAME),
+                connect_args=get_connect_args(self.DB_PORT))
+            # test case from HexFormatTest expect two engines with different client_id but here enough one and
+            # raw connection
+            self.engine2 = self.engine_raw
+
+            self.engines = [self.engine1, self.engine_raw]
+
+            metadata.create_all(self.engine_raw)
+            self.engine_raw.execute('delete from test;')
+            for engine in self.engines:
+                count = 0
+                # try with sleep if acra not up yet
+                while True:
+                    try:
+                        engine.execute(
+                            "UPDATE pg_settings SET setting = '{}' "
+                            "WHERE name = 'bytea_output'".format(self.DB_BYTEA))
+                        break
+                    except Exception:
+                        time.sleep(SETUP_SQL_COMMAND_TIMEOUT)
+                        count += 1
+                        if count == 3:
+                            raise
+        except:
+            self.tearDown()
+            raise
+
+    def tearDown(self):
+        processes = []
+        if not self.EXTERNAL_ACRA:
+            if hasattr(self, 'acra'):
+                self.acra.kill()
+                processes.append(self.acra)
+        for p in processes:
+            p.wait()
+        try:
+            self.engine_raw.execute('delete from test;')
+            for engine in self.engines:
+                engine.dispose()
+        except:
+            pass
 
 if __name__ == '__main__':
     unittest.main()
