@@ -75,7 +75,7 @@ def get_poison_record():
     global poison_record
     if not poison_record:
         poison_record = b64decode(subprocess.check_output(
-            ['./acra_genpoisonrecord']))
+            ['./acra_genpoisonrecord'], timeout=PROCESS_CALL_TIMEOUT))
     return poison_record
 
 
@@ -85,7 +85,7 @@ def create_client_keypair(name, only_server=False, only_client=False):
         args.append('-acraserver')
     elif only_client:
         args.append('-acraproxy')
-    return subprocess.call(args, cwd=os.getcwd(), timeout=5)
+    return subprocess.call(args, cwd=os.getcwd(), timeout=PROCESS_CALL_TIMEOUT)
 
 
 def wait_connection(port, count=10, sleep=0.1):
@@ -152,6 +152,8 @@ def clean_binaries():
         except:
             pass
 
+PROCESS_CALL_TIMEOUT = 60
+
 def setUpModule():
     global zones
     clean_binaries()
@@ -162,16 +164,25 @@ def setUpModule():
     ]
     for build in builds:
         print('run: {}'.format(' '.join(build)))
-        assert subprocess.call(build, cwd=os.getcwd()) == 0
+        # try to build 3 times with timeout
+        build_count = 3
+        for i in range(build_count):
+            try:
+                assert subprocess.call(build, cwd=os.getcwd(), timeout=PROCESS_CALL_TIMEOUT) == 0
+                break
+            except (AssertionError, subprocess.TimeoutExpired):
+                if i == (build_count-1):
+                    raise
+                continue
 
     # first keypair for using without zones
     assert create_client_keypair('keypair1') == 0
     assert create_client_keypair('keypair2') == 0
     # add two zones
     zones.append(json.loads(subprocess.check_output(
-        ['./acra_addzone'], cwd=os.getcwd()).decode('utf-8')))
+        ['./acra_addzone'], cwd=os.getcwd(), timeout=PROCESS_CALL_TIMEOUT).decode('utf-8')))
     zones.append(json.loads(subprocess.check_output(
-        ['./acra_addzone'], cwd=os.getcwd()).decode('utf-8')))
+        ['./acra_addzone'], cwd=os.getcwd(), timeout=PROCESS_CALL_TIMEOUT).decode('utf-8')))
 
 def tearDownModule():
     import shutil
@@ -1097,7 +1108,7 @@ class TestAcraRollback(BaseTestCase):
              '--select=select data from {};'.format(test_table.name),
              '--insert=insert into {} values($1);'.format(
                  rollback_output_table.name)],
-            cwd=os.getcwd())
+            cwd=os.getcwd(), timeout=PROCESS_CALL_TIMEOUT)
 
         # execute file
         with open(self.output_filename, 'r') as f:
@@ -1137,7 +1148,7 @@ class TestAcraRollback(BaseTestCase):
              '--zonemode=true',
              '--insert=insert into {} values($1);'.format(
                  rollback_output_table.name)],
-            cwd=os.getcwd())
+            cwd=os.getcwd(), timeout=PROCESS_CALL_TIMEOUT)
 
         # execute file
         with open(self.output_filename, 'r') as f:
@@ -1176,7 +1187,7 @@ class TestAcraRollback(BaseTestCase):
              '--select=select data from {};'.format(test_table.name),
              '--insert=insert into {} values($1);'.format(
                  rollback_output_table.name)],
-            cwd=os.getcwd())
+            cwd=os.getcwd(), timeout=PROCESS_CALL_TIMEOUT)
 
         source_data = set([i['raw_data'].encode('ascii') for i in rows])
         result = self.engine_raw.execute(rollback_output_table.select())
@@ -1211,7 +1222,7 @@ class TestAcraRollback(BaseTestCase):
              '--zonemode=true',
              '--insert=insert into {} values($1);'.format(
                  rollback_output_table.name)],
-            cwd=os.getcwd())
+            cwd=os.getcwd(), timeout=PROCESS_CALL_TIMEOUT)
 
         source_data = set([i['raw_data'].encode('ascii') for i in rows])
         result = self.engine_raw.execute(rollback_output_table.select())
