@@ -46,8 +46,8 @@ jobs:
           if [ "$?" != "0" ]; then echo "$version" >> "$FILEPATH_ERROR_FLAG";
           fi done
       - store_artifacts:
-        path: /tmp/strace.out
-        destination: test_strace.txt
+          path: /tmp/strace.out
+          destination: test_strace.txt
 
 workflows:
   version: 2
