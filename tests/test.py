@@ -660,11 +660,19 @@ class TestConnectionClosing(BaseTestCase):
 
         for conn in connections:
             conn.close()
-        # some wait for closing
-        time.sleep(0.5)
 
-        self.assertEqual(self.getActiveConnectionCount(cursor),
-                         current_connection_count)
+        # give a time to close connections via postgresql
+        # because performance where tests will run not always constant,
+        # we wait try_count times. in best case it will not need to sleep
+        try_count = 3
+        for i in range(try_count):
+            try:
+                self.assertEqual(self.getActiveConnectionCount(cursor), current_connection_count)
+            except (AssertionError):
+                if i == (try_count - 1):
+                    raise
+                # some wait for closing. chosen manually
+                time.sleep(0.5)
 
         # try create new connection
         connection2 = self.get_connection()
