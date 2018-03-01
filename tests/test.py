@@ -157,7 +157,7 @@ def setUpModule():
     clean_binaries()
     # build binaries
     builds = [
-        ['go', 'build', 'github.com/cossacklabs/acra/cmd/{}'.format(binary)]
+        ['go', 'build', '-x', 'github.com/cossacklabs/acra/cmd/{}'.format(binary)]
         for binary in BINARIES
     ]
     for build in builds:
