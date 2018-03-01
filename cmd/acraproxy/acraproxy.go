@@ -260,7 +260,7 @@ func main() {
 			for {
 				connection, err := commandsListener.Accept()
 				if err != nil {
-					log.WithError(err).Errorf("can't accept new connection (%v)", connection.RemoteAddr())
+					log.WithError(err).Errorf("can't accept new connection")
 					continue
 				}
 				// unix socket and value == '@'

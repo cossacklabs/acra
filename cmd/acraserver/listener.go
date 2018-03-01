@@ -14,9 +14,10 @@
 package main
 
 import (
+	"net"
+
 	"github.com/cossacklabs/acra/network"
 	log "github.com/sirupsen/logrus"
-	"net"
 
 	"github.com/cossacklabs/acra/decryptor/base"
 	pg "github.com/cossacklabs/acra/decryptor/postgresql"
@@ -117,7 +118,7 @@ func (server *SServer) Start() {
 	for {
 		connection, err := listener.Accept()
 		if err != nil {
-			log.WithError(err).Errorf("can't accept new connection (connection=%v)", connection)
+			log.WithError(err).Errorln("can't accept new connection")
 			continue
 		}
 		// unix socket and value == '@'
@@ -163,7 +164,7 @@ func (server *SServer) StartCommands() {
 	for {
 		connection, err := listener.Accept()
 		if err != nil {
-			log.WithError(err).Errorf("can't accept new connection (%v)", connection.RemoteAddr())
+			log.WithError(err).Errorln("can't accept new connection")
 			continue
 		}
 		// unix socket and value == '@'
