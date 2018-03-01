@@ -142,18 +142,26 @@ def socket_path_from_connection_string(connection_string):
 def acra_api_connection_string(port):
     return "unix://{}".format("/tmp/acra_api_unix_socket_{}".format(port+1))
 
+BINARIES = ['acraproxy', 'acraserver', 'acra_addzone', 'acra_genkeys',
+            'acra_genpoisonrecord', 'acra_rollback']
+
+def clean_binaries():
+    for i in BINARIES:
+        try:
+            os.remove(i)
+        except:
+            pass
+
 def setUpModule():
     global zones
+    clean_binaries()
     # build binaries
     builds = [
-        ['go', 'build', 'github.com/cossacklabs/acra/cmd/acraproxy'],
-        ['go', 'build', 'github.com/cossacklabs/acra/cmd/acra_rollback'],
-        ['go', 'build', 'github.com/cossacklabs/acra/cmd/acra_addzone'],
-        ['go', 'build', 'github.com/cossacklabs/acra/cmd/acra_genpoisonrecord'],
-        ['go', 'build', 'github.com/cossacklabs/acra/cmd/acra_genkeys'],
-        ['go', 'build', 'github.com/cossacklabs/acra/cmd/acraserver'],
+        ['go', 'build', 'github.com/cossacklabs/acra/cmd/{}'.format(binary)]
+        for binary in BINARIES
     ]
     for build in builds:
+        print('run: {}'.format(' '.join(build)))
         assert subprocess.call(build, cwd=os.getcwd()) == 0
 
     # first keypair for using without zones
@@ -165,16 +173,10 @@ def setUpModule():
     zones.append(json.loads(subprocess.check_output(
         ['./acra_addzone'], cwd=os.getcwd()).decode('utf-8')))
 
-
 def tearDownModule():
     import shutil
     shutil.rmtree('.acrakeys')
-    for i in ['acraproxy', 'acraserver', 'acra_addzone', 'acra_genkeys',
-              'acra_genpoisonrecord', 'acra_rollback']:
-        try:
-            os.remove(i)
-        except:
-            pass
+    clean_binaries()
 
 class ProcessStub(object):
     def kill(self):
