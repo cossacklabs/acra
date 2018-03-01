@@ -1,4 +1,4 @@
-#!/usr/bin/bash
+#!/usr/bin/env bash
 export TEST_ACRA_PORT=6000
 export TEST_PROXY_PORT=7000
 export TEST_PROXY_COMMAND_PORT=8000
