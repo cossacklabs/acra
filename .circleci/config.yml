@@ -30,21 +30,8 @@ jobs:
       # if file exists (exit code of stat == 0 ) then something was wrong. cat file with versions of environments where was error and return exit 1
       - run: if [ -f  $FILEPATH_ERROR_FLAG ]; then cat "$FILEPATH_ERROR_FLAG"; rm "$FILEPATH_ERROR_FLAG"; exit 1; fi
       # each iteration pass to test different ports for forks to avoid problems with TCP TIME WAIT between tests
-      - run: |
-          export TEST_ACRA_PORT=6000
-          export TEST_PROXY_PORT=7000
-          export TEST_PROXY_COMMAND_PORT=8000
-          cd $HOME/project
-          for version in $VERSIONS; do
-          export TEST_ACRA_PORT=$(expr ${TEST_ACRA_PORT} + 1);
-          export TEST_PROXY_PORT=$(expr ${TEST_PROXY_PORT} + 1);
-          export TEST_PROXY_COMMAND_PORT=$(expr ${TEST_PROXY_COMMAND_PORT} + 1);
-          export GOROOT=$HOME/go_root_$version/go;
-          export PATH=$GOROOT/bin/:$PATH;
-          export GOPATH=$HOME/go_path_$version;
-          strace -rfo /tmp/strace.out python3 tests/test.py;
-          if [ "$?" != "0" ]; then echo "$version" >> "$FILEPATH_ERROR_FLAG";
-          fi done
+      - run: .circleci/integration.sh
+
       - store_artifacts:
           path: /tmp/strace.out
           destination: test_strace.txt
