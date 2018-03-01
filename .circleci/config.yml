@@ -31,11 +31,6 @@ jobs:
       - run: if [ -f  $FILEPATH_ERROR_FLAG ]; then cat "$FILEPATH_ERROR_FLAG"; rm "$FILEPATH_ERROR_FLAG"; exit 1; fi
       # each iteration pass to test different ports for forks to avoid problems with TCP TIME WAIT between tests
       - run: .circleci/integration.sh
-
-      - store_artifacts:
-          path: /tmp/strace.out
-          destination: test_strace.txt
-
 workflows:
   version: 2
   tests:

@@ -152,7 +152,7 @@ def clean_binaries():
         except:
             pass
 
-PROCESS_CALL_TIMEOUT = 60
+PROCESS_CALL_TIMEOUT = 120
 
 def setUpModule():
     global zones
