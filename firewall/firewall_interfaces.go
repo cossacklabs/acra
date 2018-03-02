@@ -1,14 +1,14 @@
 package firewall
 
 
-type QueryHandler interface {
+type QueryHandlerInterface interface {
 	CheckQuery(sqlQuery string) error
 }
 
 
-type AcraFirewall interface {
+type FirewallInterface interface {
 	HandleQuery(sqlQuery string) error
-	AddSpecificHandler(handler QueryHandler)
+	AddHandler(handler QueryHandlerInterface)
 }
 
 

@@ -2,7 +2,6 @@ package firewall
 
 import (
 	"testing"
-	"github.com/mitchellh/go-homedir"
 	"github.com/cossacklabs/acra/firewall/handlers"
 )
 
@@ -36,11 +35,6 @@ func TestWhitelistFirewall(t *testing.T) {
 		"INSERT INTO dbo.Points (PointValue) VALUES (CAST ('1,99' AS Point));",
 	}
 
-	home, err := homedir.Dir()
-	if err != nil {
-		t.Fatal("can't get $HOME directory")
-	}
-
 	whitelistHandler, err := handlers.NewWhitelistHandler([]string{"SELECT * FROM Schema.Tables;", "SELECT Student_ID FROM STUDENT;", "SELECT * FROM STUDENT;"})
 	if err != nil {
 		t.Fatal("can't create whitelist handler")
@@ -48,23 +42,20 @@ func TestWhitelistFirewall(t *testing.T) {
 	whitelistHandler.AddQueriesToWhitelist(sqlSelectQueries)
 	whitelistHandler.AddQueriesToWhitelist(sqlInsertQueries)
 
-	firewall, err := NewFilesystemAcraFirewall(home)
-	if err != nil {
-		t.Fatal("can't create firewall engine")
-	}
+	firewall := &Firewall{}
 
 	//Set our firewall to use whitelist for query evaluating
-	firewall.AddSpecificHandler(whitelistHandler)
+	firewall.AddHandler(whitelistHandler)
 
-	for i := 0; i < len(sqlSelectQueries); i++ {
-		err = firewall.HandleQuery(sqlSelectQueries[i])
+	for _, query := range sqlSelectQueries{
+		err = firewall.HandleQuery(query)
 		if err != nil {
 			t.Fatal(err)
 		}
 	}
 
-	for i := 0; i < len(sqlInsertQueries); i++ {
-		err = firewall.HandleQuery(sqlInsertQueries[i])
+	for _, query := range sqlInsertQueries{
+		err = firewall.HandleQuery(query)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -75,8 +66,6 @@ func TestWhitelistFirewall(t *testing.T) {
 	if err == nil {
 		t.Fatal(err)
 	}
-
-
 }
 
 func TestBlacklistFirewall(t *testing.T) {
@@ -112,50 +101,43 @@ func TestBlacklistFirewall(t *testing.T) {
 		"SELECT AVG(Price)FROM Products;",
 	}
 
-	home, err := homedir.Dir()
-	if err != nil {
-		t.Fatal("can't get $HOME directory")
-	}
-
-
 	blacklistHandler, err := handlers.NewBlacklistHandler(blackList)
 	if err != nil {
 		t.Fatal("can't create blacklist handler")
 	}
 
-	firewall, err := NewFilesystemAcraFirewall(home)
-	if err != nil {
-		t.Fatal("can't create firewall engine")
-	}
+	firewall := &Firewall{}
 
 	//Set our firewall to use blacklist for query evaluating
-	firewall.AddSpecificHandler(blacklistHandler)
+	firewall.AddHandler(blacklistHandler)
 
-	for i := 0; i < len(sqlSelectQueries); i++ {
-		err = firewall.HandleQuery(sqlSelectQueries[i])
+	for _, query := range sqlSelectQueries{
+		err = firewall.HandleQuery(query)
 		if err != nil {
 			t.Fatal(err)
 		}
 	}
 
-	for i := 0; i < len(sqlInsertQueries); i++ {
-		err = firewall.HandleQuery(sqlInsertQueries[i])
+	for _, query := range sqlInsertQueries{
+		err = firewall.HandleQuery(query)
 		if err != nil {
 			t.Fatal(err)
 		}
 	}
 
-	blacklistHandler.AddQueriesToBlacklist([]string{"INSERT INTO dbo.Points (PointValue) VALUES (CONVERT(Point, '1,5'));"})
+	testQuery := "INSERT INTO dbo.Points (PointValue) VALUES (CONVERT(Point, '1,5'));";
 
-	err = firewall.HandleQuery("INSERT INTO dbo.Points (PointValue) VALUES (CONVERT(Point, '1,5'));")
+	blacklistHandler.AddQueriesToBlacklist([]string{testQuery})
+
+	err = firewall.HandleQuery(testQuery)
 	//firewall should block this query by throwing error
 	if err == nil {
 		t.Fatal(err)
 	}
 
-	blacklistHandler.RemoveQueriesFromBlacklist([]string{"INSERT INTO dbo.Points (PointValue) VALUES (CONVERT(Point, '1,5'));"})
+	blacklistHandler.RemoveQueriesFromBlacklist([]string{testQuery})
 
-	err = firewall.HandleQuery("INSERT INTO dbo.Points (PointValue) VALUES (CONVERT(Point, '1,5'));")
+	err = firewall.HandleQuery(testQuery)
 	//now firewall should not block this query
 	if err != nil {
 		t.Fatal(err)

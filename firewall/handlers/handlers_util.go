@@ -1,6 +1,7 @@
 package handlers
 
 func removeDuplicates(xs *[]string) {
+
 	found := make(map[string]bool)
 	j := 0
 
@@ -12,4 +13,15 @@ func removeDuplicates(xs *[]string) {
 		}
 	}
 	*xs = (*xs)[:j]
+}
+
+func contains(queries []string, query string) (bool, int) {
+
+	for index, queryFromRange := range queries {
+		if queryFromRange == query {
+
+			return true, index
+		}
+	}
+	return false, 0
 }
