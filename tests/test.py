@@ -53,17 +53,19 @@ zones = []
 poison_record = None
 POISON_KEY_PATH = '.poison_key/poison_key'
 
-DB_USER = os.environ.get('TEST_DB_USER', 'postgres')
-DB_USER_PASSWORD = os.environ.get('TEST_DB_USER_PASSWORD', 'postgres')
-connect_args = {
-    'user': DB_USER, 'password': DB_USER_PASSWORD,
-    "options": "-c statement_timeout=1000", 'sslmode': 'allow'}
-
 SETUP_SQL_COMMAND_TIMEOUT = 0.1
 FORK_FAIL_SLEEP = 0.1
 CONNECTION_FAIL_SLEEP = 0.1
 SOCKET_CONNECT_TIMEOUT = 10
 KILL_WAIT_TIMEOUT = 10
+
+PG_UNIX_HOST = '/tmp'
+DB_USER = os.environ.get('TEST_DB_USER', 'postgres')
+DB_USER_PASSWORD = os.environ.get('TEST_DB_USER_PASSWORD', 'postgres')
+connect_args = {
+    'connect_timeout': SOCKET_CONNECT_TIMEOUT,
+    'user': DB_USER, 'password': DB_USER_PASSWORD,
+    "options": "-c statement_timeout=1000", 'sslmode': 'allow'}
 
 def stop_process(process):
     if not isinstance(process, collections.Iterable):
@@ -73,7 +75,10 @@ def stop_process(process):
         p.terminate()
     # synchronously wait termination or kill
     for p in process:
-        p.wait(timeout=KILL_WAIT_TIMEOUT)
+        try:
+            p.wait(timeout=KILL_WAIT_TIMEOUT)
+        except:
+            pass
         p.kill()
 
 
@@ -137,16 +142,16 @@ def wait_unix_socket(socket_path, count=10, sleep=0.1):
 
 
 def get_postgresql_unix_connection_string(port, dbname):
-    return 'postgresql+psycopg2:///{}?host=/tmp'.format(dbname)
+    return 'postgresql+psycopg2:///{}?host={}'.format(dbname, PG_UNIX_HOST)
 
 def get_postgresql_tcp_connection_string(port, dbname):
     return 'postgresql+psycopg2://127.0.0.1:{}/{}'.format(port, dbname)
 
 def get_unix_connection_string(port):
-    return "unix://{}".format("/tmp/unix_socket_{}".format(port))
+    return "unix://{}".format("{}/unix_socket_{}".format(PG_UNIX_HOST, port))
 
 def get_proxy_connection_string(port):
-    return 'unix:///tmp/.s.PGSQL.{}'.format(port)
+    return 'unix://{}/.s.PGSQL.{}'.format(PG_UNIX_HOST, port)
 
 def get_tcp_connection_string(port):
     return 'tcp://127.0.0.1:{}'.format(port)
@@ -155,7 +160,7 @@ def socket_path_from_connection_string(connection_string):
     return connection_string.replace('unix://', '')
 
 def acra_api_connection_string(port):
-    return "unix://{}".format("/tmp/acra_api_unix_socket_{}".format(port+1))
+    return "unix://{}".format("{}/acra_api_unix_socket_{}".format(PG_UNIX_HOST, port+1))
 
 BINARIES = ['acraproxy', 'acraserver', 'acra_addzone', 'acra_genkeys',
             'acra_genpoisonrecord', 'acra_rollback']
@@ -178,7 +183,6 @@ def setUpModule():
         for binary in BINARIES
     ]
     for build in builds:
-        print('run: {}'.format(' '.join(build)))
         # try to build 3 times with timeout
         build_count = 3
         for i in range(build_count):
@@ -206,9 +210,12 @@ def tearDownModule():
     clean_binaries()
 
 class ProcessStub(object):
-    def kill(self):
+    pid = 'stub'
+    def kill(self, *args, **kwargs):
         pass
-    def wait(self):
+    def wait(self, *args, **kwargs):
+        pass
+    def terminate(self, *args, **kwargs):
         pass
 
 
@@ -370,10 +377,9 @@ class BaseTestCase(unittest.TestCase):
             raise
 
     def tearDown(self):
-        processes = [self.proxy_1, self.proxy_2]
-        if not self.EXTERNAL_ACRA:
-
-            processes.append(self.acra)
+        processes = [getattr(self, 'proxy_1', ProcessStub()),
+                     getattr(self, 'proxy_2', ProcessStub()),
+                     getattr(self, 'acra', ProcessStub())]
         stop_process(processes)
         try:
             self.engine_raw.execute('delete from test;')
@@ -613,7 +619,7 @@ class TestConnectionClosing(BaseTestCase):
 
 
     def get_connection(self):
-        return psycopg2.connect(host='/tmp', **get_connect_args(port=self.PROXY_PORT_1))
+        return psycopg2.connect(host=PG_UNIX_HOST, **get_connect_args(port=self.PROXY_PORT_1))
 
     def tearDown(self):
         procs = []
@@ -640,6 +646,20 @@ class TestConnectionClosing(BaseTestCase):
             connection.close()
         return limit
 
+    def check_count(self, cursor, expected):
+        # give a time to close connections via postgresql
+        # because performance where tests will run not always constant,
+        # we wait try_count times. in best case it will not need to sleep
+        try_count = 3
+        for i in range(try_count):
+            try:
+                self.assertEqual(self.getActiveConnectionCount(cursor), expected)
+            except (AssertionError):
+                if i == (try_count - 1):
+                    raise
+                # some wait for closing. chosen manually
+                time.sleep(0.5)
+
     def testClosingConnections(self):
         connection = self.get_connection()
 
@@ -661,27 +681,14 @@ class TestConnectionClosing(BaseTestCase):
         for conn in connections:
             conn.close()
 
-        # give a time to close connections via postgresql
-        # because performance where tests will run not always constant,
-        # we wait try_count times. in best case it will not need to sleep
-        try_count = 3
-        for i in range(try_count):
-            try:
-                self.assertEqual(self.getActiveConnectionCount(cursor), current_connection_count)
-            except (AssertionError):
-                if i == (try_count - 1):
-                    raise
-                # some wait for closing. chosen manually
-                time.sleep(0.5)
+        self.check_count(cursor, current_connection_count)
 
         # try create new connection
         connection2 = self.get_connection()
-        self.assertEqual(self.getActiveConnectionCount(cursor),
-                         current_connection_count + 1)
+        self.check_count(cursor, current_connection_count + 1)
 
         connection2.close()
-        self.assertEqual(self.getActiveConnectionCount(cursor),
-                         current_connection_count)
+        self.check_count(cursor, current_connection_count)
         cursor.close()
         connection.close()
 
@@ -691,17 +698,22 @@ class TestKeyNonExistence(BaseTestCase):
     PROXY_STARTUP_DELAY = 0.05
 
     def setUp(self):
-        if not self.EXTERNAL_ACRA:
-            self.acra = self.fork_acra()
-        self.dsn = {'port': self.PROXY_PORT_1, 'host': '/tmp'}
+        try:
+            if not self.EXTERNAL_ACRA:
+                self.acra = self.fork_acra()
+            self.dsn = get_connect_args(port=self.PROXY_PORT_1, host=PG_UNIX_HOST)
+        except:
+            self.tearDown()
+            raise
 
     def tearDown(self):
-        if not self.EXTERNAL_ACRA:
+        if hasattr(self, 'acra'):
             stop_process(self.acra)
 
     def delete_key(self, filename):
         os.remove('.acrakeys{sep}{name}'.format(sep=os.path.sep, name=filename))
 
+    # TODO fix this test case
     def test_without_acraproxy_public(self):
         """acraserver without acraproxy public key should drop connection
         from acraproxy than acraproxy should drop connection from psycopg2"""
@@ -750,7 +762,7 @@ class TestKeyNonExistence(BaseTestCase):
         result = create_client_keypair(keyname)
         if result != 0:
             self.fail("can't create keypairs")
-        self.delete_key(keyname + '_storage')
+        self.delete_key(keyname + '_server')
         connection = None
         try:
             self.proxy = self.fork_proxy(
@@ -940,10 +952,6 @@ class TestNoCheckPoisonRecord(AcraCatchLogsMixin, BasePoisonRecordTest):
             pass
         self.assertNotIn(b'Debug: check poison records', out)
 
-    def tearDown(self):
-        """override because it's called in single test method"""
-        pass
-
 
 class TestNoCheckPoisonRecordWithZone(TestNoCheckPoisonRecord):
     ZONE = True
@@ -970,6 +978,7 @@ class TestCheckLogPoisonRecord(AcraCatchLogsMixin, BasePoisonRecordTest):
 
     def tearDown(self):
         self.poison_script_file.close()
+        super(TestCheckLogPoisonRecord, self).tearDown()
 
     def testDetect(self):
         row_id = self.get_random_id()
