@@ -44,7 +44,7 @@ func TestWhitelistFirewall(t *testing.T) {
 
 	firewall := &Firewall{}
 
-	//Set our firewall to use whitelist for query evaluating
+	//set our firewall to use whitelist for query evaluating
 	firewall.AddHandler(whitelistHandler)
 
 	for _, query := range sqlSelectQueries{
@@ -108,7 +108,7 @@ func TestBlacklistFirewall(t *testing.T) {
 
 	firewall := &Firewall{}
 
-	//Set our firewall to use blacklist for query evaluating
+	//set our firewall to use blacklist for query evaluating
 	firewall.AddHandler(blacklistHandler)
 
 	for _, query := range sqlSelectQueries{
@@ -135,11 +135,28 @@ func TestBlacklistFirewall(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	blacklistHandler.RemoveQueriesFromBlacklist([]string{testQuery})
+	firewall.RemoveHandler(blacklistHandler)
 
 	err = firewall.HandleQuery(testQuery)
-	//now firewall should not block this query
+	//firewall should not block this query because we removed blacklist handler, err should be nil
 	if err != nil {
 		t.Fatal(err)
 	}
+
+	//again set our firewall to use blacklist for query evaluating
+	firewall.AddHandler(blacklistHandler)
+
+	//now firewall should block testQuery by throwing error
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	blacklistHandler.RemoveQueriesFromBlacklist([]string{testQuery})
+
+	err = firewall.HandleQuery(testQuery)
+	//now firewall should not block testQuery
+	if err != nil {
+		t.Fatal(err)
+	}
+
 }
