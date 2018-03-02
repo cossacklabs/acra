@@ -1,5 +1,11 @@
+# Connection string to Acra's API like tcp://x.x.x.x:yyyy or unix:///path/to/socket
+acra_api_connection_string: 
+
 # Port of acra http api
 acra_commands_port: 9090
+
+# Connection string to Acra server like tcp://x.x.x.x:yyyy or unix:///path/to/socket
+acra_connection_string: 
 
 # IP or domain to acra daemon
 acra_host: 
@@ -19,6 +25,12 @@ command_port: 9191
 # path to config
 config: 
 
+# Connection string like tcp://x.x.x.x:yyyy or unix:///path/to/socket
+connection_api_string: tcp://127.0.0.1:9191/
+
+# Connection string like tcp://x.x.x.x:yyyy or unix:///path/to/socket
+connection_string: tcp://127.0.0.1:9494/
+
 # Disable checking that connections from app running from another user
 disable_user_check: false
 
@@ -28,8 +40,14 @@ dumpconfig: false
 # Folder from which will be loaded keys
 keys_dir: .acrakeys
 
+# Use raw transport (tcp/unix socket) between acraserver and acraproxy/client (don't use this flag if you not connect to database with ssl/tls
+no_encryption: false
+
 # Port fo acraproxy
 port: 9494
+
+# Use tls to encrypt transport between acraserver and acraproxy/client
+tls: false
 
 # Log to stdout
 v: false

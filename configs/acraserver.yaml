@@ -1,8 +1,17 @@
+# Expected client id of acraproxy in mode without encryption
+client_id: 
+
 # Port for AcraServer for http api
 commands_port: 9090
 
 # path to config
 config: 
+
+# Connection string for api like tcp://x.x.x.x:yyyy or unix:///path/to/socket
+connection_api_string: tcp://0.0.0.0:9090/
+
+# Connection string like tcp://x.x.x.x:yyyy or unix:///path/to/socket
+connection_string: tcp://0.0.0.0:9393/
 
 # Turn on debug logging
 d: false
@@ -37,6 +46,9 @@ injectedcell: false
 # Folder from which will be loaded keys
 keys_dir: .acrakeys
 
+# Use raw transport (tcp/unix socket) between acraserver and acraproxy/client (don't use this flag if you not connect to database with ssl/tls
+no_encryption: false
+
 # Execute script on detecting poison record
 poisonscript: 
 
@@ -48,6 +60,15 @@ port: 9393
 
 # Id that will be sent in secure session
 server_id: acra_server
+
+# Use tls to encrypt transport between acraserver and acraproxy/client
+tls: false
+
+# Path to tls server certificate
+tls_cert: 
+
+# Path to tls server key
+tls_key: 
 
 # Log to stdout
 v: false
