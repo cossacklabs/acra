@@ -11,19 +11,20 @@ func TestUtilities(t *testing.T){
 
 	input := []string {"x", "y", "z", "x", "y"}
 
-	removeDuplicates(&input)
+	output := removeDuplicates(input)
 
-	if !areEqual(input, expected) {
+	if !areEqual(output, expected) {
 		t.Fatal("unexpected result")
 	}
 
 	//Test 2
 	expected = []string {"@lagovas", "@vixentael", "@secumod"}
+
 	input = []string {"@lagovas", "@vixentael", "@secumod", "@lagovas", "@vixentael", "@secumod", "@lagovas", "@vixentael", "@secumod"}
 
-	removeDuplicates(&input)
+	output = removeDuplicates(input)
 
-	if !areEqual(input, expected) {
+	if !areEqual(output, expected) {
 		t.Fatal("unexpected result")
 	}
 

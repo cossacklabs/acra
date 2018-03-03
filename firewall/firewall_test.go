@@ -81,6 +81,8 @@ func TestWhitelistFirewall(t *testing.T) {
 func TestBlacklistFirewall(t *testing.T) {
 	sqlSelectQueries := []string {
 		"SELECT * FROM Schema.Tables;",
+		"SELECT * FROM Schema.Tables;",
+		"SELECT * FROM Schema.Tables;",
 		"SELECT Student_ID FROM STUDENT;",
 		"SELECT * FROM STUDENT;",
 		"SELECT EMP_ID, NAME FROM EMPLOYEE_TBL WHERE EMP_ID = '0000';",
@@ -88,7 +90,7 @@ func TestBlacklistFirewall(t *testing.T) {
 		"SELECT EMP_ID, LAST_NAME FROM EMPLOYEE_TBL WHERE CITY = 'INDIANAPOLIS' ORDER BY EMP_ID asc;",
 		"SELECT Name, Age FROM Patients WHERE Age > 40 GROUP BY Age ORDER BY Name;",
 		"SELECT COUNT(CustomerID), Country FROM Customers GROUP BY Country;",
-		"SELECT SUM(Salary)FROM Employee WHERE Emp_Age < 30;",
+		"SELECT SUM(Salary) FROM Employee WHERE Emp_Age < 30;",
 		//"SELECT AVG(Price)FROM Products;",
 		"SELECT * FROM Schema.views;",
 	}
@@ -108,7 +110,7 @@ func TestBlacklistFirewall(t *testing.T) {
 
 	blackList := [] string {
 		"INSERT INTO SalesStaff1 VALUES (1, 'Stephen', 'Jiang');",
-		"SELECT AVG(Price)FROM Products;",
+		"SELECT AVG(Price) FROM Products;",
 	}
 
 	blacklistHandler, err := handlers.NewBlacklistHandler(blackList)

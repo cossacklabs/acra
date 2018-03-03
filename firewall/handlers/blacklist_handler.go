@@ -2,7 +2,6 @@ package handlers
 
 import (
 	"errors"
-
 )
 
 type BlacklistHandler struct {
@@ -33,8 +32,6 @@ func(handler * BlacklistHandler) AddQueriesToBlacklist(queries []string) {
 	}
 
 	handler.blackQueries = removeDuplicates(handler.blackQueries)
-
-
 }
 
 func(handler * BlacklistHandler) RemoveQueriesFromBlacklist(queries []string){
