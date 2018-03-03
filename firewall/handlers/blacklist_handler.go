@@ -13,10 +13,7 @@ var ErrQueryInBlacklist = errors.New("query in blacklist")
 
 func NewBlacklistHandler(blackQueries []string) (*BlacklistHandler, error) {
 
-	uniqueBlackQueries := make([]string, len(blackQueries))
-	copy(blackQueries, uniqueBlackQueries)
-	removeDuplicates(&uniqueBlackQueries)
-
+	uniqueBlackQueries := removeDuplicates(blackQueries)
 	return &BlacklistHandler{blackQueries:uniqueBlackQueries}, nil
 }
 
@@ -35,7 +32,7 @@ func(handler * BlacklistHandler) AddQueriesToBlacklist(queries []string) {
 		handler.blackQueries = append(handler.blackQueries, query)
 	}
 
-	removeDuplicates(&handler.blackQueries)
+	handler.blackQueries = removeDuplicates(handler.blackQueries)
 
 
 }

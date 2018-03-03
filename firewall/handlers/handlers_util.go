@@ -1,18 +1,29 @@
 package handlers
 
-func removeDuplicates(xs *[]string) {
+func removeDuplicates(input []string) []string {
 
-	found := make(map[string]bool)
-	j := 0
+	//found := make(map[string]bool)
+	//j := 0
+	//
+	//for i, x := range *xs {
+	//	if !found[x] {
+	//		found[x] = true
+	//		(*xs)[j] = (*xs)[i]
+	//		j++
+	//	}
+	//}
+	//*xs = (*xs)[:j]
 
-	for i, x := range *xs {
-		if !found[x] {
-			found[x] = true
-			(*xs)[j] = (*xs)[i]
-			j++
+	keys := make(map[string] bool)
+	var result []string
+	for _, entry := range input{
+		if _, value := keys[entry]; !value {
+			keys[entry] = true
+			result = append(result, entry)
 		}
 	}
-	*xs = (*xs)[:j]
+	return result
+
 }
 
 func contains(queries []string, query string) (bool, int) {

@@ -12,6 +12,8 @@ func TestWhitelistFirewall(t *testing.T) {
 		"SELECT * FROM Schema.Tables;",
 		"SELECT Student_ID FROM STUDENT;",
 		"SELECT * FROM STUDENT;",
+		"SELECT * FROM STUDENT;",
+		"SELECT * FROM STUDENT;",
 		"SELECT EMP_ID, NAME FROM EMPLOYEE_TBL WHERE EMP_ID = '0000';",
 		"SELECT EMP_ID, LAST_NAME FROM EMPLOYEE WHERE CITY = 'Seattle' ORDER BY EMP_ID;",
 		"SELECT EMP_ID, LAST_NAME FROM EMPLOYEE_TBL WHERE CITY = 'INDIANAPOLIS' ORDER BY EMP_ID asc;",
@@ -23,9 +25,11 @@ func TestWhitelistFirewall(t *testing.T) {
 	}
 
 	sqlInsertQueries := []string {
-		"INSERT INTO SalesStaff1 VALUES (1, 'Stephen', 'Jiang');",
+		//"INSERT INTO SalesStaff1 VALUES (1, 'Stephen', 'Jiang');",
 		"INSERT SalesStaff1 VALUES (2, 'Michael', 'Blythe'), (3, 'Linda', 'Mitchell'),(4, 'Jillian', 'Carson'), (5, 'Garrett', 'Vargas');",
 		"INSERT INTO SalesStaff2 (StaffGUID, FirstName, LastName) VALUES (NEWID(), 'Stephen', 'Jiang');",
+		"INSERT INTO SalesStaff3 (StaffID, FullName)",
+		"INSERT INTO SalesStaff3 (StaffID, FullName)",
 		"INSERT INTO SalesStaff3 (StaffID, FullName)",
 		"INSERT INTO Customers (CustomerName, ContactName, Address, City, PostalCode, Country) VALUES ('Cardinal', 'Tom B. Erichsen', 'Skagen 21', 'Stavanger', '4006', 'Norway');",
 		"INSERT INTO Customers (CustomerName, City, Country) VALUES ('Cardinal', 'Stavanger', 'Norway');",
@@ -63,6 +67,12 @@ func TestWhitelistFirewall(t *testing.T) {
 
 	//firewall should block this query because it is not in whitelist
 	err = firewall.HandleQuery("SELECT * FROM Schema.views;")
+	if err == nil {
+		t.Fatal(err)
+	}
+
+	//ditto
+	err = firewall.HandleQuery("INSERT INTO SalesStaff1 VALUES (1, 'Stephen', 'Jiang');")
 	if err == nil {
 		t.Fatal(err)
 	}

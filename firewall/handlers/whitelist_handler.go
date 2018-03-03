@@ -12,10 +12,7 @@ var ErrQueryNotInWhitelist = errors.New("query not in whitelist")
 
 func NewWhitelistHandler(whiteQueries []string) (*WhitelistHandler, error) {
 
-	uniqueWhiteQueries := make([]string, len(whiteQueries))
-	copy(whiteQueries, uniqueWhiteQueries)
-	removeDuplicates(&uniqueWhiteQueries)
-
+	uniqueWhiteQueries := removeDuplicates(whiteQueries)
 	return &WhitelistHandler{whiteQueries:uniqueWhiteQueries}, nil
 }
 
@@ -33,7 +30,7 @@ func(handler * WhitelistHandler) AddQueriesToWhitelist(queries []string) {
 	for _, query := range queries {
 		handler.whiteQueries = append(handler.whiteQueries, query)
 	}
-	removeDuplicates(&handler.whiteQueries)
+	handler.whiteQueries = removeDuplicates(handler.whiteQueries)
 }
 
 func (handler * WhitelistHandler) RemoveQueriesFromWhitelist(queries []string) {
