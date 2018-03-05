@@ -14,7 +14,6 @@
 package main
 
 import (
-	"crypto/tls"
 	"flag"
 	"net/http"
 	_ "net/http/pprof"
@@ -62,6 +61,8 @@ func main() {
 	useTls := flag.Bool("tls", false, "Use tls to encrypt transport between acraserver and acraproxy/client")
 	tlsKey := flag.String("tls_key", "", "Path to tls server key")
 	tlsCert := flag.String("tls_cert", "", "Path to tls server certificate")
+	tlsCA := flag.String("tls_ca", "", "Path to root certificate")
+	tlsSNI := flag.String("tls_sni", "", "Expected Server Name (SNI)")
 	noEncryption := flag.Bool("no_encryption", false, "Use raw transport (tcp/unix socket) between acraserver and acraproxy/client (don't use this flag if you not connect to database with ssl/tls")
 	clientId := flag.String("client_id", "", "Expected client id of acraproxy in mode without encryption")
 	acraConnectionString := flag.String("connection_string", network.BuildConnectionString(cmd.DEFAULT_ACRA_CONNECTION_PROTOCOL, cmd.DEFAULT_ACRA_HOST, cmd.DEFAULT_ACRA_PORT, ""), "Connection string like tcp://x.x.x.x:yyyy or unix:///path/to/socket")
@@ -120,17 +121,17 @@ func main() {
 
 	keyStore, err := keystore.NewFilesystemKeyStore(*keysDir)
 	if err != nil {
-		log.Errorln(" can't initialize keystore")
+		log.Errorln("can't initialize keystore")
 		os.Exit(1)
 	}
 	if *useTls {
 		log.Println("use TLS transport wrapper")
-		cer, err := tls.LoadX509KeyPair(*tlsCert, *tlsKey)
+		tlsConfig, err := network.NewTLSConfig(*tlsSNI, *tlsCA, *tlsKey, *tlsCert)
 		if err != nil {
-			log.Println(err)
-			return
+			log.WithError(err).Errorln("can't get config for TLS")
+			os.Exit(1)
 		}
-		config.ConnectionWrapper, err = network.NewTLSConnectionWrapper([]byte(*clientId), &tls.Config{Certificates: []tls.Certificate{cer}})
+		config.ConnectionWrapper, err = network.NewTLSConnectionWrapper([]byte(*clientId), tlsConfig)
 		if err != nil {
 			log.Errorln("can't initialize tls connection wrapper")
 			os.Exit(1)

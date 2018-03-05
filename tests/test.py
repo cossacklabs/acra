@@ -288,6 +288,10 @@ class BaseTestCase(unittest.TestCase):
             args.append('--zonemode=true')
         if self.TLS_ON:
             args.append('--tls')
+            args.append('--tls_ca=tests/server.crt')
+            args.append('--tls_key=tests/client.key')
+            args.append('--tls_cert=tests/client.crt')
+            args.append('--tls_sni=acraserver')
         process = self.fork(lambda: subprocess.Popen(args))
         if check_connection:
             try:
@@ -342,6 +346,8 @@ class BaseTestCase(unittest.TestCase):
             args['tls'] = 'true'
             args['tls_key'] = 'tests/server.key'
             args['tls_cert'] = 'tests/server.crt'
+            args['tls_ca'] = 'tests/server.crt'
+            args['tls_sni'] = 'acraserver'
         args.update(acra_kwargs)
         if not popen_kwargs:
             popen_kwargs = {}

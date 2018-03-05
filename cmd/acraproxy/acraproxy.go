@@ -29,8 +29,6 @@ import (
 
 	log "github.com/sirupsen/logrus"
 
-	"crypto/tls"
-
 	"github.com/cossacklabs/acra/cmd"
 	"github.com/cossacklabs/acra/keystore"
 	"github.com/cossacklabs/acra/network"
@@ -86,7 +84,7 @@ func handleClientConnection(config *Config, connection net.Conn) {
 	acraConn.SetDeadline(time.Now().Add(time.Second * 2))
 	acraConnWrapped, err := config.ConnectionWrapper.WrapClient(config.ClientId, acraConn)
 	if err != nil {
-		log.WithError(err).Errorln("can't wrap acra connection with secure session")
+		log.WithError(err).Errorln("can't wrap connection")
 		return
 	}
 	acraConn.SetDeadline(time.Time{})
@@ -136,6 +134,10 @@ func main() {
 	withZone := flag.Bool("zonemode", false, "Turn on zone mode")
 	disableUserCheck := flag.Bool("disable_user_check", false, "Disable checking that connections from app running from another user")
 	useTls := flag.Bool("tls", false, "Use tls to encrypt transport between acraserver and acraproxy/client")
+	tlsCA := flag.String("tls_ca", "", "Path to root certificate")
+	tlsKey := flag.String("tls_key", "", "Path to tls client's key")
+	tlsCert := flag.String("tls_cert", "", "Path to tls client's certificate")
+	tlsSNI := flag.String("tls_sni", "", "Expected Server Name (SNI)")
 	noEncryption := flag.Bool("no_encryption", false, "Use raw transport (tcp/unix socket) between acraserver and acraproxy/client (don't use this flag if you not connect to database with ssl/tls")
 	connectionString := flag.String("connection_string", network.BuildConnectionString(cmd.DEFAULT_PROXY_CONNECTION_PROTOCOL, cmd.DEFAULT_PROXY_HOST, cmd.DEFAULT_PROXY_PORT, ""), "Connection string like tcp://x.x.x.x:yyyy or unix:///path/to/socket")
 	connectionAPIString := flag.String("connection_api_string", network.BuildConnectionString(cmd.DEFAULT_PROXY_CONNECTION_PROTOCOL, cmd.DEFAULT_PROXY_HOST, cmd.DEFAULT_PROXY_API_PORT, ""), "Connection string like tcp://x.x.x.x:yyyy or unix:///path/to/socket")
@@ -226,7 +228,12 @@ func main() {
 	sigHandler.AddListener(listener)
 	if *useTls {
 		log.Infoln("use TLS transport wrapper")
-		config.ConnectionWrapper, err = network.NewTLSConnectionWrapper(nil, &tls.Config{InsecureSkipVerify: true})
+		tlsConfig, err := network.NewTLSConfig(*tlsSNI, *tlsCA, *tlsKey, *tlsCert)
+		if err != nil {
+			log.WithError(err).Errorln("can't get config for TLS")
+			os.Exit(1)
+		}
+		config.ConnectionWrapper, err = network.NewTLSConnectionWrapper(nil, tlsConfig)
 		if err != nil {
 			log.WithError(err).Errorln("can't initialize tls connection wrapper")
 			os.Exit(1)
