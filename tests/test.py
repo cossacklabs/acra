@@ -255,7 +255,7 @@ class BaseTestCase(unittest.TestCase):
             'injectedcell': 'false' if self.WHOLECELL_MODE else 'true',
             'd': 'true' if self.DEBUG_LOG else 'false',
             'zonemode': 'true' if self.ZONE else 'false',
-            'disable_zone_api': 'false' if self.ZONE else 'true',
+            'disable_http_api': 'false' if self.ZONE else 'true',
         }
         args.update(acra_kwargs)
         if not popen_kwargs:
@@ -966,7 +966,7 @@ class TestKeyStorageClearing(BaseTestCase):
                 zone_mode=True)
             if not self.EXTERNAL_ACRA:
                 self.acra = self.fork_acra(
-                    zonemode='true', disable_zone_api='false')
+                    zonemode='true', disable_http_api='false')
 
             self.engine1 = sa.create_engine(
                 get_db_connection_string(self.PROXY_PORT_1, self.DB_NAME),

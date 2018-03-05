@@ -55,7 +55,7 @@ func main() {
 	scriptOnPoison := flag.String("poisonscript", "", "Execute script on detecting poison record")
 
 	withZone := flag.Bool("zonemode", false, "Turn on zone mode")
-	disableZoneApi := flag.Bool("disable_zone_api", false, "Disable zone http api")
+	disableHTTPApi := flag.Bool("disable_http_api", false, "Disable http api")
 
 	useTls := flag.Bool("tls", false, "Use tls")
 	tlsKey := flag.String("tls_key", "", "Path to tls server key")
@@ -156,7 +156,7 @@ func main() {
 			}
 		}()
 	}
-	if *withZone && !*disableZoneApi {
+	if *withZone && !*disableHTTPApi {
 		go server.StartCommands()
 	}
 	server.Start()
