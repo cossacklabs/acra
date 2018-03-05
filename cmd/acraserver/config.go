@@ -16,7 +16,6 @@ package main
 import (
 	"errors"
 	"encoding/json"
-	"net/http"
 	"github.com/cossacklabs/acra/network"
 )
 
@@ -43,7 +42,7 @@ type Config struct {
 	ConnectionWrapper       network.ConnectionWrapper
 }
 
-type ConfigProxy struct {
+type UIEditableConfig struct {
 	ProxyHost         string `json:"host"`
 	ProxyPort         int    `json:"port"`
 	DbHost            string `json:"db_host"`
@@ -148,25 +147,18 @@ func (config *Config) SetWholeMatch(value bool) {
 	config.wholeMatch = value
 }
 
-func (config *Config) ToJson() (string, error) {
-	var s ConfigProxy
-	s.ProxyHost = config.proxyHost
-	s.ProxyPort = config.proxyPort
-	s.DbHost = config.dbHost
-	s.DbPort = config.proxyCommandsPort
-	s.ProxyCommandsPort = config.proxyCommandsPort
-	s.ScriptOnPoison = config.scriptOnPoison
-	s.StopOnPoison = config.stopOnPoison
-	s.WithZone = config.withZone
+func (config *Config) ToJson() ([]byte, error) {
+	var s UIEditableConfig
+	s.ProxyHost = config.GetProxyHost()
+	s.ProxyPort = config.GetProxyPort()
+	s.DbHost = config.GetDBHost()
+	s.DbPort = config.GetDBPort()
+	s.ProxyCommandsPort = config.GetProxyCommandsPort()
+	s.ScriptOnPoison = config.GetScriptOnPoison()
+	s.StopOnPoison = config.GetStopOnPoison()
+	s.WithZone = config.GetWithZone()
 	out, err := json.Marshal(s)
-	return string(out), err
-}
-
-func (config *Config) JsonFromPOST(req *http.Request) (ConfigProxy, error) {
-	decoder := json.NewDecoder(req.Body)
-	var t ConfigProxy
-	err := decoder.Decode(&t)
-	return t, err
+	return out, err
 }
 
 func (config *Config) GetAcraConnectionString() string {

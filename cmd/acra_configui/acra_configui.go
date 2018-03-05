@@ -1,18 +1,11 @@
 package main
 
-// TODO: errors output,
-
-// sdfsdf
-
 import (
-	//"io/ioutil"
-	//"html/template"
-	"net/http"
-	"log"
+	"io/ioutil"
 	"html/template"
+	"net/http"
 	"path/filepath"
 	"gopkg.in/yaml.v2"
-	"io/ioutil"
 	"time"
 	"encoding/json"
 	"strconv"
@@ -20,7 +13,14 @@ import (
 	"os"
 	"fmt"
 	"flag"
+	log "github.com/sirupsen/logrus"
+	"github.com/cossacklabs/acra/utils"
+	"github.com/cossacklabs/acra/cmd"
 )
+
+var acraHost *string
+var acraPort *int
+var debug *bool
 
 func check(e error) {
 	if e != nil {
@@ -28,30 +28,17 @@ func check(e error) {
 	}
 }
 
-type paramYAML struct {
-	Name       string   `yaml:"name"`
-	Title      string   `yaml:"title"`
-	Value_type string   `yaml:"value_type"`
-	Input_type string   `yaml:"input_type"`
-	Values     []string `yaml:"values,flow"`
-	Labels     []string `yaml:"labels,flow"`
-}
-
-type paramJSON struct {
-	Name       string   `json:"name"`
-	Title      string   `json:"title"`
-	Value_type string   `json:"value_type"`
-	Input_type string   `json:"input_type"`
-	Values     []string `json:"values,flow"`
-	Labels     []string `json:"labels,flow"`
+type paramItem struct {
+	Name      string   `yaml:"name" json:"name"`
+	Title     string   `yaml:"title" json:"title"`
+	ValueType string   `yaml:"value_type" json:"value_type"`
+	InputType string   `yaml:"input_type" json:"input_type"`
+	Values    []string `yaml:"values,flow" json:"values,flow"`
+	Labels    []string `yaml:"labels,flow" json:"labels,flow"`
 }
 
 type configParamsYAML struct {
-	Config []paramYAML
-}
-
-type configParamsJSON struct {
-	Config []paramJSON
+	Config []paramItem
 }
 
 type ConfigAcraServer struct {
@@ -66,13 +53,6 @@ type ConfigAcraServer struct {
 	WithZone          bool   `json:"zonemode"`
 }
 
-type JsonResponse struct {
-	Success bool `json:"success"`
-}
-
-func nop_map(map[string][]string) {}
-func nop_string(string)           {}
-
 func SubmitSettings(w http.ResponseWriter, r *http.Request) {
 	if r.Method != "POST" {
 		http.Error(w, "Invalid request method", http.StatusMethodNotAllowed)
@@ -81,7 +61,9 @@ func SubmitSettings(w http.ResponseWriter, r *http.Request) {
 
 	err := r.ParseForm()
 	if err != nil {
-		panic(err)
+		log.WithError(err).Errorln("Request parsing failed")
+		http.Error(w, "Bad request", http.StatusBadRequest)
+		return
 	}
 	var db_port, _ = strconv.Atoi(r.Form.Get("db_port"))
 	var commands_port, _ = strconv.Atoi(r.Form.Get("commands_port"))
@@ -99,18 +81,25 @@ func SubmitSettings(w http.ResponseWriter, r *http.Request) {
 	}
 	jsonToServer, err := json.Marshal(config)
 	if err != nil {
+		log.WithError(err).Errorln("/setConfig json.Marshal failed")
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	req, err := http.NewRequest("POST", "http://localhost:9292/setConfig", bytes.NewBuffer(jsonToServer))
+	req, err := http.NewRequest("POST", fmt.Sprintf("http://%v:%v/setConfig", *acraHost, *acraPort), bytes.NewBuffer(jsonToServer))
+	if err != nil {
+		log.WithError(err).Errorln("/setConfig http.NewRequest failed")
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
 	req.Header.Set("Content-Type", "application/json")
 	client := &http.Client{}
 	resp, err := client.Do(req)
 	if err != nil {
+		log.WithError(err).Errorln("/setConfig client.Do failed")
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	defer resp.Body.Close()
+	resp.Body.Close()
 
 	w.Header().Set("Content-Type", "application/json")
 	w.Write(jsonToServer)
@@ -118,8 +107,7 @@ func SubmitSettings(w http.ResponseWriter, r *http.Request) {
 
 func index(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Security-Policy", "require-sri-for script style")
-	ip := filepath.Join("static", "index.html")
-	tmpl, _ := template.ParseFiles(ip)
+	parsedTemplate, _ := template.ParseFiles(filepath.Join("static", "index.html"))
 	var outConfigParams configParamsYAML
 	configParamsYAML, err := ioutil.ReadFile("acraserver_config_vars.yaml")
 	check(err)
@@ -128,42 +116,42 @@ func index(w http.ResponseWriter, r *http.Request) {
 	var netClient = &http.Client{
 		Timeout: time.Second * 5,
 	}
-	serverResponse, err := netClient.Get("http://localhost:9292/getConfig")
+	serverResponse, err := netClient.Get(fmt.Sprintf("http://%v:%v/getConfig", *acraHost, *acraPort))
 	if err != nil {
-		log.Printf("ERROR: api error - %s", err)
+		log.WithError(err).Errorln("AcraServer api error")
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
 	}
 	serverConfigDataJsonString, err := ioutil.ReadAll(serverResponse.Body)
-	defer serverResponse.Body.Close()
 	if err != nil {
-		log.Fatal(err)
+		log.Fatal(err.Error())
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
 	}
 	var serverConfigData ConfigAcraServer
 	err = json.Unmarshal(serverConfigDataJsonString, &serverConfigData)
 	if err != nil {
-		log.Printf("ERROR: json.Unmarshal error - %s", err)
+		log.WithError(err).Errorln("json.Unmarshal error")
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
 	}
-	// log.Println(serverConfigData)
 	// end get current config
 
-	yaml.Unmarshal(configParamsYAML, &outConfigParams)
-
-	var configParams configParamsJSON
-	for _, item := range outConfigParams.Config {
-		c := paramJSON{
-			Name: item.Name,
-			Title: item.Title,
-			Value_type: item.Value_type,
-			Input_type: item.Input_type,
-			Values: item.Values,
-			Labels: item.Labels,
-		}
-		configParams.Config = append(configParams.Config, c)
+	err = yaml.Unmarshal(configParamsYAML, &outConfigParams)
+	if err != nil {
+		log.Errorf("%v", utils.ErrorMessage("yaml.Unmarshal error", err))
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
 	}
-	// log.Println(configParams)
 
-	res, err := json.Marshal(configParams)
+	res, err := json.Marshal(outConfigParams)
+	if err != nil {
+		log.Errorf("%v", utils.ErrorMessage("json.Marshal error", err))
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
 
-	tmpl.Execute(w, struct {
+	parsedTemplate.Execute(w, struct {
 		ConfigParams string
 		ConfigAcraServer
 	}{
@@ -174,12 +162,22 @@ func index(w http.ResponseWriter, r *http.Request) {
 
 func main() {
 	port := flag.Int("port", 8000, "Port for configUI HTTP endpoint")
+	acraHost = flag.String("acraHost", "localhost", "Host for Acraserver HTTP endpoint or proxy")
+	acraPort = flag.Int("acraPort", 9292, "Port for Acraserver HTTP endpoint or proxy")
+	debug = flag.Bool("d", false, "Turn on debug logging")
 	flag.Parse()
+
+	if *debug {
+		cmd.SetLogLevel(cmd.LOG_DEBUG)
+	} else {
+		cmd.SetLogLevel(cmd.LOG_VERBOSE)
+	}
+
 	http.HandleFunc("/index.html", index)
 	http.HandleFunc("/", index)
 	http.Handle("/static/", http.StripPrefix("/static/", http.FileServer(http.Dir("./static"))))
 	http.HandleFunc("/acraserver/submit_setting", SubmitSettings)
-	log.Println(fmt.Sprintf("AcraConfigUI is listening @ :%d with PID %d", *port, os.Getpid()))
+	log.Info(fmt.Sprintf("AcraConfigUI is listening @ :%d with PID %d", *port, os.Getpid()))
 	err := http.ListenAndServe(fmt.Sprintf(":%d", *port), nil)
 	check(err)
 }
