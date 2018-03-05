@@ -6,11 +6,12 @@ import (
 )
 
 type TLSConnectionWrapper struct {
-	config *tls.Config
+	config   *tls.Config
+	clientId []byte
 }
 
-func NewTLSConnectionWrapper(config *tls.Config) (*TLSConnectionWrapper, error) {
-	return &TLSConnectionWrapper{config: config}, nil
+func NewTLSConnectionWrapper(clientId []byte, config *tls.Config) (*TLSConnectionWrapper, error) {
+	return &TLSConnectionWrapper{config: config, clientId: clientId}, nil
 }
 
 func (wrapper *TLSConnectionWrapper) WrapClient(id []byte, conn net.Conn) (net.Conn, error) {
@@ -27,5 +28,5 @@ func (wrapper *TLSConnectionWrapper) WrapServer(conn net.Conn) (net.Conn, []byte
 	if err != nil {
 		return conn, nil, err
 	}
-	return tlsConn, nil, nil
+	return tlsConn, wrapper.clientId, nil
 }

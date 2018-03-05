@@ -236,6 +236,7 @@ class BaseTestCase(unittest.TestCase):
     ZONE = False
     DEBUG_LOG = False
     TEST_DATA_LOG = False
+    TLS_ON = False
     maxDiff = None
     # hack to simplify handling errors on forks and don't check `if hasattr(self, 'proxy_1')`
     proxy_1 = ProcessStub()
@@ -257,15 +258,15 @@ class BaseTestCase(unittest.TestCase):
         return wait_unix_socket(*args, **kwargs)
 
     def fork_proxy(self, proxy_port: int, acra_port: int, client_id: str, commands_port: int=None, zone_mode: bool=False, check_connection: bool=True):
-        acra_connection = get_unix_connection_string(acra_port)
-        acra_api_connection = acra_api_connection_string(acra_port)
-        proxy_connection = get_proxy_connection_string(proxy_port)
+        acra_connection = self.get_acra_connection_string(acra_port)
+        acra_api_connection = self.get_acra_api_connection_string(acra_port)
+        proxy_connection = self.get_proxy_connection_string(proxy_port)
         if zone_mode:
             # because standard library can send http requests only through tcp and cannot through unix socket
             proxy_api_connection = "tcp://127.0.0.1:{}".format(commands_port)
         else:
             # now it's no matter, so just +100
-            proxy_api_connection = get_unix_connection_string(commands_port if commands_port else proxy_port + 100)
+            proxy_api_connection = self.get_proxy_api_connection_string(commands_port if commands_port else proxy_port + 100)
 
         for path in [socket_path_from_connection_string(proxy_connection), socket_path_from_connection_string(proxy_api_connection)]:
             try:
@@ -285,6 +286,8 @@ class BaseTestCase(unittest.TestCase):
             args.append('-v=true')
         if zone_mode:
             args.append('--zonemode=true')
+        if self.TLS_ON:
+            args.append('--tls')
         process = self.fork(lambda: subprocess.Popen(args))
         if check_connection:
             try:
@@ -294,11 +297,25 @@ class BaseTestCase(unittest.TestCase):
                 raise
         return process
 
-    def get_acra_connection_string(self):
-        return get_unix_connection_string(self.ACRA_PORT)
+    def get_acra_connection_string(self, port=None):
+        if not port:
+            port = self.ACRA_PORT
+        return get_unix_connection_string(port)
 
-    def get_acra_api_connection_string(self):
-        return acra_api_connection_string(self.ACRA_PORT)
+    def get_acra_api_connection_string(self, port=None):
+        if not port:
+            port = self.ACRA_PORT
+        return acra_api_connection_string(port)
+
+    def get_proxy_connection_string(self, port=None):
+        if not port:
+            port = self.PROXY_PORT_1
+        return get_proxy_connection_string(port)
+
+    def get_proxy_api_connection_string(self, port=None):
+        if not port:
+            port = self.PROXY_COMMAND_PORT_1
+        return get_proxy_connection_string(port)
 
     def _fork_acra(self, acra_kwargs, popen_kwargs):
         connection_string = self.get_acra_connection_string()
@@ -321,6 +338,10 @@ class BaseTestCase(unittest.TestCase):
             'zonemode': 'true' if self.ZONE else 'false',
             'disable_zone_api': 'false' if self.ZONE else 'true',
         }
+        if self.TLS_ON:
+            args['tls'] = 'true'
+            args['tls_key'] = 'tests/server.key'
+            args['tls_cert'] = 'tests/server.crt'
         args.update(acra_kwargs)
         if not popen_kwargs:
             popen_kwargs = {}
@@ -1293,6 +1314,19 @@ class SSLPostgresqlConnectionTest(HexFormatTest):
                 engine.dispose()
         except:
             pass
+
+
+class TLSBetweenProxyAndServerTest(HexFormatTest):
+    TLS_ON = True
+    def fork_acra(self, popen_kwargs: dict=None, **acra_kwargs: dict):
+        return self._fork_acra({'client_id': 'keypair1'}, popen_kwargs)
+
+    def setUp(self):
+        super(TLSBetweenProxyAndServerTest, self).setUp()
+        # acra works with one client id and no matter from which proxy connection come
+        self.engine2.dispose()
+        self.engine2 = self.engine_raw
+
 
 if __name__ == '__main__':
     unittest.main()

@@ -83,8 +83,6 @@ func handleClientConnection(config *Config, connection net.Conn) {
 	}
 	defer acraConn.Close()
 
-	log.Infof("send client id <%v>", string(config.ClientId))
-
 	acraConn.SetDeadline(time.Now().Add(time.Second * 2))
 	acraConnWrapped, err := config.ConnectionWrapper.WrapClient(config.ClientId, acraConn)
 	if err != nil {
@@ -228,7 +226,7 @@ func main() {
 	sigHandler.AddListener(listener)
 	if *useTls {
 		log.Infoln("use TLS transport wrapper")
-		config.ConnectionWrapper, err = network.NewTLSConnectionWrapper(&tls.Config{InsecureSkipVerify: true})
+		config.ConnectionWrapper, err = network.NewTLSConnectionWrapper(nil, &tls.Config{InsecureSkipVerify: true})
 		if err != nil {
 			log.WithError(err).Errorln("can't initialize tls connection wrapper")
 			os.Exit(1)

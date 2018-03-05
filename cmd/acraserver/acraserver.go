@@ -130,7 +130,7 @@ func main() {
 			log.Println(err)
 			return
 		}
-		config.ConnectionWrapper, err = network.NewTLSConnectionWrapper(&tls.Config{Certificates: []tls.Certificate{cer}})
+		config.ConnectionWrapper, err = network.NewTLSConnectionWrapper([]byte(*clientId), &tls.Config{Certificates: []tls.Certificate{cer}})
 		if err != nil {
 			log.Errorln("can't initialize tls connection wrapper")
 			os.Exit(1)
