@@ -23,7 +23,7 @@ db_host:
 db_port: 5432
 
 # Disable zone http api
-disable_zone_api: false
+disable_http_api: false
 
 # Turn on http debug server
 ds: false

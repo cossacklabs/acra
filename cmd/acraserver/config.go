@@ -15,6 +15,7 @@ package main
 
 import (
 	"errors"
+	"encoding/json"
 	"github.com/cossacklabs/acra/network"
 )
 
@@ -41,6 +42,18 @@ type Config struct {
 	tlsServerKeyPath        string
 	tlsServerCertPath       string
 	ConnectionWrapper       network.ConnectionWrapper
+}
+
+type UIEditableConfig struct {
+	ProxyHost         string `json:"host"`
+	ProxyPort         int    `json:"port"`
+	DbHost            string `json:"db_host"`
+	DbPort            int    `json:"db_port"`
+	ProxyCommandsPort int    `json:"commands_port"`
+	Debug             bool   `json:"debug"`
+	ScriptOnPoison    string `json:"poisonscript"`
+	StopOnPoison      bool   `json:"poisonshutdown"`
+	WithZone          bool   `json:"zonemode"`
 }
 
 func NewConfig() *Config {
@@ -147,9 +160,25 @@ func (config *Config) GetWholeMatch() bool {
 func (config *Config) SetWholeMatch(value bool) {
 	config.wholeMatch = value
 }
+
+func (config *Config) ToJson() ([]byte, error) {
+	var s UIEditableConfig
+	s.ProxyHost = config.GetProxyHost()
+	s.ProxyPort = config.GetProxyPort()
+	s.DbHost = config.GetDBHost()
+	s.DbPort = config.GetDBPort()
+	s.ProxyCommandsPort = config.GetProxyCommandsPort()
+	s.ScriptOnPoison = config.GetScriptOnPoison()
+	s.StopOnPoison = config.GetStopOnPoison()
+	s.WithZone = config.GetWithZone()
+	out, err := json.Marshal(s)
+	return out, err
+}
+
 func (config *Config) GetAcraConnectionString() string {
 	return config.acraConnectionString
 }
+
 func (config *Config) GetAcraAPIConnectionString() string {
 	return config.acraAPIConnectionString
 }

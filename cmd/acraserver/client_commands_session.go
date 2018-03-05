@@ -24,6 +24,8 @@ import (
 	"github.com/cossacklabs/acra/utils"
 	"github.com/cossacklabs/acra/zone"
 	"github.com/cossacklabs/themis/gothemis/keys"
+	"fmt"
+	"encoding/json"
 )
 
 type ClientCommandsSession struct {
@@ -61,19 +63,40 @@ func (clientSession *ClientCommandsSession) HandleSession() {
 		return
 	}
 	response := "HTTP/1.1 404 Not Found\r\n\r\nincorrect request\r\n\r\n"
+
+	log.Debugln(req.URL.Path)
+
 	switch req.URL.Path {
 	case "/getNewZone":
 		id, publicKey, err := clientSession.keystorage.GenerateZoneKey()
 		if err == nil {
 			zoneData, err := zone.ZoneDataToJson(id, &keys.PublicKey{Value: publicKey})
 			if err == nil {
-				response = "HTTP/1.1 200 OK Found\r\n\r\n" + string(zoneData) + "\r\n\r\n"
+				response = fmt.Sprintf("HTTP/1.1 200 OK Found\r\n\r\n%s\r\n\r\n", string(zoneData))
 			}
 		}
 	case "/resetKeyStorage":
-		log.Println("Info: clear key storage cache")
+		log.Info("clear key storage cache")
 		clientSession.keystorage.Reset()
 		response = "HTTP/1.1 200 OK Found\r\n\r\n"
+	case "/getConfig":
+		jsonOutput, err := clientSession.config.ToJson()
+		if err != nil {
+			log.Warningf("%v\n", utils.ErrorMessage("can't convert config to JSON", err))
+			response = "HTTP/1.1 500 Server error\r\n\r\n\r\n\r\n"
+		} else {
+			log.Debugln(string(jsonOutput))
+			response = fmt.Sprintf("HTTP/1.1 200 OK Found\r\n\r\n%s\r\n\r\n", string(jsonOutput))
+		}
+	case "/setConfig":
+		decoder := json.NewDecoder(req.Body)
+		var configFromUI UIEditableConfig
+		err := decoder.Decode(&configFromUI)
+		if err != nil {
+			log.Warningf("%v\n", utils.ErrorMessage("can't convert config from incoming", err))
+			response = "HTTP/1.1 500 Server error\r\n\r\n\r\n\r\n"
+		}
+		log.Debugln(configFromUI)
 	}
 
 	_, err = clientSession.connection.Write([]byte(response))
