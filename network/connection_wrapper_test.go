@@ -3,12 +3,15 @@ package network
 import (
 	"bytes"
 	"crypto/tls"
-	"github.com/cossacklabs/themis/gothemis/keys"
 	"net"
 	"os"
 	"testing"
 	"time"
+
+	"github.com/cossacklabs/themis/gothemis/keys"
 )
+
+var TEST_CLIENT_ID = []byte("test client id")
 
 func wait(ch chan bool, t *testing.T) {
 	select {
@@ -46,11 +49,14 @@ func test_wrapper(clientWrapper, serverWrapper ConnectionWrapper, t *testing.T) 
 			return
 		}
 		t.Log("wrap server")
-		conn, _, err = serverWrapper.WrapServer(conn)
+		conn, clientId, err := serverWrapper.WrapServer(conn)
 		if err != nil {
 			conn.Close()
 			t.Fatal(err)
 			return
+		}
+		if !bytes.Equal(clientId, TEST_CLIENT_ID) {
+			t.Fatal("client id incorrect")
 		}
 		for i := 0; i < iterations; i++ {
 			t.Log("wait server read")
@@ -86,7 +92,7 @@ func test_wrapper(clientWrapper, serverWrapper ConnectionWrapper, t *testing.T) 
 	}
 	defer connection.Close()
 	t.Log("wrap client")
-	connection, err = clientWrapper.WrapClient([]byte("some id"), connection)
+	connection, err = clientWrapper.WrapClient(TEST_CLIENT_ID, connection)
 	if err != nil {
 		connection.Close()
 		t.Fatal(err)
@@ -118,7 +124,7 @@ func test_wrapper(clientWrapper, serverWrapper ConnectionWrapper, t *testing.T) 
 }
 
 func TestRawConnectionWrapper(t *testing.T) {
-	test_wrapper(&RawConnectionWrapper{}, &RawConnectionWrapper{}, t)
+	test_wrapper(&RawConnectionWrapper{}, &RawConnectionWrapper{ClientId: TEST_CLIENT_ID}, t)
 }
 
 type SimpleKeyStore struct {
@@ -185,7 +191,7 @@ E0B2xKAzGuMumud6IbYpoIk3uj7bjfeejSyZPgxIOkEPAjEA+adYfhHGieUnnC26
 Mmsz2rgkLFqKpYS30+CYbzwIXMfHImhBX2kO9HkodBWvNApu
 -----END CERTIFICATE-----
 `)
-	clientWrapper, err := NewTLSConnectionWrapper(&tls.Config{InsecureSkipVerify: true})
+	clientWrapper, err := NewTLSConnectionWrapper(nil, &tls.Config{InsecureSkipVerify: true})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -195,7 +201,7 @@ Mmsz2rgkLFqKpYS30+CYbzwIXMfHImhBX2kO9HkodBWvNApu
 		t.Fatal(err)
 		return
 	}
-	serverWrapper, err := NewTLSConnectionWrapper(&tls.Config{Certificates: []tls.Certificate{cer}})
+	serverWrapper, err := NewTLSConnectionWrapper(TEST_CLIENT_ID, &tls.Config{Certificates: []tls.Certificate{cer}})
 	if err != nil {
 		t.Fatal(err)
 	}
