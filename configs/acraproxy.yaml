@@ -49,6 +49,18 @@ port: 9494
 # Use tls to encrypt transport between acraserver and acraproxy/client
 tls: false
 
+# Path to root certificate
+tls_ca: 
+
+# Path to tls client's certificate
+tls_cert: 
+
+# Path to tls client's key
+tls_key: 
+
+# Expected Server Name (SNI)
+tls_sni: 
+
 # Log to stdout
 v: false
 

@@ -22,7 +22,7 @@ db_host:
 # Port to db
 db_port: 5432
 
-# Disable zone http api
+# Disable http api
 disable_http_api: false
 
 # Turn on http debug server
@@ -64,11 +64,17 @@ server_id: acra_server
 # Use tls to encrypt transport between acraserver and acraproxy/client
 tls: false
 
+# Path to root certificate
+tls_ca: 
+
 # Path to tls server certificate
 tls_cert: 
 
 # Path to tls server key
 tls_key: 
+
+# Expected Server Name (SNI)
+tls_sni: 
 
 # Log to stdout
 v: false
