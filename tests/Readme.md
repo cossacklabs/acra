@@ -33,7 +33,7 @@ pip3 install -r tests/requirements.txt
 If you want to customise database settings, pass them as environment variables:
 
 ```console
-TEST_DB_HOST=127.0.0.1 TEST_DB_USER=postgres TEST_DB_USER_PASSWORD=postgres TEST_DB_NAME=acra TEST_DB_PORT=5432  python3 tests/test.py
+TEST_TLS=off TEST_SSL_MODE=allow TEST_DB_HOST=127.0.0.1 TEST_DB_USER=postgres TEST_DB_USER_PASSWORD=postgres TEST_DB_NAME=acra TEST_DB_PORT=5432  python3 tests/test.py
 ``` 
 
 or just use default database settings

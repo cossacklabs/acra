@@ -77,11 +77,18 @@ func (clientSession *ClientSession) HandleSecureSession(decryptorImpl base.Decry
 		}
 		return
 	}
+	pgDecryptorConfig, err := postgresql.NewPgDecryptorConfig(clientSession.config.GetTLSServerKeyPath(), clientSession.config.GetTLSServerCertPath())
+	if err != nil {
+		log.WithError(err).Errorln("can't initialize config for postgresql decryptor")
+		err = clientSession.connection.Close()
+		if err != nil {
+			log.Warningf("%v", utils.ErrorMessage("error with closing connection to acraproxy", err))
+		}
+		return
+	}
 
 	go network.Proxy(clientSession.connection, clientSession.connectionToDb, innerErrorChannel)
-	//go clientSession.proxyConnections(innerErrorChannel)
-
-	go postgresql.PgDecryptStream(decryptorImpl, clientSession.connectionToDb, clientSession.connection, innerErrorChannel)
+	go postgresql.PgDecryptStream(decryptorImpl, pgDecryptorConfig, clientSession.connectionToDb, clientSession.connection, innerErrorChannel)
 	for {
 		err = <-innerErrorChannel
 
