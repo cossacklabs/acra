@@ -1,14 +1,4 @@
 config:
-#  -
-#    name: host
-#    title: Host network address to listen for incoming connections from AcraProxy or via SSL
-#    value_type: string
-#    input_type: text
-#  -
-#    name: port
-#    title: Port for AcraServer to listen for incoming connections from AcraProxy or via SSL
-#    value_type: int8
-#    input_type: number
   -
     name: db_host
     title: Host for destination Postgres
