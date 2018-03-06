@@ -59,13 +59,16 @@ CONNECTION_FAIL_SLEEP = 0.1
 SOCKET_CONNECT_TIMEOUT = 10
 KILL_WAIT_TIMEOUT = 10
 
+TEST_WITH_TLS = os.environ.get('TEST_TLS', 'off').lower() == 'on'
+
 PG_UNIX_HOST = '/tmp'
 DB_USER = os.environ.get('TEST_DB_USER', 'postgres')
 DB_USER_PASSWORD = os.environ.get('TEST_DB_USER_PASSWORD', 'postgres')
+SSLMODE = os.environ.get('TEST_SSL_MODE', 'allow')
 connect_args = {
     'connect_timeout': SOCKET_CONNECT_TIMEOUT,
     'user': DB_USER, 'password': DB_USER_PASSWORD,
-    "options": "-c statement_timeout=1000", 'sslmode': 'allow'}
+    "options": "-c statement_timeout=1000", 'sslmode': SSLMODE}
 
 def stop_process(process):
     if not isinstance(process, collections.Iterable):
@@ -243,6 +246,12 @@ class BaseTestCase(unittest.TestCase):
     proxy_2 = ProcessStub()
     acra = ProcessStub()
 
+    def checkSkip(self):
+        print(self)
+        if TEST_WITH_TLS:
+            print('skip test')
+            self.skipTest("running tests with TLS")
+
     def fork(self, func):
         process = func()
         count = 0
@@ -366,6 +375,7 @@ class BaseTestCase(unittest.TestCase):
         return self._fork_acra(acra_kwargs, popen_kwargs)
 
     def setUp(self):
+        self.checkSkip()
         try:
             self.proxy_1 = self.fork_proxy(self.PROXY_PORT_1, self.ACRA_PORT, 'keypair1')
             self.proxy_2 = self.fork_proxy(self.PROXY_PORT_2, self.ACRA_PORT, 'keypair2')
@@ -635,6 +645,7 @@ class ZoneEscapeFormatWholeCellTest(WholeCellMixinTest, ZoneEscapeFormatTest):
 
 class TestConnectionClosing(BaseTestCase):
     def setUp(self):
+        self.checkSkip()
         try:
             self.proxy_1 = self.fork_proxy(
                 self.PROXY_PORT_1, self.ACRA_PORT, 'keypair1')
@@ -725,6 +736,7 @@ class TestKeyNonExistence(BaseTestCase):
     PROXY_STARTUP_DELAY = 0.05
 
     def setUp(self):
+        self.checkSkip()
         try:
             if not self.EXTERNAL_ACRA:
                 self.acra = self.fork_acra()
@@ -740,7 +752,6 @@ class TestKeyNonExistence(BaseTestCase):
     def delete_key(self, filename):
         os.remove('.acrakeys{sep}{name}'.format(sep=os.path.sep, name=filename))
 
-    # TODO fix this test case
     def test_without_acraproxy_public(self):
         """acraserver without acraproxy public key should drop connection
         from acraproxy than acraproxy should drop connection from psycopg2"""
@@ -1028,6 +1039,7 @@ class TestCheckLogPoisonRecord(AcraCatchLogsMixin, BasePoisonRecordTest):
 
 class TestKeyStorageClearing(BaseTestCase):
     def setUp(self):
+        self.checkSkip()
         try:
             self.key_name = 'clearing_keypair'
             create_client_keypair(self.key_name)
@@ -1090,6 +1102,7 @@ class TestAcraRollback(BaseTestCase):
     DATA_COUNT = 5
 
     def setUp(self):
+        self.checkSkip()
         self.engine_raw = sa.create_engine(
             'postgresql://{}:{}/{}'.format(self.DB_HOST, self.DB_PORT,
                                            self.DB_NAME),
@@ -1270,7 +1283,12 @@ class SSLPostgresqlConnectionTest(HexFormatTest):
     def wait_acra_connection(self, *args, **kwargs):
         wait_connection(self.ACRA_PORT)
 
+    def checkSkip(self):
+        if not TEST_WITH_TLS:
+            self.skipTest("running tests without TLS")
+
     def setUp(self):
+        self.checkSkip()
         """don't fork proxy, connect directly to acra, use sslmode=require in connections and tcp protocol on acra side
         because postgresql support tls only over tcp
         """
