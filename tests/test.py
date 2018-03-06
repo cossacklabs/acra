@@ -59,7 +59,7 @@ CONNECTION_FAIL_SLEEP = 0.1
 SOCKET_CONNECT_TIMEOUT = 10
 KILL_WAIT_TIMEOUT = 10
 
-TEST_WITH_TLS = os.environ.get('TEST_TLS', 'off').lower() == 'on'
+TEST_WITH_TLS = os.environ.get('TEST_TLS', 'on').lower() == 'on'
 
 PG_UNIX_HOST = '/tmp'
 DB_USER = os.environ.get('TEST_DB_USER', 'postgres')
@@ -247,10 +247,7 @@ class BaseTestCase(unittest.TestCase):
     acra = ProcessStub()
 
     def checkSkip(self):
-        print(self)
-        if TEST_WITH_TLS:
-            print('skip test')
-            self.skipTest("running tests with TLS")
+        return
 
     def fork(self, func):
         process = func()
