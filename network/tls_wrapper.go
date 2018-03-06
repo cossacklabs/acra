@@ -36,10 +36,7 @@ func (wrapper *TLSConnectionWrapper) WrapServer(conn net.Conn) (net.Conn, []byte
 }
 
 func NewTLSConfig(serverName string, caPath, keyPath, crtPath string) (*tls.Config, error) {
-	roots, err := x509.SystemCertPool()
-	if err != nil {
-		return nil, err
-	}
+	roots := x509.NewCertPool()
 	if caPath != "" {
 		caPem, err := ioutil.ReadFile(caPath)
 		if err != nil {
