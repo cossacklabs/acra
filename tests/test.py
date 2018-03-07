@@ -80,9 +80,9 @@ def stop_process(process):
     for p in process:
         try:
             p.wait(timeout=KILL_WAIT_TIMEOUT)
+            p.kill()
         except:
             pass
-        p.kill()
 
 
 def get_connect_args(port=5432, sslmode='require', **kwargs):
