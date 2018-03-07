@@ -105,6 +105,9 @@ func (server *SServer) handleConnection(connection net.Conn) {
 	clientSession.HandleSecureSession(decryptor)
 }
 
+func (server *SServer) handleMysqlConnection(connection net.Conn) {
+}
+
 // start listening connections from proxy
 func (server *SServer) Start() {
 	listener, err := network.Listen(server.config.GetAcraConnectionString())
@@ -127,6 +130,7 @@ func (server *SServer) Start() {
 		} else {
 			log.Infof("new connection to acraserver: <%v>", connection.RemoteAddr())
 		}
+		//go server.handleMysqlConnection(connection)
 		go server.handleConnection(connection)
 	}
 }

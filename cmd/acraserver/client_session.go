@@ -15,15 +15,18 @@ package main
 
 import (
 	"fmt"
-	"github.com/cossacklabs/acra/network"
-	log "github.com/sirupsen/logrus"
 	"net"
 
-	"github.com/cossacklabs/acra/decryptor/base"
+	"github.com/cossacklabs/acra/decryptor/mysql"
 	"github.com/cossacklabs/acra/decryptor/postgresql"
+	"github.com/cossacklabs/acra/network"
+	log "github.com/sirupsen/logrus"
+
+	"io"
+
+	"github.com/cossacklabs/acra/decryptor/base"
 	"github.com/cossacklabs/acra/keystore"
 	"github.com/cossacklabs/acra/utils"
-	"io"
 )
 
 type ClientSession struct {
@@ -86,9 +89,15 @@ func (clientSession *ClientSession) HandleSecureSession(decryptorImpl base.Decry
 		}
 		return
 	}
-
-	go network.Proxy(clientSession.connection, clientSession.connectionToDb, innerErrorChannel)
-	go postgresql.PgDecryptStream(decryptorImpl, pgDecryptorConfig, clientSession.connectionToDb, clientSession.connection, innerErrorChannel)
+	if 1 == 1 {
+		handler := &mysql.MysqlHandler{}
+		//go handler.MysqlDecryptStream(decryptorImpl, clientSession.connectionToDb, clientSession.connection, innerErrorChannel)
+		go handler.ClientToDbProxy(decryptorImpl, clientSession.connectionToDb, clientSession.connection, innerErrorChannel)
+		go handler.DbToClientProxy(decryptorImpl, clientSession.connectionToDb, clientSession.connection, innerErrorChannel)
+	} else {
+		go network.Proxy(clientSession.connection, clientSession.connectionToDb, innerErrorChannel)
+		go postgresql.PgDecryptStream(decryptorImpl, pgDecryptorConfig, clientSession.connectionToDb, clientSession.connection, innerErrorChannel)
+	}
 	for {
 		err = <-innerErrorChannel
 
@@ -97,7 +106,11 @@ func (clientSession *ClientSession) HandleSecureSession(decryptorImpl base.Decry
 		} else if netErr, ok := err.(net.Error); ok {
 			if netErr.Timeout() {
 				log.Debugln("network timeout")
-				continue
+				if 1 == 1 {
+					break
+				} else {
+					continue
+				}
 			}
 			log.WithError(netErr).Errorln("network error")
 		} else if opErr, ok := err.(*net.OpError); ok {
