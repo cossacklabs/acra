@@ -701,7 +701,7 @@ class TestConnectionClosing(BaseTestCase):
         # give a time to close connections via postgresql
         # because performance where tests will run not always constant,
         # we wait try_count times. in best case it will not need to sleep
-        try_count = 3
+        try_count = 5
         for i in range(try_count):
             try:
                 self.assertEqual(self.getActiveConnectionCount(cursor), expected)
@@ -709,7 +709,7 @@ class TestConnectionClosing(BaseTestCase):
                 if i == (try_count - 1):
                     raise
                 # some wait for closing. chosen manually
-                time.sleep(0.5)
+                time.sleep(1)
 
     def testClosingConnections(self):
         connection = self.get_connection()
