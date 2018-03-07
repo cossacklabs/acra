@@ -19,6 +19,7 @@ import os
 import random
 import string
 import subprocess
+import traceback
 import unittest
 import stat
 import collections
@@ -70,22 +71,28 @@ connect_args = {
     'user': DB_USER, 'password': DB_USER_PASSWORD,
     "options": "-c statement_timeout=1000", 'sslmode': SSLMODE}
 
+
 def stop_process(process):
+    """stop process if exists by terminate and kill at end to be sure
+    that process will not alive as zombi-process"""
     if not isinstance(process, collections.Iterable):
         process = [process]
     # send signal to each. they can handle it asynchronously
     for p in process:
-        p.terminate()
+        try:
+            p.terminate()
+        except:
+            traceback.print_exc()
     # synchronously wait termination or kill
     for p in process:
         try:
             p.wait(timeout=KILL_WAIT_TIMEOUT)
         except:
-            pass
+            traceback.print_exc()
         try:
             p.kill()
         except:
-            pass
+            traceback.print_exc()
 
 
 def get_connect_args(port=5432, sslmode='require', **kwargs):
@@ -138,7 +145,7 @@ def wait_unix_socket(socket_path, count=10, sleep=0.1):
             connection = socket.socket(socket.AF_UNIX)
             connection.connect(socket_path)
             return
-        except FileNotFoundError:
+        except:
             pass
         finally:
             connection.close()
@@ -422,7 +429,7 @@ class BaseTestCase(unittest.TestCase):
             self.engine_raw.execute('delete from test;')
         except:
             pass
-        for engine in self.engines:
+        for engine in getattr(self, 'engines', []):
             engine.dispose()
 
     def get_random_data(self):
@@ -719,7 +726,16 @@ class TestConnectionClosing(BaseTestCase):
             for i in range(connection_limit):
                 connections.append(self.get_connection())
         exception = context_manager.exception
-        self.assertEqual(exception.args[0], 'FATAL:  sorry, too many clients already\n')
+        # exception doesn't has any related code, only text messages
+        correct_messages = [
+            'FATAL:  too many connections for role',
+            'FATAL:  sorry, too many clients already']
+        is_correct_exception_message = False
+        for message in correct_messages:
+            if message in exception.args[0]:
+                is_correct_exception_message = True
+                break
+        self.assertTrue(is_correct_exception_message)
 
         for conn in connections:
             conn.close()
