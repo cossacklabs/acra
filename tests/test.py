@@ -80,6 +80,9 @@ def stop_process(process):
     for p in process:
         try:
             p.wait(timeout=KILL_WAIT_TIMEOUT)
+        except:
+            pass
+        try:
             p.kill()
         except:
             pass
