@@ -257,7 +257,8 @@ class BaseTestCase(unittest.TestCase):
     acra = ProcessStub()
 
     def checkSkip(self):
-        return
+        if TEST_WITH_TLS:
+            self.skipTest("running tests with TLS")
 
     def fork(self, func):
         process = func()
