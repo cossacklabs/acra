@@ -10,6 +10,11 @@ export TEST_PROXY_COMMAND_PORT=$(expr ${TEST_PROXY_COMMAND_PORT} + 1);
 export GOROOT=$HOME/go_root_$version/go;
 export PATH=$GOROOT/bin/:$PATH;
 export GOPATH=$HOME/go_path_$version;
+export TEST_TLS=on
+python3 tests/test.py;
+if [ "$?" != "0" ]; then echo "$version" >> "$FILEPATH_ERROR_FLAG";
+
+export TEST_TLS=off
 python3 tests/test.py;
 if [ "$?" != "0" ]; then echo "$version" >> "$FILEPATH_ERROR_FLAG";
 fi done
