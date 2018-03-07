@@ -673,13 +673,18 @@ class TestConnectionClosing(BaseTestCase):
         if connection is None:
             connection = self.get_connection()
             created_connection = True
+
         cursor = connection.cursor()
         cursor.execute('select setting from pg_settings where name=\'max_connections\';')
-        limit = int(cursor.fetchone()[0])
+        pg_max_connections = int(cursor.fetchone()[0])
+        cursor.execute('select rolconnlimit from pg_roles where rolname = current_user;')
+        pg_rolconnlimit = int(cursor.fetchone()[0])
         cursor.close()
         if created_connection:
             connection.close()
-        return limit
+        if pg_rolconnlimit <= 0:
+            return pg_max_connections
+        return min(pg_max_connections, pg_rolconnlimit)
 
     def check_count(self, cursor, expected):
         # give a time to close connections via postgresql
