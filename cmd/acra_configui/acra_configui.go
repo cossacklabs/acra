@@ -202,7 +202,7 @@ func main() {
 
 	http.HandleFunc("/index.html", index)
 	http.HandleFunc("/", index)
-	http.Handle("/static/", http.StripPrefix("/static/", http.FileServer(http.Dir("./static"))))
+	http.Handle("/static/", http.StripPrefix("/static/", http.FileServer(http.Dir("./cmd/acra_configui/static"))))
 	http.HandleFunc("/acraserver/submit_setting", SubmitSettings)
 	log.Info(fmt.Sprintf("AcraConfigUI is listening @ :%d with PID %d", *port, os.Getpid()))
 	err = http.ListenAndServe(fmt.Sprintf(":%d", *port), nil)

@@ -22,15 +22,43 @@ import (
 	pg "github.com/cossacklabs/acra/decryptor/postgresql"
 	"github.com/cossacklabs/acra/keystore"
 	"github.com/cossacklabs/acra/zone"
+	"os"
+	"time"
+	"errors"
+	"fmt"
 )
 
 type SServer struct {
 	config     *Config
 	keystorage keystore.KeyStore
+	socketACRA *net.TCPListener
+	socketAPI  *net.TCPListener
+	fdACRA     uintptr
+	fdAPI      uintptr
+	cmACRA     *network.ConnectionManager
+	cmAPI      *network.ConnectionManager
 }
 
 func NewServer(config *Config, keystorage keystore.KeyStore) (server *SServer, err error) {
-	return &SServer{config: config, keystorage: keystorage}, nil
+	return &SServer{
+		config:     config,
+		keystorage: keystorage,
+		cmACRA:     network.NewConnectionManager(),
+		cmAPI:      network.NewConnectionManager(),
+	}, nil
+}
+
+func NewFromFD(config *Config, keystorage keystore.KeyStore, fdACRA uintptr, fdAPI uintptr) (server *SServer, err error) {
+	return &SServer{
+		config:     config,
+		keystorage: keystorage,
+		cmACRA:     network.NewConnectionManager(),
+		cmAPI:      network.NewConnectionManager(),
+		fdACRA:		fdACRA,
+		fdAPI:		fdAPI,
+	}, nil
+
+
 }
 
 func (server *SServer) getDecryptor(clientId []byte) base.Decryptor {
@@ -91,12 +119,62 @@ func (server *SServer) handleConnection(connection net.Conn) {
 }
 
 // start listening connections from proxy
-func (server *SServer) Start() {
-	listener, err := network.Listen(server.config.GetAcraConnectionString())
+func (server *SServer) Start(graceful bool) {
+	var listener net.Listener
+	var listenerGraceful *net.TCPListener
+	var err error
+	var connection net.Conn
+	if graceful == true {
+		listenerGraceful, err = network.ListenTCP(server.config.GetAcraConnectionString())
+		if err != nil {
+			log.WithError(err).Errorln("can't start listen connections")
+			return
+		}
+		server.socketACRA = listenerGraceful
+		defer listenerGraceful.Close()
+	} else {
+		listener, err = network.Listen(server.config.GetAcraConnectionString())
+		if err != nil {
+			log.WithError(err).Errorln("can't start listen connections")
+			return
+		}
+		defer listener.Close()
+	}
+
+	log.Infof("start listening %s", server.config.GetAcraConnectionString())
+	for {
+		if graceful == true {
+			connection, err = listenerGraceful.Accept()
+		} else {
+			connection, err = listener.Accept()
+		}
+		if err != nil {
+			log.WithError(err).Errorf("can't accept new connection (connection=%v)", connection)
+			continue
+		}
+		// unix socket and value == '@'
+		if len(connection.RemoteAddr().String()) == 1 {
+			log.Infof("new connection to acraserver: <%v>", connection.LocalAddr())
+		} else {
+			log.Infof("new connection to acraserver: <%v>", connection.RemoteAddr())
+		}
+		go server.handleConnection(connection)
+	}
+}
+
+func (server *SServer) StartFromFileDescriptor(fd uintptr) {
+	file := os.NewFile(fd, fmt.Sprintf("/tmp/acraserver_%v", os.Getpid()))
+	listener, err := net.FileListener(file)
 	if err != nil {
-		log.WithError(err).Errorln("can't start listen connections")
+		log.WithError(err).Errorln("can't start listen for file descriptor")
 		return
 	}
+	listenerTCP, ok := listener.(*net.TCPListener)
+	if !ok {
+		log.WithError(err).Errorf("File descriptor %d is not a valid TCP socket", fd)
+		return
+	}
+	server.socketACRA = listenerTCP
 	defer listener.Close()
 	log.Infof("start listening %s", server.config.GetAcraConnectionString())
 	for {
@@ -113,6 +191,54 @@ func (server *SServer) Start() {
 		}
 		go server.handleConnection(connection)
 	}
+}
+
+func (server *SServer) Stop(socket *net.TCPListener) {
+	socket.SetDeadline(time.Now())
+}
+
+func (server *SServer) ListenerFD(socket *net.TCPListener) (uintptr, error) {
+	file, err := socket.File()
+	if err != nil {
+		return 0, err
+	}
+	return file.Fd(), nil
+}
+
+func (server *SServer) WaitAPI() {
+	server.cmAPI.Wait()
+}
+func (server *SServer) WaitACRA() {
+	server.cmACRA.Wait()
+}
+
+var WaitTimeoutError = errors.New("timeout")
+
+func (server *SServer) WaitWithTimeout(duration time.Duration) error {
+	timeout := time.NewTimer(duration)
+	wait := make(chan struct{})
+	go func() {
+		server.WaitACRA()
+		if server.config.GetWithZone() && server.config.GetEnableHTTPApi() {
+			server.Stop(server.socketAPI)
+		}
+		wait <- struct{}{}
+	}()
+
+	select {
+	case <-timeout.C:
+		return WaitTimeoutError
+	case <-wait:
+		return nil
+	}
+}
+
+func (server *SServer) Addr(socket *net.TCPListener) net.Addr {
+	return socket.Addr()
+}
+
+func (server *SServer) ConnectionsCounter() int {
+	return server.cmACRA.Counter + server.cmAPI.Counter
 }
 
 /*
@@ -137,12 +263,61 @@ func (server *SServer) handleCommandsConnection(connection net.Conn) {
 }
 
 // start listening commands connections from proxy
-func (server *SServer) StartCommands() {
-	listener, err := network.Listen(server.config.GetAcraAPIConnectionString())
+func (server *SServer) StartCommands(graceful bool) {
+	var listener net.Listener
+	var listenerGraceful *net.TCPListener
+	var err error
+	var connection net.Conn
+	if graceful == true {
+		listenerGraceful, err = network.ListenTCP(server.config.GetAcraAPIConnectionString())
+		if err != nil {
+			log.WithError(err).Errorln("can't start listen command api connections")
+			return
+		}
+		server.socketAPI = listenerGraceful
+	} else {
+		listener, err = network.Listen(server.config.GetAcraAPIConnectionString())
+		if err != nil {
+			log.WithError(err).Errorln("can't start listen command api connections")
+			return
+		}
+	}
+	log.Infof("start listening api %s", server.config.GetAcraAPIConnectionString())
+	for {
+		if graceful == true {
+			connection, err = listenerGraceful.Accept()
+		} else {
+			connection, err = listener.Accept()
+		}
+
+		if err != nil {
+			// log.WithError(err).Errorf("can't accept new connection (%v)", connection.RemoteAddr())
+			log.WithError(err).Errorf("can't accept new connection")
+			continue
+		}
+		// unix socket and value == '@'
+		if len(connection.RemoteAddr().String()) == 1 {
+			log.Infof("new connection to http api: <%v>", connection.LocalAddr())
+		} else {
+			log.Infof("new connection to http api: <%v>", connection.RemoteAddr())
+		}
+		go server.handleCommandsConnection(connection)
+	}
+}
+
+func (server *SServer) StartCommandsFromFileDescriptor(fd uintptr) {
+	file := os.NewFile(fd, fmt.Sprintf("/tmp/acraserver_http_api_%v", os.Getpid()))
+	listener, err := net.FileListener(file)
 	if err != nil {
-		log.WithError(err).Errorln("can't start listen command connections")
+		log.WithError(err).Errorln("can't start listen for file descriptor")
 		return
 	}
+	listenerTCP, ok := listener.(*net.TCPListener)
+	if !ok {
+		log.WithError(err).Errorf("File descriptor %d is not a valid TCP socket", fd)
+		return
+	}
+	server.socketAPI = listenerTCP
 	log.Infof("start listening api %s", server.config.GetAcraAPIConnectionString())
 	for {
 		connection, err := listener.Accept()

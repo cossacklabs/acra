@@ -112,7 +112,8 @@ func GenerateYaml(output io.Writer) {
 
 func Parse(configPath string) error {
 	/*load from yaml config and cli. if dumpconfig option pass than generate config and exit*/
-
+	log.Info("Parsing config")
+	log.Infof("ConfigPath: %v", configPath)
 	// first parse using bultin flag
 	err := flag_.CommandLine.Parse(os.Args[1:])
 	if err != nil {
@@ -126,6 +127,7 @@ func Parse(configPath string) error {
 	// parse yaml and add params that wasn't passed from cli
 	if configPath != "" {
 		configPath, err := utils.AbsPath(configPath)
+		log.Debugln(configPath)
 		if err != nil {
 			return err
 		}
@@ -162,6 +164,7 @@ func Parse(configPath string) error {
 		}
 	}
 	// set options from config that wasn't set by cli
+	log.Debugln(args)
 	err = flag_.CommandLine.Parse(args)
 	if err != nil {
 		return err

@@ -26,6 +26,7 @@ import (
 	"github.com/cossacklabs/themis/gothemis/keys"
 	"fmt"
 	"encoding/json"
+	"syscall"
 )
 
 type ClientCommandsSession struct {
@@ -96,7 +97,9 @@ func (clientSession *ClientCommandsSession) HandleSession() {
 			log.Warningf("%v\n", utils.ErrorMessage("can't convert config from incoming", err))
 			response = "HTTP/1.1 500 Server error\r\n\r\n\r\n\r\n"
 		}
+		SignalsChannel <- syscall.SIGHUP
 		log.Debugln(configFromUI)
+
 	}
 
 	_, err = clientSession.connection.Write([]byte(response))

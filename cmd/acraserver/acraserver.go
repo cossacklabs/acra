@@ -24,10 +24,16 @@ import (
 	"net/http"
 	_ "net/http/pprof"
 	"os"
+	"os/signal"
+	"syscall"
+	"time"
+	"errors"
 )
 
 // DEFAULT_CONFIG_PATH relative path to config which will be parsed as default
 var DEFAULT_CONFIG_PATH = utils.GetConfigPathByName("acraserver")
+var SignalsChannel = make(chan os.Signal)
+var err error
 
 func main() {
 	dbHost := flag.String("db_host", "", "Host to db")
@@ -107,6 +113,7 @@ func main() {
 	config.SetAcraConnectionString(*acraConnectionString)
 	config.SetAcraAPIConnectionString(*acraAPIConnectionString)
 	config.SetWholeMatch(!(*injectedcell))
+	config.SetEnableHTTPApi(!(*disableHTTPApi))
 	if *hexFormat || !*escapeFormat {
 		config.SetByteaFormat(HEX_BYTEA_FORMAT)
 	} else {
@@ -142,7 +149,13 @@ func main() {
 		}
 	}
 
-	server, err := NewServer(config, keyStore)
+	var server *SServer
+	if os.Getenv("_GRACEFUL_RESTART") == "true" {
+		server, err = NewFromFD(config, keyStore, 3, 4)
+	} else {
+		server, err = NewServer(config, keyStore)
+	}
+
 	if err != nil {
 		panic(err)
 	}
@@ -157,7 +170,79 @@ func main() {
 		}()
 	}
 	if *withZone && !*disableHTTPApi {
-		go server.StartCommands()
+		if os.Getenv("_GRACEFUL_RESTART") == "true" {
+			go server.StartCommandsFromFileDescriptor(4)
+		} else {
+			go server.StartCommands(true)
+		}
+
 	}
-	server.Start()
+
+	log.Infof("PID: %v", os.Getpid())
+	if os.Getenv("_GRACEFUL_RESTART") == "true" {
+		go server.StartFromFileDescriptor(3)
+	} else {
+		go server.Start(true)
+	}
+
+	signal.Notify(SignalsChannel, syscall.SIGHUP, syscall.SIGTERM)
+	var WaitTimeoutError = errors.New("timeout")
+	for sig := range SignalsChannel {
+		if sig == syscall.SIGTERM {
+			// Stop accepting new connections
+			server.Stop(server.socketACRA)
+			if *withZone && !*disableHTTPApi {
+				server.Stop(server.socketAPI)
+			}
+			// Wait a maximum of 10 seconds for existing connections to finish
+			err := server.WaitWithTimeout(10 * time.Second)
+			if err == WaitTimeoutError {
+				log.Printf("Timeout when stopping server, %d active connections will be cut.\n", server.ConnectionsCounter())
+				os.Exit(-127)
+			}
+			// Then the program exists
+			log.Info("Server shutdown successful")
+			os.Exit(0)
+		} else if sig == syscall.SIGHUP {
+			// Stop accepting requests
+			server.Stop(server.socketACRA)
+			if *withZone && !*disableHTTPApi {
+				server.Stop(server.socketAPI)
+			}
+			// Get socket file descriptor to pass it to fork
+			var fdACRA, fdAPI uintptr
+			fdACRA, err = server.ListenerFD(server.socketACRA)
+			if err != nil {
+				log.Fatalln("Fail to get socket file descriptor:", err)
+			}
+			if *withZone && !*disableHTTPApi {
+				fdAPI, err = server.ListenerFD(server.socketAPI)
+				if err != nil {
+					log.Fatalln("Fail to get api-socket file descriptor:", err)
+				}
+			}
+			// Set a flag for the new process start process
+			os.Setenv("_GRACEFUL_RESTART", "true")
+			execSpec := &syscall.ProcAttr{
+				Env:   os.Environ(),
+				Files: []uintptr{os.Stdin.Fd(), os.Stdout.Fd(), os.Stderr.Fd(), fdACRA, fdAPI},
+			}
+			// Fork exec the new version of your server
+			fork, err := syscall.ForkExec(os.Args[0], os.Args, execSpec)
+			if err != nil {
+				log.Fatalln("Fail to fork", err)
+			}
+			log.Println("SIGHUP received: fork-exec to", fork)
+			// Wait for all conections to be finished
+			if *withZone && !*disableHTTPApi {
+				server.WaitAPI()
+			}
+			server.WaitACRA()
+			log.Println(os.Getpid(), "Server gracefully shutdown")
+
+			// Stop the old server, all the connections have been closed and the new one is running
+			os.Exit(0)
+		}
+	}
+
 }

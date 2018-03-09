@@ -35,6 +35,7 @@ type Config struct {
 	scriptOnPoison          string
 	stopOnPoison            bool
 	withZone                bool
+	withAPI                 bool
 	wholeMatch              bool
 	serverId                []byte
 	acraConnectionString    string
@@ -80,6 +81,12 @@ func (config *Config) GetWithZone() bool {
 }
 func (config *Config) SetWithZone(wz bool) {
 	config.withZone = wz
+}
+func (config *Config) SetEnableHTTPApi(api bool) {
+	config.withAPI = api
+}
+func (config *Config) GetEnableHTTPApi() bool {
+	return config.withAPI
 }
 func (config *Config) GetProxyHost() string {
 	return config.proxyHost
