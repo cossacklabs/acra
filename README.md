@@ -90,11 +90,11 @@ The typical workflow looks like this:
 
 ## Additionally
 
-We fill [wiki](https://github.com/cossacklabs/acra/wiki) with useful articles on the core Acra concepts, use cases, details on cryptographic and security design. 
+We fill the [Wiki documentation](https://github.com/cossacklabs/acra/wiki) with useful articles about the core Acra concepts, use cases, details on cryptographic and security design. 
 
 You might want to:
 
-- Read notes on [security design](https://github.com/cossacklabs/acra/wiki/Security-design) to better understand what you get with using Acra and what is the threat model Acra operates in. 
+- Read the notes on [security design](https://github.com/cossacklabs/acra/wiki/Security-design) to better understand what you get with using Acra and what is the threat model that Acra operates in. 
 - Read [some notes on making Acra stronger / more productive and efficient](https://github.com/cossacklabs/acra/wiki/Tuning-Acra), and on adding security features or increasing throughput, depending on your goals and security model.
 
 ## Project status
