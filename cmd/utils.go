@@ -3,15 +3,18 @@ package cmd
 import (
 	flag_ "flag"
 	"fmt"
+	"io"
+	"io/ioutil"
+	"net"
+	"os"
+	"os/signal"
+	"path/filepath"
+	"reflect"
+
 	"github.com/cossacklabs/acra/keystore"
 	"github.com/cossacklabs/acra/utils"
 	log "github.com/sirupsen/logrus"
 	"gopkg.in/yaml.v2"
-	"io"
-	"io/ioutil"
-	"os"
-	"path/filepath"
-	"reflect"
 )
 
 var (
@@ -28,6 +31,41 @@ const (
 func init() {
 	// override default usage message by ours
 	flag_.CommandLine.Usage = PrintDefaults
+}
+
+type SignalCallback func()
+type SignalHandler struct {
+	ch        chan os.Signal
+	listeners []net.Listener
+	callbacks []SignalCallback
+	signals   []os.Signal
+}
+
+func NewSignalHandler(handledSignals []os.Signal) (*SignalHandler, error) {
+	return &SignalHandler{ch: make(chan os.Signal), signals: handledSignals}, nil
+}
+
+func (handler *SignalHandler) AddListener(listener net.Listener) {
+	handler.listeners = append(handler.listeners, listener)
+}
+
+func (handler *SignalHandler) AddCallback(callback SignalCallback) {
+	handler.callbacks = append(handler.callbacks, callback)
+}
+
+// Register should be called as goroutine
+func (handler *SignalHandler) Register() {
+	for _, osSignal := range handler.signals {
+		signal.Notify(handler.ch, osSignal)
+	}
+	<-handler.ch
+	for _, listener := range handler.listeners {
+		listener.Close()
+	}
+	for _, callback := range handler.callbacks {
+		callback()
+	}
+	os.Exit(1)
 }
 
 func ValidateClientId(clientId string) {

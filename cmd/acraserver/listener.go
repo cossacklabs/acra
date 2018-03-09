@@ -14,9 +14,10 @@
 package main
 
 import (
+	"net"
+
 	"github.com/cossacklabs/acra/network"
 	log "github.com/sirupsen/logrus"
-	"net"
 
 	"github.com/cossacklabs/acra/decryptor/base"
 	pg "github.com/cossacklabs/acra/decryptor/postgresql"
@@ -37,6 +38,7 @@ type SServer struct {
 	fdAPI      uintptr
 	cmACRA     *network.ConnectionManager
 	cmAPI      *network.ConnectionManager
+	listeners  []net.Listener
 }
 
 func NewServer(config *Config, keystorage keystore.KeyStore) (server *SServer, err error) {
@@ -54,11 +56,25 @@ func NewFromFD(config *Config, keystorage keystore.KeyStore, fdACRA uintptr, fdA
 		keystorage: keystorage,
 		cmACRA:     network.NewConnectionManager(),
 		cmAPI:      network.NewConnectionManager(),
-		fdACRA:		fdACRA,
-		fdAPI:		fdAPI,
+		fdACRA:     fdACRA,
+		fdAPI:      fdAPI,
 	}, nil
 
+}
 
+// Close all listeners and return first error
+func (server *SServer) Close() error {
+	var err error
+	for _, listener := range server.listeners {
+		if err_ := listener.Close(); err_ != nil && err == nil {
+			err = err_
+		}
+	}
+	return err
+}
+
+func (server *SServer) addListener(listener net.Listener) {
+	server.listeners = append(server.listeners, listener)
 }
 
 func (server *SServer) getDecryptor(clientId []byte) base.Decryptor {
@@ -112,8 +128,6 @@ func (server *SServer) handleConnection(connection net.Conn) {
 		return
 	}
 	clientSession.connection = wrappedConnection
-
-	log.Debugln("secure session initialized")
 	decryptor := server.getDecryptor(clientId)
 	clientSession.HandleSecureSession(decryptor)
 }
@@ -176,11 +190,12 @@ func (server *SServer) StartFromFileDescriptor(fd uintptr) {
 	}
 	server.socketACRA = listenerTCP
 	defer listener.Close()
+	server.addListener(listener)
 	log.Infof("start listening %s", server.config.GetAcraConnectionString())
 	for {
 		connection, err := listener.Accept()
 		if err != nil {
-			log.WithError(err).Errorf("can't accept new connection (connection=%v)", connection)
+			log.WithError(err).Errorln("can't accept new connection")
 			continue
 		}
 		// unix socket and value == '@'
@@ -258,7 +273,6 @@ func (server *SServer) handleCommandsConnection(connection net.Conn) {
 		return
 	}
 	clientSession.connection = wrappedConnection
-	log.Debugln("http api secure session initialized")
 	clientSession.HandleSession()
 }
 
@@ -318,11 +332,13 @@ func (server *SServer) StartCommandsFromFileDescriptor(fd uintptr) {
 		return
 	}
 	server.socketAPI = listenerTCP
+	defer listener.Close()
+	server.addListener(listener)
 	log.Infof("start listening api %s", server.config.GetAcraAPIConnectionString())
 	for {
 		connection, err := listener.Accept()
 		if err != nil {
-			log.WithError(err).Errorf("can't accept new connection (%v)", connection.RemoteAddr())
+			log.WithError(err).Errorln("can't accept new connection")
 			continue
 		}
 		// unix socket and value == '@'

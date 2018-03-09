@@ -14,18 +14,18 @@
 package main
 
 import (
-	"crypto/tls"
 	"flag"
+	"net/http"
+	_ "net/http/pprof"
+	"os"
+	"syscall"
+
 	"github.com/cossacklabs/acra/cmd"
 	"github.com/cossacklabs/acra/keystore"
 	"github.com/cossacklabs/acra/network"
 	"github.com/cossacklabs/acra/utils"
 	log "github.com/sirupsen/logrus"
-	"net/http"
-	_ "net/http/pprof"
-	"os"
 	"os/signal"
-	"syscall"
 	"time"
 	"errors"
 )
@@ -63,10 +63,13 @@ func main() {
 	withZone := flag.Bool("zonemode", false, "Turn on zone mode")
 	disableHTTPApi := flag.Bool("disable_http_api", false, "Disable http api")
 
-	useTls := flag.Bool("tls", false, "Use tls")
+	useTls := flag.Bool("tls", false, "Use tls to encrypt transport between acraserver and acraproxy/client")
 	tlsKey := flag.String("tls_key", "", "Path to tls server key")
 	tlsCert := flag.String("tls_cert", "", "Path to tls server certificate")
-	noEncryption := flag.Bool("no_encryption", false, "Don't use encryption in transport")
+	tlsCA := flag.String("tls_ca", "", "Path to root certificate")
+	tlsSNI := flag.String("tls_sni", "", "Expected Server Name (SNI)")
+	noEncryption := flag.Bool("no_encryption", false, "Use raw transport (tcp/unix socket) between acraserver and acraproxy/client (don't use this flag if you not connect to database with ssl/tls")
+	clientId := flag.String("client_id", "", "Expected client id of acraproxy in mode without encryption")
 	acraConnectionString := flag.String("connection_string", network.BuildConnectionString(cmd.DEFAULT_ACRA_CONNECTION_PROTOCOL, cmd.DEFAULT_ACRA_HOST, cmd.DEFAULT_ACRA_PORT, ""), "Connection string like tcp://x.x.x.x:yyyy or unix:///path/to/socket")
 	acraAPIConnectionString := flag.String("connection_api_string", network.BuildConnectionString(cmd.DEFAULT_ACRA_CONNECTION_PROTOCOL, cmd.DEFAULT_ACRA_HOST, cmd.DEFAULT_ACRA_API_PORT, ""), "Connection string for api like tcp://x.x.x.x:yyyy or unix:///path/to/socket")
 
@@ -112,6 +115,8 @@ func main() {
 	config.SetServerId([]byte(*serverId))
 	config.SetAcraConnectionString(*acraConnectionString)
 	config.SetAcraAPIConnectionString(*acraAPIConnectionString)
+	config.SetTLSServerCertPath(*tlsCert)
+	config.SetTLSServerKeyPath(*tlsKey)
 	config.SetWholeMatch(!(*injectedcell))
 	config.SetEnableHTTPApi(!(*disableHTTPApi))
 	if *hexFormat || !*escapeFormat {
@@ -122,29 +127,33 @@ func main() {
 
 	keyStore, err := keystore.NewFilesystemKeyStore(*keysDir)
 	if err != nil {
-		log.Errorln(" can't initialize keystore")
+		log.Errorln("can't initialize keystore")
 		os.Exit(1)
 	}
 	if *useTls {
 		log.Println("use TLS transport wrapper")
-		cer, err := tls.LoadX509KeyPair(*tlsCert, *tlsKey)
+		tlsConfig, err := network.NewTLSConfig(*tlsSNI, *tlsCA, *tlsKey, *tlsCert)
 		if err != nil {
-			log.Println(err)
-			return
+			log.WithError(err).Errorln("can't get config for TLS")
+			os.Exit(1)
 		}
-		config.ConnectionWrapper, err = network.NewTLSConnectionWrapper(&tls.Config{Certificates: []tls.Certificate{cer}})
+		config.ConnectionWrapper, err = network.NewTLSConnectionWrapper([]byte(*clientId), tlsConfig)
 		if err != nil {
-			log.Errorln(" can't initialize tls connection wrapper")
+			log.Errorln("can't initialize tls connection wrapper")
 			os.Exit(1)
 		}
 	} else if *noEncryption {
+		if *clientId == "" && !*withZone {
+			log.Errorln("without zone mode and without encryption you must set <client_id> which will be used to connect from acraproxy to acraserver")
+			os.Exit(1)
+		}
 		log.Println("use raw transport wrapper")
-		config.ConnectionWrapper = &network.RawConnectionWrapper{ClientId: []byte(*serverId)}
+		config.ConnectionWrapper = &network.RawConnectionWrapper{ClientId: []byte(*clientId)}
 	} else {
 		log.Println("use Secure Session transport wrapper")
 		config.ConnectionWrapper, err = network.NewSecureSessionConnectionWrapper(keyStore)
 		if err != nil {
-			log.Errorln(" can't initialize secure session connection wrapper")
+			log.Errorln("can't initialize secure session connection wrapper")
 			os.Exit(1)
 		}
 	}
@@ -159,6 +168,14 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
+
+	sigHandler, err := cmd.NewSignalHandler([]os.Signal{os.Interrupt, syscall.SIGTERM})
+	if err != nil {
+		log.WithError(err).Errorln("can't register SIGINT handler")
+		os.Exit(1)
+	}
+	go sigHandler.Register()
+	sigHandler.AddCallback(func() { server.Close() })
 
 	if *debugServer {
 		//start http server for pprof
@@ -197,7 +214,7 @@ func main() {
 			// Wait a maximum of 10 seconds for existing connections to finish
 			err := server.WaitWithTimeout(10 * time.Second)
 			if err == WaitTimeoutError {
-				log.Printf("Timeout when stopping server, %d active connections will be cut.\n", server.ConnectionsCounter())
+				log.Debugf("Timeout when stopping server, %d active connections will be cut.\n", server.ConnectionsCounter())
 				os.Exit(-127)
 			}
 			// Then the program exists
@@ -232,13 +249,13 @@ func main() {
 			if err != nil {
 				log.Fatalln("Fail to fork", err)
 			}
-			log.Println("SIGHUP received: fork-exec to", fork)
+			log.Infof("SIGHUP received: fork-exec to %v", fork)
 			// Wait for all conections to be finished
 			if *withZone && !*disableHTTPApi {
 				server.WaitAPI()
 			}
 			server.WaitACRA()
-			log.Println(os.Getpid(), "Server gracefully shutdown")
+			log.Infof("Server gracefully shutdown of %v", os.Getpid())
 
 			// Stop the old server, all the connections have been closed and the new one is running
 			os.Exit(0)
