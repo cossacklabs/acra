@@ -1362,6 +1362,11 @@ class SSLPostgresqlConnectionTest(HexFormatTest):
             pass
 
 
+class SSLPostgresqlConnectionWithZoneTest(ZoneHexFormatTest,
+                                          SSLPostgresqlConnectionTest):
+    pass
+
+
 class TLSBetweenProxyAndServerTest(HexFormatTest):
     TLS_ON = True
     def fork_acra(self, popen_kwargs: dict=None, **acra_kwargs: dict):
@@ -1372,6 +1377,11 @@ class TLSBetweenProxyAndServerTest(HexFormatTest):
         # acra works with one client id and no matter from which proxy connection come
         self.engine2.dispose()
         self.engine2 = self.engine_raw
+
+
+class TLSBetweenProxyAndServerWithZonesTest(ZoneHexFormatTest,
+                                            TLSBetweenProxyAndServerTest):
+    pass
 
 
 if __name__ == '__main__':
