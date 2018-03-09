@@ -10,7 +10,9 @@
 [![CircleCI](https://circleci.com/gh/cossacklabs/acra/tree/master.svg?style=shield)](https://circleci.com/gh/cossacklabs/acra)
 [![Go Report Card](https://goreportcard.com/badge/github.com/cossacklabs/acra)](https://goreportcard.com/report/github.com/cossacklabs/acra)
 
-**[Documentation](https://github.com/cossacklabs/acra/wiki) // [Python sample project](https://github.com/cossacklabs/djangoproject.com) // [Ruby sample project](https://github.com/cossacklabs/rubygems.org) // [Examples](https://github.com/cossacklabs/acra/tree/master/examples)**
+
+|[Documentation](https://github.com/cossacklabs/acra/wiki) | [Python sample project](https://github.com/cossacklabs/djangoproject.com) | [Ruby sample project](https://github.com/cossacklabs/rubygems.org) | [Examples](https://github.com/cossacklabs/acra/tree/master/examples) |
+| ---- | ---- | ---- | --- |
 
 ## What is Acra
 
@@ -19,6 +21,7 @@ Acra helps you easily secure your databases in distributed, microservice-rich en
 Acra gives you means to encrypt the data on the application's side into a special cryptographic container, and store it in the database and then decrypt in secure compartmented area (separate virtual machine/container). Cryptographic design ensures that no secret (password, key, anything) leaked from the application or database is sufficient for decryption of the protected data chunks that originate from it. 
 
 Acra was built with specific user experiences in mind: 
+
 - **quick and easy integration** of security instrumentation.
 - **cryptographic protection** of data in the threat model where **all other parts of the infrastructure could be compromised**, and if AcraServer isn't compromised, the data is safe. 
 - **proper abstraction** of all cryptographic processes: you're safe from the risk of choosing the wrong key length or algorithm padding. 
@@ -36,7 +39,7 @@ Acra relies on our cryptographic library [Themis](https://www.github.com/cossack
 
 ## Availability
 
-* Acra source builds with Go versions 1.10, 1.6.4, 1.7.6, 1.8.7, 1.9.3.
+* Acra source builds and tests with Go versions 1.6 – 1.10.
 * Acra is known to build on: 
 
 | Distributive        | Go versions                     |
@@ -72,6 +75,7 @@ After successfully deploying and integrating Acra into your application, follow 
 To better understand the architecture and data flow, please refer to [Architecture and data flow](https://github.com/cossacklabs/acra/wiki/Architecture-and-data-flow) section in the official documentation.
 
 The typical workflow looks like this: 
+
 - The app encrypts some data using AcraWriter, generating AcraStruct with AcraServer public key, and updates the database. 
 - The app sends SQL request through AcraProxy, which forwards it to AcraServer, AcraServer forwards it to the database. 
 - Upon receiving the answer, AcraServer tries to detect encrypted envelopes (AcraStructs). If it succeeds, AcraServer decrypts payload and replaces them with plaintext answer, which is then returned to AcraProxy over a secure channel. 
@@ -86,8 +90,11 @@ The typical workflow looks like this:
 
 ## Additionally
 
-We fill [wiki](https://github.com/cossacklabs/acra/wiki) with useful articles on the core Acra concepts, use cases, details on cryptographic and security design. You might want to:
-- Read notes on [security design](https://github.com/cossacklabs/acra/wiki/Security-design) to better understand what you get with using Acra and what is the threat model Acra operates in. 
+We fill the [Wiki documentation](https://github.com/cossacklabs/acra/wiki) with useful articles about the core Acra concepts, use cases, details on cryptographic and security design. 
+
+You might want to:
+
+- Read the notes on [security design](https://github.com/cossacklabs/acra/wiki/Security-design) to better understand what you get with using Acra and what is the threat model that Acra operates in. 
 - Read [some notes on making Acra stronger / more productive and efficient](https://github.com/cossacklabs/acra/wiki/Tuning-Acra), and on adding security features or increasing throughput, depending on your goals and security model.
 
 ## Project status
@@ -97,11 +104,18 @@ This open source version of Acra is an early alpha. We're slowly unifying and mo
 ## Contributing to us
 If you’d like to contribute your code or other kind of input to Acra, you’re very welcome. Your starting point for contributing should be this [Contribution Wiki page](https://github.com/cossacklabs/acra/wiki/Contributing-to-Acra).
 
-## Contacts
-
-If you have questions for which you don't want to create an Issue or would like to contact the Cossack Labs team directly - email us at info@cossacklabs.com or DM us on Twitter [@cossacklabs](https://twitter.com/cossacklabs).
 
 ## License
 
 Acra is licensed as Apache 2 open source software.
+
+
+## Contacts
+
+If you want to ask a technical question, feel free to raise an [issue](https://github.com/cossacklabs/acra/issues) or write to [dev@cossacklabs.com](mailto:dev@cossacklabs.com).
+
+To talk to the business wing of Cossack Labs Limited, drop us an email to [info@cossacklabs.com](mailto:info@cossacklabs.com).
+   
+[![Blog](https://img.shields.io/badge/blog-cossacklabs.com-7a7c98.svg)](https://cossacklabs.com/) [![Twitter CossackLabs](https://img.shields.io/badge/twitter-cossacklabs-fbb03b.svg)](http://twitter.com/cossacklabs) [![Medium CossackLabs](https://img.shields.io/badge/medium-%40cossacklabs-orange.svg)](https://medium.com/@cossacklabs/)
+
 
