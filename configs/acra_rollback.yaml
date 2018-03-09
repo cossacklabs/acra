@@ -4,7 +4,7 @@ client_id:
 # path to config
 config: 
 
-# Connection string for db (sslmode=disable parameter will be automatically added)
+# Connection string for db
 connection_string: 
 
 # dump config
