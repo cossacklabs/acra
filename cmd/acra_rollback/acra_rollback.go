@@ -140,12 +140,12 @@ func (ex *WriteToFileExecutor) Close() {
 }
 
 func main() {
-	keysDir := flag.String("keys_dir", keystore.DEFAULT_KEY_DIR_SHORT, "Folder from which will be loaded keys")
+	keysDir := flag.String("keys_dir", keystore.DEFAULT_KEY_DIR_SHORT, "Folder from which the keys will be loaded")
 	clientId := flag.String("client_id", "", "Client id should be name of file with private key")
 	connectionString := flag.String("connection_string", "", "Connection string for db")
 	sqlSelect := flag.String("select", "", "Query to fetch data for decryption")
 	sqlInsert := flag.String("insert", "", "Query for insert decrypted data with placeholders (pg: $n)")
-	withZone := flag.Bool("zonemode", false, "Turn on zon emode")
+	withZone := flag.Bool("zonemode", false, "Turn on zone mode")
 	outputFile := flag.String("output_file", "decrypted.sql", "File for store inserts queries")
 	execute := flag.Bool("execute", false, "Execute inserts")
 	escapeFormat := flag.Bool("escape", false, "Escape bytea format")
