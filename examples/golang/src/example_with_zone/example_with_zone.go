@@ -28,7 +28,7 @@ import (
 )
 
 const letterBytes = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
-const CONNECTION_STRING string = "user=postgres password=postgres dbname=acra host=127.0.0.1 port=9494 sslmode=disable"
+const CONNECTION_STRING string = "user=postgres password=postgres dbname=acra host=127.0.0.1 port=9494"
 
 func RandString(n int) []byte {
 	b := make([]byte, n)

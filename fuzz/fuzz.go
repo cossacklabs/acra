@@ -31,11 +31,11 @@ var zoneKey []byte
 
 func init() {
 	var err error
-	dbConnection, err = sql.Open("postgres", "user=postgres password=postgres dbname=acratest host=127.0.0.1 port=5432 sslmode=disable")
+	dbConnection, err = sql.Open("postgres", "user=postgres password=postgres dbname=acratest host=127.0.0.1 port=5432")
 	if err != nil {
 		log.Fatal(err)
 	}
-	acraConnection, err = sql.Open("postgres", "user=postgres password=postgres dbname=acratest host=127.0.0.1 port=9494 sslmode=disable")
+	acraConnection, err = sql.Open("postgres", "user=postgres password=postgres dbname=acratest host=127.0.0.1 port=9494")
 	if err != nil {
 		log.Fatal(err)
 	}
