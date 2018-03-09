@@ -653,7 +653,6 @@ class ZoneEscapeFormatWholeCellTest(WholeCellMixinTest, ZoneEscapeFormatTest):
 
 class TestConnectionClosing(BaseTestCase):
     def setUp(self):
-        self.checkSkip()
         try:
             self.proxy_1 = self.fork_proxy(
                 self.PROXY_PORT_1, self.ACRA_PORT, 'keypair1')
@@ -1124,7 +1123,6 @@ class TestAcraRollback(BaseTestCase):
     DATA_COUNT = 5
 
     def setUp(self):
-        self.checkSkip()
         self.engine_raw = sa.create_engine(
             'postgresql://{}:{}/{}'.format(self.DB_HOST, self.DB_PORT,
                                            self.DB_NAME),
@@ -1132,6 +1130,10 @@ class TestAcraRollback(BaseTestCase):
 
         self.output_filename = 'acra_rollback_output.txt'
         rollback_output_table.create(self.engine_raw, checkfirst=True)
+        if self.TLS_ON:
+            self.sslmode='require'
+        else:
+            self.sslmode='disable'
 
     def tearDown(self):
         try:
@@ -1158,12 +1160,13 @@ class TestAcraRollback(BaseTestCase):
             }
             rows.append(row)
         self.engine_raw.execute(test_table.insert(), rows)
-
         subprocess.check_call(
             ['./acra_rollback', '--client_id=keypair1',
              '--connection_string=dbname={dbname} user={user} '
-             'password={password} host={host} port={port}'.format(
-                 dbname=self.DB_NAME, user=DB_USER, port=self.DB_PORT,
+             'sslmode={sslmode} password={password} host={host} '
+             'port={port}'.format(
+                 sslmode=self.sslmode, dbname=self.DB_NAME,
+                 user=DB_USER, port=self.DB_PORT,
                  password=DB_USER_PASSWORD, host=self.DB_HOST),
              '--output_file={}'.format(self.output_filename),
              '--select=select data from {};'.format(test_table.name),
@@ -1200,8 +1203,10 @@ class TestAcraRollback(BaseTestCase):
         subprocess.check_call(
             ['./acra_rollback', '--client_id=keypair1',
              '--connection_string=dbname={dbname} user={user} '
+             'sslmode={sslmode} '
              'password={password} host={host} port={port}'.format(
                  dbname=self.DB_NAME, user=DB_USER, port=self.DB_PORT,
+                 sslmode=self.sslmode,
                  password=DB_USER_PASSWORD, host=self.DB_HOST),
              '--output_file={}'.format(self.output_filename),
              '--select=select \'{id}\'::bytea, data from {table};'.format(
@@ -1241,7 +1246,9 @@ class TestAcraRollback(BaseTestCase):
         subprocess.check_call(
             ['./acra_rollback', '--client_id=keypair1',
              '--connection_string=dbname={dbname} user={user} '
+             'sslmode={sslmode} '
              'password={password} host={host} port={port}'.format(
+                 sslmode=self.sslmode,
                  dbname=self.DB_NAME, user=DB_USER, port=self.DB_PORT,
                  password=DB_USER_PASSWORD, host=self.DB_HOST),
              '--execute=true',
@@ -1274,7 +1281,9 @@ class TestAcraRollback(BaseTestCase):
         subprocess.check_call(
             ['./acra_rollback', '--client_id=keypair1',
              '--connection_string=dbname={dbname} user={user} '
-             'password={password} host={host} port={port}'.format(
+             'password={password} host={host} port={port} '
+             'sslmode={sslmode}'.format(
+                 sslmode=self.sslmode,
                  dbname=self.DB_NAME, user=DB_USER, port=self.DB_PORT,
                  password=DB_USER_PASSWORD, host=self.DB_HOST),
              '--execute=true',
