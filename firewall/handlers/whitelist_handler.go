@@ -10,12 +10,6 @@ type WhitelistHandler struct {
 
 var ErrQueryNotInWhitelist = errors.New("query not in whitelist")
 
-func NewWhitelistHandler(whiteQueries []string) (*WhitelistHandler, error) {
-
-	uniqueWhiteQueries := removeDuplicates(whiteQueries)
-	return &WhitelistHandler{whiteQueries:uniqueWhiteQueries}, nil
-}
-
 func(handler * WhitelistHandler) CheckQuery(query string) error {
 
 	yes, _ := contains(handler.whiteQueries, query)
@@ -25,7 +19,7 @@ func(handler * WhitelistHandler) CheckQuery(query string) error {
 	return nil
 }
 
-func(handler * WhitelistHandler) AddQueriesToWhitelist(queries []string) {
+func(handler * WhitelistHandler) AddQueries(queries []string) {
 
 	for _, query := range queries {
 		handler.whiteQueries = append(handler.whiteQueries, query)
@@ -33,7 +27,7 @@ func(handler * WhitelistHandler) AddQueriesToWhitelist(queries []string) {
 	handler.whiteQueries = removeDuplicates(handler.whiteQueries)
 }
 
-func (handler * WhitelistHandler) RemoveQueriesFromWhitelist(queries []string) {
+func (handler * WhitelistHandler) RemoveQueries(queries []string) {
 
 	for _, query := range handler.whiteQueries {
 		yes, index := contains(handler.whiteQueries, query)
@@ -41,4 +35,12 @@ func (handler * WhitelistHandler) RemoveQueriesFromWhitelist(queries []string) {
 			handler.whiteQueries = append(handler.whiteQueries[:index], handler.whiteQueries[index+1:]...)
 		}
 	}
+}
+
+func (handler * WhitelistHandler) AddTables(tableNames []string){
+
+}
+
+func (handler * WhitelistHandler) RemoveTables(tableNames []string){
+
 }

@@ -39,14 +39,14 @@ func TestWhitelistFirewall(t *testing.T) {
 		"INSERT INTO dbo.Points (PointValue) VALUES (CAST ('1,99' AS Point));",
 	}
 
-	whitelistHandler, err := handlers.NewWhitelistHandler([]string{"SELECT * FROM Schema.Tables;", "SELECT Student_ID FROM STUDENT;", "SELECT * FROM STUDENT;"})
-	if err != nil {
-		t.Fatal("can't create whitelist handler")
-	}
-	whitelistHandler.AddQueriesToWhitelist(sqlSelectQueries)
-	whitelistHandler.AddQueriesToWhitelist(sqlInsertQueries)
+	whitelistHandler := &handlers.WhitelistHandler{}
+
+	whitelistHandler.AddQueries(sqlSelectQueries)
+	whitelistHandler.AddQueries(sqlInsertQueries)
 
 	firewall := &Firewall{}
+
+	var err error
 
 	//set our firewall to use whitelist for query evaluating
 	firewall.AddHandler(whitelistHandler)
@@ -99,13 +99,16 @@ func TestBlacklistFirewall(t *testing.T) {
 		//"INSERT INTO SalesStaff1 VALUES (1, 'Stephen', 'Jiang');",
 		"INSERT SalesStaff1 VALUES (2, 'Michael', 'Blythe'), (3, 'Linda', 'Mitchell'),(4, 'Jillian', 'Carson'), (5, 'Garrett', 'Vargas');",
 		"INSERT INTO SalesStaff2 (StaffGUID, FirstName, LastName) VALUES (NEWID(), 'Stephen', 'Jiang');",
-		"INSERT INTO SalesStaff3 (StaffID, FullName)",
 		"INSERT INTO Customers (CustomerName, ContactName, Address, City, PostalCode, Country) VALUES ('Cardinal', 'Tom B. Erichsen', 'Skagen 21', 'Stavanger', '4006', 'Norway');",
 		"INSERT INTO Customers (CustomerName, City, Country) VALUES ('Cardinal', 'Stavanger', 'Norway');",
-		"INSERT INTO Production.UnitMeasure (Name, UnitMeasureCode,	ModifiedDate) VALUES (N'Square Yards', N'Y2', GETDATE());",
-		"INSERT INTO T1 DEFAULT VALUES;",
-		"INSERT INTO dbo.Points (PointValue) VALUES (CONVERT(Point, '1,5'));",
-		"INSERT INTO dbo.Points (PointValue) VALUES (CAST ('1,99' AS Point));",
+		//"INSERT INTO SalesStaff1 VALUES (1, 'Stephen', 'Jiang');",
+		"INSERT SalesStaff1 VALUES (2, 'Michael', 'Blythe'), (3, 'Linda', 'Mitchell'),(4, 'Jillian', 'Carson'), (5, 'Garrett', 'Vargas');",
+		"INSERT INTO SalesStaff2 (StaffGUID, FirstName, LastName) VALUES (NEWID(), 'Stephen', 'Jiang');",
+		"INSERT INTO Customers (CustomerName, ContactName, Address, City, PostalCode, Country) VALUES ('Cardinal', 'Tom B. Erichsen', 'Skagen 21', 'Stavanger', '4006', 'Norway');",
+		"INSERT INTO Customers (CustomerName, City, Country) VALUES ('Cardinal', 'Stavanger', 'Norway');",
+		"INSERT INTO films VALUES ('UA502', 'Bananas', 105, '1971-07-13', 'Comedy', '82 minutes');",
+		"INSERT INTO films (code, title, did, date_prod, kind) VALUES ('B6717', 'Tampopo', 110, '1985-02-10', 'Comedy'), ('HG120', 'The Dinner Game', 140, DEFAULT, 'Comedy');",
+		"INSERT INTO films SELECT * FROM tmp_films WHERE date_prod < '2004-05-07';",
 	}
 
 	blackList := [] string {
@@ -113,12 +116,13 @@ func TestBlacklistFirewall(t *testing.T) {
 		"SELECT AVG(Price) FROM Products;",
 	}
 
-	blacklistHandler, err := handlers.NewBlacklistHandler(blackList)
-	if err != nil {
-		t.Fatal("can't create blacklist handler")
-	}
+
+	blacklistHandler := &handlers.BlacklistHandler{}
+	blacklistHandler.AddQueries(blackList)
 
 	firewall := &Firewall{}
+
+	var err error
 
 	//set our firewall to use blacklist for query evaluating
 	firewall.AddHandler(blacklistHandler)
@@ -137,9 +141,9 @@ func TestBlacklistFirewall(t *testing.T) {
 		}
 	}
 
-	testQuery := "INSERT INTO dbo.Points (PointValue) VALUES (CONVERT(Point, '1,5'));";
+	testQuery := "INSERT INTO Customers (CustomerName, City, Country) VALUES ('Cardinal', 'Stavanger', 'Norway');";
 
-	blacklistHandler.AddQueriesToBlacklist([]string{testQuery})
+	blacklistHandler.AddQueries([]string{testQuery})
 
 	err = firewall.HandleQuery(testQuery)
 	//firewall should block this query by throwing error
@@ -163,10 +167,78 @@ func TestBlacklistFirewall(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	blacklistHandler.RemoveQueriesFromBlacklist([]string{testQuery})
+	blacklistHandler.RemoveQueries([]string{testQuery})
 
 	err = firewall.HandleQuery(testQuery)
 	//now firewall should not block testQuery
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	testBlacklistTables(t, firewall, blacklistHandler)
+}
+
+func testBlacklistTables(t *testing.T, firewall * Firewall, blacklistHandler * handlers.BlacklistHandler){
+
+	testQueries := []string {
+		"SELECT EMP_ID, LAST_NAME FROM EMPLOYEE_TBL WHERE CITY = 'Seattle' ORDER BY EMP_ID;",
+		"SELECT EMP_ID, LAST_NAME FROM EMPLOYEE WHERE CITY = 'Seattle' ORDER BY EMP_ID;",
+		"SELECT EMP_ID, LAST_NAME FROM EMPLOYEE, EMPLOYEE_TBL WHERE CITY = 'Seattle' ORDER BY EMP_ID;",
+		"SELECT EMP_ID, LAST_NAME FROM EMPLOYEE WHERE CITY = 'INDIANAPOLIS' ORDER BY EMP_ID asc;",
+		"INSERT INTO Customers (CustomerName, ContactName, Address, City, PostalCode, Country) VALUES ('Cardinal', 'Tom B. Erichsen', 'Skagen 21', 'Stavanger', '4006', 'Norway');",
+		"INSERT INTO Customers (CustomerName, City, Country) VALUES ('Cardinal', 'Stavanger', 'Norway');",
+	}
+
+	blacklistHandler.AddTables([]string{"EMPLOYEE_TBL", "Customers"})
+
+	err := firewall.HandleQuery(testQueries[0])
+	//firewall should block this query
+	if err == nil {
+		t.Fatal(err)
+	}
+
+	err = firewall.HandleQuery(testQueries[1])
+	//firewall should not block this query
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	err = firewall.HandleQuery(testQueries[2])
+	//firewall should block this query
+	if err == nil {
+		t.Fatal(err)
+	}
+
+	err = firewall.HandleQuery(testQueries[3])
+	//firewall should not block this query
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	err = firewall.HandleQuery(testQueries[4])
+	//firewall should block this query
+	if err == nil {
+		t.Fatal(err)
+	}
+
+	err = firewall.HandleQuery(testQueries[5])
+	//firewall should block this query
+	if err == nil {
+		t.Fatal(err)
+	}
+
+
+	blacklistHandler.RemoveTables([]string{"EMPLOYEE_TBL"})
+
+
+	err = firewall.HandleQuery(testQueries[0])
+	//firewall should not block this query
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	err = firewall.HandleQuery(testQueries[2])
+	//firewall should not block this query
 	if err != nil {
 		t.Fatal(err)
 	}
