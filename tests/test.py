@@ -1252,6 +1252,7 @@ class TestAcraRollback(BaseTestCase):
                  dbname=self.DB_NAME, user=DB_USER, port=self.DB_PORT,
                  password=DB_USER_PASSWORD, host=self.DB_HOST),
              '--execute=true',
+             '--output_file={}'.format(self.output_filename),
              '--select=select data from {};'.format(test_table.name),
              '--insert=insert into {} values($1);'.format(
                  rollback_output_table.name)],
@@ -1287,6 +1288,7 @@ class TestAcraRollback(BaseTestCase):
                  dbname=self.DB_NAME, user=DB_USER, port=self.DB_PORT,
                  password=DB_USER_PASSWORD, host=self.DB_HOST),
              '--execute=true',
+             '--output_file={}'.format(self.output_filename),
              '--select=select \'{id}\'::bytea, data from {table};'.format(
                  id=zones[0]['id'], table=test_table.name),
              '--zonemode=true',
