@@ -17,37 +17,43 @@ var ErrAccessToForbiddenTable = errors.New("query tries to access forbidden tabl
 
 func(handler * BlacklistHandler) CheckQuery(query string) error {
 
-	parsedQuery, err := sqlparser.Parse(query)
-	if err != nil {
-		return err
+	if len(handler.blackQueries) != 0 {
+		//Check that query is not in blacklist
+		yes, _ := contains(handler.blackQueries, query)
+		if yes {
+			return ErrQueryInBlacklist
+		}
 	}
 
-	switch parsedQuery := parsedQuery.(type) {
-	case *sqlparser.Select:
-		for _, forbiddenTable := range handler.forbiddenTables {
-			for _, table := range parsedQuery.From{
-				if strings.EqualFold(sqlparser.String(table.(*sqlparser.AliasedTableExpr).Expr), forbiddenTable) {
+
+	if len(handler.forbiddenTables) != 0 {
+		parsedQuery, err := sqlparser.Parse(query)
+		if err != nil {
+			return err
+		}
+
+		switch parsedQuery := parsedQuery.(type) {
+		case *sqlparser.Select:
+			for _, forbiddenTable := range handler.forbiddenTables {
+				for _, table := range parsedQuery.From{
+					if strings.EqualFold(sqlparser.String(table.(*sqlparser.AliasedTableExpr).Expr), forbiddenTable) {
+						return ErrAccessToForbiddenTable
+					}
+				}
+			}
+
+		case *sqlparser.Insert:
+			for _, forbiddenTable := range handler.forbiddenTables {
+				if strings.EqualFold(parsedQuery.Table.Name.String(), forbiddenTable) {
 					return ErrAccessToForbiddenTable
 				}
 			}
+
+		case *sqlparser.Update:
+
 		}
-
-	case *sqlparser.Insert:
-		for _, forbiddenTable := range handler.forbiddenTables {
-			if strings.EqualFold(parsedQuery.Table.Name.String(), forbiddenTable) {
-				return ErrAccessToForbiddenTable
-			}
-		}
-
-	case *sqlparser.Update:
-
 	}
 
-	//Check that query is not in blacklist
-	yes, _ := contains(handler.blackQueries, query)
-	if yes {
-		return ErrQueryInBlacklist
-	}
 	return nil
 }
 
