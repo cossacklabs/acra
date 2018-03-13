@@ -1,5 +1,7 @@
 package handlers
 
+import "strings"
+
 func removeDuplicates(input []string) []string {
 
 	keys := make(map[string] bool)
@@ -17,7 +19,7 @@ func removeDuplicates(input []string) []string {
 func contains(queries []string, query string) (bool, int) {
 
 	for index, queryFromRange := range queries {
-		if queryFromRange == query {
+		if strings.EqualFold(queryFromRange, query) {
 
 			return true, index
 		}

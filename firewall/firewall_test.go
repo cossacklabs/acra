@@ -76,6 +76,8 @@ func TestWhitelistFirewall(t *testing.T) {
 	if err == nil {
 		t.Fatal(err)
 	}
+
+	testWhitelistTables(t, firewall, whitelistHandler)
 }
 
 func TestBlacklistFirewall(t *testing.T) {
@@ -178,6 +180,8 @@ func TestBlacklistFirewall(t *testing.T) {
 	testBlacklistTables(t, firewall, blacklistHandler)
 }
 
+
+
 func testBlacklistTables(t *testing.T, firewall * Firewall, blacklistHandler * handlers.BlacklistHandler){
 
 	testQueries := []string {
@@ -187,57 +191,104 @@ func testBlacklistTables(t *testing.T, firewall * Firewall, blacklistHandler * h
 		"SELECT EMP_ID, LAST_NAME FROM EMPLOYEE WHERE CITY = 'INDIANAPOLIS' ORDER BY EMP_ID asc;",
 		"INSERT INTO Customers (CustomerName, ContactName, Address, City, PostalCode, Country) VALUES ('Cardinal', 'Tom B. Erichsen', 'Skagen 21', 'Stavanger', '4006', 'Norway');",
 		"INSERT INTO Customers (CustomerName, City, Country) VALUES ('Cardinal', 'Stavanger', 'Norway');",
+		"SELECT EMP_ID, LAST_NAME FROM EMPLOYEE_TBL AS EMPL_TBL WHERE CITY = 'Seattle' ORDER BY EMP_ID;",
 	}
 
 	blacklistHandler.AddTables([]string{"EMPLOYEE_TBL", "Customers"})
 
-	err := firewall.HandleQuery(testQueries[0])
-	//firewall should block this query
-	if err == nil {
-		t.Fatal(err)
+	//firewall should block these queries
+	queryIndexesToBlock := []int {0, 2, 4, 5, 6}
+	for _, i := range queryIndexesToBlock {
+		err := firewall.HandleQuery(testQueries[i])
+		if err == nil {
+			t.Fatal(err)
+		}
 	}
 
-	err = firewall.HandleQuery(testQueries[1])
-	//firewall should not block this query
-	if err != nil {
-		t.Fatal(err)
+	//firewall should not block these queries
+	queryIndexesToPass := []int {1, 3}
+	for _, i := range queryIndexesToPass {
+		err := firewall.HandleQuery(testQueries[i])
+		if err != nil {
+			t.Fatal(err)
+		}
 	}
-
-	err = firewall.HandleQuery(testQueries[2])
-	//firewall should block this query
-	if err == nil {
-		t.Fatal(err)
-	}
-
-	err = firewall.HandleQuery(testQueries[3])
-	//firewall should not block this query
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	err = firewall.HandleQuery(testQueries[4])
-	//firewall should block this query
-	if err == nil {
-		t.Fatal(err)
-	}
-
-	err = firewall.HandleQuery(testQueries[5])
-	//firewall should block this query
-	if err == nil {
-		t.Fatal(err)
-	}
-
 
 	blacklistHandler.RemoveTables([]string{"EMPLOYEE_TBL"})
 
-
-	err = firewall.HandleQuery(testQueries[0])
+	err := firewall.HandleQuery(testQueries[0])
 	//firewall should not block this query
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	err = firewall.HandleQuery(testQueries[2])
+	//firewall should not block this query
+	if err != nil {
+		t.Fatal(err)
+	}
+
+}
+
+func testWhitelistTables(t *testing.T, firewall * Firewall, whitelistHandler * handlers.WhitelistHandler){
+
+	testQueries := []string {
+		"SELECT EMP_ID, LAST_NAME FROM EMPLOYEE_TBL WHERE CITY = 'Seattle' ORDER BY EMP_ID;",
+		"SELECT EMP_ID, LAST_NAME FROM EMPLOYEE WHERE CITY = 'Seattle' ORDER BY EMP_ID;",
+		"SELECT EMP_ID, LAST_NAME FROM EMPLOYEE, EMPLOYEE_TBL WHERE CITY = 'Seattle' ORDER BY EMP_ID;",
+		"SELECT EMP_ID, LAST_NAME FROM EMPLOYEE, EMPLOYEE_TBL WHERE CITY = 'INDIANAPOLIS' ORDER BY EMP_ID asc;",
+		"INSERT INTO Customers (CustomerName, ContactName, Address, City, PostalCode, Country) VALUES ('Cardinal', 'Tom B. Erichsen', 'Skagen 21', 'Stavanger', '4006', 'Norway');",
+		"INSERT INTO Customers (CustomerName, City, Country) VALUES ('Cardinal', 'Stavanger', 'Norway');",
+		"SELECT EMP_ID, LAST_NAME FROM EMPLOYEE_TBL AS EMPL_TBL WHERE CITY = 'Seattle' ORDER BY EMP_ID;",
+	}
+
+	whitelistHandler.AddQueries(testQueries)
+
+	whitelistHandler.AddTables([]string{"EMPLOYEE"})
+
+	queryIndexesToBlock := []int{0, 2, 3, 4, 5, 6}
+
+	//firewall should block those queries
+	for _, i := range queryIndexesToBlock {
+		err := firewall.HandleQuery(testQueries[i])
+		if err == nil {
+			t.Fatal(err)
+		}
+	}
+
+	err := firewall.HandleQuery(testQueries[1])
+	//firewall should not block this query
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	//Now we have no tables in whitelist, so should block all queries
+	whitelistHandler.RemoveTables([]string{"EMPLOYEE"})
+
+	//firewall should not block queries
+	for _, query := range testQueries {
+		err = firewall.HandleQuery(query)
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	testQuery := "SELECT EMP_ID, LAST_NAME FROM EMPLOYEE, EMPLOYEE_TBL, CUSTOMERS WHERE CITY = 'INDIANAPOLIS' ORDER BY EMP_ID asc;"
+
+	whitelistHandler.AddQueries([]string{testQuery})
+	whitelistHandler.AddTables([]string{"EMPLOYEE", "EMPLOYEE_TBL"})
+
+	err = firewall.HandleQuery(testQuery)
+
+	//firewall should block this query
+	if err == nil {
+		t.Fatal(err)
+	}
+
+	whitelistHandler.AddTables([]string{"CUSTOMERS"})
+
+	err = firewall.HandleQuery(testQuery)
+
 	//firewall should not block this query
 	if err != nil {
 		t.Fatal(err)

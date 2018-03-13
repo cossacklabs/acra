@@ -3,7 +3,7 @@ package handlers
 import (
 	"errors"
 	"github.com/xwb1989/sqlparser"
-
+	"strings"
 )
 
 type BlacklistHandler struct {
@@ -12,8 +12,7 @@ type BlacklistHandler struct {
 }
 
 var ErrQueryInBlacklist = errors.New("query in blacklist")
-var ErrForbiddenTableDetected = errors.New("query tries to access forbidden table")
-
+var ErrAccessToForbiddenTable = errors.New("query tries to access forbidden table")
 
 
 func(handler * BlacklistHandler) CheckQuery(query string) error {
@@ -25,39 +24,24 @@ func(handler * BlacklistHandler) CheckQuery(query string) error {
 
 	switch parsedQuery := parsedQuery.(type) {
 	case *sqlparser.Select:
-
 		for _, forbiddenTable := range handler.forbiddenTables {
-
 			for _, table := range parsedQuery.From{
-				if sqlparser.String(table.(*sqlparser.AliasedTableExpr)) == forbiddenTable{
-					return ErrForbiddenTableDetected
+				if strings.EqualFold(sqlparser.String(table.(*sqlparser.AliasedTableExpr).Expr), forbiddenTable) {
+					return ErrAccessToForbiddenTable
 				}
 			}
 		}
 
 	case *sqlparser.Insert:
 		for _, forbiddenTable := range handler.forbiddenTables {
-			if parsedQuery.Table.Name.String() == forbiddenTable{
-				return ErrForbiddenTableDetected
+			if strings.EqualFold(parsedQuery.Table.Name.String(), forbiddenTable) {
+				return ErrAccessToForbiddenTable
 			}
 		}
 
 	case *sqlparser.Update:
-		for _, forbiddenTable := range handler.forbiddenTables {
-			err = parsedQuery.TableExprs.WalkSubtree(func(sqlNode sqlparser.SQLNode)(bool, error) {
-				if sqlparser.GetTableName(sqlNode.(*sqlparser.AliasedTableExpr).Expr).String() == forbiddenTable {
-					return false, ErrForbiddenTableDetected
-				}
-				return true, nil
-			})
-
-			if err == ErrForbiddenTableDetected{
-				return err
-			}
-		}
 
 	}
-
 
 	//Check that query is not in blacklist
 	yes, _ := contains(handler.blackQueries, query)
