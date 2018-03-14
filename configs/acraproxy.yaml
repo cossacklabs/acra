@@ -67,3 +67,5 @@ v: false
 # Turn on zone mode
 zonemode: false
 
+# Logging format (plaintext, json, CEF)
+logging_format: plaintext

@@ -15,7 +15,7 @@ import (
 	"flag"
 	log "github.com/sirupsen/logrus"
 	"github.com/cossacklabs/acra/utils"
-	"github.com/cossacklabs/acra/cmd"
+	"github.com/cossacklabs/acra/logging"
 )
 
 var acraHost *string
@@ -168,9 +168,9 @@ func main() {
 	flag.Parse()
 
 	if *debug {
-		cmd.SetLogLevel(cmd.LOG_DEBUG)
+		logging.SetLogLevel(logging.LOG_DEBUG)
 	} else {
-		cmd.SetLogLevel(cmd.LOG_VERBOSE)
+		logging.SetLogLevel(logging.LOG_VERBOSE)
 	}
 
 	http.HandleFunc("/index.html", index)
