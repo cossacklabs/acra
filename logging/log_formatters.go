@@ -30,7 +30,7 @@ func JSONFormatter(fields logrus.Fields) logrus.Formatter {
 		}
 	}
 
-	return JSONFormatter{
+	return AcraJSONFormatter{
 		Formatter: &logrus.JSONFormatter{
 			FieldMap:        JSONFieldMap,
 			TimestampFormat: time.RFC3339Nano,
@@ -48,7 +48,7 @@ func CustomCEFFormatter(fields logrus.Fields) logrus.Formatter {
 		}
 	}
 
-	return CEFFormatter{
+	return AcraCEFFormatter{
 		Formatter: &logrus.TextFormatter {
 			FullTimestamp:    true,
 			TimestampFormat: time.RFC3339Nano,
