@@ -13,25 +13,24 @@ import (
 // ----------
 
 
-// CustomTextFormatter returns a default logrus.TextFormatter with specific settings
-func CustomTextFormatter() logrus.Formatter {
+// TextFormatter returns a default logrus.TextFormatter with specific settings
+func TextFormatter() logrus.Formatter {
 	return &logrus.TextFormatter{
 		FullTimestamp:    true,
 		TimestampFormat:  time.RFC3339Nano,
-		QuoteEmptyFields: true,
-		ForceColors:      true}
+		QuoteEmptyFields: true}
 }
 
 
-// CustomJSONFormatter returns a AcraJSON formatter
-func CustomJSONFormatter(fields logrus.Fields) logrus.Formatter {
+// JSONFormatter returns a AcraJSON formatter
+func JSONFormatter(fields logrus.Fields) logrus.Formatter {
 	for k, v := range extraJSONFields {
 		if _, ok := fields[k]; !ok {
 			fields[k] = v
 		}
 	}
 
-	return AcraCustomJSONFormatter{
+	return JSONFormatter{
 		Formatter: &logrus.JSONFormatter{
 			FieldMap:        JSONFieldMap,
 			TimestampFormat: time.RFC3339Nano,
@@ -49,7 +48,7 @@ func CustomCEFFormatter(fields logrus.Fields) logrus.Formatter {
 		}
 	}
 
-	return AcraCustomCEFFormatter{
+	return CEFFormatter{
 		Formatter: &logrus.TextFormatter {
 			FullTimestamp:    true,
 			TimestampFormat: time.RFC3339Nano,
@@ -62,7 +61,7 @@ func CustomCEFFormatter(fields logrus.Fields) logrus.Formatter {
 
 // ---------------------------
 
-// Using a pool to re-use of old entries when formatting Logstash messages.
+// Using a pool to re-use of old entries when formatting messages.
 // It is used in the Fire function.
 var entryPool = sync.Pool{
 	New: func() interface{} {
@@ -96,13 +95,13 @@ func releaseEntry(e *logrus.Entry) {
 // It has logrus.Formatter which formats the entry and logrus.Fields which
 // are added to the JSON/CEF message if not given in the entry data.
 //
-// Note: use the `CustomJSONFormatter` function to set a default AcraJSON formatter.
-type AcraCustomJSONFormatter struct {
+// Note: use the `JSONFormatter` function to set a default AcraJSON formatter.
+type AcraJSONFormatter struct {
 	logrus.Formatter
 	logrus.Fields
 }
 
-type AcraCustomCEFFormatter struct {
+type AcraCEFFormatter struct {
 	logrus.Formatter
 	logrus.Fields
 }
@@ -116,11 +115,10 @@ var (
 	}
 )
 
-
 // Format formats an entry to a AcraJSON format according to the given Formatter and Fields.
 //
 // Note: the given entry is copied and not changed during the formatting process.
-func (f AcraCustomJSONFormatter) Format(e *logrus.Entry) ([]byte, error) {
+func (f AcraJSONFormatter) Format(e *logrus.Entry) ([]byte, error) {
 	ne := copyEntry(e, f.Fields)
 	dataBytes, err := f.Formatter.Format(ne)
 	releaseEntry(ne)
@@ -129,10 +127,11 @@ func (f AcraCustomJSONFormatter) Format(e *logrus.Entry) ([]byte, error) {
 
 
 // TODO: change how we format strings
+// TODO: handle severity levels
 // Format formats an entry to a AcraCEF format according to the given Formatter and Fields.
 //
 // Note: the given entry is copied and not changed during the formatting process.
-func (f AcraCustomCEFFormatter) Format(e *logrus.Entry) ([]byte, error) {
+func (f AcraCEFFormatter) Format(e *logrus.Entry) ([]byte, error) {
 	ne := copyEntry(e, f.Fields)
 	dataBytes, err := f.Formatter.Format(ne)
 	releaseEntry(ne)

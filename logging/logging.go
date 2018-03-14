@@ -50,11 +50,11 @@ func LogFormatterFor(loggingFormat string, serviceName string) log.Formatter {
 	loggingFormat = strings.ToLower(loggingFormat)
 
 	if loggingFormat == "json" {
-		return CustomJSONFormatter(log.Fields{"product": serviceName})
+		return JSONFormatter(log.Fields{"product": serviceName})
 
 	} else if loggingFormat == "cef" {
 		return CustomCEFFormatter(log.Fields{"product": serviceName})
 	}
 
-	return CustomTextFormatter()
+	return TextFormatter()
 }
