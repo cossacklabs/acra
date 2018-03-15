@@ -43,7 +43,7 @@ func LengthEncodedInt(data []byte) (num uint64, isNull bool, n int) {
 	return
 }
 
-func LengthEnodedString(data []byte) ([]byte, bool, int, error) {
+func LengthEncodedString(data []byte) ([]byte, bool, int, error) {
 	// Get length
 	num, isNull, n := LengthEncodedInt(data)
 	if num < 1 {

@@ -90,7 +90,11 @@ func (clientSession *ClientSession) HandleSecureSession(decryptorImpl base.Decry
 		return
 	}
 	if 1 == 1 {
-		handler := &mysql.MysqlHandler{}
+		handler, err := mysql.NewMysqlHandler()
+		if err != nil {
+			log.WithError(err).Errorln("can't initialize mysql handler")
+			return
+		}
 		//go handler.MysqlDecryptStream(decryptorImpl, clientSession.connectionToDb, clientSession.connection, innerErrorChannel)
 		go handler.ClientToDbProxy(decryptorImpl, clientSession.connectionToDb, clientSession.connection, innerErrorChannel)
 		go handler.DbToClientProxy(decryptorImpl, clientSession.connectionToDb, clientSession.connection, innerErrorChannel)

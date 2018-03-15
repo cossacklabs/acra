@@ -36,35 +36,35 @@ func ParseResultField(data []byte) (*ColumnDescription, error) {
 	pos += n
 
 	//schema
-	field.Schema, _, n, err = LengthEnodedString(data[pos:])
+	field.Schema, _, n, err = LengthEncodedString(data[pos:])
 	if err != nil {
 		return nil, err
 	}
 	pos += n
 
 	//table
-	field.Table, _, n, err = LengthEnodedString(data[pos:])
+	field.Table, _, n, err = LengthEncodedString(data[pos:])
 	if err != nil {
 		return nil, err
 	}
 	pos += n
 
 	//org_table
-	field.OrgTable, _, n, err = LengthEnodedString(data[pos:])
+	field.OrgTable, _, n, err = LengthEncodedString(data[pos:])
 	if err != nil {
 		return nil, err
 	}
 	pos += n
 
 	//name
-	field.Name, _, n, err = LengthEnodedString(data[pos:])
+	field.Name, _, n, err = LengthEncodedString(data[pos:])
 	if err != nil {
 		return nil, err
 	}
 	pos += n
 
 	//org_name
-	field.OrgName, _, n, err = LengthEnodedString(data[pos:])
+	field.OrgName, _, n, err = LengthEncodedString(data[pos:])
 	if err != nil {
 		return nil, err
 	}
@@ -115,7 +115,7 @@ func ParseResultField(data []byte) (*ColumnDescription, error) {
 }
 
 func (field *ColumnDescription) IsBinary() bool {
-	return IsBinaryColumn(int(field.Type))
+	return IsBinaryColumn(field.Type)
 }
 
 func (field *ColumnDescription) Dump() []byte {

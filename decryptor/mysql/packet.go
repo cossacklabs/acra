@@ -48,6 +48,15 @@ func (packet *MysqlPacket) GetData() []byte {
 	return packet.data
 }
 
+// SetData replace packet data with newData and update payload length in header
+func (packet *MysqlPacket) SetData(newData []byte) {
+	packet.data = newData
+	newSize := len(newData)
+	packet.header[0] = byte(newSize)
+	packet.header[1] = byte(newSize >> 8)
+	packet.header[2] = byte(newSize >> 16)
+}
+
 // readPacket read header to struct and return payload as return result or error
 func (packet *MysqlPacket) readPacket(connection net.Conn) ([]byte, error) {
 	if _, err := connection.Read(packet.header); err != nil {
