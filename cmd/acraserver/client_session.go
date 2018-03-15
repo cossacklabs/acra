@@ -89,7 +89,8 @@ func (clientSession *ClientSession) HandleSecureSession(decryptorImpl base.Decry
 		}
 		return
 	}
-	if 1 == 1 {
+	if clientSession.config.UseMySQL() {
+		log.Debugln("MySQL connection")
 		handler, err := mysql.NewMysqlHandler()
 		if err != nil {
 			log.WithError(err).Errorln("can't initialize mysql handler")
@@ -99,6 +100,7 @@ func (clientSession *ClientSession) HandleSecureSession(decryptorImpl base.Decry
 		go handler.ClientToDbProxy(decryptorImpl, clientSession.connectionToDb, clientSession.connection, innerErrorChannel)
 		go handler.DbToClientProxy(decryptorImpl, clientSession.connectionToDb, clientSession.connection, innerErrorChannel)
 	} else {
+		log.Debugln("PostgreSQL connection")
 		go network.Proxy(clientSession.connection, clientSession.connectionToDb, innerErrorChannel)
 		go postgresql.PgDecryptStream(decryptorImpl, pgDecryptorConfig, clientSession.connectionToDb, clientSession.connection, innerErrorChannel)
 	}
@@ -110,9 +112,11 @@ func (clientSession *ClientSession) HandleSecureSession(decryptorImpl base.Decry
 		} else if netErr, ok := err.(net.Error); ok {
 			if netErr.Timeout() {
 				log.Debugln("network timeout")
-				if 1 == 1 {
+				if clientSession.config.UseMySQL() {
 					break
 				} else {
+					// in postgresql mode timeout used to stop listening connection in background goroutine
+					// and it's normal behaviour
 					continue
 				}
 			}

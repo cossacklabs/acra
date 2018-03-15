@@ -14,8 +14,9 @@
 package main
 
 import (
-	"errors"
 	"encoding/json"
+	"errors"
+
 	"github.com/cossacklabs/acra/network"
 )
 
@@ -42,6 +43,8 @@ type Config struct {
 	tlsServerKeyPath        string
 	tlsServerCertPath       string
 	ConnectionWrapper       network.ConnectionWrapper
+	mysql                   bool
+	postgresql              bool
 }
 
 type UIEditableConfig struct {
@@ -57,7 +60,32 @@ type UIEditableConfig struct {
 }
 
 func NewConfig() *Config {
-	return &Config{withZone: false, stopOnPoison: false, wholeMatch: true}
+	return &Config{withZone: false, stopOnPoison: false, wholeMatch: true, mysql: false, postgresql: false}
+}
+
+var ErrTwoDBSetup = errors.New("only one db supported at one time")
+
+func (config *Config) SetMySQL(useMySQL bool) error {
+	if config.postgresql && useMySQL {
+		return ErrTwoDBSetup
+	}
+	config.mysql = useMySQL
+	return nil
+}
+func (config *Config) UseMySQL() bool {
+	return config.mysql
+}
+
+func (config *Config) UsePostgreSQL() bool {
+	return config.postgresql
+}
+
+func (config *Config) SetPostgresql(usePostgresql bool) error {
+	if config.mysql && usePostgresql {
+		return ErrTwoDBSetup
+	}
+	config.postgresql = usePostgresql
+	return nil
 }
 func (config *Config) GetTLSServerKeyPath() string {
 	return config.tlsServerKeyPath

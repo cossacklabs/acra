@@ -31,6 +31,8 @@ import (
 var DEFAULT_CONFIG_PATH = utils.GetConfigPathByName("acraserver")
 
 func main() {
+	config := NewConfig()
+
 	dbHost := flag.String("db_host", "", "Host to db")
 	dbPort := flag.Int("db_port", 5432, "Port to db")
 
@@ -68,6 +70,9 @@ func main() {
 	acraConnectionString := flag.String("connection_string", network.BuildConnectionString(cmd.DEFAULT_ACRA_CONNECTION_PROTOCOL, cmd.DEFAULT_ACRA_HOST, cmd.DEFAULT_ACRA_PORT, ""), "Connection string like tcp://x.x.x.x:yyyy or unix:///path/to/socket")
 	acraAPIConnectionString := flag.String("connection_api_string", network.BuildConnectionString(cmd.DEFAULT_ACRA_CONNECTION_PROTOCOL, cmd.DEFAULT_ACRA_HOST, cmd.DEFAULT_ACRA_API_PORT, ""), "Connection string for api like tcp://x.x.x.x:yyyy or unix:///path/to/socket")
 
+	useMysql := flag.Bool("mysql", false, "Handle MySQL connections")
+	usePostgresql := flag.Bool("postgresql", true, "Handle Postgresql connections")
+
 	err := cmd.Parse(DEFAULT_CONFIG_PATH)
 	if err != nil {
 		log.WithError(err).Errorln("can't parse args")
@@ -96,7 +101,15 @@ func main() {
 		return
 	}
 
-	config := NewConfig()
+	if err := config.SetMySQL(*useMysql); err != nil {
+		log.WithError(err).Errorln("can't set MySQL support")
+		os.Exit(1)
+	}
+	if err := config.SetPostgresql(*usePostgresql); err != nil {
+		log.WithError(err).Errorln("can't set PostgreSQL support")
+		os.Exit(1)
+	}
+
 	// now it's stub as default values
 	config.SetStopOnPoison(*stopOnPoison)
 	config.SetScriptOnPoison(*scriptOnPoison)
