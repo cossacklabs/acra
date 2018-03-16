@@ -63,6 +63,10 @@ func (decryptor *PgDecryptor) SetZoneMatcher(zoneMatcher *zone.ZoneIdMatcher) {
 	decryptor.zoneMatcher = zoneMatcher
 }
 
+func (decryptor *PgDecryptor) GetZoneMatcher() *zone.ZoneIdMatcher {
+	return decryptor.zoneMatcher
+}
+
 func (decryptor *PgDecryptor) IsMatchedZone() bool {
 	return decryptor.zoneMatcher.IsMatched() && decryptor.keyStore.HasZonePrivateKey(decryptor.zoneMatcher.GetZoneId())
 }

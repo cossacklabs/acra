@@ -26,6 +26,7 @@ import collections
 from base64 import b64decode, b64encode
 from tempfile import NamedTemporaryFile
 from urllib.request import urlopen
+from urllib.parse import urlparse
 
 import psycopg2
 import sqlalchemy as sa
@@ -63,13 +64,21 @@ KILL_WAIT_TIMEOUT = 10
 TEST_WITH_TLS = os.environ.get('TEST_TLS', 'on').lower() == 'on'
 
 PG_UNIX_HOST = '/tmp'
+DB_DRIVER = os.environ.get("TEST_DB_DRIVER", "postgresql")
 DB_USER = os.environ.get('TEST_DB_USER', 'postgres')
 DB_USER_PASSWORD = os.environ.get('TEST_DB_USER_PASSWORD', 'postgres')
 SSLMODE = os.environ.get('TEST_SSL_MODE', 'allow')
-connect_args = {
-    'connect_timeout': SOCKET_CONNECT_TIMEOUT,
-    'user': DB_USER, 'password': DB_USER_PASSWORD,
-    "options": "-c statement_timeout=1000", 'sslmode': SSLMODE}
+USE_MYSQL = False
+if 'mysql' in DB_DRIVER:
+    USE_MYSQL = True
+    connect_args = {
+        'user': DB_USER, 'password': DB_USER_PASSWORD
+    }
+else:
+    connect_args = {
+        'connect_timeout': SOCKET_CONNECT_TIMEOUT,
+        'user': DB_USER, 'password': DB_USER_PASSWORD,
+        "options": "-c statement_timeout=1000", 'sslmode': SSLMODE}
 
 
 def stop_process(process):
@@ -98,7 +107,8 @@ def stop_process(process):
 def get_connect_args(port=5432, sslmode='require', **kwargs):
     args = connect_args.copy()
     args['port'] = port
-    args['sslmode'] = sslmode
+    if 'mysql' not in DB_DRIVER:
+        args['sslmode'] = sslmode
     args.update(kwargs)
     return args
 
@@ -153,24 +163,40 @@ def wait_unix_socket(socket_path, count=10, sleep=0.1):
         time.sleep(sleep)
     raise Exception("can't wait connection")
 
+def get_unix_connection_string(port, dbname):
+    if USE_MYSQL:
+        return get_postgresql_tcp_connection_string(port, dbname)
+    else:
+        return get_postgresql_unix_connection_string(port, dbname)
 
 def get_postgresql_unix_connection_string(port, dbname):
-    return 'postgresql+psycopg2:///{}?host={}'.format(dbname, PG_UNIX_HOST)
+    return '{}:///{}?host={}'.format(DB_DRIVER, dbname, PG_UNIX_HOST)
 
 def get_postgresql_tcp_connection_string(port, dbname):
-    return 'postgresql+psycopg2://127.0.0.1:{}/{}'.format(port, dbname)
+    return '{}://127.0.0.1:{}/{}'.format(DB_DRIVER, port, dbname)
 
-def get_unix_connection_string(port):
+def get_acra_unix_connection_string(port):
     return "unix://{}".format("{}/unix_socket_{}".format(PG_UNIX_HOST, port))
 
 def get_proxy_connection_string(port):
-    return 'unix://{}/.s.PGSQL.{}'.format(PG_UNIX_HOST, port)
+    if USE_MYSQL:
+        connection_string = get_postgresql_tcp_connection_string(port, '')
+        url = urlparse(connection_string)
+        return 'tcp://{}'.format(url.netloc)
+    else:
+        return 'unix://{}/.s.PGSQL.{}'.format(PG_UNIX_HOST, port)
+
+
+
 
 def get_tcp_connection_string(port):
     return 'tcp://127.0.0.1:{}'.format(port)
 
 def socket_path_from_connection_string(connection_string):
-    return connection_string.replace('unix://', '')
+    if '://' in connection_string:
+        return connection_string.split('://')[1]
+    else:
+        return connection_string
 
 def acra_api_connection_string(port):
     return "unix://{}".format("{}/acra_api_unix_socket_{}".format(PG_UNIX_HOST, port+1))
@@ -247,7 +273,7 @@ class BaseTestCase(unittest.TestCase):
     DB_BYTEA = 'hex'
     WHOLECELL_MODE = False
     ZONE = False
-    DEBUG_LOG = False
+    DEBUG_LOG = True
     TEST_DATA_LOG = False
     TLS_ON = False
     maxDiff = None
@@ -312,7 +338,10 @@ class BaseTestCase(unittest.TestCase):
         process = self.fork(lambda: subprocess.Popen(args))
         if check_connection:
             try:
-                wait_unix_socket(socket_path_from_connection_string(proxy_connection))
+                if USE_MYSQL:
+                    wait_connection(proxy_port)
+                else:
+                    wait_unix_socket(socket_path_from_connection_string(proxy_connection))
             except:
                 stop_process(process)
                 raise
@@ -321,7 +350,7 @@ class BaseTestCase(unittest.TestCase):
     def get_acra_connection_string(self, port=None):
         if not port:
             port = self.ACRA_PORT
-        return get_unix_connection_string(port)
+        return get_acra_unix_connection_string(port)
 
     def get_acra_api_connection_string(self, port=None):
         if not port:
@@ -365,6 +394,9 @@ class BaseTestCase(unittest.TestCase):
             args['tls_cert'] = 'tests/server.crt'
             args['tls_ca'] = 'tests/server.crt'
             args['tls_sni'] = 'acraserver'
+        if USE_MYSQL:
+            args['mysql'] = 'true'
+            args['postgresql'] = 'false'
         args.update(acra_kwargs)
         if not popen_kwargs:
             popen_kwargs = {}
@@ -391,12 +423,12 @@ class BaseTestCase(unittest.TestCase):
                 self.acra = self.fork_acra()
 
             self.engine1 = sa.create_engine(
-                get_postgresql_unix_connection_string(self.PROXY_PORT_1, self.DB_NAME), connect_args=get_connect_args(port=self.PROXY_PORT_1))
+                get_unix_connection_string(self.PROXY_PORT_1, self.DB_NAME), connect_args=get_connect_args(port=self.PROXY_PORT_1))
             self.engine2 = sa.create_engine(
-                get_postgresql_unix_connection_string(
+                get_unix_connection_string(
                     self.PROXY_PORT_2, self.DB_NAME), connect_args=get_connect_args(port=self.PROXY_PORT_2))
             self.engine_raw = sa.create_engine(
-                'postgresql://{}:{}/{}'.format(self.DB_HOST, self.DB_PORT, self.DB_NAME),
+                '{}://{}:{}/{}'.format(DB_DRIVER, self.DB_HOST, self.DB_PORT, self.DB_NAME),
                 connect_args=connect_args)
 
             self.engines = [self.engine1, self.engine2, self.engine_raw]
@@ -1072,11 +1104,11 @@ class TestKeyStorageClearing(BaseTestCase):
                     zonemode='true', disable_http_api='false')
 
             self.engine1 = sa.create_engine(
-                get_postgresql_unix_connection_string(self.PROXY_PORT_1, self.DB_NAME),
+                get_unix_connection_string(self.PROXY_PORT_1, self.DB_NAME),
                 connect_args=get_connect_args(port=self.PROXY_PORT_1))
 
             self.engine_raw = sa.create_engine(
-                'postgresql://{}:{}/{}'.format(self.DB_HOST, self.DB_PORT, self.DB_NAME),
+                '{}://{}:{}/{}'.format(DB_DRIVER, self.DB_HOST, self.DB_PORT, self.DB_NAME),
                 connect_args=connect_args)
 
             self.engines = [self.engine1, self.engine_raw]
@@ -1124,8 +1156,8 @@ class TestAcraRollback(BaseTestCase):
 
     def setUp(self):
         self.engine_raw = sa.create_engine(
-            'postgresql://{}:{}/{}'.format(self.DB_HOST, self.DB_PORT,
-                                           self.DB_NAME),
+            '{}://{}:{}/{}'.format(DB_DRIVER, self.DB_HOST, self.DB_PORT,
+                                   self.DB_NAME),
             connect_args=connect_args)
 
         self.output_filename = 'acra_rollback_output.txt'
@@ -1332,7 +1364,7 @@ class SSLPostgresqlConnectionTest(HexFormatTest):
             self.engine1 = sa.create_engine(
                 get_postgresql_tcp_connection_string(self.ACRA_PORT, self.DB_NAME), connect_args=get_connect_args(port=self.ACRA_PORT))
             self.engine_raw = sa.create_engine(
-                'postgresql://{}:{}/{}'.format(self.DB_HOST, self.DB_PORT, self.DB_NAME),
+                '{}://{}:{}/{}'.format(DB_DRIVER, self.DB_HOST, self.DB_PORT, self.DB_NAME),
                 connect_args=get_connect_args(self.DB_PORT))
             # test case from HexFormatTest expect two engines with different client_id but here enough one and
             # raw connection

@@ -122,11 +122,11 @@ type MysqlHandler struct {
 	serverSequenceNumber int
 	clientProtocol41     bool
 	serverProtocol41     bool
-	decryptor            Decryptor
+	decryptor            base.Decryptor
 }
 
-func NewMysqlHandler() (*MysqlHandler, error) {
-	return &MysqlHandler{decryptor: &SimpleDecryptor{}, responseHandler: defaultResponseHandler}, nil
+func NewMysqlHandler(decryptor base.Decryptor) (*MysqlHandler, error) {
+	return &MysqlHandler{decryptor: decryptor, responseHandler: defaultResponseHandler}, nil
 }
 
 func (handler *MysqlHandler) setQueryHandler(callback ResponseHandler) {
@@ -225,12 +225,12 @@ func (handler *MysqlHandler) processTextDataRow(rowData []byte, fields []*Column
 			return nil, err
 		}
 		if handler.isFieldToDecrypt(fields[i]) {
-			decryptedValue, isDecrypted, err := handler.decryptor.Decrypt(value)
+			decryptedValue, err := handler.decryptor.DecryptBlock(value)
 			if err != nil {
 				log.WithError(err).Errorln("can't decrypt binary data")
 				return nil, err
 			}
-			if isDecrypted {
+			if len(decryptedValue) != len(value) {
 				output = append(output, PutLengthEncodedString(decryptedValue)...)
 			} else {
 				output = append(output, rowData[pos:pos+n]...)
@@ -268,12 +268,12 @@ func (handler *MysqlHandler) processBinaryDataRow(rowData []byte, fields []*Colu
 				log.WithError(err).Errorln("can't handle length encoded string binary value")
 				return nil, err
 			}
-			decryptedValue, isDecrypted, err := handler.decryptor.Decrypt(value)
+			decryptedValue, err := handler.decryptor.DecryptBlock(value)
 			if err != nil {
 				log.WithError(err).Errorln("can't decrypt binary data")
 				return nil, err
 			}
-			if isDecrypted {
+			if len(value) != len(decryptedValue) {
 				output = append(output, PutLengthEncodedString(decryptedValue)...)
 			} else {
 				output = append(output, rowData[pos:pos+n]...)

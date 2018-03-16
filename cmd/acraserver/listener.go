@@ -16,6 +16,7 @@ package main
 import (
 	"net"
 
+	"github.com/cossacklabs/acra/decryptor/mysql"
 	"github.com/cossacklabs/acra/network"
 	log "github.com/sirupsen/logrus"
 
@@ -60,12 +61,12 @@ func (server *SServer) getDecryptor(clientId []byte) base.Decryptor {
 		dataDecryptor = pg.NewPgEscapeDecryptor()
 		matcherPool = zone.NewMatcherPool(zone.NewPgEscapeMatcherFactory())
 	}
-	decryptorImpl := pg.NewPgDecryptor(clientId, dataDecryptor)
-	decryptorImpl.SetWithZone(server.config.GetWithZone())
-	decryptorImpl.SetWholeMatch(server.config.GetWholeMatch())
-	decryptorImpl.SetKeyStore(server.keystorage)
+	pgDecryptorImpl := pg.NewPgDecryptor(clientId, dataDecryptor)
+	pgDecryptorImpl.SetWithZone(server.config.GetWithZone())
+	pgDecryptorImpl.SetWholeMatch(server.config.GetWholeMatch())
+	pgDecryptorImpl.SetKeyStore(server.keystorage)
 	zoneMatcher := zone.NewZoneMatcher(matcherPool, server.keystorage)
-	decryptorImpl.SetZoneMatcher(zoneMatcher)
+	pgDecryptorImpl.SetZoneMatcher(zoneMatcher)
 
 	poisonCallbackStorage := base.NewPoisonCallbackStorage()
 	if server.config.GetScriptOnPoison() != "" {
@@ -75,8 +76,12 @@ func (server *SServer) getDecryptor(clientId []byte) base.Decryptor {
 	if server.config.GetStopOnPoison() {
 		poisonCallbackStorage.AddCallback(&base.StopCallback{})
 	}
-	decryptorImpl.SetPoisonCallbackStorage(poisonCallbackStorage)
-	return decryptorImpl
+	pgDecryptorImpl.SetPoisonCallbackStorage(poisonCallbackStorage)
+	var decryptor base.Decryptor = pgDecryptorImpl
+	if server.config.UseMySQL() {
+		decryptor = mysql.NewMySQLDecryptor(pgDecryptorImpl, server.keystorage)
+	}
+	return decryptor
 }
 
 /*

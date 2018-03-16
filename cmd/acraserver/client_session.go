@@ -91,7 +91,7 @@ func (clientSession *ClientSession) HandleSecureSession(decryptorImpl base.Decry
 	}
 	if clientSession.config.UseMySQL() {
 		log.Debugln("MySQL connection")
-		handler, err := mysql.NewMysqlHandler()
+		handler, err := mysql.NewMysqlHandler(decryptorImpl)
 		if err != nil {
 			log.WithError(err).Errorln("can't initialize mysql handler")
 			return
