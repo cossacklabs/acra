@@ -22,12 +22,12 @@ const defaultMessageDivider = "|"
 
 // Default key names for the default fields
 const (
-	FieldKeyUnixTime = "unixTime"
-	FieldKeyProduct  = "product"
-	FieldKeyVersion  = "version"
-	FieldKeySeverity = "severity"
-	FieldKeyVendor   = "vendor"
-	FieldKeyCode     = "code"
+	FieldKeyUnixTime  = "unixTime"
+	FieldKeyProduct   = "product"
+	FieldKeyVersion   = "version"
+	FieldKeySeverity  = "severity"
+	FieldKeyVendor    = "vendor"
+	FieldKeyEventCode = "code"
 )
 
 // CEFTextFormatter formats logs into text
@@ -98,7 +98,7 @@ func (f *CEFTextFormatter) Format(entry *logrus.Entry) ([]byte, error) {
 	f.appendCEFLogPiece(b, entry.Data[FieldKeyVendor])
 	f.appendCEFLogPiece(b, entry.Data[FieldKeyProduct])
 	f.appendCEFLogPiece(b, entry.Data[FieldKeyVersion])
-	f.appendCEFLogPiece(b, entry.Data[FieldKeyCode])
+	f.appendCEFLogPiece(b, entry.Data[FieldKeyEventCode])
 
 	f.appendCEFLogPiece(b, entry.Message)
 	f.appendCEFLogPiece(b, severityByLevel(entry.Level))
@@ -122,7 +122,7 @@ func otherExtensionKeys(data logrus.Fields) []string {
 	for k := range data {
 
 		if k != FieldKeyVendor && k != FieldKeyProduct && k != FieldKeyVersion &&
-			k != FieldKeyCode && k != FieldKeySeverity {
+			k != FieldKeyEventCode && k != FieldKeySeverity {
 
 			extensionKeys = append(extensionKeys, k)
 		}

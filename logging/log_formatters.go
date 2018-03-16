@@ -5,6 +5,7 @@ import (
 	"time"
 	"sync"
 	"github.com/cossacklabs/acra/utils"
+	"fmt"
 )
 
 
@@ -124,8 +125,8 @@ var (
 
 	// to be re-defined
 	extraCEFFields = logrus.Fields{
-		FieldKeyVendor:   "cossacklabs",
-		FieldKeyCode:     0,
+		FieldKeyVendor:    "cossacklabs",
+		FieldKeyEventCode: 0,
 	}
 
 	JSONFieldMap = logrus.FieldMap{
@@ -140,7 +141,7 @@ var (
 // Note: the given entry is copied and not changed during the formatting process.
 func (f AcraJSONFormatter) Format(e *logrus.Entry) ([]byte, error) {
 	// unix time
-	f.Fields[FieldKeyUnixTime] = e.Time.Unix()
+	f.Fields[FieldKeyUnixTime] = unixTimeWithMilliseconds(e)
 
 	ne := copyEntry(e, f.Fields)
 	dataBytes, err := f.Formatter.Format(ne)
@@ -154,10 +155,20 @@ func (f AcraJSONFormatter) Format(e *logrus.Entry) ([]byte, error) {
 // Note: the given entry is copied and not changed during the formatting process.
 func (f AcraCEFFormatter) Format(e *logrus.Entry) ([]byte, error) {
 	// unix time
-	f.Fields[FieldKeyUnixTime] = e.Time.Unix()
+	f.Fields[FieldKeyUnixTime] = unixTimeWithMilliseconds(e)
 
 	ne := copyEntry(e, f.Fields)
 	dataBytes, err := f.CEFTextFormatter.Format(ne)
 	releaseEntry(ne)
 	return dataBytes, err
+}
+
+
+func unixTimeWithMilliseconds(e *logrus.Entry) string {
+	//secs := e.Time.Unix()
+	nanos := e.Time.UnixNano()
+	millis := nanos / 1000000
+	millisf := float64(millis) / 1000.0
+
+	return fmt.Sprintf("%.3f", millisf)
 }
