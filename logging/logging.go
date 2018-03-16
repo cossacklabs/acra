@@ -39,21 +39,21 @@ func SetLogLevel(level int) {
 	}
 }
 
-func CustomizeLogger(loggingFormat string, serviceName string) {
+func CustomizeLogging(loggingFormat string, serviceName string) {
 	log.SetOutput(os.Stderr)
-	log.SetFormatter(LogFormatterFor(loggingFormat, serviceName))
+	log.SetFormatter(logFormatterFor(loggingFormat, serviceName))
 
 	log.Infof("changed logging format to %s", loggingFormat)
 }
 
-func LogFormatterFor(loggingFormat string, serviceName string) log.Formatter {
+func logFormatterFor(loggingFormat string, serviceName string) log.Formatter {
 	loggingFormat = strings.ToLower(loggingFormat)
 
 	if loggingFormat == "json" {
-		return JSONFormatter(log.Fields{"product": serviceName})
+		return JSONFormatter(log.Fields{FieldKeyProduct: serviceName})
 
 	} else if loggingFormat == "cef" {
-		return CustomCEFFormatter(log.Fields{"product": serviceName})
+		return CEFFormatter(log.Fields{FieldKeyProduct: serviceName})
 	}
 
 	return TextFormatter()

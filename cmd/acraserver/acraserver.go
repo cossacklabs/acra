@@ -77,7 +77,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	logging.CustomizeLogger(*loggingFormat, SERVICE_NAME)
+	logging.CustomizeLogging(*loggingFormat, SERVICE_NAME)
 	cmd.ValidateClientId(*serverId)
 
 	if *host != cmd.DEFAULT_ACRA_HOST || *port != cmd.DEFAULT_ACRA_PORT {
