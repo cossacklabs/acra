@@ -22,12 +22,6 @@ var (
 	dumpconfig = flag_.Bool("dumpconfig", false, "dump config")
 )
 
-const (
-	LOG_DEBUG = iota
-	LOG_VERBOSE
-	LOG_DISCARD
-)
-
 func init() {
 	// override default usage message by ours
 	flag_.CommandLine.Usage = PrintDefaults
@@ -243,14 +237,3 @@ func Parse(configPath string) error {
 	return nil
 }
 
-func SetLogLevel(level int) {
-	if level == LOG_DEBUG {
-		log.SetLevel(log.DebugLevel)
-	} else if level == LOG_VERBOSE {
-		log.SetLevel(log.InfoLevel)
-	} else if level == LOG_DISCARD {
-		log.SetLevel(log.WarnLevel)
-	} else {
-		panic(fmt.Sprintf("Incorrect log level - %v", level))
-	}
-}

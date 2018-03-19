@@ -23,13 +23,13 @@ import (
 	"github.com/cossacklabs/acra/cmd"
 	"github.com/cossacklabs/acra/keystore"
 	"github.com/cossacklabs/acra/utils"
+	"github.com/cossacklabs/acra/logging"
 	log "github.com/sirupsen/logrus"
 	"time"
 	"errors"
 )
 
 // DEFAULT_CONFIG_PATH relative path to config which will be parsed as default
-var DEFAULT_CONFIG_PATH = utils.GetConfigPathByName("acraserver")
 var RestartSignalsChannel chan os.Signal
 var ErrorSignalChannel chan os.Signal
 var err error
@@ -40,6 +40,8 @@ const (
 	DESCRIPTOR_ACRA         = 3
 	DESCRIPTOR_API          = 4
 )
+var SERVICE_NAME = "acraserver"
+var DEFAULT_CONFIG_PATH = utils.GetConfigPathByName(SERVICE_NAME)
 
 func main() {
 	dbHost := flag.String("db_host", "", "Host to db")
@@ -78,6 +80,7 @@ func main() {
 	clientId := flag.String("client_id", "", "Expected client id of acraproxy in mode without encryption")
 	acraConnectionString := flag.String("connection_string", network.BuildConnectionString(cmd.DEFAULT_ACRA_CONNECTION_PROTOCOL, cmd.DEFAULT_ACRA_HOST, cmd.DEFAULT_ACRA_PORT, ""), "Connection string like tcp://x.x.x.x:yyyy or unix:///path/to/socket")
 	acraAPIConnectionString := flag.String("connection_api_string", network.BuildConnectionString(cmd.DEFAULT_ACRA_CONNECTION_PROTOCOL, cmd.DEFAULT_ACRA_HOST, cmd.DEFAULT_ACRA_API_PORT, ""), "Connection string for api like tcp://x.x.x.x:yyyy or unix:///path/to/socket")
+	loggingFormat := flag.String("logging_format", "", "Logging format: plaintext, json or CEF")
 
 	err := cmd.Parse(DEFAULT_CONFIG_PATH)
 	if err != nil {
@@ -85,6 +88,7 @@ func main() {
 		os.Exit(1)
 	}
 
+	logging.CustomizeLogging(*loggingFormat, SERVICE_NAME)
 	cmd.ValidateClientId(*serverId)
 
 	if *host != cmd.DEFAULT_ACRA_HOST || *port != cmd.DEFAULT_ACRA_PORT {
@@ -95,11 +99,11 @@ func main() {
 	}
 
 	if *debug {
-		cmd.SetLogLevel(cmd.LOG_DEBUG)
+		logging.SetLogLevel(logging.LOG_DEBUG)
 	} else if *verbose {
-		cmd.SetLogLevel(cmd.LOG_VERBOSE)
+		logging.SetLogLevel(logging.LOG_VERBOSE)
 	} else {
-		cmd.SetLogLevel(cmd.LOG_DISCARD)
+		logging.SetLogLevel(logging.LOG_DISCARD)
 	}
 	if *dbHost == "" {
 		log.Errorln("you must specify db_host")

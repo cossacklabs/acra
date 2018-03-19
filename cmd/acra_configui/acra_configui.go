@@ -17,6 +17,7 @@ import (
 	"github.com/cossacklabs/acra/utils"
 	"github.com/cossacklabs/acra/cmd"
 	"syscall"
+	"github.com/cossacklabs/acra/logging"
 )
 
 var acraHost *string
@@ -140,7 +141,7 @@ func parseConfig() []byte {
 		log.WithError(err).Errorf("reading config[%v] failed", configPath)
 		syscall.Exit(1)
 	}
-	return  configParamsBytes
+	return configParamsBytes
 }
 
 func index(w http.ResponseWriter, r *http.Request) {
@@ -205,9 +206,9 @@ func main() {
 	flag.Parse()
 
 	if *debug {
-		cmd.SetLogLevel(cmd.LOG_DEBUG)
+		logging.SetLogLevel(logging.LOG_DEBUG)
 	} else {
-		cmd.SetLogLevel(cmd.LOG_VERBOSE)
+		logging.SetLogLevel(logging.LOG_VERBOSE)
 	}
 	parseTemplate()
 	configParamsBytes = parseConfig()
