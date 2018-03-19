@@ -71,7 +71,7 @@ func main() {
 	acraAPIConnectionString := flag.String("connection_api_string", network.BuildConnectionString(cmd.DEFAULT_ACRA_CONNECTION_PROTOCOL, cmd.DEFAULT_ACRA_HOST, cmd.DEFAULT_ACRA_API_PORT, ""), "Connection string for api like tcp://x.x.x.x:yyyy or unix:///path/to/socket")
 
 	useMysql := flag.Bool("mysql", false, "Handle MySQL connections")
-	usePostgresql := flag.Bool("postgresql", true, "Handle Postgresql connections")
+	usePostgresql := flag.Bool("postgresql", false, "Handle Postgresql connections")
 
 	err := cmd.Parse(DEFAULT_CONFIG_PATH)
 	if err != nil {

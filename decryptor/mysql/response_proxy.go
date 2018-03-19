@@ -228,11 +228,12 @@ func (handler *MysqlHandler) processTextDataRow(rowData []byte, fields []*Column
 			decryptedValue, err := handler.decryptor.DecryptBlock(value)
 			if err != nil {
 				log.WithError(err).Errorln("can't decrypt binary data")
-				return nil, err
 			}
-			if len(decryptedValue) != len(value) {
+			if err == nil && len(decryptedValue) != len(value) {
+				log.Debugln("update with decrypted value")
 				output = append(output, PutLengthEncodedString(decryptedValue)...)
 			} else {
+				log.Debugln("leave value as is")
 				output = append(output, rowData[pos:pos+n]...)
 			}
 			pos += n
@@ -346,6 +347,13 @@ func (handler *MysqlHandler) QueryResponseHandler(packet *MysqlPacket, dbConnect
 	var fields []*ColumnDescription
 	var binaryFieldIndexes []int
 	fieldCount := int(packet.GetData()[0])
+	if fieldCount == OK_PACKET || fieldCount == ERR_PACKET {
+		if _, err := clientConnection.Write(packet.Dump()); err != nil {
+			log.WithError(err).Errorln("can't proxy output")
+			return err
+		}
+		return nil
+	}
 	output := []Dumper{packet}
 	log.Debugln("read column descriptions")
 	for i := 0; ; i++ {
@@ -423,21 +431,22 @@ func (handler *MysqlHandler) DbToClientProxy(decryptor base.Decryptor, dbConnect
 			errCh <- err
 			return
 		}
+		log.WithField("sequence_number", packet.GetSequenceNumber()).Debugln("new packet from db to client")
 		if packet.IsErr() {
 			handler.resetQueryHandler()
-		} else {
-			if firstPacket {
-				firstPacket = false
-				handler.serverProtocol41 = packet.SupportProtocol41()
-				serverLog.Debugf("set support protocol 41 %v", handler.serverProtocol41)
-			}
-			responseHandler = handler.getResponseHandler()
-			err := responseHandler(packet, dbConnection, clientConnection)
-			if err != nil {
-				log.Errorln("error in responseHandler")
-				errCh <- err
-				return
-			}
 		}
+		if firstPacket {
+			firstPacket = false
+			handler.serverProtocol41 = packet.SupportProtocol41()
+			serverLog.Debugf("set support protocol 41 %v", handler.serverProtocol41)
+		}
+		responseHandler = handler.getResponseHandler()
+		err = responseHandler(packet, dbConnection, clientConnection)
+		if err != nil {
+			log.Errorln("error in responseHandler")
+			errCh <- err
+			return
+		}
+
 	}
 }

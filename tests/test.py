@@ -39,12 +39,14 @@ sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(__file__)), 'wra
 
 from acrawriter import create_acrastruct
 
-
+DATA_MAX_SIZE = 10000
+# 200 is overhead of encryption (chosen manually)
+COLUMN_DATA_SIZE = DATA_MAX_SIZE + 200
 metadata = sa.MetaData()
 test_table = sa.Table('test', metadata,
     sa.Column('id', sa.Integer, primary_key=True),
-    sa.Column('data', sa.LargeBinary),
-    sa.Column('raw_data', sa.String),
+    sa.Column('data', sa.LargeBinary(length=COLUMN_DATA_SIZE)),
+    sa.Column('raw_data', sa.String(length=COLUMN_DATA_SIZE)),
 )
 
 rollback_output_table = sa.Table('acra_rollback_output', metadata,
@@ -440,9 +442,13 @@ class BaseTestCase(unittest.TestCase):
                 # try with sleep if acra not up yet
                 while True:
                     try:
-                        engine.execute(
-                            "UPDATE pg_settings SET setting = '{}' "
-                            "WHERE name = 'bytea_output'".format(self.DB_BYTEA))
+                        if USE_MYSQL:
+                            engine.execute(
+                                "select 1;")
+                        else:
+                            engine.execute(
+                                "UPDATE pg_settings SET setting = '{}' "
+                                "WHERE name = 'bytea_output'".format(self.DB_BYTEA))
                         break
                     except Exception:
                         time.sleep(SETUP_SQL_COMMAND_TIMEOUT)
@@ -466,7 +472,7 @@ class BaseTestCase(unittest.TestCase):
             engine.dispose()
 
     def get_random_data(self):
-        size = random.randint(100, 10000)
+        size = random.randint(100, DATA_MAX_SIZE)
         return ''.join(random.choice(string.ascii_letters)
                        for _ in range(size))
 

@@ -77,6 +77,10 @@ func (config *Config) UseMySQL() bool {
 }
 
 func (config *Config) UsePostgreSQL() bool {
+	// default true if two settings is false
+	if !(config.mysql || config.postgresql) {
+		return true
+	}
 	return config.postgresql
 }
 

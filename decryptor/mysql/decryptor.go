@@ -1,25 +1,41 @@
 package mysql
 
 import (
+	"bytes"
+	"io"
+	"io/ioutil"
+
 	"github.com/cossacklabs/acra/decryptor/base"
 	"github.com/cossacklabs/acra/decryptor/binary"
 	"github.com/cossacklabs/acra/decryptor/postgresql"
 	"github.com/cossacklabs/acra/keystore"
 	"github.com/cossacklabs/acra/utils"
 	"github.com/cossacklabs/acra/zone"
+	"github.com/cossacklabs/themis/gothemis/keys"
+	log "github.com/sirupsen/logrus"
 )
 
+type decryptFunc func([]byte) ([]byte, error)
+
 type MySQLDecryptor struct {
-	*postgresql.PgDecryptor
+	base.Decryptor
 	binaryDecryptor *binary.BinaryDecryptor
 	keyStore        keystore.KeyStore
+	decryptFunc     decryptFunc
+	log             *log.Entry
 }
+
+const (
+	DECRYPT_WHOLE  = "whole_block"
+	DECRYPT_INLINE = "inline_block"
+)
 
 func NewMySQLDecryptor(pgDecryptor *postgresql.PgDecryptor, keyStore keystore.KeyStore) *MySQLDecryptor {
-	return &MySQLDecryptor{keyStore: keyStore, binaryDecryptor: binary.NewBinaryDecryptor(), PgDecryptor: pgDecryptor}
+	decryptor := &MySQLDecryptor{keyStore: keyStore, binaryDecryptor: binary.NewBinaryDecryptor(), Decryptor: pgDecryptor}
+	decryptor.log = log.WithField("decryptor", "mysql")
+	decryptor.SetWholeMatch(pgDecryptor.IsWholeMatch())
+	return decryptor
 }
-
-//DecryptBlock([]byte) ([]byte, error)
 
 func (decryptor *MySQLDecryptor) SkipBeginInBlock(block []byte) ([]byte, error) {
 	n := 0
@@ -67,4 +83,153 @@ func (decryptor *MySQLDecryptor) MatchZoneInBlock(block []byte) {
 		}
 	}
 	return
+}
+
+func (decryptor *MySQLDecryptor) ReadData(symmetricKey, zoneId []byte, reader io.Reader) ([]byte, error) {
+	return decryptor.binaryDecryptor.ReadData(symmetricKey, zoneId, reader)
+}
+
+func (decryptor *MySQLDecryptor) ReadSymmetricKey(privateKey *keys.PrivateKey, reader io.Reader) ([]byte, []byte, error) {
+	symmetricKey, rawData, err := decryptor.binaryDecryptor.ReadSymmetricKey(privateKey, reader)
+	if err != nil {
+		return symmetricKey, rawData, err
+	}
+	return symmetricKey, rawData, nil
+}
+
+func (decryptor *MySQLDecryptor) getPoisonPrivateKey() (*keys.PrivateKey, error) {
+	keypair, err := decryptor.keyStore.GetPoisonKeyPair()
+	if err != nil {
+		return nil, err
+	}
+	return keypair.Private, nil
+}
+
+func (decryptor *MySQLDecryptor) CheckPoisonRecord(reader io.Reader) (bool, error) {
+	block, err := ioutil.ReadAll(reader)
+	if err != nil {
+		return false, err
+	}
+	return decryptor.checkPoisonRecord(block)
+}
+
+func (decryptor *MySQLDecryptor) checkPoisonRecord(block []byte) (bool, error) {
+	_, err := decryptor.decryptBlock(block, decryptor.getPoisonPrivateKey)
+	if err == nil {
+		return true, base.ErrPoisonRecord
+	}
+	return false, nil
+}
+
+type getKeyFunc func() (*keys.PrivateKey, error)
+
+// decryptBlock try to process data after BEGIN_TAG, decrypt and return result
+func (decryptor *MySQLDecryptor) decryptBlock(block []byte, keyFunc getKeyFunc) ([]byte, error) {
+	privateKey, err := keyFunc()
+	if err != nil {
+		decryptor.log.Warningln("can't read private key")
+		return []byte{}, err
+	}
+	reader := bytes.NewReader(block)
+	key, _, err := decryptor.ReadSymmetricKey(privateKey, reader)
+	if err != nil {
+		decryptor.log.Warningf("%v", utils.ErrorMessage("can't unwrap symmetric key", err))
+		return []byte{}, err
+	}
+	data, err := decryptor.ReadData(key, decryptor.GetMatchedZoneId(), reader)
+	if err != nil {
+		decryptor.log.Warningf("%v", utils.ErrorMessage("can't decrypt data with unwrapped symmetric key", err))
+		return []byte{}, err
+	}
+	return data, nil
+}
+
+func (decryptor *MySQLDecryptor) SetWholeMatch(value bool) {
+	if value {
+		decryptor.decryptFunc = decryptor.decryptWholeBlock
+		decryptor.log = decryptor.log.WithField("decrypt_mode", DECRYPT_WHOLE)
+	} else {
+		decryptor.decryptFunc = decryptor.decryptInlineBlock
+		decryptor.log = decryptor.log.WithField("decrypt_mode", DECRYPT_INLINE)
+	}
+}
+
+func (decryptor *MySQLDecryptor) decryptWholeBlock(block []byte) ([]byte, error) {
+	var err error
+	block, err = decryptor.SkipBeginInBlock(block)
+	if err != nil {
+		return nil, err
+	}
+	if decryptor.GetPoisonCallbackStorage().HasCallbacks() {
+		poisoned, err := decryptor.checkPoisonRecord(block)
+		if err != nil || poisoned {
+			if poisoned {
+				return nil, base.ErrPoisonRecord
+			} else {
+				return nil, err
+			}
+		}
+	}
+	decryptor.Reset()
+	if !decryptor.IsWithZone() || decryptor.IsMatchedZone() {
+		newData, err := decryptor.decryptBlock(block, decryptor.GetPrivateKey)
+		if decryptor.IsWithZone() && err == nil && len(newData) != len(block) {
+			decryptor.ResetZoneMatch()
+		}
+		return newData, err
+	} else {
+		decryptor.MatchZoneBlock(block)
+		return nil, nil
+	}
+}
+
+func (decryptor *MySQLDecryptor) poisonCheck(block []byte) error {
+	index := 0
+	for {
+		beginTagIndex, _ := decryptor.BeginTagIndex(block[index:])
+		if beginTagIndex == utils.NOT_FOUND {
+			break
+		} else {
+			poisoned, err := decryptor.checkPoisonRecord(block[beginTagIndex:])
+			if poisoned {
+				return base.ErrPoisonRecord
+			}
+			if err != nil {
+				return err
+			}
+		}
+		index++
+	}
+	return nil
+}
+
+func (decryptor *MySQLDecryptor) decryptInlineBlock(block []byte) ([]byte, error) {
+	if err := decryptor.poisonCheck(block); err != nil {
+		return nil, err
+	}
+	index := 0
+	for {
+		decryptor.log.Debugf("index: %v", index)
+		if decryptor.IsWithZone() && !decryptor.IsMatchedZone() {
+			decryptor.MatchZoneInBlock(block)
+			return nil, nil
+		}
+		beginTagIndex, tagLength := decryptor.BeginTagIndex(block[index:])
+
+		if beginTagIndex == utils.NOT_FOUND {
+			return nil, nil
+		}
+		index += beginTagIndex
+		decrypted, err := decryptor.decryptBlock(block[index+tagLength:], decryptor.GetPrivateKey)
+		index++
+		if err != nil {
+			decryptor.log.Debugln("can't decrypt block")
+			continue
+		}
+		return decrypted, nil
+	}
+}
+
+func (decryptor *MySQLDecryptor) DecryptBlock(block []byte) ([]byte, error) {
+	return decryptor.decryptFunc(block)
 }

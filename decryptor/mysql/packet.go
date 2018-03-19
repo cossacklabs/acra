@@ -12,6 +12,14 @@ const (
 	CLIENT_PROTOCOL_41 = 0x00000200
 )
 
+const (
+	// OK_PACKET - https://dev.mysql.com/doc/internals/en/packet-OK_Packet.html
+	OK_PACKET = 0x00
+	// EOF_PACKET - https://dev.mysql.com/doc/internals/en/packet-EOF_Packet.html
+	EOF_PACKET = 0xfe
+	ERR_PACKET = 0xff
+)
+
 type Dumper interface {
 	Dump() []byte
 }
@@ -97,14 +105,6 @@ func (packet *MysqlPacket) ReadPacket(connection net.Conn) error {
 	}
 	return err
 }
-
-const (
-	// OK_PACKET - https://dev.mysql.com/doc/internals/en/packet-OK_Packet.html
-	OK_PACKET = 0x00
-	// EOF_PACKET - https://dev.mysql.com/doc/internals/en/packet-EOF_Packet.html
-	EOF_PACKET = 0xfe
-	ERR_PACKET = 0xff
-)
 
 // IsEOF return true if packet is OK_PACKET or EOF_PACHET
 func (packet *MysqlPacket) IsEOF() bool {
