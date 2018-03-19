@@ -153,7 +153,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	logging.CustomizeLogger(*loggingFormat, SERVICE_NAME)
+	logging.CustomizeLogging(*loggingFormat, SERVICE_NAME)
 
 	if *port != cmd.DEFAULT_PROXY_PORT {
 		*connectionString = network.BuildConnectionString(cmd.DEFAULT_PROXY_CONNECTION_PROTOCOL, cmd.DEFAULT_PROXY_HOST, *port, "")
