@@ -52,7 +52,7 @@ type CEFTextFormatter struct {
 }
 
 func (f *CEFTextFormatter) init(entry *logrus.Entry) {
-	f.ShouldAddSyslogPrefix = true
+	f.ShouldAddSyslogPrefix = false
 	f.QuoteEmptyFields = true
 }
 
