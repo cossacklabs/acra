@@ -19,21 +19,27 @@ import (
 	_ "net/http/pprof"
 	"os"
 	"syscall"
-
+	"github.com/cossacklabs/acra/network"
 	"github.com/cossacklabs/acra/cmd"
 	"github.com/cossacklabs/acra/keystore"
-	"github.com/cossacklabs/acra/network"
 	"github.com/cossacklabs/acra/utils"
 	log "github.com/sirupsen/logrus"
-	"os/signal"
 	"time"
 	"errors"
 )
 
 // DEFAULT_CONFIG_PATH relative path to config which will be parsed as default
 var DEFAULT_CONFIG_PATH = utils.GetConfigPathByName("acraserver")
-var SignalsChannel = make(chan os.Signal)
+var RestartSignalsChannel chan os.Signal
+var ErrorSignalChannel chan os.Signal
 var err error
+
+const (
+	ACRASERVER_WAIT_TIMEOUT = 10
+	GRACEFUL_ENV            = "GRACEFUL_RESTART"
+	DESCRIPTOR_ACRA         = 3
+	DESCRIPTOR_API          = 4
+)
 
 func main() {
 	dbHost := flag.String("db_host", "", "Host to db")
@@ -61,7 +67,7 @@ func main() {
 	scriptOnPoison := flag.String("poisonscript", "", "Execute script on detecting poison record")
 
 	withZone := flag.Bool("zonemode", false, "Turn on zone mode")
-	disableHTTPApi := flag.Bool("disable_http_api", false, "Disable http api")
+	enableHTTPApi := flag.Bool("enable_http_api", false, "Enable HTTP API")
 
 	useTls := flag.Bool("tls", false, "Use tls to encrypt transport between acraserver and acraproxy/client")
 	tlsKey := flag.String("tls_key", "", "Path to tls server key")
@@ -118,7 +124,7 @@ func main() {
 	config.SetTLSServerCertPath(*tlsCert)
 	config.SetTLSServerKeyPath(*tlsKey)
 	config.SetWholeMatch(!(*injectedcell))
-	config.SetEnableHTTPApi(!(*disableHTTPApi))
+	config.SetEnableHTTPApi(*enableHTTPApi)
 	if *hexFormat || !*escapeFormat {
 		config.SetByteaFormat(HEX_BYTEA_FORMAT)
 	} else {
@@ -159,23 +165,15 @@ func main() {
 	}
 
 	var server *SServer
-	if os.Getenv("_GRACEFUL_RESTART") == "true" {
-		server, err = NewFromFD(config, keyStore, 3, 4)
-	} else {
-		server, err = NewServer(config, keyStore)
-	}
-
+	server, err = NewServer(config, keyStore)
 	if err != nil {
 		panic(err)
 	}
 
-	sigHandler, err := cmd.NewSignalHandler([]os.Signal{os.Interrupt, syscall.SIGTERM})
-	if err != nil {
-		log.WithError(err).Errorln("can't register SIGINT handler")
-		os.Exit(1)
+	if os.Getenv(GRACEFUL_ENV) == "true" {
+		server.fddACRA = DESCRIPTOR_ACRA
+		server.fdAPI = DESCRIPTOR_API
 	}
-	go sigHandler.Register()
-	sigHandler.AddCallback(func() { server.Close() })
 
 	if *debugServer {
 		//start http server for pprof
@@ -186,80 +184,96 @@ func main() {
 			}
 		}()
 	}
-	if *withZone && !*disableHTTPApi {
-		if os.Getenv("_GRACEFUL_RESTART") == "true" {
-			go server.StartCommandsFromFileDescriptor(4)
+
+	sigHandlerSIGTERM, err := cmd.NewSignalHandler([]os.Signal{os.Interrupt, syscall.SIGTERM})
+	ErrorSignalChannel = sigHandlerSIGTERM.GetChannel()
+	if err != nil {
+		log.WithError(err).Errorln("can't register SIGTERM handler")
+		os.Exit(1)
+	}
+	go sigHandlerSIGTERM.Register()
+	sigHandlerSIGTERM.AddCallback(func() {
+		log.Infoln("Incoming SIGTERM or SIGINT")
+		// Stop accepting new connections
+		server.StopListeners()
+		// Wait a maximum of N seconds for existing connections to finish
+		err := server.WaitWithTimeout(ACRASERVER_WAIT_TIMEOUT * time.Second)
+		if err == errors.New("timeout") {
+			log.Warningf("Server shutdown Timeout: %d active connections will be cut", server.ConnectionsCounter())
+			server.Close()
+			os.Exit(1)
+		}
+		server.Close()
+		log.Infof("Server graceful shutdown completed, bye PID: %v", os.Getpid())
+		os.Exit(0)
+	})
+
+	sigHandlerSIGHUP, err := cmd.NewSignalHandler([]os.Signal{syscall.SIGHUP})
+	RestartSignalsChannel = sigHandlerSIGHUP.GetChannel()
+	if err != nil {
+		log.WithError(err).Errorln("can't register SIGHUP handler")
+		os.Exit(1)
+	}
+	sigHandlerSIGHUP.AddCallback(func() {
+		log.Infoln("Incoming SIGHUP")
+
+		// Stop accepting requests
+		server.StopListeners()
+
+		// Get socket file descriptor to pass it to fork
+		var fdACRA, fdAPI uintptr
+		fdACRA, err = network.ListenerFileDescriptor(server.listenerACRA)
+		if err != nil {
+			log.Fatalln("Fail to get acra-socket file descriptor:", err)
+		}
+		if *withZone || *enableHTTPApi {
+			fdAPI, err = network.ListenerFileDescriptor(server.listenerAPI)
+			if err != nil {
+				log.Fatalln("Fail to get api-socket file descriptor:", err)
+			}
+		}
+
+		// Set env flag for forked process
+		os.Setenv(GRACEFUL_ENV, "true")
+		execSpec := &syscall.ProcAttr{
+			Env:   os.Environ(),
+			Files: []uintptr{os.Stdin.Fd(), os.Stdout.Fd(), os.Stderr.Fd(), fdACRA, fdAPI},
+		}
+		// Fork new process
+		var fork, err = syscall.ForkExec(os.Args[0], os.Args, execSpec)
+		if err != nil {
+			log.Fatalln("Fail to fork", err)
+		}
+		log.Infof("Server forked to PID: %v", fork)
+
+		// Wait a maximum of N seconds for existing connections to finish
+		err = server.WaitWithTimeout(ACRASERVER_WAIT_TIMEOUT * time.Second)
+		if err == errors.New("timeout") {
+			log.Warningf("Server shutdown Timeout: %d active connections will be cut", server.ConnectionsCounter())
+			os.Exit(0)
+		}
+		log.Infof("Server graceful restart completed, bye PID: %v", os.Getpid())
+
+		// Stop the old server, all the connections have been closed and the new one is running
+		os.Exit(0)
+	})
+
+	if *withZone || *enableHTTPApi {
+		if os.Getenv(GRACEFUL_ENV) == "true" {
+			go server.StartCommandsFromFileDescriptor(DESCRIPTOR_API)
 		} else {
-			go server.StartCommands(true)
+			go server.StartCommands()
 		}
 
 	}
 
 	log.Infof("PID: %v", os.Getpid())
-	if os.Getenv("_GRACEFUL_RESTART") == "true" {
-		go server.StartFromFileDescriptor(3)
+	if os.Getenv(GRACEFUL_ENV) == "true" {
+		go server.StartFromFileDescriptor(DESCRIPTOR_ACRA)
 	} else {
-		go server.Start(true)
+		go server.Start()
 	}
 
-	signal.Notify(SignalsChannel, syscall.SIGHUP, syscall.SIGTERM)
-	var WaitTimeoutError = errors.New("timeout")
-	for sig := range SignalsChannel {
-		if sig == syscall.SIGTERM {
-			// Stop accepting new connections
-			server.Stop(server.socketACRA)
-			if *withZone && !*disableHTTPApi {
-				server.Stop(server.socketAPI)
-			}
-			// Wait a maximum of 10 seconds for existing connections to finish
-			err := server.WaitWithTimeout(10 * time.Second)
-			if err == WaitTimeoutError {
-				log.Debugf("Timeout when stopping server, %d active connections will be cut.\n", server.ConnectionsCounter())
-				os.Exit(-127)
-			}
-			// Then the program exists
-			log.Info("Server shutdown successful")
-			os.Exit(0)
-		} else if sig == syscall.SIGHUP {
-			// Stop accepting requests
-			server.Stop(server.socketACRA)
-			if *withZone && !*disableHTTPApi {
-				server.Stop(server.socketAPI)
-			}
-			// Get socket file descriptor to pass it to fork
-			var fdACRA, fdAPI uintptr
-			fdACRA, err = server.ListenerFD(server.socketACRA)
-			if err != nil {
-				log.Fatalln("Fail to get socket file descriptor:", err)
-			}
-			if *withZone && !*disableHTTPApi {
-				fdAPI, err = server.ListenerFD(server.socketAPI)
-				if err != nil {
-					log.Fatalln("Fail to get api-socket file descriptor:", err)
-				}
-			}
-			// Set a flag for the new process start process
-			os.Setenv("_GRACEFUL_RESTART", "true")
-			execSpec := &syscall.ProcAttr{
-				Env:   os.Environ(),
-				Files: []uintptr{os.Stdin.Fd(), os.Stdout.Fd(), os.Stderr.Fd(), fdACRA, fdAPI},
-			}
-			// Fork exec the new version of your server
-			fork, err := syscall.ForkExec(os.Args[0], os.Args, execSpec)
-			if err != nil {
-				log.Fatalln("Fail to fork", err)
-			}
-			log.Infof("SIGHUP received: fork-exec to %v", fork)
-			// Wait for all conections to be finished
-			if *withZone && !*disableHTTPApi {
-				server.WaitAPI()
-			}
-			server.WaitACRA()
-			log.Infof("Server gracefully shutdown of %v", os.Getpid())
-
-			// Stop the old server, all the connections have been closed and the new one is running
-			os.Exit(0)
-		}
-	}
+	sigHandlerSIGHUP.Register()
 
 }

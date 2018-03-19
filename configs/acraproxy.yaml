@@ -37,6 +37,9 @@ disable_user_check: false
 # dump config
 dumpconfig: false
 
+# Enable HTTP API
+enable_http_api: false
+
 # Folder from which will be loaded keys
 keys_dir: .acrakeys
 
@@ -63,7 +66,4 @@ tls_sni:
 
 # Log to stdout
 v: false
-
-# Turn on zone mode
-zonemode: false
 

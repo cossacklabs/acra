@@ -4,9 +4,7 @@ import (
 	"fmt"
 	"net"
 	url_ "net/url"
-	"strconv"
-	"strings"
-	"errors"
+	"os"
 )
 
 // Dial connectionString like protocol://path where protocol is any supported via net.Dial (tcp|unix)
@@ -22,6 +20,11 @@ func Dial(connectionString string) (net.Conn, error) {
 	}
 }
 
+type ListenerWithFileDescriptor interface {
+	net.Listener
+	File() (f *os.File, err error)
+}
+
 func Listen(connectionString string) (net.Listener, error) {
 	url, err := url_.Parse(connectionString)
 	if err != nil {
@@ -34,24 +37,14 @@ func Listen(connectionString string) (net.Listener, error) {
 	}
 }
 
-func ListenTCP(connectionString string) (*net.TCPListener, error) {
-	url, err := url_.Parse(connectionString)
-	if err != nil {
-		return nil, err
-	}
-	i := strings.LastIndex(url.Host, ":")
-	if i < 0 {
-		return nil, errors.New("no port")
-	}
-	port, _ := strconv.Atoi(url.Host[i+1:])
-
-	if url.Scheme == "unix" {
-		return nil, nil
-	} else {
-		return net.ListenTCP(url.Scheme, &net.TCPAddr{IP: net.ParseIP(url.Host), Port: port})
-	}
-}
-
 func BuildConnectionString(protocol, host string, port int, path string) string {
 	return fmt.Sprintf("%s://%s:%v/%s", protocol, host, port, path)
+}
+
+func ListenerFileDescriptor(socket net.Listener) (uintptr, error) {
+	file, err := socket.(ListenerWithFileDescriptor).File()
+	if err != nil {
+		return 0, err
+	}
+	return file.Fd(), nil
 }

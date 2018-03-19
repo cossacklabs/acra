@@ -49,6 +49,10 @@ func (handler *SignalHandler) AddListener(listener net.Listener) {
 	handler.listeners = append(handler.listeners, listener)
 }
 
+func (handler *SignalHandler) GetChannel() (chan os.Signal) {
+	return handler.ch
+}
+
 func (handler *SignalHandler) AddCallback(callback SignalCallback) {
 	handler.callbacks = append(handler.callbacks, callback)
 }

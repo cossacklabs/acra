@@ -131,7 +131,7 @@ func main() {
 	verbose := flag.Bool("v", false, "Log to stdout")
 	port := flag.Int("port", cmd.DEFAULT_PROXY_PORT, "Port fo acraproxy")
 	commandsPort := flag.Int("command_port", cmd.DEFAULT_PROXY_API_PORT, "Port for acraproxy http api")
-	withZone := flag.Bool("zonemode", false, "Turn on zone mode")
+	enableHTTPApi := flag.Bool("enable_http_api", false, "Enable HTTP API")
 	disableUserCheck := flag.Bool("disable_user_check", false, "Disable checking that connections from app running from another user")
 	useTls := flag.Bool("tls", false, "Use tls to encrypt transport between acraserver and acraproxy/client")
 	tlsCA := flag.String("tls_ca", "", "Path to root certificate")
@@ -164,7 +164,7 @@ func main() {
 	if *acraHost != "" {
 		*acraConnectionString = network.BuildConnectionString(cmd.DEFAULT_ACRA_CONNECTION_PROTOCOL, *acraHost, *acraPort, "")
 	}
-	if *withZone {
+	if *enableHTTPApi {
 		if *acraHost == "" && *acraApiConnectionString == "" {
 			log.Errorln("you must pass acra_host or acra_api_connection_string parameter")
 			os.Exit(1)
@@ -249,7 +249,7 @@ func main() {
 			os.Exit(1)
 		}
 	}
-	if *withZone {
+	if *enableHTTPApi {
 		go func() {
 			// copy config and replace ports
 			commandsConfig := *config

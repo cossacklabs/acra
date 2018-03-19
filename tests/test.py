@@ -302,7 +302,7 @@ class BaseTestCase(unittest.TestCase):
         if self.DEBUG_LOG:
             args.append('-v=true')
         if zone_mode:
-            args.append('--zonemode=true')
+            args.append('--enable_http_api=true')
         if self.TLS_ON:
             args.append('--tls')
             args.append('--tls_ca=tests/server.crt')
@@ -357,7 +357,7 @@ class BaseTestCase(unittest.TestCase):
             'injectedcell': 'false' if self.WHOLECELL_MODE else 'true',
             'd': 'true' if self.DEBUG_LOG else 'false',
             'zonemode': 'true' if self.ZONE else 'false',
-            'disable_http_api': 'false' if self.ZONE else 'true',
+            'enable_http_api': 'true' if self.ZONE else 'true',
         }
         if self.TLS_ON:
             args['tls'] = 'true'
@@ -711,6 +711,7 @@ class TestConnectionClosing(BaseTestCase):
                 time.sleep(1)
 
     def testClosingConnections(self):
+        time.sleep(2)
         connection = self.get_connection()
 
         connection.autocommit = True
@@ -729,7 +730,9 @@ class TestConnectionClosing(BaseTestCase):
         # exception doesn't has any related code, only text messages
         correct_messages = [
             'FATAL:  too many connections for role',
-            'FATAL:  sorry, too many clients already']
+            'FATAL:  sorry, too many clients already',
+            'FATAL:  remaining connection slots are reserved for non-replication superuser connections'
+        ]
         is_correct_exception_message = False
         for message in correct_messages:
             if message in exception.args[0]:
@@ -1069,7 +1072,7 @@ class TestKeyStorageClearing(BaseTestCase):
                 zone_mode=True)
             if not self.EXTERNAL_ACRA:
                 self.acra = self.fork_acra(
-                    zonemode='true', disable_http_api='false')
+                    zonemode='true', enable_http_api='true')
 
             self.engine1 = sa.create_engine(
                 get_postgresql_unix_connection_string(self.PROXY_PORT_1, self.DB_NAME),

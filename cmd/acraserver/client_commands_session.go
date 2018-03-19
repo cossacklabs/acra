@@ -97,7 +97,7 @@ func (clientSession *ClientCommandsSession) HandleSession() {
 			log.Warningf("%v\n", utils.ErrorMessage("can't convert config from incoming", err))
 			response = "HTTP/1.1 500 Server error\r\n\r\n\r\n\r\n"
 		}
-		SignalsChannel <- syscall.SIGHUP
+		RestartSignalsChannel <- syscall.SIGHUP
 		log.Debugln(configFromUI)
 
 	}

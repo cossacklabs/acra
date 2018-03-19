@@ -22,14 +22,14 @@ db_host:
 # Port to db
 db_port: 5432
 
-# Disable http api
-disable_http_api: false
-
 # Turn on http debug server
 ds: false
 
 # dump config
 dumpconfig: false
+
+# Enable HTTP API
+enable_http_api: false
 
 # Escape format for Postgresql bytea data
 escape_bytea: false
