@@ -7,6 +7,7 @@ import (
 	"sync"
 	"github.com/sirupsen/logrus"
 	"strings"
+	"os"
 )
 
 // Almost compatible with CEF doc
@@ -32,10 +33,6 @@ const (
 
 // CEFTextFormatter formats logs into text
 type CEFTextFormatter struct {
-	// Enable logging the full timestamp when a TTY is attached instead of just
-	// the time passed since beginning of execution.
-	FullTimestamp bool
-
 	// TimestampFormat to use for display when a full timestamp is printed
 	TimestampFormat string
 
@@ -45,7 +42,7 @@ type CEFTextFormatter struct {
 	// By default 'CEF:0'
 	CEFPrefixString string
 
-	// By default 'host'
+	// By default 'os.Hostname()'
 	HostName string
 
 	// start log with syslog prefix automatically
@@ -55,7 +52,8 @@ type CEFTextFormatter struct {
 }
 
 func (f *CEFTextFormatter) init(entry *logrus.Entry) {
-	f.ShouldAddSyslogPrefix = false
+	f.ShouldAddSyslogPrefix = true
+	f.QuoteEmptyFields = true
 }
 
 // Format renders a single log entry
@@ -77,7 +75,12 @@ func (f *CEFTextFormatter) Format(entry *logrus.Entry) ([]byte, error) {
 
 	hostname := f.HostName
 	if hostname == "" {
-		hostname = defaultHostName
+		realHostName, err := os.Hostname()
+		if err != nil {
+			hostname = defaultHostName
+		} else {
+			hostname = realHostName
+		}
 	}
 
 	logPrefix := f.CEFPrefixString
@@ -85,13 +88,16 @@ func (f *CEFTextFormatter) Format(entry *logrus.Entry) ([]byte, error) {
 		logPrefix = defaultCEFLogStart
 	}
 
-	// timestamp host CEF:0
+	// syslog prefix
+	// timestamp host
 	if f.ShouldAddSyslogPrefix {
 		b.WriteString(entry.Time.Format(timestampFormat))
 		b.WriteByte(' ')
 		b.WriteString(hostname)
 		b.WriteByte(' ')
 	}
+
+	// CEF:0
 	b.WriteString(defaultCEFLogStart)
 
 	// |Device Vendor|Device Product|Device Version|Signature ID|Name|Severity|
@@ -182,7 +188,7 @@ func severityByLevel(level logrus.Level) int {
 	case logrus.DebugLevel:
 		return 0
 	case logrus.InfoLevel:
-		return 0
+		return 1
 	case logrus.WarnLevel:
 		return 3
 	case logrus.ErrorLevel:

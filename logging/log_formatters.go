@@ -58,7 +58,6 @@ func CEFFormatter(fields logrus.Fields) logrus.Formatter {
 
 	return AcraCEFFormatter{
 		CEFTextFormatter: CEFTextFormatter{
-			FullTimestamp:   true,
 			TimestampFormat: time.RFC3339,
 		},
 		Fields: fields,
