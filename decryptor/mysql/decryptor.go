@@ -114,9 +114,20 @@ func (decryptor *MySQLDecryptor) CheckPoisonRecord(reader io.Reader) (bool, erro
 }
 
 func (decryptor *MySQLDecryptor) checkPoisonRecord(block []byte) (bool, error) {
-	_, err := decryptor.decryptBlock(block, decryptor.getPoisonPrivateKey)
-	if err == nil {
-		return true, base.ErrPoisonRecord
+	data, err := decryptor.SkipBeginInBlock(block)
+	if err != nil {
+		return false, err
+	}
+	if decryptor.GetPoisonCallbackStorage().HasCallbacks() {
+		_, err := decryptor.decryptBlock(bytes.NewReader(data), decryptor.getPoisonPrivateKey)
+		if err == nil {
+			log.Warningln("recognized poison record")
+			err := decryptor.GetPoisonCallbackStorage().Call()
+			if err != nil {
+				log.WithError(err).Errorln("unexpected error in poison record callbacks")
+			}
+			return true, err
+		}
 	}
 	return false, nil
 }
@@ -124,13 +135,12 @@ func (decryptor *MySQLDecryptor) checkPoisonRecord(block []byte) (bool, error) {
 type getKeyFunc func() (*keys.PrivateKey, error)
 
 // decryptBlock try to process data after BEGIN_TAG, decrypt and return result
-func (decryptor *MySQLDecryptor) decryptBlock(block []byte, keyFunc getKeyFunc) ([]byte, error) {
+func (decryptor *MySQLDecryptor) decryptBlock(reader io.Reader, keyFunc getKeyFunc) ([]byte, error) {
 	privateKey, err := keyFunc()
 	if err != nil {
 		decryptor.log.Warningln("can't read private key")
 		return []byte{}, err
 	}
-	reader := bytes.NewReader(block)
 	key, _, err := decryptor.ReadSymmetricKey(privateKey, reader)
 	if err != nil {
 		decryptor.log.Warningf("%v", utils.ErrorMessage("can't unwrap symmetric key", err))
@@ -156,23 +166,16 @@ func (decryptor *MySQLDecryptor) SetWholeMatch(value bool) {
 
 func (decryptor *MySQLDecryptor) decryptWholeBlock(block []byte) ([]byte, error) {
 	var err error
-	block, err = decryptor.SkipBeginInBlock(block)
-	if err != nil {
+	if poisoned, err := decryptor.checkPoisonRecord(block); poisoned || err != nil {
 		return nil, err
-	}
-	if decryptor.GetPoisonCallbackStorage().HasCallbacks() {
-		poisoned, err := decryptor.checkPoisonRecord(block)
-		if err != nil || poisoned {
-			if poisoned {
-				return nil, base.ErrPoisonRecord
-			} else {
-				return nil, err
-			}
-		}
 	}
 	decryptor.Reset()
 	if !decryptor.IsWithZone() || decryptor.IsMatchedZone() {
-		newData, err := decryptor.decryptBlock(block, decryptor.GetPrivateKey)
+		block, err = decryptor.SkipBeginInBlock(block)
+		if err != nil {
+			return nil, err
+		}
+		newData, err := decryptor.decryptBlock(bytes.NewReader(block), decryptor.GetPrivateKey)
 		if decryptor.IsWithZone() && err == nil && len(newData) != len(block) {
 			decryptor.ResetZoneMatch()
 		}
@@ -194,9 +197,7 @@ func (decryptor *MySQLDecryptor) poisonCheck(block []byte) error {
 			if poisoned {
 				return base.ErrPoisonRecord
 			}
-			if err != nil {
-				return err
-			}
+			return err
 		}
 		index++
 	}
@@ -207,27 +208,36 @@ func (decryptor *MySQLDecryptor) decryptInlineBlock(block []byte) ([]byte, error
 	if err := decryptor.poisonCheck(block); err != nil {
 		return nil, err
 	}
+	var output bytes.Buffer
 	index := 0
-	for {
+	log.Debugf("block len %v", len(block))
+
+	for index < len(block) {
+		log.Debugf("index=%v", index)
 		decryptor.log.Debugf("index: %v", index)
 		if decryptor.IsWithZone() && !decryptor.IsMatchedZone() {
 			decryptor.MatchZoneInBlock(block)
 			return nil, nil
 		}
 		beginTagIndex, tagLength := decryptor.BeginTagIndex(block[index:])
-
 		if beginTagIndex == utils.NOT_FOUND {
-			return nil, nil
+			output.Write(block[index:])
+			return output.Bytes(), nil
 		}
+		output.Write(block[index : index+beginTagIndex])
 		index += beginTagIndex
-		decrypted, err := decryptor.decryptBlock(block[index+tagLength:], decryptor.GetPrivateKey)
-		index++
+		blockReader := bytes.NewReader(block[index+tagLength:])
+		decrypted, err := decryptor.decryptBlock(blockReader, decryptor.GetPrivateKey)
 		if err != nil {
+			output.Write(block[index : index+1])
+			index++
 			decryptor.log.Debugln("can't decrypt block")
 			continue
 		}
-		return decrypted, nil
+		index += tagLength + (len(block[beginTagIndex+tagLength:]) - blockReader.Len())
+		output.Write(decrypted)
 	}
+	return output.Bytes(), nil
 }
 
 func (decryptor *MySQLDecryptor) DecryptBlock(block []byte) ([]byte, error) {
