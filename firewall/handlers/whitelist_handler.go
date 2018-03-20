@@ -15,6 +15,7 @@ var ErrQueryNotInWhitelist = errors.New("query not in whitelist")
 
 func(handler * WhitelistHandler) CheckQuery(query string) error {
 
+	//Check queries
 	if len(handler.whiteQueries) != 0 {
 		yes, _ := contains(handler.whiteQueries, query)
 		if !yes {
@@ -22,6 +23,7 @@ func(handler * WhitelistHandler) CheckQuery(query string) error {
 		}
 	}
 
+	//Check tables
 	if len(handler.allowedTables) != 0 {
 		parsedQuery, err := sqlparser.Parse(query)
 		if err != nil {

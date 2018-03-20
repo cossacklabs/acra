@@ -193,11 +193,6 @@ func (handler *BlacklistHandler) isDangerousSelect(selectQuery string, forbidden
 		return true, err
 	}
 
-	//fmt.Println(selectQuery)
-	//fmt.Println(handler.queries)
-	//fmt.Println(handler.rules)
-	//fmt.Println(handler.tables)
-
 	evaluatedStmt := parsedSelectQuery.(*sqlparser.Select)
 
 	if strings.EqualFold(sqlparser.String(forbiddenWhere), sqlparser.String(evaluatedStmt.Where.Expr)) {
@@ -211,16 +206,9 @@ func (handler *BlacklistHandler) isDangerousSelect(selectQuery string, forbidden
 }
 
 func (handler *BlacklistHandler) isForbiddenTableAccess(tablesToEvaluate sqlparser.TableExprs, forbiddenTables sqlparser.TableExprs) bool {
-
-	//fmt.Print("forbidden tables ")
-	//fmt.Println(sqlparser.String(forbiddenTables))
-	//fmt.Print("tables to evaluate ")
-	//fmt.Println(sqlparser.String(tablesToEvaluate))
-
 	for _, tableToEvaluate := range tablesToEvaluate {
 		for _, forbiddenTable := range forbiddenTables {
 			if reflect.DeepEqual(tableToEvaluate.(*sqlparser.AliasedTableExpr).Expr, forbiddenTable.(*sqlparser.AliasedTableExpr).Expr) {
-				//fmt.Println("out here")
 				return true
 			}
 		}
@@ -229,14 +217,7 @@ func (handler *BlacklistHandler) isForbiddenTableAccess(tablesToEvaluate sqlpars
 }
 
 func (handler *BlacklistHandler) isForbiddenColumnAccess(columnsToEvaluate sqlparser.SelectExprs, forbiddenColumns sqlparser.SelectExprs) bool {
-
-	//fmt.Print("forbidden columns ")
-	//fmt.Println(sqlparser.String(forbiddenColumns))
-	//fmt.Print("columns to evaluate ")
-	//fmt.Println(sqlparser.String(columnsToEvaluate))
-
 	if strings.EqualFold(sqlparser.String(forbiddenColumns), "*"){
-		//fmt.Println("out here")
 		return true
 	}
 

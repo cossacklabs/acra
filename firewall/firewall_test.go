@@ -21,11 +21,9 @@ func TestWhitelistFirewall(t *testing.T) {
 		"SELECT COUNT(CustomerID), Country FROM Customers GROUP BY Country;",
 		"SELECT SUM(Salary)FROM Employee WHERE Emp_Age < 30;",
 		"SELECT AVG(Price)FROM Products;",
-		//"SELECT * FROM Schema.views;",
 	}
 
 	sqlInsertQueries := []string {
-		//"INSERT INTO SalesStaff1 VALUES (1, 'Stephen', 'Jiang');",
 		"INSERT SalesStaff1 VALUES (2, 'Michael', 'Blythe'), (3, 'Linda', 'Mitchell'),(4, 'Jillian', 'Carson'), (5, 'Garrett', 'Vargas');",
 		"INSERT INTO SalesStaff2 (StaffGUID, FirstName, LastName) VALUES (NEWID(), 'Stephen', 'Jiang');",
 		"INSERT INTO SalesStaff3 (StaffID, FullName)",
@@ -144,8 +142,6 @@ func testWhitelistTables(t *testing.T, firewall * Firewall, whitelistHandler * h
 	}
 }
 
-
-
 func TestBlacklistFirewall(t *testing.T) {
 	sqlSelectQueries := []string {
 		"SELECT * FROM Schema.Tables;",
@@ -159,17 +155,14 @@ func TestBlacklistFirewall(t *testing.T) {
 		"SELECT Name, Age FROM Patients WHERE Age > 40 GROUP BY Age ORDER BY Name;",
 		"SELECT COUNT(CustomerID), Country FROM Customers GROUP BY Country;",
 		"SELECT SUM(Salary) FROM Employee WHERE Emp_Age < 30;",
-		//"SELECT AVG(Price)FROM Products;",
 		"SELECT * FROM Schema.views;",
 	}
 
 	sqlInsertQueries := []string {
-		//"INSERT INTO SalesStaff1 VALUES (1, 'Stephen', 'Jiang');",
 		"INSERT SalesStaff1 VALUES (2, 'Michael', 'Blythe'), (3, 'Linda', 'Mitchell'),(4, 'Jillian', 'Carson'), (5, 'Garrett', 'Vargas');",
 		"INSERT INTO SalesStaff2 (StaffGUID, FirstName, LastName) VALUES (NEWID(), 'Stephen', 'Jiang');",
 		"INSERT INTO Customers (CustomerName, ContactName, Address, City, PostalCode, Country) VALUES ('Cardinal', 'Tom B. Erichsen', 'Skagen 21', 'Stavanger', '4006', 'Norway');",
 		"INSERT INTO Customers (CustomerName, City, Country) VALUES ('Cardinal', 'Stavanger', 'Norway');",
-		//"INSERT INTO SalesStaff1 VALUES (1, 'Stephen', 'Jiang');",
 		"INSERT SalesStaff1 VALUES (2, 'Michael', 'Blythe'), (3, 'Linda', 'Mitchell'),(4, 'Jillian', 'Carson'), (5, 'Garrett', 'Vargas');",
 		"INSERT INTO SalesStaff2 (StaffGUID, FirstName, LastName) VALUES (NEWID(), 'Stephen', 'Jiang');",
 		"INSERT INTO Customers (CustomerName, ContactName, Address, City, PostalCode, Country) VALUES ('Cardinal', 'Tom B. Erichsen', 'Skagen 21', 'Stavanger', '4006', 'Norway');",
@@ -305,8 +298,6 @@ func testBlacklistByRules(t *testing.T, firewall * Firewall, blacklistHandler * 
 		"SELECT EMP_ID, LAST_NAME FROM EMPLOYEE WHERE CITY = 'Seattle' ORDER BY EMP_ID;",
 		"SELECT EMP_ID, LAST_NAME FROM EMPLOYEE, EMPLOYEE_TBL WHERE CITY = 'Seattle' ORDER BY EMP_ID;",
 		"SELECT EMP_ID, LAST_NAME FROM EMPLOYEE WHERE CITY = 'INDIANAPOLIS' ORDER BY EMP_ID asc;",
-		//"INSERT INTO Customers (CustomerName, ContactName, Address, City, PostalCode, Country) VALUES ('Cardinal', 'Tom B. Erichsen', 'Skagen 21', 'Stavanger', '4006', 'Norway');",
-		//"INSERT INTO Customers (CustomerName, City, Country) VALUES ('Cardinal', 'Stavanger', 'Norway');",
 		"SELECT EMP_ID, LAST_NAME FROM EMPLOYEE_TBL AS EMPL_TBL WHERE CITY = 'Seattle' ORDER BY EMP_ID;",
 	}
 
