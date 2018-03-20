@@ -13,7 +13,6 @@ func removeDuplicates(input []string) []string {
 		}
 	}
 	return result
-
 }
 
 func contains(queries []string, query string) (bool, int) {
