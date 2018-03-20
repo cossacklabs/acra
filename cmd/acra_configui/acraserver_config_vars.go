@@ -1,4 +1,6 @@
-config:
+package main
+
+var AcraServerCofig = `config:
   -
     name: db_host
     title: Host for destination Postgres
@@ -46,3 +48,4 @@ config:
     values: [true, false]
     labels: [Yes, No]
     input_type: radio
+`

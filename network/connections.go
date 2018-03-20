@@ -18,10 +18,10 @@ func NewConnectionManager() *ConnectionManager {
 	return cm
 }
 
-func (cm *ConnectionManager) Add(delta int) {
-	cm.Counter += delta
+func (cm *ConnectionManager) Incr() {
+	cm.Counter += 1
 	log.Debugf("ConnectionManager.Add")
-	cm.WaitGroup.Add(delta)
+	cm.WaitGroup.Add(1)
 }
 
 func (cm *ConnectionManager) Done() {

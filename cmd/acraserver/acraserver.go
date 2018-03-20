@@ -30,8 +30,8 @@ import (
 )
 
 // DEFAULT_CONFIG_PATH relative path to config which will be parsed as default
-var RestartSignalsChannel chan os.Signal
-var ErrorSignalChannel chan os.Signal
+var restartSignalsChannel chan os.Signal
+var errorSignalChannel chan os.Signal
 var err error
 
 const (
@@ -42,6 +42,7 @@ const (
 )
 var SERVICE_NAME = "acraserver"
 var DEFAULT_CONFIG_PATH = utils.GetConfigPathByName(SERVICE_NAME)
+var ErrWaitTimeout = errors.New("timeout")
 
 func main() {
 	dbHost := flag.String("db_host", "", "Host to db")
@@ -168,8 +169,22 @@ func main() {
 		}
 	}
 
+	sigHandlerSIGTERM, err := cmd.NewSignalHandler([]os.Signal{os.Interrupt, syscall.SIGTERM})
+	errorSignalChannel = sigHandlerSIGTERM.GetChannel()
+	if err != nil {
+		log.WithError(err).Errorln("can't register SIGTERM handler")
+		os.Exit(1)
+	}
+
+	sigHandlerSIGHUP, err := cmd.NewSignalHandler([]os.Signal{syscall.SIGHUP})
+	restartSignalsChannel = sigHandlerSIGHUP.GetChannel()
+	if err != nil {
+		log.WithError(err).Errorln("can't register SIGHUP handler")
+		os.Exit(1)
+	}
+
 	var server *SServer
-	server, err = NewServer(config, keyStore)
+	server, err = NewServer(config, keyStore, errorSignalChannel, restartSignalsChannel)
 	if err != nil {
 		panic(err)
 	}
@@ -189,12 +204,6 @@ func main() {
 		}()
 	}
 
-	sigHandlerSIGTERM, err := cmd.NewSignalHandler([]os.Signal{os.Interrupt, syscall.SIGTERM})
-	ErrorSignalChannel = sigHandlerSIGTERM.GetChannel()
-	if err != nil {
-		log.WithError(err).Errorln("can't register SIGTERM handler")
-		os.Exit(1)
-	}
 	go sigHandlerSIGTERM.Register()
 	sigHandlerSIGTERM.AddCallback(func() {
 		log.Infoln("Incoming SIGTERM or SIGINT")
@@ -202,7 +211,7 @@ func main() {
 		server.StopListeners()
 		// Wait a maximum of N seconds for existing connections to finish
 		err := server.WaitWithTimeout(ACRASERVER_WAIT_TIMEOUT * time.Second)
-		if err == errors.New("timeout") {
+		if err == ErrWaitTimeout {
 			log.Warningf("Server shutdown Timeout: %d active connections will be cut", server.ConnectionsCounter())
 			server.Close()
 			os.Exit(1)
@@ -212,12 +221,6 @@ func main() {
 		os.Exit(0)
 	})
 
-	sigHandlerSIGHUP, err := cmd.NewSignalHandler([]os.Signal{syscall.SIGHUP})
-	RestartSignalsChannel = sigHandlerSIGHUP.GetChannel()
-	if err != nil {
-		log.WithError(err).Errorln("can't register SIGHUP handler")
-		os.Exit(1)
-	}
 	sigHandlerSIGHUP.AddCallback(func() {
 		log.Infoln("Incoming SIGHUP")
 
@@ -252,7 +255,7 @@ func main() {
 
 		// Wait a maximum of N seconds for existing connections to finish
 		err = server.WaitWithTimeout(ACRASERVER_WAIT_TIMEOUT * time.Second)
-		if err == errors.New("timeout") {
+		if err == ErrWaitTimeout {
 			log.Warningf("Server shutdown Timeout: %d active connections will be cut", server.ConnectionsCounter())
 			os.Exit(0)
 		}
@@ -262,20 +265,17 @@ func main() {
 		os.Exit(0)
 	})
 
-	if *withZone || *enableHTTPApi {
-		if os.Getenv(GRACEFUL_ENV) == "true" {
-			go server.StartCommandsFromFileDescriptor(DESCRIPTOR_API)
-		} else {
-			go server.StartCommands()
-		}
-
-	}
-
 	log.Infof("PID: %v", os.Getpid())
 	if os.Getenv(GRACEFUL_ENV) == "true" {
 		go server.StartFromFileDescriptor(DESCRIPTOR_ACRA)
+		if *withZone || *enableHTTPApi {
+			go server.StartCommandsFromFileDescriptor(DESCRIPTOR_API)
+		}
 	} else {
 		go server.Start()
+		if *withZone || *enableHTTPApi {
+			go server.StartCommands()
+		}
 	}
 
 	sigHandlerSIGHUP.Register()

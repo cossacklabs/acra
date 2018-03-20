@@ -11,5 +11,5 @@ const (
 	DEFAULT_ACRA_CONNECTION_PROTOCOL  = "tcp"
 	DEFAULT_ACRA_CONFIGUI_HOST        = "127.0.0.1"
 	DEFAULT_ACRA_CONFIGUI_PORT        = 8000
-	DEFAULT_ACRA_CONFIGUI_STATIC      = "./cmd/acra_configui/static"
+	DEFAULT_ACRA_CONFIGUI_STATIC      = "cmd/acra_configui/static"
 )

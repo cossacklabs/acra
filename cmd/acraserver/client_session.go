@@ -31,6 +31,7 @@ type ClientSession struct {
 	keystorage     keystore.KeyStore
 	connection     net.Conn
 	connectionToDb net.Conn
+	Server *SServer
 }
 
 func NewClientSession(keystorage keystore.KeyStore, config *Config, connection net.Conn) (*ClientSession, error) {
