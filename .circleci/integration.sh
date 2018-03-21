@@ -13,9 +13,9 @@ for version in $VERSIONS; do
     export GOPATH=$HOME/go_path_$version;
 
     # setup postgresql credentials
-    export TEST_DB_USER=${POSTGRES_USER}
-    export TEST_DB_USER_PASSWORD=${POSTGRES_PASSWORD}
-    export TEST_DB_NAME=postgres
+    #export TEST_DB_USER=${POSTGRES_USER}
+    #export TEST_DB_USER_PASSWORD=${POSTGRES_PASSWORD}
+    #export TEST_DB_NAME=postgres
     export TEST_DB_PORT=5432
     unset TEST_MYSQL
 
@@ -30,9 +30,9 @@ for version in $VERSIONS; do
     fi
 
     # setup mysql credentials
-    export TEST_DB_USER=${MYSQL_USER}
-    export TEST_DB_USER_PASSWORD=${MYSQL_PASSWORD}
-    export TEST_DB_NAME=${MYSQL_DATABASE}
+    #export TEST_DB_USER=${MYSQL_USER}
+    #export TEST_DB_USER_PASSWORD=${MYSQL_PASSWORD}
+    #export TEST_DB_NAME=${MYSQL_DATABASE}
     export TEST_DB_PORT=3306
     export TEST_MYSQL=true
     export TEST_TLS=off
