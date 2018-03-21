@@ -218,8 +218,10 @@ func (handler *MysqlHandler) processTextDataRow(rowData []byte, fields []*Column
 	var pos int = 0
 	var n int = 0
 	var output []byte
-
+	var fieldLogger *log.Entry
+	log.Debugln("process fields in text data row")
 	for i := range fields {
+		fieldLogger = log.WithField("field_index", i)
 		value, _, n, err = LengthEncodedString(rowData[pos:])
 		if err != nil {
 			return nil, err
@@ -227,22 +229,24 @@ func (handler *MysqlHandler) processTextDataRow(rowData []byte, fields []*Column
 		if handler.isFieldToDecrypt(fields[i]) {
 			decryptedValue, err := handler.decryptor.DecryptBlock(value)
 			if err != nil {
-				log.WithError(err).Errorln("can't decrypt binary data")
+				fieldLogger.WithError(err).Errorln("can't decrypt binary data")
 			}
 			if err == nil && len(decryptedValue) != len(value) {
-				log.Debugln("update with decrypted value")
+				fieldLogger.Debugln("update with decrypted value")
 				output = append(output, PutLengthEncodedString(decryptedValue)...)
 			} else {
-				log.Debugln("leave value as is")
+				fieldLogger.Debugln("leave value as is")
 				output = append(output, rowData[pos:pos+n]...)
 			}
 			pos += n
 			continue
 		}
+		fieldLogger.Debugln("field is not binary")
 
 		output = append(output, rowData[pos:pos+n]...)
 		pos += n
 	}
+	log.Debugln("finish processing text data row")
 
 	return output, nil
 }
@@ -343,11 +347,14 @@ func (handler *MysqlHandler) processBinaryDataRow(rowData []byte, fields []*Colu
 func (handler *MysqlHandler) QueryResponseHandler(packet *MysqlPacket, dbConnection, clientConnection net.Conn) (err error) {
 	log.Debugln("query handler")
 	handler.resetQueryHandler()
+	handler.decryptor.Reset()
+	handler.decryptor.ResetZoneMatch()
 	// read fields
 	var fields []*ColumnDescription
 	var binaryFieldIndexes []int
 	fieldCount := int(packet.GetData()[0])
 	if fieldCount == OK_PACKET || fieldCount == ERR_PACKET {
+		log.Debugln("error or empty response packet")
 		if _, err := clientConnection.Write(packet.Dump()); err != nil {
 			log.WithError(err).Errorln("can't proxy output")
 			return err
@@ -382,9 +389,11 @@ func (handler *MysqlHandler) QueryResponseHandler(packet *MysqlPacket, dbConnect
 	}
 
 	log.Debugln("read data rows")
+	var dataLog *log.Entry
 	// read data packets
 	for i := 0; ; i++ {
-		log.WithField("data_row_index", i).Debugln("read data row")
+		dataLog = log.WithField("data_row_index", i)
+		dataLog.Debugln("read data row")
 		fieldDataPacket, err := ReadPacket(dbConnection)
 		if err != nil {
 			return err
@@ -395,20 +404,22 @@ func (handler *MysqlHandler) QueryResponseHandler(packet *MysqlPacket, dbConnect
 		}
 
 		dataLength := fieldDataPacket.GetPacketPayloadLength()
-		log.WithField("data_row_index", i).Debugln("process data row")
+		dataLog.Debugln("process data row")
 
 		newData, err := handler.processTextDataRow(fieldDataPacket.GetData(), fields)
 		if err != nil {
+			dataLog.WithError(err).Debugln("can't process text data row")
 			return err
 		}
 		// decrypted data always less than ecrypted
 		if len(newData) < dataLength {
-			log.WithFields(log.Fields{"oldLength": dataLength, "newLength": len(newData)}).Debugln("update row data")
+			dataLog.WithFields(log.Fields{"oldLength": dataLength, "newLength": len(newData)}).Debugln("update row data")
 			fieldDataPacket.SetData(newData)
 		}
 	}
 
 	// proxy output
+	log.Debugln("proxy output")
 	for _, dumper := range output {
 		if _, err := clientConnection.Write(dumper.Dump()); err != nil {
 			log.WithError(err).Errorln("can't proxy output")
@@ -443,7 +454,7 @@ func (handler *MysqlHandler) DbToClientProxy(decryptor base.Decryptor, dbConnect
 		responseHandler = handler.getResponseHandler()
 		err = responseHandler(packet, dbConnection, clientConnection)
 		if err != nil {
-			log.Errorln("error in responseHandler")
+			log.WithError(err).Errorln("error in responseHandler")
 			errCh <- err
 			return
 		}

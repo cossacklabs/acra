@@ -66,17 +66,20 @@ KILL_WAIT_TIMEOUT = 10
 TEST_WITH_TLS = os.environ.get('TEST_TLS', 'on').lower() == 'on'
 
 PG_UNIX_HOST = '/tmp'
-DB_DRIVER = os.environ.get("TEST_DB_DRIVER", "postgresql")
+
 DB_USER = os.environ.get('TEST_DB_USER', 'postgres')
 DB_USER_PASSWORD = os.environ.get('TEST_DB_USER_PASSWORD', 'postgres')
 SSLMODE = os.environ.get('TEST_SSL_MODE', 'allow')
-USE_MYSQL = False
-if 'mysql' in DB_DRIVER:
-    USE_MYSQL = True
+TEST_MYSQL = bool(os.environ.get('TEST_MYSQL', False))
+if TEST_MYSQL:
+    DB_DRIVER = "mysql+pymysql"
+    TEST_MYSQL = True
     connect_args = {
         'user': DB_USER, 'password': DB_USER_PASSWORD
     }
 else:
+    TEST_POSTGRESQL = True
+    DB_DRIVER = "postgresql"
     connect_args = {
         'connect_timeout': SOCKET_CONNECT_TIMEOUT,
         'user': DB_USER, 'password': DB_USER_PASSWORD,
@@ -106,11 +109,11 @@ def stop_process(process):
             traceback.print_exc()
 
 
-def get_connect_args(port=5432, sslmode='require', **kwargs):
+def get_connect_args(port=5432, sslmode=None, **kwargs):
     args = connect_args.copy()
     args['port'] = port
-    if 'mysql' not in DB_DRIVER:
-        args['sslmode'] = sslmode
+    if TEST_POSTGRESQL:
+        args['sslmode'] = sslmode if sslmode else SSLMODE
     args.update(kwargs)
     return args
 
@@ -166,7 +169,7 @@ def wait_unix_socket(socket_path, count=10, sleep=0.1):
     raise Exception("can't wait connection")
 
 def get_unix_connection_string(port, dbname):
-    if USE_MYSQL:
+    if TEST_MYSQL:
         return get_postgresql_tcp_connection_string(port, dbname)
     else:
         return get_postgresql_unix_connection_string(port, dbname)
@@ -181,7 +184,7 @@ def get_acra_unix_connection_string(port):
     return "unix://{}".format("{}/unix_socket_{}".format(PG_UNIX_HOST, port))
 
 def get_proxy_connection_string(port):
-    if USE_MYSQL:
+    if TEST_MYSQL:
         connection_string = get_postgresql_tcp_connection_string(port, '')
         url = urlparse(connection_string)
         return 'tcp://{}'.format(url.netloc)
@@ -267,7 +270,7 @@ class BaseTestCase(unittest.TestCase):
 
     PROXY_PORT_1 = int(os.environ.get('TEST_PROXY_PORT', 9595))
     PROXY_PORT_2 = PROXY_PORT_1 + 200
-    PROXY_COMMAND_PORT_1 = int(os.environ.get('TEST_PROXY_COMMAND_PORT', 9595))
+    PROXY_COMMAND_PORT_1 = int(os.environ.get('TEST_PROXY_COMMAND_PORT', 9696))
     # for debugging with manually runned acra server
     EXTERNAL_ACRA = False
     ACRA_PORT = int(os.environ.get('TEST_ACRA_PORT', 10003))
@@ -340,7 +343,7 @@ class BaseTestCase(unittest.TestCase):
         process = self.fork(lambda: subprocess.Popen(args))
         if check_connection:
             try:
-                if USE_MYSQL:
+                if TEST_MYSQL:
                     wait_connection(proxy_port)
                 else:
                     wait_unix_socket(socket_path_from_connection_string(proxy_connection))
@@ -396,7 +399,7 @@ class BaseTestCase(unittest.TestCase):
             args['tls_cert'] = 'tests/server.crt'
             args['tls_ca'] = 'tests/server.crt'
             args['tls_sni'] = 'acraserver'
-        if USE_MYSQL:
+        if TEST_MYSQL:
             args['mysql'] = 'true'
             args['postgresql'] = 'false'
         args.update(acra_kwargs)
@@ -442,7 +445,7 @@ class BaseTestCase(unittest.TestCase):
                 # try with sleep if acra not up yet
                 while True:
                     try:
-                        if USE_MYSQL:
+                        if TEST_MYSQL:
                             engine.execute(
                                 "select 1;")
                         else:
@@ -691,6 +694,7 @@ class ZoneEscapeFormatWholeCellTest(WholeCellMixinTest, ZoneEscapeFormatTest):
 
 class TestConnectionClosing(BaseTestCase):
     def setUp(self):
+        self.checkSkip()
         try:
             self.proxy_1 = self.fork_proxy(
                 self.PROXY_PORT_1, self.ACRA_PORT, 'keypair1')
@@ -700,6 +704,9 @@ class TestConnectionClosing(BaseTestCase):
             self.tearDown()
             raise
 
+    def checkSkip(self):
+        if TEST_MYSQL:
+            self.skipTest("Not supported test on MySQL")
 
     def get_connection(self):
         return psycopg2.connect(host=PG_UNIX_HOST, **get_connect_args(port=self.PROXY_PORT_1))
@@ -960,9 +967,10 @@ class TestShutdownPoisonRecordWithZone(TestPoisonRecordShutdown):
             {'id': row_id, 'data': get_poison_record(), 'raw_data': 'poison_record'})
         with self.assertRaises(DatabaseError):
             zone = zones[0]['id'].encode('ascii')
-            self.engine1.execute(
+            result = self.engine1.execute(
                 sa.select([sa.cast(zone, BYTEA), test_table])
                     .where(test_table.c.id == row_id))
+            print(result.fetchall())
 
     def testShutdown2(self):
         """check callback with select by id and without zone"""
@@ -971,9 +979,10 @@ class TestShutdownPoisonRecordWithZone(TestPoisonRecordShutdown):
             test_table.insert(),
             {'id': row_id, 'data': get_poison_record(), 'raw_data': 'poison_record'})
         with self.assertRaises(DatabaseError):
-            self.engine1.execute(
+            result = self.engine1.execute(
                 sa.select([test_table])
                     .where(test_table.c.id == row_id))
+            print(result.fetchall())
 
     def testShutdown3(self):
         """check working poison record callback on full select"""
@@ -982,8 +991,9 @@ class TestShutdownPoisonRecordWithZone(TestPoisonRecordShutdown):
             test_table.insert(),
             {'id': row_id, 'data': get_poison_record(), 'raw_data': 'poison_record'})
         with self.assertRaises(DatabaseError):
-            self.engine1.execute(
+            result = self.engine1.execute(
                 sa.select([test_table]))
+            print(result.fetchall())
 
     def testShutdown4(self):
         """check working poison record callback on full select inside another data"""
@@ -1160,7 +1170,12 @@ class TestKeyStorageClearing(BaseTestCase):
 class TestAcraRollback(BaseTestCase):
     DATA_COUNT = 5
 
+    def checkSkip(self):
+        if TEST_MYSQL:
+            self.skipTest("Not supported on mysql")
+
     def setUp(self):
+        self.checkSkip()
         self.engine_raw = sa.create_engine(
             '{}://{}:{}/{}'.format(DB_DRIVER, self.DB_HOST, self.DB_PORT,
                                    self.DB_NAME),
