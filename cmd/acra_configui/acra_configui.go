@@ -26,6 +26,8 @@ var staticPath *string
 var parsedTemplate *template.Template
 var err error
 var configParamsBytes []byte
+var SERVICE_NAME = "acra_configui"
+var DEFAULT_CONFIG_PATH = utils.GetConfigPathByName(SERVICE_NAME)
 
 func check(e error) {
 	if e != nil {
@@ -190,7 +192,11 @@ func main() {
 	acraPort = flag.Int("acra_port", cmd.DEFAULT_PROXY_API_PORT, "Port for Acraserver HTTP endpoint or proxy")
 	staticPath = flag.String("static_path", cmd.DEFAULT_ACRA_CONFIGUI_STATIC, "Path to static content")
 	debug = flag.Bool("d", false, "Turn on debug logging")
-	flag.Parse()
+	err = cmd.Parse(DEFAULT_CONFIG_PATH)
+	if err != nil {
+		log.WithError(err).Errorln("can't parse args")
+		os.Exit(1)
+	}
 
 	if *debug {
 		logging.SetLogLevel(logging.LOG_DEBUG)

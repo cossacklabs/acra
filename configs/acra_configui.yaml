@@ -1,0 +1,24 @@
+# Host for Acraserver HTTP endpoint or proxy
+acra_host: localhost
+
+# Port for Acraserver HTTP endpoint or proxy
+acra_port: 9191
+
+# path to config
+config: 
+
+# Turn on debug logging
+d: false
+
+# dump config
+dumpconfig: false
+
+# Host for configUI HTTP endpoint
+host: 127.0.0.1
+
+# Port for configUI HTTP endpoint
+port: 8000
+
+# Path to static content
+static_path: cmd/acra_configui/static
+
