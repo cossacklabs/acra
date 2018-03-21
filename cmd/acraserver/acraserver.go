@@ -130,6 +130,8 @@ func main() {
 	config.SetTLSServerKeyPath(*tlsKey)
 	config.SetWholeMatch(!(*injectedcell))
 	config.SetEnableHTTPApi(*enableHTTPApi)
+	config.SetConfigPath(DEFAULT_CONFIG_PATH)
+	config.SetDebug(*debug)
 	if *hexFormat || !*escapeFormat {
 		config.SetByteaFormat(HEX_BYTEA_FORMAT)
 	} else {

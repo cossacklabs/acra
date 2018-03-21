@@ -35,12 +35,6 @@ var AcraServerCofig = `config:
     values: [true, false]
     labels: [Yes, No]
     input_type: radio
-
-  -
-    name:  server_id
-    title: ID to be sent in secure session
-    value_type: string
-    input_type: text
   -
     name: zonemode
     title: Turn on zone mode

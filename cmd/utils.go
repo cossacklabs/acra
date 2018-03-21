@@ -139,11 +139,49 @@ func PrintDefaults() {
 	})
 }
 
-func GenerateYaml(output io.Writer) {
+func GenerateYaml(output io.Writer, useDefault bool) {
 	flag_.CommandLine.VisitAll(func(flag *flag_.Flag) {
-		s := fmt.Sprintf("# %v\n%v: %v\n", flag.Usage, flag.Name, flag.DefValue)
+		var s string
+		if useDefault {
+			s = fmt.Sprintf("# %v\n%v: %v\n", flag.Usage, flag.Name, flag.DefValue)
+		} else {
+			s = fmt.Sprintf("# %v\n%v: %v\n", flag.Usage, flag.Name, flag.Value)
+		}
 		fmt.Fprint(output, s, "\n")
 	})
+}
+
+func DumpConfig(configPath string, useDefault bool) error {
+	var absPath string
+	var err error
+
+	if *config == "" {
+		absPath, err = utils.AbsPath(configPath)
+		if err != nil {
+			return err
+		}
+	} else {
+		absPath, err = utils.AbsPath(*config)
+		if err != nil {
+			return err
+		}
+	}
+
+	dirPath := filepath.Dir(absPath)
+	err = os.MkdirAll(dirPath, 0744)
+	if err != nil {
+		return err
+	}
+
+	file, err := os.Create(absPath)
+	if err != nil {
+		return err
+	}
+	defer file.Close()
+
+	GenerateYaml(file, useDefault)
+	log.Infof("Config dumped to %s", configPath)
+	return nil
 }
 
 func Parse(configPath string) error {
@@ -162,8 +200,8 @@ func Parse(configPath string) error {
 	var args []string
 	// parse yaml and add params that wasn't passed from cli
 	if configPath != "" {
+
 		configPath, err := utils.AbsPath(configPath)
-		log.Debugln(configPath)
 		if err != nil {
 			return err
 		}
@@ -200,40 +238,14 @@ func Parse(configPath string) error {
 		}
 	}
 	// set options from config that wasn't set by cli
-	log.Debugln(args)
+	log.Infoln(args)
 	err = flag_.CommandLine.Parse(args)
 	if err != nil {
 		return err
 	}
 	if *dumpconfig {
-		var absPath string
-		if *config == "" {
-			absPath, err = utils.AbsPath(configPath)
-			if err != nil {
-				return err
-			}
-		} else {
-			absPath, err = utils.AbsPath(*config)
-			if err != nil {
-				return err
-			}
-		}
-
-		dirPath := filepath.Dir(absPath)
-		err = os.MkdirAll(dirPath, 0744)
-		if err != nil {
-			return err
-		}
-
-		file, err := os.Create(absPath)
-		if err != nil {
-			return err
-		}
-		defer file.Close()
-
-		GenerateYaml(file)
+		DumpConfig(configPath, true)
 		os.Exit(0)
 	}
 	return nil
 }
-

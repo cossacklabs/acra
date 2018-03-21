@@ -27,6 +27,8 @@ import (
 	"fmt"
 	"encoding/json"
 	"syscall"
+	"github.com/cossacklabs/acra/cmd"
+	"flag"
 )
 
 type ClientCommandsSession struct {
@@ -97,10 +99,25 @@ func (clientSession *ClientCommandsSession) HandleSession() {
 		if err != nil {
 			log.Warningf("%v\n", utils.ErrorMessage("can't convert config from incoming", err))
 			response = "HTTP/1.1 500 Server error\r\n\r\n\r\n\r\n"
+			return
+		}
+		// set config values
+		flag.Set("db_host", configFromUI.DbHost)
+		flag.Set("db_port", fmt.Sprintf("%v", configFromUI.DbPort))
+		flag.Set("commands_port", fmt.Sprintf("%v", configFromUI.ProxyCommandsPort))
+		flag.Set("d", fmt.Sprintf("%v", configFromUI.Debug))
+		flag.Set("poisonscript", fmt.Sprintf("%v", configFromUI.ScriptOnPoison))
+		flag.Set("poisonshutdown", fmt.Sprintf("%v", configFromUI.StopOnPoison))
+		flag.Set("zonemode", fmt.Sprintf("%v", configFromUI.WithZone))
+
+		err = cmd.DumpConfig(clientSession.Server.config.GetConfigPath(), false)
+		if err != nil {
+			log.WithError(err).Errorln("DumpConfig failed")
+			response = "HTTP/1.1 500 Server error\r\n\r\n\r\n\r\n"
+			return
+
 		}
 		clientSession.Server.restartSignalsChannel <- syscall.SIGHUP
-		log.Debugln(configFromUI)
-
 	}
 
 	_, err = clientSession.connection.Write([]byte(response))
