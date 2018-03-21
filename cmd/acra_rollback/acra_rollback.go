@@ -29,6 +29,7 @@ import (
 	"github.com/cossacklabs/acra/keystore"
 	"github.com/cossacklabs/acra/utils"
 	"github.com/cossacklabs/themis/gothemis/keys"
+	//_ "github.com/ziutek/mymysql/godrv"
 	_ "github.com/go-sql-driver/mysql"
 	_ "github.com/lib/pq"
 	log "github.com/sirupsen/logrus"
@@ -180,6 +181,9 @@ func main() {
 
 	dbDriverName := "postgresql"
 	if *useMysql {
+		// https://github.com/ziutek/mymysql
+		//dbDriverName = "mymysql"
+		// https://github.com/go-sql-driver/mysql/
 		dbDriverName = "mysql"
 	}
 

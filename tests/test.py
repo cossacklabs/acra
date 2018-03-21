@@ -1223,10 +1223,17 @@ class TestAcraRollback(BaseTestCase):
         else:
             self.sslmode='disable'
         if TEST_MYSQL:
+            # https://github.com/go-sql-driver/mysql/
             connection_string = "{user}:{password}@tcp({host}:{port})/{dbname}".format(
                 user=DB_USER, password=DB_USER_PASSWORD, dbname=self.DB_NAME,
                 port=self.DB_PORT, host=self.DB_HOST
             )
+
+            # https://github.com/ziutek/mymysql
+            # connection_string = "tcp:{host}:{port}*{dbname}/{user}/{password}".format(
+            #     user=DB_USER, password=DB_USER_PASSWORD, dbname=self.DB_NAME,
+            #     port=self.DB_PORT, host=self.DB_HOST
+            # )
         else:
             connection_string = (
                 'dbname={dbname} user={user} '
