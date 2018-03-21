@@ -8,6 +8,13 @@ jobs:
         environment:
           POSTGRES_PASSWORD: postgres
           POSTGRES_USER: postgres
+      # use the same credentials for mysql db as for postgresql (which support was added first)
+      - image: mysql:latest
+        environment:
+          MYSQL_ROOT_PASSWORD: root
+          MYSQL_DATABASE: test
+          MYSQL_USER: test
+          MYSQL_PASSWORD: test
     environment:
       GOTHEMIS_IMPORT: github.com/cossacklabs/themis/gothemis
       FILEPATH_ERROR_FLAG: /tmp/test_fail
