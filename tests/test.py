@@ -1133,7 +1133,7 @@ class TestAcraRollback(BaseTestCase):
 
         self.output_filename = 'acra_rollback_output.txt'
         rollback_output_table.create(self.engine_raw, checkfirst=True)
-        if self.TLS_ON:
+        if TEST_WITH_TLS:
             self.sslmode='require'
         else:
             self.sslmode='disable'
