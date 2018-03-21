@@ -95,10 +95,10 @@ def stop_process(process):
             traceback.print_exc()
 
 
-def get_connect_args(port=5432, sslmode='require', **kwargs):
+def get_connect_args(port=5432, sslmode=None, **kwargs):
     args = connect_args.copy()
     args['port'] = port
-    args['sslmode'] = sslmode
+    args['sslmode'] = sslmode if sslmode else SSLMODE
     args.update(kwargs)
     return args
 
@@ -653,6 +653,7 @@ class ZoneEscapeFormatWholeCellTest(WholeCellMixinTest, ZoneEscapeFormatTest):
 
 class TestConnectionClosing(BaseTestCase):
     def setUp(self):
+        self.checkSkip()
         try:
             self.proxy_1 = self.fork_proxy(
                 self.PROXY_PORT_1, self.ACRA_PORT, 'keypair1')
