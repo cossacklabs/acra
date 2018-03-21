@@ -653,6 +653,7 @@ class ZoneEscapeFormatWholeCellTest(WholeCellMixinTest, ZoneEscapeFormatTest):
 
 class TestConnectionClosing(BaseTestCase):
     def setUp(self):
+        self.checkSkip()
         try:
             self.proxy_1 = self.fork_proxy(
                 self.PROXY_PORT_1, self.ACRA_PORT, 'keypair1')
