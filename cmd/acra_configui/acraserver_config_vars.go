@@ -1,14 +1,6 @@
-config:
-#  -
-#    name: host
-#    title: Host network address to listen for incoming connections from AcraProxy or via SSL
-#    value_type: string
-#    input_type: text
-#  -
-#    name: port
-#    title: Port for AcraServer to listen for incoming connections from AcraProxy or via SSL
-#    value_type: int8
-#    input_type: number
+package main
+
+var AcraServerCofig = `config:
   -
     name: db_host
     title: Host for destination Postgres
@@ -43,12 +35,6 @@ config:
     values: [true, false]
     labels: [Yes, No]
     input_type: radio
-
-  -
-    name:  server_id
-    title: ID to be sent in secure session
-    value_type: string
-    input_type: text
   -
     name: zonemode
     title: Turn on zone mode
@@ -56,3 +42,4 @@ config:
     values: [true, false]
     labels: [Yes, No]
     input_type: radio
+`

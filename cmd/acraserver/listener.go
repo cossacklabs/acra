@@ -15,35 +15,77 @@ package main
 
 import (
 	"net"
-
 	"github.com/cossacklabs/acra/network"
 	log "github.com/sirupsen/logrus"
-
 	"github.com/cossacklabs/acra/decryptor/base"
 	pg "github.com/cossacklabs/acra/decryptor/postgresql"
 	"github.com/cossacklabs/acra/keystore"
 	"github.com/cossacklabs/acra/zone"
+	"os"
+	"time"
+	"syscall"
+	url_ "net/url"
 )
 
 type SServer struct {
-	config     *Config
-	keystorage keystore.KeyStore
-	listeners  []net.Listener
+	config                *Config
+	keystorage            keystore.KeyStore
+	listenerACRA          net.Listener
+	listenerAPI           net.Listener
+	fddACRA               uintptr
+	fdAPI                 uintptr
+	cmACRA                *network.ConnectionManager
+	cmAPI                 *network.ConnectionManager
+	listeners             []net.Listener
+	errorSignalChannel    chan os.Signal
+	restartSignalsChannel chan os.Signal
 }
 
-func NewServer(config *Config, keystorage keystore.KeyStore) (server *SServer, err error) {
-	return &SServer{config: config, keystorage: keystorage}, nil
+func NewServer(config *Config, keystorage keystore.KeyStore, errorChan chan os.Signal, restarChan chan os.Signal) (server *SServer, err error) {
+	return &SServer{
+		config:                config,
+		keystorage:            keystorage,
+		cmACRA:                network.NewConnectionManager(),
+		cmAPI:                 network.NewConnectionManager(),
+		errorSignalChannel:    errorChan,
+		restartSignalsChannel: restarChan,
+	}, nil
 }
 
 // Close all listeners and return first error
-func (server *SServer) Close() error {
+func (server *SServer) Close() {
+	log.Debugln("Closing listeners")
 	var err error
 	for _, listener := range server.listeners {
-		if err_ := listener.Close(); err_ != nil && err == nil {
-			err = err_
+		switch listener.(type) {
+		case *net.TCPListener:
+			err = listener.(*net.TCPListener).Close()
+			if err != nil {
+				log.WithError(err).Infoln("TCPListener.Close()")
+				continue
+			}
+		case *net.UnixListener:
+			err = listener.(*net.UnixListener).Close()
+			if err != nil {
+				log.WithError(err).Infoln("UnixListener.Close()")
+				continue
+			}
+			// TODO: find better way to remove unixsocket file
+			url, err2 := url_.Parse(server.config.GetAcraConnectionString())
+			if err2 != nil {
+				log.WithError(err2).Warningln("UnixListener.Close  url_.Parse")
+			}
+			if _, err := os.Stat(url.Path); err == nil {
+				err3 := os.Remove(url.Path)
+				if err3 != nil {
+					log.WithError(err3).Warningf("UnixListener.Close  file.Remove(%s)", url.Path)
+				}
+			}
 		}
 	}
-	return err
+	if err != nil {
+		log.WithError(err).Infoln("server.Close()")
+	}
 }
 
 func (server *SServer) addListener(listener net.Listener) {
@@ -93,6 +135,7 @@ func (server *SServer) handleConnection(connection net.Conn) {
 		return
 	}
 	clientSession, err := NewClientSession(server.keystorage, server.config, connection)
+	clientSession.Server = server
 	if err != nil {
 		log.WithError(err).Println("can't initialize client session")
 		if closeErr := connection.Close(); closeErr != nil {
@@ -107,19 +150,25 @@ func (server *SServer) handleConnection(connection net.Conn) {
 
 // start listening connections from proxy
 func (server *SServer) Start() {
-	listener, err := network.Listen(server.config.GetAcraConnectionString())
+	var connection net.Conn
+	var listener, err = network.Listen(server.config.GetAcraConnectionString())
 	if err != nil {
 		log.WithError(err).Errorln("can't start listen connections")
+		server.errorSignalChannel <- syscall.SIGTERM
 		return
 	}
-	defer listener.Close()
+	server.listenerACRA = listener
 	server.addListener(listener)
+
 	log.Infof("start listening %s", server.config.GetAcraConnectionString())
 	for {
-		connection, err := listener.Accept()
+		connection, err = listener.Accept()
 		if err != nil {
-			log.WithError(err).Errorln("can't accept new connection")
-			continue
+			if nerr, ok := err.(net.Error); ok && nerr.Timeout() {
+				log.Infoln("stop accepting new connections due net.Timeout")
+				return
+			}
+			log.WithError(err).Errorf("can't accept new connection (connection=%v)", connection)
 		}
 		// unix socket and value == '@'
 		if len(connection.RemoteAddr().String()) == 1 {
@@ -127,8 +176,114 @@ func (server *SServer) Start() {
 		} else {
 			log.Infof("new connection to acraserver: <%v>", connection.RemoteAddr())
 		}
-		go server.handleConnection(connection)
+		go func() {
+			server.cmACRA.Incr()
+			server.handleConnection(connection)
+			server.cmACRA.Done()
+		}()
+
 	}
+}
+
+func (server *SServer) StartFromFileDescriptor(fd uintptr) {
+	var connection net.Conn
+	file := os.NewFile(fd, "/tmp/acraserver")
+	listenerFile, err := net.FileListener(file)
+	if err != nil {
+		log.WithError(err).Errorln("can't start listen for file descriptor")
+		server.errorSignalChannel <- syscall.SIGTERM
+		return
+	}
+
+	listenerWithFileDesciptor, ok := listenerFile.(network.ListenerWithFileDescriptor)
+	if !ok {
+		log.WithError(err).Errorf("File descriptor %d is not a valid socket", fd)
+		return
+	}
+	server.listenerACRA = listenerWithFileDesciptor
+	server.addListener(listenerFile)
+
+	log.Infof("start listening %s", server.config.GetAcraConnectionString())
+	for {
+		connection, err = listenerWithFileDesciptor.Accept()
+		if err != nil {
+			if nerr, ok := err.(net.Error); ok && nerr.Timeout() {
+				log.WithError(err).Errorf("stop accepting new connections", connection)
+				return
+			}
+			log.WithError(err).Errorf("can't accept new connection (connection=%v)", connection)
+		}
+		// unix socket and value == '@'
+		if len(connection.RemoteAddr().String()) == 1 {
+			log.Infof("new connection to acraserver: <%v>", connection.LocalAddr())
+		} else {
+			log.Infof("new connection to acraserver: <%v>", connection.RemoteAddr())
+		}
+		go func() {
+			server.cmACRA.Incr()
+			server.handleConnection(connection)
+			server.cmACRA.Done()
+		}()
+	}
+}
+
+func (server *SServer) StopListeners() {
+	var (
+		err         error
+		tcpListener *net.TCPListener
+		ok          bool
+	)
+	if tcpListener, ok = server.listenerACRA.(*net.TCPListener); ok {
+		err = tcpListener.SetDeadline(time.Now())
+		if err != nil {
+			if nerr, ok := err.(net.Error); ok && nerr.Timeout() {
+				log.WithError(err).Errorln("unable to SetDeadLine of acra-listener")
+			}
+		}
+	} else {
+		log.Warningln("acra-interface assigment failed")
+	}
+
+	if server.listenerAPI != nil {
+		if tcpListener, ok = server.listenerAPI.(*net.TCPListener); ok {
+			err = tcpListener.SetDeadline(time.Now())
+			if err != nil {
+				if nerr, ok := err.(net.Error); ok && nerr.Timeout() {
+					log.WithError(err).Errorln("unable to SetDeadLine of api-listener")
+				}
+			}
+		} else {
+			log.Warningln("api-interface assigment failed")
+		}
+	}
+}
+
+func (server *SServer) WaitConnections(duration time.Duration) {
+	log.Infof("waiting for %v connections to complete", server.ConnectionsCounter())
+	server.cmACRA.Wait()
+	if server.listenerAPI != nil {
+		server.cmAPI.Wait()
+	}
+}
+
+func (server *SServer) WaitWithTimeout(duration time.Duration) error {
+	timeout := time.NewTimer(duration)
+	wait := make(chan struct{})
+	go func() {
+		server.WaitConnections(duration)
+		wait <- struct{}{}
+	}()
+
+	select {
+	case <-timeout.C:
+		return ErrWaitTimeout
+	case <-wait:
+		return nil
+	}
+}
+
+func (server *SServer) ConnectionsCounter() int {
+	return server.cmACRA.Counter + server.cmAPI.Counter
 }
 
 /*
@@ -137,6 +292,7 @@ to db and decrypting responses from db
 */
 func (server *SServer) handleCommandsConnection(connection net.Conn) {
 	clientSession, err := NewClientCommandsSession(server.keystorage, server.config, connection)
+	clientSession.Server = server
 	if err != nil {
 		log.WithError(err).Errorln("can't init session")
 		return
@@ -153,19 +309,25 @@ func (server *SServer) handleCommandsConnection(connection net.Conn) {
 
 // start listening commands connections from proxy
 func (server *SServer) StartCommands() {
-	listener, err := network.Listen(server.config.GetAcraAPIConnectionString())
+	var connection net.Conn
+	var listener, err = network.Listen(server.config.GetAcraAPIConnectionString())
 	if err != nil {
-		log.WithError(err).Errorln("can't start listen command connections")
+		log.WithError(err).Errorln("can't start listen command api connections")
+		server.errorSignalChannel <- syscall.SIGTERM
 		return
 	}
-	defer listener.Close()
+	server.listenerAPI = listener
 	server.addListener(listener)
+
 	log.Infof("start listening api %s", server.config.GetAcraAPIConnectionString())
 	for {
-		connection, err := listener.Accept()
+		connection, err = listener.Accept()
 		if err != nil {
-			log.WithError(err).Errorln("can't accept new connection")
-			continue
+			if nerr, ok := err.(net.Error); ok && nerr.Timeout() {
+				log.WithError(err).Errorf("stop accepting new connections", connection)
+				return
+			}
+			log.WithError(err).Errorf("can't accept new connection (connection=%v)", connection)
 		}
 		// unix socket and value == '@'
 		if len(connection.RemoteAddr().String()) == 1 {
@@ -173,6 +335,51 @@ func (server *SServer) StartCommands() {
 		} else {
 			log.Infof("new connection to http api: <%v>", connection.RemoteAddr())
 		}
-		go server.handleCommandsConnection(connection)
+		go func() {
+			server.cmAPI.Incr()
+			server.handleCommandsConnection(connection)
+			server.cmAPI.Done()
+		}()
+	}
+}
+
+func (server *SServer) StartCommandsFromFileDescriptor(fd uintptr) {
+	var connection net.Conn
+	file := os.NewFile(fd, "/tmp/acraserver_http_api")
+	listenerFile, err := net.FileListener(file)
+	if err != nil {
+		log.WithError(err).Errorln("can't start listen for file descriptor")
+		server.errorSignalChannel <- syscall.SIGTERM
+		return
+	}
+	listenerWithFileDesciptor, ok := listenerFile.(network.ListenerWithFileDescriptor)
+	if !ok {
+		log.WithError(err).Errorf("File descriptor %d is not a valid socket", fd)
+		return
+	}
+	server.listenerAPI = listenerWithFileDesciptor
+	server.addListener(listenerWithFileDesciptor)
+
+	log.Infof("start listening api %s", server.config.GetAcraAPIConnectionString())
+	for {
+		connection, err = listenerWithFileDesciptor.Accept()
+		if err != nil {
+			if nerr, ok := err.(net.Error); ok && nerr.Timeout() {
+				log.WithError(err).Errorf("stop accepting new connections", connection)
+				return
+			}
+			log.WithError(err).Errorf("can't accept new connection (connection=%v)", connection)
+		}
+		// unix socket and value == '@'
+		if len(connection.RemoteAddr().String()) == 1 {
+			log.Infof("new connection to http api: <%v>", connection.LocalAddr())
+		} else {
+			log.Infof("new connection to http api: <%v>", connection.RemoteAddr())
+		}
+		go func() {
+			server.cmAPI.Incr()
+			server.handleCommandsConnection(connection)
+			server.cmAPI.Done()
+		}()
 	}
 }

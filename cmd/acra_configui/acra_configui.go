@@ -15,15 +15,23 @@ import (
 	"flag"
 	log "github.com/sirupsen/logrus"
 	"github.com/cossacklabs/acra/utils"
+	"github.com/cossacklabs/acra/cmd"
 	"github.com/cossacklabs/acra/logging"
 )
 
 var acraHost *string
 var acraPort *int
 var debug *bool
+var staticPath *string
+var parsedTemplate *template.Template
+var err error
+var configParamsBytes []byte
+var SERVICE_NAME = "acra_configui"
+var DEFAULT_CONFIG_PATH = utils.GetConfigPathByName(SERVICE_NAME)
 
 func check(e error) {
 	if e != nil {
+		log.Error(e)
 		panic(e)
 	}
 }
@@ -41,6 +49,8 @@ type configParamsYAML struct {
 	Config []paramItem
 }
 
+var outConfigParams configParamsYAML
+
 type ConfigAcraServer struct {
 	ProxyHost         string `json:"host"`
 	ProxyPort         int    `json:"port"`
@@ -54,6 +64,7 @@ type ConfigAcraServer struct {
 }
 
 func SubmitSettings(w http.ResponseWriter, r *http.Request) {
+	log.Debugf("SubmitSettings request %v", r)
 	if r.Method != "POST" {
 		http.Error(w, "Invalid request method", http.StatusMethodNotAllowed)
 		return
@@ -105,12 +116,26 @@ func SubmitSettings(w http.ResponseWriter, r *http.Request) {
 	w.Write(jsonToServer)
 }
 
+func parseTemplate(staticPath string) (err error) {
+	tplPath := filepath.Join(staticPath, "index.html")
+	tplPath, err = utils.AbsPath(tplPath)
+	if err != nil {
+		log.WithError(err).Errorf("no template file[%v]", tplPath)
+		return err
+	}
+
+	parsedTemplate, err = template.ParseFiles(tplPath)
+	if err != nil {
+		log.WithError(err).Errorf("err while parsing template - %v", tplPath)
+		return err
+	}
+
+	return nil
+}
+
 func index(w http.ResponseWriter, r *http.Request) {
+	log.Debugf("Index request %v", r)
 	w.Header().Set("Content-Security-Policy", "require-sri-for script style")
-	parsedTemplate, _ := template.ParseFiles(filepath.Join("static", "index.html"))
-	var outConfigParams configParamsYAML
-	configParamsYAML, err := ioutil.ReadFile("acraserver_config_vars.yaml")
-	check(err)
 
 	// get current config
 	var netClient = &http.Client{
@@ -137,7 +162,7 @@ func index(w http.ResponseWriter, r *http.Request) {
 	}
 	// end get current config
 
-	err = yaml.Unmarshal(configParamsYAML, &outConfigParams)
+	err = yaml.Unmarshal(configParamsBytes, &outConfigParams)
 	if err != nil {
 		log.Errorf("%v", utils.ErrorMessage("yaml.Unmarshal error", err))
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -161,23 +186,33 @@ func index(w http.ResponseWriter, r *http.Request) {
 }
 
 func main() {
-	port := flag.Int("port", 8000, "Port for configUI HTTP endpoint")
-	acraHost = flag.String("acraHost", "localhost", "Host for Acraserver HTTP endpoint or proxy")
-	acraPort = flag.Int("acraPort", 9292, "Port for Acraserver HTTP endpoint or proxy")
+	host := flag.String("host", cmd.DEFAULT_ACRA_CONFIGUI_HOST, "Host for configUI HTTP endpoint")
+	port := flag.Int("port", cmd.DEFAULT_ACRA_CONFIGUI_PORT, "Port for configUI HTTP endpoint")
+	acraHost = flag.String("acra_host", "localhost", "Host for Acraserver HTTP endpoint or proxy")
+	acraPort = flag.Int("acra_port", cmd.DEFAULT_PROXY_API_PORT, "Port for Acraserver HTTP endpoint or proxy")
+	staticPath = flag.String("static_path", cmd.DEFAULT_ACRA_CONFIGUI_STATIC, "Path to static content")
 	debug = flag.Bool("d", false, "Turn on debug logging")
-	flag.Parse()
+	err = cmd.Parse(DEFAULT_CONFIG_PATH)
+	if err != nil {
+		log.WithError(err).Errorln("can't parse args")
+		os.Exit(1)
+	}
 
 	if *debug {
 		logging.SetLogLevel(logging.LOG_DEBUG)
 	} else {
 		logging.SetLogLevel(logging.LOG_VERBOSE)
 	}
-
+	err := parseTemplate(*staticPath)
+	if err != nil {
+		os.Exit(1)
+	}
+	configParamsBytes = []byte(AcraServerCofig)
 	http.HandleFunc("/index.html", index)
 	http.HandleFunc("/", index)
-	http.Handle("/static/", http.StripPrefix("/static/", http.FileServer(http.Dir("./static"))))
+	http.Handle("/static/", http.StripPrefix("/static/", http.FileServer(http.Dir(*staticPath))))
 	http.HandleFunc("/acraserver/submit_setting", SubmitSettings)
-	log.Info(fmt.Sprintf("AcraConfigUI is listening @ :%d with PID %d", *port, os.Getpid()))
-	err := http.ListenAndServe(fmt.Sprintf(":%d", *port), nil)
+	log.Infof("AcraConfigUI is listening @ %s:%d with PID %d", *host, *port, os.Getpid())
+	err = http.ListenAndServe(fmt.Sprintf("%s:%d", *host, *port), nil)
 	check(err)
 }

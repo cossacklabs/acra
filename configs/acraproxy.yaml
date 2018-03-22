@@ -37,8 +37,14 @@ disable_user_check: false
 # dump config
 dumpconfig: false
 
+# Enable HTTP API
+enable_http_api: false
+
 # Folder from which will be loaded keys
 keys_dir: .acrakeys
+
+# Logging format: plaintext, json or CEF
+logging_format: 
 
 # Use raw transport (tcp/unix socket) between acraserver and acraproxy/client (don't use this flag if you not connect to database with ssl/tls
 no_encryption: false
@@ -64,8 +70,3 @@ tls_sni:
 # Log to stdout
 v: false
 
-# Turn on zone mode
-zonemode: false
-
-# Logging format (plaintext, json, CEF)
-logging_format: plaintext
