@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"testing"
+	"strings"
 )
 
 func TestUtilities(t *testing.T){
@@ -36,7 +37,7 @@ func areEqual(a []string, b []string) bool {
 	}
 
 	for index := 0; index < len(a); index++{
-		if a[index] != b[index]{
+		if !strings.EqualFold(a[index], b[index]) {
 			return false
 		}
 	}
