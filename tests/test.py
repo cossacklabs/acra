@@ -193,9 +193,6 @@ def get_proxy_connection_string(port):
     else:
         return 'unix://{}/.s.PGSQL.{}'.format(PG_UNIX_HOST, port)
 
-
-
-
 def get_tcp_connection_string(port):
     return 'tcp://127.0.0.1:{}'.format(port)
 
