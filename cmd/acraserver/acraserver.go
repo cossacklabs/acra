@@ -14,20 +14,23 @@
 package main
 
 import (
-	"crypto/tls"
 	"flag"
+	"net/http"
+	_ "net/http/pprof"
+	"os"
+	"syscall"
+
 	"github.com/cossacklabs/acra/cmd"
 	"github.com/cossacklabs/acra/keystore"
 	"github.com/cossacklabs/acra/network"
 	"github.com/cossacklabs/acra/utils"
+	"github.com/cossacklabs/acra/logging"
 	log "github.com/sirupsen/logrus"
-	"net/http"
-	_ "net/http/pprof"
-	"os"
 )
 
 // DEFAULT_CONFIG_PATH relative path to config which will be parsed as default
-var DEFAULT_CONFIG_PATH = utils.GetConfigPathByName("acraserver")
+var SERVICE_NAME = "acraserver"
+var DEFAULT_CONFIG_PATH = utils.GetConfigPathByName(SERVICE_NAME)
 
 func main() {
 	dbHost := flag.String("db_host", "", "Host to db")
@@ -55,14 +58,18 @@ func main() {
 	scriptOnPoison := flag.String("poisonscript", "", "Execute script on detecting poison record")
 
 	withZone := flag.Bool("zonemode", false, "Turn on zone mode")
-	disableZoneApi := flag.Bool("disable_zone_api", false, "Disable zone http api")
+	disableHTTPApi := flag.Bool("disable_http_api", false, "Disable http api")
 
-	useTls := flag.Bool("tls", false, "Use tls")
+	useTls := flag.Bool("tls", false, "Use tls to encrypt transport between acraserver and acraproxy/client")
 	tlsKey := flag.String("tls_key", "", "Path to tls server key")
 	tlsCert := flag.String("tls_cert", "", "Path to tls server certificate")
-	noEncryption := flag.Bool("no_encryption", false, "Don't use encryption in transport")
+	tlsCA := flag.String("tls_ca", "", "Path to root certificate")
+	tlsSNI := flag.String("tls_sni", "", "Expected Server Name (SNI)")
+	noEncryption := flag.Bool("no_encryption", false, "Use raw transport (tcp/unix socket) between acraserver and acraproxy/client (don't use this flag if you not connect to database with ssl/tls")
+	clientId := flag.String("client_id", "", "Expected client id of acraproxy in mode without encryption")
 	acraConnectionString := flag.String("connection_string", network.BuildConnectionString(cmd.DEFAULT_ACRA_CONNECTION_PROTOCOL, cmd.DEFAULT_ACRA_HOST, cmd.DEFAULT_ACRA_PORT, ""), "Connection string like tcp://x.x.x.x:yyyy or unix:///path/to/socket")
 	acraAPIConnectionString := flag.String("connection_api_string", network.BuildConnectionString(cmd.DEFAULT_ACRA_CONNECTION_PROTOCOL, cmd.DEFAULT_ACRA_HOST, cmd.DEFAULT_ACRA_API_PORT, ""), "Connection string for api like tcp://x.x.x.x:yyyy or unix:///path/to/socket")
+	loggingFormat := flag.String("logging_format", "", "Logging format: plaintext, json or CEF")
 
 	err := cmd.Parse(DEFAULT_CONFIG_PATH)
 	if err != nil {
@@ -70,6 +77,7 @@ func main() {
 		os.Exit(1)
 	}
 
+	logging.CustomizeLogging(*loggingFormat, SERVICE_NAME)
 	cmd.ValidateClientId(*serverId)
 
 	if *host != cmd.DEFAULT_ACRA_HOST || *port != cmd.DEFAULT_ACRA_PORT {
@@ -80,11 +88,11 @@ func main() {
 	}
 
 	if *debug {
-		cmd.SetLogLevel(cmd.LOG_DEBUG)
+		logging.SetLogLevel(logging.LOG_DEBUG)
 	} else if *verbose {
-		cmd.SetLogLevel(cmd.LOG_VERBOSE)
+		logging.SetLogLevel(logging.LOG_VERBOSE)
 	} else {
-		cmd.SetLogLevel(cmd.LOG_DISCARD)
+		logging.SetLogLevel(logging.LOG_DISCARD)
 	}
 	if *dbHost == "" {
 		log.Errorln("you must specify db_host")
@@ -106,6 +114,8 @@ func main() {
 	config.SetServerId([]byte(*serverId))
 	config.SetAcraConnectionString(*acraConnectionString)
 	config.SetAcraAPIConnectionString(*acraAPIConnectionString)
+	config.SetTLSServerCertPath(*tlsCert)
+	config.SetTLSServerKeyPath(*tlsKey)
 	config.SetWholeMatch(!(*injectedcell))
 	if *hexFormat || !*escapeFormat {
 		config.SetByteaFormat(HEX_BYTEA_FORMAT)
@@ -115,29 +125,33 @@ func main() {
 
 	keyStore, err := keystore.NewFilesystemKeyStore(*keysDir)
 	if err != nil {
-		log.Errorln(" can't initialize keystore")
+		log.Errorln("can't initialize keystore")
 		os.Exit(1)
 	}
 	if *useTls {
 		log.Println("use TLS transport wrapper")
-		cer, err := tls.LoadX509KeyPair(*tlsCert, *tlsKey)
+		tlsConfig, err := network.NewTLSConfig(*tlsSNI, *tlsCA, *tlsKey, *tlsCert)
 		if err != nil {
-			log.Println(err)
-			return
+			log.WithError(err).Errorln("can't get config for TLS")
+			os.Exit(1)
 		}
-		config.ConnectionWrapper, err = network.NewTLSConnectionWrapper(&tls.Config{Certificates: []tls.Certificate{cer}})
+		config.ConnectionWrapper, err = network.NewTLSConnectionWrapper([]byte(*clientId), tlsConfig)
 		if err != nil {
-			log.Errorln(" can't initialize tls connection wrapper")
+			log.Errorln("can't initialize tls connection wrapper")
 			os.Exit(1)
 		}
 	} else if *noEncryption {
+		if *clientId == "" && !*withZone {
+			log.Errorln("without zone mode and without encryption you must set <client_id> which will be used to connect from acraproxy to acraserver")
+			os.Exit(1)
+		}
 		log.Println("use raw transport wrapper")
-		config.ConnectionWrapper = &network.RawConnectionWrapper{ClientId: []byte(*serverId)}
+		config.ConnectionWrapper = &network.RawConnectionWrapper{ClientId: []byte(*clientId)}
 	} else {
 		log.Println("use Secure Session transport wrapper")
 		config.ConnectionWrapper, err = network.NewSecureSessionConnectionWrapper(keyStore)
 		if err != nil {
-			log.Errorln(" can't initialize secure session connection wrapper")
+			log.Errorln("can't initialize secure session connection wrapper")
 			os.Exit(1)
 		}
 	}
@@ -146,6 +160,14 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
+
+	sigHandler, err := cmd.NewSignalHandler([]os.Signal{os.Interrupt, syscall.SIGTERM})
+	if err != nil {
+		log.WithError(err).Errorln("can't register SIGINT handler")
+		os.Exit(1)
+	}
+	go sigHandler.Register()
+	sigHandler.AddCallback(func() { server.Close() })
 
 	if *debugServer {
 		//start http server for pprof
@@ -156,7 +178,7 @@ func main() {
 			}
 		}()
 	}
-	if *withZone && !*disableZoneApi {
+	if *withZone && !*disableHTTPApi {
 		go server.StartCommands()
 	}
 	server.Start()

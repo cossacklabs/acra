@@ -30,6 +30,7 @@ import (
 	log "github.com/sirupsen/logrus"
 	"os"
 	"strings"
+	"github.com/cossacklabs/acra/logging"
 )
 
 // DEFAULT_CONFIG_PATH relative path to config which will be parsed as default
@@ -140,17 +141,17 @@ func (ex *WriteToFileExecutor) Close() {
 }
 
 func main() {
-	keysDir := flag.String("keys_dir", keystore.DEFAULT_KEY_DIR_SHORT, "Folder from which will be loaded keys")
+	keysDir := flag.String("keys_dir", keystore.DEFAULT_KEY_DIR_SHORT, "Folder from which the keys will be loaded")
 	clientId := flag.String("client_id", "", "Client id should be name of file with private key")
-	connectionString := flag.String("connection_string", "", "Connection string for db (sslmode=disable parameter will be automatically added)")
+	connectionString := flag.String("connection_string", "", "Connection string for db")
 	sqlSelect := flag.String("select", "", "Query to fetch data for decryption")
 	sqlInsert := flag.String("insert", "", "Query for insert decrypted data with placeholders (pg: $n)")
-	withZone := flag.Bool("zonemode", false, "Turn on zon emode")
+	withZone := flag.Bool("zonemode", false, "Turn on zone mode")
 	outputFile := flag.String("output_file", "decrypted.sql", "File for store inserts queries")
 	execute := flag.Bool("execute", false, "Execute inserts")
 	escapeFormat := flag.Bool("escape", false, "Escape bytea format")
 
-	cmd.SetLogLevel(cmd.LOG_VERBOSE)
+	logging.SetLogLevel(logging.LOG_VERBOSE)
 
 	err := cmd.Parse(DEFAULT_CONFIG_PATH)
 	if err != nil {
@@ -164,9 +165,7 @@ func main() {
 		log.Errorln("connection_string arg is missing")
 		os.Exit(1)
 	}
-	if !strings.Contains(*connectionString, "sslmode=disable") {
-		*connectionString = fmt.Sprintf("%v sslmode=disable", *connectionString)
-	}
+
 	if *sqlSelect == "" {
 		log.Errorln("sql_select arg is missing")
 		os.Exit(1)

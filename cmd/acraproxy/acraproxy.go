@@ -16,7 +16,6 @@ package main
 import (
 	"flag"
 	"fmt"
-	log "github.com/sirupsen/logrus"
 	"io"
 	"net"
 	"os"
@@ -25,17 +24,21 @@ import (
 	"runtime"
 	"strconv"
 	"strings"
+	"syscall"
 	"time"
 
-	"crypto/tls"
+	log "github.com/sirupsen/logrus"
+
 	"github.com/cossacklabs/acra/cmd"
 	"github.com/cossacklabs/acra/keystore"
 	"github.com/cossacklabs/acra/network"
 	"github.com/cossacklabs/acra/utils"
+	"github.com/cossacklabs/acra/logging"
 )
 
 // DEFAULT_CONFIG_PATH relative path to config which will be parsed as default
-var DEFAULT_CONFIG_PATH = utils.GetConfigPathByName("acraproxy")
+var SERVICE_NAME = "acraproxy"
+var DEFAULT_CONFIG_PATH = utils.GetConfigPathByName(SERVICE_NAME)
 
 func handleClientConnection(config *Config, connection net.Conn) {
 	defer connection.Close()
@@ -80,12 +83,10 @@ func handleClientConnection(config *Config, connection net.Conn) {
 	}
 	defer acraConn.Close()
 
-	log.Infof("send client id <%v>", string(config.ClientId))
-
 	acraConn.SetDeadline(time.Now().Add(time.Second * 2))
 	acraConnWrapped, err := config.ConnectionWrapper.WrapClient(config.ClientId, acraConn)
 	if err != nil {
-		log.WithError(err).Errorln("can't wrap acra connection with secure session")
+		log.WithError(err).Errorln("can't wrap connection")
 		return
 	}
 	acraConn.SetDeadline(time.Time{})
@@ -93,7 +94,6 @@ func handleClientConnection(config *Config, connection net.Conn) {
 
 	toAcraErrCh := make(chan error)
 	fromAcraErrCh := make(chan error)
-	log.Debugln("secure session initialized")
 	go network.Proxy(connection, acraConnWrapped, toAcraErrCh)
 	go network.Proxy(acraConnWrapped, connection, fromAcraErrCh)
 	select {
@@ -135,18 +135,25 @@ func main() {
 	commandsPort := flag.Int("command_port", cmd.DEFAULT_PROXY_API_PORT, "Port for acraproxy http api")
 	withZone := flag.Bool("zonemode", false, "Turn on zone mode")
 	disableUserCheck := flag.Bool("disable_user_check", false, "Disable checking that connections from app running from another user")
-	useTls := flag.Bool("tls", false, "Use tls")
-	noEncryption := flag.Bool("no_encryption", false, "Don't use encryption in transport")
+	useTls := flag.Bool("tls", false, "Use tls to encrypt transport between acraserver and acraproxy/client")
+	tlsCA := flag.String("tls_ca", "", "Path to root certificate")
+	tlsKey := flag.String("tls_key", "", "Path to tls client's key")
+	tlsCert := flag.String("tls_cert", "", "Path to tls client's certificate")
+	tlsSNI := flag.String("tls_sni", "", "Expected Server Name (SNI)")
+	noEncryption := flag.Bool("no_encryption", false, "Use raw transport (tcp/unix socket) between acraserver and acraproxy/client (don't use this flag if you not connect to database with ssl/tls")
 	connectionString := flag.String("connection_string", network.BuildConnectionString(cmd.DEFAULT_PROXY_CONNECTION_PROTOCOL, cmd.DEFAULT_PROXY_HOST, cmd.DEFAULT_PROXY_PORT, ""), "Connection string like tcp://x.x.x.x:yyyy or unix:///path/to/socket")
 	connectionAPIString := flag.String("connection_api_string", network.BuildConnectionString(cmd.DEFAULT_PROXY_CONNECTION_PROTOCOL, cmd.DEFAULT_PROXY_HOST, cmd.DEFAULT_PROXY_API_PORT, ""), "Connection string like tcp://x.x.x.x:yyyy or unix:///path/to/socket")
 	acraConnectionString := flag.String("acra_connection_string", "", "Connection string to Acra server like tcp://x.x.x.x:yyyy or unix:///path/to/socket")
 	acraApiConnectionString := flag.String("acra_api_connection_string", "", "Connection string to Acra's API like tcp://x.x.x.x:yyyy or unix:///path/to/socket")
+	loggingFormat := flag.String("logging_format", "", "Logging format: plaintext, json or CEF")
 
 	err := cmd.Parse(DEFAULT_CONFIG_PATH)
 	if err != nil {
 		log.WithError(err).Errorln("can't parse args")
 		os.Exit(1)
 	}
+
+	logging.CustomizeLogging(*loggingFormat, SERVICE_NAME)
 
 	if *port != cmd.DEFAULT_PROXY_PORT {
 		*connectionString = network.BuildConnectionString(cmd.DEFAULT_PROXY_CONNECTION_PROTOCOL, cmd.DEFAULT_PROXY_HOST, *port, "")
@@ -196,9 +203,9 @@ func main() {
 	}
 
 	if *verbose {
-		cmd.SetLogLevel(cmd.LOG_VERBOSE)
+		logging.SetLogLevel(logging.LOG_VERBOSE)
 	} else {
-		cmd.SetLogLevel(cmd.LOG_DISCARD)
+		logging.SetLogLevel(logging.LOG_DISCARD)
 	}
 	if runtime.GOOS != "linux" {
 		*disableUserCheck = true
@@ -216,9 +223,22 @@ func main() {
 		os.Exit(1)
 	}
 	defer listener.Close()
+
+	sigHandler, err := cmd.NewSignalHandler([]os.Signal{os.Interrupt, syscall.SIGTERM})
+	if err != nil {
+		log.WithError(err).Errorln("can't register SIGINT handler")
+		os.Exit(1)
+	}
+	go sigHandler.Register()
+	sigHandler.AddListener(listener)
 	if *useTls {
 		log.Infoln("use TLS transport wrapper")
-		config.ConnectionWrapper, err = network.NewTLSConnectionWrapper(&tls.Config{InsecureSkipVerify: true})
+		tlsConfig, err := network.NewTLSConfig(*tlsSNI, *tlsCA, *tlsKey, *tlsCert)
+		if err != nil {
+			log.WithError(err).Errorln("can't get config for TLS")
+			os.Exit(1)
+		}
+		config.ConnectionWrapper, err = network.NewTLSConnectionWrapper(nil, tlsConfig)
 		if err != nil {
 			log.WithError(err).Errorln("can't initialize tls connection wrapper")
 			os.Exit(1)
@@ -246,10 +266,11 @@ func main() {
 				log.WithError(err).Errorln("can't start listen connections to http api")
 				os.Exit(1)
 			}
+			sigHandler.AddListener(commandsListener)
 			for {
 				connection, err := commandsListener.Accept()
 				if err != nil {
-					log.WithError(err).Errorf("can't accept new connection (%v)", connection.RemoteAddr())
+					log.WithError(err).Errorf("can't accept new connection")
 					continue
 				}
 				// unix socket and value == '@'

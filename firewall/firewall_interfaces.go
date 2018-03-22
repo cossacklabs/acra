@@ -17,6 +17,3 @@ type FirewallInterface interface {
 	AddHandler(handler QueryHandlerInterface)
 	RemoveHandler(handler QueryHandlerInterface)
 }
-
-
-

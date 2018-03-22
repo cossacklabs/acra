@@ -14,13 +14,14 @@
 package network
 
 import (
+	"io"
+	"net"
+
 	"github.com/cossacklabs/acra/keystore"
 	"github.com/cossacklabs/acra/utils"
 	"github.com/cossacklabs/themis/gothemis/keys"
 	"github.com/cossacklabs/themis/gothemis/session"
 	log "github.com/sirupsen/logrus"
-	"io"
-	"net"
 )
 
 type SessionCallback struct {
@@ -194,9 +195,11 @@ func (wrapper *SecureSessionConnectionWrapper) wrap(id []byte, conn net.Conn, is
 }
 
 func (wrapper *SecureSessionConnectionWrapper) WrapClient(id []byte, conn net.Conn) (net.Conn, error) {
+	log.Debugln("wrap client connection with secure session")
 	newConn, _, err := wrapper.wrap(id, conn, false)
 	return newConn, err
 }
 func (wrapper *SecureSessionConnectionWrapper) WrapServer(conn net.Conn) (net.Conn, []byte, error) {
+	log.Debugln("wrap server connection with secure session")
 	return wrapper.wrap(nil, conn, true)
 }
