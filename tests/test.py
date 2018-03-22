@@ -790,9 +790,9 @@ class TestConnectionClosing(BaseTestCase):
             # exception doesn't has any related code, only text messages
             correct_messages = [
                 'FATAL:  too many connections for role',
-                'FATAL:  sorry, too many clients already']
-            'FATAL:  remaining connection slots are reserved for non-replication superuser connections'
-        ]
+                'FATAL:  sorry, too many clients already',
+                'FATAL:  remaining connection slots are reserved for non-replication superuser connections'
+            ]
             for message in correct_messages:
                 if message in exception.args[0]:
                     is_correct_exception_message = True
