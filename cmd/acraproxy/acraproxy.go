@@ -33,10 +33,12 @@ import (
 	"github.com/cossacklabs/acra/keystore"
 	"github.com/cossacklabs/acra/network"
 	"github.com/cossacklabs/acra/utils"
+	"github.com/cossacklabs/acra/logging"
 )
 
 // DEFAULT_CONFIG_PATH relative path to config which will be parsed as default
-var DEFAULT_CONFIG_PATH = utils.GetConfigPathByName("acraproxy")
+var SERVICE_NAME = "acraproxy"
+var DEFAULT_CONFIG_PATH = utils.GetConfigPathByName(SERVICE_NAME)
 
 func handleClientConnection(config *Config, connection net.Conn) {
 	defer connection.Close()
@@ -131,7 +133,7 @@ func main() {
 	verbose := flag.Bool("v", false, "Log to stdout")
 	port := flag.Int("port", cmd.DEFAULT_PROXY_PORT, "Port fo acraproxy")
 	commandsPort := flag.Int("command_port", cmd.DEFAULT_PROXY_API_PORT, "Port for acraproxy http api")
-	withZone := flag.Bool("zonemode", false, "Turn on zone mode")
+	enableHTTPApi := flag.Bool("enable_http_api", false, "Enable HTTP API")
 	disableUserCheck := flag.Bool("disable_user_check", false, "Disable checking that connections from app running from another user")
 	useTls := flag.Bool("tls", false, "Use tls to encrypt transport between acraserver and acraproxy/client")
 	tlsCA := flag.String("tls_ca", "", "Path to root certificate")
@@ -143,12 +145,15 @@ func main() {
 	connectionAPIString := flag.String("connection_api_string", network.BuildConnectionString(cmd.DEFAULT_PROXY_CONNECTION_PROTOCOL, cmd.DEFAULT_PROXY_HOST, cmd.DEFAULT_PROXY_API_PORT, ""), "Connection string like tcp://x.x.x.x:yyyy or unix:///path/to/socket")
 	acraConnectionString := flag.String("acra_connection_string", "", "Connection string to Acra server like tcp://x.x.x.x:yyyy or unix:///path/to/socket")
 	acraApiConnectionString := flag.String("acra_api_connection_string", "", "Connection string to Acra's API like tcp://x.x.x.x:yyyy or unix:///path/to/socket")
+	loggingFormat := flag.String("logging_format", "", "Logging format: plaintext, json or CEF")
 
 	err := cmd.Parse(DEFAULT_CONFIG_PATH)
 	if err != nil {
 		log.WithError(err).Errorln("can't parse args")
 		os.Exit(1)
 	}
+
+	logging.CustomizeLogging(*loggingFormat, SERVICE_NAME)
 
 	if *port != cmd.DEFAULT_PROXY_PORT {
 		*connectionString = network.BuildConnectionString(cmd.DEFAULT_PROXY_CONNECTION_PROTOCOL, cmd.DEFAULT_PROXY_HOST, *port, "")
@@ -164,7 +169,7 @@ func main() {
 	if *acraHost != "" {
 		*acraConnectionString = network.BuildConnectionString(cmd.DEFAULT_ACRA_CONNECTION_PROTOCOL, *acraHost, *acraPort, "")
 	}
-	if *withZone {
+	if *enableHTTPApi {
 		if *acraHost == "" && *acraApiConnectionString == "" {
 			log.Errorln("you must pass acra_host or acra_api_connection_string parameter")
 			os.Exit(1)
@@ -198,9 +203,9 @@ func main() {
 	}
 
 	if *verbose {
-		cmd.SetLogLevel(cmd.LOG_VERBOSE)
+		logging.SetLogLevel(logging.LOG_VERBOSE)
 	} else {
-		cmd.SetLogLevel(cmd.LOG_DISCARD)
+		logging.SetLogLevel(logging.LOG_DISCARD)
 	}
 	if runtime.GOOS != "linux" {
 		*disableUserCheck = true
@@ -249,7 +254,7 @@ func main() {
 			os.Exit(1)
 		}
 	}
-	if *withZone {
+	if *enableHTTPApi {
 		go func() {
 			// copy config and replace ports
 			commandsConfig := *config

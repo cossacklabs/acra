@@ -33,6 +33,7 @@ import (
 	_ "github.com/go-sql-driver/mysql"
 	_ "github.com/lib/pq"
 	log "github.com/sirupsen/logrus"
+	"github.com/cossacklabs/acra/logging"
 )
 
 // DEFAULT_CONFIG_PATH relative path to config which will be parsed as default
@@ -161,7 +162,7 @@ func main() {
 	useMysql := flag.Bool("mysql", false, "Handle MySQL connections")
 	usePostgresql := flag.Bool("postgresql", false, "Handle Postgresql connections")
 
-	cmd.SetLogLevel(cmd.LOG_VERBOSE)
+	logging.SetLogLevel(logging.LOG_VERBOSE)
 
 	err := cmd.Parse(DEFAULT_CONFIG_PATH)
 	if err != nil {

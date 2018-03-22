@@ -64,7 +64,7 @@ CONNECTION_FAIL_SLEEP = 0.1
 SOCKET_CONNECT_TIMEOUT = 10
 KILL_WAIT_TIMEOUT = 10
 
-TEST_WITH_TLS = os.environ.get('TEST_TLS', 'on').lower() == 'on'
+TEST_WITH_TLS = os.environ.get('TEST_TLS', 'off').lower() == 'on'
 
 PG_UNIX_HOST = '/tmp'
 
@@ -277,7 +277,7 @@ class BaseTestCase(unittest.TestCase):
     DB_BYTEA = 'hex'
     WHOLECELL_MODE = False
     ZONE = False
-    DEBUG_LOG = True
+    DEBUG_LOG = False
     TEST_DATA_LOG = False
     TLS_ON = False
     maxDiff = None
@@ -332,7 +332,7 @@ class BaseTestCase(unittest.TestCase):
         if self.DEBUG_LOG:
             args.append('-v=true')
         if zone_mode:
-            args.append('--zonemode=true')
+            args.append('--enable_http_api=true')
         if self.TLS_ON:
             args.append('--tls')
             args.append('--tls_ca=tests/server.crt')
@@ -390,7 +390,7 @@ class BaseTestCase(unittest.TestCase):
             'injectedcell': 'false' if self.WHOLECELL_MODE else 'true',
             'd': 'true' if self.DEBUG_LOG else 'false',
             'zonemode': 'true' if self.ZONE else 'false',
-            'disable_http_api': 'false' if self.ZONE else 'true',
+            'enable_http_api': 'true' if self.ZONE else 'true',
         }
         if self.TLS_ON:
             args['tls'] = 'true'
@@ -791,6 +791,8 @@ class TestConnectionClosing(BaseTestCase):
             correct_messages = [
                 'FATAL:  too many connections for role',
                 'FATAL:  sorry, too many clients already']
+            'FATAL:  remaining connection slots are reserved for non-replication superuser connections'
+        ]
             for message in correct_messages:
                 if message in exception.args[0]:
                     is_correct_exception_message = True
@@ -1153,7 +1155,7 @@ class TestKeyStorageClearing(BaseTestCase):
                 zone_mode=True)
             if not self.EXTERNAL_ACRA:
                 self.acra = self.fork_acra(
-                    zonemode='true', disable_http_api='false')
+                    zonemode='true', enable_http_api='true')
 
             self.engine1 = sa.create_engine(
                 get_unix_connection_string(self.PROXY_PORT_1, self.DB_NAME),
@@ -1215,7 +1217,7 @@ class TestAcraRollback(BaseTestCase):
 
         self.output_filename = 'acra_rollback_output.txt'
         rollback_output_table.create(self.engine_raw, checkfirst=True)
-        if self.TLS_ON:
+        if TEST_WITH_TLS:
             self.sslmode='require'
         else:
             self.sslmode='disable'

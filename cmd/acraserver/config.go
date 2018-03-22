@@ -36,6 +36,7 @@ type Config struct {
 	scriptOnPoison          string
 	stopOnPoison            bool
 	withZone                bool
+	withAPI                 bool
 	wholeMatch              bool
 	serverId                []byte
 	acraConnectionString    string
@@ -45,11 +46,11 @@ type Config struct {
 	ConnectionWrapper       network.ConnectionWrapper
 	mysql                   bool
 	postgresql              bool
+	configPath              string
+	debug                   bool
 }
 
 type UIEditableConfig struct {
-	ProxyHost         string `json:"host"`
-	ProxyPort         int    `json:"port"`
 	DbHost            string `json:"db_host"`
 	DbPort            int    `json:"db_port"`
 	ProxyCommandsPort int    `json:"commands_port"`
@@ -121,11 +122,23 @@ func (config *Config) SetStopOnPoison(stop bool) {
 func (config *Config) GetStopOnPoison() bool {
 	return config.stopOnPoison
 }
+func (config *Config) SetDebug(value bool) {
+	config.debug = value
+}
+func (config *Config) GetDebug() bool {
+	return config.debug
+}
 func (config *Config) GetWithZone() bool {
 	return config.withZone
 }
 func (config *Config) SetWithZone(wz bool) {
 	config.withZone = wz
+}
+func (config *Config) SetEnableHTTPApi(api bool) {
+	config.withAPI = api
+}
+func (config *Config) GetEnableHTTPApi() bool {
+	return config.withAPI
 }
 func (config *Config) GetProxyHost() string {
 	return config.proxyHost
@@ -192,14 +205,19 @@ func (config *Config) GetWholeMatch() bool {
 func (config *Config) SetWholeMatch(value bool) {
 	config.wholeMatch = value
 }
+func (config *Config) GetConfigPath() string {
+	return config.configPath
+}
+func (config *Config) SetConfigPath(value string) {
+	config.configPath = value
+}
 
 func (config *Config) ToJson() ([]byte, error) {
 	var s UIEditableConfig
-	s.ProxyHost = config.GetProxyHost()
-	s.ProxyPort = config.GetProxyPort()
 	s.DbHost = config.GetDBHost()
 	s.DbPort = config.GetDBPort()
 	s.ProxyCommandsPort = config.GetProxyCommandsPort()
+	s.Debug = config.GetDebug()
 	s.ScriptOnPoison = config.GetScriptOnPoison()
 	s.StopOnPoison = config.GetStopOnPoison()
 	s.WithZone = config.GetWithZone()

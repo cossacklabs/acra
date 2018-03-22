@@ -20,6 +20,7 @@ import (
 	"github.com/cossacklabs/acra/utils"
 	log "github.com/sirupsen/logrus"
 	"os"
+	"github.com/cossacklabs/acra/logging"
 )
 
 // DEFAULT_CONFIG_PATH relative path to config which will be parsed as default
@@ -32,7 +33,7 @@ func main() {
 	dataKeys := flag.Bool("storage", false, "Create keypair for data encryption/decryption")
 	outputDir := flag.String("output", keystore.DEFAULT_KEY_DIR_SHORT, "Folder where will be saved keys")
 
-	cmd.SetLogLevel(cmd.LOG_VERBOSE)
+	logging.SetLogLevel(logging.LOG_VERBOSE)
 
 	err := cmd.Parse(DEFAULT_CONFIG_PATH)
 	if err != nil {

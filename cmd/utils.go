@@ -22,12 +22,6 @@ var (
 	dumpconfig = flag_.Bool("dumpconfig", false, "dump config")
 )
 
-const (
-	LOG_DEBUG = iota
-	LOG_VERBOSE
-	LOG_DISCARD
-)
-
 func init() {
 	// override default usage message by ours
 	flag_.CommandLine.Usage = PrintDefaults
@@ -47,6 +41,10 @@ func NewSignalHandler(handledSignals []os.Signal) (*SignalHandler, error) {
 
 func (handler *SignalHandler) AddListener(listener net.Listener) {
 	handler.listeners = append(handler.listeners, listener)
+}
+
+func (handler *SignalHandler) GetChannel() (chan os.Signal) {
+	return handler.ch
 }
 
 func (handler *SignalHandler) AddCallback(callback SignalCallback) {
@@ -141,16 +139,55 @@ func PrintDefaults() {
 	})
 }
 
-func GenerateYaml(output io.Writer) {
+func GenerateYaml(output io.Writer, useDefault bool) {
 	flag_.CommandLine.VisitAll(func(flag *flag_.Flag) {
-		s := fmt.Sprintf("# %v\n%v: %v\n", flag.Usage, flag.Name, flag.DefValue)
+		var s string
+		if useDefault {
+			s = fmt.Sprintf("# %v\n%v: %v\n", flag.Usage, flag.Name, flag.DefValue)
+		} else {
+			s = fmt.Sprintf("# %v\n%v: %v\n", flag.Usage, flag.Name, flag.Value)
+		}
 		fmt.Fprint(output, s, "\n")
 	})
 }
 
+func DumpConfig(configPath string, useDefault bool) error {
+	var absPath string
+	var err error
+
+	if *config == "" {
+		absPath, err = utils.AbsPath(configPath)
+		if err != nil {
+			return err
+		}
+	} else {
+		absPath, err = utils.AbsPath(*config)
+		if err != nil {
+			return err
+		}
+	}
+
+	dirPath := filepath.Dir(absPath)
+	err = os.MkdirAll(dirPath, 0744)
+	if err != nil {
+		return err
+	}
+
+	file, err := os.Create(absPath)
+	if err != nil {
+		return err
+	}
+	defer file.Close()
+
+	GenerateYaml(file, useDefault)
+	log.Infof("Config dumped to %s", configPath)
+	return nil
+}
+
 func Parse(configPath string) error {
 	/*load from yaml config and cli. if dumpconfig option pass than generate config and exit*/
-
+	log.Info("Parsing config")
+	log.Infof("ConfigPath: %v", configPath)
 	// first parse using bultin flag
 	err := flag_.CommandLine.Parse(os.Args[1:])
 	if err != nil {
@@ -163,6 +200,7 @@ func Parse(configPath string) error {
 	var args []string
 	// parse yaml and add params that wasn't passed from cli
 	if configPath != "" {
+
 		configPath, err := utils.AbsPath(configPath)
 		if err != nil {
 			return err
@@ -200,50 +238,14 @@ func Parse(configPath string) error {
 		}
 	}
 	// set options from config that wasn't set by cli
+	log.Infoln(args)
 	err = flag_.CommandLine.Parse(args)
 	if err != nil {
 		return err
 	}
 	if *dumpconfig {
-		var absPath string
-		if *config == "" {
-			absPath, err = utils.AbsPath(configPath)
-			if err != nil {
-				return err
-			}
-		} else {
-			absPath, err = utils.AbsPath(*config)
-			if err != nil {
-				return err
-			}
-		}
-
-		dirPath := filepath.Dir(absPath)
-		err = os.MkdirAll(dirPath, 0744)
-		if err != nil {
-			return err
-		}
-
-		file, err := os.Create(absPath)
-		if err != nil {
-			return err
-		}
-		defer file.Close()
-
-		GenerateYaml(file)
+		DumpConfig(configPath, true)
 		os.Exit(0)
 	}
 	return nil
-}
-
-func SetLogLevel(level int) {
-	if level == LOG_DEBUG {
-		log.SetLevel(log.DebugLevel)
-	} else if level == LOG_VERBOSE {
-		log.SetLevel(log.InfoLevel)
-	} else if level == LOG_DISCARD {
-		log.SetLevel(log.WarnLevel)
-	} else {
-		panic(fmt.Sprintf("Incorrect log level - %v", level))
-	}
 }
