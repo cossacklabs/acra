@@ -15,6 +15,7 @@ jobs:
           MYSQL_DATABASE: test
           MYSQL_USER: test
           MYSQL_PASSWORD: test
+          MYSQL_ROOT_PASSWORD: root
     environment:
       GOTHEMIS_IMPORT: github.com/cossacklabs/themis/gothemis
       FILEPATH_ERROR_FLAG: /tmp/test_fail
