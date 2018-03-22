@@ -1,27 +1,30 @@
-FROM golang
-RUN apt-get update && apt-get install -y libssl-dev
+ARG VCS_REF
+FROM cossacklabs/acra-build:${VCS_REF} as acra-build
 
-# install themis
-RUN git clone https://github.com/cossacklabs/themis.git /themis
-WORKDIR /themis
-RUN make install && ldconfig
-RUN rm -rf /themis
-
-WORKDIR /go
-ENV GOPATH /go
-
-# build acraserver
-RUN go get github.com/cossacklabs/acra/...
-RUN go build github.com/cossacklabs/acra/cmd/acraserver
-RUN go build github.com/cossacklabs/acra/cmd/acra_addzone
-RUN go build github.com/cossacklabs/acra/cmd/acra_genpoisonrecord
-RUN go build github.com/cossacklabs/acra/cmd/acra_rollback
-RUN go build github.com/cossacklabs/acra/cmd/acra_genkeys
-
+FROM scratch
+ARG VERSION
+ARG VCS_URL
+ARG VCS_REF
+ARG VCS_BRANCH
+ARG BUILD_DATE
+LABEL org.label-schema.schema-version="1.0" \
+    org.label-schema.vendor="Cossack Labs" \
+    org.label-schema.url="https://cossacklabs.com" \
+    org.label-schema.name="Acra server" \
+    org.label-schema.description="Acra helps you easily secure your databases in distributed, microservice-rich environments" \
+    org.label-schema.version=$VERSION \
+    org.label-schema.vcs-url=$VCS_URL \
+    org.label-schema.vcs-ref=$VCS_REF \
+    org.label-schema.build-date=$BUILD_DATE \
+    com.cossacklabs.product.name="acra" \
+    com.cossacklabs.product.version=$VERSION \
+    com.cossacklabs.product.vcs-ref=$VCS_REF \
+    com.cossacklabs.product.vcs-branch=$VCS_BRANCH \
+    com.cossacklabs.product.component="acraserver" \
+    com.cossacklabs.docker.container.build-date=$BUILD_DATE \
+    com.cossacklabs.docker.container.type="product"
+COPY --from=acra-build /container.acraserver/ /
 VOLUME ["/keys"]
-ENTRYPOINT ["acraserver", "--db_host=postgresql_link", "-v", "--keys_dir=/keys"]
-
-# acra server port
-EXPOSE 9393
-# acra http api port
-EXPOSE 9090
+EXPOSE 9090 9393
+ENTRYPOINT ["/acraserver"]
+CMD ["--db_host=postgresql_link", "-v", "--keys_dir=/keys"]
