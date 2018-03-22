@@ -14,18 +14,18 @@
 package main
 
 import (
-	"net"
-	"github.com/cossacklabs/acra/decryptor/mysql"
-	"github.com/cossacklabs/acra/network"
-	log "github.com/sirupsen/logrus"
 	"github.com/cossacklabs/acra/decryptor/base"
+	"github.com/cossacklabs/acra/decryptor/mysql"
 	pg "github.com/cossacklabs/acra/decryptor/postgresql"
 	"github.com/cossacklabs/acra/keystore"
+	"github.com/cossacklabs/acra/network"
 	"github.com/cossacklabs/acra/zone"
-	"os"
-	"time"
-	"syscall"
+	log "github.com/sirupsen/logrus"
+	"net"
 	url_ "net/url"
+	"os"
+	"syscall"
+	"time"
 )
 
 type SServer struct {
@@ -151,9 +151,6 @@ func (server *SServer) handleConnection(connection net.Conn) {
 	clientSession.connection = wrappedConnection
 	decryptor := server.getDecryptor(clientId)
 	clientSession.HandleSecureSession(decryptor)
-}
-
-func (server *SServer) handleMysqlConnection(connection net.Conn) {
 }
 
 // start listening connections from proxy

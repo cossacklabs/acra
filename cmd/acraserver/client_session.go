@@ -34,7 +34,7 @@ type ClientSession struct {
 	keystorage     keystore.KeyStore
 	connection     net.Conn
 	connectionToDb net.Conn
-	Server *SServer
+	Server         *SServer
 }
 
 func NewClientSession(keystorage keystore.KeyStore, config *Config, connection net.Conn) (*ClientSession, error) {
@@ -97,7 +97,6 @@ func (clientSession *ClientSession) HandleSecureSession(decryptorImpl base.Decry
 			log.WithError(err).Errorln("can't initialize mysql handler")
 			return
 		}
-		//go handler.MysqlDecryptStream(decryptorImpl, clientSession.connectionToDb, clientSession.connection, innerErrorChannel)
 		go handler.ClientToDbProxy(decryptorImpl, clientSession.connectionToDb, clientSession.connection, innerErrorChannel)
 		go handler.DbToClientProxy(decryptorImpl, clientSession.connectionToDb, clientSession.connection, innerErrorChannel)
 	} else {
