@@ -179,7 +179,7 @@ func main() {
 		PLACEHOLDER = "?"
 	}
 
-	dbDriverName := "postgresql"
+	dbDriverName := "postgres"
 	if *useMysql {
 		// https://github.com/ziutek/mymysql
 		//dbDriverName = "mymysql"
