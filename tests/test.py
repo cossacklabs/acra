@@ -236,6 +236,7 @@ class BaseTestCase(unittest.TestCase):
     DB_HOST = os.environ.get('TEST_DB_HOST', '127.0.0.1')
     DB_NAME = os.environ.get('TEST_DB_NAME', 'postgres')
     DB_PORT = os.environ.get('TEST_DB_PORT', 5432)
+    DEBUG_LOG = os.environ.get('DEBUG_LOG', False)
 
     PROXY_PORT_1 = int(os.environ.get('TEST_PROXY_PORT', 9595))
     PROXY_PORT_2 = PROXY_PORT_1 + 200
@@ -247,7 +248,6 @@ class BaseTestCase(unittest.TestCase):
     DB_BYTEA = 'hex'
     WHOLECELL_MODE = False
     ZONE = False
-    DEBUG_LOG = False
     TEST_DATA_LOG = False
     TLS_ON = False
     maxDiff = None
