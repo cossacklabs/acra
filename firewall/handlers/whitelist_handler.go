@@ -73,8 +73,6 @@ func(handler * WhitelistHandler) CheckQuery(query string) error {
 		}
 	}
 	return nil
-
-	return nil
 }
 
 func(handler * WhitelistHandler) AddQueries(queries []string) {
@@ -210,11 +208,6 @@ func (handler *WhitelistHandler) isDangerousSelect(selectQuery string, allowedWh
 
 func (handler *WhitelistHandler) isAllowedTableAccess(tablesToEvaluate sqlparser.TableExprs, allowedTables sqlparser.TableExprs) bool {
 
-	//fmt.Print("allowed tables")
-	//fmt.Println(allowedTables)
-	//fmt.Print("tables to evaluate")
-	//fmt.Println(tablesToEvaluate)
-
 	accessOnlyToAllowedTables := true
 
 	for _, tableToEvaluate := range tablesToEvaluate {
@@ -224,8 +217,6 @@ func (handler *WhitelistHandler) isAllowedTableAccess(tablesToEvaluate sqlparser
 			}
 		}
 	}
-
-	//fmt.Println(accessOnlyToAllowedTables)
 
 	return accessOnlyToAllowedTables
 }
