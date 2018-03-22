@@ -76,6 +76,8 @@ func TestWhitelistFirewall(t *testing.T) {
 	}
 
 	testWhitelistTables(t, firewall, whitelistHandler)
+	testWhitelistByRules(t, firewall, whitelistHandler)
+
 }
 func testWhitelistTables(t *testing.T, firewall * Firewall, whitelistHandler * handlers.WhitelistHandler){
 
@@ -141,6 +143,57 @@ func testWhitelistTables(t *testing.T, firewall * Firewall, whitelistHandler * h
 		t.Fatal(err)
 	}
 }
+func testWhitelistByRules(t *testing.T, firewall * Firewall, whitelistHandler * handlers.WhitelistHandler){
+	whitelistHandler.Refresh()
+
+	testQueries := []string {
+		"SELECT EMP_ID, LAST_NAME FROM EMPLOYEE_TBL WHERE CITY = 'Seattle' ORDER BY EMP_ID;",
+		"SELECT EMP_ID, LAST_NAME FROM EMPLOYEE WHERE CITY = 'Seattle' ORDER BY EMP_ID;",
+		"SELECT EMP_ID, LAST_NAME FROM EMPLOYEE, EMPLOYEE_TBL WHERE CITY = 'Seattle' ORDER BY EMP_ID;",
+		"SELECT EMP_ID, LAST_NAME FROM EMPLOYEE WHERE CITY = 'INDIANAPOLIS' ORDER BY EMP_ID asc;",
+		"SELECT EMP_ID, LAST_NAME FROM EMPLOYEE_TBL AS EMPL_TBL WHERE CITY = 'Seattle' ORDER BY EMP_ID;",
+		"SELECT EMP_ID, LAST_NAME FROM EMPLOYEE_TBL WHERE CITY = 'INDIANAPOLIS' ORDER BY EMP_ID asc;",
+	}
+
+	//firewall should block all queries except accessing to any information but only in table EMPLOYEE_TBL and related only to Seattle city [1,2,3]
+	testSecurityRules := []string {
+		"SELECT * FROM EMPLOYEE_TBL WHERE CITY='Seattle'",
+	}
+
+	queryIndexesToBlock := []int{1, 2, 3, 5}
+	whitelistHandler.AddRules(testSecurityRules)
+	//firewall should block those queries
+	for _, i := range queryIndexesToBlock {
+		err := firewall.HandleQuery(testQueries[i])
+		if err != nil {
+			if err != handlers.ErrForbiddenSqlStructure {
+				t.Fatal(err)
+			}
+		} else {
+			t.Fatal(err)
+		}
+	}
+
+	queryIndexesToPass := []int{0, 4}
+	//firewall should not block those queries
+	for _, i := range queryIndexesToPass {
+		err := firewall.HandleQuery(testQueries[i])
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	whitelistHandler.RemoveRules(testSecurityRules)
+	//firewall should not block all queries
+	for _, query := range testQueries {
+		err := firewall.HandleQuery(query)
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+}
+
+
 
 func TestBlacklistFirewall(t *testing.T) {
 	sqlSelectQueries := []string {
