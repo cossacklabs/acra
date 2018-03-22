@@ -1,6 +1,15 @@
 package handlers
 
-import "strings"
+import (
+	"strings"
+	"errors"
+)
+
+var ErrQueryNotInWhitelist = errors.New("query not in whitelist")
+var ErrQueryInBlacklist = errors.New("query in blacklist")
+var ErrAccessToForbiddenTable = errors.New("query tries to access forbidden table")
+var ErrForbiddenSqlStructure = errors.New("query's structure is forbidden")
+
 
 func removeDuplicates(input []string) []string {
 

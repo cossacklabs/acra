@@ -13,8 +13,6 @@ type WhitelistHandler struct {
 	rules         [] string
 }
 
-var ErrQueryNotInWhitelist = errors.New("query not in whitelist")
-
 func(handler * WhitelistHandler) CheckQuery(query string) error {
 
 	//Check queries

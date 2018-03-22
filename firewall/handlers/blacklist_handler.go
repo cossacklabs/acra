@@ -13,11 +13,6 @@ type BlacklistHandler struct {
 	rules   [] string
 }
 
-var ErrQueryInBlacklist = errors.New("query in blacklist")
-var ErrAccessToForbiddenTable = errors.New("query tries to access forbidden table")
-var ErrForbiddenSqlStructure = errors.New("query's structure is forbidden")
-
-
 func(handler * BlacklistHandler) CheckQuery(query string) error {
 
 	//Check queries

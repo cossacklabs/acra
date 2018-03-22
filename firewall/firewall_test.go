@@ -65,13 +65,21 @@ func TestWhitelistFirewall(t *testing.T) {
 
 	//firewall should block this query because it is not in whitelist
 	err = firewall.HandleQuery("SELECT * FROM Schema.views;")
-	if err == nil {
+	if err != nil {
+		if err != handlers.ErrQueryNotInWhitelist{
+			t.Fatal(err)
+		}
+	} else {
 		t.Fatal(err)
 	}
 
 	//ditto
 	err = firewall.HandleQuery("INSERT INTO SalesStaff1 VALUES (1, 'Stephen', 'Jiang');")
-	if err == nil {
+	if err != nil {
+		if err != handlers.ErrQueryNotInWhitelist{
+			t.Fatal(err)
+		}
+	} else {
 		t.Fatal(err)
 	}
 
@@ -100,7 +108,11 @@ func testWhitelistTables(t *testing.T, firewall * Firewall, whitelistHandler * h
 	//firewall should block those queries
 	for _, i := range queryIndexesToBlock {
 		err := firewall.HandleQuery(testQueries[i])
-		if err == nil {
+		if err != nil {
+			if err != handlers.ErrAccessToForbiddenTable{
+				t.Fatal(err)
+			}
+		} else {
 			t.Fatal(err)
 		}
 	}
@@ -131,7 +143,13 @@ func testWhitelistTables(t *testing.T, firewall * Firewall, whitelistHandler * h
 
 	//firewall should block this query
 	if err == nil {
-		t.Fatal(err)
+		if err != nil {
+			if err != handlers.ErrAccessToForbiddenTable{
+				t.Fatal(err)
+			}
+		} else {
+			t.Fatal(err)
+		}
 	}
 
 	whitelistHandler.AddTables([]string{"CUSTOMERS"})
@@ -260,8 +278,12 @@ func TestBlacklistFirewall(t *testing.T) {
 	blacklistHandler.AddQueries([]string{testQuery})
 
 	err = firewall.HandleQuery(testQuery)
-	//firewall should block this query by throwing error
-	if err == nil {
+	//firewall should block this query because it's in blacklist
+	if err != nil {
+		if err != handlers.ErrQueryInBlacklist{
+			t.Fatal(err)
+		}
+	} else {
 		t.Fatal(err)
 	}
 
@@ -275,9 +297,14 @@ func TestBlacklistFirewall(t *testing.T) {
 
 	//again set our firewall to use blacklist for query evaluating
 	firewall.AddHandler(blacklistHandler)
+	err = firewall.HandleQuery(testQuery)
 
-	//now firewall should block testQuery by throwing error
+	//now firewall should block testQuery because it's in blacklist
 	if err != nil {
+		if err != handlers.ErrQueryInBlacklist{
+			t.Fatal(err)
+		}
+	} else {
 		t.Fatal(err)
 	}
 
@@ -313,7 +340,11 @@ func testBlacklistTables(t *testing.T, firewall * Firewall, blacklistHandler * h
 	queryIndexesToBlock := []int {0, 2, 4, 5, 6}
 	for _, i := range queryIndexesToBlock {
 		err := firewall.HandleQuery(testQueries[i])
-		if err == nil {
+		if err != nil {
+			if err != handlers.ErrAccessToForbiddenTable{
+				t.Fatal(err)
+			}
+		} else {
 			t.Fatal(err)
 		}
 	}
