@@ -124,13 +124,16 @@ type Config struct {
 }
 
 func main() {
+	loggingFormat := flag.String("logging_format", "json", "Logging format: plaintext, json or CEF")
+	logging.CustomizeLogging(*loggingFormat, SERVICE_NAME)
+
 	keysDir := flag.String("keys_dir", keystore.DEFAULT_KEY_DIR_SHORT, "Folder from which will be loaded keys")
 	clientId := flag.String("client_id", "", "Client id")
 	acraHost := flag.String("acra_host", "", "IP or domain to acra daemon")
 	acraCommandsPort := flag.Int("acra_commands_port", cmd.DEFAULT_ACRA_API_PORT, "Port of acra http api")
 	acraPort := flag.Int("acra_port", cmd.DEFAULT_ACRA_PORT, "Port of acra daemon")
 	acraId := flag.String("acra_id", "acra_server", "Expected id from acraserver for Secure Session")
-	verbose := flag.Bool("v", false, "Log to stdout")
+	verbose := flag.Bool("v", false, "Log to stderr")
 	port := flag.Int("port", cmd.DEFAULT_PROXY_PORT, "Port fo acraproxy")
 	commandsPort := flag.Int("command_port", cmd.DEFAULT_PROXY_API_PORT, "Port for acraproxy http api")
 	enableHTTPApi := flag.Bool("enable_http_api", false, "Enable HTTP API")
@@ -145,7 +148,6 @@ func main() {
 	connectionAPIString := flag.String("connection_api_string", network.BuildConnectionString(cmd.DEFAULT_PROXY_CONNECTION_PROTOCOL, cmd.DEFAULT_PROXY_HOST, cmd.DEFAULT_PROXY_API_PORT, ""), "Connection string like tcp://x.x.x.x:yyyy or unix:///path/to/socket")
 	acraConnectionString := flag.String("acra_connection_string", "", "Connection string to Acra server like tcp://x.x.x.x:yyyy or unix:///path/to/socket")
 	acraApiConnectionString := flag.String("acra_api_connection_string", "", "Connection string to Acra's API like tcp://x.x.x.x:yyyy or unix:///path/to/socket")
-	loggingFormat := flag.String("logging_format", "", "Logging format: plaintext, json or CEF")
 
 	err := cmd.Parse(DEFAULT_CONFIG_PATH)
 	if err != nil {
@@ -153,6 +155,7 @@ func main() {
 		os.Exit(1)
 	}
 
+	// if log format was overridden
 	logging.CustomizeLogging(*loggingFormat, SERVICE_NAME)
 
 	if *port != cmd.DEFAULT_PROXY_PORT {

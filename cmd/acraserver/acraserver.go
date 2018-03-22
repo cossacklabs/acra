@@ -29,22 +29,26 @@ import (
 	"errors"
 )
 
-// DEFAULT_CONFIG_PATH relative path to config which will be parsed as default
 var restartSignalsChannel chan os.Signal
 var errorSignalChannel chan os.Signal
-var err error
+var err error // unused?
 
 const (
 	ACRASERVER_WAIT_TIMEOUT = 10
 	GRACEFUL_ENV            = "GRACEFUL_RESTART"
 	DESCRIPTOR_ACRA         = 3
 	DESCRIPTOR_API          = 4
+	SERVICE_NAME = "acraserver"
 )
-var SERVICE_NAME = "acraserver"
+
+// DEFAULT_CONFIG_PATH relative path to config which will be parsed as default
 var DEFAULT_CONFIG_PATH = utils.GetConfigPathByName(SERVICE_NAME)
 var ErrWaitTimeout = errors.New("timeout")
 
 func main() {
+	loggingFormat := flag.String("logging_format", "json", "Logging format: plaintext, json or CEF")
+	logging.CustomizeLogging(*loggingFormat, SERVICE_NAME)
+
 	dbHost := flag.String("db_host", "", "Host to db")
 	dbPort := flag.Int("db_port", 5432, "Port to db")
 
@@ -59,7 +63,7 @@ func main() {
 
 	serverId := flag.String("server_id", "acra_server", "Id that will be sent in secure session")
 
-	verbose := flag.Bool("v", false, "Log to stdout")
+	verbose := flag.Bool("v", false, "Log to stderr")
 	flag.Bool("wholecell", true, "Acrastruct will stored in whole data cell")
 	injectedcell := flag.Bool("injectedcell", false, "Acrastruct may be injected into any place of data cell")
 
@@ -81,7 +85,6 @@ func main() {
 	clientId := flag.String("client_id", "", "Expected client id of acraproxy in mode without encryption")
 	acraConnectionString := flag.String("connection_string", network.BuildConnectionString(cmd.DEFAULT_ACRA_CONNECTION_PROTOCOL, cmd.DEFAULT_ACRA_HOST, cmd.DEFAULT_ACRA_PORT, ""), "Connection string like tcp://x.x.x.x:yyyy or unix:///path/to/socket")
 	acraAPIConnectionString := flag.String("connection_api_string", network.BuildConnectionString(cmd.DEFAULT_ACRA_CONNECTION_PROTOCOL, cmd.DEFAULT_ACRA_HOST, cmd.DEFAULT_ACRA_API_PORT, ""), "Connection string for api like tcp://x.x.x.x:yyyy or unix:///path/to/socket")
-	loggingFormat := flag.String("logging_format", "", "Logging format: plaintext, json or CEF")
 
 	err := cmd.Parse(DEFAULT_CONFIG_PATH)
 	if err != nil {
@@ -89,7 +92,10 @@ func main() {
 		os.Exit(1)
 	}
 
+	// if log format was overridden
 	logging.CustomizeLogging(*loggingFormat, SERVICE_NAME)
+
+	log.Infof("Reading service configuration")
 	cmd.ValidateClientId(*serverId)
 
 	if *host != cmd.DEFAULT_ACRA_HOST || *port != cmd.DEFAULT_ACRA_PORT {
