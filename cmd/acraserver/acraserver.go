@@ -17,6 +17,8 @@ import (
 	"errors"
 	"flag"
 	"github.com/cossacklabs/acra/cmd"
+	"github.com/cossacklabs/acra/firewall"
+	"github.com/cossacklabs/acra/firewall/handlers"
 	"github.com/cossacklabs/acra/keystore"
 	"github.com/cossacklabs/acra/logging"
 	"github.com/cossacklabs/acra/network"
@@ -146,6 +148,11 @@ func main() {
 	config.SetEnableHTTPApi(*enableHTTPApi)
 	config.SetConfigPath(DEFAULT_CONFIG_PATH)
 	config.SetDebug(*debug)
+	queriesFirewall := &firewall.Firewall{}
+	blacklistHandler := &handlers.BlacklistHandler{}
+	blacklistHandler.AddQueries([]string{"select * from test"})
+	queriesFirewall.AddHandler(blacklistHandler)
+	config.SetFirewall(queriesFirewall)
 	if *hexFormat || !*escapeFormat {
 		config.SetByteaFormat(HEX_BYTEA_FORMAT)
 	} else {

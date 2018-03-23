@@ -14,6 +14,12 @@
 package main
 
 import (
+	"net"
+	url_ "net/url"
+	"os"
+	"syscall"
+	"time"
+
 	"github.com/cossacklabs/acra/decryptor/base"
 	"github.com/cossacklabs/acra/decryptor/mysql"
 	pg "github.com/cossacklabs/acra/decryptor/postgresql"
@@ -21,11 +27,6 @@ import (
 	"github.com/cossacklabs/acra/network"
 	"github.com/cossacklabs/acra/zone"
 	log "github.com/sirupsen/logrus"
-	"net"
-	url_ "net/url"
-	"os"
-	"syscall"
-	"time"
 )
 
 type SServer struct {

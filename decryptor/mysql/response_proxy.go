@@ -7,6 +7,7 @@ import (
 	"net"
 
 	"github.com/cossacklabs/acra/decryptor/base"
+	"github.com/cossacklabs/acra/firewall"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -123,10 +124,11 @@ type MysqlHandler struct {
 	clientProtocol41     bool
 	serverProtocol41     bool
 	decryptor            base.Decryptor
+	firewall             firewall.FirewallInterface
 }
 
-func NewMysqlHandler(decryptor base.Decryptor) (*MysqlHandler, error) {
-	return &MysqlHandler{decryptor: decryptor, responseHandler: defaultResponseHandler}, nil
+func NewMysqlHandler(decryptor base.Decryptor, firewall firewall.FirewallInterface) (*MysqlHandler, error) {
+	return &MysqlHandler{decryptor: decryptor, responseHandler: defaultResponseHandler, firewall: firewall}, nil
 }
 
 func (handler *MysqlHandler) setQueryHandler(callback ResponseHandler) {
@@ -173,6 +175,15 @@ func (handler *MysqlHandler) ClientToDbProxy(decryptor base.Decryptor, dbConnect
 			return
 		case COM_QUERY:
 			sqlQuery := string(data)
+			if err := handler.firewall.HandleQuery(sqlQuery); err != nil {
+				log.WithError(err).Errorln("error on firewall check")
+				errPacket := NewError(handler.clientProtocol41)
+				packet.SetData(errPacket)
+				if _, err := clientConnection.Write(packet.Dump()); err != nil {
+					log.WithError(err).Errorln("can't write response with error to client")
+				}
+				continue
+			}
 			clientLog.WithField("sql", sqlQuery).Debugln("com_query")
 			handler.setQueryHandler(handler.QueryResponseHandler)
 			break
