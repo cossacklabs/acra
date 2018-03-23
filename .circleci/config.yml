@@ -6,12 +6,23 @@ jobs:
       # postgresql image with ssl support
       - image: nimbustech/postgres-ssl:9.5
         environment:
-          POSTGRES_PASSWORD: postgres
-          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: test
+          POSTGRES_USER: test
+          POSTGRES_DB: test
+      # use the same credentials for mysql db as for postgresql (which support was added first)
+      - image: mysql:latest
+        environment:
+          MYSQL_DATABASE: test
+          MYSQL_USER: test
+          MYSQL_PASSWORD: test
+          MYSQL_ROOT_PASSWORD: root
     environment:
       GOTHEMIS_IMPORT: github.com/cossacklabs/themis/gothemis
       FILEPATH_ERROR_FLAG: /tmp/test_fail
-      VERSIONS: 1.6 1.6.4 1.7 1.7.5 1.8 1.9.4 1.10
+      VERSIONS: 1.7 1.7.5 1.8 1.9.4 1.10
+      TEST_DB_USER: test
+      TEST_DB_USER_PASSWORD: test
+      TEST_DB_NAME: test
     steps:
     # prepare
       - run: sudo apt-get update && sudo DEBIAN_FRONTEND=noninteractive apt-get -y install libssl-dev python python-setuptools python3 python3-setuptools python3-pip git rsync

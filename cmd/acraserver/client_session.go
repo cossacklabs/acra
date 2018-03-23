@@ -15,15 +15,18 @@ package main
 
 import (
 	"fmt"
-	"github.com/cossacklabs/acra/network"
-	log "github.com/sirupsen/logrus"
 	"net"
 
-	"github.com/cossacklabs/acra/decryptor/base"
+	"github.com/cossacklabs/acra/decryptor/mysql"
 	"github.com/cossacklabs/acra/decryptor/postgresql"
+	"github.com/cossacklabs/acra/network"
+	log "github.com/sirupsen/logrus"
+
+	"io"
+
+	"github.com/cossacklabs/acra/decryptor/base"
 	"github.com/cossacklabs/acra/keystore"
 	"github.com/cossacklabs/acra/utils"
-	"io"
 )
 
 type ClientSession struct {
@@ -31,7 +34,7 @@ type ClientSession struct {
 	keystorage     keystore.KeyStore
 	connection     net.Conn
 	connectionToDb net.Conn
-	Server *SServer
+	Server         *SServer
 }
 
 func NewClientSession(keystorage keystore.KeyStore, config *Config, connection net.Conn) (*ClientSession, error) {
@@ -87,9 +90,20 @@ func (clientSession *ClientSession) HandleSecureSession(decryptorImpl base.Decry
 		}
 		return
 	}
-
-	go network.Proxy(clientSession.connection, clientSession.connectionToDb, innerErrorChannel)
-	go postgresql.PgDecryptStream(decryptorImpl, pgDecryptorConfig, clientSession.connectionToDb, clientSession.connection, innerErrorChannel)
+	if clientSession.config.UseMySQL() {
+		log.Debugln("MySQL connection")
+		handler, err := mysql.NewMysqlHandler(decryptorImpl)
+		if err != nil {
+			log.WithError(err).Errorln("can't initialize mysql handler")
+			return
+		}
+		go handler.ClientToDbProxy(decryptorImpl, clientSession.connectionToDb, clientSession.connection, innerErrorChannel)
+		go handler.DbToClientProxy(decryptorImpl, clientSession.connectionToDb, clientSession.connection, innerErrorChannel)
+	} else {
+		log.Debugln("PostgreSQL connection")
+		go network.Proxy(clientSession.connection, clientSession.connectionToDb, innerErrorChannel)
+		go postgresql.PgDecryptStream(decryptorImpl, pgDecryptorConfig, clientSession.connectionToDb, clientSession.connection, innerErrorChannel)
+	}
 	for {
 		err = <-innerErrorChannel
 
@@ -98,7 +112,13 @@ func (clientSession *ClientSession) HandleSecureSession(decryptorImpl base.Decry
 		} else if netErr, ok := err.(net.Error); ok {
 			if netErr.Timeout() {
 				log.Debugln("network timeout")
-				continue
+				if clientSession.config.UseMySQL() {
+					break
+				} else {
+					// in postgresql mode timeout used to stop listening connection in background goroutine
+					// and it's normal behaviour
+					continue
+				}
 			}
 			log.WithError(netErr).Errorln("network error")
 		} else if opErr, ok := err.(*net.OpError); ok {

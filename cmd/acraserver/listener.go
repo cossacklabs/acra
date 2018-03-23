@@ -14,17 +14,18 @@
 package main
 
 import (
-	"net"
-	"github.com/cossacklabs/acra/network"
-	log "github.com/sirupsen/logrus"
 	"github.com/cossacklabs/acra/decryptor/base"
+	"github.com/cossacklabs/acra/decryptor/mysql"
 	pg "github.com/cossacklabs/acra/decryptor/postgresql"
 	"github.com/cossacklabs/acra/keystore"
+	"github.com/cossacklabs/acra/network"
 	"github.com/cossacklabs/acra/zone"
-	"os"
-	"time"
-	"syscall"
+	log "github.com/sirupsen/logrus"
+	"net"
 	url_ "net/url"
+	"os"
+	"syscall"
+	"time"
 )
 
 type SServer struct {
@@ -102,12 +103,12 @@ func (server *SServer) getDecryptor(clientId []byte) base.Decryptor {
 		dataDecryptor = pg.NewPgEscapeDecryptor()
 		matcherPool = zone.NewMatcherPool(zone.NewPgEscapeMatcherFactory())
 	}
-	decryptorImpl := pg.NewPgDecryptor(clientId, dataDecryptor)
-	decryptorImpl.SetWithZone(server.config.GetWithZone())
-	decryptorImpl.SetWholeMatch(server.config.GetWholeMatch())
-	decryptorImpl.SetKeyStore(server.keystorage)
+	pgDecryptorImpl := pg.NewPgDecryptor(clientId, dataDecryptor)
+	pgDecryptorImpl.SetWithZone(server.config.GetWithZone())
+	pgDecryptorImpl.SetWholeMatch(server.config.GetWholeMatch())
+	pgDecryptorImpl.SetKeyStore(server.keystorage)
 	zoneMatcher := zone.NewZoneMatcher(matcherPool, server.keystorage)
-	decryptorImpl.SetZoneMatcher(zoneMatcher)
+	pgDecryptorImpl.SetZoneMatcher(zoneMatcher)
 
 	poisonCallbackStorage := base.NewPoisonCallbackStorage()
 	if server.config.GetScriptOnPoison() != "" {
@@ -117,8 +118,12 @@ func (server *SServer) getDecryptor(clientId []byte) base.Decryptor {
 	if server.config.GetStopOnPoison() {
 		poisonCallbackStorage.AddCallback(&base.StopCallback{})
 	}
-	decryptorImpl.SetPoisonCallbackStorage(poisonCallbackStorage)
-	return decryptorImpl
+	pgDecryptorImpl.SetPoisonCallbackStorage(poisonCallbackStorage)
+	var decryptor base.Decryptor = pgDecryptorImpl
+	if server.config.UseMySQL() {
+		decryptor = mysql.NewMySQLDecryptor(pgDecryptorImpl, server.keystorage)
+	}
+	return decryptor
 }
 
 /*
