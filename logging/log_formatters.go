@@ -125,7 +125,7 @@ var (
 	// to be re-defined
 	extraCEFFields = logrus.Fields{
 		FieldKeyVendor:    "cossacklabs",
-		FieldKeyEventCode: 0,
+		FieldKeyEventCode: EventCodeGeneral,
 	}
 
 	JSONFieldMap = logrus.FieldMap{
@@ -139,7 +139,7 @@ var (
 //
 // Note: the given entry is copied and not changed during the formatting process.
 func (f AcraJSONFormatter) Format(e *logrus.Entry) ([]byte, error) {
-	// unix time
+	// unix time in milliseconds
 	f.Fields[FieldKeyUnixTime] = unixTimeWithMilliseconds(e)
 
 	ne := copyEntry(e, f.Fields)
@@ -153,7 +153,7 @@ func (f AcraJSONFormatter) Format(e *logrus.Entry) ([]byte, error) {
 //
 // Note: the given entry is copied and not changed during the formatting process.
 func (f AcraCEFFormatter) Format(e *logrus.Entry) ([]byte, error) {
-	// unix time
+	// unix time in milliseconds
 	f.Fields[FieldKeyUnixTime] = unixTimeWithMilliseconds(e)
 
 	ne := copyEntry(e, f.Fields)
@@ -164,7 +164,6 @@ func (f AcraCEFFormatter) Format(e *logrus.Entry) ([]byte, error) {
 
 
 func unixTimeWithMilliseconds(e *logrus.Entry) string {
-	//secs := e.Time.Unix()
 	nanos := e.Time.UnixNano()
 	millis := nanos / 1000000
 	millisf := float64(millis) / 1000.0

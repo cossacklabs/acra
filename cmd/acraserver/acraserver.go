@@ -48,6 +48,7 @@ var ErrWaitTimeout = errors.New("timeout")
 func main() {
 	loggingFormat := flag.String("logging_format", "json", "Logging format: plaintext, json or CEF")
 	logging.CustomizeLogging(*loggingFormat, SERVICE_NAME)
+	log.Infof("Starting service")
 
 	dbHost := flag.String("db_host", "", "Host to db")
 	dbPort := flag.Int("db_port", 5432, "Port to db")
@@ -88,14 +89,15 @@ func main() {
 
 	err := cmd.Parse(DEFAULT_CONFIG_PATH)
 	if err != nil {
-		log.WithError(err).Errorln("can't parse args")
+		log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantReadServiceConfig).
+			Errorln("Can't parse args")
 		os.Exit(1)
 	}
 
 	// if log format was overridden
 	logging.CustomizeLogging(*loggingFormat, SERVICE_NAME)
 
-	log.Infof("Reading service configuration")
+	log.Infof("Validating service configuration")
 	cmd.ValidateClientId(*serverId)
 
 	if *host != cmd.DEFAULT_ACRA_HOST || *port != cmd.DEFAULT_ACRA_PORT {
@@ -113,7 +115,8 @@ func main() {
 		logging.SetLogLevel(logging.LOG_DISCARD)
 	}
 	if *dbHost == "" {
-		log.Errorln("you must specify db_host")
+		log.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorWrongConfiguration).
+			Errorln("db_host is empty: you must specify db_host")
 		flag.Usage()
 		return
 	}
@@ -144,77 +147,93 @@ func main() {
 		config.SetByteaFormat(ESCAPE_BYTEA_FORMAT)
 	}
 
+	log.Infof("Initializing keystore")
 	keyStore, err := keystore.NewFilesystemKeyStore(*keysDir)
 	if err != nil {
-		log.Errorln("can't initialize keystore")
+		log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantInitKeyStore).
+			Errorln("Can't initialize keystore")
 		os.Exit(1)
 	}
 	if *useTls {
-		log.Println("use TLS transport wrapper")
+		log.Infof("Selecting transport: use TLS transport wrapper")
 		tlsConfig, err := network.NewTLSConfig(*tlsSNI, *tlsCA, *tlsKey, *tlsCert)
 		if err != nil {
-			log.WithError(err).Errorln("can't get config for TLS")
+			log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorTransportConfiguration).
+				Errorln("Configuration error: can't get config for TLS")
 			os.Exit(1)
 		}
 		config.ConnectionWrapper, err = network.NewTLSConnectionWrapper([]byte(*clientId), tlsConfig)
 		if err != nil {
-			log.Errorln("can't initialize tls connection wrapper")
+			log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorTransportConfiguration).
+				Errorln("Configuration error: can't initialize TLS connection wrapper")
 			os.Exit(1)
 		}
 	} else if *noEncryption {
 		if *clientId == "" && !*withZone {
-			log.Errorln("without zone mode and without encryption you must set <client_id> which will be used to connect from acraproxy to acraserver")
+			log.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorTransportConfiguration).
+				Errorln("Configuration error: without zone mode and without encryption you must set <client_id> which will be used to connect from acraproxy to acraserver")
 			os.Exit(1)
 		}
-		log.Println("use raw transport wrapper")
+		log.Infof("Selecting transport: use raw transport wrapper")
 		config.ConnectionWrapper = &network.RawConnectionWrapper{ClientId: []byte(*clientId)}
 	} else {
-		log.Println("use Secure Session transport wrapper")
+		log.Infof("Selecting transport: use Secure Session transport wrapper")
 		config.ConnectionWrapper, err = network.NewSecureSessionConnectionWrapper(keyStore)
 		if err != nil {
-			log.Errorln("can't initialize secure session connection wrapper")
+			log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorTransportConfiguration).
+				Errorln("Configuration error: can't initialize secure session connection wrapper")
 			os.Exit(1)
 		}
 	}
 
+	log.Debugf("Registering process signal handlers")
 	sigHandlerSIGTERM, err := cmd.NewSignalHandler([]os.Signal{os.Interrupt, syscall.SIGTERM})
 	errorSignalChannel = sigHandlerSIGTERM.GetChannel()
 	if err != nil {
-		log.WithError(err).Errorln("can't register SIGTERM handler")
+		log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantRegisterSignalHandler).
+			Errorln("System error: can't register SIGTERM handler")
 		os.Exit(1)
 	}
 
 	sigHandlerSIGHUP, err := cmd.NewSignalHandler([]os.Signal{syscall.SIGHUP})
 	restartSignalsChannel = sigHandlerSIGHUP.GetChannel()
 	if err != nil {
-		log.WithError(err).Errorln("can't register SIGHUP handler")
+		log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantRegisterSignalHandler).
+			Errorln("System error: can't register SIGHUP handler")
 		os.Exit(1)
 	}
 
 	var server *SServer
 	server, err = NewServer(config, keyStore, errorSignalChannel, restartSignalsChannel)
 	if err != nil {
+		log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantStartService).
+			Errorln("System error: can't start %s", SERVICE_NAME)
 		panic(err)
 	}
 
 	if os.Getenv(GRACEFUL_ENV) == "true" {
 		server.fddACRA = DESCRIPTOR_ACRA
 		server.fdAPI = DESCRIPTOR_API
+		log.Debugf("Will be using GRACEFUL_RESTART if configured from WebUI")
 	}
 
 	if *debugServer {
 		//start http server for pprof
+		debugServerAddress := "127.0.0.1:6060"
+		log.Debugf("Starting Debug server on %s", debugServerAddress)
 		go func() {
-			err := http.ListenAndServe("127.0.0.1:6060", nil)
+			err := http.ListenAndServe(debugServerAddress, nil)
 			if err != nil {
-				log.WithError(err).Errorln("error from debug server")
+				log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantStartService).
+					Errorln("System error: got error from Debug Server")
 			}
 		}()
 	}
 
 	go sigHandlerSIGTERM.Register()
 	sigHandlerSIGTERM.AddCallback(func() {
-		log.Infoln("Incoming SIGTERM or SIGINT")
+		log.Infof("Received incoming SIGTERM or SIGINT signal")
+		log.Debugf("Stop accepting new connections, waiting until current connections close")
 		// Stop accepting new connections
 		server.StopListeners()
 		// Wait a maximum of N seconds for existing connections to finish
@@ -230,7 +249,8 @@ func main() {
 	})
 
 	sigHandlerSIGHUP.AddCallback(func() {
-		log.Infoln("Incoming SIGHUP")
+		log.Infof("Received incoming SIGHUP signal")
+		log.Debugf("Stop accepting new connections, waiting until current connections close")
 
 		// Stop accepting requests
 		server.StopListeners()
@@ -239,12 +259,14 @@ func main() {
 		var fdACRA, fdAPI uintptr
 		fdACRA, err = network.ListenerFileDescriptor(server.listenerACRA)
 		if err != nil {
-			log.Fatalln("Fail to get acra-socket file descriptor:", err)
+			log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantGetFileDescriptor).
+				Fatalln("System error: failed to get acra-socket file descriptor:", err)
 		}
 		if *withZone || *enableHTTPApi {
 			fdAPI, err = network.ListenerFileDescriptor(server.listenerAPI)
 			if err != nil {
-				log.Fatalln("Fail to get api-socket file descriptor:", err)
+				log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantGetFileDescriptor).
+					Fatalln("System error: failed to get api-socket file descriptor:", err)
 			}
 		}
 
@@ -254,12 +276,16 @@ func main() {
 			Env:   os.Environ(),
 			Files: []uintptr{os.Stdin.Fd(), os.Stdout.Fd(), os.Stderr.Fd(), fdACRA, fdAPI},
 		}
+
+		log.Debugf("Forking new process of %s", SERVICE_NAME)
+
 		// Fork new process
 		var fork, err = syscall.ForkExec(os.Args[0], os.Args, execSpec)
 		if err != nil {
-			log.Fatalln("Fail to fork", err)
+			log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantForkProcess).
+				Fatalln("System error: failed to fork new process", err)
 		}
-		log.Infof("Server forked to PID: %v", fork)
+		log.Infof("%s process forked to PID: %v", SERVICE_NAME, fork)
 
 		// Wait a maximum of N seconds for existing connections to finish
 		err = server.WaitWithTimeout(ACRASERVER_WAIT_TIMEOUT * time.Second)
@@ -273,7 +299,8 @@ func main() {
 		os.Exit(0)
 	})
 
-	log.Infof("PID: %v", os.Getpid())
+	log.Infof("Current PID: %v", os.Getpid())
+
 	if os.Getenv(GRACEFUL_ENV) == "true" {
 		go server.StartFromFileDescriptor(DESCRIPTOR_ACRA)
 		if *withZone || *enableHTTPApi {
@@ -287,5 +314,4 @@ func main() {
 	}
 
 	sigHandlerSIGHUP.Register()
-
 }

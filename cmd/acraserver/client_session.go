@@ -22,8 +22,8 @@ import (
 	"github.com/cossacklabs/acra/decryptor/base"
 	"github.com/cossacklabs/acra/decryptor/postgresql"
 	"github.com/cossacklabs/acra/keystore"
-	"github.com/cossacklabs/acra/utils"
 	"io"
+	"github.com/cossacklabs/acra/logging"
 )
 
 type ClientSession struct {
@@ -48,16 +48,18 @@ func (clientSession *ClientSession) ConnectToDb() error {
 }
 
 func (clientSession *ClientSession) close() {
-	log.Debugln("close acraproxy connection")
+	log.Debugln("Close acraproxy connection")
 
 	err := clientSession.connection.Close()
 	if err != nil {
-		log.Warningf("%v", utils.ErrorMessage("error with closing connection to acraproxy", err))
+		log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantCloseConnectionToService).
+			Errorln("Error with closing connection to acraproxy")
 	}
 	log.Debugln("close db connection")
 	err = clientSession.connectionToDb.Close()
 	if err != nil {
-		log.Warningf("%v", utils.ErrorMessage("error with closing connection to db", err))
+		log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantCloseConnectionDB).
+			Errorln("Error with closing connection to db")
 	}
 	log.Debugln("all connections closed")
 }
@@ -66,28 +68,39 @@ func (clientSession *ClientSession) close() {
 if any error occurred than end processing
 */
 func (clientSession *ClientSession) HandleSecureSession(decryptorImpl base.Decryptor) {
+	log.Infof("Handle Secure Session connection")
 	innerErrorChannel := make(chan error, 2)
 
+	log.Debugf("Connecting to db")
 	err := clientSession.ConnectToDb()
 	if err != nil {
-		log.WithError(err).Errorln("can't connect to db")
-		log.Debugln("close connection with acraproxy")
+		log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantConnectToDB).
+			Errorln("Can't connect to db")
+
+		log.Debugln("Close connection with acraproxy")
 		err = clientSession.connection.Close()
 		if err != nil {
-			log.Warningf("%v", utils.ErrorMessage("error with closing connection to acraproxy", err))
-		}
-		return
-	}
-	pgDecryptorConfig, err := postgresql.NewPgDecryptorConfig(clientSession.config.GetTLSServerKeyPath(), clientSession.config.GetTLSServerCertPath())
-	if err != nil {
-		log.WithError(err).Errorln("can't initialize config for postgresql decryptor")
-		err = clientSession.connection.Close()
-		if err != nil {
-			log.Warningf("%v", utils.ErrorMessage("error with closing connection to acraproxy", err))
+			log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantCloseConnectionToService).
+				Errorln("Error with closing connection to acraproxy")
 		}
 		return
 	}
 
+	log.Debugf("Initializing config to postgresql decryptor")
+
+	pgDecryptorConfig, err := postgresql.NewPgDecryptorConfig(clientSession.config.GetTLSServerKeyPath(), clientSession.config.GetTLSServerCertPath())
+	if err != nil {
+		log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantInitDecryptor).
+			Errorln("Can't initialize config for postgresql decryptor, closing connection")
+		err = clientSession.connection.Close()
+		if err != nil {
+			log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantCloseConnectionToService).
+				Errorln("Error with closing connection to acraproxy")
+		}
+		return
+	}
+
+	log.Debugf("Reading db data")
 	go network.Proxy(clientSession.connection, clientSession.connectionToDb, innerErrorChannel)
 	go postgresql.PgDecryptStream(decryptorImpl, pgDecryptorConfig, clientSession.connectionToDb, clientSession.connection, innerErrorChannel)
 	for {
@@ -100,14 +113,16 @@ func (clientSession *ClientSession) HandleSecureSession(decryptorImpl base.Decry
 				log.Debugln("network timeout")
 				continue
 			}
-			log.WithError(netErr).Errorln("network error")
+			log.WithError(netErr).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantHandleSecureSession).
+				Errorln("network error")
 		} else if opErr, ok := err.(*net.OpError); ok {
-			log.WithError(opErr).Errorln("network error")
+			log.WithError(opErr).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantHandleSecureSession).Errorln("network error")
 		} else {
-			log.WithError(err).Errorln("unexpected error")
+			log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantHandleSecureSession).Errorln("unexpected error")
 		}
 		break
 	}
+	log.Infof("Closing Secure Session connection")
 	clientSession.close()
 	// wait second error from closed second connection
 	<-innerErrorChannel
