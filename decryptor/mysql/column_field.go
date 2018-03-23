@@ -2,6 +2,7 @@ package mysql
 
 import "encoding/binary"
 
+// ColumnDescription https://dev.mysql.com/doc/internals/en/com-query-response.html#packet-Protocol::ColumnDefinition41
 type ColumnDescription struct {
 	changed bool
 	// field as byte slice
@@ -29,7 +30,7 @@ func ParseResultField(data []byte) (*ColumnDescription, error) {
 	var err error
 	//skip catalog, always def
 	pos := 0
-	n, err = SkipLengthEnodedString(data)
+	n, err = SkipLengthEncodedString(data)
 	if err != nil {
 		return nil, err
 	}
@@ -70,7 +71,7 @@ func ParseResultField(data []byte) (*ColumnDescription, error) {
 	}
 	pos += n
 
-	//skip oc
+	//skip 0x0C constant field
 	pos += 1
 
 	//charset
@@ -118,12 +119,19 @@ func (field *ColumnDescription) IsBinary() bool {
 	return IsBinaryColumn(field.Type)
 }
 
+// Dump https://dev.mysql.com/doc/internals/en/com-query-response.html#packet-Protocol::ColumnDefinition41
 func (field *ColumnDescription) Dump() []byte {
 	if field.data != nil && !field.changed {
 		return field.data
 	}
-
-	l := len(field.Schema) + len(field.Table) + len(field.OrgTable) + len(field.Name) + len(field.OrgName) + len(field.DefaultValue) + 48
+	// column description has 7 length encoded strings. each string have 1-4 bytes with their length
+	// catalog field always has value "def" and 1 byte for length
+	// one field is constant 0x0C and has 1 byte for length
+	// left 5 fields may have 8 byte (64bit) for length per field
+	// (5 * 8) + 4 ("def" + 1 byte for length ) + 1 (0x0C) = 45
+	// each of 7 length encoded string fields may have 8 byte (max) for encoded length at start.
+	// https://dev.mysql.com/doc/internals/en/com-query-response.html#packet-Protocol::ColumnDefinition41
+	l := len(field.Schema) + len(field.Table) + len(field.OrgTable) + len(field.Name) + len(field.OrgName) + len(field.DefaultValue) + 45
 
 	data := make([]byte, 0, l)
 
@@ -138,6 +146,7 @@ func (field *ColumnDescription) Dump() []byte {
 	data = append(data, PutLengthEncodedString(field.OrgName)...)
 
 	// length of fixed-length fields
+	// https://dev.mysql.com/doc/internals/en/com-query-response.html#column-definition
 	data = append(data, 0x0c)
 
 	data = append(data, Uint16ToBytes(field.Charset)...)

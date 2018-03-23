@@ -7,6 +7,7 @@ import (
 
 var ErrMalformPacket = errors.New("Malform packet error")
 
+// LengthEncodedInt https://dev.mysql.com/doc/internals/en/integer.html#packet-Protocol::LengthEncodedInteger
 func LengthEncodedInt(data []byte) (num uint64, isNull bool, n int) {
 	switch data[0] {
 
@@ -43,6 +44,7 @@ func LengthEncodedInt(data []byte) (num uint64, isNull bool, n int) {
 	return
 }
 
+// LengthEncodedString https://dev.mysql.com/doc/internals/en/string.html#packet-Protocol::LengthEncodedString
 func LengthEncodedString(data []byte) ([]byte, bool, int, error) {
 	// Get length
 	num, isNull, n := LengthEncodedInt(data)
@@ -59,7 +61,7 @@ func LengthEncodedString(data []byte) ([]byte, bool, int, error) {
 	return nil, false, n, io.EOF
 }
 
-func SkipLengthEnodedString(data []byte) (int, error) {
+func SkipLengthEncodedString(data []byte) (int, error) {
 	num, _, n := LengthEncodedInt(data)
 	if num < 1 {
 		return n, nil
@@ -73,6 +75,7 @@ func SkipLengthEnodedString(data []byte) (int, error) {
 	return n, io.EOF
 }
 
+// PutLengthEncodedInt https://dev.mysql.com/doc/internals/en/integer.html#packet-Protocol::LengthEncodedInteger
 func PutLengthEncodedInt(n uint64) []byte {
 	switch {
 	case n <= 250:
@@ -91,6 +94,7 @@ func PutLengthEncodedInt(n uint64) []byte {
 	return nil
 }
 
+// PutLengthEncodedString https://dev.mysql.com/doc/internals/en/string.html#packet-Protocol::LengthEncodedString
 func PutLengthEncodedString(b []byte) []byte {
 	data := make([]byte, 0, len(b)+9)
 	data = append(data, PutLengthEncodedInt(uint64(len(b)))...)
