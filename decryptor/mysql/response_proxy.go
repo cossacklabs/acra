@@ -11,6 +11,8 @@ import (
 )
 
 const (
+	// MaxPayloadLen https://dev.mysql.com/doc/internals/en/mysql-packet.html
+	// each packet splits into packets of this size
 	MaxPayloadLen int = 1<<24 - 1
 )
 
@@ -287,7 +289,7 @@ func (handler *MysqlHandler) processBinaryDataRow(rowData []byte, fields []*Colu
 			pos += n
 			continue
 		}
-
+		// https://dev.mysql.com/doc/internals/en/binary-protocol-value.html
 		switch fields[i].Type {
 		case MYSQL_TYPE_NULL:
 			continue
@@ -352,6 +354,8 @@ func (handler *MysqlHandler) QueryResponseHandler(packet *MysqlPacket, dbConnect
 	// read fields
 	var fields []*ColumnDescription
 	var binaryFieldIndexes []int
+	// first byte of payload is field count
+	// https://dev.mysql.com/doc/internals/en/com-query-response.html#text-resultset
 	fieldCount := int(packet.GetData()[0])
 	if fieldCount == OK_PACKET || fieldCount == ERR_PACKET {
 		log.Debugln("error or empty response packet")

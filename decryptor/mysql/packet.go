@@ -20,6 +20,13 @@ const (
 	ERR_PACKET = 0xff
 )
 
+const (
+	// PACKET_HEADER_SIZE https://dev.mysql.com/doc/internals/en/mysql-packet.html#idm140406396409840
+	PACKET_HEADER_SIZE = 4
+	// SEQUENCE_ID_INDEX last byte of header https://dev.mysql.com/doc/internals/en/mysql-packet.html#idm140406396409840
+	SEQUENCE_ID_INDEX = 3
+)
+
 type Dumper interface {
 	Dump() []byte
 }
@@ -38,17 +45,21 @@ type MysqlPacket struct {
 
 // NewMysqlPacket
 func NewMysqlPacket() *MysqlPacket {
-	return &MysqlPacket{header: make([]byte, 4)}
+	// https://dev.mysql.com/doc/internals/en/mysql-packet.html#idm140406396409840
+	// 3 bytes payload length and 1 byte of sequence_id
+	return &MysqlPacket{header: make([]byte, PACKET_HEADER_SIZE)}
 }
 
 // GetPacketPayloadLength
 func (packet *MysqlPacket) GetPacketPayloadLength() int {
+	// first 3 bytes of header
+	// https://dev.mysql.com/doc/internals/en/mysql-packet.html#idm140406396409840
 	return int(uint32(packet.header[0]) | uint32(packet.header[1])<<8 | uint32(packet.header[2])<<16)
 }
 
 // GetSequenceNumber return as byte
 func (packet *MysqlPacket) GetSequenceNumber() byte {
-	return packet.header[3]
+	return packet.header[SEQUENCE_ID_INDEX]
 }
 
 // GetData return packet payload
@@ -60,6 +71,8 @@ func (packet *MysqlPacket) GetData() []byte {
 func (packet *MysqlPacket) SetData(newData []byte) {
 	packet.data = newData
 	newSize := len(newData)
+	// update payload size, first 3 bytes of header
+	// https://dev.mysql.com/doc/internals/en/mysql-packet.html#idm140406396409840
 	packet.header[0] = byte(newSize)
 	packet.header[1] = byte(newSize >> 8)
 	packet.header[2] = byte(newSize >> 16)
@@ -121,7 +134,7 @@ func (packet *MysqlPacket) IsErr() bool {
 
 func (packet *MysqlPacket) SupportProtocol41() bool {
 	capabilities := int(binary.LittleEndian.Uint16(packet.data[:2]))
-	return (capabilities & CLIENT_PROTOCOL_41) == 1
+	return (capabilities & CLIENT_PROTOCOL_41) > 0
 }
 
 // ReadPacket from connection and return MysqlPacket struct with data or error
