@@ -49,6 +49,9 @@ keys_dir: .acrakeys
 # Logging format: plaintext, json or CEF
 logging_format: 
 
+# Handle MySQL connections
+mysql: false
+
 # Use raw transport (tcp/unix socket) between acraserver and acraproxy/client (don't use this flag if you not connect to database with ssl/tls
 no_encryption: false
 
@@ -60,6 +63,9 @@ poisonshutdown: false
 
 # Port for AcraServer
 port: 9393
+
+# Handle Postgresql connections (default true)
+postgresql: false
 
 # Id that will be sent in secure session
 server_id: acra_server

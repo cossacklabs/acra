@@ -29,6 +29,7 @@ type StopCallback struct{}
 func (*StopCallback) Call() error {
 	log.Warningln("detected poison record, exit")
 	os.Exit(1)
+	log.Errorln("executed code after os.Exit")
 	return nil
 }
 

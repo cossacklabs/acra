@@ -14,19 +14,19 @@
 package main
 
 import (
+	"errors"
 	"flag"
+	"github.com/cossacklabs/acra/cmd"
+	"github.com/cossacklabs/acra/keystore"
+	"github.com/cossacklabs/acra/logging"
+	"github.com/cossacklabs/acra/network"
+	"github.com/cossacklabs/acra/utils"
+	log "github.com/sirupsen/logrus"
 	"net/http"
 	_ "net/http/pprof"
 	"os"
 	"syscall"
-	"github.com/cossacklabs/acra/network"
-	"github.com/cossacklabs/acra/cmd"
-	"github.com/cossacklabs/acra/keystore"
-	"github.com/cossacklabs/acra/utils"
-	"github.com/cossacklabs/acra/logging"
-	log "github.com/sirupsen/logrus"
 	"time"
-	"errors"
 )
 
 // DEFAULT_CONFIG_PATH relative path to config which will be parsed as default
@@ -40,11 +40,14 @@ const (
 	DESCRIPTOR_ACRA         = 3
 	DESCRIPTOR_API          = 4
 )
+
 var SERVICE_NAME = "acraserver"
 var DEFAULT_CONFIG_PATH = utils.GetConfigPathByName(SERVICE_NAME)
 var ErrWaitTimeout = errors.New("timeout")
 
 func main() {
+	config := NewConfig()
+
 	dbHost := flag.String("db_host", "", "Host to db")
 	dbPort := flag.Int("db_port", 5432, "Port to db")
 
@@ -83,6 +86,9 @@ func main() {
 	acraAPIConnectionString := flag.String("connection_api_string", network.BuildConnectionString(cmd.DEFAULT_ACRA_CONNECTION_PROTOCOL, cmd.DEFAULT_ACRA_HOST, cmd.DEFAULT_ACRA_API_PORT, ""), "Connection string for api like tcp://x.x.x.x:yyyy or unix:///path/to/socket")
 	loggingFormat := flag.String("logging_format", "", "Logging format: plaintext, json or CEF")
 
+	useMysql := flag.Bool("mysql", false, "Handle MySQL connections")
+	usePostgresql := flag.Bool("postgresql", false, "Handle Postgresql connections (default true)")
+
 	err := cmd.Parse(DEFAULT_CONFIG_PATH)
 	if err != nil {
 		log.WithError(err).Errorln("can't parse args")
@@ -112,7 +118,15 @@ func main() {
 		return
 	}
 
-	config := NewConfig()
+	if err := config.SetMySQL(*useMysql); err != nil {
+		log.WithError(err).Errorln("can't set MySQL support")
+		os.Exit(1)
+	}
+	if err := config.SetPostgresql(*usePostgresql); err != nil {
+		log.WithError(err).Errorln("can't set PostgreSQL support")
+		os.Exit(1)
+	}
+
 	// now it's stub as default values
 	config.SetStopOnPoison(*stopOnPoison)
 	config.SetScriptOnPoison(*scriptOnPoison)

@@ -26,8 +26,10 @@ import collections
 from base64 import b64decode, b64encode
 from tempfile import NamedTemporaryFile
 from urllib.request import urlopen
+from urllib.parse import urlparse
 
 import psycopg2
+import pymysql
 import sqlalchemy as sa
 from sqlalchemy.exc import DatabaseError
 from sqlalchemy.dialects.postgresql import BYTEA
@@ -38,12 +40,14 @@ sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(__file__)), 'wra
 
 from acrawriter import create_acrastruct
 
-
+DATA_MAX_SIZE = 10000
+# 200 is overhead of encryption (chosen manually)
+COLUMN_DATA_SIZE = DATA_MAX_SIZE + 200
 metadata = sa.MetaData()
 test_table = sa.Table('test', metadata,
     sa.Column('id', sa.Integer, primary_key=True),
-    sa.Column('data', sa.LargeBinary),
-    sa.Column('raw_data', sa.String),
+    sa.Column('data', sa.LargeBinary(length=COLUMN_DATA_SIZE)),
+    sa.Column('raw_data', sa.String(length=COLUMN_DATA_SIZE)),
 )
 
 rollback_output_table = sa.Table('acra_rollback_output', metadata,
@@ -63,13 +67,25 @@ KILL_WAIT_TIMEOUT = 10
 TEST_WITH_TLS = os.environ.get('TEST_TLS', 'off').lower() == 'on'
 
 PG_UNIX_HOST = '/tmp'
+
 DB_USER = os.environ.get('TEST_DB_USER', 'postgres')
 DB_USER_PASSWORD = os.environ.get('TEST_DB_USER_PASSWORD', 'postgres')
 SSLMODE = os.environ.get('TEST_SSL_MODE', 'allow')
-connect_args = {
-    'connect_timeout': SOCKET_CONNECT_TIMEOUT,
-    'user': DB_USER, 'password': DB_USER_PASSWORD,
-    "options": "-c statement_timeout=1000", 'sslmode': SSLMODE}
+TEST_MYSQL = bool(os.environ.get('TEST_MYSQL', False))
+if TEST_MYSQL:
+    TEST_POSTGRESQL = False
+    DB_DRIVER = "mysql+pymysql"
+    TEST_MYSQL = True
+    connect_args = {
+        'user': DB_USER, 'password': DB_USER_PASSWORD
+    }
+else:
+    TEST_POSTGRESQL = True
+    DB_DRIVER = "postgresql"
+    connect_args = {
+        'connect_timeout': SOCKET_CONNECT_TIMEOUT,
+        'user': DB_USER, 'password': DB_USER_PASSWORD,
+        "options": "-c statement_timeout=1000", 'sslmode': SSLMODE}
 
 
 def stop_process(process):
@@ -98,7 +114,8 @@ def stop_process(process):
 def get_connect_args(port=5432, sslmode=None, **kwargs):
     args = connect_args.copy()
     args['port'] = port
-    args['sslmode'] = sslmode if sslmode else SSLMODE
+    if TEST_POSTGRESQL:
+        args['sslmode'] = sslmode if sslmode else SSLMODE
     args.update(kwargs)
     return args
 
@@ -153,24 +170,37 @@ def wait_unix_socket(socket_path, count=10, sleep=0.1):
         time.sleep(sleep)
     raise Exception("can't wait connection")
 
+def get_unix_connection_string(port, dbname):
+    if TEST_MYSQL:
+        return get_postgresql_tcp_connection_string(port, dbname)
+    else:
+        return get_postgresql_unix_connection_string(port, dbname)
 
 def get_postgresql_unix_connection_string(port, dbname):
-    return 'postgresql+psycopg2:///{}?host={}'.format(dbname, PG_UNIX_HOST)
+    return '{}:///{}?host={}'.format(DB_DRIVER, dbname, PG_UNIX_HOST)
 
 def get_postgresql_tcp_connection_string(port, dbname):
-    return 'postgresql+psycopg2://127.0.0.1:{}/{}'.format(port, dbname)
+    return '{}://127.0.0.1:{}/{}'.format(DB_DRIVER, port, dbname)
 
-def get_unix_connection_string(port):
+def get_acra_unix_connection_string(port):
     return "unix://{}".format("{}/unix_socket_{}".format(PG_UNIX_HOST, port))
 
 def get_proxy_connection_string(port):
-    return 'unix://{}/.s.PGSQL.{}'.format(PG_UNIX_HOST, port)
+    if TEST_MYSQL:
+        connection_string = get_postgresql_tcp_connection_string(port, '')
+        url = urlparse(connection_string)
+        return 'tcp://{}'.format(url.netloc)
+    else:
+        return 'unix://{}/.s.PGSQL.{}'.format(PG_UNIX_HOST, port)
 
 def get_tcp_connection_string(port):
     return 'tcp://127.0.0.1:{}'.format(port)
 
 def socket_path_from_connection_string(connection_string):
-    return connection_string.replace('unix://', '')
+    if '://' in connection_string:
+        return connection_string.split('://')[1]
+    else:
+        return connection_string
 
 def acra_api_connection_string(port):
     return "unix://{}".format("{}/acra_api_unix_socket_{}".format(PG_UNIX_HOST, port+1))
@@ -239,7 +269,7 @@ class BaseTestCase(unittest.TestCase):
 
     PROXY_PORT_1 = int(os.environ.get('TEST_PROXY_PORT', 9595))
     PROXY_PORT_2 = PROXY_PORT_1 + 200
-    PROXY_COMMAND_PORT_1 = int(os.environ.get('TEST_PROXY_COMMAND_PORT', 9595))
+    PROXY_COMMAND_PORT_1 = int(os.environ.get('TEST_PROXY_COMMAND_PORT', 9696))
     # for debugging with manually runned acra server
     EXTERNAL_ACRA = False
     ACRA_PORT = int(os.environ.get('TEST_ACRA_PORT', 10003))
@@ -312,7 +342,10 @@ class BaseTestCase(unittest.TestCase):
         process = self.fork(lambda: subprocess.Popen(args))
         if check_connection:
             try:
-                wait_unix_socket(socket_path_from_connection_string(proxy_connection))
+                if TEST_MYSQL:
+                    wait_connection(proxy_port)
+                else:
+                    wait_unix_socket(socket_path_from_connection_string(proxy_connection))
             except:
                 stop_process(process)
                 raise
@@ -321,7 +354,7 @@ class BaseTestCase(unittest.TestCase):
     def get_acra_connection_string(self, port=None):
         if not port:
             port = self.ACRA_PORT
-        return get_unix_connection_string(port)
+        return get_acra_unix_connection_string(port)
 
     def get_acra_api_connection_string(self, port=None):
         if not port:
@@ -365,6 +398,9 @@ class BaseTestCase(unittest.TestCase):
             args['tls_cert'] = 'tests/server.crt'
             args['tls_ca'] = 'tests/server.crt'
             args['tls_sni'] = 'acraserver'
+        if TEST_MYSQL:
+            args['mysql'] = 'true'
+            args['postgresql'] = 'false'
         args.update(acra_kwargs)
         if not popen_kwargs:
             popen_kwargs = {}
@@ -391,12 +427,12 @@ class BaseTestCase(unittest.TestCase):
                 self.acra = self.fork_acra()
 
             self.engine1 = sa.create_engine(
-                get_postgresql_unix_connection_string(self.PROXY_PORT_1, self.DB_NAME), connect_args=get_connect_args(port=self.PROXY_PORT_1))
+                get_unix_connection_string(self.PROXY_PORT_1, self.DB_NAME), connect_args=get_connect_args(port=self.PROXY_PORT_1))
             self.engine2 = sa.create_engine(
-                get_postgresql_unix_connection_string(
+                get_unix_connection_string(
                     self.PROXY_PORT_2, self.DB_NAME), connect_args=get_connect_args(port=self.PROXY_PORT_2))
             self.engine_raw = sa.create_engine(
-                'postgresql://{}:{}/{}'.format(self.DB_HOST, self.DB_PORT, self.DB_NAME),
+                '{}://{}:{}/{}'.format(DB_DRIVER, self.DB_HOST, self.DB_PORT, self.DB_NAME),
                 connect_args=connect_args)
 
             self.engines = [self.engine1, self.engine2, self.engine_raw]
@@ -408,9 +444,13 @@ class BaseTestCase(unittest.TestCase):
                 # try with sleep if acra not up yet
                 while True:
                     try:
-                        engine.execute(
-                            "UPDATE pg_settings SET setting = '{}' "
-                            "WHERE name = 'bytea_output'".format(self.DB_BYTEA))
+                        if TEST_MYSQL:
+                            engine.execute(
+                                "select 1;")
+                        else:
+                            engine.execute(
+                                "UPDATE pg_settings SET setting = '{}' "
+                                "WHERE name = 'bytea_output'".format(self.DB_BYTEA))
                         break
                     except Exception:
                         time.sleep(SETUP_SQL_COMMAND_TIMEOUT)
@@ -434,7 +474,7 @@ class BaseTestCase(unittest.TestCase):
             engine.dispose()
 
     def get_random_data(self):
-        size = random.randint(100, 10000)
+        size = random.randint(100, DATA_MAX_SIZE)
         return ''.join(random.choice(string.ascii_letters)
                        for _ in range(size))
 
@@ -663,9 +703,11 @@ class TestConnectionClosing(BaseTestCase):
             self.tearDown()
             raise
 
-
     def get_connection(self):
-        return psycopg2.connect(host=PG_UNIX_HOST, **get_connect_args(port=self.PROXY_PORT_1))
+        if TEST_MYSQL:
+            return pymysql.connect(**get_connect_args(port=self.PROXY_PORT_1))
+        else:
+            return psycopg2.connect(host=PG_UNIX_HOST, **get_connect_args(port=self.PROXY_PORT_1))
 
     def tearDown(self):
         procs = []
@@ -676,8 +718,13 @@ class TestConnectionClosing(BaseTestCase):
         stop_process(procs)
 
     def getActiveConnectionCount(self, cursor):
-        cursor.execute('select count(*) from pg_stat_activity;')
-        return int(cursor.fetchone()[0])
+        if TEST_MYSQL:
+            query = "SHOW STATUS WHERE `variable_name` = 'Threads_connected';"
+            cursor.execute(query)
+            return int(cursor.fetchone()[1])
+        else:
+            cursor.execute('select count(*) from pg_stat_activity;')
+            return int(cursor.fetchone()[0])
 
     def getConnectionLimit(self, connection=None):
         created_connection = False
@@ -685,17 +732,24 @@ class TestConnectionClosing(BaseTestCase):
             connection = self.get_connection()
             created_connection = True
 
-        cursor = connection.cursor()
-        cursor.execute('select setting from pg_settings where name=\'max_connections\';')
-        pg_max_connections = int(cursor.fetchone()[0])
-        cursor.execute('select rolconnlimit from pg_roles where rolname = current_user;')
-        pg_rolconnlimit = int(cursor.fetchone()[0])
-        cursor.close()
-        if created_connection:
-            connection.close()
-        if pg_rolconnlimit <= 0:
-            return pg_max_connections
-        return min(pg_max_connections, pg_rolconnlimit)
+        if TEST_MYSQL:
+            query = "SHOW VARIABLES WHERE `variable_name` = 'max_connections';"
+            cursor = connection.cursor()
+            cursor.execute(query)
+            return int(cursor.fetchone()[1])
+
+        else:
+            cursor = connection.cursor()
+            cursor.execute('select setting from pg_settings where name=\'max_connections\';')
+            pg_max_connections = int(cursor.fetchone()[0])
+            cursor.execute('select rolconnlimit from pg_roles where rolname = current_user;')
+            pg_rolconnlimit = int(cursor.fetchone()[0])
+            cursor.close()
+            if created_connection:
+                connection.close()
+            if pg_rolconnlimit <= 0:
+                return pg_max_connections
+            return min(pg_max_connections, pg_rolconnlimit)
 
     def check_count(self, cursor, expected):
         # give a time to close connections via postgresql
@@ -711,8 +765,45 @@ class TestConnectionClosing(BaseTestCase):
                 # some wait for closing. chosen manually
                 time.sleep(1)
 
-    def testClosingConnections(self):
-        time.sleep(2)
+    def checkConnectionLimit(self, connection_limit):
+        connections = []
+        exception = None
+        try:
+            for i in range(connection_limit):
+                connections.append(self.get_connection())
+        except Exception as exc:
+            exception = exc
+        self.assertIsNotNone(exception)
+
+        is_correct_exception_message = False
+        if TEST_MYSQL:
+            exception_type = pymysql.err.OperationalError
+            correct_messages = [
+                'Too many connections'
+            ]
+            for message in correct_messages:
+                if exception.args[0] in [1203, 1040] and message in exception.args[1]:
+                    is_correct_exception_message = True
+                    break
+        else:
+            exception_type = psycopg2.OperationalError
+            # exception doesn't has any related code, only text messages
+            correct_messages = [
+                'FATAL:  too many connections for role',
+                'FATAL:  sorry, too many clients already',
+                'FATAL:  remaining connection slots are reserved for non-replication superuser connections'
+            ]
+            for message in correct_messages:
+                if message in exception.args[0]:
+                    is_correct_exception_message = True
+                    break
+
+        self.assertIsInstance(exception, exception_type)
+        self.assertTrue(is_correct_exception_message)
+        return connections
+
+
+    def testClosingPostgreslConnections(self):
         connection = self.get_connection()
 
         connection.autocommit = True
@@ -724,24 +815,10 @@ class TestConnectionClosing(BaseTestCase):
                          current_connection_count+1)
         connection_limit = self.getConnectionLimit(connection)
         connections = [connection2]
-        with self.assertRaises(psycopg2.OperationalError) as context_manager:
-            for i in range(connection_limit):
-                connections.append(self.get_connection())
-        exception = context_manager.exception
-        # exception doesn't has any related code, only text messages
-        correct_messages = [
-            'FATAL:  too many connections for role',
-            'FATAL:  sorry, too many clients already',
-            'FATAL:  remaining connection slots are reserved for non-replication superuser connections'
-        ]
-        is_correct_exception_message = False
-        for message in correct_messages:
-            if message in exception.args[0]:
-                is_correct_exception_message = True
-                break
-        self.assertTrue(is_correct_exception_message)
 
-        for conn in connections:
+        created_connections = self.checkConnectionLimit(connection_limit)
+
+        for conn in connections + created_connections:
             conn.close()
 
         self.check_count(cursor, current_connection_count)
@@ -754,6 +831,8 @@ class TestConnectionClosing(BaseTestCase):
         self.check_count(cursor, current_connection_count)
         cursor.close()
         connection.close()
+
+
 
 
 class TestKeyNonExistence(BaseTestCase):
@@ -926,9 +1005,10 @@ class TestShutdownPoisonRecordWithZone(TestPoisonRecordShutdown):
             {'id': row_id, 'data': get_poison_record(), 'raw_data': 'poison_record'})
         with self.assertRaises(DatabaseError):
             zone = zones[0]['id'].encode('ascii')
-            self.engine1.execute(
+            result = self.engine1.execute(
                 sa.select([sa.cast(zone, BYTEA), test_table])
                     .where(test_table.c.id == row_id))
+            print(result.fetchall())
 
     def testShutdown2(self):
         """check callback with select by id and without zone"""
@@ -937,9 +1017,10 @@ class TestShutdownPoisonRecordWithZone(TestPoisonRecordShutdown):
             test_table.insert(),
             {'id': row_id, 'data': get_poison_record(), 'raw_data': 'poison_record'})
         with self.assertRaises(DatabaseError):
-            self.engine1.execute(
+            result = self.engine1.execute(
                 sa.select([test_table])
                     .where(test_table.c.id == row_id))
+            print(result.fetchall())
 
     def testShutdown3(self):
         """check working poison record callback on full select"""
@@ -948,8 +1029,9 @@ class TestShutdownPoisonRecordWithZone(TestPoisonRecordShutdown):
             test_table.insert(),
             {'id': row_id, 'data': get_poison_record(), 'raw_data': 'poison_record'})
         with self.assertRaises(DatabaseError):
-            self.engine1.execute(
+            result = self.engine1.execute(
                 sa.select([test_table]))
+            print(result.fetchall())
 
     def testShutdown4(self):
         """check working poison record callback on full select inside another data"""
@@ -1076,11 +1158,11 @@ class TestKeyStorageClearing(BaseTestCase):
                     zonemode='true', enable_http_api='true')
 
             self.engine1 = sa.create_engine(
-                get_postgresql_unix_connection_string(self.PROXY_PORT_1, self.DB_NAME),
+                get_unix_connection_string(self.PROXY_PORT_1, self.DB_NAME),
                 connect_args=get_connect_args(port=self.PROXY_PORT_1))
 
             self.engine_raw = sa.create_engine(
-                'postgresql://{}:{}/{}'.format(self.DB_HOST, self.DB_PORT, self.DB_NAME),
+                '{}://{}:{}/{}'.format(DB_DRIVER, self.DB_HOST, self.DB_PORT, self.DB_NAME),
                 connect_args=connect_args)
 
             self.engines = [self.engine1, self.engine_raw]
@@ -1127,9 +1209,10 @@ class TestAcraRollback(BaseTestCase):
     DATA_COUNT = 5
 
     def setUp(self):
+        self.checkSkip()
         self.engine_raw = sa.create_engine(
-            'postgresql://{}:{}/{}'.format(self.DB_HOST, self.DB_PORT,
-                                           self.DB_NAME),
+            '{}://{}:{}/{}'.format(DB_DRIVER, self.DB_HOST, self.DB_PORT,
+                                   self.DB_NAME),
             connect_args=connect_args)
 
         self.output_filename = 'acra_rollback_output.txt'
@@ -1138,6 +1221,40 @@ class TestAcraRollback(BaseTestCase):
             self.sslmode='require'
         else:
             self.sslmode='disable'
+        if TEST_MYSQL:
+            # https://github.com/go-sql-driver/mysql/
+            connection_string = "{user}:{password}@tcp({host}:{port})/{dbname}".format(
+                user=DB_USER, password=DB_USER_PASSWORD, dbname=self.DB_NAME,
+                port=self.DB_PORT, host=self.DB_HOST
+            )
+
+            # https://github.com/ziutek/mymysql
+            # connection_string = "tcp:{host}:{port}*{dbname}/{user}/{password}".format(
+            #     user=DB_USER, password=DB_USER_PASSWORD, dbname=self.DB_NAME,
+            #     port=self.DB_PORT, host=self.DB_HOST
+            # )
+        else:
+            connection_string = (
+                'dbname={dbname} user={user} '
+                'sslmode={sslmode} password={password} host={host} '
+                'port={port}').format(
+                     sslmode=self.sslmode, dbname=self.DB_NAME,
+                     user=DB_USER, port=self.DB_PORT,
+                     password=DB_USER_PASSWORD, host=self.DB_HOST
+            )
+
+        if TEST_MYSQL:
+            self.placeholder = "?"
+            DB_ARGS = ['--mysql']
+        else:
+            self.placeholder = "$1"
+            DB_ARGS = ['--postgresql']
+
+        self.default_rollback_args = [
+            '--client_id=keypair1',
+             '--connection_string={}'.format(connection_string),
+             '--output_file={}'.format(self.output_filename),
+        ] + DB_ARGS
 
     def tearDown(self):
         try:
@@ -1148,6 +1265,18 @@ class TestAcraRollback(BaseTestCase):
         self.engine_raw.dispose()
         if os.path.exists(self.output_filename):
             os.remove(self.output_filename)
+
+    def run_rollback(self, extra_args):
+        args = ['./acra_rollback'] + self.default_rollback_args + extra_args
+        try:
+            subprocess.check_call(
+                args, cwd=os.getcwd(), timeout=PROCESS_CALL_TIMEOUT)
+        except subprocess.CalledProcessError as exc:
+            if exc.stderr:
+                print(exc.stderr, file=sys.stderr)
+            else:
+                print(exc.stdout, file=sys.stdout)
+            raise
 
     def test_without_zone_to_file(self):
         keyname = 'keypair1_storage'
@@ -1164,19 +1293,12 @@ class TestAcraRollback(BaseTestCase):
             }
             rows.append(row)
         self.engine_raw.execute(test_table.insert(), rows)
-        subprocess.check_call(
-            ['./acra_rollback', '--client_id=keypair1',
-             '--connection_string=dbname={dbname} user={user} '
-             'sslmode={sslmode} password={password} host={host} '
-             'port={port}'.format(
-                 sslmode=self.sslmode, dbname=self.DB_NAME,
-                 user=DB_USER, port=self.DB_PORT,
-                 password=DB_USER_PASSWORD, host=self.DB_HOST),
-             '--output_file={}'.format(self.output_filename),
-             '--select=select data from {};'.format(test_table.name),
-             '--insert=insert into {} values($1);'.format(
-                 rollback_output_table.name)],
-            cwd=os.getcwd(), timeout=PROCESS_CALL_TIMEOUT)
+        args = [
+            '--select=select data from {};'.format(test_table.name),
+            '--insert=insert into {} values({});'.format(
+                 rollback_output_table.name, self.placeholder)
+        ]
+        self.run_rollback(args)
 
         # execute file
         with open(self.output_filename, 'r') as f:
@@ -1203,22 +1325,19 @@ class TestAcraRollback(BaseTestCase):
             }
             rows.append(row)
         self.engine_raw.execute(test_table.insert(), rows)
-
-        subprocess.check_call(
-            ['./acra_rollback', '--client_id=keypair1',
-             '--connection_string=dbname={dbname} user={user} '
-             'sslmode={sslmode} '
-             'password={password} host={host} port={port}'.format(
-                 dbname=self.DB_NAME, user=DB_USER, port=self.DB_PORT,
-                 sslmode=self.sslmode,
-                 password=DB_USER_PASSWORD, host=self.DB_HOST),
-             '--output_file={}'.format(self.output_filename),
-             '--select=select \'{id}\'::bytea, data from {table};'.format(
-                 id=zones[0]['id'], table=test_table.name),
+        if TEST_MYSQL:
+            select_query = '--select=select \'{id}\', data from {table};'.format(
+                 id=zones[0]['id'], table=test_table.name)
+        else:
+            select_query = '--select=select \'{id}\'::bytea, data from {table};'.format(
+                 id=zones[0]['id'], table=test_table.name)
+        args = [
+             select_query,
              '--zonemode=true',
-             '--insert=insert into {} values($1);'.format(
-                 rollback_output_table.name)],
-            cwd=os.getcwd(), timeout=PROCESS_CALL_TIMEOUT)
+             '--insert=insert into {} values({});'.format(
+                 rollback_output_table.name, self.placeholder)
+        ]
+        self.run_rollback(args)
 
         # execute file
         with open(self.output_filename, 'r') as f:
@@ -1247,19 +1366,13 @@ class TestAcraRollback(BaseTestCase):
             rows.append(row)
         self.engine_raw.execute(test_table.insert(), rows)
 
-        subprocess.check_call(
-            ['./acra_rollback', '--client_id=keypair1',
-             '--connection_string=dbname={dbname} user={user} '
-             'sslmode={sslmode} '
-             'password={password} host={host} port={port}'.format(
-                 sslmode=self.sslmode,
-                 dbname=self.DB_NAME, user=DB_USER, port=self.DB_PORT,
-                 password=DB_USER_PASSWORD, host=self.DB_HOST),
-             '--execute=true',
-             '--select=select data from {};'.format(test_table.name),
-             '--insert=insert into {} values($1);'.format(
-                 rollback_output_table.name)],
-            cwd=os.getcwd(), timeout=PROCESS_CALL_TIMEOUT)
+        args = [
+            '--execute=true',
+            '--select=select data from {};'.format(test_table.name),
+            '--insert=insert into {} values({});'.format(
+                rollback_output_table.name, self.placeholder)
+        ]
+        self.run_rollback(args)
 
         source_data = set([i['raw_data'].encode('ascii') for i in rows])
         result = self.engine_raw.execute(rollback_output_table.select())
@@ -1282,21 +1395,20 @@ class TestAcraRollback(BaseTestCase):
             rows.append(row)
         self.engine_raw.execute(test_table.insert(), rows)
 
-        subprocess.check_call(
-            ['./acra_rollback', '--client_id=keypair1',
-             '--connection_string=dbname={dbname} user={user} '
-             'password={password} host={host} port={port} '
-             'sslmode={sslmode}'.format(
-                 sslmode=self.sslmode,
-                 dbname=self.DB_NAME, user=DB_USER, port=self.DB_PORT,
-                 password=DB_USER_PASSWORD, host=self.DB_HOST),
-             '--execute=true',
-             '--select=select \'{id}\'::bytea, data from {table};'.format(
-                 id=zones[0]['id'], table=test_table.name),
-             '--zonemode=true',
-             '--insert=insert into {} values($1);'.format(
-                 rollback_output_table.name)],
-            cwd=os.getcwd(), timeout=PROCESS_CALL_TIMEOUT)
+        if TEST_MYSQL:
+            select_query = '--select=select \'{id}\', data from {table};'.format(
+                 id=zones[0]['id'], table=test_table.name)
+        else:
+            select_query = '--select=select \'{id}\'::bytea, data from {table};'.format(
+                 id=zones[0]['id'], table=test_table.name)
+        args = [
+            '--execute=true',
+            select_query,
+            '--zonemode=true',
+            '--insert=insert into {} values({});'.format(
+                rollback_output_table.name, self.placeholder)
+        ]
+        self.run_rollback(args)
 
         source_data = set([i['raw_data'].encode('ascii') for i in rows])
         result = self.engine_raw.execute(rollback_output_table.select())
@@ -1334,7 +1446,7 @@ class SSLPostgresqlConnectionTest(HexFormatTest):
             self.engine1 = sa.create_engine(
                 get_postgresql_tcp_connection_string(self.ACRA_PORT, self.DB_NAME), connect_args=get_connect_args(port=self.ACRA_PORT))
             self.engine_raw = sa.create_engine(
-                'postgresql://{}:{}/{}'.format(self.DB_HOST, self.DB_PORT, self.DB_NAME),
+                '{}://{}:{}/{}'.format(DB_DRIVER, self.DB_HOST, self.DB_PORT, self.DB_NAME),
                 connect_args=get_connect_args(self.DB_PORT))
             # test case from HexFormatTest expect two engines with different client_id but here enough one and
             # raw connection
