@@ -30,4 +30,4 @@ services:
     volumes:
       - ../.acrakeys:/keys
 
-    command: ["--client_id=client", "--zonemode"]
+    command: ["--client_id=client", "--enable_http_api"]

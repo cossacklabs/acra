@@ -20,16 +20,19 @@ import (
 	"encoding/hex"
 	"flag"
 	"fmt"
+	"os"
+	"strings"
+
 	"github.com/cossacklabs/acra/cmd"
 	"github.com/cossacklabs/acra/decryptor/base"
 	"github.com/cossacklabs/acra/decryptor/postgresql"
 	"github.com/cossacklabs/acra/keystore"
 	"github.com/cossacklabs/acra/utils"
 	"github.com/cossacklabs/themis/gothemis/keys"
+	//_ "github.com/ziutek/mymysql/godrv"
+	_ "github.com/go-sql-driver/mysql"
 	_ "github.com/lib/pq"
 	log "github.com/sirupsen/logrus"
-	"os"
-	"strings"
 	"github.com/cossacklabs/acra/logging"
 )
 
@@ -43,6 +46,12 @@ func ErrorExit(msg string, err error) {
 
 type BinaryEncoder interface {
 	Encode([]byte) string
+}
+
+type MysqlEncoder struct{}
+
+func (e *MysqlEncoder) Encode(data []byte) string {
+	return fmt.Sprintf("X'%s'", hex.EncodeToString(data))
 }
 
 type EscapeEncoder struct{}
@@ -145,11 +154,13 @@ func main() {
 	clientId := flag.String("client_id", "", "Client id should be name of file with private key")
 	connectionString := flag.String("connection_string", "", "Connection string for db")
 	sqlSelect := flag.String("select", "", "Query to fetch data for decryption")
-	sqlInsert := flag.String("insert", "", "Query for insert decrypted data with placeholders (pg: $n)")
+	sqlInsert := flag.String("insert", "", "Query for insert decrypted data with placeholders (pg: $n, mysql: ?)")
 	withZone := flag.Bool("zonemode", false, "Turn on zone mode")
 	outputFile := flag.String("output_file", "decrypted.sql", "File for store inserts queries")
 	execute := flag.Bool("execute", false, "Execute inserts")
 	escapeFormat := flag.Bool("escape", false, "Escape bytea format")
+	useMysql := flag.Bool("mysql", false, "Handle MySQL connections")
+	usePostgresql := flag.Bool("postgresql", false, "Handle Postgresql connections")
 
 	logging.SetLogLevel(logging.LOG_VERBOSE)
 
@@ -157,6 +168,24 @@ func main() {
 	if err != nil {
 		log.WithError(err).Errorln("can't parse args")
 		os.Exit(1)
+	}
+
+	twoDrivers := *useMysql && *usePostgresql
+	noDrivers := !(*useMysql || *usePostgresql)
+	if twoDrivers || noDrivers {
+		log.Errorln("you must pass only --mysql or --postgresql (one required)")
+		os.Exit(1)
+	}
+	if *useMysql {
+		PLACEHOLDER = "?"
+	}
+
+	dbDriverName := "postgres"
+	if *useMysql {
+		// https://github.com/ziutek/mymysql
+		//dbDriverName = "mymysql"
+		// https://github.com/go-sql-driver/mysql/
+		dbDriverName = "mysql"
 	}
 
 	cmd.ValidateClientId(*clientId)
@@ -188,7 +217,7 @@ func main() {
 		log.WithError(err).Errorln("can't create key store")
 		os.Exit(1)
 	}
-	db, err := sql.Open("postgres", *connectionString)
+	db, err := sql.Open(dbDriverName, *connectionString)
 	if err != nil {
 		log.WithError(err).Errorln("can't connect to db")
 		os.Exit(1)
@@ -208,10 +237,14 @@ func main() {
 
 	executors := list.New()
 	if *outputFile != "" {
-		if *escapeFormat {
-			executors.PushFront(NewWriteToFileExecutor(*outputFile, *sqlInsert, &EscapeEncoder{}))
+		if *useMysql {
+			executors.PushFront(NewWriteToFileExecutor(*outputFile, *sqlInsert, &MysqlEncoder{}))
 		} else {
-			executors.PushFront(NewWriteToFileExecutor(*outputFile, *sqlInsert, &HexEncoder{}))
+			if *escapeFormat {
+				executors.PushFront(NewWriteToFileExecutor(*outputFile, *sqlInsert, &EscapeEncoder{}))
+			} else {
+				executors.PushFront(NewWriteToFileExecutor(*outputFile, *sqlInsert, &HexEncoder{}))
+			}
 		}
 	}
 	if *execute {

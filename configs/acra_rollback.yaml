@@ -16,14 +16,20 @@ escape: false
 # Execute inserts
 execute: false
 
-# Query for insert decrypted data with placeholders (pg: $n)
+# Query for insert decrypted data with placeholders (pg: $n, mysql: ?)
 insert: 
 
 # Folder from which the keys will be loaded
 keys_dir: .acrakeys
 
+# Handle MySQL connections
+mysql: false
+
 # File for store inserts queries
 output_file: decrypted.sql
+
+# Handle Postgresql connections
+postgresql: false
 
 # Query to fetch data for decryption
 select: 
