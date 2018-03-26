@@ -38,7 +38,7 @@ const (
 	GRACEFUL_ENV            = "GRACEFUL_RESTART"
 	DESCRIPTOR_ACRA         = 3
 	DESCRIPTOR_API          = 4
-	SERVICE_NAME = "acraserver"
+	SERVICE_NAME            = "acraserver"
 )
 
 // DEFAULT_CONFIG_PATH relative path to config which will be parsed as default
@@ -159,11 +159,11 @@ func main() {
 		config.SetByteaFormat(ESCAPE_BYTEA_FORMAT)
 	}
 
-	log.Infof("Initializing keystore")
+	log.Infof("Initialising keystore")
 	keyStore, err := keystore.NewFilesystemKeyStore(*keysDir)
 	if err != nil {
 		log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantInitKeyStore).
-			Errorln("Can't initialize keystore")
+			Errorln("Can't initialise keystore")
 		os.Exit(1)
 	}
 	if *useTls {
@@ -177,7 +177,7 @@ func main() {
 		config.ConnectionWrapper, err = network.NewTLSConnectionWrapper([]byte(*clientId), tlsConfig)
 		if err != nil {
 			log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorTransportConfiguration).
-				Errorln("Configuration error: can't initialize TLS connection wrapper")
+				Errorln("Configuration error: can't initialise TLS connection wrapper")
 			os.Exit(1)
 		}
 	} else if *noEncryption {
@@ -311,7 +311,7 @@ func main() {
 		os.Exit(0)
 	})
 
-	log.Infof("Current PID: %v", os.Getpid())
+	log.Infof("Start listening to connections. Current PID: %v", os.Getpid())
 
 	if os.Getenv(GRACEFUL_ENV) == "true" {
 		go server.StartFromFileDescriptor(DESCRIPTOR_ACRA)
@@ -325,5 +325,6 @@ func main() {
 		}
 	}
 
+	// todo: any reason why it's so far from adding callback?
 	sigHandlerSIGHUP.Register()
 }

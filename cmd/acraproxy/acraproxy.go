@@ -91,7 +91,7 @@ func handleClientConnection(config *Config, connection net.Conn) {
 	acraConn.SetDeadline(time.Now().Add(time.Second * 2))
 	acraConnWrapped, err := config.ConnectionWrapper.WrapClient(config.ClientId, acraConn)
 	if err != nil {
-		log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantStartConnection).
+		log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantWrapConnection).
 			Errorln("Can't wrap connection")
 		return
 	}
@@ -104,9 +104,9 @@ func handleClientConnection(config *Config, connection net.Conn) {
 	go network.Proxy(acraConnWrapped, connection, fromAcraErrCh)
 	select {
 	case err = <-toAcraErrCh:
-		log.Debugln("Error from connection with client")
+		log.Errorln("Error from connection with client")
 	case err = <-fromAcraErrCh:
-		log.Debugln("Error from connection with acra")
+		log.Errorln("Error from connection with acra")
 	}
 	if err != nil {
 		if err == io.EOF {

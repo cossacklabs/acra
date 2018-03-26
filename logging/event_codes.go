@@ -19,15 +19,23 @@ const (
 	EventCodeErrorCantReadKeys               = 511
 
 	// system events
-	EventCodeErrorCantGetFileDescriptor      = 520
-	EventCodeErrorCantRegisterSignalHandler  = 521
+	EventCodeErrorCantGetFileDescriptor     = 520
+	EventCodeErrorCantOpenFileByDescriptor  = 521
+	EventCodeErrorFileDescriptionIsNotValid    = 522
+	EventCodeErrorCantRegisterSignalHandler = 523
 
 	// transport / networks
 	EventCodeErrorCantStartListenConnections = 530
-	EventCodeErrorTransportConfiguration     = 531
-	EventCodeErrorCantAcceptNewConnections   = 532
-	EventCodeErrorCantStartConnection        = 533
-	EventCodeErrorCantHandleSecureSession    = 534
+	EventCodeErrorCantStopListenConnections  = 531
+	EventCodeErrorTransportConfiguration     = 532
+	EventCodeErrorCantAcceptNewConnections   = 533
+	EventCodeErrorCantStartConnection        = 534
+	EventCodeErrorCantHandleSecureSession    = 535
+	EventCodeErrorCantCloseConnection        = 536
+	EventCodeErrorCantInitClientSession      = 537
+	EventCodeErrorCantWrapConnection         = 538
+	EventCodeErrorConnectionDroppedByTimeout = 539
+
 
 	// database
 	EventCodeErrorCantConnectToDB = 540

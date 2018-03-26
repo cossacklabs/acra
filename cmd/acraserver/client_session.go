@@ -58,13 +58,13 @@ func (clientSession *ClientSession) close() {
 		log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantCloseConnectionToService).
 			Errorln("Error with closing connection to acraproxy")
 	}
-	log.Debugln("close db connection")
+	log.Debugln("Close db connection")
 	err = clientSession.connectionToDb.Close()
 	if err != nil {
 		log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantCloseConnectionDB).
 			Errorln("Error with closing connection to db")
 	}
-	log.Debugln("all connections closed")
+	log.Debugln("All connections closed")
 }
 
 /* proxy connections from client to db and decrypt responses from db to client
@@ -106,7 +106,7 @@ func (clientSession *ClientSession) HandleSecureSession(decryptorImpl base.Decry
 		log.Debugln("MySQL connection")
 		handler, err := mysql.NewMysqlHandler(decryptorImpl)
 		if err != nil {
-			log.WithError(err).Errorln("can't initialize mysql handler")
+			log.WithError(err).Errorln("Can't initialize mysql handler")
 			return
 		}
 		go handler.ClientToDbProxy(decryptorImpl, clientSession.connectionToDb, clientSession.connection, innerErrorChannel)
@@ -123,7 +123,7 @@ func (clientSession *ClientSession) HandleSecureSession(decryptorImpl base.Decry
 			log.Debugln("EOF connection closed")
 		} else if netErr, ok := err.(net.Error); ok {
 			if netErr.Timeout() {
-				log.Debugln("network timeout")
+				log.Debugln("Network timeout")
 				if clientSession.config.UseMySQL() {
 					break
 				} else {
@@ -133,11 +133,11 @@ func (clientSession *ClientSession) HandleSecureSession(decryptorImpl base.Decry
 				}
 			}
 			log.WithError(netErr).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantHandleSecureSession).
-				Errorln("network error")
+				Errorln("Network error")
 		} else if opErr, ok := err.(*net.OpError); ok {
-			log.WithError(opErr).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantHandleSecureSession).Errorln("network error")
+			log.WithError(opErr).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantHandleSecureSession).Errorln("Network error")
 		} else {
-			log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantHandleSecureSession).Errorln("unexpected error")
+			log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantHandleSecureSession).Errorln("Unexpected error")
 		}
 		break
 	}
