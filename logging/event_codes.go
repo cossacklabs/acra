@@ -36,9 +36,15 @@ const (
 	EventCodeErrorCantWrapConnection         = 538
 	EventCodeErrorConnectionDroppedByTimeout = 539
 
-
 	// database
-	EventCodeErrorCantConnectToDB = 540
+	EventCodeErrorCantConnectToDB       = 540
 	EventCodeErrorCantCloseConnectionDB = 541
-	EventCodeErrorCantInitDecryptor = 542
+	EventCodeErrorCantInitDecryptor     = 542
+
+	// config UI
+	EventCodeErrorCantReadTemplate     = 550
+	EventCodeErrorRequestMethodNotAllowed = 551
+	EventCodeErrorCantParseRequestData = 552
+	EventCodeErrorCantGetCurrentConfig = 553
+	EventCodeErrorCantSetNewConfig     = 5543
 )

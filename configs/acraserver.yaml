@@ -85,7 +85,7 @@ tls_key:
 # Expected Server Name (SNI)
 tls_sni: 
 
-# Log to stdout
+# Log to stderr
 v: false
 
 # Acrastruct will stored in whole data cell
