@@ -1,15 +1,9 @@
 package mysql
 
-import "fmt"
-
 type SqlError struct {
 	Code    uint16
 	Message string
 	State   string
-}
-
-func (e *SqlError) Error() string {
-	return fmt.Sprintf("ERROR %d (%s): %s", e.Code, e.State, e.Message)
 }
 
 const (
@@ -28,7 +22,8 @@ func newQueryInterruptedError() *SqlError {
 
 func NewError(isProtocol41 bool) []byte {
 	mysqlError := newQueryInterruptedError()
-	data := make([]byte, 0, 16+len(mysqlError.Message))
+	// 1 byte ERR_PACKET flag + 2 bytes of error code + 6 bytes of state (protocol41) = 9
+	data := make([]byte, 0, 9+len(mysqlError.Message))
 
 	data = append(data, ERR_PACKET)
 	data = append(data, byte(mysqlError.Code), byte(mysqlError.Code>>8))
