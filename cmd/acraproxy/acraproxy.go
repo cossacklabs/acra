@@ -104,9 +104,11 @@ func handleClientConnection(config *Config, connection net.Conn) {
 	go network.Proxy(acraConnWrapped, connection, fromAcraErrCh)
 	select {
 	case err = <-toAcraErrCh:
-		log.Errorln("Error from connection with client")
+		log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantStartConnection).
+			Errorln("Error from connection with client")
 	case err = <-fromAcraErrCh:
-		log.Errorln("Error from connection with acra")
+		log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantStartConnection).
+			Errorln("Error from connection with acra")
 	}
 	if err != nil {
 		if err == io.EOF {
@@ -309,9 +311,9 @@ func main() {
 				}
 				// unix socket and value == '@'
 				if len(connection.RemoteAddr().String()) == 1 {
-					log.Infof("Got new connection to http API: <%v>", connection.LocalAddr())
+					log.Infof("Got new connection to http API: %v", connection.LocalAddr())
 				} else {
-					log.Infof("Got new connection to http API: <%v>", connection.RemoteAddr())
+					log.Infof("Got new connection to http API: %v", connection.RemoteAddr())
 				}
 				go handleClientConnection(&commandsConfig, connection)
 			}
@@ -328,9 +330,9 @@ func main() {
 		}
 		// unix socket and value == '@'
 		if len(connection.RemoteAddr().String()) == 1 {
-			log.Infof("Got new connection to acraproxy: <%v>", connection.LocalAddr())
+			log.Infof("Got new connection to acraproxy: %v", connection.LocalAddr())
 		} else {
-			log.Infof("Got new connection to acraproxy: <%v>", connection.RemoteAddr())
+			log.Infof("Got new connection to acraproxy: %v", connection.RemoteAddr())
 		}
 		go handleClientConnection(config, connection)
 	}
