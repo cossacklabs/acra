@@ -179,7 +179,7 @@ func (handler *MysqlHandler) ClientToDbProxy(decryptor base.Decryptor, dbConnect
 			sqlQuery := string(data)
 			if err := handler.firewall.HandleQuery(sqlQuery); err != nil {
 				log.WithError(err).Errorln("error on firewall check")
-				errPacket := NewError(handler.clientProtocol41)
+				errPacket := NewQueryInterruptedError(handler.clientProtocol41)
 				packet.SetData(errPacket)
 				if _, err := clientConnection.Write(packet.Dump()); err != nil {
 					log.WithError(err).Errorln("can't write response with error to client")

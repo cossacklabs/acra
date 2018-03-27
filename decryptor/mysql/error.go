@@ -20,10 +20,18 @@ func newQueryInterruptedError() *SqlError {
 	return e
 }
 
-func NewError(isProtocol41 bool) []byte {
+// NewQueryInterruptedError return packed QueryInterrupted error
+// https://dev.mysql.com/doc/internals/en/packet-ERR_Packet.html
+func NewQueryInterruptedError(isProtocol41 bool) []byte {
 	mysqlError := newQueryInterruptedError()
-	// 1 byte ERR_PACKET flag + 2 bytes of error code + 6 bytes of state (protocol41) = 9
-	data := make([]byte, 0, 9+len(mysqlError.Message))
+	var data []byte
+	if isProtocol41 {
+		// 1 byte ERR_PACKET flag + 2 bytes of error code = 3
+		data = make([]byte, 0, 3+len(mysqlError.Message))
+	} else {
+		// 1 byte ERR_PACKET flag + 2 bytes of error code + 6 bytes of state (protocol41) = 9
+		data = make([]byte, 0, 9+len(mysqlError.Message))
+	}
 
 	data = append(data, ERR_PACKET)
 	data = append(data, byte(mysqlError.Code), byte(mysqlError.Code>>8))
