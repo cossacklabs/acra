@@ -162,9 +162,9 @@ define docker_build
 endef
 
 ifeq ($(BRANCH),stable)
-    CONTAINER_TAGS = stable $(VERSION)
+    CONTAINER_TAGS = stable latest $(VERSION)
 else ifeq ($(BRANCH),master)
-    CONTAINER_TAGS = latest $(VERSION)
+    CONTAINER_TAGS = master current $(VERSION)
 endif
 
 docker:
