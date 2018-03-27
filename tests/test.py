@@ -529,7 +529,7 @@ class BaseTestCase(unittest.TestCase):
                 'zone_id': zones[0]['id'],
                 'poison_record': b64encode(get_poison_record()).decode('ascii'),
             }
-        ))
+        ), file=sys.stderr)
 
 
 class HexFormatTest(BaseTestCase):
@@ -1153,6 +1153,7 @@ class TestNoCheckPoisonRecordWithZoneWholeCell(TestNoCheckPoisonRecordWithZone):
 class TestCheckLogPoisonRecord(AcraCatchLogsMixin, BasePoisonRecordTest):
     SHUTDOWN = True
     DEBUG_LOG = True
+    TEST_DATA_LOG = True
 
     def setUp(self):
         self.poison_script_file = NamedTemporaryFile('w')
