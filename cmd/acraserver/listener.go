@@ -188,9 +188,9 @@ func (server *SServer) Start() {
 		}
 		// unix socket and value == '@'
 		if len(connection.RemoteAddr().String()) == 1 {
-			log.Infof("Got new connection to acraserver: <%v>", connection.LocalAddr())
+			log.Infof("Got new connection to acraserver: %v", connection.LocalAddr())
 		} else {
-			log.Infof("Got new connection to acraserver: <%v>", connection.RemoteAddr())
+			log.Infof("Got new connection to acraserver: %v", connection.RemoteAddr())
 		}
 		go func() {
 			server.cmACRA.Incr()
@@ -235,9 +235,9 @@ func (server *SServer) StartFromFileDescriptor(fd uintptr) {
 		}
 		// unix socket and value == '@'
 		if len(connection.RemoteAddr().String()) == 1 {
-			log.Infof("Got new connection to acraserver: <%v>", connection.LocalAddr())
+			log.Infof("Got new connection to acraserver: %v", connection.LocalAddr())
 		} else {
-			log.Infof("Got new connection to acraserver: <%v>", connection.RemoteAddr())
+			log.Infof("Got new connection to acraserver: %v", connection.RemoteAddr())
 		}
 		go func() {
 			server.cmACRA.Incr()
@@ -360,9 +360,9 @@ func (server *SServer) StartCommands() {
 		}
 		// unix socket and value == '@'
 		if len(connection.RemoteAddr().String()) == 1 {
-			log.Infof("Got new connection to http API: <%v>", connection.LocalAddr())
+			log.Infof("Got new connection to http API: %v", connection.LocalAddr())
 		} else {
-			log.Infof("Got new connection to http API: <%v>", connection.RemoteAddr())
+			log.Infof("Got new connection to http API: %v", connection.RemoteAddr())
 		}
 		go func() {
 			server.cmAPI.Incr()
@@ -405,9 +405,9 @@ func (server *SServer) StartCommandsFromFileDescriptor(fd uintptr) {
 		}
 		// unix socket and value == '@'
 		if len(connection.RemoteAddr().String()) == 1 {
-			log.Infof("Got new connection to http API: <%v>", connection.LocalAddr())
+			log.Infof("Got new connection to http API: %v", connection.LocalAddr())
 		} else {
-			log.Infof("Got new connection to http API: <%v>", connection.RemoteAddr())
+			log.Infof("Got new connection to http API: %v", connection.RemoteAddr())
 		}
 		go func() {
 			server.cmAPI.Incr()
