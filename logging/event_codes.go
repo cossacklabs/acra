@@ -21,7 +21,7 @@ const (
 	// system events
 	EventCodeErrorCantGetFileDescriptor     = 520
 	EventCodeErrorCantOpenFileByDescriptor  = 521
-	EventCodeErrorFileDescriptionIsNotValid    = 522
+	EventCodeErrorFileDescriptionIsNotValid = 522
 	EventCodeErrorCantRegisterSignalHandler = 523
 
 	// transport / networks
@@ -39,12 +39,31 @@ const (
 	// database
 	EventCodeErrorCantConnectToDB       = 540
 	EventCodeErrorCantCloseConnectionDB = 541
-	EventCodeErrorCantInitDecryptor     = 542
 
 	// config UI
-	EventCodeErrorCantReadTemplate     = 550
+	EventCodeErrorCantReadTemplate        = 550
 	EventCodeErrorRequestMethodNotAllowed = 551
-	EventCodeErrorCantParseRequestData = 552
-	EventCodeErrorCantGetCurrentConfig = 553
-	EventCodeErrorCantSetNewConfig     = 5543
+	EventCodeErrorCantParseRequestData    = 552
+	EventCodeErrorCantGetCurrentConfig    = 553
+	EventCodeErrorCantSetNewConfig        = 554
+
+	// firewall
+	EventCodeErrorFirewallQueryIsNotAllowed = 560
+
+	// response proxy
+	EventCodeErrorResponseProxyCantWriteToDB      = 570
+	EventCodeErrorResponseProxyCantReadFromClient = 571
+	EventCodeErrorResponseProxyCantWriteToClient  = 572
+	EventCodeErrorResponseProxyCantReadFromServer = 573
+	EventCodeErrorResponseProxyCantWriteToServer  = 574
+	EventCodeErrorResponseProxyCantProcessColumn  = 575
+	EventCodeErrorResponseProxyCantProcessRow     = 576
+
+	// decryptor
+	EventCodeErrorCantInitDecryptor                          = 580
+	EventCodeErrorDecryptorCantDecryptBinary                 = 581
+	EventCodeErrorDecryptorCantSkipBeginInBlock              = 582
+	EventCodeErrorDecryptorCantHandleRecognizedPoisonRecord  = 583
+	EventCodeErrorDecryptorCantInitializeTLS                 = 584
+	EventCodeErrorDecryptorCantSetDeadlineToClientConnection = 585
 )

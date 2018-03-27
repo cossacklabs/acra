@@ -9,6 +9,7 @@ import (
 	"github.com/cossacklabs/acra/decryptor/base"
 	"github.com/cossacklabs/acra/firewall"
 	log "github.com/sirupsen/logrus"
+	"github.com/cossacklabs/acra/logging"
 )
 
 const (
@@ -146,23 +147,24 @@ func (handler *MysqlHandler) getResponseHandler() ResponseHandler {
 
 func (handler *MysqlHandler) ClientToDbProxy(decryptor base.Decryptor, dbConnection, clientConnection net.Conn, errCh chan<- error) {
 	clientLog := log.WithField("proxy", "client")
-	clientLog.Debugln("start proxy client's requests")
+	clientLog.Debugln("Start proxy client's requests")
 	firstPacket := true
 	for {
 		packet, err := ReadPacket(clientConnection)
 		if err != nil {
-			log.Debugln("can't read packet from client")
+			log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorResponseProxyCantReadFromClient).
+				Debugln("Can't read packet from client")
 			errCh <- err
 			return
 		}
 		if firstPacket {
 			firstPacket = false
 			handler.clientProtocol41 = packet.SupportProtocol41()
-			clientLog.Debugf("set support protocol 41 %v", handler.clientProtocol41)
+			clientLog.Debugf("Set support protocol 41 %v", handler.clientProtocol41)
 		}
 		handler.clientSequenceNumber = int(packet.GetSequenceNumber())
 		clientLog = clientLog.WithField("sequence_number", handler.clientSequenceNumber)
-		clientLog.Debugln("new packet")
+		clientLog.Debugln("nNw packet")
 		inOutput := packet.Dump()
 		data := packet.GetData()
 		cmd := data[0]
@@ -170,7 +172,7 @@ func (handler *MysqlHandler) ClientToDbProxy(decryptor base.Decryptor, dbConnect
 
 		switch cmd {
 		case COM_QUIT:
-			clientLog.Debugln("close connections on COM_QUIT command")
+			clientLog.Debugln("Close connections on COM_QUIT command")
 			clientConnection.Close()
 			dbConnection.Close()
 			errCh <- io.EOF
@@ -178,11 +180,13 @@ func (handler *MysqlHandler) ClientToDbProxy(decryptor base.Decryptor, dbConnect
 		case COM_QUERY:
 			sqlQuery := string(data)
 			if err := handler.firewall.HandleQuery(sqlQuery); err != nil {
-				log.WithError(err).Errorln("error on firewall check")
+				log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorFirewallQueryIsNotAllowed).
+					Errorln("Error on firewall check")
 				errPacket := NewQueryInterruptedError(handler.clientProtocol41)
 				packet.SetData(errPacket)
 				if _, err := clientConnection.Write(packet.Dump()); err != nil {
-					log.WithError(err).Errorln("can't write response with error to client")
+					log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorResponseProxyCantWriteToClient).
+						Errorln("Can't write response with error to client")
 				}
 				continue
 			}
@@ -192,16 +196,18 @@ func (handler *MysqlHandler) ClientToDbProxy(decryptor base.Decryptor, dbConnect
 		case COM_STMT_PREPARE, COM_STMT_EXECUTE, COM_STMT_CLOSE, COM_STMT_SEND_LONG_DATA, COM_STMT_RESET:
 			fallthrough
 		default:
-			clientLog.Debugf("command %d not supported now", cmd)
+			clientLog.Debugf("Command %d not supported now", cmd)
 		}
 		if _, err := dbConnection.Write(inOutput); err != nil {
-			clientLog.Debugln("can't write send packet to db")
+			clientLog.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorResponseProxyCantWriteToDB).
+				Debugln("Can't write send packet to db")
 			errCh <- err
 			return
 		}
 	}
 }
 
+// TODO: remove because it's not needed
 type Decryptor interface {
 	Decrypt(data []byte) ([]byte, bool, error)
 }
@@ -232,7 +238,7 @@ func (handler *MysqlHandler) processTextDataRow(rowData []byte, fields []*Column
 	var n int = 0
 	var output []byte
 	var fieldLogger *log.Entry
-	log.Debugln("process fields in text data row")
+	log.Debugln("Process fields in text data row")
 	for i := range fields {
 		fieldLogger = log.WithField("field_index", i)
 		value, _, n, err = LengthEncodedString(rowData[pos:])
@@ -242,24 +248,25 @@ func (handler *MysqlHandler) processTextDataRow(rowData []byte, fields []*Column
 		if handler.isFieldToDecrypt(fields[i]) {
 			decryptedValue, err := handler.decryptor.DecryptBlock(value)
 			if err != nil {
-				fieldLogger.WithError(err).Errorln("can't decrypt binary data")
+				fieldLogger.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorDecryptorCantDecryptBinary).
+					Errorln("Can't decrypt binary data")
 			}
 			if err == nil && len(decryptedValue) != len(value) {
-				fieldLogger.Debugln("update with decrypted value")
+				fieldLogger.Debugln("Update with decrypted value")
 				output = append(output, PutLengthEncodedString(decryptedValue)...)
 			} else {
-				fieldLogger.Debugln("leave value as is")
+				fieldLogger.Debugln("Leave value as is")
 				output = append(output, rowData[pos:pos+n]...)
 			}
 			pos += n
 			continue
 		}
-		fieldLogger.Debugln("field is not binary")
+		fieldLogger.Debugln("Field is not binary")
 
 		output = append(output, rowData[pos:pos+n]...)
 		pos += n
 	}
-	log.Debugln("finish processing text data row")
+	log.Debugln("Finish processing text data row")
 
 	return output, nil
 }
@@ -283,12 +290,14 @@ func (handler *MysqlHandler) processBinaryDataRow(rowData []byte, fields []*Colu
 		if handler.isFieldToDecrypt(fields[i]) {
 			value, _, n, err = LengthEncodedString(rowData[pos:])
 			if err != nil {
-				log.WithError(err).Errorln("can't handle length encoded string binary value")
+				log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorDecryptorCantDecryptBinary).
+					Errorln("Can't handle length encoded string binary value")
 				return nil, err
 			}
 			decryptedValue, err := handler.decryptor.DecryptBlock(value)
 			if err != nil {
-				log.WithError(err).Errorln("can't decrypt binary data")
+				log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorDecryptorCantDecryptBinary).
+					Errorln("Can't decrypt binary data")
 				return nil, err
 			}
 			if len(value) != len(decryptedValue) {
@@ -341,7 +350,8 @@ func (handler *MysqlHandler) processBinaryDataRow(rowData []byte, fields []*Colu
 			output = append(output, rowData[pos:pos+n]...)
 			pos += n
 			if err != nil {
-				log.WithError(err).Errorln("can't handle length encoded string non binary value")
+				log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorDecryptorCantDecryptBinary).
+					Errorln("Can't handle length encoded string non binary value")
 				return nil, err
 			}
 			continue
@@ -351,14 +361,14 @@ func (handler *MysqlHandler) processBinaryDataRow(rowData []byte, fields []*Colu
 			pos += n
 			continue
 		default:
-			return nil, fmt.Errorf("Stmt Unknown FieldType %d %s", fields[i].Type, fields[i].Name)
+			return nil, fmt.Errorf("while decrypting MySQL query found unknown FieldType %d %s", fields[i].Type, fields[i].Name)
 		}
 	}
 	return output, nil
 }
 
 func (handler *MysqlHandler) QueryResponseHandler(packet *MysqlPacket, dbConnection, clientConnection net.Conn) (err error) {
-	log.Debugln("query handler")
+	log.Debugln("Query handler")
 	handler.resetQueryHandler()
 	handler.decryptor.Reset()
 	handler.decryptor.ResetZoneMatch()
@@ -369,20 +379,22 @@ func (handler *MysqlHandler) QueryResponseHandler(packet *MysqlPacket, dbConnect
 	// https://dev.mysql.com/doc/internals/en/com-query-response.html#text-resultset
 	fieldCount := int(packet.GetData()[0])
 	if fieldCount == OK_PACKET || fieldCount == ERR_PACKET {
-		log.Debugln("error or empty response packet")
+		log.Debugln("Error or empty response packet")
 		if _, err := clientConnection.Write(packet.Dump()); err != nil {
-			log.WithError(err).Errorln("can't proxy output")
+			log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorResponseProxyCantWriteToClient).
+				Errorln("Can't proxy output")
 			return err
 		}
 		return nil
 	}
 	output := []Dumper{packet}
-	log.Debugln("read column descriptions")
+	log.Debugln("Read column descriptions")
 	for i := 0; ; i++ {
 		log.WithField("column_index", i).Debugln("read column description")
 		fieldPacket, err := ReadPacket(dbConnection)
 		if err != nil {
-			log.WithError(err).Errorln("can't read packet with column description")
+			log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorResponseProxyCantProcessColumn).
+				Errorln("Can't read packet with column description")
 			return err
 		}
 		output = append(output, fieldPacket)
@@ -403,7 +415,7 @@ func (handler *MysqlHandler) QueryResponseHandler(packet *MysqlPacket, dbConnect
 		fields = append(fields, field)
 	}
 
-	log.Debugln("read data rows")
+	log.Debugln("Read data rows")
 	var dataLog *log.Entry
 	// read data packets
 	for i := 0; ; i++ {
@@ -419,11 +431,12 @@ func (handler *MysqlHandler) QueryResponseHandler(packet *MysqlPacket, dbConnect
 		}
 
 		dataLength := fieldDataPacket.GetPacketPayloadLength()
-		dataLog.Debugln("process data row")
+		dataLog.Debugln("Process data row")
 
 		newData, err := handler.processTextDataRow(fieldDataPacket.GetData(), fields)
 		if err != nil {
-			dataLog.WithError(err).Debugln("can't process text data row")
+			dataLog.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorResponseProxyCantProcessRow).
+				Debugln("Can't process text data row")
 			return err
 		}
 		// decrypted data always less than ecrypted
@@ -437,7 +450,8 @@ func (handler *MysqlHandler) QueryResponseHandler(packet *MysqlPacket, dbConnect
 	log.Debugln("proxy output")
 	for _, dumper := range output {
 		if _, err := clientConnection.Write(dumper.Dump()); err != nil {
-			log.WithError(err).Errorln("can't proxy output")
+			log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorResponseProxyCantWriteToClient).
+				Errorln("can't proxy output")
 			return err
 		}
 	}
@@ -447,13 +461,14 @@ func (handler *MysqlHandler) QueryResponseHandler(packet *MysqlPacket, dbConnect
 
 func (handler *MysqlHandler) DbToClientProxy(decryptor base.Decryptor, dbConnection, clientConnection net.Conn, errCh chan<- error) {
 	serverLog := log.WithField("proxy", "server")
-	serverLog.Debugln("start proxy db responses")
+	serverLog.Debugln("Start proxy db responses")
 	firstPacket := true
 	var responseHandler ResponseHandler
 	for {
 		packet, err := ReadPacket(dbConnection)
 		if err != nil {
-			log.Debugln("can't read packet from server")
+			log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorResponseProxyCantReadFromServer).
+				Debugln("Can't read packet from server")
 			errCh <- err
 			return
 		}
@@ -469,7 +484,8 @@ func (handler *MysqlHandler) DbToClientProxy(decryptor base.Decryptor, dbConnect
 		responseHandler = handler.getResponseHandler()
 		err = responseHandler(packet, dbConnection, clientConnection)
 		if err != nil {
-			log.WithError(err).Errorln("error in responseHandler")
+			log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorResponseProxyCantWriteToServer).
+				Errorln("Error in responseHandler")
 			errCh <- err
 			return
 		}
