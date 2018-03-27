@@ -16,17 +16,19 @@ package main
 import (
 	"errors"
 	"flag"
-	"github.com/cossacklabs/acra/cmd"
-	"github.com/cossacklabs/acra/keystore"
-	"github.com/cossacklabs/acra/logging"
-	"github.com/cossacklabs/acra/network"
-	"github.com/cossacklabs/acra/utils"
-	log "github.com/sirupsen/logrus"
 	"net/http"
 	_ "net/http/pprof"
 	"os"
 	"syscall"
 	"time"
+
+	"github.com/cossacklabs/acra/cmd"
+	"github.com/cossacklabs/acra/firewall"
+	"github.com/cossacklabs/acra/keystore"
+	"github.com/cossacklabs/acra/logging"
+	"github.com/cossacklabs/acra/network"
+	"github.com/cossacklabs/acra/utils"
+	log "github.com/sirupsen/logrus"
 )
 
 var restartSignalsChannel chan os.Signal
@@ -153,6 +155,7 @@ func main() {
 	config.SetEnableHTTPApi(*enableHTTPApi)
 	config.SetConfigPath(DEFAULT_CONFIG_PATH)
 	config.SetDebug(*debug)
+	config.SetFirewall(&firewall.Firewall{})
 	if *hexFormat || !*escapeFormat {
 		config.SetByteaFormat(HEX_BYTEA_FORMAT)
 	} else {

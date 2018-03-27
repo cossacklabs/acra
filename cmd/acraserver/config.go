@@ -17,6 +17,7 @@ import (
 	"encoding/json"
 	"errors"
 
+	"github.com/cossacklabs/acra/firewall"
 	"github.com/cossacklabs/acra/network"
 )
 
@@ -48,6 +49,7 @@ type Config struct {
 	postgresql              bool
 	configPath              string
 	debug                   bool
+	firewall                firewall.FirewallInterface
 }
 
 type UIEditableConfig struct {
@@ -65,6 +67,13 @@ func NewConfig() *Config {
 }
 
 var ErrTwoDBSetup = errors.New("only one db supported at one time")
+
+func (config *Config) SetFirewall(fw firewall.FirewallInterface) {
+	config.firewall = fw
+}
+func (config *Config) GetFirewall() firewall.FirewallInterface {
+	return config.firewall
+}
 
 func (config *Config) SetMySQL(useMySQL bool) error {
 	if config.postgresql && useMySQL {

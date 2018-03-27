@@ -1,6 +1,7 @@
 package mysql
 
 import (
+	"bytes"
 	"encoding/binary"
 	"fmt"
 	"io"
@@ -132,8 +133,15 @@ func (packet *MysqlPacket) IsErr() bool {
 	return packet.data[0] == ERR_PACKET
 }
 
+func (packet *MysqlPacket) getServerCapabilitiesFromGreeting(data []byte) uint16 {
+	endOfServerVersion := bytes.Index(data[1:], []byte{0}) + 2 // 1 first byte of protocol version and 1 to point to next byte
+	// 4 bytes connection string + 8 bytes of auth plugin + 1 byte filler
+	capabilities := data[endOfServerVersion+13 : endOfServerVersion+13+2]
+	return binary.LittleEndian.Uint16(capabilities)
+}
+
 func (packet *MysqlPacket) SupportProtocol41() bool {
-	capabilities := int(binary.LittleEndian.Uint16(packet.data[:2]))
+	capabilities := int(packet.getServerCapabilitiesFromGreeting(packet.data))
 	return (capabilities & CLIENT_PROTOCOL_41) > 0
 }
 
