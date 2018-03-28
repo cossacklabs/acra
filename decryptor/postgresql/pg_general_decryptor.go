@@ -176,6 +176,9 @@ func (decryptor *PgDecryptor) GetPrivateKey() (*keys.PrivateKey, error) {
 }
 
 func (decryptor *PgDecryptor) GetPoisonCallbackStorage() *base.PoisonCallbackStorage {
+	if decryptor.callbackStorage == nil {
+		decryptor.callbackStorage = base.NewPoisonCallbackStorage()
+	}
 	return decryptor.callbackStorage
 }
 
