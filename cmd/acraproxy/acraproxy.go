@@ -104,10 +104,10 @@ func handleClientConnection(config *Config, connection net.Conn) {
 	go network.Proxy(acraConnWrapped, connection, fromAcraErrCh)
 	select {
 	case err = <-toAcraErrCh:
-		log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantStartConnection).
+		log.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantStartConnection).
 			Errorln("Error from connection with client")
 	case err = <-fromAcraErrCh:
-		log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantStartConnection).
+		log.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantStartConnection).
 			Errorln("Error from connection with acra")
 	}
 	if err != nil {
