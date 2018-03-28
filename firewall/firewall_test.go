@@ -4,9 +4,10 @@ import (
 	"testing"
 	"github.com/cossacklabs/acra/firewall/handlers"
 	"io/ioutil"
-
+	"github.com/cossacklabs/acra/utils"
+	"path/filepath"
+	"os"
 )
-
 
 func TestWhitelistFirewall(t *testing.T) {
 
@@ -445,14 +446,21 @@ func testBlacklistByRules(t *testing.T, firewall * Firewall, blacklistHandler * 
 
 func TestConfigurationProvider(t *testing.T) {
 
-	configuration, err := ioutil.ReadFile("test_firewall_rules")
+	var DEFAULT_CONFIG_PATH = utils.GetConfigPathByName("acra_firewall.example")
+
+	filePath, err := os.Getwd()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	configuration, err := ioutil.ReadFile(filepath.Join(filePath, "../", DEFAULT_CONFIG_PATH))
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	firewall := &Firewall{}
 
-	err = firewall.SetFirewallConfiguration(string(configuration))
+	err = firewall.SetFirewallConfiguration(configuration)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -530,19 +538,32 @@ func TestConfigurationProvider(t *testing.T) {
 }
 func testSyntax(t *testing.T) {
 
-	configuration := "[handler]\nblacklist\n\n[queries]\nINSERT INTO SalesStaff1 VALUES (1, 'Stephen', 'Jiang');\nSLECT AVG(Price) FROM Products;"
-
 	firewall := &Firewall{}
 
-	err := updateFirewall(firewall, configuration)
+	configuration := `handlers:
+  - handler: blacklist
+    queries:
+      - INSERT INTO SalesStaff1 VALUES (1, 'Stephen', 'Jiang');
+      - SLECT AVG(Price) FROM Products;`
+
+	err := updateFirewall(firewall, []byte(configuration))
 	if err != ErrQuerySyntaxError{
 		t.Fatal(err)
 	}
 
-	configuration = "[handler]\nblacklist\n\n[queries]\nINSERT INTO SalesStaff1 VALUES (1, 'Stephen', 'Jiang');\nSELECT AVG(Price) FROM Products;\n\n[structures]\nSELECT * ROM EMPLOYEE WHERE CITY='Seattle';"
-	err = updateFirewall(firewall, configuration)
+	configuration = `handlers:
+  - handler: blacklist
+    queries:
+      - INSERT INTO SalesStaff1 VALUES (1, 'Stephen', 'Jiang');
+      - SELECT AVG(Price) FROM Products;
+    tables:
+      - EMPLOYEE_TBL
+      - Customers
+    rules:
+      - SELECT * ROM EMPLOYEE WHERE CITY='Seattle';`
+
+	err = updateFirewall(firewall, []byte(configuration))
 	if err != ErrStructureSyntaxError{
 		t.Fatal(err)
 	}
-
 }

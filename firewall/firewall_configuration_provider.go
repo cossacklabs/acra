@@ -2,24 +2,27 @@ package firewall
 
 import (
 	"errors"
-	"strings"
-	"github.com/cossacklabs/acra/firewall/handlers"
 	"github.com/xwb1989/sqlparser"
+	"gopkg.in/yaml.v2"
+	"github.com/cossacklabs/acra/firewall/handlers"
 )
 
-const blacklistStr = "blacklist"
-const whitelistStr = "whitelist"
-
-const handlerConfigHeader = 1
-const queryConfigHeader = 2
-const tableConfigHeader = 3
-const structureConfigHeader = 4
+const BlacklistConfigStr = "blacklist"
+const WhitelistConfigStr = "whitelist"
 
 var ErrQuerySyntaxError = errors.New("fail to parse specified query")
 var ErrStructureSyntaxError = errors.New("fail to parse specified structure")
 
+type FirewallConfig struct {
+	Handlers []struct {
+		Handler string
+		Queries []string
+		Tables  []string
+		Rules   []string
+	}
+}
 
-func (firewall *Firewall) SetFirewallConfiguration(configuration string) error {
+func (firewall *Firewall) SetFirewallConfiguration(configuration []byte) error {
 
 	err := updateFirewall(firewall, configuration)
 	if err != nil {
@@ -29,65 +32,44 @@ func (firewall *Firewall) SetFirewallConfiguration(configuration string) error {
 	return nil
 }
 
-func updateFirewall(firewall *Firewall, configuration string) error {
+func updateFirewall(firewall *Firewall, configuration []byte) error {
 
-	configLines := strings.Split(configuration, "\n")
+	var firewallConfiguration FirewallConfig
 
-	configLineType := 0
-	handlerIndex := 0
+	err := yaml.Unmarshal(configuration, &firewallConfiguration)
+	if err != nil {
+		return err
+	}
+
+	//fmt.Println(firewallConfiguration)
 
 	var firewallCheckers []QueryHandlerInterface
+	for _, handlerConfiguration := range firewallConfiguration.Handlers {
+		switch handlerConfiguration.Handler{
+		case WhitelistConfigStr:
+			whitelistHandler := &handlers.WhitelistHandler{}
 
-	for _, configLine := range configLines {
-		switch configLine {
-		case "[handler]":
-			configLineType = handlerConfigHeader
-			handlerIndex++
-			break;
-		case "[queries]":
-			configLineType = queryConfigHeader
-			break;
-		case "[tables]":
-			configLineType = tableConfigHeader
-			break;
-		case "[structures]":
-			configLineType = structureConfigHeader
-			break;
-		case "\n":
-			break;
+			whitelistHandler.AddQueries(handlerConfiguration.Queries)
+			whitelistHandler.AddTables(handlerConfiguration.Tables)
+			whitelistHandler.AddRules(handlerConfiguration.Rules)
 
+			firewallCheckers = append(firewallCheckers, whitelistHandler)
+			break;
+		case BlacklistConfigStr:
+			blacklistHandler := &handlers.BlacklistHandler{}
+
+			blacklistHandler.AddQueries(handlerConfiguration.Queries)
+			blacklistHandler.AddTables(handlerConfiguration.Tables)
+			blacklistHandler.AddRules(handlerConfiguration.Rules)
+
+			firewallCheckers = append(firewallCheckers, blacklistHandler)
+			break;
 		default:
-			//skip empty strings in config
-			if strings.EqualFold(configLine, ""){
-				break;
-			}
-			switch configLineType {
-			case handlerConfigHeader:
-				if strings.EqualFold(configLine, whitelistStr){
-					firewallCheckers = append(firewallCheckers, &handlers.WhitelistHandler{})
-				}
-				if strings.EqualFold(configLine, blacklistStr){
-					firewallCheckers = append(firewallCheckers, &handlers.BlacklistHandler{})
-				}
-
-				break;
-			case queryConfigHeader:
-				firewallCheckers[handlerIndex - 1].AddQueries([]string{configLine})
-				break;
-			case tableConfigHeader:
-				firewallCheckers[handlerIndex - 1].AddTables([]string{configLine})
-				break;
-			case structureConfigHeader:
-				firewallCheckers[handlerIndex - 1].AddRules([]string{configLine})
-				break;
-			default:
-				break;
-			}
-
+			break;
 		}
 	}
 
-	err := testConfigurationSyntax(firewallCheckers)
+	err = testConfigurationSyntax(firewallCheckers)
 	if err != nil {
 		return err
 	}
@@ -122,6 +104,3 @@ func testConfigurationSyntax(firewallCheckers []QueryHandlerInterface) error {
 
 	return nil
 }
-
-
-
