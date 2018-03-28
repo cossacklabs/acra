@@ -4,6 +4,7 @@ import (
 	"testing"
 	"github.com/cossacklabs/acra/firewall/handlers"
 	"io/ioutil"
+
 )
 
 
@@ -442,7 +443,6 @@ func testBlacklistByRules(t *testing.T, firewall * Firewall, blacklistHandler * 
 	}
 }
 
-
 func TestConfigurationProvider(t *testing.T) {
 
 	configuration, err := ioutil.ReadFile("test_firewall_rules")
@@ -524,4 +524,27 @@ func TestConfigurationProvider(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
+
+
+	testSyntax(t)
+	testLogic(t)
+
+}
+func testSyntax(t *testing.T) {
+
+	configuration := "[handler]\nblacklist\n\n[queries]\nINSERT INTO SalesStaff1 VALUES (1, 'Stephen', 'Jiang');\nSLECT AVG(Price) FROM Products;"
+
+	firewall := &Firewall{}
+
+	err := updateFirewall(firewall, configuration)
+	if err != ErrQuerySyntaxError{
+		t.Fatal(err)
+	}
+
+	configuration = "[handler]\nblacklist\n\n[queries]\nINSERT INTO SalesStaff1 VALUES (1, 'Stephen', 'Jiang');\nSELECT AVG(Price) FROM Products;\n\n[structures]\nSELECT * ROM EMPLOYEE WHERE CITY='Seattle';"
+	err = updateFirewall(firewall, configuration)
+	if err != ErrStructureSyntaxError{
+		t.Fatal(err)
+	}
+
 }

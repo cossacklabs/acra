@@ -1,8 +1,10 @@
 package firewall
 
 import (
+	"errors"
 	"strings"
 	"github.com/cossacklabs/acra/firewall/handlers"
+	"github.com/xwb1989/sqlparser"
 )
 
 const blacklistStr = "blacklist"
@@ -13,20 +15,13 @@ const queryConfigHeader = 2
 const tableConfigHeader = 3
 const structureConfigHeader = 4
 
+var ErrQuerySyntaxError = errors.New("fail to parse specified query")
+var ErrStructureSyntaxError = errors.New("fail to parse specified structure")
+
 
 func (firewall *Firewall) SetFirewallConfiguration(configuration string) error {
 
-	err := testConfigurationSyntax(configuration)
-	if err != nil {
-		return err
-	}
-
-	err = testConfigurationLogic(configuration)
-	if err != nil {
-		return err
-	}
-
-	err = updateFirewall(firewall, configuration)
+	err := updateFirewall(firewall, configuration)
 	if err != nil {
 		return err
 	}
@@ -92,6 +87,11 @@ func updateFirewall(firewall *Firewall, configuration string) error {
 		}
 	}
 
+	err := testConfigurationSyntax(firewallCheckers)
+	if err != nil {
+		return err
+	}
+
 	for _, firewallChecker := range firewallCheckers{
 		firewall.AddHandler(firewallChecker)
 	}
@@ -99,15 +99,27 @@ func updateFirewall(firewall *Firewall, configuration string) error {
 	return nil
 }
 
-func testConfigurationLogic(configuration string) error {
+func testConfigurationSyntax(firewallCheckers []QueryHandlerInterface) error {
 
-	//not implemented yet
-	return nil
-}
+	for _, singleChecker := range firewallCheckers{
+		//test syntax of queries
+		activeQueries := singleChecker.GetActiveQueries()
+		for _, activeQuery := range activeQueries {
+			_, err := sqlparser.Parse(activeQuery)
+			if err != nil {
+				return ErrQuerySyntaxError
+			}
+		}
+		//test syntax of structures
+		activeStructures := singleChecker.GetActiveRules()
+		for _, activeStructure := range activeStructures {
+			_, err := sqlparser.Parse(activeStructure)
+			if err != nil {
+				return ErrStructureSyntaxError
+			}
+		}
+	}
 
-func testConfigurationSyntax(configuration string) error {
-
-	//not implemented yet
 	return nil
 }
 

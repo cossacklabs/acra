@@ -10,7 +10,7 @@ EMPLOYEE_TBL
 Customers
 
 [structures]
-SELECT * FROM EMPLOYEE WHERE CITY='Seattle'
+SELECT * FROM EMPLOYEE WHERE CITY='Seattle';
 
 [handler]
 whitelist
