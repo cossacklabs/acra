@@ -7,8 +7,12 @@ import (
 
 var ErrQueryNotInWhitelist = errors.New("query not in whitelist")
 var ErrQueryInBlacklist = errors.New("query in blacklist")
-var ErrAccessToForbiddenTable = errors.New("query tries to access forbidden table")
-var ErrForbiddenSqlStructure = errors.New("query's structure is forbidden")
+
+var ErrAccessToForbiddenTableBlacklist = errors.New("query tries to access forbidden table | blacklist")
+var ErrAccessToForbiddenTableWhitelist = errors.New("query tries to access forbidden table | whitelist")
+
+var ErrForbiddenSqlStructureBlacklist = errors.New("query's structure is forbidden | blacklist")
+var ErrForbiddenSqlStructureWhitelist = errors.New("query's structure is forbidden | whitelist")
 
 
 func removeDuplicates(input []string) []string {
