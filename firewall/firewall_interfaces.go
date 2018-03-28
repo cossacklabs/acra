@@ -14,6 +14,10 @@ type QueryHandlerInterface interface {
 
 	AddRules(rules []string)
 	RemoveRules(rules []string)
+
+	GetActiveQueries() []string
+	GetActiveTables() []string
+	GetActiveRules() []string
 }
 
 

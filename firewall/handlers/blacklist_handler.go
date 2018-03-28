@@ -127,6 +127,20 @@ func (handler *BlacklistHandler) Refresh(){
 	handler.rules = nil
 }
 
+func (handler *BlacklistHandler) GetActiveQueries() []string {
+	return handler.queries
+}
+
+func (handler *BlacklistHandler) GetActiveTables() []string {
+	return handler.tables
+}
+
+func (handler *BlacklistHandler) GetActiveRules() []string {
+	return handler.rules
+}
+
+
+
 
 
 
