@@ -164,7 +164,7 @@ func (handler *MysqlHandler) ClientToDbProxy(decryptor base.Decryptor, dbConnect
 		}
 		handler.clientSequenceNumber = int(packet.GetSequenceNumber())
 		clientLog = clientLog.WithField("sequence_number", handler.clientSequenceNumber)
-		clientLog.Debugln("nNw packet")
+		clientLog.Debugln("New packet")
 		inOutput := packet.Dump()
 		data := packet.GetData()
 		cmd := data[0]
