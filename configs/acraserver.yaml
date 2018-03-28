@@ -47,7 +47,7 @@ injectedcell: false
 keys_dir: .acrakeys
 
 # Logging format: plaintext, json or CEF
-logging_format: json
+logging_format: plaintext
 
 # Handle MySQL connections
 mysql: false
