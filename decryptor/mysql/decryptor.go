@@ -134,8 +134,8 @@ func (decryptor *MySQLDecryptor) checkPoisonRecord(block []byte) (bool, error) {
 					Errorln("Unexpected error in poison record callbacks")
 			}
 			log.Debugln("Processed all callbacks on poison record")
-			return true, err
 		}
+		return true, err
 	}
 	return false, nil
 }
