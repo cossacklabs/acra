@@ -527,8 +527,6 @@ func TestConfigurationProvider(t *testing.T) {
 
 
 	testSyntax(t)
-	testLogic(t)
-
 }
 func testSyntax(t *testing.T) {
 
