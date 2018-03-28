@@ -114,7 +114,7 @@ func (row *DataRow) UpdateColumnAndDataSize(oldColumnLength, newColumnLength int
 	sizeDiff := oldColumnLength - newColumnLength
 	log.Debugf("Old column size: %v; New column size: %v", oldColumnLength, newColumnLength)
 	if newColumnLength > oldColumnLength {
-		row.errCh <- errors.New("Decrypted size is more than encrypted")
+		row.errCh <- errors.New("decrypted size is more than encrypted")
 		return false
 	}
 	binary.BigEndian.PutUint32(row.columnSizePointer, uint32(newColumnLength))
