@@ -185,6 +185,7 @@ func (server *SServer) Start() {
 			}
 			log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantAcceptNewConnections).
 				Errorf("Can't accept new connection (connection=%v)", connection)
+			continue
 		}
 		// unix socket and value == '@'
 		if len(connection.RemoteAddr().String()) == 1 {
@@ -232,6 +233,7 @@ func (server *SServer) StartFromFileDescriptor(fd uintptr) {
 			}
 			log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantAcceptNewConnections).
 				Errorf("Can't accept new connection (connection=%v)", connection)
+			continue
 		}
 		// unix socket and value == '@'
 		if len(connection.RemoteAddr().String()) == 1 {
@@ -357,6 +359,7 @@ func (server *SServer) StartCommands() {
 			}
 			log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantAcceptNewConnections).
 				Errorf("Can't accept new connection (connection=%v)", connection)
+			continue
 		}
 		// unix socket and value == '@'
 		if len(connection.RemoteAddr().String()) == 1 {
@@ -402,6 +405,7 @@ func (server *SServer) StartCommandsFromFileDescriptor(fd uintptr) {
 			}
 			log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantAcceptNewConnections).
 				Errorf("System error: can't accept new connection (connection=%v)", connection)
+			continue
 		}
 		// unix socket and value == '@'
 		if len(connection.RemoteAddr().String()) == 1 {
