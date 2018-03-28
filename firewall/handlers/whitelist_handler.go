@@ -27,7 +27,7 @@ func(handler * WhitelistHandler) CheckQuery(query string) error {
 	if len(handler.allowedTables) != 0 {
 		parsedQuery, err := sqlparser.Parse(query)
 		if err != nil {
-			return err
+			return errors.New(err.Error() + " | whitelist (tables)")
 		}
 
 		switch parsedQuery := parsedQuery.(type) {
@@ -41,7 +41,7 @@ func(handler * WhitelistHandler) CheckQuery(query string) error {
 				}
 			}
 			if allowedTablesCounter != len(parsedQuery.From){
-				return ErrAccessToForbiddenTable
+				return ErrAccessToForbiddenTableWhitelist
 			}
 
 		case *sqlparser.Insert:
@@ -53,7 +53,7 @@ func(handler * WhitelistHandler) CheckQuery(query string) error {
 				}
 			}
 			if !tableIsAllowed{
-				return ErrAccessToForbiddenTable
+				return ErrAccessToForbiddenTableWhitelist
 			}
 
 		case *sqlparser.Update:
@@ -64,12 +64,12 @@ func(handler * WhitelistHandler) CheckQuery(query string) error {
 
 	//Check rules
 	if len(handler.rules) != 0 {
-		violationOcurred, err := handler.testRulesViolation(query)
+		violationOccured, err := handler.testRulesViolation(query)
 		if err != nil {
-			return err
+			return errors.New(err.Error() + " | whitelist (structures)")
 		}
-		if violationOcurred {
-			return ErrForbiddenSqlStructure
+		if violationOccured {
+			return ErrForbiddenSqlStructureWhitelist
 		}
 	}
 	return nil

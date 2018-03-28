@@ -24,12 +24,11 @@ func(handler * BlacklistHandler) CheckQuery(query string) error {
 		}
 	}
 
-
 	//Check tables
 	if len(handler.tables) != 0 {
 		parsedQuery, err := sqlparser.Parse(query)
 		if err != nil {
-			return err
+			return errors.New(err.Error() + " | blacklist (tables)")
 		}
 
 		switch parsedQuery := parsedQuery.(type) {
@@ -37,7 +36,7 @@ func(handler * BlacklistHandler) CheckQuery(query string) error {
 			for _, forbiddenTable := range handler.tables {
 				for _, table := range parsedQuery.From{
 					if strings.EqualFold(sqlparser.String(table.(*sqlparser.AliasedTableExpr).Expr), forbiddenTable) {
-						return ErrAccessToForbiddenTable
+						return ErrAccessToForbiddenTableBlacklist
 					}
 				}
 			}
@@ -45,24 +44,23 @@ func(handler * BlacklistHandler) CheckQuery(query string) error {
 		case *sqlparser.Insert:
 			for _, forbiddenTable := range handler.tables {
 				if strings.EqualFold(parsedQuery.Table.Name.String(), forbiddenTable) {
-					return ErrAccessToForbiddenTable
+					return ErrAccessToForbiddenTableBlacklist
 				}
 			}
 
 		case *sqlparser.Update:
-
+			return errors.New("not implemented yet")
 		}
 	}
 
 	//Check rules
 	if len(handler.rules) != 0 {
-		violationOcurred, err := handler.testRulesViolation(query)
+		violationOccured, err := handler.testRulesViolation(query)
 		if err != nil {
-			return err
+			return errors.New(err.Error() + " | blacklist (structures)")
 		}
-		if violationOcurred {
-			//fmt.Println("out here")
-			return ErrForbiddenSqlStructure
+		if violationOccured {
+			return ErrForbiddenSqlStructureBlacklist
 		}
 	}
 	return nil
@@ -190,13 +188,22 @@ func (handler *BlacklistHandler) isDangerousSelect(selectQuery string, forbidden
 
 	evaluatedStmt := parsedSelectQuery.(*sqlparser.Select)
 
-	if strings.EqualFold(sqlparser.String(forbiddenWhere), sqlparser.String(evaluatedStmt.Where.Expr)) {
+	if evaluatedStmt.Where != nil {
+		if strings.EqualFold(sqlparser.String(forbiddenWhere), sqlparser.String(evaluatedStmt.Where.Expr)) {
+			if handler.isForbiddenTableAccess(evaluatedStmt.From, forbiddenTables) {
+				if handler.isForbiddenColumnAccess(evaluatedStmt.SelectExprs, forbiddenColumns){
+					return true, nil
+				}
+			}
+		}
+	} else {
 		if handler.isForbiddenTableAccess(evaluatedStmt.From, forbiddenTables) {
 			if handler.isForbiddenColumnAccess(evaluatedStmt.SelectExprs, forbiddenColumns){
 				return true, nil
 			}
 		}
 	}
+
 	return false, nil
 }
 
