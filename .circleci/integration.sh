@@ -25,14 +25,14 @@ for version in $VERSIONS; do
     
     echo "--------------------  Testing POSTGRES with TEST_TLS=on"
 
-    python3 tests/test.py;
+    python3 tests/test.py -v;
     if [ "$?" != "0" ]; then echo "pgsql-$version" >> "$FILEPATH_ERROR_FLAG";
     fi
 
     export TEST_TLS=off
 
     echo "--------------------  Testing POSTGRES with TEST_TLS=off"
-    python3 tests/test.py;
+    python3 tests/test.py -v;
     if [ "$?" != "0" ]; then echo "pgsql-$version" >> "$FILEPATH_ERROR_FLAG";
     fi
 
@@ -45,7 +45,7 @@ for version in $VERSIONS; do
     export TEST_TLS=off
 
     echo "--------------------  Testing TEST_MYSQL with TEST_TLS=off"
-    python3 tests/test.py;
+    python3 tests/test.py -v;
     if [ "$?" != "0" ]; then echo "mysql-$version" >> "$FILEPATH_ERROR_FLAG";
     fi
 
