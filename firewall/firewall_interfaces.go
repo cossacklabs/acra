@@ -4,11 +4,16 @@ package firewall
 type QueryHandlerInterface interface {
 	CheckQuery(sqlQuery string) error
 
+	Refresh()
+
 	AddQueries(queries []string)
 	RemoveQueries(queries []string)
 
 	AddTables(tables []string)
 	RemoveTables(tables []string)
+
+	AddRules(rules []string)
+	RemoveRules(rules []string)
 }
 
 
