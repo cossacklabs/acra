@@ -323,7 +323,7 @@ func PgDecryptStream(decryptor base.Decryptor, config *PgDecryptorConfig, dbConn
 					// poison record check
 					// check only if has any action on detection
 					if decryptor.GetPoisonCallbackStorage().HasCallbacks() {
-						log.Debugln("check poison records")
+						log.Debugln("Check poison records")
 						block, err := decryptor.SkipBeginInBlock(row.output[row.writeIndex : row.writeIndex+columnDataLength])
 						if err == nil {
 							poisoned, err := decryptor.CheckPoisonRecord(bytes.NewReader(block))
@@ -362,7 +362,7 @@ func PgDecryptStream(decryptor base.Decryptor, config *PgDecryptorConfig, dbConn
 
 					// check poison records
 					if decryptor.GetPoisonCallbackStorage().HasCallbacks() {
-						log.Debugln("check poison records")
+						log.Debugln("Check poison records")
 						for {
 							beginTagIndex, tagLength := decryptor.BeginTagIndex(row.output[currentIndex:endIndex])
 							if beginTagIndex == utils.NOT_FOUND {

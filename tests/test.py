@@ -1135,7 +1135,7 @@ class TestNoCheckPoisonRecord(AcraCatchLogsMixin, BasePoisonRecordTest):
             out, er_ = self.acra.communicate(timeout=1)
         except subprocess.TimeoutExpired:
             pass
-        self.assertNotIn(b'Debug: check poison records', out)
+        self.assertNotIn(b'Check poison records', out)
 
 
 class TestNoCheckPoisonRecordWithZone(TestNoCheckPoisonRecord):
@@ -1182,7 +1182,7 @@ class TestCheckLogPoisonRecord(AcraCatchLogsMixin, BasePoisonRecordTest):
             out, _ = self.acra.communicate(timeout=1)
         except subprocess.TimeoutExpired:
             pass
-        self.assertIn(b'check poison records', out)
+        self.assertIn(b'Check poison records', out)
 
 
 class TestKeyStorageClearing(BaseTestCase):
