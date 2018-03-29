@@ -43,7 +43,7 @@ func (handler *SignalHandler) AddListener(listener net.Listener) {
 	handler.listeners = append(handler.listeners, listener)
 }
 
-func (handler *SignalHandler) GetChannel() (chan os.Signal) {
+func (handler *SignalHandler) GetChannel() chan os.Signal {
 	return handler.ch
 }
 

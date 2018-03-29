@@ -1,8 +1,8 @@
 package firewall
 
 import (
-	"gopkg.in/yaml.v2"
 	"github.com/cossacklabs/acra/firewall/handlers"
+	"gopkg.in/yaml.v2"
 )
 
 const BlacklistConfigStr = "blacklist"
@@ -39,7 +39,7 @@ func (firewall *Firewall) update(configuration []byte) error {
 	var firewallCheckers []QueryHandlerInterface
 
 	for _, handlerConfiguration := range firewallConfiguration.Handlers {
-		switch handlerConfiguration.Handler{
+		switch handlerConfiguration.Handler {
 		case WhitelistConfigStr:
 			whitelistHandler := &handlers.WhitelistHandler{}
 
@@ -56,7 +56,7 @@ func (firewall *Firewall) update(configuration []byte) error {
 			}
 
 			firewallCheckers = append(firewallCheckers, whitelistHandler)
-			break;
+			break
 		case BlacklistConfigStr:
 			blacklistHandler := &handlers.BlacklistHandler{}
 
@@ -73,13 +73,13 @@ func (firewall *Firewall) update(configuration []byte) error {
 			}
 
 			firewallCheckers = append(firewallCheckers, blacklistHandler)
-			break;
+			break
 		default:
-			break;
+			break
 		}
 	}
 
-	for _, firewallChecker := range firewallCheckers{
+	for _, firewallChecker := range firewallCheckers {
 		firewall.AddHandler(firewallChecker)
 	}
 

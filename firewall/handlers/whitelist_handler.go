@@ -3,17 +3,17 @@ package handlers
 import (
 	"errors"
 	"github.com/xwb1989/sqlparser"
-	"strings"
 	"reflect"
+	"strings"
 )
 
 type WhitelistHandler struct {
-	queries [] string
-	tables  [] string
-	rules   [] string
+	queries []string
+	tables  []string
+	rules   []string
 }
 
-func(handler * WhitelistHandler) CheckQuery(query string) error {
+func (handler *WhitelistHandler) CheckQuery(query string) error {
 
 	//Check queries
 	if len(handler.queries) != 0 {
@@ -34,13 +34,13 @@ func(handler * WhitelistHandler) CheckQuery(query string) error {
 		case *sqlparser.Select:
 			allowedTablesCounter := 0
 			for _, allowedTable := range handler.tables {
-				for _, table := range parsedQuery.From{
+				for _, table := range parsedQuery.From {
 					if strings.EqualFold(sqlparser.String(table.(*sqlparser.AliasedTableExpr).Expr), allowedTable) {
 						allowedTablesCounter++
 					}
 				}
 			}
-			if allowedTablesCounter != len(parsedQuery.From){
+			if allowedTablesCounter != len(parsedQuery.From) {
 				return ErrAccessToForbiddenTableWhitelist
 			}
 
@@ -52,13 +52,12 @@ func(handler * WhitelistHandler) CheckQuery(query string) error {
 					tableIsAllowed = true
 				}
 			}
-			if !tableIsAllowed{
+			if !tableIsAllowed {
 				return ErrAccessToForbiddenTableWhitelist
 			}
 		case *sqlparser.Update:
 		}
 	}
-
 
 	//Check rules
 	if len(handler.rules) != 0 {
@@ -73,14 +72,14 @@ func(handler * WhitelistHandler) CheckQuery(query string) error {
 	return nil
 }
 
-func (handler * WhitelistHandler) Reset(){
+func (handler *WhitelistHandler) Reset() {
 
 	handler.queries = nil
 	handler.tables = nil
 	handler.rules = nil
 }
 
-func(handler * WhitelistHandler) AddQueries(queries []string) error {
+func (handler *WhitelistHandler) AddQueries(queries []string) error {
 
 	for _, query := range queries {
 		handler.queries = append(handler.queries, query)
@@ -94,7 +93,7 @@ func(handler * WhitelistHandler) AddQueries(queries []string) error {
 	return nil
 }
 
-func (handler * WhitelistHandler) RemoveQueries(queries []string) {
+func (handler *WhitelistHandler) RemoveQueries(queries []string) {
 
 	for _, query := range handler.queries {
 		yes, index := contains(handler.queries, query)
@@ -104,16 +103,16 @@ func (handler * WhitelistHandler) RemoveQueries(queries []string) {
 	}
 }
 
-func (handler * WhitelistHandler) AddTables(tableNames []string){
-	for _, tableName := range tableNames{
+func (handler *WhitelistHandler) AddTables(tableNames []string) {
+	for _, tableName := range tableNames {
 		handler.tables = append(handler.tables, tableName)
 	}
 
 	handler.tables = removeDuplicates(handler.tables)
 }
 
-func (handler * WhitelistHandler) RemoveTables(tableNames []string){
-	for _, query := range tableNames{
+func (handler *WhitelistHandler) RemoveTables(tableNames []string) {
+	for _, query := range tableNames {
 		yes, index := contains(handler.tables, query)
 		if yes {
 			handler.tables = append(handler.tables[:index], handler.tables[index+1:]...)
@@ -121,8 +120,8 @@ func (handler * WhitelistHandler) RemoveTables(tableNames []string){
 	}
 }
 
-func (handler * WhitelistHandler) AddRules(rules []string) error {
-	for _, rule := range rules{
+func (handler *WhitelistHandler) AddRules(rules []string) error {
+	for _, rule := range rules {
 		handler.rules = append(handler.rules, rule)
 		_, err := sqlparser.Parse(rule)
 		if err != nil {
@@ -135,8 +134,8 @@ func (handler * WhitelistHandler) AddRules(rules []string) error {
 	return nil
 }
 
-func (handler * WhitelistHandler) RemoveRules(rules []string){
-	for _, rule := range rules{
+func (handler *WhitelistHandler) RemoveRules(rules []string) {
+	for _, rule := range rules {
 		yes, index := contains(handler.rules, rule)
 		if yes {
 			handler.rules = append(handler.rules[:index], handler.rules[index+1:]...)
@@ -144,13 +143,9 @@ func (handler * WhitelistHandler) RemoveRules(rules []string){
 	}
 }
 
-
-
-
-
 func (handler *WhitelistHandler) testRulesViolation(query string) (bool, error) {
 
-	if sqlparser.Preview(query) != sqlparser.StmtSelect{
+	if sqlparser.Preview(query) != sqlparser.StmtSelect {
 		return true, errors.New("non-select queries are not supported")
 	}
 
@@ -160,7 +155,7 @@ func (handler *WhitelistHandler) testRulesViolation(query string) (bool, error) 
 	var columns sqlparser.SelectExprs
 
 	//Parse each rule and then test query
-	for _, rule := range handler.rules{
+	for _, rule := range handler.rules {
 		parsedRule, err := sqlparser.Parse(rule)
 		if err != nil {
 			return true, err
@@ -193,7 +188,6 @@ func (handler *WhitelistHandler) testRulesViolation(query string) (bool, error) 
 		_ = columns
 	}
 
-
 	return false, nil
 }
 
@@ -208,7 +202,7 @@ func (handler *WhitelistHandler) isDangerousSelect(selectQuery string, allowedWh
 
 	if strings.EqualFold(sqlparser.String(allowedWhere), sqlparser.String(evaluatedStmt.Where.Expr)) {
 		if handler.isAllowedTableAccess(evaluatedStmt.From, allowedTables) {
-			if handler.isAllowedColumnAccess(evaluatedStmt.SelectExprs, allowedColumns){
+			if handler.isAllowedColumnAccess(evaluatedStmt.SelectExprs, allowedColumns) {
 				return false, nil
 			}
 		}
@@ -233,7 +227,7 @@ func (handler *WhitelistHandler) isAllowedTableAccess(tablesToEvaluate sqlparser
 
 func (handler *WhitelistHandler) isAllowedColumnAccess(columnsToEvaluate sqlparser.SelectExprs, allowedColumns sqlparser.SelectExprs) bool {
 
-	if strings.EqualFold(sqlparser.String(allowedColumns), "*"){
+	if strings.EqualFold(sqlparser.String(allowedColumns), "*") {
 		return true
 	}
 
@@ -248,5 +242,3 @@ func (handler *WhitelistHandler) isAllowedColumnAccess(columnsToEvaluate sqlpars
 	}
 	return accessOnlyToAllowedColumns
 }
-
-

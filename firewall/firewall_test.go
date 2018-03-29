@@ -1,17 +1,17 @@
 package firewall
 
 import (
-	"testing"
 	"github.com/cossacklabs/acra/firewall/handlers"
-	"io/ioutil"
 	"github.com/cossacklabs/acra/utils"
-	"path/filepath"
+	"io/ioutil"
 	"os"
+	"path/filepath"
+	"testing"
 )
 
 func TestWhitelistFirewall(t *testing.T) {
 
-	sqlSelectQueries := []string {
+	sqlSelectQueries := []string{
 		"SELECT * FROM Schema.Tables;",
 		"SELECT Student_ID FROM STUDENT;",
 		"SELECT * FROM STUDENT;",
@@ -26,7 +26,7 @@ func TestWhitelistFirewall(t *testing.T) {
 		"SELECT AVG(Price)FROM Products;",
 	}
 
-	sqlInsertQueries := []string {
+	sqlInsertQueries := []string{
 		"INSERT SalesStaff1 VALUES (2, 'Michael', 'Blythe'), (3, 'Linda', 'Mitchell'),(4, 'Jillian', 'Carson'), (5, 'Garrett', 'Vargas');",
 		"INSERT INTO SalesStaff2 (StaffGUID, FirstName, LastName) VALUES (NEWID(), 'Stephen', 'Jiang');",
 		"INSERT INTO SalesStaff3 (StaffID, FullName) VALUES (X, 'Y');",
@@ -51,21 +51,20 @@ func TestWhitelistFirewall(t *testing.T) {
 		t.Fatal(err)
 	}
 
-
 	firewall := &Firewall{}
 
 	//set our firewall to use whitelist for query evaluating
 	firewall.AddHandler(whitelistHandler)
 
 	//firewall should not block those queries
-	for _, query := range sqlSelectQueries{
+	for _, query := range sqlSelectQueries {
 		err = firewall.HandleQuery(query)
 		if err != nil {
 			t.Fatal(err)
 		}
 	}
 
-	for _, query := range sqlInsertQueries{
+	for _, query := range sqlInsertQueries {
 		err = firewall.HandleQuery(query)
 		if err != nil {
 			t.Fatal(err)
@@ -74,22 +73,22 @@ func TestWhitelistFirewall(t *testing.T) {
 
 	//firewall should block this query because it is not in whitelist
 	err = firewall.HandleQuery("SELECT * FROM Schema.views;")
-	if err != handlers.ErrQueryNotInWhitelist{
+	if err != handlers.ErrQueryNotInWhitelist {
 		t.Fatal(err)
 	}
 
 	//ditto
 	err = firewall.HandleQuery("INSERT INTO SalesStaff1 VALUES (1, 'Stephen', 'Jiang');")
-	if err != handlers.ErrQueryNotInWhitelist{
+	if err != handlers.ErrQueryNotInWhitelist {
 		t.Fatal(err)
 	}
 
 	testWhitelistTables(t, firewall, whitelistHandler)
 	testWhitelistByRules(t, firewall, whitelistHandler)
 }
-func testWhitelistTables(t *testing.T, firewall * Firewall, whitelistHandler * handlers.WhitelistHandler){
+func testWhitelistTables(t *testing.T, firewall *Firewall, whitelistHandler *handlers.WhitelistHandler) {
 
-	testQueries := []string {
+	testQueries := []string{
 		"SELECT EMP_ID, LAST_NAME FROM EMPLOYEE_TBL WHERE CITY = 'Seattle' ORDER BY EMP_ID;",
 		"SELECT EMP_ID, LAST_NAME FROM EMPLOYEE WHERE CITY = 'Seattle' ORDER BY EMP_ID;",
 		"SELECT EMP_ID, LAST_NAME FROM EMPLOYEE, EMPLOYEE_TBL WHERE CITY = 'Seattle' ORDER BY EMP_ID;",
@@ -108,7 +107,7 @@ func testWhitelistTables(t *testing.T, firewall * Firewall, whitelistHandler * h
 	//firewall should block those queries
 	for _, i := range queryIndexesToBlock {
 		err := firewall.HandleQuery(testQueries[i])
-		if err != handlers.ErrAccessToForbiddenTableWhitelist{
+		if err != handlers.ErrAccessToForbiddenTableWhitelist {
 			t.Fatal(err)
 		}
 	}
@@ -138,7 +137,7 @@ func testWhitelistTables(t *testing.T, firewall * Firewall, whitelistHandler * h
 	err = firewall.HandleQuery(testQuery)
 
 	//firewall should block this query
-	if err != handlers.ErrAccessToForbiddenTableWhitelist{
+	if err != handlers.ErrAccessToForbiddenTableWhitelist {
 		t.Fatal(err)
 	}
 
@@ -151,10 +150,10 @@ func testWhitelistTables(t *testing.T, firewall * Firewall, whitelistHandler * h
 		t.Fatal(err)
 	}
 }
-func testWhitelistByRules(t *testing.T, firewall * Firewall, whitelistHandler * handlers.WhitelistHandler){
+func testWhitelistByRules(t *testing.T, firewall *Firewall, whitelistHandler *handlers.WhitelistHandler) {
 	whitelistHandler.Reset()
 
-	testQueries := []string {
+	testQueries := []string{
 		"SELECT EMP_ID, LAST_NAME FROM EMPLOYEE_TBL WHERE CITY = 'Seattle' ORDER BY EMP_ID;",
 		"SELECT EMP_ID, LAST_NAME FROM EMPLOYEE WHERE CITY = 'Seattle' ORDER BY EMP_ID;",
 		"SELECT EMP_ID, LAST_NAME FROM EMPLOYEE, EMPLOYEE_TBL WHERE CITY = 'Seattle' ORDER BY EMP_ID;",
@@ -164,7 +163,7 @@ func testWhitelistByRules(t *testing.T, firewall * Firewall, whitelistHandler * 
 	}
 
 	//firewall should block all queries except accessing to any information but only in table EMPLOYEE_TBL and related only to Seattle city [1,2,3]
-	testSecurityRules := []string {
+	testSecurityRules := []string{
 		"SELECT * FROM EMPLOYEE_TBL WHERE CITY='Seattle'",
 	}
 
@@ -202,7 +201,7 @@ func testWhitelistByRules(t *testing.T, firewall * Firewall, whitelistHandler * 
 }
 
 func TestBlacklistFirewall(t *testing.T) {
-	sqlSelectQueries := []string {
+	sqlSelectQueries := []string{
 		"SELECT * FROM Schema.Tables;",
 		"SELECT * FROM Schema.Tables;",
 		"SELECT * FROM Schema.Tables;",
@@ -217,7 +216,7 @@ func TestBlacklistFirewall(t *testing.T) {
 		"SELECT * FROM Schema.views;",
 	}
 
-	sqlInsertQueries := []string {
+	sqlInsertQueries := []string{
 		"INSERT SalesStaff1 VALUES (2, 'Michael', 'Blythe'), (3, 'Linda', 'Mitchell'),(4, 'Jillian', 'Carson'), (5, 'Garrett', 'Vargas');",
 		"INSERT INTO SalesStaff2 (StaffGUID, FirstName, LastName) VALUES (NEWID(), 'Stephen', 'Jiang');",
 		"INSERT INTO Customers (CustomerName, ContactName, Address, City, PostalCode, Country) VALUES ('Cardinal', 'Tom B. Erichsen', 'Skagen 21', 'Stavanger', '4006', 'Norway');",
@@ -231,11 +230,10 @@ func TestBlacklistFirewall(t *testing.T) {
 		"INSERT INTO films SELECT * FROM tmp_films WHERE date_prod < '2004-05-07';",
 	}
 
-	blackList := [] string {
+	blackList := []string{
 		"INSERT INTO SalesStaff1 VALUES (1, 'Stephen', 'Jiang');",
 		"SELECT AVG(Price) FROM Products;",
 	}
-
 
 	blacklistHandler := &handlers.BlacklistHandler{}
 	err := blacklistHandler.AddQueries(blackList)
@@ -249,21 +247,21 @@ func TestBlacklistFirewall(t *testing.T) {
 	firewall.AddHandler(blacklistHandler)
 
 	//firewall should not block those queries
-	for _, query := range sqlSelectQueries{
+	for _, query := range sqlSelectQueries {
 		err = firewall.HandleQuery(query)
 		if err != nil {
 			t.Fatal(err)
 		}
 	}
 
-	for _, query := range sqlInsertQueries{
+	for _, query := range sqlInsertQueries {
 		err = firewall.HandleQuery(query)
 		if err != nil {
 			t.Fatal(err)
 		}
 	}
 
-	testQuery := "INSERT INTO Customers (CustomerName, City, Country) VALUES ('Cardinal', 'Stavanger', 'Norway');";
+	testQuery := "INSERT INTO Customers (CustomerName, City, Country) VALUES ('Cardinal', 'Stavanger', 'Norway');"
 
 	err = blacklistHandler.AddQueries([]string{testQuery})
 	if err != nil {
@@ -272,7 +270,7 @@ func TestBlacklistFirewall(t *testing.T) {
 
 	err = firewall.HandleQuery(testQuery)
 	//firewall should block this query because it's in blacklist
-	if err != handlers.ErrQueryInBlacklist{
+	if err != handlers.ErrQueryInBlacklist {
 		t.Fatal(err)
 	}
 
@@ -289,7 +287,7 @@ func TestBlacklistFirewall(t *testing.T) {
 	err = firewall.HandleQuery(testQuery)
 
 	//now firewall should block testQuery because it's in blacklist
-	if err != handlers.ErrQueryInBlacklist{
+	if err != handlers.ErrQueryInBlacklist {
 		t.Fatal(err)
 	}
 
@@ -305,11 +303,11 @@ func TestBlacklistFirewall(t *testing.T) {
 
 	testBlacklistByRules(t, firewall, blacklistHandler)
 }
-func testBlacklistTables(t *testing.T, firewall * Firewall, blacklistHandler * handlers.BlacklistHandler){
+func testBlacklistTables(t *testing.T, firewall *Firewall, blacklistHandler *handlers.BlacklistHandler) {
 
 	blacklistHandler.Reset()
 
-	testQueries := []string {
+	testQueries := []string{
 		"SELECT EMP_ID, LAST_NAME FROM EMPLOYEE_TBL WHERE CITY = 'Seattle' ORDER BY EMP_ID;",
 		"SELECT EMP_ID, LAST_NAME FROM EMPLOYEE WHERE CITY = 'Seattle' ORDER BY EMP_ID;",
 		"SELECT EMP_ID, LAST_NAME FROM EMPLOYEE, EMPLOYEE_TBL WHERE CITY = 'Seattle' ORDER BY EMP_ID;",
@@ -322,16 +320,16 @@ func testBlacklistTables(t *testing.T, firewall * Firewall, blacklistHandler * h
 	blacklistHandler.AddTables([]string{"EMPLOYEE_TBL", "Customers"})
 
 	//firewall should block these queries
-	queryIndexesToBlock := []int {0, 2, 4, 5, 6}
+	queryIndexesToBlock := []int{0, 2, 4, 5, 6}
 	for _, i := range queryIndexesToBlock {
 		err := firewall.HandleQuery(testQueries[i])
-		if err != handlers.ErrAccessToForbiddenTableBlacklist{
+		if err != handlers.ErrAccessToForbiddenTableBlacklist {
 			t.Fatal(err)
 		}
 	}
 
 	//firewall should not block these queries
-	queryIndexesToPass := []int {1, 3}
+	queryIndexesToPass := []int{1, 3}
 	for _, i := range queryIndexesToPass {
 		err := firewall.HandleQuery(testQueries[i])
 		if err != nil {
@@ -354,11 +352,11 @@ func testBlacklistTables(t *testing.T, firewall * Firewall, blacklistHandler * h
 	}
 
 }
-func testBlacklistByRules(t *testing.T, firewall * Firewall, blacklistHandler * handlers.BlacklistHandler){
+func testBlacklistByRules(t *testing.T, firewall *Firewall, blacklistHandler *handlers.BlacklistHandler) {
 
 	blacklistHandler.Reset()
 
-	testQueries := []string {
+	testQueries := []string{
 		"SELECT EMP_ID, LAST_NAME FROM EMPLOYEE_TBL WHERE CITY = 'Seattle' ORDER BY EMP_ID;",
 		"SELECT EMP_ID, LAST_NAME FROM EMPLOYEE WHERE CITY = 'Seattle' ORDER BY EMP_ID;",
 		"SELECT EMP_ID, LAST_NAME FROM EMPLOYEE, EMPLOYEE_TBL WHERE CITY = 'Seattle' ORDER BY EMP_ID;",
@@ -367,7 +365,7 @@ func testBlacklistByRules(t *testing.T, firewall * Firewall, blacklistHandler * 
 	}
 
 	//firewall should block all queries that try to access to information in table EMPLOYEE_TBL related to Seattle city
-	testSecurityRules := []string {
+	testSecurityRules := []string{
 		"SELECT * FROM EMPLOYEE_TBL WHERE CITY='Seattle'",
 	}
 
@@ -404,7 +402,7 @@ func testBlacklistByRules(t *testing.T, firewall * Firewall, blacklistHandler * 
 		}
 	}
 
-	testSecurityRules = []string {
+	testSecurityRules = []string{
 		"SELECT * FROM EMPLOYEE_TBL, EMPLOYEE WHERE CITY='Seattle'",
 		"SELECT * FROM EMPLOYEE_TBL, EMPLOYEE WHERE CITY='INDIANAPOLIS'",
 	}
@@ -441,58 +439,57 @@ func TestConfigurationProvider(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	testQueries := []string {
+	testQueries := []string{
 		"INSERT INTO SalesStaff1 VALUES (1, 'Stephen', 'Jiang');",
 		"SELECT AVG(Price) FROM Products;",
 	}
 
 	//firewall should block those queries (blacklist works)
-	for _, queryToBlock := range testQueries{
+	for _, queryToBlock := range testQueries {
 		err = firewall.HandleQuery(queryToBlock)
-		if err != handlers.ErrQueryInBlacklist{
+		if err != handlers.ErrQueryInBlacklist {
 			t.Fatal(err)
 		}
 	}
 
-	testQueries = []string {
+	testQueries = []string{
 		"INSERT INTO EMPLOYEE_TBL VALUES (1, 'Stephen', 'Jiang');",
 		"SELECT AVG(Price) FROM Customers;",
 	}
 
 	//firewall should block those tables (blacklist works)
-	for _, queryToBlock := range testQueries{
+	for _, queryToBlock := range testQueries {
 		err = firewall.HandleQuery(queryToBlock)
 		if err != handlers.ErrAccessToForbiddenTableBlacklist {
 			t.Fatal(err)
 		}
 	}
 
-	testQueries = []string {
+	testQueries = []string{
 		"SELECT EMP_ID, LAST_NAME FROM EMPLOYEE WHERE CITY = 'Seattle' ORDER BY EMP_ID;",
 		"SELECT EMP_ID, LAST_NAME FROM EMPLOYEE AS EMPL WHERE CITY = 'Seattle' ORDER BY EMP_ID;",
 	}
 
 	//firewall should block those structures (blacklist works)
-	for _, queryToBlock := range testQueries{
+	for _, queryToBlock := range testQueries {
 		err = firewall.HandleQuery(queryToBlock)
 		if err != handlers.ErrForbiddenSqlStructureBlacklist {
 			t.Fatal(err)
 		}
 	}
 
-	testQueries = []string {
+	testQueries = []string{
 		"SELECT EMP_ID, LAST_NAME FROM PRODUCTS WHERE CITY='INDIANAPOLIS' ORDER BY EMP_ID;",
 		"SELECT EMP_ID, LAST_NAME FROM PRODUCTS WHERE CITY='INDIANAPOLIS' ORDER BY EMP_ID asc;",
 	}
 
 	//firewall should block those tables (whitelist works)
-	for _, queryToBlock := range testQueries{
+	for _, queryToBlock := range testQueries {
 		err = firewall.HandleQuery(queryToBlock)
 		if err != handlers.ErrAccessToForbiddenTableWhitelist {
 			t.Fatal(err)
 		}
 	}
-
 
 	testSyntax(t)
 }

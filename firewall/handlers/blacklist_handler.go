@@ -2,18 +2,18 @@ package handlers
 
 import (
 	"errors"
-	"strings"
-	"reflect"
 	"github.com/xwb1989/sqlparser"
+	"reflect"
+	"strings"
 )
 
 type BlacklistHandler struct {
-	queries [] string
-	tables  [] string
-	rules   [] string
+	queries []string
+	tables  []string
+	rules   []string
 }
 
-func(handler * BlacklistHandler) CheckQuery(query string) error {
+func (handler *BlacklistHandler) CheckQuery(query string) error {
 
 	//Check queries
 	if len(handler.queries) != 0 {
@@ -34,7 +34,7 @@ func(handler * BlacklistHandler) CheckQuery(query string) error {
 		switch parsedQuery := parsedQuery.(type) {
 		case *sqlparser.Select:
 			for _, forbiddenTable := range handler.tables {
-				for _, table := range parsedQuery.From{
+				for _, table := range parsedQuery.From {
 					if strings.EqualFold(sqlparser.String(table.(*sqlparser.AliasedTableExpr).Expr), forbiddenTable) {
 						return ErrAccessToForbiddenTableBlacklist
 					}
@@ -66,15 +66,15 @@ func(handler * BlacklistHandler) CheckQuery(query string) error {
 	return nil
 }
 
-func (handler * BlacklistHandler) Reset(){
+func (handler *BlacklistHandler) Reset() {
 	handler.queries = nil
 	handler.tables = nil
 	handler.rules = nil
 }
 
-func(handler * BlacklistHandler) AddQueries(queries []string) error {
+func (handler *BlacklistHandler) AddQueries(queries []string) error {
 
-	for _, query := range queries{
+	for _, query := range queries {
 		_, err := sqlparser.Parse(query)
 		if err != nil {
 			return ErrQuerySyntaxError
@@ -87,9 +87,9 @@ func(handler * BlacklistHandler) AddQueries(queries []string) error {
 	return nil
 }
 
-func(handler * BlacklistHandler) RemoveQueries(queries []string){
+func (handler *BlacklistHandler) RemoveQueries(queries []string) {
 
-	for _, query := range queries{
+	for _, query := range queries {
 		yes, index := contains(handler.queries, query)
 		if yes {
 			handler.queries = append(handler.queries[:index], handler.queries[index+1:]...)
@@ -97,18 +97,18 @@ func(handler * BlacklistHandler) RemoveQueries(queries []string){
 	}
 }
 
-func (handler * BlacklistHandler) AddTables(tableNames []string){
+func (handler *BlacklistHandler) AddTables(tableNames []string) {
 
-	for _, tableName := range tableNames{
+	for _, tableName := range tableNames {
 		handler.tables = append(handler.tables, tableName)
 	}
 
 	handler.tables = removeDuplicates(handler.tables)
 }
 
-func (handler * BlacklistHandler) RemoveTables(tableNames []string) {
+func (handler *BlacklistHandler) RemoveTables(tableNames []string) {
 
-	for _, query := range tableNames{
+	for _, query := range tableNames {
 		yes, index := contains(handler.tables, query)
 		if yes {
 			handler.tables = append(handler.tables[:index], handler.tables[index+1:]...)
@@ -116,8 +116,8 @@ func (handler * BlacklistHandler) RemoveTables(tableNames []string) {
 	}
 }
 
-func (handler * BlacklistHandler) AddRules(rules []string) error {
-	for _, rule := range rules{
+func (handler *BlacklistHandler) AddRules(rules []string) error {
+	for _, rule := range rules {
 		handler.rules = append(handler.rules, rule)
 		_, err := sqlparser.Parse(rule)
 		if err != nil {
@@ -130,8 +130,8 @@ func (handler * BlacklistHandler) AddRules(rules []string) error {
 	return nil
 }
 
-func (handler * BlacklistHandler) RemoveRules(rules []string){
-	for _, rule := range rules{
+func (handler *BlacklistHandler) RemoveRules(rules []string) {
+	for _, rule := range rules {
 		yes, index := contains(handler.rules, rule)
 		if yes {
 			handler.rules = append(handler.rules[:index], handler.rules[index+1:]...)
@@ -139,13 +139,9 @@ func (handler * BlacklistHandler) RemoveRules(rules []string){
 	}
 }
 
-
-
-
-
 func (handler *BlacklistHandler) testRulesViolation(query string) (bool, error) {
 
-	if sqlparser.Preview(query) != sqlparser.StmtSelect{
+	if sqlparser.Preview(query) != sqlparser.StmtSelect {
 		return true, errors.New("non-select queries are not supported")
 	}
 
@@ -155,7 +151,7 @@ func (handler *BlacklistHandler) testRulesViolation(query string) (bool, error) 
 	var columns sqlparser.SelectExprs
 
 	//Parse each rule and then test query
-	for _, rule := range handler.rules{
+	for _, rule := range handler.rules {
 		parsedRule, err := sqlparser.Parse(rule)
 		if err != nil {
 			return true, err
@@ -188,7 +184,6 @@ func (handler *BlacklistHandler) testRulesViolation(query string) (bool, error) 
 		_ = columns
 	}
 
-
 	return false, nil
 }
 
@@ -204,14 +199,14 @@ func (handler *BlacklistHandler) isDangerousSelect(selectQuery string, forbidden
 	if evaluatedStmt.Where != nil {
 		if strings.EqualFold(sqlparser.String(forbiddenWhere), sqlparser.String(evaluatedStmt.Where.Expr)) {
 			if handler.isForbiddenTableAccess(evaluatedStmt.From, forbiddenTables) {
-				if handler.isForbiddenColumnAccess(evaluatedStmt.SelectExprs, forbiddenColumns){
+				if handler.isForbiddenColumnAccess(evaluatedStmt.SelectExprs, forbiddenColumns) {
 					return true, nil
 				}
 			}
 		}
 	} else {
 		if handler.isForbiddenTableAccess(evaluatedStmt.From, forbiddenTables) {
-			if handler.isForbiddenColumnAccess(evaluatedStmt.SelectExprs, forbiddenColumns){
+			if handler.isForbiddenColumnAccess(evaluatedStmt.SelectExprs, forbiddenColumns) {
 				return true, nil
 			}
 		}
@@ -232,12 +227,12 @@ func (handler *BlacklistHandler) isForbiddenTableAccess(tablesToEvaluate sqlpars
 }
 
 func (handler *BlacklistHandler) isForbiddenColumnAccess(columnsToEvaluate sqlparser.SelectExprs, forbiddenColumns sqlparser.SelectExprs) bool {
-	if strings.EqualFold(sqlparser.String(forbiddenColumns), "*"){
+	if strings.EqualFold(sqlparser.String(forbiddenColumns), "*") {
 		return true
 	}
 
 	for _, columnToEvaluate := range columnsToEvaluate {
-		for _, forbiddenColumn := range forbiddenColumns{
+		for _, forbiddenColumn := range forbiddenColumns {
 			if reflect.DeepEqual(columnToEvaluate, forbiddenColumn) {
 				return true
 			}
@@ -245,4 +240,3 @@ func (handler *BlacklistHandler) isForbiddenColumnAccess(columnsToEvaluate sqlpa
 	}
 	return false
 }
-

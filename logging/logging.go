@@ -16,10 +16,9 @@ package logging
 import (
 	"fmt"
 	log "github.com/sirupsen/logrus"
-	"strings"
 	"os"
+	"strings"
 )
-
 
 const (
 	LOG_DEBUG = iota
