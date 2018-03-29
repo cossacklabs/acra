@@ -531,7 +531,7 @@ class BaseTestCase(unittest.TestCase):
                 'zone_id': zones[0]['id'],
                 'poison_record': b64encode(get_poison_record()).decode('ascii'),
             }
-        ))
+        ), file=sys.stderr)
 
 
 class HexFormatTest(BaseTestCase):
@@ -990,23 +990,33 @@ class TestPoisonRecordShutdown(BasePoisonRecordTest):
 
     def testShutdown(self):
         row_id = self.get_random_id()
+        data = get_poison_record()
         self.engine1.execute(
             test_table.insert(),
-            {'id': row_id, 'data': get_poison_record(), 'raw_data': 'poison_record'})
+            {'id': row_id, 'data': data, 'raw_data': 'poison_record'})
         with self.assertRaises(DatabaseError):
-            self.engine1.execute(
+            result = self.engine1.execute(
                 sa.select([test_table])
                 .where(test_table.c.id == row_id))
+            row = result.fetchone()
+            if row['data'] == data:
+                self.fail("unexpected response")
 
     def testShutdown2(self):
         """check working poison record callback on full select"""
         row_id = self.get_random_id()
+        data = get_poison_record()
         self.engine1.execute(
             test_table.insert(),
-            {'id': row_id, 'data': get_poison_record(), 'raw_data': 'poison_record'})
+            {'id': row_id, 'data': data, 'raw_data': 'poison_record'})
         with self.assertRaises(DatabaseError):
-            self.engine1.execute(
+            result = self.engine1.execute(
                 sa.select([test_table]))
+            rows = result.fetchall()
+            for row in rows:
+                if row['id'] == row_id and row['data'] == data:
+                    self.fail("unexpected response")
+
 
     def testShutdown3(self):
         """check working poison record callback on full select inside another data"""
@@ -1016,8 +1026,12 @@ class TestPoisonRecordShutdown(BasePoisonRecordTest):
             test_table.insert(),
             {'id': row_id, 'data': data, 'raw_data': 'poison_record'})
         with self.assertRaises(DatabaseError):
-            self.engine1.execute(
+            result = self.engine1.execute(
                 sa.select([test_table]))
+            rows = result.fetchall()
+            for row in rows:
+                if row['id'] == row_id and row['data'] == data:
+                    self.fail("unexpected response")
 
 
 class TestShutdownPoisonRecordWithZone(TestPoisonRecordShutdown):
@@ -1141,6 +1155,7 @@ class TestNoCheckPoisonRecordWithZoneWholeCell(TestNoCheckPoisonRecordWithZone):
 class TestCheckLogPoisonRecord(AcraCatchLogsMixin, BasePoisonRecordTest):
     SHUTDOWN = True
     DEBUG_LOG = True
+    TEST_DATA_LOG = True
 
     def setUp(self):
         self.poison_script_file = NamedTemporaryFile('w')
