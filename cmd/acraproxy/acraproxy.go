@@ -133,7 +133,7 @@ type Config struct {
 }
 
 func main() {
-	loggingFormat := flag.String("logging_format", "cef", "Logging format: plaintext, json or CEF")
+	loggingFormat := flag.String("logging_format", "plaintext", "Logging format: plaintext, json or CEF")
 	logging.CustomizeLogging(*loggingFormat, SERVICE_NAME)
 	log.Infof("Starting service")
 
