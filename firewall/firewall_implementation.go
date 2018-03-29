@@ -1,7 +1,5 @@
 package firewall
 
-import "fmt"
-
 type Firewall struct {
 
 	handlers []QueryHandlerInterface
@@ -28,10 +26,4 @@ func (firewall *Firewall) HandleQuery(query string) error{
 		}
 	}
 	return nil
-}
-
-func (firewall *Firewall) PrintStatus() {
-	for _, handler := range firewall.handlers{
-		fmt.Println(handler)
-	}
 }
