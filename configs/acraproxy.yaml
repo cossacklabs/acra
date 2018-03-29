@@ -44,7 +44,7 @@ enable_http_api: false
 keys_dir: .acrakeys
 
 # Logging format: plaintext, json or CEF
-logging_format: plaintext
+logging_format: json
 
 # Use raw transport (tcp/unix socket) between acraserver and acraproxy/client (don't use this flag if you not connect to database with ssl/tls
 no_encryption: false
