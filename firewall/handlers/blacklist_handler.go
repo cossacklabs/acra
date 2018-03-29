@@ -28,7 +28,7 @@ func(handler * BlacklistHandler) CheckQuery(query string) error {
 	if len(handler.tables) != 0 {
 		parsedQuery, err := sqlparser.Parse(query)
 		if err != nil {
-			return errors.New(err.Error() + " | blacklist (tables)")
+			return ErrParseTablesBlacklist
 		}
 
 		switch parsedQuery := parsedQuery.(type) {
@@ -49,7 +49,7 @@ func(handler * BlacklistHandler) CheckQuery(query string) error {
 			}
 
 		case *sqlparser.Update:
-			return errors.New("not implemented yet")
+			return ErrNotImplemented
 		}
 	}
 
@@ -57,7 +57,7 @@ func(handler * BlacklistHandler) CheckQuery(query string) error {
 	if len(handler.rules) != 0 {
 		violationOccured, err := handler.testRulesViolation(query)
 		if err != nil {
-			return errors.New(err.Error() + " | blacklist (structures)")
+			return ErrParseSqlRuleBlacklist
 		}
 		if violationOccured {
 			return ErrForbiddenSqlStructureBlacklist
@@ -66,13 +66,25 @@ func(handler * BlacklistHandler) CheckQuery(query string) error {
 	return nil
 }
 
-func(handler * BlacklistHandler) AddQueries(queries []string) {
+func (handler * BlacklistHandler) Reset(){
+	handler.queries = nil
+	handler.tables = nil
+	handler.rules = nil
+}
+
+func(handler * BlacklistHandler) AddQueries(queries []string) error {
 
 	for _, query := range queries{
+		_, err := sqlparser.Parse(query)
+		if err != nil {
+			return ErrQuerySyntaxError
+		}
 		handler.queries = append(handler.queries, query)
 	}
 
 	handler.queries = removeDuplicates(handler.queries)
+
+	return nil
 }
 
 func(handler * BlacklistHandler) RemoveQueries(queries []string){
@@ -104,15 +116,21 @@ func (handler * BlacklistHandler) RemoveTables(tableNames []string) {
 	}
 }
 
-func (handler *BlacklistHandler) AddRules(rules []string){
+func (handler * BlacklistHandler) AddRules(rules []string) error {
 	for _, rule := range rules{
 		handler.rules = append(handler.rules, rule)
+		_, err := sqlparser.Parse(rule)
+		if err != nil {
+			return ErrStructureSyntaxError
+		}
 	}
 
 	handler.rules = removeDuplicates(handler.rules)
+
+	return nil
 }
 
-func (handler *BlacklistHandler) RemoveRules(rules []string){
+func (handler * BlacklistHandler) RemoveRules(rules []string){
 	for _, rule := range rules{
 		yes, index := contains(handler.rules, rule)
 		if yes {
@@ -120,25 +138,6 @@ func (handler *BlacklistHandler) RemoveRules(rules []string){
 		}
 	}
 }
-
-func (handler *BlacklistHandler) Refresh(){
-	handler.queries = nil
-	handler.tables = nil
-	handler.rules = nil
-}
-
-func (handler *BlacklistHandler) GetActiveQueries() []string {
-	return handler.queries
-}
-
-func (handler *BlacklistHandler) GetActiveTables() []string {
-	return handler.tables
-}
-
-func (handler *BlacklistHandler) GetActiveRules() []string {
-	return handler.rules
-}
-
 
 
 
@@ -179,9 +178,9 @@ func (handler *BlacklistHandler) testRulesViolation(query string) (bool, error) 
 			}
 
 		case *sqlparser.Insert:
-			return true, errors.New("not supported")
+			return true, ErrNotImplemented
 		default:
-			return true, errors.New("not supported")
+			return true, ErrNotImplemented
 		}
 
 		_ = whereClause

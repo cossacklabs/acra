@@ -1,17 +1,12 @@
 package firewall
 
 import (
-	"errors"
-	"github.com/xwb1989/sqlparser"
 	"gopkg.in/yaml.v2"
 	"github.com/cossacklabs/acra/firewall/handlers"
 )
 
 const BlacklistConfigStr = "blacklist"
 const WhitelistConfigStr = "whitelist"
-
-var ErrQuerySyntaxError = errors.New("fail to parse specified query")
-var ErrStructureSyntaxError = errors.New("fail to parse specified structure")
 
 type FirewallConfig struct {
 	Handlers []struct {
@@ -22,9 +17,9 @@ type FirewallConfig struct {
 	}
 }
 
-func (firewall *Firewall) SetFirewallConfiguration(configuration []byte) error {
+func (firewall *Firewall) LoadConfiguration(configuration []byte) error {
 
-	err := updateFirewall(firewall, configuration)
+	err := firewall.update(configuration)
 	if err != nil {
 		return err
 	}
@@ -32,7 +27,7 @@ func (firewall *Firewall) SetFirewallConfiguration(configuration []byte) error {
 	return nil
 }
 
-func updateFirewall(firewall *Firewall, configuration []byte) error {
+func (firewall *Firewall) update(configuration []byte) error {
 
 	var firewallConfiguration FirewallConfig
 
@@ -41,26 +36,41 @@ func updateFirewall(firewall *Firewall, configuration []byte) error {
 		return err
 	}
 
-	//fmt.Println(firewallConfiguration)
-
 	var firewallCheckers []QueryHandlerInterface
+
 	for _, handlerConfiguration := range firewallConfiguration.Handlers {
 		switch handlerConfiguration.Handler{
 		case WhitelistConfigStr:
 			whitelistHandler := &handlers.WhitelistHandler{}
 
-			whitelistHandler.AddQueries(handlerConfiguration.Queries)
+			err := whitelistHandler.AddQueries(handlerConfiguration.Queries)
+			if err != nil {
+				return err
+			}
+
 			whitelistHandler.AddTables(handlerConfiguration.Tables)
-			whitelistHandler.AddRules(handlerConfiguration.Rules)
+
+			err = whitelistHandler.AddRules(handlerConfiguration.Rules)
+			if err != nil {
+				return err
+			}
 
 			firewallCheckers = append(firewallCheckers, whitelistHandler)
 			break;
 		case BlacklistConfigStr:
 			blacklistHandler := &handlers.BlacklistHandler{}
 
-			blacklistHandler.AddQueries(handlerConfiguration.Queries)
+			err := blacklistHandler.AddQueries(handlerConfiguration.Queries)
+			if err != nil {
+				return err
+			}
+
 			blacklistHandler.AddTables(handlerConfiguration.Tables)
-			blacklistHandler.AddRules(handlerConfiguration.Rules)
+
+			err = blacklistHandler.AddRules(handlerConfiguration.Rules)
+			if err != nil {
+				return err
+			}
 
 			firewallCheckers = append(firewallCheckers, blacklistHandler)
 			break;
@@ -69,37 +79,8 @@ func updateFirewall(firewall *Firewall, configuration []byte) error {
 		}
 	}
 
-	err = testConfigurationSyntax(firewallCheckers)
-	if err != nil {
-		return err
-	}
-
 	for _, firewallChecker := range firewallCheckers{
 		firewall.AddHandler(firewallChecker)
-	}
-
-	return nil
-}
-
-func testConfigurationSyntax(firewallCheckers []QueryHandlerInterface) error {
-
-	for _, singleChecker := range firewallCheckers{
-		//test syntax of queries
-		activeQueries := singleChecker.GetActiveQueries()
-		for _, activeQuery := range activeQueries {
-			_, err := sqlparser.Parse(activeQuery)
-			if err != nil {
-				return ErrQuerySyntaxError
-			}
-		}
-		//test syntax of structures
-		activeStructures := singleChecker.GetActiveRules()
-		for _, activeStructure := range activeStructures {
-			_, err := sqlparser.Parse(activeStructure)
-			if err != nil {
-				return ErrStructureSyntaxError
-			}
-		}
 	}
 
 	return nil
