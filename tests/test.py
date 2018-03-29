@@ -1580,11 +1580,13 @@ class SSLMysqlConnectionTest(HexFormatTest):
                 self.acra = self.fork_acra(
                     tls_key='tests/mysql.key', tls_cert='tests/mysql.crt',
                     tls_ca='tests/mysql-ca.crt',
-                    # used in mysql:5.7.21 docker container
-                    tls_sni='MySQL_Server_5.7.21_Auto_Generated_Server_Certificate',
+                    # value from docker container mysql:5.7.21
+                    tls_sni="MySQL_Server_5.7.21_Auto_Generated_Server_Certificate",
                     no_encryption=True, client_id='keypair1')
             driver_ssl_settings = {
-                'ca': 'tests/mysql-ca.crt',
+                # don't verify server cert because test db will generate new certs
+                'ca': None,
+                #'ca': 'tests/server.crt',
                 'cert': 'tests/mysql.crt',
                 'key': 'tests/mysql.key',
                 'check_hostname': False

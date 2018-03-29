@@ -21,12 +21,12 @@ for version in $VERSIONS; do
 
     export TEST_TLS=on
     python3 tests/test.py;
-    if [ "$?" != "0" ]; then echo "pgsql-$version" >> "$FILEPATH_ERROR_FLAG";
+    if [ "$?" != "0" ]; then echo "pgsql-ssl-on-$version" >> "$FILEPATH_ERROR_FLAG";
     fi
 
     export TEST_TLS=off
     python3 tests/test.py;
-    if [ "$?" != "0" ]; then echo "pgsql-$version" >> "$FILEPATH_ERROR_FLAG";
+    if [ "$?" != "0" ]; then echo "pgsql-ssl-off-$version" >> "$FILEPATH_ERROR_FLAG";
     fi
 
     # setup mysql credentials
@@ -38,12 +38,12 @@ for version in $VERSIONS; do
 
     export TEST_TLS=off
     python3 tests/test.py;
-    if [ "$?" != "0" ]; then echo "mysql-$version" >> "$FILEPATH_ERROR_FLAG";
+    if [ "$?" != "0" ]; then echo "mysql-ssl-off-$version" >> "$FILEPATH_ERROR_FLAG";
     fi
 
     export TEST_TLS=on
     python3 tests/test.py;
-    if [ "$?" != "0" ]; then echo "mysql-$version" >> "$FILEPATH_ERROR_FLAG";
+    if [ "$?" != "0" ]; then echo "mysql-ssl-on-$version" >> "$FILEPATH_ERROR_FLAG";
     fi
 
 done
