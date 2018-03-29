@@ -36,8 +36,6 @@ func (firewall *Firewall) update(configuration []byte) error {
 		return err
 	}
 
-	var firewallCheckers []QueryHandlerInterface
-
 	for _, handlerConfiguration := range firewallConfiguration.Handlers {
 		switch handlerConfiguration.Handler {
 		case WhitelistConfigStr:
@@ -55,7 +53,7 @@ func (firewall *Firewall) update(configuration []byte) error {
 				return err
 			}
 
-			firewallCheckers = append(firewallCheckers, whitelistHandler)
+			firewall.AddHandler(whitelistHandler)
 			break
 		case BlacklistConfigStr:
 			blacklistHandler := &handlers.BlacklistHandler{}
@@ -72,15 +70,11 @@ func (firewall *Firewall) update(configuration []byte) error {
 				return err
 			}
 
-			firewallCheckers = append(firewallCheckers, blacklistHandler)
+			firewall.AddHandler(blacklistHandler)
 			break
 		default:
 			break
 		}
-	}
-
-	for _, firewallChecker := range firewallCheckers {
-		firewall.AddHandler(firewallChecker)
 	}
 
 	return nil
