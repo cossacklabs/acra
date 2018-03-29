@@ -155,7 +155,7 @@ define docker_build
 		--build-arg BUILD_DATE=$(BUILD_DATE) \
 		--tag cossacklabs/$(1):$(GIT_HASH) \
 		-f ./docker/$(1).dockerfile \
-		./docker
+		.
 	for tag in $(2); do \
 		docker tag cossacklabs/$(1):$(GIT_HASH) cossacklabs/$(1):$$tag; \
 	done

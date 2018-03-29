@@ -38,4 +38,4 @@ EXPOSE 9090 9393
 # Base command
 ENTRYPOINT ["/acraserver"]
 # Optional arguments
-CMD ["--db_host=postgresql_link", "-v", "--keys_dir=/keys"]
+CMD ["--db_host=postgres", "-v", "--keys_dir=/keys"]
