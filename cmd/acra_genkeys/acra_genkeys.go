@@ -31,7 +31,7 @@ func main() {
 	acraproxy := flag.Bool("acraproxy", false, "Create keypair for acraproxy only")
 	acraserver := flag.Bool("acraserver", false, "Create keypair for acraserver only")
 	dataKeys := flag.Bool("storage", false, "Create keypair for data encryption/decryption")
-	basicauth := flag.Bool("basicauth", false, "Create symetric key for acra_configui's basic auth db")
+	basicauth := flag.Bool("basicauth", false, "Create symmetric key for acra_configui's basic auth db")
 	outputDir := flag.String("output", keystore.DEFAULT_KEY_DIR_SHORT, "Folder where will be saved keys")
 
 	logging.SetLogLevel(logging.LOG_VERBOSE)
