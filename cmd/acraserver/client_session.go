@@ -81,28 +81,19 @@ func (clientSession *ClientSession) HandleSecureSession(decryptorImpl base.Decry
 		}
 		return
 	}
-	pgDecryptorConfig, err := postgresql.NewPgDecryptorConfig(clientSession.config.GetTLSServerKeyPath(), clientSession.config.GetTLSServerCertPath())
-	if err != nil {
-		log.WithError(err).Errorln("can't initialize config for postgresql decryptor")
-		err = clientSession.connection.Close()
-		if err != nil {
-			log.Warningf("%v", utils.ErrorMessage("error with closing connection to acraproxy", err))
-		}
-		return
-	}
 	if clientSession.config.UseMySQL() {
 		log.Debugln("MySQL connection")
-		handler, err := mysql.NewMysqlHandler(decryptorImpl, clientSession.config.firewall)
+		handler, err := mysql.NewMysqlHandler(decryptorImpl, clientSession.connectionToDb, clientSession.connection, clientSession.config.GetTLSConfig(), clientSession.config.firewall)
 		if err != nil {
 			log.WithError(err).Errorln("can't initialize mysql handler")
 			return
 		}
-		go handler.ClientToDbProxy(decryptorImpl, clientSession.connectionToDb, clientSession.connection, innerErrorChannel)
-		go handler.DbToClientProxy(decryptorImpl, clientSession.connectionToDb, clientSession.connection, innerErrorChannel)
+		go handler.ClientToDbProxy(innerErrorChannel)
+		go handler.DbToClientProxy(innerErrorChannel)
 	} else {
 		log.Debugln("PostgreSQL connection")
 		go network.Proxy(clientSession.connection, clientSession.connectionToDb, innerErrorChannel)
-		go postgresql.PgDecryptStream(decryptorImpl, pgDecryptorConfig, clientSession.connectionToDb, clientSession.connection, innerErrorChannel)
+		go postgresql.PgDecryptStream(decryptorImpl, clientSession.config.GetTLSConfig(), clientSession.connectionToDb, clientSession.connection, innerErrorChannel)
 	}
 	for {
 		err = <-innerErrorChannel

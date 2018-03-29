@@ -155,19 +155,7 @@ func (row *DataRow) Flush() bool {
 	return true
 }
 
-type PgDecryptorConfig struct {
-	serverKeyPath  string
-	serverCertPath string
-}
-
-func NewPgDecryptorConfig(tlsKeyPath, tlsCertPath string) (*PgDecryptorConfig, error) {
-	return &PgDecryptorConfig{serverKeyPath: tlsKeyPath, serverCertPath: tlsCertPath}, nil
-}
-func (config *PgDecryptorConfig) getCertificate() (tls.Certificate, error) {
-	return tls.LoadX509KeyPair(config.serverCertPath, config.serverKeyPath)
-}
-
-func PgDecryptStream(decryptor base.Decryptor, config *PgDecryptorConfig, dbConnection net.Conn, clientConnection net.Conn, errCh chan<- error) {
+func PgDecryptStream(decryptor base.Decryptor, tlsConfig *tls.Config, dbConnection net.Conn, clientConnection net.Conn, errCh chan<- error) {
 	writer := bufio.NewWriter(clientConnection)
 
 	reader := acra_io.NewExtendedBufferedReader(bufio.NewReader(dbConnection))
@@ -194,44 +182,38 @@ func PgDecryptStream(decryptor base.Decryptor, config *PgDecryptorConfig, dbConn
 				continue
 			} else if row.buf[0] == 'S' {
 				log.Debugln("start tls proxy")
-				cer, err := config.getCertificate()
-				if err != nil {
-					errCh <- err
-					log.Println(err)
-					return
-				}
 				// stop reading from client in goroutine
-				if err = clientConnection.SetDeadline(time.Now()); err != nil {
+				if err := clientConnection.SetDeadline(time.Now()); err != nil {
 					log.WithError(err).Error("can't set deadline")
 					errCh <- err
 					return
 				}
+				// TODO: refactor it to avoid using sleep
 				// back control and allow golang runtime handle deadline in background goroutine
 				time.Sleep(time.Millisecond)
 				// reset deadline
-				if err = clientConnection.SetDeadline(time.Time{}); err != nil {
+				if err := clientConnection.SetDeadline(time.Time{}); err != nil {
 					log.WithError(err).Error("can't set deadline")
 					errCh <- err
 					return
 				}
 				log.Debugln("init tls with client")
 				// convert to tls connection
-				tlsClientConnection := tls.Server(clientConnection, &tls.Config{Certificates: []tls.Certificate{cer}})
-				if err = writer.Flush(); err != nil {
+				tlsClientConnection := tls.Server(clientConnection, tlsConfig)
+				if err := writer.Flush(); err != nil {
 					log.WithError(err).Error("can't flush writer")
 					errCh <- err
 					return
 				}
-				err = tlsClientConnection.Handshake()
-				if err != nil {
+				if err := tlsClientConnection.Handshake(); err != nil {
 					log.WithError(err).Error("can't initialize tls connection with client")
 					errCh <- err
 					return
 				}
 
 				log.Debugln("init tls with db")
-				dbTLSConnection := tls.Client(dbConnection, &tls.Config{InsecureSkipVerify: true})
-				if err = dbTLSConnection.Handshake(); err != nil {
+				dbTLSConnection := tls.Client(dbConnection, tlsConfig)
+				if err := dbTLSConnection.Handshake(); err != nil {
 					log.WithError(err).Println("can't initialize tls connection with db")
 					errCh <- err
 					return

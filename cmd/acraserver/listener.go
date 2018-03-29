@@ -175,6 +175,7 @@ func (server *SServer) Start() {
 				return
 			}
 			log.WithError(err).Errorf("can't accept new connection (connection=%v)", connection)
+			continue
 		}
 		// unix socket and value == '@'
 		if len(connection.RemoteAddr().String()) == 1 {
@@ -218,6 +219,7 @@ func (server *SServer) StartFromFileDescriptor(fd uintptr) {
 				return
 			}
 			log.WithError(err).Errorf("can't accept new connection (connection=%v)", connection)
+			continue
 		}
 		// unix socket and value == '@'
 		if len(connection.RemoteAddr().String()) == 1 {
@@ -334,6 +336,7 @@ func (server *SServer) StartCommands() {
 				return
 			}
 			log.WithError(err).Errorf("can't accept new connection (connection=%v)", connection)
+			continue
 		}
 		// unix socket and value == '@'
 		if len(connection.RemoteAddr().String()) == 1 {
@@ -375,6 +378,7 @@ func (server *SServer) StartCommandsFromFileDescriptor(fd uintptr) {
 				return
 			}
 			log.WithError(err).Errorf("can't accept new connection (connection=%v)", connection)
+			continue
 		}
 		// unix socket and value == '@'
 		if len(connection.RemoteAddr().String()) == 1 {

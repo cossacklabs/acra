@@ -14,6 +14,7 @@
 package main
 
 import (
+	"crypto/tls"
 	"encoding/json"
 	"errors"
 
@@ -50,6 +51,7 @@ type Config struct {
 	configPath              string
 	debug                   bool
 	firewall                firewall.FirewallInterface
+	tlsConfig               *tls.Config
 }
 
 type UIEditableConfig struct {
@@ -240,4 +242,11 @@ func (config *Config) GetAcraConnectionString() string {
 
 func (config *Config) GetAcraAPIConnectionString() string {
 	return config.acraAPIConnectionString
+}
+
+func (config *Config) SetTLSConfig(tlsConfig *tls.Config) {
+	config.tlsConfig = tlsConfig
+}
+func (config *Config) GetTLSConfig() *tls.Config {
+	return config.tlsConfig
 }

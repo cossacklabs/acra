@@ -14,6 +14,7 @@
 package main
 
 import (
+	"crypto/tls"
 	"errors"
 	"flag"
 	"net/http"
@@ -34,13 +35,12 @@ import (
 // DEFAULT_CONFIG_PATH relative path to config which will be parsed as default
 var restartSignalsChannel chan os.Signal
 var errorSignalChannel chan os.Signal
-var err error
 
 const (
-	ACRASERVER_WAIT_TIMEOUT = 10
-	GRACEFUL_ENV            = "GRACEFUL_RESTART"
-	DESCRIPTOR_ACRA         = 3
-	DESCRIPTOR_API          = 4
+	DEFAULT_ACRASERVER_WAIT_TIMEOUT = 10
+	GRACEFUL_ENV                    = "GRACEFUL_RESTART"
+	DESCRIPTOR_ACRA                 = 3
+	DESCRIPTOR_API                  = 4
 )
 
 var SERVICE_NAME = "acraserver"
@@ -70,6 +70,7 @@ func main() {
 
 	debug := flag.Bool("d", false, "Turn on debug logging")
 	debugServer := flag.Bool("ds", false, "Turn on http debug server")
+	closeConnectionTimeout := flag.Int("close_connections_timeout", DEFAULT_ACRASERVER_WAIT_TIMEOUT, "Time that acraserver will wait (in seconds) on restart before closing all connections")
 
 	stopOnPoison := flag.Bool("poisonshutdown", false, "Stop on detecting poison record")
 	scriptOnPoison := flag.String("poisonscript", "", "Execute script on detecting poison record")
@@ -160,13 +161,17 @@ func main() {
 		log.Errorln("can't initialize keystore")
 		os.Exit(1)
 	}
-	if *useTls {
-		log.Println("use TLS transport wrapper")
-		tlsConfig, err := network.NewTLSConfig(*tlsSNI, *tlsCA, *tlsKey, *tlsCert)
+	var tlsConfig *tls.Config
+	if *useTls || *tlsKey != "" {
+		tlsConfig, err = network.NewTLSConfig(*tlsSNI, *tlsCA, *tlsKey, *tlsCert)
 		if err != nil {
 			log.WithError(err).Errorln("can't get config for TLS")
 			os.Exit(1)
 		}
+	}
+	config.SetTLSConfig(tlsConfig)
+	if *useTls {
+		log.Println("use TLS transport wrapper")
 		config.ConnectionWrapper, err = network.NewTLSConnectionWrapper([]byte(*clientId), tlsConfig)
 		if err != nil {
 			log.Errorln("can't initialize tls connection wrapper")
@@ -229,7 +234,7 @@ func main() {
 		// Stop accepting new connections
 		server.StopListeners()
 		// Wait a maximum of N seconds for existing connections to finish
-		err := server.WaitWithTimeout(ACRASERVER_WAIT_TIMEOUT * time.Second)
+		err := server.WaitWithTimeout(time.Duration(*closeConnectionTimeout) * time.Second)
 		if err == ErrWaitTimeout {
 			log.Warningf("Server shutdown Timeout: %d active connections will be cut", server.ConnectionsCounter())
 			server.Close()
@@ -273,7 +278,7 @@ func main() {
 		log.Infof("Server forked to PID: %v", fork)
 
 		// Wait a maximum of N seconds for existing connections to finish
-		err = server.WaitWithTimeout(ACRASERVER_WAIT_TIMEOUT * time.Second)
+		err = server.WaitWithTimeout(time.Duration(*closeConnectionTimeout) * time.Second)
 		if err == ErrWaitTimeout {
 			log.Warningf("Server shutdown Timeout: %d active connections will be cut", server.ConnectionsCounter())
 			os.Exit(0)
