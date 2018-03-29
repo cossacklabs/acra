@@ -115,7 +115,7 @@ def stop_process(process):
 
 def get_connect_args(port=5432, sslmode=None, **kwargs):
     args = connect_args.copy()
-    args['port'] = port
+    args['port'] = int(port)
     if TEST_POSTGRESQL:
         args['sslmode'] = sslmode if sslmode else SSLMODE
     args.update(kwargs)
@@ -409,6 +409,8 @@ class BaseTestCase(unittest.TestCase):
         args = {
             'db_host': self.DB_HOST,
             'db_port': self.DB_PORT,
+            # we doesn't need in tests waiting closing connections
+            'close_connections_timeout': 0,
             self.ACRA_BYTEA: 'true',
             'connection_string': connection_string,
             'connection_api_string': api_connection_string,
@@ -1464,7 +1466,7 @@ class SSLPostgresqlConnectionTest(HexFormatTest):
         wait_connection(self.ACRA_PORT)
 
     def checkSkip(self):
-        if not TEST_WITH_TLS:
+        if not (TEST_WITH_TLS and TEST_POSTGRESQL):
             self.skipTest("running tests without TLS")
 
     def setUp(self):
@@ -1539,6 +1541,83 @@ class TLSBetweenProxyAndServerTest(HexFormatTest):
 
 class TLSBetweenProxyAndServerWithZonesTest(ZoneHexFormatTest,
                                             TLSBetweenProxyAndServerTest):
+    pass
+
+
+class SSLMysqlConnectionTest(HexFormatTest):
+    def get_acra_connection_string(self):
+        return get_tcp_connection_string(self.ACRA_PORT)
+
+    def wait_acra_connection(self, *args, **kwargs):
+        wait_connection(self.ACRA_PORT)
+
+    def checkSkip(self):
+        if not (TEST_WITH_TLS and TEST_MYSQL):
+            self.skipTest("running tests without TLS")
+
+    def setUp(self):
+        self.checkSkip()
+        """don't fork proxy, connect directly to acra, use ssl for connections and tcp protocol on acra side
+        because postgresql support tls only over tcp
+        """
+        try:
+            if not self.EXTERNAL_ACRA:
+                self.acra = self.fork_acra(
+                    tls_key='tests/mysql.key', tls_cert='tests/mysql.crt',
+                    tls_ca='tests/mysql-ca.crt',
+                    # used in mysql:5.7.21 docker container
+                    tls_sni='MySQL_Server_5.7.21_Auto_Generated_Server_Certificate',
+                    no_encryption=True, client_id='keypair1')
+            driver_ssl_settings = {
+                'ca': 'tests/mysql-ca.crt',
+                'cert': 'tests/mysql.crt',
+                'key': 'tests/mysql.key',
+                'check_hostname': False
+            }
+            self.engine1 = sa.create_engine(
+                get_postgresql_tcp_connection_string(self.ACRA_PORT, self.DB_NAME), connect_args=get_connect_args(port=self.ACRA_PORT, ssl=driver_ssl_settings))
+            self.engine_raw = sa.create_engine(
+                '{}://{}:{}/{}'.format(DB_DRIVER, self.DB_HOST, self.DB_PORT, self.DB_NAME),
+                connect_args=get_connect_args(self.DB_PORT, ssl=driver_ssl_settings))
+            # test case from HexFormatTest expect two engines with different client_id but here enough one and
+            # raw connection
+            self.engine2 = self.engine_raw
+
+            self.engines = [self.engine1, self.engine_raw]
+
+            metadata.create_all(self.engine_raw)
+            self.engine_raw.execute('delete from test;')
+            for engine in self.engines:
+                count = 0
+                # try with sleep if acra not up yet
+                while True:
+                    try:
+                        engine.execute("select 1")
+                        break
+                    except Exception:
+                        time.sleep(SETUP_SQL_COMMAND_TIMEOUT)
+                        count += 1
+                        if count == 3:
+                            raise
+        except:
+            self.tearDown()
+            raise
+
+    def tearDown(self):
+        if not self.EXTERNAL_ACRA:
+            if hasattr(self, 'acra'):
+                stop_process(self.acra)
+
+        try:
+            self.engine_raw.execute('delete from test;')
+            for engine in self.engines:
+                engine.dispose()
+        except:
+            pass
+
+
+class SSLMysqlConnectionWithZoneTest(ZoneHexFormatTest,
+                                          SSLMysqlConnectionTest):
     pass
 
 
