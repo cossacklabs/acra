@@ -122,18 +122,19 @@ func (decryptor *MySQLDecryptor) checkPoisonRecord(block []byte) (bool, error) {
 		log.WithError(err).Debugln("can't skip begin tag in block")
 		return false, nil
 	}
-	if decryptor.GetPoisonCallbackStorage().HasCallbacks() {
-		log.Debugln("check block on poison")
-		_, err := decryptor.decryptBlock(bytes.NewReader(data), nil, decryptor.getPoisonPrivateKey)
-		if err == nil {
-			log.Warningln("recognized poison record")
+	log.Debugln("check block on poison")
+	_, err = decryptor.decryptBlock(bytes.NewReader(data), nil, decryptor.getPoisonPrivateKey)
+	if err == nil {
+		log.Warningln("recognized poison record")
+		if decryptor.GetPoisonCallbackStorage().HasCallbacks() {
 			if err := decryptor.GetPoisonCallbackStorage().Call(); err != nil {
 				log.WithError(err).Errorln("unexpected error in poison record callbacks")
 			}
 			log.Debugln("processed all callbacks on poison record")
-			return true, err
 		}
+		return true, err
 	}
+
 	return false, nil
 }
 

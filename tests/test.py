@@ -21,15 +21,17 @@ import string
 import subprocess
 import traceback
 import unittest
+import re
 import stat
-import collections
 from base64 import b64decode, b64encode
 from tempfile import NamedTemporaryFile
 from urllib.request import urlopen
 from urllib.parse import urlparse
+import collections
 
 import psycopg2
 import pymysql
+import semver
 import sqlalchemy as sa
 from sqlalchemy.exc import DatabaseError
 from sqlalchemy.dialects.postgresql import BYTEA
@@ -205,27 +207,51 @@ def socket_path_from_connection_string(connection_string):
 def acra_api_connection_string(port):
     return "unix://{}".format("{}/acra_api_unix_socket_{}".format(PG_UNIX_HOST, port+1))
 
-BINARIES = ['acraproxy', 'acraserver', 'acra_addzone', 'acra_genkeys',
-            'acra_genpoisonrecord', 'acra_rollback']
+
+
+DEFAULT_VERSION = '1.5.0'
+ACRA_ROLLBACK_MIN_VERSION = "1.8.0"
+Binary = collections.namedtuple('Binary', ['name', 'from_version'])
+BINARIES = [
+    Binary(name='acraproxy', from_version=DEFAULT_VERSION),
+    Binary(name='acraserver', from_version=DEFAULT_VERSION),
+    Binary(name='acra_addzone', from_version=DEFAULT_VERSION),
+    Binary(name='acra_genkeys', from_version=DEFAULT_VERSION),
+    Binary(name='acra_genpoisonrecord', from_version=DEFAULT_VERSION),
+    Binary(name='acra_rollback', from_version=ACRA_ROLLBACK_MIN_VERSION),
+]
 
 def clean_binaries():
     for i in BINARIES:
         try:
-            os.remove(i)
+            os.remove(i.name)
         except:
             pass
 
 PROCESS_CALL_TIMEOUT = 120
+
+def get_go_version():
+    output = subprocess.check_output(['go', 'version'])
+    # example: go1.7.2 or go1.7
+    version = re.search(r'go([\d.]+)', output.decode('utf-8')).group(1)
+    # convert to 3 part semver format
+    if version.count('.') < 2:
+        version = '{}.0'.format(version)
+    return version
 
 def setUpModule():
     global zones
     clean_binaries()
     # build binaries
     builds = [
-        ['go', 'build', 'github.com/cossacklabs/acra/cmd/{}'.format(binary)]
+        (binary.from_version, ['go', 'build', 'github.com/cossacklabs/acra/cmd/{}'.format(binary.name)])
         for binary in BINARIES
     ]
-    for build in builds:
+    go_version = get_go_version()
+    GREATER, EQUAL, LESS = (1, 0, -1)
+    for version, build in builds:
+        if semver.compare(go_version, version) == LESS:
+            continue
         # try to build 3 times with timeout
         build_count = 3
         for i in range(build_count):
@@ -503,7 +529,7 @@ class BaseTestCase(unittest.TestCase):
                 'zone_id': zones[0]['id'],
                 'poison_record': b64encode(get_poison_record()).decode('ascii'),
             }
-        ))
+        ), file=sys.stderr)
 
 
 class HexFormatTest(BaseTestCase):
@@ -962,23 +988,33 @@ class TestPoisonRecordShutdown(BasePoisonRecordTest):
 
     def testShutdown(self):
         row_id = self.get_random_id()
+        data = get_poison_record()
         self.engine1.execute(
             test_table.insert(),
-            {'id': row_id, 'data': get_poison_record(), 'raw_data': 'poison_record'})
+            {'id': row_id, 'data': data, 'raw_data': 'poison_record'})
         with self.assertRaises(DatabaseError):
-            self.engine1.execute(
+            result = self.engine1.execute(
                 sa.select([test_table])
                 .where(test_table.c.id == row_id))
+            row = result.fetchone()
+            if row['data'] == data:
+                self.fail("unexpected response")
 
     def testShutdown2(self):
         """check working poison record callback on full select"""
         row_id = self.get_random_id()
+        data = get_poison_record()
         self.engine1.execute(
             test_table.insert(),
-            {'id': row_id, 'data': get_poison_record(), 'raw_data': 'poison_record'})
+            {'id': row_id, 'data': data, 'raw_data': 'poison_record'})
         with self.assertRaises(DatabaseError):
-            self.engine1.execute(
+            result = self.engine1.execute(
                 sa.select([test_table]))
+            rows = result.fetchall()
+            for row in rows:
+                if row['id'] == row_id and row['data'] == data:
+                    self.fail("unexpected response")
+
 
     def testShutdown3(self):
         """check working poison record callback on full select inside another data"""
@@ -988,8 +1024,12 @@ class TestPoisonRecordShutdown(BasePoisonRecordTest):
             test_table.insert(),
             {'id': row_id, 'data': data, 'raw_data': 'poison_record'})
         with self.assertRaises(DatabaseError):
-            self.engine1.execute(
+            result = self.engine1.execute(
                 sa.select([test_table]))
+            rows = result.fetchall()
+            for row in rows:
+                if row['id'] == row_id and row['data'] == data:
+                    self.fail("unexpected response")
 
 
 class TestShutdownPoisonRecordWithZone(TestPoisonRecordShutdown):
@@ -1113,6 +1153,7 @@ class TestNoCheckPoisonRecordWithZoneWholeCell(TestNoCheckPoisonRecordWithZone):
 class TestCheckLogPoisonRecord(AcraCatchLogsMixin, BasePoisonRecordTest):
     SHUTDOWN = True
     DEBUG_LOG = True
+    TEST_DATA_LOG = True
 
     def setUp(self):
         self.poison_script_file = NamedTemporaryFile('w')
@@ -1207,6 +1248,13 @@ class TestKeyStorageClearing(BaseTestCase):
 
 class TestAcraRollback(BaseTestCase):
     DATA_COUNT = 5
+
+    def checkSkip(self):
+        super(TestAcraRollback, self).checkSkip()
+        go_version = get_go_version()
+        GREATER, EQUAL, LESS = (1, 0, -1)
+        if semver.compare(go_version, ACRA_ROLLBACK_MIN_VERSION) == LESS:
+            self.skipTest("not supported go version")
 
     def setUp(self):
         self.checkSkip()
