@@ -129,6 +129,7 @@ func (decryptor *MySQLDecryptor) checkPoisonRecord(block []byte) (bool, error) {
 	if err == nil {
 		log.Warningln("Recognized poison record")
 		if decryptor.GetPoisonCallbackStorage().HasCallbacks() {
+			log.Debugln("Check poison records")
 			if err := decryptor.GetPoisonCallbackStorage().Call(); err != nil {
 				log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorDecryptorCantHandleRecognizedPoisonRecord).
 					Errorln("Unexpected error in poison record callbacks")
@@ -142,7 +143,6 @@ func (decryptor *MySQLDecryptor) checkPoisonRecord(block []byte) (bool, error) {
 
 // poisonCheck find acrastructs in block and try to detect poison record
 func (decryptor *MySQLDecryptor) poisonCheck(block []byte) error {
-	log.Debugln("Check poison records")
 	index := 0
 	for {
 		beginTagIndex, _ := decryptor.BeginTagIndex(block[index:])
