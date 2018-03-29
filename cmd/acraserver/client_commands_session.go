@@ -29,6 +29,7 @@ import (
 	"syscall"
 	"github.com/cossacklabs/acra/cmd"
 	"flag"
+	"github.com/cossacklabs/themis/gothemis/cell"
 )
 
 type ClientCommandsSession struct {
@@ -61,6 +62,7 @@ func (clientSession *ClientCommandsSession) close() {
 func (clientSession *ClientCommandsSession) HandleSession() {
 	reader := bufio.NewReader(clientSession.connection)
 	req, err := http.ReadRequest(reader)
+	// req = clientSession.connection.Write(*http.ResponseWriter)
 	if err != nil {
 		log.Warningf("%v", utils.ErrorMessage("error reading command request from proxy", err))
 		clientSession.close()
@@ -83,6 +85,31 @@ func (clientSession *ClientCommandsSession) HandleSession() {
 		log.Info("clear key storage cache")
 		clientSession.keystorage.Reset()
 		response = "HTTP/1.1 200 OK Found\r\n\r\n"
+	case "/getAuthData":
+		keystore, err := keystore.NewFilesystemKeyStore(clientSession.config.GetKeysDir())
+		if err != nil {
+			panic(err)
+		}
+		key, err := keystore.GetAuthKey(false)
+		if err != nil {
+			log.WithError(err).Error("getAuthData: keystore.GetAuthKey()")
+			response = "HTTP/1.1 500 Server error\r\n\r\n\r\n\r\n"
+			break
+		}
+		authDataCrypted, err := getAuthData(*authPath)
+		if err != nil {
+			log.Warningf("%v\n", utils.ErrorMessage("getAuthData: no auth data", err))
+			response = "HTTP/1.1 500 Server error\r\n\r\n\r\n\r\n"
+			break
+		}
+		SecureCell := cell.New(key, cell.CELL_MODE_SEAL)
+		authData, err := SecureCell.Unprotect(authDataCrypted, nil, nil)
+		if err != nil {
+			log.WithError(err).Error("getAuthData: SecureCell.Unprotect")
+			response = "HTTP/1.1 500 Server error\r\n\r\n\r\n\r\n"
+			break
+		}
+		response = fmt.Sprintf("HTTP/1.1 200 OK Found\r\n\r\n%s\r\n\r\n", authData)
 	case "/getConfig":
 		jsonOutput, err := clientSession.config.ToJson()
 		if err != nil {

@@ -15,6 +15,12 @@ import (
 	"github.com/cossacklabs/acra/utils"
 	log "github.com/sirupsen/logrus"
 	"gopkg.in/yaml.v2"
+	"golang.org/x/crypto/argon2"
+	"time"
+	"math/rand"
+	"strings"
+	"encoding/base64"
+	"strconv"
 )
 
 var (
@@ -248,4 +254,75 @@ func Parse(configPath string) error {
 		os.Exit(0)
 	}
 	return nil
+}
+
+type Argon2Params struct {
+	Time    uint32
+	Memory  uint32
+	Threads uint8
+	Length  uint32
+}
+
+type UserAuth struct {
+	Salt string
+	Argon2Params
+	Hash []byte
+}
+
+func (auth UserAuth) UserAuthString(PasswordSeparator string) (string) {
+	var argon2P []string
+	argon2P = append(argon2P, strconv.FormatUint(uint64(auth.Argon2Params.Time), 10))
+	argon2P = append(argon2P, strconv.FormatUint(uint64(auth.Argon2Params.Memory), 10))
+	argon2P = append(argon2P, strconv.FormatUint(uint64(auth.Argon2Params.Threads), 10))
+	argon2P = append(argon2P, strconv.FormatUint(uint64(auth.Argon2Params.Length), 10))
+	hash := base64.StdEncoding.EncodeToString(auth.Hash)
+	return fmt.Sprintf("%v:%v:%v", auth.Salt, strings.Join(argon2P, PasswordSeparator), hash)
+}
+
+func InitArgon2Params() (Argon2Params) {
+	var p Argon2Params
+	p.Time = uint32(ACRA_CONFIGUI_AUTH_ARGON2_TIME)
+	p.Memory = uint32(ACRA_CONFIGUI_AUTH_ARGON2_MEMORY)
+	p.Threads = uint8(ACRA_CONFIGUI_AUTH_ARGON2_THREADS)
+	p.Length = uint32(ACRA_CONFIGUI_AUTH_ARGON2_LENGTH)
+	return p
+}
+
+func HashArgon2(password string, salt string, p Argon2Params) (hash []byte, err error) {
+	passwordBytes := argon2.IDKey([]byte(password), []byte(salt),
+		p.Time,
+		p.Memory,
+		p.Threads,
+		p.Length)
+	if err != nil {
+		return
+	}
+	return passwordBytes, nil
+}
+
+const letterBytes = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
+const (
+	letterIdxBits = 6                    // 6 bits to represent a letter index
+	letterIdxMask = 1<<letterIdxBits - 1 // All 1-bits, as many as letterIdxBits
+	letterIdxMax  = 63 / letterIdxBits   // # of letter indices fitting in 63 bits
+)
+
+var randSrc = rand.NewSource(time.Now().UnixNano())
+
+func RandomStringBytes(n int) string {
+	b := make([]byte, n)
+	// A randSrc.Int63() generates 63 random bits, enough for letterIdxMax characters!
+	for i, cache, remain := n-1, randSrc.Int63(), letterIdxMax; i >= 0; {
+		if remain == 0 {
+			cache, remain = randSrc.Int63(), letterIdxMax
+		}
+		if idx := int(cache & letterIdxMask); idx < len(letterBytes) {
+			b[i] = letterBytes[idx]
+			i--
+		}
+		cache >>= letterIdxBits
+		remain--
+	}
+
+	return string(b)
 }

@@ -23,6 +23,7 @@ var lock = sync.RWMutex{}
 
 const (
 	POISON_KEY_FILENAME = ".poison_key/poison_key"
+	BASIC_AUTH_KEY_FILENAME = "auth_key"
 )
 
 func getZoneKeyFilename(id []byte) string {

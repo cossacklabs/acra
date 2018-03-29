@@ -24,6 +24,7 @@ const (
 	VALID_CHARS           = "_- "
 	MAX_CLIENT_ID_LENGTH  = 256
 	MIN_CLIENT_ID_LENGTH  = 5
+	BASIC_AUTH_KEY_LENGTH = 32
 )
 
 var ErrInvalidClientId = errors.New("Invalid client id")

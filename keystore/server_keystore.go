@@ -11,6 +11,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"crypto/rand"
 )
 
 type FilesystemKeyStore struct {
@@ -50,6 +51,28 @@ func (store *FilesystemKeyStore) generateKeyPair(filename string) (*keys.Keypair
 		return nil, err
 	}
 	return keypair, nil
+}
+
+func (store *FilesystemKeyStore) generateKey(filename string, length uint8) ([]byte, error) {
+	randomBytes := make([]byte, length)
+	_, err := rand.Read(randomBytes)
+	// Note that err == nil only if we read len(b) bytes.
+	if err != nil {
+		log.Error(err)
+		return nil, err
+	}
+	dirpath := filepath.Dir(store.getFilePath(filename))
+	err = os.MkdirAll(dirpath, 0700)
+	if err != nil {
+		log.Error(err)
+		return nil, err
+	}
+	err = ioutil.WriteFile(store.getFilePath(filename), randomBytes, 0600)
+	if err != nil {
+		log.Error(err)
+		return nil, err
+	}
+	return randomBytes, nil
 }
 
 func (store *FilesystemKeyStore) GenerateZoneKey() ([]byte, []byte, error) {
@@ -246,4 +269,23 @@ func (store *FilesystemKeyStore) GetPoisonKeyPair() (*keys.Keypair, error) {
 	}
 	log.Infoln("Generate poison key pair")
 	return store.generateKeyPair(POISON_KEY_FILENAME)
+}
+
+func (store *FilesystemKeyStore) GetAuthKey(remove bool) ([]byte, error) {
+	keyPath := store.getFilePath(BASIC_AUTH_KEY_FILENAME)
+	keyExists, err := utils.FileExists(keyPath)
+	if err != nil {
+		log.Error(err)
+		return nil, err
+	}
+	if keyExists && !remove {
+		key, err := utils.ReadFile(keyPath)
+		if err != nil {
+			log.Error(err)
+			return nil, err
+		}
+		return key, nil
+	}
+	log.Infof("Generate basic auth key for AcraConfigUI to %v", keyPath)
+	return store.generateKey(BASIC_AUTH_KEY_FILENAME, BASIC_AUTH_KEY_LENGTH)
 }
