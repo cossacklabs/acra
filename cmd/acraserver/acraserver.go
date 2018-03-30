@@ -37,6 +37,12 @@ var restartSignalsChannel chan os.Signal
 var errorSignalChannel chan os.Signal
 
 const (
+	TEST_MODE = "true"
+)
+
+var Test = "false"
+
+const (
 	DEFAULT_ACRASERVER_WAIT_TIMEOUT = 10
 	GRACEFUL_ENV                    = "GRACEFUL_RESTART"
 	DESCRIPTOR_ACRA                 = 3
@@ -167,6 +173,11 @@ func main() {
 		if err != nil {
 			log.WithError(err).Errorln("can't get config for TLS")
 			os.Exit(1)
+		}
+		// need for testing with mysql docker container that always generate new certificates
+		if Test == TEST_MODE {
+			tlsConfig.InsecureSkipVerify = true
+			log.Warningln("only for tests!")
 		}
 	}
 	config.SetTLSConfig(tlsConfig)

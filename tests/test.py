@@ -210,15 +210,31 @@ def acra_api_connection_string(port):
 
 
 DEFAULT_VERSION = '1.5.0'
+DEFAULT_BUILD_ARGS = []
 ACRA_ROLLBACK_MIN_VERSION = "1.8.0"
-Binary = collections.namedtuple('Binary', ['name', 'from_version'])
+Binary = collections.namedtuple(
+    'Binary', ['name', 'from_version', 'build_args'])
+
+TEST_ACRA_BIN_NAME='test-acraserver'
+
 BINARIES = [
-    Binary(name='acraproxy', from_version=DEFAULT_VERSION),
-    Binary(name='acraserver', from_version=DEFAULT_VERSION),
-    Binary(name='acra_addzone', from_version=DEFAULT_VERSION),
-    Binary(name='acra_genkeys', from_version=DEFAULT_VERSION),
-    Binary(name='acra_genpoisonrecord', from_version=DEFAULT_VERSION),
-    Binary(name='acra_rollback', from_version=ACRA_ROLLBACK_MIN_VERSION),
+    Binary(name='acraproxy', from_version=DEFAULT_VERSION,
+           build_args=DEFAULT_BUILD_ARGS),
+    Binary(name='acraserver', from_version=DEFAULT_VERSION,
+           build_args=DEFAULT_BUILD_ARGS),
+    # compile with Test=true to disable golang tls client server verification
+    Binary(name='acraserver', from_version=DEFAULT_VERSION,
+           build_args=['-o', TEST_ACRA_BIN_NAME,
+                       '-ldflags', '-X main.Test=true']),
+
+    Binary(name='acra_addzone', from_version=DEFAULT_VERSION,
+           build_args=DEFAULT_BUILD_ARGS),
+    Binary(name='acra_genkeys', from_version=DEFAULT_VERSION,
+           build_args=DEFAULT_BUILD_ARGS),
+    Binary(name='acra_genpoisonrecord', from_version=DEFAULT_VERSION,
+           build_args=DEFAULT_BUILD_ARGS),
+    Binary(name='acra_rollback', from_version=ACRA_ROLLBACK_MIN_VERSION,
+           build_args=DEFAULT_BUILD_ARGS),
 ]
 
 def clean_binaries():
@@ -244,7 +260,7 @@ def setUpModule():
     clean_binaries()
     # build binaries
     builds = [
-        (binary.from_version, ['go', 'build', 'github.com/cossacklabs/acra/cmd/{}'.format(binary.name)])
+        (binary.from_version, ['go', 'build'] + binary.build_args + ['github.com/cossacklabs/acra/cmd/{}'.format(binary.name)])
         for binary in BINARIES
     ]
     go_version = get_go_version()
@@ -397,6 +413,9 @@ class BaseTestCase(unittest.TestCase):
             port = self.PROXY_COMMAND_PORT_1
         return get_proxy_connection_string(port)
 
+    def get_acraserver_bin_path(self):
+        return './acraserver'
+
     def _fork_acra(self, acra_kwargs, popen_kwargs):
         connection_string = self.get_acra_connection_string()
         api_connection_string = self.get_acra_api_connection_string()
@@ -434,7 +453,7 @@ class BaseTestCase(unittest.TestCase):
             popen_kwargs = {}
         cli_args = ['--{}={}'.format(k, v) for k, v in args.items()]
 
-        process = self.fork(lambda: subprocess.Popen(['./acraserver'] + cli_args,
+        process = self.fork(lambda: subprocess.Popen([self.get_acraserver_bin_path()] + cli_args,
                                                      **popen_kwargs))
         try:
             self.wait_acra_connection(socket_path_from_connection_string(connection_string))
@@ -1570,6 +1589,9 @@ class SSLMysqlConnectionTest(HexFormatTest):
         if not (TEST_WITH_TLS and TEST_MYSQL):
             self.skipTest("running tests without TLS")
 
+    def get_acraserver_bin_path(self):
+        return './{}'.format(TEST_ACRA_BIN_NAME)
+
     def setUp(self):
         self.checkSkip()
         """don't fork proxy, connect directly to acra, use ssl for connections and tcp protocol on acra side
@@ -1578,26 +1600,31 @@ class SSLMysqlConnectionTest(HexFormatTest):
         try:
             if not self.EXTERNAL_ACRA:
                 self.acra = self.fork_acra(
-                    tls_key='tests/mysql.key', tls_cert='tests/mysql.crt',
-                    tls_ca='tests/mysql-ca.crt',
-                    # value from docker container mysql:5.7.21
-                    tls_sni="MySQL_Server_5.7.21_Auto_Generated_Server_Certificate",
+                    tls_key='tests/server.key',
+                    tls_cert='tests/server.crt',
+                    tls_ca='tests/server.crt',
+                    tls_sni="acraserver",
                     no_encryption=True, client_id='keypair1')
-            driver_ssl_settings = {
-                # don't verify server cert because test db will generate new certs
-                'ca': None,
-                #'ca': 'tests/server.crt',
-                'cert': 'tests/mysql.crt',
-                'key': 'tests/mysql.key',
+            driver_to_acraserver_ssl_settings = {
+                'ca': 'tests/server.crt',
+                'cert': 'tests/client.crt',
+                'key': 'tests/client.key',
                 'check_hostname': False
             }
-            self.engine1 = sa.create_engine(
-                get_postgresql_tcp_connection_string(self.ACRA_PORT, self.DB_NAME), connect_args=get_connect_args(port=self.ACRA_PORT, ssl=driver_ssl_settings))
             self.engine_raw = sa.create_engine(
-                '{}://{}:{}/{}'.format(DB_DRIVER, self.DB_HOST, self.DB_PORT, self.DB_NAME),
-                connect_args=get_connect_args(self.DB_PORT, ssl=driver_ssl_settings))
-            # test case from HexFormatTest expect two engines with different client_id but here enough one and
-            # raw connection
+                '{}://{}:{}/{}'.format(DB_DRIVER, self.DB_HOST,
+                                       self.DB_PORT, self.DB_NAME),
+                # don't provide any client's certificates to driver that connects
+                # directly to mysql to avoid verifying by mysql server
+                connect_args=get_connect_args(self.DB_PORT, ssl={'ca': None}))
+
+            self.engine1 = sa.create_engine(
+                get_postgresql_tcp_connection_string(self.ACRA_PORT, self.DB_NAME),
+                connect_args=get_connect_args(
+                    port=self.ACRA_PORT, ssl=driver_to_acraserver_ssl_settings))
+
+            # test case from HexFormatTest expect two engines with different
+            # client_id but here enough one and raw connection
             self.engine2 = self.engine_raw
 
             self.engines = [self.engine1, self.engine_raw]
