@@ -12,11 +12,13 @@ import (
 	"path/filepath"
 	"runtime"
 	"crypto/rand"
+	"sync"
 )
 
 type FilesystemKeyStore struct {
 	keys      map[string][]byte
 	directory string
+	lock      *sync.RWMutex
 }
 
 func NewFilesystemKeyStore(directory string) (*FilesystemKeyStore, error) {
@@ -29,7 +31,7 @@ func NewFilesystemKeyStore(directory string) (*FilesystemKeyStore, error) {
 		log.Errorln(" key store folder has an incorrect permissions")
 		return nil, errors.New("key store folder has an incorrect permissions")
 	}
-	return &FilesystemKeyStore{directory: directory, keys: make(map[string][]byte)}, nil
+	return &FilesystemKeyStore{directory: directory, keys: make(map[string][]byte), lock: &sync.RWMutex{}}, nil
 }
 
 func (store *FilesystemKeyStore) generateKeyPair(filename string) (*keys.Keypair, error) {
@@ -90,8 +92,8 @@ func (store *FilesystemKeyStore) GenerateZoneKey() ([]byte, []byte, error) {
 	if err != nil {
 		return []byte{}, []byte{}, err
 	}
-	lock.Lock()
-	defer lock.Unlock()
+	store.lock.Lock()
+	defer store.lock.Unlock()
 	// cache key
 	store.keys[getZoneKeyFilename(id)] = keypair.Private.Value
 	return id, keypair.Public.Value, nil
@@ -106,8 +108,8 @@ func (store *FilesystemKeyStore) GetZonePrivateKey(id []byte) (*keys.PrivateKey,
 		return nil, ErrInvalidClientId
 	}
 	fname := getZoneKeyFilename(id)
-	lock.Lock()
-	defer lock.Unlock()
+	store.lock.Lock()
+	defer store.lock.Unlock()
 	key, ok := store.keys[fname]
 	if ok {
 		log.Debugf("load cached key: %s", fname)
@@ -132,8 +134,8 @@ func (store *FilesystemKeyStore) HasZonePrivateKey(id []byte) bool {
 		return false
 	}
 	fname := getZoneKeyFilename(id)
-	lock.RLock()
-	defer lock.RUnlock()
+	store.lock.RLock()
+	defer store.lock.RUnlock()
 	_, ok := store.keys[fname]
 	if ok {
 		return true
@@ -147,8 +149,8 @@ func (store *FilesystemKeyStore) GetPeerPublicKey(id []byte) (*keys.PublicKey, e
 		return nil, ErrInvalidClientId
 	}
 	fname := getPublicKeyFilename(id)
-	lock.Lock()
-	defer lock.Unlock()
+	store.lock.Lock()
+	defer store.lock.Unlock()
 	key, ok := store.keys[fname]
 	if ok {
 		log.Debugf("load cached key: %s", fname)
@@ -189,8 +191,8 @@ func (store *FilesystemKeyStore) GetServerDecryptionPrivateKey(id []byte) (*keys
 		return nil, ErrInvalidClientId
 	}
 	fname := getServerDecryptionKeyFilename(id)
-	lock.Lock()
-	defer lock.Unlock()
+	store.lock.Lock()
+	defer store.lock.Unlock()
 	key, ok := store.keys[fname]
 	if ok {
 		log.Debugf("load cached key: %s", fname)

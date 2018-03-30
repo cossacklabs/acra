@@ -5,6 +5,8 @@ export TEST_PROXY_PORT=7000
 export TEST_PROXY_COMMAND_PORT=8000
 cd $HOME/project
 for version in $VERSIONS; do
+    echo "-------------------- Testing Go version $version"
+
     export TEST_ACRA_PORT=$(expr ${TEST_ACRA_PORT} + 1);
     export TEST_PROXY_PORT=$(expr ${TEST_PROXY_PORT} + 1);
     export TEST_PROXY_COMMAND_PORT=$(expr ${TEST_PROXY_COMMAND_PORT} + 1);
@@ -20,12 +22,17 @@ for version in $VERSIONS; do
     unset TEST_MYSQL
 
     export TEST_TLS=on
-    python3 tests/test.py;
+    
+    echo "--------------------  Testing POSTGRES with TEST_TLS=on"
+
+    python3 tests/test.py -v;
     if [ "$?" != "0" ]; then echo "pgsql-$version" >> "$FILEPATH_ERROR_FLAG";
     fi
 
     export TEST_TLS=off
-    python3 tests/test.py;
+
+    echo "--------------------  Testing POSTGRES with TEST_TLS=off"
+    python3 tests/test.py -v;
     if [ "$?" != "0" ]; then echo "pgsql-$version" >> "$FILEPATH_ERROR_FLAG";
     fi
 
@@ -37,7 +44,8 @@ for version in $VERSIONS; do
     export TEST_MYSQL=true
     export TEST_TLS=off
 
-    python3 tests/test.py;
+    echo "--------------------  Testing TEST_MYSQL with TEST_TLS=off"
+    python3 tests/test.py -v;
     if [ "$?" != "0" ]; then echo "mysql-$version" >> "$FILEPATH_ERROR_FLAG";
     fi
 

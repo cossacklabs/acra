@@ -21,13 +21,13 @@ import (
 
 	"errors"
 	"github.com/cossacklabs/acra/keystore"
-	"github.com/cossacklabs/acra/utils"
 	"github.com/cossacklabs/acra/zone"
 	"github.com/cossacklabs/themis/gothemis/keys"
 	"fmt"
 	"encoding/json"
 	"syscall"
 	"github.com/cossacklabs/acra/cmd"
+	"github.com/cossacklabs/acra/utils"
 	"flag"
 	"github.com/cossacklabs/themis/gothemis/cell"
 )
@@ -51,12 +51,12 @@ func (clientSession *ClientCommandsSession) ConnectToDb() error {
 }
 
 func (clientSession *ClientCommandsSession) close() {
-	log.Debugln("close acraproxy connection")
+	log.Debugln("Close acraproxy connection")
 	err := clientSession.connection.Close()
 	if err != nil {
-		log.Warningf("%v", utils.ErrorMessage("error with closing connection to acraproxy", err))
+		log.WithError(err).Errorln("Error during closing connection to acraproxy")
 	}
-	log.Debugln("all connections closed")
+	log.Debugln("All connections closed")
 }
 
 func (clientSession *ClientCommandsSession) HandleSession() {
@@ -64,7 +64,7 @@ func (clientSession *ClientCommandsSession) HandleSession() {
 	req, err := http.ReadRequest(reader)
 	// req = clientSession.connection.Write(*http.ResponseWriter)
 	if err != nil {
-		log.Warningf("%v", utils.ErrorMessage("error reading command request from proxy", err))
+		log.WithError(err).Warningln("Got new command request, but can't read it")
 		clientSession.close()
 		return
 	}
@@ -74,23 +74,26 @@ func (clientSession *ClientCommandsSession) HandleSession() {
 
 	switch req.URL.Path {
 	case "/getNewZone":
+		log.Debugln("Got /getNewZone request")
 		id, publicKey, err := clientSession.keystorage.GenerateZoneKey()
 		if err == nil {
 			zoneData, err := zone.ZoneDataToJson(id, &keys.PublicKey{Value: publicKey})
 			if err == nil {
+				log.Debugln("Handled request correctly")
 				response = fmt.Sprintf("HTTP/1.1 200 OK Found\r\n\r\n%s\r\n\r\n", string(zoneData))
 			}
 		}
 	case "/resetKeyStorage":
-		log.Info("clear key storage cache")
+		log.Debugln("Got /resetKeyStorage request")
 		clientSession.keystorage.Reset()
 		response = "HTTP/1.1 200 OK Found\r\n\r\n"
+		log.Debugln("Cleared key storage cache")
 	case "/getAuthData":
-		keystore, err := keystore.NewFilesystemKeyStore(clientSession.config.GetKeysDir())
+		keysStore, err := keystore.NewFilesystemKeyStore(clientSession.config.GetKeysDir())
 		if err != nil {
 			panic(err)
 		}
-		key, err := keystore.GetAuthKey(false)
+		key, err := keysStore.GetAuthKey(false)
 		if err != nil {
 			log.WithError(err).Error("getAuthData: keystore.GetAuthKey()")
 			response = "HTTP/1.1 500 Server error\r\n\r\n\r\n\r\n"
@@ -111,20 +114,23 @@ func (clientSession *ClientCommandsSession) HandleSession() {
 		}
 		response = fmt.Sprintf("HTTP/1.1 200 OK Found\r\n\r\n%s\r\n\r\n", authData)
 	case "/getConfig":
+		log.Debugln("Got /getConfig request")
 		jsonOutput, err := clientSession.config.ToJson()
 		if err != nil {
-			log.Warningf("%v\n", utils.ErrorMessage("can't convert config to JSON", err))
+			log.WithError(err).Warningln("Can't convert config to JSON")
 			response = "HTTP/1.1 500 Server error\r\n\r\n\r\n\r\n"
 		} else {
+			log.Debugln("Handled request correctly")
 			log.Debugln(string(jsonOutput))
 			response = fmt.Sprintf("HTTP/1.1 200 OK Found\r\n\r\n%s\r\n\r\n", string(jsonOutput))
 		}
 	case "/setConfig":
+		log.Debugln("Got /setConfig request")
 		decoder := json.NewDecoder(req.Body)
 		var configFromUI UIEditableConfig
 		err := decoder.Decode(&configFromUI)
 		if err != nil {
-			log.Warningf("%v\n", utils.ErrorMessage("can't convert config from incoming", err))
+			log.WithError(err).Warningln("Can't convert config from incoming")
 			response = "HTTP/1.1 500 Server error\r\n\r\n\r\n\r\n"
 			return
 		}
@@ -144,12 +150,13 @@ func (clientSession *ClientCommandsSession) HandleSession() {
 			return
 
 		}
+		log.Debugln("Handled request correctly, restarting server")
 		clientSession.Server.restartSignalsChannel <- syscall.SIGHUP
 	}
 
 	_, err = clientSession.connection.Write([]byte(response))
 	if err != nil {
-		log.Warningf("%v", utils.ErrorMessage("can't send data with secure session to acraproxy", err))
+		log.WithError(err).Errorln("Can't send data with secure session to acraproxy")
 		return
 	}
 	clientSession.close()

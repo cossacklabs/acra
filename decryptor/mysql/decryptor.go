@@ -13,6 +13,7 @@ import (
 	"github.com/cossacklabs/acra/zone"
 	"github.com/cossacklabs/themis/gothemis/keys"
 	log "github.com/sirupsen/logrus"
+	"github.com/cossacklabs/acra/logging"
 )
 
 type decryptFunc func([]byte) ([]byte, error)
@@ -119,35 +120,36 @@ func (decryptor *MySQLDecryptor) checkPoisonRecord(block []byte) (bool, error) {
 	decryptor.Reset()
 	data, err := decryptor.SkipBeginInBlock(block)
 	if err != nil {
-		log.WithError(err).Debugln("can't skip begin tag in block")
+		log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorDecryptorCantSkipBeginInBlock).
+			Debugln("Can't skip begin tag in block")
 		return false, nil
 	}
-	log.Debugln("check block on poison")
+	log.Debugln("Check block on poison")
 	_, err = decryptor.decryptBlock(bytes.NewReader(data), nil, decryptor.getPoisonPrivateKey)
 	if err == nil {
-		log.Warningln("recognized poison record")
+		log.Warningln("Recognized poison record")
 		if decryptor.GetPoisonCallbackStorage().HasCallbacks() {
+			log.Debugln("Check poison records")
 			if err := decryptor.GetPoisonCallbackStorage().Call(); err != nil {
-				log.WithError(err).Errorln("unexpected error in poison record callbacks")
+				log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorDecryptorCantHandleRecognizedPoisonRecord).
+					Errorln("Unexpected error in poison record callbacks")
 			}
-			log.Debugln("processed all callbacks on poison record")
+			log.Debugln("Processed all callbacks on poison record")
 		}
 		return true, err
 	}
-
 	return false, nil
 }
 
 // poisonCheck find acrastructs in block and try to detect poison record
 func (decryptor *MySQLDecryptor) poisonCheck(block []byte) error {
-	log.Debugln("check poison records")
 	index := 0
 	for {
 		beginTagIndex, _ := decryptor.BeginTagIndex(block[index:])
 		if beginTagIndex == utils.NOT_FOUND {
 			break
 		} else {
-			log.Debugln("found acrastruct")
+			log.Debugln("Found acrastruct")
 			poisoned, err := decryptor.checkPoisonRecord(block[index+beginTagIndex:])
 			if poisoned {
 				return base.ErrPoisonRecord
@@ -165,17 +167,17 @@ type getKeyFunc func() (*keys.PrivateKey, error)
 func (decryptor *MySQLDecryptor) decryptBlock(reader io.Reader, id []byte, keyFunc getKeyFunc) ([]byte, error) {
 	privateKey, err := keyFunc()
 	if err != nil {
-		decryptor.log.Warningln("can't read private key")
+		decryptor.log.Warningln("Can't read private key")
 		return []byte{}, err
 	}
 	key, _, err := decryptor.ReadSymmetricKey(privateKey, reader)
 	if err != nil {
-		decryptor.log.Warningf("%v", utils.ErrorMessage("can't unwrap symmetric key", err))
+		decryptor.log.WithError(err).Warningln("Can't unwrap symmetric key")
 		return []byte{}, err
 	}
 	data, err := decryptor.ReadData(key, id, reader)
 	if err != nil {
-		decryptor.log.Warningf("%v", utils.ErrorMessage("can't decrypt data with unwrapped symmetric key", err))
+		decryptor.log.WithError(err).Warningln("Can't decrypt data with unwrapped symmetric key")
 		return []byte{}, err
 	}
 	return data, nil

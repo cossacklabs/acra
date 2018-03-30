@@ -46,20 +46,23 @@ func handleClientConnection(config *Config, connection net.Conn) {
 	if !(config.disableUserCheck) {
 		host, port, err := net.SplitHostPort(connection.RemoteAddr().String())
 		if nil != err {
-			log.WithError(err).Errorln("can't parse client remote address")
+			log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantStartConnection).
+				Errorln("Can't parse client remote address")
 			return
 		}
 		if host == "127.0.0.1" {
 			netstat, err := exec.Command("sh", "-c", "netstat -atlnpe | awk '/:"+port+" */ {print $7}'").Output()
 			if nil != err {
-				log.WithError(err).Errorln("can't get owner UID of localhost client connection")
+				log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantStartConnection).
+					Errorln("Can't get owner UID of localhost client connection")
 				return
 			}
 			parsedNetstat := strings.Split(string(netstat), "\n")
 			correctPeer := false
 			userId, err := user.Current()
 			if nil != err {
-				log.WithError(err).Errorln("can't get current user UID")
+				log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantStartConnection).
+					Errorln("Can't get current user UID")
 				return
 			}
 			log.Infof("%v\ncur_user=%v", parsedNetstat, userId.Uid)
@@ -70,7 +73,8 @@ func handleClientConnection(config *Config, connection net.Conn) {
 				}
 			}
 			if !correctPeer {
-				log.Errorln("client application and ssproxy need to be start from different users")
+				log.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantStartConnection).
+					Errorln("Client application and ssproxy need to be start from different users")
 				return
 			}
 		}
@@ -78,7 +82,8 @@ func handleClientConnection(config *Config, connection net.Conn) {
 
 	acraConn, err := network.Dial(config.AcraConnectionString)
 	if err != nil {
-		log.WithError(err).Errorln("can't connect to acra")
+		log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantStartConnection).
+			Errorln("Can't connect to acra")
 		return
 	}
 	defer acraConn.Close()
@@ -86,7 +91,8 @@ func handleClientConnection(config *Config, connection net.Conn) {
 	acraConn.SetDeadline(time.Now().Add(time.Second * 2))
 	acraConnWrapped, err := config.ConnectionWrapper.WrapClient(config.ClientId, acraConn)
 	if err != nil {
-		log.WithError(err).Errorln("can't wrap connection")
+		log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantWrapConnection).
+			Errorln("Can't wrap connection")
 		return
 	}
 	acraConn.SetDeadline(time.Time{})
@@ -98,15 +104,18 @@ func handleClientConnection(config *Config, connection net.Conn) {
 	go network.Proxy(acraConnWrapped, connection, fromAcraErrCh)
 	select {
 	case err = <-toAcraErrCh:
-		log.Debugln("error from connection with client")
+		log.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantStartConnection).
+			Errorln("Error from connection with client")
 	case err = <-fromAcraErrCh:
-		log.Debugln("error from connection with acra")
+		log.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantStartConnection).
+			Errorln("Error from connection with acra")
 	}
 	if err != nil {
 		if err == io.EOF {
-			log.Debugln("connection closed")
+			log.Debugln("Connection closed")
 		} else {
-			log.WithError(err).Errorln("proxy error")
+			log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantStartConnection).
+				Errorln("Proxy error")
 		}
 		return
 	}
@@ -124,13 +133,17 @@ type Config struct {
 }
 
 func main() {
+	loggingFormat := flag.String("logging_format", "plaintext", "Logging format: plaintext, json or CEF")
+	logging.CustomizeLogging(*loggingFormat, SERVICE_NAME)
+	log.Infof("Starting service")
+
 	keysDir := flag.String("keys_dir", keystore.DEFAULT_KEY_DIR_SHORT, "Folder from which will be loaded keys")
 	clientId := flag.String("client_id", "", "Client id")
 	acraHost := flag.String("acra_host", "", "IP or domain to acra daemon")
 	acraCommandsPort := flag.Int("acra_commands_port", cmd.DEFAULT_ACRA_API_PORT, "Port of acra http api")
 	acraPort := flag.Int("acra_port", cmd.DEFAULT_ACRA_PORT, "Port of acra daemon")
 	acraId := flag.String("acra_id", "acra_server", "Expected id from acraserver for Secure Session")
-	verbose := flag.Bool("v", false, "Log to stdout")
+	verbose := flag.Bool("v", false, "Log to stderr")
 	port := flag.Int("port", cmd.DEFAULT_PROXY_PORT, "Port fo acraproxy")
 	commandsPort := flag.Int("command_port", cmd.DEFAULT_PROXY_API_PORT, "Port for acraproxy http api")
 	enableHTTPApi := flag.Bool("enable_http_api", false, "Enable HTTP API")
@@ -145,15 +158,17 @@ func main() {
 	connectionAPIString := flag.String("connection_api_string", network.BuildConnectionString(cmd.DEFAULT_PROXY_CONNECTION_PROTOCOL, cmd.DEFAULT_PROXY_HOST, cmd.DEFAULT_PROXY_API_PORT, ""), "Connection string like tcp://x.x.x.x:yyyy or unix:///path/to/socket")
 	acraConnectionString := flag.String("acra_connection_string", "", "Connection string to Acra server like tcp://x.x.x.x:yyyy or unix:///path/to/socket")
 	acraApiConnectionString := flag.String("acra_api_connection_string", "", "Connection string to Acra's API like tcp://x.x.x.x:yyyy or unix:///path/to/socket")
-	loggingFormat := flag.String("logging_format", "", "Logging format: plaintext, json or CEF")
 
 	err := cmd.Parse(DEFAULT_CONFIG_PATH)
 	if err != nil {
-		log.WithError(err).Errorln("can't parse args")
+		log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantReadServiceConfig).
+			Errorln("Can't parse args")
 		os.Exit(1)
 	}
 
+	// if log format was overridden
 	logging.CustomizeLogging(*loggingFormat, SERVICE_NAME)
+	log.Infof("Validating service configuration")
 
 	if *port != cmd.DEFAULT_PROXY_PORT {
 		*connectionString = network.BuildConnectionString(cmd.DEFAULT_PROXY_CONNECTION_PROTOCOL, cmd.DEFAULT_PROXY_HOST, *port, "")
@@ -163,7 +178,8 @@ func main() {
 	}
 
 	if *acraHost == "" && *acraConnectionString == "" {
-		log.Errorln("you must pass acra_host or acra_connection_string parameter")
+		log.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorWrongConfiguration).
+			Errorln("Configuration error: you must pass acra_host or acra_connection_string parameter")
 		os.Exit(1)
 	}
 	if *acraHost != "" {
@@ -171,7 +187,8 @@ func main() {
 	}
 	if *enableHTTPApi {
 		if *acraHost == "" && *acraApiConnectionString == "" {
-			log.Errorln("you must pass acra_host or acra_api_connection_string parameter")
+			log.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorWrongConfiguration).
+				Errorln("Configuration error: you must pass acra_host or acra_api_connection_string parameter")
 			os.Exit(1)
 		}
 		if *acraHost != "" {
@@ -181,24 +198,29 @@ func main() {
 
 	cmd.ValidateClientId(*clientId)
 
+	log.Infof("Reading keys")
 	clientPrivateKey := fmt.Sprintf("%v%v%v", *keysDir, string(os.PathSeparator), *clientId)
 	serverPublicKey := fmt.Sprintf("%v%v%v_server.pub", *keysDir, string(os.PathSeparator), *clientId)
 	exists, err := utils.FileExists(clientPrivateKey)
 	if !exists {
-		log.Errorf("acraproxy private key %s doesn't exists", clientPrivateKey)
+		log.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorWrongConfiguration).
+			Errorf("Configuration error: acraproxy private key %s doesn't exists", clientPrivateKey)
 		os.Exit(1)
 	}
 	if err != nil {
-		log.Errorf("can't check is exists acraproxy private key %v, got error - %v", clientPrivateKey, err)
+		log.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorWrongConfiguration).
+			Errorf("Configuration error: can't check is exists acraproxy private key %v, got error - %v", clientPrivateKey, err)
 		os.Exit(1)
 	}
 	exists, err = utils.FileExists(serverPublicKey)
 	if !exists {
-		log.Errorf("acraserver public key %s doesn't exists", serverPublicKey)
+		log.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorWrongConfiguration).
+			Errorf("Configuration error: acraserver public key %s doesn't exists", serverPublicKey)
 		os.Exit(1)
 	}
 	if err != nil {
-		log.Errorf("can't check is exists acraserver public key %v, got error - %v", serverPublicKey, err)
+		log.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorWrongConfiguration).
+			Errorf("Configuration error: can't check is exists acraserver public key %v, got error - %v", serverPublicKey, err)
 		os.Exit(1)
 	}
 
@@ -211,46 +233,58 @@ func main() {
 		*disableUserCheck = true
 	}
 
+	log.Infof("Initializing keystore")
 	keyStore, err := keystore.NewProxyFileSystemKeyStore(*keysDir, []byte(*clientId))
 	if err != nil {
-		log.WithError(err).Errorln("can't initialize keystore")
+		log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantInitKeyStore).
+			Errorln("Can't initialize keystore")
 		os.Exit(1)
 	}
+
+	log.Debugf("Start listening connections")
 	config := &Config{KeyStore: keyStore, KeysDir: *keysDir, ClientId: []byte(*clientId), AcraConnectionString: *acraConnectionString, ConnectionString: *connectionString, AcraId: []byte(*acraId), disableUserCheck: *disableUserCheck}
 	listener, err := network.Listen(*connectionString)
 	if err != nil {
-		log.WithError(err).Errorln("can't start listen connections")
+		log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantStartListenConnections).
+			Errorln("Can't start listen connections")
 		os.Exit(1)
 	}
 	defer listener.Close()
 
+	log.Debugf("Registering process signal handlers")
 	sigHandler, err := cmd.NewSignalHandler([]os.Signal{os.Interrupt, syscall.SIGTERM})
 	if err != nil {
-		log.WithError(err).Errorln("can't register SIGINT handler")
+		log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantRegisterSignalHandler).
+			Errorln("Can't register SIGINT handler")
 		os.Exit(1)
 	}
 	go sigHandler.Register()
 	sigHandler.AddListener(listener)
+
+
 	if *useTls {
-		log.Infoln("use TLS transport wrapper")
+		log.Infof("Selecting transport: use TLS transport wrapper")
 		tlsConfig, err := network.NewTLSConfig(*tlsSNI, *tlsCA, *tlsKey, *tlsCert)
 		if err != nil {
-			log.WithError(err).Errorln("can't get config for TLS")
+			log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorTransportConfiguration).
+				Errorln("Configuration error: can't get config for TLS")
 			os.Exit(1)
 		}
 		config.ConnectionWrapper, err = network.NewTLSConnectionWrapper(nil, tlsConfig)
 		if err != nil {
-			log.WithError(err).Errorln("can't initialize tls connection wrapper")
+			log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorTransportConfiguration).
+				Errorln("Configuration error: can't initialize TLS connection wrapper")
 			os.Exit(1)
 		}
 	} else if *noEncryption {
-		log.Infoln("use raw transport wrapper")
+		log.Infof("Selecting transport: use raw transport wrapper")
 		config.ConnectionWrapper = &network.RawConnectionWrapper{ClientId: []byte(*clientId)}
 	} else {
-		log.Infoln("use Secure Session transport wrapper")
+		log.Infof("Selecting transport: use Secure Session transport wrapper")
 		config.ConnectionWrapper, err = network.NewSecureSessionConnectionWrapper(keyStore)
 		if err != nil {
-			log.WithError(err).Errorln("can't initialize secure session connection wrapper")
+			log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorTransportConfiguration).
+				Errorln("Configuration error: can't initialize secure session connection wrapper")
 			os.Exit(1)
 		}
 	}
@@ -260,41 +294,45 @@ func main() {
 			commandsConfig := *config
 			commandsConfig.AcraConnectionString = *acraApiConnectionString
 
-			log.Infof("start listening http api %s", *connectionAPIString)
+			log.Infof("Start listening http API: %s", *connectionAPIString)
 			commandsListener, err := network.Listen(*connectionAPIString)
 			if err != nil {
-				log.WithError(err).Errorln("can't start listen connections to http api")
+				log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantStartListenConnections).
+				Errorln("System error: can't start listen connections to http API")
 				os.Exit(1)
 			}
 			sigHandler.AddListener(commandsListener)
 			for {
 				connection, err := commandsListener.Accept()
 				if err != nil {
-					log.WithError(err).Errorf("can't accept new connection")
+					log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantAcceptNewConnections).
+						Errorf("System error: can't accept new connection")
 					continue
 				}
 				// unix socket and value == '@'
 				if len(connection.RemoteAddr().String()) == 1 {
-					log.WithError(err).Errorf("new connection to http api: <%v>", connection.LocalAddr())
+					log.Infof("Got new connection to http API: %v", connection.LocalAddr())
 				} else {
-					log.WithError(err).Errorf("new connection to http api: <%v>", connection.RemoteAddr())
+					log.Infof("Got new connection to http API: %v", connection.RemoteAddr())
 				}
 				go handleClientConnection(&commandsConfig, connection)
 			}
 		}()
 	}
-	log.Infof("start listening %s", *connectionString)
+
+	log.Infof("Start listening connection %s", *connectionString)
 	for {
 		connection, err := listener.Accept()
 		if err != nil {
-			log.WithError(err).Errorln("can't accept new connection")
+			log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantAcceptNewConnections).
+				Errorln("System error: сan't accept new connection")
 			os.Exit(1)
 		}
 		// unix socket and value == '@'
 		if len(connection.RemoteAddr().String()) == 1 {
-			log.Infof("new connection to acraproxy: <%v>", connection.LocalAddr())
+			log.Infof("Got new connection to acraproxy: %v", connection.LocalAddr())
 		} else {
-			log.Infof("new connection to acraproxy: <%v>", connection.RemoteAddr())
+			log.Infof("Got new connection to acraproxy: %v", connection.RemoteAddr())
 		}
 		go handleClientConnection(config, connection)
 	}

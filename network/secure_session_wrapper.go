@@ -29,10 +29,10 @@ type SessionCallback struct {
 }
 
 func (callback *SessionCallback) GetPublicKeyForId(ss *session.SecureSession, id []byte) *keys.PublicKey {
-	log.Infof("load public key for id <%v>", string(id))
+	log.Infof("Load public key for id %v", string(id))
 	key, err := callback.keystorage.GetPeerPublicKey(id)
 	if err != nil {
-		log.WithError(err).Errorf("can't load public key for id <%v>", string(id))
+		log.WithError(err).Errorf("Can't load public key for id %v", string(id))
 		return nil
 	}
 	return key
