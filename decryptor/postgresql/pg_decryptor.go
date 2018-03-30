@@ -19,15 +19,17 @@ import (
 	"crypto/tls"
 	"encoding/binary"
 	"errors"
+	"io"
+	"net"
+	"time"
+
 	"github.com/cossacklabs/acra/decryptor/base"
 	acra_io "github.com/cossacklabs/acra/io"
 	"github.com/cossacklabs/acra/network"
 	"github.com/cossacklabs/acra/utils"
 	"github.com/cossacklabs/acra/zone"
 	log "github.com/sirupsen/logrus"
-	"io"
-	"net"
-	"time"
+	"github.com/cossacklabs/acra/logging"
 )
 
 type DataRow struct {
@@ -106,17 +108,17 @@ func (row *DataRow) UpdateColumnAndDataSize(oldColumnLength, newColumnLength int
 		return true
 	}
 	// something was decrypted and size should be less that was before
-	log.Debugf("modify response size: %v -> %v", oldColumnLength, newColumnLength)
+	log.Debugf("Modify response size: %v -> %v", oldColumnLength, newColumnLength)
 
 	// update column data size
 	sizeDiff := oldColumnLength - newColumnLength
-	log.Debugf("old column size: %v; New column size: %v", oldColumnLength, newColumnLength)
+	log.Debugf("Old column size: %v; New column size: %v", oldColumnLength, newColumnLength)
 	if newColumnLength > oldColumnLength {
 		row.errCh <- errors.New("decrypted size is more than encrypted")
 		return false
 	}
 	binary.BigEndian.PutUint32(row.columnSizePointer, uint32(newColumnLength))
-	log.Debugf("old data size: %v; new data size: %v", row.dataLength, row.dataLength-sizeDiff)
+	log.Debugf("Old data size: %v; new data size: %v", row.dataLength, row.dataLength-sizeDiff)
 	// update data row size
 	row.dataLength -= sizeDiff
 	row.SetDataSize(row.dataLength)
@@ -124,7 +126,7 @@ func (row *DataRow) UpdateColumnAndDataSize(oldColumnLength, newColumnLength int
 }
 
 func (row *DataRow) ReadDataLength() bool {
-	log.Debugln("read data length")
+	log.Debugln("Read data length")
 	// read full data row length
 	n, err := row.reader.Read(row.output[:DATA_ROW_LENGTH_BUF_SIZE])
 	if !base.CheckReadWrite(n, DATA_ROW_LENGTH_BUF_SIZE, err, row.errCh) {
@@ -193,7 +195,7 @@ func PgDecryptStream(decryptor base.Decryptor, config *PgDecryptorConfig, dbConn
 				writer.Flush()
 				continue
 			} else if row.buf[0] == 'S' {
-				log.Debugln("start tls proxy")
+				log.Debugln("Start tls proxy")
 				cer, err := config.getCertificate()
 				if err != nil {
 					errCh <- err
@@ -202,7 +204,8 @@ func PgDecryptStream(decryptor base.Decryptor, config *PgDecryptorConfig, dbConn
 				}
 				// stop reading from client in goroutine
 				if err = clientConnection.SetDeadline(time.Now()); err != nil {
-					log.WithError(err).Error("can't set deadline")
+					log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorDecryptorCantSetDeadlineToClientConnection).
+						Errorln("Can't set deadline")
 					errCh <- err
 					return
 				}
@@ -210,7 +213,8 @@ func PgDecryptStream(decryptor base.Decryptor, config *PgDecryptorConfig, dbConn
 				time.Sleep(time.Millisecond)
 				// reset deadline
 				if err = clientConnection.SetDeadline(time.Time{}); err != nil {
-					log.WithError(err).Error("can't set deadline")
+					log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorDecryptorCantSetDeadlineToClientConnection).
+						Errorln("Can't set deadline")
 					errCh <- err
 					return
 				}
@@ -218,21 +222,24 @@ func PgDecryptStream(decryptor base.Decryptor, config *PgDecryptorConfig, dbConn
 				// convert to tls connection
 				tlsClientConnection := tls.Server(clientConnection, &tls.Config{Certificates: []tls.Certificate{cer}})
 				if err = writer.Flush(); err != nil {
-					log.WithError(err).Error("can't flush writer")
+					log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorDecryptorCantInitializeTLS).
+						Errorln("Can't flush writer")
 					errCh <- err
 					return
 				}
 				err = tlsClientConnection.Handshake()
 				if err != nil {
-					log.WithError(err).Error("can't initialize tls connection with client")
+					log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorDecryptorCantInitializeTLS).
+						Errorln("Can't initialize tls connection with client")
 					errCh <- err
 					return
 				}
 
-				log.Debugln("init tls with db")
+				log.Debugln("Init tls with db")
 				dbTLSConnection := tls.Client(dbConnection, &tls.Config{InsecureSkipVerify: true})
 				if err = dbTLSConnection.Handshake(); err != nil {
-					log.WithError(err).Println("can't initialize tls connection with db")
+					log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorDecryptorCantInitializeTLS).
+						Errorln("Can't initialize tls connection with db")
 					errCh <- err
 					return
 				}
@@ -316,7 +323,7 @@ func PgDecryptStream(decryptor base.Decryptor, config *PgDecryptorConfig, dbConn
 					// poison record check
 					// check only if has any action on detection
 					if decryptor.GetPoisonCallbackStorage().HasCallbacks() {
-						log.Debugln("check poison records")
+						log.Debugln("Check poison records")
 						block, err := decryptor.SkipBeginInBlock(row.output[row.writeIndex : row.writeIndex+columnDataLength])
 						if err == nil {
 							poisoned, err := decryptor.CheckPoisonRecord(bytes.NewReader(block))
@@ -355,7 +362,7 @@ func PgDecryptStream(decryptor base.Decryptor, config *PgDecryptorConfig, dbConn
 
 					// check poison records
 					if decryptor.GetPoisonCallbackStorage().HasCallbacks() {
-						log.Debugln("check poison records")
+						log.Debugln("Check poison records")
 						for {
 							beginTagIndex, tagLength := decryptor.BeginTagIndex(row.output[currentIndex:endIndex])
 							if beginTagIndex == utils.NOT_FOUND {
