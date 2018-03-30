@@ -1,19 +1,16 @@
 package logging
 
 import (
-	"github.com/sirupsen/logrus"
-	"time"
-	"sync"
-	"github.com/cossacklabs/acra/utils"
 	"fmt"
+	"github.com/cossacklabs/acra/utils"
+	"github.com/sirupsen/logrus"
+	"sync"
+	"time"
 )
-
 
 // ---------- custom Loggers
 // inspired by "github.com/bshuster-repo/logrus-logstash-hook"
 // ----------
-
-
 
 // TextFormatter returns a default logrus.TextFormatter with specific settings
 func TextFormatter() logrus.Formatter {
@@ -22,7 +19,6 @@ func TextFormatter() logrus.Formatter {
 		TimestampFormat:  time.RFC3339,
 		QuoteEmptyFields: true}
 }
-
 
 // JSONFormatter returns a AcraJSONFormatter
 func JSONFormatter(fields logrus.Fields) logrus.Formatter {
@@ -41,7 +37,6 @@ func JSONFormatter(fields logrus.Fields) logrus.Formatter {
 		lock: &sync.RWMutex{},
 	}
 }
-
 
 // CEFFormatter returns a AcraCEFFormatter
 func CEFFormatter(fields logrus.Fields) logrus.Formatter {
@@ -65,8 +60,6 @@ func CEFFormatter(fields logrus.Fields) logrus.Formatter {
 		lock: &sync.RWMutex{},
 	}
 }
-
-
 
 // ---------------------------
 
@@ -99,7 +92,6 @@ func copyEntry(e *logrus.Entry, fields logrus.Fields) *logrus.Entry {
 func releaseEntry(e *logrus.Entry) {
 	entryPool.Put(e)
 }
-
 
 // AcraCustomFormatter represents a format with specific fields.
 // It has logrus.Formatter which formats the entry and logrus.Fields which
@@ -154,7 +146,6 @@ func (f AcraJSONFormatter) Format(e *logrus.Entry) ([]byte, error) {
 	return dataBytes, err
 }
 
-
 // Format formats an entry to a AcraCEF format according to the given Formatter and Fields.
 //
 // Note: the given entry is copied and not changed during the formatting process.
@@ -169,7 +160,6 @@ func (f AcraCEFFormatter) Format(e *logrus.Entry) ([]byte, error) {
 	releaseEntry(ne)
 	return dataBytes, err
 }
-
 
 func unixTimeWithMilliseconds(e *logrus.Entry) string {
 	nanos := e.Time.UnixNano()

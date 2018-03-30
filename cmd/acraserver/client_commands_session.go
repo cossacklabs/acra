@@ -19,15 +19,15 @@ import (
 	"net"
 	"net/http"
 
+	"encoding/json"
 	"errors"
+	"flag"
+	"fmt"
+	"github.com/cossacklabs/acra/cmd"
 	"github.com/cossacklabs/acra/keystore"
 	"github.com/cossacklabs/acra/zone"
 	"github.com/cossacklabs/themis/gothemis/keys"
-	"fmt"
-	"encoding/json"
 	"syscall"
-	"github.com/cossacklabs/acra/cmd"
-	"flag"
 )
 
 type ClientCommandsSession struct {

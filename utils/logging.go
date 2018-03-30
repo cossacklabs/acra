@@ -15,7 +15,6 @@ package utils
 
 import "fmt"
 
-
 // TODO: move to /logging and refactor everything
 
 // function for standartizing custom messages with messages from error
