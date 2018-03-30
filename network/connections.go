@@ -1,14 +1,14 @@
 package network
 
 import (
-	"sync"
-	"net"
 	log "github.com/sirupsen/logrus"
+	"net"
+	"sync"
 )
 
 type ConnectionManager struct {
 	*sync.WaitGroup
-	Counter int
+	Counter     int
 	connections []*net.Conn
 }
 

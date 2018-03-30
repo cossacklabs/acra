@@ -15,25 +15,25 @@
 package main
 
 import (
-	"io/ioutil"
-	"html/template"
-	"net/http"
-	"path/filepath"
-	"gopkg.in/yaml.v2"
-	"time"
-	"encoding/json"
-	"strconv"
 	"bytes"
-	"os"
-	"fmt"
+	"encoding/json"
 	"flag"
-	log "github.com/sirupsen/logrus"
-	"github.com/cossacklabs/acra/utils"
+	"fmt"
 	"github.com/cossacklabs/acra/cmd"
 	"github.com/cossacklabs/acra/logging"
 	"strings"
 	"crypto/subtle"
 	"encoding/base64"
+	"github.com/cossacklabs/acra/utils"
+	log "github.com/sirupsen/logrus"
+	"gopkg.in/yaml.v2"
+	"html/template"
+	"io/ioutil"
+	"net/http"
+	"os"
+	"path/filepath"
+	"strconv"
+	"time"
 )
 
 var host *string

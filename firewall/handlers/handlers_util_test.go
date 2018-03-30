@@ -1,16 +1,16 @@
 package handlers
 
 import (
-	"testing"
 	"strings"
+	"testing"
 )
 
-func TestUtilities(t *testing.T){
+func TestUtilities(t *testing.T) {
 
 	//Test 1
-	expected := []string {"x", "y", "z"}
+	expected := []string{"x", "y", "z"}
 
-	input := []string {"x", "y", "z", "x", "y"}
+	input := []string{"x", "y", "z", "x", "y"}
 
 	output := removeDuplicates(input)
 
@@ -19,9 +19,9 @@ func TestUtilities(t *testing.T){
 	}
 
 	//Test 2
-	expected = []string {"@lagovas", "@vixentael", "@secumod"}
+	expected = []string{"@lagovas", "@vixentael", "@secumod"}
 
-	input = []string {"@lagovas", "@vixentael", "@secumod", "@lagovas", "@vixentael", "@secumod", "@lagovas", "@vixentael", "@secumod"}
+	input = []string{"@lagovas", "@vixentael", "@secumod", "@lagovas", "@vixentael", "@secumod", "@lagovas", "@vixentael", "@secumod"}
 
 	output = removeDuplicates(input)
 
@@ -32,11 +32,11 @@ func TestUtilities(t *testing.T){
 }
 
 func areEqual(a []string, b []string) bool {
-	if len(a) != len(b){
+	if len(a) != len(b) {
 		return false
 	}
 
-	for index := 0; index < len(a); index++{
+	for index := 0; index < len(a); index++ {
 		if !strings.EqualFold(a[index], b[index]) {
 			return false
 		}

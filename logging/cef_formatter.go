@@ -3,11 +3,11 @@ package logging
 import (
 	"bytes"
 	"fmt"
-	"time"
-	"sync"
 	"github.com/sirupsen/logrus"
-	"strings"
 	"os"
+	"strings"
+	"sync"
+	"time"
 )
 
 // Almost compatible with CEF doc
