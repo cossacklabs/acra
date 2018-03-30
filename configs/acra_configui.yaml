@@ -16,6 +16,9 @@ dumpconfig: false
 # Host for configUI HTTP endpoint
 host: 127.0.0.1
 
+# Logging format: plaintext, json or CEF
+logging_format: plaintext
+
 # Port for configUI HTTP endpoint
 port: 8000
 

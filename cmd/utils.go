@@ -43,7 +43,7 @@ func (handler *SignalHandler) AddListener(listener net.Listener) {
 	handler.listeners = append(handler.listeners, listener)
 }
 
-func (handler *SignalHandler) GetChannel() (chan os.Signal) {
+func (handler *SignalHandler) GetChannel() chan os.Signal {
 	return handler.ch
 }
 
@@ -186,8 +186,7 @@ func DumpConfig(configPath string, useDefault bool) error {
 
 func Parse(configPath string) error {
 	/*load from yaml config and cli. if dumpconfig option pass than generate config and exit*/
-	log.Info("Parsing config")
-	log.Infof("ConfigPath: %v", configPath)
+	log.Debugf("Parsing config from path %v", configPath)
 	// first parse using bultin flag
 	err := flag_.CommandLine.Parse(os.Args[1:])
 	if err != nil {
@@ -238,7 +237,7 @@ func Parse(configPath string) error {
 		}
 	}
 	// set options from config that wasn't set by cli
-	log.Infoln(args)
+	log.Debugln(args)
 	err = flag_.CommandLine.Parse(args)
 	if err != nil {
 		return err

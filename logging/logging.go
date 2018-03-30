@@ -16,10 +16,9 @@ package logging
 import (
 	"fmt"
 	log "github.com/sirupsen/logrus"
-	"strings"
 	"os"
+	"strings"
 )
-
 
 const (
 	LOG_DEBUG = iota
@@ -43,7 +42,7 @@ func CustomizeLogging(loggingFormat string, serviceName string) {
 	log.SetOutput(os.Stderr)
 	log.SetFormatter(logFormatterFor(loggingFormat, serviceName))
 
-	log.Infof("changed logging format to %s", loggingFormat)
+	log.Debugf("Changed logging format to %s", loggingFormat)
 }
 
 func logFormatterFor(loggingFormat string, serviceName string) log.Formatter {

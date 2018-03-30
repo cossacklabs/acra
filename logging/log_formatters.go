@@ -1,19 +1,16 @@
 package logging
 
 import (
-	"github.com/sirupsen/logrus"
-	"time"
-	"sync"
-	"github.com/cossacklabs/acra/utils"
 	"fmt"
+	"github.com/cossacklabs/acra/utils"
+	"github.com/sirupsen/logrus"
+	"sync"
+	"time"
 )
-
 
 // ---------- custom Loggers
 // inspired by "github.com/bshuster-repo/logrus-logstash-hook"
 // ----------
-
-
 
 // TextFormatter returns a default logrus.TextFormatter with specific settings
 func TextFormatter() logrus.Formatter {
@@ -22,7 +19,6 @@ func TextFormatter() logrus.Formatter {
 		TimestampFormat:  time.RFC3339,
 		QuoteEmptyFields: true}
 }
-
 
 // JSONFormatter returns a AcraJSONFormatter
 func JSONFormatter(fields logrus.Fields) logrus.Formatter {
@@ -38,9 +34,9 @@ func JSONFormatter(fields logrus.Fields) logrus.Formatter {
 			TimestampFormat: time.RFC3339,
 		},
 		Fields: fields,
+		lock: &sync.RWMutex{},
 	}
 }
-
 
 // CEFFormatter returns a AcraCEFFormatter
 func CEFFormatter(fields logrus.Fields) logrus.Formatter {
@@ -61,10 +57,9 @@ func CEFFormatter(fields logrus.Fields) logrus.Formatter {
 			TimestampFormat: time.RFC3339,
 		},
 		Fields: fields,
+		lock: &sync.RWMutex{},
 	}
 }
-
-
 
 // ---------------------------
 
@@ -98,7 +93,6 @@ func releaseEntry(e *logrus.Entry) {
 	entryPool.Put(e)
 }
 
-
 // AcraCustomFormatter represents a format with specific fields.
 // It has logrus.Formatter which formats the entry and logrus.Fields which
 // are added to the JSON/CEF message if not given in the entry data.
@@ -107,11 +101,13 @@ func releaseEntry(e *logrus.Entry) {
 type AcraJSONFormatter struct {
 	logrus.Formatter
 	logrus.Fields
+	lock *sync.RWMutex
 }
 
 type AcraCEFFormatter struct {
 	CEFTextFormatter
 	logrus.Fields
+	lock *sync.RWMutex
 }
 
 var (
@@ -125,7 +121,7 @@ var (
 	// to be re-defined
 	extraCEFFields = logrus.Fields{
 		FieldKeyVendor:    "cossacklabs",
-		FieldKeyEventCode: 0,
+		FieldKeyEventCode: EventCodeGeneral,
 	}
 
 	JSONFieldMap = logrus.FieldMap{
@@ -139,8 +135,10 @@ var (
 //
 // Note: the given entry is copied and not changed during the formatting process.
 func (f AcraJSONFormatter) Format(e *logrus.Entry) ([]byte, error) {
-	// unix time
+	// unix time in milliseconds
+	f.lock.Lock()
 	f.Fields[FieldKeyUnixTime] = unixTimeWithMilliseconds(e)
+	f.lock.Unlock()
 
 	ne := copyEntry(e, f.Fields)
 	dataBytes, err := f.Formatter.Format(ne)
@@ -148,13 +146,14 @@ func (f AcraJSONFormatter) Format(e *logrus.Entry) ([]byte, error) {
 	return dataBytes, err
 }
 
-
 // Format formats an entry to a AcraCEF format according to the given Formatter and Fields.
 //
 // Note: the given entry is copied and not changed during the formatting process.
 func (f AcraCEFFormatter) Format(e *logrus.Entry) ([]byte, error) {
-	// unix time
+	// unix time in milliseconds
+	f.lock.Lock()
 	f.Fields[FieldKeyUnixTime] = unixTimeWithMilliseconds(e)
+	f.lock.Unlock()
 
 	ne := copyEntry(e, f.Fields)
 	dataBytes, err := f.CEFTextFormatter.Format(ne)
@@ -162,9 +161,7 @@ func (f AcraCEFFormatter) Format(e *logrus.Entry) ([]byte, error) {
 	return dataBytes, err
 }
 
-
 func unixTimeWithMilliseconds(e *logrus.Entry) string {
-	//secs := e.Time.Unix()
 	nanos := e.Time.UnixNano()
 	millis := nanos / 1000000
 	millisf := float64(millis) / 1000.0
