@@ -268,14 +268,18 @@ type UserAuth struct {
 	Hash []byte
 }
 
-func (auth UserAuth) UserAuthString(PasswordSeparator string) (string) {
+func (auth UserAuth) UserAuthString(userDataDelimiter string, paramsDelimiter string) (string) {
+	var userData []string
 	var argon2P []string
 	argon2P = append(argon2P, strconv.FormatUint(uint64(auth.Argon2Params.Time), 10))
 	argon2P = append(argon2P, strconv.FormatUint(uint64(auth.Argon2Params.Memory), 10))
 	argon2P = append(argon2P, strconv.FormatUint(uint64(auth.Argon2Params.Threads), 10))
 	argon2P = append(argon2P, strconv.FormatUint(uint64(auth.Argon2Params.Length), 10))
 	hash := base64.StdEncoding.EncodeToString(auth.Hash)
-	return fmt.Sprintf("%v:%v:%v", auth.Salt, strings.Join(argon2P, PasswordSeparator), hash)
+	userData = append(userData, auth.Salt)
+	userData = append(userData, strings.Join(argon2P, paramsDelimiter))
+	userData = append(userData, hash)
+	return strings.Join(userData, userDataDelimiter)
 }
 
 func InitArgon2Params() (Argon2Params) {
