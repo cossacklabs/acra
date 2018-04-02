@@ -49,6 +49,7 @@ const (
 	EventCodeErrorCantHashPassword        = 555
 	EventCodeErrorCantGetAuthData         = 556
 	EventCodeErrorCantParseAuthData       = 557
+	EventCodeErrorCantDumpConfig          = 558
 
 	// firewall
 	EventCodeErrorFirewallQueryIsNotAllowed = 560
@@ -69,4 +70,5 @@ const (
 	EventCodeErrorDecryptorCantHandleRecognizedPoisonRecord  = 583
 	EventCodeErrorDecryptorCantInitializeTLS                 = 584
 	EventCodeErrorDecryptorCantSetDeadlineToClientConnection = 585
+	EventCodeErrorDecryptorCantDecryptSymmetricKey           = 586
 )

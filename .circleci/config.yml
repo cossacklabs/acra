@@ -10,7 +10,8 @@ jobs:
           POSTGRES_USER: test
           POSTGRES_DB: test
       # use the same credentials for mysql db as for postgresql (which support was added first)
-      - image: mysql:latest
+      # has latest tag on 2018.03.29
+      - image: mysql:5.7.21
         environment:
           MYSQL_DATABASE: test
           MYSQL_USER: test

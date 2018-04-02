@@ -18,6 +18,7 @@ import (
 	"net"
 
 	"github.com/cossacklabs/acra/keystore"
+	"github.com/cossacklabs/acra/logging"
 	"github.com/cossacklabs/acra/utils"
 	"github.com/cossacklabs/themis/gothemis/keys"
 	"github.com/cossacklabs/themis/gothemis/session"
@@ -32,7 +33,8 @@ func (callback *SessionCallback) GetPublicKeyForId(ss *session.SecureSession, id
 	log.Infof("Load public key for id %v", string(id))
 	key, err := callback.keystorage.GetPeerPublicKey(id)
 	if err != nil {
-		log.WithError(err).Errorf("Can't load public key for id %v", string(id))
+		log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantReadKeys).
+			Errorf("Can't load public key for id %v", string(id))
 		return nil
 	}
 	return key
