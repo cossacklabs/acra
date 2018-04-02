@@ -5,7 +5,7 @@ const (
 	EventCodeGeneral = 100
 
 	// 500 .. 600 errors
-	EventCodeErrorGeneral                    = 500
+	EventCodeErrorGeneral = 500
 
 	// processes
 	EventCodeErrorCantStartService             = 505
@@ -15,8 +15,8 @@ const (
 	EventCodeErrorCantCloseConnectionToService = 509
 
 	// keys
-	EventCodeErrorCantInitKeyStore           = 510
-	EventCodeErrorCantReadKeys               = 511
+	EventCodeErrorCantInitKeyStore = 510
+	EventCodeErrorCantReadKeys     = 511
 
 	// system events
 	EventCodeErrorCantGetFileDescriptor     = 520
@@ -46,6 +46,9 @@ const (
 	EventCodeErrorCantParseRequestData    = 552
 	EventCodeErrorCantGetCurrentConfig    = 553
 	EventCodeErrorCantSetNewConfig        = 554
+	EventCodeErrorCantHashPassword        = 555
+	EventCodeErrorCantGetAuthData         = 556
+	EventCodeErrorCantParseAuthData       = 557
 
 	// firewall
 	EventCodeErrorFirewallQueryIsNotAllowed = 560

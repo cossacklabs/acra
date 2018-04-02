@@ -70,7 +70,7 @@ func (hp HashedPasswords) SetPassword(name, password string) (err error) {
 		return err
 	}
 	a := cmd.UserAuth{Salt: salt, Hash: hashBytes, Argon2Params: argon2Params}
-	hp[name] = a.UserAuthString(",")
+	hp[name] = a.UserAuthString(":", ",")
 	return nil
 }
 
@@ -92,6 +92,7 @@ func ParseHtpasswdFile(file string, keystore *keystore.FilesystemKeyStore) (pass
 }
 
 func ParseHtpasswd(htpasswdBytes []byte) (passwords HashedPasswords, err error) {
+	authFieldsCount := 4
 	lines := strings.Split(string(htpasswdBytes), LineSeparator)
 	passwords = make(map[string]string)
 	for index, line := range lines {
@@ -100,7 +101,7 @@ func ParseHtpasswd(htpasswdBytes []byte) (passwords HashedPasswords, err error) 
 			continue
 		}
 		parts := strings.Split(line, PasswordSeparator)
-		if len(parts) != 4 {
+		if len(parts) != authFieldsCount {
 			err = errors.New(fmt.Sprintf("wrong line no. %d, unexpected number (%v) of splitted parts split by %v", index+1, len(parts), PasswordSeparator))
 			return
 		}
@@ -112,7 +113,7 @@ func ParseHtpasswd(htpasswdBytes []byte) (passwords HashedPasswords, err error) 
 			err = errors.New(fmt.Sprintf("wrong line no. %d, user (%v) already defined", index, parts[0]))
 			return
 		}
-		passwords[parts[0]] = strings.Join(parts[1:4], PasswordSeparator)
+		passwords[parts[0]] = strings.Join(parts[1:authFieldsCount], PasswordSeparator)
 	}
 	return
 }

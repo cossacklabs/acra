@@ -150,6 +150,7 @@ func SubmitSettings(w http.ResponseWriter, r *http.Request) {
 }
 
 func parseTemplate(staticPath string) (err error) {
+	log.Infof("Parsing template")
 	tplPath := filepath.Join(staticPath, "index.html")
 	tplPath, err = utils.AbsPath(tplPath)
 	if err != nil {
@@ -235,7 +236,7 @@ func BasicAuthHandler(handler http.HandlerFunc) http.HandlerFunc {
 			user, pass, basicOk := r.BasicAuth()
 
 			if _, ok := authUsers[user]; !ok {
-				log.Warningf("No user[%v] found for auth", user)
+				log.Warningf("BasicAuth: unknown user '%v'", user)
 				basicOk = false
 			}
 
@@ -246,13 +247,14 @@ func BasicAuthHandler(handler http.HandlerFunc) http.HandlerFunc {
 				authUserData = authUsers[user]
 				newHash, err = cmd.HashArgon2(pass, authUserData.Salt, authUserData.Argon2Params)
 				if err != nil {
-					log.WithError(err).Errorln("hashArgon2")
+					log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantHashPassword).
+						Error("Error while hashing user password")
 					basicOk = false
 				}
 			}
 			if !basicOk || subtle.ConstantTimeCompare(newHash, authUserData.Hash) != 1 {
 				w.Header().Set("WWW-Authenticate", fmt.Sprintf(`Basic realm="%v"`, realm))
-				w.WriteHeader(401)
+				w.WriteHeader(http.StatusUnauthorized)
 				w.Write([]byte("Unauthorised.\n"))
 				return
 			}
@@ -269,14 +271,21 @@ func getAuthData() (err error) {
 	}
 	serverResponse, err := netClient.Get(fmt.Sprintf("http://%v:%v/getAuthData", *acraHost, *acraPort))
 	if err != nil {
-		log.WithError(err).Errorln("AcraServer api error")
+		log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantGetAuthData).
+			Error("Error while getting auth data from Acraserver")
 		return err
 	}
 	if serverResponse.StatusCode != 200 {
-		log.WithError(err).Errorf("AcraServer status: %v", serverResponse.Status)
+		log.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantGetAuthData).
+			Errorf("Error while getting auth data from Acraserver, response status: %v", )
 		return err
 	}
 	authDataSting, err := ioutil.ReadAll(serverResponse.Body)
+	if err != nil {
+		log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantParseAuthData).
+			Error("Error while reading auth data")
+		return err
+	}
 	line := 0
 	for _, authString := range strings.Split(string(authDataSting), "\n") {
 		authItem := strings.Split(authString, ":")
@@ -289,27 +298,32 @@ func getAuthData() (err error) {
 			}
 			argon2P := strings.Split(authItem[2], ",")
 			if len(authItem) != argon2FieldsCount {
-				log.WithError(err).Errorln("line[%v] wrong number of argon2 params: got %v, expected %v", line, len(authItem), argon2FieldsCount)
+				log.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantParseAuthData).
+					Errorf("line[%v] wrong number of argon2 params: got %v, expected %v", line, len(authItem), argon2FieldsCount)
 				continue
 			}
 			Time, err := strconv.ParseUint(argon2P[0], 10, 32)
 			if err != nil {
-				log.WithError(err).Errorf("line[%v] argon2 strconv.ParseUint(%v), user: %v", line, "Time", authItem[0])
+				log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantParseAuthData).
+					Errorf("line[%v] argon2 strconv.ParseUint(%v), user: %v", line, "Time", authItem[0])
 				continue
 			}
 			Memory, err := strconv.ParseUint(argon2P[1], 10, 32)
 			if err != nil {
-				log.WithError(err).Errorf("line[%v] argon2 strconv.ParseUint(%v), user: %v", line, "Memory", authItem[0])
+				log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantParseAuthData).
+					Errorf("line[%v] argon2 strconv.ParseUint(%v), user: %v", line, "Memory", authItem[0])
 				continue
 			}
 			Threads, err := strconv.ParseUint(argon2P[2], 10, 8)
 			if err != nil {
-				log.WithError(err).Errorf("line[%v] argon2 strconv.ParseUint(%v), user: %v", line, "Threads", authItem[0])
+				log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantParseAuthData).
+					Errorf("line[%v] argon2 strconv.ParseUint(%v), user: %v", line, "Threads", authItem[0])
 				continue
 			}
 			Length, err := strconv.ParseUint(argon2P[3], 10, 32)
 			if err != nil {
-				log.WithError(err).Errorf("line[%v] argon2 strconv.ParseUint(%v), user: %v", line, "Length", authItem[0])
+				log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantParseAuthData).
+					Errorf("line[%v] argon2 strconv.ParseUint(%v), user: %v", line, "Length", authItem[0])
 				continue
 			}
 			authUsers[authItem[0]] = cmd.UserAuth{Salt: authItem[1], Hash: decoded, Argon2Params: cmd.Argon2Params{

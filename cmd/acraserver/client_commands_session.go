@@ -91,6 +91,11 @@ func (clientSession *ClientCommandsSession) HandleSession() {
 	case "/getAuthData":
 		keysStore, err := keystore.NewFilesystemKeyStore(clientSession.config.GetKeysDir())
 		if err != nil {
+			log.WithError(err).Error("getAuthData: keystore.NewFilesystemKeyStore")
+			response = "HTTP/1.1 500 Server error\r\n\r\n\r\n\r\n"
+			break
+		}
+		if err != nil {
 			panic(err)
 		}
 		key, err := keysStore.GetAuthKey(false)
