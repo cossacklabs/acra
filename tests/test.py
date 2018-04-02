@@ -225,7 +225,7 @@ BINARIES = [
     # compile with Test=true to disable golang tls client server verification
     Binary(name='acraserver', from_version=DEFAULT_VERSION,
            build_args=['-o', TEST_ACRA_BIN_NAME,
-                       '-ldflags', '-X main.Test=true']),
+                       '-ldflags', '-X main.TestOnly=true']),
 
     Binary(name='acra_addzone', from_version=DEFAULT_VERSION,
            build_args=DEFAULT_BUILD_ARGS),
