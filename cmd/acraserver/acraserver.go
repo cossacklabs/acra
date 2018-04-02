@@ -39,7 +39,7 @@ const (
 	TEST_MODE = "true"
 )
 
-var Test = "false"
+var TestOnly = "false"
 
 const (
 	DEFAULT_ACRASERVER_WAIT_TIMEOUT = 10
@@ -187,7 +187,7 @@ func main() {
 			os.Exit(1)
 		}
 		// need for testing with mysql docker container that always generate new certificates
-		if Test == TEST_MODE {
+		if TestOnly == TEST_MODE {
 			tlsConfig.InsecureSkipVerify = true
 			log.Warningln("only for tests!")
 		}
