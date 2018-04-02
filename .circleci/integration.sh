@@ -42,9 +42,16 @@ for version in $VERSIONS; do
     #export TEST_DB_NAME=${MYSQL_DATABASE}
     export TEST_DB_PORT=3306
     export TEST_MYSQL=true
-    export TEST_TLS=off
+
 
     echo "--------------------  Testing TEST_MYSQL with TEST_TLS=off"
+    export TEST_TLS=off
+    python3 tests/test.py -v;
+    if [ "$?" != "0" ]; then echo "mysql-$version" >> "$FILEPATH_ERROR_FLAG";
+    fi
+    
+    echo "--------------------  Testing TEST_MYSQL with TEST_TLS=on"
+    export TEST_TLS=on
     python3 tests/test.py -v;
     if [ "$?" != "0" ]; then echo "mysql-$version" >> "$FILEPATH_ERROR_FLAG";
     fi

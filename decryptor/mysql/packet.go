@@ -11,6 +11,8 @@ import (
 const (
 	// CLIENT_PROTOCOL_41 - https://dev.mysql.com/doc/internals/en/capability-flags.html#flag-CLIENT_PROTOCOL_41
 	CLIENT_PROTOCOL_41 = 0x00000200
+	// SSL_REQUEST - https://dev.mysql.com/doc/internals/en/capability-flags.html#flag-CLIENT_SSL
+	SSL_REQUEST = 0x00000800
 )
 
 const (
@@ -129,20 +131,38 @@ func (packet *MysqlPacket) IsEOF() bool {
 	return isOkPacket || isEOFPacket
 }
 
+// IsErr return true if packet has ERR_PACKET flag
 func (packet *MysqlPacket) IsErr() bool {
 	return packet.data[0] == ERR_PACKET
 }
 
-func (packet *MysqlPacket) getServerCapabilitiesFromGreeting(data []byte) uint16 {
-	endOfServerVersion := bytes.Index(data[1:], []byte{0}) + 2 // 1 first byte of protocol version and 1 to point to next byte
+func (packet *MysqlPacket) getServerCapabilities() int {
+	// https://dev.mysql.com/doc/internals/en/connection-phase-packets.html#idm140437490034448
+	endOfServerVersion := bytes.Index(packet.data[1:], []byte{0}) + 2 // 1 first byte of protocol version and 1 to point to next byte
 	// 4 bytes connection string + 8 bytes of auth plugin + 1 byte filler
-	capabilities := data[endOfServerVersion+13 : endOfServerVersion+13+2]
-	return binary.LittleEndian.Uint16(capabilities)
+	rawCapabilities := packet.data[endOfServerVersion+13 : endOfServerVersion+13+2]
+	return int(binary.LittleEndian.Uint16(rawCapabilities))
 }
 
-func (packet *MysqlPacket) SupportProtocol41() bool {
-	capabilities := int(packet.getServerCapabilitiesFromGreeting(packet.data))
+func (packet *MysqlPacket) ServerSupportProtocol41() bool {
+	capabilities := packet.getServerCapabilities()
 	return (capabilities & CLIENT_PROTOCOL_41) > 0
+}
+
+func (packet *MysqlPacket) getClientCapabilities() int {
+	// https://dev.mysql.com/doc/internals/en/connection-phase-packets.html#idm140437489940880
+	return int(binary.LittleEndian.Uint16(packet.data[:2]))
+}
+
+func (packet *MysqlPacket) ClientSupportProtocol41() bool {
+	capabilities := packet.getClientCapabilities()
+	return (capabilities & CLIENT_PROTOCOL_41) > 0
+}
+
+// IsSSLRequest return true if SSL_REQUEST flag up
+func (packet *MysqlPacket) IsSSLRequest() bool {
+	capabilities := packet.getClientCapabilities()
+	return (capabilities & SSL_REQUEST) > 0
 }
 
 // ReadPacket from connection and return MysqlPacket struct with data or error

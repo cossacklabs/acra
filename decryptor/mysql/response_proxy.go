@@ -1,21 +1,24 @@
 package mysql
 
 import (
-	"bytes"
+	"crypto/tls"
+	"errors"
 	"fmt"
 	"io"
 	"net"
+	"time"
 
 	"github.com/cossacklabs/acra/decryptor/base"
 	"github.com/cossacklabs/acra/firewall"
-	log "github.com/sirupsen/logrus"
 	"github.com/cossacklabs/acra/logging"
+	log "github.com/sirupsen/logrus"
 )
 
 const (
 	// MaxPayloadLen https://dev.mysql.com/doc/internals/en/mysql-packet.html
 	// each packet splits into packets of this size
-	MaxPayloadLen int = 1<<24 - 1
+	MaxPayloadLen                int = 1<<24 - 1
+	CLIENT_WAIT_DB_TLS_HANDSHAKE     = 5
 )
 
 const (
@@ -104,6 +107,11 @@ const (
 	GROUP_FLAG          = 32768
 	UNIQUE_FLAG         = 65536
 )
+const (
+	TLS_NONE = iota
+	TLS_CLIENT_SWITCH
+	TLS_DB_COMPLETE
+)
 
 func IsBinaryColumn(value byte) bool {
 	isBlob := value > MYSQL_TYPE_TINY_BLOB && value < MYSQL_TYPE_BLOB
@@ -121,17 +129,22 @@ func defaultResponseHandler(packet *MysqlPacket, dbConnection, clientConnection 
 }
 
 type MysqlHandler struct {
-	responseHandler      ResponseHandler
-	clientSequenceNumber int
-	serverSequenceNumber int
-	clientProtocol41     bool
-	serverProtocol41     bool
-	decryptor            base.Decryptor
-	firewall             firewall.FirewallInterface
+	responseHandler        ResponseHandler
+	clientSequenceNumber   int
+	serverSequenceNumber   int
+	clientProtocol41       bool
+	serverProtocol41       bool
+	decryptor              base.Decryptor
+	firewall               firewall.FirewallInterface
+	isTLSHandshake         bool
+	dbTLSHandshakeFinished chan bool
+	clientConnection       net.Conn
+	dbConnection           net.Conn
+	tlsConfig              *tls.Config
 }
 
-func NewMysqlHandler(decryptor base.Decryptor, firewall firewall.FirewallInterface) (*MysqlHandler, error) {
-	return &MysqlHandler{decryptor: decryptor, responseHandler: defaultResponseHandler, firewall: firewall}, nil
+func NewMysqlHandler(decryptor base.Decryptor, dbConnection, clientConnection net.Conn, tlsConfig *tls.Config, firewall firewall.FirewallInterface) (*MysqlHandler, error) {
+	return &MysqlHandler{isTLSHandshake: false, dbTLSHandshakeFinished: make(chan bool), decryptor: decryptor, responseHandler: defaultResponseHandler, firewall: firewall, clientConnection: clientConnection, dbConnection: dbConnection, tlsConfig: tlsConfig}, nil
 }
 
 func (handler *MysqlHandler) setQueryHandler(callback ResponseHandler) {
@@ -145,12 +158,12 @@ func (handler *MysqlHandler) getResponseHandler() ResponseHandler {
 	return handler.responseHandler
 }
 
-func (handler *MysqlHandler) ClientToDbProxy(decryptor base.Decryptor, dbConnection, clientConnection net.Conn, errCh chan<- error) {
+func (handler *MysqlHandler) ClientToDbProxy(errCh chan<- error) {
 	clientLog := log.WithField("proxy", "client")
 	clientLog.Debugln("Start proxy client's requests")
 	firstPacket := true
 	for {
-		packet, err := ReadPacket(clientConnection)
+		packet, err := ReadPacket(handler.clientConnection)
 		if err != nil {
 			log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorResponseProxyCantReadFromClient).
 				Debugln("Can't read packet from client")
@@ -159,8 +172,38 @@ func (handler *MysqlHandler) ClientToDbProxy(decryptor base.Decryptor, dbConnect
 		}
 		if firstPacket {
 			firstPacket = false
-			handler.clientProtocol41 = packet.SupportProtocol41()
-			clientLog.Debugf("Set support protocol 41 %v", handler.clientProtocol41)
+			handler.clientProtocol41 = packet.ClientSupportProtocol41()
+			if packet.IsSSLRequest() {
+				tlsConnection := tls.Server(handler.clientConnection, handler.tlsConfig)
+				if err := tlsConnection.Handshake(); err != nil {
+					log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorDecryptorCantInitializeTLS).
+						Errorln("error in tls handshake with client")
+					errCh <- err
+					return
+				}
+				log.Debugln("switched to tls with client. wait switching with db")
+				handler.isTLSHandshake = true
+				handler.clientConnection = tlsConnection
+				if _, err := handler.dbConnection.Write(packet.Dump()); err != nil {
+					clientLog.Debugln("can't write send packet to db")
+					errCh <- err
+					return
+				}
+				// stop reading and init switching to tls
+				handler.dbConnection.SetReadDeadline(time.Now())
+				// we should wait when db proxy part will finish handshake to avoid case when new packets from client
+				// will be proxied in this function to db before handshake will be completed
+				select {
+				case <-handler.dbTLSHandshakeFinished:
+					log.Debugln("switch to tls complete on client proxy side")
+					continue
+				case <-time.NewTicker(time.Second * CLIENT_WAIT_DB_TLS_HANDSHAKE).C:
+					clientLog.Errorln("timeout on tls handshake with db")
+					errCh <- errors.New("handshake timeout")
+					return
+				}
+				continue
+			}
 		}
 		handler.clientSequenceNumber = int(packet.GetSequenceNumber())
 		clientLog = clientLog.WithField("sequence_number", handler.clientSequenceNumber)
@@ -173,8 +216,8 @@ func (handler *MysqlHandler) ClientToDbProxy(decryptor base.Decryptor, dbConnect
 		switch cmd {
 		case COM_QUIT:
 			clientLog.Debugln("Close connections on COM_QUIT command")
-			clientConnection.Close()
-			dbConnection.Close()
+			handler.clientConnection.Close()
+			handler.dbConnection.Close()
 			errCh <- io.EOF
 			return
 		case COM_QUERY:
@@ -184,7 +227,7 @@ func (handler *MysqlHandler) ClientToDbProxy(decryptor base.Decryptor, dbConnect
 					Errorln("Error on firewall check")
 				errPacket := NewQueryInterruptedError(handler.clientProtocol41)
 				packet.SetData(errPacket)
-				if _, err := clientConnection.Write(packet.Dump()); err != nil {
+				if _, err := handler.clientConnection.Write(packet.Dump()); err != nil {
 					log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorResponseProxyCantWriteToClient).
 						Errorln("Can't write response with error to client")
 				}
@@ -198,7 +241,7 @@ func (handler *MysqlHandler) ClientToDbProxy(decryptor base.Decryptor, dbConnect
 		default:
 			clientLog.Debugf("Command %d not supported now", cmd)
 		}
-		if _, err := dbConnection.Write(inOutput); err != nil {
+		if _, err := handler.dbConnection.Write(inOutput); err != nil {
 			clientLog.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorResponseProxyCantWriteToDB).
 				Debugln("Can't write send packet to db")
 			errCh <- err
@@ -208,19 +251,6 @@ func (handler *MysqlHandler) ClientToDbProxy(decryptor base.Decryptor, dbConnect
 }
 
 // TODO: remove because it's not needed
-type Decryptor interface {
-	Decrypt(data []byte) ([]byte, bool, error)
-}
-
-type SimpleDecryptor struct{}
-
-func (decryptor *SimpleDecryptor) Decrypt(data []byte) ([]byte, bool, error) {
-	if bytes.Equal(data, []byte("test data 1")) {
-		return []byte("replaced"), true, nil
-	}
-	return data, false, nil
-}
-
 func (handler *MysqlHandler) isFieldToDecrypt(field *ColumnDescription) bool {
 	switch field.Type {
 	case MYSQL_TYPE_VARCHAR, MYSQL_TYPE_TINY_BLOB, MYSQL_TYPE_MEDIUM_BLOB, MYSQL_TYPE_LONG_BLOB, MYSQL_TYPE_BLOB,
@@ -272,21 +302,12 @@ func (handler *MysqlHandler) processTextDataRow(rowData []byte, fields []*Column
 }
 
 func (handler *MysqlHandler) processBinaryDataRow(rowData []byte, fields []*ColumnDescription) ([]byte, error) {
-	//if rowData[0] != OK_PACKET {
-	//	return nil, ErrMalformPacket
-	//}
-
-	//pos := 1 + ((len(fields) + 7 + 2) >> 3)
-	//nullBitmap := rowData[1:pos]
 	pos := 0
 	var n int
 	var err error
 	var value []byte
 	var output []byte
 	for i := range fields {
-		//if nullBitmap[(i+2)/8]&(1<<(uint(i+2)%8)) > 0 {
-		//	continue
-		//}
 		if handler.isFieldToDecrypt(fields[i]) {
 			value, _, n, err = LengthEncodedString(rowData[pos:])
 			if err != nil {
@@ -459,16 +480,32 @@ func (handler *MysqlHandler) QueryResponseHandler(packet *MysqlPacket, dbConnect
 	return nil
 }
 
-func (handler *MysqlHandler) DbToClientProxy(decryptor base.Decryptor, dbConnection, clientConnection net.Conn, errCh chan<- error) {
+func (handler *MysqlHandler) DbToClientProxy(errCh chan<- error) {
 	serverLog := log.WithField("proxy", "server")
 	serverLog.Debugln("Start proxy db responses")
 	firstPacket := true
 	var responseHandler ResponseHandler
 	for {
-		packet, err := ReadPacket(dbConnection)
+		packet, err := ReadPacket(handler.dbConnection)
 		if err != nil {
-			log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorResponseProxyCantReadFromServer).
-				Debugln("Can't read packet from server")
+			if netErr, ok := err.(net.Error); ok {
+				if netErr.Timeout() && handler.isTLSHandshake {
+					// reset deadline
+					handler.dbConnection.SetReadDeadline(time.Time{})
+					tlsConnection := tls.Client(handler.dbConnection, handler.tlsConfig)
+					if err := tlsConnection.Handshake(); err != nil {
+						log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorDecryptorCantInitializeTLS).
+							Errorln("error in tls handshake with db")
+						errCh <- err
+						return
+					}
+					log.Debugln("switched to tls with db")
+					handler.dbConnection = tlsConnection
+					handler.dbTLSHandshakeFinished <- true
+					continue
+				}
+			}
+			log.Debugln("can't read packet from server")
 			errCh <- err
 			return
 		}
@@ -478,11 +515,11 @@ func (handler *MysqlHandler) DbToClientProxy(decryptor base.Decryptor, dbConnect
 		}
 		if firstPacket {
 			firstPacket = false
-			handler.serverProtocol41 = packet.SupportProtocol41()
+			handler.serverProtocol41 = packet.ServerSupportProtocol41()
 			serverLog.Debugf("set support protocol 41 %v", handler.serverProtocol41)
 		}
 		responseHandler = handler.getResponseHandler()
-		err = responseHandler(packet, dbConnection, clientConnection)
+		err = responseHandler(packet, handler.dbConnection, handler.clientConnection)
 		if err != nil {
 			log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorResponseProxyCantWriteToServer).
 				Errorln("Error in responseHandler")

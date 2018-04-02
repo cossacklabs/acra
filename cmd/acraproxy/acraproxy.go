@@ -261,7 +261,6 @@ func main() {
 	go sigHandler.Register()
 	sigHandler.AddListener(listener)
 
-
 	if *useTls {
 		log.Infof("Selecting transport: use TLS transport wrapper")
 		tlsConfig, err := network.NewTLSConfig(*tlsSNI, *tlsCA, *tlsKey, *tlsCert)
@@ -298,7 +297,7 @@ func main() {
 			commandsListener, err := network.Listen(*connectionAPIString)
 			if err != nil {
 				log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantStartListenConnections).
-				Errorln("System error: can't start listen connections to http API")
+					Errorln("System error: can't start listen connections to http API")
 				os.Exit(1)
 			}
 			sigHandler.AddListener(commandsListener)

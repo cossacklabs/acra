@@ -24,9 +24,9 @@ import (
 	"github.com/cossacklabs/acra/decryptor/mysql"
 	pg "github.com/cossacklabs/acra/decryptor/postgresql"
 	"github.com/cossacklabs/acra/keystore"
+	"github.com/cossacklabs/acra/logging"
 	"github.com/cossacklabs/acra/network"
 	"github.com/cossacklabs/acra/zone"
-	"github.com/cossacklabs/acra/logging"
 	log "github.com/sirupsen/logrus"
 )
 
