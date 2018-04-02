@@ -34,7 +34,7 @@ func JSONFormatter(fields logrus.Fields) logrus.Formatter {
 			TimestampFormat: time.RFC3339,
 		},
 		Fields: fields,
-		lock: &sync.RWMutex{},
+		lock:   &sync.RWMutex{},
 	}
 }
 
@@ -57,7 +57,7 @@ func CEFFormatter(fields logrus.Fields) logrus.Formatter {
 			TimestampFormat: time.RFC3339,
 		},
 		Fields: fields,
-		lock: &sync.RWMutex{},
+		lock:   &sync.RWMutex{},
 	}
 }
 

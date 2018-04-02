@@ -25,11 +25,11 @@ import (
 
 	"github.com/cossacklabs/acra/decryptor/base"
 	acra_io "github.com/cossacklabs/acra/io"
+	"github.com/cossacklabs/acra/logging"
 	"github.com/cossacklabs/acra/network"
 	"github.com/cossacklabs/acra/utils"
 	"github.com/cossacklabs/acra/zone"
 	log "github.com/sirupsen/logrus"
-	"github.com/cossacklabs/acra/logging"
 )
 
 type DataRow struct {

@@ -6,6 +6,7 @@ import (
 	"io/ioutil"
 	"net"
 
+	"github.com/cossacklabs/acra/logging"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -40,7 +41,7 @@ func NewTLSConfig(serverName string, caPath, keyPath, crtPath string) (*tls.Conf
 	if caPath != "" {
 		caPem, err := ioutil.ReadFile(caPath)
 		if err != nil {
-			log.WithError(err).Errorln("can't read root CA certificate")
+			log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorGeneral).Errorln("can't read root CA certificate")
 			return nil, err
 		}
 		log.Debugln("add CA root certificate")

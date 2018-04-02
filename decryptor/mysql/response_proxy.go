@@ -10,8 +10,8 @@ import (
 
 	"github.com/cossacklabs/acra/decryptor/base"
 	"github.com/cossacklabs/acra/firewall"
-	log "github.com/sirupsen/logrus"
 	"github.com/cossacklabs/acra/logging"
+	log "github.com/sirupsen/logrus"
 )
 
 const (
@@ -175,7 +175,8 @@ func (handler *MysqlHandler) ClientToDbProxy(errCh chan<- error) {
 			if packet.IsSSLRequest() {
 				tlsConnection := tls.Server(handler.clientConnection, handler.tlsConfig)
 				if err := tlsConnection.Handshake(); err != nil {
-					log.WithError(err).Errorln("error in tls handshake with client")
+					log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorDecryptorCantInitializeTLS).
+						Errorln("error in tls handshake with client")
 					errCh <- err
 					return
 				}
@@ -492,7 +493,8 @@ func (handler *MysqlHandler) DbToClientProxy(errCh chan<- error) {
 					handler.dbConnection.SetReadDeadline(time.Time{})
 					tlsConnection := tls.Client(handler.dbConnection, handler.tlsConfig)
 					if err := tlsConnection.Handshake(); err != nil {
-						log.WithError(err).Errorln("error in tls handshake with db")
+						log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorDecryptorCantInitializeTLS).
+							Errorln("error in tls handshake with db")
 						errCh <- err
 						return
 					}

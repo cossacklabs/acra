@@ -46,7 +46,7 @@ const (
 	GRACEFUL_ENV                    = "GRACEFUL_RESTART"
 	DESCRIPTOR_ACRA                 = 3
 	DESCRIPTOR_API                  = 4
-	SERVICE_NAME            = "acraserver"
+	SERVICE_NAME                    = "acraserver"
 )
 
 // DEFAULT_CONFIG_PATH relative path to config which will be parsed as default
@@ -135,11 +135,13 @@ func main() {
 	}
 
 	if err := config.SetMySQL(*useMysql); err != nil {
-		log.WithError(err).Errorln("can't set MySQL support")
+		log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorWrongConfiguration).
+			Errorln("can't set MySQL support")
 		os.Exit(1)
 	}
 	if err := config.SetPostgresql(*usePostgresql); err != nil {
-		log.WithError(err).Errorln("can't set PostgreSQL support")
+		log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorWrongConfiguration).
+			Errorln("can't set PostgreSQL support")
 		os.Exit(1)
 	}
 

@@ -15,6 +15,7 @@ package main
 
 import (
 	"bufio"
+	"github.com/cossacklabs/acra/logging"
 	log "github.com/sirupsen/logrus"
 	"net"
 	"net/http"
@@ -52,7 +53,8 @@ func (clientSession *ClientCommandsSession) close() {
 	log.Debugln("Close acraproxy connection")
 	err := clientSession.connection.Close()
 	if err != nil {
-		log.WithError(err).Errorln("Error during closing connection to acraproxy")
+		log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantCloseConnection).
+			Errorln("Error during closing connection to acraproxy")
 	}
 	log.Debugln("All connections closed")
 }
@@ -61,7 +63,9 @@ func (clientSession *ClientCommandsSession) HandleSession() {
 	reader := bufio.NewReader(clientSession.connection)
 	req, err := http.ReadRequest(reader)
 	if err != nil {
-		log.WithError(err).Warningln("Got new command request, but can't read it")
+
+		log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorGeneral).
+			Warningln("Got new command request, but can't read it")
 		clientSession.close()
 		return
 	}
@@ -89,7 +93,8 @@ func (clientSession *ClientCommandsSession) HandleSession() {
 		log.Debugln("Got /getConfig request")
 		jsonOutput, err := clientSession.config.ToJson()
 		if err != nil {
-			log.WithError(err).Warningln("Can't convert config to JSON")
+			log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorGeneral).
+				Warningln("Can't convert config to JSON")
 			response = "HTTP/1.1 500 Server error\r\n\r\n\r\n\r\n"
 		} else {
 			log.Debugln("Handled request correctly")
@@ -102,7 +107,8 @@ func (clientSession *ClientCommandsSession) HandleSession() {
 		var configFromUI UIEditableConfig
 		err := decoder.Decode(&configFromUI)
 		if err != nil {
-			log.WithError(err).Warningln("Can't convert config from incoming")
+			log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorGeneral).
+				Warningln("Can't convert config from incoming")
 			response = "HTTP/1.1 500 Server error\r\n\r\n\r\n\r\n"
 			return
 		}
@@ -117,7 +123,8 @@ func (clientSession *ClientCommandsSession) HandleSession() {
 
 		err = cmd.DumpConfig(clientSession.Server.config.GetConfigPath(), false)
 		if err != nil {
-			log.WithError(err).Errorln("DumpConfig failed")
+			log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantDumpConfig).
+				Errorln("DumpConfig failed")
 			response = "HTTP/1.1 500 Server error\r\n\r\n\r\n\r\n"
 			return
 
@@ -128,7 +135,7 @@ func (clientSession *ClientCommandsSession) HandleSession() {
 
 	_, err = clientSession.connection.Write([]byte(response))
 	if err != nil {
-		log.WithError(err).Errorln("Can't send data with secure session to acraproxy")
+		log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorGeneral).Errorln("Can't send data with secure session to acraproxy")
 		return
 	}
 	clientSession.close()

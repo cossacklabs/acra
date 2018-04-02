@@ -9,11 +9,11 @@ import (
 	"github.com/cossacklabs/acra/decryptor/binary"
 	"github.com/cossacklabs/acra/decryptor/postgresql"
 	"github.com/cossacklabs/acra/keystore"
+	"github.com/cossacklabs/acra/logging"
 	"github.com/cossacklabs/acra/utils"
 	"github.com/cossacklabs/acra/zone"
 	"github.com/cossacklabs/themis/gothemis/keys"
 	log "github.com/sirupsen/logrus"
-	"github.com/cossacklabs/acra/logging"
 )
 
 type decryptFunc func([]byte) ([]byte, error)
@@ -172,12 +172,12 @@ func (decryptor *MySQLDecryptor) decryptBlock(reader io.Reader, id []byte, keyFu
 	}
 	key, _, err := decryptor.ReadSymmetricKey(privateKey, reader)
 	if err != nil {
-		decryptor.log.WithError(err).Warningln("Can't unwrap symmetric key")
+		decryptor.log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorDecryptorCantDecryptSymmetricKey).Warningln("Can't unwrap symmetric key")
 		return []byte{}, err
 	}
 	data, err := decryptor.ReadData(key, id, reader)
 	if err != nil {
-		decryptor.log.WithError(err).Warningln("Can't decrypt data with unwrapped symmetric key")
+		decryptor.log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorDecryptorCantDecryptBinary).Warningln("Can't decrypt data with unwrapped symmetric key")
 		return []byte{}, err
 	}
 	return data, nil
