@@ -17,7 +17,8 @@ import (
 const (
 	// MaxPayloadLen https://dev.mysql.com/doc/internals/en/mysql-packet.html
 	// each packet splits into packets of this size
-	MaxPayloadLen int = 1<<24 - 1
+	MaxPayloadLen                int = 1<<24 - 1
+	CLIENT_WAIT_DB_TLS_HANDSHAKE     = 5
 )
 
 const (
@@ -196,7 +197,7 @@ func (handler *MysqlHandler) ClientToDbProxy(errCh chan<- error) {
 				case <-handler.dbTLSHandshakeFinished:
 					log.Debugln("switch to tls complete on client proxy side")
 					continue
-				case <-time.NewTicker(time.Second).C:
+				case <-time.NewTicker(time.Second * CLIENT_WAIT_DB_TLS_HANDSHAKE).C:
 					clientLog.Errorln("timeout on tls handshake with db")
 					errCh <- errors.New("handshake timeout")
 					return
