@@ -14,19 +14,25 @@
 package keystore
 
 import (
+	"encoding/base64"
 	"errors"
-	"github.com/cossacklabs/themis/gothemis/keys"
+	"os"
 	"strings"
+
+	"github.com/cossacklabs/themis/gothemis/cell"
+	"github.com/cossacklabs/themis/gothemis/keys"
 )
 
 const (
-	DEFAULT_KEY_DIR_SHORT = ".acrakeys"
-	VALID_CHARS           = "_- "
-	MAX_CLIENT_ID_LENGTH  = 256
-	MIN_CLIENT_ID_LENGTH  = 5
+	DEFAULT_KEY_DIR_SHORT    = ".acrakeys"
+	VALID_CHARS              = "_- "
+	MAX_CLIENT_ID_LENGTH     = 256
+	MIN_CLIENT_ID_LENGTH     = 5
+	ACRA_MASTER_KEY_VAR_NAME = "ACRA_MASTER_KEY"
 )
 
 var ErrInvalidClientId = errors.New("Invalid client id")
+var ErrEmptyMasterKey = errors.New("Master key is empty")
 
 func ValidateId(client_id []byte) bool {
 	if len(client_id) < MIN_CLIENT_ID_LENGTH || len(client_id) > MAX_CLIENT_ID_LENGTH {
@@ -39,6 +45,39 @@ func ValidateId(client_id []byte) bool {
 		}
 	}
 	return true
+}
+
+// GetMasterKeyFromEnvironment return master key from environment variable with name ACRA_MASTER_KEY_VAR_NAME
+func GetMasterKeyFromEnvironment() ([]byte, error) {
+	b64value := os.Getenv(ACRA_MASTER_KEY_VAR_NAME)
+	if len(b64value) == 0 {
+		return nil, ErrEmptyMasterKey
+	}
+	return base64.StdEncoding.DecodeString(b64value)
+}
+
+type KeyEncryptor interface {
+	Encrypt(key, context []byte) ([]byte, error)
+	Decrypt(key, context []byte) ([]byte, error)
+}
+
+type SCellKeyEncryptor struct {
+	scell *cell.SecureCell
+}
+
+func NewSCellKeyEncryptor(masterKey []byte) (*SCellKeyEncryptor, error) {
+	return &SCellKeyEncryptor{scell: cell.New(masterKey, cell.CELL_MODE_SEAL)}, nil
+}
+
+// EncryptKey return encrypted key using masterKey and context
+func (encryptor *SCellKeyEncryptor) Encrypt(key, context []byte) ([]byte, error) {
+	encrypted, _, err := encryptor.scell.Protect(key, context)
+	return encrypted, err
+}
+
+// DecryptKey return decrypted key using masterKey and context
+func (encryptor *SCellKeyEncryptor) Decrypt(key, context []byte) ([]byte, error) {
+	return encryptor.scell.Unprotect(key, nil, context)
 }
 
 type SecureSessionKeyStore interface {

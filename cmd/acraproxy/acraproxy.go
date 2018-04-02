@@ -234,7 +234,17 @@ func main() {
 	}
 
 	log.Infof("Initializing keystore")
-	keyStore, err := keystore.NewProxyFileSystemKeyStore(*keysDir, []byte(*clientId))
+	masterKey, err := keystore.GetMasterKeyFromEnvironment()
+	if err != nil {
+		log.WithError(err).Errorln("can't load master key")
+		os.Exit(1)
+	}
+	scellEncryptor, err := keystore.NewSCellKeyEncryptor(masterKey)
+	if err != nil {
+		log.WithError(err).Errorln("can't init scell encryptor")
+		os.Exit(1)
+	}
+	keyStore, err := keystore.NewProxyFileSystemKeyStore(*keysDir, []byte(*clientId), scellEncryptor)
 	if err != nil {
 		log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantInitKeyStore).
 			Errorln("Can't initialize keystore")

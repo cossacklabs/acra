@@ -41,7 +41,17 @@ func main() {
 		os.Exit(1)
 	}
 
-	store, err := keystore.NewFilesystemKeyStore(*keysDir)
+	masterKey, err := keystore.GetMasterKeyFromEnvironment()
+	if err != nil {
+		log.WithError(err).Errorln("can't load master key")
+		os.Exit(1)
+	}
+	scellEncryptor, err := keystore.NewSCellKeyEncryptor(masterKey)
+	if err != nil {
+		log.WithError(err).Errorln("can't init scell encryptor")
+		os.Exit(1)
+	}
+	store, err := keystore.NewFilesystemKeyStore(*keysDir, scellEncryptor)
 	if err != nil {
 		log.WithError(err).Errorln("can't initialize key store")
 		os.Exit(1)

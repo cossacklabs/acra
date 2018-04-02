@@ -24,6 +24,8 @@ jobs:
       TEST_DB_USER: test
       TEST_DB_USER_PASSWORD: test
       TEST_DB_NAME: test
+      # "some key" in base64 or echo -n "some key" | base64
+      ACRA_MASTER_KEY: c29tZSBrZXk=
     steps:
     # prepare
       - run: sudo apt-get update && sudo DEBIAN_FRONTEND=noninteractive apt-get -y install libssl-dev python python-setuptools python3 python3-setuptools python3-pip git rsync

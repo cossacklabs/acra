@@ -146,7 +146,11 @@ func TestFilesystemKeyStore(t *testing.T) {
 	defer func() {
 		os.RemoveAll(keyDirectory)
 	}()
-	store, err := NewFilesystemKeyStore(keyDirectory)
+	encryptor, err := NewSCellKeyEncryptor([]byte("some key"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	store, err := NewFilesystemKeyStore(keyDirectory, encryptor)
 	if err != nil {
 		t.Fatal("error")
 	}
