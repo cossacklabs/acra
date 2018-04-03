@@ -33,6 +33,7 @@ func main() {
 	dataKeys := flag.Bool("storage", false, "Create keypair for data encryption/decryption")
 	basicauth := flag.Bool("basicauth", false, "Create symmetric key for acra_configui's basic auth db")
 	outputDir := flag.String("output", keystore.DEFAULT_KEY_DIR_SHORT, "Folder where will be saved keys")
+	outputPublicKey := flag.String("output_public", keystore.DEFAULT_KEY_DIR_SHORT, "Folder where will be saved public key")
 
 	logging.SetLogLevel(logging.LOG_VERBOSE)
 
@@ -44,9 +45,17 @@ func main() {
 
 	cmd.ValidateClientId(*clientId)
 
-	store, err := keystore.NewFilesystemKeyStore(*outputDir)
-	if err != nil {
-		panic(err)
+	var store keystore.KeyStore
+	if *outputPublicKey != *outputDir {
+		store, err = keystore.NewFilesystemKeyStoreTwoPath(*outputDir, *outputPublicKey)
+		if err != nil {
+			panic(err)
+		}
+	} else {
+		store, err = keystore.NewFilesystemKeyStore(*outputDir)
+		if err != nil {
+			panic(err)
+		}
 	}
 
 	if *acraproxy {

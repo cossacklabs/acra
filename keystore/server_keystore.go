@@ -16,13 +16,19 @@ import (
 )
 
 type FilesystemKeyStore struct {
-	keys      map[string][]byte
-	directory string
-	lock      *sync.RWMutex
+	keys                map[string][]byte
+	privateKeyDirectory string
+	publicKeyDirectory  string
+	lock                *sync.RWMutex
 }
 
 func NewFilesystemKeyStore(directory string) (*FilesystemKeyStore, error) {
-	directory, err := utils.AbsPath(directory)
+	return NewFilesystemKeyStoreTwoPath(directory, directory)
+}
+
+func NewFilesystemKeyStoreTwoPath(privateKeyFolder, publicKeyFolder string) (*FilesystemKeyStore, error) {
+	// check folder for private key
+	directory, err := utils.AbsPath(privateKeyFolder)
 	if err != nil {
 		return nil, err
 	}
@@ -31,7 +37,19 @@ func NewFilesystemKeyStore(directory string) (*FilesystemKeyStore, error) {
 		log.Errorln(" key store folder has an incorrect permissions")
 		return nil, errors.New("key store folder has an incorrect permissions")
 	}
-	return &FilesystemKeyStore{directory: directory, keys: make(map[string][]byte), lock: &sync.RWMutex{}}, nil
+	if privateKeyFolder != publicKeyFolder {
+		// check folder for public key
+		directory, err = utils.AbsPath(privateKeyFolder)
+		if err != nil {
+			return nil, err
+		}
+		fi, err = os.Stat(directory)
+		if nil != err && !os.IsNotExist(err) {
+			return nil, err
+		}
+	}
+	return &FilesystemKeyStore{privateKeyDirectory: privateKeyFolder, publicKeyDirectory: publicKeyFolder,
+		keys: make(map[string][]byte), lock: &sync.RWMutex{}}, nil
 }
 
 func (store *FilesystemKeyStore) generateKeyPair(filename string) (*keys.Keypair, error) {
@@ -39,16 +57,16 @@ func (store *FilesystemKeyStore) generateKeyPair(filename string) (*keys.Keypair
 	if err != nil {
 		return nil, err
 	}
-	dirpath := filepath.Dir(store.getFilePath(filename))
+	dirpath := filepath.Dir(store.getPrivateKeyFilePath(filename))
 	err = os.MkdirAll(dirpath, 0700)
 	if err != nil {
 		return nil, err
 	}
-	err = ioutil.WriteFile(store.getFilePath(filename), keypair.Private.Value, 0600)
+	err = ioutil.WriteFile(store.getPrivateKeyFilePath(filename), keypair.Private.Value, 0600)
 	if err != nil {
 		return nil, err
 	}
-	err = ioutil.WriteFile(store.getFilePath(fmt.Sprintf("%s.pub", filename)), keypair.Public.Value, 0644)
+	err = ioutil.WriteFile(store.getPublicKeyFilePath(fmt.Sprintf("%s.pub", filename)), keypair.Public.Value, 0644)
 	if err != nil {
 		return nil, err
 	}
@@ -99,8 +117,12 @@ func (store *FilesystemKeyStore) GenerateZoneKey() ([]byte, []byte, error) {
 	return id, keypair.Public.Value, nil
 }
 
-func (store *FilesystemKeyStore) getFilePath(filename string) string {
-	return fmt.Sprintf("%s%s%s", store.directory, string(os.PathSeparator), filename)
+func (store *FilesystemKeyStore) getPrivateKeyFilePath(filename string) string {
+	return fmt.Sprintf("%s%s%s", store.privateKeyDirectory, string(os.PathSeparator), filename)
+}
+
+func (store *FilesystemKeyStore) getPublicKeyFilePath(filename string) string {
+	return fmt.Sprintf("%s%s%s", store.publicKeyDirectory, string(os.PathSeparator), filename)
 }
 
 func (store *FilesystemKeyStore) GetZonePrivateKey(id []byte) (*keys.PrivateKey, error) {
@@ -115,7 +137,7 @@ func (store *FilesystemKeyStore) GetZonePrivateKey(id []byte) (*keys.PrivateKey,
 		log.Debugf("load cached key: %s", fname)
 		return &keys.PrivateKey{Value: key}, nil
 	}
-	privateKey, err := utils.LoadPrivateKey(store.getFilePath(fname))
+	privateKey, err := utils.LoadPrivateKey(store.getPrivateKeyFilePath(fname))
 	if err != nil {
 		return nil, err
 	}
@@ -140,7 +162,7 @@ func (store *FilesystemKeyStore) HasZonePrivateKey(id []byte) bool {
 	if ok {
 		return true
 	}
-	exists, _ := utils.FileExists(store.getFilePath(fname))
+	exists, _ := utils.FileExists(store.getPrivateKeyFilePath(fname))
 	return exists
 }
 
@@ -156,7 +178,7 @@ func (store *FilesystemKeyStore) GetPeerPublicKey(id []byte) (*keys.PublicKey, e
 		log.Debugf("load cached key: %s", fname)
 		return &keys.PublicKey{Value: key}, nil
 	}
-	publicKey, err := utils.LoadPublicKey(store.getFilePath(fname))
+	publicKey, err := utils.LoadPublicKey(store.getPublicKeyFilePath(fname))
 	if err != nil {
 		return nil, err
 	}
@@ -177,7 +199,7 @@ func (store *FilesystemKeyStore) GetPrivateKey(id []byte) (*keys.PrivateKey, err
 		log.Debugf("load cached key: %s", fname)
 		return &keys.PrivateKey{Value: key}, nil
 	}
-	privateKey, err := utils.LoadPrivateKey(store.getFilePath(fname))
+	privateKey, err := utils.LoadPrivateKey(store.getPrivateKeyFilePath(fname))
 	if err != nil {
 		return nil, err
 	}
@@ -198,7 +220,7 @@ func (store *FilesystemKeyStore) GetServerDecryptionPrivateKey(id []byte) (*keys
 		log.Debugf("load cached key: %s", fname)
 		return &keys.PrivateKey{Value: key}, nil
 	}
-	privateKey, err := utils.LoadPrivateKey(store.getFilePath(fname))
+	privateKey, err := utils.LoadPrivateKey(store.getPrivateKeyFilePath(fname))
 	if err != nil {
 		return nil, err
 	}
@@ -213,10 +235,7 @@ func (store *FilesystemKeyStore) GenerateProxyKeys(id []byte) error {
 	}
 	filename := getProxyKeyFilename(id)
 	_, err := store.generateKeyPair(filename)
-	if err != nil {
-		return err
-	}
-	return nil
+	return err
 }
 func (store *FilesystemKeyStore) GenerateServerKeys(id []byte) error {
 	if !ValidateId(id) {
@@ -224,10 +243,7 @@ func (store *FilesystemKeyStore) GenerateServerKeys(id []byte) error {
 	}
 	filename := getServerKeyFilename(id)
 	_, err := store.generateKeyPair(filename)
-	if err != nil {
-		return err
-	}
-	return nil
+	return err
 }
 
 // generate key pair for data encryption/decryption
@@ -236,10 +252,7 @@ func (store *FilesystemKeyStore) GenerateDataEncryptionKeys(id []byte) error {
 		return ErrInvalidClientId
 	}
 	_, err := store.generateKeyPair(getServerDecryptionKeyFilename(id))
-	if err != nil {
-		return err
-	}
-	return nil
+	return err
 }
 
 // clear all cached keys
@@ -248,8 +261,8 @@ func (store *FilesystemKeyStore) Reset() {
 }
 
 func (store *FilesystemKeyStore) GetPoisonKeyPair() (*keys.Keypair, error) {
-	privatePath := store.getFilePath(POISON_KEY_FILENAME)
-	publicPath := store.getFilePath(fmt.Sprintf("%s.pub", POISON_KEY_FILENAME))
+	privatePath := store.getPrivateKeyFilePath(POISON_KEY_FILENAME)
+	publicPath := store.getPublicKeyFilePath(fmt.Sprintf("%s.pub", POISON_KEY_FILENAME))
 	privateExists, err := utils.FileExists(privatePath)
 	if err != nil {
 		return nil, err
