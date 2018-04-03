@@ -90,6 +90,19 @@ func TestGetMasterKeyFromEnvironment(t *testing.T) {
 	if err := os.Setenv(ACRA_MASTER_KEY_VAR_NAME, base64.StdEncoding.EncodeToString(key)); err != nil {
 		t.Fatal(err)
 	}
+
+	if _, err := GetMasterKeyFromEnvironment(); err != ErrMasterKeyIncorrectLength {
+		t.Fatal("expected ErrMasterKeyIncorrectLength error")
+	}
+
+	key, err := GenerateSymmetricKey()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Setenv(ACRA_MASTER_KEY_VAR_NAME, base64.StdEncoding.EncodeToString(key)); err != nil {
+		t.Fatal(err)
+	}
+
 	if envKey, err := GetMasterKeyFromEnvironment(); err != nil {
 		t.Fatal(err)
 	} else {

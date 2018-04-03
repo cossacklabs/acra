@@ -14,8 +14,10 @@
 package keystore
 
 import (
+	"crypto/rand"
 	"encoding/base64"
 	"errors"
+	"fmt"
 	"os"
 	"strings"
 
@@ -29,10 +31,27 @@ const (
 	MAX_CLIENT_ID_LENGTH     = 256
 	MIN_CLIENT_ID_LENGTH     = 5
 	ACRA_MASTER_KEY_VAR_NAME = "ACRA_MASTER_KEY"
+	// SYMMETRIC_KEY_LENGTH in bytes for master key
+	SYMMETRIC_KEY_LENGTH = 32
 )
 
-var ErrInvalidClientId = errors.New("Invalid client id")
-var ErrEmptyMasterKey = errors.New("Master key is empty")
+var ErrInvalidClientId = errors.New("invalid client id")
+var ErrEmptyMasterKey = errors.New("master key is empty")
+var ErrMasterKeyIncorrectLength = fmt.Errorf("master key must have %v length in bytes", SYMMETRIC_KEY_LENGTH)
+
+// GenerateSymmetricKey return new generated symmetric key that must used in keystore as master key and will comply
+// our requirements
+func GenerateSymmetricKey() ([]byte, error) {
+	key := make([]byte, SYMMETRIC_KEY_LENGTH)
+	n, err := rand.Read(key)
+	if err != nil {
+		return nil, err
+	}
+	if n != SYMMETRIC_KEY_LENGTH {
+		return nil, ErrMasterKeyIncorrectLength
+	}
+	return key, nil
+}
 
 func ValidateId(client_id []byte) bool {
 	if len(client_id) < MIN_CLIENT_ID_LENGTH || len(client_id) > MAX_CLIENT_ID_LENGTH {
@@ -47,13 +66,28 @@ func ValidateId(client_id []byte) bool {
 	return true
 }
 
+// ValidateMasterKey do validation of symmetric master key and return nil if pass check
+func ValidateMasterKey(key []byte) error {
+	if len(key) != SYMMETRIC_KEY_LENGTH {
+		return ErrMasterKeyIncorrectLength
+	}
+	return nil
+}
+
 // GetMasterKeyFromEnvironment return master key from environment variable with name ACRA_MASTER_KEY_VAR_NAME
-func GetMasterKeyFromEnvironment() ([]byte, error) {
+func GetMasterKeyFromEnvironment() (key []byte, err error) {
 	b64value := os.Getenv(ACRA_MASTER_KEY_VAR_NAME)
 	if len(b64value) == 0 {
 		return nil, ErrEmptyMasterKey
 	}
-	return base64.StdEncoding.DecodeString(b64value)
+	key, err = base64.StdEncoding.DecodeString(b64value)
+	if err != nil {
+		return
+	}
+	if err = ValidateMasterKey(key); err != nil {
+		return
+	}
+	return
 }
 
 type KeyEncryptor interface {
