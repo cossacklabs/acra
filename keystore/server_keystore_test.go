@@ -14,12 +14,38 @@
 package keystore
 
 import (
+	"bytes"
 	"fmt"
 	"github.com/cossacklabs/acra/utils"
+	"io/ioutil"
 	"os"
 	"path/filepath"
 	"testing"
 )
+
+func testGenerateKeyPair(store *FilesystemKeyStore, t *testing.T) {
+	clientId := []byte("some test id")
+	file, err := ioutil.TempFile("", "test_generate_key_pair")
+	if err != nil {
+		t.Fatal(err)
+	}
+	// create temp file with random name to use it as not-existed path
+	path := file.Name()
+	file.Close()
+	defer os.Remove(path)
+	keypair, err := store.generateKeyPair(path, clientId)
+	if err != nil {
+		t.Fatal(err)
+	}
+	encryptedKey, err := ioutil.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// check that returned key != stored on filesystem data
+	if bytes.Equal(encryptedKey, keypair.Private.Value) {
+		t.Fatal("keys are equal")
+	}
+}
 
 func testGeneral(store *FilesystemKeyStore, t *testing.T) {
 	if store.HasZonePrivateKey([]byte("non-existent key")) {
