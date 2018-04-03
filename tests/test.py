@@ -140,7 +140,7 @@ def create_client_keypair(name, only_server=False, only_client=False):
     return subprocess.call(args, cwd=os.getcwd(), timeout=PROCESS_CALL_TIMEOUT)
 
 
-def wait_connection(port, count=10, sleep=0.1):
+def wait_connection(port, count=10, sleep=0.3):
     """try connect to 127.0.0.1:port and close connection
     if can't then sleep on and try again (<count> times)
     if <count> times is failed than raise Exception
@@ -158,7 +158,7 @@ def wait_connection(port, count=10, sleep=0.1):
     raise Exception("can't wait connection")
 
 
-def wait_unix_socket(socket_path, count=10, sleep=0.1):
+def wait_unix_socket(socket_path, count=10, sleep=0.3):
     while count:
         try:
             connection = socket.socket(socket.AF_UNIX)
@@ -866,6 +866,7 @@ class TestConnectionClosing(BaseTestCase):
         created_connections = self.checkConnectionLimit(connection_limit)
 
         for conn in connections + created_connections:
+            conn.cursor().close()
             conn.close()
 
         self.check_count(cursor, current_connection_count)
