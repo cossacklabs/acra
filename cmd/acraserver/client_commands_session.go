@@ -39,7 +39,8 @@ const (
 
 type ClientCommandsSession struct {
 	ClientSession
-	Server *SServer
+	Server   *SServer
+	keystore keystore.KeyStore
 }
 
 func NewClientCommandsSession(keystorage keystore.KeyStore, config *Config, connection net.Conn) (*ClientCommandsSession, error) {
@@ -47,7 +48,7 @@ func NewClientCommandsSession(keystorage keystore.KeyStore, config *Config, conn
 	if err != nil {
 		return nil, err
 	}
-	return &ClientCommandsSession{ClientSession: *clientSession}, nil
+	return &ClientCommandsSession{ClientSession: *clientSession, keystore: keystorage}, nil
 
 }
 
@@ -98,26 +99,7 @@ func (clientSession *ClientCommandsSession) HandleSession() {
 		log.Debugln("Cleared key storage cache")
 	case "/loadAuthData":
 		response = RESPONSE_500_ERROR
-		masterKey, err := keystore.GetMasterKeyFromEnvironment()
-		if err != nil {
-			log.WithError(err).Error("loadAuthData: can't get master key from environment")
-			break
-		}
-		encryptor, err := keystore.NewSCellKeyEncryptor(masterKey)
-		if err != nil {
-			log.WithError(err).Error("loadAuthData: can't initialize scell encryptor")
-			break
-		}
-		keysStore, err := keystore.NewFilesystemKeyStore(clientSession.config.GetKeysDir(), encryptor)
-		if err != nil {
-			log.WithError(err).Error("loadAuthData: keystore.NewFilesystemKeyStore")
-			response = RESPONSE_500_ERROR
-			break
-		}
-		if err != nil {
-			panic(err)
-		}
-		key, err := keysStore.GetAuthKey(false)
+		key, err := clientSession.keystore.GetAuthKey(false)
 		if err != nil {
 			log.WithError(err).Error("loadAuthData: keystore.GetAuthKey()")
 			response = RESPONSE_500_ERROR
