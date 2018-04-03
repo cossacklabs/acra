@@ -32,6 +32,7 @@ func main() {
 	acraserver := flag.Bool("acraserver", false, "Create keypair only for acraserver")
 	dataKeys := flag.Bool("storage", false, "Create keypair for data encryption/decryption")
 	outputDir := flag.String("output", keystore.DEFAULT_KEY_DIR_SHORT, "Folder where will be saved keys")
+	outputPublicKey := flag.String("output_public", keystore.DEFAULT_KEY_DIR_SHORT, "Folder where will be saved public key")
 
 	logging.SetLogLevel(logging.LOG_VERBOSE)
 
@@ -53,7 +54,12 @@ func main() {
 		log.WithError(err).Errorln("can't init scell encryptor")
 		os.Exit(1)
 	}
-	store, err := keystore.NewFilesystemKeyStore(*outputDir, scellEncryptor)
+	var store keystore.KeyStore
+	if *outputPublicKey != *outputDir {
+		store, err = keystore.NewFilesystemKeyStoreTwoPath(*outputDir, *outputPublicKey, scellEncryptor)
+	} else {
+		store, err = keystore.NewFilesystemKeyStore(*outputDir, scellEncryptor)
+	}
 	if err != nil {
 		panic(err)
 	}

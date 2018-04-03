@@ -81,7 +81,7 @@ func testGeneratingDataEncryptionKeys(store *FilesystemKeyStore, t *testing.T) {
 		t.Fatal(err)
 	}
 	exists, err := utils.FileExists(
-		store.getFilePath(
+		store.getPrivateKeyFilePath(
 			getServerDecryptionKeyFilename(testId)))
 	if err != nil {
 		t.Fatal(err)
@@ -91,7 +91,7 @@ func testGeneratingDataEncryptionKeys(store *FilesystemKeyStore, t *testing.T) {
 	}
 
 	exists, err = utils.FileExists(
-		fmt.Sprintf("%s.pub", store.getFilePath(
+		fmt.Sprintf("%s.pub", store.getPublicKeyFilePath(
 			getServerDecryptionKeyFilename(testId))))
 	if err != nil {
 		t.Fatal(err)
@@ -112,7 +112,7 @@ func testGenerateServerKeys(store *FilesystemKeyStore, t *testing.T) {
 		fmt.Sprintf("%s.pub", getServerKeyFilename(testId)),
 	}
 	for _, name := range expectedPaths {
-		absPath := store.getFilePath(name)
+		absPath := store.getPrivateKeyFilePath(name)
 		exists, err := utils.FileExists(absPath)
 		if err != nil {
 			t.Fatal(err)
@@ -134,7 +134,7 @@ func testGenerateProxyKeys(store *FilesystemKeyStore, t *testing.T) {
 		fmt.Sprintf("%s.pub", getProxyKeyFilename(testId)),
 	}
 	for _, name := range expectedPaths {
-		absPath := store.getFilePath(name)
+		absPath := store.getPrivateKeyFilePath(name)
 		exists, err := utils.FileExists(absPath)
 		if err != nil {
 			t.Fatal(err)
@@ -154,10 +154,10 @@ func testReset(store *FilesystemKeyStore, t *testing.T) {
 		t.Fatal(err)
 	}
 	store.Reset()
-	if err := os.Remove(store.getFilePath(getServerKeyFilename(testId))); err != nil {
+	if err := os.Remove(store.getPrivateKeyFilePath(getServerKeyFilename(testId))); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.Remove(fmt.Sprintf("%s.pub", store.getFilePath(getServerKeyFilename(testId)))); err != nil {
+	if err := os.Remove(fmt.Sprintf("%s.pub", store.getPublicKeyFilePath(getServerKeyFilename(testId)))); err != nil {
 		t.Fatal(err)
 	}
 
@@ -167,22 +167,34 @@ func testReset(store *FilesystemKeyStore, t *testing.T) {
 }
 
 func TestFilesystemKeyStore(t *testing.T) {
-	keyDirectory := fmt.Sprintf(".%s%s", string(filepath.Separator), "keys")
-	os.MkdirAll(keyDirectory, 0700)
+	privateKeyDirectory := fmt.Sprintf(".%s%s", string(filepath.Separator), "keys")
+	os.MkdirAll(privateKeyDirectory, 0700)
 	defer func() {
-		os.RemoveAll(keyDirectory)
+		os.RemoveAll(privateKeyDirectory)
 	}()
+
 	encryptor, err := NewSCellKeyEncryptor([]byte("some key"))
 	if err != nil {
 		t.Fatal(err)
 	}
-	store, err := NewFilesystemKeyStore(keyDirectory, encryptor)
+	publicKeyDirectory := fmt.Sprintf(".%s%s", string(filepath.Separator), "public_keys")
+	os.MkdirAll(publicKeyDirectory, 0700)
+	defer func() {
+		os.RemoveAll(publicKeyDirectory)
+	}()
+	generalStore, err := NewFilesystemKeyStore(privateKeyDirectory, encryptor)
 	if err != nil {
-		t.Fatal("error")
+		t.Fatal(err)
 	}
-	testGeneral(store, t)
-	testGeneratingDataEncryptionKeys(store, t)
-	testGenerateProxyKeys(store, t)
-	testGenerateServerKeys(store, t)
-	testReset(store, t)
+	splitKeysStore, err := NewFilesystemKeyStoreTwoPath(privateKeyDirectory, publicKeyDirectory, encryptor)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, store := range []*FilesystemKeyStore{generalStore, splitKeysStore} {
+		testGeneral(store, t)
+		testGeneratingDataEncryptionKeys(store, t)
+		testGenerateProxyKeys(store, t)
+		testGenerateServerKeys(store, t)
+		testReset(store, t)
+	}
 }
