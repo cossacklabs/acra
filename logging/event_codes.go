@@ -6,6 +6,7 @@ const (
 
 	// 500 .. 600 errors
 	EventCodeErrorGeneral = 500
+	EventCodeErrorWrongParam = 501
 
 	// processes
 	EventCodeErrorCantStartService             = 505
@@ -46,7 +47,10 @@ const (
 	EventCodeErrorCantParseRequestData    = 552
 	EventCodeErrorCantGetCurrentConfig    = 553
 	EventCodeErrorCantSetNewConfig        = 554
-	EventCodeErrorCantDumpConfig          = 555
+	EventCodeErrorCantHashPassword        = 555
+	EventCodeErrorCantGetAuthData         = 556
+	EventCodeErrorCantParseAuthData       = 557
+	EventCodeErrorCantDumpConfig          = 558
 
 	// firewall
 	EventCodeErrorFirewallQueryIsNotAllowed = 560

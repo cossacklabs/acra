@@ -26,9 +26,15 @@ import (
 	"fmt"
 	"github.com/cossacklabs/acra/cmd"
 	"github.com/cossacklabs/acra/keystore"
+	"github.com/cossacklabs/acra/utils"
 	"github.com/cossacklabs/acra/zone"
+	"github.com/cossacklabs/themis/gothemis/cell"
 	"github.com/cossacklabs/themis/gothemis/keys"
 	"syscall"
+)
+
+const (
+	RESPONSE_500_ERROR = "HTTP/1.1 500 Server error\r\n\r\n\r\n\r\n"
 )
 
 type ClientCommandsSession struct {
@@ -62,6 +68,7 @@ func (clientSession *ClientCommandsSession) close() {
 func (clientSession *ClientCommandsSession) HandleSession() {
 	reader := bufio.NewReader(clientSession.connection)
 	req, err := http.ReadRequest(reader)
+	// req = clientSession.connection.Write(*http.ResponseWriter)
 	if err != nil {
 
 		log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorGeneral).
@@ -71,7 +78,7 @@ func (clientSession *ClientCommandsSession) HandleSession() {
 	}
 	response := "HTTP/1.1 404 Not Found\r\n\r\nincorrect request\r\n\r\n"
 
-	log.Debugln(req.URL.Path)
+	log.Debugf("Incoming API request to %v", req.URL.Path)
 
 	switch req.URL.Path {
 	case "/getNewZone":
@@ -89,13 +96,54 @@ func (clientSession *ClientCommandsSession) HandleSession() {
 		clientSession.keystorage.Reset()
 		response = "HTTP/1.1 200 OK Found\r\n\r\n"
 		log.Debugln("Cleared key storage cache")
+	case "/loadAuthData":
+		response = RESPONSE_500_ERROR
+		masterKey, err := keystore.GetMasterKeyFromEnvironment()
+		if err != nil {
+			log.WithError(err).Error("loadAuthData: can't get master key from environment")
+			break
+		}
+		encryptor, err := keystore.NewSCellKeyEncryptor(masterKey)
+		if err != nil {
+			log.WithError(err).Error("loadAuthData: can't initialize scell encryptor")
+			break
+		}
+		keysStore, err := keystore.NewFilesystemKeyStore(clientSession.config.GetKeysDir(), encryptor)
+		if err != nil {
+			log.WithError(err).Error("loadAuthData: keystore.NewFilesystemKeyStore")
+			response = RESPONSE_500_ERROR
+			break
+		}
+		if err != nil {
+			panic(err)
+		}
+		key, err := keysStore.GetAuthKey(false)
+		if err != nil {
+			log.WithError(err).Error("loadAuthData: keystore.GetAuthKey()")
+			response = RESPONSE_500_ERROR
+			break
+		}
+		authDataCrypted, err := getAuthDataFromFile(*authPath)
+		if err != nil {
+			log.Warningf("%v\n", utils.ErrorMessage("loadAuthData: no auth data", err))
+			response = RESPONSE_500_ERROR
+			break
+		}
+		SecureCell := cell.New(key, cell.CELL_MODE_SEAL)
+		authData, err := SecureCell.Unprotect(authDataCrypted, nil, nil)
+		if err != nil {
+			log.WithError(err).Error("loadAuthData: SecureCell.Unprotect")
+
+			break
+		}
+		response = fmt.Sprintf("HTTP/1.1 200 OK Found\r\n\r\n%s\r\n\r\n", authData)
 	case "/getConfig":
 		log.Debugln("Got /getConfig request")
 		jsonOutput, err := clientSession.config.ToJson()
 		if err != nil {
 			log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorGeneral).
 				Warningln("Can't convert config to JSON")
-			response = "HTTP/1.1 500 Server error\r\n\r\n\r\n\r\n"
+			response = RESPONSE_500_ERROR
 		} else {
 			log.Debugln("Handled request correctly")
 			log.Debugln(string(jsonOutput))
@@ -109,7 +157,7 @@ func (clientSession *ClientCommandsSession) HandleSession() {
 		if err != nil {
 			log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorGeneral).
 				Warningln("Can't convert config from incoming")
-			response = "HTTP/1.1 500 Server error\r\n\r\n\r\n\r\n"
+			response = RESPONSE_500_ERROR
 			return
 		}
 		// set config values
@@ -125,7 +173,7 @@ func (clientSession *ClientCommandsSession) HandleSession() {
 		if err != nil {
 			log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantDumpConfig).
 				Errorln("DumpConfig failed")
-			response = "HTTP/1.1 500 Server error\r\n\r\n\r\n\r\n"
+			response = RESPONSE_500_ERROR
 			return
 
 		}
