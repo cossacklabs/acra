@@ -24,9 +24,6 @@ jobs:
       TEST_DB_USER: test
       TEST_DB_USER_PASSWORD: test
       TEST_DB_NAME: test
-      # random 32 byte key in base64 format
-      # python -c "import os, base64; print(base64.b64encode(os.urandom(32)).decode('ascii'))"
-      ACRA_MASTER_KEY: D0ETGk1ZkabmtZGWuofVIPmFGncSuRSyewV1jYu7Ch4=
     steps:
     # prepare
       - run: sudo apt-get update && sudo DEBIAN_FRONTEND=noninteractive apt-get -y install libssl-dev python python-setuptools python3 python3-setuptools python3-pip git rsync
