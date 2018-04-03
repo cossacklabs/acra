@@ -24,6 +24,7 @@ const (
 	VALID_CHARS           = "_- "
 	MAX_CLIENT_ID_LENGTH  = 256
 	MIN_CLIENT_ID_LENGTH  = 5
+	BASIC_AUTH_KEY_LENGTH = 32
 )
 
 var ErrInvalidClientId = errors.New("Invalid client id")
@@ -58,8 +59,8 @@ type KeyStore interface {
 	GenerateServerKeys(id []byte) error
 	// generate key pair for data encryption/decryption
 	GenerateDataEncryptionKeys(id []byte) error
-
 	GetPoisonKeyPair() (*keys.Keypair, error)
 
+	GetAuthKey(remove bool) ([]byte, error)
 	Reset()
 }

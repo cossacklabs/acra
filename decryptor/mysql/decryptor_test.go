@@ -48,6 +48,9 @@ func (keystore *testKeystore) GenerateServerKeys(id []byte) error {
 func (keystore *testKeystore) GenerateDataEncryptionKeys(id []byte) error {
 	return nil
 }
+func (keystore *testKeystore) GetAuthKey(remove bool) ([]byte, error) {
+	return nil, nil
+}
 func (keystore *testKeystore) Reset() {}
 
 func getDecryptor(keystore keystore.KeyStore) *MySQLDecryptor {
