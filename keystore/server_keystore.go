@@ -81,13 +81,13 @@ func (store *FilesystemKeyStore) generateKey(filename string, length uint8) ([]b
 		log.Error(err)
 		return nil, err
 	}
-	dirpath := filepath.Dir(store.getFilePath(filename))
+	dirpath := filepath.Dir(store.getPrivateKeyFilePath(filename))
 	err = os.MkdirAll(dirpath, 0700)
 	if err != nil {
 		log.Error(err)
 		return nil, err
 	}
-	err = ioutil.WriteFile(store.getFilePath(filename), randomBytes, 0600)
+	err = ioutil.WriteFile(store.getPrivateKeyFilePath(filename), randomBytes, 0600)
 	if err != nil {
 		log.Error(err)
 		return nil, err
@@ -287,7 +287,7 @@ func (store *FilesystemKeyStore) GetPoisonKeyPair() (*keys.Keypair, error) {
 }
 
 func (store *FilesystemKeyStore) GetAuthKey(remove bool) ([]byte, error) {
-	keyPath := store.getFilePath(BASIC_AUTH_KEY_FILENAME)
+	keyPath := store.getPrivateKeyFilePath(BASIC_AUTH_KEY_FILENAME)
 	keyExists, err := utils.FileExists(keyPath)
 	if err != nil {
 		log.Error(err)
