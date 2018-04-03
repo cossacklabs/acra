@@ -987,6 +987,7 @@ class TestKeyNonExistence(BaseTestCase):
 
 class BasePoisonRecordTest(BaseTestCase):
     SHUTDOWN = True
+    TEST_DATA_LOG = True
 
     def setUp(self):
         super(BasePoisonRecordTest, self).setUp()
