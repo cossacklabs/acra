@@ -58,6 +58,9 @@ rollback_output_table = sa.Table('acra_rollback_output', metadata,
 
 zones = []
 poison_record = None
+master_key = None
+ACRA_MASTER_KEY_VAR_NAME = 'ACRA_MASTER_KEY'
+MASTER_KEY_PATH = 'master.key'
 POISON_KEY_PATH = '.poison_key/poison_key'
 
 SETUP_SQL_COMMAND_TIMEOUT = 0.1
@@ -120,6 +123,22 @@ def get_connect_args(port=5432, sslmode=None, **kwargs):
         args['sslmode'] = sslmode if sslmode else SSLMODE
     args.update(kwargs)
     return args
+
+
+def get_master_key():
+    """
+    return master key in base64 format if generated or generate and return
+    """
+    global master_key
+    if not master_key:
+        master_key = os.environ.get(ACRA_MASTER_KEY_VAR_NAME)
+        if not master_key:
+            subprocess.check_output([
+                './acra_genkeys', '--master_key={}'.format(MASTER_KEY_PATH)])
+            with open(MASTER_KEY_PATH, 'rb') as f:
+                master_key = b64encode(f.read()).decode('ascii')
+    return master_key
+
 
 def get_poison_record():
     """generate one poison record for speed up tests and don't create subprocess
@@ -279,6 +298,8 @@ def setUpModule():
                     raise
                 continue
 
+    # must be before any call of key generators or forks of acra/proxy servers
+    os.environ.setdefault(ACRA_MASTER_KEY_VAR_NAME, get_master_key())
     # first keypair for using without zones
     assert create_client_keypair('keypair1') == 0
     assert create_client_keypair('keypair2') == 0
@@ -288,6 +309,7 @@ def setUpModule():
     zones.append(json.loads(subprocess.check_output(
         ['./acra_addzone'], cwd=os.getcwd(), timeout=PROCESS_CALL_TIMEOUT).decode('utf-8')))
     socket.setdefaulttimeout(SOCKET_CONNECT_TIMEOUT)
+
 
 def tearDownModule():
     import shutil
