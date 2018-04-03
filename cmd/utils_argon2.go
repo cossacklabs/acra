@@ -12,32 +12,27 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package main
+package cmd
 
-import (
-	"errors"
-	"fmt"
-	"io/ioutil"
-	"github.com/cossacklabs/acra/utils"
-)
+import "golang.org/x/crypto/argon2"
 
-func getAuthDataFromFile(authPath string) (data []byte, err error) {
-	configPath, err := utils.AbsPath(authPath)
+func InitArgon2Params() (Argon2Params) {
+	var p Argon2Params
+	p.Time = uint32(ACRA_CONFIGUI_AUTH_ARGON2_TIME)
+	p.Memory = uint32(ACRA_CONFIGUI_AUTH_ARGON2_MEMORY)
+	p.Threads = uint8(ACRA_CONFIGUI_AUTH_ARGON2_THREADS)
+	p.Length = uint32(ACRA_CONFIGUI_AUTH_ARGON2_LENGTH)
+	return p
+}
+
+func HashArgon2(password string, salt string, p Argon2Params) (hash []byte, err error) {
+	passwordBytes := argon2.IDKey([]byte(password), []byte(salt),
+		p.Time,
+		p.Memory,
+		p.Threads,
+		p.Length)
 	if err != nil {
-		return nil, err
+		return
 	}
-	exists, err := utils.FileExists(configPath)
-	if err != nil {
-		return nil, err
-	}
-	if exists {
-		fileContent, err := ioutil.ReadFile(configPath)
-		if err != nil {
-			return nil, err
-		}
-		data = fileContent
-		return data, nil
-	}
-	err = errors.New(fmt.Sprintf("No auth config [%v]", authPath))
-	return nil, err
+	return passwordBytes, nil
 }

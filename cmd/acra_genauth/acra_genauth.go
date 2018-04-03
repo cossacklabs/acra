@@ -31,14 +31,18 @@ import (
 type HashedPasswords map[string]string
 
 const (
-	PasswordSeparator = ":"
-	LineSeparator     = "\n"
+	AuthFieldSeparator       = ":"
+	AuthArgon2ParamSeparator = ","
+	LineSeparator            = "\n"
+	SaltLength               = 16
+	AuthFieldCount           = 4
+	Space                    = " "
 )
 
 func (hp HashedPasswords) Bytes() (passwordBytes []byte) {
 	passwordBytes = []byte{}
 	for name, hash := range hp {
-		passwordBytes = append(passwordBytes, []byte(name+PasswordSeparator+hash+LineSeparator)...)
+		passwordBytes = append(passwordBytes, []byte(name+AuthFieldSeparator+hash+LineSeparator)...)
 	}
 	return passwordBytes
 }
@@ -53,14 +57,14 @@ func (hp HashedPasswords) WriteToFile(file string, keystore *keystore.Filesystem
 	if err != nil {
 		return err
 	}
-	return ioutil.WriteFile(file, crypted, 0644)
+	return ioutil.WriteFile(file, crypted, 0600)
 }
 
 func (hp HashedPasswords) SetPassword(name, password string) (err error) {
 	if len(password) == 0 {
 		return errors.New("passwords is empty")
 	}
-	salt := cmd.RandomStringBytes(16)
+	salt := cmd.RandomStringBytes(SaltLength)
 	argon2Params := cmd.InitArgon2Params()
 	hashBytes, err := cmd.HashArgon2(password, salt, argon2Params)
 	if err != nil {
@@ -70,7 +74,7 @@ func (hp HashedPasswords) SetPassword(name, password string) (err error) {
 		return err
 	}
 	a := cmd.UserAuth{Salt: salt, Hash: hashBytes, Argon2Params: argon2Params}
-	hp[name] = a.UserAuthString(":", ",")
+	hp[name] = a.UserAuthString(AuthFieldSeparator, AuthArgon2ParamSeparator)
 	return nil
 }
 
@@ -92,28 +96,27 @@ func ParseHtpasswdFile(file string, keystore *keystore.FilesystemKeyStore) (pass
 }
 
 func ParseHtpasswd(htpasswdBytes []byte) (passwords HashedPasswords, err error) {
-	authFieldsCount := 4
 	lines := strings.Split(string(htpasswdBytes), LineSeparator)
 	passwords = make(map[string]string)
 	for index, line := range lines {
-		line = strings.Trim(line, " ")
+		line = strings.Trim(line, Space)
 		if len(line) == 0 {
 			continue
 		}
-		parts := strings.Split(line, PasswordSeparator)
-		if len(parts) != authFieldsCount {
-			err = errors.New(fmt.Sprintf("wrong line no. %d, unexpected number (%v) of splitted parts split by %v", index+1, len(parts), PasswordSeparator))
+		parts := strings.Split(line, AuthFieldSeparator)
+		if len(parts) != AuthFieldCount {
+			err = errors.New(fmt.Sprintf("wrong line no. %d, unexpected number (%v) of splitted parts split by %v", index+1, len(parts), AuthFieldSeparator))
 			return
 		}
 		for i, part := range parts {
-			parts[i] = strings.Trim(part, " ")
+			parts[i] = strings.Trim(part, Space)
 		}
 		_, alreadyExists := passwords[parts[0]]
 		if alreadyExists {
 			err = errors.New(fmt.Sprintf("wrong line no. %d, user (%v) already defined", index, parts[0]))
 			return
 		}
-		passwords[parts[0]] = strings.Join(parts[1:authFieldsCount], PasswordSeparator)
+		passwords[parts[0]] = strings.Join(parts[1:AuthFieldCount], AuthFieldSeparator)
 	}
 	return
 }
@@ -151,12 +154,18 @@ func main() {
 	set := flag.Bool("set", false, "Add/update password for user")
 	remove := flag.Bool("remove", false, "Remove user")
 	user := flag.String("user", "", "User")
-	pwd := flag.String("pwd", "", "Password")
+	password := flag.String("password", "", "Password")
 	filePath := flag.String("file", cmd.DEFAULT_ACRA_AUTH_PATH, "Auth file")
 	keysDir := flag.String("keys_dir", keystore.DEFAULT_KEY_DIR_SHORT, "Folder from which will be loaded keys")
+	debug := flag.Bool("d", false, "Turn on debug logging")
 	flag.Parse()
 	flags := []*bool{set, remove}
-	logging.SetLogLevel(logging.LOG_VERBOSE)
+
+	if *debug {
+		logging.SetLogLevel(logging.LOG_DEBUG)
+	} else {
+		logging.SetLogLevel(logging.LOG_VERBOSE)
+	}
 
 	keyStore, err := keystore.NewFilesystemKeyStore(*keysDir)
 	if err != nil {
@@ -169,34 +178,34 @@ func main() {
 		if *o {
 			n += 1
 			if n > 1 {
-				log.Errorln("Too many options, use one of --set or --remove")
+				log.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorWrongParam).Errorln("Too many options, use one of --set or --remove")
 				os.Exit(1)
 			}
 		}
 	}
 
 	if *user == "" {
-		log.Errorln("Empty user name/login")
+		log.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorWrongParam).Errorln("Empty user name/login")
 		flag.Usage()
 		os.Exit(1)
 	}
 
 	if *set {
-		if *pwd == "" {
-			log.Errorln("Empty password")
+		if *password == "" {
+			log.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorWrongParam).Errorln("Empty password")
 			flag.Usage()
 			os.Exit(1)
 		}
-		err := SetPassword(*filePath, *user, *pwd, keyStore)
+		err := SetPassword(*filePath, *user, *password, keyStore)
 		if err != nil {
-			log.WithError(err).Errorln("SetPassword")
+			log.WithError(err).Errorln("SetPassword failed")
 			os.Exit(1)
 		}
 	}
 	if *remove {
 		err := RemoveUser(*filePath, *user, keyStore)
 		if err != nil {
-			log.WithError(err).Errorln("RemoveUser")
+			log.WithError(err).Errorln("RemoveUser failed")
 			os.Exit(1)
 		}
 	}

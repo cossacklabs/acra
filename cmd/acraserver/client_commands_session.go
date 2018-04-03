@@ -74,7 +74,7 @@ func (clientSession *ClientCommandsSession) HandleSession() {
 	}
 	response := "HTTP/1.1 404 Not Found\r\n\r\nincorrect request\r\n\r\n"
 
-	log.Debugln(req.URL.Path)
+	log.Debugf("Incoming API request to %v", req.URL.Path)
 
 	switch req.URL.Path {
 	case "/getNewZone":
@@ -92,10 +92,10 @@ func (clientSession *ClientCommandsSession) HandleSession() {
 		clientSession.keystorage.Reset()
 		response = "HTTP/1.1 200 OK Found\r\n\r\n"
 		log.Debugln("Cleared key storage cache")
-	case "/getAuthData":
+	case "/loadAuthData":
 		keysStore, err := keystore.NewFilesystemKeyStore(clientSession.config.GetKeysDir())
 		if err != nil {
-			log.WithError(err).Error("getAuthData: keystore.NewFilesystemKeyStore")
+			log.WithError(err).Error("loadAuthData: keystore.NewFilesystemKeyStore")
 			response = "HTTP/1.1 500 Server error\r\n\r\n\r\n\r\n"
 			break
 		}
@@ -104,20 +104,20 @@ func (clientSession *ClientCommandsSession) HandleSession() {
 		}
 		key, err := keysStore.GetAuthKey(false)
 		if err != nil {
-			log.WithError(err).Error("getAuthData: keystore.GetAuthKey()")
+			log.WithError(err).Error("loadAuthData: keystore.GetAuthKey()")
 			response = "HTTP/1.1 500 Server error\r\n\r\n\r\n\r\n"
 			break
 		}
-		authDataCrypted, err := getAuthData(*authPath)
+		authDataCrypted, err := getAuthDataFromFile(*authPath)
 		if err != nil {
-			log.Warningf("%v\n", utils.ErrorMessage("getAuthData: no auth data", err))
+			log.Warningf("%v\n", utils.ErrorMessage("loadAuthData: no auth data", err))
 			response = "HTTP/1.1 500 Server error\r\n\r\n\r\n\r\n"
 			break
 		}
 		SecureCell := cell.New(key, cell.CELL_MODE_SEAL)
 		authData, err := SecureCell.Unprotect(authDataCrypted, nil, nil)
 		if err != nil {
-			log.WithError(err).Error("getAuthData: SecureCell.Unprotect")
+			log.WithError(err).Error("loadAuthData: SecureCell.Unprotect")
 			response = "HTTP/1.1 500 Server error\r\n\r\n\r\n\r\n"
 			break
 		}
