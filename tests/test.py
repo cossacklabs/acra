@@ -254,6 +254,8 @@ BINARIES = [
            build_args=DEFAULT_BUILD_ARGS),
     Binary(name='acra_rollback', from_version=ACRA_ROLLBACK_MIN_VERSION,
            build_args=DEFAULT_BUILD_ARGS),
+    Binary(name='acra_genauth', from_version=ACRA_ROLLBACK_MIN_VERSION,
+           build_args=DEFAULT_BUILD_ARGS),
 ]
 
 def clean_binaries():

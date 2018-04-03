@@ -17,15 +17,15 @@ package main
 import (
 	"errors"
 	"flag"
-	log "github.com/sirupsen/logrus"
-	"os"
-	"github.com/cossacklabs/acra/logging"
-	"github.com/cossacklabs/acra/cmd"
-	"github.com/cossacklabs/themis/gothemis/cell"
-	"io/ioutil"
-	"strings"
 	"fmt"
+	"github.com/cossacklabs/acra/cmd"
 	"github.com/cossacklabs/acra/keystore"
+	"github.com/cossacklabs/acra/logging"
+	"github.com/cossacklabs/themis/gothemis/cell"
+	log "github.com/sirupsen/logrus"
+	"io/ioutil"
+	"os"
+	"strings"
 )
 
 type HashedPasswords map[string]string
@@ -167,7 +167,17 @@ func main() {
 		logging.SetLogLevel(logging.LOG_VERBOSE)
 	}
 
-	keyStore, err := keystore.NewFilesystemKeyStore(*keysDir)
+	masterKey, err := keystore.GetMasterKeyFromEnvironment()
+	if err != nil {
+		log.WithError(err).Errorln("can't load master key")
+		os.Exit(1)
+	}
+	encryptor, err := keystore.NewSCellKeyEncryptor(masterKey)
+	if err != nil {
+		log.WithError(err).Errorln("can't initialize scell encryptor")
+		os.Exit(1)
+	}
+	keyStore, err := keystore.NewFilesystemKeyStore(*keysDir, encryptor)
 	if err != nil {
 		log.WithError(err).Errorln("NewFilesystemKeyStore")
 		os.Exit(1)
