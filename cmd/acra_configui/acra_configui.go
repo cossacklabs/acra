@@ -343,6 +343,7 @@ func loadAuthData() (err error) {
 		Timeout: time.Second * HTTP_TIMEOUT,
 	}
 	serverResponse, err := netClient.Get(fmt.Sprintf("http://%v:%v/loadAuthData", *acraHost, *acraPort))
+	defer serverResponse.Body.Close()
 	if err != nil {
 		log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantGetAuthData).
 			Error("Error while getting auth data from Acraserver")

@@ -21,6 +21,8 @@ import (
 	"github.com/cossacklabs/acra/utils"
 )
 
+var ErrGetAuthDataFromFile = errors.New(fmt.Sprintf("No auth config [%v]", authPath))
+
 func getAuthDataFromFile(authPath string) (data []byte, err error) {
 	configPath, err := utils.AbsPath(authPath)
 	if err != nil {
@@ -38,6 +40,5 @@ func getAuthDataFromFile(authPath string) (data []byte, err error) {
 		data = fileContent
 		return data, nil
 	}
-	err = errors.New(fmt.Sprintf("No auth config [%v]", authPath))
-	return nil, err
+	return nil, ErrGetAuthDataFromFile
 }

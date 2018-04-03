@@ -59,8 +59,8 @@ type KeyStore interface {
 	GenerateServerKeys(id []byte) error
 	// generate key pair for data encryption/decryption
 	GenerateDataEncryptionKeys(id []byte) error
-
 	GetPoisonKeyPair() (*keys.Keypair, error)
 
+	GetAuthKey(remove bool) ([]byte, error)
 	Reset()
 }
