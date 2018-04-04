@@ -874,8 +874,9 @@ class TestConnectionClosing(BaseTestCase):
         # try create new connection
         connection2 = self.get_connection()
         self.check_count(cursor, current_connection_count + 1)
-
+        connection2.cursor().close()
         connection2.close()
+
         self.check_count(cursor, current_connection_count)
         cursor.close()
         connection.close()
