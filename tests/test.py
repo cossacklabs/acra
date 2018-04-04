@@ -65,6 +65,7 @@ FORK_FAIL_SLEEP = 0.1
 CONNECTION_FAIL_SLEEP = 0.1
 SOCKET_CONNECT_TIMEOUT = 10
 KILL_WAIT_TIMEOUT = 10
+BETWEEN_TESTS_SLEEP = 0.5
 
 TEST_WITH_TLS = os.environ.get('TEST_TLS', 'off').lower() == 'on'
 
@@ -518,7 +519,9 @@ class BaseTestCase(unittest.TestCase):
         except:
             pass
         for engine in getattr(self, 'engines', []):
-            engine.dispose()
+            engine.dispose()     
+        # sleep before next test
+        time.sleep(BETWEEN_TESTS_SLEEP)
 
     def get_random_data(self):
         size = random.randint(100, DATA_MAX_SIZE)
@@ -763,6 +766,8 @@ class TestConnectionClosing(BaseTestCase):
         if not self.EXTERNAL_ACRA and hasattr(self, 'acra'):
             procs.append(self.acra)
         stop_process(procs)
+        # sleep before next test
+        time.sleep(BETWEEN_TESTS_SLEEP)
 
     def getActiveConnectionCount(self, cursor):
         if TEST_MYSQL:
@@ -901,6 +906,8 @@ class TestKeyNonExistence(BaseTestCase):
     def tearDown(self):
         if hasattr(self, 'acra'):
             stop_process(self.acra)
+        # sleep before next test
+        time.sleep(BETWEEN_TESTS_SLEEP)
 
     def delete_key(self, filename):
         os.remove('.acrakeys{sep}{name}'.format(sep=os.path.sep, name=filename))
@@ -1254,6 +1261,9 @@ class TestKeyStorageClearing(BaseTestCase):
         for engine in self.engines:
             engine.dispose()
 
+        # sleep before next test
+        time.sleep(BETWEEN_TESTS_SLEEP)
+
     def test_clearing(self):
         # execute any query for loading key by acra
         result = self.engine1.execute(sa.select([1]).limit(1))
@@ -1336,6 +1346,8 @@ class TestAcraRollback(BaseTestCase):
         self.engine_raw.dispose()
         if os.path.exists(self.output_filename):
             os.remove(self.output_filename)
+        # sleep before next test
+        time.sleep(BETWEEN_TESTS_SLEEP)
 
     def run_rollback(self, extra_args):
         args = ['./acra_rollback'] + self.default_rollback_args + extra_args
@@ -1558,6 +1570,8 @@ class SSLPostgresqlConnectionTest(HexFormatTest):
                 engine.dispose()
         except:
             pass
+        # sleep before next test
+        time.sleep(BETWEEN_TESTS_SLEEP)
 
 
 class SSLPostgresqlConnectionWithZoneTest(ZoneHexFormatTest,
@@ -1662,6 +1676,8 @@ class SSLMysqlConnectionTest(HexFormatTest):
                 engine.dispose()
         except:
             pass
+        # sleep before next test
+        time.sleep(BETWEEN_TESTS_SLEEP)
 
 
 class SSLMysqlConnectionWithZoneTest(ZoneHexFormatTest,
