@@ -50,11 +50,23 @@ func main() {
 	}
 	var keyStore keystore.KeyStore
 	if *fsKeystore {
-		keyStore, err = keystore.NewFilesystemKeyStore(output)
+		masterKey, err := keystore.GetMasterKeyFromEnvironment()
+		if err != nil {
+			log.WithError(err).Errorln("can't load master key")
+			os.Exit(1)
+		}
+		scellEncryptor, err := keystore.NewSCellKeyEncryptor(masterKey)
+		if err != nil {
+			log.WithError(err).Errorln("can't init scell encryptor")
+			os.Exit(1)
+		}
+		keyStore, err = keystore.NewFilesystemKeyStore(output, scellEncryptor)
 		if err != nil {
 			log.WithError(err).Errorln("can't create key store")
 			os.Exit(1)
 		}
+	} else {
+		panic("No more supported keystores")
 	}
 	id, publicKey, err := keyStore.GenerateZoneKey()
 	if err != nil {

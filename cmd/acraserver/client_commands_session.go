@@ -26,16 +26,21 @@ import (
 	"fmt"
 	"github.com/cossacklabs/acra/cmd"
 	"github.com/cossacklabs/acra/keystore"
+	"github.com/cossacklabs/acra/utils"
 	"github.com/cossacklabs/acra/zone"
+	"github.com/cossacklabs/themis/gothemis/cell"
 	"github.com/cossacklabs/themis/gothemis/keys"
 	"syscall"
-	"github.com/cossacklabs/acra/utils"
-	"github.com/cossacklabs/themis/gothemis/cell"
+)
+
+const (
+	RESPONSE_500_ERROR = "HTTP/1.1 500 Server error\r\n\r\n\r\n\r\n"
 )
 
 type ClientCommandsSession struct {
 	ClientSession
-	Server *SServer
+	Server   *SServer
+	keystore keystore.KeyStore
 }
 
 func NewClientCommandsSession(keystorage keystore.KeyStore, config *Config, connection net.Conn) (*ClientCommandsSession, error) {
@@ -43,7 +48,7 @@ func NewClientCommandsSession(keystorage keystore.KeyStore, config *Config, conn
 	if err != nil {
 		return nil, err
 	}
-	return &ClientCommandsSession{ClientSession: *clientSession}, nil
+	return &ClientCommandsSession{ClientSession: *clientSession, keystore: keystorage}, nil
 
 }
 
@@ -93,32 +98,24 @@ func (clientSession *ClientCommandsSession) HandleSession() {
 		response = "HTTP/1.1 200 OK Found\r\n\r\n"
 		log.Debugln("Cleared key storage cache")
 	case "/loadAuthData":
-		keysStore, err := keystore.NewFilesystemKeyStore(clientSession.config.GetKeysDir())
-		if err != nil {
-			log.WithError(err).Error("loadAuthData: keystore.NewFilesystemKeyStore")
-			response = "HTTP/1.1 500 Server error\r\n\r\n\r\n\r\n"
-			break
-		}
-		if err != nil {
-			panic(err)
-		}
-		key, err := keysStore.GetAuthKey(false)
+		response = RESPONSE_500_ERROR
+		key, err := clientSession.keystore.GetAuthKey(false)
 		if err != nil {
 			log.WithError(err).Error("loadAuthData: keystore.GetAuthKey()")
-			response = "HTTP/1.1 500 Server error\r\n\r\n\r\n\r\n"
+			response = RESPONSE_500_ERROR
 			break
 		}
 		authDataCrypted, err := getAuthDataFromFile(*authPath)
 		if err != nil {
 			log.Warningf("%v\n", utils.ErrorMessage("loadAuthData: no auth data", err))
-			response = "HTTP/1.1 500 Server error\r\n\r\n\r\n\r\n"
+			response = RESPONSE_500_ERROR
 			break
 		}
 		SecureCell := cell.New(key, cell.CELL_MODE_SEAL)
 		authData, err := SecureCell.Unprotect(authDataCrypted, nil, nil)
 		if err != nil {
 			log.WithError(err).Error("loadAuthData: SecureCell.Unprotect")
-			response = "HTTP/1.1 500 Server error\r\n\r\n\r\n\r\n"
+
 			break
 		}
 		response = fmt.Sprintf("HTTP/1.1 200 OK Found\r\n\r\n%s\r\n\r\n", authData)
@@ -128,7 +125,7 @@ func (clientSession *ClientCommandsSession) HandleSession() {
 		if err != nil {
 			log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorGeneral).
 				Warningln("Can't convert config to JSON")
-			response = "HTTP/1.1 500 Server error\r\n\r\n\r\n\r\n"
+			response = RESPONSE_500_ERROR
 		} else {
 			log.Debugln("Handled request correctly")
 			log.Debugln(string(jsonOutput))
@@ -142,7 +139,7 @@ func (clientSession *ClientCommandsSession) HandleSession() {
 		if err != nil {
 			log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorGeneral).
 				Warningln("Can't convert config from incoming")
-			response = "HTTP/1.1 500 Server error\r\n\r\n\r\n\r\n"
+			response = RESPONSE_500_ERROR
 			return
 		}
 		// set config values
@@ -158,7 +155,7 @@ func (clientSession *ClientCommandsSession) HandleSession() {
 		if err != nil {
 			log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantDumpConfig).
 				Errorln("DumpConfig failed")
-			response = "HTTP/1.1 500 Server error\r\n\r\n\r\n\r\n"
+			response = RESPONSE_500_ERROR
 			return
 
 		}
