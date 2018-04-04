@@ -805,22 +805,25 @@ class TestConnectionClosing(BaseTestCase):
 
         if TEST_MYSQL:
             query = "SHOW VARIABLES WHERE `variable_name` = 'max_connections';"
-            cursor = connection.cursor()
-            cursor.execute(query)
-            return int(cursor.fetchone()[1])
+            with connection.cursor() as cursor:
+                cursor.execute(query)
+                return int(cursor.fetchone()[1])
 
         else:
-            cursor = connection.cursor()
-            cursor.execute('select setting from pg_settings where name=\'max_connections\';')
-            pg_max_connections = int(cursor.fetchone()[0])
-            cursor.execute('select rolconnlimit from pg_roles where rolname = current_user;')
-            pg_rolconnlimit = int(cursor.fetchone()[0])
-            cursor.close()
-            if created_connection:
-                connection.close()
-            if pg_rolconnlimit <= 0:
-                return pg_max_connections
-            return min(pg_max_connections, pg_rolconnlimit)
+            with connection.cursor() as cursor:
+                try:
+                    cursor.execute('select setting from pg_settings where name=\'max_connections\';')
+                    pg_max_connections = int(cursor.fetchone()[0])
+                    cursor.execute('select rolconnlimit from pg_roles where rolname = current_user;')
+                    pg_rolconnlimit = int(cursor.fetchone()[0])
+                    cursor.close()
+                    if pg_rolconnlimit <= 0:
+                        return pg_max_connections
+                    return min(pg_max_connections, pg_rolconnlimit)
+                except:
+                    if created_connection:
+                        connection.close()
+                    raise
 
     def check_count(self, cursor, expected):
         # give a time to close connections via postgresql
@@ -830,6 +833,7 @@ class TestConnectionClosing(BaseTestCase):
         for i in range(try_count):
             try:
                 self.assertEqual(self.getActiveConnectionCount(cursor), expected)
+                break
             except (AssertionError):
                 if i == (try_count - 1):
                     raise
@@ -838,72 +842,70 @@ class TestConnectionClosing(BaseTestCase):
 
     def checkConnectionLimit(self, connection_limit):
         connections = []
-        exception = None
         try:
-            for i in range(connection_limit):
-                connections.append(self.get_connection())
-        except Exception as exc:
-            exception = exc
-        self.assertIsNotNone(exception)
+            exception = None
+            try:
+                for i in range(connection_limit):
+                    connections.append(self.get_connection())
+            except Exception as exc:
+                exception = exc
 
-        is_correct_exception_message = False
-        if TEST_MYSQL:
-            exception_type = pymysql.err.OperationalError
-            correct_messages = [
-                'Too many connections'
-            ]
-            for message in correct_messages:
-                if exception.args[0] in [1203, 1040] and message in exception.args[1]:
-                    is_correct_exception_message = True
-                    break
-        else:
-            exception_type = psycopg2.OperationalError
-            # exception doesn't has any related code, only text messages
-            correct_messages = [
-                'FATAL:  too many connections for role',
-                'FATAL:  sorry, too many clients already',
-                'FATAL:  remaining connection slots are reserved for non-replication superuser connections'
-            ]
-            for message in correct_messages:
-                if message in exception.args[0]:
-                    is_correct_exception_message = True
-                    break
+            self.assertIsNotNone(exception)
 
-        self.assertIsInstance(exception, exception_type)
-        self.assertTrue(is_correct_exception_message)
+            is_correct_exception_message = False
+            if TEST_MYSQL:
+                exception_type = pymysql.err.OperationalError
+                correct_messages = [
+                    'Too many connections'
+                ]
+                for message in correct_messages:
+                    if exception.args[0] in [1203, 1040] and message in exception.args[1]:
+                        is_correct_exception_message = True
+                        break
+            else:
+                exception_type = psycopg2.OperationalError
+                # exception doesn't has any related code, only text messages
+                correct_messages = [
+                    'FATAL:  too many connections for role',
+                    'FATAL:  sorry, too many clients already',
+                    'FATAL:  remaining connection slots are reserved for non-replication superuser connections'
+                ]
+                for message in correct_messages:
+                    if message in exception.args[0]:
+                        is_correct_exception_message = True
+                        break
+
+            self.assertIsInstance(exception, exception_type)
+            self.assertTrue(is_correct_exception_message)
+        except:
+            for connection in connections:
+                connection.close()
+            raise
         return connections
 
+    def testClosingConnectionsWithDB(self):
+        with self.get_connection() as connection:
+            connection.autocommit = True
+            with connection.cursor() as cursor:
+                current_connection_count = self.getActiveConnectionCount(cursor)
 
-    def testClosingPostgreslConnections(self):
-        connection = self.get_connection()
+                with self.get_connection():
+                    self.assertEqual(self.getActiveConnectionCount(cursor),
+                                     current_connection_count+1)
+                    connection_limit = self.getConnectionLimit(connection)
 
-        connection.autocommit = True
-        cursor = connection.cursor()
-        current_connection_count = self.getActiveConnectionCount(cursor)
+                    created_connections = self.checkConnectionLimit(
+                        connection_limit)
+                    for conn in created_connections:
+                        conn.close()
 
-        connection2 = self.get_connection()
-        self.assertEqual(self.getActiveConnectionCount(cursor),
-                         current_connection_count+1)
-        connection_limit = self.getConnectionLimit(connection)
-        connections = [connection2]
+                self.check_count(cursor, current_connection_count)
 
-        created_connections = self.checkConnectionLimit(connection_limit)
+                # try create new connection
+                with self.get_connection():
+                    self.check_count(cursor, current_connection_count + 1)
 
-        for conn in connections + created_connections:
-            conn.close()
-
-        self.check_count(cursor, current_connection_count)
-
-        # try create new connection
-        connection2 = self.get_connection()
-        self.check_count(cursor, current_connection_count + 1)
-
-        connection2.close()
-        self.check_count(cursor, current_connection_count)
-        cursor.close()
-        connection.close()
-
-
+                self.check_count(cursor, current_connection_count)
 
 
 class TestKeyNonExistence(BaseTestCase):
