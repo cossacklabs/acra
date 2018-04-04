@@ -68,6 +68,7 @@ FORK_FAIL_SLEEP = 0.1
 CONNECTION_FAIL_SLEEP = 0.1
 SOCKET_CONNECT_TIMEOUT = 10
 KILL_WAIT_TIMEOUT = 10
+BETWEEN_TESTS_SLEEP = 0.5
 
 TEST_WITH_TLS = os.environ.get('TEST_TLS', 'off').lower() == 'on'
 
@@ -159,7 +160,7 @@ def create_client_keypair(name, only_server=False, only_client=False):
     return subprocess.call(args, cwd=os.getcwd(), timeout=PROCESS_CALL_TIMEOUT)
 
 
-def wait_connection(port, count=10, sleep=0.1):
+def wait_connection(port, count=10, sleep=0.3):
     """try connect to 127.0.0.1:port and close connection
     if can't then sleep on and try again (<count> times)
     if <count> times is failed than raise Exception
@@ -177,7 +178,7 @@ def wait_connection(port, count=10, sleep=0.1):
     raise Exception("can't wait connection")
 
 
-def wait_unix_socket(socket_path, count=10, sleep=0.1):
+def wait_unix_socket(socket_path, count=10, sleep=0.3):
     while count:
         try:
             connection = socket.socket(socket.AF_UNIX)
@@ -542,7 +543,9 @@ class BaseTestCase(unittest.TestCase):
         except:
             pass
         for engine in getattr(self, 'engines', []):
-            engine.dispose()
+            engine.dispose()     
+        # sleep before next test
+        time.sleep(BETWEEN_TESTS_SLEEP)
 
     def get_random_data(self):
         size = random.randint(100, DATA_MAX_SIZE)
@@ -787,6 +790,8 @@ class TestConnectionClosing(BaseTestCase):
         if not self.EXTERNAL_ACRA and hasattr(self, 'acra'):
             procs.append(self.acra)
         stop_process(procs)
+        # sleep before next test
+        time.sleep(BETWEEN_TESTS_SLEEP)
 
     def getActiveConnectionCount(self, cursor):
         if TEST_MYSQL:
@@ -890,6 +895,7 @@ class TestConnectionClosing(BaseTestCase):
         created_connections = self.checkConnectionLimit(connection_limit)
 
         for conn in connections + created_connections:
+            conn.cursor().close()
             conn.close()
 
         self.check_count(cursor, current_connection_count)
@@ -897,8 +903,9 @@ class TestConnectionClosing(BaseTestCase):
         # try create new connection
         connection2 = self.get_connection()
         self.check_count(cursor, current_connection_count + 1)
-
+        connection2.cursor().close()
         connection2.close()
+
         self.check_count(cursor, current_connection_count)
         cursor.close()
         connection.close()
@@ -923,6 +930,8 @@ class TestKeyNonExistence(BaseTestCase):
     def tearDown(self):
         if hasattr(self, 'acra'):
             stop_process(self.acra)
+        # sleep before next test
+        time.sleep(BETWEEN_TESTS_SLEEP)
 
     def delete_key(self, filename):
         os.remove('.acrakeys{sep}{name}'.format(sep=os.path.sep, name=filename))
@@ -1277,6 +1286,9 @@ class TestKeyStorageClearing(BaseTestCase):
         for engine in self.engines:
             engine.dispose()
 
+        # sleep before next test
+        time.sleep(BETWEEN_TESTS_SLEEP)
+
     def test_clearing(self):
         # execute any query for loading key by acra
         result = self.engine1.execute(sa.select([1]).limit(1))
@@ -1359,6 +1371,8 @@ class TestAcraRollback(BaseTestCase):
         self.engine_raw.dispose()
         if os.path.exists(self.output_filename):
             os.remove(self.output_filename)
+        # sleep before next test
+        time.sleep(BETWEEN_TESTS_SLEEP)
 
     def run_rollback(self, extra_args):
         args = ['./acra_rollback'] + self.default_rollback_args + extra_args
@@ -1581,6 +1595,8 @@ class SSLPostgresqlConnectionTest(HexFormatTest):
                 engine.dispose()
         except:
             pass
+        # sleep before next test
+        time.sleep(BETWEEN_TESTS_SLEEP)
 
 
 class SSLPostgresqlConnectionWithZoneTest(ZoneHexFormatTest,
@@ -1685,6 +1701,8 @@ class SSLMysqlConnectionTest(HexFormatTest):
                 engine.dispose()
         except:
             pass
+        # sleep before next test
+        time.sleep(BETWEEN_TESTS_SLEEP)
 
 
 class SSLMysqlConnectionWithZoneTest(ZoneHexFormatTest,
