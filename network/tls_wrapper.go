@@ -37,7 +37,14 @@ func (wrapper *TLSConnectionWrapper) WrapServer(conn net.Conn) (net.Conn, []byte
 }
 
 func NewTLSConfig(serverName string, caPath, keyPath, crtPath string) (*tls.Config, error) {
-	roots := x509.NewCertPool()
+	var roots *x509.CertPool
+	var err error
+
+	if roots, err = x509.SystemCertPool(); err != nil {
+		log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorGeneral).
+			Errorln("Can't load system ca certificates")
+		roots = x509.NewCertPool()
+	}
 	if caPath != "" {
 		caPem, err := ioutil.ReadFile(caPath)
 		if err != nil {
