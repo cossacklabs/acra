@@ -75,7 +75,7 @@ PG_UNIX_HOST = '/tmp'
 
 DB_USER = os.environ.get('TEST_DB_USER', 'postgres')
 DB_USER_PASSWORD = os.environ.get('TEST_DB_USER_PASSWORD', 'postgres')
-SSLMODE = os.environ.get('TEST_SSL_MODE', 'allow')
+SSLMODE = os.environ.get('TEST_SSL_MODE', 'require')
 TEST_MYSQL = bool(os.environ.get('TEST_MYSQL', False))
 if TEST_MYSQL:
     TEST_POSTGRESQL = False
@@ -234,17 +234,13 @@ ACRA_ROLLBACK_MIN_VERSION = "1.8.0"
 Binary = collections.namedtuple(
     'Binary', ['name', 'from_version', 'build_args'])
 
-TEST_ACRA_BIN_NAME='test-acraserver'
 
 BINARIES = [
     Binary(name='acraproxy', from_version=DEFAULT_VERSION,
            build_args=DEFAULT_BUILD_ARGS),
-    Binary(name='acraserver', from_version=DEFAULT_VERSION,
-           build_args=DEFAULT_BUILD_ARGS),
     # compile with Test=true to disable golang tls client server verification
     Binary(name='acraserver', from_version=DEFAULT_VERSION,
-           build_args=['-o', TEST_ACRA_BIN_NAME,
-                       '-ldflags', '-X main.TestOnly=true']),
+           build_args=['-ldflags', '-X main.TestOnly=true']),
 
     Binary(name='acra_addzone', from_version=DEFAULT_VERSION,
            build_args=DEFAULT_BUILD_ARGS),
@@ -1539,7 +1535,7 @@ class SSLPostgresqlConnectionTest(HexFormatTest):
             if not self.EXTERNAL_ACRA:
                 self.acra = self.fork_acra(
                     tls_key='tests/server.key', tls_cert='tests/server.crt',
-                    tls_ca='tests/server.key',
+                    tls_ca='tests/server.crt',
                     no_encryption=True, client_id='keypair1')
             self.engine1 = sa.create_engine(
                 get_postgresql_tcp_connection_string(self.ACRA_PORT, self.DB_NAME), connect_args=get_connect_args(port=self.ACRA_PORT))
@@ -1579,10 +1575,14 @@ class SSLPostgresqlConnectionTest(HexFormatTest):
 
         try:
             self.engine_raw.execute('delete from test;')
+        except:
+            traceback.print_exc()
+
+        try:
             for engine in self.engines:
                 engine.dispose()
         except:
-            pass
+            traceback.print_exc()
 
 
 class SSLPostgresqlConnectionWithZoneTest(ZoneHexFormatTest,
@@ -1617,9 +1617,6 @@ class SSLMysqlConnectionTest(HexFormatTest):
     def checkSkip(self):
         if not (TEST_WITH_TLS and TEST_MYSQL):
             self.skipTest("running tests without TLS")
-
-    def get_acraserver_bin_path(self):
-        return './{}'.format(TEST_ACRA_BIN_NAME)
 
     def setUp(self):
         self.checkSkip()

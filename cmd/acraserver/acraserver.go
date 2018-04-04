@@ -202,6 +202,7 @@ func main() {
 		// need for testing with mysql docker container that always generate new certificates
 		if TestOnly == TEST_MODE {
 			tlsConfig.InsecureSkipVerify = true
+			tlsConfig.ClientAuth = tls.NoClientCert
 			log.Warningln("only for tests!")
 		}
 	}
