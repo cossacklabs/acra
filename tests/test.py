@@ -43,6 +43,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(__file__)), 'wra
 
 from acrawriter import create_acrastruct
 
+
 DATA_MAX_SIZE = 10000
 # 200 is overhead of encryption (chosen manually)
 COLUMN_DATA_SIZE = DATA_MAX_SIZE + 200
@@ -69,6 +70,8 @@ FORK_FAIL_SLEEP = 0.1
 CONNECTION_FAIL_SLEEP = 0.1
 SOCKET_CONNECT_TIMEOUT = 10
 KILL_WAIT_TIMEOUT = 10
+CONNECT_TRY_COUNT = 3
+SQL_EXECUTE_TRY_COUNT = 5
 
 TEST_WITH_TLS = os.environ.get('TEST_TLS', 'off').lower() == 'on'
 
@@ -523,7 +526,7 @@ class BaseTestCase(unittest.TestCase):
                     except Exception:
                         time.sleep(SETUP_SQL_COMMAND_TIMEOUT)
                         count += 1
-                        if count == 3:
+                        if count == SQL_EXECUTE_TRY_COUNT:
                             raise
         except:
             self.tearDown()
@@ -784,11 +787,19 @@ class TestConnectionClosing(BaseTestCase):
             raise
 
     def get_connection(self):
-        if TEST_MYSQL:
-            return TestConnectionClosing.mysql_closing(
-                pymysql.connect(**get_connect_args(port=self.PROXY_PORT_1)))
-        else:
-            return psycopg2.connect(host=PG_UNIX_HOST, **get_connect_args(port=self.PROXY_PORT_1))
+        count = CONNECT_TRY_COUNT
+        while True:
+            try:
+                if TEST_MYSQL:
+                    return TestConnectionClosing.mysql_closing(
+                        pymysql.connect(**get_connect_args(port=self.PROXY_PORT_1)))
+                else:
+                    return psycopg2.connect(host=PG_UNIX_HOST, **get_connect_args(port=self.PROXY_PORT_1))
+            except:
+                count -= 1
+                if count == 0:
+                    raise
+                time.sleep(CONNECTION_FAIL_SLEEP)
 
     def tearDown(self):
         procs = []
@@ -839,7 +850,7 @@ class TestConnectionClosing(BaseTestCase):
         # give a time to close connections via postgresql
         # because performance where tests will run not always constant,
         # we wait try_count times. in best case it will not need to sleep
-        try_count = 5
+        try_count = SQL_EXECUTE_TRY_COUNT
         for i in range(try_count):
             try:
                 self.assertEqual(self.getActiveConnectionCount(cursor), expected)
@@ -1576,7 +1587,7 @@ class SSLPostgresqlConnectionTest(HexFormatTest):
                     except Exception:
                         time.sleep(SETUP_SQL_COMMAND_TIMEOUT)
                         count += 1
-                        if count == 3:
+                        if count == SQL_EXECUTE_TRY_COUNT:
                             raise
         except:
             self.tearDown()
@@ -1681,7 +1692,7 @@ class SSLMysqlConnectionTest(HexFormatTest):
                     except Exception:
                         time.sleep(SETUP_SQL_COMMAND_TIMEOUT)
                         count += 1
-                        if count == 3:
+                        if count == SQL_EXECUTE_TRY_COUNT:
                             raise
         except:
             self.tearDown()
