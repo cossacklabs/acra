@@ -42,11 +42,7 @@ RUN GO_SRC_FILE="go1.9.3.linux-amd64.tar.gz" && \
 ENV GOROOT="/root/go" GOPATH="/root/gopath"
 ENV PATH="$GOROOT/bin/:$PATH"
 ENV GOPATH_ACRA="${GOPATH}/src/github.com/cossacklabs/acra"
-# Fetch specified branch of acra repository
-RUN git clone -b $VCS_BRANCH https://github.com/cossacklabs/acra
-# Put libthemis and acra sources into $GOPATH tree
-RUN mkdir -p "${GOPATH}/src/github.com/cossacklabs/acra" && \
-    rsync -au acra/* "${GOPATH_ACRA}/"
+COPY ./ "${GOPATH}/src/github.com/cossacklabs/acra/"
 RUN mkdir -p "${GOPATH}/src/github.com/cossacklabs/themis/gothemis" && \
     rsync -au themis/gothemis/ \
         "${GOPATH}/src/github.com/cossacklabs/themis/gothemis"
@@ -55,7 +51,7 @@ RUN go get -d -t -v -x github.com/cossacklabs/acra/...
 # Build previously fetched acra
 RUN go get -v -x github.com/cossacklabs/acra/...
 # Include script for finding dependencies and prepare resulting directories
-COPY collect_dependencies.sh .
+COPY docker/collect_dependencies.sh .
 RUN chmod +x ./collect_dependencies.sh
 # Copy each product and its dependencies to resulting directories
 RUN for component in server proxy _genkeys; do \

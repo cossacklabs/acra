@@ -37,4 +37,4 @@ VOLUME ["/keys"]
 # Base command
 ENTRYPOINT ["/acra_genkeys"]
 # Optional arguments
-CMD ["--client_id=test", "---output=/keys"]
+CMD ["--output=/keys", "--client_id=testclientid"]
