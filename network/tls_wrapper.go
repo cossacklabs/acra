@@ -8,6 +8,7 @@ import (
 
 	"github.com/cossacklabs/acra/logging"
 	log "github.com/sirupsen/logrus"
+	"errors"
 )
 
 type TLSConnectionWrapper struct {
@@ -41,13 +42,13 @@ func NewTLSConfig(serverName string, caPath, keyPath, crtPath string) (*tls.Conf
 	if caPath != "" {
 		caPem, err := ioutil.ReadFile(caPath)
 		if err != nil {
-			log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorGeneral).Errorln("can't read root CA certificate")
+			log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorGeneral).Errorln("Can't read root CA certificate")
 			return nil, err
 		}
-		log.Debugln("add CA root certificate")
+		log.Debugln("Adding CA root certificate")
 		if ok := roots.AppendCertsFromPEM(caPem); !ok {
-			log.Errorln("can't add CA certificate")
-			return nil, err
+			log.Errorln("Can't add CA certificate from PEM")
+			return nil, errors.New("can't add CA certificate")
 		}
 	}
 	cer, err := tls.LoadX509KeyPair(crtPath, keyPath)
