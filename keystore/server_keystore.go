@@ -1,6 +1,7 @@
 package keystore
 
 import (
+	"crypto/rand"
 	"errors"
 	"fmt"
 	"github.com/cossacklabs/acra/utils"
@@ -11,7 +12,6 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
-	"crypto/rand"
 	"sync"
 )
 
@@ -59,8 +59,14 @@ func (store *FilesystemKeyStore) generateKeyPair(filename string, clientId []byt
 	if err != nil {
 		return nil, err
 	}
-	dirpath := filepath.Dir(store.getPrivateKeyFilePath(filename))
-	err = os.MkdirAll(dirpath, 0700)
+	privateKeysFolder := filepath.Dir(store.getPrivateKeyFilePath(filename))
+	err = os.MkdirAll(privateKeysFolder, 0700)
+	if err != nil {
+		return nil, err
+	}
+
+	publicKeysFolder := filepath.Dir(store.getPublicKeyFilePath(filename))
+	err = os.MkdirAll(publicKeysFolder, 0700)
 	if err != nil {
 		return nil, err
 	}
