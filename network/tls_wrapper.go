@@ -6,15 +6,17 @@ import (
 	"io/ioutil"
 	"net"
 
+	"errors"
 	"github.com/cossacklabs/acra/logging"
 	log "github.com/sirupsen/logrus"
-	"errors"
 )
 
 type TLSConnectionWrapper struct {
 	config   *tls.Config
 	clientId []byte
 }
+
+var ErrEmptyTLSConfig = errors.New("empty TLS config")
 
 func NewTLSConnectionWrapper(clientId []byte, config *tls.Config) (*TLSConnectionWrapper, error) {
 	return &TLSConnectionWrapper{config: config, clientId: clientId}, nil

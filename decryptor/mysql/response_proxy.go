@@ -11,6 +11,7 @@ import (
 	"github.com/cossacklabs/acra/decryptor/base"
 	"github.com/cossacklabs/acra/firewall"
 	"github.com/cossacklabs/acra/logging"
+	"github.com/cossacklabs/acra/network"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -174,6 +175,20 @@ func (handler *MysqlHandler) ClientToDbProxy(errCh chan<- error) {
 			firstPacket = false
 			handler.clientProtocol41 = packet.ClientSupportProtocol41()
 			if packet.IsSSLRequest() {
+				if handler.tlsConfig == nil {
+					log.Errorln("To support TLS connections you must pass TLS key and certificate for AcraServer that will be used" +
+						"for connections AcraServer->Database and CA certificate which will be used to verify certificate " +
+						"from database")
+					log.Debugln("send error to db")
+					errPacket := NewQueryInterruptedError(handler.clientProtocol41)
+					packet.SetData(errPacket)
+					if _, err := handler.clientConnection.Write(packet.Dump()); err != nil {
+						log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorResponseProxyCantWriteToClient).
+							Errorln("Can't write response with error to client")
+					}
+					errCh <- network.ErrEmptyTLSConfig
+					return
+				}
 				tlsConnection := tls.Server(handler.clientConnection, handler.tlsConfig)
 				if err := tlsConnection.Handshake(); err != nil {
 					log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorDecryptorCantInitializeTLS).
