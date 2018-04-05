@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 # coding: utf-8
+import contextlib
 import socket
 import json
 import time
@@ -75,7 +76,7 @@ PG_UNIX_HOST = '/tmp'
 
 DB_USER = os.environ.get('TEST_DB_USER', 'postgres')
 DB_USER_PASSWORD = os.environ.get('TEST_DB_USER_PASSWORD', 'postgres')
-SSLMODE = os.environ.get('TEST_SSL_MODE', 'allow')
+SSLMODE = os.environ.get('TEST_SSL_MODE', 'require')
 TEST_MYSQL = bool(os.environ.get('TEST_MYSQL', False))
 if TEST_MYSQL:
     TEST_POSTGRESQL = False
@@ -234,17 +235,13 @@ ACRA_ROLLBACK_MIN_VERSION = "1.8.0"
 Binary = collections.namedtuple(
     'Binary', ['name', 'from_version', 'build_args'])
 
-TEST_ACRA_BIN_NAME='test-acraserver'
 
 BINARIES = [
     Binary(name='acraproxy', from_version=DEFAULT_VERSION,
            build_args=DEFAULT_BUILD_ARGS),
-    Binary(name='acraserver', from_version=DEFAULT_VERSION,
-           build_args=DEFAULT_BUILD_ARGS),
     # compile with Test=true to disable golang tls client server verification
     Binary(name='acraserver', from_version=DEFAULT_VERSION,
-           build_args=['-o', TEST_ACRA_BIN_NAME,
-                       '-ldflags', '-X main.TestOnly=true']),
+           build_args=['-ldflags', '-X main.TestOnly=true']),
 
     Binary(name='acra_addzone', from_version=DEFAULT_VERSION,
            build_args=DEFAULT_BUILD_ARGS),
@@ -763,6 +760,18 @@ class ZoneEscapeFormatWholeCellTest(WholeCellMixinTest, ZoneEscapeFormatTest):
 
 
 class TestConnectionClosing(BaseTestCase):
+    class mysql_closing(contextlib.closing):
+        """
+        extended contextlib.closing that add close() method that call close()
+        method of wrapped object
+
+        Need to wrap pymysql.connection with own __enter__/__exit__
+        implementation that will return connection instead of cursor (as do
+        pymysql.Connection.__enter__())
+        """
+        def close(self):
+            self.thing.close()
+
     def setUp(self):
         self.checkSkip()
         try:
@@ -776,7 +785,8 @@ class TestConnectionClosing(BaseTestCase):
 
     def get_connection(self):
         if TEST_MYSQL:
-            return pymysql.connect(**get_connect_args(port=self.PROXY_PORT_1))
+            return TestConnectionClosing.mysql_closing(
+                pymysql.connect(**get_connect_args(port=self.PROXY_PORT_1)))
         else:
             return psycopg2.connect(host=PG_UNIX_HOST, **get_connect_args(port=self.PROXY_PORT_1))
 
@@ -805,22 +815,25 @@ class TestConnectionClosing(BaseTestCase):
 
         if TEST_MYSQL:
             query = "SHOW VARIABLES WHERE `variable_name` = 'max_connections';"
-            cursor = connection.cursor()
-            cursor.execute(query)
-            return int(cursor.fetchone()[1])
+            with connection.cursor() as cursor:
+                cursor.execute(query)
+                return int(cursor.fetchone()[1])
 
         else:
-            cursor = connection.cursor()
-            cursor.execute('select setting from pg_settings where name=\'max_connections\';')
-            pg_max_connections = int(cursor.fetchone()[0])
-            cursor.execute('select rolconnlimit from pg_roles where rolname = current_user;')
-            pg_rolconnlimit = int(cursor.fetchone()[0])
-            cursor.close()
-            if created_connection:
-                connection.close()
-            if pg_rolconnlimit <= 0:
-                return pg_max_connections
-            return min(pg_max_connections, pg_rolconnlimit)
+            with connection.cursor() as cursor:
+                try:
+                    cursor.execute('select setting from pg_settings where name=\'max_connections\';')
+                    pg_max_connections = int(cursor.fetchone()[0])
+                    cursor.execute('select rolconnlimit from pg_roles where rolname = current_user;')
+                    pg_rolconnlimit = int(cursor.fetchone()[0])
+                    cursor.close()
+                    if pg_rolconnlimit <= 0:
+                        return pg_max_connections
+                    return min(pg_max_connections, pg_rolconnlimit)
+                except:
+                    if created_connection:
+                        connection.close()
+                    raise
 
     def check_count(self, cursor, expected):
         # give a time to close connections via postgresql
@@ -830,6 +843,7 @@ class TestConnectionClosing(BaseTestCase):
         for i in range(try_count):
             try:
                 self.assertEqual(self.getActiveConnectionCount(cursor), expected)
+                break
             except (AssertionError):
                 if i == (try_count - 1):
                     raise
@@ -838,72 +852,70 @@ class TestConnectionClosing(BaseTestCase):
 
     def checkConnectionLimit(self, connection_limit):
         connections = []
-        exception = None
         try:
-            for i in range(connection_limit):
-                connections.append(self.get_connection())
-        except Exception as exc:
-            exception = exc
-        self.assertIsNotNone(exception)
+            exception = None
+            try:
+                for i in range(connection_limit):
+                    connections.append(self.get_connection())
+            except Exception as exc:
+                exception = exc
 
-        is_correct_exception_message = False
-        if TEST_MYSQL:
-            exception_type = pymysql.err.OperationalError
-            correct_messages = [
-                'Too many connections'
-            ]
-            for message in correct_messages:
-                if exception.args[0] in [1203, 1040] and message in exception.args[1]:
-                    is_correct_exception_message = True
-                    break
-        else:
-            exception_type = psycopg2.OperationalError
-            # exception doesn't has any related code, only text messages
-            correct_messages = [
-                'FATAL:  too many connections for role',
-                'FATAL:  sorry, too many clients already',
-                'FATAL:  remaining connection slots are reserved for non-replication superuser connections'
-            ]
-            for message in correct_messages:
-                if message in exception.args[0]:
-                    is_correct_exception_message = True
-                    break
+            self.assertIsNotNone(exception)
 
-        self.assertIsInstance(exception, exception_type)
-        self.assertTrue(is_correct_exception_message)
+            is_correct_exception_message = False
+            if TEST_MYSQL:
+                exception_type = pymysql.err.OperationalError
+                correct_messages = [
+                    'Too many connections'
+                ]
+                for message in correct_messages:
+                    if exception.args[0] in [1203, 1040] and message in exception.args[1]:
+                        is_correct_exception_message = True
+                        break
+            else:
+                exception_type = psycopg2.OperationalError
+                # exception doesn't has any related code, only text messages
+                correct_messages = [
+                    'FATAL:  too many connections for role',
+                    'FATAL:  sorry, too many clients already',
+                    'FATAL:  remaining connection slots are reserved for non-replication superuser connections'
+                ]
+                for message in correct_messages:
+                    if message in exception.args[0]:
+                        is_correct_exception_message = True
+                        break
+
+            self.assertIsInstance(exception, exception_type)
+            self.assertTrue(is_correct_exception_message)
+        except:
+            for connection in connections:
+                connection.close()
+            raise
         return connections
 
+    def testClosingConnectionsWithDB(self):
+        with self.get_connection() as connection:
+            connection.autocommit = True
+            with connection.cursor() as cursor:
+                current_connection_count = self.getActiveConnectionCount(cursor)
 
-    def testClosingPostgreslConnections(self):
-        connection = self.get_connection()
+                with self.get_connection():
+                    self.assertEqual(self.getActiveConnectionCount(cursor),
+                                     current_connection_count+1)
+                    connection_limit = self.getConnectionLimit(connection)
 
-        connection.autocommit = True
-        cursor = connection.cursor()
-        current_connection_count = self.getActiveConnectionCount(cursor)
+                    created_connections = self.checkConnectionLimit(
+                        connection_limit)
+                    for conn in created_connections:
+                        conn.close()
 
-        connection2 = self.get_connection()
-        self.assertEqual(self.getActiveConnectionCount(cursor),
-                         current_connection_count+1)
-        connection_limit = self.getConnectionLimit(connection)
-        connections = [connection2]
+                self.check_count(cursor, current_connection_count)
 
-        created_connections = self.checkConnectionLimit(connection_limit)
+                # try create new connection
+                with self.get_connection():
+                    self.check_count(cursor, current_connection_count + 1)
 
-        for conn in connections + created_connections:
-            conn.close()
-
-        self.check_count(cursor, current_connection_count)
-
-        # try create new connection
-        connection2 = self.get_connection()
-        self.check_count(cursor, current_connection_count + 1)
-
-        connection2.close()
-        self.check_count(cursor, current_connection_count)
-        cursor.close()
-        connection.close()
-
-
+                self.check_count(cursor, current_connection_count)
 
 
 class TestKeyNonExistence(BaseTestCase):
@@ -1537,7 +1549,7 @@ class SSLPostgresqlConnectionTest(HexFormatTest):
             if not self.EXTERNAL_ACRA:
                 self.acra = self.fork_acra(
                     tls_key='tests/server.key', tls_cert='tests/server.crt',
-                    tls_ca='tests/server.key',
+                    tls_ca='tests/server.crt',
                     no_encryption=True, client_id='keypair1')
             self.engine1 = sa.create_engine(
                 get_postgresql_tcp_connection_string(self.ACRA_PORT, self.DB_NAME), connect_args=get_connect_args(port=self.ACRA_PORT))
@@ -1577,10 +1589,14 @@ class SSLPostgresqlConnectionTest(HexFormatTest):
 
         try:
             self.engine_raw.execute('delete from test;')
+        except:
+            traceback.print_exc()
+
+        try:
             for engine in self.engines:
                 engine.dispose()
         except:
-            pass
+            traceback.print_exc()
 
 
 class SSLPostgresqlConnectionWithZoneTest(ZoneHexFormatTest,
@@ -1615,9 +1631,6 @@ class SSLMysqlConnectionTest(HexFormatTest):
     def checkSkip(self):
         if not (TEST_WITH_TLS and TEST_MYSQL):
             self.skipTest("running tests without TLS")
-
-    def get_acraserver_bin_path(self):
-        return './{}'.format(TEST_ACRA_BIN_NAME)
 
     def setUp(self):
         self.checkSkip()
