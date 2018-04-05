@@ -176,7 +176,7 @@ func (handler *MysqlHandler) ClientToDbProxy(errCh chan<- error) {
 			handler.clientProtocol41 = packet.ClientSupportProtocol41()
 			if packet.IsSSLRequest() {
 				if handler.tlsConfig == nil {
-					log.Errorln("To support TLS connections you must pass TLS key and certificate for AcraServer that will be used" +
+					log.Errorln("To support TLS connections you must pass TLS key and certificate for AcraServer that will be used " +
 						"for connections AcraServer->Database and CA certificate which will be used to verify certificate " +
 						"from database")
 					log.Debugln("send error to db")
