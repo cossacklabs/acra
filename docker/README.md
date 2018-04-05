@@ -7,7 +7,7 @@
 
 ## Build containers
 
-```
+```bash
 make docker
 ```
 
@@ -22,11 +22,11 @@ make docker
 !!!!!!!!!!!!!!!!!!!!!!!!!!!
 !!! INSECURE, TEST ONLY !!!
 !!!!!!!!!!!!!!!!!!!!!!!!!!!
-```
+```bash
 docker-compose -f docker/<compose_file_name>.yml up
 ```
 This will create `docker/.acrakeys` directory structure, generate all key pairs,
-put them to appropriate servcies' directories and launch all components.
+put them to appropriate services' directories and launch all components.
 
 Now you can connect to 9494/tcp (acraproxy) or 5432/tcp (postgresql).
 
@@ -34,12 +34,12 @@ Now you can connect to 9494/tcp (acraproxy) or 5432/tcp (postgresql).
 ## Normal launch
 
 Please specify ACRA_MASTER_KEY:
-```
+```bash
 export ACRA_MASTER_KEY=$(echo -n "My_Very_Long_Key_Phrase_ge_32_chars" | base64)
 ```
 
 Also you probably want to define client id
-```
+```bash
 export ACRA_CLIENT_ID="MyClientID"
 ```
 
@@ -48,7 +48,7 @@ Optionally you may specify docker image tag, which can be one of:
   * `master` or `current` - master branch of github repository
   * `<full_commit_tag>` - specify the exact commit in repository
   * `<version>` - choose version tag
-```
+```bash
 # Examples:
 # branch
 ACRA_DOCKER_IMAGE_TAG="master"
@@ -59,6 +59,6 @@ ACRA_DOCKER_IMAGE_TAG="0.76-33-g8b16bc2"
 ```
 
 Now you can run docker-compose:
-```
+```bash
     docker-compose -f docker/docker-compose-pgsql-ssession.yml up
 ```
