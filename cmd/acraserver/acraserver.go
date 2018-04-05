@@ -139,12 +139,12 @@ func main() {
 
 	if err := config.SetMySQL(*useMysql); err != nil {
 		log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorWrongConfiguration).
-			Errorln("can't set MySQL support")
+			Errorln("Can't set MySQL support")
 		os.Exit(1)
 	}
 	if err := config.SetPostgresql(*usePostgresql); err != nil {
 		log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorWrongConfiguration).
-			Errorln("can't set PostgreSQL support")
+			Errorln("Can't set PostgreSQL support")
 		os.Exit(1)
 	}
 
@@ -203,12 +203,12 @@ func main() {
 		if TestOnly == TEST_MODE {
 			tlsConfig.InsecureSkipVerify = true
 			tlsConfig.ClientAuth = tls.NoClientCert
-			log.Warningln("only for tests!")
+			log.Warningln("Skip verifying TLS certificate, use for tests only!")
 		}
 	}
 	config.SetTLSConfig(tlsConfig)
 	if *useTls {
-		log.Println("use TLS transport wrapper")
+		log.Println("Using TLS transport wrapper")
 		config.ConnectionWrapper, err = network.NewTLSConnectionWrapper([]byte(*clientId), tlsConfig)
 		if err != nil {
 			log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorTransportConfiguration).
