@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 # coding: utf-8
+import contextlib
 import socket
 import json
 import time
@@ -759,6 +760,18 @@ class ZoneEscapeFormatWholeCellTest(WholeCellMixinTest, ZoneEscapeFormatTest):
 
 
 class TestConnectionClosing(BaseTestCase):
+    class mysql_closing(contextlib.closing):
+        """
+        extended contextlib.closing that add close() method that call close()
+        method of wrapped object
+
+        Need to wrap pymysql.connection with own __enter__/__exit__
+        implementation that will return connection instead of cursor (as do
+        pymysql.Connection.__enter__())
+        """
+        def close(self):
+            self.thing.close()
+
     def setUp(self):
         self.checkSkip()
         try:
@@ -772,7 +785,8 @@ class TestConnectionClosing(BaseTestCase):
 
     def get_connection(self):
         if TEST_MYSQL:
-            return pymysql.connect(**get_connect_args(port=self.PROXY_PORT_1))
+            return TestConnectionClosing.mysql_closing(
+                pymysql.connect(**get_connect_args(port=self.PROXY_PORT_1)))
         else:
             return psycopg2.connect(host=PG_UNIX_HOST, **get_connect_args(port=self.PROXY_PORT_1))
 
