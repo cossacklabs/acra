@@ -7,7 +7,6 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
-	"fmt"
 )
 
 func TestWhitelistFirewall(t *testing.T) {
@@ -589,10 +588,6 @@ func TestSerialization(t *testing.T){
 	}
 
 	if len(loggingHandler.GetAllInputQueries()) != len(testQueries){
-
-		fmt.Println(loggingHandler.GetAllInputQueries())
-		fmt.Println(len(testQueries))
-
 		t.Fatal("loggingHandler logic error 3")
 	}
 
