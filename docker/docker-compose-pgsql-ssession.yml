@@ -1,0 +1,129 @@
+version: "3"
+
+services:
+    # Create keys:
+    # - ./.acrakeys/acraserver/${ACRA_CLIENT_ID}_server
+    # - ./.acrakeys/acraproxy/${ACRA_CLIENT_ID}_server.pub
+    acra_genkeys_server:
+        # You can specify docker image tag in environment
+        # variable ACRA_DOCKER_IMAGE_TAG or run by default with 'latest' images
+        image: "cossacklabs/acra_genkeys:${ACRA_DOCKER_IMAGE_TAG:-latest}"
+        # We do not need network for keys' generation at all
+        network_mode: "none"
+        environment:
+            # INSECURE!!! You MUST to define your own ACRA_MASTER_KEY
+            # The default is only for testing purposes
+            ACRA_MASTER_KEY: ${ACRA_MASTER_KEY:-UHZ3VUNNeTJ0SEFhbWVjNkt4eDdVYkc2WnNpUTlYa0E=}
+        volumes:
+            # Mount the whole ./.acrakeys directory to be able generate keys and
+            # place them in services' subdirectories
+            - ./.acrakeys:/keys
+        # Please specify ACRA_CLIENT_ID environment variable, otherwise run with
+        # default 'testclientid' client id
+        command: >-
+            --client_id=${ACRA_CLIENT_ID:-testclientid}
+            --acraserver
+            --output=/keys/acraserver
+            --output_public=/keys/acraproxy
+    # Create keys:
+    # - ./.acrakeys/acraproxy/${ACRA_CLIENT_ID}
+    # - ./.acrakeys/acraserver/${ACRA_CLIENT_ID}.pub
+    acra_genkeys_proxy:
+        image: "cossacklabs/acra_genkeys:${ACRA_DOCKER_IMAGE_TAG:-latest}"
+        depends_on:
+            - acra_genkeys_server
+        network_mode: "none"
+        environment:
+            ACRA_MASTER_KEY: ${ACRA_MASTER_KEY:-UHZ3VUNNeTJ0SEFhbWVjNkt4eDdVYkc2WnNpUTlYa0E=}
+        volumes:
+            - ./.acrakeys:/keys
+        command: >-
+            --client_id=${ACRA_CLIENT_ID:-testclientid}
+            --acraproxy
+            --output=/keys/acraproxy
+            --output_public=/keys/acraserver
+    # Create keys:
+    # - ./.acrakeys/acrawriter/${ACRA_CLIENT_ID}_storage
+    # - ./.acrakeys/acraproxy/${ACRA_CLIENT_ID}_storage.pub
+    acra_genkeys_writer:
+        image: "cossacklabs/acra_genkeys:${ACRA_DOCKER_IMAGE_TAG:-latest}"
+        depends_on:
+            - acra_genkeys_proxy
+        network_mode: "none"
+        environment:
+            ACRA_MASTER_KEY: ${ACRA_MASTER_KEY:-UHZ3VUNNeTJ0SEFhbWVjNkt4eDdVYkc2WnNpUTlYa0E=}
+        volumes:
+            - ./.acrakeys:/keys
+        command: >-
+            --client_id=${ACRA_CLIENT_ID:-testclientid}
+            --storage
+            --output=/keys/acraserver
+            --output_public=/keys/acrawriter
+
+    # Postgresql container
+    postgres:
+        image: postgres
+        # Open the port outside for writer
+        ports:
+            - "5432:5432"
+        # We use internal 'acraserver-postgres' network for acraserver and
+        # DB interconnection and external network 'world' for port exposing
+        networks:
+            - acraserver-postgres
+            - world
+
+    acraserver:
+        image: "cossacklabs/acraserver:${ACRA_DOCKER_IMAGE_TAG:-latest}"
+        depends_on:
+            - acra_genkeys_server
+            - acra_genkeys_proxy
+            - postgres
+        environment:
+            ACRA_MASTER_KEY: ${ACRA_MASTER_KEY:-UHZ3VUNNeTJ0SEFhbWVjNkt4eDdVYkc2WnNpUTlYa0E=}
+        # We use internal networks:
+        # - 'acraserver-postgres' - for acraserver and DB interconnection
+        # - 'acraproxy-acraserver' - for acraserver and acraproxy interconnection
+        networks:
+            - acraproxy-acraserver
+            - acraserver-postgres
+        volumes:
+            # Mount the directory with only the keys for this service
+            - ./.acrakeys/acraserver:/keys
+        command: >-
+            --db_host=postgres
+            --keys_dir=/keys
+            -v
+
+    acraproxy:
+        image: "cossacklabs/acraproxy:${ACRA_DOCKER_IMAGE_TAG:-latest}"
+        depends_on:
+            - acra_genkeys_proxy
+            - acra_genkeys_writer
+            - acraserver
+        # Open the port outside for client application
+        ports:
+            - "9494:9494"
+        environment:
+            ACRA_MASTER_KEY: ${ACRA_MASTER_KEY:-UHZ3VUNNeTJ0SEFhbWVjNkt4eDdVYkc2WnNpUTlYa0E=}
+        # We use internal 'acraproxy-acraserver' network for acraserver and
+        # acraproxy interconnection and external network 'world' for
+        # port exposing
+        networks:
+            - acraproxy-acraserver
+            - world
+        volumes:
+            # Mount the directory with only the keys for this service
+            - ./.acrakeys/acraproxy:/keys
+        command: >-
+            --acra_host=acraserver
+            --keys_dir=/keys
+            --client_id=${ACRA_CLIENT_ID:-testclientid}
+            --connection_string=tcp://0.0.0.0:9494
+            -v
+
+networks:
+    world:
+    acraproxy-acraserver:
+        internal: true
+    acraserver-postgres:
+        internal: true
