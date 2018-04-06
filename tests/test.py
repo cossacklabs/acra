@@ -1209,13 +1209,11 @@ class TestNoCheckPoisonRecord(AcraCatchLogsMixin, BasePoisonRecordTest):
             {'id': row_id, 'data': get_poison_record(), 'raw_data': 'poison_record'})
         result = self.engine1.execute(test_table.select())
         result.fetchall()
-        # super() tearDown without killink acra
-        super(TestNoCheckPoisonRecord, self).tearDown()
-
         try:
             out, er_ = self.acra.communicate(timeout=1)
         except subprocess.TimeoutExpired:
-            pass
+            stop_process(self.acra)
+            out, er_ = self.acra.communicate(timeout=1)
         self.assertNotIn(b'Check poison records', out)
 
 
@@ -1252,17 +1250,16 @@ class TestCheckLogPoisonRecord(AcraCatchLogsMixin, BasePoisonRecordTest):
         self.engine1.execute(
             test_table.insert(),
             {'id': row_id, 'data': get_poison_record(), 'raw_data': 'poison_record'})
-        try:
-            with self.assertRaises(DatabaseError):
-                self.engine1.execute(test_table.select())
-        finally:
-            # super() tearDown without killink acra
-            super(TestCheckLogPoisonRecord, self).tearDown()
+
+        with self.assertRaises(DatabaseError):
+            self.engine1.execute(test_table.select())
 
         try:
             out, _ = self.acra.communicate(timeout=1)
         except subprocess.TimeoutExpired:
-            pass
+            stop_process(self.acra)
+            out, _ = self.acra.communicate(timeout=1)
+
         self.assertIn(b'Check poison records', out)
 
 
@@ -1584,7 +1581,7 @@ class SSLPostgresqlConnectionTest(AcraCatchLogsMixin, HexFormatTest):
                 outs, errs = self.acra2.communicate(timeout=1)
             except subprocess.TimeoutExpired:
                 stop_process(self.acra2)
-                outs, errs = self.acra2.communicate()
+                outs, errs = self.acra2.communicate(timeout=1)
 
             self.assertIn(b'To support TLS connections you must pass TLS key '
                           b'and certificate for AcraServer that will be used',
