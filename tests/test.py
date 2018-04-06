@@ -438,8 +438,11 @@ class BaseTestCase(unittest.TestCase):
         return './acraserver'
 
     def _fork_acra(self, acra_kwargs, popen_kwargs):
-        connection_string = self.get_acra_connection_string()
-        api_connection_string = self.get_acra_api_connection_string()
+        connection_string = self.get_acra_connection_string(
+            acra_kwargs.get('port'))
+        api_connection_string = self.get_acra_api_connection_string(
+            acra_kwargs.get('commands_port')
+        )
         for path in [socket_path_from_connection_string(connection_string), socket_path_from_connection_string(api_connection_string)]:
             try:
                 os.remove(path)
@@ -1529,9 +1532,12 @@ class TestAcraGenKeys(unittest.TestCase):
         self.assertEqual(create_client_keypair(POISON_KEY_PATH), 1)
 
 
-class SSLPostgresqlConnectionTest(HexFormatTest):
-    def get_acra_connection_string(self):
-        return get_tcp_connection_string(self.ACRA_PORT)
+class SSLPostgresqlConnectionTest(AcraCatchLogsMixin, HexFormatTest):
+    ACRA2_PORT = BaseTestCase.ACRA_PORT+1
+    DEBUG_LOG = True
+
+    def get_acra_connection_string(self, port=None):
+        return get_tcp_connection_string(port if port else self.ACRA_PORT)
 
     def wait_acra_connection(self, *args, **kwargs):
         wait_connection(self.ACRA_PORT)
@@ -1539,6 +1545,25 @@ class SSLPostgresqlConnectionTest(HexFormatTest):
     def checkSkip(self):
         if not (TEST_WITH_TLS and TEST_POSTGRESQL):
             self.skipTest("running tests without TLS")
+
+    def get_ssl_engine(self):
+        return sa.create_engine(
+                get_postgresql_tcp_connection_string(self.ACRA2_PORT, self.DB_NAME),
+                connect_args=get_connect_args(port=self.ACRA2_PORT, sslmode='require'))
+
+    def testConnectionCloseOnTls(self):
+        engine = self.get_ssl_engine()
+        try:
+            with self.assertRaises(sa.exc.OperationalError):
+                connection = engine.connect()
+            # stop process to fetch all output logs
+            stop_process(self.acra2)
+            out = self.acra2.stdout.read()
+            self.assertIn(b'To support TLS connections you must pass TLS key '
+                          b'and certificate for AcraServer that will be used',
+                          out)
+        finally:
+            engine.dispose()
 
     def setUp(self):
         self.checkSkip()
@@ -1551,6 +1576,11 @@ class SSLPostgresqlConnectionTest(HexFormatTest):
                     tls_key='tests/server.key', tls_cert='tests/server.crt',
                     tls_ca='tests/server.crt',
                     no_encryption=True, client_id='keypair1')
+                # create second acra without settings for tls to check that
+                # connection will be closed on tls handshake
+                self.acra2 = self.fork_acra(
+                    no_encryption=True, client_id='keypair1',
+                    port=self.ACRA2_PORT)
             self.engine1 = sa.create_engine(
                 get_postgresql_tcp_connection_string(self.ACRA_PORT, self.DB_NAME), connect_args=get_connect_args(port=self.ACRA_PORT))
             self.engine_raw = sa.create_engine(
@@ -1584,8 +1614,9 @@ class SSLPostgresqlConnectionTest(HexFormatTest):
 
     def tearDown(self):
         if not self.EXTERNAL_ACRA:
-            if hasattr(self, 'acra'):
-                stop_process(self.acra)
+            for attr in ['acra', 'acra2']:
+                if hasattr(self, attr):
+                    stop_process(getattr(self, attr))
 
         try:
             self.engine_raw.execute('delete from test;')
@@ -1621,16 +1652,16 @@ class TLSBetweenProxyAndServerWithZonesTest(ZoneHexFormatTest,
     pass
 
 
-class SSLMysqlConnectionTest(HexFormatTest):
-    def get_acra_connection_string(self):
-        return get_tcp_connection_string(self.ACRA_PORT)
-
-    def wait_acra_connection(self, *args, **kwargs):
-        wait_connection(self.ACRA_PORT)
-
+class SSLMysqlConnectionTest(SSLPostgresqlConnectionTest):
     def checkSkip(self):
         if not (TEST_WITH_TLS and TEST_MYSQL):
             self.skipTest("running tests without TLS")
+
+    def get_ssl_engine(self):
+        return sa.create_engine(
+                get_postgresql_tcp_connection_string(self.ACRA2_PORT, self.DB_NAME),
+                connect_args=get_connect_args(
+                    port=self.ACRA2_PORT, ssl=self.driver_to_acraserver_ssl_settings))
 
     def setUp(self):
         self.checkSkip()
@@ -1645,7 +1676,12 @@ class SSLMysqlConnectionTest(HexFormatTest):
                     tls_ca='tests/server.crt',
                     tls_sni="acraserver",
                     no_encryption=True, client_id='keypair1')
-            driver_to_acraserver_ssl_settings = {
+                # create second acra without settings for tls to check that
+                # connection will be closed on tls handshake
+                self.acra2 = self.fork_acra(
+                    no_encryption=True, client_id='keypair1',
+                    port=self.ACRA2_PORT)
+            self.driver_to_acraserver_ssl_settings = {
                 'ca': 'tests/server.crt',
                 'cert': 'tests/client.crt',
                 'key': 'tests/client.key',
@@ -1661,7 +1697,7 @@ class SSLMysqlConnectionTest(HexFormatTest):
             self.engine1 = sa.create_engine(
                 get_postgresql_tcp_connection_string(self.ACRA_PORT, self.DB_NAME),
                 connect_args=get_connect_args(
-                    port=self.ACRA_PORT, ssl=driver_to_acraserver_ssl_settings))
+                    port=self.ACRA_PORT, ssl=self.driver_to_acraserver_ssl_settings))
 
             # test case from HexFormatTest expect two engines with different
             # client_id but here enough one and raw connection
@@ -1687,21 +1723,8 @@ class SSLMysqlConnectionTest(HexFormatTest):
             self.tearDown()
             raise
 
-    def tearDown(self):
-        if not self.EXTERNAL_ACRA:
-            if hasattr(self, 'acra'):
-                stop_process(self.acra)
 
-        try:
-            self.engine_raw.execute('delete from test;')
-            for engine in self.engines:
-                engine.dispose()
-        except:
-            pass
-
-
-class SSLMysqlConnectionWithZoneTest(ZoneHexFormatTest,
-                                          SSLMysqlConnectionTest):
+class SSLMysqlConnectionWithZoneTest(ZoneHexFormatTest, SSLMysqlConnectionTest):
     pass
 
 
