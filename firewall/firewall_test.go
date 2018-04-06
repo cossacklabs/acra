@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"fmt"
 )
 
 func TestWhitelistFirewall(t *testing.T) {
@@ -522,5 +523,157 @@ func testSyntax(t *testing.T) {
 	err = firewall.LoadConfiguration([]byte(configuration))
 	if err != handlers.ErrStructureSyntaxError {
 		t.Fatal(err)
+	}
+}
+
+
+func TestSerialization(t *testing.T){
+	testQueries := []string{
+		"SELECT * FROM Schema.Tables;",
+		"SELECT Student_ID FROM STUDENT;",
+		"SELECT * FROM STUDENT;",
+		"SELECT * FROM X;",
+		"SELECT * FROM Y;",
+		"SELECT EMP_ID, NAME FROM EMPLOYEE_TBL WHERE EMP_ID = '0000';",
+		"SELECT EMP_ID, LAST_NAME FROM EMPLOYEE WHERE CITY = 'Seattle' ORDER BY EMP_ID;",
+		"SELECT EMP_ID, LAST_NAME FROM EMPLOYEE_TBL WHERE CITY = 'INDIANAPOLIS' ORDER BY EMP_ID asc;",
+		"SELECT Name, Age FROM Patients WHERE Age > 40 GROUP BY Age ORDER BY Name;",
+		"SELECT COUNT(CustomerID), Country FROM Customers GROUP BY Country;",
+		"SELECT SUM(Salary)FROM Employee WHERE Emp_Age < 30;",
+		"SELECT AVG(Price)FROM Products;",
+		"INSERT SalesStaff1 VALUES (2, 'Michael', 'Blythe'), (3, 'Linda', 'Mitchell'),(4, 'Jillian', 'Carson'), (5, 'Garrett', 'Vargas');",
+		"INSERT INTO SalesStaff2 (StaffGUID, FirstName, LastName) VALUES (NEWID(), 'Stephen', 'Jiang');",
+		"INSERT INTO SalesStaff3 (StaffID, FullName) VALUES (X, 'Y');",
+		"INSERT INTO SalesStaff3 (StaffID, FullName) VALUES (X, 'Z');",
+		"INSERT INTO SalesStaff3 (StaffID, FullNameTbl) VALUES (X, M);",
+		"INSERT INTO X.Customers (CustomerName, ContactName, Address, City, PostalCode, Country) VALUES ('Cardinal', 'Tom B. Erichsen', 'Skagen 21', 'Stavanger', '4006', 'Norway');",
+		"INSERT INTO Customers (CustomerName, City, Country) VALUES ('Cardinal', 'Stavanger', 'Norway');",
+		"INSERT INTO Production (Name, UnitMeasureCode,	ModifiedDate) VALUES ('Square Yards', 'Y2', GETDATE());",
+		"INSERT INTO T1 (Name, UnitMeasureCode,	ModifiedDate) VALUES ('Square Yards', 'Y2', GETDATE());",
+		"INSERT INTO dbo.Points (Type, PointValue) VALUES ('Point', '1,5');",
+		"INSERT INTO dbo.Points (PointValue) VALUES ('1,99');",
+	}
+
+	loggingHandler := &handlers.LoggingHandler{}
+	for _, query := range testQueries {
+		loggingHandler.CheckQuery(query)
+	}
+
+	if len(loggingHandler.GetAllInputQueries()) != len(testQueries){
+		t.Fatal("loggingHandler logic error 1")
+	}
+
+	tmpFile, err := ioutil.TempFile("", "firewall_log")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if err = tmpFile.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	err = loggingHandler.SaveToFile(tmpFile.Name())
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	loggingHandler.Reset()
+
+	if len(loggingHandler.GetAllInputQueries()) != 0 {
+		t.Fatal("loggingHandler logic error 2")
+	}
+
+	err = loggingHandler.LoadFromFile(tmpFile.Name())
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if len(loggingHandler.GetAllInputQueries()) != len(testQueries){
+
+		fmt.Println(loggingHandler.GetAllInputQueries())
+		fmt.Println(len(testQueries))
+
+		t.Fatal("loggingHandler logic error 3")
+	}
+
+	if err = os.Remove(tmpFile.Name()); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestLogging(t *testing.T){
+
+	testQueries := []string{
+		"SELECT * FROM Schema.Tables;",
+		"SELECT Student_ID FROM STUDENT;",
+		"SELECT * FROM STUDENT;",
+		"SELECT * FROM X;",
+		"SELECT * FROM Y;",
+		"SELECT EMP_ID, NAME FROM EMPLOYEE_TBL WHERE EMP_ID = '0000';",
+		"SELECT EMP_ID, LAST_NAME FROM EMPLOYEE WHERE CITY = 'Seattle' ORDER BY EMP_ID;",
+		"SELECT EMP_ID, LAST_NAME FROM EMPLOYEE_TBL WHERE CITY = 'INDIANAPOLIS' ORDER BY EMP_ID asc;",
+		"SELECT Name, Age FROM Patients WHERE Age > 40 GROUP BY Age ORDER BY Name;",
+		"SELECT COUNT(CustomerID), Country FROM Customers GROUP BY Country;",
+		"SELECT SUM(Salary)FROM Employee WHERE Emp_Age < 30;",
+		"SELECT AVG(Price)FROM Products;",
+		"INSERT SalesStaff1 VALUES (2, 'Michael', 'Blythe'), (3, 'Linda', 'Mitchell'),(4, 'Jillian', 'Carson'), (5, 'Garrett', 'Vargas');",
+		"INSERT INTO SalesStaff2 (StaffGUID, FirstName, LastName) VALUES (NEWID(), 'Stephen', 'Jiang');",
+		"INSERT INTO SalesStaff3 (StaffID, FullName) VALUES (X, 'Y');",
+		"INSERT INTO SalesStaff3 (StaffID, FullName) VALUES (X, 'Z');",
+		"INSERT INTO SalesStaff3 (StaffID, FullNameTbl) VALUES (X, M);",
+		"INSERT INTO X.Customers (CustomerName, ContactName, Address, City, PostalCode, Country) VALUES ('Cardinal', 'Tom B. Erichsen', 'Skagen 21', 'Stavanger', '4006', 'Norway');",
+		"INSERT INTO Customers (CustomerName, City, Country) VALUES ('Cardinal', 'Stavanger', 'Norway');",
+		"INSERT INTO Production (Name, UnitMeasureCode,	ModifiedDate) VALUES ('Square Yards', 'Y2', GETDATE());",
+		"INSERT INTO T1 (Name, UnitMeasureCode,	ModifiedDate) VALUES ('Square Yards', 'Y2', GETDATE());",
+		"INSERT INTO dbo.Points (Type, PointValue) VALUES ('Point', '1,5');",
+		"INSERT INTO dbo.Points (PointValue) VALUES ('1,99');",
+	}
+
+
+	firewall := &Firewall{}
+
+	loggingHandler := &handlers.LoggingHandler{}
+
+	blacklist := &handlers.BlacklistHandler{}
+
+	firewall.AddHandler(loggingHandler)
+	firewall.AddHandler(blacklist)
+
+	var err error
+
+	for _, testQuery := range testQueries {
+		err = firewall.HandleQuery(testQuery)
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	loggingHandler.MarkQueryAsForbidden(testQueries[0])
+	loggingHandler.MarkQueryAsForbidden(testQueries[1])
+	loggingHandler.MarkQueryAsForbidden(testQueries[2])
+
+	blacklist.AddQueries(loggingHandler.GetForbiddenQueries())
+
+	err = firewall.HandleQuery(testQueries[0])
+	if err != handlers.ErrQueryInBlacklist {
+		t.Fatal(err)
+	}
+
+	err = firewall.HandleQuery(testQueries[1])
+	if err != handlers.ErrQueryInBlacklist {
+		t.Fatal(err)
+	}
+
+	err = firewall.HandleQuery(testQueries[2])
+	if err != handlers.ErrQueryInBlacklist {
+		t.Fatal(err)
+	}
+
+	//zero, first and second query are forbidden
+	for index := 3; index < len(testQueries); index++ {
+		err = firewall.HandleQuery(testQueries[index])
+		if err != nil {
+			t.Fatal(err)
+		}
 	}
 }
