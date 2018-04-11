@@ -132,7 +132,7 @@ services:
             - acra_genkeys_server
             - acra_genkeys_proxy
             - acraserver
-        # Open the port outside for client application and API
+        # Open the port outside for client application
         ports:
             - "9494:9494"
         environment:

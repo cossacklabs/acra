@@ -56,6 +56,23 @@ services:
             --output=/keys/acraserver
             --output_public=/keys/acrawriter
 
+    # Create file with accounts for HTTP access and key for decrypt it
+    # - ./.acrakeys/acraserver/httpauth.accounts
+    # - ./.acrakeys/acraserver/auth_key
+    acra_genauth:
+        image: "cossacklabs/acra_genauth:${ACRA_DOCKER_IMAGE_TAG:-latest}"
+        network_mode: "none"
+        environment:
+            ACRA_MASTER_KEY: ${ACRA_MASTER_KEY:-UHZ3VUNNeTJ0SEFhbWVjNkt4eDdVYkc2WnNpUTlYa0E=}
+        volumes:
+            - ./.acrakeys:/keys
+        command: >-
+            --set
+            --user=test
+            --password=test
+            --file=/keys/acraserver/httpauth.accounts
+            --keys_dir=/keys/acraserver/
+
     # MySQL container
     mysql:
         image: mysql
@@ -77,11 +94,14 @@ services:
 
     acraserver:
         image: "cossacklabs/acraserver:${ACRA_DOCKER_IMAGE_TAG:-latest}"
-        restart: on-failure
+        # Restart server after correct termination, for example after the config
+        # was changed through the API
+        restart: always
         depends_on:
             - acra_genkeys_server
             - acra_genkeys_proxy
             - acra_genkeys_writer
+            - acra_genauth
             - mysql
         environment:
             ACRA_MASTER_KEY: ${ACRA_MASTER_KEY:-UHZ3VUNNeTJ0SEFhbWVjNkt4eDdVYkc2WnNpUTlYa0E=}
@@ -92,18 +112,25 @@ services:
             - acraproxy-acraserver
             - acraserver-mysql
         volumes:
-            # Mount the directory with only the keys for this service
-            - ./.acrakeys/acraserver:/keys:ro
+            # Mount the directory with only the keys for this service. Must be
+            # rewriteable in case of using API, otherwise should be read-only.
+            - ./.acrakeys/acraserver:/keys
+            # Directory with configuration, rewriteable
+            - ./.acraconfigs/acraserver:/config
         command: >-
             --mysql
             --db_host=mysql
             --db_port=3306
             --keys_dir=/keys
+            --auth_keys=/keys/httpauth.accounts
+            --enable_http_api
+            --connection_api_string=tcp://0.0.0.0:9090
+            --config=/config/acraserver.yaml
             -v
 
     acraproxy:
         image: "cossacklabs/acraproxy:${ACRA_DOCKER_IMAGE_TAG:-latest}"
-        restart: on-failure
+        restart: always
         depends_on:
             - acra_genkeys_server
             - acra_genkeys_proxy
@@ -113,11 +140,13 @@ services:
             - "9494:9494"
         environment:
             ACRA_MASTER_KEY: ${ACRA_MASTER_KEY:-UHZ3VUNNeTJ0SEFhbWVjNkt4eDdVYkc2WnNpUTlYa0E=}
-        # We use internal 'acraproxy-acraserver' network for acraserver and
-        # acraproxy interconnection and external network 'world' for
-        # port exposing
+        # We use internal networks:
+        # - 'acraproxy-acraserver' - for interconnection with acraserver
+        # - 'acraconfigui-acraserver' - for interconnection with acra_configui
+        # and external network 'world' for port exposing
         networks:
             - acraproxy-acraserver
+            - acraconfigui-acraproxy
             - world
         volumes:
             # Mount the directory with only the keys for this service
@@ -127,11 +156,35 @@ services:
             --keys_dir=/keys
             --client_id=${ACRA_CLIENT_ID:-testclientid}
             --connection_string=tcp://0.0.0.0:9494
+            --enable_http_api
+            --connection_api_string=tcp://0.0.0.0:9191
             -v
+
+    # Optional lightweight HTTP web server for managing AcraServer's
+    # certain configuration options
+    acra_configui:
+        image: "cossacklabs/acra_configui:${ACRA_DOCKER_IMAGE_TAG:-latest}"
+        restart: on-failure
+        depends_on:
+            - acraserver
+        # Open the port outside for client application
+        ports:
+            - "8000:8000"
+        # We use internal 'acraconfigui-acraproxy' network for acraproxy and
+        # acra_configui interconnection and external network 'world' for
+        # port exposing
+        networks:
+            - acraconfigui-acraproxy
+            - world
+        command: >-
+            --acra_host=acraproxy
+            --host=0.0.0.0
 
 networks:
     world:
     acraproxy-acraserver:
         internal: true
     acraserver-mysql:
+        internal: true
+    acraconfigui-acraproxy:
         internal: true
