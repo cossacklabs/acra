@@ -160,7 +160,7 @@ func (packet *MysqlPacket) getServerCapabilitiesExtended() (int, error) {
 		return 0, ErrPacketHasNotExtendedCapabilities
 	}
 	rawCapabilities := packet.data[capabilitiesOffset : capabilitiesOffset+2]
-	return int(binary.LittleEndian.Uint16(rawCapabilities)),nil
+	return int(binary.LittleEndian.Uint16(rawCapabilities)), nil
 }
 
 func (packet *MysqlPacket) ServerSupportProtocol41() bool {
@@ -188,10 +188,10 @@ func (packet *MysqlPacket) IsSSLRequest() bool {
 // https://dev.mysql.com/doc/internals/en/capability-flags.html#flag-CLIENT_DEPRECATE_EOF
 func (packet *MysqlPacket) IsClientDeprecateEOF() bool {
 	capabilities, err := packet.getServerCapabilitiesExtended()
-	if err != nil{
+	if err != nil {
 		return false
 	}
-	return (capabilities & CLIENT_DEPRECATE_EOF	) > 0
+	return (capabilities & CLIENT_DEPRECATE_EOF) > 0
 }
 
 // ReadPacket from connection and return MysqlPacket struct with data or error
