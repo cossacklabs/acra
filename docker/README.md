@@ -22,13 +22,16 @@ make docker
 There are examples with different interconnection types (`client` is not
 included into composes and is given only to indicate its position):
   * `docker-compose.mysql-nossl-server-ssession-proxy.yml`
-    mysql <-> acraserver <-SecureSession-> acraproxy <-> client
+    mysql <-> acraserver <-SecureSession-> acraproxy <---> client
+                                                       '-> acra_configui
   * `docker-compose.mysql-ssl-server-ssl.yml`
     mysql <-SSL-> acraserver <-SSL-> client
   * `docker-compose.pgsql-nossl-server-ssession-proxy.yml`
-    postgresql <-> acraserver <-SecureSession-> acraproxy <-> client
+    postgresql <-> acraserver <-SecureSession-> acraproxy <---> client
+                                                            '-> acra_configui
   * `docker-compose.pgsql-nossl-server-ssession-proxy_zonemode.yml`
-    postgresql <-> acraserver <-SecureSession-> acraproxy <-> client in zone mode
+    postgresql <-> acraserver <-SecureSession-> acraproxy <---> client in zone mode
+                                                            '-> acra_configui
   * `docker-compose.pgsql-ssl-server-ssl.yml`
     postgresql <-SSL-> acraserver <-SSL-> client
 

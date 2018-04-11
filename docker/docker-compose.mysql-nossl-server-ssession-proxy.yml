@@ -86,7 +86,7 @@ services:
         # Open the port outside for writer
         ports:
             - "3306:3306"
-        # We use interconnectionernal 'acraserver-mysql' network for acraserver and
+        # We use internal 'acraserver-mysql' network for acraserver and
         # DB interconnection and external network 'world' for port exposing
         networks:
             - acraserver-mysql
