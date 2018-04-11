@@ -3,7 +3,9 @@
   * `acra-build.dockerfile` - intermediate image for compile all acra components
   * `acraserver.dockerfile` - resulting image with acraserver
   * `acraproxy.dockerfile` - resulting image with acraproxy
-  * `acra_genkeys.dockerfile` - resulting image with acra_genkeys
+  * `acra_configui.dockerfile` - resulting image with acra_configui component
+  * `acra_genkeys.dockerfile` - resulting image with acra_genkeys tool
+  * `acra_genauth.dockerfile` - resulting image with acra_genauth tool
   * `mysql-ssl.dockerfile` - MySQL server container with example SSL
     certificates (located at ssl/mysql directory)
   * `postgresql-ssl.dockerfile` - Postgresql server container with example SSL
@@ -42,11 +44,16 @@ put them to appropriate services' directories and launch all components.
 
 Now you can connect to:
   * 9494/tcp (acraproxy)
-  * 9191/tcp (acraproxy API) in zone mode
+  * 8000/tcp (acra_configui) in configurations with acraproxy
   * 5432/tcp (postgresql) or 3306/tcp (mysql)
 
 
 ## Normal launch
+
+Docker containers with names `acra_genkeys_*` and `acra_genauth` were added to
+docker-compose files for architecture demonstration and quick start purposes
+only. You should remove them from selected compose file, generate and place all
+keys manually.
 
 Please specify ACRA_MASTER_KEY:
 ```bash
