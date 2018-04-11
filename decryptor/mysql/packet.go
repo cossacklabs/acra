@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"errors"
 )
 
 const (
@@ -13,6 +14,8 @@ const (
 	CLIENT_PROTOCOL_41 = 0x00000200
 	// SSL_REQUEST - https://dev.mysql.com/doc/internals/en/capability-flags.html#flag-CLIENT_SSL
 	SSL_REQUEST = 0x00000800
+	// https://dev.mysql.com/doc/internals/en/capability-flags.html#flag-CLIENT_DEPRECATE_EOF - 0x1000000
+	CLIENT_DEPRECATE_EOF = 1 << 6
 )
 
 const (
@@ -29,6 +32,8 @@ const (
 	// SEQUENCE_ID_INDEX last byte of header https://dev.mysql.com/doc/internals/en/mysql-packet.html#idm140406396409840
 	SEQUENCE_ID_INDEX = 3
 )
+
+var ErrPacketHasNotExtendedCapabilities = errors.New("packet hasn't extended capabilities")
 
 type Dumper interface {
 	Dump() []byte
@@ -144,6 +149,20 @@ func (packet *MysqlPacket) getServerCapabilities() int {
 	return int(binary.LittleEndian.Uint16(rawCapabilities))
 }
 
+func (packet *MysqlPacket) getServerCapabilitiesExtended() (int, error) {
+	// https://dev.mysql.com/doc/internals/en/connection-phase-packets.html#idm140437490034448
+	endOfServerVersion := bytes.Index(packet.data[1:], []byte{0}) + 2 // 1 first byte of protocol version and 1 to point to next byte
+	// 4 bytes connection string + 8 bytes of auth plugin + 1 byte filler
+	baseCapabilitiesOffset := endOfServerVersion + 13
+	// 2 bytes of base capabilities + 1 byte character set + 2 bytes of status flags
+	capabilitiesOffset := baseCapabilitiesOffset + 2 + 3
+	if len(packet.data) < capabilitiesOffset+2 {
+		return 0, ErrPacketHasNotExtendedCapabilities
+	}
+	rawCapabilities := packet.data[capabilitiesOffset : capabilitiesOffset+2]
+	return int(binary.LittleEndian.Uint16(rawCapabilities)),nil
+}
+
 func (packet *MysqlPacket) ServerSupportProtocol41() bool {
 	capabilities := packet.getServerCapabilities()
 	return (capabilities & CLIENT_PROTOCOL_41) > 0
@@ -163,6 +182,16 @@ func (packet *MysqlPacket) ClientSupportProtocol41() bool {
 func (packet *MysqlPacket) IsSSLRequest() bool {
 	capabilities := packet.getClientCapabilities()
 	return (capabilities & SSL_REQUEST) > 0
+}
+
+// IsClientDeprecatedEOF return true if flag set
+// https://dev.mysql.com/doc/internals/en/capability-flags.html#flag-CLIENT_DEPRECATE_EOF
+func (packet *MysqlPacket) IsClientDeprecateEOF() bool {
+	capabilities, err := packet.getServerCapabilitiesExtended()
+	if err != nil{
+		return false
+	}
+	return (capabilities & CLIENT_DEPRECATE_EOF	) > 0
 }
 
 // ReadPacket from connection and return MysqlPacket struct with data or error

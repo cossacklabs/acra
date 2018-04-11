@@ -134,6 +134,8 @@ type MysqlHandler struct {
 	serverSequenceNumber   int
 	clientProtocol41       bool
 	serverProtocol41       bool
+	// clientDeprecateEOF  if false then expect EOF on response result as terminator otherwise not
+	clientDeprecateEOF bool
 	decryptor              base.Decryptor
 	firewall               firewall.FirewallInterface
 	isTLSHandshake         bool
@@ -144,7 +146,7 @@ type MysqlHandler struct {
 }
 
 func NewMysqlHandler(decryptor base.Decryptor, dbConnection, clientConnection net.Conn, tlsConfig *tls.Config, firewall firewall.FirewallInterface) (*MysqlHandler, error) {
-	return &MysqlHandler{isTLSHandshake: false, dbTLSHandshakeFinished: make(chan bool), decryptor: decryptor, responseHandler: defaultResponseHandler, firewall: firewall, clientConnection: clientConnection, dbConnection: dbConnection, tlsConfig: tlsConfig}, nil
+	return &MysqlHandler{isTLSHandshake: false, dbTLSHandshakeFinished: make(chan bool), clientDeprecateEOF:false, decryptor: decryptor, responseHandler: defaultResponseHandler, firewall: firewall, clientConnection: clientConnection, dbConnection: dbConnection, tlsConfig: tlsConfig}, nil
 }
 
 func (handler *MysqlHandler) setQueryHandler(callback ResponseHandler) {
@@ -377,7 +379,10 @@ func (handler *MysqlHandler) processBinaryDataRow(rowData []byte, fields []*Colu
 			}
 			continue
 		case MYSQL_TYPE_DATE, MYSQL_TYPE_NEWDATE, MYSQL_TYPE_TIMESTAMP, MYSQL_TYPE_DATETIME, MYSQL_TYPE_TIME:
-			_, _, n = LengthEncodedInt(rowData[pos:])
+			_, _, n, err = LengthEncodedInt(rowData[pos:])
+			if err != nil {
+				return nil, err
+			}
 			output = append(output, rowData[pos:pos+n]...)
 			pos += n
 			continue
@@ -386,6 +391,10 @@ func (handler *MysqlHandler) processBinaryDataRow(rowData []byte, fields []*Colu
 		}
 	}
 	return output, nil
+}
+
+func (handler *MysqlHandler) expectEOFOnColumnDefinition()bool {
+	return !handler.clientDeprecateEOF
 }
 
 func (handler *MysqlHandler) QueryResponseHandler(packet *MysqlPacket, dbConnection, clientConnection net.Conn) (err error) {
@@ -419,11 +428,17 @@ func (handler *MysqlHandler) QueryResponseHandler(packet *MysqlPacket, dbConnect
 			return err
 		}
 		output = append(output, fieldPacket)
-		if fieldPacket.IsEOF() {
-			if i != fieldCount {
-				return ErrMalformPacket
+		if handler.expectEOFOnColumnDefinition(){
+			if fieldPacket.IsEOF() {
+				if i != fieldCount {
+					return ErrMalformPacket
+				}
+				break
 			}
-			break
+		} else {
+			if i == fieldCount {
+				break
+			}
 		}
 		log.WithField("column_index", i).Debugln("parse field")
 		field, err := ParseResultField(fieldPacket.GetData())
@@ -516,6 +531,7 @@ func (handler *MysqlHandler) DbToClientProxy(errCh chan<- error) {
 		if firstPacket {
 			firstPacket = false
 			handler.serverProtocol41 = packet.ServerSupportProtocol41()
+			handler.clientDeprecateEOF = packet.IsClientDeprecateEOF()
 			serverLog.Debugf("set support protocol 41 %v", handler.serverProtocol41)
 		}
 		responseHandler = handler.getResponseHandler()
