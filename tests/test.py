@@ -334,7 +334,7 @@ class BaseTestCase(unittest.TestCase):
     DB_HOST = os.environ.get('TEST_DB_HOST', '127.0.0.1')
     DB_NAME = os.environ.get('TEST_DB_NAME', 'postgres')
     DB_PORT = os.environ.get('TEST_DB_PORT', 5432)
-    DEBUG_LOG = os.environ.get('DEBUG_LOG', False)
+    DEBUG_LOG = os.environ.get('DEBUG_LOG', True)
 
     PROXY_PORT_1 = int(os.environ.get('TEST_PROXY_PORT', 9595))
     PROXY_PORT_2 = PROXY_PORT_1 + 200
@@ -1655,8 +1655,7 @@ class SSLPostgresqlConnectionTest(AcraCatchLogsMixin, HexFormatTest):
             traceback.print_exc()
 
 
-class SSLPostgresqlConnectionWithZoneTest(ZoneHexFormatTest,
-                                          SSLPostgresqlConnectionTest):
+class SSLPostgresqlConnectionWithZoneTest(SSLPostgresqlConnectionTest, ZoneHexFormatTest):
     pass
 
 
@@ -1672,8 +1671,7 @@ class TLSBetweenProxyAndServerTest(HexFormatTest):
         self.engine2 = self.engine_raw
 
 
-class TLSBetweenProxyAndServerWithZonesTest(ZoneHexFormatTest,
-                                            TLSBetweenProxyAndServerTest):
+class TLSBetweenProxyAndServerWithZonesTest(TLSBetweenProxyAndServerTest, ZoneHexFormatTest):
     pass
 
 
@@ -1749,7 +1747,7 @@ class SSLMysqlConnectionTest(SSLPostgresqlConnectionTest):
             raise
 
 
-class SSLMysqlConnectionWithZoneTest(ZoneHexFormatTest, SSLMysqlConnectionTest):
+class SSLMysqlConnectionWithZoneTest(SSLMysqlConnectionTest, ZoneHexFormatTest):
     pass
 
 
