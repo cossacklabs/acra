@@ -98,7 +98,10 @@ func testWhitelistTables(t *testing.T, acraCensor *AcraCensor, whitelistHandler 
 		"SELECT EMP_ID, LAST_NAME FROM EMPLOYEE_TBL AS EMPL_TBL WHERE CITY = 'Seattle' ORDER BY EMP_ID;",
 	}
 
-	whitelistHandler.AddQueries(testQueries)
+	err := whitelistHandler.AddQueries(testQueries)
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	whitelistHandler.AddTables([]string{"EMPLOYEE"})
 
@@ -112,7 +115,7 @@ func testWhitelistTables(t *testing.T, acraCensor *AcraCensor, whitelistHandler 
 		}
 	}
 
-	err := acraCensor.HandleQuery(testQueries[1])
+	err = acraCensor.HandleQuery(testQueries[1])
 	//acracensor should not block this query
 	if err != nil {
 		t.Fatal(err)
@@ -131,11 +134,13 @@ func testWhitelistTables(t *testing.T, acraCensor *AcraCensor, whitelistHandler 
 
 	testQuery := "SELECT EMP_ID, LAST_NAME FROM EMPLOYEE, EMPLOYEE_TBL, CUSTOMERS WHERE CITY = 'INDIANAPOLIS' ORDER BY EMP_ID asc;"
 
-	whitelistHandler.AddQueries([]string{testQuery})
+	err = whitelistHandler.AddQueries([]string{testQuery})
+	if err != nil {
+		t.Fatal(err)
+	}
 	whitelistHandler.AddTables([]string{"EMPLOYEE", "EMPLOYEE_TBL"})
 
 	err = acraCensor.HandleQuery(testQuery)
-
 	//acracensor should block this query
 	if err != handlers.ErrAccessToForbiddenTableWhitelist {
 		t.Fatal(err)
@@ -408,7 +413,10 @@ func testBlacklistRules(t *testing.T, acraCensor *AcraCensor, blacklistHandler *
 	}
 
 	blacklistHandler.Reset()
-	blacklistHandler.AddRules(testSecurityRules)
+	err = blacklistHandler.AddRules(testSecurityRules)
+	if err != nil {
+		t.Fatal(err)
+	}
 	//acracensor should block all queries
 	for _, query := range testQueries {
 		err := acraCensor.HandleQuery(query)
@@ -563,13 +571,15 @@ func TestSerialization(t *testing.T){
 
 	loggingHandler := handlers.NewLoggingHandler(tmpFile.Name())
 	for _, query := range testQueries {
-		loggingHandler.CheckQuery(query)
+		err = loggingHandler.CheckQuery(query)
+		if err != nil {
+			t.Fatal(err)
+		}
 	}
 
 	if len(loggingHandler.GetAllInputQueries()) != len(testQueries){
 		t.Fatal("loggingHandler logic error 1")
 	}
-
 
 	err = loggingHandler.Serialize()
 	if err != nil {
@@ -653,11 +663,23 @@ func TestLogging(t *testing.T){
 		}
 	}
 
-	loggingHandler.MarkQueryAsForbidden(testQueries[0])
-	loggingHandler.MarkQueryAsForbidden(testQueries[1])
-	loggingHandler.MarkQueryAsForbidden(testQueries[2])
+	err = loggingHandler.MarkQueryAsForbidden(testQueries[0])
+	if err != nil {
+		t.Fatal(err)
+	}
+	err = loggingHandler.MarkQueryAsForbidden(testQueries[1])
+	if err != nil {
+		t.Fatal(err)
+	}
+	err = loggingHandler.MarkQueryAsForbidden(testQueries[2])
+	if err != nil {
+		t.Fatal(err)
+	}
 
-	blacklist.AddQueries(loggingHandler.GetForbiddenQueries())
+	err = blacklist.AddQueries(loggingHandler.GetForbiddenQueries())
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	err = acraCensor.HandleQuery(testQueries[0])
 	if err != handlers.ErrQueryInBlacklist {

@@ -31,8 +31,7 @@ func (handler *LoggingHandler) CheckQuery(query string) error {
 	queryInfo.RawQuery = query
 	queryInfo.IsForbidden = false
 	handler.Queries = append(handler.Queries, *queryInfo)
-	handler.Serialize()
-	return nil
+	return handler.Serialize()
 }
 
 func (handler *LoggingHandler) Reset() {
@@ -47,13 +46,13 @@ func (handler *LoggingHandler) GetAllInputQueries() []string{
 	return queries
 }
 
-func (handler *LoggingHandler) MarkQueryAsForbidden(query string) {
+func (handler *LoggingHandler) MarkQueryAsForbidden(query string) error {
 	for index, queryInfo := range handler.Queries {
 		if strings.EqualFold(query, queryInfo.RawQuery) {
 			handler.Queries[index].IsForbidden = true
 		}
 	}
-	handler.Serialize()
+	return handler.Serialize()
 }
 
 func (handler *LoggingHandler) GetForbiddenQueries() []string{
@@ -68,11 +67,11 @@ func (handler *LoggingHandler) GetForbiddenQueries() []string{
 
 func (handler *LoggingHandler) Serialize() error {
 	jsonFile, err := json.Marshal(handler.Queries)
-	err = ioutil.WriteFile(handler.filePath, jsonFile, 0600)
 	if err != nil {
 		return err
 	}
-	return nil
+	return ioutil.WriteFile(handler.filePath, jsonFile, 0600)
+
 }
 
 func (handler *LoggingHandler) Deserialize() error {
@@ -81,9 +80,5 @@ func (handler *LoggingHandler) Deserialize() error {
 	if err != nil {
 		return err
 	}
-	json.Unmarshal(bufferBytes, &handler.Queries)
-	if err != nil {
-		return err
-	}
-	return nil
+	return json.Unmarshal(bufferBytes, &handler.Queries)
 }
