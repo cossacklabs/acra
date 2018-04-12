@@ -150,7 +150,7 @@ func main() {
 	}
 
 	if err := config.SetFirewall(*firewallConfig); err != nil {
-		log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorFirewallSetupError).
+		log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCensorSetupError).
 			Errorln("Can't setup censor")
 		os.Exit(1)
 	}

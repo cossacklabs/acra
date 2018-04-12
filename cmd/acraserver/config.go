@@ -51,7 +51,7 @@ type Config struct {
 	postgresql              bool
 	configPath              string
 	debug                   bool
-	firewall                acracensor.AcracensorInterface
+	censor                  acracensor.AcracensorInterface
 	tlsConfig               *tls.Config
 }
 
@@ -73,7 +73,7 @@ var ErrTwoDBSetup = errors.New("only one db supported at one time")
 
 func (config *Config) SetFirewall(censorConfigPath string) error {
 	acraCensor := &acracensor.AcraCensor{}
-	config.firewall = acraCensor
+	config.censor = acraCensor
 	//skip if flag not specified
 	if censorConfigPath == "" {
 		return nil
@@ -86,11 +86,11 @@ func (config *Config) SetFirewall(censorConfigPath string) error {
 	if err != nil {
 		return err
 	}
-	config.firewall = acraCensor
+	config.censor = acraCensor
 	return nil
 }
 func (config *Config) GetFirewall() acracensor.AcracensorInterface {
-	return config.firewall
+	return config.censor
 }
 
 func (config *Config) SetMySQL(useMySQL bool) error {

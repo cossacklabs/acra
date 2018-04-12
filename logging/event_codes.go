@@ -53,8 +53,8 @@ const (
 	EventCodeErrorCantDumpConfig          = 558
 
 	// acracensor
-	EventCodeErrorFirewallQueryIsNotAllowed = 560
-	EventCodeErrorFirewallSetupError        = 561
+	EventCodeErrorCensorQueryIsNotAllowed = 560
+	EventCodeErrorCensorSetupError        = 561
 
 	// response proxy
 	EventCodeErrorResponseProxyCantWriteToDB      = 570

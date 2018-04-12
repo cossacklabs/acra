@@ -225,7 +225,7 @@ func (handler *MysqlHandler) ClientToDbProxy(errCh chan<- error) {
 		case COM_QUERY:
 			sqlQuery := string(data)
 			if err := handler.firewall.HandleQuery(sqlQuery); err != nil {
-				log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorFirewallQueryIsNotAllowed).
+				log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCensorQueryIsNotAllowed).
 					Errorln("Error on acracensor check")
 				errPacket := NewQueryInterruptedError(handler.clientProtocol41)
 				packet.SetData(errPacket)
