@@ -72,22 +72,24 @@ func NewConfig() *Config {
 var ErrTwoDBSetup = errors.New("only one db supported at one time")
 
 func (config *Config) SetFirewall(censorConfigPath string) error {
+	firewall := &firewall.Firewall{}
 	//skip if flag not specified
 	if censorConfigPath == "" {
+		config.firewall = firewall
 		return nil
 	}
 	configuration, err := ioutil.ReadFile(censorConfigPath)
 	if err != nil {
+		config.firewall = firewall
 		return err
 	}
-	firewall := &firewall.Firewall{}
 	err = firewall.LoadConfiguration(configuration)
 	if err != nil {
+		config.firewall = firewall
 		return err
 	}
 
 	config.firewall = firewall
-
 	return nil
 }
 func (config *Config) GetFirewall() firewall.FirewallInterface {
