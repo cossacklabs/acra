@@ -24,17 +24,17 @@ _Core_:
 
 - **Filtering requests for MySQL**
 
-	- Added firewall component named [AcraCensor](https://github.com/cossacklabs/acra/tree/master/firewall) to handle MySQL `SELECT` queries. <br/>
+	- Added firewall component named [AcraCensor](https://github.com/cossacklabs/acra/wiki/acracensor) to handle MySQL `SELECT` queries. <br/>
 	You can provide list of restricted or allowed tables and columns, as well as exact queries to handle. AcraCensor will pass allowed queries and return error on forbidden ones. Rules are configured and stored in `yaml` file. Each request is logged in real time, moreover all queries and their state are logged into separate log file. ([#151](https://github.com/cossacklabs/acra/pull/151), [#138](https://github.com/cossacklabs/acra/pull/138), [#136](https://github.com/cossacklabs/acra/pull/136), [#132](https://github.com/cossacklabs/acra/pull/132), [#125](https://github.com/cossacklabs/acra/pull/125), [#108](https://github.com/cossacklabs/acra/pull/108)).<br/>
 
 	Check detailed instructions at [AcraCensor](https://github.com/cossacklabs/acra/wiki/acracensor) page.
 
 - **Web Config UI**
 
-	- Added lightweight HTTP [web server](https://github.com/cossacklabs/acra/tree/master/cmd/acra_configui) for managing AcraServer's certain configuration options.<br/>
+	- Added lightweight HTTP [web server](https://github.com/cossacklabs/acra/wiki/AcraConfigUI) for managing AcraServer's certain configuration options.<br/>
 	You can update proxy address and port, database address and port, zone mode and poison records handling. On saving new configuration, `acraserver` will gracefully restart and use these settings automatically. Web page access is restricted using basic auth. ([#153](https://github.com/cossacklabs/acra/pull/153), [#141](https://github.com/cossacklabs/acra/pull/141), [#123](https://github.com/cossacklabs/acra/pull/123), [#111](https://github.com/cossacklabs/acra/pull/111)).<br/>
 
-	See screenshots and detailed instructions at [Acra Config UI](https://github.com/cossacklabs/acra/tree/master/cmd/acra_configui) page.
+	See screenshots and detailed instructions at [Acra Config UI](https://github.com/cossacklabs/acra/wiki/AcraConfigUI) page.
 
 
 - **Logging**
