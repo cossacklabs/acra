@@ -8,27 +8,30 @@ import (
 
 type LoggingHandler struct {
 	Queries []QueryInfo
+	filePath string
 }
 
 type QueryInfo struct {
-	rawQuery string
-	isForbidden bool
+	RawQuery string
+	IsForbidden bool
+}
+
+func NewLoggingHandler (filePath string) *LoggingHandler {
+	return &LoggingHandler{Queries:nil, filePath:filePath}
 }
 
 func (handler *LoggingHandler) CheckQuery(query string) error {
-
 	//skip already logged queries
 	for _, queryInfo := range handler.Queries{
-		if strings.EqualFold(queryInfo.rawQuery, query){
+		if strings.EqualFold(queryInfo.RawQuery, query){
 			return nil
 		}
 	}
-
 	queryInfo := &QueryInfo{}
-	queryInfo.rawQuery = query
-	queryInfo.isForbidden = false
+	queryInfo.RawQuery = query
+	queryInfo.IsForbidden = false
 	handler.Queries = append(handler.Queries, *queryInfo)
-
+	handler.Serialize()
 	return nil
 }
 
@@ -39,46 +42,45 @@ func (handler *LoggingHandler) Reset() {
 func (handler *LoggingHandler) GetAllInputQueries() []string{
 	var queries []string
 	for _, queryInfo := range handler.Queries {
-		queries = append(queries, queryInfo.rawQuery)
+		queries = append(queries, queryInfo.RawQuery)
 	}
 	return queries
 }
 
 func (handler *LoggingHandler) MarkQueryAsForbidden(query string) {
 	for index, queryInfo := range handler.Queries {
-		if strings.EqualFold(query, queryInfo.rawQuery) {
-			handler.Queries[index].isForbidden = true
+		if strings.EqualFold(query, queryInfo.RawQuery) {
+			handler.Queries[index].IsForbidden = true
 		}
 	}
+	handler.Serialize()
 }
 
 func (handler *LoggingHandler) GetForbiddenQueries() []string{
 	var forbiddenQueries []string
 	for _, queryInfo := range handler.Queries {
-		if queryInfo.isForbidden == true{
-			forbiddenQueries = append(forbiddenQueries, queryInfo.rawQuery)
+		if queryInfo.IsForbidden == true{
+			forbiddenQueries = append(forbiddenQueries, queryInfo.RawQuery)
 		}
 	}
 	return forbiddenQueries
 }
 
-func (handler *LoggingHandler) SaveToFile(path string) error {
+func (handler *LoggingHandler) Serialize() error {
 	jsonFile, err := json.Marshal(handler.Queries)
-
-	err = ioutil.WriteFile(path, jsonFile, 0600)
+	err = ioutil.WriteFile(handler.filePath, jsonFile, 0600)
 	if err != nil {
 		return err
 	}
 	return nil
 }
 
-func (handler *LoggingHandler) LoadFromFile(path string) error {
+func (handler *LoggingHandler) Deserialize() error {
 	var bufferBytes []byte
-	bufferBytes, err := ioutil.ReadFile(path)
+	bufferBytes, err := ioutil.ReadFile(handler.filePath)
 	if err != nil {
 		return err
 	}
-
 	json.Unmarshal(bufferBytes, &handler.Queries)
 	if err != nil {
 		return err

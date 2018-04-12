@@ -525,7 +525,6 @@ func testSyntax(t *testing.T) {
 	}
 }
 
-
 func TestSerialization(t *testing.T){
 	testQueries := []string{
 		"SELECT * FROM Schema.Tables;",
@@ -553,15 +552,6 @@ func TestSerialization(t *testing.T){
 		"INSERT INTO dbo.Points (PointValue) VALUES ('1,99');",
 	}
 
-	loggingHandler := &handlers.LoggingHandler{}
-	for _, query := range testQueries {
-		loggingHandler.CheckQuery(query)
-	}
-
-	if len(loggingHandler.GetAllInputQueries()) != len(testQueries){
-		t.Fatal("loggingHandler logic error 1")
-	}
-
 	tmpFile, err := ioutil.TempFile("", "firewall_log")
 	if err != nil {
 		t.Fatal(err)
@@ -571,7 +561,17 @@ func TestSerialization(t *testing.T){
 		t.Fatal(err)
 	}
 
-	err = loggingHandler.SaveToFile(tmpFile.Name())
+	loggingHandler := handlers.NewLoggingHandler(tmpFile.Name())
+	for _, query := range testQueries {
+		loggingHandler.CheckQuery(query)
+	}
+
+	if len(loggingHandler.GetAllInputQueries()) != len(testQueries){
+		t.Fatal("loggingHandler logic error 1")
+	}
+
+
+	err = loggingHandler.Serialize()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -582,7 +582,7 @@ func TestSerialization(t *testing.T){
 		t.Fatal("loggingHandler logic error 2")
 	}
 
-	err = loggingHandler.LoadFromFile(tmpFile.Name())
+	err = loggingHandler.Deserialize()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -591,11 +591,16 @@ func TestSerialization(t *testing.T){
 		t.Fatal("loggingHandler logic error 3")
 	}
 
+	for index, query := range loggingHandler.GetAllInputQueries(){
+		if testQueries[index] != query{
+			t.Fatal("loggingHandler logic error 4")
+		}
+	}
+
 	if err = os.Remove(tmpFile.Name()); err != nil {
 		t.Fatal(err)
 	}
 }
-
 func TestLogging(t *testing.T){
 
 	testQueries := []string{
@@ -624,17 +629,22 @@ func TestLogging(t *testing.T){
 		"INSERT INTO dbo.Points (PointValue) VALUES ('1,99');",
 	}
 
+	tmpFile, err := ioutil.TempFile("", "firewall_log")
+	if err != nil {
+		t.Fatal(err)
+	}
 
-	firewall := &Firewall{}
+	if err = tmpFile.Close(); err != nil {
+		t.Fatal(err)
+	}
 
-	loggingHandler := &handlers.LoggingHandler{}
+	loggingHandler := handlers.NewLoggingHandler(tmpFile.Name())
 
 	blacklist := &handlers.BlacklistHandler{}
 
+	firewall := &Firewall{}
 	firewall.AddHandler(loggingHandler)
 	firewall.AddHandler(blacklist)
-
-	var err error
 
 	for _, testQuery := range testQueries {
 		err = firewall.HandleQuery(testQuery)
@@ -670,5 +680,9 @@ func TestLogging(t *testing.T){
 		if err != nil {
 			t.Fatal(err)
 		}
+	}
+
+	if err = os.Remove(tmpFile.Name()); err != nil {
+		t.Fatal(err)
 	}
 }
