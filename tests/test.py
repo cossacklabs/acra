@@ -648,7 +648,7 @@ class HexFormatTest(BaseTestCase):
         try:
             self.assertEqual(row['data'][fake_offset:],
                              row['raw_data'].encode('utf-8'))
-        except UnicodeDecodeError:
+        except:
             print('incorrect data: {}\ncorrect data: {}\ndata: {}\n data len: {}'.format(
                 incorrect_data, correct_data, row['data'], len(row['data'])))
             raise
@@ -1548,8 +1548,7 @@ class TestAcraGenKeys(unittest.TestCase):
         # call with directory separator in key name
         self.assertEqual(create_client_keypair(POISON_KEY_PATH), 1)
 
-
-class SSLPostgresqlConnectionTest(AcraCatchLogsMixin, HexFormatTest):
+class SSLPostgresqlMixin(AcraCatchLogsMixin):
     ACRA2_PORT = BaseTestCase.ACRA_PORT+1000
     DEBUG_LOG = True
 
@@ -1637,7 +1636,7 @@ class SSLPostgresqlConnectionTest(AcraCatchLogsMixin, HexFormatTest):
             raise
 
     def tearDown(self):
-        super(SSLPostgresqlConnectionTest, self).tearDown()
+        super(SSLPostgresqlMixin, self).tearDown()
         if not self.EXTERNAL_ACRA:
             for attr in ['acra', 'acra2']:
                 if hasattr(self, attr):
@@ -1655,27 +1654,35 @@ class SSLPostgresqlConnectionTest(AcraCatchLogsMixin, HexFormatTest):
             traceback.print_exc()
 
 
-class SSLPostgresqlConnectionWithZoneTest(SSLPostgresqlConnectionTest, ZoneHexFormatTest):
+class SSLPostgresqlConnectionTest(SSLPostgresqlMixin, HexFormatTest):
     pass
 
 
-class TLSBetweenProxyAndServerTest(HexFormatTest):
+class SSLPostgresqlConnectionWithZoneTest(SSLPostgresqlMixin, ZoneHexFormatTest):
+    pass
+
+
+class TLSBetweenProxyAndServerMixin(object):
     TLS_ON = True
     def fork_acra(self, popen_kwargs: dict=None, **acra_kwargs: dict):
         return self._fork_acra({'client_id': 'keypair1'}, popen_kwargs)
 
     def setUp(self):
-        super(TLSBetweenProxyAndServerTest, self).setUp()
+        super(TLSBetweenProxyAndServerMixin, self).setUp()
         # acra works with one client id and no matter from which proxy connection come
         self.engine2.dispose()
         self.engine2 = self.engine_raw
 
 
-class TLSBetweenProxyAndServerWithZonesTest(TLSBetweenProxyAndServerTest, ZoneHexFormatTest):
+class TLSBetweenProxyAndServerTest(TLSBetweenProxyAndServerMixin, HexFormatTest):
     pass
 
 
-class SSLMysqlConnectionTest(SSLPostgresqlConnectionTest):
+class TLSBetweenProxyAndServerWithZonesTest(TLSBetweenProxyAndServerMixin, ZoneHexFormatTest):
+    pass
+
+
+class SSLMysqlMixin(SSLPostgresqlMixin):
     def checkSkip(self):
         if not (TEST_WITH_TLS and TEST_MYSQL):
             self.skipTest("running tests without TLS")
@@ -1747,7 +1754,11 @@ class SSLMysqlConnectionTest(SSLPostgresqlConnectionTest):
             raise
 
 
-class SSLMysqlConnectionWithZoneTest(SSLMysqlConnectionTest, ZoneHexFormatTest):
+class SSLMysqlConnectionTest(SSLMysqlMixin, HexFormatTest):
+    pass
+
+
+class SSLMysqlConnectionWithZoneTest(SSLMysqlMixin, ZoneHexFormatTest):
     pass
 
 
