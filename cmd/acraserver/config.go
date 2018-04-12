@@ -18,8 +18,9 @@ import (
 	"encoding/json"
 	"errors"
 
-	"github.com/cossacklabs/acra/firewall"
+	"github.com/cossacklabs/acra/acracensor"
 	"github.com/cossacklabs/acra/network"
+	"io/ioutil"
 )
 
 const (
@@ -50,7 +51,7 @@ type Config struct {
 	postgresql              bool
 	configPath              string
 	debug                   bool
-	firewall                firewall.FirewallInterface
+	censor                  acracensor.AcracensorInterface
 	tlsConfig               *tls.Config
 }
 
@@ -70,11 +71,25 @@ func NewConfig() *Config {
 
 var ErrTwoDBSetup = errors.New("only one db supported at one time")
 
-func (config *Config) SetFirewall(fw firewall.FirewallInterface) {
-	config.firewall = fw
+func (config *Config) SetCensor(censorConfigPath string) error {
+	censor := &acracensor.AcraCensor{}
+	config.censor = censor
+	//skip if flag not specified
+	if censorConfigPath == "" {
+		return nil
+	}
+	configuration, err := ioutil.ReadFile(censorConfigPath)
+	if err != nil {
+		return err
+	}
+	err = censor.LoadConfiguration(configuration)
+	if err != nil {
+		return err
+	}
+	return nil
 }
-func (config *Config) GetFirewall() firewall.FirewallInterface {
-	return config.firewall
+func (config *Config) GetCensor() acracensor.AcracensorInterface {
+	return config.censor
 }
 
 func (config *Config) SetMySQL(useMySQL bool) error {

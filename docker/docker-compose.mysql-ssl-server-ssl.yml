@@ -1,0 +1,88 @@
+version: "3"
+
+services:
+    # Create keys:
+    # - ./.acrakeys/acraserver/${ACRA_CLIENT_ID}_storage
+    # - ./.acrakeys/acrawriter/${ACRA_CLIENT_ID}_storage.pub
+    acra_genkeys_writer:
+        # You can specify docker image tag in the environment
+        # variable ACRA_DOCKER_IMAGE_TAG or run by default with 'latest' images
+        image: "cossacklabs/acra_genkeys:${ACRA_DOCKER_IMAGE_TAG:-latest}"
+        # We do not need network for keys' generation at all
+        network_mode: "none"
+        environment:
+            # INSECURE!!! You MUST define your own ACRA_MASTER_KEY
+            # The default is only for testing purposes
+            ACRA_MASTER_KEY: ${ACRA_MASTER_KEY:-UHZ3VUNNeTJ0SEFhbWVjNkt4eDdVYkc2WnNpUTlYa0E=}
+        volumes:
+            # Mount the whole ./.acrakeys directory to be able generate keys and
+            # place them in services' subdirectories
+            - ./.acrakeys:/keys
+        # Please specify ACRA_CLIENT_ID environment variable, otherwise run with
+        # default 'testclientid' client id
+        command: >-
+            --client_id=${ACRA_CLIENT_ID:-testclientid}
+            --storage
+            --output=/keys/acraserver
+            --output_public=/keys/acrawriter
+
+    # MySQL container
+    mysql:
+        # Build and run container based on official mysql image with
+        # strict SSL mode
+        build:
+            context: ../
+            dockerfile: docker/mysql-ssl.dockerfile
+        # INSECURE!!! You MUST define your own DB name and credentials
+        environment:
+            MYSQL_ONETIME_PASSWORD: ${MYSQL_ONETIME_PASSWORD:-urLK7YJPndDWsnJC}
+            MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-hy53uBLmBuihUK29}
+            MYSQL_DATABASE: ${MYSQL_DATABASE:-test}
+            MYSQL_USER: ${MYSQL_USER:-test}
+            MYSQL_PASSWORD: ${MYSQL_PASSWORD:-test}
+        # Open the port outside for writer
+        ports:
+            - "3306:3306"
+        # We use internal 'acraserver-mysql' network for acraserver and
+        # DB interconnection and external network 'world' for port exposing
+        networks:
+            - acraserver-mysql
+            - world
+
+    acraserver:
+        image: "cossacklabs/acraserver:${ACRA_DOCKER_IMAGE_TAG:-latest}"
+        restart: on-failure
+        depends_on:
+            - acra_genkeys_writer
+            - mysql
+        # Open the port outside for client application
+        ports:
+            - "9393:9393"
+        environment:
+            ACRA_MASTER_KEY: ${ACRA_MASTER_KEY:-UHZ3VUNNeTJ0SEFhbWVjNkt4eDdVYkc2WnNpUTlYa0E=}
+        # We use internal network 'acraserver-mysql' for acraserver and
+        # DB interconnection and external network 'world' for port exposing
+        networks:
+            - acraserver-mysql
+            - world
+        volumes:
+            # Mount the directory with only the keys for this service
+            - ./.acrakeys/acraserver:/keys:ro
+            # Mount directories with SSL certificates
+            - ./ssl/ca:/ssl.ca:ro
+            - ./ssl/acraserver:/ssl.server:ro
+        command: >-
+            --db_host=mysql
+            --db_port=3306
+            --keys_dir=/keys
+            --tls_ca=/ssl.ca/example.cossacklabs.com.CA.crt
+            --tls_cert=/ssl.server/acraserver.crt
+            --tls_key=/ssl.server/acraserver.key
+            --tls_sni=mysql
+            --no_encryption
+            -v
+
+networks:
+    world:
+    acraserver-mysql:
+        internal: true
