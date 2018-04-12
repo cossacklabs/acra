@@ -3,7 +3,7 @@ AcraConfigUI is a lightweight HTTP web server for managing AcraServer's certain 
 The interface of AcraConfigUI consists of the following elements:
  
 * **AcraServer Settings** — managing AcraServer's settings.
-* **Firewall** (Coming soon) — Firewall/Intrusion detection settings.
+* **Censor** (Coming soon) — Censor/Intrusion detection settings.
 * **Zones** (Coming soon) — managing Zone keys.
 # Setup
 * [Build the AcraServer environment](https://github.com/cossacklabs/acra/wiki/Quick-start-guide#build-the-key-generator-and-generate-keys)
