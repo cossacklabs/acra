@@ -1,4 +1,4 @@
-package firewall
+package acracensor
 
 type Firewall struct {
 	handlers []QueryHandlerInterface

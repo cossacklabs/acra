@@ -1,7 +1,7 @@
-package firewall
+package acracensor
 
 import (
-	"github.com/cossacklabs/acra/firewall/handlers"
+	"github.com/cossacklabs/acra/acracensor/handlers"
 	"gopkg.in/yaml.v2"
 )
 

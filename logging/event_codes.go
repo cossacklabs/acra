@@ -52,8 +52,9 @@ const (
 	EventCodeErrorCantParseAuthData       = 557
 	EventCodeErrorCantDumpConfig          = 558
 
-	// firewall
+	// acracensor
 	EventCodeErrorFirewallQueryIsNotAllowed = 560
+	EventCodeErrorFirewallSetupError        = 561
 
 	// response proxy
 	EventCodeErrorResponseProxyCantWriteToDB      = 570

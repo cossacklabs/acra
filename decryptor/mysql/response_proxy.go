@@ -9,7 +9,7 @@ import (
 	"time"
 
 	"github.com/cossacklabs/acra/decryptor/base"
-	"github.com/cossacklabs/acra/firewall"
+	"github.com/cossacklabs/acra/acracensor"
 	"github.com/cossacklabs/acra/logging"
 	log "github.com/sirupsen/logrus"
 )
@@ -135,9 +135,9 @@ type MysqlHandler struct {
 	clientProtocol41       bool
 	serverProtocol41       bool
 	// clientDeprecateEOF  if false then expect EOF on response result as terminator otherwise not
-	clientDeprecateEOF bool
+	clientDeprecateEOF     bool
 	decryptor              base.Decryptor
-	firewall               firewall.FirewallInterface
+	firewall               acracensor.FirewallInterface
 	isTLSHandshake         bool
 	dbTLSHandshakeFinished chan bool
 	clientConnection       net.Conn
@@ -145,7 +145,7 @@ type MysqlHandler struct {
 	tlsConfig              *tls.Config
 }
 
-func NewMysqlHandler(decryptor base.Decryptor, dbConnection, clientConnection net.Conn, tlsConfig *tls.Config, firewall firewall.FirewallInterface) (*MysqlHandler, error) {
+func NewMysqlHandler(decryptor base.Decryptor, dbConnection, clientConnection net.Conn, tlsConfig *tls.Config, firewall acracensor.FirewallInterface) (*MysqlHandler, error) {
 	return &MysqlHandler{isTLSHandshake: false, dbTLSHandshakeFinished: make(chan bool), clientDeprecateEOF:false, decryptor: decryptor, responseHandler: defaultResponseHandler, firewall: firewall, clientConnection: clientConnection, dbConnection: dbConnection, tlsConfig: tlsConfig}, nil
 }
 
@@ -226,7 +226,7 @@ func (handler *MysqlHandler) ClientToDbProxy(errCh chan<- error) {
 			sqlQuery := string(data)
 			if err := handler.firewall.HandleQuery(sqlQuery); err != nil {
 				log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorFirewallQueryIsNotAllowed).
-					Errorln("Error on firewall check")
+					Errorln("Error on acracensor check")
 				errPacket := NewQueryInterruptedError(handler.clientProtocol41)
 				packet.SetData(errPacket)
 				if _, err := handler.clientConnection.Write(packet.Dump()); err != nil {
