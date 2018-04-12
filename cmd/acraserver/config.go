@@ -18,7 +18,7 @@ import (
 	"encoding/json"
 	"errors"
 
-	"github.com/cossacklabs/acra/firewall"
+	"github.com/cossacklabs/acra/acracensor"
 	"github.com/cossacklabs/acra/network"
 	"io/ioutil"
 )
@@ -51,7 +51,7 @@ type Config struct {
 	postgresql              bool
 	configPath              string
 	debug                   bool
-	firewall                firewall.FirewallInterface
+	firewall                acracensor.AcracensorInterface
 	tlsConfig               *tls.Config
 }
 
@@ -72,27 +72,24 @@ func NewConfig() *Config {
 var ErrTwoDBSetup = errors.New("only one db supported at one time")
 
 func (config *Config) SetFirewall(censorConfigPath string) error {
-	firewall := &firewall.Firewall{}
+	acraCensor := &acracensor.AcraCensor{}
+	config.firewall = acraCensor
 	//skip if flag not specified
 	if censorConfigPath == "" {
-		config.firewall = firewall
 		return nil
 	}
 	configuration, err := ioutil.ReadFile(censorConfigPath)
 	if err != nil {
-		config.firewall = firewall
 		return err
 	}
-	err = firewall.LoadConfiguration(configuration)
+	err = acraCensor.LoadConfiguration(configuration)
 	if err != nil {
-		config.firewall = firewall
 		return err
 	}
-
-	config.firewall = firewall
+	config.firewall = acraCensor
 	return nil
 }
-func (config *Config) GetFirewall() firewall.FirewallInterface {
+func (config *Config) GetFirewall() acracensor.AcracensorInterface {
 	return config.firewall
 }
 

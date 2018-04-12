@@ -1,14 +1,14 @@
-package firewall
+package acracensor
 
 import (
-	"github.com/cossacklabs/acra/firewall/handlers"
+	"github.com/cossacklabs/acra/acracensor/handlers"
 	"gopkg.in/yaml.v2"
 )
 
 const BlacklistConfigStr = "blacklist"
 const WhitelistConfigStr = "whitelist"
 
-type FirewallConfig struct {
+type AcracensorConfig struct {
 	Handlers []struct {
 		Handler string
 		Queries []string
@@ -17,9 +17,9 @@ type FirewallConfig struct {
 	}
 }
 
-func (firewall *Firewall) LoadConfiguration(configuration []byte) error {
+func (acraCensor *AcraCensor) LoadConfiguration(configuration []byte) error {
 
-	err := firewall.update(configuration)
+	err := acraCensor.update(configuration)
 	if err != nil {
 		return err
 	}
@@ -27,9 +27,9 @@ func (firewall *Firewall) LoadConfiguration(configuration []byte) error {
 	return nil
 }
 
-func (firewall *Firewall) update(configuration []byte) error {
+func (acraCensor *AcraCensor) update(configuration []byte) error {
 
-	var firewallConfiguration FirewallConfig
+	var firewallConfiguration AcracensorConfig
 
 	err := yaml.Unmarshal(configuration, &firewallConfiguration)
 	if err != nil {
@@ -53,7 +53,7 @@ func (firewall *Firewall) update(configuration []byte) error {
 				return err
 			}
 
-			firewall.AddHandler(whitelistHandler)
+			acraCensor.AddHandler(whitelistHandler)
 			break
 		case BlacklistConfigStr:
 			blacklistHandler := &handlers.BlacklistHandler{}
@@ -70,7 +70,7 @@ func (firewall *Firewall) update(configuration []byte) error {
 				return err
 			}
 
-			firewall.AddHandler(blacklistHandler)
+			acraCensor.AddHandler(blacklistHandler)
 			break
 		default:
 			break

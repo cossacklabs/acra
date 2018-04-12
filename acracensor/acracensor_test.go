@@ -1,7 +1,7 @@
-package firewall
+package acracensor
 
 import (
-	"github.com/cossacklabs/acra/firewall/handlers"
+	"github.com/cossacklabs/acra/acracensor/handlers"
 	"github.com/cossacklabs/acra/utils"
 	"io/ioutil"
 	"os"
@@ -9,7 +9,7 @@ import (
 	"testing"
 )
 
-func TestWhitelistFirewall(t *testing.T) {
+func TestWhitelistQueries(t *testing.T) {
 
 	sqlSelectQueries := []string{
 		"SELECT * FROM Schema.Tables;",
@@ -51,42 +51,42 @@ func TestWhitelistFirewall(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	firewall := &Firewall{}
+	acraCensor := &AcraCensor{}
 
-	//set our firewall to use whitelist for query evaluating
-	firewall.AddHandler(whitelistHandler)
+	//set our acracensor to use whitelist for query evaluating
+	acraCensor.AddHandler(whitelistHandler)
 
-	//firewall should not block those queries
+	//acracensor should not block those queries
 	for _, query := range sqlSelectQueries {
-		err = firewall.HandleQuery(query)
+		err = acraCensor.HandleQuery(query)
 		if err != nil {
 			t.Fatal(err)
 		}
 	}
 
 	for _, query := range sqlInsertQueries {
-		err = firewall.HandleQuery(query)
+		err = acraCensor.HandleQuery(query)
 		if err != nil {
 			t.Fatal(err)
 		}
 	}
 
-	//firewall should block this query because it is not in whitelist
-	err = firewall.HandleQuery("SELECT * FROM Schema.views;")
+	//acracensor should block this query because it is not in whitelist
+	err = acraCensor.HandleQuery("SELECT * FROM Schema.views;")
 	if err != handlers.ErrQueryNotInWhitelist {
 		t.Fatal(err)
 	}
 
 	//ditto
-	err = firewall.HandleQuery("INSERT INTO SalesStaff1 VALUES (1, 'Stephen', 'Jiang');")
+	err = acraCensor.HandleQuery("INSERT INTO SalesStaff1 VALUES (1, 'Stephen', 'Jiang');")
 	if err != handlers.ErrQueryNotInWhitelist {
 		t.Fatal(err)
 	}
 
-	testWhitelistTables(t, firewall, whitelistHandler)
-	testWhitelistByRules(t, firewall, whitelistHandler)
+	testWhitelistTables(t, acraCensor, whitelistHandler)
+	testWhitelistRules(t, acraCensor, whitelistHandler)
 }
-func testWhitelistTables(t *testing.T, firewall *Firewall, whitelistHandler *handlers.WhitelistHandler) {
+func testWhitelistTables(t *testing.T, acraCensor *AcraCensor, whitelistHandler *handlers.WhitelistHandler) {
 
 	testQueries := []string{
 		"SELECT EMP_ID, LAST_NAME FROM EMPLOYEE_TBL WHERE CITY = 'Seattle' ORDER BY EMP_ID;",
@@ -104,16 +104,16 @@ func testWhitelistTables(t *testing.T, firewall *Firewall, whitelistHandler *han
 
 	queryIndexesToBlock := []int{0, 2, 3, 4, 5, 6}
 
-	//firewall should block those queries
+	//acracensor should block those queries
 	for _, i := range queryIndexesToBlock {
-		err := firewall.HandleQuery(testQueries[i])
+		err := acraCensor.HandleQuery(testQueries[i])
 		if err != handlers.ErrAccessToForbiddenTableWhitelist {
 			t.Fatal(err)
 		}
 	}
 
-	err := firewall.HandleQuery(testQueries[1])
-	//firewall should not block this query
+	err := acraCensor.HandleQuery(testQueries[1])
+	//acracensor should not block this query
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -121,9 +121,9 @@ func testWhitelistTables(t *testing.T, firewall *Firewall, whitelistHandler *han
 	//Now we have no tables in whitelist, so should block all queries
 	whitelistHandler.RemoveTables([]string{"EMPLOYEE"})
 
-	//firewall should not block queries
+	//acracensor should not block queries
 	for _, query := range testQueries {
-		err = firewall.HandleQuery(query)
+		err = acraCensor.HandleQuery(query)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -134,23 +134,23 @@ func testWhitelistTables(t *testing.T, firewall *Firewall, whitelistHandler *han
 	whitelistHandler.AddQueries([]string{testQuery})
 	whitelistHandler.AddTables([]string{"EMPLOYEE", "EMPLOYEE_TBL"})
 
-	err = firewall.HandleQuery(testQuery)
+	err = acraCensor.HandleQuery(testQuery)
 
-	//firewall should block this query
+	//acracensor should block this query
 	if err != handlers.ErrAccessToForbiddenTableWhitelist {
 		t.Fatal(err)
 	}
 
 	whitelistHandler.AddTables([]string{"CUSTOMERS"})
 
-	err = firewall.HandleQuery(testQuery)
+	err = acraCensor.HandleQuery(testQuery)
 
-	//firewall should not block this query
+	//acracensor should not block this query
 	if err != nil {
 		t.Fatal(err)
 	}
 }
-func testWhitelistByRules(t *testing.T, firewall *Firewall, whitelistHandler *handlers.WhitelistHandler) {
+func testWhitelistRules(t *testing.T, acraCensor *AcraCensor, whitelistHandler *handlers.WhitelistHandler) {
 	whitelistHandler.Reset()
 
 	testQueries := []string{
@@ -162,7 +162,7 @@ func testWhitelistByRules(t *testing.T, firewall *Firewall, whitelistHandler *ha
 		"SELECT EMP_ID, LAST_NAME FROM EMPLOYEE_TBL WHERE CITY = 'INDIANAPOLIS' ORDER BY EMP_ID asc;",
 	}
 
-	//firewall should block all queries except accessing to any information but only in table EMPLOYEE_TBL and related only to Seattle city [1,2,3]
+	//acracensor should block all queries except accessing to any information but only in table EMPLOYEE_TBL and related only to Seattle city [1,2,3]
 	testSecurityRules := []string{
 		"SELECT * FROM EMPLOYEE_TBL WHERE CITY='Seattle'",
 	}
@@ -173,34 +173,34 @@ func testWhitelistByRules(t *testing.T, firewall *Firewall, whitelistHandler *ha
 		t.Fatal(err)
 	}
 
-	//firewall should block those queries
+	//acracensor should block those queries
 	for _, i := range queryIndexesToBlock {
-		err := firewall.HandleQuery(testQueries[i])
+		err := acraCensor.HandleQuery(testQueries[i])
 		if err != handlers.ErrForbiddenSqlStructureWhitelist {
 			t.Fatal(err)
 		}
 	}
 
 	queryIndexesToPass := []int{0, 4}
-	//firewall should not block those queries
+	//acracensor should not block those queries
 	for _, i := range queryIndexesToPass {
-		err := firewall.HandleQuery(testQueries[i])
+		err := acraCensor.HandleQuery(testQueries[i])
 		if err != nil {
 			t.Fatal(err)
 		}
 	}
 
 	whitelistHandler.RemoveRules(testSecurityRules)
-	//firewall should not block all queries
+	//acracensor should not block all queries
 	for _, query := range testQueries {
-		err := firewall.HandleQuery(query)
+		err := acraCensor.HandleQuery(query)
 		if err != nil {
 			t.Fatal(err)
 		}
 	}
 }
 
-func TestBlacklistFirewall(t *testing.T) {
+func TestBlacklistQueries(t *testing.T) {
 	sqlSelectQueries := []string{
 		"SELECT * FROM Schema.Tables;",
 		"SELECT * FROM Schema.Tables;",
@@ -241,21 +241,21 @@ func TestBlacklistFirewall(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	firewall := &Firewall{}
+	acraCensor := &AcraCensor{}
 
-	//set our firewall to use blacklist for query evaluating
-	firewall.AddHandler(blacklistHandler)
+	//set our acracensor to use blacklist for query evaluating
+	acraCensor.AddHandler(blacklistHandler)
 
-	//firewall should not block those queries
+	//acracensor should not block those queries
 	for _, query := range sqlSelectQueries {
-		err = firewall.HandleQuery(query)
+		err = acraCensor.HandleQuery(query)
 		if err != nil {
 			t.Fatal(err)
 		}
 	}
 
 	for _, query := range sqlInsertQueries {
-		err = firewall.HandleQuery(query)
+		err = acraCensor.HandleQuery(query)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -268,42 +268,42 @@ func TestBlacklistFirewall(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	err = firewall.HandleQuery(testQuery)
-	//firewall should block this query because it's in blacklist
+	err = acraCensor.HandleQuery(testQuery)
+	//acracensor should block this query because it's in blacklist
 	if err != handlers.ErrQueryInBlacklist {
 		t.Fatal(err)
 	}
 
-	firewall.RemoveHandler(blacklistHandler)
+	acraCensor.RemoveHandler(blacklistHandler)
 
-	err = firewall.HandleQuery(testQuery)
-	//firewall should not block this query because we removed blacklist handler, err should be nil
+	err = acraCensor.HandleQuery(testQuery)
+	//acracensor should not block this query because we removed blacklist handler, err should be nil
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	//again set our firewall to use blacklist for query evaluating
-	firewall.AddHandler(blacklistHandler)
-	err = firewall.HandleQuery(testQuery)
+	//again set our acracensor to use blacklist for query evaluating
+	acraCensor.AddHandler(blacklistHandler)
+	err = acraCensor.HandleQuery(testQuery)
 
-	//now firewall should block testQuery because it's in blacklist
+	//now acracensor should block testQuery because it's in blacklist
 	if err != handlers.ErrQueryInBlacklist {
 		t.Fatal(err)
 	}
 
 	blacklistHandler.RemoveQueries([]string{testQuery})
 
-	err = firewall.HandleQuery(testQuery)
-	//now firewall should not block testQuery
+	err = acraCensor.HandleQuery(testQuery)
+	//now acracensor should not block testQuery
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	testBlacklistTables(t, firewall, blacklistHandler)
+	testBlacklistTables(t, acraCensor, blacklistHandler)
 
-	testBlacklistByRules(t, firewall, blacklistHandler)
+	testBlacklistRules(t, acraCensor, blacklistHandler)
 }
-func testBlacklistTables(t *testing.T, firewall *Firewall, blacklistHandler *handlers.BlacklistHandler) {
+func testBlacklistTables(t *testing.T, firewall *AcraCensor, blacklistHandler *handlers.BlacklistHandler) {
 
 	blacklistHandler.Reset()
 
@@ -319,7 +319,7 @@ func testBlacklistTables(t *testing.T, firewall *Firewall, blacklistHandler *han
 
 	blacklistHandler.AddTables([]string{"EMPLOYEE_TBL", "Customers"})
 
-	//firewall should block these queries
+	//acracensor should block these queries
 	queryIndexesToBlock := []int{0, 2, 4, 5, 6}
 	for _, i := range queryIndexesToBlock {
 		err := firewall.HandleQuery(testQueries[i])
@@ -328,7 +328,7 @@ func testBlacklistTables(t *testing.T, firewall *Firewall, blacklistHandler *han
 		}
 	}
 
-	//firewall should not block these queries
+	//acracensor should not block these queries
 	queryIndexesToPass := []int{1, 3}
 	for _, i := range queryIndexesToPass {
 		err := firewall.HandleQuery(testQueries[i])
@@ -340,19 +340,19 @@ func testBlacklistTables(t *testing.T, firewall *Firewall, blacklistHandler *han
 	blacklistHandler.RemoveTables([]string{"EMPLOYEE_TBL"})
 
 	err := firewall.HandleQuery(testQueries[0])
-	//firewall should not block this query
+	//acracensor should not block this query
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	err = firewall.HandleQuery(testQueries[2])
-	//firewall should not block this query
+	//acracensor should not block this query
 	if err != nil {
 		t.Fatal(err)
 	}
 
 }
-func testBlacklistByRules(t *testing.T, firewall *Firewall, blacklistHandler *handlers.BlacklistHandler) {
+func testBlacklistRules(t *testing.T, acraCensor *AcraCensor, blacklistHandler *handlers.BlacklistHandler) {
 
 	blacklistHandler.Reset()
 
@@ -364,7 +364,7 @@ func testBlacklistByRules(t *testing.T, firewall *Firewall, blacklistHandler *ha
 		"SELECT EMP_ID, LAST_NAME FROM EMPLOYEE_TBL AS EMPL_TBL WHERE CITY = 'Seattle' ORDER BY EMP_ID;",
 	}
 
-	//firewall should block all queries that try to access to information in table EMPLOYEE_TBL related to Seattle city
+	//acracensor should block all queries that try to access to information in table EMPLOYEE_TBL related to Seattle city
 	testSecurityRules := []string{
 		"SELECT * FROM EMPLOYEE_TBL WHERE CITY='Seattle'",
 	}
@@ -376,27 +376,27 @@ func testBlacklistByRules(t *testing.T, firewall *Firewall, blacklistHandler *ha
 		t.Fatal(err)
 	}
 
-	//firewall should block those queries
+	//acracensor should block those queries
 	for _, i := range queryIndexesToBlock {
-		err := firewall.HandleQuery(testQueries[i])
+		err := acraCensor.HandleQuery(testQueries[i])
 		if err != handlers.ErrForbiddenSqlStructureBlacklist {
 			t.Fatal(err)
 		}
 	}
 
 	queryIndexesToPass := []int{1, 3}
-	//firewall should not block those queries
+	//acracensor should not block those queries
 	for _, i := range queryIndexesToPass {
-		err := firewall.HandleQuery(testQueries[i])
+		err := acraCensor.HandleQuery(testQueries[i])
 		if err != nil {
 			t.Fatal(err)
 		}
 	}
 
 	blacklistHandler.RemoveRules(testSecurityRules)
-	//firewall should not block all queries
+	//acracensor should not block all queries
 	for _, query := range testQueries {
-		err := firewall.HandleQuery(query)
+		err := acraCensor.HandleQuery(query)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -409,9 +409,9 @@ func testBlacklistByRules(t *testing.T, firewall *Firewall, blacklistHandler *ha
 
 	blacklistHandler.Reset()
 	blacklistHandler.AddRules(testSecurityRules)
-	//firewall should block all queries
+	//acracensor should block all queries
 	for _, query := range testQueries {
-		err := firewall.HandleQuery(query)
+		err := acraCensor.HandleQuery(query)
 		if err != handlers.ErrForbiddenSqlStructureBlacklist {
 			t.Fatal(err)
 		}
@@ -432,9 +432,9 @@ func TestConfigurationProvider(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	firewall := &Firewall{}
+	acraCensor := &AcraCensor{}
 
-	err = firewall.LoadConfiguration(configuration)
+	err = acraCensor.LoadConfiguration(configuration)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -444,9 +444,9 @@ func TestConfigurationProvider(t *testing.T) {
 		"SELECT AVG(Price) FROM Products;",
 	}
 
-	//firewall should block those queries (blacklist works)
+	//acracensor should block those queries (blacklist works)
 	for _, queryToBlock := range testQueries {
-		err = firewall.HandleQuery(queryToBlock)
+		err = acraCensor.HandleQuery(queryToBlock)
 		if err != handlers.ErrQueryInBlacklist {
 			t.Fatal(err)
 		}
@@ -457,9 +457,9 @@ func TestConfigurationProvider(t *testing.T) {
 		"SELECT AVG(Price) FROM Customers;",
 	}
 
-	//firewall should block those tables (blacklist works)
+	//acracensor should block those tables (blacklist works)
 	for _, queryToBlock := range testQueries {
-		err = firewall.HandleQuery(queryToBlock)
+		err = acraCensor.HandleQuery(queryToBlock)
 		if err != handlers.ErrAccessToForbiddenTableBlacklist {
 			t.Fatal(err)
 		}
@@ -470,9 +470,9 @@ func TestConfigurationProvider(t *testing.T) {
 		"SELECT EMP_ID, LAST_NAME FROM EMPLOYEE AS EMPL WHERE CITY = 'Seattle' ORDER BY EMP_ID;",
 	}
 
-	//firewall should block those structures (blacklist works)
+	//acracensor should block those structures (blacklist works)
 	for _, queryToBlock := range testQueries {
-		err = firewall.HandleQuery(queryToBlock)
+		err = acraCensor.HandleQuery(queryToBlock)
 		if err != handlers.ErrForbiddenSqlStructureBlacklist {
 			t.Fatal(err)
 		}
@@ -483,9 +483,9 @@ func TestConfigurationProvider(t *testing.T) {
 		"SELECT EMP_ID, LAST_NAME FROM PRODUCTS WHERE CITY='INDIANAPOLIS' ORDER BY EMP_ID asc;",
 	}
 
-	//firewall should block those tables (whitelist works)
+	//acracensor should block those tables (whitelist works)
 	for _, queryToBlock := range testQueries {
-		err = firewall.HandleQuery(queryToBlock)
+		err = acraCensor.HandleQuery(queryToBlock)
 		if err != handlers.ErrAccessToForbiddenTableWhitelist {
 			t.Fatal(err)
 		}
@@ -495,7 +495,7 @@ func TestConfigurationProvider(t *testing.T) {
 }
 func testSyntax(t *testing.T) {
 
-	firewall := &Firewall{}
+	acraCensor := &AcraCensor{}
 
 	configuration := `handlers:
   - handler: blacklist
@@ -503,7 +503,7 @@ func testSyntax(t *testing.T) {
       - INSERT INTO SalesStaff1 VALUES (1, 'Stephen', 'Jiang');
       - SLECT AVG(Price) FROM Products;`
 
-	err := firewall.LoadConfiguration([]byte(configuration))
+	err := acraCensor.LoadConfiguration([]byte(configuration))
 	if err != handlers.ErrQuerySyntaxError {
 		t.Fatal(err)
 	}
@@ -519,7 +519,7 @@ func testSyntax(t *testing.T) {
     rules:
       - SELECT * ROM EMPLOYEE WHERE CITY='Seattle';`
 
-	err = firewall.LoadConfiguration([]byte(configuration))
+	err = acraCensor.LoadConfiguration([]byte(configuration))
 	if err != handlers.ErrStructureSyntaxError {
 		t.Fatal(err)
 	}
@@ -642,12 +642,12 @@ func TestLogging(t *testing.T){
 
 	blacklist := &handlers.BlacklistHandler{}
 
-	firewall := &Firewall{}
-	firewall.AddHandler(loggingHandler)
-	firewall.AddHandler(blacklist)
+	acraCensor := &AcraCensor{}
+	acraCensor.AddHandler(loggingHandler)
+	acraCensor.AddHandler(blacklist)
 
 	for _, testQuery := range testQueries {
-		err = firewall.HandleQuery(testQuery)
+		err = acraCensor.HandleQuery(testQuery)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -659,24 +659,24 @@ func TestLogging(t *testing.T){
 
 	blacklist.AddQueries(loggingHandler.GetForbiddenQueries())
 
-	err = firewall.HandleQuery(testQueries[0])
+	err = acraCensor.HandleQuery(testQueries[0])
 	if err != handlers.ErrQueryInBlacklist {
 		t.Fatal(err)
 	}
 
-	err = firewall.HandleQuery(testQueries[1])
+	err = acraCensor.HandleQuery(testQueries[1])
 	if err != handlers.ErrQueryInBlacklist {
 		t.Fatal(err)
 	}
 
-	err = firewall.HandleQuery(testQueries[2])
+	err = acraCensor.HandleQuery(testQueries[2])
 	if err != handlers.ErrQueryInBlacklist {
 		t.Fatal(err)
 	}
 
 	//zero, first and second query are forbidden
 	for index := 3; index < len(testQueries); index++ {
-		err = firewall.HandleQuery(testQueries[index])
+		err = acraCensor.HandleQuery(testQueries[index])
 		if err != nil {
 			t.Fatal(err)
 		}

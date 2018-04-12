@@ -1,11 +1,11 @@
-package firewall
+package acracensor
 
 type QueryHandlerInterface interface {
 	CheckQuery(sqlQuery string) error
 	Reset()
 }
 
-type FirewallInterface interface {
+type AcracensorInterface interface {
 	HandleQuery(sqlQuery string) error
 	AddHandler(handler QueryHandlerInterface)
 	RemoveHandler(handler QueryHandlerInterface)
