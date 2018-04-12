@@ -73,14 +73,16 @@ func (handler *WhitelistHandler) CheckQuery(query string) error {
 }
 
 func (handler *WhitelistHandler) Reset() {
-
 	handler.queries = nil
 	handler.tables = nil
 	handler.rules = nil
 }
 
-func (handler *WhitelistHandler) AddQueries(queries []string) error {
+func (handler *WhitelistHandler) GetName() string {
+	return "Whitelist"
+}
 
+func (handler *WhitelistHandler) AddQueries(queries []string) error {
 	for _, query := range queries {
 		handler.queries = append(handler.queries, query)
 		_, err := sqlparser.Parse(query)
@@ -89,12 +91,10 @@ func (handler *WhitelistHandler) AddQueries(queries []string) error {
 		}
 	}
 	handler.queries = removeDuplicates(handler.queries)
-
 	return nil
 }
 
 func (handler *WhitelistHandler) RemoveQueries(queries []string) {
-
 	for _, query := range handler.queries {
 		yes, index := contains(handler.queries, query)
 		if yes {
@@ -107,7 +107,6 @@ func (handler *WhitelistHandler) AddTables(tableNames []string) {
 	for _, tableName := range tableNames {
 		handler.tables = append(handler.tables, tableName)
 	}
-
 	handler.tables = removeDuplicates(handler.tables)
 }
 
@@ -128,9 +127,7 @@ func (handler *WhitelistHandler) AddRules(rules []string) error {
 			return ErrStructureSyntaxError
 		}
 	}
-
 	handler.rules = removeDuplicates(handler.rules)
-
 	return nil
 }
 
@@ -144,62 +141,49 @@ func (handler *WhitelistHandler) RemoveRules(rules []string) {
 }
 
 func (handler *WhitelistHandler) testRulesViolation(query string) (bool, error) {
-
 	if sqlparser.Preview(query) != sqlparser.StmtSelect {
 		return true, errors.New("non-select queries are not supported")
 	}
-
 	//parse one rule and get forbidden tables and columns for specific 'where' clause
 	var whereClause sqlparser.SQLNode
 	var tables sqlparser.TableExprs
 	var columns sqlparser.SelectExprs
-
 	//Parse each rule and then test query
 	for _, rule := range handler.rules {
 		parsedRule, err := sqlparser.Parse(rule)
 		if err != nil {
 			return true, err
 		}
-
 		switch parsedRule := parsedRule.(type) {
-
 		case *sqlparser.Select:
 			whereClause = parsedRule.Where.Expr
 			tables = parsedRule.From
 			columns = parsedRule.SelectExprs
-
 			dangerousSelect, err := handler.isDangerousSelect(query, whereClause, tables, columns)
 			if err != nil {
 				return true, err
 			}
-
 			if dangerousSelect {
 				return true, nil
 			}
-
 		case *sqlparser.Insert:
 			return true, ErrNotImplemented
 		default:
 			return true, ErrNotImplemented
 		}
-
 		_ = whereClause
 		_ = tables
 		_ = columns
 	}
-
 	return false, nil
 }
 
 func (handler *WhitelistHandler) isDangerousSelect(selectQuery string, allowedWhere sqlparser.SQLNode, allowedTables sqlparser.TableExprs, allowedColumns sqlparser.SelectExprs) (bool, error) {
-
 	parsedSelectQuery, err := sqlparser.Parse(selectQuery)
 	if err != nil {
 		return true, err
 	}
-
 	evaluatedStmt := parsedSelectQuery.(*sqlparser.Select)
-
 	if strings.EqualFold(sqlparser.String(allowedWhere), sqlparser.String(evaluatedStmt.Where.Expr)) {
 		if handler.isAllowedTableAccess(evaluatedStmt.From, allowedTables) {
 			if handler.isAllowedColumnAccess(evaluatedStmt.SelectExprs, allowedColumns) {
@@ -211,9 +195,7 @@ func (handler *WhitelistHandler) isDangerousSelect(selectQuery string, allowedWh
 }
 
 func (handler *WhitelistHandler) isAllowedTableAccess(tablesToEvaluate sqlparser.TableExprs, allowedTables sqlparser.TableExprs) bool {
-
 	accessOnlyToAllowedTables := true
-
 	for _, tableToEvaluate := range tablesToEvaluate {
 		for _, allowedTable := range allowedTables {
 			if !reflect.DeepEqual(tableToEvaluate.(*sqlparser.AliasedTableExpr).Expr, allowedTable.(*sqlparser.AliasedTableExpr).Expr) {
@@ -221,18 +203,14 @@ func (handler *WhitelistHandler) isAllowedTableAccess(tablesToEvaluate sqlparser
 			}
 		}
 	}
-
 	return accessOnlyToAllowedTables
 }
 
 func (handler *WhitelistHandler) isAllowedColumnAccess(columnsToEvaluate sqlparser.SelectExprs, allowedColumns sqlparser.SelectExprs) bool {
-
 	if strings.EqualFold(sqlparser.String(allowedColumns), "*") {
 		return true
 	}
-
 	accessOnlyToAllowedColumns := true
-
 	for _, columnToEvaluate := range columnsToEvaluate {
 		for _, allowedColumn := range allowedColumns {
 			if !reflect.DeepEqual(columnToEvaluate, allowedColumn) {

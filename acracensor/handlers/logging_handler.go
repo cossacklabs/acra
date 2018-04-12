@@ -38,6 +38,10 @@ func (handler *LoggingHandler) Reset() {
 	handler.Queries = nil
 }
 
+func (handler *LoggingHandler) GetName() string{
+	return "Logging"
+}
+
 func (handler *LoggingHandler) GetAllInputQueries() []string{
 	var queries []string
 	for _, queryInfo := range handler.Queries {
