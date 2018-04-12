@@ -172,9 +172,14 @@ docker:
 	$(call docker_build,acraserver,$(CONTAINER_TAGS))
 	$(call docker_build,acraproxy,$(CONTAINER_TAGS))
 	$(call docker_build,acra_genkeys,$(CONTAINER_TAGS))
+	$(call docker_build,acra_configui,$(CONTAINER_TAGS))
+	$(call docker_build,acra_genauth,$(CONTAINER_TAGS))
 	@docker image rm cossacklabs/acra-build:$(GIT_HASH)
 
 docker_push: docker
 	@docker push cossacklabs/acraserver
 	@docker push cossacklabs/acraproxy
 	@docker push cossacklabs/acra_genkeys
+	@docker push cossacklabs/acra_genkeys
+	@docker push cossacklabs/acra_configui
+	@docker push cossacklabs/acra_genauth
