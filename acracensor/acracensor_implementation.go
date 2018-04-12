@@ -1,5 +1,7 @@
 package acracensor
 
+import log "github.com/sirupsen/logrus"
+
 type AcraCensor struct {
 	handlers []QueryHandlerInterface
 
@@ -23,5 +25,6 @@ func (acraCensor *AcraCensor) HandleQuery(query string) error {
 			return err
 		}
 	}
+	log.Infof("Acra' censor passed")
 	return nil
 }
