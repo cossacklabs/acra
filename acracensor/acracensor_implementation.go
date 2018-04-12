@@ -1,6 +1,8 @@
 package acracensor
 
-import log "github.com/sirupsen/logrus"
+import (
+	log "github.com/sirupsen/logrus"
+)
 
 type AcraCensor struct {
 	handlers []QueryHandlerInterface

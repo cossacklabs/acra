@@ -4,6 +4,7 @@ import (
 	"strings"
 	"io/ioutil"
 	"encoding/json"
+	"os"
 )
 
 type LoggingHandler struct {
@@ -16,8 +17,19 @@ type QueryInfo struct {
 	IsForbidden bool
 }
 
-func NewLoggingHandler (filePath string) *LoggingHandler {
-	return &LoggingHandler{Queries:nil, filePath:filePath}
+func NewLoggingHandler (filePath string) (*LoggingHandler, error) {
+
+	file, err := os.OpenFile(filePath, os.O_RDONLY|os.O_CREATE, 0600)
+	if err != nil {
+		return nil, err
+	}
+
+	err = file.Close()
+	if err != nil {
+		return nil, err
+	}
+
+	return &LoggingHandler{Queries:nil, filePath:filePath}, nil
 }
 
 func (handler *LoggingHandler) CheckQuery(query string) error {

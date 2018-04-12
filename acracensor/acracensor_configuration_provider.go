@@ -3,10 +3,12 @@ package acracensor
 import (
 	"github.com/cossacklabs/acra/acracensor/handlers"
 	"gopkg.in/yaml.v2"
+	"strings"
 )
 
 const BlacklistConfigStr = "blacklist"
 const WhitelistConfigStr = "whitelist"
+const LoggerConfigStr = "logger"
 
 type AcracensorConfig struct {
 	Handlers []struct {
@@ -14,6 +16,7 @@ type AcracensorConfig struct {
 		Queries []string
 		Tables  []string
 		Rules   []string
+		Filepath string
 	}
 }
 
@@ -58,6 +61,16 @@ func (acraCensor *AcraCensor) update(configuration []byte) error {
 				return err
 			}
 			acraCensor.AddHandler(blacklistHandler)
+			break
+		case LoggerConfigStr:
+			if strings.EqualFold(handlerConfiguration.Filepath, ""){
+				break
+			}
+			logger, err := handlers.NewLoggingHandler(handlerConfiguration.Filepath)
+			if err != nil {
+				return err
+			}
+			acraCensor.AddHandler(logger)
 			break
 		default:
 			break
