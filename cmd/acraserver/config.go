@@ -20,6 +20,7 @@ import (
 
 	"github.com/cossacklabs/acra/firewall"
 	"github.com/cossacklabs/acra/network"
+	"io/ioutil"
 )
 
 const (
@@ -70,8 +71,24 @@ func NewConfig() *Config {
 
 var ErrTwoDBSetup = errors.New("only one db supported at one time")
 
-func (config *Config) SetFirewall(fw firewall.FirewallInterface) {
-	config.firewall = fw
+func (config *Config) SetFirewall(censorConfigPath string) error {
+	//skip if flag not specified
+	if censorConfigPath == "" {
+		return nil
+	}
+	configuration, err := ioutil.ReadFile(censorConfigPath)
+	if err != nil {
+		return err
+	}
+	firewall := &firewall.Firewall{}
+	err = firewall.LoadConfiguration(configuration)
+	if err != nil {
+		return err
+	}
+
+	config.firewall = firewall
+
+	return nil
 }
 func (config *Config) GetFirewall() firewall.FirewallInterface {
 	return config.firewall

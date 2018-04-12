@@ -54,6 +54,7 @@ const (
 
 	// firewall
 	EventCodeErrorFirewallQueryIsNotAllowed = 560
+	EventCodeErrorFirewallSetupError        = 561
 
 	// response proxy
 	EventCodeErrorResponseProxyCantWriteToDB      = 570

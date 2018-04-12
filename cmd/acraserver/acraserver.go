@@ -24,7 +24,6 @@ import (
 	"time"
 
 	"github.com/cossacklabs/acra/cmd"
-	"github.com/cossacklabs/acra/firewall"
 	"github.com/cossacklabs/acra/keystore"
 	"github.com/cossacklabs/acra/logging"
 	"github.com/cossacklabs/acra/network"
@@ -102,6 +101,8 @@ func main() {
 
 	useMysql := flag.Bool("mysql", false, "Handle MySQL connections")
 	usePostgresql := flag.Bool("postgresql", false, "Handle Postgresql connections (default true)")
+	firewallConfig := flag.String("censor_config", "", "Path to acracensor configuration file")
+
 
 	err := cmd.Parse(DEFAULT_CONFIG_PATH)
 	if err != nil {
@@ -148,6 +149,12 @@ func main() {
 		os.Exit(1)
 	}
 
+	if err := config.SetFirewall(*firewallConfig); err != nil {
+		log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorFirewallSetupError).
+			Errorln("Can't setup censor")
+		os.Exit(1)
+	}
+
 	// now it's stub as default values
 	config.SetStopOnPoison(*stopOnPoison)
 	config.SetScriptOnPoison(*scriptOnPoison)
@@ -167,7 +174,8 @@ func main() {
 	config.SetEnableHTTPApi(*enableHTTPApi)
 	config.SetConfigPath(DEFAULT_CONFIG_PATH)
 	config.SetDebug(*debug)
-	config.SetFirewall(&firewall.Firewall{})
+
+
 	if *hexFormat || !*escapeFormat {
 		config.SetByteaFormat(HEX_BYTEA_FORMAT)
 	} else {
