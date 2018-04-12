@@ -1,4 +1,4 @@
-package firewall
+package acracensor
 
 type QueryHandlerInterface interface {
 	CheckQuery(sqlQuery string) error

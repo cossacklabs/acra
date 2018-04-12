@@ -18,7 +18,7 @@ import (
 	"encoding/json"
 	"errors"
 
-	"github.com/cossacklabs/acra/firewall"
+	"github.com/cossacklabs/acra/acracensor"
 	"github.com/cossacklabs/acra/network"
 	"io/ioutil"
 )
@@ -51,7 +51,7 @@ type Config struct {
 	postgresql              bool
 	configPath              string
 	debug                   bool
-	firewall                firewall.FirewallInterface
+	firewall                acracensor.FirewallInterface
 	tlsConfig               *tls.Config
 }
 
@@ -80,7 +80,7 @@ func (config *Config) SetFirewall(censorConfigPath string) error {
 	if err != nil {
 		return err
 	}
-	firewall := &firewall.Firewall{}
+	firewall := &acracensor.Firewall{}
 	err = firewall.LoadConfiguration(configuration)
 	if err != nil {
 		return err
@@ -90,7 +90,7 @@ func (config *Config) SetFirewall(censorConfigPath string) error {
 
 	return nil
 }
-func (config *Config) GetFirewall() firewall.FirewallInterface {
+func (config *Config) GetFirewall() acracensor.FirewallInterface {
 	return config.firewall
 }
 
