@@ -1550,7 +1550,7 @@ class TestAcraGenKeys(unittest.TestCase):
 
 
 class SSLPostgresqlConnectionTest(AcraCatchLogsMixin, HexFormatTest):
-    ACRA2_PORT = BaseTestCase.ACRA_PORT+1
+    ACRA2_PORT = BaseTestCase.ACRA_PORT+1000
     DEBUG_LOG = True
 
     def get_acra_connection_string(self, port=None):
