@@ -8,7 +8,10 @@ import (
 var ErrMalformPacket = errors.New("Malform packet error")
 
 // LengthEncodedInt https://dev.mysql.com/doc/internals/en/integer.html#packet-Protocol::LengthEncodedInteger
-func LengthEncodedInt(data []byte) (num uint64, isNull bool, n int) {
+func LengthEncodedInt(data []byte) (num uint64, isNull bool, n int, err error) {
+	if len(data) == 0 {
+		return uint64(0), false, 0, ErrMalformPacket
+	}
 	switch data[0] {
 
 	// 251: NULL
@@ -19,18 +22,27 @@ func LengthEncodedInt(data []byte) (num uint64, isNull bool, n int) {
 
 		// 252: value of following 2
 	case 0xfc:
+		if len(data) < 3 {
+			return uint64(0), false, 0, ErrMalformPacket
+		}
 		num = uint64(data[1]) | uint64(data[2])<<8
 		n = 3
 		return
 
 		// 253: value of following 3
 	case 0xfd:
+		if len(data) < 4{
+			return uint64(0), false, 0, ErrMalformPacket
+		}
 		num = uint64(data[1]) | uint64(data[2])<<8 | uint64(data[3])<<16
 		n = 4
 		return
 
 		// 254: value of following 8
 	case 0xfe:
+		if len(data) < 9 {
+			return uint64(0), false, 0, ErrMalformPacket
+		}
 		num = uint64(data[1]) | uint64(data[2])<<8 | uint64(data[3])<<16 |
 			uint64(data[4])<<24 | uint64(data[5])<<32 | uint64(data[6])<<40 |
 			uint64(data[7])<<48 | uint64(data[8])<<56
@@ -47,9 +59,9 @@ func LengthEncodedInt(data []byte) (num uint64, isNull bool, n int) {
 // LengthEncodedString https://dev.mysql.com/doc/internals/en/string.html#packet-Protocol::LengthEncodedString
 func LengthEncodedString(data []byte) ([]byte, bool, int, error) {
 	// Get length
-	num, isNull, n := LengthEncodedInt(data)
+	num, isNull, n, err := LengthEncodedInt(data)
 	if num < 1 {
-		return nil, isNull, n, nil
+		return nil, isNull, n, err
 	}
 
 	n += int(num)
@@ -62,7 +74,10 @@ func LengthEncodedString(data []byte) ([]byte, bool, int, error) {
 }
 
 func SkipLengthEncodedString(data []byte) (int, error) {
-	num, _, n := LengthEncodedInt(data)
+	num, _, n, err := LengthEncodedInt(data)
+	if err != nil{
+		return 0, err
+	}
 	if num < 1 {
 		return n, nil
 	}
