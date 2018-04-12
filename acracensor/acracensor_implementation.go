@@ -22,9 +22,10 @@ func (acraCensor *AcraCensor) RemoveHandler(handler QueryHandlerInterface) {
 func (acraCensor *AcraCensor) HandleQuery(query string) error {
 	for _, handler := range acraCensor.handlers {
 		if err := handler.CheckQuery(query); err != nil {
+			log.Errorf("Forbidden query: '%s'", query)
 			return err
 		}
 	}
-	log.Infof("Acra' censor passed")
+	log.Infof("Allowed query: '%s'", query)
 	return nil
 }
