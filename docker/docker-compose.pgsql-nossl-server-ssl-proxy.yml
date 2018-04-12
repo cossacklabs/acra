@@ -56,23 +56,6 @@ services:
             --output=/keys/acraserver
             --output_public=/keys/acrawriter
 
-    # Create file with accounts for HTTP access and key for decrypt it
-    # - ./.acrakeys/acraserver/httpauth.accounts
-    # - ./.acrakeys/acraserver/auth_key
-    acra_genauth:
-        image: "cossacklabs/acra_genauth:${ACRA_DOCKER_IMAGE_TAG:-latest}"
-        network_mode: "none"
-        environment:
-            ACRA_MASTER_KEY: ${ACRA_MASTER_KEY:-UHZ3VUNNeTJ0SEFhbWVjNkt4eDdVYkc2WnNpUTlYa0E=}
-        volumes:
-            - ./.acrakeys:/keys
-        command: >-
-            --set
-            --user=${ACRA_HTTPAUTH_USER:-test}
-            --password=${ACRA_HTTPAUTH_PASSWORD:-test}
-            --file=/keys/acraserver/httpauth.accounts
-            --keys_dir=/keys/acraserver/
-
     # Postgresql container
     postgresql:
         image: postgres
@@ -99,7 +82,6 @@ services:
             - acra_genkeys_server
             - acra_genkeys_proxy
             - acra_genkeys_writer
-            - acra_genauth
             - postgresql
         environment:
             ACRA_MASTER_KEY: ${ACRA_MASTER_KEY:-UHZ3VUNNeTJ0SEFhbWVjNkt4eDdVYkc2WnNpUTlYa0E=}
@@ -115,6 +97,9 @@ services:
             - ./.acrakeys/acraserver:/keys
             # Directory with configuration, rewriteable
             - ./.acraconfigs/acraserver:/config
+            # Mount directories with SSL certificates
+            - ./ssl/ca:/ssl.ca:ro
+            - ./ssl/acraserver:/ssl.server:ro
         command: >-
             --db_host=postgresql
             --keys_dir=/keys
@@ -122,6 +107,11 @@ services:
             --enable_http_api
             --connection_api_string=tcp://0.0.0.0:9090
             --config=/config/acraserver.yaml
+            --tls
+            --tls_ca=/ssl.ca/example.cossacklabs.com.CA.crt
+            --tls_cert=/ssl.server/acraserver.crt
+            --tls_key=/ssl.server/acraserver.key
+            --no_encryption
             -v
 
     acraproxy:
@@ -138,15 +128,16 @@ services:
             ACRA_MASTER_KEY: ${ACRA_MASTER_KEY:-UHZ3VUNNeTJ0SEFhbWVjNkt4eDdVYkc2WnNpUTlYa0E=}
         # We use internal networks:
         # - 'acraproxy-acraserver' - for interconnection with acraserver
-        # - 'acraconfigui-acraproxy' - for interconnection with acra_configui
         # and external network 'world' for port exposing
         networks:
             - acraproxy-acraserver
-            - acraconfigui-acraproxy
             - world
         volumes:
             # Mount the directory with only the keys for this service
             - ./.acrakeys/acraproxy:/keys:ro
+            # Mount directories with SSL certificates
+            - ./ssl/ca:/ssl.ca:ro
+            - ./ssl/acraproxy:/ssl.proxy:ro
         command: >-
             --acra_host=acraserver
             --keys_dir=/keys
@@ -154,33 +145,17 @@ services:
             --connection_string=tcp://0.0.0.0:9494
             --enable_http_api
             --connection_api_string=tcp://0.0.0.0:9191
+            --tls
+            --tls_ca=/ssl.ca/example.cossacklabs.com.CA.crt
+            --tls_cert=/ssl.proxy/acraproxy.crt
+            --tls_key=/ssl.proxy/acraproxy.key
+            --tls_sni=acraserver
+            --no_encryption
             -v
-
-    # Optional lightweight HTTP web server for managing AcraServer's
-    # certain configuration options
-    acra_configui:
-        image: "cossacklabs/acra_configui:${ACRA_DOCKER_IMAGE_TAG:-latest}"
-        restart: on-failure
-        depends_on:
-            - acraproxy
-        # Open the port outside for client application
-        ports:
-            - "8000:8000"
-        # We use internal 'acraconfigui-acraproxy' network for acraproxy and
-        # acra_configui interconnection and external network 'world' for
-        # port exposing
-        networks:
-            - acraconfigui-acraproxy
-            - world
-        command: >-
-            --acra_host=acraproxy
-            --host=0.0.0.0
 
 networks:
     world:
     acraproxy-acraserver:
         internal: true
     acraserver-postgresql:
-        internal: true
-    acraconfigui-acraproxy:
         internal: true
