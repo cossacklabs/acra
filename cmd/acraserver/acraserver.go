@@ -101,7 +101,7 @@ func main() {
 
 	useMysql := flag.Bool("mysql", false, "Handle MySQL connections")
 	usePostgresql := flag.Bool("postgresql", false, "Handle Postgresql connections (default true)")
-	firewallConfig := flag.String("censor_config", "", "Path to acracensor configuration file")
+	censorConfig := flag.String("censor_config", "", "Path to acracensor configuration file")
 
 
 	err := cmd.Parse(DEFAULT_CONFIG_PATH)
@@ -149,7 +149,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	if err := config.SetFirewall(*firewallConfig); err != nil {
+	if err := config.SetCensor(*censorConfig); err != nil {
 		log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCensorSetupError).
 			Errorln("Can't setup censor")
 		os.Exit(1)

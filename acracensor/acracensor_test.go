@@ -308,7 +308,7 @@ func TestBlacklistQueries(t *testing.T) {
 
 	testBlacklistRules(t, acraCensor, blacklistHandler)
 }
-func testBlacklistTables(t *testing.T, firewall *AcraCensor, blacklistHandler *handlers.BlacklistHandler) {
+func testBlacklistTables(t *testing.T, censor *AcraCensor, blacklistHandler *handlers.BlacklistHandler) {
 
 	blacklistHandler.Reset()
 
@@ -327,7 +327,7 @@ func testBlacklistTables(t *testing.T, firewall *AcraCensor, blacklistHandler *h
 	//acracensor should block these queries
 	queryIndexesToBlock := []int{0, 2, 4, 5, 6}
 	for _, i := range queryIndexesToBlock {
-		err := firewall.HandleQuery(testQueries[i])
+		err := censor.HandleQuery(testQueries[i])
 		if err != handlers.ErrAccessToForbiddenTableBlacklist {
 			t.Fatal(err)
 		}
@@ -336,7 +336,7 @@ func testBlacklistTables(t *testing.T, firewall *AcraCensor, blacklistHandler *h
 	//acracensor should not block these queries
 	queryIndexesToPass := []int{1, 3}
 	for _, i := range queryIndexesToPass {
-		err := firewall.HandleQuery(testQueries[i])
+		err := censor.HandleQuery(testQueries[i])
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -344,13 +344,13 @@ func testBlacklistTables(t *testing.T, firewall *AcraCensor, blacklistHandler *h
 
 	blacklistHandler.RemoveTables([]string{"EMPLOYEE_TBL"})
 
-	err := firewall.HandleQuery(testQueries[0])
+	err := censor.HandleQuery(testQueries[0])
 	//acracensor should not block this query
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	err = firewall.HandleQuery(testQueries[2])
+	err = censor.HandleQuery(testQueries[2])
 	//acracensor should not block this query
 	if err != nil {
 		t.Fatal(err)
@@ -428,7 +428,7 @@ func testBlacklistRules(t *testing.T, acraCensor *AcraCensor, blacklistHandler *
 
 func TestConfigurationProvider(t *testing.T) {
 
-	var DEFAULT_CONFIG_PATH = utils.GetConfigPathByName("acra_firewall.example")
+	var DEFAULT_CONFIG_PATH = utils.GetConfigPathByName("acra_censor.example")
 
 	filePath, err := os.Getwd()
 	if err != nil {
@@ -560,7 +560,7 @@ func TestSerialization(t *testing.T){
 		"INSERT INTO dbo.Points (PointValue) VALUES ('1,99');",
 	}
 
-	tmpFile, err := ioutil.TempFile("", "firewall_log")
+	tmpFile, err := ioutil.TempFile("", "censor_log")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -639,7 +639,7 @@ func TestLogging(t *testing.T){
 		"INSERT INTO dbo.Points (PointValue) VALUES ('1,99');",
 	}
 
-	tmpFile, err := ioutil.TempFile("", "firewall_log")
+	tmpFile, err := ioutil.TempFile("", "censor_log")
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -26,12 +26,12 @@ func (acraCensor *AcraCensor) LoadConfiguration(configuration []byte) error {
 }
 
 func (acraCensor *AcraCensor) update(configuration []byte) error {
-	var firewallConfiguration AcracensorConfig
-	err := yaml.Unmarshal(configuration, &firewallConfiguration)
+	var censorConfiguration AcracensorConfig
+	err := yaml.Unmarshal(configuration, &censorConfiguration)
 	if err != nil {
 		return err
 	}
-	for _, handlerConfiguration := range firewallConfiguration.Handlers {
+	for _, handlerConfiguration := range censorConfiguration.Handlers {
 		switch handlerConfiguration.Handler {
 		case WhitelistConfigStr:
 			whitelistHandler := &handlers.WhitelistHandler{}
