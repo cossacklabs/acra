@@ -20,7 +20,7 @@ func (acraCensor *AcraCensor) RemoveHandler(handler QueryHandlerInterface) {
 }
 
 func (acraCensor *AcraCensor) HandleQuery(query string) error {
-	log.Infof("Firewall works")
+	log.Infof("Censor works")
 	for _, handler := range acraCensor.handlers {
 		log.Infof("Handler: %s", handler.GetName())
 		if err := handler.CheckQuery(query); err != nil {
