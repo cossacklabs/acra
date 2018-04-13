@@ -1,0 +1,30 @@
+# Host for Acraserver HTTP endpoint or proxy
+acra_host: localhost
+
+# Port for Acraserver HTTP endpoint or proxy
+acra_port: 9191
+
+# Mode for basic auth. Possible values: auth_on|auth_off_local|auth_off
+auth_mode: auth_on
+
+# path to config
+config: 
+
+# Turn on debug logging
+d: false
+
+# dump config
+dumpconfig: false
+
+# Host for configUI HTTP endpoint
+host: 127.0.0.1
+
+# Logging format: plaintext, json or CEF
+logging_format: plaintext
+
+# Port for configUI HTTP endpoint
+port: 8000
+
+# Path to static content
+static_path: cmd/acra_configui/static
+

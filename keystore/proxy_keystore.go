@@ -9,10 +9,11 @@ import (
 type ProxyFileSystemKeyStore struct {
 	directory string
 	clientId  []byte
+	encryptor KeyEncryptor
 }
 
-func NewProxyFileSystemKeyStore(directory string, clientId []byte) (*ProxyFileSystemKeyStore, error) {
-	return &ProxyFileSystemKeyStore{directory: directory, clientId: clientId}, nil
+func NewProxyFileSystemKeyStore(directory string, clientId []byte, encryptor KeyEncryptor) (*ProxyFileSystemKeyStore, error) {
+	return &ProxyFileSystemKeyStore{directory: directory, clientId: clientId, encryptor: encryptor}, nil
 }
 
 func (store *ProxyFileSystemKeyStore) GetPrivateKey(id []byte) (*keys.PrivateKey, error) {
@@ -20,7 +21,11 @@ func (store *ProxyFileSystemKeyStore) GetPrivateKey(id []byte) (*keys.PrivateKey
 	if err != nil {
 		return nil, err
 	}
-	return &keys.PrivateKey{Value: keyData}, nil
+	if privateKey, err := store.encryptor.Decrypt(keyData, id); err != nil {
+		return nil, err
+	} else {
+		return &keys.PrivateKey{Value: privateKey}, nil
+	}
 }
 
 func (store *ProxyFileSystemKeyStore) GetPeerPublicKey(id []byte) (*keys.PublicKey, error) {

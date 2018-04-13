@@ -63,6 +63,10 @@ func (decryptor *PgDecryptor) SetZoneMatcher(zoneMatcher *zone.ZoneIdMatcher) {
 	decryptor.zoneMatcher = zoneMatcher
 }
 
+func (decryptor *PgDecryptor) GetZoneMatcher() *zone.ZoneIdMatcher {
+	return decryptor.zoneMatcher
+}
+
 func (decryptor *PgDecryptor) IsMatchedZone() bool {
 	return decryptor.zoneMatcher.IsMatched() && decryptor.keyStore.HasZonePrivateKey(decryptor.zoneMatcher.GetZoneId())
 }
@@ -172,6 +176,9 @@ func (decryptor *PgDecryptor) GetPrivateKey() (*keys.PrivateKey, error) {
 }
 
 func (decryptor *PgDecryptor) GetPoisonCallbackStorage() *base.PoisonCallbackStorage {
+	if decryptor.callbackStorage == nil {
+		decryptor.callbackStorage = base.NewPoisonCallbackStorage()
+	}
 	return decryptor.callbackStorage
 }
 

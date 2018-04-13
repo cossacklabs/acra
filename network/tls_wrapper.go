@@ -6,7 +6,9 @@ import (
 	"io/ioutil"
 	"net"
 
+	"github.com/cossacklabs/acra/logging"
 	log "github.com/sirupsen/logrus"
+	"errors"
 )
 
 type TLSConnectionWrapper struct {
@@ -36,17 +38,26 @@ func (wrapper *TLSConnectionWrapper) WrapServer(conn net.Conn) (net.Conn, []byte
 }
 
 func NewTLSConfig(serverName string, caPath, keyPath, crtPath string) (*tls.Config, error) {
-	roots := x509.NewCertPool()
+	var roots *x509.CertPool
+	var err error
+
+	if roots, err = x509.SystemCertPool(); err != nil {
+		log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorGeneral).
+			Errorln("Can't load system ca certificates")
+	}
+	if roots == nil {
+		roots = x509.NewCertPool()
+	}
 	if caPath != "" {
 		caPem, err := ioutil.ReadFile(caPath)
 		if err != nil {
-			log.WithError(err).Errorln("can't read root CA certificate")
+			log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorGeneral).Errorln("Can't read root CA certificate")
 			return nil, err
 		}
-		log.Debugln("add CA root certificate")
+		log.Debugln("Adding CA root certificate")
 		if ok := roots.AppendCertsFromPEM(caPem); !ok {
-			log.Errorln("can't add CA certificate")
-			return nil, err
+			log.Errorln("Can't add CA certificate from PEM")
+			return nil, errors.New("can't add CA certificate")
 		}
 	}
 	cer, err := tls.LoadX509KeyPair(crtPath, keyPath)

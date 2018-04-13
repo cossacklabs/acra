@@ -15,15 +15,18 @@ package main
 
 import (
 	"fmt"
-	"github.com/cossacklabs/acra/network"
-	log "github.com/sirupsen/logrus"
 	"net"
 
-	"github.com/cossacklabs/acra/decryptor/base"
+	"github.com/cossacklabs/acra/decryptor/mysql"
 	"github.com/cossacklabs/acra/decryptor/postgresql"
-	"github.com/cossacklabs/acra/keystore"
-	"github.com/cossacklabs/acra/utils"
+	"github.com/cossacklabs/acra/network"
+	log "github.com/sirupsen/logrus"
+
 	"io"
+
+	"github.com/cossacklabs/acra/decryptor/base"
+	"github.com/cossacklabs/acra/keystore"
+	"github.com/cossacklabs/acra/logging"
 )
 
 type ClientSession struct {
@@ -31,6 +34,7 @@ type ClientSession struct {
 	keystorage     keystore.KeyStore
 	connection     net.Conn
 	connectionToDb net.Conn
+	Server         *SServer
 }
 
 func NewClientSession(keystorage keystore.KeyStore, config *Config, connection net.Conn) (*ClientSession, error) {
@@ -47,48 +51,59 @@ func (clientSession *ClientSession) ConnectToDb() error {
 }
 
 func (clientSession *ClientSession) close() {
-	log.Debugln("close acraproxy connection")
+	log.Debugln("Close acraproxy connection")
 
 	err := clientSession.connection.Close()
 	if err != nil {
-		log.Warningf("%v", utils.ErrorMessage("error with closing connection to acraproxy", err))
+		log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantCloseConnectionToService).
+			Errorln("Error with closing connection to acraproxy")
 	}
-	log.Debugln("close db connection")
+	log.Debugln("Close db connection")
 	err = clientSession.connectionToDb.Close()
 	if err != nil {
-		log.Warningf("%v", utils.ErrorMessage("error with closing connection to db", err))
+		log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantCloseConnectionDB).
+			Errorln("Error with closing connection to db")
 	}
-	log.Debugln("all connections closed")
+	log.Debugln("All connections closed")
 }
 
 /* proxy connections from client to db and decrypt responses from db to client
 if any error occurred than end processing
 */
-func (clientSession *ClientSession) HandleSecureSession(decryptorImpl base.Decryptor) {
+func (clientSession *ClientSession) HandleClientConnection(decryptorImpl base.Decryptor) {
+	log.Infof("Handle client's connection")
 	innerErrorChannel := make(chan error, 2)
 
+	log.Debugf("Connecting to db")
 	err := clientSession.ConnectToDb()
 	if err != nil {
-		log.WithError(err).Errorln("can't connect to db")
-		log.Debugln("close connection with acraproxy")
+		log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantConnectToDB).
+			Errorln("Can't connect to db")
+
+		log.Debugln("Close connection with acraproxy")
 		err = clientSession.connection.Close()
 		if err != nil {
-			log.Warningf("%v", utils.ErrorMessage("error with closing connection to acraproxy", err))
-		}
-		return
-	}
-	pgDecryptorConfig, err := postgresql.NewPgDecryptorConfig(clientSession.config.GetTLSServerKeyPath(), clientSession.config.GetTLSServerCertPath())
-	if err != nil {
-		log.WithError(err).Errorln("can't initialize config for postgresql decryptor")
-		err = clientSession.connection.Close()
-		if err != nil {
-			log.Warningf("%v", utils.ErrorMessage("error with closing connection to acraproxy", err))
+			log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantCloseConnectionToService).
+				Errorln("Error with closing connection to acraproxy")
 		}
 		return
 	}
 
-	go network.Proxy(clientSession.connection, clientSession.connectionToDb, innerErrorChannel)
-	go postgresql.PgDecryptStream(decryptorImpl, pgDecryptorConfig, clientSession.connectionToDb, clientSession.connection, innerErrorChannel)
+	if clientSession.config.UseMySQL() {
+		log.Debugln("MySQL connection")
+		handler, err := mysql.NewMysqlHandler(decryptorImpl, clientSession.connectionToDb, clientSession.connection, clientSession.config.GetTLSConfig(), clientSession.config.censor)
+		if err != nil {
+			log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantInitDecryptor).
+				Errorln("Can't initialize mysql handler")
+			return
+		}
+		go handler.ClientToDbProxy(innerErrorChannel)
+		go handler.DbToClientProxy(innerErrorChannel)
+	} else {
+		log.Debugln("PostgreSQL connection")
+		go network.Proxy(clientSession.connection, clientSession.connectionToDb, innerErrorChannel)
+		go postgresql.PgDecryptStream(decryptorImpl, clientSession.config.GetTLSConfig(), clientSession.connectionToDb, clientSession.connection, innerErrorChannel)
+	}
 	for {
 		err = <-innerErrorChannel
 
@@ -96,17 +111,25 @@ func (clientSession *ClientSession) HandleSecureSession(decryptorImpl base.Decry
 			log.Debugln("EOF connection closed")
 		} else if netErr, ok := err.(net.Error); ok {
 			if netErr.Timeout() {
-				log.Debugln("network timeout")
-				continue
+				log.Debugln("Network timeout")
+				if clientSession.config.UseMySQL() {
+					break
+				} else {
+					// in postgresql mode timeout used to stop listening connection in background goroutine
+					// and it's normal behaviour
+					continue
+				}
 			}
-			log.WithError(netErr).Errorln("network error")
+			log.WithError(netErr).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantHandleSecureSession).
+				Errorln("Network error")
 		} else if opErr, ok := err.(*net.OpError); ok {
-			log.WithError(opErr).Errorln("network error")
+			log.WithError(opErr).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantHandleSecureSession).Errorln("Network error")
 		} else {
-			log.WithError(err).Errorln("unexpected error")
+			log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantHandleSecureSession).Errorln("Unexpected error")
 		}
 		break
 	}
+	log.Infof("Closing client's connection")
 	clientSession.close()
 	// wait second error from closed second connection
 	<-innerErrorChannel

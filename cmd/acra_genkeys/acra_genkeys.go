@@ -17,8 +17,10 @@ import (
 	"flag"
 	"github.com/cossacklabs/acra/cmd"
 	"github.com/cossacklabs/acra/keystore"
+	"github.com/cossacklabs/acra/logging"
 	"github.com/cossacklabs/acra/utils"
 	log "github.com/sirupsen/logrus"
+	"io/ioutil"
 	"os"
 )
 
@@ -27,12 +29,15 @@ var DEFAULT_CONFIG_PATH = utils.GetConfigPathByName("acra_genkeys")
 
 func main() {
 	clientId := flag.String("client_id", "client", "Client id")
-	acraproxy := flag.Bool("acraproxy", false, "Create keypair only for acraproxy")
-	acraserver := flag.Bool("acraserver", false, "Create keypair only for acraserver")
+	acraproxy := flag.Bool("acraproxy", false, "Create keypair for acraproxy only")
+	acraserver := flag.Bool("acraserver", false, "Create keypair for acraserver only")
 	dataKeys := flag.Bool("storage", false, "Create keypair for data encryption/decryption")
+	basicauth := flag.Bool("basicauth", false, "Create symmetric key for acra_configui's basic auth db")
 	outputDir := flag.String("output", keystore.DEFAULT_KEY_DIR_SHORT, "Folder where will be saved keys")
+	outputPublicKey := flag.String("output_public", keystore.DEFAULT_KEY_DIR_SHORT, "Folder where will be saved public key")
+	masterKey := flag.String("master_key", "", "Generate new random master key and save to file")
 
-	cmd.SetLogLevel(cmd.LOG_VERBOSE)
+	logging.SetLogLevel(logging.LOG_VERBOSE)
 
 	err := cmd.Parse(DEFAULT_CONFIG_PATH)
 	if err != nil {
@@ -42,7 +47,37 @@ func main() {
 
 	cmd.ValidateClientId(*clientId)
 
-	store, err := keystore.NewFilesystemKeyStore(*outputDir)
+	if *masterKey != "" {
+		newKey, err := keystore.GenerateSymmetricKey()
+		if err != nil {
+			panic(err)
+		}
+		if err := ioutil.WriteFile(*masterKey, newKey, 0600); err != nil {
+			panic(err)
+		}
+		os.Exit(0)
+	}
+
+	symmetricKey, err := keystore.GetMasterKeyFromEnvironment()
+	if err != nil {
+		if err == keystore.ErrEmptyMasterKey {
+			log.Infof("You must pass master key via %v environment variable", keystore.ACRA_MASTER_KEY_VAR_NAME)
+			os.Exit(1)
+		}
+		log.WithError(err).Errorln("can't load master key")
+		os.Exit(1)
+	}
+	scellEncryptor, err := keystore.NewSCellKeyEncryptor(symmetricKey)
+	if err != nil {
+		log.WithError(err).Errorln("can't init scell encryptor")
+		os.Exit(1)
+	}
+	var store keystore.KeyStore
+	if *outputPublicKey != *outputDir {
+		store, err = keystore.NewFilesystemKeyStoreTwoPath(*outputDir, *outputPublicKey, scellEncryptor)
+	} else {
+		store, err = keystore.NewFilesystemKeyStore(*outputDir, scellEncryptor)
+	}
 	if err != nil {
 		panic(err)
 	}
@@ -59,6 +94,11 @@ func main() {
 		}
 	} else if *dataKeys {
 		err = store.GenerateDataEncryptionKeys([]byte(*clientId))
+		if err != nil {
+			panic(err)
+		}
+	} else if *basicauth {
+		_, err = store.GetAuthKey(true)
 		if err != nil {
 			panic(err)
 		}

@@ -14,9 +14,13 @@
 package main
 
 import (
-	"errors"
+	"crypto/tls"
 	"encoding/json"
+	"errors"
+
+	"github.com/cossacklabs/acra/acracensor"
 	"github.com/cossacklabs/acra/network"
+	"io/ioutil"
 )
 
 const (
@@ -35,6 +39,7 @@ type Config struct {
 	scriptOnPoison          string
 	stopOnPoison            bool
 	withZone                bool
+	withAPI                 bool
 	wholeMatch              bool
 	serverId                []byte
 	acraConnectionString    string
@@ -42,11 +47,15 @@ type Config struct {
 	tlsServerKeyPath        string
 	tlsServerCertPath       string
 	ConnectionWrapper       network.ConnectionWrapper
+	mysql                   bool
+	postgresql              bool
+	configPath              string
+	debug                   bool
+	censor                  acracensor.AcracensorInterface
+	tlsConfig               *tls.Config
 }
 
 type UIEditableConfig struct {
-	ProxyHost         string `json:"host"`
-	ProxyPort         int    `json:"port"`
 	DbHost            string `json:"db_host"`
 	DbPort            int    `json:"db_port"`
 	ProxyCommandsPort int    `json:"commands_port"`
@@ -57,7 +66,57 @@ type UIEditableConfig struct {
 }
 
 func NewConfig() *Config {
-	return &Config{withZone: false, stopOnPoison: false, wholeMatch: true}
+	return &Config{withZone: false, stopOnPoison: false, wholeMatch: true, mysql: false, postgresql: false}
+}
+
+var ErrTwoDBSetup = errors.New("only one db supported at one time")
+
+func (config *Config) SetCensor(censorConfigPath string) error {
+	censor := &acracensor.AcraCensor{}
+	config.censor = censor
+	//skip if flag not specified
+	if censorConfigPath == "" {
+		return nil
+	}
+	configuration, err := ioutil.ReadFile(censorConfigPath)
+	if err != nil {
+		return err
+	}
+	err = censor.LoadConfiguration(configuration)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+func (config *Config) GetCensor() acracensor.AcracensorInterface {
+	return config.censor
+}
+
+func (config *Config) SetMySQL(useMySQL bool) error {
+	if config.postgresql && useMySQL {
+		return ErrTwoDBSetup
+	}
+	config.mysql = useMySQL
+	return nil
+}
+func (config *Config) UseMySQL() bool {
+	return config.mysql
+}
+
+func (config *Config) UsePostgreSQL() bool {
+	// default true if two settings is false
+	if !(config.mysql || config.postgresql) {
+		return true
+	}
+	return config.postgresql
+}
+
+func (config *Config) SetPostgresql(usePostgresql bool) error {
+	if config.mysql && usePostgresql {
+		return ErrTwoDBSetup
+	}
+	config.postgresql = usePostgresql
+	return nil
 }
 func (config *Config) GetTLSServerKeyPath() string {
 	return config.tlsServerKeyPath
@@ -89,11 +148,23 @@ func (config *Config) SetStopOnPoison(stop bool) {
 func (config *Config) GetStopOnPoison() bool {
 	return config.stopOnPoison
 }
+func (config *Config) SetDebug(value bool) {
+	config.debug = value
+}
+func (config *Config) GetDebug() bool {
+	return config.debug
+}
 func (config *Config) GetWithZone() bool {
 	return config.withZone
 }
 func (config *Config) SetWithZone(wz bool) {
 	config.withZone = wz
+}
+func (config *Config) SetEnableHTTPApi(api bool) {
+	config.withAPI = api
+}
+func (config *Config) GetEnableHTTPApi() bool {
+	return config.withAPI
 }
 func (config *Config) GetProxyHost() string {
 	return config.proxyHost
@@ -160,14 +231,19 @@ func (config *Config) GetWholeMatch() bool {
 func (config *Config) SetWholeMatch(value bool) {
 	config.wholeMatch = value
 }
+func (config *Config) GetConfigPath() string {
+	return config.configPath
+}
+func (config *Config) SetConfigPath(value string) {
+	config.configPath = value
+}
 
 func (config *Config) ToJson() ([]byte, error) {
 	var s UIEditableConfig
-	s.ProxyHost = config.GetProxyHost()
-	s.ProxyPort = config.GetProxyPort()
 	s.DbHost = config.GetDBHost()
 	s.DbPort = config.GetDBPort()
 	s.ProxyCommandsPort = config.GetProxyCommandsPort()
+	s.Debug = config.GetDebug()
 	s.ScriptOnPoison = config.GetScriptOnPoison()
 	s.StopOnPoison = config.GetStopOnPoison()
 	s.WithZone = config.GetWithZone()
@@ -181,4 +257,11 @@ func (config *Config) GetAcraConnectionString() string {
 
 func (config *Config) GetAcraAPIConnectionString() string {
 	return config.acraAPIConnectionString
+}
+
+func (config *Config) SetTLSConfig(tlsConfig *tls.Config) {
+	config.tlsConfig = tlsConfig
+}
+func (config *Config) GetTLSConfig() *tls.Config {
+	return config.tlsConfig
 }

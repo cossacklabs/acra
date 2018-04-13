@@ -117,3 +117,5 @@ ENV/
 
 # Rope project settings
 .ropeproject
+
+cmd/acra_configui/auth.keys

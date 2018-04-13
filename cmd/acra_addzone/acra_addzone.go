@@ -18,6 +18,7 @@ import (
 	"fmt"
 	"github.com/cossacklabs/acra/cmd"
 	"github.com/cossacklabs/acra/keystore"
+	"github.com/cossacklabs/acra/logging"
 	"github.com/cossacklabs/acra/utils"
 	"github.com/cossacklabs/acra/zone"
 	"github.com/cossacklabs/themis/gothemis/keys"
@@ -32,7 +33,7 @@ func main() {
 	outputDir := flag.String("output_dir", keystore.DEFAULT_KEY_DIR_SHORT, "Folder where will be saved generated zone keys")
 	fsKeystore := flag.Bool("fs", true, "Use filesystem key store")
 
-	cmd.SetLogLevel(cmd.LOG_VERBOSE)
+	logging.SetLogLevel(logging.LOG_VERBOSE)
 
 	err := cmd.Parse(DEFAULT_CONFIG_PATH)
 	if err != nil {
@@ -49,11 +50,23 @@ func main() {
 	}
 	var keyStore keystore.KeyStore
 	if *fsKeystore {
-		keyStore, err = keystore.NewFilesystemKeyStore(output)
+		masterKey, err := keystore.GetMasterKeyFromEnvironment()
+		if err != nil {
+			log.WithError(err).Errorln("can't load master key")
+			os.Exit(1)
+		}
+		scellEncryptor, err := keystore.NewSCellKeyEncryptor(masterKey)
+		if err != nil {
+			log.WithError(err).Errorln("can't init scell encryptor")
+			os.Exit(1)
+		}
+		keyStore, err = keystore.NewFilesystemKeyStore(output, scellEncryptor)
 		if err != nil {
 			log.WithError(err).Errorln("can't create key store")
 			os.Exit(1)
 		}
+	} else {
+		panic("No more supported keystores")
 	}
 	id, publicKey, err := keyStore.GenerateZoneKey()
 	if err != nil {

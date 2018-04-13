@@ -19,6 +19,7 @@ import (
 	"fmt"
 	"github.com/cossacklabs/acra/cmd"
 	"github.com/cossacklabs/acra/keystore"
+	"github.com/cossacklabs/acra/logging"
 	"github.com/cossacklabs/acra/poison"
 	"github.com/cossacklabs/acra/utils"
 	log "github.com/sirupsen/logrus"
@@ -32,7 +33,7 @@ func main() {
 	keysDir := flag.String("keys_dir", keystore.DEFAULT_KEY_DIR_SHORT, "Folder from which will be loaded keys")
 	dataLength := flag.Int("data_length", poison.DEFAULT_DATA_LENGTH, fmt.Sprintf("Length of random data for data block in acrastruct. -1 is random in range 1..%v", poison.MAX_DATA_LENGTH))
 
-	cmd.SetLogLevel(cmd.LOG_DISCARD)
+	logging.SetLogLevel(logging.LOG_DISCARD)
 
 	err := cmd.Parse(DEFAULT_CONFIG_PATH)
 	if err != nil {
@@ -40,7 +41,17 @@ func main() {
 		os.Exit(1)
 	}
 
-	store, err := keystore.NewFilesystemKeyStore(*keysDir)
+	masterKey, err := keystore.GetMasterKeyFromEnvironment()
+	if err != nil {
+		log.WithError(err).Errorln("can't load master key")
+		os.Exit(1)
+	}
+	scellEncryptor, err := keystore.NewSCellKeyEncryptor(masterKey)
+	if err != nil {
+		log.WithError(err).Errorln("can't init scell encryptor")
+		os.Exit(1)
+	}
+	store, err := keystore.NewFilesystemKeyStore(*keysDir, scellEncryptor)
 	if err != nil {
 		log.WithError(err).Errorln("can't initialize key store")
 		os.Exit(1)

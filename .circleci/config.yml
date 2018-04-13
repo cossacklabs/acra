@@ -6,20 +6,32 @@ jobs:
       # postgresql image with ssl support
       - image: nimbustech/postgres-ssl:9.5
         environment:
-          POSTGRES_PASSWORD: postgres
-          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: test
+          POSTGRES_USER: test
+          POSTGRES_DB: test
+      # use the same credentials for mysql db as for postgresql (which support was added first)
+      # has latest tag on 2018.03.29
+      - image: mysql:5.7.21
+        environment:
+          MYSQL_DATABASE: test
+          MYSQL_USER: test
+          MYSQL_PASSWORD: test
+          MYSQL_ROOT_PASSWORD: root
     environment:
       GOTHEMIS_IMPORT: github.com/cossacklabs/themis/gothemis
       FILEPATH_ERROR_FLAG: /tmp/test_fail
-      VERSIONS: 1.6 1.6.4 1.7 1.7.5 1.8 1.9.4 1.10
+      VERSIONS: 1.7 1.7.6 1.8 1.8.7 1.9.4 1.10
+      TEST_DB_USER: test
+      TEST_DB_USER_PASSWORD: test
+      TEST_DB_NAME: test
     steps:
     # prepare
-      - run: sudo apt-get update && sudo DEBIAN_FRONTEND=noninteractive apt-get -y install libssl-dev python python-setuptools python3 python3-setuptools python3-pip git rsync
+      - run: sudo apt-get update && sudo DEBIAN_FRONTEND=noninteractive apt-get -y install libssl-dev python python-setuptools python3 python3-setuptools python3-pip git rsync psmisc
       - run: cd $HOME && git clone https://github.com/cossacklabs/themis && cd themis && sudo make install
       - run: cd $HOME && for version in $VERSIONS; do mkdir go_root_$version; cd go_root_$version; wget https://storage.googleapis.com/golang/go$version.linux-amd64.tar.gz; tar xf go$version.linux-amd64.tar.gz; cd -; done
       - checkout
       - run: cd $HOME && for version in $VERSIONS; do mkdir -p go_path_$version/src/github.com/cossacklabs/themis/gothemis; mkdir -p go_path_$version/src/github.com/cossacklabs/acra; rsync -auv $HOME/themis/gothemis/ go_path_$version/src/github.com/cossacklabs/themis/gothemis; rsync -auv $HOME/project/ go_path_$version/src/github.com/cossacklabs/acra; done
-      - run: cd $HOME && for version in $VERSIONS; do GOROOT=$HOME/go_root_$version/go PATH=$GOROOT/bin/:$PATH GOPATH=$HOME/go_path_$version go get github.com/cossacklabs/acra/...; done
+      - run: cd $HOME && for version in $VERSIONS; do GOROOT=$HOME/go_root_$version/go PATH=$GOROOT/bin/:$PATH GOPATH=$HOME/go_path_$version go get -d github.com/cossacklabs/acra/...; done
       - run: pip3 install -r $HOME/project/tests/requirements.txt
       - run: sudo ldconfig
     # testing

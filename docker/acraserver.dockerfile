@@ -1,27 +1,41 @@
-FROM golang
-RUN apt-get update && apt-get install -y libssl-dev
+# Create internal synonym for previuosly built image
+ARG VCS_REF
+FROM cossacklabs/acra-build:${VCS_REF} as acra-build
 
-# install themis
-RUN git clone https://github.com/cossacklabs/themis.git /themis
-WORKDIR /themis
-RUN make install && ldconfig
-RUN rm -rf /themis
-
-WORKDIR /go
-ENV GOPATH /go
-
-# build acraserver
-RUN go get github.com/cossacklabs/acra/...
-RUN go build github.com/cossacklabs/acra/cmd/acraserver
-RUN go build github.com/cossacklabs/acra/cmd/acra_addzone
-RUN go build github.com/cossacklabs/acra/cmd/acra_genpoisonrecord
-RUN go build github.com/cossacklabs/acra/cmd/acra_rollback
-RUN go build github.com/cossacklabs/acra/cmd/acra_genkeys
-
+# Build resulting image from scratch
+FROM scratch
+# Product version
+ARG VERSION
+# Link to the product repository
+ARG VCS_URL
+# Hash of the commit
+ARG VCS_REF
+# Repository branch
+ARG VCS_BRANCH
+# Date of the build
+ARG BUILD_DATE
+# Include metadata, additionally use label-schema namespace
+LABEL org.label-schema.schema-version="1.0" \
+    org.label-schema.vendor="Cossack Labs" \
+    org.label-schema.url="https://cossacklabs.com" \
+    org.label-schema.name="Acra server" \
+    org.label-schema.description="Acra helps you easily secure your databases in distributed, microservice-rich environments" \
+    org.label-schema.version=$VERSION \
+    org.label-schema.vcs-url=$VCS_URL \
+    org.label-schema.vcs-ref=$VCS_REF \
+    org.label-schema.build-date=$BUILD_DATE \
+    com.cossacklabs.product.name="acra" \
+    com.cossacklabs.product.version=$VERSION \
+    com.cossacklabs.product.vcs-ref=$VCS_REF \
+    com.cossacklabs.product.vcs-branch=$VCS_BRANCH \
+    com.cossacklabs.product.component="acraserver" \
+    com.cossacklabs.docker.container.build-date=$BUILD_DATE \
+    com.cossacklabs.docker.container.type="product"
+# Copy prepared component's folder from acra-build image
+COPY --from=acra-build /container.acraserver/ /
 VOLUME ["/keys"]
-ENTRYPOINT ["acraserver", "--db_host=postgresql_link", "-v", "--keys_dir=/keys"]
-
-# acra server port
-EXPOSE 9393
-# acra http api port
-EXPOSE 9090
+EXPOSE 9090 9393
+# Base command
+ENTRYPOINT ["/acraserver"]
+# Optional arguments
+CMD ["--db_host=postgres", "-v", "--keys_dir=/keys"]
