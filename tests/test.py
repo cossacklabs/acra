@@ -70,7 +70,7 @@ CONFIG_UI_BASIC_AUTH = dict(
     user='test_user',
     password='test_user_password'
 )
-CONFIG_UI_STATIC_PATH = '../cmd/acra_configui/static/'
+CONFIG_UI_STATIC_PATH = 'cmd/acra_configui/static/'
 CONFIG_HTTP_TIMEOUT = 3
 
 POISON_KEY_PATH = '.poison_key/poison_key'
