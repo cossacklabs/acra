@@ -70,6 +70,7 @@ services:
             - ./ssl/ca:/ssl.ca:ro
             - ./ssl/acraserver:/ssl.server:ro
         command: >-
+            --zonemode
             --db_host=postgresql
             --keys_dir=/keys
             --tls_ca=/ssl.ca/example.cossacklabs.com.CA.crt

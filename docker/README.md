@@ -6,8 +6,6 @@
   * `acra_configui.dockerfile` - resulting image with acra_configui component
   * `acra_genkeys.dockerfile` - resulting image with acra_genkeys tool
   * `acra_genauth.dockerfile` - resulting image with acra_genauth tool
-  * `mysql-ssl.dockerfile` - MySQL server container with example SSL
-    certificates (located at ssl/mysql directory)
   * `postgresql-ssl.dockerfile` - Postgresql server container with example SSL
     certificates (located at ssl/postgresql directory)
 
@@ -19,21 +17,31 @@ make docker
 
 # docker-compose
 
+## Requirements
+
+Our docker-compose files were created using v3 compose file format. Please check
+your docker engine and docker-compose versions with [docker official
+compatibility table](https://docs.docker.com/compose/compose-file/compose-versioning/#compatibility-matrix).
+
+## Configurations
+
 There are examples with different interconnection types (`client` is not
 included into composes and is given only to indicate its position):
-  * `docker-compose.mysql-nossl-server-ssession-proxy.yml`
-    mysql <-> acraserver <-SecureSession-> acraproxy <---> client
+
+  * `docker/docker-compose.pgsql-nossl-server-ssession-proxy.yml`
+    pgsql <-> acraserver <-SecureSession-> acraproxy <---> client
                                                        '-> acra_configui
-  * `docker-compose.mysql-ssl-server-ssl.yml`
-    mysql <-SSL-> acraserver <-SSL-> client
-  * `docker-compose.pgsql-nossl-server-ssession-proxy.yml`
-    postgresql <-> acraserver <-SecureSession-> acraproxy <---> client
-                                                            '-> acra_configui
-  * `docker-compose.pgsql-nossl-server-ssession-proxy_zonemode.yml`
-    postgresql <-> acraserver <-SecureSession-> acraproxy <---> client in zone mode
-                                                            '-> acra_configui
-  * `docker-compose.pgsql-ssl-server-ssl.yml`
-    postgresql <-SSL-> acraserver <-SSL-> client
+  * `docker/docker-compose.pgsql-nossl-server-ssession-proxy_zonemode.yml`
+    pgsql <-> acraserver <-SecureSession-> acraproxy <---> client in zone mode
+                                                       '-> acra_configui
+  * `docker/docker-compose.pgsql-nossl-server-ssl-proxy.yml`
+    pgsql <-> acraserver <-SSL-> acraproxy <-SSL-> client
+  * `docker/docker-compose.pgsql-nossl-server-ssl-proxy_zonemode.yml`
+    pgsql <-> acraserver <-SSL-> acraproxy <-SSL-> client in zone mode
+  * `docker/docker-compose.pgsql-ssl-server-ssl-proxy.yml`
+    pgsql <-SSL-> acraserver <-SSL-> acraproxy <-SSL-> client
+  * `docker/docker-compose.pgsql-ssl-server-ssl_zonemode.yml`
+    pgsql <-SSL-> acraserver <-SSL-> client in zone mode
 
 
 ## Quick launch
@@ -48,7 +56,7 @@ put them to appropriate services' directories and launch all components.
 Now you can connect to:
   * 9494/tcp (acraproxy)
   * 8000/tcp (acra_configui) in configurations with acraproxy
-  * 5432/tcp (postgresql) or 3306/tcp (mysql)
+  * 5432/tcp (postgresql)
 
 
 ## Normal launch
@@ -76,26 +84,24 @@ Optionally you may specify docker image tag, which can be one of:
 ```bash
 # Examples:
 # branch
-ACRA_DOCKER_IMAGE_TAG="master"
+export ACRA_DOCKER_IMAGE_TAG="master"
 # commit tag
-ACRA_DOCKER_IMAGE_TAG="2d2348f440aa0c20b20cd23c49dd34eb0d42d6a5"
+export ACRA_DOCKER_IMAGE_TAG="2d2348f440aa0c20b20cd23c49dd34eb0d42d6a5"
 # version
-ACRA_DOCKER_IMAGE_TAG="0.76-33-g8b16bc2"
+export ACRA_DOCKER_IMAGE_TAG="0.76-33-g8b16bc2"
 ```
 
 Please define database name and user credentials:
 ```
-# for Postgresql
 export POSTGRES_DB="<db_name>"
 export POSTGRES_USER="<user_name>"
 export POSTGRES_PASSWORD="<user_password>"
+```
 
-# for MySQL
-export MYSQL_ONETIME_PASSWORD="<mysql_onetime_password>"
-export MYSQL_ROOT_PASSWORD="<mysql_root_password>"
-export MYSQL_DATABASE="<db_name>"
-export MYSQL_USER="<user_name>"
-export MYSQL_PASSWORD="<user_password>"
+For access to acra_configui HTTP interface you can define:
+```
+export ACRA_HTTPAUTH_USER=<http_auth_user>
+export ACRA_HTTPAUTH_PASSWORD=<http_auth_password>
 ```
 
 Now you can run docker-compose:
