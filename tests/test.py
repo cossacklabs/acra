@@ -64,7 +64,7 @@ master_key = None
 ACRA_MASTER_KEY_VAR_NAME = 'ACRA_MASTER_KEY'
 MASTER_KEY_PATH = 'master.key'
 
-CONFIG_UI_HTTP_PORT = 8001
+CONFIG_UI_HTTP_PORT = 8022
 CONFIG_UI_AUTH_DB_PATH = 'auth.keys'
 CONFIG_UI_BASIC_AUTH = dict(
     user='test_user',
