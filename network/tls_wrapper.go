@@ -44,6 +44,8 @@ func NewTLSConfig(serverName string, caPath, keyPath, crtPath string) (*tls.Conf
 	if roots, err = x509.SystemCertPool(); err != nil {
 		log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorGeneral).
 			Errorln("Can't load system ca certificates")
+	}
+	if roots == nil {
 		roots = x509.NewCertPool()
 	}
 	if caPath != "" {

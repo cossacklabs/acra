@@ -70,8 +70,8 @@ func (clientSession *ClientSession) close() {
 /* proxy connections from client to db and decrypt responses from db to client
 if any error occurred than end processing
 */
-func (clientSession *ClientSession) HandleSecureSession(decryptorImpl base.Decryptor) {
-	log.Infof("Handle Secure Session connection")
+func (clientSession *ClientSession) HandleClientConnection(decryptorImpl base.Decryptor) {
+	log.Infof("Handle client's connection")
 	innerErrorChannel := make(chan error, 2)
 
 	log.Debugf("Connecting to db")
@@ -129,7 +129,7 @@ func (clientSession *ClientSession) HandleSecureSession(decryptorImpl base.Decry
 		}
 		break
 	}
-	log.Infof("Closing Secure Session connection")
+	log.Infof("Closing client's connection")
 	clientSession.close()
 	// wait second error from closed second connection
 	<-innerErrorChannel
