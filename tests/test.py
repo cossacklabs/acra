@@ -1622,11 +1622,14 @@ class TestAcraConfigUIWeb(BaseTestCase):
         except Exception as e:
             print(e)
         stop_process([self.configui])
-        args = ['killall', '--signal=SIGTERM', 'acraserver']
         try:
-            subprocess.call(args, cwd=os.getcwd(), timeout=PROCESS_CALL_TIMEOUT)
+            subprocess.call(['killall', '--signal=SIGTERM', 'acraserver'], cwd=os.getcwd(), timeout=PROCESS_CALL_TIMEOUT)
         except Exception as e:
-            print(e)
+            print('SIGTERM->acraserver error: {}'.format(e))
+            try:
+                subprocess.call(['killall', '--signal=SIGKILL', 'acraserver'], cwd=os.getcwd(), timeout=PROCESS_CALL_TIMEOUT)
+            except Exception as e:
+                print('SIGKILL->acraserver error: {}'.format(e))
         super(TestAcraConfigUIWeb, self).tearDown()
 
     def testAuthAndSubmitSettings(self):
