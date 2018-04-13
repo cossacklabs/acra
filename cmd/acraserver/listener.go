@@ -158,7 +158,7 @@ func (server *SServer) handleConnection(connection net.Conn) {
 	}
 	clientSession.connection = wrappedConnection
 	decryptor := server.getDecryptor(clientId)
-	clientSession.HandleSecureSession(decryptor)
+	clientSession.HandleClientConnection(decryptor)
 }
 
 // start listening connections from proxy
@@ -321,14 +321,14 @@ func (server *SServer) handleCommandsConnection(connection net.Conn) {
 	clientSession.Server = server
 	if err != nil {
 		log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantStartConnection).
-			Errorln("Can't init session")
+			Errorln("Can't init API session")
 		return
 	}
 
 	wrappedConnection, _, err := server.config.ConnectionWrapper.WrapServer(connection)
 	if err != nil {
 		log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantWrapConnection).
-			Errorln("Can't wrap connection")
+			Errorln("Can't wrap API connection")
 		return
 	}
 	clientSession.connection = wrappedConnection
