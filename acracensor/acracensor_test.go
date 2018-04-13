@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"strings"
 )
 
 func TestWhitelistQueries(t *testing.T) {
@@ -499,6 +500,22 @@ func TestConfigurationProvider(t *testing.T) {
 		}
 	}
 
+	expectedQueriesInCensorLog := "[{\"RawQuery\":\"INSERT INTO SalesStaff1 VALUES (1, 'Stephen', 'Jiang');\",\"IsForbidden\":false},{\"RawQuery\":\"SELECT AVG(Price) FROM Products;\",\"IsForbidden\":false},{\"RawQuery\":\"INSERT INTO EMPLOYEE_TBL VALUES (1, 'Stephen', 'Jiang');\",\"IsForbidden\":false},{\"RawQuery\":\"SELECT AVG(Price) FROM Customers;\",\"IsForbidden\":false},{\"RawQuery\":\"SELECT EMP_ID, LAST_NAME FROM EMPLOYEE WHERE CITY = 'Seattle' ORDER BY EMP_ID;\",\"IsForbidden\":false},{\"RawQuery\":\"SELECT EMP_ID, LAST_NAME FROM EMPLOYEE AS EMPL WHERE CITY = 'Seattle' ORDER BY EMP_ID;\",\"IsForbidden\":false},{\"RawQuery\":\"SELECT EMP_ID, LAST_NAME FROM PRODUCTS WHERE CITY='INDIANAPOLIS' ORDER BY EMP_ID;\",\"IsForbidden\":false},{\"RawQuery\":\"SELECT EMP_ID, LAST_NAME FROM PRODUCTS WHERE CITY='INDIANAPOLIS' ORDER BY EMP_ID asc;\",\"IsForbidden\":false}]"
+
+	censorLogsBytes, err := ioutil.ReadFile("censor_log")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if !strings.EqualFold(expectedQueriesInCensorLog, string(censorLogsBytes)){
+		t.Fatal("Configuration parsing logic error 1")
+	}
+
+	err = os.Remove("censor_log")
+	if err != nil {
+		t.Fatal(err)
+	}
+
 	testSyntax(t)
 }
 func testSyntax(t *testing.T) {
@@ -569,7 +586,11 @@ func TestSerialization(t *testing.T){
 		t.Fatal(err)
 	}
 
-	loggingHandler := handlers.NewLoggingHandler(tmpFile.Name())
+	loggingHandler, err := handlers.NewLoggingHandler(tmpFile.Name())
+	if err != nil {
+		t.Fatal(err)
+	}
+
 	for _, query := range testQueries {
 		err = loggingHandler.CheckQuery(query)
 		if err != nil {
@@ -648,7 +669,10 @@ func TestLogging(t *testing.T){
 		t.Fatal(err)
 	}
 
-	loggingHandler := handlers.NewLoggingHandler(tmpFile.Name())
+	loggingHandler, err := handlers.NewLoggingHandler(tmpFile.Name())
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	blacklist := &handlers.BlacklistHandler{}
 
