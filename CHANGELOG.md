@@ -66,7 +66,7 @@ _Infrastructure_:
 
 - **Go versions**
 	
-	- Updated the list of suported versions of Go. Every Acra component can now be built using Go >1.7, except `acra_rollback` that requires Go >1.8. No worries, you can still download Acra as a binary package anyway :)
+	- Updated the list of supported versions of Go. Every Acra component can now be built using Go >1.7, except `acra_rollback` that requires Go >1.8. No worries, you can still download Acra as a binary package anyway :)
 
 - **OS**
 
