@@ -158,7 +158,7 @@ func (server *SServer) handleConnection(connection net.Conn) {
 	}
 	clientSession.connection = wrappedConnection
 	decryptor := server.getDecryptor(clientId)
-	clientSession.HandleSecureSession(decryptor)
+	clientSession.HandleClientConnection(decryptor)
 }
 
 // start listening connections from proxy
