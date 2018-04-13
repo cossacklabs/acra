@@ -18,17 +18,14 @@ type QueryInfo struct {
 }
 
 func NewLoggingHandler (filePath string) (*LoggingHandler, error) {
-
 	file, err := os.OpenFile(filePath, os.O_RDONLY|os.O_CREATE, 0600)
 	if err != nil {
 		return nil, err
 	}
-
 	err = file.Close()
 	if err != nil {
 		return nil, err
 	}
-
 	return &LoggingHandler{Queries:nil, filePath:filePath}, nil
 }
 
