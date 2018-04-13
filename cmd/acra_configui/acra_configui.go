@@ -403,7 +403,7 @@ func main() {
 	}
 
 	if *authMode == "auth_off" {
-		log.Info("HTTP Basic Auth is turned off")
+		log.Warningf("HTTP Basic Auth is turned off")
 	} else {
 		log.Infof("HTTP Basic Auth mode: %v", *authMode)
 		err = loadAuthData()

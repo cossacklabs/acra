@@ -3,3 +3,4 @@ psycopg2
 sqlalchemy
 PyMySQL==0.8.0
 semver==2.7.9
+requests
