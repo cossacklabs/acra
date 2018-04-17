@@ -796,7 +796,8 @@ class TestConnectionClosing(BaseTestCase):
             return TestConnectionClosing.mysql_closing(
                 pymysql.connect(**get_connect_args(port=self.PROXY_PORT_1)))
         else:
-            return psycopg2.connect(host=PG_UNIX_HOST, **get_connect_args(port=self.PROXY_PORT_1))
+            return TestConnectionClosing.mysql_closing(psycopg2.connect(
+                host=PG_UNIX_HOST, **get_connect_args(port=self.PROXY_PORT_1)))
 
     def tearDown(self):
         procs = []
@@ -828,7 +829,7 @@ class TestConnectionClosing(BaseTestCase):
                 return int(cursor.fetchone()[1])
 
         else:
-            with connection.cursor() as cursor:
+            with TestConnectionClosing.mysql_closing(connection.cursor()) as cursor:
                 try:
                     cursor.execute('select setting from pg_settings where name=\'max_connections\';')
                     pg_max_connections = int(cursor.fetchone()[0])
@@ -904,7 +905,7 @@ class TestConnectionClosing(BaseTestCase):
     def testClosingConnectionsWithDB(self):
         with self.get_connection() as connection:
             connection.autocommit = True
-            with connection.cursor() as cursor:
+            with TestConnectionClosing.mysql_closing(connection.cursor()) as cursor:
                 current_connection_count = self.getActiveConnectionCount(cursor)
 
                 with self.get_connection():
