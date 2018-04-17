@@ -334,7 +334,7 @@ class BaseTestCase(unittest.TestCase):
     DB_HOST = os.environ.get('TEST_DB_HOST', '127.0.0.1')
     DB_NAME = os.environ.get('TEST_DB_NAME', 'postgres')
     DB_PORT = os.environ.get('TEST_DB_PORT', 5432)
-    DEBUG_LOG = os.environ.get('DEBUG_LOG', False)
+    DEBUG_LOG = os.environ.get('DEBUG_LOG', True)
 
     PROXY_PORT_1 = int(os.environ.get('TEST_PROXY_PORT', 9595))
     PROXY_PORT_2 = PROXY_PORT_1 + 200
@@ -648,7 +648,7 @@ class HexFormatTest(BaseTestCase):
         try:
             self.assertEqual(row['data'][fake_offset:],
                              row['raw_data'].encode('utf-8'))
-        except UnicodeDecodeError:
+        except:
             print('incorrect data: {}\ncorrect data: {}\ndata: {}\n data len: {}'.format(
                 incorrect_data, correct_data, row['data'], len(row['data'])))
             raise
@@ -1549,9 +1549,8 @@ class TestAcraGenKeys(unittest.TestCase):
         # call with directory separator in key name
         self.assertEqual(create_client_keypair(POISON_KEY_PATH), 1)
 
-
-class SSLPostgresqlConnectionTest(AcraCatchLogsMixin, HexFormatTest):
-    ACRA2_PORT = BaseTestCase.ACRA_PORT+1
+class SSLPostgresqlMixin(AcraCatchLogsMixin):
+    ACRA2_PORT = BaseTestCase.ACRA_PORT+1000
     DEBUG_LOG = True
 
     def get_acra_connection_string(self, port=None):
@@ -1638,7 +1637,7 @@ class SSLPostgresqlConnectionTest(AcraCatchLogsMixin, HexFormatTest):
             raise
 
     def tearDown(self):
-        super(SSLPostgresqlConnectionTest, self).tearDown()
+        super(SSLPostgresqlMixin, self).tearDown()
         if not self.EXTERNAL_ACRA:
             for attr in ['acra', 'acra2']:
                 if hasattr(self, attr):
@@ -1656,29 +1655,35 @@ class SSLPostgresqlConnectionTest(AcraCatchLogsMixin, HexFormatTest):
             traceback.print_exc()
 
 
-class SSLPostgresqlConnectionWithZoneTest(ZoneHexFormatTest,
-                                          SSLPostgresqlConnectionTest):
+class SSLPostgresqlConnectionTest(SSLPostgresqlMixin, HexFormatTest):
     pass
 
 
-class TLSBetweenProxyAndServerTest(HexFormatTest):
+class SSLPostgresqlConnectionWithZoneTest(SSLPostgresqlMixin, ZoneHexFormatTest):
+    pass
+
+
+class TLSBetweenProxyAndServerMixin(object):
     TLS_ON = True
     def fork_acra(self, popen_kwargs: dict=None, **acra_kwargs: dict):
         return self._fork_acra({'client_id': 'keypair1'}, popen_kwargs)
 
     def setUp(self):
-        super(TLSBetweenProxyAndServerTest, self).setUp()
+        super(TLSBetweenProxyAndServerMixin, self).setUp()
         # acra works with one client id and no matter from which proxy connection come
         self.engine2.dispose()
         self.engine2 = self.engine_raw
 
 
-class TLSBetweenProxyAndServerWithZonesTest(ZoneHexFormatTest,
-                                            TLSBetweenProxyAndServerTest):
+class TLSBetweenProxyAndServerTest(TLSBetweenProxyAndServerMixin, HexFormatTest):
     pass
 
 
-class SSLMysqlConnectionTest(SSLPostgresqlConnectionTest):
+class TLSBetweenProxyAndServerWithZonesTest(TLSBetweenProxyAndServerMixin, ZoneHexFormatTest):
+    pass
+
+
+class SSLMysqlMixin(SSLPostgresqlMixin):
     def checkSkip(self):
         if not (TEST_WITH_TLS and TEST_MYSQL):
             self.skipTest("running tests without TLS")
@@ -1750,7 +1755,11 @@ class SSLMysqlConnectionTest(SSLPostgresqlConnectionTest):
             raise
 
 
-class SSLMysqlConnectionWithZoneTest(ZoneHexFormatTest, SSLMysqlConnectionTest):
+class SSLMysqlConnectionTest(SSLMysqlMixin, HexFormatTest):
+    pass
+
+
+class SSLMysqlConnectionWithZoneTest(SSLMysqlMixin, ZoneHexFormatTest):
     pass
 
 
