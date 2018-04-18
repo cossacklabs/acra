@@ -54,8 +54,11 @@ RUN go get -v -x github.com/cossacklabs/acra/...
 COPY docker/collect_dependencies.sh .
 RUN chmod +x ./collect_dependencies.sh
 # Copy each product and its dependencies to resulting directories
-RUN for component in server proxy _genkeys; do \
+RUN for component in server proxy _genkeys _configui _genauth; do \
         ./collect_dependencies.sh \
             "${GOPATH}/bin/acra${component}" "/container.acra${component}" && \
         cp "${GOPATH}/bin/acra${component}" "/container.acra${component}/"; \
     done
+# Copy static resources for acra_configui
+RUN cp -r "${GOPATH}/src/github.com/cossacklabs/acra/cmd/acra_configui/static" \
+    "/container.acra_configui/"

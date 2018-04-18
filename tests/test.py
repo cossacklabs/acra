@@ -30,6 +30,7 @@ from urllib.request import urlopen
 from urllib.parse import urlparse
 import collections
 
+import shutil
 import psycopg2
 import pymysql
 import semver
@@ -62,6 +63,16 @@ poison_record = None
 master_key = None
 ACRA_MASTER_KEY_VAR_NAME = 'ACRA_MASTER_KEY'
 MASTER_KEY_PATH = 'master.key'
+
+CONFIG_UI_HTTP_PORT = 8022
+CONFIG_UI_AUTH_DB_PATH = 'auth.keys'
+CONFIG_UI_BASIC_AUTH = dict(
+    user='test_user',
+    password='test_user_password'
+)
+CONFIG_UI_STATIC_PATH = 'cmd/acra_configui/static/'
+CONFIG_HTTP_TIMEOUT = 3
+
 POISON_KEY_PATH = '.poison_key/poison_key'
 
 SETUP_SQL_COMMAND_TIMEOUT = 0.1
@@ -69,6 +80,8 @@ FORK_FAIL_SLEEP = 0.1
 CONNECTION_FAIL_SLEEP = 0.1
 SOCKET_CONNECT_TIMEOUT = 10
 KILL_WAIT_TIMEOUT = 10
+CONNECT_TRY_COUNT = 3
+SQL_EXECUTE_TRY_COUNT = 5
 
 TEST_WITH_TLS = os.environ.get('TEST_TLS', 'off').lower() == 'on'
 
@@ -159,6 +172,13 @@ def create_client_keypair(name, only_server=False, only_client=False):
         args.append('-acraserver')
     elif only_client:
         args.append('-acraproxy')
+    return subprocess.call(args, cwd=os.getcwd(), timeout=PROCESS_CALL_TIMEOUT)
+
+def manage_basic_auth_user(action, user_name, user_password):
+    args = ['./acra_genauth', '--{}'.format(action),
+            '--file={}'.format(CONFIG_UI_AUTH_DB_PATH),
+            '--user={}'.format(user_name),
+            '--password={}'.format(user_password)]
     return subprocess.call(args, cwd=os.getcwd(), timeout=PROCESS_CALL_TIMEOUT)
 
 
@@ -253,8 +273,10 @@ BINARIES = [
            build_args=DEFAULT_BUILD_ARGS),
     Binary(name='acra_rollback', from_version=ACRA_ROLLBACK_MIN_VERSION,
            build_args=DEFAULT_BUILD_ARGS),
-    Binary(name='acra_genauth', from_version=ACRA_ROLLBACK_MIN_VERSION,
+    Binary(name='acra_genauth', from_version=DEFAULT_VERSION,
            build_args=DEFAULT_BUILD_ARGS),
+    Binary(name='acra_configui', from_version=DEFAULT_VERSION,
+           build_args=DEFAULT_BUILD_ARGS)
 ]
 
 def clean_binaries():
@@ -263,6 +285,13 @@ def clean_binaries():
             os.remove(i.name)
         except:
             pass
+
+def clean_misc():
+    try:
+        os.unlink('./{}'.format(CONFIG_UI_AUTH_DB_PATH))
+    except:
+        pass
+
 
 PROCESS_CALL_TIMEOUT = 120
 
@@ -278,6 +307,7 @@ def get_go_version():
 def setUpModule():
     global zones
     clean_binaries()
+    clean_misc()
     # build binaries
     builds = [
         (binary.from_version, ['go', 'build'] + binary.build_args + ['github.com/cossacklabs/acra/cmd/{}'.format(binary.name)])
@@ -313,9 +343,10 @@ def setUpModule():
 
 
 def tearDownModule():
-    import shutil
     shutil.rmtree('.acrakeys')
     clean_binaries()
+    clean_misc()
+
 
 
 class ProcessStub(object):
@@ -339,12 +370,23 @@ class BaseTestCase(unittest.TestCase):
     PROXY_PORT_1 = int(os.environ.get('TEST_PROXY_PORT', 9595))
     PROXY_PORT_2 = PROXY_PORT_1 + 200
     PROXY_COMMAND_PORT_1 = int(os.environ.get('TEST_PROXY_COMMAND_PORT', 9696))
+    CONFIG_UI_HTTP_PORT = int(os.environ.get('TEST_CONFIG_UI_HTTP_PORT', CONFIG_UI_HTTP_PORT))
     # for debugging with manually runned acra server
     EXTERNAL_ACRA = False
     ACRA_PORT = int(os.environ.get('TEST_ACRA_PORT', 10003))
     ACRA_BYTEA = 'hex_bytea'
     DB_BYTEA = 'hex'
     WHOLECELL_MODE = False
+    CONFIG_UI_AUTH_KEYS_PATH = os.environ.get('TEST_CONFIG_UI_AUTH_DB_PATH', CONFIG_UI_AUTH_DB_PATH)
+    CONFIG_UI_ACRA_SERVERR_PARAMS = dict(
+        db_host=DB_HOST,
+        db_port=DB_PORT,
+        commands_port=9090,
+        debug=DEBUG_LOG,
+        poisonscript="",
+        poisonshutdown=False,
+        zonemode=False
+    )
     ZONE = False
     TEST_DATA_LOG = False
     TLS_ON = False
@@ -371,6 +413,20 @@ class BaseTestCase(unittest.TestCase):
 
     def wait_acra_connection(self, *args, **kwargs):
         return wait_unix_socket(*args, **kwargs)
+
+    def fork_configui(self, proxy_port: int, http_port: int):
+        args = [
+            './acra_configui',
+            '-port={}'.format(http_port),
+            '-acra_host=127.0.0.1',
+            '-acra_port={}'.format(proxy_port),
+            '-static_path={}'.format(CONFIG_UI_STATIC_PATH)
+        ]
+        if self.DEBUG_LOG:
+            args.append('-d=true')
+        process = self.fork(lambda: subprocess.Popen(args))
+        return process
+
 
     def fork_proxy(self, proxy_port: int, acra_port: int, client_id: str, commands_port: int=None, zone_mode: bool=False, check_connection: bool=True):
         acra_connection = self.get_acra_connection_string(acra_port)
@@ -439,6 +495,9 @@ class BaseTestCase(unittest.TestCase):
             port = self.PROXY_COMMAND_PORT_1
         return get_proxy_connection_string(port)
 
+    def get_config_ui_connection_url(self):
+        return 'http://{}:{}'.format('localhost', CONFIG_UI_HTTP_PORT)
+
     def get_acraserver_bin_path(self):
         return './acraserver'
 
@@ -467,6 +526,7 @@ class BaseTestCase(unittest.TestCase):
             'd': 'true' if self.DEBUG_LOG else 'false',
             'zonemode': 'true' if self.ZONE else 'false',
             'enable_http_api': 'true' if self.ZONE else 'true',
+            'auth_keys': self.CONFIG_UI_AUTH_KEYS_PATH
         }
         if self.TLS_ON:
             args['tls'] = 'true'
@@ -531,7 +591,7 @@ class BaseTestCase(unittest.TestCase):
                     except Exception:
                         time.sleep(SETUP_SQL_COMMAND_TIMEOUT)
                         count += 1
-                        if count == 3:
+                        if count == SQL_EXECUTE_TRY_COUNT:
                             raise
         except:
             self.tearDown()
@@ -792,12 +852,20 @@ class TestConnectionClosing(BaseTestCase):
             raise
 
     def get_connection(self):
-        if TEST_MYSQL:
-            return TestConnectionClosing.mysql_closing(
-                pymysql.connect(**get_connect_args(port=self.PROXY_PORT_1)))
-        else:
-            return TestConnectionClosing.mysql_closing(psycopg2.connect(
-                host=PG_UNIX_HOST, **get_connect_args(port=self.PROXY_PORT_1)))
+        count = CONNECT_TRY_COUNT
+        while True:
+            try:
+                if TEST_MYSQL:
+                    return TestConnectionClosing.mysql_closing(
+                        pymysql.connect(**get_connect_args(port=self.PROXY_PORT_1)))
+                else:
+                return TestConnectionClosing.mysql_closing(psycopg2.connect(
+                    host=PG_UNIX_HOST, **get_connect_args(port=self.PROXY_PORT_1)))
+            except:
+                count -= 1
+                if count == 0:
+                    raise
+                time.sleep(CONNECTION_FAIL_SLEEP)
 
     def tearDown(self):
         procs = []
@@ -848,7 +916,7 @@ class TestConnectionClosing(BaseTestCase):
         # give a time to close connections via postgresql
         # because performance where tests will run not always constant,
         # we wait try_count times. in best case it will not need to sleep
-        try_count = 5
+        try_count = SQL_EXECUTE_TRY_COUNT
         for i in range(try_count):
             try:
                 self.assertEqual(self.getActiveConnectionCount(cursor), expected)
@@ -1553,8 +1621,84 @@ class SSLPostgresqlMixin(AcraCatchLogsMixin):
     ACRA2_PORT = BaseTestCase.ACRA_PORT+1000
     DEBUG_LOG = True
 
-    def get_acra_connection_string(self, port=None):
-        return get_tcp_connection_string(port if port else self.ACRA_PORT)
+
+def get_acra_connection_string(self, port=None):
+    return get_tcp_connection_string(port if port else self.ACRA_PORT)
+
+class TestAcraConfigUIGenAuth(unittest.TestCase):
+    def testUIGenAuth(self):
+        self.assertEqual(manage_basic_auth_user('set', 'test', 'test'), 0)
+        self.assertEqual(manage_basic_auth_user('set', CONFIG_UI_BASIC_AUTH['user'], CONFIG_UI_BASIC_AUTH['password']), 0)
+        self.assertEqual(manage_basic_auth_user('remove', 'test', 'test'), 0)
+        self.assertEqual(manage_basic_auth_user('remove', 'test_unknown', 'test_unknown'), 1)
+
+
+class TestAcraConfigUIWeb(BaseTestCase):
+    def setUp(self):
+        try:
+            self.proxy_1 = self.fork_proxy(
+                self.PROXY_PORT_1, self.ACRA_PORT, 'keypair1', zone_mode=True, commands_port=self.PROXY_COMMAND_PORT_1)
+            self.acra = self.fork_acra(zonemode='true', enable_http_api='true')
+            self.configui = self.fork_configui(proxy_port=self.PROXY_COMMAND_PORT_1, http_port=self.CONFIG_UI_HTTP_PORT)
+        except Exception:
+            self.tearDown()
+            raise
+
+    def tearDown(self):
+        try:
+            os.unlink('configs/acraserver.yaml')
+        except Exception as e:
+            print(e)
+        stop_process([self.configui])
+        try:
+            subprocess.call(['killall', '--signal=SIGTERM', 'acraserver'], cwd=os.getcwd(), timeout=PROCESS_CALL_TIMEOUT)
+        except Exception as e:
+            print('SIGTERM->acraserver error: {}'.format(e))
+            try:
+                subprocess.call(['killall', '--signal=SIGKILL', 'acraserver'], cwd=os.getcwd(), timeout=PROCESS_CALL_TIMEOUT)
+            except Exception as e:
+                print('SIGKILL->acraserver error: {}'.format(e))
+        super(TestAcraConfigUIWeb, self).tearDown()
+
+    def testAuthAndSubmitSettings(self):
+        import requests
+        import uuid
+        from requests.auth import HTTPBasicAuth
+        # test wrong auth
+        req = requests.post(
+            self.get_config_ui_connection_url(), data={}, timeout=CONFIG_HTTP_TIMEOUT,
+            auth=HTTPBasicAuth('wrong_user_name', 'wrong_password'))
+        self.assertEqual(req.status_code, 401)
+        req.close()
+
+        # test correct auth
+        req = requests.post(
+            self.get_config_ui_connection_url(), data={}, timeout=CONFIG_HTTP_TIMEOUT,
+            auth=HTTPBasicAuth(CONFIG_UI_BASIC_AUTH['user'], CONFIG_UI_BASIC_AUTH['password']))
+        self.assertEqual(req.status_code, 200)
+        req.close()
+
+        # test submit settings
+        settings = self.CONFIG_UI_ACRA_SERVERR_PARAMS
+        settings['poisonscript'] = str(uuid.uuid4())
+        print(settings)
+        req = requests.post(
+            "{}/acraserver/submit_setting".format(self.get_config_ui_connection_url()),
+            data=settings,
+            timeout=CONFIG_HTTP_TIMEOUT,
+            auth=HTTPBasicAuth(CONFIG_UI_BASIC_AUTH['user'], CONFIG_UI_BASIC_AUTH['password']))
+        self.assertEqual(req.status_code, 200)
+        req.close()
+
+        # check for new config after acraserver's graceful restart
+        req = requests.post(
+            self.get_config_ui_connection_url(), data={}, timeout=CONFIG_HTTP_TIMEOUT,
+            auth=HTTPBasicAuth(CONFIG_UI_BASIC_AUTH['user'], CONFIG_UI_BASIC_AUTH['password']))
+        self.assertEqual(req.status_code, 200)
+        self.assertIn(settings['poisonscript'], req.text)
+        req.close()
+
+
 
     def wait_acra_connection(self, *args, **kwargs):
         wait_connection(self.ACRA_PORT)
@@ -1630,7 +1774,7 @@ class SSLPostgresqlMixin(AcraCatchLogsMixin):
                     except Exception:
                         time.sleep(SETUP_SQL_COMMAND_TIMEOUT)
                         count += 1
-                        if count == 3:
+                        if count == SQL_EXECUTE_TRY_COUNT:
                             raise
         except:
             self.tearDown()
@@ -1748,7 +1892,7 @@ class SSLMysqlMixin(SSLPostgresqlMixin):
                     except Exception:
                         time.sleep(SETUP_SQL_COMMAND_TIMEOUT)
                         count += 1
-                        if count == 3:
+                        if count == SQL_EXECUTE_TRY_COUNT:
                             raise
         except:
             self.tearDown()

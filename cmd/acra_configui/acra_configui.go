@@ -15,6 +15,7 @@
 package main
 
 import (
+	"errors"
 	"bytes"
 	"encoding/json"
 	"flag"
@@ -49,6 +50,8 @@ var configParamsBytes []byte
 
 var SERVICE_NAME = "acra_configui"
 var DEFAULT_CONFIG_PATH = utils.GetConfigPathByName(SERVICE_NAME)
+
+var ErrGetAuthDataFromAcraServer = errors.New("Wrong status for loadAuthData")
 
 const (
 	HTTP_TIMEOUT = 5
@@ -352,7 +355,7 @@ func loadAuthData() (err error) {
 	if serverResponse.StatusCode != http.StatusOK {
 		log.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantGetAuthData).
 			Errorf("Error while getting auth data from Acraserver, response status: %v", serverResponse.Status)
-		return err
+		return ErrGetAuthDataFromAcraServer
 	}
 	authDataSting, err := ioutil.ReadAll(serverResponse.Body)
 	if err != nil {
@@ -399,9 +402,14 @@ func main() {
 		os.Exit(1)
 	}
 
-	err = loadAuthData()
-	if err != nil {
-		os.Exit(1)
+	if *authMode == "auth_off" {
+		log.Warningf("HTTP Basic Auth is turned off")
+	} else {
+		log.Infof("HTTP Basic Auth mode: %v", *authMode)
+		err = loadAuthData()
+		if err != nil {
+			os.Exit(1)
+		}
 	}
 
 	configParamsBytes = []byte(AcraServerCofig)

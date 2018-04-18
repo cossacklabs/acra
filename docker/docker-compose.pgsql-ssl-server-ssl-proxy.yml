@@ -1,0 +1,166 @@
+version: "3"
+
+services:
+    # Create keys:
+    # - ./.acrakeys/acraserver/${ACRA_CLIENT_ID}_server
+    # - ./.acrakeys/acraproxy/${ACRA_CLIENT_ID}_server.pub
+    acra_genkeys_server:
+        # You can specify docker image tag in the environment
+        # variable ACRA_DOCKER_IMAGE_TAG or run by default with 'latest' images
+        image: "cossacklabs/acra_genkeys:${ACRA_DOCKER_IMAGE_TAG:-latest}"
+        # We do not need network for keys' generation at all
+        network_mode: "none"
+        environment:
+            # INSECURE!!! You MUST define your own ACRA_MASTER_KEY
+            # The default is only for testing purposes
+            ACRA_MASTER_KEY: ${ACRA_MASTER_KEY:-UHZ3VUNNeTJ0SEFhbWVjNkt4eDdVYkc2WnNpUTlYa0E=}
+        volumes:
+            # Mount the whole ./.acrakeys directory to be able generate keys and
+            # place them in services' subdirectories
+            - ./.acrakeys:/keys
+        # Please specify ACRA_CLIENT_ID environment variable, otherwise run with
+        # default 'testclientid' client id
+        command: >-
+            --client_id=${ACRA_CLIENT_ID:-testclientid}
+            --acraserver
+            --output=/keys/acraserver
+            --output_public=/keys/acraproxy
+    # Create keys:
+    # - ./.acrakeys/acraproxy/${ACRA_CLIENT_ID}
+    # - ./.acrakeys/acraserver/${ACRA_CLIENT_ID}.pub
+    acra_genkeys_proxy:
+        image: "cossacklabs/acra_genkeys:${ACRA_DOCKER_IMAGE_TAG:-latest}"
+        network_mode: "none"
+        environment:
+            ACRA_MASTER_KEY: ${ACRA_MASTER_KEY:-UHZ3VUNNeTJ0SEFhbWVjNkt4eDdVYkc2WnNpUTlYa0E=}
+        volumes:
+            - ./.acrakeys:/keys
+        command: >-
+            --client_id=${ACRA_CLIENT_ID:-testclientid}
+            --acraproxy
+            --output=/keys/acraproxy
+            --output_public=/keys/acraserver
+    # Create keys:
+    # - ./.acrakeys/acraserver/${ACRA_CLIENT_ID}_storage
+    # - ./.acrakeys/acrawriter/${ACRA_CLIENT_ID}_storage.pub
+    acra_genkeys_writer:
+        image: "cossacklabs/acra_genkeys:${ACRA_DOCKER_IMAGE_TAG:-latest}"
+        network_mode: "none"
+        environment:
+            ACRA_MASTER_KEY: ${ACRA_MASTER_KEY:-UHZ3VUNNeTJ0SEFhbWVjNkt4eDdVYkc2WnNpUTlYa0E=}
+        volumes:
+            - ./.acrakeys:/keys
+        command: >-
+            --client_id=${ACRA_CLIENT_ID:-testclientid}
+            --storage
+            --output=/keys/acraserver
+            --output_public=/keys/acrawriter
+
+    # Postgresql container
+    postgresql:
+        # Build and run container based on official postgresql image with
+        # strict SSL mode
+        build:
+            context: ../
+            dockerfile: docker/postgresql-ssl.dockerfile
+        # INSECURE!!! You MUST define your own DB name and credentials
+        environment:
+            POSTGRES_DB: ${POSTGRES_DB:-test}
+            POSTGRES_USER: ${POSTGRES_USER:-test}
+            POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-test}
+        # Open the port outside for writer
+        ports:
+            - "5432:5432"
+        # We use internal 'acraserver-postgresql' network for acraserver and
+        # DB interconnection and external network 'world' for port exposing
+        networks:
+            - acraserver-postgresql
+            - world
+
+    acraserver:
+        image: "cossacklabs/acraserver:${ACRA_DOCKER_IMAGE_TAG:-latest}"
+        # Restart server after correct termination, for example after the config
+        # was changed through the API
+        restart: always
+        depends_on:
+            - acra_genkeys_server
+            - acra_genkeys_proxy
+            - acra_genkeys_writer
+            - postgresql
+        environment:
+            ACRA_MASTER_KEY: ${ACRA_MASTER_KEY:-UHZ3VUNNeTJ0SEFhbWVjNkt4eDdVYkc2WnNpUTlYa0E=}
+        # We use internal networks:
+        # - 'acraserver-postgresql' - for acraserver and DB interconnection
+        # - 'acraproxy-acraserver' - for acraserver and acraproxy interconnection
+        networks:
+            - acraproxy-acraserver
+            - acraserver-postgresql
+        volumes:
+            # Mount the directory with only the keys for this service. Must be
+            # rewriteable in case of using API, otherwise should be read-only.
+            - ./.acrakeys/acraserver:/keys
+            # Directory with configuration, rewriteable
+            - ./.acraconfigs/acraserver:/config
+            # Mount directories with SSL certificates
+            - ./ssl/ca:/ssl.ca:ro
+            - ./ssl/acraserver:/ssl.server:ro
+        command: >-
+            --db_host=postgresql
+            --keys_dir=/keys
+            --auth_keys=/keys/httpauth.accounts
+            --enable_http_api
+            --connection_api_string=tcp://0.0.0.0:9090
+            --config=/config/acraserver.yaml
+            --tls
+            --tls_ca=/ssl.ca/example.cossacklabs.com.CA.crt
+            --tls_cert=/ssl.server/acraserver.crt
+            --tls_key=/ssl.server/acraserver.key
+            --tls_sni=postgresql
+            --no_encryption
+            -v
+
+    acraproxy:
+        image: "cossacklabs/acraproxy:${ACRA_DOCKER_IMAGE_TAG:-latest}"
+        restart: always
+        depends_on:
+            - acra_genkeys_server
+            - acra_genkeys_proxy
+            - acraserver
+        # Open the port outside for client application
+        ports:
+            - "9494:9494"
+        environment:
+            ACRA_MASTER_KEY: ${ACRA_MASTER_KEY:-UHZ3VUNNeTJ0SEFhbWVjNkt4eDdVYkc2WnNpUTlYa0E=}
+        # We use internal networks:
+        # - 'acraproxy-acraserver' - for interconnection with acraserver
+        # and external network 'world' for port exposing
+        networks:
+            - acraproxy-acraserver
+            - world
+        volumes:
+            # Mount the directory with only the keys for this service
+            - ./.acrakeys/acraproxy:/keys:ro
+            # Mount directories with SSL certificates
+            - ./ssl/ca:/ssl.ca:ro
+            - ./ssl/acraproxy:/ssl.proxy:ro
+        command: >-
+            --acra_host=acraserver
+            --keys_dir=/keys
+            --client_id=${ACRA_CLIENT_ID:-testclientid}
+            --connection_string=tcp://0.0.0.0:9494
+            --enable_http_api
+            --connection_api_string=tcp://0.0.0.0:9191
+            --tls
+            --tls_ca=/ssl.ca/example.cossacklabs.com.CA.crt
+            --tls_cert=/ssl.proxy/acraproxy.crt
+            --tls_key=/ssl.proxy/acraproxy.key
+            --tls_sni=acraserver
+            --no_encryption
+            -v
+
+networks:
+    world:
+    acraproxy-acraserver:
+        internal: true
+    acraserver-postgresql:
+        internal: true

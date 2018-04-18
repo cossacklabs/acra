@@ -1,5 +1,14 @@
+# Path to basic auth passwords. To add user, use: `./acra_genauth --set --user <user> --pwd <pwd>`
+auth_keys: configs/auth.keys
+
+# Path to acracensor configuration file
+censor_config: 
+
 # Expected client id of acraproxy in mode without encryption
 client_id: 
+
+# Time that acraserver will wait (in seconds) on restart before closing all connections
+close_connections_timeout: 10
 
 # Port for AcraServer for http api
 commands_port: 9090

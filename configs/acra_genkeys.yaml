@@ -1,8 +1,11 @@
-# Create keypair only for acraproxy
+# Create keypair for acraproxy only
 acraproxy: false
 
-# Create keypair only for acraserver
+# Create keypair for acraserver only
 acraserver: false
+
+# Create symmetric key for acra_configui's basic auth db
+basicauth: false
 
 # Client id
 client_id: client
@@ -13,8 +16,14 @@ config:
 # dump config
 dumpconfig: false
 
+# Generate new random master key and save to file
+master_key: 
+
 # Folder where will be saved keys
 output: .acrakeys
+
+# Folder where will be saved public key
+output_public: .acrakeys
 
 # Create keypair for data encryption/decryption
 storage: false

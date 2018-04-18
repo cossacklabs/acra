@@ -7,8 +7,15 @@
 
 -----
 
-[![CircleCI](https://circleci.com/gh/cossacklabs/acra/tree/master.svg?style=shield)](https://circleci.com/gh/cossacklabs/acra)
-[![Go Report Card](https://goreportcard.com/badge/github.com/cossacklabs/acra)](https://goreportcard.com/report/github.com/cossacklabs/acra)
+<p align="center">
+  <a href="https://github.com/cossacklabs/ara/releases/latest"><img src="https://img.shields.io/github/release/cossacklabs/acra.svg" alt="GitHub release"></a>
+  <a href="https://circleci.com/gh/cossacklabs/acra"><img src="https://circleci.com/gh/cossacklabs/acra/tree/master.svg?style=shield" alt="Circle CI"></a>
+  <a href='https://coveralls.io/github/cossacklabs/themis'><img src='https://coveralls.io/repos/github/cossacklabs/themis/badge.svg?branch=master' alt='Coverage Status' /></a>
+  <a href='https://goreportcard.com/report/github.com/cossacklabs/acra'><img class="badge" tag="github.com/cossacklabs/acra" src="https://goreportcard.com/badge/github.com/cossacklabs/acra"></a>
+  <br/><a href="https://github.com/cossacklabs/themis/releases/latest"><img src="https://img.shields.io/badge/Server%20Platforms-Ubuntu%20%7C%20Debian%20%7C%20CentOS-green.svg" alt="Server platforms"></a>
+  <a href="https://github.com/cossacklabs/themis/releases/latest"><img src="https://img.shields.io/badge/Client%20Platforms-Go%20%7C%20Ruby%20%7C%20Python%20%7C%20PHP%20%7C%20NodeJS-green.svg" alt="Client platforms"></a>
+</p>
+<br>
 
 
 |[Documentation](https://github.com/cossacklabs/acra/wiki) | [Python sample project](https://github.com/cossacklabs/djangoproject.com) | [Ruby sample project](https://github.com/cossacklabs/rubygems.org) | [Examples](https://github.com/cossacklabs/acra/tree/master/examples) |
@@ -31,7 +38,7 @@ Acra was built with specific user experiences in mind:
 - **automation-friendly**: most of Acra's features were built to be easily configured / automated from configuration automation environment.
 - **limited attack surface**: to compromise Acra-powered app, an attacker will need to compromise the separate compartmented server, AcraServer - more specifically - it's key storage, and the database. 
 
-Acra is still a product on a very early development stage: any security tools require enourmous human efforts for validation of the methods, code, and finding possible infrastructural weaknesses. Although we do run Acra in production in several instances, we're continuously enhancing it as we go to everyone's benefit. And Acra still needs ruthless dissection of all of its properties to ensure that the provided security benefits are not rendered useless through implementation problems or increased complexity.
+Acra is still a product in a early development stage. And any security tools require enourmous human efforts for validation of the methods, code, and finding possible infrastructural weaknesses. Although we do run Acra in production in several instances, we're continuously enhancing and improving it as we go. And Acra still needs ruthless dissection of all of its properties to ensure that the provided security benefits are not rendered useless through implementation problems or increased complexity.
 
 ## Cryptography
 
@@ -39,7 +46,7 @@ Acra relies on our cryptographic library [Themis](https://www.github.com/cossack
 
 ## Availability
 
-* Acra source builds and tests with Go versions 1.6 – 1.10.
+* Acra source builds and tests with Go versions 1.7 – 1.10.
 * Acra is known to build on: 
 
 | Distributive        | Go versions                     |
@@ -47,19 +54,18 @@ Acra relies on our cryptographic library [Themis](https://www.github.com/cossack
 | CentOS              | 1.8.3 (system)                  |
 | Debian Stretch      | 1.7.4 (system)                  |
 | Debian Jessie       | latest (1.3.3 is not supported) |
-| Debian Wheezy       | latest (1.0.2 is not supported) |
 | Ubuntu Artful       | 1.8.3 (system)                  |
 | Ubuntu Xenial       | 1.6.2 (system)                  |
 | Ubuntu Trusty       | latest (1.2.1 is not supported) |
 | i386/Debian Stretch | 1.7.4 (system)                  |
 | i386/Debian Jessie  | latest (1.3.3 is not supported) |
-| i386/Debian Wheezy  | latest (1.0.2 is not supported) |
 | i386/Ubuntu Artful  | 1.8.3 (system)                  |
 | i386/Ubuntu Xenial  | 1.6.2 (system)                  |
 | i386/Ubuntu Trusty  | latest (1.2.1 is not supported) |
 
-* Acra currently supports PostgreSQL 9.4+ as the database backend; MongoDB and MariaDB (and other MySQL flavours) coming quite soon. 
-* Acra has writer libraries for Ruby, Python, Go, and PHP, but you can easily [generate AcraStruct containers](https://github.com/cossacklabs/acra/wiki/AcraStruct) with [Themis](https://github.com/cossacklabs/themis) for any platform you want. 
+* Acra currently supports PostgreSQL 9.4+ as the database backend. 
+* Starting with Acra [`0.77.0`](https://github.com/cossacklabs/acra/releases/tag/0.77.0), we have integrated Acra with MySQL 5.7+ database, but it is still a fresh feature, which we are extensively testing to ensure its full support. Please report any MySQL bugs you may encounter through [Issues](https://github.com/cossacklabs/acra/issues). MongoDB support is coming soon, too. 
+* Acra has [writer libraries](https://github.com/cossacklabs/acra/wiki/Acrawriter-installation) for Ruby, Python, Go, and PHP, but you can easily [generate AcraStruct containers](https://github.com/cossacklabs/acra/wiki/AcraStruct) with [Themis](https://github.com/cossacklabs/themis) for any platform you want. 
 
 ## How does Acra work?
 
@@ -67,9 +73,10 @@ Acra relies on our cryptographic library [Themis](https://www.github.com/cossack
 
 After successfully deploying and integrating Acra into your application, follow the 4 steps below:
 
-* Your app talks to **AcraProxy**, local daemon, via PostgreSQL driver. **AcraProxy** emulates your normal PostgreSQL database, forwards all the requests to **AcraServer** over a secure channel, and expects back plaintext output. Then **AcraProxy** forwards it over the initial PostgreSQL connection to the application. It is connected to **AcraServer** via [Secure Session](https://github.com/cossacklabs/themis/wiki/Secure-Session-cryptosystem), which ensures that all the plaintext goes over a protected channel. It is highly desirable to run **AcraProxy** via a separate user to compartmentalise it from the client-facing code. 
-* **AcraServer** is the core entity that provides decryption services for all the encrypted envelopes that come from the database, and then re-packs database answers for the application.
-* To write protected data to the database, you can use **AcraWriter library**, which generates AcraStructs and helps you  integrate it as a type into your ORM or database management code. You will need Acra's public key to do that. AcraStructs generated by AcraWriter are not readable by it - only the server has the right keys to decrypt it. 
+* Your app talks to **AcraProxy**, local daemon, via PostgreSQL/MySQL driver. **AcraProxy** emulates your normal PostgreSQL/MySQL database, forwards all the requests to **AcraServer** over a secure channel, and expects a plaintext output back. 
+* Then **AcraProxy** forwards it over the initial database connection to the application. It is connected to **AcraServer** via [Secure Session](https://github.com/cossacklabs/themis/wiki/Secure-Session-cryptosystem) or TLS, which ensures that the plaintext goes over a protected channel. It is highly desirable to run **AcraProxy** via a separate user to compartmentalise it from the client-facing code. 
+* **AcraServer** is the core entity that provides decryption services for all the encrypted envelopes that come from the database, and then re-packs database answers for the application. **AcraCensor** is part of AcraServer that allows customising the firewall rules for all the requests coming to the MySQL database.
+* To write the protected data to the database, you can use **AcraWriter library**, which generates AcraStructs and helps you  integrate it as a type into your ORM or database management code. You will need Acra's public key to do that. AcraStructs generated by AcraWriter are not readable by it — only the server has the right keys to decrypt it. 
 * You can connect to both **AcraProxy** and the database directly when you don't need encrypted reads/writes. However, increased performance might cost you some design elegance (which is sometimes perfectly fine when it's a conscious decision).
 
 To better understand the architecture and data flow, please refer to [Architecture and data flow](https://github.com/cossacklabs/acra/wiki/Architecture-and-data-flow) section in the official documentation.
@@ -77,14 +84,15 @@ To better understand the architecture and data flow, please refer to [Architectu
 The typical workflow looks like this: 
 
 - The app encrypts some data using AcraWriter, generating AcraStruct with AcraServer public key, and updates the database. 
-- The app sends SQL request through AcraProxy, which forwards it to AcraServer, AcraServer forwards it to the database. 
+- The app sends SQL request through AcraProxy, which forwards it to AcraServer.
+- AcraServer passes each query through AcraCensor, which can be configured to blacklist or whitelist some queries. AcraServer forwards the allowed queries to the database. AcraCensor can currently be only enabled for MySQL databases.
 - Upon receiving the answer, AcraServer tries to detect encrypted envelopes (AcraStructs). If it succeeds, AcraServer decrypts payload and replaces them with plaintext answer, which is then returned to AcraProxy over a secure channel. 
 - AcraProxy then provides an answer to the application, as if no complex security instrumentation was ever present within the system.
 
 ## 4 steps to start
 
-* Read the Wiki page on [building and installing](https://github.com/cossacklabs/acra/wiki/Quick-start-guide) all the components. Soon they'll be available as pre-built binaries, but for the time being you'll need to fire a few commands to get the binaries going. 
-* [Deploy AcraServer](https://github.com/cossacklabs/acra/wiki/Quick-start-guide) binaries in a separate virtual machine (or [try it in a docker container](https://github.com/cossacklabs/acra/wiki/Trying-Acra-with-Docker)). Generate keys, put AcraServer public key into both clients (AcraProxy and AcraWriter, see next).
+* Read the [Quick start guide](https://github.com/cossacklabs/acra/wiki/Quick-start-guide) to launch all the components. We provide different ways of installing Acra: using Docker, downloading binaries, building from source. 
+* [Deploy AcraServer](https://github.com/cossacklabs/acra/wiki/Quick-start-guide) binaries in a separate virtual machine (or [try it in a docker container](https://github.com/cossacklabs/acra/wiki/Trying-Acra-with-Docker)). [Generate keys](https://github.com/cossacklabs/acra/wiki/Key-Management), put AcraServer public key into both clients (AcraProxy and AcraWriter, see next).
 * Deploy [AcraProxy](https://github.com/cossacklabs/acra/wiki/AcraProxy-and-AcraWriter#acraproxy) on each server where you need to read sensitive data. Generate proxy keys, provide a public key to AcraServer. Point your database access code to AcraProxy, access it as your normal database installation.
 * Integrate [AcraWriter](https://github.com/cossacklabs/acra/wiki/AcraProxy-and-AcraWriter#acrawriter) into your code where you need to store sensitive data, supply AcraWriter with proper server key.
 
@@ -94,12 +102,13 @@ We fill the [Wiki documentation](https://github.com/cossacklabs/acra/wiki) with 
 
 You might want to:
 
-- Read the notes on [security design](https://github.com/cossacklabs/acra/wiki/Security-design) to better understand what you get with using Acra and what is the threat model that Acra operates in. 
+- Read about using the lightweight [HTTP web server AcraConfigUI](https://github.com/cossacklabs/acra/wiki/AcraConfigUI) we provide to manage AcraServer configuration in a simple fashion. 
+- Read the notes on [security design](https://github.com/cossacklabs/acra/wiki/Security-design) and [intrusion detection](https://github.com/cossacklabs/acra/wiki/Intrusion-detection) to better understand what you get when using Acra and what is the threat model that Acra operates in. 
 - Read [some notes on making Acra stronger / more productive and efficient](https://github.com/cossacklabs/acra/wiki/Tuning-Acra), and on adding security features or increasing throughput, depending on your goals and security model.
-
+- Read about the [logging format](https://github.com/cossacklabs/acra/wiki/Logging) that Acra supports if you are using any SIEM system.  
 ## Project status
 
-This open source version of Acra is an early alpha. We're slowly unifying and moving features from its previous incarnation into a community-friendly edition. Please let us know in the [Issues](https://www.github.com/cossacklabs/acra/issues) whenever you stumble upon a bug, see a possible enhancement or have a comment on security design.
+This open source version of Acra is an early beta. We're slowly unifying and moving features from its previous incarnation into a community-friendly edition. Please let us know in the [Issues](https://www.github.com/cossacklabs/acra/issues) whenever you stumble upon a bug, see a possible enhancement, or have a comment on security design.
 
 ## Contributing to us
 If you’d like to contribute your code or other kind of input to Acra, you’re very welcome. Your starting point for contributing should be this [Contribution Wiki page](https://github.com/cossacklabs/acra/wiki/Contributing-to-Acra).
