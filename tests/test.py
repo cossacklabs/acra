@@ -44,14 +44,16 @@ sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(__file__)), 'wra
 
 from acrawriter import create_acrastruct
 
-DATA_MAX_SIZE = 10000
+DATA_MIN_SIZE = 1000
+DATA_MAX_SIZE = DATA_MIN_SIZE * 10
 # 200 is overhead of encryption (chosen manually)
-COLUMN_DATA_SIZE = DATA_MAX_SIZE + 200
+# multiply 2 because tested acrastruct in acrastruct
+COLUMN_DATA_SIZE = (DATA_MAX_SIZE + 200) * 2
 metadata = sa.MetaData()
 test_table = sa.Table('test', metadata,
     sa.Column('id', sa.Integer, primary_key=True),
     sa.Column('data', sa.LargeBinary(length=COLUMN_DATA_SIZE)),
-    sa.Column('raw_data', sa.String(length=COLUMN_DATA_SIZE)),
+    sa.Column('raw_data', sa.Text(length=COLUMN_DATA_SIZE)),
 )
 
 rollback_output_table = sa.Table('acra_rollback_output', metadata,
@@ -610,9 +612,8 @@ class BaseTestCase(unittest.TestCase):
             engine.dispose()
 
     def get_random_data(self):
-        size = random.randint(100, DATA_MAX_SIZE)
-        return ''.join(random.choice(string.ascii_letters)
-                       for _ in range(size))
+        size = random.randint(DATA_MIN_SIZE, DATA_MAX_SIZE)
+        return ''.join(random.SystemRandom().choice(string.ascii_letters) for _ in range(size))
 
     def get_random_id(self):
         return random.randint(1, 100000)
@@ -800,6 +801,10 @@ class EscapeFormatTest(HexFormatTest):
     ACRA_BYTEA = 'escape_bytea'
     DB_BYTEA = 'escape'
 
+    def checkSkip(self):
+        if TEST_MYSQL:
+            self.skipTest("useful only for postgresql")
+
 
 class ZoneEscapeFormatTest(ZoneHexFormatTest):
     ACRA_BYTEA = 'escape_bytea'
@@ -859,8 +864,8 @@ class TestConnectionClosing(BaseTestCase):
                     return TestConnectionClosing.mysql_closing(
                         pymysql.connect(**get_connect_args(port=self.PROXY_PORT_1)))
                 else:
-                return TestConnectionClosing.mysql_closing(psycopg2.connect(
-                    host=PG_UNIX_HOST, **get_connect_args(port=self.PROXY_PORT_1)))
+                    return TestConnectionClosing.mysql_closing(psycopg2.connect(
+                        host=PG_UNIX_HOST, **get_connect_args(port=self.PROXY_PORT_1)))
             except:
                 count -= 1
                 if count == 0:
@@ -1617,13 +1622,6 @@ class TestAcraGenKeys(unittest.TestCase):
         # call with directory separator in key name
         self.assertEqual(create_client_keypair(POISON_KEY_PATH), 1)
 
-class SSLPostgresqlMixin(AcraCatchLogsMixin):
-    ACRA2_PORT = BaseTestCase.ACRA_PORT+1000
-    DEBUG_LOG = True
-
-
-def get_acra_connection_string(self, port=None):
-    return get_tcp_connection_string(port if port else self.ACRA_PORT)
 
 class TestAcraConfigUIGenAuth(unittest.TestCase):
     def testUIGenAuth(self):
@@ -1699,6 +1697,12 @@ class TestAcraConfigUIWeb(BaseTestCase):
         req.close()
 
 
+class SSLPostgresqlMixin(AcraCatchLogsMixin):
+    ACRA2_PORT = BaseTestCase.ACRA_PORT+1000
+    DEBUG_LOG = True
+
+    def get_acra_connection_string(self, port=None):
+        return get_tcp_connection_string(port if port else self.ACRA_PORT)
 
     def wait_acra_connection(self, *args, **kwargs):
         wait_connection(self.ACRA_PORT)
@@ -1793,10 +1797,10 @@ class TestAcraConfigUIWeb(BaseTestCase):
             traceback.print_exc()
 
         try:
-            for engine in self.engines:
+            for engine in getattr(self, 'engines', []):
                 engine.dispose()
         except:
-            traceback.print_exc()
+             traceback.print_exc()
 
 
 class SSLPostgresqlConnectionTest(SSLPostgresqlMixin, HexFormatTest):

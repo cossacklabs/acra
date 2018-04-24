@@ -40,6 +40,15 @@ import (
 var SERVICE_NAME = "acraproxy"
 var DEFAULT_CONFIG_PATH = utils.GetConfigPathByName(SERVICE_NAME)
 
+func checkDependencies() error {
+	for _, toolName := range []string{"netstat", "awk"} {
+		if _, err := exec.LookPath(toolName); os.IsNotExist(err) {
+			return fmt.Errorf("AcraProxy need \"%v\" tool", toolName)
+		}
+	}
+	return nil
+}
+
 func handleClientConnection(config *Config, connection net.Conn) {
 	defer connection.Close()
 
@@ -169,6 +178,11 @@ func main() {
 	// if log format was overridden
 	logging.CustomizeLogging(*loggingFormat, SERVICE_NAME)
 	log.Infof("Validating service configuration")
+
+	if err := checkDependencies(); err != nil {
+		log.Infoln(err.Error())
+		os.Exit(1)
+	}
 
 	if *port != cmd.DEFAULT_PROXY_PORT {
 		*connectionString = network.BuildConnectionString(cmd.DEFAULT_PROXY_CONNECTION_PROTOCOL, cmd.DEFAULT_PROXY_HOST, *port, "")
