@@ -18,7 +18,7 @@ ARG BUILD_DATE
 LABEL org.label-schema.schema-version="1.0" \
     org.label-schema.vendor="Cossack Labs" \
     org.label-schema.url="https://cossacklabs.com" \
-    org.label-schema.name="Acra server" \
+    org.label-schema.name="AcraServer" \
     org.label-schema.description="Acra helps you easily secure your databases in distributed, microservice-rich environments" \
     org.label-schema.version=$VERSION \
     org.label-schema.vcs-url=$VCS_URL \
@@ -28,14 +28,14 @@ LABEL org.label-schema.schema-version="1.0" \
     com.cossacklabs.product.version=$VERSION \
     com.cossacklabs.product.vcs-ref=$VCS_REF \
     com.cossacklabs.product.vcs-branch=$VCS_BRANCH \
-    com.cossacklabs.product.component="acraserver" \
+    com.cossacklabs.product.component="acra-server" \
     com.cossacklabs.docker.container.build-date=$BUILD_DATE \
     com.cossacklabs.docker.container.type="product"
 # Copy prepared component's folder from acra-build image
-COPY --from=acra-build /container.acraserver/ /
+COPY --from=acra-build /container.acra-server/ /
 VOLUME ["/keys"]
 EXPOSE 9090 9393
 # Base command
-ENTRYPOINT ["/acraserver"]
+ENTRYPOINT ["/acra-server"]
 # Optional arguments
 CMD ["--db_host=postgres", "-v", "--keys_dir=/keys"]

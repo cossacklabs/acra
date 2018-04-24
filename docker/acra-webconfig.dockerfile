@@ -18,7 +18,7 @@ ARG BUILD_DATE
 LABEL org.label-schema.schema-version="1.0" \
     org.label-schema.vendor="Cossack Labs" \
     org.label-schema.url="https://cossacklabs.com" \
-    org.label-schema.name="Acra server" \
+    org.label-schema.name="AcraWebconfig" \
     org.label-schema.description="Acra helps you easily secure your databases in distributed, microservice-rich environments" \
     org.label-schema.version=$VERSION \
     org.label-schema.vcs-url=$VCS_URL \
@@ -28,14 +28,10 @@ LABEL org.label-schema.schema-version="1.0" \
     com.cossacklabs.product.version=$VERSION \
     com.cossacklabs.product.vcs-ref=$VCS_REF \
     com.cossacklabs.product.vcs-branch=$VCS_BRANCH \
-    com.cossacklabs.product.component="acraproxy" \
+    com.cossacklabs.product.component="acra-webconfig" \
     com.cossacklabs.docker.container.build-date=$BUILD_DATE \
     com.cossacklabs.docker.container.type="product"
 # Copy prepared component's folder from acra-build image
-COPY --from=acra-build /container.acraproxy/ /
-VOLUME ["/keys"]
-EXPOSE 9191 9494
+COPY --from=acra-build /container.acra-webconfig/ /
 # Base command
-ENTRYPOINT ["/acraproxy"]
-# Optional arguments
-CMD ["--acra_host=acraserver_link", "-v", "--keys_dir=/keys"]
+ENTRYPOINT ["/acra-webconfig", "-static_path=/static"]

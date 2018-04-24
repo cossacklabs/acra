@@ -18,7 +18,7 @@ ARG BUILD_DATE
 LABEL org.label-schema.schema-version="1.0" \
     org.label-schema.vendor="Cossack Labs" \
     org.label-schema.url="https://cossacklabs.com" \
-    org.label-schema.name="Acra key generator" \
+    org.label-schema.name="AcraAuthmanager - HTTP auth key manager" \
     org.label-schema.description="Acra helps you easily secure your databases in distributed, microservice-rich environments" \
     org.label-schema.version=$VERSION \
     org.label-schema.vcs-url=$VCS_URL \
@@ -28,13 +28,13 @@ LABEL org.label-schema.schema-version="1.0" \
     com.cossacklabs.product.version=$VERSION \
     com.cossacklabs.product.vcs-ref=$VCS_REF \
     com.cossacklabs.product.vcs-branch=$VCS_BRANCH \
-    com.cossacklabs.product.component="acra_genkeys" \
+    com.cossacklabs.product.component="acra-authmanager" \
     com.cossacklabs.docker.container.build-date=$BUILD_DATE \
     com.cossacklabs.docker.container.type="product"
 # Copy prepared component's folder from acra-build image
-COPY --from=acra-build /container.acra_genkeys/ /
-VOLUME ["/keys"]
+COPY --from=acra-build /container.acra-authmanager/ /
+VOLUME ["/auth"]
 # Base command
-ENTRYPOINT ["/acra_genkeys"]
+ENTRYPOINT ["/acra-authmanager"]
 # Optional arguments
-CMD ["--output=/keys", "--client_id=testclientid"]
+CMD ["--keys_dir=/auth", "--file=/auth/auth.keys"]
