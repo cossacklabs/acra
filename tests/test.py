@@ -203,7 +203,7 @@ def wait_connection(port, count=10, sleep=0.1):
     raise Exception("can't wait connection")
 
 
-def wait_unix_socket(socket_path, count=10, sleep=0.1):
+def wait_unix_socket(socket_path, count=10, sleep=0.5):
     while count:
         try:
             connection = socket.socket(socket.AF_UNIX)
