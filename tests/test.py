@@ -1906,39 +1906,5 @@ class SSLMysqlConnectionWithZoneTest(SSLMysqlMixin, ZoneHexFormatTest):
     pass
 
 
-class CustomPoisonTest(BaseTestCase):
-    def testPoison(self):
-        data = {
-            "data": "IiIiIiIiIiJVRUMyAAAALbTzqn8C5furEblwvwZ9584uZDERz4gVNYj2LU5cSd/FEVjQ7qsgJwQmVAAAAAABAUAMAAAAEAAAACAAAACux0Yao9rZWdgLgwn8RLae0JU9BbUcZXTGQNxgANEKukck0SxNoHbyUzU3qvx2K1ffRo+vNn9ncd6mFId+AAAAAAAAAAABAUAMAAAAEAAAAFIAAABYgFoxoSaY4ud++uejVuLiv1UolPBczYFQoiy2d900dHeyBlT5I55hWQ2LnjoWF7PB+vWqlpBVtsVkoBZqwP9yjZJ/6EwOppyFanN0GDak5lXbLMAB0DcXE4CUoH3CzIAbyvyoB/ZxT3/OoysDbA==",
-            "public_key": "VUVDMgAAAC0488dRA18CuRGZCJdJ7TTV7lqFfGTeKSEJf3pPr5kyRf8pCjYm",
-            "expected": "bm8gbWF0dGVyIGJlY2F1c2UgcG9pc29uIHJlY29yZA==",
-            "zone_private": "AAEBQAwAAAAQAAAALQAAAEwdQdd84TUd2N2xR8Svm4nA2eB3jugDLd8QAVfzp0yrPgnw28xRn10FIzCfvkisM0KC42G4G1rq4eogKLQPGntSkmCMmNrryRU=",
-            "zone_public": "VUVDMgAAAC1PVESfAwI7xUGqOrpHWTz0jGsZqWTclk+oOuHldO37deBe2SKH",
-            "zone_id": "DDDDDDDDMbDzDJzeSHdLoGEn",
-            "poison_record": "IiIiIiIiIiJVRUMyAAAALbTzqn8C5furEblwvwZ9584uZDERz4gVNYj2LU5cSd/FEVjQ7qsgJwQmVAAAAAABAUAMAAAAEAAAACAAAACux0Yao9rZWdgLgwn8RLae0JU9BbUcZXTGQNxgANEKukck0SxNoHbyUzU3qvx2K1ffRo+vNn9ncd6mFId+AAAAAAAAAAABAUAMAAAAEAAAAFIAAABYgFoxoSaY4ud++uejVuLiv1UolPBczYFQoiy2d900dHeyBlT5I55hWQ2LnjoWF7PB+vWqlpBVtsVkoBZqwP9yjZJ/6EwOppyFanN0GDak5lXbLMAB0DcXE4CUoH3CzIAbyvyoB/ZxT3/OoysDbA==",
-            "private_key": "AAEBQAwAAAAQAAAALQAAAG+44DuH8ZtVTt8BrnMeXEgvBFcuq2yFOjYmiMwbVUnM2B7Niar2tliC00QdU6lQNyXSB0LID3uHCHw1hiF8NNIbzBzBJajP6Fg="
-        }
-        # generate folder and file
-        get_poison_record()
-        with open('.acrakeys/.poison_key/poison_key', 'wb') as f:
-            f.write(b64encode(data['private_key'].encode('ascii')))
-        with open('.acrakeys/.poison_key/poison_key.pub', 'wb') as f:
-            f.write(b64encode(data['public_key'].encode('ascii')))
-
-        row_id = self.get_random_id()
-
-        self.engine1.execute(
-            test_table.insert(),
-            {'id': row_id, 'data': b64decode(data['data']), 'raw_data': b64decode(data['expected'])})
-
-        with self.assertRaises(DatabaseError):
-            result = self.engine1.execute(
-                sa.select([test_table])
-                .where(test_table.c.id == row_id))
-            row = result.fetchone()
-            if row['data'] == data:
-                self.fail("unexpected response")
-
-
 if __name__ == '__main__':
     unittest.main()
