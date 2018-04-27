@@ -269,7 +269,6 @@ func (handler *MysqlHandler) ClientToDbProxy(errCh chan<- error) {
 	}
 }
 
-// TODO: remove because it's not needed
 func (handler *MysqlHandler) isFieldToDecrypt(field *ColumnDescription) bool {
 	switch field.Type {
 	case MYSQL_TYPE_VARCHAR, MYSQL_TYPE_TINY_BLOB, MYSQL_TYPE_MEDIUM_BLOB, MYSQL_TYPE_LONG_BLOB, MYSQL_TYPE_BLOB,
@@ -411,7 +410,6 @@ func (handler *MysqlHandler) processBinaryDataRow(rowData []byte, fields []*Colu
 }
 
 func (handler *MysqlHandler) expectEOFOnColumnDefinition() bool {
-	//return true
 	return !handler.clientDeprecateEOF
 }
 
@@ -426,15 +424,6 @@ func (handler *MysqlHandler) QueryResponseHandler(packet *MysqlPacket, dbConnect
 	// first byte of payload is field count
 	// https://dev.mysql.com/doc/internals/en/com-query-response.html#text-resultset
 	fieldCount := int(packet.GetData()[0])
-	//if (handler.clientDeprecateEOF && fieldCount == OK_PACKET) || (!handler.clientDeprecateEOF && fieldCount == ERR_PACKET) {
-	//	log.Debugln("Error or empty response packet")
-	//	if _, err := clientConnection.Write(packet.Dump()); err != nil {
-	//		log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorResponseProxyCantWriteToClient).
-	//			Errorln("Can't proxy output")
-	//		return err
-	//	}
-	//	return nil
-	//}
 	output := []Dumper{packet}
 	if fieldCount != ERR_PACKET && fieldCount > 0 {
 		log.Debugln("Read column descriptions")
@@ -468,10 +457,6 @@ func (handler *MysqlHandler) QueryResponseHandler(packet *MysqlPacket, dbConnect
 			if !handler.expectEOFOnColumnDefinition() && i == (fieldCount-1) {
 				break
 			}
-			//// it's last field and next will be data row
-			//if !handler.expectEOFOnColumnDefinition() && (i+1) == fieldCount {
-			//	break
-			//}
 		}
 
 		log.Debugln("Read data rows")
