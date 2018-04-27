@@ -15,6 +15,7 @@
 import contextlib
 import socket
 import json
+import tempfile
 import time
 import os
 import random
@@ -348,7 +349,6 @@ def tearDownModule():
     shutil.rmtree('.acrakeys')
     clean_binaries()
     clean_misc()
-
 
 
 class ProcessStub(object):
@@ -1247,28 +1247,37 @@ class TestShutdownPoisonRecordWithZoneWholeCell(TestShutdownPoisonRecordWithZone
 
 class AcraCatchLogsMixin(object):
     def __init__(self, *args, **kwargs):
-        self._processes_to_close = []
+        self.log_files = {}
         super(AcraCatchLogsMixin, self).__init__(*args, **kwargs)
 
+    def read_log(self, process):
+        with open(self.log_files[process].name, 'r') as f:
+            return f.read()
+
     def fork_acra(self, popen_kwargs: dict=None, **acra_kwargs: dict):
+        log_file = tempfile.NamedTemporaryFile('w+', encoding='utf-8')
         popen_args = {
-            'stdout': subprocess.PIPE, 'stderr': subprocess.STDOUT,
+            'stderr': log_file,
+            #'stdout': subprocess.PIPE,
             'close_fds': True
         }
         process = super(AcraCatchLogsMixin, self).fork_acra(
             popen_args, **acra_kwargs
         )
         # register process to not forget close all descriptors
-        self._processes_to_close.append(process)
+        self.log_files[process] = log_file
         return process
 
     def tearDown(self, *args, **kwargs):
+        for process, log_file in self.log_files.items():
+            log_file.close()
+            try:
+                os.remove(log_file.name)
+            except:
+                pass
+            stop_process(process)
+
         super(AcraCatchLogsMixin, self).tearDown(*args, **kwargs)
-        # because we read stdout/stderr then we need to close all of them
-        for process in self._processes_to_close:
-            for descriptor in [process.stdout, process.stderr, process.stdin]:
-                if descriptor:
-                    descriptor.close()
 
 
 class TestNoCheckPoisonRecord(AcraCatchLogsMixin, BasePoisonRecordTest):
@@ -1283,12 +1292,8 @@ class TestNoCheckPoisonRecord(AcraCatchLogsMixin, BasePoisonRecordTest):
             {'id': row_id, 'data': get_poison_record(), 'raw_data': 'poison_record'})
         result = self.engine1.execute(test_table.select())
         result.fetchall()
-        try:
-            out, er_ = self.acra.communicate(timeout=1)
-        except subprocess.TimeoutExpired:
-            stop_process(self.acra)
-            out, er_ = self.acra.communicate(timeout=1)
-        self.assertNotIn(b'Check poison records', out)
+        log = self.read_log(self.acra)
+        self.assertNotIn('Check poison records', log)
 
 
 class TestNoCheckPoisonRecordWithZone(TestNoCheckPoisonRecord):
@@ -1328,13 +1333,7 @@ class TestCheckLogPoisonRecord(AcraCatchLogsMixin, BasePoisonRecordTest):
         with self.assertRaises(DatabaseError):
             self.engine1.execute(test_table.select())
 
-        try:
-            out, _ = self.acra.communicate(timeout=1)
-        except subprocess.TimeoutExpired:
-            stop_process(self.acra)
-            out, _ = self.acra.communicate(timeout=1)
-
-        self.assertIn(b'Check poison records', out)
+        self.assertIn('Check poison records', self.read_log(self.acra))
 
 
 class TestKeyStorageClearing(BaseTestCase):
@@ -1722,18 +1721,10 @@ class SSLPostgresqlMixin(AcraCatchLogsMixin):
             with self.assertRaises(sa.exc.OperationalError):
                 with engine.connect():
                     pass
-
-            # recommended way to read stdout/stderr on
-            # https://docs.python.org/3/library/subprocess.html#subprocess.Popen.communicate
-            try:
-                outs, errs = self.acra2.communicate(timeout=1)
-            except subprocess.TimeoutExpired:
-                stop_process(self.acra2)
-                outs, errs = self.acra2.communicate(timeout=1)
-
-            self.assertIn(b'To support TLS connections you must pass TLS key '
-                          b'and certificate for AcraServer that will be used',
-                          outs)
+            self.log_files[self.acra2].flush()
+            self.assertIn('To support TLS connections you must pass TLS key '
+                          'and certificate for AcraServer that will be used',
+                          self.read_log(self.acra2))
         finally:
             engine.dispose()
 
@@ -1786,11 +1777,6 @@ class SSLPostgresqlMixin(AcraCatchLogsMixin):
 
     def tearDown(self):
         super(SSLPostgresqlMixin, self).tearDown()
-        if not self.EXTERNAL_ACRA:
-            for attr in ['acra', 'acra2']:
-                if hasattr(self, attr):
-                    stop_process(getattr(self, attr))
-
         try:
             self.engine_raw.execute('delete from test;')
         except:
@@ -1801,6 +1787,12 @@ class SSLPostgresqlMixin(AcraCatchLogsMixin):
                 engine.dispose()
         except:
              traceback.print_exc()
+
+        if not self.EXTERNAL_ACRA:
+            for process in [getattr(self, attr)
+                            for attr in ['acra', 'acra2']
+                            if hasattr(self, attr)]:
+                stop_process(process)
 
 
 class SSLPostgresqlConnectionTest(SSLPostgresqlMixin, HexFormatTest):

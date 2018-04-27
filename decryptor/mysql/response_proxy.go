@@ -115,7 +115,7 @@ const (
 )
 
 func IsBinaryColumn(value byte) bool {
-	isBlob := value > MYSQL_TYPE_TINY_BLOB && value < MYSQL_TYPE_BLOB
+	isBlob := value >= MYSQL_TYPE_TINY_BLOB && value <= MYSQL_TYPE_BLOB
 	isString := value == MYSQL_TYPE_VAR_STRING || value == MYSQL_TYPE_STRING
 	return isString || isBlob || value == MYSQL_TYPE_VARCHAR
 }
@@ -176,6 +176,8 @@ func (handler *MysqlHandler) ClientToDbProxy(errCh chan<- error) {
 		if firstPacket {
 			firstPacket = false
 			handler.clientProtocol41 = packet.ClientSupportProtocol41()
+			handler.clientDeprecateEOF = packet.IsClientDeprecateEOF()
+			clientLog = clientLog.WithField("deprecate_eof", handler.clientDeprecateEOF)
 			if packet.IsSSLRequest() {
 				if handler.tlsConfig == nil {
 					log.Errorln("To support TLS connections you must pass TLS key and certificate for AcraServer that will be used " +
@@ -445,19 +447,13 @@ func (handler *MysqlHandler) QueryResponseHandler(packet *MysqlPacket, dbConnect
 				return err
 			}
 			output = append(output, fieldPacket)
-			//if handler.expectEOFOnColumnDefinition() {
-			//	if fieldPacket.IsEOF() {
-			//		if i != fieldCount {
-			//			return ErrMalformPacket
-			//		}
-			//		break
-			//	}
-			//}
-			if fieldPacket.IsEOF() {
-				if i != fieldCount {
-					return ErrMalformPacket
+			if handler.expectEOFOnColumnDefinition() {
+				if fieldPacket.IsEOF() {
+					if i != fieldCount {
+						return ErrMalformPacket
+					}
+					break
 				}
-				break
 			}
 			log.WithField("column_index", i).Debugln("parse field")
 			field, err := ParseResultField(fieldPacket.GetData())
@@ -469,6 +465,9 @@ func (handler *MysqlHandler) QueryResponseHandler(packet *MysqlPacket, dbConnect
 				binaryFieldIndexes = append(binaryFieldIndexes, i)
 			}
 			fields = append(fields, field)
+			if !handler.expectEOFOnColumnDefinition() && i == (fieldCount-1) {
+				break
+			}
 			//// it's last field and next will be data row
 			//if !handler.expectEOFOnColumnDefinition() && (i+1) == fieldCount {
 			//	break
@@ -487,10 +486,13 @@ func (handler *MysqlHandler) QueryResponseHandler(packet *MysqlPacket, dbConnect
 			}
 			output = append(output, fieldDataPacket)
 			if fieldDataPacket.IsEOF() {
-				dataLog.Debugln("EOF")
+				dataLog.Debugln("empty result set")
 				break
 			}
-
+			// skip if no binary fields and nothing to decrypt
+			if len(fields) == 0 {
+				continue
+			}
 			dataLength := fieldDataPacket.GetPacketPayloadLength()
 			dataLog.Debugln("Process data row")
 
@@ -517,6 +519,7 @@ func (handler *MysqlHandler) QueryResponseHandler(packet *MysqlPacket, dbConnect
 			return err
 		}
 	}
+	handler.resetQueryHandler()
 	log.Debugln("query handler finish")
 	return nil
 }
@@ -557,12 +560,12 @@ func (handler *MysqlHandler) DbToClientProxy(errCh chan<- error) {
 		if firstPacket {
 			firstPacket = false
 			handler.serverProtocol41 = packet.ServerSupportProtocol41()
-			handler.clientDeprecateEOF = packet.IsClientDeprecateEOF()
 			serverLog.Debugf("set support protocol 41 %v", handler.serverProtocol41)
 		}
 		responseHandler = handler.getResponseHandler()
 		err = responseHandler(packet, handler.dbConnection, handler.clientConnection)
 		if err != nil {
+			handler.resetQueryHandler()
 			log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorResponseProxyCantWriteToServer).
 				Errorln("Error in responseHandler")
 			errCh <- err

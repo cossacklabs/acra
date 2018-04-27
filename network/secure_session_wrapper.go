@@ -141,6 +141,7 @@ func (wrapper *SecureSessionConnectionWrapper) wrap(id []byte, conn net.Conn, is
 		if err != nil {
 			return conn, nil, err
 		}
+		log.WithField("client_id", string(clientId)).Debugln("new secure session connection to server")
 		privateKey, err := wrapper.keystore.GetPrivateKey(clientId)
 		if err != nil {
 			return conn, nil, err
