@@ -54,7 +54,7 @@ metadata = sa.MetaData()
 test_table = sa.Table('test', metadata,
     sa.Column('id', sa.Integer, primary_key=True),
     sa.Column('data', sa.LargeBinary(length=COLUMN_DATA_SIZE)),
-    sa.Column('raw_data', sa.Text(length=COLUMN_DATA_SIZE)),
+    sa.Column('raw_data', sa.Text),
 )
 
 rollback_output_table = sa.Table('acra_rollback_output', metadata,
