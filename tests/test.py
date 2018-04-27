@@ -1251,7 +1251,8 @@ class AcraCatchLogsMixin(object):
         super(AcraCatchLogsMixin, self).__init__(*args, **kwargs)
 
     def read_log(self, process):
-        with open(self.log_files[process].name, 'r') as f:
+        with open(self.log_files[process].name, 'r', errors='replace',
+                  encoding='utf-8') as f:
             return f.read()
 
     def fork_acra(self, popen_kwargs: dict=None, **acra_kwargs: dict):
