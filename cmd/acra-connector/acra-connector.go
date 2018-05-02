@@ -37,13 +37,13 @@ import (
 )
 
 // DEFAULT_CONFIG_PATH relative path to config which will be parsed as default
-var SERVICE_NAME = "acraproxy"
+var SERVICE_NAME = "acra-connector"
 var DEFAULT_CONFIG_PATH = utils.GetConfigPathByName(SERVICE_NAME)
 
 func checkDependencies() error {
 	for _, toolName := range []string{"netstat", "awk"} {
 		if _, err := exec.LookPath(toolName); os.IsNotExist(err) {
-			return fmt.Errorf("AcraProxy need \"%v\" tool", toolName)
+			return fmt.Errorf("AcraConnector need \"%v\" tool", toolName)
 		}
 	}
 	return nil
@@ -124,7 +124,7 @@ func handleClientConnection(config *Config, connection net.Conn) {
 			log.Debugln("Connection closed")
 		} else {
 			log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantStartConnection).
-				Errorln("Proxy error")
+				Errorln("Connector error")
 		}
 		return
 	}
@@ -153,18 +153,18 @@ func main() {
 	acraPort := flag.Int("acra_port", cmd.DEFAULT_ACRA_PORT, "Port of acra daemon")
 	acraId := flag.String("acra_id", "acra_server", "Expected id from acraserver for Secure Session")
 	verbose := flag.Bool("v", false, "Log to stderr")
-	port := flag.Int("port", cmd.DEFAULT_PROXY_PORT, "Port fo acraproxy")
-	commandsPort := flag.Int("command_port", cmd.DEFAULT_PROXY_API_PORT, "Port for acraproxy http api")
+	port := flag.Int("port", cmd.DEFAULT_CONNECTOR_PORT, "Port fo acra-connector")
+	commandsPort := flag.Int("command_port", cmd.DEFAULT_CONNECTOR_API_PORT, "Port for acra-connector http api")
 	enableHTTPApi := flag.Bool("enable_http_api", false, "Enable HTTP API")
 	disableUserCheck := flag.Bool("disable_user_check", false, "Disable checking that connections from app running from another user")
-	useTls := flag.Bool("tls", false, "Use tls to encrypt transport between acraserver and acraproxy/client")
+	useTls := flag.Bool("tls", false, "Use tls to encrypt transport between acraserver and acra-connector/client")
 	tlsCA := flag.String("tls_ca", "", "Path to root certificate")
 	tlsKey := flag.String("tls_key", "", "Path to tls client's key")
 	tlsCert := flag.String("tls_cert", "", "Path to tls client's certificate")
 	tlsSNI := flag.String("tls_sni", "", "Expected Server Name (SNI)")
-	noEncryption := flag.Bool("no_encryption", false, "Use raw transport (tcp/unix socket) between acraserver and acraproxy/client (don't use this flag if you not connect to database with ssl/tls")
-	connectionString := flag.String("connection_string", network.BuildConnectionString(cmd.DEFAULT_PROXY_CONNECTION_PROTOCOL, cmd.DEFAULT_PROXY_HOST, cmd.DEFAULT_PROXY_PORT, ""), "Connection string like tcp://x.x.x.x:yyyy or unix:///path/to/socket")
-	connectionAPIString := flag.String("connection_api_string", network.BuildConnectionString(cmd.DEFAULT_PROXY_CONNECTION_PROTOCOL, cmd.DEFAULT_PROXY_HOST, cmd.DEFAULT_PROXY_API_PORT, ""), "Connection string like tcp://x.x.x.x:yyyy or unix:///path/to/socket")
+	noEncryption := flag.Bool("no_encryption", false, "Use raw transport (tcp/unix socket) between acraserver and acra-connector/client (don't use this flag if you not connect to database with ssl/tls")
+	connectionString := flag.String("connection_string", network.BuildConnectionString(cmd.DEFAULT_CONNECTOR_CONNECTION_PROTOCOL, cmd.DEFAULT_CONNECTOR_HOST, cmd.DEFAULT_CONNECTOR_PORT, ""), "Connection string like tcp://x.x.x.x:yyyy or unix:///path/to/socket")
+	connectionAPIString := flag.String("connection_api_string", network.BuildConnectionString(cmd.DEFAULT_CONNECTOR_CONNECTION_PROTOCOL, cmd.DEFAULT_CONNECTOR_HOST, cmd.DEFAULT_CONNECTOR_API_PORT, ""), "Connection string like tcp://x.x.x.x:yyyy or unix:///path/to/socket")
 	acraConnectionString := flag.String("acra_connection_string", "", "Connection string to Acra server like tcp://x.x.x.x:yyyy or unix:///path/to/socket")
 	acraApiConnectionString := flag.String("acra_api_connection_string", "", "Connection string to Acra's API like tcp://x.x.x.x:yyyy or unix:///path/to/socket")
 
@@ -184,11 +184,11 @@ func main() {
 		os.Exit(1)
 	}
 
-	if *port != cmd.DEFAULT_PROXY_PORT {
-		*connectionString = network.BuildConnectionString(cmd.DEFAULT_PROXY_CONNECTION_PROTOCOL, cmd.DEFAULT_PROXY_HOST, *port, "")
+	if *port != cmd.DEFAULT_CONNECTOR_PORT {
+		*connectionString = network.BuildConnectionString(cmd.DEFAULT_CONNECTOR_CONNECTION_PROTOCOL, cmd.DEFAULT_CONNECTOR_HOST, *port, "")
 	}
-	if *commandsPort != cmd.DEFAULT_PROXY_API_PORT {
-		*connectionAPIString = network.BuildConnectionString(cmd.DEFAULT_PROXY_CONNECTION_PROTOCOL, cmd.DEFAULT_PROXY_HOST, *commandsPort, "")
+	if *commandsPort != cmd.DEFAULT_CONNECTOR_API_PORT {
+		*connectionAPIString = network.BuildConnectionString(cmd.DEFAULT_CONNECTOR_CONNECTION_PROTOCOL, cmd.DEFAULT_CONNECTOR_HOST, *commandsPort, "")
 	}
 
 	if *acraHost == "" && *acraConnectionString == "" {
@@ -218,12 +218,12 @@ func main() {
 	exists, err := utils.FileExists(clientPrivateKey)
 	if !exists {
 		log.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorWrongConfiguration).
-			Errorf("Configuration error: acraproxy private key %s doesn't exists", clientPrivateKey)
+			Errorf("Configuration error: acra-connector private key %s doesn't exists", clientPrivateKey)
 		os.Exit(1)
 	}
 	if err != nil {
 		log.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorWrongConfiguration).
-			Errorf("Configuration error: can't check is exists acraproxy private key %v, got error - %v", clientPrivateKey, err)
+			Errorf("Configuration error: can't check is exists acra-connector private key %v, got error - %v", clientPrivateKey, err)
 		os.Exit(1)
 	}
 	exists, err = utils.FileExists(serverPublicKey)
@@ -258,7 +258,7 @@ func main() {
 		log.WithError(err).Errorln("can't init scell encryptor")
 		os.Exit(1)
 	}
-	keyStore, err := keystore.NewProxyFileSystemKeyStore(*keysDir, []byte(*clientId), scellEncryptor)
+	keyStore, err := keystore.NewConnectorFileSystemKeyStore(*keysDir, []byte(*clientId), scellEncryptor)
 	if err != nil {
 		log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantInitKeyStore).
 			Errorln("Can't initialize keystore")
@@ -353,9 +353,9 @@ func main() {
 		}
 		// unix socket and value == '@'
 		if len(connection.RemoteAddr().String()) == 1 {
-			log.Infof("Got new connection to acraproxy: %v", connection.LocalAddr())
+			log.Infof("Got new connection to acra-connector: %v", connection.LocalAddr())
 		} else {
-			log.Infof("Got new connection to acraproxy: %v", connection.RemoteAddr())
+			log.Infof("Got new connection to acra-connector: %v", connection.RemoteAddr())
 		}
 		go handleClientConnection(config, connection)
 	}

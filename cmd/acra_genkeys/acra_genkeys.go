@@ -29,7 +29,7 @@ var DEFAULT_CONFIG_PATH = utils.GetConfigPathByName("acra_genkeys")
 
 func main() {
 	clientId := flag.String("client_id", "client", "Client id")
-	acraproxy := flag.Bool("acraproxy", false, "Create keypair for acraproxy only")
+	acraConnector := flag.Bool("acra-connector", false, "Create keypair for acra-connector only")
 	acraserver := flag.Bool("acraserver", false, "Create keypair for acraserver only")
 	dataKeys := flag.Bool("storage", false, "Create keypair for data encryption/decryption")
 	basicauth := flag.Bool("basicauth", false, "Create symmetric key for acra_configui's basic auth db")
@@ -82,8 +82,8 @@ func main() {
 		panic(err)
 	}
 
-	if *acraproxy {
-		err = store.GenerateProxyKeys([]byte(*clientId))
+	if *acraConnector {
+		err = store.GenerateConnectorKeys([]byte(*clientId))
 		if err != nil {
 			panic(err)
 		}
@@ -103,7 +103,7 @@ func main() {
 			panic(err)
 		}
 	} else {
-		err = store.GenerateProxyKeys([]byte(*clientId))
+		err = store.GenerateConnectorKeys([]byte(*clientId))
 		if err != nil {
 			panic(err)
 		}

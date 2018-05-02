@@ -46,6 +46,6 @@ func getServerDecryptionKeyFilename(id []byte) string {
 	return fmt.Sprintf("%s_storage", string(id))
 }
 
-func getProxyKeyFilename(id []byte) string {
+func getConnectorKeyFilename(id []byte) string {
 	return string(id)
 }

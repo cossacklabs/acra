@@ -1,5 +1,5 @@
-# Create keypair for acraproxy only
-acraproxy: false
+# Create keypair for acra-connector only
+acra-connector: false
 
 # Create keypair for acraserver only
 acraserver: false

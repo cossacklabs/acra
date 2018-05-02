@@ -123,15 +123,15 @@ func testGenerateServerKeys(store *FilesystemKeyStore, t *testing.T) {
 	}
 }
 
-func testGenerateProxyKeys(store *FilesystemKeyStore, t *testing.T) {
+func testGenerateConnectorKeys(store *FilesystemKeyStore, t *testing.T) {
 	testId := []byte("test id")
-	err := store.GenerateProxyKeys(testId)
+	err := store.GenerateConnectorKeys(testId)
 	if err != nil {
 		t.Fatal(err)
 	}
 	expectedPaths := []string{
-		getProxyKeyFilename(testId),
-		fmt.Sprintf("%s.pub", getProxyKeyFilename(testId)),
+		getConnectorKeyFilename(testId),
+		fmt.Sprintf("%s.pub", getConnectorKeyFilename(testId)),
 	}
 	for _, name := range expectedPaths {
 		absPath := store.getPrivateKeyFilePath(name)
@@ -193,7 +193,7 @@ func TestFilesystemKeyStore(t *testing.T) {
 	for _, store := range []*FilesystemKeyStore{generalStore, splitKeysStore} {
 		testGeneral(store, t)
 		testGeneratingDataEncryptionKeys(store, t)
-		testGenerateProxyKeys(store, t)
+		testGenerateConnectorKeys(store, t)
 		testGenerateServerKeys(store, t)
 		testReset(store, t)
 	}

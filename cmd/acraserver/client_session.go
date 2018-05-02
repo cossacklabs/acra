@@ -51,12 +51,12 @@ func (clientSession *ClientSession) ConnectToDb() error {
 }
 
 func (clientSession *ClientSession) close() {
-	log.Debugln("Close acraproxy connection")
+	log.Debugln("Close acra-connector connection")
 
 	err := clientSession.connection.Close()
 	if err != nil {
 		log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantCloseConnectionToService).
-			Errorln("Error with closing connection to acraproxy")
+			Errorln("Error with closing connection to acra-connector")
 	}
 	log.Debugln("Close db connection")
 	err = clientSession.connectionToDb.Close()
@@ -67,7 +67,7 @@ func (clientSession *ClientSession) close() {
 	log.Debugln("All connections closed")
 }
 
-/* proxy connections from client to db and decrypt responses from db to client
+/* acra-connector connections from client to db and decrypt responses from db to client
 if any error occurred than end processing
 */
 func (clientSession *ClientSession) HandleClientConnection(decryptorImpl base.Decryptor) {
@@ -80,11 +80,11 @@ func (clientSession *ClientSession) HandleClientConnection(decryptorImpl base.De
 		log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantConnectToDB).
 			Errorln("Can't connect to db")
 
-		log.Debugln("Close connection with acraproxy")
+		log.Debugln("Close connection with acra-connector")
 		err = clientSession.connection.Close()
 		if err != nil {
 			log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantCloseConnectionToService).
-				Errorln("Error with closing connection to acraproxy")
+				Errorln("Error with closing connection to acra-connector")
 		}
 		return
 	}
@@ -97,8 +97,8 @@ func (clientSession *ClientSession) HandleClientConnection(decryptorImpl base.De
 				Errorln("Can't initialize mysql handler")
 			return
 		}
-		go handler.ClientToDbProxy(innerErrorChannel)
-		go handler.DbToClientProxy(innerErrorChannel)
+		go handler.ClientToDbConnector(innerErrorChannel)
+		go handler.DbToClientConnector(innerErrorChannel)
 	} else {
 		log.Debugln("PostgreSQL connection")
 		go network.Proxy(clientSession.connection, clientSession.connectionToDb, innerErrorChannel)

@@ -29,12 +29,12 @@ const (
 )
 
 type Config struct {
-	proxyCommandsPort       int
+	connectorCommandsPort       int
 	byteaFormat             int8
 	dbPort                  int
-	proxyPort               int
+	connectorPort               int
 	dbHost                  string
-	proxyHost               string
+	connectorHost               string
 	keysDir                 string
 	scriptOnPoison          string
 	stopOnPoison            bool
@@ -56,13 +56,13 @@ type Config struct {
 }
 
 type UIEditableConfig struct {
-	DbHost            string `json:"db_host"`
-	DbPort            int    `json:"db_port"`
-	ProxyCommandsPort int    `json:"commands_port"`
-	Debug             bool   `json:"debug"`
-	ScriptOnPoison    string `json:"poisonscript"`
-	StopOnPoison      bool   `json:"poisonshutdown"`
-	WithZone          bool   `json:"zonemode"`
+	DbHost                string `json:"db_host"`
+	DbPort                int    `json:"db_port"`
+	ConnectorCommandsPort int    `json:"commands_port"`
+	Debug                 bool   `json:"debug"`
+	ScriptOnPoison        string `json:"poisonscript"`
+	StopOnPoison          bool   `json:"poisonshutdown"`
+	WithZone              bool   `json:"zonemode"`
 }
 
 func NewConfig() *Config {
@@ -166,25 +166,25 @@ func (config *Config) SetEnableHTTPApi(api bool) {
 func (config *Config) GetEnableHTTPApi() bool {
 	return config.withAPI
 }
-func (config *Config) GetProxyHost() string {
-	return config.proxyHost
+func (config *Config) GetConnectorHost() string {
+	return config.connectorHost
 }
-func (config *Config) SetProxyHost(host string) error {
-	config.proxyHost = host
+func (config *Config) SetConnectorHost(host string) error {
+	config.connectorHost = host
 	return nil
 }
-func (config *Config) GetProxyPort() int {
-	return config.proxyPort
+func (config *Config) GetConnectorPort() int {
+	return config.connectorPort
 }
-func (config *Config) GetProxyCommandsPort() int {
-	return config.proxyCommandsPort
+func (config *Config) GetConnectorCommandsPort() int {
+	return config.connectorCommandsPort
 }
-func (config *Config) SetProxyPort(port int) error {
-	config.proxyPort = port
+func (config *Config) SetConnectorPort(port int) error {
+	config.connectorPort = port
 	return nil
 }
-func (config *Config) SetProxyCommandsPort(port int) error {
-	config.proxyCommandsPort = port
+func (config *Config) SetConnectorCommandsPort(port int) error {
+	config.connectorCommandsPort = port
 	return nil
 }
 func (config *Config) GetDBHost() string {
@@ -242,7 +242,7 @@ func (config *Config) ToJson() ([]byte, error) {
 	var s UIEditableConfig
 	s.DbHost = config.GetDBHost()
 	s.DbPort = config.GetDBPort()
-	s.ProxyCommandsPort = config.GetProxyCommandsPort()
+	s.ConnectorCommandsPort = config.GetConnectorCommandsPort()
 	s.Debug = config.GetDebug()
 	s.ScriptOnPoison = config.GetScriptOnPoison()
 	s.StopOnPoison = config.GetStopOnPoison()
