@@ -183,6 +183,13 @@ func PgDecryptStream(decryptor base.Decryptor, tlsConfig *tls.Config, dbConnecti
 				writer.Flush()
 				continue
 			} else if row.buf[0] == 'S' {
+				if tlsConfig == nil {
+					log.Errorln("To support TLS connections you must pass TLS key and certificate for AcraServer that will be used" +
+						"for connections AcraServer->Database and CA certificate which will be used to verify certificate " +
+						"from database")
+					errCh <- network.ErrEmptyTLSConfig
+					return
+				}
 				log.Debugln("Start tls proxy")
 				// stop reading from client in goroutine
 				if err := clientConnection.SetDeadline(time.Now()); err != nil {

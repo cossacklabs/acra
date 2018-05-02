@@ -3,10 +3,10 @@ package mysql
 import (
 	"bytes"
 	"encoding/binary"
+	"errors"
 	"fmt"
 	"io"
 	"net"
-	"errors"
 )
 
 const (
@@ -173,6 +173,11 @@ func (packet *MysqlPacket) getClientCapabilities() int {
 	return int(binary.LittleEndian.Uint16(packet.data[:2]))
 }
 
+func (packet *MysqlPacket) getClientCapabilitiesExtended() int {
+	// https://dev.mysql.com/doc/internals/en/connection-phase-packets.html#idm140437489940880
+	return int(binary.LittleEndian.Uint16(packet.data[2:4]))
+}
+
 func (packet *MysqlPacket) ClientSupportProtocol41() bool {
 	capabilities := packet.getClientCapabilities()
 	return (capabilities & CLIENT_PROTOCOL_41) > 0
@@ -187,10 +192,7 @@ func (packet *MysqlPacket) IsSSLRequest() bool {
 // IsClientDeprecatedEOF return true if flag set
 // https://dev.mysql.com/doc/internals/en/capability-flags.html#flag-CLIENT_DEPRECATE_EOF
 func (packet *MysqlPacket) IsClientDeprecateEOF() bool {
-	capabilities, err := packet.getServerCapabilitiesExtended()
-	if err != nil {
-		return false
-	}
+	capabilities := packet.getClientCapabilitiesExtended()
 	return (capabilities & CLIENT_DEPRECATE_EOF) > 0
 }
 
