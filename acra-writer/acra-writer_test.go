@@ -17,7 +17,7 @@ import (
 	"bytes"
 	"crypto/rand"
 	"encoding/binary"
-	"github.com/cossacklabs/acra/acrawriter"
+	"github.com/cossacklabs/acra/acra-writer"
 	"github.com/cossacklabs/acra/decryptor/base"
 	"github.com/cossacklabs/themis/gothemis/cell"
 	"github.com/cossacklabs/themis/gothemis/keys"
