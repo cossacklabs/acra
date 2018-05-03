@@ -1,16 +1,16 @@
 # Connection string to Acra's API like tcp://x.x.x.x:yyyy or unix:///path/to/socket
 acra_api_connection_string: 
 
-# Port of acra http api
+# Port of Acra HTTP api
 acra_commands_port: 9090
 
-# Connection string to Acra server like tcp://x.x.x.x:yyyy or unix:///path/to/socket
+# Connection string to AcraServer like tcp://x.x.x.x:yyyy or unix:///path/to/socket
 acra_connection_string: 
 
 # IP or domain to acra daemon
 acra_host: 
 
-# Expected id from acraserver for Secure Session
+# Expected id from AcraServer for Secure Session
 acra_id: acra_server
 
 # Port of acra daemon
@@ -19,7 +19,7 @@ acra_port: 9393
 # Client id
 client_id: 
 
-# Port for acra-connector http api
+# Port for AcraConnector HTTP api
 command_port: 9191
 
 # path to config
@@ -46,13 +46,13 @@ keys_dir: .acrakeys
 # Logging format: plaintext, json or CEF
 logging_format: plaintext
 
-# Use raw transport (tcp/unix socket) between acraserver and acra-connector/client (don't use this flag if you not connect to database with ssl/tls
+# Use raw transport (tcp/unix socket) between AcraServer and AcraConnector/client (don't use this flag if you not connect to database with ssl/tls
 no_encryption: false
 
 # Port fo acra-connector
 port: 9494
 
-# Use tls to encrypt transport between acraserver and acra-connector/client
+# Use tls to encrypt transport between AcraServer and AcraConnector/client
 tls: false
 
 # Path to root certificate

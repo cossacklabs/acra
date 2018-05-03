@@ -29,8 +29,8 @@ var DEFAULT_CONFIG_PATH = utils.GetConfigPathByName("acra_genkeys")
 
 func main() {
 	clientId := flag.String("client_id", "client", "Client id")
-	acraConnector := flag.Bool("acra-connector", false, "Create keypair for acra-connector only")
-	acraserver := flag.Bool("acraserver", false, "Create keypair for acraserver only")
+	acraConnector := flag.Bool("acra-connector", false, "Create keypair for AcraConnector only")
+	acraserver := flag.Bool("acra-server", false, "Create keypair for AcraServer only")
 	dataKeys := flag.Bool("storage", false, "Create keypair for data encryption/decryption")
 	basicauth := flag.Bool("basicauth", false, "Create symmetric key for acra_configui's basic auth db")
 	outputDir := flag.String("output", keystore.DEFAULT_KEY_DIR_SHORT, "Folder where will be saved keys")

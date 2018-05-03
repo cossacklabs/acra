@@ -7,10 +7,10 @@ censor_config:
 # Expected client id of acra-connector in mode without encryption
 client_id: 
 
-# Time that acraserver will wait (in seconds) on restart before closing all connections
+# Time that AcraServer will wait (in seconds) on restart before closing all connections
 close_connections_timeout: 10
 
-# Port for AcraServer for http api
+# Port for AcraServer for HTTP API
 commands_port: 9090
 
 # path to config
@@ -61,7 +61,7 @@ logging_format: plaintext
 # Handle MySQL connections
 mysql: false
 
-# Use raw transport (tcp/unix socket) between acraserver and acra-connector/client (don't use this flag if you not connect to database with ssl/tls
+# Use raw transport (tcp/unix socket) between AcraServer and AcraConnector/client (don't use this flag if you not connect to database with ssl/tls
 no_encryption: false
 
 # Execute script on detecting poison record
@@ -79,7 +79,7 @@ postgresql: false
 # Id that will be sent in secure session
 server_id: acra_server
 
-# Use tls to encrypt transport between acraserver and acra-connector/client
+# Use tls to encrypt transport between AcraServer and AcraConnector/client
 tls: false
 
 # Path to root certificate

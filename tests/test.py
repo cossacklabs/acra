@@ -172,7 +172,7 @@ def get_poison_record():
 def create_client_keypair(name, only_server=False, only_client=False):
     args = ['./acra_genkeys', '-client_id={}'.format(name)]
     if only_server:
-        args.append('-acraserver')
+        args.append('-acra-server')
     elif only_client:
         args.append('-acra-connector')
     return subprocess.call(args, cwd=os.getcwd(), timeout=PROCESS_CALL_TIMEOUT)
@@ -265,7 +265,7 @@ BINARIES = [
     Binary(name='acra-connector', from_version=DEFAULT_VERSION,
            build_args=DEFAULT_BUILD_ARGS),
     # compile with Test=true to disable golang tls client server verification
-    Binary(name='acraserver', from_version=DEFAULT_VERSION,
+    Binary(name='acra-server', from_version=DEFAULT_VERSION,
            build_args=['-ldflags', '-X main.TestOnly=true']),
 
     Binary(name='acra_addzone', from_version=DEFAULT_VERSION,
@@ -373,7 +373,7 @@ class BaseTestCase(unittest.TestCase):
     CONNECTOR_PORT_2 = CONNECTOR_PORT_1 + 200
     CONNECTOR_COMMAND_PORT_1 = int(os.environ.get('TEST_CONNECTOR_COMMAND_PORT', 9696))
     CONFIG_UI_HTTP_PORT = int(os.environ.get('TEST_CONFIG_UI_HTTP_PORT', CONFIG_UI_HTTP_PORT))
-    # for debugging with manually runned acra server
+    # for debugging with manually runned acra-server
     EXTERNAL_ACRA = False
     ACRA_PORT = int(os.environ.get('TEST_ACRA_PORT', 10003))
     ACRA_BYTEA = 'hex_bytea'
@@ -501,7 +501,7 @@ class BaseTestCase(unittest.TestCase):
         return 'http://{}:{}'.format('localhost', CONFIG_UI_HTTP_PORT)
 
     def get_acraserver_bin_path(self):
-        return './acraserver'
+        return './acra-server'
 
     def _fork_acra(self, acra_kwargs, popen_kwargs):
         connection_string = self.get_acra_connection_string(
@@ -1024,7 +1024,7 @@ class TestKeyNonExistence(BaseTestCase):
         os.remove('.acrakeys{sep}{name}'.format(sep=os.path.sep, name=filename))
 
     def test_without_acraconnector_public(self):
-        """acraserver without acra-connector public key should drop connection
+        """acra-server without acra-connector public key should drop connection
         from acra-connector than acra-connector should drop connection from psycopg2"""
         keyname = 'without_acra-connector_public_test'
         result = create_client_keypair(keyname)
@@ -1065,7 +1065,7 @@ class TestKeyNonExistence(BaseTestCase):
                 pass
 
     def test_without_acraserver_private(self):
-        """acraserver without private key should drop connection
+        """acra-server without private key should drop connection
         from acra-connector than acra-connector should drop connection from psycopg2"""
         keyname = 'without_acraserver_private_test'
         result = create_client_keypair(keyname)
@@ -1085,7 +1085,7 @@ class TestKeyNonExistence(BaseTestCase):
                 connection.close()
 
     def test_without_acraserver_public(self):
-        """acra-connector shouldn't start without acraserver public key"""
+        """acra-connector shouldn't start without acra-server public key"""
         keyname = 'without_acraserver_public_test'
         result = create_client_keypair(keyname)
         if result != 0:
@@ -1395,7 +1395,7 @@ class TestKeyStorageClearing(BaseTestCase):
         os.remove('.acrakeys/{}.pub'.format(self.key_name))
         # close connections in pool and reconnect to reinitiate secure session
         self.engine1.dispose()
-        # acraserver should close connection when doesn't find key
+        # acra-server should close connection when doesn't find key
         with self.assertRaises(DatabaseError):
             result = self.engine1.execute(test_table.select().limit(1))
 
@@ -1646,18 +1646,18 @@ class TestAcraConfigUIWeb(BaseTestCase):
 
     def tearDown(self):
         try:
-            os.unlink('configs/acraserver.yaml')
+            os.unlink('configs/acra-server.yaml')
         except Exception as e:
             print(e)
         stop_process([self.configui])
         try:
-            subprocess.call(['killall', '--signal=SIGTERM', 'acraserver'], cwd=os.getcwd(), timeout=PROCESS_CALL_TIMEOUT)
+            subprocess.call(['killall', '--signal=SIGTERM', 'acra-server'], cwd=os.getcwd(), timeout=PROCESS_CALL_TIMEOUT)
         except Exception as e:
-            print('SIGTERM->acraserver error: {}'.format(e))
+            print('SIGTERM->acra-server error: {}'.format(e))
             try:
-                subprocess.call(['killall', '--signal=SIGKILL', 'acraserver'], cwd=os.getcwd(), timeout=PROCESS_CALL_TIMEOUT)
+                subprocess.call(['killall', '--signal=SIGKILL', 'acra-server'], cwd=os.getcwd(), timeout=PROCESS_CALL_TIMEOUT)
             except Exception as e:
-                print('SIGKILL->acraserver error: {}'.format(e))
+                print('SIGKILL->acra-server error: {}'.format(e))
         super(TestAcraConfigUIWeb, self).tearDown()
 
     def testAuthAndSubmitSettings(self):
@@ -1683,14 +1683,14 @@ class TestAcraConfigUIWeb(BaseTestCase):
         settings['poisonscript'] = str(uuid.uuid4())
         print(settings)
         req = requests.post(
-            "{}/acraserver/submit_setting".format(self.get_config_ui_connection_url()),
+            "{}/acra-server/submit_setting".format(self.get_config_ui_connection_url()),
             data=settings,
             timeout=CONFIG_HTTP_TIMEOUT,
             auth=HTTPBasicAuth(CONFIG_UI_BASIC_AUTH['user'], CONFIG_UI_BASIC_AUTH['password']))
         self.assertEqual(req.status_code, 200)
         req.close()
 
-        # check for new config after acraserver's graceful restart
+        # check for new config after acra-server's graceful restart
         req = requests.post(
             self.get_config_ui_connection_url(), data={}, timeout=CONFIG_HTTP_TIMEOUT,
             auth=HTTPBasicAuth(CONFIG_UI_BASIC_AUTH['user'], CONFIG_UI_BASIC_AUTH['password']))

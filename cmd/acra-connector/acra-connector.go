@@ -149,23 +149,23 @@ func main() {
 	keysDir := flag.String("keys_dir", keystore.DEFAULT_KEY_DIR_SHORT, "Folder from which will be loaded keys")
 	clientId := flag.String("client_id", "", "Client id")
 	acraHost := flag.String("acra_host", "", "IP or domain to acra daemon")
-	acraCommandsPort := flag.Int("acra_commands_port", cmd.DEFAULT_ACRA_API_PORT, "Port of acra http api")
+	acraCommandsPort := flag.Int("acra_commands_port", cmd.DEFAULT_ACRA_API_PORT, "Port of Acra HTTP api")
 	acraPort := flag.Int("acra_port", cmd.DEFAULT_ACRA_PORT, "Port of acra daemon")
-	acraId := flag.String("acra_id", "acra_server", "Expected id from acraserver for Secure Session")
+	acraId := flag.String("acra_id", "acra_server", "Expected id from AcraServer for Secure Session")
 	verbose := flag.Bool("v", false, "Log to stderr")
 	port := flag.Int("port", cmd.DEFAULT_CONNECTOR_PORT, "Port fo acra-connector")
-	commandsPort := flag.Int("command_port", cmd.DEFAULT_CONNECTOR_API_PORT, "Port for acra-connector http api")
+	commandsPort := flag.Int("command_port", cmd.DEFAULT_CONNECTOR_API_PORT, "Port for AcraConnector HTTP api")
 	enableHTTPApi := flag.Bool("enable_http_api", false, "Enable HTTP API")
 	disableUserCheck := flag.Bool("disable_user_check", false, "Disable checking that connections from app running from another user")
-	useTls := flag.Bool("tls", false, "Use tls to encrypt transport between acraserver and acra-connector/client")
+	useTls := flag.Bool("tls", false, "Use tls to encrypt transport between AcraServer and AcraConnector/client")
 	tlsCA := flag.String("tls_ca", "", "Path to root certificate")
 	tlsKey := flag.String("tls_key", "", "Path to tls client's key")
 	tlsCert := flag.String("tls_cert", "", "Path to tls client's certificate")
 	tlsSNI := flag.String("tls_sni", "", "Expected Server Name (SNI)")
-	noEncryption := flag.Bool("no_encryption", false, "Use raw transport (tcp/unix socket) between acraserver and acra-connector/client (don't use this flag if you not connect to database with ssl/tls")
+	noEncryption := flag.Bool("no_encryption", false, "Use raw transport (tcp/unix socket) between AcraServer and AcraConnector/client (don't use this flag if you not connect to database with ssl/tls")
 	connectionString := flag.String("connection_string", network.BuildConnectionString(cmd.DEFAULT_CONNECTOR_CONNECTION_PROTOCOL, cmd.DEFAULT_CONNECTOR_HOST, cmd.DEFAULT_CONNECTOR_PORT, ""), "Connection string like tcp://x.x.x.x:yyyy or unix:///path/to/socket")
 	connectionAPIString := flag.String("connection_api_string", network.BuildConnectionString(cmd.DEFAULT_CONNECTOR_CONNECTION_PROTOCOL, cmd.DEFAULT_CONNECTOR_HOST, cmd.DEFAULT_CONNECTOR_API_PORT, ""), "Connection string like tcp://x.x.x.x:yyyy or unix:///path/to/socket")
-	acraConnectionString := flag.String("acra_connection_string", "", "Connection string to Acra server like tcp://x.x.x.x:yyyy or unix:///path/to/socket")
+	acraConnectionString := flag.String("acra_connection_string", "", "Connection string to AcraServer like tcp://x.x.x.x:yyyy or unix:///path/to/socket")
 	acraApiConnectionString := flag.String("acra_api_connection_string", "", "Connection string to Acra's API like tcp://x.x.x.x:yyyy or unix:///path/to/socket")
 
 	err := cmd.Parse(DEFAULT_CONFIG_PATH)
@@ -229,12 +229,12 @@ func main() {
 	exists, err = utils.FileExists(serverPublicKey)
 	if !exists {
 		log.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorWrongConfiguration).
-			Errorf("Configuration error: acraserver public key %s doesn't exists", serverPublicKey)
+			Errorf("Configuration error: AcraServer public key %s doesn't exists", serverPublicKey)
 		os.Exit(1)
 	}
 	if err != nil {
 		log.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorWrongConfiguration).
-			Errorf("Configuration error: can't check is exists acraserver public key %v, got error - %v", serverPublicKey, err)
+			Errorf("Configuration error: can't check is exists AcraServer public key %v, got error - %v", serverPublicKey, err)
 		os.Exit(1)
 	}
 

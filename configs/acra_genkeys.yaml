@@ -1,8 +1,8 @@
-# Create keypair for acra-connector only
+# Create keypair for AcraConnector only
 acra-connector: false
 
-# Create keypair for acraserver only
-acraserver: false
+# Create keypair for AcraServer only
+acra-server: false
 
 # Create symmetric key for acra_configui's basic auth db
 basicauth: false

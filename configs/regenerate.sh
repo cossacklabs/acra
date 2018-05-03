@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-go run ./cmd/acraserver/*.go --dumpconfig
+go run ./cmd/acra-server/*.go --dumpconfig
 go run ./cmd/acra-connector/*.go --dumpconfig
 go run ./cmd/acra_addzone/*.go --dumpconfig
 go run ./cmd/acra_configui/*.go --dumpconfig

@@ -22,7 +22,7 @@ services:
         # default 'testclientid' client id
         command: >-
             --client_id=${ACRA_CLIENT_ID:-testclientid}
-            --acraserver
+            --acra-server
             --output=/keys/acra-server
             --output_public=/keys/acra-connector
     # Create keys:
