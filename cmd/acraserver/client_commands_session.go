@@ -57,11 +57,11 @@ func (clientSession *ClientCommandsSession) ConnectToDb() error {
 }
 
 func (clientSession *ClientCommandsSession) close() {
-	log.Debugln("Close acraproxy connection")
+	log.Debugln("Close acra-connector connection")
 	err := clientSession.connection.Close()
 	if err != nil {
 		log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantCloseConnection).
-			Errorln("Error during closing connection to acraproxy")
+			Errorln("Error during closing connection to acra-connector")
 	}
 	log.Debugln("All connections closed")
 }
@@ -145,7 +145,7 @@ func (clientSession *ClientCommandsSession) HandleSession() {
 		// set config values
 		flag.Set("db_host", configFromUI.DbHost)
 		flag.Set("db_port", fmt.Sprintf("%v", configFromUI.DbPort))
-		flag.Set("commands_port", fmt.Sprintf("%v", configFromUI.ProxyCommandsPort))
+		flag.Set("commands_port", fmt.Sprintf("%v", configFromUI.ConnectorCommandsPort))
 		flag.Set("d", fmt.Sprintf("%v", configFromUI.Debug))
 		flag.Set("poisonscript", fmt.Sprintf("%v", configFromUI.ScriptOnPoison))
 		flag.Set("poisonshutdown", fmt.Sprintf("%v", configFromUI.StopOnPoison))
@@ -165,7 +165,7 @@ func (clientSession *ClientCommandsSession) HandleSession() {
 
 	_, err = clientSession.connection.Write([]byte(response))
 	if err != nil {
-		log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorGeneral).Errorln("Can't send data with secure session to acraproxy")
+		log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorGeneral).Errorln("Can't send data with secure session to acra-connector")
 		return
 	}
 	clientSession.close()

@@ -106,15 +106,15 @@ type configParamsYAML struct {
 var outConfigParams configParamsYAML
 
 type ConfigAcraServer struct {
-	ProxyHost         string `json:"host"`
-	ProxyPort         int    `json:"port"`
-	DbHost            string `json:"db_host"`
-	DbPort            int    `json:"db_port"`
-	ProxyCommandsPort int    `json:"commands_port"`
-	Debug             bool   `json:"debug"`
-	ScriptOnPoison    string `json:"poisonscript"`
-	StopOnPoison      bool   `json:"poisonshutdown"`
-	WithZone          bool   `json:"zonemode"`
+	ConnectorHost         string `json:"host"`
+	ConnectorPort         int    `json:"port"`
+	DbHost                string `json:"db_host"`
+	DbPort                int    `json:"db_port"`
+	ConnectorCommandsPort int    `json:"commands_port"`
+	Debug                 bool   `json:"debug"`
+	ScriptOnPoison        string `json:"poisonscript"`
+	StopOnPoison          bool   `json:"poisonshutdown"`
+	WithZone              bool   `json:"zonemode"`
 }
 
 func SubmitSettings(w http.ResponseWriter, r *http.Request) {
@@ -139,13 +139,13 @@ func SubmitSettings(w http.ResponseWriter, r *http.Request) {
 	var zonemode, _ = strconv.ParseBool(r.Form.Get("zonemode"))
 	var poisonshutdown, _ = strconv.ParseBool(r.Form.Get("poisonshutdown"))
 	config := ConfigAcraServer{
-		DbHost:            r.Form.Get("db_host"),
-		DbPort:            db_port,
-		ProxyCommandsPort: commands_port,
-		Debug:             debug,
-		ScriptOnPoison:    r.Form.Get("poisonscript"),
-		StopOnPoison:      poisonshutdown,
-		WithZone:          zonemode,
+		DbHost:                r.Form.Get("db_host"),
+		DbPort:                db_port,
+		ConnectorCommandsPort: commands_port,
+		Debug:                 debug,
+		ScriptOnPoison:        r.Form.Get("poisonscript"),
+		StopOnPoison:          poisonshutdown,
+		WithZone:              zonemode,
 	}
 	jsonToServer, err := json.Marshal(config)
 	if err != nil {
@@ -373,8 +373,8 @@ func main() {
 	loggingFormat := flag.String("logging_format", "plaintext", "Logging format: plaintext, json or CEF")
 	logging.CustomizeLogging(*loggingFormat, SERVICE_NAME)
 	log.Infof("Starting service")
-	acraHost = flag.String("acra_host", "localhost", "Host for Acraserver HTTP endpoint or proxy")
-	acraPort = flag.Int("acra_port", cmd.DEFAULT_PROXY_API_PORT, "Port for Acraserver HTTP endpoint or proxy")
+	acraHost = flag.String("acra_host", "localhost", "Host for Acraserver HTTP endpoint or AcraConnector")
+	acraPort = flag.Int("acra_port", cmd.DEFAULT_CONNECTOR_API_PORT, "Port for Acraserver HTTP endpoint or AcraConnector")
 	staticPath = flag.String("static_path", cmd.DEFAULT_ACRA_CONFIGUI_STATIC, "Path to static content")
 	debug = flag.Bool("d", false, "Turn on debug logging")
 	authMode = flag.String("auth_mode", cmd.DEFAULT_ACRA_CONFIGUI_AUTH_MODE, "Mode for basic auth. Possible values: auth_on|auth_off_local|auth_off")

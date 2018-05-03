@@ -1,7 +1,7 @@
-# Host for Acraserver HTTP endpoint or proxy
+# Host for Acraserver HTTP endpoint or AcraConnector
 acra_host: localhost
 
-# Port for Acraserver HTTP endpoint or proxy
+# Port for Acraserver HTTP endpoint or AcraConnector
 acra_port: 9191
 
 # Mode for basic auth. Possible values: auth_on|auth_off_local|auth_off

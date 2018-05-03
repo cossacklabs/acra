@@ -37,7 +37,7 @@ services:
             - ./.acrakeys:/keys
         command: >-
             --client_id=${ACRA_CLIENT_ID:-testclientid}
-            --acraproxy
+            --acra-connector
             --output=/keys/acra-connector
             --output_public=/keys/acra-server
     # Create keys:

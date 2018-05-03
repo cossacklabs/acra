@@ -43,7 +43,7 @@ func CheckOneKey() {
 			panic(err)
 		}
 		if !exists {
-			fmt.Printf("Create keypair for acraproxy and for acraserver that will be used in onekey test. Key %v not exists\n", key)
+			fmt.Printf("Create keypair for AcraConnector and for AcraServer that will be used in onekey test. Key %v not exists\n", key)
 			os.Exit(1)
 		}
 	}

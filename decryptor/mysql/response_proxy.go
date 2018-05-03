@@ -161,14 +161,14 @@ func (handler *MysqlHandler) getResponseHandler() ResponseHandler {
 	return handler.responseHandler
 }
 
-func (handler *MysqlHandler) ClientToDbProxy(errCh chan<- error) {
+func (handler *MysqlHandler) ClientToDbConnector(errCh chan<- error) {
 	clientLog := log.WithField("proxy", "client")
 	clientLog.Debugln("Start proxy client's requests")
 	firstPacket := true
 	for {
 		packet, err := ReadPacket(handler.clientConnection)
 		if err != nil {
-			log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorResponseProxyCantReadFromClient).
+			log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorResponseConnectorCantReadFromClient).
 				Debugln("Can't read packet from client")
 			errCh <- err
 			return
@@ -187,7 +187,7 @@ func (handler *MysqlHandler) ClientToDbProxy(errCh chan<- error) {
 					errPacket := NewQueryInterruptedError(handler.clientProtocol41)
 					packet.SetData(errPacket)
 					if _, err := handler.clientConnection.Write(packet.Dump()); err != nil {
-						log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorResponseProxyCantWriteToClient).
+						log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorResponseConnectorCantWriteToClient).
 							Errorln("Can't write response with error to client")
 					}
 					errCh <- network.ErrEmptyTLSConfig
@@ -247,7 +247,7 @@ func (handler *MysqlHandler) ClientToDbProxy(errCh chan<- error) {
 				errPacket := NewQueryInterruptedError(handler.clientProtocol41)
 				packet.SetData(errPacket)
 				if _, err := handler.clientConnection.Write(packet.Dump()); err != nil {
-					log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorResponseProxyCantWriteToClient).
+					log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorResponseConnectorCantWriteToClient).
 						Errorln("Can't write response with error to client")
 				}
 				continue
@@ -261,7 +261,7 @@ func (handler *MysqlHandler) ClientToDbProxy(errCh chan<- error) {
 			clientLog.Debugf("Command %d not supported now", cmd)
 		}
 		if _, err := handler.dbConnection.Write(inOutput); err != nil {
-			clientLog.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorResponseProxyCantWriteToDB).
+			clientLog.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorResponseConnectorCantWriteToDB).
 				Debugln("Can't write send packet to db")
 			errCh <- err
 			return
@@ -431,7 +431,7 @@ func (handler *MysqlHandler) QueryResponseHandler(packet *MysqlPacket, dbConnect
 			log.WithField("column_index", i).Debugln("read column description")
 			fieldPacket, err := ReadPacket(dbConnection)
 			if err != nil {
-				log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorResponseProxyCantProcessColumn).
+				log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorResponseConnectorCantProcessColumn).
 					Errorln("Can't read packet with column description")
 				return err
 			}
@@ -483,7 +483,7 @@ func (handler *MysqlHandler) QueryResponseHandler(packet *MysqlPacket, dbConnect
 
 			newData, err := handler.processTextDataRow(fieldDataPacket.GetData(), fields)
 			if err != nil {
-				dataLog.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorResponseProxyCantProcessRow).
+				dataLog.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorResponseConnectorCantProcessRow).
 					Debugln("Can't process text data row")
 				return err
 			}
@@ -499,7 +499,7 @@ func (handler *MysqlHandler) QueryResponseHandler(packet *MysqlPacket, dbConnect
 	log.Debugln("proxy output")
 	for _, dumper := range output {
 		if _, err := clientConnection.Write(dumper.Dump()); err != nil {
-			log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorResponseProxyCantWriteToClient).
+			log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorResponseConnectorCantWriteToClient).
 				Errorln("can't proxy output")
 			return err
 		}
@@ -509,7 +509,7 @@ func (handler *MysqlHandler) QueryResponseHandler(packet *MysqlPacket, dbConnect
 	return nil
 }
 
-func (handler *MysqlHandler) DbToClientProxy(errCh chan<- error) {
+func (handler *MysqlHandler) DbToClientConnector(errCh chan<- error) {
 	serverLog := log.WithField("proxy", "server")
 	serverLog.Debugln("Start proxy db responses")
 	firstPacket := true
@@ -551,7 +551,7 @@ func (handler *MysqlHandler) DbToClientProxy(errCh chan<- error) {
 		err = responseHandler(packet, handler.dbConnection, handler.clientConnection)
 		if err != nil {
 			handler.resetQueryHandler()
-			log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorResponseProxyCantWriteToServer).
+			log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorResponseConnectorCantWriteToServer).
 				Errorln("Error in responseHandler")
 			errCh <- err
 			return

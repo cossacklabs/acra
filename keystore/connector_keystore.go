@@ -6,18 +6,18 @@ import (
 	"path/filepath"
 )
 
-type ProxyFileSystemKeyStore struct {
+type ConnectorFileSystemKeyStore struct {
 	directory string
 	clientId  []byte
 	encryptor KeyEncryptor
 }
 
-func NewProxyFileSystemKeyStore(directory string, clientId []byte, encryptor KeyEncryptor) (*ProxyFileSystemKeyStore, error) {
-	return &ProxyFileSystemKeyStore{directory: directory, clientId: clientId, encryptor: encryptor}, nil
+func NewConnectorFileSystemKeyStore(directory string, clientId []byte, encryptor KeyEncryptor) (*ConnectorFileSystemKeyStore, error) {
+	return &ConnectorFileSystemKeyStore{directory: directory, clientId: clientId, encryptor: encryptor}, nil
 }
 
-func (store *ProxyFileSystemKeyStore) GetPrivateKey(id []byte) (*keys.PrivateKey, error) {
-	keyData, err := ioutil.ReadFile(filepath.Join(store.directory, getProxyKeyFilename(id)))
+func (store *ConnectorFileSystemKeyStore) GetPrivateKey(id []byte) (*keys.PrivateKey, error) {
+	keyData, err := ioutil.ReadFile(filepath.Join(store.directory, getConnectorKeyFilename(id)))
 	if err != nil {
 		return nil, err
 	}
@@ -28,7 +28,7 @@ func (store *ProxyFileSystemKeyStore) GetPrivateKey(id []byte) (*keys.PrivateKey
 	}
 }
 
-func (store *ProxyFileSystemKeyStore) GetPeerPublicKey(id []byte) (*keys.PublicKey, error) {
+func (store *ConnectorFileSystemKeyStore) GetPeerPublicKey(id []byte) (*keys.PublicKey, error) {
 	key, err := ioutil.ReadFile(filepath.Join(store.directory, getPublicKeyFilename([]byte(getServerKeyFilename(store.clientId)))))
 	if err != nil {
 		return nil, err

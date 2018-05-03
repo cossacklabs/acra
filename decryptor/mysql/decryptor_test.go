@@ -39,7 +39,7 @@ func (keystore *testKeystore) GetServerDecryptionPrivateKey(id []byte) (*keys.Pr
 func (keystore *testKeystore) GenerateZoneKey() ([]byte, []byte, error) {
 	return nil, nil, nil
 }
-func (keystore *testKeystore) GenerateProxyKeys(id []byte) error {
+func (keystore *testKeystore) GenerateConnectorKeys(id []byte) error {
 	return nil
 }
 func (keystore *testKeystore) GenerateServerKeys(id []byte) error {

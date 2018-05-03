@@ -138,7 +138,7 @@ func (server *SServer) handleConnection(connection net.Conn) {
 	wrappedConnection, clientId, err := server.config.ConnectionWrapper.WrapServer(connection)
 	if err != nil {
 		log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantWrapConnection).
-			Errorln("Can't wrap connection from acraproxy")
+			Errorln("Can't wrap connection from acra-connector")
 		if closeErr := connection.Close(); closeErr != nil {
 			log.WithError(closeErr).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantCloseConnection).
 				Errorln("Can't close connection")
