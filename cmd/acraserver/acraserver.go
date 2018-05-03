@@ -89,10 +89,11 @@ func main() {
 	enableHTTPApi := flag.Bool("enable_http_api", false, "Enable HTTP API")
 
 	useTls := flag.Bool("tls", false, "Use tls to encrypt transport between acraserver and acraproxy/client")
-	tlsKey := flag.String("tls_key", "", "Path to tls server key")
-	tlsCert := flag.String("tls_cert", "", "Path to tls server certificate")
-	tlsCA := flag.String("tls_ca", "", "Path to root certificate")
-	tlsSNI := flag.String("tls_sni", "", "Expected Server Name (SNI)")
+	tlsKey := flag.String("tls_key", "", "Path to private key that will be used in TLS handshake with AcraConnector as server's key and Postgresql as client's key")
+	tlsCert := flag.String("tls_cert", "", "Path to tls certificate")
+	tlsCA := flag.String("tls_ca", "", "Path to root certificate which will be used with system root certificates to validate Postgresql's and AcraConnector's certificate")
+	tlsSNI := flag.String("tls_sni", "", "Expected Server Name (SNI) from Postgresql")
+	tlsAuthType := flag.Int("tls_auth", int(tls.RequireAndVerifyClientCert), "Set authentication mode that will be used in TLS connection with Postgresql. Values in range 0-4 that set auth type (https://golang.org/pkg/crypto/tls/#ClientAuthType). Default is tls.RequireAndVerifyClientCert")
 	noEncryption := flag.Bool("no_encryption", false, "Use raw transport (tcp/unix socket) between acraserver and acraproxy/client (don't use this flag if you not connect to database with ssl/tls")
 	clientId := flag.String("client_id", "", "Expected client id of acraproxy in mode without encryption")
 	acraConnectionString := flag.String("connection_string", network.BuildConnectionString(cmd.DEFAULT_ACRA_CONNECTION_PROTOCOL, cmd.DEFAULT_ACRA_HOST, cmd.DEFAULT_ACRA_PORT, ""), "Connection string like tcp://x.x.x.x:yyyy or unix:///path/to/socket")
@@ -102,7 +103,6 @@ func main() {
 	useMysql := flag.Bool("mysql", false, "Handle MySQL connections")
 	usePostgresql := flag.Bool("postgresql", false, "Handle Postgresql connections (default true)")
 	censorConfig := flag.String("censor_config", "", "Path to acracensor configuration file")
-
 
 	err := cmd.Parse(DEFAULT_CONFIG_PATH)
 	if err != nil {
@@ -175,7 +175,6 @@ func main() {
 	config.SetConfigPath(DEFAULT_CONFIG_PATH)
 	config.SetDebug(*debug)
 
-
 	if *hexFormat || !*escapeFormat {
 		config.SetByteaFormat(HEX_BYTEA_FORMAT)
 	} else {
@@ -201,7 +200,7 @@ func main() {
 	}
 	var tlsConfig *tls.Config
 	if *useTls || *tlsKey != "" {
-		tlsConfig, err = network.NewTLSConfig(*tlsSNI, *tlsCA, *tlsKey, *tlsCert)
+		tlsConfig, err = network.NewTLSConfig(network.SNIOrHostname(*tlsSNI, *dbHost), *tlsCA, *tlsKey, *tlsCert, tls.ClientAuthType(*tlsAuthType))
 		if err != nil {
 			log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorTransportConfiguration).
 				Errorln("Configuration error: can't get config for TLS")

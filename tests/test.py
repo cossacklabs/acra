@@ -186,13 +186,13 @@ def manage_basic_auth_user(action, user_name, user_password):
 
 
 def wait_connection(port, count=10, sleep=0.1):
-    """try connect to 127.0.0.1:port and close connection
+    """try connect to localhost:port and close connection
     if can't then sleep on and try again (<count> times)
     if <count> times is failed than raise Exception
     """
     while count:
         try:
-            connection = socket.create_connection(('127.0.0.1', port),
+            connection = socket.create_connection(('localhost', port),
                                                   timeout=10)
             connection.close()
             return
@@ -227,7 +227,7 @@ def get_postgresql_unix_connection_string(port, dbname):
     return '{}:///{}?host={}'.format(DB_DRIVER, dbname, PG_UNIX_HOST)
 
 def get_postgresql_tcp_connection_string(port, dbname):
-    return '{}://127.0.0.1:{}/{}'.format(DB_DRIVER, port, dbname)
+    return '{}://localhost:{}/{}'.format(DB_DRIVER, port, dbname)
 
 def get_acra_unix_connection_string(port):
     return "unix://{}".format("{}/unix_socket_{}".format(PG_UNIX_HOST, port))
@@ -241,7 +241,7 @@ def get_proxy_connection_string(port):
         return 'unix://{}/.s.PGSQL.{}'.format(PG_UNIX_HOST, port)
 
 def get_tcp_connection_string(port):
-    return 'tcp://127.0.0.1:{}'.format(port)
+    return 'tcp://localhost:{}'.format(port)
 
 def socket_path_from_connection_string(connection_string):
     if '://' in connection_string:
@@ -267,7 +267,6 @@ BINARIES = [
     # compile with Test=true to disable golang tls client server verification
     Binary(name='acraserver', from_version=DEFAULT_VERSION,
            build_args=['-ldflags', '-X main.TestOnly=true']),
-
     Binary(name='acra_addzone', from_version=DEFAULT_VERSION,
            build_args=DEFAULT_BUILD_ARGS),
     Binary(name='acra_genkeys', from_version=DEFAULT_VERSION,
@@ -364,7 +363,7 @@ class ProcessStub(object):
 
 
 class BaseTestCase(unittest.TestCase):
-    DB_HOST = os.environ.get('TEST_DB_HOST', '127.0.0.1')
+    DB_HOST = os.environ.get('TEST_DB_HOST', 'localhost')
     DB_NAME = os.environ.get('TEST_DB_NAME', 'postgres')
     DB_PORT = os.environ.get('TEST_DB_PORT', 5432)
     DEBUG_LOG = os.environ.get('DEBUG_LOG', True)
@@ -420,7 +419,7 @@ class BaseTestCase(unittest.TestCase):
         args = [
             './acra_configui',
             '-port={}'.format(http_port),
-            '-acra_host=127.0.0.1',
+            '-acra_host=localhost',
             '-acra_port={}'.format(proxy_port),
             '-static_path={}'.format(CONFIG_UI_STATIC_PATH)
         ]
@@ -429,6 +428,11 @@ class BaseTestCase(unittest.TestCase):
         process = self.fork(lambda: subprocess.Popen(args))
         return process
 
+    def get_connector_tls_params(self):
+        return [
+            '--tls',
+            '--tls_sni=acraserver',
+        ]
 
     def fork_proxy(self, proxy_port: int, acra_port: int, client_id: str, commands_port: int=None, zone_mode: bool=False, check_connection: bool=True):
         acra_connection = self.get_acra_connection_string(acra_port)
@@ -436,7 +440,7 @@ class BaseTestCase(unittest.TestCase):
         proxy_connection = self.get_proxy_connection_string(proxy_port)
         if zone_mode:
             # because standard library can send http requests only through tcp and cannot through unix socket
-            proxy_api_connection = "tcp://127.0.0.1:{}".format(commands_port)
+            proxy_api_connection = "tcp://localhost:{}".format(commands_port)
         else:
             # now it's no matter, so just +100
             proxy_api_connection = self.get_proxy_api_connection_string(commands_port if commands_port else proxy_port + 100)
@@ -460,11 +464,7 @@ class BaseTestCase(unittest.TestCase):
         if zone_mode:
             args.append('--enable_http_api=true')
         if self.TLS_ON:
-            args.append('--tls')
-            args.append('--tls_ca=tests/server.crt')
-            args.append('--tls_key=tests/client.key')
-            args.append('--tls_cert=tests/client.crt')
-            args.append('--tls_sni=acraserver')
+            args.extend(self.get_connector_tls_params())
         process = self.fork(lambda: subprocess.Popen(args))
         if check_connection:
             try:
@@ -534,8 +534,7 @@ class BaseTestCase(unittest.TestCase):
             args['tls'] = 'true'
             args['tls_key'] = 'tests/server.key'
             args['tls_cert'] = 'tests/server.crt'
-            args['tls_ca'] = 'tests/server.crt'
-            args['tls_sni'] = 'acraserver'
+            args['tls_auth'] = 0
         if TEST_MYSQL:
             args['mysql'] = 'true'
             args['postgresql'] = 'false'
@@ -1255,7 +1254,9 @@ class AcraCatchLogsMixin(object):
     def read_log(self, process):
         with open(self.log_files[process].name, 'r', errors='replace',
                   encoding='utf-8') as f:
-            return f.read()
+            log = f.read()
+            print(log)
+            return log
 
     def fork_acra(self, popen_kwargs: dict=None, **acra_kwargs: dict):
         log_file = tempfile.NamedTemporaryFile('w+', encoding='utf-8')
@@ -1389,7 +1390,7 @@ class TestKeyStorageClearing(BaseTestCase):
         # execute any query for loading key by acra
         result = self.engine1.execute(sa.select([1]).limit(1))
         result.fetchone()
-        with urlopen('http://127.0.0.1:{}/resetKeyStorage'.format(self.PROXY_COMMAND_PORT_1)) as response:
+        with urlopen('http://localhost:{}/resetKeyStorage'.format(self.PROXY_COMMAND_PORT_1)) as response:
             self.assertEqual(response.status, 200)
         # delete key for excluding reloading from FS
         os.remove('.acrakeys/{}.pub'.format(self.key_name))
@@ -1811,6 +1812,12 @@ class TLSBetweenProxyAndServerMixin(object):
     def fork_acra(self, popen_kwargs: dict=None, **acra_kwargs: dict):
         return self._fork_acra({'client_id': 'keypair1'}, popen_kwargs)
 
+    def get_connector_tls_params(self):
+        base_params = super(TLSBetweenProxyAndServerMixin, self).get_connector_tls_params()
+        # client side need CA cert to verify server's
+        base_params.append('--tls_ca=tests/server.crt')
+        return base_params
+
     def setUp(self):
         super(TLSBetweenProxyAndServerMixin, self).setUp()
         # acra works with one client id and no matter from which proxy connection come
@@ -1848,7 +1855,8 @@ class SSLMysqlMixin(SSLPostgresqlMixin):
                     tls_key='tests/server.key',
                     tls_cert='tests/server.crt',
                     tls_ca='tests/server.crt',
-                    tls_sni="acraserver",
+                    tls_auth=0,
+                    #tls_sni="localhost",
                     no_encryption=True, client_id='keypair1')
                 # create second acra without settings for tls to check that
                 # connection will be closed on tls handshake
@@ -1857,8 +1865,8 @@ class SSLMysqlMixin(SSLPostgresqlMixin):
                     port=self.ACRA2_PORT)
             self.driver_to_acraserver_ssl_settings = {
                 'ca': 'tests/server.crt',
-                'cert': 'tests/client.crt',
-                'key': 'tests/client.key',
+                #'cert': 'tests/client.crt',
+                #'key': 'tests/client.key',
                 'check_hostname': False
             }
             self.engine_raw = sa.create_engine(
