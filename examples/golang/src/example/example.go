@@ -18,7 +18,7 @@ package main
 import (
 	"database/sql"
 	"fmt"
-	"github.com/cossacklabs/acra/acrawriter"
+	"github.com/cossacklabs/acra/acra-writer"
 	"github.com/cossacklabs/acra/keystore"
 	"github.com/cossacklabs/acra/utils"
 	_ "github.com/lib/pq"

@@ -44,7 +44,7 @@ var save = function () {
 
     $.ajax({
         method: 'POST',
-        url: "/acraserver/submit_setting",
+        url: "/acra-server/submit_setting",
         data: data
     }).done(function () {
         $(this).addClass("done");

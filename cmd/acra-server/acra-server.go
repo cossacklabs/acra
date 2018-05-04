@@ -47,7 +47,7 @@ const (
 	GRACEFUL_ENV                    = "GRACEFUL_RESTART"
 	DESCRIPTOR_ACRA                 = 3
 	DESCRIPTOR_API                  = 4
-	SERVICE_NAME                    = "acraserver"
+	SERVICE_NAME                    = "acra-server"
 )
 
 // DEFAULT_CONFIG_PATH relative path to config which will be parsed as default
@@ -65,7 +65,7 @@ func main() {
 
 	host := flag.String("host", cmd.DEFAULT_ACRA_HOST, "Host for AcraServer")
 	port := flag.Int("port", cmd.DEFAULT_ACRA_PORT, "Port for AcraServer")
-	commandsPort := flag.Int("commands_port", cmd.DEFAULT_ACRA_API_PORT, "Port for AcraServer for http api")
+	commandsPort := flag.Int("commands_port", cmd.DEFAULT_ACRA_API_PORT, "Port for AcraServer for HTTP API")
 
 	keysDir := flag.String("keys_dir", keystore.DEFAULT_KEY_DIR_SHORT, "Folder from which will be loaded keys")
 
@@ -80,7 +80,7 @@ func main() {
 
 	debug := flag.Bool("d", false, "Turn on debug logging")
 	debugServer := flag.Bool("ds", false, "Turn on http debug server")
-	closeConnectionTimeout := flag.Int("close_connections_timeout", DEFAULT_ACRASERVER_WAIT_TIMEOUT, "Time that acraserver will wait (in seconds) on restart before closing all connections")
+	closeConnectionTimeout := flag.Int("close_connections_timeout", DEFAULT_ACRASERVER_WAIT_TIMEOUT, "Time that AcraServer will wait (in seconds) on restart before closing all connections")
 
 	stopOnPoison := flag.Bool("poisonshutdown", false, "Stop on detecting poison record")
 	scriptOnPoison := flag.String("poisonscript", "", "Execute script on detecting poison record")
@@ -88,12 +88,12 @@ func main() {
 	withZone := flag.Bool("zonemode", false, "Turn on zone mode")
 	enableHTTPApi := flag.Bool("enable_http_api", false, "Enable HTTP API")
 
-	useTls := flag.Bool("tls", false, "Use tls to encrypt transport between acraserver and acra-connector/client")
+	useTls := flag.Bool("tls", false, "Use tls to encrypt transport between AcraServer and AcraConnector/client")
 	tlsKey := flag.String("tls_key", "", "Path to tls server key")
 	tlsCert := flag.String("tls_cert", "", "Path to tls server certificate")
 	tlsCA := flag.String("tls_ca", "", "Path to root certificate")
 	tlsSNI := flag.String("tls_sni", "", "Expected Server Name (SNI)")
-	noEncryption := flag.Bool("no_encryption", false, "Use raw transport (tcp/unix socket) between acraserver and acra-connector/client (don't use this flag if you not connect to database with ssl/tls")
+	noEncryption := flag.Bool("no_encryption", false, "Use raw transport (tcp/unix socket) between AcraServer and AcraConnector/client (don't use this flag if you not connect to database with ssl/tls")
 	clientId := flag.String("client_id", "", "Expected client id of acra-connector in mode without encryption")
 	acraConnectionString := flag.String("connection_string", network.BuildConnectionString(cmd.DEFAULT_ACRA_CONNECTION_PROTOCOL, cmd.DEFAULT_ACRA_HOST, cmd.DEFAULT_ACRA_PORT, ""), "Connection string like tcp://x.x.x.x:yyyy or unix:///path/to/socket")
 	acraAPIConnectionString := flag.String("connection_api_string", network.BuildConnectionString(cmd.DEFAULT_ACRA_CONNECTION_PROTOCOL, cmd.DEFAULT_ACRA_HOST, cmd.DEFAULT_ACRA_API_PORT, ""), "Connection string for api like tcp://x.x.x.x:yyyy or unix:///path/to/socket")
@@ -226,7 +226,7 @@ func main() {
 	} else if *noEncryption {
 		if *clientId == "" && !*withZone {
 			log.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorTransportConfiguration).
-				Errorln("Configuration error: without zone mode and without encryption you must set <client_id> which will be used to connect from acra-connector to acraserver")
+				Errorln("Configuration error: without zone mode and without encryption you must set <client_id> which will be used to connect from AcraConnector to AcraServer")
 			os.Exit(1)
 		}
 		log.Infof("Selecting transport: use raw transport wrapper")

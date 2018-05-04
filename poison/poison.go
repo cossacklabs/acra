@@ -15,7 +15,7 @@ package poison
 
 import (
 	"crypto/rand"
-	"github.com/cossacklabs/acra/acrawriter"
+	"github.com/cossacklabs/acra/acra-writer"
 	"github.com/cossacklabs/acra/keystore"
 	math_rand "math/rand"
 	"time"

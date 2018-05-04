@@ -23,7 +23,7 @@ do
    eval $script
 done
 
-echo "run acraserver in zonemode and press ENTER"
+echo "run AcraServer in zonemode and press ENTER"
 read -e
 
 echo "run read scripts with zones"

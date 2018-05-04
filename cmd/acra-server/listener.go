@@ -189,9 +189,9 @@ func (server *SServer) Start() {
 		}
 		// unix socket and value == '@'
 		if len(connection.RemoteAddr().String()) == 1 {
-			log.Infof("Got new connection to acraserver: %v", connection.LocalAddr())
+			log.Infof("Got new connection to AcraServer: %v", connection.LocalAddr())
 		} else {
-			log.Infof("Got new connection to acraserver: %v", connection.RemoteAddr())
+			log.Infof("Got new connection to AcraServer: %v", connection.RemoteAddr())
 		}
 		go func() {
 			server.cmACRA.Incr()
@@ -204,7 +204,7 @@ func (server *SServer) Start() {
 
 func (server *SServer) StartFromFileDescriptor(fd uintptr) {
 	var connection net.Conn
-	file := os.NewFile(fd, "/tmp/acraserver")
+	file := os.NewFile(fd, "/tmp/acra-server")
 	listenerFile, err := net.FileListener(file)
 	if err != nil {
 		log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantOpenFileByDescriptor).
@@ -237,9 +237,9 @@ func (server *SServer) StartFromFileDescriptor(fd uintptr) {
 		}
 		// unix socket and value == '@'
 		if len(connection.RemoteAddr().String()) == 1 {
-			log.Infof("Got new connection to acraserver: %v", connection.LocalAddr())
+			log.Infof("Got new connection to AcraServer: %v", connection.LocalAddr())
 		} else {
-			log.Infof("Got new connection to acraserver: %v", connection.RemoteAddr())
+			log.Infof("Got new connection to AcraServer: %v", connection.RemoteAddr())
 		}
 		go func() {
 			server.cmACRA.Incr()
@@ -377,7 +377,7 @@ func (server *SServer) StartCommands() {
 
 func (server *SServer) StartCommandsFromFileDescriptor(fd uintptr) {
 	var connection net.Conn
-	file := os.NewFile(fd, "/tmp/acraserver_http_api")
+	file := os.NewFile(fd, "/tmp/acra-server_http_api")
 	listenerFile, err := net.FileListener(file)
 	if err != nil {
 		log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantOpenFileByDescriptor).

@@ -2,8 +2,8 @@ Gem::Specification.new do |gem|
   gem.name        = 'activerecord_acrawriter'
   gem.version     = '1.0.0'
   gem.date        = '2018-04-23'
-  gem.summary     = "Extra type for active record with acrawriter usage"
-  gem.description = "Extra type for active record with acrawriter usage"
+  gem.summary     = "Extra type for active record with AcraWriter usage"
+  gem.description = "Extra type for active record with AcraWriter usage"
   gem.authors     = ["Cossack Labs"]
   gem.email       = 'dev@cossacklabs.com'
   gem.files       = ["lib/activerecord_acrawriter.rb"]
