@@ -7,7 +7,7 @@ import (
 	"os"
 )
 
-type LoggingHandler struct {
+type QueryCaptureHandler struct {
 	Queries []QueryInfo
 	filePath string
 }
@@ -17,7 +17,7 @@ type QueryInfo struct {
 	IsForbidden bool
 }
 
-func NewLoggingHandler (filePath string) (*LoggingHandler, error) {
+func NewQueryCaptureHandler(filePath string) (*QueryCaptureHandler, error) {
 	file, err := os.OpenFile(filePath, os.O_RDONLY|os.O_CREATE, 0600)
 	if err != nil {
 		return nil, err
@@ -26,10 +26,10 @@ func NewLoggingHandler (filePath string) (*LoggingHandler, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &LoggingHandler{Queries:nil, filePath:filePath}, nil
+	return &QueryCaptureHandler{Queries:nil, filePath:filePath}, nil
 }
 
-func (handler *LoggingHandler) CheckQuery(query string) error {
+func (handler *QueryCaptureHandler) CheckQuery(query string) error {
 	//skip already logged queries
 	for _, queryInfo := range handler.Queries{
 		if strings.EqualFold(queryInfo.RawQuery, query){
@@ -43,15 +43,11 @@ func (handler *LoggingHandler) CheckQuery(query string) error {
 	return handler.Serialize()
 }
 
-func (handler *LoggingHandler) Reset() {
+func (handler *QueryCaptureHandler) Reset() {
 	handler.Queries = nil
 }
 
-func (handler *LoggingHandler) GetName() string{
-	return "Logging"
-}
-
-func (handler *LoggingHandler) GetAllInputQueries() []string{
+func (handler *QueryCaptureHandler) GetAllInputQueries() []string{
 	var queries []string
 	for _, queryInfo := range handler.Queries {
 		queries = append(queries, queryInfo.RawQuery)
@@ -59,7 +55,7 @@ func (handler *LoggingHandler) GetAllInputQueries() []string{
 	return queries
 }
 
-func (handler *LoggingHandler) MarkQueryAsForbidden(query string) error {
+func (handler *QueryCaptureHandler) MarkQueryAsForbidden(query string) error {
 	for index, queryInfo := range handler.Queries {
 		if strings.EqualFold(query, queryInfo.RawQuery) {
 			handler.Queries[index].IsForbidden = true
@@ -68,7 +64,7 @@ func (handler *LoggingHandler) MarkQueryAsForbidden(query string) error {
 	return handler.Serialize()
 }
 
-func (handler *LoggingHandler) GetForbiddenQueries() []string{
+func (handler *QueryCaptureHandler) GetForbiddenQueries() []string{
 	var forbiddenQueries []string
 	for _, queryInfo := range handler.Queries {
 		if queryInfo.IsForbidden == true{
@@ -78,7 +74,7 @@ func (handler *LoggingHandler) GetForbiddenQueries() []string{
 	return forbiddenQueries
 }
 
-func (handler *LoggingHandler) Serialize() error {
+func (handler *QueryCaptureHandler) Serialize() error {
 	jsonFile, err := json.Marshal(handler.Queries)
 	if err != nil {
 		return err
@@ -87,7 +83,7 @@ func (handler *LoggingHandler) Serialize() error {
 
 }
 
-func (handler *LoggingHandler) Deserialize() error {
+func (handler *QueryCaptureHandler) Deserialize() error {
 	var bufferBytes []byte
 	bufferBytes, err := ioutil.ReadFile(handler.filePath)
 	if err != nil {

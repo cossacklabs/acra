@@ -66,7 +66,7 @@ func (acraCensor *AcraCensor) update(configuration []byte) error {
 			if strings.EqualFold(handlerConfiguration.Filepath, ""){
 				break
 			}
-			logger, err := handlers.NewLoggingHandler(handlerConfiguration.Filepath)
+			logger, err := handlers.NewQueryCaptureHandler(handlerConfiguration.Filepath)
 			if err != nil {
 				return err
 			}

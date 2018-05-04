@@ -586,7 +586,7 @@ func TestSerialization(t *testing.T){
 		t.Fatal(err)
 	}
 
-	loggingHandler, err := handlers.NewLoggingHandler(tmpFile.Name())
+	loggingHandler, err := handlers.NewQueryCaptureHandler(tmpFile.Name())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -669,7 +669,7 @@ func TestLogging(t *testing.T){
 		t.Fatal(err)
 	}
 
-	loggingHandler, err := handlers.NewLoggingHandler(tmpFile.Name())
+	loggingHandler, err := handlers.NewQueryCaptureHandler(tmpFile.Name())
 	if err != nil {
 		t.Fatal(err)
 	}

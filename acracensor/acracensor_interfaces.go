@@ -3,7 +3,7 @@ package acracensor
 type QueryHandlerInterface interface {
 	CheckQuery(sqlQuery string) error
 	Reset()
-	GetName() string
+	//GetName() string
 }
 
 type AcracensorInterface interface {
