@@ -102,7 +102,7 @@ func main() {
 
 	useMysql := flag.Bool("mysql", false, "Handle MySQL connections")
 	usePostgresql := flag.Bool("postgresql", false, "Handle Postgresql connections (default true)")
-	censorConfig := flag.String("censor_config", "", "Path to acracensor configuration file")
+	censorConfig := flag.String("censor_config", "", "Path to AcraCensor configuration file")
 
 	err := cmd.Parse(DEFAULT_CONFIG_PATH)
 	if err != nil {

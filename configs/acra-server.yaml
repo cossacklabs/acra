@@ -1,7 +1,7 @@
 # Path to basic auth passwords. To add user, use: `./acra_genauth --set --user <user> --pwd <pwd>`
 auth_keys: configs/auth.keys
 
-# Path to acracensor configuration file
+# Path to AcraCensor configuration file
 censor_config: 
 
 # Expected client id of AcraConnector in mode without encryption

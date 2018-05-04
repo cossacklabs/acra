@@ -18,7 +18,7 @@ import (
 	"encoding/json"
 	"errors"
 
-	"github.com/cossacklabs/acra/acracensor"
+	"github.com/cossacklabs/acra/acra-censor"
 	"github.com/cossacklabs/acra/network"
 	"io/ioutil"
 )
@@ -51,7 +51,7 @@ type Config struct {
 	postgresql              bool
 	configPath              string
 	debug                   bool
-	censor                  acracensor.AcracensorInterface
+	censor                  acracensor.AcraCensorInterface
 	tlsConfig               *tls.Config
 }
 
@@ -88,7 +88,7 @@ func (config *Config) SetCensor(censorConfigPath string) error {
 	}
 	return nil
 }
-func (config *Config) GetCensor() acracensor.AcracensorInterface {
+func (config *Config) GetCensor() acracensor.AcraCensorInterface {
 	return config.censor
 }
 
