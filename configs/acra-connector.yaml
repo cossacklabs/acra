@@ -49,7 +49,7 @@ logging_format: plaintext
 # Use raw transport (tcp/unix socket) between AcraServer and AcraConnector/client (don't use this flag if you not connect to database with ssl/tls
 no_encryption: false
 
-# Port fo acra-connector
+# Port to AcraConnector
 port: 9494
 
 # Use tls to encrypt transport between AcraServer and AcraConnector/client

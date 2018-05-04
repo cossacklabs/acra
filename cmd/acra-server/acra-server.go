@@ -64,8 +64,8 @@ func main() {
 	dbPort := flag.Int("db_port", 5432, "Port to db")
 
 	host := flag.String("host", cmd.DEFAULT_ACRA_HOST, "Host for AcraServer")
-	port := flag.Int("port", cmd.DEFAULT_ACRA_PORT, "Port for AcraServer")
-	commandsPort := flag.Int("commands_port", cmd.DEFAULT_ACRA_API_PORT, "Port for AcraServer for HTTP API")
+	port := flag.Int("port", cmd.DEFAULT_ACRASERVER_PORT, "Port for AcraServer")
+	commandsPort := flag.Int("commands_port", cmd.DEFAULT_ACRASERVER_API_PORT, "Port for AcraServer for HTTP API")
 
 	keysDir := flag.String("keys_dir", keystore.DEFAULT_KEY_DIR_SHORT, "Folder from which will be loaded keys")
 
@@ -95,8 +95,8 @@ func main() {
 	tlsSNI := flag.String("tls_sni", "", "Expected Server Name (SNI)")
 	noEncryption := flag.Bool("no_encryption", false, "Use raw transport (tcp/unix socket) between AcraServer and AcraConnector/client (don't use this flag if you not connect to database with ssl/tls")
 	clientId := flag.String("client_id", "", "Expected client id of acra-connector in mode without encryption")
-	acraConnectionString := flag.String("connection_string", network.BuildConnectionString(cmd.DEFAULT_ACRA_CONNECTION_PROTOCOL, cmd.DEFAULT_ACRA_HOST, cmd.DEFAULT_ACRA_PORT, ""), "Connection string like tcp://x.x.x.x:yyyy or unix:///path/to/socket")
-	acraAPIConnectionString := flag.String("connection_api_string", network.BuildConnectionString(cmd.DEFAULT_ACRA_CONNECTION_PROTOCOL, cmd.DEFAULT_ACRA_HOST, cmd.DEFAULT_ACRA_API_PORT, ""), "Connection string for api like tcp://x.x.x.x:yyyy or unix:///path/to/socket")
+	acraConnectionString := flag.String("connection_string", network.BuildConnectionString(cmd.DEFAULT_ACRA_CONNECTION_PROTOCOL, cmd.DEFAULT_ACRA_HOST, cmd.DEFAULT_ACRASERVER_PORT, ""), "Connection string like tcp://x.x.x.x:yyyy or unix:///path/to/socket")
+	acraAPIConnectionString := flag.String("connection_api_string", network.BuildConnectionString(cmd.DEFAULT_ACRA_CONNECTION_PROTOCOL, cmd.DEFAULT_ACRA_HOST, cmd.DEFAULT_ACRASERVER_API_PORT, ""), "Connection string for api like tcp://x.x.x.x:yyyy or unix:///path/to/socket")
 	authPath = flag.String("auth_keys", cmd.DEFAULT_ACRA_AUTH_PATH, "Path to basic auth passwords. To add user, use: `./acra_genauth --set --user <user> --pwd <pwd>`")
 
 	useMysql := flag.Bool("mysql", false, "Handle MySQL connections")
@@ -117,10 +117,10 @@ func main() {
 	log.Infof("Validating service configuration")
 	cmd.ValidateClientId(*serverId)
 
-	if *host != cmd.DEFAULT_ACRA_HOST || *port != cmd.DEFAULT_ACRA_PORT {
+	if *host != cmd.DEFAULT_ACRA_HOST || *port != cmd.DEFAULT_ACRASERVER_PORT {
 		*acraConnectionString = network.BuildConnectionString("tcp", *host, *port, "")
 	}
-	if *commandsPort != cmd.DEFAULT_ACRA_API_PORT {
+	if *commandsPort != cmd.DEFAULT_ACRASERVER_API_PORT {
 		*acraConnectionString = network.BuildConnectionString("tcp", *host, *commandsPort, "")
 	}
 

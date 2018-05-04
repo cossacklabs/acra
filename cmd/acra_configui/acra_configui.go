@@ -374,7 +374,7 @@ func main() {
 	logging.CustomizeLogging(*loggingFormat, SERVICE_NAME)
 	log.Infof("Starting service")
 	acraHost = flag.String("acra_host", "localhost", "Host for Acraserver HTTP endpoint or AcraConnector")
-	acraPort = flag.Int("acra_port", cmd.DEFAULT_CONNECTOR_API_PORT, "Port for Acraserver HTTP endpoint or AcraConnector")
+	acraPort = flag.Int("acra_port", cmd.DEFAULT_ACRACONNECTOR_API_PORT, "Port for Acraserver HTTP endpoint or AcraConnector")
 	staticPath = flag.String("static_path", cmd.DEFAULT_ACRA_CONFIGUI_STATIC, "Path to static content")
 	debug = flag.Bool("d", false, "Turn on debug logging")
 	authMode = flag.String("auth_mode", cmd.DEFAULT_ACRA_CONFIGUI_AUTH_MODE, "Mode for basic auth. Possible values: auth_on|auth_off_local|auth_off")
