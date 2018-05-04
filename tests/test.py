@@ -57,9 +57,9 @@ test_table = sa.Table('test', metadata,
     sa.Column('raw_data', sa.Text),
 )
 
-rollback_output_table = sa.Table('acra_rollback_output', metadata,
-    sa.Column('data', sa.LargeBinary),
-)
+acrarollback_output_table = sa.Table('acrarollback_output', metadata,
+                                     sa.Column('data', sa.LargeBinary),
+                                     )
 
 zones = []
 poison_record = None
@@ -256,7 +256,7 @@ def acra_api_connection_string(port):
 
 DEFAULT_VERSION = '1.5.0'
 DEFAULT_BUILD_ARGS = []
-ACRA_ROLLBACK_MIN_VERSION = "1.8.0"
+ACRAROLLBACK_MIN_VERSION = "1.8.0"
 Binary = collections.namedtuple(
     'Binary', ['name', 'from_version', 'build_args'])
 
@@ -273,7 +273,7 @@ BINARIES = [
            build_args=DEFAULT_BUILD_ARGS),
     Binary(name='acra_genpoisonrecord', from_version=DEFAULT_VERSION,
            build_args=DEFAULT_BUILD_ARGS),
-    Binary(name='acra_rollback', from_version=ACRA_ROLLBACK_MIN_VERSION,
+    Binary(name='acra-rollback', from_version=ACRAROLLBACK_MIN_VERSION,
            build_args=DEFAULT_BUILD_ARGS),
     Binary(name='acra_genauth', from_version=DEFAULT_VERSION,
            build_args=DEFAULT_BUILD_ARGS),
@@ -1408,7 +1408,7 @@ class TestAcraRollback(BaseTestCase):
         super(TestAcraRollback, self).checkSkip()
         go_version = get_go_version()
         GREATER, EQUAL, LESS = (1, 0, -1)
-        if semver.compare(go_version, ACRA_ROLLBACK_MIN_VERSION) == LESS:
+        if semver.compare(go_version, ACRAROLLBACK_MIN_VERSION) == LESS:
             self.skipTest("not supported go version")
 
     def setUp(self):
@@ -1418,8 +1418,8 @@ class TestAcraRollback(BaseTestCase):
                                    self.DB_NAME),
             connect_args=connect_args)
 
-        self.output_filename = 'acra_rollback_output.txt'
-        rollback_output_table.create(self.engine_raw, checkfirst=True)
+        self.output_filename = 'acra-rollback_output.txt'
+        acrarollback_output_table.create(self.engine_raw, checkfirst=True)
         if TEST_WITH_TLS:
             self.sslmode='require'
         else:
@@ -1453,7 +1453,7 @@ class TestAcraRollback(BaseTestCase):
             self.placeholder = "$1"
             DB_ARGS = ['--postgresql']
 
-        self.default_rollback_args = [
+        self.default_acrarollback_args = [
             '--client_id=keypair1',
              '--connection_string={}'.format(connection_string),
              '--output_file={}'.format(self.output_filename),
@@ -1461,7 +1461,7 @@ class TestAcraRollback(BaseTestCase):
 
     def tearDown(self):
         try:
-            self.engine_raw.execute(rollback_output_table.delete())
+            self.engine_raw.execute(acrarollback_output_table.delete())
             self.engine_raw.execute(test_table.delete())
         except Exception as exc:
             print(exc)
@@ -1469,8 +1469,8 @@ class TestAcraRollback(BaseTestCase):
         if os.path.exists(self.output_filename):
             os.remove(self.output_filename)
 
-    def run_rollback(self, extra_args):
-        args = ['./acra_rollback'] + self.default_rollback_args + extra_args
+    def run_acrarollback(self, extra_args):
+        args = ['./acra-rollback'] + self.default_acrarollback_args + extra_args
         try:
             subprocess.check_call(
                 args, cwd=os.getcwd(), timeout=PROCESS_CALL_TIMEOUT)
@@ -1499,9 +1499,9 @@ class TestAcraRollback(BaseTestCase):
         args = [
             '--select=select data from {};'.format(test_table.name),
             '--insert=insert into {} values({});'.format(
-                 rollback_output_table.name, self.placeholder)
+                 acrarollback_output_table.name, self.placeholder)
         ]
-        self.run_rollback(args)
+        self.run_acrarollback(args)
 
         # execute file
         with open(self.output_filename, 'r') as f:
@@ -1509,7 +1509,7 @@ class TestAcraRollback(BaseTestCase):
                 self.engine_raw.execute(line)
 
         source_data = set([i['raw_data'].encode('ascii') for i in rows])
-        result = self.engine_raw.execute(rollback_output_table.select())
+        result = self.engine_raw.execute(acrarollback_output_table.select())
         result = result.fetchall()
         for data in result:
             self.assertIn(data[0], source_data)
@@ -1538,9 +1538,9 @@ class TestAcraRollback(BaseTestCase):
              select_query,
              '--zonemode=true',
              '--insert=insert into {} values({});'.format(
-                 rollback_output_table.name, self.placeholder)
+                 acrarollback_output_table.name, self.placeholder)
         ]
-        self.run_rollback(args)
+        self.run_acrarollback(args)
 
         # execute file
         with open(self.output_filename, 'r') as f:
@@ -1548,7 +1548,7 @@ class TestAcraRollback(BaseTestCase):
                 self.engine_raw.execute(line)
 
         source_data = set([i['raw_data'].encode('ascii') for i in rows])
-        result = self.engine_raw.execute(rollback_output_table.select())
+        result = self.engine_raw.execute(acrarollback_output_table.select())
         result = result.fetchall()
         for data in result:
             self.assertIn(data[0], source_data)
@@ -1573,12 +1573,12 @@ class TestAcraRollback(BaseTestCase):
             '--execute=true',
             '--select=select data from {};'.format(test_table.name),
             '--insert=insert into {} values({});'.format(
-                rollback_output_table.name, self.placeholder)
+                acrarollback_output_table.name, self.placeholder)
         ]
-        self.run_rollback(args)
+        self.run_acrarollback(args)
 
         source_data = set([i['raw_data'].encode('ascii') for i in rows])
-        result = self.engine_raw.execute(rollback_output_table.select())
+        result = self.engine_raw.execute(acrarollback_output_table.select())
         result = result.fetchall()
         for data in result:
             self.assertIn(data[0], source_data)
@@ -1609,12 +1609,12 @@ class TestAcraRollback(BaseTestCase):
             select_query,
             '--zonemode=true',
             '--insert=insert into {} values({});'.format(
-                rollback_output_table.name, self.placeholder)
+                acrarollback_output_table.name, self.placeholder)
         ]
-        self.run_rollback(args)
+        self.run_acrarollback(args)
 
         source_data = set([i['raw_data'].encode('ascii') for i in rows])
-        result = self.engine_raw.execute(rollback_output_table.select())
+        result = self.engine_raw.execute(acrarollback_output_table.select())
         result = result.fetchall()
         for data in result:
             self.assertIn(data[0], source_data)
