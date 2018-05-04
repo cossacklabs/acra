@@ -149,12 +149,12 @@ func main() {
 	keysDir := flag.String("keys_dir", keystore.DEFAULT_KEY_DIR_SHORT, "Folder from which will be loaded keys")
 	clientId := flag.String("client_id", "", "Client id")
 	acraHost := flag.String("acra_host", "", "IP or domain to acra daemon")
-	acraCommandsPort := flag.Int("acra_commands_port", cmd.DEFAULT_ACRA_API_PORT, "Port of Acra HTTP api")
-	acraPort := flag.Int("acra_port", cmd.DEFAULT_ACRA_PORT, "Port of acra daemon")
-	acraId := flag.String("acra_id", "acra_server", "Expected id from AcraServer for Secure Session")
+	acraServerCommandsPort := flag.Int("acra_commands_port", cmd.DEFAULT_ACRASERVER_API_PORT, "Port of Acra HTTP api")
+	acraServerPort := flag.Int("acra_port", cmd.DEFAULT_ACRASERVER_PORT, "Port of acra daemon")
+	acraServerId := flag.String("acra_id", "acra_server", "Expected id from AcraServer for Secure Session")
 	verbose := flag.Bool("v", false, "Log to stderr")
-	port := flag.Int("port", cmd.DEFAULT_CONNECTOR_PORT, "Port fo acra-connector")
-	commandsPort := flag.Int("command_port", cmd.DEFAULT_CONNECTOR_API_PORT, "Port for AcraConnector HTTP api")
+	acraConnectorPort := flag.Int("port", cmd.DEFAULT_ACRACONNECTOR_PORT, "Port to AcraConnector")
+	acraConnectorCommandsPort := flag.Int("command_port", cmd.DEFAULT_ACRACONNECTOR_API_PORT, "Port for AcraConnector HTTP api")
 	enableHTTPApi := flag.Bool("enable_http_api", false, "Enable HTTP API")
 	disableUserCheck := flag.Bool("disable_user_check", false, "Disable checking that connections from app running from another user")
 	useTls := flag.Bool("tls", false, "Use tls to encrypt transport between AcraServer and AcraConnector/client")
@@ -163,8 +163,8 @@ func main() {
 	tlsCert := flag.String("tls_cert", "", "Path to tls client's certificate")
 	tlsSNI := flag.String("tls_sni", "", "Expected Server Name (SNI)")
 	noEncryption := flag.Bool("no_encryption", false, "Use raw transport (tcp/unix socket) between AcraServer and AcraConnector/client (don't use this flag if you not connect to database with ssl/tls")
-	connectionString := flag.String("connection_string", network.BuildConnectionString(cmd.DEFAULT_CONNECTOR_CONNECTION_PROTOCOL, cmd.DEFAULT_CONNECTOR_HOST, cmd.DEFAULT_CONNECTOR_PORT, ""), "Connection string like tcp://x.x.x.x:yyyy or unix:///path/to/socket")
-	connectionAPIString := flag.String("connection_api_string", network.BuildConnectionString(cmd.DEFAULT_CONNECTOR_CONNECTION_PROTOCOL, cmd.DEFAULT_CONNECTOR_HOST, cmd.DEFAULT_CONNECTOR_API_PORT, ""), "Connection string like tcp://x.x.x.x:yyyy or unix:///path/to/socket")
+	connectionString := flag.String("connection_string", network.BuildConnectionString(cmd.DEFAULT_ACRACONNECTOR_CONNECTION_PROTOCOL, cmd.DEFAULT_ACRACONNECTOR_HOST, cmd.DEFAULT_ACRACONNECTOR_PORT, ""), "Connection string like tcp://x.x.x.x:yyyy or unix:///path/to/socket")
+	connectionAPIString := flag.String("connection_api_string", network.BuildConnectionString(cmd.DEFAULT_ACRACONNECTOR_CONNECTION_PROTOCOL, cmd.DEFAULT_ACRACONNECTOR_HOST, cmd.DEFAULT_ACRACONNECTOR_API_PORT, ""), "Connection string like tcp://x.x.x.x:yyyy or unix:///path/to/socket")
 	acraConnectionString := flag.String("acra_connection_string", "", "Connection string to AcraServer like tcp://x.x.x.x:yyyy or unix:///path/to/socket")
 	acraApiConnectionString := flag.String("acra_api_connection_string", "", "Connection string to Acra's API like tcp://x.x.x.x:yyyy or unix:///path/to/socket")
 
@@ -184,11 +184,11 @@ func main() {
 		os.Exit(1)
 	}
 
-	if *port != cmd.DEFAULT_CONNECTOR_PORT {
-		*connectionString = network.BuildConnectionString(cmd.DEFAULT_CONNECTOR_CONNECTION_PROTOCOL, cmd.DEFAULT_CONNECTOR_HOST, *port, "")
+	if *acraConnectorPort != cmd.DEFAULT_ACRACONNECTOR_PORT {
+		*connectionString = network.BuildConnectionString(cmd.DEFAULT_ACRACONNECTOR_CONNECTION_PROTOCOL, cmd.DEFAULT_ACRACONNECTOR_HOST, *acraConnectorPort, "")
 	}
-	if *commandsPort != cmd.DEFAULT_CONNECTOR_API_PORT {
-		*connectionAPIString = network.BuildConnectionString(cmd.DEFAULT_CONNECTOR_CONNECTION_PROTOCOL, cmd.DEFAULT_CONNECTOR_HOST, *commandsPort, "")
+	if *acraConnectorCommandsPort != cmd.DEFAULT_ACRACONNECTOR_API_PORT {
+		*connectionAPIString = network.BuildConnectionString(cmd.DEFAULT_ACRACONNECTOR_CONNECTION_PROTOCOL, cmd.DEFAULT_ACRACONNECTOR_HOST, *acraConnectorCommandsPort, "")
 	}
 
 	if *acraHost == "" && *acraConnectionString == "" {
@@ -197,7 +197,7 @@ func main() {
 		os.Exit(1)
 	}
 	if *acraHost != "" {
-		*acraConnectionString = network.BuildConnectionString(cmd.DEFAULT_ACRA_CONNECTION_PROTOCOL, *acraHost, *acraPort, "")
+		*acraConnectionString = network.BuildConnectionString(cmd.DEFAULT_ACRA_CONNECTION_PROTOCOL, *acraHost, *acraServerPort, "")
 	}
 	if *enableHTTPApi {
 		if *acraHost == "" && *acraApiConnectionString == "" {
@@ -206,7 +206,7 @@ func main() {
 			os.Exit(1)
 		}
 		if *acraHost != "" {
-			*acraApiConnectionString = network.BuildConnectionString(cmd.DEFAULT_ACRA_CONNECTION_PROTOCOL, *acraHost, *acraCommandsPort, "")
+			*acraApiConnectionString = network.BuildConnectionString(cmd.DEFAULT_ACRA_CONNECTION_PROTOCOL, *acraHost, *acraServerCommandsPort, "")
 		}
 	}
 
@@ -266,7 +266,7 @@ func main() {
 	}
 
 	log.Debugf("Start listening connections")
-	config := &Config{KeyStore: keyStore, KeysDir: *keysDir, ClientId: []byte(*clientId), AcraConnectionString: *acraConnectionString, ConnectionString: *connectionString, AcraId: []byte(*acraId), disableUserCheck: *disableUserCheck}
+	config := &Config{KeyStore: keyStore, KeysDir: *keysDir, ClientId: []byte(*clientId), AcraConnectionString: *acraConnectionString, ConnectionString: *connectionString, AcraId: []byte(*acraServerId), disableUserCheck: *disableUserCheck}
 	listener, err := network.Listen(*connectionString)
 	if err != nil {
 		log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantStartListenConnections).
