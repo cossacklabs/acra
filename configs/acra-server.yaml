@@ -1,4 +1,4 @@
-# Path to basic auth passwords. To add user, use: `./acra_genauth --set --user <user> --pwd <pwd>`
+# Path to basic auth passwords. To add user, use: `./acra-authmanager --set --user <user> --pwd <pwd>`
 auth_keys: configs/auth.keys
 
 # Path to AcraCensor configuration file

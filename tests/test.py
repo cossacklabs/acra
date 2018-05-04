@@ -178,7 +178,7 @@ def create_client_keypair(name, only_server=False, only_client=False):
     return subprocess.call(args, cwd=os.getcwd(), timeout=PROCESS_CALL_TIMEOUT)
 
 def manage_basic_auth_user(action, user_name, user_password):
-    args = ['./acra_genauth', '--{}'.format(action),
+    args = ['./acra-authmanager', '--{}'.format(action),
             '--file={}'.format(ACRAWEBCONFIG_AUTH_DB_PATH),
             '--user={}'.format(user_name),
             '--password={}'.format(user_password)]
@@ -275,7 +275,7 @@ BINARIES = [
            build_args=DEFAULT_BUILD_ARGS),
     Binary(name='acra-rollback', from_version=ACRAROLLBACK_MIN_VERSION,
            build_args=DEFAULT_BUILD_ARGS),
-    Binary(name='acra_genauth', from_version=DEFAULT_VERSION,
+    Binary(name='acra-authmanager', from_version=DEFAULT_VERSION,
            build_args=DEFAULT_BUILD_ARGS),
     Binary(name='acra-webconfig', from_version=DEFAULT_VERSION,
            build_args=DEFAULT_BUILD_ARGS)
@@ -1626,7 +1626,7 @@ class TestAcraGenKeys(unittest.TestCase):
         self.assertEqual(create_client_keypair(POISON_KEY_PATH), 1)
 
 
-class TestAcraWebconfigGenAuth(unittest.TestCase):
+class TestAcraWebconfigAcraAuthManager(unittest.TestCase):
     def testUIGenAuth(self):
         self.assertEqual(manage_basic_auth_user('set', 'test', 'test'), 0)
         self.assertEqual(manage_basic_auth_user('set', ACRAWEBCONFIG_BASIC_AUTH['user'], ACRAWEBCONFIG_BASIC_AUTH['password']), 0)
