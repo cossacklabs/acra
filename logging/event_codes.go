@@ -41,7 +41,7 @@ const (
 	EventCodeErrorCantConnectToDB       = 540
 	EventCodeErrorCantCloseConnectionDB = 541
 
-	// config UI
+	// AcraWebconfig
 	EventCodeErrorCantReadTemplate        = 550
 	EventCodeErrorRequestMethodNotAllowed = 551
 	EventCodeErrorCantParseRequestData    = 552

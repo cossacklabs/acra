@@ -4,7 +4,7 @@ acra-connector: false
 # Create keypair for AcraServer only
 acra-server: false
 
-# Create symmetric key for acra_configui's basic auth db
+# Create symmetric key for AcraWebconfig's basic auth db
 basicauth: false
 
 # Client id
