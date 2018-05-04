@@ -153,7 +153,7 @@ def get_master_key():
         master_key = os.environ.get(ACRA_MASTER_KEY_VAR_NAME)
         if not master_key:
             subprocess.check_output([
-                './acra_genkeys', '--master_key={}'.format(MASTER_KEY_PATH)])
+                './acra-keymaker', '--master_key={}'.format(MASTER_KEY_PATH)])
             with open(MASTER_KEY_PATH, 'rb') as f:
                 master_key = b64encode(f.read()).decode('ascii')
     return master_key
@@ -165,12 +165,12 @@ def get_poison_record():
     global poison_record
     if not poison_record:
         poison_record = b64decode(subprocess.check_output(
-            ['./acra_genpoisonrecord'], timeout=PROCESS_CALL_TIMEOUT))
+            ['./acra-poisonrecordmaker'], timeout=PROCESS_CALL_TIMEOUT))
     return poison_record
 
 
 def create_client_keypair(name, only_server=False, only_client=False):
-    args = ['./acra_genkeys', '-client_id={}'.format(name)]
+    args = ['./acra-keymaker', '-client_id={}'.format(name)]
     if only_server:
         args.append('-acra-server')
     elif only_client:
@@ -267,11 +267,11 @@ BINARIES = [
     # compile with Test=true to disable golang tls client server verification
     Binary(name='acra-server', from_version=DEFAULT_VERSION,
            build_args=['-ldflags', '-X main.TestOnly=true']),
-    Binary(name='acra_addzone', from_version=DEFAULT_VERSION,
+    Binary(name='acra-addzone', from_version=DEFAULT_VERSION,
            build_args=DEFAULT_BUILD_ARGS),
-    Binary(name='acra_genkeys', from_version=DEFAULT_VERSION,
+    Binary(name='acra-keymaker', from_version=DEFAULT_VERSION,
            build_args=DEFAULT_BUILD_ARGS),
-    Binary(name='acra_genpoisonrecord', from_version=DEFAULT_VERSION,
+    Binary(name='acra-poisonrecordmaker', from_version=DEFAULT_VERSION,
            build_args=DEFAULT_BUILD_ARGS),
     Binary(name='acra-rollback', from_version=ACRAROLLBACK_MIN_VERSION,
            build_args=DEFAULT_BUILD_ARGS),
@@ -338,9 +338,9 @@ def setUpModule():
     assert create_client_keypair('keypair2') == 0
     # add two zones
     zones.append(json.loads(subprocess.check_output(
-        ['./acra_addzone'], cwd=os.getcwd(), timeout=PROCESS_CALL_TIMEOUT).decode('utf-8')))
+        ['./acra-addzone'], cwd=os.getcwd(), timeout=PROCESS_CALL_TIMEOUT).decode('utf-8')))
     zones.append(json.loads(subprocess.check_output(
-        ['./acra_addzone'], cwd=os.getcwd(), timeout=PROCESS_CALL_TIMEOUT).decode('utf-8')))
+        ['./acra-addzone'], cwd=os.getcwd(), timeout=PROCESS_CALL_TIMEOUT).decode('utf-8')))
     socket.setdefaulttimeout(SOCKET_CONNECT_TIMEOUT)
 
 
@@ -1620,7 +1620,7 @@ class TestAcraRollback(BaseTestCase):
             self.assertIn(data[0], source_data)
 
 
-class TestAcraGenKeys(unittest.TestCase):
+class TestAcraKeyMakers(unittest.TestCase):
     def test_only_alpha_client_id(self):
         # call with directory separator in key name
         self.assertEqual(create_client_keypair(POISON_KEY_PATH), 1)

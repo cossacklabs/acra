@@ -16,7 +16,7 @@ require "base64"
 require 'pg'
 require 'acrawriter'
 
-# output from ./acra_addzone. you should assign your values
+# output from ./acra-addzone.go you should assign your values
 zone_data = JSON.parse('{"id":"DDDDDDDDhydxgNoxWYxYRZzf","public_key":"VUVDMgAAAC11q5/TAmIAS42yyuNISRCsbl56D/yBH0iSZ9nmVfhdaOP0mwSH"}')
 
 conn = PG.connect( dbname: 'acra', host: '127.0.0.1', port: '9494', user: 'postgres', password: 'postgres' )
