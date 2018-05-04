@@ -186,13 +186,13 @@ def manage_basic_auth_user(action, user_name, user_password):
 
 
 def wait_connection(port, count=10, sleep=0.1):
-    """try connect to localhost:port and close connection
+    """try connect to 127.0.0.1:port and close connection
     if can't then sleep on and try again (<count> times)
     if <count> times is failed than raise Exception
     """
     while count:
         try:
-            connection = socket.create_connection(('localhost', port),
+            connection = socket.create_connection(('127.0.0.1', port),
                                                   timeout=10)
             connection.close()
             return
@@ -227,7 +227,7 @@ def get_postgresql_unix_connection_string(port, dbname):
     return '{}:///{}?host={}'.format(DB_DRIVER, dbname, PG_UNIX_HOST)
 
 def get_postgresql_tcp_connection_string(port, dbname):
-    return '{}://localhost:{}/{}'.format(DB_DRIVER, port, dbname)
+    return '{}://127.0.0.1:{}/{}'.format(DB_DRIVER, port, dbname)
 
 def get_acra_unix_connection_string(port):
     return "unix://{}".format("{}/unix_socket_{}".format(PG_UNIX_HOST, port))
@@ -241,7 +241,7 @@ def get_proxy_connection_string(port):
         return 'unix://{}/.s.PGSQL.{}'.format(PG_UNIX_HOST, port)
 
 def get_tcp_connection_string(port):
-    return 'tcp://localhost:{}'.format(port)
+    return 'tcp://127.0.0.1:{}'.format(port)
 
 def socket_path_from_connection_string(connection_string):
     if '://' in connection_string:
@@ -363,7 +363,7 @@ class ProcessStub(object):
 
 
 class BaseTestCase(unittest.TestCase):
-    DB_HOST = os.environ.get('TEST_DB_HOST', 'localhost')
+    DB_HOST = os.environ.get('TEST_DB_HOST', '127.0.0.1')
     DB_NAME = os.environ.get('TEST_DB_NAME', 'postgres')
     DB_PORT = os.environ.get('TEST_DB_PORT', 5432)
     DEBUG_LOG = os.environ.get('DEBUG_LOG', True)
@@ -419,7 +419,7 @@ class BaseTestCase(unittest.TestCase):
         args = [
             './acra_configui',
             '-port={}'.format(http_port),
-            '-acra_host=localhost',
+            '-acra_host=127.0.0.1',
             '-acra_port={}'.format(proxy_port),
             '-static_path={}'.format(CONFIG_UI_STATIC_PATH)
         ]
@@ -440,7 +440,7 @@ class BaseTestCase(unittest.TestCase):
         proxy_connection = self.get_proxy_connection_string(proxy_port)
         if zone_mode:
             # because standard library can send http requests only through tcp and cannot through unix socket
-            proxy_api_connection = "tcp://localhost:{}".format(commands_port)
+            proxy_api_connection = "tcp://127.0.0.1:{}".format(commands_port)
         else:
             # now it's no matter, so just +100
             proxy_api_connection = self.get_proxy_api_connection_string(commands_port if commands_port else proxy_port + 100)
@@ -498,7 +498,7 @@ class BaseTestCase(unittest.TestCase):
         return get_proxy_connection_string(port)
 
     def get_config_ui_connection_url(self):
-        return 'http://{}:{}'.format('localhost', CONFIG_UI_HTTP_PORT)
+        return 'http://{}:{}'.format('127.0.0.1', CONFIG_UI_HTTP_PORT)
 
     def get_acraserver_bin_path(self):
         return './acraserver'
@@ -1390,7 +1390,7 @@ class TestKeyStorageClearing(BaseTestCase):
         # execute any query for loading key by acra
         result = self.engine1.execute(sa.select([1]).limit(1))
         result.fetchone()
-        with urlopen('http://localhost:{}/resetKeyStorage'.format(self.PROXY_COMMAND_PORT_1)) as response:
+        with urlopen('http://127.0.0.1:{}/resetKeyStorage'.format(self.PROXY_COMMAND_PORT_1)) as response:
             self.assertEqual(response.status, 200)
         # delete key for excluding reloading from FS
         os.remove('.acrakeys/{}.pub'.format(self.key_name))
@@ -1856,7 +1856,7 @@ class SSLMysqlMixin(SSLPostgresqlMixin):
                     tls_cert='tests/server.crt',
                     tls_ca='tests/server.crt',
                     tls_auth=0,
-                    #tls_sni="localhost",
+                    #tls_sni="127.0.0.1",
                     no_encryption=True, client_id='keypair1')
                 # create second acra without settings for tls to check that
                 # connection will be closed on tls handshake
