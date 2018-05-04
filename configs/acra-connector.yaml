@@ -46,7 +46,7 @@ keys_dir: .acrakeys
 # Logging format: plaintext, json or CEF
 logging_format: plaintext
 
-# Use raw transport (tcp/unix socket) between AcraServer and AcraConnector/client (don't use this flag if you not connect to database with ssl/tls
+# Use raw transport (tcp/unix socket) between acraserver and acraproxy/client (don't use this flag if you not connect to database with ssl/tls
 no_encryption: false
 
 # Port to AcraConnector
@@ -55,16 +55,19 @@ port: 9494
 # Use tls to encrypt transport between AcraServer and AcraConnector/client
 tls: false
 
-# Path to root certificate
+# Set authentication mode that will be used in TLS connection with Postgresql. Values in range 0-4 that set auth type (https://golang.org/pkg/crypto/tls/#ClientAuthType). Default is tls.RequireAndVerifyClientCert
+tls_auth: 4
+
+# Path to root certificate which will be used with system root certificates to validate AcraServer's certificate
 tls_ca: 
 
-# Path to tls client's certificate
+# Path to certificate
 tls_cert: 
 
-# Path to tls client's key
+# Path to private key that will be used in TLS handshake with AcraServer
 tls_key: 
 
-# Expected Server Name (SNI)
+# Expected Server Name (SNI) from AcraServer
 tls_sni: 
 
 # Log to stderr

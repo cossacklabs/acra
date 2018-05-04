@@ -39,10 +39,10 @@ func (wrapper *TLSConnectionWrapper) WrapServer(conn net.Conn) (net.Conn, []byte
 	return tlsConn, wrapper.clientId, nil
 }
 
-func NewTLSConfig(serverName string, caPath, keyPath, crtPath string) (*tls.Config, error) {
+func NewTLSConfig(serverName string, caPath, keyPath, crtPath string, authType tls.ClientAuthType) (*tls.Config, error) {
 	var roots *x509.CertPool
 	var err error
-
+	// use system pool as default
 	if roots, err = x509.SystemCertPool(); err != nil {
 		log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorGeneral).
 			Errorln("Can't load system ca certificates")
@@ -50,6 +50,7 @@ func NewTLSConfig(serverName string, caPath, keyPath, crtPath string) (*tls.Conf
 	if roots == nil {
 		roots = x509.NewCertPool()
 	}
+	// add user's ca if not empty
 	if caPath != "" {
 		caPem, err := ioutil.ReadFile(caPath)
 		if err != nil {
@@ -62,14 +63,19 @@ func NewTLSConfig(serverName string, caPath, keyPath, crtPath string) (*tls.Conf
 			return nil, errors.New("can't add CA certificate")
 		}
 	}
-	cer, err := tls.LoadX509KeyPair(crtPath, keyPath)
-	if err != nil {
-		return nil, err
+	// use certificate if not empty
+	certificates := []tls.Certificate{}
+	if crtPath != "" && keyPath != "" {
+		cer, err := tls.LoadX509KeyPair(crtPath, keyPath)
+		if err != nil {
+			return nil, err
+		}
+		certificates = append(certificates, cer)
 	}
 	return &tls.Config{
 		RootCAs:      roots,
 		ClientCAs:    roots,
-		Certificates: []tls.Certificate{cer},
+		Certificates: certificates,
 		ServerName:   serverName,
-		ClientAuth:   tls.RequireAndVerifyClientCert}, nil
+		ClientAuth:   authType}, nil
 }

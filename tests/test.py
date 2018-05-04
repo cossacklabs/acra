@@ -267,7 +267,6 @@ BINARIES = [
     # compile with Test=true to disable golang tls client server verification
     Binary(name='acra-server', from_version=DEFAULT_VERSION,
            build_args=['-ldflags', '-X main.TestOnly=true']),
-
     Binary(name='acra_addzone', from_version=DEFAULT_VERSION,
            build_args=DEFAULT_BUILD_ARGS),
     Binary(name='acra_genkeys', from_version=DEFAULT_VERSION,
@@ -429,6 +428,11 @@ class BaseTestCase(unittest.TestCase):
         process = self.fork(lambda: subprocess.Popen(args))
         return process
 
+    def get_connector_tls_params(self):
+        return [
+            '--tls',
+            '--tls_sni=acraserver',
+        ]
 
     def fork_connector(self, connector_port: int, acra_port: int, client_id: str, commands_port: int=None, zone_mode: bool=False, check_connection: bool=True):
         acra_connection = self.get_acra_connection_string(acra_port)
@@ -460,11 +464,7 @@ class BaseTestCase(unittest.TestCase):
         if zone_mode:
             args.append('--enable_http_api=true')
         if self.TLS_ON:
-            args.append('--tls')
-            args.append('--tls_ca=tests/server.crt')
-            args.append('--tls_key=tests/client.key')
-            args.append('--tls_cert=tests/client.crt')
-            args.append('--tls_sni=acraserver')
+            args.extend(self.get_connector_tls_params())
         process = self.fork(lambda: subprocess.Popen(args))
         if check_connection:
             try:
@@ -498,7 +498,7 @@ class BaseTestCase(unittest.TestCase):
         return get_connector_connection_string(port)
 
     def get_config_ui_connection_url(self):
-        return 'http://{}:{}'.format('localhost', CONFIG_UI_HTTP_PORT)
+        return 'http://{}:{}'.format('127.0.0.1', CONFIG_UI_HTTP_PORT)
 
     def get_acraserver_bin_path(self):
         return './acra-server'
@@ -534,8 +534,7 @@ class BaseTestCase(unittest.TestCase):
             args['tls'] = 'true'
             args['tls_key'] = 'tests/server.key'
             args['tls_cert'] = 'tests/server.crt'
-            args['tls_ca'] = 'tests/server.crt'
-            args['tls_sni'] = 'acraserver'
+            args['tls_auth'] = 0
         if TEST_MYSQL:
             args['mysql'] = 'true'
             args['postgresql'] = 'false'
@@ -1255,7 +1254,9 @@ class AcraCatchLogsMixin(object):
     def read_log(self, process):
         with open(self.log_files[process].name, 'r', errors='replace',
                   encoding='utf-8') as f:
-            return f.read()
+            log = f.read()
+            print(log.encode('utf-8'))
+            return log
 
     def fork_acra(self, popen_kwargs: dict=None, **acra_kwargs: dict):
         log_file = tempfile.NamedTemporaryFile('w+', encoding='utf-8')
@@ -1811,6 +1812,12 @@ class TLSBetweenConnectorAndServerMixin(object):
     def fork_acra(self, popen_kwargs: dict=None, **acra_kwargs: dict):
         return self._fork_acra({'client_id': 'keypair1'}, popen_kwargs)
 
+    def get_connector_tls_params(self):
+        base_params = super(TLSBetweenConnectorAndServerMixin, self).get_connector_tls_params()
+        # client side need CA cert to verify server's
+        base_params.append('--tls_ca=tests/server.crt')
+        return base_params
+
     def setUp(self):
         super(TLSBetweenConnectorAndServerMixin, self).setUp()
         # acra works with one client id and no matter from which proxy connection come
@@ -1848,7 +1855,8 @@ class SSLMysqlMixin(SSLPostgresqlMixin):
                     tls_key='tests/server.key',
                     tls_cert='tests/server.crt',
                     tls_ca='tests/server.crt',
-                    tls_sni="acraserver",
+                    tls_auth=0,
+                    #tls_sni="127.0.0.1",
                     no_encryption=True, client_id='keypair1')
                 # create second acra without settings for tls to check that
                 # connection will be closed on tls handshake
@@ -1857,8 +1865,8 @@ class SSLMysqlMixin(SSLPostgresqlMixin):
                     port=self.ACRA2_PORT)
             self.driver_to_acraserver_ssl_settings = {
                 'ca': 'tests/server.crt',
-                'cert': 'tests/client.crt',
-                'key': 'tests/client.key',
+                #'cert': 'tests/client.crt',
+                #'key': 'tests/client.key',
                 'check_hostname': False
             }
             self.engine_raw = sa.create_engine(
