@@ -10,11 +10,19 @@ import (
 type QueryCaptureHandler struct {
 	Queries []QueryInfo
 	filePath string
+	occuredError *CaptureError
+
+	logChannel chan QueryInfo
 }
 
 type QueryInfo struct {
 	RawQuery string
 	IsForbidden bool
+}
+
+type CaptureError struct {
+	err error
+	query *QueryInfo
 }
 
 func NewQueryCaptureHandler(filePath string) (*QueryCaptureHandler, error) {
@@ -26,10 +34,60 @@ func NewQueryCaptureHandler(filePath string) (*QueryCaptureHandler, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &QueryCaptureHandler{Queries:nil, filePath:filePath}, nil
+
+	emptyQuery := &QueryInfo{RawQuery:"", IsForbidden:false}
+	occuredError := &CaptureError{err:nil, query:emptyQuery}
+
+	logChannel_ := make(chan QueryInfo)
+
+	go func (){
+		for {
+			select {
+			case queryInfo, gotQuery := <-logChannel_:
+				if gotQuery {
+					bytes, err := json.Marshal(queryInfo)
+					if err != nil {
+						occuredError.query = &queryInfo
+						occuredError.err = err
+					}
+
+					f, err := os.OpenFile(filePath, os.O_APPEND|os.O_WRONLY|os.O_CREATE, 0600)
+					if err != nil {
+						occuredError.query = &queryInfo
+						occuredError.err = err
+					}
+
+					defer f.Close()
+					if _, err = f.WriteString("\n"); err != nil {
+						occuredError.query = &queryInfo
+						occuredError.err = err
+					}
+
+					if _, err = f.Write(bytes); err != nil {
+						occuredError.query = &queryInfo
+						occuredError.err = err
+					}
+				} else {
+					//channel is closed
+					return
+				}
+			default:
+			}
+		}
+	}()
+
+	return &QueryCaptureHandler{Queries:nil, filePath:filePath, occuredError: occuredError, logChannel:logChannel_}, nil
+}
+
+func (handler *QueryCaptureHandler) GetErrorQuery() string {
+	return handler.occuredError.query.RawQuery
 }
 
 func (handler *QueryCaptureHandler) CheckQuery(query string) error {
+	if handler.occuredError.err != nil{
+		return handler.occuredError.err
+	}
+
 	//skip already logged queries
 	for _, queryInfo := range handler.Queries{
 		if strings.EqualFold(queryInfo.RawQuery, query){
@@ -40,7 +98,10 @@ func (handler *QueryCaptureHandler) CheckQuery(query string) error {
 	queryInfo.RawQuery = query
 	queryInfo.IsForbidden = false
 	handler.Queries = append(handler.Queries, *queryInfo)
-	return handler.Serialize()
+
+	handler.logChannel <- *queryInfo
+
+	return nil
 }
 
 func (handler *QueryCaptureHandler) Reset() {
@@ -80,7 +141,6 @@ func (handler *QueryCaptureHandler) Serialize() error {
 		return err
 	}
 	return ioutil.WriteFile(handler.filePath, jsonFile, 0600)
-
 }
 
 func (handler *QueryCaptureHandler) Deserialize() error {

@@ -461,6 +461,7 @@ func TestConfigurationProvider(t *testing.T) {
 		}
 	}
 
+
 	testQueries = []string{
 		"INSERT INTO EMPLOYEE_TBL VALUES (1, 'Stephen', 'Jiang');",
 		"SELECT AVG(Price) FROM Customers;",
@@ -500,7 +501,7 @@ func TestConfigurationProvider(t *testing.T) {
 		}
 	}
 
-	expectedQueriesInCensorLog := "[{\"RawQuery\":\"INSERT INTO SalesStaff1 VALUES (1, 'Stephen', 'Jiang');\",\"IsForbidden\":false},{\"RawQuery\":\"SELECT AVG(Price) FROM Products;\",\"IsForbidden\":false},{\"RawQuery\":\"INSERT INTO EMPLOYEE_TBL VALUES (1, 'Stephen', 'Jiang');\",\"IsForbidden\":false},{\"RawQuery\":\"SELECT AVG(Price) FROM Customers;\",\"IsForbidden\":false},{\"RawQuery\":\"SELECT EMP_ID, LAST_NAME FROM EMPLOYEE WHERE CITY = 'Seattle' ORDER BY EMP_ID;\",\"IsForbidden\":false},{\"RawQuery\":\"SELECT EMP_ID, LAST_NAME FROM EMPLOYEE AS EMPL WHERE CITY = 'Seattle' ORDER BY EMP_ID;\",\"IsForbidden\":false},{\"RawQuery\":\"SELECT EMP_ID, LAST_NAME FROM PRODUCTS WHERE CITY='INDIANAPOLIS' ORDER BY EMP_ID;\",\"IsForbidden\":false},{\"RawQuery\":\"SELECT EMP_ID, LAST_NAME FROM PRODUCTS WHERE CITY='INDIANAPOLIS' ORDER BY EMP_ID asc;\",\"IsForbidden\":false}]"
+	expectedQueriesInCensorLog := "\n{\"RawQuery\":\"INSERT INTO SalesStaff1 VALUES (1, 'Stephen', 'Jiang');\",\"IsForbidden\":false}\n{\"RawQuery\":\"SELECT AVG(Price) FROM Products;\",\"IsForbidden\":false}\n{\"RawQuery\":\"INSERT INTO EMPLOYEE_TBL VALUES (1, 'Stephen', 'Jiang');\",\"IsForbidden\":false}\n{\"RawQuery\":\"SELECT AVG(Price) FROM Customers;\",\"IsForbidden\":false}\n{\"RawQuery\":\"SELECT EMP_ID, LAST_NAME FROM EMPLOYEE WHERE CITY = 'Seattle' ORDER BY EMP_ID;\",\"IsForbidden\":false}\n{\"RawQuery\":\"SELECT EMP_ID, LAST_NAME FROM EMPLOYEE AS EMPL WHERE CITY = 'Seattle' ORDER BY EMP_ID;\",\"IsForbidden\":false}\n{\"RawQuery\":\"SELECT EMP_ID, LAST_NAME FROM PRODUCTS WHERE CITY='INDIANAPOLIS' ORDER BY EMP_ID;\",\"IsForbidden\":false}\n{\"RawQuery\":\"SELECT EMP_ID, LAST_NAME FROM PRODUCTS WHERE CITY='INDIANAPOLIS' ORDER BY EMP_ID asc;\",\"IsForbidden\":false}"
 
 	censorLogsBytes, err := ioutil.ReadFile("censor_log")
 	if err != nil {
@@ -508,7 +509,7 @@ func TestConfigurationProvider(t *testing.T) {
 	}
 
 	if !strings.EqualFold(expectedQueriesInCensorLog, string(censorLogsBytes)){
-		t.Fatal("Configuration parsing logic error 1")
+		t.Fatal("Expected: " + expectedQueriesInCensorLog + " Got: " + string(censorLogsBytes))
 	}
 
 	err = os.Remove("censor_log")
@@ -724,6 +725,66 @@ func TestLogging(t *testing.T){
 	for index := 3; index < len(testQueries); index++ {
 		err = acraCensor.HandleQuery(testQueries[index])
 		if err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	if err = os.Remove(tmpFile.Name()); err != nil {
+		t.Fatal(err)
+	}
+}
+func TestQueryCapture(t *testing.T){
+
+	tmpFile, err := ioutil.TempFile("", "censor_log")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if err = tmpFile.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	handler, err := handlers.NewQueryCaptureHandler(tmpFile.Name())
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	testQueries := []string{
+		"SELECT * FROM Schema.Tables;",
+		"SELECT Student_ID FROM STUDENT;",
+		"SELECT * FROM STUDENT;",
+		"SELECT * FROM X;",
+		"SELECT * FROM Y;",
+	}
+	expected := "\n{\"RawQuery\":\"SELECT * FROM Schema.Tables;\",\"IsForbidden\":false}\n{\"RawQuery\":\"SELECT Student_ID FROM STUDENT;\",\"IsForbidden\":false}\n{\"RawQuery\":\"SELECT * FROM STUDENT;\",\"IsForbidden\":false}\n{\"RawQuery\":\"SELECT * FROM X;\",\"IsForbidden\":false}\n{\"RawQuery\":\"SELECT * FROM Y;\",\"IsForbidden\":false}"
+
+	for _, query := range testQueries{
+		err = handler.CheckQuery(query)
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	result, err := ioutil.ReadFile(tmpFile.Name())
+	if (!strings.EqualFold(string(result), expected)) {
+		t.Fatal("Expected: " + expected + "\nGot: " + string(result))
+	}
+
+	err = handler.Serialize()
+
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	handler.Reset()
+
+	err = handler.Deserialize()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	for index, singleTestQuery := range testQueries {
+		if !strings.EqualFold(singleTestQuery, handler.Queries[index].RawQuery){
 			t.Fatal(err)
 		}
 	}
