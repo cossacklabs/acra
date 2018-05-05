@@ -8,7 +8,7 @@ import (
 	"net"
 	"time"
 
-	"github.com/cossacklabs/acra/acracensor"
+	"github.com/cossacklabs/acra/acra-censor"
 	"github.com/cossacklabs/acra/decryptor/base"
 	"github.com/cossacklabs/acra/logging"
 	"github.com/cossacklabs/acra/network"
@@ -138,7 +138,7 @@ type MysqlHandler struct {
 	// clientDeprecateEOF  if false then expect EOF on response result as terminator otherwise not
 	clientDeprecateEOF     bool
 	decryptor              base.Decryptor
-	acracensor             acracensor.AcracensorInterface
+	acracensor             acracensor.AcraCensorInterface
 	isTLSHandshake         bool
 	dbTLSHandshakeFinished chan bool
 	clientConnection       net.Conn
@@ -146,7 +146,7 @@ type MysqlHandler struct {
 	tlsConfig              *tls.Config
 }
 
-func NewMysqlHandler(decryptor base.Decryptor, dbConnection, clientConnection net.Conn, tlsConfig *tls.Config, censor acracensor.AcracensorInterface) (*MysqlHandler, error) {
+func NewMysqlHandler(decryptor base.Decryptor, dbConnection, clientConnection net.Conn, tlsConfig *tls.Config, censor acracensor.AcraCensorInterface) (*MysqlHandler, error) {
 	return &MysqlHandler{isTLSHandshake: false, dbTLSHandshakeFinished: make(chan bool), clientDeprecateEOF: false, decryptor: decryptor, responseHandler: defaultResponseHandler, acracensor: censor, clientConnection: clientConnection, dbConnection: dbConnection, tlsConfig: tlsConfig}, nil
 }
 
@@ -243,7 +243,7 @@ func (handler *MysqlHandler) ClientToDbConnector(errCh chan<- error) {
 			sqlQuery := string(data)
 			if err := handler.acracensor.HandleQuery(sqlQuery); err != nil {
 				log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCensorQueryIsNotAllowed).
-					Errorln("Error on acracensor check")
+					Errorln("Error on AcraCensor check")
 				errPacket := NewQueryInterruptedError(handler.clientProtocol41)
 				packet.SetData(errPacket)
 				if _, err := handler.clientConnection.Write(packet.Dump()); err != nil {

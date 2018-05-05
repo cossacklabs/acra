@@ -48,7 +48,7 @@ var parsedTemplate *template.Template
 var err error
 var configParamsBytes []byte
 
-var SERVICE_NAME = "acra_configui"
+var SERVICE_NAME = "acra-webconfig"
 var DEFAULT_CONFIG_PATH = utils.GetConfigPathByName(SERVICE_NAME)
 
 var ErrGetAuthDataFromAcraServer = errors.New("Wrong status for loadAuthData")
@@ -254,7 +254,7 @@ func index(w http.ResponseWriter, r *http.Request) {
 }
 
 func BasicAuthHandler(handler http.HandlerFunc) http.HandlerFunc {
-	var realm = "AcraConfigUI"
+	var realm = "AcraWebConfig"
 
 	return func(w http.ResponseWriter, r *http.Request) {
 		if *authMode == "auth_on" ||
@@ -368,16 +368,16 @@ func loadAuthData() (err error) {
 }
 
 func main() {
-	host = flag.String("host", cmd.DEFAULT_ACRA_CONFIGUI_HOST, "Host for configUI HTTP endpoint")
-	port = flag.Int("port", cmd.DEFAULT_ACRA_CONFIGUI_PORT, "Port for configUI HTTP endpoint")
+	host = flag.String("host", cmd.DEFAULT_ACRAWEBCONFIG_HOST, "Host for AcraWebconfig HTTP endpoint")
+	port = flag.Int("port", cmd.DEFAULT_ACRAWEBCONFIG_PORT, "Port for AcraWebconfig HTTP endpoint")
 	loggingFormat := flag.String("logging_format", "plaintext", "Logging format: plaintext, json or CEF")
 	logging.CustomizeLogging(*loggingFormat, SERVICE_NAME)
 	log.Infof("Starting service")
 	acraHost = flag.String("acra_host", "localhost", "Host for Acraserver HTTP endpoint or AcraConnector")
 	acraPort = flag.Int("acra_port", cmd.DEFAULT_ACRACONNECTOR_API_PORT, "Port for Acraserver HTTP endpoint or AcraConnector")
-	staticPath = flag.String("static_path", cmd.DEFAULT_ACRA_CONFIGUI_STATIC, "Path to static content")
+	staticPath = flag.String("static_path", cmd.DEFAULT_ACRAWEBCONFIG_STATIC, "Path to static content")
 	debug = flag.Bool("d", false, "Turn on debug logging")
-	authMode = flag.String("auth_mode", cmd.DEFAULT_ACRA_CONFIGUI_AUTH_MODE, "Mode for basic auth. Possible values: auth_on|auth_off_local|auth_off")
+	authMode = flag.String("auth_mode", cmd.DEFAULT_ACRAWEBCONFIG_AUTH_MODE, "Mode for basic auth. Possible values: auth_on|auth_off_local|auth_off")
 
 	err = cmd.Parse(DEFAULT_CONFIG_PATH)
 	if err != nil {
@@ -417,7 +417,7 @@ func main() {
 	http.HandleFunc("/", BasicAuthHandler(index))
 	http.Handle("/static/", http.StripPrefix("/static/", http.FileServer(http.Dir(*staticPath))))
 	http.HandleFunc("/acra-server/submit_setting", BasicAuthHandler(SubmitSettings))
-	log.Infof("AcraConfigUI is listening @ %s:%d with PID %d", *host, *port, os.Getpid())
+	log.Infof("AcraWebconfig is listening @ %s:%d with PID %d", *host, *port, os.Getpid())
 	err = http.ListenAndServe(fmt.Sprintf("%s:%d", *host, *port), nil)
 	check(err)
 }

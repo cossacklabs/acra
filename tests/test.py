@@ -57,9 +57,9 @@ test_table = sa.Table('test', metadata,
     sa.Column('raw_data', sa.Text),
 )
 
-rollback_output_table = sa.Table('acra_rollback_output', metadata,
-    sa.Column('data', sa.LargeBinary),
-)
+acrarollback_output_table = sa.Table('acrarollback_output', metadata,
+                                     sa.Column('data', sa.LargeBinary),
+                                     )
 
 zones = []
 poison_record = None
@@ -67,14 +67,14 @@ master_key = None
 ACRA_MASTER_KEY_VAR_NAME = 'ACRA_MASTER_KEY'
 MASTER_KEY_PATH = 'master.key'
 
-CONFIG_UI_HTTP_PORT = 8022
-CONFIG_UI_AUTH_DB_PATH = 'auth.keys'
-CONFIG_UI_BASIC_AUTH = dict(
+ACRAWEBCONFIG_HTTP_PORT = 8022
+ACRAWEBCONFIG_AUTH_DB_PATH = 'auth.keys'
+ACRAWEBCONFIG_BASIC_AUTH = dict(
     user='test_user',
     password='test_user_password'
 )
-CONFIG_UI_STATIC_PATH = 'cmd/acra_configui/static/'
-CONFIG_HTTP_TIMEOUT = 3
+ACRAWEBCONFIG_STATIC_PATH = 'cmd/acra-webconfig/static/'
+ACRAWEBCONFIG_HTTP_TIMEOUT = 3
 
 POISON_KEY_PATH = '.poison_key/poison_key'
 
@@ -153,7 +153,7 @@ def get_master_key():
         master_key = os.environ.get(ACRA_MASTER_KEY_VAR_NAME)
         if not master_key:
             subprocess.check_output([
-                './acra_genkeys', '--master_key={}'.format(MASTER_KEY_PATH)])
+                './acra-keymaker', '--master_key={}'.format(MASTER_KEY_PATH)])
             with open(MASTER_KEY_PATH, 'rb') as f:
                 master_key = b64encode(f.read()).decode('ascii')
     return master_key
@@ -165,12 +165,12 @@ def get_poison_record():
     global poison_record
     if not poison_record:
         poison_record = b64decode(subprocess.check_output(
-            ['./acra_genpoisonrecord'], timeout=PROCESS_CALL_TIMEOUT))
+            ['./acra-poisonrecordmaker'], timeout=PROCESS_CALL_TIMEOUT))
     return poison_record
 
 
 def create_client_keypair(name, only_server=False, only_client=False):
-    args = ['./acra_genkeys', '-client_id={}'.format(name)]
+    args = ['./acra-keymaker', '-client_id={}'.format(name)]
     if only_server:
         args.append('-acra-server')
     elif only_client:
@@ -178,8 +178,8 @@ def create_client_keypair(name, only_server=False, only_client=False):
     return subprocess.call(args, cwd=os.getcwd(), timeout=PROCESS_CALL_TIMEOUT)
 
 def manage_basic_auth_user(action, user_name, user_password):
-    args = ['./acra_genauth', '--{}'.format(action),
-            '--file={}'.format(CONFIG_UI_AUTH_DB_PATH),
+    args = ['./acra-authmanager', '--{}'.format(action),
+            '--file={}'.format(ACRAWEBCONFIG_AUTH_DB_PATH),
             '--user={}'.format(user_name),
             '--password={}'.format(user_password)]
     return subprocess.call(args, cwd=os.getcwd(), timeout=PROCESS_CALL_TIMEOUT)
@@ -256,7 +256,7 @@ def acra_api_connection_string(port):
 
 DEFAULT_VERSION = '1.5.0'
 DEFAULT_BUILD_ARGS = []
-ACRA_ROLLBACK_MIN_VERSION = "1.8.0"
+ACRAROLLBACK_MIN_VERSION = "1.8.0"
 Binary = collections.namedtuple(
     'Binary', ['name', 'from_version', 'build_args'])
 
@@ -267,17 +267,17 @@ BINARIES = [
     # compile with Test=true to disable golang tls client server verification
     Binary(name='acra-server', from_version=DEFAULT_VERSION,
            build_args=['-ldflags', '-X main.TestOnly=true']),
-    Binary(name='acra_addzone', from_version=DEFAULT_VERSION,
+    Binary(name='acra-addzone', from_version=DEFAULT_VERSION,
            build_args=DEFAULT_BUILD_ARGS),
-    Binary(name='acra_genkeys', from_version=DEFAULT_VERSION,
+    Binary(name='acra-keymaker', from_version=DEFAULT_VERSION,
            build_args=DEFAULT_BUILD_ARGS),
-    Binary(name='acra_genpoisonrecord', from_version=DEFAULT_VERSION,
+    Binary(name='acra-poisonrecordmaker', from_version=DEFAULT_VERSION,
            build_args=DEFAULT_BUILD_ARGS),
-    Binary(name='acra_rollback', from_version=ACRA_ROLLBACK_MIN_VERSION,
+    Binary(name='acra-rollback', from_version=ACRAROLLBACK_MIN_VERSION,
            build_args=DEFAULT_BUILD_ARGS),
-    Binary(name='acra_genauth', from_version=DEFAULT_VERSION,
+    Binary(name='acra-authmanager', from_version=DEFAULT_VERSION,
            build_args=DEFAULT_BUILD_ARGS),
-    Binary(name='acra_configui', from_version=DEFAULT_VERSION,
+    Binary(name='acra-webconfig', from_version=DEFAULT_VERSION,
            build_args=DEFAULT_BUILD_ARGS)
 ]
 
@@ -290,7 +290,7 @@ def clean_binaries():
 
 def clean_misc():
     try:
-        os.unlink('./{}'.format(CONFIG_UI_AUTH_DB_PATH))
+        os.unlink('./{}'.format(ACRAWEBCONFIG_AUTH_DB_PATH))
     except:
         pass
 
@@ -338,9 +338,9 @@ def setUpModule():
     assert create_client_keypair('keypair2') == 0
     # add two zones
     zones.append(json.loads(subprocess.check_output(
-        ['./acra_addzone'], cwd=os.getcwd(), timeout=PROCESS_CALL_TIMEOUT).decode('utf-8')))
+        ['./acra-addzone'], cwd=os.getcwd(), timeout=PROCESS_CALL_TIMEOUT).decode('utf-8')))
     zones.append(json.loads(subprocess.check_output(
-        ['./acra_addzone'], cwd=os.getcwd(), timeout=PROCESS_CALL_TIMEOUT).decode('utf-8')))
+        ['./acra-addzone'], cwd=os.getcwd(), timeout=PROCESS_CALL_TIMEOUT).decode('utf-8')))
     socket.setdefaulttimeout(SOCKET_CONNECT_TIMEOUT)
 
 
@@ -371,15 +371,15 @@ class BaseTestCase(unittest.TestCase):
     CONNECTOR_PORT_1 = int(os.environ.get('TEST_CONNECTOR_PORT', 9595))
     CONNECTOR_PORT_2 = CONNECTOR_PORT_1 + 200
     CONNECTOR_COMMAND_PORT_1 = int(os.environ.get('TEST_CONNECTOR_COMMAND_PORT', 9696))
-    CONFIG_UI_HTTP_PORT = int(os.environ.get('TEST_CONFIG_UI_HTTP_PORT', CONFIG_UI_HTTP_PORT))
+    ACRAWEBCONFIG_HTTP_PORT = int(os.environ.get('TEST_CONFIG_UI_HTTP_PORT', ACRAWEBCONFIG_HTTP_PORT))
     # for debugging with manually runned acra-server
     EXTERNAL_ACRA = False
     ACRA_PORT = int(os.environ.get('TEST_ACRA_PORT', 10003))
     ACRA_BYTEA = 'hex_bytea'
     DB_BYTEA = 'hex'
     WHOLECELL_MODE = False
-    CONFIG_UI_AUTH_KEYS_PATH = os.environ.get('TEST_CONFIG_UI_AUTH_DB_PATH', CONFIG_UI_AUTH_DB_PATH)
-    CONFIG_UI_ACRA_SERVERR_PARAMS = dict(
+    ACRAWEBCONFIG_AUTH_KEYS_PATH = os.environ.get('TEST_CONFIG_UI_AUTH_DB_PATH', ACRAWEBCONFIG_AUTH_DB_PATH)
+    ACRAWEBCONFIG_ACRASERVER_PARAMS = dict(
         db_host=DB_HOST,
         db_port=DB_PORT,
         commands_port=9090,
@@ -415,13 +415,13 @@ class BaseTestCase(unittest.TestCase):
     def wait_acra_connection(self, *args, **kwargs):
         return wait_unix_socket(*args, **kwargs)
 
-    def fork_configui(self, connector_port: int, http_port: int):
+    def fork_webconfig(self, connector_port: int, http_port: int):
         args = [
-            './acra_configui',
+            './acra-webconfig',
             '-port={}'.format(http_port),
             '-acra_host=127.0.0.1',
             '-acra_port={}'.format(connector_port),
-            '-static_path={}'.format(CONFIG_UI_STATIC_PATH)
+            '-static_path={}'.format(ACRAWEBCONFIG_STATIC_PATH)
         ]
         if self.DEBUG_LOG:
             args.append('-d=true')
@@ -497,8 +497,8 @@ class BaseTestCase(unittest.TestCase):
             port = self.CONNECTOR_COMMAND_PORT_1
         return get_connector_connection_string(port)
 
-    def get_config_ui_connection_url(self):
-        return 'http://{}:{}'.format('127.0.0.1', CONFIG_UI_HTTP_PORT)
+    def get_acrawebconfig_connection_url(self):
+        return 'http://{}:{}'.format('127.0.0.1', ACRAWEBCONFIG_HTTP_PORT)
 
     def get_acraserver_bin_path(self):
         return './acra-server'
@@ -528,7 +528,7 @@ class BaseTestCase(unittest.TestCase):
             'd': 'true' if self.DEBUG_LOG else 'false',
             'zonemode': 'true' if self.ZONE else 'false',
             'enable_http_api': 'true' if self.ZONE else 'true',
-            'auth_keys': self.CONFIG_UI_AUTH_KEYS_PATH
+            'auth_keys': self.ACRAWEBCONFIG_AUTH_KEYS_PATH
         }
         if self.TLS_ON:
             args['tls'] = 'true'
@@ -1408,7 +1408,7 @@ class TestAcraRollback(BaseTestCase):
         super(TestAcraRollback, self).checkSkip()
         go_version = get_go_version()
         GREATER, EQUAL, LESS = (1, 0, -1)
-        if semver.compare(go_version, ACRA_ROLLBACK_MIN_VERSION) == LESS:
+        if semver.compare(go_version, ACRAROLLBACK_MIN_VERSION) == LESS:
             self.skipTest("not supported go version")
 
     def setUp(self):
@@ -1418,8 +1418,8 @@ class TestAcraRollback(BaseTestCase):
                                    self.DB_NAME),
             connect_args=connect_args)
 
-        self.output_filename = 'acra_rollback_output.txt'
-        rollback_output_table.create(self.engine_raw, checkfirst=True)
+        self.output_filename = 'acra-rollback_output.txt'
+        acrarollback_output_table.create(self.engine_raw, checkfirst=True)
         if TEST_WITH_TLS:
             self.sslmode='require'
         else:
@@ -1453,7 +1453,7 @@ class TestAcraRollback(BaseTestCase):
             self.placeholder = "$1"
             DB_ARGS = ['--postgresql']
 
-        self.default_rollback_args = [
+        self.default_acrarollback_args = [
             '--client_id=keypair1',
              '--connection_string={}'.format(connection_string),
              '--output_file={}'.format(self.output_filename),
@@ -1461,7 +1461,7 @@ class TestAcraRollback(BaseTestCase):
 
     def tearDown(self):
         try:
-            self.engine_raw.execute(rollback_output_table.delete())
+            self.engine_raw.execute(acrarollback_output_table.delete())
             self.engine_raw.execute(test_table.delete())
         except Exception as exc:
             print(exc)
@@ -1469,8 +1469,8 @@ class TestAcraRollback(BaseTestCase):
         if os.path.exists(self.output_filename):
             os.remove(self.output_filename)
 
-    def run_rollback(self, extra_args):
-        args = ['./acra_rollback'] + self.default_rollback_args + extra_args
+    def run_acrarollback(self, extra_args):
+        args = ['./acra-rollback'] + self.default_acrarollback_args + extra_args
         try:
             subprocess.check_call(
                 args, cwd=os.getcwd(), timeout=PROCESS_CALL_TIMEOUT)
@@ -1499,9 +1499,9 @@ class TestAcraRollback(BaseTestCase):
         args = [
             '--select=select data from {};'.format(test_table.name),
             '--insert=insert into {} values({});'.format(
-                 rollback_output_table.name, self.placeholder)
+                 acrarollback_output_table.name, self.placeholder)
         ]
-        self.run_rollback(args)
+        self.run_acrarollback(args)
 
         # execute file
         with open(self.output_filename, 'r') as f:
@@ -1509,7 +1509,7 @@ class TestAcraRollback(BaseTestCase):
                 self.engine_raw.execute(line)
 
         source_data = set([i['raw_data'].encode('ascii') for i in rows])
-        result = self.engine_raw.execute(rollback_output_table.select())
+        result = self.engine_raw.execute(acrarollback_output_table.select())
         result = result.fetchall()
         for data in result:
             self.assertIn(data[0], source_data)
@@ -1538,9 +1538,9 @@ class TestAcraRollback(BaseTestCase):
              select_query,
              '--zonemode=true',
              '--insert=insert into {} values({});'.format(
-                 rollback_output_table.name, self.placeholder)
+                 acrarollback_output_table.name, self.placeholder)
         ]
-        self.run_rollback(args)
+        self.run_acrarollback(args)
 
         # execute file
         with open(self.output_filename, 'r') as f:
@@ -1548,7 +1548,7 @@ class TestAcraRollback(BaseTestCase):
                 self.engine_raw.execute(line)
 
         source_data = set([i['raw_data'].encode('ascii') for i in rows])
-        result = self.engine_raw.execute(rollback_output_table.select())
+        result = self.engine_raw.execute(acrarollback_output_table.select())
         result = result.fetchall()
         for data in result:
             self.assertIn(data[0], source_data)
@@ -1573,12 +1573,12 @@ class TestAcraRollback(BaseTestCase):
             '--execute=true',
             '--select=select data from {};'.format(test_table.name),
             '--insert=insert into {} values({});'.format(
-                rollback_output_table.name, self.placeholder)
+                acrarollback_output_table.name, self.placeholder)
         ]
-        self.run_rollback(args)
+        self.run_acrarollback(args)
 
         source_data = set([i['raw_data'].encode('ascii') for i in rows])
-        result = self.engine_raw.execute(rollback_output_table.select())
+        result = self.engine_raw.execute(acrarollback_output_table.select())
         result = result.fetchall()
         for data in result:
             self.assertIn(data[0], source_data)
@@ -1609,38 +1609,38 @@ class TestAcraRollback(BaseTestCase):
             select_query,
             '--zonemode=true',
             '--insert=insert into {} values({});'.format(
-                rollback_output_table.name, self.placeholder)
+                acrarollback_output_table.name, self.placeholder)
         ]
-        self.run_rollback(args)
+        self.run_acrarollback(args)
 
         source_data = set([i['raw_data'].encode('ascii') for i in rows])
-        result = self.engine_raw.execute(rollback_output_table.select())
+        result = self.engine_raw.execute(acrarollback_output_table.select())
         result = result.fetchall()
         for data in result:
             self.assertIn(data[0], source_data)
 
 
-class TestAcraGenKeys(unittest.TestCase):
+class TestAcraKeyMakers(unittest.TestCase):
     def test_only_alpha_client_id(self):
         # call with directory separator in key name
         self.assertEqual(create_client_keypair(POISON_KEY_PATH), 1)
 
 
-class TestAcraConfigUIGenAuth(unittest.TestCase):
+class TestAcraWebconfigAcraAuthManager(unittest.TestCase):
     def testUIGenAuth(self):
         self.assertEqual(manage_basic_auth_user('set', 'test', 'test'), 0)
-        self.assertEqual(manage_basic_auth_user('set', CONFIG_UI_BASIC_AUTH['user'], CONFIG_UI_BASIC_AUTH['password']), 0)
+        self.assertEqual(manage_basic_auth_user('set', ACRAWEBCONFIG_BASIC_AUTH['user'], ACRAWEBCONFIG_BASIC_AUTH['password']), 0)
         self.assertEqual(manage_basic_auth_user('remove', 'test', 'test'), 0)
         self.assertEqual(manage_basic_auth_user('remove', 'test_unknown', 'test_unknown'), 1)
 
 
-class TestAcraConfigUIWeb(BaseTestCase):
+class TestAcraWebconfigWeb(BaseTestCase):
     def setUp(self):
         try:
             self.connector_1 = self.fork_connector(
                 self.CONNECTOR_PORT_1, self.ACRA_PORT, 'keypair1', zone_mode=True, commands_port=self.CONNECTOR_COMMAND_PORT_1)
             self.acra = self.fork_acra(zonemode='true', enable_http_api='true')
-            self.configui = self.fork_configui(connector_port=self.CONNECTOR_COMMAND_PORT_1, http_port=self.CONFIG_UI_HTTP_PORT)
+            self.webconfig = self.fork_webconfig(connector_port=self.CONNECTOR_COMMAND_PORT_1, http_port=self.ACRAWEBCONFIG_HTTP_PORT)
         except Exception:
             self.tearDown()
             raise
@@ -1650,7 +1650,7 @@ class TestAcraConfigUIWeb(BaseTestCase):
             os.unlink('configs/acra-server.yaml')
         except Exception as e:
             print(e)
-        stop_process([self.configui])
+        stop_process([self.webconfig])
         try:
             subprocess.call(['killall', '--signal=SIGTERM', 'acra-server'], cwd=os.getcwd(), timeout=PROCESS_CALL_TIMEOUT)
         except Exception as e:
@@ -1659,7 +1659,7 @@ class TestAcraConfigUIWeb(BaseTestCase):
                 subprocess.call(['killall', '--signal=SIGKILL', 'acra-server'], cwd=os.getcwd(), timeout=PROCESS_CALL_TIMEOUT)
             except Exception as e:
                 print('SIGKILL->acra-server error: {}'.format(e))
-        super(TestAcraConfigUIWeb, self).tearDown()
+        super(TestAcraWebconfigWeb, self).tearDown()
 
     def testAuthAndSubmitSettings(self):
         import requests
@@ -1667,34 +1667,34 @@ class TestAcraConfigUIWeb(BaseTestCase):
         from requests.auth import HTTPBasicAuth
         # test wrong auth
         req = requests.post(
-            self.get_config_ui_connection_url(), data={}, timeout=CONFIG_HTTP_TIMEOUT,
+            self.get_acrawebconfig_connection_url(), data={}, timeout=ACRAWEBCONFIG_HTTP_TIMEOUT,
             auth=HTTPBasicAuth('wrong_user_name', 'wrong_password'))
         self.assertEqual(req.status_code, 401)
         req.close()
 
         # test correct auth
         req = requests.post(
-            self.get_config_ui_connection_url(), data={}, timeout=CONFIG_HTTP_TIMEOUT,
-            auth=HTTPBasicAuth(CONFIG_UI_BASIC_AUTH['user'], CONFIG_UI_BASIC_AUTH['password']))
+            self.get_acrawebconfig_connection_url(), data={}, timeout=ACRAWEBCONFIG_HTTP_TIMEOUT,
+            auth=HTTPBasicAuth(ACRAWEBCONFIG_BASIC_AUTH['user'], ACRAWEBCONFIG_BASIC_AUTH['password']))
         self.assertEqual(req.status_code, 200)
         req.close()
 
         # test submit settings
-        settings = self.CONFIG_UI_ACRA_SERVERR_PARAMS
+        settings = self.ACRAWEBCONFIG_ACRASERVER_PARAMS
         settings['poisonscript'] = str(uuid.uuid4())
         print(settings)
         req = requests.post(
-            "{}/acra-server/submit_setting".format(self.get_config_ui_connection_url()),
+            "{}/acra-server/submit_setting".format(self.get_acrawebconfig_connection_url()),
             data=settings,
-            timeout=CONFIG_HTTP_TIMEOUT,
-            auth=HTTPBasicAuth(CONFIG_UI_BASIC_AUTH['user'], CONFIG_UI_BASIC_AUTH['password']))
+            timeout=ACRAWEBCONFIG_HTTP_TIMEOUT,
+            auth=HTTPBasicAuth(ACRAWEBCONFIG_BASIC_AUTH['user'], ACRAWEBCONFIG_BASIC_AUTH['password']))
         self.assertEqual(req.status_code, 200)
         req.close()
 
         # check for new config after acra-server's graceful restart
         req = requests.post(
-            self.get_config_ui_connection_url(), data={}, timeout=CONFIG_HTTP_TIMEOUT,
-            auth=HTTPBasicAuth(CONFIG_UI_BASIC_AUTH['user'], CONFIG_UI_BASIC_AUTH['password']))
+            self.get_acrawebconfig_connection_url(), data={}, timeout=ACRAWEBCONFIG_HTTP_TIMEOUT,
+            auth=HTTPBasicAuth(ACRAWEBCONFIG_BASIC_AUTH['user'], ACRAWEBCONFIG_BASIC_AUTH['password']))
         self.assertEqual(req.status_code, 200)
         self.assertIn(settings['poisonscript'], req.text)
         req.close()

@@ -1,7 +1,7 @@
 package acracensor
 
 import (
-	"github.com/cossacklabs/acra/acracensor/handlers"
+	"github.com/cossacklabs/acra/acra-censor/handlers"
 	"gopkg.in/yaml.v2"
 	"strings"
 )
@@ -10,7 +10,7 @@ const BlacklistConfigStr = "blacklist"
 const WhitelistConfigStr = "whitelist"
 const LoggerConfigStr = "logger"
 
-type AcracensorConfig struct {
+type AcraCensorConfig struct {
 	Handlers []struct {
 		Handler string
 		Queries []string
@@ -29,7 +29,7 @@ func (acraCensor *AcraCensor) LoadConfiguration(configuration []byte) error {
 }
 
 func (acraCensor *AcraCensor) update(configuration []byte) error {
-	var censorConfiguration AcracensorConfig
+	var censorConfiguration AcraCensorConfig
 	err := yaml.Unmarshal(configuration, &censorConfiguration)
 	if err != nil {
 		return err

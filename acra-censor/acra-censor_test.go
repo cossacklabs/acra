@@ -1,7 +1,7 @@
 package acracensor
 
 import (
-	"github.com/cossacklabs/acra/acracensor/handlers"
+	"github.com/cossacklabs/acra/acra-censor/handlers"
 	"github.com/cossacklabs/acra/utils"
 	"io/ioutil"
 	"os"
@@ -429,7 +429,7 @@ func testBlacklistRules(t *testing.T, acraCensor *AcraCensor, blacklistHandler *
 
 func TestConfigurationProvider(t *testing.T) {
 
-	var DEFAULT_CONFIG_PATH = utils.GetConfigPathByName("acra_censor.example")
+	var DEFAULT_CONFIG_PATH = utils.GetConfigPathByName("acra-censor.example")
 
 	filePath, err := os.Getwd()
 	if err != nil {

@@ -25,14 +25,14 @@ import (
 )
 
 // DEFAULT_CONFIG_PATH relative path to config which will be parsed as default
-var DEFAULT_CONFIG_PATH = utils.GetConfigPathByName("acra_genkeys")
+var DEFAULT_CONFIG_PATH = utils.GetConfigPathByName("acra-keymaker")
 
 func main() {
 	clientId := flag.String("client_id", "client", "Client id")
 	acraConnector := flag.Bool("acra-connector", false, "Create keypair for AcraConnector only")
 	acraserver := flag.Bool("acra-server", false, "Create keypair for AcraServer only")
 	dataKeys := flag.Bool("storage", false, "Create keypair for data encryption/decryption")
-	basicauth := flag.Bool("basicauth", false, "Create symmetric key for acra_configui's basic auth db")
+	basicauth := flag.Bool("basicauth", false, "Create symmetric key for AcraWebconfig's basic auth db")
 	outputDir := flag.String("output", keystore.DEFAULT_KEY_DIR_SHORT, "Folder where will be saved keys")
 	outputPublicKey := flag.String("output_public", keystore.DEFAULT_KEY_DIR_SHORT, "Folder where will be saved public key")
 	masterKey := flag.String("master_key", "", "Generate new random master key and save to file")
