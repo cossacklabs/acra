@@ -5,13 +5,19 @@ import (
 	"io/ioutil"
 	"encoding/json"
 	"os"
+	"github.com/cossacklabs/acra/logging"
+	log "github.com/sirupsen/logrus"
+	"time"
+	"os/signal"
+	"syscall"
 )
+
+const MaxQueriesInChannel = 10
+const TimeoutSecondsToSerialize = 1
 
 type QueryCaptureHandler struct {
 	Queries []QueryInfo
 	filePath string
-	occuredError *CaptureError
-
 	logChannel chan QueryInfo
 }
 
@@ -20,74 +26,103 @@ type QueryInfo struct {
 	IsForbidden bool
 }
 
-type CaptureError struct {
-	err error
-	query *QueryInfo
-}
-
 func NewQueryCaptureHandler(filePath string) (*QueryCaptureHandler, error) {
-	file, err := os.OpenFile(filePath, os.O_RDONLY|os.O_CREATE, 0600)
+
+	var _, err = os.Stat(filePath)
+
+	// create file if not exists
+	if os.IsNotExist(err) {
+		var file, err = os.Create(filePath)
+		if err != nil {
+			return nil, err
+		}
+		defer file.Close()
+	}
+
+	bufferBytes, err := ioutil.ReadFile(filePath)
 	if err != nil {
 		return nil, err
 	}
-	err = file.Close()
-	if err != nil {
-		return nil, err
+
+	var queries []QueryInfo
+
+	if len(bufferBytes) != 0 {
+		if err = json.Unmarshal(bufferBytes, &queries); err != nil{
+			return nil, err
+		}
 	}
 
-	emptyQuery := &QueryInfo{RawQuery:"", IsForbidden:false}
-	occuredError := &CaptureError{err:nil, query:emptyQuery}
+	logChannel := make(chan QueryInfo, MaxQueriesInChannel)
 
-	logChannel_ := make(chan QueryInfo)
+	handler := &QueryCaptureHandler{}
+	handler.filePath = filePath
+	handler.logChannel = logChannel
+	handler.Queries = queries
 
+
+	signalToSerialize := make(chan bool)
+	signalShutdown := make(chan os.Signal, 2)
+	signal.Notify(signalShutdown, os.Interrupt, syscall.SIGTERM)
+
+	//serialization signal
+	go func() {
+		for {
+			time.Sleep(TimeoutSecondsToSerialize * time.Second)
+			//timer finished. Close channel to inform that serialization should be performed
+			signalToSerialize <- true
+		}
+	}()
+
+	//handling goroutine
 	go func (){
 		for {
 			select {
-			case queryInfo, gotQuery := <-logChannel_:
-				if gotQuery {
+			case <-signalToSerialize:
+				err := handler.Serialize()
+				if err != nil {
+					log.WithError(ErrComplexSerializationError).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCensorSecurityError)
+				}
+
+			case queryInfo, ok := <-handler.logChannel:
+				if ok {
 					bytes, err := json.Marshal(queryInfo)
 					if err != nil {
-						occuredError.query = &queryInfo
-						occuredError.err = err
+						log.WithError(ErrSingleQueryCaptureError).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCensorSecurityError)
 					}
 
 					f, err := os.OpenFile(filePath, os.O_APPEND|os.O_WRONLY|os.O_CREATE, 0600)
 					if err != nil {
-						occuredError.query = &queryInfo
-						occuredError.err = err
+						log.WithError(ErrSingleQueryCaptureError).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCensorSecurityError)
 					}
 
-					defer f.Close()
 					if _, err = f.WriteString("\n"); err != nil {
-						occuredError.query = &queryInfo
-						occuredError.err = err
+						log.WithError(ErrSingleQueryCaptureError).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCensorSecurityError)
 					}
 
 					if _, err = f.Write(bytes); err != nil {
-						occuredError.query = &queryInfo
-						occuredError.err = err
+						log.WithError(ErrSingleQueryCaptureError).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCensorSecurityError)
 					}
+					f.Close()
+
 				} else {
-					//channel is closed
-					return
+					//channel is unexpectedly closed
+					log.WithError(ErrUnexpectedCaptureChannelClose).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCensorSecurityError)
+				}
+			case <-signalShutdown:
+				err := handler.Serialize()
+				if err != nil {
+					log.WithError(ErrComplexSerializationError).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCensorSecurityError)
 				}
 			default:
+				//do nothing. This means that channel has no data to read yet
 			}
 		}
 	}()
 
-	return &QueryCaptureHandler{Queries:nil, filePath:filePath, occuredError: occuredError, logChannel:logChannel_}, nil
-}
-
-func (handler *QueryCaptureHandler) GetErrorQuery() string {
-	return handler.occuredError.query.RawQuery
+	return handler, nil
 }
 
 func (handler *QueryCaptureHandler) CheckQuery(query string) error {
-	if handler.occuredError.err != nil{
-		return handler.occuredError.err
-	}
-
 	//skip already logged queries
 	for _, queryInfo := range handler.Queries{
 		if strings.EqualFold(queryInfo.RawQuery, query){
@@ -134,6 +169,9 @@ func (handler *QueryCaptureHandler) GetForbiddenQueries() []string{
 	}
 	return forbiddenQueries
 }
+
+
+
 
 func (handler *QueryCaptureHandler) Serialize() error {
 	jsonFile, err := json.Marshal(handler.Queries)

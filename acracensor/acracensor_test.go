@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"testing"
 	"strings"
+	"time"
 )
 
 func TestWhitelistQueries(t *testing.T) {
@@ -429,6 +430,15 @@ func testBlacklistRules(t *testing.T, acraCensor *AcraCensor, blacklistHandler *
 
 func TestConfigurationProvider(t *testing.T) {
 
+	tmpFile, err := ioutil.TempFile("", "censor_log")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if err = tmpFile.Close(); err != nil {
+		t.Fatal(err)
+	}
+
 	var DEFAULT_CONFIG_PATH = utils.GetConfigPathByName("acra_censor.example")
 
 	filePath, err := os.Getwd()
@@ -503,7 +513,7 @@ func TestConfigurationProvider(t *testing.T) {
 
 	expectedQueriesInCensorLog := "\n{\"RawQuery\":\"INSERT INTO SalesStaff1 VALUES (1, 'Stephen', 'Jiang');\",\"IsForbidden\":false}\n{\"RawQuery\":\"SELECT AVG(Price) FROM Products;\",\"IsForbidden\":false}\n{\"RawQuery\":\"INSERT INTO EMPLOYEE_TBL VALUES (1, 'Stephen', 'Jiang');\",\"IsForbidden\":false}\n{\"RawQuery\":\"SELECT AVG(Price) FROM Customers;\",\"IsForbidden\":false}\n{\"RawQuery\":\"SELECT EMP_ID, LAST_NAME FROM EMPLOYEE WHERE CITY = 'Seattle' ORDER BY EMP_ID;\",\"IsForbidden\":false}\n{\"RawQuery\":\"SELECT EMP_ID, LAST_NAME FROM EMPLOYEE AS EMPL WHERE CITY = 'Seattle' ORDER BY EMP_ID;\",\"IsForbidden\":false}\n{\"RawQuery\":\"SELECT EMP_ID, LAST_NAME FROM PRODUCTS WHERE CITY='INDIANAPOLIS' ORDER BY EMP_ID;\",\"IsForbidden\":false}\n{\"RawQuery\":\"SELECT EMP_ID, LAST_NAME FROM PRODUCTS WHERE CITY='INDIANAPOLIS' ORDER BY EMP_ID asc;\",\"IsForbidden\":false}"
 
-	censorLogsBytes, err := ioutil.ReadFile("censor_log")
+	censorLogsBytes, err := ioutil.ReadFile(tmpFile.Name())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -512,7 +522,7 @@ func TestConfigurationProvider(t *testing.T) {
 		t.Fatal("Expected: " + expectedQueriesInCensorLog + " Got: " + string(censorLogsBytes))
 	}
 
-	err = os.Remove("censor_log")
+	err = os.Remove(tmpFile.Name())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -599,8 +609,9 @@ func TestSerialization(t *testing.T){
 		}
 	}
 
+
 	if len(loggingHandler.GetAllInputQueries()) != len(testQueries){
-		t.Fatal("loggingHandler logic error 1")
+		t.Fatal("Expected: " + strings.Join(testQueries, " | ") + "\nGot: " + strings.Join(loggingHandler.GetAllInputQueries(), " | "))
 	}
 
 	err = loggingHandler.Serialize()
@@ -611,7 +622,7 @@ func TestSerialization(t *testing.T){
 	loggingHandler.Reset()
 
 	if len(loggingHandler.GetAllInputQueries()) != 0 {
-		t.Fatal("loggingHandler logic error 2")
+		t.Fatal("Expected no queries \nGot: " + strings.Join(loggingHandler.GetAllInputQueries(), " | "))
 	}
 
 	err = loggingHandler.Deserialize()
@@ -620,12 +631,12 @@ func TestSerialization(t *testing.T){
 	}
 
 	if len(loggingHandler.GetAllInputQueries()) != len(testQueries){
-		t.Fatal("loggingHandler logic error 3")
+		t.Fatal("Expected: " + strings.Join(testQueries, " | ") + "\nGot: " + strings.Join(loggingHandler.GetAllInputQueries(), " | "))
 	}
 
 	for index, query := range loggingHandler.GetAllInputQueries(){
 		if testQueries[index] != query{
-			t.Fatal("loggingHandler logic error 4")
+			t.Fatal("Expected: " + testQueries[index] + "\nGot: " + query)
 		}
 	}
 
@@ -764,30 +775,31 @@ func TestQueryCapture(t *testing.T){
 			t.Fatal(err)
 		}
 	}
+	time.Sleep(1 * time.Second)
 
 	result, err := ioutil.ReadFile(tmpFile.Name())
-	if (!strings.EqualFold(string(result), expected)) {
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if !strings.EqualFold(string(result), expected) {
 		t.Fatal("Expected: " + expected + "\nGot: " + string(result))
 	}
 
-	err = handler.Serialize()
+	expected = "[{\"RawQuery\":\"SELECT * FROM Schema.Tables;\",\"IsForbidden\":false},{\"RawQuery\":\"SELECT Student_ID FROM STUDENT;\",\"IsForbidden\":false},{\"RawQuery\":\"SELECT * FROM STUDENT;\",\"IsForbidden\":false},{\"RawQuery\":\"SELECT * FROM X;\",\"IsForbidden\":false},{\"RawQuery\":\"SELECT * FROM Y;\",\"IsForbidden\":false}]"
 
+	//wait until goroutine handles complex serialization
+	time.Sleep(3 * time.Second)
+	result, err = ioutil.ReadFile(tmpFile.Name())
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	handler.Reset()
-
-	err = handler.Deserialize()
-	if err != nil {
-		t.Fatal(err)
+	if !strings.EqualFold(string(result), expected) {
+		t.Fatal("Expected: " + expected + "\nGot: " + string(result))
 	}
 
-	for index, singleTestQuery := range testQueries {
-		if !strings.EqualFold(singleTestQuery, handler.Queries[index].RawQuery){
-			t.Fatal(err)
-		}
-	}
+
 
 	if err = os.Remove(tmpFile.Name()); err != nil {
 		t.Fatal(err)

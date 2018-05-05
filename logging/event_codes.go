@@ -55,6 +55,7 @@ const (
 	// acracensor
 	EventCodeErrorCensorQueryIsNotAllowed = 560
 	EventCodeErrorCensorSetupError        = 561
+	EventCodeErrorCensorSecurityError     = 562
 
 	// response proxy
 	EventCodeErrorResponseProxyCantWriteToDB      = 570
