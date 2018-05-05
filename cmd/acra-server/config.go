@@ -29,12 +29,12 @@ const (
 )
 
 type Config struct {
-	connectorCommandsPort       int
+	connectorApiPort        int
 	byteaFormat             int8
 	dbPort                  int
-	connectorPort               int
+	connectorPort           int
 	dbHost                  string
-	connectorHost               string
+	connectorHost           string
 	keysDir                 string
 	scriptOnPoison          string
 	stopOnPoison            bool
@@ -56,13 +56,13 @@ type Config struct {
 }
 
 type UIEditableConfig struct {
-	DbHost                string `json:"db_host"`
-	DbPort                int    `json:"db_port"`
-	ConnectorCommandsPort int    `json:"commands_port"`
-	Debug                 bool   `json:"debug"`
-	ScriptOnPoison        string `json:"poisonscript"`
-	StopOnPoison          bool   `json:"poisonshutdown"`
-	WithZone              bool   `json:"zonemode"`
+	DbHost           string `json:"db_host"`
+	DbPort           int    `json:"db_port"`
+	ConnectorApiPort int    `json:"api_port"`
+	Debug            bool   `json:"debug"`
+	ScriptOnPoison   string `json:"poisonscript"`
+	StopOnPoison     bool   `json:"poisonshutdown"`
+	WithZone         bool   `json:"zonemode"`
 }
 
 func NewConfig() *Config {
@@ -176,15 +176,15 @@ func (config *Config) SetConnectorHost(host string) error {
 func (config *Config) GetConnectorPort() int {
 	return config.connectorPort
 }
-func (config *Config) GetConnectorCommandsPort() int {
-	return config.connectorCommandsPort
+func (config *Config) GetConnectorApiPort() int {
+	return config.connectorApiPort
 }
 func (config *Config) SetConnectorPort(port int) error {
 	config.connectorPort = port
 	return nil
 }
-func (config *Config) SetConnectorCommandsPort(port int) error {
-	config.connectorCommandsPort = port
+func (config *Config) SetConnectorApiPort(port int) error {
+	config.connectorApiPort = port
 	return nil
 }
 func (config *Config) GetDBHost() string {
@@ -242,7 +242,7 @@ func (config *Config) ToJson() ([]byte, error) {
 	var s UIEditableConfig
 	s.DbHost = config.GetDBHost()
 	s.DbPort = config.GetDBPort()
-	s.ConnectorCommandsPort = config.GetConnectorCommandsPort()
+	s.ConnectorApiPort = config.GetConnectorApiPort()
 	s.Debug = config.GetDebug()
 	s.ScriptOnPoison = config.GetScriptOnPoison()
 	s.StopOnPoison = config.GetStopOnPoison()

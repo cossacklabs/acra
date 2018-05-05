@@ -65,7 +65,7 @@ func main() {
 
 	host := flag.String("host", cmd.DEFAULT_ACRA_HOST, "Host for AcraServer")
 	port := flag.Int("port", cmd.DEFAULT_ACRASERVER_PORT, "Port for AcraServer")
-	commandsPort := flag.Int("commands_port", cmd.DEFAULT_ACRASERVER_API_PORT, "Port for AcraServer for HTTP API")
+	apiPort := flag.Int("api_port", cmd.DEFAULT_ACRASERVER_API_PORT, "Port for AcraServer for HTTP API")
 
 	keysDir := flag.String("keys_dir", keystore.DEFAULT_KEY_DIR_SHORT, "Folder from which will be loaded keys")
 
@@ -104,7 +104,7 @@ func main() {
 	usePostgresql := flag.Bool("postgresql", false, "Handle Postgresql connections (default true)")
 	censorConfig := flag.String("censor_config", "", "Path to AcraCensor configuration file")
 
-	err := cmd.Parse(DEFAULT_CONFIG_PATH)
+	err := cmd.Parse(DEFAULT_CONFIG_PATH, SERVICE_NAME)
 	if err != nil {
 		log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantReadServiceConfig).
 			Errorln("Can't parse args")
@@ -120,8 +120,8 @@ func main() {
 	if *host != cmd.DEFAULT_ACRA_HOST || *port != cmd.DEFAULT_ACRASERVER_PORT {
 		*acraConnectionString = network.BuildConnectionString("tcp", *host, *port, "")
 	}
-	if *commandsPort != cmd.DEFAULT_ACRASERVER_API_PORT {
-		*acraConnectionString = network.BuildConnectionString("tcp", *host, *commandsPort, "")
+	if *apiPort != cmd.DEFAULT_ACRASERVER_API_PORT {
+		*acraConnectionString = network.BuildConnectionString("tcp", *host, *apiPort, "")
 	}
 
 	if *debug {
@@ -163,7 +163,7 @@ func main() {
 	config.SetDBPort(*dbPort)
 	config.SetConnectorHost(*host)
 	config.SetConnectorPort(*port)
-	config.SetConnectorCommandsPort(*commandsPort)
+	config.SetConnectorApiPort(*apiPort)
 	config.SetKeysDir(*keysDir)
 	config.SetServerId([]byte(*serverId))
 	config.SetAcraConnectionString(*acraConnectionString)

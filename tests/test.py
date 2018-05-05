@@ -30,8 +30,8 @@ from tempfile import NamedTemporaryFile
 from urllib.request import urlopen
 from urllib.parse import urlparse
 import collections
-
 import shutil
+
 import psycopg2
 import pymysql
 import semver
@@ -370,7 +370,7 @@ class BaseTestCase(unittest.TestCase):
 
     CONNECTOR_PORT_1 = int(os.environ.get('TEST_CONNECTOR_PORT', 9595))
     CONNECTOR_PORT_2 = CONNECTOR_PORT_1 + 200
-    CONNECTOR_COMMAND_PORT_1 = int(os.environ.get('TEST_CONNECTOR_COMMAND_PORT', 9696))
+    CONNECTOR_API_PORT_1 = int(os.environ.get('TEST_CONNECTOR_API_PORT', 9696))
     ACRAWEBCONFIG_HTTP_PORT = int(os.environ.get('TEST_CONFIG_UI_HTTP_PORT', ACRAWEBCONFIG_HTTP_PORT))
     # for debugging with manually runned acra-server
     EXTERNAL_ACRA = False
@@ -382,7 +382,7 @@ class BaseTestCase(unittest.TestCase):
     ACRAWEBCONFIG_ACRASERVER_PARAMS = dict(
         db_host=DB_HOST,
         db_port=DB_PORT,
-        commands_port=9090,
+        api_port=9090,
         debug=DEBUG_LOG,
         poisonscript="",
         poisonshutdown=False,
@@ -434,16 +434,16 @@ class BaseTestCase(unittest.TestCase):
             '--tls_sni=acraserver',
         ]
 
-    def fork_connector(self, connector_port: int, acra_port: int, client_id: str, commands_port: int=None, zone_mode: bool=False, check_connection: bool=True):
+    def fork_connector(self, connector_port: int, acra_port: int, client_id: str, api_port: int=None, zone_mode: bool=False, check_connection: bool=True):
         acra_connection = self.get_acra_connection_string(acra_port)
         acra_api_connection = self.get_acra_api_connection_string(acra_port)
         connector_connection = self.get_connector_connection_string(connector_port)
         if zone_mode:
             # because standard library can send http requests only through tcp and cannot through unix socket
-            connector_api_connection = "tcp://127.0.0.1:{}".format(commands_port)
+            connector_api_connection = "tcp://127.0.0.1:{}".format(api_port)
         else:
             # now it's no matter, so just +100
-            connector_api_connection = self.get_connector_api_connection_string(commands_port if commands_port else connector_port + 100)
+            connector_api_connection = self.get_connector_api_connection_string(api_port if api_port else connector_port + 100)
 
         for path in [socket_path_from_connection_string(connector_connection), socket_path_from_connection_string(connector_api_connection)]:
             try:
@@ -494,7 +494,7 @@ class BaseTestCase(unittest.TestCase):
 
     def get_connector_api_connection_string(self, port=None):
         if not port:
-            port = self.CONNECTOR_COMMAND_PORT_1
+            port = self.CONNECTOR_API_PORT_1
         return get_connector_connection_string(port)
 
     def get_acrawebconfig_connection_url(self):
@@ -507,7 +507,7 @@ class BaseTestCase(unittest.TestCase):
         connection_string = self.get_acra_connection_string(
             acra_kwargs.get('port'))
         api_connection_string = self.get_acra_api_connection_string(
-            acra_kwargs.get('commands_port')
+            acra_kwargs.get('api_port')
         )
         for path in [socket_path_from_connection_string(connection_string), socket_path_from_connection_string(api_connection_string)]:
             try:
@@ -1347,7 +1347,7 @@ class TestKeyStorageClearing(BaseTestCase):
             self.key_name = 'clearing_keypair'
             create_client_keypair(self.key_name)
             self.connector_1 = self.fork_connector(
-                self.CONNECTOR_PORT_1, self.ACRA_PORT, self.key_name, self.CONNECTOR_COMMAND_PORT_1,
+                self.CONNECTOR_PORT_1, self.ACRA_PORT, self.key_name, self.CONNECTOR_API_PORT_1,
                 zone_mode=True)
             if not self.EXTERNAL_ACRA:
                 self.acra = self.fork_acra(
@@ -1390,7 +1390,7 @@ class TestKeyStorageClearing(BaseTestCase):
         # execute any query for loading key by acra
         result = self.engine1.execute(sa.select([1]).limit(1))
         result.fetchone()
-        with urlopen('http://127.0.0.1:{}/resetKeyStorage'.format(self.CONNECTOR_COMMAND_PORT_1)) as response:
+        with urlopen('http://127.0.0.1:{}/resetKeyStorage'.format(self.CONNECTOR_API_PORT_1)) as response:
             self.assertEqual(response.status, 200)
         # delete key for excluding reloading from FS
         os.remove('.acrakeys/{}.pub'.format(self.key_name))
@@ -1638,9 +1638,9 @@ class TestAcraWebconfigWeb(BaseTestCase):
     def setUp(self):
         try:
             self.connector_1 = self.fork_connector(
-                self.CONNECTOR_PORT_1, self.ACRA_PORT, 'keypair1', zone_mode=True, commands_port=self.CONNECTOR_COMMAND_PORT_1)
+                self.CONNECTOR_PORT_1, self.ACRA_PORT, 'keypair1', zone_mode=True, api_port=self.CONNECTOR_API_PORT_1)
             self.acra = self.fork_acra(zonemode='true', enable_http_api='true')
-            self.webconfig = self.fork_webconfig(connector_port=self.CONNECTOR_COMMAND_PORT_1, http_port=self.ACRAWEBCONFIG_HTTP_PORT)
+            self.webconfig = self.fork_webconfig(connector_port=self.CONNECTOR_API_PORT_1, http_port=self.ACRAWEBCONFIG_HTTP_PORT)
         except Exception:
             self.tearDown()
             raise

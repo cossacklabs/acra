@@ -150,7 +150,7 @@ func main() {
 	keysDir := flag.String("keys_dir", keystore.DEFAULT_KEY_DIR_SHORT, "Folder from which will be loaded keys")
 	clientId := flag.String("client_id", "", "Client id")
 	acraHost := flag.String("acra_host", "", "IP or domain to acra daemon")
-	acraServerCommandsPort := flag.Int("acra_commands_port", cmd.DEFAULT_ACRASERVER_API_PORT, "Port of Acra HTTP api")
+	acraServerApiPort := flag.Int("acra_api_port", cmd.DEFAULT_ACRASERVER_API_PORT, "Port of Acra HTTP api")
 	acraServerPort := flag.Int("acra_port", cmd.DEFAULT_ACRASERVER_PORT, "Port of acra daemon")
 	acraServerId := flag.String("acra_id", "acra_server", "Expected id from AcraServer for Secure Session")
 	verbose := flag.Bool("v", false, "Log to stderr")
@@ -170,7 +170,7 @@ func main() {
 	acraConnectionString := flag.String("acra_connection_string", "", "Connection string to AcraServer like tcp://x.x.x.x:yyyy or unix:///path/to/socket")
 	acraApiConnectionString := flag.String("acra_api_connection_string", "", "Connection string to Acra's API like tcp://x.x.x.x:yyyy or unix:///path/to/socket")
 
-	err := cmd.Parse(DEFAULT_CONFIG_PATH)
+	err := cmd.Parse(DEFAULT_CONFIG_PATH, SERVICE_NAME)
 	if err != nil {
 		log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantReadServiceConfig).
 			Errorln("Can't parse args")
@@ -208,7 +208,7 @@ func main() {
 			os.Exit(1)
 		}
 		if *acraHost != "" {
-			*acraApiConnectionString = network.BuildConnectionString(cmd.DEFAULT_ACRA_CONNECTION_PROTOCOL, *acraHost, *acraServerCommandsPort, "")
+			*acraApiConnectionString = network.BuildConnectionString(cmd.DEFAULT_ACRA_CONNECTION_PROTOCOL, *acraHost, *acraServerApiPort, "")
 		}
 	}
 

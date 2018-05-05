@@ -11,15 +11,15 @@ import (
 	"path/filepath"
 	"reflect"
 
+	"encoding/base64"
 	"github.com/cossacklabs/acra/keystore"
 	"github.com/cossacklabs/acra/utils"
 	log "github.com/sirupsen/logrus"
 	"gopkg.in/yaml.v2"
-	"time"
 	"math/rand"
-	"strings"
-	"encoding/base64"
 	"strconv"
+	"strings"
+	"time"
 )
 
 var (
@@ -156,7 +156,20 @@ func GenerateYaml(output io.Writer, useDefault bool) {
 	})
 }
 
-func DumpConfig(configPath string, useDefault bool) error {
+func GenerateMarkdownDoc(output io.Writer, serviceName string) {
+	// escape column separator symbol from text
+	escapeColumn := func(text string) string {
+		return strings.Replace(text, "|", "\\|", -1)
+	}
+	// serviceName | arg name | rename to | default value | description
+	fmt.Fprintf(output, "|%v|||||\n", serviceName)
+	flag_.CommandLine.VisitAll(func(flag *flag_.Flag) {
+
+		fmt.Fprintf(output, "||%v||%v|%v|\n", flag.Name, flag.DefValue, escapeColumn(flag.Usage))
+	})
+}
+
+func DumpConfig(configPath, serviceName string, useDefault bool) error {
 	var absPath string
 	var err error
 
@@ -185,11 +198,18 @@ func DumpConfig(configPath string, useDefault bool) error {
 	defer file.Close()
 
 	GenerateYaml(file, useDefault)
+
+	file2, err := os.Create(fmt.Sprintf("/tmp/markdown_%v.txt", serviceName))
+	if err != nil {
+		return err
+	}
+
+	GenerateMarkdownDoc(file2, serviceName)
 	log.Infof("Config dumped to %s", configPath)
 	return nil
 }
 
-func Parse(configPath string) error {
+func Parse(configPath, serviceName string) error {
 	/*load from yaml config and cli. if dumpconfig option pass than generate config and exit*/
 	log.Debugf("Parsing config from path %v", configPath)
 	// first parse using bultin flag
@@ -242,13 +262,12 @@ func Parse(configPath string) error {
 		}
 	}
 	// set options from config that wasn't set by cli
-	log.Debugln(args)
 	err = flag_.CommandLine.Parse(args)
 	if err != nil {
 		return err
 	}
 	if *dumpconfig {
-		DumpConfig(configPath, true)
+		DumpConfig(configPath, serviceName, true)
 		os.Exit(0)
 	}
 	return nil
@@ -267,7 +286,7 @@ type UserAuth struct {
 	Hash []byte
 }
 
-func (auth UserAuth) UserAuthString(userDataDelimiter string, paramsDelimiter string) (string) {
+func (auth UserAuth) UserAuthString(userDataDelimiter string, paramsDelimiter string) string {
 	var userData []string
 	var argon2P []string
 	argon2P = append(argon2P, strconv.FormatUint(uint64(auth.Argon2Params.Time), 10))
@@ -287,6 +306,7 @@ const (
 	letterIdxMask = 1<<letterIdxBits - 1 // All 1-bits, as many as letterIdxBits
 	letterIdxMax  = 63 / letterIdxBits   // # of letter indices fitting in 63 bits
 )
+
 var randSrc = rand.NewSource(time.Now().UnixNano())
 
 // getting random string using faster randSrc.Int63() and true distribution for letterBytes

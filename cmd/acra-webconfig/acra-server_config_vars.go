@@ -26,7 +26,7 @@ var AcraServerCofig = `config:
     value_type: int8
     input_type: number
   -
-    name: commands_port
+    name: api_port
     title: Port for AcraServer's HTTP API
     value_type: int8
     input_type: number
