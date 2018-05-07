@@ -19,6 +19,7 @@ type QueryCaptureHandler struct {
 	Queries []QueryInfo
 	filePath string
 	logChannel chan QueryInfo
+	signalToSerialize chan bool
 }
 
 type QueryInfo struct {
@@ -53,13 +54,6 @@ func NewQueryCaptureHandler(filePath string) (*QueryCaptureHandler, error) {
 	}
 
 	logChannel := make(chan QueryInfo, MaxQueriesInChannel)
-
-	handler := &QueryCaptureHandler{}
-	handler.filePath = filePath
-	handler.logChannel = logChannel
-	handler.Queries = queries
-
-
 	signalToSerialize := make(chan bool)
 	signalShutdown := make(chan os.Signal, 2)
 	signal.Notify(signalShutdown, os.Interrupt, syscall.SIGTERM)
@@ -72,6 +66,12 @@ func NewQueryCaptureHandler(filePath string) (*QueryCaptureHandler, error) {
 			signalToSerialize <- true
 		}
 	}()
+
+	handler := &QueryCaptureHandler{}
+	handler.filePath = filePath
+	handler.Queries = queries
+	handler.signalToSerialize = signalToSerialize
+	handler.logChannel = logChannel
 
 	//handling goroutine
 	go func (){
@@ -119,6 +119,9 @@ func NewQueryCaptureHandler(filePath string) (*QueryCaptureHandler, error) {
 		}
 	}()
 
+
+
+
 	return handler, nil
 }
 
@@ -151,13 +154,14 @@ func (handler *QueryCaptureHandler) GetAllInputQueries() []string{
 	return queries
 }
 
-func (handler *QueryCaptureHandler) MarkQueryAsForbidden(query string) error {
+func (handler *QueryCaptureHandler) MarkQueryAsForbidden(query string) {
 	for index, queryInfo := range handler.Queries {
 		if strings.EqualFold(query, queryInfo.RawQuery) {
 			handler.Queries[index].IsForbidden = true
 		}
 	}
-	return handler.Serialize()
+
+	handler.signalToSerialize <- true
 }
 
 func (handler *QueryCaptureHandler) GetForbiddenQueries() []string{
@@ -169,8 +173,6 @@ func (handler *QueryCaptureHandler) GetForbiddenQueries() []string{
 	}
 	return forbiddenQueries
 }
-
-
 
 
 func (handler *QueryCaptureHandler) Serialize() error {

@@ -2,13 +2,13 @@ package acracensor
 
 import (
 	"github.com/cossacklabs/acra/acracensor/handlers"
-	"github.com/cossacklabs/acra/utils"
 	"io/ioutil"
 	"os"
-	"path/filepath"
 	"testing"
 	"strings"
 	"time"
+	"github.com/cossacklabs/acra/utils"
+	"path/filepath"
 )
 
 func TestWhitelistQueries(t *testing.T) {
@@ -428,139 +428,6 @@ func testBlacklistRules(t *testing.T, acraCensor *AcraCensor, blacklistHandler *
 	}
 }
 
-func TestConfigurationProvider(t *testing.T) {
-
-	tmpFile, err := ioutil.TempFile("", "censor_log")
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	if err = tmpFile.Close(); err != nil {
-		t.Fatal(err)
-	}
-
-	var DEFAULT_CONFIG_PATH = utils.GetConfigPathByName("acra_censor.example")
-
-	filePath, err := os.Getwd()
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	configuration, err := ioutil.ReadFile(filepath.Join(filePath, "../", DEFAULT_CONFIG_PATH))
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	acraCensor := &AcraCensor{}
-
-	err = acraCensor.LoadConfiguration(configuration)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	testQueries := []string{
-		"INSERT INTO SalesStaff1 VALUES (1, 'Stephen', 'Jiang');",
-		"SELECT AVG(Price) FROM Products;",
-	}
-
-	//acracensor should block those queries (blacklist works)
-	for _, queryToBlock := range testQueries {
-		err = acraCensor.HandleQuery(queryToBlock)
-		if err != handlers.ErrQueryInBlacklist {
-			t.Fatal(err)
-		}
-	}
-
-
-	testQueries = []string{
-		"INSERT INTO EMPLOYEE_TBL VALUES (1, 'Stephen', 'Jiang');",
-		"SELECT AVG(Price) FROM Customers;",
-	}
-
-	//acracensor should block those tables (blacklist works)
-	for _, queryToBlock := range testQueries {
-		err = acraCensor.HandleQuery(queryToBlock)
-		if err != handlers.ErrAccessToForbiddenTableBlacklist {
-			t.Fatal(err)
-		}
-	}
-
-	testQueries = []string{
-		"SELECT EMP_ID, LAST_NAME FROM EMPLOYEE WHERE CITY = 'Seattle' ORDER BY EMP_ID;",
-		"SELECT EMP_ID, LAST_NAME FROM EMPLOYEE AS EMPL WHERE CITY = 'Seattle' ORDER BY EMP_ID;",
-	}
-
-	//acracensor should block those structures (blacklist works)
-	for _, queryToBlock := range testQueries {
-		err = acraCensor.HandleQuery(queryToBlock)
-		if err != handlers.ErrForbiddenSqlStructureBlacklist {
-			t.Fatal(err)
-		}
-	}
-
-	testQueries = []string{
-		"SELECT EMP_ID, LAST_NAME FROM PRODUCTS WHERE CITY='INDIANAPOLIS' ORDER BY EMP_ID;",
-		"SELECT EMP_ID, LAST_NAME FROM PRODUCTS WHERE CITY='INDIANAPOLIS' ORDER BY EMP_ID asc;",
-	}
-
-	//acracensor should block those tables (whitelist works)
-	for _, queryToBlock := range testQueries {
-		err = acraCensor.HandleQuery(queryToBlock)
-		if err != handlers.ErrAccessToForbiddenTableWhitelist {
-			t.Fatal(err)
-		}
-	}
-
-	expectedQueriesInCensorLog := "\n{\"RawQuery\":\"INSERT INTO SalesStaff1 VALUES (1, 'Stephen', 'Jiang');\",\"IsForbidden\":false}\n{\"RawQuery\":\"SELECT AVG(Price) FROM Products;\",\"IsForbidden\":false}\n{\"RawQuery\":\"INSERT INTO EMPLOYEE_TBL VALUES (1, 'Stephen', 'Jiang');\",\"IsForbidden\":false}\n{\"RawQuery\":\"SELECT AVG(Price) FROM Customers;\",\"IsForbidden\":false}\n{\"RawQuery\":\"SELECT EMP_ID, LAST_NAME FROM EMPLOYEE WHERE CITY = 'Seattle' ORDER BY EMP_ID;\",\"IsForbidden\":false}\n{\"RawQuery\":\"SELECT EMP_ID, LAST_NAME FROM EMPLOYEE AS EMPL WHERE CITY = 'Seattle' ORDER BY EMP_ID;\",\"IsForbidden\":false}\n{\"RawQuery\":\"SELECT EMP_ID, LAST_NAME FROM PRODUCTS WHERE CITY='INDIANAPOLIS' ORDER BY EMP_ID;\",\"IsForbidden\":false}\n{\"RawQuery\":\"SELECT EMP_ID, LAST_NAME FROM PRODUCTS WHERE CITY='INDIANAPOLIS' ORDER BY EMP_ID asc;\",\"IsForbidden\":false}"
-
-	censorLogsBytes, err := ioutil.ReadFile(tmpFile.Name())
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	if !strings.EqualFold(expectedQueriesInCensorLog, string(censorLogsBytes)){
-		t.Fatal("Expected: " + expectedQueriesInCensorLog + " Got: " + string(censorLogsBytes))
-	}
-
-	err = os.Remove(tmpFile.Name())
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	testSyntax(t)
-}
-func testSyntax(t *testing.T) {
-
-	acraCensor := &AcraCensor{}
-
-	configuration := `handlers:
-  - handler: blacklist
-    queries:
-      - INSERT INTO SalesStaff1 VALUES (1, 'Stephen', 'Jiang');
-      - SLECT AVG(Price) FROM Products;`
-
-	err := acraCensor.LoadConfiguration([]byte(configuration))
-	if err != handlers.ErrQuerySyntaxError {
-		t.Fatal(err)
-	}
-
-	configuration = `handlers:
-  - handler: blacklist
-    queries:
-      - INSERT INTO SalesStaff1 VALUES (1, 'Stephen', 'Jiang');
-      - SELECT AVG(Price) FROM Products;
-    tables:
-      - EMPLOYEE_TBL
-      - Customers
-    rules:
-      - SELECT * ROM EMPLOYEE WHERE CITY='Seattle';`
-
-	err = acraCensor.LoadConfiguration([]byte(configuration))
-	if err != handlers.ErrStructureSyntaxError {
-		t.Fatal(err)
-	}
-}
-
 func TestSerialization(t *testing.T){
 	testQueries := []string{
 		"SELECT * FROM Schema.Tables;",
@@ -609,6 +476,8 @@ func TestSerialization(t *testing.T){
 		}
 	}
 
+	//wait until serialization complete
+	time.Sleep(2 * time.Second)
 
 	if len(loggingHandler.GetAllInputQueries()) != len(testQueries){
 		t.Fatal("Expected: " + strings.Join(testQueries, " | ") + "\nGot: " + strings.Join(loggingHandler.GetAllInputQueries(), " | "))
@@ -699,18 +568,12 @@ func TestLogging(t *testing.T){
 		}
 	}
 
-	err = loggingHandler.MarkQueryAsForbidden(testQueries[0])
-	if err != nil {
-		t.Fatal(err)
-	}
-	err = loggingHandler.MarkQueryAsForbidden(testQueries[1])
-	if err != nil {
-		t.Fatal(err)
-	}
-	err = loggingHandler.MarkQueryAsForbidden(testQueries[2])
-	if err != nil {
-		t.Fatal(err)
-	}
+	loggingHandler.MarkQueryAsForbidden(testQueries[0])
+	loggingHandler.MarkQueryAsForbidden(testQueries[1])
+	loggingHandler.MarkQueryAsForbidden(testQueries[2])
+
+	//wait complete serialization
+	time.Sleep(2 * time.Second)
 
 	err = blacklist.AddQueries(loggingHandler.GetForbiddenQueries())
 	if err != nil {
@@ -767,7 +630,6 @@ func TestQueryCapture(t *testing.T){
 		"SELECT * FROM X;",
 		"SELECT * FROM Y;",
 	}
-	expected := "\n{\"RawQuery\":\"SELECT * FROM Schema.Tables;\",\"IsForbidden\":false}\n{\"RawQuery\":\"SELECT Student_ID FROM STUDENT;\",\"IsForbidden\":false}\n{\"RawQuery\":\"SELECT * FROM STUDENT;\",\"IsForbidden\":false}\n{\"RawQuery\":\"SELECT * FROM X;\",\"IsForbidden\":false}\n{\"RawQuery\":\"SELECT * FROM Y;\",\"IsForbidden\":false}"
 
 	for _, query := range testQueries{
 		err = handler.CheckQuery(query)
@@ -775,8 +637,11 @@ func TestQueryCapture(t *testing.T){
 			t.Fatal(err)
 		}
 	}
-	time.Sleep(1 * time.Second)
 
+	expected := "[{\"RawQuery\":\"SELECT * FROM Schema.Tables;\",\"IsForbidden\":false},{\"RawQuery\":\"SELECT Student_ID FROM STUDENT;\",\"IsForbidden\":false},{\"RawQuery\":\"SELECT * FROM STUDENT;\",\"IsForbidden\":false},{\"RawQuery\":\"SELECT * FROM X;\",\"IsForbidden\":false},{\"RawQuery\":\"SELECT * FROM Y;\",\"IsForbidden\":false}]"
+
+	//wait until goroutine handles complex serialization
+	time.Sleep(3 * time.Second)
 	result, err := ioutil.ReadFile(tmpFile.Name())
 	if err != nil {
 		t.Fatal(err)
@@ -786,22 +651,136 @@ func TestQueryCapture(t *testing.T){
 		t.Fatal("Expected: " + expected + "\nGot: " + string(result))
 	}
 
-	expected = "[{\"RawQuery\":\"SELECT * FROM Schema.Tables;\",\"IsForbidden\":false},{\"RawQuery\":\"SELECT Student_ID FROM STUDENT;\",\"IsForbidden\":false},{\"RawQuery\":\"SELECT * FROM STUDENT;\",\"IsForbidden\":false},{\"RawQuery\":\"SELECT * FROM X;\",\"IsForbidden\":false},{\"RawQuery\":\"SELECT * FROM Y;\",\"IsForbidden\":false}]"
+	if err = os.Remove(tmpFile.Name()); err != nil {
+		t.Fatal(err)
+	}
+}
 
-	//wait until goroutine handles complex serialization
-	time.Sleep(3 * time.Second)
-	result, err = ioutil.ReadFile(tmpFile.Name())
+func TestConfigurationProvider(t *testing.T) {
+
+	defer os.Remove("censor_log")
+
+	var DEFAULT_CONFIG_PATH = utils.GetConfigPathByName("acra_censor.example")
+
+	filePath, err := os.Getwd()
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	if !strings.EqualFold(string(result), expected) {
-		t.Fatal("Expected: " + expected + "\nGot: " + string(result))
+	configuration, err := ioutil.ReadFile(filepath.Join(filePath, "../", DEFAULT_CONFIG_PATH))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	acraCensor := &AcraCensor{}
+
+	err = acraCensor.LoadConfiguration(configuration)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	testQueries := []string{
+		"INSERT INTO SalesStaff1 VALUES (1, 'Stephen', 'Jiang');",
+		"SELECT AVG(Price) FROM Products;",
+	}
+
+	//acracensor should block those queries (blacklist works)
+	for _, queryToBlock := range testQueries {
+		err = acraCensor.HandleQuery(queryToBlock)
+		if err != handlers.ErrQueryInBlacklist {
+			t.Fatal(err)
+		}
 	}
 
 
+	testQueries = []string{
+		"INSERT INTO EMPLOYEE_TBL VALUES (1, 'Stephen', 'Jiang');",
+		"SELECT AVG(Price) FROM Customers;",
+	}
 
-	if err = os.Remove(tmpFile.Name()); err != nil {
+	//acracensor should block those tables (blacklist works)
+	for _, queryToBlock := range testQueries {
+		err = acraCensor.HandleQuery(queryToBlock)
+		if err != handlers.ErrAccessToForbiddenTableBlacklist {
+			t.Fatal(err)
+		}
+	}
+
+	testQueries = []string{
+		"SELECT EMP_ID, LAST_NAME FROM EMPLOYEE WHERE CITY = 'Seattle' ORDER BY EMP_ID;",
+		"SELECT EMP_ID, LAST_NAME FROM EMPLOYEE AS EMPL WHERE CITY = 'Seattle' ORDER BY EMP_ID;",
+	}
+
+	//acracensor should block those structures (blacklist works)
+	for _, queryToBlock := range testQueries {
+		err = acraCensor.HandleQuery(queryToBlock)
+		if err != handlers.ErrForbiddenSqlStructureBlacklist {
+			t.Fatal(err)
+		}
+	}
+
+	testQueries = []string{
+		"SELECT EMP_ID, LAST_NAME FROM PRODUCTS WHERE CITY='INDIANAPOLIS' ORDER BY EMP_ID;",
+		"SELECT EMP_ID, LAST_NAME FROM PRODUCTS WHERE CITY='INDIANAPOLIS' ORDER BY EMP_ID asc;",
+	}
+
+	//acracensor should block those tables (whitelist works)
+	for _, queryToBlock := range testQueries {
+		err = acraCensor.HandleQuery(queryToBlock)
+		if err != handlers.ErrAccessToForbiddenTableWhitelist {
+			t.Fatal(err)
+		}
+	}
+	time.Sleep(2 * time.Second)
+
+	expectedQueriesInCensorLog := "[{\"RawQuery\":\"INSERT INTO SalesStaff1 VALUES (1, 'Stephen', 'Jiang');\",\"IsForbidden\":false},{\"RawQuery\":\"SELECT AVG(Price) FROM Products;\",\"IsForbidden\":false},{\"RawQuery\":\"INSERT INTO EMPLOYEE_TBL VALUES (1, 'Stephen', 'Jiang');\",\"IsForbidden\":false},{\"RawQuery\":\"SELECT AVG(Price) FROM Customers;\",\"IsForbidden\":false},{\"RawQuery\":\"SELECT EMP_ID, LAST_NAME FROM EMPLOYEE WHERE CITY = 'Seattle' ORDER BY EMP_ID;\",\"IsForbidden\":false},{\"RawQuery\":\"SELECT EMP_ID, LAST_NAME FROM EMPLOYEE AS EMPL WHERE CITY = 'Seattle' ORDER BY EMP_ID;\",\"IsForbidden\":false},{\"RawQuery\":\"SELECT EMP_ID, LAST_NAME FROM PRODUCTS WHERE CITY='INDIANAPOLIS' ORDER BY EMP_ID;\",\"IsForbidden\":false},{\"RawQuery\":\"SELECT EMP_ID, LAST_NAME FROM PRODUCTS WHERE CITY='INDIANAPOLIS' ORDER BY EMP_ID asc;\",\"IsForbidden\":false}]"
+
+	censorLogsBytes, err := ioutil.ReadFile("censor_log")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if !strings.EqualFold(expectedQueriesInCensorLog, string(censorLogsBytes)){
+		t.Fatal("Expected: " + expectedQueriesInCensorLog + " Got: " + string(censorLogsBytes))
+	}
+
+	//time.Sleep(4 * time.Second)
+
+	//err = os.Remove("censor_log")
+	//if err != nil {
+	//	t.Fatal(err)
+	//}
+
+	testSyntax(t)
+}
+func testSyntax(t *testing.T) {
+
+	acraCensor := &AcraCensor{}
+
+	configuration := `handlers:
+  - handler: blacklist
+    queries:
+      - INSERT INTO SalesStaff1 VALUES (1, 'Stephen', 'Jiang');
+      - SLECT AVG(Price) FROM Products;`
+
+	err := acraCensor.LoadConfiguration([]byte(configuration))
+	if err != handlers.ErrQuerySyntaxError {
+		t.Fatal(err)
+	}
+
+	configuration = `handlers:
+  - handler: blacklist
+    queries:
+      - INSERT INTO SalesStaff1 VALUES (1, 'Stephen', 'Jiang');
+      - SELECT AVG(Price) FROM Products;
+    tables:
+      - EMPLOYEE_TBL
+      - Customers
+    rules:
+      - SELECT * ROM EMPLOYEE WHERE CITY='Seattle';`
+
+	err = acraCensor.LoadConfiguration([]byte(configuration))
+	if err != handlers.ErrStructureSyntaxError {
 		t.Fatal(err)
 	}
 }
