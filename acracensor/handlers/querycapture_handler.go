@@ -144,7 +144,6 @@ func NewQueryCaptureHandler(filePath string) (*QueryCaptureHandler, error) {
 
 	return handler, nil
 }
-
 func (handler *QueryCaptureHandler) CheckQuery(query string) error {
 	//skip already logged queries
 	for _, queryInfo := range handler.Queries{
@@ -161,16 +160,13 @@ func (handler *QueryCaptureHandler) CheckQuery(query string) error {
 
 	return nil
 }
-
 func (handler *QueryCaptureHandler) Reset() {
 	handler.Queries = nil
 }
-
 func (handler *QueryCaptureHandler) Release(){
 	handler.Reset()
 	handler.signalBackgroundExit <- true
 }
-
 func (handler *QueryCaptureHandler) GetAllInputQueries() []string{
 	var queries []string
 	for _, queryInfo := range handler.Queries {
@@ -178,7 +174,6 @@ func (handler *QueryCaptureHandler) GetAllInputQueries() []string{
 	}
 	return queries
 }
-
 func (handler *QueryCaptureHandler) MarkQueryAsForbidden(query string) {
 	for index, queryInfo := range handler.Queries {
 		if strings.EqualFold(query, queryInfo.RawQuery) {
@@ -188,7 +183,6 @@ func (handler *QueryCaptureHandler) MarkQueryAsForbidden(query string) {
 
 	handler.signalToSerialize <- true
 }
-
 func (handler *QueryCaptureHandler) GetForbiddenQueries() []string{
 	var forbiddenQueries []string
 	for _, queryInfo := range handler.Queries {
@@ -207,7 +201,6 @@ func (handler *QueryCaptureHandler) Serialize() error {
 	}
 	return ioutil.WriteFile(handler.filePath, jsonFile, 0600)
 }
-
 func (handler *QueryCaptureHandler) Deserialize() error {
 	var bufferBytes []byte
 	bufferBytes, err := ioutil.ReadFile(handler.filePath)
