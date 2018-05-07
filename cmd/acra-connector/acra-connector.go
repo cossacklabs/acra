@@ -164,7 +164,7 @@ func main() {
 	tlsCert := flag.String("tls_cert", "", "Path to certificate")
 	tlsSNI := flag.String("tls_sni", "", "Expected Server Name (SNI) from AcraServer")
 	tlsAuthType := flag.Int("tls_auth", int(tls.RequireAndVerifyClientCert), "Set authentication mode that will be used in TLS connection with Postgresql. Values in range 0-4 that set auth type (https://golang.org/pkg/crypto/tls/#ClientAuthType). Default is tls.RequireAndVerifyClientCert")
-	noEncryption := flag.Bool("no_encryption", false, "Use raw transport (tcp/unix socket) between acraserver and acraproxy/client (don't use this flag if you not connect to database with ssl/tls")
+	noEncryptionTransport := flag.Bool("no_transport_encryption", false, "Use raw transport (tcp/unix socket) between acraserver and acraproxy/client (don't use this flag if you not connect to database with ssl/tls")
 	connectionString := flag.String("connection_string", network.BuildConnectionString(cmd.DEFAULT_ACRACONNECTOR_CONNECTION_PROTOCOL, cmd.DEFAULT_ACRACONNECTOR_HOST, cmd.DEFAULT_ACRACONNECTOR_PORT, ""), "Connection string like tcp://x.x.x.x:yyyy or unix:///path/to/socket")
 	connectionAPIString := flag.String("connection_api_string", network.BuildConnectionString(cmd.DEFAULT_ACRACONNECTOR_CONNECTION_PROTOCOL, cmd.DEFAULT_ACRACONNECTOR_HOST, cmd.DEFAULT_ACRACONNECTOR_API_PORT, ""), "Connection string like tcp://x.x.x.x:yyyy or unix:///path/to/socket")
 	acraConnectionString := flag.String("acra_connection_string", "", "Connection string to AcraServer like tcp://x.x.x.x:yyyy or unix:///path/to/socket")
@@ -301,7 +301,7 @@ func main() {
 				Errorln("Configuration error: can't initialize TLS connection wrapper")
 			os.Exit(1)
 		}
-	} else if *noEncryption {
+	} else if *noEncryptionTransport {
 		log.Infof("Selecting transport: use raw transport wrapper")
 		config.ConnectionWrapper = &network.RawConnectionWrapper{ClientId: []byte(*clientId)}
 	} else {

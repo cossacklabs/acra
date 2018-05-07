@@ -77,7 +77,7 @@ services:
             --tls_cert=/ssl.server/acra-server.crt
             --tls_key=/ssl.server/acra-server.key
             --tls_sni=postgresql
-            --no_encryption
+            --no_transport_encryption
             -v
 
 networks:

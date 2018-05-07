@@ -1742,11 +1742,11 @@ class SSLPostgresqlMixin(AcraCatchLogsMixin):
                 self.acra = self.fork_acra(
                     tls_key='tests/server.key', tls_cert='tests/server.crt',
                     tls_ca='tests/server.crt',
-                    no_encryption=True, client_id='keypair1')
+                    no_transport_encryption=True, client_id='keypair1')
                 # create second acra without settings for tls to check that
                 # connection will be closed on tls handshake
                 self.acra2 = self.fork_acra(
-                    no_encryption=True, client_id='keypair1',
+                    no_transport_encryption=True, client_id='keypair1',
                     port=self.ACRA2_PORT)
             self.engine1 = sa.create_engine(
                 get_postgresql_tcp_connection_string(self.ACRA_PORT, self.DB_NAME), connect_args=get_connect_args(port=self.ACRA_PORT))
@@ -1857,11 +1857,11 @@ class SSLMysqlMixin(SSLPostgresqlMixin):
                     tls_ca='tests/server.crt',
                     tls_auth=0,
                     #tls_sni="127.0.0.1",
-                    no_encryption=True, client_id='keypair1')
+                    no_transport_encryption=True, client_id='keypair1')
                 # create second acra without settings for tls to check that
                 # connection will be closed on tls handshake
                 self.acra2 = self.fork_acra(
-                    no_encryption=True, client_id='keypair1',
+                    no_transport_encryption=True, client_id='keypair1',
                     port=self.ACRA2_PORT)
             self.driver_to_acraserver_ssl_settings = {
                 'ca': 'tests/server.crt',
