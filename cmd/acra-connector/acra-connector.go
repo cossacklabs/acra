@@ -90,7 +90,7 @@ func handleClientConnection(config *Config, connection net.Conn) {
 		}
 	}
 
-	acraConn, err := network.Dial(config.AcraConnectionString)
+	acraConn, err := network.Dial(config.AcraServerConnectionString)
 	if err != nil {
 		log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantStartConnection).
 			Errorln("Can't connect to acra")
@@ -132,14 +132,14 @@ func handleClientConnection(config *Config, connection net.Conn) {
 }
 
 type Config struct {
-	KeysDir              string
-	ClientId             []byte
-	AcraId               []byte
-	AcraConnectionString string
-	ConnectionString     string
-	disableUserCheck     bool
-	KeyStore             keystore.SecureSessionKeyStore
-	ConnectionWrapper    network.ConnectionWrapper
+	KeysDir                    string
+	ClientId                   []byte
+	AcraServerId               []byte
+	AcraServerConnectionString string
+	ConnectionString           string
+	disableUserCheck           bool
+	KeyStore                   keystore.SecureSessionKeyStore
+	ConnectionWrapper          network.ConnectionWrapper
 }
 
 func main() {
@@ -149,13 +149,13 @@ func main() {
 
 	keysDir := flag.String("keys_dir", keystore.DEFAULT_KEY_DIR_SHORT, "Folder from which will be loaded keys")
 	clientId := flag.String("client_id", "", "Client id")
-	acraHost := flag.String("acra_host", "", "IP or domain to acra daemon")
-	acraServerApiPort := flag.Int("acra_api_port", cmd.DEFAULT_ACRASERVER_API_PORT, "Port of Acra HTTP api")
-	acraServerPort := flag.Int("acra_port", cmd.DEFAULT_ACRASERVER_PORT, "Port of acra daemon")
-	acraServerId := flag.String("acra_id", "acra_server", "Expected id from AcraServer for Secure Session")
+	acraServerHost := flag.String("acraserver_host", "", "IP or domain to acra daemon")
+	acraServerApiPort := flag.Int("acraserver_api_port", cmd.DEFAULT_ACRASERVER_API_PORT, "Port of Acra HTTP api")
+	acraServerPort := flag.Int("acraserver_port", cmd.DEFAULT_ACRASERVER_PORT, "Port of acra daemon")
+	acraServerId := flag.String("acraserver_id", "acra_server", "Expected id from AcraServer for Secure Session")
 	verbose := flag.Bool("v", false, "Log to stderr")
 	acraConnectorPort := flag.Int("port", cmd.DEFAULT_ACRACONNECTOR_PORT, "Port to AcraConnector")
-	acraConnectorCommandsPort := flag.Int("command_port", cmd.DEFAULT_ACRACONNECTOR_API_PORT, "Port for AcraConnector HTTP api")
+	acraConnectorApiPort := flag.Int("api_port", cmd.DEFAULT_ACRACONNECTOR_API_PORT, "Port for AcraConnector HTTP api")
 	enableHTTPApi := flag.Bool("enable_http_api", false, "Enable HTTP API")
 	disableUserCheck := flag.Bool("disable_user_check", false, "Disable checking that connections from app running from another user")
 	useTls := flag.Bool("tls_transport", false, "Use tls to encrypt transport between AcraServer and AcraConnector/client")
@@ -167,8 +167,8 @@ func main() {
 	noEncryptionTransport := flag.Bool("no_transport_encryption", false, "Use raw transport (tcp/unix socket) between acraserver and acraproxy/client (don't use this flag if you not connect to database with ssl/tls")
 	connectionString := flag.String("connection_string", network.BuildConnectionString(cmd.DEFAULT_ACRACONNECTOR_CONNECTION_PROTOCOL, cmd.DEFAULT_ACRACONNECTOR_HOST, cmd.DEFAULT_ACRACONNECTOR_PORT, ""), "Connection string like tcp://x.x.x.x:yyyy or unix:///path/to/socket")
 	connectionAPIString := flag.String("connection_api_string", network.BuildConnectionString(cmd.DEFAULT_ACRACONNECTOR_CONNECTION_PROTOCOL, cmd.DEFAULT_ACRACONNECTOR_HOST, cmd.DEFAULT_ACRACONNECTOR_API_PORT, ""), "Connection string like tcp://x.x.x.x:yyyy or unix:///path/to/socket")
-	acraConnectionString := flag.String("acra_connection_string", "", "Connection string to AcraServer like tcp://x.x.x.x:yyyy or unix:///path/to/socket")
-	acraApiConnectionString := flag.String("acra_api_connection_string", "", "Connection string to Acra's API like tcp://x.x.x.x:yyyy or unix:///path/to/socket")
+	acraServerConnectionString := flag.String("acraserver_connection_string", "", "Connection string to AcraServer like tcp://x.x.x.x:yyyy or unix:///path/to/socket")
+	acraServerApiConnectionString := flag.String("acraserver_api_connection_string", "", "Connection string to Acra's API like tcp://x.x.x.x:yyyy or unix:///path/to/socket")
 
 	err := cmd.Parse(DEFAULT_CONFIG_PATH, SERVICE_NAME)
 	if err != nil {
@@ -189,26 +189,26 @@ func main() {
 	if *acraConnectorPort != cmd.DEFAULT_ACRACONNECTOR_PORT {
 		*connectionString = network.BuildConnectionString(cmd.DEFAULT_ACRACONNECTOR_CONNECTION_PROTOCOL, cmd.DEFAULT_ACRACONNECTOR_HOST, *acraConnectorPort, "")
 	}
-	if *acraConnectorCommandsPort != cmd.DEFAULT_ACRACONNECTOR_API_PORT {
-		*connectionAPIString = network.BuildConnectionString(cmd.DEFAULT_ACRACONNECTOR_CONNECTION_PROTOCOL, cmd.DEFAULT_ACRACONNECTOR_HOST, *acraConnectorCommandsPort, "")
+	if *acraConnectorApiPort != cmd.DEFAULT_ACRACONNECTOR_API_PORT {
+		*connectionAPIString = network.BuildConnectionString(cmd.DEFAULT_ACRACONNECTOR_CONNECTION_PROTOCOL, cmd.DEFAULT_ACRACONNECTOR_HOST, *acraConnectorApiPort, "")
 	}
 
-	if *acraHost == "" && *acraConnectionString == "" {
+	if *acraServerHost == "" && *acraServerConnectionString == "" {
 		log.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorWrongConfiguration).
-			Errorln("Configuration error: you must pass acra_host or acra_connection_string parameter")
+			Errorln("Configuration error: you must pass acraserver_host or acra_connection_string parameter")
 		os.Exit(1)
 	}
-	if *acraHost != "" {
-		*acraConnectionString = network.BuildConnectionString(cmd.DEFAULT_ACRA_CONNECTION_PROTOCOL, *acraHost, *acraServerPort, "")
+	if *acraServerHost != "" {
+		*acraServerConnectionString = network.BuildConnectionString(cmd.DEFAULT_ACRA_CONNECTION_PROTOCOL, *acraServerHost, *acraServerPort, "")
 	}
 	if *enableHTTPApi {
-		if *acraHost == "" && *acraApiConnectionString == "" {
+		if *acraServerHost == "" && *acraServerApiConnectionString == "" {
 			log.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorWrongConfiguration).
-				Errorln("Configuration error: you must pass acra_host or acra_api_connection_string parameter")
+				Errorln("Configuration error: you must pass acraserver_host or acra_api_connection_string parameter")
 			os.Exit(1)
 		}
-		if *acraHost != "" {
-			*acraApiConnectionString = network.BuildConnectionString(cmd.DEFAULT_ACRA_CONNECTION_PROTOCOL, *acraHost, *acraServerApiPort, "")
+		if *acraServerHost != "" {
+			*acraServerApiConnectionString = network.BuildConnectionString(cmd.DEFAULT_ACRA_CONNECTION_PROTOCOL, *acraServerHost, *acraServerApiPort, "")
 		}
 	}
 
@@ -268,7 +268,7 @@ func main() {
 	}
 
 	log.Debugf("Start listening connections")
-	config := &Config{KeyStore: keyStore, KeysDir: *keysDir, ClientId: []byte(*clientId), AcraConnectionString: *acraConnectionString, ConnectionString: *connectionString, AcraId: []byte(*acraServerId), disableUserCheck: *disableUserCheck}
+	config := &Config{KeyStore: keyStore, KeysDir: *keysDir, ClientId: []byte(*clientId), AcraServerConnectionString: *acraServerConnectionString, ConnectionString: *connectionString, AcraServerId: []byte(*acraServerId), disableUserCheck: *disableUserCheck}
 	listener, err := network.Listen(*connectionString)
 	if err != nil {
 		log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantStartListenConnections).
@@ -289,7 +289,7 @@ func main() {
 
 	if *useTls {
 		log.Infof("Selecting transport: use TLS transport wrapper")
-		tlsConfig, err := network.NewTLSConfig(network.SNIOrHostname(*tlsAcraserverSNI, *acraHost), *tlsCA, *tlsKey, *tlsCert, tls.ClientAuthType(*tlsAuthType))
+		tlsConfig, err := network.NewTLSConfig(network.SNIOrHostname(*tlsAcraserverSNI, *acraServerHost), *tlsCA, *tlsKey, *tlsCert, tls.ClientAuthType(*tlsAuthType))
 		if err != nil {
 			log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorTransportConfiguration).
 				Errorln("Configuration error: can't get config for TLS")
@@ -317,7 +317,7 @@ func main() {
 		go func() {
 			// copy config and replace ports
 			commandsConfig := *config
-			commandsConfig.AcraConnectionString = *acraApiConnectionString
+			commandsConfig.AcraServerConnectionString = *acraServerApiConnectionString
 
 			log.Infof("Start listening http API: %s", *connectionAPIString)
 			commandsListener, err := network.Listen(*connectionAPIString)

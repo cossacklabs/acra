@@ -139,7 +139,7 @@ services:
             - ./ssl/ca:/ssl.ca:ro
             - ./ssl/acra-connector:/ssl.proxy:ro
         command: >-
-            --acra_host=acra-server
+            --acraserver_host=acra-server
             --keys_dir=/keys
             --client_id=${ACRA_CLIENT_ID:-testclientid}
             --connection_string=tcp://0.0.0.0:9494

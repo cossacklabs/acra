@@ -148,7 +148,7 @@ services:
             # Mount the directory with only the keys for this service
             - ./.acrakeys/acra-connector:/keys:ro
         command: >-
-            --acra_host=acra-server
+            --acraserver_host=acra-server
             --keys_dir=/keys
             --client_id=${ACRA_CLIENT_ID:-testclientid}
             --connection_string=tcp://0.0.0.0:9494
@@ -173,7 +173,7 @@ services:
             - webconfig-connector
             - world
         command: >-
-            --acra_host=acra-connector
+            --remote_host=acra-connector
             --host=0.0.0.0
 
 networks:

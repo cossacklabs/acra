@@ -39,8 +39,8 @@ import (
 
 var host *string
 var port *int
-var acraHost *string
-var acraPort *int
+var remoteHost *string
+var remotePort *int
 var debug *bool
 var staticPath *string
 var authMode *string
@@ -154,7 +154,7 @@ func SubmitSettings(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	req, err := http.NewRequest("POST", fmt.Sprintf("http://%v:%v/setConfig", *acraHost, *acraPort), bytes.NewBuffer(jsonToServer))
+	req, err := http.NewRequest("POST", fmt.Sprintf("http://%v:%v/setConfig", *remoteHost, *remotePort), bytes.NewBuffer(jsonToServer))
 	if err != nil {
 		log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantSetNewConfig).
 			Errorln("/setConfig http.NewRequest failed")
@@ -204,7 +204,7 @@ func index(w http.ResponseWriter, r *http.Request) {
 	var netClient = &http.Client{
 		Timeout: time.Second * HTTP_TIMEOUT,
 	}
-	serverResponse, err := netClient.Get(fmt.Sprintf("http://%v:%v/getConfig", *acraHost, *acraPort))
+	serverResponse, err := netClient.Get(fmt.Sprintf("http://%v:%v/getConfig", *remoteHost, *remotePort))
 	if err != nil {
 		log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantGetCurrentConfig).
 			Errorln("AcraServer API error")
@@ -345,16 +345,16 @@ func loadAuthData() (err error) {
 	var netClient = &http.Client{
 		Timeout: time.Second * HTTP_TIMEOUT,
 	}
-	serverResponse, err := netClient.Get(fmt.Sprintf("http://%v:%v/loadAuthData", *acraHost, *acraPort))
+	serverResponse, err := netClient.Get(fmt.Sprintf("http://%v:%v/loadAuthData", *remoteHost, *remotePort))
 	if err != nil {
 		log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantGetAuthData).
-			Error("Error while getting auth data from Acraserver")
+			Error("Error while getting auth data from AcraServer")
 		return err
 	}
 	defer serverResponse.Body.Close()
 	if serverResponse.StatusCode != http.StatusOK {
 		log.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantGetAuthData).
-			Errorf("Error while getting auth data from Acraserver, response status: %v", serverResponse.Status)
+			Errorf("Error while getting auth data from AcraServer, response status: %v", serverResponse.Status)
 		return ErrGetAuthDataFromAcraServer
 	}
 	authDataSting, err := ioutil.ReadAll(serverResponse.Body)
@@ -373,8 +373,8 @@ func main() {
 	loggingFormat := flag.String("logging_format", "plaintext", "Logging format: plaintext, json or CEF")
 	logging.CustomizeLogging(*loggingFormat, SERVICE_NAME)
 	log.Infof("Starting service")
-	acraHost = flag.String("acra_host", "localhost", "Host for Acraserver HTTP endpoint or AcraConnector")
-	acraPort = flag.Int("acra_port", cmd.DEFAULT_ACRACONNECTOR_API_PORT, "Port for Acraserver HTTP endpoint or AcraConnector")
+	remoteHost = flag.String("remote_host", "localhost", "Host for AcraServer HTTP endpoint or AcraConnector")
+	remotePort = flag.Int("remote_port", cmd.DEFAULT_ACRACONNECTOR_API_PORT, "Port for AcraServer HTTP endpoint or AcraConnector")
 	staticPath = flag.String("static_path", cmd.DEFAULT_ACRAWEBCONFIG_STATIC, "Path to static content")
 	debug = flag.Bool("d", false, "Turn on debug logging")
 	authMode = flag.String("auth_mode", cmd.DEFAULT_ACRAWEBCONFIG_AUTH_MODE, "Mode for basic auth. Possible values: auth_on|auth_off_local|auth_off")
