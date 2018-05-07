@@ -158,7 +158,7 @@ func main() {
 	acraConnectorCommandsPort := flag.Int("command_port", cmd.DEFAULT_ACRACONNECTOR_API_PORT, "Port for AcraConnector HTTP api")
 	enableHTTPApi := flag.Bool("enable_http_api", false, "Enable HTTP API")
 	disableUserCheck := flag.Bool("disable_user_check", false, "Disable checking that connections from app running from another user")
-	useTls := flag.Bool("tls", false, "Use tls to encrypt transport between AcraServer and AcraConnector/client")
+	useTls := flag.Bool("tls_transport", false, "Use tls to encrypt transport between AcraServer and AcraConnector/client")
 	tlsCA := flag.String("tls_ca", "", "Path to root certificate which will be used with system root certificates to validate AcraServer's certificate")
 	tlsKey := flag.String("tls_key", "", "Path to private key that will be used in TLS handshake with AcraServer")
 	tlsCert := flag.String("tls_cert", "", "Path to certificate")

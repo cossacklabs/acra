@@ -430,7 +430,7 @@ class BaseTestCase(unittest.TestCase):
 
     def get_connector_tls_params(self):
         return [
-            '--tls',
+            '--tls_transport',
             '--tls_sni=acraserver',
         ]
 
@@ -531,7 +531,7 @@ class BaseTestCase(unittest.TestCase):
             'auth_keys': self.ACRAWEBCONFIG_AUTH_KEYS_PATH
         }
         if self.TLS_ON:
-            args['tls'] = 'true'
+            args['tls_transport'] = 'true'
             args['tls_key'] = 'tests/server.key'
             args['tls_cert'] = 'tests/server.crt'
             args['tls_auth'] = 0

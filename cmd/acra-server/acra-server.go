@@ -88,7 +88,7 @@ func main() {
 	withZone := flag.Bool("zonemode", false, "Turn on zone mode")
 	enableHTTPApi := flag.Bool("enable_http_api", false, "Enable HTTP API")
 
-	useTls := flag.Bool("tls", false, "Use tls to encrypt transport between AcraServer and AcraConnector/client")
+	useTls := flag.Bool("tls_transport", false, "Use tls to encrypt transport between AcraServer and AcraConnector/client")
 	tlsKey := flag.String("tls_key", "", "Path to private key that will be used in TLS handshake with AcraConnector as server's key and Postgresql as client's key")
 	tlsCert := flag.String("tls_cert", "", "Path to tls certificate")
 	tlsCA := flag.String("tls_ca", "", "Path to root certificate which will be used with system root certificates to validate Postgresql's and AcraConnector's certificate")
