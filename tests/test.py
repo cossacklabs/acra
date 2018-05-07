@@ -431,7 +431,7 @@ class BaseTestCase(unittest.TestCase):
     def get_connector_tls_params(self):
         return [
             '--tls_transport',
-            '--tls_sni=acraserver',
+            '--tls_acraserver_sni=acraserver',
         ]
 
     def fork_connector(self, connector_port: int, acra_port: int, client_id: str, api_port: int=None, zone_mode: bool=False, check_connection: bool=True):
@@ -1856,7 +1856,7 @@ class SSLMysqlMixin(SSLPostgresqlMixin):
                     tls_cert='tests/server.crt',
                     tls_ca='tests/server.crt',
                     tls_auth=0,
-                    #tls_sni="127.0.0.1",
+                    #tls_db_sni="127.0.0.1",
                     no_transport_encryption=True, client_id='keypair1')
                 # create second acra without settings for tls to check that
                 # connection will be closed on tls handshake

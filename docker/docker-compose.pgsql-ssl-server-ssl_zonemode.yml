@@ -76,7 +76,7 @@ services:
             --tls_ca=/ssl.ca/example.cossacklabs.com.CA.crt
             --tls_cert=/ssl.server/acra-server.crt
             --tls_key=/ssl.server/acra-server.key
-            --tls_sni=postgresql
+            --tls_db_sni=postgresql
             --no_transport_encryption
             -v
 
