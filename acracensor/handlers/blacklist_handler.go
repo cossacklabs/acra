@@ -72,6 +72,10 @@ func (handler *BlacklistHandler) Reset() {
 	handler.rules = nil
 }
 
+func (handler *BlacklistHandler) Release(){
+	handler.Reset()
+}
+
 func (handler *BlacklistHandler) AddQueries(queries []string) error {
 
 	for _, query := range queries {

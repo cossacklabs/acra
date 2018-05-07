@@ -7,9 +7,9 @@ import (
 	"os"
 	"github.com/cossacklabs/acra/logging"
 	log "github.com/sirupsen/logrus"
-	"time"
 	"os/signal"
 	"syscall"
+	"time"
 )
 
 const MaxQueriesInChannel = 10
@@ -20,6 +20,7 @@ type QueryCaptureHandler struct {
 	filePath string
 	logChannel chan QueryInfo
 	signalToSerialize chan bool
+	signalBackgroundExit chan bool
 }
 
 type QueryInfo struct {
@@ -32,12 +33,16 @@ func NewQueryCaptureHandler(filePath string) (*QueryCaptureHandler, error) {
 	var _, err = os.Stat(filePath)
 
 	// create file if not exists
-	if os.IsNotExist(err) {
-		var file, err = os.Create(filePath)
-		if err != nil {
+	if err != nil {
+		if os.IsNotExist(err) {
+			var file, err = os.Create(filePath)
+			if err != nil {
+				return nil, err
+			}
+			defer file.Close()
+		} else {
 			return nil, err
 		}
-		defer file.Close()
 	}
 
 	bufferBytes, err := ioutil.ReadFile(filePath)
@@ -58,9 +63,20 @@ func NewQueryCaptureHandler(filePath string) (*QueryCaptureHandler, error) {
 	signalShutdown := make(chan os.Signal, 2)
 	signal.Notify(signalShutdown, os.Interrupt, syscall.SIGTERM)
 
-	//serialization signal
+	signalBackgroundExit := make(chan bool)
+
+
+	//serialization signaling goroutine
 	go func() {
 		for {
+			select {
+			case <-signalBackgroundExit:
+				return
+			case <-signalShutdown:
+				return
+			default:
+				//do nothing. This means that channel has no data to read yet
+			}
 			time.Sleep(TimeoutSecondsToSerialize * time.Second)
 			//timer finished. Close channel to inform that serialization should be performed
 			signalToSerialize <- true
@@ -72,6 +88,7 @@ func NewQueryCaptureHandler(filePath string) (*QueryCaptureHandler, error) {
 	handler.Queries = queries
 	handler.signalToSerialize = signalToSerialize
 	handler.logChannel = logChannel
+	handler.signalBackgroundExit = signalBackgroundExit
 
 	//handling goroutine
 	go func (){
@@ -108,19 +125,22 @@ func NewQueryCaptureHandler(filePath string) (*QueryCaptureHandler, error) {
 					//channel is unexpectedly closed
 					log.WithError(ErrUnexpectedCaptureChannelClose).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCensorSecurityError)
 				}
+
+			case <-signalBackgroundExit:
+				return
+
 			case <-signalShutdown:
 				err := handler.Serialize()
 				if err != nil {
 					log.WithError(ErrComplexSerializationError).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCensorSecurityError)
 				}
+				return
+
 			default:
 				//do nothing. This means that channel has no data to read yet
 			}
 		}
 	}()
-
-
-
 
 	return handler, nil
 }
@@ -144,6 +164,11 @@ func (handler *QueryCaptureHandler) CheckQuery(query string) error {
 
 func (handler *QueryCaptureHandler) Reset() {
 	handler.Queries = nil
+}
+
+func (handler *QueryCaptureHandler) Release(){
+	handler.Reset()
+	handler.signalBackgroundExit <- true
 }
 
 func (handler *QueryCaptureHandler) GetAllInputQueries() []string{

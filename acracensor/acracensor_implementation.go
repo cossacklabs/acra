@@ -21,6 +21,12 @@ func (acraCensor *AcraCensor) RemoveHandler(handler QueryHandlerInterface) {
 	}
 }
 
+func (acraCensor *AcraCensor) ReleaseAll(){
+	for _, handler := range acraCensor.handlers {
+		handler.Release()
+	}
+}
+
 func (acraCensor *AcraCensor) HandleQuery(query string) error {
 	for _, handler := range acraCensor.handlers {
 		if err := handler.CheckQuery(query); err != nil {

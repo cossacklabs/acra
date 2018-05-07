@@ -78,6 +78,10 @@ func (handler *WhitelistHandler) Reset() {
 	handler.rules = nil
 }
 
+func (handler *WhitelistHandler) Release() {
+	handler.Reset()
+}
+
 func (handler *WhitelistHandler) AddQueries(queries []string) error {
 	for _, query := range queries {
 		handler.queries = append(handler.queries, query)
