@@ -21,6 +21,7 @@ type QueryCaptureHandler struct {
 	logChannel chan QueryInfo
 	signalToSerialize chan bool
 	signalBackgroundExit chan bool
+	serializationTimeoutSeconds time.Duration
 }
 
 type QueryInfo struct {
@@ -66,6 +67,16 @@ func NewQueryCaptureHandler(filePath string) (*QueryCaptureHandler, error) {
 	signalBackgroundExit := make(chan bool)
 
 
+
+
+	handler := &QueryCaptureHandler{}
+	handler.filePath = filePath
+	handler.Queries = queries
+	handler.signalToSerialize = signalToSerialize
+	handler.logChannel = logChannel
+	handler.signalBackgroundExit = signalBackgroundExit
+	handler.serializationTimeoutSeconds = TimeoutSecondsToSerialize
+
 	//serialization signaling goroutine
 	go func() {
 		for {
@@ -77,18 +88,11 @@ func NewQueryCaptureHandler(filePath string) (*QueryCaptureHandler, error) {
 			default:
 				//do nothing. This means that channel has no data to read yet
 			}
-			time.Sleep(TimeoutSecondsToSerialize * time.Second)
+			time.Sleep(handler.serializationTimeoutSeconds * time.Second)
 			//timer finished. Close channel to inform that serialization should be performed
 			signalToSerialize <- true
 		}
 	}()
-
-	handler := &QueryCaptureHandler{}
-	handler.filePath = filePath
-	handler.Queries = queries
-	handler.signalToSerialize = signalToSerialize
-	handler.logChannel = logChannel
-	handler.signalBackgroundExit = signalBackgroundExit
 
 	//handling goroutine
 	go func (){
@@ -192,7 +196,13 @@ func (handler *QueryCaptureHandler) GetForbiddenQueries() []string{
 	}
 	return forbiddenQueries
 }
+func (handler *QueryCaptureHandler) SetSerializationTimeout(timeoutInSeconds time.Duration){
+	handler.serializationTimeoutSeconds = timeoutInSeconds
+}
 
+func (handler *QueryCaptureHandler) GetSerializationTimeout() time.Duration {
+	return handler.serializationTimeoutSeconds
+}
 
 func (handler *QueryCaptureHandler) Serialize() error {
 	jsonFile, err := json.Marshal(handler.Queries)
