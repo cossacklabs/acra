@@ -2,13 +2,13 @@
 client_id: 
 
 # path to config
-config: 
+config_file: 
 
 # Connection string for db
 connection_string: 
 
 # dump config
-dumpconfig: false
+dump_config: false
 
 # Escape bytea format
 escape: false
@@ -23,17 +23,17 @@ insert:
 keys_dir: .acrakeys
 
 # Handle MySQL connections
-mysql: false
+mysql_enable: false
 
 # File for store inserts queries
 output_file: decrypted.sql
 
 # Handle Postgresql connections
-postgresql: false
+postgresql_enable: false
 
 # Query to fetch data for decryption
 select: 
 
 # Turn on zone mode
-zonemode: false
+zonemode_enable: false
 

@@ -158,12 +158,12 @@ func main() {
 	connectionString := flag.String("connection_string", "", "Connection string for db")
 	sqlSelect := flag.String("select", "", "Query to fetch data for decryption")
 	sqlInsert := flag.String("insert", "", "Query for insert decrypted data with placeholders (pg: $n, mysql: ?)")
-	withZone := flag.Bool("zonemode", false, "Turn on zone mode")
+	withZone := flag.Bool("zonemode_enable", false, "Turn on zone mode")
 	outputFile := flag.String("output_file", "decrypted.sql", "File for store inserts queries")
 	execute := flag.Bool("execute", false, "Execute inserts")
 	escapeFormat := flag.Bool("escape", false, "Escape bytea format")
-	useMysql := flag.Bool("mysql", false, "Handle MySQL connections")
-	usePostgresql := flag.Bool("postgresql", false, "Handle Postgresql connections")
+	useMysql := flag.Bool("mysql_enable", false, "Handle MySQL connections")
+	usePostgresql := flag.Bool("postgresql_enable", false, "Handle Postgresql connections")
 
 	logging.SetLogLevel(logging.LOG_VERBOSE)
 
@@ -176,7 +176,7 @@ func main() {
 	twoDrivers := *useMysql && *usePostgresql
 	noDrivers := !(*useMysql || *usePostgresql)
 	if twoDrivers || noDrivers {
-		log.Errorln("you must pass only --mysql or --postgresql (one required)")
+		log.Errorln("you must pass only --mysql_enable or --postgresql_enable (one required)")
 		os.Exit(1)
 	}
 	if *useMysql {

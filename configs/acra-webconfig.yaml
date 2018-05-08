@@ -1,29 +1,29 @@
-# Host for Acraserver HTTP endpoint or AcraConnector
-acra_host: localhost
-
-# Port for Acraserver HTTP endpoint or AcraConnector
-acra_port: 9191
-
-# Mode for basic auth. Possible values: auth_on|auth_off_local|auth_off
-auth_mode: auth_on
-
 # path to config
-config: 
+config_file: 
 
 # Turn on debug logging
 d: false
 
 # dump config
-dumpconfig: false
+dump_config: false
 
 # Host for AcraWebconfig HTTP endpoint
 host: 127.0.0.1
+
+# Mode for basic auth. Possible values: auth_on|auth_off_local|auth_off
+http_auth_mode: auth_on
 
 # Logging format: plaintext, json or CEF
 logging_format: plaintext
 
 # Port for AcraWebconfig HTTP endpoint
 port: 8000
+
+# Host for AcraServer HTTP endpoint or AcraConnector
+remote_host: localhost
+
+# Port for AcraServer HTTP endpoint or AcraConnector
+remote_port: 9191
 
 # Path to static content
 static_path: cmd/acra-webconfig/static

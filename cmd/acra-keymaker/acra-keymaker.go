@@ -30,13 +30,13 @@ var SERVICE_NAME = "acra_genkeys"
 
 func main() {
 	clientId := flag.String("client_id", "client", "Client id")
-	acraConnector := flag.Bool("acra-connector", false, "Create keypair for AcraConnector only")
-	acraserver := flag.Bool("acra-server", false, "Create keypair for AcraServer only")
-	dataKeys := flag.Bool("storage", false, "Create keypair for data encryption/decryption")
-	basicauth := flag.Bool("basicauth", false, "Create symmetric key for AcraWebconfig's basic auth db")
-	outputDir := flag.String("output", keystore.DEFAULT_KEY_DIR_SHORT, "Folder where will be saved keys")
-	outputPublicKey := flag.String("output_public", keystore.DEFAULT_KEY_DIR_SHORT, "Folder where will be saved public key")
-	masterKey := flag.String("master_key", "", "Generate new random master key and save to file")
+	acraConnector := flag.Bool("generate_acraconnector_keys", false, "Create keypair for AcraConnector only")
+	acraserver := flag.Bool("generate_acraserver_keys", false, "Create keypair for AcraServer only")
+	dataKeys := flag.Bool("generate_acrawriter_keys", false, "Create keypair for data encryption/decryption")
+	basicauth := flag.Bool("generate_acrawebconfig_keys", false, "Create symmetric key for AcraWebconfig's basic auth db")
+	outputDir := flag.String("keys_output_dir", keystore.DEFAULT_KEY_DIR_SHORT, "Folder where will be saved keys")
+	outputPublicKey := flag.String("keys_public_output_dir", keystore.DEFAULT_KEY_DIR_SHORT, "Folder where will be saved public key")
+	masterKey := flag.String("generate_master_key", "", "Generate new random master key and save to file")
 
 	logging.SetLogLevel(logging.LOG_VERBOSE)
 

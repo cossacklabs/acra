@@ -69,24 +69,24 @@ func main() {
 
 	keysDir := flag.String("keys_dir", keystore.DEFAULT_KEY_DIR_SHORT, "Folder from which will be loaded keys")
 
-	hexFormat := flag.Bool("hex_bytea", false, "Hex format for Postgresql bytea data (default)")
-	escapeFormat := flag.Bool("escape_bytea", false, "Escape format for Postgresql bytea data")
+	pgHexFormat := flag.Bool("pgsql_hex_bytea", false, "Hex format for Postgresql bytea data (default)")
+	pgEscapeFormat := flag.Bool("pgsql_escape_bytea", false, "Escape format for Postgresql bytea data")
 
-	serverId := flag.String("server_id", "acra_server", "Id that will be sent in secure session")
+	securesessionId := flag.String("securesession_id", "acra_server", "Id that will be sent in secure session")
 
 	verbose := flag.Bool("v", false, "Log to stderr")
-	flag.Bool("wholecell", true, "Acrastruct will stored in whole data cell")
-	injectedcell := flag.Bool("injectedcell", false, "Acrastruct may be injected into any place of data cell")
+	flag.Bool("acrastruct_wholecell_enable", true, "Acrastruct will stored in whole data cell")
+	injectedcell := flag.Bool("acrastruct_injectedcell_enable", false, "Acrastruct may be injected into any place of data cell")
 
 	debug := flag.Bool("d", false, "Turn on debug logging")
 	debugServer := flag.Bool("ds", false, "Turn on http debug server")
-	closeConnectionTimeout := flag.Int("close_connections_timeout", DEFAULT_ACRASERVER_WAIT_TIMEOUT, "Time that AcraServer will wait (in seconds) on restart before closing all connections")
+	closeConnectionTimeout := flag.Int("connection_close_timeout", DEFAULT_ACRASERVER_WAIT_TIMEOUT, "Time that AcraServer will wait (in seconds) on restart before closing all connections")
 
-	stopOnPoison := flag.Bool("poisonshutdown", false, "Stop on detecting poison record")
-	scriptOnPoison := flag.String("poisonscript", "", "Execute script on detecting poison record")
+	stopOnPoison := flag.Bool("poison_shutdown_enable", false, "Stop on detecting poison record")
+	scriptOnPoison := flag.String("poison_run_script_file", "", "Execute script on detecting poison record")
 
-	withZone := flag.Bool("zonemode", false, "Turn on zone mode")
-	enableHTTPApi := flag.Bool("enable_http_api", false, "Enable HTTP API")
+	withZone := flag.Bool("zonemode_enable", false, "Turn on zone mode")
+	enableHTTPApi := flag.Bool("http_api_enable", false, "Enable HTTP API")
 
 	useTls := flag.Bool("tls_transport", false, "Use tls to encrypt transport between AcraServer and AcraConnector/client")
 	tlsKey := flag.String("tls_key", "", "Path to private key that will be used in TLS handshake with AcraConnector as server's key and Postgresql as client's key")
@@ -100,9 +100,9 @@ func main() {
 	acraAPIConnectionString := flag.String("connection_api_string", network.BuildConnectionString(cmd.DEFAULT_ACRA_CONNECTION_PROTOCOL, cmd.DEFAULT_ACRA_HOST, cmd.DEFAULT_ACRASERVER_API_PORT, ""), "Connection string for api like tcp://x.x.x.x:yyyy or unix:///path/to/socket")
 	authPath = flag.String("auth_keys", cmd.DEFAULT_ACRA_AUTH_PATH, "Path to basic auth passwords. To add user, use: `./acra-authmanager --set --user <user> --pwd <pwd>`")
 
-	useMysql := flag.Bool("mysql", false, "Handle MySQL connections")
-	usePostgresql := flag.Bool("postgresql", false, "Handle Postgresql connections (default true)")
-	censorConfig := flag.String("censor_config", "", "Path to AcraCensor configuration file")
+	useMysql := flag.Bool("mysql_enable", false, "Handle MySQL connections")
+	usePostgresql := flag.Bool("postgresql_enable", false, "Handle Postgresql connections (default true)")
+	censorConfig := flag.String("acracensor_config_file", "", "Path to AcraCensor configuration file")
 
 	err := cmd.Parse(DEFAULT_CONFIG_PATH, SERVICE_NAME)
 	if err != nil {
@@ -115,7 +115,7 @@ func main() {
 	logging.CustomizeLogging(*loggingFormat, SERVICE_NAME)
 
 	log.Infof("Validating service configuration")
-	cmd.ValidateClientId(*serverId)
+	cmd.ValidateClientId(*securesessionId)
 
 	if *host != cmd.DEFAULT_ACRA_HOST || *port != cmd.DEFAULT_ACRASERVER_PORT {
 		*acraConnectionString = network.BuildConnectionString("tcp", *host, *port, "")
@@ -165,7 +165,7 @@ func main() {
 	config.SetConnectorPort(*port)
 	config.SetConnectorApiPort(*apiPort)
 	config.SetKeysDir(*keysDir)
-	config.SetServerId([]byte(*serverId))
+	config.SetServerId([]byte(*securesessionId))
 	config.SetAcraConnectionString(*acraConnectionString)
 	config.SetAcraAPIConnectionString(*acraAPIConnectionString)
 	config.SetTLSServerCertPath(*tlsCert)
@@ -175,7 +175,7 @@ func main() {
 	config.SetConfigPath(DEFAULT_CONFIG_PATH)
 	config.SetDebug(*debug)
 
-	if *hexFormat || !*escapeFormat {
+	if *pgHexFormat || !*pgEscapeFormat {
 		config.SetByteaFormat(HEX_BYTEA_FORMAT)
 	} else {
 		config.SetByteaFormat(ESCAPE_BYTEA_FORMAT)

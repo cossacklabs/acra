@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
-go run ./cmd/acra-server/*.go --dumpconfig
-go run ./cmd/acra-connector/*.go --dumpconfig
-go run ./cmd/acra-addzone/*.go --dumpconfig
-go run ./cmd/acra-webconfig/*.go --dumpconfig
-go run ./cmd/acra-rollback/*.go --dumpconfig
-go run ./cmd/acra-keymaker/*.go --dumpconfig
-go run ./cmd/acra-poisonrecordmaker/*.go --dumpconfig
+go run ./cmd/acra-server/*.go --dump_config
+go run ./cmd/acra-connector/*.go --dump_config
+go run ./cmd/acra-addzone/*.go --dump_config
+go run ./cmd/acra-webconfig/*.go --dump_config
+go run ./cmd/acra-rollback/*.go --dump_config
+go run ./cmd/acra-keymaker/*.go --dump_config
+go run ./cmd/acra-poisonrecordmaker/*.go --dump_config

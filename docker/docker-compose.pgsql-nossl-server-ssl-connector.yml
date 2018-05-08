@@ -104,9 +104,9 @@ services:
             --db_host=postgresql
             --keys_dir=/keys
             --auth_keys=/keys/httpauth.accounts
-            --enable_http_api
+            --http_api_enable
             --connection_api_string=tcp://0.0.0.0:9090
-            --config=/config/acra-server.yaml
+            --config_file=/config/acra-server.yaml
             --tls_transport
             --tls_ca=/ssl.ca/example.cossacklabs.com.CA.crt
             --tls_cert=/ssl.server/acra-server.crt
@@ -143,7 +143,7 @@ services:
             --keys_dir=/keys
             --client_id=${ACRA_CLIENT_ID:-testclientid}
             --connection_string=tcp://0.0.0.0:9494
-            --enable_http_api
+            --http_api_enable
             --connection_api_string=tcp://0.0.0.0:9191
             --tls_transport
             --tls_ca=/ssl.ca/example.cossacklabs.com.CA.crt

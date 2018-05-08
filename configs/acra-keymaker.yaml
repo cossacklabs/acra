@@ -1,30 +1,30 @@
-# Create keypair for AcraConnector only
-acra-connector: false
-
-# Create keypair for AcraServer only
-acra-server: false
-
-# Create symmetric key for AcraWebconfig's basic auth db
-basicauth: false
-
 # Client id
 client_id: client
 
 # path to config
-config: 
+config_file: 
 
 # dump config
-dumpconfig: false
+dump_config: false
 
-# Generate new random master key and save to file
-master_key: 
+# Create keypair for AcraConnector only
+generate_acraconnector_keys: false
 
-# Folder where will be saved keys
-output: .acrakeys
+# Create keypair for AcraServer only
+generate_acraserver_keys: false
 
-# Folder where will be saved public key
-output_public: .acrakeys
+# Create symmetric key for AcraWebconfig's basic auth db
+generate_acrawebconfig_keys: false
 
 # Create keypair for data encryption/decryption
-storage: false
+generate_acrawriter_keys: false
+
+# Generate new random master key and save to file
+generate_master_key: 
+
+# Folder where will be saved keys
+keys_output_dir: .acrakeys
+
+# Folder where will be saved public key
+keys_public_output_dir: .acrakeys
 

@@ -112,9 +112,9 @@ type ConfigAcraServer struct {
 	DbPort           int    `json:"db_port"`
 	ConnectorApiPort int    `json:"api_port"`
 	Debug            bool   `json:"debug"`
-	ScriptOnPoison   string `json:"poisonscript"`
-	StopOnPoison     bool   `json:"poisonshutdown"`
-	WithZone         bool   `json:"zonemode"`
+	ScriptOnPoison   string `json:"poison_run_script_file"`
+	StopOnPoison     bool   `json:"poison_shutdown_enable"`
+	WithZone         bool   `json:"zonemode_enable"`
 }
 
 func SubmitSettings(w http.ResponseWriter, r *http.Request) {
@@ -136,16 +136,16 @@ func SubmitSettings(w http.ResponseWriter, r *http.Request) {
 	var db_port, _ = strconv.Atoi(r.Form.Get("db_port"))
 	var api_port, _ = strconv.Atoi(r.Form.Get("api_port"))
 	var debug, _ = strconv.ParseBool(r.Form.Get("debug"))
-	var zonemode, _ = strconv.ParseBool(r.Form.Get("zonemode"))
-	var poisonshutdown, _ = strconv.ParseBool(r.Form.Get("poisonshutdown"))
+	var zonemode_enable, _ = strconv.ParseBool(r.Form.Get("zonemode_enable"))
+	var poison_shutdown_enable, _ = strconv.ParseBool(r.Form.Get("poison_shutdown_enable"))
 	config := ConfigAcraServer{
 		DbHost:           r.Form.Get("db_host"),
 		DbPort:           db_port,
 		ConnectorApiPort: api_port,
 		Debug:            debug,
-		ScriptOnPoison:   r.Form.Get("poisonscript"),
-		StopOnPoison:     poisonshutdown,
-		WithZone:         zonemode,
+		ScriptOnPoison:   r.Form.Get("poison_run_script_file"),
+		StopOnPoison:     poison_shutdown_enable,
+		WithZone:         zonemode_enable,
 	}
 	jsonToServer, err := json.Marshal(config)
 	if err != nil {
@@ -377,7 +377,7 @@ func main() {
 	remotePort = flag.Int("remote_port", cmd.DEFAULT_ACRACONNECTOR_API_PORT, "Port for AcraServer HTTP endpoint or AcraConnector")
 	staticPath = flag.String("static_path", cmd.DEFAULT_ACRAWEBCONFIG_STATIC, "Path to static content")
 	debug = flag.Bool("d", false, "Turn on debug logging")
-	authMode = flag.String("auth_mode", cmd.DEFAULT_ACRAWEBCONFIG_AUTH_MODE, "Mode for basic auth. Possible values: auth_on|auth_off_local|auth_off")
+	authMode = flag.String("http_auth_mode", cmd.DEFAULT_ACRAWEBCONFIG_AUTH_MODE, "Mode for basic auth. Possible values: auth_on|auth_off_local|auth_off")
 
 	err := cmd.Parse(DEFAULT_CONFIG_PATH, SERVICE_NAME)
 	if err != nil {

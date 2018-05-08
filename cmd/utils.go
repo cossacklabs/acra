@@ -23,8 +23,8 @@ import (
 )
 
 var (
-	config     = flag_.String("config", "", "path to config")
-	dumpconfig = flag_.Bool("dumpconfig", false, "dump config")
+	config     = flag_.String("config_file", "", "path to config")
+	dumpconfig = flag_.Bool("dump_config", false, "dump config")
 )
 
 func init() {

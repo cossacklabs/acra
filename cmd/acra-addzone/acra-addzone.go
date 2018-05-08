@@ -31,8 +31,8 @@ var DEFAULT_CONFIG_PATH = utils.GetConfigPathByName("acra-addzone")
 var SERVICE_NAME = "acra_addzone"
 
 func main() {
-	outputDir := flag.String("output_dir", keystore.DEFAULT_KEY_DIR_SHORT, "Folder where will be saved generated zone keys")
-	fsKeystore := flag.Bool("fs", true, "Use filesystem key store")
+	outputDir := flag.String("keys_output_dir", keystore.DEFAULT_KEY_DIR_SHORT, "Folder where will be saved generated zone keys")
+	fsKeystore := flag.Bool("fs_keystore_enable", true, "Use filesystem key store")
 
 	logging.SetLogLevel(logging.LOG_VERBOSE)
 

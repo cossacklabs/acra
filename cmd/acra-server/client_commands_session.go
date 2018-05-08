@@ -147,9 +147,9 @@ func (clientSession *ClientCommandsSession) HandleSession() {
 		flag.Set("db_port", fmt.Sprintf("%v", configFromUI.DbPort))
 		flag.Set("api_port", fmt.Sprintf("%v", configFromUI.ConnectorApiPort))
 		flag.Set("d", fmt.Sprintf("%v", configFromUI.Debug))
-		flag.Set("poisonscript", fmt.Sprintf("%v", configFromUI.ScriptOnPoison))
-		flag.Set("poisonshutdown", fmt.Sprintf("%v", configFromUI.StopOnPoison))
-		flag.Set("zonemode", fmt.Sprintf("%v", configFromUI.WithZone))
+		flag.Set("poison_run_script_file", fmt.Sprintf("%v", configFromUI.ScriptOnPoison))
+		flag.Set("poison_shutdown_enable", fmt.Sprintf("%v", configFromUI.StopOnPoison))
+		flag.Set("zonemode_enable", fmt.Sprintf("%v", configFromUI.WithZone))
 
 		err = cmd.DumpConfig(clientSession.Server.config.GetConfigPath(), SERVICE_NAME, false)
 		if err != nil {

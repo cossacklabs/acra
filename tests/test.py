@@ -153,7 +153,7 @@ def get_master_key():
         master_key = os.environ.get(ACRA_MASTER_KEY_VAR_NAME)
         if not master_key:
             subprocess.check_output([
-                './acra-keymaker', '--master_key={}'.format(MASTER_KEY_PATH)])
+                './acra-keymaker', '--generate_master_key={}'.format(MASTER_KEY_PATH)])
             with open(MASTER_KEY_PATH, 'rb') as f:
                 master_key = b64encode(f.read()).decode('ascii')
     return master_key
@@ -375,7 +375,7 @@ class BaseTestCase(unittest.TestCase):
     # for debugging with manually runned acra-server
     EXTERNAL_ACRA = False
     ACRASERVER_PORT = int(os.environ.get('TEST_ACRASERVER_PORT', 10003))
-    ACRA_BYTEA = 'hex_bytea'
+    ACRA_BYTEA = 'pgsql_hex_bytea'
     DB_BYTEA = 'hex'
     WHOLECELL_MODE = False
     ACRAWEBCONFIG_AUTH_KEYS_PATH = os.environ.get('TEST_CONFIG_UI_AUTH_DB_PATH', ACRAWEBCONFIG_AUTH_DB_PATH)
@@ -384,9 +384,9 @@ class BaseTestCase(unittest.TestCase):
         db_port=DB_PORT,
         api_port=9090,
         debug=DEBUG_LOG,
-        poisonscript="",
-        poisonshutdown=False,
-        zonemode=False
+        poison_run_script_file="",
+        poison_shutdown_enable=False,
+        zonemode_enable=False
     )
     ZONE = False
     TEST_DATA_LOG = False
@@ -457,12 +457,12 @@ class BaseTestCase(unittest.TestCase):
              '-client_id={}'.format(client_id),
             '-connection_string={}'.format(connector_connection),
             '-connection_api_string={}'.format(connector_api_connection),
-            '-disable_user_check=true'
+            '-user_check_disable=true'
         ]
         if self.DEBUG_LOG:
             args.append('-v=true')
         if zone_mode:
-            args.append('--enable_http_api=true')
+            args.append('--http_api_enable=true')
         if self.TLS_ON:
             args.extend(self.get_connector_tls_params())
         process = self.fork(lambda: subprocess.Popen(args))
@@ -519,15 +519,15 @@ class BaseTestCase(unittest.TestCase):
             'db_host': self.DB_HOST,
             'db_port': self.DB_PORT,
             # we doesn't need in tests waiting closing connections
-            'close_connections_timeout': 0,
+            'connection_close_timeout': 0,
             self.ACRA_BYTEA: 'true',
             'connection_string': connection_string,
             'connection_api_string': api_connection_string,
-            'wholecell': 'true' if self.WHOLECELL_MODE else 'false',
-            'injectedcell': 'false' if self.WHOLECELL_MODE else 'true',
+            'acrastruct_wholecell_enable': 'true' if self.WHOLECELL_MODE else 'false',
+            'acrastruct_injectedcell_enable': 'false' if self.WHOLECELL_MODE else 'true',
             'd': 'true' if self.DEBUG_LOG else 'false',
-            'zonemode': 'true' if self.ZONE else 'false',
-            'enable_http_api': 'true' if self.ZONE else 'true',
+            'zonemode_enable': 'true' if self.ZONE else 'false',
+            'http_api_enable': 'true' if self.ZONE else 'true',
             'auth_keys': self.ACRAWEBCONFIG_AUTH_KEYS_PATH
         }
         if self.TLS_ON:
@@ -536,8 +536,8 @@ class BaseTestCase(unittest.TestCase):
             args['tls_cert'] = 'tests/server.crt'
             args['tls_auth'] = 0
         if TEST_MYSQL:
-            args['mysql'] = 'true'
-            args['postgresql'] = 'false'
+            args['mysql_enable'] = 'true'
+            args['postgresql_enable'] = 'false'
         args.update(acra_kwargs)
         if not popen_kwargs:
             popen_kwargs = {}
@@ -799,7 +799,7 @@ class ZoneHexFormatTest(BaseTestCase):
 
 
 class EscapeFormatTest(HexFormatTest):
-    ACRA_BYTEA = 'escape_bytea'
+    ACRA_BYTEA = 'pgsql_escape_bytea'
     DB_BYTEA = 'escape'
 
     def checkSkip(self):
@@ -808,7 +808,7 @@ class EscapeFormatTest(HexFormatTest):
 
 
 class ZoneEscapeFormatTest(ZoneHexFormatTest):
-    ACRA_BYTEA = 'escape_bytea'
+    ACRA_BYTEA = 'pgsql_escape_bytea'
     DB_BYTEA = 'escape'
 
 
@@ -1115,11 +1115,11 @@ class BasePoisonRecordTest(BaseTestCase):
 
     def fork_acra(self, popen_kwargs: dict=None, **acra_kwargs: dict):
         args = {
-            'poisonshutdown': 'true' if self.SHUTDOWN else 'false',
+            'poison_shutdown_enable': 'true' if self.SHUTDOWN else 'false',
         }
 
         if hasattr(self, 'poisonscript'):
-            args['poisonscript'] = self.poisonscript
+            args['poison_run_script_file'] = self.poisonscript
 
         return super(BasePoisonRecordTest, self).fork_acra(popen_kwargs, **args)
 
@@ -1351,7 +1351,7 @@ class TestKeyStorageClearing(BaseTestCase):
                 zone_mode=True)
             if not self.EXTERNAL_ACRA:
                 self.acra = self.fork_acra(
-                    zonemode='true', enable_http_api='true')
+                    zonemode_enable='true', http_api_enable='true')
 
             self.engine1 = sa.create_engine(
                 get_unix_connection_string(self.CONNECTOR_PORT_1, self.DB_NAME),
@@ -1448,10 +1448,10 @@ class TestAcraRollback(BaseTestCase):
 
         if TEST_MYSQL:
             self.placeholder = "?"
-            DB_ARGS = ['--mysql']
+            DB_ARGS = ['--mysql_enable']
         else:
             self.placeholder = "$1"
-            DB_ARGS = ['--postgresql']
+            DB_ARGS = ['--postgresql_enable']
 
         self.default_acrarollback_args = [
             '--client_id=keypair1',
@@ -1536,7 +1536,7 @@ class TestAcraRollback(BaseTestCase):
                  id=zones[0]['id'], table=test_table.name)
         args = [
              select_query,
-             '--zonemode=true',
+             '--zonemode_enable=true',
              '--insert=insert into {} values({});'.format(
                  acrarollback_output_table.name, self.placeholder)
         ]
@@ -1607,7 +1607,7 @@ class TestAcraRollback(BaseTestCase):
         args = [
             '--execute=true',
             select_query,
-            '--zonemode=true',
+            '--zonemode_enable=true',
             '--insert=insert into {} values({});'.format(
                 acrarollback_output_table.name, self.placeholder)
         ]
@@ -1639,7 +1639,7 @@ class TestAcraWebconfigWeb(BaseTestCase):
         try:
             self.connector_1 = self.fork_connector(
                 self.CONNECTOR_PORT_1, self.ACRASERVER_PORT, 'keypair1', zone_mode=True, api_port=self.CONNECTOR_API_PORT_1)
-            self.acra = self.fork_acra(zonemode='true', enable_http_api='true')
+            self.acra = self.fork_acra(zonemode_enable='true', http_api_enable='true')
             self.webconfig = self.fork_webconfig(connector_port=self.CONNECTOR_API_PORT_1, http_port=self.ACRAWEBCONFIG_HTTP_PORT)
         except Exception:
             self.tearDown()
@@ -1681,7 +1681,7 @@ class TestAcraWebconfigWeb(BaseTestCase):
 
         # test submit settings
         settings = self.ACRAWEBCONFIG_ACRASERVER_PARAMS
-        settings['poisonscript'] = str(uuid.uuid4())
+        settings['poison_run_script_file'] = str(uuid.uuid4())
         print(settings)
         req = requests.post(
             "{}/acra-server/submit_setting".format(self.get_acrawebconfig_connection_url()),
@@ -1696,7 +1696,7 @@ class TestAcraWebconfigWeb(BaseTestCase):
             self.get_acrawebconfig_connection_url(), data={}, timeout=ACRAWEBCONFIG_HTTP_TIMEOUT,
             auth=HTTPBasicAuth(ACRAWEBCONFIG_BASIC_AUTH['user'], ACRAWEBCONFIG_BASIC_AUTH['password']))
         self.assertEqual(req.status_code, 200)
-        self.assertIn(settings['poisonscript'], req.text)
+        self.assertIn(settings['poison_run_script_file'], req.text)
         req.close()
 
 

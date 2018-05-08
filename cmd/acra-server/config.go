@@ -60,9 +60,9 @@ type UIEditableConfig struct {
 	DbPort           int    `json:"db_port"`
 	ConnectorApiPort int    `json:"api_port"`
 	Debug            bool   `json:"debug"`
-	ScriptOnPoison   string `json:"poisonscript"`
-	StopOnPoison     bool   `json:"poisonshutdown"`
-	WithZone         bool   `json:"zonemode"`
+	ScriptOnPoison   string `json:"poison_run_script_file"`
+	StopOnPoison     bool   `json:"poison_shutdown_enable"`
+	WithZone         bool   `json:"zonemode_enable"`
 }
 
 func NewConfig() *Config {

@@ -119,9 +119,9 @@ services:
             --db_host=postgresql
             --keys_dir=/keys
             --auth_keys=/keys/httpauth.accounts
-            --enable_http_api
+            --http_api_enable
             --connection_api_string=tcp://0.0.0.0:9090
-            --config=/config/acra-server.yaml
+            --config_file=/config/acra-server.yaml
             -v
 
     acra-connector:
@@ -152,7 +152,7 @@ services:
             --keys_dir=/keys
             --client_id=${ACRA_CLIENT_ID:-testclientid}
             --connection_string=tcp://0.0.0.0:9494
-            --enable_http_api
+            --http_api_enable
             --connection_api_string=tcp://0.0.0.0:9191
             -v
 

@@ -1,23 +1,29 @@
+# Path to AcraCensor configuration file
+acracensor_config_file: 
+
+# Acrastruct may be injected into any place of data cell
+acrastruct_injectedcell_enable: false
+
+# Acrastruct will stored in whole data cell
+acrastruct_wholecell_enable: true
+
+# Port for AcraServer for HTTP API
+api_port: 9090
+
 # Path to basic auth passwords. To add user, use: `./acra-authmanager --set --user <user> --pwd <pwd>`
 auth_keys: configs/auth.keys
-
-# Path to AcraCensor configuration file
-censor_config: 
 
 # Expected client id of AcraConnector in mode without encryption
 client_id: 
 
-# Time that AcraServer will wait (in seconds) on restart before closing all connections
-close_connections_timeout: 10
-
-# Port for AcraServer for HTTP API
-commands_port: 9090
-
 # path to config
-config: 
+config_file: 
 
 # Connection string for api like tcp://x.x.x.x:yyyy or unix:///path/to/socket
 connection_api_string: tcp://0.0.0.0:9090/
+
+# Time that AcraServer will wait (in seconds) on restart before closing all connections
+connection_close_timeout: 10
 
 # Connection string like tcp://x.x.x.x:yyyy or unix:///path/to/socket
 connection_string: tcp://0.0.0.0:9393/
@@ -35,22 +41,13 @@ db_port: 5432
 ds: false
 
 # dump config
-dumpconfig: false
-
-# Enable HTTP API
-enable_http_api: false
-
-# Escape format for Postgresql bytea data
-escape_bytea: false
-
-# Hex format for Postgresql bytea data (default)
-hex_bytea: false
+dump_config: false
 
 # Host for AcraServer
 host: 0.0.0.0
 
-# Acrastruct may be injected into any place of data cell
-injectedcell: false
+# Enable HTTP API
+http_api_enable: false
 
 # Folder from which will be loaded keys
 keys_dir: .acrakeys
@@ -59,28 +56,31 @@ keys_dir: .acrakeys
 logging_format: plaintext
 
 # Handle MySQL connections
-mysql: false
+mysql_enable: false
 
 # Use raw transport (tcp/unix socket) between AcraServer and AcraConnector/client (don't use this flag if you not connect to database with ssl/tls
-no_encryption: false
+no_transport_encryption: false
+
+# Escape format for Postgresql bytea data
+pgsql_escape_bytea: false
+
+# Hex format for Postgresql bytea data (default)
+pgsql_hex_bytea: false
 
 # Execute script on detecting poison record
-poisonscript: 
+poison_run_script_file: 
 
 # Stop on detecting poison record
-poisonshutdown: false
+poison_shutdown_enable: false
 
 # Port for AcraServer
 port: 9393
 
 # Handle Postgresql connections (default true)
-postgresql: false
+postgresql_enable: false
 
 # Id that will be sent in secure session
-server_id: acra_server
-
-# Use tls to encrypt transport between AcraServer and AcraConnector/client
-tls: false
+securesession_id: acra_server
 
 # Set authentication mode that will be used in TLS connection with Postgresql. Values in range 0-4 that set auth type (https://golang.org/pkg/crypto/tls/#ClientAuthType). Default is tls.RequireAndVerifyClientCert
 tls_auth: 4
@@ -91,18 +91,18 @@ tls_ca:
 # Path to tls certificate
 tls_cert: 
 
+# Expected Server Name (SNI) from Postgresql
+tls_db_sni: 
+
 # Path to private key that will be used in TLS handshake with AcraConnector as server's key and Postgresql as client's key
 tls_key: 
 
-# Expected Server Name (SNI) from Postgresql
-tls_sni: 
+# Use tls to encrypt transport between AcraServer and AcraConnector/client
+tls_transport: false
 
 # Log to stderr
 v: false
 
-# Acrastruct will stored in whole data cell
-wholecell: true
-
 # Turn on zone mode
-zonemode: false
+zonemode_enable: false
 
