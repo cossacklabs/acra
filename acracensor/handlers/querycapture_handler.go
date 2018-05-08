@@ -13,15 +13,15 @@ import (
 )
 
 const MaxQueriesInChannel = 10
-const TimeoutSecondsToSerialize = 1
+const DefaultSerializationTimeout = time.Second
 
 type QueryCaptureHandler struct {
-	Queries []QueryInfo
-	filePath string
-	logChannel chan QueryInfo
-	signalToSerialize chan bool
+	Queries              []QueryInfo
+	filePath             string
+	logChannel           chan QueryInfo
+	signalToSerialize    chan bool
 	signalBackgroundExit chan bool
-	serializationTimeoutSeconds time.Duration
+	serializationTimeout time.Duration
 }
 
 type QueryInfo struct {
@@ -30,7 +30,6 @@ type QueryInfo struct {
 }
 
 func NewQueryCaptureHandler(filePath string) (*QueryCaptureHandler, error) {
-
 	var _, err = os.Stat(filePath)
 
 	// create file if not exists
@@ -66,16 +65,13 @@ func NewQueryCaptureHandler(filePath string) (*QueryCaptureHandler, error) {
 
 	signalBackgroundExit := make(chan bool)
 
-
-
-
 	handler := &QueryCaptureHandler{}
 	handler.filePath = filePath
 	handler.Queries = queries
 	handler.signalToSerialize = signalToSerialize
 	handler.logChannel = logChannel
 	handler.signalBackgroundExit = signalBackgroundExit
-	handler.serializationTimeoutSeconds = TimeoutSecondsToSerialize
+	handler.serializationTimeout = DefaultSerializationTimeout
 
 	//serialization signaling goroutine
 	go func() {
@@ -88,7 +84,7 @@ func NewQueryCaptureHandler(filePath string) (*QueryCaptureHandler, error) {
 			default:
 				//do nothing. This means that channel has no data to read yet
 			}
-			time.Sleep(handler.serializationTimeoutSeconds * time.Second)
+			time.Sleep(handler.serializationTimeout)
 			//timer finished. Close channel to inform that serialization should be performed
 			signalToSerialize <- true
 		}
@@ -196,12 +192,11 @@ func (handler *QueryCaptureHandler) GetForbiddenQueries() []string{
 	}
 	return forbiddenQueries
 }
-func (handler *QueryCaptureHandler) SetSerializationTimeout(timeoutInSeconds time.Duration){
-	handler.serializationTimeoutSeconds = timeoutInSeconds
+func (handler *QueryCaptureHandler) SetSerializationTimeout(timeout time.Duration){
+	handler.serializationTimeout = timeout
 }
-
 func (handler *QueryCaptureHandler) GetSerializationTimeout() time.Duration {
-	return handler.serializationTimeoutSeconds
+	return handler.serializationTimeout
 }
 
 func (handler *QueryCaptureHandler) Serialize() error {

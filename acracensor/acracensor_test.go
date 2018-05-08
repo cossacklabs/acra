@@ -479,9 +479,9 @@ func TestSerialization(t *testing.T){
 		}
 	}
 
-	loggingHandler.SetSerializationTimeout(1)
+	loggingHandler.SetSerializationTimeout(50 * time.Millisecond)
 	//wait until serialization complete
-	time.Sleep((loggingHandler.GetSerializationTimeout() + 1) * time.Second)
+	time.Sleep(loggingHandler.GetSerializationTimeout() + 50 * time.Millisecond)
 
 	if len(loggingHandler.GetAllInputQueries()) != len(testQueries){
 		t.Fatal("Expected: " + strings.Join(testQueries, " | ") + "\nGot: " + strings.Join(loggingHandler.GetAllInputQueries(), " | "))
@@ -646,10 +646,10 @@ func TestQueryCapture(t *testing.T){
 
 	expected := "[{\"RawQuery\":\"SELECT * FROM Schema.Tables;\",\"IsForbidden\":false},{\"RawQuery\":\"SELECT Student_ID FROM STUDENT;\",\"IsForbidden\":false},{\"RawQuery\":\"SELECT * FROM STUDENT;\",\"IsForbidden\":false},{\"RawQuery\":\"SELECT * FROM X;\",\"IsForbidden\":false},{\"RawQuery\":\"SELECT * FROM Y;\",\"IsForbidden\":false}]"
 
-	handler.SetSerializationTimeout(1)
+	handler.SetSerializationTimeout(50 * time.Millisecond)
 
 	//wait until goroutine handles complex serialization
-	time.Sleep((handler.GetSerializationTimeout() + 1) * time.Second)
+	time.Sleep(handler.GetSerializationTimeout() + 50 * time.Millisecond)
 	result, err := ioutil.ReadFile(tmpFile.Name())
 	if err != nil {
 		t.Fatal(err)
@@ -666,8 +666,6 @@ func TestQueryCapture(t *testing.T){
 
 func TestConfigurationProvider(t *testing.T) {
 
-	defer os.Remove("censor_log")
-
 	var DEFAULT_CONFIG_PATH = utils.GetConfigPathByName("acra_censor.example")
 
 	filePath, err := os.Getwd()
@@ -683,7 +681,7 @@ func TestConfigurationProvider(t *testing.T) {
 	acraCensor := &AcraCensor{}
 	defer acraCensor.ReleaseAll()
 
-	err = acraCensor.LoadConfiguration(configuration)
+	handlers_, err := acraCensor.LoadConfiguration(configuration)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -740,7 +738,15 @@ func TestConfigurationProvider(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	//time.Sleep((handlers.TimeoutSecondsToSerialize + 1) * time.Second)
+
+	for _, currentHandler := range handlers_ {
+		original, ok := currentHandler.(*handlers.QueryCaptureHandler)
+		if ok {
+			original.SetSerializationTimeout(50 * time.Millisecond)
+			time.Sleep(original.GetSerializationTimeout() + 50 * time.Millisecond)
+		}
+	}
+
 	//
 	//expectedQueriesInCensorLog := "[{\"RawQuery\":\"INSERT INTO SalesStaff1 VALUES (1, 'Stephen', 'Jiang');\",\"IsForbidden\":false},{\"RawQuery\":\"SELECT AVG(Price) FROM Products;\",\"IsForbidden\":false},{\"RawQuery\":\"INSERT INTO EMPLOYEE_TBL VALUES (1, 'Stephen', 'Jiang');\",\"IsForbidden\":false},{\"RawQuery\":\"SELECT AVG(Price) FROM Customers;\",\"IsForbidden\":false},{\"RawQuery\":\"SELECT EMP_ID, LAST_NAME FROM EMPLOYEE WHERE CITY = 'Seattle' ORDER BY EMP_ID;\",\"IsForbidden\":false},{\"RawQuery\":\"SELECT EMP_ID, LAST_NAME FROM EMPLOYEE AS EMPL WHERE CITY = 'Seattle' ORDER BY EMP_ID;\",\"IsForbidden\":false},{\"RawQuery\":\"SELECT EMP_ID, LAST_NAME FROM PRODUCTS WHERE CITY='INDIANAPOLIS' ORDER BY EMP_ID;\",\"IsForbidden\":false},{\"RawQuery\":\"SELECT EMP_ID, LAST_NAME FROM PRODUCTS WHERE CITY='INDIANAPOLIS' ORDER BY EMP_ID asc;\",\"IsForbidden\":false}]"
 	//
@@ -754,6 +760,11 @@ func TestConfigurationProvider(t *testing.T) {
 	//}
 
 	testSyntax(t)
+
+	err = os.Remove("censor_log")
+	if err != nil {
+		t.Fatal(err)
+	}
 }
 func testSyntax(t *testing.T) {
 
@@ -766,7 +777,7 @@ func testSyntax(t *testing.T) {
       - INSERT INTO SalesStaff1 VALUES (1, 'Stephen', 'Jiang');
       - SLECT AVG(Price) FROM Products;`
 
-	err := acraCensor.LoadConfiguration([]byte(configuration))
+	_, err := acraCensor.LoadConfiguration([]byte(configuration))
 	if err != handlers.ErrQuerySyntaxError {
 		t.Fatal(err)
 	}
@@ -782,7 +793,7 @@ func testSyntax(t *testing.T) {
     rules:
       - SELECT * ROM EMPLOYEE WHERE CITY='Seattle';`
 
-	err = acraCensor.LoadConfiguration([]byte(configuration))
+	_, err = acraCensor.LoadConfiguration([]byte(configuration))
 	if err != handlers.ErrStructureSyntaxError {
 		t.Fatal(err)
 	}
