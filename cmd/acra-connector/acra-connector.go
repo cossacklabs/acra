@@ -145,7 +145,7 @@ type Config struct {
 func main() {
 	loggingFormat := flag.String("logging_format", "plaintext", "Logging format: plaintext, json or CEF")
 	logging.CustomizeLogging(*loggingFormat, SERVICE_NAME)
-	log.Infof("Starting service")
+	log.Infof("Starting service %v", SERVICE_NAME)
 
 	keysDir := flag.String("keys_dir", keystore.DEFAULT_KEY_DIR_SHORT, "Folder from which will be loaded keys")
 	clientId := flag.String("client_id", "", "Client id")

@@ -58,7 +58,7 @@ func main() {
 	config := NewConfig()
 	loggingFormat := flag.String("logging_format", "plaintext", "Logging format: plaintext, json or CEF")
 	logging.CustomizeLogging(*loggingFormat, SERVICE_NAME)
-	log.Infof("Starting service")
+	log.Infof("Starting service %v", SERVICE_NAME)
 
 	dbHost := flag.String("db_host", "", "Host to db")
 	dbPort := flag.Int("db_port", 5432, "Port to db")
