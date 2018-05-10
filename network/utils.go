@@ -5,6 +5,7 @@ import (
 	"net"
 	url_ "net/url"
 	"os"
+	"strings"
 )
 
 // Dial connectionString like protocol://path where protocol is any supported via net.Dial (tcp|unix)
@@ -47,4 +48,16 @@ func ListenerFileDescriptor(socket net.Listener) (uintptr, error) {
 		return 0, err
 	}
 	return file.Fd(), nil
+}
+
+// SNIOrHostname return sni value if != "". otherwise return hostname without port
+func SNIOrHostname(sni, hostname string) string {
+	if sni != "" {
+		return sni
+	}
+	colonPos := strings.LastIndex(hostname, ":")
+	if colonPos == -1 {
+		colonPos = len(hostname)
+	}
+	return hostname[:colonPos]
 }

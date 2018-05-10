@@ -14,6 +14,7 @@
 package main
 
 import (
+	"crypto/tls"
 	"flag"
 	"fmt"
 	"io"
@@ -158,10 +159,11 @@ func main() {
 	enableHTTPApi := flag.Bool("enable_http_api", false, "Enable HTTP API")
 	disableUserCheck := flag.Bool("disable_user_check", false, "Disable checking that connections from app running from another user")
 	useTls := flag.Bool("tls", false, "Use tls to encrypt transport between acraserver and acraproxy/client")
-	tlsCA := flag.String("tls_ca", "", "Path to root certificate")
-	tlsKey := flag.String("tls_key", "", "Path to tls client's key")
-	tlsCert := flag.String("tls_cert", "", "Path to tls client's certificate")
-	tlsSNI := flag.String("tls_sni", "", "Expected Server Name (SNI)")
+	tlsCA := flag.String("tls_ca", "", "Path to root certificate which will be used with system root certificates to validate AcraServer's certificate")
+	tlsKey := flag.String("tls_key", "", "Path to private key that will be used in TLS handshake with AcraServer")
+	tlsCert := flag.String("tls_cert", "", "Path to certificate")
+	tlsSNI := flag.String("tls_sni", "", "Expected Server Name (SNI) from AcraServer")
+	tlsAuthType := flag.Int("tls_auth", int(tls.RequireAndVerifyClientCert), "Set authentication mode that will be used in TLS connection with Postgresql. Values in range 0-4 that set auth type (https://golang.org/pkg/crypto/tls/#ClientAuthType). Default is tls.RequireAndVerifyClientCert")
 	noEncryption := flag.Bool("no_encryption", false, "Use raw transport (tcp/unix socket) between acraserver and acraproxy/client (don't use this flag if you not connect to database with ssl/tls")
 	connectionString := flag.String("connection_string", network.BuildConnectionString(cmd.DEFAULT_PROXY_CONNECTION_PROTOCOL, cmd.DEFAULT_PROXY_HOST, cmd.DEFAULT_PROXY_PORT, ""), "Connection string like tcp://x.x.x.x:yyyy or unix:///path/to/socket")
 	connectionAPIString := flag.String("connection_api_string", network.BuildConnectionString(cmd.DEFAULT_PROXY_CONNECTION_PROTOCOL, cmd.DEFAULT_PROXY_HOST, cmd.DEFAULT_PROXY_API_PORT, ""), "Connection string like tcp://x.x.x.x:yyyy or unix:///path/to/socket")
@@ -287,7 +289,7 @@ func main() {
 
 	if *useTls {
 		log.Infof("Selecting transport: use TLS transport wrapper")
-		tlsConfig, err := network.NewTLSConfig(*tlsSNI, *tlsCA, *tlsKey, *tlsCert)
+		tlsConfig, err := network.NewTLSConfig(network.SNIOrHostname(*tlsSNI, *acraHost), *tlsCA, *tlsKey, *tlsCert, tls.ClientAuthType(*tlsAuthType))
 		if err != nil {
 			log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorTransportConfiguration).
 				Errorln("Configuration error: can't get config for TLS")
