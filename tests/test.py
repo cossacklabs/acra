@@ -1160,7 +1160,10 @@ class TestPoisonRecordShutdown(BasePoisonRecordTest):
     def testShutdown3(self):
         """check working poison record callback on full select inside another data"""
         row_id = self.get_random_id()
-        data = os.urandom(100) + get_poison_record() + os.urandom(100)
+        poison_record = get_poison_record()
+        begin_tag = poison_record[:4]
+        # test with extra long begin tag
+        data = os.urandom(100) + begin_tag + poison_record + os.urandom(100)
         self.engine1.execute(
             test_table.insert(),
             {'id': row_id, 'data': data, 'raw_data': 'poison_record'})
