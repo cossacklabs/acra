@@ -40,7 +40,7 @@ import (
 
 // DEFAULT_CONFIG_PATH relative path to config which will be parsed as default
 var DEFAULT_CONFIG_PATH = utils.GetConfigPathByName("acra-rollback")
-var SERVICE_NAME = "acra_rollback"
+var SERVICE_NAME = "acra-rollback"
 
 func ErrorExit(msg string, err error) {
 	fmt.Println(utils.ErrorMessage(msg, err))
