@@ -1,14 +1,17 @@
 # Path to AcraCensor configuration file
 acracensor_config_file: 
 
+# Use tls to encrypt transport between AcraServer and AcraConnector/client
+acraconnector_tls_transport_enable: false
+
+# Use raw transport (tcp/unix socket) between AcraServer and AcraConnector/client (don't use this flag if you not connect to database with ssl/tls
+acraconnector_transport_encryption_disable: false
+
 # Acrastruct may be injected into any place of data cell
 acrastruct_injectedcell_enable: false
 
 # Acrastruct will stored in whole data cell
 acrastruct_wholecell_enable: true
-
-# Port for AcraServer for HTTP API
-api_port: 9090
 
 # Path to basic auth passwords. To add user, use: `./acra-authmanager --set --user <user> --pwd <pwd>`
 auth_keys: configs/auth.keys
@@ -43,11 +46,17 @@ ds: false
 # dump config
 dump_config: false
 
-# Host for AcraServer
-host: 0.0.0.0
-
 # Enable HTTP API
 http_api_enable: false
+
+# Port for AcraServer for HTTP API
+incoming_connection_api_port: 9090
+
+# Host for AcraServer
+incoming_connection_host: 0.0.0.0
+
+# Port for AcraServer
+incoming_connection_port: 9393
 
 # Folder from which will be loaded keys
 keys_dir: .acrakeys
@@ -57,9 +66,6 @@ logging_format: plaintext
 
 # Handle MySQL connections
 mysql_enable: false
-
-# Use raw transport (tcp/unix socket) between AcraServer and AcraConnector/client (don't use this flag if you not connect to database with ssl/tls
-no_transport_encryption: false
 
 # Escape format for Postgresql bytea data
 pgsql_escape_bytea: false
@@ -72,9 +78,6 @@ poison_run_script_file:
 
 # Stop on detecting poison record
 poison_shutdown_enable: false
-
-# Port for AcraServer
-port: 9393
 
 # Handle Postgresql connections (default true)
 postgresql_enable: false
@@ -96,9 +99,6 @@ tls_db_sni:
 
 # Path to private key that will be used in TLS handshake with AcraConnector as server's key and Postgresql as client's key
 tls_key: 
-
-# Use tls to encrypt transport between AcraServer and AcraConnector/client
-tls_transport: false
 
 # Log to stderr
 v: false
