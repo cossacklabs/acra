@@ -382,7 +382,7 @@ class BaseTestCase(unittest.TestCase):
     ACRAWEBCONFIG_ACRASERVER_PARAMS = dict(
         db_host=DB_HOST,
         db_port=DB_PORT,
-        api_port=9090,
+        incoming_connection_api_port=9090,
         debug=DEBUG_LOG,
         poison_run_script_file="",
         poison_shutdown_enable=False,
@@ -418,9 +418,9 @@ class BaseTestCase(unittest.TestCase):
     def fork_webconfig(self, connector_port: int, http_port: int):
         args = [
             './acra-webconfig',
-            '-port={}'.format(http_port),
-            '-remote_host=127.0.0.1',
-            '-remote_port={}'.format(connector_port),
+            '-incoming_connection_port={}'.format(http_port),
+            '-destination_host=127.0.0.1',
+            '-destination_port={}'.format(connector_port),
             '-static_path={}'.format(ACRAWEBCONFIG_STATIC_PATH)
         ]
         if self.DEBUG_LOG:
@@ -430,7 +430,7 @@ class BaseTestCase(unittest.TestCase):
 
     def get_connector_tls_params(self):
         return [
-            '--tls_transport',
+            '--acraserver_tls_transport_enable',
             '--tls_acraserver_sni=acraserver',
         ]
 
@@ -505,9 +505,9 @@ class BaseTestCase(unittest.TestCase):
 
     def _fork_acra(self, acra_kwargs, popen_kwargs):
         connection_string = self.get_acraserver_connection_string(
-            acra_kwargs.get('port'))
+            acra_kwargs.get('incoming_connection_api_port'))
         api_connection_string = self.get_acraserver_api_connection_string(
-            acra_kwargs.get('api_port')
+            acra_kwargs.get('connection_api_port')
         )
         for path in [socket_path_from_connection_string(connection_string), socket_path_from_connection_string(api_connection_string)]:
             try:
@@ -531,7 +531,7 @@ class BaseTestCase(unittest.TestCase):
             'auth_keys': self.ACRAWEBCONFIG_AUTH_KEYS_PATH
         }
         if self.TLS_ON:
-            args['tls_transport'] = 'true'
+            args['acraconnector_tls_transport_enable'] = 'true'
             args['tls_key'] = 'tests/server.key'
             args['tls_cert'] = 'tests/server.crt'
             args['tls_auth'] = 0
@@ -1745,12 +1745,12 @@ class SSLPostgresqlMixin(AcraCatchLogsMixin):
                 self.acra = self.fork_acra(
                     tls_key='tests/server.key', tls_cert='tests/server.crt',
                     tls_ca='tests/server.crt',
-                    no_transport_encryption=True, client_id='keypair1')
+                    acraconnector_transport_encryption_disable=True, client_id='keypair1')
                 # create second acra without settings for tls to check that
                 # connection will be closed on tls handshake
                 self.acra2 = self.fork_acra(
-                    no_transport_encryption=True, client_id='keypair1',
-                    port=self.ACRASERVER2_PORT)
+                    acraconnector_transport_encryption_disable=True, client_id='keypair1',
+                    incoming_connection_api_port=self.ACRASERVER2_PORT)
             self.engine1 = sa.create_engine(
                 get_postgresql_tcp_connection_string(self.ACRASERVER_PORT, self.DB_NAME), connect_args=get_connect_args(port=self.ACRASERVER_PORT))
             self.engine_raw = sa.create_engine(
@@ -1860,12 +1860,12 @@ class SSLMysqlMixin(SSLPostgresqlMixin):
                     tls_ca='tests/server.crt',
                     tls_auth=0,
                     #tls_db_sni="127.0.0.1",
-                    no_transport_encryption=True, client_id='keypair1')
+                    acraconnector_transport_encryption_disable=True, client_id='keypair1')
                 # create second acra without settings for tls to check that
                 # connection will be closed on tls handshake
                 self.acra2 = self.fork_acra(
-                    no_transport_encryption=True, client_id='keypair1',
-                    port=self.ACRASERVER2_PORT)
+                    acraconnector_transport_encryption_disable=True, client_id='keypair1',
+                    incoming_connection_port=self.ACRASERVER2_PORT)
             self.driver_to_acraserver_ssl_settings = {
                 'ca': 'tests/server.crt',
                 #'cert': 'tests/client.crt',

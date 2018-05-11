@@ -39,8 +39,8 @@ import (
 
 var host *string
 var port *int
-var remoteHost *string
-var remotePort *int
+var destinationHost *string
+var destinationPort *int
 var debug *bool
 var staticPath *string
 var authMode *string
@@ -106,11 +106,11 @@ type configParamsYAML struct {
 var outConfigParams configParamsYAML
 
 type ConfigAcraServer struct {
-	ConnectorHost    string `json:"host"`
-	ConnectorPort    int    `json:"port"`
+	ConnectorHost    string `json:"incoming_connection_host"`
+	ConnectorPort    int    `json:"incoming_connection_port"`
 	DbHost           string `json:"db_host"`
 	DbPort           int    `json:"db_port"`
-	ConnectorApiPort int    `json:"api_port"`
+	ConnectorApiPort int    `json:"incoming_connection_api_port"`
 	Debug            bool   `json:"debug"`
 	ScriptOnPoison   string `json:"poison_run_script_file"`
 	StopOnPoison     bool   `json:"poison_shutdown_enable"`
@@ -134,7 +134,7 @@ func SubmitSettings(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var db_port, _ = strconv.Atoi(r.Form.Get("db_port"))
-	var api_port, _ = strconv.Atoi(r.Form.Get("api_port"))
+	var api_port, _ = strconv.Atoi(r.Form.Get("incoming_connection_api_port"))
 	var debug, _ = strconv.ParseBool(r.Form.Get("debug"))
 	var zonemode_enable, _ = strconv.ParseBool(r.Form.Get("zonemode_enable"))
 	var poison_shutdown_enable, _ = strconv.ParseBool(r.Form.Get("poison_shutdown_enable"))
@@ -154,7 +154,7 @@ func SubmitSettings(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	req, err := http.NewRequest("POST", fmt.Sprintf("http://%v:%v/setConfig", *remoteHost, *remotePort), bytes.NewBuffer(jsonToServer))
+	req, err := http.NewRequest("POST", fmt.Sprintf("http://%v:%v/setConfig", *destinationHost, *destinationPort), bytes.NewBuffer(jsonToServer))
 	if err != nil {
 		log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantSetNewConfig).
 			Errorln("/setConfig http.NewRequest failed")
@@ -204,7 +204,7 @@ func index(w http.ResponseWriter, r *http.Request) {
 	var netClient = &http.Client{
 		Timeout: time.Second * HTTP_TIMEOUT,
 	}
-	serverResponse, err := netClient.Get(fmt.Sprintf("http://%v:%v/getConfig", *remoteHost, *remotePort))
+	serverResponse, err := netClient.Get(fmt.Sprintf("http://%v:%v/getConfig", *destinationHost, *destinationPort))
 	if err != nil {
 		log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantGetCurrentConfig).
 			Errorln("AcraServer API error")
@@ -345,7 +345,7 @@ func loadAuthData() (err error) {
 	var netClient = &http.Client{
 		Timeout: time.Second * HTTP_TIMEOUT,
 	}
-	serverResponse, err := netClient.Get(fmt.Sprintf("http://%v:%v/loadAuthData", *remoteHost, *remotePort))
+	serverResponse, err := netClient.Get(fmt.Sprintf("http://%v:%v/loadAuthData", *destinationHost, *destinationPort))
 	if err != nil {
 		log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantGetAuthData).
 			Error("Error while getting auth data from AcraServer")
@@ -368,17 +368,16 @@ func loadAuthData() (err error) {
 }
 
 func main() {
-	host = flag.String("host", cmd.DEFAULT_ACRAWEBCONFIG_HOST, "Host for AcraWebconfig HTTP endpoint")
-	port = flag.Int("port", cmd.DEFAULT_ACRAWEBCONFIG_PORT, "Port for AcraWebconfig HTTP endpoint")
+	host = flag.String("incoming_connection_host", cmd.DEFAULT_ACRAWEBCONFIG_HOST, "Host for AcraWebconfig HTTP endpoint")
+	port = flag.Int("incoming_connection_port", cmd.DEFAULT_ACRAWEBCONFIG_PORT, "Port for AcraWebconfig HTTP endpoint")
 	loggingFormat := flag.String("logging_format", "plaintext", "Logging format: plaintext, json or CEF")
 	logging.CustomizeLogging(*loggingFormat, SERVICE_NAME)
 	log.Infof("Starting service %v", SERVICE_NAME)
-	remoteHost = flag.String("remote_host", "localhost", "Host for AcraServer HTTP endpoint or AcraConnector")
-	remotePort = flag.Int("remote_port", cmd.DEFAULT_ACRACONNECTOR_API_PORT, "Port for AcraServer HTTP endpoint or AcraConnector")
+	destinationHost = flag.String("destination_host", "localhost", "Host for AcraServer HTTP endpoint or AcraConnector")
+	destinationPort = flag.Int("destination_port", cmd.DEFAULT_ACRACONNECTOR_API_PORT, "Port for AcraServer HTTP endpoint or AcraConnector")
 	staticPath = flag.String("static_path", cmd.DEFAULT_ACRAWEBCONFIG_STATIC, "Path to static content")
 	debug = flag.Bool("d", false, "Turn on debug logging")
 	authMode = flag.String("http_auth_mode", cmd.DEFAULT_ACRAWEBCONFIG_AUTH_MODE, "Mode for basic auth. Possible values: auth_on|auth_off_local|auth_off")
-
 	err := cmd.Parse(DEFAULT_CONFIG_PATH, SERVICE_NAME)
 	if err != nil {
 		log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantReadServiceConfig).

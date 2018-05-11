@@ -58,7 +58,7 @@ type Config struct {
 type UIEditableConfig struct {
 	DbHost           string `json:"db_host"`
 	DbPort           int    `json:"db_port"`
-	ConnectorApiPort int    `json:"api_port"`
+	ConnectorApiPort int    `json:"incoming_connection_api_port"`
 	Debug            bool   `json:"debug"`
 	ScriptOnPoison   string `json:"poison_run_script_file"`
 	StopOnPoison     bool   `json:"poison_shutdown_enable"`

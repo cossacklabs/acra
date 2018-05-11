@@ -145,7 +145,7 @@ func (clientSession *ClientCommandsSession) HandleSession() {
 		// set config values
 		flag.Set("db_host", configFromUI.DbHost)
 		flag.Set("db_port", fmt.Sprintf("%v", configFromUI.DbPort))
-		flag.Set("api_port", fmt.Sprintf("%v", configFromUI.ConnectorApiPort))
+		flag.Set("incoming_connection_api_port", fmt.Sprintf("%v", configFromUI.ConnectorApiPort))
 		flag.Set("d", fmt.Sprintf("%v", configFromUI.Debug))
 		flag.Set("poison_run_script_file", fmt.Sprintf("%v", configFromUI.ScriptOnPoison))
 		flag.Set("poison_shutdown_enable", fmt.Sprintf("%v", configFromUI.StopOnPoison))
