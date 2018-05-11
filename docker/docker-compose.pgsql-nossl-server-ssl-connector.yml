@@ -105,7 +105,7 @@ services:
             --keys_dir=/keys
             --auth_keys=/keys/httpauth.accounts
             --http_api_enable
-            --connection_api_string=tcp://0.0.0.0:9090
+            --incoming_connection_api_string=tcp://0.0.0.0:9090
             --config_file=/config/acra-server.yaml
             --acraconnector_tls_transport_enable
             --tls_ca=/ssl.ca/example.cossacklabs.com.CA.crt
@@ -142,9 +142,9 @@ services:
             --acraserver_connection_host=acra-server
             --keys_dir=/keys
             --client_id=${ACRA_CLIENT_ID:-testclientid}
-            --connection_string=tcp://0.0.0.0:9494
+            --incoming_connection_string=tcp://0.0.0.0:9494
             --http_api_enable
-            --connection_api_string=tcp://0.0.0.0:9191
+            --incoming_connection_api_string=tcp://0.0.0.0:9191
             --acraserver_tls_transport_enable
             --tls_ca=/ssl.ca/example.cossacklabs.com.CA.crt
             --tls_cert=/ssl.proxy/acra-connector.crt

@@ -22,14 +22,8 @@ client_id:
 # path to config
 config_file: 
 
-# Connection string for api like tcp://x.x.x.x:yyyy or unix:///path/to/socket
-connection_api_string: tcp://0.0.0.0:9090/
-
 # Time that AcraServer will wait (in seconds) on restart before closing all connections
 connection_close_timeout: 10
-
-# Connection string like tcp://x.x.x.x:yyyy or unix:///path/to/socket
-connection_string: tcp://0.0.0.0:9393/
 
 # Turn on debug logging
 d: false
@@ -52,17 +46,26 @@ http_api_enable: false
 # Port for AcraServer for HTTP API
 incoming_connection_api_port: 9090
 
+# Connection string for api like tcp://x.x.x.x:yyyy or unix:///path/to/socket
+incoming_connection_api_string: tcp://0.0.0.0:9090/
+
 # Host for AcraServer
 incoming_connection_host: 0.0.0.0
 
 # Port for AcraServer
 incoming_connection_port: 9393
 
+# Connection string like tcp://x.x.x.x:yyyy or unix:///path/to/socket
+incoming_connection_string: tcp://0.0.0.0:9393/
+
 # Folder from which will be loaded keys
 keys_dir: .acrakeys
 
 # Logging format: plaintext, json or CEF
 logging_format: plaintext
+
+# path to markdown file to save
+markdown_file: 
 
 # Handle MySQL connections
 mysql_enable: false

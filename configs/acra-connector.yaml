@@ -28,12 +28,6 @@ client_id:
 # path to config
 config_file: 
 
-# Connection string like tcp://x.x.x.x:yyyy or unix:///path/to/socket
-connection_api_string: tcp://127.0.0.1:9191/
-
-# Connection string like tcp://x.x.x.x:yyyy or unix:///path/to/socket
-connection_string: tcp://127.0.0.1:9494/
-
 # dump config
 dump_config: false
 
@@ -43,14 +37,23 @@ http_api_enable: false
 # Port for AcraConnector HTTP api
 incoming_connection_api_port: 9191
 
+# Connection string like tcp://x.x.x.x:yyyy or unix:///path/to/socket
+incoming_connection_api_string: tcp://127.0.0.1:9191/
+
 # Port to AcraConnector
 incoming_connection_port: 9494
+
+# Connection string like tcp://x.x.x.x:yyyy or unix:///path/to/socket
+incoming_connection_string: tcp://127.0.0.1:9494/
 
 # Folder from which will be loaded keys
 keys_dir: .acrakeys
 
 # Logging format: plaintext, json or CEF
 logging_format: plaintext
+
+# path to markdown file to save
+markdown_file: 
 
 # Expected Server Name (SNI) from AcraServer
 tls_acraserver_sni: 

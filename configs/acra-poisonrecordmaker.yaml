@@ -10,3 +10,6 @@ dump_config: false
 # Folder from which will be loaded keys
 keys_dir: .acrakeys
 
+# path to markdown file to save
+markdown_file: 
+

@@ -455,8 +455,8 @@ class BaseTestCase(unittest.TestCase):
             '-acraserver_connection_string={}'.format(acraserver_connection),
             '-acraserver_api_connection_string={}'.format(acraserver_api_connection),
              '-client_id={}'.format(client_id),
-            '-connection_string={}'.format(connector_connection),
-            '-connection_api_string={}'.format(connector_api_connection),
+            '-incoming_connection_string={}'.format(connector_connection),
+            '-incoming_connection_api_string={}'.format(connector_api_connection),
             '-user_check_disable=true'
         ]
         if self.DEBUG_LOG:
@@ -519,10 +519,10 @@ class BaseTestCase(unittest.TestCase):
             'db_host': self.DB_HOST,
             'db_port': self.DB_PORT,
             # we doesn't need in tests waiting closing connections
-            'connection_close_timeout': 0,
+            'incoming_connection_close_timeout': 0,
             self.ACRA_BYTEA: 'true',
-            'connection_string': connection_string,
-            'connection_api_string': api_connection_string,
+            'incoming_connection_string': connection_string,
+            'incoming_connection_api_string': api_connection_string,
             'acrastruct_wholecell_enable': 'true' if self.WHOLECELL_MODE else 'false',
             'acrastruct_injectedcell_enable': 'false' if self.WHOLECELL_MODE else 'true',
             'd': 'true' if self.DEBUG_LOG else 'false',
