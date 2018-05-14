@@ -85,10 +85,14 @@ func NewQueryCaptureHandler(filePath string) (*QueryCaptureHandler, error) {
 				//do nothing. This means that channel has no data to read yet
 			}
 			time.Sleep(handler.serializationTimeout)
-			//timer finished. Close channel to inform that serialization should be performed
 			signalToSerialize <- true
 		}
 	}()
+
+	f, err := os.OpenFile(filePath, os.O_APPEND|os.O_WRONLY|os.O_CREATE, 0600)
+	if err != nil {
+		log.WithError(ErrSingleQueryCaptureError).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCensorSecurityError)
+	}
 
 	//handling goroutine
 	go func (){
@@ -107,11 +111,6 @@ func NewQueryCaptureHandler(filePath string) (*QueryCaptureHandler, error) {
 						log.WithError(ErrSingleQueryCaptureError).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCensorSecurityError)
 					}
 
-					f, err := os.OpenFile(filePath, os.O_APPEND|os.O_WRONLY|os.O_CREATE, 0600)
-					if err != nil {
-						log.WithError(ErrSingleQueryCaptureError).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCensorSecurityError)
-					}
-
 					if _, err = f.WriteString("\n"); err != nil {
 						log.WithError(ErrSingleQueryCaptureError).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCensorSecurityError)
 					}
@@ -119,7 +118,6 @@ func NewQueryCaptureHandler(filePath string) (*QueryCaptureHandler, error) {
 					if _, err = f.Write(bytes); err != nil {
 						log.WithError(ErrSingleQueryCaptureError).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCensorSecurityError)
 					}
-					f.Close()
 
 				} else {
 					//channel is unexpectedly closed
@@ -127,9 +125,11 @@ func NewQueryCaptureHandler(filePath string) (*QueryCaptureHandler, error) {
 				}
 
 			case <-signalBackgroundExit:
+				f.Close()
 				return
 
 			case <-signalShutdown:
+				f.Close()
 				err := handler.Serialize()
 				if err != nil {
 					log.WithError(ErrComplexSerializationError).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCensorSecurityError)
@@ -156,7 +156,12 @@ func (handler *QueryCaptureHandler) CheckQuery(query string) error {
 	queryInfo.IsForbidden = false
 	handler.Queries = append(handler.Queries, *queryInfo)
 
-	handler.logChannel <- *queryInfo
+	select {
+		case handler.logChannel <- *queryInfo: // channel is ok
+		default: //channel is full
+			log.Errorf("can't process too many queries")
+	}
+
 
 	return nil
 }

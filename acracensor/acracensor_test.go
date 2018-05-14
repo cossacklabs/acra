@@ -747,18 +747,6 @@ func TestConfigurationProvider(t *testing.T) {
 		}
 	}
 
-	//
-	//expectedQueriesInCensorLog := "[{\"RawQuery\":\"INSERT INTO SalesStaff1 VALUES (1, 'Stephen', 'Jiang');\",\"IsForbidden\":false},{\"RawQuery\":\"SELECT AVG(Price) FROM Products;\",\"IsForbidden\":false},{\"RawQuery\":\"INSERT INTO EMPLOYEE_TBL VALUES (1, 'Stephen', 'Jiang');\",\"IsForbidden\":false},{\"RawQuery\":\"SELECT AVG(Price) FROM Customers;\",\"IsForbidden\":false},{\"RawQuery\":\"SELECT EMP_ID, LAST_NAME FROM EMPLOYEE WHERE CITY = 'Seattle' ORDER BY EMP_ID;\",\"IsForbidden\":false},{\"RawQuery\":\"SELECT EMP_ID, LAST_NAME FROM EMPLOYEE AS EMPL WHERE CITY = 'Seattle' ORDER BY EMP_ID;\",\"IsForbidden\":false},{\"RawQuery\":\"SELECT EMP_ID, LAST_NAME FROM PRODUCTS WHERE CITY='INDIANAPOLIS' ORDER BY EMP_ID;\",\"IsForbidden\":false},{\"RawQuery\":\"SELECT EMP_ID, LAST_NAME FROM PRODUCTS WHERE CITY='INDIANAPOLIS' ORDER BY EMP_ID asc;\",\"IsForbidden\":false}]"
-	//
-	//censorLogsBytes, err := ioutil.ReadFile("censor_log")
-	//if err != nil {
-	//	t.Fatal(err)
-	//}
-	//
-	//if !strings.EqualFold(expectedQueriesInCensorLog, string(censorLogsBytes)){
-	//	t.Fatal("Expected: " + expectedQueriesInCensorLog + " Got: " + string(censorLogsBytes))
-	//}
-
 	testSyntax(t)
 
 	err = os.Remove("censor_log")
