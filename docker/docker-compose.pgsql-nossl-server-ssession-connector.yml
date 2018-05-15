@@ -173,7 +173,7 @@ services:
             - webconfig-connector
             - world
         command: >-
-            --remote_host=acra-connector
+            --destination_host=acra-connector
             --incoming_connection_host=0.0.0.0
 
 networks:
