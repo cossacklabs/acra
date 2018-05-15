@@ -13,7 +13,7 @@ import (
 )
 
 const MaxQueriesInChannel = 10
-const DefaultSerializationTimeout = 50 * time.Millisecond
+const DefaultSerializationTimeout = time.Second
 
 type QueryCaptureHandler struct {
 	Queries              []QueryInfo
