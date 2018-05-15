@@ -92,6 +92,7 @@ func NewQueryCaptureHandler(filePath string) (*QueryCaptureHandler, error) {
 	f, err := os.OpenFile(filePath, os.O_APPEND|os.O_WRONLY|os.O_CREATE, 0600)
 	if err != nil {
 		log.WithError(ErrSingleQueryCaptureError).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCensorSecurityError)
+		return nil, err
 	}
 
 	//handling goroutine
@@ -145,7 +146,7 @@ func NewQueryCaptureHandler(filePath string) (*QueryCaptureHandler, error) {
 	return handler, nil
 }
 func (handler *QueryCaptureHandler) CheckQuery(query string) error {
-	//skip already logged queries
+	//skip already captured queries
 	for _, queryInfo := range handler.Queries{
 		if strings.EqualFold(queryInfo.RawQuery, query){
 			return nil
@@ -161,7 +162,6 @@ func (handler *QueryCaptureHandler) CheckQuery(query string) error {
 		default: //channel is full
 			log.Errorf("can't process too many queries")
 	}
-
 
 	return nil
 }
