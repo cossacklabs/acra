@@ -466,48 +466,49 @@ func TestSerialization(t *testing.T){
 		t.Fatal(err)
 	}
 
-	loggingHandler, err := handlers.NewQueryCaptureHandler(tmpFile.Name())
-	defer loggingHandler.Release()
+	handler, err := handlers.NewQueryCaptureHandler(tmpFile.Name())
+	defer handler.Release()
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	for _, query := range testQueries {
-		err = loggingHandler.CheckQuery(query)
+		err = handler.CheckQuery(query)
 		if err != nil {
 			t.Fatal(err)
 		}
 	}
 
-	loggingHandler.SetSerializationTimeout(50 * time.Millisecond)
-	//wait until serialization complete
-	time.Sleep(loggingHandler.GetSerializationTimeout() + 50 * time.Millisecond)
+	previousTimeout := handler.GetSerializationTimeout()
+	handler.SetSerializationTimeout(50 * time.Millisecond)
+	//wait until goroutine handles complex serialization
+	time.Sleep(handler.GetSerializationTimeout() + previousTimeout)
 
-	if len(loggingHandler.GetAllInputQueries()) != len(testQueries){
-		t.Fatal("Expected: " + strings.Join(testQueries, " | ") + "\nGot: " + strings.Join(loggingHandler.GetAllInputQueries(), " | "))
+	if len(handler.GetAllInputQueries()) != len(testQueries){
+		t.Fatal("Expected: " + strings.Join(testQueries, " | ") + "\nGot: " + strings.Join(handler.GetAllInputQueries(), " | "))
 	}
 
-	err = loggingHandler.Serialize()
+	err = handler.Serialize()
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	loggingHandler.Reset()
+	handler.Reset()
 
-	if len(loggingHandler.GetAllInputQueries()) != 0 {
-		t.Fatal("Expected no queries \nGot: " + strings.Join(loggingHandler.GetAllInputQueries(), " | "))
+	if len(handler.GetAllInputQueries()) != 0 {
+		t.Fatal("Expected no queries \nGot: " + strings.Join(handler.GetAllInputQueries(), " | "))
 	}
 
-	err = loggingHandler.Deserialize()
+	err = handler.Deserialize()
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	if len(loggingHandler.GetAllInputQueries()) != len(testQueries){
-		t.Fatal("Expected: " + strings.Join(testQueries, " | ") + "\nGot: " + strings.Join(loggingHandler.GetAllInputQueries(), " | "))
+	if len(handler.GetAllInputQueries()) != len(testQueries){
+		t.Fatal("Expected: " + strings.Join(testQueries, " | ") + "\nGot: " + strings.Join(handler.GetAllInputQueries(), " | "))
 	}
 
-	for index, query := range loggingHandler.GetAllInputQueries(){
+	for index, query := range handler.GetAllInputQueries(){
 		if testQueries[index] != query{
 			t.Fatal("Expected: " + testQueries[index] + "\nGot: " + query)
 		}
@@ -646,11 +647,30 @@ func TestQueryCapture(t *testing.T){
 
 	expected := "[{\"RawQuery\":\"SELECT * FROM Schema.Tables;\",\"IsForbidden\":false},{\"RawQuery\":\"SELECT Student_ID FROM STUDENT;\",\"IsForbidden\":false},{\"RawQuery\":\"SELECT * FROM STUDENT;\",\"IsForbidden\":false},{\"RawQuery\":\"SELECT * FROM X;\",\"IsForbidden\":false},{\"RawQuery\":\"SELECT * FROM Y;\",\"IsForbidden\":false}]"
 
+	previousTimeout := handler.GetSerializationTimeout()
 	handler.SetSerializationTimeout(50 * time.Millisecond)
-
 	//wait until goroutine handles complex serialization
-	time.Sleep(handler.GetSerializationTimeout() + 50 * time.Millisecond)
+	time.Sleep(handler.GetSerializationTimeout() + previousTimeout)
+
 	result, err := ioutil.ReadFile(tmpFile.Name())
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if !strings.EqualFold(string(result), expected) {
+		t.Fatal("Expected: " + expected + "\nGot: " + string(result))
+	}
+
+
+	testQuery := "SELECT * FROM Z;"
+	err = handler.CheckQuery(testQuery)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	expected = "[{\"RawQuery\":\"SELECT * FROM Schema.Tables;\",\"IsForbidden\":false},{\"RawQuery\":\"SELECT Student_ID FROM STUDENT;\",\"IsForbidden\":false},{\"RawQuery\":\"SELECT * FROM STUDENT;\",\"IsForbidden\":false},{\"RawQuery\":\"SELECT * FROM X;\",\"IsForbidden\":false},{\"RawQuery\":\"SELECT * FROM Y;\",\"IsForbidden\":false},{\"RawQuery\":\"SELECT * FROM Z;\",\"IsForbidden\":false}]"
+	time.Sleep(handler.GetSerializationTimeout() + previousTimeout)
+	result, err = ioutil.ReadFile(tmpFile.Name())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -662,6 +682,8 @@ func TestQueryCapture(t *testing.T){
 	if err = os.Remove(tmpFile.Name()); err != nil {
 		t.Fatal(err)
 	}
+
+
 }
 
 func TestConfigurationProvider(t *testing.T) {
@@ -742,8 +764,10 @@ func TestConfigurationProvider(t *testing.T) {
 	for _, currentHandler := range handlers_ {
 		original, ok := currentHandler.(*handlers.QueryCaptureHandler)
 		if ok {
+			previousTimeout := original.GetSerializationTimeout()
 			original.SetSerializationTimeout(50 * time.Millisecond)
-			time.Sleep(original.GetSerializationTimeout() + 50 * time.Millisecond)
+			//wait until goroutine handles complex serialization
+			time.Sleep(original.GetSerializationTimeout() + previousTimeout)
 		}
 	}
 

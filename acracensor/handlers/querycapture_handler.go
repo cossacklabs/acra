@@ -13,7 +13,7 @@ import (
 )
 
 const MaxQueriesInChannel = 10
-const DefaultSerializationTimeout = time.Second
+const DefaultSerializationTimeout = 50 * time.Millisecond
 
 type QueryCaptureHandler struct {
 	Queries              []QueryInfo
@@ -21,7 +21,7 @@ type QueryCaptureHandler struct {
 	logChannel           chan QueryInfo
 	signalBackgroundExit chan bool
 	serializationTimeout time.Duration
-	serializationTimer   *time.Timer
+	serializationTicker  *time.Ticker
 }
 
 type QueryInfo struct {
@@ -71,7 +71,7 @@ func NewQueryCaptureHandler(filePath string) (*QueryCaptureHandler, error) {
 	handler.logChannel = logChannel
 	handler.signalBackgroundExit = signalBackgroundExit
 	handler.serializationTimeout = DefaultSerializationTimeout
-	handler.serializationTimer = time.NewTimer(DefaultSerializationTimeout)
+	handler.serializationTicker = time.NewTicker(DefaultSerializationTimeout)
 
 	f, err := os.OpenFile(filePath, os.O_APPEND|os.O_WRONLY|os.O_CREATE, 0600)
 	if err != nil {
@@ -83,11 +83,13 @@ func NewQueryCaptureHandler(filePath string) (*QueryCaptureHandler, error) {
 	go func (){
 		for {
 			select {
-			case <-handler.serializationTimer.C:
+			case <-handler.serializationTicker.C:
 				err := handler.Serialize()
 				if err != nil {
 					log.WithError(ErrComplexSerializationError).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCensorSecurityError)
 				}
+				handler.serializationTicker.Stop()
+				handler.serializationTicker = time.NewTicker(handler.serializationTimeout)
 
 			case queryInfo, ok := <-handler.logChannel:
 				if ok {
@@ -110,10 +112,12 @@ func NewQueryCaptureHandler(filePath string) (*QueryCaptureHandler, error) {
 				}
 
 			case <-signalBackgroundExit:
+				handler.serializationTicker.Stop()
 				f.Close()
 				return
 
 			case <-signalShutdown:
+				handler.serializationTicker.Stop()
 				f.Close()
 				err := handler.Serialize()
 				if err != nil {
@@ -180,7 +184,6 @@ func (handler *QueryCaptureHandler) GetForbiddenQueries() []string{
 	return forbiddenQueries
 }
 func (handler *QueryCaptureHandler) SetSerializationTimeout(timeout time.Duration){
-	handler.serializationTimer.Reset(timeout)
 	handler.serializationTimeout = timeout
 }
 func (handler *QueryCaptureHandler) GetSerializationTimeout() time.Duration {
