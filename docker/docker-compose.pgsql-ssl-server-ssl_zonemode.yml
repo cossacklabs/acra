@@ -70,14 +70,14 @@ services:
             - ./ssl/ca:/ssl.ca:ro
             - ./ssl/acra-server:/ssl.server:ro
         command: >-
-            --zonemode
+            --zonemode_enable
             --db_host=postgresql
             --keys_dir=/keys
             --tls_ca=/ssl.ca/example.cossacklabs.com.CA.crt
             --tls_cert=/ssl.server/acra-server.crt
             --tls_key=/ssl.server/acra-server.key
-            --tls_sni=postgresql
-            --no_encryption
+            --tls_db_sni=postgresql
+            --acraconnector_transport_encryption_disable
             -v
 
 networks:

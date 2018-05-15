@@ -26,7 +26,7 @@ var AcraServerCofig = `config:
     value_type: int8
     input_type: number
   -
-    name: commands_port
+    name: incoming_connection_api_port
     title: Port for AcraServer's HTTP API
     value_type: int8
     input_type: number
@@ -38,19 +38,19 @@ var AcraServerCofig = `config:
     values: [true, false]
     labels: [Yes, No]
   -
-    name: poisonscript
+    name: poison_run_script_file
     title: Execute script on detecting poison record
     value_type: string
     input_type: text
   -
-    name: poisonshutdown
+    name: poison_shutdown_enable
     title: Stop on detecting poison record
     value_type: bool
     values: [true, false]
     labels: [Yes, No]
     input_type: radio
   -
-    name: zonemode
+    name: zonemode_enable
     title: Turn on zone mode
     value_type: bool
     values: [true, false]

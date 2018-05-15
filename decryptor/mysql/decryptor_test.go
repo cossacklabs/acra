@@ -1,6 +1,7 @@
 package mysql
 
 import (
+	"encoding/base64"
 	"testing"
 
 	"crypto/rand"
@@ -89,6 +90,8 @@ func TestMySQLDecryptor_CheckPoisonRecord_Inline(t *testing.T) {
 	testData := append(part1, append(poisonRecord, part2...)...)
 	err = decryptor.poisonCheck(testData)
 	if err != base.ErrPoisonRecord {
+		t.Logf("test_data=%v\npoison_record=%v\npoison_public=%v\npoison_private=%v", base64.StdEncoding.EncodeToString(testData), base64.StdEncoding.EncodeToString(poisonRecord),
+			base64.StdEncoding.EncodeToString(poisonKeypair.Public.Value), base64.StdEncoding.EncodeToString(poisonKeypair.Private.Value))
 		t.Fatal("expected ErrPoisonRecord")
 	}
 }

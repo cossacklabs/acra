@@ -249,38 +249,62 @@ func (server *SServer) StartFromFileDescriptor(fd uintptr) {
 	}
 }
 
-func (server *SServer) StopListeners() {
-	var (
-		err         error
-		tcpListener *net.TCPListener
-		ok          bool
-	)
-	log.Debugln("Stopping listeners")
-	if tcpListener, ok = server.listenerACRA.(*net.TCPListener); ok {
-		err = tcpListener.SetDeadline(time.Now())
+// deadlineListener is extended net.Listener interface with SetDeadline method that added for abstraction of calling
+// SetDeadline between two listener types (TcpListener and UnixListener) that support this method
+type deadlineListener interface {
+	net.Listener
+	SetDeadline(t time.Time) error
+}
+
+// stopAcceptConnections stop accepting by setting deadline and then background code that call Accept will took error and
+// stop execution
+func stopAcceptConnections(listener deadlineListener) (err error) {
+	if listener != nil {
+		err = listener.SetDeadline(time.Now())
 		if err != nil {
 			if nerr, ok := err.(net.Error); ok && nerr.Timeout() {
 				log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantStopListenConnections).
-					Errorln("Unable to SetDeadLine of acra-listener")
+					Errorln("Unable to SetDeadLine for listener")
+			} else {
+				log.WithError(err).Errorln("Non-timeout error")
 			}
 		}
 	} else {
-		log.Warningln("Acra-interface assigment failed")
+		log.Warningln("can't set deadline for server listener")
+	}
+	return
+}
+
+func (server *SServer) StopListeners() {
+	var err error
+	var listener deadlineListener
+	log.Debugln("Stopping listeners")
+
+	switch server.listenerACRA.(type) {
+	case *net.TCPListener:
+		listener = server.listenerACRA.(*net.TCPListener)
+	case *net.UnixListener:
+		listener = server.listenerACRA.(*net.UnixListener)
+	default:
+		log.Warningln("unsupported listener")
 	}
 
-	if server.listenerAPI != nil {
-		if tcpListener, ok = server.listenerAPI.(*net.TCPListener); ok {
-			err = tcpListener.SetDeadline(time.Now())
-			if err != nil {
-				if nerr, ok := err.(net.Error); ok && nerr.Timeout() {
-					log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantStopListenConnections).
-						Errorln("Unable to SetDeadLine of API-listener")
-				}
-			}
-		} else {
-			log.Warningln("API-interface assigment failed")
-		}
+	if err = stopAcceptConnections(listener); err != nil {
+		log.WithError(err).Warningln("can't set deadline for server listener")
 	}
+
+	switch server.listenerAPI.(type) {
+	case *net.TCPListener:
+		listener = server.listenerACRA.(*net.TCPListener)
+	case *net.UnixListener:
+		listener = server.listenerACRA.(*net.UnixListener)
+	default:
+		log.Warningln("unsupported listener")
+	}
+	if err = stopAcceptConnections(listener); err != nil {
+		log.WithError(err).Warningln("can't set deadline for api listener")
+	}
+
 }
 
 func (server *SServer) WaitConnections(duration time.Duration) {

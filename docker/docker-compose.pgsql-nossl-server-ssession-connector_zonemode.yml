@@ -116,13 +116,13 @@ services:
             # Directory with configuration, rewriteable
             - ./.acraconfigs/acra-server:/config
         command: >-
-            --zonemode
+            --zonemode_enable
             --db_host=postgresql
             --keys_dir=/keys
             --auth_keys=/keys/httpauth.accounts
-            --enable_http_api
-            --connection_api_string=tcp://0.0.0.0:9090
-            --config=/config/acra-server.yaml
+            --http_api_enable
+            --incoming_connection_api_string=tcp://0.0.0.0:9090
+            --config_file=/config/acra-server.yaml
             -v
 
     acra-connector:
@@ -150,12 +150,12 @@ services:
             # Mount the directory with only the keys for this service
             - ./.acrakeys/acra-connector:/keys:ro
         command: >-
-            --acra_host=acra-server
+            --acraserver_connection_host=acra-server
             --keys_dir=/keys
             --client_id=${ACRA_CLIENT_ID:-testclientid}
-            --enable_http_api
-            --connection_string=tcp://0.0.0.0:9494
-            --connection_api_string=tcp://0.0.0.0:9191
+            --http_api_enable
+            --incoming_connection_string=tcp://0.0.0.0:9494
+            --incoming_connection_api_string=tcp://0.0.0.0:9191
             -v
 
     # Optional lightweight HTTP web server for managing AcraServer's
@@ -175,8 +175,8 @@ services:
             - webconfig-connector
             - world
         command: >-
-            --acra_host=acra-connector
-            --host=0.0.0.0
+            --destination_host=acra-connector
+            --incoming_connection_host=0.0.0.0
 
 networks:
     world:

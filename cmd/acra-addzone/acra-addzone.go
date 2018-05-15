@@ -28,14 +28,15 @@ import (
 
 // DEFAULT_CONFIG_PATH relative path to config which will be parsed as default
 var DEFAULT_CONFIG_PATH = utils.GetConfigPathByName("acra-addzone")
+var SERVICE_NAME = "acra-addzone"
 
 func main() {
-	outputDir := flag.String("output_dir", keystore.DEFAULT_KEY_DIR_SHORT, "Folder where will be saved generated zone keys")
-	fsKeystore := flag.Bool("fs", true, "Use filesystem key store")
+	outputDir := flag.String("keys_output_dir", keystore.DEFAULT_KEY_DIR_SHORT, "Folder where will be saved generated zone keys")
+	fsKeystore := flag.Bool("fs_keystore_enable", true, "Use filesystem key store")
 
 	logging.SetLogLevel(logging.LOG_VERBOSE)
 
-	err := cmd.Parse(DEFAULT_CONFIG_PATH)
+	err := cmd.Parse(DEFAULT_CONFIG_PATH, SERVICE_NAME)
 	if err != nil {
 		log.WithError(err).Errorln("can't parse args")
 		os.Exit(1)

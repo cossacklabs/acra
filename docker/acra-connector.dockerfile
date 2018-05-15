@@ -38,4 +38,4 @@ EXPOSE 9191 9494
 # Base command
 ENTRYPOINT ["/acra-connector"]
 # Optional arguments
-CMD ["--acra_host=acra-server", "-v", "--keys_dir=/keys"]
+CMD ["--acraserver_connection_host=acra-server", "-v", "--keys_dir=/keys"]
