@@ -19,9 +19,9 @@ type QueryCaptureHandler struct {
 	Queries              []QueryInfo
 	filePath             string
 	logChannel           chan QueryInfo
-	signalToSerialize    chan bool
 	signalBackgroundExit chan bool
 	serializationTimeout time.Duration
+	serializationTimer   *time.Timer
 }
 
 type QueryInfo struct {
@@ -59,7 +59,7 @@ func NewQueryCaptureHandler(filePath string) (*QueryCaptureHandler, error) {
 	}
 
 	logChannel := make(chan QueryInfo, MaxQueriesInChannel)
-	signalToSerialize := make(chan bool)
+
 	signalShutdown := make(chan os.Signal, 2)
 	signal.Notify(signalShutdown, os.Interrupt, syscall.SIGTERM)
 
@@ -68,26 +68,10 @@ func NewQueryCaptureHandler(filePath string) (*QueryCaptureHandler, error) {
 	handler := &QueryCaptureHandler{}
 	handler.filePath = filePath
 	handler.Queries = queries
-	handler.signalToSerialize = signalToSerialize
 	handler.logChannel = logChannel
 	handler.signalBackgroundExit = signalBackgroundExit
 	handler.serializationTimeout = DefaultSerializationTimeout
-
-	//serialization signaling goroutine
-	go func() {
-		for {
-			select {
-			case <-signalBackgroundExit:
-				return
-			case <-signalShutdown:
-				return
-			default:
-				//do nothing. This means that channel has no data to read yet
-			}
-			time.Sleep(handler.serializationTimeout)
-			signalToSerialize <- true
-		}
-	}()
+	handler.serializationTimer = time.NewTimer(DefaultSerializationTimeout)
 
 	f, err := os.OpenFile(filePath, os.O_APPEND|os.O_WRONLY|os.O_CREATE, 0600)
 	if err != nil {
@@ -99,7 +83,7 @@ func NewQueryCaptureHandler(filePath string) (*QueryCaptureHandler, error) {
 	go func (){
 		for {
 			select {
-			case <-signalToSerialize:
+			case <-handler.serializationTimer.C:
 				err := handler.Serialize()
 				if err != nil {
 					log.WithError(ErrComplexSerializationError).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCensorSecurityError)
@@ -185,8 +169,6 @@ func (handler *QueryCaptureHandler) MarkQueryAsForbidden(query string) {
 			handler.Queries[index].IsForbidden = true
 		}
 	}
-
-	handler.signalToSerialize <- true
 }
 func (handler *QueryCaptureHandler) GetForbiddenQueries() []string{
 	var forbiddenQueries []string
@@ -198,6 +180,7 @@ func (handler *QueryCaptureHandler) GetForbiddenQueries() []string{
 	return forbiddenQueries
 }
 func (handler *QueryCaptureHandler) SetSerializationTimeout(timeout time.Duration){
+	handler.serializationTimer.Reset(timeout)
 	handler.serializationTimeout = timeout
 }
 func (handler *QueryCaptureHandler) GetSerializationTimeout() time.Duration {
