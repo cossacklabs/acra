@@ -78,8 +78,8 @@ func (handler *WhitelistHandler) Reset() {
 	handler.rules = nil
 }
 
-func (handler *WhitelistHandler) GetName() string {
-	return "Whitelist"
+func (handler *WhitelistHandler) Release() {
+	handler.Reset()
 }
 
 func (handler *WhitelistHandler) AddQueries(queries []string) error {

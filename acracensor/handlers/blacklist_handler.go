@@ -72,8 +72,8 @@ func (handler *BlacklistHandler) Reset() {
 	handler.rules = nil
 }
 
-func (handler *BlacklistHandler) GetName() string {
-	return "Blacklist"
+func (handler *BlacklistHandler) Release(){
+	handler.Reset()
 }
 
 func (handler *BlacklistHandler) AddQueries(queries []string) error {
