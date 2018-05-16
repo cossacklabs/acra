@@ -479,9 +479,10 @@ func TestSerialization(t *testing.T){
 		}
 	}
 
+	defaultTimeout := handler.GetSerializationTimeout()
 	handler.SetSerializationTimeout(50 * time.Millisecond)
 	//wait until goroutine handles complex serialization
-	time.Sleep(handler.GetSerializationTimeout())
+	time.Sleep(defaultTimeout + handler.GetSerializationTimeout() + 10 * time.Millisecond)
 
 	if len(handler.GetAllInputQueries()) != len(testQueries){
 		t.Fatal("Expected: " + strings.Join(testQueries, " | ") + "\nGot: " + strings.Join(handler.GetAllInputQueries(), " | "))
@@ -645,9 +646,10 @@ func TestQueryCapture(t *testing.T){
 
 	expected := "[{\"RawQuery\":\"SELECT * FROM Schema.Tables;\",\"IsForbidden\":false},{\"RawQuery\":\"SELECT Student_ID FROM STUDENT;\",\"IsForbidden\":false},{\"RawQuery\":\"SELECT * FROM STUDENT;\",\"IsForbidden\":false},{\"RawQuery\":\"SELECT * FROM X;\",\"IsForbidden\":false},{\"RawQuery\":\"SELECT * FROM Y;\",\"IsForbidden\":false}]"
 
+	defaultTimeout := handler.GetSerializationTimeout()
 	handler.SetSerializationTimeout(50 * time.Millisecond)
 	//wait until goroutine handles complex serialization
-	time.Sleep(handler.GetSerializationTimeout() + 10 * time.Millisecond)
+	time.Sleep(defaultTimeout + handler.GetSerializationTimeout() + 10 * time.Millisecond)
 
 	result, err := ioutil.ReadFile(tmpFile.Name())
 	if err != nil {
@@ -759,9 +761,10 @@ func TestConfigurationProvider(t *testing.T) {
 	for _, currentHandler := range handlers_ {
 		original, ok := currentHandler.(*handlers.QueryCaptureHandler)
 		if ok {
+			defaultTimeout := original.GetSerializationTimeout()
 			original.SetSerializationTimeout(50 * time.Millisecond)
 			//wait until goroutine handles complex serialization
-			time.Sleep(original.GetSerializationTimeout())
+			time.Sleep(defaultTimeout + original.GetSerializationTimeout() + 10 * time.Millisecond)
 		}
 	}
 

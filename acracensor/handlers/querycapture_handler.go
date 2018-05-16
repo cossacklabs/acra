@@ -23,7 +23,6 @@ type QueryCaptureHandler struct {
 	serializationTimeout time.Duration
 	serializationTicker  *time.Ticker
 }
-
 type QueryInfo struct {
 	RawQuery string
 	IsForbidden bool
@@ -131,7 +130,6 @@ func NewQueryCaptureHandler(filePath string) (*QueryCaptureHandler, error) {
 		}
 	}()
 
-	time.Sleep(DefaultSerializationTimeout) // here we should wait default serialization interval
 	return handler, nil
 }
 func (handler *QueryCaptureHandler) CheckQuery(query string) error {
