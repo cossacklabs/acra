@@ -131,6 +131,7 @@ func NewQueryCaptureHandler(filePath string) (*QueryCaptureHandler, error) {
 		}
 	}()
 
+	time.Sleep(DefaultSerializationTimeout) // here we should wait default serialization interval
 	return handler, nil
 }
 func (handler *QueryCaptureHandler) CheckQuery(query string) error {

@@ -479,10 +479,9 @@ func TestSerialization(t *testing.T){
 		}
 	}
 
-	previousTimeout := handler.GetSerializationTimeout()
 	handler.SetSerializationTimeout(50 * time.Millisecond)
 	//wait until goroutine handles complex serialization
-	time.Sleep(handler.GetSerializationTimeout() + previousTimeout)
+	time.Sleep(handler.GetSerializationTimeout())
 
 	if len(handler.GetAllInputQueries()) != len(testQueries){
 		t.Fatal("Expected: " + strings.Join(testQueries, " | ") + "\nGot: " + strings.Join(handler.GetAllInputQueries(), " | "))
@@ -577,7 +576,6 @@ func TestLogging(t *testing.T){
 	loggingHandler.MarkQueryAsForbidden(testQueries[0])
 	loggingHandler.MarkQueryAsForbidden(testQueries[1])
 	loggingHandler.MarkQueryAsForbidden(testQueries[2])
-
 	loggingHandler.Serialize()
 
 	err = blacklist.AddQueries(loggingHandler.GetForbiddenQueries())
@@ -647,10 +645,9 @@ func TestQueryCapture(t *testing.T){
 
 	expected := "[{\"RawQuery\":\"SELECT * FROM Schema.Tables;\",\"IsForbidden\":false},{\"RawQuery\":\"SELECT Student_ID FROM STUDENT;\",\"IsForbidden\":false},{\"RawQuery\":\"SELECT * FROM STUDENT;\",\"IsForbidden\":false},{\"RawQuery\":\"SELECT * FROM X;\",\"IsForbidden\":false},{\"RawQuery\":\"SELECT * FROM Y;\",\"IsForbidden\":false}]"
 
-	previousTimeout := handler.GetSerializationTimeout()
 	handler.SetSerializationTimeout(50 * time.Millisecond)
 	//wait until goroutine handles complex serialization
-	time.Sleep(handler.GetSerializationTimeout() + previousTimeout)
+	time.Sleep(handler.GetSerializationTimeout() + 10 * time.Millisecond)
 
 	result, err := ioutil.ReadFile(tmpFile.Name())
 	if err != nil {
@@ -661,7 +658,6 @@ func TestQueryCapture(t *testing.T){
 		t.Fatal("Expected: " + expected + "\nGot: " + string(result))
 	}
 
-
 	testQuery := "SELECT * FROM Z;"
 	err = handler.CheckQuery(testQuery)
 	if err != nil {
@@ -669,7 +665,8 @@ func TestQueryCapture(t *testing.T){
 	}
 
 	expected = "[{\"RawQuery\":\"SELECT * FROM Schema.Tables;\",\"IsForbidden\":false},{\"RawQuery\":\"SELECT Student_ID FROM STUDENT;\",\"IsForbidden\":false},{\"RawQuery\":\"SELECT * FROM STUDENT;\",\"IsForbidden\":false},{\"RawQuery\":\"SELECT * FROM X;\",\"IsForbidden\":false},{\"RawQuery\":\"SELECT * FROM Y;\",\"IsForbidden\":false},{\"RawQuery\":\"SELECT * FROM Z;\",\"IsForbidden\":false}]"
-	time.Sleep(handler.GetSerializationTimeout() + previousTimeout)
+	time.Sleep(handler.GetSerializationTimeout() + 10 * time.Millisecond)
+
 	result, err = ioutil.ReadFile(tmpFile.Name())
 	if err != nil {
 		t.Fatal(err)
@@ -682,8 +679,6 @@ func TestQueryCapture(t *testing.T){
 	if err = os.Remove(tmpFile.Name()); err != nil {
 		t.Fatal(err)
 	}
-
-
 }
 
 func TestConfigurationProvider(t *testing.T) {
@@ -764,10 +759,9 @@ func TestConfigurationProvider(t *testing.T) {
 	for _, currentHandler := range handlers_ {
 		original, ok := currentHandler.(*handlers.QueryCaptureHandler)
 		if ok {
-			previousTimeout := original.GetSerializationTimeout()
 			original.SetSerializationTimeout(50 * time.Millisecond)
 			//wait until goroutine handles complex serialization
-			time.Sleep(original.GetSerializationTimeout() + previousTimeout)
+			time.Sleep(original.GetSerializationTimeout())
 		}
 	}
 
