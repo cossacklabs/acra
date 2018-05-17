@@ -23,6 +23,7 @@ import (
 	"net"
 	"time"
 
+	"github.com/cossacklabs/acra/acracensor"
 	"github.com/cossacklabs/acra/decryptor/base"
 	acra_io "github.com/cossacklabs/acra/io"
 	"github.com/cossacklabs/acra/logging"
@@ -53,7 +54,10 @@ const (
 	COLUMN_DATA_DEFAULT_SIZE = 1024
 	// https://www.postgresql.org/docs/9.4/static/protocol-message-formats.html
 	DATA_ROW_MESSAGE_TYPE byte = 'D'
+	QUERY_MESSAGE_TYPE    byte = 'Q'
 )
+
+var CANCEL_REQUEST = []byte{0x04, 0xd2, 0x16, 0x2e}
 
 /* override size in postgresql data row that starts with 4 byte of size */
 func (row *DataRow) SetDataSize(size int) {
@@ -70,6 +74,7 @@ func (row *DataRow) CheckOutputSize(size int) {
 }
 
 func (row *DataRow) skipData(reader io.Reader, writer io.Writer, errCh chan<- error) bool {
+	log.Debugln("read row length")
 	n, err := reader.Read(row.descriptionLengthBuf)
 	if !base.CheckReadWrite(n, 4, err, errCh) {
 		return false
@@ -80,6 +85,7 @@ func (row *DataRow) skipData(reader io.Reader, writer io.Writer, errCh chan<- er
 	}
 
 	descriptionLength := int(binary.BigEndian.Uint32(row.descriptionLengthBuf)) - len(row.descriptionLengthBuf)
+	log.WithField("length", row.descriptionLengthBuf).WithField("length_value", descriptionLength).Debugln("read row data")
 	n2, err = io.CopyN(writer, reader, int64(descriptionLength))
 	if !base.CheckReadWrite(int(n2), descriptionLength, err, errCh) {
 		return false
@@ -92,6 +98,7 @@ func (row *DataRow) readByte(reader io.Reader, writer io.Writer, errCh chan<- er
 	if !base.CheckReadWrite(n, 1, err, errCh) {
 		return false
 	}
+	log.Printf("byte=%v", row.buf[0])
 	n, err = writer.Write(row.buf[:])
 	if !base.CheckReadWrite(n, 1, err, errCh) {
 		return false
@@ -101,6 +108,10 @@ func (row *DataRow) readByte(reader io.Reader, writer io.Writer, errCh chan<- er
 
 func (row *DataRow) IsDataRow() bool {
 	return row.buf[0] == DATA_ROW_MESSAGE_TYPE
+}
+
+func (row *DataRow) IsSimpleQuery() bool {
+	return row.buf[0] == QUERY_MESSAGE_TYPE
 }
 
 func (row *DataRow) UpdateColumnAndDataSize(oldColumnLength, newColumnLength int) bool {
@@ -132,8 +143,9 @@ func (row *DataRow) ReadDataLength() bool {
 	if !base.CheckReadWrite(n, DATA_ROW_LENGTH_BUF_SIZE, err, row.errCh) {
 		return false
 	}
+	log.Printf("data length buf=%v", row.output[:DATA_ROW_LENGTH_BUF_SIZE])
 	row.writeIndex += n
-	row.dataLength = int(binary.BigEndian.Uint32(row.output[:DATA_ROW_LENGTH_BUF_SIZE]))
+	row.dataLength = int(binary.BigEndian.Uint32(row.output[:DATA_ROW_LENGTH_BUF_SIZE])) - len(row.descriptionLengthBuf)
 	return true
 }
 
@@ -157,7 +169,107 @@ func (row *DataRow) Flush() bool {
 	return true
 }
 
-func PgDecryptStream(decryptor base.Decryptor, tlsConfig *tls.Config, dbConnection net.Conn, clientConnection net.Conn, errCh chan<- error) {
+func (row *DataRow) ReadData() ([]byte, bool) {
+	row.CheckOutputSize(row.dataLength)
+	n, err := row.reader.Read(row.output[row.writeIndex : row.writeIndex+row.dataLength])
+	if !base.CheckReadWrite(n, row.dataLength, err, row.errCh) {
+		return nil, false
+	}
+	data := row.output[row.writeIndex : row.writeIndex+row.dataLength]
+	row.writeIndex += row.dataLength
+	return data, true
+}
+
+func (row *DataRow) ReadSimpleQuery(errCh chan<- error) (string, bool) {
+	log.Debugf("read %v data", row.dataLength)
+	row.CheckOutputSize(row.dataLength)
+	query, success := row.ReadData()
+	return string(query), success
+}
+
+func (row *DataRow) ReadFirstPacket() ([]byte, bool) {
+	if !row.ReadDataLength() {
+		return nil, false
+	}
+	if !row.ReadDataLength() {
+		return nil, false
+	}
+	return row.ReadData()
+}
+
+func isCancelRequest(data []byte) bool {
+	return bytes.Equal(data[:4], CANCEL_REQUEST)
+}
+
+func PgProxyClientRequests(firstByte bool, acraCensor acracensor.AcracensorInterface, dbConnection, clientConnection net.Conn, errCh chan<- error) {
+	writer := bufio.NewWriter(dbConnection)
+
+	reader := acra_io.NewExtendedBufferedReader(bufio.NewReader(clientConnection))
+	row := DataRow{
+		writeIndex:           0,
+		output:               make([]byte, OUTPUT_DEFAULT_SIZE),
+		columnDataBuf:        bytes.NewBuffer(make([]byte, COLUMN_DATA_DEFAULT_SIZE)),
+		descriptionLengthBuf: make([]byte, 4),
+		reader:               reader,
+		writer:               writer,
+	}
+	for {
+		row.writeIndex = 0
+		if firstByte {
+			log.Debugln("first packet")
+			// first packet hasn't type of message and start with message length and data
+			firstByte = false
+			//packet, success := row.ReadFirstPacket()
+			//if !success {
+			//	return
+			//}
+			if !row.skipData(reader, writer, errCh) {
+				return
+			}
+			if err := writer.Flush(); err != nil {
+				log.WithError(err).Errorln("can't flush writer")
+				errCh <- err
+				return
+			}
+			continue
+		}
+		if !row.readByte(reader, writer, errCh) {
+			return
+		}
+		if !row.IsSimpleQuery() {
+			log.Debugln("not query")
+			if !row.skipData(reader, writer, errCh) {
+				return
+			}
+			writer.Flush()
+			continue
+		}
+		log.Debugln("query packet")
+
+		if !row.ReadDataLength() {
+			return
+		}
+		query, success := row.ReadSimpleQuery(errCh)
+		if !success {
+			row.Flush()
+			return
+		}
+		log.WithField("query", query).Debugln("new query")
+		if err := acraCensor.HandleQuery(query); err != nil {
+			log.WithError(err).Errorln("AcraCensor blocked query")
+			errCh <- errors.New("temp error")
+			return
+		}
+		if !row.Flush() {
+			return
+		}
+		if err := writer.Flush(); err != nil {
+			log.WithError(err).Errorln("can't flush writer to db")
+		}
+	}
+}
+
+func PgDecryptStream(censor acracensor.AcracensorInterface, decryptor base.Decryptor, tlsConfig *tls.Config, dbConnection net.Conn, clientConnection net.Conn, errCh chan<- error) {
 	writer := bufio.NewWriter(clientConnection)
 
 	reader := acra_io.NewExtendedBufferedReader(bufio.NewReader(dbConnection))
@@ -234,7 +346,7 @@ func PgDecryptStream(decryptor base.Decryptor, tlsConfig *tls.Config, dbConnecti
 				}
 
 				// restart proxing client's requests
-				go network.Proxy(tlsClientConnection, dbTLSConnection, errCh)
+				go PgProxyClientRequests(false, censor, tlsClientConnection, dbTLSConnection, errCh)
 				reader = acra_io.NewExtendedBufferedReader(bufio.NewReader(dbTLSConnection))
 				row.reader = reader
 				writer = bufio.NewWriter(tlsClientConnection)

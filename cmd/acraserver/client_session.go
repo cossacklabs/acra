@@ -19,7 +19,6 @@ import (
 
 	"github.com/cossacklabs/acra/decryptor/mysql"
 	"github.com/cossacklabs/acra/decryptor/postgresql"
-	"github.com/cossacklabs/acra/network"
 	log "github.com/sirupsen/logrus"
 
 	"io"
@@ -101,8 +100,8 @@ func (clientSession *ClientSession) HandleClientConnection(decryptorImpl base.De
 		go handler.DbToClientProxy(innerErrorChannel)
 	} else {
 		log.Debugln("PostgreSQL connection")
-		go network.Proxy(clientSession.connection, clientSession.connectionToDb, innerErrorChannel)
-		go postgresql.PgDecryptStream(decryptorImpl, clientSession.config.GetTLSConfig(), clientSession.connectionToDb, clientSession.connection, innerErrorChannel)
+		go postgresql.PgProxyClientRequests(true, clientSession.config.censor, clientSession.connectionToDb, clientSession.connection, innerErrorChannel)
+		go postgresql.PgDecryptStream(clientSession.config.censor, decryptorImpl, clientSession.config.GetTLSConfig(), clientSession.connectionToDb, clientSession.connection, innerErrorChannel)
 	}
 	for {
 		err = <-innerErrorChannel
