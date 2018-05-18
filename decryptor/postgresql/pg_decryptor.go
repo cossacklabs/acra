@@ -55,6 +55,7 @@ const (
 	// https://www.postgresql.org/docs/9.4/static/protocol-message-formats.html
 	DATA_ROW_MESSAGE_TYPE byte = 'D'
 	QUERY_MESSAGE_TYPE    byte = 'Q'
+	TLS_TIMEOUT                = time.Second
 )
 
 var CANCEL_REQUEST = []byte{0x04, 0xd2, 0x16, 0x2e}
@@ -98,7 +99,7 @@ func (row *DataRow) readByte(reader io.Reader, writer io.Writer, errCh chan<- er
 	if !base.CheckReadWrite(n, 1, err, errCh) {
 		return false
 	}
-	log.Printf("byte=%v", row.buf[0])
+	log.Printf("byte=%v, '%v'", row.buf[0], string(row.buf[0]))
 	n, err = writer.Write(row.buf[:])
 	if !base.CheckReadWrite(n, 1, err, errCh) {
 		return false
@@ -197,11 +198,19 @@ func (row *DataRow) ReadFirstPacket() ([]byte, bool) {
 	return row.ReadData()
 }
 
-func isCancelRequest(data []byte) bool {
-	return bytes.Equal(data[:4], CANCEL_REQUEST)
+type PgProxy struct {
+	clientConnection net.Conn
+	dbConnection     net.Conn
+	errCh            chan<- error
+	TlsCh            chan bool
 }
 
-func PgProxyClientRequests(firstByte bool, acraCensor acracensor.AcracensorInterface, dbConnection, clientConnection net.Conn, errCh chan<- error) {
+func NewPgProxy(clientConnection, dbConnection net.Conn, errCh chan<- error) (*PgProxy, error) {
+	return &PgProxy{clientConnection: clientConnection, dbConnection: dbConnection, errCh: errCh, TlsCh: make(chan bool)}, nil
+}
+
+func (proxy *PgProxy) PgProxyClientRequests(firstByte bool, acraCensor acracensor.AcracensorInterface, dbConnection, clientConnection net.Conn, errCh chan<- error) {
+	log.Debugln("pg client proxy")
 	writer := bufio.NewWriter(dbConnection)
 
 	reader := acra_io.NewExtendedBufferedReader(bufio.NewReader(clientConnection))
@@ -269,7 +278,8 @@ func PgProxyClientRequests(firstByte bool, acraCensor acracensor.AcracensorInter
 	}
 }
 
-func PgDecryptStream(censor acracensor.AcracensorInterface, decryptor base.Decryptor, tlsConfig *tls.Config, dbConnection net.Conn, clientConnection net.Conn, errCh chan<- error) {
+func (proxy *PgProxy) PgDecryptStream(censor acracensor.AcracensorInterface, decryptor base.Decryptor, tlsConfig *tls.Config, dbConnection net.Conn, clientConnection net.Conn, errCh chan<- error) {
+	log.Debugln("pg db proxy")
 	writer := bufio.NewWriter(clientConnection)
 
 	reader := acra_io.NewExtendedBufferedReader(bufio.NewReader(dbConnection))
@@ -292,6 +302,7 @@ func PgDecryptStream(censor acracensor.AcracensorInterface, decryptor base.Decry
 			// we should know that we shouldn't read anymore bytes
 			firstByte = false
 			if row.buf[0] == 'N' {
+				log.Debugln("deny ssl request")
 				writer.Flush()
 				continue
 			} else if row.buf[0] == 'S' {
@@ -310,10 +321,15 @@ func PgDecryptStream(censor acracensor.AcracensorInterface, decryptor base.Decry
 					errCh <- err
 					return
 				}
-				// TODO: refactor it to avoid using sleep
-				// back control and allow golang runtime handle deadline in background goroutine
-				time.Sleep(time.Millisecond)
-				// reset deadline
+				select {
+				case <-proxy.TlsCh:
+					break
+				case <-time.NewTimer(TLS_TIMEOUT).C:
+					log.Errorln("can't stop background goroutine to start tls handshake")
+					proxy.errCh <- errors.New("can't stop background goroutine")
+					return
+				}
+				log.Debugln("stop client connection")
 				if err := clientConnection.SetDeadline(time.Time{}); err != nil {
 					log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorDecryptorCantSetDeadlineToClientConnection).
 						Errorln("Can't set deadline")
@@ -346,7 +362,7 @@ func PgDecryptStream(censor acracensor.AcracensorInterface, decryptor base.Decry
 				}
 
 				// restart proxing client's requests
-				go PgProxyClientRequests(false, censor, tlsClientConnection, dbTLSConnection, errCh)
+				go proxy.PgProxyClientRequests(true, censor, dbTLSConnection, tlsClientConnection, errCh)
 				reader = acra_io.NewExtendedBufferedReader(bufio.NewReader(dbTLSConnection))
 				row.reader = reader
 				writer = bufio.NewWriter(tlsClientConnection)

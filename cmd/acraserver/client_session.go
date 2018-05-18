@@ -87,7 +87,7 @@ func (clientSession *ClientSession) HandleClientConnection(decryptorImpl base.De
 		}
 		return
 	}
-
+	var pgProxy *postgresql.PgProxy
 	if clientSession.config.UseMySQL() {
 		log.Debugln("MySQL connection")
 		handler, err := mysql.NewMysqlHandler(decryptorImpl, clientSession.connectionToDb, clientSession.connection, clientSession.config.GetTLSConfig(), clientSession.config.censor)
@@ -99,9 +99,15 @@ func (clientSession *ClientSession) HandleClientConnection(decryptorImpl base.De
 		go handler.ClientToDbProxy(innerErrorChannel)
 		go handler.DbToClientProxy(innerErrorChannel)
 	} else {
+		pgProxy, err = postgresql.NewPgProxy(clientSession.connection, clientSession.connectionToDb, innerErrorChannel)
+		if err != nil {
+			log.WithError(err).Errorln("can't initialize postgresql proxy")
+			clientSession.close()
+			return
+		}
 		log.Debugln("PostgreSQL connection")
-		go postgresql.PgProxyClientRequests(true, clientSession.config.censor, clientSession.connectionToDb, clientSession.connection, innerErrorChannel)
-		go postgresql.PgDecryptStream(clientSession.config.censor, decryptorImpl, clientSession.config.GetTLSConfig(), clientSession.connectionToDb, clientSession.connection, innerErrorChannel)
+		go pgProxy.PgProxyClientRequests(true, clientSession.config.censor, clientSession.connectionToDb, clientSession.connection, innerErrorChannel)
+		go pgProxy.PgDecryptStream(clientSession.config.censor, decryptorImpl, clientSession.config.GetTLSConfig(), clientSession.connectionToDb, clientSession.connection, innerErrorChannel)
 	}
 	for {
 		err = <-innerErrorChannel
@@ -114,6 +120,7 @@ func (clientSession *ClientSession) HandleClientConnection(decryptorImpl base.De
 				if clientSession.config.UseMySQL() {
 					break
 				} else {
+					pgProxy.TlsCh <- true
 					// in postgresql mode timeout used to stop listening connection in background goroutine
 					// and it's normal behaviour
 					continue
