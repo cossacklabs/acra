@@ -183,19 +183,11 @@ func (row *DataRow) ReadData() ([]byte, bool) {
 
 func (row *DataRow) ReadSimpleQuery(errCh chan<- error) (string, bool) {
 	log.Debugf("read %v data", row.dataLength)
-	row.CheckOutputSize(row.dataLength)
+	if !row.ReadDataLength() {
+		return "", false
+	}
 	query, success := row.ReadData()
 	return string(query), success
-}
-
-func (row *DataRow) ReadFirstPacket() ([]byte, bool) {
-	if !row.ReadDataLength() {
-		return nil, false
-	}
-	if !row.ReadDataLength() {
-		return nil, false
-	}
-	return row.ReadData()
 }
 
 type PgProxy struct {
@@ -228,10 +220,6 @@ func (proxy *PgProxy) PgProxyClientRequests(firstByte bool, acraCensor acracenso
 			log.Debugln("first packet")
 			// first packet hasn't type of message and start with message length and data
 			firstByte = false
-			//packet, success := row.ReadFirstPacket()
-			//if !success {
-			//	return
-			//}
 			if !row.skipData(reader, writer, errCh) {
 				return
 			}
@@ -254,10 +242,6 @@ func (proxy *PgProxy) PgProxyClientRequests(firstByte bool, acraCensor acracenso
 			continue
 		}
 		log.Debugln("query packet")
-
-		if !row.ReadDataLength() {
-			return
-		}
 		query, success := row.ReadSimpleQuery(errCh)
 		if !success {
 			row.Flush()
@@ -274,6 +258,8 @@ func (proxy *PgProxy) PgProxyClientRequests(firstByte bool, acraCensor acracenso
 		}
 		if err := writer.Flush(); err != nil {
 			log.WithError(err).Errorln("can't flush writer to db")
+			errCh <- err
+			return
 		}
 	}
 }

@@ -102,7 +102,6 @@ func (clientSession *ClientSession) HandleClientConnection(decryptorImpl base.De
 		pgProxy, err = postgresql.NewPgProxy(clientSession.connection, clientSession.connectionToDb, innerErrorChannel)
 		if err != nil {
 			log.WithError(err).Errorln("can't initialize postgresql proxy")
-			clientSession.close()
 			return
 		}
 		log.Debugln("PostgreSQL connection")
