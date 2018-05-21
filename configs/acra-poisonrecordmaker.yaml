@@ -1,0 +1,15 @@
+# path to config
+config_file: 
+
+# Length of random data for data block in acrastruct. -1 is random in range 1..100
+data_length: -1
+
+# dump config
+dump_config: false
+
+# Folder from which will be loaded keys
+keys_dir: .acrakeys
+
+# path to markdown file to save
+markdown_file: 
+

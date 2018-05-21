@@ -16,7 +16,7 @@ package base_test
 import (
 	"bytes"
 	"crypto/rand"
-	"github.com/cossacklabs/acra/acrawriter"
+	"github.com/cossacklabs/acra/acra-writer"
 	"github.com/cossacklabs/acra/decryptor/base"
 	"github.com/cossacklabs/acra/zone"
 	"github.com/cossacklabs/themis/gothemis/keys"

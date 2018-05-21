@@ -1,0 +1,111 @@
+# Path to AcraCensor configuration file
+acracensor_config_file: 
+
+# Use tls to encrypt transport between AcraServer and AcraConnector/client
+acraconnector_tls_transport_enable: false
+
+# Use raw transport (tcp/unix socket) between AcraServer and AcraConnector/client (don't use this flag if you not connect to database with ssl/tls
+acraconnector_transport_encryption_disable: false
+
+# Acrastruct may be injected into any place of data cell
+acrastruct_injectedcell_enable: false
+
+# Acrastruct will stored in whole data cell
+acrastruct_wholecell_enable: true
+
+# Path to basic auth passwords. To add user, use: `./acra-authmanager --set --user <user> --pwd <pwd>`
+auth_keys: configs/auth.keys
+
+# Expected client id of AcraConnector in mode without encryption
+client_id: 
+
+# path to config
+config_file: 
+
+# Time that AcraServer will wait (in seconds) on restart before closing all connections
+connection_close_timeout: 10
+
+# Turn on debug logging
+d: false
+
+# Host to db
+db_host: 
+
+# Port to db
+db_port: 5432
+
+# Turn on http debug server
+ds: false
+
+# dump config
+dump_config: false
+
+# Enable HTTP API
+http_api_enable: false
+
+# Port for AcraServer for HTTP API
+incoming_connection_api_port: 9090
+
+# Connection string for api like tcp://x.x.x.x:yyyy or unix:///path/to/socket
+incoming_connection_api_string: tcp://0.0.0.0:9090/
+
+# Host for AcraServer
+incoming_connection_host: 0.0.0.0
+
+# Port for AcraServer
+incoming_connection_port: 9393
+
+# Connection string like tcp://x.x.x.x:yyyy or unix:///path/to/socket
+incoming_connection_string: tcp://0.0.0.0:9393/
+
+# Folder from which will be loaded keys
+keys_dir: .acrakeys
+
+# Logging format: plaintext, json or CEF
+logging_format: plaintext
+
+# path to markdown file to save
+markdown_file: 
+
+# Handle MySQL connections
+mysql_enable: false
+
+# Escape format for Postgresql bytea data
+pgsql_escape_bytea: false
+
+# Hex format for Postgresql bytea data (default)
+pgsql_hex_bytea: false
+
+# Execute script on detecting poison record
+poison_run_script_file: 
+
+# Stop on detecting poison record
+poison_shutdown_enable: false
+
+# Handle Postgresql connections (default true)
+postgresql_enable: false
+
+# Id that will be sent in secure session
+securesession_id: acra_server
+
+# Set authentication mode that will be used in TLS connection with Postgresql. Values in range 0-4 that set auth type (https://golang.org/pkg/crypto/tls/#ClientAuthType). Default is tls.RequireAndVerifyClientCert
+tls_auth: 4
+
+# Path to root certificate which will be used with system root certificates to validate Postgresql's and AcraConnector's certificate
+tls_ca: 
+
+# Path to tls certificate
+tls_cert: 
+
+# Expected Server Name (SNI) from Postgresql
+tls_db_sni: 
+
+# Path to private key that will be used in TLS handshake with AcraConnector as server's key and Postgresql as client's key
+tls_key: 
+
+# Log to stderr
+v: false
+
+# Turn on zone mode
+zonemode_enable: false
+

@@ -1,0 +1,42 @@
+# Client id should be name of file with private key
+client_id: 
+
+# path to config
+config_file: 
+
+# Connection string for db
+connection_string: 
+
+# dump config
+dump_config: false
+
+# Escape bytea format
+escape: false
+
+# Execute inserts
+execute: false
+
+# Query for insert decrypted data with placeholders (pg: $n, mysql: ?)
+insert: 
+
+# Folder from which the keys will be loaded
+keys_dir: .acrakeys
+
+# path to markdown file to save
+markdown_file: 
+
+# Handle MySQL connections
+mysql_enable: false
+
+# File for store inserts queries
+output_file: decrypted.sql
+
+# Handle Postgresql connections
+postgresql_enable: false
+
+# Query to fetch data for decryption
+select: 
+
+# Turn on zone mode
+zonemode_enable: false
+

@@ -1,11 +1,11 @@
 # docker
 
   * `acra-build.dockerfile` - intermediate image for compile all acra components
-  * `acraserver.dockerfile` - resulting image with acraserver
-  * `acraproxy.dockerfile` - resulting image with acraproxy
-  * `acra_configui.dockerfile` - resulting image with acra_configui component
-  * `acra_genkeys.dockerfile` - resulting image with acra_genkeys tool
-  * `acra_genauth.dockerfile` - resulting image with acra_genauth tool
+  * `acra-server.dockerfile` - resulting image with AcraServer
+  * `acra-connector.dockerfile` - resulting image with AcraConnector
+  * `acra-webconfig.dockerfile` - resulting image with AcraWebconfig component
+  * `acra-keymaker.dockerfile` - resulting image with AcraKeymaker tool
+  * `acra-authmanager.dockerfile` - resulting image with AcraAuthmanager tool
   * `postgresql-ssl.dockerfile` - Postgresql server container with example SSL
     certificates (located at ssl/postgresql directory)
 
@@ -28,20 +28,20 @@ compatibility table](https://docs.docker.com/compose/compose-file/compose-versio
 There are examples with different interconnection types (`client` is not
 included into composes and is given only to indicate its position):
 
-  * `docker/docker-compose.pgsql-nossl-server-ssession-proxy.yml`
-    pgsql <-> acraserver <-SecureSession-> acraproxy <---> client
-                                                       '-> acra_configui
-  * `docker/docker-compose.pgsql-nossl-server-ssession-proxy_zonemode.yml`
-    pgsql <-> acraserver <-SecureSession-> acraproxy <---> client in zone mode
-                                                       '-> acra_configui
-  * `docker/docker-compose.pgsql-nossl-server-ssl-proxy.yml`
-    pgsql <-> acraserver <-SSL-> acraproxy <-SSL-> client
-  * `docker/docker-compose.pgsql-nossl-server-ssl-proxy_zonemode.yml`
-    pgsql <-> acraserver <-SSL-> acraproxy <-SSL-> client in zone mode
-  * `docker/docker-compose.pgsql-ssl-server-ssl-proxy.yml`
-    pgsql <-SSL-> acraserver <-SSL-> acraproxy <-SSL-> client
+  * `docker/docker-compose.pgsql-nossl-server-ssession-connector.yml`
+    PostgreSQL <-> AcraServer <-SecureSession-> AcraConnector <---> client
+                                                       '-> AcraWebconfig
+  * `docker/docker-compose.pgsql-nossl-server-ssession-connector_zonemode.yml`
+    PostgreSQL <-> AcraServer <-SecureSession-> AcraConnector <---> client in zone mode
+                                                       '-> AcraWebconfig
+  * `docker/docker-compose.pgsql-nossl-server-ssl-connector.yml`
+    PostgreSQL <-> AcraServer <-SSL-> AcraConnector <-SSL-> client
+  * `docker/docker-compose.pgsql-nossl-server-ssl-connector_zonemode.yml`
+    PostgreSQL <-> AcraServer <-SSL-> AcraConnector <-SSL-> client in zone mode
+  * `docker/docker-compose.pgsql-ssl-server-ssl-connector.yml`
+    PostgreSQL <-SSL-> AcraServer <-SSL-> AcraConnector <-SSL-> client
   * `docker/docker-compose.pgsql-ssl-server-ssl_zonemode.yml`
-    pgsql <-SSL-> acraserver <-SSL-> client in zone mode
+    PostgreSQL <-SSL-> AcraServer <-SSL-> client in zone mode
 
 
 ## Quick launch
@@ -54,15 +54,15 @@ This will create `docker/.acrakeys` directory structure, generate all key pairs,
 put them to appropriate services' directories and launch all components.
 
 Now you can connect to:
-  * 9494/tcp (acraproxy)
-  * 8000/tcp (acra_configui) in configurations with acraproxy
+  * 9494/tcp (acra-connector)
+  * 8000/tcp (acra-webconfig) in configurations with AcraConnector
   * 5432/tcp (postgresql)
 
 
 ## Normal launch
 
-Docker containers with names `acra_genkeys_*` and `acra_genauth` were added to
-docker-compose files for architecture demonstration and quick start purposes
+Docker containers with names `acra-keymaker_*` and `acra-authmanager` were added
+to docker-compose files for architecture demonstration and quick start purposes
 only. You should remove them from selected compose file, generate and place all
 keys manually.
 
@@ -98,7 +98,7 @@ export POSTGRES_USER="<user_name>"
 export POSTGRES_PASSWORD="<user_password>"
 ```
 
-For access to acra_configui HTTP interface you can define:
+For access to AcraWebconfig HTTP interface you can define:
 ```
 export ACRA_HTTPAUTH_USER=<http_auth_user>
 export ACRA_HTTPAUTH_PASSWORD=<http_auth_password>
