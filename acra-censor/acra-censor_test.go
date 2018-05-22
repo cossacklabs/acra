@@ -457,8 +457,6 @@ func TestSerialization(t *testing.T){
 		"INSERT INTO dbo.Points (PointValue) VALUES ('1,99');",
 	}
 
-	var DEFAULT_CONFIG_PATH = utils.GetConfigPathByName("acra-censor.example")
-
 	tmpFile, err := ioutil.TempFile("", "censor_log")
 	if err != nil {
 		t.Fatal(err)
