@@ -685,7 +685,7 @@ func TestQueryCapture(t *testing.T){
 
 func TestConfigurationProvider(t *testing.T) {
 
-	var DEFAULT_CONFIG_PATH = utils.GetConfigPathByName("acra_censor.example")
+	var DEFAULT_CONFIG_PATH = utils.GetConfigPathByName("acra-censor.example")
 
 	filePath, err := os.Getwd()
 	if err != nil {
