@@ -22,9 +22,6 @@ client_id:
 # path to config
 config_file: 
 
-# Time that AcraServer will wait (in seconds) on restart before closing all connections
-connection_close_timeout: 10
-
 # Turn on debug logging
 d: false
 
@@ -48,6 +45,9 @@ incoming_connection_api_port: 9090
 
 # Connection string for api like tcp://x.x.x.x:yyyy or unix:///path/to/socket
 incoming_connection_api_string: tcp://0.0.0.0:9090/
+
+# Time that AcraServer will wait (in seconds) on restart before closing all connections
+incoming_connection_close_timeout: 10
 
 # Host for AcraServer
 incoming_connection_host: 0.0.0.0

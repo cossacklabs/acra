@@ -20,19 +20,13 @@ type AcraCensorConfig struct {
 	}
 }
 
-func (acraCensor *AcraCensor) LoadConfiguration(configuration []byte) error {
-	err := acraCensor.update(configuration)
-	if err != nil {
-		return err
-	}
-	return nil
-}
+func (acraCensor *AcraCensor) LoadConfiguration(configuration []byte) ([]QueryHandlerInterface, error) {
+	var handlers_ []QueryHandlerInterface
 
-func (acraCensor *AcraCensor) update(configuration []byte) error {
 	var censorConfiguration AcraCensorConfig
 	err := yaml.Unmarshal(configuration, &censorConfiguration)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	for _, handlerConfiguration := range censorConfiguration.Handlers {
 		switch handlerConfiguration.Handler {
@@ -40,41 +34,44 @@ func (acraCensor *AcraCensor) update(configuration []byte) error {
 			whitelistHandler := &handlers.WhitelistHandler{}
 			err := whitelistHandler.AddQueries(handlerConfiguration.Queries)
 			if err != nil {
-				return err
+				return nil, err
 			}
 			whitelistHandler.AddTables(handlerConfiguration.Tables)
 			err = whitelistHandler.AddRules(handlerConfiguration.Rules)
 			if err != nil {
-				return err
+				return nil, err
 			}
 			acraCensor.AddHandler(whitelistHandler)
+			handlers_ = append(handlers_, whitelistHandler)
 			break
 		case BlacklistConfigStr:
 			blacklistHandler := &handlers.BlacklistHandler{}
 			err := blacklistHandler.AddQueries(handlerConfiguration.Queries)
 			if err != nil {
-				return err
+				return nil, err
 			}
 			blacklistHandler.AddTables(handlerConfiguration.Tables)
 			err = blacklistHandler.AddRules(handlerConfiguration.Rules)
 			if err != nil {
-				return err
+				return nil, err
 			}
 			acraCensor.AddHandler(blacklistHandler)
+			handlers_ = append(handlers_, blacklistHandler)
 			break
 		case LoggerConfigStr:
 			if strings.EqualFold(handlerConfiguration.Filepath, ""){
 				break
 			}
-			logger, err := handlers.NewLoggingHandler(handlerConfiguration.Filepath)
+			logger, err := handlers.NewQueryCaptureHandler(handlerConfiguration.Filepath)
 			if err != nil {
-				return err
+				return nil, err
 			}
 			acraCensor.AddHandler(logger)
+			handlers_ = append(handlers_, logger)
 			break
 		default:
 			break
 		}
 	}
-	return nil
+	return handlers_, nil
 }

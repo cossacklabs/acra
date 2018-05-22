@@ -55,12 +55,10 @@ Acra relies on our cryptographic library [Themis](https://www.github.com/cossack
 | Debian Stretch      | 1.7.4 (system)                  |
 | Debian Jessie       | latest (1.3.3 is not supported) |
 | Ubuntu Artful       | 1.8.3 (system)                  |
-| Ubuntu Xenial       | 1.6.2 (system)                  |
 | Ubuntu Trusty       | latest (1.2.1 is not supported) |
 | i386/Debian Stretch | 1.7.4 (system)                  |
 | i386/Debian Jessie  | latest (1.3.3 is not supported) |
 | i386/Ubuntu Artful  | 1.8.3 (system)                  |
-| i386/Ubuntu Xenial  | 1.6.2 (system)                  |
 | i386/Ubuntu Trusty  | latest (1.2.1 is not supported) |
 
 * Acra currently supports PostgreSQL 9.4+ as the database backend. 

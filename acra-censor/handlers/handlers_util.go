@@ -25,6 +25,10 @@ var ErrNotImplemented = errors.New("not implemented yet")
 var ErrQuerySyntaxError = errors.New("fail to parse specified query")
 var ErrStructureSyntaxError = errors.New("fail to parse specified structure")
 
+var ErrComplexSerializationError = errors.New("can't perform complex serialization of queries")
+var ErrSingleQueryCaptureError = errors.New("can't capture single query")
+var ErrUnexpectedCaptureChannelClose = errors.New("unexpected channel closing while query logging")
+
 func removeDuplicates(input []string) []string {
 
 	keys := make(map[string]bool)
