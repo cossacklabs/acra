@@ -1,13 +1,13 @@
 package handlers
 
 import (
-	"strings"
-	"io/ioutil"
 	"encoding/json"
-	"os"
 	"github.com/cossacklabs/acra/logging"
 	log "github.com/sirupsen/logrus"
+	"io/ioutil"
+	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 )
@@ -24,7 +24,7 @@ type QueryCaptureHandler struct {
 	serializationTicker  *time.Ticker
 }
 type QueryInfo struct {
-	RawQuery string
+	RawQuery    string
 	IsForbidden bool
 }
 
@@ -52,7 +52,7 @@ func NewQueryCaptureHandler(filePath string) (*QueryCaptureHandler, error) {
 	var queries []QueryInfo
 
 	if len(bufferBytes) != 0 {
-		if err = json.Unmarshal(bufferBytes, &queries); err != nil{
+		if err = json.Unmarshal(bufferBytes, &queries); err != nil {
 			return nil, err
 		}
 	}
@@ -79,7 +79,7 @@ func NewQueryCaptureHandler(filePath string) (*QueryCaptureHandler, error) {
 	}
 
 	//handling goroutine
-	go func (){
+	go func() {
 		for {
 			select {
 			case <-handler.serializationTicker.C:
@@ -134,8 +134,8 @@ func NewQueryCaptureHandler(filePath string) (*QueryCaptureHandler, error) {
 }
 func (handler *QueryCaptureHandler) CheckQuery(query string) error {
 	//skip already captured queries
-	for _, queryInfo := range handler.Queries{
-		if strings.EqualFold(queryInfo.RawQuery, query){
+	for _, queryInfo := range handler.Queries {
+		if strings.EqualFold(queryInfo.RawQuery, query) {
 			return nil
 		}
 	}
@@ -145,9 +145,9 @@ func (handler *QueryCaptureHandler) CheckQuery(query string) error {
 	handler.Queries = append(handler.Queries, *queryInfo)
 
 	select {
-		case handler.logChannel <- *queryInfo: // channel is ok
-		default: //channel is full
-			log.Errorf("can't process too many queries")
+	case handler.logChannel <- *queryInfo: // channel is ok
+	default: //channel is full
+		log.Errorf("can't process too many queries")
 	}
 
 	return nil
@@ -155,11 +155,11 @@ func (handler *QueryCaptureHandler) CheckQuery(query string) error {
 func (handler *QueryCaptureHandler) Reset() {
 	handler.Queries = nil
 }
-func (handler *QueryCaptureHandler) Release(){
+func (handler *QueryCaptureHandler) Release() {
 	handler.Reset()
 	handler.signalBackgroundExit <- true
 }
-func (handler *QueryCaptureHandler) GetAllInputQueries() []string{
+func (handler *QueryCaptureHandler) GetAllInputQueries() []string {
 	var queries []string
 	for _, queryInfo := range handler.Queries {
 		queries = append(queries, queryInfo.RawQuery)
@@ -173,16 +173,16 @@ func (handler *QueryCaptureHandler) MarkQueryAsForbidden(query string) {
 		}
 	}
 }
-func (handler *QueryCaptureHandler) GetForbiddenQueries() []string{
+func (handler *QueryCaptureHandler) GetForbiddenQueries() []string {
 	var forbiddenQueries []string
 	for _, queryInfo := range handler.Queries {
-		if queryInfo.IsForbidden == true{
+		if queryInfo.IsForbidden == true {
 			forbiddenQueries = append(forbiddenQueries, queryInfo.RawQuery)
 		}
 	}
 	return forbiddenQueries
 }
-func (handler *QueryCaptureHandler) SetSerializationTimeout(timeout time.Duration){
+func (handler *QueryCaptureHandler) SetSerializationTimeout(timeout time.Duration) {
 	handler.serializationTimeout = timeout
 }
 func (handler *QueryCaptureHandler) GetSerializationTimeout() time.Duration {
