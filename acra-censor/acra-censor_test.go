@@ -1,14 +1,15 @@
 package acracensor
 
 import (
-	"github.com/cossacklabs/acra/acracensor/handlers"
 	"io/ioutil"
 	"os"
-	"testing"
-	"strings"
-	"time"
-	"github.com/cossacklabs/acra/utils"
 	"path/filepath"
+	"strings"
+	"testing"
+	"time"
+
+	"github.com/cossacklabs/acra/acra-censor/handlers"
+	"github.com/cossacklabs/acra/utils"
 )
 
 func TestWhitelistQueries(t *testing.T) {
@@ -430,7 +431,7 @@ func testBlacklistRules(t *testing.T, acraCensor *AcraCensor, blacklistHandler *
 	}
 }
 
-func TestSerialization(t *testing.T){
+func TestSerialization(t *testing.T) {
 	testQueries := []string{
 		"SELECT * FROM Schema.Tables;",
 		"SELECT Student_ID FROM STUDENT;",
@@ -482,9 +483,9 @@ func TestSerialization(t *testing.T){
 	defaultTimeout := handler.GetSerializationTimeout()
 	handler.SetSerializationTimeout(50 * time.Millisecond)
 	//wait until goroutine handles complex serialization
-	time.Sleep(defaultTimeout + handler.GetSerializationTimeout() + 10 * time.Millisecond)
+	time.Sleep(defaultTimeout + handler.GetSerializationTimeout() + 10*time.Millisecond)
 
-	if len(handler.GetAllInputQueries()) != len(testQueries){
+	if len(handler.GetAllInputQueries()) != len(testQueries) {
 		t.Fatal("Expected: " + strings.Join(testQueries, " | ") + "\nGot: " + strings.Join(handler.GetAllInputQueries(), " | "))
 	}
 
@@ -504,12 +505,12 @@ func TestSerialization(t *testing.T){
 		t.Fatal(err)
 	}
 
-	if len(handler.GetAllInputQueries()) != len(testQueries){
+	if len(handler.GetAllInputQueries()) != len(testQueries) {
 		t.Fatal("Expected: " + strings.Join(testQueries, " | ") + "\nGot: " + strings.Join(handler.GetAllInputQueries(), " | "))
 	}
 
-	for index, query := range handler.GetAllInputQueries(){
-		if testQueries[index] != query{
+	for index, query := range handler.GetAllInputQueries() {
+		if testQueries[index] != query {
 			t.Fatal("Expected: " + testQueries[index] + "\nGot: " + query)
 		}
 	}
@@ -518,7 +519,7 @@ func TestSerialization(t *testing.T){
 		t.Fatal(err)
 	}
 }
-func TestLogging(t *testing.T){
+func TestLogging(t *testing.T) {
 
 	testQueries := []string{
 		"SELECT * FROM Schema.Tables;",
@@ -611,7 +612,7 @@ func TestLogging(t *testing.T){
 		t.Fatal(err)
 	}
 }
-func TestQueryCapture(t *testing.T){
+func TestQueryCapture(t *testing.T) {
 
 	tmpFile, err := ioutil.TempFile("", "censor_log")
 	if err != nil {
@@ -637,7 +638,7 @@ func TestQueryCapture(t *testing.T){
 		"SELECT * FROM Y;",
 	}
 
-	for _, query := range testQueries{
+	for _, query := range testQueries {
 		err = handler.CheckQuery(query)
 		if err != nil {
 			t.Fatal(err)
@@ -649,7 +650,7 @@ func TestQueryCapture(t *testing.T){
 	defaultTimeout := handler.GetSerializationTimeout()
 	handler.SetSerializationTimeout(50 * time.Millisecond)
 	//wait until goroutine handles complex serialization
-	time.Sleep(defaultTimeout + handler.GetSerializationTimeout() + 10 * time.Millisecond)
+	time.Sleep(defaultTimeout + handler.GetSerializationTimeout() + 10*time.Millisecond)
 
 	result, err := ioutil.ReadFile(tmpFile.Name())
 	if err != nil {
@@ -667,7 +668,7 @@ func TestQueryCapture(t *testing.T){
 	}
 
 	expected = "[{\"RawQuery\":\"SELECT * FROM Schema.Tables;\",\"IsForbidden\":false},{\"RawQuery\":\"SELECT Student_ID FROM STUDENT;\",\"IsForbidden\":false},{\"RawQuery\":\"SELECT * FROM STUDENT;\",\"IsForbidden\":false},{\"RawQuery\":\"SELECT * FROM X;\",\"IsForbidden\":false},{\"RawQuery\":\"SELECT * FROM Y;\",\"IsForbidden\":false},{\"RawQuery\":\"SELECT * FROM Z;\",\"IsForbidden\":false}]"
-	time.Sleep(handler.GetSerializationTimeout() + 10 * time.Millisecond)
+	time.Sleep(handler.GetSerializationTimeout() + 10*time.Millisecond)
 
 	result, err = ioutil.ReadFile(tmpFile.Name())
 	if err != nil {
@@ -685,7 +686,7 @@ func TestQueryCapture(t *testing.T){
 
 func TestConfigurationProvider(t *testing.T) {
 
-	var DEFAULT_CONFIG_PATH = utils.GetConfigPathByName("acra_censor.example")
+	var DEFAULT_CONFIG_PATH = utils.GetConfigPathByName("acra-censor.example")
 
 	filePath, err := os.Getwd()
 	if err != nil {
@@ -717,7 +718,6 @@ func TestConfigurationProvider(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-
 
 	testQueries = []string{
 		"INSERT INTO EMPLOYEE_TBL VALUES (1, 'Stephen', 'Jiang');",
@@ -764,7 +764,7 @@ func TestConfigurationProvider(t *testing.T) {
 			defaultTimeout := original.GetSerializationTimeout()
 			original.SetSerializationTimeout(50 * time.Millisecond)
 			//wait until goroutine handles complex serialization
-			time.Sleep(defaultTimeout + original.GetSerializationTimeout() + 10 * time.Millisecond)
+			time.Sleep(defaultTimeout + original.GetSerializationTimeout() + 10*time.Millisecond)
 		}
 	}
 

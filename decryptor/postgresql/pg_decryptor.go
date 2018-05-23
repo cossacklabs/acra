@@ -23,7 +23,7 @@ import (
 	"net"
 	"time"
 
-	"github.com/cossacklabs/acra/acracensor"
+	"github.com/cossacklabs/acra/acra-censor"
 	"github.com/cossacklabs/acra/decryptor/base"
 	acra_io "github.com/cossacklabs/acra/io"
 	"github.com/cossacklabs/acra/logging"
@@ -167,6 +167,11 @@ func (row *DataRow) Flush() bool {
 	if !base.CheckReadWrite(n, row.writeIndex, err, row.errCh) {
 		return false
 	}
+	if err := row.writer.Flush(); err != nil {
+		log.WithError(err).Errorln("can't flush writer")
+		row.errCh <- err
+		return false
+	}
 	return true
 }
 
@@ -201,7 +206,7 @@ func NewPgProxy(clientConnection, dbConnection net.Conn, errCh chan<- error) (*P
 	return &PgProxy{clientConnection: clientConnection, dbConnection: dbConnection, errCh: errCh, TlsCh: make(chan bool)}, nil
 }
 
-func (proxy *PgProxy) PgProxyClientRequests(firstByte bool, acraCensor acracensor.AcracensorInterface, dbConnection, clientConnection net.Conn, errCh chan<- error) {
+func (proxy *PgProxy) PgProxyClientRequests(firstByte bool, acraCensor acracensor.AcraCensorInterface, dbConnection, clientConnection net.Conn, errCh chan<- error) {
 	log.Debugln("pg client proxy")
 	writer := bufio.NewWriter(dbConnection)
 
@@ -231,6 +236,7 @@ func (proxy *PgProxy) PgProxyClientRequests(firstByte bool, acraCensor acracenso
 			continue
 		}
 		if !row.readByte(reader, writer, errCh) {
+			log.Debugln("can't read byte")
 			return
 		}
 		if !row.IsSimpleQuery() {
@@ -264,7 +270,7 @@ func (proxy *PgProxy) PgProxyClientRequests(firstByte bool, acraCensor acracenso
 	}
 }
 
-func (proxy *PgProxy) PgDecryptStream(censor acracensor.AcracensorInterface, decryptor base.Decryptor, tlsConfig *tls.Config, dbConnection net.Conn, clientConnection net.Conn, errCh chan<- error) {
+func (proxy *PgProxy) PgDecryptStream(censor acracensor.AcraCensorInterface, decryptor base.Decryptor, tlsConfig *tls.Config, dbConnection net.Conn, clientConnection net.Conn, errCh chan<- error) {
 	log.Debugln("pg db proxy")
 	writer := bufio.NewWriter(clientConnection)
 
@@ -530,18 +536,22 @@ func (proxy *PgProxy) PgDecryptStream(censor acracensor.AcracensorInterface, dec
 						currentIndex += tagLength + (len(row.output[beginTagIndex+tagLength:]) - blockReader.Len())
 					}
 					if !halted && row.columnDataBuf.Len() < columnDataLength {
+						log.Debugln("decrypted")
 						copy(row.output[row.writeIndex:], row.columnDataBuf.Bytes())
 						row.writeIndex += row.columnDataBuf.Len()
 						row.UpdateColumnAndDataSize(columnDataLength, row.columnDataBuf.Len())
 						decryptor.ResetZoneMatch()
 					} else {
+						log.Debugln("not decrypted")
 						row.writeIndex = endIndex
 					}
 				}
 			} else {
+				log.Debugln("skip decryption")
 				row.writeIndex += columnDataLength
 			}
 		}
+		log.Debugln("row flush")
 		if !row.Flush() {
 			return
 		}
