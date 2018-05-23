@@ -62,7 +62,7 @@ var CANCEL_REQUEST = []byte{0x04, 0xd2, 0x16, 0x2e}
 
 /* override size in postgresql data row that starts with 4 byte of size */
 func (row *DataRow) SetDataSize(size int) {
-	binary.BigEndian.PutUint32(row.output[:DATA_ROW_LENGTH_BUF_SIZE], uint32(size))
+	binary.BigEndian.PutUint32(row.output[:DATA_ROW_LENGTH_BUF_SIZE], uint32(size+len(row.descriptionLengthBuf)))
 }
 
 func (row *DataRow) CheckOutputSize(size int) {
@@ -144,9 +144,9 @@ func (row *DataRow) ReadDataLength() bool {
 	if !base.CheckReadWrite(n, DATA_ROW_LENGTH_BUF_SIZE, err, row.errCh) {
 		return false
 	}
-	log.Printf("data length buf=%v", row.output[:DATA_ROW_LENGTH_BUF_SIZE])
 	row.writeIndex += n
 	row.dataLength = int(binary.BigEndian.Uint32(row.output[:DATA_ROW_LENGTH_BUF_SIZE])) - len(row.descriptionLengthBuf)
+	log.Printf("data length buf=%v, %v", row.output[:DATA_ROW_LENGTH_BUF_SIZE], row.dataLength)
 	return true
 }
 
