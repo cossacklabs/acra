@@ -128,7 +128,7 @@ type KeyStore interface {
 	// return id, public key, error
 	GenerateZoneKey() ([]byte, []byte, error)
 
-	GenerateProxyKeys(id []byte) error
+	GenerateConnectorKeys(id []byte) error
 	GenerateServerKeys(id []byte) error
 	// generate key pair for data encryption/decryption
 	GenerateDataEncryptionKeys(id []byte) error

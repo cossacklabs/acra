@@ -12,7 +12,7 @@ LABEL com.cossacklabs.product.name="acra" \
     com.cossacklabs.product.version="$VERSION" \
     com.cossacklabs.product.vcs-ref="$VCS_REF" \
     com.cossacklabs.product.vcs-branch="$VCS_BRANCH" \
-    com.cossacklabs.product.component="acraserver" \
+    com.cossacklabs.product.component="acra-build" \
     com.cossacklabs.docker.container.build-date="$BUILD_DATE" \
     com.cossacklabs.docker.container.type="build"
 # Install dependencies
@@ -54,11 +54,11 @@ RUN go get -v -x github.com/cossacklabs/acra/...
 COPY docker/collect_dependencies.sh .
 RUN chmod +x ./collect_dependencies.sh
 # Copy each product and its dependencies to resulting directories
-RUN for component in server proxy _genkeys _configui _genauth; do \
+RUN for component in server connector keymaker webconfig authmanager; do \
         ./collect_dependencies.sh \
-            "${GOPATH}/bin/acra${component}" "/container.acra${component}" && \
-        cp "${GOPATH}/bin/acra${component}" "/container.acra${component}/"; \
+            "${GOPATH}/bin/acra-${component}" "/container.acra-${component}" && \
+        cp "${GOPATH}/bin/acra-${component}" "/container.acra-${component}/"; \
     done
-# Copy static resources for acra_configui
-RUN cp -r "${GOPATH}/src/github.com/cossacklabs/acra/cmd/acra_configui/static" \
-    "/container.acra_configui/"
+# Copy static resources for acra-webconfig
+RUN cp -r "${GOPATH}/src/github.com/cossacklabs/acra/cmd/acra-webconfig/static" \
+    "/container.acra-webconfig/"

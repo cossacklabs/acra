@@ -19,7 +19,7 @@ package write
 import (
 	"database/sql"
 	"fmt"
-	"github.com/cossacklabs/acra/acrawriter"
+	"github.com/cossacklabs/acra/acra-writer"
 	"github.com/cossacklabs/acra/benchmarks/common"
 	"github.com/cossacklabs/acra/benchmarks/config"
 	"github.com/cossacklabs/acra/utils"
@@ -43,13 +43,13 @@ func CheckOneKey() {
 			panic(err)
 		}
 		if !exists {
-			fmt.Printf("Create keypair for acraproxy and for acraserver that will be used in onekey test. Key %v not exists\n", key)
+			fmt.Printf("Create keypair for AcraConnector and for AcraServer that will be used in onekey test. Key %v not exists\n", key)
 			os.Exit(1)
 		}
 	}
 }
 
-// GetPublicOneKey load and return public key for acrawriter <onekey_storage.pub>
+// GetPublicOneKey load and return public key for acra-writer <onekey_storage.pub>
 func GetPublicOneKey() *keys.PublicKey {
 	publicKey, err := utils.LoadPublicKey("src/github.com/cossacklabs/acra/benchmarks/.acrakeys/onekey_storage.pub")
 	if err != nil {

@@ -1,0 +1,78 @@
+# Port of Acra HTTP api
+acraserver_api_connection_port: 9090
+
+# Connection string to Acra's API like tcp://x.x.x.x:yyyy or unix:///path/to/socket
+acraserver_api_connection_string: 
+
+# IP or domain to acra daemon
+acraserver_connection_host: 
+
+# Port of acra daemon
+acraserver_connection_port: 9393
+
+# Connection string to AcraServer like tcp://x.x.x.x:yyyy or unix:///path/to/socket
+acraserver_connection_string: 
+
+# Expected id from AcraServer for Secure Session
+acraserver_securesession_id: acra_server
+
+# Use tls to encrypt transport between AcraServer and AcraConnector/client
+acraserver_tls_transport_enable: false
+
+# Use raw transport (tcp/unix socket) between acraserver and acraproxy/client (don't use this flag if you not connect to database with ssl/tls
+acraserver_transport_encryption_disable: false
+
+# Client id
+client_id: 
+
+# path to config
+config_file: 
+
+# dump config
+dump_config: false
+
+# Enable HTTP API
+http_api_enable: false
+
+# Port for AcraConnector HTTP api
+incoming_connection_api_port: 9191
+
+# Connection string like tcp://x.x.x.x:yyyy or unix:///path/to/socket
+incoming_connection_api_string: tcp://127.0.0.1:9191/
+
+# Port to AcraConnector
+incoming_connection_port: 9494
+
+# Connection string like tcp://x.x.x.x:yyyy or unix:///path/to/socket
+incoming_connection_string: tcp://127.0.0.1:9494/
+
+# Folder from which will be loaded keys
+keys_dir: .acrakeys
+
+# Logging format: plaintext, json or CEF
+logging_format: plaintext
+
+# path to markdown file to save
+markdown_file: 
+
+# Expected Server Name (SNI) from AcraServer
+tls_acraserver_sni: 
+
+# Set authentication mode that will be used in TLS connection with Postgresql. Values in range 0-4 that set auth type (https://golang.org/pkg/crypto/tls/#ClientAuthType). Default is tls.RequireAndVerifyClientCert
+tls_auth: 4
+
+# Path to root certificate which will be used with system root certificates to validate AcraServer's certificate
+tls_ca: 
+
+# Path to certificate
+tls_cert: 
+
+# Path to private key that will be used in TLS handshake with AcraServer
+tls_key: 
+
+# Disable checking that connections from app running from another user
+user_check_disable: false
+
+# Log to stderr
+v: false
+

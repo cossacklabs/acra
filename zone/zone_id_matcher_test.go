@@ -42,7 +42,7 @@ func (storage *TestKeyStore) GetPrivateKey(id []byte) (*keys.PrivateKey, error) 
 func (storage *TestKeyStore) GenerateZoneKey() ([]byte, []byte, error) { return []byte{}, []byte{}, nil }
 
 func (storage *TestKeyStore) Reset()                                     {}
-func (storage *TestKeyStore) GenerateProxyKeys(id []byte) error          { return nil }
+func (storage *TestKeyStore) GenerateConnectorKeys(id []byte) error      { return nil }
 func (storage *TestKeyStore) GenerateServerKeys(id []byte) error         { return nil }
 func (storage *TestKeyStore) GenerateDataEncryptionKeys(id []byte) error { return nil }
 func (storage *TestKeyStore) GetServerDecryptionPrivateKey(id []byte) (*keys.PrivateKey, error) {

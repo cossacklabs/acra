@@ -1,0 +1,33 @@
+# Client id
+client_id: client
+
+# path to config
+config_file: 
+
+# dump config
+dump_config: false
+
+# Create keypair for AcraConnector only
+generate_acraconnector_keys: false
+
+# Create keypair for AcraServer only
+generate_acraserver_keys: false
+
+# Create symmetric key for AcraWebconfig's basic auth db
+generate_acrawebconfig_keys: false
+
+# Create keypair for data encryption/decryption
+generate_acrawriter_keys: false
+
+# Generate new random master key and save to file
+generate_master_key: 
+
+# Folder where will be saved keys
+keys_output_dir: .acrakeys
+
+# Folder where will be saved public key
+keys_public_output_dir: .acrakeys
+
+# path to markdown file to save
+markdown_file: 
+
