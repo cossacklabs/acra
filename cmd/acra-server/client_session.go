@@ -105,7 +105,7 @@ func (clientSession *ClientSession) HandleClientConnection(decryptorImpl base.De
 			return
 		}
 		log.Debugln("PostgreSQL connection")
-		go pgProxy.PgProxyClientRequests(true, clientSession.config.censor, clientSession.connectionToDb, clientSession.connection, innerErrorChannel)
+		go pgProxy.PgProxyClientRequests(clientSession.config.censor, clientSession.connectionToDb, clientSession.connection, innerErrorChannel)
 		go pgProxy.PgDecryptStream(clientSession.config.censor, decryptorImpl, clientSession.config.GetTLSConfig(), clientSession.connectionToDb, clientSession.connection, innerErrorChannel)
 	}
 	for {

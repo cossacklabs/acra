@@ -206,7 +206,30 @@ func NewPgProxy(clientConnection, dbConnection net.Conn, errCh chan<- error) (*P
 	return &PgProxy{clientConnection: clientConnection, dbConnection: dbConnection, errCh: errCh, TlsCh: make(chan bool)}, nil
 }
 
-func (proxy *PgProxy) PgProxyClientRequests(firstByte bool, acraCensor acracensor.AcraCensorInterface, dbConnection, clientConnection net.Conn, errCh chan<- error) {
+func NewPgError(message string) ([]byte, error) {
+	// 5 = E marker + 4 bytes for message length
+	// 7 is severity error with null terminator
+	// +1 for null terminator of message
+	output := make([]byte, 5+7+7+len(message)+1)
+	// error message
+	output[0] = 'E'
+	// leave untouched place for length of data
+	output = output[:5]
+	// error severity
+	output = append(output, []byte{'S', 'E', 'R', 'R', 'O', 'R', 0}...)
+	// 42501	insufficient_privilege
+	// https://www.postgresql.org/docs/9.3/static/errcodes-appendix.html
+	output = append(output, []byte("C42501")...)
+	output = append(output, 0)
+	// human readable message
+	output = append(output, append([]byte{'M'}, []byte(message)...)...)
+	output = append(output, 0)
+	// place length of data
+	binary.BigEndian.PutUint32(output[1:5], uint32(len(output)-1))
+	return output, nil
+}
+
+func (proxy *PgProxy) PgProxyClientRequests(acraCensor acracensor.AcraCensorInterface, dbConnection, clientConnection net.Conn, errCh chan<- error) {
 	log.Debugln("pg client proxy")
 	writer := bufio.NewWriter(dbConnection)
 
@@ -219,6 +242,7 @@ func (proxy *PgProxy) PgProxyClientRequests(firstByte bool, acraCensor acracenso
 		reader:               reader,
 		writer:               writer,
 	}
+	firstByte := true
 	for {
 		row.writeIndex = 0
 		if firstByte {
@@ -254,9 +278,18 @@ func (proxy *PgProxy) PgProxyClientRequests(firstByte bool, acraCensor acracenso
 			return
 		}
 		log.WithField("query", query).Debugln("new query")
-		if err := acraCensor.HandleQuery(query); err != nil {
-			log.WithError(err).Errorln("AcraCensor blocked query")
-			errCh <- errors.New("temp error")
+		if censorErr := acraCensor.HandleQuery(query); censorErr != nil {
+			log.WithError(censorErr).Errorln("AcraCensor blocked query")
+			errCh <- censorErr
+			errorMessage, err := NewPgError("AcraCensor blocked this query")
+			if err != nil {
+				log.WithError(err).Errorln("can't create postgresql error message")
+				return
+			}
+			n, err := clientConnection.Write(errorMessage)
+			if !base.CheckReadWrite(n, len(errorMessage), err, row.errCh) {
+				return
+			}
 			return
 		}
 		if !row.Flush() {
@@ -354,7 +387,7 @@ func (proxy *PgProxy) PgDecryptStream(censor acracensor.AcraCensorInterface, dec
 				}
 
 				// restart proxing client's requests
-				go proxy.PgProxyClientRequests(true, censor, dbTLSConnection, tlsClientConnection, errCh)
+				go proxy.PgProxyClientRequests(censor, dbTLSConnection, tlsClientConnection, errCh)
 				reader = acra_io.NewExtendedBufferedReader(bufio.NewReader(dbTLSConnection))
 				row.reader = reader
 				writer = bufio.NewWriter(tlsClientConnection)
