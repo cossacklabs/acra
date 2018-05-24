@@ -8,14 +8,14 @@ import (
 
 const BlacklistConfigStr = "blacklist"
 const WhitelistConfigStr = "whitelist"
-const LoggerConfigStr = "logger"
+const LoggerConfigStr = "query_capture"
 
 type AcraCensorConfig struct {
 	Handlers []struct {
-		Handler string
-		Queries []string
-		Tables  []string
-		Rules   []string
+		Handler  string
+		Queries  []string
+		Tables   []string
+		Rules    []string
 		Filepath string
 	}
 }
