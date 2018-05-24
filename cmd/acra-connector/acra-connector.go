@@ -93,7 +93,7 @@ func handleClientConnection(config *Config, connection net.Conn) {
 	acraConn, err := network.Dial(config.AcraServerConnectionString)
 	if err != nil {
 		log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantStartConnection).
-			Errorln("Can't connect to acra")
+			Errorln("Can't connect to AcraServer")
 		return
 	}
 	defer acraConn.Close()
@@ -118,7 +118,7 @@ func handleClientConnection(config *Config, connection net.Conn) {
 			Errorln("Error from connection with client")
 	case err = <-fromAcraErrCh:
 		log.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantStartConnection).
-			Errorln("Error from connection with acra")
+			Errorln("Error from connection with AcraServer")
 	}
 	if err != nil {
 		if err == io.EOF {
@@ -149,9 +149,9 @@ func main() {
 
 	keysDir := flag.String("keys_dir", keystore.DEFAULT_KEY_DIR_SHORT, "Folder from which will be loaded keys")
 	clientId := flag.String("client_id", "", "Client id")
-	acraServerHost := flag.String("acraserver_connection_host", "", "IP or domain to acra daemon")
+	acraServerHost := flag.String("acraserver_connection_host", "", "IP or domain to AcraServer daemon")
 	acraServerApiPort := flag.Int("acraserver_api_connection_port", cmd.DEFAULT_ACRASERVER_API_PORT, "Port of Acra HTTP api")
-	acraServerPort := flag.Int("acraserver_connection_port", cmd.DEFAULT_ACRASERVER_PORT, "Port of acra daemon")
+	acraServerPort := flag.Int("acraserver_connection_port", cmd.DEFAULT_ACRASERVER_PORT, "Port of AcraServer daemon")
 	acraServerId := flag.String("acraserver_securesession_id", "acra_server", "Expected id from AcraServer for Secure Session")
 	verbose := flag.Bool("v", false, "Log to stderr")
 	acraConnectorPort := flag.Int("incoming_connection_port", cmd.DEFAULT_ACRACONNECTOR_PORT, "Port to AcraConnector")
