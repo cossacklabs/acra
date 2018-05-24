@@ -37,4 +37,4 @@ VOLUME ["/keys"]
 # Base command
 ENTRYPOINT ["/acra-keymaker"]
 # Optional arguments
-CMD ["--output=/keys", "--client_id=testclientid"]
+CMD ["--keys_output_dir=/keys", "--client_id=testclientid"]
