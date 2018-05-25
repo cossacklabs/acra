@@ -71,6 +71,7 @@ services:
             - ./ssl/acra-server:/ssl.server:ro
         command: >-
             --db_host=postgresql
+            --client_id=${ACRA_CLIENT_ID:-testclientid}
             --keys_dir=/keys
             --tls_ca=/ssl.ca/example.cossacklabs.com.crt
             --tls_cert=/ssl.server/acra-server.crt
