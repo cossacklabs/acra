@@ -53,6 +53,7 @@ class AcraString(AcraBinary):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--public_key', type=str, help='path to acra-server public key  (for example .acrakeys/<client_id>_server.pub)')
+    parser.add_argument('--db_name', type=str, default='acra', help='db name to connect')
     parser.add_argument('--db_user', type=str, default='test', help='db user to connect')
     parser.add_argument('--db_password', type=str, default='test', help='db password to connect')
     parser.add_argument('--port', type=int, default=5433, help='port of acra-connector to connect')
@@ -70,7 +71,7 @@ if __name__ == '__main__':
         Column('raw_data', String),
     )
 
-    proxy_engine = create_engine('postgresql://{}:{}@{}:{}/acra'.format(args.db_user, args.db_password, args.host, args.port))
+    proxy_engine = create_engine('postgresql://{}:{}@{}:{}/{}'.format(args.db_user, args.db_password, args.host, args.port, args.db_name))
     proxy_connection = proxy_engine.connect()
     metadata.create_all(proxy_engine)
     if getattr(args, 'print', False):

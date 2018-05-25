@@ -58,7 +58,11 @@ services:
 
     # Postgresql container
     postgresql:
-        image: postgres:9.6
+        # Build and run container based on official postgresql image with
+        # strict SSL mode
+        build:
+            context: ../
+            dockerfile: docker/postgresql-ssl.dockerfile
         # INSECURE!!! You MUST define your own DB name and credentials
         environment:
             POSTGRES_DB: ${POSTGRES_DB:-test}
@@ -112,6 +116,7 @@ services:
             --tls_ca=/ssl.ca/example.cossacklabs.com.crt
             --tls_cert=/ssl.server/acra-server.crt
             --tls_key=/ssl.server/acra-server.key
+            --tls_db_sni=postgresql
             --acraconnector_transport_encryption_disable
             -v
 
