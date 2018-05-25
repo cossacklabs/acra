@@ -75,7 +75,7 @@ services:
 
     # Postgresql container
     postgresql:
-        image: postgres
+        image: postgres:9.6
         # INSECURE!!! You MUST define your own DB name and credentials
         environment:
             POSTGRES_DB: ${POSTGRES_DB:-test}

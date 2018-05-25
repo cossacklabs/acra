@@ -58,7 +58,7 @@ services:
 
     # Postgresql container
     postgresql:
-        image: postgres
+        image: postgres:9.6
         # INSECURE!!! You MUST define your own DB name and credentials
         environment:
             POSTGRES_DB: ${POSTGRES_DB:-test}
@@ -109,7 +109,7 @@ services:
             --incoming_connection_api_string=tcp://0.0.0.0:9090
             --config_file=/config/acra-server.yaml
             --acraconnector_tls_transport_enable
-            --tls_ca=/ssl.ca/example.cossacklabs.com.CA.crt
+            --tls_ca=/ssl.ca/example.cossacklabs.com.crt
             --tls_cert=/ssl.server/acra-server.crt
             --tls_key=/ssl.server/acra-server.key
             --acraconnector_transport_encryption_disable
@@ -147,7 +147,7 @@ services:
             --http_api_enable
             --incoming_connection_api_string=tcp://0.0.0.0:9191
             --acraserver_tls_transport_enable
-            --tls_ca=/ssl.ca/example.cossacklabs.com.CA.crt
+            --tls_ca=/ssl.ca/example.cossacklabs.com.crt
             --tls_cert=/ssl.proxy/acra-connector.crt
             --tls_key=/ssl.proxy/acra-connector.key
             --tls_acraserver_sni=acra-server
