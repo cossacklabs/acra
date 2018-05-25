@@ -102,7 +102,7 @@ func ParseResultField(data []byte) (*ColumnDescription, error) {
 	if len(data) > pos {
 		//length of default value lenenc-int
 		field.DefaultValueLength, _, n, err = LengthEncodedInt(data[pos:])
-		if err != nil{
+		if err != nil {
 			return nil, err
 		}
 		pos += n

@@ -5,7 +5,7 @@ const (
 	EventCodeGeneral = 100
 
 	// 500 .. 600 errors
-	EventCodeErrorGeneral = 500
+	EventCodeErrorGeneral    = 500
 	EventCodeErrorWrongParam = 501
 
 	// processes

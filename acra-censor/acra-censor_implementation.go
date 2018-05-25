@@ -6,7 +6,6 @@ import (
 
 type AcraCensor struct {
 	handlers []QueryHandlerInterface
-
 }
 
 func (acraCensor *AcraCensor) AddHandler(handler QueryHandlerInterface) {
@@ -21,7 +20,7 @@ func (acraCensor *AcraCensor) RemoveHandler(handler QueryHandlerInterface) {
 	}
 }
 
-func (acraCensor *AcraCensor) ReleaseAll(){
+func (acraCensor *AcraCensor) ReleaseAll() {
 	for _, handler := range acraCensor.handlers {
 		handler.Release()
 	}

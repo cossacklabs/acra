@@ -59,7 +59,7 @@ func (acraCensor *AcraCensor) LoadConfiguration(configuration []byte) ([]QueryHa
 			handlers_ = append(handlers_, blacklistHandler)
 			break
 		case LoggerConfigStr:
-			if strings.EqualFold(handlerConfiguration.Filepath, ""){
+			if strings.EqualFold(handlerConfiguration.Filepath, "") {
 				break
 			}
 			logger, err := handlers.NewQueryCaptureHandler(handlerConfiguration.Filepath)
