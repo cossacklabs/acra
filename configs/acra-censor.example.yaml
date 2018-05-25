@@ -1,5 +1,5 @@
 handlers:
-  - handler: logger
+  - handler: query_capture
     filepath: censor_log
   - handler: blacklist
     queries:
