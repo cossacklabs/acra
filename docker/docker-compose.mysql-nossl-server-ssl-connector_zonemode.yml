@@ -56,38 +56,30 @@ services:
             --keys_output_dir=/keys/acra-server
             --keys_public_output_dir=/keys/acra-writer
 
-    # Create file with accounts for HTTP access and key for decrypt it
-    # - ./.acrakeys/acra-server/httpauth.accounts
-    # - ./.acrakeys/acra-server/auth_key
-    acra-authmanager:
-        image: "cossacklabs/acra-authmanager:${ACRA_DOCKER_IMAGE_TAG:-latest}"
-        network_mode: "none"
-        environment:
-            ACRA_MASTER_KEY: ${ACRA_MASTER_KEY:-UHZ3VUNNeTJ0SEFhbWVjNkt4eDdVYkc2WnNpUTlYa0E=}
-        volumes:
-            - ./.acrakeys:/keys
-        command: >-
-            --set
-            --user=${ACRA_HTTPAUTH_USER:-test}
-            --password=${ACRA_HTTPAUTH_PASSWORD:-test}
-            --file=/keys/acra-server/httpauth.accounts
-            --keys_dir=/keys/acra-server/
-
     # Postgresql container
-    postgresql:
-        image: postgres:9.6
+    mysql:
+        # Build and run container based on official mysql image
+        # with disabled SSL
+        build:
+            context: ../
+            dockerfile: docker/mysql-nossl.dockerfile
         # INSECURE!!! You MUST define your own DB name and credentials
         environment:
-            POSTGRES_DB: ${POSTGRES_DB:-test}
-            POSTGRES_USER: ${POSTGRES_USER:-test}
-            POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-test}
+            MYSQL_ONETIME_PASSWORD: ${MYSQL_ONETIME_PASSWORD:-urLK7YJPndDWsnJC}
+            MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-hy53uBLmBuihUK29}
+            MYSQL_DATABASE: ${MYSQL_DATABASE:-test}
+            MYSQL_USER: ${MYSQL_USER:-test}
+            MYSQL_PASSWORD: ${MYSQL_PASSWORD:-test}
+        # Open the port outside for writer
+        ports:
+            - "3306:3306"
         # Open the port outside for writer
         ports:
             - "5432:5432"
-        # We use internal 'server-postgresql' network for AcraServer and
+        # We use internal 'server-mysql' network for AcraServer and
         # DB interconnection and external network 'world' for port exposing
         networks:
-            - server-postgresql
+            - server-mysql
             - world
 
     acra-server:
@@ -99,30 +91,39 @@ services:
             - acra-keymaker_server
             - acra-keymaker_connector
             - acra-keymaker_writer
-            - acra-authmanager
-            - postgresql
+            - mysql
         environment:
             ACRA_MASTER_KEY: ${ACRA_MASTER_KEY:-UHZ3VUNNeTJ0SEFhbWVjNkt4eDdVYkc2WnNpUTlYa0E=}
         # We use internal networks:
-        # - 'server-postgresql' - for AcraServer and DB interconnection
+        # - 'server-mysql' - for AcraServer and DB interconnection
         # - 'connector-server' - for AcraServer and AcraConnector interconnection
         networks:
             - connector-server
-            - server-postgresql
+            - server-mysql
         volumes:
             # Mount the directory with only the keys for this service. Must be
             # rewriteable in case of using API, otherwise should be read-only.
             - ./.acrakeys/acra-server:/keys
             # Directory with configuration, rewriteable
             - ./.acraconfigs/acra-server:/config
+            # Mount directories with SSL certificates
+            - ./ssl/ca:/ssl.ca:ro
+            - ./ssl/acra-server:/ssl.server:ro
         command: >-
             --zonemode_enable
-            --db_host=postgresql
+            --mysql_enable
+            --db_host=mysql
+            --db_port=3306
             --keys_dir=/keys
             --auth_keys=/keys/httpauth.accounts
             --http_api_enable
             --incoming_connection_api_string=tcp://0.0.0.0:9090
             --config_file=/config/acra-server.yaml
+            --acraconnector_tls_transport_enable
+            --tls_ca=/ssl.ca/example.cossacklabs.com.crt
+            --tls_cert=/ssl.server/acra-server.crt
+            --tls_key=/ssl.server/acra-server.key
+            --acraconnector_transport_encryption_disable
             -v
 
     acra-connector:
@@ -140,15 +141,16 @@ services:
             ACRA_MASTER_KEY: ${ACRA_MASTER_KEY:-UHZ3VUNNeTJ0SEFhbWVjNkt4eDdVYkc2WnNpUTlYa0E=}
         # We use internal networks:
         # - 'connector-server' - for interconnection with AcraServer
-        # - 'webconfig-connector' - for interconnection with AcraWebconfig
         # and external network 'world' for port exposing
         networks:
             - connector-server
-            - webconfig-connector
             - world
         volumes:
             # Mount the directory with only the keys for this service
             - ./.acrakeys/acra-connector:/keys:ro
+            # Mount directories with SSL certificates
+            - ./ssl/ca:/ssl.ca:ro
+            - ./ssl/acra-connector:/ssl.proxy:ro
         command: >-
             --acraserver_connection_host=acra-server
             --keys_dir=/keys
@@ -156,33 +158,17 @@ services:
             --incoming_connection_string=tcp://0.0.0.0:9494
             --http_api_enable
             --incoming_connection_api_string=tcp://0.0.0.0:9191
+            --acraserver_tls_transport_enable
+            --tls_ca=/ssl.ca/example.cossacklabs.com.crt
+            --tls_cert=/ssl.proxy/acra-connector.crt
+            --tls_key=/ssl.proxy/acra-connector.key
+            --tls_acraserver_sni=acra-server
+            --acraserver_transport_encryption_disable
             -v
-
-    # Optional lightweight HTTP web server for managing AcraServer's
-    # certain configuration options
-    acra-webconfig:
-        image: "cossacklabs/acra-webconfig:${ACRA_DOCKER_IMAGE_TAG:-latest}"
-        restart: on-failure
-        depends_on:
-            - acra-connector
-        # Open the port outside for client application
-        ports:
-            - "8000:8000"
-        # We use internal 'webconfig-connector' network for AcraConnector and
-        # AcraWebconfig interconnection and external network 'world' for
-        # port exposing
-        networks:
-            - webconfig-connector
-            - world
-        command: >-
-            --destination_host=acra-connector
-            --incoming_connection_host=0.0.0.0
 
 networks:
     world:
     connector-server:
         internal: true
-    server-postgresql:
-        internal: true
-    webconfig-connector:
+    server-mysql:
         internal: true

@@ -4,7 +4,7 @@ FROM mysql:5.7
 # certificates into the image to the intermediate directory
 COPY docker/ssl/mysql/mysql.crt /tmp.ssl/server-cert.pem
 COPY docker/ssl/mysql/mysql.key /tmp.ssl/server-key.pem
-COPY docker/ssl/ca/example.cossacklabs.com.CA.crt /tmp.ssl/ca.pem
+COPY docker/ssl/ca/example.cossacklabs.com.crt /tmp.ssl/ca.pem
 RUN chown -R mysql:mysql /tmp.ssl
 
 COPY docker/mysql-ssl-configure.sh /docker-entrypoint-initdb.d/

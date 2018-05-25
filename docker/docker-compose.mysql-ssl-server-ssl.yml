@@ -27,24 +27,26 @@ services:
             --keys_public_output_dir=/keys/acra-writer
 
     # Postgresql container
-    postgresql:
-        # Build and run container based on official postgresql image with
-        # strict SSL mode
+    mysql:
+        # Build and run container based on official mysql image
+        # with enabled SSL and included SSL certificates
         build:
             context: ../
-            dockerfile: docker/postgresql-ssl.dockerfile
+            dockerfile: docker/mysql-ssl.dockerfile
         # INSECURE!!! You MUST define your own DB name and credentials
         environment:
-            POSTGRES_DB: ${POSTGRES_DB:-test}
-            POSTGRES_USER: ${POSTGRES_USER:-test}
-            POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-test}
+            MYSQL_ONETIME_PASSWORD: ${MYSQL_ONETIME_PASSWORD:-urLK7YJPndDWsnJC}
+            MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-hy53uBLmBuihUK29}
+            MYSQL_DATABASE: ${MYSQL_DATABASE:-test}
+            MYSQL_USER: ${MYSQL_USER:-test}
+            MYSQL_PASSWORD: ${MYSQL_PASSWORD:-test}
         # Open the port outside for writer
         ports:
-            - "5432:5432"
-        # We use internal 'server-postgresql' network for AcraServer and
+            - "3306:3306"
+        # We use internal 'server-mysql' network for AcraServer and
         # DB interconnection and external network 'world' for port exposing
         networks:
-            - server-postgresql
+            - server-mysql
             - world
 
     acra-server:
@@ -52,38 +54,37 @@ services:
         restart: on-failure
         depends_on:
             - acra-keymaker_writer
-            - postgresql
+            - mysql
         # Open the port outside for client application
         ports:
-            - "9191:9191"
             - "9393:9393"
         environment:
             ACRA_MASTER_KEY: ${ACRA_MASTER_KEY:-UHZ3VUNNeTJ0SEFhbWVjNkt4eDdVYkc2WnNpUTlYa0E=}
-        # We use internal network 'server-postgresql' for AcraServer and
+        # We use internal network 'server-mysql' for AcraServer and
         # DB interconnection and external network 'world' for port exposing
         networks:
-            - server-postgresql
+            - server-mysql
             - world
         volumes:
             # Mount the directory with only the keys for this service
-            - ./.acrakeys/acra-server:/keys
+            - ./.acrakeys/acra-server:/keys:ro
             # Mount directories with SSL certificates
             - ./ssl/ca:/ssl.ca:ro
             - ./ssl/acra-server:/ssl.server:ro
         command: >-
-            --zonemode_enable
-            --db_host=postgresql
+            --mysql_enable
+            --db_host=mysql
+            --db_port=3306
+            --client_id=${ACRA_CLIENT_ID:-testclientid}
             --keys_dir=/keys
-            --http_api_enable
-            --incoming_connection_api_string=tcp://0.0.0.0:9191
             --tls_ca=/ssl.ca/example.cossacklabs.com.crt
             --tls_cert=/ssl.server/acra-server.crt
             --tls_key=/ssl.server/acra-server.key
-            --tls_db_sni=postgresql
+            --tls_db_sni=mysql
             --acraconnector_transport_encryption_disable
             -v
 
 networks:
     world:
-    server-postgresql:
+    server-mysql:
         internal: true
