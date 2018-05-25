@@ -8,14 +8,14 @@ import (
 
 const BlacklistConfigStr = "blacklist"
 const WhitelistConfigStr = "whitelist"
-const LoggerConfigStr = "logger"
+const LoggerConfigStr = "query_capture"
 
 type AcraCensorConfig struct {
 	Handlers []struct {
-		Handler string
-		Queries []string
-		Tables  []string
-		Rules   []string
+		Handler  string
+		Queries  []string
+		Tables   []string
+		Rules    []string
 		Filepath string
 	}
 }
@@ -59,7 +59,7 @@ func (acraCensor *AcraCensor) LoadConfiguration(configuration []byte) ([]QueryHa
 			handlers_ = append(handlers_, blacklistHandler)
 			break
 		case LoggerConfigStr:
-			if strings.EqualFold(handlerConfiguration.Filepath, ""){
+			if strings.EqualFold(handlerConfiguration.Filepath, "") {
 				break
 			}
 			logger, err := handlers.NewQueryCaptureHandler(handlerConfiguration.Filepath)

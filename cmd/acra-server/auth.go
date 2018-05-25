@@ -17,8 +17,8 @@ package main
 import (
 	"errors"
 	"fmt"
-	"io/ioutil"
 	"github.com/cossacklabs/acra/utils"
+	"io/ioutil"
 )
 
 var ErrGetAuthDataFromFile = errors.New(fmt.Sprintf("No auth config [%v]", authPath))

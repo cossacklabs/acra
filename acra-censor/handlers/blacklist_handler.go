@@ -72,7 +72,7 @@ func (handler *BlacklistHandler) Reset() {
 	handler.rules = nil
 }
 
-func (handler *BlacklistHandler) Release(){
+func (handler *BlacklistHandler) Release() {
 	handler.Reset()
 }
 

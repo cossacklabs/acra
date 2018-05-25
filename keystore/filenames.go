@@ -22,7 +22,7 @@ import (
 var lock = sync.RWMutex{}
 
 const (
-	POISON_KEY_FILENAME = ".poison_key/poison_key"
+	POISON_KEY_FILENAME     = ".poison_key/poison_key"
 	BASIC_AUTH_KEY_FILENAME = "auth_key"
 )
 
