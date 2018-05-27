@@ -55,7 +55,6 @@ services:
             - postgresql
         # Open the port outside for client application
         ports:
-            - "9191:9191"
             - "9393:9393"
         environment:
             ACRA_MASTER_KEY: ${ACRA_MASTER_KEY:-UHZ3VUNNeTJ0SEFhbWVjNkt4eDdVYkc2WnNpUTlYa0E=}
@@ -66,16 +65,14 @@ services:
             - world
         volumes:
             # Mount the directory with only the keys for this service
-            - ./.acrakeys/acra-server:/keys
+            - ./.acrakeys/acra-server:/keys:ro
             # Mount directories with SSL certificates
             - ./ssl/ca:/ssl.ca:ro
             - ./ssl/acra-server:/ssl.server:ro
         command: >-
-            --zonemode_enable
             --db_host=postgresql
+            --client_id=${ACRA_CLIENT_ID:-testclientid}
             --keys_dir=/keys
-            --http_api_enable
-            --incoming_connection_api_string=tcp://0.0.0.0:9191
             --tls_ca=/ssl.ca/example.cossacklabs.com.crt
             --tls_cert=/ssl.server/acra-server.crt
             --tls_key=/ssl.server/acra-server.key

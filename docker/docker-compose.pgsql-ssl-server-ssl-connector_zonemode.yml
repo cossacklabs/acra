@@ -58,7 +58,11 @@ services:
 
     # Postgresql container
     postgresql:
-        image: postgres:9.6
+        # Build and run container based on official postgresql image with
+        # strict SSL mode
+        build:
+            context: ../
+            dockerfile: docker/postgresql-ssl.dockerfile
         # INSECURE!!! You MUST define your own DB name and credentials
         environment:
             POSTGRES_DB: ${POSTGRES_DB:-test}
@@ -101,6 +105,7 @@ services:
             - ./ssl/ca:/ssl.ca:ro
             - ./ssl/acra-server:/ssl.server:ro
         command: >-
+            --zonemode_enable
             --db_host=postgresql
             --keys_dir=/keys
             --auth_keys=/keys/httpauth.accounts
@@ -111,6 +116,7 @@ services:
             --tls_ca=/ssl.ca/example.cossacklabs.com.crt
             --tls_cert=/ssl.server/acra-server.crt
             --tls_key=/ssl.server/acra-server.key
+            --tls_db_sni=postgresql
             --acraconnector_transport_encryption_disable
             -v
 
@@ -121,8 +127,9 @@ services:
             - acra-keymaker_server
             - acra-keymaker_connector
             - acra-server
-        # Open the port outside for client application
+        # Open the port outside for client application and API
         ports:
+            - "9191:9191"
             - "9494:9494"
         environment:
             ACRA_MASTER_KEY: ${ACRA_MASTER_KEY:-UHZ3VUNNeTJ0SEFhbWVjNkt4eDdVYkc2WnNpUTlYa0E=}

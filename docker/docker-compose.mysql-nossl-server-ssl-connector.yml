@@ -57,20 +57,26 @@ services:
             --keys_public_output_dir=/keys/acra-writer
 
     # Postgresql container
-    postgresql:
-        image: postgres:9.6
+    mysql:
+        # Build and run container based on official mysql image
+        # with disabled SSL
+        build:
+            context: ../
+            dockerfile: docker/mysql-nossl.dockerfile
         # INSECURE!!! You MUST define your own DB name and credentials
         environment:
-            POSTGRES_DB: ${POSTGRES_DB:-test}
-            POSTGRES_USER: ${POSTGRES_USER:-test}
-            POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-test}
+            MYSQL_ONETIME_PASSWORD: ${MYSQL_ONETIME_PASSWORD:-urLK7YJPndDWsnJC}
+            MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-hy53uBLmBuihUK29}
+            MYSQL_DATABASE: ${MYSQL_DATABASE:-test}
+            MYSQL_USER: ${MYSQL_USER:-test}
+            MYSQL_PASSWORD: ${MYSQL_PASSWORD:-test}
         # Open the port outside for writer
         ports:
-            - "5432:5432"
-        # We use internal 'server-postgresql' network for AcraServer and
+            - "3306:3306"
+        # We use internal 'server-mysql' network for AcraServer and
         # DB interconnection and external network 'world' for port exposing
         networks:
-            - server-postgresql
+            - server-mysql
             - world
 
     acra-server:
@@ -82,15 +88,15 @@ services:
             - acra-keymaker_server
             - acra-keymaker_connector
             - acra-keymaker_writer
-            - postgresql
+            - mysql
         environment:
             ACRA_MASTER_KEY: ${ACRA_MASTER_KEY:-UHZ3VUNNeTJ0SEFhbWVjNkt4eDdVYkc2WnNpUTlYa0E=}
         # We use internal networks:
-        # - 'server-postgresql' - for AcraServer and DB interconnection
+        # - 'server-mysql' - for AcraServer and DB interconnection
         # - 'connector-server' - for AcraServer and AcraConnector interconnection
         networks:
             - connector-server
-            - server-postgresql
+            - server-mysql
         volumes:
             # Mount the directory with only the keys for this service. Must be
             # rewriteable in case of using API, otherwise should be read-only.
@@ -101,7 +107,9 @@ services:
             - ./ssl/ca:/ssl.ca:ro
             - ./ssl/acra-server:/ssl.server:ro
         command: >-
-            --db_host=postgresql
+            --mysql_enable
+            --db_host=mysql
+            --db_port=3306
             --keys_dir=/keys
             --auth_keys=/keys/httpauth.accounts
             --http_api_enable
@@ -157,5 +165,5 @@ networks:
     world:
     connector-server:
         internal: true
-    server-postgresql:
+    server-mysql:
         internal: true
