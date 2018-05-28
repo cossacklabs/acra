@@ -182,3 +182,7 @@ docker_push: docker
 	@docker push cossacklabs/acra-keymaker
 	@docker push cossacklabs/acra-webconfig
 	@docker push cossacklabs/acra-authmanager
+
+keys: install
+	@chmod +x scripts/generate-keys.sh
+	@scripts/generate-keys.sh
