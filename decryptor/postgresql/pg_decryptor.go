@@ -33,18 +33,51 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
+// ReadForQuery - 0x5a ReadyForQuery, 0 0 0 5 length, 49 idle status
+// https://www.postgresql.org/docs/9.3/static/protocol-message-formats.html
+var ReadyForQueryPacket = []byte{'Z', 0, 0, 0, 5, 'I'}
+
+func NewPgError(message string) ([]byte, error) {
+	// TODO исправить длину ERROR сообщения, жалуется psql
+	// 5 = E marker + 4 bytes for message length
+	// 7 is severity error with null terminator
+	// +1 for null terminator of message
+	output := make([]byte, 5+7+7+len(message)+1)
+	// error message
+	output[0] = 'E'
+	// leave untouched place for length of data
+	output = output[:5]
+	// error severity
+	output = append(output, []byte{'S', 'E', 'R', 'R', 'O', 'R', 0}...)
+	// 42501	insufficient_privilege
+	// https://www.postgresql.org/docs/9.3/static/errcodes-appendix.html
+	output = append(output, []byte("C42501")...)
+	output = append(output, 0)
+	// human readable message
+	output = append(output, append([]byte{'M'}, []byte(message)...)...)
+	output = append(output, 0)
+	// place length of data
+	// -1 byte to exclude type of message
+	binary.BigEndian.PutUint32(output[1:5], uint32(len(output)-1))
+	output = append(output, ReadyForQueryPacket...)
+	return output, nil
+}
+
 type DataRow struct {
-	buf                  [1]byte
-	output               []byte
+	messageType          [1]byte
 	descriptionLengthBuf []byte
-	columnSizePointer    []byte
-	columnDataBuf        *bytes.Buffer
-	writeIndex           int
-	columnCount          int
-	dataLength           int
-	errCh                chan<- error
-	reader               *acra_io.ExtendedBufferedReader
-	writer               *bufio.Writer
+	descriptionBuf       []byte
+
+	buf               [1]byte
+	output            []byte
+	columnSizePointer []byte
+	columnDataBuf     *bytes.Buffer
+	writeIndex        int
+	columnCount       int
+	dataLength        int
+	errCh             chan<- error
+	reader            *acra_io.ExtendedBufferedReader
+	writer            *bufio.Writer
 }
 
 const (
@@ -112,7 +145,7 @@ func (row *DataRow) IsDataRow() bool {
 }
 
 func (row *DataRow) IsSimpleQuery() bool {
-	return row.buf[0] == QUERY_MESSAGE_TYPE
+	return row.messageType[0] == QUERY_MESSAGE_TYPE
 }
 
 func (row *DataRow) UpdateColumnAndDataSize(oldColumnLength, newColumnLength int) bool {
@@ -195,6 +228,43 @@ func (row *DataRow) ReadSimpleQuery(errCh chan<- error) (string, bool) {
 	return string(query), success
 }
 
+var ErrShortRead = errors.New("read less bytes than expected")
+
+func (row *DataRow) ReadRow(reader io.Reader, errCh chan<- error) (*DataRow, error) {
+	n, err := reader.Read(row.messageType[:])
+	if err != nil {
+		return nil, err
+	}
+	if n != 1 {
+		return nil, ErrShortRead
+	}
+	n, err = reader.Read(row.descriptionLengthBuf)
+	if err != nil {
+		return nil, err
+	}
+	if n != len(row.descriptionLengthBuf) {
+		return nil, ErrShortRead
+	}
+	row.dataLength = int(binary.BigEndian.Uint32(row.descriptionLengthBuf)) - len(row.descriptionLengthBuf)
+	row.descriptionBuf = make([]byte, row.dataLength)
+	n, err = reader.Read(row.descriptionBuf)
+	if err != nil {
+		return nil, err
+	}
+	if n != row.dataLength {
+		return nil, ErrShortRead
+	}
+	return row, nil
+}
+
+func (row *DataRow) Marshal() ([]byte, error) {
+	output := make([]byte, 0, 5+row.dataLength)
+	output = append(output, row.messageType[0])
+	output = append(output, row.descriptionLengthBuf...)
+	output = append(output, row.descriptionBuf...)
+	return output, nil
+}
+
 type PgProxy struct {
 	clientConnection net.Conn
 	dbConnection     net.Conn
@@ -204,29 +274,6 @@ type PgProxy struct {
 
 func NewPgProxy(clientConnection, dbConnection net.Conn, errCh chan<- error) (*PgProxy, error) {
 	return &PgProxy{clientConnection: clientConnection, dbConnection: dbConnection, errCh: errCh, TlsCh: make(chan bool)}, nil
-}
-
-func NewPgError(message string) ([]byte, error) {
-	// 5 = E marker + 4 bytes for message length
-	// 7 is severity error with null terminator
-	// +1 for null terminator of message
-	output := make([]byte, 5+7+7+len(message)+1)
-	// error message
-	output[0] = 'E'
-	// leave untouched place for length of data
-	output = output[:5]
-	// error severity
-	output = append(output, []byte{'S', 'E', 'R', 'R', 'O', 'R', 0}...)
-	// 42501	insufficient_privilege
-	// https://www.postgresql.org/docs/9.3/static/errcodes-appendix.html
-	output = append(output, []byte("C42501")...)
-	output = append(output, 0)
-	// human readable message
-	output = append(output, append([]byte{'M'}, []byte(message)...)...)
-	output = append(output, 0)
-	// place length of data
-	binary.BigEndian.PutUint32(output[1:5], uint32(len(output)-1))
-	return output, nil
 }
 
 func (proxy *PgProxy) PgProxyClientRequests(acraCensor acracensor.AcraCensorInterface, dbConnection, clientConnection net.Conn, errCh chan<- error) {
@@ -259,28 +306,37 @@ func (proxy *PgProxy) PgProxyClientRequests(acraCensor acracensor.AcraCensorInte
 			}
 			continue
 		}
-		if !row.readByte(reader, writer, errCh) {
-			log.Debugln("can't read byte")
+		row, err := row.ReadRow(reader, errCh)
+		if err != nil {
+			log.WithError(err).Errorln("can't read row")
+			errCh <- err
 			return
 		}
 		if !row.IsSimpleQuery() {
 			log.Debugln("not query")
-			if !row.skipData(reader, writer, errCh) {
+			output, err := row.Marshal()
+			if err != nil {
+				log.WithError(err).Errorln("Can't dump row")
+				errCh <- err
+				return
+
+			}
+			n, err := writer.Write(output)
+			if !base.CheckReadWrite(n, len(output), err, errCh) {
 				return
 			}
-			writer.Flush()
+			if err := writer.Flush(); err != nil {
+				log.WithError(err).Errorln("can't flush writer")
+				errCh <- err
+				return
+			}
 			continue
 		}
-		log.Debugln("query packet")
-		query, success := row.ReadSimpleQuery(errCh)
-		if !success {
-			row.Flush()
-			return
-		}
+		query := string(row.descriptionBuf[:row.dataLength-1])
 		log.WithField("query", query).Debugln("new query")
 		if censorErr := acraCensor.HandleQuery(query); censorErr != nil {
 			log.WithError(censorErr).Errorln("AcraCensor blocked query")
-			errCh <- censorErr
+			// errCh <- censorErr
 			errorMessage, err := NewPgError("AcraCensor blocked this query")
 			if err != nil {
 				log.WithError(err).Errorln("can't create postgresql error message")
@@ -290,13 +346,27 @@ func (proxy *PgProxy) PgProxyClientRequests(acraCensor acracensor.AcraCensorInte
 			if !base.CheckReadWrite(n, len(errorMessage), err, row.errCh) {
 				return
 			}
-			return
+			if err := writer.Flush(); err != nil {
+				log.WithError(err).Errorln("Can't flush writer")
+				errCh <- err
+				return
+			}
+			continue
 		}
-		if !row.Flush() {
+
+		output, err := row.Marshal()
+		if err != nil {
+			log.WithError(err).Errorln("Can't dump row")
+			errCh <- err
+			return
+
+		}
+		n, err := writer.Write(output)
+		if !base.CheckReadWrite(n, len(output), err, errCh) {
 			return
 		}
 		if err := writer.Flush(); err != nil {
-			log.WithError(err).Errorln("can't flush writer to db")
+			log.WithError(err).Errorln("can't flush writer")
 			errCh <- err
 			return
 		}
