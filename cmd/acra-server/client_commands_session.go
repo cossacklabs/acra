@@ -15,22 +15,24 @@ package main
 
 import (
 	"bufio"
-	"github.com/cossacklabs/acra/logging"
-	log "github.com/sirupsen/logrus"
 	"net"
 	"net/http"
+
+	"github.com/cossacklabs/acra/logging"
+	log "github.com/sirupsen/logrus"
 
 	"encoding/json"
 	"errors"
 	"flag"
 	"fmt"
+	"syscall"
+
 	"github.com/cossacklabs/acra/cmd"
 	"github.com/cossacklabs/acra/keystore"
 	"github.com/cossacklabs/acra/utils"
 	"github.com/cossacklabs/acra/zone"
 	"github.com/cossacklabs/themis/gothemis/cell"
 	"github.com/cossacklabs/themis/gothemis/keys"
-	"syscall"
 )
 
 const (
@@ -85,9 +87,13 @@ func (clientSession *ClientCommandsSession) HandleSession() {
 	case "/getNewZone":
 		log.Debugln("Got /getNewZone request")
 		id, publicKey, err := clientSession.keystorage.GenerateZoneKey()
-		if err == nil {
+		if err != nil {
+			log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantGenerateZone).Errorln("Can't generate zone key")
+		} else {
 			zoneData, err := zone.ZoneDataToJson(id, &keys.PublicKey{Value: publicKey})
-			if err == nil {
+			if err != nil {
+				log.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantGenerateZone).WithError(err).Errorln("Can't create json with zone key")
+			} else {
 				log.Debugln("Handled request correctly")
 				response = fmt.Sprintf("HTTP/1.1 200 OK Found\r\n\r\n%s\r\n\r\n", string(zoneData))
 			}
