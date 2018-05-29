@@ -74,4 +74,7 @@ const (
 	EventCodeErrorDecryptorCantInitializeTLS                 = 584
 	EventCodeErrorDecryptorCantSetDeadlineToClientConnection = 585
 	EventCodeErrorDecryptorCantDecryptSymmetricKey           = 586
+
+	// api
+	EventCodeErrorCantGenerateZone = 590
 )

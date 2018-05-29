@@ -88,11 +88,11 @@ func (clientSession *ClientCommandsSession) HandleSession() {
 		log.Debugln("Got /getNewZone request")
 		id, publicKey, err := clientSession.keystorage.GenerateZoneKey()
 		if err != nil {
-			log.WithError(err).Errorln("can't generate zone key")
+			log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantGenerateZone).Errorln("Can't generate zone key")
 		} else {
 			zoneData, err := zone.ZoneDataToJson(id, &keys.PublicKey{Value: publicKey})
 			if err != nil {
-				log.WithError(err).Errorln("can't create json with zone key")
+				log.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantGenerateZone).WithError(err).Errorln("Can't create json with zone key")
 			} else {
 				log.Debugln("Handled request correctly")
 				response = fmt.Sprintf("HTTP/1.1 200 OK Found\r\n\r\n%s\r\n\r\n", string(zoneData))
