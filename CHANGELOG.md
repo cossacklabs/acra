@@ -1,5 +1,91 @@
 # Acra ChangeLog
 
+## [0.80.0](https://github.com/cossacklabs/acra/releases/tag/0.80), May 31st 2018
+
+_Core_:
+
+- **Renaming**
+
+   - Global renaming of Acra components and configuration parameters for each of them. 
+   We believe that updated naming will decrease confusion about components' functions, and will make Acra setup and usage easier.
+
+   _Main services:_
+   
+   | New name | Old name | Function |
+   | --- | --- | --- |
+   | AcraServer | AcraServer | decrypts data from database |
+   | AcraWriter | AcraWriter | encrypts data on client side |
+   | AcraProxy | AcraConnector | encrypts traffic between client and server using Themis Secure Session |
+   | AcraCensor | AcraCensor | firewall, part of AcraServer, blocks suspicious SQL requests to the database |
+   | AcraWebConfig | AcraConfigUI | lightweight HTTP web server for managing AcraServer's certain configuration options |
+
+   _Utilities:_
+
+   | New name | Old name | Function |
+   | --- | --- | --- |
+   | AcraRollback | acra_rollback | decrypts the whole database |
+   | AcraKeymaker | acra_genkeys | generates encryption keys for storage and transport for Acra components |
+   | AcraAuthmanager | acra_genauth | generates user accounts for AcraWebConfig |
+   | AcraPoisonRecordMaker | acra_genpoisonrecord | generates poision records for databases |
+   | AcraAddzone | acra_addzone | generates Zones header for AcraWriter |
+
+   Check components configurations inside [/configs folder](https://github.com/cossacklabs/acra/tree/master/configs) and read [Migration Guide](https://github.com/cossacklabs/acra/wiki/Migration-guide) for more details ([#175](https://github.com/cossacklabs/acra/pull/175), [#174](https://github.com/cossacklabs/acra/pull/174), [#173](https://github.com/cossacklabs/acra/pull/173), [#170](https://github.com/cossacklabs/acra/pull/170), [#169](https://github.com/cossacklabs/acra/pull/169), [#168](https://github.com/cossacklabs/acra/pull/168)).
+
+- **SSL/TLS**
+
+   - Improved SSL/TLS connections between AcraServer<->AcraConnector and AcraServer<->database. Added TLS authentication mode (`tls_auth`) argument to AcraServer/AcraConnector configuration files: 
+      - for AcraConnector it indicates how to authenticate AcraServer during TLS connection; 
+      - for AcraServer it indicates how to authenticate database during TLS connection.
+   - Updated TLS configuration to provide other less strict authentication methods (not authenticate client from server, require any certificate, require and check) ([#171](https://github.com/cossacklabs/acra/pull/171)).
+
+- **SQL requests filtering**
+
+   - Added support of filtering SQL requests for PostgreSQL databases. Now you can setup AcraCensor rules for both MySQL and PostgreSQL databases ([#177](https://github.com/cossacklabs/acra/pull/177)).
+   
+   - Improved [QueryCapture](https://github.com/cossacklabs/acra/wiki/acracensor): AcraCensor writes allowed/blocked queries into separate log file without blocking the main process ([#176](https://github.com/cossacklabs/acra/pull/176), [#172](https://github.com/cossacklabs/acra/pull/172)).
+
+   See a detailed description of AcraCensor on the corresponding [AcraCensor documentation page](https://github.com/cossacklabs/acra/wiki/acracensor).
+
+- **AcraWriter on Ruby**
+
+   - Updated AcraWriter Ruby wrapper for [ActiveRecord tutorial](https://github.com/cossacklabs/acra/wiki/Using-Acra-to-Protect-Your-Rails-App), pushed new gem ([#166](https://github.com/cossacklabs/acra/pull/166)).
+
+- **Other**
+
+   - Updated notification when AcraConnector is launched on environment without `netstat` ([#167](https://github.com/cossacklabs/acra/pull/167)).
+   - Updated error handling for AcraServer working with Zones ([#179](https://github.com/cossacklabs/acra/pull/179)).
+
+
+_Infrastructure_:
+
+- **Even better Docker support**
+
+   - Added more ready-to-use Docker Containers: `acra-keymaker`, `acra-authmanager`. As the result, each Acra component is wrapped into Docker container, allowing you to try Acra into your infrastructures easily.
+
+   - Added easy-to-use docker-compose files for setting up the whole Acra-based environment connected to MySQL database. Possible configurations include setup with/without SSL, with/without AcraConnector, with/without Zones ([#180](https://github.com/cossacklabs/acra/pull/180)).
+   Check out the instructions and examples in the [/docker](https://github.com/cossacklabs/acra/tree/master/docker) folder: we have examples for both MySQL and PostgreSQL databases.
+
+   - Updated descriptions for official Cossack Labs packages on [Docker Hub](https://hub.docker.com/u/cossacklabs/).
+
+   - Updated [Getting started with Docker](https://github.com/cossacklabs/acra/wiki/Trying-Acra-with-Docker) guide to make starting out with Acra even easier.
+
+
+- **Key Maker**
+
+   - Added `make keys` target in the Makefile: one command to generate keys and place them into correct folders for all Acra components ([#181][https://github.com/cossacklabs/acra/pull/181]).
+
+- **OS**
+
+   - Added support of Ubuntu Xenial Xerus (added precompiled binaries and tests to make sure that Acra is compiling/building/working well on 16.04).
+
+
+_Documentation_:
+
+- Updated tutorials about protecting [Ruby on Rails app](https://github.com/cossacklabs/acra/wiki/Using-Acra-to-Protect-Your-Rails-App) and [Django app](https://github.com/cossacklabs/acra/wiki/Using-Acra-to-Protect-Your-Django-App).
+- Every single document, code line and image are updated to use new naming.
+
+
+
 ## [0.77.0](https://github.com/cossacklabs/acra/releases/tag/0.77), April 13th 2018
 
 

@@ -56,6 +56,7 @@ Acra relies on our cryptographic library [Themis](https://www.github.com/cossack
 | Debian Jessie       | latest (1.3.3 is not supported) |
 | Ubuntu Artful       | 1.8.3 (system)                  |
 | Ubuntu Trusty       | latest (1.2.1 is not supported) |
+| Ubuntu Xenial Xerus | latest |
 | i386/Debian Stretch | 1.7.4 (system)                  |
 | i386/Debian Jessie  | latest (1.3.3 is not supported) |
 | i386/Ubuntu Artful  | 1.8.3 (system)                  |
@@ -100,7 +101,7 @@ We fill the [Wiki documentation](https://github.com/cossacklabs/acra/wiki) with 
 
 You might want to:
 
-- Read about using the lightweight [HTTP web server AcraWebConfig](https://github.com/cossacklabs/acra/wiki/AcraConfigUI) we provide to manage AcraServer configuration in a simple fashion.
+- Read about using the lightweight [HTTP web server AcraWebConfig](https://github.com/cossacklabs/acra/wiki/AcraWebConfig) we provide to manage AcraServer configuration in a simple fashion.
 - Read the notes on [security design](https://github.com/cossacklabs/acra/wiki/Security-design) and [intrusion detection](https://github.com/cossacklabs/acra/wiki/Intrusion-detection) to better understand what you get when using Acra and what is the threat model that Acra operates in. 
 - Read [some notes on making Acra stronger / more productive and efficient](https://github.com/cossacklabs/acra/wiki/Tuning-Acra), and on adding security features or increasing throughput, depending on your goals and security model.
 - Read about the [logging format](https://github.com/cossacklabs/acra/wiki/Logging) that Acra supports if you are using any SIEM system.  
