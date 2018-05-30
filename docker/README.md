@@ -99,7 +99,7 @@ all keys manually.
 
 Please specify ACRA_MASTER_KEY:
 ```bash
-export ACRA_MASTER_KEY=$(echo -n "My_Very_Long_Key_Phrase_ge_32_chars" | base64)
+export ACRA_MASTER_KEY=$(echo -n "My_Very_Long_Key_Phrase_32_chars" | base64)
 ```
 
 Also you probably want to define client id
