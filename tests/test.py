@@ -362,6 +362,27 @@ class ProcessStub(object):
         pass
 
 
+class KeyMakerTest(unittest.TestCase):
+    def test_key_length(self):
+        output_path = tempfile.mkdtemp()
+        key_size = 32
+        short_key = b64encode((key_size - 1)*b'a')
+        standard_key = b64encode(key_size * b'a')
+        long_key = b64encode((key_size * 2) * b'a')
+
+        with self.assertRaises(subprocess.CalledProcessError) as exc:
+            subprocess.check_output(
+                ['./acra-keymaker', '--keys_output_dir={}'.format(output_path)],
+                env={'ACRA_MASTER_KEY': short_key})
+
+        subprocess.check_output(
+                ['./acra-keymaker', '--keys_output_dir={}'.format(output_path)],
+                env={'ACRA_MASTER_KEY': standard_key})
+        subprocess.check_output(
+                ['./acra-keymaker', '--keys_output_dir={}'.format(output_path)],
+                env={'ACRA_MASTER_KEY': long_key})
+
+
 class BaseTestCase(unittest.TestCase):
     DB_HOST = os.environ.get('TEST_DB_HOST', '127.0.0.1')
     DB_NAME = os.environ.get('TEST_DB_NAME', 'postgres')
