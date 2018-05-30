@@ -342,7 +342,6 @@ func (proxy *PgProxy) PgProxyClientRequests(acraCensor acracensor.AcraCensorInte
 		log.WithField("query", query).Debugln("new query")
 		if censorErr := acraCensor.HandleQuery(query); censorErr != nil {
 			log.WithError(censorErr).Errorln("AcraCensor blocked query")
-			// errCh <- censorErr
 			errorMessage, err := NewPgError("AcraCensor blocked this query")
 			if err != nil {
 				log.WithError(err).Errorln("can't create postgresql error message")
