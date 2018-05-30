@@ -30,7 +30,7 @@ const (
 	VALID_CHARS              = "_- "
 	MAX_CLIENT_ID_LENGTH     = 256
 	MIN_CLIENT_ID_LENGTH     = 5
-	BASIC_AUTH_KEY_LENGTH = 32
+	BASIC_AUTH_KEY_LENGTH    = 32
 	ACRA_MASTER_KEY_VAR_NAME = "ACRA_MASTER_KEY"
 	// SYMMETRIC_KEY_LENGTH in bytes for master key
 	SYMMETRIC_KEY_LENGTH = 32
@@ -128,7 +128,7 @@ type KeyStore interface {
 	// return id, public key, error
 	GenerateZoneKey() ([]byte, []byte, error)
 
-	GenerateProxyKeys(id []byte) error
+	GenerateConnectorKeys(id []byte) error
 	GenerateServerKeys(id []byte) error
 	// generate key pair for data encryption/decryption
 	GenerateDataEncryptionKeys(id []byte) error

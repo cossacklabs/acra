@@ -20,7 +20,7 @@ import (
 	"database/sql"
 	"encoding/base64"
 	"fmt"
-	"github.com/cossacklabs/acra/acrawriter"
+	"github.com/cossacklabs/acra/acra-writer"
 	"github.com/cossacklabs/themis/gothemis/keys"
 	_ "github.com/lib/pq"
 	log "github.com/sirupsen/logrus"

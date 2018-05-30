@@ -16,12 +16,12 @@ package cmd
 
 import "golang.org/x/crypto/argon2"
 
-func InitArgon2Params() (Argon2Params) {
+func InitArgon2Params() Argon2Params {
 	var p Argon2Params
-	p.Time = uint32(ACRA_CONFIGUI_AUTH_ARGON2_TIME)
-	p.Memory = uint32(ACRA_CONFIGUI_AUTH_ARGON2_MEMORY)
-	p.Threads = uint8(ACRA_CONFIGUI_AUTH_ARGON2_THREADS)
-	p.Length = uint32(ACRA_CONFIGUI_AUTH_ARGON2_LENGTH)
+	p.Time = uint32(ACRAWEBCONFIG_AUTH_ARGON2_TIME)
+	p.Memory = uint32(ACRAWEBCONFIG_AUTH_ARGON2_MEMORY)
+	p.Threads = uint8(ACRAWEBCONFIG_AUTH_ARGON2_THREADS)
+	p.Length = uint32(ACRAWEBCONFIG_AUTH_ARGON2_LENGTH)
 	return p
 }
 

@@ -1,0 +1,80 @@
+//package acracensor
+//
+//import (
+//	log "github.com/sirupsen/logrus"
+//)
+//
+//type AcraCensor struct {
+//	handlers []QueryHandlerInterface
+//}
+//
+//func (acraCensor *AcraCensor) AddHandler(handler QueryHandlerInterface) {
+//	acraCensor.handlers = append(acraCensor.handlers, handler)
+//}
+//
+//func (acraCensor *AcraCensor) RemoveHandler(handler QueryHandlerInterface) {
+//	for index, handlerFromRange := range acraCensor.handlers {
+//		if handlerFromRange == handler {
+//			acraCensor.handlers = append(acraCensor.handlers[:index], acraCensor.handlers[index+1:]...)
+//		}
+//	}
+//}
+//
+////<<<<<<< HEAD:acracensor/acracensor_implementation.go
+//func (acraCensor *AcraCensor) ReleaseAll(){
+////=======
+////func (acraCensor *AcraCensor) ReleaseAll() {
+////>>>>>>> 5cf40e871f40252b3a7e74f5b8826aa9577909ea:acra-censor/acra-censor_implementation.go
+//	for _, handler := range acraCensor.handlers {
+//		handler.Release()
+//	}
+//}
+//
+//func (acraCensor *AcraCensor) HandleQuery(query string) error {
+//	for _, handler := range acraCensor.handlers {
+//		if err := handler.CheckQuery(query); err != nil {
+//			log.Errorf("Forbidden query: '%s'", query)
+//			return err
+//		}
+//	}
+//	log.Infof("Allowed query: '%s'", query)
+//	return nil
+//}
+package acracensor
+
+import (
+	log "github.com/sirupsen/logrus"
+)
+
+type AcraCensor struct {
+	handlers []QueryHandlerInterface
+}
+
+func (acraCensor *AcraCensor) AddHandler(handler QueryHandlerInterface) {
+	acraCensor.handlers = append(acraCensor.handlers, handler)
+}
+
+func (acraCensor *AcraCensor) RemoveHandler(handler QueryHandlerInterface) {
+	for index, handlerFromRange := range acraCensor.handlers {
+		if handlerFromRange == handler {
+			acraCensor.handlers = append(acraCensor.handlers[:index], acraCensor.handlers[index+1:]...)
+		}
+	}
+}
+
+func (acraCensor *AcraCensor) ReleaseAll() {
+	for _, handler := range acraCensor.handlers {
+		handler.Release()
+	}
+}
+
+func (acraCensor *AcraCensor) HandleQuery(query string) error {
+	for _, handler := range acraCensor.handlers {
+		if err := handler.CheckQuery(query); err != nil {
+			log.Errorf("Forbidden query: '%s'", query)
+			return err
+		}
+	}
+	log.Infof("Allowed query: '%s'", query)
+	return nil
+}

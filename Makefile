@@ -34,7 +34,7 @@ get_version:
 DIST_FILENAME = $(VERSION).tar.gz
 
 RSYNC_EXCLUDE = --exclude=$(TEMP_GOPATH) --exclude=$(BIN_PATH) --exclude=.acrakeys --exclude=.git --exclude=$(VERSION)
-RSYNC_COPY = acrawriter cmd docker examples io LICENSE poison tests utils zone benchmarks circle.yml configs decryptor fuzz keystore Makefile README.md wrappers
+RSYNC_COPY = acra-writer cmd docker examples io LICENSE poison tests utils zone benchmarks circle.yml configs decryptor fuzz keystore Makefile README.md wrappers
 
 dist:
 	@mkdir -p $(VERSION)
@@ -169,17 +169,20 @@ endif
 
 docker:
 	$(call docker_build,acra-build,)
-	$(call docker_build,acraserver,$(CONTAINER_TAGS))
-	$(call docker_build,acraproxy,$(CONTAINER_TAGS))
-	$(call docker_build,acra_genkeys,$(CONTAINER_TAGS))
-	$(call docker_build,acra_configui,$(CONTAINER_TAGS))
-	$(call docker_build,acra_genauth,$(CONTAINER_TAGS))
+	$(call docker_build,acra-server,$(CONTAINER_TAGS))
+	$(call docker_build,acra-connector,$(CONTAINER_TAGS))
+	$(call docker_build,acra-keymaker,$(CONTAINER_TAGS))
+	$(call docker_build,acra-webconfig,$(CONTAINER_TAGS))
+	$(call docker_build,acra-authmanager,$(CONTAINER_TAGS))
 	@docker image rm cossacklabs/acra-build:$(GIT_HASH)
 
 docker_push: docker
-	@docker push cossacklabs/acraserver
-	@docker push cossacklabs/acraproxy
-	@docker push cossacklabs/acra_genkeys
-	@docker push cossacklabs/acra_genkeys
-	@docker push cossacklabs/acra_configui
-	@docker push cossacklabs/acra_genauth
+	@docker push cossacklabs/acra-server
+	@docker push cossacklabs/acra-connector
+	@docker push cossacklabs/acra-keymaker
+	@docker push cossacklabs/acra-webconfig
+	@docker push cossacklabs/acra-authmanager
+
+keys: install
+	@chmod +x scripts/generate-keys.sh
+	@scripts/generate-keys.sh

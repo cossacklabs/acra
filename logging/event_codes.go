@@ -5,7 +5,7 @@ const (
 	EventCodeGeneral = 100
 
 	// 500 .. 600 errors
-	EventCodeErrorGeneral = 500
+	EventCodeErrorGeneral    = 500
 	EventCodeErrorWrongParam = 501
 
 	// processes
@@ -41,7 +41,7 @@ const (
 	EventCodeErrorCantConnectToDB       = 540
 	EventCodeErrorCantCloseConnectionDB = 541
 
-	// config UI
+	// AcraWebconfig
 	EventCodeErrorCantReadTemplate        = 550
 	EventCodeErrorRequestMethodNotAllowed = 551
 	EventCodeErrorCantParseRequestData    = 552
@@ -57,14 +57,14 @@ const (
 	EventCodeErrorCensorSetupError        = 561
 	EventCodeErrorCensorSecurityError     = 562
 
-	// response proxy
-	EventCodeErrorResponseProxyCantWriteToDB      = 570
-	EventCodeErrorResponseProxyCantReadFromClient = 571
-	EventCodeErrorResponseProxyCantWriteToClient  = 572
-	EventCodeErrorResponseProxyCantReadFromServer = 573
-	EventCodeErrorResponseProxyCantWriteToServer  = 574
-	EventCodeErrorResponseProxyCantProcessColumn  = 575
-	EventCodeErrorResponseProxyCantProcessRow     = 576
+	// response connector
+	EventCodeErrorResponseConnectorCantWriteToDB      = 570
+	EventCodeErrorResponseConnectorCantReadFromClient = 571
+	EventCodeErrorResponseConnectorCantWriteToClient  = 572
+	EventCodeErrorResponseConnectorCantReadFromServer = 573
+	EventCodeErrorResponseConnectorCantWriteToServer  = 574
+	EventCodeErrorResponseConnectorCantProcessColumn  = 575
+	EventCodeErrorResponseConnectorCantProcessRow     = 576
 
 	// decryptor
 	EventCodeErrorCantInitDecryptor                          = 580
@@ -74,4 +74,7 @@ const (
 	EventCodeErrorDecryptorCantInitializeTLS                 = 584
 	EventCodeErrorDecryptorCantSetDeadlineToClientConnection = 585
 	EventCodeErrorDecryptorCantDecryptSymmetricKey           = 586
+
+	// api
+	EventCodeErrorCantGenerateZone = 590
 )
