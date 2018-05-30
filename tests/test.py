@@ -730,6 +730,24 @@ class HexFormatTest(BaseTestCase):
                             row['raw_data'])
 
 
+class CensorTest(BaseTestCase):
+    def fork_acra(self, popen_kwargs: dict=None, **acra_kwargs: dict):
+        acra_kwargs['acracensor_config_file'] = 'tests/acra-censor_configs/acra-censor-1.yaml'
+        return self._fork_acra(acra_kwargs, popen_kwargs)
+
+    def testCensorWithMysql(self):
+        with self.assertRaises(sa.exc.OperationalError):
+            row_id = self.get_random_id()
+            result = self.engine1.execute(
+                sa.select([test_table])
+                    .where(test_table.c.id == row_id))
+            result.fetchone()
+
+    def testCensorWithPostgres(self):
+        #stub test
+        pass
+
+
 class ZoneHexFormatTest(BaseTestCase):
     ZONE = True
 
