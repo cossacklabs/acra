@@ -69,7 +69,7 @@ func ValidateId(client_id []byte) bool {
 
 // ValidateMasterKey do validation of symmetric master key and return nil if pass check
 func ValidateMasterKey(key []byte) error {
-	if len(key) != SYMMETRIC_KEY_LENGTH {
+	if len(key) < SYMMETRIC_KEY_LENGTH {
 		return ErrMasterKeyIncorrectLength
 	}
 	return nil
