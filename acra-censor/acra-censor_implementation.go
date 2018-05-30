@@ -26,13 +26,20 @@ func (acraCensor *AcraCensor) ReleaseAll() {
 	}
 }
 
+
+var exceptionQueries = map[string]bool { "ROLLBACK": true }
+
 func (acraCensor *AcraCensor) HandleQuery(query string) error {
-	for _, handler := range acraCensor.handlers {
-		if err := handler.CheckQuery(query); err != nil {
-			log.Errorf("Forbidden query: '%s'", query)
-			return err
+
+	if !exceptionQueries[query] {
+		for _, handler := range acraCensor.handlers {
+			if err := handler.CheckQuery(query); err != nil {
+				log.Errorf("Forbidden query: '%s'", query)
+				return err
+			}
 		}
 	}
+
 	log.Infof("Allowed query: '%s'", query)
 	return nil
 }

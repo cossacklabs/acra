@@ -361,6 +361,12 @@ func testBlacklistTables(t *testing.T, censor *AcraCensor, blacklistHandler *han
 		t.Fatal(err)
 	}
 
+	testQuery := "ROLLBACK"
+	err = censor.HandleQuery(testQuery)
+	if err != nil {
+		t.Fatal(err)
+	}
+
 }
 func testBlacklistRules(t *testing.T, acraCensor *AcraCensor, blacklistHandler *handlers.BlacklistHandler) {
 
