@@ -64,9 +64,6 @@ keys_dir: .acrakeys
 # Logging format: plaintext, json or CEF
 logging_format: plaintext
 
-# path to markdown file to save
-markdown_file: 
-
 # Handle MySQL connections
 mysql_enable: false
 

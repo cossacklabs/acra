@@ -28,6 +28,3 @@ keys_output_dir: .acrakeys
 # Folder where will be saved public key
 keys_public_output_dir: .acrakeys
 
-# path to markdown file to save
-markdown_file: 
-
