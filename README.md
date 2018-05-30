@@ -46,24 +46,21 @@ Acra relies on our cryptographic library [Themis](https://www.github.com/cossack
 
 ## Availability
 
-* Acra source builds and tests with Go versions 1.7 – 1.10.
+* Acra source builds and tests with Go versions 1.7.6 – 1.10.
 * Acra is known to build on: 
 
-| Distributive        | Go versions                     |
-|---------------------|---------------------------------|
-| CentOS              | 1.8.3 (system)                  |
-| Debian Stretch      | 1.7.4 (system)                  |
-| Debian Jessie       | latest (1.3.3 is not supported) |
-| Ubuntu Artful       | 1.8.3 (system)                  |
-| Ubuntu Trusty       | latest (1.2.1 is not supported) |
-| Ubuntu Xenial Xerus | latest |
-| i386/Debian Stretch | 1.7.4 (system)                  |
-| i386/Debian Jessie  | latest (1.3.3 is not supported) |
-| i386/Ubuntu Artful  | 1.8.3 (system)                  |
-| i386/Ubuntu Trusty  | latest (1.2.1 is not supported) |
+| Distributive | |
+|---------------|------|
+| CentOS 7 | x64 |
+| Debian Stretch (9) | x64/i386 |
+| Debian Jessie (8) | x64/i386 |
+| Ubuntu Bionic (18.04) | x64/i386 |
+| Ubuntu Artful (17.10) | x64/i386 |
+| Ubuntu Xenial (16.04) | x64/i386 |
+| Ubuntu Trusty (14.04) | x64/i386 |
 
-* Acra currently supports PostgreSQL 9.4+ as the database backend. 
-* Starting with Acra [`0.77.0`](https://github.com/cossacklabs/acra/releases/tag/0.77.0), we have integrated Acra with MySQL 5.7+ database, but it is still a fresh feature, which we are extensively testing to ensure its full support. Please report any MySQL bugs you may encounter through [Issues](https://github.com/cossacklabs/acra/issues). MongoDB support is coming soon, too. 
+* Acra currently supports **PostgreSQL 9.4+** as the database backend. 
+* Starting with Acra [`0.77.0`](https://github.com/cossacklabs/acra/releases/tag/0.77.0), Acra supports **MySQL 5.7+** database, but it is still a fresh feature, which we are extensively testing to ensure its full support. Please report any MySQL bugs you may encounter through [Issues](https://github.com/cossacklabs/acra/issues). MongoDB support is coming soon, too. 
 * Acra has [writer libraries](https://github.com/cossacklabs/acra/wiki/Acrawriter-installation) for Ruby, Python, Go, and PHP, but you can easily [generate AcraStruct containers](https://github.com/cossacklabs/acra/wiki/AcraStruct) with [Themis](https://github.com/cossacklabs/themis) for any platform you want. 
 
 ## How does Acra work?
