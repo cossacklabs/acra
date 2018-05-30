@@ -33,33 +33,32 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
-// ReadForQuery - 0x5a ReadyForQuery, 0 0 0 5 length, 49 idle status
+// ReadForQuery - 'Z' ReadyForQuery, 0 0 0 5 length, 'I' idle status
 // https://www.postgresql.org/docs/9.3/static/protocol-message-formats.html
 var ReadyForQueryPacket = []byte{'Z', 0, 0, 0, 5, 'I'}
 
 func NewPgError(message string) ([]byte, error) {
-	// TODO исправить длину ERROR сообщения, жалуется psql
 	// 5 = E marker + 4 bytes for message length
 	// 7 is severity error with null terminator
-	// +1 for null terminator of message
-	output := make([]byte, 5+7+7+len(message)+1)
+	// +1 for null terminator of message and packet
+	output := make([]byte, 5+7+7+len(message)+2)
 	// error message
 	output[0] = 'E'
 	// leave untouched place for length of data
 	output = output[:5]
 	// error severity
 	output = append(output, []byte{'S', 'E', 'R', 'R', 'O', 'R', 0}...)
-	// 42501	insufficient_privilege
+	// 42000 - syntax_error_or_access_rule_violation
 	// https://www.postgresql.org/docs/9.3/static/errcodes-appendix.html
-	output = append(output, []byte("C42501")...)
+	output = append(output, []byte("C42000")...)
 	output = append(output, 0)
 	// human readable message
 	output = append(output, append([]byte{'M'}, []byte(message)...)...)
-	output = append(output, 0)
+	output = append(output, 0, 0)
 	// place length of data
 	// -1 byte to exclude type of message
+	// 1:5 4 bytes for packet length without first byte of message type
 	binary.BigEndian.PutUint32(output[1:5], uint32(len(output)-1))
-	output = append(output, ReadyForQueryPacket...)
 	return output, nil
 }
 
@@ -346,9 +345,8 @@ func (proxy *PgProxy) PgProxyClientRequests(acraCensor acracensor.AcraCensorInte
 			if !base.CheckReadWrite(n, len(errorMessage), err, row.errCh) {
 				return
 			}
-			if err := writer.Flush(); err != nil {
-				log.WithError(err).Errorln("Can't flush writer")
-				errCh <- err
+			n, err = clientConnection.Write(ReadyForQueryPacket)
+			if !base.CheckReadWrite(n, len(ReadyForQueryPacket), err, row.errCh) {
 				return
 			}
 			continue
