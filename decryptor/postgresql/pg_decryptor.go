@@ -65,9 +65,8 @@ func NewPgError(message string) ([]byte, error) {
 type DataRow struct {
 	messageType          [1]byte
 	descriptionLengthBuf []byte
-	descriptionBuf       []byte
+	descriptionBuf       *bytes.Buffer
 
-	buf               [1]byte
 	output            []byte
 	columnSizePointer []byte
 	columnDataBuf     *bytes.Buffer
@@ -126,13 +125,12 @@ func (row *DataRow) skipData(reader io.Reader, writer io.Writer, errCh chan<- er
 	return true
 }
 
-func (row *DataRow) readByte(reader io.Reader, writer io.Writer, errCh chan<- error) bool {
-	n, err := reader.Read(row.buf[:])
+func (row *DataRow) readMessageType(reader io.Reader, writer io.Writer, errCh chan<- error) bool {
+	n, err := reader.Read(row.messageType[:])
 	if !base.CheckReadWrite(n, 1, err, errCh) {
 		return false
 	}
-	log.Printf("byte=%v, '%v'", row.buf[0], string(row.buf[0]))
-	n, err = writer.Write(row.buf[:])
+	n, err = writer.Write(row.messageType[:])
 	if !base.CheckReadWrite(n, 1, err, errCh) {
 		return false
 	}
@@ -140,7 +138,7 @@ func (row *DataRow) readByte(reader io.Reader, writer io.Writer, errCh chan<- er
 }
 
 func (row *DataRow) IsDataRow() bool {
-	return row.buf[0] == DATA_ROW_MESSAGE_TYPE
+	return row.messageType[0] == DATA_ROW_MESSAGE_TYPE
 }
 
 func (row *DataRow) IsSimpleQuery() bool {
@@ -178,7 +176,6 @@ func (row *DataRow) ReadDataLength() bool {
 	}
 	row.writeIndex += n
 	row.dataLength = int(binary.BigEndian.Uint32(row.output[:DATA_ROW_LENGTH_BUF_SIZE])) - len(row.descriptionLengthBuf)
-	log.Printf("data length buf=%v, %v", row.output[:DATA_ROW_LENGTH_BUF_SIZE], row.dataLength)
 	return true
 }
 
@@ -245,12 +242,12 @@ func (row *DataRow) ReadRow(reader io.Reader, errCh chan<- error) (*DataRow, err
 		return nil, ErrShortRead
 	}
 	row.dataLength = int(binary.BigEndian.Uint32(row.descriptionLengthBuf)) - len(row.descriptionLengthBuf)
-	row.descriptionBuf = make([]byte, row.dataLength)
-	n, err = reader.Read(row.descriptionBuf)
+	row.descriptionBuf.Reset()
+	nn, err := io.CopyN(row.descriptionBuf, reader, int64(row.dataLength))
 	if err != nil {
 		return nil, err
 	}
-	if n != row.dataLength {
+	if nn != int64(row.dataLength) {
 		return nil, ErrShortRead
 	}
 	return row, nil
@@ -260,7 +257,7 @@ func (row *DataRow) Marshal() ([]byte, error) {
 	output := make([]byte, 0, 5+row.dataLength)
 	output = append(output, row.messageType[0])
 	output = append(output, row.descriptionLengthBuf...)
-	output = append(output, row.descriptionBuf...)
+	output = append(output, row.descriptionBuf.Bytes()...)
 	return output, nil
 }
 
@@ -275,22 +272,32 @@ func NewPgProxy(clientConnection, dbConnection net.Conn, errCh chan<- error) (*P
 	return &PgProxy{clientConnection: clientConnection, dbConnection: dbConnection, errCh: errCh, TlsCh: make(chan bool)}, nil
 }
 
+func NewClientSideDataRow(reader *acra_io.ExtendedBufferedReader, writer *bufio.Writer) (*DataRow, error) {
+	return &DataRow{
+		writeIndex:           0,
+		output:               nil,
+		columnDataBuf:        nil,
+		descriptionBuf:       bytes.NewBuffer(make([]byte, OUTPUT_DEFAULT_SIZE)),
+		descriptionLengthBuf: make([]byte, 4),
+		reader:               reader,
+		writer:               writer,
+	}, nil
+}
+
 func (proxy *PgProxy) PgProxyClientRequests(acraCensor acracensor.AcraCensorInterface, dbConnection, clientConnection net.Conn, errCh chan<- error) {
 	log.Debugln("pg client proxy")
 	writer := bufio.NewWriter(dbConnection)
 
 	reader := acra_io.NewExtendedBufferedReader(bufio.NewReader(clientConnection))
-	row := DataRow{
-		writeIndex:           0,
-		output:               make([]byte, OUTPUT_DEFAULT_SIZE),
-		columnDataBuf:        bytes.NewBuffer(make([]byte, COLUMN_DATA_DEFAULT_SIZE)),
-		descriptionLengthBuf: make([]byte, 4),
-		reader:               reader,
-		writer:               writer,
+	row, err := NewClientSideDataRow(reader, writer)
+	if err != nil {
+		log.WithError(err).Errorln("can't initialize DataRow object")
+		errCh <- err
+		return
 	}
 	firstByte := true
 	for {
-		row.writeIndex = 0
+		row.descriptionBuf.Reset()
 		if firstByte {
 			log.Debugln("first packet")
 			// first packet hasn't type of message and start with message length and data
@@ -331,7 +338,7 @@ func (proxy *PgProxy) PgProxyClientRequests(acraCensor acracensor.AcraCensorInte
 			}
 			continue
 		}
-		query := string(row.descriptionBuf[:row.dataLength-1])
+		query := string(row.descriptionBuf.Bytes()[:row.dataLength-1])
 		log.WithField("query", query).Debugln("new query")
 		if censorErr := acraCensor.HandleQuery(query); censorErr != nil {
 			log.WithError(censorErr).Errorln("AcraCensor blocked query")
@@ -371,6 +378,14 @@ func (proxy *PgProxy) PgProxyClientRequests(acraCensor acracensor.AcraCensorInte
 	}
 }
 
+func (row *DataRow) IsSSLRequest() bool {
+	return row.messageType[0] == 'S'
+}
+
+func (row *DataRow) IsSSLRequestDeny() bool {
+	return row.messageType[0] == 'N'
+}
+
 func (proxy *PgProxy) PgDecryptStream(censor acracensor.AcraCensorInterface, decryptor base.Decryptor, tlsConfig *tls.Config, dbConnection net.Conn, clientConnection net.Conn, errCh chan<- error) {
 	log.Debugln("pg db proxy")
 	writer := bufio.NewWriter(clientConnection)
@@ -386,7 +401,7 @@ func (proxy *PgProxy) PgDecryptStream(censor acracensor.AcraCensorInterface, dec
 	}
 	firstByte := true
 	for {
-		if !row.readByte(reader, writer, errCh) {
+		if !row.readMessageType(reader, writer, errCh) {
 			return
 		}
 
@@ -394,11 +409,11 @@ func (proxy *PgProxy) PgDecryptStream(censor acracensor.AcraCensorInterface, dec
 			// https://www.postgresql.org/docs/9.1/static/protocol-flow.html#AEN92112
 			// we should know that we shouldn't read anymore bytes
 			firstByte = false
-			if row.buf[0] == 'N' {
+			if row.IsSSLRequestDeny() {
 				log.Debugln("deny ssl request")
 				writer.Flush()
 				continue
-			} else if row.buf[0] == 'S' {
+			} else if row.IsSSLRequest() {
 				if tlsConfig == nil {
 					log.Errorln("To support TLS connections you must pass TLS key and certificate for AcraServer that will be used" +
 						"for connections AcraServer->Database and CA certificate which will be used to verify certificate " +
