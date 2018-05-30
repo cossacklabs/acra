@@ -94,8 +94,8 @@ genkeys_check() {
     ACRA_KEYMAKER="acra-keymaker"
     if [[ -x "build/${ACRA_KEYMAKER}" ]]; then
         CMD="build/${ACRA_KEYMAKER}"
-    elif [[ -x "${GOPATH}/${ACRA_KEYMAKER}" ]]; then
-        CMD="${GOPATH}/${ACRA_KEYMAKER}"
+    elif [[ -x "${GOPATH}/bin/${ACRA_KEYMAKER}" ]]; then
+        CMD="${GOPATH}/bin/${ACRA_KEYMAKER}"
     elif CMD=$(which $ACRA_KEYMAKER); then
         return
     else
