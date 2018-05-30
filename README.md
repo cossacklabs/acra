@@ -51,13 +51,13 @@ Acra relies on our cryptographic library [Themis](https://www.github.com/cossack
 
 | Distributive | |
 |---------------|------|
-| CentOS 7 | x64 |
-| Debian Stretch (9) | x64/i386 |
-| Debian Jessie (8) | x64/i386 |
-| Ubuntu Bionic (18.04) | x64/i386 |
-| Ubuntu Artful (17.10) | x64/i386 |
-| Ubuntu Xenial (16.04) | x64/i386 |
-| Ubuntu Trusty (14.04) | x64/i386 |
+| CentOS 7 | x86_64 |
+| Debian Stretch (9) | x86_64/i386 |
+| Debian Jessie (8) | x86_64/i386 |
+| Ubuntu Bionic (18.04) | x86_64 |
+| Ubuntu Artful (17.10) | x86_64/i386 |
+| Ubuntu Xenial (16.04) | x86_64/i386 |
+| Ubuntu Trusty (14.04) | x86_64/i386 |
 
 * Acra currently supports **PostgreSQL 9.4+** as the database backend. 
 * Starting with Acra [`0.77.0`](https://github.com/cossacklabs/acra/releases/tag/0.77.0), Acra supports **MySQL 5.7+** database, but it is still a fresh feature, which we are extensively testing to ensure its full support. Please report any MySQL bugs you may encounter through [Issues](https://github.com/cossacklabs/acra/issues). MongoDB support is coming soon, too. 
