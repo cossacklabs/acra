@@ -4,10 +4,10 @@ acraserver_api_connection_port: 9090
 # Connection string to Acra's API like tcp://x.x.x.x:yyyy or unix:///path/to/socket
 acraserver_api_connection_string: 
 
-# IP or domain to acra daemon
+# IP or domain to AcraServer daemon
 acraserver_connection_host: 
 
-# Port of acra daemon
+# Port of AcraServer daemon
 acraserver_connection_port: 9393
 
 # Connection string to AcraServer like tcp://x.x.x.x:yyyy or unix:///path/to/socket
@@ -51,9 +51,6 @@ keys_dir: .acrakeys
 
 # Logging format: plaintext, json or CEF
 logging_format: plaintext
-
-# path to markdown file to save
-markdown_file: 
 
 # Expected Server Name (SNI) from AcraServer
 tls_acraserver_sni: 

@@ -10,6 +10,3 @@ fs_keystore_enable: true
 # Folder where will be saved generated zone keys
 keys_output_dir: .acrakeys
 
-# path to markdown file to save
-markdown_file: 
-

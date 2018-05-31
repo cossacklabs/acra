@@ -79,6 +79,7 @@ This will create `docker/.acrakeys` directory structure, generate all key pairs,
 put them to appropriate services' directories and launch all components.
 
 Now you can connect to:
+
 |   Port   |          Component           |     In docker-compose examples with     |
 |----------|------------------------------|-----------------------------------------|
 | 9191/tcp | AcraServer/AcraConnector API | zonemode                                |
