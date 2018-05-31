@@ -77,7 +77,7 @@ _Infrastructure_:
 
 - **OS**
 
-   - Added support of Ubuntu Xenial Xerus (added precompiled binaries and tests to make sure that Acra is compiling/building/working well on 16.04).
+   - Added support of Ubuntu Xenial, Ubuntu Bionic (added precompiled binaries and tests to make sure that Acra is compiling/building/working well on 16.04/18.04).
 
 
 _Documentation_:
