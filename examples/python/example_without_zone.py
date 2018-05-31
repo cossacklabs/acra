@@ -16,7 +16,8 @@ import argparse
 import string
 from random import randint, choice
 
-from sqlalchemy import Table, Column, Integer, String, MetaData, types, create_engine, select
+from sqlalchemy import (Table, Column, Integer, MetaData, types,
+    create_engine, select, Text)
 
 from acrawriter import create_acrastruct
 
@@ -60,7 +61,14 @@ if __name__ == '__main__':
     parser.add_argument('--host', type=str, default='localhost', help='host of acra-connector to connect')
     parser.add_argument('--data', type=str, help='data to save in ascii. default random data')
     parser.add_argument('--print', action='store_true', help='just print data', default=False)
+    parser.add_argument('--postgresql', action='store_true', help="use postgresql driver (default if nothing else   set)")
+    parser.add_argument('--mysql', action='store_true', help="use mysql driver")
     args = parser.parse_args()
+
+    # default driver
+    driver = 'postgresql'
+    if args.mysql:
+        driver = 'mysql+pymysql'
 
     metadata = MetaData()
     with open(args.public_key, 'rb') as f:
@@ -68,10 +76,10 @@ if __name__ == '__main__':
     test = Table('test_example_without_zone', metadata,
         Column('id', Integer, primary_key=True),
         Column('data', AcraBinary(key)),
-        Column('raw_data', String),
+        Column('raw_data', Text),
     )
 
-    proxy_engine = create_engine('postgresql://{}:{}@{}:{}/{}'.format(args.db_user, args.db_password, args.host, args.port, args.db_name))
+    proxy_engine = create_engine('{}://{}:{}@{}:{}/{}'.format(driver, args.db_user, args.db_password, args.host, args.port, args.db_name))
     proxy_connection = proxy_engine.connect()
     metadata.create_all(proxy_engine)
     if getattr(args, 'print', False):
