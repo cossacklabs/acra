@@ -11,23 +11,23 @@ _Core_:
 
    _Main services:_
    
-   | New name | Old name | Function |
+   | Old name | New name | Function |
    | --- | --- | --- |
    | AcraServer | AcraServer | decrypts data from the database |
    | AcraWriter | AcraWriter | encrypts data on the client side |
    | AcraProxy | AcraConnector | encrypts traffic between the client and the server using Themis Secure Session |
    | AcraCensor | AcraCensor | firewall, part of AcraServer, blocks suspicious SQL requests to the database |
-   | AcraWebConfig | AcraConfigUI | lightweight HTTP web server for managing AcraServer's certain configuration options |
+   | AcraConfigUI | AcraWebConfig | lightweight HTTP web server for managing AcraServer's certain configuration options |
 
    _Utilities:_
 
-   | New name | Old name | Function |
+   | Old name | New name | Function |
    | --- | --- | --- |
-   | AcraRollback | acra_rollback | decrypts the whole database |
-   | AcraKeymaker | acra_genkeys | generates encryption keys for storage and transport of the Acra components |
-   | AcraAuthmanager | acra_genauth | generates user accounts for AcraWebConfig |
-   | AcraPoisonRecordMaker | acra_genpoisonrecord | generates poision records for databases |
-   | AcraAddzone | acra_addzone | generates Zones' header for AcraWriter |
+   | acra_rollback | AcraRollback | decrypts the whole database |
+   | acra_genkeys | AcraKeymaker | generates encryption keys for storage and transport of the Acra components |
+   | acra_genauth | AcraAuthmanager | generates user accounts for AcraWebConfig |
+   | acra_genpoisonrecord | AcraPoisonRecordMaker | generates poision records for databases |
+   | acra_addzone | AcraAddzone | generates Zones' header for AcraWriter |
 
    Check the configurations of components inside [/configs folder](https://github.com/cossacklabs/acra/tree/master/configs) and read [Migration Guide](https://github.com/cossacklabs/acra/wiki/Migration-guide) for more details ([#175](https://github.com/cossacklabs/acra/pull/175), [#174](https://github.com/cossacklabs/acra/pull/174), [#173](https://github.com/cossacklabs/acra/pull/173), [#170](https://github.com/cossacklabs/acra/pull/170), [#169](https://github.com/cossacklabs/acra/pull/169), [#168](https://github.com/cossacklabs/acra/pull/168)).
 
