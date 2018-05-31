@@ -84,6 +84,7 @@ _Documentation_:
 
 - Updated tutorials about protecting a [Ruby on Rails app](https://github.com/cossacklabs/acra/wiki/Using-Acra-to-Protect-Your-Rails-App) and a [Django app](https://github.com/cossacklabs/acra/wiki/Using-Acra-to-Protect-Your-Django-App).
 - Every single document, code line, and image are updated using the new naming.
+- Significant parts of the [README](https://github.com/cossacklabs/acra/blob/master/README.md) have been rewritten.
 
 
 
