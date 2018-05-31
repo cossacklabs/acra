@@ -33,7 +33,7 @@ _Core_:
 
 - **SSL/TLS**
 
-   - Improved SSL/TLS connections between AcraServer<->AcraConnector and AcraServer<->database. Added TLS authentication mode (`tls_auth`) argument to еру AcraServer/AcraConnector configuration files: 
+   - Improved SSL/TLS connections between AcraServer<->AcraConnector and AcraServer<->database. Added TLS authentication mode (`tls_auth`) argument to the AcraServer/AcraConnector configuration files: 
       - for AcraConnector it indicates how to authenticate AcraServer during a TLS connection; 
       - for AcraServer it indicates how to authenticate database during a TLS connection.
    - Updated TLS configuration to provide other less strict authentication methods (do not authenticate client from server, ask for any certificate, ask and check) ([#171](https://github.com/cossacklabs/acra/pull/171)).
