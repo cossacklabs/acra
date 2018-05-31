@@ -16,7 +16,7 @@ require 'active_record'
 require 'acrawriter'
 
 class AcraType < ActiveRecord::Type::String
-  def type_cast_for_database(value)
+  def cast(value)
     # scell can't encrypt null or empty objects
     if value.nil? or value == ''
       super
@@ -25,7 +25,9 @@ class AcraType < ActiveRecord::Type::String
       ActiveRecord::Base.connection.escape_bytea(create_acrastruct(value.b, key))
     end
   end
-  def type_cast_from_database(value)
-    ActiveRecord::Base.connection.unescape_bytea(value)
+
+  def deserialize(value)
+    # override to avoid call cast method
+    value
   end
 end

@@ -118,4 +118,4 @@ ENV/
 # Rope project settings
 .ropeproject
 
-cmd/acra_configui/auth.keys
+cmd/acra-webconfig/auth.keys

@@ -154,7 +154,11 @@ func (decryptor *MySQLDecryptor) poisonCheck(block []byte) error {
 			if poisoned {
 				return base.ErrPoisonRecord
 			}
-			return err
+			if err != nil {
+				log.WithError(err).Errorln("can't check on poison record")
+				return err
+			}
+
 		}
 		index++
 	}

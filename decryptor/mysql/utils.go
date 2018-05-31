@@ -31,7 +31,7 @@ func LengthEncodedInt(data []byte) (num uint64, isNull bool, n int, err error) {
 
 		// 253: value of following 3
 	case 0xfd:
-		if len(data) < 4{
+		if len(data) < 4 {
 			return uint64(0), false, 0, ErrMalformPacket
 		}
 		num = uint64(data[1]) | uint64(data[2])<<8 | uint64(data[3])<<16
@@ -75,7 +75,7 @@ func LengthEncodedString(data []byte) ([]byte, bool, int, error) {
 
 func SkipLengthEncodedString(data []byte) (int, error) {
 	num, _, n, err := LengthEncodedInt(data)
-	if err != nil{
+	if err != nil {
 		return 0, err
 	}
 	if num < 1 {

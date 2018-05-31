@@ -22,7 +22,7 @@ import (
 var lock = sync.RWMutex{}
 
 const (
-	POISON_KEY_FILENAME = ".poison_key/poison_key"
+	POISON_KEY_FILENAME     = ".poison_key/poison_key"
 	BASIC_AUTH_KEY_FILENAME = "auth_key"
 )
 
@@ -46,6 +46,6 @@ func getServerDecryptionKeyFilename(id []byte) string {
 	return fmt.Sprintf("%s_storage", string(id))
 }
 
-func getProxyKeyFilename(id []byte) string {
+func getConnectorKeyFilename(id []byte) string {
 	return string(id)
 }

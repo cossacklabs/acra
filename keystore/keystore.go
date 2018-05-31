@@ -30,7 +30,7 @@ const (
 	VALID_CHARS              = "_- "
 	MAX_CLIENT_ID_LENGTH     = 256
 	MIN_CLIENT_ID_LENGTH     = 5
-	BASIC_AUTH_KEY_LENGTH = 32
+	BASIC_AUTH_KEY_LENGTH    = 32
 	ACRA_MASTER_KEY_VAR_NAME = "ACRA_MASTER_KEY"
 	// SYMMETRIC_KEY_LENGTH in bytes for master key
 	SYMMETRIC_KEY_LENGTH = 32
@@ -69,7 +69,7 @@ func ValidateId(client_id []byte) bool {
 
 // ValidateMasterKey do validation of symmetric master key and return nil if pass check
 func ValidateMasterKey(key []byte) error {
-	if len(key) != SYMMETRIC_KEY_LENGTH {
+	if len(key) < SYMMETRIC_KEY_LENGTH {
 		return ErrMasterKeyIncorrectLength
 	}
 	return nil
@@ -128,7 +128,7 @@ type KeyStore interface {
 	// return id, public key, error
 	GenerateZoneKey() ([]byte, []byte, error)
 
-	GenerateProxyKeys(id []byte) error
+	GenerateConnectorKeys(id []byte) error
 	GenerateServerKeys(id []byte) error
 	// generate key pair for data encryption/decryption
 	GenerateDataEncryptionKeys(id []byte) error

@@ -1,5 +1,93 @@
 # Acra ChangeLog
 
+## [0.80.0](https://github.com/cossacklabs/acra/releases/tag/0.80), May 31st 2018
+
+_Core_:
+
+- **Renaming**
+
+   - Global renaming of Acra components and their configuration parameters. 
+   We believe that the updated naming will decrease confusion about the components' functions and will make Acra's setup and usage process easier.
+
+   _Main services:_
+   
+   | Old name | New name | Function |
+   | --- | --- | --- |
+   | AcraServer | AcraServer | decrypts data from the database |
+   | AcraWriter | AcraWriter | encrypts data on the client side |
+   | AcraProxy | AcraConnector | encrypts traffic between the client and the server using Themis Secure Session |
+   | AcraCensor | AcraCensor | firewall, part of AcraServer, blocks suspicious SQL requests to the database |
+   | AcraConfigUI | AcraWebConfig | lightweight HTTP web server for managing AcraServer's certain configuration options |
+
+   _Utilities:_
+
+   | Old name | New name | Function |
+   | --- | --- | --- |
+   | acra_rollback | AcraRollback | decrypts the whole database |
+   | acra_genkeys | AcraKeymaker | generates encryption keys for storage and transport of the Acra components |
+   | acra_genauth | AcraAuthmanager | generates user accounts for AcraWebConfig |
+   | acra_genpoisonrecord | AcraPoisonRecordMaker | generates poision records for databases |
+   | acra_addzone | AcraAddzone | generates Zones' header for AcraWriter |
+
+   Check the configurations of components inside [/configs folder](https://github.com/cossacklabs/acra/tree/master/configs) and read [Migration Guide](https://github.com/cossacklabs/acra/wiki/Migration-guide) for more details ([#175](https://github.com/cossacklabs/acra/pull/175), [#174](https://github.com/cossacklabs/acra/pull/174), [#173](https://github.com/cossacklabs/acra/pull/173), [#170](https://github.com/cossacklabs/acra/pull/170), [#169](https://github.com/cossacklabs/acra/pull/169), [#168](https://github.com/cossacklabs/acra/pull/168)).
+
+- **SSL/TLS**
+
+   - Improved SSL/TLS connections between AcraServer<->AcraConnector and AcraServer<->database. Added TLS authentication mode (`tls_auth`) argument to the AcraServer/AcraConnector configuration files: 
+      - for AcraConnector it indicates how to authenticate AcraServer during a TLS connection; 
+      - for AcraServer it indicates how to authenticate database during a TLS connection.
+   - Updated TLS configuration to provide other less strict authentication methods (do not authenticate client from server, ask for any certificate, ask and check) ([#171](https://github.com/cossacklabs/acra/pull/171)).
+
+- **SQL requests filtering**
+
+   - Added support of filtering SQL requests for PostgreSQL databases. Now you can setup AcraCensor rules for both MySQL and PostgreSQL databases ([#177](https://github.com/cossacklabs/acra/pull/177)).
+   
+   - Improved [QueryCapture](https://github.com/cossacklabs/acra/wiki/acracensor): AcraCensor writes allowed/blocked queries into a separate log file without blocking the main process ([#176](https://github.com/cossacklabs/acra/pull/176), [#172](https://github.com/cossacklabs/acra/pull/172)).
+
+   See a detailed description of AcraCensor on the corresponding [AcraCensor documentation page](https://github.com/cossacklabs/acra/wiki/acracensor).
+
+- **AcraWriter in Ruby**
+
+   - Updated AcraWriter Ruby wrapper for [ActiveRecord tutorial](https://github.com/cossacklabs/acra/wiki/Using-Acra-to-Protect-Your-Rails-App) and pushed a new gem ([#166](https://github.com/cossacklabs/acra/pull/166)).
+
+
+- **Key Handling**
+
+   - Added `make keys` target in the Makefile: one command now generates keys and places them into correct folders for all Acra components ([#182](https://github.com/cossacklabs/acra/pull/182), [#181](https://github.com/cossacklabs/acra/pull/181)).
+   - Improved handling of master key length longer than 32 bytes ([#183](https://github.com/cossacklabs/acra/pull/183)).
+   
+- **Other**
+
+   - Updated notification when AcraConnector is launched in an environment without `netstat` ([#167](https://github.com/cossacklabs/acra/pull/167)).
+   - Updated error handling for AcraServer working with Zones and fix some corner-cases in using PostgreSQL protocol ([#186](https://github.com/cossacklabs/acra/pull/186), [#179](https://github.com/cossacklabs/acra/pull/179)).
+
+
+_Infrastructure_:
+
+- **Even better Docker support**
+
+   - Added more ready-to-use Docker Containers: `acra-keymaker`, `acra-authmanager`. As a result, each Acra component is wrapped into a Docker container, allowing you to try Acra into your infrastructures easily.
+
+   - Added easy-to-use docker-compose files for setting up the whole Acra-based environment connected to MySQL database. Possible configurations include setup with/without SSL, with/without AcraConnector, with/without Zones ([#180](https://github.com/cossacklabs/acra/pull/180)).
+   Check out the instructions and examples in the [/docker](https://github.com/cossacklabs/acra/tree/master/docker) folder: we have examples for both MySQL and PostgreSQL databases.
+
+   - Updated descriptions for official Cossack Labs packages on [Docker Hub](https://hub.docker.com/u/cossacklabs/).
+
+   - Updated [Getting started with Docker](https://github.com/cossacklabs/acra/wiki/Trying-Acra-with-Docker) guide to make starting out with Acra even easier.
+
+- **OS**
+
+   - Added support of Ubuntu Xenial, Ubuntu Bionic (added precompiled binaries and tests to make sure that Acra is compiling/building/working well on 16.04/18.04).
+
+
+_Documentation_:
+
+- Updated tutorials about protecting a [Ruby on Rails app](https://github.com/cossacklabs/acra/wiki/Using-Acra-to-Protect-Your-Rails-App) and a [Django app](https://github.com/cossacklabs/acra/wiki/Using-Acra-to-Protect-Your-Django-App).
+- Every single document, code line, and image are updated using the new naming.
+- Significant parts of the [README](https://github.com/cossacklabs/acra/blob/master/README.md) have been rewritten.
+
+
+
 ## [0.77.0](https://github.com/cossacklabs/acra/releases/tag/0.77), April 13th 2018
 
 

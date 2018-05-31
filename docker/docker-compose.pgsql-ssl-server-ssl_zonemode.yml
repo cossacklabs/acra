@@ -2,12 +2,12 @@ version: "3"
 
 services:
     # Create keys:
-    # - ./.acrakeys/acraserver/${ACRA_CLIENT_ID}_storage
-    # - ./.acrakeys/acrawriter/${ACRA_CLIENT_ID}_storage.pub
-    acra_genkeys_writer:
+    # - ./.acrakeys/acra-server/${ACRA_CLIENT_ID}_storage
+    # - ./.acrakeys/acra-writer/${ACRA_CLIENT_ID}_storage.pub
+    acra-keymaker_writer:
         # You can specify docker image tag in the environment
         # variable ACRA_DOCKER_IMAGE_TAG or run by default with 'latest' images
-        image: "cossacklabs/acra_genkeys:${ACRA_DOCKER_IMAGE_TAG:-latest}"
+        image: "cossacklabs/acra-keymaker:${ACRA_DOCKER_IMAGE_TAG:-latest}"
         # We do not need network for keys' generation at all
         network_mode: "none"
         environment:
@@ -22,9 +22,9 @@ services:
         # default 'testclientid' client id
         command: >-
             --client_id=${ACRA_CLIENT_ID:-testclientid}
-            --storage
-            --output=/keys/acraserver
-            --output_public=/keys/acrawriter
+            --generate_acrawriter_keys
+            --keys_output_dir=/keys/acra-server
+            --keys_public_output_dir=/keys/acra-writer
 
     # Postgresql container
     postgresql:
@@ -41,46 +41,49 @@ services:
         # Open the port outside for writer
         ports:
             - "5432:5432"
-        # We use internal 'acraserver-postgresql' network for acraserver and
+        # We use internal 'server-postgresql' network for AcraServer and
         # DB interconnection and external network 'world' for port exposing
         networks:
-            - acraserver-postgresql
+            - server-postgresql
             - world
 
-    acraserver:
-        image: "cossacklabs/acraserver:${ACRA_DOCKER_IMAGE_TAG:-latest}"
+    acra-server:
+        image: "cossacklabs/acra-server:${ACRA_DOCKER_IMAGE_TAG:-latest}"
         restart: on-failure
         depends_on:
-            - acra_genkeys_writer
+            - acra-keymaker_writer
             - postgresql
         # Open the port outside for client application
         ports:
+            - "9191:9191"
             - "9393:9393"
         environment:
             ACRA_MASTER_KEY: ${ACRA_MASTER_KEY:-UHZ3VUNNeTJ0SEFhbWVjNkt4eDdVYkc2WnNpUTlYa0E=}
-        # We use internal network 'acraserver-postgresql' for acraserver and
+        # We use internal network 'server-postgresql' for AcraServer and
         # DB interconnection and external network 'world' for port exposing
         networks:
-            - acraserver-postgresql
+            - server-postgresql
             - world
         volumes:
             # Mount the directory with only the keys for this service
-            - ./.acrakeys/acraserver:/keys:ro
+            - ./.acrakeys/acra-server:/keys
             # Mount directories with SSL certificates
             - ./ssl/ca:/ssl.ca:ro
-            - ./ssl/acraserver:/ssl.server:ro
+            - ./ssl/acra-server:/ssl.server:ro
         command: >-
-            --zonemode
+            --zonemode_enable
             --db_host=postgresql
             --keys_dir=/keys
-            --tls_ca=/ssl.ca/example.cossacklabs.com.CA.crt
-            --tls_cert=/ssl.server/acraserver.crt
-            --tls_key=/ssl.server/acraserver.key
-            --tls_sni=postgresql
-            --no_encryption
+            --http_api_enable
+            --incoming_connection_api_string=tcp://0.0.0.0:9191
+            --tls_ca=/ssl.ca/example.cossacklabs.com.crt
+            --tls_cert=/ssl.server/acra-server.crt
+            --tls_key=/ssl.server/acra-server.key
+            --tls_db_sni=postgresql
+            --acraconnector_transport_encryption_disable
             -v
 
 networks:
     world:
-    acraserver-postgresql:
+    server-postgresql:
         internal: true

@@ -1,0 +1,12 @@
+# path to config
+config_file: 
+
+# dump config
+dump_config: false
+
+# Use filesystem key store
+fs_keystore_enable: true
+
+# Folder where will be saved generated zone keys
+keys_output_dir: .acrakeys
+
