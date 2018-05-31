@@ -50,10 +50,16 @@ _Core_:
 
    - Updated AcraWriter Ruby wrapper for [ActiveRecord tutorial](https://github.com/cossacklabs/acra/wiki/Using-Acra-to-Protect-Your-Rails-App) and pushed a new gem ([#166](https://github.com/cossacklabs/acra/pull/166)).
 
+
+- **Key Handling**
+
+   - Added `make keys` target in the Makefile: one command now generates keys and places them into correct folders for all Acra components ([#182](https://github.com/cossacklabs/acra/pull/182), [#181](https://github.com/cossacklabs/acra/pull/181)).
+   - Improved handling of master key length longer than 32 bytes ([#183](https://github.com/cossacklabs/acra/pull/183)).
+   
 - **Other**
 
    - Updated notification when AcraConnector is launched in an environment without `netstat` ([#167](https://github.com/cossacklabs/acra/pull/167)).
-   - Updated error handling for AcraServer working with Zones ([#179](https://github.com/cossacklabs/acra/pull/179)).
+   - Updated error handling for AcraServer working with Zones and fix some corner-cases in using PostgreSQL protocol ([#186](https://github.com/cossacklabs/acra/pull/186), [#179](https://github.com/cossacklabs/acra/pull/179)).
 
 
 _Infrastructure_:
@@ -68,11 +74,6 @@ _Infrastructure_:
    - Updated descriptions for official Cossack Labs packages on [Docker Hub](https://hub.docker.com/u/cossacklabs/).
 
    - Updated [Getting started with Docker](https://github.com/cossacklabs/acra/wiki/Trying-Acra-with-Docker) guide to make starting out with Acra even easier.
-
-
-- **Key Maker**
-
-   - Added `make keys` target in the Makefile: one command now generates keys and places them into correct folders for all Acra components ([#181][https://github.com/cossacklabs/acra/pull/181]).
 
 - **OS**
 
