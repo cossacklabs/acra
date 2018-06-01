@@ -23,6 +23,7 @@ import (
 	"io/ioutil"
 	"math/rand"
 	"net/http"
+	"time"
 
 	"github.com/cossacklabs/acra/acra-writer"
 	"github.com/cossacklabs/themis/gothemis/keys"
@@ -46,6 +47,7 @@ func main() {
 	password := flag.String("password", "password", "Database user's password")
 	data := flag.String("data", "", "Data to save")
 	printData := flag.Bool("print", false, "Print data from database")
+	zoneId := flag.String("zone_id", "", "Zone id to fetch")
 	flag.Parse()
 
 	connectionString := fmt.Sprintf("user=%v password=%v dbname=%v host=%v port=%v", *user, *password, *dbname, *host, *port)
@@ -80,6 +82,7 @@ func main() {
 	}
 
 	if *data != "" {
+		rand.Seed(time.Now().UnixNano())
 		//get new zone over http
 		resp, err := http.Get("http://127.0.0.1:9191/getNewZone")
 		if err != nil {
@@ -106,7 +109,7 @@ func main() {
 		if err != nil {
 			panic(err)
 		}
-		fmt.Println("Insert test data to table")
+		fmt.Printf("Insert test data to table with zoneid=%v\n", string(zoneId))
 		if *mysql {
 			_, err = db.Exec("insert into test2 (id, zone, data, raw_data) values (?, ?, ?, ?);", rand.Int31(), zoneId, acrastruct, *data)
 		} else {
@@ -116,24 +119,30 @@ func main() {
 			panic(err)
 		}
 	} else if *printData {
-		query := `SELECT zone, data, raw_data FROM test2;`
+		var query string
+		if *mysql {
+			query = `SELECT ?, data, raw_data, zone FROM test2;`
+		} else {
+			query = `SELECT $1::bytea, data, raw_data, zone FROM test2;`
+		}
+
 		fmt.Printf("Select from db with command: '%v'\n", query)
-		rows, err := db.Query(query)
+		rows, err := db.Query(query, []byte(*zoneId))
 		defer rows.Close()
 		if err != nil {
 			log.Fatal(err)
 		}
-		var zone, data []byte
+		var zone, rawZone, data []byte
 		var rawData string
 		fmt.Println("zone, data - raw_data")
 		for rows.Next() {
-			err := rows.Scan(&zone, &data, &rawData)
+			err := rows.Scan(&zone, &data, &rawData, &rawZone)
 			if err != nil {
 				fmt.Println("ERROR")
 				fmt.Println(err)
 				return
 			}
-			fmt.Printf("zone: %v\ndata: %v\nraw_data: %v\n\n", string(zone), string(data), string(rawData))
+			fmt.Printf("zone: %v\ndata: %v\nraw_data: %v\nrow zone: %v\n\n", string(zone), string(data), string(rawData), string(rawZone))
 		}
 	}
 	fmt.Println("Finish")
