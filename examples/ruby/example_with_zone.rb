@@ -11,10 +11,64 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+
+require 'optparse'
 require 'json'
 require "base64"
 require 'pg'
 require 'acrawriter'
+
+options = {}
+OptionParser.new do |opts|
+  opts.on("--dbname=MANDATORY", "Database name") do |v|
+    if !v
+      raise OptionParser::MissingArgument
+    end
+    options[:dbname] = v
+  end
+  opts.on("--host=MANDATORY", "Database host") do |v|
+    if !v
+      raise OptionParser::MissingArgument
+    end
+    options[:host] = v
+  end
+  opts.on("--port=MANDATORY", "Database port") do |v|
+    if !v
+      raise OptionParser::MissingArgument
+    end
+    options[:port] = v
+  end
+  opts.on("--data=MANDATORY", "Data to encrypt") do |v|
+    if !v
+      raise OptionParser::MissingArgument
+    end
+    options[:data] = v
+  end
+  opts.on("--print", "Print data from db") do |v|
+    if !v
+      raise OptionParser::MissingArgument
+    end
+    options[:print] = true
+  end
+  opts.on("--user=MANDATORY", "Database user") do |v|
+    if !v
+      raise OptionParser::MissingArgument
+    end
+    options[:user] = v
+  end
+  opts.on("--password=MANDATORY", "Database password") do |v|
+    if !v
+      raise OptionParser::MissingArgument
+    end
+    options[:password] = v
+  end
+  opts.on("--zone_id=MANDATORY", "Zone id") do |v|
+    if !v
+      raise OptionParser::MissingArgument
+    end
+    options[:public_key] = v
+  end
+end.parse!
 
 # output from ./acra-addzone.go you should assign your values
 zone_data = JSON.parse('{"id":"DDDDDDDDhydxgNoxWYxYRZzf","public_key":"VUVDMgAAAC11q5/TAmIAS42yyuNISRCsbl56D/yBH0iSZ9nmVfhdaOP0mwSH"}')
