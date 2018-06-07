@@ -13,14 +13,14 @@ type BlacklistHandler struct {
 	rules   []string
 }
 
-func (handler *BlacklistHandler) CheckQuery(query string) error {
+func (handler *BlacklistHandler) CheckQuery(query string) (bool, error) {
 
 	//Check queries
 	if len(handler.queries) != 0 {
 		//Check that query is not in blacklist
 		yes, _ := contains(handler.queries, query)
 		if yes {
-			return ErrQueryInBlacklist
+			return false, ErrQueryInBlacklist
 		}
 	}
 
@@ -28,7 +28,7 @@ func (handler *BlacklistHandler) CheckQuery(query string) error {
 	if len(handler.tables) != 0 {
 		parsedQuery, err := sqlparser.Parse(query)
 		if err != nil {
-			return ErrParseTablesBlacklist
+			return false, ErrParseTablesBlacklist
 		}
 
 		switch parsedQuery := parsedQuery.(type) {
@@ -36,7 +36,7 @@ func (handler *BlacklistHandler) CheckQuery(query string) error {
 			for _, forbiddenTable := range handler.tables {
 				for _, table := range parsedQuery.From {
 					if strings.EqualFold(sqlparser.String(table.(*sqlparser.AliasedTableExpr).Expr), forbiddenTable) {
-						return ErrAccessToForbiddenTableBlacklist
+						return false, ErrAccessToForbiddenTableBlacklist
 					}
 				}
 			}
@@ -44,12 +44,12 @@ func (handler *BlacklistHandler) CheckQuery(query string) error {
 		case *sqlparser.Insert:
 			for _, forbiddenTable := range handler.tables {
 				if strings.EqualFold(parsedQuery.Table.Name.String(), forbiddenTable) {
-					return ErrAccessToForbiddenTableBlacklist
+					return false, ErrAccessToForbiddenTableBlacklist
 				}
 			}
 
 		case *sqlparser.Update:
-			return ErrNotImplemented
+			return false, ErrNotImplemented
 		}
 	}
 
@@ -57,13 +57,13 @@ func (handler *BlacklistHandler) CheckQuery(query string) error {
 	if len(handler.rules) != 0 {
 		violationOccured, err := handler.testRulesViolation(query)
 		if err != nil {
-			return ErrParseSqlRuleBlacklist
+			return false, ErrParseSqlRuleBlacklist
 		}
 		if violationOccured {
-			return ErrForbiddenSqlStructureBlacklist
+			return false, ErrForbiddenSqlStructureBlacklist
 		}
 	}
-	return nil
+	return true, nil
 }
 
 func (handler *BlacklistHandler) Reset() {
@@ -76,13 +76,13 @@ func (handler *BlacklistHandler) Release() {
 	handler.Reset()
 }
 
+func (handler *BlacklistHandler) Priority() int {
+	return 3
+}
+
 func (handler *BlacklistHandler) AddQueries(queries []string) error {
 
 	for _, query := range queries {
-		_, err := sqlparser.Parse(query)
-		if err != nil {
-			return ErrQuerySyntaxError
-		}
 		handler.queries = append(handler.queries, query)
 	}
 

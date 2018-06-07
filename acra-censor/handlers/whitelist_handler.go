@@ -13,13 +13,13 @@ type WhitelistHandler struct {
 	rules   []string
 }
 
-func (handler *WhitelistHandler) CheckQuery(query string) error {
+func (handler *WhitelistHandler) CheckQuery(query string) (bool, error) {
 
 	//Check queries
 	if len(handler.queries) != 0 {
 		yes, _ := contains(handler.queries, query)
 		if !yes {
-			return ErrQueryNotInWhitelist
+			return false, ErrQueryNotInWhitelist
 		}
 	}
 
@@ -27,7 +27,7 @@ func (handler *WhitelistHandler) CheckQuery(query string) error {
 	if len(handler.tables) != 0 {
 		parsedQuery, err := sqlparser.Parse(query)
 		if err != nil {
-			return ErrParseTablesWhitelist
+			return false, ErrParseTablesWhitelist
 		}
 
 		switch parsedQuery := parsedQuery.(type) {
@@ -41,7 +41,7 @@ func (handler *WhitelistHandler) CheckQuery(query string) error {
 				}
 			}
 			if allowedTablesCounter != len(parsedQuery.From) {
-				return ErrAccessToForbiddenTableWhitelist
+				return false, ErrAccessToForbiddenTableWhitelist
 			}
 
 		case *sqlparser.Insert:
@@ -53,9 +53,10 @@ func (handler *WhitelistHandler) CheckQuery(query string) error {
 				}
 			}
 			if !tableIsAllowed {
-				return ErrAccessToForbiddenTableWhitelist
+				return false, ErrAccessToForbiddenTableWhitelist
 			}
 		case *sqlparser.Update:
+			return false, ErrNotImplemented
 		}
 	}
 
@@ -63,13 +64,14 @@ func (handler *WhitelistHandler) CheckQuery(query string) error {
 	if len(handler.rules) != 0 {
 		violationOccured, err := handler.testRulesViolation(query)
 		if err != nil {
-			return ErrParseSqlRuleWhitelist
+			return false, ErrParseSqlRuleWhitelist
 		}
 		if violationOccured {
-			return ErrForbiddenSqlStructureWhitelist
+			return false, ErrForbiddenSqlStructureWhitelist
 		}
 	}
-	return nil
+	//We do not continue verification because query matches whitelist
+	return false, nil
 }
 
 func (handler *WhitelistHandler) Reset() {
@@ -80,6 +82,10 @@ func (handler *WhitelistHandler) Reset() {
 
 func (handler *WhitelistHandler) Release() {
 	handler.Reset()
+}
+
+func (handler *WhitelistHandler) Priority() int {
+	return 2
 }
 
 func (handler *WhitelistHandler) AddQueries(queries []string) error {
