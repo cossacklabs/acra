@@ -2,6 +2,7 @@ package acracensor
 
 import (
 	log "github.com/sirupsen/logrus"
+	"sort"
 )
 
 type AcraCensor struct {
@@ -10,6 +11,9 @@ type AcraCensor struct {
 
 func (acraCensor *AcraCensor) AddHandler(handler QueryHandlerInterface) {
 	acraCensor.handlers = append(acraCensor.handlers, handler)
+	sort.Slice(acraCensor.handlers, func(i, j int) bool {
+		return acraCensor.handlers[i].Priority() < acraCensor.handlers[j].Priority()
+	})
 }
 
 func (acraCensor *AcraCensor) RemoveHandler(handler QueryHandlerInterface) {
@@ -18,6 +22,9 @@ func (acraCensor *AcraCensor) RemoveHandler(handler QueryHandlerInterface) {
 			acraCensor.handlers = append(acraCensor.handlers[:index], acraCensor.handlers[index+1:]...)
 		}
 	}
+	sort.Slice(acraCensor.handlers, func(i, j int) bool {
+		return acraCensor.handlers[i].Priority() < acraCensor.handlers[j].Priority()
+	})
 }
 
 func (acraCensor *AcraCensor) ReleaseAll() {
@@ -27,19 +34,18 @@ func (acraCensor *AcraCensor) ReleaseAll() {
 }
 
 
-var exceptionQueries = map[string]bool { "ROLLBACK": true }
-
 func (acraCensor *AcraCensor) HandleQuery(query string) error {
-
-	if !exceptionQueries[query] {
-		for _, handler := range acraCensor.handlers {
-			if err := handler.CheckQuery(query); err != nil {
-				log.Errorf("Forbidden query: '%s'", query)
-				return err
+	for _, handler := range acraCensor.handlers {
+		continueHandling, err := handler.CheckQuery(query)
+		if err != nil {
+			log.Errorf("Forbidden query: '%s'", query)
+			return err
+		} else{
+			if !continueHandling{
+				break
 			}
 		}
 	}
-
 	log.Infof("Allowed query: '%s'", query)
 	return nil
 }
