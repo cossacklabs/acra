@@ -783,6 +783,10 @@ func TestConfigurationProvider(t *testing.T) {
 		t.Fatal(err)
 	}
 
+	if len(handlers_) != 3{
+		t.Fatal("Unexpected amount of handlers")
+	}
+
 	testQueries := []string{
 		"INSERT INTO SalesStaff1 VALUES (1, 'Stephen', 'Jiang');",
 		"SELECT AVG(Price) FROM Products;",

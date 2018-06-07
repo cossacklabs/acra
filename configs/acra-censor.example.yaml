@@ -1,4 +1,9 @@
 handlers:
+  - handler: query_ignore
+    queries:
+      - ROLLBACK
+      - COMMIT
+      - BEGIN
   - handler: query_capture
     filepath: censor_log
   - handler: blacklist
