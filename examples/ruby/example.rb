@@ -13,8 +13,11 @@
 # limitations under the License.
 
 require 'optparse'
+require 'dbi'
 require 'pg'
+#require 'dbd/pg/type'
 require 'acrawriter'
+
 
 options = {}
 OptionParser.new do |opts|
@@ -66,25 +69,64 @@ OptionParser.new do |opts|
     end
     options[:public_key] = v
   end
+  opts.on("--mysql", "Use mysql driver") do |v|
+    if !v
+      raise OptionParser::MissingArgument
+    end
+    options[:mysql] = true
+  end
+  opts.on("--postgresql", "Use postgresql driver (default)") do |v|
+    if !v
+      raise OptionParser::MissingArgument
+    end
+    options[:postgresql] = true
+  end
 end.parse!
 
-
-conn = PG.connect( dbname: options[:dbname], host: options[:host], port: options[:port], user: options[:user], password: options[:password] )
-conn.exec('CREATE TABLE IF NOT EXISTS test(id INTEGER PRIMARY KEY, data BYTEA, raw_data TEXT);')
-
-
-acra_public = File.read(File.expand_path(options[:public_key]))
-acrastruct = create_acrastruct(options[:data], acra_public)
-rand_id = rand(100000)
-if options[:print]
-  conn.exec("SELECT data, raw_data FROM test;") do |result|
-    puts "data | raw_data"
-    result.each do |row|
-      puts "%s | %s " %
-               [conn.unescape_bytea(row['data']).to_s, row['raw_data']]
-    end
-  end
-else
-  conn.exec_params("INSERT INTO test(id, data, raw_data) VALUES ($1, $2, $3);", [rand_id, conn.escape_bytea(acrastruct), options[:data]])
+if !options[:mysql]
+  options[:postgresql] = true
 end
 
+driver = "Pg"
+if options[:mysql]
+  driver = "Mysql"
+  #conn = PG.connect( dbname: options[:dbname], host: options[:host], port: options[:port], user: options[:user], password: options[:password] )
+end
+
+
+DBI.connect('DBI:%s:database=%s;host=%s;port=%s;sslmode=disable' % [driver, options[:dbname], options[:host], options[:port]], options[:user], options[:password]) do | db_driver |
+  if options[:mysql]
+    db_driver.do('CREATE TABLE IF NOT EXISTS test(id INTEGER PRIMARY KEY, data VARBINARY(1000), raw_data VARCHAR(1000));')
+  else
+    db_driver.do('CREATE TABLE IF NOT EXISTS test(id INTEGER PRIMARY KEY, data BYTEA, raw_data TEXT);')
+  end
+
+  if options[:print]
+
+    puts "data | raw_data"
+    db_driver.select_all('SELECT data, raw_data FROM test;') do | row |
+      puts "%s | %s " % [row['data'].to_s, row['raw_data']]
+      # if options[:mysql]
+      #   puts "%s | %s " % [row['data'].to_s, row['raw_data']]
+      # else
+      #   puts "%s | %s " % [PGconn.unescape_bytea(row['data']).to_s, row['raw_data']]
+      # end
+    end
+
+  else
+    acra_public = File.read(File.expand_path(options[:public_key]))
+    if options[:mysql]
+      acrastruct = DBI::Binary.new(create_acrastruct(options[:data], acra_public))
+    else
+      acrastruct = DBI::DBD::Pg::Type::ByteA.new(create_acrastruct(options[:data], acra_public))
+    end
+
+
+    rand_id = rand(100000)
+    p "insert"
+    db_driver.do("INSERT INTO test(id, data, raw_data) VALUES (?, ?, ?);", rand_id, acrastruct, options[:data])
+    db_driver.commit
+  end
+end
+
+puts "done"
