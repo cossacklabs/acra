@@ -77,4 +77,7 @@ const (
 
 	// api
 	EventCodeErrorCantGenerateZone = 590
+
+	// mysql processing
+	EventCodeErrorProtocolProcessing = 600
 )

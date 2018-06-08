@@ -439,6 +439,7 @@ func (handler *MysqlHandler) QueryResponseHandler(packet *MysqlPacket, dbConnect
 			if handler.expectEOFOnColumnDefinition() {
 				if fieldPacket.IsEOF() {
 					if i != fieldCount {
+						log.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorProtocolProcessing).Errorln("EOF and field count != current row packet count")
 						return ErrMalformPacket
 					}
 					break
@@ -447,6 +448,7 @@ func (handler *MysqlHandler) QueryResponseHandler(packet *MysqlPacket, dbConnect
 			log.WithField("column_index", i).Debugln("parse field")
 			field, err := ParseResultField(fieldPacket.GetData())
 			if err != nil {
+				log.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorProtocolProcessing).WithError(err).Errorln("can't parse result field")
 				return err
 			}
 			if field.IsBinary() {
@@ -467,6 +469,7 @@ func (handler *MysqlHandler) QueryResponseHandler(packet *MysqlPacket, dbConnect
 			dataLog.Debugln("read data row")
 			fieldDataPacket, err := ReadPacket(dbConnection)
 			if err != nil {
+				log.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorProtocolProcessing).WithError(err).Errorln("can't read data packet")
 				return err
 			}
 			output = append(output, fieldDataPacket)
@@ -483,7 +486,7 @@ func (handler *MysqlHandler) QueryResponseHandler(packet *MysqlPacket, dbConnect
 
 			newData, err := handler.processTextDataRow(fieldDataPacket.GetData(), fields)
 			if err != nil {
-				dataLog.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorResponseConnectorCantProcessRow).
+				dataLog.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorProtocolProcessing).
 					Debugln("Can't process text data row")
 				return err
 			}

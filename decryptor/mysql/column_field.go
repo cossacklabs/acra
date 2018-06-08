@@ -1,6 +1,10 @@
 package mysql
 
-import "encoding/binary"
+import (
+	"encoding/binary"
+	"github.com/cossacklabs/acra/logging"
+	log "github.com/sirupsen/logrus"
+)
 
 // ColumnDescription https://dev.mysql.com/doc/internals/en/com-query-response.html#packet-Protocol::ColumnDefinition41
 type ColumnDescription struct {
@@ -32,6 +36,7 @@ func ParseResultField(data []byte) (*ColumnDescription, error) {
 	pos := 0
 	n, err = SkipLengthEncodedString(data)
 	if err != nil {
+
 		return nil, err
 	}
 	pos += n
@@ -103,11 +108,13 @@ func ParseResultField(data []byte) (*ColumnDescription, error) {
 		//length of default value lenenc-int
 		field.DefaultValueLength, _, n, err = LengthEncodedInt(data[pos:])
 		if err != nil {
+			log.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorProtocolProcessing).WithError(err).Errorln("can't get length encoded integer of default value length")
 			return nil, err
 		}
 		pos += n
 
 		if pos+int(field.DefaultValueLength) > len(data) {
+			log.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorProtocolProcessing).Errorln("incorrect position, malformed packet")
 			err = ErrMalformPacket
 			return nil, err
 		}
