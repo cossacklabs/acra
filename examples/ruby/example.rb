@@ -21,7 +21,7 @@ require 'acrawriter'
 
 options = {}
 OptionParser.new do |opts|
-  opts.on("--dbname=MANDATORY", "Database name") do |v|
+  opts.on("--db_name=MANDATORY", "Database name") do |v|
     if !v
       raise OptionParser::MissingArgument
     end
@@ -51,13 +51,13 @@ OptionParser.new do |opts|
     end
     options[:print] = true
   end
-  opts.on("--user=MANDATORY", "Database user") do |v|
+  opts.on("--db_user=MANDATORY", "Database user") do |v|
     if !v
       raise OptionParser::MissingArgument
     end
     options[:user] = v
   end
-  opts.on("--password=MANDATORY", "Database password") do |v|
+  opts.on("--db_password=MANDATORY", "Database password") do |v|
     if !v
       raise OptionParser::MissingArgument
     end
