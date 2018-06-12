@@ -87,46 +87,54 @@ if !options[:mysql]
   options[:postgresql] = true
 end
 
-driver = "Pg"
+
 if options[:mysql]
-  driver = "Mysql"
-  #conn = PG.connect( dbname: options[:dbname], host: options[:host], port: options[:port], user: options[:user], password: options[:password] )
+  db_driver = DBI.connect('DBI:Mysql:database=%s;host=%s;port=%s;sslmode=disable' % [ options[:dbname], options[:host], options[:port]], options[:user], options[:password])
+else
+  db_driver = PG.connect( dbname: options[:dbname], host: options[:host], port: options[:port], user: options[:user], password: options[:password] )
 end
 
 
-DBI.connect('DBI:%s:database=%s;host=%s;port=%s;sslmode=disable' % [driver, options[:dbname], options[:host], options[:port]], options[:user], options[:password]) do | db_driver |
+
+if options[:mysql]
+  db_driver.do('CREATE TABLE IF NOT EXISTS test(id INTEGER PRIMARY KEY, data VARBINARY(1000), raw_data VARCHAR(1000));')
+else
+  db_driver.exec_params('CREATE TABLE IF NOT EXISTS test(id INTEGER PRIMARY KEY, data BYTEA, raw_data TEXT);')
+end
+
+if options[:print]
+
+  puts "data | raw_data"
   if options[:mysql]
-    db_driver.do('CREATE TABLE IF NOT EXISTS test(id INTEGER PRIMARY KEY, data VARBINARY(1000), raw_data VARCHAR(1000));')
+    db_driver.select_all('SELECT data, raw_data FROM test_example_without_zone;') do | row |
+        puts "%s | %s " % [row['data'].to_s, row['raw_data']]
+    end
   else
-    db_driver.do('CREATE TABLE IF NOT EXISTS test(id INTEGER PRIMARY KEY, data BYTEA, raw_data TEXT);')
+    db_driver.exec("SELECT data, raw_data FROM test_example_without_zone;") do |result|
+      result.each do |row|
+        puts "%s | %s " % [db_driver.unescape_bytea(row['data']).to_s, row['raw_data']]
+      end
+    end
   end
 
-  if options[:print]
-
-    puts "data | raw_data"
-    db_driver.select_all('SELECT data, raw_data FROM test;') do | row |
-      puts "%s | %s " % [row['data'].to_s, row['raw_data']]
-      # if options[:mysql]
-      #   puts "%s | %s " % [row['data'].to_s, row['raw_data']]
-      # else
-      #   puts "%s | %s " % [PGconn.unescape_bytea(row['data']).to_s, row['raw_data']]
-      # end
-    end
-
-  else
-    acra_public = File.read(File.expand_path(options[:public_key]))
-    if options[:mysql]
-      acrastruct = DBI::Binary.new(create_acrastruct(options[:data], acra_public))
-    else
-      acrastruct = DBI::DBD::Pg::Type::ByteA.new(create_acrastruct(options[:data], acra_public))
-    end
-
-
-    rand_id = rand(100000)
-    p "insert"
-    db_driver.do("INSERT INTO test(id, data, raw_data) VALUES (?, ?, ?);", rand_id, acrastruct, options[:data])
+else
+  p "insert"
+  rand_id = rand(100000)
+  acra_public = File.read(File.expand_path(options[:public_key]))
+  acrastruct = create_acrastruct(options[:data], acra_public.b)
+  if options[:mysql]
+    acrastruct = DBI::Binary.new(acrastruct)
+    db_driver.do("INSERT INTO test_example_without_zone(id, data, raw_data) VALUES (?, ?, ?);", rand_id, acrastruct, options[:data])
     db_driver.commit
+  else
+    db_driver.exec_params("INSERT INTO test_example_without_zone(id, data, raw_data) VALUES ($1, $2, $3);", [rand_id, db_driver.escape_bytea(acrastruct), options[:data]])
   end
+end
+
+if options[:mysql]
+  db_driver.disconnect
+else
+  db_driver.close
 end
 
 puts "done"
