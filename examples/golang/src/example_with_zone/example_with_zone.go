@@ -94,9 +94,6 @@ func main() {
 			panic(err)
 		}
 		zoneData := []byte(body)
-		//geting zone done
-		//	zone_data := []byte(`{"id":"ZXCxJAAWWbelaVCEcNp","public_key":"VUVDMgAAAC3zSak+Ah5wtcenUuD9PorpT8nmlecK2fG78nWsXZ9NEdotnH1B"}`)
-		//var parsed_zone_data map[string][]byte
 		var parsedZoneData ZoneData
 		err = json.Unmarshal(zoneData, &parsedZoneData)
 		if err != nil {
