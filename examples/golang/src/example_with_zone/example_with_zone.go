@@ -40,11 +40,11 @@ type ZoneData struct {
 func main() {
 	mysql := flag.Bool("mysql", false, "Use MySQL driver")
 	_ = flag.Bool("postgresql", false, "Use PostgreSQL driver (default if nothing else set)")
-	dbname := flag.String("dbname", "acra", "Database name")
+	dbname := flag.String("db_name", "acra", "Database name")
 	host := flag.String("host", "127.0.0.1", "Database host")
 	port := flag.Int("port", 9494, "Database port")
-	user := flag.String("user", "test", "Database user")
-	password := flag.String("password", "password", "Database user's password")
+	user := flag.String("db_user", "test", "Database user")
+	password := flag.String("db_password", "password", "Database user's password")
 	data := flag.String("data", "", "Data to save")
 	printData := flag.Bool("print", false, "Print data from database")
 	zoneId := flag.String("zone_id", "", "Zone id to fetch")
@@ -69,12 +69,12 @@ func main() {
 		log.Fatal(err)
 	}
 	if *mysql {
-		query := "CREATE TABLE IF NOT EXISTS test2(id INTEGER PRIMARY KEY, zone BINARY(24), data VARBINARY(1000), raw_data VARCHAR(1000));"
-		fmt.Printf("Create test2 table with command: '%v'\n", query)
+		query := "CREATE TABLE IF NOT EXISTS test_example_with_zone(id INTEGER PRIMARY KEY, zone BINARY(24), data VARBINARY(1000), raw_data VARCHAR(1000));"
+		fmt.Printf("Create test_example_with_zone table with command: '%v'\n", query)
 		_, err = db.Exec(query)
 	} else {
-		query := "CREATE TABLE IF NOT EXISTS test2(id INTEGER PRIMARY KEY, zone BYTEA, data BYTEA, raw_data TEXT);"
-		fmt.Printf("Create test2 table with command: '%v'\n", query)
+		query := "CREATE TABLE IF NOT EXISTS test_example_with_zone(id INTEGER PRIMARY KEY, zone BYTEA, data BYTEA, raw_data TEXT);"
+		fmt.Printf("Create test_example_with_zone table with command: '%v'\n", query)
 		_, err = db.Exec(query)
 	}
 	if err != nil {
@@ -111,9 +111,9 @@ func main() {
 		}
 		fmt.Printf("Insert test data to table with zoneid=%v\n", string(zoneId))
 		if *mysql {
-			_, err = db.Exec("insert into test2 (id, zone, data, raw_data) values (?, ?, ?, ?);", rand.Int31(), zoneId, acrastruct, *data)
+			_, err = db.Exec("insert into test_example_with_zone (id, zone, data, raw_data) values (?, ?, ?, ?);", rand.Int31(), zoneId, acrastruct, *data)
 		} else {
-			_, err = db.Exec("insert into test2 (id, zone, data, raw_data) values ($1, $2, $3, $4);", rand.Int31(), zoneId, acrastruct, *data)
+			_, err = db.Exec("insert into test_example_with_zone (id, zone, data, raw_data) values ($1, $2, $3, $4);", rand.Int31(), zoneId, acrastruct, *data)
 		}
 		if err != nil {
 			panic(err)
@@ -121,9 +121,9 @@ func main() {
 	} else if *printData {
 		var query string
 		if *mysql {
-			query = `SELECT ?, data, raw_data, zone FROM test2;`
+			query = `SELECT ?, data, raw_data, zone FROM test_example_with_zone;`
 		} else {
-			query = `SELECT $1::bytea, data, raw_data, zone FROM test2;`
+			query = `SELECT $1::bytea, data, raw_data, zone FROM test_example_with_zone;`
 		}
 
 		fmt.Printf("Select from db with command: '%v'\n", query)
