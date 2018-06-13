@@ -138,8 +138,7 @@ func main() {
 		for rows.Next() {
 			err := rows.Scan(&zone, &data, &rawData, &rawZone)
 			if err != nil {
-				fmt.Println("ERROR")
-				fmt.Println(err)
+				panic(err)
 				return
 			}
 			fmt.Printf("zone: %v\ndata: %v\nraw_data: %v\nrow zone: %v\n\n", string(zone), string(data), string(rawData), string(rawZone))

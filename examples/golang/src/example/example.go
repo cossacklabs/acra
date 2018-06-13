@@ -107,8 +107,7 @@ func main() {
 		for rows.Next() {
 			err := rows.Scan(&data, &rawData)
 			if err != nil {
-				fmt.Println("ERROR")
-				fmt.Println(err)
+				panic(err)
 				return
 			}
 			fmt.Printf("data: %v\nraw_data: %v\n\n", string(data), string(rawData))
