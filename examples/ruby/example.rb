@@ -15,7 +15,6 @@
 require 'optparse'
 require 'dbi'
 require 'pg'
-#require 'dbd/pg/type'
 require 'acrawriter'
 
 
@@ -89,7 +88,7 @@ end
 
 
 if options[:mysql]
-  db_driver = DBI.connect('DBI:Mysql:database=%s;host=%s;port=%s;sslmode=disable' % [ options[:dbname], options[:host], options[:port]], options[:user], options[:password])
+  db_driver = DBI.connect('DBI:Mysql:database=%s;host=%s;port=%s' % [ options[:dbname], options[:host], options[:port]], options[:user], options[:password])
 else
   db_driver = PG.connect( dbname: options[:dbname], host: options[:host], port: options[:port], user: options[:user], password: options[:password] )
 end
