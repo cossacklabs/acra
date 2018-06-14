@@ -83,7 +83,7 @@ func (handler *BlacklistHandler) AddQueries(queries []string) error {
 	for _, query := range queries {
 		_, err := sqlparser.Parse(query)
 		if err != nil {
-			log.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCensorQueryParseError).WithError(err).Errorln("can't parse query")
+			log.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCensorQueryParseError).WithError(err).Errorln("Can't parse query")
 			return ErrQuerySyntaxError
 		}
 		handler.queries = append(handler.queries, query)

@@ -89,7 +89,7 @@ func (handler *WhitelistHandler) AddQueries(queries []string) error {
 		handler.queries = append(handler.queries, query)
 		_, err := sqlparser.Parse(query)
 		if err != nil {
-			log.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCensorQueryParseError).WithError(err).Errorln("can't parse query")
+			log.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCensorQueryParseError).WithError(err).Errorln("Can't parse query")
 			return ErrQuerySyntaxError
 		}
 	}

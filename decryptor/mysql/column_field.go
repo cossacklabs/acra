@@ -108,13 +108,13 @@ func ParseResultField(data []byte) (*ColumnDescription, error) {
 		//length of default value lenenc-int
 		field.DefaultValueLength, _, n, err = LengthEncodedInt(data[pos:])
 		if err != nil {
-			log.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorProtocolProcessing).WithError(err).Errorln("can't get length encoded integer of default value length")
+			log.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorProtocolProcessing).WithError(err).Errorln("Can't get length encoded integer of default value length")
 			return nil, err
 		}
 		pos += n
 
 		if pos+int(field.DefaultValueLength) > len(data) {
-			log.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorProtocolProcessing).Errorln("incorrect position, malformed packet")
+			log.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorProtocolProcessing).Errorln("Incorrect position, malformed packet")
 			err = ErrMalformPacket
 			return nil, err
 		}

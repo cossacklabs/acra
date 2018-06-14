@@ -12,7 +12,7 @@ var ErrMalformPacket = errors.New("Malform packet error")
 // LengthEncodedInt https://dev.mysql.com/doc/internals/en/integer.html#packet-Protocol::LengthEncodedInteger
 func LengthEncodedInt(data []byte) (num uint64, isNull bool, n int, err error) {
 	if len(data) == 0 {
-		log.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorProtocolProcessing).Errorln("can't get length encoded int, data length == 0")
+		log.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorProtocolProcessing).Errorln("Can't get length encoded int, data length == 0")
 		return uint64(0), false, 0, ErrMalformPacket
 	}
 	switch data[0] {
