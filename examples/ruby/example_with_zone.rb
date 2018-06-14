@@ -20,9 +20,10 @@ require 'dbi'
 require 'acrawriter'
 require 'net/http'
 
+AcraConnectorAddress = 'http://127.0.0.1:9191'
 
 def get_zone
-  res = Net::HTTP.get_response(URI('http://127.0.0.1:9191/getNewZone'))
+  res = Net::HTTP.get_response(URI('%s/getNewZone' % AcraConnectorAddress))
   data = res.body if res.is_a?(Net::HTTPSuccess)
   json_data = JSON.parse(data)
   return {:zone_id=>json_data['id'], :public_key=>Base64.decode64(json_data['public_key'])}
