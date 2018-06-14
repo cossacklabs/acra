@@ -32,6 +32,8 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
+var AcraConnectorAddress = "http://127.0.0.1:9191"
+
 type ZoneData struct {
 	Id         string
 	Public_key []byte
@@ -84,7 +86,7 @@ func main() {
 	if *data != "" {
 		rand.Seed(time.Now().UnixNano())
 		//get new zone over http
-		resp, err := http.Get("http://127.0.0.1:9191/getNewZone")
+		resp, err := http.Get(fmt.Sprintf("%s/getNewZone", AcraConnectorAddress))
 		if err != nil {
 			panic("Error: getting new zone data (need start Acra with zones (-z) )")
 		}
