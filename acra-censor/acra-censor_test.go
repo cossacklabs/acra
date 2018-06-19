@@ -15,7 +15,6 @@ import (
 func TestWhitelistQueries(t *testing.T) {
 
 	sqlSelectQueries := []string{
-		"SELECT * FROM Schema.Tables;",
 		"SELECT Student_ID FROM STUDENT;",
 		"SELECT * FROM STUDENT;",
 		"SELECT * FROM STUDENT;",
@@ -604,7 +603,6 @@ func TestSerialization(t *testing.T) {
 func TestLogging(t *testing.T) {
 
 	testQueries := []string{
-		"SELECT * FROM Schema.Tables;",
 		"SELECT Student_ID FROM STUDENT;",
 		"SELECT * FROM STUDENT;",
 		"SELECT * FROM X;",
