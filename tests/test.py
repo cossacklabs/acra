@@ -761,42 +761,33 @@ class CensorBlacklistTest(BaseCensorTest):
     CENSOR_CONFIG_FILE = 'tests/acra-censor_configs/acra-censor_blacklist.yaml'
     def testBlacklist(self):
         if TEST_MYSQL:
-            with self.assertRaises(sa.exc.OperationalError):
-                result = self.engine1.execute(sa.text("select data from test where id='1'"))
-
-            with self.assertRaises(sa.exc.OperationalError):
-                result = self.engine1.execute(sa.text("select data_raw from test"))
-
-            with self.assertRaises(sa.exc.OperationalError):
-                result = self.engine1.execute(sa.text("select * from acrarollback_output"))
-
+            expectedException = sa.exc.OperationalError
         if TEST_POSTGRESQL:
-            with self.assertRaises(sa.exc.ProgrammingError):
+            expectedException = sa.exc.ProgrammingError
+
+        with self.assertRaises(expectedException):
                 result = self.engine1.execute(sa.text("select data from test where id='1'"))
 
-            with self.assertRaises(sa.exc.ProgrammingError):
-                result = self.engine1.execute(sa.text("select data_raw from test"))
+        with self.assertRaises(expectedException):
+            result = self.engine1.execute(sa.text("select data_raw from test"))
 
-            with self.assertRaises(sa.exc.ProgrammingError):
-                result = self.engine1.execute(sa.text("select * from acrarollback_output"))
+        with self.assertRaises(expectedException):
+            result = self.engine1.execute(sa.text("select * from acrarollback_output"))
 
 class CensorWhitelistTest(BaseCensorTest):
     CENSOR_CONFIG_FILE = 'tests/acra-censor_configs/acra-censor_whitelist.yaml'
     def testWhitelist(self):
+        expectedException = None
         if TEST_MYSQL:
-            with self.assertRaises(sa.exc.OperationalError):
-                result = self.engine1.execute(sa.text("select data from test where id='100'"))
-
-            with self.assertRaises(sa.exc.OperationalError):
-                result = self.engine1.execute(sa.text("select * from acrarollback_output"))
-
+            expectedException = sa.exc.OperationalError
         if TEST_POSTGRESQL:
-            with self.assertRaises(sa.exc.ProgrammingError):
-                result = self.engine1.execute(sa.text("select data from test where id='100'"))
+            expectedException = sa.exc.ProgrammingError
 
-            with self.assertRaises(sa.exc.ProgrammingError):
-                result = self.engine1.execute(sa.text("select * from acrarollback_output"))
+        with self.assertRaises(expectedException):
+            result = self.engine1.execute(sa.text("select data from test where id='100'"))
 
+        with self.assertRaises(expectedException):
+            result = self.engine1.execute(sa.text("select * from acrarollback_output"))
 
 
 class ZoneHexFormatTest(BaseTestCase):
