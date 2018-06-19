@@ -8,9 +8,9 @@ import (
 )
 
 type BlacklistHandler struct {
-	queries []string
-	tables  []string
-	rules   []string
+	queries  []string
+	tables   []string
+	rules    []string
 	priority int
 }
 
@@ -244,6 +244,7 @@ func (handler *BlacklistHandler) isForbiddenColumnAccess(columnsToEvaluate sqlpa
 	}
 	return false
 }
+
 //
 //func (handler *BlacklistHandler) handleParenTable(fromStatement *sqlparser.ParenTableExpr, forbiddenTable string) (bool, error){
 //	for _, expression := range fromStatement.Exprs {

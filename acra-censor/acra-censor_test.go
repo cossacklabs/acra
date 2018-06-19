@@ -446,7 +446,7 @@ func testBlacklistRules(t *testing.T, acraCensor *AcraCensor, blacklistHandler *
 	}
 }
 
-func TestQueryIgnoring(t *testing.T){
+func TestQueryIgnoring(t *testing.T) {
 	testQueries := []string{
 		"SELECT * FROM Schema.Tables;",
 		"SELECT Student_ID FROM STUDENT;",
@@ -504,7 +504,7 @@ func TestQueryIgnoring(t *testing.T){
 		}
 	}
 
-	ignoreQueryHandler.AddQueries([]string {"SELECT t.oid, typarray\nFROM pg_type t JOIN pg_namespace ns\n    ON typnamespace = ns.oid\nWHERE typname = 'hstore';\n"})
+	ignoreQueryHandler.AddQueries([]string{"SELECT t.oid, typarray\nFROM pg_type t JOIN pg_namespace ns\n    ON typnamespace = ns.oid\nWHERE typname = 'hstore';\n"})
 
 	err = acraCensor.HandleQuery("SELECT t.oid, typarray\nFROM pg_type t JOIN pg_namespace ns\n    ON typnamespace = ns.oid\nWHERE typname = 'hstore';\n")
 	if err != nil {
@@ -786,7 +786,7 @@ func TestConfigurationProvider(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if len(acraCensor.handlers) != 3{
+	if len(acraCensor.handlers) != 3 {
 		t.Fatal("Unexpected amount of handlers: ", len(acraCensor.handlers))
 	}
 
@@ -878,8 +878,6 @@ func testSyntax(t *testing.T) {
 		t.Fatal(err)
 	}
 }
-
-
 
 //func TestJoinTableExpr(t *testing.T){
 //	testquery := "SELECT t.oid, typarray\nFROM pg_type t JOIN pg_namespace ns\n    ON typnamespace = ns.oid\nWHERE typname = 'hstore';\n"

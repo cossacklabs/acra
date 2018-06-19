@@ -33,7 +33,6 @@ func (acraCensor *AcraCensor) ReleaseAll() {
 	}
 }
 
-
 func (acraCensor *AcraCensor) HandleQuery(query string) error {
 	for _, handler := range acraCensor.handlers {
 		continueHandling, err := handler.CheckQuery(query)
@@ -41,7 +40,7 @@ func (acraCensor *AcraCensor) HandleQuery(query string) error {
 			log.Errorf("Forbidden query: '%s'", query)
 			return err
 		} else {
-			if !continueHandling{
+			if !continueHandling {
 				return nil
 			}
 		}

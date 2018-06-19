@@ -22,7 +22,7 @@ type QueryCaptureHandler struct {
 	signalBackgroundExit chan bool
 	serializationTimeout time.Duration
 	serializationTicker  *time.Ticker
-	priority 			 int
+	priority             int
 }
 type QueryInfo struct {
 	RawQuery    string
@@ -132,7 +132,6 @@ func NewQueryCaptureHandler(filePath string) (*QueryCaptureHandler, error) {
 		}
 	}()
 
-
 	return handler, nil
 }
 func (handler *QueryCaptureHandler) CheckQuery(query string) (bool, error) {
@@ -162,11 +161,11 @@ func (handler *QueryCaptureHandler) Release() {
 	handler.Reset()
 	handler.signalBackgroundExit <- true
 }
-func (handler *QueryCaptureHandler) GetPriority() int{
+func (handler *QueryCaptureHandler) GetPriority() int {
 	return handler.priority
 }
 
-func (handler *QueryCaptureHandler) SetPriority(priority int){
+func (handler *QueryCaptureHandler) SetPriority(priority int) {
 	handler.priority = priority
 }
 

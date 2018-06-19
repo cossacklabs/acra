@@ -8,9 +8,9 @@ import (
 )
 
 type WhitelistHandler struct {
-	queries []string
-	tables  []string
-	rules   []string
+	queries  []string
+	tables   []string
+	rules    []string
 	priority int
 }
 
@@ -41,7 +41,7 @@ func (handler *WhitelistHandler) CheckQuery(query string) (bool, error) {
 				return false, err
 			}
 			err := handler.handleJoinTables(parsedQuery.From)
-			if err != nil{
+			if err != nil {
 				return false, err
 			}
 		case *sqlparser.Insert:
@@ -86,7 +86,7 @@ func (handler *WhitelistHandler) GetPriority() int {
 	return handler.priority
 }
 
-func (handler *WhitelistHandler) SetPriority(priority int){
+func (handler *WhitelistHandler) SetPriority(priority int) {
 	handler.priority = priority
 }
 
@@ -267,7 +267,7 @@ func (handler *WhitelistHandler) handleAliasedTables(parsedQuery sqlparser.Table
 
 	if allowedTablesCounter != len(parsedQuery) {
 		return ErrAccessToForbiddenTableWhitelist
-	} else{
+	} else {
 		return nil
 	}
 }

@@ -13,7 +13,7 @@ func NewQueryIgnoreHandler() *QueryIgnoreHandler {
 }
 
 func (handler *QueryIgnoreHandler) CheckQuery(query string) (bool, error) {
-	if handler.ignoredQueries[query]{
+	if handler.ignoredQueries[query] {
 		//do not continue query handling
 		return false, nil
 	}
@@ -32,18 +32,18 @@ func (handler *QueryIgnoreHandler) GetPriority() int {
 	return handler.priority
 }
 
-func (handler *QueryIgnoreHandler) SetPriority(priority int){
+func (handler *QueryIgnoreHandler) SetPriority(priority int) {
 	handler.priority = priority
 }
 
-func (handler *QueryIgnoreHandler) AddQueries(queries []string){
-	for _, query := range queries{
+func (handler *QueryIgnoreHandler) AddQueries(queries []string) {
+	for _, query := range queries {
 		handler.ignoredQueries[query] = true
 	}
 }
 
-func (handler *QueryIgnoreHandler) RemoveQueries(queries []string){
-	for _, query := range queries{
+func (handler *QueryIgnoreHandler) RemoveQueries(queries []string) {
+	for _, query := range queries {
 		delete(handler.ignoredQueries, query)
 	}
 }
