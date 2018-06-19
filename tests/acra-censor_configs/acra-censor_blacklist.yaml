@@ -1,23 +1,24 @@
 handlers:
   - handler: blacklist
     queries:
-	  - SELECT Student_ID FROM test
-	  - SELECT * FROM test
-	  - SELECT EMP_ID, NAME FROM test WHERE EMP_ID = '0000'
-	  - SELECT EMP_ID, LAST_NAME FROM test WHERE CITY = 'Seattle' ORDER BY EMP_ID
-	  - SELECT EMP_ID, LAST_NAME FROM test WHERE CITY = 'INDIANAPOLIS' ORDER BY EMP_ID asc
+      - select data_raw from test
     tables:
-      - test
+      - acrarollback_output
     rules:
+      - select * from test where id='1'
   - handler: query_ignore
     queries:
+      #mysql
       - ROLLBACK
+      - SET AUTOCOMMIT = 0
+      - SHOW VARIABLES LIKE 'sql_mode'
+      - show collation where `Charset` = 'utf8' and `Collation` = 'utf8_bin'
+      #postgres
       - BEGIN
+      - "SELECT t.oid, typarray\nFROM pg_type t JOIN pg_namespace ns\n    ON typnamespace = ns.oid\nWHERE typname = 'hstore';\n"
+      - "UPDATE pg_settings SET setting = 'hex' WHERE name = 'bytea_output'"
       - COMMIT
-      - ROLLBACK\x00
-      - BEGIN\0x00
-      - COMMIT\0x00
-      - SELECT t.oid, typarray\nFROM pg_type t JOIN pg_namespace ns\n    ON typnamespace = ns.oid\nWHERE typname = 'hstore';\n\x00
-      - SELECT CAST('test plain returns' AS VARCHAR(60)) AS anon_1\x00
-      - SELECT CAST('test unicode returns' AS VARCHAR(60)) AS anon_1\x00
-      - UPDATE pg_settings SET setting = 'hex' WHERE name = 'bytea_output'\x00
+      - show transaction isolation level
+      - "SELECT CAST('test plain returns' AS VARCHAR(60)) AS anon_1"
+      - "SELECT CAST('test unicode returns' AS VARCHAR(60)) AS anon_1"
+      - show standard_conforming_strings
