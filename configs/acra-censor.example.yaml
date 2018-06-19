@@ -1,12 +1,22 @@
 handlers:
+  - handler: query_capture
+    priority: 1
+    filepath: censor_log
+
   - handler: query_ignore
+    priority: 2
     queries:
       - ROLLBACK
       - COMMIT
       - BEGIN
-  - handler: query_capture
-    filepath: censor_log
+
+#  - handler: whitelist
+#    priority: 3
+#    tables:
+#      - EMPLOYEE
+
   - handler: blacklist
+    priority: 4
     queries:
       - INSERT INTO SalesStaff1 VALUES (1, 'Stephen', 'Jiang');
       - SELECT AVG(Price) FROM Products;
@@ -15,6 +25,3 @@ handlers:
       - Customers
     rules:
       - SELECT * FROM EMPLOYEE WHERE CITY='Seattle';
-#  - handler: whitelist
-#    tables:
-#      - EMPLOYEE

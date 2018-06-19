@@ -4,7 +4,8 @@ type QueryHandlerInterface interface {
 	CheckQuery(sqlQuery string) (bool, error) //1st return arg specifies whether continue verification or not, 2nd specifies whether query is forbidden
 	Reset()
 	Release()
-	Priority() int //Priority is used for managing queue of processed handlers. Least number (starting from 0) specifies most prioritized handler while processing
+	GetPriority() int //GetPriority is used for managing queue of processed handlers. Least number (starting from 1) specifies most prioritized handler while processing
+	SetPriority(priority int)
 }
 
 type AcraCensorInterface interface {

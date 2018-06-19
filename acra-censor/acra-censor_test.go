@@ -43,7 +43,7 @@ func TestWhitelistQueries(t *testing.T) {
 		"INSERT INTO dbo.Points (PointValue) VALUES ('1,99');",
 	}
 
-	whitelistHandler := &handlers.WhitelistHandler{}
+	whitelistHandler := handlers.NewWhitelistHandler()
 
 	err := whitelistHandler.AddQueries(sqlSelectQueries)
 	if err != nil {
@@ -242,7 +242,7 @@ func TestBlacklistQueries(t *testing.T) {
 		"SELECT AVG(Price) FROM Products;",
 	}
 
-	blacklistHandler := &handlers.BlacklistHandler{}
+	blacklistHandler := handlers.NewBlacklistHandler()
 	err := blacklistHandler.AddQueries(blackList)
 	if err != nil {
 		t.Fatal(err)
@@ -474,7 +474,7 @@ func TestQueryIgnoring(t *testing.T){
 		"INSERT INTO dbo.Points (PointValue) VALUES ('1,99');",
 	}
 
-	blacklist := &handlers.BlacklistHandler{}
+	blacklist := handlers.NewBlacklistHandler()
 	err := blacklist.AddQueries(testQueries)
 	if err != nil {
 		t.Fatal(err)
@@ -643,7 +643,7 @@ func TestLogging(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	blacklist := &handlers.BlacklistHandler{}
+	blacklist := handlers.NewBlacklistHandler()
 
 	acraCensor := &AcraCensor{}
 	defer acraCensor.ReleaseAll()
@@ -789,7 +789,7 @@ func TestConfigurationProvider(t *testing.T) {
 	}
 
 	if len(acraCensor.handlers) != 3{
-		t.Fatal("Unexpected amount of handlers")
+		t.Fatal("Unexpected amount of handlers: ", len(acraCensor.handlers))
 	}
 
 	testQueries := []string{

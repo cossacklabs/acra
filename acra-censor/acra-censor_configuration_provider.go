@@ -18,6 +18,7 @@ type AcraCensorConfig struct {
 		Tables   []string
 		Rules    []string
 		Filepath string
+		Priority int
 	}
 }
 
@@ -40,6 +41,7 @@ func (acraCensor *AcraCensor) LoadConfiguration(configuration []byte) error {
 			if err != nil {
 				return err
 			}
+			whitelistHandler.SetPriority(handlerConfiguration.Priority)
 			acraCensor.AddHandler(whitelistHandler)
 			break
 		case BlacklistConfigStr:
@@ -53,6 +55,7 @@ func (acraCensor *AcraCensor) LoadConfiguration(configuration []byte) error {
 			if err != nil {
 				return err
 			}
+			blacklistHandler.SetPriority(handlerConfiguration.Priority)
 			acraCensor.AddHandler(blacklistHandler)
 			break
 		case QueryCaptureConfigStr:
@@ -63,12 +66,13 @@ func (acraCensor *AcraCensor) LoadConfiguration(configuration []byte) error {
 			if err != nil {
 				return err
 			}
+			queryCaptureHandler.SetPriority(handlerConfiguration.Priority)
 			acraCensor.AddHandler(queryCaptureHandler)
 			break
 		case QueryIgnoreConfigStr:
 			queryIgnoreHandler := handlers.NewQueryIgnoreHandler()
 			queryIgnoreHandler.AddQueries(handlerConfiguration.Queries)
-
+			queryIgnoreHandler.SetPriority(handlerConfiguration.Priority)
 			acraCensor.AddHandler(queryIgnoreHandler)
 			break
 		default:

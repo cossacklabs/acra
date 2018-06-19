@@ -11,9 +11,14 @@ type BlacklistHandler struct {
 	queries []string
 	tables  []string
 	rules   []string
+	priority int
 }
 
-
+func NewBlacklistHandler() *BlacklistHandler {
+	handler := &BlacklistHandler{}
+	handler.priority = 4
+	return handler
+}
 
 func (handler *BlacklistHandler) CheckQuery(query string) (bool, error) {
 	//Check queries
@@ -91,8 +96,11 @@ func (handler *BlacklistHandler) Release() {
 	handler.Reset()
 }
 
-func (handler *BlacklistHandler) Priority() int {
-	return 3
+func (handler *BlacklistHandler) GetPriority() int {
+	return handler.priority
+}
+func (handler *BlacklistHandler) SetPriority(priority int) {
+	handler.priority = priority
 }
 
 func (handler *BlacklistHandler) AddQueries(queries []string) error {

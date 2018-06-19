@@ -11,6 +11,13 @@ type WhitelistHandler struct {
 	queries []string
 	tables  []string
 	rules   []string
+	priority int
+}
+
+func NewWhitelistHandler() *WhitelistHandler {
+	handler := &WhitelistHandler{}
+	handler.priority = 3
+	return handler
 }
 
 func (handler *WhitelistHandler) CheckQuery(query string) (bool, error) {
@@ -75,8 +82,12 @@ func (handler *WhitelistHandler) Release() {
 	handler.Reset()
 }
 
-func (handler *WhitelistHandler) Priority() int {
-	return 2
+func (handler *WhitelistHandler) GetPriority() int {
+	return handler.priority
+}
+
+func (handler *WhitelistHandler) SetPriority(priority int){
+	handler.priority = priority
 }
 
 func (handler *WhitelistHandler) AddQueries(queries []string) error {
