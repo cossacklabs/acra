@@ -147,7 +147,7 @@ func (handler *QueryCaptureHandler) CheckQuery(query string) error {
 	select {
 	case handler.logChannel <- *queryInfo: // channel is ok
 	default: //channel is full
-		log.Errorf("can't process too many queries")
+		log.Errorf("Can't process too many queries")
 	}
 
 	return nil

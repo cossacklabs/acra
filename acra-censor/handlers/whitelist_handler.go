@@ -2,6 +2,8 @@ package handlers
 
 import (
 	"errors"
+	"github.com/cossacklabs/acra/logging"
+	log "github.com/sirupsen/logrus"
 	"github.com/xwb1989/sqlparser"
 	"reflect"
 	"strings"
@@ -87,6 +89,7 @@ func (handler *WhitelistHandler) AddQueries(queries []string) error {
 		handler.queries = append(handler.queries, query)
 		_, err := sqlparser.Parse(query)
 		if err != nil {
+			log.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCensorQueryParseError).WithError(err).Errorln("Can't parse query")
 			return ErrQuerySyntaxError
 		}
 	}

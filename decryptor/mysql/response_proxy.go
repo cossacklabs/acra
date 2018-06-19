@@ -204,7 +204,7 @@ func (handler *MysqlHandler) ClientToDbConnector(errCh chan<- error) {
 				handler.isTLSHandshake = true
 				handler.clientConnection = tlsConnection
 				if _, err := handler.dbConnection.Write(packet.Dump()); err != nil {
-					clientLog.Debugln("can't write send packet to db")
+					clientLog.Debugln("Can't write send packet to db")
 					errCh <- err
 					return
 				}
@@ -439,6 +439,7 @@ func (handler *MysqlHandler) QueryResponseHandler(packet *MysqlPacket, dbConnect
 			if handler.expectEOFOnColumnDefinition() {
 				if fieldPacket.IsEOF() {
 					if i != fieldCount {
+						log.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorProtocolProcessing).Errorln("EOF and field count != current row packet count")
 						return ErrMalformPacket
 					}
 					break
@@ -447,6 +448,7 @@ func (handler *MysqlHandler) QueryResponseHandler(packet *MysqlPacket, dbConnect
 			log.WithField("column_index", i).Debugln("parse field")
 			field, err := ParseResultField(fieldPacket.GetData())
 			if err != nil {
+				log.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorProtocolProcessing).WithError(err).Errorln("Can't parse result field")
 				return err
 			}
 			if field.IsBinary() {
@@ -467,6 +469,7 @@ func (handler *MysqlHandler) QueryResponseHandler(packet *MysqlPacket, dbConnect
 			dataLog.Debugln("read data row")
 			fieldDataPacket, err := ReadPacket(dbConnection)
 			if err != nil {
+				log.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorProtocolProcessing).WithError(err).Errorln("Can't read data packet")
 				return err
 			}
 			output = append(output, fieldDataPacket)
@@ -483,7 +486,7 @@ func (handler *MysqlHandler) QueryResponseHandler(packet *MysqlPacket, dbConnect
 
 			newData, err := handler.processTextDataRow(fieldDataPacket.GetData(), fields)
 			if err != nil {
-				dataLog.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorResponseConnectorCantProcessRow).
+				dataLog.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorProtocolProcessing).
 					Debugln("Can't process text data row")
 				return err
 			}
@@ -500,7 +503,7 @@ func (handler *MysqlHandler) QueryResponseHandler(packet *MysqlPacket, dbConnect
 	for _, dumper := range output {
 		if _, err := clientConnection.Write(dumper.Dump()); err != nil {
 			log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorResponseConnectorCantWriteToClient).
-				Errorln("can't proxy output")
+				Errorln("Can't proxy output")
 			return err
 		}
 	}
@@ -534,7 +537,7 @@ func (handler *MysqlHandler) DbToClientConnector(errCh chan<- error) {
 					continue
 				}
 			}
-			log.Debugln("can't read packet from server")
+			log.Debugln("Can't read packet from server")
 			errCh <- err
 			return
 		}
