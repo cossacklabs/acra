@@ -11,7 +11,6 @@ func NewQueryIgnoreHandler() *QueryIgnoreHandler {
 }
 
 func (handler *QueryIgnoreHandler) CheckQuery(query string) (bool, error) {
-
 	if handler.ignoredQueries[query]{
 		//do not continue query handling
 		return false, nil
