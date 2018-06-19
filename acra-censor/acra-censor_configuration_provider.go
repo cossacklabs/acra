@@ -21,13 +21,11 @@ type AcraCensorConfig struct {
 	}
 }
 
-func (acraCensor *AcraCensor) LoadConfiguration(configuration []byte) ([]QueryHandlerInterface, error) {
-	var handlers_ []QueryHandlerInterface
-
+func (acraCensor *AcraCensor) LoadConfiguration(configuration []byte) error {
 	var censorConfiguration AcraCensorConfig
 	err := yaml.Unmarshal(configuration, &censorConfiguration)
 	if err != nil {
-		return nil, err
+		return err
 	}
 	for _, handlerConfiguration := range censorConfiguration.Handlers {
 		switch handlerConfiguration.Handler {
@@ -35,29 +33,27 @@ func (acraCensor *AcraCensor) LoadConfiguration(configuration []byte) ([]QueryHa
 			whitelistHandler := &handlers.WhitelistHandler{}
 			err := whitelistHandler.AddQueries(handlerConfiguration.Queries)
 			if err != nil {
-				return nil, err
+				return err
 			}
 			whitelistHandler.AddTables(handlerConfiguration.Tables)
 			err = whitelistHandler.AddRules(handlerConfiguration.Rules)
 			if err != nil {
-				return nil, err
+				return err
 			}
 			acraCensor.AddHandler(whitelistHandler)
-			handlers_ = append(handlers_, whitelistHandler)
 			break
 		case BlacklistConfigStr:
 			blacklistHandler := &handlers.BlacklistHandler{}
 			err := blacklistHandler.AddQueries(handlerConfiguration.Queries)
 			if err != nil {
-				return nil, err
+				return err
 			}
 			blacklistHandler.AddTables(handlerConfiguration.Tables)
 			err = blacklistHandler.AddRules(handlerConfiguration.Rules)
 			if err != nil {
-				return nil, err
+				return err
 			}
 			acraCensor.AddHandler(blacklistHandler)
-			handlers_ = append(handlers_, blacklistHandler)
 			break
 		case QueryCaptureConfigStr:
 			if strings.EqualFold(handlerConfiguration.Filepath, "") {
@@ -65,21 +61,19 @@ func (acraCensor *AcraCensor) LoadConfiguration(configuration []byte) ([]QueryHa
 			}
 			queryCaptureHandler, err := handlers.NewQueryCaptureHandler(handlerConfiguration.Filepath)
 			if err != nil {
-				return nil, err
+				return err
 			}
 			acraCensor.AddHandler(queryCaptureHandler)
-			handlers_ = append(handlers_, queryCaptureHandler)
 			break
 		case QueryIgnoreConfigStr:
 			queryIgnoreHandler := handlers.NewQueryIgnoreHandler()
 			queryIgnoreHandler.AddQueries(handlerConfiguration.Queries)
 
 			acraCensor.AddHandler(queryIgnoreHandler)
-			handlers_ = append(handlers_, queryIgnoreHandler)
 			break
 		default:
 			break
 		}
 	}
-	return handlers_, nil
+	return nil
 }

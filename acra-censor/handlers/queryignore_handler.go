@@ -19,7 +19,7 @@ func (handler *QueryIgnoreHandler) CheckQuery(query string) (bool, error) {
 }
 
 func (handler *QueryIgnoreHandler) Reset() {
-	handler.ignoredQueries = nil
+	handler.ignoredQueries = make(map[string]bool)
 }
 
 func (handler *QueryIgnoreHandler) Release() {

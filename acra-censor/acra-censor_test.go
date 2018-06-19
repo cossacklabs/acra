@@ -783,12 +783,12 @@ func TestConfigurationProvider(t *testing.T) {
 	acraCensor := &AcraCensor{}
 	defer acraCensor.ReleaseAll()
 
-	handlers_, err := acraCensor.LoadConfiguration(configuration)
+	err = acraCensor.LoadConfiguration(configuration)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	if len(handlers_) != 3{
+	if len(acraCensor.handlers) != 3{
 		t.Fatal("Unexpected amount of handlers")
 	}
 
@@ -831,7 +831,7 @@ func TestConfigurationProvider(t *testing.T) {
 		}
 	}
 
-	for _, currentHandler := range handlers_ {
+	for _, currentHandler := range acraCensor.handlers {
 		original, ok := currentHandler.(*handlers.QueryCaptureHandler)
 		if ok {
 			defaultTimeout := original.GetSerializationTimeout()
@@ -859,7 +859,7 @@ func testSyntax(t *testing.T) {
       - INSERT INTO SalesStaff1 VALUES (1, 'Stephen', 'Jiang');
       - SELECT AVG(Price) FROM Products;`
 
-	_, err := acraCensor.LoadConfiguration([]byte(configuration))
+	err := acraCensor.LoadConfiguration([]byte(configuration))
 	if err == nil {
 		t.Fatal(err)
 	}
@@ -875,7 +875,7 @@ func testSyntax(t *testing.T) {
     rules:
       - SELECT * ROM EMPLOYEE WHERE CITY='Seattle';`
 
-	_, err = acraCensor.LoadConfiguration([]byte(configuration))
+	err = acraCensor.LoadConfiguration([]byte(configuration))
 	if err != handlers.ErrStructureSyntaxError {
 		t.Fatal(err)
 	}
