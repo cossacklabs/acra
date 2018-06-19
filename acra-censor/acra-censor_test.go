@@ -212,8 +212,6 @@ func testWhitelistRules(t *testing.T, acraCensor *AcraCensor, whitelistHandler *
 func TestBlacklistQueries(t *testing.T) {
 	sqlSelectQueries := []string{
 		"SELECT * FROM Schema.Tables;",
-		"SELECT * FROM Schema.Tables;",
-		"SELECT * FROM Schema.Tables;",
 		"SELECT Student_ID FROM STUDENT;",
 		"SELECT * FROM STUDENT;",
 		"SELECT EMP_ID, NAME FROM EMPLOYEE_TBL WHERE EMP_ID = '0000';",
@@ -505,6 +503,13 @@ func TestQueryIgnoring(t *testing.T){
 		if err != nil {
 			t.Fatal(err)
 		}
+	}
+
+	ignoreQueryHandler.AddQueries([]string {"SELECT t.oid, typarray\nFROM pg_type t JOIN pg_namespace ns\n    ON typnamespace = ns.oid\nWHERE typname = 'hstore';\n"})
+
+	err = acraCensor.HandleQuery("SELECT t.oid, typarray\nFROM pg_type t JOIN pg_namespace ns\n    ON typnamespace = ns.oid\nWHERE typname = 'hstore';\n")
+	if err != nil {
+		t.Fatal(err)
 	}
 }
 
@@ -875,3 +880,47 @@ func testSyntax(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+
+
+
+//func TestJoinTableExpr(t *testing.T){
+//	testquery := "SELECT t.oid, typarray\nFROM pg_type t JOIN pg_namespace ns\n    ON typnamespace = ns.oid\nWHERE typname = 'hstore';\n"
+//	blacklist := handlers.BlacklistHandler{}
+//	//blacklist.AddTables([]string{"stub"})
+//	//_, err := blacklist.CheckQuery(testquery)
+//	//if err != nil {
+//	//	t.Fatal(err)
+//	//}
+//	//blacklist.AddTables([]string{"pg_type"})
+//	//_, err = blacklist.CheckQuery(testquery)
+//	//if err != handlers.ErrAccessToForbiddenTableBlacklist{
+//	//	t.Fatal(err)
+//	//}
+//	//whitelist := handlers.WhitelistHandler{}
+//	//whitelist.AddTables([]string{"pg_type"})
+//	//_, err = whitelist.CheckQuery(testquery)
+//	//if err != handlers.ErrAccessToForbiddenTableWhitelist {
+//	//	t.Fatal(err)
+//	//}
+//	//whitelist.AddTables([]string{"pg_namespace"})
+//	//_, err = whitelist.CheckQuery(testquery)
+//	//if err != nil {
+//	//	t.Fatal(err)
+//	//}
+//	testquery = "SELECT Orders.OrderID, Customers.CustomerName, Shippers.ShipperName FROM ((Orders INNER JOIN Customers ON Orders.CustomerID = Customers.CustomerID) INNER JOIN Shippers ON Orders.ShipperID = Shippers.ShipperID);"
+//	blacklist.Reset()
+//	blacklist.AddTables([]string{"stub"})
+//	_, err := blacklist.CheckQuery(testquery)
+//	if err != nil {
+//		t.Fatal(err)
+//	}
+//
+//	blacklist.AddTables([]string{"Orders1"})
+//	_, err = blacklist.CheckQuery(testquery)
+//	if err != handlers.ErrAccessToForbiddenTableBlacklist {
+//		t.Fatal(err)
+//	}
+//
+//
+//
+//}

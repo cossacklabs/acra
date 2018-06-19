@@ -40,9 +40,9 @@ func (acraCensor *AcraCensor) HandleQuery(query string) error {
 		if err != nil {
 			log.Errorf("Forbidden query: '%s'", query)
 			return err
-		} else{
+		} else {
 			if !continueHandling{
-				break
+				return nil
 			}
 		}
 	}
