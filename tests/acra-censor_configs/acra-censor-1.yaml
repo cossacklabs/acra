@@ -1,6 +1,0 @@
-handlers:
-  - handler: blacklist
-    queries:
-    tables:
-      - test
-    rules:
