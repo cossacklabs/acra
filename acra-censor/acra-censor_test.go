@@ -42,7 +42,7 @@ func TestWhitelistQueries(t *testing.T) {
 		"INSERT INTO dbo.Points (PointValue) VALUES ('1,99');",
 	}
 
-	whitelistHandler := handlers.NewWhitelistHandler()
+	whitelistHandler := &handlers.WhitelistHandler{}
 
 	err := whitelistHandler.AddQueries(sqlSelectQueries)
 	if err != nil {
@@ -241,7 +241,7 @@ func TestBlacklistQueries(t *testing.T) {
 		"SELECT AVG(Price) FROM Products;",
 	}
 
-	blacklistHandler := handlers.NewBlacklistHandler()
+	blacklistHandler := &handlers.BlacklistHandler{}
 	err := blacklistHandler.AddQueries(blackList)
 	if err != nil {
 		t.Fatal(err)
@@ -302,25 +302,6 @@ func TestBlacklistQueries(t *testing.T) {
 
 	err = acraCensor.HandleQuery(testQuery)
 	//now acracensor should not block testQuery
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	testQuery = "ROLLBACK"
-	blacklistHandler.AddQueries([]string{testQuery})
-
-	//should block
-	err = acraCensor.HandleQuery(testQuery)
-	if err != handlers.ErrQueryInBlacklist {
-		t.Fatal(err)
-	}
-
-	ignoreHandler := handlers.NewQueryIgnoreHandler()
-	ignoreHandler.AddQueries([]string{testQuery})
-	acraCensor.AddHandler(ignoreHandler)
-
-	//should not block
-	err = acraCensor.HandleQuery(testQuery)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -473,16 +454,31 @@ func TestQueryIgnoring(t *testing.T) {
 		"INSERT INTO dbo.Points (PointValue) VALUES ('1,99');",
 	}
 
-	blacklist := handlers.NewBlacklistHandler()
+	acraCensor := &AcraCensor{}
+	defer acraCensor.ReleaseAll()
+
+	ignoreQueryHandler := handlers.NewQueryIgnoreHandler()
+	ignoreQueryHandler.AddQueries(testQueries)
+	acraCensor.AddHandler(ignoreQueryHandler)
+
+
+	blacklist := &handlers.BlacklistHandler{}
 	err := blacklist.AddQueries(testQueries)
 	if err != nil {
 		t.Fatal(err)
 	}
-
-	acraCensor := &AcraCensor{}
-	defer acraCensor.ReleaseAll()
-
 	acraCensor.AddHandler(blacklist)
+
+
+	//should not block
+	for _, query := range testQueries {
+		err := acraCensor.HandleQuery(query)
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	ignoreQueryHandler.Reset()
 
 	//should block
 	for _, query := range testQueries {
@@ -490,25 +486,6 @@ func TestQueryIgnoring(t *testing.T) {
 		if err != handlers.ErrQueryInBlacklist {
 			t.Fatal(err)
 		}
-	}
-
-	ignoreQueryHandler := handlers.NewQueryIgnoreHandler()
-	ignoreQueryHandler.AddQueries(testQueries)
-	acraCensor.AddHandler(ignoreQueryHandler)
-
-	//should not block
-	for _, query := range testQueries {
-		err = acraCensor.HandleQuery(query)
-		if err != nil {
-			t.Fatal(err)
-		}
-	}
-
-	ignoreQueryHandler.AddQueries([]string{"SELECT t.oid, typarray\nFROM pg_type t JOIN pg_namespace ns\n    ON typnamespace = ns.oid\nWHERE typname = 'hstore';\n"})
-
-	err = acraCensor.HandleQuery("SELECT t.oid, typarray\nFROM pg_type t JOIN pg_namespace ns\n    ON typnamespace = ns.oid\nWHERE typname = 'hstore';\n")
-	if err != nil {
-		t.Fatal(err)
 	}
 }
 
@@ -641,7 +618,7 @@ func TestLogging(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	blacklist := handlers.NewBlacklistHandler()
+	blacklist := &handlers.BlacklistHandler{}
 
 	acraCensor := &AcraCensor{}
 	defer acraCensor.ReleaseAll()

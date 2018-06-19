@@ -2,13 +2,11 @@ package handlers
 
 type QueryIgnoreHandler struct {
 	ignoredQueries map[string]bool
-	priority       int
 }
 
 func NewQueryIgnoreHandler() *QueryIgnoreHandler {
 	handler := &QueryIgnoreHandler{}
 	handler.ignoredQueries = make(map[string]bool)
-	handler.priority = 2
 	return handler
 }
 
@@ -26,14 +24,6 @@ func (handler *QueryIgnoreHandler) Reset() {
 
 func (handler *QueryIgnoreHandler) Release() {
 	handler.Reset()
-}
-
-func (handler *QueryIgnoreHandler) GetPriority() int {
-	return handler.priority
-}
-
-func (handler *QueryIgnoreHandler) SetPriority(priority int) {
-	handler.priority = priority
 }
 
 func (handler *QueryIgnoreHandler) AddQueries(queries []string) {

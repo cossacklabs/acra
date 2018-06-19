@@ -2,7 +2,6 @@ package acracensor
 
 import (
 	log "github.com/sirupsen/logrus"
-	"sort"
 )
 
 type AcraCensor struct {
@@ -11,9 +10,6 @@ type AcraCensor struct {
 
 func (acraCensor *AcraCensor) AddHandler(handler QueryHandlerInterface) {
 	acraCensor.handlers = append(acraCensor.handlers, handler)
-	sort.Slice(acraCensor.handlers, func(i, j int) bool {
-		return acraCensor.handlers[i].GetPriority() < acraCensor.handlers[j].GetPriority()
-	})
 }
 
 func (acraCensor *AcraCensor) RemoveHandler(handler QueryHandlerInterface) {
@@ -22,9 +18,6 @@ func (acraCensor *AcraCensor) RemoveHandler(handler QueryHandlerInterface) {
 			acraCensor.handlers = append(acraCensor.handlers[:index], acraCensor.handlers[index+1:]...)
 		}
 	}
-	sort.Slice(acraCensor.handlers, func(i, j int) bool {
-		return acraCensor.handlers[i].GetPriority() < acraCensor.handlers[j].GetPriority()
-	})
 }
 
 func (acraCensor *AcraCensor) ReleaseAll() {

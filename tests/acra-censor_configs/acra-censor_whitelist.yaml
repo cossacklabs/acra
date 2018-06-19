@@ -1,10 +1,4 @@
 handlers:
-  - handler: whitelist
-    queries:
-    tables:
-      - test
-    rules:
-      - select * from test where id='1'
   - handler: query_ignore
     queries:
       #mysql
@@ -31,3 +25,10 @@ handlers:
       - show standard_conforming_strings
       - SELECT CAST('test plain returns' AS VARCHAR(60)) AS anon_1
       - SELECT CAST('test unicode returns' AS VARCHAR(60)) AS anon_1
+
+  - handler: whitelist
+    queries:
+    tables:
+      - test
+    rules:
+      - select * from test where id='1'

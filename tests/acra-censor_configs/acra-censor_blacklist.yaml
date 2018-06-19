@@ -1,11 +1,4 @@
 handlers:
-  - handler: blacklist
-    queries:
-      - select data_raw from test
-    tables:
-      - acrarollback_output
-    rules:
-      - select * from test where id='1'
   - handler: query_ignore
     queries:
       #mysql
@@ -22,3 +15,11 @@ handlers:
       - "SELECT CAST('test plain returns' AS VARCHAR(60)) AS anon_1"
       - "SELECT CAST('test unicode returns' AS VARCHAR(60)) AS anon_1"
       - show standard_conforming_strings
+
+  - handler: blacklist
+    queries:
+      - select data_raw from test
+    tables:
+      - acrarollback_output
+    rules:
+      - select * from test where id='1'
