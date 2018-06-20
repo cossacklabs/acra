@@ -29,6 +29,8 @@ var ErrComplexSerializationError = errors.New("can't perform complex serializati
 var ErrSingleQueryCaptureError = errors.New("can't capture single query")
 var ErrUnexpectedCaptureChannelClose = errors.New("unexpected channel closing while query logging")
 
+var ErrUnexpectedTypeError = errors.New("should never appear")
+
 func removeDuplicates(input []string) []string {
 	keys := make(map[string]bool)
 	var result []string

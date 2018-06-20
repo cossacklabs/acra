@@ -211,25 +211,6 @@ func (handler *WhitelistHandler) isAllowedColumnAccess(columnsToEvaluate sqlpars
 }
 
 func (handler *WhitelistHandler) handleJoinTables(expr sqlparser.TableExprs) error {
-	//counter := 0
-	//for _, allowedTable := range handler.tables {
-	//	for _, table := range expr{
-	//		_, ok := table.(*sqlparser.JoinTableExpr)
-	//		if ok {
-	//			if strings.Contains(sqlparser.String(table.(*sqlparser.JoinTableExpr).LeftExpr), allowedTable) {
-	//				counter++
-	//			}
-	//			if strings.Contains(sqlparser.String(table.(*sqlparser.JoinTableExpr).RightExpr), allowedTable) {
-	//				counter++
-	//			}
-	//		}
-	//	}
-	//}
-	//if counter == 0 || counter % 2 == 1 {
-	//	return ErrAccessToForbiddenTableWhitelist
-	//}
-	//return nil
-
 	//stub
 	return nil
 }

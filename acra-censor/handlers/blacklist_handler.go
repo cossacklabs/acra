@@ -32,27 +32,22 @@ func (handler *BlacklistHandler) CheckQuery(query string) (bool, error) {
 		case *sqlparser.Select:
 			for _, forbiddenTable := range handler.tables {
 				for _, fromStatement := range parsedQuery.From {
-					_, ok := fromStatement.(*sqlparser.AliasedTableExpr)
-					if ok {
+
+					switch fromStatement.(type){
+					case *sqlparser.AliasedTableExpr:
 						if strings.EqualFold(sqlparser.String(fromStatement.(*sqlparser.AliasedTableExpr).Expr), forbiddenTable) {
 							return false, ErrAccessToForbiddenTableBlacklist
 						}
-					}
-					_, ok = fromStatement.(*sqlparser.JoinTableExpr)
-					if ok {
+						break
+					case *sqlparser.JoinTableExpr:
 						return false, ErrNotImplemented
-						//if strings.Contains(sqlparser.String(fromStatement.(*sqlparser.JoinTableExpr).LeftExpr), forbiddenTable) ||
-						//   strings.Contains(sqlparser.String(fromStatement.(*sqlparser.JoinTableExpr).RightExpr), forbiddenTable) {
-						//   	return false, ErrAccessToForbiddenTableBlacklist
-						//}
-					}
-					_, ok = fromStatement.(*sqlparser.ParenTableExpr)
-					if ok {
+						break
+					case *sqlparser.ParenTableExpr:
 						return false, ErrNotImplemented
-						//continueHandling, err := handler.handleParenTable(fromStatement.(*sqlparser.ParenTableExpr), forbiddenTable)
-						//if err != nil {
-						//
-						//}
+						break
+					default:
+						return false, ErrUnexpectedTypeError
+						break
 					}
 				}
 			}
@@ -230,30 +225,3 @@ func (handler *BlacklistHandler) isForbiddenColumnAccess(columnsToEvaluate sqlpa
 	}
 	return false
 }
-
-//
-//func (handler *BlacklistHandler) handleParenTable(fromStatement *sqlparser.ParenTableExpr, forbiddenTable string) (bool, error){
-//	for _, expression := range fromStatement.Exprs {
-//		err := expression.WalkSubtree(func (node sqlparser.SQLNode) (bool, error){
-//			_, ok := node.(*sqlparser.AliasedTableExpr)
-//			if ok {
-//				//fmt.Println(sqlparser.String(node), handler.tables, forbiddenTable)
-//				if strings.EqualFold(sqlparser.String(node), forbiddenTable) {
-//					return false, ErrAccessToForbiddenTableBlacklist
-//				}
-//			}
-//
-//			_, ok = node.(*sqlparser.ParenTableExpr)
-//			if ok {
-//				handler.handleParenTable(node.(*sqlparser.ParenTableExpr), forbiddenTable)
-//			}
-//
-//		})
-//
-//		if err != nil {
-//			return false, err
-//		} else {
-//			return true, nil
-//		}
-//	}
-//}
