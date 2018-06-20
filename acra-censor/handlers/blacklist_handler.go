@@ -41,13 +41,10 @@ func (handler *BlacklistHandler) CheckQuery(query string) (bool, error) {
 						break
 					case *sqlparser.JoinTableExpr:
 						return false, ErrNotImplemented
-						break
 					case *sqlparser.ParenTableExpr:
 						return false, ErrNotImplemented
-						break
 					default:
 						return false, ErrUnexpectedTypeError
-						break
 					}
 				}
 			}

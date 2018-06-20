@@ -361,7 +361,6 @@ class ProcessStub(object):
     def poll(self, *args, **kwargs):
         pass
 
-'''
 class KeyMakerTest(unittest.TestCase):
     def test_key_length(self):
         output_path = tempfile.mkdtemp()
@@ -381,7 +380,6 @@ class KeyMakerTest(unittest.TestCase):
         subprocess.check_output(
                 ['./acra-keymaker', '--keys_output_dir={}'.format(output_path)],
                 env={'ACRA_MASTER_KEY': long_key})
-'''
 
 class BaseTestCase(unittest.TestCase):
     DB_HOST = os.environ.get('TEST_DB_HOST', '127.0.0.1')
