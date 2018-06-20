@@ -1,0 +1,34 @@
+handlers:
+  - handler: query_ignore
+    queries:
+      #mysql
+      - ROLLBACK
+      - SHOW VARIABLES LIKE 'sql_mode'
+      - SELECT VERSION()
+      - SELECT DATABASE()
+      - SELECT @@transaction_isolation
+      - show collation where `Charset` = 'utf8' and `Collation` = 'utf8_bin'
+      - SELECT CAST('test plain returns' AS CHAR(60)) AS anon_1
+      - SELECT CAST('test unicode returns' AS CHAR(60)) AS anon_1
+      - SELECT CAST('test collated returns' AS CHAR CHARACTER SET utf8) COLLATE utf8_bin AS anon_1
+      - select 1
+      - select 1;
+      - SET AUTOCOMMIT = 0
+      #postgres
+      - BEGIN
+      - "SELECT t.oid, typarray\nFROM pg_type t JOIN pg_namespace ns\n    ON typnamespace = ns.oid\nWHERE typname = 'hstore';\n"
+      - "UPDATE pg_settings SET setting = 'hex' WHERE name = 'bytea_output'"
+      - COMMIT
+      - select version()
+      - select current_schema()
+      - show transaction isolation level
+      - show standard_conforming_strings
+      - SELECT CAST('test plain returns' AS VARCHAR(60)) AS anon_1
+      - SELECT CAST('test unicode returns' AS VARCHAR(60)) AS anon_1
+
+  - handler: whitelist
+    queries:
+    tables:
+      - test
+    rules:
+      - select * from test where id='1'

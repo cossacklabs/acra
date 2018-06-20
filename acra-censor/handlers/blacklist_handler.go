@@ -2,70 +2,73 @@ package handlers
 
 import (
 	"errors"
-	"github.com/cossacklabs/acra/logging"
-	log "github.com/sirupsen/logrus"
 	"github.com/xwb1989/sqlparser"
 	"reflect"
 	"strings"
 )
 
 type BlacklistHandler struct {
-	queries []string
-	tables  []string
-	rules   []string
+	queries  []string
+	tables   []string
+	rules    []string
 }
 
-func (handler *BlacklistHandler) CheckQuery(query string) error {
-
+func (handler *BlacklistHandler) CheckQuery(query string) (bool, error) {
 	//Check queries
 	if len(handler.queries) != 0 {
 		//Check that query is not in blacklist
 		yes, _ := contains(handler.queries, query)
 		if yes {
-			return ErrQueryInBlacklist
+			return false, ErrQueryInBlacklist
 		}
 	}
-
 	//Check tables
 	if len(handler.tables) != 0 {
 		parsedQuery, err := sqlparser.Parse(query)
 		if err != nil {
-			return ErrParseTablesBlacklist
+			return false, ErrParseTablesBlacklist
 		}
-
 		switch parsedQuery := parsedQuery.(type) {
 		case *sqlparser.Select:
 			for _, forbiddenTable := range handler.tables {
-				for _, table := range parsedQuery.From {
-					if strings.EqualFold(sqlparser.String(table.(*sqlparser.AliasedTableExpr).Expr), forbiddenTable) {
-						return ErrAccessToForbiddenTableBlacklist
+				for _, fromStatement := range parsedQuery.From {
+
+					switch fromStatement.(type){
+					case *sqlparser.AliasedTableExpr:
+						if strings.EqualFold(sqlparser.String(fromStatement.(*sqlparser.AliasedTableExpr).Expr), forbiddenTable) {
+							return false, ErrAccessToForbiddenTableBlacklist
+						}
+						break
+					case *sqlparser.JoinTableExpr:
+						return false, ErrNotImplemented
+					case *sqlparser.ParenTableExpr:
+						return false, ErrNotImplemented
+					default:
+						return false, ErrUnexpectedTypeError
 					}
 				}
 			}
-
 		case *sqlparser.Insert:
 			for _, forbiddenTable := range handler.tables {
 				if strings.EqualFold(parsedQuery.Table.Name.String(), forbiddenTable) {
-					return ErrAccessToForbiddenTableBlacklist
+					return false, ErrAccessToForbiddenTableBlacklist
 				}
 			}
-
 		case *sqlparser.Update:
-			return ErrNotImplemented
+			return false, ErrNotImplemented
 		}
 	}
-
 	//Check rules
 	if len(handler.rules) != 0 {
 		violationOccured, err := handler.testRulesViolation(query)
 		if err != nil {
-			return ErrParseSqlRuleBlacklist
+			return false, ErrParseSqlRuleBlacklist
 		}
 		if violationOccured {
-			return ErrForbiddenSqlStructureBlacklist
+			return false, ErrForbiddenSqlStructureBlacklist
 		}
 	}
-	return nil
+	return true, nil
 }
 
 func (handler *BlacklistHandler) Reset() {
@@ -79,23 +82,14 @@ func (handler *BlacklistHandler) Release() {
 }
 
 func (handler *BlacklistHandler) AddQueries(queries []string) error {
-
 	for _, query := range queries {
-		_, err := sqlparser.Parse(query)
-		if err != nil {
-			log.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCensorQueryParseError).WithError(err).Errorln("Can't parse query")
-			return ErrQuerySyntaxError
-		}
 		handler.queries = append(handler.queries, query)
 	}
-
 	handler.queries = removeDuplicates(handler.queries)
-
 	return nil
 }
 
 func (handler *BlacklistHandler) RemoveQueries(queries []string) {
-
 	for _, query := range queries {
 		yes, index := contains(handler.queries, query)
 		if yes {
@@ -105,7 +99,6 @@ func (handler *BlacklistHandler) RemoveQueries(queries []string) {
 }
 
 func (handler *BlacklistHandler) AddTables(tableNames []string) {
-
 	for _, tableName := range tableNames {
 		handler.tables = append(handler.tables, tableName)
 	}
@@ -114,7 +107,6 @@ func (handler *BlacklistHandler) AddTables(tableNames []string) {
 }
 
 func (handler *BlacklistHandler) RemoveTables(tableNames []string) {
-
 	for _, query := range tableNames {
 		yes, index := contains(handler.tables, query)
 		if yes {
@@ -131,9 +123,7 @@ func (handler *BlacklistHandler) AddRules(rules []string) error {
 			return ErrStructureSyntaxError
 		}
 	}
-
 	handler.rules = removeDuplicates(handler.rules)
-
 	return nil
 }
 
@@ -147,62 +137,49 @@ func (handler *BlacklistHandler) RemoveRules(rules []string) {
 }
 
 func (handler *BlacklistHandler) testRulesViolation(query string) (bool, error) {
-
 	if sqlparser.Preview(query) != sqlparser.StmtSelect {
 		return true, errors.New("non-select queries are not supported")
 	}
-
 	//parse one rule and get forbidden tables and columns for specific 'where' clause
 	var whereClause sqlparser.SQLNode
 	var tables sqlparser.TableExprs
 	var columns sqlparser.SelectExprs
-
 	//Parse each rule and then test query
 	for _, rule := range handler.rules {
 		parsedRule, err := sqlparser.Parse(rule)
 		if err != nil {
 			return true, err
 		}
-
 		switch parsedRule := parsedRule.(type) {
-
 		case *sqlparser.Select:
 			whereClause = parsedRule.Where.Expr
 			tables = parsedRule.From
 			columns = parsedRule.SelectExprs
-
 			dangerousSelect, err := handler.isDangerousSelect(query, whereClause, tables, columns)
 			if err != nil {
 				return true, err
 			}
-
 			if dangerousSelect {
 				return true, nil
 			}
-
 		case *sqlparser.Insert:
 			return true, ErrNotImplemented
 		default:
 			return true, ErrNotImplemented
 		}
-
 		_ = whereClause
 		_ = tables
 		_ = columns
 	}
-
 	return false, nil
 }
 
 func (handler *BlacklistHandler) isDangerousSelect(selectQuery string, forbiddenWhere sqlparser.SQLNode, forbiddenTables sqlparser.TableExprs, forbiddenColumns sqlparser.SelectExprs) (bool, error) {
-
 	parsedSelectQuery, err := sqlparser.Parse(selectQuery)
 	if err != nil {
 		return true, err
 	}
-
 	evaluatedStmt := parsedSelectQuery.(*sqlparser.Select)
-
 	if evaluatedStmt.Where != nil {
 		if strings.EqualFold(sqlparser.String(forbiddenWhere), sqlparser.String(evaluatedStmt.Where.Expr)) {
 			if handler.isForbiddenTableAccess(evaluatedStmt.From, forbiddenTables) {
@@ -218,7 +195,6 @@ func (handler *BlacklistHandler) isDangerousSelect(selectQuery string, forbidden
 			}
 		}
 	}
-
 	return false, nil
 }
 
@@ -237,7 +213,6 @@ func (handler *BlacklistHandler) isForbiddenColumnAccess(columnsToEvaluate sqlpa
 	if strings.EqualFold(sqlparser.String(forbiddenColumns), "*") {
 		return true
 	}
-
 	for _, columnToEvaluate := range columnsToEvaluate {
 		for _, forbiddenColumn := range forbiddenColumns {
 			if reflect.DeepEqual(columnToEvaluate, forbiddenColumn) {

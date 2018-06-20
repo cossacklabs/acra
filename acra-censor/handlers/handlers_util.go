@@ -29,8 +29,9 @@ var ErrComplexSerializationError = errors.New("can't perform complex serializati
 var ErrSingleQueryCaptureError = errors.New("can't capture single query")
 var ErrUnexpectedCaptureChannelClose = errors.New("unexpected channel closing while query logging")
 
-func removeDuplicates(input []string) []string {
+var ErrUnexpectedTypeError = errors.New("should never appear")
 
+func removeDuplicates(input []string) []string {
 	keys := make(map[string]bool)
 	var result []string
 	for _, entry := range input {
@@ -43,10 +44,8 @@ func removeDuplicates(input []string) []string {
 }
 
 func contains(queries []string, query string) (bool, int) {
-
 	for index, queryFromRange := range queries {
-		if strings.EqualFold(queryFromRange, query) {
-
+		if strings.EqualFold(strings.ToLower(queryFromRange), strings.ToLower(query)) {
 			return true, index
 		}
 	}

@@ -1,0 +1,25 @@
+handlers:
+  - handler: query_ignore
+    queries:
+      #mysql
+      - ROLLBACK
+      - SET AUTOCOMMIT = 0
+      - SHOW VARIABLES LIKE 'sql_mode'
+      - show collation where `Charset` = 'utf8' and `Collation` = 'utf8_bin'
+      #postgres
+      - BEGIN
+      - "SELECT t.oid, typarray\nFROM pg_type t JOIN pg_namespace ns\n    ON typnamespace = ns.oid\nWHERE typname = 'hstore';\n"
+      - "UPDATE pg_settings SET setting = 'hex' WHERE name = 'bytea_output'"
+      - COMMIT
+      - show transaction isolation level
+      - "SELECT CAST('test plain returns' AS VARCHAR(60)) AS anon_1"
+      - "SELECT CAST('test unicode returns' AS VARCHAR(60)) AS anon_1"
+      - show standard_conforming_strings
+
+  - handler: blacklist
+    queries:
+      - select data_raw from test
+    tables:
+      - acrarollback_output
+    rules:
+      - select * from test where id='1'

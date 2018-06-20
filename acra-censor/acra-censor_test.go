@@ -211,8 +211,6 @@ func testWhitelistRules(t *testing.T, acraCensor *AcraCensor, whitelistHandler *
 func TestBlacklistQueries(t *testing.T) {
 	sqlSelectQueries := []string{
 		"SELECT * FROM Schema.Tables;",
-		"SELECT * FROM Schema.Tables;",
-		"SELECT * FROM Schema.Tables;",
 		"SELECT Student_ID FROM STUDENT;",
 		"SELECT * FROM STUDENT;",
 		"SELECT EMP_ID, NAME FROM EMPLOYEE_TBL WHERE EMP_ID = '0000';",
@@ -359,7 +357,6 @@ func testBlacklistTables(t *testing.T, censor *AcraCensor, blacklistHandler *han
 	if err != nil {
 		t.Fatal(err)
 	}
-
 }
 func testBlacklistRules(t *testing.T, acraCensor *AcraCensor, blacklistHandler *handlers.BlacklistHandler) {
 
@@ -430,6 +427,68 @@ func testBlacklistRules(t *testing.T, acraCensor *AcraCensor, blacklistHandler *
 	}
 }
 
+func TestQueryIgnoring(t *testing.T) {
+	testQueries := []string{
+		"SELECT * FROM Schema.Tables;",
+		"SELECT Student_ID FROM STUDENT;",
+		"SELECT * FROM STUDENT;",
+		"SELECT * FROM STUDENT;",
+		"SELECT * FROM STUDENT;",
+		"SELECT EMP_ID, NAME FROM EMPLOYEE_TBL WHERE EMP_ID = '0000';",
+		"SELECT EMP_ID, LAST_NAME FROM EMPLOYEE WHERE CITY = 'Seattle' ORDER BY EMP_ID;",
+		"SELECT EMP_ID, LAST_NAME FROM EMPLOYEE_TBL WHERE CITY = 'INDIANAPOLIS' ORDER BY EMP_ID asc;",
+		"SELECT Name, Age FROM Patients WHERE Age > 40 GROUP BY Age ORDER BY Name;",
+		"SELECT COUNT(CustomerID), Country FROM Customers GROUP BY Country;",
+		"SELECT SUM(Salary)FROM Employee WHERE Emp_Age < 30;",
+		"SELECT AVG(Price)FROM Products;",
+		"INSERT SalesStaff1 VALUES (2, 'Michael', 'Blythe'), (3, 'Linda', 'Mitchell'),(4, 'Jillian', 'Carson'), (5, 'Garrett', 'Vargas');",
+		"INSERT INTO SalesStaff2 (StaffGUID, FirstName, LastName) VALUES (NEWID(), 'Stephen', 'Jiang');",
+		"INSERT INTO SalesStaff3 (StaffID, FullName) VALUES (X, 'Y');",
+		"INSERT INTO SalesStaff3 (StaffID, FullName) VALUES (X, 'Z');",
+		"INSERT INTO SalesStaff3 (StaffID, FullNameTbl) VALUES (X, M);",
+		"INSERT INTO X.Customers (CustomerName, ContactName, Address, City, PostalCode, Country) VALUES ('Cardinal', 'Tom B. Erichsen', 'Skagen 21', 'Stavanger', '4006', 'Norway');",
+		"INSERT INTO Customers (CustomerName, City, Country) VALUES ('Cardinal', 'Stavanger', 'Norway');",
+		"INSERT INTO Production (Name, UnitMeasureCode,	ModifiedDate) VALUES ('Square Yards', 'Y2', GETDATE());",
+		"INSERT INTO T1 (Name, UnitMeasureCode,	ModifiedDate) VALUES ('Square Yards', 'Y2', GETDATE());",
+		"INSERT INTO dbo.Points (Type, PointValue) VALUES ('Point', '1,5');",
+		"INSERT INTO dbo.Points (PointValue) VALUES ('1,99');",
+	}
+
+	acraCensor := &AcraCensor{}
+	defer acraCensor.ReleaseAll()
+
+	ignoreQueryHandler := handlers.NewQueryIgnoreHandler()
+	ignoreQueryHandler.AddQueries(testQueries)
+	acraCensor.AddHandler(ignoreQueryHandler)
+
+
+	blacklist := &handlers.BlacklistHandler{}
+	err := blacklist.AddQueries(testQueries)
+	if err != nil {
+		t.Fatal(err)
+	}
+	acraCensor.AddHandler(blacklist)
+
+
+	//should not block
+	for _, query := range testQueries {
+		err := acraCensor.HandleQuery(query)
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	ignoreQueryHandler.Reset()
+
+	//should block
+	for _, query := range testQueries {
+		err = acraCensor.HandleQuery(query)
+		if err != handlers.ErrQueryInBlacklist {
+			t.Fatal(err)
+		}
+	}
+}
+
 func TestSerialization(t *testing.T) {
 	testQueries := []string{
 		"SELECT * FROM Schema.Tables;",
@@ -473,7 +532,7 @@ func TestSerialization(t *testing.T) {
 	}
 
 	for _, query := range testQueries {
-		err = handler.CheckQuery(query)
+		_, err = handler.CheckQuery(query)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -637,7 +696,7 @@ func TestQueryCapture(t *testing.T) {
 	}
 
 	for _, query := range testQueries {
-		err = handler.CheckQuery(query)
+		_, err = handler.CheckQuery(query)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -660,7 +719,7 @@ func TestQueryCapture(t *testing.T) {
 	}
 
 	testQuery := "SELECT * FROM Z;"
-	err = handler.CheckQuery(testQuery)
+	_, err = handler.CheckQuery(testQuery)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -699,9 +758,13 @@ func TestConfigurationProvider(t *testing.T) {
 	acraCensor := &AcraCensor{}
 	defer acraCensor.ReleaseAll()
 
-	handlers_, err := acraCensor.LoadConfiguration(configuration)
+	err = acraCensor.LoadConfiguration(configuration)
 	if err != nil {
 		t.Fatal(err)
+	}
+
+	if len(acraCensor.handlers) != 3 {
+		t.Fatal("Unexpected amount of handlers: ", len(acraCensor.handlers))
 	}
 
 	testQueries := []string{
@@ -709,7 +772,7 @@ func TestConfigurationProvider(t *testing.T) {
 		"SELECT AVG(Price) FROM Products;",
 	}
 
-	//acracensor should block those queries (blacklist works)
+	//acracensor should block those queries
 	for _, queryToBlock := range testQueries {
 		err = acraCensor.HandleQuery(queryToBlock)
 		if err != handlers.ErrQueryInBlacklist {
@@ -722,7 +785,7 @@ func TestConfigurationProvider(t *testing.T) {
 		"SELECT AVG(Price) FROM Customers;",
 	}
 
-	//acracensor should block those tables (blacklist works)
+	//acracensor should block those tables
 	for _, queryToBlock := range testQueries {
 		err = acraCensor.HandleQuery(queryToBlock)
 		if err != handlers.ErrAccessToForbiddenTableBlacklist {
@@ -735,7 +798,7 @@ func TestConfigurationProvider(t *testing.T) {
 		"SELECT EMP_ID, LAST_NAME FROM EMPLOYEE AS EMPL WHERE CITY = 'Seattle' ORDER BY EMP_ID;",
 	}
 
-	//acracensor should block those structures (blacklist works)
+	//acracensor should block those structures
 	for _, queryToBlock := range testQueries {
 		err = acraCensor.HandleQuery(queryToBlock)
 		if err != handlers.ErrForbiddenSqlStructureBlacklist {
@@ -743,20 +806,7 @@ func TestConfigurationProvider(t *testing.T) {
 		}
 	}
 
-	testQueries = []string{
-		"SELECT EMP_ID, LAST_NAME FROM PRODUCTS WHERE CITY='INDIANAPOLIS' ORDER BY EMP_ID;",
-		"SELECT EMP_ID, LAST_NAME FROM PRODUCTS WHERE CITY='INDIANAPOLIS' ORDER BY EMP_ID asc;",
-	}
-
-	//acracensor should block those tables (whitelist works)
-	for _, queryToBlock := range testQueries {
-		err = acraCensor.HandleQuery(queryToBlock)
-		if err != handlers.ErrAccessToForbiddenTableWhitelist {
-			t.Fatal(err)
-		}
-	}
-
-	for _, currentHandler := range handlers_ {
+	for _, currentHandler := range acraCensor.handlers {
 		original, ok := currentHandler.(*handlers.QueryCaptureHandler)
 		if ok {
 			defaultTimeout := original.GetSerializationTimeout()
@@ -779,13 +829,13 @@ func testSyntax(t *testing.T) {
 	defer acraCensor.ReleaseAll()
 
 	configuration := `handlers:
-  - handler: blacklist
-    queries:
+  	handler: blacklist
+    qeries:
       - INSERT INTO SalesStaff1 VALUES (1, 'Stephen', 'Jiang');
-      - SLECT AVG(Price) FROM Products;`
+      - SELECT AVG(Price) FROM Products;`
 
-	_, err := acraCensor.LoadConfiguration([]byte(configuration))
-	if err != handlers.ErrQuerySyntaxError {
+	err := acraCensor.LoadConfiguration([]byte(configuration))
+	if err == nil {
 		t.Fatal(err)
 	}
 
@@ -800,7 +850,7 @@ func testSyntax(t *testing.T) {
     rules:
       - SELECT * ROM EMPLOYEE WHERE CITY='Seattle';`
 
-	_, err = acraCensor.LoadConfiguration([]byte(configuration))
+	err = acraCensor.LoadConfiguration([]byte(configuration))
 	if err != handlers.ErrStructureSyntaxError {
 		t.Fatal(err)
 	}

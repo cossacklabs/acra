@@ -82,7 +82,7 @@ func (config *Config) SetCensor(censorConfigPath string) error {
 	if err != nil {
 		return err
 	}
-	_, err = censor.LoadConfiguration(configuration)
+	err = censor.LoadConfiguration(configuration)
 	if err != nil {
 		return err
 	}

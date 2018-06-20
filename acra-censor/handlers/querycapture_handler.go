@@ -132,11 +132,11 @@ func NewQueryCaptureHandler(filePath string) (*QueryCaptureHandler, error) {
 
 	return handler, nil
 }
-func (handler *QueryCaptureHandler) CheckQuery(query string) error {
+func (handler *QueryCaptureHandler) CheckQuery(query string) (bool, error) {
 	//skip already captured queries
 	for _, queryInfo := range handler.Queries {
 		if strings.EqualFold(queryInfo.RawQuery, query) {
-			return nil
+			return true, nil
 		}
 	}
 	queryInfo := &QueryInfo{}
@@ -150,7 +150,7 @@ func (handler *QueryCaptureHandler) CheckQuery(query string) error {
 		log.Errorf("Can't process too many queries")
 	}
 
-	return nil
+	return true, nil
 }
 func (handler *QueryCaptureHandler) Reset() {
 	handler.Queries = nil
@@ -159,6 +159,7 @@ func (handler *QueryCaptureHandler) Release() {
 	handler.Reset()
 	handler.signalBackgroundExit <- true
 }
+
 func (handler *QueryCaptureHandler) GetAllInputQueries() []string {
 	var queries []string
 	for _, queryInfo := range handler.Queries {

@@ -361,7 +361,6 @@ class ProcessStub(object):
     def poll(self, *args, **kwargs):
         pass
 
-
 class KeyMakerTest(unittest.TestCase):
     def test_key_length(self):
         output_path = tempfile.mkdtemp()
@@ -381,7 +380,6 @@ class KeyMakerTest(unittest.TestCase):
         subprocess.check_output(
                 ['./acra-keymaker', '--keys_output_dir={}'.format(output_path)],
                 env={'ACRA_MASTER_KEY': long_key})
-
 
 class BaseTestCase(unittest.TestCase):
     DB_HOST = os.environ.get('TEST_DB_HOST', '127.0.0.1')
@@ -749,6 +747,45 @@ class HexFormatTest(BaseTestCase):
         row = result.fetchone()
         self.assertNotEqual(row['data'][fake_offset:].decode('ascii', errors='ignore'),
                             row['raw_data'])
+
+class BaseCensorTest(BaseTestCase):
+    CENSOR_CONFIG_FILE = 'default.yaml'
+    def fork_acra(self, popen_kwargs: dict=None, **acra_kwargs: dict):
+        acra_kwargs['acracensor_config_file'] = self.CENSOR_CONFIG_FILE
+        return self._fork_acra(acra_kwargs, popen_kwargs)
+
+
+class CensorBlacklistTest(BaseCensorTest):
+    CENSOR_CONFIG_FILE = 'tests/acra-censor_configs/acra-censor_blacklist.yaml'
+    def testBlacklist(self):
+        if TEST_MYSQL:
+            expectedException = sa.exc.OperationalError
+        if TEST_POSTGRESQL:
+            expectedException = sa.exc.ProgrammingError
+
+        with self.assertRaises(expectedException):
+                result = self.engine1.execute(sa.text("select data from test where id='1'"))
+
+        with self.assertRaises(expectedException):
+            result = self.engine1.execute(sa.text("select data_raw from test"))
+
+        with self.assertRaises(expectedException):
+            result = self.engine1.execute(sa.text("select * from acrarollback_output"))
+
+class CensorWhitelistTest(BaseCensorTest):
+    CENSOR_CONFIG_FILE = 'tests/acra-censor_configs/acra-censor_whitelist.yaml'
+    def testWhitelist(self):
+        expectedException = None
+        if TEST_MYSQL:
+            expectedException = sa.exc.OperationalError
+        if TEST_POSTGRESQL:
+            expectedException = sa.exc.ProgrammingError
+
+        with self.assertRaises(expectedException):
+            result = self.engine1.execute(sa.text("select data from test where id='100'"))
+
+        with self.assertRaises(expectedException):
+            result = self.engine1.execute(sa.text("select * from acrarollback_output"))
 
 
 class ZoneHexFormatTest(BaseTestCase):
@@ -1936,7 +1973,6 @@ class SSLMysqlConnectionTest(SSLMysqlMixin, HexFormatTest):
 
 class SSLMysqlConnectionWithZoneTest(SSLMysqlMixin, ZoneHexFormatTest):
     pass
-
 
 if __name__ == '__main__':
     unittest.main()

@@ -28,9 +28,14 @@ func (acraCensor *AcraCensor) ReleaseAll() {
 
 func (acraCensor *AcraCensor) HandleQuery(query string) error {
 	for _, handler := range acraCensor.handlers {
-		if err := handler.CheckQuery(query); err != nil {
+		continueHandling, err := handler.CheckQuery(query)
+		if err != nil {
 			log.Errorf("Forbidden query: '%s'", query)
 			return err
+		} else {
+			if !continueHandling {
+				return nil
+			}
 		}
 	}
 	log.Infof("Allowed query: '%s'", query)
