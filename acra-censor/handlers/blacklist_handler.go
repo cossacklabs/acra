@@ -8,9 +8,9 @@ import (
 )
 
 type BlacklistHandler struct {
-	queries  []string
-	tables   []string
-	rules    []string
+	queries []string
+	tables  []string
+	rules   []string
 }
 
 func (handler *BlacklistHandler) CheckQuery(query string) (bool, error) {
@@ -32,22 +32,25 @@ func (handler *BlacklistHandler) CheckQuery(query string) (bool, error) {
 		case *sqlparser.Select:
 			for _, forbiddenTable := range handler.tables {
 				for _, fromStatement := range parsedQuery.From {
-					switch fromStatement.(type){
+					switch fromStatement.(type) {
 					case *sqlparser.AliasedTableExpr:
-						if strings.EqualFold(sqlparser.String(fromStatement.(*sqlparser.AliasedTableExpr).Expr), forbiddenTable) {
+						err = handler.handleAliasedTables(fromStatement.(*sqlparser.AliasedTableExpr), forbiddenTable)
+						if err != nil {
 							return false, ErrAccessToForbiddenTableBlacklist
 						}
 						break
 					case *sqlparser.JoinTableExpr:
-						err = handler.HandleJoinedTables(fromStatement.(*sqlparser.JoinTableExpr), forbiddenTable)
+						err = handler.handleJoinedTables(fromStatement.(*sqlparser.JoinTableExpr), forbiddenTable)
 						if err != nil {
 							return false, ErrAccessToForbiddenTableBlacklist
 						}
+						break
 					case *sqlparser.ParenTableExpr:
-						err = handler.HandleParenTables(fromStatement.(*sqlparser.ParenTableExpr), forbiddenTable)
-						if err != nil{
+						err = handler.handleParenTables(fromStatement.(*sqlparser.ParenTableExpr), forbiddenTable)
+						if err != nil {
 							return false, ErrAccessToForbiddenTableBlacklist
 						}
+						break
 					default:
 						return false, ErrUnexpectedTypeError
 					}
@@ -79,7 +82,7 @@ func (handler *BlacklistHandler) CheckQuery(query string) (bool, error) {
 	return true, nil
 }
 
-func (handler *BlacklistHandler) HandleAliasedTables(statement *sqlparser.AliasedTableExpr, forbiddenTable string) error {
+func (handler *BlacklistHandler) handleAliasedTables(statement *sqlparser.AliasedTableExpr, forbiddenTable string) error {
 	if strings.EqualFold(sqlparser.String(statement.Expr), forbiddenTable) {
 		return ErrAccessToForbiddenTableBlacklist
 	} else {
@@ -87,30 +90,30 @@ func (handler *BlacklistHandler) HandleAliasedTables(statement *sqlparser.Aliase
 	}
 }
 
-func (handler *BlacklistHandler) HandleJoinedTables(statement *sqlparser.JoinTableExpr, forbiddenTable string) error {
-	var err error;
-	switch statement.LeftExpr.(type){
+func (handler *BlacklistHandler) handleJoinedTables(statement *sqlparser.JoinTableExpr, forbiddenTable string) error {
+	var err error
+	switch statement.LeftExpr.(type) {
 	case *sqlparser.AliasedTableExpr:
-		err = handler.HandleAliasedTables(statement.LeftExpr.(*sqlparser.AliasedTableExpr), forbiddenTable)
+		err = handler.handleAliasedTables(statement.LeftExpr.(*sqlparser.AliasedTableExpr), forbiddenTable)
 	case *sqlparser.JoinTableExpr:
-		err = handler.HandleJoinedTables(statement.LeftExpr.(*sqlparser.JoinTableExpr), forbiddenTable)
+		err = handler.handleJoinedTables(statement.LeftExpr.(*sqlparser.JoinTableExpr), forbiddenTable)
 	case *sqlparser.ParenTableExpr:
-		err = handler.HandleParenTables(statement.LeftExpr.(*sqlparser.ParenTableExpr), forbiddenTable)
+		err = handler.handleParenTables(statement.LeftExpr.(*sqlparser.ParenTableExpr), forbiddenTable)
 	default:
 		return ErrUnexpectedTypeError
 	}
 
-	if err != nil{
+	if err != nil {
 		return err
 	}
 
 	switch statement.RightExpr.(type) {
 	case *sqlparser.AliasedTableExpr:
-		err = handler.HandleAliasedTables(statement.RightExpr.(*sqlparser.AliasedTableExpr), forbiddenTable)
+		err = handler.handleAliasedTables(statement.RightExpr.(*sqlparser.AliasedTableExpr), forbiddenTable)
 	case *sqlparser.JoinTableExpr:
-		err = handler.HandleJoinedTables(statement.RightExpr.(*sqlparser.JoinTableExpr), forbiddenTable)
+		err = handler.handleJoinedTables(statement.RightExpr.(*sqlparser.JoinTableExpr), forbiddenTable)
 	case *sqlparser.ParenTableExpr:
-		err = handler.HandleParenTables(statement.RightExpr.(*sqlparser.ParenTableExpr), forbiddenTable)
+		err = handler.handleParenTables(statement.RightExpr.(*sqlparser.ParenTableExpr), forbiddenTable)
 	default:
 		err = ErrUnexpectedTypeError
 	}
@@ -122,20 +125,20 @@ func (handler *BlacklistHandler) HandleJoinedTables(statement *sqlparser.JoinTab
 	return nil
 }
 
-func (handler *BlacklistHandler) HandleParenTables(statement *sqlparser.ParenTableExpr, forbiddenTable string) error {
+func (handler *BlacklistHandler) handleParenTables(statement *sqlparser.ParenTableExpr, forbiddenTable string) error {
 	var err error
-	for _, singleExpression := range statement.Exprs{
-		switch singleExpression.(type){
+	for _, singleExpression := range statement.Exprs {
+		switch singleExpression.(type) {
 		case *sqlparser.AliasedTableExpr:
-			err = handler.HandleAliasedTables(singleExpression.(*sqlparser.AliasedTableExpr), forbiddenTable)
+			err = handler.handleAliasedTables(singleExpression.(*sqlparser.AliasedTableExpr), forbiddenTable)
 		case *sqlparser.JoinTableExpr:
-			err = handler.HandleJoinedTables(singleExpression.(*sqlparser.JoinTableExpr), forbiddenTable)
+			err = handler.handleJoinedTables(singleExpression.(*sqlparser.JoinTableExpr), forbiddenTable)
 		case *sqlparser.ParenTableExpr:
-			err = handler.HandleParenTables(singleExpression.(*sqlparser.ParenTableExpr), forbiddenTable)
+			err = handler.handleParenTables(singleExpression.(*sqlparser.ParenTableExpr), forbiddenTable)
 		default:
 			return ErrUnexpectedTypeError
 		}
-		if err != nil{
+		if err != nil {
 			return err
 		}
 	}
