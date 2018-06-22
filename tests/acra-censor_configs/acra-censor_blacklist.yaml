@@ -8,7 +8,6 @@ handlers:
       - show collation where `Charset` = 'utf8' and `Collation` = 'utf8_bin'
       #postgres
       - BEGIN
-      - "SELECT t.oid, typarray\nFROM pg_type t JOIN pg_namespace ns\n    ON typnamespace = ns.oid\nWHERE typname = 'hstore';\n"
       - "UPDATE pg_settings SET setting = 'hex' WHERE name = 'bytea_output'"
       - COMMIT
       - show transaction isolation level

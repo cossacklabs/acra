@@ -381,6 +381,7 @@ class KeyMakerTest(unittest.TestCase):
                 ['./acra-keymaker', '--keys_output_dir={}'.format(output_path)],
                 env={'ACRA_MASTER_KEY': long_key})
 
+
 class BaseTestCase(unittest.TestCase):
     DB_HOST = os.environ.get('TEST_DB_HOST', '127.0.0.1')
     DB_NAME = os.environ.get('TEST_DB_NAME', 'postgres')
@@ -748,6 +749,7 @@ class HexFormatTest(BaseTestCase):
         self.assertNotEqual(row['data'][fake_offset:].decode('ascii', errors='ignore'),
                             row['raw_data'])
 
+
 class BaseCensorTest(BaseTestCase):
     CENSOR_CONFIG_FILE = 'default.yaml'
     def fork_acra(self, popen_kwargs: dict=None, **acra_kwargs: dict):
@@ -771,6 +773,7 @@ class CensorBlacklistTest(BaseCensorTest):
 
         with self.assertRaises(expectedException):
             result = self.engine1.execute(sa.text("select * from acrarollback_output"))
+
 
 class CensorWhitelistTest(BaseCensorTest):
     CENSOR_CONFIG_FILE = 'tests/acra-censor_configs/acra-censor_whitelist.yaml'
@@ -1973,6 +1976,7 @@ class SSLMysqlConnectionTest(SSLMysqlMixin, HexFormatTest):
 
 class SSLMysqlConnectionWithZoneTest(SSLMysqlMixin, ZoneHexFormatTest):
     pass
+
 
 if __name__ == '__main__':
     unittest.main()
