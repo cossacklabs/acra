@@ -5,6 +5,8 @@ import (
 	"github.com/xwb1989/sqlparser"
 	"reflect"
 	"strings"
+
+	log "github.com/sirupsen/logrus"
 )
 
 type WhitelistHandler struct {
@@ -30,29 +32,30 @@ func (handler *WhitelistHandler) CheckQuery(query string) (bool, error) {
 		switch parsedQuery := parsedQuery.(type) {
 		case *sqlparser.Select:
 			for _, fromStatement := range parsedQuery.From {
-				//fmt.Println("Main loop: ", sqlparser.String(fromStatement))
 				switch fromStatement.(type) {
 				case *sqlparser.AliasedTableExpr:
 					err = handler.handleAliasedTables(parsedQuery.From)
 					if err != nil {
+						log.WithError(err).Debugln("error from WhitlistHandler.handleAliasedTables")
 						return false, ErrAccessToForbiddenTableWhitelist
 					}
 					break
 				case *sqlparser.JoinTableExpr:
 					err = handler.handleJoinedTables(fromStatement.(*sqlparser.JoinTableExpr))
 					if err != nil {
+						log.WithError(err).Debugln("error from WhitlistHandler.handleJoinedTables")
 						return false, ErrAccessToForbiddenTableWhitelist
 					}
 				case *sqlparser.ParenTableExpr:
 					err = handler.handleParenTables(fromStatement.(*sqlparser.ParenTableExpr))
 					if err != nil {
+						log.WithError(err).Debugln("error from WhitlistHandler.handleParenTables")
 						return false, ErrAccessToForbiddenTableWhitelist
 					}
 				default:
 					return false, ErrUnexpectedTypeError
 				}
 			}
-
 		case *sqlparser.Insert:
 			tableIsAllowed := false
 			for _, allowedTable := range handler.tables {
@@ -107,13 +110,11 @@ func (handler *WhitelistHandler) handleAliasedTables(parsedQuery sqlparser.Table
 			default:
 				return ErrUnexpectedTypeError
 			}
-
 			if err != nil {
 				return ErrAccessToForbiddenTableWhitelist
 			}
 		}
 	}
-
 	if allowedTablesCounter != len(parsedQuery) {
 		return ErrAccessToForbiddenTableWhitelist
 	} else {
@@ -135,11 +136,9 @@ func (handler *WhitelistHandler) handleJoinedTables(statement *sqlparser.JoinTab
 	default:
 		return ErrUnexpectedTypeError
 	}
-
 	if err != nil {
 		return err
 	}
-
 	switch statement.RightExpr.(type) {
 	case *sqlparser.AliasedTableExpr:
 		var tables sqlparser.TableExprs
@@ -152,11 +151,9 @@ func (handler *WhitelistHandler) handleJoinedTables(statement *sqlparser.JoinTab
 	default:
 		err = ErrUnexpectedTypeError
 	}
-
 	if err != nil {
 		return err
 	}
-
 	return nil
 }
 

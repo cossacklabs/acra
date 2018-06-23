@@ -855,7 +855,11 @@ func testSyntax(t *testing.T) {
 }
 
 func TestDifferentTablesParsing(t *testing.T) {
-	testQuery := "SELECT Orders.OrderID, Customers.CustomerName, Shippers.ShipperName FROM ((Orders INNER JOIN Customers ON Orders.CustomerID = Customers.CustomerID) INNER JOIN Shippers ON Orders.ShipperID = Shippers.ShipperID);"
+	testQuery :=
+		"SELECT Orders.OrderID, Customers.CustomerName, Shippers.ShipperName " +
+			"FROM ((Orders " +
+			"INNER JOIN Customers ON Orders.CustomerID = Customers.CustomerID) " +
+			"INNER JOIN Shippers ON Orders.ShipperID = Shippers.ShipperID);"
 
 	blacklist := handlers.BlacklistHandler{}
 	blacklist.AddTables([]string{"x", "y"})

@@ -5,6 +5,8 @@ import (
 	"github.com/xwb1989/sqlparser"
 	"reflect"
 	"strings"
+
+	log "github.com/sirupsen/logrus"
 )
 
 type BlacklistHandler struct {
@@ -36,18 +38,21 @@ func (handler *BlacklistHandler) CheckQuery(query string) (bool, error) {
 					case *sqlparser.AliasedTableExpr:
 						err = handler.handleAliasedTables(fromStatement.(*sqlparser.AliasedTableExpr), forbiddenTable)
 						if err != nil {
+							log.WithError(err).Debugln("error from BlacklistHandler.handleAliasedTables")
 							return false, ErrAccessToForbiddenTableBlacklist
 						}
 						break
 					case *sqlparser.JoinTableExpr:
 						err = handler.handleJoinedTables(fromStatement.(*sqlparser.JoinTableExpr), forbiddenTable)
 						if err != nil {
+							log.WithError(err).Debugln("error from BlacklistHandler.handleJoinedTables")
 							return false, ErrAccessToForbiddenTableBlacklist
 						}
 						break
 					case *sqlparser.ParenTableExpr:
 						err = handler.handleParenTables(fromStatement.(*sqlparser.ParenTableExpr), forbiddenTable)
 						if err != nil {
+							log.WithError(err).Debugln("error from BlacklistHandler.handleParenTables")
 							return false, ErrAccessToForbiddenTableBlacklist
 						}
 						break
@@ -102,11 +107,9 @@ func (handler *BlacklistHandler) handleJoinedTables(statement *sqlparser.JoinTab
 	default:
 		return ErrUnexpectedTypeError
 	}
-
 	if err != nil {
 		return err
 	}
-
 	switch statement.RightExpr.(type) {
 	case *sqlparser.AliasedTableExpr:
 		err = handler.handleAliasedTables(statement.RightExpr.(*sqlparser.AliasedTableExpr), forbiddenTable)
@@ -117,11 +120,9 @@ func (handler *BlacklistHandler) handleJoinedTables(statement *sqlparser.JoinTab
 	default:
 		err = ErrUnexpectedTypeError
 	}
-
 	if err != nil {
 		return err
 	}
-
 	return nil
 }
 
