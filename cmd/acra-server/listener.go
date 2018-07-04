@@ -150,7 +150,7 @@ func (server *SServer) handleConnection(connection net.Conn) {
 	if err != nil {
 		log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantInitClientSession).
 			Errorln("Can't initialize client session")
-		if closeErr := connection.Close(); closeErr != nil {
+		if closeErr := wrappedConnection.Close(); closeErr != nil {
 			log.WithError(closeErr).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantCloseConnection).
 				Errorln("Can't close connection")
 		}
@@ -203,8 +203,12 @@ func (server *SServer) Start() {
 }
 
 func (server *SServer) StartFromFileDescriptor(fd uintptr) {
-	var connection net.Conn
 	file := os.NewFile(fd, "/tmp/acra-server")
+	if file == nil {
+		log.Errorln("can't create new file from descriptor for acra listener")
+		server.errorSignalChannel <- syscall.SIGTERM
+		return
+	}
 	listenerFile, err := net.FileListener(file)
 	if err != nil {
 		log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantOpenFileByDescriptor).
@@ -224,7 +228,7 @@ func (server *SServer) StartFromFileDescriptor(fd uintptr) {
 
 	log.Infof("Start listening connection: %s", server.config.GetAcraConnectionString())
 	for {
-		connection, err = listenerWithFileDescriptor.Accept()
+		connection, err := listenerWithFileDescriptor.Accept()
 		if err != nil {
 			if nerr, ok := err.(net.Error); ok && nerr.Timeout() {
 				log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorConnectionDroppedByTimeout).
@@ -285,6 +289,8 @@ func (server *SServer) StopListeners() {
 		listener = server.listenerACRA.(*net.TCPListener)
 	case *net.UnixListener:
 		listener = server.listenerACRA.(*net.UnixListener)
+	case nil:
+		log.Debugln("hasn't acra listener")
 	default:
 		log.Warningln("unsupported listener")
 	}
@@ -298,6 +304,8 @@ func (server *SServer) StopListeners() {
 		listener = server.listenerACRA.(*net.TCPListener)
 	case *net.UnixListener:
 		listener = server.listenerACRA.(*net.UnixListener)
+	case nil:
+		log.Debugln("hasn't api listener")
 	default:
 		log.Warningln("unsupported listener")
 	}
@@ -402,6 +410,11 @@ func (server *SServer) StartCommands() {
 func (server *SServer) StartCommandsFromFileDescriptor(fd uintptr) {
 	var connection net.Conn
 	file := os.NewFile(fd, "/tmp/acra-server_http_api")
+	if file == nil {
+		log.Errorln("can't create new file from descriptor for api listener")
+		server.errorSignalChannel <- syscall.SIGTERM
+		return
+	}
 	listenerFile, err := net.FileListener(file)
 	if err != nil {
 		log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantOpenFileByDescriptor).

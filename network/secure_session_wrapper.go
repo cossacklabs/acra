@@ -16,6 +16,8 @@ package network
 import (
 	"io"
 	"net"
+	"runtime"
+	"sync"
 
 	"github.com/cossacklabs/acra/keystore"
 	"github.com/cossacklabs/acra/logging"
@@ -54,20 +56,14 @@ type secureSessionConnection struct {
 	returnedIndex int
 	closed        bool
 	clientId      []byte
+	mutex         *sync.Mutex
 }
 
 func newSecureSessionConnection(keystore keystore.SecureSessionKeyStore, conn net.Conn) (*secureSessionConnection, error) {
-	return &secureSessionConnection{keystore: keystore, session: nil, Conn: conn, currentData: nil, returnedIndex: 0, closed: false, clientId: nil}, nil
-}
-
-func (wrapper *secureSessionConnection) isClosed() bool {
-	return wrapper.closed
+	return &secureSessionConnection{keystore: keystore, session: nil, Conn: conn, currentData: nil, returnedIndex: 0, closed: false, clientId: nil, mutex: &sync.Mutex{}}, nil
 }
 
 func (wrapper *secureSessionConnection) Read(b []byte) (n int, err error) {
-	if wrapper.closed {
-		return 0, io.EOF
-	}
 	if wrapper.currentData != nil {
 		n = copy(b, wrapper.currentData[wrapper.returnedIndex:])
 		wrapper.returnedIndex += n
@@ -80,6 +76,11 @@ func (wrapper *secureSessionConnection) Read(b []byte) (n int, err error) {
 	if err != nil {
 		return len(data), err
 	}
+	wrapper.mutex.Lock()
+	defer wrapper.mutex.Unlock()
+	if wrapper.closed {
+		return 0, io.EOF
+	}
 	decryptedData, _, err := wrapper.session.Unwrap(data)
 	if err != nil {
 		return len(data), err
@@ -89,6 +90,7 @@ func (wrapper *secureSessionConnection) Read(b []byte) (n int, err error) {
 		wrapper.currentData = decryptedData
 		wrapper.returnedIndex = n
 	}
+
 	return n, nil
 }
 
@@ -96,24 +98,31 @@ func (wrapper *secureSessionConnection) Read(b []byte) (n int, err error) {
 // Write can be made to time out and return a Error with Timeout() == true
 // after a fixed time limit; see SetDeadline and SetWriteDeadline.
 func (wrapper *secureSessionConnection) Write(b []byte) (n int, err error) {
+	wrapper.mutex.Lock()
 	if wrapper.closed {
+		wrapper.mutex.Unlock()
 		return 0, io.EOF
 	}
 	encryptedData, err := wrapper.session.Wrap(b)
 	if err != nil {
+		wrapper.mutex.Unlock()
 		return 0, err
 	}
+	wrapper.mutex.Unlock()
 	err = utils.SendData(encryptedData, wrapper.Conn)
 	return len(b), nil
 }
 
 func (wrapper *secureSessionConnection) Close() error {
+	wrapper.mutex.Lock()
+	defer wrapper.mutex.Unlock()
 	wrapper.closed = true
 	err := wrapper.Conn.Close()
 	sessionErr := wrapper.session.Close()
 	if sessionErr != nil {
 		return sessionErr
 	}
+	runtime.KeepAlive(wrapper.session)
 	return err
 }
 

@@ -264,12 +264,11 @@ func (row *DataRow) Marshal() ([]byte, error) {
 type PgProxy struct {
 	clientConnection net.Conn
 	dbConnection     net.Conn
-	errCh            chan<- error
 	TlsCh            chan bool
 }
 
-func NewPgProxy(clientConnection, dbConnection net.Conn, errCh chan<- error) (*PgProxy, error) {
-	return &PgProxy{clientConnection: clientConnection, dbConnection: dbConnection, errCh: errCh, TlsCh: make(chan bool)}, nil
+func NewPgProxy(clientConnection, dbConnection net.Conn) (*PgProxy, error) {
+	return &PgProxy{clientConnection: clientConnection, dbConnection: dbConnection, TlsCh: make(chan bool)}, nil
 }
 
 func NewClientSideDataRow(reader *acra_io.ExtendedBufferedReader, writer *bufio.Writer) (*DataRow, error) {
@@ -433,7 +432,7 @@ func (proxy *PgProxy) PgDecryptStream(censor acracensor.AcraCensorInterface, dec
 					break
 				case <-time.NewTimer(TLS_TIMEOUT).C:
 					log.Errorln("can't stop background goroutine to start tls handshake")
-					proxy.errCh <- errors.New("can't stop background goroutine")
+					errCh <- errors.New("can't stop background goroutine")
 					return
 				}
 				log.Debugln("stop client connection")

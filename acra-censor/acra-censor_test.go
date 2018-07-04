@@ -210,7 +210,6 @@ func testWhitelistRules(t *testing.T, acraCensor *AcraCensor, whitelistHandler *
 
 func TestBlacklistQueries(t *testing.T) {
 	sqlSelectQueries := []string{
-		"SELECT * FROM Schema.Tables;",
 		"SELECT Student_ID FROM STUDENT;",
 		"SELECT * FROM STUDENT;",
 		"SELECT EMP_ID, NAME FROM EMPLOYEE_TBL WHERE EMP_ID = '0000';",
@@ -429,7 +428,6 @@ func testBlacklistRules(t *testing.T, acraCensor *AcraCensor, blacklistHandler *
 
 func TestQueryIgnoring(t *testing.T) {
 	testQueries := []string{
-		"SELECT * FROM Schema.Tables;",
 		"SELECT Student_ID FROM STUDENT;",
 		"SELECT * FROM STUDENT;",
 		"SELECT * FROM STUDENT;",
@@ -461,14 +459,12 @@ func TestQueryIgnoring(t *testing.T) {
 	ignoreQueryHandler.AddQueries(testQueries)
 	acraCensor.AddHandler(ignoreQueryHandler)
 
-
 	blacklist := &handlers.BlacklistHandler{}
 	err := blacklist.AddQueries(testQueries)
 	if err != nil {
 		t.Fatal(err)
 	}
 	acraCensor.AddHandler(blacklist)
-
 
 	//should not block
 	for _, query := range testQueries {
@@ -491,7 +487,6 @@ func TestQueryIgnoring(t *testing.T) {
 
 func TestSerialization(t *testing.T) {
 	testQueries := []string{
-		"SELECT * FROM Schema.Tables;",
 		"SELECT Student_ID FROM STUDENT;",
 		"SELECT * FROM STUDENT;",
 		"SELECT * FROM X;",
@@ -688,7 +683,6 @@ func TestQueryCapture(t *testing.T) {
 	defer handler.Release()
 
 	testQueries := []string{
-		"SELECT * FROM Schema.Tables;",
 		"SELECT Student_ID FROM STUDENT;",
 		"SELECT * FROM STUDENT;",
 		"SELECT * FROM X;",
@@ -702,7 +696,7 @@ func TestQueryCapture(t *testing.T) {
 		}
 	}
 
-	expected := "[{\"RawQuery\":\"SELECT * FROM Schema.Tables;\",\"IsForbidden\":false},{\"RawQuery\":\"SELECT Student_ID FROM STUDENT;\",\"IsForbidden\":false},{\"RawQuery\":\"SELECT * FROM STUDENT;\",\"IsForbidden\":false},{\"RawQuery\":\"SELECT * FROM X;\",\"IsForbidden\":false},{\"RawQuery\":\"SELECT * FROM Y;\",\"IsForbidden\":false}]"
+	expected := "[{\"RawQuery\":\"SELECT Student_ID FROM STUDENT;\",\"IsForbidden\":false},{\"RawQuery\":\"SELECT * FROM STUDENT;\",\"IsForbidden\":false},{\"RawQuery\":\"SELECT * FROM X;\",\"IsForbidden\":false},{\"RawQuery\":\"SELECT * FROM Y;\",\"IsForbidden\":false}]"
 
 	defaultTimeout := handler.GetSerializationTimeout()
 	handler.SetSerializationTimeout(50 * time.Millisecond)
@@ -724,7 +718,7 @@ func TestQueryCapture(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	expected = "[{\"RawQuery\":\"SELECT * FROM Schema.Tables;\",\"IsForbidden\":false},{\"RawQuery\":\"SELECT Student_ID FROM STUDENT;\",\"IsForbidden\":false},{\"RawQuery\":\"SELECT * FROM STUDENT;\",\"IsForbidden\":false},{\"RawQuery\":\"SELECT * FROM X;\",\"IsForbidden\":false},{\"RawQuery\":\"SELECT * FROM Y;\",\"IsForbidden\":false},{\"RawQuery\":\"SELECT * FROM Z;\",\"IsForbidden\":false}]"
+	expected = "[{\"RawQuery\":\"SELECT Student_ID FROM STUDENT;\",\"IsForbidden\":false},{\"RawQuery\":\"SELECT * FROM STUDENT;\",\"IsForbidden\":false},{\"RawQuery\":\"SELECT * FROM X;\",\"IsForbidden\":false},{\"RawQuery\":\"SELECT * FROM Y;\",\"IsForbidden\":false},{\"RawQuery\":\"SELECT * FROM Z;\",\"IsForbidden\":false}]"
 	time.Sleep(handler.GetSerializationTimeout() + 10*time.Millisecond)
 
 	result, err = ioutil.ReadFile(tmpFile.Name())
