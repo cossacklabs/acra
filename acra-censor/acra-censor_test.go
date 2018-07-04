@@ -665,7 +665,8 @@ func TestLogging(t *testing.T) {
 	}
 }
 func TestQueryCapture(t *testing.T) {
-
+	// extraWaitTime provide extra time to serialize in background goroutine before check
+	const extraWaitTime = 100 * time.Millisecond
 	tmpFile, err := ioutil.TempFile("", "censor_log")
 	if err != nil {
 		t.Fatal(err)
@@ -701,7 +702,7 @@ func TestQueryCapture(t *testing.T) {
 	defaultTimeout := handler.GetSerializationTimeout()
 	handler.SetSerializationTimeout(50 * time.Millisecond)
 	//wait until goroutine handles complex serialization
-	time.Sleep(defaultTimeout + handler.GetSerializationTimeout() + 10*time.Millisecond)
+	time.Sleep(defaultTimeout + handler.GetSerializationTimeout() + extraWaitTime)
 
 	result, err := ioutil.ReadFile(tmpFile.Name())
 	if err != nil {
@@ -719,7 +720,7 @@ func TestQueryCapture(t *testing.T) {
 	}
 
 	expected = "[{\"RawQuery\":\"SELECT Student_ID FROM STUDENT;\",\"IsForbidden\":false},{\"RawQuery\":\"SELECT * FROM STUDENT;\",\"IsForbidden\":false},{\"RawQuery\":\"SELECT * FROM X;\",\"IsForbidden\":false},{\"RawQuery\":\"SELECT * FROM Y;\",\"IsForbidden\":false},{\"RawQuery\":\"SELECT * FROM Z;\",\"IsForbidden\":false}]"
-	time.Sleep(handler.GetSerializationTimeout() + 10*time.Millisecond)
+	time.Sleep(handler.GetSerializationTimeout() + extraWaitTime)
 
 	result, err = ioutil.ReadFile(tmpFile.Name())
 	if err != nil {
