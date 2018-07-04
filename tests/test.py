@@ -1445,7 +1445,7 @@ class TestKeyStorageClearing(BaseTestCase):
         except:
             pass
 
-        for engine in self.engines:
+        for engine in getattr(self, 'engines', []):
             engine.dispose()
 
     def test_clearing(self):
