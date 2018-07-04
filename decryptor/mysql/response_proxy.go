@@ -337,6 +337,9 @@ func (handler *MysqlHandler) processBinaryDataRow(rowData []byte, fields []*Colu
 		return nil, ErrMalformPacket
 	}
 
+	// https://dev.mysql.com/doc/internals/en/binary-protocol-resultset-row.html
+	// 1 - packet header
+	// 7 + 2 offset from docs
 	pos = 1 + ((len(fields) + 7 + 2) >> 3)
 	nullBitmap := rowData[1:pos]
 	output = append(output, rowData[:pos]...)

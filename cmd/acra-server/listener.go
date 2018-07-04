@@ -205,7 +205,7 @@ func (server *SServer) Start() {
 func (server *SServer) StartFromFileDescriptor(fd uintptr) {
 	file := os.NewFile(fd, "/tmp/acra-server")
 	if file == nil {
-		log.Errorln("can't create new file from descriptor for acra listener")
+		log.Errorln("Can't create new file from descriptor for acra listener")
 		server.errorSignalChannel <- syscall.SIGTERM
 		return
 	}
@@ -411,7 +411,7 @@ func (server *SServer) StartCommandsFromFileDescriptor(fd uintptr) {
 	var connection net.Conn
 	file := os.NewFile(fd, "/tmp/acra-server_http_api")
 	if file == nil {
-		log.Errorln("can't create new file from descriptor for api listener")
+		log.Errorln("Can't create new file from descriptor for api listener")
 		server.errorSignalChannel <- syscall.SIGTERM
 		return
 	}
