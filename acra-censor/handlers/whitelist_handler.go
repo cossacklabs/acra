@@ -5,12 +5,14 @@ import (
 	"github.com/xwb1989/sqlparser"
 	"reflect"
 	"strings"
+
+	log "github.com/sirupsen/logrus"
 )
 
 type WhitelistHandler struct {
-	queries  []string
-	tables   []string
-	rules    []string
+	queries []string
+	tables  []string
+	rules   []string
 }
 
 func (handler *WhitelistHandler) CheckQuery(query string) (bool, error) {
@@ -29,13 +31,30 @@ func (handler *WhitelistHandler) CheckQuery(query string) (bool, error) {
 		}
 		switch parsedQuery := parsedQuery.(type) {
 		case *sqlparser.Select:
-			err = handler.handleAliasedTables(parsedQuery.From)
-			if err != nil {
-				return false, err
-			}
-			err := handler.handleJoinTables(parsedQuery.From)
-			if err != nil {
-				return false, err
+			for _, fromStatement := range parsedQuery.From {
+				switch fromStatement.(type) {
+				case *sqlparser.AliasedTableExpr:
+					err = handler.handleAliasedTables(parsedQuery.From)
+					if err != nil {
+						log.WithError(err).Debugln("error from WhitlistHandler.handleAliasedTables")
+						return false, ErrAccessToForbiddenTableWhitelist
+					}
+					break
+				case *sqlparser.JoinTableExpr:
+					err = handler.handleJoinedTables(fromStatement.(*sqlparser.JoinTableExpr))
+					if err != nil {
+						log.WithError(err).Debugln("error from WhitlistHandler.handleJoinedTables")
+						return false, ErrAccessToForbiddenTableWhitelist
+					}
+				case *sqlparser.ParenTableExpr:
+					err = handler.handleParenTables(fromStatement.(*sqlparser.ParenTableExpr))
+					if err != nil {
+						log.WithError(err).Debugln("error from WhitlistHandler.handleParenTables")
+						return false, ErrAccessToForbiddenTableWhitelist
+					}
+				default:
+					return false, ErrUnexpectedTypeError
+				}
 			}
 		case *sqlparser.Insert:
 			tableIsAllowed := false
@@ -63,6 +82,101 @@ func (handler *WhitelistHandler) CheckQuery(query string) (bool, error) {
 	}
 	//We do not continue verification because query matches whitelist
 	return false, nil
+}
+
+func (handler *WhitelistHandler) handleAliasedTables(parsedQuery sqlparser.TableExprs) error {
+	allowedTablesCounter := 0
+	var err error
+	for _, allowedTable := range handler.tables {
+		for _, table := range parsedQuery {
+			switch table.(type) {
+			case *sqlparser.AliasedTableExpr:
+				if strings.EqualFold(sqlparser.String(table.(*sqlparser.AliasedTableExpr).Expr), allowedTable) {
+					allowedTablesCounter++
+				}
+				break
+			case *sqlparser.JoinTableExpr:
+				err = handler.handleJoinedTables(table.(*sqlparser.JoinTableExpr))
+				if err != nil {
+					return ErrAccessToForbiddenTableWhitelist
+				}
+				break
+			case *sqlparser.ParenTableExpr:
+				err = handler.handleParenTables(table.(*sqlparser.ParenTableExpr))
+				if err != nil {
+					return ErrAccessToForbiddenTableWhitelist
+				}
+				break
+			default:
+				return ErrUnexpectedTypeError
+			}
+			if err != nil {
+				return ErrAccessToForbiddenTableWhitelist
+			}
+		}
+	}
+	if allowedTablesCounter != len(parsedQuery) {
+		return ErrAccessToForbiddenTableWhitelist
+	} else {
+		return nil
+	}
+}
+
+func (handler *WhitelistHandler) handleJoinedTables(statement *sqlparser.JoinTableExpr) error {
+	var err error
+	switch statement.LeftExpr.(type) {
+	case *sqlparser.AliasedTableExpr:
+		var tables sqlparser.TableExprs
+		tables = append(tables, statement.LeftExpr)
+		err = handler.handleAliasedTables(tables)
+	case *sqlparser.JoinTableExpr:
+		err = handler.handleJoinedTables(statement.LeftExpr.(*sqlparser.JoinTableExpr))
+	case *sqlparser.ParenTableExpr:
+		err = handler.handleParenTables(statement.LeftExpr.(*sqlparser.ParenTableExpr))
+	default:
+		return ErrUnexpectedTypeError
+	}
+	if err != nil {
+		return err
+	}
+	switch statement.RightExpr.(type) {
+	case *sqlparser.AliasedTableExpr:
+		var tables sqlparser.TableExprs
+		tables = append(tables, statement.RightExpr)
+		err = handler.handleAliasedTables(tables)
+	case *sqlparser.JoinTableExpr:
+		err = handler.handleJoinedTables(statement.RightExpr.(*sqlparser.JoinTableExpr))
+	case *sqlparser.ParenTableExpr:
+		err = handler.handleParenTables(statement.RightExpr.(*sqlparser.ParenTableExpr))
+	default:
+		err = ErrUnexpectedTypeError
+	}
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func (handler *WhitelistHandler) handleParenTables(statement *sqlparser.ParenTableExpr) error {
+	var err error
+	for _, singleExpression := range statement.Exprs {
+		switch singleExpression.(type) {
+		case *sqlparser.AliasedTableExpr:
+			var tables sqlparser.TableExprs
+			tables = append(tables, singleExpression)
+			err = handler.handleAliasedTables(tables)
+		case *sqlparser.JoinTableExpr:
+			err = handler.handleJoinedTables(singleExpression.(*sqlparser.JoinTableExpr))
+		case *sqlparser.ParenTableExpr:
+			err = handler.handleParenTables(singleExpression.(*sqlparser.ParenTableExpr))
+		default:
+			return ErrUnexpectedTypeError
+		}
+		if err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func (handler *WhitelistHandler) Reset() {
@@ -213,27 +327,4 @@ func (handler *WhitelistHandler) isAllowedColumnAccess(columnsToEvaluate sqlpars
 func (handler *WhitelistHandler) handleJoinTables(expr sqlparser.TableExprs) error {
 	//stub
 	return nil
-}
-
-func (handler *WhitelistHandler) handleAliasedTables(parsedQuery sqlparser.TableExprs) error {
-	allowedTablesCounter := 0
-	for _, allowedTable := range handler.tables {
-		for _, table := range parsedQuery {
-			_, ok := table.(*sqlparser.AliasedTableExpr)
-			if ok {
-				if strings.EqualFold(sqlparser.String(table.(*sqlparser.AliasedTableExpr).Expr), allowedTable) {
-					allowedTablesCounter++
-				}
-			} else {
-				//it is not aliased table
-				return nil
-			}
-		}
-	}
-
-	if allowedTablesCounter != len(parsedQuery) {
-		return ErrAccessToForbiddenTableWhitelist
-	} else {
-		return nil
-	}
 }
