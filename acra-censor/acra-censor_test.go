@@ -850,3 +850,40 @@ func testSyntax(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+
+func TestDifferentTablesParsing(t *testing.T) {
+	testQuery :=
+		"SELECT Orders.OrderID, Customers.CustomerName, Shippers.ShipperName " +
+			"FROM ((Orders " +
+			"INNER JOIN Customers ON Orders.CustomerID = Customers.CustomerID) " +
+			"INNER JOIN Shippers ON Orders.ShipperID = Shippers.ShipperID);"
+
+	blacklist := handlers.BlacklistHandler{}
+	blacklist.AddTables([]string{"x", "y"})
+
+	_, err := blacklist.CheckQuery(testQuery)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	blacklist.AddTables([]string{"z", "Shippers"})
+	_, err = blacklist.CheckQuery(testQuery)
+	if err != handlers.ErrAccessToForbiddenTableBlacklist {
+		t.Fatal(err)
+	}
+
+	whitelist := handlers.WhitelistHandler{}
+	whitelist.AddTables([]string{"Orders", "Customers", "NotShippers"})
+
+	_, err = whitelist.CheckQuery(testQuery)
+	if err != handlers.ErrAccessToForbiddenTableWhitelist {
+		t.Fatal(err)
+	}
+
+	whitelist.AddTables([]string{"Shippers"})
+
+	_, err = whitelist.CheckQuery(testQuery)
+	if err != nil {
+		t.Fatal(err)
+	}
+}
