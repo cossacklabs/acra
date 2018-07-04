@@ -108,8 +108,8 @@ func handleClientConnection(config *Config, connection net.Conn) {
 	acraConn.SetDeadline(time.Time{})
 	defer acraConnWrapped.Close()
 
-	toAcraErrCh := make(chan error)
-	fromAcraErrCh := make(chan error)
+	toAcraErrCh := make(chan error, 1)
+	fromAcraErrCh := make(chan error, 1)
 	go network.Proxy(connection, acraConnWrapped, toAcraErrCh)
 	go network.Proxy(acraConnWrapped, connection, fromAcraErrCh)
 	select {

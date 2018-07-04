@@ -210,7 +210,6 @@ func testWhitelistRules(t *testing.T, acraCensor *AcraCensor, whitelistHandler *
 
 func TestBlacklistQueries(t *testing.T) {
 	sqlSelectQueries := []string{
-		"SELECT * FROM Schema.Tables;",
 		"SELECT Student_ID FROM STUDENT;",
 		"SELECT * FROM STUDENT;",
 		"SELECT EMP_ID, NAME FROM EMPLOYEE_TBL WHERE EMP_ID = '0000';",
@@ -429,7 +428,6 @@ func testBlacklistRules(t *testing.T, acraCensor *AcraCensor, blacklistHandler *
 
 func TestQueryIgnoring(t *testing.T) {
 	testQueries := []string{
-		"SELECT * FROM Schema.Tables;",
 		"SELECT Student_ID FROM STUDENT;",
 		"SELECT * FROM STUDENT;",
 		"SELECT * FROM STUDENT;",
@@ -489,7 +487,6 @@ func TestQueryIgnoring(t *testing.T) {
 
 func TestSerialization(t *testing.T) {
 	testQueries := []string{
-		"SELECT * FROM Schema.Tables;",
 		"SELECT Student_ID FROM STUDENT;",
 		"SELECT * FROM STUDENT;",
 		"SELECT * FROM X;",
@@ -668,7 +665,8 @@ func TestLogging(t *testing.T) {
 	}
 }
 func TestQueryCapture(t *testing.T) {
-
+	// extraWaitTime provide extra time to serialize in background goroutine before check
+	const extraWaitTime = 100 * time.Millisecond
 	tmpFile, err := ioutil.TempFile("", "censor_log")
 	if err != nil {
 		t.Fatal(err)
@@ -686,7 +684,6 @@ func TestQueryCapture(t *testing.T) {
 	defer handler.Release()
 
 	testQueries := []string{
-		"SELECT * FROM Schema.Tables;",
 		"SELECT Student_ID FROM STUDENT;",
 		"SELECT * FROM STUDENT;",
 		"SELECT * FROM X;",
@@ -700,12 +697,12 @@ func TestQueryCapture(t *testing.T) {
 		}
 	}
 
-	expected := "[{\"RawQuery\":\"SELECT * FROM Schema.Tables;\",\"IsForbidden\":false},{\"RawQuery\":\"SELECT Student_ID FROM STUDENT;\",\"IsForbidden\":false},{\"RawQuery\":\"SELECT * FROM STUDENT;\",\"IsForbidden\":false},{\"RawQuery\":\"SELECT * FROM X;\",\"IsForbidden\":false},{\"RawQuery\":\"SELECT * FROM Y;\",\"IsForbidden\":false}]"
+	expected := "[{\"RawQuery\":\"SELECT Student_ID FROM STUDENT;\",\"IsForbidden\":false},{\"RawQuery\":\"SELECT * FROM STUDENT;\",\"IsForbidden\":false},{\"RawQuery\":\"SELECT * FROM X;\",\"IsForbidden\":false},{\"RawQuery\":\"SELECT * FROM Y;\",\"IsForbidden\":false}]"
 
 	defaultTimeout := handler.GetSerializationTimeout()
 	handler.SetSerializationTimeout(50 * time.Millisecond)
 	//wait until goroutine handles complex serialization
-	time.Sleep(defaultTimeout + handler.GetSerializationTimeout() + 10*time.Millisecond)
+	time.Sleep(defaultTimeout + handler.GetSerializationTimeout() + extraWaitTime)
 
 	result, err := ioutil.ReadFile(tmpFile.Name())
 	if err != nil {
@@ -722,8 +719,8 @@ func TestQueryCapture(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	expected = "[{\"RawQuery\":\"SELECT * FROM Schema.Tables;\",\"IsForbidden\":false},{\"RawQuery\":\"SELECT Student_ID FROM STUDENT;\",\"IsForbidden\":false},{\"RawQuery\":\"SELECT * FROM STUDENT;\",\"IsForbidden\":false},{\"RawQuery\":\"SELECT * FROM X;\",\"IsForbidden\":false},{\"RawQuery\":\"SELECT * FROM Y;\",\"IsForbidden\":false},{\"RawQuery\":\"SELECT * FROM Z;\",\"IsForbidden\":false}]"
-	time.Sleep(handler.GetSerializationTimeout() + 10*time.Millisecond)
+	expected = "[{\"RawQuery\":\"SELECT Student_ID FROM STUDENT;\",\"IsForbidden\":false},{\"RawQuery\":\"SELECT * FROM STUDENT;\",\"IsForbidden\":false},{\"RawQuery\":\"SELECT * FROM X;\",\"IsForbidden\":false},{\"RawQuery\":\"SELECT * FROM Y;\",\"IsForbidden\":false},{\"RawQuery\":\"SELECT * FROM Z;\",\"IsForbidden\":false}]"
+	time.Sleep(handler.GetSerializationTimeout() + extraWaitTime)
 
 	result, err = ioutil.ReadFile(tmpFile.Name())
 	if err != nil {

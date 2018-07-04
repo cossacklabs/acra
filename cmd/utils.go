@@ -58,10 +58,10 @@ func (handler *SignalHandler) AddCallback(callback SignalCallback) {
 
 // Register should be called as goroutine
 func (handler *SignalHandler) Register() {
-	for _, osSignal := range handler.signals {
-		signal.Notify(handler.ch, osSignal)
-	}
+	signal.Notify(handler.ch, handler.signals...)
+
 	<-handler.ch
+
 	for _, listener := range handler.listeners {
 		listener.Close()
 	}
