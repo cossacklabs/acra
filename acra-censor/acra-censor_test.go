@@ -511,7 +511,7 @@ func TestSerialization(t *testing.T) {
 		"INSERT INTO dbo.Points (PointValue) VALUES ('1,99');",
 	}
 
-	tmpFile, err := ioutil.TempFile("", "censor_log.jsonl")
+	tmpFile, err := ioutil.TempFile("", "censor_log")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -697,7 +697,10 @@ func TestQueryCapture(t *testing.T) {
 		}
 	}
 
-	expected := "[{\"RawQuery\":\"SELECT Student_ID FROM STUDENT;\",\"IsForbidden\":false},{\"RawQuery\":\"SELECT * FROM STUDENT;\",\"IsForbidden\":false},{\"RawQuery\":\"SELECT * FROM X;\",\"IsForbidden\":false},{\"RawQuery\":\"SELECT * FROM Y;\",\"IsForbidden\":false}]"
+	expected := "{\"RawQuery\":\"SELECT Student_ID FROM STUDENT;\",\"IsForbidden\":false}\n" +
+		"{\"RawQuery\":\"SELECT * FROM STUDENT;\",\"IsForbidden\":false}\n" +
+		"{\"RawQuery\":\"SELECT * FROM X;\",\"IsForbidden\":false}\n" +
+		"{\"RawQuery\":\"SELECT * FROM Y;\",\"IsForbidden\":false}\n"
 
 	defaultTimeout := handler.GetSerializationTimeout()
 	handler.SetSerializationTimeout(50 * time.Millisecond)
@@ -719,7 +722,11 @@ func TestQueryCapture(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	expected = "[{\"RawQuery\":\"SELECT Student_ID FROM STUDENT;\",\"IsForbidden\":false},{\"RawQuery\":\"SELECT * FROM STUDENT;\",\"IsForbidden\":false},{\"RawQuery\":\"SELECT * FROM X;\",\"IsForbidden\":false},{\"RawQuery\":\"SELECT * FROM Y;\",\"IsForbidden\":false},{\"RawQuery\":\"SELECT * FROM Z;\",\"IsForbidden\":false}]"
+	expected = "{\"RawQuery\":\"SELECT Student_ID FROM STUDENT;\",\"IsForbidden\":false}\n" +
+		"{\"RawQuery\":\"SELECT * FROM STUDENT;\",\"IsForbidden\":false}\n" +
+		"{\"RawQuery\":\"SELECT * FROM X;\",\"IsForbidden\":false}\n" +
+		"{\"RawQuery\":\"SELECT * FROM Y;\",\"IsForbidden\":false}\n" +
+		"{\"RawQuery\":\"SELECT * FROM Z;\",\"IsForbidden\":false}\n"
 	time.Sleep(handler.GetSerializationTimeout() + extraWaitTime)
 
 	result, err = ioutil.ReadFile(tmpFile.Name())
