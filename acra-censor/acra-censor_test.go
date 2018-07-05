@@ -765,6 +765,10 @@ func TestConfigurationProvider(t *testing.T) {
 		t.Fatal(err)
 	}
 
+	if acraCensor.ignoreParseError {
+		t.Fatal("ignore_parse_error must be 'false' as default")
+	}
+
 	if len(acraCensor.handlers) != 3 {
 		t.Fatal("Unexpected amount of handlers: ", len(acraCensor.handlers))
 	}
@@ -853,7 +857,7 @@ func testSyntax(t *testing.T) {
       - SELECT * ROM EMPLOYEE WHERE CITY='Seattle';`
 
 	err = acraCensor.LoadConfiguration([]byte(configuration))
-	if err != handlers.ErrStructureSyntaxError {
+	if err != handlers.ErrQuerySyntaxError {
 		t.Fatal(err)
 	}
 }
@@ -893,4 +897,43 @@ func TestDifferentTablesParsing(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+}
+
+func TestIgnoringQueryParseErrors(t *testing.T) {
+	queriesWithSyntaxErrors := []string{
+		"Insert into something",
+	}
+	acraCensor := &AcraCensor{}
+	defer acraCensor.ReleaseAll()
+	whitelistHandler := &handlers.WhitelistHandler{}
+	whitelistHandler.AddTables([]string{"some table"})
+	blacklistHandler := &handlers.BlacklistHandler{}
+	blacklistHandler.AddTables([]string{"some table"})
+
+	checkHandler := func(queryHandlers []QueryHandlerInterface, expectedError error) {
+		for _, handler := range queryHandlers {
+			acraCensor.AddHandler(handler)
+		}
+		for _, query := range queriesWithSyntaxErrors {
+			err := acraCensor.HandleQuery(query)
+			if err != expectedError {
+				t.Fatalf("unexpected error value - %v", err)
+			}
+		}
+		for _, handler := range queryHandlers {
+			acraCensor.RemoveHandler(handler)
+		}
+	}
+
+	checkHandler([]QueryHandlerInterface{whitelistHandler}, handlers.ErrQuerySyntaxError)
+	checkHandler([]QueryHandlerInterface{blacklistHandler}, handlers.ErrQuerySyntaxError)
+	// check when censor with two handlers and each one will return query parse error
+	checkHandler([]QueryHandlerInterface{whitelistHandler, blacklistHandler}, handlers.ErrQuerySyntaxError)
+
+	acraCensor.ignoreParseError = true
+
+	checkHandler([]QueryHandlerInterface{whitelistHandler}, nil)
+	checkHandler([]QueryHandlerInterface{blacklistHandler}, nil)
+	// check when censor with two handlers and each one will return query parse error
+	checkHandler([]QueryHandlerInterface{whitelistHandler, blacklistHandler}, nil)
 }

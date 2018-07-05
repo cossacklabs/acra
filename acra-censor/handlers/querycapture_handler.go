@@ -15,7 +15,6 @@ import (
 )
 
 const DefaultSerializationTimeout = time.Second
-
 type QueryCaptureHandler struct {
 	Queries              []*QueryInfo
 	BufferedQueries      []*QueryInfo
