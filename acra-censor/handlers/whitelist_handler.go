@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"errors"
+	"github.com/cossacklabs/acra/logging"
 	"github.com/xwb1989/sqlparser"
 	"reflect"
 	"strings"
@@ -27,7 +28,7 @@ func (handler *WhitelistHandler) CheckQuery(query string) (bool, error) {
 	if len(handler.tables) != 0 {
 		parsedQuery, err := sqlparser.Parse(query)
 		if err != nil {
-			log.WithError(err).Errorln("Can't parse query in whitelist handler for check")
+			log.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCensorQueryParseError).WithError(err).Errorln("Can't parse query in whitelist handler for check")
 			return false, ErrQuerySyntaxError
 		}
 		switch parsedQuery := parsedQuery.(type) {
@@ -228,7 +229,7 @@ func (handler *WhitelistHandler) AddRules(rules []string) error {
 		handler.rules = append(handler.rules, rule)
 		_, err := sqlparser.Parse(rule)
 		if err != nil {
-			log.WithError(err).Errorln("Can't parse query to add rule to whitelist handler")
+			log.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCensorQueryParseError).WithError(err).Errorln("Can't parse query to add rule to whitelist handler")
 			return ErrQuerySyntaxError
 		}
 	}
@@ -257,7 +258,7 @@ func (handler *WhitelistHandler) testRulesViolation(query string) (bool, error) 
 	for _, rule := range handler.rules {
 		parsedRule, err := sqlparser.Parse(rule)
 		if err != nil {
-			log.WithError(err).Errorln("Can't parse rule in whitelist handler for test")
+			log.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCensorQueryParseError).WithError(err).Errorln("Can't parse rule in whitelist handler for test")
 			return true, ErrQuerySyntaxError
 		}
 		switch parsedRule := parsedRule.(type) {
@@ -287,7 +288,7 @@ func (handler *WhitelistHandler) testRulesViolation(query string) (bool, error) 
 func (handler *WhitelistHandler) isDangerousSelect(selectQuery string, allowedWhere sqlparser.SQLNode, allowedTables sqlparser.TableExprs, allowedColumns sqlparser.SelectExprs) (bool, error) {
 	parsedSelectQuery, err := sqlparser.Parse(selectQuery)
 	if err != nil {
-		log.WithError(err).Errorln("Can't parse query in whitelist handler to check is it dangerous select")
+		log.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCensorQueryParseError).WithError(err).Errorln("Can't parse query in whitelist handler to check is it dangerous select")
 		return true, ErrQuerySyntaxError
 	}
 	evaluatedStmt := parsedSelectQuery.(*sqlparser.Select)
