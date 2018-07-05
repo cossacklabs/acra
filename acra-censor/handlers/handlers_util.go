@@ -24,9 +24,15 @@ var ErrQuerySyntaxError = errors.New("fail to parse specified query")
 
 var ErrComplexSerializationError = errors.New("can't perform complex serialization of queries")
 var ErrSingleQueryCaptureError = errors.New("can't capture single query")
+var ErrCantOpenFileError = errors.New("can't open file to write queries")
+var ErrCantReadQueriesFromFileError = errors.New("can't read queries from file")
 var ErrUnexpectedCaptureChannelClose = errors.New("unexpected channel closing while query logging")
 
 var ErrUnexpectedTypeError = errors.New("should never appear")
+
+const (
+	LogQueryLength = 100
+)
 
 func removeDuplicates(input []string) []string {
 	keys := make(map[string]bool)

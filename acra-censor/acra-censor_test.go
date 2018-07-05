@@ -542,7 +542,7 @@ func TestSerialization(t *testing.T) {
 		t.Fatal("Expected: " + strings.Join(testQueries, " | ") + "\nGot: " + strings.Join(handler.GetAllInputQueries(), " | "))
 	}
 
-	err = handler.Serialize()
+	err = handler.DumpAllQueriesToFile()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -553,7 +553,7 @@ func TestSerialization(t *testing.T) {
 		t.Fatal("Expected no queries \nGot: " + strings.Join(handler.GetAllInputQueries(), " | "))
 	}
 
-	err = handler.Deserialize()
+	err = handler.ReadAllQueriesFromFile()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -630,7 +630,7 @@ func TestLogging(t *testing.T) {
 	loggingHandler.MarkQueryAsForbidden(testQueries[0])
 	loggingHandler.MarkQueryAsForbidden(testQueries[1])
 	loggingHandler.MarkQueryAsForbidden(testQueries[2])
-	loggingHandler.Serialize()
+	loggingHandler.DumpAllQueriesToFile()
 
 	err = blacklist.AddQueries(loggingHandler.GetForbiddenQueries())
 	if err != nil {
@@ -697,7 +697,10 @@ func TestQueryCapture(t *testing.T) {
 		}
 	}
 
-	expected := "[{\"RawQuery\":\"SELECT Student_ID FROM STUDENT;\",\"IsForbidden\":false},{\"RawQuery\":\"SELECT * FROM STUDENT;\",\"IsForbidden\":false},{\"RawQuery\":\"SELECT * FROM X;\",\"IsForbidden\":false},{\"RawQuery\":\"SELECT * FROM Y;\",\"IsForbidden\":false}]"
+	expected := "{\"RawQuery\":\"SELECT Student_ID FROM STUDENT;\",\"IsForbidden\":false}\n" +
+		"{\"RawQuery\":\"SELECT * FROM STUDENT;\",\"IsForbidden\":false}\n" +
+		"{\"RawQuery\":\"SELECT * FROM X;\",\"IsForbidden\":false}\n" +
+		"{\"RawQuery\":\"SELECT * FROM Y;\",\"IsForbidden\":false}\n"
 
 	defaultTimeout := handler.GetSerializationTimeout()
 	handler.SetSerializationTimeout(50 * time.Millisecond)
@@ -719,7 +722,11 @@ func TestQueryCapture(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	expected = "[{\"RawQuery\":\"SELECT Student_ID FROM STUDENT;\",\"IsForbidden\":false},{\"RawQuery\":\"SELECT * FROM STUDENT;\",\"IsForbidden\":false},{\"RawQuery\":\"SELECT * FROM X;\",\"IsForbidden\":false},{\"RawQuery\":\"SELECT * FROM Y;\",\"IsForbidden\":false},{\"RawQuery\":\"SELECT * FROM Z;\",\"IsForbidden\":false}]"
+	expected = "{\"RawQuery\":\"SELECT Student_ID FROM STUDENT;\",\"IsForbidden\":false}\n" +
+		"{\"RawQuery\":\"SELECT * FROM STUDENT;\",\"IsForbidden\":false}\n" +
+		"{\"RawQuery\":\"SELECT * FROM X;\",\"IsForbidden\":false}\n" +
+		"{\"RawQuery\":\"SELECT * FROM Y;\",\"IsForbidden\":false}\n" +
+		"{\"RawQuery\":\"SELECT * FROM Z;\",\"IsForbidden\":false}\n"
 	time.Sleep(handler.GetSerializationTimeout() + extraWaitTime)
 
 	result, err = ioutil.ReadFile(tmpFile.Name())
