@@ -6,46 +6,46 @@ _Core_:
 
 - **Prepared Statements**
 
-   - Added support of prepared statements for PostgreSQL/MySQL. Supported both binary and text formats of response ([#192](https://github.com/cossacklabs/acra/pull/192)).
+   - Added support of prepared statements for PostgreSQL/MySQL. Both binary and text response formats are supported ([#192](https://github.com/cossacklabs/acra/pull/192)).
 
 - **SQL requests filtering in AcraCensor**
 
-   AcraCensor becomes smarter in preventing SQL Injections.
+   AcraCensor got smarter in preventing SQL Injections.
 
-   - Improved flexibility for parsing queries: if AcraCensor can't parse SQL query, it's potentially dangerous to send it to the database, so AcraCensor blocks "unparseable" queries by default. 
-   However setting configuration flag `ignore_parse_error` to `true` will push AcraCensor to ignore "unparseable" queries and send them to the database. Check configuration example in [configs/acra-censor.example.yaml](https://github.com/cossacklabs/acra/blob/master/configs/acra-censor.example.yaml) ([#194](https://github.com/cossacklabs/acra/pull/194)).
+   - Improved flexibility for parsing queries. If AcraCensor can't parse an SQL query, it is considered as potentially too dangerous to send it to the database, so AcraCensor blocks such "unparseable" queries by default. 
+   However, setting the configuration flag `ignore_parse_error` to `true` will make AcraCensor ignore the "unparseable" quality of queries and send them to the database anyway. Check out the configuration example in [configs/acra-censor.example.yaml](https://github.com/cossacklabs/acra/blob/master/configs/acra-censor.example.yaml) ([#194](https://github.com/cossacklabs/acra/pull/194)).
 
    - Added support of complex JOIN queries ([#191](https://github.com/cossacklabs/acra/pull/191)).
 
-   - Improved reading-writing QueryCapture log file: now AcraCensor uses bufferisation before writting queries into log file. 
-   Changed format of QueryCapture log to JSON Line (each query sits in separate line in a log file instead of having array of JSON objects) ([#193](https://github.com/cossacklabs/acra/pull/193)).
+   - Improved reading/writing QueryCapture log file. Now AcraCensor uses bufferisation before writing queries into a log file. 
+   Changed format of QueryCapture log to JSON Line (each query sits in a separate line in a log file instead of having an array of JSON objects) ([#193](https://github.com/cossacklabs/acra/pull/193)).
 
-   - Fixed some spots here and there, made integration tests for AcraCensor more stable ([#184](https://github.com/cossacklabs/acra/pull/184)).
+   - Introduced a few fixes here and there, made integration tests for AcraCensor more stable ([#184](https://github.com/cossacklabs/acra/pull/184)).
 
 - **Improving MySQL support**
 
-   We introduced MySQL support just a few versions ago and continue polishing it. Now we updated example projects so you can jump right into the code!
+   We introduced MySQL support just a few Acra releases ago and we continue polishing it. Now we've updated the example projects so you can jump right into the code!
 
-   Take a look how to use Acra for both PostreSQL and MySQL databases in these examples:
+   Take a look at how to use Acra for both PostreSQL and MySQL databases in these examples:
 
-   - Go: check the [examples/golang](https://github.com/cossacklabs/acra/tree/master/examples/golang/src) folder ([#190](https://github.com/cossacklabs/acra/pull/190)).
+   - Go: see the [examples/golang](https://github.com/cossacklabs/acra/tree/master/examples/golang/src) folder ([#190](https://github.com/cossacklabs/acra/pull/190)).
 
-   - Ruby: check the [examples/ruby](https://github.com/cossacklabs/acra/tree/master/examples/ruby) folder ([#189](https://github.com/cossacklabs/acra/pull/189)).
+   - Ruby: see the [examples/ruby](https://github.com/cossacklabs/acra/tree/master/examples/ruby) folder ([#189](https://github.com/cossacklabs/acra/pull/189)).
 
-   - Python: check the [examples/python](https://github.com/cossacklabs/acra/tree/master/examples/python) folder ([#188](https://github.com/cossacklabs/acra/pull/188)).
+   - Python: see the [examples/python](https://github.com/cossacklabs/acra/tree/master/examples/python) folder ([#188](https://github.com/cossacklabs/acra/pull/188)).
 
 - **Other**
 
    - Updated handling of message formats for PostgreSQL and MySQL protocols ([#186](https://github.com/cossacklabs/acra/pull/186)).
 
-   - Added pre-generated configuration file for AcraAuthmanager: now it's easier to configure AcraServer using [AcraWebconfig](https://github.com/cossacklabs/acra/wiki/AcraWebConfig) ([#187](https://github.com/cossacklabs/acra/pull/187)).
+   - Added pre-generated configuration file for AcraAuthmanager. Now it's easier to configure AcraServer using [AcraWebconfig](https://github.com/cossacklabs/acra/wiki/AcraWebConfig) ([#187](https://github.com/cossacklabs/acra/pull/187)).
 
 
 _Documentation_:
 
-- Updated Acra [Architecture and Data flow](https://github.com/cossacklabs/acra/wiki/Architecture-and-data-flow) scheme to better illustrate Acra components, connections between them and typical use-cases.
-- Described typical [Public Key Infrastructure](https://github.com/cossacklabs/acra/wiki/PKI-overview-for-Acra) with some advice of where to put Acra in the scheme.
-- Described Acra [Security Model](https://github.com/cossacklabs/acra/wiki/Acra's-Security-Model), possible treats and possible consequences of compromisation.
+- Updated Acra [Architecture and Data flow](https://github.com/cossacklabs/acra/wiki/Architecture-and-data-flow) graphic schemes to better illustrate Acra's components, connections between them, and typical use-cases.
+- Described typical [Public Key Infrastructure](https://github.com/cossacklabs/acra/wiki/PKI-overview-for-Acra) with some advice on where to put Acra in the general scheme of things.
+- Described Acra's [Security Model](https://github.com/cossacklabs/acra/wiki/Acra's-Security-Model), possible threats, and possible consequences of compromisation.
 
 
 ## [0.80.0](https://github.com/cossacklabs/acra/releases/tag/0.80), May 31st 2018
