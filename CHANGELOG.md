@@ -1,8 +1,6 @@
 # Acra ChangeLog
 
-# Acra ChangeLog
-
-## [0.81.0](https://github.com/cossacklabs/acra/releases/tag/0.81), July 6 2018
+## [0.81.0](https://github.com/cossacklabs/acra/releases/tag/0.81), July 6th 2018
 
 _Core_:
 
@@ -30,17 +28,17 @@ _Core_:
 
    Take a look how to use Acra for both PostreSQL and MySQL databases in these examples:
 
-   - Go: check the [examples/golang](https://github.com/cossacklabs/acra/tree/master/examples/golang/src) folder. ([#190](https://github.com/cossacklabs/acra/pull/190))
+   - Go: check the [examples/golang](https://github.com/cossacklabs/acra/tree/master/examples/golang/src) folder ([#190](https://github.com/cossacklabs/acra/pull/190)).
 
-   - Ruby: check the [examples/ruby](https://github.com/cossacklabs/acra/tree/master/examples/ruby) folder. ([#189](https://github.com/cossacklabs/acra/pull/189))
+   - Ruby: check the [examples/ruby](https://github.com/cossacklabs/acra/tree/master/examples/ruby) folder ([#189](https://github.com/cossacklabs/acra/pull/189)).
 
-   - Python: check the [examples/python](https://github.com/cossacklabs/acra/tree/master/examples/python) folder. ([#188](https://github.com/cossacklabs/acra/pull/188))
+   - Python: check the [examples/python](https://github.com/cossacklabs/acra/tree/master/examples/python) folder ([#188](https://github.com/cossacklabs/acra/pull/188)).
 
 - **Other**
 
    - Updated handling of message formats for PostgreSQL and MySQL protocols ([#186](https://github.com/cossacklabs/acra/pull/186)).
 
-   - Added pre-generated configuration file for AcraAuthmanager: now it's easier to configure AcraServer using [AcraWebconfig](https://github.com/cossacklabs/acra/wiki/AcraWebConfig). ([#187](https://github.com/cossacklabs/acra/pull/187)).
+   - Added pre-generated configuration file for AcraAuthmanager: now it's easier to configure AcraServer using [AcraWebconfig](https://github.com/cossacklabs/acra/wiki/AcraWebConfig) ([#187](https://github.com/cossacklabs/acra/pull/187)).
 
 
 _Documentation_:
