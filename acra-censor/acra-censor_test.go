@@ -511,7 +511,7 @@ func TestSerialization(t *testing.T) {
 		"INSERT INTO dbo.Points (PointValue) VALUES ('1,99');",
 	}
 
-	tmpFile, err := ioutil.TempFile("", "censor_log")
+	tmpFile, err := ioutil.TempFile("", "censor_log.jsonl")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -542,7 +542,7 @@ func TestSerialization(t *testing.T) {
 		t.Fatal("Expected: " + strings.Join(testQueries, " | ") + "\nGot: " + strings.Join(handler.GetAllInputQueries(), " | "))
 	}
 
-	err = handler.Serialize()
+	err = handler.DumpAllQueriesToFile()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -553,7 +553,7 @@ func TestSerialization(t *testing.T) {
 		t.Fatal("Expected no queries \nGot: " + strings.Join(handler.GetAllInputQueries(), " | "))
 	}
 
-	err = handler.Deserialize()
+	err = handler.ReadAllQueriesFromFile()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -630,7 +630,7 @@ func TestLogging(t *testing.T) {
 	loggingHandler.MarkQueryAsForbidden(testQueries[0])
 	loggingHandler.MarkQueryAsForbidden(testQueries[1])
 	loggingHandler.MarkQueryAsForbidden(testQueries[2])
-	loggingHandler.Serialize()
+	loggingHandler.DumpAllQueriesToFile()
 
 	err = blacklist.AddQueries(loggingHandler.GetForbiddenQueries())
 	if err != nil {
