@@ -24,8 +24,8 @@ func trimToN(query string, n int) string {
 }
 
 type QueryCaptureHandler struct {
-	Queries              []QueryInfo
-	BufferedQueries      []QueryInfo
+	Queries              []*QueryInfo
+	BufferedQueries      []*QueryInfo
 	filePath             string
 	signalBackgroundExit chan bool
 	serializationTimeout time.Duration
@@ -40,7 +40,7 @@ func NewQueryCaptureHandler(filePath string) (*QueryCaptureHandler, error) {
 	// open or create file, APPEND MODE
 	openedFile, err := os.OpenFile(filePath, os.O_APPEND|os.O_RDWR|os.O_CREATE, 0600)
 	if err != nil {
-		log.WithError(ErrSingleQueryCaptureError).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCensorSecurityError)
+		log.WithError(ErrCantReadQueriesFromFileError).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCensorIOError)
 		return nil, err
 	}
 
@@ -58,8 +58,12 @@ func NewQueryCaptureHandler(filePath string) (*QueryCaptureHandler, error) {
 	handler.serializationTicker = time.NewTicker(DefaultSerializationTimeout)
 
 	// read existing queries from file
-	handler.ReadAllQueriesFromFile()
-
+	err = handler.ReadAllQueriesFromFile()
+	if err != nil {
+		log.WithError(ErrCantReadQueriesFromFileError).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCensorIOError)
+		openedFile.Close()
+		return nil, err
+	}
 
 	//handling goroutine
 	go func() {
@@ -68,28 +72,23 @@ func NewQueryCaptureHandler(filePath string) (*QueryCaptureHandler, error) {
 			case <-handler.serializationTicker.C:
 				err := handler.DumpBufferedQueriesToFile(openedFile)
 				if err != nil {
-					log.WithError(ErrComplexSerializationError).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCensorSecurityError)
+					log.WithError(ErrComplexSerializationError).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCensorIOError)
 				}
 				handler.serializationTicker.Stop()
 				handler.serializationTicker = time.NewTicker(handler.serializationTimeout)
 
-			// TODO: how to remove duplicate code?
 			case <-signalBackgroundExit:
-				handler.serializationTicker.Stop()
-				err := handler.DumpAllQueriesToFile()
+				err := handler.FinishAndCloseFile(openedFile)
 				if err != nil {
-					log.WithError(ErrComplexSerializationError).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCensorSecurityError)
+					log.WithError(ErrComplexSerializationError).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCensorIOError)
 				}
-				openedFile.Close()
 				return
 
 			case <-signalShutdown:
-				handler.serializationTicker.Stop()
-				err := handler.DumpAllQueriesToFile()
+				err := handler.FinishAndCloseFile(openedFile)
 				if err != nil {
-					log.WithError(ErrComplexSerializationError).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCensorSecurityError)
+					log.WithError(ErrComplexSerializationError).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCensorIOError)
 				}
-				openedFile.Close()
 				return
 
 			default:
@@ -100,6 +99,7 @@ func NewQueryCaptureHandler(filePath string) (*QueryCaptureHandler, error) {
 
 	return handler, nil
 }
+
 func (handler *QueryCaptureHandler) CheckQuery(query string) (bool, error) {
 	//skip already captured queries
 	for _, queryInfo := range handler.Queries {
@@ -110,8 +110,8 @@ func (handler *QueryCaptureHandler) CheckQuery(query string) (bool, error) {
 	queryInfo := &QueryInfo{}
 	queryInfo.RawQuery = query
 	queryInfo.IsForbidden = false
-	handler.Queries = append(handler.Queries, *queryInfo)
-	handler.BufferedQueries = append(handler.BufferedQueries, *queryInfo)
+	handler.Queries = append(handler.Queries, queryInfo)
+	handler.BufferedQueries = append(handler.BufferedQueries, queryInfo)
 
 	return true, nil
 }
@@ -123,6 +123,15 @@ func (handler *QueryCaptureHandler) Reset() {
 func (handler *QueryCaptureHandler) Release() {
 	handler.Reset()
 	handler.signalBackgroundExit <- true
+}
+
+func (handler *QueryCaptureHandler) FinishAndCloseFile(openedFile *os.File) error {
+	handler.serializationTicker.Stop()
+	err := handler.DumpAllQueriesToFile()
+	if err != nil {
+		return err
+	}
+	return openedFile.Close()
 }
 
 func (handler *QueryCaptureHandler) GetAllInputQueries() []string {
@@ -159,7 +168,7 @@ func (handler *QueryCaptureHandler) GetSerializationTimeout() time.Duration {
 
 func (handler *QueryCaptureHandler) DumpAllQueriesToFile() error {
 	// open or create file, NO APPEND
-	f, err := os.OpenFile(handler.filePath, os.O_RDWR|os.O_CREATE, 0600)
+	f, err := os.OpenFile(handler.filePath, os.O_TRUNC|os.O_RDWR|os.O_CREATE, 0600)
 	if err != nil {
 		log.WithError(ErrCantOpenFileError).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCensorIOError)
 		return err
@@ -170,21 +179,18 @@ func (handler *QueryCaptureHandler) DumpAllQueriesToFile() error {
 }
 
 func (handler *QueryCaptureHandler) DumpBufferedQueriesToFile(openedFile *os.File) error {
-	// write buffered queries
-	buf := handler.BufferedQueries
-
 	// nothing to dump
-	if len(buf) == 0 {
+	if len(handler.BufferedQueries) == 0 {
 		return nil
 	}
 
-
-	// clean buffered queries
-	handler.BufferedQueries = nil
-	err := AppendQueries(buf, openedFile)
+	err := AppendQueries(handler.BufferedQueries, openedFile)
 	if err != nil {
 		return err
 	}
+
+	// clean buffered queries only after successful write
+	handler.BufferedQueries = nil
 
 	return nil
 }
@@ -201,7 +207,7 @@ func (handler *QueryCaptureHandler) ReadAllQueriesFromFile() error {
 	return nil
 }
 
-func AppendQueries(queries []QueryInfo, openedFile *os.File) error {
+func AppendQueries(queries []*QueryInfo, openedFile *os.File) error {
 	if len(queries) == 0 {
 		return nil
 	}
@@ -219,7 +225,7 @@ func AppendQueries(queries []QueryInfo, openedFile *os.File) error {
 }
 
 
-func SerializeQueries(queries []QueryInfo) ([]byte, error) {
+func SerializeQueries(queries []*QueryInfo) ([]byte, error) {
 	var linesToAppend []byte
 	for _, queryInfo := range queries {
 		jsonQueryInfo, err := json.Marshal(queryInfo)
@@ -227,7 +233,7 @@ func SerializeQueries(queries []QueryInfo) ([]byte, error) {
 			return nil, err
 		}
 		if len(jsonQueryInfo) > 0 {
-			jsonQueryInfo = append(jsonQueryInfo, "\n"...)
+			jsonQueryInfo = append(jsonQueryInfo, '\n')
 			linesToAppend = append(linesToAppend, jsonQueryInfo...)
 		}
 	}
@@ -235,13 +241,13 @@ func SerializeQueries(queries []QueryInfo) ([]byte, error) {
 
 }
 
-func ReadQueries(filePath string) ([]QueryInfo, error) {
+func ReadQueries(filePath string) ([]*QueryInfo, error) {
 	bufferBytes, err := ioutil.ReadFile(filePath)
 	if err != nil {
 		return nil, err
 	}
 
-	var queries []QueryInfo
+	var queries []*QueryInfo
 
 	if len(bufferBytes) != 0 {
 		for _, line := range bytes.Split(bufferBytes, []byte{'\n'}) {
@@ -252,7 +258,7 @@ func ReadQueries(filePath string) ([]QueryInfo, error) {
 			if err = json.Unmarshal(line, &oneQuery); err != nil {
 				return nil, err
 			}
-			queries = append(queries, oneQuery)
+			queries = append(queries, &oneQuery)
 		}
 	}
 	return queries, nil
