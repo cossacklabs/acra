@@ -16,13 +16,6 @@ import (
 
 const DefaultSerializationTimeout = time.Second
 
-func trimToN(query string, n int) string {
-	if len(query) <= n {
-		return query
-	}
-	return query[:n]
-}
-
 type QueryCaptureHandler struct {
 	Queries              []*QueryInfo
 	BufferedQueries      []*QueryInfo
