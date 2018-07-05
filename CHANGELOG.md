@@ -13,7 +13,7 @@ _Core_:
    AcraCensor becomes smarter in preventing SQL Injections.
 
    - Improved flexibility for parsing queries: if AcraCensor can't parse SQL query, it's potentially dangerous to send it to the database, so AcraCensor blocks "unparseable" queries by default. 
-   However setting configuration flag `ignore_parse_error` to `true` will push AcraServer to ignore "unparseable" queries and send them to the database ([#194](https://github.com/cossacklabs/acra/pull/194)).
+   However setting configuration flag `ignore_parse_error` to `true` will push AcraCensor to ignore "unparseable" queries and send them to the database. Check configuration example in [configs/acra-censor.example.yaml](https://github.com/cossacklabs/acra/blob/master/configs/acra-censor.example.yaml) ([#194](https://github.com/cossacklabs/acra/pull/194)).
 
    - Added support of complex JOIN queries ([#191](https://github.com/cossacklabs/acra/pull/191)).
 
