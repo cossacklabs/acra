@@ -76,7 +76,7 @@ _Core_:
    | acra_rollback | AcraRollback | decrypts the whole database |
    | acra_genkeys | AcraKeymaker | generates encryption keys for storage and transport of the Acra components |
    | acra_genauth | AcraAuthmanager | generates user accounts for AcraWebConfig |
-   | acra_genpoisonrecord | AcraPoisonRecordMaker | generates poision records for databases |
+   | acra_genpoisonrecord | AcraPoisonRecordMaker | generates poison records for databases |
    | acra_addzone | AcraAddzone | generates Zones' header for AcraWriter |
 
    Check the configurations of components inside [/configs folder](https://github.com/cossacklabs/acra/tree/master/configs) and read [Migration Guide](https://github.com/cossacklabs/acra/wiki/Migration-guide) for more details ([#175](https://github.com/cossacklabs/acra/pull/175), [#174](https://github.com/cossacklabs/acra/pull/174), [#173](https://github.com/cossacklabs/acra/pull/173), [#170](https://github.com/cossacklabs/acra/pull/170), [#169](https://github.com/cossacklabs/acra/pull/169), [#168](https://github.com/cossacklabs/acra/pull/168)).
