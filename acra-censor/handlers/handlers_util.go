@@ -51,3 +51,9 @@ func contains(queries []string, query string) (bool, int) {
 	}
 	return false, 0
 }
+func TrimStringToN(query string, n int) string {
+	if len(query) <= n {
+		return query
+	}
+	return query[:n]
+}

@@ -17,13 +17,6 @@ const MaxQueriesInChannel = 10
 const DefaultSerializationTimeout = time.Second
 const LogQueryLength = 100
 
-func trimToN(query string, n int) string {
-	if len(query) <= n {
-		return query
-	}
-	return query[:n]
-}
-
 type QueryCaptureHandler struct {
 	Queries              []QueryInfo
 	filePath             string
@@ -156,7 +149,7 @@ func (handler *QueryCaptureHandler) CheckQuery(query string) (bool, error) {
 	select {
 	case handler.logChannel <- *queryInfo: // channel is ok
 	default: //channel is full
-		log.Errorf("Can't process too many queries. Skip query: %s", trimToN(query, LogQueryLength))
+		log.Errorf("Can't process too many queries. Skip query: %s", TrimStringToN(query, LogQueryLength))
 	}
 
 	return true, nil

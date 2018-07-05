@@ -1,3 +1,4 @@
+ignore_parse_error: false
 handlers:
   - handler: query_capture
     priority: 1

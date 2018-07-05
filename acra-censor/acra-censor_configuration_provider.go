@@ -19,6 +19,7 @@ type AcraCensorConfig struct {
 		Rules    []string
 		Filepath string
 	}
+	IgnoreParseError bool `yaml:"ignore_parse_error"`
 }
 
 func (acraCensor *AcraCensor) LoadConfiguration(configuration []byte) error {
@@ -27,6 +28,7 @@ func (acraCensor *AcraCensor) LoadConfiguration(configuration []byte) error {
 	if err != nil {
 		return err
 	}
+	acraCensor.ignoreParseError = censorConfiguration.IgnoreParseError
 	for _, handlerConfiguration := range censorConfiguration.Handlers {
 		switch handlerConfiguration.Handler {
 		case WhitelistConfigStr:
