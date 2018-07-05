@@ -57,6 +57,7 @@ const (
 	EventCodeErrorCensorSetupError        = 561
 	EventCodeErrorCensorSecurityError     = 562
 	EventCodeErrorCensorQueryParseError   = 563
+	EventCodeErrorCensorIOError           = 564
 
 	// response connector
 	EventCodeErrorResponseConnectorCantWriteToDB      = 570
