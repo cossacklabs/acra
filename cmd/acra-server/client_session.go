@@ -71,7 +71,8 @@ if any error occurred than end processing
 */
 func (clientSession *ClientSession) HandleClientConnection(decryptorImpl base.Decryptor) {
 	log.Infof("Handle client's connection")
-	innerErrorChannel := make(chan error, 2)
+	clientProxyErrorCh := make(chan error, 1)
+	dbProxyErrorCh := make(chan error, 1)
 
 	log.Debugf("Connecting to db")
 	err := clientSession.ConnectToDb()
@@ -96,20 +97,30 @@ func (clientSession *ClientSession) HandleClientConnection(decryptorImpl base.De
 				Errorln("Can't initialize mysql handler")
 			return
 		}
-		go handler.ClientToDbConnector(innerErrorChannel)
-		go handler.DbToClientConnector(innerErrorChannel)
+		go handler.ClientToDbConnector(clientProxyErrorCh)
+		go handler.DbToClientConnector(dbProxyErrorCh)
 	} else {
-		pgProxy, err = postgresql.NewPgProxy(clientSession.connection, clientSession.connectionToDb, innerErrorChannel)
+		pgProxy, err = postgresql.NewPgProxy(clientSession.connection, clientSession.connectionToDb)
 		if err != nil {
 			log.WithError(err).Errorln("can't initialize postgresql proxy")
 			return
 		}
 		log.Debugln("PostgreSQL connection")
-		go pgProxy.PgProxyClientRequests(clientSession.config.censor, clientSession.connectionToDb, clientSession.connection, innerErrorChannel)
-		go pgProxy.PgDecryptStream(clientSession.config.censor, decryptorImpl, clientSession.config.GetTLSConfig(), clientSession.connectionToDb, clientSession.connection, innerErrorChannel)
+		go pgProxy.PgProxyClientRequests(clientSession.config.censor, clientSession.connectionToDb, clientSession.connection, clientProxyErrorCh)
+		go pgProxy.PgDecryptStream(clientSession.config.censor, decryptorImpl, clientSession.config.GetTLSConfig(), clientSession.connectionToDb, clientSession.connection, dbProxyErrorCh)
 	}
+	var channelToWait chan error
 	for {
-		err = <-innerErrorChannel
+		select {
+		case err = <-dbProxyErrorCh:
+			log.Debugln("error from db proxy")
+			channelToWait = clientProxyErrorCh
+			break
+		case err = <-clientProxyErrorCh:
+			channelToWait = dbProxyErrorCh
+			log.Debugln("error from client proxy")
+			break
+		}
 
 		if err == io.EOF {
 			log.Debugln("EOF connection closed")
@@ -136,6 +147,8 @@ func (clientSession *ClientSession) HandleClientConnection(decryptorImpl base.De
 	}
 	log.Infof("Closing client's connection")
 	clientSession.close()
+
 	// wait second error from closed second connection
-	<-innerErrorChannel
+	log.WithError(<-channelToWait).Debugln("second proxy goroutine stopped")
+	log.Infoln("Finished processing client's connection")
 }

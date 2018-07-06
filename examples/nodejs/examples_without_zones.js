@@ -28,7 +28,7 @@ var config = {
 };
 
 
-var acra_key = fs.readFileSync('client_storage.pub');
+var acra_key = fs.readFileSync('.acrakeys/client_storage.pub');
 
 var pool = new pg.Pool(config);
 pool.connect(function(err, client, done) {

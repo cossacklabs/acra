@@ -33,6 +33,7 @@ import collections
 import shutil
 
 import psycopg2
+import psycopg2.extras
 import pymysql
 import semver
 import sqlalchemy as sa
@@ -361,7 +362,6 @@ class ProcessStub(object):
     def poll(self, *args, **kwargs):
         pass
 
-
 class KeyMakerTest(unittest.TestCase):
     def test_key_length(self):
         output_path = tempfile.mkdtemp()
@@ -539,6 +539,7 @@ class BaseTestCase(unittest.TestCase):
         args = {
             'db_host': self.DB_HOST,
             'db_port': self.DB_PORT,
+            'logging_format': 'cef',
             # we doesn't need in tests waiting closing connections
             'incoming_connection_close_timeout': 0,
             self.ACRA_BYTEA: 'true',
@@ -555,6 +556,7 @@ class BaseTestCase(unittest.TestCase):
             args['acraconnector_tls_transport_enable'] = 'true'
             args['tls_key'] = 'tests/server.key'
             args['tls_cert'] = 'tests/server.crt'
+            args['tls_ca'] = 'tests/server.crt'
             args['tls_auth'] = 0
         if TEST_MYSQL:
             args['mysql_enable'] = 'true'
@@ -579,10 +581,10 @@ class BaseTestCase(unittest.TestCase):
     def setUp(self):
         self.checkSkip()
         try:
-            self.connector_1 = self.fork_connector(self.CONNECTOR_PORT_1, self.ACRASERVER_PORT, 'keypair1')
-            self.connector_2 = self.fork_connector(self.CONNECTOR_PORT_2, self.ACRASERVER_PORT, 'keypair2')
             if not self.EXTERNAL_ACRA:
                 self.acra = self.fork_acra()
+            self.connector_1 = self.fork_connector(self.CONNECTOR_PORT_1, self.ACRASERVER_PORT, 'keypair1')
+            self.connector_2 = self.fork_connector(self.CONNECTOR_PORT_2, self.ACRASERVER_PORT, 'keypair2')
 
             self.engine1 = sa.create_engine(
                 get_unix_connection_string(self.CONNECTOR_PORT_1, self.DB_NAME), connect_args=get_connect_args(port=self.CONNECTOR_PORT_1))
@@ -603,8 +605,7 @@ class BaseTestCase(unittest.TestCase):
                 while True:
                     try:
                         if TEST_MYSQL:
-                            engine.execute(
-                                "select 1;")
+                            engine.execute("select 1;")
                         else:
                             engine.execute(
                                 "UPDATE pg_settings SET setting = '{}' "
@@ -749,6 +750,47 @@ class HexFormatTest(BaseTestCase):
         row = result.fetchone()
         self.assertNotEqual(row['data'][fake_offset:].decode('ascii', errors='ignore'),
                             row['raw_data'])
+
+
+class BaseCensorTest(BaseTestCase):
+    CENSOR_CONFIG_FILE = 'default.yaml'
+    def fork_acra(self, popen_kwargs: dict=None, **acra_kwargs: dict):
+        acra_kwargs['acracensor_config_file'] = self.CENSOR_CONFIG_FILE
+        return self._fork_acra(acra_kwargs, popen_kwargs)
+
+
+class CensorBlacklistTest(BaseCensorTest):
+    CENSOR_CONFIG_FILE = 'tests/acra-censor_configs/acra-censor_blacklist.yaml'
+    def testBlacklist(self):
+        if TEST_MYSQL:
+            expectedException = sa.exc.OperationalError
+        if TEST_POSTGRESQL:
+            expectedException = sa.exc.ProgrammingError
+
+        with self.assertRaises(expectedException):
+                result = self.engine1.execute(sa.text("select data from test where id='1'"))
+
+        with self.assertRaises(expectedException):
+            result = self.engine1.execute(sa.text("select data_raw from test"))
+
+        with self.assertRaises(expectedException):
+            result = self.engine1.execute(sa.text("select * from acrarollback_output"))
+
+
+class CensorWhitelistTest(BaseCensorTest):
+    CENSOR_CONFIG_FILE = 'tests/acra-censor_configs/acra-censor_whitelist.yaml'
+    def testWhitelist(self):
+        expectedException = None
+        if TEST_MYSQL:
+            expectedException = sa.exc.OperationalError
+        if TEST_POSTGRESQL:
+            expectedException = sa.exc.ProgrammingError
+
+        with self.assertRaises(expectedException):
+            result = self.engine1.execute(sa.text("select data from test where id='100'"))
+
+        with self.assertRaises(expectedException):
+            result = self.engine1.execute(sa.text("select * from acrarollback_output"))
 
 
 class ZoneHexFormatTest(BaseTestCase):
@@ -1407,7 +1449,7 @@ class TestKeyStorageClearing(BaseTestCase):
         except:
             pass
 
-        for engine in self.engines:
+        for engine in getattr(self, 'engines', []):
             engine.dispose()
 
     def test_clearing(self):
@@ -1937,6 +1979,165 @@ class SSLMysqlConnectionTest(SSLMysqlMixin, HexFormatTest):
 class SSLMysqlConnectionWithZoneTest(SSLMysqlMixin, ZoneHexFormatTest):
     pass
 
+
+class BasePrepareStatementMixin:
+    def checkSkip(self):
+        return
+
+    def fork_acra(self, popen_kwargs: dict=None, **acra_kwargs: dict):
+        if TEST_WITH_TLS:
+            acra_kwargs['tls_key'] = 'tests/server.key'
+            acra_kwargs['tls_cert'] = 'tests/server.crt'
+            acra_kwargs['tls_ca'] = 'tests/server.crt'
+        return super(BasePrepareStatementMixin, self).fork_acra(
+            popen_kwargs, **acra_kwargs)
+
+    def executePreparedStatement(self, query):
+        raise NotImplementedError
+
+    def testConnectorRead(self):
+        """test decrypting with correct acra-connector and not decrypting with
+        incorrect acra-connector or using direct connection to db"""
+        keyname = 'keypair1_storage'
+        with open('.acrakeys/{}.pub'.format(keyname), 'rb') as f:
+            server_public1 = f.read()
+        data = self.get_random_data()
+        acra_struct = create_acrastruct(
+            data.encode('ascii'), server_public1)
+        row_id = self.get_random_id()
+
+        self.log(keyname, acra_struct, data.encode('ascii'))
+
+        self.engine1.execute(
+            test_table.insert(),
+            {'id': row_id, 'data': acra_struct, 'raw_data': data})
+
+        query = sa.select([test_table]).where(test_table.c.id == row_id).compile(compile_kwargs={"literal_binds": True}).string
+        row = self.executePreparedStatement(query)
+
+        self.assertEqual(row['data'], row['raw_data'].encode('utf-8'))
+
+        result = self.engine2.execute(
+            sa.select([test_table])
+            .where(test_table.c.id == row_id))
+        row = result.fetchone()
+        self.assertNotEqual(row['data'].decode('ascii', errors='ignore'),
+                            row['raw_data'])
+
+        result = self.engine_raw.execute(
+            sa.select([test_table])
+            .where(test_table.c.id == row_id))
+        row = result.fetchone()
+        self.assertNotEqual(row['data'].decode('ascii', errors='ignore'),
+                            row['raw_data'])
+
+    def testReadAcrastructInAcrastruct(self):
+        """test correct decrypting acrastruct when acrastruct concatenated to
+        partial another acrastruct"""
+        keyname = 'keypair1_storage'
+        with open('.acrakeys/{}.pub'.format(keyname), 'rb') as f:
+            server_public1 = f.read()
+        incorrect_data = self.get_random_data()
+        correct_data = self.get_random_data()
+        fake_offset = (3+45+84) - 4
+        fake_acra_struct = create_acrastruct(
+            incorrect_data.encode('ascii'), server_public1)[:fake_offset]
+        inner_acra_struct = create_acrastruct(
+            correct_data.encode('ascii'), server_public1)
+        data = fake_acra_struct + inner_acra_struct
+        row_id = self.get_random_id()
+
+        self.log(keyname, data, fake_acra_struct+correct_data.encode('ascii'))
+
+        self.engine1.execute(
+            test_table.insert(),
+            {'id': row_id, 'data': data, 'raw_data': correct_data})
+
+        query = (sa.select([test_table])
+                 .where(test_table.c.id == row_id)
+                 .compile(compile_kwargs={"literal_binds": True}).string)
+        row = self.executePreparedStatement(query)
+
+        try:
+            self.assertEqual(row['data'][fake_offset:],
+                             row['raw_data'].encode('utf-8'))
+        except:
+            print('incorrect data: {}\ncorrect data: {}\ndata: {}\n data len: {}'.format(
+                incorrect_data, correct_data, row['data'], len(row['data'])))
+            raise
+
+        result = self.engine2.execute(
+            sa.select([test_table])
+            .where(test_table.c.id == row_id))
+        row = result.fetchone()
+        self.assertNotEqual(row['data'][fake_offset:].decode('ascii', errors='ignore'),
+                            row['raw_data'])
+
+        result = self.engine_raw.execute(
+            sa.select([test_table])
+            .where(test_table.c.id == row_id))
+        row = result.fetchone()
+        self.assertNotEqual(row['data'][fake_offset:].decode('ascii', errors='ignore'),
+                            row['raw_data'])
+
+
+class TestMysqlTextPreparedStatement(BasePrepareStatementMixin, BaseTestCase):
+    def checkSkip(self):
+        if not TEST_MYSQL:
+            self.skipTest("run test only for mysql")
+
+    def executePreparedStatement(self, query):
+        # test prepared statements as text protocol to mysql
+        import pymysql.cursors
+        # Connect to the database
+        with contextlib.closing(pymysql.connect(
+                host='localhost', port=self.CONNECTOR_PORT_1, user=DB_USER, password=DB_USER_PASSWORD,
+                db=self.DB_NAME, cursorclass=pymysql.cursors.DictCursor)) as connection:
+            with connection.cursor() as cursor:
+                cursor.execute("PREPARE test_statement FROM '{}'".format(query))
+                cursor.execute('EXECUTE test_statement')
+                return cursor.fetchone()
+
+
+class TestMysqlBinaryPreparedStatement(BasePrepareStatementMixin, BaseTestCase):
+    def checkSkip(self):
+        if not TEST_MYSQL:
+            self.skipTest("run test only for mysql")
+
+    def executePreparedStatement(self, query):
+        # test prepared statements as binary protocol to mysql
+        import mysql.connector
+        from mysql.connector.cursor import MySQLCursorPrepared
+        with contextlib.closing(mysql.connector.Connect(
+                use_unicode=False, raw=True, charset='ascii',
+                host='127.0.0.1', port=self.CONNECTOR_PORT_1,
+                user=DB_USER, password=DB_USER_PASSWORD, database=self.DB_NAME,
+                ssl_ca='tests/server.crt', ssl_cert='tests/client.crt',
+                ssl_key='tests/client.key',
+                ssl_disabled=not TEST_WITH_TLS)) as connection:
+
+            with contextlib.closing(connection.cursor(
+                    cursor_class=MySQLCursorPrepared)) as cursor:
+                cursor.execute(query)
+                data = cursor.fetchone()
+        return {'id': data[0], 'data': data[1], 'raw_data': data[2].decode('utf-8')}
+
+
+class TestPostgresqlPreparedStatement(BasePrepareStatementMixin, BaseTestCase):
+    def checkSkip(self):
+        if not TEST_POSTGRESQL:
+            self.skipTest("run test only for postgresql")
+
+    def executePreparedStatement(self, query):
+        with psycopg2.connect(host=PG_UNIX_HOST,
+                              **get_connect_args(port=self.CONNECTOR_PORT_1)) as connection:
+            with connection.cursor(
+                    cursor_factory=psycopg2.extras.DictCursor) as cursor:
+                cursor.execute("prepare test_statement as {}".format(query))
+                cursor.execute("execute test_statement")
+                row = cursor.fetchone()
+                row['data'] = row['data'].tobytes()
+                return row
 
 if __name__ == '__main__':
     unittest.main()

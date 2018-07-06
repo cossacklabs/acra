@@ -25,7 +25,8 @@ except ImportError:
     # Fall back to Python 2's urllib2
     from urllib2 import urlopen
 
-from sqlalchemy import Table, Column, Integer, String, MetaData, create_engine, select, Binary
+from sqlalchemy import (Table, Column, Integer, MetaData, create_engine,
+    select, Binary, Text)
 from sqlalchemy import cast
 from sqlalchemy.dialects.postgresql import BYTEA
 
@@ -50,18 +51,25 @@ if __name__ == '__main__':
     parser.add_argument('--data', type=str, help='data to save in ascii. default random data')
     parser.add_argument('--print', action='store_true', help='just print data', default=False)
     parser.add_argument('-v', '--verbose', dest='verbose', action='store_true', help='verbose', default=False)
+    parser.add_argument('--postgresql', action='store_true', help="use postgresql driver (default if nothing else   set)")
+    parser.add_argument('--mysql', action='store_true', help="use mysql driver")
     args = parser.parse_args()
+
+    # default driver
+    driver = 'postgresql'
+    if args.mysql:
+        driver = 'mysql+pymysql'
 
     metadata = MetaData()
     test = Table('test_example_with_zone', metadata,
         Column('id', Integer, primary_key=True),
         Column('data', Binary),
-        Column('raw_data', String),
+        Column('raw_data', Text),
     )
     if args.verbose:
-        proxy_engine = create_engine('postgresql://{}:{}@{}:{}/{}'.format(args.db_user, args.db_password, args.host, args.port, args.db_name), echo=True)
+        proxy_engine = create_engine('{}://{}:{}@{}:{}/{}'.format(driver, args.db_user, args.db_password, args.host, args.port, args.db_name), echo=True)
     else:
-        proxy_engine = create_engine('postgresql://{}:{}@{}:{}/{}'.format(args.db_user, args.db_password, args.host, args.port, args.db_name))
+        proxy_engine = create_engine('{}://{}:{}@{}:{}/{}'.format(driver, args.db_user, args.db_password, args.host, args.port, args.db_name))
     proxy_connection = proxy_engine.connect()
     metadata.create_all(proxy_engine)
 

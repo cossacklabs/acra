@@ -15,7 +15,7 @@ const (
 	// SSL_REQUEST - https://dev.mysql.com/doc/internals/en/capability-flags.html#flag-CLIENT_SSL
 	SSL_REQUEST = 0x00000800
 	// https://dev.mysql.com/doc/internals/en/capability-flags.html#flag-CLIENT_DEPRECATE_EOF - 0x1000000
-	CLIENT_DEPRECATE_EOF = 1 << 6
+	CLIENT_DEPRECATE_EOF = 0x01000000
 )
 
 const (
@@ -168,14 +168,9 @@ func (packet *MysqlPacket) ServerSupportProtocol41() bool {
 	return (capabilities & CLIENT_PROTOCOL_41) > 0
 }
 
-func (packet *MysqlPacket) getClientCapabilities() int {
+func (packet *MysqlPacket) getClientCapabilities() uint32 {
 	// https://dev.mysql.com/doc/internals/en/connection-phase-packets.html#idm140437489940880
-	return int(binary.LittleEndian.Uint16(packet.data[:2]))
-}
-
-func (packet *MysqlPacket) getClientCapabilitiesExtended() int {
-	// https://dev.mysql.com/doc/internals/en/connection-phase-packets.html#idm140437489940880
-	return int(binary.LittleEndian.Uint16(packet.data[2:4]))
+	return binary.LittleEndian.Uint32(packet.data[:4])
 }
 
 func (packet *MysqlPacket) ClientSupportProtocol41() bool {
@@ -192,7 +187,7 @@ func (packet *MysqlPacket) IsSSLRequest() bool {
 // IsClientDeprecatedEOF return true if flag set
 // https://dev.mysql.com/doc/internals/en/capability-flags.html#flag-CLIENT_DEPRECATE_EOF
 func (packet *MysqlPacket) IsClientDeprecateEOF() bool {
-	capabilities := packet.getClientCapabilitiesExtended()
+	capabilities := packet.getClientCapabilities()
 	return (capabilities & CLIENT_DEPRECATE_EOF) > 0
 }
 

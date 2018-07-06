@@ -21,6 +21,7 @@ import (
 	"github.com/cossacklabs/acra/cmd"
 	"github.com/cossacklabs/acra/keystore"
 	"github.com/cossacklabs/acra/logging"
+	"github.com/cossacklabs/acra/utils"
 	"github.com/cossacklabs/themis/gothemis/cell"
 	log "github.com/sirupsen/logrus"
 	"io/ioutil"
@@ -29,6 +30,9 @@ import (
 )
 
 type HashedPasswords map[string]string
+
+var DEFAULT_CONFIG_PATH = utils.GetConfigPathByName("acra-authmanager")
+var SERVICE_NAME = "acra-authmanager"
 
 const (
 	AuthFieldSeparator       = ":"
@@ -158,7 +162,12 @@ func main() {
 	filePath := flag.String("file", cmd.DEFAULT_ACRA_AUTH_PATH, "Auth file")
 	keysDir := flag.String("keys_dir", keystore.DEFAULT_KEY_DIR_SHORT, "Folder from which will be loaded keys")
 	debug := flag.Bool("d", false, "Turn on debug logging")
-	flag.Parse()
+
+	if err := cmd.Parse(DEFAULT_CONFIG_PATH, SERVICE_NAME); err != nil {
+		log.WithError(err).Errorln("can't parse cmd arguments")
+		os.Exit(1)
+	}
+
 	flags := []*bool{set, remove}
 
 	if *debug {

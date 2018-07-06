@@ -1,4 +1,3 @@
-sqlalchemy
-psycopg2
-pythemis
-acrawriter
+-r requirements/base.txt
+-r requirements/postgresql.txt
+-r requirements/mysql.txt

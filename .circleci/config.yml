@@ -33,6 +33,8 @@ jobs:
       - run: cd $HOME && for version in $VERSIONS; do mkdir -p go_path_$version/src/github.com/cossacklabs/themis/gothemis; mkdir -p go_path_$version/src/github.com/cossacklabs/acra; rsync -auv $HOME/themis/gothemis/ go_path_$version/src/github.com/cossacklabs/themis/gothemis; rsync -auv $HOME/project/ go_path_$version/src/github.com/cossacklabs/acra; done
       - run: cd $HOME && for version in $VERSIONS; do GOROOT=$HOME/go_root_$version/go PATH=$GOROOT/bin/:$PATH GOPATH=$HOME/go_path_$version go get -d github.com/cossacklabs/acra/...; done
       - run: pip3 install -r $HOME/project/tests/requirements.txt
+      # install from sources because pip install git+https://github.com/mysql/mysql-connector-python not support recursive submodules
+      - run: git clone https://github.com/Lagovas/mysql-connector-python; cd mysql-connector-python; sudo python3 setup.py clean build_py install_lib
       - run: sudo ldconfig
     # testing
       # delete file if exists
