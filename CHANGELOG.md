@@ -44,6 +44,7 @@ _Core_:
 _Documentation_:
 
 - Updated Acra [Architecture and Data flow](https://github.com/cossacklabs/acra/wiki/Architecture-and-data-flow) graphic schemes to better illustrate Acra's components, connections between them, and typical use-cases.
+- Updated AcraCensor's description to explain how [unparseable queries](https://github.com/cossacklabs/acra/wiki/AcraCensor#unparseable-queries) are handled.    
 - Described typical [Public Key Infrastructure](https://github.com/cossacklabs/acra/wiki/PKI-overview-for-Acra) with some advice on where to put Acra in the general scheme of things.
 - Described Acra's [Security Model](https://github.com/cossacklabs/acra/wiki/Acra's-Security-Model), possible threats, and possible consequences of compromisation.
 
