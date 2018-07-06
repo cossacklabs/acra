@@ -539,6 +539,7 @@ class BaseTestCase(unittest.TestCase):
         args = {
             'db_host': self.DB_HOST,
             'db_port': self.DB_PORT,
+            'logging_format': 'cef',
             # we doesn't need in tests waiting closing connections
             'incoming_connection_close_timeout': 0,
             self.ACRA_BYTEA: 'true',

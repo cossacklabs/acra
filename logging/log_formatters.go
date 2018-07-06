@@ -135,12 +135,8 @@ var (
 //
 // Note: the given entry is copied and not changed during the formatting process.
 func (f AcraJSONFormatter) Format(e *logrus.Entry) ([]byte, error) {
-	// unix time in milliseconds
-	f.lock.Lock()
-	f.Fields[FieldKeyUnixTime] = unixTimeWithMilliseconds(e)
-	f.lock.Unlock()
-
 	ne := copyEntry(e, f.Fields)
+	ne.Data[FieldKeyUnixTime] = unixTimeWithMilliseconds(e)
 	dataBytes, err := f.Formatter.Format(ne)
 	releaseEntry(ne)
 	return dataBytes, err
@@ -150,12 +146,8 @@ func (f AcraJSONFormatter) Format(e *logrus.Entry) ([]byte, error) {
 //
 // Note: the given entry is copied and not changed during the formatting process.
 func (f AcraCEFFormatter) Format(e *logrus.Entry) ([]byte, error) {
-	// unix time in milliseconds
-	f.lock.Lock()
-	f.Fields[FieldKeyUnixTime] = unixTimeWithMilliseconds(e)
-	f.lock.Unlock()
-
 	ne := copyEntry(e, f.Fields)
+	ne.Data[FieldKeyUnixTime] = unixTimeWithMilliseconds(e)
 	dataBytes, err := f.CEFTextFormatter.Format(ne)
 	releaseEntry(ne)
 	return dataBytes, err
