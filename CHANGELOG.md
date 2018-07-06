@@ -38,6 +38,10 @@ _Core_:
 
    - Updated handling of message formats for PostgreSQL and MySQL protocols ([#186](https://github.com/cossacklabs/acra/pull/186)).
 
+   - Improved logging in CEF and JSON formats for high load systems ([#195](https://github.com/cossacklabs/acra/pull/195)).
+
+   - Added comprehensive `Readme` to every project in [/examples](https://github.com/cossacklabs/acra/tree/master/examples) folder ([#196](https://github.com/cossacklabs/acra/pull/196)).
+
    - Added pre-generated configuration file for AcraAuthmanager. Now it's easier to configure AcraServer using [AcraWebconfig](https://github.com/cossacklabs/acra/wiki/AcraWebConfig) ([#187](https://github.com/cossacklabs/acra/pull/187)).
 
 
