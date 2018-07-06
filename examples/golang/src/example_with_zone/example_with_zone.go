@@ -108,7 +108,7 @@ func main() {
 		if err != nil {
 			panic(err)
 		}
-		fmt.Printf("Insert test data to table with zoneid=%v\n", string(zoneId))
+		fmt.Printf("saved with zone: %v\n", string(zoneId))
 		if *mysql {
 			_, err = db.Exec("insert into test_example_with_zone (id, zone, data, raw_data) values (?, ?, ?, ?);", rand.Int31(), zoneId, acrastruct, *data)
 		} else {
