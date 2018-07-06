@@ -47,6 +47,7 @@ _Documentation_:
 - Updated AcraCensor's description to explain how [unparseable queries](https://github.com/cossacklabs/acra/wiki/AcraCensor#unparseable-queries) are handled.    
 - Described typical [Public Key Infrastructure](https://github.com/cossacklabs/acra/wiki/PKI-overview-for-Acra) with some advice on where to put Acra in the general scheme of things.
 - Described Acra's [Security Model](https://github.com/cossacklabs/acra/wiki/Acra's-Security-Model), possible threats, and possible consequences of compromisation.
+- Added a page describing the ways [Acra can help you better comply with GDPR](https://github.com/cossacklabs/acra/wiki/Acra-and-GDPR-compliance).
 
 
 ## [0.80.0](https://github.com/cossacklabs/acra/releases/tag/0.80), May 31st 2018
