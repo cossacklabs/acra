@@ -1,0 +1,36 @@
+# path to config
+config_file: 
+
+# Turn on debug logging
+d: false
+
+# dump config
+dump_config: false
+
+# Time that AcraReader will wait (in seconds) on restart before closing all connections
+incoming_connection_close_timeout: 10
+
+# Connection string for gRPC transport like grpc://x.x.x.x:yyyy
+incoming_connection_grpc_string: tcp://0.0.0.0:9696/
+
+# Connection string for HTTP transport like http://x.x.x.x:yyyy
+incoming_connection_http_string: tcp://0.0.0.0:9595/
+
+# Folder from which will be loaded keys
+keys_dir: .acrakeys
+
+# Logging format: plaintext, json or CEF
+logging_format: plaintext
+
+# Execute script on detecting poison record
+poison_run_script_file: 
+
+# Stop on detecting poison record
+poison_shutdown_enable: false
+
+# Id that will be sent in secure session
+securesession_id: acra_reader
+
+# Log to stderr
+v: false
+
