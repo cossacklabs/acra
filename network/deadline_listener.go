@@ -17,11 +17,28 @@ package network
 import (
 	"net"
 	"time"
+	"github.com/cossacklabs/themis/gothemis/errors"
 )
+
+var ErrUnsupportedListener = errors.New("unsupported network Listener type")
 
 // deadlineListener is extended net.Listener interface with SetDeadline method that added for abstraction of calling
 // SetDeadline between two listener types (TcpListener and UnixListener) that support this method
 type DeadlineListener interface {
 	net.Listener
 	SetDeadline(t time.Time) error
+}
+
+func CastListenerToDeadline(listener net.Listener) (DeadlineListener, error) {
+	var deadlineListener DeadlineListener
+
+	switch listener.(type) {
+	case *net.TCPListener:
+		deadlineListener = listener.(*net.TCPListener)
+	case *net.UnixListener:
+		deadlineListener = listener.(*net.UnixListener)
+	default:
+		return nil, ErrUnsupportedListener
+	}
+	return deadlineListener, nil
 }

@@ -28,8 +28,6 @@ import (
 type ReaderServer struct {
 	config                *AcraReaderConfig
 	keystorage            keystore.KeyStore
-	listenerHTTP          net.Listener
-	listenerGRPC          net.Listener
 	cmHTTP                *network.ConnectionManager
 	cmGRPC                *network.ConnectionManager
 	listeners             []net.Listener
@@ -58,7 +56,6 @@ func (server *ReaderServer) Start() {
 		server.errorSignalChannel <- syscall.SIGTERM
 		return
 	}
-	server.listenerHTTP = listener
 	server.addListener(listener)
 
 	log.Infof("Start listening connection: %s", server.config.IncomingConnectionHTTPString())
@@ -97,13 +94,10 @@ func (server *ReaderServer) Close() {
 	log.Debugln("Closing server listeners..")
 	var err error
 	for _, listener := range server.listeners {
-		switch listener.(type) {
-		case *net.TCPListener:
-			err = listener.(*net.TCPListener).Close()
-			if err != nil {
-				log.WithError(err).Infoln("TCPListener.Close()")
-				continue
-			}
+		err = listener.Close()
+		if err != nil {
+			log.WithError(err).Infoln("TCPListener.Close()")
+			continue
 		}
 	}
 	if err != nil {
@@ -132,12 +126,8 @@ func (server *ReaderServer) WaitWithTimeout(duration time.Duration) error {
 func (server *ReaderServer) WaitConnections(duration time.Duration) {
 	log.Infof("Waiting for %v connections to complete", server.ConnectionsCounter())
 
-	if server.listenerHTTP != nil {
-		server.cmHTTP.Wait()
-	}
-	if server.listenerGRPC != nil {
-		server.cmGRPC.Wait()
-	}
+	server.cmHTTP.Wait()
+	server.cmGRPC.Wait()
 }
 
 func (server *ReaderServer) ConnectionsCounter() int {
@@ -167,34 +157,21 @@ func stopAcceptConnections(listener network.DeadlineListener) (err error) {
 
 func (server *ReaderServer) StopListeners() {
 	var err error
-	var listener network.DeadlineListener
+	var deadlineListener network.DeadlineListener
 	log.Debugln("Stopping listeners")
 
-	switch server.listenerGRPC.(type) {
-	case *net.TCPListener:
-		listener = server.listenerGRPC.(*net.TCPListener)
-	case nil:
-		log.Debugln("hasn't GRPC listener")
-	default:
-		log.Warningln("unsupported listener")
-	}
+	for _, listener := range server.listeners {
 
-	if err = stopAcceptConnections(listener); err != nil {
-		log.WithError(err).Warningln("Can't set deadline for GRPC listener")
-	}
+		deadlineListener, err = network.CastListenerToDeadline(listener)
+		if err != nil {
+			log.WithError(err).Warningln("Can't cast listener")
+			continue
+		}
 
-	switch server.listenerHTTP.(type) {
-	case *net.TCPListener:
-		listener = server.listenerHTTP.(*net.TCPListener)
-	case nil:
-		log.Debugln("hasn't HTTP listener")
-	default:
-		log.Warningln("unsupported listener")
+		if err = stopAcceptConnections(deadlineListener); err != nil {
+			log.WithError(err).Warningln("Can't set deadline for listener")
+		}
 	}
-	if err = stopAcceptConnections(listener); err != nil {
-		log.WithError(err).Warningln("Can't set deadline for HTTP listener")
-	}
-
 }
 
 /*
