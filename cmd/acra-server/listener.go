@@ -253,16 +253,9 @@ func (server *SServer) StartFromFileDescriptor(fd uintptr) {
 	}
 }
 
-// deadlineListener is extended net.Listener interface with SetDeadline method that added for abstraction of calling
-// SetDeadline between two listener types (TcpListener and UnixListener) that support this method
-type deadlineListener interface {
-	net.Listener
-	SetDeadline(t time.Time) error
-}
-
 // stopAcceptConnections stop accepting by setting deadline and then background code that call Accept will took error and
 // stop execution
-func stopAcceptConnections(listener deadlineListener) (err error) {
+func stopAcceptConnections(listener network.DeadlineListener) (err error) {
 	if listener != nil {
 		err = listener.SetDeadline(time.Now())
 		if err != nil {
@@ -281,7 +274,7 @@ func stopAcceptConnections(listener deadlineListener) (err error) {
 
 func (server *SServer) StopListeners() {
 	var err error
-	var listener deadlineListener
+	var listener network.DeadlineListener
 	log.Debugln("Stopping listeners")
 
 	switch server.listenerACRA.(type) {
