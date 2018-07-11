@@ -19,6 +19,7 @@ import (
 	_ "net/http/pprof"
 	"os"
 	"syscall"
+	"time"
 
 	"github.com/cossacklabs/acra/cmd"
 	"github.com/cossacklabs/acra/keystore"
@@ -29,7 +30,8 @@ import (
 )
 
 const (
-	SERVICE_NAME = "acra-reader"
+	SERVICE_NAME         = "acra-reader"
+	DEFAULT_WAIT_TIMEOUT = 10
 )
 
 // DEFAULT_CONFIG_PATH relative path to config which will be parsed as default
@@ -50,6 +52,8 @@ func main() {
 
 	stopOnPoison := flag.Bool("poison_shutdown_enable", false, "Stop on detecting poison record")
 	scriptOnPoison := flag.String("poison_run_script_file", "", "Execute script on detecting poison record")
+
+	closeConnectionTimeout := flag.Int("incoming_connection_close_timeout", DEFAULT_WAIT_TIMEOUT, "Time that AcraServer will wait (in seconds) on restart before closing all connections")
 
 	verbose := flag.Bool("v", false, "Log to stderr")
 	debug := flag.Bool("d", false, "Turn on debug logging")
@@ -120,7 +124,8 @@ func main() {
 	}
 
 	var readerServer *ReaderServer
-	readerServer, err = NewReaderServer(config, keyStore)
+	waitTimeout := time.Duration(*closeConnectionTimeout) * time.Second
+	readerServer, err = NewReaderServer(config, keyStore, waitTimeout)
 	if err != nil {
 		log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantStartService).
 			Errorln("System error: can't start %s", SERVICE_NAME)
@@ -133,13 +138,14 @@ func main() {
 	go sigHandlerSIGTERM.Register()
 	sigHandlerSIGTERM.AddCallback(func() {
 		log.Infof("Received incoming SIGTERM or SIGINT signal")
-		// Stop accepting new connections
+		readerServer.Stop()
+		// send global stop
 		cancel()
 
 		log.Infof("Server graceful shutdown completed, bye PID: %v", os.Getpid())
 		os.Exit(0)
 	})
 
-	log.Infof("Start listening to connections. Current PID: %v", os.Getpid())
+	log.Infof("Start listen2ing to connections. Current PID: %v", os.Getpid())
 	readerServer.Start(mainContext)
 }

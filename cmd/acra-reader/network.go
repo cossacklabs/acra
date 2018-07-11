@@ -22,30 +22,6 @@ import (
 	"github.com/cossacklabs/acra/network"
 )
 
-type ListenTask struct {
-	ConnectionString          string
-	ConnectionsChannel        chan<- net.Conn
-	WrappedConnectionsChannel chan<- net.Conn
-	errCh                     chan error
-	net.Listener
-}
-
-func (task *ListenTask) addAcceptedConnection(connection net.Conn) {
-	task.ConnectionsChannel <- connection
-}
-
-func (task *ListenTask) ErrorChannel() chan error {
-	return task.errCh
-}
-
-func (task *ListenTask) SetListener(listener net.Listener) {
-	task.Listener = listener
-}
-
-func NewListenTask(connectionString string, connectionsChannel, wrappedConnectionsChannel chan net.Conn) (*ListenTask, error) {
-	return &ListenTask{ConnectionString: connectionString, ConnectionsChannel: connectionsChannel, WrappedConnectionsChannel: wrappedConnectionsChannel, errCh: make(chan error, 1)}, nil
-}
-
 // AcceptConnections return channel which will produce new connections from listener in background goroutine
 func AcceptConnections(parentContext context.Context, connectionString string, errCh chan<- error) (<-chan net.Conn, error) {
 	logger := logging.GetLoggerFromContext(parentContext)

@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"net"
+	"time"
 
 	"github.com/cossacklabs/acra/keystore"
 	"github.com/cossacklabs/acra/logging"
@@ -11,15 +12,47 @@ import (
 )
 
 type ReaderServer struct {
-	config     *AcraReaderConfig
-	keystorage keystore.KeyStore
+	config            *AcraReaderConfig
+	keystorage        keystore.KeyStore
+	connectionManager *network.ConnectionManager
+
+	waitTimeout time.Duration
+
+	listenersContextCancel []context.CancelFunc
 }
 
-func NewReaderServer(config *AcraReaderConfig, keystorage keystore.KeyStore) (server *ReaderServer, err error) {
+func NewReaderServer(config *AcraReaderConfig, keystorage keystore.KeyStore, waitTimeout time.Duration) (server *ReaderServer, err error) {
 	return &ReaderServer{
-		config:     config,
-		keystorage: keystorage,
+		waitTimeout:       waitTimeout,
+		config:            config,
+		keystorage:        keystorage,
+		connectionManager: network.NewConnectionManager(),
 	}, nil
+}
+
+func (server *ReaderServer) Stop() {
+	log.Infoln("Stop accepting new connections")
+	// stop all listeners
+	for _, cancelFunc := range server.listenersContextCancel {
+		cancelFunc()
+	}
+	if server.connectionManager.Counter != 0 {
+		log.Infof("Wait ending current connections (%v)", server.connectionManager.Counter)
+		// wait existing connections to end request
+		<-time.NewTimer(server.waitTimeout).C
+	}
+
+	log.Infof("Stop all connections that not closed (%v)", server.connectionManager.Counter)
+	// force close all connections
+	if err := server.connectionManager.CloseConnections(); err != nil {
+		log.WithError(err).Errorln("Took error on closing available connections")
+	}
+}
+
+func (server *ReaderServer) listenerContext(parentContext context.Context) context.Context {
+	ctx, cancel := context.WithCancel(parentContext)
+	server.listenersContextCancel = append(server.listenersContextCancel, cancel)
+	return ctx
 }
 
 func (server *ReaderServer) HandleConnectionString(parentContext context.Context, connectionString string, processingFunc ProcessingFunc) error {
@@ -30,14 +63,16 @@ func (server *ReaderServer) HandleConnectionString(parentContext context.Context
 	logger = log.WithField("connection_string", connectionString)
 
 	errCh := make(chan error)
+
+	listenerContext := server.listenerContext(parentContext)
+
 	// start accept new connections from connectionString
-	connectionChannel, err := AcceptConnections(parentContext, connectionString, errCh)
+	connectionChannel, err := AcceptConnections(listenerContext, connectionString, errCh)
 	if err != nil {
 		logger.WithError(err).Errorln("Can't start to handle connection string")
 		return err
 	}
 	// use to send close packets to all unclosed connections at end
-	connectionManager := network.NewConnectionManager()
 	go func() {
 		logger.WithField("connection_string", connectionString).Debugln("Start wrap new connections")
 		for {
@@ -63,9 +98,14 @@ func (server *ReaderServer) HandleConnectionString(parentContext context.Context
 			logging.SetLoggerToContext(parentContext, logger)
 
 			go func() {
-				connectionManager.AddConnection(wrappedConnection)
+				if err := server.connectionManager.AddConnection(wrappedConnection); err != nil {
+					logger.WithError(err).Errorln("can't add connection to connection manager")
+					return
+				}
 				processingFunc(parentContext, clientId, wrappedConnection)
-				connectionManager.RemoveConnection(wrappedConnection)
+				if err := server.connectionManager.RemoveConnection(wrappedConnection); err != nil {
+					logger.WithError(err).Errorln("can't remove connection from connection manager")
+				}
 			}()
 		}
 	}()
@@ -76,13 +116,6 @@ func (server *ReaderServer) HandleConnectionString(parentContext context.Context
 	case outErr = <-errCh:
 		log.WithError(err).Errorln("error on accepting new connections")
 
-	}
-
-	if err := connectionManager.CloseConnections(); err != nil {
-		logger.WithError(err).Errorln("Took error on closing available connections")
-		if outErr == nil {
-			outErr = err
-		}
 	}
 	return outErr
 }
