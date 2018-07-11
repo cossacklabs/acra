@@ -82,4 +82,15 @@ const (
 
 	// mysql processing
 	EventCodeErrorProtocolProcessing = 600
+
+	// AcraReader
+	EventCodeErrorReaderCantHandleHTTPRequest           = 700
+	EventCodeErrorReaderMethodNotAllowed                = 701
+	EventCodeErrorReaderMalformedURL                    = 702
+	EventCodeErrorReaderVersionNotSupported             = 703
+	EventCodeErrorReaderEndpointNotSupported            = 704
+	EventCodeErrorReaderCantParseRequestBody            = 705
+	EventCodeErrorReaderCantReadPrivateKeyForDecryption = 706
+	EventCodeErrorReaderCantDecryptAcraStruct           = 707
+	EventCodeErrorReaderCantReturnResponse              = 708
 )
