@@ -15,183 +15,68 @@
 package main
 
 import (
+	"context"
 	"net"
-	"os"
-	"github.com/cossacklabs/acra/keystore"
-	"github.com/cossacklabs/acra/network"
-	log "github.com/sirupsen/logrus"
+
 	"github.com/cossacklabs/acra/logging"
-	"syscall"
-	"time"
+	"github.com/cossacklabs/acra/network"
 )
 
-type ReaderServer struct {
-	config                *AcraReaderConfig
-	keystorage            keystore.KeyStore
-	cmHTTP                *network.ConnectionManager
-	cmGRPC                *network.ConnectionManager
-	listeners             []net.Listener
-	errorSignalChannel    chan os.Signal
+type ListenTask struct {
+	ConnectionString          string
+	ConnectionsChannel        chan<- net.Conn
+	WrappedConnectionsChannel chan<- net.Conn
+	errCh                     chan error
+	net.Listener
 }
 
-func NewReaderServer(config *AcraReaderConfig, keystorage keystore.KeyStore, errorChan chan os.Signal) (server *ReaderServer, err error) {
-	return &ReaderServer{
-		config:             config,
-		keystorage:         keystorage,
-		cmHTTP:             network.NewConnectionManager(),
-		cmGRPC:             network.NewConnectionManager(),
-		errorSignalChannel: errorChan,
-	}, nil
+func (task *ListenTask) addAcceptedConnection(connection net.Conn) {
+	task.ConnectionsChannel <- connection
 }
 
-func (server *ReaderServer) Start() {
-	// WARNING: not implemented yet
-	// TODO: implement the same for gRPC connection
+func (task *ListenTask) ErrorChannel() chan error {
+	return task.errCh
+}
 
-	var connection net.Conn
-	var listener, err = network.Listen(server.config.IncomingConnectionHTTPString())
+func (task *ListenTask) SetListener(listener net.Listener) {
+	task.Listener = listener
+}
+
+func NewListenTask(connectionString string, connectionsChannel, wrappedConnectionsChannel chan net.Conn) (*ListenTask, error) {
+	return &ListenTask{ConnectionString: connectionString, ConnectionsChannel: connectionsChannel, WrappedConnectionsChannel: wrappedConnectionsChannel, errCh: make(chan error, 1)}, nil
+}
+
+// AcceptConnections return channel which will produce new connections from listener in background goroutine
+func AcceptConnections(parentContext context.Context, connectionString string, errCh chan<- error) (<-chan net.Conn, error) {
+	logger := logging.GetLoggerFromContext(parentContext)
+	listenContext, cancel := context.WithCancel(parentContext)
+	connectionChannel := make(chan net.Conn)
+	listener, err := network.Listen(connectionString)
 	if err != nil {
-		log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantStartListenConnections).
-			Errorln("Can't start listen connections")
-		server.errorSignalChannel <- syscall.SIGTERM
-		return
+		return nil, err
 	}
-	server.addListener(listener)
 
-	log.Infof("Start listening connection: %s", server.config.IncomingConnectionHTTPString())
-	for {
-		connection, err = listener.Accept()
-		if err != nil {
-			if nerr, ok := err.(net.Error); ok && nerr.Timeout() {
-				log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorConnectionDroppedByTimeout).
-					Errorln("Stop accepting new connections due net.Timeout")
-				return
-			}
-			log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantAcceptNewConnections).
-				Errorf("Can't accept new connection (connection=%v)", connection)
-			continue
-		}
-		// unix socket and value == '@'
-		if len(connection.RemoteAddr().String()) == 1 {
-			log.Infof("Got new connection to AcraReader: %v", connection.LocalAddr())
-		} else {
-			log.Infof("Got new connection to AcraReader: %v", connection.RemoteAddr())
-		}
-		go func() {
-			server.cmHTTP.Incr()
-			server.handleConnection(connection)
-			server.cmHTTP.Done()
-		}()
-
-	}
-}
-
-func (server *ReaderServer) addListener(listener net.Listener) {
-	server.listeners = append(server.listeners, listener)
-}
-
-func (server *ReaderServer) Close() {
-	log.Debugln("Closing server listeners..")
-	var err error
-	for _, listener := range server.listeners {
-		err = listener.Close()
-		if err != nil {
-			log.WithError(err).Infoln("TCPListener.Close()")
-			continue
-		}
-	}
-	if err != nil {
-		log.WithError(err).Infoln("server.Close()")
-	}
-	log.Debugln("Closed server listeners")
-}
-
-
-func (server *ReaderServer) WaitWithTimeout(duration time.Duration) error {
-	timeout := time.NewTimer(duration)
-	wait := make(chan struct{})
+	// run goroutine that just accept connections and return them and stop on error. you can stop it by closing listener
 	go func() {
-		server.WaitConnections(duration)
-		wait <- struct{}{}
+		conn, err := listener.Accept()
+		if err != nil {
+			logger.WithError(err).Errorln("Error on accept connection")
+			errCh <- err
+			cancel()
+			return
+		}
+		connectionChannel <- conn
 	}()
 
-	select {
-	case <-timeout.C:
-		return ErrWaitTimeout
-	case <-wait:
-		return nil
-	}
-}
-
-func (server *ReaderServer) WaitConnections(duration time.Duration) {
-	log.Infof("Waiting for %v connections to complete", server.ConnectionsCounter())
-
-	server.cmHTTP.Wait()
-	server.cmGRPC.Wait()
-}
-
-func (server *ReaderServer) ConnectionsCounter() int {
-	return server.cmGRPC.Counter + server.cmHTTP.Counter
-}
-
-// TODO: similar to AcraServer. How to refactor?
-
-// stopAcceptConnections stop accepting by setting deadline and then background code that call Accept will took error and
-// stop execution
-func stopAcceptConnections(listener network.DeadlineListener) (err error) {
-	if listener != nil {
-		err = listener.SetDeadline(time.Now())
+	// wait Done signal from caller or from "accept" goroutine and stop listener
+	go func() {
+		<-listenContext.Done()
+		logger.WithError(listenContext.Err()).Infoln("Close listener")
+		// stop listener and goroutine that produce connections from listener
+		err := listener.Close()
 		if err != nil {
-			if nerr, ok := err.(net.Error); ok && nerr.Timeout() {
-				log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantStopListenConnections).
-					Errorln("Unable to SetDeadLine for listener")
-			} else {
-				log.WithError(err).Errorln("Non-timeout error")
-			}
+			logger.WithError(err).Errorln("Error on closing listener")
 		}
-	} else {
-		log.Warningln("can't set deadline for server listener")
-	}
-	return
-}
-
-func (server *ReaderServer) StopListeners() {
-	var err error
-	var deadlineListener network.DeadlineListener
-	log.Debugln("Stopping listeners")
-
-	for _, listener := range server.listeners {
-
-		deadlineListener, err = network.CastListenerToDeadline(listener)
-		if err != nil {
-			log.WithError(err).Warningln("Can't cast listener")
-			continue
-		}
-
-		if err = stopAcceptConnections(deadlineListener); err != nil {
-			log.WithError(err).Warningln("Can't set deadline for listener")
-		}
-	}
-}
-
-/*
-handle new connection by initializing secure session, starting proxy request
-to db and decrypting responses from db
-*/
-func (server *ReaderServer) handleConnection(connection net.Conn) {
-	log.Infof("Handle new connection")
-	wrappedConnection, clientId, err := server.config.ConnectionWrapper.WrapServer(connection)
-	if err != nil {
-		log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantWrapConnection).
-			Errorln("Can't wrap connection from acra-connector")
-		if closeErr := connection.Close(); closeErr != nil {
-			log.WithError(closeErr).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantCloseConnection).
-				Errorln("Can't close connection")
-		}
-		return
-	}
-
-	// WARNING: not implemented yet
-	// TODO: start client session
-	log.Infof("Not implemented yet: should start client session with %s, clientId=%s", wrappedConnection, clientId)
+	}()
+	return connectionChannel, nil
 }
