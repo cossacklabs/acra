@@ -14,7 +14,7 @@
 package main
 
 import (
-	"errors"
+	"context"
 	"flag"
 	_ "net/http/pprof"
 	"os"
@@ -29,16 +29,13 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
-var errorSignalChannel chan os.Signal
-
 const (
-	DEFAULT_ACRAREADER_WAIT_TIMEOUT = 10
-	SERVICE_NAME                    = "acra-reader"
+	SERVICE_NAME         = "acra-reader"
+	DEFAULT_WAIT_TIMEOUT = 10
 )
 
 // DEFAULT_CONFIG_PATH relative path to config which will be parsed as default
 var DEFAULT_CONFIG_PATH = utils.GetConfigPathByName(SERVICE_NAME)
-var ErrWaitTimeout = errors.New("timeout")
 
 func main() {
 	config := NewConfig()
@@ -52,10 +49,11 @@ func main() {
 	keysDir := flag.String("keys_dir", keystore.DEFAULT_KEY_DIR_SHORT, "Folder from which will be loaded keys")
 
 	secureSessionId := flag.String("securesession_id", "acra_reader", "Id that will be sent in secure session")
-	closeConnectionTimeout := flag.Int("incoming_connection_close_timeout", DEFAULT_ACRAREADER_WAIT_TIMEOUT, "Time that AcraReader will wait (in seconds) on restart before closing all connections")
 
 	stopOnPoison := flag.Bool("poison_shutdown_enable", false, "Stop on detecting poison record")
 	scriptOnPoison := flag.String("poison_run_script_file", "", "Execute script on detecting poison record")
+
+	closeConnectionTimeout := flag.Int("incoming_connection_close_timeout", DEFAULT_WAIT_TIMEOUT, "Time that AcraServer will wait (in seconds) on restart before closing all connections")
 
 	verbose := flag.Bool("v", false, "Log to stderr")
 	debug := flag.Bool("d", false, "Turn on debug logging")
@@ -91,7 +89,6 @@ func main() {
 	config.SetConfigPath(DEFAULT_CONFIG_PATH)
 	config.SetDebug(*debug)
 
-
 	log.Infof("Initialising keystore")
 	masterKey, err := keystore.GetMasterKeyFromEnvironment()
 	if err != nil {
@@ -120,7 +117,6 @@ func main() {
 
 	log.Debugf("Registering process signal handlers")
 	sigHandlerSIGTERM, err := cmd.NewSignalHandler([]os.Signal{os.Interrupt, syscall.SIGTERM})
-	errorSignalChannel = sigHandlerSIGTERM.GetChannel()
 	if err != nil {
 		log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantRegisterSignalHandler).
 			Errorln("System error: can't register SIGTERM handler")
@@ -128,36 +124,28 @@ func main() {
 	}
 
 	var readerServer *ReaderServer
-	readerServer, err = NewReaderServer(config, keyStore, errorSignalChannel)
+	waitTimeout := time.Duration(*closeConnectionTimeout) * time.Second
+	readerServer, err = NewReaderServer(config, keyStore, waitTimeout)
 	if err != nil {
 		log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantStartService).
 			Errorln("System error: can't start %s", SERVICE_NAME)
 		panic(err)
 	}
 
+	mainContext, cancel := context.WithCancel(context.Background())
+	mainContext = logging.SetLoggerToContext(mainContext, log.NewEntry(log.StandardLogger()))
+
 	go sigHandlerSIGTERM.Register()
 	sigHandlerSIGTERM.AddCallback(func() {
 		log.Infof("Received incoming SIGTERM or SIGINT signal")
-		log.Debugf("Stop accepting new connections, waiting until current connections close")
+		readerServer.Stop()
+		// send global stop
+		cancel()
 
-		// Stop accepting new connections
-		readerServer.StopListeners()
-
-		// Wait a maximum of N seconds for existing connections to finish
-		err := readerServer.WaitWithTimeout(time.Duration(*closeConnectionTimeout) * time.Second)
-		if err == ErrWaitTimeout {
-			log.Warningf("Server shutdown Timeout: %d active connections will be cut", readerServer.ConnectionsCounter())
-			readerServer.Close()
-			os.Exit(1)
-		}
-
-		readerServer.Close()
 		log.Infof("Server graceful shutdown completed, bye PID: %v", os.Getpid())
 		os.Exit(0)
 	})
 
-
-	log.Infof("Start listening to connections. Current PID: %v", os.Getpid())
-
-	go readerServer.Start()
+	log.Infof("Start listen2ing to connections. Current PID: %v", os.Getpid())
+	readerServer.Start(mainContext)
 }
