@@ -10,18 +10,18 @@ type ConnectionManager struct {
 	*sync.WaitGroup
 	mutex       *sync.Mutex
 	Counter     int
-	connections map[string]net.Conn
+	connections map[uintptr]net.Conn
 }
 
 func NewConnectionManager() *ConnectionManager {
 	cm := &ConnectionManager{}
 	cm.WaitGroup = &sync.WaitGroup{}
-	cm.connections = make(map[string]net.Conn)
+	cm.connections = make(map[uintptr]net.Conn)
 	cm.mutex = &sync.Mutex{}
 	return cm
 }
-func (manager *ConnectionManager) getConnectionAddress(connection net.Conn) string {
-	return connection.RemoteAddr().String()
+func (manager *ConnectionManager) getConnectionIdentifier(connection net.Conn) (uintptr, error) {
+	return GetConnectionDescriptor(connection)
 }
 
 func (cm *ConnectionManager) Incr() {
@@ -35,18 +35,28 @@ func (cm *ConnectionManager) Done() {
 	cm.WaitGroup.Done()
 }
 
-func (cm *ConnectionManager) AddConnection(conn net.Conn) {
+func (cm *ConnectionManager) AddConnection(conn net.Conn) error {
+	ident, err := cm.getConnectionIdentifier(conn)
+	if err != nil {
+		return err
+	}
 	cm.mutex.Lock()
-	cm.connections[cm.getConnectionAddress(conn)] = conn
+	cm.connections[ident] = conn
 	cm.Incr()
 	cm.mutex.Unlock()
+	return nil
 }
 
-func (cm *ConnectionManager) RemoveConnection(conn net.Conn) {
+func (cm *ConnectionManager) RemoveConnection(conn net.Conn) error {
+	ident, err := cm.getConnectionIdentifier(conn)
+	if err != nil {
+		return err
+	}
 	cm.mutex.Lock()
-	delete(cm.connections, cm.getConnectionAddress(conn))
+	delete(cm.connections, ident)
 	cm.Done()
 	cm.mutex.Unlock()
+	return nil
 }
 
 // CloseConnections close all available connections and return first occurred error
