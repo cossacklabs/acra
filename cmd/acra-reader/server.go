@@ -181,27 +181,35 @@ func (server *ReaderServer) processHTTPConnection(parentContext context.Context,
 	if err != nil {
 		logger.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorReaderCantHandleHTTPRequest).
 			Warningln("Got new HTTP request, but can't read it")
-		server.closeConnectionAndSendResponse(logger, emptyResponseWithStatus(request, http.StatusBadRequest), connection)
+		server.sendResponseAndCloseConnection(logger, emptyResponseWithStatus(request, http.StatusBadRequest), connection)
 		return
 	}
 
 	response := server.parseRequestPrepareResponse(logger, request, clientId)
-	server.closeConnectionAndSendResponse(logger, response, connection)
+	server.sendResponseAndCloseConnection(logger, response, connection)
 }
 
 
-func (server *ReaderServer) closeConnectionAndSendResponse(logger *log.Entry, response *http.Response, connection net.Conn) {
+func (server *ReaderServer) sendResponseAndCloseConnection(logger *log.Entry, response *http.Response, connection net.Conn) {
 	buf := new(bytes.Buffer)
 	err := binary.Write(buf, binary.BigEndian, response)
 
 	if err != nil {
 		logger.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorReaderCantReturnResponse).
-			Warningln("Can't write response to HTTP request")
+			Warningln("Can't convert response to binary")
 	} else {
-		connection.Write(buf.Bytes())
+		_, err = connection.Write(buf.Bytes())
+		if err != nil {
+			logger.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorReaderCantReturnResponse).
+				Warningln("Can't write response to HTTP request")
+		}
 	}
 
-	connection.Close()
+	err = connection.Close()
+	if err != nil {
+		logger.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorReaderCantCloseConnection).
+			Warningln("Can't close connection of HTTP request")
+	}
 }
 
 
@@ -297,7 +305,7 @@ func (server *ReaderServer)decryptAcraStruct(acraStruct []byte, zoneId []byte, c
 	if zoneId != nil {
 		privateKey, err = server.keystorage.GetZonePrivateKey(zoneId)
 	} else {
-		privateKey, err = server.keystorage.GetZonePrivateKey(clientId)
+		privateKey, err = server.keystorage.GetServerDecryptionPrivateKey(clientId)
 	}
 
 	if err != nil {

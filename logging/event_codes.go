@@ -93,4 +93,5 @@ const (
 	EventCodeErrorReaderCantZoneIdMissing               = 706
 	EventCodeErrorReaderCantDecryptAcraStruct           = 707
 	EventCodeErrorReaderCantReturnResponse              = 708
+	EventCodeErrorReaderCantCloseConnection             = 709
 )
