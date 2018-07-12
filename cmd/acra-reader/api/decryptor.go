@@ -1,7 +1,7 @@
 package api
 
 import (
-	"context"
+	context "golang.org/x/net/context"
 
 	"github.com/cossacklabs/acra/decryptor/base"
 	"github.com/cossacklabs/acra/keystore"
