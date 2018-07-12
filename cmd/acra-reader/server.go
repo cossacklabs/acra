@@ -5,16 +5,20 @@ import (
 	"net"
 	"time"
 
+	"github.com/cossacklabs/acra/cmd/acra-reader/api"
 	"github.com/cossacklabs/acra/keystore"
 	"github.com/cossacklabs/acra/logging"
 	"github.com/cossacklabs/acra/network"
 	log "github.com/sirupsen/logrus"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/reflection"
 )
 
 type ReaderServer struct {
 	config            *AcraReaderConfig
 	keystorage        keystore.KeyStore
 	connectionManager *network.ConnectionManager
+	grpcServer        *grpc.Server
 
 	waitTimeout time.Duration
 
@@ -36,6 +40,8 @@ func (server *ReaderServer) Stop() {
 	for _, cancelFunc := range server.listenersContextCancel {
 		cancelFunc()
 	}
+	// non block stop
+	go server.grpcServer.GracefulStop()
 	if server.connectionManager.Counter != 0 {
 		log.Infof("Wait ending current connections (%v)", server.connectionManager.Counter)
 		// wait existing connections to end request
@@ -43,6 +49,8 @@ func (server *ReaderServer) Stop() {
 	}
 
 	log.Infof("Stop all connections that not closed (%v)", server.connectionManager.Counter)
+	// force stop of grpc server
+	server.grpcServer.Stop()
 	// force close all connections
 	if err := server.connectionManager.CloseConnections(); err != nil {
 		log.WithError(err).Errorln("Took error on closing available connections")
@@ -69,7 +77,7 @@ func (server *ReaderServer) HandleConnectionString(parentContext context.Context
 	// start accept new connections from connectionString
 	connectionChannel, err := AcceptConnections(listenerContext, connectionString, errCh)
 	if err != nil {
-		logger.WithError(err).Errorln("Can't start to handle connection string")
+		logger.WithError(err).Errorf("Can't start to handle connection string %v", connectionString)
 		return err
 	}
 	// use to send close packets to all unclosed connections at end
@@ -139,10 +147,25 @@ func (server *ReaderServer) Start(parentContext context.Context) {
 	}
 	if server.config.incomingConnectionGRPCString != "" {
 		go func() {
-			grpcContext := logging.SetLoggerToContext(parentContext, logger.WithField(CONNECTION_TYPE_KEY, GRPC_CONNECTION_TYPE))
-			err := server.HandleConnectionString(grpcContext, server.config.incomingConnectionGRPCString, server.processGRPCConnection)
+			grpcLogger := logger.WithField(CONNECTION_TYPE_KEY, GRPC_CONNECTION_TYPE)
+			secureSessionListener, err := network.NewSecureSessionListener(server.config.incomingConnectionGRPCString, server.keystorage)
 			if err != nil {
-				log.WithError(err).Errorln("Took error on handling grpc requests")
+				grpcLogger.WithError(err).Errorln("Can't create secure sesson listener")
+				return
+			}
+			grpcServer := grpc.NewServer()
+			service, err := api.NewDecryptGRPCService(server.keystorage)
+			if err != nil {
+				grpcLogger.WithError(err).Errorln("Can't create grpc service")
+				return
+			}
+			api.RegisterReaderServer(grpcServer, service)
+			server.grpcServer = grpcServer
+			// Register reflection service on gRPC server.
+			reflection.Register(grpcServer)
+			if err := grpcServer.Serve(secureSessionListener); err != nil {
+				grpcLogger.Errorf("failed to serve: %v", err)
+				return
 			}
 		}()
 	}
