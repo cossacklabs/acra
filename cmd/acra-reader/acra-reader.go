@@ -146,6 +146,6 @@ func main() {
 		os.Exit(0)
 	})
 
-	log.Infof("Start listen2ing to connections. Current PID: %v", os.Getpid())
+	log.Infof("Start listening to connections. Current PID: %v", os.Getpid())
 	readerServer.Start(mainContext)
 }
