@@ -195,7 +195,7 @@ func main() {
 
 	if *acraServerHost == "" && *acraServerConnectionString == "" {
 		log.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorWrongConfiguration).
-			Errorln("Configuration error: you must pass acraserver_connection_host or acra_connection_string parameter")
+			Errorln("Configuration error: you must pass acraserver_connection_host or acraserver_connection_string parameter")
 		os.Exit(1)
 	}
 	if *acraServerHost != "" {
@@ -240,11 +240,6 @@ func main() {
 		os.Exit(1)
 	}
 
-	if *verbose {
-		logging.SetLogLevel(logging.LOG_VERBOSE)
-	} else {
-		logging.SetLogLevel(logging.LOG_DISCARD)
-	}
 	if runtime.GOOS != "linux" {
 		*disableUserCheck = true
 	}
@@ -267,7 +262,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	log.Debugf("Start listening connections")
+	log.Infof("Ready: start listening connections")
 	config := &Config{KeyStore: keyStore, KeysDir: *keysDir, ClientId: []byte(*clientId), AcraServerConnectionString: *acraServerConnectionString, ConnectionString: *connectionString, AcraServerId: []byte(*acraServerId), disableUserCheck: *disableUserCheck}
 	listener, err := network.Listen(*connectionString)
 	if err != nil {
@@ -346,6 +341,14 @@ func main() {
 	}
 
 	log.Infof("Start listening connection %s", *connectionString)
+
+	if *verbose {
+		logging.SetLogLevel(logging.LOG_VERBOSE)
+	} else {
+		log.Infof("Disabling future logs.. Set -v to see logs")
+		logging.SetLogLevel(logging.LOG_DISCARD)
+	}
+
 	for {
 		connection, err := listener.Accept()
 		if err != nil {

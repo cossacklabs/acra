@@ -7,7 +7,6 @@ import (
 	"net/http"
 	"net"
 	"bytes"
-	"encoding/binary"
 	"github.com/cossacklabs/acra/logging"
 	"strings"
 	"os"
@@ -27,14 +26,13 @@ func NewHTTPConnectionsDecryptor(keystorage keystore.KeyStore) (*HTTPConnections
 
 
 func (decryptor *HTTPConnectionsDecryptor) SendResponseAndCloseConnection(logger *log.Entry, response *http.Response, connection net.Conn) {
-	buf := new(bytes.Buffer)
-	err := binary.Write(buf, binary.BigEndian, response)
+	r, err := ioutil.ReadAll(response.Body)
 
 	if err != nil {
 		logger.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorReaderCantReturnResponse).
-			Warningln("Can't convert response to binary")
+			Warningln("Can't convert response to binary %s", response)
 	} else {
-		_, err = connection.Write(buf.Bytes())
+		_, err = connection.Write(r)
 		if err != nil {
 			logger.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorReaderCantReturnResponse).
 				Warningln("Can't write response to HTTP request")
@@ -46,6 +44,7 @@ func (decryptor *HTTPConnectionsDecryptor) SendResponseAndCloseConnection(logger
 		logger.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorReaderCantCloseConnection).
 			Warningln("Can't close connection of HTTP request")
 	}
+	logger.Infoln("Closed connection")
 }
 
 

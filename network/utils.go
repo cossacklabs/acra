@@ -7,6 +7,8 @@ import (
 	url_ "net/url"
 	"os"
 	"strings"
+	"reflect"
+	log "github.com/sirupsen/logrus"
 )
 
 const (
@@ -92,7 +94,11 @@ func GetConnectionDescriptor(connection net.Conn) (uintptr, error) {
 		file, err = connection.(*net.TCPConn).File()
 	case *net.UnixConn:
 		file, err = connection.(*net.UnixConn).File()
+	case *secureSessionConnection:
+		// get decription of own connection
+		return GetConnectionDescriptor(connection.(*secureSessionConnection).Conn)
 	default:
+		log.Errorf("Unsupported connection type: %s", reflect.TypeOf(connection))
 		return 0, ErrUnsupportedConnectionType
 	}
 	if err != nil {
