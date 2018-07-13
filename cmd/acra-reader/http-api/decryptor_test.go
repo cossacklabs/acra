@@ -1,4 +1,4 @@
-package main
+package http_api
 
 import (
 	"testing"
@@ -12,9 +12,9 @@ import (
 	"fmt"
 )
 
-func TestResponseStatus(t *testing.T) {
+func TestHTTPResponseStatus(t *testing.T) {
 	keyStore := &testKeystore{}
-	readerServer, err := NewReaderServer(nil, keyStore, 1)
+	httpConnectionsDecryptor, err := NewHTTPConnectionsDecryptor(keyStore)
 
 	if err != nil {
 		t.Fatalf("Can't create ReaderServer. err = %v\n", err)
@@ -23,59 +23,59 @@ func TestResponseStatus(t *testing.T) {
 	//logging.SetLogLevel(logging.LOG_DEBUG)
 	logger := log.NewEntry(log.StandardLogger())
 
-	res := readerServer.parseRequestPrepareResponse(logger, nil, nil)
+	res := httpConnectionsDecryptor.ParseRequestPrepareResponse(logger, nil, nil)
 	if res.StatusCode != http.StatusBadRequest {
 		t.Fatalf("If no Request -> Status code should be Bad Request, got %s\n", res.Status)
 	}
 
 	request := http.Request{}
-	res = readerServer.parseRequestPrepareResponse(logger, &request, nil)
+	res = httpConnectionsDecryptor.ParseRequestPrepareResponse(logger, &request, nil)
 	if res.StatusCode != http.StatusBadRequest {
 		t.Fatalf("If no Requets URL -> Status code should be Bad Request, got %s\n", res.Status)
 	}
 
 	request.URL, _ = url.Parse("http://smth.com/weird")
 	request.Method = http.MethodGet
-	res = readerServer.parseRequestPrepareResponse(logger, &request, nil)
+	res = httpConnectionsDecryptor.ParseRequestPrepareResponse(logger, &request, nil)
 	if res.StatusCode != http.StatusMethodNotAllowed {
 		t.Fatalf("If not POST -> Status code should be StatusMethodNotAllowed, got %s\n", res.Status)
 	}
 
 	request.Method = http.MethodPost
-	res = readerServer.parseRequestPrepareResponse(logger, &request, nil)
+	res = httpConnectionsDecryptor.ParseRequestPrepareResponse(logger, &request, nil)
 	if res.StatusCode != http.StatusBadRequest {
 		t.Fatalf("If URL has no version -> Status code should be StatusBadRequest, got %s\n", res.Status)
 	}
 
 	request.URL, _ = url.Parse("http://smth.com/v1")
-	res = readerServer.parseRequestPrepareResponse(logger, &request, nil)
+	res = httpConnectionsDecryptor.ParseRequestPrepareResponse(logger, &request, nil)
 	if res.StatusCode != http.StatusBadRequest {
 		t.Fatalf("If URL has no /decrypt endpoint -> Status code should be StatusBadRequest, got %s\n", res.Status)
 	}
 
 	request.URL, _ = url.Parse("http://smth.com/v1/decrypt")
-	res = readerServer.parseRequestPrepareResponse(logger, &request, nil)
+	res = httpConnectionsDecryptor.ParseRequestPrepareResponse(logger, &request, nil)
 	if res.StatusCode != http.StatusBadRequest {
 		t.Fatalf("If Request has no body -> Status code should be StatusBadRequest, got %s\n", res.Status)
 	}
 
 	request.Body = ioutil.NopCloser(bytes.NewBufferString("bla bla bla body"))
-	res = readerServer.parseRequestPrepareResponse(logger, &request, nil)
+	res = httpConnectionsDecryptor.ParseRequestPrepareResponse(logger, &request, nil)
 	if res.StatusCode != http.StatusBadRequest {
 		t.Fatalf("If Request has no ZoneId and No ClientId -> Status code should be StatusBadRequest, got %s\n", res.Status)
 	}
 
 	request.URL, _ = url.Parse("http://smth.com/v1/decrypt?zone_id=\"somezoneid\"")
 	request.Body = ioutil.NopCloser(bytes.NewBufferString("bla bla bla body"))
-	res = readerServer.parseRequestPrepareResponse(logger, &request, []byte("asdf"))
+	res = httpConnectionsDecryptor.ParseRequestPrepareResponse(logger, &request, []byte("asdf"))
 	if res.StatusCode != http.StatusUnprocessableEntity {
 		t.Fatalf("If Request Bad ZoneId and ClientId -> Status code should be StatusUnprocessableEntity, got %s\n", res.Status)
 	}
 }
 
-func TestDecryptionAndResponse(t *testing.T) {
+func TestHTTPDecryptionAndResponse(t *testing.T) {
 	keyStore := &testKeystore{}
-	readerServer, err := NewReaderServer(nil, keyStore, 1)
+	httpConnectionsDecryptor, err := NewHTTPConnectionsDecryptor(keyStore)
 
 	if err != nil {
 		t.Fatalf("Can't create ReaderServer. err = %v\n", err)
@@ -100,7 +100,7 @@ func TestDecryptionAndResponse(t *testing.T) {
 	request.URL, _ = url.Parse("http://smth.com/v1/decrypt")
 	request.Body = ioutil.NopCloser(bytes.NewBuffer([]byte("some garbage not acrastruct")))
 
-	res := readerServer.parseRequestPrepareResponse(logger, &request, clientId)
+	res := httpConnectionsDecryptor.ParseRequestPrepareResponse(logger, &request, clientId)
 	if res.StatusCode != http.StatusUnprocessableEntity {
 		t.Fatalf("Should not be able to decrypt garbage -> Status code should be StatusUnprocessableEntity, got %s\n", res.Status)
 	}
@@ -115,7 +115,7 @@ func TestDecryptionAndResponse(t *testing.T) {
 	request.URL, _ = url.Parse("http://smth.com/v1/decrypt")
 	request.Body = ioutil.NopCloser(bytes.NewBuffer(acrastruct))
 
-	res = readerServer.parseRequestPrepareResponse(logger, &request, clientId)
+	res = httpConnectionsDecryptor.ParseRequestPrepareResponse(logger, &request, clientId)
 	if res.StatusCode != http.StatusOK {
 		t.Fatalf("Should be able to decrypt without zone -> Status code should be StatusOK, got %s\n", res.Status)
 	}
@@ -140,7 +140,7 @@ func TestDecryptionAndResponse(t *testing.T) {
 	request.URL, _ = url.Parse(fmt.Sprintf("http://smth.com/v1/decrypt?zone_id=%s", zoneId))
 	request.Body = ioutil.NopCloser(bytes.NewBuffer(acrastructWithZone))
 
-	res = readerServer.parseRequestPrepareResponse(logger, &request, clientId)
+	res = httpConnectionsDecryptor.ParseRequestPrepareResponse(logger, &request, clientId)
 	if res.StatusCode != http.StatusOK {
 		t.Fatalf("Should be able to decrypt with zone -> Status code should be StatusOK, got %s\n", res.Status)
 	}
@@ -155,9 +155,9 @@ func TestDecryptionAndResponse(t *testing.T) {
 	}
 }
 
-func TestDecryptionAcraStruct(t *testing.T) {
+func TestHTTPDecryptionAcraStruct(t *testing.T) {
 	keyStore := &testKeystore{}
-	readerServer, err := NewReaderServer(nil, keyStore, 1)
+	httpConnectionsDecryptor, err := NewHTTPConnectionsDecryptor(keyStore)
 
 	if err != nil {
 		t.Fatalf("Can't create ReaderServer. err = %v\n", err)
@@ -174,7 +174,7 @@ func TestDecryptionAcraStruct(t *testing.T) {
 	data := []byte("some data")
 
 	// not an acrastruct
-	decrypted, err := readerServer.decryptAcraStruct([]byte("some garbage not acrastruct"), nil, clientId)
+	decrypted, err := httpConnectionsDecryptor.decryptAcraStruct([]byte("some garbage not acrastruct"), nil, clientId)
 	if err == nil {
 		t.Fatalf("Should not be able to decrypt garbage")
 	}
@@ -185,7 +185,7 @@ func TestDecryptionAcraStruct(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	decrypted, err = readerServer.decryptAcraStruct(acrastruct, nil, clientId)
+	decrypted, err = httpConnectionsDecryptor.decryptAcraStruct(acrastruct, nil, clientId)
 	if err != nil {
 		t.Fatalf("Should be able to decrypt acrastruct without zone")
 	}
@@ -202,7 +202,7 @@ func TestDecryptionAcraStruct(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	decrypted, err = readerServer.decryptAcraStruct(acrastructWithZone, zoneId, clientId)
+	decrypted, err = httpConnectionsDecryptor.decryptAcraStruct(acrastructWithZone, zoneId, clientId)
 	if err != nil {
 		t.Fatalf("Should be able to decrypt acrastruct with zone")
 	}

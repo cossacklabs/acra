@@ -1,4 +1,4 @@
-package main
+package http_api
 
 import (
 	"github.com/cossacklabs/themis/gothemis/keys"
