@@ -125,8 +125,13 @@ func (store *FilesystemKeyStore) GenerateZoneKey() ([]byte, []byte, error) {
 	}
 	store.lock.Lock()
 	defer store.lock.Unlock()
+	encryptedKey, err := store.encryptor.Encrypt(keypair.Private.Value, id)
+	if err != nil {
+		return nil, nil, nil
+	}
+	utils.FillSlice(byte(0), keypair.Private.Value)
 	// cache key
-	store.keys[getZoneKeyFilename(id)] = keypair.Private.Value
+	store.keys[getZoneKeyFilename(id)] = encryptedKey
 	return id, keypair.Public.Value, nil
 }
 
@@ -138,28 +143,33 @@ func (store *FilesystemKeyStore) getPublicKeyFilePath(filename string) string {
 	return fmt.Sprintf("%s%s%s", store.publicKeyDirectory, string(os.PathSeparator), filename)
 }
 
-func (store *FilesystemKeyStore) GetZonePrivateKey(id []byte) (*keys.PrivateKey, error) {
+func (store *FilesystemKeyStore) getPrivateKeyByFilename(id []byte, filename string) (*keys.PrivateKey, error) {
 	if !ValidateId(id) {
 		return nil, ErrInvalidClientId
 	}
-	fname := getZoneKeyFilename(id)
 	store.lock.Lock()
 	defer store.lock.Unlock()
-	key, ok := store.keys[fname]
-	if ok {
-		log.Debugf("load cached key: %s", fname)
-		return &keys.PrivateKey{Value: key}, nil
+	encryptedKey, ok := store.keys[filename]
+	if !ok {
+		encryptedPrivateKey, err := utils.LoadPrivateKey(store.getPrivateKeyFilePath(filename))
+		if err != nil {
+			return nil, err
+		}
+		encryptedKey = encryptedPrivateKey.Value
 	}
-	privateKey, err := utils.LoadPrivateKey(store.getPrivateKeyFilePath(fname))
+
+	decryptedKey, err := store.encryptor.Decrypt(encryptedKey, id)
 	if err != nil {
 		return nil, err
 	}
-	if privateKey.Value, err = store.encryptor.Decrypt(privateKey.Value, id); err != nil {
-		return nil, err
-	}
-	log.Debugf("load key from fs: %s", fname)
-	store.keys[fname] = privateKey.Value
-	return privateKey, nil
+	log.Debugf("load key from fs: %s", filename)
+	store.keys[filename] = encryptedKey
+	return &keys.PrivateKey{Value: decryptedKey}, nil
+}
+
+func (store *FilesystemKeyStore) GetZonePrivateKey(id []byte) (*keys.PrivateKey, error) {
+	fname := getZoneKeyFilename(id)
+	return store.getPrivateKeyByFilename(id, fname)
 }
 
 func (store *FilesystemKeyStore) HasZonePrivateKey(id []byte) bool {
@@ -204,51 +214,13 @@ func (store *FilesystemKeyStore) GetPeerPublicKey(id []byte) (*keys.PublicKey, e
 }
 
 func (store *FilesystemKeyStore) GetPrivateKey(id []byte) (*keys.PrivateKey, error) {
-	if !ValidateId(id) {
-		return nil, ErrInvalidClientId
-	}
 	fname := getServerKeyFilename(id)
-	lock.Lock()
-	defer lock.Unlock()
-	key, ok := store.keys[fname]
-	if ok {
-		log.Debugf("load cached key: %s", fname)
-		return &keys.PrivateKey{Value: key}, nil
-	}
-	privateKey, err := utils.LoadPrivateKey(store.getPrivateKeyFilePath(fname))
-	if err != nil {
-		return nil, err
-	}
-	if privateKey.Value, err = store.encryptor.Decrypt(privateKey.Value, id); err != nil {
-		return nil, err
-	}
-	log.Debugf("load key from fs: %s", fname)
-	store.keys[fname] = privateKey.Value
-	return privateKey, nil
+	return store.getPrivateKeyByFilename(id, fname)
 }
 
 func (store *FilesystemKeyStore) GetServerDecryptionPrivateKey(id []byte) (*keys.PrivateKey, error) {
-	if !ValidateId(id) {
-		return nil, ErrInvalidClientId
-	}
 	fname := getServerDecryptionKeyFilename(id)
-	store.lock.Lock()
-	defer store.lock.Unlock()
-	key, ok := store.keys[fname]
-	if ok {
-		log.Debugf("load cached key: %s", fname)
-		return &keys.PrivateKey{Value: key}, nil
-	}
-	privateKey, err := utils.LoadPrivateKey(store.getPrivateKeyFilePath(fname))
-	if err != nil {
-		return nil, err
-	}
-	if privateKey.Value, err = store.encryptor.Decrypt(privateKey.Value, id); err != nil {
-		return nil, err
-	}
-	log.Debugf("load key from fs: %s", fname)
-	store.keys[fname] = privateKey.Value
-	return privateKey, nil
+	return store.getPrivateKeyByFilename(id, fname)
 }
 
 func (store *FilesystemKeyStore) GenerateConnectorKeys(id []byte) error {
@@ -289,6 +261,9 @@ func (store *FilesystemKeyStore) GenerateDataEncryptionKeys(id []byte) error {
 
 // clear all cached keys
 func (store *FilesystemKeyStore) Reset() {
+	for _, encryptedKey := range store.keys {
+		utils.FillSlice(byte(0), encryptedKey)
+	}
 	store.keys = make(map[string][]byte)
 }
 
