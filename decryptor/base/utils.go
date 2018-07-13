@@ -16,6 +16,7 @@ package base
 import (
 	"bytes"
 	"encoding/binary"
+
 	"github.com/cossacklabs/acra/utils"
 	"github.com/cossacklabs/themis/gothemis/cell"
 	"github.com/cossacklabs/themis/gothemis/keys"
@@ -27,6 +28,9 @@ const (
 )
 
 func DecryptAcrastruct(data []byte, privateKey *keys.PrivateKey, zone []byte) ([]byte, error) {
+	if err := ValidateAcraStructLength(data); err != nil {
+		return nil, err
+	}
 	innerData := data[len(TAG_BEGIN):]
 	pubkey := &keys.PublicKey{Value: innerData[:PUBLIC_KEY_LENGTH]}
 	smessage := message.New(privateKey, pubkey)

@@ -90,7 +90,8 @@ const (
 	EventCodeErrorReaderVersionNotSupported             = 703
 	EventCodeErrorReaderEndpointNotSupported            = 704
 	EventCodeErrorReaderCantParseRequestBody            = 705
-	EventCodeErrorReaderCantReadPrivateKeyForDecryption = 706
+	EventCodeErrorReaderCantZoneIdMissing               = 706
 	EventCodeErrorReaderCantDecryptAcraStruct           = 707
 	EventCodeErrorReaderCantReturnResponse              = 708
+	EventCodeErrorReaderCantCloseConnection             = 709
 )
