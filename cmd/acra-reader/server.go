@@ -14,11 +14,11 @@ import (
 	"io/ioutil"
 	"github.com/cossacklabs/acra/decryptor/base"
 	"github.com/cossacklabs/themis/gothemis/keys"
-	"github.com/cossacklabs/acra/utils"
 	"strings"
 	"os"
 	"bytes"
 	"encoding/binary"
+	"github.com/cossacklabs/acra/utils"
 )
 
 type ReaderServer struct {
@@ -301,9 +301,11 @@ func (server *ReaderServer) parseRequestPrepareResponse(logger *log.Entry, reque
 func (server *ReaderServer)decryptAcraStruct(acraStruct []byte, zoneId []byte, clientId []byte) ([]byte, error) {
 	var err error
 	var privateKey *keys.PrivateKey
+	var decryptionContext []byte = nil
 
-	if zoneId != nil {
+	if len(zoneId) != 0 {
 		privateKey, err = server.keystorage.GetZonePrivateKey(zoneId)
+		decryptionContext = zoneId
 	} else {
 		privateKey, err = server.keystorage.GetServerDecryptionPrivateKey(clientId)
 	}
@@ -313,7 +315,7 @@ func (server *ReaderServer)decryptAcraStruct(acraStruct []byte, zoneId []byte, c
 	}
 
 	// decrypt
-	decryptedStruct, err := base.DecryptAcrastruct(acraStruct, privateKey, zoneId)
+	decryptedStruct, err := base.DecryptAcrastruct(acraStruct, privateKey, decryptionContext)
 	// zeroing private key
 	utils.FillSlice(byte(0), privateKey.Value)
 
