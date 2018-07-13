@@ -1,6 +1,7 @@
 package api
 
 import (
+	"github.com/cossacklabs/acra/utils"
 	context "golang.org/x/net/context"
 
 	"github.com/cossacklabs/acra/decryptor/base"
@@ -33,5 +34,6 @@ func (service *DecryptGRPCService) Decrypt(ctx context.Context, request *Decrypt
 	if err != nil {
 		return nil, err
 	}
+	utils.FillSlice(byte(0), privateKey.Value)
 	return &DecryptResponse{Data: data}, nil
 }

@@ -26,7 +26,7 @@ var ErrKeyNotFound = errors.New("some error")
 
 func (keystore *testKeystore) GetZonePrivateKey(id []byte) (*keys.PrivateKey, error) {
 	if keystore.PrivateKey != nil {
-		return keystore.PrivateKey, nil
+		return &keys.PrivateKey{Value: append([]byte{}, keystore.PrivateKey.Value...)}, nil
 	}
 	return nil, ErrKeyNotFound
 
@@ -38,7 +38,7 @@ func (*testKeystore) HasZonePrivateKey(id []byte) bool {
 
 func (keystore *testKeystore) GetServerDecryptionPrivateKey(id []byte) (*keys.PrivateKey, error) {
 	if keystore.PrivateKey != nil {
-		return keystore.PrivateKey, nil
+		return &keys.PrivateKey{Value: append([]byte{}, keystore.PrivateKey.Value...)}, nil
 	}
 	return nil, ErrKeyNotFound
 }

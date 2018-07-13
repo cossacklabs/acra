@@ -184,12 +184,6 @@ func (server *ReaderServer) Start(parentContext context.Context) {
 
 type ProcessingFunc func(context.Context, []byte, net.Conn)
 
-func (server *ReaderServer) processGRPCConnection(parentContext context.Context, clientId []byte, connection net.Conn) {
-	// processing GRPC connection
-	logger := logging.GetLoggerFromContext(parentContext)
-	logger.Debugln("grpc handler")
-}
-
 func (server *ReaderServer) processHTTPConnection(parentContext context.Context, clientId []byte, connection net.Conn) {
 	// processing HTTP connection
 	logger := logging.GetLoggerFromContext(parentContext)
