@@ -6,5 +6,5 @@ go get -u google.golang.org/grpc
 ```
 To recompile proto file run from root of acra repository:
 ```
-protoc --go_out=plugins=grpc:. cmd/acra-reader/api/api.proto
+protoc --go_out=plugins=grpc:. cmd/acra-reader/grpc_api/api.proto
 ```

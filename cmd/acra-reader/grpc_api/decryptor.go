@@ -1,4 +1,4 @@
-package api
+package grpc_api
 
 import (
 	"github.com/cossacklabs/acra/utils"

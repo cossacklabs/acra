@@ -1,6 +1,6 @@
 syntax = "proto3";
 
-package api;
+package grpc_api;
 
 message DecryptRequest {
     bytes client_id = 1;

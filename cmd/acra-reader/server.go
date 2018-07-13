@@ -8,7 +8,7 @@ import (
 	"bufio"
 	"bytes"
 	"encoding/binary"
-	"github.com/cossacklabs/acra/cmd/acra-reader/api"
+	"github.com/cossacklabs/acra/cmd/acra-reader/grpc_api"
 	"github.com/cossacklabs/acra/decryptor/base"
 	"github.com/cossacklabs/acra/keystore"
 	"github.com/cossacklabs/acra/logging"
@@ -164,12 +164,12 @@ func (server *ReaderServer) Start(parentContext context.Context) {
 				return
 			}
 			grpcServer := grpc.NewServer()
-			service, err := api.NewDecryptGRPCService(server.keystorage)
+			service, err := grpc_api.NewDecryptGRPCService(server.keystorage)
 			if err != nil {
 				grpcLogger.WithError(err).Errorln("Can't create grpc service")
 				return
 			}
-			api.RegisterReaderServer(grpcServer, service)
+			grpc_api.RegisterReaderServer(grpcServer, service)
 			server.grpcServer = grpcServer
 			// Register reflection service on gRPC server.
 			reflection.Register(grpcServer)
