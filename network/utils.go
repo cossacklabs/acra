@@ -95,7 +95,7 @@ func GetConnectionDescriptor(connection net.Conn) (uintptr, error) {
 	case *net.UnixConn:
 		file, err = connection.(*net.UnixConn).File()
 	case *secureSessionConnection:
-		// get decription of own connection
+		// get description of own connection
 		return GetConnectionDescriptor(connection.(*secureSessionConnection).Conn)
 	default:
 		log.Errorf("Unsupported connection type: %s", reflect.TypeOf(connection))

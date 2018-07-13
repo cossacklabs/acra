@@ -14,6 +14,7 @@ import (
 	"github.com/cossacklabs/themis/gothemis/keys"
 	log "github.com/sirupsen/logrus"
 	"fmt"
+	"io"
 )
 
 type HTTPConnectionsDecryptor struct {
@@ -27,6 +28,8 @@ func NewHTTPConnectionsDecryptor(keystorage keystore.KeyStore) (*HTTPConnections
 
 func (decryptor *HTTPConnectionsDecryptor) SendResponseAndCloseConnection(logger *log.Entry, response *http.Response, connection net.Conn) {
 	r, err := ioutil.ReadAll(response.Body)
+	io.Copy(ioutil.Discard, response.Body)
+	response.Body.Close()
 
 	if err != nil {
 		logger.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorReaderCantReturnResponse).
@@ -39,12 +42,12 @@ func (decryptor *HTTPConnectionsDecryptor) SendResponseAndCloseConnection(logger
 		}
 	}
 
-	err = connection.Close()
-	if err != nil {
-		logger.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorReaderCantCloseConnection).
-			Warningln("Can't close connection of HTTP request")
-	}
-	logger.Infoln("Closed connection")
+	//err = connection.Close()
+	//if err != nil {
+	//	logger.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorReaderCantCloseConnection).
+	//		Warningln("Can't close connection of HTTP request")
+	//}
+	//logger.Infoln("Closed connection")
 }
 
 
@@ -123,7 +126,7 @@ func (decryptor *HTTPConnectionsDecryptor) ParseRequestPrepareResponse(logger *l
 
 		response := emptyResponseWithStatus(request, http.StatusOK)
 		response.Header.Set("Content-Type", "application/octet-stream")
-		response.Body = ioutil.NopCloser(bytes.NewBuffer(decryptedStruct))
+		response.Body = ioutil.NopCloser(bytes.NewReader(decryptedStruct))
 		response.ContentLength = int64(len(decryptedStruct))
 		return response
 	default:
@@ -183,8 +186,8 @@ func emptyResponseWithStatus(request *http.Request, status int) *http.Response {
 func responseWithMessage(request *http.Request, status int, body string) *http.Response {
 	response := emptyResponseWithStatus(request, status)
 	response.Header.Set("Content-Type", "text/plain")
-	response.Body = ioutil.NopCloser(bytes.NewBufferString(body))
-	response.ContentLength = int64(len(body))
+	response.Body = ioutil.NopCloser(bytes.NewReader([]byte(body)))
+	response.ContentLength = int64(len([]byte(body)))
 	return response
 }
 

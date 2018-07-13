@@ -107,6 +107,14 @@ func (server *ReaderServer) HandleConnectionString(parentContext context.Context
 					logger.WithError(err).Errorln("can't add connection to connection manager")
 					return
 				}
+				defer func () {
+					logger.Debugln("Closing connection")
+					err := wrappedConnection.Close()
+					if err != nil {
+						logger.WithError(err).Errorln("Can't close wrapped connection")
+					}
+					logger.Infoln("Connection closed")
+				}()
 				processingFunc(parentContext, clientId, wrappedConnection)
 				if err := server.connectionManager.RemoveConnection(wrappedConnection); err != nil {
 					logger.WithError(err).Errorln("can't remove connection from connection manager")
@@ -119,7 +127,7 @@ func (server *ReaderServer) HandleConnectionString(parentContext context.Context
 	case <-parentContext.Done():
 		log.WithError(parentContext.Err()).Debugln("Exit from handling connection string. Close all connections")
 	case outErr = <-errCh:
-		log.WithError(err).Errorln("error on accepting new connections")
+		log.WithError(err).Errorln("Error on accepting new connections")
 
 	}
 	return outErr
