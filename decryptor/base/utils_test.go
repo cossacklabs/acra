@@ -39,6 +39,23 @@ func TestDecryptAcrastruct(t *testing.T) {
 		t.Fatal(err)
 	}
 
+	// test error on short acrastruct
+	_, err = base.DecryptAcrastruct([]byte("short data"), keypair.Private, nil)
+	if err != base.ErrIncorrectAcraStructLength {
+		t.Fatal("incorrect error")
+	}
+
+	// test acrastruct with incorrect data length
+
+	// replace data length value by zeroes
+	incorrectAcraStruct := append([]byte{}, acrastruct[:base.GetMinAcraStructLength()-base.DATA_LENGTH_SIZE]...)
+	incorrectAcraStruct = append(incorrectAcraStruct, bytes.Repeat([]byte{0}, base.DATA_LENGTH_SIZE)...)
+	incorrectAcraStruct = append(incorrectAcraStruct, acrastruct[base.GetMinAcraStructLength():]...)
+	_, err = base.DecryptAcrastruct(incorrectAcraStruct, keypair.Private, nil)
+	if err != base.ErrIncorrectAcraStructDataLength {
+		t.Fatal("incorrect error")
+	}
+
 	decrypted, err := base.DecryptAcrastruct(acrastruct, keypair.Private, nil)
 	if err != nil {
 		t.Fatal(err)
