@@ -15,6 +15,7 @@ import (
 )
 
 const DefaultSerializationTimeout = time.Second
+
 type QueryCaptureHandler struct {
 	Queries              []*QueryInfo
 	BufferedQueries      []*QueryInfo
@@ -215,7 +216,6 @@ func AppendQueries(queries []*QueryInfo, openedFile *os.File) error {
 
 	return nil
 }
-
 
 func SerializeQueries(queries []*QueryInfo) ([]byte, error) {
 	var linesToAppend []byte

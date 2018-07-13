@@ -1,15 +1,15 @@
 package http_api
 
 import (
-	"testing"
+	"bytes"
+	"fmt"
+	"github.com/cossacklabs/acra/acra-writer"
+	"github.com/cossacklabs/themis/gothemis/keys"
 	log "github.com/sirupsen/logrus"
+	"io/ioutil"
 	"net/http"
 	"net/url"
-	"io/ioutil"
-	"bytes"
-	"github.com/cossacklabs/themis/gothemis/keys"
-	"github.com/cossacklabs/acra/acra-writer"
-	"fmt"
+	"testing"
 )
 
 func TestHTTPResponseStatus(t *testing.T) {
@@ -84,19 +84,17 @@ func TestHTTPDecryptionAndResponse(t *testing.T) {
 	//logging.SetLogLevel(logging.LOG_DEBUG)
 	logger := log.NewEntry(log.StandardLogger())
 
-
 	keypair, err := keys.New(keys.KEYTYPE_EC)
 	if err != nil {
 		t.Fatal(err)
 	}
 	keyStore.PrivateKey = keypair.Private
 
-
 	clientId := []byte("some client id")
 	data := []byte("some data")
 
 	// not an acrastruct
-	request := http.Request{ Method : http.MethodPost }
+	request := http.Request{Method: http.MethodPost}
 	request.URL, _ = url.Parse("http://smth.com/v1/decrypt")
 	request.Body = ioutil.NopCloser(bytes.NewBuffer([]byte("some garbage not acrastruct")))
 
@@ -111,7 +109,7 @@ func TestHTTPDecryptionAndResponse(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	request = http.Request{ Method : http.MethodPost }
+	request = http.Request{Method: http.MethodPost}
 	request.URL, _ = url.Parse("http://smth.com/v1/decrypt")
 	request.Body = ioutil.NopCloser(bytes.NewBuffer(acrastruct))
 
@@ -136,7 +134,7 @@ func TestHTTPDecryptionAndResponse(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	request = http.Request{ Method : http.MethodPost }
+	request = http.Request{Method: http.MethodPost}
 	request.URL, _ = url.Parse(fmt.Sprintf("http://smth.com/v1/decrypt?zone_id=%s", zoneId))
 	request.Body = ioutil.NopCloser(bytes.NewBuffer(acrastructWithZone))
 
@@ -169,7 +167,6 @@ func TestHTTPDecryptionAcraStruct(t *testing.T) {
 	}
 	keyStore.PrivateKey = keypair.Private
 
-
 	clientId := []byte("some client id")
 	data := []byte("some data")
 
@@ -193,7 +190,6 @@ func TestHTTPDecryptionAcraStruct(t *testing.T) {
 	if !bytes.Equal(decrypted, data) {
 		t.Fatal("Decrypted acrastruct is not equal to initial data")
 	}
-
 
 	// test with zone
 	zoneId := clientId // use client id as zone id because no matter what to use

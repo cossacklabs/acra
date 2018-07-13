@@ -7,11 +7,11 @@ d: false
 # dump config
 dump_config: false
 
-# Time that AcraReader will wait (in seconds) on restart before closing all connections
+# Time that AcraReader will wait (in seconds) on stop signal before closing all connections
 incoming_connection_close_timeout: 10
 
 # Connection string for gRPC transport like grpc://x.x.x.x:yyyy
-incoming_connection_grpc_string: tcp://0.0.0.0:9696/
+incoming_connection_grpc_string: grpc://0.0.0.0:9696/
 
 # Connection string for HTTP transport like http://x.x.x.x:yyyy
 incoming_connection_http_string: http://0.0.0.0:9595/

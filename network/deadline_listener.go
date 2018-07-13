@@ -15,9 +15,9 @@
 package network
 
 import (
+	"github.com/cossacklabs/themis/gothemis/errors"
 	"net"
 	"time"
-	"github.com/cossacklabs/themis/gothemis/errors"
 )
 
 var ErrUnsupportedListener = errors.New("unsupported network Listener type")
