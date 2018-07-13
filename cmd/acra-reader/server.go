@@ -6,22 +6,16 @@ import (
 	"time"
 
 	"bufio"
-	"bytes"
-	"encoding/binary"
+	"net/http"
+
 	"github.com/cossacklabs/acra/cmd/acra-reader/grpc_api"
-	"github.com/cossacklabs/acra/decryptor/base"
+	"github.com/cossacklabs/acra/cmd/acra-reader/http-api"
 	"github.com/cossacklabs/acra/keystore"
 	"github.com/cossacklabs/acra/logging"
 	"github.com/cossacklabs/acra/network"
-	"github.com/cossacklabs/acra/utils"
-	"github.com/cossacklabs/themis/gothemis/keys"
 	log "github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/reflection"
-	"io/ioutil"
-	"net/http"
-	"os"
-	"strings"
 )
 
 type ReaderServer struct {
@@ -29,6 +23,8 @@ type ReaderServer struct {
 	keystorage        keystore.KeyStore
 	connectionManager *network.ConnectionManager
 	grpcServer        *grpc.Server
+
+	httpDecryptor *http_api.HTTPConnectionsDecryptor
 
 	waitTimeout time.Duration
 
@@ -149,7 +145,12 @@ func (server *ReaderServer) Start(parentContext context.Context) {
 	if server.config.incomingConnectionHTTPString != "" {
 		go func() {
 			httpContext := logging.SetLoggerToContext(parentContext, logger.WithField(CONNECTION_TYPE_KEY, HTTP_CONNECTION_TYPE))
-			err := server.HandleConnectionString(httpContext, server.config.incomingConnectionHTTPString, server.processHTTPConnection)
+			httpDecryptor, err := http_api.NewHTTPConnectionsDecryptor(server.keystorage)
+			if err != nil {
+				log.WithError(err).Errorln("Can't create http decryptor")
+			}
+			server.httpDecryptor = httpDecryptor
+			err = server.HandleConnectionString(httpContext, server.config.incomingConnectionHTTPString, server.processHTTPConnection)
 			if err != nil {
 				log.WithError(err).Errorln("Took error on handling http requests")
 			}
@@ -187,136 +188,22 @@ type ProcessingFunc func(context.Context, []byte, net.Conn)
 func (server *ReaderServer) processHTTPConnection(parentContext context.Context, clientId []byte, connection net.Conn) {
 	// processing HTTP connection
 	logger := logging.GetLoggerFromContext(parentContext)
-	logger.Debugln("http handler")
+	httpLogger := logger.WithField(CONNECTION_TYPE_KEY, HTTP_CONNECTION_TYPE)
+	httpLogger.Debugln("HTTP handler")
 
 	reader := bufio.NewReader(connection)
 	request, err := http.ReadRequest(reader)
-	response := http.Response{
-		Status:        "200 OK",
-		StatusCode:    200,
-		Proto:         "HTTP/1.1",
-		ProtoMajor:    1,
-		ProtoMinor:    1,
-		Request:       request,
-		ContentLength: -1,
-		Header:        http.Header{},
-	}
+
+	// TODO: handle keep alive
 
 	if err != nil {
 		logger.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorReaderCantHandleHTTPRequest).
 			Warningln("Got new HTTP request, but can't read it")
-		response.StatusCode = http.StatusBadRequest
-		closeConnectionAndSendResponse(logger, response, connection)
+		server.httpDecryptor.SendResponseAndCloseConnection(logger,
+			server.httpDecryptor.EmptyResponseWithStatus(request, http.StatusBadRequest), connection)
 		return
 	}
 
-	log.Debugf("Incoming API request to %v", request.URL.Path)
-
-	// TODO: handle keep alive
-
-	if request.Method != http.MethodPost {
-		logger.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorReaderMethodNotAllowed).
-			Warningf("HTTP method is not allowed, expected /POST, got %s", request.Method)
-		response.StatusCode = http.StatusMethodNotAllowed
-		closeConnectionAndSendResponse(logger, response, connection)
-		return
-	}
-
-	// /v1/decrypt
-	// /, v1, decrypt
-	pathParts := strings.Split(request.URL.Path, string(os.PathSeparator))
-	if len(pathParts) != 3 {
-		logger.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorReaderMalformedURL).
-			Warningf("Malformed URL, expected /<version>/<endpoint>, got %s", request.URL.Path)
-		response.StatusCode = http.StatusBadRequest
-		closeConnectionAndSendResponse(logger, response, connection)
-		return
-	}
-
-	version := pathParts[1] // v1
-	if version != "v1" || err != nil {
-		logger.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorReaderVersionNotSupported).
-			Warningf("HTTP request version is not supported: expected v1, got %s", version)
-		response.StatusCode = http.StatusBadRequest
-		closeConnectionAndSendResponse(logger, response, connection)
-		return
-	}
-
-	endpoint := pathParts[2] // decrypt
-
-	switch endpoint {
-	case "decrypt":
-		var zoneId []byte = nil
-
-		// optional zone_id
-		query, ok := request.URL.Query()["zone_id"]
-		if ok && len(query) == 1 {
-			zoneId = []byte(query[0])
-		}
-
-		acraStruct, err := ioutil.ReadAll(request.Body)
-		defer request.Body.Close()
-
-		if err != nil {
-			logger.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorReaderCantParseRequestBody).
-				Warningln("HTTP request doesn't have a body, expected to get AcraStruct")
-			response.StatusCode = http.StatusBadRequest
-			closeConnectionAndSendResponse(logger, response, connection)
-			return
-		}
-
-		var privateKey *keys.PrivateKey
-		if zoneId != nil {
-			privateKey, err = server.keystorage.GetZonePrivateKey(zoneId)
-		} else {
-			privateKey, err = server.keystorage.GetZonePrivateKey(clientId)
-		}
-
-		if err != nil {
-			logger.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorReaderCantReadPrivateKeyForDecryption).
-				Warningln("Can't read Private Key for ZoneId")
-			response.StatusCode = http.StatusUnprocessableEntity
-			closeConnectionAndSendResponse(logger, response, connection)
-			return
-		}
-
-		// decrypt
-		decryptedStruct, err := base.DecryptAcrastruct(acraStruct, privateKey, zoneId)
-		utils.FillSlice(byte(0), privateKey.Value)
-
-		if err != nil {
-			logger.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorReaderCantDecryptAcraStruct).
-				Warningf("Can't decrypt AcraStruct")
-			response.StatusCode = http.StatusUnprocessableEntity
-			closeConnectionAndSendResponse(logger, response, connection)
-			return
-		}
-
-		response.Header.Set("Content-Type", "application/octet-stream")
-		response.Body = ioutil.NopCloser(bytes.NewBuffer(decryptedStruct))
-		response.ContentLength = int64(len(decryptedStruct))
-
-	default:
-		logger.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorReaderEndpointNotSupported).
-			Warningln("HTTP endpoint not supported")
-		response.StatusCode = http.StatusBadRequest
-	}
-
-	closeConnectionAndSendResponse(logger, response, connection)
-}
-
-func closeConnectionAndSendResponse(logger *log.Entry, response http.Response, connection net.Conn) {
-	response.Status = http.StatusText(response.StatusCode)
-
-	buf := new(bytes.Buffer)
-	err := binary.Write(buf, binary.BigEndian, response)
-
-	if err != nil {
-		logger.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorReaderCantReturnResponse).
-			Warningln("Can't write response to HTTP request")
-	} else {
-		connection.Write(buf.Bytes())
-	}
-
-	connection.Close()
+	response := server.httpDecryptor.ParseRequestPrepareResponse(logger, request, clientId)
+	server.httpDecryptor.SendResponseAndCloseConnection(logger, response, connection)
 }
