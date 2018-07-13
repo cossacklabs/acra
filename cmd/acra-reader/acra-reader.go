@@ -43,8 +43,8 @@ func main() {
 	logging.CustomizeLogging(*loggingFormat, SERVICE_NAME)
 	log.Infof("Starting service %v", SERVICE_NAME)
 
-	incomingConnectionHTTPString := flag.String("incoming_connection_http_string", network.BuildConnectionString(cmd.DEFAULT_ACRA_CONNECTION_PROTOCOL, cmd.DEFAULT_ACRAREADER_HTTP_HOST, cmd.DEFAULT_ACRAREADER_HTTP_PORT, ""), "Connection string for HTTP transport like http://x.x.x.x:yyyy")
-	incomingConnectionGRPCString := flag.String("incoming_connection_grpc_string", network.BuildConnectionString(cmd.DEFAULT_ACRA_CONNECTION_PROTOCOL, cmd.DEFAULT_ACRAREADER_GRPC_HOST, cmd.DEFAULT_ACRAREADER_GRPC_PORT, ""), "Connection string for gRPC transport like grpc://x.x.x.x:yyyy")
+	incomingConnectionHTTPString := flag.String("incoming_connection_http_string", network.BuildConnectionString(network.HTTP_SCHEME, cmd.DEFAULT_ACRAREADER_HTTP_HOST, cmd.DEFAULT_ACRAREADER_HTTP_PORT, ""), "Connection string for HTTP transport like http://x.x.x.x:yyyy")
+	incomingConnectionGRPCString := flag.String("incoming_connection_grpc_string", network.BuildConnectionString(network.GRPC_SCHEME, cmd.DEFAULT_ACRAREADER_GRPC_HOST, cmd.DEFAULT_ACRAREADER_GRPC_PORT, ""), "Connection string for gRPC transport like grpc://x.x.x.x:yyyy")
 
 	keysDir := flag.String("keys_dir", keystore.DEFAULT_KEY_DIR_SHORT, "Folder from which will be loaded keys")
 
@@ -53,7 +53,7 @@ func main() {
 	stopOnPoison := flag.Bool("poison_shutdown_enable", false, "Stop on detecting poison record")
 	scriptOnPoison := flag.String("poison_run_script_file", "", "Execute script on detecting poison record")
 
-	closeConnectionTimeout := flag.Int("incoming_connection_close_timeout", DEFAULT_WAIT_TIMEOUT, "Time that AcraServer will wait (in seconds) on restart before closing all connections")
+	closeConnectionTimeout := flag.Int("incoming_connection_close_timeout", DEFAULT_WAIT_TIMEOUT, "Time that AcraReader will wait (in seconds) on stop signal before closing all connections")
 
 	verbose := flag.Bool("v", false, "Log to stderr")
 	debug := flag.Bool("d", false, "Turn on debug logging")
@@ -146,6 +146,6 @@ func main() {
 		os.Exit(0)
 	})
 
-	log.Infof("Start listen2ing to connections. Current PID: %v", os.Getpid())
+	log.Infof("Start listening to connections. Current PID: %v", os.Getpid())
 	readerServer.Start(mainContext)
 }

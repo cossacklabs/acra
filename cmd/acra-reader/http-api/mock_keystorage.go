@@ -1,8 +1,8 @@
 package http_api
 
 import (
-	"github.com/cossacklabs/themis/gothemis/keys"
 	"errors"
+	"github.com/cossacklabs/themis/gothemis/keys"
 )
 
 type testKeystore struct {

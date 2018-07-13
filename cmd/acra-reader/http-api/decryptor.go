@@ -1,20 +1,20 @@
 package http_api
 
 import (
-	"github.com/cossacklabs/acra/keystore"
-	"github.com/cossacklabs/acra/decryptor/base"
-	"github.com/cossacklabs/acra/utils"
-	"net/http"
-	"net"
 	"bytes"
 	"encoding/binary"
+	"fmt"
+	"github.com/cossacklabs/acra/decryptor/base"
+	"github.com/cossacklabs/acra/keystore"
 	"github.com/cossacklabs/acra/logging"
-	"strings"
-	"os"
-	"io/ioutil"
+	"github.com/cossacklabs/acra/utils"
 	"github.com/cossacklabs/themis/gothemis/keys"
 	log "github.com/sirupsen/logrus"
-	"fmt"
+	"io/ioutil"
+	"net"
+	"net/http"
+	"os"
+	"strings"
 )
 
 type HTTPConnectionsDecryptor struct {
@@ -24,7 +24,6 @@ type HTTPConnectionsDecryptor struct {
 func NewHTTPConnectionsDecryptor(keystorage keystore.KeyStore) (*HTTPConnectionsDecryptor, error) {
 	return &HTTPConnectionsDecryptor{keystorage: keystorage}, nil
 }
-
 
 func (decryptor *HTTPConnectionsDecryptor) SendResponseAndCloseConnection(logger *log.Entry, response *http.Response, connection net.Conn) {
 	buf := new(bytes.Buffer)
@@ -47,7 +46,6 @@ func (decryptor *HTTPConnectionsDecryptor) SendResponseAndCloseConnection(logger
 			Warningln("Can't close connection of HTTP request")
 	}
 }
-
 
 func (decryptor *HTTPConnectionsDecryptor) ParseRequestPrepareResponse(logger *log.Entry, request *http.Request, clientId []byte) *http.Response {
 	if request == nil || request.URL == nil {
@@ -140,7 +138,7 @@ func (decryptor *HTTPConnectionsDecryptor) ParseRequestPrepareResponse(logger *l
 	return responseWithMessage(request, http.StatusBadRequest, msg)
 }
 
-func (decryptor *HTTPConnectionsDecryptor)decryptAcraStruct(acraStruct []byte, zoneId []byte, clientId []byte) ([]byte, error) {
+func (decryptor *HTTPConnectionsDecryptor) decryptAcraStruct(acraStruct []byte, zoneId []byte, clientId []byte) ([]byte, error) {
 	var err error
 	var privateKey *keys.PrivateKey
 	var decryptionContext []byte = nil
