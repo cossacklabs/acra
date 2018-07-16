@@ -16,7 +16,6 @@ package network
 import (
 	"io"
 	"net"
-	"runtime"
 	"sync"
 
 	"github.com/cossacklabs/acra/keystore"
@@ -122,7 +121,7 @@ func (wrapper *secureSessionConnection) Close() error {
 	if sessionErr != nil {
 		return sessionErr
 	}
-	runtime.KeepAlive(wrapper.session)
+	//runtime.KeepAlive(wrapper.session)
 	return err
 }
 
