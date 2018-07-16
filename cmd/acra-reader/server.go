@@ -113,22 +113,22 @@ func (server *ReaderServer) HandleConnectionString(parentContext context.Context
 
 			go func() {
 				if err := server.connectionManager.AddConnection(wrappedConnection); err != nil {
-					wrappedConnection.Close()
-					logger.WithError(err).Errorln("Can't add connection to connection manager, closing connection")
+					logger.WithError(err).Errorln("Can't add connection to connection manager")
 					return
 				}
+				defer func () {
+					err := wrappedConnection.Close()
+					if err != nil {
+						logger.WithError(err).Errorln("Can't close wrapped connection")
+					}
+					logger.Infoln("Connection closed")
+				}()
 
 				processingFunc(parentContext, clientId, wrappedConnection)
 
-				err := server.connectionManager.RemoveConnection(wrappedConnection)
-				if err != nil {
+				if err := server.connectionManager.RemoveConnection(wrappedConnection); err != nil {
 					logger.WithError(err).Errorln("Can't remove connection from connection manager")
 				}
-				err = wrappedConnection.Close()
-				if err != nil {
-					logger.WithError(err).Errorln("Can't close connections")
-				}
-				logger.Debugln("Closing connection")
 			}()
 		}
 	}()

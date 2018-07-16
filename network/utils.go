@@ -1,14 +1,11 @@
 package network
 
 import (
-	"errors"
 	"fmt"
 	"net"
 	url_ "net/url"
 	"os"
 	"strings"
-	"reflect"
-	log "github.com/sirupsen/logrus"
 )
 
 const (
@@ -77,32 +74,4 @@ func SNIOrHostname(sni, hostname string) string {
 		colonPos = len(hostname)
 	}
 	return hostname[:colonPos]
-}
-
-var ErrUnsupportedConnectionType = errors.New("unsupported net.Conn implementation")
-
-// GetConnectionDescriptor return descriptor of connection or GetConnectionDescriptor
-func GetConnectionDescriptor(connection net.Conn) (uintptr, error) {
-	var file *os.File
-	var err error
-	switch connection.(type) {
-	case *net.UDPConn:
-		file, err = connection.(*net.UDPConn).File()
-	case *net.IPConn:
-		file, err = connection.(*net.IPConn).File()
-	case *net.TCPConn:
-		file, err = connection.(*net.TCPConn).File()
-	case *net.UnixConn:
-		file, err = connection.(*net.UnixConn).File()
-	case *secureSessionConnection:
-		// get description of own connection
-		return GetConnectionDescriptor(connection.(*secureSessionConnection).Conn)
-	default:
-		log.Errorf("Unsupported connection type: %s", reflect.TypeOf(connection))
-		return 0, ErrUnsupportedConnectionType
-	}
-	if err != nil {
-		return 0, err
-	}
-	return file.Fd(), err
 }
