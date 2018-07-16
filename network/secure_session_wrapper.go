@@ -121,7 +121,6 @@ func (wrapper *secureSessionConnection) Close() error {
 	if sessionErr != nil {
 		return sessionErr
 	}
-	//runtime.KeepAlive(wrapper.session)
 	return err
 }
 
