@@ -112,10 +112,6 @@ func (server *ReaderServer) HandleConnectionString(parentContext context.Context
 			logging.SetLoggerToContext(parentContext, logger)
 
 			go func() {
-				if err := server.connectionManager.AddConnection(wrappedConnection); err != nil {
-					logger.WithError(err).Errorln("Can't add connection to connection manager")
-					return
-				}
 				defer func () {
 					err := wrappedConnection.Close()
 					if err != nil {
@@ -124,6 +120,11 @@ func (server *ReaderServer) HandleConnectionString(parentContext context.Context
 					logger.Infoln("Connection closed")
 				}()
 
+				if err := server.connectionManager.AddConnection(wrappedConnection); err != nil {
+					logger.WithError(err).Errorln("Can't add connection to connection manager")
+					return
+				}
+				
 				processingFunc(parentContext, clientId, wrappedConnection)
 
 				if err := server.connectionManager.RemoveConnection(wrappedConnection); err != nil {
