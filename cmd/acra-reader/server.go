@@ -112,13 +112,23 @@ func (server *ReaderServer) HandleConnectionString(parentContext context.Context
 			logging.SetLoggerToContext(parentContext, logger)
 
 			go func() {
+				defer func () {
+					err := wrappedConnection.Close()
+					if err != nil {
+						logger.WithError(err).Errorln("Can't close wrapped connection")
+					}
+					logger.Infoln("Connection closed")
+				}()
+
 				if err := server.connectionManager.AddConnection(wrappedConnection); err != nil {
-					logger.WithError(err).Errorln("can't add connection to connection manager")
+					logger.WithError(err).Errorln("Can't add connection to connection manager")
 					return
 				}
+				
 				processingFunc(parentContext, clientId, wrappedConnection)
+
 				if err := server.connectionManager.RemoveConnection(wrappedConnection); err != nil {
-					logger.WithError(err).Errorln("can't remove connection from connection manager")
+					logger.WithError(err).Errorln("Can't remove connection from connection manager")
 				}
 			}()
 		}
@@ -128,7 +138,7 @@ func (server *ReaderServer) HandleConnectionString(parentContext context.Context
 	case <-parentContext.Done():
 		log.WithError(parentContext.Err()).Debugln("Exit from handling connection string. Close all connections")
 	case outErr = <-errCh:
-		log.WithError(err).Errorln("error on accepting new connections")
+		log.WithError(err).Errorln("Error on accepting new connections")
 
 	}
 	return outErr
@@ -199,11 +209,11 @@ func (server *ReaderServer) processHTTPConnection(parentContext context.Context,
 	if err != nil {
 		logger.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorReaderCantHandleHTTPRequest).
 			Warningln("Got new HTTP request, but can't read it")
-		server.httpDecryptor.SendResponseAndCloseConnection(logger,
+		server.httpDecryptor.SendResponse(logger,
 			server.httpDecryptor.EmptyResponseWithStatus(request, http.StatusBadRequest), connection)
 		return
 	}
 
 	response := server.httpDecryptor.ParseRequestPrepareResponse(logger, request, clientId)
-	server.httpDecryptor.SendResponseAndCloseConnection(logger, response, connection)
+	server.httpDecryptor.SendResponse(logger, response, connection)
 }
