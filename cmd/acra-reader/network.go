@@ -34,14 +34,16 @@ func AcceptConnections(parentContext context.Context, connectionString string, e
 
 	// run goroutine that just accept connections and return them and stop on error. you can stop it by closing listener
 	go func() {
-		conn, err := listener.Accept()
-		if err != nil {
-			logger.WithError(err).Errorln("Error on accept connection")
-			errCh <- err
-			cancel()
-			return
+		for {
+			conn, err := listener.Accept()
+			if err != nil {
+				logger.WithError(err).Errorln("Error on accept connection")
+				errCh <- err
+				cancel()
+				return
+			}
+			connectionChannel <- conn
 		}
-		connectionChannel <- conn
 	}()
 
 	// wait Done signal from caller or from "accept" goroutine and stop listener

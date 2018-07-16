@@ -171,7 +171,7 @@ func TestHTTPDecryptionAcraStruct(t *testing.T) {
 	data := []byte("some data")
 
 	// not an acrastruct
-	decrypted, err := httpConnectionsDecryptor.decryptAcraStruct([]byte("some garbage not acrastruct"), nil, clientId)
+	decrypted, err := httpConnectionsDecryptor.decryptAcraStruct(nil, []byte("some garbage not acrastruct"), nil, clientId)
 	if err == nil {
 		t.Fatalf("Should not be able to decrypt garbage")
 	}
@@ -182,7 +182,7 @@ func TestHTTPDecryptionAcraStruct(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	decrypted, err = httpConnectionsDecryptor.decryptAcraStruct(acrastruct, nil, clientId)
+	decrypted, err = httpConnectionsDecryptor.decryptAcraStruct(nil, acrastruct, nil, clientId)
 	if err != nil {
 		t.Fatalf("Should be able to decrypt acrastruct without zone")
 	}
@@ -198,7 +198,7 @@ func TestHTTPDecryptionAcraStruct(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	decrypted, err = httpConnectionsDecryptor.decryptAcraStruct(acrastructWithZone, zoneId, clientId)
+	decrypted, err = httpConnectionsDecryptor.decryptAcraStruct(nil, acrastructWithZone, zoneId, clientId)
 	if err != nil {
 		t.Fatalf("Should be able to decrypt acrastruct with zone")
 	}

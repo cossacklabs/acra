@@ -2,19 +2,19 @@ package http_api
 
 import (
 	"bytes"
-	"encoding/binary"
-	"fmt"
-	"github.com/cossacklabs/acra/decryptor/base"
-	"github.com/cossacklabs/acra/keystore"
 	"github.com/cossacklabs/acra/logging"
 	"github.com/cossacklabs/acra/utils"
 	"github.com/cossacklabs/themis/gothemis/keys"
 	log "github.com/sirupsen/logrus"
-	"io/ioutil"
-	"net"
+	"fmt"
+	"io"
 	"net/http"
-	"os"
 	"strings"
+	"os"
+	"github.com/cossacklabs/acra/keystore"
+	"net"
+	"io/ioutil"
+	"github.com/cossacklabs/acra/decryptor/base"
 )
 
 type HTTPConnectionsDecryptor struct {
@@ -25,25 +25,20 @@ func NewHTTPConnectionsDecryptor(keystorage keystore.KeyStore) (*HTTPConnections
 	return &HTTPConnectionsDecryptor{keystorage: keystorage}, nil
 }
 
-func (decryptor *HTTPConnectionsDecryptor) SendResponseAndCloseConnection(logger *log.Entry, response *http.Response, connection net.Conn) {
-	buf := new(bytes.Buffer)
-	err := binary.Write(buf, binary.BigEndian, response)
+func (decryptor *HTTPConnectionsDecryptor) SendResponse(logger *log.Entry, response *http.Response, connection net.Conn) {
+	r, err := ioutil.ReadAll(response.Body)
+	io.Copy(ioutil.Discard, response.Body)
+	response.Body.Close()
 
 	if err != nil {
 		logger.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorReaderCantReturnResponse).
-			Warningln("Can't convert response to binary")
+			Warningln("Can't convert response to binary %s", response)
 	} else {
-		_, err = connection.Write(buf.Bytes())
+		_, err = connection.Write(r)
 		if err != nil {
 			logger.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorReaderCantReturnResponse).
 				Warningln("Can't write response to HTTP request")
 		}
-	}
-
-	err = connection.Close()
-	if err != nil {
-		logger.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorReaderCantCloseConnection).
-			Warningln("Can't close connection of HTTP request")
 	}
 }
 
@@ -110,7 +105,7 @@ func (decryptor *HTTPConnectionsDecryptor) ParseRequestPrepareResponse(logger *l
 			return responseWithMessage(request, http.StatusBadRequest, msg)
 		}
 
-		decryptedStruct, err := decryptor.decryptAcraStruct(acraStruct, zoneId, clientId)
+		decryptedStruct, err := decryptor.decryptAcraStruct(logger, acraStruct, zoneId, clientId)
 
 		if err != nil {
 			msg := fmt.Sprintf("Can't decrypt AcraStruct")
@@ -122,7 +117,7 @@ func (decryptor *HTTPConnectionsDecryptor) ParseRequestPrepareResponse(logger *l
 
 		response := emptyResponseWithStatus(request, http.StatusOK)
 		response.Header.Set("Content-Type", "application/octet-stream")
-		response.Body = ioutil.NopCloser(bytes.NewBuffer(decryptedStruct))
+		response.Body = ioutil.NopCloser(bytes.NewReader(decryptedStruct))
 		response.ContentLength = int64(len(decryptedStruct))
 		return response
 	default:
@@ -138,7 +133,7 @@ func (decryptor *HTTPConnectionsDecryptor) ParseRequestPrepareResponse(logger *l
 	return responseWithMessage(request, http.StatusBadRequest, msg)
 }
 
-func (decryptor *HTTPConnectionsDecryptor) decryptAcraStruct(acraStruct []byte, zoneId []byte, clientId []byte) ([]byte, error) {
+func (decryptor *HTTPConnectionsDecryptor) decryptAcraStruct(logger *log.Entry, acraStruct []byte, zoneId []byte, clientId []byte) ([]byte, error) {
 	var err error
 	var privateKey *keys.PrivateKey
 	var decryptionContext []byte = nil
@@ -151,6 +146,7 @@ func (decryptor *HTTPConnectionsDecryptor) decryptAcraStruct(acraStruct []byte, 
 	}
 
 	if err != nil {
+		logger.Errorln("Can't load private key to decrypt AcraStruct")
 		return nil, err
 	}
 
@@ -182,8 +178,8 @@ func emptyResponseWithStatus(request *http.Request, status int) *http.Response {
 func responseWithMessage(request *http.Request, status int, body string) *http.Response {
 	response := emptyResponseWithStatus(request, status)
 	response.Header.Set("Content-Type", "text/plain")
-	response.Body = ioutil.NopCloser(bytes.NewBufferString(body))
-	response.ContentLength = int64(len(body))
+	response.Body = ioutil.NopCloser(bytes.NewReader([]byte(body)))
+	response.ContentLength = int64(len([]byte(body)))
 	return response
 }
 
