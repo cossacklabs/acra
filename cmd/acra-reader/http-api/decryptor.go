@@ -7,7 +7,6 @@ import (
 	"github.com/cossacklabs/themis/gothemis/keys"
 	log "github.com/sirupsen/logrus"
 	"fmt"
-	"io"
 	"net/http"
 	"strings"
 	"os"
@@ -27,12 +26,15 @@ func NewHTTPConnectionsDecryptor(keystorage keystore.KeyStore) (*HTTPConnections
 
 func (decryptor *HTTPConnectionsDecryptor) SendResponse(logger *log.Entry, response *http.Response, connection net.Conn) {
 	r, err := ioutil.ReadAll(response.Body)
-	io.Copy(ioutil.Discard, response.Body)
-	response.Body.Close()
+	if err != nil {
+		logger.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorReaderCantReturnResponse).
+			Warningln("Can't read response body")
+	}
+	err = response.Body.Close()
 
 	if err != nil {
 		logger.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorReaderCantReturnResponse).
-			Warningln("Can't convert response to binary %s", response)
+			Warningln("Can't convert response to binary")
 	} else {
 		_, err = connection.Write(r)
 		if err != nil {
