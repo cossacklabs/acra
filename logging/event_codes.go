@@ -83,15 +83,19 @@ const (
 	// mysql processing
 	EventCodeErrorProtocolProcessing = 600
 
-	// AcraReader
-	EventCodeErrorReaderCantHandleHTTPRequest = 700
-	EventCodeErrorReaderMethodNotAllowed      = 701
-	EventCodeErrorReaderMalformedURL          = 702
-	EventCodeErrorReaderVersionNotSupported   = 703
-	EventCodeErrorReaderEndpointNotSupported  = 704
-	EventCodeErrorReaderCantParseRequestBody  = 705
-	EventCodeErrorReaderCantZoneIdMissing     = 706
-	EventCodeErrorReaderCantDecryptAcraStruct = 707
-	EventCodeErrorReaderCantReturnResponse    = 708
-	EventCodeErrorReaderCantCloseConnection   = 709
+	// AcraTranslator
+	EventCodeErrorTranslatorCantHandleHTTPRequest       = 700
+	EventCodeErrorTranslatorMethodNotAllowed            = 701
+	EventCodeErrorTranslatorMalformedURL                = 702
+	EventCodeErrorTranslatorVersionNotSupported         = 703
+	EventCodeErrorTranslatorEndpointNotSupported        = 704
+	EventCodeErrorTranslatorCantParseRequestBody        = 705
+	EventCodeErrorTranslatorCantZoneIdMissing           = 706
+	EventCodeErrorTranslatorCantDecryptAcraStruct       = 707
+	EventCodeErrorTranslatorCantReturnResponse          = 708
+	EventCodeErrorTranslatorCantCloseConnection         = 709
+	EventCodeErrorTranslatorCantHandleHTTPConnection    = 710
+	EventCodeErrorTranslatorCantWrapConnectionToSS      = 711
+	EventCodeErrorTranslatorCantAcceptNewHTTPConnection = 712
+	EventCodeErrorTranslatorCantHandleGRPCConnection    = 713
 )

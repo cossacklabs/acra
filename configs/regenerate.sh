@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 go run ./cmd/acra-server/*.go --dump_config
 go run ./cmd/acra-connector/*.go --dump_config
-go run ./cmd/acra-reader/*.go --dump_config
+go run ./cmd/acra-translator/*.go --dump_config
 go run ./cmd/acra-addzone/*.go --dump_config
 go run ./cmd/acra-webconfig/*.go --dump_config
 go run ./cmd/acra-rollback/*.go --dump_config

@@ -17,7 +17,7 @@ import (
 	"github.com/cossacklabs/acra/network"
 )
 
-type AcraReaderConfig struct {
+type AcraTranslatorConfig struct {
 	keysDir                      string
 	scriptOnPoison               string
 	stopOnPoison                 bool
@@ -29,70 +29,70 @@ type AcraReaderConfig struct {
 	debug                        bool
 }
 
-func NewConfig() *AcraReaderConfig {
-	return &AcraReaderConfig{stopOnPoison: false}
+func NewConfig() *AcraTranslatorConfig {
+	return &AcraTranslatorConfig{stopOnPoison: false}
 }
 
-func (a *AcraReaderConfig) KeysDir() string {
+func (a *AcraTranslatorConfig) KeysDir() string {
 	return a.keysDir
 }
 
-func (a *AcraReaderConfig) SetKeysDir(keysDir string) {
+func (a *AcraTranslatorConfig) SetKeysDir(keysDir string) {
 	a.keysDir = keysDir
 }
 
-func (a *AcraReaderConfig) ScriptOnPoison() string {
+func (a *AcraTranslatorConfig) ScriptOnPoison() string {
 	return a.scriptOnPoison
 }
 
-func (a *AcraReaderConfig) SetScriptOnPoison(scriptOnPoison string) {
+func (a *AcraTranslatorConfig) SetScriptOnPoison(scriptOnPoison string) {
 	a.scriptOnPoison = scriptOnPoison
 }
 
-func (a *AcraReaderConfig) StopOnPoison() bool {
+func (a *AcraTranslatorConfig) StopOnPoison() bool {
 	return a.stopOnPoison
 }
 
-func (a *AcraReaderConfig) SetStopOnPoison(stopOnPoison bool) {
+func (a *AcraTranslatorConfig) SetStopOnPoison(stopOnPoison bool) {
 	a.stopOnPoison = stopOnPoison
 }
 
-func (a *AcraReaderConfig) ServerId() []byte {
+func (a *AcraTranslatorConfig) ServerId() []byte {
 	return a.serverId
 }
 
-func (a *AcraReaderConfig) SetServerId(serverId []byte) {
+func (a *AcraTranslatorConfig) SetServerId(serverId []byte) {
 	a.serverId = serverId
 }
 
-func (a *AcraReaderConfig) IncomingConnectionHTTPString() string {
+func (a *AcraTranslatorConfig) IncomingConnectionHTTPString() string {
 	return a.incomingConnectionHTTPString
 }
 
-func (a *AcraReaderConfig) SetIncomingConnectionHTTPString(incomingConnectionHTTPString string) {
+func (a *AcraTranslatorConfig) SetIncomingConnectionHTTPString(incomingConnectionHTTPString string) {
 	a.incomingConnectionHTTPString = incomingConnectionHTTPString
 }
 
-func (a *AcraReaderConfig) IncomingConnectionGRPCString() string {
+func (a *AcraTranslatorConfig) IncomingConnectionGRPCString() string {
 	return a.incomingConnectionGRPCString
 }
 
-func (a *AcraReaderConfig) SetIncomingConnectionGRPCString(incomingConnectionGRPCString string) {
+func (a *AcraTranslatorConfig) SetIncomingConnectionGRPCString(incomingConnectionGRPCString string) {
 	a.incomingConnectionGRPCString = incomingConnectionGRPCString
 }
 
-func (a *AcraReaderConfig) ConfigPath() string {
+func (a *AcraTranslatorConfig) ConfigPath() string {
 	return a.configPath
 }
 
-func (a *AcraReaderConfig) SetConfigPath(configPath string) {
+func (a *AcraTranslatorConfig) SetConfigPath(configPath string) {
 	a.configPath = configPath
 }
 
-func (a *AcraReaderConfig) Debug() bool {
+func (a *AcraTranslatorConfig) Debug() bool {
 	return a.debug
 }
 
-func (a *AcraReaderConfig) SetDebug(debug bool) {
+func (a *AcraTranslatorConfig) SetDebug(debug bool) {
 	a.debug = debug
 }
