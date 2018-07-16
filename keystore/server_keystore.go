@@ -247,6 +247,19 @@ func (store *FilesystemKeyStore) GenerateServerKeys(id []byte) error {
 	return nil
 }
 
+func (store *FilesystemKeyStore) GenerateTranslatorKeys(id []byte) error {
+	if !ValidateId(id) {
+		return ErrInvalidClientId
+	}
+	filename := getTranslatorKeyFilename(id)
+	_, err := store.generateKeyPair(filename, id)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+
 // generate key pair for data encryption/decryption
 func (store *FilesystemKeyStore) GenerateDataEncryptionKeys(id []byte) error {
 	if !ValidateId(id) {

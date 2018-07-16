@@ -31,7 +31,8 @@ var SERVICE_NAME = "acra-keymaker"
 func main() {
 	clientId := flag.String("client_id", "client", "Client id")
 	acraConnector := flag.Bool("generate_acraconnector_keys", false, "Create keypair for AcraConnector only")
-	acraserver := flag.Bool("generate_acraserver_keys", false, "Create keypair for AcraServer only")
+	acraServer := flag.Bool("generate_acraserver_keys", false, "Create keypair for AcraServer only")
+	acraTranslator := flag.Bool("generate_acratranslator_keys", false, "Create keypair for AcraTranslator only")
 	dataKeys := flag.Bool("generate_acrawriter_keys", false, "Create keypair for data encryption/decryption")
 	basicauth := flag.Bool("generate_acrawebconfig_keys", false, "Create symmetric key for AcraWebconfig's basic auth db")
 	outputDir := flag.String("keys_output_dir", keystore.DEFAULT_KEY_DIR_SHORT, "Folder where will be saved keys")
@@ -42,7 +43,7 @@ func main() {
 
 	err := cmd.Parse(DEFAULT_CONFIG_PATH, SERVICE_NAME)
 	if err != nil {
-		log.WithError(err).Errorln("can't parse args")
+		log.WithError(err).Errorln("Can't parse args")
 		os.Exit(1)
 	}
 
@@ -65,12 +66,12 @@ func main() {
 			log.Infof("You must pass master key via %v environment variable", keystore.ACRA_MASTER_KEY_VAR_NAME)
 			os.Exit(1)
 		}
-		log.WithError(err).Errorln("can't load master key")
+		log.WithError(err).Errorln("Can't load master key")
 		os.Exit(1)
 	}
 	scellEncryptor, err := keystore.NewSCellKeyEncryptor(symmetricKey)
 	if err != nil {
-		log.WithError(err).Errorln("can't init scell encryptor")
+		log.WithError(err).Errorln("Can't init scell encryptor")
 		os.Exit(1)
 	}
 	var store keystore.KeyStore
@@ -88,8 +89,13 @@ func main() {
 		if err != nil {
 			panic(err)
 		}
-	} else if *acraserver {
+	} else if *acraServer {
 		err = store.GenerateServerKeys([]byte(*clientId))
+		if err != nil {
+			panic(err)
+		}
+	} else if *acraTranslator {
+		err = store.GenerateTranslatorKeys([]byte(*clientId))
 		if err != nil {
 			panic(err)
 		}
@@ -110,6 +116,11 @@ func main() {
 		}
 
 		err = store.GenerateServerKeys([]byte(*clientId))
+		if err != nil {
+			panic(err)
+		}
+
+		err = store.GenerateTranslatorKeys([]byte(*clientId))
 		if err != nil {
 			panic(err)
 		}
