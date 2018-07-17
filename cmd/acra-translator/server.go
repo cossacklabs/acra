@@ -8,8 +8,8 @@ import (
 	"bufio"
 	"net/http"
 
-	"github.com/cossacklabs/acra/cmd/acra-reader/grpc_api"
-	"github.com/cossacklabs/acra/cmd/acra-reader/http-api"
+	"github.com/cossacklabs/acra/cmd/acra-translator/grpc_api"
+	"github.com/cossacklabs/acra/cmd/acra-translator/http_api"
 	"github.com/cossacklabs/acra/keystore"
 	"github.com/cossacklabs/acra/logging"
 	"github.com/cossacklabs/acra/network"
@@ -19,7 +19,7 @@ import (
 )
 
 type ReaderServer struct {
-	config            *AcraReaderConfig
+	config            *AcraTranslatorConfig
 	keystorage        keystore.KeyStore
 	connectionManager *network.ConnectionManager
 	grpcServer        *grpc.Server
@@ -31,7 +31,7 @@ type ReaderServer struct {
 	listenersContextCancel []context.CancelFunc
 }
 
-func NewReaderServer(config *AcraReaderConfig, keystorage keystore.KeyStore, waitTimeout time.Duration) (server *ReaderServer, err error) {
+func NewReaderServer(config *AcraTranslatorConfig, keystorage keystore.KeyStore, waitTimeout time.Duration) (server *ReaderServer, err error) {
 	return &ReaderServer{
 		waitTimeout:       waitTimeout,
 		config:            config,
@@ -101,9 +101,11 @@ func (server *ReaderServer) HandleConnectionString(parentContext context.Context
 
 			wrappedConnection, clientId, err := server.config.ConnectionWrapper.WrapServer(connection)
 			if err != nil {
-				logger.WithError(err).Errorln("Can't wrap new connection")
+				logger.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorTranslatorCantWrapConnectionToSS).
+					Errorln("Can't wrap new connection")
 				if err := connection.Close(); err != nil {
-					logger.WithError(err).Errorln("Can't close connection")
+					logger.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorTranslatorCantCloseConnection).
+						Errorln("Can't close connection")
 				}
 				continue
 			}
@@ -115,20 +117,23 @@ func (server *ReaderServer) HandleConnectionString(parentContext context.Context
 				defer func () {
 					err := wrappedConnection.Close()
 					if err != nil {
-						logger.WithError(err).Errorln("Can't close wrapped connection")
+						logger.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorTranslatorCantCloseConnection).
+							Errorln("Can't close wrapped connection")
 					}
 					logger.Infoln("Connection closed")
 				}()
 
 				if err := server.connectionManager.AddConnection(wrappedConnection); err != nil {
-					logger.WithError(err).Errorln("Can't add connection to connection manager")
+					logger.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorTranslatorCantHandleHTTPConnection).
+						Errorln("Can't add connection to connection manager")
 					return
 				}
 				
 				processingFunc(parentContext, clientId, wrappedConnection)
 
 				if err := server.connectionManager.RemoveConnection(wrappedConnection); err != nil {
-					logger.WithError(err).Errorln("Can't remove connection from connection manager")
+					logger.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorTranslatorCantHandleHTTPConnection).
+						Errorln("Can't remove connection from connection manager")
 				}
 			}()
 		}
@@ -138,7 +143,8 @@ func (server *ReaderServer) HandleConnectionString(parentContext context.Context
 	case <-parentContext.Done():
 		log.WithError(parentContext.Err()).Debugln("Exit from handling connection string. Close all connections")
 	case outErr = <-errCh:
-		log.WithError(err).Errorln("Error on accepting new connections")
+		log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorTranslatorCantAcceptNewHTTPConnection).
+		Errorln("Error on accepting new connections")
 
 	}
 	return outErr
@@ -157,12 +163,14 @@ func (server *ReaderServer) Start(parentContext context.Context) {
 			httpContext := logging.SetLoggerToContext(parentContext, logger.WithField(CONNECTION_TYPE_KEY, HTTP_CONNECTION_TYPE))
 			httpDecryptor, err := http_api.NewHTTPConnectionsDecryptor(server.keystorage)
 			if err != nil {
-				log.WithError(err).Errorln("Can't create http decryptor")
+				log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorTranslatorCantHandleHTTPConnection).
+					Errorln("Can't create http decryptor")
 			}
 			server.httpDecryptor = httpDecryptor
 			err = server.HandleConnectionString(httpContext, server.config.incomingConnectionHTTPString, server.processHTTPConnection)
 			if err != nil {
-				log.WithError(err).Errorln("Took error on handling http requests")
+				log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorTranslatorCantHandleHTTPConnection).
+					Errorln("Took error on handling http requests")
 			}
 		}()
 	}
@@ -171,13 +179,15 @@ func (server *ReaderServer) Start(parentContext context.Context) {
 			grpcLogger := logger.WithField(CONNECTION_TYPE_KEY, GRPC_CONNECTION_TYPE)
 			secureSessionListener, err := network.NewSecureSessionListener(server.config.incomingConnectionGRPCString, server.keystorage)
 			if err != nil {
-				grpcLogger.WithError(err).Errorln("Can't create secure sesson listener")
+				grpcLogger.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorTranslatorCantHandleGRPCConnection).
+					Errorln("Can't create secure session listener")
 				return
 			}
 			grpcServer := grpc.NewServer()
 			service, err := grpc_api.NewDecryptGRPCService(server.keystorage)
 			if err != nil {
-				grpcLogger.WithError(err).Errorln("Can't create grpc service")
+				grpcLogger.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorTranslatorCantHandleGRPCConnection).
+					Errorln("Can't create grpc service")
 				return
 			}
 			grpc_api.RegisterReaderServer(grpcServer, service)
@@ -207,7 +217,7 @@ func (server *ReaderServer) processHTTPConnection(parentContext context.Context,
 	// TODO: handle keep alive
 
 	if err != nil {
-		logger.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorReaderCantHandleHTTPRequest).
+		logger.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorTranslatorCantHandleHTTPRequest).
 			Warningln("Got new HTTP request, but can't read it")
 		server.httpDecryptor.SendResponse(logger,
 			server.httpDecryptor.EmptyResponseWithStatus(request, http.StatusBadRequest), connection)

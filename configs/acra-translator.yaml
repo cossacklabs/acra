@@ -7,7 +7,7 @@ d: false
 # dump config
 dump_config: false
 
-# Time that AcraReader will wait (in seconds) on stop signal before closing all connections
+# Time that AcraTranslator will wait (in seconds) on stop signal before closing all connections
 incoming_connection_close_timeout: 10
 
 # Connection string for gRPC transport like grpc://x.x.x.x:yyyy
@@ -29,7 +29,7 @@ poison_run_script_file:
 poison_shutdown_enable: false
 
 # Id that will be sent in secure session
-securesession_id: acra_reader
+securesession_id: acra_translator
 
 # Log to stderr
 v: false
