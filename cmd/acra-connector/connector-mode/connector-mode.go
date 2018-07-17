@@ -6,8 +6,8 @@ type ConnectorMode string
 
 const (
 	UndefinedMode ConnectorMode = "UndefinedMode"
-	AcraServerMode ConnectorMode = "AcraServerMode"
-	AcraTranslatorMode ConnectorMode = "AcraTranslatorMode"
+	AcraServerMode ConnectorMode = "AcraServer"
+	AcraTranslatorMode ConnectorMode = "AcraTranslator"
 )
 
 func CheckConnectorMode(mode string) ConnectorMode {
@@ -21,4 +21,3 @@ func CheckConnectorMode(mode string) ConnectorMode {
 	}
 	return UndefinedMode
 }
-

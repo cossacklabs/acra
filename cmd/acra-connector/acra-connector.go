@@ -165,7 +165,7 @@ func main() {
 	tlsKey := flag.String("tls_key", "", "Path to private key that will be used in TLS handshake with AcraServer")
 	tlsCert := flag.String("tls_cert", "", "Path to certificate")
 	tlsAcraserverSNI := flag.String("tls_acraserver_sni", "", "Expected Server Name (SNI) from AcraServer")
-	tlsAuthType := flag.Int("tls_auth", int(tls.RequireAndVerifyClientCert), "Set authentication mode that will be used in TLS connection with AcraServer/AcraReader. Values in range 0-4 that set auth type (https://golang.org/pkg/crypto/tls/#ClientAuthType). Default is tls.RequireAndVerifyClientCert")
+	tlsAuthType := flag.Int("tls_auth", int(tls.RequireAndVerifyClientCert), "Set authentication mode that will be used in TLS connection with AcraServer/AcraTranslator. Values in range 0-4 that set auth type (https://golang.org/pkg/crypto/tls/#ClientAuthType). Default is tls.RequireAndVerifyClientCert")
 	noEncryptionTransport := flag.Bool("acraserver_transport_encryption_disable", false, "Use raw transport (tcp/unix socket) between acraserver and acraproxy/client (don't use this flag if you not connect to database with ssl/tls")
 	connectionString := flag.String("incoming_connection_string", network.BuildConnectionString(cmd.DEFAULT_ACRACONNECTOR_CONNECTION_PROTOCOL, cmd.DEFAULT_ACRACONNECTOR_HOST, cmd.DEFAULT_ACRACONNECTOR_PORT, ""), "Connection string like tcp://x.x.x.x:yyyy or unix:///path/to/socket")
 	connectionAPIString := flag.String("incoming_connection_api_string", network.BuildConnectionString(cmd.DEFAULT_ACRACONNECTOR_CONNECTION_PROTOCOL, cmd.DEFAULT_ACRACONNECTOR_HOST, cmd.DEFAULT_ACRACONNECTOR_API_PORT, ""), "Connection string like tcp://x.x.x.x:yyyy or unix:///path/to/socket")
@@ -253,59 +253,6 @@ func main() {
 		outgoingSecureSessionId = *acraServerId
 	}
 
-	// --------- check client id and client key  -----------
-	cmd.ValidateClientId(*clientId)
-
-	log.Infof("Reading keys")
-	clientPrivateKey := fmt.Sprintf("%v%v%v", *keysDir, string(os.PathSeparator), *clientId)
-	exists, err := utils.FileExists(clientPrivateKey)
-	if !exists {
-		log.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorWrongConfiguration).
-			Errorf("Configuration error: AcraConnector private key %s doesn't exists", clientPrivateKey)
-		os.Exit(1)
-	}
-	if err != nil {
-		log.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorWrongConfiguration).
-			Errorf("Configuration error: can't check is exists AcraConnector private key %v, got error - %v", clientPrivateKey, err)
-		os.Exit(1)
-	}
-	log.Infof("Client id and client key is OK")
-
-
-	// --------- check public key  -----------
-	if connectorMode == connector_mode.AcraTranslatorMode {
-		translatorPublicKey := fmt.Sprintf("%v%v%v_translator.pub", *keysDir, string(os.PathSeparator), *clientId)
-		exists, err = utils.FileExists(translatorPublicKey)
-		if !exists {
-			log.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorWrongConfiguration).
-				Errorf("Configuration error: AcraTranslator public key %s doesn't exists", translatorPublicKey)
-			os.Exit(1)
-		}
-		if err != nil {
-			log.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorWrongConfiguration).
-				Errorf("Configuration error: can't check is exists AcraTranslator public key %v, got error - %v", translatorPublicKey, err)
-			os.Exit(1)
-		}
-		log.Infof("AcraTranslator public key is OK")
-	}
-
-	if connectorMode == connector_mode.AcraServerMode {
-		serverPublicKey := fmt.Sprintf("%v%v%v_server.pub", *keysDir, string(os.PathSeparator), *clientId)
-		exists, err = utils.FileExists(serverPublicKey)
-		if !exists {
-			log.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorWrongConfiguration).
-				Errorf("Configuration error: AcraServer public key %s doesn't exists", serverPublicKey)
-			os.Exit(1)
-		}
-		if err != nil {
-			log.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorWrongConfiguration).
-				Errorf("Configuration error: can't check is exists AcraServer public key %v, got error - %v", serverPublicKey, err)
-			os.Exit(1)
-		}
-		log.Infof("AcraServer public key is OK")
-	}
-
-
 	if runtime.GOOS != "linux" {
 		*disableUserCheck = true
 		log.Infof("Disabling user check, because OS is not Linux")
@@ -313,7 +260,7 @@ func main() {
 
 
 	// --------- keystore  -----------
-	log.Infof("Initializing keystore")
+	log.Infof("Initializing keystore...")
 	masterKey, err := keystore.GetMasterKeyFromEnvironment()
 	if err != nil {
 		log.WithError(err).Errorln("can't load master key")
@@ -332,8 +279,30 @@ func main() {
 	}
 	log.Infof("Keystore init OK")
 
+
+	// --------- check keys -----------
+	cmd.ValidateClientId(*clientId)
+
+	log.Infof("Reading keys...")
+
+	exists, err := keyStore.CheckIfPrivateKeyExists([]byte(*clientId))
+	if !exists || err != nil{
+		log.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorWrongConfiguration).
+			Errorf("Configuration error: can't check that AcraConnector private key exists, got error - %v", err)
+		os.Exit(1)
+	}
+	log.Infof("Client id and client key is OK")
+
+	_, err = keyStore.GetPeerPublicKey([]byte(*clientId))
+	if err != nil {
+		log.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorWrongConfiguration).
+			Errorf("Configuration error: can't check that %s public key exists, got error - %v", connectorMode, err)
+		os.Exit(1)
+	}
+	log.Infof("%v public key is OK", connectorMode)
+
 	// --------- Config  -----------
-	log.Infof("Start listening connections")
+	log.Infof("Configuring transport...")
 	config := &Config{KeyStore: keyStore, KeysDir: *keysDir, ClientId: []byte(*clientId), OutgoingConnectionString: outgoingConnectionString, IncomingConnectionString: *connectionString, OutgoingServiceId: []byte(outgoingSecureSessionId), disableUserCheck: *disableUserCheck}
 	listener, err := network.Listen(*connectionString)
 	if err != nil {
@@ -426,7 +395,7 @@ func main() {
 	}
 
 	// -------- START -----------
-	log.Infof("Start listening connection %s", *connectionString)
+	log.Infof("Setup ready. Start listening connection %s", *connectionString)
 
 	if *verbose {
 		logging.SetLogLevel(logging.LOG_VERBOSE)

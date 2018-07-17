@@ -19,6 +19,14 @@ func NewConnectorFileSystemKeyStore(directory string, clientId []byte, encryptor
 	return &ConnectorFileSystemKeyStore{directory: directory, clientId: clientId, encryptor: encryptor, connectorMode: mode}, nil
 }
 
+func (store *ConnectorFileSystemKeyStore) CheckIfPrivateKeyExists(id []byte) (bool, error) {
+	_, err := ioutil.ReadFile(filepath.Join(store.directory, getConnectorKeyFilename(id)))
+	if err != nil {
+		return false, err
+	}
+	return true, nil
+}
+
 func (store *ConnectorFileSystemKeyStore) GetPrivateKey(id []byte) (*keys.PrivateKey, error) {
 	keyData, err := ioutil.ReadFile(filepath.Join(store.directory, getConnectorKeyFilename(id)))
 	if err != nil {
