@@ -91,13 +91,12 @@ func (handler *WhitelistHandler) CheckQuery(query string) (bool, error) {
 }
 
 func (handler *WhitelistHandler) handleAliasedTables(parsedQuery sqlparser.TableExprs) error {
-	allowedTablesCounter := 0
 	var err error
 	for _, table := range parsedQuery {
 		switch table.(type) {
 		case *sqlparser.AliasedTableExpr:
-			if handler.tables[sqlparser.String(table.(*sqlparser.AliasedTableExpr).Expr)] {
-				allowedTablesCounter++
+			if !handler.tables[sqlparser.String(table.(*sqlparser.AliasedTableExpr).Expr)] {
+				return ErrAccessToForbiddenTableWhitelist
 			}
 			break
 		case *sqlparser.JoinTableExpr:
@@ -119,11 +118,7 @@ func (handler *WhitelistHandler) handleAliasedTables(parsedQuery sqlparser.Table
 			return ErrAccessToForbiddenTableWhitelist
 		}
 	}
-	if allowedTablesCounter != len(parsedQuery) {
-		return ErrAccessToForbiddenTableWhitelist
-	} else {
-		return nil
-	}
+	return nil
 }
 
 func (handler *WhitelistHandler) handleJoinedTables(statement *sqlparser.JoinTableExpr) error {
