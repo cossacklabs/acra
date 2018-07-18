@@ -32,7 +32,7 @@ jobs:
       - run: cd $HOME && for version in $VERSIONS; do mkdir go_root_$version; cd go_root_$version; wget https://storage.googleapis.com/golang/go$version.linux-amd64.tar.gz; tar xf go$version.linux-amd64.tar.gz; cd -; done
       - run: mkdir $HOME/$GOPATH_FOLDER
       - checkout
-      - run: cd $HOME && mkdir -p $HOME/$GOPATH_FOLDER/src/github.com/cossacklabs/themis/gothemis; mkdir -p $HOME/$GOPATH_FOLDER/src/github.com/cossacklabs/acra; ln -s $HOME/themis/gothemis $HOME/$GOPATH_FOLDER/src/github.com/cossacklabs/themis/gothemis; ln -s $HOME/project/ $HOME/$GOPATH_FOLDER/src/github.com/cossacklabs/acra
+      - run: cd $HOME && mkdir -p $HOME/$GOPATH_FOLDER/src/github.com/cossacklabs/themis; mkdir -p $HOME/$GOPATH_FOLDER/src/github.com/cossacklabs/acra; ln -s $HOME/themis/gothemis $HOME/$GOPATH_FOLDER/src/github.com/cossacklabs/themis/gothemis; cp -r $HOME/project/* $HOME/$GOPATH_FOLDER/src/github.com/cossacklabs/acra/
       - run: cd $HOME && GOPATH=$HOME/$GOPATH_FOLDER go get -d github.com/cossacklabs/acra/...
       - run: pip3 install -r $HOME/project/tests/requirements.txt
       # install from sources because pip install git+https://github.com/mysql/mysql-connector-python not support recursive submodules
