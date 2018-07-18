@@ -115,9 +115,9 @@ func handleClientConnection(config *Config, connection net.Conn) {
 	select {
 	case err = <-toAcraErrCh:
 		log.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantStartConnection).
-			Errorln("Error from connection with client")
+			WithError(err).Errorln("Error from connection with client")
 	case err = <-fromAcraErrCh:
-		log.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantStartConnection).
+		log.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantStartConnection).WithError(err).
 			Errorln("Error from connection with AcraServer")
 	}
 	if err != nil {
