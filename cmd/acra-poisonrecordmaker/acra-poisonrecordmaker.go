@@ -61,6 +61,7 @@ func main() {
 	poisonRecord, err := poison.CreatePoisonRecord(store, *dataLength)
 	if err != nil {
 		log.WithError(err).Errorln("can't create poison record")
+		os.Exit(1)
 	}
 	fmt.Println(base64.StdEncoding.EncodeToString(poisonRecord))
 }
