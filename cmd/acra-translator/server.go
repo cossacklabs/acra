@@ -115,7 +115,7 @@ func (server *ReaderServer) HandleConnectionString(parentContext context.Context
 				}
 				continue
 			}
-			logger = logger.WithField("client_id", clientId)
+			logger = logger.WithField("client_id", string(clientId))
 			logger.Debugln("Pass wrapped connection to processing function")
 			logging.SetLoggerToContext(parentContext, logger)
 

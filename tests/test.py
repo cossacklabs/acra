@@ -344,6 +344,12 @@ def setUpModule():
 
     # must be before any call of key generators or forks of acra/proxy servers
     os.environ.setdefault(ACRA_MASTER_KEY_VAR_NAME, get_master_key())
+    # drop previously created keys where may exists keys encrypted with another
+    # master key
+    try:
+        shutil.rmtree('.acrakeys')
+    except FileNotFoundError:
+        pass
     # first keypair for using without zones
     assert create_client_keypair('keypair1') == 0
     assert create_client_keypair('keypair2') == 0
@@ -1205,8 +1211,12 @@ class BasePoisonRecordTest(BaseTestCase):
 
     def setUp(self):
         super(BasePoisonRecordTest, self).setUp()
-        self.log(POISON_KEY_PATH, get_poison_record(),
-                 b'no matter because poison record')
+        try:
+            self.log(POISON_KEY_PATH, get_poison_record(),
+                     b'no matter because poison record')
+        except:
+            self.tearDown()
+            raise
 
     def fork_acra(self, popen_kwargs: dict=None, **acra_kwargs: dict):
         args = {
