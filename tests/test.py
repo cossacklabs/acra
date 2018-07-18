@@ -2214,7 +2214,8 @@ class BaseAcraTranslatorTest(BaseTestCase):
         connector_connection = get_tcp_connection_string(connector_port)
         args = [
             './acra-connector',
-            '-acraserver_connection_string={}'.format(server_connection),
+            '-acratranslator_connection_string={}'.format(server_connection),
+            '-mode=acratranslator',
              '-client_id={}'.format(client_id),
             '-incoming_connection_string={}'.format(connector_connection),
             '-user_check_disable=true'
@@ -2261,7 +2262,7 @@ class BaseAcraTranslatorTest(BaseTestCase):
         # two is not acceptable
         self.assertFalse(use_http and use_grpc)
         translator_port = 3456
-        connector_port = 8000
+        connector_port = 12345
         data = self.get_random_data().encode('ascii')
         encryption_key = read_storage_public_key('keypair1')
         acrastruct = create_acrastruct(data, encryption_key)
