@@ -2,18 +2,18 @@ package http_api
 
 import (
 	"bytes"
+	"fmt"
+	"github.com/cossacklabs/acra/decryptor/base"
+	"github.com/cossacklabs/acra/keystore"
 	"github.com/cossacklabs/acra/logging"
 	"github.com/cossacklabs/acra/utils"
 	"github.com/cossacklabs/themis/gothemis/keys"
 	log "github.com/sirupsen/logrus"
-	"fmt"
-	"net/http"
-	"strings"
-	"os"
-	"github.com/cossacklabs/acra/keystore"
-	"net"
 	"io/ioutil"
-	"github.com/cossacklabs/acra/decryptor/base"
+	"net"
+	"net/http"
+	"os"
+	"strings"
 )
 
 type HTTPConnectionsDecryptor struct {
@@ -25,22 +25,10 @@ func NewHTTPConnectionsDecryptor(keystorage keystore.KeyStore) (*HTTPConnections
 }
 
 func (decryptor *HTTPConnectionsDecryptor) SendResponse(logger *log.Entry, response *http.Response, connection net.Conn) {
-	r, err := ioutil.ReadAll(response.Body)
+	err := response.Write(connection)
 	if err != nil {
 		logger.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorTranslatorCantReturnResponse).
-			Warningln("Can't read response body")
-	}
-	err = response.Body.Close()
-
-	if err != nil {
-		logger.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorTranslatorCantReturnResponse).
-			Warningln("Can't convert response to binary")
-	} else {
-		_, err = connection.Write(r)
-		if err != nil {
-			logger.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorTranslatorCantReturnResponse).
-				Warningln("Can't write response to HTTP request")
-		}
+			Warningln("Can't write response")
 	}
 }
 
