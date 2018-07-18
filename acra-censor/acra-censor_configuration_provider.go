@@ -33,10 +33,7 @@ func (acraCensor *AcraCensor) LoadConfiguration(configuration []byte) error {
 		switch handlerConfiguration.Handler {
 		case WhitelistConfigStr:
 			whitelistHandler := &handlers.WhitelistHandler{}
-			err := whitelistHandler.AddQueries(handlerConfiguration.Queries)
-			if err != nil {
-				return err
-			}
+			whitelistHandler.AddQueries(handlerConfiguration.Queries)
 			whitelistHandler.AddTables(handlerConfiguration.Tables)
 			err = whitelistHandler.AddRules(handlerConfiguration.Rules)
 			if err != nil {

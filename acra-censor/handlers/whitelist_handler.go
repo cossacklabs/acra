@@ -11,16 +11,22 @@ import (
 )
 
 type WhitelistHandler struct {
-	queries []string
-	tables  []string
+	queries map[string]bool
+	tables  map[string]bool
 	rules   []string
+}
+
+func NewWhitelistHandler() *WhitelistHandler {
+	handler := &WhitelistHandler{}
+	handler.queries = make(map[string]bool)
+	handler.tables = make(map[string]bool)
+	return handler
 }
 
 func (handler *WhitelistHandler) CheckQuery(query string) (bool, error) {
 	//Check queries
 	if len(handler.queries) != 0 {
-		yes, _ := contains(handler.queries, query)
-		if !yes {
+		if !handler.queries[query] {
 			return false, ErrQueryNotInWhitelist
 		}
 	}
@@ -60,10 +66,8 @@ func (handler *WhitelistHandler) CheckQuery(query string) (bool, error) {
 			}
 		case *sqlparser.Insert:
 			tableIsAllowed := false
-			for _, allowedTable := range handler.tables {
-				if strings.EqualFold(parsedQuery.Table.Name.String(), allowedTable) {
-					tableIsAllowed = true
-				}
+			if handler.tables[parsedQuery.Table.Name.String()] {
+				tableIsAllowed = true
 			}
 			if !tableIsAllowed {
 				return false, ErrAccessToForbiddenTableWhitelist
@@ -89,32 +93,30 @@ func (handler *WhitelistHandler) CheckQuery(query string) (bool, error) {
 func (handler *WhitelistHandler) handleAliasedTables(parsedQuery sqlparser.TableExprs) error {
 	allowedTablesCounter := 0
 	var err error
-	for _, allowedTable := range handler.tables {
-		for _, table := range parsedQuery {
-			switch table.(type) {
-			case *sqlparser.AliasedTableExpr:
-				if strings.EqualFold(sqlparser.String(table.(*sqlparser.AliasedTableExpr).Expr), allowedTable) {
-					allowedTablesCounter++
-				}
-				break
-			case *sqlparser.JoinTableExpr:
-				err = handler.handleJoinedTables(table.(*sqlparser.JoinTableExpr))
-				if err != nil {
-					return ErrAccessToForbiddenTableWhitelist
-				}
-				break
-			case *sqlparser.ParenTableExpr:
-				err = handler.handleParenTables(table.(*sqlparser.ParenTableExpr))
-				if err != nil {
-					return ErrAccessToForbiddenTableWhitelist
-				}
-				break
-			default:
-				return ErrUnexpectedTypeError
+	for _, table := range parsedQuery {
+		switch table.(type) {
+		case *sqlparser.AliasedTableExpr:
+			if handler.tables[sqlparser.String(table.(*sqlparser.AliasedTableExpr).Expr)] {
+				allowedTablesCounter++
 			}
+			break
+		case *sqlparser.JoinTableExpr:
+			err = handler.handleJoinedTables(table.(*sqlparser.JoinTableExpr))
 			if err != nil {
 				return ErrAccessToForbiddenTableWhitelist
 			}
+			break
+		case *sqlparser.ParenTableExpr:
+			err = handler.handleParenTables(table.(*sqlparser.ParenTableExpr))
+			if err != nil {
+				return ErrAccessToForbiddenTableWhitelist
+			}
+			break
+		default:
+			return ErrUnexpectedTypeError
+		}
+		if err != nil {
+			return ErrAccessToForbiddenTableWhitelist
 		}
 	}
 	if allowedTablesCounter != len(parsedQuery) {
@@ -182,8 +184,8 @@ func (handler *WhitelistHandler) handleParenTables(statement *sqlparser.ParenTab
 }
 
 func (handler *WhitelistHandler) Reset() {
-	handler.queries = nil
-	handler.tables = nil
+	handler.queries = make(map[string]bool)
+	handler.tables = make(map[string]bool)
 	handler.rules = nil
 }
 
@@ -191,36 +193,27 @@ func (handler *WhitelistHandler) Release() {
 	handler.Reset()
 }
 
-func (handler *WhitelistHandler) AddQueries(queries []string) error {
+func (handler *WhitelistHandler) AddQueries(queries []string) {
 	for _, query := range queries {
-		handler.queries = append(handler.queries, query)
+		handler.queries[query] = true
 	}
-	handler.queries = removeDuplicates(handler.queries)
-	return nil
 }
 
 func (handler *WhitelistHandler) RemoveQueries(queries []string) {
-	for _, query := range handler.queries {
-		yes, index := contains(handler.queries, query)
-		if yes {
-			handler.queries = append(handler.queries[:index], handler.queries[index+1:]...)
-		}
+	for _, query := range queries {
+		delete(handler.queries, query)
 	}
 }
 
 func (handler *WhitelistHandler) AddTables(tableNames []string) {
 	for _, tableName := range tableNames {
-		handler.tables = append(handler.tables, tableName)
+		handler.tables[tableName] = true
 	}
-	handler.tables = removeDuplicates(handler.tables)
 }
 
 func (handler *WhitelistHandler) RemoveTables(tableNames []string) {
-	for _, query := range tableNames {
-		yes, index := contains(handler.tables, query)
-		if yes {
-			handler.tables = append(handler.tables[:index], handler.tables[index+1:]...)
-		}
+	for _, tableName := range tableNames {
+		delete(handler.tables, tableName)
 	}
 }
 
@@ -327,9 +320,4 @@ func (handler *WhitelistHandler) isAllowedColumnAccess(columnsToEvaluate sqlpars
 		}
 	}
 	return accessOnlyToAllowedColumns
-}
-
-func (handler *WhitelistHandler) handleJoinTables(expr sqlparser.TableExprs) error {
-	//stub
-	return nil
 }

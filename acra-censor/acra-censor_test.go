@@ -13,7 +13,7 @@ import (
 )
 
 func TestWhitelistQueries(t *testing.T) {
-
+	var err error
 	sqlSelectQueries := []string{
 		"SELECT Student_ID FROM STUDENT;",
 		"SELECT * FROM STUDENT;",
@@ -42,16 +42,10 @@ func TestWhitelistQueries(t *testing.T) {
 		"INSERT INTO dbo.Points (PointValue) VALUES ('1,99');",
 	}
 
-	whitelistHandler := &handlers.WhitelistHandler{}
-
-	err := whitelistHandler.AddQueries(sqlSelectQueries)
-	if err != nil {
-		t.Fatal(err)
-	}
-	err = whitelistHandler.AddQueries(sqlInsertQueries)
-	if err != nil {
-		t.Fatal(err)
-	}
+	//whitelistHandler := &handlers.WhitelistHandler{}
+	whitelistHandler := handlers.NewWhitelistHandler()
+	whitelistHandler.AddQueries(sqlSelectQueries)
+	whitelistHandler.AddQueries(sqlInsertQueries)
 
 	acraCensor := &AcraCensor{}
 	defer acraCensor.ReleaseAll()
@@ -90,7 +84,7 @@ func TestWhitelistQueries(t *testing.T) {
 	testWhitelistRules(t, acraCensor, whitelistHandler)
 }
 func testWhitelistTables(t *testing.T, acraCensor *AcraCensor, whitelistHandler *handlers.WhitelistHandler) {
-
+	var err error
 	testQueries := []string{
 		"SELECT EMP_ID, LAST_NAME FROM EMPLOYEE_TBL WHERE CITY = 'Seattle' ORDER BY EMP_ID;",
 		"SELECT EMP_ID, LAST_NAME FROM EMPLOYEE WHERE CITY = 'Seattle' ORDER BY EMP_ID;",
@@ -100,16 +94,12 @@ func testWhitelistTables(t *testing.T, acraCensor *AcraCensor, whitelistHandler 
 		"INSERT INTO Customers (CustomerName, City, Country) VALUES ('Cardinal', 'Stavanger', 'Norway');",
 		"SELECT EMP_ID, LAST_NAME FROM EMPLOYEE_TBL AS EMPL_TBL WHERE CITY = 'Seattle' ORDER BY EMP_ID;",
 	}
-
-	err := whitelistHandler.AddQueries(testQueries)
+	whitelistHandler.AddQueries(testQueries)
 	if err != nil {
 		t.Fatal(err)
 	}
-
 	whitelistHandler.AddTables([]string{"EMPLOYEE"})
-
 	queryIndexesToBlock := []int{0, 2, 3, 4, 5, 6}
-
 	//acracensor should block those queries
 	for _, i := range queryIndexesToBlock {
 		err := acraCensor.HandleQuery(testQueries[i])
@@ -117,16 +107,13 @@ func testWhitelistTables(t *testing.T, acraCensor *AcraCensor, whitelistHandler 
 			t.Fatal(err)
 		}
 	}
-
 	err = acraCensor.HandleQuery(testQueries[1])
 	//acracensor should not block this query
 	if err != nil {
 		t.Fatal(err)
 	}
-
 	//Now we have no tables in whitelist, so should block all queries
 	whitelistHandler.RemoveTables([]string{"EMPLOYEE"})
-
 	//acracensor should not block queries
 	for _, query := range testQueries {
 		err = acraCensor.HandleQuery(query)
@@ -134,25 +121,19 @@ func testWhitelistTables(t *testing.T, acraCensor *AcraCensor, whitelistHandler 
 			t.Fatal(err)
 		}
 	}
-
 	testQuery := "SELECT EMP_ID, LAST_NAME FROM EMPLOYEE, EMPLOYEE_TBL, CUSTOMERS WHERE CITY = 'INDIANAPOLIS' ORDER BY EMP_ID asc;"
-
-	err = whitelistHandler.AddQueries([]string{testQuery})
+	whitelistHandler.AddQueries([]string{testQuery})
 	if err != nil {
 		t.Fatal(err)
 	}
 	whitelistHandler.AddTables([]string{"EMPLOYEE", "EMPLOYEE_TBL"})
-
 	err = acraCensor.HandleQuery(testQuery)
 	//acracensor should block this query
 	if err != handlers.ErrAccessToForbiddenTableWhitelist {
 		t.Fatal(err)
 	}
-
 	whitelistHandler.AddTables([]string{"CUSTOMERS"})
-
 	err = acraCensor.HandleQuery(testQuery)
-
 	//acracensor should not block this query
 	if err != nil {
 		t.Fatal(err)
@@ -160,7 +141,6 @@ func testWhitelistTables(t *testing.T, acraCensor *AcraCensor, whitelistHandler 
 }
 func testWhitelistRules(t *testing.T, acraCensor *AcraCensor, whitelistHandler *handlers.WhitelistHandler) {
 	whitelistHandler.Reset()
-
 	testQueries := []string{
 		"SELECT EMP_ID, LAST_NAME FROM EMPLOYEE_TBL WHERE CITY = 'Seattle' ORDER BY EMP_ID;",
 		"SELECT EMP_ID, LAST_NAME FROM EMPLOYEE WHERE CITY = 'Seattle' ORDER BY EMP_ID;",
@@ -169,18 +149,15 @@ func testWhitelistRules(t *testing.T, acraCensor *AcraCensor, whitelistHandler *
 		"SELECT EMP_ID, LAST_NAME FROM EMPLOYEE_TBL AS EMPL_TBL WHERE CITY = 'Seattle' ORDER BY EMP_ID;",
 		"SELECT EMP_ID, LAST_NAME FROM EMPLOYEE_TBL WHERE CITY = 'INDIANAPOLIS' ORDER BY EMP_ID asc;",
 	}
-
 	//acracensor should block all queries except accessing to any information but only in table EMPLOYEE_TBL and related only to Seattle city [1,2,3]
 	testSecurityRules := []string{
 		"SELECT * FROM EMPLOYEE_TBL WHERE CITY='Seattle'",
 	}
-
 	queryIndexesToBlock := []int{1, 2, 3, 5}
 	err := whitelistHandler.AddRules(testSecurityRules)
 	if err != nil {
 		t.Fatal(err)
 	}
-
 	//acracensor should block those queries
 	for _, i := range queryIndexesToBlock {
 		err := acraCensor.HandleQuery(testQueries[i])
@@ -188,7 +165,6 @@ func testWhitelistRules(t *testing.T, acraCensor *AcraCensor, whitelistHandler *
 			t.Fatal(err)
 		}
 	}
-
 	queryIndexesToPass := []int{0, 4}
 	//acracensor should not block those queries
 	for _, i := range queryIndexesToPass {
@@ -197,7 +173,6 @@ func testWhitelistRules(t *testing.T, acraCensor *AcraCensor, whitelistHandler *
 			t.Fatal(err)
 		}
 	}
-
 	whitelistHandler.RemoveRules(testSecurityRules)
 	//acracensor should not block all queries
 	for _, query := range testQueries {
@@ -883,7 +858,7 @@ func TestDifferentTablesParsing(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	whitelist := handlers.WhitelistHandler{}
+	whitelist := handlers.NewWhitelistHandler()
 	whitelist.AddTables([]string{"Orders", "Customers", "NotShippers"})
 
 	_, err = whitelist.CheckQuery(testQuery)
@@ -905,7 +880,7 @@ func TestIgnoringQueryParseErrors(t *testing.T) {
 	}
 	acraCensor := &AcraCensor{}
 	defer acraCensor.ReleaseAll()
-	whitelistHandler := &handlers.WhitelistHandler{}
+	whitelistHandler := handlers.NewWhitelistHandler()
 	whitelistHandler.AddTables([]string{"some table"})
 	blacklistHandler := &handlers.BlacklistHandler{}
 	blacklistHandler.AddTables([]string{"some table"})
