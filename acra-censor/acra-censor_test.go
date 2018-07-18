@@ -184,6 +184,7 @@ func testWhitelistRules(t *testing.T, acraCensor *AcraCensor, whitelistHandler *
 }
 
 func TestBlacklistQueries(t *testing.T) {
+	var err error
 	sqlSelectQueries := []string{
 		"SELECT Student_ID FROM STUDENT;",
 		"SELECT * FROM STUDENT;",
@@ -215,11 +216,8 @@ func TestBlacklistQueries(t *testing.T) {
 		"SELECT AVG(Price) FROM Products;",
 	}
 
-	blacklistHandler := &handlers.BlacklistHandler{}
-	err := blacklistHandler.AddQueries(blackList)
-	if err != nil {
-		t.Fatal(err)
-	}
+	blacklistHandler := handlers.NewBlacklistHandler()
+	blacklistHandler.AddQueries(blackList)
 
 	acraCensor := &AcraCensor{}
 	defer acraCensor.ReleaseAll()
@@ -244,7 +242,7 @@ func TestBlacklistQueries(t *testing.T) {
 
 	testQuery := "INSERT INTO Customers (CustomerName, City, Country) VALUES ('Cardinal', 'Stavanger', 'Norway');"
 
-	err = blacklistHandler.AddQueries([]string{testQuery})
+	blacklistHandler.AddQueries([]string{testQuery})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -402,6 +400,7 @@ func testBlacklistRules(t *testing.T, acraCensor *AcraCensor, blacklistHandler *
 }
 
 func TestQueryIgnoring(t *testing.T) {
+	var err error
 	testQueries := []string{
 		"SELECT Student_ID FROM STUDENT;",
 		"SELECT * FROM STUDENT;",
@@ -434,11 +433,8 @@ func TestQueryIgnoring(t *testing.T) {
 	ignoreQueryHandler.AddQueries(testQueries)
 	acraCensor.AddHandler(ignoreQueryHandler)
 
-	blacklist := &handlers.BlacklistHandler{}
-	err := blacklist.AddQueries(testQueries)
-	if err != nil {
-		t.Fatal(err)
-	}
+	blacklist := handlers.NewBlacklistHandler()
+	blacklist.AddQueries(testQueries)
 	acraCensor.AddHandler(blacklist)
 
 	//should not block
@@ -588,7 +584,7 @@ func TestLogging(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	blacklist := &handlers.BlacklistHandler{}
+	blacklist := handlers.NewBlacklistHandler()
 
 	acraCensor := &AcraCensor{}
 	defer acraCensor.ReleaseAll()
@@ -607,10 +603,7 @@ func TestLogging(t *testing.T) {
 	loggingHandler.MarkQueryAsForbidden(testQueries[2])
 	loggingHandler.DumpAllQueriesToFile()
 
-	err = blacklist.AddQueries(loggingHandler.GetForbiddenQueries())
-	if err != nil {
-		t.Fatal(err)
-	}
+	blacklist.AddQueries(loggingHandler.GetForbiddenQueries())
 
 	err = acraCensor.HandleQuery(testQueries[0])
 	if err != handlers.ErrQueryInBlacklist {
@@ -844,7 +837,7 @@ func TestDifferentTablesParsing(t *testing.T) {
 			"INNER JOIN Customers ON Orders.CustomerID = Customers.CustomerID) " +
 			"INNER JOIN Shippers ON Orders.ShipperID = Shippers.ShipperID);"
 
-	blacklist := handlers.BlacklistHandler{}
+	blacklist := handlers.NewBlacklistHandler()
 	blacklist.AddTables([]string{"x", "y"})
 
 	_, err := blacklist.CheckQuery(testQuery)
@@ -882,7 +875,7 @@ func TestIgnoringQueryParseErrors(t *testing.T) {
 	defer acraCensor.ReleaseAll()
 	whitelistHandler := handlers.NewWhitelistHandler()
 	whitelistHandler.AddTables([]string{"some table"})
-	blacklistHandler := &handlers.BlacklistHandler{}
+	blacklistHandler := handlers.NewBlacklistHandler()
 	blacklistHandler.AddTables([]string{"some table"})
 
 	checkHandler := func(queryHandlers []QueryHandlerInterface, expectedError error) {
