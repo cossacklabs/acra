@@ -2318,8 +2318,8 @@ class BaseAcraTranslatorTest(BaseTestCase):
                 response = requests.get(api_url, data=acrastruct)
                 self.assertEqual(
                     response.status_code, http.HTTPStatus.METHOD_NOT_ALLOWED)
-                self.assertIn('HTTP method is not allowed, expected POST, got',
-                              response.text)
+                self.assertIn('HTTP method is not allowed, expected POST, got'.lower(),
+                              response.text.lower())
                 self.assertEqual(response.headers['Content-Type'], 'text/plain')
 
                 # test without api version
@@ -2327,8 +2327,8 @@ class BaseAcraTranslatorTest(BaseTestCase):
                 response = requests.post(without_version_api_url, data=acrastruct)
                 self.assertEqual(response.status_code,
                                  http.HTTPStatus.BAD_REQUEST)
-                self.assertIn('Malformed URL, expected /<version>/<endpoint>, got',
-                              response.text)
+                self.assertIn('Malformed URL, expected /<version>/<endpoint>, got'.lower(),
+                              response.text.lower())
                 self.assertEqual(response.headers['Content-Type'], 'text/plain')
 
                 # incorrect version
@@ -2336,8 +2336,8 @@ class BaseAcraTranslatorTest(BaseTestCase):
                 response = requests.post(without_version_api_url, data=acrastruct)
                 self.assertEqual(response.status_code,
                                  http.HTTPStatus.BAD_REQUEST)
-                self.assertIn('HTTP request version is not supported: expected v1, got',
-                              response.text)
+                self.assertIn('HTTP request version is not supported: expected v1, got'.lower(),
+                              response.text.lower())
                 self.assertEqual(response.headers['Content-Type'], 'text/plain')
 
                 # incorrect url
@@ -2345,7 +2345,8 @@ class BaseAcraTranslatorTest(BaseTestCase):
                 response = requests.post(incorrect_url, data=acrastruct)
                 self.assertEqual(
                     response.status_code, http.HTTPStatus.BAD_REQUEST)
-                self.assertEqual('HTTP endpoint not supported', response.text)
+                self.assertEqual('HTTP endpoint not supported'.lower(),
+                                 response.text.lower())
                 self.assertEqual(response.headers['Content-Type'], 'text/plain')
 
 
@@ -2353,8 +2354,8 @@ class BaseAcraTranslatorTest(BaseTestCase):
                 response = requests.post(api_url, data=b'')
                 self.assertEqual(response.status_code,
                                  http.HTTPStatus.UNPROCESSABLE_ENTITY)
-                self.assertIn("Can't decrypt AcraStruct",
-                              response.text)
+                self.assertIn("Can't decrypt AcraStruct".lower(),
+                              response.text.lower())
                 self.assertEqual(response.headers['Content-Type'], 'text/plain')
 
 
