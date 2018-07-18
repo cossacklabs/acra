@@ -123,6 +123,28 @@ func testGenerateServerKeys(store *FilesystemKeyStore, t *testing.T) {
 	}
 }
 
+func testGenerateTranslatorKeys(store *FilesystemKeyStore, t *testing.T) {
+	testId := []byte("test test id")
+	err := store.GenerateTranslatorKeys(testId)
+	if err != nil {
+		t.Fatal(err)
+	}
+	expectedPaths := []string{
+		getTranslatorKeyFilename(testId),
+		fmt.Sprintf("%s.pub", getTranslatorKeyFilename(testId)),
+	}
+	for _, name := range expectedPaths {
+		absPath := store.getPrivateKeyFilePath(name)
+		exists, err := utils.FileExists(absPath)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !exists {
+			t.Fatal(fmt.Sprintf("File <%s> doesn't exists", absPath))
+		}
+	}
+}
+
 func testGenerateConnectorKeys(store *FilesystemKeyStore, t *testing.T) {
 	testId := []byte("test id")
 	err := store.GenerateConnectorKeys(testId)
@@ -150,6 +172,9 @@ func testReset(store *FilesystemKeyStore, t *testing.T) {
 	if err := store.GenerateServerKeys(testId); err != nil {
 		t.Fatal(err)
 	}
+	if err := store.GenerateTranslatorKeys(testId); err != nil {
+		t.Fatal(err)
+	}
 	if _, err := store.GetPrivateKey(testId); err != nil {
 		t.Fatal(err)
 	}
@@ -158,6 +183,9 @@ func testReset(store *FilesystemKeyStore, t *testing.T) {
 		t.Fatal(err)
 	}
 	if err := os.Remove(fmt.Sprintf("%s.pub", store.getPublicKeyFilePath(getServerKeyFilename(testId)))); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Remove(fmt.Sprintf("%s.pub", store.getPublicKeyFilePath(getTranslatorKeyFilename(testId)))); err != nil {
 		t.Fatal(err)
 	}
 
@@ -195,6 +223,7 @@ func TestFilesystemKeyStore(t *testing.T) {
 		testGeneratingDataEncryptionKeys(store, t)
 		testGenerateConnectorKeys(store, t)
 		testGenerateServerKeys(store, t)
+		testGenerateTranslatorKeys(store, t)
 		testReset(store, t)
 	}
 }
