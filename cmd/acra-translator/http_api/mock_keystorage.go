@@ -53,6 +53,9 @@ func (*testKeystore) GenerateConnectorKeys(id []byte) error {
 func (*testKeystore) GenerateServerKeys(id []byte) error {
 	panic("implement me")
 }
+func (*testKeystore) GenerateTranslatorKeys(id []byte) error {
+	panic("implement me")
+}
 
 func (*testKeystore) GenerateDataEncryptionKeys(id []byte) error {
 	panic("implement me")

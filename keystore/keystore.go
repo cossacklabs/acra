@@ -130,6 +130,8 @@ type KeyStore interface {
 
 	GenerateConnectorKeys(id []byte) error
 	GenerateServerKeys(id []byte) error
+	GenerateTranslatorKeys(id []byte) error
+
 	// generate key pair for data encryption/decryption
 	GenerateDataEncryptionKeys(id []byte) error
 	GetPoisonKeyPair() (*keys.Keypair, error)
