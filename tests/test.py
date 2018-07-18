@@ -2255,7 +2255,7 @@ class BaseAcraTranslatorTest(BaseTestCase):
         response = requests.post(api_url, data=acrastruct)
         return response.content
 
-    def _testApiRequest(self, request_func, use_http=False, use_grpc=False):
+    def _testApiDecryption(self, request_func, use_http=False, use_grpc=False):
         # one is set
         self.assertTrue(use_http or use_grpc)
         # two is not acceptable
@@ -2300,11 +2300,76 @@ class BaseAcraTranslatorTest(BaseTestCase):
                 response = request_func(connector_port, incorrect_client_id, None, acrastruct)
                 self.assertNotEqual(data, response)
 
+    def testHTTPApiResponses(self):
+        translator_port = 3456
+        connector_port = 8000
+        data = self.get_random_data().encode('ascii')
+        encryption_key = read_storage_public_key('keypair1')
+        acrastruct = create_acrastruct(data, encryption_key)
+        connection_string = 'tcp://127.0.0.1:{}'.format(translator_port)
+        translator_kwargs = {
+            'incoming_connection_http_string': connection_string ,
+        }
+        api_url = 'http://127.0.0.1:{}/v1/decrypt'.format(connector_port)
+        import http
+        with ProcessContextManager(self.fork_translator(translator_kwargs)):
+            with ProcessContextManager(self.fork_connector(connector_port, translator_port, 'keypair1')):
+                # test incorrect HTTP method
+                response = requests.get(api_url, data=acrastruct)
+                self.assertEqual(
+                    response.status_code, http.HTTPStatus.METHOD_NOT_ALLOWED)
+                self.assertIn('HTTP method is not allowed, expected POST, got',
+                              response.text)
+                self.assertEqual(response.headers['Content-Type'], 'text/plain')
+
+                # test without api version
+                without_version_api_url = api_url.replace('v1/', '')
+                response = requests.post(without_version_api_url, data=acrastruct)
+                self.assertEqual(response.status_code,
+                                 http.HTTPStatus.BAD_REQUEST)
+                self.assertIn('Malformed URL, expected /<version>/<endpoint>, got',
+                              response.text)
+                self.assertEqual(response.headers['Content-Type'], 'text/plain')
+
+                # incorrect version
+                without_version_api_url = api_url.replace('v1/', 'v2/')
+                response = requests.post(without_version_api_url, data=acrastruct)
+                self.assertEqual(response.status_code,
+                                 http.HTTPStatus.BAD_REQUEST)
+                self.assertIn('HTTP request version is not supported: expected v1, got',
+                              response.text)
+                self.assertEqual(response.headers['Content-Type'], 'text/plain')
+
+                # incorrect url
+                incorrect_url = 'http://127.0.0.1:{}/v1/someurl'.format(connector_port)
+                response = requests.post(incorrect_url, data=acrastruct)
+                self.assertEqual(
+                    response.status_code, http.HTTPStatus.BAD_REQUEST)
+                self.assertEqual('HTTP endpoint not supported', response.text)
+                self.assertEqual(response.headers['Content-Type'], 'text/plain')
+
+
+                # without acrastruct (http body), pass empty byte array as data
+                response = requests.post(api_url, data=b'')
+                self.assertEqual(response.status_code,
+                                 http.HTTPStatus.UNPROCESSABLE_ENTITY)
+                self.assertIn("Can't decrypt AcraStruct",
+                              response.text)
+                self.assertEqual(response.headers['Content-Type'], 'text/plain')
+
+
+                # test with correct acrastruct
+                response = requests.post(api_url, data=acrastruct)
+                self.assertEqual(data, response.content)
+                self.assertEqual(response.status_code, http.HTTPStatus.OK)
+                self.assertEqual(response.headers['Content-Type'],
+                                 'application/octet-stream')
+
     def testGRPCApi(self):
-        self._testApiRequest(self.grpc_decrypt_request, use_grpc=True)
+        self._testApiDecryption(self.grpc_decrypt_request, use_grpc=True)
 
     def testHTTPApi(self):
-        self._testApiRequest(self.http_decrypt_request, use_http=True)
+        self._testApiDecryption(self.http_decrypt_request, use_http=True)
 
 
 if __name__ == '__main__':
