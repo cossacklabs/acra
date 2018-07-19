@@ -25,10 +25,16 @@ func NewHTTPConnectionsDecryptor(keystorage keystore.KeyStore) (*HTTPConnections
 }
 
 func (decryptor *HTTPConnectionsDecryptor) SendResponse(logger *log.Entry, response *http.Response, connection net.Conn) {
-	err := response.Write(connection)
+	outBuffer  := &bytes.Buffer{}
+	err := response.Write(outBuffer)
 	if err != nil {
 		logger.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorTranslatorCantReturnResponse).
-			Warningln("Can't write response")
+			Warningln("Can't write response to buffer")
+	}
+	_, err = outBuffer.WriteTo(connection)
+	if err != nil {
+		logger.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorTranslatorCantReturnResponse).
+			Warningln("Can't write response to buffer")
 	}
 }
 
