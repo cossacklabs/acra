@@ -40,7 +40,6 @@ func TestWhitelistQueries(t *testing.T) {
 		"INSERT INTO dbo.Points (Type, PointValue) VALUES ('Point', '1,5');",
 		"INSERT INTO dbo.Points (PointValue) VALUES ('1,99');",
 	}
-	//whitelistHandler := &handlers.WhitelistHandler{}
 	whitelistHandler := handlers.NewWhitelistHandler()
 	whitelistHandler.AddQueries(sqlSelectQueries)
 	whitelistHandler.AddQueries(sqlInsertQueries)
