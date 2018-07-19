@@ -1685,6 +1685,26 @@ class TestAcraRollback(BaseTestCase):
         for data in result:
             self.assertIn(data[0], source_data)
 
+    def test_without_placeholder(self):
+        args = ['./acra-rollback',
+            '--execute=true',
+            '--select=select data from {};'.format(test_table.name),
+            '--insert=query without placeholders;',
+            '--postgresql_enable'
+        ]
+
+        log_file = tempfile.NamedTemporaryFile('w+', encoding='utf-8')
+        popen_args = {
+            'stderr': subprocess.PIPE,
+            'stdout': subprocess.PIPE,
+            'close_fds': True
+        }
+        process = subprocess.Popen(args, **popen_args)
+        _, err = process.communicate(timeout=5)
+        stop_process(process)
+
+        self.assertIn(b"SQL INSERT statement doesn't contain any placeholders", err)
+
 
 class TestAcraKeyMakers(unittest.TestCase):
     def test_only_alpha_client_id(self):
