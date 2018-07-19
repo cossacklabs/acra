@@ -153,7 +153,7 @@ func (decryptor *HTTPConnectionsDecryptor) decryptAcraStruct(logger *log.Entry, 
 }
 
 func emptyResponseWithStatus(request *http.Request, status int) *http.Response {
-	return &http.Response{
+	response := &http.Response{
 		Status:        http.StatusText(status),
 		StatusCode:    status,
 		Proto:         "HTTP/1.1",
@@ -163,6 +163,8 @@ func emptyResponseWithStatus(request *http.Request, status int) *http.Response {
 		ContentLength: -1,
 		Header:        http.Header{},
 	}
+	response.Header.Set("Connection", "close")
+	return response
 }
 
 func responseWithMessage(request *http.Request, status int, body string) *http.Response {
