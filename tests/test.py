@@ -94,6 +94,9 @@ SOCKET_CONNECT_TIMEOUT = 10
 KILL_WAIT_TIMEOUT = 10
 CONNECT_TRY_COUNT = 3
 SQL_EXECUTE_TRY_COUNT = 5
+# http://docs.python-requests.org/en/master/user/advanced/#timeouts
+# use only for requests.* methods
+REQUEST_TIMEOUT = (5, 5)  # connect_timeout, read_timeout
 
 TEST_WITH_TLS = os.environ.get('TEST_TLS', 'off').lower() == 'on'
 
@@ -2263,8 +2266,8 @@ class BaseAcraTranslatorTest(BaseTestCase):
         api_url = 'http://127.0.0.1:{}/v1/decrypt'.format(port)
         if zone_id:
             api_url = '{}?zone_id={}'.format(api_url, zone_id)
-        response = requests.post(api_url, data=acrastruct)
-        return response.content
+        with requests.post(api_url, data=acrastruct, timeout=REQUEST_TIMEOUT) as response:
+            return response.content
 
     def _testApiDecryption(self, request_func, use_http=False, use_grpc=False):
         # one is set
@@ -2326,7 +2329,8 @@ class BaseAcraTranslatorTest(BaseTestCase):
         with ProcessContextManager(self.fork_translator(translator_kwargs)):
             with ProcessContextManager(self.fork_connector(connector_port, translator_port, 'keypair1')):
                 # test incorrect HTTP method
-                response = requests.get(api_url, data=acrastruct)
+                response = requests.get(api_url, data=acrastruct,
+                                        timeout=REQUEST_TIMEOUT)
                 self.assertEqual(
                     response.status_code, http.HTTPStatus.METHOD_NOT_ALLOWED)
                 self.assertIn('HTTP method is not allowed, expected POST, got'.lower(),
@@ -2335,7 +2339,9 @@ class BaseAcraTranslatorTest(BaseTestCase):
 
                 # test without api version
                 without_version_api_url = api_url.replace('v1/', '')
-                response = requests.post(without_version_api_url, data=acrastruct)
+                response = requests.post(
+                    without_version_api_url, data=acrastruct,
+                    timeout=REQUEST_TIMEOUT)
                 self.assertEqual(response.status_code,
                                  http.HTTPStatus.BAD_REQUEST)
                 self.assertIn('Malformed URL, expected /<version>/<endpoint>, got'.lower(),
@@ -2344,7 +2350,9 @@ class BaseAcraTranslatorTest(BaseTestCase):
 
                 # incorrect version
                 without_version_api_url = api_url.replace('v1/', 'v2/')
-                response = requests.post(without_version_api_url, data=acrastruct)
+                response = requests.post(
+                    without_version_api_url, data=acrastruct,
+                    timeout=REQUEST_TIMEOUT)
                 self.assertEqual(response.status_code,
                                  http.HTTPStatus.BAD_REQUEST)
                 self.assertIn('HTTP request version is not supported: expected v1, got'.lower(),
@@ -2353,7 +2361,8 @@ class BaseAcraTranslatorTest(BaseTestCase):
 
                 # incorrect url
                 incorrect_url = 'http://127.0.0.1:{}/v1/someurl'.format(connector_port)
-                response = requests.post(incorrect_url, data=acrastruct)
+                response = requests.post(
+                    incorrect_url, data=acrastruct, timeout=REQUEST_TIMEOUT)
                 self.assertEqual(
                     response.status_code, http.HTTPStatus.BAD_REQUEST)
                 self.assertEqual('HTTP endpoint not supported'.lower(),
@@ -2362,7 +2371,8 @@ class BaseAcraTranslatorTest(BaseTestCase):
 
 
                 # without acrastruct (http body), pass empty byte array as data
-                response = requests.post(api_url, data=b'')
+                response = requests.post(api_url, data=b'',
+                                         timeout=REQUEST_TIMEOUT)
                 self.assertEqual(response.status_code,
                                  http.HTTPStatus.UNPROCESSABLE_ENTITY)
                 self.assertIn("Can't decrypt AcraStruct".lower(),
@@ -2371,7 +2381,8 @@ class BaseAcraTranslatorTest(BaseTestCase):
 
 
                 # test with correct acrastruct
-                response = requests.post(api_url, data=acrastruct)
+                response = requests.post(api_url, data=acrastruct,
+                                         timeout=REQUEST_TIMEOUT)
                 self.assertEqual(data, response.content)
                 self.assertEqual(response.status_code, http.HTTPStatus.OK)
                 self.assertEqual(response.headers['Content-Type'],
