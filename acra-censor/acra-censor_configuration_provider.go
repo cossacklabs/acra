@@ -32,11 +32,8 @@ func (acraCensor *AcraCensor) LoadConfiguration(configuration []byte) error {
 	for _, handlerConfiguration := range censorConfiguration.Handlers {
 		switch handlerConfiguration.Handler {
 		case WhitelistConfigStr:
-			whitelistHandler := &handlers.WhitelistHandler{}
-			err := whitelistHandler.AddQueries(handlerConfiguration.Queries)
-			if err != nil {
-				return err
-			}
+			whitelistHandler := handlers.NewWhitelistHandler()
+			whitelistHandler.AddQueries(handlerConfiguration.Queries)
 			whitelistHandler.AddTables(handlerConfiguration.Tables)
 			err = whitelistHandler.AddRules(handlerConfiguration.Rules)
 			if err != nil {
@@ -45,11 +42,8 @@ func (acraCensor *AcraCensor) LoadConfiguration(configuration []byte) error {
 			acraCensor.AddHandler(whitelistHandler)
 			break
 		case BlacklistConfigStr:
-			blacklistHandler := &handlers.BlacklistHandler{}
-			err := blacklistHandler.AddQueries(handlerConfiguration.Queries)
-			if err != nil {
-				return err
-			}
+			blacklistHandler := handlers.NewBlacklistHandler()
+			blacklistHandler.AddQueries(handlerConfiguration.Queries)
 			blacklistHandler.AddTables(handlerConfiguration.Tables)
 			err = blacklistHandler.AddRules(handlerConfiguration.Rules)
 			if err != nil {
