@@ -24,6 +24,7 @@ import (
 	"github.com/cossacklabs/acra/utils"
 	log "github.com/sirupsen/logrus"
 	"os"
+	"github.com/cossacklabs/acra/keystore/filesystem"
 )
 
 // DEFAULT_CONFIG_PATH relative path to config which will be parsed as default
@@ -52,7 +53,7 @@ func main() {
 		log.WithError(err).Errorln("can't init scell encryptor")
 		os.Exit(1)
 	}
-	store, err := keystore.NewFilesystemKeyStore(*keysDir, scellEncryptor)
+	store, err := filesystem.NewFilesystemKeyStore(*keysDir, scellEncryptor)
 	if err != nil {
 		log.WithError(err).Errorln("can't initialize key store")
 		os.Exit(1)
@@ -60,6 +61,7 @@ func main() {
 	poisonRecord, err := poison.CreatePoisonRecord(store, *dataLength)
 	if err != nil {
 		log.WithError(err).Errorln("can't create poison record")
+		os.Exit(1)
 	}
 	fmt.Println(base64.StdEncoding.EncodeToString(poisonRecord))
 }

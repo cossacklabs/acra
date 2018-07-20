@@ -22,6 +22,7 @@ import (
 	log "github.com/sirupsen/logrus"
 	"io/ioutil"
 	"os"
+	"github.com/cossacklabs/acra/keystore/filesystem"
 )
 
 // DEFAULT_CONFIG_PATH relative path to config which will be parsed as default
@@ -76,9 +77,9 @@ func main() {
 	}
 	var store keystore.KeyStore
 	if *outputPublicKey != *outputDir {
-		store, err = keystore.NewFilesystemKeyStoreTwoPath(*outputDir, *outputPublicKey, scellEncryptor)
+		store, err = filesystem.NewFilesystemKeyStoreTwoPath(*outputDir, *outputPublicKey, scellEncryptor)
 	} else {
-		store, err = keystore.NewFilesystemKeyStore(*outputDir, scellEncryptor)
+		store, err = filesystem.NewFilesystemKeyStore(*outputDir, scellEncryptor)
 	}
 	if err != nil {
 		panic(err)

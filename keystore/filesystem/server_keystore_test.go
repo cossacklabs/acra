@@ -11,7 +11,7 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-package keystore
+package filesystem
 
 import (
 	"bytes"
@@ -21,6 +21,7 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"github.com/cossacklabs/acra/keystore"
 )
 
 func testGenerateKeyPair(store *FilesystemKeyStore, t *testing.T) {
@@ -201,7 +202,7 @@ func TestFilesystemKeyStore(t *testing.T) {
 		os.RemoveAll(privateKeyDirectory)
 	}()
 
-	encryptor, err := NewSCellKeyEncryptor([]byte("some key"))
+	encryptor, err := keystore.NewSCellKeyEncryptor([]byte("some key"))
 	if err != nil {
 		t.Fatal(err)
 	}

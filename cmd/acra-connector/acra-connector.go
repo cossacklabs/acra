@@ -36,6 +36,7 @@ import (
 	"github.com/cossacklabs/acra/network"
 	"github.com/cossacklabs/acra/utils"
 	"github.com/cossacklabs/acra/cmd/acra-connector/connector-mode"
+	"github.com/cossacklabs/acra/keystore/filesystem"
 )
 
 // DEFAULT_CONFIG_PATH relative path to config which will be parsed as default
@@ -116,9 +117,9 @@ func handleClientConnection(config *Config, connection net.Conn) {
 	select {
 	case err = <-toAcraErrCh:
 		log.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantStartConnection).
-			Errorln("Error from connection with client")
+			WithError(err).Errorln("Error from connection with client")
 	case err = <-fromAcraErrCh:
-		log.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantStartConnection).
+		log.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantStartConnection).WithError(err).
 			Errorln("Error from connection with AcraServer")
 	}
 	if err != nil {
@@ -271,7 +272,7 @@ func main() {
 		log.WithError(err).Errorln("can't init scell encryptor")
 		os.Exit(1)
 	}
-	keyStore, err := keystore.NewConnectorFileSystemKeyStore(*keysDir, []byte(*clientId), scellEncryptor, connectorMode)
+	keyStore, err := filesystem.NewConnectorFileSystemKeyStore(*keysDir, []byte(*clientId), scellEncryptor, connectorMode)
 	if err != nil {
 		log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantInitKeyStore).
 			Errorln("Can't initialize keystore")

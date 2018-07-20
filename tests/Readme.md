@@ -27,6 +27,10 @@ Your database should be up and running.
 pip3 install -r tests/requirements.txt
 ```
 
+# Regenerate grpc code for python
+```
+python -m grpc_tools.protoc -I cmd/acra-translator/grpc_api --python_out=tests/ --grpc_python_out=tests/ cmd/acra-translator/grpc_api/api.proto
+```
 
 # Run tests
 

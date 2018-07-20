@@ -25,6 +25,7 @@ import traceback
 import unittest
 import re
 import stat
+import uuid
 from base64 import b64decode, b64encode
 from tempfile import NamedTemporaryFile
 from urllib.request import urlopen
@@ -32,13 +33,20 @@ from urllib.parse import urlparse
 import collections
 import shutil
 
+import requests
 import psycopg2
 import psycopg2.extras
 import pymysql
 import semver
 import sqlalchemy as sa
+import api_pb2_grpc
+import api_pb2
+import grpc
+from requests.auth import HTTPBasicAuth
 from sqlalchemy.exc import DatabaseError
 from sqlalchemy.dialects.postgresql import BYTEA
+
+from utils import read_storage_public_key
 
 import sys
 # add to path our wrapper until not published to PYPI
@@ -86,6 +94,9 @@ SOCKET_CONNECT_TIMEOUT = 10
 KILL_WAIT_TIMEOUT = 10
 CONNECT_TRY_COUNT = 3
 SQL_EXECUTE_TRY_COUNT = 5
+# http://docs.python-requests.org/en/master/user/advanced/#timeouts
+# use only for requests.* methods
+REQUEST_TIMEOUT = (5, 5)  # connect_timeout, read_timeout
 
 TEST_WITH_TLS = os.environ.get('TEST_TLS', 'off').lower() == 'on'
 
@@ -186,7 +197,7 @@ def manage_basic_auth_user(action, user_name, user_password):
     return subprocess.call(args, cwd=os.getcwd(), timeout=PROCESS_CALL_TIMEOUT)
 
 
-def wait_connection(port, count=10, sleep=0.1):
+def wait_connection(port, count=10, sleep=0.3):
     """try connect to 127.0.0.1:port and close connection
     if can't then sleep on and try again (<count> times)
     if <count> times is failed than raise Exception
@@ -279,6 +290,8 @@ BINARIES = [
     Binary(name='acra-authmanager', from_version=DEFAULT_VERSION,
            build_args=DEFAULT_BUILD_ARGS),
     Binary(name='acra-webconfig', from_version=DEFAULT_VERSION,
+           build_args=DEFAULT_BUILD_ARGS),
+    Binary(name='acra-translator', from_version=DEFAULT_VERSION,
            build_args=DEFAULT_BUILD_ARGS)
 ]
 
@@ -334,6 +347,12 @@ def setUpModule():
 
     # must be before any call of key generators or forks of acra/proxy servers
     os.environ.setdefault(ACRA_MASTER_KEY_VAR_NAME, get_master_key())
+    # drop previously created keys where may exists keys encrypted with another
+    # master key
+    try:
+        shutil.rmtree('.acrakeys')
+    except FileNotFoundError:
+        pass
     # first keypair for using without zones
     assert create_client_keypair('keypair1') == 0
     assert create_client_keypair('keypair2') == 0
@@ -468,6 +487,7 @@ class BaseTestCase(unittest.TestCase):
         if self.DEBUG_LOG:
             args.append('-d=true')
         process = self.fork(lambda: subprocess.Popen(args))
+        wait_connection(http_port)
         return process
 
     def get_connector_tls_params(self):
@@ -1086,9 +1106,6 @@ class TestConnectionClosing(BaseTestCase):
 
 
 class TestKeyNonExistence(BaseTestCase):
-    # 0.05 empirical selected
-    CONNECTOR_STARTUP_DELAY = 0.05
-
     def setUp(self):
         self.checkSkip()
         try:
@@ -1127,6 +1144,16 @@ class TestKeyNonExistence(BaseTestCase):
             if connection:
                 connection.close()
 
+    def checkShutdownAcraConnector(self, process):
+        total_wait_time = 2  # sec
+        poll_interval = 0.1
+        retry = total_wait_time / poll_interval
+        while retry:
+            retry -= 1
+            if process.poll() == 1:
+                return
+            time.sleep(poll_interval)
+
     def test_without_acraconnector_private(self):
         """acra-connector shouldn't start without private key"""
         keyname = 'without_acra-connector_private_test'
@@ -1138,9 +1165,7 @@ class TestKeyNonExistence(BaseTestCase):
             self.connector = self.fork_connector(
                 self.CONNECTOR_PORT_1, self.ACRASERVER_PORT, keyname,
                 check_connection=False)
-            # time for start up connector and validation file existence.
-            time.sleep(self.CONNECTOR_STARTUP_DELAY)
-            self.assertEqual(self.connector.poll(), 1)
+            self.checkShutdownAcraConnector(self.connector)
         finally:
             try:
                 stop_process(self.connector)
@@ -1179,8 +1204,7 @@ class TestKeyNonExistence(BaseTestCase):
                 self.CONNECTOR_PORT_1, self.ACRASERVER_PORT, keyname,
                 check_connection=False)
             # time for start up connector and validation file existence.
-            time.sleep(self.CONNECTOR_STARTUP_DELAY)
-            self.assertEqual(self.connector.poll(), 1)
+            self.checkShutdownAcraConnector(self.connector)
         finally:
             try:
                 stop_process(self.connector)
@@ -1194,8 +1218,12 @@ class BasePoisonRecordTest(BaseTestCase):
 
     def setUp(self):
         super(BasePoisonRecordTest, self).setUp()
-        self.log(POISON_KEY_PATH, get_poison_record(),
-                 b'no matter because poison record')
+        try:
+            self.log(POISON_KEY_PATH, get_poison_record(),
+                     b'no matter because poison record')
+        except:
+            self.tearDown()
+            raise
 
     def fork_acra(self, popen_kwargs: dict=None, **acra_kwargs: dict):
         args = {
@@ -1724,67 +1752,60 @@ class TestAcraWebconfigAcraAuthManager(unittest.TestCase):
 class TestAcraWebconfigWeb(BaseTestCase):
     def setUp(self):
         try:
+            # create auth file with default correct user
+            manage_basic_auth_user('set', ACRAWEBCONFIG_BASIC_AUTH['user'], ACRAWEBCONFIG_BASIC_AUTH['password'])
+            self.acra = self.fork_acra(zonemode_enable='true', http_api_enable='true')
             self.connector_1 = self.fork_connector(
                 self.CONNECTOR_PORT_1, self.ACRASERVER_PORT, 'keypair1', zone_mode=True, api_port=self.CONNECTOR_API_PORT_1)
-            self.acra = self.fork_acra(zonemode_enable='true', http_api_enable='true')
             self.webconfig = self.fork_webconfig(connector_port=self.CONNECTOR_API_PORT_1, http_port=self.ACRAWEBCONFIG_HTTP_PORT)
         except Exception:
             self.tearDown()
             raise
 
     def tearDown(self):
-        try:
-            os.unlink('configs/acra-server.yaml')
-        except Exception as e:
-            print(e)
-        stop_process([self.webconfig])
-        try:
-            subprocess.call(['killall', '--signal=SIGTERM', 'acra-server'], cwd=os.getcwd(), timeout=PROCESS_CALL_TIMEOUT)
-        except Exception as e:
-            print('SIGTERM->acra-server error: {}'.format(e))
-            try:
-                subprocess.call(['killall', '--signal=SIGKILL', 'acra-server'], cwd=os.getcwd(), timeout=PROCESS_CALL_TIMEOUT)
-            except Exception as e:
-                print('SIGKILL->acra-server error: {}'.format(e))
+        stop_process(getattr(self, 'webconfig', ProcessStub()))
         super(TestAcraWebconfigWeb, self).tearDown()
 
     def testAuthAndSubmitSettings(self):
-        import requests
-        import uuid
-        from requests.auth import HTTPBasicAuth
-        # test wrong auth
-        req = requests.post(
-            self.get_acrawebconfig_connection_url(), data={}, timeout=ACRAWEBCONFIG_HTTP_TIMEOUT,
-            auth=HTTPBasicAuth('wrong_user_name', 'wrong_password'))
-        self.assertEqual(req.status_code, 401)
-        req.close()
+        shutil.copy('configs/acra-server.yaml', 'configs/acra-server.yaml.backup')
+        try:
+            # test wrong auth
+            req = requests.post(
+                self.get_acrawebconfig_connection_url(), data={}, timeout=ACRAWEBCONFIG_HTTP_TIMEOUT,
+                auth=HTTPBasicAuth('wrong_user_name', 'wrong_password'))
+            self.assertEqual(req.status_code, 401)
+            req.close()
 
-        # test correct auth
-        req = requests.post(
-            self.get_acrawebconfig_connection_url(), data={}, timeout=ACRAWEBCONFIG_HTTP_TIMEOUT,
-            auth=HTTPBasicAuth(ACRAWEBCONFIG_BASIC_AUTH['user'], ACRAWEBCONFIG_BASIC_AUTH['password']))
-        self.assertEqual(req.status_code, 200)
-        req.close()
+            # test correct auth
+            req = requests.post(
+                self.get_acrawebconfig_connection_url(), data={}, timeout=ACRAWEBCONFIG_HTTP_TIMEOUT,
+                auth=HTTPBasicAuth(ACRAWEBCONFIG_BASIC_AUTH['user'], ACRAWEBCONFIG_BASIC_AUTH['password']))
+            self.assertEqual(req.status_code, 200)
+            req.close()
 
-        # test submit settings
-        settings = self.ACRAWEBCONFIG_ACRASERVER_PARAMS
-        settings['poison_run_script_file'] = str(uuid.uuid4())
-        print(settings)
-        req = requests.post(
-            "{}/acra-server/submit_setting".format(self.get_acrawebconfig_connection_url()),
-            data=settings,
-            timeout=ACRAWEBCONFIG_HTTP_TIMEOUT,
-            auth=HTTPBasicAuth(ACRAWEBCONFIG_BASIC_AUTH['user'], ACRAWEBCONFIG_BASIC_AUTH['password']))
-        self.assertEqual(req.status_code, 200)
-        req.close()
+            # test submit settings
+            settings = self.ACRAWEBCONFIG_ACRASERVER_PARAMS
+            settings['poison_run_script_file'] = str(uuid.uuid4())
+            print(settings)
+            req = requests.post(
+                "{}/acra-server/submit_setting".format(self.get_acrawebconfig_connection_url()),
+                data=settings,
+                timeout=ACRAWEBCONFIG_HTTP_TIMEOUT,
+                auth=HTTPBasicAuth(ACRAWEBCONFIG_BASIC_AUTH['user'], ACRAWEBCONFIG_BASIC_AUTH['password']))
+            self.assertEqual(req.status_code, 200)
+            req.close()
 
-        # check for new config after acra-server's graceful restart
-        req = requests.post(
-            self.get_acrawebconfig_connection_url(), data={}, timeout=ACRAWEBCONFIG_HTTP_TIMEOUT,
-            auth=HTTPBasicAuth(ACRAWEBCONFIG_BASIC_AUTH['user'], ACRAWEBCONFIG_BASIC_AUTH['password']))
-        self.assertEqual(req.status_code, 200)
-        self.assertIn(settings['poison_run_script_file'], req.text)
-        req.close()
+            # check for new config after acra-server's graceful restart
+            req = requests.post(
+                self.get_acrawebconfig_connection_url(), data={}, timeout=ACRAWEBCONFIG_HTTP_TIMEOUT,
+                auth=HTTPBasicAuth(ACRAWEBCONFIG_BASIC_AUTH['user'], ACRAWEBCONFIG_BASIC_AUTH['password']))
+            self.assertEqual(req.status_code, 200)
+            self.assertIn(settings['poison_run_script_file'], req.text)
+            req.close()
+        finally:
+            # restore changed config
+            os.rename('configs/acra-server.yaml.backup',
+                      'configs/acra-server.yaml')
 
 
 class SSLPostgresqlMixin(AcraCatchLogsMixin):
@@ -2159,6 +2180,224 @@ class TestPostgresqlPreparedStatement(BasePrepareStatementMixin, BaseTestCase):
                 row = cursor.fetchone()
                 row['data'] = row['data'].tobytes()
                 return row
+
+
+class ProcessContextManager(object):
+    """wrap subprocess.Popen result to use as context manager that call
+    stop_process on __exit__
+    """
+    def __init__(self, process):
+        self.process = process
+
+    def __enter__(self):
+        return self.process
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        stop_process(self.process)
+
+
+class BaseAcraTranslatorTest(BaseTestCase):
+
+    def fork_translator(self, translator_kwargs, popen_kwargs=None):
+        from utils import load_default_config
+        default_config = load_default_config("acra-translator")
+        default_args = {
+            'incoming_connection_close_timeout': 0,
+            'incoming_connection_grpc_string': default_config['incoming_connection_grpc_string'].replace('0.0.0.0', '127.0.0.1'),
+            'incoming_connection_http_string': default_config['incoming_connection_http_string'].replace('0.0.0.0', '127.0.0.1'),
+        }
+        default_config.update(default_args)
+        default_config.update(translator_kwargs)
+        if not popen_kwargs:
+            popen_kwargs = {}
+        if self.DEBUG_LOG:
+            default_config['d'] = 1
+        cli_args = ['--{}={}'.format(k, v) for k, v in default_config.items()]
+
+        translator = self.fork(lambda: subprocess.Popen(['./acra-translator'] + cli_args,
+                                                     **popen_kwargs))
+        try:
+            if default_config['incoming_connection_grpc_string']:
+                wait_connection(urlparse(default_config['incoming_connection_grpc_string']).port)
+            if default_config['incoming_connection_http_string']:
+                wait_connection(urlparse(default_config['incoming_connection_http_string']).port)
+        except:
+            stop_process(translator)
+            raise
+        return translator
+
+    def fork_connector(self, connector_port: int, server_port: int, client_id: str, check_connection: bool=True):
+        server_connection = get_tcp_connection_string(server_port)
+        connector_connection = get_tcp_connection_string(connector_port)
+        args = [
+            './acra-connector',
+            '-acratranslator_connection_string={}'.format(server_connection),
+            '-mode=acratranslator',
+             '-client_id={}'.format(client_id),
+            '-incoming_connection_string={}'.format(connector_connection),
+            '-user_check_disable=true'
+        ]
+        if self.DEBUG_LOG:
+            args.append('-v=true')
+        process = self.fork(lambda: subprocess.Popen(args))
+        if check_connection:
+            try:
+                wait_connection(connector_port)
+            except:
+                stop_process(process)
+                raise
+        return process
+
+    def checkSkip(self):
+        return
+
+    def setUp(self):
+        self.checkSkip()
+
+    def grpc_decrypt_request(self, port, client_id, zone_id, acrastruct):
+        channel = grpc.insecure_channel('127.0.0.1:{}'.format(port))
+        stub = api_pb2_grpc.ReaderStub(channel)
+        try:
+            if zone_id:
+                response = stub.Decrypt(api_pb2.DecryptRequest(zone_id=zone_id.encode('ascii'), acrastruct=acrastruct))
+            else:
+                response = stub.Decrypt(api_pb2.DecryptRequest(client_id=client_id.encode('ascii'), acrastruct=acrastruct))
+        except grpc.RpcError:
+            return b''
+        return response.data
+
+    def http_decrypt_request(self, port, client_id, zone_id, acrastruct):
+        api_url = 'http://127.0.0.1:{}/v1/decrypt'.format(port)
+        if zone_id:
+            api_url = '{}?zone_id={}'.format(api_url, zone_id)
+        with requests.post(api_url, data=acrastruct, timeout=REQUEST_TIMEOUT) as response:
+            return response.content
+
+    def _testApiDecryption(self, request_func, use_http=False, use_grpc=False):
+        # one is set
+        self.assertTrue(use_http or use_grpc)
+        # two is not acceptable
+        self.assertFalse(use_http and use_grpc)
+        translator_port = 3456
+        connector_port = 12345
+        data = self.get_random_data().encode('ascii')
+        encryption_key = read_storage_public_key('keypair1')
+        acrastruct = create_acrastruct(data, encryption_key)
+
+        zone = zones[0]
+        incorrect_zone = zones[1]
+        zone_public = b64decode(zone['public_key'].encode('ascii'))
+        acrastruct_with_zone = create_acrastruct(
+            data, zone_public, context=zone['id'].encode('ascii'))
+        connection_string = 'tcp://127.0.0.1:{}'.format(translator_port)
+        translator_kwargs = {
+            'incoming_connection_http_string': connection_string if use_http else '',
+            # turn off grpc to avoid check connection to it without acra-connector
+            'incoming_connection_grpc_string': connection_string if use_grpc else '',}
+
+        correct_client_id = 'keypair1'
+        incorrect_client_id = 'keypair2'
+        with ProcessContextManager(self.fork_translator(translator_kwargs)):
+            with ProcessContextManager(self.fork_connector(connector_port, translator_port, 'keypair1')):
+                response = request_func(connector_port, correct_client_id, None, acrastruct)
+                self.assertEqual(data, response)
+
+                # test with correct zone id
+                response = request_func(
+                    connector_port, None, zone['id'], acrastruct_with_zone)
+                self.assertEqual(data, response)
+
+                # test with incorrect zone id
+                response = request_func(
+                    connector_port, None, incorrect_zone['id'],
+                    acrastruct_with_zone)
+                self.assertNotEqual(data, response)
+
+            # wait decryption error with incorrect client id
+            with ProcessContextManager(self.fork_connector(connector_port, translator_port, 'keypair2')):
+                response = request_func(connector_port, incorrect_client_id, None, acrastruct)
+                self.assertNotEqual(data, response)
+
+    def testHTTPApiResponses(self):
+        translator_port = 3456
+        connector_port = 8000
+        data = self.get_random_data().encode('ascii')
+        encryption_key = read_storage_public_key('keypair1')
+        acrastruct = create_acrastruct(data, encryption_key)
+        connection_string = 'tcp://127.0.0.1:{}'.format(translator_port)
+        translator_kwargs = {
+            'incoming_connection_http_string': connection_string ,
+        }
+        api_url = 'http://127.0.0.1:{}/v1/decrypt'.format(connector_port)
+        import http
+        with ProcessContextManager(self.fork_translator(translator_kwargs)):
+            with ProcessContextManager(self.fork_connector(connector_port, translator_port, 'keypair1')):
+                # test incorrect HTTP method
+                response = requests.get(api_url, data=acrastruct,
+                                        timeout=REQUEST_TIMEOUT)
+                self.assertEqual(
+                    response.status_code, http.HTTPStatus.METHOD_NOT_ALLOWED)
+                self.assertIn('HTTP method is not allowed, expected POST, got'.lower(),
+                              response.text.lower())
+                self.assertEqual(response.headers['Content-Type'], 'text/plain')
+
+                # test without api version
+                without_version_api_url = api_url.replace('v1/', '')
+                response = requests.post(
+                    without_version_api_url, data=acrastruct,
+                    timeout=REQUEST_TIMEOUT)
+                self.assertEqual(response.status_code,
+                                 http.HTTPStatus.BAD_REQUEST)
+                self.assertIn('Malformed URL, expected /<version>/<endpoint>, got'.lower(),
+                              response.text.lower())
+                self.assertEqual(response.headers['Content-Type'], 'text/plain')
+
+                # incorrect version
+                without_version_api_url = api_url.replace('v1/', 'v2/')
+                response = requests.post(
+                    without_version_api_url, data=acrastruct,
+                    timeout=REQUEST_TIMEOUT)
+                self.assertEqual(response.status_code,
+                                 http.HTTPStatus.BAD_REQUEST)
+                self.assertIn('HTTP request version is not supported: expected v1, got'.lower(),
+                              response.text.lower())
+                self.assertEqual(response.headers['Content-Type'], 'text/plain')
+
+                # incorrect url
+                incorrect_url = 'http://127.0.0.1:{}/v1/someurl'.format(connector_port)
+                response = requests.post(
+                    incorrect_url, data=acrastruct, timeout=REQUEST_TIMEOUT)
+                self.assertEqual(
+                    response.status_code, http.HTTPStatus.BAD_REQUEST)
+                self.assertEqual('HTTP endpoint not supported'.lower(),
+                                 response.text.lower())
+                self.assertEqual(response.headers['Content-Type'], 'text/plain')
+
+
+                # without acrastruct (http body), pass empty byte array as data
+                response = requests.post(api_url, data=b'',
+                                         timeout=REQUEST_TIMEOUT)
+                self.assertEqual(response.status_code,
+                                 http.HTTPStatus.UNPROCESSABLE_ENTITY)
+                self.assertIn("Can't decrypt AcraStruct".lower(),
+                              response.text.lower())
+                self.assertEqual(response.headers['Content-Type'], 'text/plain')
+
+
+                # test with correct acrastruct
+                response = requests.post(api_url, data=acrastruct,
+                                         timeout=REQUEST_TIMEOUT)
+                self.assertEqual(data, response.content)
+                self.assertEqual(response.status_code, http.HTTPStatus.OK)
+                self.assertEqual(response.headers['Content-Type'],
+                                 'application/octet-stream')
+
+    def testGRPCApi(self):
+        self._testApiDecryption(self.grpc_decrypt_request, use_grpc=True)
+
+    def testHTTPApi(self):
+        self._testApiDecryption(self.http_decrypt_request, use_http=True)
+
 
 if __name__ == '__main__':
     unittest.main()
