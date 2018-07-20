@@ -10,11 +10,13 @@ import (
 	"net/http"
 	"net/url"
 	"testing"
+	"github.com/cossacklabs/acra/decryptor/base"
+	"github.com/cossacklabs/acra/poison"
 )
 
 func TestHTTPResponseStatus(t *testing.T) {
 	keyStore := &testKeystore{}
-	httpConnectionsDecryptor, err := NewHTTPConnectionsDecryptor(keyStore)
+	httpConnectionsDecryptor, err := NewHTTPConnectionsDecryptor(keyStore, base.NewPoisonCallbackStorage())
 
 	if err != nil {
 		t.Fatalf("Can't create ReaderServer. err = %v\n", err)
@@ -75,7 +77,7 @@ func TestHTTPResponseStatus(t *testing.T) {
 
 func TestHTTPDecryptionAndResponse(t *testing.T) {
 	keyStore := &testKeystore{}
-	httpConnectionsDecryptor, err := NewHTTPConnectionsDecryptor(keyStore)
+	httpConnectionsDecryptor, err := NewHTTPConnectionsDecryptor(keyStore, base.NewPoisonCallbackStorage())
 
 	if err != nil {
 		t.Fatalf("Can't create ReaderServer. err = %v\n", err)
@@ -100,7 +102,7 @@ func TestHTTPDecryptionAndResponse(t *testing.T) {
 
 	res := httpConnectionsDecryptor.ParseRequestPrepareResponse(logger, &request, clientId)
 	if res.StatusCode != http.StatusUnprocessableEntity {
-		t.Fatalf("Should not be able to decrypt garbage -> Status code should be StatusUnprocessableEntity, got %s\n", res.Status)
+		t.Fatalf(fmt.Sprintf("Should not be able to decrypt garbage -> Status code should be StatusUnprocessableEntity, got %s\n", res.Status))
 	}
 
 	// test without zone
@@ -115,7 +117,7 @@ func TestHTTPDecryptionAndResponse(t *testing.T) {
 
 	res = httpConnectionsDecryptor.ParseRequestPrepareResponse(logger, &request, clientId)
 	if res.StatusCode != http.StatusOK {
-		t.Fatalf("Should be able to decrypt without zone -> Status code should be StatusOK, got %s\n", res.Status)
+		t.Fatalf(fmt.Sprintf("Should be able to decrypt without zone -> Status code should be StatusOK, got %s\n", res.Status))
 	}
 
 	decryptedAcraStruct, err := ioutil.ReadAll(res.Body)
@@ -140,7 +142,7 @@ func TestHTTPDecryptionAndResponse(t *testing.T) {
 
 	res = httpConnectionsDecryptor.ParseRequestPrepareResponse(logger, &request, clientId)
 	if res.StatusCode != http.StatusOK {
-		t.Fatalf("Should be able to decrypt with zone -> Status code should be StatusOK, got %s\n", res.Status)
+		t.Fatalf(fmt.Sprintf("Should be able to decrypt with zone -> Status code should be StatusOK, got %s\n", res.Status))
 	}
 
 	decryptedAcraStructWithZone, err := ioutil.ReadAll(res.Body)
@@ -151,11 +153,51 @@ func TestHTTPDecryptionAndResponse(t *testing.T) {
 	if !bytes.Equal(decryptedAcraStructWithZone, data) {
 		t.Fatal("Response data not equal to initial data")
 	}
+
+	poisonKeyPair, err := keys.New(keys.KEYTYPE_EC)
+	if err != nil {
+		t.Fatal(err)
+	}
+	keyStore.PoisonKeyPair = poisonKeyPair
+	poisonRecord, err := poison.CreatePoisonRecord(keyStore, 50)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// check without zone
+	request.Body = ioutil.NopCloser(bytes.NewReader(poisonRecord))
+	request.URL, _ = url.Parse("http://smth.com/v1/decrypt")
+	res = httpConnectionsDecryptor.ParseRequestPrepareResponse(logger, &request, clientId)
+	if res.StatusCode != http.StatusUnprocessableEntity {
+		t.Fatalf(fmt.Sprintf("Should not be able to decrypt poison record -> Status code should be StatusUnprocessableEntity, got %s\n", res.Status))
+	}
+	decryptedAcraStruct, err = ioutil.ReadAll(res.Body)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Equal(decryptedAcraStruct, []byte("Can't decrypt AcraStruct")) {
+		t.Fatal("Incorrect response body")
+	}
+
+	// check without zone
+	request.Body = ioutil.NopCloser(bytes.NewReader(poisonRecord))
+	request.URL, _ = url.Parse(fmt.Sprintf("http://smth.com/v1/decrypt?zone_id=%s", zoneId))
+	res = httpConnectionsDecryptor.ParseRequestPrepareResponse(logger, &request, clientId)
+	if res.StatusCode != http.StatusUnprocessableEntity {
+		t.Fatalf(fmt.Sprintf("Should not be able to decrypt poison record -> Status code should be StatusUnprocessableEntity, got %s\n", res.Status))
+	}
+	decryptedAcraStruct, err = ioutil.ReadAll(res.Body)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Equal(decryptedAcraStruct, []byte("Can't decrypt AcraStruct")) {
+		t.Fatal("Incorrect response body")
+	}
 }
 
 func TestHTTPDecryptionAcraStruct(t *testing.T) {
 	keyStore := &testKeystore{}
-	httpConnectionsDecryptor, err := NewHTTPConnectionsDecryptor(keyStore)
+	httpConnectionsDecryptor, err := NewHTTPConnectionsDecryptor(keyStore, base.NewPoisonCallbackStorage())
 
 	if err != nil {
 		t.Fatalf("Can't create ReaderServer. err = %v\n", err)

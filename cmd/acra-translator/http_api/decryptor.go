@@ -18,29 +18,24 @@ import (
 
 type HTTPConnectionsDecryptor struct {
 	keystorage keystore.KeyStore
+	poisonCallbacks *base.PoisonCallbackStorage
 }
 
-func NewHTTPConnectionsDecryptor(keystorage keystore.KeyStore) (*HTTPConnectionsDecryptor, error) {
-	return &HTTPConnectionsDecryptor{keystorage: keystorage}, nil
+func NewHTTPConnectionsDecryptor(keystorage keystore.KeyStore, poisonRecordCallbacks *base.PoisonCallbackStorage) (*HTTPConnectionsDecryptor, error) {
+	return &HTTPConnectionsDecryptor{keystorage: keystorage, poisonCallbacks: poisonRecordCallbacks}, nil
 }
 
 func (decryptor *HTTPConnectionsDecryptor) SendResponse(logger *log.Entry, response *http.Response, connection net.Conn) {
-	r, err := ioutil.ReadAll(response.Body)
+	outBuffer := bytes.NewBuffer(make([]byte, response.ContentLength))
+	err := response.Write(outBuffer)
 	if err != nil {
 		logger.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorTranslatorCantReturnResponse).
-			Warningln("Can't read response body")
+			Warningln("Can't write response to buffer")
 	}
-	err = response.Body.Close()
-
+	err = response.Write(connection)
 	if err != nil {
 		logger.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorTranslatorCantReturnResponse).
-			Warningln("Can't convert response to binary")
-	} else {
-		_, err = connection.Write(r)
-		if err != nil {
-			logger.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorTranslatorCantReturnResponse).
-				Warningln("Can't write response to HTTP request")
-		}
+			Warningln("Can't write response to buffer")
 	}
 }
 
@@ -112,7 +107,23 @@ func (decryptor *HTTPConnectionsDecryptor) ParseRequestPrepareResponse(logger *l
 		if err != nil {
 			msg := fmt.Sprintf("Can't decrypt AcraStruct")
 			logger.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorTranslatorCantDecryptAcraStruct).Warningln(msg)
-			return responseWithMessage(request, http.StatusUnprocessableEntity, msg)
+			response := responseWithMessage(request, http.StatusUnprocessableEntity, msg)
+			// check poison records
+			poisoned, err := base.CheckPoisonRecord(acraStruct, decryptor.keystorage)
+			if err != nil {
+				logger.WithError(err).Errorln("Can't check is it poison record")
+				return response
+			}
+			if poisoned {
+				logger.Errorln("Recognized poison record")
+				if decryptor.poisonCallbacks.HasCallbacks() {
+					if err := decryptor.poisonCallbacks.Call(); err != nil {
+						logger.WithError(err).Errorln("Unexpected error on poison record's callbacks")
+					}
+				}
+				return response
+			}
+			return response
 		}
 
 		logger.Infof("Decrypted AcraStruct for client_id=%s zone_id=%s", clientId, zoneId)

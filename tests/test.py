@@ -1240,7 +1240,6 @@ class TestPoisonRecordShutdown(BasePoisonRecordTest):
                 if row['id'] == row_id and row['data'] == data:
                     self.fail("unexpected response")
 
-
     def testShutdown3(self):
         """check working poison record callback on full select inside another data"""
         row_id = self.get_random_id()
