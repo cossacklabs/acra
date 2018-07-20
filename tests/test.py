@@ -1106,9 +1106,6 @@ class TestConnectionClosing(BaseTestCase):
 
 
 class TestKeyNonExistence(BaseTestCase):
-    # 0.05 empirical selected
-    CONNECTOR_STARTUP_DELAY = 0.05
-
     def setUp(self):
         self.checkSkip()
         try:
@@ -1147,6 +1144,16 @@ class TestKeyNonExistence(BaseTestCase):
             if connection:
                 connection.close()
 
+    def checkShutdownAcraConnector(self, process):
+        total_wait_time = 2  # sec
+        poll_interval = 0.1
+        retry = total_wait_time / poll_interval
+        while retry:
+            retry -= 1
+            if process.poll() == 1:
+                return
+            time.sleep(poll_interval)
+
     def test_without_acraconnector_private(self):
         """acra-connector shouldn't start without private key"""
         keyname = 'without_acra-connector_private_test'
@@ -1158,9 +1165,7 @@ class TestKeyNonExistence(BaseTestCase):
             self.connector = self.fork_connector(
                 self.CONNECTOR_PORT_1, self.ACRASERVER_PORT, keyname,
                 check_connection=False)
-            # time for start up connector and validation file existence.
-            time.sleep(self.CONNECTOR_STARTUP_DELAY)
-            self.assertEqual(self.connector.poll(), 1)
+            self.checkShutdownAcraConnector(self.connector)
         finally:
             try:
                 stop_process(self.connector)
@@ -1199,8 +1204,7 @@ class TestKeyNonExistence(BaseTestCase):
                 self.CONNECTOR_PORT_1, self.ACRASERVER_PORT, keyname,
                 check_connection=False)
             # time for start up connector and validation file existence.
-            time.sleep(self.CONNECTOR_STARTUP_DELAY)
-            self.assertEqual(self.connector.poll(), 1)
+            self.checkShutdownAcraConnector(self.connector)
         finally:
             try:
                 stop_process(self.connector)
