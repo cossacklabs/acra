@@ -74,7 +74,7 @@ zones = []
 poison_record = None
 master_key = None
 ACRA_MASTER_KEY_VAR_NAME = 'ACRA_MASTER_KEY'
-MASTER_KEY_PATH = 'master.key'
+MASTER_KEY_PATH = '/tmp/acra-test-master.key'
 
 ACRAWEBCONFIG_HTTP_PORT = 8022
 ACRAWEBCONFIG_AUTH_DB_PATH = 'auth.keys'
