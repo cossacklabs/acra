@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"net"
+	"os"
 	"time"
 
 	"bufio"
@@ -48,7 +49,10 @@ func (server *ReaderServer) Stop() {
 		cancelFunc()
 	}
 	// non block stop
-	go server.grpcServer.GracefulStop()
+	if server.grpcServer != nil {
+		go server.grpcServer.GracefulStop()
+	}
+
 	if server.connectionManager.Counter != 0 {
 		log.Infof("Wait ending current connections (%v)", server.connectionManager.Counter)
 		// wait existing connections to end request
@@ -56,8 +60,10 @@ func (server *ReaderServer) Stop() {
 	}
 
 	log.Infof("Stop all connections that not closed (%v)", server.connectionManager.Counter)
-	// force stop of grpc server
-	server.grpcServer.Stop()
+	if server.grpcServer != nil {
+		// force stop of grpc server
+		server.grpcServer.Stop()
+	}
 	// force close all connections
 	if err := server.connectionManager.CloseConnections(); err != nil {
 		log.WithError(err).Errorln("Took error on closing available connections")
@@ -110,12 +116,12 @@ func (server *ReaderServer) HandleConnectionString(parentContext context.Context
 				}
 				continue
 			}
-			logger = logger.WithField("client_id", clientId)
+			logger = logger.WithField("client_id", string(clientId))
 			logger.Debugln("Pass wrapped connection to processing function")
 			logging.SetLoggerToContext(parentContext, logger)
 
 			go func() {
-				defer func () {
+				defer func() {
 					err := wrappedConnection.Close()
 					if err != nil {
 						logger.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorTranslatorCantCloseConnection).
@@ -129,7 +135,7 @@ func (server *ReaderServer) HandleConnectionString(parentContext context.Context
 						Errorln("Can't add connection to connection manager")
 					return
 				}
-				
+
 				processingFunc(parentContext, clientId, wrappedConnection)
 
 				if err := server.connectionManager.RemoveConnection(wrappedConnection); err != nil {
@@ -145,7 +151,9 @@ func (server *ReaderServer) HandleConnectionString(parentContext context.Context
 		log.WithError(parentContext.Err()).Debugln("Exit from handling connection string. Close all connections")
 	case outErr = <-errCh:
 		log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorTranslatorCantAcceptNewHTTPConnection).
-		Errorln("Error on accepting new connections")
+			Errorln("Error on accepting new connections")
+		server.Stop()
+		os.Exit(1)
 
 	}
 	return outErr
@@ -185,6 +193,7 @@ func (server *ReaderServer) Start(parentContext context.Context) {
 	if server.config.incomingConnectionGRPCString != "" {
 		go func() {
 			grpcLogger := logger.WithField(CONNECTION_TYPE_KEY, GRPC_CONNECTION_TYPE)
+			logger.WithField("connection_string", server.config.incomingConnectionGRPCString).Infof("Start process grpc requests")
 			secureSessionListener, err := network.NewSecureSessionListener(server.config.incomingConnectionGRPCString, server.keystorage)
 			if err != nil {
 				grpcLogger.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorTranslatorCantHandleGRPCConnection).
@@ -204,6 +213,8 @@ func (server *ReaderServer) Start(parentContext context.Context) {
 			reflection.Register(grpcServer)
 			if err := grpcServer.Serve(secureSessionListener); err != nil {
 				grpcLogger.Errorf("failed to serve: %v", err)
+				server.Stop()
+				os.Exit(1)
 				return
 			}
 		}()

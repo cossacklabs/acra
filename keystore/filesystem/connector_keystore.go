@@ -1,4 +1,4 @@
-package keystore
+package filesystem
 
 import (
 	"github.com/cossacklabs/themis/gothemis/keys"
@@ -6,16 +6,17 @@ import (
 	"path/filepath"
 	"github.com/cossacklabs/acra/cmd/acra-connector/connector-mode"
 	"errors"
+	"github.com/cossacklabs/acra/keystore"
 )
 
 type ConnectorFileSystemKeyStore struct {
 	directory     string
 	clientId      []byte
-	encryptor     KeyEncryptor
+	encryptor     keystore.KeyEncryptor
 	connectorMode connector_mode.ConnectorMode
 }
 
-func NewConnectorFileSystemKeyStore(directory string, clientId []byte, encryptor KeyEncryptor, mode connector_mode.ConnectorMode) (*ConnectorFileSystemKeyStore, error) {
+func NewConnectorFileSystemKeyStore(directory string, clientId []byte, encryptor keystore.KeyEncryptor, mode connector_mode.ConnectorMode) (*ConnectorFileSystemKeyStore, error) {
 	return &ConnectorFileSystemKeyStore{directory: directory, clientId: clientId, encryptor: encryptor, connectorMode: mode}, nil
 }
 

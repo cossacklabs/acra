@@ -24,6 +24,7 @@ import (
 	"github.com/cossacklabs/themis/gothemis/keys"
 	"github.com/cossacklabs/themis/gothemis/session"
 	log "github.com/sirupsen/logrus"
+	"time"
 )
 
 type SessionCallback struct {
@@ -48,8 +49,8 @@ func NewSessionCallback(keystorage keystore.SecureSessionKeyStore) (*SessionCall
 }
 
 type secureSessionConnection struct {
-	keystore keystore.SecureSessionKeyStore
-	session  *session.SecureSession
+	keystore      keystore.SecureSessionKeyStore
+	session       *session.SecureSession
 	net.Conn
 	currentData   []byte
 	returnedIndex int
@@ -123,13 +124,56 @@ func (wrapper *secureSessionConnection) Close() error {
 	return err
 }
 
+// ConnectionWrapError wrap error and always return true on net.Error.Temporary and false on net.Error.Timeout
+type ConnectionWrapError struct{ error }
+
+// NewConnectionWrapError wrap err with ConnectionWrapError
+func NewConnectionWrapError(err error) error {
+	if err == nil {
+		return nil
+	}
+	return &ConnectionWrapError{err}
+}
+
+// Error value of wrapped error
+func (err *ConnectionWrapError) Error() string {
+	return err.error.Error()
+}
+
+// Timeout return Timeout() of wrapped error or false
+func (err *ConnectionWrapError) Timeout() bool {
+	netErr, ok := err.error.(net.Error)
+	if ok {
+		return netErr.Timeout()
+	}
+	return false
+}
+
+// Temporary always true
+func (err *ConnectionWrapError) Temporary() bool {
+	return true
+}
+
+// SECURE_SESSION_ESTABLISHING_TIMEOUT timeout for secure session handshake that should be enough
+const SECURE_SESSION_ESTABLISHING_TIMEOUT = time.Second * 10
+
 type SecureSessionConnectionWrapper struct {
-	keystore keystore.SecureSessionKeyStore
-	clientId []byte
+	keystore         keystore.SecureSessionKeyStore
+	clientId         []byte
+	handshakeTimeout time.Duration
 }
 
 func NewSecureSessionConnectionWrapper(keystore keystore.SecureSessionKeyStore) (*SecureSessionConnectionWrapper, error) {
-	return &SecureSessionConnectionWrapper{keystore: keystore, clientId: nil}, nil
+	return &SecureSessionConnectionWrapper{keystore: keystore, clientId: nil, handshakeTimeout: SECURE_SESSION_ESTABLISHING_TIMEOUT}, nil
+}
+
+// SetHandshakeTimeout set handshakeTimeout that will be used for secure session handshake. 0 - without handshakeTimeout
+func (wrapper *SecureSessionConnectionWrapper) SetHandshakeTimeout(time time.Duration) {
+	wrapper.handshakeTimeout = time
+}
+
+func (wrapper *SecureSessionConnectionWrapper) hasHandshakeTimeout() bool {
+	return wrapper.handshakeTimeout != 0
 }
 
 func (wrapper *SecureSessionConnectionWrapper) wrap(id []byte, conn net.Conn, isServer bool) (net.Conn, []byte, error) {
@@ -205,10 +249,39 @@ func (wrapper *SecureSessionConnectionWrapper) wrap(id []byte, conn net.Conn, is
 
 func (wrapper *SecureSessionConnectionWrapper) WrapClient(id []byte, conn net.Conn) (net.Conn, error) {
 	log.Debugln("wrap client connection with secure session")
+	if wrapper.hasHandshakeTimeout() {
+		if err := conn.SetDeadline(time.Now().Add(wrapper.handshakeTimeout)); err != nil {
+			log.WithError(err).Errorln("Can't set deadline for secure session handshake")
+			return nil, err
+		}
+	}
 	newConn, _, err := wrapper.wrap(id, conn, false)
-	return newConn, err
+	if wrapper.hasHandshakeTimeout() {
+		// reset deadline
+		if err := conn.SetDeadline(time.Time{}); err != nil {
+			log.WithError(err).Errorln("Can't reset deadline after secure session handshake")
+			return nil, err
+		}
+	}
+	log.Debugln("wrap client connection with secure session finished")
+	return newConn, NewConnectionWrapError(err)
 }
 func (wrapper *SecureSessionConnectionWrapper) WrapServer(conn net.Conn) (net.Conn, []byte, error) {
 	log.Debugln("wrap server connection with secure session")
-	return wrapper.wrap(nil, conn, true)
+	if wrapper.hasHandshakeTimeout() {
+		if err := conn.SetDeadline(time.Now().Add(wrapper.handshakeTimeout)); err != nil {
+			log.WithError(err).Errorln("Can't set deadline for secure session handshake")
+			return nil, nil, err
+		}
+	}
+	newConn, clientId, err := wrapper.wrap(nil, conn, true)
+	if wrapper.hasHandshakeTimeout() {
+		// reset deadline
+		if err := conn.SetDeadline(time.Time{}); err != nil {
+			log.WithError(err).Errorln("Can't reset deadline after secure session handshake")
+			return nil, nil, err
+		}
+	}
+	log.Debugln("wrap server connection with secure session finished")
+	return newConn, clientId, NewConnectionWrapError(err)
 }

@@ -232,11 +232,11 @@ func (server *SServer) StartFromFileDescriptor(fd uintptr) {
 		if err != nil {
 			if nerr, ok := err.(net.Error); ok && nerr.Timeout() {
 				log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorConnectionDroppedByTimeout).
-					Errorf("Stop accepting new connections", connection)
+					Errorf("Stop accepting new connections")
 				return
 			}
 			log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantAcceptNewConnections).
-				Errorf("Can't accept new connection (connection=%v)", connection)
+				Errorf("Can't accept new connection")
 			continue
 		}
 		// unix socket and value == '@'

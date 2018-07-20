@@ -27,6 +27,7 @@ import (
 	"github.com/cossacklabs/acra/network"
 	"github.com/cossacklabs/acra/utils"
 	log "github.com/sirupsen/logrus"
+	"github.com/cossacklabs/acra/keystore/filesystem"
 )
 
 const (
@@ -100,7 +101,7 @@ func main() {
 		log.WithError(err).Errorln("can't init scell encryptor")
 		os.Exit(1)
 	}
-	keyStore, err := keystore.NewFilesystemKeyStore(*keysDir, scellEncryptor)
+	keyStore, err := filesystem.NewTranslatorFileSystemKeyStore(*keysDir, scellEncryptor)
 	if err != nil {
 		log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantInitKeyStore).
 			Errorln("Can't initialise keystore")
