@@ -608,9 +608,8 @@ func TestQueryCapture(t *testing.T) {
 		t.Fatal("Expected: " + expected + "\nGot: " + string(result))
 	}
 
-
 	//Check that values are hidden while logging
-	testQuery = "SELECT * FROM Z WHERE ID=200;"
+	testQuery = "select songName from t where personName in ('Ryan', 'Holly') group by songName having count(distinct personName) = 2"
 
 	handler.CheckQuery(testQuery)
 
@@ -622,15 +621,22 @@ func TestQueryCapture(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	expected = "{\"RawQuery\":\"SELECT Student_ID FROM STUDENT\",\"IsForbidden\":false}\n" +
+	expectedPrefix := "{\"RawQuery\":\"SELECT Student_ID FROM STUDENT\",\"IsForbidden\":false}\n" +
 		"{\"RawQuery\":\"SELECT * FROM STUDENT\",\"IsForbidden\":false}\n" +
 		"{\"RawQuery\":\"SELECT * FROM X\",\"IsForbidden\":false}\n" +
 		"{\"RawQuery\":\"SELECT * FROM Y\",\"IsForbidden\":false}\n" +
 		"{\"RawQuery\":\"SELECT * FROM Z\",\"IsForbidden\":false}\n" +
-		"{\"RawQuery\":\"SELECT * FROM Z WHERE ID = :redacted1\",\"IsForbidden\":false}\n"
+		"{\"RawQuery\":\"select songName from t where personName in"
 
-	if !strings.EqualFold(strings.ToUpper(expected), strings.ToUpper(string(result))){
+	if !strings.HasPrefix(strings.ToUpper(string(result)), strings.ToUpper(expectedPrefix)){
 		t.Fatal("Expected: " + expected + "\nGot: " + string(result))
+	}
+
+	suffix := strings.TrimPrefix(strings.ToUpper(string(result)), strings.ToUpper(expectedPrefix))
+
+	//we expect TWO placeholders here: instead of "('Ryan', 'Holly')" and instead of "2"
+	if strings.Count(suffix, handlers.ValuePlaceholder) != 2{
+		t.Fatal("unexpected placeholder values in following: " + string(result))
 	}
 
 	if err = os.Remove(tmpFile.Name()); err != nil {

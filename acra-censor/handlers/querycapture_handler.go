@@ -13,9 +13,11 @@ import (
 	"github.com/cossacklabs/acra/logging"
 	log "github.com/sirupsen/logrus"
 	"github.com/xwb1989/sqlparser"
+	"github.com/xwb1989/sqlparser/dependency/querypb"
 )
 
 const DefaultSerializationTimeout = time.Second
+const ValuePlaceholder = "X"
 
 type QueryCaptureHandler struct {
 	Queries              []*QueryInfo
@@ -101,7 +103,6 @@ func (handler *QueryCaptureHandler) CheckQuery(query string) (bool, error) {
 			return true, nil
 		}
 	}
-	//query = strings.ToLower(strings.TrimSuffix(query, ";"))
 	queryInfo := &QueryInfo{}
 	queryInfo.RawQuery = query
 	queryInfo.IsForbidden = false
@@ -222,7 +223,7 @@ func SerializeQueries(queries []*QueryInfo) ([]byte, error) {
 	var linesToAppend []byte
 	var tempQueryInfo = &QueryInfo{}
 	for _, queryInfo := range queries {
-		queryWithHiddenValues, err := sqlparser.RedactSQLQuery(queryInfo.RawQuery)
+		queryWithHiddenValues, err := RedactSQLQuery(queryInfo.RawQuery)
 		if err != nil {
 			return nil, ErrQuerySyntaxError
 		}
@@ -262,4 +263,20 @@ func ReadQueries(filePath string) ([]*QueryInfo, error) {
 		}
 	}
 	return queries, nil
+}
+
+
+// RedactSQLQuery returns a sql string with the params stripped out for display. Taken from sqlparser package
+func RedactSQLQuery(sql string) (string, error) {
+	bv := map[string]*querypb.BindVariable{}
+	sqlStripped, comments := sqlparser.SplitMarginComments(sql)
+
+	stmt, err := sqlparser.Parse(sqlStripped)
+	if err != nil {
+		return "", err
+	}
+
+	sqlparser.Normalize(stmt, bv, ValuePlaceholder)
+
+	return comments.Leading + sqlparser.String(stmt) + comments.Trailing, nil
 }
