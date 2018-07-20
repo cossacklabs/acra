@@ -10,7 +10,6 @@ import (
 
 	"github.com/cossacklabs/acra/acra-censor/handlers"
 	"github.com/cossacklabs/acra/utils"
-
 )
 
 func TestWhitelistQueries(t *testing.T) {
@@ -609,12 +608,12 @@ func TestQueryCapture(t *testing.T) {
 	}
 
 	//Check that values are hidden while logging
-	testQuery = "select songName from t where personName in ('Ryan', 'Holly') group by songName having count(distinct personName) = 2"
+	testQuery = "select songName from t where personName in ('Ryan', 'Holly') group by songName having count(distinct personName) = 10"
 
 	handler.CheckQuery(testQuery)
 
 	//wait until serialization completes
-	time.Sleep(handler.GetSerializationTimeout() + 10 * time.Millisecond)
+	time.Sleep(handler.GetSerializationTimeout() + 10*time.Millisecond)
 
 	result, err = ioutil.ReadFile(tmpFile.Name())
 	if err != nil {
@@ -628,15 +627,17 @@ func TestQueryCapture(t *testing.T) {
 		"{\"RawQuery\":\"SELECT * FROM Z\",\"IsForbidden\":false}\n" +
 		"{\"RawQuery\":\"select songName from t where personName in"
 
-	if !strings.HasPrefix(strings.ToUpper(string(result)), strings.ToUpper(expectedPrefix)){
-		t.Fatal("Expected: " + expected + "\nGot: " + string(result))
-	}
-
 	suffix := strings.TrimPrefix(strings.ToUpper(string(result)), strings.ToUpper(expectedPrefix))
 
 	//we expect TWO placeholders here: instead of "('Ryan', 'Holly')" and instead of "2"
-	if strings.Count(suffix, handlers.ValuePlaceholder) != 2{
+	if strings.Count(suffix, handlers.ValuePlaceholder) != 2 {
 		t.Fatal("unexpected placeholder values in following: " + string(result))
+	}
+
+	if strings.Contains(strings.ToUpper(string(result)), strings.ToUpper("Ryan")) ||
+		strings.Contains(strings.ToUpper(string(result)), strings.ToUpper("Holly")) ||
+		strings.Contains(strings.ToUpper(string(result)), strings.ToUpper("10")) {
+		t.Fatal("values detected in logs: " + string(result))
 	}
 
 	if err = os.Remove(tmpFile.Name()); err != nil {

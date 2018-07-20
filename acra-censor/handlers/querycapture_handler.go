@@ -265,7 +265,6 @@ func ReadQueries(filePath string) ([]*QueryInfo, error) {
 	return queries, nil
 }
 
-
 // RedactSQLQuery returns a sql string with the params stripped out for display. Taken from sqlparser package
 func RedactSQLQuery(sql string) (string, error) {
 	bv := map[string]*querypb.BindVariable{}
