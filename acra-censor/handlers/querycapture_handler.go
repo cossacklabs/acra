@@ -12,6 +12,7 @@ import (
 	"bytes"
 	"github.com/cossacklabs/acra/logging"
 	log "github.com/sirupsen/logrus"
+	"github.com/xwb1989/sqlparser"
 )
 
 const DefaultSerializationTimeout = time.Second
@@ -100,6 +101,7 @@ func (handler *QueryCaptureHandler) CheckQuery(query string) (bool, error) {
 			return true, nil
 		}
 	}
+	//query = strings.ToLower(strings.TrimSuffix(query, ";"))
 	queryInfo := &QueryInfo{}
 	queryInfo.RawQuery = query
 	queryInfo.IsForbidden = false
@@ -204,7 +206,6 @@ func AppendQueries(queries []*QueryInfo, openedFile *os.File) error {
 	if len(queries) == 0 {
 		return nil
 	}
-
 	lines, err := SerializeQueries(queries)
 	if err != nil {
 		return err
@@ -219,8 +220,15 @@ func AppendQueries(queries []*QueryInfo, openedFile *os.File) error {
 
 func SerializeQueries(queries []*QueryInfo) ([]byte, error) {
 	var linesToAppend []byte
+	var tempQueryInfo = &QueryInfo{}
 	for _, queryInfo := range queries {
-		jsonQueryInfo, err := json.Marshal(queryInfo)
+		queryWithHiddenValues, err := sqlparser.RedactSQLQuery(queryInfo.RawQuery)
+		if err != nil {
+			return nil, ErrQuerySyntaxError
+		}
+		tempQueryInfo.RawQuery = queryWithHiddenValues
+		tempQueryInfo.IsForbidden = queryInfo.IsForbidden
+		jsonQueryInfo, err := json.Marshal(tempQueryInfo)
 		if err != nil {
 			return nil, err
 		}
