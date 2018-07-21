@@ -460,7 +460,7 @@ func TestSerialization(t *testing.T) {
 		t.Fatal("Expected: " + strings.Join(testQueries, " | ") + "\nGot: " + strings.Join(handler.GetAllInputQueries(), " | "))
 	}
 	for index, query := range handler.GetAllInputQueries() {
-		if testQueries[index] != query {
+		if strings.EqualFold(testQueries[index], query) {
 			t.Fatal("Expected: " + testQueries[index] + "\nGot: " + query)
 		}
 	}
@@ -500,14 +500,14 @@ func TestLogging(t *testing.T) {
 	if err = tmpFile.Close(); err != nil {
 		t.Fatal(err)
 	}
-	loggingHandler, err := handlers.NewQueryCaptureHandler(tmpFile.Name())
+	captureHandler, err := handlers.NewQueryCaptureHandler(tmpFile.Name())
 	if err != nil {
 		t.Fatal(err)
 	}
 	blacklist := handlers.NewBlacklistHandler()
 	acraCensor := &AcraCensor{}
 	defer acraCensor.ReleaseAll()
-	acraCensor.AddHandler(loggingHandler)
+	acraCensor.AddHandler(captureHandler)
 	acraCensor.AddHandler(blacklist)
 	for _, testQuery := range testQueries {
 		err = acraCensor.HandleQuery(testQuery)
@@ -515,11 +515,12 @@ func TestLogging(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	loggingHandler.MarkQueryAsForbidden(testQueries[0])
-	loggingHandler.MarkQueryAsForbidden(testQueries[1])
-	loggingHandler.MarkQueryAsForbidden(testQueries[2])
-	loggingHandler.DumpAllQueriesToFile()
-	blacklist.AddQueries(loggingHandler.GetForbiddenQueries())
+	captureHandler.MarkQueryAsForbidden(testQueries[0])
+	captureHandler.MarkQueryAsForbidden(testQueries[1])
+	captureHandler.MarkQueryAsForbidden(testQueries[2])
+	captureHandler.DumpAllQueriesToFile()
+
+	blacklist.AddQueries(captureHandler.GetForbiddenQueries())
 	err = acraCensor.HandleQuery(testQueries[0])
 	if err != handlers.ErrQueryInBlacklist {
 		t.Fatal(err)
@@ -570,10 +571,10 @@ func TestQueryCapture(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	expected := "{\"RawQuery\":\"SELECT Student_ID FROM STUDENT;\",\"IsForbidden\":false}\n" +
-		"{\"RawQuery\":\"SELECT * FROM STUDENT;\",\"IsForbidden\":false}\n" +
-		"{\"RawQuery\":\"SELECT * FROM X;\",\"IsForbidden\":false}\n" +
-		"{\"RawQuery\":\"SELECT * FROM Y;\",\"IsForbidden\":false}\n"
+	expected := "{\"RawQuery\":\"SELECT Student_ID FROM STUDENT\",\"IsForbidden\":false}\n" +
+		"{\"RawQuery\":\"SELECT * FROM STUDENT\",\"IsForbidden\":false}\n" +
+		"{\"RawQuery\":\"SELECT * FROM X\",\"IsForbidden\":false}\n" +
+		"{\"RawQuery\":\"SELECT * FROM Y\",\"IsForbidden\":false}\n"
 
 	defaultTimeout := handler.GetSerializationTimeout()
 	handler.SetSerializationTimeout(50 * time.Millisecond)
@@ -583,7 +584,7 @@ func TestQueryCapture(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !strings.EqualFold(string(result), expected) {
+	if !strings.EqualFold(strings.ToUpper(string(result)), strings.ToUpper(expected)) {
 		t.Fatal("Expected: " + expected + "\nGot: " + string(result))
 	}
 	testQuery := "SELECT * FROM Z;"
@@ -591,20 +592,54 @@ func TestQueryCapture(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	expected = "{\"RawQuery\":\"SELECT Student_ID FROM STUDENT;\",\"IsForbidden\":false}\n" +
-		"{\"RawQuery\":\"SELECT * FROM STUDENT;\",\"IsForbidden\":false}\n" +
-		"{\"RawQuery\":\"SELECT * FROM X;\",\"IsForbidden\":false}\n" +
-		"{\"RawQuery\":\"SELECT * FROM Y;\",\"IsForbidden\":false}\n" +
-		"{\"RawQuery\":\"SELECT * FROM Z;\",\"IsForbidden\":false}\n"
+	expected = "{\"RawQuery\":\"SELECT Student_ID FROM STUDENT\",\"IsForbidden\":false}\n" +
+		"{\"RawQuery\":\"SELECT * FROM STUDENT\",\"IsForbidden\":false}\n" +
+		"{\"RawQuery\":\"SELECT * FROM X\",\"IsForbidden\":false}\n" +
+		"{\"RawQuery\":\"SELECT * FROM Y\",\"IsForbidden\":false}\n" +
+		"{\"RawQuery\":\"SELECT * FROM Z\",\"IsForbidden\":false}\n"
 
 	time.Sleep(handler.GetSerializationTimeout() + extraWaitTime)
 	result, err = ioutil.ReadFile(tmpFile.Name())
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !strings.EqualFold(string(result), expected) {
+	if !strings.EqualFold(strings.ToUpper(string(result)), strings.ToUpper(expected)) {
 		t.Fatal("Expected: " + expected + "\nGot: " + string(result))
 	}
+
+	//Check that values are hidden while logging
+	testQuery = "select songName from t where personName in ('Ryan', 'Holly') group by songName having count(distinct personName) = 10"
+
+	handler.CheckQuery(testQuery)
+
+	//wait until serialization completes
+	time.Sleep(handler.GetSerializationTimeout() + 10*time.Millisecond)
+
+	result, err = ioutil.ReadFile(tmpFile.Name())
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	expectedPrefix := "{\"RawQuery\":\"SELECT Student_ID FROM STUDENT\",\"IsForbidden\":false}\n" +
+		"{\"RawQuery\":\"SELECT * FROM STUDENT\",\"IsForbidden\":false}\n" +
+		"{\"RawQuery\":\"SELECT * FROM X\",\"IsForbidden\":false}\n" +
+		"{\"RawQuery\":\"SELECT * FROM Y\",\"IsForbidden\":false}\n" +
+		"{\"RawQuery\":\"SELECT * FROM Z\",\"IsForbidden\":false}\n" +
+		"{\"RawQuery\":\"select songName from t where personName in"
+
+	suffix := strings.TrimPrefix(strings.ToUpper(string(result)), strings.ToUpper(expectedPrefix))
+
+	//we expect TWO placeholders here: instead of "('Ryan', 'Holly')" and instead of "2"
+	if strings.Count(suffix, handlers.ValuePlaceholder) != 2 {
+		t.Fatal("unexpected placeholder values in following: " + string(result))
+	}
+
+	if strings.Contains(strings.ToUpper(string(result)), strings.ToUpper("Ryan")) ||
+		strings.Contains(strings.ToUpper(string(result)), strings.ToUpper("Holly")) ||
+		strings.Contains(strings.ToUpper(string(result)), strings.ToUpper("10")) {
+		t.Fatal("values detected in logs: " + string(result))
+	}
+
 	if err = os.Remove(tmpFile.Name()); err != nil {
 		t.Fatal(err)
 	}

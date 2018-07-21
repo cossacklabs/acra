@@ -26,6 +26,7 @@ func NewWhitelistHandler() *WhitelistHandler {
 func (handler *WhitelistHandler) CheckQuery(query string) (bool, error) {
 	//Check queries
 	if len(handler.queries) != 0 {
+		//Check that query is in whitelist
 		if !handler.queries[query] {
 			return false, ErrQueryNotInWhitelist
 		}
