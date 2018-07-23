@@ -1,26 +1,32 @@
 package grpc_api
 
 import (
-	"github.com/cossacklabs/acra/utils"
-	context "golang.org/x/net/context"
+	"golang.org/x/net/context"
 
 	"github.com/cossacklabs/acra/decryptor/base"
 	"github.com/cossacklabs/acra/keystore"
 	"github.com/cossacklabs/themis/gothemis/keys"
+	"github.com/sirupsen/logrus"
+	"errors"
+	"github.com/cossacklabs/acra/utils"
 )
 
 type DecryptGRPCService struct {
 	keystorage keystore.KeyStore
+	poisonCallbacks *base.PoisonCallbackStorage
 }
 
-func NewDecryptGRPCService(keystorage keystore.KeyStore) (*DecryptGRPCService, error) {
-	return &DecryptGRPCService{keystorage: keystorage}, nil
+func NewDecryptGRPCService(keystorage keystore.KeyStore, poisonCallbacks *base.PoisonCallbackStorage) (*DecryptGRPCService, error) {
+	return &DecryptGRPCService{keystorage: keystorage, poisonCallbacks:poisonCallbacks}, nil
 }
+
+var ErrCantDecrypt = errors.New("can't decrypt data")
 
 func (service *DecryptGRPCService) Decrypt(ctx context.Context, request *DecryptRequest) (*DecryptResponse, error) {
 	var privateKey *keys.PrivateKey
 	var err error
 	var decryptionContext []byte = nil
+	logger := logrus.WithFields(logrus.Fields{"client_id": string(request.ClientId), "zone_id": string(request.ZoneId)})
 	if len(request.ZoneId) != 0 {
 		privateKey, err = service.keystorage.GetZonePrivateKey(request.ZoneId)
 		decryptionContext = request.ZoneId
@@ -28,12 +34,28 @@ func (service *DecryptGRPCService) Decrypt(ctx context.Context, request *Decrypt
 		privateKey, err = service.keystorage.GetServerDecryptionPrivateKey(request.ClientId)
 	}
 	if err != nil {
-		return nil, err
+		logger.WithError(err).Errorln("Can't load private key for decryption")
+		return nil, ErrCantDecrypt
 	}
-	data, err := base.DecryptAcrastruct(request.Acrastruct, privateKey, decryptionContext)
-	if err != nil {
-		return nil, err
-	}
+	data, decryptErr := base.DecryptAcrastruct(request.Acrastruct, privateKey, decryptionContext)
 	utils.FillSlice(byte(0), privateKey.Value)
+	if decryptErr != nil {
+		logger.WithError(decryptErr).Errorln("Can't decrypt acrastruct")
+		poisoned, err := base.CheckPoisonRecord(request.Acrastruct, service.keystorage)
+		if err != nil {
+			logger.WithError(err).Errorln("Can't check for poison record, possible missing Poison record decryption key")
+			return nil, ErrCantDecrypt
+		}
+		if poisoned {
+			logger.Errorln("Recognized poison record")
+			if service.poisonCallbacks.HasCallbacks() {
+				if err := service.poisonCallbacks.Call(); err != nil {
+					logger.WithError(err).Errorln("Unexpected error on poison record's callbacks")
+				}
+			}
+			return nil, ErrCantDecrypt
+		}
+		return nil, ErrCantDecrypt
+	}
 	return &DecryptResponse{Data: data}, nil
 }

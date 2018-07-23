@@ -7,6 +7,7 @@ import (
 
 type testKeystore struct {
 	PrivateKey *keys.PrivateKey
+	PoisonKeyPair *keys.Keypair
 }
 
 func (*testKeystore) GetPrivateKey(id []byte) (*keys.PrivateKey, error) {
@@ -61,8 +62,13 @@ func (*testKeystore) GenerateDataEncryptionKeys(id []byte) error {
 	panic("implement me")
 }
 
-func (*testKeystore) GetPoisonKeyPair() (*keys.Keypair, error) {
-	panic("implement me")
+func (store *testKeystore) GetPoisonKeyPair() (*keys.Keypair, error) {
+	// if explicitly set for tests
+	if store.PoisonKeyPair != nil {
+		return store.PoisonKeyPair, nil
+	}
+	// we no matter what the key
+	return keys.New(keys.KEYTYPE_EC)
 }
 
 func (*testKeystore) GetAuthKey(remove bool) ([]byte, error) {

@@ -74,7 +74,7 @@ zones = []
 poison_record = None
 master_key = None
 ACRA_MASTER_KEY_VAR_NAME = 'ACRA_MASTER_KEY'
-MASTER_KEY_PATH = 'master.key'
+MASTER_KEY_PATH = '/tmp/acra-test-master.key'
 
 ACRAWEBCONFIG_HTTP_PORT = 8022
 ACRAWEBCONFIG_AUTH_DB_PATH = 'auth.keys'
@@ -1267,7 +1267,6 @@ class TestPoisonRecordShutdown(BasePoisonRecordTest):
             for row in rows:
                 if row['id'] == row_id and row['data'] == data:
                     self.fail("unexpected response")
-
 
     def testShutdown3(self):
         """check working poison record callback on full select inside another data"""

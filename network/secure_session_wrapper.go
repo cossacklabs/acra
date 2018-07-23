@@ -94,9 +94,7 @@ func (wrapper *secureSessionConnection) Read(b []byte) (n int, err error) {
 	return n, nil
 }
 
-// Write writes data to the connection.
-// Write can be made to time out and return a Error with Timeout() == true
-// after a fixed time limit; see SetDeadline and SetWriteDeadline.
+// Write encrypt data with secure session and send it to wrapped connection
 func (wrapper *secureSessionConnection) Write(b []byte) (n int, err error) {
 	wrapper.mutex.Lock()
 	if wrapper.closed {
@@ -119,6 +117,7 @@ func (wrapper *secureSessionConnection) Close() error {
 	wrapper.closed = true
 	err := wrapper.Conn.Close()
 	sessionErr := wrapper.session.Close()
+	log.Debugln("secure session connection closed")
 	if sessionErr != nil {
 		return sessionErr
 	}

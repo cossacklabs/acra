@@ -17,6 +17,7 @@ import (
 	log "github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/reflection"
+	"github.com/cossacklabs/acra/decryptor/base"
 )
 
 type ReaderServer struct {
@@ -166,10 +167,17 @@ const (
 
 func (server *ReaderServer) Start(parentContext context.Context) {
 	logger := logging.GetLoggerFromContext(parentContext)
+	poisonCallbacks := base.NewPoisonCallbackStorage()
+	if server.config.stopOnPoison {
+		poisonCallbacks.AddCallback(&base.StopCallback{})
+	}
+	if server.config.scriptOnPoison != "" {
+		poisonCallbacks.AddCallback(base.NewExecuteScriptCallback(server.config.scriptOnPoison))
+	}
 	if server.config.incomingConnectionHTTPString != "" {
 		go func() {
 			httpContext := logging.SetLoggerToContext(parentContext, logger.WithField(CONNECTION_TYPE_KEY, HTTP_CONNECTION_TYPE))
-			httpDecryptor, err := http_api.NewHTTPConnectionsDecryptor(server.keystorage)
+			httpDecryptor, err := http_api.NewHTTPConnectionsDecryptor(server.keystorage, poisonCallbacks)
 			if err != nil {
 				log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorTranslatorCantHandleHTTPConnection).
 					Errorln("Can't create http decryptor")
@@ -193,7 +201,7 @@ func (server *ReaderServer) Start(parentContext context.Context) {
 				return
 			}
 			grpcServer := grpc.NewServer()
-			service, err := grpc_api.NewDecryptGRPCService(server.keystorage)
+			service, err := grpc_api.NewDecryptGRPCService(server.keystorage, poisonCallbacks)
 			if err != nil {
 				grpcLogger.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorTranslatorCantHandleGRPCConnection).
 					Errorln("Can't create grpc service")

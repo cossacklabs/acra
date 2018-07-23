@@ -8,10 +8,13 @@ import (
 	"github.com/cossacklabs/acra/acra-writer"
 	"github.com/cossacklabs/themis/gothemis/keys"
 	context "golang.org/x/net/context"
+	"github.com/cossacklabs/acra/decryptor/base"
+	"github.com/cossacklabs/acra/poison"
 )
 
 type testKeystore struct {
 	PrivateKey *keys.PrivateKey
+	PoisonKey *keys.Keypair
 }
 
 func (*testKeystore) GetPrivateKey(id []byte) (*keys.PrivateKey, error) {
@@ -63,8 +66,11 @@ func (*testKeystore) GenerateDataEncryptionKeys(id []byte) error {
 	panic("implement me")
 }
 
-func (*testKeystore) GetPoisonKeyPair() (*keys.Keypair, error) {
-	panic("implement me")
+func (store *testKeystore) GetPoisonKeyPair() (*keys.Keypair, error) {
+	if store.PoisonKey != nil {
+		return &keys.Keypair{Private: &keys.PrivateKey{Value:append([]byte{}, store.PoisonKey.Private.Value...)}, Public: store.PoisonKey.Public}, nil
+	}
+	return nil, nil
 }
 
 func (*testKeystore) GetAuthKey(remove bool) ([]byte, error) {
@@ -73,6 +79,14 @@ func (*testKeystore) GetAuthKey(remove bool) ([]byte, error) {
 
 func (*testKeystore) Reset() {
 	panic("implement me")
+}
+
+type poisonCallback struct {
+	Called bool
+}
+func (callback *poisonCallback) Call() error{
+	callback.Called = true
+	return nil
 }
 
 func TestDecryptGRPCService_Decrypt(t *testing.T) {
@@ -85,20 +99,27 @@ func TestDecryptGRPCService_Decrypt(t *testing.T) {
 	clientId := []byte("test client")
 	data := []byte("data")
 	keystore := &testKeystore{}
-	service, err := NewDecryptGRPCService(keystore)
+	poisonKeypair, err := keys.New(keys.KEYTYPE_EC)
+	if err != nil {
+		t.Fatal(err)
+	}
+	keystore.PoisonKey = poisonKeypair
+
+	poisonCallbacks := base.NewPoisonCallbackStorage()
+	service, err := NewDecryptGRPCService(keystore, poisonCallbacks)
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	// error if key not found by clientId
 	response, err := service.Decrypt(ctx, &DecryptRequest{ClientId: clientId, Acrastruct: nil})
-	if response != nil || err != ErrKeyNotFound {
+	if response != nil || err != ErrCantDecrypt {
 		t.Fatal("expected key not found error")
 	}
 
 	// error if key not found by zone id
 	response, err = service.Decrypt(ctx, &DecryptRequest{ZoneId: clientId, Acrastruct: nil})
-	if response != nil || err != ErrKeyNotFound {
+	if response != nil || err != ErrCantDecrypt {
 		t.Fatal("expected key not found error")
 	}
 
@@ -138,4 +159,17 @@ func TestDecryptGRPCService_Decrypt(t *testing.T) {
 		t.Fatal("response data not equal to initial data")
 	}
 
+	poisonRecord, err := poison.CreatePoisonRecord(keystore, 100)
+	if err != nil {
+		t.Fatal(err)
+	}
+	callback := &poisonCallback{}
+	poisonCallbacks.AddCallback(callback)
+	response, err = service.Decrypt(ctx, &DecryptRequest{ZoneId: zoneId, Acrastruct: poisonRecord})
+	if err == nil {
+		t.Fatal(err)
+	}
+	if !callback.Called {
+		t.Fatal("Poison record callback wasn't called")
+	}
 }
