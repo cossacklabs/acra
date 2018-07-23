@@ -14,7 +14,6 @@ import (
 	"path/filepath"
 	"runtime"
 	"sync"
-	"github.com/cossacklabs/acra/keystore"
 )
 
 type FilesystemKeyStore struct {

@@ -30,7 +30,6 @@ import (
 	"github.com/cossacklabs/acra/network"
 	"github.com/cossacklabs/acra/utils"
 	log "github.com/sirupsen/logrus"
-	"github.com/cossacklabs/acra/keystore/filesystem"
 )
 
 var restartSignalsChannel chan os.Signal

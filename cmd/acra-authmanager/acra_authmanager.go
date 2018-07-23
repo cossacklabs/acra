@@ -28,7 +28,6 @@ import (
 	"io/ioutil"
 	"os"
 	"strings"
-	"github.com/cossacklabs/acra/keystore/filesystem"
 )
 
 type HashedPasswords map[string]string

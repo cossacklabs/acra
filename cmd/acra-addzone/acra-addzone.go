@@ -25,7 +25,6 @@ import (
 	"github.com/cossacklabs/themis/gothemis/keys"
 	log "github.com/sirupsen/logrus"
 	"os"
-	"github.com/cossacklabs/acra/keystore/filesystem"
 )
 
 // DEFAULT_CONFIG_PATH relative path to config which will be parsed as default
