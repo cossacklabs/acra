@@ -1,12 +1,12 @@
 package filesystem
 
 import (
+	"errors"
+	"github.com/cossacklabs/acra/cmd/acra-connector/connector-mode"
+	"github.com/cossacklabs/acra/keystore"
 	"github.com/cossacklabs/themis/gothemis/keys"
 	"io/ioutil"
 	"path/filepath"
-	"github.com/cossacklabs/acra/cmd/acra-connector/connector-mode"
-	"errors"
-	"github.com/cossacklabs/acra/keystore"
 )
 
 type ConnectorFileSystemKeyStore struct {

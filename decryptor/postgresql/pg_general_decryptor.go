@@ -40,7 +40,7 @@ type PgDecryptor struct {
 	matchBuffer     []byte
 	matchIndex      int
 	callbackStorage *base.PoisonCallbackStorage
-	logger *logrus.Entry
+	logger          *logrus.Entry
 }
 
 func NewPgDecryptor(clientId []byte, decryptor base.DataDecryptor) *PgDecryptor {
@@ -53,7 +53,7 @@ func NewPgDecryptor(clientId []byte, decryptor base.DataDecryptor) *PgDecryptor 
 		matchBuffer:  make([]byte, len(ESCAPE_TAG_BEGIN)+len(base.TAG_BEGIN)),
 		matchIndex:   0,
 		isWholeMatch: true,
-		logger: logrus.WithField("client_id", string(clientId)),
+		logger:       logrus.WithField("client_id", string(clientId)),
 	}
 }
 
@@ -170,7 +170,7 @@ func (decryptor *PgDecryptor) ReadData(symmetricKey, zoneId []byte, reader io.Re
 	} else {
 		tempLogger = decryptor.logger
 	}
-	tempLogger.Infof("Succeful AcraStruct decryption")
+	tempLogger.Infof("Decrypted AcraStruct")
 	return decryptor.matchedDecryptor.ReadData(symmetricKey, zoneId, reader)
 }
 

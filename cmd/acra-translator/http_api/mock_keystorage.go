@@ -6,7 +6,7 @@ import (
 )
 
 type testKeystore struct {
-	PrivateKey *keys.PrivateKey
+	PrivateKey    *keys.PrivateKey
 	PoisonKeyPair *keys.Keypair
 }
 

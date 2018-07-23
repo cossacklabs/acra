@@ -3,21 +3,21 @@ package grpc_api
 import (
 	"golang.org/x/net/context"
 
+	"errors"
 	"github.com/cossacklabs/acra/decryptor/base"
 	"github.com/cossacklabs/acra/keystore"
+	"github.com/cossacklabs/acra/utils"
 	"github.com/cossacklabs/themis/gothemis/keys"
 	"github.com/sirupsen/logrus"
-	"errors"
-	"github.com/cossacklabs/acra/utils"
 )
 
 type DecryptGRPCService struct {
-	keystorage keystore.KeyStore
+	keystorage      keystore.KeyStore
 	poisonCallbacks *base.PoisonCallbackStorage
 }
 
 func NewDecryptGRPCService(keystorage keystore.KeyStore, poisonCallbacks *base.PoisonCallbackStorage) (*DecryptGRPCService, error) {
-	return &DecryptGRPCService{keystorage: keystorage, poisonCallbacks:poisonCallbacks}, nil
+	return &DecryptGRPCService{keystorage: keystorage, poisonCallbacks: poisonCallbacks}, nil
 }
 
 var ErrCantDecrypt = errors.New("can't decrypt data")

@@ -4,14 +4,14 @@ import (
 	"bytes"
 	"fmt"
 	"github.com/cossacklabs/acra/acra-writer"
+	"github.com/cossacklabs/acra/decryptor/base"
+	"github.com/cossacklabs/acra/poison"
 	"github.com/cossacklabs/themis/gothemis/keys"
 	log "github.com/sirupsen/logrus"
 	"io/ioutil"
 	"net/http"
 	"net/url"
 	"testing"
-	"github.com/cossacklabs/acra/decryptor/base"
-	"github.com/cossacklabs/acra/poison"
 )
 
 func TestHTTPResponseStatus(t *testing.T) {

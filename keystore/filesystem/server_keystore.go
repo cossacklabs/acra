@@ -4,6 +4,7 @@ import (
 	"crypto/rand"
 	"errors"
 	"fmt"
+	"github.com/cossacklabs/acra/keystore"
 	"github.com/cossacklabs/acra/utils"
 	"github.com/cossacklabs/acra/zone"
 	"github.com/cossacklabs/themis/gothemis/keys"
@@ -13,7 +14,6 @@ import (
 	"path/filepath"
 	"runtime"
 	"sync"
-	"github.com/cossacklabs/acra/keystore"
 )
 
 type FilesystemKeyStore struct {
@@ -259,7 +259,6 @@ func (store *FilesystemKeyStore) GenerateTranslatorKeys(id []byte) error {
 	}
 	return nil
 }
-
 
 // generate key pair for data encryption/decryption
 func (store *FilesystemKeyStore) GenerateDataEncryptionKeys(id []byte) error {

@@ -6,15 +6,15 @@ import (
 	"testing"
 
 	"github.com/cossacklabs/acra/acra-writer"
-	"github.com/cossacklabs/themis/gothemis/keys"
-	context "golang.org/x/net/context"
 	"github.com/cossacklabs/acra/decryptor/base"
 	"github.com/cossacklabs/acra/poison"
+	"github.com/cossacklabs/themis/gothemis/keys"
+	context "golang.org/x/net/context"
 )
 
 type testKeystore struct {
 	PrivateKey *keys.PrivateKey
-	PoisonKey *keys.Keypair
+	PoisonKey  *keys.Keypair
 }
 
 func (*testKeystore) GetPrivateKey(id []byte) (*keys.PrivateKey, error) {
@@ -68,7 +68,7 @@ func (*testKeystore) GenerateDataEncryptionKeys(id []byte) error {
 
 func (store *testKeystore) GetPoisonKeyPair() (*keys.Keypair, error) {
 	if store.PoisonKey != nil {
-		return &keys.Keypair{Private: &keys.PrivateKey{Value:append([]byte{}, store.PoisonKey.Private.Value...)}, Public: store.PoisonKey.Public}, nil
+		return &keys.Keypair{Private: &keys.PrivateKey{Value: append([]byte{}, store.PoisonKey.Private.Value...)}, Public: store.PoisonKey.Public}, nil
 	}
 	return nil, nil
 }
@@ -84,7 +84,8 @@ func (*testKeystore) Reset() {
 type poisonCallback struct {
 	Called bool
 }
-func (callback *poisonCallback) Call() error{
+
+func (callback *poisonCallback) Call() error {
 	callback.Called = true
 	return nil
 }

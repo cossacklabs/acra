@@ -5,8 +5,8 @@ import "strings"
 type ConnectorMode string
 
 const (
-	UndefinedMode ConnectorMode = "UndefinedMode"
-	AcraServerMode ConnectorMode = "AcraServer"
+	UndefinedMode      ConnectorMode = "UndefinedMode"
+	AcraServerMode     ConnectorMode = "AcraServer"
 	AcraTranslatorMode ConnectorMode = "AcraTranslator"
 )
 

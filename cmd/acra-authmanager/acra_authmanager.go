@@ -20,6 +20,7 @@ import (
 	"fmt"
 	"github.com/cossacklabs/acra/cmd"
 	"github.com/cossacklabs/acra/keystore"
+	"github.com/cossacklabs/acra/keystore/filesystem"
 	"github.com/cossacklabs/acra/logging"
 	"github.com/cossacklabs/acra/utils"
 	"github.com/cossacklabs/themis/gothemis/cell"
@@ -27,7 +28,6 @@ import (
 	"io/ioutil"
 	"os"
 	"strings"
-	"github.com/cossacklabs/acra/keystore/filesystem"
 )
 
 type HashedPasswords map[string]string

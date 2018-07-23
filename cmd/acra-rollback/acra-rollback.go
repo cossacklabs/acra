@@ -32,11 +32,11 @@ import (
 	"github.com/cossacklabs/acra/utils"
 	"github.com/cossacklabs/themis/gothemis/keys"
 	//_ "github.com/ziutek/mymysql/godrv"
+	"github.com/cossacklabs/acra/keystore/filesystem"
 	"github.com/cossacklabs/acra/logging"
 	_ "github.com/go-sql-driver/mysql"
 	_ "github.com/lib/pq"
 	log "github.com/sirupsen/logrus"
-	"github.com/cossacklabs/acra/keystore/filesystem"
 )
 
 // DEFAULT_CONFIG_PATH relative path to config which will be parsed as default

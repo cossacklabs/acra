@@ -1,10 +1,10 @@
 package filesystem
 
 import (
+	"github.com/cossacklabs/acra/keystore"
 	"github.com/cossacklabs/themis/gothemis/keys"
 	"io/ioutil"
 	"path/filepath"
-	"github.com/cossacklabs/acra/keystore"
 )
 
 type TranslatorFileSystemKeyStore struct {
