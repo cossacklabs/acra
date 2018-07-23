@@ -46,6 +46,9 @@ func (keystore *testKeystore) GenerateConnectorKeys(id []byte) error {
 func (keystore *testKeystore) GenerateServerKeys(id []byte) error {
 	return nil
 }
+func (keystore *testKeystore) GenerateTranslatorKeys(id []byte) error {
+	return nil
+}
 func (keystore *testKeystore) GenerateDataEncryptionKeys(id []byte) error {
 	return nil
 }

@@ -14,6 +14,7 @@
 package logging
 
 import (
+	"context"
 	"fmt"
 	log "github.com/sirupsen/logrus"
 	"os"
@@ -25,6 +26,8 @@ const (
 	LOG_VERBOSE
 	LOG_DISCARD
 )
+
+const loggerKey = "logger"
 
 func SetLogLevel(level int) {
 	if level == LOG_DEBUG {
@@ -56,4 +59,20 @@ func logFormatterFor(loggingFormat string, serviceName string) log.Formatter {
 	}
 
 	return TextFormatter()
+}
+
+func SetLoggerToContext(ctx context.Context, logger *log.Entry) context.Context {
+	return context.WithValue(ctx, loggerKey, logger)
+}
+
+func GetLoggerFromContext(ctx context.Context) *log.Entry {
+	if entry, ok := GetLoggerFromContextOk(ctx); ok {
+		return entry
+	}
+	return nil
+}
+
+func GetLoggerFromContextOk(ctx context.Context) (*log.Entry, bool) {
+	entry, ok := ctx.Value(loggerKey).(*log.Entry)
+	return entry, ok
 }

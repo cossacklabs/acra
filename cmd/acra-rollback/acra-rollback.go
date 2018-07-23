@@ -36,6 +36,7 @@ import (
 	_ "github.com/go-sql-driver/mysql"
 	_ "github.com/lib/pq"
 	log "github.com/sirupsen/logrus"
+	"github.com/cossacklabs/acra/keystore/filesystem"
 )
 
 // DEFAULT_CONFIG_PATH relative path to config which will be parsed as default
@@ -230,7 +231,7 @@ func main() {
 		log.WithError(err).Errorln("can't init scell encryptor")
 		os.Exit(1)
 	}
-	keystorage, err := keystore.NewFilesystemKeyStore(absKeysDir, scellEncryptor)
+	keystorage, err := filesystem.NewFilesystemKeyStore(absKeysDir, scellEncryptor)
 	if err != nil {
 		log.WithError(err).Errorln("can't create key store")
 		os.Exit(1)

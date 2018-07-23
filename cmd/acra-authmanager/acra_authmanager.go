@@ -27,6 +27,7 @@ import (
 	"io/ioutil"
 	"os"
 	"strings"
+	"github.com/cossacklabs/acra/keystore/filesystem"
 )
 
 type HashedPasswords map[string]string
@@ -51,7 +52,7 @@ func (hp HashedPasswords) Bytes() (passwordBytes []byte) {
 	return passwordBytes
 }
 
-func (hp HashedPasswords) WriteToFile(file string, keystore *keystore.FilesystemKeyStore) error {
+func (hp HashedPasswords) WriteToFile(file string, keystore *filesystem.FilesystemKeyStore) error {
 	key, err := keystore.GetAuthKey(false)
 	if err != nil {
 		return err
@@ -82,7 +83,7 @@ func (hp HashedPasswords) SetPassword(name, password string) (err error) {
 	return nil
 }
 
-func ParseHtpasswdFile(file string, keystore *keystore.FilesystemKeyStore) (passwords HashedPasswords, err error) {
+func ParseHtpasswdFile(file string, keystore *filesystem.FilesystemKeyStore) (passwords HashedPasswords, err error) {
 	htpasswdBytes, err := ioutil.ReadFile(file)
 	if err != nil {
 		return
@@ -125,7 +126,7 @@ func ParseHtpasswd(htpasswdBytes []byte) (passwords HashedPasswords, err error) 
 	return
 }
 
-func RemoveUser(file, user string, keystore *keystore.FilesystemKeyStore) error {
+func RemoveUser(file, user string, keystore *filesystem.FilesystemKeyStore) error {
 	passwords, err := ParseHtpasswdFile(file, keystore)
 	if err != nil {
 		return err
@@ -138,7 +139,7 @@ func RemoveUser(file, user string, keystore *keystore.FilesystemKeyStore) error 
 	return passwords.WriteToFile(file, keystore)
 }
 
-func SetPassword(file, name, password string, keystore *keystore.FilesystemKeyStore) error {
+func SetPassword(file, name, password string, keystore *filesystem.FilesystemKeyStore) error {
 	_, err := os.Stat(file)
 	passwords := HashedPasswords(map[string]string{})
 	if err == nil {
@@ -186,7 +187,7 @@ func main() {
 		log.WithError(err).Errorln("can't initialize scell encryptor")
 		os.Exit(1)
 	}
-	keyStore, err := keystore.NewFilesystemKeyStore(*keysDir, encryptor)
+	keyStore, err := filesystem.NewFilesystemKeyStore(*keysDir, encryptor)
 	if err != nil {
 		log.WithError(err).Errorln("NewFilesystemKeyStore")
 		os.Exit(1)
