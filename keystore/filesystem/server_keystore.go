@@ -260,7 +260,6 @@ func (store *FilesystemKeyStore) GenerateTranslatorKeys(id []byte) error {
 	return nil
 }
 
-
 // generate key pair for data encryption/decryption
 func (store *FilesystemKeyStore) GenerateDataEncryptionKeys(id []byte) error {
 	if !keystore.ValidateId(id) {
