@@ -111,7 +111,7 @@ func (decryptor *HTTPConnectionsDecryptor) ParseRequestPrepareResponse(logger *l
 			// check poison records
 			poisoned, err := base.CheckPoisonRecord(acraStruct, decryptor.keystorage)
 			if err != nil {
-				logger.WithError(err).Errorln("Can't check is it poison record")
+				logger.WithError(err).Errorln("Can't check for poison record, possible missing Poison record decryption key")
 				return response
 			}
 			if poisoned {

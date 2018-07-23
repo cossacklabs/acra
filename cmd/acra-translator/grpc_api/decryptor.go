@@ -43,7 +43,7 @@ func (service *DecryptGRPCService) Decrypt(ctx context.Context, request *Decrypt
 		logger.WithError(decryptErr).Errorln("Can't decrypt acrastruct")
 		poisoned, err := base.CheckPoisonRecord(request.Acrastruct, service.keystorage)
 		if err != nil {
-			logger.WithError(err).Errorln("Can't check is it poison record")
+			logger.WithError(err).Errorln("Can't check for poison record, possible missing Poison record decryption key")
 			return nil, ErrCantDecrypt
 		}
 		if poisoned {
