@@ -14,6 +14,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"sync"
+	"github.com/cossacklabs/acra/keystore"
 )
 
 type FilesystemKeyStore struct {
@@ -259,6 +260,7 @@ func (store *FilesystemKeyStore) GenerateTranslatorKeys(id []byte) error {
 	}
 	return nil
 }
+
 
 // generate key pair for data encryption/decryption
 func (store *FilesystemKeyStore) GenerateDataEncryptionKeys(id []byte) error {

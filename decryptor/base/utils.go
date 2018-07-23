@@ -22,6 +22,7 @@ import (
 	"github.com/cossacklabs/themis/gothemis/cell"
 	"github.com/cossacklabs/themis/gothemis/keys"
 	"github.com/cossacklabs/themis/gothemis/message"
+	"github.com/cossacklabs/acra/keystore"
 )
 
 const (
@@ -57,6 +58,21 @@ func DecryptAcrastruct(data []byte, privateKey *keys.PrivateKey, zone []byte) ([
 }
 
 func CheckPoisonRecord(data []byte, keystorage keystore.KeyStore) (bool, error) {
+	poisonKeypair, err := keystorage.GetPoisonKeyPair()
+	if err != nil {
+		// we can't check on poisoning
+		return true, err
+	}
+	_, err = DecryptAcrastruct(data, poisonKeypair.Private, nil)
+	utils.FillSlice(byte(0), poisonKeypair.Private.Value)
+	if err == nil {
+		// decryption success so it was encrypted with private key for poison records
+		return true, nil
+	}
+	return false, nil
+}
+
+func CheckPoisonRecord(data []byte, keystorage keystore.KeyStore)(bool, error){
 	poisonKeypair, err := keystorage.GetPoisonKeyPair()
 	if err != nil {
 		// we can't check on poisoning

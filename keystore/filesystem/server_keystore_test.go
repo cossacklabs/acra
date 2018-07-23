@@ -22,6 +22,7 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"github.com/cossacklabs/acra/keystore"
 )
 
 func testGenerateKeyPair(store *FilesystemKeyStore, t *testing.T) {

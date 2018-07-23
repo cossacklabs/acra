@@ -49,8 +49,8 @@ func NewSessionCallback(keystorage keystore.SecureSessionKeyStore) (*SessionCall
 }
 
 type secureSessionConnection struct {
-	keystore keystore.SecureSessionKeyStore
-	session  *session.SecureSession
+	keystore      keystore.SecureSessionKeyStore
+	session       *session.SecureSession
 	net.Conn
 	currentData   []byte
 	returnedIndex int
