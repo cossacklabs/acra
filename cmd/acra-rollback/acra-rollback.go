@@ -184,6 +184,11 @@ func main() {
 		PLACEHOLDER = "?"
 	}
 
+	if !strings.Contains(*sqlInsert, PLACEHOLDER) {
+		log.Errorln("SQL INSERT statement doesn't contain any placeholders")
+		os.Exit(1)
+	}
+
 	dbDriverName := "postgres"
 	if *useMysql {
 		// https://github.com/ziutek/mymysql

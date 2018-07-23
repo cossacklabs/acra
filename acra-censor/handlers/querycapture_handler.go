@@ -12,9 +12,12 @@ import (
 	"bytes"
 	"github.com/cossacklabs/acra/logging"
 	log "github.com/sirupsen/logrus"
+	"github.com/xwb1989/sqlparser"
+	"github.com/xwb1989/sqlparser/dependency/querypb"
 )
 
 const DefaultSerializationTimeout = time.Second
+const ValuePlaceholder = "X"
 
 type QueryCaptureHandler struct {
 	Queries              []*QueryInfo
@@ -204,7 +207,6 @@ func AppendQueries(queries []*QueryInfo, openedFile *os.File) error {
 	if len(queries) == 0 {
 		return nil
 	}
-
 	lines, err := SerializeQueries(queries)
 	if err != nil {
 		return err
@@ -219,8 +221,15 @@ func AppendQueries(queries []*QueryInfo, openedFile *os.File) error {
 
 func SerializeQueries(queries []*QueryInfo) ([]byte, error) {
 	var linesToAppend []byte
+	var tempQueryInfo = &QueryInfo{}
 	for _, queryInfo := range queries {
-		jsonQueryInfo, err := json.Marshal(queryInfo)
+		queryWithHiddenValues, err := RedactSQLQuery(queryInfo.RawQuery)
+		if err != nil {
+			return nil, ErrQuerySyntaxError
+		}
+		tempQueryInfo.RawQuery = queryWithHiddenValues
+		tempQueryInfo.IsForbidden = queryInfo.IsForbidden
+		jsonQueryInfo, err := json.Marshal(tempQueryInfo)
 		if err != nil {
 			return nil, err
 		}
@@ -254,4 +263,19 @@ func ReadQueries(filePath string) ([]*QueryInfo, error) {
 		}
 	}
 	return queries, nil
+}
+
+// RedactSQLQuery returns a sql string with the params stripped out for display. Taken from sqlparser package
+func RedactSQLQuery(sql string) (string, error) {
+	bv := map[string]*querypb.BindVariable{}
+	sqlStripped, comments := sqlparser.SplitMarginComments(sql)
+
+	stmt, err := sqlparser.Parse(sqlStripped)
+	if err != nil {
+		return "", err
+	}
+
+	sqlparser.Normalize(stmt, bv, ValuePlaceholder)
+
+	return comments.Leading + sqlparser.String(stmt) + comments.Trailing, nil
 }
