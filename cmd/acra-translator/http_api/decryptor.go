@@ -17,7 +17,7 @@ import (
 )
 
 type HTTPConnectionsDecryptor struct {
-	keystorage keystore.KeyStore
+	keystorage      keystore.KeyStore
 	poisonCallbacks *base.PoisonCallbackStorage
 }
 
@@ -26,7 +26,7 @@ func NewHTTPConnectionsDecryptor(keystorage keystore.KeyStore, poisonRecordCallb
 }
 
 func (decryptor *HTTPConnectionsDecryptor) SendResponse(logger *log.Entry, response *http.Response, connection net.Conn) {
-	outBuffer  := &bytes.Buffer{}
+	outBuffer := &bytes.Buffer{}
 	err := response.Write(outBuffer)
 	if err != nil {
 		logger.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorTranslatorCantReturnResponse).
@@ -40,15 +40,16 @@ func (decryptor *HTTPConnectionsDecryptor) SendResponse(logger *log.Entry, respo
 }
 
 func (decryptor *HTTPConnectionsDecryptor) ParseRequestPrepareResponse(logger *log.Entry, request *http.Request, clientId []byte) *http.Response {
+	requestLogger := logger.WithFields(log.Fields{"client_id": string(clientId), "translator": "http"})
 	if request == nil || request.URL == nil {
 		return emptyResponseWithStatus(request, http.StatusBadRequest)
 	}
 
-	log.Debugf("Incoming API request to %v", request.URL.Path)
+	requestLogger.Debugf("Incoming API request to %v", request.URL.Path)
 
 	if request.Method != http.MethodPost {
 		msg := fmt.Sprintf("HTTP method is not allowed, expected POST, got %s", request.Method)
-		logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorTranslatorMethodNotAllowed).Warningf(msg)
+		requestLogger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorTranslatorMethodNotAllowed).Warningf(msg)
 		return responseWithMessage(request, http.StatusMethodNotAllowed, msg)
 	}
 
@@ -57,14 +58,14 @@ func (decryptor *HTTPConnectionsDecryptor) ParseRequestPrepareResponse(logger *l
 	pathParts := strings.Split(request.URL.Path, string(os.PathSeparator))
 	if len(pathParts) != 3 {
 		msg := fmt.Sprintf("Malformed URL, expected /<version>/<endpoint>, got %s", request.URL.Path)
-		logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorTranslatorMalformedURL).Warningf(msg)
+		requestLogger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorTranslatorMalformedURL).Warningf(msg)
 		return responseWithMessage(request, http.StatusBadRequest, msg)
 	}
 
 	version := pathParts[1] // v1
 	if version != "v1" {
 		msg := fmt.Sprintf("HTTP request version is not supported: expected v1, got %s", version)
-		logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorTranslatorVersionNotSupported).
+		requestLogger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorTranslatorVersionNotSupported).
 			Warningf(msg)
 		return responseWithMessage(request, http.StatusBadRequest, msg)
 	}
@@ -79,17 +80,18 @@ func (decryptor *HTTPConnectionsDecryptor) ParseRequestPrepareResponse(logger *l
 		query, ok := request.URL.Query()["zone_id"]
 		if ok && len(query) == 1 {
 			zoneId = []byte(query[0])
+			requestLogger = requestLogger.WithField("zone_id", query[0])
 		}
 
 		if zoneId == nil && clientId == nil {
 			msg := fmt.Sprintf("HTTP request doesn't have a ZoneId, connection doesn't have a ClientId, expected to get one of them. Send ZoneId in request URL")
-			logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorTranslatorCantZoneIdMissing).Warningln(msg)
+			requestLogger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorTranslatorCantZoneIdMissing).Warningln(msg)
 			return responseWithMessage(request, http.StatusBadRequest, msg)
 		}
 
 		if request.Body == nil {
 			msg := fmt.Sprintf("HTTP request doesn't have a body, expected to get AcraStruct")
-			logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorTranslatorCantParseRequestBody).Warningln(msg)
+			requestLogger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorTranslatorCantParseRequestBody).Warningln(msg)
 			return responseWithMessage(request, http.StatusBadRequest, msg)
 		}
 
@@ -98,7 +100,7 @@ func (decryptor *HTTPConnectionsDecryptor) ParseRequestPrepareResponse(logger *l
 
 		if acraStruct == nil || err != nil {
 			msg := fmt.Sprintf("Can't parse body from HTTP request, expected to get AcraStruct")
-			logger.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorTranslatorCantParseRequestBody).Warningln(msg)
+			requestLogger.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorTranslatorCantParseRequestBody).Warningln(msg)
 			return responseWithMessage(request, http.StatusBadRequest, msg)
 		}
 
@@ -106,19 +108,19 @@ func (decryptor *HTTPConnectionsDecryptor) ParseRequestPrepareResponse(logger *l
 
 		if err != nil {
 			msg := fmt.Sprintf("Can't decrypt AcraStruct")
-			logger.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorTranslatorCantDecryptAcraStruct).Warningln(msg)
+			requestLogger.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorTranslatorCantDecryptAcraStruct).Warningln(msg)
 			response := responseWithMessage(request, http.StatusUnprocessableEntity, msg)
 			// check poison records
 			poisoned, err := base.CheckPoisonRecord(acraStruct, decryptor.keystorage)
 			if err != nil {
-				logger.WithError(err).Errorln("Can't check for poison record, possible missing Poison record decryption key")
+				requestLogger.WithError(err).Errorln("Can't check for poison record, possible missing Poison record decryption key")
 				return response
 			}
 			if poisoned {
-				logger.Errorln("Recognized poison record")
+				requestLogger.Errorln("Recognized poison record")
 				if decryptor.poisonCallbacks.HasCallbacks() {
 					if err := decryptor.poisonCallbacks.Call(); err != nil {
-						logger.WithError(err).Errorln("Unexpected error on poison record's callbacks")
+						requestLogger.WithError(err).Errorln("Unexpected error on poison record's callbacks")
 					}
 				}
 				return response
@@ -126,7 +128,7 @@ func (decryptor *HTTPConnectionsDecryptor) ParseRequestPrepareResponse(logger *l
 			return response
 		}
 
-		logger.Infof("Decrypted AcraStruct for client_id=%s zone_id=%s", clientId, zoneId)
+		requestLogger.Infoln("Decrypted AcraStruct")
 
 		response := emptyResponseWithStatus(request, http.StatusOK)
 		response.Header.Set("Content-Type", "application/octet-stream")
@@ -135,13 +137,13 @@ func (decryptor *HTTPConnectionsDecryptor) ParseRequestPrepareResponse(logger *l
 		return response
 	default:
 		msg := "HTTP endpoint not supported"
-		logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorTranslatorEndpointNotSupported).
+		requestLogger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorTranslatorEndpointNotSupported).
 			Warningln(msg)
 		return responseWithMessage(request, http.StatusBadRequest, msg)
 	}
 
 	msg := "Unexpected parsing end during HTTP request parsing"
-	logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorTranslatorEndpointNotSupported).
+	requestLogger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorTranslatorEndpointNotSupported).
 		Warningln(msg)
 	return responseWithMessage(request, http.StatusBadRequest, msg)
 }

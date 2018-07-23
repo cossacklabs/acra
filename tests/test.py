@@ -2278,9 +2278,12 @@ class BaseAcraTranslatorTest(BaseTestCase):
         stub = api_pb2_grpc.ReaderStub(channel)
         try:
             if zone_id:
-                response = stub.Decrypt(api_pb2.DecryptRequest(zone_id=zone_id.encode('ascii'), acrastruct=acrastruct))
+                response = stub.Decrypt(api_pb2.DecryptRequest(
+                    zone_id=zone_id.encode('ascii'), acrastruct=acrastruct,
+                    client_id=client_id.encode('ascii')))
             else:
-                response = stub.Decrypt(api_pb2.DecryptRequest(client_id=client_id.encode('ascii'), acrastruct=acrastruct))
+                response = stub.Decrypt(api_pb2.DecryptRequest(
+                    client_id=client_id.encode('ascii'), acrastruct=acrastruct))
         except grpc.RpcError:
             return b''
         return response.data
@@ -2299,8 +2302,9 @@ class BaseAcraTranslatorTest(BaseTestCase):
         self.assertFalse(use_http and use_grpc)
         translator_port = 3456
         connector_port = 12345
+        client_id = "keypair1"
         data = self.get_random_data().encode('ascii')
-        encryption_key = read_storage_public_key('keypair1')
+        encryption_key = read_storage_public_key(client_id)
         acrastruct = create_acrastruct(data, encryption_key)
 
         zone = zones[0]
@@ -2317,18 +2321,18 @@ class BaseAcraTranslatorTest(BaseTestCase):
         correct_client_id = 'keypair1'
         incorrect_client_id = 'keypair2'
         with ProcessContextManager(self.fork_translator(translator_kwargs)):
-            with ProcessContextManager(self.fork_connector(connector_port, translator_port, 'keypair1')):
+            with ProcessContextManager(self.fork_connector(connector_port, translator_port, client_id)):
                 response = request_func(connector_port, correct_client_id, None, acrastruct)
                 self.assertEqual(data, response)
 
                 # test with correct zone id
                 response = request_func(
-                    connector_port, None, zone['id'], acrastruct_with_zone)
+                    connector_port, client_id, zone['id'], acrastruct_with_zone)
                 self.assertEqual(data, response)
 
                 # test with incorrect zone id
                 response = request_func(
-                    connector_port, None, incorrect_zone['id'],
+                    connector_port, client_id, incorrect_zone['id'],
                     acrastruct_with_zone)
                 self.assertNotEqual(data, response)
 

@@ -31,12 +31,12 @@ import (
 	log "github.com/sirupsen/logrus"
 
 	"github.com/cossacklabs/acra/cmd"
+	"github.com/cossacklabs/acra/cmd/acra-connector/connector-mode"
 	"github.com/cossacklabs/acra/keystore"
+	"github.com/cossacklabs/acra/keystore/filesystem"
 	"github.com/cossacklabs/acra/logging"
 	"github.com/cossacklabs/acra/network"
 	"github.com/cossacklabs/acra/utils"
-	"github.com/cossacklabs/acra/cmd/acra-connector/connector-mode"
-	"github.com/cossacklabs/acra/keystore/filesystem"
 )
 
 // DEFAULT_CONFIG_PATH relative path to config which will be parsed as default
@@ -133,7 +133,6 @@ func handleClientConnection(config *Config, connection net.Conn) {
 	}
 }
 
-
 type Config struct {
 	KeysDir                  string
 	ClientId                 []byte
@@ -178,7 +177,6 @@ func main() {
 	acraTranslatorPort := flag.Int("acratranslator_connection_port", cmd.DEFAULT_ACRATRANSLATOR_GRPC_PORT, "Port of AcraTranslator daemon")
 	acraTranslatorConnectionString := flag.String("acratranslator_connection_string", "", "Connection string to AcraTranslator like grpc://0.0.0.0:9696 or http://0.0.0.0:9595")
 	acraTranslatorId := flag.String("acratranslator_securesession_id", "acra_translator", "Expected id from AcraTranslator for Secure Session")
-
 
 	err := cmd.Parse(DEFAULT_CONFIG_PATH, SERVICE_NAME)
 	if err != nil {
@@ -259,7 +257,6 @@ func main() {
 		log.Infof("Disabling user check, because OS is not Linux")
 	}
 
-
 	// --------- keystore  -----------
 	log.Infof("Initializing keystore...")
 	masterKey, err := keystore.GetMasterKeyFromEnvironment()
@@ -280,14 +277,13 @@ func main() {
 	}
 	log.Infof("Keystore init OK")
 
-
 	// --------- check keys -----------
 	cmd.ValidateClientId(*clientId)
 
 	log.Infof("Reading keys...")
 
 	exists, err := keyStore.CheckIfPrivateKeyExists([]byte(*clientId))
-	if !exists || err != nil{
+	if !exists || err != nil {
 		log.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorWrongConfiguration).
 			Errorf("Configuration error: can't check that AcraConnector private key exists, got error - %v", err)
 		os.Exit(1)
@@ -322,7 +318,6 @@ func main() {
 	}
 	go sigHandler.Register()
 	sigHandler.AddListener(listener)
-
 
 	// -------- TRANSPORT -----------
 	if connectorMode == connector_mode.AcraTranslatorMode {

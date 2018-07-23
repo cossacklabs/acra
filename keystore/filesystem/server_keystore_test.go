@@ -16,12 +16,12 @@ package filesystem
 import (
 	"bytes"
 	"fmt"
+	"github.com/cossacklabs/acra/keystore"
 	"github.com/cossacklabs/acra/utils"
 	"io/ioutil"
 	"os"
 	"path/filepath"
 	"testing"
-	"github.com/cossacklabs/acra/keystore"
 )
 
 func testGenerateKeyPair(store *FilesystemKeyStore, t *testing.T) {

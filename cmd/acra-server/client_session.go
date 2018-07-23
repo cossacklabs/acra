@@ -69,7 +69,7 @@ func (clientSession *ClientSession) close() {
 /* acra-connector connections from client to db and decrypt responses from db to client
 if any error occurred than end processing
 */
-func (clientSession *ClientSession) HandleClientConnection(decryptorImpl base.Decryptor) {
+func (clientSession *ClientSession) HandleClientConnection(clientId []byte, decryptorImpl base.Decryptor) {
 	log.Infof("Handle client's connection")
 	clientProxyErrorCh := make(chan error, 1)
 	dbProxyErrorCh := make(chan error, 1)
@@ -91,7 +91,7 @@ func (clientSession *ClientSession) HandleClientConnection(decryptorImpl base.De
 	var pgProxy *postgresql.PgProxy
 	if clientSession.config.UseMySQL() {
 		log.Debugln("MySQL connection")
-		handler, err := mysql.NewMysqlHandler(decryptorImpl, clientSession.connectionToDb, clientSession.connection, clientSession.config.GetTLSConfig(), clientSession.config.censor)
+		handler, err := mysql.NewMysqlHandler(clientId, decryptorImpl, clientSession.connectionToDb, clientSession.connection, clientSession.config.GetTLSConfig(), clientSession.config.censor)
 		if err != nil {
 			log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantInitDecryptor).
 				Errorln("Can't initialize mysql handler")

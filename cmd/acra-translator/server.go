@@ -11,13 +11,13 @@ import (
 
 	"github.com/cossacklabs/acra/cmd/acra-translator/grpc_api"
 	"github.com/cossacklabs/acra/cmd/acra-translator/http_api"
+	"github.com/cossacklabs/acra/decryptor/base"
 	"github.com/cossacklabs/acra/keystore"
 	"github.com/cossacklabs/acra/logging"
 	"github.com/cossacklabs/acra/network"
 	log "github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/reflection"
-	"github.com/cossacklabs/acra/decryptor/base"
 )
 
 type ReaderServer struct {

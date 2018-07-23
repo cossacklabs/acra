@@ -12,7 +12,7 @@ import (
 	"github.com/cossacklabs/acra/decryptor/base"
 	"github.com/cossacklabs/acra/logging"
 	"github.com/cossacklabs/acra/network"
-	log "github.com/sirupsen/logrus"
+	"github.com/sirupsen/logrus"
 )
 
 const (
@@ -145,10 +145,22 @@ type MysqlHandler struct {
 	clientConnection       net.Conn
 	dbConnection           net.Conn
 	tlsConfig              *tls.Config
+	clientId               []byte
+	logger                 *logrus.Entry
 }
 
-func NewMysqlHandler(decryptor base.Decryptor, dbConnection, clientConnection net.Conn, tlsConfig *tls.Config, censor acracensor.AcraCensorInterface) (*MysqlHandler, error) {
-	return &MysqlHandler{isTLSHandshake: false, dbTLSHandshakeFinished: make(chan bool), clientDeprecateEOF: false, decryptor: decryptor, responseHandler: defaultResponseHandler, acracensor: censor, clientConnection: clientConnection, dbConnection: dbConnection, tlsConfig: tlsConfig}, nil
+func NewMysqlHandler(clientId []byte, decryptor base.Decryptor, dbConnection, clientConnection net.Conn, tlsConfig *tls.Config, censor acracensor.AcraCensorInterface) (*MysqlHandler, error) {
+	return &MysqlHandler{
+		isTLSHandshake:         false,
+		dbTLSHandshakeFinished: make(chan bool),
+		clientDeprecateEOF:     false,
+		decryptor:              decryptor,
+		responseHandler:        defaultResponseHandler,
+		acracensor:             censor,
+		clientConnection:       clientConnection,
+		dbConnection:           dbConnection,
+		tlsConfig:              tlsConfig,
+		logger:                 logrus.WithField("client_id", string(clientId))}, nil
 }
 
 func (handler *MysqlHandler) setQueryHandler(callback ResponseHandler) {
@@ -163,13 +175,13 @@ func (handler *MysqlHandler) getResponseHandler() ResponseHandler {
 }
 
 func (handler *MysqlHandler) ClientToDbConnector(errCh chan<- error) {
-	clientLog := log.WithField("proxy", "client")
+	clientLog := handler.logger.WithField("proxy", "client")
 	clientLog.Debugln("Start proxy client's requests")
 	firstPacket := true
 	for {
 		packet, err := ReadPacket(handler.clientConnection)
 		if err != nil {
-			log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorResponseConnectorCantReadFromClient).
+			handler.logger.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorResponseConnectorCantReadFromClient).
 				Debugln("Can't read packet from client")
 			errCh <- err
 			return
@@ -181,14 +193,14 @@ func (handler *MysqlHandler) ClientToDbConnector(errCh chan<- error) {
 			clientLog = clientLog.WithField("deprecate_eof", handler.clientDeprecateEOF)
 			if packet.IsSSLRequest() {
 				if handler.tlsConfig == nil {
-					log.Errorln("To support TLS connections you must pass TLS key and certificate for AcraServer that will be used " +
+					handler.logger.Errorln("To support TLS connections you must pass TLS key and certificate for AcraServer that will be used " +
 						"for connections AcraServer->Database and CA certificate which will be used to verify certificate " +
 						"from database")
-					log.Debugln("send error to db")
+					handler.logger.Debugln("Send error to db")
 					errPacket := NewQueryInterruptedError(handler.clientProtocol41)
 					packet.SetData(errPacket)
 					if _, err := handler.clientConnection.Write(packet.Dump()); err != nil {
-						log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorResponseConnectorCantWriteToClient).
+						handler.logger.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorResponseConnectorCantWriteToClient).
 							Errorln("Can't write response with error to client")
 					}
 					errCh <- network.ErrEmptyTLSConfig
@@ -196,12 +208,12 @@ func (handler *MysqlHandler) ClientToDbConnector(errCh chan<- error) {
 				}
 				tlsConnection := tls.Server(handler.clientConnection, handler.tlsConfig)
 				if err := tlsConnection.Handshake(); err != nil {
-					log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorDecryptorCantInitializeTLS).
-						Errorln("error in tls handshake with client")
+					handler.logger.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorDecryptorCantInitializeTLS).
+						Errorln("Error in tls handshake with client")
 					errCh <- err
 					return
 				}
-				log.Debugln("switched to tls with client. wait switching with db")
+				handler.logger.Debugln("Switched to tls with client. wait switching with db")
 				handler.isTLSHandshake = true
 				handler.clientConnection = tlsConnection
 				if _, err := handler.dbConnection.Write(packet.Dump()); err != nil {
@@ -215,10 +227,10 @@ func (handler *MysqlHandler) ClientToDbConnector(errCh chan<- error) {
 				// will be proxied in this function to db before handshake will be completed
 				select {
 				case <-handler.dbTLSHandshakeFinished:
-					log.Debugln("switch to tls complete on client proxy side")
+					handler.logger.Debugln("Switch to tls complete on client proxy side")
 					continue
 				case <-time.NewTicker(time.Second * CLIENT_WAIT_DB_TLS_HANDSHAKE).C:
-					clientLog.Errorln("timeout on tls handshake with db")
+					clientLog.Errorln("Timeout on tls handshake with db")
 					errCh <- errors.New("handshake timeout")
 					return
 				}
@@ -243,17 +255,17 @@ func (handler *MysqlHandler) ClientToDbConnector(errCh chan<- error) {
 		case COM_QUERY, COM_STMT_EXECUTE:
 			sqlQuery := string(data)
 			if err := handler.acracensor.HandleQuery(sqlQuery); err != nil {
-				log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCensorQueryIsNotAllowed).
+				handler.logger.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCensorQueryIsNotAllowed).
 					Errorln("Error on AcraCensor check")
 				errPacket := NewQueryInterruptedError(handler.clientProtocol41)
 				packet.SetData(errPacket)
 				if _, err := handler.clientConnection.Write(packet.Dump()); err != nil {
-					log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorResponseConnectorCantWriteToClient).
+					handler.logger.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorResponseConnectorCantWriteToClient).
 						Errorln("Can't write response with error to client")
 				}
 				continue
 			}
-			clientLog.WithField("sql", sqlQuery).Debugln("com_query")
+			clientLog.WithField("sql", sqlQuery).Debugln("Com_query")
 			handler.setQueryHandler(handler.QueryResponseHandler)
 			break
 		case COM_STMT_PREPARE, COM_STMT_CLOSE, COM_STMT_SEND_LONG_DATA, COM_STMT_RESET:
@@ -286,10 +298,10 @@ func (handler *MysqlHandler) processTextDataRow(rowData []byte, fields []*Column
 	var pos int = 0
 	var n int = 0
 	var output []byte
-	var fieldLogger *log.Entry
-	log.Debugln("Process data rows in text protocol")
+	var fieldLogger *logrus.Entry
+	handler.logger.Debugln("Process data rows in text protocol")
 	for i := range fields {
-		fieldLogger = log.WithField("field_index", i)
+		fieldLogger = handler.logger.WithField("field_index", i)
 		value, _, n, err = LengthEncodedString(rowData[pos:])
 		if err != nil {
 			return nil, err
@@ -315,7 +327,7 @@ func (handler *MysqlHandler) processTextDataRow(rowData []byte, fields []*Column
 		output = append(output, rowData[pos:pos+n]...)
 		pos += n
 	}
-	log.Debugln("Finish processing text data row")
+	handler.logger.Debugln("Finish processing text data row")
 
 	return output, nil
 }
@@ -327,7 +339,7 @@ func (handler *MysqlHandler) processBinaryDataRow(rowData []byte, fields []*Colu
 	var value []byte
 	var output []byte
 
-	log.Debugln("Process data rows in binary protocol")
+	handler.logger.Debugln("Process data rows in binary protocol")
 	// no data in response
 	if rowData[0] == EOF_PACKET {
 		return rowData, nil
@@ -354,13 +366,13 @@ func (handler *MysqlHandler) processBinaryDataRow(rowData []byte, fields []*Colu
 		if handler.isFieldToDecrypt(fields[i]) {
 			value, _, n, err = LengthEncodedString(rowData[pos:])
 			if err != nil {
-				log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorDecryptorCantDecryptBinary).
+				handler.logger.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorDecryptorCantDecryptBinary).
 					Errorln("Can't handle length encoded string binary value")
 				return nil, err
 			}
 			decryptedValue, err := handler.decryptor.DecryptBlock(value)
 			if err != nil {
-				log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorDecryptorCantDecryptBinary).
+				handler.logger.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorDecryptorCantDecryptBinary).
 					Errorln("Can't decrypt binary data")
 				return nil, err
 			}
@@ -414,7 +426,7 @@ func (handler *MysqlHandler) processBinaryDataRow(rowData []byte, fields []*Colu
 			output = append(output, rowData[pos:pos+n]...)
 			pos += n
 			if err != nil {
-				log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorDecryptorCantDecryptBinary).
+				handler.logger.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorDecryptorCantDecryptBinary).
 					Errorln("Can't handle length encoded string non binary value")
 				return nil, err
 			}
@@ -454,12 +466,12 @@ func (handler *MysqlHandler) QueryResponseHandler(packet *MysqlPacket, dbConnect
 	fieldCount := int(packet.GetData()[0])
 	output := []Dumper{packet}
 	if fieldCount != ERR_PACKET && fieldCount > 0 {
-		log.Debugln("Read column descriptions")
+		handler.logger.Debugln("Read column descriptions")
 		for i := 0; ; i++ {
-			log.WithField("column_index", i).Debugln("read column description")
+			handler.logger.WithField("column_index", i).Debugln("Read column description")
 			fieldPacket, err := ReadPacket(dbConnection)
 			if err != nil {
-				log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorResponseConnectorCantProcessColumn).
+				handler.logger.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorResponseConnectorCantProcessColumn).
 					Errorln("Can't read packet with column description")
 				return err
 			}
@@ -467,20 +479,20 @@ func (handler *MysqlHandler) QueryResponseHandler(packet *MysqlPacket, dbConnect
 			if handler.expectEOFOnColumnDefinition() {
 				if fieldPacket.IsEOF() {
 					if i != fieldCount {
-						log.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorProtocolProcessing).Errorln("EOF and field count != current row packet count")
+						handler.logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorProtocolProcessing).Errorln("EOF and field count != current row packet count")
 						return ErrMalformPacket
 					}
 					break
 				}
 			}
-			log.WithField("column_index", i).Debugln("Parse field")
+			handler.logger.WithField("column_index", i).Debugln("Parse field")
 			field, err := ParseResultField(fieldPacket.GetData())
 			if err != nil {
-				log.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorProtocolProcessing).WithError(err).Errorln("Can't parse result field")
+				handler.logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorProtocolProcessing).WithError(err).Errorln("Can't parse result field")
 				return err
 			}
 			if field.IsBinary() {
-				log.WithField("column_index", i).Debugln("Binary field")
+				handler.logger.WithField("column_index", i).Debugln("Binary field")
 				binaryFieldIndexes = append(binaryFieldIndexes, i)
 			}
 			fields = append(fields, field)
@@ -489,12 +501,12 @@ func (handler *MysqlHandler) QueryResponseHandler(packet *MysqlPacket, dbConnect
 			}
 
 		}
-		log.Debugln("Read data rows")
+		handler.logger.Debugln("Read data rows")
 		if handler.isPreparedStatementResult() {
 			for {
 				fieldDataPacket, err := ReadPacket(dbConnection)
 				if err != nil {
-					log.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorProtocolProcessing).WithError(err).Errorln("Can't read data packet")
+					handler.logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorProtocolProcessing).WithError(err).Errorln("Can't read data packet")
 					return err
 				}
 				output = append(output, fieldDataPacket)
@@ -503,26 +515,26 @@ func (handler *MysqlHandler) QueryResponseHandler(packet *MysqlPacket, dbConnect
 				}
 				newData, err := handler.processBinaryDataRow(fieldDataPacket.GetData(), fields)
 				if err != nil {
-					log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorProtocolProcessing).
+					handler.logger.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorProtocolProcessing).
 						Debugln("Can't process binary data row")
 					return err
 				}
 				dataLength := fieldDataPacket.GetPacketPayloadLength()
 				// decrypted data always less than ecrypted
 				if len(newData) < dataLength {
-					log.WithFields(log.Fields{"oldLength": dataLength, "newLength": len(newData)}).Debugln("Update row data")
+					handler.logger.WithFields(logrus.Fields{"oldLength": dataLength, "newLength": len(newData)}).Debugln("Update row data")
 					fieldDataPacket.SetData(newData)
 				}
 			}
 		} else {
-			var dataLog *log.Entry
+			var dataLog *logrus.Entry
 			// read data packets
 			for i := 0; ; i++ {
-				dataLog = log.WithField("data_row_index", i)
+				dataLog = handler.logger.WithField("data_row_index", i)
 				dataLog.Debugln("Read data row")
 				fieldDataPacket, err := ReadPacket(dbConnection)
 				if err != nil {
-					log.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorProtocolProcessing).WithError(err).Errorln("Can't read data packet")
+					handler.logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorProtocolProcessing).WithError(err).Errorln("Can't read data packet")
 					return err
 				}
 				output = append(output, fieldDataPacket)
@@ -544,7 +556,7 @@ func (handler *MysqlHandler) QueryResponseHandler(packet *MysqlPacket, dbConnect
 				dataLength := fieldDataPacket.GetPacketPayloadLength()
 				// decrypted data always less than ecrypted
 				if len(newData) < dataLength {
-					dataLog.WithFields(log.Fields{"oldLength": dataLength, "newLength": len(newData)}).Debugln("update row data")
+					dataLog.WithFields(logrus.Fields{"oldLength": dataLength, "newLength": len(newData)}).Debugln("Update row data")
 					fieldDataPacket.SetData(newData)
 				}
 
@@ -554,21 +566,21 @@ func (handler *MysqlHandler) QueryResponseHandler(packet *MysqlPacket, dbConnect
 	}
 
 	// proxy output
-	log.Debugln("proxy output")
+	handler.logger.Debugln("Proxy output")
 	for _, dumper := range output {
 		if _, err := clientConnection.Write(dumper.Dump()); err != nil {
-			log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorResponseConnectorCantWriteToClient).
+			handler.logger.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorResponseConnectorCantWriteToClient).
 				Errorln("Can't proxy output")
 			return err
 		}
 	}
 	handler.resetQueryHandler()
-	log.Debugln("query handler finish")
+	handler.logger.Debugln("Query handler finish")
 	return nil
 }
 
 func (handler *MysqlHandler) DbToClientConnector(errCh chan<- error) {
-	serverLog := log.WithField("proxy", "server")
+	serverLog := handler.logger.WithField("proxy", "server")
 	serverLog.Debugln("Start proxy db responses")
 	firstPacket := true
 	var responseHandler ResponseHandler
@@ -581,35 +593,35 @@ func (handler *MysqlHandler) DbToClientConnector(errCh chan<- error) {
 					handler.dbConnection.SetReadDeadline(time.Time{})
 					tlsConnection := tls.Client(handler.dbConnection, handler.tlsConfig)
 					if err := tlsConnection.Handshake(); err != nil {
-						log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorDecryptorCantInitializeTLS).
-							Errorln("error in tls handshake with db")
+						handler.logger.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorDecryptorCantInitializeTLS).
+							Errorln("Error in tls handshake with db")
 						errCh <- err
 						return
 					}
-					log.Debugln("switched to tls with db")
+					handler.logger.Debugln("Switched to tls with db")
 					handler.dbConnection = tlsConnection
 					handler.dbTLSHandshakeFinished <- true
 					continue
 				}
 			}
-			log.Debugln("Can't read packet from server")
+			handler.logger.Debugln("Can't read packet from server")
 			errCh <- err
 			return
 		}
-		log.WithField("sequence_number", packet.GetSequenceNumber()).Debugln("new packet from db to client")
+		handler.logger.WithField("sequence_number", packet.GetSequenceNumber()).Debugln("New packet from db to client")
 		if packet.IsErr() {
 			handler.resetQueryHandler()
 		}
 		if firstPacket {
 			firstPacket = false
 			handler.serverProtocol41 = packet.ServerSupportProtocol41()
-			serverLog.Debugf("set support protocol 41 %v", handler.serverProtocol41)
+			serverLog.Debugf("Set support protocol 41 %v", handler.serverProtocol41)
 		}
 		responseHandler = handler.getResponseHandler()
 		err = responseHandler(packet, handler.dbConnection, handler.clientConnection)
 		if err != nil {
 			handler.resetQueryHandler()
-			log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorResponseConnectorCantWriteToServer).
+			handler.logger.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorResponseConnectorCantWriteToServer).
 				Errorln("Error in responseHandler")
 			errCh <- err
 			return

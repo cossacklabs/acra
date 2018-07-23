@@ -124,7 +124,7 @@ func (server *SServer) getDecryptor(clientId []byte) base.Decryptor {
 	pgDecryptorImpl.SetPoisonCallbackStorage(poisonCallbackStorage)
 	var decryptor base.Decryptor = pgDecryptorImpl
 	if server.config.UseMySQL() {
-		decryptor = mysql.NewMySQLDecryptor(pgDecryptorImpl, server.keystorage)
+		decryptor = mysql.NewMySQLDecryptor(clientId, pgDecryptorImpl, server.keystorage)
 	}
 	return decryptor
 }
@@ -158,7 +158,7 @@ func (server *SServer) handleConnection(connection net.Conn) {
 	}
 	clientSession.connection = wrappedConnection
 	decryptor := server.getDecryptor(clientId)
-	clientSession.HandleClientConnection(decryptor)
+	clientSession.HandleClientConnection(clientId, decryptor)
 }
 
 // start listening connections from proxy

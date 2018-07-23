@@ -61,7 +61,7 @@ func getDecryptor(keystore keystore.KeyStore) *MySQLDecryptor {
 	dataDecryptor := binary.NewBinaryDecryptor()
 	clientId := []byte("some id")
 	pgDecryptor := postgresql.NewPgDecryptor(clientId, dataDecryptor)
-	decryptor := NewMySQLDecryptor(pgDecryptor, keystore)
+	decryptor := NewMySQLDecryptor(clientId, pgDecryptor, keystore)
 
 	poisonCallbackStorage := base.NewPoisonCallbackStorage()
 	decryptor.SetPoisonCallbackStorage(poisonCallbackStorage)
