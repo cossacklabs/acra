@@ -30,6 +30,7 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
+// Constans handy for AcraTranslator.
 const (
 	SERVICE_NAME         = "acra-translator"
 	DEFAULT_WAIT_TIMEOUT = 10
@@ -49,7 +50,7 @@ func main() {
 
 	keysDir := flag.String("keys_dir", keystore.DEFAULT_KEY_DIR_SHORT, "Folder from which will be loaded keys")
 
-	secureSessionId := flag.String("securesession_id", "acra_translator", "Id that will be sent in secure session")
+	secureSessionID := flag.String("securesession_id", "acra_translator", "Id that will be sent in secure session")
 
 	detectPoisonRecords := flag.Bool("poison_detect_enable", true, "Turn on poison record detection")
 	stopOnPoison := flag.Bool("poison_shutdown_enable", false, "Stop on detecting poison record")
@@ -71,7 +72,7 @@ func main() {
 	logging.CustomizeLogging(*loggingFormat, SERVICE_NAME)
 
 	log.Infof("Validating service configuration")
-	cmd.ValidateClientId(*secureSessionId)
+	cmd.ValidateClientId(*secureSessionID)
 
 	if *debug {
 		logging.SetLogLevel(logging.LOG_DEBUG)
@@ -86,7 +87,7 @@ func main() {
 	config.SetStopOnPoison(*stopOnPoison)
 	config.SetScriptOnPoison(*scriptOnPoison)
 	config.SetKeysDir(*keysDir)
-	config.SetServerId([]byte(*secureSessionId))
+	config.SetServerID([]byte(*secureSessionID))
 	config.SetIncomingConnectionHTTPString(*incomingConnectionHTTPString)
 	config.SetIncomingConnectionGRPCString(*incomingConnectionGRPCString)
 	config.SetConfigPath(DEFAULT_CONFIG_PATH)

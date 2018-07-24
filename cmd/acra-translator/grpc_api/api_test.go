@@ -67,9 +67,9 @@ func (*testKeystore) GenerateDataEncryptionKeys(id []byte) error {
 	panic("implement me")
 }
 
-func (store *testKeystore) GetPoisonKeyPair() (*keys.Keypair, error) {
-	if store.PoisonKey != nil {
-		return &keys.Keypair{Private: &keys.PrivateKey{Value: append([]byte{}, store.PoisonKey.Private.Value...)}, Public: store.PoisonKey.Public}, nil
+func (keystore *testKeystore) GetPoisonKeyPair() (*keys.Keypair, error) {
+	if keystore.PoisonKey != nil {
+		return &keys.Keypair{Private: &keys.PrivateKey{Value: append([]byte{}, keystore.PoisonKey.Private.Value...)}, Public: store.PoisonKey.Public}, nil
 	}
 	return nil, nil
 }
@@ -98,7 +98,7 @@ func TestDecryptGRPCService_Decrypt(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	clientId := []byte("test client")
+	clientID := []byte("test client")
 	data := []byte("data")
 	keystore := &testKeystore{}
 	poisonKeypair, err := keys.New(keys.KEYTYPE_EC)
@@ -114,20 +114,20 @@ func TestDecryptGRPCService_Decrypt(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// check that clientId is required
+	// check that clientID is required
 	response, err := service.Decrypt(ctx, &DecryptRequest{ClientId: nil, Acrastruct: nil})
-	if response != nil || err != ErrClientIdRequired {
+	if response != nil || err != ErrClientIDRequired {
 		t.Fatal("expected key not found error")
 	}
 
-	// error if key not found by clientId
-	response, err = service.Decrypt(ctx, &DecryptRequest{ClientId: clientId, Acrastruct: nil})
+	// error if key not found by clientID
+	response, err = service.Decrypt(ctx, &DecryptRequest{ClientId: clientID, Acrastruct: nil})
 	if response != nil || err != ErrCantDecrypt {
 		t.Fatal("expected key not found error")
 	}
 
 	// error if key not found by zone id
-	response, err = service.Decrypt(ctx, &DecryptRequest{ClientId: clientId, ZoneId: clientId, Acrastruct: nil})
+	response, err = service.Decrypt(ctx, &DecryptRequest{ClientId: clientID, ZoneId: clientID, Acrastruct: nil})
 	if response != nil || err != ErrCantDecrypt {
 		t.Fatal("expected key not found error")
 	}
@@ -136,7 +136,7 @@ func TestDecryptGRPCService_Decrypt(t *testing.T) {
 	keystore.PrivateKey = keypair.Private
 
 	// test error on decyrption
-	response, err = service.Decrypt(ctx, &DecryptRequest{ClientId: clientId, Acrastruct: []byte("not acrastruct")})
+	response, err = service.Decrypt(ctx, &DecryptRequest{ClientId: clientID, Acrastruct: []byte("not acrastruct")})
 	if err == nil {
 		t.Fatal(err)
 	}
@@ -146,7 +146,7 @@ func TestDecryptGRPCService_Decrypt(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	response, err = service.Decrypt(ctx, &DecryptRequest{ClientId: clientId, Acrastruct: acrastruct})
+	response, err = service.Decrypt(ctx, &DecryptRequest{ClientId: clientID, Acrastruct: acrastruct})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -155,12 +155,12 @@ func TestDecryptGRPCService_Decrypt(t *testing.T) {
 	}
 
 	// test with zone
-	zoneId := clientId // use client id as zone id because no matter what to use
-	acrastruct, err = acrawriter.CreateAcrastruct(data, keypair.Public, zoneId)
+	zoneID := clientID // use client id as zone id because no matter what to use
+	acrastruct, err = acrawriter.CreateAcrastruct(data, keypair.Public, zoneID)
 	if err != nil {
 		t.Fatal(err)
 	}
-	response, err = service.Decrypt(ctx, &DecryptRequest{ClientId: clientId, ZoneId: zoneId, Acrastruct: acrastruct})
+	response, err = service.Decrypt(ctx, &DecryptRequest{ClientId: clientID, ZoneId: zoneID, Acrastruct: acrastruct})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -174,7 +174,7 @@ func TestDecryptGRPCService_Decrypt(t *testing.T) {
 	}
 	callback := &poisonCallback{}
 	poisonCallbacks.AddCallback(callback)
-	response, err = service.Decrypt(ctx, &DecryptRequest{ClientId: clientId, ZoneId: zoneId, Acrastruct: poisonRecord})
+	response, err = service.Decrypt(ctx, &DecryptRequest{ClientId: clientID, ZoneId: zoneID, Acrastruct: poisonRecord})
 	if err == nil {
 		t.Fatal(err)
 	}
@@ -185,7 +185,7 @@ func TestDecryptGRPCService_Decrypt(t *testing.T) {
 	// check that we can turn off poison record detection
 	translatorData.CheckPoisonRecords = false
 	callback.Called = false // reset
-	response, err = service.Decrypt(ctx, &DecryptRequest{ClientId: clientId, ZoneId: zoneId, Acrastruct: poisonRecord})
+	response, err = service.Decrypt(ctx, &DecryptRequest{ClientId: clientID, ZoneId: zoneID, Acrastruct: poisonRecord})
 	if err != ErrCantDecrypt {
 		t.Fatal(err)
 	}

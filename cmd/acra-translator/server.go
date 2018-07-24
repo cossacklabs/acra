@@ -21,6 +21,8 @@ import (
 	"google.golang.org/grpc/reflection"
 )
 
+// ReaderServer represents AcraTranslator server, connects with KeyStorage, configuration file,
+// gRPC and HTTP request parsers.
 type ReaderServer struct {
 	config            *AcraTranslatorConfig
 	keystorage        keystore.KeyStore
@@ -34,6 +36,7 @@ type ReaderServer struct {
 	listenersContextCancel []context.CancelFunc
 }
 
+// NewReaderServer creates Reader server with provided params.
 func NewReaderServer(config *AcraTranslatorConfig, keystorage keystore.KeyStore, waitTimeout time.Duration) (server *ReaderServer, err error) {
 	return &ReaderServer{
 		waitTimeout:       waitTimeout,
@@ -43,6 +46,7 @@ func NewReaderServer(config *AcraTranslatorConfig, keystorage keystore.KeyStore,
 	}, nil
 }
 
+// Stop stops AcraTranslator from accepting new connections, and gracefully close existing ones.
 func (server *ReaderServer) Stop() {
 	log.Infoln("Stop accepting new connections")
 	// stop all listeners
@@ -77,6 +81,8 @@ func (server *ReaderServer) listenerContext(parentContext context.Context) conte
 	return ctx
 }
 
+// HandleConnectionString handles each connection with gRPC request handler or HTTP request handler
+// depending on connection string.
 func (server *ReaderServer) HandleConnectionString(parentContext context.Context, connectionString string, processingFunc ProcessingFunc) error {
 	logger := logging.GetLoggerFromContext(parentContext)
 	if logger == nil {
@@ -107,7 +113,7 @@ func (server *ReaderServer) HandleConnectionString(parentContext context.Context
 				return
 			}
 
-			wrappedConnection, clientId, err := server.config.ConnectionWrapper.WrapServer(connection)
+			wrappedConnection, clientID, err := server.config.ConnectionWrapper.WrapServer(connection)
 			if err != nil {
 				logger.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorTranslatorCantWrapConnectionToSS).
 					Errorln("Can't wrap new connection")
@@ -117,7 +123,7 @@ func (server *ReaderServer) HandleConnectionString(parentContext context.Context
 				}
 				continue
 			}
-			logger = logger.WithField("client_id", string(clientId))
+			logger = logger.WithField("client_id", string(clientID))
 			logger.Debugln("Pass wrapped connection to processing function")
 			logging.SetLoggerToContext(parentContext, logger)
 
@@ -137,7 +143,7 @@ func (server *ReaderServer) HandleConnectionString(parentContext context.Context
 					return
 				}
 
-				processingFunc(parentContext, clientId, wrappedConnection)
+				processingFunc(parentContext, clientID, wrappedConnection)
 
 				if err := server.connectionManager.RemoveConnection(wrappedConnection); err != nil {
 					logger.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorTranslatorCantHandleHTTPConnection).
@@ -146,7 +152,7 @@ func (server *ReaderServer) HandleConnectionString(parentContext context.Context
 			}()
 		}
 	}()
-	var outErr error = nil
+	var outErr error
 	select {
 	case <-parentContext.Done():
 		log.WithError(parentContext.Err()).Debugln("Exit from handling connection string. Close all connections")
@@ -160,12 +166,14 @@ func (server *ReaderServer) HandleConnectionString(parentContext context.Context
 	return outErr
 }
 
+// Constants show possible connection types.
 const (
 	CONNECTION_TYPE_KEY  = "connection_type"
 	HTTP_CONNECTION_TYPE = "http"
 	GRPC_CONNECTION_TYPE = "grpc"
 )
 
+// Start setups gRPC handler or HTTP handler, poison records callbacks and starts listening to connections.
 func (server *ReaderServer) Start(parentContext context.Context) {
 	logger := logging.GetLoggerFromContext(parentContext)
 	poisonCallbacks := base.NewPoisonCallbackStorage()
@@ -226,9 +234,10 @@ func (server *ReaderServer) Start(parentContext context.Context) {
 	<-parentContext.Done()
 }
 
+// ProcessingFunc redirects processing of connection to HTTP handler or gRPC handler.
 type ProcessingFunc func(context.Context, []byte, net.Conn)
 
-func (server *ReaderServer) processHTTPConnection(parentContext context.Context, clientId []byte, connection net.Conn) {
+func (server *ReaderServer) processHTTPConnection(parentContext context.Context, clientID []byte, connection net.Conn) {
 	// processing HTTP connection
 	logger := logging.GetLoggerFromContext(parentContext)
 	httpLogger := logger.WithField(CONNECTION_TYPE_KEY, HTTP_CONNECTION_TYPE)
@@ -247,6 +256,6 @@ func (server *ReaderServer) processHTTPConnection(parentContext context.Context,
 		return
 	}
 
-	response := server.httpDecryptor.ParseRequestPrepareResponse(logger, request, clientId)
+	response := server.httpDecryptor.ParseRequestPrepareResponse(logger, request, clientID)
 	server.httpDecryptor.SendResponse(logger, response, connection)
 }
