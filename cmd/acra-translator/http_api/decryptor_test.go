@@ -79,7 +79,7 @@ func TestHTTPResponseStatus(t *testing.T) {
 
 func TestHTTPDecryptionAndResponse(t *testing.T) {
 	keyStore := &testKeystore{}
-	translatorData := &common.TranslatorData{Keystorage: keyStore, PoisonRecordCallbacks: base.NewPoisonCallbackStorage()}
+	translatorData := &common.TranslatorData{Keystorage: keyStore, PoisonRecordCallbacks: base.NewPoisonCallbackStorage(), CheckPoisonRecords: true}
 	httpConnectionsDecryptor, err := NewHTTPConnectionsDecryptor(translatorData)
 
 	if err != nil {
@@ -166,6 +166,8 @@ func TestHTTPDecryptionAndResponse(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	testPoisonCallback := &poisonCallback{}
+	translatorData.PoisonRecordCallbacks.AddCallback(testPoisonCallback)
 
 	// check without zone
 	request.Body = ioutil.NopCloser(bytes.NewReader(poisonRecord))
@@ -181,8 +183,12 @@ func TestHTTPDecryptionAndResponse(t *testing.T) {
 	if !bytes.Equal(decryptedAcraStruct, []byte("Can't decrypt AcraStruct")) {
 		t.Fatal("Incorrect response body")
 	}
+	if !testPoisonCallback.Called {
+		t.Fatal("Callback on poison record wasn't called")
+	}
+	testPoisonCallback.Called = false // reset
 
-	// check without zone
+	// check with zone
 	request.Body = ioutil.NopCloser(bytes.NewReader(poisonRecord))
 	request.URL, _ = url.Parse(fmt.Sprintf("http://smth.com/v1/decrypt?zone_id=%s", zoneId))
 	res = httpConnectionsDecryptor.ParseRequestPrepareResponse(logger, &request, clientId)
@@ -195,6 +201,49 @@ func TestHTTPDecryptionAndResponse(t *testing.T) {
 	}
 	if !bytes.Equal(decryptedAcraStruct, []byte("Can't decrypt AcraStruct")) {
 		t.Fatal("Incorrect response body")
+	}
+	if !testPoisonCallback.Called {
+		t.Fatal("Callback on poison record wasn't called")
+	}
+
+	// check that poison callbacks not processed when we turn off checks
+	testPoisonCallback.Called = false
+	translatorData.CheckPoisonRecords = false
+
+	// check without zone
+	request.Body = ioutil.NopCloser(bytes.NewReader(poisonRecord))
+	request.URL, _ = url.Parse("http://smth.com/v1/decrypt")
+	res = httpConnectionsDecryptor.ParseRequestPrepareResponse(logger, &request, clientId)
+	if res.StatusCode != http.StatusUnprocessableEntity {
+		t.Fatalf(fmt.Sprintf("Should not be able to decrypt poison record -> Status code should be StatusUnprocessableEntity, got %s\n", res.Status))
+	}
+	decryptedAcraStruct, err = ioutil.ReadAll(res.Body)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Equal(decryptedAcraStruct, []byte("Can't decrypt AcraStruct")) {
+		t.Fatal("Incorrect response body")
+	}
+	if testPoisonCallback.Called {
+		t.Fatal("Callback on poison record wasn't called")
+	}
+
+	// check with zone
+	request.Body = ioutil.NopCloser(bytes.NewReader(poisonRecord))
+	request.URL, _ = url.Parse(fmt.Sprintf("http://smth.com/v1/decrypt?zone_id=%s", zoneId))
+	res = httpConnectionsDecryptor.ParseRequestPrepareResponse(logger, &request, clientId)
+	if res.StatusCode != http.StatusUnprocessableEntity {
+		t.Fatalf(fmt.Sprintf("Should not be able to decrypt poison record -> Status code should be StatusUnprocessableEntity, got %s\n", res.Status))
+	}
+	decryptedAcraStruct, err = ioutil.ReadAll(res.Body)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Equal(decryptedAcraStruct, []byte("Can't decrypt AcraStruct")) {
+		t.Fatal("Incorrect response body")
+	}
+	if testPoisonCallback.Called {
+		t.Fatal("Callback on poison record wasn't called")
 	}
 }
 

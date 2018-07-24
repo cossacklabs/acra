@@ -108,7 +108,7 @@ func TestDecryptGRPCService_Decrypt(t *testing.T) {
 	keystore.PoisonKey = poisonKeypair
 
 	poisonCallbacks := base.NewPoisonCallbackStorage()
-	translatorData := &common.TranslatorData{PoisonRecordCallbacks: poisonCallbacks, Keystorage: keystore}
+	translatorData := &common.TranslatorData{PoisonRecordCallbacks: poisonCallbacks, Keystorage: keystore, CheckPoisonRecords:true}
 	service, err := NewDecryptGRPCService(translatorData)
 	if err != nil {
 		t.Fatal(err)
@@ -180,5 +180,16 @@ func TestDecryptGRPCService_Decrypt(t *testing.T) {
 	}
 	if !callback.Called {
 		t.Fatal("Poison record callback wasn't called")
+	}
+
+	// check that we can turn off poison record detection
+	translatorData.CheckPoisonRecords = false
+	callback.Called = false // reset
+	response, err = service.Decrypt(ctx, &DecryptRequest{ClientId: clientId, ZoneId: zoneId, Acrastruct: poisonRecord})
+	if err != ErrCantDecrypt {
+		t.Fatal(err)
+	}
+	if callback.Called {
+		t.Fatal("Poison record callback was called")
 	}
 }

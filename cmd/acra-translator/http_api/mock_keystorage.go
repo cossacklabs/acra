@@ -65,7 +65,9 @@ func (*testKeystore) GenerateDataEncryptionKeys(id []byte) error {
 func (store *testKeystore) GetPoisonKeyPair() (*keys.Keypair, error) {
 	// if explicitly set for tests
 	if store.PoisonKeyPair != nil {
-		return store.PoisonKeyPair, nil
+		// copy private key because it should be zeroed after that
+		privateKey := &keys.PrivateKey{Value: append([]byte{}, store.PoisonKeyPair.Private.Value...)}
+		return &keys.Keypair{Private: privateKey, Public: store.PoisonKeyPair.Public}, nil
 	}
 	// we no matter what the key
 	return keys.New(keys.KEYTYPE_EC)
