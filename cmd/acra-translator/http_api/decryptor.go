@@ -16,14 +16,17 @@ import (
 	"strings"
 )
 
+// Decryptor object for decrypting AcraStructs from HTTP requests.
 type HTTPConnectionsDecryptor struct {
 	*common.TranslatorData
 }
 
+// Creates HTTPConnectionsDecryptor object.
 func NewHTTPConnectionsDecryptor(data *common.TranslatorData) (*HTTPConnectionsDecryptor, error) {
 	return &HTTPConnectionsDecryptor{TranslatorData: data}, nil
 }
 
+// Sends HTTP response to connection using Buffer.
 func (decryptor *HTTPConnectionsDecryptor) SendResponse(logger *log.Entry, response *http.Response, connection net.Conn) {
 	outBuffer := &bytes.Buffer{}
 	err := response.Write(outBuffer)
@@ -38,6 +41,8 @@ func (decryptor *HTTPConnectionsDecryptor) SendResponse(logger *log.Entry, respo
 	}
 }
 
+// Parses HTTP request to find AcraStruct and ZoneID, then decrypts AcraStruct.
+// Returns HTTP response with appropriate status code, headers, decrypted AcraStruct or error message.
 func (decryptor *HTTPConnectionsDecryptor) ParseRequestPrepareResponse(logger *log.Entry, request *http.Request, clientId []byte) *http.Response {
 	requestLogger := logger.WithFields(log.Fields{"client_id": string(clientId), "translator": "http"})
 	if request == nil || request.URL == nil {
@@ -73,7 +78,7 @@ func (decryptor *HTTPConnectionsDecryptor) ParseRequestPrepareResponse(logger *l
 
 	switch endpoint {
 	case "decrypt":
-		var zoneId []byte = nil
+		var zoneId []byte
 
 		// optional zone_id
 		query, ok := request.URL.Query()["zone_id"]
@@ -152,7 +157,7 @@ func (decryptor *HTTPConnectionsDecryptor) ParseRequestPrepareResponse(logger *l
 func (decryptor *HTTPConnectionsDecryptor) decryptAcraStruct(logger *log.Entry, acraStruct []byte, zoneId []byte, clientId []byte) ([]byte, error) {
 	var err error
 	var privateKey *keys.PrivateKey
-	var decryptionContext []byte = nil
+	var decryptionContext []byte
 
 	if len(zoneId) != 0 {
 		privateKey, err = decryptor.TranslatorData.Keystorage.GetZonePrivateKey(zoneId)
@@ -201,6 +206,7 @@ func responseWithMessage(request *http.Request, status int, body string) *http.R
 	return response
 }
 
+// Creates HTTP response without body, with status code.
 func (decryptor *HTTPConnectionsDecryptor) EmptyResponseWithStatus(request *http.Request, status int) *http.Response {
 	return emptyResponseWithStatus(request, status)
 }

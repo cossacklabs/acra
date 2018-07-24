@@ -17,17 +17,17 @@ import (
 	"fmt"
 	"net"
 
-	"github.com/cossacklabs/acra/decryptor/mysql"
-	"github.com/cossacklabs/acra/decryptor/postgresql"
 	log "github.com/sirupsen/logrus"
 
-	"io"
-
 	"github.com/cossacklabs/acra/decryptor/base"
+	"github.com/cossacklabs/acra/decryptor/mysql"
+	"github.com/cossacklabs/acra/decryptor/postgresql"
 	"github.com/cossacklabs/acra/keystore"
 	"github.com/cossacklabs/acra/logging"
+	"io"
 )
 
+// ClientSession handles connection between database and AcraServer.
 type ClientSession struct {
 	config         *Config
 	keystorage     keystore.KeyStore
@@ -36,10 +36,12 @@ type ClientSession struct {
 	Server         *SServer
 }
 
+// Creates new ClientSession object.
 func NewClientSession(keystorage keystore.KeyStore, config *Config, connection net.Conn) (*ClientSession, error) {
 	return &ClientSession{connection: connection, keystorage: keystorage, config: config}, nil
 }
 
+// Connects to the database via tcp using Host and Port from config.
 func (clientSession *ClientSession) ConnectToDb() error {
 	conn, err := net.Dial("tcp", fmt.Sprintf("%v:%v", clientSession.config.GetDBHost(), clientSession.config.GetDBPort()))
 	if err != nil {
@@ -66,9 +68,8 @@ func (clientSession *ClientSession) close() {
 	log.Debugln("All connections closed")
 }
 
-/* acra-connector connections from client to db and decrypt responses from db to client
-if any error occurred than end processing
-*/
+// Handles Acra-connector connections from client to db and decrypt responses from db to client.
+// If any error occurred – ends processing.
 func (clientSession *ClientSession) HandleClientConnection(clientId []byte, decryptorImpl base.Decryptor) {
 	log.Infof("Handle client's connection")
 	clientProxyErrorCh := make(chan error, 1)

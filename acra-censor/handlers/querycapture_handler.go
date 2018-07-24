@@ -16,9 +16,14 @@ import (
 	"github.com/xwb1989/sqlparser/dependency/querypb"
 )
 
+// After `DefaultSerializationTimeout` seconds parsed queries are dumped to QueryCaptureLog file.
 const DefaultSerializationTimeout = time.Second
+
+// Placeholder to mask real Values from SQL queries before logging to syslog.
 const ValuePlaceholder = "X"
 
+// Remembers all unique captured SQL queries,
+// writes them to the QueryCaptureLog every serializationTimeout seconds.
 type QueryCaptureHandler struct {
 	Queries              []*QueryInfo
 	BufferedQueries      []*QueryInfo
@@ -27,11 +32,14 @@ type QueryCaptureHandler struct {
 	serializationTimeout time.Duration
 	serializationTicker  *time.Ticker
 }
+
+// Describes masked Query and its status (was forbidden or allowed).
 type QueryInfo struct {
 	RawQuery    string
 	IsForbidden bool
 }
 
+// Creates new QueryCaptureHandler, connected to QueryCaptureLog file at filePath.
 func NewQueryCaptureHandler(filePath string) (*QueryCaptureHandler, error) {
 	// open or create file, APPEND MODE
 	openedFile, err := os.OpenFile(filePath, os.O_APPEND|os.O_RDWR|os.O_CREATE, 0600)
@@ -96,6 +104,7 @@ func NewQueryCaptureHandler(filePath string) (*QueryCaptureHandler, error) {
 	return handler, nil
 }
 
+// Returns "yes" if Query was already captured, no otherwise.
 func (handler *QueryCaptureHandler) CheckQuery(query string) (bool, error) {
 	//skip already captured queries
 	for _, queryInfo := range handler.Queries {
@@ -111,11 +120,14 @@ func (handler *QueryCaptureHandler) CheckQuery(query string) (bool, error) {
 
 	return true, nil
 }
+
+// Sets Captured queries list to nil.
 func (handler *QueryCaptureHandler) Reset() {
 	handler.Queries = nil
 	handler.BufferedQueries = nil
 }
 
+// Dumps all Captured queries to file and resets Captured queries list.
 func (handler *QueryCaptureHandler) Release() {
 	handler.Reset()
 	handler.signalBackgroundExit <- true
