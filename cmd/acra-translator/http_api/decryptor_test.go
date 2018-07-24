@@ -267,7 +267,7 @@ func TestHTTPDecryptionAcraStruct(t *testing.T) {
 
 	// not an acrastruct
 	decrypted, err := httpConnectionsDecryptor.decryptAcraStruct(nil, []byte("some garbage not acrastruct"), nil, clientId)
-	if err == nil {
+	if err == nil || decrypted != nil {
 		t.Fatalf("Should not be able to decrypt garbage")
 	}
 
