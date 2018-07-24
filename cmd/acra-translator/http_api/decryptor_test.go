@@ -184,7 +184,7 @@ func TestHTTPDecryptionAndResponse(t *testing.T) {
 		t.Fatal("Incorrect response body")
 	}
 	if !testPoisonCallback.Called {
-		t.Fatal("Callback on poison record wasn't called")
+		t.Fatal("Callback on poison record shouldn't be called")
 	}
 	testPoisonCallback.Called = false // reset
 
@@ -203,7 +203,7 @@ func TestHTTPDecryptionAndResponse(t *testing.T) {
 		t.Fatal("Incorrect response body")
 	}
 	if !testPoisonCallback.Called {
-		t.Fatal("Callback on poison record wasn't called")
+		t.Fatal("Callback on poison record shouldn't be called")
 	}
 
 	// check that poison callbacks not processed when we turn off checks
@@ -225,7 +225,7 @@ func TestHTTPDecryptionAndResponse(t *testing.T) {
 		t.Fatal("Incorrect response body")
 	}
 	if testPoisonCallback.Called {
-		t.Fatal("Callback on poison record wasn't called")
+		t.Fatal("Callback on poison record shouldn't be called")
 	}
 
 	// check with zone
@@ -243,7 +243,7 @@ func TestHTTPDecryptionAndResponse(t *testing.T) {
 		t.Fatal("Incorrect response body")
 	}
 	if testPoisonCallback.Called {
-		t.Fatal("Callback on poison record wasn't called")
+		t.Fatal("Callback on poison record shouldn't be called")
 	}
 }
 
