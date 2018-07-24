@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package keystore
+package filesystem
 
 import (
 	"fmt"
@@ -40,6 +40,10 @@ func getZonePublicKeyFilename(id []byte) string {
 
 func getServerKeyFilename(id []byte) string {
 	return fmt.Sprintf("%s_server", string(id))
+}
+
+func getTranslatorKeyFilename(id []byte) string {
+	return fmt.Sprintf("%s_translator", string(id))
 }
 
 func getServerDecryptionKeyFilename(id []byte) string {

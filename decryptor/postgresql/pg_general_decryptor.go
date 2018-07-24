@@ -22,24 +22,26 @@ import (
 	"github.com/cossacklabs/acra/utils"
 	"github.com/cossacklabs/acra/zone"
 	"github.com/cossacklabs/themis/gothemis/keys"
-	log "github.com/sirupsen/logrus"
+	"github.com/sirupsen/logrus"
 	"io"
 )
 
 type PgDecryptor struct {
-	isWithZone       bool
-	isWholeMatch     bool
-	keyStore         keystore.KeyStore
-	zoneMatcher      *zone.ZoneIdMatcher
-	pgDecryptor      base.DataDecryptor
-	binaryDecryptor  base.DataDecryptor
-	matchedDecryptor base.DataDecryptor
+	isWithZone         bool
+	isWholeMatch       bool
+	keyStore           keystore.KeyStore
+	zoneMatcher        *zone.ZoneIdMatcher
+	pgDecryptor        base.DataDecryptor
+	binaryDecryptor    base.DataDecryptor
+	matchedDecryptor   base.DataDecryptor
+	checkPoisonRecords bool
 
 	poisonKey       []byte
 	clientId        []byte
 	matchBuffer     []byte
 	matchIndex      int
 	callbackStorage *base.PoisonCallbackStorage
+	logger          *logrus.Entry
 }
 
 func NewPgDecryptor(clientId []byte, decryptor base.DataDecryptor) *PgDecryptor {
@@ -49,9 +51,11 @@ func NewPgDecryptor(clientId []byte, decryptor base.DataDecryptor) *PgDecryptor 
 		binaryDecryptor: binary.NewBinaryDecryptor(),
 		clientId:        clientId,
 		// longest tag (escape) + bin
-		matchBuffer:  make([]byte, len(ESCAPE_TAG_BEGIN)+len(base.TAG_BEGIN)),
-		matchIndex:   0,
-		isWholeMatch: true,
+		matchBuffer:        make([]byte, len(ESCAPE_TAG_BEGIN)+len(base.TAG_BEGIN)),
+		matchIndex:         0,
+		isWholeMatch:       true,
+		logger:             logrus.WithField("client_id", string(clientId)),
+		checkPoisonRecords: true,
 	}
 }
 
@@ -108,11 +112,11 @@ func (decryptor *PgDecryptor) IsMatched() bool {
 	// but can be case when begin tag is equal for binary and escape formats
 	// in this case may be error in stream mode
 	if decryptor.pgDecryptor.IsMatched() {
-		log.Debugln("matched pg decryptor")
+		decryptor.logger.Debugln("Matched pg decryptor")
 		decryptor.matchedDecryptor = decryptor.pgDecryptor
 		return true
 	} else if decryptor.binaryDecryptor.IsMatched() {
-		log.Debugln("matched binary decryptor")
+		decryptor.logger.Debugln("Matched binary decryptor")
 		decryptor.matchedDecryptor = decryptor.binaryDecryptor
 		return true
 	} else {
@@ -157,10 +161,18 @@ func (decryptor *PgDecryptor) ReadData(symmetricKey, zoneId []byte, reader io.Re
 	// take diff count of matched between two decryptors
 	falseBufferedBeginTagLength := decryptor.matchIndex - correctMatchBeginTagLength
 	if falseBufferedBeginTagLength > 0 {
-		log.Debugf("return with false matched %v bytes", falseBufferedBeginTagLength)
+		decryptor.logger.Debugf("Return with false matched %v bytes", falseBufferedBeginTagLength)
 		decrypted, err := decryptor.matchedDecryptor.ReadData(symmetricKey, zoneId, reader)
 		return append(decryptor.matchBuffer[:falseBufferedBeginTagLength], decrypted...), err
 	}
+	// add zone_id to log if it used
+	var tempLogger *logrus.Entry
+	if decryptor.GetMatchedZoneId() != nil {
+		tempLogger = decryptor.logger.WithField("zone_id", string(decryptor.GetMatchedZoneId()))
+	} else {
+		tempLogger = decryptor.logger
+	}
+	tempLogger.Infof("Decrypted AcraStruct")
 	return decryptor.matchedDecryptor.ReadData(symmetricKey, zoneId, reader)
 }
 
@@ -175,6 +187,13 @@ func (decryptor *PgDecryptor) GetPrivateKey() (*keys.PrivateKey, error) {
 	return decryptor.keyStore.GetServerDecryptionPrivateKey(decryptor.clientId)
 }
 
+func (decryptor *PgDecryptor) TurnOnPoisonRecordCheck(val bool) {
+	decryptor.logger.Debugf("Set poison record check: %v", val)
+	decryptor.checkPoisonRecords = val
+}
+func (decryptor *PgDecryptor) IsPoisonRecordCheckOn() bool {
+	return decryptor.checkPoisonRecords
+}
 func (decryptor *PgDecryptor) GetPoisonCallbackStorage() *base.PoisonCallbackStorage {
 	if decryptor.callbackStorage == nil {
 		decryptor.callbackStorage = base.NewPoisonCallbackStorage()
@@ -249,17 +268,17 @@ func (decryptor *PgDecryptor) DecryptBlock(block []byte) ([]byte, error) {
 	reader := bytes.NewReader(dataBlock)
 	privateKey, err := decryptor.GetPrivateKey()
 	if err != nil {
-		log.Warningln("can't read private key")
+		decryptor.logger.Warningln("Can't read private key")
 		return []byte{}, err
 	}
 	key, _, err := decryptor.ReadSymmetricKey(privateKey, reader)
 	if err != nil {
-		log.Warningf("%v", utils.ErrorMessage("can't unwrap symmetric key", err))
+		decryptor.logger.Warningf("%v", utils.ErrorMessage("Can't unwrap symmetric key", err))
 		return []byte{}, err
 	}
 	data, err := decryptor.ReadData(key, decryptor.GetMatchedZoneId(), reader)
 	if err != nil {
-		log.Warningf("%v", utils.ErrorMessage("can't decrypt data with unwrapped symmetric key", err))
+		decryptor.logger.Warningf("%v", utils.ErrorMessage("Can't decrypt data with unwrapped symmetric key", err))
 		return []byte{}, err
 	}
 	if _, ok := decryptor.pgDecryptor.(*PgHexDecryptor); ok {
@@ -272,20 +291,22 @@ func (decryptor *PgDecryptor) CheckPoisonRecord(reader io.Reader) (bool, error) 
 	// check poison record
 	poisonKeypair, err := decryptor.keyStore.GetPoisonKeyPair()
 	if err != nil {
-		log.WithError(err).Errorln("can't load poison keypair")
+		decryptor.logger.WithError(err).Errorln("Can't load poison keypair")
 		return true, err
 	}
 	// try decrypt using poison key pair
 	_, _, err = decryptor.matchedDecryptor.ReadSymmetricKey(poisonKeypair.Private, reader)
 	if err == nil {
-		log.Warningln("recognized poison record")
-		err := decryptor.GetPoisonCallbackStorage().Call()
-		if err != nil {
-			log.WithError(err).Errorln("unexpected error in poison record callbacks")
+		decryptor.logger.Warningln("Recognized poison record")
+		if decryptor.GetPoisonCallbackStorage().HasCallbacks() {
+			err := decryptor.GetPoisonCallbackStorage().Call()
+			if err != nil {
+				decryptor.logger.WithError(err).Errorln("Unexpected error in poison record callbacks")
+			}
 		}
-		return true, err
+		return true, nil
 	}
-	log.Debugf("not recognized poison record. error returned - %v", err)
+	decryptor.logger.Debugf("Not recognized poison record. error returned - %v", err)
 	return false, nil
 }
 
@@ -296,21 +317,21 @@ func (decryptor *PgDecryptor) BeginTagIndex(block []byte) (int, int) {
 	_, ok := decryptor.pgDecryptor.(*PgHexDecryptor)
 	if ok {
 		if i := utils.FindTag(HEX_SYMBOL, decryptor.pgDecryptor.GetTagBeginLength(), block); i != utils.NOT_FOUND {
-			log.Debugln("matched pg decryptor")
+			decryptor.logger.Debugln("Matched pg decryptor")
 			decryptor.matchedDecryptor = decryptor.pgDecryptor
 			return i, decryptor.pgDecryptor.GetTagBeginLength()
 		}
 	} else {
 		// escape format
 		if i := utils.FindTag(base.TAG_SYMBOL, decryptor.pgDecryptor.GetTagBeginLength(), block); i != utils.NOT_FOUND {
-			log.Debugln("matched pg decryptor")
+			decryptor.logger.Debugln("Matched pg decryptor")
 			decryptor.matchedDecryptor = decryptor.pgDecryptor
 			return i, decryptor.pgDecryptor.GetTagBeginLength()
 			// binary format
 		}
 	}
 	if i := utils.FindTag(base.TAG_SYMBOL, decryptor.binaryDecryptor.GetTagBeginLength(), block); i != utils.NOT_FOUND {
-		log.Debugln("matched binary decryptor")
+		decryptor.logger.Debugln("Matched binary decryptor")
 		decryptor.matchedDecryptor = decryptor.binaryDecryptor
 		return i, decryptor.binaryDecryptor.GetTagBeginLength()
 	}

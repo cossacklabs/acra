@@ -19,6 +19,7 @@ import (
 	"fmt"
 	"github.com/cossacklabs/acra/cmd"
 	"github.com/cossacklabs/acra/keystore"
+	"github.com/cossacklabs/acra/keystore/filesystem"
 	"github.com/cossacklabs/acra/logging"
 	"github.com/cossacklabs/acra/poison"
 	"github.com/cossacklabs/acra/utils"
@@ -52,7 +53,7 @@ func main() {
 		log.WithError(err).Errorln("can't init scell encryptor")
 		os.Exit(1)
 	}
-	store, err := keystore.NewFilesystemKeyStore(*keysDir, scellEncryptor)
+	store, err := filesystem.NewFilesystemKeyStore(*keysDir, scellEncryptor)
 	if err != nil {
 		log.WithError(err).Errorln("can't initialize key store")
 		os.Exit(1)
@@ -60,6 +61,7 @@ func main() {
 	poisonRecord, err := poison.CreatePoisonRecord(store, *dataLength)
 	if err != nil {
 		log.WithError(err).Errorln("can't create poison record")
+		os.Exit(1)
 	}
 	fmt.Println(base64.StdEncoding.EncodeToString(poisonRecord))
 }

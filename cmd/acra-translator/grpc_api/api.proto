@@ -1,0 +1,17 @@
+syntax = "proto3";
+
+package grpc_api;
+
+message DecryptRequest {
+    bytes client_id = 1;
+    bytes zone_id = 2;
+    bytes acrastruct = 3;
+}
+
+message DecryptResponse {
+    bytes data = 1;
+}
+
+service Reader {
+    rpc Decrypt(DecryptRequest) returns (DecryptResponse) {}
+}

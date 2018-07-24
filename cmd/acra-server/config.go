@@ -36,6 +36,7 @@ type Config struct {
 	dbHost                  string
 	connectorHost           string
 	keysDir                 string
+	detectPoisonRecords     bool
 	scriptOnPoison          string
 	stopOnPoison            bool
 	withZone                bool
@@ -135,6 +136,12 @@ func (config *Config) SetAcraConnectionString(str string) {
 }
 func (config *Config) SetAcraAPIConnectionString(str string) {
 	config.acraAPIConnectionString = str
+}
+func (config *Config) SetDetectPoisonRecords(val bool) {
+	config.detectPoisonRecords = val
+}
+func (config *Config) DetectPoisonRecords() bool {
+	return config.detectPoisonRecords
 }
 func (config *Config) SetScriptOnPoison(scriptPath string) {
 	config.scriptOnPoison = scriptPath
