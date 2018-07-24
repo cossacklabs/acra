@@ -108,7 +108,7 @@ func TestDecryptGRPCService_Decrypt(t *testing.T) {
 	keystore.PoisonKey = poisonKeypair
 
 	poisonCallbacks := base.NewPoisonCallbackStorage()
-	translatorData := &common.TranslatorData{PoisonRecordCallbacks: poisonCallbacks, Keystorage: keystore, CheckPoisonRecords:true}
+	translatorData := &common.TranslatorData{PoisonRecordCallbacks: poisonCallbacks, Keystorage: keystore, CheckPoisonRecords: true}
 	service, err := NewDecryptGRPCService(translatorData)
 	if err != nil {
 		t.Fatal(err)
