@@ -10,7 +10,7 @@ import (
 	"github.com/cossacklabs/acra/decryptor/base"
 	"github.com/cossacklabs/acra/poison"
 	"github.com/cossacklabs/themis/gothemis/keys"
-	"golang.org/x/net/context"
+	context "golang.org/x/net/context"
 )
 
 type testKeystore struct {
