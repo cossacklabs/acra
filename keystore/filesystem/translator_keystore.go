@@ -13,8 +13,8 @@ type TranslatorFileSystemKeyStore struct {
 	encryptor keystore.KeyEncryptor
 }
 
-func NewTranslatorFileSystemKeyStore(directory string, encryptor keystore.KeyEncryptor) (*TranslatorFileSystemKeyStore, error) {
-	fsKeystore, err := NewFilesystemKeyStore(directory, encryptor)
+func NewTranslatorFileSystemKeyStore(directory string, encryptor keystore.KeyEncryptor, cacheSize int) (*TranslatorFileSystemKeyStore, error) {
+	fsKeystore, err := NewFileSystemKeyStoreWithCacheSize(directory, encryptor, cacheSize)
 	if err != nil {
 		return nil, err
 	}

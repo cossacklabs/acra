@@ -14,10 +14,11 @@ import (
 	"path/filepath"
 	"runtime"
 	"sync"
+	"github.com/cossacklabs/acra/keystore/lru_cache"
 )
 
 type FilesystemKeyStore struct {
-	keys                map[string][]byte
+	cache               keystore.Cache
 	privateKeyDirectory string
 	publicKeyDirectory  string
 	directory           string
@@ -25,11 +26,19 @@ type FilesystemKeyStore struct {
 	encryptor           keystore.KeyEncryptor
 }
 
+func NewFileSystemKeyStoreWithCacheSize(directory string, encryptor keystore.KeyEncryptor, cacheSize int)(*FilesystemKeyStore, error){
+	return newFilesystemKeyStore(directory, directory, encryptor, cacheSize)
+}
+
 func NewFilesystemKeyStore(directory string, encryptor keystore.KeyEncryptor) (*FilesystemKeyStore, error) {
-	return NewFilesystemKeyStoreTwoPath(directory, directory, encryptor)
+	return newFilesystemKeyStore(directory, directory, encryptor, keystore.INFINITE_CACHE_SIZE)
 }
 
 func NewFilesystemKeyStoreTwoPath(privateKeyFolder, publicKeyFolder string, encryptor keystore.KeyEncryptor) (*FilesystemKeyStore, error) {
+	return newFilesystemKeyStore(privateKeyFolder, publicKeyFolder, encryptor, keystore.INFINITE_CACHE_SIZE)
+}
+
+func newFilesystemKeyStore(privateKeyFolder, publicKeyFolder string, encryptor keystore.KeyEncryptor, cacheSize int) (*FilesystemKeyStore, error) {
 	// check folder for private key
 	directory, err := utils.AbsPath(privateKeyFolder)
 	if err != nil {
@@ -51,8 +60,20 @@ func NewFilesystemKeyStoreTwoPath(privateKeyFolder, publicKeyFolder string, encr
 			return nil, err
 		}
 	}
-	return &FilesystemKeyStore{privateKeyDirectory: privateKeyFolder, publicKeyDirectory: publicKeyFolder,
-		keys: make(map[string][]byte), lock: &sync.RWMutex{}, encryptor: encryptor}, nil
+	var cache keystore.Cache
+	if cacheSize == keystore.NO_CACHE {
+		cache = keystore.NoCache{}
+	} else {
+		cache, err = lru_cache.NewLRUCacheKeystoreWrapper(cacheSize)
+		if err != nil {
+			return nil, err
+		}
+	}
+	store := &FilesystemKeyStore{privateKeyDirectory: privateKeyFolder, publicKeyDirectory: publicKeyFolder,
+		cache: cache, lock: &sync.RWMutex{}, encryptor: encryptor}
+	// set callback on cache value removing
+
+	return store, nil
 }
 
 func (store *FilesystemKeyStore) generateKeyPair(filename string, clientId []byte) (*keys.Keypair, error) {
@@ -132,7 +153,7 @@ func (store *FilesystemKeyStore) GenerateZoneKey() ([]byte, []byte, error) {
 	}
 	utils.FillSlice(byte(0), keypair.Private.Value)
 	// cache key
-	store.keys[getZoneKeyFilename(id)] = encryptedKey
+	store.cache.Add(getZoneKeyFilename(id), encryptedKey)
 	return id, keypair.Public.Value, nil
 }
 
@@ -150,7 +171,7 @@ func (store *FilesystemKeyStore) getPrivateKeyByFilename(id []byte, filename str
 	}
 	store.lock.Lock()
 	defer store.lock.Unlock()
-	encryptedKey, ok := store.keys[filename]
+	encryptedKey, ok := store.cache.Get(filename)
 	if !ok {
 		encryptedPrivateKey, err := utils.LoadPrivateKey(store.getPrivateKeyFilePath(filename))
 		if err != nil {
@@ -164,7 +185,7 @@ func (store *FilesystemKeyStore) getPrivateKeyByFilename(id []byte, filename str
 		return nil, err
 	}
 	log.Debugf("load key from fs: %s", filename)
-	store.keys[filename] = encryptedKey
+	store.cache.Add(filename, encryptedKey)
 	return &keys.PrivateKey{Value: decryptedKey}, nil
 }
 
@@ -185,7 +206,7 @@ func (store *FilesystemKeyStore) HasZonePrivateKey(id []byte) bool {
 	fname := getZoneKeyFilename(id)
 	store.lock.RLock()
 	defer store.lock.RUnlock()
-	_, ok := store.keys[fname]
+	_, ok := store.cache.Get(fname)
 	if ok {
 		return true
 	}
@@ -200,7 +221,7 @@ func (store *FilesystemKeyStore) GetPeerPublicKey(id []byte) (*keys.PublicKey, e
 	fname := getPublicKeyFilename(id)
 	store.lock.Lock()
 	defer store.lock.Unlock()
-	key, ok := store.keys[fname]
+	key, ok := store.cache.Get(fname)
 	if ok {
 		log.Debugf("load cached key: %s", fname)
 		return &keys.PublicKey{Value: key}, nil
@@ -210,7 +231,7 @@ func (store *FilesystemKeyStore) GetPeerPublicKey(id []byte) (*keys.PublicKey, e
 		return nil, err
 	}
 	log.Debugf("load key from fs: %s", fname)
-	store.keys[fname] = publicKey.Value
+	store.cache.Add(fname, publicKey.Value)
 	return publicKey, nil
 }
 
@@ -274,10 +295,7 @@ func (store *FilesystemKeyStore) GenerateDataEncryptionKeys(id []byte) error {
 
 // clear all cached keys
 func (store *FilesystemKeyStore) Reset() {
-	for _, encryptedKey := range store.keys {
-		utils.FillSlice(byte(0), encryptedKey)
-	}
-	store.keys = make(map[string][]byte)
+	store.cache.Clear()
 }
 
 func (store *FilesystemKeyStore) GetPoisonKeyPair() (*keys.Keypair, error) {
