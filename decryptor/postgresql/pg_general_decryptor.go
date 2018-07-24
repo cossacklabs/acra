@@ -27,13 +27,14 @@ import (
 )
 
 type PgDecryptor struct {
-	isWithZone       bool
-	isWholeMatch     bool
-	keyStore         keystore.KeyStore
-	zoneMatcher      *zone.ZoneIdMatcher
-	pgDecryptor      base.DataDecryptor
-	binaryDecryptor  base.DataDecryptor
-	matchedDecryptor base.DataDecryptor
+	isWithZone         bool
+	isWholeMatch       bool
+	keyStore           keystore.KeyStore
+	zoneMatcher        *zone.ZoneIdMatcher
+	pgDecryptor        base.DataDecryptor
+	binaryDecryptor    base.DataDecryptor
+	matchedDecryptor   base.DataDecryptor
+	checkPoisonRecords bool
 
 	poisonKey       []byte
 	clientId        []byte
@@ -50,10 +51,11 @@ func NewPgDecryptor(clientId []byte, decryptor base.DataDecryptor) *PgDecryptor 
 		binaryDecryptor: binary.NewBinaryDecryptor(),
 		clientId:        clientId,
 		// longest tag (escape) + bin
-		matchBuffer:  make([]byte, len(ESCAPE_TAG_BEGIN)+len(base.TAG_BEGIN)),
-		matchIndex:   0,
-		isWholeMatch: true,
-		logger:       logrus.WithField("client_id", string(clientId)),
+		matchBuffer:        make([]byte, len(ESCAPE_TAG_BEGIN)+len(base.TAG_BEGIN)),
+		matchIndex:         0,
+		isWholeMatch:       true,
+		logger:             logrus.WithField("client_id", string(clientId)),
+		checkPoisonRecords: true,
 	}
 }
 
@@ -185,6 +187,13 @@ func (decryptor *PgDecryptor) GetPrivateKey() (*keys.PrivateKey, error) {
 	return decryptor.keyStore.GetServerDecryptionPrivateKey(decryptor.clientId)
 }
 
+func (decryptor *PgDecryptor) TurnOnPoisonRecordCheck(val bool) {
+	decryptor.logger.Debugf("Set poison record check: %v", val)
+	decryptor.checkPoisonRecords = val
+}
+func (decryptor *PgDecryptor) IsPoisonRecordCheckOn() bool {
+	return decryptor.checkPoisonRecords
+}
 func (decryptor *PgDecryptor) GetPoisonCallbackStorage() *base.PoisonCallbackStorage {
 	if decryptor.callbackStorage == nil {
 		decryptor.callbackStorage = base.NewPoisonCallbackStorage()
@@ -288,12 +297,14 @@ func (decryptor *PgDecryptor) CheckPoisonRecord(reader io.Reader) (bool, error) 
 	// try decrypt using poison key pair
 	_, _, err = decryptor.matchedDecryptor.ReadSymmetricKey(poisonKeypair.Private, reader)
 	if err == nil {
-		decryptor.logger.Warningln("recognized poison record")
-		err := decryptor.GetPoisonCallbackStorage().Call()
-		if err != nil {
-			decryptor.logger.WithError(err).Errorln("Unexpected error in poison record callbacks")
+		decryptor.logger.Warningln("Recognized poison record")
+		if decryptor.GetPoisonCallbackStorage().HasCallbacks() {
+			err := decryptor.GetPoisonCallbackStorage().Call()
+			if err != nil {
+				decryptor.logger.WithError(err).Errorln("Unexpected error in poison record callbacks")
+			}
 		}
-		return true, err
+		return true, nil
 	}
 	decryptor.logger.Debugf("Not recognized poison record. error returned - %v", err)
 	return false, nil

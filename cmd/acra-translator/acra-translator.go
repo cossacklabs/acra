@@ -51,6 +51,7 @@ func main() {
 
 	secureSessionId := flag.String("securesession_id", "acra_translator", "Id that will be sent in secure session")
 
+	detectPoisonRecords := flag.Bool("poison_detect_enable", true, "Turn on poison record detection")
 	stopOnPoison := flag.Bool("poison_shutdown_enable", false, "Stop on detecting poison record")
 	scriptOnPoison := flag.String("poison_run_script_file", "", "Execute script on detecting poison record")
 
@@ -81,6 +82,7 @@ func main() {
 	}
 
 	// now it's stub as default values
+	config.SetDetectPoisonRecords(*detectPoisonRecords)
 	config.SetStopOnPoison(*stopOnPoison)
 	config.SetScriptOnPoison(*scriptOnPoison)
 	config.SetKeysDir(*keysDir)

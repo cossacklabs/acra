@@ -113,6 +113,8 @@ type Decryptor interface {
 	// return private key for current connected client for decrypting symmetric
 	// key with secure message
 	GetPrivateKey() (*keys.PrivateKey, error)
+	TurnOnPoisonRecordCheck(bool)
+	IsPoisonRecordCheckOn() bool
 	// register storage of callbacks for detected poison records
 	SetPoisonCallbackStorage(*PoisonCallbackStorage)
 	// get current storage of callbacks for detected poison records

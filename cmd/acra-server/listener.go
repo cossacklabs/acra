@@ -126,6 +126,7 @@ func (server *SServer) getDecryptor(clientId []byte) base.Decryptor {
 	if server.config.UseMySQL() {
 		decryptor = mysql.NewMySQLDecryptor(clientId, pgDecryptorImpl, server.keystorage)
 	}
+	decryptor.TurnOnPoisonRecordCheck(server.config.DetectPoisonRecords())
 	return decryptor
 }
 

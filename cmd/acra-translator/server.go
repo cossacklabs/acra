@@ -9,6 +9,7 @@ import (
 	"bufio"
 	"net/http"
 
+	"github.com/cossacklabs/acra/cmd/acra-translator/common"
 	"github.com/cossacklabs/acra/cmd/acra-translator/grpc_api"
 	"github.com/cossacklabs/acra/cmd/acra-translator/http_api"
 	"github.com/cossacklabs/acra/decryptor/base"
@@ -168,16 +169,19 @@ const (
 func (server *ReaderServer) Start(parentContext context.Context) {
 	logger := logging.GetLoggerFromContext(parentContext)
 	poisonCallbacks := base.NewPoisonCallbackStorage()
-	if server.config.stopOnPoison {
-		poisonCallbacks.AddCallback(&base.StopCallback{})
+	if server.config.DetectPoisonRecords() {
+		if server.config.stopOnPoison {
+			poisonCallbacks.AddCallback(&base.StopCallback{})
+		}
+		if server.config.scriptOnPoison != "" {
+			poisonCallbacks.AddCallback(base.NewExecuteScriptCallback(server.config.scriptOnPoison))
+		}
 	}
-	if server.config.scriptOnPoison != "" {
-		poisonCallbacks.AddCallback(base.NewExecuteScriptCallback(server.config.scriptOnPoison))
-	}
+	decryptorData := &common.TranslatorData{Keystorage: server.keystorage, PoisonRecordCallbacks: poisonCallbacks, CheckPoisonRecords: server.config.detectPoisonRecords}
 	if server.config.incomingConnectionHTTPString != "" {
 		go func() {
 			httpContext := logging.SetLoggerToContext(parentContext, logger.WithField(CONNECTION_TYPE_KEY, HTTP_CONNECTION_TYPE))
-			httpDecryptor, err := http_api.NewHTTPConnectionsDecryptor(server.keystorage, poisonCallbacks)
+			httpDecryptor, err := http_api.NewHTTPConnectionsDecryptor(decryptorData)
 			if err != nil {
 				log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorTranslatorCantHandleHTTPConnection).
 					Errorln("Can't create http decryptor")
@@ -201,7 +205,7 @@ func (server *ReaderServer) Start(parentContext context.Context) {
 				return
 			}
 			grpcServer := grpc.NewServer()
-			service, err := grpc_api.NewDecryptGRPCService(server.keystorage, poisonCallbacks)
+			service, err := grpc_api.NewDecryptGRPCService(decryptorData)
 			if err != nil {
 				grpcLogger.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorTranslatorCantHandleGRPCConnection).
 					Errorln("Can't create grpc service")

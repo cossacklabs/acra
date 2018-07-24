@@ -545,17 +545,14 @@ func (proxy *PgProxy) PgDecryptStream(censor acracensor.AcraCensorInterface, dec
 				if decryptor.IsWholeMatch() {
 					// poison record check
 					// check only if has any action on detection
-					if decryptor.GetPoisonCallbackStorage().HasCallbacks() {
+					if decryptor.IsPoisonRecordCheckOn() {
 						log.Debugln("Check poison records")
 						block, err := decryptor.SkipBeginInBlock(row.output[row.writeIndex : row.writeIndex+columnDataLength])
 						if err == nil {
-							poisoned, err := decryptor.CheckPoisonRecord(bytes.NewReader(block))
-							if err != nil || poisoned {
-								if poisoned {
-									errCh <- base.ErrPoisonRecord
-								} else {
-									errCh <- err
-								}
+							_, err := decryptor.CheckPoisonRecord(bytes.NewReader(block))
+							if err != nil {
+								log.WithError(err).Errorln("Error on check poison record")
+								errCh <- err
 								return
 							}
 						}
@@ -584,7 +581,7 @@ func (proxy *PgProxy) PgDecryptStream(censor acracensor.AcraCensorInterface, dec
 					endIndex := row.writeIndex + columnDataLength
 
 					// check poison records
-					if decryptor.GetPoisonCallbackStorage().HasCallbacks() {
+					if decryptor.IsPoisonRecordCheckOn() {
 						log.Debugln("Check poison records")
 						for {
 							beginTagIndex, tagLength := decryptor.BeginTagIndex(row.output[currentIndex:endIndex])
@@ -594,13 +591,10 @@ func (proxy *PgProxy) PgDecryptStream(censor acracensor.AcraCensorInterface, dec
 							}
 							log.Debugln("Found begin tag")
 							blockReader := bytes.NewReader(row.output[currentIndex+beginTagIndex+tagLength:])
-							poisoned, err := decryptor.CheckPoisonRecord(blockReader)
-							if err != nil || poisoned {
-								if poisoned {
-									errCh <- base.ErrPoisonRecord
-								} else {
-									errCh <- err
-								}
+							_, err := decryptor.CheckPoisonRecord(blockReader)
+							if err != nil {
+								log.WithError(err).Errorln("Error on check poison record")
+								errCh <- err
 								return
 							}
 							// try to find after founded tag with offset

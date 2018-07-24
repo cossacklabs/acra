@@ -19,6 +19,7 @@ import (
 
 type AcraTranslatorConfig struct {
 	keysDir                      string
+	detectPoisonRecords          bool
 	scriptOnPoison               string
 	stopOnPoison                 bool
 	serverId                     []byte
@@ -39,6 +40,13 @@ func (a *AcraTranslatorConfig) KeysDir() string {
 
 func (a *AcraTranslatorConfig) SetKeysDir(keysDir string) {
 	a.keysDir = keysDir
+}
+
+func (a *AcraTranslatorConfig) SetDetectPoisonRecords(val bool) {
+	a.detectPoisonRecords = val
+}
+func (a *AcraTranslatorConfig) DetectPoisonRecords() bool {
+	return a.detectPoisonRecords
 }
 
 func (a *AcraTranslatorConfig) ScriptOnPoison() string {
