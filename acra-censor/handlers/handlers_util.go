@@ -5,30 +5,30 @@ import (
 	"strings"
 )
 
-var ErrQueryNotInWhitelist = errors.New("query not in whitelist")
-var ErrQueryInBlacklist = errors.New("query in blacklist")
+var ErrQueryNotInWhitelist = errors.New("acra-censor: query not in whitelist")
+var ErrQueryInBlacklist = errors.New("acra-censor: query in blacklist")
 
-var ErrAccessToForbiddenTableBlacklist = errors.New("query tries to access forbidden table")
-var ErrAccessToForbiddenTableWhitelist = errors.New("query tries to access forbidden table")
+var ErrAccessToForbiddenTableBlacklist = errors.New("acra-censor: query tries to access forbidden table")
+var ErrAccessToForbiddenTableWhitelist = errors.New("acra-censor: query tries to access forbidden table")
 
-var ErrForbiddenSqlStructureBlacklist = errors.New("query's structure is forbidden")
-var ErrForbiddenSqlStructureWhitelist = errors.New("query's structure is forbidden")
+var ErrForbiddenSqlStructureBlacklist = errors.New("acra-censor: query's structure is forbidden")
+var ErrForbiddenSqlStructureWhitelist = errors.New("acra-censor: query's structure is forbidden")
 
-var ErrParseSqlRuleBlacklist = errors.New("parsing security rules error")
+var ErrParseSqlRuleBlacklist = errors.New("acra-censor: parsing security rules error")
 
-var ErrParseSqlRuleWhitelist = errors.New("parsing security rules error")
+var ErrParseSqlRuleWhitelist = errors.New("acra-censor: parsing security rules error")
 
-var ErrNotImplemented = errors.New("not implemented yet")
+var ErrNotImplemented = errors.New("acra-censor: not implemented yet")
 
-var ErrQuerySyntaxError = errors.New("fail to parse specified query")
+var ErrQuerySyntaxError = errors.New("acra-censor: fail to parse specified query")
 
-var ErrComplexSerializationError = errors.New("can't perform complex serialization of queries")
-var ErrSingleQueryCaptureError = errors.New("can't capture single query")
-var ErrCantOpenFileError = errors.New("can't open file to write queries")
-var ErrCantReadQueriesFromFileError = errors.New("can't read queries from file")
-var ErrUnexpectedCaptureChannelClose = errors.New("unexpected channel closing while query logging")
+var ErrComplexSerializationError = errors.New("acra-censor: can't perform complex serialization of queries")
+var ErrSingleQueryCaptureError = errors.New("acra-censor: can't capture single query")
+var ErrCantOpenFileError = errors.New("acra-censor: can't open file to write queries")
+var ErrCantReadQueriesFromFileError = errors.New("acra-censor: can't read queries from file")
+var ErrUnexpectedCaptureChannelClose = errors.New("acra-censor: unexpected channel closing while query logging")
 
-var ErrUnexpectedTypeError = errors.New("should never appear")
+var ErrUnexpectedTypeError = errors.New("acra-censor: should never appear")
 
 const (
 	LogQueryLength = 100

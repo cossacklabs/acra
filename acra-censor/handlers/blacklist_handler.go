@@ -28,7 +28,7 @@ func (handler *BlacklistHandler) CheckQuery(query string) (bool, error) {
 	if len(handler.queries) != 0 {
 		//Check that query is not in blacklist
 		if handler.queries[query] {
-			log.WithError(ErrQueryInBlacklist).Infof("query in blacklist")
+			log.WithError(ErrQueryInBlacklist)
 			return false, ErrQueryInBlacklist
 		}
 	}
@@ -36,7 +36,7 @@ func (handler *BlacklistHandler) CheckQuery(query string) (bool, error) {
 	if len(handler.tables) != 0 {
 		parsedQuery, err := sqlparser.Parse(query)
 		if err != nil {
-			log.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCensorQueryParseError).WithError(err).Errorln("Can't parse query in blacklist handler for check")
+			log.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCensorQueryParseError).WithError(err).Errorln("acra-censor: can't parse query in blacklist handler for check")
 			return false, ErrQuerySyntaxError
 		}
 		switch parsedQuery := parsedQuery.(type) {
@@ -46,24 +46,24 @@ func (handler *BlacklistHandler) CheckQuery(query string) (bool, error) {
 				case *sqlparser.AliasedTableExpr:
 					err = handler.handleAliasedTables(fromStatement.(*sqlparser.AliasedTableExpr))
 					if err != nil {
-						log.WithError(err).Debugln("error from BlacklistHandler.handleAliasedTables")
-						log.WithError(ErrQueryInBlacklist).Infof("table in blacklist")
+						log.WithError(err).Debugln("acra-censor: error from BlacklistHandler.handleAliasedTables")
+						log.WithError(ErrAccessToForbiddenTableBlacklist)
 						return false, ErrAccessToForbiddenTableBlacklist
 					}
 					break
 				case *sqlparser.JoinTableExpr:
 					err = handler.handleJoinedTables(fromStatement.(*sqlparser.JoinTableExpr))
 					if err != nil {
-						log.WithError(err).Debugln("error from BlacklistHandler.handleJoinedTables")
-						log.WithError(ErrQueryInBlacklist).Infof("table in blacklist")
+						log.WithError(err).Debugln("acra-censor: error from BlacklistHandler.handleJoinedTables")
+						log.WithError(ErrAccessToForbiddenTableBlacklist)
 						return false, ErrAccessToForbiddenTableBlacklist
 					}
 					break
 				case *sqlparser.ParenTableExpr:
 					err = handler.handleParenTables(fromStatement.(*sqlparser.ParenTableExpr))
 					if err != nil {
-						log.WithError(err).Debugln("error from BlacklistHandler.handleParenTables")
-						log.WithError(ErrQueryInBlacklist).Infof("table in blacklist")
+						log.WithError(err).Debugln("acra-censor: error from BlacklistHandler.handleParenTables")
+						log.WithError(ErrAccessToForbiddenTableBlacklist)
 						return false, ErrAccessToForbiddenTableBlacklist
 					}
 					break
@@ -73,7 +73,7 @@ func (handler *BlacklistHandler) CheckQuery(query string) (bool, error) {
 			}
 		case *sqlparser.Insert:
 			if handler.tables[parsedQuery.Table.Name.String()] {
-				log.WithError(ErrQueryInBlacklist).Infof("table in blacklist")
+				log.WithError(ErrAccessToForbiddenTableBlacklist)
 				return false, ErrAccessToForbiddenTableBlacklist
 			}
 		case *sqlparser.Update:
@@ -194,7 +194,7 @@ func (handler *BlacklistHandler) AddRules(rules []string) error {
 		handler.rules = append(handler.rules, rule)
 		_, err := sqlparser.Parse(rule)
 		if err != nil {
-			log.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCensorQueryParseError).WithError(err).Errorln("Can't parse query to add rule to blacklist handler")
+			log.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCensorQueryParseError).WithError(err).Errorln("acra-censor: can't parse query to add rule to blacklist handler")
 			return ErrQuerySyntaxError
 		}
 	}
@@ -223,7 +223,7 @@ func (handler *BlacklistHandler) testRulesViolation(query string) (bool, error) 
 	for _, rule := range handler.rules {
 		parsedRule, err := sqlparser.Parse(rule)
 		if err != nil {
-			log.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCensorQueryParseError).WithError(err).Errorln("Can't parse rule in blacklist handler for test")
+			log.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCensorQueryParseError).WithError(err).Errorln("acra-censor: can't parse rule in blacklist handler for test")
 			return true, ErrQuerySyntaxError
 		}
 		switch parsedRule := parsedRule.(type) {
