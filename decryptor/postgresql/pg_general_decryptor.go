@@ -288,9 +288,6 @@ func (decryptor *PgDecryptor) DecryptBlock(block []byte) ([]byte, error) {
 }
 
 func (decryptor *PgDecryptor) CheckPoisonRecord(reader io.Reader) (bool, error) {
-	if !decryptor.IsPoisonRecordCheckOn() {
-		return false, nil
-	}
 	// check poison record
 	poisonKeypair, err := decryptor.keyStore.GetPoisonKeyPair()
 	if err != nil {
@@ -301,13 +298,13 @@ func (decryptor *PgDecryptor) CheckPoisonRecord(reader io.Reader) (bool, error) 
 	_, _, err = decryptor.matchedDecryptor.ReadSymmetricKey(poisonKeypair.Private, reader)
 	if err == nil {
 		decryptor.logger.Warningln("Recognized poison record")
-		if decryptor.GetPoisonCallbackStorage().HasCallbacks(){
+		if decryptor.GetPoisonCallbackStorage().HasCallbacks() {
 			err := decryptor.GetPoisonCallbackStorage().Call()
 			if err != nil {
 				decryptor.logger.WithError(err).Errorln("Unexpected error in poison record callbacks")
 			}
 		}
-		return true, err
+		return true, nil
 	}
 	decryptor.logger.Debugf("Not recognized poison record. error returned - %v", err)
 	return false, nil

@@ -113,12 +113,12 @@ func (clientSession *ClientSession) HandleClientConnection(clientId []byte, decr
 	for {
 		select {
 		case err = <-dbProxyErrorCh:
-			log.Debugln("error from db proxy")
+			log.WithError(err).Debugln("error from db proxy")
 			channelToWait = clientProxyErrorCh
 			break
 		case err = <-clientProxyErrorCh:
 			channelToWait = dbProxyErrorCh
-			log.Debugln("error from client proxy")
+			log.WithError(err).Debugln("error from client proxy")
 			break
 		}
 

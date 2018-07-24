@@ -705,7 +705,7 @@ class BaseTestCase(unittest.TestCase):
             private_key = f.read()
         with open('.acrakeys/{}.pub'.format(acra_key_name), 'rb') as f:
             public_key = f.read()
-        print(json.dumps(
+        logging.debug("test log: {}".format(json.dumps(
             {
                 'master_key': get_master_key(),
                 'key_name': acra_key_name,
@@ -718,7 +718,7 @@ class BaseTestCase(unittest.TestCase):
                 'zone_id': zones[0]['id'],
                 'poison_record': b64encode(get_poison_record()).decode('ascii'),
             }
-        ), file=sys.stderr)
+        )))
 
 
 class HexFormatTest(BaseTestCase):
@@ -1554,16 +1554,22 @@ class TestNoCheckPoisonRecord(AcraCatchLogsMixin, BasePoisonRecordTest):
     WHOLECELL_MODE = False
     SHUTDOWN = False
     DEBUG_LOG = True
+    DETECT_POISON_RECORDS = False
 
     def testNoDetect(self):
         row_id = self.get_random_id()
+        poison_record = get_poison_record()
         self.engine1.execute(
             test_table.insert(),
-            {'id': row_id, 'data': get_poison_record(), 'raw_data': 'poison_record'})
+            {'id': row_id, 'data': poison_record, 'raw_data': 'poison_record'})
         result = self.engine1.execute(test_table.select())
         result.fetchall()
         log = self.read_log(self.acra)
         self.assertNotIn('Check poison records', log)
+        result = self.engine1.execute(
+            sa.select([test_table]))
+        for _, data, raw_data in result:
+            self.assertEqual(poison_record, data)
 
 
 class TestNoCheckPoisonRecordWithZone(TestNoCheckPoisonRecord):

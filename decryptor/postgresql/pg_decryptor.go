@@ -549,13 +549,10 @@ func (proxy *PgProxy) PgDecryptStream(censor acracensor.AcraCensorInterface, dec
 						log.Debugln("Check poison records")
 						block, err := decryptor.SkipBeginInBlock(row.output[row.writeIndex : row.writeIndex+columnDataLength])
 						if err == nil {
-							poisoned, err := decryptor.CheckPoisonRecord(bytes.NewReader(block))
-							if err != nil || poisoned {
-								if poisoned {
-									errCh <- base.ErrPoisonRecord
-								} else {
-									errCh <- err
-								}
+							_, err := decryptor.CheckPoisonRecord(bytes.NewReader(block))
+							if err != nil {
+								log.WithError(err).Errorln("Error on check poison record")
+								errCh <- err
 								return
 							}
 						}
@@ -594,13 +591,10 @@ func (proxy *PgProxy) PgDecryptStream(censor acracensor.AcraCensorInterface, dec
 							}
 							log.Debugln("Found begin tag")
 							blockReader := bytes.NewReader(row.output[currentIndex+beginTagIndex+tagLength:])
-							poisoned, err := decryptor.CheckPoisonRecord(blockReader)
-							if err != nil || poisoned {
-								if poisoned {
-									errCh <- base.ErrPoisonRecord
-								} else {
-									errCh <- err
-								}
+							_, err := decryptor.CheckPoisonRecord(blockReader)
+							if err != nil {
+								log.WithError(err).Errorln("Error on check poison record")
+								errCh <- err
 								return
 							}
 							// try to find after founded tag with offset
