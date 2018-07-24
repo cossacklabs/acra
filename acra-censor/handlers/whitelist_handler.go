@@ -28,6 +28,7 @@ func (handler *WhitelistHandler) CheckQuery(query string) (bool, error) {
 	if len(handler.queries) != 0 {
 		//Check that query is in whitelist
 		if !handler.queries[query] {
+			log.WithError(ErrQueryInBlacklist).Infof("query is not in whitelist")
 			return false, ErrQueryNotInWhitelist
 		}
 	}
@@ -46,6 +47,7 @@ func (handler *WhitelistHandler) CheckQuery(query string) (bool, error) {
 					err = handler.handleAliasedTables(parsedQuery.From)
 					if err != nil {
 						log.WithError(err).Debugln("error from WhitlistHandler.handleAliasedTables")
+						log.WithError(ErrQueryInBlacklist).Infof("table is not in whitelist")
 						return false, ErrAccessToForbiddenTableWhitelist
 					}
 					break
@@ -53,12 +55,14 @@ func (handler *WhitelistHandler) CheckQuery(query string) (bool, error) {
 					err = handler.handleJoinedTables(fromStatement.(*sqlparser.JoinTableExpr))
 					if err != nil {
 						log.WithError(err).Debugln("error from WhitlistHandler.handleJoinedTables")
+						log.WithError(ErrQueryInBlacklist).Infof("table is not in whitelist")
 						return false, ErrAccessToForbiddenTableWhitelist
 					}
 				case *sqlparser.ParenTableExpr:
 					err = handler.handleParenTables(fromStatement.(*sqlparser.ParenTableExpr))
 					if err != nil {
 						log.WithError(err).Debugln("error from WhitlistHandler.handleParenTables")
+						log.WithError(ErrQueryInBlacklist).Infof("table is not in whitelist")
 						return false, ErrAccessToForbiddenTableWhitelist
 					}
 				default:
@@ -71,6 +75,7 @@ func (handler *WhitelistHandler) CheckQuery(query string) (bool, error) {
 				tableIsAllowed = true
 			}
 			if !tableIsAllowed {
+				log.WithError(ErrQueryInBlacklist).Infof("table is not in whitelist")
 				return false, ErrAccessToForbiddenTableWhitelist
 			}
 		case *sqlparser.Update:

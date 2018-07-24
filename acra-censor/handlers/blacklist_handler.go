@@ -28,6 +28,7 @@ func (handler *BlacklistHandler) CheckQuery(query string) (bool, error) {
 	if len(handler.queries) != 0 {
 		//Check that query is not in blacklist
 		if handler.queries[query] {
+			log.WithError(ErrQueryInBlacklist).Infof("query in blacklist")
 			return false, ErrQueryInBlacklist
 		}
 	}
@@ -46,6 +47,7 @@ func (handler *BlacklistHandler) CheckQuery(query string) (bool, error) {
 					err = handler.handleAliasedTables(fromStatement.(*sqlparser.AliasedTableExpr))
 					if err != nil {
 						log.WithError(err).Debugln("error from BlacklistHandler.handleAliasedTables")
+						log.WithError(ErrQueryInBlacklist).Infof("table in blacklist")
 						return false, ErrAccessToForbiddenTableBlacklist
 					}
 					break
@@ -53,6 +55,7 @@ func (handler *BlacklistHandler) CheckQuery(query string) (bool, error) {
 					err = handler.handleJoinedTables(fromStatement.(*sqlparser.JoinTableExpr))
 					if err != nil {
 						log.WithError(err).Debugln("error from BlacklistHandler.handleJoinedTables")
+						log.WithError(ErrQueryInBlacklist).Infof("table in blacklist")
 						return false, ErrAccessToForbiddenTableBlacklist
 					}
 					break
@@ -60,6 +63,7 @@ func (handler *BlacklistHandler) CheckQuery(query string) (bool, error) {
 					err = handler.handleParenTables(fromStatement.(*sqlparser.ParenTableExpr))
 					if err != nil {
 						log.WithError(err).Debugln("error from BlacklistHandler.handleParenTables")
+						log.WithError(ErrQueryInBlacklist).Infof("table in blacklist")
 						return false, ErrAccessToForbiddenTableBlacklist
 					}
 					break
@@ -69,6 +73,7 @@ func (handler *BlacklistHandler) CheckQuery(query string) (bool, error) {
 			}
 		case *sqlparser.Insert:
 			if handler.tables[parsedQuery.Table.Name.String()] {
+				log.WithError(ErrQueryInBlacklist).Infof("table in blacklist")
 				return false, ErrAccessToForbiddenTableBlacklist
 			}
 		case *sqlparser.Update:
