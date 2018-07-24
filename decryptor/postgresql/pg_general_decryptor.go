@@ -300,10 +300,12 @@ func (decryptor *PgDecryptor) CheckPoisonRecord(reader io.Reader) (bool, error) 
 	// try decrypt using poison key pair
 	_, _, err = decryptor.matchedDecryptor.ReadSymmetricKey(poisonKeypair.Private, reader)
 	if err == nil {
-		decryptor.logger.Warningln("recognized poison record")
-		err := decryptor.GetPoisonCallbackStorage().Call()
-		if err != nil {
-			decryptor.logger.WithError(err).Errorln("Unexpected error in poison record callbacks")
+		decryptor.logger.Warningln("Recognized poison record")
+		if decryptor.GetPoisonCallbackStorage().HasCallbacks(){
+			err := decryptor.GetPoisonCallbackStorage().Call()
+			if err != nil {
+				decryptor.logger.WithError(err).Errorln("Unexpected error in poison record callbacks")
+			}
 		}
 		return true, err
 	}
