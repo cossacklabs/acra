@@ -6,10 +6,11 @@ import (
 	"testing"
 
 	"github.com/cossacklabs/acra/acra-writer"
+	"github.com/cossacklabs/acra/cmd/acra-translator/common"
 	"github.com/cossacklabs/acra/decryptor/base"
 	"github.com/cossacklabs/acra/poison"
 	"github.com/cossacklabs/themis/gothemis/keys"
-	context "golang.org/x/net/context"
+	"golang.org/x/net/context"
 )
 
 type testKeystore struct {
@@ -107,7 +108,8 @@ func TestDecryptGRPCService_Decrypt(t *testing.T) {
 	keystore.PoisonKey = poisonKeypair
 
 	poisonCallbacks := base.NewPoisonCallbackStorage()
-	service, err := NewDecryptGRPCService(keystore, poisonCallbacks)
+	translatorData := &common.TranslatorData{PoisonRecordCallbacks: poisonCallbacks, Keystorage: keystore}
+	service, err := NewDecryptGRPCService(translatorData)
 	if err != nil {
 		t.Fatal(err)
 	}

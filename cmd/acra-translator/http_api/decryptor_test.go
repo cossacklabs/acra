@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"fmt"
 	"github.com/cossacklabs/acra/acra-writer"
+	"github.com/cossacklabs/acra/cmd/acra-translator/common"
 	"github.com/cossacklabs/acra/decryptor/base"
 	"github.com/cossacklabs/acra/poison"
 	"github.com/cossacklabs/themis/gothemis/keys"
@@ -16,7 +17,8 @@ import (
 
 func TestHTTPResponseStatus(t *testing.T) {
 	keyStore := &testKeystore{}
-	httpConnectionsDecryptor, err := NewHTTPConnectionsDecryptor(keyStore, base.NewPoisonCallbackStorage())
+	translatorData := &common.TranslatorData{Keystorage: keyStore, PoisonRecordCallbacks: base.NewPoisonCallbackStorage()}
+	httpConnectionsDecryptor, err := NewHTTPConnectionsDecryptor(translatorData)
 
 	if err != nil {
 		t.Fatalf("Can't create ReaderServer. err = %v\n", err)
@@ -77,7 +79,8 @@ func TestHTTPResponseStatus(t *testing.T) {
 
 func TestHTTPDecryptionAndResponse(t *testing.T) {
 	keyStore := &testKeystore{}
-	httpConnectionsDecryptor, err := NewHTTPConnectionsDecryptor(keyStore, base.NewPoisonCallbackStorage())
+	translatorData := &common.TranslatorData{Keystorage: keyStore, PoisonRecordCallbacks: base.NewPoisonCallbackStorage()}
+	httpConnectionsDecryptor, err := NewHTTPConnectionsDecryptor(translatorData)
 
 	if err != nil {
 		t.Fatalf("Can't create ReaderServer. err = %v\n", err)
@@ -197,7 +200,8 @@ func TestHTTPDecryptionAndResponse(t *testing.T) {
 
 func TestHTTPDecryptionAcraStruct(t *testing.T) {
 	keyStore := &testKeystore{}
-	httpConnectionsDecryptor, err := NewHTTPConnectionsDecryptor(keyStore, base.NewPoisonCallbackStorage())
+	translatorData := &common.TranslatorData{Keystorage: keyStore, PoisonRecordCallbacks: base.NewPoisonCallbackStorage()}
+	httpConnectionsDecryptor, err := NewHTTPConnectionsDecryptor(translatorData)
 
 	if err != nil {
 		t.Fatalf("Can't create ReaderServer. err = %v\n", err)

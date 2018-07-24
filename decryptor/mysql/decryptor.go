@@ -34,6 +34,8 @@ const (
 
 func NewMySQLDecryptor(clientId []byte, pgDecryptor *postgresql.PgDecryptor, keyStore keystore.KeyStore) *MySQLDecryptor {
 	decryptor := &MySQLDecryptor{keyStore: keyStore, binaryDecryptor: binary.NewBinaryDecryptor(), Decryptor: pgDecryptor}
+	// because we will use internal value of pgDecryptor then set it `true` as default on initialization
+	pgDecryptor.TurnOnPoisonRecordCheck(true)
 	decryptor.log = log.WithFields(log.Fields{"decryptor": "mysql", "client_id": string(clientId)})
 	decryptor.SetWholeMatch(pgDecryptor.IsWholeMatch())
 	return decryptor
@@ -110,6 +112,9 @@ func (decryptor *MySQLDecryptor) getPoisonPrivateKey() (*keys.PrivateKey, error)
 // CheckPoisonRecord check data from reader on poison records
 // added to implement base.Decryptor interface
 func (decryptor *MySQLDecryptor) CheckPoisonRecord(reader io.Reader) (bool, error) {
+	if !decryptor.IsPoisonRecordCheckOn() {
+		return false, nil
+	}
 	block, err := ioutil.ReadAll(reader)
 	if err != nil {
 		return false, err
@@ -118,6 +123,9 @@ func (decryptor *MySQLDecryptor) CheckPoisonRecord(reader io.Reader) (bool, erro
 }
 
 func (decryptor *MySQLDecryptor) checkPoisonRecord(block []byte) (bool, error) {
+	if !decryptor.IsPoisonRecordCheckOn() {
+		return false, nil
+	}
 	decryptor.Reset()
 	data, err := decryptor.SkipBeginInBlock(block)
 	if err != nil {
@@ -144,6 +152,9 @@ func (decryptor *MySQLDecryptor) checkPoisonRecord(block []byte) (bool, error) {
 
 // poisonCheck find acrastructs in block and try to detect poison record
 func (decryptor *MySQLDecryptor) poisonCheck(block []byte) error {
+	if !decryptor.IsPoisonRecordCheckOn() {
+		return nil
+	}
 	index := 0
 	for {
 		beginTagIndex, _ := decryptor.BeginTagIndex(block[index:])

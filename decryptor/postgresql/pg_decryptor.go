@@ -545,7 +545,7 @@ func (proxy *PgProxy) PgDecryptStream(censor acracensor.AcraCensorInterface, dec
 				if decryptor.IsWholeMatch() {
 					// poison record check
 					// check only if has any action on detection
-					if decryptor.GetPoisonCallbackStorage().HasCallbacks() {
+					if decryptor.IsPoisonRecordCheckOn() && decryptor.GetPoisonCallbackStorage().HasCallbacks() {
 						log.Debugln("Check poison records")
 						block, err := decryptor.SkipBeginInBlock(row.output[row.writeIndex : row.writeIndex+columnDataLength])
 						if err == nil {
@@ -584,7 +584,7 @@ func (proxy *PgProxy) PgDecryptStream(censor acracensor.AcraCensorInterface, dec
 					endIndex := row.writeIndex + columnDataLength
 
 					// check poison records
-					if decryptor.GetPoisonCallbackStorage().HasCallbacks() {
+					if decryptor.IsPoisonRecordCheckOn() && decryptor.GetPoisonCallbackStorage().HasCallbacks() {
 						log.Debugln("Check poison records")
 						for {
 							beginTagIndex, tagLength := decryptor.BeginTagIndex(row.output[currentIndex:endIndex])

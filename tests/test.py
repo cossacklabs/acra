@@ -15,6 +15,7 @@
 import contextlib
 import socket
 import json
+import logging
 import tempfile
 import time
 import os
@@ -53,6 +54,16 @@ import sys
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(__file__)), 'wrappers/python'))
 
 from acrawriter import create_acrastruct
+
+# log python logs with time format as in golang
+format = u"%(asctime)s - %(message)s"
+handler = logging.StreamHandler(stream=sys.stderr)
+handler.setFormatter(logging.Formatter(fmt=format, datefmt="%Y-%m-%dT%H:%M:%S%z"))
+handler.setLevel(logging.DEBUG)
+logger = logging.getLogger()
+logger.addHandler(handler)
+logger.setLevel(logging.DEBUG)
+
 
 DATA_MIN_SIZE = 1000
 DATA_MAX_SIZE = DATA_MIN_SIZE * 10
@@ -477,6 +488,7 @@ class BaseTestCase(unittest.TestCase):
         return wait_unix_socket(*args, **kwargs)
 
     def fork_webconfig(self, connector_port: int, http_port: int):
+        logging.info("fork acra-webconfig")
         args = [
             './acra-webconfig',
             '-incoming_connection_port={}'.format(http_port),
@@ -497,6 +509,7 @@ class BaseTestCase(unittest.TestCase):
         ]
 
     def fork_connector(self, connector_port: int, acraserver_port: int, client_id: str, api_port: int=None, zone_mode: bool=False, check_connection: bool=True):
+        logging.info("fork connector")
         acraserver_connection = self.get_acraserver_connection_string(acraserver_port)
         acraserver_api_connection = self.get_acraserver_api_connection_string(acraserver_port)
         connector_connection = self.get_connector_connection_string(connector_port)
@@ -566,6 +579,7 @@ class BaseTestCase(unittest.TestCase):
         return './acra-server'
 
     def _fork_acra(self, acra_kwargs, popen_kwargs):
+        logging.info("fork acra")
         connection_string = self.get_acraserver_connection_string(
             acra_kwargs.get('incoming_connection_api_port'))
         api_connection_string = self.get_acraserver_api_connection_string(
@@ -1215,6 +1229,7 @@ class TestKeyNonExistence(BaseTestCase):
 class BasePoisonRecordTest(BaseTestCase):
     SHUTDOWN = True
     TEST_DATA_LOG = True
+    DETECT_POISON_RECORDS = True
 
     def setUp(self):
         super(BasePoisonRecordTest, self).setUp()
@@ -1228,6 +1243,7 @@ class BasePoisonRecordTest(BaseTestCase):
     def fork_acra(self, popen_kwargs: dict=None, **acra_kwargs: dict):
         args = {
             'poison_shutdown_enable': 'true' if self.SHUTDOWN else 'false',
+            'poison_detect_enable': 'true' if self.DETECT_POISON_RECORDS else 'false',
         }
 
         if hasattr(self, 'poisonscript'):
@@ -1287,6 +1303,61 @@ class TestPoisonRecordShutdown(BasePoisonRecordTest):
                     self.fail("unexpected response")
 
 
+class TestPoisonRecordOffStatus(BasePoisonRecordTest):
+    SHUTDOWN = True
+    DETECT_POISON_RECORDS = False
+
+    def testShutdown(self):
+        row_id = self.get_random_id()
+        data = get_poison_record()
+        self.engine1.execute(
+            test_table.insert(),
+            {'id': row_id, 'data': data, 'raw_data': 'poison_record'})
+
+        result = self.engine1.execute(
+            sa.select([test_table])
+            .where(test_table.c.id == row_id))
+        row = result.fetchone()
+        # AcraServer must return data as is
+        if row['data'] != data:
+            self.fail("unexpected response")
+
+    def testShutdown2(self):
+        """check working poison record callback on full select"""
+        row_id = self.get_random_id()
+        data = get_poison_record()
+        self.engine1.execute(
+            test_table.insert(),
+            {'id': row_id, 'data': data, 'raw_data': 'poison_record'})
+
+        result = self.engine1.execute(
+            sa.select([test_table]))
+        rows = result.fetchall()
+        for row in rows:
+            # AcraServer must return data as is
+            if row['id'] == row_id and row['data'] != data:
+                self.fail("unexpected response")
+
+    def testShutdown3(self):
+        """check working poison record callback on full select inside another data"""
+        row_id = self.get_random_id()
+        poison_record = get_poison_record()
+        begin_tag = poison_record[:4]
+        # test with extra long begin tag
+        data = os.urandom(100) + begin_tag + poison_record + os.urandom(100)
+        self.engine1.execute(
+            test_table.insert(),
+            {'id': row_id, 'data': data, 'raw_data': 'poison_record'})
+
+        result = self.engine1.execute(
+            sa.select([test_table]))
+        rows = result.fetchall()
+        for row in rows:
+            # AcraServer must return data as is
+            if row['id'] == row_id and row['data'] != data:
+                self.fail("unexpected response")
+
+
 class TestShutdownPoisonRecordWithZone(TestPoisonRecordShutdown):
     ZONE = True
     WHOLECELL_MODE = False
@@ -1344,6 +1415,71 @@ class TestShutdownPoisonRecordWithZone(TestPoisonRecordShutdown):
             print(result.fetchall())
 
 
+class TestShutdownPoisonRecordWithZoneOffStatus(TestPoisonRecordShutdown):
+    ZONE = True
+    WHOLECELL_MODE = False
+    SHUTDOWN = True
+    DETECT_POISON_RECORDS = False
+
+    def testShutdown(self):
+        """check callback with select by id and zone"""
+        row_id = self.get_random_id()
+        poison_record = get_poison_record()
+        self.engine1.execute(
+            test_table.insert(),
+            {'id': row_id, 'data': poison_record, 'raw_data': 'poison_record'})
+
+        zone = zones[0]['id'].encode('ascii')
+        result = self.engine1.execute(
+            sa.select([sa.cast(zone, BYTEA), test_table])
+                .where(test_table.c.id == row_id))
+        for zone, _, data, raw_data in result:
+            self.assertEqual(zone, zone)
+            self.assertEqual(data, poison_record)
+
+    def testShutdown2(self):
+        """check callback with select by id and without zone"""
+        row_id = self.get_random_id()
+        poison_record = get_poison_record()
+        self.engine1.execute(
+            test_table.insert(),
+            {'id': row_id, 'data': poison_record, 'raw_data': 'poison_record'})
+
+        result = self.engine1.execute(
+            sa.select([test_table])
+                .where(test_table.c.id == row_id))
+        for _, data, raw_data in result:
+            self.assertEqual(data, poison_record)
+
+    def testShutdown3(self):
+        """check working poison record callback on full select"""
+        row_id = self.get_random_id()
+        poison_record = get_poison_record()
+        self.engine1.execute(
+            test_table.insert(),
+            {'id': row_id, 'data': poison_record, 'raw_data': 'poison_record'})
+
+        result = self.engine1.execute(
+            sa.select([test_table]))
+        for _, data, raw_data in result:
+            self.assertEqual(data, poison_record)
+
+    def testShutdown4(self):
+        """check working poison record callback on full select inside another data"""
+        row_id = self.get_random_id()
+        poison_record = get_poison_record()
+        testData = os.urandom(100) + poison_record + os.urandom(100)
+        self.log(POISON_KEY_PATH, testData, testData)
+        self.engine1.execute(
+            test_table.insert(),
+            {'id': row_id, 'data': testData, 'raw_data': 'poison_record'})
+
+        result = self.engine1.execute(
+            sa.select([test_table]))
+        for _, data, raw_data in result:
+            self.assertEqual(testData, data)
+
+
 class TestPoisonRecordWholeCell(TestPoisonRecordShutdown):
     WHOLECELL_MODE = True
     SHUTDOWN = True
@@ -1351,8 +1487,24 @@ class TestPoisonRecordWholeCell(TestPoisonRecordShutdown):
     def testShutdown3(self):
         return
 
+class TestPoisonRecordWholeCellStatusOff(TestPoisonRecordOffStatus):
+    WHOLECELL_MODE = True
+    SHUTDOWN = True
+
+    def testShutdown3(self):
+        return
+
+
 
 class TestShutdownPoisonRecordWithZoneWholeCell(TestShutdownPoisonRecordWithZone):
+    WHOLECELL_MODE = True
+    SHUTDOWN = True
+
+    def testShutdown4(self):
+        return
+
+
+class TestShutdownPoisonRecordWithZoneWholeCellOffStatus(TestShutdownPoisonRecordWithZoneOffStatus):
     WHOLECELL_MODE = True
     SHUTDOWN = True
 
@@ -2218,6 +2370,7 @@ class ProcessContextManager(object):
 class BaseAcraTranslatorTest(BaseTestCase):
 
     def fork_translator(self, translator_kwargs, popen_kwargs=None):
+        logging.info("fork acra-translator")
         from utils import load_default_config
         default_config = load_default_config("acra-translator")
         default_args = {
@@ -2246,6 +2399,7 @@ class BaseAcraTranslatorTest(BaseTestCase):
         return translator
 
     def fork_connector(self, connector_port: int, server_port: int, client_id: str, check_connection: bool=True):
+        logging.info("fork connector")
         server_connection = get_tcp_connection_string(server_port)
         connector_connection = get_tcp_connection_string(connector_port)
         args = [

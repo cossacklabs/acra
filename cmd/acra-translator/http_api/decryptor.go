@@ -3,8 +3,8 @@ package http_api
 import (
 	"bytes"
 	"fmt"
+	"github.com/cossacklabs/acra/cmd/acra-translator/common"
 	"github.com/cossacklabs/acra/decryptor/base"
-	"github.com/cossacklabs/acra/keystore"
 	"github.com/cossacklabs/acra/logging"
 	"github.com/cossacklabs/acra/utils"
 	"github.com/cossacklabs/themis/gothemis/keys"
@@ -17,12 +17,11 @@ import (
 )
 
 type HTTPConnectionsDecryptor struct {
-	keystorage      keystore.KeyStore
-	poisonCallbacks *base.PoisonCallbackStorage
+	*common.TranslatorData
 }
 
-func NewHTTPConnectionsDecryptor(keystorage keystore.KeyStore, poisonRecordCallbacks *base.PoisonCallbackStorage) (*HTTPConnectionsDecryptor, error) {
-	return &HTTPConnectionsDecryptor{keystorage: keystorage, poisonCallbacks: poisonRecordCallbacks}, nil
+func NewHTTPConnectionsDecryptor(data *common.TranslatorData) (*HTTPConnectionsDecryptor, error) {
+	return &HTTPConnectionsDecryptor{TranslatorData: data}, nil
 }
 
 func (decryptor *HTTPConnectionsDecryptor) SendResponse(logger *log.Entry, response *http.Response, connection net.Conn) {
@@ -110,20 +109,22 @@ func (decryptor *HTTPConnectionsDecryptor) ParseRequestPrepareResponse(logger *l
 			msg := fmt.Sprintf("Can't decrypt AcraStruct")
 			requestLogger.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorTranslatorCantDecryptAcraStruct).Warningln(msg)
 			response := responseWithMessage(request, http.StatusUnprocessableEntity, msg)
-			// check poison records
-			poisoned, err := base.CheckPoisonRecord(acraStruct, decryptor.keystorage)
-			if err != nil {
-				requestLogger.WithError(err).Errorln("Can't check for poison record, possible missing Poison record decryption key")
-				return response
-			}
-			if poisoned {
-				requestLogger.Errorln("Recognized poison record")
-				if decryptor.poisonCallbacks.HasCallbacks() {
-					if err := decryptor.poisonCallbacks.Call(); err != nil {
-						requestLogger.WithError(err).Errorln("Unexpected error on poison record's callbacks")
-					}
+			if decryptor.TranslatorData.CheckPoisonRecords {
+				// check poison records
+				poisoned, err := base.CheckPoisonRecord(acraStruct, decryptor.TranslatorData.Keystorage)
+				if err != nil {
+					requestLogger.WithError(err).Errorln("Can't check for poison record, possible missing Poison record decryption key")
+					return response
 				}
-				return response
+				if poisoned {
+					requestLogger.Errorln("Recognized poison record")
+					if decryptor.TranslatorData.PoisonRecordCallbacks.HasCallbacks() {
+						if err := decryptor.TranslatorData.PoisonRecordCallbacks.Call(); err != nil {
+							requestLogger.WithError(err).Errorln("Unexpected error on poison record's callbacks")
+						}
+					}
+					return response
+				}
 			}
 			return response
 		}
@@ -154,10 +155,10 @@ func (decryptor *HTTPConnectionsDecryptor) decryptAcraStruct(logger *log.Entry, 
 	var decryptionContext []byte = nil
 
 	if len(zoneId) != 0 {
-		privateKey, err = decryptor.keystorage.GetZonePrivateKey(zoneId)
+		privateKey, err = decryptor.TranslatorData.Keystorage.GetZonePrivateKey(zoneId)
 		decryptionContext = zoneId
 	} else {
-		privateKey, err = decryptor.keystorage.GetServerDecryptionPrivateKey(clientId)
+		privateKey, err = decryptor.TranslatorData.Keystorage.GetServerDecryptionPrivateKey(clientId)
 	}
 
 	if err != nil {

@@ -27,13 +27,14 @@ import (
 )
 
 type PgDecryptor struct {
-	isWithZone       bool
-	isWholeMatch     bool
-	keyStore         keystore.KeyStore
-	zoneMatcher      *zone.ZoneIdMatcher
-	pgDecryptor      base.DataDecryptor
-	binaryDecryptor  base.DataDecryptor
-	matchedDecryptor base.DataDecryptor
+	isWithZone         bool
+	isWholeMatch       bool
+	keyStore           keystore.KeyStore
+	zoneMatcher        *zone.ZoneIdMatcher
+	pgDecryptor        base.DataDecryptor
+	binaryDecryptor    base.DataDecryptor
+	matchedDecryptor   base.DataDecryptor
+	checkPoisonRecords bool
 
 	poisonKey       []byte
 	clientId        []byte
@@ -50,10 +51,11 @@ func NewPgDecryptor(clientId []byte, decryptor base.DataDecryptor) *PgDecryptor 
 		binaryDecryptor: binary.NewBinaryDecryptor(),
 		clientId:        clientId,
 		// longest tag (escape) + bin
-		matchBuffer:  make([]byte, len(ESCAPE_TAG_BEGIN)+len(base.TAG_BEGIN)),
-		matchIndex:   0,
-		isWholeMatch: true,
-		logger:       logrus.WithField("client_id", string(clientId)),
+		matchBuffer:        make([]byte, len(ESCAPE_TAG_BEGIN)+len(base.TAG_BEGIN)),
+		matchIndex:         0,
+		isWholeMatch:       true,
+		logger:             logrus.WithField("client_id", string(clientId)),
+		checkPoisonRecords: true,
 	}
 }
 
@@ -185,6 +187,13 @@ func (decryptor *PgDecryptor) GetPrivateKey() (*keys.PrivateKey, error) {
 	return decryptor.keyStore.GetServerDecryptionPrivateKey(decryptor.clientId)
 }
 
+func (decryptor *PgDecryptor) TurnOnPoisonRecordCheck(val bool) {
+	decryptor.logger.Debugf("Set poison record check: %v", val)
+	decryptor.checkPoisonRecords = val
+}
+func (decryptor *PgDecryptor) IsPoisonRecordCheckOn() bool {
+	return decryptor.checkPoisonRecords
+}
 func (decryptor *PgDecryptor) GetPoisonCallbackStorage() *base.PoisonCallbackStorage {
 	if decryptor.callbackStorage == nil {
 		decryptor.callbackStorage = base.NewPoisonCallbackStorage()
@@ -279,6 +288,9 @@ func (decryptor *PgDecryptor) DecryptBlock(block []byte) ([]byte, error) {
 }
 
 func (decryptor *PgDecryptor) CheckPoisonRecord(reader io.Reader) (bool, error) {
+	if !decryptor.IsPoisonRecordCheckOn() {
+		return false, nil
+	}
 	// check poison record
 	poisonKeypair, err := decryptor.keyStore.GetPoisonKeyPair()
 	if err != nil {
