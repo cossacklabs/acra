@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/cossacklabs/acra/acra-censor"
+	"github.com/cossacklabs/acra/acra-censor/handlers"
 	"github.com/cossacklabs/acra/decryptor/base"
 	"github.com/cossacklabs/acra/logging"
 	"github.com/cossacklabs/acra/network"
@@ -241,8 +242,12 @@ func (handler *MysqlHandler) ClientToDbConnector(errCh chan<- error) {
 			errCh <- io.EOF
 			return
 		case COM_QUERY, COM_STMT_EXECUTE:
-			sqlQuery := string(data)
-			if err := handler.acracensor.HandleQuery(sqlQuery); err != nil {
+			query := string(data)
+			queryWithHiddenValues, err := handlers.RedactSQLQuery(query)
+			if err == handlers.ErrQuerySyntaxError {
+				log.WithError(err).Infof("parsing error on query (first %v symbols): %s", handlers.LogQueryLength, handlers.TrimStringToN(queryWithHiddenValues, handlers.LogQueryLength))
+			}
+			if err := handler.acracensor.HandleQuery(query); err != nil {
 				log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCensorQueryIsNotAllowed).
 					Errorln("Error on AcraCensor check")
 				errPacket := NewQueryInterruptedError(handler.clientProtocol41)
@@ -253,7 +258,7 @@ func (handler *MysqlHandler) ClientToDbConnector(errCh chan<- error) {
 				}
 				continue
 			}
-			clientLog.WithField("sql", sqlQuery).Debugln("com_query")
+			clientLog.WithField("sql", queryWithHiddenValues).Debugln("com_query")
 			handler.setQueryHandler(handler.QueryResponseHandler)
 			break
 		case COM_STMT_PREPARE, COM_STMT_CLOSE, COM_STMT_SEND_LONG_DATA, COM_STMT_RESET:
