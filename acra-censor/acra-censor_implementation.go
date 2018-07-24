@@ -29,14 +29,18 @@ func (acraCensor *AcraCensor) ReleaseAll() {
 }
 
 func (acraCensor *AcraCensor) HandleQuery(query string) error {
+	queryWithHiddenValues, err := handlers.RedactSQLQuery(query)
+	if err == handlers.ErrQuerySyntaxError && acraCensor.ignoreParseError {
+		log.WithError(err).Infof("parsing error on query (first %v symbols): %s", handlers.LogQueryLength, handlers.TrimStringToN(queryWithHiddenValues, handlers.LogQueryLength))
+	}
 	for _, handler := range acraCensor.handlers {
 		continueHandling, err := handler.CheckQuery(query)
 		if err != nil {
 			if err == handlers.ErrQuerySyntaxError && acraCensor.ignoreParseError {
-				log.WithError(err).Infof("parsing error on query (first %v symbols): %s", handlers.LogQueryLength, handlers.TrimStringToN(query, handlers.LogQueryLength))
+				log.WithError(err).Infof("parsing error on query (first %v symbols): %s", handlers.LogQueryLength, handlers.TrimStringToN(queryWithHiddenValues, handlers.LogQueryLength))
 				continue
 			}
-			log.Errorf("Forbidden query: '%s'", query)
+			log.Errorf("Forbidden query: '%s'", queryWithHiddenValues)
 			return err
 		} else {
 			if !continueHandling {
@@ -44,6 +48,6 @@ func (acraCensor *AcraCensor) HandleQuery(query string) error {
 			}
 		}
 	}
-	log.Infof("Allowed query: '%s'", query)
+	log.Infof("Allowed query: '%s'", queryWithHiddenValues)
 	return nil
 }
