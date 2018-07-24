@@ -39,6 +39,8 @@ jobs:
       - run: git clone https://github.com/Lagovas/mysql-connector-python; cd mysql-connector-python; sudo python3 setup.py clean build_py install_lib
       - run: sudo ldconfig
     # testing
+      # check that code formatted with gofmt
+      - run: .circleci/check_gofmt.sh
       # delete file if exists
       - run: if [ -f $FILEPATH_ERROR_FLAG ]; then rm "$FILEPATH_ERROR_FLAG"; fi
       # run test in each go environment and create $FILEPATH_ERROR_FLAG file if was any error. But all tests should

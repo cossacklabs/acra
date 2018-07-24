@@ -46,6 +46,9 @@ func (keystore *testKeystore) GenerateConnectorKeys(id []byte) error {
 func (keystore *testKeystore) GenerateServerKeys(id []byte) error {
 	return nil
 }
+func (keystore *testKeystore) GenerateTranslatorKeys(id []byte) error {
+	return nil
+}
 func (keystore *testKeystore) GenerateDataEncryptionKeys(id []byte) error {
 	return nil
 }
@@ -58,7 +61,7 @@ func getDecryptor(keystore keystore.KeyStore) *MySQLDecryptor {
 	dataDecryptor := binary.NewBinaryDecryptor()
 	clientId := []byte("some id")
 	pgDecryptor := postgresql.NewPgDecryptor(clientId, dataDecryptor)
-	decryptor := NewMySQLDecryptor(pgDecryptor, keystore)
+	decryptor := NewMySQLDecryptor(clientId, pgDecryptor, keystore)
 
 	poisonCallbackStorage := base.NewPoisonCallbackStorage()
 	decryptor.SetPoisonCallbackStorage(poisonCallbackStorage)

@@ -25,6 +25,7 @@ import (
 
 	"github.com/cossacklabs/acra/cmd"
 	"github.com/cossacklabs/acra/keystore"
+	"github.com/cossacklabs/acra/keystore/filesystem"
 	"github.com/cossacklabs/acra/logging"
 	"github.com/cossacklabs/acra/network"
 	"github.com/cossacklabs/acra/utils"
@@ -82,6 +83,7 @@ func main() {
 	debugServer := flag.Bool("ds", false, "Turn on http debug server")
 	closeConnectionTimeout := flag.Int("incoming_connection_close_timeout", DEFAULT_ACRASERVER_WAIT_TIMEOUT, "Time that AcraServer will wait (in seconds) on restart before closing all connections")
 
+	detectPoisonRecords := flag.Bool("poison_detect_enable", true, "Turn on poison record detection")
 	stopOnPoison := flag.Bool("poison_shutdown_enable", false, "Stop on detecting poison record")
 	scriptOnPoison := flag.String("poison_run_script_file", "", "Execute script on detecting poison record")
 
@@ -156,6 +158,7 @@ func main() {
 	}
 
 	// now it's stub as default values
+	config.SetDetectPoisonRecords(*detectPoisonRecords)
 	config.SetStopOnPoison(*stopOnPoison)
 	config.SetScriptOnPoison(*scriptOnPoison)
 	config.SetWithZone(*withZone)
@@ -192,7 +195,7 @@ func main() {
 		log.WithError(err).Errorln("can't init scell encryptor")
 		os.Exit(1)
 	}
-	keyStore, err := keystore.NewFilesystemKeyStore(*keysDir, scellEncryptor)
+	keyStore, err := filesystem.NewFilesystemKeyStore(*keysDir, scellEncryptor)
 	if err != nil {
 		log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantInitKeyStore).
 			Errorln("Can't initialise keystore")

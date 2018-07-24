@@ -8,12 +8,25 @@ import (
 	"strings"
 )
 
+const (
+	GRPC_SCHEME = "grpc"
+	HTTP_SCHEME = "http"
+)
+
+func customSchemeToBaseGolangScheme(scheme string) string {
+	if scheme == GRPC_SCHEME || scheme == HTTP_SCHEME {
+		return "tcp"
+	}
+	return scheme
+}
+
 // Dial connectionString like protocol://path where protocol is any supported via net.Dial (tcp|unix)
 func Dial(connectionString string) (net.Conn, error) {
 	url, err := url_.Parse(connectionString)
 	if err != nil {
 		return nil, err
 	}
+	url.Scheme = customSchemeToBaseGolangScheme(url.Scheme)
 	if url.Scheme == "unix" {
 		return net.Dial(url.Scheme, url.Path)
 	} else {
@@ -31,6 +44,7 @@ func Listen(connectionString string) (net.Listener, error) {
 	if err != nil {
 		return nil, err
 	}
+	url.Scheme = customSchemeToBaseGolangScheme(url.Scheme)
 	if url.Scheme == "unix" {
 		return net.Listen(url.Scheme, url.Path)
 	} else {

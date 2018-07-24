@@ -1,9 +1,10 @@
-package keystore
+package filesystem
 
 import (
 	"crypto/rand"
 	"errors"
 	"fmt"
+	"github.com/cossacklabs/acra/keystore"
 	"github.com/cossacklabs/acra/utils"
 	"github.com/cossacklabs/acra/zone"
 	"github.com/cossacklabs/themis/gothemis/keys"
@@ -21,14 +22,14 @@ type FilesystemKeyStore struct {
 	publicKeyDirectory  string
 	directory           string
 	lock                *sync.RWMutex
-	encryptor           KeyEncryptor
+	encryptor           keystore.KeyEncryptor
 }
 
-func NewFilesystemKeyStore(directory string, encryptor KeyEncryptor) (*FilesystemKeyStore, error) {
+func NewFilesystemKeyStore(directory string, encryptor keystore.KeyEncryptor) (*FilesystemKeyStore, error) {
 	return NewFilesystemKeyStoreTwoPath(directory, directory, encryptor)
 }
 
-func NewFilesystemKeyStoreTwoPath(privateKeyFolder, publicKeyFolder string, encryptor KeyEncryptor) (*FilesystemKeyStore, error) {
+func NewFilesystemKeyStoreTwoPath(privateKeyFolder, publicKeyFolder string, encryptor keystore.KeyEncryptor) (*FilesystemKeyStore, error) {
 	// check folder for private key
 	directory, err := utils.AbsPath(privateKeyFolder)
 	if err != nil {
@@ -144,8 +145,8 @@ func (store *FilesystemKeyStore) getPublicKeyFilePath(filename string) string {
 }
 
 func (store *FilesystemKeyStore) getPrivateKeyByFilename(id []byte, filename string) (*keys.PrivateKey, error) {
-	if !ValidateId(id) {
-		return nil, ErrInvalidClientId
+	if !keystore.ValidateId(id) {
+		return nil, keystore.ErrInvalidClientId
 	}
 	store.lock.Lock()
 	defer store.lock.Unlock()
@@ -173,7 +174,7 @@ func (store *FilesystemKeyStore) GetZonePrivateKey(id []byte) (*keys.PrivateKey,
 }
 
 func (store *FilesystemKeyStore) HasZonePrivateKey(id []byte) bool {
-	if !ValidateId(id) {
+	if !keystore.ValidateId(id) {
 		return false
 	}
 	// add caching false answers. now if key doesn't exists than always checks on fs
@@ -193,8 +194,8 @@ func (store *FilesystemKeyStore) HasZonePrivateKey(id []byte) bool {
 }
 
 func (store *FilesystemKeyStore) GetPeerPublicKey(id []byte) (*keys.PublicKey, error) {
-	if !ValidateId(id) {
-		return nil, ErrInvalidClientId
+	if !keystore.ValidateId(id) {
+		return nil, keystore.ErrInvalidClientId
 	}
 	fname := getPublicKeyFilename(id)
 	store.lock.Lock()
@@ -224,8 +225,8 @@ func (store *FilesystemKeyStore) GetServerDecryptionPrivateKey(id []byte) (*keys
 }
 
 func (store *FilesystemKeyStore) GenerateConnectorKeys(id []byte) error {
-	if !ValidateId(id) {
-		return ErrInvalidClientId
+	if !keystore.ValidateId(id) {
+		return keystore.ErrInvalidClientId
 	}
 	filename := getConnectorKeyFilename(id)
 
@@ -236,8 +237,8 @@ func (store *FilesystemKeyStore) GenerateConnectorKeys(id []byte) error {
 	return nil
 }
 func (store *FilesystemKeyStore) GenerateServerKeys(id []byte) error {
-	if !ValidateId(id) {
-		return ErrInvalidClientId
+	if !keystore.ValidateId(id) {
+		return keystore.ErrInvalidClientId
 	}
 	filename := getServerKeyFilename(id)
 	_, err := store.generateKeyPair(filename, id)
@@ -247,10 +248,22 @@ func (store *FilesystemKeyStore) GenerateServerKeys(id []byte) error {
 	return nil
 }
 
+func (store *FilesystemKeyStore) GenerateTranslatorKeys(id []byte) error {
+	if !keystore.ValidateId(id) {
+		return keystore.ErrInvalidClientId
+	}
+	filename := getTranslatorKeyFilename(id)
+	_, err := store.generateKeyPair(filename, id)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
 // generate key pair for data encryption/decryption
 func (store *FilesystemKeyStore) GenerateDataEncryptionKeys(id []byte) error {
-	if !ValidateId(id) {
-		return ErrInvalidClientId
+	if !keystore.ValidateId(id) {
+		return keystore.ErrInvalidClientId
 	}
 	_, err := store.generateKeyPair(getServerDecryptionKeyFilename(id), id)
 	if err != nil {
@@ -312,5 +325,5 @@ func (store *FilesystemKeyStore) GetAuthKey(remove bool) ([]byte, error) {
 		return key, nil
 	}
 	log.Infof("Generate basic auth key for AcraWebconfig to %v", keyPath)
-	return store.generateKey(BASIC_AUTH_KEY_FILENAME, BASIC_AUTH_KEY_LENGTH)
+	return store.generateKey(BASIC_AUTH_KEY_FILENAME, keystore.BASIC_AUTH_KEY_LENGTH)
 }

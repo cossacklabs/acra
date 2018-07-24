@@ -18,6 +18,7 @@ import (
 	"fmt"
 	"github.com/cossacklabs/acra/cmd"
 	"github.com/cossacklabs/acra/keystore"
+	"github.com/cossacklabs/acra/keystore/filesystem"
 	"github.com/cossacklabs/acra/logging"
 	"github.com/cossacklabs/acra/utils"
 	"github.com/cossacklabs/acra/zone"
@@ -61,7 +62,7 @@ func main() {
 			log.WithError(err).Errorln("can't init scell encryptor")
 			os.Exit(1)
 		}
-		keyStore, err = keystore.NewFilesystemKeyStore(output, scellEncryptor)
+		keyStore, err = filesystem.NewFilesystemKeyStore(output, scellEncryptor)
 		if err != nil {
 			log.WithError(err).Errorln("can't create key store")
 			os.Exit(1)
