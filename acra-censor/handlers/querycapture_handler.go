@@ -117,8 +117,8 @@ func (handler *QueryCaptureHandler) Reset() {
 }
 
 func (handler *QueryCaptureHandler) Release() {
-	handler.Reset()
 	handler.signalBackgroundExit <- true
+	handler.Reset()
 }
 
 func (handler *QueryCaptureHandler) FinishAndCloseFile(openedFile *os.File) error {
