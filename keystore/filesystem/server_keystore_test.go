@@ -44,7 +44,7 @@ func testGenerateKeyPair(store *FilesystemKeyStore, t *testing.T) {
 	}
 	// check that returned key != stored on filesystem data
 	if bytes.Equal(encryptedKey, keypair.Private.Value) {
-		t.Fatal("keys are equal")
+		t.Fatal("cache are equal")
 	}
 }
 
@@ -196,7 +196,7 @@ func testReset(store *FilesystemKeyStore, t *testing.T) {
 }
 
 func TestFilesystemKeyStore(t *testing.T) {
-	privateKeyDirectory := fmt.Sprintf(".%s%s", string(filepath.Separator), "keys")
+	privateKeyDirectory := fmt.Sprintf(".%s%s", string(filepath.Separator), "cache")
 	os.MkdirAll(privateKeyDirectory, 0700)
 	defer func() {
 		os.RemoveAll(privateKeyDirectory)
@@ -219,12 +219,90 @@ func TestFilesystemKeyStore(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, store := range []*FilesystemKeyStore{generalStore, splitKeysStore} {
+	noCacheKeyStore, err := NewFileSystemKeyStoreWithCacheSize(privateKeyDirectory, encryptor, keystore.NO_CACHE)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, store := range []*FilesystemKeyStore{generalStore, splitKeysStore, noCacheKeyStore} {
 		testGeneral(store, t)
 		testGeneratingDataEncryptionKeys(store, t)
 		testGenerateConnectorKeys(store, t)
 		testGenerateServerKeys(store, t)
 		testGenerateTranslatorKeys(store, t)
 		testReset(store, t)
+		testGenerateKeyPair(store, t)
+	}
+}
+
+func TestFilesystemKeyStoreWithCache(t *testing.T) {
+	keyDirectory, err := ioutil.TempDir("", "test_filesystem_store")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chmod(keyDirectory, 0700); err != nil {
+		t.Fatal(err)
+	}
+	defer func() {
+		os.RemoveAll(keyDirectory)
+	}()
+
+	encryptor, err := keystore.NewSCellKeyEncryptor([]byte("some key"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	store, err := NewFileSystemKeyStoreWithCacheSize(keyDirectory, encryptor, 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// create some key
+	testId := []byte("test id")
+	if err := store.GenerateDataEncryptionKeys(testId); err != nil {
+		t.Fatal(err)
+	}
+	// load and save in cache
+	_, err = store.GetServerDecryptionPrivateKey(testId)
+	if err != nil {
+		t.Fatal(err)
+	}
+	testId2 := []byte("test id 2")
+	// create one more key that shouldn't saved in cache with 1 size
+	if err := store.GenerateDataEncryptionKeys(testId2); err != nil {
+		t.Fatal(err)
+	}
+	// load and save in cache. it must drop previous key from cache
+	privateKey2, err := store.GetServerDecryptionPrivateKey(testId2)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// check that previous value was dropped
+	value, ok := store.cache.Get(getServerDecryptionKeyFilename(testId))
+	if ok {
+		t.Fatal("Value wasn't expected")
+	}
+	if value != nil {
+		t.Fatal("Value wasn't expected")
+	}
+
+	// check that new values is what we expect: encrypted key
+	value, ok = store.cache.Get(getServerDecryptionKeyFilename(testId2))
+	if !ok {
+		t.Fatal("Expected key in result")
+	}
+	decrypted, err := encryptor.Decrypt(value, testId2)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Equal(decrypted, privateKey2.Value) {
+		t.Fatal("Expected correct key in result")
+	}
+
+	// check that store created with empty cache
+	store, err = NewFileSystemKeyStoreWithCacheSize(keyDirectory, encryptor, keystore.NO_CACHE)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := store.cache.(keystore.NoCache); !ok {
+		t.Fatal("KeyStore wasn't created with NoCache implementation")
 	}
 }

@@ -49,6 +49,7 @@ func main() {
 	incomingConnectionGRPCString := flag.String("incoming_connection_grpc_string", network.BuildConnectionString(network.GRPC_SCHEME, cmd.DEFAULT_ACRATRANSLATOR_GRPC_HOST, cmd.DEFAULT_ACRATRANSLATOR_GRPC_PORT, ""), "Connection string for gRPC transport like grpc://x.x.x.x:yyyy")
 
 	keysDir := flag.String("keys_dir", keystore.DEFAULT_KEY_DIR_SHORT, "Folder from which will be loaded keys")
+	keysCacheSize := flag.Int("keystore_cache_size", keystore.INFINITE_CACHE_SIZE, "Count of keys that will be stored in in-memory LRU cache in encrypted form. 0 - no limits, -1 - turn off cache")
 
 	secureSessionID := flag.String("securesession_id", "acra_translator", "Id that will be sent in secure session")
 
@@ -104,7 +105,7 @@ func main() {
 		log.WithError(err).Errorln("can't init scell encryptor")
 		os.Exit(1)
 	}
-	keyStore, err := filesystem.NewTranslatorFileSystemKeyStore(*keysDir, scellEncryptor)
+	keyStore, err := filesystem.NewTranslatorFileSystemKeyStore(*keysDir, scellEncryptor, *keysCacheSize)
 	if err != nil {
 		log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantInitKeyStore).
 			Errorln("Can't initialise keystore")
