@@ -27,9 +27,12 @@ import (
 	"os"
 )
 
-// DEFAULT_CONFIG_PATH relative path to config which will be parsed as default
-var DEFAULT_CONFIG_PATH = utils.GetConfigPathByName("acra-poisonrecordmaker")
-var SERVICE_NAME = "acra-poisonrecordmaker"
+// Constants used by AcraPoisonRecordsMaker
+var (
+	// DEFAULT_CONFIG_PATH relative path to config which will be parsed as default
+	DEFAULT_CONFIG_PATH = utils.GetConfigPathByName("acra-poisonrecordmaker")
+	SERVICE_NAME        = "acra-poisonrecordmaker"
+)
 
 func main() {
 	keysDir := flag.String("keys_dir", keystore.DEFAULT_KEY_DIR_SHORT, "Folder from which will be loaded keys")

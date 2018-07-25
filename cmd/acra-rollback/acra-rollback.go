@@ -39,46 +39,60 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
-// DEFAULT_CONFIG_PATH relative path to config which will be parsed as default
-var DEFAULT_CONFIG_PATH = utils.GetConfigPathByName("acra-rollback")
-var SERVICE_NAME = "acra-rollback"
+// Constants used by AcraRollback
+var (
+	// DEFAULT_CONFIG_PATH relative path to config which will be parsed as default
+	DEFAULT_CONFIG_PATH = utils.GetConfigPathByName("acra-rollback")
+	SERVICE_NAME        = "acra-rollback"
+)
 
+// ErrorExit prints error and exits.
 func ErrorExit(msg string, err error) {
 	fmt.Println(utils.ErrorMessage(msg, err))
 	os.Exit(1)
 }
 
+// BinaryEncoder encodes binary to string
 type BinaryEncoder interface {
 	Encode([]byte) string
 }
 
+// MysqlEncoder encodes MySQL packets
 type MysqlEncoder struct{}
 
+// Encode bytes to Hex supported by MySQL
 func (e *MysqlEncoder) Encode(data []byte) string {
 	return fmt.Sprintf("X'%s'", hex.EncodeToString(data))
 }
 
+// EscapeEncoder for Postgres
 type EscapeEncoder struct{}
 
+// Encode bytes to Postgres Octal format
 func (e *EscapeEncoder) Encode(data []byte) string {
 	return QuoteValue(string(postgresql.EncodeToOctal(data)))
 }
 
+// HexEncoder for hex
 type HexEncoder struct{}
 
+// Encode bytes to Hex
 func (*HexEncoder) Encode(data []byte) string {
 	return fmt.Sprintf("E'\\\\x%s'", hex.EncodeToString(data))
 }
 
+// Executor interface for any executor.
 type Executor interface {
 	Execute([]byte)
 	Close()
 }
 
+// InsertExecutor will run Insert statement
 type InsertExecutor struct {
 	insertStatement *sql.Stmt
 }
 
+// NewInsertExecutor creates new executor for Insert statements
 func NewInsertExecutor(sql string, db *sql.DB) *InsertExecutor {
 	stmt, err := db.Prepare(sql)
 	if err != nil {
@@ -86,16 +100,21 @@ func NewInsertExecutor(sql string, db *sql.DB) *InsertExecutor {
 	}
 	return &InsertExecutor{insertStatement: stmt}
 }
+
+// Execute inserts
 func (ex *InsertExecutor) Execute(data []byte) {
 	_, err := ex.insertStatement.Exec(&data)
 	if err != nil {
 		ErrorExit("can't bind args to prepared statement", err)
 	}
 }
+
+// Close executor
 func (ex *InsertExecutor) Close() {
 	ex.insertStatement.Close()
 }
 
+// WriteToFileExecutor writes to file
 type WriteToFileExecutor struct {
 	encoder BinaryEncoder
 	file    *os.File
@@ -103,6 +122,7 @@ type WriteToFileExecutor struct {
 	writer  *bufio.Writer
 }
 
+// NewWriteToFileExecutor creates new object ready to write encoded sql to filePath
 func NewWriteToFileExecutor(filePath string, sql string, encoder BinaryEncoder) *WriteToFileExecutor {
 	absPath, err := utils.AbsPath(filePath)
 	if err != nil {
@@ -116,9 +136,13 @@ func NewWriteToFileExecutor(filePath string, sql string, encoder BinaryEncoder) 
 	return &WriteToFileExecutor{sql: sql, file: file, writer: writer, encoder: encoder}
 }
 
+// PLACEHOLDER char
 var PLACEHOLDER = "$1"
+
+// NEWLINE char
 var NEWLINE = []byte{'\n'}
 
+// QuoteValue returns name in quotes, if name contains quotes, doubles them
 func QuoteValue(name string) string {
 	end := strings.IndexRune(name, 0)
 	if end > -1 {
@@ -127,14 +151,15 @@ func QuoteValue(name string) string {
 	return `'` + strings.Replace(name, `'`, `''`, -1) + `'`
 }
 
+// Execute write to file
 func (ex *WriteToFileExecutor) Execute(data []byte) {
 	encoded := ex.encoder.Encode(data)
-	outputSql := strings.Replace(ex.sql, PLACEHOLDER, encoded, 1)
-	n, err := ex.writer.Write([]byte(outputSql))
+	outputSQL := strings.Replace(ex.sql, PLACEHOLDER, encoded, 1)
+	n, err := ex.writer.Write([]byte(outputSQL))
 	if err != nil {
 		ErrorExit("can't write to output file", err)
 	}
-	if n != len(outputSql) {
+	if n != len(outputSQL) {
 		fmt.Println("Incorrect write count")
 		os.Exit(1)
 	}
@@ -147,6 +172,8 @@ func (ex *WriteToFileExecutor) Execute(data []byte) {
 		os.Exit(1)
 	}
 }
+
+// Close file
 func (ex *WriteToFileExecutor) Close() {
 	ex.writer.Flush()
 	ex.file.Sync()

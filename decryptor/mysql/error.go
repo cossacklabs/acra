@@ -1,6 +1,7 @@
 package mysql
 
-type SqlError struct {
+// SQLError is used for passing SQL errors
+type SQLError struct {
 	Code    uint16
 	Message string
 	State   string
@@ -12,8 +13,8 @@ const (
 	ER_QUERY_INTERRUPTED_STATE = "70100"
 )
 
-func newQueryInterruptedError() *SqlError {
-	e := new(SqlError)
+func newQueryInterruptedError() *SQLError {
+	e := new(SQLError)
 	e.Code = ER_QUERY_INTERRUPTED_CODE
 	e.State = ER_QUERY_INTERRUPTED_STATE
 	e.Message = "Query execution was interrupted"

@@ -23,7 +23,7 @@ func NewConnectionManager() *ConnectionManager {
 }
 
 func (cm *ConnectionManager) Incr() {
-	cm.Counter += 1
+	cm.Counter++
 	log.Debugf("ConnectionManager.Add")
 	cm.WaitGroup.Add(1)
 }

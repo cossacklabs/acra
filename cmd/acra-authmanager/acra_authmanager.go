@@ -32,8 +32,11 @@ import (
 
 type HashedPasswords map[string]string
 
-var DEFAULT_CONFIG_PATH = utils.GetConfigPathByName("acra-authmanager")
-var SERVICE_NAME = "acra-authmanager"
+// Constants used by AcraAuthmanager
+var (
+	DEFAULT_CONFIG_PATH = utils.GetConfigPathByName("acra-authmanager")
+	SERVICE_NAME        = "acra-authmanager"
+)
 
 const (
 	AuthFieldSeparator       = ":"
@@ -196,7 +199,7 @@ func main() {
 	n := 0
 	for _, o := range flags {
 		if *o {
-			n += 1
+			n++
 			if n > 1 {
 				log.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorWrongParam).Errorln("Too many options, use one of --set or --remove")
 				os.Exit(1)

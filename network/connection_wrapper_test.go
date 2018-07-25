@@ -26,9 +26,9 @@ func wait(ch chan bool, t *testing.T) {
 	}
 }
 
-func test_wrapper(clientWrapper, serverWrapper ConnectionWrapper, t *testing.T) {
+func testWrapper(clientWrapper, serverWrapper ConnectionWrapper, t *testing.T) {
 	const iterations = 10
-	socket := "/tmp/test_wrapper"
+	socket := "/tmp/testWrapper"
 	os.Remove(socket)
 	clientCh := make(chan bool)
 	serverCh := make(chan bool)
@@ -124,7 +124,7 @@ func test_wrapper(clientWrapper, serverWrapper ConnectionWrapper, t *testing.T) 
 }
 
 func TestRawConnectionWrapper(t *testing.T) {
-	test_wrapper(&RawConnectionWrapper{}, &RawConnectionWrapper{ClientID: TEST_CLIENT_ID}, t)
+	testWrapper(&RawConnectionWrapper{}, &RawConnectionWrapper{ClientID: TEST_CLIENT_ID}, t)
 }
 
 type SimpleKeyStore struct {
@@ -156,7 +156,7 @@ func TestSessionWrapper(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	test_wrapper(clientWrapper, serverWrapper, t)
+	testWrapper(clientWrapper, serverWrapper, t)
 }
 
 func TestTLSWRapper(t *testing.T) {
@@ -205,5 +205,5 @@ Mmsz2rgkLFqKpYS30+CYbzwIXMfHImhBX2kO9HkodBWvNApu
 	if err != nil {
 		t.Fatal(err)
 	}
-	test_wrapper(clientWrapper, serverWrapper, t)
+	testWrapper(clientWrapper, serverWrapper, t)
 }

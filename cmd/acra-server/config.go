@@ -23,13 +23,14 @@ import (
 	"io/ioutil"
 )
 
+// Possible bytea formats
 const (
 	HEX_BYTEA_FORMAT    int8 = 1
 	ESCAPE_BYTEA_FORMAT int8 = 2
 )
 
 type Config struct {
-	connectorApiPort        int
+	connectorAPIPort        int
 	byteaFormat             int8
 	dbPort                  int
 	connectorPort           int
@@ -42,7 +43,7 @@ type Config struct {
 	withZone                bool
 	withAPI                 bool
 	wholeMatch              bool
-	serverId                []byte
+	serverID                []byte
 	acraConnectionString    string
 	acraAPIConnectionString string
 	tlsServerKeyPath        string
@@ -59,7 +60,7 @@ type Config struct {
 type UIEditableConfig struct {
 	DbHost           string `json:"db_host"`
 	DbPort           int    `json:"db_port"`
-	ConnectorApiPort int    `json:"incoming_connection_api_port"`
+	ConnectorAPIPort int    `json:"incoming_connection_api_port"`
 	Debug            bool   `json:"debug"`
 	ScriptOnPoison   string `json:"poison_run_script_file"`
 	StopOnPoison     bool   `json:"poison_shutdown_enable"`
@@ -167,10 +168,10 @@ func (config *Config) GetWithZone() bool {
 func (config *Config) SetWithZone(wz bool) {
 	config.withZone = wz
 }
-func (config *Config) SetEnableHTTPApi(api bool) {
+func (config *Config) SetEnableHTTPAPI(api bool) {
 	config.withAPI = api
 }
-func (config *Config) GetEnableHTTPApi() bool {
+func (config *Config) GetEnableHTTPAPI() bool {
 	return config.withAPI
 }
 func (config *Config) GetConnectorHost() string {
@@ -183,15 +184,15 @@ func (config *Config) SetConnectorHost(host string) error {
 func (config *Config) GetConnectorPort() int {
 	return config.connectorPort
 }
-func (config *Config) GetConnectorApiPort() int {
-	return config.connectorApiPort
+func (config *Config) GetConnectorAPIPort() int {
+	return config.connectorAPIPort
 }
 func (config *Config) SetConnectorPort(port int) error {
 	config.connectorPort = port
 	return nil
 }
-func (config *Config) SetConnectorApiPort(port int) error {
-	config.connectorApiPort = port
+func (config *Config) SetConnectorAPIPort(port int) error {
+	config.connectorAPIPort = port
 	return nil
 }
 func (config *Config) GetDBHost() string {
@@ -225,11 +226,11 @@ func (config *Config) SetKeysDir(keysDir string) error {
 	config.keysDir = keysDir
 	return nil
 }
-func (config *Config) GetServerId() []byte {
-	return config.serverId
+func (config *Config) GetServerID() []byte {
+	return config.serverID
 }
-func (config *Config) SetServerId(serverId []byte) error {
-	config.serverId = serverId
+func (config *Config) SetServerID(serverID []byte) error {
+	config.serverID = serverID
 	return nil
 }
 func (config *Config) GetWholeMatch() bool {
@@ -245,11 +246,11 @@ func (config *Config) SetConfigPath(value string) {
 	config.configPath = value
 }
 
-func (config *Config) ToJson() ([]byte, error) {
+func (config *Config) ToJSON() ([]byte, error) {
 	var s UIEditableConfig
 	s.DbHost = config.GetDBHost()
 	s.DbPort = config.GetDBPort()
-	s.ConnectorApiPort = config.GetConnectorApiPort()
+	s.ConnectorAPIPort = config.GetConnectorAPIPort()
 	s.Debug = config.GetDebug()
 	s.ScriptOnPoison = config.GetScriptOnPoison()
 	s.StopOnPoison = config.GetStopOnPoison()

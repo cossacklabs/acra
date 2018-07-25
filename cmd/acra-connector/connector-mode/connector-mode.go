@@ -4,12 +4,14 @@ import "strings"
 
 type ConnectorMode string
 
+// Possible modes, default is AcraServerMode.
 const (
 	UndefinedMode      ConnectorMode = "UndefinedMode"
 	AcraServerMode     ConnectorMode = "AcraServer"
 	AcraTranslatorMode ConnectorMode = "AcraTranslator"
 )
 
+// CheckConnectorMode converts string to ConnectorMode.
 func CheckConnectorMode(mode string) ConnectorMode {
 	lowerCaseMode := strings.ToLower(mode)
 

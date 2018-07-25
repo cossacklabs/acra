@@ -14,7 +14,7 @@
 
 package main
 
-var AcraServerCofig = `config:
+var AcraServerConfig = `config:
   -
     name: db_host
     title: Host for destination Postgres

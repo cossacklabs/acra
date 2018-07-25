@@ -255,28 +255,28 @@ func TestFilesystemKeyStoreWithCache(t *testing.T) {
 		t.Fatal(err)
 	}
 	// create some key
-	testId := []byte("test id")
-	if err := store.GenerateDataEncryptionKeys(testId); err != nil {
+	testID := []byte("test id")
+	if err := store.GenerateDataEncryptionKeys(testID); err != nil {
 		t.Fatal(err)
 	}
 	// load and save in cache
-	_, err = store.GetServerDecryptionPrivateKey(testId)
+	_, err = store.GetServerDecryptionPrivateKey(testID)
 	if err != nil {
 		t.Fatal(err)
 	}
-	testId2 := []byte("test id 2")
+	testID2 := []byte("test id 2")
 	// create one more key that shouldn't saved in cache with 1 size
-	if err := store.GenerateDataEncryptionKeys(testId2); err != nil {
+	if err := store.GenerateDataEncryptionKeys(testID2); err != nil {
 		t.Fatal(err)
 	}
 	// load and save in cache. it must drop previous key from cache
-	privateKey2, err := store.GetServerDecryptionPrivateKey(testId2)
+	privateKey2, err := store.GetServerDecryptionPrivateKey(testID2)
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	// check that previous value was dropped
-	value, ok := store.cache.Get(getServerDecryptionKeyFilename(testId))
+	value, ok := store.cache.Get(getServerDecryptionKeyFilename(testID))
 	if ok {
 		t.Fatal("Value wasn't expected")
 	}
@@ -285,11 +285,11 @@ func TestFilesystemKeyStoreWithCache(t *testing.T) {
 	}
 
 	// check that new values is what we expect: encrypted key
-	value, ok = store.cache.Get(getServerDecryptionKeyFilename(testId2))
+	value, ok = store.cache.Get(getServerDecryptionKeyFilename(testID2))
 	if !ok {
 		t.Fatal("Expected key in result")
 	}
-	decrypted, err := encryptor.Decrypt(value, testId2)
+	decrypted, err := encryptor.Decrypt(value, testID2)
 	if err != nil {
 		t.Fatal(err)
 	}

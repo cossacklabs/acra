@@ -89,10 +89,10 @@ func (handler *WhitelistHandler) CheckQuery(query string) (bool, error) {
 	if len(handler.rules) != 0 {
 		violationOccured, err := handler.testRulesViolation(query)
 		if err != nil {
-			return false, ErrParseSqlRuleWhitelist
+			return false, ErrParseSQLRuleWhitelist
 		}
 		if violationOccured {
-			return false, ErrForbiddenSqlStructureWhitelist
+			return false, ErrForbiddenSQLStructureWhitelist
 		}
 	}
 	//We do not continue verification because query matches whitelist

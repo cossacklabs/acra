@@ -42,12 +42,12 @@ func GetServerOneKeyPublic() *keys.PublicKey {
 }
 
 type ZoneData struct {
-	Id         []byte
-	Public_Key []byte
+	Id        []byte
+	PublicKey []byte
 }
-type JsonData struct {
-	Id         string
-	Public_Key []byte
+type JSONData struct {
+	Id        string
+	PublicKey []byte
 }
 
 func LoadZones() []*ZoneData {
@@ -61,12 +61,12 @@ func LoadZones() []*ZoneData {
 		panic(err)
 	}
 	for i, zoneData := range bytes.Split(dumpedZoneData, []byte("\n")) {
-		jsonData := JsonData{}
+		jsonData := JSONData{}
 		err = json.Unmarshal(zoneData, &jsonData)
 		if err != nil {
 			panic(err)
 		}
-		zones[i] = &ZoneData{Public_Key: jsonData.Public_Key, Id: []byte(jsonData.Id)}
+		zones[i] = &ZoneData{PublicKey: jsonData.PublicKey, Id: []byte(jsonData.Id)}
 	}
 	return zones
 }

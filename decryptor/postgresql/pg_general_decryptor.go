@@ -352,8 +352,8 @@ func (decryptor *PgDecryptor) MatchZoneInBlock(block []byte) {
 				break
 			} else {
 				id := make([]byte, zone.ZONE_ID_BLOCK_LENGTH)
-				hexId := sliceCopy[i : i+HEX_ZONE_ID_BLOCK_LENGTH]
-				hex.Decode(id, hexId)
+				hexID := sliceCopy[i : i+HEX_ZONE_ID_BLOCK_LENGTH]
+				hex.Decode(id, hexID)
 				if decryptor.keyStore.HasZonePrivateKey(id) {
 					decryptor.zoneMatcher.SetMatched(id)
 					return

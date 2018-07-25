@@ -36,11 +36,11 @@ func main() {
 	fmt.Println("Start benchmark")
 
 	startTime := time.Now()
-	var rowId int
+	var rowID int
 	var zone, data []byte
 	for i := 0; i < config.REQUEST_COUNT; i++ {
 		id := rand.Intn(config.ROW_COUNT)
-		err := db.QueryRow("SELECT id, '1111111111111111111', data FROM test_raw WHERE id=$1+1;", &id).Scan(&rowId, &zone, &data)
+		err := db.QueryRow("SELECT id, '1111111111111111111', data FROM test_raw WHERE id=$1+1;", &id).Scan(&rowID, &zone, &data)
 		if err != nil {
 			panic(err)
 		}

@@ -77,7 +77,7 @@ func ParseResultField(data []byte) (*ColumnDescription, error) {
 	pos += n
 
 	//skip 0x0C constant field
-	pos += 1
+	pos++
 
 	//charset
 	field.Charset = binary.LittleEndian.Uint16(data[pos:])

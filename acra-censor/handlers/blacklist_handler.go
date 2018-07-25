@@ -89,10 +89,10 @@ func (handler *BlacklistHandler) CheckQuery(query string) (bool, error) {
 	if len(handler.rules) != 0 {
 		violationOccured, err := handler.testRulesViolation(query)
 		if err != nil {
-			return false, ErrParseSqlRuleBlacklist
+			return false, ErrParseSQLRuleBlacklist
 		}
 		if violationOccured {
-			return false, ErrForbiddenSqlStructureBlacklist
+			return false, ErrForbiddenSQLStructureBlacklist
 		}
 	}
 	return true, nil
