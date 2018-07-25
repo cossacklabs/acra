@@ -120,7 +120,7 @@ func (store *FilesystemKeyStore) GenerateZoneKey() ([]byte, []byte, error) {
 	var id []byte
 	for {
 		// generate until key not exists
-		id = zone.GenerateZoneId()
+		id = zone.GenerateZoneID()
 		if !store.HasZonePrivateKey(id) {
 			break
 		}

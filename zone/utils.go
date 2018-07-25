@@ -25,7 +25,7 @@ import (
 const letterBytes = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
 
 // Returns generated random zone id with length == ZONE_ID_LENGTH bytes.
-func GenerateZoneId() []byte {
+func GenerateZoneID() []byte {
 	rand.Seed(time.Now().UnixNano())
 	b := make([]byte, ZONE_ID_LENGTH)
 	for i := range b {

@@ -89,8 +89,8 @@ func (decryptor *MySQLDecryptor) MatchZoneInBlock(block []byte) {
 	return
 }
 
-func (decryptor *MySQLDecryptor) ReadData(symmetricKey, zoneId []byte, reader io.Reader) ([]byte, error) {
-	return decryptor.binaryDecryptor.ReadData(symmetricKey, zoneId, reader)
+func (decryptor *MySQLDecryptor) ReadData(symmetricKey, zoneID []byte, reader io.Reader) ([]byte, error) {
+	return decryptor.binaryDecryptor.ReadData(symmetricKey, zoneID, reader)
 }
 
 func (decryptor *MySQLDecryptor) ReadSymmetricKey(privateKey *keys.PrivateKey, reader io.Reader) ([]byte, []byte, error) {
@@ -222,7 +222,7 @@ func (decryptor *MySQLDecryptor) decryptWholeBlock(block []byte) ([]byte, error)
 		if err != nil {
 			return nil, err
 		}
-		newData, err := decryptor.decryptBlock(bytes.NewReader(block), decryptor.GetMatchedZoneId(), decryptor.GetPrivateKey)
+		newData, err := decryptor.decryptBlock(bytes.NewReader(block), decryptor.GetMatchedZoneID(), decryptor.GetPrivateKey)
 		if decryptor.IsWithZone() && err == nil && len(newData) != len(block) {
 			decryptor.ResetZoneMatch()
 		}
@@ -255,7 +255,7 @@ func (decryptor *MySQLDecryptor) decryptInlineBlock(block []byte) ([]byte, error
 		output.Write(block[index : index+beginTagIndex])
 		index += beginTagIndex
 		blockReader := bytes.NewReader(block[index+tagLength:])
-		decrypted, err := decryptor.decryptBlock(blockReader, decryptor.GetMatchedZoneId(), decryptor.GetPrivateKey)
+		decrypted, err := decryptor.decryptBlock(blockReader, decryptor.GetMatchedZoneID(), decryptor.GetPrivateKey)
 		if err != nil {
 			output.Write(block[index : index+1])
 			index++

@@ -30,7 +30,7 @@ type PgDecryptor struct {
 	isWithZone         bool
 	isWholeMatch       bool
 	keyStore           keystore.KeyStore
-	zoneMatcher        *zone.ZoneIdMatcher
+	zoneMatcher        *zone.ZoneIDMatcher
 	pgDecryptor        base.DataDecryptor
 	binaryDecryptor    base.DataDecryptor
 	matchedDecryptor   base.DataDecryptor
@@ -63,25 +63,25 @@ func (decryptor *PgDecryptor) SetWithZone(b bool) {
 	decryptor.isWithZone = b
 }
 
-func (decryptor *PgDecryptor) SetZoneMatcher(zoneMatcher *zone.ZoneIdMatcher) {
+func (decryptor *PgDecryptor) SetZoneMatcher(zoneMatcher *zone.ZoneIDMatcher) {
 	decryptor.zoneMatcher = zoneMatcher
 }
 
-func (decryptor *PgDecryptor) GetZoneMatcher() *zone.ZoneIdMatcher {
+func (decryptor *PgDecryptor) GetZoneMatcher() *zone.ZoneIDMatcher {
 	return decryptor.zoneMatcher
 }
 
 func (decryptor *PgDecryptor) IsMatchedZone() bool {
-	return decryptor.zoneMatcher.IsMatched() && decryptor.keyStore.HasZonePrivateKey(decryptor.zoneMatcher.GetZoneId())
+	return decryptor.zoneMatcher.IsMatched() && decryptor.keyStore.HasZonePrivateKey(decryptor.zoneMatcher.GetZoneID())
 }
 
 func (decryptor *PgDecryptor) MatchZone(b byte) bool {
 	return decryptor.zoneMatcher.Match(b)
 }
 
-func (decryptor *PgDecryptor) GetMatchedZoneId() []byte {
+func (decryptor *PgDecryptor) GetMatchedZoneID() []byte {
 	if decryptor.IsWithZone() {
-		return decryptor.zoneMatcher.GetZoneId()
+		return decryptor.zoneMatcher.GetZoneID()
 	}
 	return nil
 }
@@ -142,7 +142,7 @@ func (decryptor *PgDecryptor) ReadSymmetricKey(privateKey *keys.PrivateKey, read
 	return symmetricKey, rawData, nil
 }
 
-func (decryptor *PgDecryptor) ReadData(symmetricKey, zoneId []byte, reader io.Reader) ([]byte, error) {
+func (decryptor *PgDecryptor) ReadData(symmetricKey, zoneID []byte, reader io.Reader) ([]byte, error) {
 	/* due to using two decryptors can be case when one decryptor match 2 bytes
 	from TAG_BEGIN then didn't match anymore but another decryptor matched at
 	this time and was successfully used for decryption, we need return 2 bytes
@@ -162,18 +162,18 @@ func (decryptor *PgDecryptor) ReadData(symmetricKey, zoneId []byte, reader io.Re
 	falseBufferedBeginTagLength := decryptor.matchIndex - correctMatchBeginTagLength
 	if falseBufferedBeginTagLength > 0 {
 		decryptor.logger.Debugf("Return with false matched %v bytes", falseBufferedBeginTagLength)
-		decrypted, err := decryptor.matchedDecryptor.ReadData(symmetricKey, zoneId, reader)
+		decrypted, err := decryptor.matchedDecryptor.ReadData(symmetricKey, zoneID, reader)
 		return append(decryptor.matchBuffer[:falseBufferedBeginTagLength], decrypted...), err
 	}
 	// add zone_id to log if it used
 	var tempLogger *logrus.Entry
-	if decryptor.GetMatchedZoneId() != nil {
-		tempLogger = decryptor.logger.WithField("zone_id", string(decryptor.GetMatchedZoneId()))
+	if decryptor.GetMatchedZoneID() != nil {
+		tempLogger = decryptor.logger.WithField("zone_id", string(decryptor.GetMatchedZoneID()))
 	} else {
 		tempLogger = decryptor.logger
 	}
 	tempLogger.Infof("Decrypted AcraStruct")
-	return decryptor.matchedDecryptor.ReadData(symmetricKey, zoneId, reader)
+	return decryptor.matchedDecryptor.ReadData(symmetricKey, zoneID, reader)
 }
 
 func (decryptor *PgDecryptor) SetKeyStore(store keystore.KeyStore) {
@@ -182,7 +182,7 @@ func (decryptor *PgDecryptor) SetKeyStore(store keystore.KeyStore) {
 
 func (decryptor *PgDecryptor) GetPrivateKey() (*keys.PrivateKey, error) {
 	if decryptor.IsWithZone() {
-		return decryptor.keyStore.GetZonePrivateKey(decryptor.GetMatchedZoneId())
+		return decryptor.keyStore.GetZonePrivateKey(decryptor.GetMatchedZoneID())
 	}
 	return decryptor.keyStore.GetServerDecryptionPrivateKey(decryptor.clientId)
 }
@@ -276,7 +276,7 @@ func (decryptor *PgDecryptor) DecryptBlock(block []byte) ([]byte, error) {
 		decryptor.logger.Warningf("%v", utils.ErrorMessage("Can't unwrap symmetric key", err))
 		return []byte{}, err
 	}
-	data, err := decryptor.ReadData(key, decryptor.GetMatchedZoneId(), reader)
+	data, err := decryptor.ReadData(key, decryptor.GetMatchedZoneID(), reader)
 	if err != nil {
 		decryptor.logger.Warningf("%v", utils.ErrorMessage("Can't decrypt data with unwrapped symmetric key", err))
 		return []byte{}, err
@@ -399,6 +399,6 @@ func (decryptor *PgDecryptor) GetTagBeginLength() int {
 	return decryptor.pgDecryptor.GetTagBeginLength()
 }
 
-func (decryptor *PgDecryptor) GetZoneIdLength() int {
+func (decryptor *PgDecryptor) GetZoneIDLength() int {
 	return decryptor.pgDecryptor.GetTagBeginLength()
 }

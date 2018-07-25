@@ -49,7 +49,7 @@ func main() {
 	password := flag.String("db_password", "password", "Database user's password")
 	data := flag.String("data", "", "Data to save")
 	printData := flag.Bool("print", false, "Print data from database")
-	zoneId := flag.String("zone_id", "", "Zone id to fetch")
+	zoneID := flag.String("zone_id", "", "Zone ID to fetch")
 	flag.Parse()
 
 	connectionString := fmt.Sprintf("user=%v password=%v dbname=%v host=%v port=%v", *user, *password, *dbname, *host, *port)
@@ -102,17 +102,17 @@ func main() {
 			panic(err)
 		}
 		zonePublic := parsedZoneData.Public_key
-		zoneId := []byte(parsedZoneData.Id)
+		zoneID := []byte(parsedZoneData.Id)
 
-		acrastruct, err := acrawriter.CreateAcrastruct([]byte(*data), &keys.PublicKey{Value: zonePublic}, zoneId)
+		acrastruct, err := acrawriter.CreateAcrastruct([]byte(*data), &keys.PublicKey{Value: zonePublic}, zoneID)
 		if err != nil {
 			panic(err)
 		}
-		fmt.Printf("saved with zone: %v\n", string(zoneId))
+		fmt.Printf("saved with zone: %v\n", string(zoneID))
 		if *mysql {
-			_, err = db.Exec("insert into test_example_with_zone (id, zone, data, raw_data) values (?, ?, ?, ?);", rand.Int31(), zoneId, acrastruct, *data)
+			_, err = db.Exec("insert into test_example_with_zone (id, zone, data, raw_data) values (?, ?, ?, ?);", rand.Int31(), zoneID, acrastruct, *data)
 		} else {
-			_, err = db.Exec("insert into test_example_with_zone (id, zone, data, raw_data) values ($1, $2, $3, $4);", rand.Int31(), zoneId, acrastruct, *data)
+			_, err = db.Exec("insert into test_example_with_zone (id, zone, data, raw_data) values ($1, $2, $3, $4);", rand.Int31(), zoneID, acrastruct, *data)
 		}
 		if err != nil {
 			panic(err)
@@ -126,7 +126,7 @@ func main() {
 		}
 
 		fmt.Printf("Select from db with command: '%v'\n", query)
-		rows, err := db.Query(query, []byte(*zoneId))
+		rows, err := db.Query(query, []byte(*zoneID))
 		defer rows.Close()
 		if err != nil {
 			log.Fatal(err)

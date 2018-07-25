@@ -94,7 +94,7 @@ type PgEscapeDecryptor struct {
 	octLengthBuf [8 * 4]byte
 	octCharBuf   [3]byte
 	keyStore     keystore.KeyStore
-	zoneMatcher  *zone.ZoneIdMatcher
+	zoneMatcher  *zone.ZoneIDMatcher
 }
 
 func NewPgEscapeDecryptor() *PgEscapeDecryptor {
@@ -247,7 +247,7 @@ func (decryptor *PgEscapeDecryptor) getFullDataLength() int {
 	return decryptor.outputSize
 }
 
-func (decryptor *PgEscapeDecryptor) ReadData(symmetricKey, zoneId []byte, reader io.Reader) ([]byte, error) {
+func (decryptor *PgEscapeDecryptor) ReadData(symmetricKey, zoneID []byte, reader io.Reader) ([]byte, error) {
 	length, hexLengthBuf, err := decryptor.readDataLength(reader)
 	if err != nil {
 		return hexLengthBuf, err
@@ -258,7 +258,7 @@ func (decryptor *PgEscapeDecryptor) ReadData(symmetricKey, zoneId []byte, reader
 	}
 
 	scell := cell.New(symmetricKey, cell.CELL_MODE_SEAL)
-	decrypted, err := scell.Unprotect(data, nil, zoneId)
+	decrypted, err := scell.Unprotect(data, nil, zoneID)
 	// fill zero symmetric_key
 	utils.FillSlice(byte(0), symmetricKey[:])
 	if err != nil {

@@ -89,7 +89,7 @@ func (decryptor *HTTPConnectionsDecryptor) ParseRequestPrepareResponse(logger *l
 
 		if zoneID == nil && clientID == nil {
 			msg := fmt.Sprintf("HTTP request doesn't have a ZoneId, connection doesn't have a ClientId, expected to get one of them. Send ZoneId in request URL")
-			requestLogger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorTranslatorCantZoneIdMissing).Warningln(msg)
+			requestLogger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorTranslatorCantZoneIDMissing).Warningln(msg)
 			return responseWithMessage(request, http.StatusBadRequest, msg)
 		}
 

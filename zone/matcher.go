@@ -63,7 +63,7 @@ func (*PgEscapeMatcherFactory) CreateMatcher() Matcher {
 type Matcher interface {
 	Match(byte) bool
 	Reset()
-	GetZoneId() []byte
+	GetZoneID() []byte
 	IsMatched() bool
 	HasAnyMatch() bool
 }
@@ -89,11 +89,11 @@ func (matcher *PgMatcher) HasAnyMatch() bool {
 	return matcher.pgMatcher.HasAnyMatch() || matcher.binaryMatcher.HasAnyMatch()
 }
 
-func (matcher *PgMatcher) GetZoneId() []byte {
+func (matcher *PgMatcher) GetZoneID() []byte {
 	if matcher.pgMatcher.IsMatched() {
-		return matcher.pgMatcher.GetZoneId()
+		return matcher.pgMatcher.GetZoneID()
 	} else if matcher.binaryMatcher.IsMatched() {
-		return matcher.binaryMatcher.GetZoneId()
+		return matcher.binaryMatcher.GetZoneID()
 	} else {
 		return []byte{}
 	}
@@ -113,7 +113,7 @@ type BaseMatcher struct {
 	currentIndex byte
 	matched      bool
 	hasAnyMatch  bool
-	zoneId       []byte
+	zoneID       []byte
 	dbReader     DbByteReader
 }
 
@@ -123,7 +123,7 @@ func NewBaseMatcher(dbReader DbByteReader) Matcher {
 		dbReader:     dbReader,
 		hasAnyMatch:  false,
 		matched:      false,
-		zoneId:       make([]byte, ZONE_ID_BLOCK_LENGTH)}
+		zoneID:       make([]byte, ZONE_ID_BLOCK_LENGTH)}
 }
 
 func (matcher *BaseMatcher) Reset() {
@@ -147,14 +147,14 @@ func (matcher *BaseMatcher) Match(c byte) bool {
 	matcher.hasAnyMatch = true
 	if matcher.currentIndex < byte(len(ZONE_ID_BEGIN)) {
 		if ZONE_ID_BEGIN[matcher.currentIndex] == b {
-			matcher.zoneId[matcher.currentIndex] = b
+			matcher.zoneID[matcher.currentIndex] = b
 			matcher.currentIndex++
 			return true
 		}
 		matcher.Reset()
 		return false
 	} else {
-		matcher.zoneId[matcher.currentIndex] = b
+		matcher.zoneID[matcher.currentIndex] = b
 		matcher.currentIndex++
 		if matcher.currentIndex == byte(ZONE_ID_BLOCK_LENGTH) {
 			matcher.matched = true
@@ -171,9 +171,9 @@ func (matcher *BaseMatcher) HasAnyMatch() bool {
 	return matcher.hasAnyMatch
 }
 
-func (matcher *BaseMatcher) GetZoneId() []byte {
+func (matcher *BaseMatcher) GetZoneID() []byte {
 	if matcher.IsMatched() {
-		return matcher.zoneId
+		return matcher.zoneID
 	}
 	return []byte{}
 }

@@ -130,9 +130,9 @@ type Decryptor interface {
 	SetPoisonCallbackStorage(*PoisonCallbackStorage)
 	// get current storage of callbacks for detected poison records
 	GetPoisonCallbackStorage() *PoisonCallbackStorage
-	SetZoneMatcher(*zone.ZoneIdMatcher)
-	GetZoneMatcher() *zone.ZoneIdMatcher
-	GetMatchedZoneId() []byte
+	SetZoneMatcher(*zone.ZoneIDMatcher)
+	GetZoneMatcher() *zone.ZoneIDMatcher
+	GetMatchedZoneID() []byte
 	MatchZone(byte) bool
 	IsWithZone() bool
 	SetWithZone(bool)

@@ -65,7 +65,7 @@ func TestDecryptAcrastruct(t *testing.T) {
 	}
 
 	t.Log("Test with zone")
-	zone_id := zone.GenerateZoneId()
+	zone_id := zone.GenerateZoneID()
 	acrastruct, err = acrawriter.CreateAcrastruct(testData, keypair.Public, zone_id)
 	if err != nil {
 		t.Fatal(err)
