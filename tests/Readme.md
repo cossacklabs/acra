@@ -27,6 +27,13 @@ Your database should be up and running.
 pip3 install -r tests/requirements.txt
 ```
 
+# Setup fixed python mysql driver
+```
+git clone https://github.com/Lagovas/mysql-connector-python
+cd mysql-connector-python
+sudo python3 setup.py clean build_py install_lib
+```
+
 # Regenerate grpc code for python
 ```
 python -m grpc_tools.protoc -I cmd/acra-translator/grpc_api --python_out=tests/ --grpc_python_out=tests/ cmd/acra-translator/grpc_api/api.proto
