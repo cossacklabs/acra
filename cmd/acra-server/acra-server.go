@@ -97,7 +97,7 @@ func main() {
 	tlsDbSNI := flag.String("tls_db_sni", "", "Expected Server Name (SNI) from Postgresql")
 	tlsAuthType := flag.Int("tls_auth", int(tls.RequireAndVerifyClientCert), "Set authentication mode that will be used in TLS connection with Postgresql. Values in range 0-4 that set auth type (https://golang.org/pkg/crypto/tls/#ClientAuthType). Default is tls.RequireAndVerifyClientCert")
 	noEncryptionTransport := flag.Bool("acraconnector_transport_encryption_disable", false, "Use raw transport (tcp/unix socket) between AcraServer and AcraConnector/client (don't use this flag if you not connect to database with ssl/tls")
-	clientId := flag.String("client_id", "", "Expected client id of AcraConnector in mode without encryption")
+	clientID := flag.String("client_id", "", "Expected client ID of AcraConnector in mode without encryption")
 	acraConnectionString := flag.String("incoming_connection_string", network.BuildConnectionString(cmd.DEFAULT_ACRA_CONNECTION_PROTOCOL, cmd.DEFAULT_ACRA_HOST, cmd.DEFAULT_ACRASERVER_PORT, ""), "Connection string like tcp://x.x.x.x:yyyy or unix:///path/to/socket")
 	acraAPIConnectionString := flag.String("incoming_connection_api_string", network.BuildConnectionString(cmd.DEFAULT_ACRA_CONNECTION_PROTOCOL, cmd.DEFAULT_ACRA_HOST, cmd.DEFAULT_ACRASERVER_API_PORT, ""), "Connection string for api like tcp://x.x.x.x:yyyy or unix:///path/to/socket")
 	authPath = flag.String("auth_keys", cmd.DEFAULT_ACRA_AUTH_PATH, "Path to basic auth passwords. To add user, use: `./acra-authmanager --set --user <user> --pwd <pwd>`")
@@ -117,7 +117,7 @@ func main() {
 	logging.CustomizeLogging(*loggingFormat, SERVICE_NAME)
 
 	log.Infof("Validating service configuration")
-	cmd.ValidateClientId(*securesessionId)
+	cmd.ValidateClientID(*securesessionId)
 
 	if *host != cmd.DEFAULT_ACRA_HOST || *port != cmd.DEFAULT_ACRASERVER_PORT {
 		*acraConnectionString = network.BuildConnectionString("tcp", *host, *port, "")
@@ -219,20 +219,20 @@ func main() {
 	config.SetTLSConfig(tlsConfig)
 	if *useTls {
 		log.Println("Using TLS transport wrapper")
-		config.ConnectionWrapper, err = network.NewTLSConnectionWrapper([]byte(*clientId), tlsConfig)
+		config.ConnectionWrapper, err = network.NewTLSConnectionWrapper([]byte(*clientID), tlsConfig)
 		if err != nil {
 			log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorTransportConfiguration).
 				Errorln("Configuration error: can't initialise TLS connection wrapper")
 			os.Exit(1)
 		}
 	} else if *noEncryptionTransport {
-		if *clientId == "" && !*withZone {
+		if *clientID == "" && !*withZone {
 			log.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorTransportConfiguration).
 				Errorln("Configuration error: without zone mode and without encryption you must set <client_id> which will be used to connect from AcraConnector to AcraServer")
 			os.Exit(1)
 		}
 		log.Infof("Selecting transport: use raw transport wrapper")
-		config.ConnectionWrapper = &network.RawConnectionWrapper{ClientId: []byte(*clientId)}
+		config.ConnectionWrapper = &network.RawConnectionWrapper{ClientID: []byte(*clientID)}
 	} else {
 		log.Infof("Selecting transport: use Secure Session transport wrapper")
 		config.ConnectionWrapper, err = network.NewSecureSessionConnectionWrapper(keyStore)

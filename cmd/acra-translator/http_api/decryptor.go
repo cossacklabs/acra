@@ -16,14 +16,17 @@ import (
 	"strings"
 )
 
+// HTTPConnectionsDecryptor object for decrypting AcraStructs from HTTP requests.
 type HTTPConnectionsDecryptor struct {
 	*common.TranslatorData
 }
 
+// NewHTTPConnectionsDecryptor creates HTTPConnectionsDecryptor object.
 func NewHTTPConnectionsDecryptor(data *common.TranslatorData) (*HTTPConnectionsDecryptor, error) {
 	return &HTTPConnectionsDecryptor{TranslatorData: data}, nil
 }
 
+// SendResponse sends HTTP response to connection using Buffer.
 func (decryptor *HTTPConnectionsDecryptor) SendResponse(logger *log.Entry, response *http.Response, connection net.Conn) {
 	outBuffer := &bytes.Buffer{}
 	err := response.Write(outBuffer)
@@ -38,8 +41,10 @@ func (decryptor *HTTPConnectionsDecryptor) SendResponse(logger *log.Entry, respo
 	}
 }
 
-func (decryptor *HTTPConnectionsDecryptor) ParseRequestPrepareResponse(logger *log.Entry, request *http.Request, clientId []byte) *http.Response {
-	requestLogger := logger.WithFields(log.Fields{"client_id": string(clientId), "translator": "http"})
+// ParseRequestPrepareResponse parses HTTP request to find AcraStruct and ZoneID, then decrypts AcraStruct.
+// Returns HTTP response with appropriate status code, headers, decrypted AcraStruct or error message.
+func (decryptor *HTTPConnectionsDecryptor) ParseRequestPrepareResponse(logger *log.Entry, request *http.Request, clientID []byte) *http.Response {
+	requestLogger := logger.WithFields(log.Fields{"client_id": string(clientID), "translator": "http"})
 	if request == nil || request.URL == nil {
 		return emptyResponseWithStatus(request, http.StatusBadRequest)
 	}
@@ -73,18 +78,18 @@ func (decryptor *HTTPConnectionsDecryptor) ParseRequestPrepareResponse(logger *l
 
 	switch endpoint {
 	case "decrypt":
-		var zoneId []byte = nil
+		var zoneID []byte
 
 		// optional zone_id
 		query, ok := request.URL.Query()["zone_id"]
 		if ok && len(query) == 1 {
-			zoneId = []byte(query[0])
+			zoneID = []byte(query[0])
 			requestLogger = requestLogger.WithField("zone_id", query[0])
 		}
 
-		if zoneId == nil && clientId == nil {
-			msg := fmt.Sprintf("HTTP request doesn't have a ZoneId, connection doesn't have a ClientId, expected to get one of them. Send ZoneId in request URL")
-			requestLogger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorTranslatorCantZoneIdMissing).Warningln(msg)
+		if zoneID == nil && clientID == nil {
+			msg := fmt.Sprintf("HTTP request doesn't have a ZoneID, connection doesn't have a ClientID, expected to get one of them. Send ZoneID in request URL")
+			requestLogger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorTranslatorCantZoneIDMissing).Warningln(msg)
 			return responseWithMessage(request, http.StatusBadRequest, msg)
 		}
 
@@ -103,7 +108,7 @@ func (decryptor *HTTPConnectionsDecryptor) ParseRequestPrepareResponse(logger *l
 			return responseWithMessage(request, http.StatusBadRequest, msg)
 		}
 
-		decryptedStruct, err := decryptor.decryptAcraStruct(logger, acraStruct, zoneId, clientId)
+		decryptedStruct, err := decryptor.decryptAcraStruct(logger, acraStruct, zoneID, clientID)
 
 		if err != nil {
 			msg := fmt.Sprintf("Can't decrypt AcraStruct")
@@ -149,16 +154,16 @@ func (decryptor *HTTPConnectionsDecryptor) ParseRequestPrepareResponse(logger *l
 	return responseWithMessage(request, http.StatusBadRequest, msg)
 }
 
-func (decryptor *HTTPConnectionsDecryptor) decryptAcraStruct(logger *log.Entry, acraStruct []byte, zoneId []byte, clientId []byte) ([]byte, error) {
+func (decryptor *HTTPConnectionsDecryptor) decryptAcraStruct(logger *log.Entry, acraStruct []byte, zoneID []byte, clientID []byte) ([]byte, error) {
 	var err error
 	var privateKey *keys.PrivateKey
-	var decryptionContext []byte = nil
+	var decryptionContext []byte
 
-	if len(zoneId) != 0 {
-		privateKey, err = decryptor.TranslatorData.Keystorage.GetZonePrivateKey(zoneId)
-		decryptionContext = zoneId
+	if len(zoneID) != 0 {
+		privateKey, err = decryptor.TranslatorData.Keystorage.GetZonePrivateKey(zoneID)
+		decryptionContext = zoneID
 	} else {
-		privateKey, err = decryptor.TranslatorData.Keystorage.GetServerDecryptionPrivateKey(clientId)
+		privateKey, err = decryptor.TranslatorData.Keystorage.GetServerDecryptionPrivateKey(clientID)
 	}
 
 	if err != nil {
@@ -201,6 +206,7 @@ func responseWithMessage(request *http.Request, status int, body string) *http.R
 	return response
 }
 
+// EmptyResponseWithStatus creates HTTP response without body, with status code.
 func (decryptor *HTTPConnectionsDecryptor) EmptyResponseWithStatus(request *http.Request, status int) *http.Response {
 	return emptyResponseWithStatus(request, status)
 }

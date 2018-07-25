@@ -53,7 +53,7 @@ type PgHexDecryptor struct {
 	//uint64 in hex
 	hexLengthBuf [base.DATA_LENGTH_SIZE * 2]byte
 	keyStore     keystore.KeyStore
-	zoneMatcher  *zone.ZoneIdMatcher
+	zoneMatcher  *zone.ZoneIDMatcher
 
 	hexBuf []byte
 	buf    []byte
@@ -184,7 +184,7 @@ func (*PgHexDecryptor) getFullDataLength(dataLength uint64) int {
 	return hex.EncodedLen(len(base.TAG_BEGIN) + base.KEY_BLOCK_LENGTH + 8 + int(dataLength))
 }
 
-func (decryptor *PgHexDecryptor) ReadData(symmetricKey, zoneId []byte, reader io.Reader) ([]byte, error) {
+func (decryptor *PgHexDecryptor) ReadData(symmetricKey, zoneID []byte, reader io.Reader) ([]byte, error) {
 	length, hexLengthBuf, err := decryptor.readDataLength(reader)
 	if err != nil {
 		return hexLengthBuf, err
@@ -196,7 +196,7 @@ func (decryptor *PgHexDecryptor) ReadData(symmetricKey, zoneId []byte, reader io
 
 	scell := cell.New(symmetricKey, cell.CELL_MODE_SEAL)
 
-	decrypted, err := scell.Unprotect(data, nil, zoneId)
+	decrypted, err := scell.Unprotect(data, nil, zoneID)
 	data = nil
 	// fill zero symmetric_key
 	utils.FillSlice(byte(0), symmetricKey)

@@ -49,13 +49,13 @@ func test_wrapper(clientWrapper, serverWrapper ConnectionWrapper, t *testing.T) 
 			return
 		}
 		t.Log("wrap server")
-		conn, clientId, err := serverWrapper.WrapServer(conn)
+		conn, clientID, err := serverWrapper.WrapServer(conn)
 		if err != nil {
 			conn.Close()
 			t.Fatal(err)
 			return
 		}
-		if !bytes.Equal(clientId, TEST_CLIENT_ID) {
+		if !bytes.Equal(clientID, TEST_CLIENT_ID) {
 			t.Fatal("client id incorrect")
 		}
 		for i := 0; i < iterations; i++ {
@@ -124,7 +124,7 @@ func test_wrapper(clientWrapper, serverWrapper ConnectionWrapper, t *testing.T) 
 }
 
 func TestRawConnectionWrapper(t *testing.T) {
-	test_wrapper(&RawConnectionWrapper{}, &RawConnectionWrapper{ClientId: TEST_CLIENT_ID}, t)
+	test_wrapper(&RawConnectionWrapper{}, &RawConnectionWrapper{ClientID: TEST_CLIENT_ID}, t)
 }
 
 type SimpleKeyStore struct {

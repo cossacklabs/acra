@@ -83,11 +83,6 @@ func (f *CEFTextFormatter) Format(entry *logrus.Entry) ([]byte, error) {
 		}
 	}
 
-	logPrefix := f.CEFPrefixString
-	if logPrefix == "" {
-		logPrefix = defaultCEFLogStart
-	}
-
 	// syslog prefix
 	// timestamp host
 	if f.ShouldAddSyslogPrefix {

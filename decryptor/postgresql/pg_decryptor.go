@@ -638,7 +638,7 @@ func (proxy *PgProxy) PgDecryptStream(censor acracensor.AcraCensorInterface, dec
 							currentIndex++
 							continue
 						}
-						data, err := decryptor.ReadData(symKey, decryptor.GetMatchedZoneId(), blockReader)
+						data, err := decryptor.ReadData(symKey, decryptor.GetMatchedZoneID(), blockReader)
 						if err != nil {
 							log.Warningf("%v", utils.ErrorMessage("Can't decrypt data with unwrapped symmetric key", err))
 							row.columnDataBuf.Write([]byte{row.output[currentIndex]})

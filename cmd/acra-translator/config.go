@@ -17,12 +17,13 @@ import (
 	"github.com/cossacklabs/acra/network"
 )
 
+// AcraTranslatorConfig stores keys, poison record settings, connection attributes.
 type AcraTranslatorConfig struct {
 	keysDir                      string
 	detectPoisonRecords          bool
 	scriptOnPoison               string
 	stopOnPoison                 bool
-	serverId                     []byte
+	serverID                     []byte
 	incomingConnectionHTTPString string
 	incomingConnectionGRPCString string
 	ConnectionWrapper            network.ConnectionWrapper
@@ -30,77 +31,97 @@ type AcraTranslatorConfig struct {
 	debug                        bool
 }
 
+// NewConfig creates new AcraTranslatorConfig.
 func NewConfig() *AcraTranslatorConfig {
 	return &AcraTranslatorConfig{stopOnPoison: false}
 }
 
+// KeysDir returns keys directory.
 func (a *AcraTranslatorConfig) KeysDir() string {
 	return a.keysDir
 }
 
+// SetKeysDir sets keys directory.
 func (a *AcraTranslatorConfig) SetKeysDir(keysDir string) {
 	a.keysDir = keysDir
 }
 
+// SetDetectPoisonRecords sets if AcraTranslator should detect poison records.
 func (a *AcraTranslatorConfig) SetDetectPoisonRecords(val bool) {
 	a.detectPoisonRecords = val
 }
+
+// DetectPoisonRecords returns if AcraTranslator should detect poison records.
 func (a *AcraTranslatorConfig) DetectPoisonRecords() bool {
 	return a.detectPoisonRecords
 }
 
+// ScriptOnPoison returns script-to-run on detection of poison records.
 func (a *AcraTranslatorConfig) ScriptOnPoison() string {
 	return a.scriptOnPoison
 }
 
+// SetScriptOnPoison sets script-to-run on detection of poison records.
 func (a *AcraTranslatorConfig) SetScriptOnPoison(scriptOnPoison string) {
 	a.scriptOnPoison = scriptOnPoison
 }
 
+// StopOnPoison returns if AcraTranslator should stop working on detection of poison records.
 func (a *AcraTranslatorConfig) StopOnPoison() bool {
 	return a.stopOnPoison
 }
 
+// SetStopOnPoison sets if AcraTranslator should stop working on detection of poison records.
 func (a *AcraTranslatorConfig) SetStopOnPoison(stopOnPoison bool) {
 	a.stopOnPoison = stopOnPoison
 }
 
-func (a *AcraTranslatorConfig) ServerId() []byte {
-	return a.serverId
+// ServerID returns server id associated with SecureSession connection.
+func (a *AcraTranslatorConfig) ServerID() []byte {
+	return a.serverID
 }
 
-func (a *AcraTranslatorConfig) SetServerId(serverId []byte) {
-	a.serverId = serverId
+// SetServerID sets server id associated with SecureSession connection.
+func (a *AcraTranslatorConfig) SetServerID(serverID []byte) {
+	a.serverID = serverID
 }
 
+// IncomingConnectionHTTPString returns connection string to listen for HTTP requests.
 func (a *AcraTranslatorConfig) IncomingConnectionHTTPString() string {
 	return a.incomingConnectionHTTPString
 }
 
+// SetIncomingConnectionHTTPString sets connection string to listen for HTTP requests.
 func (a *AcraTranslatorConfig) SetIncomingConnectionHTTPString(incomingConnectionHTTPString string) {
 	a.incomingConnectionHTTPString = incomingConnectionHTTPString
 }
 
+// IncomingConnectionGRPCString returns connection string to listen for gRPC requests.
 func (a *AcraTranslatorConfig) IncomingConnectionGRPCString() string {
 	return a.incomingConnectionGRPCString
 }
 
+// SetIncomingConnectionGRPCString sets connection string to listen for gRPC requests.
 func (a *AcraTranslatorConfig) SetIncomingConnectionGRPCString(incomingConnectionGRPCString string) {
 	a.incomingConnectionGRPCString = incomingConnectionGRPCString
 }
 
+// ConfigPath returns configuration path for AcraTranslator.
 func (a *AcraTranslatorConfig) ConfigPath() string {
 	return a.configPath
 }
 
+// SetConfigPath sets configuration path for AcraTranslator.
 func (a *AcraTranslatorConfig) SetConfigPath(configPath string) {
 	a.configPath = configPath
 }
 
+// Debug returns if should print debug logs.
 func (a *AcraTranslatorConfig) Debug() bool {
 	return a.debug
 }
 
+// SetDebug sets if should print debug logs.
 func (a *AcraTranslatorConfig) SetDebug(debug bool) {
 	a.debug = debug
 }
