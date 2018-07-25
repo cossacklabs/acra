@@ -16,9 +16,14 @@ import (
 	"github.com/xwb1989/sqlparser/dependency/querypb"
 )
 
+// DefaultSerializationTimeout shows number of seconds after which captured queries are dumped to QueryCaptureLog file.
 const DefaultSerializationTimeout = time.Second
+
+// ValuePlaceholder used to mask real Values from SQL queries before logging to syslog.
 const ValuePlaceholder = "X"
 
+// QueryCaptureHandler remembers all unique captured SQL queries,
+// writes them to the QueryCaptureLog every serializationTimeout seconds.
 type QueryCaptureHandler struct {
 	Queries              []*QueryInfo
 	BufferedQueries      []*QueryInfo
@@ -27,11 +32,14 @@ type QueryCaptureHandler struct {
 	serializationTimeout time.Duration
 	serializationTicker  *time.Ticker
 }
+
+// QueryInfo describes Query and its status (was forbidden or allowed).
 type QueryInfo struct {
 	RawQuery    string
 	IsForbidden bool
 }
 
+// NewQueryCaptureHandler creates new QueryCaptureHandler, connected to QueryCaptureLog file at filePath.
 func NewQueryCaptureHandler(filePath string) (*QueryCaptureHandler, error) {
 	// open or create file, APPEND MODE
 	openedFile, err := os.OpenFile(filePath, os.O_APPEND|os.O_RDWR|os.O_CREATE, 0600)
@@ -96,6 +104,7 @@ func NewQueryCaptureHandler(filePath string) (*QueryCaptureHandler, error) {
 	return handler, nil
 }
 
+// CheckQuery returns "yes" if Query was already captured, no otherwise.
 func (handler *QueryCaptureHandler) CheckQuery(query string) (bool, error) {
 	//skip already captured queries
 	for _, queryInfo := range handler.Queries {
@@ -111,16 +120,21 @@ func (handler *QueryCaptureHandler) CheckQuery(query string) (bool, error) {
 
 	return true, nil
 }
+
+// Reset sets Captured queries list to nil.
 func (handler *QueryCaptureHandler) Reset() {
 	handler.Queries = nil
 	handler.BufferedQueries = nil
 }
 
+// Release dumps all Captured queries to file and resets Captured queries list.
 func (handler *QueryCaptureHandler) Release() {
 	handler.signalBackgroundExit <- true
 	handler.Reset()
 }
 
+// FinishAndCloseFile writes all Captured queries to file, and closes file.
+// Returns error during writing / closing.
 func (handler *QueryCaptureHandler) FinishAndCloseFile(openedFile *os.File) error {
 	handler.serializationTicker.Stop()
 	err := handler.DumpAllQueriesToFile()
@@ -130,6 +144,7 @@ func (handler *QueryCaptureHandler) FinishAndCloseFile(openedFile *os.File) erro
 	return openedFile.Close()
 }
 
+// GetAllInputQueries returns a list of non-masked RawQueries.
 func (handler *QueryCaptureHandler) GetAllInputQueries() []string {
 	var queries []string
 	for _, queryInfo := range handler.Queries {
@@ -137,6 +152,8 @@ func (handler *QueryCaptureHandler) GetAllInputQueries() []string {
 	}
 	return queries
 }
+
+// MarkQueryAsForbidden marks particular query as forbidden. It will be written to file on Stop, Reset or Release.
 func (handler *QueryCaptureHandler) MarkQueryAsForbidden(query string) {
 	for index, queryInfo := range handler.Queries {
 		if strings.EqualFold(query, queryInfo.RawQuery) {
@@ -144,6 +161,8 @@ func (handler *QueryCaptureHandler) MarkQueryAsForbidden(query string) {
 		}
 	}
 }
+
+// GetForbiddenQueries returns a list of non-masked forbidden RawQueries.
 func (handler *QueryCaptureHandler) GetForbiddenQueries() []string {
 	var forbiddenQueries []string
 	for _, queryInfo := range handler.Queries {
@@ -154,14 +173,17 @@ func (handler *QueryCaptureHandler) GetForbiddenQueries() []string {
 	return forbiddenQueries
 }
 
+// SetSerializationTimeout sets timeout of dumping captured queries to the file.
 func (handler *QueryCaptureHandler) SetSerializationTimeout(timeout time.Duration) {
 	handler.serializationTimeout = timeout
 }
 
+// GetSerializationTimeout gets timeout of dumping captured queries to the file.
 func (handler *QueryCaptureHandler) GetSerializationTimeout() time.Duration {
 	return handler.serializationTimeout
 }
 
+// DumpAllQueriesToFile writes all captures queries to file, returns IO error.
 func (handler *QueryCaptureHandler) DumpAllQueriesToFile() error {
 	// open or create file, NO APPEND
 	f, err := os.OpenFile(handler.filePath, os.O_TRUNC|os.O_RDWR|os.O_CREATE, 0600)
@@ -174,6 +196,8 @@ func (handler *QueryCaptureHandler) DumpAllQueriesToFile() error {
 	return AppendQueries(handler.Queries, f)
 }
 
+// DumpBufferedQueriesToFile writes buffered queries to file (queries captured during serializationTimeout),
+// returns IO error.
 func (handler *QueryCaptureHandler) DumpBufferedQueriesToFile(openedFile *os.File) error {
 	// nothing to dump
 	if len(handler.BufferedQueries) == 0 {
@@ -191,6 +215,7 @@ func (handler *QueryCaptureHandler) DumpBufferedQueriesToFile(openedFile *os.Fil
 	return nil
 }
 
+// ReadAllQueriesFromFile loads all Queries from file, returns IO error.
 func (handler *QueryCaptureHandler) ReadAllQueriesFromFile() error {
 	q, err := ReadQueries(handler.filePath)
 	if err != nil {
@@ -203,6 +228,7 @@ func (handler *QueryCaptureHandler) ReadAllQueriesFromFile() error {
 	return nil
 }
 
+// AppendQueries appends some queries to the file, returns IO error.
 func AppendQueries(queries []*QueryInfo, openedFile *os.File) error {
 	if len(queries) == 0 {
 		return nil
@@ -219,6 +245,7 @@ func AppendQueries(queries []*QueryInfo, openedFile *os.File) error {
 	return nil
 }
 
+// SerializeQueries formats queries to JSON-line format before writing to file.
 func SerializeQueries(queries []*QueryInfo) ([]byte, error) {
 	var linesToAppend []byte
 	var tempQueryInfo = &QueryInfo{}
@@ -242,6 +269,7 @@ func SerializeQueries(queries []*QueryInfo) ([]byte, error) {
 
 }
 
+// ReadQueries reads list of queries from log file.
 func ReadQueries(filePath string) ([]*QueryInfo, error) {
 	bufferBytes, err := ioutil.ReadFile(filePath)
 	if err != nil {

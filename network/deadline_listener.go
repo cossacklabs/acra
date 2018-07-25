@@ -20,15 +20,18 @@ import (
 	"time"
 )
 
+// ErrUnsupportedListener represents net.Listener type unknown to Acra.
 var ErrUnsupportedListener = errors.New("unsupported network Listener type")
 
-// deadlineListener is extended net.Listener interface with SetDeadline method that added for abstraction of calling
+// DeadlineListener is extended net.Listener interface with SetDeadline method that added for abstraction of calling
 // SetDeadline between two listener types (TcpListener and UnixListener) that support this method
 type DeadlineListener interface {
 	net.Listener
 	SetDeadline(t time.Time) error
 }
 
+// CastListenerToDeadline casts any net.Listener to DeadlineListener
+// or throws ErrUnsupportedListener error.
 func CastListenerToDeadline(listener net.Listener) (DeadlineListener, error) {
 	var deadlineListener DeadlineListener
 

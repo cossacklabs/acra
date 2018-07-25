@@ -13,13 +13,13 @@ import (
 
 type TLSConnectionWrapper struct {
 	config   *tls.Config
-	clientId []byte
+	clientID []byte
 }
 
 var ErrEmptyTLSConfig = errors.New("empty TLS config")
 
-func NewTLSConnectionWrapper(clientId []byte, config *tls.Config) (*TLSConnectionWrapper, error) {
-	return &TLSConnectionWrapper{config: config, clientId: clientId}, nil
+func NewTLSConnectionWrapper(clientID []byte, config *tls.Config) (*TLSConnectionWrapper, error) {
+	return &TLSConnectionWrapper{config: config, clientID: clientID}, nil
 }
 
 func (wrapper *TLSConnectionWrapper) WrapClient(id []byte, conn net.Conn) (net.Conn, error) {
@@ -36,7 +36,7 @@ func (wrapper *TLSConnectionWrapper) WrapServer(conn net.Conn) (net.Conn, []byte
 	if err != nil {
 		return conn, nil, err
 	}
-	return tlsConn, wrapper.clientId, nil
+	return tlsConn, wrapper.clientID, nil
 }
 
 func NewTLSConfig(serverName string, caPath, keyPath, crtPath string, authType tls.ClientAuthType) (*tls.Config, error) {

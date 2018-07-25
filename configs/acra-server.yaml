@@ -16,7 +16,7 @@ acrastruct_wholecell_enable: true
 # Path to basic auth passwords. To add user, use: `./acra-authmanager --set --user <user> --pwd <pwd>`
 auth_keys: configs/auth.keys
 
-# Expected client id of AcraConnector in mode without encryption
+# Expected client ID of AcraConnector in mode without encryption
 client_id: 
 
 # path to config
@@ -72,6 +72,9 @@ pgsql_escape_bytea: false
 
 # Hex format for Postgresql bytea data (default)
 pgsql_hex_bytea: false
+
+# Turn on poison record detection
+poison_detect_enable: true
 
 # Execute script on detecting poison record
 poison_run_script_file: 

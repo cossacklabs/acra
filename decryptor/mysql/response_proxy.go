@@ -145,11 +145,11 @@ type MysqlHandler struct {
 	clientConnection       net.Conn
 	dbConnection           net.Conn
 	tlsConfig              *tls.Config
-	clientId               []byte
+	clientID               []byte
 	logger                 *logrus.Entry
 }
 
-func NewMysqlHandler(clientId []byte, decryptor base.Decryptor, dbConnection, clientConnection net.Conn, tlsConfig *tls.Config, censor acracensor.AcraCensorInterface) (*MysqlHandler, error) {
+func NewMysqlHandler(clientID []byte, decryptor base.Decryptor, dbConnection, clientConnection net.Conn, tlsConfig *tls.Config, censor acracensor.AcraCensorInterface) (*MysqlHandler, error) {
 	return &MysqlHandler{
 		isTLSHandshake:         false,
 		dbTLSHandshakeFinished: make(chan bool),
@@ -160,7 +160,7 @@ func NewMysqlHandler(clientId []byte, decryptor base.Decryptor, dbConnection, cl
 		clientConnection:       clientConnection,
 		dbConnection:           dbConnection,
 		tlsConfig:              tlsConfig,
-		logger:                 logrus.WithField("client_id", string(clientId))}, nil
+		logger:                 logrus.WithField("client_id", string(clientID))}, nil
 }
 
 func (handler *MysqlHandler) setQueryHandler(callback ResponseHandler) {
@@ -295,8 +295,8 @@ func (handler *MysqlHandler) isFieldToDecrypt(field *ColumnDescription) bool {
 func (handler *MysqlHandler) processTextDataRow(rowData []byte, fields []*ColumnDescription) ([]byte, error) {
 	var err error
 	var value []byte
-	var pos int = 0
-	var n int = 0
+	var pos int
+	var n int
 	var output []byte
 	var fieldLogger *logrus.Entry
 	handler.logger.Debugln("Process data rows in text protocol")

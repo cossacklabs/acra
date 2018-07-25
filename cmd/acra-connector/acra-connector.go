@@ -101,7 +101,7 @@ func handleClientConnection(config *Config, connection net.Conn) {
 	defer acraConn.Close()
 
 	acraConn.SetDeadline(time.Now().Add(time.Second * 2))
-	acraConnWrapped, err := config.ConnectionWrapper.WrapClient(config.ClientId, acraConn)
+	acraConnWrapped, err := config.ConnectionWrapper.WrapClient(config.ClientID, acraConn)
 	if err != nil {
 		log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantWrapConnection).
 			Errorln("Can't wrap connection")
@@ -135,7 +135,7 @@ func handleClientConnection(config *Config, connection net.Conn) {
 
 type Config struct {
 	KeysDir                  string
-	ClientId                 []byte
+	ClientID                 []byte
 	OutgoingServiceId        []byte
 	OutgoingConnectionString string
 	IncomingConnectionString string
@@ -150,7 +150,7 @@ func main() {
 	log.Infof("Starting service %v", SERVICE_NAME)
 
 	keysDir := flag.String("keys_dir", keystore.DEFAULT_KEY_DIR_SHORT, "Folder from which will be loaded keys")
-	clientId := flag.String("client_id", "", "Client id")
+	clientID := flag.String("client_id", "", "Client ID")
 	acraServerHost := flag.String("acraserver_connection_host", "", "IP or domain to AcraServer daemon")
 	acraServerApiPort := flag.Int("acraserver_api_connection_port", cmd.DEFAULT_ACRASERVER_API_PORT, "Port of Acra HTTP api")
 	acraServerPort := flag.Int("acraserver_connection_port", cmd.DEFAULT_ACRASERVER_PORT, "Port of AcraServer daemon")
@@ -269,7 +269,7 @@ func main() {
 		log.WithError(err).Errorln("can't init scell encryptor")
 		os.Exit(1)
 	}
-	keyStore, err := filesystem.NewConnectorFileSystemKeyStore(*keysDir, []byte(*clientId), scellEncryptor, connectorMode)
+	keyStore, err := filesystem.NewConnectorFileSystemKeyStore(*keysDir, []byte(*clientID), scellEncryptor, connectorMode)
 	if err != nil {
 		log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantInitKeyStore).
 			Errorln("Can't initialize keystore")
@@ -278,11 +278,11 @@ func main() {
 	log.Infof("Keystore init OK")
 
 	// --------- check keys -----------
-	cmd.ValidateClientId(*clientId)
+	cmd.ValidateClientID(*clientID)
 
 	log.Infof("Reading keys...")
 
-	exists, err := keyStore.CheckIfPrivateKeyExists([]byte(*clientId))
+	exists, err := keyStore.CheckIfPrivateKeyExists([]byte(*clientID))
 	if !exists || err != nil {
 		log.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorWrongConfiguration).
 			Errorf("Configuration error: can't check that AcraConnector private key exists, got error - %v", err)
@@ -290,7 +290,7 @@ func main() {
 	}
 	log.Infof("Client id and client key is OK")
 
-	_, err = keyStore.GetPeerPublicKey([]byte(*clientId))
+	_, err = keyStore.GetPeerPublicKey([]byte(*clientID))
 	if err != nil {
 		log.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorWrongConfiguration).
 			Errorf("Configuration error: can't check that %s public key exists, got error - %v", connectorMode, err)
@@ -300,7 +300,7 @@ func main() {
 
 	// --------- Config  -----------
 	log.Infof("Configuring transport...")
-	config := &Config{KeyStore: keyStore, KeysDir: *keysDir, ClientId: []byte(*clientId), OutgoingConnectionString: outgoingConnectionString, IncomingConnectionString: *connectionString, OutgoingServiceId: []byte(outgoingSecureSessionId), disableUserCheck: *disableUserCheck}
+	config := &Config{KeyStore: keyStore, KeysDir: *keysDir, ClientID: []byte(*clientID), OutgoingConnectionString: outgoingConnectionString, IncomingConnectionString: *connectionString, OutgoingServiceId: []byte(outgoingSecureSessionId), disableUserCheck: *disableUserCheck}
 	listener, err := network.Listen(*connectionString)
 	if err != nil {
 		log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantStartListenConnections).
@@ -347,7 +347,7 @@ func main() {
 			}
 		} else if *noEncryptionTransport {
 			log.Infof("Selecting transport: use raw transport wrapper")
-			config.ConnectionWrapper = &network.RawConnectionWrapper{ClientId: []byte(*clientId)}
+			config.ConnectionWrapper = &network.RawConnectionWrapper{ClientID: []byte(*clientID)}
 		} else {
 			log.Infof("Selecting transport: use Secure Session transport wrapper")
 			config.ConnectionWrapper, err = network.NewSecureSessionConnectionWrapper(keyStore)

@@ -4,7 +4,7 @@ import "net"
 
 type RawConnectionWrapper struct {
 	net.Conn
-	ClientId []byte
+	ClientID []byte
 }
 
 func (wrapper *RawConnectionWrapper) WrapClient(id []byte, conn net.Conn) (net.Conn, error) {
@@ -13,5 +13,5 @@ func (wrapper *RawConnectionWrapper) WrapClient(id []byte, conn net.Conn) (net.C
 }
 func (wrapper *RawConnectionWrapper) WrapServer(conn net.Conn) (net.Conn, []byte, error) {
 	wrapper.Conn = conn
-	return conn, wrapper.ClientId, nil
+	return conn, wrapper.ClientID, nil
 }

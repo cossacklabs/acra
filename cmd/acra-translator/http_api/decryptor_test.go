@@ -66,14 +66,14 @@ func TestHTTPResponseStatus(t *testing.T) {
 	request.Body = ioutil.NopCloser(bytes.NewBufferString("bla bla bla body"))
 	res = httpConnectionsDecryptor.ParseRequestPrepareResponse(logger, &request, nil)
 	if res.StatusCode != http.StatusBadRequest {
-		t.Fatalf("If Request has no ZoneId and No ClientId -> Status code should be StatusBadRequest, got %s\n", res.Status)
+		t.Fatalf("If Request has no ZoneID and No ClientID -> Status code should be StatusBadRequest, got %s\n", res.Status)
 	}
 
 	request.URL, _ = url.Parse("http://smth.com/v1/decrypt?zone_id=\"somezoneid\"")
 	request.Body = ioutil.NopCloser(bytes.NewBufferString("bla bla bla body"))
 	res = httpConnectionsDecryptor.ParseRequestPrepareResponse(logger, &request, []byte("asdf"))
 	if res.StatusCode != http.StatusUnprocessableEntity {
-		t.Fatalf("If Request Bad ZoneId and ClientId -> Status code should be StatusUnprocessableEntity, got %s\n", res.Status)
+		t.Fatalf("If Request Bad ZoneID and ClientID -> Status code should be StatusUnprocessableEntity, got %s\n", res.Status)
 	}
 }
 
@@ -95,7 +95,7 @@ func TestHTTPDecryptionAndResponse(t *testing.T) {
 	}
 	keyStore.PrivateKey = keypair.Private
 
-	clientId := []byte("some client id")
+	clientID := []byte("some client id")
 	data := []byte("some data")
 
 	// not an acrastruct
@@ -103,7 +103,7 @@ func TestHTTPDecryptionAndResponse(t *testing.T) {
 	request.URL, _ = url.Parse("http://smth.com/v1/decrypt")
 	request.Body = ioutil.NopCloser(bytes.NewBuffer([]byte("some garbage not acrastruct")))
 
-	res := httpConnectionsDecryptor.ParseRequestPrepareResponse(logger, &request, clientId)
+	res := httpConnectionsDecryptor.ParseRequestPrepareResponse(logger, &request, clientID)
 	if res.StatusCode != http.StatusUnprocessableEntity {
 		t.Fatalf(fmt.Sprintf("Should not be able to decrypt garbage -> Status code should be StatusUnprocessableEntity, got %s\n", res.Status))
 	}
@@ -118,7 +118,7 @@ func TestHTTPDecryptionAndResponse(t *testing.T) {
 	request.URL, _ = url.Parse("http://smth.com/v1/decrypt")
 	request.Body = ioutil.NopCloser(bytes.NewBuffer(acrastruct))
 
-	res = httpConnectionsDecryptor.ParseRequestPrepareResponse(logger, &request, clientId)
+	res = httpConnectionsDecryptor.ParseRequestPrepareResponse(logger, &request, clientID)
 	if res.StatusCode != http.StatusOK {
 		t.Fatalf(fmt.Sprintf("Should be able to decrypt without zone -> Status code should be StatusOK, got %s\n", res.Status))
 	}
@@ -133,17 +133,17 @@ func TestHTTPDecryptionAndResponse(t *testing.T) {
 	}
 
 	// test with zone
-	zoneId := clientId // use client id as zone id because no matter what to use
-	acrastructWithZone, err := acrawriter.CreateAcrastruct(data, keypair.Public, zoneId)
+	zoneID := clientID // use client id as zone id because no matter what to use
+	acrastructWithZone, err := acrawriter.CreateAcrastruct(data, keypair.Public, zoneID)
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	request = http.Request{Method: http.MethodPost}
-	request.URL, _ = url.Parse(fmt.Sprintf("http://smth.com/v1/decrypt?zone_id=%s", zoneId))
+	request.URL, _ = url.Parse(fmt.Sprintf("http://smth.com/v1/decrypt?zone_id=%s", zoneID))
 	request.Body = ioutil.NopCloser(bytes.NewBuffer(acrastructWithZone))
 
-	res = httpConnectionsDecryptor.ParseRequestPrepareResponse(logger, &request, clientId)
+	res = httpConnectionsDecryptor.ParseRequestPrepareResponse(logger, &request, clientID)
 	if res.StatusCode != http.StatusOK {
 		t.Fatalf(fmt.Sprintf("Should be able to decrypt with zone -> Status code should be StatusOK, got %s\n", res.Status))
 	}
@@ -172,7 +172,7 @@ func TestHTTPDecryptionAndResponse(t *testing.T) {
 	// check without zone
 	request.Body = ioutil.NopCloser(bytes.NewReader(poisonRecord))
 	request.URL, _ = url.Parse("http://smth.com/v1/decrypt")
-	res = httpConnectionsDecryptor.ParseRequestPrepareResponse(logger, &request, clientId)
+	res = httpConnectionsDecryptor.ParseRequestPrepareResponse(logger, &request, clientID)
 	if res.StatusCode != http.StatusUnprocessableEntity {
 		t.Fatalf(fmt.Sprintf("Should not be able to decrypt poison record -> Status code should be StatusUnprocessableEntity, got %s\n", res.Status))
 	}
@@ -190,8 +190,8 @@ func TestHTTPDecryptionAndResponse(t *testing.T) {
 
 	// check with zone
 	request.Body = ioutil.NopCloser(bytes.NewReader(poisonRecord))
-	request.URL, _ = url.Parse(fmt.Sprintf("http://smth.com/v1/decrypt?zone_id=%s", zoneId))
-	res = httpConnectionsDecryptor.ParseRequestPrepareResponse(logger, &request, clientId)
+	request.URL, _ = url.Parse(fmt.Sprintf("http://smth.com/v1/decrypt?zone_id=%s", zoneID))
+	res = httpConnectionsDecryptor.ParseRequestPrepareResponse(logger, &request, clientID)
 	if res.StatusCode != http.StatusUnprocessableEntity {
 		t.Fatalf(fmt.Sprintf("Should not be able to decrypt poison record -> Status code should be StatusUnprocessableEntity, got %s\n", res.Status))
 	}
@@ -213,7 +213,7 @@ func TestHTTPDecryptionAndResponse(t *testing.T) {
 	// check without zone
 	request.Body = ioutil.NopCloser(bytes.NewReader(poisonRecord))
 	request.URL, _ = url.Parse("http://smth.com/v1/decrypt")
-	res = httpConnectionsDecryptor.ParseRequestPrepareResponse(logger, &request, clientId)
+	res = httpConnectionsDecryptor.ParseRequestPrepareResponse(logger, &request, clientID)
 	if res.StatusCode != http.StatusUnprocessableEntity {
 		t.Fatalf(fmt.Sprintf("Should not be able to decrypt poison record -> Status code should be StatusUnprocessableEntity, got %s\n", res.Status))
 	}
@@ -230,8 +230,8 @@ func TestHTTPDecryptionAndResponse(t *testing.T) {
 
 	// check with zone
 	request.Body = ioutil.NopCloser(bytes.NewReader(poisonRecord))
-	request.URL, _ = url.Parse(fmt.Sprintf("http://smth.com/v1/decrypt?zone_id=%s", zoneId))
-	res = httpConnectionsDecryptor.ParseRequestPrepareResponse(logger, &request, clientId)
+	request.URL, _ = url.Parse(fmt.Sprintf("http://smth.com/v1/decrypt?zone_id=%s", zoneID))
+	res = httpConnectionsDecryptor.ParseRequestPrepareResponse(logger, &request, clientID)
 	if res.StatusCode != http.StatusUnprocessableEntity {
 		t.Fatalf(fmt.Sprintf("Should not be able to decrypt poison record -> Status code should be StatusUnprocessableEntity, got %s\n", res.Status))
 	}
@@ -262,12 +262,12 @@ func TestHTTPDecryptionAcraStruct(t *testing.T) {
 	}
 	keyStore.PrivateKey = keypair.Private
 
-	clientId := []byte("some client id")
+	clientID := []byte("some client id")
 	data := []byte("some data")
 
 	// not an acrastruct
-	decrypted, err := httpConnectionsDecryptor.decryptAcraStruct(nil, []byte("some garbage not acrastruct"), nil, clientId)
-	if err == nil {
+	decrypted, err := httpConnectionsDecryptor.decryptAcraStruct(nil, []byte("some garbage not acrastruct"), nil, clientID)
+	if err == nil || decrypted != nil {
 		t.Fatalf("Should not be able to decrypt garbage")
 	}
 
@@ -277,7 +277,7 @@ func TestHTTPDecryptionAcraStruct(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	decrypted, err = httpConnectionsDecryptor.decryptAcraStruct(nil, acrastruct, nil, clientId)
+	decrypted, err = httpConnectionsDecryptor.decryptAcraStruct(nil, acrastruct, nil, clientID)
 	if err != nil {
 		t.Fatalf("Should be able to decrypt acrastruct without zone")
 	}
@@ -287,13 +287,13 @@ func TestHTTPDecryptionAcraStruct(t *testing.T) {
 	}
 
 	// test with zone
-	zoneId := clientId // use client id as zone id because no matter what to use
-	acrastructWithZone, err := acrawriter.CreateAcrastruct(data, keypair.Public, zoneId)
+	zoneID := clientID // use client id as zone id because no matter what to use
+	acrastructWithZone, err := acrawriter.CreateAcrastruct(data, keypair.Public, zoneID)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	decrypted, err = httpConnectionsDecryptor.decryptAcraStruct(nil, acrastructWithZone, zoneId, clientId)
+	decrypted, err = httpConnectionsDecryptor.decryptAcraStruct(nil, acrastructWithZone, zoneID, clientID)
 	if err != nil {
 		t.Fatalf("Should be able to decrypt acrastruct with zone")
 	}

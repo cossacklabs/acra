@@ -1,4 +1,4 @@
-# Client id should be name of file with private key
+# Client ID should be name of file with private key
 client_id: 
 
 # path to config

@@ -1,3 +1,5 @@
+// Package logging contains custom log formatters (plaintext, JSON and CEF) to use through Acra components.
+//
 // Copyright 2016, Cossack Labs Limited
 //
 // Licensed under the Apache License, Version 2.0 (the "License");

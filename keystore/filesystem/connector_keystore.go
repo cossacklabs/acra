@@ -11,13 +11,13 @@ import (
 
 type ConnectorFileSystemKeyStore struct {
 	directory     string
-	clientId      []byte
+	clientID      []byte
 	encryptor     keystore.KeyEncryptor
 	connectorMode connector_mode.ConnectorMode
 }
 
-func NewConnectorFileSystemKeyStore(directory string, clientId []byte, encryptor keystore.KeyEncryptor, mode connector_mode.ConnectorMode) (*ConnectorFileSystemKeyStore, error) {
-	return &ConnectorFileSystemKeyStore{directory: directory, clientId: clientId, encryptor: encryptor, connectorMode: mode}, nil
+func NewConnectorFileSystemKeyStore(directory string, clientID []byte, encryptor keystore.KeyEncryptor, mode connector_mode.ConnectorMode) (*ConnectorFileSystemKeyStore, error) {
+	return &ConnectorFileSystemKeyStore{directory: directory, clientID: clientID, encryptor: encryptor, connectorMode: mode}, nil
 }
 
 func (store *ConnectorFileSystemKeyStore) CheckIfPrivateKeyExists(id []byte) (bool, error) {
@@ -44,9 +44,9 @@ func (store *ConnectorFileSystemKeyStore) GetPeerPublicKey(id []byte) (*keys.Pub
 	filename := ""
 	switch store.connectorMode {
 	case connector_mode.AcraServerMode:
-		filename = getServerKeyFilename(store.clientId)
+		filename = getServerKeyFilename(store.clientID)
 	case connector_mode.AcraTranslatorMode:
-		filename = getTranslatorKeyFilename(store.clientId)
+		filename = getTranslatorKeyFilename(store.clientID)
 	default:
 		return nil, errors.New("Unsupported ConnectorMode, can't find PeerPublicKey")
 	}

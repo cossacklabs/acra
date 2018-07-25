@@ -59,9 +59,9 @@ func (keystore *testKeystore) Reset() {}
 
 func getDecryptor(keystore keystore.KeyStore) *MySQLDecryptor {
 	dataDecryptor := binary.NewBinaryDecryptor()
-	clientId := []byte("some id")
-	pgDecryptor := postgresql.NewPgDecryptor(clientId, dataDecryptor)
-	decryptor := NewMySQLDecryptor(clientId, pgDecryptor, keystore)
+	clientID := []byte("some id")
+	pgDecryptor := postgresql.NewPgDecryptor(clientID, dataDecryptor)
+	decryptor := NewMySQLDecryptor(clientID, pgDecryptor, keystore)
 
 	poisonCallbackStorage := base.NewPoisonCallbackStorage()
 	decryptor.SetPoisonCallbackStorage(poisonCallbackStorage)
@@ -73,8 +73,8 @@ func TestMySQLDecryptor_CheckPoisonRecord_Inline(t *testing.T) {
 	if err != nil {
 		panic(err)
 	}
-	keystore := &testKeystore{PoisonKeypair: poisonKeypair}
-	decryptor := getDecryptor(keystore)
+	tkeystore := &testKeystore{PoisonKeypair: poisonKeypair}
+	decryptor := getDecryptor(tkeystore)
 
 	part1 := make([]byte, 1024)
 	part2 := make([]byte, 1024)
@@ -85,7 +85,7 @@ func TestMySQLDecryptor_CheckPoisonRecord_Inline(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	poisonRecord, err := poison.CreatePoisonRecord(keystore, 1024)
+	poisonRecord, err := poison.CreatePoisonRecord(tkeystore, 1024)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -104,10 +104,10 @@ func TestMySQLDecryptor_CheckPoisonRecord_Block(t *testing.T) {
 	if err != nil {
 		panic(err)
 	}
-	keystore := &testKeystore{PoisonKeypair: poisonKeypair}
-	decryptor := getDecryptor(keystore)
+	tkeystore := &testKeystore{PoisonKeypair: poisonKeypair}
+	decryptor := getDecryptor(tkeystore)
 
-	poisonRecord, err := poison.CreatePoisonRecord(keystore, 1024)
+	poisonRecord, err := poison.CreatePoisonRecord(tkeystore, 1024)
 	if err != nil {
 		t.Fatal(err)
 	}
