@@ -71,9 +71,9 @@ func (handler *SignalHandler) Register() {
 	os.Exit(1)
 }
 
-func ValidateClientId(clientId string) {
-	if !keystore.ValidateId([]byte(clientId)) {
-		log.Errorf("invalid client id,  %d <= len(client id) <= %d, only digits, letters and '_', '-', ' ' characters",
+func ValidateClientID(clientID string) {
+	if !keystore.ValidateID([]byte(clientID)) {
+		log.Errorf("Invalid client ID,  %d <= len(client ID) <= %d, only digits, letters and '_', '-', ' ' characters",
 			keystore.MIN_CLIENT_ID_LENGTH, keystore.MAX_CLIENT_ID_LENGTH)
 		os.Exit(1)
 	}
@@ -309,7 +309,7 @@ const (
 
 var randSrc = rand.NewSource(time.Now().UnixNano())
 
-// getting random string using faster randSrc.Int63() and true distribution for letterBytes
+// RandomStringBytes getting random string using faster randSrc.Int63() and true distribution for letterBytes.
 func RandomStringBytes(n int) string {
 	b := make([]byte, n)
 	// A randSrc.Int63() generates 63 random bits, enough for letterIdxMax characters!

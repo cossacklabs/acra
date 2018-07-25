@@ -1,5 +1,6 @@
 package logging
 
+// Event codes for different events in Acra services, splitted by groups and service.
 const (
 	// 100 .. 200 some events
 	EventCodeGeneral = 100
@@ -90,7 +91,7 @@ const (
 	EventCodeErrorTranslatorVersionNotSupported         = 703
 	EventCodeErrorTranslatorEndpointNotSupported        = 704
 	EventCodeErrorTranslatorCantParseRequestBody        = 705
-	EventCodeErrorTranslatorCantZoneIdMissing           = 706
+	EventCodeErrorTranslatorCantZoneIDMissing           = 706
 	EventCodeErrorTranslatorCantDecryptAcraStruct       = 707
 	EventCodeErrorTranslatorCantReturnResponse          = 708
 	EventCodeErrorTranslatorCantCloseConnection         = 709

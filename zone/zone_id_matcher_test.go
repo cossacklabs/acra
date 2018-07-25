@@ -21,7 +21,7 @@ import (
 	"testing"
 )
 
-func assertZoneMatchNotFail(c byte, matcher *zone.ZoneIdMatcher, t *testing.T) {
+func assertZoneMatchNotFail(c byte, matcher *zone.ZoneIDMatcher, t *testing.T) {
 	if !matcher.Match(c) {
 		t.Fatal("Unexpected unmatch")
 	}
@@ -54,7 +54,7 @@ func (keystore *TestKeyStore) GetAuthKey(remove bool) ([]byte, error) {
 }
 func (storage *TestKeyStore) GetPoisonKeyPair() (*keys.Keypair, error) { return nil, nil }
 
-func testZoneIdMatcher(t *testing.T) {
+func testZoneIDMatcher(t *testing.T) {
 	var keystorage keystore.KeyStore = &TestKeyStore{}
 	matcherPool := zone.NewMatcherPool(zone.NewPgHexMatcherFactory())
 	zoneMatcher := zone.NewZoneMatcher(matcherPool, keystorage)
@@ -102,6 +102,6 @@ func testZoneIdMatcher(t *testing.T) {
 	}
 }
 
-func TestZoneIdMatcher(t *testing.T) {
-	testZoneIdMatcher(t)
+func TestZoneIDMatcher(t *testing.T) {
+	testZoneIDMatcher(t)
 }

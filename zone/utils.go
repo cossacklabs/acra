@@ -24,7 +24,8 @@ import (
 
 const letterBytes = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
 
-func GenerateZoneId() []byte {
+// Returns generated random zone id with length == ZONE_ID_LENGTH bytes.
+func GenerateZoneID() []byte {
 	rand.Seed(time.Now().UnixNano())
 	b := make([]byte, ZONE_ID_LENGTH)
 	for i := range b {
@@ -33,6 +34,7 @@ func GenerateZoneId() []byte {
 	return append(ZONE_ID_BEGIN, b...)
 }
 
+// Creates JSON representation of Zone with zone id and public key as fields.
 func ZoneDataToJson(id []byte, publicKey *keys.PublicKey) ([]byte, error) {
 	response := make(map[string]string)
 	response["id"] = string(id)

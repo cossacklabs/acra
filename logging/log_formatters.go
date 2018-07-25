@@ -93,7 +93,7 @@ func releaseEntry(e *logrus.Entry) {
 	entryPool.Put(e)
 }
 
-// AcraCustomFormatter represents a format with specific fields.
+// AcraJSONFormatter represents a format with specific fields.
 // It has logrus.Formatter which formats the entry and logrus.Fields which
 // are added to the JSON/CEF message if not given in the entry data.
 //
@@ -104,6 +104,7 @@ type AcraJSONFormatter struct {
 	lock *sync.RWMutex
 }
 
+// AcraCEFFormatter is based on CEFTextFormatter with extra logrus fields.
 type AcraCEFFormatter struct {
 	CEFTextFormatter
 	logrus.Fields
