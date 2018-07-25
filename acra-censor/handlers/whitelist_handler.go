@@ -7,7 +7,6 @@ import (
 	"reflect"
 	"strings"
 
-	"github.com/cossacklabs/acra/acra-censor"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -29,7 +28,7 @@ func (handler *WhitelistHandler) CheckQuery(query string) (bool, error) {
 	if len(handler.queries) != 0 {
 		//Check that query is in whitelist
 		if !handler.queries[query] {
-			acracensor.Logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCensorQueryIsNotAllowed).WithError(ErrQueryNotInWhitelist).Errorln("Query has been blocked by whitelist [queries]")
+			Logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCensorQueryIsNotAllowed).WithError(ErrQueryNotInWhitelist).Errorln("Query has been blocked by whitelist [queries]")
 			return false, ErrQueryNotInWhitelist
 		}
 	}
@@ -37,7 +36,7 @@ func (handler *WhitelistHandler) CheckQuery(query string) (bool, error) {
 	if len(handler.tables) != 0 {
 		parsedQuery, err := sqlparser.Parse(query)
 		if err != nil {
-			acracensor.Logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCensorQueryParseError).WithError(ErrQuerySyntaxError).Errorln("Query has been blocked by whitelist [tables]. Parsing error")
+			Logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCensorQueryParseError).WithError(ErrQuerySyntaxError).Errorln("Query has been blocked by whitelist [tables]. Parsing error")
 			return false, ErrQuerySyntaxError
 		}
 		switch parsedQuery := parsedQuery.(type) {
@@ -48,7 +47,7 @@ func (handler *WhitelistHandler) CheckQuery(query string) (bool, error) {
 					err = handler.handleAliasedTables(parsedQuery.From)
 					if err != nil {
 						log.WithError(err).Debugln("Error from WhitelistHandler.handleAliasedTables")
-						acracensor.Logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCensorQueryIsNotAllowed).WithError(err).Errorln("Query has been blocked by whitelist [tables]")
+						Logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCensorQueryIsNotAllowed).WithError(err).Errorln("Query has been blocked by whitelist [tables]")
 						return false, ErrAccessToForbiddenTableWhitelist
 					}
 					break
@@ -56,14 +55,14 @@ func (handler *WhitelistHandler) CheckQuery(query string) (bool, error) {
 					err = handler.handleJoinedTables(fromStatement.(*sqlparser.JoinTableExpr))
 					if err != nil {
 						log.WithError(err).Debugln("Error from WhitelistHandler.handleJoinedTables")
-						acracensor.Logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCensorQueryIsNotAllowed).WithError(err).Errorln("Query has been blocked by whitelist [tables]")
+						Logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCensorQueryIsNotAllowed).WithError(err).Errorln("Query has been blocked by whitelist [tables]")
 						return false, ErrAccessToForbiddenTableWhitelist
 					}
 				case *sqlparser.ParenTableExpr:
 					err = handler.handleParenTables(fromStatement.(*sqlparser.ParenTableExpr))
 					if err != nil {
 						log.WithError(err).Debugln("Error from WhitelistHandler.handleParenTables")
-						acracensor.Logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCensorQueryIsNotAllowed).WithError(err).Errorln("Query has been blocked by whitelist [tables]")
+						Logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCensorQueryIsNotAllowed).WithError(err).Errorln("Query has been blocked by whitelist [tables]")
 						return false, ErrAccessToForbiddenTableWhitelist
 					}
 				default:
@@ -77,7 +76,7 @@ func (handler *WhitelistHandler) CheckQuery(query string) (bool, error) {
 			}
 			if !tableIsAllowed {
 				log.WithError(err).Debugln("Error from WhitelistHandler [insert]")
-				acracensor.Logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCensorQueryIsNotAllowed).WithError(ErrAccessToForbiddenTableWhitelist).Errorln("Query has been blocked by blacklist [tables]")
+				Logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCensorQueryIsNotAllowed).WithError(ErrAccessToForbiddenTableWhitelist).Errorln("Query has been blocked by blacklist [tables]")
 				return false, ErrAccessToForbiddenTableWhitelist
 			}
 		case *sqlparser.Update:

@@ -12,12 +12,9 @@ import (
 	"bytes"
 	"github.com/cossacklabs/acra/logging"
 	log "github.com/sirupsen/logrus"
-	"github.com/xwb1989/sqlparser"
-	"github.com/xwb1989/sqlparser/dependency/querypb"
 )
 
 const DefaultSerializationTimeout = time.Second
-const ValuePlaceholder = "::replaced::"
 
 type QueryCaptureHandler struct {
 	Queries              []*QueryInfo
@@ -263,19 +260,4 @@ func ReadQueries(filePath string) ([]*QueryInfo, error) {
 		}
 	}
 	return queries, nil
-}
-
-// RedactSQLQuery returns a sql string with the params stripped out for display. Taken from sqlparser package
-func RedactSQLQuery(sql string) (string, error) {
-	bv := map[string]*querypb.BindVariable{}
-	sqlStripped, comments := sqlparser.SplitMarginComments(sql)
-
-	stmt, err := sqlparser.Parse(sqlStripped)
-	if err != nil {
-		return "", err
-	}
-
-	sqlparser.Normalize(stmt, bv, ValuePlaceholder)
-
-	return comments.Leading + sqlparser.String(stmt) + comments.Trailing, nil
 }

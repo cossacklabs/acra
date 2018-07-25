@@ -2,6 +2,9 @@ package handlers
 
 import (
 	"errors"
+	log "github.com/sirupsen/logrus"
+	"github.com/xwb1989/sqlparser"
+	"github.com/xwb1989/sqlparser/dependency/querypb"
 	"strings"
 )
 
@@ -23,6 +26,10 @@ var ErrUnexpectedCaptureChannelClose = errors.New("unexpected channel closing wh
 var ErrUnexpectedTypeError = errors.New("should never appear")
 
 const LogQueryLength = 100
+const ValuePlaceholder = "replaced"
+
+//global logging object for censor
+var Logger = log.WithFields(log.Fields{"service": "acra-censor"})
 
 func removeDuplicates(input []string) []string {
 	keys := make(map[string]bool)
@@ -44,9 +51,22 @@ func contains(queries []string, query string) (bool, int) {
 	}
 	return false, 0
 }
+
 func TrimStringToN(query string, n int) string {
 	if len(query) <= n {
 		return query
 	}
 	return query[:n]
+}
+
+func RedactSQLQuery(sql string) (string, error) {
+	bv := map[string]*querypb.BindVariable{}
+	sqlStripped, comments := sqlparser.SplitMarginComments(sql)
+
+	stmt, err := sqlparser.Parse(sqlStripped)
+	if err != nil {
+		return "", err
+	}
+	sqlparser.Normalize(stmt, bv, ValuePlaceholder)
+	return comments.Leading + sqlparser.String(stmt) + comments.Trailing, nil
 }

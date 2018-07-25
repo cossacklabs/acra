@@ -629,8 +629,8 @@ func TestQueryCapture(t *testing.T) {
 
 	suffix := strings.TrimPrefix(strings.ToUpper(string(result)), strings.ToUpper(expectedPrefix))
 
-	//we expect TWO placeholders here: instead of "('Ryan', 'Holly')" and instead of "2"
-	if strings.Count(suffix, handlers.ValuePlaceholder) != 2 {
+	//we expect TWO placeholders here: instead of "('Ryan', 'Holly')" and instead of "10"
+	if strings.Count(suffix, strings.ToUpper(handlers.ValuePlaceholder)) != 2 {
 		t.Fatal("unexpected placeholder values in following: " + string(result))
 	}
 
