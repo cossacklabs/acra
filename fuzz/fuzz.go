@@ -1,4 +1,5 @@
 // +build go1.8
+
 // Package fuzz contains simple example.
 //
 //
