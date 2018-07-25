@@ -1,3 +1,5 @@
+// Package poison contains poison records generator util.
+//
 // Copyright 2016, Cossack Labs Limited
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
