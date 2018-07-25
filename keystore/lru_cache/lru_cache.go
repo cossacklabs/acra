@@ -6,10 +6,12 @@ import (
 	"github.com/golang/groupcache/lru"
 )
 
+// LRUCache implement keystore.Cache
 type LRUCache struct {
 	lru *lru.Cache
 }
 
+// clearCacheValue callback for lru.Cache that called on value remove operation
 func clearCacheValue(key lru.Key, value interface{}) {
 	switch value.(type) {
 	case []byte:
@@ -19,24 +21,28 @@ func clearCacheValue(key lru.Key, value interface{}) {
 	}
 }
 
+// NewLRUCacheKeystoreWrapper return new *LRUCache
 func NewLRUCacheKeystoreWrapper(size int) (*LRUCache, error) {
 	cache := &LRUCache{lru: lru.New(size)}
 	cache.lru.OnEvicted = clearCacheValue
 	return cache, nil
 }
 
-func (cache *LRUCache) Add(keyId string, keyValue []byte) {
-	cache.lru.Add(keyId, keyValue)
+// Add value by keyID
+func (cache *LRUCache) Add(keyID string, keyValue []byte) {
+	cache.lru.Add(keyID, keyValue)
 }
 
-func (cache *LRUCache) Get(keyId string) ([]byte, bool) {
-	value, ok := cache.lru.Get(keyId)
+// Get value by keyID
+func (cache *LRUCache) Get(keyID string) ([]byte, bool) {
+	value, ok := cache.lru.Get(keyID)
 	if ok {
 		return value.([]byte), ok
 	}
 	return nil, ok
 }
 
+// Clear cache and remove all values with zeroing
 func (cache *LRUCache) Clear() {
 	cache.lru.Clear()
 }
