@@ -66,14 +66,14 @@ func TestHTTPResponseStatus(t *testing.T) {
 	request.Body = ioutil.NopCloser(bytes.NewBufferString("bla bla bla body"))
 	res = httpConnectionsDecryptor.ParseRequestPrepareResponse(logger, &request, nil)
 	if res.StatusCode != http.StatusBadRequest {
-		t.Fatalf("If Request has no ZoneId and No ClientId -> Status code should be StatusBadRequest, got %s\n", res.Status)
+		t.Fatalf("If Request has no ZoneID and No ClientID -> Status code should be StatusBadRequest, got %s\n", res.Status)
 	}
 
 	request.URL, _ = url.Parse("http://smth.com/v1/decrypt?zone_id=\"somezoneid\"")
 	request.Body = ioutil.NopCloser(bytes.NewBufferString("bla bla bla body"))
 	res = httpConnectionsDecryptor.ParseRequestPrepareResponse(logger, &request, []byte("asdf"))
 	if res.StatusCode != http.StatusUnprocessableEntity {
-		t.Fatalf("If Request Bad ZoneId and ClientId -> Status code should be StatusUnprocessableEntity, got %s\n", res.Status)
+		t.Fatalf("If Request Bad ZoneID and ClientID -> Status code should be StatusUnprocessableEntity, got %s\n", res.Status)
 	}
 }
 

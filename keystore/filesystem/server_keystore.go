@@ -58,7 +58,7 @@ func NewFilesystemKeyStoreTwoPath(privateKeyFolder, publicKeyFolder string, encr
 		keys: make(map[string][]byte), lock: &sync.RWMutex{}, encryptor: encryptor}, nil
 }
 
-func (store *FilesystemKeyStore) generateKeyPair(filename string, clientId []byte) (*keys.Keypair, error) {
+func (store *FilesystemKeyStore) generateKeyPair(filename string, clientID []byte) (*keys.Keypair, error) {
 	keypair, err := keys.New(keys.KEYTYPE_EC)
 	if err != nil {
 		return nil, err
@@ -75,7 +75,7 @@ func (store *FilesystemKeyStore) generateKeyPair(filename string, clientId []byt
 		return nil, err
 	}
 
-	encryptedPrivate, err := store.encryptor.Encrypt(keypair.Private.Value, clientId)
+	encryptedPrivate, err := store.encryptor.Encrypt(keypair.Private.Value, clientID)
 	if err != nil {
 		return nil, err
 	}
@@ -151,8 +151,8 @@ func (store *FilesystemKeyStore) getPublicKeyFilePath(filename string) string {
 }
 
 func (store *FilesystemKeyStore) getPrivateKeyByFilename(id []byte, filename string) (*keys.PrivateKey, error) {
-	if !keystore.ValidateId(id) {
-		return nil, keystore.ErrInvalidClientId
+	if !keystore.ValidateID(id) {
+		return nil, keystore.ErrInvalidClientID
 	}
 	store.lock.Lock()
 	defer store.lock.Unlock()
@@ -183,7 +183,7 @@ func (store *FilesystemKeyStore) GetZonePrivateKey(id []byte) (*keys.PrivateKey,
 
 // HasZonePrivateKey returns if private key for this zoneID exists in cache or is written to fs.
 func (store *FilesystemKeyStore) HasZonePrivateKey(id []byte) bool {
-	if !keystore.ValidateId(id) {
+	if !keystore.ValidateID(id) {
 		return false
 	}
 	// add caching false answers. now if key doesn't exists than always checks on fs
@@ -204,8 +204,8 @@ func (store *FilesystemKeyStore) HasZonePrivateKey(id []byte) bool {
 
 // GetPeerPublicKey returns public key for this clientID, gets it from cache or reads from fs.
 func (store *FilesystemKeyStore) GetPeerPublicKey(id []byte) (*keys.PublicKey, error) {
-	if !keystore.ValidateId(id) {
-		return nil, keystore.ErrInvalidClientId
+	if !keystore.ValidateID(id) {
+		return nil, keystore.ErrInvalidClientID
 	}
 	fname := getPublicKeyFilename(id)
 	store.lock.Lock()
@@ -243,8 +243,8 @@ func (store *FilesystemKeyStore) GetServerDecryptionPrivateKey(id []byte) (*keys
 // Writes encrypted private key and plaintext public key to fs.
 // Returns error if writing/encryption failed.
 func (store *FilesystemKeyStore) GenerateConnectorKeys(id []byte) error {
-	if !keystore.ValidateId(id) {
-		return keystore.ErrInvalidClientId
+	if !keystore.ValidateID(id) {
+		return keystore.ErrInvalidClientID
 	}
 	filename := getConnectorKeyFilename(id)
 
@@ -259,8 +259,8 @@ func (store *FilesystemKeyStore) GenerateConnectorKeys(id []byte) error {
 // Writes encrypted private key and plaintext public key to fs.
 // Returns error if writing/encryption failed.
 func (store *FilesystemKeyStore) GenerateServerKeys(id []byte) error {
-	if !keystore.ValidateId(id) {
-		return keystore.ErrInvalidClientId
+	if !keystore.ValidateID(id) {
+		return keystore.ErrInvalidClientID
 	}
 	filename := getServerKeyFilename(id)
 	_, err := store.generateKeyPair(filename, id)
@@ -274,8 +274,8 @@ func (store *FilesystemKeyStore) GenerateServerKeys(id []byte) error {
 // Writes encrypted private key and plaintext public key to fs.
 // Returns error if writing/encryption failed.
 func (store *FilesystemKeyStore) GenerateTranslatorKeys(id []byte) error {
-	if !keystore.ValidateId(id) {
-		return keystore.ErrInvalidClientId
+	if !keystore.ValidateID(id) {
+		return keystore.ErrInvalidClientID
 	}
 	filename := getTranslatorKeyFilename(id)
 	_, err := store.generateKeyPair(filename, id)
@@ -290,8 +290,8 @@ func (store *FilesystemKeyStore) GenerateTranslatorKeys(id []byte) error {
 // Writes encrypted private key and plaintext public key to fs.
 // Returns error if writing/encryption failed.
 func (store *FilesystemKeyStore) GenerateDataEncryptionKeys(id []byte) error {
-	if !keystore.ValidateId(id) {
-		return keystore.ErrInvalidClientId
+	if !keystore.ValidateID(id) {
+		return keystore.ErrInvalidClientID
 	}
 	_, err := store.generateKeyPair(getServerDecryptionKeyFilename(id), id)
 	if err != nil {

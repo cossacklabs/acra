@@ -72,7 +72,7 @@ func main() {
 	logging.CustomizeLogging(*loggingFormat, SERVICE_NAME)
 
 	log.Infof("Validating service configuration")
-	cmd.ValidateClientId(*secureSessionID)
+	cmd.ValidateClientID(*secureSessionID)
 
 	if *debug {
 		logging.SetLogLevel(logging.LOG_DEBUG)

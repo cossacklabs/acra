@@ -41,7 +41,7 @@ const (
 
 // Errors returned during accessing to client id or master key.
 var (
-	ErrInvalidClientId          = errors.New("invalid client id")
+	ErrInvalidClientID          = errors.New("invalid client ID")
 	ErrEmptyMasterKey           = errors.New("master key is empty")
 	ErrMasterKeyIncorrectLength = fmt.Errorf("master key must have %v length in bytes", SYMMETRIC_KEY_LENGTH)
 )
@@ -60,9 +60,9 @@ func GenerateSymmetricKey() ([]byte, error) {
 	return key, nil
 }
 
-// ValidateId checks that clientID length is within required limits and
+// ValidateID checks that clientID length is within required limits and
 // clientID contains only valid chars (digits, letters, -, _, ' ').
-func ValidateId(clientID []byte) bool {
+func ValidateID(clientID []byte) bool {
 	if len(clientID) < MIN_CLIENT_ID_LENGTH || len(clientID) > MAX_CLIENT_ID_LENGTH {
 		return false
 	}

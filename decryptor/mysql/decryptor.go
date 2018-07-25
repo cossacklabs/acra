@@ -24,7 +24,7 @@ type MySQLDecryptor struct {
 	keyStore        keystore.KeyStore
 	decryptFunc     decryptFunc
 	log             *log.Entry
-	clientId        []byte
+	clientID        []byte
 }
 
 const (
@@ -32,11 +32,11 @@ const (
 	DECRYPT_INLINE = "inline_block"
 )
 
-func NewMySQLDecryptor(clientId []byte, pgDecryptor *postgresql.PgDecryptor, keyStore keystore.KeyStore) *MySQLDecryptor {
+func NewMySQLDecryptor(clientID []byte, pgDecryptor *postgresql.PgDecryptor, keyStore keystore.KeyStore) *MySQLDecryptor {
 	decryptor := &MySQLDecryptor{keyStore: keyStore, binaryDecryptor: binary.NewBinaryDecryptor(), Decryptor: pgDecryptor}
 	// because we will use internal value of pgDecryptor then set it `true` as default on initialization
 	pgDecryptor.TurnOnPoisonRecordCheck(true)
-	decryptor.log = log.WithFields(log.Fields{"decryptor": "mysql", "client_id": string(clientId)})
+	decryptor.log = log.WithFields(log.Fields{"decryptor": "mysql", "client_id": string(clientID)})
 	decryptor.SetWholeMatch(pgDecryptor.IsWholeMatch())
 	return decryptor
 }

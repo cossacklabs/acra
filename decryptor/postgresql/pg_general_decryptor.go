@@ -37,24 +37,24 @@ type PgDecryptor struct {
 	checkPoisonRecords bool
 
 	poisonKey       []byte
-	clientId        []byte
+	clientID        []byte
 	matchBuffer     []byte
 	matchIndex      int
 	callbackStorage *base.PoisonCallbackStorage
 	logger          *logrus.Entry
 }
 
-func NewPgDecryptor(clientId []byte, decryptor base.DataDecryptor) *PgDecryptor {
+func NewPgDecryptor(clientID []byte, decryptor base.DataDecryptor) *PgDecryptor {
 	return &PgDecryptor{
 		isWithZone:      false,
 		pgDecryptor:     decryptor,
 		binaryDecryptor: binary.NewBinaryDecryptor(),
-		clientId:        clientId,
+		clientID:        clientID,
 		// longest tag (escape) + bin
 		matchBuffer:        make([]byte, len(ESCAPE_TAG_BEGIN)+len(base.TAG_BEGIN)),
 		matchIndex:         0,
 		isWholeMatch:       true,
-		logger:             logrus.WithField("client_id", string(clientId)),
+		logger:             logrus.WithField("client_id", string(clientID)),
 		checkPoisonRecords: true,
 	}
 }
@@ -184,7 +184,7 @@ func (decryptor *PgDecryptor) GetPrivateKey() (*keys.PrivateKey, error) {
 	if decryptor.IsWithZone() {
 		return decryptor.keyStore.GetZonePrivateKey(decryptor.GetMatchedZoneID())
 	}
-	return decryptor.keyStore.GetServerDecryptionPrivateKey(decryptor.clientId)
+	return decryptor.keyStore.GetServerDecryptionPrivateKey(decryptor.clientID)
 }
 
 func (decryptor *PgDecryptor) TurnOnPoisonRecordCheck(val bool) {

@@ -99,7 +99,7 @@ func (server *SServer) addListener(listener net.Listener) {
 	server.listeners = append(server.listeners, listener)
 }
 
-func (server *SServer) getDecryptor(clientId []byte) base.Decryptor {
+func (server *SServer) getDecryptor(clientID []byte) base.Decryptor {
 	var dataDecryptor base.DataDecryptor
 	var matcherPool *zone.MatcherPool
 	if server.config.GetByteaFormat() == HEX_BYTEA_FORMAT {
@@ -109,7 +109,7 @@ func (server *SServer) getDecryptor(clientId []byte) base.Decryptor {
 		dataDecryptor = pg.NewPgEscapeDecryptor()
 		matcherPool = zone.NewMatcherPool(zone.NewPgEscapeMatcherFactory())
 	}
-	pgDecryptorImpl := pg.NewPgDecryptor(clientId, dataDecryptor)
+	pgDecryptorImpl := pg.NewPgDecryptor(clientID, dataDecryptor)
 	pgDecryptorImpl.SetWithZone(server.config.GetWithZone())
 	pgDecryptorImpl.SetWholeMatch(server.config.GetWholeMatch())
 	pgDecryptorImpl.SetKeyStore(server.keystorage)
@@ -127,7 +127,7 @@ func (server *SServer) getDecryptor(clientId []byte) base.Decryptor {
 	pgDecryptorImpl.SetPoisonCallbackStorage(poisonCallbackStorage)
 	var decryptor base.Decryptor = pgDecryptorImpl
 	if server.config.UseMySQL() {
-		decryptor = mysql.NewMySQLDecryptor(clientId, pgDecryptorImpl, server.keystorage)
+		decryptor = mysql.NewMySQLDecryptor(clientID, pgDecryptorImpl, server.keystorage)
 	}
 	decryptor.TurnOnPoisonRecordCheck(server.config.DetectPoisonRecords())
 	return decryptor
@@ -139,7 +139,7 @@ to db and decrypting responses from db
 */
 func (server *SServer) handleConnection(connection net.Conn) {
 	log.Infof("Handle new connection")
-	wrappedConnection, clientId, err := server.config.ConnectionWrapper.WrapServer(connection)
+	wrappedConnection, clientID, err := server.config.ConnectionWrapper.WrapServer(connection)
 	if err != nil {
 		log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantWrapConnection).
 			Errorln("Can't wrap connection from acra-connector")
@@ -161,8 +161,8 @@ func (server *SServer) handleConnection(connection net.Conn) {
 		return
 	}
 	clientSession.connection = wrappedConnection
-	decryptor := server.getDecryptor(clientId)
-	clientSession.HandleClientConnection(clientId, decryptor)
+	decryptor := server.getDecryptor(clientID)
+	clientSession.HandleClientConnection(clientID, decryptor)
 }
 
 // Start listening connections from proxy

@@ -30,7 +30,7 @@ var DEFAULT_CONFIG_PATH = utils.GetConfigPathByName("acra-keymaker")
 var SERVICE_NAME = "acra-keymaker"
 
 func main() {
-	clientId := flag.String("client_id", "client", "Client id")
+	clientID := flag.String("client_id", "client", "Client ID")
 	acraConnector := flag.Bool("generate_acraconnector_keys", false, "Create keypair for AcraConnector only")
 	acraServer := flag.Bool("generate_acraserver_keys", false, "Create keypair for AcraServer only")
 	acraTranslator := flag.Bool("generate_acratranslator_keys", false, "Create keypair for AcraTranslator only")
@@ -48,7 +48,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	cmd.ValidateClientId(*clientId)
+	cmd.ValidateClientID(*clientID)
 
 	if *masterKey != "" {
 		newKey, err := keystore.GenerateSymmetricKey()
@@ -86,22 +86,22 @@ func main() {
 	}
 
 	if *acraConnector {
-		err = store.GenerateConnectorKeys([]byte(*clientId))
+		err = store.GenerateConnectorKeys([]byte(*clientID))
 		if err != nil {
 			panic(err)
 		}
 	} else if *acraServer {
-		err = store.GenerateServerKeys([]byte(*clientId))
+		err = store.GenerateServerKeys([]byte(*clientID))
 		if err != nil {
 			panic(err)
 		}
 	} else if *acraTranslator {
-		err = store.GenerateTranslatorKeys([]byte(*clientId))
+		err = store.GenerateTranslatorKeys([]byte(*clientID))
 		if err != nil {
 			panic(err)
 		}
 	} else if *dataKeys {
-		err = store.GenerateDataEncryptionKeys([]byte(*clientId))
+		err = store.GenerateDataEncryptionKeys([]byte(*clientID))
 		if err != nil {
 			panic(err)
 		}
@@ -111,22 +111,22 @@ func main() {
 			panic(err)
 		}
 	} else {
-		err = store.GenerateConnectorKeys([]byte(*clientId))
+		err = store.GenerateConnectorKeys([]byte(*clientID))
 		if err != nil {
 			panic(err)
 		}
 
-		err = store.GenerateServerKeys([]byte(*clientId))
+		err = store.GenerateServerKeys([]byte(*clientID))
 		if err != nil {
 			panic(err)
 		}
 
-		err = store.GenerateTranslatorKeys([]byte(*clientId))
+		err = store.GenerateTranslatorKeys([]byte(*clientID))
 		if err != nil {
 			panic(err)
 		}
 
-		err = store.GenerateDataEncryptionKeys([]byte(*clientId))
+		err = store.GenerateDataEncryptionKeys([]byte(*clientID))
 		if err != nil {
 			panic(err)
 		}

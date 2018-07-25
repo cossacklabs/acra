@@ -145,11 +145,11 @@ type MysqlHandler struct {
 	clientConnection       net.Conn
 	dbConnection           net.Conn
 	tlsConfig              *tls.Config
-	clientId               []byte
+	clientID               []byte
 	logger                 *logrus.Entry
 }
 
-func NewMysqlHandler(clientId []byte, decryptor base.Decryptor, dbConnection, clientConnection net.Conn, tlsConfig *tls.Config, censor acracensor.AcraCensorInterface) (*MysqlHandler, error) {
+func NewMysqlHandler(clientID []byte, decryptor base.Decryptor, dbConnection, clientConnection net.Conn, tlsConfig *tls.Config, censor acracensor.AcraCensorInterface) (*MysqlHandler, error) {
 	return &MysqlHandler{
 		isTLSHandshake:         false,
 		dbTLSHandshakeFinished: make(chan bool),
@@ -160,7 +160,7 @@ func NewMysqlHandler(clientId []byte, decryptor base.Decryptor, dbConnection, cl
 		clientConnection:       clientConnection,
 		dbConnection:           dbConnection,
 		tlsConfig:              tlsConfig,
-		logger:                 logrus.WithField("client_id", string(clientId))}, nil
+		logger:                 logrus.WithField("client_id", string(clientID))}, nil
 }
 
 func (handler *MysqlHandler) setQueryHandler(callback ResponseHandler) {

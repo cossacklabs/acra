@@ -55,12 +55,12 @@ type secureSessionConnection struct {
 	currentData   []byte
 	returnedIndex int
 	closed        bool
-	clientId      []byte
+	clientID      []byte
 	mutex         *sync.Mutex
 }
 
 func newSecureSessionConnection(keystore keystore.SecureSessionKeyStore, conn net.Conn) (*secureSessionConnection, error) {
-	return &secureSessionConnection{keystore: keystore, session: nil, Conn: conn, currentData: nil, returnedIndex: 0, closed: false, clientId: nil, mutex: &sync.Mutex{}}, nil
+	return &secureSessionConnection{keystore: keystore, session: nil, Conn: conn, currentData: nil, returnedIndex: 0, closed: false, clientID: nil, mutex: &sync.Mutex{}}, nil
 }
 
 func (wrapper *secureSessionConnection) Read(b []byte) (n int, err error) {
@@ -159,12 +159,12 @@ const SECURE_SESSION_ESTABLISHING_TIMEOUT = time.Second * 10
 
 type SecureSessionConnectionWrapper struct {
 	keystore         keystore.SecureSessionKeyStore
-	clientId         []byte
+	clientID         []byte
 	handshakeTimeout time.Duration
 }
 
 func NewSecureSessionConnectionWrapper(keystore keystore.SecureSessionKeyStore) (*SecureSessionConnectionWrapper, error) {
-	return &SecureSessionConnectionWrapper{keystore: keystore, clientId: nil, handshakeTimeout: SECURE_SESSION_ESTABLISHING_TIMEOUT}, nil
+	return &SecureSessionConnectionWrapper{keystore: keystore, clientID: nil, handshakeTimeout: SECURE_SESSION_ESTABLISHING_TIMEOUT}, nil
 }
 
 // SetHandshakeTimeout set handshakeTimeout that will be used for secure session handshake. 0 - without handshakeTimeout
@@ -185,23 +185,23 @@ func (wrapper *SecureSessionConnectionWrapper) wrap(id []byte, conn net.Conn, is
 	if err != nil {
 		return conn, nil, err
 	}
-	var clientId []byte
+	var clientID []byte
 	if isServer {
-		clientId, err = utils.ReadData(conn)
+		clientID, err = utils.ReadData(conn)
 		if err != nil {
 			return conn, nil, err
 		}
-		log.WithField("client_id", string(clientId)).Debugln("new secure session connection to server")
-		privateKey, err := wrapper.keystore.GetPrivateKey(clientId)
+		log.WithField("client_id", string(clientID)).Debugln("new secure session connection to server")
+		privateKey, err := wrapper.keystore.GetPrivateKey(clientID)
 		if err != nil {
 			return conn, nil, err
 		}
-		secureConnection.session, err = session.New(clientId, privateKey, callback)
+		secureConnection.session, err = session.New(clientID, privateKey, callback)
 		if err != nil {
 			return conn, nil, err
 		}
 	} else {
-		clientId = id
+		clientID = id
 		privateKey, err := wrapper.keystore.GetPrivateKey(id)
 		if err != nil {
 			return conn, nil, err
@@ -233,7 +233,7 @@ func (wrapper *SecureSessionConnectionWrapper) wrap(id []byte, conn net.Conn, is
 			return conn, nil, err
 		}
 		if !sendPeer {
-			return secureConnection, clientId, nil
+			return secureConnection, clientID, nil
 		}
 
 		err = utils.SendData(buf, conn)
@@ -242,7 +242,7 @@ func (wrapper *SecureSessionConnectionWrapper) wrap(id []byte, conn net.Conn, is
 		}
 
 		if secureConnection.session.GetState() == session.STATE_ESTABLISHED {
-			return secureConnection, clientId, nil
+			return secureConnection, clientID, nil
 		}
 	}
 }
@@ -274,7 +274,7 @@ func (wrapper *SecureSessionConnectionWrapper) WrapServer(conn net.Conn) (net.Co
 			return nil, nil, err
 		}
 	}
-	newConn, clientId, err := wrapper.wrap(nil, conn, true)
+	newConn, clientID, err := wrapper.wrap(nil, conn, true)
 	if wrapper.hasHandshakeTimeout() {
 		// reset deadline
 		if err := conn.SetDeadline(time.Time{}); err != nil {
@@ -283,5 +283,5 @@ func (wrapper *SecureSessionConnectionWrapper) WrapServer(conn net.Conn) (net.Co
 		}
 	}
 	log.Debugln("wrap server connection with secure session finished")
-	return newConn, clientId, NewConnectionWrapError(err)
+	return newConn, clientID, NewConnectionWrapError(err)
 }

@@ -24,7 +24,7 @@ func NewDecryptGRPCService(data *common.TranslatorData) (*DecryptGRPCService, er
 // Errors possible during decrypting AcraStructs.
 var (
 	ErrCantDecrypt      = errors.New("can't decrypt data")
-	ErrClientIDRequired = errors.New("ClientId is empty")
+	ErrClientIDRequired = errors.New("ClientID is empty")
 )
 
 // Decrypt decrypts AcraStruct from gRPC request and returns decrypted data or error.
@@ -34,7 +34,7 @@ func (service *DecryptGRPCService) Decrypt(ctx context.Context, request *Decrypt
 	var decryptionContext []byte
 	logger := logrus.WithFields(logrus.Fields{"client_id": string(request.ClientId), "zone_id": string(request.ZoneId), "translator": "grpc"})
 	if len(request.ClientId) == 0 {
-		logrus.Errorln("GRPC request without ClientId not allowed")
+		logrus.Errorln("GRPC request without ClientID not allowed")
 		return nil, ErrClientIDRequired
 	}
 	if len(request.ZoneId) != 0 {
