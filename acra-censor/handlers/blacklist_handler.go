@@ -7,6 +7,7 @@ import (
 	"reflect"
 	"strings"
 
+	"github.com/cossacklabs/acra/acra-censor"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -28,7 +29,7 @@ func (handler *BlacklistHandler) CheckQuery(query string) (bool, error) {
 	if len(handler.queries) != 0 {
 		//Check that query is not in blacklist
 		if handler.queries[query] {
-			log.WithError(ErrQueryInBlacklist)
+			acracensor.Logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCensorQueryIsNotAllowed).WithError(ErrQueryInBlacklist).Errorln("Query has been blocked by blacklist [queries]")
 			return false, ErrQueryInBlacklist
 		}
 	}
@@ -36,7 +37,7 @@ func (handler *BlacklistHandler) CheckQuery(query string) (bool, error) {
 	if len(handler.tables) != 0 {
 		parsedQuery, err := sqlparser.Parse(query)
 		if err != nil {
-			log.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCensorQueryParseError).WithError(err).Errorln("acra-censor: can't parse query in blacklist handler for check")
+			acracensor.Logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCensorQueryParseError).WithError(ErrQuerySyntaxError).Errorln("Query has been blocked by blacklist [tables]. Parsing error")
 			return false, ErrQuerySyntaxError
 		}
 		switch parsedQuery := parsedQuery.(type) {
@@ -46,24 +47,24 @@ func (handler *BlacklistHandler) CheckQuery(query string) (bool, error) {
 				case *sqlparser.AliasedTableExpr:
 					err = handler.handleAliasedTables(fromStatement.(*sqlparser.AliasedTableExpr))
 					if err != nil {
-						log.WithError(err).Debugln("acra-censor: error from BlacklistHandler.handleAliasedTables")
-						log.WithError(ErrAccessToForbiddenTableBlacklist)
+						log.WithError(err).Debugln("Error from BlacklistHandler.handleAliasedTables")
+						acracensor.Logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCensorQueryIsNotAllowed).WithError(err).Errorln("Query has been blocked by blacklist [tables]")
 						return false, ErrAccessToForbiddenTableBlacklist
 					}
 					break
 				case *sqlparser.JoinTableExpr:
 					err = handler.handleJoinedTables(fromStatement.(*sqlparser.JoinTableExpr))
 					if err != nil {
-						log.WithError(err).Debugln("acra-censor: error from BlacklistHandler.handleJoinedTables")
-						log.WithError(ErrAccessToForbiddenTableBlacklist)
+						log.WithError(err).Debugln("Error from BlacklistHandler.handleJoinedTables")
+						acracensor.Logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCensorQueryIsNotAllowed).WithError(err).Errorln("Query has been blocked by blacklist [tables]")
 						return false, ErrAccessToForbiddenTableBlacklist
 					}
 					break
 				case *sqlparser.ParenTableExpr:
 					err = handler.handleParenTables(fromStatement.(*sqlparser.ParenTableExpr))
 					if err != nil {
-						log.WithError(err).Debugln("acra-censor: error from BlacklistHandler.handleParenTables")
-						log.WithError(ErrAccessToForbiddenTableBlacklist)
+						log.WithError(err).Debugln("Error from BlacklistHandler.handleParenTables")
+						acracensor.Logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCensorQueryIsNotAllowed).WithError(err).Errorln("Query has been blocked by blacklist [tables]")
 						return false, ErrAccessToForbiddenTableBlacklist
 					}
 					break
@@ -73,7 +74,7 @@ func (handler *BlacklistHandler) CheckQuery(query string) (bool, error) {
 			}
 		case *sqlparser.Insert:
 			if handler.tables[parsedQuery.Table.Name.String()] {
-				log.WithError(ErrAccessToForbiddenTableBlacklist)
+				acracensor.Logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCensorQueryIsNotAllowed).WithError(ErrAccessToForbiddenTableBlacklist).Errorln("Query has been blocked by blacklist [tables]")
 				return false, ErrAccessToForbiddenTableBlacklist
 			}
 		case *sqlparser.Update:
@@ -194,7 +195,7 @@ func (handler *BlacklistHandler) AddRules(rules []string) error {
 		handler.rules = append(handler.rules, rule)
 		_, err := sqlparser.Parse(rule)
 		if err != nil {
-			log.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCensorQueryParseError).WithError(err).Errorln("acra-censor: can't parse query to add rule to blacklist handler")
+			log.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCensorQueryParseError).WithError(err).Errorln("Can't parse query to add rule to blacklist handler")
 			return ErrQuerySyntaxError
 		}
 	}
@@ -213,7 +214,7 @@ func (handler *BlacklistHandler) RemoveRules(rules []string) {
 
 func (handler *BlacklistHandler) testRulesViolation(query string) (bool, error) {
 	if sqlparser.Preview(query) != sqlparser.StmtSelect {
-		return true, errors.New("non-select queries are not supported")
+		return true, errors.New("Non-select queries are not supported")
 	}
 	//parse one rule and get forbidden tables and columns for specific 'where' clause
 	var whereClause sqlparser.SQLNode
@@ -223,7 +224,7 @@ func (handler *BlacklistHandler) testRulesViolation(query string) (bool, error) 
 	for _, rule := range handler.rules {
 		parsedRule, err := sqlparser.Parse(rule)
 		if err != nil {
-			log.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCensorQueryParseError).WithError(err).Errorln("acra-censor: can't parse rule in blacklist handler for test")
+			log.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCensorQueryParseError).WithError(err).Errorln("Can't parse rule in blacklist handler for test")
 			return true, ErrQuerySyntaxError
 		}
 		switch parsedRule := parsedRule.(type) {

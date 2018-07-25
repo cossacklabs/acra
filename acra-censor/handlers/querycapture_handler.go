@@ -17,7 +17,7 @@ import (
 )
 
 const DefaultSerializationTimeout = time.Second
-const ValuePlaceholder = "X"
+const ValuePlaceholder = "::replaced::"
 
 type QueryCaptureHandler struct {
 	Queries              []*QueryInfo
