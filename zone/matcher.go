@@ -155,14 +155,13 @@ func (matcher *BaseMatcher) Match(c byte) bool {
 		}
 		matcher.Reset()
 		return false
-	} else {
-		matcher.zoneID[matcher.currentIndex] = b
-		matcher.currentIndex++
-		if matcher.currentIndex == byte(ZONE_ID_BLOCK_LENGTH) {
-			matcher.matched = true
-		}
-		return true
 	}
+	matcher.zoneID[matcher.currentIndex] = b
+	matcher.currentIndex++
+	if matcher.currentIndex == byte(ZONE_ID_BLOCK_LENGTH) {
+		matcher.matched = true
+	}
+	return true
 }
 
 func (matcher *BaseMatcher) IsMatched() bool {

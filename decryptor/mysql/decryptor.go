@@ -227,10 +227,9 @@ func (decryptor *MySQLDecryptor) decryptWholeBlock(block []byte) ([]byte, error)
 			decryptor.ResetZoneMatch()
 		}
 		return newData, err
-	} else {
-		decryptor.MatchZoneBlock(block)
-		return block, nil
 	}
+	decryptor.MatchZoneBlock(block)
+	return block, nil
 }
 
 func (decryptor *MySQLDecryptor) decryptInlineBlock(block []byte) ([]byte, error) {

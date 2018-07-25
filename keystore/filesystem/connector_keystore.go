@@ -38,11 +38,12 @@ func (store *ConnectorFileSystemKeyStore) GetPrivateKey(id []byte) (*keys.Privat
 	if err != nil {
 		return nil, err
 	}
-	if privateKey, err := store.encryptor.Decrypt(keyData, id); err != nil {
+
+	var privateKey []byte
+	if privateKey, err = store.encryptor.Decrypt(keyData, id); err != nil {
 		return nil, err
-	} else {
-		return &keys.PrivateKey{Value: privateKey}, nil
 	}
+	return &keys.PrivateKey{Value: privateKey}, nil
 }
 
 // GetPeerPublicKey returns other party transport public key depending on AcraConnector mode:

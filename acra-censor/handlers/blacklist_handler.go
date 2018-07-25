@@ -105,9 +105,8 @@ func (handler *BlacklistHandler) CheckQuery(query string) (bool, error) {
 func (handler *BlacklistHandler) handleAliasedTables(statement *sqlparser.AliasedTableExpr) error {
 	if handler.tables[sqlparser.String(statement.Expr)] {
 		return ErrAccessToForbiddenTableBlacklist
-	} else {
-		return nil
 	}
+	return nil
 }
 
 func (handler *BlacklistHandler) handleJoinedTables(statement *sqlparser.JoinTableExpr) error {

@@ -102,20 +102,20 @@ func (packet *MysqlPacket) readPacket(connection net.Conn) ([]byte, error) {
 	data := make([]byte, length)
 	if _, err := io.ReadFull(connection, data); err != nil {
 		return nil, err
-	} else {
-		if length < MaxPayloadLen {
-			return data, nil
-		}
-
-		var buf []byte
-		buf, err = packet.readPacket(connection)
-		if err != nil {
-			return nil, err
-		} else {
-			return append(data, buf...), nil
-		}
 	}
+	if length < MaxPayloadLen {
+		return data, nil
+	}
+
+	var buf []byte
+	buf, err := packet.readPacket(connection)
+	if err != nil {
+		return nil, err
+	}
+	return append(data, buf...), nil
 }
+
+// Dump returns packet header and data as []byte
 func (packet *MysqlPacket) Dump() []byte {
 	return append(packet.header, packet.data...)
 }

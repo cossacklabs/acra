@@ -31,9 +31,8 @@ func Dial(connectionString string) (net.Conn, error) {
 	url.Scheme = customSchemeToBaseGolangScheme(url.Scheme)
 	if url.Scheme == "unix" {
 		return net.Dial(url.Scheme, url.Path)
-	} else {
-		return net.Dial(url.Scheme, url.Host)
 	}
+	return net.Dial(url.Scheme, url.Host)
 }
 
 type ListenerWithFileDescriptor interface {
@@ -49,9 +48,8 @@ func Listen(connectionString string) (net.Listener, error) {
 	url.Scheme = customSchemeToBaseGolangScheme(url.Scheme)
 	if url.Scheme == "unix" {
 		return net.Listen(url.Scheme, url.Path)
-	} else {
-		return net.Listen(url.Scheme, url.Host)
 	}
+	return net.Listen(url.Scheme, url.Host)
 }
 
 func BuildConnectionString(protocol, host string, port int, path string) string {
