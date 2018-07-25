@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"github.com/cossacklabs/acra/keystore"
+	"github.com/cossacklabs/acra/keystore/lru_cache"
 	"github.com/cossacklabs/acra/utils"
 	"github.com/cossacklabs/acra/zone"
 	"github.com/cossacklabs/themis/gothemis/keys"
@@ -14,7 +15,6 @@ import (
 	"path/filepath"
 	"runtime"
 	"sync"
-	"github.com/cossacklabs/acra/keystore/lru_cache"
 )
 
 type FilesystemKeyStore struct {
@@ -26,7 +26,7 @@ type FilesystemKeyStore struct {
 	encryptor           keystore.KeyEncryptor
 }
 
-func NewFileSystemKeyStoreWithCacheSize(directory string, encryptor keystore.KeyEncryptor, cacheSize int)(*FilesystemKeyStore, error){
+func NewFileSystemKeyStoreWithCacheSize(directory string, encryptor keystore.KeyEncryptor, cacheSize int) (*FilesystemKeyStore, error) {
 	return newFilesystemKeyStore(directory, directory, encryptor, cacheSize)
 }
 

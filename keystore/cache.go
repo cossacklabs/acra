@@ -1,9 +1,8 @@
 package keystore
 
-
 const (
 	INFINITE_CACHE_SIZE = 0
-	NO_CACHE = -1
+	NO_CACHE            = -1
 )
 
 type NoCache struct{}

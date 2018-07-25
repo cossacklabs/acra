@@ -1,24 +1,23 @@
 package lru_cache
 
 import (
-	"github.com/golang/groupcache/lru"
 	"github.com/cossacklabs/acra/utils"
 	"github.com/cossacklabs/themis/gothemis/keys"
+	"github.com/golang/groupcache/lru"
 )
 
 type LRUCache struct {
-	lru       *lru.Cache
+	lru *lru.Cache
 }
 
-func clearCacheValue(key lru.Key, value interface{}){
-	switch value.(type){
+func clearCacheValue(key lru.Key, value interface{}) {
+	switch value.(type) {
 	case []byte:
 		utils.FillSlice(byte(0), value.([]byte))
 	case *keys.PrivateKey:
 		utils.FillSlice(byte(0), value.(*keys.PrivateKey).Value)
 	}
 }
-
 
 func NewLRUCacheKeystoreWrapper(size int) (*LRUCache, error) {
 	cache := &LRUCache{lru: lru.New(size)}
@@ -41,4 +40,3 @@ func (cache *LRUCache) Get(keyId string) ([]byte, bool) {
 func (cache *LRUCache) Clear() {
 	cache.lru.Clear()
 }
-

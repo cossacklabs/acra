@@ -234,7 +234,7 @@ func TestFilesystemKeyStore(t *testing.T) {
 	}
 }
 
-func TestFilesystemKeyStoreWithCache(t *testing.T){
+func TestFilesystemKeyStoreWithCache(t *testing.T) {
 	keyDirectory, err := ioutil.TempDir("", "test_filesystem_store")
 	if err != nil {
 		t.Fatal(err)
@@ -293,7 +293,7 @@ func TestFilesystemKeyStoreWithCache(t *testing.T){
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !bytes.Equal(decrypted, privateKey2.Value){
+	if !bytes.Equal(decrypted, privateKey2.Value) {
 		t.Fatal("Expected correct key in result")
 	}
 
