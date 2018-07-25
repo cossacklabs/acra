@@ -655,7 +655,13 @@ func TestConfigurationProvider(t *testing.T) {
 		t.Fatal(err)
 	}
 	acraCensor := &AcraCensor{}
-	defer acraCensor.ReleaseAll()
+	defer func() {
+		acraCensor.ReleaseAll()
+		err = os.Remove("censor_log")
+		if err != nil {
+			t.Fatal(err)
+		}
+	}()
 	err = acraCensor.LoadConfiguration(configuration)
 	if err != nil {
 		t.Fatal(err)
@@ -709,10 +715,6 @@ func TestConfigurationProvider(t *testing.T) {
 		}
 	}
 	testSyntax(t)
-	err = os.Remove("censor_log")
-	if err != nil {
-		t.Fatal(err)
-	}
 }
 func testSyntax(t *testing.T) {
 	acraCensor := &AcraCensor{}
