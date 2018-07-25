@@ -30,6 +30,7 @@ import (
 	"strings"
 )
 
+// HashedPasswords stores username:hashed_password map
 type HashedPasswords map[string]string
 
 // Constants used by AcraAuthmanager

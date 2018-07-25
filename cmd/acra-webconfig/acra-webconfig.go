@@ -45,7 +45,6 @@ var debug *bool
 var staticPath *string
 var authMode *string
 var parsedTemplate *template.Template
-var err error
 var configParamsBytes []byte
 
 // Constants used by AcraWebconfig
@@ -54,6 +53,7 @@ var (
 	DEFAULT_CONFIG_PATH = utils.GetConfigPathByName(SERVICE_NAME)
 )
 
+// ErrGetAuthDataFromAcraServer any error during loading AcraWebconfig
 var ErrGetAuthDataFromAcraServer = errors.New("Wrong status for loadAuthData")
 
 // Connection timeout secs
@@ -111,6 +111,7 @@ type configParamsYAML struct {
 
 var outConfigParams configParamsYAML
 
+// ConfigAcraServer stores configuration for AcraWebconfig and its json representation
 type ConfigAcraServer struct {
 	ConnectorHost    string `json:"incoming_connection_host"`
 	ConnectorPort    int    `json:"incoming_connection_port"`
@@ -123,6 +124,7 @@ type ConfigAcraServer struct {
 	WithZone         bool   `json:"zonemode_enable"`
 }
 
+// SubmitSettings updates AcraServer configuration from HTTP request
 func SubmitSettings(w http.ResponseWriter, r *http.Request) {
 	log.Debugf("SubmitSettings request %v", r)
 	if r.Method != "POST" {
@@ -259,7 +261,8 @@ func index(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-func BasicAuthHandler(handler http.HandlerFunc) http.HandlerFunc {
+// basicAuthHandler check if user is authenticated to access AcraWebconfig page
+func basicAuthHandler(handler http.HandlerFunc) http.HandlerFunc {
 	var realm = "AcraWebConfig"
 
 	return func(w http.ResponseWriter, r *http.Request) {
@@ -296,7 +299,7 @@ func BasicAuthHandler(handler http.HandlerFunc) http.HandlerFunc {
 	}
 }
 
-func ParseArgon2Params(authDataSting []byte) {
+func parseArgon2Params(authDataSting []byte) {
 	line := 0
 	for _, authString := range strings.Split(string(authDataSting), LINE_SEPARATOR) {
 		authItem := strings.Split(authString, AUTH_FIELD_SEPARATOR)
@@ -369,7 +372,7 @@ func loadAuthData() (err error) {
 			Error("Error while reading auth data")
 		return err
 	}
-	ParseArgon2Params(authDataSting)
+	parseArgon2Params(authDataSting)
 	return
 }
 
@@ -418,10 +421,10 @@ func main() {
 	}
 
 	configParamsBytes = []byte(AcraServerConfig)
-	http.HandleFunc("/index.html", BasicAuthHandler(index))
-	http.HandleFunc("/", BasicAuthHandler(index))
+	http.HandleFunc("/index.html", basicAuthHandler(index))
+	http.HandleFunc("/", basicAuthHandler(index))
 	http.Handle("/static/", http.StripPrefix("/static/", http.FileServer(http.Dir(*staticPath))))
-	http.HandleFunc("/acra-server/submit_setting", BasicAuthHandler(SubmitSettings))
+	http.HandleFunc("/acra-server/submit_setting", basicAuthHandler(SubmitSettings))
 	log.Infof("AcraWebconfig is listening @ %s:%d with PID %d", *host, *port, os.Getpid())
 	err = http.ListenAndServe(fmt.Sprintf("%s:%d", *host, *port), nil)
 	check(err)

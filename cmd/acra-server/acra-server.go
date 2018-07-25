@@ -41,7 +41,7 @@ const (
 	TEST_MODE = "true"
 )
 
-var TestOnly = "false"
+var testOnly = "false"
 
 // Constants used by AcraServer.
 const (
@@ -54,6 +54,8 @@ const (
 
 // DEFAULT_CONFIG_PATH relative path to config which will be parsed as default
 var DEFAULT_CONFIG_PATH = utils.GetConfigPathByName(SERVICE_NAME)
+
+// ErrWaitTimeout error indicates that server was shutdown and waited N seconds while shutting down all connections.
 var ErrWaitTimeout = errors.New("timeout")
 
 func main() {
@@ -212,7 +214,7 @@ func main() {
 			os.Exit(1)
 		}
 		// need for testing with mysql docker container that always generate new certificates
-		if TestOnly == TEST_MODE {
+		if testOnly == TEST_MODE {
 			tlsConfig.InsecureSkipVerify = true
 			tlsConfig.ClientAuth = tls.NoClientCert
 			log.Warningln("Skip verifying TLS certificate, use for tests only!")

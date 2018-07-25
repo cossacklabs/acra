@@ -14,6 +14,7 @@
 
 package main
 
+// AcraServerConfig describes AcraServer configuration that can be changed from AcraWebconfig page.
 var AcraServerConfig = `config:
   -
     name: db_host

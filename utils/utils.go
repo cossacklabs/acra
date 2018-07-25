@@ -32,6 +32,7 @@ import (
 )
 
 const (
+	// SESSION_DATA_LIMIT maximum block size
 	SESSION_DATA_LIMIT = 8 * 1024 // 8 kb
 )
 

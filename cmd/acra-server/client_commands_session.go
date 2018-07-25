@@ -40,12 +40,14 @@ const (
 	RESPONSE_500_ERROR = "HTTP/1.1 500 Server error\r\n\r\n\r\n\r\n"
 )
 
+// ClientCommandsSession handles Secure Session for client commands API
 type ClientCommandsSession struct {
 	ClientSession
 	Server   *SServer
 	keystore keystore.KeyStore
 }
 
+// NewClientCommandsSession returns new ClientCommandsSession
 func NewClientCommandsSession(keystorage keystore.KeyStore, config *Config, connection net.Conn) (*ClientCommandsSession, error) {
 	clientSession, err := NewClientSession(keystorage, config, connection)
 	if err != nil {
@@ -55,6 +57,7 @@ func NewClientCommandsSession(keystorage keystore.KeyStore, config *Config, conn
 
 }
 
+// ConnectToDb should not be called, because command session must not connect to any DB
 func (clientSession *ClientCommandsSession) ConnectToDb() error {
 	return errors.New("command session must not connect to any DB")
 }
@@ -69,6 +72,7 @@ func (clientSession *ClientCommandsSession) close() {
 	log.Debugln("All connections closed")
 }
 
+// HandleSession gets, parses and executes each client HTTP request, writes response to the connection
 func (clientSession *ClientCommandsSession) HandleSession() {
 	reader := bufio.NewReader(clientSession.connection)
 	req, err := http.ReadRequest(reader)

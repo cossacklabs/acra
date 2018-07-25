@@ -32,8 +32,10 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
+// AcraConnectorAddress default address
 var AcraConnectorAddress = "http://127.0.0.1:9191"
 
+// ZoneData stores zone: zoneID and PublicKey
 type ZoneData struct {
 	Id        string
 	PublicKey []byte

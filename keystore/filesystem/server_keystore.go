@@ -27,11 +27,12 @@ type FilesystemKeyStore struct {
 	encryptor           keystore.KeyEncryptor
 }
 
-// FilesystemKeyStore represents keystore that reads keys from key folders, and stores them in memory.
+// NewFileSystemKeyStoreWithCacheSize represents keystore that reads keys from key folders, and stores them in cache.
 func NewFileSystemKeyStoreWithCacheSize(directory string, encryptor keystore.KeyEncryptor, cacheSize int) (*FilesystemKeyStore, error) {
 	return newFilesystemKeyStore(directory, directory, encryptor, cacheSize)
 }
 
+// FilesystemKeyStore represents keystore that reads keys from key folders, and stores them in memory.
 func NewFilesystemKeyStore(directory string, encryptor keystore.KeyEncryptor) (*FilesystemKeyStore, error) {
 	return newFilesystemKeyStore(directory, directory, encryptor, keystore.INFINITE_CACHE_SIZE)
 }

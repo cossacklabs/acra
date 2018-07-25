@@ -51,6 +51,7 @@ func init() {
 	}
 }
 
+// Fuzz is entry point
 func Fuzz(data []byte) int {
 	var err error
 	if len(data) == 0 {
