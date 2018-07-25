@@ -182,7 +182,7 @@ func (handler *QueryCaptureHandler) DumpAllQueriesToFile() error {
 		return err
 	}
 	// write all queries
-	return AppendQueries(handler.Queries, f)
+	return handler.AppendQueries(handler.Queries, f)
 }
 
 // DumpBufferedQueriesToFile writes buffered queries to file (queries captured during serializationTimeout),
@@ -192,7 +192,7 @@ func (handler *QueryCaptureHandler) DumpBufferedQueriesToFile(openedFile *os.Fil
 	if len(handler.BufferedQueries) == 0 {
 		return nil
 	}
-	err := AppendQueries(handler.BufferedQueries, openedFile)
+	err := handler.AppendQueries(handler.BufferedQueries, openedFile)
 	if err != nil {
 		return err
 	}
@@ -214,14 +214,11 @@ func (handler *QueryCaptureHandler) ReadAllQueriesFromFile() error {
 }
 
 // AppendQueries appends some queries to the file, returns IO error.
-func AppendQueries(queries []*QueryInfo, openedFile *os.File) error {
+func (handler *QueryCaptureHandler) AppendQueries(queries []*QueryInfo, openedFile *os.File) error {
 	if len(queries) == 0 {
 		return nil
 	}
-	lines, err := SerializeQueries(queries)
-	if err != nil {
-		return err
-	}
+	lines := handler.SerializeQueries(queries)
 	if _, err := openedFile.Write(lines); err != nil {
 		return err
 	}
@@ -229,26 +226,26 @@ func AppendQueries(queries []*QueryInfo, openedFile *os.File) error {
 }
 
 // SerializeQueries formats queries to JSON-line format before writing to file.
-func SerializeQueries(queries []*QueryInfo) ([]byte, error) {
+func (handler *QueryCaptureHandler) SerializeQueries(queries []*QueryInfo) []byte {
 	var linesToAppend []byte
 	var tempQueryInfo = &QueryInfo{}
 	for _, queryInfo := range queries {
 		queryWithHiddenValues, err := RedactSQLQuery(queryInfo.RawQuery)
 		if err != nil {
-			return nil, ErrQuerySyntaxError
+			handler.logger.WithError(ErrQuerySyntaxError).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCensorQuerySerializeError).Errorln("Can't serialize stored queries")
 		}
 		tempQueryInfo.RawQuery = queryWithHiddenValues
 		tempQueryInfo.IsForbidden = queryInfo.IsForbidden
 		jsonQueryInfo, err := json.Marshal(tempQueryInfo)
 		if err != nil {
-			return nil, err
+			handler.logger.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCensorQuerySerializeError).Errorln("Can't serialize stored queries")
 		}
 		if len(jsonQueryInfo) > 0 {
 			jsonQueryInfo = append(jsonQueryInfo, '\n')
 			linesToAppend = append(linesToAppend, jsonQueryInfo...)
 		}
 	}
-	return linesToAppend, nil
+	return linesToAppend
 }
 
 // ReadQueries reads list of queries from log file.

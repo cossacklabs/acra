@@ -810,18 +810,3 @@ func TestIgnoringQueryParseErrors(t *testing.T) {
 	// check when censor with two handlers and each one will return query parse error
 	checkHandler([]QueryHandlerInterface{whitelistHandler, blacklistHandler}, nil)
 }
-
-//func TestQueryTree(t *testing.T) {
-//	//Check that values are hidden while logging
-//	testQuery := "select songName from t where personName in ('Ryan', 'Holly') group by songName having count(distinct personName) = 10"
-//
-//	statement, err := sqlparser.Parse(testQuery)
-//	if err != nil {
-//		t.Fatal(err)
-//	}
-//
-//	sqlparser.Walk(func(node sqlparser.SQLNode) (bool, error) {
-//		fmt.Println(node)
-//		return false, nil
-//	}, statement)
-//}
