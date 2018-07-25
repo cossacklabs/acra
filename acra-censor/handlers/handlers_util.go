@@ -2,7 +2,6 @@ package handlers
 
 import (
 	"errors"
-	log "github.com/sirupsen/logrus"
 	"github.com/xwb1989/sqlparser"
 	"github.com/xwb1989/sqlparser/dependency/querypb"
 	"strings"
@@ -27,9 +26,6 @@ var ErrUnexpectedTypeError = errors.New("should never appear")
 
 const LogQueryLength = 100
 const ValuePlaceholder = "replaced"
-
-//global logging object for censor
-var Logger = log.WithFields(log.Fields{"service": "acra-censor"})
 
 func removeDuplicates(input []string) []string {
 	keys := make(map[string]bool)

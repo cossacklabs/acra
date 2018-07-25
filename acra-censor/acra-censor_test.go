@@ -43,7 +43,7 @@ func TestWhitelistQueries(t *testing.T) {
 	whitelistHandler := handlers.NewWhitelistHandler()
 	whitelistHandler.AddQueries(sqlSelectQueries)
 	whitelistHandler.AddQueries(sqlInsertQueries)
-	acraCensor := &AcraCensor{}
+	acraCensor := NewAcraCensor()
 	defer acraCensor.ReleaseAll()
 	//set our acracensor to use whitelist for query evaluating
 	acraCensor.AddHandler(whitelistHandler)
@@ -198,7 +198,7 @@ func TestBlacklistQueries(t *testing.T) {
 	}
 	blacklistHandler := handlers.NewBlacklistHandler()
 	blacklistHandler.AddQueries(blackList)
-	acraCensor := &AcraCensor{}
+	acraCensor := NewAcraCensor()
 	defer acraCensor.ReleaseAll()
 	//set our acracensor to use blacklist for query evaluating
 	acraCensor.AddHandler(blacklistHandler)
@@ -374,7 +374,7 @@ func TestQueryIgnoring(t *testing.T) {
 	ignoreQueryHandler := handlers.NewQueryIgnoreHandler()
 	ignoreQueryHandler.AddQueries(testQueries)
 
-	acraCensor := &AcraCensor{}
+	acraCensor := NewAcraCensor()
 	defer acraCensor.ReleaseAll()
 	acraCensor.AddHandler(ignoreQueryHandler)
 	acraCensor.AddHandler(blacklist)
@@ -505,7 +505,7 @@ func TestLogging(t *testing.T) {
 		t.Fatal(err)
 	}
 	blacklist := handlers.NewBlacklistHandler()
-	acraCensor := &AcraCensor{}
+	acraCensor := NewAcraCensor()
 	defer acraCensor.ReleaseAll()
 	acraCensor.AddHandler(captureHandler)
 	acraCensor.AddHandler(blacklist)
@@ -654,7 +654,7 @@ func TestConfigurationProvider(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	acraCensor := &AcraCensor{}
+	acraCensor := NewAcraCensor()
 	defer acraCensor.ReleaseAll()
 	err = acraCensor.LoadConfiguration(configuration)
 	if err != nil {
@@ -715,7 +715,7 @@ func TestConfigurationProvider(t *testing.T) {
 	}
 }
 func testSyntax(t *testing.T) {
-	acraCensor := &AcraCensor{}
+	acraCensor := NewAcraCensor()
 	defer acraCensor.ReleaseAll()
 	configuration := `handlers:
   	handler: blacklist
@@ -778,7 +778,7 @@ func TestIgnoringQueryParseErrors(t *testing.T) {
 	queriesWithSyntaxErrors := []string{
 		"Insert into something",
 	}
-	acraCensor := &AcraCensor{}
+	acraCensor := NewAcraCensor()
 	defer acraCensor.ReleaseAll()
 	whitelistHandler := handlers.NewWhitelistHandler()
 	whitelistHandler.AddTables([]string{"some table"})

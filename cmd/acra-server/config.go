@@ -73,7 +73,7 @@ func NewConfig() *Config {
 var ErrTwoDBSetup = errors.New("only one db supported at one time")
 
 func (config *Config) SetCensor(censorConfigPath string) error {
-	censor := &acracensor.AcraCensor{}
+	censor := acracensor.NewAcraCensor()
 	config.censor = censor
 	//skip if flag not specified
 	if censorConfigPath == "" {

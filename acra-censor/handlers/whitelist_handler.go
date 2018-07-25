@@ -14,12 +14,14 @@ type WhitelistHandler struct {
 	queries map[string]bool
 	tables  map[string]bool
 	rules   []string
+	logger  *log.Entry
 }
 
 func NewWhitelistHandler() *WhitelistHandler {
 	handler := &WhitelistHandler{}
 	handler.queries = make(map[string]bool)
 	handler.tables = make(map[string]bool)
+	handler.logger = log.WithField("handler", "whitelist")
 	return handler
 }
 
@@ -28,7 +30,7 @@ func (handler *WhitelistHandler) CheckQuery(query string) (bool, error) {
 	if len(handler.queries) != 0 {
 		//Check that query is in whitelist
 		if !handler.queries[query] {
-			Logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCensorQueryIsNotAllowed).WithError(ErrQueryNotInWhitelist).Errorln("Query has been blocked by whitelist [queries]")
+			handler.logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCensorQueryIsNotAllowed).WithError(ErrQueryNotInWhitelist).Errorln("Query has been blocked by whitelist [queries]")
 			return false, ErrQueryNotInWhitelist
 		}
 	}
@@ -36,7 +38,7 @@ func (handler *WhitelistHandler) CheckQuery(query string) (bool, error) {
 	if len(handler.tables) != 0 {
 		parsedQuery, err := sqlparser.Parse(query)
 		if err != nil {
-			Logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCensorQueryParseError).WithError(ErrQuerySyntaxError).Errorln("Query has been blocked by whitelist [tables]. Parsing error")
+			handler.logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCensorQueryParseError).WithError(ErrQuerySyntaxError).Errorln("Query has been blocked by whitelist [tables]. Parsing error")
 			return false, ErrQuerySyntaxError
 		}
 		switch parsedQuery := parsedQuery.(type) {
@@ -46,23 +48,23 @@ func (handler *WhitelistHandler) CheckQuery(query string) (bool, error) {
 				case *sqlparser.AliasedTableExpr:
 					err = handler.handleAliasedTables(parsedQuery.From)
 					if err != nil {
-						log.WithError(err).Debugln("Error from WhitelistHandler.handleAliasedTables")
-						Logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCensorQueryIsNotAllowed).WithError(err).Errorln("Query has been blocked by whitelist [tables]")
+						handler.logger.WithError(err).Debugln("Error from WhitelistHandler.handleAliasedTables")
+						handler.logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCensorQueryIsNotAllowed).WithError(err).Errorln("Query has been blocked by whitelist [tables]")
 						return false, ErrAccessToForbiddenTableWhitelist
 					}
 					break
 				case *sqlparser.JoinTableExpr:
 					err = handler.handleJoinedTables(fromStatement.(*sqlparser.JoinTableExpr))
 					if err != nil {
-						log.WithError(err).Debugln("Error from WhitelistHandler.handleJoinedTables")
-						Logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCensorQueryIsNotAllowed).WithError(err).Errorln("Query has been blocked by whitelist [tables]")
+						handler.logger.WithError(err).Debugln("Error from WhitelistHandler.handleJoinedTables")
+						handler.logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCensorQueryIsNotAllowed).WithError(err).Errorln("Query has been blocked by whitelist [tables]")
 						return false, ErrAccessToForbiddenTableWhitelist
 					}
 				case *sqlparser.ParenTableExpr:
 					err = handler.handleParenTables(fromStatement.(*sqlparser.ParenTableExpr))
 					if err != nil {
-						log.WithError(err).Debugln("Error from WhitelistHandler.handleParenTables")
-						Logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCensorQueryIsNotAllowed).WithError(err).Errorln("Query has been blocked by whitelist [tables]")
+						handler.logger.WithError(err).Debugln("Error from WhitelistHandler.handleParenTables")
+						handler.logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCensorQueryIsNotAllowed).WithError(err).Errorln("Query has been blocked by whitelist [tables]")
 						return false, ErrAccessToForbiddenTableWhitelist
 					}
 				default:
@@ -75,8 +77,8 @@ func (handler *WhitelistHandler) CheckQuery(query string) (bool, error) {
 				tableIsAllowed = true
 			}
 			if !tableIsAllowed {
-				log.WithError(err).Debugln("Error from WhitelistHandler [insert]")
-				Logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCensorQueryIsNotAllowed).WithError(ErrAccessToForbiddenTableWhitelist).Errorln("Query has been blocked by blacklist [tables]")
+				handler.logger.WithError(err).Debugln("Error from WhitelistHandler [insert]")
+				handler.logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCensorQueryIsNotAllowed).WithError(ErrAccessToForbiddenTableWhitelist).Errorln("Query has been blocked by blacklist [tables]")
 				return false, ErrAccessToForbiddenTableWhitelist
 			}
 		case *sqlparser.Update:

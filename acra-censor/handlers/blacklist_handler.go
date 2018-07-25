@@ -14,12 +14,14 @@ type BlacklistHandler struct {
 	queries map[string]bool
 	tables  map[string]bool
 	rules   []string
+	logger  *log.Entry
 }
 
 func NewBlacklistHandler() *BlacklistHandler {
 	handler := &BlacklistHandler{}
 	handler.queries = make(map[string]bool)
 	handler.tables = make(map[string]bool)
+	handler.logger = log.WithField("handler", "blacklist")
 	return handler
 }
 
@@ -28,7 +30,7 @@ func (handler *BlacklistHandler) CheckQuery(query string) (bool, error) {
 	if len(handler.queries) != 0 {
 		//Check that query is not in blacklist
 		if handler.queries[query] {
-			Logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCensorQueryIsNotAllowed).WithError(ErrQueryInBlacklist).Errorln("Query has been blocked by blacklist [queries]")
+			handler.logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCensorQueryIsNotAllowed).WithError(ErrQueryInBlacklist).Errorln("Query has been blocked by blacklist [queries]")
 			return false, ErrQueryInBlacklist
 		}
 	}
@@ -36,7 +38,7 @@ func (handler *BlacklistHandler) CheckQuery(query string) (bool, error) {
 	if len(handler.tables) != 0 {
 		parsedQuery, err := sqlparser.Parse(query)
 		if err != nil {
-			Logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCensorQueryParseError).WithError(ErrQuerySyntaxError).Errorln("Query has been blocked by blacklist [tables]. Parsing error")
+			handler.logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCensorQueryParseError).WithError(ErrQuerySyntaxError).Errorln("Query has been blocked by blacklist [tables]. Parsing error")
 			return false, ErrQuerySyntaxError
 		}
 		switch parsedQuery := parsedQuery.(type) {
@@ -47,7 +49,7 @@ func (handler *BlacklistHandler) CheckQuery(query string) (bool, error) {
 					err = handler.handleAliasedTables(fromStatement.(*sqlparser.AliasedTableExpr))
 					if err != nil {
 						log.WithError(err).Debugln("Error from BlacklistHandler.handleAliasedTables")
-						Logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCensorQueryIsNotAllowed).WithError(err).Errorln("Query has been blocked by blacklist [tables]")
+						handler.logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCensorQueryIsNotAllowed).WithError(err).Errorln("Query has been blocked by blacklist [tables]")
 						return false, ErrAccessToForbiddenTableBlacklist
 					}
 					break
@@ -55,7 +57,7 @@ func (handler *BlacklistHandler) CheckQuery(query string) (bool, error) {
 					err = handler.handleJoinedTables(fromStatement.(*sqlparser.JoinTableExpr))
 					if err != nil {
 						log.WithError(err).Debugln("Error from BlacklistHandler.handleJoinedTables")
-						Logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCensorQueryIsNotAllowed).WithError(err).Errorln("Query has been blocked by blacklist [tables]")
+						handler.logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCensorQueryIsNotAllowed).WithError(err).Errorln("Query has been blocked by blacklist [tables]")
 						return false, ErrAccessToForbiddenTableBlacklist
 					}
 					break
@@ -63,7 +65,7 @@ func (handler *BlacklistHandler) CheckQuery(query string) (bool, error) {
 					err = handler.handleParenTables(fromStatement.(*sqlparser.ParenTableExpr))
 					if err != nil {
 						log.WithError(err).Debugln("Error from BlacklistHandler.handleParenTables")
-						Logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCensorQueryIsNotAllowed).WithError(err).Errorln("Query has been blocked by blacklist [tables]")
+						handler.logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCensorQueryIsNotAllowed).WithError(err).Errorln("Query has been blocked by blacklist [tables]")
 						return false, ErrAccessToForbiddenTableBlacklist
 					}
 					break
@@ -73,7 +75,7 @@ func (handler *BlacklistHandler) CheckQuery(query string) (bool, error) {
 			}
 		case *sqlparser.Insert:
 			if handler.tables[parsedQuery.Table.Name.String()] {
-				Logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCensorQueryIsNotAllowed).WithError(ErrAccessToForbiddenTableBlacklist).Errorln("Query has been blocked by blacklist [tables]")
+				handler.logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCensorQueryIsNotAllowed).WithError(ErrAccessToForbiddenTableBlacklist).Errorln("Query has been blocked by blacklist [tables]")
 				return false, ErrAccessToForbiddenTableBlacklist
 			}
 		case *sqlparser.Update:
