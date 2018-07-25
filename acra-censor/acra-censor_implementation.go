@@ -5,6 +5,8 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
+const ServiceName = "acra-censor"
+
 type AcraCensor struct {
 	handlers         []QueryHandlerInterface
 	ignoreParseError bool
@@ -13,7 +15,7 @@ type AcraCensor struct {
 
 func NewAcraCensor() *AcraCensor {
 	acraCensor := &AcraCensor{}
-	acraCensor.logger = log.WithField("service", "acra-censor")
+	acraCensor.logger = log.WithField("service", ServiceName)
 	acraCensor.ignoreParseError = false
 	return acraCensor
 }

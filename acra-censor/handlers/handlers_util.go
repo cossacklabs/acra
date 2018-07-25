@@ -25,6 +25,7 @@ var ErrUnexpectedCaptureChannelClose = errors.New("unexpected channel closing wh
 var ErrUnexpectedTypeError = errors.New("should never appear")
 
 const LogQueryLength = 100
+
 const ValuePlaceholder = "replaced"
 
 func removeDuplicates(input []string) []string {
@@ -48,6 +49,7 @@ func contains(queries []string, query string) (bool, int) {
 	return false, 0
 }
 
+// TrimStringToN trims query to N chars.
 func TrimStringToN(query string, n int) string {
 	if len(query) <= n {
 		return query
@@ -55,6 +57,7 @@ func TrimStringToN(query string, n int) string {
 	return query[:n]
 }
 
+// RedactSQLQuery returns a sql string with the params stripped out for display. Taken from sqlparser package
 func RedactSQLQuery(sql string) (string, error) {
 	bv := map[string]*querypb.BindVariable{}
 	sqlStripped, comments := sqlparser.SplitMarginComments(sql)
