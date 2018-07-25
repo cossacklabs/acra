@@ -30,6 +30,7 @@ import (
 	"github.com/cossacklabs/acra/network"
 	"github.com/cossacklabs/acra/utils"
 	log "github.com/sirupsen/logrus"
+	"runtime"
 )
 
 var restartSignalsChannel chan os.Signal
@@ -373,4 +374,5 @@ func main() {
 
 	// todo: any reason why it's so far from adding callback?
 	sigHandlerSIGHUP.Register()
+	runtime.KeepAlive(server)
 }
