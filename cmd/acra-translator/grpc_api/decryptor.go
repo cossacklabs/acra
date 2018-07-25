@@ -11,25 +11,31 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
+// DecryptGRPCService represents decryptor for decrypting AcraStructs from gRPC requests.
 type DecryptGRPCService struct {
 	*common.TranslatorData
 }
 
+// NewDecryptGRPCService creates new DecryptGRPCService.
 func NewDecryptGRPCService(data *common.TranslatorData) (*DecryptGRPCService, error) {
 	return &DecryptGRPCService{TranslatorData: data}, nil
 }
 
-var ErrCantDecrypt = errors.New("can't decrypt data")
-var ErrClientIdRequired = errors.New("ClientId is empty")
+// Errors possible during decrypting AcraStructs.
+var (
+	ErrCantDecrypt      = errors.New("can't decrypt data")
+	ErrClientIDRequired = errors.New("ClientID is empty")
+)
 
+// Decrypt decrypts AcraStruct from gRPC request and returns decrypted data or error.
 func (service *DecryptGRPCService) Decrypt(ctx context.Context, request *DecryptRequest) (*DecryptResponse, error) {
 	var privateKey *keys.PrivateKey
 	var err error
-	var decryptionContext []byte = nil
+	var decryptionContext []byte
 	logger := logrus.WithFields(logrus.Fields{"client_id": string(request.ClientId), "zone_id": string(request.ZoneId), "translator": "grpc"})
 	if len(request.ClientId) == 0 {
-		logrus.Errorln("Grpc request without ClientId not allowed")
-		return nil, ErrClientIdRequired
+		logrus.Errorln("GRPC request without ClientID not allowed")
+		return nil, ErrClientIDRequired
 	}
 	if len(request.ZoneId) != 0 {
 		privateKey, err = service.TranslatorData.Keystorage.GetZonePrivateKey(request.ZoneId)

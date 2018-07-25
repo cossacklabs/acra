@@ -18,6 +18,7 @@ func (*testKeystore) GetPeerPublicKey(id []byte) (*keys.PublicKey, error) {
 	panic("implement me")
 }
 
+// ErrKeyNotFound indicates error when decryption key is not found.
 var ErrKeyNotFound = errors.New("some error")
 
 func (keystore *testKeystore) GetZonePrivateKey(id []byte) (*keys.PrivateKey, error) {
@@ -62,12 +63,12 @@ func (*testKeystore) GenerateDataEncryptionKeys(id []byte) error {
 	panic("implement me")
 }
 
-func (store *testKeystore) GetPoisonKeyPair() (*keys.Keypair, error) {
+func (keystore *testKeystore) GetPoisonKeyPair() (*keys.Keypair, error) {
 	// if explicitly set for tests
-	if store.PoisonKeyPair != nil {
+	if keystore.PoisonKeyPair != nil {
 		// copy private key because it should be zeroed after that
-		privateKey := &keys.PrivateKey{Value: append([]byte{}, store.PoisonKeyPair.Private.Value...)}
-		return &keys.Keypair{Private: privateKey, Public: store.PoisonKeyPair.Public}, nil
+		privateKey := &keys.PrivateKey{Value: append([]byte{}, keystore.PoisonKeyPair.Private.Value...)}
+		return &keys.Keypair{Private: privateKey, Public: keystore.PoisonKeyPair.Public}, nil
 	}
 	// we no matter what the key
 	return keys.New(keys.KEYTYPE_EC)

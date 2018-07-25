@@ -155,7 +155,7 @@ func (ex *WriteToFileExecutor) Close() {
 
 func main() {
 	keysDir := flag.String("keys_dir", keystore.DEFAULT_KEY_DIR_SHORT, "Folder from which the keys will be loaded")
-	clientId := flag.String("client_id", "", "Client id should be name of file with private key")
+	clientID := flag.String("client_id", "", "Client ID should be name of file with private key")
 	connectionString := flag.String("connection_string", "", "Connection string for db")
 	sqlSelect := flag.String("select", "", "Query to fetch data for decryption")
 	sqlInsert := flag.String("insert", "", "Query for insert decrypted data with placeholders (pg: $n, mysql: ?)")
@@ -197,7 +197,7 @@ func main() {
 		dbDriverName = "mysql"
 	}
 
-	cmd.ValidateClientId(*clientId)
+	cmd.ValidateClientID(*clientID)
 
 	if *connectionString == "" {
 		log.Errorln("connection_string arg is missing")
@@ -293,7 +293,7 @@ func main() {
 			if err != nil {
 				ErrorExit("can't read data from row", err)
 			}
-			privateKey, err = keystorage.GetServerDecryptionPrivateKey([]byte(*clientId))
+			privateKey, err = keystorage.GetServerDecryptionPrivateKey([]byte(*clientID))
 			if err != nil {
 				log.WithError(err).Errorf("can't get private key for row with number %v", i)
 				continue

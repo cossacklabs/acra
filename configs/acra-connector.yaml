@@ -34,7 +34,7 @@ acratranslator_connection_string:
 # Expected id from AcraTranslator for Secure Session
 acratranslator_securesession_id: acra_translator
 
-# Client id
+# Client ID
 client_id: 
 
 # path to config
@@ -70,7 +70,7 @@ mode: AcraServer
 # Expected Server Name (SNI) from AcraServer
 tls_acraserver_sni: 
 
-# Set authentication mode that will be used in TLS connection with AcraServer/AcraReader. Values in range 0-4 that set auth type (https://golang.org/pkg/crypto/tls/#ClientAuthType). Default is tls.RequireAndVerifyClientCert
+# Set authentication mode that will be used in TLS connection with AcraServer/AcraTranslator. Values in range 0-4 that set auth type (https://golang.org/pkg/crypto/tls/#ClientAuthType). Default is tls.RequireAndVerifyClientCert
 tls_auth: 4
 
 # Path to root certificate which will be used with system root certificates to validate AcraServer's certificate

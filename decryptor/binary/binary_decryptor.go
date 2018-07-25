@@ -36,7 +36,7 @@ type BinaryDecryptor struct {
 	lengthBuf       [base.DATA_LENGTH_SIZE]byte
 	buf             []byte
 	keyStore        keystore.KeyStore
-	zoneMatcher     *zone.ZoneIdMatcher
+	zoneMatcher     *zone.ZoneIDMatcher
 	poisonKey       []byte
 	callbackStorage *base.PoisonCallbackStorage
 }
@@ -122,7 +122,7 @@ func (decryptor *BinaryDecryptor) readScellData(length int, reader io.Reader) ([
 	return decryptor.buf[:length], decryptor.buf[:length], nil
 }
 
-func (decryptor *BinaryDecryptor) ReadData(symmetricKey, zoneId []byte, reader io.Reader) ([]byte, error) {
+func (decryptor *BinaryDecryptor) ReadData(symmetricKey, zoneID []byte, reader io.Reader) ([]byte, error) {
 	length, rawLengthData, err := decryptor.readDataLength(reader)
 	if err != nil {
 		return rawLengthData, err
@@ -133,7 +133,7 @@ func (decryptor *BinaryDecryptor) ReadData(symmetricKey, zoneId []byte, reader i
 	}
 
 	scell := cell.New(symmetricKey, cell.CELL_MODE_SEAL)
-	decrypted, err := scell.Unprotect(data, nil, zoneId)
+	decrypted, err := scell.Unprotect(data, nil, zoneID)
 	data = nil
 	// fill zero symmetric_key
 	utils.FillSlice(byte(0), symmetricKey)

@@ -29,6 +29,7 @@ func AcceptConnections(parentContext context.Context, connectionString string, e
 	connectionChannel := make(chan net.Conn)
 	listener, err := network.Listen(connectionString)
 	if err != nil {
+		cancel()
 		return nil, err
 	}
 

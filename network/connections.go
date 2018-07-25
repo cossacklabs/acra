@@ -54,7 +54,7 @@ func (cm *ConnectionManager) CloseConnections() error {
 	// lock for map read
 	cm.mutex.Lock()
 	var outErr error
-	for connection, _ := range cm.connections {
+	for connection := range cm.connections {
 		if err := connection.Close(); err != nil {
 			outErr = err
 		}

@@ -1,3 +1,5 @@
+// Package base contains decryptor interface and callbacks.
+//
 // Copyright 2016, Cossack Labs Limited
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
@@ -23,9 +25,11 @@ import (
 	"io"
 )
 
-// error show that failed acra struct recognizing but data is may be valid
-var ErrFakeAcraStruct = errors.New("fake acra struct")
-var ErrPoisonRecord = errors.New("poison record detected")
+// Errors show errors while recognizing of valid AcraStructs.
+var (
+	ErrFakeAcraStruct = errors.New("fake acra struct")
+	ErrPoisonRecord   = errors.New("poison record detected")
+)
 
 /*
 which symbols can be used - 2 3 4 5 6 7
@@ -44,8 +48,10 @@ const (
 	TAG_SYMBOL byte = '"'
 )
 
+// TAG_BEGIN represents begin sequence of bytes for AcraStruct.
 var TAG_BEGIN = []byte{TAG_SYMBOL, TAG_SYMBOL, TAG_SYMBOL, TAG_SYMBOL, TAG_SYMBOL, TAG_SYMBOL, TAG_SYMBOL, TAG_SYMBOL}
 
+// Shows key and data length.
 const (
 	// length of EC public key
 	PUBLIC_KEY_LENGTH = 45
@@ -63,15 +69,18 @@ func getDataLengthFromAcraStruct(data []byte) int {
 	return int(binary.LittleEndian.Uint64(dataLengthBlock))
 }
 
-// getMinAcraStructLength return minimal length of AcraStruct
+// GetMinAcraStructLength returns minimal length of AcraStruct
 // because in golang we can't declare byte array as constant we need to calculate length of TAG_BEGIN in runtime
 // or hardcode as constant and maintain len(TAG_BEGIN) == CONST_VALUE
 func GetMinAcraStructLength() int {
 	return len(TAG_BEGIN) + KEY_BLOCK_LENGTH + DATA_LENGTH_SIZE
 }
 
-var ErrIncorrectAcraStructLength = errors.New("AcraStruct has incorrect length")
-var ErrIncorrectAcraStructDataLength = errors.New("AcraStruct has incorrect data length value")
+// Errors show incorrect AcraStruct length
+var (
+	ErrIncorrectAcraStructLength     = errors.New("AcraStruct has incorrect length")
+	ErrIncorrectAcraStructDataLength = errors.New("AcraStruct has incorrect data length value")
+)
 
 // ValidateAcraStructLength check that data has minimal length for AcraStruct and data block equal to data length in AcraStruct
 func ValidateAcraStructLength(data []byte) error {
@@ -86,6 +95,7 @@ func ValidateAcraStructLength(data []byte) error {
 	return nil
 }
 
+// DataDecryptor describes AcraStruct decryptor.
 type DataDecryptor interface {
 	// try match begin tag per byte
 	MatchBeginTag(byte) bool
@@ -106,6 +116,7 @@ type DataDecryptor interface {
 	GetTagBeginLength() int
 }
 
+// Decryptor describes all methods needed to find and decrypt AcraStruct in binary file.
 type Decryptor interface {
 	DataDecryptor
 	// register key store that will be used for retrieving private keys
@@ -119,9 +130,9 @@ type Decryptor interface {
 	SetPoisonCallbackStorage(*PoisonCallbackStorage)
 	// get current storage of callbacks for detected poison records
 	GetPoisonCallbackStorage() *PoisonCallbackStorage
-	SetZoneMatcher(*zone.ZoneIdMatcher)
-	GetZoneMatcher() *zone.ZoneIdMatcher
-	GetMatchedZoneId() []byte
+	SetZoneMatcher(*zone.ZoneIDMatcher)
+	GetZoneMatcher() *zone.ZoneIDMatcher
+	GetMatchedZoneID() []byte
 	MatchZone(byte) bool
 	IsWithZone() bool
 	SetWithZone(bool)
@@ -138,6 +149,8 @@ type Decryptor interface {
 	MatchZoneInBlock([]byte)
 }
 
+// CheckReadWrite shows if count of Read operations is the same as count of Write operations,
+// sends err to errCh if not the same.
 func CheckReadWrite(n, expectedN int, err error, errCh chan<- error) bool {
 	if err != nil {
 		errCh <- err
