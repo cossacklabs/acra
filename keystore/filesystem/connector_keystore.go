@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 )
 
+// ConnectorFileSystemKeyStore stores AcraConnector keys configuration
 type ConnectorFileSystemKeyStore struct {
 	directory     string
 	clientID      []byte
@@ -16,10 +17,13 @@ type ConnectorFileSystemKeyStore struct {
 	connectorMode connector_mode.ConnectorMode
 }
 
+// NewConnectorFileSystemKeyStore creates new ConnectorFileSystemKeyStore
 func NewConnectorFileSystemKeyStore(directory string, clientID []byte, encryptor keystore.KeyEncryptor, mode connector_mode.ConnectorMode) (*ConnectorFileSystemKeyStore, error) {
 	return &ConnectorFileSystemKeyStore{directory: directory, clientID: clientID, encryptor: encryptor, connectorMode: mode}, nil
 }
 
+// CheckIfPrivateKeyExists checks if Keystore has Connector transport private key for establishing Secure Session connection,
+// returns true if key exists in fs.
 func (store *ConnectorFileSystemKeyStore) CheckIfPrivateKeyExists(id []byte) (bool, error) {
 	_, err := ioutil.ReadFile(filepath.Join(store.directory, getConnectorKeyFilename(id)))
 	if err != nil {
@@ -28,6 +32,7 @@ func (store *ConnectorFileSystemKeyStore) CheckIfPrivateKeyExists(id []byte) (bo
 	return true, nil
 }
 
+// GetPrivateKey reads and decrypts Connector transport private key for establishing Secure Session connection.
 func (store *ConnectorFileSystemKeyStore) GetPrivateKey(id []byte) (*keys.PrivateKey, error) {
 	keyData, err := ioutil.ReadFile(filepath.Join(store.directory, getConnectorKeyFilename(id)))
 	if err != nil {
@@ -40,6 +45,9 @@ func (store *ConnectorFileSystemKeyStore) GetPrivateKey(id []byte) (*keys.Privat
 	}
 }
 
+// GetPeerPublicKey returns other party transport public key depending on AcraConnector mode:
+// returns AcraServer transport public key for AcraServerMode, and
+// returns  AcraTranslator transport public key for AcraTranslatorMode.
 func (store *ConnectorFileSystemKeyStore) GetPeerPublicKey(id []byte) (*keys.PublicKey, error) {
 	filename := ""
 	switch store.connectorMode {

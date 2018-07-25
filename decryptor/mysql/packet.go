@@ -9,6 +9,7 @@ import (
 	"net"
 )
 
+// MySQL protocol capability flags.
 const (
 	// CLIENT_PROTOCOL_41 - https://dev.mysql.com/doc/internals/en/capability-flags.html#flag-CLIENT_PROTOCOL_41
 	CLIENT_PROTOCOL_41 = 0x00000200
@@ -18,6 +19,7 @@ const (
 	CLIENT_DEPRECATE_EOF = 0x01000000
 )
 
+// MySQL packets significant bytes.
 const (
 	// OK_PACKET - https://dev.mysql.com/doc/internals/en/packet-OK_Packet.html
 	OK_PACKET = 0x00

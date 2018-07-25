@@ -38,6 +38,7 @@ var (
 	SERVICE_NAME        = "acra-authmanager"
 )
 
+// Constants used for Argon password manager
 const (
 	AuthFieldSeparator       = ":"
 	AuthArgon2ParamSeparator = ","
@@ -47,6 +48,7 @@ const (
 	Space                    = " "
 )
 
+// Bytes returns user name and password hash
 func (hp HashedPasswords) Bytes() (passwordBytes []byte) {
 	passwordBytes = []byte{}
 	for name, hash := range hp {
@@ -55,6 +57,7 @@ func (hp HashedPasswords) Bytes() (passwordBytes []byte) {
 	return passwordBytes
 }
 
+// WriteToFile writes encrypted names and password hashes to file
 func (hp HashedPasswords) WriteToFile(file string, keystore *filesystem.FilesystemKeyStore) error {
 	key, err := keystore.GetAuthKey(false)
 	if err != nil {
@@ -68,6 +71,7 @@ func (hp HashedPasswords) WriteToFile(file string, keystore *filesystem.Filesyst
 	return ioutil.WriteFile(file, crypted, 0600)
 }
 
+// SetPassword sets hashed password to user name
 func (hp HashedPasswords) SetPassword(name, password string) (err error) {
 	if len(password) == 0 {
 		return errors.New("passwords is empty")
@@ -86,7 +90,7 @@ func (hp HashedPasswords) SetPassword(name, password string) (err error) {
 	return nil
 }
 
-func ParseHtpasswdFile(file string, keystore *filesystem.FilesystemKeyStore) (passwords HashedPasswords, err error) {
+func parseHtpasswdFile(file string, keystore *filesystem.FilesystemKeyStore) (passwords HashedPasswords, err error) {
 	htpasswdBytes, err := ioutil.ReadFile(file)
 	if err != nil {
 		return
@@ -100,10 +104,10 @@ func ParseHtpasswdFile(file string, keystore *filesystem.FilesystemKeyStore) (pa
 	if err != nil {
 		return
 	}
-	return ParseHtpasswd(authData)
+	return parseHtpasswd(authData)
 }
 
-func ParseHtpasswd(htpasswdBytes []byte) (passwords HashedPasswords, err error) {
+func parseHtpasswd(htpasswdBytes []byte) (passwords HashedPasswords, err error) {
 	lines := strings.Split(string(htpasswdBytes), LineSeparator)
 	passwords = make(map[string]string)
 	for index, line := range lines {
@@ -129,8 +133,8 @@ func ParseHtpasswd(htpasswdBytes []byte) (passwords HashedPasswords, err error) 
 	return
 }
 
-func RemoveUser(file, user string, keystore *filesystem.FilesystemKeyStore) error {
-	passwords, err := ParseHtpasswdFile(file, keystore)
+func removeUser(file, user string, keystore *filesystem.FilesystemKeyStore) error {
+	passwords, err := parseHtpasswdFile(file, keystore)
 	if err != nil {
 		return err
 	}
@@ -142,11 +146,11 @@ func RemoveUser(file, user string, keystore *filesystem.FilesystemKeyStore) erro
 	return passwords.WriteToFile(file, keystore)
 }
 
-func SetPassword(file, name, password string, keystore *filesystem.FilesystemKeyStore) error {
+func setPassword(file, name, password string, keystore *filesystem.FilesystemKeyStore) error {
 	_, err := os.Stat(file)
 	passwords := HashedPasswords(map[string]string{})
 	if err == nil {
-		passwords, err = ParseHtpasswdFile(file, keystore)
+		passwords, err = parseHtpasswdFile(file, keystore)
 		if err != nil {
 			return err
 		}
@@ -219,14 +223,14 @@ func main() {
 			flag.Usage()
 			os.Exit(1)
 		}
-		err := SetPassword(*filePath, *user, *password, keyStore)
+		err := setPassword(*filePath, *user, *password, keyStore)
 		if err != nil {
 			log.WithError(err).Errorln("SetPassword failed")
 			os.Exit(1)
 		}
 	}
 	if *remove {
-		err := RemoveUser(*filePath, *user, keyStore)
+		err := removeUser(*filePath, *user, keyStore)
 		if err != nil {
 			log.WithError(err).Errorln("RemoveUser failed")
 			os.Exit(1)

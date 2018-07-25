@@ -7,6 +7,7 @@ type SQLError struct {
 	State   string
 }
 
+// Interrupted code constants.
 const (
 	// https://dev.mysql.com/doc/refman/5.5/en/error-messages-server.html#error_er_query_interrupted
 	ER_QUERY_INTERRUPTED_CODE  = 1317

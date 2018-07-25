@@ -2,6 +2,7 @@ package connector_mode
 
 import "strings"
 
+// ConnectorMode connection mode of AcraConnector
 type ConnectorMode string
 
 // Possible modes, default is AcraServerMode.

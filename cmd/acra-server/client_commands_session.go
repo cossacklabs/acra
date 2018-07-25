@@ -35,6 +35,7 @@ import (
 	"github.com/cossacklabs/themis/gothemis/keys"
 )
 
+// HTTP 500 response
 const (
 	RESPONSE_500_ERROR = "HTTP/1.1 500 Server error\r\n\r\n\r\n\r\n"
 )

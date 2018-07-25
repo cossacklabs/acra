@@ -81,6 +81,7 @@ type DataRow struct {
 	writer            *bufio.Writer
 }
 
+// PgSQL constant sizes and types.
 const (
 	DATA_ROW_LENGTH_BUF_SIZE = 4
 	// random chosen
@@ -92,6 +93,7 @@ const (
 	TLS_TIMEOUT                = time.Second
 )
 
+// CANCEL_REQUEST indicates beginning tag of Cancel request.
 var CANCEL_REQUEST = []byte{0x04, 0xd2, 0x16, 0x2e}
 
 /* override size in postgresql data row that starts with 4 byte of size */

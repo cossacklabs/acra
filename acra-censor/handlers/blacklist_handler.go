@@ -10,6 +10,7 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
+// BlacklistHandler shows handler structure
 type BlacklistHandler struct {
 	queries map[string]bool
 	tables  map[string]bool
@@ -17,6 +18,7 @@ type BlacklistHandler struct {
 	logger  *log.Entry
 }
 
+// NewBlacklistHandler creates new blacklist handler
 func NewBlacklistHandler() *BlacklistHandler {
 	handler := &BlacklistHandler{}
 	handler.queries = make(map[string]bool)
@@ -25,6 +27,8 @@ func NewBlacklistHandler() *BlacklistHandler {
 	return handler
 }
 
+// CheckQuery checks each query, returns false and error if query is blacklisted or
+// if query tries to access to forbidden table
 func (handler *BlacklistHandler) CheckQuery(query string) (bool, error) {
 	//Check queries
 	if len(handler.queries) != 0 {
@@ -157,40 +161,47 @@ func (handler *BlacklistHandler) handleParenTables(statement *sqlparser.ParenTab
 	return nil
 }
 
+// Reset blacklist rules
 func (handler *BlacklistHandler) Reset() {
 	handler.queries = make(map[string]bool)
 	handler.tables = make(map[string]bool)
 	handler.rules = nil
 }
 
+// Release / reset blacklist rules
 func (handler *BlacklistHandler) Release() {
 	handler.Reset()
 }
 
+// AddQueries adds queries to the list that should be blacklisted
 func (handler *BlacklistHandler) AddQueries(queries []string) {
 	for _, query := range queries {
 		handler.queries[query] = true
 	}
 }
 
+// RemoveQueries removes queries from the list that should be blacklisted
 func (handler *BlacklistHandler) RemoveQueries(queries []string) {
 	for _, query := range queries {
 		delete(handler.queries, query)
 	}
 }
 
+// AddTables adds tables that should be forbidden
 func (handler *BlacklistHandler) AddTables(tableNames []string) {
 	for _, tableName := range tableNames {
 		handler.tables[tableName] = true
 	}
 }
 
+// RemoveTables removes forbidden tables
 func (handler *BlacklistHandler) RemoveTables(tableNames []string) {
 	for _, tableName := range tableNames {
 		delete(handler.tables, tableName)
 	}
 }
 
+// AddRules adds rules that should be blocked
 func (handler *BlacklistHandler) AddRules(rules []string) error {
 	for _, rule := range rules {
 		handler.rules = append(handler.rules, rule)
@@ -204,6 +215,7 @@ func (handler *BlacklistHandler) AddRules(rules []string) error {
 	return nil
 }
 
+// RemoveRules removes rules that should be blocked
 func (handler *BlacklistHandler) RemoveRules(rules []string) {
 	for _, rule := range rules {
 		yes, index := contains(handler.rules, rule)

@@ -34,9 +34,9 @@ import (
 
 var restartSignalsChannel chan os.Signal
 var errorSignalChannel chan os.Signal
-var err error
 var authPath *string
 
+// For testing purposes only, allows to skip checking TLS certificate when connecting to database.
 const (
 	TEST_MODE = "true"
 )

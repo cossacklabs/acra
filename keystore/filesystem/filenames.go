@@ -21,6 +21,7 @@ import (
 
 var lock = sync.RWMutex{}
 
+// Default key folders' filenames
 const (
 	POISON_KEY_FILENAME     = ".poison_key/poison_key"
 	BASIC_AUTH_KEY_FILENAME = "auth_key"

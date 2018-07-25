@@ -7,12 +7,14 @@ import (
 	"path/filepath"
 )
 
+// TranslatorFileSystemKeyStore stores AcraTranslator keys configuration
 type TranslatorFileSystemKeyStore struct {
 	*FilesystemKeyStore
 	directory string
 	encryptor keystore.KeyEncryptor
 }
 
+// NewTranslatorFileSystemKeyStore creates new TranslatorFileSystemKeyStore
 func NewTranslatorFileSystemKeyStore(directory string, encryptor keystore.KeyEncryptor, cacheSize int) (*TranslatorFileSystemKeyStore, error) {
 	fsKeystore, err := NewFileSystemKeyStoreWithCacheSize(directory, encryptor, cacheSize)
 	if err != nil {
@@ -21,6 +23,8 @@ func NewTranslatorFileSystemKeyStore(directory string, encryptor keystore.KeyEnc
 	return &TranslatorFileSystemKeyStore{FilesystemKeyStore: fsKeystore, directory: directory, encryptor: encryptor}, nil
 }
 
+// CheckIfPrivateKeyExists checks if Keystore has Translator transport private key for establishing Secure Session connection,
+// returns true if key exists in fs.
 func (store *TranslatorFileSystemKeyStore) CheckIfPrivateKeyExists(id []byte) (bool, error) {
 	_, err := ioutil.ReadFile(filepath.Join(store.directory, getTranslatorKeyFilename(id)))
 	if err != nil {
@@ -29,6 +33,7 @@ func (store *TranslatorFileSystemKeyStore) CheckIfPrivateKeyExists(id []byte) (b
 	return true, nil
 }
 
+// GetPrivateKey reads and decrypts Translator transport private key for establishing Secure Session connection.
 func (store *TranslatorFileSystemKeyStore) GetPrivateKey(id []byte) (*keys.PrivateKey, error) {
 	keyData, err := ioutil.ReadFile(filepath.Join(store.directory, getTranslatorKeyFilename(id)))
 	if err != nil {
@@ -41,6 +46,7 @@ func (store *TranslatorFileSystemKeyStore) GetPrivateKey(id []byte) (*keys.Priva
 	}
 }
 
+// GetPeerPublicKey returns other party transport public key.
 func (store *TranslatorFileSystemKeyStore) GetPeerPublicKey(id []byte) (*keys.PublicKey, error) {
 	filename := getConnectorKeyFilename(id)
 	key, err := ioutil.ReadFile(filepath.Join(store.directory, getPublicKeyFilename([]byte(filename))))

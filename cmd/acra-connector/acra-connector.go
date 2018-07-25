@@ -58,7 +58,7 @@ func checkDependencies() error {
 func handleClientConnection(config *Config, connection net.Conn) {
 	defer connection.Close()
 
-	if !(config.disableUserCheck) {
+	if !(config.DisableUserCheck) {
 		host, port, err := net.SplitHostPort(connection.RemoteAddr().String())
 		if nil != err {
 			log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantStartConnection).
@@ -136,13 +136,14 @@ func handleClientConnection(config *Config, connection net.Conn) {
 	}
 }
 
+// Config stores AcraConnector configuration
 type Config struct {
 	KeysDir                  string
 	ClientID                 []byte
 	OutgoingServiceID        []byte
 	OutgoingConnectionString string
 	IncomingConnectionString string
-	disableUserCheck         bool
+	DisableUserCheck         bool
 	KeyStore                 keystore.SecureSessionKeyStore
 	ConnectionWrapper        network.ConnectionWrapper
 }
@@ -303,7 +304,7 @@ func main() {
 
 	// --------- Config  -----------
 	log.Infof("Configuring transport...")
-	config := &Config{KeyStore: keyStore, KeysDir: *keysDir, ClientID: []byte(*clientID), OutgoingConnectionString: outgoingConnectionString, IncomingConnectionString: *connectionString, OutgoingServiceID: []byte(outgoingSecureSessionID), disableUserCheck: *disableUserCheck}
+	config := &Config{KeyStore: keyStore, KeysDir: *keysDir, ClientID: []byte(*clientID), OutgoingConnectionString: outgoingConnectionString, IncomingConnectionString: *connectionString, OutgoingServiceID: []byte(outgoingSecureSessionID), DisableUserCheck: *disableUserCheck}
 	listener, err := network.Listen(*connectionString)
 	if err != nil {
 		log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantStartListenConnections).

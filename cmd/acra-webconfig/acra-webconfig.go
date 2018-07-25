@@ -56,9 +56,12 @@ var (
 
 var ErrGetAuthDataFromAcraServer = errors.New("Wrong status for loadAuthData")
 
+// Connection timeout secs
 const (
 	HTTP_TIMEOUT = 5
 )
+
+// Argon2 parameters
 const (
 	LINE_SEPARATOR = "\n"
 
