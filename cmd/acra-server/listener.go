@@ -30,6 +30,8 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
+// SServer represents AcraServer server, connects with KeyStorage, configuration file,
+// data and command connections (listeners, managers, file descriptors), and signals.
 type SServer struct {
 	config                *Config
 	keystorage            keystore.KeyStore
@@ -44,6 +46,7 @@ type SServer struct {
 	restartSignalsChannel chan os.Signal
 }
 
+// NewServer creates new SServer.
 func NewServer(config *Config, keystorage keystore.KeyStore, errorChan chan os.Signal, restarChan chan os.Signal) (server *SServer, err error) {
 	return &SServer{
 		config:                config,
@@ -162,7 +165,7 @@ func (server *SServer) handleConnection(connection net.Conn) {
 	clientSession.HandleClientConnection(clientId, decryptor)
 }
 
-// start listening connections from proxy
+// Start listening connections from proxy
 func (server *SServer) Start() {
 	var connection net.Conn
 	var listener, err = network.Listen(server.config.GetAcraConnectionString())
@@ -203,6 +206,7 @@ func (server *SServer) Start() {
 	}
 }
 
+// StartFromFileDescriptor starts listening Acra data connections from file descriptor.
 func (server *SServer) StartFromFileDescriptor(fd uintptr) {
 	file := os.NewFile(fd, "/tmp/acra-server")
 	if file == nil {
@@ -273,6 +277,7 @@ func stopAcceptConnections(listener network.DeadlineListener) (err error) {
 	return
 }
 
+// StopListeners stops accepts new connections, and stops existing listeners with deadline.
 func (server *SServer) StopListeners() {
 	var err error
 	var deadlineListener network.DeadlineListener
@@ -292,6 +297,7 @@ func (server *SServer) StopListeners() {
 	}
 }
 
+// WaitConnections waits until connection complete or stops them after duration time.
 func (server *SServer) WaitConnections(duration time.Duration) {
 	log.Infof("Waiting for %v connections to complete", server.ConnectionsCounter())
 	server.cmACRA.Wait()
@@ -300,6 +306,7 @@ func (server *SServer) WaitConnections(duration time.Duration) {
 	}
 }
 
+// WaitWithTimeout waits until connection complete or stops them after duration time.
 func (server *SServer) WaitWithTimeout(duration time.Duration) error {
 	timeout := time.NewTimer(duration)
 	wait := make(chan struct{})
@@ -316,6 +323,7 @@ func (server *SServer) WaitWithTimeout(duration time.Duration) error {
 	}
 }
 
+// ConnectionsCounter counts number of active data and API connections.
 func (server *SServer) ConnectionsCounter() int {
 	return server.cmACRA.Counter + server.cmAPI.Counter
 }
@@ -344,7 +352,7 @@ func (server *SServer) handleCommandsConnection(connection net.Conn) {
 	clientSession.HandleSession()
 }
 
-// start listening commands connections from proxy
+// StartCommands starts listening commands connections from proxy.
 func (server *SServer) StartCommands() {
 	var connection net.Conn
 	var listener, err = network.Listen(server.config.GetAcraAPIConnectionString())
@@ -384,6 +392,7 @@ func (server *SServer) StartCommands() {
 	}
 }
 
+// StartCommandsFromFileDescriptor starts listening commands connections from file descriptor.
 func (server *SServer) StartCommandsFromFileDescriptor(fd uintptr) {
 	var connection net.Conn
 	file := os.NewFile(fd, "/tmp/acra-server_http_api")

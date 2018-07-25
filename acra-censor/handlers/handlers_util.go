@@ -26,7 +26,7 @@ var (
 )
 
 const (
-	// Maximum query length for logging to syslog.
+	// LogQueryLength is maximum query length for logging to syslog.
 	LogQueryLength = 100
 )
 
@@ -51,7 +51,7 @@ func contains(queries []string, query string) (bool, int) {
 	return false, 0
 }
 
-// Trims query to N chars.
+// TrimStringToN trims query to N chars.
 func TrimStringToN(query string, n int) string {
 	if len(query) <= n {
 		return query

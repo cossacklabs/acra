@@ -16,6 +16,7 @@ import (
 	"sync"
 )
 
+// FilesystemKeyStore represents keystore that reads keys from key folders, and stores them in memory.
 type FilesystemKeyStore struct {
 	keys                map[string][]byte
 	privateKeyDirectory string
@@ -25,10 +26,12 @@ type FilesystemKeyStore struct {
 	encryptor           keystore.KeyEncryptor
 }
 
+// NewFilesystemKeyStore creates new FilesystemKeyStore using same key folder for private and public keys.
 func NewFilesystemKeyStore(directory string, encryptor keystore.KeyEncryptor) (*FilesystemKeyStore, error) {
 	return NewFilesystemKeyStoreTwoPath(directory, directory, encryptor)
 }
 
+// NewFilesystemKeyStoreTwoPath creates new FilesystemKeyStore using separate folders for private and public keys.
 func NewFilesystemKeyStoreTwoPath(privateKeyFolder, publicKeyFolder string, encryptor keystore.KeyEncryptor) (*FilesystemKeyStore, error) {
 	// check folder for private key
 	directory, err := utils.AbsPath(privateKeyFolder)
@@ -109,6 +112,9 @@ func (store *FilesystemKeyStore) generateKey(filename string, length uint8) ([]b
 	return randomBytes, nil
 }
 
+// GenerateZoneKey generates zone ID and zone key pair, encrypts private key using zoneID as context,
+// and saves encrypted PK in the filem returns zoneID and public key.
+// Returns error if generation or encryption fail.
 func (store *FilesystemKeyStore) GenerateZoneKey() ([]byte, []byte, error) {
 	/* save private key in fs, return id and public key*/
 	var id []byte
@@ -168,11 +174,14 @@ func (store *FilesystemKeyStore) getPrivateKeyByFilename(id []byte, filename str
 	return &keys.PrivateKey{Value: decryptedKey}, nil
 }
 
+// GetZonePrivateKey reads encrypted zone private key from fs, decrypts it with master key and zoneId
+// and returns plaintext private key, or reading/decryption error.
 func (store *FilesystemKeyStore) GetZonePrivateKey(id []byte) (*keys.PrivateKey, error) {
 	fname := getZoneKeyFilename(id)
 	return store.getPrivateKeyByFilename(id, fname)
 }
 
+// HasZonePrivateKey returns if private key for this zoneID exists in cache or is written to fs.
 func (store *FilesystemKeyStore) HasZonePrivateKey(id []byte) bool {
 	if !keystore.ValidateId(id) {
 		return false
@@ -193,6 +202,7 @@ func (store *FilesystemKeyStore) HasZonePrivateKey(id []byte) bool {
 	return exists
 }
 
+// GetPeerPublicKey returns public key for this clientID, gets it from cache or reads from fs.
 func (store *FilesystemKeyStore) GetPeerPublicKey(id []byte) (*keys.PublicKey, error) {
 	if !keystore.ValidateId(id) {
 		return nil, keystore.ErrInvalidClientId
@@ -214,16 +224,24 @@ func (store *FilesystemKeyStore) GetPeerPublicKey(id []byte) (*keys.PublicKey, e
 	return publicKey, nil
 }
 
+// GetPrivateKey reads encrypted client private key from fs, decrypts it with master key and clientID,
+// and returns plaintext private key, or reading/decryption error.
 func (store *FilesystemKeyStore) GetPrivateKey(id []byte) (*keys.PrivateKey, error) {
 	fname := getServerKeyFilename(id)
 	return store.getPrivateKeyByFilename(id, fname)
 }
 
+// GetServerDecryptionPrivateKey reads encrypted server storage private key from fs,
+// decrypts it with master key and clientID,
+// and returns plaintext private key, or reading/decryption error.
 func (store *FilesystemKeyStore) GetServerDecryptionPrivateKey(id []byte) (*keys.PrivateKey, error) {
 	fname := getServerDecryptionKeyFilename(id)
 	return store.getPrivateKeyByFilename(id, fname)
 }
 
+// GenerateConnectorKeys generates AcraConnector transport EC keypair using clientID as part of key name.
+// Writes encrypted private key and plaintext public key to fs.
+// Returns error if writing/encryption failed.
 func (store *FilesystemKeyStore) GenerateConnectorKeys(id []byte) error {
 	if !keystore.ValidateId(id) {
 		return keystore.ErrInvalidClientId
@@ -236,6 +254,10 @@ func (store *FilesystemKeyStore) GenerateConnectorKeys(id []byte) error {
 	}
 	return nil
 }
+
+// GenerateServerKeys generates AcraServer transport EC keypair using clientID as part of key name.
+// Writes encrypted private key and plaintext public key to fs.
+// Returns error if writing/encryption failed.
 func (store *FilesystemKeyStore) GenerateServerKeys(id []byte) error {
 	if !keystore.ValidateId(id) {
 		return keystore.ErrInvalidClientId
@@ -248,6 +270,9 @@ func (store *FilesystemKeyStore) GenerateServerKeys(id []byte) error {
 	return nil
 }
 
+// GenerateTranslatorKeys generates AcraTranslator transport EC keypair using clientID as part of key name.
+// Writes encrypted private key and plaintext public key to fs.
+// Returns error if writing/encryption failed.
 func (store *FilesystemKeyStore) GenerateTranslatorKeys(id []byte) error {
 	if !keystore.ValidateId(id) {
 		return keystore.ErrInvalidClientId
@@ -260,7 +285,10 @@ func (store *FilesystemKeyStore) GenerateTranslatorKeys(id []byte) error {
 	return nil
 }
 
-// generate key pair for data encryption/decryption
+// GenerateDataEncryptionKeys generates Storage EC keypair for encrypting/decrypting data
+// using clientID as part of key name.
+// Writes encrypted private key and plaintext public key to fs.
+// Returns error if writing/encryption failed.
 func (store *FilesystemKeyStore) GenerateDataEncryptionKeys(id []byte) error {
 	if !keystore.ValidateId(id) {
 		return keystore.ErrInvalidClientId
@@ -272,7 +300,7 @@ func (store *FilesystemKeyStore) GenerateDataEncryptionKeys(id []byte) error {
 	return nil
 }
 
-// clear all cached keys
+// Reset clears all cached keys
 func (store *FilesystemKeyStore) Reset() {
 	for _, encryptedKey := range store.keys {
 		utils.FillSlice(byte(0), encryptedKey)
@@ -280,6 +308,9 @@ func (store *FilesystemKeyStore) Reset() {
 	store.keys = make(map[string][]byte)
 }
 
+// GetPoisonKeyPair generates EC keypair for encrypting/decrypting poison records, and writes it to fs
+// encrypting private key or reads existing keypair from fs.
+// Returns keypair or error if generation/decryption failed.
 func (store *FilesystemKeyStore) GetPoisonKeyPair() (*keys.Keypair, error) {
 	privatePath := store.getPrivateKeyFilePath(POISON_KEY_FILENAME)
 	publicPath := store.getPublicKeyFilePath(fmt.Sprintf("%s.pub", POISON_KEY_FILENAME))
@@ -309,6 +340,9 @@ func (store *FilesystemKeyStore) GetPoisonKeyPair() (*keys.Keypair, error) {
 	return store.generateKeyPair(POISON_KEY_FILENAME, []byte(POISON_KEY_FILENAME))
 }
 
+// GetAuthKey generates basic auth key for acraWebconfig, and writes it encrypted to fs,
+// or reads existing key from fs.
+// Returns key or error of generation/decryption failed.
 func (store *FilesystemKeyStore) GetAuthKey(remove bool) ([]byte, error) {
 	keyPath := store.getPrivateKeyFilePath(BASIC_AUTH_KEY_FILENAME)
 	keyExists, err := utils.FileExists(keyPath)

@@ -309,7 +309,7 @@ const (
 
 var randSrc = rand.NewSource(time.Now().UnixNano())
 
-// getting random string using faster randSrc.Int63() and true distribution for letterBytes
+// RandomStringBytes getting random string using faster randSrc.Int63() and true distribution for letterBytes.
 func RandomStringBytes(n int) string {
 	b := make([]byte, n)
 	// A randSrc.Int63() generates 63 random bits, enough for letterIdxMax characters!

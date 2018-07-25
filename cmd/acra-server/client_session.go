@@ -36,12 +36,12 @@ type ClientSession struct {
 	Server         *SServer
 }
 
-// Creates new ClientSession object.
+// NewClientSession creates new ClientSession object.
 func NewClientSession(keystorage keystore.KeyStore, config *Config, connection net.Conn) (*ClientSession, error) {
 	return &ClientSession{connection: connection, keystorage: keystorage, config: config}, nil
 }
 
-// Connects to the database via tcp using Host and Port from config.
+// ConnectToDb connects to the database via tcp using Host and Port from config.
 func (clientSession *ClientSession) ConnectToDb() error {
 	conn, err := net.Dial("tcp", fmt.Sprintf("%v:%v", clientSession.config.GetDBHost(), clientSession.config.GetDBPort()))
 	if err != nil {
@@ -68,7 +68,7 @@ func (clientSession *ClientSession) close() {
 	log.Debugln("All connections closed")
 }
 
-// Handles Acra-connector connections from client to db and decrypt responses from db to client.
+// HandleClientConnection handles Acra-connector connections from client to db and decrypt responses from db to client.
 // If any error occurred – ends processing.
 func (clientSession *ClientSession) HandleClientConnection(clientId []byte, decryptorImpl base.Decryptor) {
 	log.Infof("Handle client's connection")

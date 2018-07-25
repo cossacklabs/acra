@@ -60,7 +60,7 @@ func GenerateSymmetricKey() ([]byte, error) {
 	return key, nil
 }
 
-// Checks that clientID length is within required limits and
+// ValidateId checks that clientID length is within required limits and
 // clientID contains only valid chars (digits, letters, -, _, ' ').
 func ValidateId(clientID []byte) bool {
 	if len(clientID) < MIN_CLIENT_ID_LENGTH || len(clientID) > MAX_CLIENT_ID_LENGTH {
@@ -99,40 +99,40 @@ func GetMasterKeyFromEnvironment() (key []byte, err error) {
 	return
 }
 
-// Describes Encrypt and Decrypt interfaces.
+// KeyEncryptor describes Encrypt and Decrypt interfaces.
 type KeyEncryptor interface {
 	Encrypt(key, context []byte) ([]byte, error)
 	Decrypt(key, context []byte) ([]byte, error)
 }
 
-// Uses Themis Secure Cell with provided master key to encrypt and decrypt keys.
+// SCellKeyEncryptor uses Themis Secure Cell with provided master key to encrypt and decrypt keys.
 type SCellKeyEncryptor struct {
 	scell *cell.SecureCell
 }
 
-// Creates new SCellKeyEncryptor object with masterKey using Themis Secure Cell in Seal mode.
+// NewSCellKeyEncryptor creates new SCellKeyEncryptor object with masterKey using Themis Secure Cell in Seal mode.
 func NewSCellKeyEncryptor(masterKey []byte) (*SCellKeyEncryptor, error) {
 	return &SCellKeyEncryptor{scell: cell.New(masterKey, cell.CELL_MODE_SEAL)}, nil
 }
 
-// EncryptKey return encrypted key using masterKey and context.
+// Encrypt return encrypted key using masterKey and context.
 func (encryptor *SCellKeyEncryptor) Encrypt(key, context []byte) ([]byte, error) {
 	encrypted, _, err := encryptor.scell.Protect(key, context)
 	return encrypted, err
 }
 
-// DecryptKey return decrypted key using masterKey and context.
+// Decrypt return decrypted key using masterKey and context.
 func (encryptor *SCellKeyEncryptor) Decrypt(key, context []byte) ([]byte, error) {
 	return encryptor.scell.Unprotect(key, nil, context)
 }
 
-// Describes KeyStore used for handling Themis Secure Session connection.
+// SecureSessionKeyStore describes KeyStore used for handling Themis Secure Session connection.
 type SecureSessionKeyStore interface {
 	GetPrivateKey(id []byte) (*keys.PrivateKey, error)
 	GetPeerPublicKey(id []byte) (*keys.PublicKey, error)
 }
 
-// Describe any KeyStore that reads keys to handle Themis Secure Session connection,
+// KeyStore describes any KeyStore that reads keys to handle Themis Secure Session connection,
 // to encrypt and decrypt AcraStructs with and without Zones,
 // to find Poison records.
 // Moreover KeyStore can generate various Keys using ClientID.

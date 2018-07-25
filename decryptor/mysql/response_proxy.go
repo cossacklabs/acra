@@ -295,8 +295,8 @@ func (handler *MysqlHandler) isFieldToDecrypt(field *ColumnDescription) bool {
 func (handler *MysqlHandler) processTextDataRow(rowData []byte, fields []*ColumnDescription) ([]byte, error) {
 	var err error
 	var value []byte
-	var pos int = 0
-	var n int = 0
+	var pos int
+	var n int
 	var output []byte
 	var fieldLogger *logrus.Entry
 	handler.logger.Debugln("Process data rows in text protocol")

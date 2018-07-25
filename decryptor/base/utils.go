@@ -1,3 +1,5 @@
+// Package base contains decryptor interface and callbacks.
+//
 // Copyright 2016, Cossack Labs Limited
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
@@ -24,10 +26,14 @@ import (
 	"github.com/cossacklabs/themis/gothemis/message"
 )
 
+// Shows length of something unknown (why 8?)
 const (
 	LENGTH_SIZE = 8
 )
 
+// DecryptAcrastruct returns plaintext data from AcraStruct, decrypting it using Themis SecureCell in Seal mode,
+// using zone as context and privateKey as decryption key.
+// Returns error if decryption failed.
 func DecryptAcrastruct(data []byte, privateKey *keys.PrivateKey, zone []byte) ([]byte, error) {
 	if err := ValidateAcraStructLength(data); err != nil {
 		return nil, err
@@ -56,6 +62,9 @@ func DecryptAcrastruct(data []byte, privateKey *keys.PrivateKey, zone []byte) ([
 	return decrypted, nil
 }
 
+// CheckPoisonRecord checks if AcraStruct could be decrypted using Poison Record private key.
+// Returns true if AcraStruct is poison record, returns false otherwise.
+// Returns error if Poison record key is not found.
 func CheckPoisonRecord(data []byte, keystorage keystore.KeyStore) (bool, error) {
 	poisonKeypair, err := keystorage.GetPoisonKeyPair()
 	if err != nil {

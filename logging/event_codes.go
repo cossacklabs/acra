@@ -1,5 +1,6 @@
 package logging
 
+// Event codes for different events in Acra services, splitted by groups and service.
 const (
 	// 100 .. 200 some events
 	EventCodeGeneral = 100
