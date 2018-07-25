@@ -69,7 +69,7 @@ func (*testKeystore) GenerateDataEncryptionKeys(id []byte) error {
 
 func (keystore *testKeystore) GetPoisonKeyPair() (*keys.Keypair, error) {
 	if keystore.PoisonKey != nil {
-		return &keys.Keypair{Private: &keys.PrivateKey{Value: append([]byte{}, keystore.PoisonKey.Private.Value...)}, Public: store.PoisonKey.Public}, nil
+		return &keys.Keypair{Private: &keys.PrivateKey{Value: append([]byte{}, keystore.PoisonKey.Private.Value...)}, Public: keystore.PoisonKey.Public}, nil
 	}
 	return nil, nil
 }
