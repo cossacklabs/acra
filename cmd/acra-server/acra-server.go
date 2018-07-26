@@ -41,7 +41,8 @@ const (
 	TEST_MODE = "true"
 )
 
-var testOnly = "false"
+// TestOnly is set in compile time for running integration tests
+var TestOnly = "false"
 
 // Constants used by AcraServer.
 const (
@@ -214,7 +215,7 @@ func main() {
 			os.Exit(1)
 		}
 		// need for testing with mysql docker container that always generate new certificates
-		if testOnly == TEST_MODE {
+		if TestOnly == TEST_MODE {
 			tlsConfig.InsecureSkipVerify = true
 			tlsConfig.ClientAuth = tls.NoClientCert
 			log.Warningln("Skip verifying TLS certificate, use for tests only!")
