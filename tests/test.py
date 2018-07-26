@@ -27,6 +27,7 @@ import unittest
 import re
 import stat
 import uuid
+import signal
 from base64 import b64decode, b64encode
 from tempfile import NamedTemporaryFile
 from urllib.request import urlopen
@@ -1521,14 +1522,14 @@ class AcraCatchLogsMixin(object):
         with open(self.log_files[process].name, 'r', errors='replace',
                   encoding='utf-8') as f:
             log = f.read()
-            print(log.encode('utf-8'))
+            print(log)
             return log
 
     def fork_acra(self, popen_kwargs: dict=None, **acra_kwargs: dict):
         log_file = tempfile.NamedTemporaryFile('w+', encoding='utf-8')
         popen_args = {
-            'stderr': log_file,
-            #'stdout': subprocess.PIPE,
+            'stderr': subprocess.STDOUT,
+            'stdout': log_file,
             'close_fds': True
         }
         process = super(AcraCatchLogsMixin, self).fork_acra(
@@ -1926,12 +1927,14 @@ class TestAcraWebconfigAcraAuthManager(unittest.TestCase):
         self.assertEqual(manage_basic_auth_user('remove', 'test_unknown', 'test_unknown'), 1)
 
 
-class TestAcraWebconfigWeb(BaseTestCase):
+class TestAcraWebconfigWeb(AcraCatchLogsMixin, BaseTestCase):
     def setUp(self):
         try:
             # create auth file with default correct user
             manage_basic_auth_user('set', ACRAWEBCONFIG_BASIC_AUTH['user'], ACRAWEBCONFIG_BASIC_AUTH['password'])
-            self.acra = self.fork_acra(zonemode_enable='true', http_api_enable='true')
+            self.acra = self.fork_acra(
+                popen_kwargs={'stderr': subprocess.STDOUT, 'stdout': subprocess.PIPE, 'close_fds': True},
+                zonemode_enable='true', http_api_enable='true')
             self.connector_1 = self.fork_connector(
                 self.CONNECTOR_PORT_1, self.ACRASERVER_PORT, 'keypair1', zone_mode=True, api_port=self.CONNECTOR_API_PORT_1)
             self.webconfig = self.fork_webconfig(connector_port=self.CONNECTOR_API_PORT_1, http_port=self.ACRAWEBCONFIG_HTTP_PORT)
@@ -1980,6 +1983,18 @@ class TestAcraWebconfigWeb(BaseTestCase):
             self.assertIn(settings['poison_run_script_file'], req.text)
             req.close()
         finally:
+            # search pid of forked acra-server process to kill
+            out = self.read_log(self.acra)
+            # acra-server process forked to PID: 56946
+            if out and 'process forked to PID' in out:
+                pids = re.findall(r'process forked to PID: (\d+)', out)
+                if pids:
+                    pid = pids[0]
+                    try:
+                        os.kill(int(pid), signal.SIGKILL)
+                    except ProcessLookupError:
+                        pass
+
             # restore changed config
             os.rename('configs/acra-server.yaml.backup',
                       'configs/acra-server.yaml')
