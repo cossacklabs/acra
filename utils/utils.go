@@ -1,3 +1,5 @@
+// Package utils contains everything we don't know where to put.
+//
 // Copyright 2016, Cossack Labs Limited
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
@@ -30,6 +32,7 @@ import (
 )
 
 const (
+	// SESSION_DATA_LIMIT maximum block size
 	SESSION_DATA_LIMIT = 8 * 1024 // 8 kb
 )
 

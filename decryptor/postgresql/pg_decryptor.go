@@ -1,3 +1,5 @@
+// Package postgresql contains postgresql decryptor.
+//
 // Copyright 2016, Cossack Labs Limited
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
@@ -79,6 +81,7 @@ type DataRow struct {
 	writer            *bufio.Writer
 }
 
+// PgSQL constant sizes and types.
 const (
 	DATA_ROW_LENGTH_BUF_SIZE = 4
 	// random chosen
@@ -90,6 +93,7 @@ const (
 	TLS_TIMEOUT                = time.Second
 )
 
+// CANCEL_REQUEST indicates beginning tag of Cancel request.
 var CANCEL_REQUEST = []byte{0x04, 0xd2, 0x16, 0x2e}
 
 /* override size in postgresql data row that starts with 4 byte of size */
@@ -265,11 +269,11 @@ func (row *DataRow) Marshal() ([]byte, error) {
 type PgProxy struct {
 	clientConnection net.Conn
 	dbConnection     net.Conn
-	TlsCh            chan bool
+	TLSCh            chan bool
 }
 
 func NewPgProxy(clientConnection, dbConnection net.Conn) (*PgProxy, error) {
-	return &PgProxy{clientConnection: clientConnection, dbConnection: dbConnection, TlsCh: make(chan bool)}, nil
+	return &PgProxy{clientConnection: clientConnection, dbConnection: dbConnection, TLSCh: make(chan bool)}, nil
 }
 
 func NewClientSideDataRow(reader *acra_io.ExtendedBufferedReader, writer *bufio.Writer) (*DataRow, error) {
@@ -433,7 +437,7 @@ func (proxy *PgProxy) PgDecryptStream(censor acracensor.AcraCensorInterface, dec
 					return
 				}
 				select {
-				case <-proxy.TlsCh:
+				case <-proxy.TLSCh:
 					break
 				case <-time.NewTimer(TLS_TIMEOUT).C:
 					log.Errorln("Can't stop background goroutine to start tls handshake")

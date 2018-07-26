@@ -1,3 +1,5 @@
+// Package network contains network utils for establishing secure session, for listening connections.
+//
 package network
 
 import (
@@ -8,6 +10,7 @@ import (
 	"strings"
 )
 
+// Custom connection schemes, used in AcraConnector and AcraTranslator
 const (
 	GRPC_SCHEME = "grpc"
 	HTTP_SCHEME = "http"
@@ -29,16 +32,17 @@ func Dial(connectionString string) (net.Conn, error) {
 	url.Scheme = customSchemeToBaseGolangScheme(url.Scheme)
 	if url.Scheme == "unix" {
 		return net.Dial(url.Scheme, url.Path)
-	} else {
-		return net.Dial(url.Scheme, url.Host)
 	}
+	return net.Dial(url.Scheme, url.Host)
 }
 
+// ListenerWithFileDescriptor listens to file
 type ListenerWithFileDescriptor interface {
 	net.Listener
 	File() (f *os.File, err error)
 }
 
+// Listen returns listener for connection string
 func Listen(connectionString string) (net.Listener, error) {
 	url, err := url_.Parse(connectionString)
 	if err != nil {
@@ -47,15 +51,16 @@ func Listen(connectionString string) (net.Listener, error) {
 	url.Scheme = customSchemeToBaseGolangScheme(url.Scheme)
 	if url.Scheme == "unix" {
 		return net.Listen(url.Scheme, url.Path)
-	} else {
-		return net.Listen(url.Scheme, url.Host)
 	}
+	return net.Listen(url.Scheme, url.Host)
 }
 
+// BuildConnectionString as <protocol>://<host>:<port>/<path>
 func BuildConnectionString(protocol, host string, port int, path string) string {
 	return fmt.Sprintf("%s://%s:%v/%s", protocol, host, port, path)
 }
 
+// ListenerFileDescriptor returns file descriptor if listener listens file
 func ListenerFileDescriptor(socket net.Listener) (uintptr, error) {
 	file, err := socket.(ListenerWithFileDescriptor).File()
 	if err != nil {

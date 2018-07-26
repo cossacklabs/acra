@@ -21,6 +21,7 @@ import (
 	"io/ioutil"
 )
 
+// ErrGetAuthDataFromFile can't find auth config error
 var ErrGetAuthDataFromFile = errors.New(fmt.Sprintf("No auth config [%v]", authPath))
 
 func getAuthDataFromFile(authPath string) (data []byte, err error) {

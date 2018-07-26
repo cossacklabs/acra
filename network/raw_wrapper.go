@@ -1,3 +1,5 @@
+// Package network contains network utils for establishing secure session, for listening connections.
+//
 package network
 
 import "net"

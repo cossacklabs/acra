@@ -35,15 +35,17 @@ import (
 
 var restartSignalsChannel chan os.Signal
 var errorSignalChannel chan os.Signal
-var err error
 var authPath *string
 
+// For testing purposes only, allows to skip checking TLS certificate when connecting to database.
 const (
 	TEST_MODE = "true"
 )
 
+// TestOnly is set in compile time for running integration tests
 var TestOnly = "false"
 
+// Constants used by AcraServer.
 const (
 	DEFAULT_ACRASERVER_WAIT_TIMEOUT = 10
 	GRACEFUL_ENV                    = "GRACEFUL_RESTART"
@@ -54,6 +56,8 @@ const (
 
 // DEFAULT_CONFIG_PATH relative path to config which will be parsed as default
 var DEFAULT_CONFIG_PATH = utils.GetConfigPathByName(SERVICE_NAME)
+
+// ErrWaitTimeout error indicates that server was shutdown and waited N seconds while shutting down all connections.
 var ErrWaitTimeout = errors.New("timeout")
 
 func main() {
@@ -75,7 +79,7 @@ func main() {
 	pgHexFormat := flag.Bool("pgsql_hex_bytea", false, "Hex format for Postgresql bytea data (default)")
 	pgEscapeFormat := flag.Bool("pgsql_escape_bytea", false, "Escape format for Postgresql bytea data")
 
-	securesessionId := flag.String("securesession_id", "acra_server", "Id that will be sent in secure session")
+	secureSessionID := flag.String("securesession_id", "acra_server", "Id that will be sent in secure session")
 
 	verbose := flag.Bool("v", false, "Log to stderr")
 	flag.Bool("acrastruct_wholecell_enable", true, "Acrastruct will stored in whole data cell")
@@ -90,9 +94,9 @@ func main() {
 	scriptOnPoison := flag.String("poison_run_script_file", "", "Execute script on detecting poison record")
 
 	withZone := flag.Bool("zonemode_enable", false, "Turn on zone mode")
-	enableHTTPApi := flag.Bool("http_api_enable", false, "Enable HTTP API")
+	enableHTTPAPI := flag.Bool("http_api_enable", false, "Enable HTTP API")
 
-	useTls := flag.Bool("acraconnector_tls_transport_enable", false, "Use tls to encrypt transport between AcraServer and AcraConnector/client")
+	useTLS := flag.Bool("acraconnector_tls_transport_enable", false, "Use tls to encrypt transport between AcraServer and AcraConnector/client")
 	tlsKey := flag.String("tls_key", "", "Path to private key that will be used in TLS handshake with AcraConnector as server's key and Postgresql as client's key")
 	tlsCert := flag.String("tls_cert", "", "Path to tls certificate")
 	tlsCA := flag.String("tls_ca", "", "Path to root certificate which will be used with system root certificates to validate Postgresql's and AcraConnector's certificate")
@@ -119,7 +123,7 @@ func main() {
 	logging.CustomizeLogging(*loggingFormat, SERVICE_NAME)
 
 	log.Infof("Validating service configuration")
-	cmd.ValidateClientID(*securesessionId)
+	cmd.ValidateClientID(*secureSessionID)
 
 	if *host != cmd.DEFAULT_ACRA_HOST || *port != cmd.DEFAULT_ACRASERVER_PORT {
 		*acraConnectionString = network.BuildConnectionString("tcp", *host, *port, "")
@@ -168,15 +172,15 @@ func main() {
 	config.SetDBPort(*dbPort)
 	config.SetConnectorHost(*host)
 	config.SetConnectorPort(*port)
-	config.SetConnectorApiPort(*apiPort)
+	config.SetConnectorAPIPort(*apiPort)
 	config.SetKeysDir(*keysDir)
-	config.SetServerId([]byte(*securesessionId))
+	config.SetServerID([]byte(*secureSessionID))
 	config.SetAcraConnectionString(*acraConnectionString)
 	config.SetAcraAPIConnectionString(*acraAPIConnectionString)
 	config.SetTLSServerCertPath(*tlsCert)
 	config.SetTLSServerKeyPath(*tlsKey)
 	config.SetWholeMatch(!(*injectedcell))
-	config.SetEnableHTTPApi(*enableHTTPApi)
+	config.SetEnableHTTPAPI(*enableHTTPAPI)
 	config.SetConfigPath(DEFAULT_CONFIG_PATH)
 	config.SetDebug(*debug)
 
@@ -204,7 +208,7 @@ func main() {
 		os.Exit(1)
 	}
 	var tlsConfig *tls.Config
-	if *useTls || *tlsKey != "" {
+	if *useTLS || *tlsKey != "" {
 		tlsConfig, err = network.NewTLSConfig(network.SNIOrHostname(*tlsDbSNI, *dbHost), *tlsCA, *tlsKey, *tlsCert, tls.ClientAuthType(*tlsAuthType))
 		if err != nil {
 			log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorTransportConfiguration).
@@ -219,7 +223,7 @@ func main() {
 		}
 	}
 	config.SetTLSConfig(tlsConfig)
-	if *useTls {
+	if *useTLS {
 		log.Println("Using TLS transport wrapper")
 		config.ConnectionWrapper, err = network.NewTLSConnectionWrapper([]byte(*clientID), tlsConfig)
 		if err != nil {
@@ -321,7 +325,7 @@ func main() {
 			log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantGetFileDescriptor).
 				Fatalln("System error: failed to get acra-socket file descriptor:", err)
 		}
-		if *withZone || *enableHTTPApi {
+		if *withZone || *enableHTTPAPI {
 			fdAPI, err = network.ListenerFileDescriptor(server.listenerAPI)
 			if err != nil {
 				log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantGetFileDescriptor).
@@ -362,12 +366,12 @@ func main() {
 
 	if os.Getenv(GRACEFUL_ENV) == "true" {
 		go server.StartFromFileDescriptor(DESCRIPTOR_ACRA)
-		if *withZone || *enableHTTPApi {
+		if *withZone || *enableHTTPAPI {
 			go server.StartCommandsFromFileDescriptor(DESCRIPTOR_API)
 		}
 	} else {
 		go server.Start()
-		if *withZone || *enableHTTPApi {
+		if *withZone || *enableHTTPAPI {
 			go server.StartCommands()
 		}
 	}

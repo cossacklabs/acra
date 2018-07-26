@@ -32,11 +32,13 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
+// AcraConnectorAddress default address
 var AcraConnectorAddress = "http://127.0.0.1:9191"
 
+// ZoneData stores zone: zoneID and PublicKey
 type ZoneData struct {
-	Id         string
-	Public_key []byte
+	Id        string
+	PublicKey []byte
 }
 
 func main() {
@@ -101,7 +103,7 @@ func main() {
 		if err != nil {
 			panic(err)
 		}
-		zonePublic := parsedZoneData.Public_key
+		zonePublic := parsedZoneData.PublicKey
 		zoneID := []byte(parsedZoneData.Id)
 
 		acrastruct, err := acrawriter.CreateAcrastruct([]byte(*data), &keys.PublicKey{Value: zonePublic}, zoneID)

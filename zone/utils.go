@@ -1,3 +1,5 @@
+// Package zone contains AcraStruct's zone matchers and readers.
+//
 // Copyright 2016, Cossack Labs Limited
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
@@ -35,7 +37,7 @@ func GenerateZoneID() []byte {
 }
 
 // Creates JSON representation of Zone with zone id and public key as fields.
-func ZoneDataToJson(id []byte, publicKey *keys.PublicKey) ([]byte, error) {
+func ZoneDataToJSON(id []byte, publicKey *keys.PublicKey) ([]byte, error) {
 	response := make(map[string]string)
 	response["id"] = string(id)
 	response["public_key"] = base64.StdEncoding.EncodeToString(publicKey.Value)

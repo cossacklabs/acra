@@ -145,7 +145,7 @@ func testWhitelistRules(t *testing.T, acraCensor *AcraCensor, whitelistHandler *
 	//acracensor should block those queries
 	for _, i := range queryIndexesToBlock {
 		err := acraCensor.HandleQuery(testQueries[i])
-		if err != handlers.ErrForbiddenSqlStructureWhitelist {
+		if err != handlers.ErrForbiddenSQLStructureWhitelist {
 			t.Fatal(err)
 		}
 	}
@@ -305,7 +305,7 @@ func testBlacklistRules(t *testing.T, acraCensor *AcraCensor, blacklistHandler *
 	//acracensor should block those queries
 	for _, i := range queryIndexesToBlock {
 		err := acraCensor.HandleQuery(testQueries[i])
-		if err != handlers.ErrForbiddenSqlStructureBlacklist {
+		if err != handlers.ErrForbiddenSQLStructureBlacklist {
 			t.Fatal(err)
 		}
 	}
@@ -337,7 +337,7 @@ func testBlacklistRules(t *testing.T, acraCensor *AcraCensor, blacklistHandler *
 	//acracensor should block all queries
 	for _, query := range testQueries {
 		err := acraCensor.HandleQuery(query)
-		if err != handlers.ErrForbiddenSqlStructureBlacklist {
+		if err != handlers.ErrForbiddenSQLStructureBlacklist {
 			t.Fatal(err)
 		}
 	}
@@ -701,7 +701,7 @@ func TestConfigurationProvider(t *testing.T) {
 	//acracensor should block those structures
 	for _, queryToBlock := range testQueries {
 		err = acraCensor.HandleQuery(queryToBlock)
-		if err != handlers.ErrForbiddenSqlStructureBlacklist {
+		if err != handlers.ErrForbiddenSQLStructureBlacklist {
 			t.Fatal(err)
 		}
 	}

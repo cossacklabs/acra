@@ -30,7 +30,7 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
-// Constans handy for AcraTranslator.
+// Constants handy for AcraTranslator.
 const (
 	SERVICE_NAME         = "acra-translator"
 	DEFAULT_WAIT_TIMEOUT = 10

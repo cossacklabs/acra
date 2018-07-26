@@ -25,9 +25,12 @@ import (
 	"os"
 )
 
-// DEFAULT_CONFIG_PATH relative path to config which will be parsed as default
-var DEFAULT_CONFIG_PATH = utils.GetConfigPathByName("acra-keymaker")
-var SERVICE_NAME = "acra-keymaker"
+// Constants used by AcraKeymaker
+var (
+	// DEFAULT_CONFIG_PATH relative path to config which will be parsed as default
+	DEFAULT_CONFIG_PATH = utils.GetConfigPathByName("acra-keymaker")
+	SERVICE_NAME        = "acra-keymaker"
+)
 
 func main() {
 	clientID := flag.String("client_id", "client", "Client ID")

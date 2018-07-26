@@ -20,8 +20,8 @@ import (
 	"testing"
 )
 
-func TestValidateId(t *testing.T) {
-	test_incorrect_input := []string{
+func TestValidateID(t *testing.T) {
+	testIncorrectInput := []string{
 		"qqqq!",  // incorrect char at end
 		"!qqqq",  // incorrect char at start
 		"qq@qq",  // incorrect char in mid
@@ -29,16 +29,16 @@ func TestValidateId(t *testing.T) {
 		// short id
 		"", "q", "qq", "qqq", "qqqq",
 	}
-	for _, input := range test_incorrect_input {
+	for _, input := range testIncorrectInput {
 		if ValidateID([]byte(input)) {
 			t.Errorf("Incorrect false validation. <%s> took", input)
 		}
 	}
 
-	test_correct_input := []string{
+	testCorrectInput := []string{
 		"qqqqq", "asdfzx", "12345", "qwe12", "12qwe", "q1w2e",
 		"      ", "________"}
-	for _, input := range test_correct_input {
+	for _, input := range testCorrectInput {
 		if !ValidateID([]byte(input)) {
 			t.Errorf("Incorrect true validation. <%s> took", input)
 		}

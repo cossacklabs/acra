@@ -27,9 +27,12 @@ import (
 	"os"
 )
 
-// DEFAULT_CONFIG_PATH relative path to config which will be parsed as default
-var DEFAULT_CONFIG_PATH = utils.GetConfigPathByName("acra-addzone")
-var SERVICE_NAME = "acra-addzone"
+// Constants used by AcraAddZone util.
+var (
+	// DEFAULT_CONFIG_PATH relative path to config which will be parsed as default
+	DEFAULT_CONFIG_PATH = utils.GetConfigPathByName("acra-addzone")
+	SERVICE_NAME        = "acra-addzone"
+)
 
 func main() {
 	outputDir := flag.String("keys_output_dir", keystore.DEFAULT_KEY_DIR_SHORT, "Folder where will be saved generated zone keys")
@@ -75,7 +78,7 @@ func main() {
 		log.WithError(err).Errorln("can't add zone")
 		os.Exit(1)
 	}
-	json, err := zone.ZoneDataToJson(id, &keys.PublicKey{Value: publicKey})
+	json, err := zone.ZoneDataToJSON(id, &keys.PublicKey{Value: publicKey})
 	if err != nil {
 		log.WithError(err).Errorln("can't encode to json")
 		os.Exit(1)
