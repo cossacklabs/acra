@@ -92,172 +92,179 @@ const (
 var CANCEL_REQUEST = []byte{0x04, 0xd2, 0x16, 0x2e}
 
 /* override size in postgresql data row that starts with 4 byte of size */
-func (row *DataRow) SetDataSize(size int) {
-	binary.BigEndian.PutUint32(row.output[:DATA_ROW_LENGTH_BUF_SIZE], uint32(size+len(row.descriptionLengthBuf)))
+func (packet *PacketHandler) SetDataSize(size int) {
+	binary.BigEndian.PutUint32(packet.output[:DATA_ROW_LENGTH_BUF_SIZE], uint32(size+len(packet.descriptionLengthBuf)))
 }
 
-func (row *DataRow) CheckOutputSize(size int) {
-	availableSize := len(row.output[row.writeIndex:])
+func (packet *PacketHandler) CheckOutputSize(size int) {
+	availableSize := len(packet.output[packet.writeIndex:])
 	if availableSize < size {
-		newOutput := make([]byte, cap(row.output)+(size-availableSize))
-		copy(newOutput, row.output)
-		row.output = newOutput
+		newOutput := make([]byte, cap(packet.output)+(size-availableSize))
+		copy(newOutput, packet.output)
+		packet.output = newOutput
 	}
 }
 
-func (row *DataRow) skipData(reader io.Reader, writer io.Writer, errCh chan<- error) bool {
-	log.Debugln("Read row length")
-	n, err := reader.Read(row.descriptionLengthBuf)
-	if !base.CheckReadWrite(n, 4, err, errCh) {
+func (packet *PacketHandler) skipData(reader io.Reader, writer io.Writer, errCh chan<- error) bool {
+	packet.logger.Debugln("Read packet length")
+	n, err := reader.Read(packet.descriptionLengthBuf)
+	if !base.CheckReadWriteCh(n, 4, err, errCh) {
 		return false
 	}
-	n2, err := io.Copy(writer, bytes.NewReader(row.descriptionLengthBuf))
-	if !base.CheckReadWrite(int(n2), 4, err, errCh) {
+	n2, err := io.Copy(writer, bytes.NewReader(packet.descriptionLengthBuf))
+	if !base.CheckReadWriteCh(int(n2), 4, err, errCh) {
 		return false
 	}
 
-	descriptionLength := int(binary.BigEndian.Uint32(row.descriptionLengthBuf)) - len(row.descriptionLengthBuf)
-	log.WithField("length", row.descriptionLengthBuf).WithField("length_value", descriptionLength).Debugln("Read row data")
+	descriptionLength := int(binary.BigEndian.Uint32(packet.descriptionLengthBuf)) - len(packet.descriptionLengthBuf)
+	packet.logger.WithField("length", packet.descriptionLengthBuf).WithField("length_value", descriptionLength).Debugln("Read packet data")
 	n2, err = io.CopyN(writer, reader, int64(descriptionLength))
-	if !base.CheckReadWrite(int(n2), descriptionLength, err, errCh) {
+	if !base.CheckReadWriteCh(int(n2), descriptionLength, err, errCh) {
 		return false
 	}
 	return true
 }
 
-func (row *DataRow) readMessageType(reader io.Reader, writer io.Writer, errCh chan<- error) bool {
-	n, err := reader.Read(row.messageType[:])
-	if !base.CheckReadWrite(n, 1, err, errCh) {
-		return false
+func (packet *PacketHandler) readMessageType() error {
+	packet.logger.Debugln("Read message type")
+	n, err := packet.reader.Read(packet.messageType[:])
+	if err := base.CheckReadWrite(n, 1, err); err != nil {
+		return err
 	}
-	n, err = writer.Write(row.messageType[:])
-	if !base.CheckReadWrite(n, 1, err, errCh) {
-		return false
+	n, err = packet.writer.Write(packet.messageType[:])
+	if err := base.CheckReadWrite(n, 1, err); err != nil {
+		return err
 	}
-	return true
+	packet.logger.Debugf("message_type - %s", string(packet.messageType[0]))
+	return nil
 }
 
-func (row *DataRow) IsDataRow() bool {
-	return row.messageType[0] == DATA_ROW_MESSAGE_TYPE
+func (packet *PacketHandler) IsDataRow() bool {
+	return packet.messageType[0] == DATA_ROW_MESSAGE_TYPE
 }
 
-func (row *DataRow) IsSimpleQuery() bool {
-	return row.messageType[0] == QUERY_MESSAGE_TYPE
+func (packet *PacketHandler) IsSimpleQuery() bool {
+	return packet.messageType[0] == QUERY_MESSAGE_TYPE
 }
 
-func (row *DataRow) UpdateColumnAndDataSize(oldColumnLength, newColumnLength int) bool {
+func (packet *PacketHandler) UpdateColumnAndDataSize(oldColumnLength, newColumnLength int) bool {
 	if oldColumnLength == newColumnLength {
 		return true
 	}
 	// something was decrypted and size should be less that was before
-	log.Debugf("Modify response size: %v -> %v", oldColumnLength, newColumnLength)
+	packet.logger.Debugf("Modify response size: %v -> %v", oldColumnLength, newColumnLength)
 
 	// update column data size
 	sizeDiff := oldColumnLength - newColumnLength
-	log.Debugf("Old column size: %v; New column size: %v", oldColumnLength, newColumnLength)
+	packet.logger.Debugf("Old column size: %v; New column size: %v", oldColumnLength, newColumnLength)
 	if newColumnLength > oldColumnLength {
-		row.errCh <- errors.New("decrypted size is more than encrypted")
+		packet.errCh <- errors.New("decrypted size is more than encrypted")
 		return false
 	}
-	binary.BigEndian.PutUint32(row.columnSizePointer, uint32(newColumnLength))
-	log.Debugf("Old data size: %v; new data size: %v", row.dataLength, row.dataLength-sizeDiff)
-	// update data row size
-	row.dataLength -= sizeDiff
-	row.SetDataSize(row.dataLength)
+	binary.BigEndian.PutUint32(packet.columnSizePointer, uint32(newColumnLength))
+	packet.logger.Debugf("Old data size: %v; new data size: %v", packet.dataLength, packet.dataLength-sizeDiff)
+	// update data packet size
+	packet.dataLength -= sizeDiff
+	packet.SetDataSize(packet.dataLength)
 	return true
 }
 
-func (row *DataRow) ReadDataLength() bool {
-	log.Debugln("Read data length")
-	// read full data row length
-	n, err := row.reader.Read(row.output[:DATA_ROW_LENGTH_BUF_SIZE])
-	if !base.CheckReadWrite(n, DATA_ROW_LENGTH_BUF_SIZE, err, row.errCh) {
+func (packet *PacketHandler) ReadDataLength() bool {
+	packet.logger.Debugln("Read data length")
+	// read full data packet length
+	n, err := packet.reader.Read(packet.output[:DATA_ROW_LENGTH_BUF_SIZE])
+	if !base.CheckReadWriteCh(n, DATA_ROW_LENGTH_BUF_SIZE, err, packet.errCh) {
 		return false
 	}
-	row.writeIndex += n
-	row.dataLength = int(binary.BigEndian.Uint32(row.output[:DATA_ROW_LENGTH_BUF_SIZE])) - len(row.descriptionLengthBuf)
+	packet.writeIndex += n
+	packet.dataLength = int(binary.BigEndian.Uint32(packet.output[:DATA_ROW_LENGTH_BUF_SIZE])) - len(packet.descriptionLengthBuf)
 	return true
 }
 
-func (row *DataRow) ReadColumnCount() bool {
+func (packet *PacketHandler) ReadColumnCount() bool {
 	// read column count
-	columnCountBuf := row.output[DATA_ROW_LENGTH_BUF_SIZE : DATA_ROW_LENGTH_BUF_SIZE+2]
-	n, err := row.reader.Read(columnCountBuf)
-	if !base.CheckReadWrite(n, 2, err, row.errCh) {
+	columnCountBuf := packet.output[DATA_ROW_LENGTH_BUF_SIZE : DATA_ROW_LENGTH_BUF_SIZE+2]
+	n, err := packet.reader.Read(columnCountBuf)
+	if !base.CheckReadWriteCh(n, 2, err, packet.errCh) {
 		return false
 	}
-	row.writeIndex += 2
-	row.columnCount = int(binary.BigEndian.Uint16(columnCountBuf))
+	packet.writeIndex += 2
+	packet.columnCount = int(binary.BigEndian.Uint16(columnCountBuf))
 	return true
 }
 
-func (row *DataRow) Flush() bool {
-	n, err := row.writer.Write(row.output[:row.writeIndex])
-	if !base.CheckReadWrite(n, row.writeIndex, err, row.errCh) {
+func (packet *PacketHandler) Flush() bool {
+	n, err := packet.writer.Write(packet.output[:packet.writeIndex])
+	if !base.CheckReadWriteCh(n, packet.writeIndex, err, packet.errCh) {
 		return false
 	}
-	if err := row.writer.Flush(); err != nil {
-		log.WithError(err).Errorln("Can't flush writer")
-		row.errCh <- err
+	if err := packet.writer.Flush(); err != nil {
+		packet.logger.WithError(err).Errorln("Can't flush writer")
+		packet.errCh <- err
 		return false
 	}
 	return true
 }
 
-func (row *DataRow) ReadData() ([]byte, bool) {
-	row.CheckOutputSize(row.dataLength)
-	n, err := row.reader.Read(row.output[row.writeIndex : row.writeIndex+row.dataLength])
-	if !base.CheckReadWrite(n, row.dataLength, err, row.errCh) {
+func (packet *PacketHandler) ReadData() ([]byte, bool) {
+	packet.CheckOutputSize(packet.dataLength)
+	n, err := packet.reader.Read(packet.output[packet.writeIndex : packet.writeIndex+packet.dataLength])
+	if !base.CheckReadWriteCh(n, packet.dataLength, err, packet.errCh) {
 		return nil, false
 	}
-	data := row.output[row.writeIndex : row.writeIndex+row.dataLength]
-	row.writeIndex += row.dataLength
+	data := packet.output[packet.writeIndex : packet.writeIndex+packet.dataLength]
+	packet.writeIndex += packet.dataLength
 	return data, true
 }
 
-func (row *DataRow) ReadSimpleQuery(errCh chan<- error) (string, bool) {
-	log.Debugf("Read %v data", row.dataLength)
-	if !row.ReadDataLength() {
+func (packet *PacketHandler) ReadSimpleQuery(errCh chan<- error) (string, bool) {
+	packet.logger.Debugf("Read %v data", packet.dataLength)
+	if !packet.ReadDataLength() {
 		return "", false
 	}
-	query, success := row.ReadData()
+	query, success := packet.ReadData()
 	return string(query), success
 }
 
 var ErrShortRead = errors.New("read less bytes than expected")
 
-func (row *DataRow) ReadRow(reader io.Reader, errCh chan<- error) (*DataRow, error) {
-	n, err := reader.Read(row.messageType[:])
+func (packet *PacketHandler) readData() error {
+	packet.logger.Debugln("Read data length")
+	n, err := packet.reader.Read(packet.descriptionLengthBuf)
 	if err != nil {
-		return nil, err
+		return err
 	}
-	if n != 1 {
-		return nil, ErrShortRead
+	if n != len(packet.descriptionLengthBuf) {
+		return ErrShortRead
 	}
-	n, err = reader.Read(row.descriptionLengthBuf)
+	packet.dataLength = int(binary.BigEndian.Uint32(packet.descriptionLengthBuf)) - len(packet.descriptionLengthBuf)
+	packet.descriptionBuf.Reset()
+	packet.logger.Debugln("Read data")
+	nn, err := io.CopyN(packet.descriptionBuf, packet.reader, int64(packet.dataLength))
 	if err != nil {
-		return nil, err
+		return err
 	}
-	if n != len(row.descriptionLengthBuf) {
-		return nil, ErrShortRead
+	if nn != int64(packet.dataLength) {
+		return ErrShortRead
 	}
-	row.dataLength = int(binary.BigEndian.Uint32(row.descriptionLengthBuf)) - len(row.descriptionLengthBuf)
-	row.descriptionBuf.Reset()
-	nn, err := io.CopyN(row.descriptionBuf, reader, int64(row.dataLength))
-	if err != nil {
-		return nil, err
-	}
-	if nn != int64(row.dataLength) {
-		return nil, ErrShortRead
-	}
-	return row, nil
+	return nil
 }
 
-func (row *DataRow) Marshal() ([]byte, error) {
-	output := make([]byte, 0, 5+row.dataLength)
-	output = append(output, row.messageType[0])
-	output = append(output, row.descriptionLengthBuf...)
-	output = append(output, row.descriptionBuf.Bytes()...)
+func (packet *PacketHandler) ReadPacket() (error) {
+	packet.logger.Debugln("Read packet")
+	if err := packet.readMessageType(); err != nil {
+		return err
+	}
+	return packet.readData()
+}
+
+func (packet *PacketHandler) Marshal() ([]byte, error) {
+	output := make([]byte, 0, 5+packet.dataLength)
+	if packet.messageType[0] != 0 {
+		output = append(output, packet.messageType[0])
+	}
+	output = append(output, packet.descriptionLengthBuf...)
+	output = append(output, packet.descriptionBuf.Bytes()...)
 	return output, nil
 }
 
@@ -271,158 +278,219 @@ func NewPgProxy(clientConnection, dbConnection net.Conn) (*PgProxy, error) {
 	return &PgProxy{clientConnection: clientConnection, dbConnection: dbConnection, TlsCh: make(chan bool)}, nil
 }
 
-func NewClientSideDataRow(reader *acra_io.ExtendedBufferedReader, writer *bufio.Writer) (*DataRow, error) {
-	return &DataRow{
-		writeIndex:           0,
-		output:               nil,
-		columnDataBuf:        nil,
-		descriptionBuf:       bytes.NewBuffer(make([]byte, OUTPUT_DEFAULT_SIZE)),
-		descriptionLengthBuf: make([]byte, 4),
-		reader:               reader,
-		writer:               writer,
-	}, nil
-}
-
 func (proxy *PgProxy) PgProxyClientRequests(acraCensor acracensor.AcraCensorInterface, dbConnection, clientConnection net.Conn, errCh chan<- error) {
-	log.Debugln("Pg client proxy")
+	logger := log.WithField("proxy", "pg_client")
+	logger.Debugln("Pg client proxy")
 	writer := bufio.NewWriter(dbConnection)
 
 	reader := acra_io.NewExtendedBufferedReader(bufio.NewReader(clientConnection))
-	row, err := NewClientSideDataRow(reader, writer)
+	packet, err := NewClientSidePacketHandler(reader, writer)
 	if err != nil {
-		log.WithError(err).Errorln("Can't initialize DataRow object")
+		logger.WithError(err).Errorln("Can't initialize DataRow object")
 		errCh <- err
 		return
 	}
-	firstByte := true
 	for {
-		row.descriptionBuf.Reset()
-		if firstByte {
-			log.Debugln("first packet")
-			// first packet hasn't type of message and start with message length and data
-			firstByte = false
-			if !row.skipData(reader, writer, errCh) {
-				return
-			}
-			if err := writer.Flush(); err != nil {
-				log.WithError(err).Errorln("Can't flush writer")
-				errCh <- err
-				return
-			}
-			continue
-		}
-		row, err := row.ReadRow(reader, errCh)
+		packet.descriptionBuf.Reset()
+		err := packet.ReadPacket()
 		if err != nil {
-			log.WithError(err).Errorln("Can't read row")
+			logger.WithError(err).Errorln("Can't read packet")
 			errCh <- err
 			return
 		}
-		if !row.IsSimpleQuery() {
-			log.Debugln("not query")
-			output, err := row.Marshal()
-			if err != nil {
-				log.WithError(err).Errorln("Can't dump row")
-				errCh <- err
-				return
-
-			}
-			n, err := writer.Write(output)
-			if !base.CheckReadWrite(n, len(output), err, errCh) {
-				return
-			}
-			if err := writer.Flush(); err != nil {
-				log.WithError(err).Errorln("Can't flush writer")
+		if !packet.IsSimpleQuery() {
+			if err := packet.sendPacket(); err != nil {
+				logger.WithError(err).Errorln("Can't forward packet to db")
 				errCh <- err
 				return
 			}
 			continue
 		}
-		query := string(row.descriptionBuf.Bytes()[:row.dataLength-1])
-		log.WithField("query", query).Debugln("New query")
+
+		query := string(packet.descriptionBuf.Bytes()[:packet.dataLength-1])
+		logger.WithField("query", query).Debugln("New query")
 		if censorErr := acraCensor.HandleQuery(query); censorErr != nil {
-			log.WithError(censorErr).Errorln("AcraCensor blocked query")
+			logger.WithError(censorErr).Errorln("AcraCensor blocked query")
 			errorMessage, err := NewPgError("AcraCensor blocked this query")
 			if err != nil {
-				log.WithError(err).Errorln("Can't create postgresql error message")
+				logger.WithError(err).Errorln("Can't create postgresql error message")
+				errCh <- err
 				return
 			}
 			n, err := clientConnection.Write(errorMessage)
-			if !base.CheckReadWrite(n, len(errorMessage), err, row.errCh) {
+			if !base.CheckReadWriteCh(n, len(errorMessage), err, errCh) {
 				return
 			}
 			n, err = clientConnection.Write(ReadyForQueryPacket)
-			if !base.CheckReadWrite(n, len(ReadyForQueryPacket), err, row.errCh) {
+			if !base.CheckReadWriteCh(n, len(ReadyForQueryPacket), err, errCh) {
 				return
 			}
 			continue
 		}
 
-		output, err := row.Marshal()
-		if err != nil {
-			log.WithError(err).Errorln("Can't dump row")
-			errCh <- err
-			return
-
-		}
-		n, err := writer.Write(output)
-		if !base.CheckReadWrite(n, len(output), err, errCh) {
-			return
-		}
-		if err := writer.Flush(); err != nil {
-			log.WithError(err).Errorln("can't flush writer")
+		if err := packet.sendPacket(); err != nil {
+			logger.WithError(err).Errorln("Can't send packet")
 			errCh <- err
 			return
 		}
 	}
 }
 
-func (row *DataRow) IsSSLRequest() bool {
-	return row.messageType[0] == 'S'
+func (packet *PacketHandler) IsSSLRequestAllowed() bool {
+	return packet.messageType[0] == 'S'
 }
 
-func (row *DataRow) IsSSLRequestDeny() bool {
-	return row.messageType[0] == 'N'
+func (packet *PacketHandler) IsSSLRequestDeny() bool {
+	return packet.messageType[0] == 'N'
+}
+
+func (proxy *PgProxy) checkPoisonRecordBlock(data []byte, decryptor base.Decryptor) error {
+	if decryptor.IsPoisonRecordCheckOn(){
+		// check on poison record
+		if err := base.ValidateAcraStructLength(data); err == nil {
+			poisoned, err := decryptor.CheckPoisonRecord(bytes.NewReader(data))
+			if err != nil {
+				log.WithError(err).Errorln("Can't check on poison record")
+				return err
+			}
+			if poisoned {
+				// TODO check that message the same as in other places
+				log.Warningln("Recognized poison record")
+				callbacks := decryptor.GetPoisonCallbackStorage()
+				if callbacks.HasCallbacks(){
+					var callbackErr error
+					if err := callbacks.Call(); err != nil {
+						log.WithError(err).Errorln("Unexpected error on poison record callback")
+						callbackErr = err
+					}
+					if callbackErr != nil {
+						return err
+					}
+				}
+			}
+		}
+	}
+	return nil
+}
+
+func (proxy *PgProxy) processWholeBlockDecryption(column *ColumnData, decryptor base.Decryptor) error {
+	if decryptor.IsWithZone() && !decryptor.IsMatchedZone(){
+		decryptor.MatchZoneBlock(column.Data)
+		if decryptor.IsPoisonRecordCheckOn(){
+			// check on poison record
+			if err := base.ValidateAcraStructLength(column.Data); err == nil {
+				poisoned, err := decryptor.CheckPoisonRecord(bytes.NewReader(column.Data))
+				if err != nil {
+					log.WithError(err).Errorln("Can't check on poison record")
+					return err
+				}
+				if poisoned {
+					// TODO check that message the same as in other places
+					log.Warningln("Recognized poison record")
+					callbacks := decryptor.GetPoisonCallbackStorage()
+					if callbacks.HasCallbacks(){
+						var callbackErr error
+						if err := callbacks.Call(); err != nil {
+							log.WithError(err).Errorln("Unexpected error on poison record callback")
+							callbackErr = err
+						}
+						if callbackErr != nil {
+							return err
+						}
+					}
+				}
+			}
+		}
+		return nil
+	}
+	if err := base.ValidateAcraStructLength(column.Data); err != nil {
+		continue
+	}
+	decrypted, err := decryptor.DecryptBlock(column.Data)
+	if err != nil {
+
+		continue
+	}
+	// poison record check
+	// check only if has any action on detection
+	if decryptor.IsPoisonRecordCheckOn() {
+		logger.Debugln("Check poison records")
+		block, err := decryptor.SkipBeginInBlock(packet.output[packet.writeIndex : packet.writeIndex+columnDataLength])
+		if err == nil {
+			_, err := decryptor.CheckPoisonRecord(bytes.NewReader(block))
+			if err != nil {
+				logger.WithError(err).Errorln("Error on check poison record")
+				errCh <- err
+				return
+			}
+		}
+	}
+	// end poison record check
+
+	decryptor.Reset()
+	if !decryptor.IsWithZone() || decryptor.IsMatchedZone() {
+		decrypted, err := decryptor.DecryptBlock(packet.output[packet.writeIndex : packet.writeIndex+columnDataLength])
+		if err == nil {
+			copy(packet.output[packet.writeIndex:], decrypted)
+			packet.UpdateColumnAndDataSize(columnDataLength, len(decrypted))
+			packet.writeIndex += len(decrypted)
+			continue
+		} else if err == base.ErrPoisonRecord {
+			logger.Errorln("Poison record detected")
+			errCh <- err
+			return
+		}
+	} else {
+		decryptor.MatchZoneBlock(packet.output[packet.writeIndex : packet.writeIndex+columnDataLength])
+	}
+	packet.writeIndex += columnDataLength
 }
 
 func (proxy *PgProxy) PgDecryptStream(censor acracensor.AcraCensorInterface, decryptor base.Decryptor, tlsConfig *tls.Config, dbConnection net.Conn, clientConnection net.Conn, errCh chan<- error) {
-	log.Debugln("Pg db proxy")
+	logger := log.WithField("proxy", "db_size")
+	logger.Debugln("Pg db proxy")
 	writer := bufio.NewWriter(clientConnection)
 
 	reader := acra_io.NewExtendedBufferedReader(bufio.NewReader(dbConnection))
-	row := DataRow{
+	packet := PacketHandler{
 		writeIndex:           0,
 		output:               make([]byte, OUTPUT_DEFAULT_SIZE),
 		columnDataBuf:        bytes.NewBuffer(make([]byte, COLUMN_DATA_DEFAULT_SIZE)),
 		descriptionLengthBuf: make([]byte, 4),
 		reader:               reader,
 		writer:               writer,
+		logger:               logger,
 	}
 	firstByte := true
 	for {
-		if !row.readMessageType(reader, writer, errCh) {
+		if err := packet.ReadPacket(); err != nil {
+			logger.WithError(err).Errorln("Can't read packet")
+			errCh <- err
 			return
 		}
-
 		if firstByte {
 			// https://www.postgresql.org/docs/9.1/static/protocol-flow.html#AEN92112
 			// we should know that we shouldn't read anymore bytes
 			firstByte = false
-			if row.IsSSLRequestDeny() {
-				log.Debugln("Deny ssl request")
-				writer.Flush()
+			if packet.IsSSLRequestDeny() {
+				logger.Debugln("Deny ssl request")
+				if err := packet.sendMessageType(); err != nil {
+					errCh <- err
+					return
+				}
 				continue
-			} else if row.IsSSLRequest() {
+			} else if packet.IsSSLRequestAllowed() {
 				if tlsConfig == nil {
-					log.Errorln("To support TLS connections you must pass TLS key and certificate for AcraServer that will be used" +
+					logger.Errorln("To support TLS connections you must pass TLS key and certificate for AcraServer that will be used" +
 						"for connections AcraServer->Database and CA certificate which will be used to verify certificate " +
 						"from database")
 					errCh <- network.ErrEmptyTLSConfig
 					return
 				}
-				log.Debugln("Start tls proxy")
+				logger.Debugln("Start tls proxy")
 				// stop reading from client in goroutine
 				if err := clientConnection.SetDeadline(time.Now()); err != nil {
-					log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorDecryptorCantSetDeadlineToClientConnection).
+					logger.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorDecryptorCantSetDeadlineToClientConnection).
 						Errorln("Can't set deadline")
 					errCh <- err
 					return
@@ -431,37 +499,38 @@ func (proxy *PgProxy) PgDecryptStream(censor acracensor.AcraCensorInterface, dec
 				case <-proxy.TlsCh:
 					break
 				case <-time.NewTimer(TLS_TIMEOUT).C:
-					log.Errorln("Can't stop background goroutine to start tls handshake")
+					logger.Errorln("Can't stop background goroutine to start tls handshake")
 					errCh <- errors.New("can't stop background goroutine")
 					return
 				}
-				log.Debugln("Stop client connection")
+				logger.Debugln("Stop client connection")
 				if err := clientConnection.SetDeadline(time.Time{}); err != nil {
-					log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorDecryptorCantSetDeadlineToClientConnection).
+					logger.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorDecryptorCantSetDeadlineToClientConnection).
 						Errorln("Can't set deadline")
 					errCh <- err
 					return
 				}
-				log.Debugln("Init tls with client")
+				logger.Debugln("Init tls with client")
 				// convert to tls connection
 				tlsClientConnection := tls.Server(clientConnection, tlsConfig)
-				if err := writer.Flush(); err != nil {
-					log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorDecryptorCantInitializeTLS).
-						Errorln("Can't flush writer")
+
+				if err := packet.sendMessageType(); err != nil {
+					logger.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorDecryptorCantInitializeTLS).
+						Errorln("Can't send ssl allow packet")
 					errCh <- err
 					return
 				}
 				if err := tlsClientConnection.Handshake(); err != nil {
-					log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorDecryptorCantInitializeTLS).
+					logger.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorDecryptorCantInitializeTLS).
 						Errorln("Can't initialize tls connection with client")
 					errCh <- err
 					return
 				}
 
-				log.Debugln("Init tls with db")
+				logger.Debugln("Init tls with db")
 				dbTLSConnection := tls.Client(dbConnection, tlsConfig)
 				if err := dbTLSConnection.Handshake(); err != nil {
-					log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorDecryptorCantInitializeTLS).
+					logger.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorDecryptorCantInitializeTLS).
 						Errorln("Can't initialize tls connection with db")
 					errCh <- err
 					return
@@ -470,130 +539,69 @@ func (proxy *PgProxy) PgDecryptStream(censor acracensor.AcraCensorInterface, dec
 				// restart proxing client's requests
 				go proxy.PgProxyClientRequests(censor, dbTLSConnection, tlsClientConnection, errCh)
 				reader = acra_io.NewExtendedBufferedReader(bufio.NewReader(dbTLSConnection))
-				row.reader = reader
 				writer = bufio.NewWriter(tlsClientConnection)
-				row.writer = writer
 				firstByte = true
+
+				packet.reader = reader
+				packet.writer = writer
+				packet.firstPacket = false
+				packet.messageType[0] = 0
 				continue
 			}
 		}
 
-		if !row.IsDataRow() {
-			if !row.skipData(reader, writer, errCh) {
+		if !packet.IsDataRow() {
+			if err := packet.sendPacket(); err != nil{
+				logger.WithError(err).Errorln("Can't forward packet")
+				errCh <- err
 				return
 			}
-			writer.Flush()
 			continue
 		}
 
-		log.Debugln("Matched data row")
-
-		row.writeIndex = 0
-
-		if !row.ReadDataLength() {
+		logger.Debugln("Matched data packet")
+		if err := packet.parseColumns(); err != nil {
+			errCh <- err
 			return
 		}
-		if !row.ReadColumnCount() {
-			return
-		}
-		if row.columnCount == 0 {
-			if !row.Flush() {
-				return
-			}
-			break
-		}
-		log.Debugf("Read column count: %v", row.columnCount)
-		for i := 0; i < row.columnCount; i++ {
-			// read column length
-			row.CheckOutputSize(4)
-			n, err := reader.Read(row.output[row.writeIndex : row.writeIndex+4])
-			if !base.CheckReadWrite(n, 4, err, errCh) {
-				return
-			}
-			// save pointer on column size
-			row.columnSizePointer = row.output[row.writeIndex : row.writeIndex+4]
-			row.writeIndex += 4
-			columnDataLength := int(int32(binary.BigEndian.Uint32(row.columnSizePointer)))
-			if columnDataLength == 0 || columnDataLength == -1 {
-				log.Debugln("Empty column")
-				continue
-			}
-			if columnDataLength >= row.dataLength {
-				log.Debugf("Fake column length: column_data_length=%v, data_length=%v", columnDataLength, row.dataLength)
-				if !row.Flush() {
-					return
-				}
-				break
-			}
-			row.columnDataBuf.Reset()
 
-			row.columnDataBuf.Grow(columnDataLength)
-			row.CheckOutputSize(columnDataLength)
-			// reassign column_size_p
-			row.columnSizePointer = row.output[row.writeIndex-4 : row.writeIndex]
-
-			// read column data
-			n, err = reader.Read(row.output[row.writeIndex : row.writeIndex+columnDataLength])
-			if !base.CheckReadWrite(n, columnDataLength, err, errCh) {
+		if packet.columnCount == 0 {
+			if err := packet.sendPacket(); err != nil {
+				errCh <- err
 				return
 			}
+			continue
+		}
+
+		logger.Debugf("Process columns data")
+		for i := 0; i < packet.columnCount; i++ {
+			column := packet.Columns[i]
+
 			// TODO check poison record before zone matching in two modes.
 			// now zone matching executed every time
 			// try to skip small piece of data that can't be valuable for us
-			if (decryptor.IsWithZone() && columnDataLength >= zone.ZONE_ID_BLOCK_LENGTH) || columnDataLength >= base.KEY_BLOCK_LENGTH {
+			if (decryptor.IsWithZone() && column.Length() >= zone.ZONE_ID_BLOCK_LENGTH) || column.Length() >= base.KEY_BLOCK_LENGTH {
 				decryptor.Reset()
 				if decryptor.IsWholeMatch() {
-					// poison record check
-					// check only if has any action on detection
-					if decryptor.IsPoisonRecordCheckOn() {
-						log.Debugln("Check poison records")
-						block, err := decryptor.SkipBeginInBlock(row.output[row.writeIndex : row.writeIndex+columnDataLength])
-						if err == nil {
-							_, err := decryptor.CheckPoisonRecord(bytes.NewReader(block))
-							if err != nil {
-								log.WithError(err).Errorln("Error on check poison record")
-								errCh <- err
-								return
-							}
-						}
-					}
-					// end poison record check
-
-					decryptor.Reset()
-					if !decryptor.IsWithZone() || decryptor.IsMatchedZone() {
-						decrypted, err := decryptor.DecryptBlock(row.output[row.writeIndex : row.writeIndex+columnDataLength])
-						if err == nil {
-							copy(row.output[row.writeIndex:], decrypted)
-							row.UpdateColumnAndDataSize(columnDataLength, len(decrypted))
-							row.writeIndex += len(decrypted)
-							continue
-						} else if err == base.ErrPoisonRecord {
-							log.Errorln("Poison record detected")
-							errCh <- err
-							return
-						}
-					} else {
-						decryptor.MatchZoneBlock(row.output[row.writeIndex : row.writeIndex+columnDataLength])
-					}
-					row.writeIndex += columnDataLength
+					err := proxy.processWholeBlockDecryption(column decryptor)
 				} else {
-					currentIndex := row.writeIndex
-					endIndex := row.writeIndex + columnDataLength
+					currentIndex := packet.writeIndex
+					endIndex := packet.writeIndex + columnDataLength
 
 					// check poison records
 					if decryptor.IsPoisonRecordCheckOn() {
-						log.Debugln("Check poison records")
+						logger.Debugln("Check poison records")
 						for {
-							beginTagIndex, tagLength := decryptor.BeginTagIndex(row.output[currentIndex:endIndex])
+							beginTagIndex, tagLength := decryptor.BeginTagIndex(packet.output[currentIndex:endIndex])
 							if beginTagIndex == utils.NOT_FOUND {
-								log.Debugln("Not found begin tag")
+								logger.Debugln("Not found begin tag")
 								break
 							}
-							log.Debugln("Found begin tag")
-							blockReader := bytes.NewReader(row.output[currentIndex+beginTagIndex+tagLength:])
+							logger.Debugln("Found begin tag")
+							blockReader := bytes.NewReader(packet.output[currentIndex+beginTagIndex+tagLength:])
 							_, err := decryptor.CheckPoisonRecord(blockReader)
 							if err != nil {
-								log.WithError(err).Errorln("Error on check poison record")
+								logger.WithError(err).Errorln("Error on check poison record")
 								errCh <- err
 								return
 							}
@@ -602,65 +610,65 @@ func (proxy *PgProxy) PgDecryptStream(censor acracensor.AcraCensorInterface, dec
 						}
 					}
 					if decryptor.IsWithZone() && !decryptor.IsMatchedZone() {
-						decryptor.MatchZoneInBlock(row.output[row.writeIndex : row.writeIndex+columnDataLength])
-						row.writeIndex += columnDataLength
+						decryptor.MatchZoneInBlock(packet.output[packet.writeIndex : packet.writeIndex+columnDataLength])
+						packet.writeIndex += columnDataLength
 						continue
 					}
-					currentIndex = row.writeIndex
+					currentIndex = packet.writeIndex
 					halted := false
 					for {
-						beginTagIndex, tagLength := decryptor.BeginTagIndex(row.output[currentIndex:endIndex])
+						beginTagIndex, tagLength := decryptor.BeginTagIndex(packet.output[currentIndex:endIndex])
 						if beginTagIndex == utils.NOT_FOUND {
-							row.columnDataBuf.Write(row.output[currentIndex:endIndex])
+							packet.columnDataBuf.Write(packet.output[currentIndex:endIndex])
 							break
 						}
 						// convert to absolute index
 						beginTagIndex += currentIndex
-						row.columnDataBuf.Write(row.output[currentIndex:beginTagIndex])
+						packet.columnDataBuf.Write(packet.output[currentIndex:beginTagIndex])
 						currentIndex = beginTagIndex
 
 						key, err := decryptor.GetPrivateKey()
 						if err != nil {
-							log.Warningln("Can't read private key")
+							logger.Warningln("Can't read private key")
 							halted = true
 							break
 						}
-						blockReader := bytes.NewReader(row.output[beginTagIndex+tagLength:])
+						blockReader := bytes.NewReader(packet.output[beginTagIndex+tagLength:])
 						symKey, _, err := decryptor.ReadSymmetricKey(key, blockReader)
 						if err != nil {
-							log.Warningf("%v", utils.ErrorMessage("Can't unwrap symmetric key", err))
-							row.columnDataBuf.Write([]byte{row.output[currentIndex]})
+							logger.Warningf("%v", utils.ErrorMessage("Can't unwrap symmetric key", err))
+							packet.columnDataBuf.Write([]byte{packet.output[currentIndex]})
 							currentIndex++
 							continue
 						}
 						data, err := decryptor.ReadData(symKey, decryptor.GetMatchedZoneID(), blockReader)
 						if err != nil {
-							log.Warningf("%v", utils.ErrorMessage("Can't decrypt data with unwrapped symmetric key", err))
-							row.columnDataBuf.Write([]byte{row.output[currentIndex]})
+							logger.Warningf("%v", utils.ErrorMessage("Can't decrypt data with unwrapped symmetric key", err))
+							packet.columnDataBuf.Write([]byte{packet.output[currentIndex]})
 							currentIndex++
 							continue
 						}
-						row.columnDataBuf.Write(data)
-						currentIndex += tagLength + (len(row.output[beginTagIndex+tagLength:]) - blockReader.Len())
+						packet.columnDataBuf.Write(data)
+						currentIndex += tagLength + (len(packet.output[beginTagIndex+tagLength:]) - blockReader.Len())
 					}
-					if !halted && row.columnDataBuf.Len() < columnDataLength {
-						log.Debugln("Result was changed")
-						copy(row.output[row.writeIndex:], row.columnDataBuf.Bytes())
-						row.writeIndex += row.columnDataBuf.Len()
-						row.UpdateColumnAndDataSize(columnDataLength, row.columnDataBuf.Len())
+					if !halted && packet.columnDataBuf.Len() < columnDataLength {
+						logger.Debugln("Result was changed")
+						copy(packet.output[packet.writeIndex:], packet.columnDataBuf.Bytes())
+						packet.writeIndex += packet.columnDataBuf.Len()
+						packet.UpdateColumnAndDataSize(columnDataLength, packet.columnDataBuf.Len())
 						decryptor.ResetZoneMatch()
 					} else {
-						log.Debugln("Result was not changed")
-						row.writeIndex = endIndex
+						logger.Debugln("Result was not changed")
+						packet.writeIndex = endIndex
 					}
 				}
 			} else {
-				log.Debugln("Skip decryption")
-				row.writeIndex += columnDataLength
+				logger.Debugln("Skip decryption")
+				packet.writeIndex += columnDataLength
 			}
 		}
-		log.Debugln("row flush")
-		if !row.Flush() {
+		logger.Debugln("packet flush")
+		if !packet.Flush() {
 			return
 		}
 		decryptor.Reset()

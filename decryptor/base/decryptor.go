@@ -149,9 +149,9 @@ type Decryptor interface {
 	MatchZoneInBlock([]byte)
 }
 
-// CheckReadWrite shows if count of Read operations is the same as count of Write operations,
+// CheckReadWriteCh shows if count of Read operations is the same as count of Write operations,
 // sends err to errCh if not the same.
-func CheckReadWrite(n, expectedN int, err error, errCh chan<- error) bool {
+func CheckReadWriteCh(n, expectedN int, err error, errCh chan<- error) bool {
 	if err != nil {
 		errCh <- err
 		return false
@@ -161,4 +161,15 @@ func CheckReadWrite(n, expectedN int, err error, errCh chan<- error) bool {
 		return false
 	}
 	return true
+}
+
+// CheckReadWrite check that n == expectedN and err != nil
+func CheckReadWrite(n, expectedN int, err error) error {
+	if err != nil {
+		return err
+	}
+	if n != expectedN {
+		return fmt.Errorf("incorrect read/write count. %d != %d", n, expectedN)
+	}
+	return nil
 }
