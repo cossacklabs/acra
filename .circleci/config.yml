@@ -27,7 +27,7 @@ jobs:
       GOPATH_FOLDER: gopath
     steps:
     # prepare
-      - run: sudo apt-get update && sudo DEBIAN_FRONTEND=noninteractive apt-get -y install libssl-dev python python-setuptools python3 python3-setuptools python3-pip git rsync psmisc
+      - run: sudo apt-get update && sudo DEBIAN_FRONTEND=noninteractive apt-get -y install libssl-dev python python-setuptools python3 python3-setuptools python3-pip git rsync psmisc golint
       - run: cd $HOME && git clone https://github.com/cossacklabs/themis && cd themis && sudo make install
       - run: cd $HOME && for version in $VERSIONS; do mkdir go_root_$version; cd go_root_$version; wget https://storage.googleapis.com/golang/go$version.linux-amd64.tar.gz; tar xf go$version.linux-amd64.tar.gz; cd -; done
       - run: mkdir $HOME/$GOPATH_FOLDER
@@ -38,8 +38,6 @@ jobs:
       # install from sources because pip install git+https://github.com/mysql/mysql-connector-python not support recursive submodules
       - run: git clone https://github.com/Lagovas/mysql-connector-python; cd mysql-connector-python; sudo python3 setup.py clean build_py install_lib
       - run: sudo ldconfig
-      # install golint
-      - run: go get -u github.com/golang/lint/golint
     # testing
       # check that code formatted with gofmt
       - run: .circleci/check_gofmt.sh
