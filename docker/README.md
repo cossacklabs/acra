@@ -1,8 +1,9 @@
 # docker
   * `acra-authmanager.dockerfile` - resulting image with AcraAuthmanager tool
   * `acra-build.dockerfile` - intermediate image for compile all acra components
-  * `acra-connector.dockerfile` - resulting image with AcraConnector
   * `acra-server.dockerfile` - resulting image with AcraServer
+  * `acra-connector.dockerfile` - resulting image with AcraConnector
+  * `acra-translator.dockerfile` - resulting image with AcraTranslator
   * `acra-keymaker.dockerfile` - resulting image with AcraKeymaker tool
   * `acra-webconfig.dockerfile` - resulting image with AcraWebconfig component
   * `mysql-nossl.dockerfile` - MySQL server container with disabled SSL
@@ -68,6 +69,11 @@ included into composes and is given only to indicate its position):
   * `docker/docker-compose.pgsql-ssl-server-ssl_zonemode.yml`
     PostgreSQL <-SSL-> AcraServer <-SSL-> client in zone mode
 
+  * `docker/docker-compose.translator-ssession-connector-http.yml`
+    AcraTranslator <-SecureSession-> AcraConnector <-HTTP-> client
+  * `docker/docker-compose.translator-ssession-connector-grpc.yml`
+    AcraTranslator <-SecureSession-> AcraConnector <-gRPC-> client
+
 
 ## Quick launch
 
@@ -78,7 +84,7 @@ docker-compose -f docker/<compose_file_name>.yml up
 This will create `docker/.acrakeys` directory structure, generate all key pairs,
 put them to appropriate services' directories and launch all components.
 
-Now you can connect to:
+Now you can connect to (depending on selected example):
 
 |   Port   |          Component           |     In docker-compose examples with     |
 |----------|------------------------------|-----------------------------------------|
