@@ -9,6 +9,7 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
+// ConnectionManager counts connections and close them
 type ConnectionManager struct {
 	*sync.WaitGroup
 	mutex       *sync.Mutex
@@ -16,6 +17,7 @@ type ConnectionManager struct {
 	connections map[net.Conn]bool
 }
 
+// NewConnectionManager returns new ConnectionManager
 func NewConnectionManager() *ConnectionManager {
 	cm := &ConnectionManager{}
 	cm.WaitGroup = &sync.WaitGroup{}
@@ -24,17 +26,20 @@ func NewConnectionManager() *ConnectionManager {
 	return cm
 }
 
+// Incr increases connections counter
 func (cm *ConnectionManager) Incr() {
 	cm.Counter++
-	log.Debugf("ConnectionManager.Add")
+	log.Debugf("ConnectionManager Added new connection")
 	cm.WaitGroup.Add(1)
 }
 
+// Done marks connection as done, decreases connections counter
 func (cm *ConnectionManager) Done() {
 	cm.Counter--
 	cm.WaitGroup.Done()
 }
 
+// AddConnection adds new connection, increases connections counter
 func (cm *ConnectionManager) AddConnection(conn net.Conn) error {
 	cm.mutex.Lock()
 	cm.Incr()
@@ -43,6 +48,7 @@ func (cm *ConnectionManager) AddConnection(conn net.Conn) error {
 	return nil
 }
 
+// RemoveConnection removes connection, marks it done, decreases connections counter
 func (cm *ConnectionManager) RemoveConnection(conn net.Conn) error {
 	cm.mutex.Lock()
 	delete(cm.connections, conn)

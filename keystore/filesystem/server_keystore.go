@@ -32,7 +32,7 @@ func NewFileSystemKeyStoreWithCacheSize(directory string, encryptor keystore.Key
 	return newFilesystemKeyStore(directory, directory, encryptor, cacheSize)
 }
 
-// FilesystemKeyStore represents keystore that reads keys from key folders, and stores them in memory.
+// NewFilesystemKeyStore represents keystore that reads keys from key folders, and stores them in memory.
 func NewFilesystemKeyStore(directory string, encryptor keystore.KeyEncryptor) (*FilesystemKeyStore, error) {
 	return newFilesystemKeyStore(directory, directory, encryptor, keystore.INFINITE_CACHE_SIZE)
 }
