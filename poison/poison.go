@@ -23,11 +23,13 @@ import (
 	"time"
 )
 
+// Poison records length constants
 const (
 	DEFAULT_DATA_LENGTH = -1
 	MAX_DATA_LENGTH     = 100
 )
 
+// CreatePoisonRecord generates AcraStruct encrypted with Poison Record public key
 func CreatePoisonRecord(keystore keystore.KeyStore, dataLength int) ([]byte, error) {
 	// data length can't be zero
 	if dataLength == DEFAULT_DATA_LENGTH {
