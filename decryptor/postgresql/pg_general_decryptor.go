@@ -172,8 +172,12 @@ func (decryptor *PgDecryptor) ReadData(symmetricKey, zoneID []byte, reader io.Re
 	} else {
 		tempLogger = decryptor.logger
 	}
-	tempLogger.Infof("Decrypted AcraStruct")
-	return decryptor.matchedDecryptor.ReadData(symmetricKey, zoneID, reader)
+
+	decrypted, err := decryptor.matchedDecryptor.ReadData(symmetricKey, zoneID, reader)
+	if err == nil {
+		tempLogger.Infof("Decrypted AcraStruct")
+	}
+	return decrypted, err
 }
 
 func (decryptor *PgDecryptor) SetKeyStore(store keystore.KeyStore) {
