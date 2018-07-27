@@ -41,8 +41,8 @@ jobs:
     # testing
       # check that code formatted with gofmt
       - run: .circleci/check_gofmt.sh
-      # check that code doesn't have a lot of golint issues
-      - run: .circleci/check_golint.sh
+      # check that code doesn't have a lot of golint issues (currently removed because golint version is very different on other planforms)
+      # - run: .circleci/check_golint.sh
       # delete file if exists
       - run: if [ -f $FILEPATH_ERROR_FLAG ]; then rm "$FILEPATH_ERROR_FLAG"; fi
       # run test in each go environment and create $FILEPATH_ERROR_FLAG file if was any error. But all tests should
