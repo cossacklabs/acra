@@ -19,10 +19,17 @@ parser.add_argument(
 parser.add_argument(
     '--data', nargs='?', default='Plain text.',
     help='Plain text to encode (default: "Plain text.")')
+parser.add_argument(
+    '--out_file', nargs='?', default='',
+    help='Save AcraStruct to filename (default: "<client_id>.acrastruct")')
 args = parser.parse_args()
+
+as_out_file = args.out_file
+if as_out_file == '':
+    as_out_file = '{}.acrastruct'.format(args.client_id)
 
 encryption_key = read_storage_public_key(args.client_id, args.keys_dir)
 acrastruct = create_acrastruct(args.data, encryption_key)
 
-with open('testclientid_testmessage.acrastruct', 'wb') as f:
+with open(as_out_file, 'wb') as f:
     f.write(acrastruct)
