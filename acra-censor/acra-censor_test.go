@@ -292,6 +292,11 @@ func TestBlacklistTables(t *testing.T) {
 func TestBlacklistPatterns(t *testing.T) {
 	//test %%SELECT%% pattern
 	testBlacklistPattern0(t)
+	//test SELECT %%COLUMN%% .. %%COLUMN%% pattern
+	testBlacklistPattern1(t)
+	//test SELECT a, b from t %%WHERE%% pattern
+	testBlacklistPattern2(t)
+
 }
 func testBlacklistPattern0(t *testing.T) {
 	var err error
@@ -327,8 +332,8 @@ func testBlacklistPattern0(t *testing.T) {
 		"INSERT INTO dbo.Points (Type, PointValue) VALUES ('Point', '1,5');",
 		"INSERT INTO dbo.Points (PointValue) VALUES ('1,99');",
 	}
-	blacklistPattern1 := "%%SELECT%%"
-	err = blacklistHandler.AddPatterns([]string{blacklistPattern1})
+	blacklistPattern := "%%SELECT%%"
+	err = blacklistHandler.AddPatterns([]string{blacklistPattern})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -337,13 +342,82 @@ func testBlacklistPattern0(t *testing.T) {
 		err := censor.HandleQuery(query)
 		if i <= 12 {
 			if err != handlers.ErrBlacklistPatternMatch {
-				t.Fatal("Blacklist pattern works wrong. \nPattern: ", blacklistPattern1, "\nQuery: ", queries[i])
+				t.Fatal("Blacklist pattern passed query. \nPattern: ", blacklistPattern+"\nQuery: ", queries[i])
 			}
 		} else {
 			if err != nil {
-				t.Fatal(err, "\n"+blacklistPattern1, "\n"+queries[i])
+				t.Fatal(err, "\nPattern"+blacklistPattern, "\nQuery"+queries[i])
 			}
 		}
+	}
+}
+func testBlacklistPattern1(t *testing.T) {
+	var err error
+
+	censor := NewAcraCensor()
+	defer censor.ReleaseAll()
+	blacklistHandler := handlers.NewBlacklistHandler()
+	censor.AddHandler(blacklistHandler)
+
+	blacklistPattern := "SELECT %%COLUMN%%, %%COLUMN%%"
+	err = blacklistHandler.AddPatterns([]string{blacklistPattern})
+	if err != nil {
+		t.Fatal(err)
+	}
+	queries := []string{
+		"SELECT A",
+		"SELECT A, B",
+		"SELECT A, B, C",
+	}
+	//Queries that should pass have indexes: [0, 2]; query that should be blocked has index [1]
+	err = censor.HandleQuery(queries[0])
+	if err != nil {
+		t.Fatal(err, "\n"+blacklistPattern, "\n"+queries[0])
+	}
+	err = censor.HandleQuery(queries[1])
+	if err != handlers.ErrBlacklistPatternMatch {
+		t.Fatal("Blacklist pattern passed query. \nPattern: ", blacklistPattern, "\nQuery: ", queries[1])
+	}
+	err = censor.HandleQuery(queries[2])
+	if err != nil {
+		t.Fatal(err, "\nPattern"+blacklistPattern, "\nQuery"+queries[2])
+	}
+}
+func testBlacklistPattern2(t *testing.T) {
+	var err error
+
+	censor := NewAcraCensor()
+	defer censor.ReleaseAll()
+	blacklistHandler := handlers.NewBlacklistHandler()
+	censor.AddHandler(blacklistHandler)
+
+	blacklistPattern := "SELECT a, b, c FROM z %%WHERE%%"
+	err = blacklistHandler.AddPatterns([]string{blacklistPattern})
+	if err != nil {
+		t.Fatal(err)
+	}
+	queries := []string{
+		"SELECT a, b, c FROM x WHERE a = 'someValue'",
+		"SELECT a, b, c FROM y WHERE a = 'someValue'",
+		"SELECT a, b, c FROM z WHERE a = 'someValue'",
+		"SELECT a, b FROM z WHERE a = 'someValue'",
+	}
+	//Queries that should pass have indexes: [0, 1, 3]; query that should be blocked has index [2]
+	err = censor.HandleQuery(queries[0])
+	if err != nil {
+		t.Fatal(err, "\nPattern"+blacklistPattern, "\nQuery"+queries[0])
+	}
+	err = censor.HandleQuery(queries[1])
+	if err != nil {
+		t.Fatal(err, "\nPattern"+blacklistPattern, "\nQuery"+queries[1])
+	}
+	err = censor.HandleQuery(queries[2])
+	if err != handlers.ErrBlacklistPatternMatch {
+		t.Fatal("Blacklist pattern passed query. \nPattern: ", blacklistPattern, "\nQuery: ", queries[2])
+	}
+	err = censor.HandleQuery(queries[3])
+	if err != nil {
+		t.Fatal(err, "\nPattern"+blacklistPattern, "\nQuery"+queries[3])
 	}
 }
 

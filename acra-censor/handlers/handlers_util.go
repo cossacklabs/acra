@@ -30,12 +30,17 @@ const (
 	LogQueryLength = 100
 	// ValuePlaceholder used to mask real Values from SQL queries before logging to syslog.
 	ValuePlaceholder = "replaced"
-	// SelectConfigPlaceholder expresses pattern that matches to all "select" SQL queries (can be used in censor' configuration file)
-	SelectConfigPlaceholder = "%%SELECT%%"
-	// constants used to create unique SQL query (SelectConfigPlaceholderReplacer will be wittingly parsed correctly)
+	// These constants are used to create unique SQL query that express security patterns (such patterns will be wittingly parsed correctly)
+	SelectConfigPlaceholder              = "%%SELECT%%"
 	SelectConfigPlaceholderReplacerPart1 = "SELECT"
 	SelectConfigPlaceholderReplacerPart2 = "F1F0A98E"
 	SelectConfigPlaceholderReplacer      = SelectConfigPlaceholderReplacerPart1 + " " + SelectConfigPlaceholderReplacerPart2
+	ColumnConfigPlaceholder              = "%%COLUMN%%"
+	ColumnConfigPlaceholderReplacer      = "COLUMN_A8D6EB40"
+	WhereConfigPlaceholder               = "%%WHERE%%"
+	WhereConfigPlaceholderReplacerPart1  = "WHERE"
+	WhereConfigPlaceholderReplacerPart2  = "VALUE_EF930A9B = 'VALUE_CD329E0D'"
+	WhereConfigPlaceholderReplacer       = WhereConfigPlaceholderReplacerPart1 + " " + WhereConfigPlaceholderReplacerPart2
 )
 
 func removeDuplicates(input []string) []string {
