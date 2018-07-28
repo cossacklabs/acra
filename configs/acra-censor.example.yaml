@@ -15,4 +15,4 @@ handlers:
       - EMPLOYEE_TBL
       - Customers
     patterns:
-      - SELECT * FROM EMPLOYEE WHERE CITY='Seattle';
+      - SELECT EMP_ID, LAST_NAME FROM EMPLOYEE %%WHERE%%;

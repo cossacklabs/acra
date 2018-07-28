@@ -21,4 +21,4 @@ handlers:
     tables:
       - acrarollback_output
     patterns:
-      - select * from test where id='1'
+      - select data from test %%WHERE%%
