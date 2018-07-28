@@ -89,10 +89,10 @@ func (handler *WhitelistHandler) CheckQuery(query string) (bool, error) {
 	if len(handler.rules) != 0 {
 		violationOccured, err := handler.testRulesViolation(query)
 		if err != nil {
-			return false, ErrParseSqlRuleWhitelist
+			return false, ErrPatternSyntaxError
 		}
 		if violationOccured {
-			return false, ErrForbiddenSqlStructureWhitelist
+			return false, ErrWhitelistPatternMismatch
 		}
 	}
 	//We do not continue verification because query matches whitelist
@@ -221,7 +221,7 @@ func (handler *WhitelistHandler) RemoveTables(tableNames []string) {
 	}
 }
 
-func (handler *WhitelistHandler) AddRules(rules []string) error {
+func (handler *WhitelistHandler) AddPatterns(rules []string) error {
 	for _, rule := range rules {
 		handler.rules = append(handler.rules, rule)
 		_, err := sqlparser.Parse(rule)
@@ -234,14 +234,14 @@ func (handler *WhitelistHandler) AddRules(rules []string) error {
 	return nil
 }
 
-func (handler *WhitelistHandler) RemoveRules(rules []string) {
-	for _, rule := range rules {
-		yes, index := contains(handler.rules, rule)
-		if yes {
-			handler.rules = append(handler.rules[:index], handler.rules[index+1:]...)
-		}
-	}
-}
+//func (handler *WhitelistHandler) RemoveRules(rules []string) {
+//	for _, rule := range rules {
+//		yes, index := contains(handler.rules, rule)
+//		if yes {
+//			handler.rules = append(handler.rules[:index], handler.rules[index+1:]...)
+//		}
+//	}
+//}
 
 func (handler *WhitelistHandler) testRulesViolation(query string) (bool, error) {
 	if sqlparser.Preview(query) != sqlparser.StmtSelect {
