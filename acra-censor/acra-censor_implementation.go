@@ -5,14 +5,17 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
+// ServiceName to use in logs
 const ServiceName = "acra-censor"
 
+// AcraCensor describes censor data: query handler, logger and reaction on parsing errors.
 type AcraCensor struct {
 	handlers         []QueryHandlerInterface
 	ignoreParseError bool
 	logger           *log.Entry
 }
 
+// NewAcraCensor creates new censor object.
 func NewAcraCensor() *AcraCensor {
 	acraCensor := &AcraCensor{}
 	acraCensor.logger = log.WithField("service", ServiceName)
@@ -20,10 +23,12 @@ func NewAcraCensor() *AcraCensor {
 	return acraCensor
 }
 
+// AddHandler adds handler to the list of Censor handlers.
 func (acraCensor *AcraCensor) AddHandler(handler QueryHandlerInterface) {
 	acraCensor.handlers = append(acraCensor.handlers, handler)
 }
 
+// RemoveHandler removes handler from the list of Censor handlers.
 func (acraCensor *AcraCensor) RemoveHandler(handler QueryHandlerInterface) {
 	for index, handlerFromRange := range acraCensor.handlers {
 		if handlerFromRange == handler {
@@ -32,6 +37,7 @@ func (acraCensor *AcraCensor) RemoveHandler(handler QueryHandlerInterface) {
 	}
 }
 
+// ReleaseAll stops all handlers.
 func (acraCensor *AcraCensor) ReleaseAll() {
 	acraCensor.logger = log.WithField("service", "acra-censor")
 	acraCensor.ignoreParseError = false
@@ -40,6 +46,7 @@ func (acraCensor *AcraCensor) ReleaseAll() {
 	}
 }
 
+// HandleQuery processes every query through each handler.
 func (acraCensor *AcraCensor) HandleQuery(query string) error {
 	queryWithHiddenValues, err := handlers.RedactSQLQuery(query)
 	if err == handlers.ErrQuerySyntaxError && acraCensor.ignoreParseError {
@@ -54,10 +61,9 @@ func (acraCensor *AcraCensor) HandleQuery(query string) error {
 			}
 			acraCensor.logger.Errorf("Forbidden query: '%s'", queryWithHiddenValues)
 			return err
-		} else {
-			if !continueHandling {
-				return nil
-			}
+		}
+		if !continueHandling {
+			return nil
 		}
 	}
 	acraCensor.logger.Infof("Allowed query: '%s'", queryWithHiddenValues)

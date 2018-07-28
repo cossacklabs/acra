@@ -26,6 +26,7 @@ type ColumnDescription struct {
 	DefaultValue       []byte
 }
 
+// ParseResultField parses binary field and returns ColumnDescription
 func ParseResultField(data []byte) (*ColumnDescription, error) {
 	field := &ColumnDescription{}
 	field.data = data
@@ -77,7 +78,7 @@ func ParseResultField(data []byte) (*ColumnDescription, error) {
 	pos += n
 
 	//skip 0x0C constant field
-	pos += 1
+	pos++
 
 	//charset
 	field.Charset = binary.LittleEndian.Uint16(data[pos:])
@@ -125,6 +126,7 @@ func ParseResultField(data []byte) (*ColumnDescription, error) {
 	return field, nil
 }
 
+// IsBinary true if field type is binary
 func (field *ColumnDescription) IsBinary() bool {
 	return IsBinaryColumn(field.Type)
 }

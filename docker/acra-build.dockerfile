@@ -54,7 +54,7 @@ RUN go get -v -x github.com/cossacklabs/acra/...
 COPY docker/collect_dependencies.sh .
 RUN chmod +x ./collect_dependencies.sh
 # Copy each product and its dependencies to resulting directories
-RUN for component in server connector keymaker webconfig authmanager; do \
+RUN for component in server connector translator keymaker webconfig authmanager; do \
         ./collect_dependencies.sh \
             "${GOPATH}/bin/acra-${component}" "/container.acra-${component}" && \
         cp "${GOPATH}/bin/acra-${component}" "/container.acra-${component}/"; \

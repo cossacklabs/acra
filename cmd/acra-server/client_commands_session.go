@@ -35,16 +35,19 @@ import (
 	"github.com/cossacklabs/themis/gothemis/keys"
 )
 
+// HTTP 500 response
 const (
 	RESPONSE_500_ERROR = "HTTP/1.1 500 Server error\r\n\r\n\r\n\r\n"
 )
 
+// ClientCommandsSession handles Secure Session for client commands API
 type ClientCommandsSession struct {
 	ClientSession
 	Server   *SServer
 	keystore keystore.KeyStore
 }
 
+// NewClientCommandsSession returns new ClientCommandsSession
 func NewClientCommandsSession(keystorage keystore.KeyStore, config *Config, connection net.Conn) (*ClientCommandsSession, error) {
 	clientSession, err := NewClientSession(keystorage, config, connection)
 	if err != nil {
@@ -54,6 +57,7 @@ func NewClientCommandsSession(keystorage keystore.KeyStore, config *Config, conn
 
 }
 
+// ConnectToDb should not be called, because command session must not connect to any DB
 func (clientSession *ClientCommandsSession) ConnectToDb() error {
 	return errors.New("command session must not connect to any DB")
 }
@@ -68,6 +72,7 @@ func (clientSession *ClientCommandsSession) close() {
 	log.Debugln("All connections closed")
 }
 
+// HandleSession gets, parses and executes each client HTTP request, writes response to the connection
 func (clientSession *ClientCommandsSession) HandleSession() {
 	reader := bufio.NewReader(clientSession.connection)
 	req, err := http.ReadRequest(reader)
@@ -90,7 +95,7 @@ func (clientSession *ClientCommandsSession) HandleSession() {
 		if err != nil {
 			log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantGenerateZone).Errorln("Can't generate zone key")
 		} else {
-			zoneData, err := zone.ZoneDataToJson(id, &keys.PublicKey{Value: publicKey})
+			zoneData, err := zone.ZoneDataToJSON(id, &keys.PublicKey{Value: publicKey})
 			if err != nil {
 				log.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantGenerateZone).WithError(err).Errorln("Can't create json with zone key")
 			} else {
@@ -127,7 +132,7 @@ func (clientSession *ClientCommandsSession) HandleSession() {
 		response = fmt.Sprintf("HTTP/1.1 200 OK Found\r\n\r\n%s\r\n\r\n", authData)
 	case "/getConfig":
 		log.Debugln("Got /getConfig request")
-		jsonOutput, err := clientSession.config.ToJson()
+		jsonOutput, err := clientSession.config.ToJSON()
 		if err != nil {
 			log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorGeneral).
 				Warningln("Can't convert config to JSON")
@@ -151,7 +156,7 @@ func (clientSession *ClientCommandsSession) HandleSession() {
 		// set config values
 		flag.Set("db_host", configFromUI.DbHost)
 		flag.Set("db_port", fmt.Sprintf("%v", configFromUI.DbPort))
-		flag.Set("incoming_connection_api_port", fmt.Sprintf("%v", configFromUI.ConnectorApiPort))
+		flag.Set("incoming_connection_api_port", fmt.Sprintf("%v", configFromUI.ConnectorAPIPort))
 		flag.Set("d", fmt.Sprintf("%v", configFromUI.Debug))
 		flag.Set("poison_run_script_file", fmt.Sprintf("%v", configFromUI.ScriptOnPoison))
 		flag.Set("poison_shutdown_enable", fmt.Sprintf("%v", configFromUI.StopOnPoison))
