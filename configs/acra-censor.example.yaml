@@ -14,5 +14,5 @@ handlers:
     tables:
       - EMPLOYEE_TBL
       - Customers
-    rules:
+    patterns:
       - SELECT * FROM EMPLOYEE WHERE CITY='Seattle';

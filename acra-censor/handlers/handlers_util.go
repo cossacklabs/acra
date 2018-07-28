@@ -4,7 +4,6 @@ import (
 	"errors"
 	"github.com/xwb1989/sqlparser"
 	"github.com/xwb1989/sqlparser/dependency/querypb"
-	"strings"
 )
 
 // Errors returned during parsing SQL queries.
@@ -13,11 +12,10 @@ var (
 	ErrQueryInBlacklist                = errors.New("query in blacklist")
 	ErrAccessToForbiddenTableBlacklist = errors.New("query tries to access forbidden table")
 	ErrAccessToForbiddenTableWhitelist = errors.New("query tries to access forbidden table")
-	ErrForbiddenSqlStructureBlacklist  = errors.New("query's structure is forbidden")
-	ErrForbiddenSqlStructureWhitelist  = errors.New("query's structure is forbidden")
-	ErrParseSqlRuleBlacklist           = errors.New("parsing security rules error")
-	ErrParseSqlRuleWhitelist           = errors.New("parsing security rules error")
+	ErrBlacklistPatternMatch           = errors.New("query's structure is forbidden")
+	ErrWhitelistPatternMismatch        = errors.New("query's structure is forbidden")
 	ErrNotImplemented                  = errors.New("not implemented yet")
+	ErrPatternSyntaxError              = errors.New("fail to parse specified pattern")
 	ErrQuerySyntaxError                = errors.New("fail to parse specified query")
 	ErrComplexSerializationError       = errors.New("can't perform complex serialization of queries")
 	ErrSingleQueryCaptureError         = errors.New("can't capture single query")
@@ -32,6 +30,12 @@ const (
 	LogQueryLength = 100
 	// ValuePlaceholder used to mask real Values from SQL queries before logging to syslog.
 	ValuePlaceholder = "replaced"
+	// SelectConfigPlaceholder expresses pattern that matches to all "select" SQL queries (can be used in censor' configuration file)
+	SelectConfigPlaceholder = "%%SELECT%%"
+	// constants used to create unique SQL query (SelectConfigPlaceholderReplacer will be wittingly parsed correctly)
+	SelectConfigPlaceholderReplacerPart1 = "SELECT"
+	SelectConfigPlaceholderReplacerPart2 = "F1F0A98E"
+	SelectConfigPlaceholderReplacer      = SelectConfigPlaceholderReplacerPart1 + " " + SelectConfigPlaceholderReplacerPart2
 )
 
 func removeDuplicates(input []string) []string {
@@ -44,15 +48,6 @@ func removeDuplicates(input []string) []string {
 		}
 	}
 	return result
-}
-
-func contains(queries []string, query string) (bool, int) {
-	for index, queryFromRange := range queries {
-		if strings.EqualFold(strings.ToLower(queryFromRange), strings.ToLower(query)) {
-			return true, index
-		}
-	}
-	return false, 0
 }
 
 // TrimStringToN trims query to N chars.

@@ -71,7 +71,7 @@ func TestWhitelistQueries(t *testing.T) {
 		t.Fatal(err)
 	}
 	testWhitelistTables(t, acraCensor, whitelistHandler)
-	testWhitelistRules(t, acraCensor, whitelistHandler)
+	testWhitelistPatterns(t, acraCensor, whitelistHandler)
 }
 func testWhitelistTables(t *testing.T, acraCensor *AcraCensor, whitelistHandler *handlers.WhitelistHandler) {
 	var err error
@@ -123,7 +123,7 @@ func testWhitelistTables(t *testing.T, acraCensor *AcraCensor, whitelistHandler 
 		t.Fatal(err)
 	}
 }
-func testWhitelistRules(t *testing.T, acraCensor *AcraCensor, whitelistHandler *handlers.WhitelistHandler) {
+func testWhitelistPatterns(t *testing.T, acraCensor *AcraCensor, whitelistHandler *handlers.WhitelistHandler) {
 	whitelistHandler.Reset()
 	testQueries := []string{
 		"SELECT EMP_ID, LAST_NAME FROM EMPLOYEE_TBL WHERE CITY = 'Seattle' ORDER BY EMP_ID;",
@@ -138,14 +138,14 @@ func testWhitelistRules(t *testing.T, acraCensor *AcraCensor, whitelistHandler *
 		"SELECT * FROM EMPLOYEE_TBL WHERE CITY='Seattle'",
 	}
 	queryIndexesToBlock := []int{1, 2, 3, 5}
-	err := whitelistHandler.AddRules(testSecurityRules)
+	err := whitelistHandler.AddPatterns(testSecurityRules)
 	if err != nil {
 		t.Fatal(err)
 	}
 	//acracensor should block those queries
 	for _, i := range queryIndexesToBlock {
 		err := acraCensor.HandleQuery(testQueries[i])
-		if err != handlers.ErrForbiddenSqlStructureWhitelist {
+		if err != handlers.ErrWhitelistPatternMismatch {
 			t.Fatal(err)
 		}
 	}
@@ -157,7 +157,7 @@ func testWhitelistRules(t *testing.T, acraCensor *AcraCensor, whitelistHandler *
 			t.Fatal(err)
 		}
 	}
-	whitelistHandler.RemoveRules(testSecurityRules)
+	whitelistHandler.RemovePatterns(testSecurityRules)
 	//acracensor should not block all queries
 	for _, query := range testQueries {
 		err := acraCensor.HandleQuery(query)
@@ -241,11 +241,15 @@ func TestBlacklistQueries(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	testBlacklistTables(t, acraCensor, blacklistHandler)
-	testBlacklistRules(t, acraCensor, blacklistHandler)
 }
-func testBlacklistTables(t *testing.T, censor *AcraCensor, blacklistHandler *handlers.BlacklistHandler) {
-	blacklistHandler.Reset()
+func TestBlacklistTables(t *testing.T) {
+	var err error
+
+	censor := NewAcraCensor()
+	defer censor.ReleaseAll()
+	blacklistHandler := handlers.NewBlacklistHandler()
+	censor.AddHandler(blacklistHandler)
+
 	testQueries := []string{
 		"SELECT EMP_ID, LAST_NAME FROM EMPLOYEE_TBL WHERE CITY = 'Seattle' ORDER BY EMP_ID;",
 		"SELECT EMP_ID, LAST_NAME FROM EMPLOYEE WHERE CITY = 'Seattle' ORDER BY EMP_ID;",
@@ -273,7 +277,7 @@ func testBlacklistTables(t *testing.T, censor *AcraCensor, blacklistHandler *han
 		}
 	}
 	blacklistHandler.RemoveTables([]string{"EMPLOYEE_TBL"})
-	err := censor.HandleQuery(testQueries[0])
+	err = censor.HandleQuery(testQueries[0])
 	//acracensor should not block this query
 	if err != nil {
 		t.Fatal(err)
@@ -284,64 +288,65 @@ func testBlacklistTables(t *testing.T, censor *AcraCensor, blacklistHandler *han
 		t.Fatal(err)
 	}
 }
-func testBlacklistRules(t *testing.T, acraCensor *AcraCensor, blacklistHandler *handlers.BlacklistHandler) {
-	blacklistHandler.Reset()
-	testQueries := []string{
-		"SELECT EMP_ID, LAST_NAME FROM EMPLOYEE_TBL WHERE CITY = 'Seattle' ORDER BY EMP_ID;",
-		"SELECT EMP_ID, LAST_NAME FROM EMPLOYEE WHERE CITY = 'Seattle' ORDER BY EMP_ID;",
-		"SELECT EMP_ID, LAST_NAME FROM EMPLOYEE, EMPLOYEE_TBL WHERE CITY = 'Seattle' ORDER BY EMP_ID;",
-		"SELECT EMP_ID, LAST_NAME FROM EMPLOYEE WHERE CITY = 'INDIANAPOLIS' ORDER BY EMP_ID asc;",
-		"SELECT EMP_ID, LAST_NAME FROM EMPLOYEE_TBL AS EMPL_TBL WHERE CITY = 'Seattle' ORDER BY EMP_ID;",
+
+func TestBlacklistPatterns(t *testing.T) {
+	//test %%SELECT%% pattern
+	testBlacklistPattern0(t)
+}
+func testBlacklistPattern0(t *testing.T) {
+	var err error
+
+	censor := NewAcraCensor()
+	defer censor.ReleaseAll()
+	blacklistHandler := handlers.NewBlacklistHandler()
+	censor.AddHandler(blacklistHandler)
+
+	queries := []string{
+		"SELECT EMP_ID, LAST_NAME FROM EMPLOYEE_TBL WHERE CITY = 'Seattle'",
+		"SELECT EMP_ID, LAST_NAME FROM EMPLOYEE WHERE NAME1 = 'Seattle' ORDER BY EMP_ID;",
+		"SELECT TEST_COLUMN1 FROM TEST_TABLE WHERE CITY = 'Seattle'",
+		"SELECT EMP_ID FROM EMPLOYEE, EMPLOYEE_TBL WHERE CITY = 'Seattle' ORDER BY EMP_ID;",
+		"SELECT EMP_ID, LAST_NAME FROM EMPLOYEE WHERE CITY1 = 'INDIANAPOLIS' ORDER BY EMP_ID asc;",
+		"SELECT EMP_ID, LAST_NAME FROM EMPLOYEE_TBL AS EMPL_TBL WHERE CITY2 = 'Seattle' ORDER BY EMP_ID;",
+		"select songName from t where personName in ('Ryan', 'Holly') group by songName having count(distinct personName) = 10",
+		"SELECT SUM(Salary) FROM Employee WHERE Emp_Age < 30;",
+		"SELECT AVG(Price) FROM Products;",
+		"SELECT A, B",
+		"SELECT X, Y",
+		"SELECT A",
+		"SELECT Y",
+		"INSERT SalesStaff1 VALUES (2, 'Michael', 'Blythe'), (3, 'Linda', 'Mitchell'),(4, 'Jillian', 'Carson'), (5, 'Garrett', 'Vargas');",
+		"INSERT INTO SalesStaff2 (StaffGUID, FirstName, LastName) VALUES (NEWID(), 'Stephen', 'Jiang');",
+		"INSERT INTO SalesStaff3 (StaffID, FullName) VALUES (X, 'Y');",
+		"INSERT INTO SalesStaff3 (StaffID, FullName) VALUES (X, 'Z');",
+		"INSERT INTO SalesStaff3 (StaffID, FullNameTbl) VALUES (X, M);",
+		"INSERT INTO X.Customers (CustomerName, ContactName, Address, City, PostalCode, Country) VALUES ('Cardinal', 'Tom B. Erichsen', 'Skagen 21', 'Stavanger', '4006', 'Norway');",
+		"INSERT INTO Customers (CustomerName, City, Country) VALUES ('Cardinal', 'Stavanger', 'Norway');",
+		"INSERT INTO Production (Name, UnitMeasureCode,	ModifiedDate) VALUES ('Square Yards', 'Y2', GETDATE());",
+		"INSERT INTO T1 (Name, UnitMeasureCode,	ModifiedDate) VALUES ('Square Yards', 'Y2', GETDATE());",
+		"INSERT INTO dbo.Points (Type, PointValue) VALUES ('Point', '1,5');",
+		"INSERT INTO dbo.Points (PointValue) VALUES ('1,99');",
 	}
-	//acracensor should block all queries that try to access to information in table EMPLOYEE_TBL related to Seattle city
-	testSecurityRules := []string{
-		"SELECT * FROM EMPLOYEE_TBL WHERE CITY='Seattle'",
-	}
-	queryIndexesToBlock := []int{0, 2, 4}
-	err := blacklistHandler.AddRules(testSecurityRules)
+	blacklistPattern1 := "%%SELECT%%"
+	err = blacklistHandler.AddPatterns([]string{blacklistPattern1})
 	if err != nil {
 		t.Fatal(err)
 	}
-	//acracensor should block those queries
-	for _, i := range queryIndexesToBlock {
-		err := acraCensor.HandleQuery(testQueries[i])
-		if err != handlers.ErrForbiddenSqlStructureBlacklist {
-			t.Fatal(err)
-		}
-	}
-	queryIndexesToPass := []int{1, 3}
-	//acracensor should not block those queries
-	for _, i := range queryIndexesToPass {
-		err := acraCensor.HandleQuery(testQueries[i])
-		if err != nil {
-			t.Fatal(err)
-		}
-	}
-	blacklistHandler.RemoveRules(testSecurityRules)
-	//acracensor should not block all queries
-	for _, query := range testQueries {
-		err := acraCensor.HandleQuery(query)
-		if err != nil {
-			t.Fatal(err)
-		}
-	}
-	testSecurityRules = []string{
-		"SELECT * FROM EMPLOYEE_TBL, EMPLOYEE WHERE CITY='Seattle'",
-		"SELECT * FROM EMPLOYEE_TBL, EMPLOYEE WHERE CITY='INDIANAPOLIS'",
-	}
-	blacklistHandler.Reset()
-	err = blacklistHandler.AddRules(testSecurityRules)
-	if err != nil {
-		t.Fatal(err)
-	}
-	//acracensor should block all queries
-	for _, query := range testQueries {
-		err := acraCensor.HandleQuery(query)
-		if err != handlers.ErrForbiddenSqlStructureBlacklist {
-			t.Fatal(err)
+	//Queries that should be blocked by first pattern have indexes: [0 .. 12] (all select queries)
+	for i, query := range queries {
+		err := censor.HandleQuery(query)
+		if i <= 12 {
+			if err != handlers.ErrBlacklistPatternMatch {
+				t.Fatal("Blacklist pattern works wrong. \nPattern: ", blacklistPattern1, "\nQuery: ", queries[i])
+			}
+		} else {
+			if err != nil {
+				t.Fatal(err, "\n"+blacklistPattern1, "\n"+queries[i])
+			}
 		}
 	}
 }
+
 func TestQueryIgnoring(t *testing.T) {
 	var err error
 	testQueries := []string{
@@ -701,7 +706,7 @@ func TestConfigurationProvider(t *testing.T) {
 	//acracensor should block those structures
 	for _, queryToBlock := range testQueries {
 		err = acraCensor.HandleQuery(queryToBlock)
-		if err != handlers.ErrForbiddenSqlStructureBlacklist {
+		if err != handlers.ErrBlacklistPatternMatch {
 			t.Fatal(err)
 		}
 	}
@@ -737,7 +742,7 @@ func testSyntax(t *testing.T) {
     tables:
       - EMPLOYEE_TBL
       - Customers
-    rules:
+    patterns:
       - SELECT * ROM EMPLOYEE WHERE CITY='Seattle';`
 
 	err = acraCensor.LoadConfiguration([]byte(configuration))
@@ -775,7 +780,6 @@ func TestDifferentTablesParsing(t *testing.T) {
 		t.Fatal(err)
 	}
 }
-
 func TestIgnoringQueryParseErrors(t *testing.T) {
 	queriesWithSyntaxErrors := []string{
 		"Insert into something",

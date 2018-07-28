@@ -1,26 +1,26 @@
 package handlers
 
 import (
-	"errors"
 	"github.com/cossacklabs/acra/logging"
 	"github.com/xwb1989/sqlparser"
-	"reflect"
 	"strings"
 
 	log "github.com/sirupsen/logrus"
+	"reflect"
 )
 
 type BlacklistHandler struct {
-	queries map[string]bool
-	tables  map[string]bool
-	rules   []string
-	logger  *log.Entry
+	queries  map[string]bool
+	tables   map[string]bool
+	patterns [][]sqlparser.SQLNode
+	logger   *log.Entry
 }
 
 func NewBlacklistHandler() *BlacklistHandler {
 	handler := &BlacklistHandler{}
 	handler.queries = make(map[string]bool)
 	handler.tables = make(map[string]bool)
+	handler.patterns = make([][]sqlparser.SQLNode, 0)
 	handler.logger = log.WithField("handler", "blacklist")
 	return handler
 }
@@ -85,14 +85,14 @@ func (handler *BlacklistHandler) CheckQuery(query string) (bool, error) {
 			return false, ErrNotImplemented
 		}
 	}
-	//Check rules
-	if len(handler.rules) != 0 {
-		violationOccured, err := handler.testRulesViolation(query)
+	//Check patterns
+	if len(handler.patterns) != 0 {
+		matchingOccurred, err := handler.checkPatternsMatching(query)
 		if err != nil {
-			return false, ErrParseSqlRuleBlacklist
+			return false, ErrPatternSyntaxError
 		}
-		if violationOccured {
-			return false, ErrForbiddenSqlStructureBlacklist
+		if matchingOccurred {
+			return false, ErrBlacklistPatternMatch
 		}
 	}
 	return true, nil
@@ -160,7 +160,8 @@ func (handler *BlacklistHandler) handleParenTables(statement *sqlparser.ParenTab
 func (handler *BlacklistHandler) Reset() {
 	handler.queries = make(map[string]bool)
 	handler.tables = make(map[string]bool)
-	handler.rules = nil
+	handler.patterns = make([][]sqlparser.SQLNode, 0)
+	handler.logger = log.WithField("handler", "blacklist")
 }
 
 func (handler *BlacklistHandler) Release() {
@@ -191,112 +192,55 @@ func (handler *BlacklistHandler) RemoveTables(tableNames []string) {
 	}
 }
 
-func (handler *BlacklistHandler) AddRules(rules []string) error {
-	for _, rule := range rules {
-		handler.rules = append(handler.rules, rule)
-		_, err := sqlparser.Parse(rule)
-		if err != nil {
-			log.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCensorQueryParseError).WithError(err).Errorln("Can't parse query to add rule to blacklist handler")
-			return ErrQuerySyntaxError
+func (handler *BlacklistHandler) AddPatterns(patterns []string) error {
+	placeholders := []string{SelectConfigPlaceholder}
+	replacers := []string{SelectConfigPlaceholderReplacer}
+
+	patternValue := ""
+	for _, pattern := range patterns {
+		patternValue = pattern
+		for index, placeholder := range placeholders {
+			patternValue = strings.Replace(patternValue, placeholder, replacers[index], -1)
 		}
+		statement, err := sqlparser.Parse(patternValue)
+		//fmt.Println(sqlparser.String(statement))
+		if err != nil {
+			log.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCensorQueryParseError).WithError(err).Errorln("Can't add specified pattern in blacklist handler")
+			return ErrPatternSyntaxError
+		}
+		var newPatternNodes []sqlparser.SQLNode
+		sqlparser.Walk(func(node sqlparser.SQLNode) (bool, error) {
+			newPatternNodes = append(newPatternNodes, node)
+			return true, nil
+		}, statement)
+		handler.patterns = append(handler.patterns, newPatternNodes)
 	}
-	handler.rules = removeDuplicates(handler.rules)
 	return nil
 }
 
-func (handler *BlacklistHandler) RemoveRules(rules []string) {
-	for _, rule := range rules {
-		yes, index := contains(handler.rules, rule)
-		if yes {
-			handler.rules = append(handler.rules[:index], handler.rules[index+1:]...)
-		}
-	}
-}
-
-func (handler *BlacklistHandler) testRulesViolation(query string) (bool, error) {
-	if sqlparser.Preview(query) != sqlparser.StmtSelect {
-		return true, errors.New("Non-select queries are not supported")
-	}
-	//parse one rule and get forbidden tables and columns for specific 'where' clause
-	var whereClause sqlparser.SQLNode
-	var tables sqlparser.TableExprs
-	var columns sqlparser.SelectExprs
-	//Parse each rule and then test query
-	for _, rule := range handler.rules {
-		parsedRule, err := sqlparser.Parse(rule)
-		if err != nil {
-			log.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCensorQueryParseError).WithError(err).Errorln("Can't parse rule in blacklist handler for test")
-			return true, ErrQuerySyntaxError
-		}
-		switch parsedRule := parsedRule.(type) {
-		case *sqlparser.Select:
-			whereClause = parsedRule.Where.Expr
-			tables = parsedRule.From
-			columns = parsedRule.SelectExprs
-			dangerousSelect, err := handler.isDangerousSelect(query, whereClause, tables, columns)
-			if err != nil {
-				return true, err
-			}
-			if dangerousSelect {
-				return true, nil
-			}
-		case *sqlparser.Insert:
-			return true, ErrNotImplemented
-		default:
-			return true, ErrNotImplemented
-		}
-		_ = whereClause
-		_ = tables
-		_ = columns
-	}
-	return false, nil
-}
-
-func (handler *BlacklistHandler) isDangerousSelect(selectQuery string, forbiddenWhere sqlparser.SQLNode, forbiddenTables sqlparser.TableExprs, forbiddenColumns sqlparser.SelectExprs) (bool, error) {
-	parsedSelectQuery, err := sqlparser.Parse(selectQuery)
+func (handler *BlacklistHandler) checkPatternsMatching(query string) (bool, error) {
+	var queryNodes []sqlparser.SQLNode
+	statement, err := sqlparser.Parse(query)
 	if err != nil {
-		log.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCensorQueryParseError).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCensorQueryParseError).WithError(err).Errorln("Can't parse query in blacklist handler to check is it dangerous select")
-		return true, ErrQuerySyntaxError
+		return false, ErrQuerySyntaxError
 	}
-	evaluatedStmt := parsedSelectQuery.(*sqlparser.Select)
-	if evaluatedStmt.Where != nil {
-		if strings.EqualFold(sqlparser.String(forbiddenWhere), sqlparser.String(evaluatedStmt.Where.Expr)) {
-			if handler.isForbiddenTableAccess(evaluatedStmt.From, forbiddenTables) {
-				if handler.isForbiddenColumnAccess(evaluatedStmt.SelectExprs, forbiddenColumns) {
-					return true, nil
-				}
-			}
-		}
-	} else {
-		if handler.isForbiddenTableAccess(evaluatedStmt.From, forbiddenTables) {
-			if handler.isForbiddenColumnAccess(evaluatedStmt.SelectExprs, forbiddenColumns) {
-				return true, nil
-			}
+	sqlparser.Walk(func(node sqlparser.SQLNode) (bool, error) {
+		queryNodes = append(queryNodes, node)
+		return true, nil
+	}, statement)
+	for _, singlePatternNodes := range handler.patterns {
+		if checkSinglePatternMatch(queryNodes, singlePatternNodes) {
+			return true, nil
 		}
 	}
 	return false, nil
 }
-
-func (handler *BlacklistHandler) isForbiddenTableAccess(tablesToEvaluate sqlparser.TableExprs, forbiddenTables sqlparser.TableExprs) bool {
-	for _, tableToEvaluate := range tablesToEvaluate {
-		for _, forbiddenTable := range forbiddenTables {
-			if reflect.DeepEqual(tableToEvaluate.(*sqlparser.AliasedTableExpr).Expr, forbiddenTable.(*sqlparser.AliasedTableExpr).Expr) {
-				return true
-			}
-		}
-	}
-	return false
-}
-
-func (handler *BlacklistHandler) isForbiddenColumnAccess(columnsToEvaluate sqlparser.SelectExprs, forbiddenColumns sqlparser.SelectExprs) bool {
-	if strings.EqualFold(sqlparser.String(forbiddenColumns), "*") {
-		return true
-	}
-	for _, columnToEvaluate := range columnsToEvaluate {
-		for _, forbiddenColumn := range forbiddenColumns {
-			if reflect.DeepEqual(columnToEvaluate, forbiddenColumn) {
-				return true
-			}
+func checkSinglePatternMatch(queryNodes []sqlparser.SQLNode, patternNodes []sqlparser.SQLNode) bool {
+	//handle %%SELECT%% pattern
+	var emptySelect *sqlparser.Select
+	if reflect.TypeOf(queryNodes[0]) == reflect.TypeOf(emptySelect) && reflect.TypeOf(patternNodes[0]) == reflect.TypeOf(emptySelect) {
+		if strings.EqualFold(sqlparser.String(patternNodes[0].(*sqlparser.Select).SelectExprs), SelectConfigPlaceholderReplacerPart2) {
+			return true
 		}
 	}
 	return false

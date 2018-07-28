@@ -16,7 +16,7 @@ type AcraCensorConfig struct {
 		Handler  string
 		Queries  []string
 		Tables   []string
-		Rules    []string
+		Patterns []string
 		Filepath string
 	}
 	IgnoreParseError bool `yaml:"ignore_parse_error"`
@@ -35,7 +35,7 @@ func (acraCensor *AcraCensor) LoadConfiguration(configuration []byte) error {
 			whitelistHandler := handlers.NewWhitelistHandler()
 			whitelistHandler.AddQueries(handlerConfiguration.Queries)
 			whitelistHandler.AddTables(handlerConfiguration.Tables)
-			err = whitelistHandler.AddRules(handlerConfiguration.Rules)
+			err = whitelistHandler.AddPatterns(handlerConfiguration.Patterns)
 			if err != nil {
 				return err
 			}
@@ -45,7 +45,7 @@ func (acraCensor *AcraCensor) LoadConfiguration(configuration []byte) error {
 			blacklistHandler := handlers.NewBlacklistHandler()
 			blacklistHandler.AddQueries(handlerConfiguration.Queries)
 			blacklistHandler.AddTables(handlerConfiguration.Tables)
-			err = blacklistHandler.AddRules(handlerConfiguration.Rules)
+			err = blacklistHandler.AddPatterns(handlerConfiguration.Patterns)
 			if err != nil {
 				return err
 			}

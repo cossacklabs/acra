@@ -20,5 +20,5 @@ handlers:
       - select data_raw from test
     tables:
       - acrarollback_output
-    rules:
+    patterns:
       - select * from test where id='1'

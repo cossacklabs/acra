@@ -30,5 +30,5 @@ handlers:
     queries:
     tables:
       - test
-    rules:
+    patterns:
       - select * from test where id='1'
