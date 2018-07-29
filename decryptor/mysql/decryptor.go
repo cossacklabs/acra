@@ -18,6 +18,7 @@ import (
 
 type decryptFunc func([]byte) ([]byte, error)
 
+// MySQLDecryptor used to decrypt AcraStruct from MySQL fields
 type MySQLDecryptor struct {
 	base.Decryptor
 	binaryDecryptor *binary.BinaryDecryptor
@@ -27,11 +28,13 @@ type MySQLDecryptor struct {
 	clientID        []byte
 }
 
+// Possible decryption modes: AcraStruct can start from beginning of cell, or be part of the cell
 const (
 	DECRYPT_WHOLE  = "whole_block"
 	DECRYPT_INLINE = "inline_block"
 )
 
+// NewMySQLDecryptor returns MySQLDecryptor with turned on poison record detection
 func NewMySQLDecryptor(clientID []byte, pgDecryptor *postgresql.PgDecryptor, keyStore keystore.KeyStore) *MySQLDecryptor {
 	decryptor := &MySQLDecryptor{keyStore: keyStore, binaryDecryptor: binary.NewBinaryDecryptor(), Decryptor: pgDecryptor}
 	// because we will use internal value of pgDecryptor then set it `true` as default on initialization
@@ -41,6 +44,7 @@ func NewMySQLDecryptor(clientID []byte, pgDecryptor *postgresql.PgDecryptor, key
 	return decryptor
 }
 
+// SkipBeginInBlock returns AcraStruct without BeginTag or error if BeginTag not found
 func (decryptor *MySQLDecryptor) SkipBeginInBlock(block []byte) ([]byte, error) {
 	n := 0
 	for _, c := range block {
@@ -58,6 +62,8 @@ func (decryptor *MySQLDecryptor) SkipBeginInBlock(block []byte) ([]byte, error) 
 	}
 	return block[n:], nil
 }
+
+// MatchZoneBlock returns zone data
 func (decryptor *MySQLDecryptor) MatchZoneBlock(block []byte) {
 	for _, c := range block {
 		if !decryptor.MatchZone(c) {
@@ -65,6 +71,8 @@ func (decryptor *MySQLDecryptor) MatchZoneBlock(block []byte) {
 		}
 	}
 }
+
+// BeginTagIndex returns index where BeginTag is found in AcraStruct
 func (decryptor *MySQLDecryptor) BeginTagIndex(block []byte) (int, int) {
 	if i := utils.FindTag(base.TAG_SYMBOL, decryptor.binaryDecryptor.GetTagBeginLength(), block); i != utils.NOT_FOUND {
 		return i, decryptor.binaryDecryptor.GetTagBeginLength()
@@ -72,6 +80,7 @@ func (decryptor *MySQLDecryptor) BeginTagIndex(block []byte) (int, int) {
 	return utils.NOT_FOUND, decryptor.GetTagBeginLength()
 }
 
+// MatchZoneInBlock finds ZoneId in AcraStruct and marks decryptor matched
 func (decryptor *MySQLDecryptor) MatchZoneInBlock(block []byte) {
 	for {
 		// binary format
@@ -89,10 +98,12 @@ func (decryptor *MySQLDecryptor) MatchZoneInBlock(block []byte) {
 	return
 }
 
+// ReadData returns decrypted AcraStruct content
 func (decryptor *MySQLDecryptor) ReadData(symmetricKey, zoneID []byte, reader io.Reader) ([]byte, error) {
 	return decryptor.binaryDecryptor.ReadData(symmetricKey, zoneID, reader)
 }
 
+// ReadSymmetricKey returns decrypted SymmetricKey that is used to encrypt AcraStruct content
 func (decryptor *MySQLDecryptor) ReadSymmetricKey(privateKey *keys.PrivateKey, reader io.Reader) ([]byte, []byte, error) {
 	symmetricKey, rawData, err := decryptor.binaryDecryptor.ReadSymmetricKey(privateKey, reader)
 	if err != nil {
@@ -201,6 +212,9 @@ func (decryptor *MySQLDecryptor) decryptBlock(reader io.Reader, id []byte, keyFu
 	return data, nil
 }
 
+// SetWholeMatch changes decrypt function depending on MatchMode
+// if WholeMode: Decryptor tries to find AcraStruct from the beginning of cell
+// if InlineMode: Decryptor tries to find AcraStruct in the middle of cell
 func (decryptor *MySQLDecryptor) SetWholeMatch(value bool) {
 	if value {
 		decryptor.decryptFunc = decryptor.decryptWholeBlock
@@ -227,10 +241,9 @@ func (decryptor *MySQLDecryptor) decryptWholeBlock(block []byte) ([]byte, error)
 			decryptor.ResetZoneMatch()
 		}
 		return newData, err
-	} else {
-		decryptor.MatchZoneBlock(block)
-		return block, nil
 	}
+	decryptor.MatchZoneBlock(block)
+	return block, nil
 }
 
 func (decryptor *MySQLDecryptor) decryptInlineBlock(block []byte) ([]byte, error) {
@@ -269,6 +282,7 @@ func (decryptor *MySQLDecryptor) decryptInlineBlock(block []byte) ([]byte, error
 	return output.Bytes(), nil
 }
 
+// DecryptBlock calls decrypt function on binary block
 func (decryptor *MySQLDecryptor) DecryptBlock(block []byte) ([]byte, error) {
 	return decryptor.decryptFunc(block)
 }

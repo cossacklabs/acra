@@ -1,3 +1,5 @@
+// Package network contains network utils for establishing secure session, for listening connections.
+//
 package network
 
 import (
@@ -5,6 +7,7 @@ import (
 	"net"
 )
 
+// Proxy reads data from connFrom, writes data to connTo
 func Proxy(connFrom, connTo net.Conn, errCh chan<- error) {
 	buf := make([]byte, 8192)
 	for {

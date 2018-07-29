@@ -7,6 +7,6 @@ def load_default_config(service_name):
         return yaml.safe_load(f)
 
 
-def read_storage_public_key(client_id):
-    with open('.acrakeys/{}_storage.pub'.format(client_id), 'rb') as f:
+def read_storage_public_key(client_id, keys_dir='.acrakeys'):
+    with open('{}/{}_storage.pub'.format(keys_dir, client_id), 'rb') as f:
             return f.read()

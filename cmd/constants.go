@@ -1,5 +1,6 @@
 package cmd
 
+// Acra component constants: default port, host, names, path.
 const (
 	DEFAULT_ACRACONNECTOR_PORT                = 9494
 	DEFAULT_ACRACONNECTOR_API_PORT            = 9191

@@ -8,7 +8,7 @@ import (
 type TestCallback struct{ CallCount *int }
 
 func (callback *TestCallback) Call() error {
-	*callback.CallCount += 1
+	*callback.CallCount++
 	return nil
 }
 

@@ -26,6 +26,7 @@ import (
 	"math/rand"
 )
 
+// GenerateData generates random data with MAX_DATA_LENGTH
 func GenerateData() ([]byte, error) {
 	length := rand.Intn(config.MAX_DATA_LENGTH)
 	data := make([]byte, length)
@@ -33,6 +34,7 @@ func GenerateData() ([]byte, error) {
 	return data, err
 }
 
+// GetServerOneKeyPublic reads public key
 func GetServerOneKeyPublic() *keys.PublicKey {
 	publicKey, err := ioutil.ReadFile("src/github.com/cossacklabs/acra/benchmarks/.acrakeys/onekey_server.pub")
 	if err != nil {
@@ -41,15 +43,19 @@ func GetServerOneKeyPublic() *keys.PublicKey {
 	return &keys.PublicKey{Value: publicKey}
 }
 
+// ZoneData stores zone: zoneID and PublicKey
 type ZoneData struct {
-	Id         []byte
-	Public_Key []byte
-}
-type JsonData struct {
-	Id         string
-	Public_Key []byte
+	Id        []byte
+	PublicKey []byte
 }
 
+// JSONData stores JSON zone: zoneID and PublicKey
+type JSONData struct {
+	Id        string
+	PublicKey []byte
+}
+
+// LoadZones loads zones keys
 func LoadZones() []*ZoneData {
 	absDir, err := utils.AbsPath("./src/github.com/cossacklabs/acra/benchmarks/.acrakeys")
 	if err != nil {
@@ -61,12 +67,12 @@ func LoadZones() []*ZoneData {
 		panic(err)
 	}
 	for i, zoneData := range bytes.Split(dumpedZoneData, []byte("\n")) {
-		jsonData := JsonData{}
+		jsonData := JSONData{}
 		err = json.Unmarshal(zoneData, &jsonData)
 		if err != nil {
 			panic(err)
 		}
-		zones[i] = &ZoneData{Public_Key: jsonData.Public_Key, Id: []byte(jsonData.Id)}
+		zones[i] = &ZoneData{PublicKey: jsonData.PublicKey, Id: []byte(jsonData.Id)}
 	}
 	return zones
 }

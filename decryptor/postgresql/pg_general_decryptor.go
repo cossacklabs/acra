@@ -1,3 +1,5 @@
+// Package postgresql contains postgresql decryptor.
+//
 // Copyright 2016, Cossack Labs Limited
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
@@ -352,8 +354,8 @@ func (decryptor *PgDecryptor) MatchZoneInBlock(block []byte) {
 				break
 			} else {
 				id := make([]byte, zone.ZONE_ID_BLOCK_LENGTH)
-				hexId := sliceCopy[i : i+HEX_ZONE_ID_BLOCK_LENGTH]
-				hex.Decode(id, hexId)
+				hexID := sliceCopy[i : i+HEX_ZONE_ID_BLOCK_LENGTH]
+				hex.Decode(id, hexID)
 				if decryptor.keyStore.HasZonePrivateKey(id) {
 					decryptor.zoneMatcher.SetMatched(id)
 					return
