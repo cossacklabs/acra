@@ -193,8 +193,8 @@ func (handler *BlacklistHandler) RemoveTables(tableNames []string) {
 }
 
 func (handler *BlacklistHandler) AddPatterns(patterns []string) error {
-	placeholders := []string{SelectConfigPlaceholder, ColumnConfigPlaceholder, WhereConfigPlaceholder}
-	replacers := []string{SelectConfigPlaceholderReplacer, ColumnConfigPlaceholderReplacer, WhereConfigPlaceholderReplacer}
+	placeholders := []string{SelectConfigPlaceholder, ColumnConfigPlaceholder, WhereConfigPlaceholder, ValueConfigPlaceholder}
+	replacers := []string{SelectConfigPlaceholderReplacer, ColumnConfigPlaceholderReplacer, WhereConfigPlaceholderReplacer, ValueConfigPlaceholderReplacer}
 
 	patternValue := ""
 	for _, pattern := range patterns {
@@ -234,6 +234,7 @@ func (handler *BlacklistHandler) checkPatternsMatching(query string) (bool, erro
 	}
 	return false, nil
 }
+
 func checkSinglePatternMatch(queryNodes []sqlparser.SQLNode, patternNodes []sqlparser.SQLNode) bool {
 	patternDetected := false
 	matchOccurred := false
@@ -255,6 +256,11 @@ func checkSinglePatternMatch(queryNodes []sqlparser.SQLNode, patternNodes []sqlp
 			return true
 		}
 	}
+	matchOccurred = handleUsualPattern(queryNodes, patternNodes)
+	if matchOccurred {
+		return true
+	}
+	//query doesn't match any stored pattern
 	return false
 }
 
@@ -298,7 +304,7 @@ func handleSelectWherePattern(queryNodes, patternNodes []sqlparser.SQLNode) (pat
 		if greaterLength < len(patternNodes) {
 			greaterLength = len(patternNodes)
 		}
-		//start from 1 node because 0 is node that represents all query
+		//start from first node because zero node represents all query
 		index := 1
 		for index < greaterLength {
 			if index < len(queryNodes) && index < len(patternNodes) {
@@ -325,4 +331,54 @@ func handleSelectWherePattern(queryNodes, patternNodes []sqlparser.SQLNode) (pat
 		}
 	}
 	return patternDetected, false
+}
+
+//usual pattern means that it's number of nodes equals to query's number of nodes
+func handleUsualPattern(queryNodes, patternNodes []sqlparser.SQLNode) bool {
+	patternMatch := false
+	if nodesLengthAreEqual(queryNodes, patternNodes) &&
+		nodesTypesAreEqual(queryNodes, patternNodes) &&
+		nodesValuesAreEqual(queryNodes, patternNodes) {
+		patternMatch = true
+	}
+	return patternMatch
+}
+
+func nodesValuesAreEqual(queryNodes, patternNodes []sqlparser.SQLNode) bool {
+	for index, patternNode := range patternNodes {
+		//start from first node because zero node represents all query
+		if index == 0 {
+			continue
+		}
+		//if nodes are deeply equal, skip verifications
+		if reflect.DeepEqual(queryNodes[index], patternNode) {
+			continue
+		} else {
+			if patternNodeComparison, ok := patternNode.(*sqlparser.ComparisonExpr); ok {
+				if queryNodeComparison, ok := queryNodes[index].(*sqlparser.ComparisonExpr); ok {
+					if reflect.DeepEqual(queryNodeComparison.Left, patternNodeComparison.Left) && strings.EqualFold(sqlparser.String(patternNodeComparison.Right), ValueConfigPlaceholderReplacer) {
+						return true
+					}
+				}
+			}
+		}
+	}
+	return false
+}
+
+func nodesTypesAreEqual(queryNodes, patternNodes []sqlparser.SQLNode) bool {
+	for index, patternNode := range patternNodes {
+		if reflect.TypeOf(queryNodes[index]) != reflect.TypeOf(patternNode) {
+			return false
+		}
+	}
+	return true
+}
+
+func nodesLengthAreEqual(queryNodes, patternNodes []sqlparser.SQLNode) bool {
+	if len(queryNodes) != len(patternNodes) {
+		return false
+	} else {
+		return true
+	}
 }

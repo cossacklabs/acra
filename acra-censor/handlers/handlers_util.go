@@ -41,6 +41,8 @@ const (
 	WhereConfigPlaceholderReplacerPart1  = "WHERE"
 	WhereConfigPlaceholderReplacerPart2  = "VALUE_EF930A9B = 'VALUE_CD329E0D'"
 	WhereConfigPlaceholderReplacer       = WhereConfigPlaceholderReplacerPart1 + " " + WhereConfigPlaceholderReplacerPart2
+	ValueConfigPlaceholder               = "%%VALUE%%"
+	ValueConfigPlaceholderReplacer       = "'VALUE_AE920B7D'"
 )
 
 func removeDuplicates(input []string) []string {

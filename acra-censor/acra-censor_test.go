@@ -296,6 +296,8 @@ func TestBlacklistPatterns(t *testing.T) {
 	testBlacklistPattern1(t)
 	//test SELECT a, b from t %%WHERE%% pattern
 	testBlacklistPattern2(t)
+	//test SELECT a, b from t where ID = %%VALUE%%
+	testBlacklistPattern3(t)
 
 }
 func testBlacklistPattern0(t *testing.T) {
@@ -418,6 +420,54 @@ func testBlacklistPattern2(t *testing.T) {
 	err = censor.HandleQuery(queries[3])
 	if err != nil {
 		t.Fatal(err, "\nPattern"+blacklistPattern, "\nQuery"+queries[3])
+	}
+}
+func testBlacklistPattern3(t *testing.T) {
+	var err error
+
+	censor := NewAcraCensor()
+	defer censor.ReleaseAll()
+	blacklistHandler := handlers.NewBlacklistHandler()
+	censor.AddHandler(blacklistHandler)
+
+	blacklistPattern := "SELECT a, b from t where ID = %%VALUE%%"
+	err = blacklistHandler.AddPatterns([]string{blacklistPattern})
+	if err != nil {
+		t.Fatal(err)
+	}
+	queries := []string{
+		"SELECT a, b FROM t WHERE someParameter = 'someValue208934278935789'",
+		"SELECT a, b, c FROM y WHERE a = 'someValue'",
+		"SELECT a, b FROM t WHERE ID = 'someValue_testValue_1234567890'",
+		"SELECT a, b FROM z WHERE a = 'someValue'",
+		"SELECT a, b FROM t WHERE ID = 'someValue'",
+		"SELECT a, b FROM t WHERE NonID = 'someValue'",
+	}
+
+	//Queries that should pass have indexes: [0, 1, 3, 5]; query that should be blocked has index [2, 4]
+	err = censor.HandleQuery(queries[0])
+	if err != nil {
+		t.Fatal(err, "\nPattern"+blacklistPattern, "\nQuery"+queries[0])
+	}
+	err = censor.HandleQuery(queries[1])
+	if err != nil {
+		t.Fatal(err, "\nPattern"+blacklistPattern, "\nQuery"+queries[1])
+	}
+	err = censor.HandleQuery(queries[2])
+	if err != handlers.ErrBlacklistPatternMatch {
+		t.Fatal("Blacklist pattern passed query. \nPattern: ", blacklistPattern, "\nQuery: ", queries[2])
+	}
+	err = censor.HandleQuery(queries[3])
+	if err != nil {
+		t.Fatal(err, "\nPattern"+blacklistPattern, "\nQuery"+queries[3])
+	}
+	err = censor.HandleQuery(queries[4])
+	if err != handlers.ErrBlacklistPatternMatch {
+		t.Fatal("Blacklist pattern passed query. \nPattern: ", blacklistPattern, "\nQuery: ", queries[4])
+	}
+	err = censor.HandleQuery(queries[5])
+	if err != nil {
+		t.Fatal(err, "\nPattern"+blacklistPattern, "\nQuery"+queries[5])
 	}
 }
 
