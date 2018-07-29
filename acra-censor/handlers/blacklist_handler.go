@@ -256,7 +256,7 @@ func checkSinglePatternMatch(queryNodes []sqlparser.SQLNode, patternNodes []sqlp
 			return true
 		}
 	}
-	matchOccurred = handleUsualPattern(queryNodes, patternNodes)
+	matchOccurred = handleValuePattern(queryNodes, patternNodes)
 	if matchOccurred {
 		return true
 	}
@@ -333,11 +333,10 @@ func handleSelectWherePattern(queryNodes, patternNodes []sqlparser.SQLNode) (pat
 	return patternDetected, false
 }
 
-//usual pattern means that it's number of nodes equals to query's number of nodes
-func handleUsualPattern(queryNodes, patternNodes []sqlparser.SQLNode) bool {
+//handle SELECT a, b FROM t1 WHERE userID=%%VALUE%% pattern
+func handleValuePattern(queryNodes, patternNodes []sqlparser.SQLNode) bool {
 	patternMatch := false
-	if nodesLengthAreEqual(queryNodes, patternNodes) &&
-		nodesTypesAreEqual(queryNodes, patternNodes) &&
+	if len(queryNodes) == len(patternNodes) &&
 		nodesValuesAreEqual(queryNodes, patternNodes) {
 		patternMatch = true
 	}
@@ -364,21 +363,4 @@ func nodesValuesAreEqual(queryNodes, patternNodes []sqlparser.SQLNode) bool {
 		}
 	}
 	return false
-}
-
-func nodesTypesAreEqual(queryNodes, patternNodes []sqlparser.SQLNode) bool {
-	for index, patternNode := range patternNodes {
-		if reflect.TypeOf(queryNodes[index]) != reflect.TypeOf(patternNode) {
-			return false
-		}
-	}
-	return true
-}
-
-func nodesLengthAreEqual(queryNodes, patternNodes []sqlparser.SQLNode) bool {
-	if len(queryNodes) != len(patternNodes) {
-		return false
-	} else {
-		return true
-	}
 }
