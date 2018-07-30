@@ -20,21 +20,26 @@ import (
 	"errors"
 )
 
-var FAKE_DB_BYTE = errors.New("Fake db format byte")
+// FAKE_DB_BYTE error for wrong database byte format
+var FAKE_DB_BYTE = errors.New("fake db format byte")
 
+// PgHexByteReader reads hexadecimal bytes from binary input
 type PgHexByteReader struct {
 	currentIndex byte
 	buffer       [2]byte
 }
 
+// NewPgHexByteReader returns new PgHexByteReader
 func NewPgHexByteReader() *PgHexByteReader {
 	return &PgHexByteReader{currentIndex: 0}
 }
 
+// Reset current reader index
 func (reader *PgHexByteReader) Reset() {
 	reader.currentIndex = 0
 }
 
+// GetBuffered returns bytes from buffer to currentIndex
 func (reader *PgHexByteReader) GetBuffered() []byte {
 	return reader.buffer[:reader.currentIndex]
 }
@@ -48,6 +53,7 @@ func (reader *PgHexByteReader) returnError() (bool, byte, error) {
 	return false, 0, FAKE_DB_BYTE
 }
 
+// ReadByte reads c and returns the bytes represented by the hexadecimal string
 func (reader *PgHexByteReader) ReadByte(c byte) (bool, byte, error) {
 	// 0-9 == 48-57
 	// a-f == 65-70
