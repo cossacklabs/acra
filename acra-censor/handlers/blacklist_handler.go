@@ -25,6 +25,7 @@ func NewBlacklistHandler() *BlacklistHandler {
 	return handler
 }
 
+//CheckQuery checks input query
 func (handler *BlacklistHandler) CheckQuery(query string) (bool, error) {
 	//Check queries
 	if len(handler.queries) != 0 {
@@ -157,6 +158,7 @@ func (handler *BlacklistHandler) handleParenTables(statement *sqlparser.ParenTab
 	return nil
 }
 
+//Reset resets blacklist to initial state
 func (handler *BlacklistHandler) Reset() {
 	handler.queries = make(map[string]bool)
 	handler.tables = make(map[string]bool)
@@ -164,34 +166,40 @@ func (handler *BlacklistHandler) Reset() {
 	handler.logger = log.WithField("handler", "blacklist")
 }
 
+//Release releases all resources
 func (handler *BlacklistHandler) Release() {
 	handler.Reset()
 }
 
+//AddQueries add slice of queries as is to blacklist
 func (handler *BlacklistHandler) AddQueries(queries []string) {
 	for _, query := range queries {
 		handler.queries[query] = true
 	}
 }
 
+//RemoveQueries removes slice of queries from blacklist
 func (handler *BlacklistHandler) RemoveQueries(queries []string) {
 	for _, query := range queries {
 		delete(handler.queries, query)
 	}
 }
 
+//AddTables add slice of table names to blacklist
 func (handler *BlacklistHandler) AddTables(tableNames []string) {
 	for _, tableName := range tableNames {
 		handler.tables[tableName] = true
 	}
 }
 
+//RemoveTables removes slice of table names from blacklist
 func (handler *BlacklistHandler) RemoveTables(tableNames []string) {
 	for _, tableName := range tableNames {
 		delete(handler.tables, tableName)
 	}
 }
 
+//AddPatterns adds slice of patterns to blacklist
 func (handler *BlacklistHandler) AddPatterns(patterns []string) error {
 	placeholders := []string{SelectConfigPlaceholder, ColumnConfigPlaceholder, WhereConfigPlaceholder, ValueConfigPlaceholder}
 	replacers := []string{SelectConfigPlaceholderReplacer, ColumnConfigPlaceholderReplacer, WhereConfigPlaceholderReplacer, ValueConfigPlaceholderReplacer}
