@@ -24,7 +24,7 @@ func NewDecryptGRPCService(data *common.TranslatorData) (*DecryptGRPCService, er
 // Errors possible during decrypting AcraStructs.
 var (
 	ErrCantDecrypt      = errors.New("can't decrypt data")
-	ErrClientIDRequired = errors.New("ClientID is empty")
+	ErrClientIDRequired = errors.New("clientID is empty")
 )
 
 // Decrypt decrypts AcraStruct from gRPC request and returns decrypted data or error.

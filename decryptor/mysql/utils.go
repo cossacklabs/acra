@@ -8,7 +8,7 @@ import (
 )
 
 // ErrMalformPacket if packet parsing failed
-var ErrMalformPacket = errors.New("Malform packet error")
+var ErrMalformPacket = errors.New("malform packet error")
 
 // LengthEncodedInt https://dev.mysql.com/doc/internals/en/integer.html#packet-Protocol::LengthEncodedInteger
 func LengthEncodedInt(data []byte) (num uint64, isNull bool, n int, err error) {

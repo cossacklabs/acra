@@ -57,7 +57,7 @@ func (store *ConnectorFileSystemKeyStore) GetPeerPublicKey(id []byte) (*keys.Pub
 	case connector_mode.AcraTranslatorMode:
 		filename = getTranslatorKeyFilename(store.clientID)
 	default:
-		return nil, errors.New("Unsupported ConnectorMode, can't find PeerPublicKey")
+		return nil, errors.New("unsupported ConnectorMode, can't find PeerPublicKey")
 	}
 
 	key, err := ioutil.ReadFile(filepath.Join(store.directory, getPublicKeyFilename([]byte(filename))))

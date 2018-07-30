@@ -135,7 +135,7 @@ func LoadPrivateKey(path string) (*keys.PrivateKey, error) {
 	fi, err := os.Stat(path)
 	if nil == err && runtime.GOOS == "linux" && fi.Mode().Perm().String() != "-rw-------" && fi.Mode().Perm().String() != "-r--------" {
 		log.Errorf("private key file %v has incorrect permissions", path)
-		return nil, fmt.Errorf("Error: private key file %v has incorrect permissions", path)
+		return nil, fmt.Errorf("error: private key file %v has incorrect permissions", path)
 	}
 	key, err := ReadFile(path)
 	if err != nil {
