@@ -43,7 +43,7 @@ func (reader *PgEscapeByteReader) Reset() {
 
 func (reader *PgEscapeByteReader) returnError() (bool, byte, error) {
 	reader.Reset()
-	return false, 0, FAKE_DB_BYTE
+	return false, 0, ErrFakeDBByte
 }
 
 // ReadByte reads c and returns the bytes decoded from escaped format

@@ -20,8 +20,8 @@ import (
 	"errors"
 )
 
-// FAKE_DB_BYTE error for wrong database byte format
-var FAKE_DB_BYTE = errors.New("fake db format byte")
+// ErrFakeDBByte error for wrong database byte format
+var ErrFakeDBByte = errors.New("fake db format byte")
 
 // PgHexByteReader reads hexadecimal bytes from binary input
 type PgHexByteReader struct {
@@ -50,7 +50,7 @@ func (reader *PgHexByteReader) reset() {
 
 func (reader *PgHexByteReader) returnError() (bool, byte, error) {
 	reader.reset()
-	return false, 0, FAKE_DB_BYTE
+	return false, 0, ErrFakeDBByte
 }
 
 // ReadByte reads c and returns the bytes represented by the hexadecimal string
