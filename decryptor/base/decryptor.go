@@ -16,7 +16,6 @@
 package base
 
 import (
-	"encoding/binary"
 	"errors"
 	"fmt"
 	"github.com/cossacklabs/acra/keystore"
@@ -62,38 +61,6 @@ const (
 	SYMMETRIC_KEY_SIZE = 32
 	DATA_LENGTH_SIZE   = 8
 )
-
-// getDataLengthFromAcraStruct unpack data length value from AcraStruct
-func getDataLengthFromAcraStruct(data []byte) int {
-	dataLengthBlock := data[GetMinAcraStructLength()-DATA_LENGTH_SIZE : GetMinAcraStructLength()]
-	return int(binary.LittleEndian.Uint64(dataLengthBlock))
-}
-
-// GetMinAcraStructLength returns minimal length of AcraStruct
-// because in golang we can't declare byte array as constant we need to calculate length of TAG_BEGIN in runtime
-// or hardcode as constant and maintain len(TAG_BEGIN) == CONST_VALUE
-func GetMinAcraStructLength() int {
-	return len(TAG_BEGIN) + KEY_BLOCK_LENGTH + DATA_LENGTH_SIZE
-}
-
-// Errors show incorrect AcraStruct length
-var (
-	ErrIncorrectAcraStructLength     = errors.New("AcraStruct has incorrect length")
-	ErrIncorrectAcraStructDataLength = errors.New("AcraStruct has incorrect data length value")
-)
-
-// ValidateAcraStructLength check that data has minimal length for AcraStruct and data block equal to data length in AcraStruct
-func ValidateAcraStructLength(data []byte) error {
-	baseLength := GetMinAcraStructLength()
-	if len(data) < baseLength {
-		return ErrIncorrectAcraStructLength
-	}
-	dataLength := getDataLengthFromAcraStruct(data)
-	if dataLength != len(data[GetMinAcraStructLength():]) {
-		return ErrIncorrectAcraStructDataLength
-	}
-	return nil
-}
 
 // DataDecryptor describes AcraStruct decryptor.
 type DataDecryptor interface {

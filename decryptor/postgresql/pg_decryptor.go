@@ -80,10 +80,6 @@ func (packet *PacketHandler) readMessageType() error {
 	if err := base.CheckReadWrite(n, 1, err); err != nil {
 		return err
 	}
-	//n, err = packet.writer.Write(packet.messageType[:])
-	//if err := base.CheckReadWrite(n, 1, err); err != nil {
-	//	return err
-	//}
 	packet.logger.Debugf("message_type - %s", string(packet.messageType[0]))
 	return nil
 }
@@ -221,29 +217,22 @@ func (packet *PacketHandler) IsSSLRequestDeny() bool {
 	return packet.messageType[0] == 'N'
 }
 
-func (proxy *PgProxy) checkPoisonRecordBlock(data []byte, decryptor base.Decryptor) error {
-	if decryptor.IsPoisonRecordCheckOn() {
-		// check on poison record
-		if err := base.ValidateAcraStructLength(data); err == nil {
-			poisoned, err := decryptor.CheckPoisonRecord(bytes.NewReader(data))
-			if err != nil {
-				log.WithError(err).Errorln("Can't check on poison record")
-				return err
+func handlePoisonCheckResult(decryptor base.Decryptor, poisoned bool, err error) error {
+	if err != nil {
+		log.WithError(err).Errorln("Can't check on poison record")
+		return err
+	}
+	if poisoned {
+		log.Warningln("Recognized poison record")
+		callbacks := decryptor.GetPoisonCallbackStorage()
+		if callbacks.HasCallbacks() {
+			var callbackErr error
+			if err := callbacks.Call(); err != nil {
+				log.WithError(err).Errorln("Unexpected error on poison record callback")
+				callbackErr = err
 			}
-			if poisoned {
-				// TODO check that message the same as in other places
-				log.Warningln("Recognized poison record")
-				callbacks := decryptor.GetPoisonCallbackStorage()
-				if callbacks.HasCallbacks() {
-					var callbackErr error
-					if err := callbacks.Call(); err != nil {
-						log.WithError(err).Errorln("Unexpected error on poison record callback")
-						callbackErr = err
-					}
-					if callbackErr != nil {
-						return err
-					}
-				}
+			if callbackErr != nil {
+				return err
 			}
 		}
 	}
@@ -253,50 +242,42 @@ func (proxy *PgProxy) checkPoisonRecordBlock(data []byte, decryptor base.Decrypt
 func checkPoisonRecordInBlock(block []byte, decryptor base.Decryptor) error {
 	// check is it Poison Record
 	if decryptor.IsPoisonRecordCheckOn() {
-		// check that it correct AcraStuct to avoid extra decryption
-		if err := base.ValidateAcraStructLength(block); err == nil {
+		log.Debugln("Check poison records")
+		if decryptor.IsMatched(){
 			poisoned, err := decryptor.CheckPoisonRecord(bytes.NewReader(block))
-			if err != nil {
-				log.WithError(err).Errorln("Can't check on poison record")
-				return err
-			}
-			if poisoned {
-				// TODO check that message the same as in other places
-				log.Warningln("Recognized poison record")
-				callbacks := decryptor.GetPoisonCallbackStorage()
-				if callbacks.HasCallbacks() {
-					var callbackErr error
-					if err := callbacks.Call(); err != nil {
-						log.WithError(err).Errorln("Unexpected error on poison record callback")
-						callbackErr = err
-					}
-					if callbackErr != nil {
-						return err
-					}
-				}
-			}
+			return handlePoisonCheckResult(decryptor, poisoned, err)
 		}
 	}
 	return nil
 }
 
 func (proxy *PgProxy) processWholeBlockDecryption(packet *PacketHandler, column *ColumnData, decryptor base.Decryptor) error {
-	//if err := base.ValidateAcraStructLength(column.Data); err != nil {
-	//	return nil
-	//}
+	decryptor.Reset()
 	decrypted, err := decryptor.DecryptBlock(column.Data)
 	if err != nil {
-		if err := checkPoisonRecordInBlock(column.Data, decryptor); err != nil {
-			return err
+		log.WithError(err).Errorln("Can't decrypt possible AcraStruct")
+		if decryptor.IsPoisonRecordCheckOn(){
+			decryptor.Reset()
+			skippedBegin, err := decryptor.SkipBeginInBlock(column.Data)
+			if err != nil {
+				log.WithError(err).Errorln("Can't skip begin tag for poison record check")
+				return nil
+			}
+			poisoned, checkErr := decryptor.CheckPoisonRecord(bytes.NewReader(skippedBegin))
+			if innerErr := handlePoisonCheckResult(decryptor, poisoned, checkErr); err != nil {
+				log.WithError(innerErr).Errorln("Error on poison record check")
+				return innerErr
+			}
 		}
-		return err
+		return nil
 	}
 	column.SetData(decrypted)
 	return nil
 }
 
+// PgDecryptStream process data rows from database
 func (proxy *PgProxy) PgDecryptStream(censor acracensor.AcraCensorInterface, decryptor base.Decryptor, tlsConfig *tls.Config, dbConnection net.Conn, clientConnection net.Conn, errCh chan<- error) {
-	logger := log.WithField("proxy", "db_size")
+	logger := log.WithField("proxy", "db_side")
 	logger.Debugln("Pg db proxy")
 	writer := bufio.NewWriter(clientConnection)
 
@@ -466,6 +447,7 @@ func (proxy *PgProxy) PgDecryptStream(censor acracensor.AcraCensorInterface, dec
 				if decryptor.IsWholeMatch() {
 					err := proxy.processWholeBlockDecryption(packet, column, decryptor)
 					if err != nil {
+						log.WithError(err).Errorln("Can't process whole block")
 						errCh <- err
 						return
 					}
@@ -474,6 +456,7 @@ func (proxy *PgProxy) PgDecryptStream(censor acracensor.AcraCensorInterface, dec
 					currentIndex := 0
 					endIndex := column.Length()
 					outputBlock := bytes.NewBuffer(make([]byte, 0, column.Length()))
+					hasDecryptedData := false
 					for {
 						beginTagIndex, tagLength := decryptor.BeginTagIndex(column.Data[currentIndex:endIndex])
 						if beginTagIndex == utils.NOT_FOUND {
@@ -495,6 +478,18 @@ func (proxy *PgProxy) PgDecryptStream(censor acracensor.AcraCensorInterface, dec
 						symKey, _, err := decryptor.ReadSymmetricKey(key, blockReader)
 						if err != nil {
 							logger.WithError(err).Warningln("Can't unwrap symmetric key")
+							if decryptor.IsPoisonRecordCheckOn() {
+								log.Infoln("Check poison records")
+								blockReader = bytes.NewReader(column.Data[beginTagIndex+tagLength:])
+								poisoned, err := decryptor.CheckPoisonRecord(blockReader)
+								err = handlePoisonCheckResult(decryptor, poisoned, err)
+								if err != nil {
+									logger.WithError(err).Errorln("Error on poison record processing")
+									errCh <- err
+									return
+								}
+							}
+
 							// write current read byte to not process him in next iteration
 							outputBlock.Write([]byte{column.Data[currentIndex]})
 							currentIndex++
@@ -502,6 +497,7 @@ func (proxy *PgProxy) PgDecryptStream(censor acracensor.AcraCensorInterface, dec
 						}
 						decryptedData, err := decryptor.ReadData(symKey, decryptor.GetMatchedZoneID(), blockReader)
 						if err != nil {
+
 							logger.WithError(err).Warningln("Can't decrypt data with unwrapped symmetric key")
 							// write current read byte to not process him in next iteration
 							outputBlock.Write([]byte{packet.output[currentIndex]})
@@ -510,11 +506,13 @@ func (proxy *PgProxy) PgDecryptStream(censor acracensor.AcraCensorInterface, dec
 						}
 						outputBlock.Write(decryptedData)
 						currentIndex += tagLength + (len(column.Data[beginTagIndex+tagLength:]) - blockReader.Len())
+						hasDecryptedData = true
 					}
-					if outputBlock.Len() < column.Length() {
-						logger.Debugln("Result was changed")
+					if hasDecryptedData {
+						logger.WithFields(log.Fields{"old_size": column.Length(), "new_size": outputBlock.Len()}).Debugln("Result was changed")
 						column.SetData(outputBlock.Bytes())
 						decryptor.ResetZoneMatch()
+						decryptor.Reset()
 					} else {
 						logger.Debugln("Result was not changed")
 						packet.writeIndex = endIndex

@@ -194,6 +194,46 @@ func (decryptor *PgEscapeDecryptor) readOctalData(data, octData []byte, reader i
 	}
 }
 
+func DecodeOctalData(data []byte) ([]byte, bool) {
+	octDataIndex := 0
+	output := bytes.NewBuffer(make([]byte, 0, len(data)))
+	for ; octDataIndex < len(data); {
+		if !utils.IsPrintableEscapeChar(data[octDataIndex]) {
+			return nil, false
+		}
+
+		// if slash than next char must be slash too
+		if data[octDataIndex] == utils.SLASH_CHAR {
+			// should be at least +1 char
+			if (octDataIndex + 1) >= len(data) {
+				return nil, false
+			}
+			if data[octDataIndex+1] == utils.SLASH_CHAR {
+				output.WriteByte(data[octDataIndex])
+				octDataIndex += 2
+			} else {
+				// skip slash
+				octDataIndex++
+				// should be at least +3 chars
+				if (octDataIndex + 3) > len(data) {
+					return nil, false
+				}
+				// parse 3 octal symbols
+				num, err := strconv.ParseInt(string(data[octDataIndex:octDataIndex+3]), 8, 9)
+				if err != nil {
+					return nil, false
+				}
+				output.WriteByte(byte(num))
+				octDataIndex += 3
+			}
+		} else {
+			output.WriteByte(data[octDataIndex])
+			octDataIndex++
+		}
+	}
+	return output.Bytes(), true
+}
+
 func (decryptor *PgEscapeDecryptor) ReadSymmetricKey(privateKey *keys.PrivateKey, reader io.Reader) ([]byte, []byte, error) {
 	dataLength, octDataLength, err := decryptor.readOctalData(decryptor.decodedKeyBlockBuffer, decryptor.octKeyBlockBuffer[:], reader)
 	if err != nil {

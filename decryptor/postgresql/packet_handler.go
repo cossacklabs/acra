@@ -10,6 +10,7 @@ import (
 	"io"
 )
 
+// PacketHandler hold state of postgresql packet and process data rows
 type PacketHandler struct {
 	firstPacket          bool
 	messageType          [1]byte
@@ -30,6 +31,7 @@ type PacketHandler struct {
 	Columns           []*ColumnData
 }
 
+// NewClientSidePacketHandler return new PacketHandler with initialized own logger for client's packets
 func NewClientSidePacketHandler(reader *acra_io.ExtendedBufferedReader, writer *bufio.Writer) (*PacketHandler, error) {
 	return &PacketHandler{
 		columnIndex:          0,
@@ -45,6 +47,7 @@ func NewClientSidePacketHandler(reader *acra_io.ExtendedBufferedReader, writer *
 	}, nil
 }
 
+// NewClientSidePacketHandler return new PacketHandler with initialized own logger for databases's packets
 func NewDbSidePacketHandler(reader *acra_io.ExtendedBufferedReader, writer *bufio.Writer) (*PacketHandler, error) {
 	return &PacketHandler{
 		columnIndex:          0,
@@ -71,12 +74,17 @@ func (packet *PacketHandler) updateDataFromColumns() {
 	}
 	if columnsDataChanged {
 		// column length buffer wasn't included to column length value and should be accumulated too
-		newDataLength := packet.columnCount * 4
+		// + 2 is column count buffer
+		newDataLength := packet.columnCount * 4 + 2
 		for i := 0; i < packet.columnCount; i++ {
 			newDataLength += packet.Columns[i].Length()
 		}
 		packet.descriptionBuf.Reset()
 		packet.descriptionBuf.Grow(newDataLength)
+
+		columnCountBuf := make([]byte, 2)
+		binary.BigEndian.PutUint16(columnCountBuf, uint16(packet.columnCount))
+		packet.descriptionBuf.Write(columnCountBuf)
 
 		for i := 0; i < packet.columnCount; i++ {
 			packet.descriptionBuf.Write(packet.Columns[i].LengthBuf[:])
@@ -128,16 +136,19 @@ func (packet *PacketHandler) readCount() (int, error) {
 	return int(binary.BigEndian.Uint32(packet.columnSizePointer)), nil
 }
 
+// ColumnData hold column length and data
 type ColumnData struct {
 	LengthBuf [4]byte
 	Data      []byte
 	changed   bool
 }
 
+// Length return column length converted from LengthBuf
 func (column *ColumnData) Length() int {
 	return int(binary.BigEndian.Uint32(column.LengthBuf[:]))
 }
 
+// ReadLeangth of column
 func (column *ColumnData) ReadLength(reader io.Reader) error {
 	n, err := reader.Read(column.LengthBuf[:])
 	if err2 := base.CheckReadWrite(n, 4, err); err2 != nil {
@@ -152,6 +163,7 @@ const (
 	NullColumnValue  int32 = -1
 )
 
+// readData read column length and then data from reader
 func (column *ColumnData) readData(reader io.Reader) error {
 	length := column.Length()
 	if int32(length) == NullColumnValue {
@@ -168,12 +180,14 @@ func (column *ColumnData) readData(reader io.Reader) error {
 	return nil
 }
 
+// SetData to column and update LengthBuf with new size
 func (column *ColumnData) SetData(newData []byte) {
 	column.changed = true
 	column.Data = newData
 	binary.BigEndian.PutUint32(column.LengthBuf[:], uint32(len(newData)))
 }
 
+// parseColumns split whole data row packet into separate columns data
 func (packet *PacketHandler) parseColumns() error {
 	packet.columnCount = int(binary.BigEndian.Uint16(packet.descriptionBuf.Bytes()[:2]))
 
@@ -196,6 +210,7 @@ func (packet *PacketHandler) parseColumns() error {
 	return nil
 }
 
+// Reset state of handler
 func (packet *PacketHandler) Reset() {
 	packet.descriptionBuf.Reset()
 	packet.columnDataBuf.Reset()

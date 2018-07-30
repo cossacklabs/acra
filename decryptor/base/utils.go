@@ -24,12 +24,61 @@ import (
 	"github.com/cossacklabs/themis/gothemis/cell"
 	"github.com/cossacklabs/themis/gothemis/keys"
 	"github.com/cossacklabs/themis/gothemis/message"
+	"errors"
 )
 
 // Shows length of something unknown (why 8?)
 const (
 	LENGTH_SIZE = 8
 )
+
+// getDataLengthFromAcraStruct unpack data length value from AcraStruct
+func getDataLengthFromAcraStruct(data []byte) int {
+	dataLengthBlock := data[GetMinAcraStructLength()-DATA_LENGTH_SIZE : GetMinAcraStructLength()]
+	return int(binary.LittleEndian.Uint64(dataLengthBlock))
+}
+
+// GetMinAcraStructLength returns minimal length of AcraStruct
+// because in golang we can't declare byte array as constant we need to calculate length of TAG_BEGIN in runtime
+// or hardcode as constant and maintain len(TAG_BEGIN) == CONST_VALUE
+func GetMinAcraStructLength() int {
+	return len(TAG_BEGIN) + KEY_BLOCK_LENGTH + DATA_LENGTH_SIZE
+}
+
+// Errors show incorrect AcraStruct length
+var (
+	ErrIncorrectAcraStructLength     = errors.New("AcraStruct has incorrect length")
+	ErrIncorrectAcraStructDataLength = errors.New("AcraStruct has incorrect data length value")
+)
+
+// ValidateAcraStructLength check that data has minimal length for AcraStruct and data block equal to data length in AcraStruct
+func ValidateAcraStructLength(data []byte) error {
+	baseLength := GetMinAcraStructLength()
+	if len(data) < baseLength {
+		return ErrIncorrectAcraStructLength
+	}
+	dataLength := getDataLengthFromAcraStruct(data)
+	if dataLength != len(data[GetMinAcraStructLength():]) {
+		return ErrIncorrectAcraStructDataLength
+	}
+	return nil
+}
+
+// ExtractAcraStruct return slice of possible AcraStruct inside data. return true on success
+// This method do simple checks on data size that must be bigger than min size of AcraStruct and
+// check that data is enough for data size field inside AcraStruct
+func ExtractAcraStruct(data []byte)([]byte, bool){
+	baseLength := GetMinAcraStructLength()
+	if len(data) < baseLength {
+		return nil, false
+	}
+	dataLength := getDataLengthFromAcraStruct(data)
+	acraStructSize := GetMinAcraStructLength() + dataLength
+	if acraStructSize > len(data){
+		return nil, false
+	}
+	return data[:acraStructSize], true
+}
 
 // DecryptAcrastruct returns plaintext data from AcraStruct, decrypting it using Themis SecureCell in Seal mode,
 // using zone as context and privateKey as decryption key.

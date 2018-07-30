@@ -141,6 +141,7 @@ def stop_process(process):
     # send signal to each. they can handle it asynchronously
     for p in process:
         try:
+            logger.info("terminate pid {}".format(p.pid))
             p.terminate()
         except:
             traceback.print_exc()
@@ -153,6 +154,7 @@ def stop_process(process):
         except:
             traceback.print_exc()
         try:
+            logger.info("kill pid {}".format(p.pid))
             p.kill()
         except:
             traceback.print_exc()
@@ -550,6 +552,7 @@ class BaseTestCase(unittest.TestCase):
             except:
                 stop_process(process)
                 raise
+        logging.info("fork connector finished [pid={}]".format(process.pid))
         return process
 
     def get_acraserver_connection_string(self, port=None):
@@ -628,6 +631,7 @@ class BaseTestCase(unittest.TestCase):
         except:
             stop_process(process)
             raise
+        logging.info("fork acra finished [pid={}]".format(process.pid))
         return process
 
     def fork_acra(self, popen_kwargs: dict=None, **acra_kwargs: dict):
@@ -1362,7 +1366,7 @@ class TestShutdownPoisonRecordWithZone(TestPoisonRecordShutdown):
     ZONE = True
     WHOLECELL_MODE = False
     SHUTDOWN = True
-
+    # TODO fix tests of poison record on shutdown with zones
     def testShutdown(self):
         """check callback with select by id and zone"""
         row_id = self.get_random_id()
@@ -1521,7 +1525,7 @@ class AcraCatchLogsMixin(object):
         with open(self.log_files[process].name, 'r', errors='replace',
                   encoding='utf-8') as f:
             log = f.read()
-            print(log.encode('utf-8'))
+            print(log)
             return log
 
     def fork_acra(self, popen_kwargs: dict=None, **acra_kwargs: dict):
