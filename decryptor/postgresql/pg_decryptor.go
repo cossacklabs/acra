@@ -36,10 +36,11 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
-// ReadForQuery - 'Z' ReadyForQuery, 0 0 0 5 length, 'I' idle status
+// ReadyForQueryPacket - 'Z' ReadyForQuery, 0 0 0 5 length, 'I' idle status
 // https://www.postgresql.org/docs/9.3/static/protocol-message-formats.html
 var ReadyForQueryPacket = []byte{'Z', 0, 0, 0, 5, 'I'}
 
+// NewPgError returns packed error
 func NewPgError(message string) ([]byte, error) {
 	// 5 = E marker + 4 bytes for message length
 	// 7 is severity error with null terminator
@@ -65,6 +66,7 @@ func NewPgError(message string) ([]byte, error) {
 	return output, nil
 }
 
+// DataRow represents PG datarow
 type DataRow struct {
 	messageType          [1]byte
 	descriptionLengthBuf []byte
@@ -96,11 +98,12 @@ const (
 // CANCEL_REQUEST indicates beginning tag of Cancel request.
 var CANCEL_REQUEST = []byte{0x04, 0xd2, 0x16, 0x2e}
 
-/* override size in postgresql data row that starts with 4 byte of size */
+// SetDataSize overrides size in postgresql data row that starts with 4 byte of size
 func (row *DataRow) SetDataSize(size int) {
 	binary.BigEndian.PutUint32(row.output[:DATA_ROW_LENGTH_BUF_SIZE], uint32(size+len(row.descriptionLengthBuf)))
 }
 
+// CheckOutputSize reads column length
 func (row *DataRow) CheckOutputSize(size int) {
 	availableSize := len(row.output[row.writeIndex:])
 	if availableSize < size {
@@ -142,14 +145,17 @@ func (row *DataRow) readMessageType(reader io.Reader, writer io.Writer, errCh ch
 	return true
 }
 
+// IsDataRow returns true if row has Message format
 func (row *DataRow) IsDataRow() bool {
 	return row.messageType[0] == DATA_ROW_MESSAGE_TYPE
 }
 
+// IsSimpleQuery returns true if row has Query format
 func (row *DataRow) IsSimpleQuery() bool {
 	return row.messageType[0] == QUERY_MESSAGE_TYPE
 }
 
+// UpdateColumnAndDataSize modifies response size because AcraStruct was previously decrypted
 func (row *DataRow) UpdateColumnAndDataSize(oldColumnLength, newColumnLength int) bool {
 	if oldColumnLength == newColumnLength {
 		return true
@@ -172,6 +178,7 @@ func (row *DataRow) UpdateColumnAndDataSize(oldColumnLength, newColumnLength int
 	return true
 }
 
+// ReadDataLength reads full data row length, returns true on success
 func (row *DataRow) ReadDataLength() bool {
 	log.Debugln("Read data length")
 	// read full data row length
@@ -184,6 +191,7 @@ func (row *DataRow) ReadDataLength() bool {
 	return true
 }
 
+// ReadColumnCount reads column count, returns true on success
 func (row *DataRow) ReadColumnCount() bool {
 	// read column count
 	columnCountBuf := row.output[DATA_ROW_LENGTH_BUF_SIZE : DATA_ROW_LENGTH_BUF_SIZE+2]
@@ -196,6 +204,7 @@ func (row *DataRow) ReadColumnCount() bool {
 	return true
 }
 
+// Flush tries to flush row writer, returns true on success
 func (row *DataRow) Flush() bool {
 	n, err := row.writer.Write(row.output[:row.writeIndex])
 	if !base.CheckReadWrite(n, row.writeIndex, err, row.errCh) {
@@ -209,6 +218,7 @@ func (row *DataRow) Flush() bool {
 	return true
 }
 
+// ReadData reads data, returns data and true on success
 func (row *DataRow) ReadData() ([]byte, bool) {
 	row.CheckOutputSize(row.dataLength)
 	n, err := row.reader.Read(row.output[row.writeIndex : row.writeIndex+row.dataLength])
@@ -220,6 +230,7 @@ func (row *DataRow) ReadData() ([]byte, bool) {
 	return data, true
 }
 
+// ReadSimpleQuery reads query, returns string query and true on success
 func (row *DataRow) ReadSimpleQuery(errCh chan<- error) (string, bool) {
 	log.Debugf("Read %v data", row.dataLength)
 	if !row.ReadDataLength() {
@@ -229,8 +240,10 @@ func (row *DataRow) ReadSimpleQuery(errCh chan<- error) (string, bool) {
 	return string(query), success
 }
 
+// ErrShortRead error during reading
 var ErrShortRead = errors.New("read less bytes than expected")
 
+// ReadRow read data row, returns error if can't read correct bytes length
 func (row *DataRow) ReadRow(reader io.Reader, errCh chan<- error) (*DataRow, error) {
 	n, err := reader.Read(row.messageType[:])
 	if err != nil {
@@ -258,6 +271,7 @@ func (row *DataRow) ReadRow(reader io.Reader, errCh chan<- error) (*DataRow, err
 	return row, nil
 }
 
+// Marshal transforms data row into bytes array
 func (row *DataRow) Marshal() ([]byte, error) {
 	output := make([]byte, 0, 5+row.dataLength)
 	output = append(output, row.messageType[0])
@@ -266,16 +280,19 @@ func (row *DataRow) Marshal() ([]byte, error) {
 	return output, nil
 }
 
+// PgProxy represents PgSQL database connection between client and database with TLS support
 type PgProxy struct {
 	clientConnection net.Conn
 	dbConnection     net.Conn
 	TLSCh            chan bool
 }
 
+// NewPgProxy returns new PgProxy
 func NewPgProxy(clientConnection, dbConnection net.Conn) (*PgProxy, error) {
 	return &PgProxy{clientConnection: clientConnection, dbConnection: dbConnection, TLSCh: make(chan bool)}, nil
 }
 
+// NewClientSideDataRow returns new DataRow
 func NewClientSideDataRow(reader *acra_io.ExtendedBufferedReader, writer *bufio.Writer) (*DataRow, error) {
 	return &DataRow{
 		writeIndex:           0,
@@ -288,6 +305,8 @@ func NewClientSideDataRow(reader *acra_io.ExtendedBufferedReader, writer *bufio.
 	}, nil
 }
 
+// PgProxyClientRequests checks every client request using AcraCensor,
+// if request is allowed, sends it to the Pg database
 func (proxy *PgProxy) PgProxyClientRequests(acraCensor acracensor.AcraCensorInterface, dbConnection, clientConnection net.Conn, errCh chan<- error) {
 	log.Debugln("Pg client proxy")
 	writer := bufio.NewWriter(dbConnection)
@@ -385,14 +404,19 @@ func (proxy *PgProxy) PgProxyClientRequests(acraCensor acracensor.AcraCensorInte
 	}
 }
 
+// IsSSLRequest returns true if row has SSL request format
 func (row *DataRow) IsSSLRequest() bool {
 	return row.messageType[0] == 'S'
 }
 
+// IsSSLRequestDeny returns true if row has deny of SSL request format
 func (row *DataRow) IsSSLRequestDeny() bool {
 	return row.messageType[0] == 'N'
 }
 
+// PgDecryptStream set ups TLS connection with database,
+// decrypts AcraStructs from database response, runs callbacks if poison records found,
+// updates response data length, and sends response to the client
 func (proxy *PgProxy) PgDecryptStream(censor acracensor.AcraCensorInterface, decryptor base.Decryptor, tlsConfig *tls.Config, dbConnection net.Conn, clientConnection net.Conn, errCh chan<- error) {
 	log.Debugln("Pg db proxy")
 	writer := bufio.NewWriter(clientConnection)
