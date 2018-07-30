@@ -342,7 +342,6 @@ func handleValuePattern(queryNodes, patternNodes []sqlparser.SQLNode) bool {
 	}
 	return patternMatch
 }
-
 func nodesValuesAreEqual(queryNodes, patternNodes []sqlparser.SQLNode) bool {
 	for index, patternNode := range patternNodes {
 		//start from first node because zero node represents all query

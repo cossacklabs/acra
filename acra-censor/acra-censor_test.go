@@ -291,16 +291,16 @@ func TestBlacklistTables(t *testing.T) {
 
 func TestBlacklistPatterns(t *testing.T) {
 	//test %%SELECT%% pattern
-	testBlacklistPattern0(t)
+	testBlacklistSelectPattern(t)
 	//test SELECT %%COLUMN%% .. %%COLUMN%% pattern
-	testBlacklistPattern1(t)
+	testBlacklistColumnsPattern(t)
 	//test SELECT a, b from t %%WHERE%% pattern
-	testBlacklistPattern2(t)
+	testBlacklistWherePattern(t)
 	//test SELECT a, b from t where ID = %%VALUE%%
-	testBlacklistPattern3(t)
+	testBlacklistValuePattern(t)
 
 }
-func testBlacklistPattern0(t *testing.T) {
+func testBlacklistSelectPattern(t *testing.T) {
 	var err error
 
 	censor := NewAcraCensor()
@@ -353,7 +353,7 @@ func testBlacklistPattern0(t *testing.T) {
 		}
 	}
 }
-func testBlacklistPattern1(t *testing.T) {
+func testBlacklistColumnsPattern(t *testing.T) {
 	var err error
 
 	censor := NewAcraCensor()
@@ -385,7 +385,7 @@ func testBlacklistPattern1(t *testing.T) {
 		t.Fatal(err, "\nPattern"+blacklistPattern, "\nQuery"+queries[2])
 	}
 }
-func testBlacklistPattern2(t *testing.T) {
+func testBlacklistWherePattern(t *testing.T) {
 	var err error
 
 	censor := NewAcraCensor()
@@ -422,7 +422,7 @@ func testBlacklistPattern2(t *testing.T) {
 		t.Fatal(err, "\nPattern"+blacklistPattern, "\nQuery"+queries[3])
 	}
 }
-func testBlacklistPattern3(t *testing.T) {
+func testBlacklistValuePattern(t *testing.T) {
 	var err error
 
 	censor := NewAcraCensor()
