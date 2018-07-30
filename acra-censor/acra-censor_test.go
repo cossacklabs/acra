@@ -407,11 +407,13 @@ func testBlacklistWherePattern(t *testing.T) {
 		"SELECT a, b, c FROM x WHERE a = 'someValue'",
 		"SELECT a, b, c FROM y WHERE a = 'someValue'",
 		"SELECT a, b FROM z WHERE a = 'someValue'",
+		"SELECT a, b, c FROM x WHERE a = 'someValue' and b = 48 or c between 10 and 50",
 	}
 	blockableQueries := []string{
 		"SELECT a, b, c FROM z WHERE a = 'someValue'",
 		"SELECT a, b, c FROM z WHERE a = b",
 		"SELECT a, b, c FROM z WHERE a < b",
+		"SELECT a, b, c FROM z WHERE a = 'someValue' and b = 2 or c between 20 and 30",
 	}
 	for _, query := range acceptableQueries {
 		err = censor.HandleQuery(query)
