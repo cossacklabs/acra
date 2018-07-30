@@ -339,10 +339,11 @@ func testBlacklistSelectPattern(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	const SelectQueryCount = 12
 	//Queries that should be blocked by first pattern have indexes: [0 .. 12] (all select queries)
 	for i, query := range queries {
 		err := censor.HandleQuery(query)
-		if i <= 12 {
+		if i <= SelectQueryCount {
 			if err != handlers.ErrBlacklistPatternMatch {
 				t.Fatal("Blacklist pattern passed query. \nPattern: ", blacklistPattern+"\nQuery: ", queries[i])
 			}
