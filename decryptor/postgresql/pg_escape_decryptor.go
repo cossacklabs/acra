@@ -213,7 +213,7 @@ func (decryptor *PgEscapeDecryptor) readOctalData(data, octData []byte, reader i
 func DecodeOctalData(data []byte) ([]byte, bool) {
 	octDataIndex := 0
 	output := bytes.NewBuffer(make([]byte, 0, len(data)))
-	for ; octDataIndex < len(data); {
+	for octDataIndex < len(data) {
 		if !utils.IsPrintableEscapeChar(data[octDataIndex]) {
 			return nil, false
 		}

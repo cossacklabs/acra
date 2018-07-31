@@ -201,8 +201,8 @@ func (proxy *PgProxy) processWholeBlockDecryption(packet *PacketHandler, column 
 		if decryptor.IsPoisonRecordCheckOn() {
 			decryptor.Reset()
 			skippedBegin, err := decryptor.SkipBeginInBlock(column.Data)
-			if logger != nil {
-				log.WithError(err).Errorln("Can't skip begin tag for poison record check")
+			if err != nil {
+				logger.WithError(err).Errorln("Can't skip begin tag for poison record check")
 				return nil
 			}
 			poisoned, checkErr := decryptor.CheckPoisonRecord(bytes.NewReader(skippedBegin))
