@@ -89,7 +89,6 @@ func (handler *BlacklistHandler) CheckQuery(query string) (bool, error) {
 	}
 	//Check patterns
 	if len(handler.patterns) != 0 {
-		//fmt.Println("here")
 		matchingOccurred, err := handler.checkPatternsMatching(query)
 		if err != nil {
 			return false, ErrPatternCheckError
@@ -352,10 +351,8 @@ func handleStarPattern(queryNodes, patternNodes []sqlparser.SQLNode) bool {
 	patternStarDetected := false
 	patternWhereDetected := false
 	queryWhereDetected := false
-
-	var patternTableExprsDetected sqlparser.TableExprs
-	var queryTableExprsDetected sqlparser.TableExprs
-
+	var patternTables sqlparser.TableExprs
+	var queryTables sqlparser.TableExprs
 	for _, patternNode := range patternNodes {
 		if _, ok := patternNode.(*sqlparser.StarExpr); ok {
 			patternStarDetected = true
@@ -363,21 +360,20 @@ func handleStarPattern(queryNodes, patternNodes []sqlparser.SQLNode) bool {
 		if patternWhereNode, ok := patternNode.(*sqlparser.Where); ok && patternWhereNode != nil && strings.EqualFold(sqlparser.String(patternWhereNode.Expr), WhereConfigPlaceholderReplacerPart2) {
 			patternWhereDetected = true
 		}
-		if patternTableExprs, ok := patternNode.(*sqlparser.Select); ok && patternTableExprs != nil {
-			patternTableExprsDetected = patternTableExprs.From
+		if patternSelectStatement, ok := patternNode.(*sqlparser.Select); ok && patternSelectStatement != nil {
+			patternTables = patternSelectStatement.From
 		}
 	}
-
 	for _, queryNode := range queryNodes {
 		if queryWhereNode, ok := queryNode.(*sqlparser.Where); ok && queryWhereNode != nil {
 			queryWhereDetected = true
 		}
-		if queryTableExprs, ok := queryNode.(*sqlparser.Select); ok && queryTableExprs != nil {
-			queryTableExprsDetected = queryTableExprs.From
+		if querySelectStatement, ok := queryNode.(*sqlparser.Select); ok && querySelectStatement != nil {
+			queryTables = querySelectStatement.From
 		}
 	}
 	if patternStarDetected {
-		if reflect.DeepEqual(patternTableExprsDetected, queryTableExprsDetected) && queryWhereDetected && patternWhereDetected {
+		if reflect.DeepEqual(patternTables, queryTables) && queryWhereDetected && patternWhereDetected {
 			return true
 		}
 	}
