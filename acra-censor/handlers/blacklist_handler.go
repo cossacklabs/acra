@@ -268,9 +268,8 @@ func checkSinglePatternMatch(queryNodes []sqlparser.SQLNode, patternNodes []sqlp
 
 //handle %%SELECT%% pattern
 func handleSelectPattern(queryNodes, patternNodes []sqlparser.SQLNode) bool {
-	var emptySelect *sqlparser.Select
-	if reflect.TypeOf(queryNodes[0]) == reflect.TypeOf(emptySelect) && reflect.TypeOf(patternNodes[0]) == reflect.TypeOf(emptySelect) {
-		if strings.EqualFold(sqlparser.String(patternNodes[0].(*sqlparser.Select).SelectExprs), SelectConfigPlaceholderReplacerPart2) {
+	if reflect.TypeOf(queryNodes[0]) == reflect.TypeOf(patternNodes[0]) {
+		if patternNodeSelect, ok := patternNodes[0].(*sqlparser.Select); ok && strings.EqualFold(sqlparser.String(patternNodeSelect.SelectExprs), SelectConfigPlaceholderReplacerPart2) {
 			return true
 		}
 	}
