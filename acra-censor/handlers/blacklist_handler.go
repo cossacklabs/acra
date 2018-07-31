@@ -366,6 +366,9 @@ func handleStarPattern(queryNodes, patternNodes []sqlparser.SQLNode) bool {
 			patternTables = patternSelectStatement.From
 		}
 	}
+	if !patternStarDetected {
+		return false
+	}
 	for _, queryNode := range queryNodes {
 		if queryWhereNode, ok := queryNode.(*sqlparser.Where); ok && queryWhereNode != nil {
 			queryWhereDetected = true
