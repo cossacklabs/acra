@@ -19,17 +19,12 @@ import (
 	"bytes"
 	"encoding/binary"
 
+	"errors"
 	"github.com/cossacklabs/acra/keystore"
 	"github.com/cossacklabs/acra/utils"
 	"github.com/cossacklabs/themis/gothemis/cell"
 	"github.com/cossacklabs/themis/gothemis/keys"
 	"github.com/cossacklabs/themis/gothemis/message"
-	"errors"
-)
-
-// Shows length of something unknown (why 8?)
-const (
-	LENGTH_SIZE = 8
 )
 
 // getDataLengthFromAcraStruct unpack data length value from AcraStruct
@@ -64,22 +59,6 @@ func ValidateAcraStructLength(data []byte) error {
 	return nil
 }
 
-// ExtractAcraStruct return slice of possible AcraStruct inside data. return true on success
-// This method do simple checks on data size that must be bigger than min size of AcraStruct and
-// check that data is enough for data size field inside AcraStruct
-func ExtractAcraStruct(data []byte)([]byte, bool){
-	baseLength := GetMinAcraStructLength()
-	if len(data) < baseLength {
-		return nil, false
-	}
-	dataLength := getDataLengthFromAcraStruct(data)
-	acraStructSize := GetMinAcraStructLength() + dataLength
-	if acraStructSize > len(data){
-		return nil, false
-	}
-	return data[:acraStructSize], true
-}
-
 // DecryptAcrastruct returns plaintext data from AcraStruct, decrypting it using Themis SecureCell in Seal mode,
 // using zone as context and privateKey as decryption key.
 // Returns error if decryption failed.
@@ -97,12 +76,12 @@ func DecryptAcrastruct(data []byte, privateKey *keys.PrivateKey, zone []byte) ([
 	//
 	var length uint64
 	// convert from little endian
-	err = binary.Read(bytes.NewReader(innerData[KEY_BLOCK_LENGTH:KEY_BLOCK_LENGTH+LENGTH_SIZE]), binary.LittleEndian, &length)
+	err = binary.Read(bytes.NewReader(innerData[KEY_BLOCK_LENGTH:KEY_BLOCK_LENGTH+DATA_LENGTH_SIZE]), binary.LittleEndian, &length)
 	if err != nil {
 		return []byte{}, err
 	}
 	scell := cell.New(symmetricKey, cell.CELL_MODE_SEAL)
-	decrypted, err := scell.Unprotect(innerData[KEY_BLOCK_LENGTH+LENGTH_SIZE:], nil, zone)
+	decrypted, err := scell.Unprotect(innerData[KEY_BLOCK_LENGTH+DATA_LENGTH_SIZE:], nil, zone)
 	// fill zero symmetric_key
 	utils.FillSlice(byte(0), symmetricKey)
 	if err != nil {

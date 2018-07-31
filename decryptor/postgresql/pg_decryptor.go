@@ -1,3 +1,5 @@
+// Package postgresql contains postgresql decryptor.
+//
 // Copyright 2016, Cossack Labs Limited
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
@@ -19,7 +21,6 @@ import (
 	"crypto/tls"
 	"encoding/binary"
 	"errors"
-	"io"
 	"net"
 	"time"
 
@@ -33,10 +34,11 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
-// ReadForQuery - 'Z' ReadyForQuery, 0 0 0 5 length, 'I' idle status
+// ReadyForQueryPacket - 'Z' ReadyForQuery, 0 0 0 5 length, 'I' idle status
 // https://www.postgresql.org/docs/9.3/static/protocol-message-formats.html
 var ReadyForQueryPacket = []byte{'Z', 0, 0, 0, 5, 'I'}
 
+// NewPgError returns packed error
 func NewPgError(message string) ([]byte, error) {
 	// 5 = E marker + 4 bytes for message length
 	// 7 is severity error with null terminator
@@ -62,88 +64,34 @@ func NewPgError(message string) ([]byte, error) {
 	return output, nil
 }
 
+// PgSQL constant sizes and types.
 const (
-	DATA_ROW_LENGTH_BUF_SIZE = 4
+	DataRowLengthBufSize = 4
 	// random chosen
-	OUTPUT_DEFAULT_SIZE      = 1024
-	COLUMN_DATA_DEFAULT_SIZE = 1024
+	OutputDefaultSize = 1024
 	// https://www.postgresql.org/docs/9.4/static/protocol-message-formats.html
-	DATA_ROW_MESSAGE_TYPE byte = 'D'
-	QUERY_MESSAGE_TYPE    byte = 'Q'
-	TLS_TIMEOUT                = time.Second
+	DataRowMessageType byte = 'D'
+	QueryMessageType   byte = 'Q'
+	TlsTimeout              = time.Second
 )
 
-var CANCEL_REQUEST = []byte{0x04, 0xd2, 0x16, 0x2e}
+// CancelRequest indicates beginning tag of Cancel request.
+var CancelRequest = []byte{0x04, 0xd2, 0x16, 0x2e}
 
-func (packet *PacketHandler) readMessageType() error {
-	n, err := packet.reader.Read(packet.messageType[:])
-	if err := base.CheckReadWrite(n, 1, err); err != nil {
-		return err
-	}
-	return nil
-}
-
-func (packet *PacketHandler) IsDataRow() bool {
-	return packet.messageType[0] == DATA_ROW_MESSAGE_TYPE
-}
-
-func (packet *PacketHandler) IsSimpleQuery() bool {
-	return packet.messageType[0] == QUERY_MESSAGE_TYPE
-}
-
-var ErrShortRead = errors.New("read less bytes than expected")
-
-func (packet *PacketHandler) readData() error {
-	packet.logger.Debugln("Read data length")
-	n, err := packet.reader.Read(packet.descriptionLengthBuf)
-	if err != nil {
-		return err
-	}
-	if n != len(packet.descriptionLengthBuf) {
-		return ErrShortRead
-	}
-	packet.dataLength = int(binary.BigEndian.Uint32(packet.descriptionLengthBuf)) - len(packet.descriptionLengthBuf)
-	packet.descriptionBuf.Reset()
-	packet.descriptionBuf.Grow(packet.dataLength)
-	packet.logger.Debugln("Read data")
-	nn, err := io.CopyN(packet.descriptionBuf, packet.reader, int64(packet.dataLength))
-	if err != nil {
-		return err
-	}
-	if nn != int64(packet.dataLength) {
-		return ErrShortRead
-	}
-	return nil
-}
-
-func (packet *PacketHandler) ReadPacket() error {
-	packet.logger.Debugln("Read packet")
-	if err := packet.readMessageType(); err != nil {
-		return err
-	}
-	return packet.readData()
-}
-
-func (packet *PacketHandler) Marshal() ([]byte, error) {
-	output := make([]byte, 0, 5+packet.dataLength)
-	if packet.messageType[0] != 0 {
-		output = append(output, packet.messageType[0])
-	}
-	output = append(output, packet.descriptionLengthBuf...)
-	output = append(output, packet.descriptionBuf.Bytes()...)
-	return output, nil
-}
-
+// PgProxy represents PgSQL database connection between client and database with TLS support
 type PgProxy struct {
 	clientConnection net.Conn
 	dbConnection     net.Conn
 	TlsCh            chan bool
 }
 
+// NewPgProxy returns new PgProxy
 func NewPgProxy(clientConnection, dbConnection net.Conn) (*PgProxy, error) {
 	return &PgProxy{clientConnection: clientConnection, dbConnection: dbConnection, TlsCh: make(chan bool)}, nil
 }
 
+// PgProxyClientRequests checks every client request using AcraCensor,
+// if request is allowed, sends it to the Pg database
 func (proxy *PgProxy) PgProxyClientRequests(acraCensor acracensor.AcraCensorInterface, dbConnection, clientConnection net.Conn, errCh chan<- error) {
 	logger := log.WithField("proxy", "pg_client")
 	logger.Debugln("Pg client proxy")
@@ -208,14 +156,8 @@ func (proxy *PgProxy) PgProxyClientRequests(acraCensor acracensor.AcraCensorInte
 	}
 }
 
-func (packet *PacketHandler) IsSSLRequestAllowed() bool {
-	return packet.messageType[0] == 'S'
-}
-
-func (packet *PacketHandler) IsSSLRequestDeny() bool {
-	return packet.messageType[0] == 'N'
-}
-
+// handlePoisonCheckResult return error err != nil, if can't check on poison record or any callback on poison record
+// return error
 func handlePoisonCheckResult(decryptor base.Decryptor, poisoned bool, err error) error {
 	if err != nil {
 		log.WithError(err).Errorln("Can't check on poison record")
@@ -225,19 +167,13 @@ func handlePoisonCheckResult(decryptor base.Decryptor, poisoned bool, err error)
 		log.Warningln("Recognized poison record")
 		callbacks := decryptor.GetPoisonCallbackStorage()
 		if callbacks.HasCallbacks() {
-			var callbackErr error
-			if err := callbacks.Call(); err != nil {
-				log.WithError(err).Errorln("Unexpected error on poison record callback")
-				callbackErr = err
-			}
-			if callbackErr != nil {
-				return err
-			}
+			return callbacks.Call()
 		}
 	}
 	return nil
 }
 
+// checkPoisonRecordInBlock check block on poison record as whole AcraStruct block (only when IsPoisonRecordCheckOn() == true)
 func checkPoisonRecordInBlock(block []byte, decryptor base.Decryptor) error {
 	// check is it Poison Record
 	if decryptor.IsPoisonRecordCheckOn() {
@@ -250,6 +186,7 @@ func checkPoisonRecordInBlock(block []byte, decryptor base.Decryptor) error {
 	return nil
 }
 
+// processWholeBlockDecryption try to decrypt data of column as whole AcraStruct and replace with decrypted data on success
 func (proxy *PgProxy) processWholeBlockDecryption(packet *PacketHandler, column *ColumnData, decryptor base.Decryptor) error {
 	decryptor.Reset()
 	decrypted, err := decryptor.DecryptBlock(column.Data)
@@ -324,7 +261,7 @@ func (proxy *PgProxy) PgDecryptStream(censor acracensor.AcraCensorInterface, dec
 				select {
 				case <-proxy.TlsCh:
 					break
-				case <-time.NewTimer(TLS_TIMEOUT).C:
+				case <-time.NewTimer(TlsTimeout).C:
 					logger.Errorln("Can't stop background goroutine to start tls handshake")
 					errCh <- errors.New("can't stop background goroutine")
 					return
@@ -370,7 +307,6 @@ func (proxy *PgProxy) PgDecryptStream(censor acracensor.AcraCensorInterface, dec
 
 				packet.reader = reader
 				packet.writer = writer
-				packet.firstPacket = false
 				packet.messageType[0] = 0
 				continue
 			}
@@ -499,7 +435,7 @@ func (proxy *PgProxy) PgDecryptStream(censor acracensor.AcraCensorInterface, dec
 
 							logger.WithError(err).Warningln("Can't decrypt data with unwrapped symmetric key")
 							// write current read byte to not process him in next iteration
-							outputBlock.Write([]byte{packet.output[currentIndex]})
+							outputBlock.Write([]byte{column.Data[currentIndex]})
 							currentIndex++
 							continue
 						}
@@ -514,7 +450,6 @@ func (proxy *PgProxy) PgDecryptStream(censor acracensor.AcraCensorInterface, dec
 						decryptor.Reset()
 					} else {
 						logger.Debugln("Result was not changed")
-						packet.writeIndex = endIndex
 					}
 				}
 			} else {

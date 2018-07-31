@@ -43,7 +43,13 @@ hex   char dec  bin
 */
 
 //var TAG_BEGIN = []byte{133, 32, 251}
+
+// Constants that setup which symbol would be used at start in AcraStruct to simplify recognizing from other binary data
+// Double-quote was chosen because it's printable symbol (help in debugging when we can see in console that it's start of
+// AcraStruct) and rarely used sequentially
+// Tag length was chosen
 const (
+	// TAG_SYMBOL used in begin tag in AcraStruct
 	TAG_SYMBOL byte = '"'
 )
 
@@ -59,7 +65,9 @@ const (
 	KEY_BLOCK_LENGTH    = PUBLIC_KEY_LENGTH + SMESSAGE_KEY_LENGTH
 
 	SYMMETRIC_KEY_SIZE = 32
-	DATA_LENGTH_SIZE   = 8
+	// DATA_LENGTH_SIZE length of part of AcraStruct that store data part length. So max data size is 2^^64 that
+	// may be wrapped into AcraStruct. We decided that 2^^64 is enough and not much as 8 byte overhead per AcraStruct
+	DATA_LENGTH_SIZE = 8
 )
 
 // DataDecryptor describes AcraStruct decryptor.

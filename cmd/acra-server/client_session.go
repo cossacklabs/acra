@@ -131,7 +131,7 @@ func (clientSession *ClientSession) HandleClientConnection(clientID []byte, decr
 				if clientSession.config.UseMySQL() {
 					break
 				} else {
-					pgProxy.TLSCh <- true
+					pgProxy.TlsCh <- true
 					// in postgresql mode timeout used to stop listening connection in background goroutine
 					// and it's normal behaviour
 					continue

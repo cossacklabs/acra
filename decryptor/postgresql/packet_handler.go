@@ -1,45 +1,36 @@
 package postgresql
 
 import (
-	"bytes"
 	"bufio"
+	"bytes"
+	"encoding/binary"
+	"errors"
+	"github.com/cossacklabs/acra/decryptor/base"
 	acra_io "github.com/cossacklabs/acra/io"
 	"github.com/sirupsen/logrus"
-	"encoding/binary"
-	"github.com/cossacklabs/acra/decryptor/base"
 	"io"
 )
 
 // PacketHandler hold state of postgresql packet and process data rows
+// every postgresql packet (except first packet Startup/SSLRequest) has struct as like
+// MessageType[1] + PacketLength[4] + PacketData[N] where numbers are size in bytes and N depends from value in PacketLength
 type PacketHandler struct {
-	firstPacket          bool
 	messageType          [1]byte
 	descriptionLengthBuf []byte
 	descriptionBuf       *bytes.Buffer
 
-	output            []byte
-	columnSizePointer []byte
-	columnDataBuf     *bytes.Buffer
-	writeIndex        int
-	columnCount       int
-	dataLength        int
-	errCh             chan<- error
-	reader            *acra_io.ExtendedBufferedReader
-	writer            *bufio.Writer
-	columnIndex       int
-	logger            *logrus.Entry
-	Columns           []*ColumnData
+	columnCount int
+	dataLength  int
+	reader      *acra_io.ExtendedBufferedReader
+	writer      *bufio.Writer
+	logger      *logrus.Entry
+	Columns     []*ColumnData
 }
 
 // NewClientSidePacketHandler return new PacketHandler with initialized own logger for client's packets
 func NewClientSidePacketHandler(reader *acra_io.ExtendedBufferedReader, writer *bufio.Writer) (*PacketHandler, error) {
 	return &PacketHandler{
-		columnIndex:          0,
-		firstPacket:          true,
-		writeIndex:           0,
-		output:               nil,
-		columnDataBuf:        nil,
-		descriptionBuf:       bytes.NewBuffer(make([]byte, OUTPUT_DEFAULT_SIZE)),
+		descriptionBuf:       bytes.NewBuffer(make([]byte, OutputDefaultSize)),
 		descriptionLengthBuf: make([]byte, 4),
 		reader:               reader,
 		writer:               writer,
@@ -50,12 +41,7 @@ func NewClientSidePacketHandler(reader *acra_io.ExtendedBufferedReader, writer *
 // NewClientSidePacketHandler return new PacketHandler with initialized own logger for databases's packets
 func NewDbSidePacketHandler(reader *acra_io.ExtendedBufferedReader, writer *bufio.Writer) (*PacketHandler, error) {
 	return &PacketHandler{
-		columnIndex:          0,
-		firstPacket:          true,
-		writeIndex:           0,
-		output:               nil,
-		columnDataBuf:        nil,
-		descriptionBuf:       bytes.NewBuffer(make([]byte, OUTPUT_DEFAULT_SIZE)),
+		descriptionBuf:       bytes.NewBuffer(make([]byte, OutputDefaultSize)),
 		descriptionLengthBuf: make([]byte, 4),
 		reader:               reader,
 		writer:               writer,
@@ -63,6 +49,7 @@ func NewDbSidePacketHandler(reader *acra_io.ExtendedBufferedReader, writer *bufi
 	}, nil
 }
 
+// updateDataFromColumns check that any column's data was changed and update packet length and data block with new data
 func (packet *PacketHandler) updateDataFromColumns() {
 	columnsDataChanged := false
 	// check is any column was changed
@@ -75,7 +62,7 @@ func (packet *PacketHandler) updateDataFromColumns() {
 	if columnsDataChanged {
 		// column length buffer wasn't included to column length value and should be accumulated too
 		// + 2 is column count buffer
-		newDataLength := packet.columnCount * 4 + 2
+		newDataLength := packet.columnCount*4 + 2
 		for i := 0; i < packet.columnCount; i++ {
 			newDataLength += packet.Columns[i].Length()
 		}
@@ -91,10 +78,11 @@ func (packet *PacketHandler) updateDataFromColumns() {
 			packet.descriptionBuf.Write(packet.Columns[i].Data)
 		}
 		// update packet size
-		binary.BigEndian.PutUint32(packet.descriptionLengthBuf[:], uint32(newDataLength+DATA_ROW_LENGTH_BUF_SIZE))
+		binary.BigEndian.PutUint32(packet.descriptionLengthBuf[:], uint32(newDataLength+DataRowLengthBufSize))
 	}
 }
 
+// sendPacket marshal packet and send it with writer
 func (packet *PacketHandler) sendPacket() error {
 	data, err := packet.Marshal()
 	if err != nil {
@@ -114,6 +102,7 @@ func (packet *PacketHandler) sendPacket() error {
 	return nil
 }
 
+// sendMessageType send and flush messageType buffer
 func (packet *PacketHandler) sendMessageType() error {
 	n, err := packet.writer.Write(packet.messageType[:])
 	if err2 := base.CheckReadWrite(n, 1, err); err2 != nil {
@@ -124,16 +113,6 @@ func (packet *PacketHandler) sendMessageType() error {
 		return err
 	}
 	return nil
-}
-
-func (packet *PacketHandler) readCount() (int, error) {
-	// first 4 bytes is packet length and then 2 bytes of column count
-	// https://www.postgresql.org/docs/9.3/static/protocol-message-formats.html
-	_, err := packet.reader.Read(packet.descriptionBuf.Bytes()[4:6])
-	if err != nil {
-		return 0, err
-	}
-	return int(binary.BigEndian.Uint32(packet.columnSizePointer)), nil
 }
 
 // ColumnData hold column length and data
@@ -148,7 +127,7 @@ func (column *ColumnData) Length() int {
 	return int(binary.BigEndian.Uint32(column.LengthBuf[:]))
 }
 
-// ReadLeangth of column
+// ReadLength of column
 func (column *ColumnData) ReadLength(reader io.Reader) error {
 	n, err := reader.Read(column.LengthBuf[:])
 	if err2 := base.CheckReadWrite(n, 4, err); err2 != nil {
@@ -160,7 +139,7 @@ func (column *ColumnData) ReadLength(reader io.Reader) error {
 const (
 	// NullColumnValue indicates that column has null value without any data
 	// https://www.postgresql.org/docs/9.3/static/protocol-message-formats.html
-	NullColumnValue  int32 = -1
+	NullColumnValue int32 = -1
 )
 
 // readData read column length and then data from reader
@@ -213,10 +192,83 @@ func (packet *PacketHandler) parseColumns() error {
 // Reset state of handler
 func (packet *PacketHandler) Reset() {
 	packet.descriptionBuf.Reset()
-	packet.columnDataBuf.Reset()
-	packet.writeIndex = 0
 	packet.dataLength = 0
 	packet.columnCount = 0
-	packet.columnIndex = 0
 	packet.Columns = nil
+}
+
+func (packet *PacketHandler) readMessageType() error {
+	n, err := packet.reader.Read(packet.messageType[:])
+	if err := base.CheckReadWrite(n, 1, err); err != nil {
+		return err
+	}
+	return nil
+}
+
+// IsDataRow return true if packet has DataRow type
+func (packet *PacketHandler) IsDataRow() bool {
+	return packet.messageType[0] == DataRowMessageType
+}
+
+// IsSimpleQuery return true if packet has SimpleQuery type
+func (packet *PacketHandler) IsSimpleQuery() bool {
+	return packet.messageType[0] == QueryMessageType
+}
+
+// ErrShortRead error during reading
+var ErrShortRead = errors.New("read less bytes than expected")
+
+// readData part of packet
+func (packet *PacketHandler) readData() error {
+	packet.logger.Debugln("Read data length")
+	n, err := packet.reader.Read(packet.descriptionLengthBuf)
+	if err != nil {
+		return err
+	}
+	if n != len(packet.descriptionLengthBuf) {
+		return ErrShortRead
+	}
+	packet.dataLength = int(binary.BigEndian.Uint32(packet.descriptionLengthBuf)) - len(packet.descriptionLengthBuf)
+	packet.descriptionBuf.Reset()
+	packet.descriptionBuf.Grow(packet.dataLength)
+	packet.logger.Debugln("Read data")
+	nn, err := io.CopyN(packet.descriptionBuf, packet.reader, int64(packet.dataLength))
+	if err != nil {
+		return err
+	}
+	if nn != int64(packet.dataLength) {
+		return ErrShortRead
+	}
+	return nil
+}
+
+// ReadPacket read message type and data part of packet
+func (packet *PacketHandler) ReadPacket() error {
+	packet.logger.Debugln("Read packet")
+	if err := packet.readMessageType(); err != nil {
+		return err
+	}
+	return packet.readData()
+}
+
+// Marshal transforms data row into bytes array
+// it's not marshal message type if it == 0 (if it was first Startup/SSLRequest packet without message type)
+func (packet *PacketHandler) Marshal() ([]byte, error) {
+	output := make([]byte, 0, 5+packet.dataLength)
+	if packet.messageType[0] != 0 {
+		output = append(output, packet.messageType[0])
+	}
+	output = append(output, packet.descriptionLengthBuf...)
+	output = append(output, packet.descriptionBuf.Bytes()...)
+	return output, nil
+}
+
+// IsSSLRequestAllowed returns true server allowed switch to SSL
+func (packet *PacketHandler) IsSSLRequestAllowed() bool {
+	return packet.messageType[0] == 'S'
+}
+
+// IsSSLRequestDeny returns true server denied switch to SSL
+func (packet *PacketHandler) IsSSLRequestDeny() bool {
+	return packet.messageType[0] == 'N'
 }
