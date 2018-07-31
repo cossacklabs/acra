@@ -66,13 +66,14 @@ func NewPgError(message string) ([]byte, error) {
 
 // PgSQL constant sizes and types.
 const (
+	// DataRowLengthBufSize each postgresql packet contain 4 byte that store length of message contents in bytes, including self
 	DataRowLengthBufSize = 4
 	// random chosen
 	OutputDefaultSize = 1024
 	// https://www.postgresql.org/docs/9.4/static/protocol-message-formats.html
 	DataRowMessageType byte = 'D'
 	QueryMessageType   byte = 'Q'
-	TlsTimeout              = time.Second
+	TlsTimeout              = time.Second * 2
 )
 
 // CancelRequest indicates beginning tag of Cancel request.
@@ -104,13 +105,16 @@ func (proxy *PgProxy) PgProxyClientRequests(acraCensor acracensor.AcraCensorInte
 		errCh <- err
 		return
 	}
+	// first packet doesn't contain MessageType, only packet length and data and should be processed differently
 	firstPacket := true
 	for {
 		packet.descriptionBuf.Reset()
 		if firstPacket {
+			// read only data block without message type
 			err = packet.readData()
 			firstPacket = false
 		} else {
+			// read whole packet with message type
 			err = packet.ReadPacket()
 		}
 		if err != nil {
@@ -118,6 +122,7 @@ func (proxy *PgProxy) PgProxyClientRequests(acraCensor acracensor.AcraCensorInte
 			errCh <- err
 			return
 		}
+		// we are interested only in requests that contains sql queries
 		if !packet.IsSimpleQuery() {
 			if err := packet.sendPacket(); err != nil {
 				logger.WithError(err).Errorln("Can't forward packet to db")
@@ -191,6 +196,7 @@ func (proxy *PgProxy) processWholeBlockDecryption(packet *PacketHandler, column 
 	decryptor.Reset()
 	decrypted, err := decryptor.DecryptBlock(column.Data)
 	if err != nil {
+		// check poison records on failed decryption
 		log.WithError(err).Errorln("Can't decrypt possible AcraStruct")
 		if decryptor.IsPoisonRecordCheckOn() {
 			decryptor.Reset()
@@ -215,6 +221,7 @@ func (proxy *PgProxy) processWholeBlockDecryption(packet *PacketHandler, column 
 func (proxy *PgProxy) PgDecryptStream(censor acracensor.AcraCensorInterface, decryptor base.Decryptor, tlsConfig *tls.Config, dbConnection net.Conn, clientConnection net.Conn, errCh chan<- error) {
 	logger := log.WithField("proxy", "db_side")
 	logger.Debugln("Pg db proxy")
+	// use buffered writer because we generate response by parts
 	writer := bufio.NewWriter(clientConnection)
 
 	reader := acra_io.NewExtendedBufferedReader(bufio.NewReader(dbConnection))
@@ -229,6 +236,7 @@ func (proxy *PgProxy) PgDecryptStream(censor acracensor.AcraCensorInterface, dec
 		if firstByte {
 			// https://www.postgresql.org/docs/9.1/static/protocol-flow.html#AEN92112
 			// we should know that we shouldn't read anymore bytes
+			// first response from server may contain only one byte of response on SSLRequest
 			firstByte = false
 			if err := packet.readMessageType(); err != nil {
 				logger.WithError(err).Errorln("Can't read first message type")
@@ -243,6 +251,7 @@ func (proxy *PgProxy) PgDecryptStream(censor acracensor.AcraCensorInterface, dec
 				}
 				continue
 			} else if packet.IsSSLRequestAllowed() {
+				// if server allow SSLRequest than we wrap our connections with tls
 				if tlsConfig == nil {
 					logger.Errorln("To support TLS connections you must pass TLS key and certificate for AcraServer that will be used" +
 						"for connections AcraServer->Database and CA certificate which will be used to verify certificate " +
@@ -277,6 +286,8 @@ func (proxy *PgProxy) PgDecryptStream(censor acracensor.AcraCensorInterface, dec
 				// convert to tls connection
 				tlsClientConnection := tls.Server(clientConnection, tlsConfig)
 
+				// send server's response only after successful interrupting background goroutine that process client's connection
+				// to take control over connection and avoid two places that communicate with one connection
 				if err := packet.sendMessageType(); err != nil {
 					logger.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorDecryptorCantInitializeTLS).
 						Errorln("Can't send ssl allow packet")
@@ -307,9 +318,10 @@ func (proxy *PgProxy) PgDecryptStream(censor acracensor.AcraCensorInterface, dec
 
 				packet.reader = reader
 				packet.writer = writer
-				packet.messageType[0] = 0
+				packet.Reset()
 				continue
 			}
+			// if it is not ssl request than we just forward it to client
 			if err := packet.readData(); err != nil {
 				logger.WithError(err).Errorln("Can't read data of packet")
 				errCh <- err
@@ -338,7 +350,7 @@ func (proxy *PgProxy) PgDecryptStream(censor acracensor.AcraCensorInterface, dec
 			continue
 		}
 
-		logger.Debugln("Matched data packet")
+		logger.Debugln("Matched data row packet")
 		if err := packet.parseColumns(); err != nil {
 			logger.WithError(err).Errorln("Can't parse columns in packet")
 			errCh <- err
@@ -393,6 +405,7 @@ func (proxy *PgProxy) PgDecryptStream(censor acracensor.AcraCensorInterface, dec
 					outputBlock := bytes.NewBuffer(make([]byte, 0, column.Length()))
 					hasDecryptedData := false
 					for {
+						// search AcraStruct's begin tags through all block of data and try to decrypt
 						beginTagIndex, tagLength := decryptor.BeginTagIndex(column.Data[currentIndex:endIndex])
 						if beginTagIndex == utils.NOT_FOUND {
 							// no AcraStructs in column decryptedData

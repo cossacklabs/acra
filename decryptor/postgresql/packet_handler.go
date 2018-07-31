@@ -195,6 +195,7 @@ func (packet *PacketHandler) Reset() {
 	packet.dataLength = 0
 	packet.columnCount = 0
 	packet.Columns = nil
+	packet.messageType[0] = 0
 }
 
 func (packet *PacketHandler) readMessageType() error {
