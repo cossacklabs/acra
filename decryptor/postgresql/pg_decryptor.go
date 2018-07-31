@@ -61,6 +61,7 @@ func NewPgError(message string) ([]byte, error) {
 	binary.BigEndian.PutUint32(output[1:5], uint32(len(output)-1))
 	return output, nil
 }
+
 const (
 	DATA_ROW_LENGTH_BUF_SIZE = 4
 	// random chosen
@@ -75,12 +76,10 @@ const (
 var CANCEL_REQUEST = []byte{0x04, 0xd2, 0x16, 0x2e}
 
 func (packet *PacketHandler) readMessageType() error {
-	packet.logger.Debugln("Read message type")
 	n, err := packet.reader.Read(packet.messageType[:])
 	if err := base.CheckReadWrite(n, 1, err); err != nil {
 		return err
 	}
-	packet.logger.Debugf("message_type - %s", string(packet.messageType[0]))
 	return nil
 }
 
@@ -117,7 +116,7 @@ func (packet *PacketHandler) readData() error {
 	return nil
 }
 
-func (packet *PacketHandler) ReadPacket() (error) {
+func (packet *PacketHandler) ReadPacket() error {
 	packet.logger.Debugln("Read packet")
 	if err := packet.readMessageType(); err != nil {
 		return err
@@ -243,8 +242,8 @@ func checkPoisonRecordInBlock(block []byte, decryptor base.Decryptor) error {
 	// check is it Poison Record
 	if decryptor.IsPoisonRecordCheckOn() {
 		log.Debugln("Check poison records")
-		if decryptor.IsMatched(){
-			poisoned, err := decryptor.CheckPoisonRecord(bytes.NewReader(block))
+		if index, length := decryptor.BeginTagIndex(block); index != utils.NOT_FOUND {
+			poisoned, err := decryptor.CheckPoisonRecord(bytes.NewReader(block[index+length:]))
 			return handlePoisonCheckResult(decryptor, poisoned, err)
 		}
 	}
@@ -256,7 +255,7 @@ func (proxy *PgProxy) processWholeBlockDecryption(packet *PacketHandler, column 
 	decrypted, err := decryptor.DecryptBlock(column.Data)
 	if err != nil {
 		log.WithError(err).Errorln("Can't decrypt possible AcraStruct")
-		if decryptor.IsPoisonRecordCheckOn(){
+		if decryptor.IsPoisonRecordCheckOn() {
 			decryptor.Reset()
 			skippedBegin, err := decryptor.SkipBeginInBlock(column.Data)
 			if err != nil {

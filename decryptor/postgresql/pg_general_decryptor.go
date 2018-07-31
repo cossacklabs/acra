@@ -317,6 +317,7 @@ func (decryptor *PgDecryptor) CheckPoisonRecord(reader io.Reader) (bool, error) 
 var hexTagSymbols = hex.EncodeToString([]byte{base.TAG_SYMBOL})
 var HEX_SYMBOL byte = byte(hexTagSymbols[0])
 
+// BeginTagIndex return start index of begin tag and length of tag (because it's different for escape/hex/binary formats
 func (decryptor *PgDecryptor) BeginTagIndex(block []byte) (int, int) {
 	_, ok := decryptor.pgDecryptor.(*PgHexDecryptor)
 	if ok {

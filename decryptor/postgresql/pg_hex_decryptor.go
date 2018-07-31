@@ -104,12 +104,12 @@ func (decryptor *PgHexDecryptor) ReadSymmetricKey(privateKey *keys.PrivateKey, r
 		return nil, decryptor.keyBlockBuffer[:n], err
 	}
 	if n != hex.EncodedLen(base.KEY_BLOCK_LENGTH) {
-		log.Warningf("%v", utils.ErrorMessage("can't decode hex data", err))
+		log.Warningf("%v", utils.ErrorMessage("Can't decode hex data", err))
 		return nil, decryptor.keyBlockBuffer[:n], base.ErrFakeAcraStruct
 	}
 	_, err = hex.Decode(decryptor.decodedKeyBlockBuffer[:], decryptor.keyBlockBuffer[:])
 	if err != nil {
-		log.Warningf("%v", utils.ErrorMessage("can't decode hex data", err))
+		log.Warningf("%v", utils.ErrorMessage("Can't decode hex data", err))
 		return nil, decryptor.keyBlockBuffer[:n], base.ErrFakeAcraStruct
 	}
 	pubkey := &keys.PublicKey{Value: decryptor.decodedKeyBlockBuffer[:base.PUBLIC_KEY_LENGTH]}
@@ -140,11 +140,11 @@ func (decryptor *PgHexDecryptor) readDataLength(reader io.Reader) (uint64, []byt
 	// decode hex length to binary length
 	n, err := hex.Decode(decryptor.lengthBuf[:], decryptor.hexLengthBuf[:])
 	if err != nil {
-		log.Warningf("%v", utils.ErrorMessage("can't decode hex data", err))
+		log.Warningf("%v", utils.ErrorMessage("Can't decode hex data", err))
 		return 0, decryptor.hexLengthBuf[:lenCount], base.ErrFakeAcraStruct
 	}
 	if n != len(decryptor.lengthBuf) {
-		log.Warningf("%v", utils.ErrorMessage("can't decode hex data", err))
+		log.Warningf("%v", utils.ErrorMessage("Can't decode hex data", err))
 		return 0, decryptor.hexLengthBuf[:lenCount], base.ErrFakeAcraStruct
 	}
 	// convert from little endian
@@ -168,11 +168,11 @@ func (decryptor *PgHexDecryptor) readScellData(length int, reader io.Reader) ([]
 	}
 	n, err = hex.Decode(decryptor.buf[:int(length)], decryptor.hexBuf[:hexLength])
 	if err != nil {
-		log.Warningf("%v", utils.ErrorMessage("can't decode hex data", err))
+		log.Warningf("%v", utils.ErrorMessage("Can't decode hex data", err))
 		return nil, decryptor.hexBuf[:n], base.ErrFakeAcraStruct
 	}
 	if n != int(length) {
-		log.Warningf("%v", utils.ErrorMessage("can't decode hex data", err))
+		log.Warningf("%v", utils.ErrorMessage("Can't decode hex data", err))
 		return nil, decryptor.hexBuf[:n], base.ErrFakeAcraStruct
 	}
 	return decryptor.buf[:int(length)], decryptor.hexBuf[:hexLength], nil

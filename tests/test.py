@@ -1388,8 +1388,7 @@ class TestShutdownPoisonRecordWithZone(TestPoisonRecordShutdown):
             {'id': row_id, 'data': get_poison_record(), 'raw_data': 'poison_record'})
         with self.assertRaises(DatabaseError):
             result = self.engine1.execute(
-                sa.select([test_table])
-                    .where(test_table.c.id == row_id))
+                sa.select([test_table]).where(test_table.c.id == row_id))
             print(result.fetchall())
 
     def testShutdown3(self):

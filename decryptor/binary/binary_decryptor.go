@@ -116,7 +116,7 @@ func (decryptor *BinaryDecryptor) readScellData(length int, reader io.Reader) ([
 		return nil, decryptor.buf[:n], err
 	}
 	if n != int(length) {
-		log.Warningf("%v", utils.ErrorMessage("can't decode hex data", err))
+		log.Warningf("%v", utils.ErrorMessage("Can't decode hex data", err))
 		return nil, decryptor.buf[:n], base.ErrFakeAcraStruct
 	}
 	return decryptor.buf[:length], decryptor.buf[:length], nil
