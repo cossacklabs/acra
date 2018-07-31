@@ -1,16 +1,26 @@
-// Copyright 2016, Cossack Labs Limited
+/*
+Copyright 2016, Cossack Labs Limited
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
+// Package main is entry point for AcraConnector. AcraConnector is a (separate) service running alongside
+// your application — it pretends to be a database listener, relays all the requests to AcraServer,
+// receives the responses, and returns them to an app, just like a normal database listener would do.
+// To talk to AcraServer, you'll need to run AcraConnector on the same host as your application,
+// in a separate container or as a separate user. You'll also need to route database requests to its address.
 //
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-// http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
+// https://github.com/cossacklabs/acra/wiki/AcraConnector-and-AcraWriter
 package main
 
 import (
