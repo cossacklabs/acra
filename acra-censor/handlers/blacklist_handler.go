@@ -290,10 +290,12 @@ func handleSelectColumnPattern(queryNodes, patternNodes []sqlparser.SQLNode) boo
 			continue
 		}
 		if patternNodeColName, ok := patternNode.(*sqlparser.ColName); ok && patternNodeColName != nil {
-			if strings.EqualFold(patternNodeColName.Name.String(), ColumnConfigPlaceholderReplacer) {
-				matchDetected = true
-			} else {
-				return false
+			if queryNodeColName, ok := queryNodes[index].(*sqlparser.ColName); ok && queryNodeColName != nil {
+				if strings.EqualFold(patternNodeColName.Name.String(), ColumnConfigPlaceholderReplacer) {
+					matchDetected = true
+				} else {
+					return false
+				}
 			}
 		}
 	}
