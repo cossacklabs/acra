@@ -16,6 +16,7 @@ type BlacklistHandler struct {
 	logger   *log.Entry
 }
 
+//NewBlacklistHandler creates new blacklist instance
 func NewBlacklistHandler() *BlacklistHandler {
 	handler := &BlacklistHandler{}
 	handler.queries = make(map[string]bool)
@@ -88,9 +89,10 @@ func (handler *BlacklistHandler) CheckQuery(query string) (bool, error) {
 	}
 	//Check patterns
 	if len(handler.patterns) != 0 {
+		//fmt.Println("here")
 		matchingOccurred, err := handler.checkPatternsMatching(query)
 		if err != nil {
-			return false, ErrPatternSyntaxError
+			return false, ErrPatternCheckError
 		}
 		if matchingOccurred {
 			return false, ErrBlacklistPatternMatch
@@ -203,7 +205,6 @@ func (handler *BlacklistHandler) RemoveTables(tableNames []string) {
 func (handler *BlacklistHandler) AddPatterns(patterns []string) error {
 	placeholders := []string{SelectConfigPlaceholder, ColumnConfigPlaceholder, WhereConfigPlaceholder, ValueConfigPlaceholder}
 	replacers := []string{SelectConfigPlaceholderReplacer, ColumnConfigPlaceholderReplacer, WhereConfigPlaceholderReplacer, ValueConfigPlaceholderReplacer}
-
 	patternValue := ""
 	for _, pattern := range patterns {
 		patternValue = pattern
@@ -244,25 +245,18 @@ func (handler *BlacklistHandler) checkPatternsMatching(query string) (bool, erro
 }
 
 func checkSinglePatternMatch(queryNodes []sqlparser.SQLNode, patternNodes []sqlparser.SQLNode) bool {
-	patternDetected := false
 	matchOccurred := false
-	patternDetected, matchOccurred = handleSelectPattern(queryNodes, patternNodes)
-	if patternDetected {
-		if matchOccurred {
-			return true
-		}
+	matchOccurred = handleSelectPattern(queryNodes, patternNodes)
+	if matchOccurred {
+		return true
 	}
-	patternDetected, matchOccurred = handleSelectColumnPattern(queryNodes, patternNodes)
-	if patternDetected {
-		if matchOccurred {
-			return true
-		}
+	matchOccurred = handleSelectColumnPattern(queryNodes, patternNodes)
+	if matchOccurred {
+		return true
 	}
-	patternDetected, matchOccurred = handleSelectWherePattern(queryNodes, patternNodes)
-	if patternDetected {
-		if matchOccurred {
-			return true
-		}
+	matchOccurred = handleSelectWherePattern(queryNodes, patternNodes)
+	if matchOccurred {
+		return true
 	}
 	matchOccurred = handleValuePattern(queryNodes, patternNodes)
 	if matchOccurred {
@@ -273,101 +267,79 @@ func checkSinglePatternMatch(queryNodes []sqlparser.SQLNode, patternNodes []sqlp
 }
 
 //handle %%SELECT%% pattern
-func handleSelectPattern(queryNodes, patternNodes []sqlparser.SQLNode) (patternDetected bool, matchOccurred bool) {
+func handleSelectPattern(queryNodes, patternNodes []sqlparser.SQLNode) bool {
 	var emptySelect *sqlparser.Select
 	if reflect.TypeOf(queryNodes[0]) == reflect.TypeOf(emptySelect) && reflect.TypeOf(patternNodes[0]) == reflect.TypeOf(emptySelect) {
 		if strings.EqualFold(sqlparser.String(patternNodes[0].(*sqlparser.Select).SelectExprs), SelectConfigPlaceholderReplacerPart2) {
-			return true, true
-		} else {
-			return true, false
+			return true
 		}
 	}
-	return false, false
+	return false
 }
 
 //handle SELECT %%COLUMN%% .. %%COLUMN%% pattern
-func handleSelectColumnPattern(queryNodes, patternNodes []sqlparser.SQLNode) (patternDetected bool, matchOccurred bool) {
-	var emptySelect *sqlparser.Select
-	if reflect.TypeOf(queryNodes[0]) == reflect.TypeOf(emptySelect) && reflect.TypeOf(patternNodes[0]) == reflect.TypeOf(emptySelect) {
-		if strings.Contains(sqlparser.String(patternNodes[0].(*sqlparser.Select).SelectExprs), ColumnConfigPlaceholderReplacer) {
-			if len(patternNodes[0].(*sqlparser.Select).SelectExprs) == len(queryNodes[0].(*sqlparser.Select).SelectExprs) {
-				return true, true
+func handleSelectColumnPattern(queryNodes, patternNodes []sqlparser.SQLNode) bool {
+	matchDetected := false
+	if len(patternNodes) != len(queryNodes) {
+		return false
+	}
+	for index, patternNode := range patternNodes {
+		if index == 0 || reflect.DeepEqual(patternNode, queryNodes[index]) {
+			continue
+		}
+		if patternNodeColName, ok := patternNode.(*sqlparser.ColName); ok && patternNodeColName != nil {
+			if strings.EqualFold(patternNodeColName.Name.String(), ColumnConfigPlaceholderReplacer) {
+				matchDetected = true
 			} else {
-				return true, false
+				return false
 			}
 		}
 	}
-	return false, false
+	return matchDetected
 }
 
 //handle SELECT a, b from t %%WHERE%% pattern
-func handleSelectWherePattern(queryNodes, patternNodes []sqlparser.SQLNode) (patternDetected bool, matchOccurred bool) {
-	var emptySelect *sqlparser.Select
-	if reflect.TypeOf(queryNodes[0]) == reflect.TypeOf(emptySelect) && reflect.TypeOf(patternNodes[0]) == reflect.TypeOf(emptySelect) {
-		patternDetected := false
-		patternHasWhereNode := false
-		queryHasWhereNode := false
-
-		greaterLength := len(queryNodes)
-		if greaterLength < len(patternNodes) {
-			greaterLength = len(patternNodes)
+func handleSelectWherePattern(queryNodes, patternNodes []sqlparser.SQLNode) bool {
+	patternWhereDetected := false
+	queryWhereDetected := false
+	for index, patternNode := range patternNodes {
+		if index == 0 || reflect.DeepEqual(queryNodes[index], patternNode) {
+			continue
 		}
-		//start from first node because zero node represents all query
-		index := 1
-		for index < greaterLength {
-			if index < len(queryNodes) && index < len(patternNodes) {
-				//if nodes are not equal, the only case when query matches pattern is if non-equal nodes are both 'where' nodes and pattern's where is replacer of placeholder (WhereConfigPlaceholderReplacerPart2)
-				if !reflect.DeepEqual(queryNodes[index], patternNodes[index]) {
-					if wherePatternNode, ok := patternNodes[index].(*sqlparser.Where); ok && wherePatternNode != nil {
-						if strings.EqualFold(sqlparser.String(wherePatternNode.Expr), WhereConfigPlaceholderReplacerPart2) {
-							patternDetected = true
-						}
-						patternHasWhereNode = true
-					}
-					if whereQueryNode, ok := queryNodes[index].(*sqlparser.Where); ok && whereQueryNode != nil {
-						queryHasWhereNode = true
-					}
-					//both pattern and query has non-nil 'where' node
-					if patternHasWhereNode == queryHasWhereNode && patternHasWhereNode == true {
-						return patternDetected, true
-					}
-
-					return patternDetected, false
-				}
-				index++
-			}
+		if patternWhereNode, ok := patternNode.(*sqlparser.Where); ok && strings.EqualFold(sqlparser.String(patternWhereNode.Expr), WhereConfigPlaceholderReplacerPart2) {
+			patternWhereDetected = true
 		}
+		if queryWhereNode, ok := queryNodes[index].(*sqlparser.Where); ok && queryWhereNode != nil {
+			queryWhereDetected = true
+		}
+		if patternWhereDetected == queryWhereDetected && patternWhereDetected {
+			return true
+		}
+		return false
 	}
-	return patternDetected, false
+	//this is a case when pattern == query
+	return true
 }
 
 //handle SELECT a, b FROM t1 WHERE userID=%%VALUE%% pattern
 func handleValuePattern(queryNodes, patternNodes []sqlparser.SQLNode) bool {
-	patternMatch := false
-	if len(queryNodes) == len(patternNodes) &&
-		nodesValuesAreEqual(queryNodes, patternNodes) {
-		patternMatch = true
+	matchDetected := false
+	if len(patternNodes) != len(queryNodes) {
+		return false
 	}
-	return patternMatch
-}
-func nodesValuesAreEqual(queryNodes, patternNodes []sqlparser.SQLNode) bool {
 	for index, patternNode := range patternNodes {
-		//start from first node because zero node represents all query
-		if index == 0 {
+		if index == 0 || reflect.DeepEqual(patternNode, queryNodes[index]) {
 			continue
 		}
-		//if nodes are deeply equal, skip verifications
-		if reflect.DeepEqual(queryNodes[index], patternNode) {
-			continue
-		} else {
-			if patternNodeComparison, ok := patternNode.(*sqlparser.ComparisonExpr); ok {
-				if queryNodeComparison, ok := queryNodes[index].(*sqlparser.ComparisonExpr); ok {
-					if reflect.DeepEqual(queryNodeComparison.Left, patternNodeComparison.Left) && strings.EqualFold(sqlparser.String(patternNodeComparison.Right), ValueConfigPlaceholderReplacer) {
-						return true
+		if patternNodeComparison, ok := patternNode.(*sqlparser.ComparisonExpr); ok && patternNodeComparison != nil {
+			if queryNodeComparison, ok := queryNodes[index].(*sqlparser.ComparisonExpr); ok && queryNodeComparison != nil {
+				if reflect.DeepEqual(queryNodeComparison.Left, patternNodeComparison.Left) {
+					if strings.EqualFold(sqlparser.String(patternNodeComparison.Right), ValueConfigPlaceholderReplacer) {
+						matchDetected = true
 					}
 				}
 			}
 		}
 	}
-	return false
+	return matchDetected
 }

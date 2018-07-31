@@ -389,6 +389,66 @@ func testBlacklistColumnsPattern(t *testing.T) {
 			t.Fatal("Blacklist pattern passed query. \nPattern: ", blacklistPattern, "\nQuery: ", query)
 		}
 	}
+
+	blacklistHandler.Reset()
+	blacklistPattern = "SELECT A, %%COLUMN%% FROM testTable"
+	err = blacklistHandler.AddPatterns([]string{blacklistPattern})
+	if err != nil {
+		t.Fatal(err)
+	}
+	acceptableQueries = []string{
+		"SELECT A FROM testTable",
+		"SELECT B, A FROM testTable",
+		"SELECT A, B, C FROM testTable",
+		"SELECT A, B, C, D FROM testTable",
+	}
+	blockableQueries = []string{
+		"SELECT A, B FROM testTable",
+		"SELECT A, X2 FROM testTable",
+		"SELECT A, col2 FROM testTable",
+	}
+	for _, query := range acceptableQueries {
+		err = censor.HandleQuery(query)
+		if err != nil {
+			t.Fatal(err, "\nPattern: "+blacklistPattern, "\nQuery: "+query)
+		}
+	}
+	for _, query := range blockableQueries {
+		err = censor.HandleQuery(query)
+		if err != handlers.ErrBlacklistPatternMatch {
+			t.Fatal("Blacklist pattern passed query. \nPattern: ", blacklistPattern, "\nQuery: ", query)
+		}
+	}
+
+	blacklistPattern = "SELECT %%COLUMN%%, B FROM testTable"
+	err = blacklistHandler.AddPatterns([]string{blacklistPattern})
+	if err != nil {
+		t.Fatal(err)
+	}
+	acceptableQueries = []string{
+		"SELECT A FROM testTable",
+		"SELECT B, A FROM testTable",
+		"SELECT A, B, C FROM testTable",
+		"SELECT A, B, C, D FROM testTable",
+	}
+	blockableQueries = []string{
+		"SELECT A, B FROM testTable",
+		"SELECT X2, B FROM testTable",
+		"SELECT col2, B FROM testTable",
+	}
+	for _, query := range acceptableQueries {
+		err = censor.HandleQuery(query)
+		if err != nil {
+			t.Fatal(err, "\nPattern: "+blacklistPattern, "\nQuery: "+query)
+		}
+	}
+	for _, query := range blockableQueries {
+		err = censor.HandleQuery(query)
+		if err != handlers.ErrBlacklistPatternMatch {
+			t.Fatal("Blacklist pattern passed query. \nPattern: ", blacklistPattern, "\nQuery: ", query)
+		}
+	}
+
 }
 func testBlacklistWherePattern(t *testing.T) {
 	var err error

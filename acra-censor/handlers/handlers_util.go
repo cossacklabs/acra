@@ -16,6 +16,7 @@ var (
 	ErrWhitelistPatternMismatch        = errors.New("query's structure is forbidden")
 	ErrNotImplemented                  = errors.New("not implemented yet")
 	ErrPatternSyntaxError              = errors.New("fail to parse specified pattern")
+	ErrPatternCheckError               = errors.New("failed to check specified pattern match")
 	ErrQuerySyntaxError                = errors.New("fail to parse specified query")
 	ErrComplexSerializationError       = errors.New("can't perform complex serialization of queries")
 	ErrSingleQueryCaptureError         = errors.New("can't capture single query")
