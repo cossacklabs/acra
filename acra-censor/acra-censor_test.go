@@ -298,8 +298,10 @@ func TestBlacklistPatterns(t *testing.T) {
 	testBlacklistWherePattern(t)
 	//test SELECT a, b from t where ID = %%VALUE%%
 	testBlacklistValuePattern(t)
-
+	//test SELECT * FROM company %%WHERE%%
+	testBlacklistStarPattern(t)
 }
+
 func testBlacklistSelectPattern(t *testing.T) {
 	var err error
 
@@ -511,6 +513,64 @@ func testBlacklistValuePattern(t *testing.T) {
 	blockableQueries := []string{
 		"SELECT a, b FROM t WHERE ID = 'someValue_testValue_1234567890'",
 		"SELECT a, b FROM t WHERE ID = 'someValue'",
+	}
+	for _, query := range acceptableQueries {
+		err = censor.HandleQuery(query)
+		if err != nil {
+			t.Fatal(err, "\nPattern: "+blacklistPattern, "\nQuery: "+query)
+		}
+	}
+	for _, query := range blockableQueries {
+		err = censor.HandleQuery(query)
+		if err != handlers.ErrBlacklistPatternMatch {
+			t.Fatal("Blacklist pattern passed query. \nPattern: ", blacklistPattern, "\nQuery: ", query)
+		}
+	}
+}
+func testBlacklistStarPattern(t *testing.T) {
+	var err error
+
+	censor := NewAcraCensor()
+	defer censor.ReleaseAll()
+	blacklistHandler := handlers.NewBlacklistHandler()
+	censor.AddHandler(blacklistHandler)
+
+	blacklistPattern := "SELECT * from company %%WHERE%%"
+	err = blacklistHandler.AddPatterns([]string{blacklistPattern})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	acceptableQueries := []string{
+		"SELECT * FROM testTable WHERE someParameter = 'someValue208934278935789'",
+		"SELECT a, b, c FROM x WHERE a = 'someValue'",
+		"SELECT * FROM z WHERE a = 'someValue'",
+		"SELECT a, b FROM t WHERE NonID = 'someValue'",
+		"SELECT a, b FROM company1 WHERE ID = 'someValue_testValue_1234567890'",
+		"SELECT a, b FROM company2 WHERE ID = 'someValue'",
+		"SELECT * FROM company3 WHERE AGE IS NOT NULL",
+		"SELECT * FROM company4 WHERE AGE IS NULL",
+		"SELECT * FROM company5 WHERE AGE >= 25",
+		"SELECT * FROM company6 WHERE AGE BETWEEN 25 AND 65000",
+		"SELECT * FROM company7 WHERE NAME LIKE 'Pa%'",
+		"SELECT * FROM company8 WHERE AGE IN ( 25, 27 )",
+		"SELECT * FROM company9 WHERE AGE NOT IN ( 25, 27 )",
+		"SELECT * FROM company10 WHERE AGE > (SELECT AGE FROM company10 WHERE SALARY > 65000)",
+		"SELECT age FROM company11 WHERE EXISTS (SELECT AGE FROM company11 WHERE SALARY > 65000)",
+	}
+	blockableQueries := []string{
+		"SELECT a, b FROM company WHERE ID = 'someValue_testValue_1234567890'",
+		"SELECT a, b FROM company WHERE ID = 'someValue'",
+		"SELECT * FROM company WHERE AGE IS NOT NULL",
+		"SELECT * FROM company WHERE AGE IS NULL",
+		"SELECT * FROM company WHERE AGE >= 25",
+		"SELECT * FROM company WHERE AGE BETWEEN 25 AND 65000",
+		"SELECT * FROM company WHERE NAME LIKE 'Pa%'",
+		"SELECT * FROM company WHERE AGE IN ( 25, 27 )",
+		"SELECT * FROM company WHERE AGE NOT IN ( 25, 27 )",
+		"SELECT * FROM company WHERE AGE > (SELECT AGE FROM COMPANY WHERE SALARY > 65000)",
+		"SELECT AGE FROM company WHERE EXISTS (SELECT AGE FROM company WHERE SALARY > 65000)",
+		"SELECT age FROM company11 WHERE EXISTS (SELECT AGE FROM company WHERE SALARY > 65000)",
 	}
 	for _, query := range acceptableQueries {
 		err = censor.HandleQuery(query)
