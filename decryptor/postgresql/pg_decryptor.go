@@ -217,6 +217,62 @@ func (proxy *PgProxy) processWholeBlockDecryption(packet *PacketHandler, column 
 	return nil
 }
 
+// handleSSLRequest return wrapped with tls (client's, db's connections, nil) or (nil, nil, error)
+func (proxy *PgProxy) handleSSLRequest(packet *PacketHandler, tlsConfig *tls.Config, clientConnection, dbConnection net.Conn, logger *log.Entry) (net.Conn, net.Conn, error) {
+	// if server allow SSLRequest than we wrap our connections with tls
+	if tlsConfig == nil {
+		logger.Errorln("To support TLS connections you must pass TLS key and certificate for AcraServer that will be used" +
+			"for connections AcraServer->Database and CA certificate which will be used to verify certificate " +
+			"from database")
+		return nil, nil, network.ErrEmptyTLSConfig
+	}
+	logger.Debugln("Start tls proxy")
+	// stop reading from client in goroutine
+	if err := clientConnection.SetDeadline(time.Now()); err != nil {
+		logger.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorDecryptorCantSetDeadlineToClientConnection).
+			Errorln("Can't set deadline")
+		return nil, nil, err
+	}
+	select {
+	case <-proxy.TlsCh:
+		break
+	case <-time.NewTimer(TlsTimeout).C:
+		logger.Errorln("Can't stop background goroutine to start tls handshake")
+		return nil, nil, errors.New("can't stop background goroutine")
+	}
+	logger.Debugln("Stop client connection")
+	if err := clientConnection.SetDeadline(time.Time{}); err != nil {
+		logger.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorDecryptorCantSetDeadlineToClientConnection).
+			Errorln("Can't set deadline")
+		return nil, nil, err
+	}
+	logger.Debugln("Init tls with client")
+	// convert to tls connection
+	tlsClientConnection := tls.Server(clientConnection, tlsConfig)
+
+	// send server's response only after successful interrupting background goroutine that process client's connection
+	// to take control over connection and avoid two places that communicate with one connection
+	if err := packet.sendMessageType(); err != nil {
+		logger.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorDecryptorCantInitializeTLS).
+			Errorln("Can't send ssl allow packet")
+		return nil, nil, err
+	}
+	if err := tlsClientConnection.Handshake(); err != nil {
+		logger.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorDecryptorCantInitializeTLS).
+			Errorln("Can't initialize tls connection with client")
+		return nil, nil, err
+	}
+
+	logger.Debugln("Init tls with db")
+	dbTLSConnection := tls.Client(dbConnection, tlsConfig)
+	if err := dbTLSConnection.Handshake(); err != nil {
+		logger.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorDecryptorCantInitializeTLS).
+			Errorln("Can't initialize tls connection with db")
+		return nil, nil, err
+	}
+	return tlsClientConnection, dbTLSConnection, nil
+}
+
 // PgDecryptStream process data rows from database
 func (proxy *PgProxy) PgDecryptStream(censor acracensor.AcraCensorInterface, decryptor base.Decryptor, tlsConfig *tls.Config, dbConnection net.Conn, clientConnection net.Conn, errCh chan<- error) {
 	logger := log.WithField("proxy", "db_side")
@@ -251,65 +307,12 @@ func (proxy *PgProxy) PgDecryptStream(censor acracensor.AcraCensorInterface, dec
 				}
 				continue
 			} else if packet.IsSSLRequestAllowed() {
-				// if server allow SSLRequest than we wrap our connections with tls
-				if tlsConfig == nil {
-					logger.Errorln("To support TLS connections you must pass TLS key and certificate for AcraServer that will be used" +
-						"for connections AcraServer->Database and CA certificate which will be used to verify certificate " +
-						"from database")
-					errCh <- network.ErrEmptyTLSConfig
-					return
-				}
-				logger.Debugln("Start tls proxy")
-				// stop reading from client in goroutine
-				if err := clientConnection.SetDeadline(time.Now()); err != nil {
-					logger.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorDecryptorCantSetDeadlineToClientConnection).
-						Errorln("Can't set deadline")
+				tlsClientConnection, dbTLSConnection, err := proxy.handleSSLRequest(packet, tlsConfig, clientConnection, dbConnection, logger)
+				if err != nil {
+					logger.WithError(err).Errorln("Can't process SSL request")
 					errCh <- err
 					return
 				}
-				select {
-				case <-proxy.TlsCh:
-					break
-				case <-time.NewTimer(TlsTimeout).C:
-					logger.Errorln("Can't stop background goroutine to start tls handshake")
-					errCh <- errors.New("can't stop background goroutine")
-					return
-				}
-				logger.Debugln("Stop client connection")
-				if err := clientConnection.SetDeadline(time.Time{}); err != nil {
-					logger.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorDecryptorCantSetDeadlineToClientConnection).
-						Errorln("Can't set deadline")
-					errCh <- err
-					return
-				}
-				logger.Debugln("Init tls with client")
-				// convert to tls connection
-				tlsClientConnection := tls.Server(clientConnection, tlsConfig)
-
-				// send server's response only after successful interrupting background goroutine that process client's connection
-				// to take control over connection and avoid two places that communicate with one connection
-				if err := packet.sendMessageType(); err != nil {
-					logger.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorDecryptorCantInitializeTLS).
-						Errorln("Can't send ssl allow packet")
-					errCh <- err
-					return
-				}
-				if err := tlsClientConnection.Handshake(); err != nil {
-					logger.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorDecryptorCantInitializeTLS).
-						Errorln("Can't initialize tls connection with client")
-					errCh <- err
-					return
-				}
-
-				logger.Debugln("Init tls with db")
-				dbTLSConnection := tls.Client(dbConnection, tlsConfig)
-				if err := dbTLSConnection.Handshake(); err != nil {
-					logger.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorDecryptorCantInitializeTLS).
-						Errorln("Can't initialize tls connection with db")
-					errCh <- err
-					return
-				}
-
 				// restart proxing client's requests
 				go proxy.PgProxyClientRequests(censor, dbTLSConnection, tlsClientConnection, errCh)
 				reader = acra_io.NewExtendedBufferedReader(bufio.NewReader(dbTLSConnection))
