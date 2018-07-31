@@ -1367,7 +1367,7 @@ class TestShutdownPoisonRecordWithZone(TestPoisonRecordShutdown):
     ZONE = True
     WHOLECELL_MODE = False
     SHUTDOWN = True
-    # TODO fix tests of poison record on shutdown with zones
+    
     def testShutdown(self):
         """check callback with select by id and zone"""
         row_id = self.get_random_id()
