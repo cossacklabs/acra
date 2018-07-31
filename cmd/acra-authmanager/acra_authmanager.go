@@ -118,7 +118,7 @@ func parseHtpasswd(htpasswdBytes []byte) (passwords HashedPasswords, err error) 
 		}
 		parts := strings.Split(line, AuthFieldSeparator)
 		if len(parts) != AuthFieldCount {
-			err = errors.New(fmt.Sprintf("wrong line no. %d, unexpected number (%v) of splitted parts split by %v", index+1, len(parts), AuthFieldSeparator))
+			err = fmt.Errorf("wrong line no. %d, unexpected number (%v) of splitted parts split by %v", index+1, len(parts), AuthFieldSeparator)
 			return
 		}
 		for i, part := range parts {
@@ -126,7 +126,7 @@ func parseHtpasswd(htpasswdBytes []byte) (passwords HashedPasswords, err error) 
 		}
 		_, alreadyExists := passwords[parts[0]]
 		if alreadyExists {
-			err = errors.New(fmt.Sprintf("wrong line no. %d, user (%v) already defined", index, parts[0]))
+			err = fmt.Errorf("wrong line no. %d, user (%v) already defined", index, parts[0])
 			return
 		}
 		passwords[parts[0]] = strings.Join(parts[1:AuthFieldCount], AuthFieldSeparator)

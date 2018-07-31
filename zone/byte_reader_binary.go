@@ -15,18 +15,23 @@
 // limitations under the License.
 package zone
 
+// BinaryByteReader generic reader structure
 type BinaryByteReader struct{}
 
+// NewBinaryByteReader returns new BinaryByteReader
 func NewBinaryByteReader() *BinaryByteReader {
 	return &BinaryByteReader{}
 }
 
+// GetBuffered returns empty bytes
 func (reader *BinaryByteReader) GetBuffered() []byte {
 	return []byte{}
 }
 
+// Reset current reader index
 func (reader *BinaryByteReader) Reset() {}
 
+// ReadByte always returns c as output
 func (reader *BinaryByteReader) ReadByte(c byte) (bool, byte, error) {
 	return true, c, nil
 }

@@ -42,7 +42,7 @@ func CreateAcrastruct(data []byte, acraPublic *keys.PublicKey, context []byte) (
 		return nil, err
 	}
 	if n != base.SYMMETRIC_KEY_SIZE {
-		return nil, errors.New("Read incorrect num of random bytes")
+		return nil, errors.New("read incorrect num of random bytes")
 	}
 
 	// create smessage for encrypting symmetric key

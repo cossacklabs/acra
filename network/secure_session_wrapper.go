@@ -29,10 +29,12 @@ import (
 	"time"
 )
 
+// SessionCallback used for wrapping connection into SecureSession using SecureSession transport keys
 type SessionCallback struct {
 	keystorage keystore.SecureSessionKeyStore
 }
 
+// GetPublicKeyForId from Themis, returns correct public for particular secure session id
 func (callback *SessionCallback) GetPublicKeyForId(ss *session.SecureSession, id []byte) *keys.PublicKey {
 	log.Infof("Load public key for id %v", string(id))
 	key, err := callback.keystorage.GetPeerPublicKey(id)
@@ -44,8 +46,10 @@ func (callback *SessionCallback) GetPublicKeyForId(ss *session.SecureSession, id
 	return key
 }
 
+// StateChanged callback for session state change
 func (callback *SessionCallback) StateChanged(ss *session.SecureSession, state int) {}
 
+// NewSessionCallback creates new SessionCallback with SecureSessionKeyStore
 func NewSessionCallback(keystorage keystore.SecureSessionKeyStore) (*SessionCallback, error) {
 	return &SessionCallback{keystorage: keystorage}, nil
 }
@@ -65,6 +69,8 @@ func newSecureSessionConnection(keystore keystore.SecureSessionKeyStore, conn ne
 	return &secureSessionConnection{keystore: keystore, session: nil, Conn: conn, currentData: nil, returnedIndex: 0, closed: false, clientID: nil, mutex: &sync.Mutex{}}, nil
 }
 
+// Read data from connection, returns decrypted data
+// returns decryption error or EOF error if connection closed
 func (wrapper *secureSessionConnection) Read(b []byte) (n int, err error) {
 	if wrapper.currentData != nil {
 		n = copy(b, wrapper.currentData[wrapper.returnedIndex:])
@@ -113,6 +119,7 @@ func (wrapper *secureSessionConnection) Write(b []byte) (n int, err error) {
 	return len(b), nil
 }
 
+// Close secure session connection, close all underlying connections
 func (wrapper *secureSessionConnection) Close() error {
 	wrapper.mutex.Lock()
 	defer wrapper.mutex.Unlock()
@@ -159,12 +166,14 @@ func (err *ConnectionWrapError) Temporary() bool {
 // SECURE_SESSION_ESTABLISHING_TIMEOUT timeout for secure session handshake that should be enough
 const SECURE_SESSION_ESTABLISHING_TIMEOUT = time.Second * 10
 
+// SecureSessionConnectionWrapper adds SecureSession encryption above connection
 type SecureSessionConnectionWrapper struct {
 	keystore         keystore.SecureSessionKeyStore
 	clientID         []byte
 	handshakeTimeout time.Duration
 }
 
+// NewSecureSessionConnectionWrapper returns new SecureSessionConnectionWrapper with default handlshake timeout
 func NewSecureSessionConnectionWrapper(keystore keystore.SecureSessionKeyStore) (*SecureSessionConnectionWrapper, error) {
 	return &SecureSessionConnectionWrapper{keystore: keystore, clientID: nil, handshakeTimeout: SECURE_SESSION_ESTABLISHING_TIMEOUT}, nil
 }
@@ -249,6 +258,8 @@ func (wrapper *SecureSessionConnectionWrapper) wrap(id []byte, conn net.Conn, is
 	}
 }
 
+// WrapClient wraps client connection with secure session
+// cancels connection if timeout expired
 func (wrapper *SecureSessionConnectionWrapper) WrapClient(id []byte, conn net.Conn) (net.Conn, error) {
 	log.Debugln("wrap client connection with secure session")
 	if wrapper.hasHandshakeTimeout() {
@@ -268,6 +279,9 @@ func (wrapper *SecureSessionConnectionWrapper) WrapClient(id []byte, conn net.Co
 	log.Debugln("wrap client connection with secure session finished")
 	return newConn, NewConnectionWrapError(err)
 }
+
+// WrapServer wraps server connection with secure session
+// cancels connection if timeout expired
 func (wrapper *SecureSessionConnectionWrapper) WrapServer(conn net.Conn) (net.Conn, []byte, error) {
 	log.Debugln("wrap server connection with secure session")
 	if wrapper.hasHandshakeTimeout() {

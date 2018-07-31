@@ -226,7 +226,7 @@ func (handler *BlacklistHandler) RemoveRules(rules []string) {
 
 func (handler *BlacklistHandler) testRulesViolation(query string) (bool, error) {
 	if sqlparser.Preview(query) != sqlparser.StmtSelect {
-		return true, errors.New("Non-select queries are not supported")
+		return true, errors.New("non-select queries are not supported")
 	}
 	//parse one rule and get forbidden tables and columns for specific 'where' clause
 	var whereClause sqlparser.SQLNode

@@ -54,7 +54,7 @@ var (
 )
 
 // ErrGetAuthDataFromAcraServer any error during loading AcraWebconfig
-var ErrGetAuthDataFromAcraServer = errors.New("Wrong status for loadAuthData")
+var ErrGetAuthDataFromAcraServer = errors.New("wrong status for loadAuthData")
 
 // Connection timeout secs
 const (

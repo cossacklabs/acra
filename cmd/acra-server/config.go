@@ -281,7 +281,7 @@ func (config *Config) SetDBPort(port int) error {
 // SetByteaFormat sets bytea format for connecting to database
 func (config *Config) SetByteaFormat(format int8) error {
 	if format != HEX_BYTEA_FORMAT && format != ESCAPE_BYTEA_FORMAT {
-		return errors.New("Incorrect bytea format")
+		return errors.New("incorrect bytea format")
 	}
 	config.byteaFormat = format
 	return nil

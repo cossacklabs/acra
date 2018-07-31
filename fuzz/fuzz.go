@@ -25,7 +25,7 @@ import (
 	"fmt"
 	"github.com/cossacklabs/acra/acra-writer"
 	"github.com/cossacklabs/themis/gothemis/keys"
-	_ "github.com/lib/pq"
+	_ "github.com/lib/pq" // pq
 	log "github.com/sirupsen/logrus"
 )
 
