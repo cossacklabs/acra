@@ -1,3 +1,5 @@
+// Package zone contains AcraStruct's zone matchers and readers.
+//
 // Copyright 2016, Cossack Labs Limited
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
@@ -17,10 +19,12 @@ import (
 	"container/list"
 )
 
+// KeyChecker checks if Zone Private key is available
 type KeyChecker interface {
 	HasZonePrivateKey([]byte) bool
 }
 
+// ZoneIDMatcher represents exact binary Matcher
 type ZoneIDMatcher struct {
 	matched     bool
 	matchers    *list.List
@@ -29,6 +33,8 @@ type ZoneIDMatcher struct {
 	keychecker  KeyChecker
 }
 
+// NewZoneMatcher returns new ZoneIDMatcher for exact zoneID
+// with keychecker and empty matchers
 func NewZoneMatcher(matcherPool *MatcherPool, keychecker KeyChecker) *ZoneIDMatcher {
 	matcher := &ZoneIDMatcher{
 		matchers:    list.New(),
@@ -40,15 +46,19 @@ func NewZoneMatcher(matcherPool *MatcherPool, keychecker KeyChecker) *ZoneIDMatc
 	return matcher
 }
 
+// IsMatched returns true if zoneID found
 func (zoneMatcher *ZoneIDMatcher) IsMatched() bool {
 	return zoneMatcher.matched
 }
 
+// Reset clears matchers and reset matching state
 func (zoneMatcher *ZoneIDMatcher) Reset() {
 	zoneMatcher.matched = false
 	zoneMatcher.clearMatchers()
 }
 
+// GetZoneID returns zoneID if matched found it
+// return empty bytes otherwise
 func (zoneMatcher *ZoneIDMatcher) GetZoneID() []byte {
 	if zoneMatcher.IsMatched() {
 		return zoneMatcher.zoneID
@@ -56,11 +66,14 @@ func (zoneMatcher *ZoneIDMatcher) GetZoneID() []byte {
 	return []byte{}
 }
 
+// SetMatched sets that matcher has found zoneID – id
 func (zoneMatcher *ZoneIDMatcher) SetMatched(id []byte) {
 	zoneMatcher.zoneID = id
 	zoneMatcher.matched = true
 }
 
+// Match returns true if zoneID found inside c bytes
+// checks using different matchers from the loop
 func (zoneMatcher *ZoneIDMatcher) Match(c byte) bool {
 	currentElement := zoneMatcher.matchers.Front()
 	var toRemove *list.Element

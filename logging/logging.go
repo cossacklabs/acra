@@ -23,6 +23,7 @@ import (
 	"strings"
 )
 
+// Log modes
 const (
 	LOG_DEBUG = iota
 	LOG_VERBOSE
@@ -31,6 +32,7 @@ const (
 
 const loggerKey = "logger"
 
+// SetLogLevel sets logging level
 func SetLogLevel(level int) {
 	if level == LOG_DEBUG {
 		log.SetLevel(log.DebugLevel)
@@ -43,6 +45,7 @@ func SetLogLevel(level int) {
 	}
 }
 
+// CustomizeLogging changes logging format
 func CustomizeLogging(loggingFormat string, serviceName string) {
 	log.SetOutput(os.Stderr)
 	log.SetFormatter(logFormatterFor(loggingFormat, serviceName))
@@ -63,10 +66,12 @@ func logFormatterFor(loggingFormat string, serviceName string) log.Formatter {
 	return TextFormatter()
 }
 
+// SetLoggerToContext sets logger to corresponded context
 func SetLoggerToContext(ctx context.Context, logger *log.Entry) context.Context {
 	return context.WithValue(ctx, loggerKey, logger)
 }
 
+// GetLoggerFromContext gets logger from context, returns nil if no logger.
 func GetLoggerFromContext(ctx context.Context) *log.Entry {
 	if entry, ok := GetLoggerFromContextOk(ctx); ok {
 		return entry
@@ -74,6 +79,7 @@ func GetLoggerFromContext(ctx context.Context) *log.Entry {
 	return nil
 }
 
+// GetLoggerFromContextOk gets logger from context, returns logger and success code.
 func GetLoggerFromContextOk(ctx context.Context) (*log.Entry, bool) {
 	entry, ok := ctx.Value(loggerKey).(*log.Entry)
 	return entry, ok

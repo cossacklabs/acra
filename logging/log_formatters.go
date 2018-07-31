@@ -111,6 +111,7 @@ type AcraCEFFormatter struct {
 	lock *sync.RWMutex
 }
 
+// Constants showing extra filed added to loggers by default
 var (
 	// to be re-defined
 	extraJSONFields = logrus.Fields{

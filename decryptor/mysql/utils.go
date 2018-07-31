@@ -7,7 +7,8 @@ import (
 	"io"
 )
 
-var ErrMalformPacket = errors.New("Malform packet error")
+// ErrMalformPacket if packet parsing failed
+var ErrMalformPacket = errors.New("malform packet error")
 
 // LengthEncodedInt https://dev.mysql.com/doc/internals/en/integer.html#packet-Protocol::LengthEncodedInteger
 func LengthEncodedInt(data []byte) (num uint64, isNull bool, n int, err error) {
@@ -76,6 +77,7 @@ func LengthEncodedString(data []byte) ([]byte, bool, int, error) {
 	return nil, false, n, io.EOF
 }
 
+// SkipLengthEncodedString https://dev.mysql.com/doc/internals/en/string.html#packet-Protocol::LengthEncodedString
 func SkipLengthEncodedString(data []byte) (int, error) {
 	num, _, n, err := LengthEncodedInt(data)
 	if err != nil {
@@ -120,6 +122,7 @@ func PutLengthEncodedString(b []byte) []byte {
 	return data
 }
 
+// Uint16ToBytes returns bytes
 func Uint16ToBytes(n uint16) []byte {
 	return []byte{
 		byte(n),
@@ -127,6 +130,7 @@ func Uint16ToBytes(n uint16) []byte {
 	}
 }
 
+// Uint32ToBytes returns bytes
 func Uint32ToBytes(n uint32) []byte {
 	return []byte{
 		byte(n),
@@ -136,6 +140,7 @@ func Uint32ToBytes(n uint32) []byte {
 	}
 }
 
+// Uint64ToBytes returns bytes
 func Uint64ToBytes(n uint64) []byte {
 	return []byte{
 		byte(n),

@@ -16,6 +16,7 @@ package cmd
 
 import "golang.org/x/crypto/argon2"
 
+// InitArgon2Params returns default Argon2 params
 func InitArgon2Params() Argon2Params {
 	var p Argon2Params
 	p.Time = uint32(ACRAWEBCONFIG_AUTH_ARGON2_TIME)
@@ -25,6 +26,7 @@ func InitArgon2Params() Argon2Params {
 	return p
 }
 
+// HashArgon2 returns hashed password with provided salt and params
 func HashArgon2(password string, salt string, p Argon2Params) (hash []byte, err error) {
 	passwordBytes := argon2.IDKey([]byte(password), []byte(salt),
 		p.Time,

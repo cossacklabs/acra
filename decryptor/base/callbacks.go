@@ -22,12 +22,15 @@ import (
 	"os/exec"
 )
 
+// PoisonCallback represents function to call on detecting poison record
 type PoisonCallback interface {
 	Call() error
 }
 
+// StopCallback represents special action to call if service should quit on detecting poison record
 type StopCallback struct{}
 
+// Call exists service with log
 func (*StopCallback) Call() error {
 	log.Warningln("detected poison record, exit")
 	os.Exit(1)
@@ -35,13 +38,17 @@ func (*StopCallback) Call() error {
 	return nil
 }
 
+// ExecuteScriptCallback represents what script to call on detecting poison record
 type ExecuteScriptCallback struct {
 	scriptPath string
 }
 
+// NewExecuteScriptCallback returns callback for script execution
 func NewExecuteScriptCallback(path string) *ExecuteScriptCallback {
 	return &ExecuteScriptCallback{scriptPath: path}
 }
+
+// Call runs from scriptPath on detecting poison record
 func (callback *ExecuteScriptCallback) Call() error {
 	log.Warningf("detected poison record, run script - %v", callback.scriptPath)
 	err := exec.Command(callback.scriptPath).Start()
@@ -51,21 +58,23 @@ func (callback *ExecuteScriptCallback) Call() error {
 	return nil
 }
 
-/*
-CallbackStorage store all callbacks in internal storage, on Call iterate
-in sequence as insrted and call each callbacks until error or end of iterating
-*/
-
+// PoisonCallbackStorage stores all callbacks in internal storage, on Call iterates
+// and calls each callbacks until error or end of iterating
 type PoisonCallbackStorage struct {
 	callbacks *list.List
 }
 
+// NewPoisonCallbackStorage creates new PoisonCallbackStorage
 func NewPoisonCallbackStorage() *PoisonCallbackStorage {
 	return &PoisonCallbackStorage{callbacks: list.New()}
 }
+
+// AddCallback adds callback to end of list
 func (storage *PoisonCallbackStorage) AddCallback(callback PoisonCallback) {
 	storage.callbacks.PushBack(callback)
 }
+
+// Call calls all callbacks in sequence
 func (storage *PoisonCallbackStorage) Call() error {
 	var callback PoisonCallback
 	for e := storage.callbacks.Front(); e != nil; e = e.Next() {
@@ -78,6 +87,7 @@ func (storage *PoisonCallbackStorage) Call() error {
 	return nil
 }
 
+// HasCallbacks returns number of callbacks in storage
 func (storage *PoisonCallbackStorage) HasCallbacks() bool {
 	return storage.callbacks.Len() > 0
 }

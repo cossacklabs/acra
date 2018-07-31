@@ -2,6 +2,8 @@ package handlers
 
 import (
 	"errors"
+	"github.com/xwb1989/sqlparser"
+	"github.com/xwb1989/sqlparser/dependency/querypb"
 	"strings"
 )
 
@@ -11,10 +13,10 @@ var (
 	ErrQueryInBlacklist                = errors.New("query in blacklist")
 	ErrAccessToForbiddenTableBlacklist = errors.New("query tries to access forbidden table")
 	ErrAccessToForbiddenTableWhitelist = errors.New("query tries to access forbidden table")
-	ErrForbiddenSqlStructureBlacklist  = errors.New("query's structure is forbidden")
-	ErrForbiddenSqlStructureWhitelist  = errors.New("query's structure is forbidden")
-	ErrParseSqlRuleBlacklist           = errors.New("parsing security rules error")
-	ErrParseSqlRuleWhitelist           = errors.New("parsing security rules error")
+	ErrForbiddenSQLStructureBlacklist  = errors.New("query's structure is forbidden")
+	ErrForbiddenSQLStructureWhitelist  = errors.New("query's structure is forbidden")
+	ErrParseSQLRuleBlacklist           = errors.New("parsing security rules error")
+	ErrParseSQLRuleWhitelist           = errors.New("parsing security rules error")
 	ErrNotImplemented                  = errors.New("not implemented yet")
 	ErrQuerySyntaxError                = errors.New("fail to parse specified query")
 	ErrComplexSerializationError       = errors.New("can't perform complex serialization of queries")
@@ -28,6 +30,8 @@ var (
 const (
 	// LogQueryLength is maximum query length for logging to syslog.
 	LogQueryLength = 100
+	// ValuePlaceholder used to mask real Values from SQL queries before logging to syslog.
+	ValuePlaceholder = "replaced"
 )
 
 func removeDuplicates(input []string) []string {
@@ -57,4 +61,17 @@ func TrimStringToN(query string, n int) string {
 		return query
 	}
 	return query[:n]
+}
+
+// RedactSQLQuery returns a sql string with the params stripped out for display. Taken from sqlparser package
+func RedactSQLQuery(sql string) (string, error) {
+	bv := map[string]*querypb.BindVariable{}
+	sqlStripped, comments := sqlparser.SplitMarginComments(sql)
+
+	stmt, err := sqlparser.Parse(sqlStripped)
+	if err != nil {
+		return "", err
+	}
+	sqlparser.Normalize(stmt, bv, ValuePlaceholder)
+	return comments.Leading + sqlparser.String(stmt) + comments.Trailing, nil
 }

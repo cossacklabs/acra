@@ -32,7 +32,10 @@ func init() {
 	flag_.CommandLine.Usage = PrintDefaults
 }
 
+// SignalCallback callback function
 type SignalCallback func()
+
+// SignalHandler sends Signal to listeners and call registered callbacks
 type SignalHandler struct {
 	ch        chan os.Signal
 	listeners []net.Listener
@@ -40,18 +43,22 @@ type SignalHandler struct {
 	signals   []os.Signal
 }
 
+// NewSignalHandler returns new SignalHandler registered for particular os.Signals
 func NewSignalHandler(handledSignals []os.Signal) (*SignalHandler, error) {
 	return &SignalHandler{ch: make(chan os.Signal), signals: handledSignals}, nil
 }
 
+// AddListener to listeners list
 func (handler *SignalHandler) AddListener(listener net.Listener) {
 	handler.listeners = append(handler.listeners, listener)
 }
 
+// GetChannel returns channel of os.Signal
 func (handler *SignalHandler) GetChannel() chan os.Signal {
 	return handler.ch
 }
 
+// AddCallback to callbacks list
 func (handler *SignalHandler) AddCallback(callback SignalCallback) {
 	handler.callbacks = append(handler.callbacks, callback)
 }
@@ -71,6 +78,7 @@ func (handler *SignalHandler) Register() {
 	os.Exit(1)
 }
 
+// ValidateClientID checks that clientID has digits, letters, _ - ' '
 func ValidateClientID(clientID string) {
 	if !keystore.ValidateID([]byte(clientID)) {
 		log.Errorf("Invalid client ID,  %d <= len(client ID) <= %d, only digits, letters and '_', '-', ' ' characters",
@@ -107,6 +115,7 @@ func isZeroValue(flag *flag_.Flag, value string) bool {
 	return false
 }
 
+// PrintDefaults prints CLI params to console
 func PrintDefaults() {
 	/* took from flag/flag.go and overrided arg display format (-/--) */
 	flag_.CommandLine.VisitAll(func(flag *flag_.Flag) {
@@ -144,6 +153,7 @@ func PrintDefaults() {
 	})
 }
 
+// GenerateYaml generates YAML file from CLI params
 func GenerateYaml(output io.Writer, useDefault bool) {
 	flag_.CommandLine.VisitAll(func(flag *flag_.Flag) {
 		var s string
@@ -156,6 +166,7 @@ func GenerateYaml(output io.Writer, useDefault bool) {
 	})
 }
 
+// GenerateMarkdownDoc generates Markdown file from CLI params
 func GenerateMarkdownDoc(output io.Writer, serviceName string) {
 	// escape column separator symbol from text
 	escapeColumn := func(text string) string {
@@ -169,6 +180,7 @@ func GenerateMarkdownDoc(output io.Writer, serviceName string) {
 	})
 }
 
+// DumpConfig writes CLI params to configPath
 func DumpConfig(configPath, serviceName string, useDefault bool) error {
 	var absPath string
 	var err error
@@ -209,6 +221,7 @@ func DumpConfig(configPath, serviceName string, useDefault bool) error {
 	return nil
 }
 
+// Parse loads CLI params from yaml config and cli
 func Parse(configPath, serviceName string) error {
 	/*load from yaml config and cli. if dumpconfig option pass than generate config and exit*/
 	log.Debugf("Parsing config from path %v", configPath)
@@ -273,6 +286,7 @@ func Parse(configPath, serviceName string) error {
 	return nil
 }
 
+// Argon2Params describes params for Argon2 hashing
 type Argon2Params struct {
 	Time    uint32
 	Memory  uint32
@@ -280,12 +294,14 @@ type Argon2Params struct {
 	Length  uint32
 }
 
+// UserAuth describes user params for password hashing: salt, params, hash
 type UserAuth struct {
 	Salt string
 	Argon2Params
 	Hash []byte
 }
 
+// UserAuthString returns string representation of UserAuth
 func (auth UserAuth) UserAuthString(userDataDelimiter string, paramsDelimiter string) string {
 	var userData []string
 	var argon2P []string

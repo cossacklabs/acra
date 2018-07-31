@@ -10,24 +10,31 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
+// BlacklistHandler shows handler structure
 type BlacklistHandler struct {
 	queries map[string]bool
 	tables  map[string]bool
 	rules   []string
+	logger  *log.Entry
 }
 
+// NewBlacklistHandler creates new blacklist handler
 func NewBlacklistHandler() *BlacklistHandler {
 	handler := &BlacklistHandler{}
 	handler.queries = make(map[string]bool)
 	handler.tables = make(map[string]bool)
+	handler.logger = log.WithField("handler", "blacklist")
 	return handler
 }
 
+// CheckQuery checks each query, returns false and error if query is blacklisted or
+// if query tries to access to forbidden table
 func (handler *BlacklistHandler) CheckQuery(query string) (bool, error) {
 	//Check queries
 	if len(handler.queries) != 0 {
 		//Check that query is not in blacklist
 		if handler.queries[query] {
+			handler.logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCensorQueryIsNotAllowed).WithError(ErrQueryInBlacklist).Errorln("Query has been blocked by blacklist [queries]")
 			return false, ErrQueryInBlacklist
 		}
 	}
@@ -35,7 +42,7 @@ func (handler *BlacklistHandler) CheckQuery(query string) (bool, error) {
 	if len(handler.tables) != 0 {
 		parsedQuery, err := sqlparser.Parse(query)
 		if err != nil {
-			log.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCensorQueryParseError).WithError(err).Errorln("Can't parse query in blacklist handler for check")
+			handler.logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCensorQueryParseError).WithError(ErrQuerySyntaxError).Errorln("Query has been blocked by blacklist [tables]. Parsing error")
 			return false, ErrQuerySyntaxError
 		}
 		switch parsedQuery := parsedQuery.(type) {
@@ -45,21 +52,24 @@ func (handler *BlacklistHandler) CheckQuery(query string) (bool, error) {
 				case *sqlparser.AliasedTableExpr:
 					err = handler.handleAliasedTables(fromStatement.(*sqlparser.AliasedTableExpr))
 					if err != nil {
-						log.WithError(err).Debugln("error from BlacklistHandler.handleAliasedTables")
+						log.WithError(err).Debugln("Error from BlacklistHandler.handleAliasedTables")
+						handler.logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCensorQueryIsNotAllowed).WithError(err).Errorln("Query has been blocked by blacklist [tables]")
 						return false, ErrAccessToForbiddenTableBlacklist
 					}
 					break
 				case *sqlparser.JoinTableExpr:
 					err = handler.handleJoinedTables(fromStatement.(*sqlparser.JoinTableExpr))
 					if err != nil {
-						log.WithError(err).Debugln("error from BlacklistHandler.handleJoinedTables")
+						log.WithError(err).Debugln("Error from BlacklistHandler.handleJoinedTables")
+						handler.logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCensorQueryIsNotAllowed).WithError(err).Errorln("Query has been blocked by blacklist [tables]")
 						return false, ErrAccessToForbiddenTableBlacklist
 					}
 					break
 				case *sqlparser.ParenTableExpr:
 					err = handler.handleParenTables(fromStatement.(*sqlparser.ParenTableExpr))
 					if err != nil {
-						log.WithError(err).Debugln("error from BlacklistHandler.handleParenTables")
+						log.WithError(err).Debugln("Error from BlacklistHandler.handleParenTables")
+						handler.logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCensorQueryIsNotAllowed).WithError(err).Errorln("Query has been blocked by blacklist [tables]")
 						return false, ErrAccessToForbiddenTableBlacklist
 					}
 					break
@@ -69,6 +79,7 @@ func (handler *BlacklistHandler) CheckQuery(query string) (bool, error) {
 			}
 		case *sqlparser.Insert:
 			if handler.tables[parsedQuery.Table.Name.String()] {
+				handler.logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCensorQueryIsNotAllowed).WithError(ErrAccessToForbiddenTableBlacklist).Errorln("Query has been blocked by blacklist [tables]")
 				return false, ErrAccessToForbiddenTableBlacklist
 			}
 		case *sqlparser.Update:
@@ -82,10 +93,10 @@ func (handler *BlacklistHandler) CheckQuery(query string) (bool, error) {
 	if len(handler.rules) != 0 {
 		violationOccured, err := handler.testRulesViolation(query)
 		if err != nil {
-			return false, ErrParseSqlRuleBlacklist
+			return false, ErrParseSQLRuleBlacklist
 		}
 		if violationOccured {
-			return false, ErrForbiddenSqlStructureBlacklist
+			return false, ErrForbiddenSQLStructureBlacklist
 		}
 	}
 	return true, nil
@@ -94,9 +105,8 @@ func (handler *BlacklistHandler) CheckQuery(query string) (bool, error) {
 func (handler *BlacklistHandler) handleAliasedTables(statement *sqlparser.AliasedTableExpr) error {
 	if handler.tables[sqlparser.String(statement.Expr)] {
 		return ErrAccessToForbiddenTableBlacklist
-	} else {
-		return nil
 	}
+	return nil
 }
 
 func (handler *BlacklistHandler) handleJoinedTables(statement *sqlparser.JoinTableExpr) error {
@@ -150,40 +160,47 @@ func (handler *BlacklistHandler) handleParenTables(statement *sqlparser.ParenTab
 	return nil
 }
 
+// Reset blacklist rules
 func (handler *BlacklistHandler) Reset() {
 	handler.queries = make(map[string]bool)
 	handler.tables = make(map[string]bool)
 	handler.rules = nil
 }
 
+// Release / reset blacklist rules
 func (handler *BlacklistHandler) Release() {
 	handler.Reset()
 }
 
+// AddQueries adds queries to the list that should be blacklisted
 func (handler *BlacklistHandler) AddQueries(queries []string) {
 	for _, query := range queries {
 		handler.queries[query] = true
 	}
 }
 
+// RemoveQueries removes queries from the list that should be blacklisted
 func (handler *BlacklistHandler) RemoveQueries(queries []string) {
 	for _, query := range queries {
 		delete(handler.queries, query)
 	}
 }
 
+// AddTables adds tables that should be forbidden
 func (handler *BlacklistHandler) AddTables(tableNames []string) {
 	for _, tableName := range tableNames {
 		handler.tables[tableName] = true
 	}
 }
 
+// RemoveTables removes forbidden tables
 func (handler *BlacklistHandler) RemoveTables(tableNames []string) {
 	for _, tableName := range tableNames {
 		delete(handler.tables, tableName)
 	}
 }
 
+// AddRules adds rules that should be blocked
 func (handler *BlacklistHandler) AddRules(rules []string) error {
 	for _, rule := range rules {
 		handler.rules = append(handler.rules, rule)
@@ -197,6 +214,7 @@ func (handler *BlacklistHandler) AddRules(rules []string) error {
 	return nil
 }
 
+// RemoveRules removes rules that should be blocked
 func (handler *BlacklistHandler) RemoveRules(rules []string) {
 	for _, rule := range rules {
 		yes, index := contains(handler.rules, rule)

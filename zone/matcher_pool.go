@@ -1,3 +1,5 @@
+// Package zone contains AcraStruct's zone matchers and readers.
+//
 // Copyright 2016, Cossack Labs Limited
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
@@ -17,15 +19,18 @@ import (
 	"container/list"
 )
 
+// MatcherPool stores MatcherFactory and list of matchers
 type MatcherPool struct {
 	factory  MatcherFactory
 	matchers *list.List
 }
 
+// NewMatcherPool returns new MatcherPool with empty list of matchers
 func NewMatcherPool(factory MatcherFactory) *MatcherPool {
 	return &MatcherPool{factory: factory, matchers: list.New()}
 }
 
+// Acquire returns first matcher from the list, or creates one from factory if matchers list is empty
 func (pool *MatcherPool) Acquire() Matcher {
 	if pool.matchers.Len() == 0 {
 		return pool.factory.CreateMatcher()
@@ -34,6 +39,8 @@ func (pool *MatcherPool) Acquire() Matcher {
 	matcher := pool.matchers.Remove(pool.matchers.Front())
 	return matcher.(Matcher)
 }
+
+// Release resets matcher and push it to the start of the list
 func (pool *MatcherPool) Release(matcher Matcher) {
 	matcher.Reset()
 	pool.matchers.PushFront(matcher)

@@ -9,6 +9,7 @@ import (
 	"net"
 )
 
+// MySQL protocol capability flags https://dev.mysql.com/doc/internals/en/capability-flags.html
 const (
 	// CLIENT_PROTOCOL_41 - https://dev.mysql.com/doc/internals/en/capability-flags.html#flag-CLIENT_PROTOCOL_41
 	CLIENT_PROTOCOL_41 = 0x00000200
@@ -18,6 +19,7 @@ const (
 	CLIENT_DEPRECATE_EOF = 0x01000000
 )
 
+// MySQL packets significant bytes.
 const (
 	// OK_PACKET - https://dev.mysql.com/doc/internals/en/packet-OK_Packet.html
 	OK_PACKET = 0x00
@@ -33,44 +35,48 @@ const (
 	SEQUENCE_ID_INDEX = 3
 )
 
+// ErrPacketHasNotExtendedCapabilities if packet has capability flags
 var ErrPacketHasNotExtendedCapabilities = errors.New("packet hasn't extended capabilities")
 
+// Dumper dumps :)
 type Dumper interface {
 	Dump() []byte
 }
 
+// ByteArrayDump array
 type ByteArrayDump []byte
 
+// Dump returns array
 func (array ByteArrayDump) Dump() []byte {
 	return array
 }
 
-// MysqlPacket struct that store header and payload, read it from connectino
+// MysqlPacket struct that store header and payload, reads it from connection
 type MysqlPacket struct {
 	header []byte
 	data   []byte
 }
 
-// NewMysqlPacket
+// NewMysqlPacket returns new MysqlPacket
 func NewMysqlPacket() *MysqlPacket {
 	// https://dev.mysql.com/doc/internals/en/mysql-packet.html#idm140406396409840
 	// 3 bytes payload length and 1 byte of sequence_id
 	return &MysqlPacket{header: make([]byte, PACKET_HEADER_SIZE)}
 }
 
-// GetPacketPayloadLength
+// GetPacketPayloadLength returns payload length from first 3 bytes of header
 func (packet *MysqlPacket) GetPacketPayloadLength() int {
 	// first 3 bytes of header
 	// https://dev.mysql.com/doc/internals/en/mysql-packet.html#idm140406396409840
 	return int(uint32(packet.header[0]) | uint32(packet.header[1])<<8 | uint32(packet.header[2])<<16)
 }
 
-// GetSequenceNumber return as byte
+// GetSequenceNumber returned as byte
 func (packet *MysqlPacket) GetSequenceNumber() byte {
 	return packet.header[SEQUENCE_ID_INDEX]
 }
 
-// GetData return packet payload
+// GetData returns packet payload
 func (packet *MysqlPacket) GetData() []byte {
 	return packet.data
 }
@@ -100,20 +106,20 @@ func (packet *MysqlPacket) readPacket(connection net.Conn) ([]byte, error) {
 	data := make([]byte, length)
 	if _, err := io.ReadFull(connection, data); err != nil {
 		return nil, err
-	} else {
-		if length < MaxPayloadLen {
-			return data, nil
-		}
-
-		var buf []byte
-		buf, err = packet.readPacket(connection)
-		if err != nil {
-			return nil, err
-		} else {
-			return append(data, buf...), nil
-		}
 	}
+	if length < MaxPayloadLen {
+		return data, nil
+	}
+
+	var buf []byte
+	buf, err := packet.readPacket(connection)
+	if err != nil {
+		return nil, err
+	}
+	return append(data, buf...), nil
 }
+
+// Dump returns packet header and data as []byte
 func (packet *MysqlPacket) Dump() []byte {
 	return append(packet.header, packet.data...)
 }
@@ -163,6 +169,7 @@ func (packet *MysqlPacket) getServerCapabilitiesExtended() (int, error) {
 	return int(binary.LittleEndian.Uint16(rawCapabilities)), nil
 }
 
+// ServerSupportProtocol41 if server supports client_protocol_41
 func (packet *MysqlPacket) ServerSupportProtocol41() bool {
 	capabilities := packet.getServerCapabilities()
 	return (capabilities & CLIENT_PROTOCOL_41) > 0
@@ -173,6 +180,7 @@ func (packet *MysqlPacket) getClientCapabilities() uint32 {
 	return binary.LittleEndian.Uint32(packet.data[:4])
 }
 
+// ClientSupportProtocol41 if client supports client_protocol_41
 func (packet *MysqlPacket) ClientSupportProtocol41() bool {
 	capabilities := packet.getClientCapabilities()
 	return (capabilities & CLIENT_PROTOCOL_41) > 0
@@ -184,7 +192,7 @@ func (packet *MysqlPacket) IsSSLRequest() bool {
 	return (capabilities & SSL_REQUEST) > 0
 }
 
-// IsClientDeprecatedEOF return true if flag set
+// IsClientDeprecateEOF return true if flag set
 // https://dev.mysql.com/doc/internals/en/capability-flags.html#flag-CLIENT_DEPRECATE_EOF
 func (packet *MysqlPacket) IsClientDeprecateEOF() bool {
 	capabilities := packet.getClientCapabilities()

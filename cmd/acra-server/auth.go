@@ -15,13 +15,13 @@
 package main
 
 import (
-	"errors"
 	"fmt"
 	"github.com/cossacklabs/acra/utils"
 	"io/ioutil"
 )
 
-var ErrGetAuthDataFromFile = errors.New(fmt.Sprintf("No auth config [%v]", authPath))
+// ErrGetAuthDataFromFile can't find auth config error
+var ErrGetAuthDataFromFile = fmt.Errorf("no auth config [%v]", authPath)
 
 func getAuthDataFromFile(authPath string) (data []byte, err error) {
 	configPath, err := utils.AbsPath(authPath)

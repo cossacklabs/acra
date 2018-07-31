@@ -1,3 +1,5 @@
+// Package zone contains AcraStruct's zone matchers and readers.
+//
 // Copyright 2016, Cossack Labs Limited
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
@@ -18,28 +20,33 @@ import (
 	"strconv"
 )
 
+// PgEscapeByteReader reads escaped bytes from binary input
 type PgEscapeByteReader struct {
 	currentIndex byte
 	buffer       [4]byte
 }
 
+// NewPgEscapeByteReader returns new PgEscapeByteReader
 func NewPgEscapeByteReader() *PgEscapeByteReader {
 	return &PgEscapeByteReader{currentIndex: 0}
 }
 
+// GetBuffered returns bytes from buffer to currentIndex
 func (reader *PgEscapeByteReader) GetBuffered() []byte {
 	return reader.buffer[:reader.currentIndex]
 }
 
+// Reset current reader index
 func (reader *PgEscapeByteReader) Reset() {
 	reader.currentIndex = 0
 }
 
 func (reader *PgEscapeByteReader) returnError() (bool, byte, error) {
 	reader.Reset()
-	return false, 0, FAKE_DB_BYTE
+	return false, 0, ErrFakeDBByte
 }
 
+// ReadByte reads c and returns the bytes decoded from escaped format
 func (reader *PgEscapeByteReader) ReadByte(c byte) (bool, byte, error) {
 	if !utils.IsPrintableEscapeChar(c) {
 		return reader.returnError()

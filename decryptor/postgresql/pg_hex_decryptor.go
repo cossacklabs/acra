@@ -1,3 +1,5 @@
+// Package postgresql contains postgresql decryptor.
+//
 // Copyright 2016, Cossack Labs Limited
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
@@ -30,15 +32,18 @@ import (
 	"github.com/cossacklabs/themis/gothemis/message"
 )
 
-// TAG_BEGIN in hex format
-//var HEX_TAG_BEGIN = []byte{56, 53, 50, 48, 102, 98}
-var HEX_TAG_BEGIN = []byte(hex.EncodeToString(base.TAG_BEGIN))
+// ZoneID begin tags, lengths, etc
+var (
+	// TAG_BEGIN in hex format
+	//var HEX_TAG_BEGIN = []byte{56, 53, 50, 48, 102, 98}
+	HEX_TAG_BEGIN            = []byte(hex.EncodeToString(base.TAG_BEGIN))
+	HEX_ZONE_ID_BEGIN        = []byte(hex.EncodeToString(zone.ZONE_ID_BEGIN))
+	HEX_ZONE_TAG_LENGTH      = len(HEX_ZONE_ID_BEGIN)
+	HEX_ZONE_ID_LENGTH       = hex.EncodedLen(16)
+	HEX_ZONE_ID_BLOCK_LENGTH = int(HEX_ZONE_TAG_LENGTH + HEX_ZONE_ID_LENGTH)
+)
 
-var HEX_ZONE_ID_BEGIN = []byte(hex.EncodeToString(zone.ZONE_ID_BEGIN))
-var HEX_ZONE_TAG_LENGTH = len(HEX_ZONE_ID_BEGIN)
-var HEX_ZONE_ID_LENGTH = hex.EncodedLen(16)
-var HEX_ZONE_ID_BLOCK_LENGTH = int(HEX_ZONE_TAG_LENGTH + HEX_ZONE_ID_LENGTH)
-
+// PgHexDecryptor decrypts AcraStruct from Hex-encoded PostgreSQL binary format
 type PgHexDecryptor struct {
 	currentIndex uint8
 	isWithZone   bool
@@ -63,6 +68,7 @@ type PgHexDecryptor struct {
 	callbackStorage *base.PoisonCallbackStorage
 }
 
+// NewPgHexDecryptor returns new PgHexDecryptor without zone
 func NewPgHexDecryptor() *PgHexDecryptor {
 	return &PgHexDecryptor{
 		currentIndex:          0,
@@ -78,6 +84,8 @@ func (decryptor *PgHexDecryptor) checkBuf(buf *[]byte, length int) {
 	}
 }
 
+// MatchBeginTag returns true and updates currentIndex,
+// if currentIndex matches beginning of HEX_TAG_BEGIN
 func (decryptor *PgHexDecryptor) MatchBeginTag(char byte) bool {
 	if char == HEX_TAG_BEGIN[decryptor.currentIndex] {
 		decryptor.currentIndex++
@@ -86,15 +94,23 @@ func (decryptor *PgHexDecryptor) MatchBeginTag(char byte) bool {
 	return false
 }
 
+// IsMatched returns true if decryptor has processed HEX_TAG_BEGIN
 func (decryptor *PgHexDecryptor) IsMatched() bool {
 	return int(decryptor.currentIndex) == len(HEX_TAG_BEGIN)
 }
+
+// Reset resets current index
 func (decryptor *PgHexDecryptor) Reset() {
 	decryptor.currentIndex = 0
 }
+
+// GetMatched returns already matched bytes from HEX_TAG_BEGIN
 func (decryptor *PgHexDecryptor) GetMatched() []byte {
 	return HEX_TAG_BEGIN[:decryptor.currentIndex]
 }
+
+// ReadSymmetricKey decrypts symmetric key hidden in AcraStruct using SecureMessage and privateKey
+// returns decrypted symmetric key or ErrFakeAcraStruct error if can't decrypt
 func (decryptor *PgHexDecryptor) ReadSymmetricKey(privateKey *keys.PrivateKey, reader io.Reader) ([]byte, []byte, error) {
 	n, err := io.ReadFull(reader, decryptor.keyBlockBuffer[:])
 	if err != nil {
@@ -184,6 +200,7 @@ func (*PgHexDecryptor) getFullDataLength(dataLength uint64) int {
 	return hex.EncodedLen(len(base.TAG_BEGIN) + base.KEY_BLOCK_LENGTH + 8 + int(dataLength))
 }
 
+// ReadData returns plaintext content from reader data, decrypting using SecureCell with ZoneID and symmetricKey
 func (decryptor *PgHexDecryptor) ReadData(symmetricKey, zoneID []byte, reader io.Reader) ([]byte, error) {
 	length, hexLengthBuf, err := decryptor.readDataLength(reader)
 	if err != nil {
@@ -211,6 +228,7 @@ func (decryptor *PgHexDecryptor) ReadData(symmetricKey, zoneID []byte, reader io
 	return decryptor.output[:outputLength], nil
 }
 
+// GetTagBeginLength returns length of HEX_TAG_BEGIN
 func (decryptor *PgHexDecryptor) GetTagBeginLength() int {
 	return len(HEX_TAG_BEGIN)
 }

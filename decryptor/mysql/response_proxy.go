@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/cossacklabs/acra/acra-censor"
+	"github.com/cossacklabs/acra/acra-censor/handlers"
 	"github.com/cossacklabs/acra/decryptor/base"
 	"github.com/cossacklabs/acra/logging"
 	"github.com/cossacklabs/acra/network"
@@ -18,10 +19,13 @@ import (
 const (
 	// MaxPayloadLen https://dev.mysql.com/doc/internals/en/mysql-packet.html
 	// each packet splits into packets of this size
-	MaxPayloadLen                int = 1<<24 - 1
-	CLIENT_WAIT_DB_TLS_HANDSHAKE     = 5
+	MaxPayloadLen int = 1<<24 - 1
+
+	// CLIENT_WAIT_DB_TLS_HANDSHAKE shows max time to wait for database TLS handshake
+	CLIENT_WAIT_DB_TLS_HANDSHAKE = 5
 )
 
+// Possible commands
 const (
 	COM_SLEEP byte = iota
 	COM_QUIT
@@ -78,6 +82,7 @@ const (
 	MYSQL_TYPE_BIT
 )
 
+// MySQL types
 const (
 	MYSQL_TYPE_NEWDECIMAL byte = iota + 0xf6
 	MYSQL_TYPE_ENUM
@@ -91,6 +96,7 @@ const (
 	MYSQL_TYPE_GEOMETRY
 )
 
+// Flags
 const (
 	NOT_NULL_FLAG       = 1
 	PRI_KEY_FLAG        = 2
@@ -108,18 +114,22 @@ const (
 	GROUP_FLAG          = 32768
 	UNIQUE_FLAG         = 65536
 )
+
+// TLS modes
 const (
 	TLS_NONE = iota
 	TLS_CLIENT_SWITCH
 	TLS_DB_COMPLETE
 )
 
+// IsBinaryColumn returns if column is binary data
 func IsBinaryColumn(value byte) bool {
 	isBlob := value >= MYSQL_TYPE_TINY_BLOB && value <= MYSQL_TYPE_BLOB
 	isString := value == MYSQL_TYPE_VAR_STRING || value == MYSQL_TYPE_STRING
 	return isString || isBlob || value == MYSQL_TYPE_VARCHAR
 }
 
+// ResponseHandler database response header
 type ResponseHandler func(packet *MysqlPacket, dbConnection, clientConnection net.Conn) error
 
 func defaultResponseHandler(packet *MysqlPacket, dbConnection, clientConnection net.Conn) error {
@@ -129,6 +139,7 @@ func defaultResponseHandler(packet *MysqlPacket, dbConnection, clientConnection 
 	return nil
 }
 
+// MysqlHandler handles connection between client and MySQL db
 type MysqlHandler struct {
 	responseHandler      ResponseHandler
 	clientSequenceNumber int
@@ -149,6 +160,7 @@ type MysqlHandler struct {
 	logger                 *logrus.Entry
 }
 
+// NewMysqlHandler returns new MysqlHandler
 func NewMysqlHandler(clientID []byte, decryptor base.Decryptor, dbConnection, clientConnection net.Conn, tlsConfig *tls.Config, censor acracensor.AcraCensorInterface) (*MysqlHandler, error) {
 	return &MysqlHandler{
 		isTLSHandshake:         false,
@@ -174,6 +186,7 @@ func (handler *MysqlHandler) getResponseHandler() ResponseHandler {
 	return handler.responseHandler
 }
 
+// ClientToDbConnector connects to database, writes data and executes DB commands
 func (handler *MysqlHandler) ClientToDbConnector(errCh chan<- error) {
 	clientLog := handler.logger.WithField("proxy", "client")
 	clientLog.Debugln("Start proxy client's requests")
@@ -253,10 +266,13 @@ func (handler *MysqlHandler) ClientToDbConnector(errCh chan<- error) {
 			errCh <- io.EOF
 			return
 		case COM_QUERY, COM_STMT_EXECUTE:
-			sqlQuery := string(data)
-			if err := handler.acracensor.HandleQuery(sqlQuery); err != nil {
-				handler.logger.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCensorQueryIsNotAllowed).
-					Errorln("Error on AcraCensor check")
+			query := string(data)
+			queryWithHiddenValues, err := handlers.RedactSQLQuery(query)
+			if err == handlers.ErrQuerySyntaxError {
+				clientLog.WithError(err).Infof("Parsing error on query (first %v symbols): %s", handlers.LogQueryLength, handlers.TrimStringToN(queryWithHiddenValues, handlers.LogQueryLength))
+			}
+			if err := handler.acracensor.HandleQuery(query); err != nil {
+				clientLog.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCensorQueryIsNotAllowed).Errorln("Error on AcraCensor check")
 				errPacket := NewQueryInterruptedError(handler.clientProtocol41)
 				packet.SetData(errPacket)
 				if _, err := handler.clientConnection.Write(packet.Dump()); err != nil {
@@ -265,7 +281,7 @@ func (handler *MysqlHandler) ClientToDbConnector(errCh chan<- error) {
 				}
 				continue
 			}
-			clientLog.WithField("sql", sqlQuery).Debugln("Com_query")
+			clientLog.WithField("sql", queryWithHiddenValues).Debugln("Com_query")
 			handler.setQueryHandler(handler.QueryResponseHandler)
 			break
 		case COM_STMT_PREPARE, COM_STMT_CLOSE, COM_STMT_SEND_LONG_DATA, COM_STMT_RESET:
@@ -454,6 +470,7 @@ func (handler *MysqlHandler) isPreparedStatementResult() bool {
 	return handler.currentCommand == COM_STMT_EXECUTE
 }
 
+// QueryResponseHandler parses data from database response
 func (handler *MysqlHandler) QueryResponseHandler(packet *MysqlPacket, dbConnection, clientConnection net.Conn) (err error) {
 	handler.resetQueryHandler()
 	handler.decryptor.Reset()
@@ -579,6 +596,7 @@ func (handler *MysqlHandler) QueryResponseHandler(packet *MysqlPacket, dbConnect
 	return nil
 }
 
+// DbToClientConnector handles connection from database, returns data to client
 func (handler *MysqlHandler) DbToClientConnector(errCh chan<- error) {
 	serverLog := handler.logger.WithField("proxy", "server")
 	serverLog.Debugln("Start proxy db responses")

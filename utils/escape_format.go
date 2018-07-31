@@ -1,3 +1,5 @@
+// Package utils contains everything we don't know where to put.
+//
 // Copyright 2016, Cossack Labs Limited
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
@@ -14,10 +16,11 @@
 package utils
 
 const (
+	// SLASH_CHAR ASCII code
 	SLASH_CHAR = 92
 )
 
-// return true if character is ascii printable (code between 32 and 126)
+// IsPrintableEscapeChar returns true if character is ASCII printable (code between 32 and 126)
 func IsPrintableEscapeChar(c byte) bool {
 	if c >= 32 && c <= 126 {
 		return true

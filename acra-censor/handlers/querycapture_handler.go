@@ -12,15 +12,10 @@ import (
 	"bytes"
 	"github.com/cossacklabs/acra/logging"
 	log "github.com/sirupsen/logrus"
-	"github.com/xwb1989/sqlparser"
-	"github.com/xwb1989/sqlparser/dependency/querypb"
 )
 
 // DefaultSerializationTimeout shows number of seconds after which captured queries are dumped to QueryCaptureLog file.
 const DefaultSerializationTimeout = time.Second
-
-// ValuePlaceholder used to mask real Values from SQL queries before logging to syslog.
-const ValuePlaceholder = "X"
 
 // QueryCaptureHandler remembers all unique captured SQL queries,
 // writes them to the QueryCaptureLog every serializationTimeout seconds.
@@ -31,6 +26,7 @@ type QueryCaptureHandler struct {
 	signalBackgroundExit chan bool
 	serializationTimeout time.Duration
 	serializationTicker  *time.Ticker
+	logger               *log.Entry
 }
 
 // QueryInfo describes Query and its status (was forbidden or allowed).
@@ -44,31 +40,27 @@ func NewQueryCaptureHandler(filePath string) (*QueryCaptureHandler, error) {
 	// open or create file, APPEND MODE
 	openedFile, err := os.OpenFile(filePath, os.O_APPEND|os.O_RDWR|os.O_CREATE, 0600)
 	if err != nil {
-		log.WithError(ErrCantReadQueriesFromFileError).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCensorIOError)
+		log.WithField("handler", "querycapture").WithError(ErrCantReadQueriesFromFileError).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCensorIOError).Errorln("Can't create QueryCaptureHandler instance")
 		return nil, err
 	}
-
 	// signals
 	signalShutdown := make(chan os.Signal, 2)
 	signal.Notify(signalShutdown, os.Interrupt, syscall.SIGTERM)
-
 	signalBackgroundExit := make(chan bool)
-
 	// create handler
 	handler := &QueryCaptureHandler{}
 	handler.filePath = filePath
 	handler.signalBackgroundExit = signalBackgroundExit
 	handler.serializationTimeout = DefaultSerializationTimeout
 	handler.serializationTicker = time.NewTicker(DefaultSerializationTimeout)
-
+	handler.logger = log.WithField("handler", "querycapture")
 	// read existing queries from file
 	err = handler.ReadAllQueriesFromFile()
 	if err != nil {
-		log.WithError(ErrCantReadQueriesFromFileError).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCensorIOError)
+		handler.logger.WithError(ErrCantReadQueriesFromFileError).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCensorIOError).Errorln("Can't create QueryCaptureHandler instance")
 		openedFile.Close()
 		return nil, err
 	}
-
 	//handling goroutine
 	go func() {
 		for {
@@ -76,7 +68,7 @@ func NewQueryCaptureHandler(filePath string) (*QueryCaptureHandler, error) {
 			case <-handler.serializationTicker.C:
 				err := handler.DumpBufferedQueriesToFile(openedFile)
 				if err != nil {
-					log.WithError(ErrComplexSerializationError).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCensorIOError)
+					handler.logger.WithError(ErrComplexSerializationError).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCensorIOError).Errorln("Can't create QueryCaptureHandler instance")
 				}
 				handler.serializationTicker.Stop()
 				handler.serializationTicker = time.NewTicker(handler.serializationTimeout)
@@ -84,14 +76,14 @@ func NewQueryCaptureHandler(filePath string) (*QueryCaptureHandler, error) {
 			case <-signalBackgroundExit:
 				err := handler.FinishAndCloseFile(openedFile)
 				if err != nil {
-					log.WithError(ErrComplexSerializationError).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCensorIOError)
+					handler.logger.WithError(ErrComplexSerializationError).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCensorIOError).Errorln("Can't create QueryCaptureHandler instance")
 				}
 				return
 
 			case <-signalShutdown:
 				err := handler.FinishAndCloseFile(openedFile)
 				if err != nil {
-					log.WithError(ErrComplexSerializationError).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCensorIOError)
+					handler.logger.WithError(ErrComplexSerializationError).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCensorIOError).Errorln("Can't create QueryCaptureHandler instance")
 				}
 				return
 
@@ -100,7 +92,6 @@ func NewQueryCaptureHandler(filePath string) (*QueryCaptureHandler, error) {
 			}
 		}
 	}()
-
 	return handler, nil
 }
 
@@ -117,7 +108,6 @@ func (handler *QueryCaptureHandler) CheckQuery(query string) (bool, error) {
 	queryInfo.IsForbidden = false
 	handler.Queries = append(handler.Queries, queryInfo)
 	handler.BufferedQueries = append(handler.BufferedQueries, queryInfo)
-
 	return true, nil
 }
 
@@ -188,12 +178,11 @@ func (handler *QueryCaptureHandler) DumpAllQueriesToFile() error {
 	// open or create file, NO APPEND
 	f, err := os.OpenFile(handler.filePath, os.O_TRUNC|os.O_RDWR|os.O_CREATE, 0600)
 	if err != nil {
-		log.WithError(ErrCantOpenFileError).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCensorIOError)
+		handler.logger.WithError(ErrCantOpenFileError).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCensorIOError).Errorln("Can't dump queries to file")
 		return err
 	}
-
 	// write all queries
-	return AppendQueries(handler.Queries, f)
+	return handler.AppendQueries(handler.Queries, f)
 }
 
 // DumpBufferedQueriesToFile writes buffered queries to file (queries captured during serializationTimeout),
@@ -203,15 +192,12 @@ func (handler *QueryCaptureHandler) DumpBufferedQueriesToFile(openedFile *os.Fil
 	if len(handler.BufferedQueries) == 0 {
 		return nil
 	}
-
-	err := AppendQueries(handler.BufferedQueries, openedFile)
+	err := handler.AppendQueries(handler.BufferedQueries, openedFile)
 	if err != nil {
 		return err
 	}
-
 	// clean buffered queries only after successful write
 	handler.BufferedQueries = nil
-
 	return nil
 }
 
@@ -219,54 +205,47 @@ func (handler *QueryCaptureHandler) DumpBufferedQueriesToFile(openedFile *os.Fil
 func (handler *QueryCaptureHandler) ReadAllQueriesFromFile() error {
 	q, err := ReadQueries(handler.filePath)
 	if err != nil {
-		log.WithError(ErrCantReadQueriesFromFileError).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCensorIOError)
+		handler.logger.WithError(ErrCantReadQueriesFromFileError).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCensorIOError).Errorln("Can't read queries from file")
 		return err
 	}
-
 	// read existing queries from file
 	handler.Queries = q
 	return nil
 }
 
 // AppendQueries appends some queries to the file, returns IO error.
-func AppendQueries(queries []*QueryInfo, openedFile *os.File) error {
+func (handler *QueryCaptureHandler) AppendQueries(queries []*QueryInfo, openedFile *os.File) error {
 	if len(queries) == 0 {
 		return nil
 	}
-	lines, err := SerializeQueries(queries)
-	if err != nil {
-		return err
-	}
-
+	lines := handler.SerializeQueries(queries)
 	if _, err := openedFile.Write(lines); err != nil {
 		return err
 	}
-
 	return nil
 }
 
 // SerializeQueries formats queries to JSON-line format before writing to file.
-func SerializeQueries(queries []*QueryInfo) ([]byte, error) {
+func (handler *QueryCaptureHandler) SerializeQueries(queries []*QueryInfo) []byte {
 	var linesToAppend []byte
 	var tempQueryInfo = &QueryInfo{}
 	for _, queryInfo := range queries {
 		queryWithHiddenValues, err := RedactSQLQuery(queryInfo.RawQuery)
 		if err != nil {
-			return nil, ErrQuerySyntaxError
+			handler.logger.WithError(ErrQuerySyntaxError).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCensorQuerySerializeError).Errorln("Can't serialize stored queries")
 		}
 		tempQueryInfo.RawQuery = queryWithHiddenValues
 		tempQueryInfo.IsForbidden = queryInfo.IsForbidden
 		jsonQueryInfo, err := json.Marshal(tempQueryInfo)
 		if err != nil {
-			return nil, err
+			handler.logger.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCensorQuerySerializeError).Errorln("Can't serialize stored queries")
 		}
 		if len(jsonQueryInfo) > 0 {
 			jsonQueryInfo = append(jsonQueryInfo, '\n')
 			linesToAppend = append(linesToAppend, jsonQueryInfo...)
 		}
 	}
-	return linesToAppend, nil
-
+	return linesToAppend
 }
 
 // ReadQueries reads list of queries from log file.
@@ -275,9 +254,7 @@ func ReadQueries(filePath string) ([]*QueryInfo, error) {
 	if err != nil {
 		return nil, err
 	}
-
 	var queries []*QueryInfo
-
 	if len(bufferBytes) != 0 {
 		for _, line := range bytes.Split(bufferBytes, []byte{'\n'}) {
 			if len(line) == 0 {
@@ -291,19 +268,4 @@ func ReadQueries(filePath string) ([]*QueryInfo, error) {
 		}
 	}
 	return queries, nil
-}
-
-// RedactSQLQuery returns a sql string with the params stripped out for display. Taken from sqlparser package
-func RedactSQLQuery(sql string) (string, error) {
-	bv := map[string]*querypb.BindVariable{}
-	sqlStripped, comments := sqlparser.SplitMarginComments(sql)
-
-	stmt, err := sqlparser.Parse(sqlStripped)
-	if err != nil {
-		return "", err
-	}
-
-	sqlparser.Normalize(stmt, bv, ValuePlaceholder)
-
-	return comments.Leading + sqlparser.String(stmt) + comments.Trailing, nil
 }

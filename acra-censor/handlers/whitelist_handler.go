@@ -10,24 +10,31 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
+// WhitelistHandler shows handler structure
 type WhitelistHandler struct {
 	queries map[string]bool
 	tables  map[string]bool
 	rules   []string
+	logger  *log.Entry
 }
 
+// NewWhitelistHandler creates new white handler
 func NewWhitelistHandler() *WhitelistHandler {
 	handler := &WhitelistHandler{}
 	handler.queries = make(map[string]bool)
 	handler.tables = make(map[string]bool)
+	handler.logger = log.WithField("handler", "whitelist")
 	return handler
 }
 
+// CheckQuery checks each query, returns false and error if query is not in a white list or
+// if query tries to access to non-whitelisted table
 func (handler *WhitelistHandler) CheckQuery(query string) (bool, error) {
 	//Check queries
 	if len(handler.queries) != 0 {
 		//Check that query is in whitelist
 		if !handler.queries[query] {
+			handler.logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCensorQueryIsNotAllowed).WithError(ErrQueryNotInWhitelist).Errorln("Query has been blocked by whitelist [queries]")
 			return false, ErrQueryNotInWhitelist
 		}
 	}
@@ -35,7 +42,7 @@ func (handler *WhitelistHandler) CheckQuery(query string) (bool, error) {
 	if len(handler.tables) != 0 {
 		parsedQuery, err := sqlparser.Parse(query)
 		if err != nil {
-			log.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCensorQueryParseError).WithError(err).Errorln("Can't parse query in whitelist handler for check")
+			handler.logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCensorQueryParseError).WithError(ErrQuerySyntaxError).Errorln("Query has been blocked by whitelist [tables]. Parsing error")
 			return false, ErrQuerySyntaxError
 		}
 		switch parsedQuery := parsedQuery.(type) {
@@ -45,20 +52,23 @@ func (handler *WhitelistHandler) CheckQuery(query string) (bool, error) {
 				case *sqlparser.AliasedTableExpr:
 					err = handler.handleAliasedTables(parsedQuery.From)
 					if err != nil {
-						log.WithError(err).Debugln("error from WhitlistHandler.handleAliasedTables")
+						handler.logger.WithError(err).Debugln("Error from WhitelistHandler.handleAliasedTables")
+						handler.logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCensorQueryIsNotAllowed).WithError(err).Errorln("Query has been blocked by whitelist [tables]")
 						return false, ErrAccessToForbiddenTableWhitelist
 					}
 					break
 				case *sqlparser.JoinTableExpr:
 					err = handler.handleJoinedTables(fromStatement.(*sqlparser.JoinTableExpr))
 					if err != nil {
-						log.WithError(err).Debugln("error from WhitlistHandler.handleJoinedTables")
+						handler.logger.WithError(err).Debugln("Error from WhitelistHandler.handleJoinedTables")
+						handler.logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCensorQueryIsNotAllowed).WithError(err).Errorln("Query has been blocked by whitelist [tables]")
 						return false, ErrAccessToForbiddenTableWhitelist
 					}
 				case *sqlparser.ParenTableExpr:
 					err = handler.handleParenTables(fromStatement.(*sqlparser.ParenTableExpr))
 					if err != nil {
-						log.WithError(err).Debugln("error from WhitlistHandler.handleParenTables")
+						handler.logger.WithError(err).Debugln("Error from WhitelistHandler.handleParenTables")
+						handler.logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCensorQueryIsNotAllowed).WithError(err).Errorln("Query has been blocked by whitelist [tables]")
 						return false, ErrAccessToForbiddenTableWhitelist
 					}
 				default:
@@ -71,6 +81,8 @@ func (handler *WhitelistHandler) CheckQuery(query string) (bool, error) {
 				tableIsAllowed = true
 			}
 			if !tableIsAllowed {
+				handler.logger.WithError(err).Debugln("Error from WhitelistHandler [insert]")
+				handler.logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCensorQueryIsNotAllowed).WithError(ErrAccessToForbiddenTableWhitelist).Errorln("Query has been blocked by blacklist [tables]")
 				return false, ErrAccessToForbiddenTableWhitelist
 			}
 		case *sqlparser.Update:
@@ -81,10 +93,10 @@ func (handler *WhitelistHandler) CheckQuery(query string) (bool, error) {
 	if len(handler.rules) != 0 {
 		violationOccured, err := handler.testRulesViolation(query)
 		if err != nil {
-			return false, ErrParseSqlRuleWhitelist
+			return false, ErrParseSQLRuleWhitelist
 		}
 		if violationOccured {
-			return false, ErrForbiddenSqlStructureWhitelist
+			return false, ErrForbiddenSQLStructureWhitelist
 		}
 	}
 	//We do not continue verification because query matches whitelist
@@ -179,40 +191,47 @@ func (handler *WhitelistHandler) handleParenTables(statement *sqlparser.ParenTab
 	return nil
 }
 
+// Reset whitelist rules
 func (handler *WhitelistHandler) Reset() {
 	handler.queries = make(map[string]bool)
 	handler.tables = make(map[string]bool)
 	handler.rules = nil
 }
 
+// Release / reset whitelist rules
 func (handler *WhitelistHandler) Release() {
 	handler.Reset()
 }
 
+// AddQueries adds queries to the list that should be whitelisted
 func (handler *WhitelistHandler) AddQueries(queries []string) {
 	for _, query := range queries {
 		handler.queries[query] = true
 	}
 }
 
+// RemoveQueries removes queries from the list that should be whitelisted
 func (handler *WhitelistHandler) RemoveQueries(queries []string) {
 	for _, query := range queries {
 		delete(handler.queries, query)
 	}
 }
 
+// AddTables adds tables that should be whitelisted
 func (handler *WhitelistHandler) AddTables(tableNames []string) {
 	for _, tableName := range tableNames {
 		handler.tables[tableName] = true
 	}
 }
 
+// RemoveTables removes whitelisted tables
 func (handler *WhitelistHandler) RemoveTables(tableNames []string) {
 	for _, tableName := range tableNames {
 		delete(handler.tables, tableName)
 	}
 }
 
+// AddRules adds rules that should be whitelisted
 func (handler *WhitelistHandler) AddRules(rules []string) error {
 	for _, rule := range rules {
 		handler.rules = append(handler.rules, rule)
@@ -226,6 +245,7 @@ func (handler *WhitelistHandler) AddRules(rules []string) error {
 	return nil
 }
 
+// RemoveRules removes rules that should be whitelisted
 func (handler *WhitelistHandler) RemoveRules(rules []string) {
 	for _, rule := range rules {
 		yes, index := contains(handler.rules, rule)

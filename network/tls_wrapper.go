@@ -1,3 +1,5 @@
+// Package network contains network utils for establishing secure session, for listening connections.
+//
 package network
 
 import (
@@ -11,17 +13,21 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
+// TLSConnectionWrapper for wrapping connection into TLS encryption
 type TLSConnectionWrapper struct {
 	config   *tls.Config
 	clientID []byte
 }
 
+// ErrEmptyTLSConfig if not TLS config found
 var ErrEmptyTLSConfig = errors.New("empty TLS config")
 
+// NewTLSConnectionWrapper returns new TLSConnectionWrapper
 func NewTLSConnectionWrapper(clientID []byte, config *tls.Config) (*TLSConnectionWrapper, error) {
 	return &TLSConnectionWrapper{config: config, clientID: clientID}, nil
 }
 
+// WrapClient wraps client connection into TLS
 func (wrapper *TLSConnectionWrapper) WrapClient(id []byte, conn net.Conn) (net.Conn, error) {
 	tlsConn := tls.Client(conn, wrapper.config)
 	err := tlsConn.Handshake()
@@ -30,6 +36,8 @@ func (wrapper *TLSConnectionWrapper) WrapClient(id []byte, conn net.Conn) (net.C
 	}
 	return tlsConn, nil
 }
+
+// WrapServer wraps server connection into TLS
 func (wrapper *TLSConnectionWrapper) WrapServer(conn net.Conn) (net.Conn, []byte, error) {
 	tlsConn := tls.Server(conn, wrapper.config)
 	err := tlsConn.Handshake()
@@ -39,6 +47,7 @@ func (wrapper *TLSConnectionWrapper) WrapServer(conn net.Conn) (net.Conn, []byte
 	return tlsConn, wrapper.clientID, nil
 }
 
+// NewTLSConfig creates x509 TLS config from provided params, tried to load system CA certificate
 func NewTLSConfig(serverName string, caPath, keyPath, crtPath string, authType tls.ClientAuthType) (*tls.Config, error) {
 	var roots *x509.CertPool
 	var err error
