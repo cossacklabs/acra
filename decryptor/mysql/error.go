@@ -45,14 +45,14 @@ func NewQueryInterruptedError(isProtocol41 bool) []byte {
 	mysqlError := newQueryInterruptedError()
 	var data []byte
 	if isProtocol41 {
-		// 1 byte ERR_PACKET flag + 2 bytes of error code = 3
+		// 1 byte ErrPacket flag + 2 bytes of error code = 3
 		data = make([]byte, 0, 3+len(mysqlError.Message))
 	} else {
-		// 1 byte ERR_PACKET flag + 2 bytes of error code + 6 bytes of state (protocol41) = 9
+		// 1 byte ErrPacket flag + 2 bytes of error code + 6 bytes of state (protocol41) = 9
 		data = make([]byte, 0, 9+len(mysqlError.Message))
 	}
 
-	data = append(data, ERR_PACKET)
+	data = append(data, ErrPacket)
 	data = append(data, byte(mysqlError.Code), byte(mysqlError.Code>>8))
 
 	if isProtocol41 {

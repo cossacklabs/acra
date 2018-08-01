@@ -54,25 +54,25 @@ hex   char dec  bin
 // AcraStruct) and rarely used sequentially
 // Tag length was chosen
 const (
-	// TAG_SYMBOL used in begin tag in AcraStruct
-	TAG_SYMBOL byte = '"'
+	// TagSymbol used in begin tag in AcraStruct
+	TagSymbol byte = '"'
 )
 
 // TAG_BEGIN represents begin sequence of bytes for AcraStruct.
-var TAG_BEGIN = []byte{TAG_SYMBOL, TAG_SYMBOL, TAG_SYMBOL, TAG_SYMBOL, TAG_SYMBOL, TAG_SYMBOL, TAG_SYMBOL, TAG_SYMBOL}
+var TAG_BEGIN = []byte{TagSymbol, TagSymbol, TagSymbol, TagSymbol, TagSymbol, TagSymbol, TagSymbol, TagSymbol}
 
 // Shows key and data length.
 const (
 	// length of EC public key
-	PUBLIC_KEY_LENGTH = 45
+	PublicKeyLength = 45
 	// length of 32 byte of symmetric key wrapped to smessage
-	SMESSAGE_KEY_LENGTH = 84
-	KEY_BLOCK_LENGTH    = PUBLIC_KEY_LENGTH + SMESSAGE_KEY_LENGTH
+	SMessageKeyLength = 84
+	KeyBlockLength    = PublicKeyLength + SMessageKeyLength
 
-	SYMMETRIC_KEY_SIZE = 32
-	// DATA_LENGTH_SIZE length of part of AcraStruct that store data part length. So max data size is 2^^64 that
+	SymmetricKeySize = 32
+	// DataLengthSize length of part of AcraStruct that store data part length. So max data size is 2^^64 that
 	// may be wrapped into AcraStruct. We decided that 2^^64 is enough and not much as 8 byte overhead per AcraStruct
-	DATA_LENGTH_SIZE = 8
+	DataLengthSize = 8
 )
 
 // DataDecryptor describes AcraStruct decryptor.

@@ -185,7 +185,7 @@ func checkPoisonRecordInBlock(block []byte, decryptor base.Decryptor) error {
 	// check is it Poison Record
 	if decryptor.IsPoisonRecordCheckOn() {
 		log.Debugln("Check poison records")
-		if index, length := decryptor.BeginTagIndex(block); index != utils.NOT_FOUND {
+		if index, length := decryptor.BeginTagIndex(block); index != utils.NotFound {
 			poisoned, err := decryptor.CheckPoisonRecord(bytes.NewReader(block[index+length:]))
 			return handlePoisonCheckResult(decryptor, poisoned, err)
 		}
@@ -284,7 +284,7 @@ func (proxy *PgProxy) processInlineBlockDecryption(packet *PacketHandler, column
 	for {
 		// search AcraStruct's begin tags through all block of data and try to decrypt
 		beginTagIndex, tagLength := decryptor.BeginTagIndex(column.Data[currentIndex:endIndex])
-		if beginTagIndex == utils.NOT_FOUND {
+		if beginTagIndex == utils.NotFound {
 			// no AcraStructs in column decryptedData
 			break
 		}
@@ -446,7 +446,7 @@ func (proxy *PgProxy) PgDecryptStream(censor acracensor.AcraCensorInterface, dec
 			// TODO check poison record before zone matching in two modes.
 			// now zone matching executed every time
 			// try to skip small piece of data that can't be valuable for us
-			if (decryptor.IsWithZone() && column.Length() >= zone.ZONE_ID_BLOCK_LENGTH) || column.Length() >= base.KEY_BLOCK_LENGTH {
+			if (decryptor.IsWithZone() && column.Length() >= zone.ZONE_ID_BLOCK_LENGTH) || column.Length() >= base.KeyBlockLength {
 				decryptor.Reset()
 
 				// Zone anyway should be passed as whole block

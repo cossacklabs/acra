@@ -51,14 +51,14 @@ type PgHexDecryptor struct {
 	isWithZone   bool
 	// buffer for public_key+SM block
 	// 2 hex symbols per byte
-	keyBlockBuffer [base.KEY_BLOCK_LENGTH * 2]byte
+	keyBlockBuffer [base.KeyBlockLength * 2]byte
 	// buffer for decoded from hex public_key+SM block
-	//decoded_key_block_buffer [decryptor.KEY_BLOCK_LENGTH]byte
+	//decoded_key_block_buffer [decryptor.KeyBlockLength]byte
 	decodedKeyBlockBuffer []byte
 	//uint64
-	lengthBuf [base.DATA_LENGTH_SIZE]byte
+	lengthBuf [base.DataLengthSize]byte
 	//uint64 in hex
-	hexLengthBuf [base.DATA_LENGTH_SIZE * 2]byte
+	hexLengthBuf [base.DataLengthSize * 2]byte
 	keyStore     keystore.KeyStore
 	zoneMatcher  *zone.ZoneIDMatcher
 
@@ -75,7 +75,7 @@ func NewPgHexDecryptor() *PgHexDecryptor {
 	return &PgHexDecryptor{
 		currentIndex:          0,
 		isWithZone:            false,
-		decodedKeyBlockBuffer: make([]byte, base.KEY_BLOCK_LENGTH),
+		decodedKeyBlockBuffer: make([]byte, base.KeyBlockLength),
 	}
 }
 
@@ -121,7 +121,7 @@ func (decryptor *PgHexDecryptor) ReadSymmetricKey(privateKey *keys.PrivateKey, r
 		}
 		return nil, decryptor.keyBlockBuffer[:n], err
 	}
-	if n != hex.EncodedLen(base.KEY_BLOCK_LENGTH) {
+	if n != hex.EncodedLen(base.KeyBlockLength) {
 		log.Warningf("%v", utils.ErrorMessage("Can't decode hex data", err))
 		return nil, decryptor.keyBlockBuffer[:n], base.ErrFakeAcraStruct
 	}
@@ -130,10 +130,10 @@ func (decryptor *PgHexDecryptor) ReadSymmetricKey(privateKey *keys.PrivateKey, r
 		log.Warningf("%v", utils.ErrorMessage("Can't decode hex data", err))
 		return nil, decryptor.keyBlockBuffer[:n], base.ErrFakeAcraStruct
 	}
-	pubkey := &keys.PublicKey{Value: decryptor.decodedKeyBlockBuffer[:base.PUBLIC_KEY_LENGTH]}
+	pubkey := &keys.PublicKey{Value: decryptor.decodedKeyBlockBuffer[:base.PublicKeyLength]}
 
 	smessage := message.New(privateKey, pubkey)
-	symmetricKey, err := smessage.Unwrap(decryptor.decodedKeyBlockBuffer[base.PUBLIC_KEY_LENGTH:])
+	symmetricKey, err := smessage.Unwrap(decryptor.decodedKeyBlockBuffer[base.PublicKeyLength:])
 	if err != nil {
 		return nil, decryptor.keyBlockBuffer[:n], base.ErrFakeAcraStruct
 	}
@@ -199,7 +199,7 @@ func (decryptor *PgHexDecryptor) readScellData(length int, reader io.Reader) ([]
 func (*PgHexDecryptor) getFullDataLength(dataLength uint64) int {
 	// original data is tag_begin+key_block+data_length+data
 	// output data length should be hex(original_data)
-	return hex.EncodedLen(len(base.TAG_BEGIN) + base.KEY_BLOCK_LENGTH + 8 + int(dataLength))
+	return hex.EncodedLen(len(base.TAG_BEGIN) + base.KeyBlockLength + 8 + int(dataLength))
 }
 
 // ReadData returns plaintext content from reader data, decrypting using SecureCell with ZoneID and symmetricKey

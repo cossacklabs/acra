@@ -64,7 +64,7 @@ func (reader *PgEscapeByteReader) ReadByte(c byte) (bool, byte, error) {
 		return reader.returnError()
 	}
 	if reader.currentIndex == 0 {
-		if c == utils.SLASH_CHAR {
+		if c == utils.SlashChar {
 			reader.buffer[reader.currentIndex] = c
 			reader.currentIndex++
 			return false, 0, nil
@@ -72,7 +72,7 @@ func (reader *PgEscapeByteReader) ReadByte(c byte) (bool, byte, error) {
 		reader.Reset()
 		// value as is
 		return true, c, nil
-	} else if reader.currentIndex == 1 && c == utils.SLASH_CHAR {
+	} else if reader.currentIndex == 1 && c == utils.SlashChar {
 		reader.Reset()
 		// escaped slash, return as is
 		return true, c, nil

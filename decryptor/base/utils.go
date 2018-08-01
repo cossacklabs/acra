@@ -34,7 +34,7 @@ import (
 
 // getDataLengthFromAcraStruct unpack data length value from AcraStruct
 func getDataLengthFromAcraStruct(data []byte) int {
-	dataLengthBlock := data[GetMinAcraStructLength()-DATA_LENGTH_SIZE : GetMinAcraStructLength()]
+	dataLengthBlock := data[GetMinAcraStructLength()-DataLengthSize : GetMinAcraStructLength()]
 	return int(binary.LittleEndian.Uint64(dataLengthBlock))
 }
 
@@ -42,7 +42,7 @@ func getDataLengthFromAcraStruct(data []byte) int {
 // because in golang we can't declare byte array as constant we need to calculate length of TAG_BEGIN in runtime
 // or hardcode as constant and maintain len(TAG_BEGIN) == CONST_VALUE
 func GetMinAcraStructLength() int {
-	return len(TAG_BEGIN) + KEY_BLOCK_LENGTH + DATA_LENGTH_SIZE
+	return len(TAG_BEGIN) + KeyBlockLength + DataLengthSize
 }
 
 // Errors show incorrect AcraStruct length
@@ -72,21 +72,21 @@ func DecryptAcrastruct(data []byte, privateKey *keys.PrivateKey, zone []byte) ([
 		return nil, err
 	}
 	innerData := data[len(TAG_BEGIN):]
-	pubkey := &keys.PublicKey{Value: innerData[:PUBLIC_KEY_LENGTH]}
+	pubkey := &keys.PublicKey{Value: innerData[:PublicKeyLength]}
 	smessage := message.New(privateKey, pubkey)
-	symmetricKey, err := smessage.Unwrap(innerData[PUBLIC_KEY_LENGTH:KEY_BLOCK_LENGTH])
+	symmetricKey, err := smessage.Unwrap(innerData[PublicKeyLength:KeyBlockLength])
 	if err != nil {
 		return []byte{}, err
 	}
 	//
 	var length uint64
 	// convert from little endian
-	err = binary.Read(bytes.NewReader(innerData[KEY_BLOCK_LENGTH:KEY_BLOCK_LENGTH+DATA_LENGTH_SIZE]), binary.LittleEndian, &length)
+	err = binary.Read(bytes.NewReader(innerData[KeyBlockLength:KeyBlockLength+DataLengthSize]), binary.LittleEndian, &length)
 	if err != nil {
 		return []byte{}, err
 	}
 	scell := cell.New(symmetricKey, cell.CELL_MODE_SEAL)
-	decrypted, err := scell.Unprotect(innerData[KEY_BLOCK_LENGTH+DATA_LENGTH_SIZE:], nil, zone)
+	decrypted, err := scell.Unprotect(innerData[KeyBlockLength+DataLengthSize:], nil, zone)
 	// fill zero symmetric_key
 	utils.FillSlice(byte(0), symmetricKey)
 	if err != nil {

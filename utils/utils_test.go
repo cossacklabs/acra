@@ -82,16 +82,16 @@ func TestFindTag(t *testing.T) {
 	}
 
 	testData = []byte("11101101")
-	if utils.FindTag(symbol, count, testData) != utils.NOT_FOUND {
+	if utils.FindTag(symbol, count, testData) != utils.NotFound {
 		t.Fatal("Incorrectly found tag")
 	}
 
 	testData = []byte("111")
-	if utils.FindTag(symbol, count, testData) != utils.NOT_FOUND {
+	if utils.FindTag(symbol, count, testData) != utils.NotFound {
 		t.Fatal("Incorrectly found tag")
 	}
 	testData = []byte{}
-	if utils.FindTag(symbol, count, testData) != utils.NOT_FOUND {
+	if utils.FindTag(symbol, count, testData) != utils.NotFound {
 		t.Fatal("Incorrectly found tag")
 	}
 	testData = []byte("1111")
@@ -107,7 +107,7 @@ func TestFindTag(t *testing.T) {
 
 	count = 8
 	testData = []byte("11111110000000000")
-	if utils.FindTag(symbol, count, testData) != utils.NOT_FOUND {
+	if utils.FindTag(symbol, count, testData) != utils.NotFound {
 		t.Fatal("Incorrectly found tag")
 	}
 }

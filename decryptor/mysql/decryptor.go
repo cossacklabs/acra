@@ -47,8 +47,8 @@ type MySQLDecryptor struct {
 
 // Possible decryption modes: AcraStruct can start from beginning of cell, or be part of the cell
 const (
-	DECRYPT_WHOLE  = "whole_block"
-	DECRYPT_INLINE = "inline_block"
+	DecryptWhole  = "whole_block"
+	DecryptInline = "inline_block"
 )
 
 // NewMySQLDecryptor returns MySQLDecryptor with turned on poison record detection
@@ -91,10 +91,10 @@ func (decryptor *MySQLDecryptor) MatchZoneBlock(block []byte) {
 
 // BeginTagIndex returns index where BeginTag is found in AcraStruct
 func (decryptor *MySQLDecryptor) BeginTagIndex(block []byte) (int, int) {
-	if i := utils.FindTag(base.TAG_SYMBOL, decryptor.binaryDecryptor.GetTagBeginLength(), block); i != utils.NOT_FOUND {
+	if i := utils.FindTag(base.TagSymbol, decryptor.binaryDecryptor.GetTagBeginLength(), block); i != utils.NotFound {
 		return i, decryptor.binaryDecryptor.GetTagBeginLength()
 	}
-	return utils.NOT_FOUND, decryptor.GetTagBeginLength()
+	return utils.NotFound, decryptor.GetTagBeginLength()
 }
 
 // MatchZoneInBlock finds ZoneId in AcraStruct and marks decryptor matched
@@ -102,7 +102,7 @@ func (decryptor *MySQLDecryptor) MatchZoneInBlock(block []byte) {
 	for {
 		// binary format
 		i := utils.FindTag(zone.ZONE_TAG_SYMBOL, zone.ZONE_TAG_LENGTH, block)
-		if i == utils.NOT_FOUND {
+		if i == utils.NotFound {
 			break
 		} else {
 			if decryptor.keyStore.HasZonePrivateKey(block[i : i+zone.ZONE_ID_BLOCK_LENGTH]) {
@@ -186,7 +186,7 @@ func (decryptor *MySQLDecryptor) poisonCheck(block []byte) error {
 	index := 0
 	for {
 		beginTagIndex, _ := decryptor.BeginTagIndex(block[index:])
-		if beginTagIndex == utils.NOT_FOUND {
+		if beginTagIndex == utils.NotFound {
 			break
 		} else {
 			log.Debugln("Found AcraStruct")
@@ -235,10 +235,10 @@ func (decryptor *MySQLDecryptor) decryptBlock(reader io.Reader, id []byte, keyFu
 func (decryptor *MySQLDecryptor) SetWholeMatch(value bool) {
 	if value {
 		decryptor.decryptFunc = decryptor.decryptWholeBlock
-		decryptor.log = decryptor.log.WithField("decrypt_mode", DECRYPT_WHOLE)
+		decryptor.log = decryptor.log.WithField("decrypt_mode", DecryptWhole)
 	} else {
 		decryptor.decryptFunc = decryptor.decryptInlineBlock
-		decryptor.log = decryptor.log.WithField("decrypt_mode", DECRYPT_INLINE)
+		decryptor.log = decryptor.log.WithField("decrypt_mode", DecryptInline)
 	}
 }
 
@@ -278,7 +278,7 @@ func (decryptor *MySQLDecryptor) decryptInlineBlock(block []byte) ([]byte, error
 		decryptor.log.Debugf("Index=%v", index)
 		decryptor.log.Debugf("Index: %v", index)
 		beginTagIndex, tagLength := decryptor.BeginTagIndex(block[index:])
-		if beginTagIndex == utils.NOT_FOUND {
+		if beginTagIndex == utils.NotFound {
 			output.Write(block[index:])
 			return output.Bytes(), nil
 		}

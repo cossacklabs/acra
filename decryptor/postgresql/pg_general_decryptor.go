@@ -58,7 +58,7 @@ func NewPgDecryptor(clientID []byte, decryptor base.DataDecryptor) *PgDecryptor 
 		binaryDecryptor: binary.NewBinaryDecryptor(),
 		clientID:        clientID,
 		// longest tag (escape) + bin
-		matchBuffer:        make([]byte, len(ESCAPE_TAG_BEGIN)+len(base.TAG_BEGIN)),
+		matchBuffer:        make([]byte, len(EscapeTagBegin)+len(base.TAG_BEGIN)),
 		matchIndex:         0,
 		isWholeMatch:       true,
 		logger:             logrus.WithField("client_id", string(clientID)),
@@ -363,36 +363,36 @@ func (decryptor *PgDecryptor) CheckPoisonRecord(reader io.Reader) (bool, error) 
 	return false, nil
 }
 
-var hexTagSymbols = hex.EncodeToString([]byte{base.TAG_SYMBOL})
+var hexTagSymbols = hex.EncodeToString([]byte{base.TagSymbol})
 
-// HEX_SYMBOL is HEX representation of TAG_SYMBOL
+// HEX_SYMBOL is HEX representation of TagSymbol
 var HEX_SYMBOL = byte(hexTagSymbols[0])
 
 // BeginTagIndex returns tag start index and length of tag (depends on decryptor type)
 func (decryptor *PgDecryptor) BeginTagIndex(block []byte) (int, int) {
 	_, ok := decryptor.pgDecryptor.(*PgHexDecryptor)
 	if ok {
-		if i := utils.FindTag(HEX_SYMBOL, decryptor.pgDecryptor.GetTagBeginLength(), block); i != utils.NOT_FOUND {
+		if i := utils.FindTag(HEX_SYMBOL, decryptor.pgDecryptor.GetTagBeginLength(), block); i != utils.NotFound {
 			decryptor.logger.Debugln("Matched pg decryptor")
 			decryptor.matchedDecryptor = decryptor.pgDecryptor
 			return i, decryptor.pgDecryptor.GetTagBeginLength()
 		}
 	} else {
 		// escape format
-		if i := utils.FindTag(base.TAG_SYMBOL, decryptor.pgDecryptor.GetTagBeginLength(), block); i != utils.NOT_FOUND {
+		if i := utils.FindTag(base.TagSymbol, decryptor.pgDecryptor.GetTagBeginLength(), block); i != utils.NotFound {
 			decryptor.logger.Debugln("Matched pg decryptor")
 			decryptor.matchedDecryptor = decryptor.pgDecryptor
 			return i, decryptor.pgDecryptor.GetTagBeginLength()
 			// binary format
 		}
 	}
-	if i := utils.FindTag(base.TAG_SYMBOL, decryptor.binaryDecryptor.GetTagBeginLength(), block); i != utils.NOT_FOUND {
+	if i := utils.FindTag(base.TagSymbol, decryptor.binaryDecryptor.GetTagBeginLength(), block); i != utils.NotFound {
 		decryptor.logger.Debugln("Matched binary decryptor")
 		decryptor.matchedDecryptor = decryptor.binaryDecryptor
 		return i, decryptor.binaryDecryptor.GetTagBeginLength()
 	}
 	decryptor.matchedDecryptor = nil
-	return utils.NOT_FOUND, decryptor.GetTagBeginLength()
+	return utils.NotFound, decryptor.GetTagBeginLength()
 }
 
 var hexZoneSymbols = hex.EncodeToString([]byte{zone.ZONE_TAG_SYMBOL})
@@ -408,7 +408,7 @@ func (decryptor *PgDecryptor) MatchZoneInBlock(block []byte) {
 		sliceCopy := block[:]
 		for {
 			i := utils.FindTag(HEX_ZONE_SYMBOL, HEX_ZONE_TAG_LENGTH, sliceCopy)
-			if i == utils.NOT_FOUND {
+			if i == utils.NotFound {
 				break
 			} else {
 				id := make([]byte, zone.ZONE_ID_BLOCK_LENGTH)
@@ -425,12 +425,12 @@ func (decryptor *PgDecryptor) MatchZoneInBlock(block []byte) {
 		sliceCopy := block[:]
 		for {
 			// escape format
-			i := utils.FindTag(zone.ZONE_TAG_SYMBOL, ESCAPE_ZONE_TAG_LENGTH, block)
-			if i == utils.NOT_FOUND {
+			i := utils.FindTag(zone.ZONE_TAG_SYMBOL, EscapeZoneTagLength, block)
+			if i == utils.NotFound {
 				break
 			} else {
-				if decryptor.keyStore.HasZonePrivateKey(sliceCopy[i : i+ESCAPE_ZONE_ID_BLOCK_LENGTH]) {
-					decryptor.zoneMatcher.SetMatched(sliceCopy[i : i+ESCAPE_ZONE_ID_BLOCK_LENGTH])
+				if decryptor.keyStore.HasZonePrivateKey(sliceCopy[i : i+EscapeZoneIdBlockLength]) {
+					decryptor.zoneMatcher.SetMatched(sliceCopy[i : i+EscapeZoneIdBlockLength])
 					return
 				}
 				sliceCopy = sliceCopy[i+1:]
@@ -442,11 +442,11 @@ func (decryptor *PgDecryptor) MatchZoneInBlock(block []byte) {
 	for {
 		// binary format
 		i := utils.FindTag(zone.ZONE_TAG_SYMBOL, zone.ZONE_TAG_LENGTH, block)
-		if i == utils.NOT_FOUND {
+		if i == utils.NotFound {
 			break
 		} else {
 			if decryptor.keyStore.HasZonePrivateKey(sliceCopy[i : i+zone.ZONE_ID_BLOCK_LENGTH]) {
-				decryptor.zoneMatcher.SetMatched(sliceCopy[i : i+ESCAPE_ZONE_ID_BLOCK_LENGTH])
+				decryptor.zoneMatcher.SetMatched(sliceCopy[i : i+EscapeZoneIdBlockLength])
 				return
 			}
 			sliceCopy = sliceCopy[i+1:]

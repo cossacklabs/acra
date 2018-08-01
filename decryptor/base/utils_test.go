@@ -50,8 +50,8 @@ func TestDecryptAcrastruct(t *testing.T) {
 	// test acrastruct with incorrect data length
 
 	// replace data length value by zeroes
-	incorrectAcraStruct := append([]byte{}, acrastruct[:base.GetMinAcraStructLength()-base.DATA_LENGTH_SIZE]...)
-	incorrectAcraStruct = append(incorrectAcraStruct, bytes.Repeat([]byte{0}, base.DATA_LENGTH_SIZE)...)
+	incorrectAcraStruct := append([]byte{}, acrastruct[:base.GetMinAcraStructLength()-base.DataLengthSize]...)
+	incorrectAcraStruct = append(incorrectAcraStruct, bytes.Repeat([]byte{0}, base.DataLengthSize)...)
 	incorrectAcraStruct = append(incorrectAcraStruct, acrastruct[base.GetMinAcraStructLength():]...)
 	_, err = base.DecryptAcrastruct(incorrectAcraStruct, keypair.Private, nil)
 	if err != base.ErrIncorrectAcraStructDataLength {
