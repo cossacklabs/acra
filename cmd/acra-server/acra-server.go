@@ -40,7 +40,6 @@ import (
 	"syscall"
 	"time"
 
-	"fmt"
 	"github.com/cossacklabs/acra/cmd"
 	"github.com/cossacklabs/acra/keystore"
 	"github.com/cossacklabs/acra/keystore/filesystem"
@@ -48,7 +47,6 @@ import (
 	"github.com/cossacklabs/acra/network"
 	"github.com/cossacklabs/acra/utils"
 	log "github.com/sirupsen/logrus"
-	"io/ioutil"
 )
 
 var restartSignalsChannel chan os.Signal
@@ -393,7 +391,7 @@ func main() {
 		}
 		go server.Start()
 	}
+	// on sighup we run callback that stop all listeners (that stop background goroutine of server.Start())
+	// and try to restart acra-server and only after that exits
 	sigHandlerSIGHUP.Register()
-	// use server variable to avoid free by golang gc as unused variable
-	fmt.Fprint(ioutil.Discard, server)
 }

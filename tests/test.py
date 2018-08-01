@@ -280,7 +280,7 @@ def acra_api_connection_string(port):
 
 
 
-DEFAULT_VERSION = '1.5.0'
+DEFAULT_VERSION = '1.8.0'
 DEFAULT_BUILD_ARGS = []
 ACRAROLLBACK_MIN_VERSION = "1.8.0"
 Binary = collections.namedtuple(
