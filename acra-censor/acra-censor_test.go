@@ -557,6 +557,9 @@ func testBlacklistStarPattern(t *testing.T) {
 		"SELECT * FROM company9 WHERE AGE NOT IN ( 25, 27 )",
 		"SELECT * FROM company10 WHERE AGE > (SELECT AGE FROM company10 WHERE SALARY > 65000)",
 		"SELECT age FROM company11 WHERE EXISTS (SELECT AGE FROM company11 WHERE SALARY > 65000)",
+		"SELECT age FROM company11 WHERE EXISTS (SELECT AGE FROM company WHERE SALARY > 65000)",
+		"SELECT age FROM company11 WHERE A=(SELECT AGE FROM company WHERE SALARY > 65000 limit 1) and B=(SELECT AGE FROM company123 WHERE SALARY > 65000 limit 1)",
+		"SELECT * FROM another_table INNER JOIN (SELECT * FROM company WHERE id = 1) AS t ON t.id=another_table.id WHERE AGE NOT IN (25, 27)",
 	}
 	blockableQueries := []string{
 		"SELECT a, b FROM company WHERE ID = 'someValue_testValue_1234567890'",
@@ -568,9 +571,8 @@ func testBlacklistStarPattern(t *testing.T) {
 		"SELECT * FROM company WHERE NAME LIKE 'Pa%'",
 		"SELECT * FROM company WHERE AGE IN ( 25, 27 )",
 		"SELECT * FROM company WHERE AGE NOT IN ( 25, 27 )",
-		"SELECT * FROM company WHERE AGE > (SELECT AGE FROM COMPANY WHERE SALARY > 65000)",
-		"SELECT AGE FROM company WHERE EXISTS (SELECT AGE FROM company WHERE SALARY > 65000)",
-		"SELECT age FROM company11 WHERE EXISTS (SELECT AGE FROM company WHERE SALARY > 65000)",
+		"SELECT * FROM company WHERE AGE > (SELECT AGE FROM company WHERE SALARY > 65000)",
+		"SELECT age FROM company WHERE EXISTS (SELECT age FROM company WHERE SALARY > 65000)",
 	}
 	for _, query := range acceptableQueries {
 		err = censor.HandleQuery(query)
