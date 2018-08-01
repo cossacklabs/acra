@@ -14,13 +14,6 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-// Package handlers contains all query handlers for AcraCensor:
-// blacklist handler, which allows everything and forbids specific query/pattern/table;
-// whitelist handler, which allows query/pattern/table and restricts/forbids everything else;
-// ignore handler, which allows to ignore any query;
-// and querycapture module that logs every unique query to the QueryCapture log.
-//
-// https://github.com/cossacklabs/acra/wiki/AcraCensor
 package handlers
 
 import (

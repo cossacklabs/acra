@@ -14,12 +14,6 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-// Package acracensor represents separate firewall module for Acra. AcraCensor handles each query that
-// gets through AcraServer. You can setup the whitelist and the blacklist separately or simultaneously.
-// The order of priority for the lists is defined by their order in the configuration file.
-// Priority of work for one of the lists is the following: queries, followed by tables, followed by rules.
-//
-// https://github.com/cossacklabs/acra/wiki/AcraCensor
 package acracensor
 
 import (

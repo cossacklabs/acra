@@ -14,12 +14,6 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-// Package main is entry point for AcraWebConfig service.AcraWebConfig is a lightweight HTTP web server for managing
-// AcraServer's certain configuration options. AcraWebConfig uses HTTP API requests to get data from AcraServer
-// and to change its settings. To provide additional security, AcraWebConfig uses basic authentication.
-// Users/passwords are stored in an encrypted file and are managed by AcraAuthmanager utility.
-//
-// https://github.com/cossacklabs/acra/wiki/AcraWebConfig
 package main
 
 // AcraServerConfig describes AcraServer configuration that can be changed from AcraWebconfig page.

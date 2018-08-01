@@ -14,10 +14,6 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-// Package base contains AcraStruct decryptor interface and callbacks. Decryptor is database-dependent object:
-// PgDecryptor reads data from PostgreSQL databases, finds AcraStructs and decrypt them,
-// MySQLDecryptor reads and decrypts AcraStruct from MySQL databases in the similar way,
-// BinaryDecryptor doesn't care about database protocol, it finds and decrypts AcraStruct from binary blobs.
 package base
 
 import (

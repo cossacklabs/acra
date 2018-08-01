@@ -14,11 +14,6 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-// Package logging contains custom log formatters (plaintext, JSON and CEF) to use through Acra components.
-// Logging mode and verbosity level can be configured for AcraServer, AcraConnector, and AcraWebConfig in the
-// corresponding yaml files or passed as CLI parameter.
-//
-// https://github.com/cossacklabs/acra/wiki/Logging
 package logging
 
 import (

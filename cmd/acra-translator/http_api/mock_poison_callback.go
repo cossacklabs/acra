@@ -14,9 +14,6 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-// Package http_api implements HTTP API handler: users can send AcraStructs via HTTP to AcraConnector,
-// AcraConnector wraps connection via Themis SecureSession. HTTP handler parses HTTP requests, decrypts AcraStructs
-// and returns plaintext data via HTTP response.
 package http_api
 
 type poisonCallback struct {
