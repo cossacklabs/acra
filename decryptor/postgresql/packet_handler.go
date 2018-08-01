@@ -37,7 +37,7 @@ func NewClientSidePacketHandler(reader io.Reader, writer *bufio.Writer) (*Packet
 	}, nil
 }
 
-// NewClientSidePacketHandler return new PacketHandler with initialized own logger for databases's packets
+// NewDbSidePacketHandler return new PacketHandler with initialized own logger for databases's packets
 func NewDbSidePacketHandler(reader io.Reader, writer *bufio.Writer) (*PacketHandler, error) {
 	return &PacketHandler{
 		descriptionBuf:       bytes.NewBuffer(make([]byte, OutputDefaultSize)),

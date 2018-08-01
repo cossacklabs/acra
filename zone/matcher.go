@@ -31,14 +31,14 @@ package zone
 
 // were chosen upper symbols because if data is text than it's less possible to
 // catch three upper consonants in a row
-//var ZONE_ID_BEGIN = []byte{'Z', 'X', 'C'}
+//var ZoneIdBegin = []byte{'Z', 'X', 'C'}
 //'44' - D - 68 - 0b1000100
 var (
-	ZONE_TAG_SYMBOL      byte = 'D'
-	ZONE_ID_BEGIN             = []byte{ZONE_TAG_SYMBOL, ZONE_TAG_SYMBOL, ZONE_TAG_SYMBOL, ZONE_TAG_SYMBOL, ZONE_TAG_SYMBOL, ZONE_TAG_SYMBOL, ZONE_TAG_SYMBOL, ZONE_TAG_SYMBOL}
-	ZONE_TAG_LENGTH           = len(ZONE_ID_BEGIN)
-	ZONE_ID_LENGTH            = 16
-	ZONE_ID_BLOCK_LENGTH      = int(ZONE_TAG_LENGTH + ZONE_ID_LENGTH)
+	ZoneTagSymbol     byte = 'D'
+	ZoneIdBegin            = []byte{ZoneTagSymbol, ZoneTagSymbol, ZoneTagSymbol, ZoneTagSymbol, ZoneTagSymbol, ZoneTagSymbol, ZoneTagSymbol, ZoneTagSymbol}
+	ZoneTagLength          = len(ZoneIdBegin)
+	ZoneIdLength           = 16
+	ZoneIdBlockLength      = int(ZoneTagLength + ZoneIdLength)
 )
 
 // DbByteReader reads bytes
@@ -159,7 +159,7 @@ func NewBaseMatcher(dbReader DbByteReader) Matcher {
 		dbReader:     dbReader,
 		hasAnyMatch:  false,
 		matched:      false,
-		zoneID:       make([]byte, ZONE_ID_BLOCK_LENGTH)}
+		zoneID:       make([]byte, ZoneIdBlockLength)}
 }
 
 // Reset changes Matcher state to the initial one, used in tests only
@@ -183,8 +183,8 @@ func (matcher *BaseMatcher) Match(c byte) bool {
 		return true
 	}
 	matcher.hasAnyMatch = true
-	if matcher.currentIndex < byte(len(ZONE_ID_BEGIN)) {
-		if ZONE_ID_BEGIN[matcher.currentIndex] == b {
+	if matcher.currentIndex < byte(len(ZoneIdBegin)) {
+		if ZoneIdBegin[matcher.currentIndex] == b {
 			matcher.zoneID[matcher.currentIndex] = b
 			matcher.currentIndex++
 			return true
@@ -194,7 +194,7 @@ func (matcher *BaseMatcher) Match(c byte) bool {
 	}
 	matcher.zoneID[matcher.currentIndex] = b
 	matcher.currentIndex++
-	if matcher.currentIndex == byte(ZONE_ID_BLOCK_LENGTH) {
+	if matcher.currentIndex == byte(ZoneIdBlockLength) {
 		matcher.matched = true
 	}
 	return true

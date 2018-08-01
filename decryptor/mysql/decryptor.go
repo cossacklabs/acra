@@ -101,12 +101,12 @@ func (decryptor *MySQLDecryptor) BeginTagIndex(block []byte) (int, int) {
 func (decryptor *MySQLDecryptor) MatchZoneInBlock(block []byte) {
 	for {
 		// binary format
-		i := utils.FindTag(zone.ZONE_TAG_SYMBOL, zone.ZONE_TAG_LENGTH, block)
+		i := utils.FindTag(zone.ZoneTagSymbol, zone.ZoneTagLength, block)
 		if i == utils.NotFound {
 			break
 		} else {
-			if decryptor.keyStore.HasZonePrivateKey(block[i : i+zone.ZONE_ID_BLOCK_LENGTH]) {
-				decryptor.GetZoneMatcher().SetMatched(block[i : i+zone.ZONE_ID_BLOCK_LENGTH])
+			if decryptor.keyStore.HasZonePrivateKey(block[i : i+zone.ZoneIdBlockLength]) {
+				decryptor.GetZoneMatcher().SetMatched(block[i : i+zone.ZoneIdBlockLength])
 				return
 			}
 			block = block[i+1:]

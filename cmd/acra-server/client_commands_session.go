@@ -54,7 +54,7 @@ import (
 
 // HTTP 500 response
 const (
-	RESPONSE_500_ERROR = "HTTP/1.1 500 Server error\r\n\r\n\r\n\r\n"
+	Response500Error = "HTTP/1.1 500 Server error\r\n\r\n\r\n\r\n"
 )
 
 // ClientCommandsSession handles Secure Session for client commands API
@@ -126,17 +126,17 @@ func (clientSession *ClientCommandsSession) HandleSession() {
 		response = "HTTP/1.1 200 OK Found\r\n\r\n"
 		log.Debugln("Cleared key storage cache")
 	case "/loadAuthData":
-		response = RESPONSE_500_ERROR
+		response = Response500Error
 		key, err := clientSession.keystore.GetAuthKey(false)
 		if err != nil {
 			log.WithError(err).Error("loadAuthData: keystore.GetAuthKey()")
-			response = RESPONSE_500_ERROR
+			response = Response500Error
 			break
 		}
 		authDataCrypted, err := getAuthDataFromFile(*authPath)
 		if err != nil {
 			log.Warningf("%v\n", utils.ErrorMessage("loadAuthData: no auth data", err))
-			response = RESPONSE_500_ERROR
+			response = Response500Error
 			break
 		}
 		SecureCell := cell.New(key, cell.CELL_MODE_SEAL)
@@ -153,7 +153,7 @@ func (clientSession *ClientCommandsSession) HandleSession() {
 		if err != nil {
 			log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorGeneral).
 				Warningln("Can't convert config to JSON")
-			response = RESPONSE_500_ERROR
+			response = Response500Error
 		} else {
 			log.Debugln("Handled request correctly")
 			log.Debugln(string(jsonOutput))
@@ -167,7 +167,7 @@ func (clientSession *ClientCommandsSession) HandleSession() {
 		if err != nil {
 			log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorGeneral).
 				Warningln("Can't convert config from incoming")
-			response = RESPONSE_500_ERROR
+			response = Response500Error
 			return
 		}
 		// set config values
@@ -183,7 +183,7 @@ func (clientSession *ClientCommandsSession) HandleSession() {
 		if err != nil {
 			log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantDumpConfig).
 				Errorln("DumpConfig failed")
-			response = RESPONSE_500_ERROR
+			response = Response500Error
 			return
 
 		}

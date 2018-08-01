@@ -74,7 +74,7 @@ const (
 	// https://www.postgresql.org/docs/9.4/static/protocol-message-formats.html
 	DataRowMessageType byte = 'D'
 	QueryMessageType   byte = 'Q'
-	TlsTimeout              = time.Second * 2
+	TLSTimeout              = time.Second * 2
 )
 
 // CancelRequest indicates beginning tag of Cancel request.
@@ -84,12 +84,12 @@ var CancelRequest = []byte{0x04, 0xd2, 0x16, 0x2e}
 type PgProxy struct {
 	clientConnection net.Conn
 	dbConnection     net.Conn
-	TlsCh            chan bool
+	TLSCh            chan bool
 }
 
 // NewPgProxy returns new PgProxy
 func NewPgProxy(clientConnection, dbConnection net.Conn) (*PgProxy, error) {
-	return &PgProxy{clientConnection: clientConnection, dbConnection: dbConnection, TlsCh: make(chan bool)}, nil
+	return &PgProxy{clientConnection: clientConnection, dbConnection: dbConnection, TLSCh: make(chan bool)}, nil
 }
 
 // PgProxyClientRequests checks every client request using AcraCensor,
@@ -235,9 +235,9 @@ func (proxy *PgProxy) handleSSLRequest(packet *PacketHandler, tlsConfig *tls.Con
 		return nil, nil, err
 	}
 	select {
-	case <-proxy.TlsCh:
+	case <-proxy.TLSCh:
 		break
-	case <-time.NewTimer(TlsTimeout).C:
+	case <-time.NewTimer(TLSTimeout).C:
 		logger.Errorln("Can't stop background goroutine to start tls handshake")
 		return nil, nil, errors.New("can't stop background goroutine")
 	}
@@ -445,7 +445,7 @@ func (proxy *PgProxy) PgDecryptStream(censor acracensor.AcraCensorInterface, dec
 			// TODO check poison record before zone matching in two modes.
 			// now zone matching executed every time
 			// try to skip small piece of data that can't be valuable for us
-			if (decryptor.IsWithZone() && column.Length() >= zone.ZONE_ID_BLOCK_LENGTH) || column.Length() >= base.KeyBlockLength {
+			if (decryptor.IsWithZone() && column.Length() >= zone.ZoneIdBlockLength) || column.Length() >= base.KeyBlockLength {
 				decryptor.Reset()
 
 				// Zone anyway should be passed as whole block

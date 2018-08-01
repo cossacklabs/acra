@@ -257,7 +257,7 @@ func (decryptor *PgDecryptor) SetWholeMatch(value bool) {
 
 // MatchZoneBlock returns zone data
 func (decryptor *PgDecryptor) MatchZoneBlock(block []byte) {
-	if _, ok := decryptor.pgDecryptor.(*PgHexDecryptor); ok && bytes.Equal(block[:2], HEX_PREFIX) {
+	if _, ok := decryptor.pgDecryptor.(*PgHexDecryptor); ok && bytes.Equal(block[:2], HexPrefix) {
 		block = block[2:]
 	}
 	for _, c := range block {
@@ -267,8 +267,8 @@ func (decryptor *PgDecryptor) MatchZoneBlock(block []byte) {
 	}
 }
 
-// HEX_PREFIX represents \x bytes at beginning of HEX byte format
-var HEX_PREFIX = []byte{'\\', 'x'}
+// HexPrefix represents \x bytes at beginning of HEX byte format
+var HexPrefix = []byte{'\\', 'x'}
 
 // SkipBeginInBlock returns bytes without BeginTag
 // or ErrFakeAcraStruct otherwise
@@ -277,7 +277,7 @@ func (decryptor *PgDecryptor) SkipBeginInBlock(block []byte) ([]byte, error) {
 	// in hex format can be \x bytes at beginning
 	// we need skip them for correct matching begin tag
 	n := 0
-	if ok && bytes.Equal(block[:2], HEX_PREFIX) {
+	if ok && bytes.Equal(block[:2], HexPrefix) {
 		block = block[2:]
 		for _, c := range block {
 			if !decryptor.pgDecryptor.MatchBeginTag(c) {
@@ -331,7 +331,7 @@ func (decryptor *PgDecryptor) DecryptBlock(block []byte) ([]byte, error) {
 		return []byte{}, err
 	}
 	if _, ok := decryptor.pgDecryptor.(*PgHexDecryptor); ok {
-		return append(HEX_PREFIX, data...), nil
+		return append(HexPrefix, data...), nil
 	}
 	return data, nil
 }
@@ -365,14 +365,14 @@ func (decryptor *PgDecryptor) CheckPoisonRecord(reader io.Reader) (bool, error) 
 
 var hexTagSymbols = hex.EncodeToString([]byte{base.TagSymbol})
 
-// HEX_SYMBOL is HEX representation of TagSymbol
-var HEX_SYMBOL = byte(hexTagSymbols[0])
+// HexSymbol is HEX representation of TagSymbol
+var HexSymbol = byte(hexTagSymbols[0])
 
 // BeginTagIndex returns tag start index and length of tag (depends on decryptor type)
 func (decryptor *PgDecryptor) BeginTagIndex(block []byte) (int, int) {
 	_, ok := decryptor.pgDecryptor.(*PgHexDecryptor)
 	if ok {
-		if i := utils.FindTag(HEX_SYMBOL, decryptor.pgDecryptor.GetTagBeginLength(), block); i != utils.NotFound {
+		if i := utils.FindTag(HexSymbol, decryptor.pgDecryptor.GetTagBeginLength(), block); i != utils.NotFound {
 			decryptor.logger.Debugln("Matched pg decryptor")
 			decryptor.matchedDecryptor = decryptor.pgDecryptor
 			return i, decryptor.pgDecryptor.GetTagBeginLength()
@@ -395,10 +395,10 @@ func (decryptor *PgDecryptor) BeginTagIndex(block []byte) (int, int) {
 	return utils.NotFound, decryptor.GetTagBeginLength()
 }
 
-var hexZoneSymbols = hex.EncodeToString([]byte{zone.ZONE_TAG_SYMBOL})
+var hexZoneSymbols = hex.EncodeToString([]byte{zone.ZoneTagSymbol})
 
-// HEX_ZONE_SYMBOL is HEX representation of ZONE_TAG_SYMBOL
-var HEX_ZONE_SYMBOL = byte(hexZoneSymbols[0])
+// HexZoneSymbol is HEX representation of ZoneTagSymbol
+var HexZoneSymbol = byte(hexZoneSymbols[0])
 
 // MatchZoneInBlock finds ZoneId in AcraStruct and marks decryptor matched
 // (depends on decryptor type)
@@ -407,12 +407,12 @@ func (decryptor *PgDecryptor) MatchZoneInBlock(block []byte) {
 	if ok {
 		sliceCopy := block[:]
 		for {
-			i := utils.FindTag(HEX_ZONE_SYMBOL, HEX_ZONE_TAG_LENGTH, sliceCopy)
+			i := utils.FindTag(HexZoneSymbol, HexZoneTagLength, sliceCopy)
 			if i == utils.NotFound {
 				break
 			} else {
-				id := make([]byte, zone.ZONE_ID_BLOCK_LENGTH)
-				hexID := sliceCopy[i : i+HEX_ZONE_ID_BLOCK_LENGTH]
+				id := make([]byte, zone.ZoneIdBlockLength)
+				hexID := sliceCopy[i : i+HexZoneIDBlockLength]
 				hex.Decode(id, hexID)
 				if decryptor.keyStore.HasZonePrivateKey(id) {
 					decryptor.zoneMatcher.SetMatched(id)
@@ -425,12 +425,12 @@ func (decryptor *PgDecryptor) MatchZoneInBlock(block []byte) {
 		sliceCopy := block[:]
 		for {
 			// escape format
-			i := utils.FindTag(zone.ZONE_TAG_SYMBOL, EscapeZoneTagLength, block)
+			i := utils.FindTag(zone.ZoneTagSymbol, EscapeZoneTagLength, block)
 			if i == utils.NotFound {
 				break
 			} else {
-				if decryptor.keyStore.HasZonePrivateKey(sliceCopy[i : i+EscapeZoneIdBlockLength]) {
-					decryptor.zoneMatcher.SetMatched(sliceCopy[i : i+EscapeZoneIdBlockLength])
+				if decryptor.keyStore.HasZonePrivateKey(sliceCopy[i : i+EscapeZoneIDBlockLength]) {
+					decryptor.zoneMatcher.SetMatched(sliceCopy[i : i+EscapeZoneIDBlockLength])
 					return
 				}
 				sliceCopy = sliceCopy[i+1:]
@@ -441,12 +441,12 @@ func (decryptor *PgDecryptor) MatchZoneInBlock(block []byte) {
 	sliceCopy := block[:]
 	for {
 		// binary format
-		i := utils.FindTag(zone.ZONE_TAG_SYMBOL, zone.ZONE_TAG_LENGTH, block)
+		i := utils.FindTag(zone.ZoneTagSymbol, zone.ZoneTagLength, block)
 		if i == utils.NotFound {
 			break
 		} else {
-			if decryptor.keyStore.HasZonePrivateKey(sliceCopy[i : i+zone.ZONE_ID_BLOCK_LENGTH]) {
-				decryptor.zoneMatcher.SetMatched(sliceCopy[i : i+EscapeZoneIdBlockLength])
+			if decryptor.keyStore.HasZonePrivateKey(sliceCopy[i : i+zone.ZoneIdBlockLength]) {
+				decryptor.zoneMatcher.SetMatched(sliceCopy[i : i+EscapeZoneIDBlockLength])
 				return
 			}
 			sliceCopy = sliceCopy[i+1:]
