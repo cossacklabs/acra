@@ -349,7 +349,7 @@ func (proxy *PgProxy) PgDecryptStream(censor acracensor.AcraCensorInterface, dec
 	writer := bufio.NewWriter(clientConnection)
 
 	reader := acra_io.NewExtendedBufferedReader(bufio.NewReader(dbConnection))
-	packet, err := NewDbSidePacketHandler(reader, writer)
+	packetHandler, err := NewDbSidePacketHandler(reader, writer)
 	if err != nil {
 		errCh <- err
 		return
@@ -362,20 +362,20 @@ func (proxy *PgProxy) PgDecryptStream(censor acracensor.AcraCensorInterface, dec
 			// we should know that we shouldn't read anymore bytes
 			// first response from server may contain only one byte of response on SSLRequest
 			firstByte = false
-			if err := packet.readMessageType(); err != nil {
+			if err := packetHandler.readMessageType(); err != nil {
 				logger.WithError(err).Errorln("Can't read first message type")
 				errCh <- err
 				return
 			}
-			if packet.IsSSLRequestDeny() {
+			if packetHandler.IsSSLRequestDeny() {
 				logger.Debugln("Deny ssl request")
-				if err := packet.sendMessageType(); err != nil {
+				if err := packetHandler.sendMessageType(); err != nil {
 					errCh <- err
 					return
 				}
 				continue
-			} else if packet.IsSSLRequestAllowed() {
-				tlsClientConnection, dbTLSConnection, err := proxy.handleSSLRequest(packet, tlsConfig, clientConnection, dbConnection, logger)
+			} else if packetHandler.IsSSLRequestAllowed() {
+				tlsClientConnection, dbTLSConnection, err := proxy.handleSSLRequest(packetHandler, tlsConfig, clientConnection, dbConnection, logger)
 				if err != nil {
 					logger.WithError(err).Errorln("Can't process SSL request")
 					errCh <- err
@@ -387,18 +387,18 @@ func (proxy *PgProxy) PgDecryptStream(censor acracensor.AcraCensorInterface, dec
 				writer = bufio.NewWriter(tlsClientConnection)
 				firstByte = true
 
-				packet.reader = reader
-				packet.writer = writer
-				packet.Reset()
+				packetHandler.reader = reader
+				packetHandler.writer = writer
+				packetHandler.Reset()
 				continue
 			}
 			// if it is not ssl request than we just forward it to client
-			if err := packet.readData(); err != nil {
+			if err := packetHandler.readData(); err != nil {
 				logger.WithError(err).Errorln("Can't read data of packet")
 				errCh <- err
 				return
 			}
-			if err := packet.sendPacket(); err != nil {
+			if err := packetHandler.sendPacket(); err != nil {
 				logger.WithError(err).Errorln("Can't forward first packet")
 				errCh <- err
 				return
@@ -406,14 +406,14 @@ func (proxy *PgProxy) PgDecryptStream(censor acracensor.AcraCensorInterface, dec
 			continue
 		}
 
-		if err := packet.ReadPacket(); err != nil {
+		if err := packetHandler.ReadPacket(); err != nil {
 			logger.WithError(err).Errorln("Can't read packet")
 			errCh <- err
 			return
 		}
 
-		if !packet.IsDataRow() {
-			if err := packet.sendPacket(); err != nil {
+		if !packetHandler.IsDataRow() {
+			if err := packetHandler.sendPacket(); err != nil {
 				logger.WithError(err).Errorln("Can't forward packet")
 				errCh <- err
 				return
@@ -422,14 +422,14 @@ func (proxy *PgProxy) PgDecryptStream(censor acracensor.AcraCensorInterface, dec
 		}
 
 		logger.Debugln("Matched data row packet")
-		if err := packet.parseColumns(); err != nil {
+		if err := packetHandler.parseColumns(); err != nil {
 			logger.WithError(err).Errorln("Can't parse columns in packet")
 			errCh <- err
 			return
 		}
 
-		if packet.columnCount == 0 {
-			if err := packet.sendPacket(); err != nil {
+		if packetHandler.columnCount == 0 {
+			if err := packetHandler.sendPacket(); err != nil {
 				logger.WithError(err).Errorln("Can't send packet on column count 0")
 				errCh <- err
 				return
@@ -438,8 +438,8 @@ func (proxy *PgProxy) PgDecryptStream(censor acracensor.AcraCensorInterface, dec
 		}
 
 		logger.Debugf("Process columns data")
-		for i := 0; i < packet.columnCount; i++ {
-			column := packet.Columns[i]
+		for i := 0; i < packetHandler.columnCount; i++ {
+			column := packetHandler.Columns[i]
 
 			// TODO check poison record before zone matching in two modes.
 			// now zone matching executed every time
@@ -463,14 +463,14 @@ func (proxy *PgProxy) PgDecryptStream(censor acracensor.AcraCensorInterface, dec
 				}
 
 				if decryptor.IsWholeMatch() {
-					err := proxy.processWholeBlockDecryption(packet, column, decryptor, logger)
+					err := proxy.processWholeBlockDecryption(packetHandler, column, decryptor, logger)
 					if err != nil {
 						log.WithError(err).Errorln("Can't process whole block")
 						errCh <- err
 						return
 					}
 				} else {
-					err := proxy.processInlineBlockDecryption(packet, column, decryptor, logger)
+					err := proxy.processInlineBlockDecryption(packetHandler, column, decryptor, logger)
 					if err != nil {
 						log.WithError(err).Errorln("Can't process block with inline mode")
 						errCh <- err
@@ -481,9 +481,9 @@ func (proxy *PgProxy) PgDecryptStream(censor acracensor.AcraCensorInterface, dec
 				logger.Debugln("Skip decryption because length of block too small for ZoneId or AcraStruct")
 			}
 		}
-		packet.updateDataFromColumns()
+		packetHandler.updateDataFromColumns()
 		logger.Debugln("send packet")
-		if err := packet.sendPacket(); err != nil {
+		if err := packetHandler.sendPacket(); err != nil {
 			logger.WithError(err).Errorln("Can't send packet")
 			errCh <- err
 			return
