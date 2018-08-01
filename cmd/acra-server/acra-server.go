@@ -30,7 +30,6 @@ import (
 	"github.com/cossacklabs/acra/network"
 	"github.com/cossacklabs/acra/utils"
 	log "github.com/sirupsen/logrus"
-	"runtime"
 )
 
 var restartSignalsChannel chan os.Signal
@@ -362,21 +361,18 @@ func main() {
 		os.Exit(0)
 	})
 
+	go sigHandlerSIGHUP.Register()
 	log.Infof("Start listening to connections. Current PID: %v", os.Getpid())
 
 	if os.Getenv(GRACEFUL_ENV) == "true" {
-		go server.StartFromFileDescriptor(DESCRIPTOR_ACRA)
 		if *withZone || *enableHTTPAPI {
 			go server.StartCommandsFromFileDescriptor(DESCRIPTOR_API)
 		}
+		server.StartFromFileDescriptor(DESCRIPTOR_ACRA)
 	} else {
-		go server.Start()
 		if *withZone || *enableHTTPAPI {
 			go server.StartCommands()
 		}
+		server.Start()
 	}
-
-	// todo: any reason why it's so far from adding callback?
-	sigHandlerSIGHUP.Register()
-	runtime.KeepAlive(server)
 }
