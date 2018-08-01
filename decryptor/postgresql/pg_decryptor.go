@@ -144,11 +144,13 @@ func (proxy *PgProxy) PgProxyClientRequests(acraCensor acracensor.AcraCensorInte
 				return
 			}
 			n, err := clientConnection.Write(errorMessage)
-			if !base.CheckReadWriteCh(n, len(errorMessage), err, errCh) {
+			if err := base.CheckReadWrite(n, len(errorMessage), err); err != nil {
+				errCh <- err
 				return
 			}
 			n, err = clientConnection.Write(ReadyForQueryPacket)
-			if !base.CheckReadWriteCh(n, len(ReadyForQueryPacket), err, errCh) {
+			if err := base.CheckReadWrite(n, len(ReadyForQueryPacket), err); err != nil {
+				errCh <- err
 				return
 			}
 			continue
@@ -442,10 +444,8 @@ func (proxy *PgProxy) PgDecryptStream(censor acracensor.AcraCensorInterface, dec
 		for i := 0; i < packetHandler.columnCount; i++ {
 			column := packetHandler.Columns[i]
 
-			// TODO check poison record before zone matching in two modes.
-			// now zone matching executed every time
 			// try to skip small piece of data that can't be valuable for us
-			if (decryptor.IsWithZone() && column.Length() >= zone.ZoneIdBlockLength) || column.Length() >= base.KeyBlockLength {
+			if (decryptor.IsWithZone() && column.Length() >= zone.ZoneIDBlockLength) || column.Length() >= base.KeyBlockLength {
 				decryptor.Reset()
 
 				// Zone anyway should be passed as whole block

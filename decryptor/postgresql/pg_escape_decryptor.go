@@ -37,7 +37,7 @@ import (
 var (
 	EscapeTagBegin          = EncodeToOctal(base.TAG_BEGIN)
 	EscapeZoneTagLength     = zone.ZoneTagLength
-	EscapeZoneIDBlockLength = zone.ZoneIdBlockLength
+	EscapeZoneIDBlockLength = zone.ZoneIDBlockLength
 )
 
 func encodeToOctal(from, to []byte) {

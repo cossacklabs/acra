@@ -105,8 +105,8 @@ func (decryptor *MySQLDecryptor) MatchZoneInBlock(block []byte) {
 		if i == utils.NotFound {
 			break
 		} else {
-			if decryptor.keyStore.HasZonePrivateKey(block[i : i+zone.ZoneIdBlockLength]) {
-				decryptor.GetZoneMatcher().SetMatched(block[i : i+zone.ZoneIdBlockLength])
+			if decryptor.keyStore.HasZonePrivateKey(block[i : i+zone.ZoneIDBlockLength]) {
+				decryptor.GetZoneMatcher().SetMatched(block[i : i+zone.ZoneIDBlockLength])
 				return
 			}
 			block = block[i+1:]

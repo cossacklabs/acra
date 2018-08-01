@@ -38,7 +38,7 @@ var (
 	// TAG_BEGIN in hex format
 	//var HexTagBegin = []byte{56, 53, 50, 48, 102, 98}
 	HexTagBegin          = []byte(hex.EncodeToString(base.TAG_BEGIN))
-	HexZoneIDBegin       = []byte(hex.EncodeToString(zone.ZoneIdBegin))
+	HexZoneIDBegin       = []byte(hex.EncodeToString(zone.ZoneIDBegin))
 	HexZoneTagLength     = len(HexZoneIDBegin)
 	HexZoneIDLength      = hex.EncodedLen(16)
 	HexZoneIDBlockLength = int(HexZoneTagLength + HexZoneIDLength)

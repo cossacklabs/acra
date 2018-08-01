@@ -47,8 +47,8 @@ func main() {
 	acraTranslator := flag.Bool("generate_acratranslator_keys", false, "Create keypair for AcraTranslator only")
 	dataKeys := flag.Bool("generate_acrawriter_keys", false, "Create keypair for data encryption/decryption")
 	basicauth := flag.Bool("generate_acrawebconfig_keys", false, "Create symmetric key for AcraWebconfig's basic auth db")
-	outputDir := flag.String("keys_output_dir", keystore.DEFAULT_KEY_DIR_SHORT, "Folder where will be saved keys")
-	outputPublicKey := flag.String("keys_public_output_dir", keystore.DEFAULT_KEY_DIR_SHORT, "Folder where will be saved public key")
+	outputDir := flag.String("keys_output_dir", keystore.DefaultKeyDirShort, "Folder where will be saved keys")
+	outputPublicKey := flag.String("keys_public_output_dir", keystore.DefaultKeyDirShort, "Folder where will be saved public key")
 	masterKey := flag.String("generate_master_key", "", "Generate new random master key and save to file")
 
 	logging.SetLogLevel(logging.LOG_VERBOSE)
@@ -75,7 +75,7 @@ func main() {
 	symmetricKey, err := keystore.GetMasterKeyFromEnvironment()
 	if err != nil {
 		if err == keystore.ErrEmptyMasterKey {
-			log.Infof("You must pass master key via %v environment variable", keystore.ACRA_MASTER_KEY_VAR_NAME)
+			log.Infof("You must pass master key via %v environment variable", keystore.AcraMasterKeyVarName)
 			os.Exit(1)
 		}
 		log.WithError(err).Errorln("Can't load master key")

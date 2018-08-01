@@ -99,7 +99,7 @@ func (handler *SignalHandler) Register() {
 func ValidateClientID(clientID string) {
 	if !keystore.ValidateID([]byte(clientID)) {
 		log.Errorf("Invalid client ID,  %d <= len(client ID) <= %d, only digits, letters and '_', '-', ' ' characters",
-			keystore.MIN_CLIENT_ID_LENGTH, keystore.MAX_CLIENT_ID_LENGTH)
+			keystore.MinClientIdLength, keystore.MaxClientIdLength)
 		os.Exit(1)
 	}
 }

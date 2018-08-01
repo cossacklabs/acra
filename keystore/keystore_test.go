@@ -49,7 +49,7 @@ func TestValidateID(t *testing.T) {
 
 	// check that return false for chars less than allowed
 	for _, c := range []byte{'0', 'a', 'A'} {
-		incorrectID := bytes.Repeat([]byte{c - 1}, MIN_CLIENT_ID_LENGTH)
+		incorrectID := bytes.Repeat([]byte{c - 1}, MinClientIdLength)
 		if ValidateID(incorrectID) {
 			t.Errorf("Incorrect false validation. <%s> took", incorrectID)
 		}
@@ -57,7 +57,7 @@ func TestValidateID(t *testing.T) {
 
 	// check that return false for chars greater than allowed
 	for _, c := range []byte{'9', 'z', 'Z'} {
-		incorrectID := bytes.Repeat([]byte{c + 1}, MIN_CLIENT_ID_LENGTH)
+		incorrectID := bytes.Repeat([]byte{c + 1}, MinClientIdLength)
 		if ValidateID(incorrectID) {
 			t.Errorf("Incorrect false validation. <%s> took", incorrectID)
 		}
@@ -65,13 +65,13 @@ func TestValidateID(t *testing.T) {
 
 	// check that can used lowest and highest chars
 	for _, c := range []byte{'0', '9', 'a', 'A', 'z', 'Z'} {
-		correctID := bytes.Repeat([]byte{c}, MIN_CLIENT_ID_LENGTH)
+		correctID := bytes.Repeat([]byte{c}, MinClientIdLength)
 		if !ValidateID(correctID) {
 			t.Errorf("Incorrect true validation. <%s> took", correctID)
 		}
 	}
 
-	maxID := bytes.Repeat([]byte{'1'}, MAX_CLIENT_ID_LENGTH)
+	maxID := bytes.Repeat([]byte{'1'}, MaxClientIdLength)
 	if !ValidateID(maxID) {
 		t.Errorf("Incorrect true validation. <%s> took", maxID)
 	}
@@ -83,14 +83,14 @@ func TestValidateID(t *testing.T) {
 }
 
 func TestGetMasterKeyFromEnvironment(t *testing.T) {
-	if err := os.Setenv(ACRA_MASTER_KEY_VAR_NAME, ""); err != nil {
+	if err := os.Setenv(AcraMasterKeyVarName, ""); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := GetMasterKeyFromEnvironment(); err != ErrEmptyMasterKey {
 		t.Fatal("expected ErrEmptyMasterKey")
 	}
 	key := []byte("some key")
-	if err := os.Setenv(ACRA_MASTER_KEY_VAR_NAME, base64.StdEncoding.EncodeToString(key)); err != nil {
+	if err := os.Setenv(AcraMasterKeyVarName, base64.StdEncoding.EncodeToString(key)); err != nil {
 		t.Fatal(err)
 	}
 
@@ -102,7 +102,7 @@ func TestGetMasterKeyFromEnvironment(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := os.Setenv(ACRA_MASTER_KEY_VAR_NAME, base64.StdEncoding.EncodeToString(key)); err != nil {
+	if err := os.Setenv(AcraMasterKeyVarName, base64.StdEncoding.EncodeToString(key)); err != nil {
 		t.Fatal(err)
 	}
 

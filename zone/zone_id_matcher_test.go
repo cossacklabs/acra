@@ -72,7 +72,7 @@ func testZoneIDMatcher(t *testing.T) {
 	var keystorage keystore.KeyStore = &TestKeyStore{}
 	matcherPool := zone.NewMatcherPool(zone.NewPgHexMatcherFactory())
 	zoneMatcher := zone.NewZoneMatcher(matcherPool, keystorage)
-	var HEX_ZONE_ID_BEGIN = []byte(hex.EncodeToString(zone.ZoneIdBegin))
+	var HEX_ZONE_ID_BEGIN = []byte(hex.EncodeToString(zone.ZoneIDBegin))
 
 	// test correct matching
 	t.Log("Check zone id")
@@ -80,7 +80,7 @@ func testZoneIDMatcher(t *testing.T) {
 		assertZoneMatchNotFail(byte(c), zoneMatcher, t)
 	}
 	// fill zone id
-	for i := 0; i < (zone.ZoneIdLength * 2); i++ {
+	for i := 0; i < (zone.ZoneIDLength * 2); i++ {
 		assertZoneMatchNotFail('a', zoneMatcher, t)
 	}
 
@@ -97,7 +97,7 @@ func testZoneIDMatcher(t *testing.T) {
 		assertZoneMatchNotFail(byte(c), zoneMatcher, t)
 	}
 	// feed half of correct zone id
-	for i := 0; i < zone.ZoneIdLength; i++ {
+	for i := 0; i < zone.ZoneIDLength; i++ {
 		assertZoneMatchNotFail('a', zoneMatcher, t)
 	}
 
@@ -106,7 +106,7 @@ func testZoneIDMatcher(t *testing.T) {
 		assertZoneMatchNotFail(byte(c), zoneMatcher, t)
 	}
 	// feed correct zone id
-	for i := 0; i < (zone.ZoneIdLength * 2); i++ {
+	for i := 0; i < (zone.ZoneIDLength * 2); i++ {
 		assertZoneMatchNotFail('a', zoneMatcher, t)
 	}
 
