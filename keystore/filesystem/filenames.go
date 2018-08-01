@@ -14,14 +14,6 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-// Package filesystem implements keystores that write and reads keys from file system. Each keystore is responsible
-// for generating keys for specific service, writing them to provided file path, reading and decrypting them.
-// Server keystore generates AcraServer transport key pair and AcraStorage encryption keypair used for
-// creating/decrypting AcraStructs.
-// Connector keystore generates AcraConnector transport key pair.
-// Translator keystore generates AcraTranslator transport key pair.
-//
-// https://github.com/cossacklabs/acra/wiki/Key-Management
 package filesystem
 
 import (

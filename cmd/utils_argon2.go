@@ -14,7 +14,6 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-// Package cmd contains shared settings/constants among most of Acra component utilities.
 package cmd
 
 import "golang.org/x/crypto/argon2"

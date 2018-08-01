@@ -14,9 +14,6 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-// Package keystore describes various KeyStore interfaces. KeyStore is responsible for storing and accessing
-// encryption keys: both transport ans storage. Keystore abstracts from real key storage (it might be folder in
-// file system or remote KMS). Keystore is responsible for generating, reading and decrypting specific keys.
 package keystore
 
 const (

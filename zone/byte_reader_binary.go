@@ -14,17 +14,6 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-// Package zone contains AcraStruct's zone matchers and readers.
-// Zones are the way to cryptographically compartmentalise records in an already-encrypted environment.
-// Zones rely on different private keys on the server side.
-// Acra uses ZoneID identifier to identify, which key to use for decryption of a corresponding AcraStruct.
-//
-// The idea behind Zones is very simple: when we store sensitive data, it's frequently related
-// to users / companies / some other binding entities. These entities could be described through
-// some real-world identifiers, or (preferably) random identifiers, which have no computable relationship
-// to the protected data.
-//
-// https://github.com/cossacklabs/acra/wiki/Zones
 package zone
 
 // BinaryByteReader generic reader structure

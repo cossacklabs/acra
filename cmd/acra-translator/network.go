@@ -14,10 +14,6 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-// Package main is entry point for AcraTranslator service. AcraTranslator is a lightweight server that receives
-// AcraStructs and returns the decrypted data. This element of Acra is necessary in the use-cases
-// when an application stores encrypted data as separate blobs (files that are not in a database - i.e.
-// in the S3 bucket, local file storage, etc.).
 package main
 
 import (
