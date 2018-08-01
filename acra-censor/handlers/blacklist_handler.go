@@ -402,6 +402,7 @@ func starFound(selectExpression sqlparser.SelectExprs) bool {
 	sqlparser.Walk(func(node sqlparser.SQLNode) (bool, error) {
 		if _, ok := node.(*sqlparser.StarExpr); ok {
 			starDetected = true
+			return false, nil
 		}
 		return true, nil
 	}, selectExpression)
