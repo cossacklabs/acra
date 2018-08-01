@@ -1,18 +1,23 @@
-// Package base contains decryptor interface and callbacks.
-//
-// Copyright 2016, Cossack Labs Limited
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-// http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
+/*
+Copyright 2016, Cossack Labs Limited
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
+// Package base contains AcraStruct decryptor interface and callbacks. Decryptor is database-dependent object:
+// PgDecryptor reads data from PostgreSQL databases, finds AcraStructs and decrypt them,
+// MySQLDecryptor reads and decrypts AcraStruct from MySQL databases in the similar way,
+// BinaryDecryptor doesn't care about database protocol, it finds and decrypts AcraStruct from binary blobs.
 package base
 
 import (

@@ -1,16 +1,27 @@
-// Copyright 2016, Cossack Labs Limited
+/*
+Copyright 2016, Cossack Labs Limited
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
+// Package main is entry point for AcraPoisonRecordsMaker utility. AcraPoisonRecordsMaker generates poison record with
+// desired length and outputs it to console. Poison records are the records specifically designed and crafted
+// in such a way that they wouldn't be queried by a user under normal circumstances. Yet poison records will be
+// included in the outputs of SELECT * requests. Upon passing AcraServer, they will inform it of untypical behaviour.
+// The goal of using poison records is simple — to detect adversaries trying to download full tables / full database
+// from the application server or trying to run full scans in their injected queries.
 //
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-// http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
+// https://github.com/cossacklabs/acra/wiki/Intrusion-detection
 package main
 
 import (
