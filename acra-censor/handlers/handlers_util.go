@@ -4,7 +4,6 @@ import (
 	"errors"
 	"github.com/xwb1989/sqlparser"
 	"github.com/xwb1989/sqlparser/dependency/querypb"
-	"strings"
 )
 
 // Errors returned during parsing SQL queries.
@@ -13,11 +12,11 @@ var (
 	ErrQueryInBlacklist                = errors.New("query in blacklist")
 	ErrAccessToForbiddenTableBlacklist = errors.New("query tries to access forbidden table")
 	ErrAccessToForbiddenTableWhitelist = errors.New("query tries to access forbidden table")
-	ErrForbiddenSQLStructureBlacklist  = errors.New("query's structure is forbidden")
-	ErrForbiddenSQLStructureWhitelist  = errors.New("query's structure is forbidden")
-	ErrParseSQLRuleBlacklist           = errors.New("parsing security rules error")
-	ErrParseSQLRuleWhitelist           = errors.New("parsing security rules error")
+	ErrBlacklistPatternMatch           = errors.New("query's structure is forbidden")
+	ErrWhitelistPatternMismatch        = errors.New("query's structure is forbidden")
 	ErrNotImplemented                  = errors.New("not implemented yet")
+	ErrPatternSyntaxError              = errors.New("fail to parse specified pattern")
+	ErrPatternCheckError               = errors.New("failed to check specified pattern match")
 	ErrQuerySyntaxError                = errors.New("fail to parse specified query")
 	ErrComplexSerializationError       = errors.New("can't perform complex serialization of queries")
 	ErrSingleQueryCaptureError         = errors.New("can't capture single query")
@@ -32,6 +31,19 @@ const (
 	LogQueryLength = 100
 	// ValuePlaceholder used to mask real Values from SQL queries before logging to syslog.
 	ValuePlaceholder = "replaced"
+	// These constants are used to create unique SQL query that express security patterns (such patterns will be wittingly parsed correctly)
+	SelectConfigPlaceholder              = "%%SELECT%%"
+	SelectConfigPlaceholderReplacerPart1 = "SELECT"
+	SelectConfigPlaceholderReplacerPart2 = "F1F0A98E"
+	SelectConfigPlaceholderReplacer      = SelectConfigPlaceholderReplacerPart1 + " " + SelectConfigPlaceholderReplacerPart2
+	ColumnConfigPlaceholder              = "%%COLUMN%%"
+	ColumnConfigPlaceholderReplacer      = "COLUMN_A8D6EB40"
+	WhereConfigPlaceholder               = "%%WHERE%%"
+	WhereConfigPlaceholderReplacerPart1  = "WHERE"
+	WhereConfigPlaceholderReplacerPart2  = "VALUE_EF930A9B = 'VALUE_CD329E0D'"
+	WhereConfigPlaceholderReplacer       = WhereConfigPlaceholderReplacerPart1 + " " + WhereConfigPlaceholderReplacerPart2
+	ValueConfigPlaceholder               = "%%VALUE%%"
+	ValueConfigPlaceholderReplacer       = "'VALUE_AE920B7D'"
 )
 
 func removeDuplicates(input []string) []string {
@@ -44,15 +56,6 @@ func removeDuplicates(input []string) []string {
 		}
 	}
 	return result
-}
-
-func contains(queries []string, query string) (bool, int) {
-	for index, queryFromRange := range queries {
-		if strings.EqualFold(strings.ToLower(queryFromRange), strings.ToLower(query)) {
-			return true, index
-		}
-	}
-	return false, 0
 }
 
 // TrimStringToN trims query to N chars.

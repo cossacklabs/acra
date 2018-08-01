@@ -288,7 +288,7 @@ func NewClientSideDataRow(reader *acra_io.ExtendedBufferedReader, writer *bufio.
 	}, nil
 }
 
-func (proxy *PgProxy) PgProxyClientRequests(acraCensor acracensor.AcraCensorInterface, dbConnection, clientConnection net.Conn, errCh chan<- error) {
+func (proxy *PgProxy) PgProxyClientRequests(acraCensor acracensor.Interface, dbConnection, clientConnection net.Conn, errCh chan<- error) {
 	log.Debugln("Pg client proxy")
 	writer := bufio.NewWriter(dbConnection)
 
@@ -393,7 +393,7 @@ func (row *DataRow) IsSSLRequestDeny() bool {
 	return row.messageType[0] == 'N'
 }
 
-func (proxy *PgProxy) PgDecryptStream(censor acracensor.AcraCensorInterface, decryptor base.Decryptor, tlsConfig *tls.Config, dbConnection net.Conn, clientConnection net.Conn, errCh chan<- error) {
+func (proxy *PgProxy) PgDecryptStream(censor acracensor.Interface, decryptor base.Decryptor, tlsConfig *tls.Config, dbConnection net.Conn, clientConnection net.Conn, errCh chan<- error) {
 	log.Debugln("Pg db proxy")
 	writer := bufio.NewWriter(clientConnection)
 

@@ -71,7 +71,7 @@ func TestWhitelistQueries(t *testing.T) {
 		t.Fatal(err)
 	}
 	testWhitelistTables(t, acraCensor, whitelistHandler)
-	testWhitelistRules(t, acraCensor, whitelistHandler)
+	testWhitelistPatterns(t, acraCensor, whitelistHandler)
 }
 func testWhitelistTables(t *testing.T, acraCensor *AcraCensor, whitelistHandler *handlers.WhitelistHandler) {
 	var err error
@@ -123,7 +123,7 @@ func testWhitelistTables(t *testing.T, acraCensor *AcraCensor, whitelistHandler 
 		t.Fatal(err)
 	}
 }
-func testWhitelistRules(t *testing.T, acraCensor *AcraCensor, whitelistHandler *handlers.WhitelistHandler) {
+func testWhitelistPatterns(t *testing.T, acraCensor *AcraCensor, whitelistHandler *handlers.WhitelistHandler) {
 	whitelistHandler.Reset()
 	testQueries := []string{
 		"SELECT EMP_ID, LAST_NAME FROM EMPLOYEE_TBL WHERE CITY = 'Seattle' ORDER BY EMP_ID;",
@@ -138,14 +138,14 @@ func testWhitelistRules(t *testing.T, acraCensor *AcraCensor, whitelistHandler *
 		"SELECT * FROM EMPLOYEE_TBL WHERE CITY='Seattle'",
 	}
 	queryIndexesToBlock := []int{1, 2, 3, 5}
-	err := whitelistHandler.AddRules(testSecurityRules)
+	err := whitelistHandler.AddPatterns(testSecurityRules)
 	if err != nil {
 		t.Fatal(err)
 	}
 	//acracensor should block those queries
 	for _, i := range queryIndexesToBlock {
 		err := acraCensor.HandleQuery(testQueries[i])
-		if err != handlers.ErrForbiddenSQLStructureWhitelist {
+		if err != handlers.ErrWhitelistPatternMismatch {
 			t.Fatal(err)
 		}
 	}
@@ -157,15 +157,16 @@ func testWhitelistRules(t *testing.T, acraCensor *AcraCensor, whitelistHandler *
 			t.Fatal(err)
 		}
 	}
-	whitelistHandler.RemoveRules(testSecurityRules)
-	//acracensor should not block all queries
-	for _, query := range testQueries {
-		err := acraCensor.HandleQuery(query)
-		if err != nil {
-			t.Fatal(err)
-		}
-	}
+	//whitelistHandler.RemovePatterns(testSecurityRules)
+	////acracensor should not block all queries
+	//for _, query := range testQueries {
+	//	err := acraCensor.HandleQuery(query)
+	//	if err != nil {
+	//		t.Fatal(err)
+	//	}
+	//}
 }
+
 func TestBlacklistQueries(t *testing.T) {
 	var err error
 	sqlSelectQueries := []string{
@@ -241,11 +242,15 @@ func TestBlacklistQueries(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	testBlacklistTables(t, acraCensor, blacklistHandler)
-	testBlacklistRules(t, acraCensor, blacklistHandler)
 }
-func testBlacklistTables(t *testing.T, censor *AcraCensor, blacklistHandler *handlers.BlacklistHandler) {
-	blacklistHandler.Reset()
+func TestBlacklistTables(t *testing.T) {
+	var err error
+
+	censor := NewAcraCensor()
+	defer censor.ReleaseAll()
+	blacklistHandler := handlers.NewBlacklistHandler()
+	censor.AddHandler(blacklistHandler)
+
 	testQueries := []string{
 		"SELECT EMP_ID, LAST_NAME FROM EMPLOYEE_TBL WHERE CITY = 'Seattle' ORDER BY EMP_ID;",
 		"SELECT EMP_ID, LAST_NAME FROM EMPLOYEE WHERE CITY = 'Seattle' ORDER BY EMP_ID;",
@@ -273,7 +278,7 @@ func testBlacklistTables(t *testing.T, censor *AcraCensor, blacklistHandler *han
 		}
 	}
 	blacklistHandler.RemoveTables([]string{"EMPLOYEE_TBL"})
-	err := censor.HandleQuery(testQueries[0])
+	err = censor.HandleQuery(testQueries[0])
 	//acracensor should not block this query
 	if err != nil {
 		t.Fatal(err)
@@ -284,64 +289,305 @@ func testBlacklistTables(t *testing.T, censor *AcraCensor, blacklistHandler *han
 		t.Fatal(err)
 	}
 }
-func testBlacklistRules(t *testing.T, acraCensor *AcraCensor, blacklistHandler *handlers.BlacklistHandler) {
-	blacklistHandler.Reset()
-	testQueries := []string{
-		"SELECT EMP_ID, LAST_NAME FROM EMPLOYEE_TBL WHERE CITY = 'Seattle' ORDER BY EMP_ID;",
-		"SELECT EMP_ID, LAST_NAME FROM EMPLOYEE WHERE CITY = 'Seattle' ORDER BY EMP_ID;",
-		"SELECT EMP_ID, LAST_NAME FROM EMPLOYEE, EMPLOYEE_TBL WHERE CITY = 'Seattle' ORDER BY EMP_ID;",
-		"SELECT EMP_ID, LAST_NAME FROM EMPLOYEE WHERE CITY = 'INDIANAPOLIS' ORDER BY EMP_ID asc;",
-		"SELECT EMP_ID, LAST_NAME FROM EMPLOYEE_TBL AS EMPL_TBL WHERE CITY = 'Seattle' ORDER BY EMP_ID;",
+func TestBlacklistPatterns(t *testing.T) {
+	//test %%SELECT%% pattern
+	testBlacklistSelectPattern(t)
+	//test SELECT %%COLUMN%% .. %%COLUMN%% pattern
+	testBlacklistColumnsPattern(t)
+	//test SELECT a, b from t %%WHERE%% pattern
+	testBlacklistWherePattern(t)
+	//test SELECT a, b from t where ID = %%VALUE%%
+	testBlacklistValuePattern(t)
+	//test SELECT * FROM company %%WHERE%%
+	testBlacklistStarPattern(t)
+}
+
+func testBlacklistSelectPattern(t *testing.T) {
+	var err error
+
+	censor := NewAcraCensor()
+	defer censor.ReleaseAll()
+	blacklistHandler := handlers.NewBlacklistHandler()
+	censor.AddHandler(blacklistHandler)
+
+	queries := []string{
+		"SELECT EMP_ID, LAST_NAME FROM EMPLOYEE_TBL WHERE CITY = 'Seattle'",
+		"SELECT EMP_ID, LAST_NAME FROM EMPLOYEE WHERE NAME1 = 'Seattle' ORDER BY EMP_ID;",
+		"SELECT TEST_COLUMN1 FROM TEST_TABLE WHERE CITY = 'Seattle'",
+		"SELECT EMP_ID FROM EMPLOYEE, EMPLOYEE_TBL WHERE CITY = 'Seattle' ORDER BY EMP_ID;",
+		"SELECT EMP_ID, LAST_NAME FROM EMPLOYEE WHERE CITY1 = 'INDIANAPOLIS' ORDER BY EMP_ID asc;",
+		"SELECT EMP_ID, LAST_NAME FROM EMPLOYEE_TBL AS EMPL_TBL WHERE CITY2 = 'Seattle' ORDER BY EMP_ID;",
+		"select songName from t where personName in ('Ryan', 'Holly') group by songName having count(distinct personName) = 10",
+		"SELECT SUM(Salary) FROM Employee WHERE Emp_Age < 30;",
+		"SELECT AVG(Price) FROM Products;",
+		"SELECT A, B",
+		"SELECT X, Y",
+		"SELECT A",
+		"SELECT Y",
+		"INSERT SalesStaff1 VALUES (2, 'Michael', 'Blythe'), (3, 'Linda', 'Mitchell'),(4, 'Jillian', 'Carson'), (5, 'Garrett', 'Vargas');",
+		"INSERT INTO SalesStaff2 (StaffGUID, FirstName, LastName) VALUES (NEWID(), 'Stephen', 'Jiang');",
+		"INSERT INTO SalesStaff3 (StaffID, FullName) VALUES (X, 'Y');",
+		"INSERT INTO SalesStaff3 (StaffID, FullName) VALUES (X, 'Z');",
+		"INSERT INTO SalesStaff3 (StaffID, FullNameTbl) VALUES (X, M);",
+		"INSERT INTO X.Customers (CustomerName, ContactName, Address, City, PostalCode, Country) VALUES ('Cardinal', 'Tom B. Erichsen', 'Skagen 21', 'Stavanger', '4006', 'Norway');",
+		"INSERT INTO Customers (CustomerName, City, Country) VALUES ('Cardinal', 'Stavanger', 'Norway');",
+		"INSERT INTO Production (Name, UnitMeasureCode,	ModifiedDate) VALUES ('Square Yards', 'Y2', GETDATE());",
+		"INSERT INTO T1 (Name, UnitMeasureCode,	ModifiedDate) VALUES ('Square Yards', 'Y2', GETDATE());",
+		"INSERT INTO dbo.Points (Type, PointValue) VALUES ('Point', '1,5');",
+		"INSERT INTO dbo.Points (PointValue) VALUES ('1,99');",
 	}
-	//acracensor should block all queries that try to access to information in table EMPLOYEE_TBL related to Seattle city
-	testSecurityRules := []string{
-		"SELECT * FROM EMPLOYEE_TBL WHERE CITY='Seattle'",
-	}
-	queryIndexesToBlock := []int{0, 2, 4}
-	err := blacklistHandler.AddRules(testSecurityRules)
+	blacklistPattern := "%%SELECT%%"
+	err = blacklistHandler.AddPatterns([]string{blacklistPattern})
 	if err != nil {
 		t.Fatal(err)
 	}
-	//acracensor should block those queries
-	for _, i := range queryIndexesToBlock {
-		err := acraCensor.HandleQuery(testQueries[i])
-		if err != handlers.ErrForbiddenSQLStructureBlacklist {
-			t.Fatal(err)
-		}
-	}
-	queryIndexesToPass := []int{1, 3}
-	//acracensor should not block those queries
-	for _, i := range queryIndexesToPass {
-		err := acraCensor.HandleQuery(testQueries[i])
-		if err != nil {
-			t.Fatal(err)
-		}
-	}
-	blacklistHandler.RemoveRules(testSecurityRules)
-	//acracensor should not block all queries
-	for _, query := range testQueries {
-		err := acraCensor.HandleQuery(query)
-		if err != nil {
-			t.Fatal(err)
-		}
-	}
-	testSecurityRules = []string{
-		"SELECT * FROM EMPLOYEE_TBL, EMPLOYEE WHERE CITY='Seattle'",
-		"SELECT * FROM EMPLOYEE_TBL, EMPLOYEE WHERE CITY='INDIANAPOLIS'",
-	}
-	blacklistHandler.Reset()
-	err = blacklistHandler.AddRules(testSecurityRules)
-	if err != nil {
-		t.Fatal(err)
-	}
-	//acracensor should block all queries
-	for _, query := range testQueries {
-		err := acraCensor.HandleQuery(query)
-		if err != handlers.ErrForbiddenSQLStructureBlacklist {
-			t.Fatal(err)
+	const SelectQueryCount = 12
+	//Queries that should be blocked by first pattern have indexes: [0 .. 12] (all select queries)
+	for i, query := range queries {
+		err := censor.HandleQuery(query)
+		if i <= SelectQueryCount {
+			if err != handlers.ErrBlacklistPatternMatch {
+				t.Fatal("Blacklist pattern passed query. \nPattern: ", blacklistPattern+"\nQuery: ", queries[i])
+			}
+		} else {
+			if err != nil {
+				t.Fatal(err, "\nPattern"+blacklistPattern, "\nQuery"+queries[i])
+			}
 		}
 	}
 }
+func testBlacklistColumnsPattern(t *testing.T) {
+	var err error
+
+	censor := NewAcraCensor()
+	defer censor.ReleaseAll()
+	blacklistHandler := handlers.NewBlacklistHandler()
+	censor.AddHandler(blacklistHandler)
+
+	blacklistPattern := "SELECT %%COLUMN%%, %%COLUMN%%"
+	err = blacklistHandler.AddPatterns([]string{blacklistPattern})
+	if err != nil {
+		t.Fatal(err)
+	}
+	acceptableQueries := []string{
+		"SELECT A",
+		"SELECT A, B, C",
+		"SELECT A, B, C, D",
+	}
+	blockableQueries := []string{
+		"SELECT A, B",
+		"SELECT X1, X2",
+		"SELECT col1, col2",
+	}
+	for _, query := range acceptableQueries {
+		err = censor.HandleQuery(query)
+		if err != nil {
+			t.Fatal(err, "\nPattern: "+blacklistPattern, "\nQuery: "+query)
+		}
+	}
+	for _, query := range blockableQueries {
+		err = censor.HandleQuery(query)
+		if err != handlers.ErrBlacklistPatternMatch {
+			t.Fatal("Blacklist pattern passed query. \nPattern: ", blacklistPattern, "\nQuery: ", query)
+		}
+	}
+
+	blacklistHandler.Reset()
+	blacklistPattern = "SELECT A, %%COLUMN%% FROM testTable"
+	err = blacklistHandler.AddPatterns([]string{blacklistPattern})
+	if err != nil {
+		t.Fatal(err)
+	}
+	acceptableQueries = []string{
+		"SELECT A FROM testTable",
+		"SELECT B, A FROM testTable",
+		"SELECT A, B, C FROM testTable",
+		"SELECT A, B, C, D FROM testTable",
+	}
+	blockableQueries = []string{
+		"SELECT A, B FROM testTable",
+		"SELECT A, X2 FROM testTable",
+		"SELECT A, col2 FROM testTable",
+	}
+	for _, query := range acceptableQueries {
+		err = censor.HandleQuery(query)
+		if err != nil {
+			t.Fatal(err, "\nPattern: "+blacklistPattern, "\nQuery: "+query)
+		}
+	}
+	for _, query := range blockableQueries {
+		err = censor.HandleQuery(query)
+		if err != handlers.ErrBlacklistPatternMatch {
+			t.Fatal("Blacklist pattern passed query. \nPattern: ", blacklistPattern, "\nQuery: ", query)
+		}
+	}
+
+	blacklistPattern = "SELECT %%COLUMN%%, B FROM testTable"
+	err = blacklistHandler.AddPatterns([]string{blacklistPattern})
+	if err != nil {
+		t.Fatal(err)
+	}
+	acceptableQueries = []string{
+		"SELECT A FROM testTable",
+		"SELECT B, A FROM testTable",
+		"SELECT A, B, C FROM testTable",
+		"SELECT A, B, C, D FROM testTable",
+	}
+	blockableQueries = []string{
+		"SELECT A, B FROM testTable",
+		"SELECT X2, B FROM testTable",
+		"SELECT col2, B FROM testTable",
+	}
+	for _, query := range acceptableQueries {
+		err = censor.HandleQuery(query)
+		if err != nil {
+			t.Fatal(err, "\nPattern: "+blacklistPattern, "\nQuery: "+query)
+		}
+	}
+	for _, query := range blockableQueries {
+		err = censor.HandleQuery(query)
+		if err != handlers.ErrBlacklistPatternMatch {
+			t.Fatal("Blacklist pattern passed query. \nPattern: ", blacklistPattern, "\nQuery: ", query)
+		}
+	}
+
+}
+func testBlacklistWherePattern(t *testing.T) {
+	var err error
+
+	censor := NewAcraCensor()
+	defer censor.ReleaseAll()
+	blacklistHandler := handlers.NewBlacklistHandler()
+	censor.AddHandler(blacklistHandler)
+
+	blacklistPattern := "SELECT a, b, c FROM z %%WHERE%%"
+	err = blacklistHandler.AddPatterns([]string{blacklistPattern})
+	if err != nil {
+		t.Fatal(err)
+	}
+	acceptableQueries := []string{
+		"SELECT a, b, c FROM x WHERE a = 'someValue'",
+		"SELECT a, b, c FROM y WHERE a = 'someValue'",
+		"SELECT a, b FROM z WHERE a = 'someValue'",
+		"SELECT a, b, c FROM x WHERE a = 'someValue' and b = 48 or c between 10 and 50",
+	}
+	blockableQueries := []string{
+		"SELECT a, b, c FROM z WHERE a = 'someValue'",
+		"SELECT a, b, c FROM z WHERE a = b",
+		"SELECT a, b, c FROM z WHERE a < b",
+		"SELECT a, b, c FROM z WHERE a = 'someValue' and b = 2 or c between 20 and 30",
+	}
+	for _, query := range acceptableQueries {
+		err = censor.HandleQuery(query)
+		if err != nil {
+			t.Fatal(err, "\nPattern: "+blacklistPattern, "\nQuery: "+query)
+		}
+	}
+	for _, query := range blockableQueries {
+		err = censor.HandleQuery(query)
+		if err != handlers.ErrBlacklistPatternMatch {
+			t.Fatal("Blacklist pattern passed query. \nPattern: ", blacklistPattern, "\nQuery: ", query)
+		}
+	}
+}
+func testBlacklistValuePattern(t *testing.T) {
+	var err error
+
+	censor := NewAcraCensor()
+	defer censor.ReleaseAll()
+	blacklistHandler := handlers.NewBlacklistHandler()
+	censor.AddHandler(blacklistHandler)
+
+	blacklistPattern := "SELECT a, b from t where ID = %%VALUE%%"
+	err = blacklistHandler.AddPatterns([]string{blacklistPattern})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	acceptableQueries := []string{
+		"SELECT a, b FROM t WHERE someParameter = 'someValue208934278935789'",
+		"SELECT a, b, c FROM y WHERE a = 'someValue'",
+		"SELECT a, b FROM z WHERE a = 'someValue'",
+		"SELECT a, b FROM t WHERE NonID = 'someValue'",
+	}
+	blockableQueries := []string{
+		"SELECT a, b FROM t WHERE ID = 'someValue_testValue_1234567890'",
+		"SELECT a, b FROM t WHERE ID = 'someValue'",
+	}
+	for _, query := range acceptableQueries {
+		err = censor.HandleQuery(query)
+		if err != nil {
+			t.Fatal(err, "\nPattern: "+blacklistPattern, "\nQuery: "+query)
+		}
+	}
+	for _, query := range blockableQueries {
+		err = censor.HandleQuery(query)
+		if err != handlers.ErrBlacklistPatternMatch {
+			t.Fatal("Blacklist pattern passed query. \nPattern: ", blacklistPattern, "\nQuery: ", query)
+		}
+	}
+}
+func testBlacklistStarPattern(t *testing.T) {
+	var err error
+
+	censor := NewAcraCensor()
+	defer censor.ReleaseAll()
+	blacklistHandler := handlers.NewBlacklistHandler()
+	censor.AddHandler(blacklistHandler)
+
+	blacklistPattern := "SELECT * from company %%WHERE%%"
+	err = blacklistHandler.AddPatterns([]string{blacklistPattern})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	acceptableQueries := []string{
+		"SELECT * FROM testTable WHERE someParameter = 'someValue208934278935789'",
+		"SELECT a, b, c FROM x WHERE a = 'someValue'",
+		"SELECT * FROM z WHERE a = 'someValue'",
+		"SELECT a, b FROM t WHERE NonID = 'someValue'",
+		"SELECT a, b FROM company1 WHERE ID = 'someValue_testValue_1234567890'",
+		"SELECT a, b FROM company2 WHERE ID = 'someValue'",
+		"SELECT * FROM company3 WHERE AGE IS NOT NULL",
+		"SELECT * FROM company4 WHERE AGE IS NULL",
+		"SELECT * FROM company5 WHERE AGE >= 25",
+		"SELECT * FROM company6 WHERE AGE BETWEEN 25 AND 65000",
+		"SELECT * FROM company7 WHERE NAME LIKE 'Pa%'",
+		"SELECT * FROM company8 WHERE AGE IN ( 25, 27 )",
+		"SELECT * FROM company9 WHERE AGE NOT IN ( 25, 27 )",
+		"SELECT * FROM company10 WHERE AGE > (SELECT AGE FROM company10 WHERE SALARY > 65000)",
+		"SELECT age FROM company11 WHERE EXISTS (SELECT AGE FROM company11 WHERE SALARY > 65000)",
+		"SELECT age FROM company11 WHERE EXISTS (SELECT AGE FROM company WHERE SALARY > 65000)",
+		"SELECT age FROM company11 WHERE A=(SELECT AGE FROM company WHERE SALARY > 65000 limit 1) and B=(SELECT AGE FROM company123 WHERE SALARY > 65000 limit 1)",
+		"SELECT * FROM another_table INNER JOIN (SELECT * FROM company WHERE id = 1) AS t ON t.id=another_table.id WHERE AGE NOT IN (25, 27)",
+	}
+	blockableQueries := []string{
+		"SELECT a, b FROM company WHERE ID = 'someValue_testValue_1234567890'",
+		"SELECT a, b FROM company WHERE ID = 'someValue'",
+		"SELECT * FROM company WHERE AGE IS NOT NULL",
+		"SELECT * FROM company WHERE AGE IS NULL",
+		"SELECT * FROM company WHERE AGE >= 25",
+		"SELECT * FROM company WHERE AGE BETWEEN 25 AND 65000",
+		"SELECT * FROM company WHERE NAME LIKE 'Pa%'",
+		"SELECT * FROM company WHERE AGE IN ( 25, 27 )",
+		"SELECT * FROM company WHERE AGE NOT IN ( 25, 27 )",
+		"SELECT * FROM company WHERE AGE > (SELECT AGE FROM company WHERE SALARY > 65000)",
+		"SELECT age FROM company WHERE EXISTS (SELECT age FROM company WHERE SALARY > 65000)",
+	}
+	for _, query := range acceptableQueries {
+		err = censor.HandleQuery(query)
+		if err != nil {
+			t.Fatal(err, "\nPattern: "+blacklistPattern, "\nQuery: "+query)
+		}
+	}
+	for _, query := range blockableQueries {
+		err = censor.HandleQuery(query)
+		if err != handlers.ErrBlacklistPatternMatch {
+			t.Fatal("Blacklist pattern passed query. \nPattern: ", blacklistPattern, "\nQuery: ", query)
+		}
+	}
+}
+
 func TestQueryIgnoring(t *testing.T) {
 	var err error
 	testQueries := []string{
@@ -645,12 +891,12 @@ func TestQueryCapture(t *testing.T) {
 	}
 }
 func TestConfigurationProvider(t *testing.T) {
-	var DEFAULT_CONFIG_PATH = utils.GetConfigPathByName("acra-censor.example")
+	var defaultConfigPath = utils.GetConfigPathByName("acra-censor.example")
 	filePath, err := os.Getwd()
 	if err != nil {
 		t.Fatal(err)
 	}
-	configuration, err := ioutil.ReadFile(filepath.Join(filePath, "../", DEFAULT_CONFIG_PATH))
+	configuration, err := ioutil.ReadFile(filepath.Join(filePath, "../", defaultConfigPath))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -696,12 +942,12 @@ func TestConfigurationProvider(t *testing.T) {
 	}
 	testQueries = []string{
 		"SELECT EMP_ID, LAST_NAME FROM EMPLOYEE WHERE CITY = 'Seattle' ORDER BY EMP_ID;",
-		"SELECT EMP_ID, LAST_NAME FROM EMPLOYEE AS EMPL WHERE CITY = 'Seattle' ORDER BY EMP_ID;",
+		//"SELECT EMP_ID, LAST_NAME FROM EMPLOYEE AS EMPL WHERE CITY = 'Seattle' ORDER BY EMP_ID;",
 	}
 	//acracensor should block those structures
 	for _, queryToBlock := range testQueries {
 		err = acraCensor.HandleQuery(queryToBlock)
-		if err != handlers.ErrForbiddenSQLStructureBlacklist {
+		if err != handlers.ErrBlacklistPatternMatch {
 			t.Fatal(err)
 		}
 	}
@@ -737,11 +983,11 @@ func testSyntax(t *testing.T) {
     tables:
       - EMPLOYEE_TBL
       - Customers
-    rules:
+    patterns:
       - SELECT * ROM EMPLOYEE WHERE CITY='Seattle';`
 
 	err = acraCensor.LoadConfiguration([]byte(configuration))
-	if err != handlers.ErrQuerySyntaxError {
+	if err != handlers.ErrPatternSyntaxError {
 		t.Fatal(err)
 	}
 }
@@ -775,7 +1021,6 @@ func TestDifferentTablesParsing(t *testing.T) {
 		t.Fatal(err)
 	}
 }
-
 func TestIgnoringQueryParseErrors(t *testing.T) {
 	queriesWithSyntaxErrors := []string{
 		"Insert into something",
