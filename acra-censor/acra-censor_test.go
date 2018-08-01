@@ -166,6 +166,7 @@ func testWhitelistPatterns(t *testing.T, acraCensor *AcraCensor, whitelistHandle
 	//	}
 	//}
 }
+
 func TestBlacklistQueries(t *testing.T) {
 	var err error
 	sqlSelectQueries := []string{
@@ -288,7 +289,6 @@ func TestBlacklistTables(t *testing.T) {
 		t.Fatal(err)
 	}
 }
-
 func TestBlacklistPatterns(t *testing.T) {
 	//test %%SELECT%% pattern
 	testBlacklistSelectPattern(t)
