@@ -27,8 +27,8 @@ func NewWhitelistHandler() *WhitelistHandler {
 	return handler
 }
 
-// CheckQuery checks each query, returns false and error if query is not whitelisted or
-// if query tries to access to non-whitelisted table
+//CheckQuery checks each query, returns false and error if query is not whitelisted or
+//if query tries to access to non-whitelisted table
 func (handler *WhitelistHandler) CheckQuery(query string) (bool, error) {
 	//Check queries
 	if len(handler.queries) != 0 {

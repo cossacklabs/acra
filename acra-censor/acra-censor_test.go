@@ -891,12 +891,12 @@ func TestQueryCapture(t *testing.T) {
 	}
 }
 func TestConfigurationProvider(t *testing.T) {
-	var DEFAULT_CONFIG_PATH = utils.GetConfigPathByName("acra-censor.example")
+	var defaultConfigPath = utils.GetConfigPathByName("acra-censor.example")
 	filePath, err := os.Getwd()
 	if err != nil {
 		t.Fatal(err)
 	}
-	configuration, err := ioutil.ReadFile(filepath.Join(filePath, "../", DEFAULT_CONFIG_PATH))
+	configuration, err := ioutil.ReadFile(filepath.Join(filePath, "../", defaultConfigPath))
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -27,8 +27,8 @@ func NewBlacklistHandler() *BlacklistHandler {
 	return handler
 }
 
-// CheckQuery checks each query, returns false and error if query is blacklisted or
-// if query tries to access to forbidden table
+//CheckQuery checks each query, returns false and error if query is blacklisted or
+//if query tries to access to forbidden table
 func (handler *BlacklistHandler) CheckQuery(query string) (bool, error) {
 	//Check queries
 	if len(handler.queries) != 0 {

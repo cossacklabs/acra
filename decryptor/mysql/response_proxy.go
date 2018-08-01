@@ -150,7 +150,7 @@ type MysqlHandler struct {
 	// clientDeprecateEOF  if false then expect EOF on response result as terminator otherwise not
 	clientDeprecateEOF     bool
 	decryptor              base.Decryptor
-	acracensor             acracensor.AcraCensorInterface
+	acracensor             acracensor.Interface
 	isTLSHandshake         bool
 	dbTLSHandshakeFinished chan bool
 	clientConnection       net.Conn
@@ -161,7 +161,7 @@ type MysqlHandler struct {
 }
 
 // NewMysqlHandler returns new MysqlHandler
-func NewMysqlHandler(clientID []byte, decryptor base.Decryptor, dbConnection, clientConnection net.Conn, tlsConfig *tls.Config, censor acracensor.AcraCensorInterface) (*MysqlHandler, error) {
+func NewMysqlHandler(clientID []byte, decryptor base.Decryptor, dbConnection, clientConnection net.Conn, tlsConfig *tls.Config, censor acracensor.Interface) (*MysqlHandler, error) {
 	return &MysqlHandler{
 		isTLSHandshake:         false,
 		dbTLSHandshakeFinished: make(chan bool),
