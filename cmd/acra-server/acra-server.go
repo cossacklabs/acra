@@ -40,6 +40,7 @@ import (
 	"syscall"
 	"time"
 
+	"fmt"
 	"github.com/cossacklabs/acra/cmd"
 	"github.com/cossacklabs/acra/keystore"
 	"github.com/cossacklabs/acra/keystore/filesystem"
@@ -47,6 +48,7 @@ import (
 	"github.com/cossacklabs/acra/network"
 	"github.com/cossacklabs/acra/utils"
 	log "github.com/sirupsen/logrus"
+	"io/ioutil"
 )
 
 var restartSignalsChannel chan os.Signal
@@ -378,18 +380,20 @@ func main() {
 		os.Exit(0)
 	})
 
-	go sigHandlerSIGHUP.Register()
 	log.Infof("Start listening to connections. Current PID: %v", os.Getpid())
 
 	if os.Getenv(GRACEFUL_ENV) == "true" {
 		if *withZone || *enableHTTPAPI {
 			go server.StartCommandsFromFileDescriptor(DESCRIPTOR_API)
 		}
-		server.StartFromFileDescriptor(DESCRIPTOR_ACRA)
+		go server.StartFromFileDescriptor(DESCRIPTOR_ACRA)
 	} else {
 		if *withZone || *enableHTTPAPI {
 			go server.StartCommands()
 		}
-		server.Start()
+		go server.Start()
 	}
+	sigHandlerSIGHUP.Register()
+	// use server variable to avoid free by golang gc as unused variable
+	fmt.Fprint(ioutil.Discard, server)
 }
