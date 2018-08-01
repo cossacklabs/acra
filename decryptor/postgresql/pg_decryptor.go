@@ -28,7 +28,6 @@ import (
 
 	"github.com/cossacklabs/acra/acra-censor"
 	"github.com/cossacklabs/acra/decryptor/base"
-	acra_io "github.com/cossacklabs/acra/io"
 	"github.com/cossacklabs/acra/logging"
 	"github.com/cossacklabs/acra/network"
 	"github.com/cossacklabs/acra/utils"
@@ -100,7 +99,7 @@ func (proxy *PgProxy) PgProxyClientRequests(acraCensor acracensor.AcraCensorInte
 	logger.Debugln("Pg client proxy")
 	writer := bufio.NewWriter(dbConnection)
 
-	reader := acra_io.NewExtendedBufferedReader(bufio.NewReader(clientConnection))
+	reader := bufio.NewReader(clientConnection)
 	packet, err := NewClientSidePacketHandler(reader, writer)
 	if err != nil {
 		logger.WithError(err).Errorln("Can't initialize DataRow object")
@@ -350,7 +349,7 @@ func (proxy *PgProxy) PgDecryptStream(censor acracensor.AcraCensorInterface, dec
 	// use buffered writer because we generate response by parts
 	writer := bufio.NewWriter(clientConnection)
 
-	reader := acra_io.NewExtendedBufferedReader(bufio.NewReader(dbConnection))
+	reader := bufio.NewReader(dbConnection)
 	packetHandler, err := NewDbSidePacketHandler(reader, writer)
 	if err != nil {
 		errCh <- err
@@ -385,7 +384,7 @@ func (proxy *PgProxy) PgDecryptStream(censor acracensor.AcraCensorInterface, dec
 				}
 				// restart proxing client's requests
 				go proxy.PgProxyClientRequests(censor, dbTLSConnection, tlsClientConnection, errCh)
-				reader = acra_io.NewExtendedBufferedReader(bufio.NewReader(dbTLSConnection))
+				reader = bufio.NewReader(dbTLSConnection)
 				writer = bufio.NewWriter(tlsClientConnection)
 				firstByte = true
 

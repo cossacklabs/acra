@@ -6,7 +6,6 @@ import (
 	"encoding/binary"
 	"errors"
 	"github.com/cossacklabs/acra/decryptor/base"
-	acra_io "github.com/cossacklabs/acra/io"
 	"github.com/sirupsen/logrus"
 	"io"
 )
@@ -21,14 +20,14 @@ type PacketHandler struct {
 
 	columnCount int
 	dataLength  int
-	reader      *acra_io.ExtendedBufferedReader
+	reader      io.Reader
 	writer      *bufio.Writer
 	logger      *logrus.Entry
 	Columns     []*ColumnData
 }
 
 // NewClientSidePacketHandler return new PacketHandler with initialized own logger for client's packets
-func NewClientSidePacketHandler(reader *acra_io.ExtendedBufferedReader, writer *bufio.Writer) (*PacketHandler, error) {
+func NewClientSidePacketHandler(reader io.Reader, writer *bufio.Writer) (*PacketHandler, error) {
 	return &PacketHandler{
 		descriptionBuf:       bytes.NewBuffer(make([]byte, OutputDefaultSize)),
 		descriptionLengthBuf: make([]byte, 4),
@@ -39,7 +38,7 @@ func NewClientSidePacketHandler(reader *acra_io.ExtendedBufferedReader, writer *
 }
 
 // NewClientSidePacketHandler return new PacketHandler with initialized own logger for databases's packets
-func NewDbSidePacketHandler(reader *acra_io.ExtendedBufferedReader, writer *bufio.Writer) (*PacketHandler, error) {
+func NewDbSidePacketHandler(reader io.Reader, writer *bufio.Writer) (*PacketHandler, error) {
 	return &PacketHandler{
 		descriptionBuf:       bytes.NewBuffer(make([]byte, OutputDefaultSize)),
 		descriptionLengthBuf: make([]byte, 4),
