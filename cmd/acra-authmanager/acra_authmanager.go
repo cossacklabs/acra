@@ -1,17 +1,23 @@
-// Copyright 2018, Cossack Labs Limited
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-// http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
+/*
+Copyright 2018, Cossack Labs Limited
 
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
+// Package main is entry point for AcraAuthManager. AcraAuthManager is part of AcraWebconfig HTTP server.
+// AcraAuthManager allows to generate users/passwords for accessing AcraWebconfig and updating config of AcraServer.
+//
+// https://github.com/cossacklabs/acra/wiki/AcraWebConfig
 package main
 
 import (
@@ -33,7 +39,7 @@ import (
 // HashedPasswords stores username:hashed_password map
 type HashedPasswords map[string]string
 
-// Constants used by AcraAuthmanager
+// Constants used by AcraAuthManager
 var (
 	DEFAULT_CONFIG_PATH = utils.GetConfigPathByName("acra-authmanager")
 	SERVICE_NAME        = "acra-authmanager"
