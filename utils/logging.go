@@ -14,7 +14,6 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-// Package utils contains various bits and pieces useful as helping functions all over the code.
 package utils
 
 import "fmt"

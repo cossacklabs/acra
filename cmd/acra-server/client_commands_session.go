@@ -14,20 +14,6 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-// Package main is entry point for AcraServer utility. AcraServer is the server responsible for decrypting all
-// the database responses and forwarding them back to clients. AcraServer waits to connection from AcraConnector.
-// When the first AcraConnector connection arrives, AcraServer initialises secure communication via TLS or
-// Themis Secure Session. After a successful initialisation of the session, AcraServer creates a database connection
-// and starts forwarding all the requests coming from AcraConnector into the database.
-// Every incoming request to AcraServer is passed through AcraCensor (Acra's firewall). AcraCensor will pass allowed
-// queries and return error on forbidden ones.
-// Upon receiving the answer, AcraServer attempts to unpack the AcraStruct and to decrypt the payload. After that,
-// AcraServer will replace the AcraStruct with the decrypted payload, change the packet's length, and return
-// the answer to the application via AcraConnector.
-// If AcraServer detects a poison record within the AcraStruct's decryption stream, AcraServer will either
-// shut down the decryption, run an alarm script, or do both, depending on the pre-set parameters.
-//
-// https://github.com/cossacklabs/acra/wiki/How-AcraServer-works
 package main
 
 import (

@@ -14,9 +14,6 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-// Package network contains network utilities for wrapping net.Conn into Themis SecureSession,
-// or TLS wrapper, or provide unified interface for raw connection.
-// ConnectionWrappers are used in most Acra components.
 package network
 
 import "net"
