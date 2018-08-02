@@ -175,7 +175,7 @@ func main() {
 	user := flag.String("user", "", "User")
 	password := flag.String("password", "", "Password")
 	filePath := flag.String("file", cmd.DEFAULT_ACRA_AUTH_PATH, "Auth file")
-	keysDir := flag.String("keys_dir", keystore.DEFAULT_KEY_DIR_SHORT, "Folder from which will be loaded keys")
+	keysDir := flag.String("keys_dir", keystore.DefaultKeyDirShort, "Folder from which will be loaded keys")
 	debug := flag.Bool("d", false, "Turn on debug logging")
 
 	if err := cmd.Parse(DEFAULT_CONFIG_PATH, SERVICE_NAME); err != nil {

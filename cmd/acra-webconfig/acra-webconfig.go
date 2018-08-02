@@ -134,7 +134,7 @@ type ConfigAcraServer struct {
 
 // SubmitSettings updates AcraServer configuration from HTTP request
 func SubmitSettings(w http.ResponseWriter, r *http.Request) {
-	log.Debugf("SubmitSettings request %v", r)
+	log.Debugln("SubmitSettings request")
 	if r.Method != "POST" {
 		log.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorRequestMethodNotAllowed).
 			Errorln("Invalid request method")
@@ -213,7 +213,7 @@ func parseTemplate(staticPath string) (err error) {
 }
 
 func index(w http.ResponseWriter, r *http.Request) {
-	log.Debugf("Index request %v", r)
+	log.Debugln("Index request")
 	w.Header().Set("Content-Security-Policy", "require-sri-for script style")
 
 	// get current config

@@ -17,8 +17,8 @@ limitations under the License.
 package utils
 
 const (
-	// SLASH_CHAR ASCII code
-	SLASH_CHAR = 92
+	// SlashChar ASCII code
+	SlashChar = 92
 )
 
 // IsPrintableEscapeChar returns true if character is ASCII printable (code between 32 and 126)

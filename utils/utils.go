@@ -177,8 +177,8 @@ func FileExists(path string) (bool, error) {
 }
 
 const (
-	// NOT_FOUND indicated not found symbol
-	NOT_FOUND = -1
+	// NotFound indicated not found symbol
+	NotFound = -1
 )
 
 // Min returns minimum integer out of two
@@ -193,7 +193,7 @@ func Min(x, y int) int {
 // return -1 if not found
 func FindTag(symbol byte, count int, block []byte) int {
 	if len(block) < count {
-		return NOT_FOUND
+		return NotFound
 	}
 	halfCount := count / 2
 	tag := make([]byte, halfCount)
@@ -225,7 +225,7 @@ func FindTag(symbol byte, count int, block []byte) int {
 			}
 		}
 	}
-	return NOT_FOUND
+	return NotFound
 }
 
 // GetConfigPathByName returns filepath to config file named "name" from default configs folder

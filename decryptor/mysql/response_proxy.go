@@ -37,8 +37,8 @@ const (
 	// each packet splits into packets of this size
 	MaxPayloadLen int = 1<<24 - 1
 
-	// CLIENT_WAIT_DB_TLS_HANDSHAKE shows max time to wait for database TLS handshake
-	CLIENT_WAIT_DB_TLS_HANDSHAKE = 5
+	// ClientWaitDbTLSHandshake shows max time to wait for database TLS handshake
+	ClientWaitDbTLSHandshake = 5
 )
 
 // Possible commands
@@ -129,13 +129,6 @@ const (
 	PART_KEY_FLAG       = 16384
 	GROUP_FLAG          = 32768
 	UNIQUE_FLAG         = 65536
-)
-
-// TLS modes
-const (
-	TLS_NONE = iota
-	TLS_CLIENT_SWITCH
-	TLS_DB_COMPLETE
 )
 
 // IsBinaryColumn returns if column is binary data
@@ -258,7 +251,7 @@ func (handler *MysqlHandler) ClientToDbConnector(errCh chan<- error) {
 				case <-handler.dbTLSHandshakeFinished:
 					handler.logger.Debugln("Switch to tls complete on client proxy side")
 					continue
-				case <-time.NewTicker(time.Second * CLIENT_WAIT_DB_TLS_HANDSHAKE).C:
+				case <-time.NewTicker(time.Second * ClientWaitDbTLSHandshake).C:
 					clientLog.Errorln("Timeout on tls handshake with db")
 					errCh <- errors.New("handshake timeout")
 					return
@@ -373,11 +366,11 @@ func (handler *MysqlHandler) processBinaryDataRow(rowData []byte, fields []*Colu
 
 	handler.logger.Debugln("Process data rows in binary protocol")
 	// no data in response
-	if rowData[0] == EOF_PACKET {
+	if rowData[0] == EOFPacket {
 		return rowData, nil
 	}
 
-	if rowData[0] != OK_PACKET {
+	if rowData[0] != OkPacket {
 		return nil, ErrMalformPacket
 	}
 
@@ -498,7 +491,7 @@ func (handler *MysqlHandler) QueryResponseHandler(packet *MysqlPacket, dbConnect
 	// https://dev.mysql.com/doc/internals/en/com-query-response.html#text-resultset
 	fieldCount := int(packet.GetData()[0])
 	output := []Dumper{packet}
-	if fieldCount != ERR_PACKET && fieldCount > 0 {
+	if fieldCount != ErrPacket && fieldCount > 0 {
 		handler.logger.Debugln("Read column descriptions")
 		for i := 0; ; i++ {
 			handler.logger.WithField("column_index", i).Debugln("Read column description")
@@ -543,7 +536,7 @@ func (handler *MysqlHandler) QueryResponseHandler(packet *MysqlPacket, dbConnect
 					return err
 				}
 				output = append(output, fieldDataPacket)
-				if fieldDataPacket.data[0] == EOF_PACKET {
+				if fieldDataPacket.data[0] == EOFPacket {
 					break
 				}
 				newData, err := handler.processBinaryDataRow(fieldDataPacket.GetData(), fields)

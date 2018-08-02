@@ -142,6 +142,7 @@ def stop_process(process):
     # send signal to each. they can handle it asynchronously
     for p in process:
         try:
+            logger.info("terminate pid {}".format(p.pid))
             p.terminate()
         except:
             traceback.print_exc()
@@ -154,6 +155,7 @@ def stop_process(process):
         except:
             traceback.print_exc()
         try:
+            logger.info("kill pid {}".format(p.pid))
             p.kill()
         except:
             traceback.print_exc()
@@ -278,7 +280,7 @@ def acra_api_connection_string(port):
 
 
 
-DEFAULT_VERSION = '1.5.0'
+DEFAULT_VERSION = '1.8.0'
 DEFAULT_BUILD_ARGS = []
 ACRAROLLBACK_MIN_VERSION = "1.8.0"
 Binary = collections.namedtuple(
@@ -551,6 +553,7 @@ class BaseTestCase(unittest.TestCase):
             except:
                 stop_process(process)
                 raise
+        logging.info("fork connector finished [pid={}]".format(process.pid))
         return process
 
     def get_acraserver_connection_string(self, port=None):
@@ -629,6 +632,7 @@ class BaseTestCase(unittest.TestCase):
         except:
             stop_process(process)
             raise
+        logging.info("fork acra finished [pid={}]".format(process.pid))
         return process
 
     def fork_acra(self, popen_kwargs: dict=None, **acra_kwargs: dict):
@@ -1363,7 +1367,7 @@ class TestShutdownPoisonRecordWithZone(TestPoisonRecordShutdown):
     ZONE = True
     WHOLECELL_MODE = False
     SHUTDOWN = True
-
+    
     def testShutdown(self):
         """check callback with select by id and zone"""
         row_id = self.get_random_id()
@@ -1385,8 +1389,7 @@ class TestShutdownPoisonRecordWithZone(TestPoisonRecordShutdown):
             {'id': row_id, 'data': get_poison_record(), 'raw_data': 'poison_record'})
         with self.assertRaises(DatabaseError):
             result = self.engine1.execute(
-                sa.select([test_table])
-                    .where(test_table.c.id == row_id))
+                sa.select([test_table]).where(test_table.c.id == row_id))
             print(result.fetchall())
 
     def testShutdown3(self):
@@ -1403,7 +1406,9 @@ class TestShutdownPoisonRecordWithZone(TestPoisonRecordShutdown):
     def testShutdown4(self):
         """check working poison record callback on full select inside another data"""
         row_id = self.get_random_id()
-        data = os.urandom(100) + get_poison_record() + os.urandom(100)
+        begin_tag = poison_record[:4]
+        # test with extra long begin tag
+        data = os.urandom(100) + begin_tag + poison_record + os.urandom(100)
         self.log(POISON_KEY_PATH, data, data)
         self.engine1.execute(
             test_table.insert(),
@@ -1469,7 +1474,9 @@ class TestShutdownPoisonRecordWithZoneOffStatus(TestPoisonRecordShutdown):
         """check working poison record callback on full select inside another data"""
         row_id = self.get_random_id()
         poison_record = get_poison_record()
-        testData = os.urandom(100) + poison_record + os.urandom(100)
+        begin_tag = poison_record[:4]
+        # test with extra long begin tag
+        testData = os.urandom(100) + begin_tag + poison_record + os.urandom(100)
         self.log(POISON_KEY_PATH, testData, testData)
         self.engine1.execute(
             test_table.insert(),

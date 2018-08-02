@@ -402,5 +402,5 @@ func (store *FilesystemKeyStore) GetAuthKey(remove bool) ([]byte, error) {
 		return key, nil
 	}
 	log.Infof("Generate basic auth key for AcraWebconfig to %v", keyPath)
-	return store.generateKey(BASIC_AUTH_KEY_FILENAME, keystore.BASIC_AUTH_KEY_LENGTH)
+	return store.generateKey(BASIC_AUTH_KEY_FILENAME, keystore.BasicAuthKeyLength)
 }

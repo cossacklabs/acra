@@ -40,12 +40,12 @@ func CreateAcrastruct(data []byte, acraPublic *keys.PublicKey, context []byte) (
 		return nil, err
 	}
 	// generate random symmetric key
-	randomKey := make([]byte, base.SYMMETRIC_KEY_SIZE)
+	randomKey := make([]byte, base.SymmetricKeySize)
 	n, err := rand.Read(randomKey)
 	if err != nil {
 		return nil, err
 	}
-	if n != base.SYMMETRIC_KEY_SIZE {
+	if n != base.SymmetricKeySize {
 		return nil, errors.New("read incorrect num of random bytes")
 	}
 
@@ -63,9 +63,9 @@ func CreateAcrastruct(data []byte, acraPublic *keys.PublicKey, context []byte) (
 	}
 	utils.FillSlice('0', randomKey)
 	// pack acrastruct
-	dateLength := make([]byte, base.DATA_LENGTH_SIZE)
+	dateLength := make([]byte, base.DataLengthSize)
 	binary.LittleEndian.PutUint64(dateLength, uint64(len(encryptedData)))
-	output := make([]byte, len(base.TAG_BEGIN)+base.KEY_BLOCK_LENGTH+base.DATA_LENGTH_SIZE+len(encryptedData))
+	output := make([]byte, len(base.TAG_BEGIN)+base.KeyBlockLength+base.DataLengthSize+len(encryptedData))
 	output = append(output[:0], base.TAG_BEGIN...)
 	output = append(output, randomKeyPair.Public.Value...)
 	output = append(output, encryptedKey...)

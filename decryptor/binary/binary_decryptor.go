@@ -38,7 +38,7 @@ type BinaryDecryptor struct {
 	isWithZone      bool
 	isWholeMatch    bool
 	keyBlockBuffer  []byte
-	lengthBuf       [base.DATA_LENGTH_SIZE]byte
+	lengthBuf       [base.DataLengthSize]byte
 	buf             []byte
 	keyStore        keystore.KeyStore
 	zoneMatcher     *zone.ZoneIDMatcher
@@ -48,7 +48,7 @@ type BinaryDecryptor struct {
 
 // NewBinaryDecryptor returns new BinaryDecryptor
 func NewBinaryDecryptor() *BinaryDecryptor {
-	return &BinaryDecryptor{keyBlockBuffer: make([]byte, base.KEY_BLOCK_LENGTH)}
+	return &BinaryDecryptor{keyBlockBuffer: make([]byte, base.KeyBlockLength)}
 }
 
 // MatchBeginTag not implemented Decryptor interface
@@ -84,10 +84,10 @@ func (decryptor *BinaryDecryptor) ReadSymmetricKey(privateKey *keys.PrivateKey, 
 		}
 		return nil, decryptor.keyBlockBuffer[:n], err
 	}
-	pubkey := &keys.PublicKey{Value: decryptor.keyBlockBuffer[:base.PUBLIC_KEY_LENGTH]}
+	pubkey := &keys.PublicKey{Value: decryptor.keyBlockBuffer[:base.PublicKeyLength]}
 
 	smessage := message.New(privateKey, pubkey)
-	symmetricKey, err := smessage.Unwrap(decryptor.keyBlockBuffer[base.PUBLIC_KEY_LENGTH:])
+	symmetricKey, err := smessage.Unwrap(decryptor.keyBlockBuffer[base.PublicKeyLength:])
 	if err != nil {
 		return nil, decryptor.keyBlockBuffer[:n], base.ErrFakeAcraStruct
 	}
@@ -130,7 +130,7 @@ func (decryptor *BinaryDecryptor) readScellData(length int, reader io.Reader) ([
 		return nil, decryptor.buf[:n], err
 	}
 	if n != int(length) {
-		log.Warningf("%v", utils.ErrorMessage("can't decode hex data", err))
+		log.Warningf("%v", utils.ErrorMessage("Can't decode hex data", err))
 		return nil, decryptor.buf[:n], base.ErrFakeAcraStruct
 	}
 	return decryptor.buf[:length], decryptor.buf[:length], nil

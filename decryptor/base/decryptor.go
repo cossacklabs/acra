@@ -21,7 +21,6 @@ limitations under the License.
 package base
 
 import (
-	"encoding/binary"
 	"errors"
 	"fmt"
 	"github.com/cossacklabs/acra/keystore"
@@ -49,56 +48,32 @@ hex   char dec  bin
 */
 
 //var TAG_BEGIN = []byte{133, 32, 251}
+
+// Constants that setup which symbol would be used at start in AcraStruct to simplify recognizing from other binary data
+// Double-quote was chosen because it's printable symbol (help in debugging when we can see in console that it's start of
+// AcraStruct) and rarely used sequentially
+// Tag length was chosen
 const (
-	TAG_SYMBOL byte = '"'
+	// TagSymbol used in begin tag in AcraStruct
+	TagSymbol byte = '"'
 )
 
 // TAG_BEGIN represents begin sequence of bytes for AcraStruct.
-var TAG_BEGIN = []byte{TAG_SYMBOL, TAG_SYMBOL, TAG_SYMBOL, TAG_SYMBOL, TAG_SYMBOL, TAG_SYMBOL, TAG_SYMBOL, TAG_SYMBOL}
+var TAG_BEGIN = []byte{TagSymbol, TagSymbol, TagSymbol, TagSymbol, TagSymbol, TagSymbol, TagSymbol, TagSymbol}
 
 // Shows key and data length.
 const (
 	// length of EC public key
-	PUBLIC_KEY_LENGTH = 45
+	PublicKeyLength = 45
 	// length of 32 byte of symmetric key wrapped to smessage
-	SMESSAGE_KEY_LENGTH = 84
-	KEY_BLOCK_LENGTH    = PUBLIC_KEY_LENGTH + SMESSAGE_KEY_LENGTH
+	SMessageKeyLength = 84
+	KeyBlockLength    = PublicKeyLength + SMessageKeyLength
 
-	SYMMETRIC_KEY_SIZE = 32
-	DATA_LENGTH_SIZE   = 8
+	SymmetricKeySize = 32
+	// DataLengthSize length of part of AcraStruct that store data part length. So max data size is 2^^64 that
+	// may be wrapped into AcraStruct. We decided that 2^^64 is enough and not much as 8 byte overhead per AcraStruct
+	DataLengthSize = 8
 )
-
-// getDataLengthFromAcraStruct unpack data length value from AcraStruct
-func getDataLengthFromAcraStruct(data []byte) int {
-	dataLengthBlock := data[GetMinAcraStructLength()-DATA_LENGTH_SIZE : GetMinAcraStructLength()]
-	return int(binary.LittleEndian.Uint64(dataLengthBlock))
-}
-
-// GetMinAcraStructLength returns minimal length of AcraStruct
-// because in golang we can't declare byte array as constant we need to calculate length of TAG_BEGIN in runtime
-// or hardcode as constant and maintain len(TAG_BEGIN) == CONST_VALUE
-func GetMinAcraStructLength() int {
-	return len(TAG_BEGIN) + KEY_BLOCK_LENGTH + DATA_LENGTH_SIZE
-}
-
-// Errors show incorrect AcraStruct length
-var (
-	ErrIncorrectAcraStructLength     = errors.New("AcraStruct has incorrect length")
-	ErrIncorrectAcraStructDataLength = errors.New("AcraStruct has incorrect data length value")
-)
-
-// ValidateAcraStructLength check that data has minimal length for AcraStruct and data block equal to data length in AcraStruct
-func ValidateAcraStructLength(data []byte) error {
-	baseLength := GetMinAcraStructLength()
-	if len(data) < baseLength {
-		return ErrIncorrectAcraStructLength
-	}
-	dataLength := getDataLengthFromAcraStruct(data)
-	if dataLength != len(data[GetMinAcraStructLength():]) {
-		return ErrIncorrectAcraStructDataLength
-	}
-	return nil
-}
 
 // DataDecryptor describes AcraStruct decryptor.
 type DataDecryptor interface {
@@ -154,16 +129,13 @@ type Decryptor interface {
 	MatchZoneInBlock([]byte)
 }
 
-// CheckReadWrite shows if count of Read operations is the same as count of Write operations,
-// sends err to errCh if not the same.
-func CheckReadWrite(n, expectedN int, err error, errCh chan<- error) bool {
+// CheckReadWrite check that n == expectedN and err != nil
+func CheckReadWrite(n, expectedN int, err error) error {
 	if err != nil {
-		errCh <- err
-		return false
+		return err
 	}
 	if n != expectedN {
-		errCh <- fmt.Errorf("incorrect read/write count. %d != %d", n, expectedN)
-		return false
+		return fmt.Errorf("incorrect read/write count. %d != %d", n, expectedN)
 	}
-	return true
+	return nil
 }
