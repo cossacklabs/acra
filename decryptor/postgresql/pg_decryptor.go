@@ -181,17 +181,43 @@ func handlePoisonCheckResult(decryptor base.Decryptor, poisoned bool, err error)
 	return nil
 }
 
-// checkPoisonRecordInBlock check block on poison record as whole AcraStruct block (only when IsPoisonRecordCheckOn() == true)
-func checkPoisonRecordInBlock(block []byte, decryptor base.Decryptor) error {
+// checkInlinePoisonRecordInBlock check block on poison record as whole AcraStruct block (only when IsPoisonRecordCheckOn() == true)
+func checkInlinePoisonRecordInBlock(block []byte, decryptor base.Decryptor, logger *log.Entry) error {
 	// check is it Poison Record
 	if decryptor.IsPoisonRecordCheckOn() {
-		log.Debugln("Check poison records")
-		if index, length := decryptor.BeginTagIndex(block); index != utils.NotFound {
-			poisoned, err := decryptor.CheckPoisonRecord(bytes.NewReader(block[index+length:]))
-			return handlePoisonCheckResult(decryptor, poisoned, err)
+		logger.Debugln("Check poison records")
+		currentIndex := 0
+		for {
+			if index, _ := decryptor.BeginTagIndex(block[currentIndex:]); index == utils.NotFound {
+				return nil
+			} else {
+				currentIndex += index
+				if err := checkWholePoisonRecord(block[currentIndex:], decryptor, logger); err != nil {
+					return err
+				}
+				currentIndex++
+			}
 		}
 	}
 	return nil
+}
+
+func checkWholePoisonRecord(block []byte, decryptor base.Decryptor, logger *log.Entry) error {
+	if !decryptor.IsPoisonRecordCheckOn() {
+		return nil
+	}
+	decryptor.Reset()
+	skippedBegin, err := decryptor.SkipBeginInBlock(block)
+	if err != nil {
+		logger.WithError(err).Errorln("Can't skip begin tag for poison record check")
+		return nil
+	}
+	poisoned, checkErr := decryptor.CheckPoisonRecord(bytes.NewReader(skippedBegin))
+	if innerErr := handlePoisonCheckResult(decryptor, poisoned, checkErr); err != nil {
+		logger.WithError(innerErr).Errorln("Error on poison record check")
+		return innerErr
+	}
+	return checkErr
 }
 
 // processWholeBlockDecryption try to decrypt data of column as whole AcraStruct and replace with decrypted data on success
@@ -203,15 +229,8 @@ func (proxy *PgProxy) processWholeBlockDecryption(packet *PacketHandler, column 
 		logger.WithError(err).Errorln("Can't decrypt possible AcraStruct")
 		if decryptor.IsPoisonRecordCheckOn() {
 			decryptor.Reset()
-			skippedBegin, err := decryptor.SkipBeginInBlock(column.Data)
-			if err != nil {
-				logger.WithError(err).Errorln("Can't skip begin tag for poison record check")
-				return nil
-			}
-			poisoned, checkErr := decryptor.CheckPoisonRecord(bytes.NewReader(skippedBegin))
-			if innerErr := handlePoisonCheckResult(decryptor, poisoned, checkErr); err != nil {
-				logger.WithError(innerErr).Errorln("Error on poison record check")
-				return innerErr
+			if err := checkWholePoisonRecord(column.Data, decryptor, logger); err != nil {
+				return err
 			}
 		}
 		return nil
@@ -298,6 +317,17 @@ func (proxy *PgProxy) processInlineBlockDecryption(packet *PacketHandler, column
 		key, err := decryptor.GetPrivateKey()
 		if err != nil {
 			logger.WithError(err).Warningln("Can't read private key")
+			if decryptor.IsPoisonRecordCheckOn() {
+				log.Infoln("Check poison records")
+				blockReader := bytes.NewReader(column.Data[beginTagIndex+tagLength:])
+				poisoned, err := decryptor.CheckPoisonRecord(blockReader)
+				err = handlePoisonCheckResult(decryptor, poisoned, err)
+				if err != nil {
+					logger.WithError(err).Errorln("Error on poison record processing")
+					return err
+				}
+			}
+			currentIndex++
 			continue
 		}
 		blockReader := bytes.NewReader(column.Data[beginTagIndex+tagLength:])
@@ -347,6 +377,11 @@ func (proxy *PgProxy) processInlineBlockDecryption(packet *PacketHandler, column
 // PgDecryptStream process data rows from database
 func (proxy *PgProxy) PgDecryptStream(censor acracensor.AcraCensorInterface, decryptor base.Decryptor, tlsConfig *tls.Config, dbConnection net.Conn, clientConnection net.Conn, errCh chan<- error) {
 	logger := log.WithField("proxy", "db_side")
+	if decryptor.IsWholeMatch() {
+		logger = logger.WithField("decrypt_mode", "wholecell")
+	} else {
+		logger = logger.WithField("decrypt_mode", "inline")
+	}
 	logger.Debugln("Pg db proxy")
 	// use buffered writer because we generate response by parts
 	writer := bufio.NewWriter(clientConnection)
@@ -453,8 +488,14 @@ func (proxy *PgProxy) PgDecryptStream(censor acracensor.AcraCensorInterface, dec
 				if decryptor.IsWithZone() && !decryptor.IsMatchedZone() {
 					// try to match zone
 					decryptor.MatchZoneBlock(column.Data)
-					// check that it's not poison record
-					err := checkPoisonRecordInBlock(column.Data, decryptor)
+					if decryptor.IsWholeMatch() {
+						// check that it's not poison record
+						err = checkWholePoisonRecord(column.Data, decryptor, logger)
+					} else {
+						// check that it's not poison record
+						err = checkInlinePoisonRecordInBlock(column.Data, decryptor, logger)
+					}
+
 					if err != nil {
 						logger.WithError(err).Errorln("Can't check poison record in block")
 						errCh <- err
