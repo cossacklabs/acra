@@ -176,7 +176,7 @@ func (decryptor *MySQLDecryptor) checkPoisonRecord(block []byte) error {
 			}
 			decryptor.log.Debugln("Processed all callbacks on poison record")
 		}
-		return err
+		return base.ErrPoisonRecord
 	}
 	return nil
 }
