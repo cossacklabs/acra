@@ -62,7 +62,9 @@ func (acraCensor *AcraCensor) HandleQuery(query string) error {
 			acraCensor.logger.Errorf("Forbidden query: '%s'", queryWithHiddenValues)
 			return err
 		}
+		//we don't have errors so allow query
 		if !continueHandling {
+			acraCensor.logger.Infof("Allowed query: '%s'", queryWithHiddenValues)
 			return nil
 		}
 	}
