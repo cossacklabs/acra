@@ -70,11 +70,15 @@ func TestWhitelistQueries(t *testing.T) {
 	if err != handlers.ErrQueryNotInWhitelist {
 		t.Fatal(err)
 	}
-	testWhitelistTables(t, acraCensor, whitelistHandler)
-	testWhitelistPatterns(t, acraCensor, whitelistHandler)
 }
-func testWhitelistTables(t *testing.T, acraCensor *AcraCensor, whitelistHandler *handlers.WhitelistHandler) {
+func TestWhitelistTables(t *testing.T) {
 	var err error
+
+	censor := NewAcraCensor()
+	defer censor.ReleaseAll()
+	whitelistHandler := handlers.NewWhitelistHandler()
+	censor.AddHandler(whitelistHandler)
+
 	testQueries := []string{
 		"SELECT EMP_ID, LAST_NAME FROM EMPLOYEE_TBL WHERE CITY = 'Seattle' ORDER BY EMP_ID;",
 		"SELECT EMP_ID, LAST_NAME FROM EMPLOYEE WHERE CITY = 'Seattle' ORDER BY EMP_ID;",
@@ -89,12 +93,12 @@ func testWhitelistTables(t *testing.T, acraCensor *AcraCensor, whitelistHandler 
 	queryIndexesToBlock := []int{0, 2, 3, 4, 5, 6}
 	//acracensor should block those queries
 	for _, i := range queryIndexesToBlock {
-		err := acraCensor.HandleQuery(testQueries[i])
+		err := censor.HandleQuery(testQueries[i])
 		if err != handlers.ErrAccessToForbiddenTableWhitelist {
 			t.Fatal(err)
 		}
 	}
-	err = acraCensor.HandleQuery(testQueries[1])
+	err = censor.HandleQuery(testQueries[1])
 	//acracensor should not block this query
 	if err != nil {
 		t.Fatal(err)
@@ -103,7 +107,7 @@ func testWhitelistTables(t *testing.T, acraCensor *AcraCensor, whitelistHandler 
 	whitelistHandler.RemoveTables([]string{"EMPLOYEE"})
 	//acracensor should not block queries
 	for _, query := range testQueries {
-		err = acraCensor.HandleQuery(query)
+		err = censor.HandleQuery(query)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -111,60 +115,314 @@ func testWhitelistTables(t *testing.T, acraCensor *AcraCensor, whitelistHandler 
 	testQuery := "SELECT EMP_ID, LAST_NAME FROM EMPLOYEE, EMPLOYEE_TBL, CUSTOMERS WHERE CITY = 'INDIANAPOLIS' ORDER BY EMP_ID asc;"
 	whitelistHandler.AddQueries([]string{testQuery})
 	whitelistHandler.AddTables([]string{"EMPLOYEE", "EMPLOYEE_TBL"})
-	err = acraCensor.HandleQuery(testQuery)
+	err = censor.HandleQuery(testQuery)
 	//acracensor should block this query
 	if err != handlers.ErrAccessToForbiddenTableWhitelist {
 		t.Fatal(err)
 	}
 	whitelistHandler.AddTables([]string{"CUSTOMERS"})
-	err = acraCensor.HandleQuery(testQuery)
+	err = censor.HandleQuery(testQuery)
 	//acracensor should not block this query
 	if err != nil {
 		t.Fatal(err)
 	}
 }
-func testWhitelistPatterns(t *testing.T, acraCensor *AcraCensor, whitelistHandler *handlers.WhitelistHandler) {
-	whitelistHandler.Reset()
-	testQueries := []string{
-		"SELECT EMP_ID, LAST_NAME FROM EMPLOYEE_TBL WHERE CITY = 'Seattle' ORDER BY EMP_ID;",
-		"SELECT EMP_ID, LAST_NAME FROM EMPLOYEE WHERE CITY = 'Seattle' ORDER BY EMP_ID;",
-		"SELECT EMP_ID, LAST_NAME FROM EMPLOYEE, EMPLOYEE_TBL WHERE CITY = 'Seattle' ORDER BY EMP_ID;",
-		"SELECT EMP_ID, LAST_NAME FROM EMPLOYEE WHERE CITY = 'INDIANAPOLIS' ORDER BY EMP_ID asc;",
-		"SELECT EMP_ID, LAST_NAME FROM EMPLOYEE_TBL AS EMPL_TBL WHERE CITY = 'Seattle' ORDER BY EMP_ID;",
-		"SELECT EMP_ID, LAST_NAME FROM EMPLOYEE_TBL WHERE CITY = 'INDIANAPOLIS' ORDER BY EMP_ID asc;",
+func TestWhitelistPatterns(t *testing.T) {
+	//test %%SELECT%% pattern
+	testWhitelistSelectPattern(t)
+	//test SELECT %%COLUMN%% .. %%COLUMN%% pattern
+	testWhitelistColumnsPattern(t)
+	//test SELECT a, b from t %%WHERE%% pattern
+	testWhitelistWherePattern(t)
+	//test SELECT a, b from t where ID = %%VALUE%%
+	testWhitelistValuePattern(t)
+	//test SELECT * FROM company %%WHERE%%
+	testWhitelistStarPattern(t)
+}
+func testWhitelistSelectPattern(t *testing.T) {
+	var err error
+
+	censor := NewAcraCensor()
+	defer censor.ReleaseAll()
+	whitelist := handlers.NewWhitelistHandler()
+	censor.AddHandler(whitelist)
+
+	queries := []string{
+		"INSERT SalesStaff1 VALUES (2, 'Michael', 'Blythe'), (3, 'Linda', 'Mitchell'),(4, 'Jillian', 'Carson'), (5, 'Garrett', 'Vargas');",
+		"INSERT INTO SalesStaff2 (StaffGUID, FirstName, LastName) VALUES (NEWID(), 'Stephen', 'Jiang');",
+		"INSERT INTO SalesStaff3 (StaffID, FullName) VALUES (X, 'Y');",
+		"INSERT INTO SalesStaff3 (StaffID, FullName) VALUES (X, 'Z');",
+		"INSERT INTO SalesStaff3 (StaffID, FullNameTbl) VALUES (X, M);",
+		"INSERT INTO X.Customers (CustomerName, ContactName, Address, City, PostalCode, Country) VALUES ('Cardinal', 'Tom B. Erichsen', 'Skagen 21', 'Stavanger', '4006', 'Norway');",
+		"INSERT INTO Customers (CustomerName, City, Country) VALUES ('Cardinal', 'Stavanger', 'Norway');",
+		"INSERT INTO Production (Name, UnitMeasureCode,	ModifiedDate) VALUES ('Square Yards', 'Y2', GETDATE());",
+		"INSERT INTO T1 (Name, UnitMeasureCode,	ModifiedDate) VALUES ('Square Yards', 'Y2', GETDATE());",
+		"INSERT INTO dbo.Points (Type, PointValue) VALUES ('Point', '1,5');",
+		"INSERT INTO dbo.Points (PointValue) VALUES ('1,99');",
+		"SELECT EMP_ID, LAST_NAME FROM EMPLOYEE_TBL WHERE CITY = 'Seattle'",
+		"SELECT EMP_ID, LAST_NAME FROM EMPLOYEE WHERE NAME1 = 'Seattle' ORDER BY EMP_ID;",
+		"SELECT TEST_COLUMN1 FROM TEST_TABLE WHERE CITY = 'Seattle'",
+		"SELECT EMP_ID FROM EMPLOYEE, EMPLOYEE_TBL WHERE CITY = 'Seattle' ORDER BY EMP_ID;",
+		"SELECT EMP_ID, LAST_NAME FROM EMPLOYEE WHERE CITY1 = 'INDIANAPOLIS' ORDER BY EMP_ID asc;",
+		"SELECT EMP_ID, LAST_NAME FROM EMPLOYEE_TBL AS EMPL_TBL WHERE CITY2 = 'Seattle' ORDER BY EMP_ID;",
+		"select songName from t where personName in ('Ryan', 'Holly') group by songName having count(distinct personName) = 10",
+		"SELECT SUM(Salary) FROM Employee WHERE Emp_Age < 30;",
+		"SELECT AVG(Price) FROM Products;",
+		"SELECT A, B",
+		"SELECT X, Y",
+		"SELECT A",
+		"SELECT Y",
 	}
-	//acracensor should block all queries except accessing to any information but only in table EMPLOYEE_TBL and related only to Seattle city [1,2,3]
-	testSecurityRules := []string{
-		"SELECT * FROM EMPLOYEE_TBL WHERE CITY='Seattle'",
-	}
-	queryIndexesToBlock := []int{1, 2, 3, 5}
-	err := whitelistHandler.AddPatterns(testSecurityRules)
+	pattern := "%%SELECT%%"
+	err = whitelist.AddPatterns([]string{pattern})
 	if err != nil {
 		t.Fatal(err)
 	}
-	//acracensor should block those queries
-	for _, i := range queryIndexesToBlock {
-		err := acraCensor.HandleQuery(testQueries[i])
-		if err != handlers.ErrWhitelistPatternMismatch {
-			t.Fatal(err)
+
+	const InsertQueryCounter = 11
+	//Queries that should be passed by specified pattern have indexes: [0 .. 10] (all insert queries)
+	for i, query := range queries {
+		err := censor.HandleQuery(query)
+		if i < InsertQueryCounter {
+			if err != handlers.ErrWhitelistPatternMismatch {
+				t.Fatal(err, "Whitelist pattern passed query. \nPattern:", pattern, "\nQuery:", queries[i])
+			}
+		} else {
+			if err != nil {
+				t.Fatal(err, "Whitelist pattern blocked query. \nPattern:", pattern, "\nQuery:", queries[i])
+			}
 		}
 	}
-	queryIndexesToPass := []int{0, 4}
-	//acracensor should not block those queries
-	for _, i := range queryIndexesToPass {
-		err := acraCensor.HandleQuery(testQueries[i])
+}
+func testWhitelistColumnsPattern(t *testing.T) {
+	var err error
+
+	censor := NewAcraCensor()
+	defer censor.ReleaseAll()
+	whitelist := handlers.NewWhitelistHandler()
+	censor.AddHandler(whitelist)
+
+	pattern := "SELECT %%COLUMN%%, %%COLUMN%%"
+	err = whitelist.AddPatterns([]string{pattern})
+	if err != nil {
+		t.Fatal(err)
+	}
+	acceptableQueries := []string{
+		"SELECT A, B",
+		"SELECT X1, X2",
+		"SELECT col1, col2",
+	}
+	blockableQueries := []string{
+		"SELECT A",
+		"SELECT A, B, C",
+		"SELECT A, B, C, D",
+	}
+	for _, query := range acceptableQueries {
+		err = censor.HandleQuery(query)
 		if err != nil {
-			t.Fatal(err)
+			t.Fatal(err, "Whitelist pattern blocked query. \nPattern:", pattern, "\nQuery:", query)
 		}
 	}
-	//whitelistHandler.RemovePatterns(testSecurityRules)
-	////acracensor should not block all queries
-	//for _, query := range testQueries {
-	//	err := acraCensor.HandleQuery(query)
-	//	if err != nil {
-	//		t.Fatal(err)
-	//	}
-	//}
+	for _, query := range blockableQueries {
+		err = censor.HandleQuery(query)
+		if err != handlers.ErrWhitelistPatternMismatch {
+			t.Fatal(err, "Whitelist pattern passed query. \nPattern:", pattern, "\nQuery:", query)
+		}
+	}
+
+	whitelist.Reset()
+	pattern = "SELECT A, %%COLUMN%% FROM testTable"
+	err = whitelist.AddPatterns([]string{pattern})
+	if err != nil {
+		t.Fatal(err)
+	}
+	acceptableQueries = []string{
+		"SELECT A, B FROM testTable",
+		"SELECT A, X2 FROM testTable",
+		"SELECT A, col2 FROM testTable",
+	}
+	blockableQueries = []string{
+		"SELECT A FROM testTable",
+		"SELECT B, A FROM testTable",
+		"SELECT A, B, C FROM testTable",
+		"SELECT A, B, C, D FROM testTable",
+	}
+	for _, query := range acceptableQueries {
+		err = censor.HandleQuery(query)
+		if err != nil {
+			t.Fatal(err, "Whitelist pattern blocked query. \nPattern:", pattern, "\nQuery:", query)
+		}
+	}
+	for _, query := range blockableQueries {
+		err = censor.HandleQuery(query)
+		if err != handlers.ErrWhitelistPatternMismatch {
+			t.Fatal(err, "Whitelist pattern passed query. \nPattern:", pattern, "\nQuery:", query)
+		}
+	}
+
+	pattern = "SELECT %%COLUMN%%, B FROM testTable"
+	err = whitelist.AddPatterns([]string{pattern})
+	if err != nil {
+		t.Fatal(err)
+	}
+	acceptableQueries = []string{
+		"SELECT A, B FROM testTable",
+		"SELECT X2, B FROM testTable",
+		"SELECT col2, B FROM testTable",
+	}
+	blockableQueries = []string{
+		"SELECT A FROM testTable",
+		"SELECT B, A FROM testTable",
+		"SELECT A, B, C FROM testTable",
+		"SELECT A, B, C, D FROM testTable",
+	}
+	for _, query := range acceptableQueries {
+		err = censor.HandleQuery(query)
+		if err != nil {
+			t.Fatal(err, "Whitelist pattern blocked query. \nPattern:", pattern, "\nQuery:", query)
+		}
+	}
+	for _, query := range blockableQueries {
+		err = censor.HandleQuery(query)
+		if err != handlers.ErrWhitelistPatternMismatch {
+			t.Fatal(err, "Whitelist pattern passed query. \nPattern:", pattern, "\nQuery:", query)
+		}
+	}
+}
+func testWhitelistWherePattern(t *testing.T) {
+	var err error
+
+	censor := NewAcraCensor()
+	defer censor.ReleaseAll()
+	whitelist := handlers.NewWhitelistHandler()
+	censor.AddHandler(whitelist)
+
+	pattern := "SELECT a, b, c FROM z %%WHERE%%"
+	err = whitelist.AddPatterns([]string{pattern})
+	if err != nil {
+		t.Fatal(err)
+	}
+	acceptableQueries := []string{
+		"SELECT a, b, c FROM z WHERE a = 'someValue'",
+		"SELECT a, b, c FROM z WHERE a = b",
+		"SELECT a, b, c FROM z WHERE a < b",
+		"SELECT a, b, c FROM z WHERE a = 'someValue' and b = 2 or c between 20 and 30",
+	}
+	blockableQueries := []string{
+		"SELECT a, b, c FROM x WHERE a = 'someValue'",
+		"SELECT a, b, c FROM y WHERE a = 'someValue'",
+		"SELECT a, b FROM z WHERE a = 'someValue'",
+		"SELECT a, b, c FROM x WHERE a = 'someValue' and b = 48 or c between 10 and 50",
+	}
+	for _, query := range acceptableQueries {
+		err = censor.HandleQuery(query)
+		if err != nil {
+			t.Fatal(err, "Whitelist pattern blocked query. \nPattern:", pattern, "\nQuery:", query)
+		}
+	}
+	for _, query := range blockableQueries {
+		err = censor.HandleQuery(query)
+		if err != handlers.ErrWhitelistPatternMismatch {
+			t.Fatal(err, "Whitelist pattern passed query. \nPattern:", pattern, "\nQuery:", query)
+		}
+	}
+}
+func testWhitelistValuePattern(t *testing.T) {
+	var err error
+
+	censor := NewAcraCensor()
+	defer censor.ReleaseAll()
+	whitelist := handlers.NewWhitelistHandler()
+	censor.AddHandler(whitelist)
+
+	pattern := "SELECT a, b from t where ID = %%VALUE%%"
+	err = whitelist.AddPatterns([]string{pattern})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	acceptableQueries := []string{
+		"SELECT a, b FROM t WHERE ID = 'someValue_testValue_1234567890'",
+		"SELECT a, b FROM t WHERE ID = 'someValue'",
+	}
+	blockableQueries := []string{
+		"SELECT a, b FROM t WHERE someParameter = 'someValue208934278935789'",
+		"SELECT a, b, c FROM y WHERE a = 'someValue'",
+		"SELECT a, b FROM z WHERE a = 'someValue'",
+		"SELECT a, b FROM t WHERE NonID = 'someValue'",
+	}
+	for _, query := range acceptableQueries {
+		err = censor.HandleQuery(query)
+		if err != nil {
+			t.Fatal(err, "Blacklist pattern blocked query. \nPattern: ", pattern, "\nQuery: ", query)
+		}
+	}
+	for _, query := range blockableQueries {
+		err = censor.HandleQuery(query)
+		if err != handlers.ErrWhitelistPatternMismatch {
+			t.Fatal(err, "Blacklist pattern passed query. \nPattern: ", pattern, "\nQuery: ", query)
+		}
+	}
+}
+func testWhitelistStarPattern(t *testing.T) {
+	var err error
+
+	censor := NewAcraCensor()
+	defer censor.ReleaseAll()
+	whitelist := handlers.NewWhitelistHandler()
+	censor.AddHandler(whitelist)
+
+	pattern := "SELECT * from company %%WHERE%%"
+	err = whitelist.AddPatterns([]string{pattern})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	acceptableQueries := []string{
+		"SELECT a, b FROM company WHERE ID = 'someValue_testValue_1234567890'",
+		"SELECT a, b FROM company WHERE ID = 'someValue'",
+		"SELECT * FROM company WHERE AGE IS NOT NULL",
+		"SELECT * FROM company WHERE AGE IS NULL",
+		"SELECT * FROM company WHERE AGE >= 25",
+		"SELECT * FROM company WHERE AGE BETWEEN 25 AND 65000",
+		"SELECT * FROM company WHERE NAME LIKE 'Pa%'",
+		"SELECT * FROM company WHERE AGE IN ( 25, 27 )",
+		"SELECT * FROM company WHERE AGE NOT IN ( 25, 27 )",
+		"SELECT * FROM company WHERE AGE > (SELECT AGE FROM company WHERE SALARY > 65000)",
+		"SELECT age FROM company WHERE EXISTS (SELECT age FROM company WHERE SALARY > 65000)",
+	}
+	blockableQueries := []string{
+		"SELECT * FROM testTable WHERE someParameter = 'someValue208934278935789'",
+		"SELECT a, b, c FROM x WHERE a = 'someValue'",
+		"SELECT * FROM z WHERE a = 'someValue'",
+		"SELECT a, b FROM t WHERE NonID = 'someValue'",
+		"SELECT a, b FROM company1 WHERE ID = 'someValue_testValue_1234567890'",
+		"SELECT a, b FROM company2 WHERE ID = 'someValue'",
+		"SELECT * FROM company3 WHERE AGE IS NOT NULL",
+		"SELECT * FROM company4 WHERE AGE IS NULL",
+		"SELECT * FROM company5 WHERE AGE >= 25",
+		"SELECT * FROM company6 WHERE AGE BETWEEN 25 AND 65000",
+		"SELECT * FROM company7 WHERE NAME LIKE 'Pa%'",
+		"SELECT * FROM company8 WHERE AGE IN ( 25, 27 )",
+		"SELECT * FROM company9 WHERE AGE NOT IN ( 25, 27 )",
+		"SELECT * FROM company10 WHERE AGE > (SELECT AGE FROM company10 WHERE SALARY > 65000)",
+		"SELECT age FROM company11 WHERE EXISTS (SELECT AGE FROM company11 WHERE SALARY > 65000)",
+		"SELECT age FROM company11 WHERE EXISTS (SELECT AGE FROM company WHERE SALARY > 65000)",
+		"SELECT age FROM company11 WHERE A=(SELECT AGE FROM company WHERE SALARY > 65000 limit 1) and B=(SELECT AGE FROM company123 WHERE SALARY > 65000 limit 1)",
+		"SELECT * FROM another_table INNER JOIN (SELECT * FROM company WHERE id = 1) AS t ON t.id=another_table.id WHERE AGE NOT IN (25, 27)",
+	}
+	for _, query := range acceptableQueries {
+		err = censor.HandleQuery(query)
+		if err != nil {
+			t.Fatal(err, "Whitelist pattern passed query. \nPattern: ", pattern, "\nQuery: ", query)
+		}
+	}
+	for _, query := range blockableQueries {
+		err = censor.HandleQuery(query)
+		if err != handlers.ErrWhitelistPatternMismatch {
+			t.Fatal(err, "Whitelist pattern passed query. \nPattern: ", pattern, "\nQuery: ", query)
+		}
+	}
 }
 
 func TestBlacklistQueries(t *testing.T) {
@@ -1027,10 +1285,10 @@ func TestIgnoringQueryParseErrors(t *testing.T) {
 	}
 	acraCensor := NewAcraCensor()
 	defer acraCensor.ReleaseAll()
-	whitelistHandler := handlers.NewWhitelistHandler()
-	whitelistHandler.AddTables([]string{"some table"})
-	blacklistHandler := handlers.NewBlacklistHandler()
-	blacklistHandler.AddTables([]string{"some table"})
+	whitelist := handlers.NewWhitelistHandler()
+	whitelist.AddTables([]string{"some table"})
+	blacklist := handlers.NewBlacklistHandler()
+	blacklist.AddTables([]string{"some table"})
 	checkHandler := func(queryHandlers []QueryHandlerInterface, expectedError error) {
 		for _, handler := range queryHandlers {
 			acraCensor.AddHandler(handler)
@@ -1045,13 +1303,13 @@ func TestIgnoringQueryParseErrors(t *testing.T) {
 			acraCensor.RemoveHandler(handler)
 		}
 	}
-	checkHandler([]QueryHandlerInterface{whitelistHandler}, handlers.ErrQuerySyntaxError)
-	checkHandler([]QueryHandlerInterface{blacklistHandler}, handlers.ErrQuerySyntaxError)
+	checkHandler([]QueryHandlerInterface{whitelist}, handlers.ErrQuerySyntaxError)
+	checkHandler([]QueryHandlerInterface{blacklist}, handlers.ErrQuerySyntaxError)
 	// check when censor with two handlers and each one will return query parse error
-	checkHandler([]QueryHandlerInterface{whitelistHandler, blacklistHandler}, handlers.ErrQuerySyntaxError)
+	checkHandler([]QueryHandlerInterface{whitelist, blacklist}, handlers.ErrQuerySyntaxError)
 	acraCensor.ignoreParseError = true
-	checkHandler([]QueryHandlerInterface{whitelistHandler}, nil)
-	checkHandler([]QueryHandlerInterface{blacklistHandler}, nil)
+	checkHandler([]QueryHandlerInterface{whitelist}, nil)
+	checkHandler([]QueryHandlerInterface{blacklist}, nil)
 	// check when censor with two handlers and each one will return query parse error
-	checkHandler([]QueryHandlerInterface{whitelistHandler, blacklistHandler}, nil)
+	checkHandler([]QueryHandlerInterface{whitelist, blacklist}, nil)
 }
