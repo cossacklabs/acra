@@ -147,19 +147,22 @@ func (decryptor *MySQLDecryptor) CheckPoisonRecord(reader io.Reader) (bool, erro
 	if err != nil {
 		return false, err
 	}
-	return decryptor.checkPoisonRecord(block)
+	return false, decryptor.checkPoisonRecord(block)
 }
 
-func (decryptor *MySQLDecryptor) checkPoisonRecord(block []byte) (bool, error) {
+func (decryptor *MySQLDecryptor) checkPoisonRecord(block []byte) error {
 	if !decryptor.IsPoisonRecordCheckOn() {
-		return false, nil
+		return nil
+	}
+	if len(block) < base.GetMinAcraStructLength() {
+		return nil
 	}
 	decryptor.Reset()
 	data, err := decryptor.SkipBeginInBlock(block)
 	if err != nil {
 		decryptor.log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorDecryptorCantSkipBeginInBlock).
 			Debugln("Can't skip begin tag in block")
-		return false, nil
+		return nil
 	}
 	decryptor.log.Debugln("Check block on poison")
 	_, err = decryptor.decryptBlock(bytes.NewReader(data), nil, decryptor.getPoisonPrivateKey)
@@ -173,14 +176,17 @@ func (decryptor *MySQLDecryptor) checkPoisonRecord(block []byte) (bool, error) {
 			}
 			decryptor.log.Debugln("Processed all callbacks on poison record")
 		}
-		return true, err
+		return err
 	}
-	return false, nil
+	return nil
 }
 
-// poisonCheck find acrastructs in block and try to detect poison record
-func (decryptor *MySQLDecryptor) poisonCheck(block []byte) error {
+// inlinePoisonRecordCheck find acrastructs in block and try to detect poison record
+func (decryptor *MySQLDecryptor) inlinePoisonRecordCheck(block []byte) error {
 	if !decryptor.IsPoisonRecordCheckOn() {
+		return nil
+	}
+	if len(block) < base.GetMinAcraStructLength() {
 		return nil
 	}
 	index := 0
@@ -190,10 +196,7 @@ func (decryptor *MySQLDecryptor) poisonCheck(block []byte) error {
 			break
 		} else {
 			log.Debugln("Found AcraStruct")
-			poisoned, err := decryptor.checkPoisonRecord(block[index+beginTagIndex:])
-			if poisoned {
-				return base.ErrPoisonRecord
-			}
+			err := decryptor.checkPoisonRecord(block[index+beginTagIndex:])
 			if err != nil {
 				decryptor.log.WithError(err).Errorln("Can't check on poison record")
 				return err
@@ -243,35 +246,40 @@ func (decryptor *MySQLDecryptor) SetWholeMatch(value bool) {
 }
 
 func (decryptor *MySQLDecryptor) decryptWholeBlock(block []byte) ([]byte, error) {
-	var err error
-	if err := decryptor.poisonCheck(block); err != nil {
-		return nil, err
-	}
 	decryptor.Reset()
 	if !decryptor.IsWithZone() || decryptor.IsMatchedZone() {
-		block, err = decryptor.SkipBeginInBlock(block)
+		skippedBegin, err := decryptor.SkipBeginInBlock(block)
 		if err != nil {
 			return nil, err
 		}
-		newData, err := decryptor.decryptBlock(bytes.NewReader(block), decryptor.GetMatchedZoneID(), decryptor.GetPrivateKey)
+		newData, err := decryptor.decryptBlock(bytes.NewReader(skippedBegin), decryptor.GetMatchedZoneID(), decryptor.GetPrivateKey)
+		if err != nil {
+			if err := decryptor.checkPoisonRecord(block); err != nil {
+				return nil, err
+			}
+		}
 		if decryptor.IsWithZone() && err == nil && len(newData) != len(block) {
+			// reset zone because decryption is successful
 			decryptor.ResetZoneMatch()
 		}
 		return newData, err
 	}
 	decryptor.MatchZoneBlock(block)
+	if err := decryptor.checkPoisonRecord(block); err != nil {
+		return nil, err
+	}
 	return block, nil
 }
 
 func (decryptor *MySQLDecryptor) decryptInlineBlock(block []byte) ([]byte, error) {
-	if err := decryptor.poisonCheck(block); err != nil {
-		return nil, err
-	}
 	var output bytes.Buffer
 	index := 0
 	decryptor.log.Debugf("block len %v", len(block))
 	if decryptor.IsWithZone() && !decryptor.IsMatchedZone() {
 		decryptor.MatchZoneInBlock(block)
+		if err := decryptor.inlinePoisonRecordCheck(block); err != nil {
+			return nil, err
+		}
 		return block, nil
 	}
 	for index < len(block) {
@@ -287,6 +295,9 @@ func (decryptor *MySQLDecryptor) decryptInlineBlock(block []byte) ([]byte, error
 		blockReader := bytes.NewReader(block[index+tagLength:])
 		decrypted, err := decryptor.decryptBlock(blockReader, decryptor.GetMatchedZoneID(), decryptor.GetPrivateKey)
 		if err != nil {
+			if err := decryptor.inlinePoisonRecordCheck(block[index:]); err != nil {
+				return nil, err
+			}
 			output.Write(block[index : index+1])
 			index++
 			decryptor.log.Debugln("Can't decrypt block")
