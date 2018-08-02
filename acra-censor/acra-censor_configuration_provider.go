@@ -6,7 +6,7 @@ import (
 	"strings"
 )
 
-//Query handlers' names.
+// Query handlers' names.
 const (
 	BlacklistConfigStr    = "blacklist"
 	WhitelistConfigStr    = "whitelist"
@@ -14,7 +14,7 @@ const (
 	QueryIgnoreConfigStr  = "query_ignore"
 )
 
-//Config shows handlers configuration: queries, tables, patterns
+// Config shows handlers configuration: queries, tables, patterns
 type Config struct {
 	Handlers []struct {
 		Handler  string
@@ -26,7 +26,7 @@ type Config struct {
 	IgnoreParseError bool `yaml:"ignore_parse_error"`
 }
 
-//LoadConfiguration loads configuration of AcraCensor
+// LoadConfiguration loads configuration of AcraCensor
 func (acraCensor *AcraCensor) LoadConfiguration(configuration []byte) error {
 	var censorConfiguration Config
 	err := yaml.Unmarshal(configuration, &censorConfiguration)

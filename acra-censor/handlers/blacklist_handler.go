@@ -8,7 +8,7 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
-//BlacklistHandler shows handler structure
+// BlacklistHandler shows handler structure
 type BlacklistHandler struct {
 	queries  map[string]bool
 	tables   map[string]bool
@@ -16,7 +16,7 @@ type BlacklistHandler struct {
 	logger   *log.Entry
 }
 
-//NewBlacklistHandler creates new blacklist instance
+// NewBlacklistHandler creates new blacklist instance
 func NewBlacklistHandler() *BlacklistHandler {
 	handler := &BlacklistHandler{}
 	handler.queries = make(map[string]bool)
@@ -26,8 +26,8 @@ func NewBlacklistHandler() *BlacklistHandler {
 	return handler
 }
 
-//CheckQuery checks each query, returns false and error if query is blacklisted or
-//if query tries to access to forbidden table
+// CheckQuery checks each query, returns false and error if query is blacklisted or
+// if query tries to access to forbidden table
 func (handler *BlacklistHandler) CheckQuery(query string) (bool, error) {
 	//Check queries
 	if len(handler.queries) != 0 {
@@ -159,7 +159,7 @@ func (handler *BlacklistHandler) handleParenTables(statement *sqlparser.ParenTab
 	return nil
 }
 
-//Reset resets blacklist to initial state
+// Reset resets blacklist to initial state
 func (handler *BlacklistHandler) Reset() {
 	handler.queries = make(map[string]bool)
 	handler.tables = make(map[string]bool)
@@ -167,40 +167,40 @@ func (handler *BlacklistHandler) Reset() {
 	handler.logger = log.WithField("handler", "blacklist")
 }
 
-//Release releases all resources
+// Release releases all resources
 func (handler *BlacklistHandler) Release() {
 	handler.Reset()
 }
 
-//AddQueries adds queries to the list that should be blacklisted
+// AddQueries adds queries to the list that should be blacklisted
 func (handler *BlacklistHandler) AddQueries(queries []string) {
 	for _, query := range queries {
 		handler.queries[query] = true
 	}
 }
 
-//RemoveQueries removes queries from the list that should be blacklisted
+// RemoveQueries removes queries from the list that should be blacklisted
 func (handler *BlacklistHandler) RemoveQueries(queries []string) {
 	for _, query := range queries {
 		delete(handler.queries, query)
 	}
 }
 
-//AddTables adds tables that should be blacklisted
+// AddTables adds tables that should be blacklisted
 func (handler *BlacklistHandler) AddTables(tableNames []string) {
 	for _, tableName := range tableNames {
 		handler.tables[tableName] = true
 	}
 }
 
-//RemoveTables removes blacklisted tables
+// RemoveTables removes blacklisted tables
 func (handler *BlacklistHandler) RemoveTables(tableNames []string) {
 	for _, tableName := range tableNames {
 		delete(handler.tables, tableName)
 	}
 }
 
-//AddPatterns adds patterns that should be blacklisted
+// AddPatterns adds patterns that should be blacklisted
 func (handler *BlacklistHandler) AddPatterns(patterns []string) error {
 	placeholders := []string{SelectConfigPlaceholder, ColumnConfigPlaceholder, WhereConfigPlaceholder, ValueConfigPlaceholder}
 	replacers := []string{SelectConfigPlaceholderReplacer, ColumnConfigPlaceholderReplacer, WhereConfigPlaceholderReplacer, ValueConfigPlaceholderReplacer}

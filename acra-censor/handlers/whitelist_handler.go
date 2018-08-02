@@ -8,7 +8,7 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
-//WhitelistHandler shows handler structure
+// WhitelistHandler shows handler structure
 type WhitelistHandler struct {
 	queries  map[string]bool
 	tables   map[string]bool
@@ -16,7 +16,7 @@ type WhitelistHandler struct {
 	logger   *log.Entry
 }
 
-//NewWhitelistHandler creates new whitelist instance
+// NewWhitelistHandler creates new whitelist instance
 func NewWhitelistHandler() *WhitelistHandler {
 	handler := &WhitelistHandler{}
 	handler.queries = make(map[string]bool)
@@ -26,8 +26,8 @@ func NewWhitelistHandler() *WhitelistHandler {
 	return handler
 }
 
-//CheckQuery checks each query, returns false and error if query is not whitelisted or
-//if query tries to access to non-whitelisted table
+// CheckQuery checks each query, returns false and error if query is not whitelisted or
+// if query tries to access to non-whitelisted table
 func (handler *WhitelistHandler) CheckQuery(query string) (bool, error) {
 	//Check queries
 	if len(handler.queries) != 0 {
@@ -190,47 +190,47 @@ func (handler *WhitelistHandler) handleParenTables(statement *sqlparser.ParenTab
 	return nil
 }
 
-//Reset resets whitelist to initial state
+// Reset resets whitelist to initial state
 func (handler *WhitelistHandler) Reset() {
 	handler.queries = make(map[string]bool)
 	handler.tables = make(map[string]bool)
 	handler.patterns = nil
 }
 
-//Release releases all resources
+// Release releases all resources
 func (handler *WhitelistHandler) Release() {
 	handler.Reset()
 }
 
-//AddQueries adds queries to the list that should be whitelisted
+// AddQueries adds queries to the list that should be whitelisted
 func (handler *WhitelistHandler) AddQueries(queries []string) {
 	for _, query := range queries {
 		handler.queries[query] = true
 	}
 }
 
-//RemoveQueries removes queries from the list that should be whitelisted
+// RemoveQueries removes queries from the list that should be whitelisted
 func (handler *WhitelistHandler) RemoveQueries(queries []string) {
 	for _, query := range queries {
 		delete(handler.queries, query)
 	}
 }
 
-//AddTables adds tables that should be whitelisted
+// AddTables adds tables that should be whitelisted
 func (handler *WhitelistHandler) AddTables(tableNames []string) {
 	for _, tableName := range tableNames {
 		handler.tables[tableName] = true
 	}
 }
 
-//RemoveTables removes whitelisted tables
+// RemoveTables removes whitelisted tables
 func (handler *WhitelistHandler) RemoveTables(tableNames []string) {
 	for _, tableName := range tableNames {
 		delete(handler.tables, tableName)
 	}
 }
 
-//AddPatterns adds patterns that should be whitelisted
+// AddPatterns adds patterns that should be whitelisted
 func (handler *WhitelistHandler) AddPatterns(patterns []string) error {
 	placeholders := []string{SelectConfigPlaceholder, ColumnConfigPlaceholder, WhereConfigPlaceholder, ValueConfigPlaceholder}
 	replacers := []string{SelectConfigPlaceholderReplacer, ColumnConfigPlaceholderReplacer, WhereConfigPlaceholderReplacer, ValueConfigPlaceholderReplacer}
