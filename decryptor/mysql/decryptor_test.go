@@ -91,7 +91,7 @@ func TestMySQLDecryptor_CheckPoisonRecord_Inline(t *testing.T) {
 	}
 
 	testData := append(part1, append(poisonRecord, part2...)...)
-	err = decryptor.poisonCheck(testData)
+	err = decryptor.inlinePoisonRecordCheck(testData)
 	if err != base.ErrPoisonRecord {
 		t.Logf("test_data=%v\npoison_record=%v\npoison_public=%v\npoison_private=%v", base64.StdEncoding.EncodeToString(testData), base64.StdEncoding.EncodeToString(poisonRecord),
 			base64.StdEncoding.EncodeToString(poisonKeypair.Public.Value), base64.StdEncoding.EncodeToString(poisonKeypair.Private.Value))
@@ -111,7 +111,7 @@ func TestMySQLDecryptor_CheckPoisonRecord_Block(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	err = decryptor.poisonCheck(poisonRecord)
+	err = decryptor.inlinePoisonRecordCheck(poisonRecord)
 	if err != base.ErrPoisonRecord {
 		t.Fatal("expected ErrPoisonRecord")
 	}

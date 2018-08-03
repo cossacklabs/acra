@@ -340,6 +340,9 @@ func (decryptor *PgDecryptor) DecryptBlock(block []byte) ([]byte, error) {
 // returns true and no error if poison record found
 // returns error otherwise
 func (decryptor *PgDecryptor) CheckPoisonRecord(reader io.Reader) (bool, error) {
+	if !decryptor.IsPoisonRecordCheckOn() {
+		return false, nil
+	}
 	// check poison record
 	poisonKeypair, err := decryptor.keyStore.GetPoisonKeyPair()
 	if err != nil {

@@ -184,7 +184,7 @@ func handlePoisonCheckResult(decryptor base.Decryptor, poisoned bool, err error)
 // checkInlinePoisonRecordInBlock check block on poison record as whole AcraStruct block (only when IsPoisonRecordCheckOn() == true)
 func checkInlinePoisonRecordInBlock(block []byte, decryptor base.Decryptor, logger *log.Entry) error {
 	// check is it Poison Record
-	if decryptor.IsPoisonRecordCheckOn() {
+	if decryptor.IsPoisonRecordCheckOn() && len(block) > base.GetMinAcraStructLength() {
 		logger.Debugln("Check poison records")
 		currentIndex := 0
 		for {
@@ -203,7 +203,7 @@ func checkInlinePoisonRecordInBlock(block []byte, decryptor base.Decryptor, logg
 }
 
 func checkWholePoisonRecord(block []byte, decryptor base.Decryptor, logger *log.Entry) error {
-	if !decryptor.IsPoisonRecordCheckOn() {
+	if !decryptor.IsPoisonRecordCheckOn() && len(block) < base.GetMinAcraStructLength() {
 		return nil
 	}
 	decryptor.Reset()
