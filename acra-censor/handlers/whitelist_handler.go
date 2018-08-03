@@ -92,6 +92,7 @@ func (handler *WhitelistHandler) CheckQuery(query string) (bool, error) {
 	if len(handler.patterns) != 0 {
 		matchingOccurred, err := checkPatternsMatching(handler.patterns, query)
 		if err != nil {
+			handler.logger.WithError(err).Debugln("Error from WhitelistHandler [patterns]")
 			return false, ErrPatternCheckError
 		}
 		if !matchingOccurred {
