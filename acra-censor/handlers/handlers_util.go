@@ -113,7 +113,7 @@ func checkSinglePatternMatch(queryNodes []sqlparser.SQLNode, patternNodes []sqlp
 	return false
 }
 
-// handle %%SELECT%% pattern
+// handleSelectPattern handles %%SELECT%% pattern
 func handleSelectPattern(queryNodes, patternNodes []sqlparser.SQLNode) bool {
 	if reflect.TypeOf(queryNodes[0]) == reflect.TypeOf(patternNodes[0]) {
 		if patternNodeSelect, ok := patternNodes[0].(*sqlparser.Select); ok && strings.EqualFold(sqlparser.String(patternNodeSelect.SelectExprs), SelectConfigPlaceholderReplacerPart2) {
@@ -123,7 +123,7 @@ func handleSelectPattern(queryNodes, patternNodes []sqlparser.SQLNode) bool {
 	return false
 }
 
-// handle SELECT %%COLUMN%% .. %%COLUMN%% pattern
+// handleSelectColumnPattern handles SELECT %%COLUMN%% .. %%COLUMN%% pattern
 func handleSelectColumnPattern(queryNodes, patternNodes []sqlparser.SQLNode) bool {
 	matchDetected := false
 	if len(patternNodes) != len(queryNodes) {
@@ -146,7 +146,7 @@ func handleSelectColumnPattern(queryNodes, patternNodes []sqlparser.SQLNode) boo
 	return matchDetected
 }
 
-// handle SELECT a, b from t %%WHERE%% pattern
+// handleSelectWherePattern handles SELECT a, b from t %%WHERE%% pattern
 func handleSelectWherePattern(queryNodes, patternNodes []sqlparser.SQLNode) bool {
 	patternWhereDetected := false
 	queryWhereDetected := false
@@ -192,7 +192,7 @@ func handleValuePattern(queryNodes, patternNodes []sqlparser.SQLNode) bool {
 	return matchDetected
 }
 
-// handle SELECT * FROM table %%WHERE%% pattern
+// handleStarPattern handles SELECT * FROM table %%WHERE%% pattern
 func handleStarPattern(queryNodes, patternNodes []sqlparser.SQLNode) bool {
 	patternWhereDetected := false
 	queryWhereDetected := false
