@@ -81,7 +81,7 @@ func (handler *WhitelistHandler) CheckQuery(query string) (bool, error) {
 			}
 			if !tableIsAllowed {
 				handler.logger.WithError(err).Debugln("Error from WhitelistHandler [insert]")
-				handler.logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCensorQueryIsNotAllowed).WithError(ErrAccessToForbiddenTableWhitelist).Errorln("Query has been blocked by blacklist [tables]")
+				handler.logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCensorQueryIsNotAllowed).WithError(ErrAccessToForbiddenTableWhitelist).Errorln("Query has been blocked by whitelist [tables]")
 				return false, ErrAccessToForbiddenTableWhitelist
 			}
 		case *sqlparser.Update:
@@ -256,7 +256,7 @@ func (handler *WhitelistHandler) AddPatterns(patterns []string) error {
 		}
 		statement, err := sqlparser.Parse(patternValue)
 		if err != nil {
-			log.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCensorQueryParseError).WithError(err).Errorln("Can't add specified pattern in blacklist handler")
+			log.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCensorQueryParseError).WithError(err).Errorln("Can't add specified pattern in whitelist handler")
 			return ErrPatternSyntaxError
 		}
 		var newPatternNodes []sqlparser.SQLNode
