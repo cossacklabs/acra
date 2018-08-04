@@ -109,26 +109,24 @@ func (handler *WhitelistHandler) handleAliasedTables(parsedQuery sqlparser.Table
 		switch table.(type) {
 		case *sqlparser.AliasedTableExpr:
 			if !handler.tables[sqlparser.String(table.(*sqlparser.AliasedTableExpr).Expr)] {
+				handler.logger.WithError(ErrAccessToForbiddenTableWhitelist).Debugln("Error from WhitelistHandler.handleAliasedTables. [evaluated table not found in whitelist]")
 				return ErrAccessToForbiddenTableWhitelist
 			}
-			break
 		case *sqlparser.JoinTableExpr:
 			err = handler.handleJoinedTables(table.(*sqlparser.JoinTableExpr))
 			if err != nil {
+				handler.logger.WithError(err).Debugln("Error from WhitelistHandler.handleAliasedTables [joined table]")
 				return ErrAccessToForbiddenTableWhitelist
 			}
-			break
 		case *sqlparser.ParenTableExpr:
 			err = handler.handleParenTables(table.(*sqlparser.ParenTableExpr))
 			if err != nil {
+				handler.logger.WithError(err).Debugln("Error from WhitelistHandler.handleAliasedTables [paren table]")
 				return ErrAccessToForbiddenTableWhitelist
 			}
-			break
 		default:
+			handler.logger.WithError(ErrUnexpectedTypeError).Debugln("Error from WhitelistHandler.handleAliasedTables [unexpected type of table]")
 			return ErrUnexpectedTypeError
-		}
-		if err != nil {
-			return ErrAccessToForbiddenTableWhitelist
 		}
 	}
 	return nil
@@ -141,14 +139,19 @@ func (handler *WhitelistHandler) handleJoinedTables(statement *sqlparser.JoinTab
 		var tables sqlparser.TableExprs
 		tables = append(tables, statement.LeftExpr)
 		err = handler.handleAliasedTables(tables)
+		handler.logger.WithError(err).Debugln("Error from WhitelistHandler.handleJoinedTables - left expr. [aliased table]")
 	case *sqlparser.JoinTableExpr:
 		err = handler.handleJoinedTables(statement.LeftExpr.(*sqlparser.JoinTableExpr))
+		handler.logger.WithError(err).Debugln("Error from WhitelistHandler.handleJoinedTables - left expr. [joined table]")
 	case *sqlparser.ParenTableExpr:
 		err = handler.handleParenTables(statement.LeftExpr.(*sqlparser.ParenTableExpr))
+		handler.logger.WithError(err).Debugln("Error from WhitelistHandler.handleJoinedTables - left expr. [paren table]")
 	default:
+		handler.logger.WithError(ErrUnexpectedTypeError).Debugln("Error from WhitelistHandler.handleJoinedTables - left expr. [unexpected type of table]")
 		return ErrUnexpectedTypeError
 	}
 	if err != nil {
+		//this err will be already logged
 		return err
 	}
 	switch statement.RightExpr.(type) {
@@ -156,14 +159,19 @@ func (handler *WhitelistHandler) handleJoinedTables(statement *sqlparser.JoinTab
 		var tables sqlparser.TableExprs
 		tables = append(tables, statement.RightExpr)
 		err = handler.handleAliasedTables(tables)
+		handler.logger.WithError(err).Debugln("Error from WhitelistHandler.handleJoinedTables - right expr. [aliased table]")
 	case *sqlparser.JoinTableExpr:
 		err = handler.handleJoinedTables(statement.RightExpr.(*sqlparser.JoinTableExpr))
+		handler.logger.WithError(err).Debugln("Error from WhitelistHandler.handleJoinedTables - right expr. [joined table]")
 	case *sqlparser.ParenTableExpr:
 		err = handler.handleParenTables(statement.RightExpr.(*sqlparser.ParenTableExpr))
+		handler.logger.WithError(err).Debugln("Error from WhitelistHandler.handleJoinedTables - right expr. [paren table]")
 	default:
+		handler.logger.WithError(ErrUnexpectedTypeError).Debugln("Error from WhitelistHandler.handleJoinedTables - right expr. [unexpected type of table]")
 		err = ErrUnexpectedTypeError
 	}
 	if err != nil {
+		//this error will be already logged
 		return err
 	}
 	return nil
@@ -177,14 +185,19 @@ func (handler *WhitelistHandler) handleParenTables(statement *sqlparser.ParenTab
 			var tables sqlparser.TableExprs
 			tables = append(tables, singleExpression)
 			err = handler.handleAliasedTables(tables)
+			handler.logger.WithError(err).Debugln("Error from WhitelistHandler.handleParenTables. [aliased table]")
 		case *sqlparser.JoinTableExpr:
 			err = handler.handleJoinedTables(singleExpression.(*sqlparser.JoinTableExpr))
+			handler.logger.WithError(err).Debugln("Error from WhitelistHandler.handleParenTables. [joined table]")
 		case *sqlparser.ParenTableExpr:
 			err = handler.handleParenTables(singleExpression.(*sqlparser.ParenTableExpr))
+			handler.logger.WithError(err).Debugln("Error from WhitelistHandler.handleParenTables. [paren table]")
 		default:
+			handler.logger.WithError(ErrUnexpectedTypeError).Debugln("Error from WhitelistHandler.handleParenTables. [unexpected type of table]")
 			return ErrUnexpectedTypeError
 		}
 		if err != nil {
+			//this error will be already logged
 			return err
 		}
 	}
