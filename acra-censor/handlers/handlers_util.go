@@ -151,6 +151,9 @@ func handleSelectWherePattern(queryNodes, patternNodes []sqlparser.SQLNode) bool
 	patternWhereDetected := false
 	queryWhereDetected := false
 	for index, patternNode := range patternNodes {
+		if index >= len(queryNodes) {
+			return false
+		}
 		if index == 0 || reflect.DeepEqual(queryNodes[index], patternNode) {
 			continue
 		}
