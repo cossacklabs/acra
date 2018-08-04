@@ -1,3 +1,4 @@
+ignore_parse_error: false
 handlers:
   - handler: query_ignore
     queries:
@@ -31,4 +32,4 @@ handlers:
     tables:
       - test
     patterns:
-      - select * from test where id='1'
+      - "%%SELECT%%"
