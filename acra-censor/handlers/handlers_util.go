@@ -4,6 +4,8 @@ import (
 	"errors"
 	"github.com/xwb1989/sqlparser"
 	"github.com/xwb1989/sqlparser/dependency/querypb"
+	"reflect"
+	"strings"
 )
 
 // Errors returned during parsing SQL queries.
@@ -46,18 +48,6 @@ const (
 	ValueConfigPlaceholderReplacer       = "'VALUE_AE920B7D'"
 )
 
-func removeDuplicates(input []string) []string {
-	keys := make(map[string]bool)
-	var result []string
-	for _, entry := range input {
-		if _, value := keys[entry]; !value {
-			keys[entry] = true
-			result = append(result, entry)
-		}
-	}
-	return result
-}
-
 // TrimStringToN trims query to N chars.
 func TrimStringToN(query string, n int) string {
 	if len(query) <= n {
@@ -77,4 +67,186 @@ func RedactSQLQuery(sql string) (string, error) {
 	}
 	sqlparser.Normalize(stmt, bv, ValuePlaceholder)
 	return comments.Leading + sqlparser.String(stmt) + comments.Trailing, nil
+}
+
+func checkPatternsMatching(patterns [][]sqlparser.SQLNode, query string) (bool, error) {
+	var queryNodes []sqlparser.SQLNode
+	statement, err := sqlparser.Parse(query)
+	if err != nil {
+		return false, ErrQuerySyntaxError
+	}
+	sqlparser.Walk(func(node sqlparser.SQLNode) (bool, error) {
+		queryNodes = append(queryNodes, node)
+		return true, nil
+	}, statement)
+	for _, singlePatternNodes := range patterns {
+		if checkSinglePatternMatch(queryNodes, singlePatternNodes) {
+			return true, nil
+		}
+	}
+	return false, nil
+}
+
+func checkSinglePatternMatch(queryNodes []sqlparser.SQLNode, patternNodes []sqlparser.SQLNode) bool {
+	matchOccurred := false
+	matchOccurred = handleSelectPattern(queryNodes, patternNodes)
+	if matchOccurred {
+		return true
+	}
+	matchOccurred = handleSelectColumnPattern(queryNodes, patternNodes)
+	if matchOccurred {
+		return true
+	}
+	matchOccurred = handleSelectWherePattern(queryNodes, patternNodes)
+	if matchOccurred {
+		return true
+	}
+	matchOccurred = handleValuePattern(queryNodes, patternNodes)
+	if matchOccurred {
+		return true
+	}
+	matchOccurred = handleStarPattern(queryNodes, patternNodes)
+	if matchOccurred {
+		return true
+	}
+	//query doesn't match any stored pattern
+	return false
+}
+
+// handleSelectPattern handles %%SELECT%% pattern
+func handleSelectPattern(queryNodes, patternNodes []sqlparser.SQLNode) bool {
+	if reflect.TypeOf(queryNodes[0]) == reflect.TypeOf(patternNodes[0]) {
+		if patternNodeSelect, ok := patternNodes[0].(*sqlparser.Select); ok && strings.EqualFold(sqlparser.String(patternNodeSelect.SelectExprs), SelectConfigPlaceholderReplacerPart2) {
+			return true
+		}
+	}
+	return false
+}
+
+// handleSelectColumnPattern handles SELECT %%COLUMN%% .. %%COLUMN%% pattern
+func handleSelectColumnPattern(queryNodes, patternNodes []sqlparser.SQLNode) bool {
+	matchDetected := false
+	if len(patternNodes) != len(queryNodes) {
+		return false
+	}
+	for index, patternNode := range patternNodes {
+		if index == 0 || reflect.DeepEqual(patternNode, queryNodes[index]) {
+			continue
+		}
+		if patternNodeColName, ok := patternNode.(*sqlparser.ColName); ok && patternNodeColName != nil {
+			if queryNodeColName, ok := queryNodes[index].(*sqlparser.ColName); ok && queryNodeColName != nil {
+				if strings.EqualFold(patternNodeColName.Name.String(), ColumnConfigPlaceholderReplacer) {
+					matchDetected = true
+				} else {
+					return false
+				}
+			}
+		}
+	}
+	return matchDetected
+}
+
+// handleSelectWherePattern handles SELECT a, b from t %%WHERE%% pattern
+func handleSelectWherePattern(queryNodes, patternNodes []sqlparser.SQLNode) bool {
+	patternWhereDetected := false
+	queryWhereDetected := false
+	for index, patternNode := range patternNodes {
+		if index >= len(queryNodes) {
+			return false
+		}
+		if index == 0 || reflect.DeepEqual(queryNodes[index], patternNode) {
+			continue
+		}
+		if patternWhereNode, ok := patternNode.(*sqlparser.Where); ok && patternWhereNode != nil && strings.EqualFold(sqlparser.String(patternWhereNode.Expr), WhereConfigPlaceholderReplacerPart2) {
+			patternWhereDetected = true
+		}
+		if queryWhereNode, ok := queryNodes[index].(*sqlparser.Where); ok && queryWhereNode != nil {
+			queryWhereDetected = true
+		}
+		if queryWhereDetected && patternWhereDetected {
+			return true
+		}
+		return false
+	}
+	//this is a case when pattern == query
+	return true
+}
+
+// handle SELECT a, b FROM t1 WHERE userID=%%VALUE%% pattern
+func handleValuePattern(queryNodes, patternNodes []sqlparser.SQLNode) bool {
+	matchDetected := false
+	if len(patternNodes) != len(queryNodes) {
+		return false
+	}
+	for index, patternNode := range patternNodes {
+		if index == 0 || reflect.DeepEqual(patternNode, queryNodes[index]) {
+			continue
+		}
+		if patternNodeComparison, ok := patternNode.(*sqlparser.ComparisonExpr); ok && patternNodeComparison != nil {
+			if queryNodeComparison, ok := queryNodes[index].(*sqlparser.ComparisonExpr); ok && queryNodeComparison != nil {
+				if reflect.DeepEqual(queryNodeComparison.Left, patternNodeComparison.Left) {
+					if strings.EqualFold(sqlparser.String(patternNodeComparison.Right), ValueConfigPlaceholderReplacer) {
+						matchDetected = true
+					}
+				}
+			}
+		}
+	}
+	return matchDetected
+}
+
+// handleStarPattern handles SELECT * FROM table %%WHERE%% pattern
+func handleStarPattern(queryNodes, patternNodes []sqlparser.SQLNode) bool {
+	patternWhereDetected := false
+	queryWhereDetected := false
+	patternNodeOffset := 0
+	queryNodeOffset := 0
+	for index := 1; index < len(patternNodes); index++ {
+		if index+patternNodeOffset >= len(patternNodes) || index+queryNodeOffset >= len(queryNodes) {
+			return false
+		}
+		if reflect.DeepEqual(patternNodes[index+patternNodeOffset], queryNodes[index+queryNodeOffset]) {
+			continue
+		}
+		if patternSelectExpr, ok := patternNodes[index+patternNodeOffset].(sqlparser.SelectExprs); ok && starFound(patternSelectExpr) {
+			if _, ok := queryNodes[index+queryNodeOffset].(sqlparser.SelectExprs); ok {
+				for i := index; i < len(queryNodes); i++ {
+					if _, ok := queryNodes[i].(sqlparser.TableExprs); ok {
+						break
+					}
+					queryNodeOffset++
+				}
+				for i := index; i < len(queryNodes); i++ {
+					if _, ok := patternNodes[i].(sqlparser.TableExprs); ok {
+						break
+					}
+					patternNodeOffset++
+				}
+				continue
+			}
+		}
+		if patternWhereNode, ok := patternNodes[index+patternNodeOffset].(*sqlparser.Where); ok && patternWhereNode != nil && strings.EqualFold(sqlparser.String(patternWhereNode.Expr), WhereConfigPlaceholderReplacerPart2) {
+			patternWhereDetected = true
+		}
+		if queryWhereNode, ok := queryNodes[index+queryNodeOffset].(*sqlparser.Where); ok && queryWhereNode != nil {
+			queryWhereDetected = true
+		}
+		if queryWhereDetected && patternWhereDetected {
+			return true
+		}
+		return false
+	}
+	//this is a case when pattern == query
+	return true
+}
+func starFound(selectExpression sqlparser.SelectExprs) bool {
+	starDetected := false
+	sqlparser.Walk(func(node sqlparser.SQLNode) (bool, error) {
+		if _, ok := node.(*sqlparser.StarExpr); ok {
+			starDetected = true
+			return false, nil
+		}
+		return true, nil
+	}, selectExpression)
+	return starDetected
 }

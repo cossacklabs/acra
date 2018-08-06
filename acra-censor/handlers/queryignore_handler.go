@@ -21,12 +21,12 @@ func (handler *QueryIgnoreHandler) CheckQuery(query string) (bool, error) {
 	return true, nil
 }
 
-// Reset ignored rules
+// Reset ignored patterns
 func (handler *QueryIgnoreHandler) Reset() {
 	handler.ignoredQueries = make(map[string]bool)
 }
 
-// Release / reset ignored rules
+// Release / reset ignored patterns
 func (handler *QueryIgnoreHandler) Release() {
 	handler.Reset()
 }

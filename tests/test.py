@@ -823,12 +823,13 @@ class CensorBlacklistTest(BaseCensorTest):
         if TEST_POSTGRESQL:
             expectedException = sa.exc.ProgrammingError
 
+        #test block by query
         with self.assertRaises(expectedException):
                 result = self.engine1.execute(sa.text("select data from test where id='1'"))
-
+        #test block by table
         with self.assertRaises(expectedException):
             result = self.engine1.execute(sa.text("select data_raw from test"))
-
+        #test block by pattern
         with self.assertRaises(expectedException):
             result = self.engine1.execute(sa.text("select * from acrarollback_output"))
 
@@ -842,11 +843,12 @@ class CensorWhitelistTest(BaseCensorTest):
         if TEST_POSTGRESQL:
             expectedException = sa.exc.ProgrammingError
 
-        with self.assertRaises(expectedException):
-            result = self.engine1.execute(sa.text("select data from test where id='100'"))
-
+        #test block by table
         with self.assertRaises(expectedException):
             result = self.engine1.execute(sa.text("select * from acrarollback_output"))
+        #test block by pattern
+        with self.assertRaises(expectedException):
+            result = self.engine1.execute(sa.text("insert into test (a, b, c) values ('x', 'y', 'z')"))
 
 
 class ZoneHexFormatTest(BaseTestCase):
