@@ -210,21 +210,17 @@ func handleStarPattern(queryNodes, patternNodes []sqlparser.SQLNode) bool {
 		}
 		if patternSelectExpr, ok := patternNodes[index+patternNodeOffset].(sqlparser.SelectExprs); ok && starFound(patternSelectExpr) {
 			if _, ok := queryNodes[index+queryNodeOffset].(sqlparser.SelectExprs); ok {
-				i := index
-				for i < len(queryNodes) {
+				for i := index; i < len(queryNodes); i++ {
 					if _, ok := queryNodes[i].(sqlparser.TableExprs); ok {
 						break
 					}
 					queryNodeOffset++
-					i++
 				}
-				i = index
-				for i < len(patternNodes) {
+				for i := index; i < len(queryNodes); i++ {
 					if _, ok := patternNodes[i].(sqlparser.TableExprs); ok {
 						break
 					}
 					patternNodeOffset++
-					i++
 				}
 				continue
 			}
