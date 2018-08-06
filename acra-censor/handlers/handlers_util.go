@@ -172,7 +172,7 @@ func handleSelectWherePattern(queryNodes, patternNodes []sqlparser.SQLNode) bool
 	return true
 }
 
-// handle SELECT a, b FROM t1 WHERE userID=%%VALUE%% pattern
+// handleValuePattern handles SELECT a, b FROM t1 WHERE userID=%%VALUE%% pattern
 func handleValuePattern(queryNodes, patternNodes []sqlparser.SQLNode) bool {
 	matchDetected := false
 	if len(patternNodes) != len(queryNodes) {
