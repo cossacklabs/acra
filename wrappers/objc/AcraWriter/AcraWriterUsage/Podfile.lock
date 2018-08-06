@@ -1,0 +1,27 @@
+PODS:
+  - GRKOpenSSLFramework (1.0.1.20.4)
+  - themis (0.10.0):
+    - GRKOpenSSLFramework (= 1.0.1.20.4)
+    - themis/core (= 0.10.0)
+    - themis/objcwrapper (= 0.10.0)
+  - themis/core (0.10.0):
+    - GRKOpenSSLFramework (= 1.0.1.20.4)
+  - themis/objcwrapper (0.10.0):
+    - GRKOpenSSLFramework (= 1.0.1.20.4)
+    - themis/core
+
+DEPENDENCIES:
+  - themis (= 0.10.0)
+
+SPEC REPOS:
+  https://github.com/cocoapods/specs.git:
+    - GRKOpenSSLFramework
+    - themis
+
+SPEC CHECKSUMS:
+  GRKOpenSSLFramework: b6172cc34db9b999002483878772a4bf2a1687ba
+  themis: f06f5690dbb18276e98f3c8d7c9ba90e8100bd09
+
+PODFILE CHECKSUM: 203c5ab47a25ecf85994d2a496fb2873f84148b6
+
+COCOAPODS: 1.5.3
