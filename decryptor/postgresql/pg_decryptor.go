@@ -235,6 +235,7 @@ func (proxy *PgProxy) processWholeBlockDecryption(packet *PacketHandler, column 
 		}
 		return nil
 	}
+	base.AcrastructDecryptionCounter.Inc()
 	column.SetData(decrypted)
 	return nil
 }
@@ -359,6 +360,7 @@ func (proxy *PgProxy) processInlineBlockDecryption(packet *PacketHandler, column
 			currentIndex++
 			continue
 		}
+		base.AcrastructDecryptionCounter.Inc()
 		outputBlock.Write(decryptedData)
 		currentIndex += tagLength + (len(column.Data[beginTagIndex+tagLength:]) - blockReader.Len())
 		hasDecryptedData = true

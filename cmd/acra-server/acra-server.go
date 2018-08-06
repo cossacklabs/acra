@@ -47,6 +47,7 @@ import (
 	"github.com/cossacklabs/acra/network"
 	"github.com/cossacklabs/acra/utils"
 	log "github.com/sirupsen/logrus"
+	"net"
 )
 
 var restartSignalsChannel chan os.Signal
@@ -84,6 +85,8 @@ func main() {
 
 	dbHost := flag.String("db_host", "", "Host to db")
 	dbPort := flag.Int("db_port", 5432, "Port to db")
+
+	prometheusAddress := flag.String("prometheus_metrics_address", "tcp://127.0.0.1:8484", "")
 
 	host := flag.String("incoming_connection_host", cmd.DEFAULT_ACRA_HOST, "Host for AcraServer")
 	port := flag.Int("incoming_connection_port", cmd.DEFAULT_ACRASERVER_PORT, "Port for AcraServer")
@@ -309,12 +312,25 @@ func main() {
 		}()
 	}
 
+	var prometheusListener net.Listener
+	if *prometheusAddress != "" {
+		prometheusListener, err = cmd.RunPrometheusHTTPHandler(*prometheusAddress)
+		if err != nil {
+			panic(err)
+		}
+
+	}
+
 	go sigHandlerSIGTERM.Register()
 	sigHandlerSIGTERM.AddCallback(func() {
 		log.Infof("Received incoming SIGTERM or SIGINT signal")
 		log.Debugf("Stop accepting new connections, waiting until current connections close")
 		// Stop accepting new connections
 		server.StopListeners()
+		log.Infoln("Stop prometheus listener")
+		if err := prometheusListener.Close(); err != nil {
+			log.WithError(err).Errorln("Error on closing prometheus listener")
+		}
 		// Wait a maximum of N seconds for existing connections to finish
 		err := server.WaitWithTimeout(time.Duration(*closeConnectionTimeout) * time.Second)
 		if err == ErrWaitTimeout {
@@ -333,6 +349,11 @@ func main() {
 
 		// Stop accepting requests
 		server.StopListeners()
+
+		log.Infoln("Stop prometheus listener")
+		if err := prometheusListener.Close(); err != nil {
+			log.WithError(err).Errorln("Error on closing prometheus listener")
+		}
 
 		// Get socket file descriptor to pass it to fork
 		var fdACRA, fdAPI uintptr
@@ -391,6 +412,7 @@ func main() {
 		}
 		go server.Start()
 	}
+
 	// on sighup we run callback that stop all listeners (that stop background goroutine of server.Start())
 	// and try to restart acra-server and only after that exits
 	sigHandlerSIGHUP.Register()

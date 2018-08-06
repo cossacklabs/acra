@@ -258,6 +258,7 @@ func (decryptor *MySQLDecryptor) decryptWholeBlock(block []byte) ([]byte, error)
 				return nil, err
 			}
 		}
+		base.AcrastructDecryptionCounter.Inc()
 		if decryptor.IsWithZone() && err == nil && len(newData) != len(block) {
 			// reset zone because decryption is successful
 			decryptor.ResetZoneMatch()
@@ -303,6 +304,7 @@ func (decryptor *MySQLDecryptor) decryptInlineBlock(block []byte) ([]byte, error
 			decryptor.log.Debugln("Can't decrypt block")
 			continue
 		}
+		base.AcrastructDecryptionCounter.Inc()
 		index += tagLength + (len(block[beginTagIndex+tagLength:]) - blockReader.Len())
 		output.Write(decrypted)
 		decryptor.ResetZoneMatch()
