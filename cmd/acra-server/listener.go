@@ -175,9 +175,6 @@ func (server *SServer) handleConnection(connection net.Conn) {
 }
 
 func (server *SServer) start(listener net.Listener, connectionHandler func(net.Conn), logger *log.Entry) {
-	server.listenerACRA = listener
-	server.addListener(listener)
-
 	logger.Infof("Start listening connections")
 	for {
 		connection, err := listener.Accept()
@@ -212,6 +209,8 @@ func (server *SServer) Start() {
 		server.errorSignalChannel <- syscall.SIGTERM
 		return
 	}
+	server.listenerACRA = listener
+	server.addListener(listener)
 	server.start(listener, server.handleConnection, logger)
 }
 
@@ -238,6 +237,8 @@ func (server *SServer) StartFromFileDescriptor(fd uintptr) {
 			Errorf("System error: file descriptor %d is not a valid socket", fd)
 		return
 	}
+	server.listenerACRA = listenerWithFileDescriptor
+	server.addListener(listenerWithFileDescriptor)
 	server.start(listenerWithFileDescriptor, server.handleConnection, logger)
 }
 
@@ -350,6 +351,8 @@ func (server *SServer) StartCommands() {
 		server.errorSignalChannel <- syscall.SIGTERM
 		return
 	}
+	server.listenerAPI = listener
+	server.addListener(listener)
 	server.start(listener, server.handleCommandsConnection, logger)
 }
 
@@ -375,5 +378,7 @@ func (server *SServer) StartCommandsFromFileDescriptor(fd uintptr) {
 			Errorf("System error: file descriptor %d is not a valid socket", fd)
 		return
 	}
+	server.listenerAPI = listenerWithFileDescriptor
+	server.addListener(listenerWithFileDescriptor)
 	server.start(listenerWithFileDescriptor, server.handleCommandsConnection, logger)
 }

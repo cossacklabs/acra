@@ -198,7 +198,7 @@ func main() {
 	connectionAPIString := flag.String("incoming_connection_api_string", network.BuildConnectionString(cmd.DEFAULT_ACRACONNECTOR_CONNECTION_PROTOCOL, cmd.DEFAULT_ACRACONNECTOR_HOST, cmd.DEFAULT_ACRACONNECTOR_API_PORT, ""), "Connection string like tcp://x.x.x.x:yyyy or unix:///path/to/socket")
 	acraServerConnectionString := flag.String("acraserver_connection_string", "", "Connection string to AcraServer like tcp://x.x.x.x:yyyy or unix:///path/to/socket")
 	acraServerAPIConnectionString := flag.String("acraserver_api_connection_string", "", "Connection string to Acra's API like tcp://x.x.x.x:yyyy or unix:///path/to/socket")
-	prometheusAddress := flag.String("prometheus_metrics_address", "tcp://127.0.0.1:8585", "")
+	prometheusAddress := flag.String("prometheus_metrics_address", "", "")
 
 	connectorModeString := flag.String("mode", "AcraServer", "Expected mode of connection. Possible values are: AcraServer or AcraTranslator. Corresponded connection host/port/string/session_id will be used.")
 	acraTranslatorHost := flag.String("acratranslator_connection_host", cmd.DEFAULT_ACRATRANSLATOR_GRPC_HOST, "IP or domain to AcraTranslator daemon")
@@ -337,15 +337,6 @@ func main() {
 	}
 	defer listener.Close()
 
-	var prometheusListener net.Listener
-	if *prometheusAddress != "" {
-		prometheusListener, err = cmd.RunPrometheusHTTPHandler(*prometheusAddress)
-		if err != nil {
-			panic(err)
-		}
-
-	}
-
 	log.Debugf("Registering process signal handlers")
 	sigHandler, err := cmd.NewSignalHandler([]os.Signal{os.Interrupt, syscall.SIGTERM})
 	if err != nil {
@@ -355,7 +346,6 @@ func main() {
 	}
 	go sigHandler.Register()
 	sigHandler.AddListener(listener)
-	sigHandler.AddListener(prometheusListener)
 
 	// -------- TRANSPORT -----------
 	if connectorMode == connector_mode.AcraTranslatorMode {
@@ -437,6 +427,15 @@ func main() {
 	} else {
 		log.Infof("Disabling future logs.. Set -v to see logs")
 		logging.SetLogLevel(logging.LOG_DISCARD)
+	}
+
+	if *prometheusAddress != "" {
+		prometheusListener, err := cmd.RunPrometheusHTTPHandler(*prometheusAddress)
+		if err != nil {
+			panic(err)
+		}
+		sigHandler.AddListener(prometheusListener)
+
 	}
 
 	for {
