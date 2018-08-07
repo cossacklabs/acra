@@ -18,13 +18,6 @@
 #import "AcraStruct+Internal.h"
 #import <objcthemis/objcthemis.h>
 
-typedef NS_ENUM(NSUInteger, AcraWriterError) {
-  AcraWriterErrorCantGenerateKeyPair = 100,
-  AcraWriterErrorCantGenerateRandomKey = 101,
-  AcraWriterErrorCantEncryptRandomKey = 102,
-  AcraWriterErrorCantEncryptPayload = 103
-};
-
 @implementation AcraWriter
 
 static NSString *kErrorDomain = @"com.CossackLabs.Acra.Error";
@@ -32,6 +25,20 @@ static NSUInteger kSymmetricKeySize = 32;
 static NSUInteger kAcraStructHeaderByte = 34;
 
 - (nullable AcraStruct *)createAcraStructFrom:(nonnull NSData *)message publicKey:(nonnull NSData *)publicKey zoneID:(nullable NSData *)zoneID error:(NSError * __autoreleasing *)error {
+  
+  if (message == nil || [message length] == 0) {
+    *error = [NSError errorWithDomain:kErrorDomain
+                                 code:AcraWriterErrorEmptyData
+                             userInfo:@{ NSLocalizedDescriptionKey : @"Can't encrypt empty payload"}];
+    return nil;
+  }
+  
+  if (publicKey == nil) {
+    *error = [NSError errorWithDomain:kErrorDomain
+                                 code:AcraWriterErrorWrongPublicKey
+                             userInfo:@{ NSLocalizedDescriptionKey : @"Public key is empty or wrong"}];
+    return nil;
+  }
   
   // 1. generate EC keypair
   TSKeyGen * keygenEC = [[TSKeyGen alloc] initWithAlgorithm:TSKeyGenAsymmetricAlgorithmEC];

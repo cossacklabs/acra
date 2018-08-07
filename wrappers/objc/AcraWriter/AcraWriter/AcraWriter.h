@@ -31,6 +31,18 @@
 @interface AcraWriter : NSObject
 
 /**
+ * @brief Possible error codes when creating AcraStruct.
+ */
+typedef NS_ENUM(NSUInteger, AcraWriterError) {
+  AcraWriterErrorEmptyData = 700,
+  AcraWriterErrorWrongPublicKey = 701,
+  AcraWriterErrorCantGenerateKeyPair = 702,
+  AcraWriterErrorCantGenerateRandomKey = 703,
+  AcraWriterErrorCantEncryptRandomKey = 704,
+  AcraWriterErrorCantEncryptPayload = 705
+};
+
+/**
  * @discussion Method to generate AcraStruct from plain text message. Two option are possible: without Zones or with Zones.
  * Without zones: `publicKey` is AcraStorage public key.
  * With zones: `zoneID` is required, `publicKey` is Zone public key.
