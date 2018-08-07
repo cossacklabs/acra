@@ -1,0 +1,34 @@
+PODS:
+  - acrawriter (1.0.0):
+    - themis (= 0.10.0)
+  - GRKOpenSSLFramework (1.0.1.20.4)
+  - themis (0.10.0):
+    - GRKOpenSSLFramework (= 1.0.1.20.4)
+    - themis/core (= 0.10.0)
+    - themis/objcwrapper (= 0.10.0)
+  - themis/core (0.10.0):
+    - GRKOpenSSLFramework (= 1.0.1.20.4)
+  - themis/objcwrapper (0.10.0):
+    - GRKOpenSSLFramework (= 1.0.1.20.4)
+    - themis/core
+
+DEPENDENCIES:
+  - acrawriter (from `../`)
+
+SPEC REPOS:
+  https://github.com/cocoapods/specs.git:
+    - GRKOpenSSLFramework
+    - themis
+
+EXTERNAL SOURCES:
+  acrawriter:
+    :path: "../"
+
+SPEC CHECKSUMS:
+  acrawriter: e4e70050c4b8bcf541ed06258ae98f0026612760
+  GRKOpenSSLFramework: b6172cc34db9b999002483878772a4bf2a1687ba
+  themis: f06f5690dbb18276e98f3c8d7c9ba90e8100bd09
+
+PODFILE CHECKSUM: bf9b1f883f63ac44d75d7fbb7694f0e9329ae3fa
+
+COCOAPODS: 1.5.3
