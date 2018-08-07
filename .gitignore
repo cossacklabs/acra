@@ -48,10 +48,9 @@ xcuserdata
 *.swp
 
 # ios projects
-wrappers/objc/AcraWriter/AcraWriterUsage/Pods
-wrappers/objc/AcraWriter/AcraWriterUsage/DerivedData
-wrappers/objc/AcraWriter/AcraWriter/DerivedData
 wrappers/objc/AcraWriter/DerivedData
+wrappers/objc/AcraWriter/Example/Pods
+wrappers/objc/AcraWriter/Example/DerivedData
 
 
 # Python

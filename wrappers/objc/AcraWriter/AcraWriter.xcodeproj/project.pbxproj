@@ -8,9 +8,10 @@
 
 /* Begin PBXBuildFile section */
 		732D83D2211335940003A087 /* AcraWriter.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 732D83C8211335930003A087 /* AcraWriter.framework */; };
-		732D83D7211335940003A087 /* AcraWriterTests.m in Sources */ = {isa = PBXBuildFile; fileRef = 732D83D6211335940003A087 /* AcraWriterTests.m */; };
-		732D83D9211335940003A087 /* AcraWriter.h in Headers */ = {isa = PBXBuildFile; fileRef = 732D83CB211335930003A087 /* AcraWriter.h */; settings = {ATTRIBUTES = (Public, ); }; };
-		732D8413211337B50003A087 /* AcraWriter.m in Sources */ = {isa = PBXBuildFile; fileRef = 732D8412211337B50003A087 /* AcraWriter.m */; };
+		738DD3D621199CE500D70022 /* AcraWriter.m in Sources */ = {isa = PBXBuildFile; fileRef = 738DD3D221199CE500D70022 /* AcraWriter.m */; };
+		738DD3D821199CE500D70022 /* AcraStruct.h in Headers */ = {isa = PBXBuildFile; fileRef = 738DD3D321199CE500D70022 /* AcraStruct.h */; };
+		738DD3DA21199CE500D70022 /* AcraStruct.m in Sources */ = {isa = PBXBuildFile; fileRef = 738DD3D521199CE500D70022 /* AcraStruct.m */; };
+		738DD3DD2119A07F00D70022 /* AcraWriter.h in Headers */ = {isa = PBXBuildFile; fileRef = 738DD3DC2119A07F00D70022 /* AcraWriter.h */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -25,12 +26,13 @@
 
 /* Begin PBXFileReference section */
 		732D83C8211335930003A087 /* AcraWriter.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = AcraWriter.framework; sourceTree = BUILT_PRODUCTS_DIR; };
-		732D83CB211335930003A087 /* AcraWriter.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = AcraWriter.h; sourceTree = "<group>"; };
 		732D83CC211335930003A087 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		732D83D1211335940003A087 /* AcraWriterTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = AcraWriterTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
-		732D83D6211335940003A087 /* AcraWriterTests.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = AcraWriterTests.m; sourceTree = "<group>"; };
-		732D83D8211335940003A087 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
-		732D8412211337B50003A087 /* AcraWriter.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = AcraWriter.m; sourceTree = "<group>"; };
+		738DD3D221199CE500D70022 /* AcraWriter.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = AcraWriter.m; sourceTree = "<group>"; };
+		738DD3D321199CE500D70022 /* AcraStruct.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = AcraStruct.h; sourceTree = "<group>"; };
+		738DD3D521199CE500D70022 /* AcraStruct.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = AcraStruct.m; sourceTree = "<group>"; };
+		738DD3DC2119A07F00D70022 /* AcraWriter.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = AcraWriter.h; sourceTree = "<group>"; };
+		738DD3DE2119C0B500D70022 /* AcraStruct+Internal.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = "AcraStruct+Internal.h"; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -56,7 +58,6 @@
 			isa = PBXGroup;
 			children = (
 				732D83CA211335930003A087 /* AcraWriter */,
-				732D83D5211335940003A087 /* AcraWriterTests */,
 				732D83C9211335930003A087 /* Products */,
 			);
 			sourceTree = "<group>";
@@ -73,20 +74,14 @@
 		732D83CA211335930003A087 /* AcraWriter */ = {
 			isa = PBXGroup;
 			children = (
-				732D83CB211335930003A087 /* AcraWriter.h */,
-				732D8412211337B50003A087 /* AcraWriter.m */,
+				738DD3DC2119A07F00D70022 /* AcraWriter.h */,
+				738DD3D221199CE500D70022 /* AcraWriter.m */,
+				738DD3D321199CE500D70022 /* AcraStruct.h */,
+				738DD3DE2119C0B500D70022 /* AcraStruct+Internal.h */,
+				738DD3D521199CE500D70022 /* AcraStruct.m */,
 				732D83CC211335930003A087 /* Info.plist */,
 			);
 			path = AcraWriter;
-			sourceTree = "<group>";
-		};
-		732D83D5211335940003A087 /* AcraWriterTests */ = {
-			isa = PBXGroup;
-			children = (
-				732D83D6211335940003A087 /* AcraWriterTests.m */,
-				732D83D8211335940003A087 /* Info.plist */,
-			);
-			path = AcraWriterTests;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -96,7 +91,8 @@
 			isa = PBXHeadersBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				732D83D9211335940003A087 /* AcraWriter.h in Headers */,
+				738DD3DD2119A07F00D70022 /* AcraWriter.h in Headers */,
+				738DD3D821199CE500D70022 /* AcraStruct.h in Headers */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -196,7 +192,8 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				732D8413211337B50003A087 /* AcraWriter.m in Sources */,
+				738DD3D621199CE500D70022 /* AcraWriter.m in Sources */,
+				738DD3DA21199CE500D70022 /* AcraStruct.m in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -204,7 +201,6 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				732D83D7211335940003A087 /* AcraWriterTests.m in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

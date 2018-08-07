@@ -1,32 +1,44 @@
-//
-//  AcraWriter.m
-//  AcraWriterUsage
-//
-//  Created by Anastasiia on 8/2/18.
-//  Copyright © 2018 Cossack Labs. All rights reserved.
-//
+/*
+ * Copyright (c) 2018 Cossack Labs Limited
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
 
-#import <CoreFoundation/CoreFoundation.h>
 #import "AcraWriter.h"
+#import "AcraStruct+Internal.h"
 #import <objcthemis/objcthemis.h>
 
+typedef NS_ENUM(NSUInteger, AcraWriterError) {
+  AcraWriterErrorCantGenerateKeyPair = 100,
+  AcraWriterErrorCantGenerateRandomKey = 101,
+  AcraWriterErrorCantEncryptRandomKey = 102,
+  AcraWriterErrorCantEncryptPayload = 103
+};
 
 @implementation AcraWriter
 
 static NSString *kErrorDomain = @"com.CossackLabs.Acra.Error";
-static NSUInteger kErrorCodeNoKeys = 100;
-
 static NSUInteger kSymmetricKeySize = 32;
 static NSUInteger kAcraStructHeaderByte = 34;
 
-- (nullable AcraStruct *)createAcraStructFrom:(NSData *)message publicKey:(NSData *)publicKey zoneID:(nullable NSData *)zoneID error:(NSError * __autoreleasing *)error {
+- (nullable AcraStruct *)createAcraStructFrom:(nonnull NSData *)message publicKey:(nonnull NSData *)publicKey zoneID:(nullable NSData *)zoneID error:(NSError * __autoreleasing *)error {
   
   // 1. generate EC keypair
   TSKeyGen * keygenEC = [[TSKeyGen alloc] initWithAlgorithm:TSKeyGenAsymmetricAlgorithmEC];
   
   if (!keygenEC) {
     *error = [NSError errorWithDomain:kErrorDomain
-                                 code:kErrorCodeNoKeys
+                                 code:AcraWriterErrorCantGenerateKeyPair
                              userInfo:@{ NSLocalizedDescriptionKey : @"Can't generate EC keypair, check Themis installation in dependencies"}];
     return nil;
   }
@@ -36,7 +48,7 @@ static NSUInteger kAcraStructHeaderByte = 34;
   int result = SecRandomCopyBytes(kSecRandomDefault, kSymmetricKeySize, symmetricKey.mutableBytes);
   if (result != 0) {
     *error = [NSError errorWithDomain:kErrorDomain
-                                 code:kErrorCodeNoKeys
+                                 code:AcraWriterErrorCantGenerateRandomKey
                              userInfo:@{ NSLocalizedDescriptionKey : @"Can't generate random symmetric key for encrypting data"}];
     return nil;
   }
@@ -47,8 +59,8 @@ static NSUInteger kAcraStructHeaderByte = 34;
                                                            error:error];
   if (*error) {
     *error = [NSError errorWithDomain:kErrorDomain
-                                 code:kErrorCodeNoKeys
-                             userInfo:@{ NSLocalizedDescriptionKey : @"Can't encrypt symmetric key: check if AcraPublicKeys is valid"}];
+                                 code:AcraWriterErrorCantEncryptRandomKey
+                             userInfo:@{ NSLocalizedDescriptionKey : @"Can't encrypt symmetric key: check if PublicKey is valid"}];
     return nil;
   }
   
@@ -57,7 +69,7 @@ static NSUInteger kAcraStructHeaderByte = 34;
   NSData * encryptedMessage = [symmetricEncrypter wrapData:message context:zoneID error:error];
   if (*error) {
     *error = [NSError errorWithDomain:kErrorDomain
-                                 code:kErrorCodeNoKeys
+                                 code:AcraWriterErrorCantEncryptPayload
                              userInfo:@{ NSLocalizedDescriptionKey : @"Can't encrypt payload"}];
     return nil;
   }
