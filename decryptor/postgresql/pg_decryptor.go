@@ -227,6 +227,7 @@ func (proxy *PgProxy) processWholeBlockDecryption(packet *PacketHandler, column 
 	if err != nil {
 		// check poison records on failed decryption
 		logger.WithError(err).Errorln("Can't decrypt possible AcraStruct")
+		base.AcrastructDecryptionCounter.WithLabelValues(base.DecryptionTypeFail).Inc()
 		if decryptor.IsPoisonRecordCheckOn() {
 			decryptor.Reset()
 			if err := checkWholePoisonRecord(column.Data, decryptor, logger); err != nil {
@@ -235,7 +236,7 @@ func (proxy *PgProxy) processWholeBlockDecryption(packet *PacketHandler, column 
 		}
 		return nil
 	}
-	base.AcrastructDecryptionCounter.Inc()
+	base.AcrastructDecryptionCounter.WithLabelValues(base.DecryptionTypeSuccess).Inc()
 	column.SetData(decrypted)
 	return nil
 }
@@ -334,6 +335,7 @@ func (proxy *PgProxy) processInlineBlockDecryption(packet *PacketHandler, column
 		blockReader := bytes.NewReader(column.Data[beginTagIndex+tagLength:])
 		symKey, _, err := decryptor.ReadSymmetricKey(key, blockReader)
 		if err != nil {
+			base.AcrastructDecryptionCounter.WithLabelValues(base.DecryptionTypeFail).Inc()
 			logger.WithError(err).Warningln("Can't unwrap symmetric key")
 			if decryptor.IsPoisonRecordCheckOn() {
 				log.Infoln("Check poison records")
@@ -353,14 +355,14 @@ func (proxy *PgProxy) processInlineBlockDecryption(packet *PacketHandler, column
 		}
 		decryptedData, err := decryptor.ReadData(symKey, decryptor.GetMatchedZoneID(), blockReader)
 		if err != nil {
-
+			base.AcrastructDecryptionCounter.WithLabelValues(base.DecryptionTypeFail).Inc()
 			logger.WithError(err).Warningln("Can't decrypt data with unwrapped symmetric key")
 			// write current read byte to not process him in next iteration
 			outputBlock.Write([]byte{column.Data[currentIndex]})
 			currentIndex++
 			continue
 		}
-		base.AcrastructDecryptionCounter.Inc()
+		base.AcrastructDecryptionCounter.WithLabelValues(base.DecryptionTypeSuccess).Inc()
 		outputBlock.Write(decryptedData)
 		currentIndex += tagLength + (len(column.Data[beginTagIndex+tagLength:]) - blockReader.Len())
 		hasDecryptedData = true
