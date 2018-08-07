@@ -201,7 +201,9 @@ func (handler *MysqlHandler) ClientToDbConnector(errCh chan<- error) {
 	clientLog := handler.logger.WithField("proxy", "client")
 	clientLog.Debugln("Start proxy client's requests")
 	firstPacket := true
+	prometheusLabels := []string{base.DecryptionDBMysql}
 	for {
+		timer := prometheus.NewTimer(prometheus.ObserverFunc(base.RequestProcessingTimeHistogram.WithLabelValues(prometheusLabels...).Observe))
 		packet, err := ReadPacket(handler.clientConnection)
 		if err != nil {
 			handler.logger.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorResponseConnectorCantReadFromClient).
@@ -251,12 +253,14 @@ func (handler *MysqlHandler) ClientToDbConnector(errCh chan<- error) {
 				select {
 				case <-handler.dbTLSHandshakeFinished:
 					handler.logger.Debugln("Switch to tls complete on client proxy side")
+					timer.ObserveDuration()
 					continue
 				case <-time.NewTicker(time.Second * ClientWaitDbTLSHandshake).C:
 					clientLog.Errorln("Timeout on tls handshake with db")
 					errCh <- errors.New("handshake timeout")
 					return
 				}
+				timer.ObserveDuration()
 				continue
 			}
 		}
@@ -305,6 +309,7 @@ func (handler *MysqlHandler) ClientToDbConnector(errCh chan<- error) {
 			errCh <- err
 			return
 		}
+		timer.ObserveDuration()
 	}
 }
 

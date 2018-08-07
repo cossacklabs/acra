@@ -107,9 +107,11 @@ func (proxy *PgProxy) PgProxyClientRequests(acraCensor acracensor.AcraCensorInte
 		errCh <- err
 		return
 	}
+	prometheusLabels := []string{base.DecryptionDBPostgresql}
 	// first packet doesn't contain MessageType, only packet length and data and should be processed differently
 	firstPacket := true
 	for {
+		timer := prometheus.NewTimer(prometheus.ObserverFunc(base.RequestProcessingTimeHistogram.WithLabelValues(prometheusLabels...).Observe))
 		packet.descriptionBuf.Reset()
 		if firstPacket {
 			// read only data block without message type
@@ -131,6 +133,7 @@ func (proxy *PgProxy) PgProxyClientRequests(acraCensor acracensor.AcraCensorInte
 				errCh <- err
 				return
 			}
+			timer.ObserveDuration()
 			continue
 		}
 
@@ -154,6 +157,7 @@ func (proxy *PgProxy) PgProxyClientRequests(acraCensor acracensor.AcraCensorInte
 				errCh <- err
 				return
 			}
+			timer.ObserveDuration()
 			continue
 		}
 
@@ -162,6 +166,7 @@ func (proxy *PgProxy) PgProxyClientRequests(acraCensor acracensor.AcraCensorInte
 			errCh <- err
 			return
 		}
+		timer.ObserveDuration()
 	}
 }
 
