@@ -808,10 +808,21 @@ func testBlacklistValuePattern(t *testing.T) {
 		"SELECT a, b, c FROM y WHERE a = 'someValue'",
 		"SELECT a, b FROM z WHERE a = 'someValue'",
 		"SELECT a, b FROM t WHERE NonID = 'someValue'",
+		"SELECT * FROM t WHERE NonID = 999",
+		"SELECT * FROM t WHERE ID IS NOT NULL",
+		"SELECT * FROM t WHERE ID IS NULL",
+		"SELECT * FROM t WHERE ID >= 25",
+		"SELECT * FROM company4 WHERE AGE IS NULL",
+		"SELECT * FROM company5 WHERE AGE >= 25",
+		"SELECT * FROM t WHERE ID BETWEEN 25 AND 65000",
+		"SELECT * FROM t WHERE ID LIKE 'Pa%'",
+		"SELECT * FROM company8 WHERE AGE IN ( 25, 27 )",
+		"SELECT * FROM company9 WHERE AGE NOT IN ( 25, 27 )",
 	}
 	blockableQueries := []string{
 		"SELECT a, b FROM t WHERE ID = 'someValue_testValue_1234567890'",
 		"SELECT a, b FROM t WHERE ID = 'someValue'",
+		"SELECT * FROM t WHERE ID = 999",
 	}
 	for _, query := range acceptableQueries {
 		err = censor.HandleQuery(query)
