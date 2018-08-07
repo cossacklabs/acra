@@ -32,6 +32,7 @@ import (
 	"github.com/cossacklabs/acra/network"
 	"github.com/cossacklabs/acra/utils"
 	"github.com/cossacklabs/acra/zone"
+	"github.com/prometheus/client_golang/prometheus"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -397,9 +398,16 @@ func (proxy *PgProxy) PgDecryptStream(censor acracensor.AcraCensorInterface, dec
 		return
 	}
 
+	prometheusLabels := []string{base.DecryptionDBPostgresql}
+	if decryptor.IsWholeMatch() {
+		prometheusLabels = append(prometheusLabels, base.DecryptionModeWhole)
+	} else {
+		prometheusLabels = append(prometheusLabels, base.DecryptionModeInline)
+	}
 	firstByte := true
 	for {
 		if firstByte {
+			timer := prometheus.NewTimer(prometheus.ObserverFunc(base.ResponseProcessingTimeHistogram.WithLabelValues(prometheusLabels...).Observe))
 			// https://www.postgresql.org/docs/9.1/static/protocol-flow.html#AEN92112
 			// we should know that we shouldn't read anymore bytes
 			// first response from server may contain only one byte of response on SSLRequest
@@ -415,6 +423,7 @@ func (proxy *PgProxy) PgDecryptStream(censor acracensor.AcraCensorInterface, dec
 					errCh <- err
 					return
 				}
+				timer.ObserveDuration()
 				continue
 			} else if packetHandler.IsSSLRequestAllowed() {
 				tlsClientConnection, dbTLSConnection, err := proxy.handleSSLRequest(packetHandler, tlsConfig, clientConnection, dbConnection, logger)
@@ -432,6 +441,7 @@ func (proxy *PgProxy) PgDecryptStream(censor acracensor.AcraCensorInterface, dec
 				packetHandler.reader = reader
 				packetHandler.writer = writer
 				packetHandler.Reset()
+				timer.ObserveDuration()
 				continue
 			}
 			// if it is not ssl request than we just forward it to client
@@ -445,9 +455,10 @@ func (proxy *PgProxy) PgDecryptStream(censor acracensor.AcraCensorInterface, dec
 				errCh <- err
 				return
 			}
+			timer.ObserveDuration()
 			continue
 		}
-
+		timer := prometheus.NewTimer(prometheus.ObserverFunc(base.ResponseProcessingTimeHistogram.WithLabelValues(prometheusLabels...).Observe))
 		if err := packetHandler.ReadPacket(); err != nil {
 			logger.WithError(err).Errorln("Can't read packet")
 			errCh <- err
@@ -536,5 +547,6 @@ func (proxy *PgProxy) PgDecryptStream(censor acracensor.AcraCensorInterface, dec
 		}
 		decryptor.Reset()
 		decryptor.ResetZoneMatch()
+		timer.ObserveDuration()
 	}
 }

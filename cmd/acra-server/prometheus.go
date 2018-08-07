@@ -26,12 +26,12 @@ const (
 var (
 	connectionCounter = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
-			Name: "acraserver_connection_count",
+			Name: "acraserver_connection_total",
 			Help: "number of connections to database",
 		}, []string{connectionTypeLabel})
 
 	connectionProcessingTimeHistogram = prometheus.NewHistogramVec(prometheus.HistogramOpts{
-		Name:    "acraserver_connection_processing_time_bucket",
+		Name:    "acraserver_connections_processing_seconds_bucket",
 		Help:    "Time of connection processing",
 		Buckets: []float64{0.1, 0.2, 0.5, 1, 10, 60, 3600, 86400},
 	}, []string{connectionTypeLabel})
