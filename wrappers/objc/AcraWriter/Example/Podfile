@@ -7,8 +7,9 @@ use_frameworks!
 
 target :"AcraWriterUsage" do
 	pod 'acrawriter', :path => '../'
+end
 
-  	target "AcraWriterUsageTests" do
-  		inherit! :search_paths
-    end
+
+target "AcraWriterUsageTests" do
+	pod 'acrawriter', :path => '../'
 end
