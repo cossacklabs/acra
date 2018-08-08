@@ -85,6 +85,8 @@ func main() {
 	dbHost := flag.String("db_host", "", "Host to db")
 	dbPort := flag.Int("db_port", 5432, "Port to db")
 
+	prometheusAddress := flag.String("prometheus_metrics_address", "", "")
+
 	host := flag.String("incoming_connection_host", cmd.DEFAULT_ACRA_HOST, "Host for AcraServer")
 	port := flag.Int("incoming_connection_port", cmd.DEFAULT_ACRASERVER_PORT, "Port for AcraServer")
 	apiPort := flag.Int("incoming_connection_api_port", cmd.DEFAULT_ACRASERVER_API_PORT, "Port for AcraServer for HTTP API")
@@ -309,6 +311,15 @@ func main() {
 		}()
 	}
 
+	if *prometheusAddress != "" {
+		prometheusListener, err := cmd.RunPrometheusHTTPHandler(*prometheusAddress)
+		if err != nil {
+			panic(err)
+		}
+		sigHandlerSIGHUP.AddListener(prometheusListener)
+		sigHandlerSIGTERM.AddListener(prometheusListener)
+	}
+
 	go sigHandlerSIGTERM.Register()
 	sigHandlerSIGTERM.AddCallback(func() {
 		log.Infof("Received incoming SIGTERM or SIGINT signal")
@@ -391,6 +402,7 @@ func main() {
 		}
 		go server.Start()
 	}
+
 	// on sighup we run callback that stop all listeners (that stop background goroutine of server.Start())
 	// and try to restart acra-server and only after that exits
 	sigHandlerSIGHUP.Register()

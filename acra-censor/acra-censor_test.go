@@ -635,7 +635,7 @@ func TestQueryCapture(t *testing.T) {
 	handler.CheckQuery(testQuery)
 
 	//wait until serialization completes
-	time.Sleep(handler.GetSerializationTimeout() + 10*time.Millisecond)
+	time.Sleep(handler.GetSerializationTimeout() + extraWaitTime)
 
 	result, err = ioutil.ReadFile(tmpFile.Name())
 	if err != nil {

@@ -29,6 +29,7 @@ import (
 	"github.com/cossacklabs/acra/decryptor/base"
 	"github.com/cossacklabs/acra/logging"
 	"github.com/cossacklabs/acra/network"
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/sirupsen/logrus"
 )
 
@@ -200,7 +201,9 @@ func (handler *MysqlHandler) ClientToDbConnector(errCh chan<- error) {
 	clientLog := handler.logger.WithField("proxy", "client")
 	clientLog.Debugln("Start proxy client's requests")
 	firstPacket := true
+	prometheusLabels := []string{base.DecryptionDBMysql}
 	for {
+		timer := prometheus.NewTimer(prometheus.ObserverFunc(base.RequestProcessingTimeHistogram.WithLabelValues(prometheusLabels...).Observe))
 		packet, err := ReadPacket(handler.clientConnection)
 		if err != nil {
 			handler.logger.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorResponseConnectorCantReadFromClient).
@@ -250,12 +253,14 @@ func (handler *MysqlHandler) ClientToDbConnector(errCh chan<- error) {
 				select {
 				case <-handler.dbTLSHandshakeFinished:
 					handler.logger.Debugln("Switch to tls complete on client proxy side")
+					timer.ObserveDuration()
 					continue
 				case <-time.NewTicker(time.Second * ClientWaitDbTLSHandshake).C:
 					clientLog.Errorln("Timeout on tls handshake with db")
 					errCh <- errors.New("handshake timeout")
 					return
 				}
+				timer.ObserveDuration()
 				continue
 			}
 		}
@@ -304,6 +309,7 @@ func (handler *MysqlHandler) ClientToDbConnector(errCh chan<- error) {
 			errCh <- err
 			return
 		}
+		timer.ObserveDuration()
 	}
 }
 
@@ -611,7 +617,14 @@ func (handler *MysqlHandler) DbToClientConnector(errCh chan<- error) {
 	serverLog.Debugln("Start proxy db responses")
 	firstPacket := true
 	var responseHandler ResponseHandler
+	prometheusLabels := []string{base.DecryptionDBMysql}
+	if handler.decryptor.IsWholeMatch() {
+		prometheusLabels = append(prometheusLabels, base.DecryptionModeWhole)
+	} else {
+		prometheusLabels = append(prometheusLabels, base.DecryptionModeInline)
+	}
 	for {
+		timer := prometheus.NewTimer(prometheus.ObserverFunc(base.ResponseProcessingTimeHistogram.WithLabelValues(prometheusLabels...).Observe))
 		packet, err := ReadPacket(handler.dbConnection)
 		if err != nil {
 			if netErr, ok := err.(net.Error); ok {
@@ -628,6 +641,7 @@ func (handler *MysqlHandler) DbToClientConnector(errCh chan<- error) {
 					handler.logger.Debugln("Switched to tls with db")
 					handler.dbConnection = tlsConnection
 					handler.dbTLSHandshakeFinished <- true
+					timer.ObserveDuration()
 					continue
 				}
 			}
@@ -653,6 +667,6 @@ func (handler *MysqlHandler) DbToClientConnector(errCh chan<- error) {
 			errCh <- err
 			return
 		}
-
+		timer.ObserveDuration()
 	}
 }
