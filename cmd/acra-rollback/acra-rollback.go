@@ -204,14 +204,14 @@ func main() {
 
 	err := cmd.Parse(DEFAULT_CONFIG_PATH, SERVICE_NAME)
 	if err != nil {
-		log.WithError(err).Errorln("can't parse args")
+		log.WithError(err).Errorln("Can't parse args")
 		os.Exit(1)
 	}
 
 	twoDrivers := *useMysql && *usePostgresql
 	noDrivers := !(*useMysql || *usePostgresql)
 	if twoDrivers || noDrivers {
-		log.Errorln("you must pass only --mysql_enable or --postgresql_enable (one required)")
+		log.Errorln("You must pass only --mysql_enable or --postgresql_enable (one required)")
 		os.Exit(1)
 	}
 	if *useMysql {
@@ -234,56 +234,56 @@ func main() {
 	cmd.ValidateClientID(*clientID)
 
 	if *connectionString == "" {
-		log.Errorln("connection_string arg is missing")
+		log.Errorln("Connection_string arg is missing")
 		os.Exit(1)
 	}
 
 	if *sqlSelect == "" {
-		log.Errorln("sql_select arg is missing")
+		log.Errorln("Sql_select arg is missing")
 		os.Exit(1)
 	}
 	if *sqlInsert == "" {
-		log.Errorln("sql_insert arg is missing")
+		log.Errorln("Sql_insert arg is missing")
 		os.Exit(1)
 	}
 	absKeysDir, err := utils.AbsPath(*keysDir)
 	if err != nil {
-		log.WithError(err).Errorln("can't get absolute path for keys_dir")
+		log.WithError(err).Errorln("Can't get absolute path for keys_dir")
 		os.Exit(1)
 	}
 	if *outputFile == "" && !*execute {
-		log.Errorln("output_file missing or execute flag")
+		log.Errorln("Output_file missing or execute flag")
 		os.Exit(1)
 	}
 	masterKey, err := keystore.GetMasterKeyFromEnvironment()
 	if err != nil {
-		log.WithError(err).Errorln("can't load master key")
+		log.WithError(err).Errorln("Can't load master key")
 		os.Exit(1)
 	}
 	scellEncryptor, err := keystore.NewSCellKeyEncryptor(masterKey)
 	if err != nil {
-		log.WithError(err).Errorln("can't init scell encryptor")
+		log.WithError(err).Errorln("Can't init scell encryptor")
 		os.Exit(1)
 	}
 	keystorage, err := filesystem.NewFilesystemKeyStore(absKeysDir, scellEncryptor)
 	if err != nil {
-		log.WithError(err).Errorln("can't create key store")
+		log.WithError(err).Errorln("Can't create key store")
 		os.Exit(1)
 	}
 	db, err := sql.Open(dbDriverName, *connectionString)
 	if err != nil {
-		log.WithError(err).Errorln("can't connect to db")
+		log.WithError(err).Errorln("Can't connect to db")
 		os.Exit(1)
 	}
 	defer db.Close()
 	err = db.Ping()
 	if err != nil {
-		log.WithError(err).Errorln("can't connect to db")
+		log.WithError(err).Errorln("Can't connect to db")
 		os.Exit(1)
 	}
 	rows, err := db.Query(*sqlSelect)
 	if err != nil {
-		log.WithError(err).Errorf("error with select query '%v'", *sqlSelect)
+		log.WithError(err).Errorf("Error with select query '%v'", *sqlSelect)
 		os.Exit(1)
 	}
 	defer rows.Close()
@@ -315,27 +315,27 @@ func main() {
 		if *withZone {
 			err = rows.Scan(&zone, &data)
 			if err != nil {
-				ErrorExit("can't read zone & data from row %v", err)
+				ErrorExit("Can't read zone & data from row %v", err)
 			}
 			privateKey, err = keystorage.GetZonePrivateKey(zone)
 			if err != nil {
-				log.WithError(err).Errorf("can't get zone private key for row with number %v", i)
+				log.WithError(err).Errorf("Can't get zone private key for row with number %v", i)
 				continue
 			}
 		} else {
 			err = rows.Scan(&data)
 			if err != nil {
-				ErrorExit("can't read data from row", err)
+				ErrorExit("Can't read data from row", err)
 			}
 			privateKey, err = keystorage.GetServerDecryptionPrivateKey([]byte(*clientID))
 			if err != nil {
-				log.WithError(err).Errorf("can't get private key for row with number %v", i)
+				log.WithError(err).Errorf("Can't get private key for row with number %v", i)
 				continue
 			}
 		}
 		decrypted, err := base.DecryptAcrastruct(data, privateKey, zone)
 		if err != nil {
-			log.WithError(err).Errorln("can't decrypt acrastruct in row with number %v", i)
+			log.WithError(err).Errorln("Can't decrypt acrastruct in row with number %v", i)
 			continue
 		}
 		for e := executors.Front(); e != nil; e = e.Next() {
