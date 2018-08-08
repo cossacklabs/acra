@@ -158,20 +158,9 @@ func (store *FilesystemKeyStore) generateKey(filename string, length uint8) ([]b
 	return randomBytes, nil
 }
 
-// GenerateZoneKey generates zone ID and zone key pair, encrypts private key using zoneID as context,
-// and saves encrypted PK in the filem returns zoneID and public key.
-// Returns error if generation or encryption fail.
-func (store *FilesystemKeyStore) GenerateZoneKey() ([]byte, []byte, error) {
+// generateZoneKey for specific zone id. Will be generated new key pair and private key will be overwrited
+func (store *FilesystemKeyStore) generateZoneKey(id []byte) ([]byte, []byte, error) {
 	/* save private key in fs, return id and public key*/
-	var id []byte
-	for {
-		// generate until key not exists
-		id = zone.GenerateZoneID()
-		if !store.HasZonePrivateKey(id) {
-			break
-		}
-	}
-
 	keypair, err := store.generateKeyPair(getZoneKeyFilename(id), id)
 	if err != nil {
 		return []byte{}, []byte{}, err
@@ -186,6 +175,21 @@ func (store *FilesystemKeyStore) GenerateZoneKey() ([]byte, []byte, error) {
 	// cache key
 	store.cache.Add(getZoneKeyFilename(id), encryptedKey)
 	return id, keypair.Public.Value, nil
+}
+
+// GenerateZoneKey generates zone ID and zone key pair, encrypts private key using zoneID as context,
+// and saves encrypted PK in the filem returns zoneID and public key.
+// Returns error if generation or encryption fail.
+func (store *FilesystemKeyStore) GenerateZoneKey() ([]byte, []byte, error) {
+	var id []byte
+	for {
+		// generate until key not exists
+		id = zone.GenerateZoneID()
+		if !store.HasZonePrivateKey(id) {
+			break
+		}
+	}
+	return store.generateZoneKey(id)
 }
 
 func (store *FilesystemKeyStore) getPrivateKeyFilePath(filename string) string {
@@ -403,4 +407,10 @@ func (store *FilesystemKeyStore) GetAuthKey(remove bool) ([]byte, error) {
 	}
 	log.Infof("Generate basic auth key for AcraWebconfig to %v", keyPath)
 	return store.generateKey(BASIC_AUTH_KEY_FILENAME, keystore.BasicAuthKeyLength)
+}
+
+// RotateZoneKey generate new key pair for ZoneId, overwrite private key with new and return new public key
+func (store *FilesystemKeyStore) RotateZoneKey(zoneID []byte) ([]byte, error) {
+	_, public, err := store.generateZoneKey(zoneID)
+	return public, err
 }

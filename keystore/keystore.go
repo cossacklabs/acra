@@ -148,6 +148,8 @@ type KeyStore interface {
 	GetServerDecryptionPrivateKey(id []byte) (*keys.PrivateKey, error)
 	// return id, public key, error
 	GenerateZoneKey() ([]byte, []byte, error)
+	// return new_public_key, error
+	RotateZoneKey(zoneID []byte) ([]byte, error)
 
 	GenerateConnectorKeys(id []byte) error
 	GenerateServerKeys(id []byte) error
