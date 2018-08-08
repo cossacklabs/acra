@@ -476,6 +476,7 @@ func (proxy *PgProxy) PgDecryptStream(censor acracensor.AcraCensorInterface, dec
 				errCh <- err
 				return
 			}
+			timer.ObserveDuration()
 			continue
 		}
 
@@ -492,6 +493,7 @@ func (proxy *PgProxy) PgDecryptStream(censor acracensor.AcraCensorInterface, dec
 				errCh <- err
 				return
 			}
+			timer.ObserveDuration()
 			continue
 		}
 

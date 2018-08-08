@@ -22,7 +22,7 @@ const (
 var (
 	AcrastructDecryptionCounter = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
-			Name: "acra_acrastruct_decryption_total",
+			Name: "acra_acrastruct_decryptions_total",
 			Help: "number of AcraStruct decryptions",
 		}, []string{DecryptionTypeLabel})
 
