@@ -68,14 +68,14 @@ func checkDependencies() error {
 
 func handleClientConnection(config *Config, connection net.Conn) {
 	timer := prometheus.NewTimer(prometheus.ObserverFunc(connectionProcessingTimeHistogram.WithLabelValues(dbConnectionType).Observe))
-	defer timer.ObserveDuration()
 	handleConnection(config, connection)
+	timer.ObserveDuration()
 }
 
 func handleApiConnection(config *Config, connection net.Conn) {
 	timer := prometheus.NewTimer(prometheus.ObserverFunc(connectionProcessingTimeHistogram.WithLabelValues(apiConnectionType).Observe))
-	defer timer.ObserveDuration()
 	handleConnection(config, connection)
+	timer.ObserveDuration()
 }
 
 func handleConnection(config *Config, connection net.Conn) {
