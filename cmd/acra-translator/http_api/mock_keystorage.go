@@ -37,6 +37,10 @@ func (*testKeystore) GetPeerPublicKey(id []byte) (*keys.PublicKey, error) {
 // ErrKeyNotFound indicates error when decryption key is not found.
 var ErrKeyNotFound = errors.New("some error")
 
+func (*testKeystore) RotateZoneKey(zoneID []byte) ([]byte, error) {
+	panic("implement me")
+}
+
 func (keystore *testKeystore) GetZonePrivateKey(id []byte) (*keys.PrivateKey, error) {
 	if keystore.PrivateKey != nil {
 		copied := make([]byte, len(keystore.PrivateKey.Value))

@@ -18,6 +18,9 @@ type testKeystore struct {
 	PoisonKeypair *keys.Keypair
 }
 
+func (*testKeystore) RotateZoneKey(zoneID []byte) ([]byte, error) {
+	panic("implement me")
+}
 func (keystore *testKeystore) GetPoisonKeyPair() (*keys.Keypair, error) {
 	return keystore.PoisonKeypair, nil
 }

@@ -43,6 +43,9 @@ func assertZoneMatchNotFail(c byte, matcher *zone.ZoneIDMatcher, t *testing.T) {
 
 type TestKeyStore struct{}
 
+func (*TestKeyStore) RotateZoneKey(zoneID []byte) ([]byte, error) {
+	panic("implement me")
+}
 func (storage *TestKeyStore) GetZonePrivateKey(id []byte) (*keys.PrivateKey, error) {
 	return &keys.PrivateKey{Value: []byte{}}, nil
 }
