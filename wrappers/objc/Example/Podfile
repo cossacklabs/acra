@@ -6,10 +6,10 @@ inhibit_all_warnings!
 use_frameworks!
 
 target :"AcraWriterUsage" do
-	pod 'acrawriter', :git => 'https://github.com/cossacklabs/acra.git', :branch => 'vixentael/T666-AW-publish'
+	pod 'acrawriter', :git => 'https://github.com/cossacklabs/acra.git'
 end
 
 
 target "AcraWriterUsageTests" do
-	pod 'acrawriter', :git => 'https://github.com/cossacklabs/acra.git', :branch => 'vixentael/T666-AW-publish'
+	pod 'acrawriter', :git => 'https://github.com/cossacklabs/acra.git'
 end
