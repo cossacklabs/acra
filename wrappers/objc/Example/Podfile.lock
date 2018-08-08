@@ -13,7 +13,7 @@ PODS:
     - themis/core
 
 DEPENDENCIES:
-  - acrawriter (from `../`)
+  - acrawriter (from `https://github.com/cossacklabs/acra.git`, branch `vixentael/T666-AW-publish`)
 
 SPEC REPOS:
   https://github.com/cocoapods/specs.git:
@@ -22,13 +22,19 @@ SPEC REPOS:
 
 EXTERNAL SOURCES:
   acrawriter:
-    :path: "../"
+    :branch: vixentael/T666-AW-publish
+    :git: https://github.com/cossacklabs/acra.git
+
+CHECKOUT OPTIONS:
+  acrawriter:
+    :commit: fca0ed4965615f8ab5d4afc5621c7227754c2ea1
+    :git: https://github.com/cossacklabs/acra.git
 
 SPEC CHECKSUMS:
-  acrawriter: e4e70050c4b8bcf541ed06258ae98f0026612760
+  acrawriter: 8c3adc1675a6ef50255c2aba90fcfe97db1dfa92
   GRKOpenSSLFramework: b6172cc34db9b999002483878772a4bf2a1687ba
   themis: f06f5690dbb18276e98f3c8d7c9ba90e8100bd09
 
-PODFILE CHECKSUM: bf9b1f883f63ac44d75d7fbb7694f0e9329ae3fa
+PODFILE CHECKSUM: faed81f5aa85fd3dea5b5adf97b1c29ac6d593bd
 
 COCOAPODS: 1.5.3
