@@ -27,11 +27,11 @@ EXTERNAL SOURCES:
 
 CHECKOUT OPTIONS:
   acrawriter:
-    :commit: fca0ed4965615f8ab5d4afc5621c7227754c2ea1
+    :commit: 50a3d4d89b43c6d1a1937b566680d0107ef66a22
     :git: https://github.com/cossacklabs/acra.git
 
 SPEC CHECKSUMS:
-  acrawriter: 8c3adc1675a6ef50255c2aba90fcfe97db1dfa92
+  acrawriter: 834f1d7148e41de6785d04025d510cb905eb53fa
   GRKOpenSSLFramework: b6172cc34db9b999002483878772a4bf2a1687ba
   themis: f06f5690dbb18276e98f3c8d7c9ba90e8100bd09
 
