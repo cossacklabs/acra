@@ -384,6 +384,32 @@ func testWhitelistValuePattern(t *testing.T) {
 			t.Fatal(err, "Blacklist pattern passed query. \nPattern: ", pattern, "\nQuery: ", query)
 		}
 	}
+
+	whitelist.Reset()
+	pattern = "SELECT * from t where ID = %%VALUE%%"
+	err = whitelist.AddPatterns([]string{pattern})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	acceptableQueries = []string{
+		"SELECT a, b FROM t WHERE ID = 'someValue_testValue_1234567890'",
+		"SELECT a, b FROM t WHERE ID = 'someValue'",
+		"SELECT a, b, c, d FROM t WHERE ID = 'someValue'",
+	}
+
+	for _, query := range acceptableQueries {
+		err = censor.HandleQuery(query)
+		if err != nil {
+			t.Fatal(err, "Whitelist pattern blocked query. \nPattern:", pattern, "\nQuery:", query)
+		}
+	}
+	for _, query := range blockableQueries {
+		err = censor.HandleQuery(query)
+		if err != handlers.ErrWhitelistPatternMismatch {
+			t.Fatal(err, "Whitelist pattern passed query. \nPattern:", pattern, "\nQuery:", query)
+		}
+	}
 }
 func testWhitelistStarPattern(t *testing.T) {
 	var err error
