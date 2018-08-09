@@ -194,11 +194,13 @@ func (server *ReaderServer) Start(parentContext context.Context) {
 	logger := logging.GetLoggerFromContext(parentContext)
 	poisonCallbacks := base.NewPoisonCallbackStorage()
 	if server.config.DetectPoisonRecords() {
-		if server.config.stopOnPoison {
-			poisonCallbacks.AddCallback(&base.StopCallback{})
-		}
 		if server.config.scriptOnPoison != "" {
 			poisonCallbacks.AddCallback(base.NewExecuteScriptCallback(server.config.scriptOnPoison))
+		}
+
+		// must be last
+		if server.config.stopOnPoison {
+			poisonCallbacks.AddCallback(&base.StopCallback{})
 		}
 	}
 	decryptorData := &common.TranslatorData{Keystorage: server.keystorage, PoisonRecordCallbacks: poisonCallbacks, CheckPoisonRecords: server.config.detectPoisonRecords}
