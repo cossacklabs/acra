@@ -1,16 +1,26 @@
-// Copyright 2016, Cossack Labs Limited
+/*
+Copyright 2016, Cossack Labs Limited
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
+// Package main is entry point for AcraConnector. AcraConnector is a (separate) service running alongside
+// your application — it pretends to be a database listener, relays all the requests to AcraServer,
+// receives the responses, and returns them to an app, just like a normal database listener would do.
+// To talk to AcraServer, you'll need to run AcraConnector on the same host as your application,
+// in a separate container or as a separate user. You'll also need to route database requests to its address.
 //
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-// http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
+// https://github.com/cossacklabs/acra/wiki/AcraConnector-and-AcraWriter
 package main
 
 import (
@@ -37,6 +47,7 @@ import (
 	"github.com/cossacklabs/acra/logging"
 	"github.com/cossacklabs/acra/network"
 	"github.com/cossacklabs/acra/utils"
+	"github.com/prometheus/client_golang/prometheus"
 )
 
 // Constants used by AcraConnector.
@@ -56,6 +67,18 @@ func checkDependencies() error {
 }
 
 func handleClientConnection(config *Config, connection net.Conn) {
+	timer := prometheus.NewTimer(prometheus.ObserverFunc(connectionProcessingTimeHistogram.WithLabelValues(dbConnectionType).Observe))
+	handleConnection(config, connection)
+	timer.ObserveDuration()
+}
+
+func handleApiConnection(config *Config, connection net.Conn) {
+	timer := prometheus.NewTimer(prometheus.ObserverFunc(connectionProcessingTimeHistogram.WithLabelValues(apiConnectionType).Observe))
+	handleConnection(config, connection)
+	timer.ObserveDuration()
+}
+
+func handleConnection(config *Config, connection net.Conn) {
 	defer connection.Close()
 
 	if !(config.DisableUserCheck) {
@@ -153,7 +176,7 @@ func main() {
 	logging.CustomizeLogging(*loggingFormat, SERVICE_NAME)
 	log.Infof("Starting service %v", SERVICE_NAME)
 
-	keysDir := flag.String("keys_dir", keystore.DEFAULT_KEY_DIR_SHORT, "Folder from which will be loaded keys")
+	keysDir := flag.String("keys_dir", keystore.DefaultKeyDirShort, "Folder from which will be loaded keys")
 	clientID := flag.String("client_id", "", "Client ID")
 	acraServerHost := flag.String("acraserver_connection_host", "", "IP or domain to AcraServer daemon")
 	acraServerAPIPort := flag.Int("acraserver_api_connection_port", cmd.DEFAULT_ACRASERVER_API_PORT, "Port of Acra HTTP api")
@@ -175,6 +198,7 @@ func main() {
 	connectionAPIString := flag.String("incoming_connection_api_string", network.BuildConnectionString(cmd.DEFAULT_ACRACONNECTOR_CONNECTION_PROTOCOL, cmd.DEFAULT_ACRACONNECTOR_HOST, cmd.DEFAULT_ACRACONNECTOR_API_PORT, ""), "Connection string like tcp://x.x.x.x:yyyy or unix:///path/to/socket")
 	acraServerConnectionString := flag.String("acraserver_connection_string", "", "Connection string to AcraServer like tcp://x.x.x.x:yyyy or unix:///path/to/socket")
 	acraServerAPIConnectionString := flag.String("acraserver_api_connection_string", "", "Connection string to Acra's API like tcp://x.x.x.x:yyyy or unix:///path/to/socket")
+	prometheusAddress := flag.String("prometheus_metrics_address", "", "")
 
 	connectorModeString := flag.String("mode", "AcraServer", "Expected mode of connection. Possible values are: AcraServer or AcraTranslator. Corresponded connection host/port/string/session_id will be used.")
 	acraTranslatorHost := flag.String("acratranslator_connection_host", cmd.DEFAULT_ACRATRANSLATOR_GRPC_HOST, "IP or domain to AcraTranslator daemon")
@@ -382,13 +406,14 @@ func main() {
 							Errorf("System error: can't accept new connection")
 						continue
 					}
+					connectionCounter.WithLabelValues(apiConnectionType).Inc()
 					// unix socket and value == '@'
 					if len(connection.RemoteAddr().String()) == 1 {
 						log.Infof("Got new connection to http API: %v", connection.LocalAddr())
 					} else {
 						log.Infof("Got new connection to http API: %v", connection.RemoteAddr())
 					}
-					go handleClientConnection(&commandsConfig, connection)
+					go handleApiConnection(&commandsConfig, connection)
 				}
 			}()
 		}
@@ -404,6 +429,15 @@ func main() {
 		logging.SetLogLevel(logging.LOG_DISCARD)
 	}
 
+	if *prometheusAddress != "" {
+		prometheusListener, err := cmd.RunPrometheusHTTPHandler(*prometheusAddress)
+		if err != nil {
+			panic(err)
+		}
+		sigHandler.AddListener(prometheusListener)
+
+	}
+
 	for {
 		connection, err := listener.Accept()
 		if err != nil {
@@ -411,6 +445,7 @@ func main() {
 				Errorln("System error: сan't accept new connection")
 			os.Exit(1)
 		}
+		connectionCounter.WithLabelValues(dbConnectionType).Inc()
 		// unix socket and value == '@'
 		if len(connection.RemoteAddr().String()) == 1 {
 			log.Infof("Got new connection to AcraConnector: %v", connection.LocalAddr())

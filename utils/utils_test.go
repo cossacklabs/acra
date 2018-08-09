@@ -1,18 +1,18 @@
-// Package utils contains everything we don't know where to put.
-//
-// Copyright 2016, Cossack Labs Limited
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-// http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
+/*
+Copyright 2016, Cossack Labs Limited
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
 package utils_test
 
 import (
@@ -82,16 +82,16 @@ func TestFindTag(t *testing.T) {
 	}
 
 	testData = []byte("11101101")
-	if utils.FindTag(symbol, count, testData) != utils.NOT_FOUND {
+	if utils.FindTag(symbol, count, testData) != utils.NotFound {
 		t.Fatal("Incorrectly found tag")
 	}
 
 	testData = []byte("111")
-	if utils.FindTag(symbol, count, testData) != utils.NOT_FOUND {
+	if utils.FindTag(symbol, count, testData) != utils.NotFound {
 		t.Fatal("Incorrectly found tag")
 	}
 	testData = []byte{}
-	if utils.FindTag(symbol, count, testData) != utils.NOT_FOUND {
+	if utils.FindTag(symbol, count, testData) != utils.NotFound {
 		t.Fatal("Incorrectly found tag")
 	}
 	testData = []byte("1111")
@@ -107,7 +107,7 @@ func TestFindTag(t *testing.T) {
 
 	count = 8
 	testData = []byte("11111110000000000")
-	if utils.FindTag(symbol, count, testData) != utils.NOT_FOUND {
+	if utils.FindTag(symbol, count, testData) != utils.NotFound {
 		t.Fatal("Incorrectly found tag")
 	}
 }

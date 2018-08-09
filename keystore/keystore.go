@@ -1,18 +1,22 @@
-// Package keystore describes various KeyStore interfaces.
-//
-// Copyright 2016, Cossack Labs Limited
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-// http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
+/*
+Copyright 2016, Cossack Labs Limited
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
+// Package keystore describes various KeyStore interfaces. KeyStore is responsible for storing and accessing
+// encryption keys: both transport ans storage. Keystore abstracts from real key storage (it might be folder in
+// file system or remote KMS). Keystore is responsible for generating, reading and decrypting specific keys.
 package keystore
 
 import (
@@ -29,32 +33,33 @@ import (
 
 // KeyStore-related constants.
 const (
-	DEFAULT_KEY_DIR_SHORT    = ".acrakeys"
-	VALID_CHARS              = "_- "
-	MAX_CLIENT_ID_LENGTH     = 256
-	MIN_CLIENT_ID_LENGTH     = 5
-	BASIC_AUTH_KEY_LENGTH    = 32
-	ACRA_MASTER_KEY_VAR_NAME = "ACRA_MASTER_KEY"
-	// SYMMETRIC_KEY_LENGTH in bytes for master key
-	SYMMETRIC_KEY_LENGTH = 32
+	// DefaultKeyDirShort
+	DefaultKeyDirShort   = ".acrakeys"
+	ValidChars           = "_- "
+	MaxClientIdLength    = 256
+	MinClientIdLength    = 5
+	BasicAuthKeyLength   = 32
+	AcraMasterKeyVarName = "ACRA_MASTER_KEY"
+	// SymmetricKeyLength in bytes for master key
+	SymmetricKeyLength = 32
 )
 
 // Errors returned during accessing to client id or master key.
 var (
 	ErrInvalidClientID          = errors.New("invalid client ID")
 	ErrEmptyMasterKey           = errors.New("master key is empty")
-	ErrMasterKeyIncorrectLength = fmt.Errorf("master key must have %v length in bytes", SYMMETRIC_KEY_LENGTH)
+	ErrMasterKeyIncorrectLength = fmt.Errorf("master key must have %v length in bytes", SymmetricKeyLength)
 )
 
 // GenerateSymmetricKey return new generated symmetric key that must used in keystore as master key and will comply
 // our requirements.
 func GenerateSymmetricKey() ([]byte, error) {
-	key := make([]byte, SYMMETRIC_KEY_LENGTH)
+	key := make([]byte, SymmetricKeyLength)
 	n, err := rand.Read(key)
 	if err != nil {
 		return nil, err
 	}
-	if n != SYMMETRIC_KEY_LENGTH {
+	if n != SymmetricKeyLength {
 		return nil, ErrMasterKeyIncorrectLength
 	}
 	return key, nil
@@ -63,12 +68,12 @@ func GenerateSymmetricKey() ([]byte, error) {
 // ValidateID checks that clientID length is within required limits and
 // clientID contains only valid chars (digits, letters, -, _, ' ').
 func ValidateID(clientID []byte) bool {
-	if len(clientID) < MIN_CLIENT_ID_LENGTH || len(clientID) > MAX_CLIENT_ID_LENGTH {
+	if len(clientID) < MinClientIdLength || len(clientID) > MaxClientIdLength {
 		return false
 	}
-	// letters, digits, VALID_CHARS = '-', '_', ' '
+	// letters, digits, ValidChars = '-', '_', ' '
 	for _, c := range string(clientID) {
-		if (c < 'a' || c > 'z') && (c < 'A' || c > 'Z') && (c < '0' || c > '9') && !strings.ContainsRune(VALID_CHARS, c) {
+		if (c < 'a' || c > 'z') && (c < 'A' || c > 'Z') && (c < '0' || c > '9') && !strings.ContainsRune(ValidChars, c) {
 			return false
 		}
 	}
@@ -77,15 +82,15 @@ func ValidateID(clientID []byte) bool {
 
 // ValidateMasterKey do validation of symmetric master key and return nil if pass check.
 func ValidateMasterKey(key []byte) error {
-	if len(key) < SYMMETRIC_KEY_LENGTH {
+	if len(key) < SymmetricKeyLength {
 		return ErrMasterKeyIncorrectLength
 	}
 	return nil
 }
 
-// GetMasterKeyFromEnvironment return master key from environment variable with name ACRA_MASTER_KEY_VAR_NAME
+// GetMasterKeyFromEnvironment return master key from environment variable with name AcraMasterKeyVarName
 func GetMasterKeyFromEnvironment() (key []byte, err error) {
-	b64value := os.Getenv(ACRA_MASTER_KEY_VAR_NAME)
+	b64value := os.Getenv(AcraMasterKeyVarName)
 	if len(b64value) == 0 {
 		return nil, ErrEmptyMasterKey
 	}

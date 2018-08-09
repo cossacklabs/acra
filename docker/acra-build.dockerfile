@@ -35,7 +35,7 @@ RUN ["/bin/bash", "-c", \
         bash -s -- --yes --method source --branch $VCS_BRANCH \
         --without-packing --without-clean"]
 # Install golang and set environment variables
-RUN GO_SRC_FILE="go1.9.3.linux-amd64.tar.gz" && \
+RUN GO_SRC_FILE="go1.10.3.linux-amd64.tar.gz" && \
     wget --no-verbose --no-check-certificate \
         "https://storage.googleapis.com/golang/${GO_SRC_FILE}" && \
     tar xf "./${GO_SRC_FILE}"
@@ -50,14 +50,21 @@ RUN mkdir -p "${GOPATH}/src/github.com/cossacklabs/themis/gothemis" && \
 RUN go get -d -t -v -x github.com/cossacklabs/acra/...
 # Build previously fetched acra
 RUN go get -v -x github.com/cossacklabs/acra/...
-# Include script for finding dependencies and prepare resulting directories
-COPY docker/collect_dependencies.sh .
+# Include scripts for finding dependencies and prepare resulting directories
+COPY docker/_scripts/acra-build/add_component.sh .
+RUN chmod +x ./add_component.sh
+COPY docker/_scripts/acra-build/collect_dependencies.sh .
 RUN chmod +x ./collect_dependencies.sh
 # Copy each product and its dependencies to resulting directories
 RUN for component in server connector translator keymaker webconfig authmanager; do \
-        ./collect_dependencies.sh \
-            "${GOPATH}/bin/acra-${component}" "/container.acra-${component}" && \
-        cp "${GOPATH}/bin/acra-${component}" "/container.acra-${component}/"; \
+        if [ "$component" = "server" ]; then \
+            ./add_component.sh "poisonrecordmaker" "$component"; \
+            ./add_component.sh "rollback" "$component"; \
+        fi; \
+        if [ "$component" = "translator" ]; then \
+            ./add_component.sh "poisonrecordmaker" "$component"; \
+        fi; \
+        ./add_component.sh "$component" "$component"; \
     done
 # Copy static resources for acra-webconfig
 RUN cp -r "${GOPATH}/src/github.com/cossacklabs/acra/cmd/acra-webconfig/static" \
