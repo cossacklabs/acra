@@ -19,6 +19,9 @@ incoming_connection_http_string: http://0.0.0.0:9595/
 # Folder from which will be loaded keys
 keys_dir: .acrakeys
 
+# Count of keys that will be stored in in-memory LRU cache in encrypted form. 0 - no limits, -1 - turn off cache
+keystore_cache_size: 0
+
 # Logging format: plaintext, json or CEF
 logging_format: plaintext
 
