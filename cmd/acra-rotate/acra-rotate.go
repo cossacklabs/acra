@@ -76,8 +76,8 @@ func loadFileMap(path string) (ZoneIDFileMap, error) {
 
 // ZoneRotateData store new public key and paths of files that was rotated
 type ZoneRotateData struct {
-	NewPublicKey []byte
-	FilePaths    []string
+	NewPublicKey []byte   `json:"new_public_key"`
+	FilePaths    []string `json:"file_paths"`
 }
 
 // ZoneRotateResult store result of rotation

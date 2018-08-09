@@ -2661,8 +2661,8 @@ class TestAcraRotate(unittest.TestCase):
                     zone_map[zone_id].append(filename)
 
             # keys of json objects that will be in output
-            PUBLIC_KEY = 'NewPublicKey'
-            FILES = 'FilePaths'
+            PUBLIC_KEY = 'new_public_key'
+            FILES = 'file_paths'
             with contextlib.closing(tempfile.NamedTemporaryFile(
                     'w', delete=False)) as zone_map_file:
                 json.dump(zone_map, zone_map_file)
