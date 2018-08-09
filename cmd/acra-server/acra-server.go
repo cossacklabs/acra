@@ -85,7 +85,7 @@ func main() {
 	dbHost := flag.String("db_host", "", "Host to db")
 	dbPort := flag.Int("db_port", 5432, "Port to db")
 
-	prometheusAddress := flag.String("prometheus_metrics_address", "", "")
+	prometheusAddress := flag.String("prometheus_metrics_address", "", "URL of Prometheus server for AcraConnector to upload stats and metrics (upload address is <URL>/metrics)")
 
 	host := flag.String("incoming_connection_host", cmd.DEFAULT_ACRA_HOST, "Host for AcraServer")
 	port := flag.Int("incoming_connection_port", cmd.DEFAULT_ACRASERVER_PORT, "Port for AcraServer")
@@ -107,9 +107,9 @@ func main() {
 	debugServer := flag.Bool("ds", false, "Turn on http debug server")
 	closeConnectionTimeout := flag.Int("incoming_connection_close_timeout", DEFAULT_ACRASERVER_WAIT_TIMEOUT, "Time that AcraServer will wait (in seconds) on restart before closing all connections")
 
-	detectPoisonRecords := flag.Bool("poison_detect_enable", true, "Turn on poison record detection")
-	stopOnPoison := flag.Bool("poison_shutdown_enable", false, "Stop on detecting poison record")
-	scriptOnPoison := flag.String("poison_run_script_file", "", "Execute script on detecting poison record")
+	detectPoisonRecords := flag.Bool("poison_detect_enable", true, "Turn on poison record detection, if server shutdown is disabled, AcraServer logs the poison record detection and returns decrypted data")
+	stopOnPoison := flag.Bool("poison_shutdown_enable", false, "On detecting poison record: log about poison record detection, stop and shutdown")
+	scriptOnPoison := flag.String("poison_run_script_file", "", "On detecting poison record: log about poison record detection, execute script, return decrypted data")
 
 	withZone := flag.Bool("zonemode_enable", false, "Turn on zone mode")
 	enableHTTPAPI := flag.Bool("http_api_enable", false, "Enable HTTP API")
@@ -316,6 +316,7 @@ func main() {
 		if err != nil {
 			panic(err)
 		}
+		log.Infof("Configured to send metrics and stats to `prometheus_metrics_address`")
 		sigHandlerSIGHUP.AddListener(prometheusListener)
 		sigHandlerSIGTERM.AddListener(prometheusListener)
 	}

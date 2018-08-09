@@ -179,13 +179,13 @@ func main() {
 	keysDir := flag.String("keys_dir", keystore.DefaultKeyDirShort, "Folder from which will be loaded keys")
 	clientID := flag.String("client_id", "", "Client ID")
 	acraServerHost := flag.String("acraserver_connection_host", "", "IP or domain to AcraServer daemon")
-	acraServerAPIPort := flag.Int("acraserver_api_connection_port", cmd.DEFAULT_ACRASERVER_API_PORT, "Port of Acra HTTP api")
+	acraServerAPIPort := flag.Int("acraserver_api_connection_port", cmd.DEFAULT_ACRASERVER_API_PORT, "Port of Acra HTTP API")
 	acraServerPort := flag.Int("acraserver_connection_port", cmd.DEFAULT_ACRASERVER_PORT, "Port of AcraServer daemon")
 	acraServerID := flag.String("acraserver_securesession_id", "acra_server", "Expected id from AcraServer for Secure Session")
 	verbose := flag.Bool("v", false, "Log to stderr")
 	acraConnectorPort := flag.Int("incoming_connection_port", cmd.DEFAULT_ACRACONNECTOR_PORT, "Port to AcraConnector")
-	acraConnectorAPIPort := flag.Int("incoming_connection_api_port", cmd.DEFAULT_ACRACONNECTOR_API_PORT, "Port for AcraConnector HTTP api")
-	acraServerEnableHTTPAPI := flag.Bool("http_api_enable", false, "Enable AcraServer HTTP API")
+	acraConnectorAPIPort := flag.Int("incoming_connection_api_port", cmd.DEFAULT_ACRACONNECTOR_API_PORT, "Port for AcraConnector HTTP API")
+	acraServerEnableHTTPAPI := flag.Bool("http_api_enable", false, "Enable connection to AcraServer via HTTP API")
 	disableUserCheck := flag.Bool("user_check_disable", false, "Disable checking that connections from app running from another user")
 	useTLS := flag.Bool("acraserver_tls_transport_enable", false, "Use tls to encrypt transport between AcraServer and AcraConnector/client")
 	tlsCA := flag.String("tls_ca", "", "Path to root certificate which will be used with system root certificates to validate AcraServer's certificate")
@@ -198,7 +198,7 @@ func main() {
 	connectionAPIString := flag.String("incoming_connection_api_string", network.BuildConnectionString(cmd.DEFAULT_ACRACONNECTOR_CONNECTION_PROTOCOL, cmd.DEFAULT_ACRACONNECTOR_HOST, cmd.DEFAULT_ACRACONNECTOR_API_PORT, ""), "Connection string like tcp://x.x.x.x:yyyy or unix:///path/to/socket")
 	acraServerConnectionString := flag.String("acraserver_connection_string", "", "Connection string to AcraServer like tcp://x.x.x.x:yyyy or unix:///path/to/socket")
 	acraServerAPIConnectionString := flag.String("acraserver_api_connection_string", "", "Connection string to Acra's API like tcp://x.x.x.x:yyyy or unix:///path/to/socket")
-	prometheusAddress := flag.String("prometheus_metrics_address", "", "")
+	prometheusAddress := flag.String("prometheus_metrics_address", "", "URL of Prometheus server for AcraConnector to upload stats and metrics (upload address is <URL>/metrics)")
 
 	connectorModeString := flag.String("mode", "AcraServer", "Expected mode of connection. Possible values are: AcraServer or AcraTranslator. Corresponded connection host/port/string/session_id will be used.")
 	acraTranslatorHost := flag.String("acratranslator_connection_host", cmd.DEFAULT_ACRATRANSLATOR_GRPC_HOST, "IP or domain to AcraTranslator daemon")
@@ -434,8 +434,8 @@ func main() {
 		if err != nil {
 			panic(err)
 		}
+		log.Infof("Configured to send metrics and stats to `prometheus_metrics_address`")
 		sigHandler.AddListener(prometheusListener)
-
 	}
 
 	for {

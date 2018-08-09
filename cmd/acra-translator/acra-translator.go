@@ -60,9 +60,9 @@ func main() {
 
 	secureSessionID := flag.String("securesession_id", "acra_translator", "Id that will be sent in secure session")
 
-	detectPoisonRecords := flag.Bool("poison_detect_enable", true, "Turn on poison record detection")
-	stopOnPoison := flag.Bool("poison_shutdown_enable", false, "Stop on detecting poison record")
-	scriptOnPoison := flag.String("poison_run_script_file", "", "Execute script on detecting poison record")
+	detectPoisonRecords := flag.Bool("poison_detect_enable", true, "Turn on poison record detection, if server shutdown is disabled, AcraTranslator logs the poison record detection and returns error")
+	stopOnPoison := flag.Bool("poison_shutdown_enable", false, "On detecting poison record: log about poison record detection, stop and shutdown")
+	scriptOnPoison := flag.String("poison_run_script_file", "", "On detecting poison record: log about poison record detection, execute script, return decrypted data")
 
 	closeConnectionTimeout := flag.Int("incoming_connection_close_timeout", DEFAULT_WAIT_TIMEOUT, "Time that AcraTranslator will wait (in seconds) on stop signal before closing all connections")
 

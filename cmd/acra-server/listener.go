@@ -361,7 +361,7 @@ func (server *SServer) StartCommandsFromFileDescriptor(fd uintptr) {
 	logger := log.WithFields(log.Fields{"connection_string": server.config.GetAcraConnectionString(), "from_descriptor": true})
 	file := os.NewFile(fd, "/tmp/acra-server_http_api")
 	if file == nil {
-		logger.Errorln("Can't create new file from descriptor for api listener")
+		logger.Errorln("Can't create new file from descriptor for API listener")
 		server.errorSignalChannel <- syscall.SIGTERM
 		return
 	}
