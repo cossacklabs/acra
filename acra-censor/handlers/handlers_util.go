@@ -211,20 +211,26 @@ func handleValuePattern(queryNodes, patternNodes []sqlparser.SQLNode) bool {
 				}
 			}
 		}
-
 		if patternNodeComparison, ok := patternNodes[index + patternNodeOffset].(*sqlparser.ComparisonExpr); ok && patternNodeComparison != nil {
 			if queryNodeComparison, ok := queryNodes[index + queryNodeOffset].(*sqlparser.ComparisonExpr); ok && queryNodeComparison != nil {
-				if reflect.DeepEqual(queryNodeComparison.Left, patternNodeComparison.Left) &&
-					strings.EqualFold(queryNodeComparison.Operator, queryNodeComparison.Operator) &&
-				    reflect.DeepEqual(queryNodeComparison.Escape, queryNodeComparison.Escape) {
-					if strings.EqualFold(sqlparser.String(patternNodeComparison.Right), ValueConfigPlaceholderReplacer) {
-						matchDetected = true
-					}
+				if IsEqualComparisonNode(patternNodeComparison, queryNodeComparison) {
+					matchDetected = true
 				}
 			}
 		}
 	}
 	return matchDetected
+}
+
+func IsEqualComparisonNode(patternNode, queryNode *sqlparser.ComparisonExpr) bool {
+	if reflect.DeepEqual(patternNode.Left, queryNode.Left) &&
+		strings.EqualFold(patternNode.Operator, queryNode.Operator) &&
+		reflect.DeepEqual(patternNode.Escape, queryNode.Escape) {
+		if strings.EqualFold(sqlparser.String(patternNode.Right), ValueConfigPlaceholderReplacer) {
+			return true
+		}
+	}
+	return false
 }
 
 // handleStarPattern handles SELECT * FROM table %%WHERE%% pattern

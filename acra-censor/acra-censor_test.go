@@ -371,6 +371,8 @@ func testWhitelistValuePattern(t *testing.T) {
 		"SELECT a, b, c FROM y WHERE a = 'someValue'",
 		"SELECT a, b FROM z WHERE a = 'someValue'",
 		"SELECT a, b FROM t WHERE NonID = 'someValue'",
+		"SELECT a, b, c, d FROM t WHERE a = 1 OR b = 1.0 OR c = TRUE OR d = NULL",
+		"SELECT a, b FROM t WHERE a = 1 and b = 2.0",
 	}
 	for _, query := range acceptableQueries {
 		err = censor.HandleQuery(query)
@@ -834,6 +836,8 @@ func testBlacklistValuePattern(t *testing.T) {
 		"SELECT a, b, c FROM y WHERE a = 'someValue'",
 		"SELECT a, b FROM z WHERE a = 'someValue'",
 		"SELECT a, b FROM t WHERE NonID = 'someValue'",
+		"SELECT a, b, c, d FROM t WHERE a = 1 OR b = 1.0 OR c = TRUE OR d = NULL",
+		"SELECT a, b FROM t WHERE a = 1 and b = 2.0",
 	}
 	blockableQueries := []string{
 		"SELECT a, b FROM t WHERE ID = 'someValue_testValue_1234567890'",
@@ -860,9 +864,10 @@ func testBlacklistValuePattern(t *testing.T) {
 	}
 
 	blockableQueries = []string{
-		"SELECT a, b FROM t WHERE ID = 'someValue_testValue_1234567890'",
-		"SELECT a, b FROM t WHERE ID = 'someValue'",
+		"SELECT a, b FROM t WHERE ID = 1",
+		"SELECT a, b FROM t WHERE ID = 1.0",
 		"SELECT a, b, c, d FROM t WHERE ID = 'someValue'",
+		"SELECT a, b, c FROM t WHERE ID = TRUE",
 	}
 
 	for _, query := range acceptableQueries {
