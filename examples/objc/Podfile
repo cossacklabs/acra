@@ -6,10 +6,10 @@ inhibit_all_warnings!
 use_frameworks!
 
 target :"AcraWriterUsage" do
-	pod 'acrawriter', :git => 'https://github.com/cossacklabs/acra.git'
+	pod 'acrawriter', '1.0.0'
 end
 
 
 target "AcraWriterUsageTests" do
-	pod 'acrawriter', :git => 'https://github.com/cossacklabs/acra.git'
+	pod 'acrawriter', '1.0.0'
 end
