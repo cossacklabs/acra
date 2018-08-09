@@ -61,6 +61,9 @@ incoming_connection_string: tcp://0.0.0.0:9393/
 # Folder from which will be loaded keys
 keys_dir: .acrakeys
 
+# Count of keys that will be stored in in-memory LRU cache in encrypted form. 0 - no limits, -1 - turn off cache
+keystore_cache_size: 0
+
 # Logging format: plaintext, json or CEF
 logging_format: plaintext
 
@@ -84,6 +87,9 @@ poison_shutdown_enable: false
 
 # Handle Postgresql connections (default true)
 postgresql_enable: false
+
+# 
+prometheus_metrics_address: 
 
 # Id that will be sent in secure session
 securesession_id: acra_server

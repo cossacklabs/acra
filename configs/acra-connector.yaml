@@ -67,6 +67,9 @@ logging_format: plaintext
 # Expected mode of connection. Possible values are: AcraServer or AcraTranslator. Corresponded connection host/port/string/session_id will be used.
 mode: AcraServer
 
+# 
+prometheus_metrics_address: 
+
 # Expected Server Name (SNI) from AcraServer
 tls_acraserver_sni: 
 
