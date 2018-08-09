@@ -403,6 +403,10 @@ def tearDownModule():
     clean_binaries()
     clean_misc()
     KEYS_FOLDER.cleanup()
+    try:
+        os.remove(MASTER_KEY_PATH)
+    except:
+        pass
 
 
 class ProcessStub(object):
