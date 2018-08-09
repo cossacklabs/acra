@@ -1,0 +1,40 @@
+PODS:
+  - acrawriter (1.0.0):
+    - themis (= 0.10.0)
+  - GRKOpenSSLFramework (1.0.1.20.4)
+  - themis (0.10.0):
+    - GRKOpenSSLFramework (= 1.0.1.20.4)
+    - themis/core (= 0.10.0)
+    - themis/objcwrapper (= 0.10.0)
+  - themis/core (0.10.0):
+    - GRKOpenSSLFramework (= 1.0.1.20.4)
+  - themis/objcwrapper (0.10.0):
+    - GRKOpenSSLFramework (= 1.0.1.20.4)
+    - themis/core
+
+DEPENDENCIES:
+  - acrawriter (from `https://github.com/cossacklabs/acra.git`, branch `vixentael/T666-AW-publish`)
+
+SPEC REPOS:
+  https://github.com/cocoapods/specs.git:
+    - GRKOpenSSLFramework
+    - themis
+
+EXTERNAL SOURCES:
+  acrawriter:
+    :branch: vixentael/T666-AW-publish
+    :git: https://github.com/cossacklabs/acra.git
+
+CHECKOUT OPTIONS:
+  acrawriter:
+    :commit: 50a3d4d89b43c6d1a1937b566680d0107ef66a22
+    :git: https://github.com/cossacklabs/acra.git
+
+SPEC CHECKSUMS:
+  acrawriter: 834f1d7148e41de6785d04025d510cb905eb53fa
+  GRKOpenSSLFramework: b6172cc34db9b999002483878772a4bf2a1687ba
+  themis: f06f5690dbb18276e98f3c8d7c9ba90e8100bd09
+
+PODFILE CHECKSUM: faed81f5aa85fd3dea5b5adf97b1c29ac6d593bd
+
+COCOAPODS: 1.5.3

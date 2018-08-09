@@ -26,7 +26,7 @@ const (
 var (
 	connectionCounter = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
-			Name: "acraconnector_connection_total",
+			Name: "acraconnector_connections_total",
 			Help: "number of connections to database",
 		}, []string{connectionTypeLabel})
 
