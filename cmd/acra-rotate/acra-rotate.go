@@ -37,9 +37,9 @@ import (
 
 // Constants used by AcraRotate
 var (
-	// DEFAULT_CONFIG_PATH relative path to config which will be parsed as default
-	DEFAULT_CONFIG_PATH = utils.GetConfigPathByName("acra-rotate")
-	SERVICE_NAME        = "acra-rotate"
+	// DefaultConfigPath relative path to config which will be parsed as default
+	DefaultConfigPath = utils.GetConfigPathByName("acra-rotate")
+	ServiceName       = "acra-rotate"
 )
 
 func initKeyStore(dirPath string) (keystore.KeyStore, error) {
@@ -66,7 +66,7 @@ func initKeyStore(dirPath string) (keystore.KeyStore, error) {
 	return keystorage, nil
 }
 
-func loadFileMap(path string) (ZoneIdFileMap, error) {
+func loadFileMap(path string) (ZoneIDFileMap, error) {
 	configData, err := ioutil.ReadFile(path)
 	if err != nil {
 		return nil, err
@@ -83,7 +83,7 @@ type ZoneRotateData struct {
 // ZoneRotateResult store result of rotation
 type ZoneRotateResult map[string]*ZoneRotateData
 
-func rotateFiles(fileMap ZoneIdFileMap, keyStore keystore.KeyStore) (ZoneRotateResult, error) {
+func rotateFiles(fileMap ZoneIDFileMap, keyStore keystore.KeyStore) (ZoneRotateResult, error) {
 	output := ZoneRotateResult{}
 	for zoneID, paths := range fileMap {
 		logger := log.WithField("zone_id", zoneID)
@@ -117,15 +117,16 @@ func rotateFiles(fileMap ZoneIdFileMap, keyStore keystore.KeyStore) (ZoneRotateR
 				logger.WithError(err).Errorln("Can't re-encrypt AcraStruct with rotated zone key")
 				return nil, err
 			}
-			if stat, err := os.Stat(path); err != nil {
+			stat, err := os.Stat(path)
+			if err != nil {
 				logger.WithError(err).Errorln("Can't get stat info about file to retrieve current file permissions")
 				return nil, err
-			} else {
-				if err := ioutil.WriteFile(path, rotated, stat.Mode()); err != nil {
-					logger.WithError(err).Errorln("Can't write rotated AcraStruct with zone")
-					return nil, err
-				}
 			}
+			if err := ioutil.WriteFile(path, rotated, stat.Mode()); err != nil {
+				logger.WithError(err).Errorln("Can't write rotated AcraStruct with zone")
+				return nil, err
+			}
+
 		}
 		output[zoneID] = result
 		logger.Infoln("Finish rotate zone")
@@ -140,7 +141,7 @@ func main() {
 
 	logging.SetLogLevel(logging.LOG_VERBOSE)
 
-	err := cmd.Parse(DEFAULT_CONFIG_PATH, SERVICE_NAME)
+	err := cmd.Parse(DefaultConfigPath, ServiceName)
 	if err != nil {
 		log.WithError(err).Errorln("Can't parse args")
 		os.Exit(1)
