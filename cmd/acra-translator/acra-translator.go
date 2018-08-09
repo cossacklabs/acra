@@ -1,16 +1,23 @@
-// Copyright 2018, Cossack Labs Limited
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-// http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
+/*
+Copyright 2018, Cossack Labs Limited
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
+// Package main is entry point for AcraTranslator service. AcraTranslator is a lightweight server that receives
+// AcraStructs and returns the decrypted data. This element of Acra is necessary in the use-cases
+// when an application stores encrypted data as separate blobs (files that are not in a database - i.e.
+// in the S3 bucket, local file storage, etc.).
 package main
 
 import (
@@ -48,7 +55,7 @@ func main() {
 	incomingConnectionHTTPString := flag.String("incoming_connection_http_string", network.BuildConnectionString(network.HTTP_SCHEME, cmd.DEFAULT_ACRATRANSLATOR_HTTP_HOST, cmd.DEFAULT_ACRATRANSLATOR_HTTP_PORT, ""), "Connection string for HTTP transport like http://x.x.x.x:yyyy")
 	incomingConnectionGRPCString := flag.String("incoming_connection_grpc_string", network.BuildConnectionString(network.GRPC_SCHEME, cmd.DEFAULT_ACRATRANSLATOR_GRPC_HOST, cmd.DEFAULT_ACRATRANSLATOR_GRPC_PORT, ""), "Connection string for gRPC transport like grpc://x.x.x.x:yyyy")
 
-	keysDir := flag.String("keys_dir", keystore.DEFAULT_KEY_DIR_SHORT, "Folder from which will be loaded keys")
+	keysDir := flag.String("keys_dir", keystore.DefaultKeyDirShort, "Folder from which will be loaded keys")
 	keysCacheSize := flag.Int("keystore_cache_size", keystore.INFINITE_CACHE_SIZE, "Count of keys that will be stored in in-memory LRU cache in encrypted form. 0 - no limits, -1 - turn off cache")
 
 	secureSessionID := flag.String("securesession_id", "acra_translator", "Id that will be sent in secure session")

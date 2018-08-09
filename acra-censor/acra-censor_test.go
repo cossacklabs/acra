@@ -1,3 +1,25 @@
+/*
+Copyright 2018, Cossack Labs Limited
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
+// Package acracensor represents separate firewall module for Acra. AcraCensor handles each query that
+// gets through AcraServer. You can setup the whitelist and the blacklist separately or simultaneously.
+// The order of priority for the lists is defined by their order in the configuration file.
+// Priority of work for one of the lists is the following: queries, followed by tables, followed by rules.
+//
+// https://github.com/cossacklabs/acra/wiki/AcraCensor
 package acracensor
 
 import (
@@ -625,11 +647,11 @@ func testBlacklistSelectPattern(t *testing.T) {
 		err := censor.HandleQuery(query)
 		if i < SelectQueryCount {
 			if err != handlers.ErrBlacklistPatternMatch {
-				t.Fatal(err, "Blacklist pattern passed query. \nPattern:", blacklistPattern+"\nQuery:", queries[i])
+				t.Fatal(err, "Blacklist pattern passed query. \nPattern:", blacklistPattern+"\nQuery:", query)
 			}
 		} else {
 			if err != nil {
-				t.Fatal(err, "\nPattern"+blacklistPattern, "\nQuery"+queries[i])
+				t.Fatal(err, "Blacklist blocked blocked query. \nPattern:", blacklistPattern, "\nQuery:", query)
 			}
 		}
 	}
@@ -805,18 +827,29 @@ func testBlacklistValuePattern(t *testing.T) {
 
 	acceptableQueries := []string{
 		"SELECT a, b FROM t WHERE someParameter = 'someValue208934278935789'",
-		"SELECT a, b, c FROM y WHERE a = 'someValue'",
+		"SELECT a, b, c FROM t WHERE a = 'someValue'",
 		"SELECT a, b FROM z WHERE a = 'someValue'",
 		"SELECT a, b FROM t WHERE NonID = 'someValue'",
+		"SELECT * FROM t WHERE NonID = 999",
+		"SELECT * FROM t WHERE ID IS NOT NULL",
+		"SELECT * FROM t WHERE ID IS NULL",
+		"SELECT * FROM t WHERE ID >= 25",
+		"SELECT * FROM t WHERE ID IS NULL",
+		"SELECT * FROM t WHERE ID >= 25",
+		"SELECT * FROM t WHERE ID BETWEEN 25 AND 65000",
+		"SELECT * FROM t WHERE ID LIKE 'Pa%'",
+		"SELECT * FROM t WHERE ID IN ( 25, 27 )",
+		"SELECT * FROM t WHERE ID NOT IN ( 25, 27 )",
 	}
 	blockableQueries := []string{
 		"SELECT a, b FROM t WHERE ID = 'someValue_testValue_1234567890'",
-		"SELECT a, b FROM t WHERE ID = 'someValue'",
+		"SELECT * FROM t WHERE ID = 'someValue'",
+		"SELECT * FROM t WHERE ID = 999",
 	}
 	for _, query := range acceptableQueries {
 		err = censor.HandleQuery(query)
 		if err != nil {
-			t.Fatal(err, "Blacklist pattern passed query. \nPattern:", blacklistPattern, "\nQuery:", query)
+			t.Fatal(err, "Blacklist pattern blocked query. \nPattern:", blacklistPattern, "\nQuery:", query)
 		}
 	}
 	for _, query := range blockableQueries {
@@ -825,6 +858,91 @@ func testBlacklistValuePattern(t *testing.T) {
 			t.Fatal(err, "Blacklist pattern passed query. \nPattern:", blacklistPattern, "\nQuery:", query)
 		}
 	}
+
+	blacklist.Reset()
+	blacklistPattern = "SELECT a, b FROM t WHERE ID BETWEEN %%VALUE%% AND %%VALUE%%"
+	err = blacklist.AddPatterns([]string{blacklistPattern})
+	if err != nil {
+		t.Fatal(err)
+	}
+	blockableQuery := "SELECT * from t WHERE ID BETWEEN 25 AND 65000"
+	err = censor.HandleQuery(blockableQuery)
+	if err != handlers.ErrBlacklistPatternMatch {
+		t.Fatal(err, "Blacklist pattern passed query. \nPattern:", blacklistPattern, "\nQuery:", blockableQuery)
+	}
+
+	blacklist.Reset()
+	blacklistPattern = "SELECT a, b FROM t WHERE ID BETWEEN 65 AND %%VALUE%%"
+	err = blacklist.AddPatterns([]string{blacklistPattern})
+	if err != nil {
+		t.Fatal(err)
+	}
+	blockableQuery = "SELECT * from t WHERE ID BETWEEN 65 AND 65000"
+	err = censor.HandleQuery(blockableQuery)
+	if err != handlers.ErrBlacklistPatternMatch {
+		t.Fatal(err, "Blacklist pattern passed query. \nPattern:", blacklistPattern, "\nQuery:", blockableQuery)
+	}
+
+	blacklist.Reset()
+	blacklistPattern = "SELECT a, b FROM t WHERE ID BETWEEN %%VALUE%% AND 65000"
+	err = blacklist.AddPatterns([]string{blacklistPattern})
+	if err != nil {
+		t.Fatal(err)
+	}
+	blockableQuery = "SELECT * from t WHERE ID BETWEEN 10923 AND 65000"
+	err = censor.HandleQuery(blockableQuery)
+	if err != handlers.ErrBlacklistPatternMatch {
+		t.Fatal(err, "Blacklist pattern passed query. \nPattern:", blacklistPattern, "\nQuery:", blockableQuery)
+	}
+
+	blacklist.Reset()
+	blacklistPattern = "SELECT a, b FROM t WHERE ID BETWEEN 10923 AND 65000"
+	err = blacklist.AddPatterns([]string{blacklistPattern})
+	if err != nil {
+		t.Fatal(err)
+	}
+	blockableQuery = "SELECT * from t WHERE ID BETWEEN 10923 AND 65000"
+	err = censor.HandleQuery(blockableQuery)
+	if err != handlers.ErrBlacklistPatternMatch {
+		t.Fatal(err, "Blacklist pattern passed query. \nPattern:", blacklistPattern, "\nQuery:", blockableQuery)
+	}
+
+	blacklist.Reset()
+	blacklistPattern = "SELECT * FROM t WHERE ID BETWEEN 10923 AND %%VALUE%%"
+	err = blacklist.AddPatterns([]string{blacklistPattern})
+	if err != nil {
+		t.Fatal(err)
+	}
+	blockableQuery = "SELECT a, b, c from t WHERE ID BETWEEN 10923 AND 65000"
+	err = censor.HandleQuery(blockableQuery)
+	if err != handlers.ErrBlacklistPatternMatch {
+		t.Fatal(err, "Blacklist pattern passed query. \nPattern:", blacklistPattern, "\nQuery:", blockableQuery)
+	}
+
+	blacklist.Reset()
+	blacklistPattern = "SELECT * FROM t WHERE ID LIKE %%VALUE%%"
+	err = blacklist.AddPatterns([]string{blacklistPattern})
+	if err != nil {
+		t.Fatal(err)
+	}
+	blockableQuery = "SELECT a, b, c from t WHERE ID LIKE 'Pa%'"
+	err = censor.HandleQuery(blockableQuery)
+	if err != handlers.ErrBlacklistPatternMatch {
+		t.Fatal(err, "Blacklist pattern passed query. \nPattern:", blacklistPattern, "\nQuery:", blockableQuery)
+	}
+
+	blacklist.Reset()
+	blacklistPattern = "SELECT * FROM t WHERE ID NOT IN ( %%VALUE%%, %%VALUE%% )"
+	err = blacklist.AddPatterns([]string{blacklistPattern})
+	if err != nil {
+		t.Fatal(err)
+	}
+	blockableQuery = "SELECT * FROM t WHERE ID NOT IN ( 25, 27 )"
+	err = censor.HandleQuery(blockableQuery)
+	if err != handlers.ErrBlacklistPatternMatch {
+		t.Fatal(err, "Blacklist pattern passed query. \nPattern:", blacklistPattern, "\nQuery:", blockableQuery)
+	}
+
 }
 func testBlacklistStarPattern(t *testing.T) {
 	var err error
@@ -1158,7 +1276,7 @@ func TestQueryCapture(t *testing.T) {
 	handler.CheckQuery(testQuery)
 
 	//wait until serialization completes
-	time.Sleep(handler.GetSerializationTimeout() + 10*time.Millisecond)
+	time.Sleep(handler.GetSerializationTimeout() + extraWaitTime)
 
 	result, err = ioutil.ReadFile(tmpFile.Name())
 	if err != nil {

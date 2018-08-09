@@ -1,16 +1,33 @@
-// Copyright 2016, Cossack Labs Limited
+/*
+Copyright 2016, Cossack Labs Limited
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
+// Package main is entry point for AcraServer utility. AcraServer is the server responsible for decrypting all
+// the database responses and forwarding them back to clients. AcraServer waits to connection from AcraConnector.
+// When the first AcraConnector connection arrives, AcraServer initialises secure communication via TLS or
+// Themis Secure Session. After a successful initialisation of the session, AcraServer creates a database connection
+// and starts forwarding all the requests coming from AcraConnector into the database.
+// Every incoming request to AcraServer is passed through AcraCensor (Acra's firewall). AcraCensor will pass allowed
+// queries and return error on forbidden ones.
+// Upon receiving the answer, AcraServer attempts to unpack the AcraStruct and to decrypt the payload. After that,
+// AcraServer will replace the AcraStruct with the decrypted payload, change the packet's length, and return
+// the answer to the application via AcraConnector.
+// If AcraServer detects a poison record within the AcraStruct's decryption stream, AcraServer will either
+// shut down the decryption, run an alarm script, or do both, depending on the pre-set parameters.
 //
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-// http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
+// https://github.com/cossacklabs/acra/wiki/How-AcraServer-works
 package main
 
 import (
@@ -30,7 +47,6 @@ import (
 	"github.com/cossacklabs/acra/network"
 	"github.com/cossacklabs/acra/utils"
 	log "github.com/sirupsen/logrus"
-	"runtime"
 )
 
 var restartSignalsChannel chan os.Signal
@@ -69,11 +85,13 @@ func main() {
 	dbHost := flag.String("db_host", "", "Host to db")
 	dbPort := flag.Int("db_port", 5432, "Port to db")
 
+	prometheusAddress := flag.String("prometheus_metrics_address", "", "")
+
 	host := flag.String("incoming_connection_host", cmd.DEFAULT_ACRA_HOST, "Host for AcraServer")
 	port := flag.Int("incoming_connection_port", cmd.DEFAULT_ACRASERVER_PORT, "Port for AcraServer")
 	apiPort := flag.Int("incoming_connection_api_port", cmd.DEFAULT_ACRASERVER_API_PORT, "Port for AcraServer for HTTP API")
 
-	keysDir := flag.String("keys_dir", keystore.DEFAULT_KEY_DIR_SHORT, "Folder from which will be loaded keys")
+	keysDir := flag.String("keys_dir", keystore.DefaultKeyDirShort, "Folder from which will be loaded keys")
 	keysCacheSize := flag.Int("keystore_cache_size", keystore.INFINITE_CACHE_SIZE, "Count of keys that will be stored in in-memory LRU cache in encrypted form. 0 - no limits, -1 - turn off cache")
 
 	pgHexFormat := flag.Bool("pgsql_hex_bytea", false, "Hex format for Postgresql bytea data (default)")
@@ -293,6 +311,15 @@ func main() {
 		}()
 	}
 
+	if *prometheusAddress != "" {
+		prometheusListener, err := cmd.RunPrometheusHTTPHandler(*prometheusAddress)
+		if err != nil {
+			panic(err)
+		}
+		sigHandlerSIGHUP.AddListener(prometheusListener)
+		sigHandlerSIGTERM.AddListener(prometheusListener)
+	}
+
 	go sigHandlerSIGTERM.Register()
 	sigHandlerSIGTERM.AddCallback(func() {
 		log.Infof("Received incoming SIGTERM or SIGINT signal")
@@ -365,18 +392,18 @@ func main() {
 	log.Infof("Start listening to connections. Current PID: %v", os.Getpid())
 
 	if os.Getenv(GRACEFUL_ENV) == "true" {
-		go server.StartFromFileDescriptor(DESCRIPTOR_ACRA)
 		if *withZone || *enableHTTPAPI {
 			go server.StartCommandsFromFileDescriptor(DESCRIPTOR_API)
 		}
+		go server.StartFromFileDescriptor(DESCRIPTOR_ACRA)
 	} else {
-		go server.Start()
 		if *withZone || *enableHTTPAPI {
 			go server.StartCommands()
 		}
+		go server.Start()
 	}
 
-	// todo: any reason why it's so far from adding callback?
+	// on sighup we run callback that stop all listeners (that stop background goroutine of server.Start())
+	// and try to restart acra-server and only after that exits
 	sigHandlerSIGHUP.Register()
-	runtime.KeepAlive(server)
 }

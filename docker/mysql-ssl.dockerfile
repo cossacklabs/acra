@@ -7,4 +7,4 @@ COPY docker/ssl/mysql/mysql.key /tmp.ssl/server-key.pem
 COPY docker/ssl/ca/example.cossacklabs.com.crt /tmp.ssl/ca.pem
 RUN chown -R mysql:mysql /tmp.ssl
 
-COPY docker/mysql-ssl-configure.sh /docker-entrypoint-initdb.d/
+COPY docker/_scripts/mysql-ssl-configure.sh /docker-entrypoint-initdb.d/

@@ -1,16 +1,24 @@
-// Copyright 2016, Cossack Labs Limited
+/*
+Copyright 2016, Cossack Labs Limited
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
+// Package main is entry point for AcraKeymaker utility. AcraKeymaker generates key pairs for transport and storage keys
+// and writes it to default keys folder. Private keys are encrypted using Themis SecureCell and ACRA_MASTER_KEY,
+// public keys are plaintext.
 //
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-// http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
+// https://github.com/cossacklabs/acra/wiki/Key-Management
 package main
 
 import (
@@ -39,8 +47,8 @@ func main() {
 	acraTranslator := flag.Bool("generate_acratranslator_keys", false, "Create keypair for AcraTranslator only")
 	dataKeys := flag.Bool("generate_acrawriter_keys", false, "Create keypair for data encryption/decryption")
 	basicauth := flag.Bool("generate_acrawebconfig_keys", false, "Create symmetric key for AcraWebconfig's basic auth db")
-	outputDir := flag.String("keys_output_dir", keystore.DEFAULT_KEY_DIR_SHORT, "Folder where will be saved keys")
-	outputPublicKey := flag.String("keys_public_output_dir", keystore.DEFAULT_KEY_DIR_SHORT, "Folder where will be saved public key")
+	outputDir := flag.String("keys_output_dir", keystore.DefaultKeyDirShort, "Folder where will be saved keys")
+	outputPublicKey := flag.String("keys_public_output_dir", keystore.DefaultKeyDirShort, "Folder where will be saved public key")
 	masterKey := flag.String("generate_master_key", "", "Generate new random master key and save to file")
 
 	logging.SetLogLevel(logging.LOG_VERBOSE)
@@ -67,7 +75,7 @@ func main() {
 	symmetricKey, err := keystore.GetMasterKeyFromEnvironment()
 	if err != nil {
 		if err == keystore.ErrEmptyMasterKey {
-			log.Infof("You must pass master key via %v environment variable", keystore.ACRA_MASTER_KEY_VAR_NAME)
+			log.Infof("You must pass master key via %v environment variable", keystore.AcraMasterKeyVarName)
 			os.Exit(1)
 		}
 		log.WithError(err).Errorln("Can't load master key")
