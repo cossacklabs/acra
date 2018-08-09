@@ -83,7 +83,7 @@ func (service *DecryptGRPCService) Decrypt(ctx context.Context, request *Decrypt
 						logger.WithError(err).Errorln("Unexpected error on poison record's callbacks")
 					}
 				}
-				return nil, ErrCantDecrypt
+				return nil, base.ErrPoisonRecord
 			}
 		}
 		return nil, ErrCantDecrypt
