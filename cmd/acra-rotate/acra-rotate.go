@@ -77,7 +77,7 @@ func loadFileMap(path string) (ZoneIDFileMap, error) {
 // ZoneRotateData store new public key and paths of files that was rotated
 type ZoneRotateData struct {
 	NewPublicKey []byte
-	FilePath     []string
+	FilePaths    []string
 }
 
 // ZoneRotateResult store result of rotation
@@ -100,33 +100,33 @@ func rotateFiles(fileMap ZoneIDFileMap, keyStore keystore.KeyStore) (ZoneRotateR
 		}
 		result := &ZoneRotateData{NewPublicKey: newPublicKey}
 		for _, path := range paths {
-			logger = logger.WithField("filepath", path)
-			result.FilePath = append(result.FilePath, path)
+			fileLogger := logger.WithField("filepath", path)
+			result.FilePaths = append(result.FilePaths, path)
 			acraStruct, err := ioutil.ReadFile(path)
 			if err != nil {
-				logger.WithError(err).Errorf("Can't read file %s", path)
+				fileLogger.WithError(err).Errorf("Can't read file %s", path)
 				return nil, err
 			}
 			decrypted, err := base.DecryptAcrastruct(acraStruct, privateKey, binZoneID)
 			if err != nil {
-				logger.WithError(err).Errorln("Can't decrypt AcraStruct")
+				fileLogger.WithError(err).Errorln("Can't decrypt AcraStruct")
 				return nil, err
 			}
 			rotated, err := acrawriter.CreateAcrastruct(decrypted, &keys.PublicKey{Value: newPublicKey}, binZoneID)
 			if err != nil {
-				logger.WithError(err).Errorln("Can't re-encrypt AcraStruct with rotated zone key")
+				fileLogger.WithError(err).Errorln("Can't re-encrypt AcraStruct with rotated zone key")
 				return nil, err
 			}
 			stat, err := os.Stat(path)
 			if err != nil {
-				logger.WithError(err).Errorln("Can't get stat info about file to retrieve current file permissions")
+				fileLogger.WithError(err).Errorln("Can't get stat info about file to retrieve current file permissions")
 				return nil, err
 			}
 			if err := ioutil.WriteFile(path, rotated, stat.Mode()); err != nil {
-				logger.WithError(err).Errorln("Can't write rotated AcraStruct with zone")
+				fileLogger.WithError(err).Errorln("Can't write rotated AcraStruct with zone")
 				return nil, err
 			}
-
+			fileLogger.Infof("Finish rotate file")
 		}
 		output[zoneID] = result
 		logger.Infoln("Finish rotate zone")
