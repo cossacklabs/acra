@@ -76,13 +76,13 @@ pgsql_escape_bytea: false
 # Hex format for Postgresql bytea data (default)
 pgsql_hex_bytea: false
 
-# Turn on poison record detection
+# Turn on poison record detection, if server shutdown is disabled, AcraServer logs the poison record detection and returns decrypted data
 poison_detect_enable: true
 
-# Execute script on detecting poison record
+# On detecting poison record: log about poison record detection, execute script, return decrypted data
 poison_run_script_file: 
 
-# Stop on detecting poison record
+# On detecting poison record: log about poison record detection, stop and shutdown
 poison_shutdown_enable: false
 
 # Handle Postgresql connections (default true)

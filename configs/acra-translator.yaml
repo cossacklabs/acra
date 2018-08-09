@@ -25,13 +25,13 @@ keystore_cache_size: 0
 # Logging format: plaintext, json or CEF
 logging_format: plaintext
 
-# Turn on poison record detection
+# Turn on poison record detection, if server shutdown is disabled, AcraTranslator logs the poison record detection and returns error
 poison_detect_enable: true
 
-# Execute script on detecting poison record
+# On detecting poison record: log about poison record detection, execute script, return decrypted data
 poison_run_script_file: 
 
-# Stop on detecting poison record
+# On detecting poison record: log about poison record detection, stop and shutdown
 poison_shutdown_enable: false
 
 # Id that will be sent in secure session
