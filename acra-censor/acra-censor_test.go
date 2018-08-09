@@ -842,7 +842,33 @@ func testBlacklistValuePattern(t *testing.T) {
 	for _, query := range acceptableQueries {
 		err = censor.HandleQuery(query)
 		if err != nil {
+			t.Fatal(err, "Blacklist pattern blocked query. \nPattern:", blacklistPattern, "\nQuery:", query)
+		}
+	}
+	for _, query := range blockableQueries {
+		err = censor.HandleQuery(query)
+		if err != handlers.ErrBlacklistPatternMatch {
 			t.Fatal(err, "Blacklist pattern passed query. \nPattern:", blacklistPattern, "\nQuery:", query)
+		}
+	}
+
+	blacklist.Reset()
+	blacklistPattern = "SELECT * from t where ID = %%VALUE%%"
+	err = blacklist.AddPatterns([]string{blacklistPattern})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	blockableQueries = []string{
+		"SELECT a, b FROM t WHERE ID = 'someValue_testValue_1234567890'",
+		"SELECT a, b FROM t WHERE ID = 'someValue'",
+		"SELECT a, b, c, d FROM t WHERE ID = 'someValue'",
+	}
+
+	for _, query := range acceptableQueries {
+		err = censor.HandleQuery(query)
+		if err != nil {
+			t.Fatal(err, "Blacklist pattern blocked query. \nPattern:", blacklistPattern, "\nQuery:", query)
 		}
 	}
 	for _, query := range blockableQueries {
