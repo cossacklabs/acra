@@ -48,6 +48,7 @@ type SServer struct {
 	listeners             []net.Listener
 	errorSignalChannel    chan os.Signal
 	restartSignalsChannel chan os.Signal
+	connectionsToClose    map[net.Conn]struct{}
 }
 
 // NewServer creates new SServer.
@@ -59,6 +60,7 @@ func NewServer(config *Config, keystorage keystore.KeyStore, errorChan chan os.S
 		cmAPI:                 network.NewConnectionManager(),
 		errorSignalChannel:    errorChan,
 		restartSignalsChannel: restarChan,
+		connectionsToClose:    make(map[net.Conn]struct{}),
 	}, nil
 }
 
@@ -95,6 +97,10 @@ func (server *SServer) Close() {
 	}
 	if err != nil {
 		log.WithError(err).Infoln("server.Close()")
+	}
+	for conn, _ := range server.connectionsToClose {
+		// don't check errors because here can be already closed connections and we don't need handle it
+		conn.Close()
 	}
 	log.Debugln("Closed server listeners")
 }
@@ -194,7 +200,11 @@ func (server *SServer) start(listener net.Listener, connectionHandler func(net.C
 		} else {
 			logger.Infof("Got new connection to AcraServer: %v", connection.RemoteAddr())
 		}
-		go connectionHandler(connection)
+		go func() {
+			server.connectionsToClose[connection] = struct{}{}
+			connectionHandler(connection)
+			delete(server.connectionsToClose, connection)
+		}()
 	}
 }
 
