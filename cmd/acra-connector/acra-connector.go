@@ -432,7 +432,7 @@ func main() {
 		log.Infof("Enabling VERBOSE log level")
 		logging.SetLogLevel(logging.LOG_VERBOSE)
 	} else {
-		log.Infof("Disabling future logs.. Set -v -d to see logs")
+		log.Infof("Disabling future logs... Set -v -d to see logs")
 		logging.SetLogLevel(logging.LOG_DISCARD)
 	}
 
