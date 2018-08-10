@@ -11,7 +11,7 @@ dump_config: false
 incoming_connection_close_timeout: 10
 
 # Default option: connection string for gRPC transport like grpc://0.0.0.0:9696
-incoming_connection_grpc_string: grpc://0.0.0.0:9696/
+incoming_connection_grpc_string: 
 
 # Connection string for HTTP transport like http://0.0.0.0:9595
 incoming_connection_http_string: 
