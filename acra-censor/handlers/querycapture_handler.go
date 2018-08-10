@@ -95,16 +95,26 @@ func NewQueryCaptureHandler(filePath string) (*QueryCaptureHandler, error) {
 	return handler, nil
 }
 
+// RedactAndCheckQuery redacts query first, then calls CheckQuery
+func (handler *QueryCaptureHandler) RedactAndCheckQuery(query string) (bool, error) {
+	_, queryWithHiddenValues, err := NormalizeAndRedactSQLQuery(query)
+	if err != nil {
+		return true, nil
+	}
+	return handler.CheckQuery(queryWithHiddenValues)
+}
+
 // CheckQuery returns "yes" if Query was already captured, no otherwise.
-func (handler *QueryCaptureHandler) CheckQuery(query string) (bool, error) {
+// Expects already redacted queries
+func (handler *QueryCaptureHandler) CheckQuery(queryWithHiddenValues string) (bool, error) {
 	//skip already captured queries
 	for _, queryInfo := range handler.Queries {
-		if strings.EqualFold(queryInfo.RawQuery, query) {
+		if strings.EqualFold(queryInfo.RawQuery, queryWithHiddenValues) {
 			return true, nil
 		}
 	}
 	queryInfo := &QueryInfo{}
-	queryInfo.RawQuery = query
+	queryInfo.RawQuery = queryWithHiddenValues
 	queryInfo.IsForbidden = false
 	handler.Queries = append(handler.Queries, queryInfo)
 	handler.BufferedQueries = append(handler.BufferedQueries, queryInfo)
@@ -143,10 +153,21 @@ func (handler *QueryCaptureHandler) GetAllInputQueries() []string {
 	return queries
 }
 
-// MarkQueryAsForbidden marks particular query as forbidden. It will be written to file on Stop, Reset or Release.
-func (handler *QueryCaptureHandler) MarkQueryAsForbidden(query string) {
+// RedactAndMarkQueryAsForbidden redacts query first, then calls CheckQuery
+func (handler *QueryCaptureHandler) RedactAndMarkQueryAsForbidden(query string) {
+	_, queryWithHiddenValues, err := NormalizeAndRedactSQLQuery(query)
+	if err != nil {
+		return
+	}
+	handler.MarkQueryAsForbidden(queryWithHiddenValues)
+}
+
+// MarkQueryAsForbidden marks particular query as forbidden.
+// It will be written to file on Stop, Reset or Release.
+// Expects redacted query
+func (handler *QueryCaptureHandler) MarkQueryAsForbidden(queryWithHiddenValues string) {
 	for index, queryInfo := range handler.Queries {
-		if strings.EqualFold(query, queryInfo.RawQuery) {
+		if strings.EqualFold(queryWithHiddenValues, queryInfo.RawQuery) {
 			handler.Queries[index].IsForbidden = true
 		}
 	}

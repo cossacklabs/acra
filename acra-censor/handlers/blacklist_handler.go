@@ -188,17 +188,25 @@ func (handler *BlacklistHandler) Release() {
 	handler.Reset()
 }
 
-// AddQueries adds queries to the list that should be blacklisted
+// AddQueries normalizes and adds queries to the list that should be blacklisted
 func (handler *BlacklistHandler) AddQueries(queries []string) {
 	for _, query := range queries {
-		handler.queries[query] = true
+		normalizedQuery, _, err := NormalizeAndRedactSQLQuery(query)
+		if err != nil {
+			continue
+		}
+		handler.queries[normalizedQuery] = true
 	}
 }
 
 // RemoveQueries removes queries from the list that should be blacklisted
 func (handler *BlacklistHandler) RemoveQueries(queries []string) {
 	for _, query := range queries {
-		delete(handler.queries, query)
+		normalizedQuery, _, err := NormalizeAndRedactSQLQuery(query)
+		if err != nil {
+			continue
+		}
+		delete(handler.queries, normalizedQuery)
 	}
 }
 

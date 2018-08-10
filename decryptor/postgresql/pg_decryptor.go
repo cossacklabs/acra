@@ -343,7 +343,7 @@ func (proxy *PgProxy) PgProxyClientRequests(acraCensor acracensor.Interface, dbC
 			continue
 		}
 		query := string(row.descriptionBuf.Bytes()[:row.dataLength-1])
-		queryWithHiddenValues, err := handlers.RedactSQLQuery(query)
+		queryWithHiddenValues, _, err := handlers.NormalizeAndRedactSQLQuery(query)
 		if err == handlers.ErrQuerySyntaxError {
 			log.WithError(err).Infof("Parsing error on query (first %v symbols): %s", handlers.LogQueryLength, handlers.TrimStringToN(queryWithHiddenValues, handlers.LogQueryLength))
 		}

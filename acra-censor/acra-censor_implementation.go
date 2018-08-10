@@ -48,7 +48,7 @@ func (acraCensor *AcraCensor) ReleaseAll() {
 
 // HandleQuery processes every query through each handler.
 func (acraCensor *AcraCensor) HandleQuery(query string) error {
-	queryWithHiddenValues, err := handlers.RedactSQLQuery(query)
+	normalizedQuery, queryWithHiddenValues, err := handlers.NormalizeAndRedactSQLQuery(query)
 	if err == handlers.ErrQuerySyntaxError && acraCensor.ignoreParseError {
 		acraCensor.logger.WithError(err).Infof("Parsing error on query (first %v symbols): %s", handlers.LogQueryLength, handlers.TrimStringToN(queryWithHiddenValues, handlers.LogQueryLength))
 	}
@@ -58,7 +58,7 @@ func (acraCensor *AcraCensor) HandleQuery(query string) error {
 			queryCaptureHandler.CheckQuery(queryWithHiddenValues)
 			continue
 		}
-		continueHandling, err := handler.CheckQuery(query)
+		continueHandling, err := handler.CheckQuery(normalizedQuery)
 		if err != nil {
 			if err == handlers.ErrQuerySyntaxError && acraCensor.ignoreParseError {
 				acraCensor.logger.WithError(err).Infof("Parsing error on query (first %v symbols): %s", handlers.LogQueryLength, handlers.TrimStringToN(queryWithHiddenValues, handlers.LogQueryLength))
