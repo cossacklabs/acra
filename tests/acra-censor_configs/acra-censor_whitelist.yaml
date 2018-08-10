@@ -18,6 +18,7 @@ handlers:
       #postgres
       - BEGIN
       - "SELECT t.oid, typarray\nFROM pg_type t JOIN pg_namespace ns\n    ON typnamespace = ns.oid\nWHERE typname = 'hstore';\n"
+      - ROLLBACK
       - "UPDATE pg_settings SET setting = 'hex' WHERE name = 'bytea_output'"
       - COMMIT
       - select version()
