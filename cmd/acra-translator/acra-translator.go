@@ -53,7 +53,7 @@ func main() {
 	log.Infof("Starting service %v", SERVICE_NAME)
 
 	incomingConnectionHTTPString := flag.String("incoming_connection_http_string", "", "Connection string for HTTP transport like http://0.0.0.0:9595")
-	incomingConnectionGRPCString := flag.String("incoming_connection_grpc_string", "", "Connection string for gRPC transport like grpc://0.0.0.0:9696")
+	incomingConnectionGRPCString := flag.String("incoming_connection_grpc_string", network.BuildConnectionString(network.GRPC_SCHEME, cmd.DEFAULT_ACRATRANSLATOR_GRPC_HOST, cmd.DEFAULT_ACRATRANSLATOR_GRPC_PORT, ""), "Default option: connection string for gRPC transport like grpc://0.0.0.0:9696")
 
 	keysDir := flag.String("keys_dir", keystore.DefaultKeyDirShort, "Folder from which will be loaded keys")
 	keysCacheSize := flag.Int("keystore_cache_size", keystore.INFINITE_CACHE_SIZE, "Count of keys that will be stored in in-memory LRU cache in encrypted form. 0 - no limits, -1 - turn off cache")
@@ -66,8 +66,8 @@ func main() {
 
 	closeConnectionTimeout := flag.Int("incoming_connection_close_timeout", DEFAULT_WAIT_TIMEOUT, "Time that AcraTranslator will wait (in seconds) on stop signal before closing all connections")
 
-	verbose := flag.Bool("v", false, "Log to stderr")
-	debug := flag.Bool("d", false, "Turn on debug logging")
+	verbose := flag.Bool("v", false, "Log to stderr all INFO, WARNING and ERROR logs")
+	debug := flag.Bool("d", false, "Log everything to stderr")
 
 	err := cmd.Parse(DEFAULT_CONFIG_PATH, SERVICE_NAME)
 	if err != nil {
@@ -79,15 +79,12 @@ func main() {
 	// if log format was overridden
 	logging.CustomizeLogging(*loggingFormat, SERVICE_NAME)
 
-	log.Infof("Validating service configuration")
+	log.Infof("Validating service configuration...")
 	cmd.ValidateClientID(*secureSessionID)
 
-	if *debug {
-		logging.SetLogLevel(logging.LOG_DEBUG)
-	} else if *verbose {
-		logging.SetLogLevel(logging.LOG_VERBOSE)
-	} else {
-		logging.SetLogLevel(logging.LOG_DISCARD)
+	if len(*incomingConnectionHTTPString) == 0 && len(*incomingConnectionGRPCString) == 0 {
+		log.WithError(err).Errorln("can't start without connection string: setup either gRPC or HTTP connection string")
+		os.Exit(1)
 	}
 
 	// now it's stub as default values
@@ -101,7 +98,7 @@ func main() {
 	config.SetConfigPath(DEFAULT_CONFIG_PATH)
 	config.SetDebug(*debug)
 
-	log.Infof("Initialising keystore")
+	log.Infof("Initialising keystore...")
 	masterKey, err := keystore.GetMasterKeyFromEnvironment()
 	if err != nil {
 		log.WithError(err).Errorln("can't load master key")
@@ -118,7 +115,10 @@ func main() {
 			Errorln("Can't initialise keystore")
 		os.Exit(1)
 	}
+	log.Infof("Keystore init OK")
 
+	// --------- Config  -----------
+	log.Infof("Configuring transport...")
 	log.Infof("Selecting transport: use Secure Session transport wrapper")
 	config.ConnectionWrapper, err = network.NewSecureSessionConnectionWrapper(keyStore)
 	if err != nil {
@@ -158,6 +158,20 @@ func main() {
 		os.Exit(0)
 	})
 
-	log.Infof("Start listening to connections. Current PID: %v", os.Getpid())
+	// -------- START -----------
+
+	log.Infof("Setup ready. Start listening to connections. Current PID: %v", os.Getpid())
+
+	if *debug {
+		log.Infof("Enabling DEBUG log level")
+		logging.SetLogLevel(logging.LOG_DEBUG)
+	} else if *verbose {
+		log.Infof("Enabling VERBOSE log level")
+		logging.SetLogLevel(logging.LOG_VERBOSE)
+	} else {
+		log.Infof("Disabling future logs.. Set -v -d to see logs")
+		logging.SetLogLevel(logging.LOG_DISCARD)
+	}
+
 	readerServer.Start(mainContext)
 }

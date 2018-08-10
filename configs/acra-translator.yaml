@@ -1,7 +1,7 @@
 # path to config
 config_file: 
 
-# Turn on debug logging
+# Log everything to stderr
 d: false
 
 # dump config
@@ -10,8 +10,8 @@ dump_config: false
 # Time that AcraTranslator will wait (in seconds) on stop signal before closing all connections
 incoming_connection_close_timeout: 10
 
-# Connection string for gRPC transport like grpc://0.0.0.0:9696
-incoming_connection_grpc_string: 
+# Default option: connection string for gRPC transport like grpc://0.0.0.0:9696
+incoming_connection_grpc_string: grpc://0.0.0.0:9696/
 
 # Connection string for HTTP transport like http://0.0.0.0:9595
 incoming_connection_http_string: 
@@ -37,6 +37,6 @@ poison_shutdown_enable: false
 # Id that will be sent in secure session
 securesession_id: acra_translator
 
-# Log to stderr
+# Log to stderr all INFO, WARNING and ERROR logs
 v: false
 
