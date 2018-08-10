@@ -40,6 +40,9 @@ client_id:
 # path to config
 config_file: 
 
+# Log everything to stderr
+d: false
+
 # dump config
 dump_config: false
 
@@ -88,6 +91,6 @@ tls_key:
 # Disable checking that connections from app running from another user
 user_check_disable: false
 
-# Log to stderr
+# Log to stderr all INFO, WARNING and ERROR logs
 v: false
 

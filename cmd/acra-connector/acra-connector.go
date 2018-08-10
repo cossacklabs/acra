@@ -182,7 +182,7 @@ func main() {
 	acraServerAPIPort := flag.Int("acraserver_api_connection_port", cmd.DEFAULT_ACRASERVER_API_PORT, "Port of Acra HTTP API")
 	acraServerPort := flag.Int("acraserver_connection_port", cmd.DEFAULT_ACRASERVER_PORT, "Port of AcraServer daemon")
 	acraServerID := flag.String("acraserver_securesession_id", "acra_server", "Expected id from AcraServer for Secure Session")
-	verbose := flag.Bool("v", false, "Log to stderr")
+
 	acraConnectorPort := flag.Int("incoming_connection_port", cmd.DEFAULT_ACRACONNECTOR_PORT, "Port to AcraConnector")
 	acraConnectorAPIPort := flag.Int("incoming_connection_api_port", cmd.DEFAULT_ACRACONNECTOR_API_PORT, "Port for AcraConnector HTTP API")
 	acraServerEnableHTTPAPI := flag.Bool("http_api_enable", false, "Enable connection to AcraServer via HTTP API")
@@ -206,6 +206,9 @@ func main() {
 	acraTranslatorConnectionString := flag.String("acratranslator_connection_string", "", "Connection string to AcraTranslator like grpc://0.0.0.0:9696 or http://0.0.0.0:9595")
 	acraTranslatorID := flag.String("acratranslator_securesession_id", "acra_translator", "Expected id from AcraTranslator for Secure Session")
 
+	verbose := flag.Bool("v", false, "Log to stderr all INFO, WARNING and ERROR logs")
+	debug := flag.Bool("d", false, "Log everything to stderr")
+
 	err := cmd.Parse(DEFAULT_CONFIG_PATH, SERVICE_NAME)
 	if err != nil {
 		log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantReadServiceConfig).
@@ -215,7 +218,7 @@ func main() {
 
 	// if log format was overridden
 	logging.CustomizeLogging(*loggingFormat, SERVICE_NAME)
-	log.Infof("Validating service configuration")
+	log.Infof("Validating service configuration...")
 
 	if err := checkDependencies(); err != nil {
 		log.Infoln(err.Error())
@@ -308,7 +311,7 @@ func main() {
 	// --------- check keys -----------
 	cmd.ValidateClientID(*clientID)
 
-	log.Infof("Reading keys...")
+	log.Infof("Reading transport keys...")
 
 	exists, err := keyStore.CheckIfPrivateKeyExists([]byte(*clientID))
 	if !exists || err != nil {
@@ -316,7 +319,7 @@ func main() {
 			Errorf("Configuration error: can't check that AcraConnector private key exists, got error - %v", err)
 		os.Exit(1)
 	}
-	log.Infof("Client id and client key is OK")
+	log.Infof("Client id = %v, and client key is OK", *clientID)
 
 	_, err = keyStore.GetPeerPublicKey([]byte(*clientID))
 	if err != nil {
@@ -391,7 +394,7 @@ func main() {
 				commandsConfig := *config
 				commandsConfig.OutgoingConnectionString = *acraServerAPIConnectionString
 
-				log.Infof("Start listening http API: %s", *connectionAPIString)
+				log.Infof("Start listening HTTP API: %s", *connectionAPIString)
 				commandsListener, err := network.Listen(*connectionAPIString)
 				if err != nil {
 					log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantStartListenConnections).
@@ -422,10 +425,14 @@ func main() {
 	// -------- START -----------
 	log.Infof("Setup ready. Start listening connection %s", *connectionString)
 
-	if *verbose {
+	if *debug {
+		log.Infof("Enabling DEBUG log level")
+		logging.SetLogLevel(logging.LOG_DEBUG)
+	} else if *verbose {
+		log.Infof("Enabling VERBOSE log level")
 		logging.SetLogLevel(logging.LOG_VERBOSE)
 	} else {
-		log.Infof("Disabling future logs.. Set -v to see logs")
+		log.Infof("Disabling future logs... Set -v -d to see logs")
 		logging.SetLogLevel(logging.LOG_DISCARD)
 	}
 

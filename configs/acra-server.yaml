@@ -22,7 +22,7 @@ client_id:
 # path to config
 config_file: 
 
-# Turn on debug logging
+# Log everything to stderr
 d: false
 
 # Host to db
@@ -109,7 +109,7 @@ tls_db_sni:
 # Path to private key that will be used in TLS handshake with AcraConnector as server's key and Postgresql as client's key
 tls_key: 
 
-# Log to stderr
+# Log to stderr all INFO, WARNING and ERROR logs
 v: false
 
 # Turn on zone mode

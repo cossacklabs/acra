@@ -99,11 +99,9 @@ func main() {
 
 	secureSessionID := flag.String("securesession_id", "acra_server", "Id that will be sent in secure session")
 
-	verbose := flag.Bool("v", false, "Log to stderr")
 	flag.Bool("acrastruct_wholecell_enable", true, "Acrastruct will stored in whole data cell")
 	injectedcell := flag.Bool("acrastruct_injectedcell_enable", false, "Acrastruct may be injected into any place of data cell")
 
-	debug := flag.Bool("d", false, "Turn on debug logging")
 	debugServer := flag.Bool("ds", false, "Turn on http debug server")
 	closeConnectionTimeout := flag.Int("incoming_connection_close_timeout", DEFAULT_ACRASERVER_WAIT_TIMEOUT, "Time that AcraServer will wait (in seconds) on restart before closing all connections")
 
@@ -130,6 +128,9 @@ func main() {
 	usePostgresql := flag.Bool("postgresql_enable", false, "Handle Postgresql connections (default true)")
 	censorConfig := flag.String("acracensor_config_file", "", "Path to AcraCensor configuration file")
 
+	verbose := flag.Bool("v", false, "Log to stderr all INFO, WARNING and ERROR logs")
+	debug := flag.Bool("d", false, "Log everything to stderr")
+
 	err := cmd.Parse(DEFAULT_CONFIG_PATH, SERVICE_NAME)
 	if err != nil {
 		log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantReadServiceConfig).
@@ -140,7 +141,7 @@ func main() {
 	// if log format was overridden
 	logging.CustomizeLogging(*loggingFormat, SERVICE_NAME)
 
-	log.Infof("Validating service configuration")
+	log.Infof("Validating service configuration...")
 	cmd.ValidateClientID(*secureSessionID)
 
 	if *host != cmd.DEFAULT_ACRA_HOST || *port != cmd.DEFAULT_ACRASERVER_PORT {
@@ -150,13 +151,6 @@ func main() {
 		*acraConnectionString = network.BuildConnectionString("tcp", *host, *apiPort, "")
 	}
 
-	if *debug {
-		logging.SetLogLevel(logging.LOG_DEBUG)
-	} else if *verbose {
-		logging.SetLogLevel(logging.LOG_VERBOSE)
-	} else {
-		logging.SetLogLevel(logging.LOG_DISCARD)
-	}
 	if *dbHost == "" {
 		log.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorWrongConfiguration).
 			Errorln("db_host is empty: you must specify db_host")
@@ -208,7 +202,7 @@ func main() {
 		config.SetByteaFormat(ESCAPE_BYTEA_FORMAT)
 	}
 
-	log.Infof("Initialising keystore")
+	log.Infof("Initialising keystore...")
 	masterKey, err := keystore.GetMasterKeyFromEnvironment()
 	if err != nil {
 		log.WithError(err).Errorln("can't load master key")
@@ -225,6 +219,9 @@ func main() {
 			Errorln("Can't initialise keystore")
 		os.Exit(1)
 	}
+	log.Infof("Keystore init OK")
+
+	log.Infof("Configuring transport...")
 	var tlsConfig *tls.Config
 	if *useTLS || *tlsKey != "" {
 		tlsConfig, err = network.NewTLSConfig(network.SNIOrHostname(*tlsDbSNI, *dbHost), *tlsCA, *tlsKey, *tlsCert, tls.ClientAuthType(*tlsAuthType))
@@ -242,7 +239,7 @@ func main() {
 	}
 	config.SetTLSConfig(tlsConfig)
 	if *useTLS {
-		log.Println("Using TLS transport wrapper")
+		log.Println("Selecting transport: use TLS transport wrapper")
 		config.ConnectionWrapper, err = network.NewTLSConnectionWrapper([]byte(*clientID), tlsConfig)
 		if err != nil {
 			log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorTransportConfiguration).
@@ -391,6 +388,17 @@ func main() {
 	})
 
 	log.Infof("Start listening to connections. Current PID: %v", os.Getpid())
+
+	if *debug {
+		log.Infof("Enabling DEBUG log level")
+		logging.SetLogLevel(logging.LOG_DEBUG)
+	} else if *verbose {
+		log.Infof("Enabling VERBOSE log level")
+		logging.SetLogLevel(logging.LOG_VERBOSE)
+	} else {
+		log.Infof("Disabling future logs... Set -v -d to see logs")
+		logging.SetLogLevel(logging.LOG_DISCARD)
+	}
 
 	if os.Getenv(GRACEFUL_ENV) == "true" {
 		if *withZone || *enableHTTPAPI {
