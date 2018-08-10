@@ -208,6 +208,7 @@ func (server *ReaderServer) Start(parentContext context.Context) {
 		go func() {
 			httpContext := logging.SetLoggerToContext(parentContext, logger.WithField(CONNECTION_TYPE_KEY, HTTP_CONNECTION_TYPE))
 			httpDecryptor, err := http_api.NewHTTPConnectionsDecryptor(decryptorData)
+			logger.WithField("connection_string", server.config.incomingConnectionHTTPString).Infof("Start process HTTP requests")
 			if err != nil {
 				log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorTranslatorCantHandleHTTPConnection).
 					Errorln("Can't create http decryptor")
@@ -223,7 +224,7 @@ func (server *ReaderServer) Start(parentContext context.Context) {
 	if server.config.incomingConnectionGRPCString != "" {
 		go func() {
 			grpcLogger := logger.WithField(CONNECTION_TYPE_KEY, GRPC_CONNECTION_TYPE)
-			logger.WithField("connection_string", server.config.incomingConnectionGRPCString).Infof("Start process grpc requests")
+			logger.WithField("connection_string", server.config.incomingConnectionGRPCString).Infof("Start process gRPC requests")
 			secureSessionListener, err := network.NewSecureSessionListener(server.config.incomingConnectionGRPCString, server.keystorage)
 			if err != nil {
 				grpcLogger.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorTranslatorCantHandleGRPCConnection).

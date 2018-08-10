@@ -10,11 +10,11 @@ dump_config: false
 # Time that AcraTranslator will wait (in seconds) on stop signal before closing all connections
 incoming_connection_close_timeout: 10
 
-# Connection string for gRPC transport like grpc://x.x.x.x:yyyy
-incoming_connection_grpc_string: grpc://0.0.0.0:9696/
+# Connection string for gRPC transport like grpc://0.0.0.0:9696
+incoming_connection_grpc_string: 
 
-# Connection string for HTTP transport like http://x.x.x.x:yyyy
-incoming_connection_http_string: http://0.0.0.0:9595/
+# Connection string for HTTP transport like http://0.0.0.0:9595
+incoming_connection_http_string: 
 
 # Folder from which will be loaded keys
 keys_dir: .acrakeys
