@@ -8,3 +8,4 @@ go run ./cmd/acra-rollback/*.go --dump_config
 go run ./cmd/acra-keymaker/*.go --dump_config
 go run ./cmd/acra-poisonrecordmaker/*.go --dump_config
 go run ./cmd/acra-authmanager/*.go --dump_config
+go run ./cmd/acra-rotate/*.go --dump_config

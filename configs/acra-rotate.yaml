@@ -1,0 +1,12 @@
+# path to config
+config_file: 
+
+# dump config
+dump_config: false
+
+# Path to file with map of <ZoneId>: <FilePaths> in json format {"zone_id1": ["filepath1", "filepath2"], "zone_id2": ["filepath1", "filepath2"]}
+file_map_config: 
+
+# Folder from which the keys will be loaded
+keys_dir: .acrakeys
+

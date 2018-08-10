@@ -88,6 +88,9 @@ poison_shutdown_enable: false
 # Handle Postgresql connections (default true)
 postgresql_enable: false
 
+# 
+prometheus_metrics_address: 
+
 # URL of Prometheus server for AcraConnector to upload stats and metrics (upload address is <URL>/metrics)
 prometheus_metrics_address: 
 
