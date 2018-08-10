@@ -825,7 +825,7 @@ class CensorBlacklistTest(BaseCensorTest):
 
         #test block by query
         with self.assertRaises(expectedException):
-                result = self.engine1.execute(sa.text("select data from test where id='1'"))
+            result = self.engine1.execute(sa.text("select data from test where id='1'"))
         #test block by table
         with self.assertRaises(expectedException):
             result = self.engine1.execute(sa.text("select data_raw from test"))

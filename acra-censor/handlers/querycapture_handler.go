@@ -29,10 +29,10 @@ type QueryCaptureHandler struct {
 	logger               *log.Entry
 }
 
-// QueryInfo describes Query and its status (was forbidden or allowed).
+// QueryInfo describes Query and if it was blocked by external source.
 type QueryInfo struct {
-	RawQuery    string
-	IsForbidden bool
+	RawQuery    string `json:"RawQuery"`
+	IsForbidden bool   `json:"_BlockedByWebConfig"`
 }
 
 // NewQueryCaptureHandler creates new QueryCaptureHandler, connected to QueryCaptureLog file at filePath.
@@ -230,11 +230,7 @@ func (handler *QueryCaptureHandler) SerializeQueries(queries []*QueryInfo) []byt
 	var linesToAppend []byte
 	var tempQueryInfo = &QueryInfo{}
 	for _, queryInfo := range queries {
-		queryWithHiddenValues, err := RedactSQLQuery(queryInfo.RawQuery)
-		if err != nil {
-			handler.logger.WithError(ErrQuerySyntaxError).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCensorQuerySerializeError).Errorln("Can't serialize stored queries")
-		}
-		tempQueryInfo.RawQuery = queryWithHiddenValues
+		tempQueryInfo.RawQuery = queryInfo.RawQuery
 		tempQueryInfo.IsForbidden = queryInfo.IsForbidden
 		jsonQueryInfo, err := json.Marshal(tempQueryInfo)
 		if err != nil {

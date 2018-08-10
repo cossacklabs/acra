@@ -53,6 +53,11 @@ func (acraCensor *AcraCensor) HandleQuery(query string) error {
 		acraCensor.logger.WithError(err).Infof("Parsing error on query (first %v symbols): %s", handlers.LogQueryLength, handlers.TrimStringToN(queryWithHiddenValues, handlers.LogQueryLength))
 	}
 	for _, handler := range acraCensor.handlers {
+		// in QueryCapture Handler use only redacted queries
+		if queryCaptureHandler, ok := handler.(*handlers.QueryCaptureHandler); ok {
+			queryCaptureHandler.CheckQuery(queryWithHiddenValues)
+			continue
+		}
 		continueHandling, err := handler.CheckQuery(query)
 		if err != nil {
 			if err == handlers.ErrQuerySyntaxError && acraCensor.ignoreParseError {
