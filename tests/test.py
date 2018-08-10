@@ -2407,8 +2407,8 @@ class BaseAcraTranslatorTest(BaseTestCase):
         default_config = load_default_config("acra-translator")
         default_args = {
             'incoming_connection_close_timeout': 0,
-            'incoming_connection_grpc_string': default_config['incoming_connection_grpc_string'].replace('0.0.0.0', '127.0.0.1'),
-            'incoming_connection_http_string': default_config['incoming_connection_http_string'].replace('0.0.0.0', '127.0.0.1'),
+            'incoming_connection_grpc_string': 'grpc://127.0.0.1:9696',
+            'incoming_connection_http_string': 'http://127.0.0.1:9595',
             'keys_dir': KEYS_FOLDER.name,
         }
         default_config.update(default_args)
