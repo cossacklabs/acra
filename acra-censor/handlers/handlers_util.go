@@ -211,8 +211,8 @@ func handleValuePattern(queryNodes, patternNodes []sqlparser.SQLNode) bool {
 				}
 			}
 		}
-		if patternNodeComparison, ok := patternNodes[index + patternNodeOffset].(*sqlparser.ComparisonExpr); ok && patternNodeComparison != nil {
-			if queryNodeComparison, ok := queryNodes[index + queryNodeOffset].(*sqlparser.ComparisonExpr); ok && queryNodeComparison != nil {
+		if patternNodeComparison, ok := patternNodes[index+patternNodeOffset].(*sqlparser.ComparisonExpr); ok && patternNodeComparison != nil {
+			if queryNodeComparison, ok := queryNodes[index+queryNodeOffset].(*sqlparser.ComparisonExpr); ok && queryNodeComparison != nil {
 				if IsEqualComparisonNode(patternNodeComparison, queryNodeComparison) {
 					matchDetected = true
 				}
