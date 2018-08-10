@@ -61,7 +61,7 @@ func TrimStringToN(query string, n int) string {
 // Taken from sqlparser package
 func NormalizeAndRedactSQLQuery(sql string) (normalizedQuery string, redactedQuery string, error error) {
 	bv := map[string]*querypb.BindVariable{}
-	sqlStripped, comments := sqlparser.SplitMarginComments(sql)
+	sqlStripped, _ := sqlparser.SplitMarginComments(sql)
 
 	// sometimes queries might have ; at the end, that should be stripped
 	sqlStripped = strings.TrimSuffix(sqlStripped, ";")
@@ -71,11 +71,11 @@ func NormalizeAndRedactSQLQuery(sql string) (normalizedQuery string, redactedQue
 		return "", "", err
 	}
 
-	normalizedQ := comments.Leading + sqlparser.String(stmt) + comments.Trailing
+	normalizedQ := sqlparser.String(stmt)
 
 	// redact and mask VALUES
 	sqlparser.Normalize(stmt, bv, ValuePlaceholder)
-	redactedQ := comments.Leading + sqlparser.String(stmt) + comments.Trailing
+	redactedQ := sqlparser.String(stmt)
 
 	return normalizedQ, redactedQ, nil
 }
