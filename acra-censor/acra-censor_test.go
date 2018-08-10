@@ -371,6 +371,8 @@ func testWhitelistValuePattern(t *testing.T) {
 		"SELECT a, b, c FROM y WHERE a = 'someValue'",
 		"SELECT a, b FROM z WHERE a = 'someValue'",
 		"SELECT a, b FROM t WHERE NonID = 'someValue'",
+		"SELECT a, b, c, d FROM t WHERE a = 1 OR b = 1.0 OR c = TRUE OR d = NULL",
+		"SELECT a, b FROM t WHERE a = 1 and b = 2.0",
 	}
 	for _, query := range acceptableQueries {
 		err = censor.HandleQuery(query)
@@ -382,6 +384,32 @@ func testWhitelistValuePattern(t *testing.T) {
 		err = censor.HandleQuery(query)
 		if err != handlers.ErrWhitelistPatternMismatch {
 			t.Fatal(err, "Blacklist pattern passed query. \nPattern: ", pattern, "\nQuery: ", query)
+		}
+	}
+
+	whitelist.Reset()
+	pattern = "SELECT * from t where ID = %%VALUE%%"
+	err = whitelist.AddPatterns([]string{pattern})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	acceptableQueries = []string{
+		"SELECT a, b FROM t WHERE ID = 'someValue_testValue_1234567890'",
+		"SELECT a, b FROM t WHERE ID = 'someValue'",
+		"SELECT a, b, c, d FROM t WHERE ID = 'someValue'",
+	}
+
+	for _, query := range acceptableQueries {
+		err = censor.HandleQuery(query)
+		if err != nil {
+			t.Fatal(err, "Whitelist pattern blocked query. \nPattern:", pattern, "\nQuery:", query)
+		}
+	}
+	for _, query := range blockableQueries {
+		err = censor.HandleQuery(query)
+		if err != handlers.ErrWhitelistPatternMismatch {
+			t.Fatal(err, "Whitelist pattern passed query. \nPattern:", pattern, "\nQuery:", query)
 		}
 	}
 }
@@ -808,6 +836,8 @@ func testBlacklistValuePattern(t *testing.T) {
 		"SELECT a, b, c FROM y WHERE a = 'someValue'",
 		"SELECT a, b FROM z WHERE a = 'someValue'",
 		"SELECT a, b FROM t WHERE NonID = 'someValue'",
+		"SELECT a, b, c, d FROM t WHERE a = 1 OR b = 1.0 OR c = TRUE OR d = NULL",
+		"SELECT a, b FROM t WHERE a = 1 and b = 2.0",
 	}
 	blockableQueries := []string{
 		"SELECT a, b FROM t WHERE ID = 'someValue_testValue_1234567890'",
@@ -816,7 +846,34 @@ func testBlacklistValuePattern(t *testing.T) {
 	for _, query := range acceptableQueries {
 		err = censor.HandleQuery(query)
 		if err != nil {
+			t.Fatal(err, "Blacklist pattern blocked query. \nPattern:", blacklistPattern, "\nQuery:", query)
+		}
+	}
+	for _, query := range blockableQueries {
+		err = censor.HandleQuery(query)
+		if err != handlers.ErrBlacklistPatternMatch {
 			t.Fatal(err, "Blacklist pattern passed query. \nPattern:", blacklistPattern, "\nQuery:", query)
+		}
+	}
+
+	blacklist.Reset()
+	blacklistPattern = "SELECT * from t where ID = %%VALUE%%"
+	err = blacklist.AddPatterns([]string{blacklistPattern})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	blockableQueries = []string{
+		"SELECT a, b FROM t WHERE ID = 1",
+		"SELECT a, b FROM t WHERE ID = 1.0",
+		"SELECT a, b, c, d FROM t WHERE ID = 'someValue'",
+		"SELECT a, b, c FROM t WHERE ID = TRUE",
+	}
+
+	for _, query := range acceptableQueries {
+		err = censor.HandleQuery(query)
+		if err != nil {
+			t.Fatal(err, "Blacklist pattern blocked query. \nPattern:", blacklistPattern, "\nQuery:", query)
 		}
 	}
 	for _, query := range blockableQueries {

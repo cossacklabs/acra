@@ -174,25 +174,63 @@ func handleSelectWherePattern(queryNodes, patternNodes []sqlparser.SQLNode) bool
 
 // handle SELECT a, b FROM t1 WHERE userID=%%VALUE%% pattern
 func handleValuePattern(queryNodes, patternNodes []sqlparser.SQLNode) bool {
+	patternNodeOffset := 0
+	queryNodeOffset := 0
+
 	matchDetected := false
-	if len(patternNodes) != len(queryNodes) {
-		return false
-	}
-	for index, patternNode := range patternNodes {
-		if index == 0 || reflect.DeepEqual(patternNode, queryNodes[index]) {
+	for index := 1; index < len(patternNodes); index++ {
+		//This means that checked query nodes are equal to pattern and no more nodes remained, so query matches pattern (no matter if pattern has remained nodes)
+		if index+queryNodeOffset >= len(queryNodes) {
+			break
+		}
+		//This means that checked query nodes are equal to pattern but some more nodes remained, so query doesn't match pattern
+		if index+patternNodeOffset >= len(patternNodes) {
+			return false
+		}
+		//Start check matching
+		if reflect.DeepEqual(patternNodes[index+patternNodeOffset], queryNodes[index+queryNodeOffset]) {
 			continue
 		}
-		if patternNodeComparison, ok := patternNode.(*sqlparser.ComparisonExpr); ok && patternNodeComparison != nil {
-			if queryNodeComparison, ok := queryNodes[index].(*sqlparser.ComparisonExpr); ok && queryNodeComparison != nil {
-				if reflect.DeepEqual(queryNodeComparison.Left, patternNodeComparison.Left) {
-					if strings.EqualFold(sqlparser.String(patternNodeComparison.Right), ValueConfigPlaceholderReplacer) {
-						matchDetected = true
+		//handle '*' case
+		if patternSelectExprs, ok := patternNodes[index+patternNodeOffset].(sqlparser.SelectExprs); ok {
+			if _, ok := queryNodes[index+queryNodeOffset].(sqlparser.SelectExprs); ok {
+				if starFound(patternSelectExprs) {
+					for i := index; i < len(queryNodes); i++ {
+						if _, ok := queryNodes[i].(sqlparser.TableExprs); ok {
+							break
+						}
+						queryNodeOffset++
 					}
+					for i := index; i < len(patternNodes); i++ {
+						if _, ok := patternNodes[i].(sqlparser.TableExprs); ok {
+							break
+						}
+						patternNodeOffset++
+					}
+					continue
+				}
+			}
+		}
+		if patternNodeComparison, ok := patternNodes[index + patternNodeOffset].(*sqlparser.ComparisonExpr); ok && patternNodeComparison != nil {
+			if queryNodeComparison, ok := queryNodes[index + queryNodeOffset].(*sqlparser.ComparisonExpr); ok && queryNodeComparison != nil {
+				if IsEqualComparisonNode(patternNodeComparison, queryNodeComparison) {
+					matchDetected = true
 				}
 			}
 		}
 	}
 	return matchDetected
+}
+
+func IsEqualComparisonNode(patternNode, queryNode *sqlparser.ComparisonExpr) bool {
+	if reflect.DeepEqual(patternNode.Left, queryNode.Left) &&
+		strings.EqualFold(patternNode.Operator, queryNode.Operator) &&
+		reflect.DeepEqual(patternNode.Escape, queryNode.Escape) {
+		if strings.EqualFold(sqlparser.String(patternNode.Right), ValueConfigPlaceholderReplacer) {
+			return true
+		}
+	}
+	return false
 }
 
 // handleStarPattern handles SELECT * FROM table %%WHERE%% pattern
