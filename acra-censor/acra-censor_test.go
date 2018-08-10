@@ -1049,7 +1049,15 @@ func TestSerializationOnUniqueQueries(t *testing.T) {
 		t.Fatal(err)
 	}
 	handler, err := handlers.NewQueryCaptureHandler(tmpFile.Name())
-	defer handler.Release()
+
+	defer func() {
+		handler.Release()
+		err = os.Remove(tmpFile.Name())
+		if err != nil {
+			t.Fatal(err)
+		}
+	}()
+
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1085,9 +1093,6 @@ func TestSerializationOnUniqueQueries(t *testing.T) {
 		if strings.EqualFold(testQueries[index], query) {
 			t.Fatal("Expected: " + testQueries[index] + "\nGot: " + query)
 		}
-	}
-	if err = os.Remove(tmpFile.Name()); err != nil {
-		t.Fatal(err)
 	}
 }
 func TestSerializationOnSameQueries(t *testing.T) {
@@ -1113,7 +1118,15 @@ func TestSerializationOnSameQueries(t *testing.T) {
 		t.Fatal(err)
 	}
 	handler, err := handlers.NewQueryCaptureHandler(tmpFile.Name())
-	defer handler.Release()
+
+	defer func() {
+		handler.Release()
+		err = os.Remove(tmpFile.Name())
+		if err != nil {
+			t.Fatal(err)
+		}
+	}()
+
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1151,9 +1164,6 @@ func TestSerializationOnSameQueries(t *testing.T) {
 			t.Fatal("Expected: " + testQueries[index] + "\nGot: " + query)
 		}
 	}
-	if err = os.Remove(tmpFile.Name()); err != nil {
-		t.Fatal(err)
-	}
 }
 func TestAddingCapturedQueriesIntoBlacklist(t *testing.T) {
 	// Currently we support adding only non-redacted queries
@@ -1176,7 +1186,13 @@ func TestAddingCapturedQueriesIntoBlacklist(t *testing.T) {
 	}
 	blacklist := handlers.NewBlacklistHandler()
 	acraCensor := NewAcraCensor()
-	defer acraCensor.ReleaseAll()
+	defer func() {
+		acraCensor.ReleaseAll()
+		err = os.Remove(tmpFile.Name())
+		if err != nil {
+			t.Fatal(err)
+		}
+	}()
 	acraCensor.AddHandler(captureHandler)
 	acraCensor.AddHandler(blacklist)
 	for _, testQuery := range testQueries {
@@ -1210,9 +1226,6 @@ func TestAddingCapturedQueriesIntoBlacklist(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	if err = os.Remove(tmpFile.Name()); err != nil {
-		t.Fatal(err)
-	}
 }
 func TestQueryCapture(t *testing.T) {
 	// extraWaitTime provide extra time to serialize in background goroutine before check
@@ -1228,7 +1241,13 @@ func TestQueryCapture(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer handler.Release()
+	defer func() {
+		handler.Release()
+		err = os.Remove(tmpFile.Name())
+		if err != nil {
+			t.Fatal(err)
+		}
+	}()
 	testQueries := []string{
 		"SELECT Student_ID FROM STUDENT;",
 		"SELECT * FROM STUDENT;",
@@ -1241,10 +1260,10 @@ func TestQueryCapture(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	expected := "{\"RawQuery\":\"SELECT Student_ID FROM STUDENT\",\"_BlockedByWebConfig\":false}\n" +
-		"{\"RawQuery\":\"SELECT * FROM STUDENT\",\"_BlockedByWebConfig\":false}\n" +
-		"{\"RawQuery\":\"SELECT * FROM X\",\"_BlockedByWebConfig\":false}\n" +
-		"{\"RawQuery\":\"SELECT * FROM Y\",\"_BlockedByWebConfig\":false}\n"
+	expected := "{\"raw_query\":\"SELECT Student_ID FROM STUDENT\",\"_blocked_by_web_config\":false}\n" +
+		"{\"raw_query\":\"SELECT * FROM STUDENT\",\"_blocked_by_web_config\":false}\n" +
+		"{\"raw_query\":\"SELECT * FROM X\",\"_blocked_by_web_config\":false}\n" +
+		"{\"raw_query\":\"SELECT * FROM Y\",\"_blocked_by_web_config\":false}\n"
 
 	defaultTimeout := handler.GetSerializationTimeout()
 	handler.SetSerializationTimeout(50 * time.Millisecond)
@@ -1262,11 +1281,11 @@ func TestQueryCapture(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	expected = "{\"RawQuery\":\"SELECT Student_ID FROM STUDENT\",\"_BlockedByWebConfig\":false}\n" +
-		"{\"RawQuery\":\"SELECT * FROM STUDENT\",\"_BlockedByWebConfig\":false}\n" +
-		"{\"RawQuery\":\"SELECT * FROM X\",\"_BlockedByWebConfig\":false}\n" +
-		"{\"RawQuery\":\"SELECT * FROM Y\",\"_BlockedByWebConfig\":false}\n" +
-		"{\"RawQuery\":\"SELECT * FROM Z\",\"_BlockedByWebConfig\":false}\n"
+	expected = "{\"raw_query\":\"SELECT Student_ID FROM STUDENT\",\"_blocked_by_web_config\":false}\n" +
+		"{\"raw_query\":\"SELECT * FROM STUDENT\",\"_blocked_by_web_config\":false}\n" +
+		"{\"raw_query\":\"SELECT * FROM X\",\"_blocked_by_web_config\":false}\n" +
+		"{\"raw_query\":\"SELECT * FROM Y\",\"_blocked_by_web_config\":false}\n" +
+		"{\"raw_query\":\"SELECT * FROM Z\",\"_blocked_by_web_config\":false}\n"
 
 	time.Sleep(handler.GetSerializationTimeout() + extraWaitTime)
 	result, err = ioutil.ReadFile(tmpFile.Name())
@@ -1290,12 +1309,12 @@ func TestQueryCapture(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	expectedPrefix := "{\"RawQuery\":\"SELECT Student_ID FROM STUDENT\",\"_BlockedByWebConfig\":false}\n" +
-		"{\"RawQuery\":\"SELECT * FROM STUDENT\",\"_BlockedByWebConfig\":false}\n" +
-		"{\"RawQuery\":\"SELECT * FROM X\",\"_BlockedByWebConfig\":false}\n" +
-		"{\"RawQuery\":\"SELECT * FROM Y\",\"_BlockedByWebConfig\":false}\n" +
-		"{\"RawQuery\":\"SELECT * FROM Z\",\"_BlockedByWebConfig\":false}\n" +
-		"{\"RawQuery\":\"select songName from t where personName in"
+	expectedPrefix := "{\"raw_query\":\"SELECT Student_ID FROM STUDENT\",\"_blocked_by_web_config\":false}\n" +
+		"{\"raw_query\":\"SELECT * FROM STUDENT\",\"_blocked_by_web_config\":false}\n" +
+		"{\"raw_query\":\"SELECT * FROM X\",\"_blocked_by_web_config\":false}\n" +
+		"{\"raw_query\":\"SELECT * FROM Y\",\"_blocked_by_web_config\":false}\n" +
+		"{\"raw_query\":\"SELECT * FROM Z\",\"_blocked_by_web_config\":false}\n" +
+		"{\"raw_query\":\"select songName from t where personName in"
 
 	suffix := strings.TrimPrefix(strings.ToUpper(string(result)), strings.ToUpper(expectedPrefix))
 
@@ -1308,10 +1327,6 @@ func TestQueryCapture(t *testing.T) {
 		strings.Contains(strings.ToUpper(string(result)), strings.ToUpper("Holly")) ||
 		strings.Contains(strings.ToUpper(string(result)), strings.ToUpper("10")) {
 		t.Fatal("values detected in logs: " + string(result))
-	}
-
-	if err = os.Remove(tmpFile.Name()); err != nil {
-		t.Fatal(err)
 	}
 }
 func TestConfigurationProvider(t *testing.T) {

@@ -31,8 +31,8 @@ type QueryCaptureHandler struct {
 
 // QueryInfo describes Query and if it was blocked by external source.
 type QueryInfo struct {
-	RawQuery    string `json:"RawQuery"`
-	IsForbidden bool   `json:"_BlockedByWebConfig"`
+	RawQuery    string `json:"raw_query"`
+	IsForbidden bool   `json:"_blocked_by_web_config"`
 }
 
 // NewQueryCaptureHandler creates new QueryCaptureHandler, connected to QueryCaptureLog file at filePath.
