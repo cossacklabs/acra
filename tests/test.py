@@ -2662,10 +2662,12 @@ class TestAcraRotate(unittest.TestCase):
                     'w', delete=False)) as zone_map_file:
                 json.dump(zone_map, zone_map_file)
                 zone_map_file.close()
-                result = json.loads(subprocess.check_output(
+                result = subprocess.check_output(
                     ['./acra-rotate', '--keys_dir={}'.format(keys_folder),
-                     '--file_map_config={}'.format(zone_map_file.name)]),
-                    encoding='utf-8')
+                     '--file_map_config={}'.format(zone_map_file.name)])
+                if not isinstance(result, str):
+                    result = result.decode('utf-8')
+                result = json.loads(result)
                 for zone_id in result:
                     self.assertIn(zone_id, zones_before_rotate)
                     # new public key must be different from previous
