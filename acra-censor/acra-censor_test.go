@@ -662,6 +662,7 @@ func testBlacklistSelectPattern(t *testing.T) {
 		"INSERT INTO T1 (Name, UnitMeasureCode,	ModifiedDate) VALUES ('Square Yards', 'Y2', GETDATE());",
 		"INSERT INTO dbo.Points (Type, PointValue) VALUES ('Point', '1,5');",
 		"INSERT INTO dbo.Points (PointValue) VALUES ('1,99');",
+		"DROP TABLE table_name",
 	}
 	blacklistPattern := "%%SELECT%%"
 	err = blacklist.AddPatterns([]string{blacklistPattern})
