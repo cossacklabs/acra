@@ -267,7 +267,7 @@ func (handler *MysqlHandler) ClientToDbConnector(errCh chan<- error) {
 			return
 		case COM_QUERY, COM_STMT_EXECUTE:
 			query := string(data)
-			queryWithHiddenValues, err := handlers.RedactSQLQuery(query)
+			_, queryWithHiddenValues, err := handlers.NormalizeAndRedactSQLQuery(query)
 			if err == handlers.ErrQuerySyntaxError {
 				clientLog.WithError(err).Infof("Parsing error on query (first %v symbols): %s", handlers.LogQueryLength, handlers.TrimStringToN(queryWithHiddenValues, handlers.LogQueryLength))
 			}

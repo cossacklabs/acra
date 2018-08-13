@@ -31,16 +31,24 @@ func (handler *QueryIgnoreHandler) Release() {
 	handler.Reset()
 }
 
-// AddQueries adds queries to the list that should be ignored
+// AddQueries normalizes and adds queries to the list that should be ignored
 func (handler *QueryIgnoreHandler) AddQueries(queries []string) {
 	for _, query := range queries {
-		handler.ignoredQueries[query] = true
+		normalizedQuery, _, err := NormalizeAndRedactSQLQuery(query)
+		if err != nil {
+			continue
+		}
+		handler.ignoredQueries[normalizedQuery] = true
 	}
 }
 
 // RemoveQueries removes queries from the list that should be whitelisted
 func (handler *QueryIgnoreHandler) RemoveQueries(queries []string) {
 	for _, query := range queries {
-		delete(handler.ignoredQueries, query)
+		normalizedQuery, _, err := NormalizeAndRedactSQLQuery(query)
+		if err != nil {
+			continue
+		}
+		delete(handler.ignoredQueries, normalizedQuery)
 	}
 }
