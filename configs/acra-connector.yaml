@@ -1,4 +1,4 @@
-# Port of Acra HTTP api
+# Port of Acra HTTP API
 acraserver_api_connection_port: 9090
 
 # Connection string to Acra's API like tcp://x.x.x.x:yyyy or unix:///path/to/socket
@@ -40,13 +40,16 @@ client_id:
 # path to config
 config_file: 
 
+# Log everything to stderr
+d: false
+
 # dump config
 dump_config: false
 
-# Enable AcraServer HTTP API
+# Enable connection to AcraServer via HTTP API
 http_api_enable: false
 
-# Port for AcraConnector HTTP api
+# Port for AcraConnector HTTP API
 incoming_connection_api_port: 9191
 
 # Connection string like tcp://x.x.x.x:yyyy or unix:///path/to/socket
@@ -67,6 +70,9 @@ logging_format: plaintext
 # Expected mode of connection. Possible values are: AcraServer or AcraTranslator. Corresponded connection host/port/string/session_id will be used.
 mode: AcraServer
 
+# URL of Prometheus server for AcraConnector to upload stats and metrics (upload address is <URL>/metrics)
+prometheus_metrics_address: 
+
 # Expected Server Name (SNI) from AcraServer
 tls_acraserver_sni: 
 
@@ -85,6 +91,6 @@ tls_key:
 # Disable checking that connections from app running from another user
 user_check_disable: false
 
-# Log to stderr
+# Log to stderr all INFO, WARNING and ERROR logs
 v: false
 

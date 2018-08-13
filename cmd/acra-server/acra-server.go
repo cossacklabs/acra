@@ -1,16 +1,33 @@
-// Copyright 2016, Cossack Labs Limited
+/*
+Copyright 2016, Cossack Labs Limited
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
+// Package main is entry point for AcraServer utility. AcraServer is the server responsible for decrypting all
+// the database responses and forwarding them back to clients. AcraServer waits to connection from AcraConnector.
+// When the first AcraConnector connection arrives, AcraServer initialises secure communication via TLS or
+// Themis Secure Session. After a successful initialisation of the session, AcraServer creates a database connection
+// and starts forwarding all the requests coming from AcraConnector into the database.
+// Every incoming request to AcraServer is passed through AcraCensor (Acra's firewall). AcraCensor will pass allowed
+// queries and return error on forbidden ones.
+// Upon receiving the answer, AcraServer attempts to unpack the AcraStruct and to decrypt the payload. After that,
+// AcraServer will replace the AcraStruct with the decrypted payload, change the packet's length, and return
+// the answer to the application via AcraConnector.
+// If AcraServer detects a poison record within the AcraStruct's decryption stream, AcraServer will either
+// shut down the decryption, run an alarm script, or do both, depending on the pre-set parameters.
 //
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-// http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
+// https://github.com/cossacklabs/acra/wiki/How-AcraServer-works
 package main
 
 import (
@@ -30,7 +47,6 @@ import (
 	"github.com/cossacklabs/acra/network"
 	"github.com/cossacklabs/acra/utils"
 	log "github.com/sirupsen/logrus"
-	"runtime"
 )
 
 var restartSignalsChannel chan os.Signal
@@ -69,11 +85,13 @@ func main() {
 	dbHost := flag.String("db_host", "", "Host to db")
 	dbPort := flag.Int("db_port", 5432, "Port to db")
 
+	prometheusAddress := flag.String("prometheus_metrics_address", "", "URL of Prometheus server for AcraConnector to upload stats and metrics (upload address is <URL>/metrics)")
+
 	host := flag.String("incoming_connection_host", cmd.DEFAULT_ACRA_HOST, "Host for AcraServer")
 	port := flag.Int("incoming_connection_port", cmd.DEFAULT_ACRASERVER_PORT, "Port for AcraServer")
 	apiPort := flag.Int("incoming_connection_api_port", cmd.DEFAULT_ACRASERVER_API_PORT, "Port for AcraServer for HTTP API")
 
-	keysDir := flag.String("keys_dir", keystore.DEFAULT_KEY_DIR_SHORT, "Folder from which will be loaded keys")
+	keysDir := flag.String("keys_dir", keystore.DefaultKeyDirShort, "Folder from which will be loaded keys")
 	keysCacheSize := flag.Int("keystore_cache_size", keystore.INFINITE_CACHE_SIZE, "Count of keys that will be stored in in-memory LRU cache in encrypted form. 0 - no limits, -1 - turn off cache")
 
 	pgHexFormat := flag.Bool("pgsql_hex_bytea", false, "Hex format for Postgresql bytea data (default)")
@@ -81,17 +99,15 @@ func main() {
 
 	secureSessionID := flag.String("securesession_id", "acra_server", "Id that will be sent in secure session")
 
-	verbose := flag.Bool("v", false, "Log to stderr")
 	flag.Bool("acrastruct_wholecell_enable", true, "Acrastruct will stored in whole data cell")
 	injectedcell := flag.Bool("acrastruct_injectedcell_enable", false, "Acrastruct may be injected into any place of data cell")
 
-	debug := flag.Bool("d", false, "Turn on debug logging")
 	debugServer := flag.Bool("ds", false, "Turn on http debug server")
 	closeConnectionTimeout := flag.Int("incoming_connection_close_timeout", DEFAULT_ACRASERVER_WAIT_TIMEOUT, "Time that AcraServer will wait (in seconds) on restart before closing all connections")
 
-	detectPoisonRecords := flag.Bool("poison_detect_enable", true, "Turn on poison record detection")
-	stopOnPoison := flag.Bool("poison_shutdown_enable", false, "Stop on detecting poison record")
-	scriptOnPoison := flag.String("poison_run_script_file", "", "Execute script on detecting poison record")
+	detectPoisonRecords := flag.Bool("poison_detect_enable", true, "Turn on poison record detection, if server shutdown is disabled, AcraServer logs the poison record detection and returns decrypted data")
+	stopOnPoison := flag.Bool("poison_shutdown_enable", false, "On detecting poison record: log about poison record detection, stop and shutdown")
+	scriptOnPoison := flag.String("poison_run_script_file", "", "On detecting poison record: log about poison record detection, execute script, return decrypted data")
 
 	withZone := flag.Bool("zonemode_enable", false, "Turn on zone mode")
 	enableHTTPAPI := flag.Bool("http_api_enable", false, "Enable HTTP API")
@@ -112,6 +128,9 @@ func main() {
 	usePostgresql := flag.Bool("postgresql_enable", false, "Handle Postgresql connections (default true)")
 	censorConfig := flag.String("acracensor_config_file", "", "Path to AcraCensor configuration file")
 
+	verbose := flag.Bool("v", false, "Log to stderr all INFO, WARNING and ERROR logs")
+	debug := flag.Bool("d", false, "Log everything to stderr")
+
 	err := cmd.Parse(DEFAULT_CONFIG_PATH, SERVICE_NAME)
 	if err != nil {
 		log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantReadServiceConfig).
@@ -122,7 +141,7 @@ func main() {
 	// if log format was overridden
 	logging.CustomizeLogging(*loggingFormat, SERVICE_NAME)
 
-	log.Infof("Validating service configuration")
+	log.Infof("Validating service configuration...")
 	cmd.ValidateClientID(*secureSessionID)
 
 	if *host != cmd.DEFAULT_ACRA_HOST || *port != cmd.DEFAULT_ACRASERVER_PORT {
@@ -132,13 +151,6 @@ func main() {
 		*acraConnectionString = network.BuildConnectionString("tcp", *host, *apiPort, "")
 	}
 
-	if *debug {
-		logging.SetLogLevel(logging.LOG_DEBUG)
-	} else if *verbose {
-		logging.SetLogLevel(logging.LOG_VERBOSE)
-	} else {
-		logging.SetLogLevel(logging.LOG_DISCARD)
-	}
 	if *dbHost == "" {
 		log.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorWrongConfiguration).
 			Errorln("db_host is empty: you must specify db_host")
@@ -190,7 +202,7 @@ func main() {
 		config.SetByteaFormat(ESCAPE_BYTEA_FORMAT)
 	}
 
-	log.Infof("Initialising keystore")
+	log.Infof("Initialising keystore...")
 	masterKey, err := keystore.GetMasterKeyFromEnvironment()
 	if err != nil {
 		log.WithError(err).Errorln("can't load master key")
@@ -207,6 +219,9 @@ func main() {
 			Errorln("Can't initialise keystore")
 		os.Exit(1)
 	}
+	log.Infof("Keystore init OK")
+
+	log.Infof("Configuring transport...")
 	var tlsConfig *tls.Config
 	if *useTLS || *tlsKey != "" {
 		tlsConfig, err = network.NewTLSConfig(network.SNIOrHostname(*tlsDbSNI, *dbHost), *tlsCA, *tlsKey, *tlsCert, tls.ClientAuthType(*tlsAuthType))
@@ -224,7 +239,7 @@ func main() {
 	}
 	config.SetTLSConfig(tlsConfig)
 	if *useTLS {
-		log.Println("Using TLS transport wrapper")
+		log.Println("Selecting transport: use TLS transport wrapper")
 		config.ConnectionWrapper, err = network.NewTLSConnectionWrapper([]byte(*clientID), tlsConfig)
 		if err != nil {
 			log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorTransportConfiguration).
@@ -291,6 +306,16 @@ func main() {
 					Errorln("System error: got error from Debug Server")
 			}
 		}()
+	}
+
+	if *prometheusAddress != "" {
+		prometheusListener, err := cmd.RunPrometheusHTTPHandler(*prometheusAddress)
+		if err != nil {
+			panic(err)
+		}
+		log.Infof("Configured to send metrics and stats to `prometheus_metrics_address`")
+		sigHandlerSIGHUP.AddListener(prometheusListener)
+		sigHandlerSIGTERM.AddListener(prometheusListener)
 	}
 
 	go sigHandlerSIGTERM.Register()
@@ -364,19 +389,30 @@ func main() {
 
 	log.Infof("Start listening to connections. Current PID: %v", os.Getpid())
 
+	if *debug {
+		log.Infof("Enabling DEBUG log level")
+		logging.SetLogLevel(logging.LOG_DEBUG)
+	} else if *verbose {
+		log.Infof("Enabling VERBOSE log level")
+		logging.SetLogLevel(logging.LOG_VERBOSE)
+	} else {
+		log.Infof("Disabling future logs... Set -v -d to see logs")
+		logging.SetLogLevel(logging.LOG_DISCARD)
+	}
+
 	if os.Getenv(GRACEFUL_ENV) == "true" {
-		go server.StartFromFileDescriptor(DESCRIPTOR_ACRA)
 		if *withZone || *enableHTTPAPI {
 			go server.StartCommandsFromFileDescriptor(DESCRIPTOR_API)
 		}
+		go server.StartFromFileDescriptor(DESCRIPTOR_ACRA)
 	} else {
-		go server.Start()
 		if *withZone || *enableHTTPAPI {
 			go server.StartCommands()
 		}
+		go server.Start()
 	}
 
-	// todo: any reason why it's so far from adding callback?
+	// on sighup we run callback that stop all listeners (that stop background goroutine of server.Start())
+	// and try to restart acra-server and only after that exits
 	sigHandlerSIGHUP.Register()
-	runtime.KeepAlive(server)
 }

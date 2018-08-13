@@ -1,18 +1,25 @@
-// +build go1.8
+/*
+Copyright 2016, Cossack Labs Limited
 
-// Copyright 2016, Cossack Labs Limited
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
+// Package main is entry point for AcraRollback utility. AcraRollback allows users to decrypt data from database:
+// it generates a clean SQL dump from an existing protected one. To decrypt the protected data, the utility makes
+// a request to users database using SELECT query, then decrypts data, then generates the SQL dump which it can execute,
+// or write to file.
 //
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-// http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
+// https://github.com/cossacklabs/acra/wiki/AcraRollback
 package main
 
 import (
@@ -181,7 +188,7 @@ func (ex *WriteToFileExecutor) Close() {
 }
 
 func main() {
-	keysDir := flag.String("keys_dir", keystore.DEFAULT_KEY_DIR_SHORT, "Folder from which the keys will be loaded")
+	keysDir := flag.String("keys_dir", keystore.DefaultKeyDirShort, "Folder from which the keys will be loaded")
 	clientID := flag.String("client_id", "", "Client ID should be name of file with private key")
 	connectionString := flag.String("connection_string", "", "Connection string for db")
 	sqlSelect := flag.String("select", "", "Query to fetch data for decryption")
@@ -197,14 +204,14 @@ func main() {
 
 	err := cmd.Parse(DEFAULT_CONFIG_PATH, SERVICE_NAME)
 	if err != nil {
-		log.WithError(err).Errorln("can't parse args")
+		log.WithError(err).Errorln("Can't parse args")
 		os.Exit(1)
 	}
 
 	twoDrivers := *useMysql && *usePostgresql
 	noDrivers := !(*useMysql || *usePostgresql)
 	if twoDrivers || noDrivers {
-		log.Errorln("you must pass only --mysql_enable or --postgresql_enable (one required)")
+		log.Errorln("You must pass only --mysql_enable or --postgresql_enable (one required)")
 		os.Exit(1)
 	}
 	if *useMysql {
@@ -227,56 +234,56 @@ func main() {
 	cmd.ValidateClientID(*clientID)
 
 	if *connectionString == "" {
-		log.Errorln("connection_string arg is missing")
+		log.Errorln("Connection_string arg is missing")
 		os.Exit(1)
 	}
 
 	if *sqlSelect == "" {
-		log.Errorln("sql_select arg is missing")
+		log.Errorln("Sql_select arg is missing")
 		os.Exit(1)
 	}
 	if *sqlInsert == "" {
-		log.Errorln("sql_insert arg is missing")
+		log.Errorln("Sql_insert arg is missing")
 		os.Exit(1)
 	}
 	absKeysDir, err := utils.AbsPath(*keysDir)
 	if err != nil {
-		log.WithError(err).Errorln("can't get absolute path for keys_dir")
+		log.WithError(err).Errorln("Can't get absolute path for keys_dir")
 		os.Exit(1)
 	}
 	if *outputFile == "" && !*execute {
-		log.Errorln("output_file missing or execute flag")
+		log.Errorln("Output_file missing or execute flag")
 		os.Exit(1)
 	}
 	masterKey, err := keystore.GetMasterKeyFromEnvironment()
 	if err != nil {
-		log.WithError(err).Errorln("can't load master key")
+		log.WithError(err).Errorln("Can't load master key")
 		os.Exit(1)
 	}
 	scellEncryptor, err := keystore.NewSCellKeyEncryptor(masterKey)
 	if err != nil {
-		log.WithError(err).Errorln("can't init scell encryptor")
+		log.WithError(err).Errorln("Can't init scell encryptor")
 		os.Exit(1)
 	}
 	keystorage, err := filesystem.NewFilesystemKeyStore(absKeysDir, scellEncryptor)
 	if err != nil {
-		log.WithError(err).Errorln("can't create key store")
+		log.WithError(err).Errorln("Can't create key store")
 		os.Exit(1)
 	}
 	db, err := sql.Open(dbDriverName, *connectionString)
 	if err != nil {
-		log.WithError(err).Errorln("can't connect to db")
+		log.WithError(err).Errorln("Can't connect to db")
 		os.Exit(1)
 	}
 	defer db.Close()
 	err = db.Ping()
 	if err != nil {
-		log.WithError(err).Errorln("can't connect to db")
+		log.WithError(err).Errorln("Can't connect to db")
 		os.Exit(1)
 	}
 	rows, err := db.Query(*sqlSelect)
 	if err != nil {
-		log.WithError(err).Errorf("error with select query '%v'", *sqlSelect)
+		log.WithError(err).Errorf("Error with select query '%v'", *sqlSelect)
 		os.Exit(1)
 	}
 	defer rows.Close()
@@ -308,27 +315,27 @@ func main() {
 		if *withZone {
 			err = rows.Scan(&zone, &data)
 			if err != nil {
-				ErrorExit("can't read zone & data from row %v", err)
+				ErrorExit("Can't read zone & data from row %v", err)
 			}
 			privateKey, err = keystorage.GetZonePrivateKey(zone)
 			if err != nil {
-				log.WithError(err).Errorf("can't get zone private key for row with number %v", i)
+				log.WithError(err).Errorf("Can't get zone private key for row with number %v", i)
 				continue
 			}
 		} else {
 			err = rows.Scan(&data)
 			if err != nil {
-				ErrorExit("can't read data from row", err)
+				ErrorExit("Can't read data from row", err)
 			}
 			privateKey, err = keystorage.GetServerDecryptionPrivateKey([]byte(*clientID))
 			if err != nil {
-				log.WithError(err).Errorf("can't get private key for row with number %v", i)
+				log.WithError(err).Errorf("Can't get private key for row with number %v", i)
 				continue
 			}
 		}
 		decrypted, err := base.DecryptAcrastruct(data, privateKey, zone)
 		if err != nil {
-			log.WithError(err).Errorln("can't decrypt acrastruct in row with number %v", i)
+			log.WithError(err).Errorln("Can't decrypt acrastruct in row with number %v", i)
 			continue
 		}
 		for e := executors.Front(); e != nil; e = e.Next() {

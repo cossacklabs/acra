@@ -18,6 +18,10 @@ type testKeystore struct {
 	PoisonKey  *keys.Keypair
 }
 
+func (*testKeystore) RotateZoneKey(zoneID []byte) ([]byte, error) {
+	panic("implement me")
+}
+
 func (*testKeystore) GetPrivateKey(id []byte) (*keys.PrivateKey, error) {
 	panic("implement me")
 }

@@ -1,18 +1,19 @@
-// Package postgresql contains postgresql decryptor.
-//
-// Copyright 2016, Cossack Labs Limited
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-// http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
+/*
+Copyright 2016, Cossack Labs Limited
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
 package postgresql
 
 import (
@@ -32,22 +33,24 @@ import (
 	"github.com/cossacklabs/themis/gothemis/message"
 )
 
-var ESCAPE_TAG_BEGIN = EncodeToOctal(base.TAG_BEGIN)
-
-var ESCAPE_ZONE_TAG_LENGTH = zone.ZONE_TAG_LENGTH
-var ESCAPE_ZONE_ID_BLOCK_LENGTH = zone.ZONE_ID_BLOCK_LENGTH
+// ZoneID begin tags, lengths, etc
+var (
+	EscapeTagBegin          = EncodeToOctal(base.TAG_BEGIN)
+	EscapeZoneTagLength     = zone.ZoneTagLength
+	EscapeZoneIDBlockLength = zone.ZoneIDBlockLength
+)
 
 func encodeToOctal(from, to []byte) {
 	to = to[:0]
 	for _, c := range from {
 		if utils.IsPrintableEscapeChar(c) {
-			if c == utils.SLASH_CHAR {
-				to = append(to, []byte{utils.SLASH_CHAR, utils.SLASH_CHAR}...)
+			if c == utils.SlashChar {
+				to = append(to, []byte{utils.SlashChar, utils.SlashChar}...)
 			} else {
 				to = append(to, c)
 			}
 		} else {
-			to = append(to, utils.SLASH_CHAR)
+			to = append(to, utils.SlashChar)
 			octal := strconv.FormatInt(int64(c), 8)
 			switch len(octal) {
 			case 3:
@@ -62,12 +65,14 @@ func encodeToOctal(from, to []byte) {
 	}
 }
 
+// EncodeToOctal returns octal representation on bytes
+// each byte has 4 bytes, filled with leading 0's is needed
 func EncodeToOctal(from []byte) []byte {
 	// count output size
 	outputLength := 0
 	for _, c := range from {
 		if utils.IsPrintableEscapeChar(c) {
-			if c == utils.SLASH_CHAR {
+			if c == utils.SlashChar {
 				outputLength += 2
 			} else {
 				outputLength++
@@ -81,6 +86,7 @@ func EncodeToOctal(from []byte) []byte {
 	return buffer
 }
 
+// PgEscapeDecryptor decrypts AcraStruct from Escape-encoded PostgreSQL binary format
 type PgEscapeDecryptor struct {
 	currentIndex    uint8
 	outputSize      int
@@ -88,7 +94,7 @@ type PgEscapeDecryptor struct {
 	poisonKey       []byte
 	callbackStorage *base.PoisonCallbackStorage
 	// max size can be 4 characters for octal representation per byte
-	octKeyBlockBuffer     [base.KEY_BLOCK_LENGTH * 4]byte
+	octKeyBlockBuffer     [base.KeyBlockLength * 4]byte
 	decodedKeyBlockBuffer []byte
 	//uint64
 	lengthBuf [8]byte
@@ -99,32 +105,41 @@ type PgEscapeDecryptor struct {
 	zoneMatcher  *zone.ZoneIDMatcher
 }
 
+// NewPgEscapeDecryptor returns new PgEscapeDecryptor
 func NewPgEscapeDecryptor() *PgEscapeDecryptor {
 	return &PgEscapeDecryptor{
 		currentIndex:          0,
 		isWithZone:            false,
 		outputSize:            0,
-		decodedKeyBlockBuffer: make([]byte, base.KEY_BLOCK_LENGTH),
+		decodedKeyBlockBuffer: make([]byte, base.KeyBlockLength),
 	}
 }
 
+// MatchBeginTag returns true and updates currentIndex and outputSize,
+// if currentIndex matches beginning of EscapeTagBegin
 func (decryptor *PgEscapeDecryptor) MatchBeginTag(char byte) bool {
-	if char == ESCAPE_TAG_BEGIN[decryptor.currentIndex] {
+	if char == EscapeTagBegin[decryptor.currentIndex] {
 		decryptor.currentIndex++
 		decryptor.outputSize++
 		return true
 	}
 	return false
 }
+
+// IsMatched returns true if decryptor has processed EscapeTagBegin
 func (decryptor *PgEscapeDecryptor) IsMatched() bool {
-	return int(decryptor.currentIndex) == len(ESCAPE_TAG_BEGIN)
+	return int(decryptor.currentIndex) == len(EscapeTagBegin)
 }
+
+// Reset resets current index and output size
 func (decryptor *PgEscapeDecryptor) Reset() {
 	decryptor.currentIndex = 0
 	decryptor.outputSize = 0
 }
+
+// GetMatched returns already matched bytes from EscapeTagBegin
 func (decryptor *PgEscapeDecryptor) GetMatched() []byte {
-	return ESCAPE_TAG_BEGIN[:decryptor.currentIndex]
+	return EscapeTagBegin[:decryptor.currentIndex]
 }
 
 func (decryptor *PgEscapeDecryptor) readOctalData(data, octData []byte, reader io.Reader) (int, int, error) {
@@ -147,7 +162,7 @@ func (decryptor *PgEscapeDecryptor) readOctalData(data, octData []byte, reader i
 		}
 
 		// if slash than next char must be slash too
-		if charBuf[0] == utils.SLASH_CHAR {
+		if charBuf[0] == utils.SlashChar {
 			// read next char
 			_, err := reader.Read(charBuf[:])
 			if err != nil {
@@ -155,7 +170,7 @@ func (decryptor *PgEscapeDecryptor) readOctalData(data, octData []byte, reader i
 			}
 			octData[octDataIndex] = charBuf[0]
 			octDataIndex++
-			if charBuf[0] == utils.SLASH_CHAR {
+			if charBuf[0] == utils.SlashChar {
 				// just write slash char
 				data[dataIndex] = charBuf[0]
 				dataIndex++
@@ -196,16 +211,18 @@ func (decryptor *PgEscapeDecryptor) readOctalData(data, octData []byte, reader i
 	}
 }
 
+// ReadSymmetricKey decrypts symmetric key hidden in AcraStruct using SecureMessage and privateKey
+// returns decrypted symmetric key or ErrFakeAcraStruct error if can't decrypt
 func (decryptor *PgEscapeDecryptor) ReadSymmetricKey(privateKey *keys.PrivateKey, reader io.Reader) ([]byte, []byte, error) {
 	dataLength, octDataLength, err := decryptor.readOctalData(decryptor.decodedKeyBlockBuffer, decryptor.octKeyBlockBuffer[:], reader)
 	if err != nil {
 		return nil, decryptor.octKeyBlockBuffer[:octDataLength], err
 	}
-	if len(decryptor.decodedKeyBlockBuffer) != base.KEY_BLOCK_LENGTH || dataLength != base.KEY_BLOCK_LENGTH {
+	if len(decryptor.decodedKeyBlockBuffer) != base.KeyBlockLength || dataLength != base.KeyBlockLength {
 		return nil, decryptor.octKeyBlockBuffer[:octDataLength], base.ErrFakeAcraStruct
 	}
-	smessage := message.New(privateKey, &keys.PublicKey{Value: decryptor.decodedKeyBlockBuffer[:base.PUBLIC_KEY_LENGTH]})
-	symmetricKey, err := smessage.Unwrap(decryptor.decodedKeyBlockBuffer[base.PUBLIC_KEY_LENGTH:])
+	smessage := message.New(privateKey, &keys.PublicKey{Value: decryptor.decodedKeyBlockBuffer[:base.PublicKeyLength]})
+	symmetricKey, err := smessage.Unwrap(decryptor.decodedKeyBlockBuffer[base.PublicKeyLength:])
 	if err != nil {
 		return nil, decryptor.octKeyBlockBuffer[:octDataLength], base.ErrFakeAcraStruct
 	}
@@ -249,6 +266,7 @@ func (decryptor *PgEscapeDecryptor) getFullDataLength() int {
 	return decryptor.outputSize
 }
 
+// ReadData returns plaintext content from reader data, decrypting using SecureCell with ZoneID and symmetricKey
 func (decryptor *PgEscapeDecryptor) ReadData(symmetricKey, zoneID []byte, reader io.Reader) ([]byte, error) {
 	length, hexLengthBuf, err := decryptor.readDataLength(reader)
 	if err != nil {
@@ -269,6 +287,7 @@ func (decryptor *PgEscapeDecryptor) ReadData(symmetricKey, zoneID []byte, reader
 	return EncodeToOctal(decrypted), nil
 }
 
+// GetTagBeginLength returns length of EscapeTagBegin
 func (decryptor *PgEscapeDecryptor) GetTagBeginLength() int {
-	return len(ESCAPE_TAG_BEGIN)
+	return len(EscapeTagBegin)
 }

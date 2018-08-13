@@ -20,14 +20,14 @@ jobs:
     environment:
       GOTHEMIS_IMPORT: github.com/cossacklabs/themis/gothemis
       FILEPATH_ERROR_FLAG: /tmp/test_fail
-      VERSIONS: 1.7 1.7.6 1.8 1.8.7 1.9.4 1.10
+      VERSIONS: 1.8 1.8.7 1.9.4 1.10 1.10.3
       TEST_DB_USER: test
       TEST_DB_USER_PASSWORD: test
       TEST_DB_NAME: test
       GOPATH_FOLDER: gopath
     steps:
     # prepare
-      - run: sudo apt-get update && sudo DEBIAN_FRONTEND=noninteractive apt-get -y install libssl-dev python python-setuptools python3 python3-setuptools python3-pip git rsync psmisc golint
+      - run: sudo apt-get update && sudo DEBIAN_FRONTEND=noninteractive apt-get -y install libssl-dev python python-setuptools python3 python3-setuptools python3-pip git rsync psmisc
       - run: cd $HOME && git clone https://github.com/cossacklabs/themis && cd themis && sudo make install
       - run: cd $HOME && for version in $VERSIONS; do mkdir go_root_$version; cd go_root_$version; wget https://storage.googleapis.com/golang/go$version.linux-amd64.tar.gz; tar xf go$version.linux-amd64.tar.gz; cd -; done
       - run: mkdir $HOME/$GOPATH_FOLDER
@@ -37,12 +37,13 @@ jobs:
       - run: pip3 install -r $HOME/project/tests/requirements.txt
       # install from sources because pip install git+https://github.com/mysql/mysql-connector-python not support recursive submodules
       - run: git clone https://github.com/Lagovas/mysql-connector-python; cd mysql-connector-python; sudo python3 setup.py clean build_py install_lib
+      - run: cd $HOME && GOPATH=$HOME/$GOPATH_FOLDER go get -u -v github.com/golang/lint/golint
       - run: sudo ldconfig
     # testing
       # check that code formatted with gofmt
       - run: .circleci/check_gofmt.sh
       # check that code doesn't have a lot of golint issues (currently removed because golint version is very different on other planforms)
-      # - run: .circleci/check_golint.sh
+      - run: GOPATH=$HOME/$GOPATH_FOLDER .circleci/check_golint.sh
       # delete file if exists
       - run: if [ -f $FILEPATH_ERROR_FLAG ]; then rm "$FILEPATH_ERROR_FLAG"; fi
       # run test in each go environment and create $FILEPATH_ERROR_FLAG file if was any error. But all tests should

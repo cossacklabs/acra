@@ -1,3 +1,19 @@
+/*
+Copyright 2016, Cossack Labs Limited
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
 package mysql
 
 import (
@@ -13,6 +29,7 @@ import (
 	"github.com/cossacklabs/acra/decryptor/base"
 	"github.com/cossacklabs/acra/logging"
 	"github.com/cossacklabs/acra/network"
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/sirupsen/logrus"
 )
 
@@ -21,8 +38,8 @@ const (
 	// each packet splits into packets of this size
 	MaxPayloadLen int = 1<<24 - 1
 
-	// CLIENT_WAIT_DB_TLS_HANDSHAKE shows max time to wait for database TLS handshake
-	CLIENT_WAIT_DB_TLS_HANDSHAKE = 5
+	// ClientWaitDbTLSHandshake shows max time to wait for database TLS handshake
+	ClientWaitDbTLSHandshake = 5
 )
 
 // Possible commands
@@ -115,13 +132,6 @@ const (
 	UNIQUE_FLAG         = 65536
 )
 
-// TLS modes
-const (
-	TLS_NONE = iota
-	TLS_CLIENT_SWITCH
-	TLS_DB_COMPLETE
-)
-
 // IsBinaryColumn returns if column is binary data
 func IsBinaryColumn(value byte) bool {
 	isBlob := value >= MYSQL_TYPE_TINY_BLOB && value <= MYSQL_TYPE_BLOB
@@ -191,7 +201,9 @@ func (handler *MysqlHandler) ClientToDbConnector(errCh chan<- error) {
 	clientLog := handler.logger.WithField("proxy", "client")
 	clientLog.Debugln("Start proxy client's requests")
 	firstPacket := true
+	prometheusLabels := []string{base.DecryptionDBMysql}
 	for {
+		timer := prometheus.NewTimer(prometheus.ObserverFunc(base.RequestProcessingTimeHistogram.WithLabelValues(prometheusLabels...).Observe))
 		packet, err := ReadPacket(handler.clientConnection)
 		if err != nil {
 			handler.logger.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorResponseConnectorCantReadFromClient).
@@ -241,12 +253,14 @@ func (handler *MysqlHandler) ClientToDbConnector(errCh chan<- error) {
 				select {
 				case <-handler.dbTLSHandshakeFinished:
 					handler.logger.Debugln("Switch to tls complete on client proxy side")
+					timer.ObserveDuration()
 					continue
-				case <-time.NewTicker(time.Second * CLIENT_WAIT_DB_TLS_HANDSHAKE).C:
+				case <-time.NewTicker(time.Second * ClientWaitDbTLSHandshake).C:
 					clientLog.Errorln("Timeout on tls handshake with db")
 					errCh <- errors.New("handshake timeout")
 					return
 				}
+				timer.ObserveDuration()
 				continue
 			}
 		}
@@ -295,6 +309,7 @@ func (handler *MysqlHandler) ClientToDbConnector(errCh chan<- error) {
 			errCh <- err
 			return
 		}
+		timer.ObserveDuration()
 	}
 }
 
@@ -357,11 +372,11 @@ func (handler *MysqlHandler) processBinaryDataRow(rowData []byte, fields []*Colu
 
 	handler.logger.Debugln("Process data rows in binary protocol")
 	// no data in response
-	if rowData[0] == EOF_PACKET {
+	if rowData[0] == EOFPacket {
 		return rowData, nil
 	}
 
-	if rowData[0] != OK_PACKET {
+	if rowData[0] != OkPacket {
 		return nil, ErrMalformPacket
 	}
 
@@ -482,7 +497,7 @@ func (handler *MysqlHandler) QueryResponseHandler(packet *MysqlPacket, dbConnect
 	// https://dev.mysql.com/doc/internals/en/com-query-response.html#text-resultset
 	fieldCount := int(packet.GetData()[0])
 	output := []Dumper{packet}
-	if fieldCount != ERR_PACKET && fieldCount > 0 {
+	if fieldCount != ErrPacket && fieldCount > 0 {
 		handler.logger.Debugln("Read column descriptions")
 		for i := 0; ; i++ {
 			handler.logger.WithField("column_index", i).Debugln("Read column description")
@@ -527,7 +542,7 @@ func (handler *MysqlHandler) QueryResponseHandler(packet *MysqlPacket, dbConnect
 					return err
 				}
 				output = append(output, fieldDataPacket)
-				if fieldDataPacket.data[0] == EOF_PACKET {
+				if fieldDataPacket.data[0] == EOFPacket {
 					break
 				}
 				newData, err := handler.processBinaryDataRow(fieldDataPacket.GetData(), fields)
@@ -602,7 +617,14 @@ func (handler *MysqlHandler) DbToClientConnector(errCh chan<- error) {
 	serverLog.Debugln("Start proxy db responses")
 	firstPacket := true
 	var responseHandler ResponseHandler
+	prometheusLabels := []string{base.DecryptionDBMysql}
+	if handler.decryptor.IsWholeMatch() {
+		prometheusLabels = append(prometheusLabels, base.DecryptionModeWhole)
+	} else {
+		prometheusLabels = append(prometheusLabels, base.DecryptionModeInline)
+	}
 	for {
+		timer := prometheus.NewTimer(prometheus.ObserverFunc(base.ResponseProcessingTimeHistogram.WithLabelValues(prometheusLabels...).Observe))
 		packet, err := ReadPacket(handler.dbConnection)
 		if err != nil {
 			if netErr, ok := err.(net.Error); ok {
@@ -619,6 +641,7 @@ func (handler *MysqlHandler) DbToClientConnector(errCh chan<- error) {
 					handler.logger.Debugln("Switched to tls with db")
 					handler.dbConnection = tlsConnection
 					handler.dbTLSHandshakeFinished <- true
+					timer.ObserveDuration()
 					continue
 				}
 			}
@@ -644,6 +667,6 @@ func (handler *MysqlHandler) DbToClientConnector(errCh chan<- error) {
 			errCh <- err
 			return
 		}
-
+		timer.ObserveDuration()
 	}
 }

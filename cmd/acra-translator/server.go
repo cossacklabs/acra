@@ -1,3 +1,19 @@
+/*
+Copyright 2018, Cossack Labs Limited
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
 package main
 
 import (
@@ -178,11 +194,13 @@ func (server *ReaderServer) Start(parentContext context.Context) {
 	logger := logging.GetLoggerFromContext(parentContext)
 	poisonCallbacks := base.NewPoisonCallbackStorage()
 	if server.config.DetectPoisonRecords() {
-		if server.config.stopOnPoison {
-			poisonCallbacks.AddCallback(&base.StopCallback{})
-		}
 		if server.config.scriptOnPoison != "" {
 			poisonCallbacks.AddCallback(base.NewExecuteScriptCallback(server.config.scriptOnPoison))
+		}
+
+		// must be last
+		if server.config.stopOnPoison {
+			poisonCallbacks.AddCallback(&base.StopCallback{})
 		}
 	}
 	decryptorData := &common.TranslatorData{Keystorage: server.keystorage, PoisonRecordCallbacks: poisonCallbacks, CheckPoisonRecords: server.config.detectPoisonRecords}
@@ -190,6 +208,7 @@ func (server *ReaderServer) Start(parentContext context.Context) {
 		go func() {
 			httpContext := logging.SetLoggerToContext(parentContext, logger.WithField(CONNECTION_TYPE_KEY, HTTP_CONNECTION_TYPE))
 			httpDecryptor, err := http_api.NewHTTPConnectionsDecryptor(decryptorData)
+			logger.WithField("connection_string", server.config.incomingConnectionHTTPString).Infof("Start process HTTP requests")
 			if err != nil {
 				log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorTranslatorCantHandleHTTPConnection).
 					Errorln("Can't create http decryptor")
@@ -205,7 +224,7 @@ func (server *ReaderServer) Start(parentContext context.Context) {
 	if server.config.incomingConnectionGRPCString != "" {
 		go func() {
 			grpcLogger := logger.WithField(CONNECTION_TYPE_KEY, GRPC_CONNECTION_TYPE)
-			logger.WithField("connection_string", server.config.incomingConnectionGRPCString).Infof("Start process grpc requests")
+			logger.WithField("connection_string", server.config.incomingConnectionGRPCString).Infof("Start process gRPC requests")
 			secureSessionListener, err := network.NewSecureSessionListener(server.config.incomingConnectionGRPCString, server.keystorage)
 			if err != nil {
 				grpcLogger.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorTranslatorCantHandleGRPCConnection).

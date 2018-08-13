@@ -5,7 +5,7 @@ set -euo pipefail
 FILE_ELF="$1"
 DIR_CONTAINER="$2"
 
-mkdir "$DIR_CONTAINER"
+mkdir -p "$DIR_CONTAINER"
 
 mapfile -t libs < <(ldd "$FILE_ELF" | grep '=>' | awk '{print $3}')
 libs+=($(readelf -l "$FILE_ELF" | grep -Po "(?<=preter:\\s).+(?=\\])"))
