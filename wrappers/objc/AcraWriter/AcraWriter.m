@@ -71,6 +71,9 @@ static NSUInteger kAcraStructHeaderByte = 34;
     return nil;
   }
   
+  // zeroing private key
+  [keygenEC.privateKey resetBytesInRange:NSMakeRange(0, [keygenEC.privateKey length])];
+  
   // 4. encrypt payload using symmetric encryption and random symm key
   TSCellSeal * symmetricEncrypter = [[TSCellSeal alloc] initWithKey:symmetricKey];
   NSData * encryptedMessage = [symmetricEncrypter wrapData:message context:zoneID error:error];
