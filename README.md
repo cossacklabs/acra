@@ -48,7 +48,7 @@ Acra relies on our cryptographic library [Themis](https://www.github.com/cossack
 
 ## Availability
 
-* Acra source builds and tests with Go versions 1.7.6 – 1.10.
+* Acra source builds and tests with Go versions 1.8 – 1.10.
 * Acra is known to build on: 
 
 | Distributive | |

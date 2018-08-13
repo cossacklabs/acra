@@ -1,5 +1,118 @@
 # Acra ChangeLog
 
+## [0.82.0](https://github.com/cossacklabs/acra/releases/tag/0.82), August 14th 2018
+
+_Core_:
+
+- **AcraTranslator**
+
+  AcraTranslator is a lightweight server that receives [AcraStructs](https://github.com/cossacklabs/acra/wiki/AcraStruct) and returns the decrypted data. AcraTranslator doesn’t care about the source of the data, it accepts AcraStructs via HTTP or gRPC API. An application can store AcraStructs anywhere it is convenient: as cells in the database, as files in the file storage (local or cloud storage, like [AWS S3](https://aws.amazon.com/ru/s3/)). An application sends AcraStructs as binary data and receives plaintext (or decryption error) from AcraTranslator.
+
+  However, sending plaintext data via a non-secure channel is a bad idea, so AcraTranslator requires the use of [Themis Secure Session](Secure Session) encryption channel (which is basically encrypted TCP/unix sockets). To establish a Secure Session connection, an application doesn’t need to include the crypto-code itself, only to direct the traffic through AcraConnector instead.
+
+  AcraTranslator supports AcraStructs via HTTP and gRPC API, uses in-memory LRU cache to store encryption keys and detects poison records. AcraTranslator is shipped as pre-built binary and as Docker container.
+
+  Read [the detailed guide](https://github.com/cossacklabs/acra/wiki/Home) on how to install, configure and run AcraTranslator.
+  
+  ([#213](https://github.com/cossacklabs/acra/pull/213), [#212](https://github.com/cossacklabs/acra/pull/212), [#207](https://github.com/cossacklabs/acra/pull/207), [#205](https://github.com/cossacklabs/acra/pull/205), [#204](https://github.com/cossacklabs/acra/pull/204), [#203](https://github.com/cossacklabs/acra/pull/203), [#200](https://github.com/cossacklabs/acra/pull/200), [#199](https://github.com/cossacklabs/acra/pull/199), [#198](https://github.com/cossacklabs/acra/pull/198), [#197](https://github.com/cossacklabs/acra/pull/197))
+
+
+  - Updated AcraConnector to support connections with AcraTranslator ([#206](https://github.com/cossacklabs/acra/pull/206)).
+
+
+- **Logging**
+
+  - Improved start up logs for AcraServer, AcraTranslator and AcraConnector: now it's easier to understand, that service is up and running ([#242](https://github.com/cossacklabs/acra/pull/242)).
+
+  - Added clientId to AcraServer logs: now it's easier to understand which client was sending request that lead to failed or succeed AcraStruct decryption ([#214](https://github.com/cossacklabs/acra/pull/214)).
+
+  - Improved logging by masking query parameters: neither AcraServer nor AcraCensor won't leak sensitive query content during logging ([#216](https://github.com/cossacklabs/acra/pull/216), [#211](https://github.com/cossacklabs/acra/pull/211)).
+
+
+- **Poison records**
+
+  - Added ability to turn on and off poison record detection for AcraServer and AcraTranslator. By default poison records detection is ON: AcraServer/AcraTranslator will try to detect poison record and log to stderr in case of detection ([#240](https://github.com/cossacklabs/acra/pull/240), [#230](https://github.com/cossacklabs/acra/pull/230), [#215](https://github.com/cossacklabs/acra/pull/215)).
+
+  - Increased performance of AcraServer/AcraTranslator if poison records enable ([#232](https://github.com/cossacklabs/acra/pull/232)).
+
+
+- **Key management**
+
+  - Improved processing decryption keys for AcraServer, AcraTranslator and AcraConnector: store private keys encryped in files and in memory, decrypt before using, purge after using ([#202](https://github.com/cossacklabs/acra/pull/202)).
+
+  - Added configurable LRU cache for in-memory keys: it will increase performance in case you operate with hundreds of storage keys on AcraServer and AcraTranslator ([#219](https://github.com/cossacklabs/acra/pull/219)).
+
+
+- **AcraCensor / SQL filter and firewall**
+
+  - Improved SQL filtering by adding patterns matching: now you can blacklist or whitelist queries that match particular patterns, like `SELECT %%COLUMN%% FROM company %%WHERE%%`. 
+
+  Currently supported patterns: `%%VALUE%%`, `%%COLUMN%%`, `%%WHERE%%` and `%%SELECT%%`. 
+
+  Read the detailed description and usage examples on [AcraCensor page](https://github.com/cossacklabs/acra/wiki/AcraCensor).
+  
+  ([#243](https://github.com/cossacklabs/acra/pull/243), [#238](https://github.com/cossacklabs/acra/pull/238), [#231](https://github.com/cossacklabs/acra/pull/231), [#226](https://github.com/cossacklabs/acra/pull/226), [#217](https://github.com/cossacklabs/acra/pull/217))
+
+  - Improved AcraCensor performance for queries matching ([#208](https://github.com/cossacklabs/acra/pull/208)).
+
+- **AcraWriter**
+
+  - Added iOS/Objective-C AcraWriter library as CocoaPod, added examples and tests.
+
+  Read usage guide and examples in [examples/objc](https://github.com/cossacklabs/acra/tree/master/examples/objc) folder.
+  
+  ([#241](https://github.com/cossacklabs/acra/pull/241), [#235](https://github.com/cossacklabs/acra/pull/235), [#233](https://github.com/cossacklabs/acra/pull/233)).
+
+  - Improved security of AcraWriter libs for Go, Ruby, Nodejs and iOS by zeroing secret keys where it was missing ([#244](https://github.com/cossacklabs/acra/pull/244)).
+
+
+- **AcraRollback**
+
+  - Improved handling of `insert` query parameter to simpify using AcraRollback from bash ([#210](https://github.com/cossacklabs/acra/pull/210)).
+
+- **Other**
+
+  - Improved AcraStruct decryption by multiple validations of AcraStruct format before decrypting. This fix improves AcraServer/AcraTranslator error messages if decryption failed ([#201](https://github.com/cossacklabs/acra/pull/201)).
+
+  - Improved stability of integration test suite, trying to avoid 'timed out' errors from CircleCI ([#200](https://github.com/cossacklabs/acra/pull/220)).
+
+  - Improved code quality, fixing gofmt and golint issues ([#229](https://github.com/cossacklabs/acra/pull/229), [#228](https://github.com/cossacklabs/acra/pull/228), [#227](https://github.com/cossacklabs/acra/pull/227), [#224](https://github.com/cossacklabs/acra/pull/224), [#223](https://github.com/cossacklabs/acra/pull/223), [#221](https://github.com/cossacklabs/acra/pull/221)).
+
+- **WIP**
+
+  - Adding a way to export decryption metrics (decryption time, number of connections) of AcraServer to Prometeus ([#234](https://github.com/cossacklabs/acra/pull/234)).
+
+  - Prototyping AcraRotate tool for rotating Zone keys easily ([#239](https://github.com/cossacklabs/acra/pull/239)).
+
+
+_Infrastructure_:
+
+  - Drop testing and supporting go version below 1.8. It affects only users who build Acra manually from sources.
+  You can install pre-built Acra components shipped for various Ubuntu, Debian and CentOS distributives using [Installation guide](https://github.com/cossacklabs/acra/wiki/Quick-start-guide#installing-acra-from-the-cossack-labs-repository). Or check out our Docker images and Docker-compose files in [docker folder](https://github.com/cossacklabs/acra/tree/master/docker) 
+  ([#209](https://github.com/cossacklabs/acra/pull/209)).
+
+  - Added AcraTranslator as pre-built binary and docker container ([#222](https://github.com/cossacklabs/acra/pull/222)).
+
+  - Added AcraTranslator and AcraConnector docker-compose files: now it's easy to set up demo stand just by running one command ([#225](https://github.com/cossacklabs/acra/pull/225)).
+
+  - Added AcraRollback and AcraPoisonRecordMaker as ready-to-use tools inside AcraTranslator and AcraServer Docker containers ([#236](https://github.com/cossacklabs/acra/pull/236)).
+
+
+_Documentation_:
+
+- [Key management](https://github.com/cossacklabs/acra/wiki/Key-Management): clarified key names and default locations, illustrate public key exchange in details.
+
+- [AcraServer](https://github.com/cossacklabs/acra/wiki/How-AcraServer-works): improved examples of how to run AcraServer.
+
+- [AcraTranslator](https://github.com/cossacklabs/acra/wiki/Home): added descripton of the service, installation and launching guide, added ready-to-use examples for HTTP and gRPC API.
+
+- [AcraConnector](https://github.com/cossacklabs/acra/wiki/AcraConnector-and-AcraWriter): added examples how to run AcraConnector with AcraTranslator.
+
+- [AcraCensor](https://github.com/cossacklabs/acra/wiki/AcraCensor): added examples of configuration file, described in details how "patterns" filter works.
+
+- [AcraRollback](https://github.com/cossacklabs/acra/wiki/AcraRollback): added examples of running AcraRollback in local mode, that allows to store decrypted data locally, without pushing it back to the database.
+
+
 ## [0.81.0](https://github.com/cossacklabs/acra/releases/tag/0.81), July 6th 2018
 
 _Core_:
