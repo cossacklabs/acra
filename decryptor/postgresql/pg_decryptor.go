@@ -27,6 +27,7 @@ import (
 	"time"
 
 	"github.com/cossacklabs/acra/acra-censor"
+	"github.com/cossacklabs/acra/acra-censor/handlers"
 	"github.com/cossacklabs/acra/decryptor/base"
 	"github.com/cossacklabs/acra/logging"
 	"github.com/cossacklabs/acra/network"
@@ -136,9 +137,12 @@ func (proxy *PgProxy) PgProxyClientRequests(acraCensor acracensor.AcraCensorInte
 			timer.ObserveDuration()
 			continue
 		}
-
 		query := string(packet.descriptionBuf.Bytes()[:packet.dataLength-1])
-		logger.WithField("query", query).Debugln("New query")
+		_, queryWithHiddenValues, err := handlers.NormalizeAndRedactSQLQuery(query)
+		if err == handlers.ErrQuerySyntaxError {
+			log.WithError(err).Infof("Parsing error on query (first %v symbols): %s", handlers.LogQueryLength, handlers.TrimStringToN(queryWithHiddenValues, handlers.LogQueryLength))
+		}
+		log.WithField("query", queryWithHiddenValues).Debugln("New query")
 		if censorErr := acraCensor.HandleQuery(query); censorErr != nil {
 			logger.WithError(censorErr).Errorln("AcraCensor blocked query")
 			errorMessage, err := NewPgError("AcraCensor blocked this query")

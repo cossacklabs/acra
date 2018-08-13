@@ -80,17 +80,28 @@ func TrimStringToN(query string, n int) string {
 	return query[:n]
 }
 
-// RedactSQLQuery returns a sql string with the params stripped out for display. Taken from sqlparser package
-func RedactSQLQuery(sql string) (string, error) {
+// NormalizeAndRedactSQLQuery returns a normalized (lowercases SQL commands) SQL string,
+// and redacted SQL string with the params stripped out for display.
+// Taken from sqlparser package
+func NormalizeAndRedactSQLQuery(sql string) (normalizedQuery string, redactedQuery string, error error) {
 	bv := map[string]*querypb.BindVariable{}
-	sqlStripped, comments := sqlparser.SplitMarginComments(sql)
+	sqlStripped, _ := sqlparser.SplitMarginComments(sql)
+
+	// sometimes queries might have ; at the end, that should be stripped
+	sqlStripped = strings.TrimSuffix(sqlStripped, ";")
 
 	stmt, err := sqlparser.Parse(sqlStripped)
 	if err != nil {
-		return "", err
+		return "", "", err
 	}
+
+	normalizedQ := sqlparser.String(stmt)
+
+	// redact and mask VALUES
 	sqlparser.Normalize(stmt, bv, ValuePlaceholder)
-	return comments.Leading + sqlparser.String(stmt) + comments.Trailing, nil
+	redactedQ := sqlparser.String(stmt)
+
+	return normalizedQ, redactedQ, nil
 }
 
 func checkPatternsMatching(patterns [][]sqlparser.SQLNode, query string) (bool, error) {

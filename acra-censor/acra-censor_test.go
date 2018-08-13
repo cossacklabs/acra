@@ -30,6 +30,7 @@ import (
 	"testing"
 	"time"
 
+	"fmt"
 	"github.com/cossacklabs/acra/acra-censor/handlers"
 	"github.com/cossacklabs/acra/utils"
 )
@@ -89,6 +90,25 @@ func TestWhitelistQueries(t *testing.T) {
 	}
 	//ditto
 	err = acraCensor.HandleQuery("INSERT INTO SalesStaff1 VALUES (1, 'Stephen', 'Jiang');")
+	if err != handlers.ErrQueryNotInWhitelist {
+		t.Fatal(err)
+	}
+
+	//acracensor should NOT block this query because its the same as in whitelist, but lower-cased and without ";"
+	lowerCaseWhiteListedQuery := "select * from STUDENT"
+	err = acraCensor.HandleQuery(lowerCaseWhiteListedQuery)
+	if err != nil {
+		t.Fatal(err)
+	}
+	//acracensor should NOT block this query because its the same as in whitelist, but lower-cased and without ;
+	err = acraCensor.HandleQuery("select EMP_ID, LAST_NAME from EMPLOYEE where CITY = 'Seattle' order BY EMP_ID")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	whitelistHandler.RemoveQueries([]string{lowerCaseWhiteListedQuery})
+	err = acraCensor.HandleQuery(lowerCaseWhiteListedQuery)
+	//now acracensor should block this query because it is not in whitelist anymore
 	if err != handlers.ErrQueryNotInWhitelist {
 		t.Fatal(err)
 	}
@@ -563,7 +583,8 @@ func TestBlacklistQueries(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	testQuery := "INSERT INTO Customers (CustomerName, City, Country) VALUES ('Cardinal', 'Stavanger', 'Norway');"
+
+	testQuery := "insert INTO Customers (CustomerName, City, Country) VALUES ('Cardinal', 'Stavanger', 'Norway');"
 	blacklist.AddQueries([]string{testQuery})
 	err = acraCensor.HandleQuery(testQuery)
 	//acracensor should block this query because it's in blacklist
@@ -1009,7 +1030,7 @@ func TestQueryIgnoring(t *testing.T) {
 		}
 	}
 }
-func TestSerialization(t *testing.T) {
+func TestSerializationOnUniqueQueries(t *testing.T) {
 	testQueries := []string{
 		"SELECT Student_ID FROM STUDENT;",
 		"SELECT * FROM STUDENT;",
@@ -1025,7 +1046,6 @@ func TestSerialization(t *testing.T) {
 		"INSERT SalesStaff1 VALUES (2, 'Michael', 'Blythe'), (3, 'Linda', 'Mitchell'),(4, 'Jillian', 'Carson'), (5, 'Garrett', 'Vargas');",
 		"INSERT INTO SalesStaff2 (StaffGUID, FirstName, LastName) VALUES (NEWID(), 'Stephen', 'Jiang');",
 		"INSERT INTO SalesStaff3 (StaffID, FullName) VALUES (X, 'Y');",
-		"INSERT INTO SalesStaff3 (StaffID, FullName) VALUES (X, 'Z');",
 		"INSERT INTO SalesStaff3 (StaffID, FullNameTbl) VALUES (X, M);",
 		"INSERT INTO X.Customers (CustomerName, ContactName, Address, City, PostalCode, Country) VALUES ('Cardinal', 'Tom B. Erichsen', 'Skagen 21', 'Stavanger', '4006', 'Norway');",
 		"INSERT INTO Customers (CustomerName, City, Country) VALUES ('Cardinal', 'Stavanger', 'Norway');",
@@ -1042,12 +1062,20 @@ func TestSerialization(t *testing.T) {
 		t.Fatal(err)
 	}
 	handler, err := handlers.NewQueryCaptureHandler(tmpFile.Name())
-	defer handler.Release()
+
+	defer func() {
+		handler.Release()
+		err = os.Remove(tmpFile.Name())
+		if err != nil {
+			t.Fatal(err)
+		}
+	}()
+
 	if err != nil {
 		t.Fatal(err)
 	}
 	for _, query := range testQueries {
-		_, err = handler.CheckQuery(query)
+		_, err = handler.RedactAndCheckQuery(query)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -1079,34 +1107,84 @@ func TestSerialization(t *testing.T) {
 			t.Fatal("Expected: " + testQueries[index] + "\nGot: " + query)
 		}
 	}
-	if err = os.Remove(tmpFile.Name()); err != nil {
+}
+func TestSerializationOnSameQueries(t *testing.T) {
+	// 5 queries, 3 unique redacted queries
+	numOfUniqueQueries := 3
+	testQueries := []string{
+		// will be redacted
+		"SELECT NAME WHERE EMP_ID = '1234';",
+		"SELECT NAME WHERE EMP_ID = '345';",
+
+		// different
+		"SELECT EMP_ID, LAST_NAME FROM EMPLOYEE WHERE CITY = 'Seattle' ORDER BY EMP_ID;",
+		"SELECT EMP_ID FROM EMPLOYEE WHERE CITY = 'Seattle' ORDER BY EMP_ID;",
+
+		// similar to previous one, will be redacted
+		"SELECT EMP_ID FROM EMPLOYEE WHERE CITY = 'London' ORDER BY EMP_ID;",
+	}
+	tmpFile, err := ioutil.TempFile("", "censor_log")
+	if err != nil {
 		t.Fatal(err)
 	}
+	if err = tmpFile.Close(); err != nil {
+		t.Fatal(err)
+	}
+	handler, err := handlers.NewQueryCaptureHandler(tmpFile.Name())
+
+	defer func() {
+		handler.Release()
+		err = os.Remove(tmpFile.Name())
+		if err != nil {
+			t.Fatal(err)
+		}
+	}()
+
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, query := range testQueries {
+		_, err = handler.RedactAndCheckQuery(query)
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+	defaultTimeout := handler.GetSerializationTimeout()
+	handler.SetSerializationTimeout(50 * time.Millisecond)
+	//wait until goroutine handles complex serialization
+	time.Sleep(defaultTimeout + handler.GetSerializationTimeout() + 10*time.Millisecond)
+
+	if len(handler.GetAllInputQueries()) != numOfUniqueQueries {
+		t.Fatal("Expected to have " + fmt.Sprint(numOfUniqueQueries) + " unique queries. \n Got:" + strings.Join(handler.GetAllInputQueries(), " | "))
+	}
+	err = handler.DumpAllQueriesToFile()
+	if err != nil {
+		t.Fatal(err)
+	}
+	handler.Reset()
+	if len(handler.GetAllInputQueries()) != 0 {
+		t.Fatal("Expected no queries \nGot: " + strings.Join(handler.GetAllInputQueries(), " | "))
+	}
+	err = handler.ReadAllQueriesFromFile()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(handler.GetAllInputQueries()) != numOfUniqueQueries {
+		t.Fatal("Expected to have " + fmt.Sprint(numOfUniqueQueries) + " unique queries. \n Got:" + strings.Join(handler.GetAllInputQueries(), " | "))
+	}
+	for index, query := range handler.GetAllInputQueries() {
+		if strings.EqualFold(testQueries[index], query) {
+			t.Fatal("Expected: " + testQueries[index] + "\nGot: " + query)
+		}
+	}
 }
-func TestLogging(t *testing.T) {
+func TestAddingCapturedQueriesIntoBlacklist(t *testing.T) {
+	// Currently we support adding only non-redacted queries
 	testQueries := []string{
 		"SELECT Student_ID FROM STUDENT;",
 		"SELECT * FROM STUDENT;",
-		"SELECT * FROM X;",
+		"select * FROM X;",
 		"SELECT * FROM Y;",
-		"SELECT EMP_ID, NAME FROM EMPLOYEE_TBL WHERE EMP_ID = '0000';",
-		"SELECT EMP_ID, LAST_NAME FROM EMPLOYEE WHERE CITY = 'Seattle' ORDER BY EMP_ID;",
-		"SELECT EMP_ID, LAST_NAME FROM EMPLOYEE_TBL WHERE CITY = 'INDIANAPOLIS' ORDER BY EMP_ID asc;",
-		"SELECT Name, Age FROM Patients WHERE Age > 40 GROUP BY Age ORDER BY Name;",
-		"SELECT COUNT(CustomerID), Country FROM Customers GROUP BY Country;",
-		"SELECT SUM(Salary)FROM Employee WHERE Emp_Age < 30;",
-		"SELECT AVG(Price)FROM Products;",
-		"INSERT SalesStaff1 VALUES (2, 'Michael', 'Blythe'), (3, 'Linda', 'Mitchell'),(4, 'Jillian', 'Carson'), (5, 'Garrett', 'Vargas');",
-		"INSERT INTO SalesStaff2 (StaffGUID, FirstName, LastName) VALUES (NEWID(), 'Stephen', 'Jiang');",
-		"INSERT INTO SalesStaff3 (StaffID, FullName) VALUES (X, 'Y');",
-		"INSERT INTO SalesStaff3 (StaffID, FullName) VALUES (X, 'Z');",
-		"INSERT INTO SalesStaff3 (StaffID, FullNameTbl) VALUES (X, M);",
-		"INSERT INTO X.Customers (CustomerName, ContactName, Address, City, PostalCode, Country) VALUES ('Cardinal', 'Tom B. Erichsen', 'Skagen 21', 'Stavanger', '4006', 'Norway');",
-		"INSERT INTO Customers (CustomerName, City, Country) VALUES ('Cardinal', 'Stavanger', 'Norway');",
-		"INSERT INTO Production (Name, UnitMeasureCode,	ModifiedDate) VALUES ('Square Yards', 'Y2', GETDATE());",
-		"INSERT INTO T1 (Name, UnitMeasureCode,	ModifiedDate) VALUES ('Square Yards', 'Y2', GETDATE());",
-		"INSERT INTO dbo.Points (Type, PointValue) VALUES ('Point', '1,5');",
-		"INSERT INTO dbo.Points (PointValue) VALUES ('1,99');",
 	}
 	tmpFile, err := ioutil.TempFile("", "censor_log")
 	if err != nil {
@@ -1121,7 +1199,13 @@ func TestLogging(t *testing.T) {
 	}
 	blacklist := handlers.NewBlacklistHandler()
 	acraCensor := NewAcraCensor()
-	defer acraCensor.ReleaseAll()
+	defer func() {
+		acraCensor.ReleaseAll()
+		err = os.Remove(tmpFile.Name())
+		if err != nil {
+			t.Fatal(err)
+		}
+	}()
 	acraCensor.AddHandler(captureHandler)
 	acraCensor.AddHandler(blacklist)
 	for _, testQuery := range testQueries {
@@ -1130,9 +1214,9 @@ func TestLogging(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	captureHandler.MarkQueryAsForbidden(testQueries[0])
-	captureHandler.MarkQueryAsForbidden(testQueries[1])
-	captureHandler.MarkQueryAsForbidden(testQueries[2])
+	captureHandler.RedactAndMarkQueryAsForbidden(testQueries[0])
+	captureHandler.RedactAndMarkQueryAsForbidden(testQueries[1])
+	captureHandler.RedactAndMarkQueryAsForbidden(testQueries[2])
 	captureHandler.DumpAllQueriesToFile()
 
 	blacklist.AddQueries(captureHandler.GetForbiddenQueries())
@@ -1155,9 +1239,6 @@ func TestLogging(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	if err = os.Remove(tmpFile.Name()); err != nil {
-		t.Fatal(err)
-	}
 }
 func TestQueryCapture(t *testing.T) {
 	// extraWaitTime provide extra time to serialize in background goroutine before check
@@ -1173,7 +1254,13 @@ func TestQueryCapture(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer handler.Release()
+	defer func() {
+		handler.Release()
+		err = os.Remove(tmpFile.Name())
+		if err != nil {
+			t.Fatal(err)
+		}
+	}()
 	testQueries := []string{
 		"SELECT Student_ID FROM STUDENT;",
 		"SELECT * FROM STUDENT;",
@@ -1181,15 +1268,15 @@ func TestQueryCapture(t *testing.T) {
 		"SELECT * FROM Y;",
 	}
 	for _, query := range testQueries {
-		_, err = handler.CheckQuery(query)
+		_, err = handler.RedactAndCheckQuery(query)
 		if err != nil {
 			t.Fatal(err)
 		}
 	}
-	expected := "{\"RawQuery\":\"SELECT Student_ID FROM STUDENT\",\"IsForbidden\":false}\n" +
-		"{\"RawQuery\":\"SELECT * FROM STUDENT\",\"IsForbidden\":false}\n" +
-		"{\"RawQuery\":\"SELECT * FROM X\",\"IsForbidden\":false}\n" +
-		"{\"RawQuery\":\"SELECT * FROM Y\",\"IsForbidden\":false}\n"
+	expected := "{\"raw_query\":\"SELECT Student_ID FROM STUDENT\",\"_blacklisted_by_web_config\":false}\n" +
+		"{\"raw_query\":\"SELECT * FROM STUDENT\",\"_blacklisted_by_web_config\":false}\n" +
+		"{\"raw_query\":\"SELECT * FROM X\",\"_blacklisted_by_web_config\":false}\n" +
+		"{\"raw_query\":\"SELECT * FROM Y\",\"_blacklisted_by_web_config\":false}\n"
 
 	defaultTimeout := handler.GetSerializationTimeout()
 	handler.SetSerializationTimeout(50 * time.Millisecond)
@@ -1203,15 +1290,15 @@ func TestQueryCapture(t *testing.T) {
 		t.Fatal("Expected: " + expected + "\nGot: " + string(result))
 	}
 	testQuery := "SELECT * FROM Z;"
-	_, err = handler.CheckQuery(testQuery)
+	_, err = handler.RedactAndCheckQuery(testQuery)
 	if err != nil {
 		t.Fatal(err)
 	}
-	expected = "{\"RawQuery\":\"SELECT Student_ID FROM STUDENT\",\"IsForbidden\":false}\n" +
-		"{\"RawQuery\":\"SELECT * FROM STUDENT\",\"IsForbidden\":false}\n" +
-		"{\"RawQuery\":\"SELECT * FROM X\",\"IsForbidden\":false}\n" +
-		"{\"RawQuery\":\"SELECT * FROM Y\",\"IsForbidden\":false}\n" +
-		"{\"RawQuery\":\"SELECT * FROM Z\",\"IsForbidden\":false}\n"
+	expected = "{\"raw_query\":\"SELECT Student_ID FROM STUDENT\",\"_blacklisted_by_web_config\":false}\n" +
+		"{\"raw_query\":\"SELECT * FROM STUDENT\",\"_blacklisted_by_web_config\":false}\n" +
+		"{\"raw_query\":\"SELECT * FROM X\",\"_blacklisted_by_web_config\":false}\n" +
+		"{\"raw_query\":\"SELECT * FROM Y\",\"_blacklisted_by_web_config\":false}\n" +
+		"{\"raw_query\":\"SELECT * FROM Z\",\"_blacklisted_by_web_config\":false}\n"
 
 	time.Sleep(handler.GetSerializationTimeout() + extraWaitTime)
 	result, err = ioutil.ReadFile(tmpFile.Name())
@@ -1225,7 +1312,7 @@ func TestQueryCapture(t *testing.T) {
 	//Check that values are hidden while logging
 	testQuery = "select songName from t where personName in ('Ryan', 'Holly') group by songName having count(distinct personName) = 10"
 
-	handler.CheckQuery(testQuery)
+	handler.RedactAndCheckQuery(testQuery)
 
 	//wait until serialization completes
 	time.Sleep(handler.GetSerializationTimeout() + extraWaitTime)
@@ -1235,12 +1322,12 @@ func TestQueryCapture(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	expectedPrefix := "{\"RawQuery\":\"SELECT Student_ID FROM STUDENT\",\"IsForbidden\":false}\n" +
-		"{\"RawQuery\":\"SELECT * FROM STUDENT\",\"IsForbidden\":false}\n" +
-		"{\"RawQuery\":\"SELECT * FROM X\",\"IsForbidden\":false}\n" +
-		"{\"RawQuery\":\"SELECT * FROM Y\",\"IsForbidden\":false}\n" +
-		"{\"RawQuery\":\"SELECT * FROM Z\",\"IsForbidden\":false}\n" +
-		"{\"RawQuery\":\"select songName from t where personName in"
+	expectedPrefix := "{\"raw_query\":\"SELECT Student_ID FROM STUDENT\",\"_blacklisted_by_web_config\":false}\n" +
+		"{\"raw_query\":\"SELECT * FROM STUDENT\",\"_blacklisted_by_web_config\":false}\n" +
+		"{\"raw_query\":\"SELECT * FROM X\",\"_blacklisted_by_web_config\":false}\n" +
+		"{\"raw_query\":\"SELECT * FROM Y\",\"_blacklisted_by_web_config\":false}\n" +
+		"{\"raw_query\":\"SELECT * FROM Z\",\"_blacklisted_by_web_config\":false}\n" +
+		"{\"raw_query\":\"select songName from t where personName in"
 
 	suffix := strings.TrimPrefix(strings.ToUpper(string(result)), strings.ToUpper(expectedPrefix))
 
@@ -1253,10 +1340,6 @@ func TestQueryCapture(t *testing.T) {
 		strings.Contains(strings.ToUpper(string(result)), strings.ToUpper("Holly")) ||
 		strings.Contains(strings.ToUpper(string(result)), strings.ToUpper("10")) {
 		t.Fatal("values detected in logs: " + string(result))
-	}
-
-	if err = os.Remove(tmpFile.Name()); err != nil {
-		t.Fatal(err)
 	}
 }
 func TestConfigurationProvider(t *testing.T) {
