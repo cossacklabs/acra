@@ -57,7 +57,7 @@ type Config struct {
 	postgresql              bool
 	configPath              string
 	debug                   bool
-	censor                  acracensor.Interface
+	censor                  acracensor.AcraCensorInterface
 	tlsConfig               *tls.Config
 }
 
@@ -100,7 +100,7 @@ func (config *Config) SetCensor(censorConfigPath string) error {
 }
 
 // GetCensor returns AcraCensor associated with AcraServer
-func (config *Config) GetCensor() acracensor.Interface {
+func (config *Config) GetCensor() acracensor.AcraCensorInterface {
 	return config.censor
 }
 

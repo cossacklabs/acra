@@ -28,8 +28,8 @@ type QueryHandlerInterface interface {
 	Release()
 }
 
-// Interface describes main AcraCensor methods: adding and removing query handlers and processing query
-type Interface interface {
+// AcraCensorInterface describes main AcraCensor methods: adding and removing query handlers and processing query
+type AcraCensorInterface interface {
 	HandleQuery(sqlQuery string) error
 	AddHandler(handler QueryHandlerInterface)
 	RemoveHandler(handler QueryHandlerInterface)

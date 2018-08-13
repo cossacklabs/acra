@@ -95,7 +95,7 @@ func NewPgProxy(clientConnection, dbConnection net.Conn) (*PgProxy, error) {
 
 // PgProxyClientRequests checks every client request using AcraCensor,
 // if request is allowed, sends it to the Pg database
-func (proxy *PgProxy) PgProxyClientRequests(acraCensor acracensor.Interface, dbConnection, clientConnection net.Conn, errCh chan<- error) {
+func (proxy *PgProxy) PgProxyClientRequests(acraCensor acracensor.AcraCensorInterface, dbConnection, clientConnection net.Conn, errCh chan<- error) {
 	logger := log.WithField("proxy", "pg_client")
 	logger.Debugln("Pg client proxy")
 	writer := bufio.NewWriter(dbConnection)
