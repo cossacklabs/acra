@@ -138,16 +138,22 @@ func (proxy *PgProxy) PgProxyClientRequests(acraCensor acracensor.AcraCensorInte
 			continue
 		}
 		query := string(packet.descriptionBuf.Bytes()[:packet.dataLength-1])
-		_, queryWithHiddenValues, err := handlers.NormalizeAndRedactSQLQuery(query)
-		if err == handlers.ErrQuerySyntaxError {
-			log.WithError(err).Infof("Parsing error on query (first %v symbols): %s", handlers.LogQueryLength, handlers.TrimStringToN(queryWithHiddenValues, handlers.LogQueryLength))
+
+		// log query with hidden values for debug mode
+		if logging.GetLogLevel() == logging.LOG_DEBUG {
+			_, queryWithHiddenValues, err := handlers.NormalizeAndRedactSQLQuery(query)
+			if err == handlers.ErrQuerySyntaxError {
+				log.WithError(err).Infof("Parsing error on query: %s", queryWithHiddenValues)
+			} else {
+				log.WithField("sql", queryWithHiddenValues).Debugln("New query")
+			}
 		}
-		log.WithField("query", queryWithHiddenValues).Debugln("New query")
+
 		if censorErr := acraCensor.HandleQuery(query); censorErr != nil {
 			logger.WithError(censorErr).Errorln("AcraCensor blocked query")
 			errorMessage, err := NewPgError("AcraCensor blocked this query")
 			if err != nil {
-				logger.WithError(err).Errorln("Can't create postgresql error message")
+				logger.WithError(err).Errorln("Can't create PostgreSQL error message")
 				errCh <- err
 				return
 			}
