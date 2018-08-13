@@ -144,9 +144,12 @@ All of our documentation (including with the Acra documentation) can also be fou
   
 ## Project status
 
-This open source version of Acra is a beta version. We're dynamically developing Acra and unifying its features to create a community-firendly edition. Please let us know in the [Issues](https://www.github.com/cossacklabs/acra/issues) if you stumble upon a bug, see a possible enhancement, or have a comment on security design.
+This open source version of Acra is free-to-use. Please let us know in the [Issues](https://www.github.com/cossacklabs/acra/issues) if you stumble upon a bug, see a possible enhancement, or have a comment on security design.
+
+We ship a [enterprise version](https://www.cossacklabs.com/acra/) as well: more stable, more fast, with bindings for your exact application and our engineers' support. [Talk to us](mailto:sales@cossacklabs.com) if you're interested.
 
 ## Contributing to us
+
 If you’d like to contribute your code or other kind of input to Acra, you’re very welcome. Your starting point for contributing should be this [Contribution Wiki page](https://github.com/cossacklabs/acra/wiki/Contributing-to-Acra).
 
 
