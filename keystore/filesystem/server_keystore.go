@@ -1,3 +1,27 @@
+/*
+Copyright 2018, Cossack Labs Limited
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
+// Package filesystem implements keystores that write and reads keys from file system. Each keystore is responsible
+// for generating keys for specific service, writing them to provided file path, reading and decrypting them.
+// Server keystore generates AcraServer transport key pair and AcraStorage encryption keypair used for
+// creating/decrypting AcraStructs.
+// Connector keystore generates AcraConnector transport key pair.
+// Translator keystore generates AcraTranslator transport key pair.
+//
+// https://github.com/cossacklabs/acra/wiki/Key-Management
 package filesystem
 
 import (
@@ -134,20 +158,9 @@ func (store *FilesystemKeyStore) generateKey(filename string, length uint8) ([]b
 	return randomBytes, nil
 }
 
-// GenerateZoneKey generates zone ID and zone key pair, encrypts private key using zoneID as context,
-// and saves encrypted PK in the filem returns zoneID and public key.
-// Returns error if generation or encryption fail.
-func (store *FilesystemKeyStore) GenerateZoneKey() ([]byte, []byte, error) {
+// generateZoneKey for specific zone id. Will be generated new key pair and private key will be overwrited
+func (store *FilesystemKeyStore) generateZoneKey(id []byte) ([]byte, []byte, error) {
 	/* save private key in fs, return id and public key*/
-	var id []byte
-	for {
-		// generate until key not exists
-		id = zone.GenerateZoneID()
-		if !store.HasZonePrivateKey(id) {
-			break
-		}
-	}
-
 	keypair, err := store.generateKeyPair(getZoneKeyFilename(id), id)
 	if err != nil {
 		return []byte{}, []byte{}, err
@@ -162,6 +175,21 @@ func (store *FilesystemKeyStore) GenerateZoneKey() ([]byte, []byte, error) {
 	// cache key
 	store.cache.Add(getZoneKeyFilename(id), encryptedKey)
 	return id, keypair.Public.Value, nil
+}
+
+// GenerateZoneKey generates zone ID and zone key pair, encrypts private key using zoneID as context,
+// and saves encrypted PK in the filem returns zoneID and public key.
+// Returns error if generation or encryption fail.
+func (store *FilesystemKeyStore) GenerateZoneKey() ([]byte, []byte, error) {
+	var id []byte
+	for {
+		// generate until key not exists
+		id = zone.GenerateZoneID()
+		if !store.HasZonePrivateKey(id) {
+			break
+		}
+	}
+	return store.generateZoneKey(id)
 }
 
 func (store *FilesystemKeyStore) getPrivateKeyFilePath(filename string) string {
@@ -378,5 +406,11 @@ func (store *FilesystemKeyStore) GetAuthKey(remove bool) ([]byte, error) {
 		return key, nil
 	}
 	log.Infof("Generate basic auth key for AcraWebconfig to %v", keyPath)
-	return store.generateKey(BASIC_AUTH_KEY_FILENAME, keystore.BASIC_AUTH_KEY_LENGTH)
+	return store.generateKey(BASIC_AUTH_KEY_FILENAME, keystore.BasicAuthKeyLength)
+}
+
+// RotateZoneKey generate new key pair for ZoneId, overwrite private key with new and return new public key
+func (store *FilesystemKeyStore) RotateZoneKey(zoneID []byte) ([]byte, error) {
+	_, public, err := store.generateZoneKey(zoneID)
+	return public, err
 }

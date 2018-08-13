@@ -1,3 +1,19 @@
+/*
+Copyright 2016, Cossack Labs Limited
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
 package mysql
 
 // SQLError is used for passing SQL errors
@@ -28,14 +44,14 @@ func NewQueryInterruptedError(isProtocol41 bool) []byte {
 	mysqlError := newQueryInterruptedError()
 	var data []byte
 	if isProtocol41 {
-		// 1 byte ERR_PACKET flag + 2 bytes of error code = 3
+		// 1 byte ErrPacket flag + 2 bytes of error code = 3
 		data = make([]byte, 0, 3+len(mysqlError.Message))
 	} else {
-		// 1 byte ERR_PACKET flag + 2 bytes of error code + 6 bytes of state (protocol41) = 9
+		// 1 byte ErrPacket flag + 2 bytes of error code + 6 bytes of state (protocol41) = 9
 		data = make([]byte, 0, 9+len(mysqlError.Message))
 	}
 
-	data = append(data, ERR_PACKET)
+	data = append(data, ErrPacket)
 	data = append(data, byte(mysqlError.Code), byte(mysqlError.Code>>8))
 
 	if isProtocol41 {

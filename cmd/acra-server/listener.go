@@ -1,16 +1,19 @@
-// Copyright 2016, Cossack Labs Limited
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-// http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
+/*
+Copyright 2016, Cossack Labs Limited
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
 package main
 
 import (
@@ -27,6 +30,7 @@ import (
 	"github.com/cossacklabs/acra/logging"
 	"github.com/cossacklabs/acra/network"
 	"github.com/cossacklabs/acra/zone"
+	"github.com/prometheus/client_golang/prometheus"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -144,6 +148,9 @@ handle new connection by initializing secure session, starting proxy request
 to db and decrypting responses from db
 */
 func (server *SServer) handleConnection(connection net.Conn) {
+	connectionCounter.WithLabelValues(dbConnectionType).Inc()
+	timer := prometheus.NewTimer(prometheus.ObserverFunc(connectionProcessingTimeHistogram.WithLabelValues(dbConnectionType).Observe))
+	defer timer.ObserveDuration()
 	server.cmACRA.Incr()
 	defer server.cmACRA.Done()
 	log.Infof("Handle new connection")
@@ -320,6 +327,9 @@ handle new connection by initializing secure session, starting proxy request
 to db and decrypting responses from db
 */
 func (server *SServer) handleCommandsConnection(connection net.Conn) {
+	connectionCounter.WithLabelValues(apiConnectionType).Inc()
+	timer := prometheus.NewTimer(prometheus.ObserverFunc(connectionProcessingTimeHistogram.WithLabelValues(apiConnectionType).Observe))
+	defer timer.ObserveDuration()
 	server.cmAPI.Incr()
 	defer server.cmAPI.Done()
 	log.Infof("Handle commands connection")

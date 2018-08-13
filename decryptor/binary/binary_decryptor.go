@@ -1,18 +1,20 @@
-// Package binary contains main binary decryptor.
-//
-// Copyright 2016, Cossack Labs Limited
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-// http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
+/*
+Copyright 2016, Cossack Labs Limited
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
+// Package binary contains BinaryDecryptor, that finds and decrypts AcraStruct from any binary blobs.
 package binary
 
 import (
@@ -36,7 +38,7 @@ type BinaryDecryptor struct {
 	isWithZone      bool
 	isWholeMatch    bool
 	keyBlockBuffer  []byte
-	lengthBuf       [base.DATA_LENGTH_SIZE]byte
+	lengthBuf       [base.DataLengthSize]byte
 	buf             []byte
 	keyStore        keystore.KeyStore
 	zoneMatcher     *zone.ZoneIDMatcher
@@ -46,7 +48,7 @@ type BinaryDecryptor struct {
 
 // NewBinaryDecryptor returns new BinaryDecryptor
 func NewBinaryDecryptor() *BinaryDecryptor {
-	return &BinaryDecryptor{keyBlockBuffer: make([]byte, base.KEY_BLOCK_LENGTH)}
+	return &BinaryDecryptor{keyBlockBuffer: make([]byte, base.KeyBlockLength)}
 }
 
 // MatchBeginTag not implemented Decryptor interface
@@ -82,10 +84,10 @@ func (decryptor *BinaryDecryptor) ReadSymmetricKey(privateKey *keys.PrivateKey, 
 		}
 		return nil, decryptor.keyBlockBuffer[:n], err
 	}
-	pubkey := &keys.PublicKey{Value: decryptor.keyBlockBuffer[:base.PUBLIC_KEY_LENGTH]}
+	pubkey := &keys.PublicKey{Value: decryptor.keyBlockBuffer[:base.PublicKeyLength]}
 
 	smessage := message.New(privateKey, pubkey)
-	symmetricKey, err := smessage.Unwrap(decryptor.keyBlockBuffer[base.PUBLIC_KEY_LENGTH:])
+	symmetricKey, err := smessage.Unwrap(decryptor.keyBlockBuffer[base.PublicKeyLength:])
 	if err != nil {
 		return nil, decryptor.keyBlockBuffer[:n], base.ErrFakeAcraStruct
 	}
@@ -128,7 +130,7 @@ func (decryptor *BinaryDecryptor) readScellData(length int, reader io.Reader) ([
 		return nil, decryptor.buf[:n], err
 	}
 	if n != int(length) {
-		log.Warningf("%v", utils.ErrorMessage("can't decode hex data", err))
+		log.Warningf("%v", utils.ErrorMessage("Can't decode hex data", err))
 		return nil, decryptor.buf[:n], base.ErrFakeAcraStruct
 	}
 	return decryptor.buf[:length], decryptor.buf[:length], nil

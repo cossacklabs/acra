@@ -1,3 +1,19 @@
+/*
+Copyright 2018, Cossack Labs Limited
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
 package acracensor
 
 import (
@@ -48,6 +64,9 @@ func (acraCensor *AcraCensor) ReleaseAll() {
 
 // HandleQuery processes every query through each handler.
 func (acraCensor *AcraCensor) HandleQuery(query string) error {
+	if len(acraCensor.handlers) == 0 {
+		return nil
+	}
 	normalizedQuery, queryWithHiddenValues, err := handlers.NormalizeAndRedactSQLQuery(query)
 	if err == handlers.ErrQuerySyntaxError && acraCensor.ignoreParseError {
 		acraCensor.logger.WithError(err).Infof("Parsing error on query (first %v symbols): %s", handlers.LogQueryLength, handlers.TrimStringToN(queryWithHiddenValues, handlers.LogQueryLength))

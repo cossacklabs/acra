@@ -1,18 +1,20 @@
-// Package utils contains everything we don't know where to put.
-//
-// Copyright 2016, Cossack Labs Limited
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-// http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
+/*
+Copyright 2016, Cossack Labs Limited
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
+// Package utils contains various bits and pieces useful as helping functions all over the code.
 package utils
 
 import (
@@ -36,12 +38,13 @@ const (
 	SESSION_DATA_LIMIT = 8 * 1024 // 8 kb
 )
 
+// ErrBigDataBlockSize represents data encoding error
 var ErrBigDataBlockSize = fmt.Errorf("Block size greater than %v", SESSION_DATA_LIMIT)
 
+// WriteFull writes data to io.Writer.
+// if wr.Write will return n <= len(data) will
+//	sent the rest of data until error or total sent byte count == len(data)
 func WriteFull(data []byte, wr io.Writer) (int, error) {
-	/* write data to io.Writer. if wr.Write will return n <= len(data) will
-	sent the rest of data until error or total sent byte count == len(data)
-	*/
 	sliceCopy := data[:]
 	totalSent := 0
 	for {
@@ -57,6 +60,7 @@ func WriteFull(data []byte, wr io.Writer) (int, error) {
 	}
 }
 
+// SendData writes length of data block to connection, then writes data itself
 func SendData(data []byte, conn io.Writer) error {
 	var buf [4]byte
 	binary.LittleEndian.PutUint32(buf[:], uint32(len(data)))
@@ -71,6 +75,8 @@ func SendData(data []byte, conn io.Writer) error {
 	return nil
 }
 
+// ReadData reads length of data block, then reads data content
+// returns data content
 func ReadData(reader io.Reader) ([]byte, error) {
 	var length [4]byte
 	_, err := io.ReadFull(reader, length[:])
@@ -86,6 +92,7 @@ func ReadData(reader io.Reader) ([]byte, error) {
 	return buf, nil
 }
 
+// AbsPath transforms relative file path to absolute
 func AbsPath(path string) (string, error) {
 	if len(path) == 0 {
 		return path, nil
@@ -111,6 +118,7 @@ func AbsPath(path string) (string, error) {
 	return path, nil
 }
 
+// ReadFile returns contents of file
 func ReadFile(path string) ([]byte, error) {
 	absPath, err := AbsPath(path)
 	if err != nil {
@@ -123,6 +131,7 @@ func ReadFile(path string) ([]byte, error) {
 	return ioutil.ReadAll(file)
 }
 
+// LoadPublicKey returns contents as PublicKey from keyfile
 func LoadPublicKey(path string) (*keys.PublicKey, error) {
 	key, err := ReadFile(path)
 	if err != nil {
@@ -131,11 +140,12 @@ func LoadPublicKey(path string) (*keys.PublicKey, error) {
 	return &keys.PublicKey{Value: key}, nil
 }
 
+// LoadPrivateKey returns contents as PrivateKey from keyfile
 func LoadPrivateKey(path string) (*keys.PrivateKey, error) {
 	fi, err := os.Stat(path)
 	if nil == err && runtime.GOOS == "linux" && fi.Mode().Perm().String() != "-rw-------" && fi.Mode().Perm().String() != "-r--------" {
 		log.Errorf("private key file %v has incorrect permissions", path)
-		return nil, fmt.Errorf("Error: private key file %v has incorrect permissions", path)
+		return nil, fmt.Errorf("error: private key file %v has incorrect permissions", path)
 	}
 	key, err := ReadFile(path)
 	if err != nil {
@@ -144,12 +154,14 @@ func LoadPrivateKey(path string) (*keys.PrivateKey, error) {
 	return &keys.PrivateKey{Value: key}, nil
 }
 
+// FillSlice fills bytes with value, used for filling bytes with zeros
 func FillSlice(value byte, data []byte) {
 	for i := range data {
 		data[i] = value
 	}
 }
 
+// FileExists returns true if file exists from path, path can be relative
 func FileExists(path string) (bool, error) {
 	absPath, err := AbsPath(path)
 	if err != nil {
@@ -165,18 +177,23 @@ func FileExists(path string) (bool, error) {
 }
 
 const (
-	NOT_FOUND = -1
+	// NotFound indicated not found symbol
+	NotFound = -1
 )
 
+// Min returns minimum integer out of two
 func Min(x, y int) int {
 	if x < y {
 		return x
 	}
 	return y
 }
+
+// FindTag returns first index of symbol in block
+// return -1 if not found
 func FindTag(symbol byte, count int, block []byte) int {
 	if len(block) < count {
-		return NOT_FOUND
+		return NotFound
 	}
 	halfCount := count / 2
 	tag := make([]byte, halfCount)
@@ -208,9 +225,10 @@ func FindTag(symbol byte, count int, block []byte) int {
 			}
 		}
 	}
-	return NOT_FOUND
+	return NotFound
 }
 
+// GetConfigPathByName returns filepath to config file named "name" from default configs folder
 func GetConfigPathByName(name string) string {
 	return fmt.Sprintf("configs/%s.yaml", name)
 }

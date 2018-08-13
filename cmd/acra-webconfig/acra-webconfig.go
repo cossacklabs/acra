@@ -1,17 +1,25 @@
-// Copyright 2018, Cossack Labs Limited
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-// http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
+/*
+Copyright 2018, Cossack Labs Limited
 
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
+// Package main is entry point for AcraWebConfig service.AcraWebConfig is a lightweight HTTP web server for managing
+// AcraServer's certain configuration options. AcraWebConfig uses HTTP API requests to get data from AcraServer
+// and to change its settings. To provide additional security, AcraWebConfig uses basic authentication.
+// Users/passwords are stored in an encrypted file and are managed by AcraAuthmanager utility.
+//
+// https://github.com/cossacklabs/acra/wiki/AcraWebConfig
 package main
 
 import (
@@ -54,7 +62,7 @@ var (
 )
 
 // ErrGetAuthDataFromAcraServer any error during loading AcraWebconfig
-var ErrGetAuthDataFromAcraServer = errors.New("Wrong status for loadAuthData")
+var ErrGetAuthDataFromAcraServer = errors.New("wrong status for loadAuthData")
 
 // Connection timeout secs
 const (
@@ -126,7 +134,7 @@ type ConfigAcraServer struct {
 
 // SubmitSettings updates AcraServer configuration from HTTP request
 func SubmitSettings(w http.ResponseWriter, r *http.Request) {
-	log.Debugf("SubmitSettings request %v", r)
+	log.Debugln("SubmitSettings request")
 	if r.Method != "POST" {
 		log.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorRequestMethodNotAllowed).
 			Errorln("Invalid request method")
@@ -205,7 +213,7 @@ func parseTemplate(staticPath string) (err error) {
 }
 
 func index(w http.ResponseWriter, r *http.Request) {
-	log.Debugf("Index request %v", r)
+	log.Debugln("Index request")
 	w.Header().Set("Content-Security-Policy", "require-sri-for script style")
 
 	// get current config

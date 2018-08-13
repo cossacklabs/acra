@@ -1,16 +1,19 @@
-// Copyright 2016, Cossack Labs Limited
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-// http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
+/*
+Copyright 2018, Cossack Labs Limited
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
 package filesystem
 
 import (
@@ -304,5 +307,48 @@ func TestFilesystemKeyStoreWithCache(t *testing.T) {
 	}
 	if _, ok := store.cache.(keystore.NoCache); !ok {
 		t.Fatal("KeyStore wasn't created with NoCache implementation")
+	}
+}
+
+func TestFilesystemKeyStore_RotateZoneKey(t *testing.T) {
+	keyDirectory, err := ioutil.TempDir("", "test_filesystem_store")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chmod(keyDirectory, 0700); err != nil {
+		t.Fatal(err)
+	}
+	defer func() {
+		os.RemoveAll(keyDirectory)
+	}()
+	encryptor, err := keystore.NewSCellKeyEncryptor([]byte("some key"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	keyStore, err := NewFilesystemKeyStore(keyDirectory, encryptor)
+	if err != nil {
+		t.Fatal(err)
+	}
+	id, publicKey, err := keyStore.GenerateZoneKey()
+	if err != nil {
+		t.Fatal(err)
+	}
+	privateKey, err := keyStore.GetZonePrivateKey(id)
+	if err != nil {
+		t.Fatal(err)
+	}
+	newPublic, err := keyStore.RotateZoneKey(id)
+	if err != nil {
+		t.Fatal(err)
+	}
+	rotatedPrivateKey, err := keyStore.GetZonePrivateKey(id)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if bytes.Equal(publicKey, newPublic) {
+		t.Fatal("Public key the same as rotated")
+	}
+	if bytes.Equal(rotatedPrivateKey.Value, privateKey.Value) {
+		t.Fatal("Private key the same as rotated")
 	}
 }

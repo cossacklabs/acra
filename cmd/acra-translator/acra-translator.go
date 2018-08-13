@@ -1,16 +1,23 @@
-// Copyright 2018, Cossack Labs Limited
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-// http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
+/*
+Copyright 2018, Cossack Labs Limited
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
+// Package main is entry point for AcraTranslator service. AcraTranslator is a lightweight server that receives
+// AcraStructs and returns the decrypted data. This element of Acra is necessary in the use-cases
+// when an application stores encrypted data as separate blobs (files that are not in a database - i.e.
+// in the S3 bucket, local file storage, etc.).
 package main
 
 import (
@@ -45,22 +52,22 @@ func main() {
 	logging.CustomizeLogging(*loggingFormat, SERVICE_NAME)
 	log.Infof("Starting service %v", SERVICE_NAME)
 
-	incomingConnectionHTTPString := flag.String("incoming_connection_http_string", network.BuildConnectionString(network.HTTP_SCHEME, cmd.DEFAULT_ACRATRANSLATOR_HTTP_HOST, cmd.DEFAULT_ACRATRANSLATOR_HTTP_PORT, ""), "Connection string for HTTP transport like http://x.x.x.x:yyyy")
-	incomingConnectionGRPCString := flag.String("incoming_connection_grpc_string", network.BuildConnectionString(network.GRPC_SCHEME, cmd.DEFAULT_ACRATRANSLATOR_GRPC_HOST, cmd.DEFAULT_ACRATRANSLATOR_GRPC_PORT, ""), "Connection string for gRPC transport like grpc://x.x.x.x:yyyy")
+	incomingConnectionHTTPString := flag.String("incoming_connection_http_string", "", "Connection string for HTTP transport like http://0.0.0.0:9595")
+	incomingConnectionGRPCString := flag.String("incoming_connection_grpc_string", "", "Default option: connection string for gRPC transport like grpc://0.0.0.0:9696")
 
-	keysDir := flag.String("keys_dir", keystore.DEFAULT_KEY_DIR_SHORT, "Folder from which will be loaded keys")
+	keysDir := flag.String("keys_dir", keystore.DefaultKeyDirShort, "Folder from which will be loaded keys")
 	keysCacheSize := flag.Int("keystore_cache_size", keystore.INFINITE_CACHE_SIZE, "Count of keys that will be stored in in-memory LRU cache in encrypted form. 0 - no limits, -1 - turn off cache")
 
 	secureSessionID := flag.String("securesession_id", "acra_translator", "Id that will be sent in secure session")
 
-	detectPoisonRecords := flag.Bool("poison_detect_enable", true, "Turn on poison record detection")
-	stopOnPoison := flag.Bool("poison_shutdown_enable", false, "Stop on detecting poison record")
-	scriptOnPoison := flag.String("poison_run_script_file", "", "Execute script on detecting poison record")
+	detectPoisonRecords := flag.Bool("poison_detect_enable", true, "Turn on poison record detection, if server shutdown is disabled, AcraTranslator logs the poison record detection and returns error")
+	stopOnPoison := flag.Bool("poison_shutdown_enable", false, "On detecting poison record: log about poison record detection, stop and shutdown")
+	scriptOnPoison := flag.String("poison_run_script_file", "", "On detecting poison record: log about poison record detection, execute script, return decrypted data")
 
 	closeConnectionTimeout := flag.Int("incoming_connection_close_timeout", DEFAULT_WAIT_TIMEOUT, "Time that AcraTranslator will wait (in seconds) on stop signal before closing all connections")
 
-	verbose := flag.Bool("v", false, "Log to stderr")
-	debug := flag.Bool("d", false, "Turn on debug logging")
+	verbose := flag.Bool("v", false, "Log to stderr all INFO, WARNING and ERROR logs")
+	debug := flag.Bool("d", false, "Log everything to stderr")
 
 	err := cmd.Parse(DEFAULT_CONFIG_PATH, SERVICE_NAME)
 	if err != nil {
@@ -72,15 +79,12 @@ func main() {
 	// if log format was overridden
 	logging.CustomizeLogging(*loggingFormat, SERVICE_NAME)
 
-	log.Infof("Validating service configuration")
+	log.Infof("Validating service configuration...")
 	cmd.ValidateClientID(*secureSessionID)
 
-	if *debug {
-		logging.SetLogLevel(logging.LOG_DEBUG)
-	} else if *verbose {
-		logging.SetLogLevel(logging.LOG_VERBOSE)
-	} else {
-		logging.SetLogLevel(logging.LOG_DISCARD)
+	if len(*incomingConnectionHTTPString) == 0 && len(*incomingConnectionGRPCString) == 0 {
+		*incomingConnectionGRPCString = network.BuildConnectionString(network.GRPC_SCHEME, cmd.DEFAULT_ACRATRANSLATOR_GRPC_HOST, cmd.DEFAULT_ACRATRANSLATOR_GRPC_PORT, "")
+		log.Infof("No incoming connection string is set: by default gRPC connections are being listen %v", *incomingConnectionGRPCString)
 	}
 
 	// now it's stub as default values
@@ -94,7 +98,7 @@ func main() {
 	config.SetConfigPath(DEFAULT_CONFIG_PATH)
 	config.SetDebug(*debug)
 
-	log.Infof("Initialising keystore")
+	log.Infof("Initialising keystore...")
 	masterKey, err := keystore.GetMasterKeyFromEnvironment()
 	if err != nil {
 		log.WithError(err).Errorln("can't load master key")
@@ -111,7 +115,10 @@ func main() {
 			Errorln("Can't initialise keystore")
 		os.Exit(1)
 	}
+	log.Infof("Keystore init OK")
 
+	// --------- Config  -----------
+	log.Infof("Configuring transport...")
 	log.Infof("Selecting transport: use Secure Session transport wrapper")
 	config.ConnectionWrapper, err = network.NewSecureSessionConnectionWrapper(keyStore)
 	if err != nil {
@@ -151,6 +158,20 @@ func main() {
 		os.Exit(0)
 	})
 
-	log.Infof("Start listening to connections. Current PID: %v", os.Getpid())
+	// -------- START -----------
+
+	log.Infof("Setup ready. Start listening to connections. Current PID: %v", os.Getpid())
+
+	if *debug {
+		log.Infof("Enabling DEBUG log level")
+		logging.SetLogLevel(logging.LOG_DEBUG)
+	} else if *verbose {
+		log.Infof("Enabling VERBOSE log level")
+		logging.SetLogLevel(logging.LOG_VERBOSE)
+	} else {
+		log.Infof("Disabling future logs... Set -v -d to see logs")
+		logging.SetLogLevel(logging.LOG_DISCARD)
+	}
+
 	readerServer.Start(mainContext)
 }

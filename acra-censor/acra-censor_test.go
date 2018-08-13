@@ -1,3 +1,25 @@
+/*
+Copyright 2018, Cossack Labs Limited
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
+// Package acracensor represents separate firewall module for Acra. AcraCensor handles each query that
+// gets through AcraServer. You can setup the whitelist and the blacklist separately or simultaneously.
+// The order of priority for the lists is defined by their order in the configuration file.
+// Priority of work for one of the lists is the following: queries, followed by tables, followed by rules.
+//
+// https://github.com/cossacklabs/acra/wiki/AcraCensor
 package acracensor
 
 import (
@@ -159,6 +181,27 @@ func TestWhitelistPatterns(t *testing.T) {
 	//test SELECT * FROM company %%WHERE%%
 	testWhitelistStarPattern(t)
 }
+
+var selectPatternQueries = []string{
+	"INSERT SalesStaff1 VALUES (2, 'Michael', 'Blythe'), (3, 'Linda', 'Mitchell'),(4, 'Jillian', 'Carson'), (5, 'Garrett', 'Vargas');",
+	"INSERT INTO SalesStaff2 (StaffGUID, FirstName, LastName) VALUES (NEWID(), 'Stephen', 'Jiang');",
+	"INSERT INTO SalesStaff3 (StaffID, FullNameTbl) VALUES (X, M);",
+	"INSERT INTO Customers VALUES ('Cardinal', 'Stavanger', 'Norway');",
+	"INSERT INTO dbo.Points (PointValue) VALUES ('1,99');",
+	"INSERT INTO dbo.Points (Type, PointValue) VALUES ('Point', '1,5');",
+	"SELECT EMP_ID, LAST_NAME FROM EMPLOYEE_TBL WHERE CITY = 'Seattle'",
+	"SELECT EMP_ID, LAST_NAME FROM EMPLOYEE WHERE NAME1 = 'Seattle' ORDER BY EMP_ID;",
+	"SELECT EMP_ID FROM EMPLOYEE, EMPLOYEE_TBL WHERE CITY = 'Seattle' ORDER BY EMP_ID;",
+	"SELECT EMP_ID, LAST_NAME FROM EMPLOYEE WHERE CITY1 = 'INDIANAPOLIS' ORDER BY EMP_ID asc;",
+	"SELECT EMP_ID, LAST_NAME FROM EMPLOYEE_TBL AS EMPL_TBL WHERE CITY2 = 'Seattle' ORDER BY EMP_ID;",
+	"select songName from t where personName in ('Ryan', 'Holly') group by songName having count(distinct personName) = 10",
+	"SELECT SUM(Salary) FROM Employee WHERE Emp_Age < 30;",
+	"SELECT AVG(Price) FROM Products;",
+	"SELECT A, B",
+	"SELECT A",
+	"SELECT 1",
+}
+
 func testWhitelistSelectPattern(t *testing.T) {
 	var err error
 
@@ -167,49 +210,21 @@ func testWhitelistSelectPattern(t *testing.T) {
 	whitelist := handlers.NewWhitelistHandler()
 	censor.AddHandler(whitelist)
 
-	queries := []string{
-		"INSERT SalesStaff1 VALUES (2, 'Michael', 'Blythe'), (3, 'Linda', 'Mitchell'),(4, 'Jillian', 'Carson'), (5, 'Garrett', 'Vargas');",
-		"INSERT INTO SalesStaff2 (StaffGUID, FirstName, LastName) VALUES (NEWID(), 'Stephen', 'Jiang');",
-		"INSERT INTO SalesStaff3 (StaffID, FullName) VALUES (X, 'Y');",
-		"INSERT INTO SalesStaff3 (StaffID, FullName) VALUES (X, 'Z');",
-		"INSERT INTO SalesStaff3 (StaffID, FullNameTbl) VALUES (X, M);",
-		"INSERT INTO X.Customers (CustomerName, ContactName, Address, City, PostalCode, Country) VALUES ('Cardinal', 'Tom B. Erichsen', 'Skagen 21', 'Stavanger', '4006', 'Norway');",
-		"INSERT INTO Customers (CustomerName, City, Country) VALUES ('Cardinal', 'Stavanger', 'Norway');",
-		"INSERT INTO Production (Name, UnitMeasureCode,	ModifiedDate) VALUES ('Square Yards', 'Y2', GETDATE());",
-		"INSERT INTO T1 (Name, UnitMeasureCode,	ModifiedDate) VALUES ('Square Yards', 'Y2', GETDATE());",
-		"INSERT INTO dbo.Points (Type, PointValue) VALUES ('Point', '1,5');",
-		"INSERT INTO dbo.Points (PointValue) VALUES ('1,99');",
-		"SELECT EMP_ID, LAST_NAME FROM EMPLOYEE_TBL WHERE CITY = 'Seattle'",
-		"SELECT EMP_ID, LAST_NAME FROM EMPLOYEE WHERE NAME1 = 'Seattle' ORDER BY EMP_ID;",
-		"SELECT TEST_COLUMN1 FROM TEST_TABLE WHERE CITY = 'Seattle'",
-		"SELECT EMP_ID FROM EMPLOYEE, EMPLOYEE_TBL WHERE CITY = 'Seattle' ORDER BY EMP_ID;",
-		"SELECT EMP_ID, LAST_NAME FROM EMPLOYEE WHERE CITY1 = 'INDIANAPOLIS' ORDER BY EMP_ID asc;",
-		"SELECT EMP_ID, LAST_NAME FROM EMPLOYEE_TBL AS EMPL_TBL WHERE CITY2 = 'Seattle' ORDER BY EMP_ID;",
-		"select songName from t where personName in ('Ryan', 'Holly') group by songName having count(distinct personName) = 10",
-		"SELECT SUM(Salary) FROM Employee WHERE Emp_Age < 30;",
-		"SELECT AVG(Price) FROM Products;",
-		"SELECT A, B",
-		"SELECT X, Y",
-		"SELECT A",
-		"SELECT Y",
-	}
 	pattern := "%%SELECT%%"
 	err = whitelist.AddPatterns([]string{pattern})
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	const InsertQueryCounter = 11
-	//Queries that should be passed by specified pattern have indexes: [0 .. 10] (all insert queries)
-	for i, query := range queries {
+	for i, query := range selectPatternQueries {
 		err := censor.HandleQuery(query)
-		if i < InsertQueryCounter {
+		if !strings.HasPrefix(strings.ToLower(query), "select") {
 			if err != handlers.ErrWhitelistPatternMismatch {
-				t.Fatal(err, "Whitelist pattern passed query. \nPattern:", pattern, "\nQuery:", queries[i])
+				t.Fatal(err, "Whitelist pattern passed query. \nPattern:", pattern, "\nQuery:", selectPatternQueries[i])
 			}
 		} else {
 			if err != nil {
-				t.Fatal(err, "Whitelist pattern blocked query. \nPattern:", pattern, "\nQuery:", queries[i])
+				t.Fatal(err, "Whitelist pattern blocked query. \nPattern:", pattern, "\nQuery:", selectPatternQueries[i])
 			}
 		}
 	}
@@ -229,13 +244,11 @@ func testWhitelistColumnsPattern(t *testing.T) {
 	}
 	acceptableQueries := []string{
 		"SELECT A, B",
-		"SELECT X1, X2",
-		"SELECT col1, col2",
+		"SELECT 1, GETDATE()",
 	}
 	blockableQueries := []string{
 		"SELECT A",
 		"SELECT A, B, C",
-		"SELECT A, B, C, D",
 	}
 	for _, query := range acceptableQueries {
 		err = censor.HandleQuery(query)
@@ -258,14 +271,13 @@ func testWhitelistColumnsPattern(t *testing.T) {
 	}
 	acceptableQueries = []string{
 		"SELECT A, B FROM testTable",
-		"SELECT A, X2 FROM testTable",
-		"SELECT A, col2 FROM testTable",
+		"SELECT A, 2 FROM testTable",
+		"SELECT A, GETDATE() FROM testTable",
 	}
 	blockableQueries = []string{
 		"SELECT A FROM testTable",
 		"SELECT B, A FROM testTable",
 		"SELECT A, B, C FROM testTable",
-		"SELECT A, B, C, D FROM testTable",
 	}
 	for _, query := range acceptableQueries {
 		err = censor.HandleQuery(query)
@@ -287,14 +299,13 @@ func testWhitelistColumnsPattern(t *testing.T) {
 	}
 	acceptableQueries = []string{
 		"SELECT A, B FROM testTable",
-		"SELECT X2, B FROM testTable",
-		"SELECT col2, B FROM testTable",
+		"SELECT 2, B FROM testTable",
+		"SELECT GETDATE(), B FROM testTable",
 	}
 	blockableQueries = []string{
 		"SELECT A FROM testTable",
 		"SELECT B, A FROM testTable",
 		"SELECT A, B, C FROM testTable",
-		"SELECT A, B, C, D FROM testTable",
 	}
 	for _, query := range acceptableQueries {
 		err = censor.HandleQuery(query)
@@ -325,20 +336,18 @@ func testWhitelistWherePattern(t *testing.T) {
 	acceptableQueries := []string{
 		"SELECT a, b, c FROM z WHERE a = 'someValue'",
 		"SELECT a, b, c FROM z WHERE a = b",
-		"SELECT a, b, c FROM z WHERE a < b",
 		"SELECT a, b, c FROM z WHERE a = 'someValue' and b = 2 or c between 20 and 30",
 		"SELECT a, b, c FROM z WHERE AGE BETWEEN 25 AND 65000",
 		"SELECT a, b, c FROM z WHERE NAME LIKE 'Pa%'",
 		"SELECT a, b, c FROM z WHERE AGE IN ( 25, 27 )",
 		"SELECT a, b, c FROM z WHERE AGE NOT IN ( 25, 27 )",
+		"SELECT a, b, c FROM z WHERE AGE IS NULL",
 		"SELECT a, b, c FROM z WHERE AGE > (SELECT AGE FROM company10 WHERE SALARY > 65000)",
 		"SELECT a, b, c FROM z WHERE EXISTS (SELECT AGE FROM company11 WHERE SALARY > 65000)",
-		"SELECT a, b, c FROM z WHERE EXISTS (SELECT AGE FROM company WHERE SALARY > 65000)",
 		"SELECT a, b, c FROM z WHERE A=(SELECT AGE FROM company WHERE SALARY > 65000 limit 1) and B=(SELECT AGE FROM company123 WHERE SALARY > 65000 limit 1)",
 	}
 	blockableQueries := []string{
 		"SELECT a, b, c FROM x WHERE a = 'someValue'",
-		"SELECT a, b, c FROM y WHERE a = 'someValue'",
 		"SELECT a, b FROM z WHERE a = 'someValue'",
 		"SELECT a, b, c FROM x WHERE a = 'someValue' and b = 48 or c between 10 and 50",
 		"SELECT age, age1 FROM company3 WHERE AGE IS NOT NULL",
@@ -349,7 +358,6 @@ func testWhitelistWherePattern(t *testing.T) {
 		"SELECT betta, gamma FROM company8 WHERE AGE IN ( 25, 27 )",
 		"SELECT name, lastname FROM company9 WHERE AGE NOT IN ( 25, 27 )",
 		"SELECT a, b FROM company10 WHERE AGE > (SELECT AGE FROM company10 WHERE SALARY > 65000)",
-		"SELECT age FROM company11 WHERE EXISTS (SELECT AGE FROM company11 WHERE SALARY > 65000)",
 		"SELECT age FROM company11 WHERE EXISTS (SELECT AGE FROM company WHERE SALARY > 65000)",
 		"SELECT age FROM company11 WHERE A=(SELECT AGE FROM company WHERE SALARY > 65000 limit 1) and B=(SELECT AGE FROM company123 WHERE SALARY > 65000 limit 1)",
 		"SELECT lastname FROM another_table INNER JOIN (SELECT age FROM company WHERE id = 1) AS t ON t.id=another_table.id WHERE AGE NOT IN (25, 27)",
@@ -383,16 +391,35 @@ func testWhitelistValuePattern(t *testing.T) {
 	}
 
 	acceptableQueries := []string{
+		// string
 		"SELECT a, b FROM t WHERE ID = 'someValue_testValue_1234567890'",
-		"SELECT a, b FROM t WHERE ID = 'someValue'",
+		// int
+		"SELECT a, b FROM t WHERE ID = 1",
+		// null
+		"SELECT a, b FROM t WHERE ID = NULL",
+		// boolean
+		"SELECT a, b FROM t WHERE ID = TRUE",
+		// subquery
+		"SELECT a, b FROM t WHERE ID = (select 1)",
+		// float
+		"SELECT a, b FROM t WHERE ID = 1.0",
+		// function
+		"SELECT a, b FROM t WHERE ID = Date()",
 	}
 	blockableQueries := []string{
-		"SELECT a, b FROM t WHERE someParameter = 'someValue208934278935789'",
-		"SELECT a, b, c FROM y WHERE a = 'someValue'",
-		"SELECT a, b FROM z WHERE a = 'someValue'",
+		// different column name in WHERE
 		"SELECT a, b FROM t WHERE NonID = 'someValue'",
-		"SELECT a, b, c, d FROM t WHERE a = 1 OR b = 1.0 OR c = TRUE OR d = NULL",
-		"SELECT a, b FROM t WHERE a = 1 and b = 2.0",
+		// two conditions in WHERE
+		"SELECT a, b FROM t WHERE ID = 'someValue208934278935789' AND B=2",
+		// 3 columns in SELECT
+		"SELECT a, b, c FROM y WHERE a = 'someValue'",
+		// different table in FROM
+		"SELECT a, b FROM z WHERE a = 'someValue'",
+		// TODO unsupported casts (postgresql like)
+		// cast
+		//"SELECT a, b FROM t WHERE ID = CAST( '123' AS bigint )",
+		// cast
+		//"SELECT a, b FROM t WHERE ID = '123'::integer",
 	}
 	for _, query := range acceptableQueries {
 		err = censor.HandleQuery(query)
@@ -415,9 +442,22 @@ func testWhitelistValuePattern(t *testing.T) {
 	}
 
 	acceptableQueries = []string{
+		// string
 		"SELECT a, b FROM t WHERE ID = 'someValue_testValue_1234567890'",
-		"SELECT a, b FROM t WHERE ID = 'someValue'",
-		"SELECT a, b, c, d FROM t WHERE ID = 'someValue'",
+		// int
+		"SELECT a, b FROM t WHERE ID = 1",
+		// null
+		"SELECT a, b FROM t WHERE ID = NULL",
+		// boolean
+		"SELECT a, b FROM t WHERE ID = TRUE",
+		// subquery
+		"SELECT a, b FROM t WHERE ID = (select 1)",
+		// float
+		"SELECT a, b FROM t WHERE ID = 1.0",
+		// function
+		"SELECT a, b FROM t WHERE ID = Date()",
+		// with ALL (*)
+		"SELECT * FROM t WHERE ID = NULL",
 	}
 
 	for _, query := range acceptableQueries {
@@ -637,49 +677,21 @@ func testBlacklistSelectPattern(t *testing.T) {
 	blacklist := handlers.NewBlacklistHandler()
 	censor.AddHandler(blacklist)
 
-	queries := []string{
-		"SELECT EMP_ID, LAST_NAME FROM EMPLOYEE_TBL WHERE CITY = 'Seattle'",
-		"SELECT EMP_ID, LAST_NAME FROM EMPLOYEE WHERE NAME1 = 'Seattle' ORDER BY EMP_ID;",
-		"SELECT TEST_COLUMN1 FROM TEST_TABLE WHERE CITY = 'Seattle'",
-		"SELECT EMP_ID FROM EMPLOYEE, EMPLOYEE_TBL WHERE CITY = 'Seattle' ORDER BY EMP_ID;",
-		"SELECT EMP_ID, LAST_NAME FROM EMPLOYEE WHERE CITY1 = 'INDIANAPOLIS' ORDER BY EMP_ID asc;",
-		"SELECT EMP_ID, LAST_NAME FROM EMPLOYEE_TBL AS EMPL_TBL WHERE CITY2 = 'Seattle' ORDER BY EMP_ID;",
-		"select songName from t where personName in ('Ryan', 'Holly') group by songName having count(distinct personName) = 10",
-		"SELECT SUM(Salary) FROM Employee WHERE Emp_Age < 30;",
-		"SELECT AVG(Price) FROM Products;",
-		"SELECT A, B",
-		"SELECT X, Y",
-		"SELECT A",
-		"SELECT Y",
-		"INSERT SalesStaff1 VALUES (2, 'Michael', 'Blythe'), (3, 'Linda', 'Mitchell'),(4, 'Jillian', 'Carson'), (5, 'Garrett', 'Vargas');",
-		"INSERT INTO SalesStaff2 (StaffGUID, FirstName, LastName) VALUES (NEWID(), 'Stephen', 'Jiang');",
-		"INSERT INTO SalesStaff3 (StaffID, FullName) VALUES (X, 'Y');",
-		"INSERT INTO SalesStaff3 (StaffID, FullName) VALUES (X, 'Z');",
-		"INSERT INTO SalesStaff3 (StaffID, FullNameTbl) VALUES (X, M);",
-		"INSERT INTO X.Customers (CustomerName, ContactName, Address, City, PostalCode, Country) VALUES ('Cardinal', 'Tom B. Erichsen', 'Skagen 21', 'Stavanger', '4006', 'Norway');",
-		"INSERT INTO Customers (CustomerName, City, Country) VALUES ('Cardinal', 'Stavanger', 'Norway');",
-		"INSERT INTO Production (Name, UnitMeasureCode,	ModifiedDate) VALUES ('Square Yards', 'Y2', GETDATE());",
-		"INSERT INTO T1 (Name, UnitMeasureCode,	ModifiedDate) VALUES ('Square Yards', 'Y2', GETDATE());",
-		"INSERT INTO dbo.Points (Type, PointValue) VALUES ('Point', '1,5');",
-		"INSERT INTO dbo.Points (PointValue) VALUES ('1,99');",
-		"DROP TABLE table_name",
-	}
 	blacklistPattern := "%%SELECT%%"
 	err = blacklist.AddPatterns([]string{blacklistPattern})
 	if err != nil {
 		t.Fatal(err)
 	}
-	const SelectQueryCount = 13
 	//Queries that should be blocked by specified pattern have indexes: [0 .. 12] (all select queries)
-	for i, query := range queries {
+	for i, query := range selectPatternQueries {
 		err := censor.HandleQuery(query)
-		if i < SelectQueryCount {
+		if strings.HasPrefix(strings.ToLower(query), "select") {
 			if err != handlers.ErrBlacklistPatternMatch {
-				t.Fatal(err, "Blacklist pattern passed query. \nPattern:", blacklistPattern+"\nQuery:", queries[i])
+				t.Fatal(err, "Blacklist pattern passed query. \nPattern:", blacklistPattern+"\nQuery:", selectPatternQueries[i])
 			}
 		} else {
 			if err != nil {
-				t.Fatal(err, "\nPattern"+blacklistPattern, "\nQuery"+queries[i])
+				t.Fatal(err, "\nPattern"+blacklistPattern, "\nQuery"+selectPatternQueries[i])
 			}
 		}
 	}
@@ -1303,7 +1315,7 @@ func TestQueryCapture(t *testing.T) {
 	handler.RedactAndCheckQuery(testQuery)
 
 	//wait until serialization completes
-	time.Sleep(handler.GetSerializationTimeout() + 10*time.Millisecond)
+	time.Sleep(handler.GetSerializationTimeout() + extraWaitTime)
 
 	result, err = ioutil.ReadFile(tmpFile.Name())
 	if err != nil {
