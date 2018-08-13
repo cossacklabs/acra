@@ -8,7 +8,7 @@ _Core_:
 
   AcraTranslator is a lightweight server that receives [AcraStructs](https://github.com/cossacklabs/acra/wiki/AcraStruct) and returns the decrypted data. AcraTranslator doesn’t care about the source of the data, it accepts AcraStructs via HTTP or gRPC API. An application can store AcraStructs anywhere it is convenient: as cells in the database, as files in the file storage (local or cloud storage, like [AWS S3](https://aws.amazon.com/ru/s3/)). An application sends AcraStructs as binary data and receives plaintext (or decryption error) from AcraTranslator.
 
-  However, sending plaintext data via a non-secure channel is a bad idea, so AcraTranslator requires the use of [Themis Secure Session](Secure Session) encryption channel (which is basically encrypted TCP/unix sockets). To establish a Secure Session connection, an application doesn’t need to include the crypto-code itself, only to direct the traffic through AcraConnector instead.
+  However, sending plaintext data via a non-secure channel is a bad idea, so AcraTranslator requires the use of [Themis Secure Session](https://github.com/cossacklabs/themis/wiki/Secure-Session-cryptosystem) encryption channel (which is basically encrypted TCP/unix sockets). To establish a Secure Session connection, an application doesn’t need to include the crypto-code itself, only to direct the traffic through AcraConnector instead.
 
   AcraTranslator supports AcraStructs via HTTP and gRPC API, uses in-memory LRU cache to store encryption keys and detects poison records. AcraTranslator is shipped as pre-built binary and as Docker container.
 
@@ -51,7 +51,7 @@ _Core_:
 
   Read the detailed description and usage examples on [AcraCensor page](https://github.com/cossacklabs/acra/wiki/AcraCensor).
   
-  ([#243](https://github.com/cossacklabs/acra/pull/243), [#238](https://github.com/cossacklabs/acra/pull/238), [#231](https://github.com/cossacklabs/acra/pull/231), [#226](https://github.com/cossacklabs/acra/pull/226), [#217](https://github.com/cossacklabs/acra/pull/217))
+  ([#245](https://github.com/cossacklabs/acra/pull/245), [#243](https://github.com/cossacklabs/acra/pull/243), [#238](https://github.com/cossacklabs/acra/pull/238), [#231](https://github.com/cossacklabs/acra/pull/231), [#226](https://github.com/cossacklabs/acra/pull/226), [#217](https://github.com/cossacklabs/acra/pull/217))
 
   - Improved AcraCensor performance for queries matching ([#208](https://github.com/cossacklabs/acra/pull/208)).
 
