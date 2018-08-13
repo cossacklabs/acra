@@ -249,52 +249,68 @@ func handleSelectWherePattern(queryNodes, patternNodes []sqlparser.SQLNode) bool
 
 // handle SELECT a, b FROM t1 WHERE userID=%%VALUE%% pattern
 func handleValuePattern(queryNodes, patternNodes []sqlparser.SQLNode) bool {
-	patternNodeOffset := 0
-	queryNodeOffset := 0
+	querySelect, ok := queryNodes[0].(*sqlparser.Select)
+	if !ok {
+		return false
+	}
+	patternSelect, ok := patternNodes[0].(*sqlparser.Select)
+	if !ok {
+		return false
+	}
 
-	matchDetected := false
-	for index := 1; index < len(patternNodes); index++ {
-		//This means that checked query nodes are equal to pattern and no more nodes remained, so query matches pattern (no matter if pattern has remained nodes)
-		if index+queryNodeOffset >= len(queryNodes) {
-			break
-		}
-		//This means that checked query nodes are equal to pattern but some more nodes remained, so query doesn't match pattern
-		if index+patternNodeOffset >= len(patternNodes) {
-			return false
-		}
-		//Start check matching
-		if reflect.DeepEqual(patternNodes[index+patternNodeOffset], queryNodes[index+queryNodeOffset]) {
+	// collect only SelectExpr, From, Where, OrderBy ... nodes without their children
+	queryTopNodes, err := getTopNodes(querySelect)
+	if err != nil {
+		return false
+	}
+	patternTopNodes, err := getTopNodes(patternSelect)
+	if err != nil {
+		return false
+	}
+	hasStar := starFound(patternSelect.SelectExprs)
+	for i := 0; i < len(queryTopNodes); i++ {
+		patternNode := patternTopNodes[i]
+		queryNode := queryTopNodes[i]
+		switch patternNode.(type) {
+		case sqlparser.SelectExprs:
+			if hasStar {
+				// if select * in pattern then skip columns in query
+				continue
+			}
+		case *sqlparser.Where:
+			patternWhereNodes, err := getTopNodes(patternNode)
+			if err != nil {
+				return false
+			}
+			queryWhereNodes, err := getTopNodes(queryNode)
+			if err != nil {
+				return false
+			}
+			if len(patternWhereNodes) != len(queryWhereNodes) {
+				return false
+			}
+			for i, patternWhereNode := range patternWhereNodes {
+				queryWhereNode := queryWhereNodes[i]
+				if patternNodeComparison, ok := patternWhereNode.(*sqlparser.ComparisonExpr); ok && patternNodeComparison != nil {
+					if queryNodeComparison, ok := queryWhereNode.(*sqlparser.ComparisonExpr); ok && queryNodeComparison != nil {
+						if IsEqualComparisonNode(patternNodeComparison, queryNodeComparison) {
+							continue
+						}
+					}
+				}
+				if !reflect.DeepEqual(patternWhereNode, queryWhereNode) {
+					return false
+				}
+			}
 			continue
 		}
-		//handle '*' case
-		if patternSelectExprs, ok := patternNodes[index+patternNodeOffset].(sqlparser.SelectExprs); ok {
-			if _, ok := queryNodes[index+queryNodeOffset].(sqlparser.SelectExprs); ok {
-				if starFound(patternSelectExprs) {
-					for i := index; i < len(queryNodes); i++ {
-						if _, ok := queryNodes[i].(sqlparser.TableExprs); ok {
-							break
-						}
-						queryNodeOffset++
-					}
-					for i := index; i < len(patternNodes); i++ {
-						if _, ok := patternNodes[i].(sqlparser.TableExprs); ok {
-							break
-						}
-						patternNodeOffset++
-					}
-					continue
-				}
-			}
+
+		if !reflect.DeepEqual(patternNode, queryNode) {
+			return false
 		}
-		if patternNodeComparison, ok := patternNodes[index+patternNodeOffset].(*sqlparser.ComparisonExpr); ok && patternNodeComparison != nil {
-			if queryNodeComparison, ok := queryNodes[index+queryNodeOffset].(*sqlparser.ComparisonExpr); ok && queryNodeComparison != nil {
-				if IsEqualComparisonNode(patternNodeComparison, queryNodeComparison) {
-					matchDetected = true
-				}
-			}
-		}
+
 	}
-	return matchDetected
+	return true
 }
 
 func IsEqualComparisonNode(patternNode, queryNode *sqlparser.ComparisonExpr) bool {
