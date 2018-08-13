@@ -1261,10 +1261,10 @@ func TestQueryCapture(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	expected := "{\"raw_query\":\"SELECT Student_ID FROM STUDENT\",\"_blocked_by_web_config\":false}\n" +
-		"{\"raw_query\":\"SELECT * FROM STUDENT\",\"_blocked_by_web_config\":false}\n" +
-		"{\"raw_query\":\"SELECT * FROM X\",\"_blocked_by_web_config\":false}\n" +
-		"{\"raw_query\":\"SELECT * FROM Y\",\"_blocked_by_web_config\":false}\n"
+	expected := "{\"raw_query\":\"SELECT Student_ID FROM STUDENT\",\"_blacklisted_by_web_config\":false}\n" +
+		"{\"raw_query\":\"SELECT * FROM STUDENT\",\"_blacklisted_by_web_config\":false}\n" +
+		"{\"raw_query\":\"SELECT * FROM X\",\"_blacklisted_by_web_config\":false}\n" +
+		"{\"raw_query\":\"SELECT * FROM Y\",\"_blacklisted_by_web_config\":false}\n"
 
 	defaultTimeout := handler.GetSerializationTimeout()
 	handler.SetSerializationTimeout(50 * time.Millisecond)
@@ -1282,11 +1282,11 @@ func TestQueryCapture(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	expected = "{\"raw_query\":\"SELECT Student_ID FROM STUDENT\",\"_blocked_by_web_config\":false}\n" +
-		"{\"raw_query\":\"SELECT * FROM STUDENT\",\"_blocked_by_web_config\":false}\n" +
-		"{\"raw_query\":\"SELECT * FROM X\",\"_blocked_by_web_config\":false}\n" +
-		"{\"raw_query\":\"SELECT * FROM Y\",\"_blocked_by_web_config\":false}\n" +
-		"{\"raw_query\":\"SELECT * FROM Z\",\"_blocked_by_web_config\":false}\n"
+	expected = "{\"raw_query\":\"SELECT Student_ID FROM STUDENT\",\"_blacklisted_by_web_config\":false}\n" +
+		"{\"raw_query\":\"SELECT * FROM STUDENT\",\"_blacklisted_by_web_config\":false}\n" +
+		"{\"raw_query\":\"SELECT * FROM X\",\"_blacklisted_by_web_config\":false}\n" +
+		"{\"raw_query\":\"SELECT * FROM Y\",\"_blacklisted_by_web_config\":false}\n" +
+		"{\"raw_query\":\"SELECT * FROM Z\",\"_blacklisted_by_web_config\":false}\n"
 
 	time.Sleep(handler.GetSerializationTimeout() + extraWaitTime)
 	result, err = ioutil.ReadFile(tmpFile.Name())
@@ -1310,11 +1310,11 @@ func TestQueryCapture(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	expectedPrefix := "{\"raw_query\":\"SELECT Student_ID FROM STUDENT\",\"_blocked_by_web_config\":false}\n" +
-		"{\"raw_query\":\"SELECT * FROM STUDENT\",\"_blocked_by_web_config\":false}\n" +
-		"{\"raw_query\":\"SELECT * FROM X\",\"_blocked_by_web_config\":false}\n" +
-		"{\"raw_query\":\"SELECT * FROM Y\",\"_blocked_by_web_config\":false}\n" +
-		"{\"raw_query\":\"SELECT * FROM Z\",\"_blocked_by_web_config\":false}\n" +
+	expectedPrefix := "{\"raw_query\":\"SELECT Student_ID FROM STUDENT\",\"_blacklisted_by_web_config\":false}\n" +
+		"{\"raw_query\":\"SELECT * FROM STUDENT\",\"_blacklisted_by_web_config\":false}\n" +
+		"{\"raw_query\":\"SELECT * FROM X\",\"_blacklisted_by_web_config\":false}\n" +
+		"{\"raw_query\":\"SELECT * FROM Y\",\"_blacklisted_by_web_config\":false}\n" +
+		"{\"raw_query\":\"SELECT * FROM Z\",\"_blacklisted_by_web_config\":false}\n" +
 		"{\"raw_query\":\"select songName from t where personName in"
 
 	suffix := strings.TrimPrefix(strings.ToUpper(string(result)), strings.ToUpper(expectedPrefix))
