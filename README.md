@@ -48,22 +48,47 @@ Acra relies on our cryptographic library [Themis](https://www.github.com/cossack
 
 ## Availability
 
-* Acra source builds and tests with Go versions 1.8 – 1.10.
-* Acra is known to build on: 
+### Client-side
 
-| Distributive | |
-|---------------|------|
-| CentOS 7 | x86_64 |
-| Debian Stretch (9) | x86_64/i386 |
-| Debian Jessie (8) | x86_64/i386 |
-| Ubuntu Bionic (18.04) | x86_64 |
-| Ubuntu Artful (17.10) | x86_64/i386 |
-| Ubuntu Xenial (16.04) | x86_64/i386 |
-| Ubuntu Trusty (14.04) | x86_64/i386 |
+[AcraWriter](https://github.com/cossacklabs/acra/wiki/AcraConnector-and-AcraWriter#acrawriter) is a client-side library that encrypts data into a special binary format called [AcraStruct](https://github.com/cossacklabs/acra/wiki/AcraStruct). AcraWriter is available for Ruby, Python, Go, NodeJS, iOS and PHP, but you can easily [generate AcraStruct containers](https://github.com/cossacklabs/acra/wiki/Acrawriter-installation) with [Themis](https://github.com/cossacklabs/themis) for any platform you want. 
 
-* Acra currently supports **PostgreSQL 9.4+** as the database backend. 
-* Starting with Acra [`0.77.0`](https://github.com/cossacklabs/acra/releases/tag/0.77.0), Acra supports **MySQL 5.7+** database, but it is still a fresh feature, which we are extensively testing to ensure its full support. Please report any MySQL bugs you may encounter through [Issues](https://github.com/cossacklabs/acra/issues). MongoDB support is coming soon, too. 
-* Acra has [writer libraries](https://github.com/cossacklabs/acra/wiki/Acrawriter-installation) for Ruby, Python, Go, and PHP, but you can easily [generate AcraStruct containers](https://github.com/cossacklabs/acra/wiki/AcraStruct) with [Themis](https://github.com/cossacklabs/themis) for any platform you want. 
+| Client platform |  Documentation and guides | Examples |
+| :----- | :----- | :------ |
+| 🐹 Go | [Installation guide](https://github.com/cossacklabs/acra/wiki/AcraWriter-installation#golang) | [examples/golang](https://github.com/cossacklabs/acra/tree/master/examples/golang) |
+| 🐍 Python | [Installation guide](https://github.com/cossacklabs/acra/wiki/AcraWriter-installation#python) | [examples/python](https://github.com/cossacklabs/acra/tree/master/examples/python) |
+| ♦️ Ruby | [Installation guide](https://github.com/cossacklabs/acra/wiki/AcraWriter-installation#ruby) | [examples/ruby](https://github.com/cossacklabs/acra/tree/master/examples/ruby) |
+| 📱 Objective-C (iOS) | [Installation guide](https://github.com/cossacklabs/acra/wiki/AcraWriter-installation#ios) | [examples/objc](https://github.com/cossacklabs/acra/tree/master/examples/objc) |
+| 🐘 PHP | [Installation guide](https://github.com/cossacklabs/acra/wiki/AcraWriter-installation#php) | [examples/php](https://github.com/cossacklabs/acra/tree/master/examples/php) |
+| 🍭 Javascript (NodeJS) | [Installation guide](https://github.com/cossacklabs/acra/wiki/AcraWriter-installation#nodejs) | [examples/nodejs](https://github.com/cossacklabs/acra/tree/master/examples/nodejs) |
+
+### Server-side
+
+* Server-side Acra components should run as a separate services/servers. 
+* There are three possible ways to install and launch Acra components:
+  - [download and run Docker containers](https://github.com/cossacklabs/acra/wiki/Quick-start-guide#using-acra-with-docker-the-recommended-way), or use our Docker-based demo stand to deploy all you need using one command.
+  - [download pre-built Acra binaries](https://github.com/cossacklabs/acra/wiki/Quick-start-guide#installing-acra-from-the-cossack-labs-repository) for supported distributives (see list below).
+  - [build from sources](https://github.com/cossacklabs/acra/wiki/Quick-start-guide#installing-from-github---install-acraserver) (Acra is built and tested with Go versions 1.8 – 1.10).
+  
+* Acra binaries are built for: 
+
+| Distributive | Instruction set | Download and install |
+|---------------| ------| ------|
+| CentOS 7 | x86_64 | [using rpm](https://github.com/cossacklabs/acra/wiki/Quick-start-guide#centos--rhel--oel) |
+| Debian Stretch (9)<br/> Debian Jessie (8) | x86_64/i386 | [using apt-get](https://github.com/cossacklabs/acra/wiki/Quick-start-guide#debian--ubuntu)|
+| Ubuntu Bionic (18.04) | x86_64 | [using apt-get](https://github.com/cossacklabs/acra/wiki/Quick-start-guide#debian--ubuntu)||
+| Ubuntu Artful (17.10)<br/> Ubuntu Xenial (16.04)<br/>Ubuntu Trusty (14.04)| x86_64/i386 |[using apt-get](https://github.com/cossacklabs/acra/wiki/Quick-start-guide#debian--ubuntu)| |
+
+### Database requirements
+
+AcraServer is a server-side service that works as database proxy: it sits transparently between your application and the database, listens silently to all the traffic that's coming to and from the database. 
+
+Supported databases:
+
+| RDBMS | Version |
+|--------| ------|
+| MySQL | 5.7+ |
+| PostgreSQL | 9.4+ |
+
 
 ## How does Acra work?
 
@@ -96,7 +121,7 @@ The typical Acra workflow looks like this:
 
 ## Additionally
 
-We fill and updte the [Wiki documentation](https://github.com/cossacklabs/acra/wiki) with useful articles about the core Acra concepts, use cases, details on cryptographic, and security design.
+We fill and update the [Wiki documentation](https://github.com/cossacklabs/acra/wiki) with useful articles about the core Acra concepts, use cases, details on cryptographic, and security design.
 
 You might want to:
 
