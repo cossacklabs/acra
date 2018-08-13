@@ -172,18 +172,12 @@ func testWhitelistSelectPattern(t *testing.T) {
 	queries := []string{
 		"INSERT SalesStaff1 VALUES (2, 'Michael', 'Blythe'), (3, 'Linda', 'Mitchell'),(4, 'Jillian', 'Carson'), (5, 'Garrett', 'Vargas');",
 		"INSERT INTO SalesStaff2 (StaffGUID, FirstName, LastName) VALUES (NEWID(), 'Stephen', 'Jiang');",
-		"INSERT INTO SalesStaff3 (StaffID, FullName) VALUES (X, 'Y');",
-		"INSERT INTO SalesStaff3 (StaffID, FullName) VALUES (X, 'Z');",
 		"INSERT INTO SalesStaff3 (StaffID, FullNameTbl) VALUES (X, M);",
-		"INSERT INTO X.Customers (CustomerName, ContactName, Address, City, PostalCode, Country) VALUES ('Cardinal', 'Tom B. Erichsen', 'Skagen 21', 'Stavanger', '4006', 'Norway');",
-		"INSERT INTO Customers (CustomerName, City, Country) VALUES ('Cardinal', 'Stavanger', 'Norway');",
-		"INSERT INTO Production (Name, UnitMeasureCode,	ModifiedDate) VALUES ('Square Yards', 'Y2', GETDATE());",
-		"INSERT INTO T1 (Name, UnitMeasureCode,	ModifiedDate) VALUES ('Square Yards', 'Y2', GETDATE());",
-		"INSERT INTO dbo.Points (Type, PointValue) VALUES ('Point', '1,5');",
+		"INSERT INTO Customers VALUES ('Cardinal', 'Stavanger', 'Norway');",
 		"INSERT INTO dbo.Points (PointValue) VALUES ('1,99');",
+		"INSERT INTO dbo.Points (Type, PointValue) VALUES ('Point', '1,5');",
 		"SELECT EMP_ID, LAST_NAME FROM EMPLOYEE_TBL WHERE CITY = 'Seattle'",
 		"SELECT EMP_ID, LAST_NAME FROM EMPLOYEE WHERE NAME1 = 'Seattle' ORDER BY EMP_ID;",
-		"SELECT TEST_COLUMN1 FROM TEST_TABLE WHERE CITY = 'Seattle'",
 		"SELECT EMP_ID FROM EMPLOYEE, EMPLOYEE_TBL WHERE CITY = 'Seattle' ORDER BY EMP_ID;",
 		"SELECT EMP_ID, LAST_NAME FROM EMPLOYEE WHERE CITY1 = 'INDIANAPOLIS' ORDER BY EMP_ID asc;",
 		"SELECT EMP_ID, LAST_NAME FROM EMPLOYEE_TBL AS EMPL_TBL WHERE CITY2 = 'Seattle' ORDER BY EMP_ID;",
@@ -191,9 +185,8 @@ func testWhitelistSelectPattern(t *testing.T) {
 		"SELECT SUM(Salary) FROM Employee WHERE Emp_Age < 30;",
 		"SELECT AVG(Price) FROM Products;",
 		"SELECT A, B",
-		"SELECT X, Y",
 		"SELECT A",
-		"SELECT Y",
+		"SELECT 1",
 	}
 	pattern := "%%SELECT%%"
 	err = whitelist.AddPatterns([]string{pattern})
@@ -201,11 +194,9 @@ func testWhitelistSelectPattern(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	const InsertQueryCounter = 11
-	//Queries that should be passed by specified pattern have indexes: [0 .. 10] (all insert queries)
 	for i, query := range queries {
 		err := censor.HandleQuery(query)
-		if i < InsertQueryCounter {
+		if !strings.HasPrefix(strings.ToLower(query), "select") {
 			if err != handlers.ErrWhitelistPatternMismatch {
 				t.Fatal(err, "Whitelist pattern passed query. \nPattern:", pattern, "\nQuery:", queries[i])
 			}
@@ -231,13 +222,11 @@ func testWhitelistColumnsPattern(t *testing.T) {
 	}
 	acceptableQueries := []string{
 		"SELECT A, B",
-		"SELECT X1, X2",
-		"SELECT col1, col2",
+		"SELECT 1, GETDATE()",
 	}
 	blockableQueries := []string{
 		"SELECT A",
 		"SELECT A, B, C",
-		"SELECT A, B, C, D",
 	}
 	for _, query := range acceptableQueries {
 		err = censor.HandleQuery(query)
@@ -260,14 +249,13 @@ func testWhitelistColumnsPattern(t *testing.T) {
 	}
 	acceptableQueries = []string{
 		"SELECT A, B FROM testTable",
-		"SELECT A, X2 FROM testTable",
-		"SELECT A, col2 FROM testTable",
+		"SELECT A, 2 FROM testTable",
+		"SELECT A, GETDATE() FROM testTable",
 	}
 	blockableQueries = []string{
 		"SELECT A FROM testTable",
 		"SELECT B, A FROM testTable",
 		"SELECT A, B, C FROM testTable",
-		"SELECT A, B, C, D FROM testTable",
 	}
 	for _, query := range acceptableQueries {
 		err = censor.HandleQuery(query)
@@ -289,14 +277,13 @@ func testWhitelistColumnsPattern(t *testing.T) {
 	}
 	acceptableQueries = []string{
 		"SELECT A, B FROM testTable",
-		"SELECT X2, B FROM testTable",
-		"SELECT col2, B FROM testTable",
+		"SELECT 2, B FROM testTable",
+		"SELECT GETDATE(), B FROM testTable",
 	}
 	blockableQueries = []string{
 		"SELECT A FROM testTable",
 		"SELECT B, A FROM testTable",
 		"SELECT A, B, C FROM testTable",
-		"SELECT A, B, C, D FROM testTable",
 	}
 	for _, query := range acceptableQueries {
 		err = censor.HandleQuery(query)
@@ -327,20 +314,18 @@ func testWhitelistWherePattern(t *testing.T) {
 	acceptableQueries := []string{
 		"SELECT a, b, c FROM z WHERE a = 'someValue'",
 		"SELECT a, b, c FROM z WHERE a = b",
-		"SELECT a, b, c FROM z WHERE a < b",
 		"SELECT a, b, c FROM z WHERE a = 'someValue' and b = 2 or c between 20 and 30",
 		"SELECT a, b, c FROM z WHERE AGE BETWEEN 25 AND 65000",
 		"SELECT a, b, c FROM z WHERE NAME LIKE 'Pa%'",
 		"SELECT a, b, c FROM z WHERE AGE IN ( 25, 27 )",
 		"SELECT a, b, c FROM z WHERE AGE NOT IN ( 25, 27 )",
+		"SELECT a, b, c FROM z WHERE AGE IS NULL",
 		"SELECT a, b, c FROM z WHERE AGE > (SELECT AGE FROM company10 WHERE SALARY > 65000)",
 		"SELECT a, b, c FROM z WHERE EXISTS (SELECT AGE FROM company11 WHERE SALARY > 65000)",
-		"SELECT a, b, c FROM z WHERE EXISTS (SELECT AGE FROM company WHERE SALARY > 65000)",
 		"SELECT a, b, c FROM z WHERE A=(SELECT AGE FROM company WHERE SALARY > 65000 limit 1) and B=(SELECT AGE FROM company123 WHERE SALARY > 65000 limit 1)",
 	}
 	blockableQueries := []string{
 		"SELECT a, b, c FROM x WHERE a = 'someValue'",
-		"SELECT a, b, c FROM y WHERE a = 'someValue'",
 		"SELECT a, b FROM z WHERE a = 'someValue'",
 		"SELECT a, b, c FROM x WHERE a = 'someValue' and b = 48 or c between 10 and 50",
 		"SELECT age, age1 FROM company3 WHERE AGE IS NOT NULL",
@@ -351,7 +336,6 @@ func testWhitelistWherePattern(t *testing.T) {
 		"SELECT betta, gamma FROM company8 WHERE AGE IN ( 25, 27 )",
 		"SELECT name, lastname FROM company9 WHERE AGE NOT IN ( 25, 27 )",
 		"SELECT a, b FROM company10 WHERE AGE > (SELECT AGE FROM company10 WHERE SALARY > 65000)",
-		"SELECT age FROM company11 WHERE EXISTS (SELECT AGE FROM company11 WHERE SALARY > 65000)",
 		"SELECT age FROM company11 WHERE EXISTS (SELECT AGE FROM company WHERE SALARY > 65000)",
 		"SELECT age FROM company11 WHERE A=(SELECT AGE FROM company WHERE SALARY > 65000 limit 1) and B=(SELECT AGE FROM company123 WHERE SALARY > 65000 limit 1)",
 		"SELECT lastname FROM another_table INNER JOIN (SELECT age FROM company WHERE id = 1) AS t ON t.id=another_table.id WHERE AGE NOT IN (25, 27)",
@@ -386,15 +370,20 @@ func testWhitelistValuePattern(t *testing.T) {
 
 	acceptableQueries := []string{
 		"SELECT a, b FROM t WHERE ID = 'someValue_testValue_1234567890'",
-		"SELECT a, b FROM t WHERE ID = 'someValue'",
+		"SELECT a, b FROM t WHERE ID = 1",
+		"SELECT a, b FROM t WHERE ID = NULL",
+		"SELECT a, b FROM t WHERE ID = TRUE",
+		"SELECT a, b FROM t WHERE ID = (select 1)",
 	}
 	blockableQueries := []string{
-		"SELECT a, b FROM t WHERE someParameter = 'someValue208934278935789'",
-		"SELECT a, b, c FROM y WHERE a = 'someValue'",
-		"SELECT a, b FROM z WHERE a = 'someValue'",
+		// different column name in WHERE
 		"SELECT a, b FROM t WHERE NonID = 'someValue'",
-		"SELECT a, b, c, d FROM t WHERE a = 1 OR b = 1.0 OR c = TRUE OR d = NULL",
-		"SELECT a, b FROM t WHERE a = 1 and b = 2.0",
+		// two conditions in WHERE
+		"SELECT a, b FROM t WHERE ID = 'someValue208934278935789' AND B=2",
+		// 3 columns in SELECT
+		"SELECT a, b, c FROM y WHERE a = 'someValue'",
+		// different table in FROM
+		"SELECT a, b FROM z WHERE a = 'someValue'",
 	}
 	for _, query := range acceptableQueries {
 		err = censor.HandleQuery(query)
@@ -418,8 +407,8 @@ func testWhitelistValuePattern(t *testing.T) {
 
 	acceptableQueries = []string{
 		"SELECT a, b FROM t WHERE ID = 'someValue_testValue_1234567890'",
-		"SELECT a, b FROM t WHERE ID = 'someValue'",
-		"SELECT a, b, c, d FROM t WHERE ID = 'someValue'",
+		"SELECT a, b, c, d FROM t WHERE ID = 1",
+		"SELECT * FROM t WHERE ID = NULL",
 	}
 
 	for _, query := range acceptableQueries {
