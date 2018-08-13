@@ -146,27 +146,77 @@ func handleSelectPattern(queryNodes, patternNodes []sqlparser.SQLNode) bool {
 	return false
 }
 
-// handleSelectColumnPattern handles SELECT %%COLUMN%% .. %%COLUMN%% pattern
-func handleSelectColumnPattern(queryNodes, patternNodes []sqlparser.SQLNode) bool {
-	matchDetected := false
-	if len(patternNodes) != len(queryNodes) {
+// isColumnPattern return true if this SelectExpr is our %%COLUMN%% pattern
+func isColumnPattern(expr sqlparser.SelectExpr) bool {
+	if aliased, ok := expr.(*sqlparser.AliasedExpr); ok {
+		if colName, ok := aliased.Expr.(*sqlparser.ColName); ok {
+			return strings.EqualFold(colName.Name.String(), ColumnConfigPlaceholderReplacer)
+		}
 		return false
 	}
-	for index, patternNode := range patternNodes {
-		if index == 0 || reflect.DeepEqual(patternNode, queryNodes[index]) {
-			continue
+	return false
+}
+
+// getTopNodes walk only once at depth and return first level children of firstNode
+func getTopNodes(firstNode sqlparser.SQLNode) ([]sqlparser.SQLNode, error) {
+	goToSubtree := true
+	var outNodes []sqlparser.SQLNode
+	err := sqlparser.Walk(func(node sqlparser.SQLNode) (kontinue bool, err error) {
+		if goToSubtree {
+			goToSubtree = false
+			return true, nil
 		}
-		if patternNodeColName, ok := patternNode.(*sqlparser.ColName); ok && patternNodeColName != nil {
-			if queryNodeColName, ok := queryNodes[index].(*sqlparser.ColName); ok && queryNodeColName != nil {
-				if strings.EqualFold(patternNodeColName.Name.String(), ColumnConfigPlaceholderReplacer) {
-					matchDetected = true
-				} else {
+		outNodes = append(outNodes, node)
+		return false, nil
+
+	}, firstNode)
+	return outNodes, err
+}
+
+// handleSelectColumnPattern handles SELECT %%COLUMN%% .. %%COLUMN%% pattern
+func handleSelectColumnPattern(queryNodes, patternNodes []sqlparser.SQLNode) bool {
+	querySelect, ok := queryNodes[0].(*sqlparser.Select)
+	if !ok {
+		return false
+	}
+	patternSelect, ok := patternNodes[0].(*sqlparser.Select)
+	if !ok {
+		return false
+	}
+	// check column count
+	if len(querySelect.SelectExprs) != len(patternSelect.SelectExprs) {
+		return false
+	}
+	// collect only SelectExpr, From, Where, OrderBy ... nodes without their children
+	queryTopNodes, err := getTopNodes(querySelect)
+	if err != nil {
+		return false
+	}
+	patternTopNodes, err := getTopNodes(patternSelect)
+	if err != nil {
+		return false
+	}
+
+	for i := 0; i < len(queryTopNodes); i++ {
+		patternNode := patternTopNodes[i]
+		queryNode := queryTopNodes[i]
+		if _, ok := queryNode.(sqlparser.SelectExprs); ok {
+			for i, column := range patternSelect.SelectExprs {
+				// if it pattern %%COLUMN%% node then we doesn't need to check query's node
+				if isColumnPattern(column) {
+					continue
+				}
+				// two nodes must be equal if pattern node is not %%COLUMN%%
+				if !reflect.DeepEqual(column, querySelect.SelectExprs[i]) {
 					return false
 				}
 			}
+			// check other nodes on equal (except SelectExprs)
+		} else if !reflect.DeepEqual(patternNode, queryNode) {
+			return false
 		}
 	}
-	return matchDetected
+	return true
 }
 
 // handleSelectWherePattern handles SELECT a, b from t %%WHERE%% pattern
