@@ -369,11 +369,20 @@ func testWhitelistValuePattern(t *testing.T) {
 	}
 
 	acceptableQueries := []string{
+		// string
 		"SELECT a, b FROM t WHERE ID = 'someValue_testValue_1234567890'",
+		// int
 		"SELECT a, b FROM t WHERE ID = 1",
+		// null
 		"SELECT a, b FROM t WHERE ID = NULL",
+		// boolean
 		"SELECT a, b FROM t WHERE ID = TRUE",
+		// subquery
 		"SELECT a, b FROM t WHERE ID = (select 1)",
+		// float
+		"SELECT a, b FROM t WHERE ID = 1.0",
+		// function
+		"SELECT a, b FROM t WHERE ID = Date()",
 	}
 	blockableQueries := []string{
 		// different column name in WHERE
@@ -384,6 +393,11 @@ func testWhitelistValuePattern(t *testing.T) {
 		"SELECT a, b, c FROM y WHERE a = 'someValue'",
 		// different table in FROM
 		"SELECT a, b FROM z WHERE a = 'someValue'",
+		// TODO unsupported casts (postgresql like)
+		// cast
+		//"SELECT a, b FROM t WHERE ID = CAST( '123' AS bigint )",
+		// cast
+		//"SELECT a, b FROM t WHERE ID = '123'::integer",
 	}
 	for _, query := range acceptableQueries {
 		err = censor.HandleQuery(query)

@@ -25,6 +25,7 @@ package handlers
 
 import (
 	"errors"
+	log "github.com/sirupsen/logrus"
 	"github.com/xwb1989/sqlparser"
 	"github.com/xwb1989/sqlparser/dependency/querypb"
 	"reflect"
@@ -96,6 +97,7 @@ func checkPatternsMatching(patterns [][]sqlparser.SQLNode, query string) (bool, 
 	var queryNodes []sqlparser.SQLNode
 	statement, err := sqlparser.Parse(query)
 	if err != nil {
+		log.WithError(err).Errorln("Can't parse query")
 		return false, ErrQuerySyntaxError
 	}
 	sqlparser.Walk(func(node sqlparser.SQLNode) (bool, error) {
