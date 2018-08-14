@@ -28,9 +28,8 @@ import (
 
 	log "github.com/sirupsen/logrus"
 	"os"
-	"os/user"
+	"path/filepath"
 	"runtime"
-	"strings"
 )
 
 const (
@@ -92,35 +91,9 @@ func ReadData(reader io.Reader) ([]byte, error) {
 	return buf, nil
 }
 
-// AbsPath transforms relative file path to absolute
-func AbsPath(path string) (string, error) {
-	if len(path) == 0 {
-		return path, nil
-	}
-	if len(path) >= 2 {
-		if path[:2] == "~/" {
-			usr, err := user.Current()
-			if err != nil {
-				return path, err
-			}
-			dir := usr.HomeDir
-			path = strings.Replace(path, "~", dir, 1)
-			return path, nil
-		} else if path[:2] == "./" {
-			workdir, err := os.Getwd()
-			if err != nil {
-				return path, err
-			}
-			path = strings.Replace(path, ".", workdir, 1)
-			return path, nil
-		}
-	}
-	return path, nil
-}
-
 // ReadFile returns contents of file
 func ReadFile(path string) ([]byte, error) {
-	absPath, err := AbsPath(path)
+	absPath, err := filepath.Abs(path)
 	if err != nil {
 		return nil, err
 	}
@@ -163,7 +136,7 @@ func FillSlice(value byte, data []byte) {
 
 // FileExists returns true if file exists from path, path can be relative
 func FileExists(path string) (bool, error) {
-	absPath, err := AbsPath(path)
+	absPath, err := filepath.Abs(path)
 	if err != nil {
 		return false, err
 	}

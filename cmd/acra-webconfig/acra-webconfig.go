@@ -195,7 +195,7 @@ func SubmitSettings(w http.ResponseWriter, r *http.Request) {
 func parseTemplate(staticPath string) (err error) {
 	log.Infof("Parsing template")
 	tplPath := filepath.Join(staticPath, "index.html")
-	tplPath, err = utils.AbsPath(tplPath)
+	tplPath, err = filepath.Abs(tplPath)
 	if err != nil {
 		log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantReadTemplate).
 			Errorf("No template file[%v]", tplPath)

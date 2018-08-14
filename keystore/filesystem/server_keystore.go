@@ -68,7 +68,7 @@ func NewFilesystemKeyStoreTwoPath(privateKeyFolder, publicKeyFolder string, encr
 
 func newFilesystemKeyStore(privateKeyFolder, publicKeyFolder string, encryptor keystore.KeyEncryptor, cacheSize int) (*FilesystemKeyStore, error) {
 	// check folder for private key
-	directory, err := utils.AbsPath(privateKeyFolder)
+	directory, err := filepath.Abs(privateKeyFolder)
 	if err != nil {
 		return nil, err
 	}
@@ -79,7 +79,7 @@ func newFilesystemKeyStore(privateKeyFolder, publicKeyFolder string, encryptor k
 	}
 	if privateKeyFolder != publicKeyFolder {
 		// check folder for public key
-		directory, err = utils.AbsPath(privateKeyFolder)
+		directory, err = filepath.Abs(privateKeyFolder)
 		if err != nil {
 			return nil, err
 		}
