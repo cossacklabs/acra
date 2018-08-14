@@ -51,6 +51,17 @@ func SetLogLevel(level int) {
 	}
 }
 
+// GetLogLevel gets logrus log level and returns int Acra log level
+func GetLogLevel() int {
+	if log.GetLevel() == log.DebugLevel {
+		return LOG_DEBUG
+	}
+	if log.GetLevel() == log.InfoLevel {
+		return LOG_VERBOSE
+	}
+	return LOG_DISCARD
+}
+
 // CustomizeLogging changes logging format
 func CustomizeLogging(loggingFormat string, serviceName string) {
 	log.SetOutput(os.Stderr)
