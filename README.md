@@ -163,7 +163,7 @@ Acra can help you comply with GDPR and HIPAA regulations. Configuring and using 
 
 This open source version of Acra is free-to-use. Please let us know in the [Issues](https://www.github.com/cossacklabs/acra/issues) if you stumble upon a bug, see a possible enhancement, or have a comment on security design.
 
-There’s [commercial version of Acra](https://www.cossacklabs.com/acra/) available, which provides better performance, redunancy/load balancing, comes pre-configured with cryptoprimitives you want (FIPS, GOST), integrates with key/secret management tools in your stack, and has plenty of goodies for your Ops and SREs to operate Acra conveniently - deployment automation, scaling, monitoring and logging. [Talk to us](mailto:sales@cossacklabs.com) if you're interested.
+There’s [commercial version of Acra](https://www.cossacklabs.com/acra/) available, which provides better performance, redunancy/load balancing, comes pre-configured with crypto-primitives you want (FIPS, GOST), integrates with key/secret management tools in your stack, and has plenty of goodies for your Ops and SREs to operate Acra conveniently - deployment automation, scaling, monitoring and logging. [Talk to us](mailto:sales@cossacklabs.com) if you're interested.
 
 ## Security consulting
 
