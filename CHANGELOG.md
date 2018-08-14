@@ -51,7 +51,7 @@ _Core_:
 
   Read the detailed description and usage examples on [AcraCensor page](https://github.com/cossacklabs/acra/wiki/AcraCensor).
   
-  ([#245](https://github.com/cossacklabs/acra/pull/245), [#243](https://github.com/cossacklabs/acra/pull/243), [#238](https://github.com/cossacklabs/acra/pull/238), [#231](https://github.com/cossacklabs/acra/pull/231), [#226](https://github.com/cossacklabs/acra/pull/226), [#217](https://github.com/cossacklabs/acra/pull/217))
+  ([#248](https://github.com/cossacklabs/acra/pull/248), [#247](https://github.com/cossacklabs/acra/pull/247), [#246](https://github.com/cossacklabs/acra/pull/246), [#245](https://github.com/cossacklabs/acra/pull/245), [#243](https://github.com/cossacklabs/acra/pull/243), [#238](https://github.com/cossacklabs/acra/pull/238), [#231](https://github.com/cossacklabs/acra/pull/231), [#226](https://github.com/cossacklabs/acra/pull/226), [#217](https://github.com/cossacklabs/acra/pull/217))
 
   - Improved AcraCensor performance for queries matching ([#208](https://github.com/cossacklabs/acra/pull/208)).
 
