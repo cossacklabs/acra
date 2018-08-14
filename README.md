@@ -24,27 +24,30 @@
 
 ## What is Acra
 
-Acra helps you easily secure your databases in distributed, microservice-rich environments. It allows you to selectively encrypt sensitive records with [strong multi-layer cryptography](https://github.com/cossacklabs/acra/wiki/AcraStruct), detect potential intrusions and SQL injections and cryptographically compartmentalise data stored in large sharded schemes. Acra's security model guarantees that if your database or your application get compromised, they will not leak sensitive data or decryption keys. 
+Acra brings encryption and data leakage prevention to distributed applications, web and mobile apps with database backends. Acra provides selective encryption, multi-layered access control, database leakage prevention and intrusion detection capabilities in a convenient, developer-friendly package.
 
-Acra gives you tools for encrypting the data on the application's side into a special cryptographic container, storing it in the database, and then decrypting it in a secure compartmented area (separate virtual machine/container). Cryptographic design ensures that no secret (password, key, anything) leaked from the application or database will be sufficient for decryption of the protected data chunks that originate from it. 
+Acra gives you tools for encrypting the data on the application's side into a special [cryptographic container](https://github.com/cossacklabs/acra/wiki/AcraStruct), storing it in the database or file storage, and then decrypting it in a secure compartmented area (separate virtual machine/container). 
+
+Cryptographic design ensures that no secret (password, key, anything) leaked from the application or database will be sufficient for decryption of the protected data chunks that originate from it. 
 
 Acra was built with specific user experiences in mind: 
 
 - **quick and easy integration** of security instrumentation;
-- **cryptographic protection** of data in the threat model where **all the other parts of the infrastructure could be compromised**, but as long as AcraServer isn't compromised, the data is safe; 
-- **proper abstraction** of all cryptographic processes: you're safe from the risk of selecting the wrong key length or algorithm padding;  
+- **easy to try**: you can experience the full might of Acra without commiting to its installation using [Docker containers](https://github.com/cossacklabs/acra/wiki/Trying-Acra-with-Docker);
+- **compatible with encryption-demanding compliance**, Acra can run on certified crypto-libraries (FIPS, GOST);
+- **cryptographic protection of data**: to compromise an Acra-powered app, an attacker will need to compromise a separate compartmented server, AcraServer - more specifically - its key storage and database, until that the data is safe.
+- **cryptography is hidden under the hood**: you're safe from the risk of selecting the wrong key length or algorithm padding;
 - **secure default settings** to get you going; 
 - **intrusion detection** to let you know early that something wrong is going on;
-- **high degree of configurability** to create perfect balance between the extra security features and performance; 
-- **automation/ops-friendly**: most of Acra's features were built to be easily configured / automated using a configuration automation environment.
-- **limited attack surface**: to compromise an Acra-powered app, an attacker will need to compromise a separate compartmented server, AcraServer - more specifically - its key storage and database;
-- **easy to try**: you can experience the full might of Acra without commiting to its installation using [Docker containers](https://github.com/cossacklabs/acra/wiki/Trying-Acra-with-Docker). 
+- **SQL injections prevention** by built-in SQL firewall;
+- **ops-friendly**: Acra can be easy configured and automated using a configuration automation environment.
+
 
 Acra is a continuously developing security tool. And as any proper security tool, it requires enourmous human efforts for validation of the methods, code, and finding possible infrastructural weaknesses. Although we do run Acra in production in several instances, we're constantly enhancing and improving it as we go. This is done to ensure that the provided security benefits are not rendered useless through implementation problems or increased complexity.
 
 ## Cryptography
 
-Acra relies on our cryptographic library [Themis](https://www.github.com/cossacklabs/themis), which implements high-level cryptosystems based on the best availble [open-source implementations](https://github.com/cossacklabs/themis/wiki/Cryptographic-donors) of the [most reliable ciphers](https://github.com/cossacklabs/themis/wiki/Soter). Acra does not contain any self-made cryptographic primitives or obscure ciphers. Instead, to deliver its unique guarantees, Acra relies on the combination of well-known ciphers and smart key management scheme.
+Acra relies on our cryptographic library [Themis](https://www.github.com/cossacklabs/themis), which implements high-level cryptosystems based on the best available [open-source implementations](https://github.com/cossacklabs/themis/wiki/Cryptographic-donors) of the [most reliable ciphers](https://github.com/cossacklabs/themis/wiki/Soter). Acra does not contain any self-made cryptographic primitives or obscure ciphers. Instead, to deliver its unique guarantees, Acra relies on the combination of well-known ciphers and smart key management scheme.
 
 ## Availability
 
@@ -146,7 +149,7 @@ All of our documentation (including with the Acra documentation) can also be fou
 
 This open source version of Acra is free-to-use. Please let us know in the [Issues](https://www.github.com/cossacklabs/acra/issues) if you stumble upon a bug, see a possible enhancement, or have a comment on security design.
 
-We ship a [enterprise version](https://www.cossacklabs.com/acra/) as well: more stable, more fast, with bindings for your exact application and our engineers' support. [Talk to us](mailto:sales@cossacklabs.com) if you're interested.
+There’s [commercial version of Acra](https://www.cossacklabs.com/acra/) available, which provides better performance, redunancy/load balancing, comes pre-configured with cryptoprimitives you want (FIPS, GOST), integrates with key/secret management tools in your stack, and has plenty of goodies for your Ops and SREs to operate Acra conveniently - deployment automation, scaling, monitoring and logging [Talk to us](mailto:sales@cossacklabs.com) if you're interested.
 
 ## Contributing to us
 
