@@ -14,6 +14,7 @@
 
 var themis = require('jsthemis');
 var int64 = require('int64-buffer').Uint64LE
+var crypto = require('crypto');
 
 
 module.exports = {
@@ -23,9 +24,10 @@ module.exports = {
 	var context_buffer = Buffer.isBuffer(context)?context:(new Buffer(context));
 	var random_keypair = new themis.KeyPair();
 	var sm = new themis.SecureMessage(random_keypair.private(), acra_public_key);
-	var random_key = require('crypto').randomBytes(32);
+	var random_key = crypto.randomBytes(32);
 	var wrapped_random_key = sm.encrypt(random_key);
 	var sc = new themis.SecureCellSeal(random_key);
+	crypto.randomFillSync(random_key);
 	var encrypted_data = context?sc.encrypt(data_buffer, context_buffer):sc.encrypt(data_buffer);
 	var begin_tag = new Buffer([34,34,34,34,34,34,34,34]);
 	var encrypted_data_length = new int64(encrypted_data.length).toBuffer();
