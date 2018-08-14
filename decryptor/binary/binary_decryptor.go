@@ -113,14 +113,14 @@ func (decryptor *BinaryDecryptor) readDataLength(reader io.Reader) (uint64, []by
 	return length, decryptor.lengthBuf[:], nil
 }
 
-func (decryptor *BinaryDecryptor) checkBuf(buf *[]byte, length int) {
-	if buf == nil || len(*buf) < length {
+func (decryptor *BinaryDecryptor) checkBuf(buf *[]byte, length uint64) {
+	if buf == nil || uint64(len(*buf)) < length {
 		*buf = make([]byte, length)
 	}
 }
 
-func (decryptor *BinaryDecryptor) readScellData(length int, reader io.Reader) ([]byte, []byte, error) {
-	decryptor.checkBuf(&decryptor.buf, int(length))
+func (decryptor *BinaryDecryptor) readScellData(length uint64, reader io.Reader) ([]byte, []byte, error) {
+	decryptor.checkBuf(&decryptor.buf, length)
 	n, err := io.ReadFull(reader, decryptor.buf[:length])
 	if err != nil {
 		log.Warningf("%v", utils.ErrorMessage(fmt.Sprintf("can't read scell data with passed length=%v", length), err))
@@ -129,7 +129,7 @@ func (decryptor *BinaryDecryptor) readScellData(length int, reader io.Reader) ([
 		}
 		return nil, decryptor.buf[:n], err
 	}
-	if n != int(length) {
+	if uint64(n) != length {
 		log.Warningf("%v", utils.ErrorMessage("Can't decode hex data", err))
 		return nil, decryptor.buf[:n], base.ErrFakeAcraStruct
 	}
@@ -142,7 +142,7 @@ func (decryptor *BinaryDecryptor) ReadData(symmetricKey, zoneID []byte, reader i
 	if err != nil {
 		return rawLengthData, err
 	}
-	data, rawData, err := decryptor.readScellData(int(length), reader)
+	data, rawData, err := decryptor.readScellData(length, reader)
 	if err != nil {
 		return append(rawLengthData, rawData...), err
 	}

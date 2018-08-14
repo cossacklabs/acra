@@ -44,6 +44,11 @@ var (
 	HexZoneIDBlockLength = int(HexZoneTagLength + HexZoneIDLength)
 )
 
+// hexEncodedLen return length of hex encoded data of <val> length
+func hexEncodedLen(val uint64) uint64 {
+	return val * 2
+}
+
 // PgHexDecryptor decrypts AcraStruct from Hex-encoded PostgreSQL binary format
 type PgHexDecryptor struct {
 	currentIndex uint8
@@ -79,8 +84,8 @@ func NewPgHexDecryptor() *PgHexDecryptor {
 }
 
 /* check that buf has free space to append length bytes otherwise extend */
-func (decryptor *PgHexDecryptor) checkBuf(buf *[]byte, length int) {
-	if buf == nil || len(*buf) < length {
+func (decryptor *PgHexDecryptor) checkBuf(buf *[]byte, length uint64) {
+	if buf == nil || uint64(len(*buf)) < length {
 		*buf = make([]byte, length)
 	}
 }
@@ -168,10 +173,11 @@ func (decryptor *PgHexDecryptor) readDataLength(reader io.Reader) (uint64, []byt
 	binary.Read(bytes.NewReader(decryptor.lengthBuf[:]), binary.LittleEndian, &length)
 	return length, decryptor.hexLengthBuf[:], nil
 }
-func (decryptor *PgHexDecryptor) readScellData(length int, reader io.Reader) ([]byte, []byte, error) {
-	hexLength := hex.EncodedLen(int(length))
+
+func (decryptor *PgHexDecryptor) readScellData(length uint64, reader io.Reader) ([]byte, []byte, error) {
+	hexLength := hexEncodedLen(length)
 	decryptor.checkBuf(&decryptor.hexBuf, hexLength)
-	decryptor.checkBuf(&decryptor.buf, int(length))
+	decryptor.checkBuf(&decryptor.buf, length)
 	n, err := io.ReadFull(reader, decryptor.hexBuf[:hexLength])
 	if err != nil {
 		log.Warningf("%v", utils.ErrorMessage(fmt.Sprintf("can't read scell data with passed length=%v", length), err))
@@ -180,7 +186,7 @@ func (decryptor *PgHexDecryptor) readScellData(length int, reader io.Reader) ([]
 		}
 		return nil, decryptor.hexBuf[:n], err
 	}
-	if n != hex.EncodedLen(length) {
+	if uint64(n) != hexEncodedLen(length) {
 		return nil, decryptor.hexBuf[:n], base.ErrFakeAcraStruct
 	}
 	n, err = hex.Decode(decryptor.buf[:int(length)], decryptor.hexBuf[:hexLength])
@@ -207,7 +213,7 @@ func (decryptor *PgHexDecryptor) ReadData(symmetricKey, zoneID []byte, reader io
 	if err != nil {
 		return hexLengthBuf, err
 	}
-	data, hexData, err := decryptor.readScellData(int(length), reader)
+	data, hexData, err := decryptor.readScellData(length, reader)
 	if err != nil {
 		return append(hexLengthBuf, hexData...), err
 	}
@@ -222,7 +228,7 @@ func (decryptor *PgHexDecryptor) ReadData(symmetricKey, zoneID []byte, reader io
 		return append(hexLengthBuf, hexData...), base.ErrFakeAcraStruct
 	}
 
-	outputLength := hex.EncodedLen(len(decrypted))
+	outputLength := hexEncodedLen(uint64(len(decrypted)))
 	decryptor.checkBuf(&decryptor.output, outputLength)
 	hex.Encode(decryptor.output[:outputLength], decrypted)
 	decrypted = nil
