@@ -1,4 +1,4 @@
-# Client id
+# Client ID
 client_id: client
 
 # path to config
@@ -12,6 +12,9 @@ generate_acraconnector_keys: false
 
 # Create keypair for AcraServer only
 generate_acraserver_keys: false
+
+# Create keypair for AcraTranslator only
+generate_acratranslator_keys: false
 
 # Create symmetric key for AcraWebconfig's basic auth db
 generate_acrawebconfig_keys: false

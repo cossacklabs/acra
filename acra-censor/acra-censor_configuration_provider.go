@@ -1,3 +1,19 @@
+/*
+Copyright 2018, Cossack Labs Limited
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
 package acracensor
 
 import (
@@ -6,24 +22,29 @@ import (
 	"strings"
 )
 
-const BlacklistConfigStr = "blacklist"
-const WhitelistConfigStr = "whitelist"
-const QueryCaptureConfigStr = "query_capture"
-const QueryIgnoreConfigStr = "query_ignore"
+// Query handlers' names.
+const (
+	BlacklistConfigStr    = "blacklist"
+	WhitelistConfigStr    = "whitelist"
+	QueryCaptureConfigStr = "query_capture"
+	QueryIgnoreConfigStr  = "query_ignore"
+)
 
-type AcraCensorConfig struct {
+// Config shows handlers configuration: queries, tables, patterns
+type Config struct {
 	Handlers []struct {
 		Handler  string
 		Queries  []string
 		Tables   []string
-		Rules    []string
+		Patterns []string
 		Filepath string
 	}
 	IgnoreParseError bool `yaml:"ignore_parse_error"`
 }
 
+// LoadConfiguration loads configuration of AcraCensor
 func (acraCensor *AcraCensor) LoadConfiguration(configuration []byte) error {
-	var censorConfiguration AcraCensorConfig
+	var censorConfiguration Config
 	err := yaml.Unmarshal(configuration, &censorConfiguration)
 	if err != nil {
 		return err
@@ -32,26 +53,20 @@ func (acraCensor *AcraCensor) LoadConfiguration(configuration []byte) error {
 	for _, handlerConfiguration := range censorConfiguration.Handlers {
 		switch handlerConfiguration.Handler {
 		case WhitelistConfigStr:
-			whitelistHandler := &handlers.WhitelistHandler{}
-			err := whitelistHandler.AddQueries(handlerConfiguration.Queries)
-			if err != nil {
-				return err
-			}
+			whitelistHandler := handlers.NewWhitelistHandler()
+			whitelistHandler.AddQueries(handlerConfiguration.Queries)
 			whitelistHandler.AddTables(handlerConfiguration.Tables)
-			err = whitelistHandler.AddRules(handlerConfiguration.Rules)
+			err = whitelistHandler.AddPatterns(handlerConfiguration.Patterns)
 			if err != nil {
 				return err
 			}
 			acraCensor.AddHandler(whitelistHandler)
 			break
 		case BlacklistConfigStr:
-			blacklistHandler := &handlers.BlacklistHandler{}
-			err := blacklistHandler.AddQueries(handlerConfiguration.Queries)
-			if err != nil {
-				return err
-			}
+			blacklistHandler := handlers.NewBlacklistHandler()
+			blacklistHandler.AddQueries(handlerConfiguration.Queries)
 			blacklistHandler.AddTables(handlerConfiguration.Tables)
-			err = blacklistHandler.AddRules(handlerConfiguration.Rules)
+			err = blacklistHandler.AddPatterns(handlerConfiguration.Patterns)
 			if err != nil {
 				return err
 			}

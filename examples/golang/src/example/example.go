@@ -1,5 +1,3 @@
-// +build go1.8
-
 // Copyright 2016, Cossack Labs Limited
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
@@ -108,7 +106,6 @@ func main() {
 			err := rows.Scan(&data, &rawData)
 			if err != nil {
 				panic(err)
-				return
 			}
 			fmt.Printf("data: %v\nraw_data: %v\n\n", string(data), string(rawData))
 		}

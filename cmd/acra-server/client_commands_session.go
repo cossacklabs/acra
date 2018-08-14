@@ -1,16 +1,19 @@
-// Copyright 2016, Cossack Labs Limited
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-// http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
+/*
+Copyright 2016, Cossack Labs Limited
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
 package main
 
 import (
@@ -35,16 +38,19 @@ import (
 	"github.com/cossacklabs/themis/gothemis/keys"
 )
 
+// HTTP 500 response
 const (
-	RESPONSE_500_ERROR = "HTTP/1.1 500 Server error\r\n\r\n\r\n\r\n"
+	Response500Error = "HTTP/1.1 500 Server error\r\n\r\n\r\n\r\n"
 )
 
+// ClientCommandsSession handles Secure Session for client commands API
 type ClientCommandsSession struct {
 	ClientSession
 	Server   *SServer
 	keystore keystore.KeyStore
 }
 
+// NewClientCommandsSession returns new ClientCommandsSession
 func NewClientCommandsSession(keystorage keystore.KeyStore, config *Config, connection net.Conn) (*ClientCommandsSession, error) {
 	clientSession, err := NewClientSession(keystorage, config, connection)
 	if err != nil {
@@ -54,6 +60,7 @@ func NewClientCommandsSession(keystorage keystore.KeyStore, config *Config, conn
 
 }
 
+// ConnectToDb should not be called, because command session must not connect to any DB
 func (clientSession *ClientCommandsSession) ConnectToDb() error {
 	return errors.New("command session must not connect to any DB")
 }
@@ -68,6 +75,7 @@ func (clientSession *ClientCommandsSession) close() {
 	log.Debugln("All connections closed")
 }
 
+// HandleSession gets, parses and executes each client HTTP request, writes response to the connection
 func (clientSession *ClientCommandsSession) HandleSession() {
 	reader := bufio.NewReader(clientSession.connection)
 	req, err := http.ReadRequest(reader)
@@ -90,7 +98,7 @@ func (clientSession *ClientCommandsSession) HandleSession() {
 		if err != nil {
 			log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantGenerateZone).Errorln("Can't generate zone key")
 		} else {
-			zoneData, err := zone.ZoneDataToJson(id, &keys.PublicKey{Value: publicKey})
+			zoneData, err := zone.ZoneDataToJSON(id, &keys.PublicKey{Value: publicKey})
 			if err != nil {
 				log.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantGenerateZone).WithError(err).Errorln("Can't create json with zone key")
 			} else {
@@ -104,17 +112,17 @@ func (clientSession *ClientCommandsSession) HandleSession() {
 		response = "HTTP/1.1 200 OK Found\r\n\r\n"
 		log.Debugln("Cleared key storage cache")
 	case "/loadAuthData":
-		response = RESPONSE_500_ERROR
+		response = Response500Error
 		key, err := clientSession.keystore.GetAuthKey(false)
 		if err != nil {
 			log.WithError(err).Error("loadAuthData: keystore.GetAuthKey()")
-			response = RESPONSE_500_ERROR
+			response = Response500Error
 			break
 		}
 		authDataCrypted, err := getAuthDataFromFile(*authPath)
 		if err != nil {
 			log.Warningf("%v\n", utils.ErrorMessage("loadAuthData: no auth data", err))
-			response = RESPONSE_500_ERROR
+			response = Response500Error
 			break
 		}
 		SecureCell := cell.New(key, cell.CELL_MODE_SEAL)
@@ -127,11 +135,11 @@ func (clientSession *ClientCommandsSession) HandleSession() {
 		response = fmt.Sprintf("HTTP/1.1 200 OK Found\r\n\r\n%s\r\n\r\n", authData)
 	case "/getConfig":
 		log.Debugln("Got /getConfig request")
-		jsonOutput, err := clientSession.config.ToJson()
+		jsonOutput, err := clientSession.config.ToJSON()
 		if err != nil {
 			log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorGeneral).
 				Warningln("Can't convert config to JSON")
-			response = RESPONSE_500_ERROR
+			response = Response500Error
 		} else {
 			log.Debugln("Handled request correctly")
 			log.Debugln(string(jsonOutput))
@@ -145,13 +153,13 @@ func (clientSession *ClientCommandsSession) HandleSession() {
 		if err != nil {
 			log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorGeneral).
 				Warningln("Can't convert config from incoming")
-			response = RESPONSE_500_ERROR
+			response = Response500Error
 			return
 		}
 		// set config values
 		flag.Set("db_host", configFromUI.DbHost)
 		flag.Set("db_port", fmt.Sprintf("%v", configFromUI.DbPort))
-		flag.Set("incoming_connection_api_port", fmt.Sprintf("%v", configFromUI.ConnectorApiPort))
+		flag.Set("incoming_connection_api_port", fmt.Sprintf("%v", configFromUI.ConnectorAPIPort))
 		flag.Set("d", fmt.Sprintf("%v", configFromUI.Debug))
 		flag.Set("poison_run_script_file", fmt.Sprintf("%v", configFromUI.ScriptOnPoison))
 		flag.Set("poison_shutdown_enable", fmt.Sprintf("%v", configFromUI.StopOnPoison))
@@ -161,7 +169,7 @@ func (clientSession *ClientCommandsSession) HandleSession() {
 		if err != nil {
 			log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantDumpConfig).
 				Errorln("DumpConfig failed")
-			response = RESPONSE_500_ERROR
+			response = Response500Error
 			return
 
 		}

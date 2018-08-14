@@ -1,36 +1,43 @@
-// Copyright 2016, Cossack Labs Limited
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-// http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
+/*
+Copyright 2016, Cossack Labs Limited
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
 package zone
 
 import (
 	"container/list"
 )
 
+// KeyChecker checks if Zone Private key is available
 type KeyChecker interface {
 	HasZonePrivateKey([]byte) bool
 }
 
-type ZoneIdMatcher struct {
+// ZoneIDMatcher represents exact binary Matcher
+type ZoneIDMatcher struct {
 	matched     bool
 	matchers    *list.List
-	zoneId      []byte
+	zoneID      []byte
 	matcherPool *MatcherPool
 	keychecker  KeyChecker
 }
 
-func NewZoneMatcher(matcherPool *MatcherPool, keychecker KeyChecker) *ZoneIdMatcher {
-	matcher := &ZoneIdMatcher{
+// NewZoneMatcher returns new ZoneIDMatcher for exact zoneID
+// with keychecker and empty matchers
+func NewZoneMatcher(matcherPool *MatcherPool, keychecker KeyChecker) *ZoneIDMatcher {
+	matcher := &ZoneIDMatcher{
 		matchers:    list.New(),
 		matcherPool: matcherPool,
 		matched:     false,
@@ -40,28 +47,35 @@ func NewZoneMatcher(matcherPool *MatcherPool, keychecker KeyChecker) *ZoneIdMatc
 	return matcher
 }
 
-func (zoneMatcher *ZoneIdMatcher) IsMatched() bool {
+// IsMatched returns true if zoneID found
+func (zoneMatcher *ZoneIDMatcher) IsMatched() bool {
 	return zoneMatcher.matched
 }
 
-func (zoneMatcher *ZoneIdMatcher) Reset() {
+// Reset clears matchers and reset matching state
+func (zoneMatcher *ZoneIDMatcher) Reset() {
 	zoneMatcher.matched = false
 	zoneMatcher.clearMatchers()
 }
 
-func (zoneMatcher *ZoneIdMatcher) GetZoneId() []byte {
+// GetZoneID returns zoneID if matched found it
+// return empty bytes otherwise
+func (zoneMatcher *ZoneIDMatcher) GetZoneID() []byte {
 	if zoneMatcher.IsMatched() {
-		return zoneMatcher.zoneId
+		return zoneMatcher.zoneID
 	}
 	return []byte{}
 }
 
-func (zoneMatcher *ZoneIdMatcher) SetMatched(id []byte) {
-	zoneMatcher.zoneId = id
+// SetMatched sets that matcher has found zoneID – id
+func (zoneMatcher *ZoneIDMatcher) SetMatched(id []byte) {
+	zoneMatcher.zoneID = id
 	zoneMatcher.matched = true
 }
 
-func (zoneMatcher *ZoneIdMatcher) Match(c byte) bool {
+// Match returns true if zoneID found inside c bytes
+// checks using different matchers from the loop
+func (zoneMatcher *ZoneIDMatcher) Match(c byte) bool {
 	currentElement := zoneMatcher.matchers.Front()
 	var toRemove *list.Element
 	var matcher Matcher
@@ -70,8 +84,8 @@ func (zoneMatcher *ZoneIdMatcher) Match(c byte) bool {
 		matcher = currentElement.Value.(Matcher)
 		if matcher.Match(c) {
 			if matcher.IsMatched() {
-				if zoneMatcher.keychecker.HasZonePrivateKey(matcher.GetZoneId()) {
-					zoneMatcher.zoneId = matcher.GetZoneId()
+				if zoneMatcher.keychecker.HasZonePrivateKey(matcher.GetZoneID()) {
+					zoneMatcher.zoneID = matcher.GetZoneID()
 					zoneMatcher.matched = true
 					isMatched = true
 				}
@@ -106,12 +120,12 @@ func (zoneMatcher *ZoneIdMatcher) Match(c byte) bool {
 	return isMatched
 }
 
-func (zoneMatcher *ZoneIdMatcher) remove(element *list.Element) {
+func (zoneMatcher *ZoneIDMatcher) remove(element *list.Element) {
 	zoneMatcher.matchers.Remove(element)
 	zoneMatcher.matcherPool.Release(element.Value.(Matcher))
 }
 
-func (zoneMatcher *ZoneIdMatcher) clearMatchers() {
+func (zoneMatcher *ZoneIDMatcher) clearMatchers() {
 	/* delete all matcher except the last that should be emptyMatcher */
 	var previous *list.Element
 	element := zoneMatcher.matchers.Front()
@@ -126,7 +140,7 @@ func (zoneMatcher *ZoneIdMatcher) clearMatchers() {
 	}
 }
 
-func (zoneMatcher *ZoneIdMatcher) addEmptyMatcher() {
+func (zoneMatcher *ZoneIDMatcher) addEmptyMatcher() {
 	matcher := zoneMatcher.matcherPool.Acquire()
 	zoneMatcher.matchers.PushBack(matcher)
 }

@@ -1,16 +1,19 @@
-// Copyright 2016, Cossack Labs Limited
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-// http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
+/*
+Copyright 2016, Cossack Labs Limited
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
 package zone
 
 import (
@@ -18,34 +21,39 @@ import (
 	"strconv"
 )
 
+// PgEscapeByteReader reads escaped bytes from binary input
 type PgEscapeByteReader struct {
 	currentIndex byte
 	buffer       [4]byte
 }
 
+// NewPgEscapeByteReader returns new PgEscapeByteReader
 func NewPgEscapeByteReader() *PgEscapeByteReader {
 	return &PgEscapeByteReader{currentIndex: 0}
 }
 
+// GetBuffered returns bytes from buffer to currentIndex
 func (reader *PgEscapeByteReader) GetBuffered() []byte {
 	return reader.buffer[:reader.currentIndex]
 }
 
+// Reset current reader index
 func (reader *PgEscapeByteReader) Reset() {
 	reader.currentIndex = 0
 }
 
 func (reader *PgEscapeByteReader) returnError() (bool, byte, error) {
 	reader.Reset()
-	return false, 0, FAKE_DB_BYTE
+	return false, 0, ErrFakeDBByte
 }
 
+// ReadByte reads c and returns the bytes decoded from escaped format
 func (reader *PgEscapeByteReader) ReadByte(c byte) (bool, byte, error) {
 	if !utils.IsPrintableEscapeChar(c) {
 		return reader.returnError()
 	}
 	if reader.currentIndex == 0 {
-		if c == utils.SLASH_CHAR {
+		if c == utils.SlashChar {
 			reader.buffer[reader.currentIndex] = c
 			reader.currentIndex++
 			return false, 0, nil
@@ -53,7 +61,7 @@ func (reader *PgEscapeByteReader) ReadByte(c byte) (bool, byte, error) {
 		reader.Reset()
 		// value as is
 		return true, c, nil
-	} else if reader.currentIndex == 1 && c == utils.SLASH_CHAR {
+	} else if reader.currentIndex == 1 && c == utils.SlashChar {
 		reader.Reset()
 		// escaped slash, return as is
 		return true, c, nil

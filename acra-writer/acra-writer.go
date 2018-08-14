@@ -1,20 +1,24 @@
-// Copyright 2016, Cossack Labs Limited
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-// http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
+/*
+Copyright 2018, Cossack Labs Limited
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
 
 // Package acrawriter provides public function CreateAcrastruct for generating
 // acrastruct in your applications for encrypting on client-side and inserting
-// to db
+// to database.
+//
+// https://github.com/cossacklabs/acra/wiki/AcraConnector-and-AcraWriter
 package acrawriter
 
 import (
@@ -36,13 +40,13 @@ func CreateAcrastruct(data []byte, acraPublic *keys.PublicKey, context []byte) (
 		return nil, err
 	}
 	// generate random symmetric key
-	randomKey := make([]byte, base.SYMMETRIC_KEY_SIZE)
+	randomKey := make([]byte, base.SymmetricKeySize)
 	n, err := rand.Read(randomKey)
 	if err != nil {
 		return nil, err
 	}
-	if n != base.SYMMETRIC_KEY_SIZE {
-		return nil, errors.New("Read incorrect num of random bytes")
+	if n != base.SymmetricKeySize {
+		return nil, errors.New("read incorrect num of random bytes")
 	}
 
 	// create smessage for encrypting symmetric key
@@ -51,6 +55,8 @@ func CreateAcrastruct(data []byte, acraPublic *keys.PublicKey, context []byte) (
 	if err != nil {
 		return nil, err
 	}
+	utils.FillSlice('0', randomKeyPair.Private.Value)
+
 	// create scell for encrypting data
 	scell := cell.New(randomKey, cell.CELL_MODE_SEAL)
 	encryptedData, _, err := scell.Protect(data, context)
@@ -58,10 +64,11 @@ func CreateAcrastruct(data []byte, acraPublic *keys.PublicKey, context []byte) (
 		return nil, err
 	}
 	utils.FillSlice('0', randomKey)
+
 	// pack acrastruct
-	dateLength := make([]byte, base.DATA_LENGTH_SIZE)
+	dateLength := make([]byte, base.DataLengthSize)
 	binary.LittleEndian.PutUint64(dateLength, uint64(len(encryptedData)))
-	output := make([]byte, len(base.TAG_BEGIN)+base.KEY_BLOCK_LENGTH+base.DATA_LENGTH_SIZE+len(encryptedData))
+	output := make([]byte, len(base.TAG_BEGIN)+base.KeyBlockLength+base.DataLengthSize+len(encryptedData))
 	output = append(output[:0], base.TAG_BEGIN...)
 	output = append(output, randomKeyPair.Public.Value...)
 	output = append(output, encryptedKey...)

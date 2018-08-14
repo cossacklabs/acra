@@ -1,18 +1,25 @@
-// +build go1.8
+/*
+Copyright 2016, Cossack Labs Limited
 
-// Copyright 2016, Cossack Labs Limited
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
+// Package main is entry point for AcraRollback utility. AcraRollback allows users to decrypt data from database:
+// it generates a clean SQL dump from an existing protected one. To decrypt the protected data, the utility makes
+// a request to users database using SELECT query, then decrypts data, then generates the SQL dump which it can execute,
+// or write to file.
 //
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-// http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
+// https://github.com/cossacklabs/acra/wiki/AcraRollback
 package main
 
 import (
@@ -32,52 +39,67 @@ import (
 	"github.com/cossacklabs/acra/utils"
 	"github.com/cossacklabs/themis/gothemis/keys"
 	//_ "github.com/ziutek/mymysql/godrv"
+	"github.com/cossacklabs/acra/keystore/filesystem"
 	"github.com/cossacklabs/acra/logging"
 	_ "github.com/go-sql-driver/mysql"
 	_ "github.com/lib/pq"
 	log "github.com/sirupsen/logrus"
 )
 
-// DEFAULT_CONFIG_PATH relative path to config which will be parsed as default
-var DEFAULT_CONFIG_PATH = utils.GetConfigPathByName("acra-rollback")
-var SERVICE_NAME = "acra-rollback"
+// Constants used by AcraRollback
+var (
+	// DEFAULT_CONFIG_PATH relative path to config which will be parsed as default
+	DEFAULT_CONFIG_PATH = utils.GetConfigPathByName("acra-rollback")
+	SERVICE_NAME        = "acra-rollback"
+)
 
+// ErrorExit prints error and exits.
 func ErrorExit(msg string, err error) {
 	fmt.Println(utils.ErrorMessage(msg, err))
 	os.Exit(1)
 }
 
+// BinaryEncoder encodes binary to string
 type BinaryEncoder interface {
 	Encode([]byte) string
 }
 
+// MysqlEncoder encodes MySQL packets
 type MysqlEncoder struct{}
 
+// Encode bytes to Hex supported by MySQL
 func (e *MysqlEncoder) Encode(data []byte) string {
 	return fmt.Sprintf("X'%s'", hex.EncodeToString(data))
 }
 
+// EscapeEncoder for Postgres
 type EscapeEncoder struct{}
 
+// Encode bytes to Postgres Octal format
 func (e *EscapeEncoder) Encode(data []byte) string {
 	return QuoteValue(string(postgresql.EncodeToOctal(data)))
 }
 
+// HexEncoder for hex
 type HexEncoder struct{}
 
+// Encode bytes to Hex
 func (*HexEncoder) Encode(data []byte) string {
 	return fmt.Sprintf("E'\\\\x%s'", hex.EncodeToString(data))
 }
 
+// Executor interface for any executor.
 type Executor interface {
 	Execute([]byte)
 	Close()
 }
 
+// InsertExecutor will run Insert statement
 type InsertExecutor struct {
 	insertStatement *sql.Stmt
 }
 
+// NewInsertExecutor creates new executor for Insert statements
 func NewInsertExecutor(sql string, db *sql.DB) *InsertExecutor {
 	stmt, err := db.Prepare(sql)
 	if err != nil {
@@ -85,16 +107,21 @@ func NewInsertExecutor(sql string, db *sql.DB) *InsertExecutor {
 	}
 	return &InsertExecutor{insertStatement: stmt}
 }
+
+// Execute inserts
 func (ex *InsertExecutor) Execute(data []byte) {
 	_, err := ex.insertStatement.Exec(&data)
 	if err != nil {
 		ErrorExit("can't bind args to prepared statement", err)
 	}
 }
+
+// Close executor
 func (ex *InsertExecutor) Close() {
 	ex.insertStatement.Close()
 }
 
+// WriteToFileExecutor writes to file
 type WriteToFileExecutor struct {
 	encoder BinaryEncoder
 	file    *os.File
@@ -102,6 +129,7 @@ type WriteToFileExecutor struct {
 	writer  *bufio.Writer
 }
 
+// NewWriteToFileExecutor creates new object ready to write encoded sql to filePath
 func NewWriteToFileExecutor(filePath string, sql string, encoder BinaryEncoder) *WriteToFileExecutor {
 	absPath, err := utils.AbsPath(filePath)
 	if err != nil {
@@ -115,9 +143,13 @@ func NewWriteToFileExecutor(filePath string, sql string, encoder BinaryEncoder) 
 	return &WriteToFileExecutor{sql: sql, file: file, writer: writer, encoder: encoder}
 }
 
+// PLACEHOLDER char
 var PLACEHOLDER = "$1"
+
+// NEWLINE char
 var NEWLINE = []byte{'\n'}
 
+// QuoteValue returns name in quotes, if name contains quotes, doubles them
 func QuoteValue(name string) string {
 	end := strings.IndexRune(name, 0)
 	if end > -1 {
@@ -126,14 +158,15 @@ func QuoteValue(name string) string {
 	return `'` + strings.Replace(name, `'`, `''`, -1) + `'`
 }
 
+// Execute write to file
 func (ex *WriteToFileExecutor) Execute(data []byte) {
 	encoded := ex.encoder.Encode(data)
-	outputSql := strings.Replace(ex.sql, PLACEHOLDER, encoded, 1)
-	n, err := ex.writer.Write([]byte(outputSql))
+	outputSQL := strings.Replace(ex.sql, PLACEHOLDER, encoded, 1)
+	n, err := ex.writer.Write([]byte(outputSQL))
 	if err != nil {
 		ErrorExit("can't write to output file", err)
 	}
-	if n != len(outputSql) {
+	if n != len(outputSQL) {
 		fmt.Println("Incorrect write count")
 		os.Exit(1)
 	}
@@ -146,6 +179,8 @@ func (ex *WriteToFileExecutor) Execute(data []byte) {
 		os.Exit(1)
 	}
 }
+
+// Close file
 func (ex *WriteToFileExecutor) Close() {
 	ex.writer.Flush()
 	ex.file.Sync()
@@ -153,8 +188,8 @@ func (ex *WriteToFileExecutor) Close() {
 }
 
 func main() {
-	keysDir := flag.String("keys_dir", keystore.DEFAULT_KEY_DIR_SHORT, "Folder from which the keys will be loaded")
-	clientId := flag.String("client_id", "", "Client id should be name of file with private key")
+	keysDir := flag.String("keys_dir", keystore.DefaultKeyDirShort, "Folder from which the keys will be loaded")
+	clientID := flag.String("client_id", "", "Client ID should be name of file with private key")
 	connectionString := flag.String("connection_string", "", "Connection string for db")
 	sqlSelect := flag.String("select", "", "Query to fetch data for decryption")
 	sqlInsert := flag.String("insert", "", "Query for insert decrypted data with placeholders (pg: $n, mysql: ?)")
@@ -169,18 +204,23 @@ func main() {
 
 	err := cmd.Parse(DEFAULT_CONFIG_PATH, SERVICE_NAME)
 	if err != nil {
-		log.WithError(err).Errorln("can't parse args")
+		log.WithError(err).Errorln("Can't parse args")
 		os.Exit(1)
 	}
 
 	twoDrivers := *useMysql && *usePostgresql
 	noDrivers := !(*useMysql || *usePostgresql)
 	if twoDrivers || noDrivers {
-		log.Errorln("you must pass only --mysql_enable or --postgresql_enable (one required)")
+		log.Errorln("You must pass only --mysql_enable or --postgresql_enable (one required)")
 		os.Exit(1)
 	}
 	if *useMysql {
 		PLACEHOLDER = "?"
+	}
+
+	if !strings.Contains(*sqlInsert, PLACEHOLDER) {
+		log.Errorln("SQL INSERT statement doesn't contain any placeholders")
+		os.Exit(1)
 	}
 
 	dbDriverName := "postgres"
@@ -191,59 +231,59 @@ func main() {
 		dbDriverName = "mysql"
 	}
 
-	cmd.ValidateClientId(*clientId)
+	cmd.ValidateClientID(*clientID)
 
 	if *connectionString == "" {
-		log.Errorln("connection_string arg is missing")
+		log.Errorln("Connection_string arg is missing")
 		os.Exit(1)
 	}
 
 	if *sqlSelect == "" {
-		log.Errorln("sql_select arg is missing")
+		log.Errorln("Sql_select arg is missing")
 		os.Exit(1)
 	}
 	if *sqlInsert == "" {
-		log.Errorln("sql_insert arg is missing")
+		log.Errorln("Sql_insert arg is missing")
 		os.Exit(1)
 	}
 	absKeysDir, err := utils.AbsPath(*keysDir)
 	if err != nil {
-		log.WithError(err).Errorln("can't get absolute path for keys_dir")
+		log.WithError(err).Errorln("Can't get absolute path for keys_dir")
 		os.Exit(1)
 	}
 	if *outputFile == "" && !*execute {
-		log.Errorln("output_file missing or execute flag")
+		log.Errorln("Output_file missing or execute flag")
 		os.Exit(1)
 	}
 	masterKey, err := keystore.GetMasterKeyFromEnvironment()
 	if err != nil {
-		log.WithError(err).Errorln("can't load master key")
+		log.WithError(err).Errorln("Can't load master key")
 		os.Exit(1)
 	}
 	scellEncryptor, err := keystore.NewSCellKeyEncryptor(masterKey)
 	if err != nil {
-		log.WithError(err).Errorln("can't init scell encryptor")
+		log.WithError(err).Errorln("Can't init scell encryptor")
 		os.Exit(1)
 	}
-	keystorage, err := keystore.NewFilesystemKeyStore(absKeysDir, scellEncryptor)
+	keystorage, err := filesystem.NewFilesystemKeyStore(absKeysDir, scellEncryptor)
 	if err != nil {
-		log.WithError(err).Errorln("can't create key store")
+		log.WithError(err).Errorln("Can't create key store")
 		os.Exit(1)
 	}
 	db, err := sql.Open(dbDriverName, *connectionString)
 	if err != nil {
-		log.WithError(err).Errorln("can't connect to db")
+		log.WithError(err).Errorln("Can't connect to db")
 		os.Exit(1)
 	}
 	defer db.Close()
 	err = db.Ping()
 	if err != nil {
-		log.WithError(err).Errorln("can't connect to db")
+		log.WithError(err).Errorln("Can't connect to db")
 		os.Exit(1)
 	}
 	rows, err := db.Query(*sqlSelect)
 	if err != nil {
-		log.WithError(err).Errorf("error with select query '%v'", *sqlSelect)
+		log.WithError(err).Errorf("Error with select query '%v'", *sqlSelect)
 		os.Exit(1)
 	}
 	defer rows.Close()
@@ -275,27 +315,27 @@ func main() {
 		if *withZone {
 			err = rows.Scan(&zone, &data)
 			if err != nil {
-				ErrorExit("can't read zone & data from row %v", err)
+				ErrorExit("Can't read zone & data from row %v", err)
 			}
 			privateKey, err = keystorage.GetZonePrivateKey(zone)
 			if err != nil {
-				log.WithError(err).Errorf("can't get zone private key for row with number %v", i)
+				log.WithError(err).Errorf("Can't get zone private key for row with number %v", i)
 				continue
 			}
 		} else {
 			err = rows.Scan(&data)
 			if err != nil {
-				ErrorExit("can't read data from row", err)
+				ErrorExit("Can't read data from row", err)
 			}
-			privateKey, err = keystorage.GetServerDecryptionPrivateKey([]byte(*clientId))
+			privateKey, err = keystorage.GetServerDecryptionPrivateKey([]byte(*clientID))
 			if err != nil {
-				log.WithError(err).Errorf("can't get private key for row with number %v", i)
+				log.WithError(err).Errorf("Can't get private key for row with number %v", i)
 				continue
 			}
 		}
 		decrypted, err := base.DecryptAcrastruct(data, privateKey, zone)
 		if err != nil {
-			log.WithError(err).Errorln("can't decrypt acrastruct in row with number %v", i)
+			log.WithError(err).Errorln("Can't decrypt acrastruct in row with number %v", i)
 			continue
 		}
 		for e := executors.Front(); e != nil; e = e.Next() {

@@ -1,3 +1,19 @@
+/*
+Copyright 2016, Cossack Labs Limited
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
 package mysql
 
 import (
@@ -7,7 +23,8 @@ import (
 	"io"
 )
 
-var ErrMalformPacket = errors.New("Malform packet error")
+// ErrMalformPacket if packet parsing failed
+var ErrMalformPacket = errors.New("malform packet error")
 
 // LengthEncodedInt https://dev.mysql.com/doc/internals/en/integer.html#packet-Protocol::LengthEncodedInteger
 func LengthEncodedInt(data []byte) (num uint64, isNull bool, n int, err error) {
@@ -76,6 +93,7 @@ func LengthEncodedString(data []byte) ([]byte, bool, int, error) {
 	return nil, false, n, io.EOF
 }
 
+// SkipLengthEncodedString https://dev.mysql.com/doc/internals/en/string.html#packet-Protocol::LengthEncodedString
 func SkipLengthEncodedString(data []byte) (int, error) {
 	num, _, n, err := LengthEncodedInt(data)
 	if err != nil {
@@ -120,6 +138,7 @@ func PutLengthEncodedString(b []byte) []byte {
 	return data
 }
 
+// Uint16ToBytes returns bytes
 func Uint16ToBytes(n uint16) []byte {
 	return []byte{
 		byte(n),
@@ -127,6 +146,7 @@ func Uint16ToBytes(n uint16) []byte {
 	}
 }
 
+// Uint32ToBytes returns bytes
 func Uint32ToBytes(n uint32) []byte {
 	return []byte{
 		byte(n),
@@ -136,6 +156,7 @@ func Uint32ToBytes(n uint32) []byte {
 	}
 }
 
+// Uint64ToBytes returns bytes
 func Uint64ToBytes(n uint64) []byte {
 	return []byte{
 		byte(n),

@@ -1,16 +1,22 @@
-// Copyright 2016, Cossack Labs Limited
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-// http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
+/*
+Copyright 2016, Cossack Labs Limited
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
+// Package keystore describes various KeyStore interfaces. KeyStore is responsible for storing and accessing
+// encryption keys: both transport ans storage. Keystore abstracts from real key storage (it might be folder in
+// file system or remote KMS). Keystore is responsible for generating, reading and decrypting specific keys.
 package keystore
 
 import (
@@ -25,59 +31,66 @@ import (
 	"github.com/cossacklabs/themis/gothemis/keys"
 )
 
+// KeyStore-related constants.
 const (
-	DEFAULT_KEY_DIR_SHORT    = ".acrakeys"
-	VALID_CHARS              = "_- "
-	MAX_CLIENT_ID_LENGTH     = 256
-	MIN_CLIENT_ID_LENGTH     = 5
-	BASIC_AUTH_KEY_LENGTH    = 32
-	ACRA_MASTER_KEY_VAR_NAME = "ACRA_MASTER_KEY"
-	// SYMMETRIC_KEY_LENGTH in bytes for master key
-	SYMMETRIC_KEY_LENGTH = 32
+	// DefaultKeyDirShort
+	DefaultKeyDirShort   = ".acrakeys"
+	ValidChars           = "_- "
+	MaxClientIdLength    = 256
+	MinClientIdLength    = 5
+	BasicAuthKeyLength   = 32
+	AcraMasterKeyVarName = "ACRA_MASTER_KEY"
+	// SymmetricKeyLength in bytes for master key
+	SymmetricKeyLength = 32
 )
 
-var ErrInvalidClientId = errors.New("invalid client id")
-var ErrEmptyMasterKey = errors.New("master key is empty")
-var ErrMasterKeyIncorrectLength = fmt.Errorf("master key must have %v length in bytes", SYMMETRIC_KEY_LENGTH)
+// Errors returned during accessing to client id or master key.
+var (
+	ErrInvalidClientID          = errors.New("invalid client ID")
+	ErrEmptyMasterKey           = errors.New("master key is empty")
+	ErrMasterKeyIncorrectLength = fmt.Errorf("master key must have %v length in bytes", SymmetricKeyLength)
+)
 
 // GenerateSymmetricKey return new generated symmetric key that must used in keystore as master key and will comply
-// our requirements
+// our requirements.
 func GenerateSymmetricKey() ([]byte, error) {
-	key := make([]byte, SYMMETRIC_KEY_LENGTH)
+	key := make([]byte, SymmetricKeyLength)
 	n, err := rand.Read(key)
 	if err != nil {
 		return nil, err
 	}
-	if n != SYMMETRIC_KEY_LENGTH {
+	if n != SymmetricKeyLength {
 		return nil, ErrMasterKeyIncorrectLength
 	}
 	return key, nil
 }
 
-func ValidateId(client_id []byte) bool {
-	if len(client_id) < MIN_CLIENT_ID_LENGTH || len(client_id) > MAX_CLIENT_ID_LENGTH {
+// ValidateID checks that clientID length is within required limits and
+// clientID contains only valid chars (digits, letters, -, _, ' ').
+func ValidateID(clientID []byte) bool {
+	if len(clientID) < MinClientIdLength || len(clientID) > MaxClientIdLength {
 		return false
 	}
-	// letters, digits, VALID_CHARS = '-', '_', ' '
-	for _, c := range string(client_id) {
-		if (c < 'a' || c > 'z') && (c < 'A' || c > 'Z') && (c < '0' || c > '9') && !strings.ContainsRune(VALID_CHARS, c) {
+	// letters, digits, ValidChars = '-', '_', ' '
+	for _, c := range string(clientID) {
+		if (c < 'a' || c > 'z') && (c < 'A' || c > 'Z') && (c < '0' || c > '9') && !strings.ContainsRune(ValidChars, c) {
 			return false
 		}
 	}
 	return true
 }
 
-// ValidateMasterKey do validation of symmetric master key and return nil if pass check
+// ValidateMasterKey do validation of symmetric master key and return nil if pass check.
 func ValidateMasterKey(key []byte) error {
-	if len(key) < SYMMETRIC_KEY_LENGTH {
+	if len(key) < SymmetricKeyLength {
 		return ErrMasterKeyIncorrectLength
 	}
 	return nil
 }
 
-// GetMasterKeyFromEnvironment return master key from environment variable with name ACRA_MASTER_KEY_VAR_NAME
+// GetMasterKeyFromEnvironment return master key from environment variable with name AcraMasterKeyVarName
 func GetMasterKeyFromEnvironment() (key []byte, err error) {
-	b64value := os.Getenv(ACRA_MASTER_KEY_VAR_NAME)
+	b64value := os.Getenv(AcraMasterKeyVarName)
 	if len(b64value) == 0 {
 		return nil, ErrEmptyMasterKey
 	}
@@ -91,35 +104,43 @@ func GetMasterKeyFromEnvironment() (key []byte, err error) {
 	return
 }
 
+// KeyEncryptor describes Encrypt and Decrypt interfaces.
 type KeyEncryptor interface {
 	Encrypt(key, context []byte) ([]byte, error)
 	Decrypt(key, context []byte) ([]byte, error)
 }
 
+// SCellKeyEncryptor uses Themis Secure Cell with provided master key to encrypt and decrypt keys.
 type SCellKeyEncryptor struct {
 	scell *cell.SecureCell
 }
 
+// NewSCellKeyEncryptor creates new SCellKeyEncryptor object with masterKey using Themis Secure Cell in Seal mode.
 func NewSCellKeyEncryptor(masterKey []byte) (*SCellKeyEncryptor, error) {
 	return &SCellKeyEncryptor{scell: cell.New(masterKey, cell.CELL_MODE_SEAL)}, nil
 }
 
-// EncryptKey return encrypted key using masterKey and context
+// Encrypt return encrypted key using masterKey and context.
 func (encryptor *SCellKeyEncryptor) Encrypt(key, context []byte) ([]byte, error) {
 	encrypted, _, err := encryptor.scell.Protect(key, context)
 	return encrypted, err
 }
 
-// DecryptKey return decrypted key using masterKey and context
+// Decrypt return decrypted key using masterKey and context.
 func (encryptor *SCellKeyEncryptor) Decrypt(key, context []byte) ([]byte, error) {
 	return encryptor.scell.Unprotect(key, nil, context)
 }
 
+// SecureSessionKeyStore describes KeyStore used for handling Themis Secure Session connection.
 type SecureSessionKeyStore interface {
 	GetPrivateKey(id []byte) (*keys.PrivateKey, error)
 	GetPeerPublicKey(id []byte) (*keys.PublicKey, error)
 }
 
+// KeyStore describes any KeyStore that reads keys to handle Themis Secure Session connection,
+// to encrypt and decrypt AcraStructs with and without Zones,
+// to find Poison records.
+// Moreover KeyStore can generate various Keys using ClientID.
 type KeyStore interface {
 	SecureSessionKeyStore
 	GetZonePrivateKey(id []byte) (*keys.PrivateKey, error)
@@ -127,9 +148,13 @@ type KeyStore interface {
 	GetServerDecryptionPrivateKey(id []byte) (*keys.PrivateKey, error)
 	// return id, public key, error
 	GenerateZoneKey() ([]byte, []byte, error)
+	// return new_public_key, error
+	RotateZoneKey(zoneID []byte) ([]byte, error)
 
 	GenerateConnectorKeys(id []byte) error
 	GenerateServerKeys(id []byte) error
+	GenerateTranslatorKeys(id []byte) error
+
 	// generate key pair for data encryption/decryption
 	GenerateDataEncryptionKeys(id []byte) error
 	GetPoisonKeyPair() (*keys.Keypair, error)

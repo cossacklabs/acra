@@ -1,22 +1,24 @@
-// Copyright 2016, Cossack Labs Limited
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-// http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
+/*
+Copyright 2016, Cossack Labs Limited
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
 package network
 
 import (
 	"io"
 	"net"
-	"runtime"
 	"sync"
 
 	"github.com/cossacklabs/acra/keystore"
@@ -25,12 +27,15 @@ import (
 	"github.com/cossacklabs/themis/gothemis/keys"
 	"github.com/cossacklabs/themis/gothemis/session"
 	log "github.com/sirupsen/logrus"
+	"time"
 )
 
+// SessionCallback used for wrapping connection into SecureSession using SecureSession transport keys
 type SessionCallback struct {
 	keystorage keystore.SecureSessionKeyStore
 }
 
+// GetPublicKeyForId from Themis, returns correct public for particular secure session id
 func (callback *SessionCallback) GetPublicKeyForId(ss *session.SecureSession, id []byte) *keys.PublicKey {
 	log.Infof("Load public key for id %v", string(id))
 	key, err := callback.keystorage.GetPeerPublicKey(id)
@@ -42,8 +47,10 @@ func (callback *SessionCallback) GetPublicKeyForId(ss *session.SecureSession, id
 	return key
 }
 
+// StateChanged callback for session state change
 func (callback *SessionCallback) StateChanged(ss *session.SecureSession, state int) {}
 
+// NewSessionCallback creates new SessionCallback with SecureSessionKeyStore
 func NewSessionCallback(keystorage keystore.SecureSessionKeyStore) (*SessionCallback, error) {
 	return &SessionCallback{keystorage: keystorage}, nil
 }
@@ -55,14 +62,16 @@ type secureSessionConnection struct {
 	currentData   []byte
 	returnedIndex int
 	closed        bool
-	clientId      []byte
+	clientID      []byte
 	mutex         *sync.Mutex
 }
 
 func newSecureSessionConnection(keystore keystore.SecureSessionKeyStore, conn net.Conn) (*secureSessionConnection, error) {
-	return &secureSessionConnection{keystore: keystore, session: nil, Conn: conn, currentData: nil, returnedIndex: 0, closed: false, clientId: nil, mutex: &sync.Mutex{}}, nil
+	return &secureSessionConnection{keystore: keystore, session: nil, Conn: conn, currentData: nil, returnedIndex: 0, closed: false, clientID: nil, mutex: &sync.Mutex{}}, nil
 }
 
+// Read data from connection, returns decrypted data
+// returns decryption error or EOF error if connection closed
 func (wrapper *secureSessionConnection) Read(b []byte) (n int, err error) {
 	if wrapper.currentData != nil {
 		n = copy(b, wrapper.currentData[wrapper.returnedIndex:])
@@ -94,9 +103,7 @@ func (wrapper *secureSessionConnection) Read(b []byte) (n int, err error) {
 	return n, nil
 }
 
-// Write writes data to the connection.
-// Write can be made to time out and return a Error with Timeout() == true
-// after a fixed time limit; see SetDeadline and SetWriteDeadline.
+// Write encrypt data with secure session and send it to wrapped connection
 func (wrapper *secureSessionConnection) Write(b []byte) (n int, err error) {
 	wrapper.mutex.Lock()
 	if wrapper.closed {
@@ -113,26 +120,72 @@ func (wrapper *secureSessionConnection) Write(b []byte) (n int, err error) {
 	return len(b), nil
 }
 
+// Close secure session connection, close all underlying connections
 func (wrapper *secureSessionConnection) Close() error {
 	wrapper.mutex.Lock()
 	defer wrapper.mutex.Unlock()
 	wrapper.closed = true
 	err := wrapper.Conn.Close()
 	sessionErr := wrapper.session.Close()
+	log.Debugln("secure session connection closed")
 	if sessionErr != nil {
 		return sessionErr
 	}
-	runtime.KeepAlive(wrapper.session)
 	return err
 }
 
-type SecureSessionConnectionWrapper struct {
-	keystore keystore.SecureSessionKeyStore
-	clientId []byte
+// ConnectionWrapError wrap error and always return true on net.Error.Temporary and false on net.Error.Timeout
+type ConnectionWrapError struct{ error }
+
+// NewConnectionWrapError wrap err with ConnectionWrapError
+func NewConnectionWrapError(err error) error {
+	if err == nil {
+		return nil
+	}
+	return &ConnectionWrapError{err}
 }
 
+// Error value of wrapped error
+func (err *ConnectionWrapError) Error() string {
+	return err.error.Error()
+}
+
+// Timeout return Timeout() of wrapped error or false
+func (err *ConnectionWrapError) Timeout() bool {
+	netErr, ok := err.error.(net.Error)
+	if ok {
+		return netErr.Timeout()
+	}
+	return false
+}
+
+// Temporary always true
+func (err *ConnectionWrapError) Temporary() bool {
+	return true
+}
+
+// SECURE_SESSION_ESTABLISHING_TIMEOUT timeout for secure session handshake that should be enough
+const SECURE_SESSION_ESTABLISHING_TIMEOUT = time.Second * 10
+
+// SecureSessionConnectionWrapper adds SecureSession encryption above connection
+type SecureSessionConnectionWrapper struct {
+	keystore         keystore.SecureSessionKeyStore
+	clientID         []byte
+	handshakeTimeout time.Duration
+}
+
+// NewSecureSessionConnectionWrapper returns new SecureSessionConnectionWrapper with default handlshake timeout
 func NewSecureSessionConnectionWrapper(keystore keystore.SecureSessionKeyStore) (*SecureSessionConnectionWrapper, error) {
-	return &SecureSessionConnectionWrapper{keystore: keystore, clientId: nil}, nil
+	return &SecureSessionConnectionWrapper{keystore: keystore, clientID: nil, handshakeTimeout: SECURE_SESSION_ESTABLISHING_TIMEOUT}, nil
+}
+
+// SetHandshakeTimeout set handshakeTimeout that will be used for secure session handshake. 0 - without handshakeTimeout
+func (wrapper *SecureSessionConnectionWrapper) SetHandshakeTimeout(time time.Duration) {
+	wrapper.handshakeTimeout = time
+}
+
+func (wrapper *SecureSessionConnectionWrapper) hasHandshakeTimeout() bool {
+	return wrapper.handshakeTimeout != 0
 }
 
 func (wrapper *SecureSessionConnectionWrapper) wrap(id []byte, conn net.Conn, isServer bool) (net.Conn, []byte, error) {
@@ -144,23 +197,23 @@ func (wrapper *SecureSessionConnectionWrapper) wrap(id []byte, conn net.Conn, is
 	if err != nil {
 		return conn, nil, err
 	}
-	var clientId []byte
+	var clientID []byte
 	if isServer {
-		clientId, err = utils.ReadData(conn)
+		clientID, err = utils.ReadData(conn)
 		if err != nil {
 			return conn, nil, err
 		}
-		log.WithField("client_id", string(clientId)).Debugln("new secure session connection to server")
-		privateKey, err := wrapper.keystore.GetPrivateKey(clientId)
+		log.WithField("client_id", string(clientID)).Debugln("new secure session connection to server")
+		privateKey, err := wrapper.keystore.GetPrivateKey(clientID)
 		if err != nil {
 			return conn, nil, err
 		}
-		secureConnection.session, err = session.New(clientId, privateKey, callback)
+		secureConnection.session, err = session.New(clientID, privateKey, callback)
 		if err != nil {
 			return conn, nil, err
 		}
 	} else {
-		clientId = id
+		clientID = id
 		privateKey, err := wrapper.keystore.GetPrivateKey(id)
 		if err != nil {
 			return conn, nil, err
@@ -192,7 +245,7 @@ func (wrapper *SecureSessionConnectionWrapper) wrap(id []byte, conn net.Conn, is
 			return conn, nil, err
 		}
 		if !sendPeer {
-			return secureConnection, clientId, nil
+			return secureConnection, clientID, nil
 		}
 
 		err = utils.SendData(buf, conn)
@@ -201,17 +254,51 @@ func (wrapper *SecureSessionConnectionWrapper) wrap(id []byte, conn net.Conn, is
 		}
 
 		if secureConnection.session.GetState() == session.STATE_ESTABLISHED {
-			return secureConnection, clientId, nil
+			return secureConnection, clientID, nil
 		}
 	}
 }
 
+// WrapClient wraps client connection with secure session
+// cancels connection if timeout expired
 func (wrapper *SecureSessionConnectionWrapper) WrapClient(id []byte, conn net.Conn) (net.Conn, error) {
 	log.Debugln("wrap client connection with secure session")
+	if wrapper.hasHandshakeTimeout() {
+		if err := conn.SetDeadline(time.Now().Add(wrapper.handshakeTimeout)); err != nil {
+			log.WithError(err).Errorln("Can't set deadline for secure session handshake")
+			return nil, err
+		}
+	}
 	newConn, _, err := wrapper.wrap(id, conn, false)
-	return newConn, err
+	if wrapper.hasHandshakeTimeout() {
+		// reset deadline
+		if err := conn.SetDeadline(time.Time{}); err != nil {
+			log.WithError(err).Errorln("Can't reset deadline after secure session handshake")
+			return nil, err
+		}
+	}
+	log.Debugln("wrap client connection with secure session finished")
+	return newConn, NewConnectionWrapError(err)
 }
+
+// WrapServer wraps server connection with secure session
+// cancels connection if timeout expired
 func (wrapper *SecureSessionConnectionWrapper) WrapServer(conn net.Conn) (net.Conn, []byte, error) {
 	log.Debugln("wrap server connection with secure session")
-	return wrapper.wrap(nil, conn, true)
+	if wrapper.hasHandshakeTimeout() {
+		if err := conn.SetDeadline(time.Now().Add(wrapper.handshakeTimeout)); err != nil {
+			log.WithError(err).Errorln("Can't set deadline for secure session handshake")
+			return nil, nil, err
+		}
+	}
+	newConn, clientID, err := wrapper.wrap(nil, conn, true)
+	if wrapper.hasHandshakeTimeout() {
+		// reset deadline
+		if err := conn.SetDeadline(time.Time{}); err != nil {
+			log.WithError(err).Errorln("Can't reset deadline after secure session handshake")
+			return nil, nil, err
+		}
+	}
+	log.Debugln("wrap server connection with secure session finished")
+	return newConn, clientID, NewConnectionWrapError(err)
 }

@@ -1,16 +1,23 @@
-// Copyright 2016, Cossack Labs Limited
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-// http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
+/*
+Copyright 2016, Cossack Labs Limited
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
+// Package base contains AcraStruct decryptor interface and callbacks. Decryptor is database-dependent object:
+// PgDecryptor reads data from PostgreSQL databases, finds AcraStructs and decrypt them,
+// MySQLDecryptor reads and decrypts AcraStruct from MySQL databases in the similar way,
+// BinaryDecryptor doesn't care about database protocol, it finds and decrypts AcraStruct from binary blobs.
 package base
 
 import (
@@ -22,9 +29,11 @@ import (
 	"io"
 )
 
-// error show that failed acra struct recognizing but data is may be valid
-var ErrFakeAcraStruct = errors.New("fake acra struct")
-var ErrPoisonRecord = errors.New("poison record detected")
+// Errors show errors while recognizing of valid AcraStructs.
+var (
+	ErrFakeAcraStruct = errors.New("fake acra struct")
+	ErrPoisonRecord   = errors.New("poison record detected")
+)
 
 /*
 which symbols can be used - 2 3 4 5 6 7
@@ -39,23 +48,34 @@ hex   char dec  bin
 */
 
 //var TAG_BEGIN = []byte{133, 32, 251}
+
+// Constants that setup which symbol would be used at start in AcraStruct to simplify recognizing from other binary data
+// Double-quote was chosen because it's printable symbol (help in debugging when we can see in console that it's start of
+// AcraStruct) and rarely used sequentially
+// Tag length was chosen
 const (
-	TAG_SYMBOL byte = '"'
+	// TagSymbol used in begin tag in AcraStruct
+	TagSymbol byte = '"'
 )
 
-var TAG_BEGIN = []byte{TAG_SYMBOL, TAG_SYMBOL, TAG_SYMBOL, TAG_SYMBOL, TAG_SYMBOL, TAG_SYMBOL, TAG_SYMBOL, TAG_SYMBOL}
+// TAG_BEGIN represents begin sequence of bytes for AcraStruct.
+var TAG_BEGIN = []byte{TagSymbol, TagSymbol, TagSymbol, TagSymbol, TagSymbol, TagSymbol, TagSymbol, TagSymbol}
 
+// Shows key and data length.
 const (
 	// length of EC public key
-	PUBLIC_KEY_LENGTH = 45
+	PublicKeyLength = 45
 	// length of 32 byte of symmetric key wrapped to smessage
-	SMESSAGE_KEY_LENGTH = 84
-	KEY_BLOCK_LENGTH    = PUBLIC_KEY_LENGTH + SMESSAGE_KEY_LENGTH
+	SMessageKeyLength = 84
+	KeyBlockLength    = PublicKeyLength + SMessageKeyLength
 
-	SYMMETRIC_KEY_SIZE = 32
-	DATA_LENGTH_SIZE   = 8
+	SymmetricKeySize = 32
+	// DataLengthSize length of part of AcraStruct that store data part length. So max data size is 2^^64 that
+	// may be wrapped into AcraStruct. We decided that 2^^64 is enough and not much as 8 byte overhead per AcraStruct
+	DataLengthSize = 8
 )
 
+// DataDecryptor describes AcraStruct decryptor.
 type DataDecryptor interface {
 	// try match begin tag per byte
 	MatchBeginTag(byte) bool
@@ -76,6 +96,7 @@ type DataDecryptor interface {
 	GetTagBeginLength() int
 }
 
+// Decryptor describes all methods needed to find and decrypt AcraStruct in binary file.
 type Decryptor interface {
 	DataDecryptor
 	// register key store that will be used for retrieving private keys
@@ -83,13 +104,15 @@ type Decryptor interface {
 	// return private key for current connected client for decrypting symmetric
 	// key with secure message
 	GetPrivateKey() (*keys.PrivateKey, error)
+	TurnOnPoisonRecordCheck(bool)
+	IsPoisonRecordCheckOn() bool
 	// register storage of callbacks for detected poison records
 	SetPoisonCallbackStorage(*PoisonCallbackStorage)
 	// get current storage of callbacks for detected poison records
 	GetPoisonCallbackStorage() *PoisonCallbackStorage
-	SetZoneMatcher(*zone.ZoneIdMatcher)
-	GetZoneMatcher() *zone.ZoneIdMatcher
-	GetMatchedZoneId() []byte
+	SetZoneMatcher(*zone.ZoneIDMatcher)
+	GetZoneMatcher() *zone.ZoneIDMatcher
+	GetMatchedZoneID() []byte
 	MatchZone(byte) bool
 	IsWithZone() bool
 	SetWithZone(bool)
@@ -106,14 +129,13 @@ type Decryptor interface {
 	MatchZoneInBlock([]byte)
 }
 
-func CheckReadWrite(n, expectedN int, err error, errCh chan<- error) bool {
+// CheckReadWrite check that n == expectedN and err != nil
+func CheckReadWrite(n, expectedN int, err error) error {
 	if err != nil {
-		errCh <- err
-		return false
+		return err
 	}
 	if n != expectedN {
-		errCh <- fmt.Errorf("incorrect read/write count. %d != %d", n, expectedN)
-		return false
+		return fmt.Errorf("incorrect read/write count. %d != %d", n, expectedN)
 	}
-	return true
+	return nil
 }

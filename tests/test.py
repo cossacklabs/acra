@@ -15,6 +15,7 @@
 import contextlib
 import socket
 import json
+import logging
 import tempfile
 import time
 import os
@@ -25,6 +26,8 @@ import traceback
 import unittest
 import re
 import stat
+import uuid
+import signal
 from base64 import b64decode, b64encode
 from tempfile import NamedTemporaryFile
 from urllib.request import urlopen
@@ -32,19 +35,37 @@ from urllib.parse import urlparse
 import collections
 import shutil
 
+import requests
 import psycopg2
 import psycopg2.extras
 import pymysql
 import semver
 import sqlalchemy as sa
+import api_pb2_grpc
+import api_pb2
+import grpc
+from requests.auth import HTTPBasicAuth
 from sqlalchemy.exc import DatabaseError
 from sqlalchemy.dialects.postgresql import BYTEA
+
+from utils import (read_storage_public_key, decrypt_acrastruct,
+                   decrypt_private_key)
 
 import sys
 # add to path our wrapper until not published to PYPI
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(__file__)), 'wrappers/python'))
 
 from acrawriter import create_acrastruct
+
+# log python logs with time format as in golang
+format = u"%(asctime)s - %(message)s"
+handler = logging.StreamHandler(stream=sys.stderr)
+handler.setFormatter(logging.Formatter(fmt=format, datefmt="%Y-%m-%dT%H:%M:%S%z"))
+handler.setLevel(logging.DEBUG)
+logger = logging.getLogger()
+logger.addHandler(handler)
+logger.setLevel(logging.DEBUG)
+
 
 DATA_MIN_SIZE = 1000
 DATA_MAX_SIZE = DATA_MIN_SIZE * 10
@@ -61,12 +82,16 @@ test_table = sa.Table('test', metadata,
 acrarollback_output_table = sa.Table('acrarollback_output', metadata,
                                      sa.Column('data', sa.LargeBinary),
                                      )
+# keys of json objects that return acra-addzone tool
+ZONE_ID = 'id'
+ZONE_PUBLIC_KEY = 'public_key'
 
 zones = []
 poison_record = None
 master_key = None
+KEYS_FOLDER = None
 ACRA_MASTER_KEY_VAR_NAME = 'ACRA_MASTER_KEY'
-MASTER_KEY_PATH = 'master.key'
+MASTER_KEY_PATH = '/tmp/acra-test-master.key'
 
 ACRAWEBCONFIG_HTTP_PORT = 8022
 ACRAWEBCONFIG_AUTH_DB_PATH = 'auth.keys'
@@ -82,10 +107,13 @@ POISON_KEY_PATH = '.poison_key/poison_key'
 SETUP_SQL_COMMAND_TIMEOUT = 0.1
 FORK_FAIL_SLEEP = 0.1
 CONNECTION_FAIL_SLEEP = 0.1
-SOCKET_CONNECT_TIMEOUT = 10
+SOCKET_CONNECT_TIMEOUT = 3
 KILL_WAIT_TIMEOUT = 10
 CONNECT_TRY_COUNT = 3
 SQL_EXECUTE_TRY_COUNT = 5
+# http://docs.python-requests.org/en/master/user/advanced/#timeouts
+# use only for requests.* methods
+REQUEST_TIMEOUT = (5, 5)  # connect_timeout, read_timeout
 
 TEST_WITH_TLS = os.environ.get('TEST_TLS', 'off').lower() == 'on'
 
@@ -111,6 +139,11 @@ else:
         "options": "-c statement_timeout=1000", 'sslmode': SSLMODE}
 
 
+def get_random_data():
+        size = random.randint(DATA_MIN_SIZE, DATA_MAX_SIZE)
+        return ''.join(random.SystemRandom().choice(string.ascii_letters) for _ in range(size))
+
+
 def stop_process(process):
     """stop process if exists by terminate and kill at end to be sure
     that process will not alive as zombi-process"""
@@ -119,6 +152,7 @@ def stop_process(process):
     # send signal to each. they can handle it asynchronously
     for p in process:
         try:
+            logger.info("terminate pid {}".format(p.pid))
             p.terminate()
         except:
             traceback.print_exc()
@@ -131,6 +165,7 @@ def stop_process(process):
         except:
             traceback.print_exc()
         try:
+            logger.info("kill pid {}".format(p.pid))
             p.kill()
         except:
             traceback.print_exc()
@@ -154,7 +189,9 @@ def get_master_key():
         master_key = os.environ.get(ACRA_MASTER_KEY_VAR_NAME)
         if not master_key:
             subprocess.check_output([
-                './acra-keymaker', '--generate_master_key={}'.format(MASTER_KEY_PATH)])
+                './acra-keymaker', '--generate_master_key={}'.format(MASTER_KEY_PATH),
+                '--keys_output_dir={}'.format(KEYS_FOLDER.name),
+                '--keys_public_output_dir={}'.format(KEYS_FOLDER.name)])
             with open(MASTER_KEY_PATH, 'rb') as f:
                 master_key = b64encode(f.read()).decode('ascii')
     return master_key
@@ -166,12 +203,14 @@ def get_poison_record():
     global poison_record
     if not poison_record:
         poison_record = b64decode(subprocess.check_output(
-            ['./acra-poisonrecordmaker'], timeout=PROCESS_CALL_TIMEOUT))
+            ['./acra-poisonrecordmaker', '--keys_dir={}'.format(KEYS_FOLDER.name)], timeout=PROCESS_CALL_TIMEOUT))
     return poison_record
 
 
 def create_client_keypair(name, only_server=False, only_client=False):
-    args = ['./acra-keymaker', '-client_id={}'.format(name)]
+    args = ['./acra-keymaker', '-client_id={}'.format(name),
+            '-keys_output_dir={}'.format(KEYS_FOLDER.name),
+            '--keys_public_output_dir={}'.format(KEYS_FOLDER.name)]
     if only_server:
         args.append('-acra-server')
     elif only_client:
@@ -182,11 +221,12 @@ def manage_basic_auth_user(action, user_name, user_password):
     args = ['./acra-authmanager', '--{}'.format(action),
             '--file={}'.format(ACRAWEBCONFIG_AUTH_DB_PATH),
             '--user={}'.format(user_name),
+            '--keys_dir={}'.format(KEYS_FOLDER.name),
             '--password={}'.format(user_password)]
     return subprocess.call(args, cwd=os.getcwd(), timeout=PROCESS_CALL_TIMEOUT)
 
 
-def wait_connection(port, count=10, sleep=0.1):
+def wait_connection(port, count=10, sleep=0.3):
     """try connect to 127.0.0.1:port and close connection
     if can't then sleep on and try again (<count> times)
     if <count> times is failed than raise Exception
@@ -194,7 +234,7 @@ def wait_connection(port, count=10, sleep=0.1):
     while count:
         try:
             connection = socket.create_connection(('127.0.0.1', port),
-                                                  timeout=10)
+                                                  timeout=1)
             connection.close()
             return
         except ConnectionRefusedError:
@@ -255,7 +295,7 @@ def acra_api_connection_string(port):
 
 
 
-DEFAULT_VERSION = '1.5.0'
+DEFAULT_VERSION = '1.8.0'
 DEFAULT_BUILD_ARGS = []
 ACRAROLLBACK_MIN_VERSION = "1.8.0"
 Binary = collections.namedtuple(
@@ -279,6 +319,10 @@ BINARIES = [
     Binary(name='acra-authmanager', from_version=DEFAULT_VERSION,
            build_args=DEFAULT_BUILD_ARGS),
     Binary(name='acra-webconfig', from_version=DEFAULT_VERSION,
+           build_args=DEFAULT_BUILD_ARGS),
+    Binary(name='acra-translator', from_version=DEFAULT_VERSION,
+           build_args=DEFAULT_BUILD_ARGS),
+    Binary(name='acra-rotate', from_version=DEFAULT_VERSION,
            build_args=DEFAULT_BUILD_ARGS)
 ]
 
@@ -309,8 +353,10 @@ def get_go_version():
 
 def setUpModule():
     global zones
+    global KEYS_FOLDER
     clean_binaries()
     clean_misc()
+    KEYS_FOLDER = tempfile.TemporaryDirectory()
     # build binaries
     builds = [
         (binary.from_version, ['go', 'build'] + binary.build_args + ['github.com/cossacklabs/acra/cmd/{}'.format(binary.name)])
@@ -325,7 +371,7 @@ def setUpModule():
         build_count = 3
         for i in range(build_count):
             try:
-                assert subprocess.call(build, cwd=os.getcwd(), timeout=PROCESS_CALL_TIMEOUT) == 0
+                subprocess.check_call(build, cwd=os.getcwd(), timeout=PROCESS_CALL_TIMEOUT)
                 break
             except (AssertionError, subprocess.TimeoutExpired):
                 if i == (build_count-1):
@@ -334,21 +380,28 @@ def setUpModule():
 
     # must be before any call of key generators or forks of acra/proxy servers
     os.environ.setdefault(ACRA_MASTER_KEY_VAR_NAME, get_master_key())
+
     # first keypair for using without zones
     assert create_client_keypair('keypair1') == 0
     assert create_client_keypair('keypair2') == 0
     # add two zones
     zones.append(json.loads(subprocess.check_output(
-        ['./acra-addzone'], cwd=os.getcwd(), timeout=PROCESS_CALL_TIMEOUT).decode('utf-8')))
+        ['./acra-addzone', '--keys_output_dir={}'.format(KEYS_FOLDER.name)],
+        cwd=os.getcwd(), timeout=PROCESS_CALL_TIMEOUT).decode('utf-8')))
     zones.append(json.loads(subprocess.check_output(
-        ['./acra-addzone'], cwd=os.getcwd(), timeout=PROCESS_CALL_TIMEOUT).decode('utf-8')))
+        ['./acra-addzone', '--keys_output_dir={}'.format(KEYS_FOLDER.name)],
+        cwd=os.getcwd(), timeout=PROCESS_CALL_TIMEOUT).decode('utf-8')))
     socket.setdefaulttimeout(SOCKET_CONNECT_TIMEOUT)
 
 
 def tearDownModule():
-    shutil.rmtree('.acrakeys')
     clean_binaries()
     clean_misc()
+    KEYS_FOLDER.cleanup()
+    try:
+        os.remove(MASTER_KEY_PATH)
+    except:
+        pass
 
 
 class ProcessStub(object):
@@ -362,25 +415,29 @@ class ProcessStub(object):
     def poll(self, *args, **kwargs):
         pass
 
+
 class KeyMakerTest(unittest.TestCase):
     def test_key_length(self):
-        output_path = tempfile.mkdtemp()
-        key_size = 32
-        short_key = b64encode((key_size - 1)*b'a')
-        standard_key = b64encode(key_size * b'a')
-        long_key = b64encode((key_size * 2) * b'a')
+        with tempfile.TemporaryDirectory() as folder:
+            key_size = 32
+            short_key = b64encode((key_size - 1)*b'a')
+            standard_key = b64encode(key_size * b'a')
+            long_key = b64encode((key_size * 2) * b'a')
 
-        with self.assertRaises(subprocess.CalledProcessError) as exc:
+            with self.assertRaises(subprocess.CalledProcessError) as exc:
+                subprocess.check_output(
+                    ['./acra-keymaker', '--keys_output_dir={}'.format(folder),
+                     '--keys_public_output_dir={}'.format(folder)],
+                    env={'ACRA_MASTER_KEY': short_key})
+
             subprocess.check_output(
-                ['./acra-keymaker', '--keys_output_dir={}'.format(output_path)],
-                env={'ACRA_MASTER_KEY': short_key})
-
-        subprocess.check_output(
-                ['./acra-keymaker', '--keys_output_dir={}'.format(output_path)],
-                env={'ACRA_MASTER_KEY': standard_key})
-        subprocess.check_output(
-                ['./acra-keymaker', '--keys_output_dir={}'.format(output_path)],
-                env={'ACRA_MASTER_KEY': long_key})
+                    ['./acra-keymaker', '--keys_output_dir={}'.format(folder),
+                     '--keys_public_output_dir={}'.format(folder)],
+                    env={'ACRA_MASTER_KEY': standard_key})
+            subprocess.check_output(
+                    ['./acra-keymaker', '--keys_output_dir={}'.format(folder),
+                     '--keys_public_output_dir={}'.format(folder)],
+                    env={'ACRA_MASTER_KEY': long_key})
 
 
 class BaseTestCase(unittest.TestCase):
@@ -437,6 +494,7 @@ class BaseTestCase(unittest.TestCase):
         return wait_unix_socket(*args, **kwargs)
 
     def fork_webconfig(self, connector_port: int, http_port: int):
+        logging.info("fork acra-webconfig")
         args = [
             './acra-webconfig',
             '-incoming_connection_port={}'.format(http_port),
@@ -447,6 +505,7 @@ class BaseTestCase(unittest.TestCase):
         if self.DEBUG_LOG:
             args.append('-d=true')
         process = self.fork(lambda: subprocess.Popen(args))
+        wait_connection(http_port)
         return process
 
     def get_connector_tls_params(self):
@@ -456,6 +515,7 @@ class BaseTestCase(unittest.TestCase):
         ]
 
     def fork_connector(self, connector_port: int, acraserver_port: int, client_id: str, api_port: int=None, zone_mode: bool=False, check_connection: bool=True):
+        logging.info("fork connector")
         acraserver_connection = self.get_acraserver_connection_string(acraserver_port)
         acraserver_api_connection = self.get_acraserver_api_connection_string(acraserver_port)
         connector_connection = self.get_connector_connection_string(connector_port)
@@ -478,7 +538,8 @@ class BaseTestCase(unittest.TestCase):
              '-client_id={}'.format(client_id),
             '-incoming_connection_string={}'.format(connector_connection),
             '-incoming_connection_api_string={}'.format(connector_api_connection),
-            '-user_check_disable=true'
+            '-user_check_disable=true',
+            '-keys_dir={}'.format(KEYS_FOLDER.name),
         ]
         if self.DEBUG_LOG:
             args.append('-v=true')
@@ -496,6 +557,7 @@ class BaseTestCase(unittest.TestCase):
             except:
                 stop_process(process)
                 raise
+        logging.info("fork connector finished [pid={}]".format(process.pid))
         return process
 
     def get_acraserver_connection_string(self, port=None):
@@ -525,6 +587,7 @@ class BaseTestCase(unittest.TestCase):
         return './acra-server'
 
     def _fork_acra(self, acra_kwargs, popen_kwargs):
+        logging.info("fork acra")
         connection_string = self.get_acraserver_connection_string(
             acra_kwargs.get('incoming_connection_api_port'))
         api_connection_string = self.get_acraserver_api_connection_string(
@@ -550,7 +613,8 @@ class BaseTestCase(unittest.TestCase):
             'd': 'true' if self.DEBUG_LOG else 'false',
             'zonemode_enable': 'true' if self.ZONE else 'false',
             'http_api_enable': 'true' if self.ZONE else 'true',
-            'auth_keys': self.ACRAWEBCONFIG_AUTH_KEYS_PATH
+            'auth_keys': self.ACRAWEBCONFIG_AUTH_KEYS_PATH,
+            'keys_dir': KEYS_FOLDER.name,
         }
         if self.TLS_ON:
             args['acraconnector_tls_transport_enable'] = 'true'
@@ -573,6 +637,7 @@ class BaseTestCase(unittest.TestCase):
         except:
             stop_process(process)
             raise
+        logging.info("fork acra finished [pid={}]".format(process.pid))
         return process
 
     def fork_acra(self, popen_kwargs: dict=None, **acra_kwargs: dict):
@@ -632,10 +697,6 @@ class BaseTestCase(unittest.TestCase):
         for engine in getattr(self, 'engines', []):
             engine.dispose()
 
-    def get_random_data(self):
-        size = random.randint(DATA_MIN_SIZE, DATA_MAX_SIZE)
-        return ''.join(random.SystemRandom().choice(string.ascii_letters) for _ in range(size))
-
     def get_random_id(self):
         return random.randint(1, 100000)
 
@@ -644,13 +705,13 @@ class BaseTestCase(unittest.TestCase):
         reproducing error with them if any error detected"""
         if not self.TEST_DATA_LOG:
             return
-        with open('.acrakeys/{}_zone'.format(zones[0]['id']), 'rb') as f:
+        with open('{}/{}_zone'.format(KEYS_FOLDER.name, zones[0][ZONE_ID]), 'rb') as f:
             zone_private = f.read()
-        with open('.acrakeys/{}'.format(acra_key_name), 'rb') as f:
+        with open('{}/{}'.format(KEYS_FOLDER.name, acra_key_name), 'rb') as f:
             private_key = f.read()
-        with open('.acrakeys/{}.pub'.format(acra_key_name), 'rb') as f:
+        with open('{}/{}.pub'.format(KEYS_FOLDER.name, acra_key_name), 'rb') as f:
             public_key = f.read()
-        print(json.dumps(
+        logging.debug("test log: {}".format(json.dumps(
             {
                 'master_key': get_master_key(),
                 'key_name': acra_key_name,
@@ -659,11 +720,11 @@ class BaseTestCase(unittest.TestCase):
                 'data': b64encode(data).decode('ascii'),
                 'expected': b64encode(expected).decode('ascii'),
                 'zone_private': b64encode(zone_private).decode('ascii'),
-                'zone_public': zones[0]['public_key'],
-                'zone_id': zones[0]['id'],
+                'zone_public': zones[0][ZONE_PUBLIC_KEY],
+                'zone_id': zones[0][ZONE_ID],
                 'poison_record': b64encode(get_poison_record()).decode('ascii'),
             }
-        ), file=sys.stderr)
+        )))
 
 
 class HexFormatTest(BaseTestCase):
@@ -672,9 +733,9 @@ class HexFormatTest(BaseTestCase):
         """test decrypting with correct acra-connector and not decrypting with
         incorrect acra-connector or using direct connection to db"""
         keyname = 'keypair1_storage'
-        with open('.acrakeys/{}.pub'.format(keyname), 'rb') as f:
+        with open('{}/{}.pub'.format(KEYS_FOLDER.name, keyname), 'rb') as f:
             server_public1 = f.read()
-        data = self.get_random_data()
+        data = get_random_data()
         acra_struct = create_acrastruct(
             data.encode('ascii'), server_public1)
         row_id = self.get_random_id()
@@ -708,10 +769,10 @@ class HexFormatTest(BaseTestCase):
         """test correct decrypting acrastruct when acrastruct concatenated to
         partial another acrastruct"""
         keyname = 'keypair1_storage'
-        with open('.acrakeys/{}.pub'.format(keyname), 'rb') as f:
+        with open('{}/{}.pub'.format(KEYS_FOLDER.name, keyname), 'rb') as f:
             server_public1 = f.read()
-        incorrect_data = self.get_random_data()
-        correct_data = self.get_random_data()
+        incorrect_data = get_random_data()
+        correct_data = get_random_data()
         fake_offset = (3+45+84) - 4
         fake_acra_struct = create_acrastruct(
             incorrect_data.encode('ascii'), server_public1)[:fake_offset]
@@ -767,12 +828,13 @@ class CensorBlacklistTest(BaseCensorTest):
         if TEST_POSTGRESQL:
             expectedException = sa.exc.ProgrammingError
 
+        #test block by query
         with self.assertRaises(expectedException):
-                result = self.engine1.execute(sa.text("select data from test where id='1'"))
-
+            result = self.engine1.execute(sa.text("select data from test where id='1'"))
+        #test block by table
         with self.assertRaises(expectedException):
             result = self.engine1.execute(sa.text("select data_raw from test"))
-
+        #test block by pattern
         with self.assertRaises(expectedException):
             result = self.engine1.execute(sa.text("select * from acrarollback_output"))
 
@@ -786,29 +848,30 @@ class CensorWhitelistTest(BaseCensorTest):
         if TEST_POSTGRESQL:
             expectedException = sa.exc.ProgrammingError
 
-        with self.assertRaises(expectedException):
-            result = self.engine1.execute(sa.text("select data from test where id='100'"))
-
+        #test block by table
         with self.assertRaises(expectedException):
             result = self.engine1.execute(sa.text("select * from acrarollback_output"))
+        #test block by pattern
+        with self.assertRaises(expectedException):
+            result = self.engine1.execute(sa.text("insert into test (a, b, c) values ('x', 'y', 'z')"))
 
 
 class ZoneHexFormatTest(BaseTestCase):
     ZONE = True
 
     def testConnectorRead(self):
-        data = self.get_random_data()
-        zone_public = b64decode(zones[0]['public_key'].encode('ascii'))
+        data = get_random_data()
+        zone_public = b64decode(zones[0][ZONE_PUBLIC_KEY].encode('ascii'))
         acra_struct = create_acrastruct(
             data.encode('ascii'), zone_public,
-            context=zones[0]['id'].encode('ascii'))
+            context=zones[0][ZONE_ID].encode('ascii'))
         row_id = self.get_random_id()
-        self.log(zones[0]['id']+'_zone', acra_struct, data.encode('ascii'))
+        self.log(zones[0][ZONE_ID]+'_zone', acra_struct, data.encode('ascii'))
         self.engine1.execute(
             test_table.insert(),
             {'id': row_id, 'data': acra_struct, 'raw_data': data})
 
-        zone = zones[0]['id'].encode('ascii')
+        zone = zones[0][ZONE_ID].encode('ascii')
         result = self.engine1.execute(
             sa.select([sa.cast(zone, BYTEA), test_table])
             .where(test_table.c.id == row_id))
@@ -824,21 +887,21 @@ class ZoneHexFormatTest(BaseTestCase):
             self.assertNotEqual(row['data'].decode('ascii', errors='ignore'), row['raw_data'])
 
     def testReadAcrastructInAcrastruct(self):
-        incorrect_data = self.get_random_data()
-        correct_data = self.get_random_data()
-        zone_public = b64decode(zones[0]['public_key'].encode('ascii'))
+        incorrect_data = get_random_data()
+        correct_data = get_random_data()
+        zone_public = b64decode(zones[0][ZONE_PUBLIC_KEY].encode('ascii'))
         fake_offset = (3+45+84) - 1
         fake_acra_struct = create_acrastruct(
-            incorrect_data.encode('ascii'), zone_public, context=zones[0]['id'].encode('ascii'))[:fake_offset]
+            incorrect_data.encode('ascii'), zone_public, context=zones[0][ZONE_ID].encode('ascii'))[:fake_offset]
         inner_acra_struct = create_acrastruct(
-            correct_data.encode('ascii'), zone_public, context=zones[0]['id'].encode('ascii'))
+            correct_data.encode('ascii'), zone_public, context=zones[0][ZONE_ID].encode('ascii'))
         data = fake_acra_struct + inner_acra_struct
-        self.log(zones[0]['id']+'_zone', data, fake_acra_struct+correct_data.encode('ascii'))
+        self.log(zones[0][ZONE_ID]+'_zone', data, fake_acra_struct+correct_data.encode('ascii'))
         row_id = self.get_random_id()
         self.engine1.execute(
             test_table.insert(),
             {'id': row_id, 'data': data, 'raw_data': correct_data})
-        zone = zones[0]['id'].encode('ascii')
+        zone = zones[0][ZONE_ID].encode('ascii')
         result = self.engine1.execute(
             sa.select([sa.cast(zone, BYTEA), test_table])
             .where(test_table.c.id == row_id))
@@ -1065,9 +1128,6 @@ class TestConnectionClosing(BaseTestCase):
 
 
 class TestKeyNonExistence(BaseTestCase):
-    # 0.05 empirical selected
-    CONNECTOR_STARTUP_DELAY = 0.05
-
     def setUp(self):
         self.checkSkip()
         try:
@@ -1083,7 +1143,8 @@ class TestKeyNonExistence(BaseTestCase):
             stop_process(self.acra)
 
     def delete_key(self, filename):
-        os.remove('.acrakeys{sep}{name}'.format(sep=os.path.sep, name=filename))
+        os.remove('{dir}{sep}{name}'.format(
+            dir=KEYS_FOLDER.name, sep=os.path.sep, name=filename))
 
     def test_without_acraconnector_public(self):
         """acra-server without acra-connector public key should drop connection
@@ -1106,6 +1167,16 @@ class TestKeyNonExistence(BaseTestCase):
             if connection:
                 connection.close()
 
+    def checkShutdownAcraConnector(self, process):
+        total_wait_time = 2  # sec
+        poll_interval = 0.1
+        retry = total_wait_time / poll_interval
+        while retry:
+            retry -= 1
+            if process.poll() == 1:
+                return
+            time.sleep(poll_interval)
+
     def test_without_acraconnector_private(self):
         """acra-connector shouldn't start without private key"""
         keyname = 'without_acra-connector_private_test'
@@ -1117,9 +1188,7 @@ class TestKeyNonExistence(BaseTestCase):
             self.connector = self.fork_connector(
                 self.CONNECTOR_PORT_1, self.ACRASERVER_PORT, keyname,
                 check_connection=False)
-            # time for start up connector and validation file existence.
-            time.sleep(self.CONNECTOR_STARTUP_DELAY)
-            self.assertEqual(self.connector.poll(), 1)
+            self.checkShutdownAcraConnector(self.connector)
         finally:
             try:
                 stop_process(self.connector)
@@ -1158,8 +1227,7 @@ class TestKeyNonExistence(BaseTestCase):
                 self.CONNECTOR_PORT_1, self.ACRASERVER_PORT, keyname,
                 check_connection=False)
             # time for start up connector and validation file existence.
-            time.sleep(self.CONNECTOR_STARTUP_DELAY)
-            self.assertEqual(self.connector.poll(), 1)
+            self.checkShutdownAcraConnector(self.connector)
         finally:
             try:
                 stop_process(self.connector)
@@ -1170,15 +1238,21 @@ class TestKeyNonExistence(BaseTestCase):
 class BasePoisonRecordTest(BaseTestCase):
     SHUTDOWN = True
     TEST_DATA_LOG = True
+    DETECT_POISON_RECORDS = True
 
     def setUp(self):
         super(BasePoisonRecordTest, self).setUp()
-        self.log(POISON_KEY_PATH, get_poison_record(),
-                 b'no matter because poison record')
+        try:
+            self.log(POISON_KEY_PATH, get_poison_record(),
+                     b'no matter because poison record')
+        except:
+            self.tearDown()
+            raise
 
     def fork_acra(self, popen_kwargs: dict=None, **acra_kwargs: dict):
         args = {
             'poison_shutdown_enable': 'true' if self.SHUTDOWN else 'false',
+            'poison_detect_enable': 'true' if self.DETECT_POISON_RECORDS else 'false',
         }
 
         if hasattr(self, 'poisonscript'):
@@ -1219,7 +1293,6 @@ class TestPoisonRecordShutdown(BasePoisonRecordTest):
                 if row['id'] == row_id and row['data'] == data:
                     self.fail("unexpected response")
 
-
     def testShutdown3(self):
         """check working poison record callback on full select inside another data"""
         row_id = self.get_random_id()
@@ -1239,6 +1312,61 @@ class TestPoisonRecordShutdown(BasePoisonRecordTest):
                     self.fail("unexpected response")
 
 
+class TestPoisonRecordOffStatus(BasePoisonRecordTest):
+    SHUTDOWN = True
+    DETECT_POISON_RECORDS = False
+
+    def testShutdown(self):
+        row_id = self.get_random_id()
+        data = get_poison_record()
+        self.engine1.execute(
+            test_table.insert(),
+            {'id': row_id, 'data': data, 'raw_data': 'poison_record'})
+
+        result = self.engine1.execute(
+            sa.select([test_table])
+            .where(test_table.c.id == row_id))
+        row = result.fetchone()
+        # AcraServer must return data as is
+        if row['data'] != data:
+            self.fail("unexpected response")
+
+    def testShutdown2(self):
+        """check working poison record callback on full select"""
+        row_id = self.get_random_id()
+        data = get_poison_record()
+        self.engine1.execute(
+            test_table.insert(),
+            {'id': row_id, 'data': data, 'raw_data': 'poison_record'})
+
+        result = self.engine1.execute(
+            sa.select([test_table]))
+        rows = result.fetchall()
+        for row in rows:
+            # AcraServer must return data as is
+            if row['id'] == row_id and row['data'] != data:
+                self.fail("unexpected response")
+
+    def testShutdown3(self):
+        """check working poison record callback on full select inside another data"""
+        row_id = self.get_random_id()
+        poison_record = get_poison_record()
+        begin_tag = poison_record[:4]
+        # test with extra long begin tag
+        data = os.urandom(100) + begin_tag + poison_record + os.urandom(100)
+        self.engine1.execute(
+            test_table.insert(),
+            {'id': row_id, 'data': data, 'raw_data': 'poison_record'})
+
+        result = self.engine1.execute(
+            sa.select([test_table]))
+        rows = result.fetchall()
+        for row in rows:
+            # AcraServer must return data as is
+            if row['id'] == row_id and row['data'] != data:
+                self.fail("unexpected response")
+
+
 class TestShutdownPoisonRecordWithZone(TestPoisonRecordShutdown):
     ZONE = True
     WHOLECELL_MODE = False
@@ -1251,7 +1379,7 @@ class TestShutdownPoisonRecordWithZone(TestPoisonRecordShutdown):
             test_table.insert(),
             {'id': row_id, 'data': get_poison_record(), 'raw_data': 'poison_record'})
         with self.assertRaises(DatabaseError):
-            zone = zones[0]['id'].encode('ascii')
+            zone = zones[0][ZONE_ID].encode('ascii')
             result = self.engine1.execute(
                 sa.select([sa.cast(zone, BYTEA), test_table])
                     .where(test_table.c.id == row_id))
@@ -1265,8 +1393,7 @@ class TestShutdownPoisonRecordWithZone(TestPoisonRecordShutdown):
             {'id': row_id, 'data': get_poison_record(), 'raw_data': 'poison_record'})
         with self.assertRaises(DatabaseError):
             result = self.engine1.execute(
-                sa.select([test_table])
-                    .where(test_table.c.id == row_id))
+                sa.select([test_table]).where(test_table.c.id == row_id))
             print(result.fetchall())
 
     def testShutdown3(self):
@@ -1283,7 +1410,9 @@ class TestShutdownPoisonRecordWithZone(TestPoisonRecordShutdown):
     def testShutdown4(self):
         """check working poison record callback on full select inside another data"""
         row_id = self.get_random_id()
-        data = os.urandom(100) + get_poison_record() + os.urandom(100)
+        begin_tag = poison_record[:4]
+        # test with extra long begin tag
+        data = os.urandom(100) + begin_tag + poison_record + os.urandom(100)
         self.log(POISON_KEY_PATH, data, data)
         self.engine1.execute(
             test_table.insert(),
@@ -1296,6 +1425,73 @@ class TestShutdownPoisonRecordWithZone(TestPoisonRecordShutdown):
             print(result.fetchall())
 
 
+class TestShutdownPoisonRecordWithZoneOffStatus(TestPoisonRecordShutdown):
+    ZONE = True
+    WHOLECELL_MODE = False
+    SHUTDOWN = True
+    DETECT_POISON_RECORDS = False
+
+    def testShutdown(self):
+        """check callback with select by id and zone"""
+        row_id = self.get_random_id()
+        poison_record = get_poison_record()
+        self.engine1.execute(
+            test_table.insert(),
+            {'id': row_id, 'data': poison_record, 'raw_data': 'poison_record'})
+
+        zone = zones[0][ZONE_ID].encode('ascii')
+        result = self.engine1.execute(
+            sa.select([sa.cast(zone, BYTEA), test_table])
+                .where(test_table.c.id == row_id))
+        for zone, _, data, raw_data in result:
+            self.assertEqual(zone, zone)
+            self.assertEqual(data, poison_record)
+
+    def testShutdown2(self):
+        """check callback with select by id and without zone"""
+        row_id = self.get_random_id()
+        poison_record = get_poison_record()
+        self.engine1.execute(
+            test_table.insert(),
+            {'id': row_id, 'data': poison_record, 'raw_data': 'poison_record'})
+
+        result = self.engine1.execute(
+            sa.select([test_table])
+                .where(test_table.c.id == row_id))
+        for _, data, raw_data in result:
+            self.assertEqual(data, poison_record)
+
+    def testShutdown3(self):
+        """check working poison record callback on full select"""
+        row_id = self.get_random_id()
+        poison_record = get_poison_record()
+        self.engine1.execute(
+            test_table.insert(),
+            {'id': row_id, 'data': poison_record, 'raw_data': 'poison_record'})
+
+        result = self.engine1.execute(
+            sa.select([test_table]))
+        for _, data, raw_data in result:
+            self.assertEqual(data, poison_record)
+
+    def testShutdown4(self):
+        """check working poison record callback on full select inside another data"""
+        row_id = self.get_random_id()
+        poison_record = get_poison_record()
+        begin_tag = poison_record[:4]
+        # test with extra long begin tag
+        testData = os.urandom(100) + begin_tag + poison_record + os.urandom(100)
+        self.log(POISON_KEY_PATH, testData, testData)
+        self.engine1.execute(
+            test_table.insert(),
+            {'id': row_id, 'data': testData, 'raw_data': 'poison_record'})
+
+        result = self.engine1.execute(
+            sa.select([test_table]))
+        for _, data, raw_data in result:
+            self.assertEqual(testData, data)
+
+
 class TestPoisonRecordWholeCell(TestPoisonRecordShutdown):
     WHOLECELL_MODE = True
     SHUTDOWN = True
@@ -1303,8 +1499,24 @@ class TestPoisonRecordWholeCell(TestPoisonRecordShutdown):
     def testShutdown3(self):
         return
 
+class TestPoisonRecordWholeCellStatusOff(TestPoisonRecordOffStatus):
+    WHOLECELL_MODE = True
+    SHUTDOWN = True
+
+    def testShutdown3(self):
+        return
+
+
 
 class TestShutdownPoisonRecordWithZoneWholeCell(TestShutdownPoisonRecordWithZone):
+    WHOLECELL_MODE = True
+    SHUTDOWN = True
+
+    def testShutdown4(self):
+        return
+
+
+class TestShutdownPoisonRecordWithZoneWholeCellOffStatus(TestShutdownPoisonRecordWithZoneOffStatus):
     WHOLECELL_MODE = True
     SHUTDOWN = True
 
@@ -1321,14 +1533,15 @@ class AcraCatchLogsMixin(object):
         with open(self.log_files[process].name, 'r', errors='replace',
                   encoding='utf-8') as f:
             log = f.read()
-            print(log.encode('utf-8'))
+            #print(log.encode(encoding='utf-8', errors='replace'))
+            print(log)
             return log
 
     def fork_acra(self, popen_kwargs: dict=None, **acra_kwargs: dict):
         log_file = tempfile.NamedTemporaryFile('w+', encoding='utf-8')
         popen_args = {
-            'stderr': log_file,
-            #'stdout': subprocess.PIPE,
+            'stderr': subprocess.STDOUT,
+            'stdout': log_file,
             'close_fds': True
         }
         process = super(AcraCatchLogsMixin, self).fork_acra(
@@ -1354,16 +1567,22 @@ class TestNoCheckPoisonRecord(AcraCatchLogsMixin, BasePoisonRecordTest):
     WHOLECELL_MODE = False
     SHUTDOWN = False
     DEBUG_LOG = True
+    DETECT_POISON_RECORDS = False
 
     def testNoDetect(self):
         row_id = self.get_random_id()
+        poison_record = get_poison_record()
         self.engine1.execute(
             test_table.insert(),
-            {'id': row_id, 'data': get_poison_record(), 'raw_data': 'poison_record'})
+            {'id': row_id, 'data': poison_record, 'raw_data': 'poison_record'})
         result = self.engine1.execute(test_table.select())
         result.fetchall()
         log = self.read_log(self.acra)
         self.assertNotIn('Check poison records', log)
+        result = self.engine1.execute(
+            sa.select([test_table]))
+        for _, data, raw_data in result:
+            self.assertEqual(poison_record, data)
 
 
 class TestNoCheckPoisonRecordWithZone(TestNoCheckPoisonRecord):
@@ -1459,7 +1678,7 @@ class TestKeyStorageClearing(BaseTestCase):
         with urlopen('http://127.0.0.1:{}/resetKeyStorage'.format(self.CONNECTOR_API_PORT_1)) as response:
             self.assertEqual(response.status, 200)
         # delete key for excluding reloading from FS
-        os.remove('.acrakeys/{}.pub'.format(self.key_name))
+        os.remove('{}/{}.pub'.format(KEYS_FOLDER.name, self.key_name))
         # close connections in pool and reconnect to reinitiate secure session
         self.engine1.dispose()
         # acra-server should close connection when doesn't find key
@@ -1523,6 +1742,7 @@ class TestAcraRollback(BaseTestCase):
             '--client_id=keypair1',
              '--connection_string={}'.format(connection_string),
              '--output_file={}'.format(self.output_filename),
+            '--keys_dir={}'.format(KEYS_FOLDER.name),
         ] + DB_ARGS
 
     def tearDown(self):
@@ -1549,12 +1769,12 @@ class TestAcraRollback(BaseTestCase):
 
     def test_without_zone_to_file(self):
         keyname = 'keypair1_storage'
-        with open('.acrakeys/{}.pub'.format(keyname), 'rb') as f:
+        with open('{}/{}.pub'.format(KEYS_FOLDER.name, keyname), 'rb') as f:
             server_public1 = f.read()
 
         rows = []
         for _ in range(self.DATA_COUNT):
-            data = self.get_random_data()
+            data = get_random_data()
             row = {
                 'raw_data': data,
                 'data': create_acrastruct(data.encode('ascii'), server_public1),
@@ -1581,25 +1801,25 @@ class TestAcraRollback(BaseTestCase):
             self.assertIn(data[0], source_data)
 
     def test_with_zone_to_file(self):
-        zone_public = b64decode(zones[0]['public_key'].encode('ascii'))
+        zone_public = b64decode(zones[0][ZONE_PUBLIC_KEY].encode('ascii'))
         rows = []
         for _ in range(self.DATA_COUNT):
-            data = self.get_random_data()
+            data = get_random_data()
             row = {
                 'raw_data': data,
                 'data': create_acrastruct(
                     data.encode('ascii'), zone_public,
-                    context=zones[0]['id'].encode('ascii')),
+                    context=zones[0][ZONE_ID].encode('ascii')),
                 'id': self.get_random_id()
             }
             rows.append(row)
         self.engine_raw.execute(test_table.insert(), rows)
         if TEST_MYSQL:
             select_query = '--select=select \'{id}\', data from {table};'.format(
-                 id=zones[0]['id'], table=test_table.name)
+                 id=zones[0][ZONE_ID], table=test_table.name)
         else:
             select_query = '--select=select \'{id}\'::bytea, data from {table};'.format(
-                 id=zones[0]['id'], table=test_table.name)
+                 id=zones[0][ZONE_ID], table=test_table.name)
         args = [
              select_query,
              '--zonemode_enable=true',
@@ -1621,12 +1841,12 @@ class TestAcraRollback(BaseTestCase):
 
     def test_without_zone_execute(self):
         keyname = 'keypair1_storage'
-        with open('.acrakeys/{}.pub'.format(keyname), 'rb') as f:
+        with open('{}/{}.pub'.format(KEYS_FOLDER.name, keyname), 'rb') as f:
             server_public1 = f.read()
 
         rows = []
         for _ in range(self.DATA_COUNT):
-            data = self.get_random_data()
+            data = get_random_data()
             row = {
                 'raw_data': data,
                 'data': create_acrastruct(data.encode('ascii'), server_public1),
@@ -1650,15 +1870,15 @@ class TestAcraRollback(BaseTestCase):
             self.assertIn(data[0], source_data)
 
     def test_with_zone_execute(self):
-        zone_public = b64decode(zones[0]['public_key'].encode('ascii'))
+        zone_public = b64decode(zones[0][ZONE_PUBLIC_KEY].encode('ascii'))
         rows = []
         for _ in range(self.DATA_COUNT):
-            data = self.get_random_data()
+            data = get_random_data()
             row = {
                 'raw_data': data,
                 'data': create_acrastruct(
                     data.encode('ascii'), zone_public,
-                    context=zones[0]['id'].encode('ascii')),
+                    context=zones[0][ZONE_ID].encode('ascii')),
                 'id': self.get_random_id()
             }
             rows.append(row)
@@ -1666,10 +1886,10 @@ class TestAcraRollback(BaseTestCase):
 
         if TEST_MYSQL:
             select_query = '--select=select \'{id}\', data from {table};'.format(
-                 id=zones[0]['id'], table=test_table.name)
+                 id=zones[0][ZONE_ID], table=test_table.name)
         else:
             select_query = '--select=select \'{id}\'::bytea, data from {table};'.format(
-                 id=zones[0]['id'], table=test_table.name)
+                 id=zones[0][ZONE_ID], table=test_table.name)
         args = [
             '--execute=true',
             select_query,
@@ -1684,6 +1904,27 @@ class TestAcraRollback(BaseTestCase):
         result = result.fetchall()
         for data in result:
             self.assertIn(data[0], source_data)
+
+    def test_without_placeholder(self):
+        args = ['./acra-rollback',
+            '--execute=true',
+            '--select=select data from {};'.format(test_table.name),
+            '--insert=query without placeholders;',
+            '--postgresql_enable',
+            '--keys_dir={}'.format(KEYS_FOLDER.name),
+        ]
+
+        log_file = tempfile.NamedTemporaryFile('w+', encoding='utf-8')
+        popen_args = {
+            'stderr': subprocess.PIPE,
+            'stdout': subprocess.PIPE,
+            'close_fds': True
+        }
+        process = subprocess.Popen(args, **popen_args)
+        _, err = process.communicate(timeout=5)
+        stop_process(process)
+
+        self.assertIn(b"SQL INSERT statement doesn't contain any placeholders", err)
 
 
 class TestAcraKeyMakers(unittest.TestCase):
@@ -1700,70 +1941,77 @@ class TestAcraWebconfigAcraAuthManager(unittest.TestCase):
         self.assertEqual(manage_basic_auth_user('remove', 'test_unknown', 'test_unknown'), 1)
 
 
-class TestAcraWebconfigWeb(BaseTestCase):
+class TestAcraWebconfigWeb(AcraCatchLogsMixin, BaseTestCase):
     def setUp(self):
         try:
+            # create auth file with default correct user
+            manage_basic_auth_user('set', ACRAWEBCONFIG_BASIC_AUTH['user'], ACRAWEBCONFIG_BASIC_AUTH['password'])
+            self.acra = self.fork_acra(
+                popen_kwargs={'stderr': subprocess.STDOUT, 'stdout': subprocess.PIPE, 'close_fds': True},
+                zonemode_enable='true', http_api_enable='true')
             self.connector_1 = self.fork_connector(
                 self.CONNECTOR_PORT_1, self.ACRASERVER_PORT, 'keypair1', zone_mode=True, api_port=self.CONNECTOR_API_PORT_1)
-            self.acra = self.fork_acra(zonemode_enable='true', http_api_enable='true')
             self.webconfig = self.fork_webconfig(connector_port=self.CONNECTOR_API_PORT_1, http_port=self.ACRAWEBCONFIG_HTTP_PORT)
         except Exception:
             self.tearDown()
             raise
 
     def tearDown(self):
-        try:
-            os.unlink('configs/acra-server.yaml')
-        except Exception as e:
-            print(e)
-        stop_process([self.webconfig])
-        try:
-            subprocess.call(['killall', '--signal=SIGTERM', 'acra-server'], cwd=os.getcwd(), timeout=PROCESS_CALL_TIMEOUT)
-        except Exception as e:
-            print('SIGTERM->acra-server error: {}'.format(e))
-            try:
-                subprocess.call(['killall', '--signal=SIGKILL', 'acra-server'], cwd=os.getcwd(), timeout=PROCESS_CALL_TIMEOUT)
-            except Exception as e:
-                print('SIGKILL->acra-server error: {}'.format(e))
+        stop_process(getattr(self, 'webconfig', ProcessStub()))
         super(TestAcraWebconfigWeb, self).tearDown()
 
     def testAuthAndSubmitSettings(self):
-        import requests
-        import uuid
-        from requests.auth import HTTPBasicAuth
-        # test wrong auth
-        req = requests.post(
-            self.get_acrawebconfig_connection_url(), data={}, timeout=ACRAWEBCONFIG_HTTP_TIMEOUT,
-            auth=HTTPBasicAuth('wrong_user_name', 'wrong_password'))
-        self.assertEqual(req.status_code, 401)
-        req.close()
+        shutil.copy('configs/acra-server.yaml', 'configs/acra-server.yaml.backup')
+        try:
+            # test wrong auth
+            req = requests.post(
+                self.get_acrawebconfig_connection_url(), data={}, timeout=ACRAWEBCONFIG_HTTP_TIMEOUT,
+                auth=HTTPBasicAuth('wrong_user_name', 'wrong_password'))
+            self.assertEqual(req.status_code, 401)
+            req.close()
 
-        # test correct auth
-        req = requests.post(
-            self.get_acrawebconfig_connection_url(), data={}, timeout=ACRAWEBCONFIG_HTTP_TIMEOUT,
-            auth=HTTPBasicAuth(ACRAWEBCONFIG_BASIC_AUTH['user'], ACRAWEBCONFIG_BASIC_AUTH['password']))
-        self.assertEqual(req.status_code, 200)
-        req.close()
+            # test correct auth
+            req = requests.post(
+                self.get_acrawebconfig_connection_url(), data={}, timeout=ACRAWEBCONFIG_HTTP_TIMEOUT,
+                auth=HTTPBasicAuth(ACRAWEBCONFIG_BASIC_AUTH['user'], ACRAWEBCONFIG_BASIC_AUTH['password']))
+            self.assertEqual(req.status_code, 200)
+            req.close()
 
-        # test submit settings
-        settings = self.ACRAWEBCONFIG_ACRASERVER_PARAMS
-        settings['poison_run_script_file'] = str(uuid.uuid4())
-        print(settings)
-        req = requests.post(
-            "{}/acra-server/submit_setting".format(self.get_acrawebconfig_connection_url()),
-            data=settings,
-            timeout=ACRAWEBCONFIG_HTTP_TIMEOUT,
-            auth=HTTPBasicAuth(ACRAWEBCONFIG_BASIC_AUTH['user'], ACRAWEBCONFIG_BASIC_AUTH['password']))
-        self.assertEqual(req.status_code, 200)
-        req.close()
+            # test submit settings
+            settings = self.ACRAWEBCONFIG_ACRASERVER_PARAMS
+            settings['poison_run_script_file'] = str(uuid.uuid4())
+            print(settings)
+            req = requests.post(
+                "{}/acra-server/submit_setting".format(self.get_acrawebconfig_connection_url()),
+                data=settings,
+                timeout=ACRAWEBCONFIG_HTTP_TIMEOUT,
+                auth=HTTPBasicAuth(ACRAWEBCONFIG_BASIC_AUTH['user'], ACRAWEBCONFIG_BASIC_AUTH['password']))
+            self.assertEqual(req.status_code, 200)
+            req.close()
 
-        # check for new config after acra-server's graceful restart
-        req = requests.post(
-            self.get_acrawebconfig_connection_url(), data={}, timeout=ACRAWEBCONFIG_HTTP_TIMEOUT,
-            auth=HTTPBasicAuth(ACRAWEBCONFIG_BASIC_AUTH['user'], ACRAWEBCONFIG_BASIC_AUTH['password']))
-        self.assertEqual(req.status_code, 200)
-        self.assertIn(settings['poison_run_script_file'], req.text)
-        req.close()
+            # check for new config after acra-server's graceful restart
+            req = requests.post(
+                self.get_acrawebconfig_connection_url(), data={}, timeout=ACRAWEBCONFIG_HTTP_TIMEOUT,
+                auth=HTTPBasicAuth(ACRAWEBCONFIG_BASIC_AUTH['user'], ACRAWEBCONFIG_BASIC_AUTH['password']))
+            self.assertEqual(req.status_code, 200)
+            self.assertIn(settings['poison_run_script_file'], req.text)
+            req.close()
+        finally:
+            # search pid of forked acra-server process to kill
+            out = self.read_log(self.acra)
+            # acra-server process forked to PID: 56946
+            if out and 'process forked to PID' in out:
+                pids = re.findall(r'process forked to PID: (\d+)', out)
+                if pids:
+                    pid = pids[0]
+                    try:
+                        os.kill(int(pid), signal.SIGKILL)
+                    except ProcessLookupError:
+                        pass
+
+            # restore changed config
+            os.rename('configs/acra-server.yaml.backup',
+                      'configs/acra-server.yaml')
 
 
 class SSLPostgresqlMixin(AcraCatchLogsMixin):
@@ -1999,9 +2247,9 @@ class BasePrepareStatementMixin:
         """test decrypting with correct acra-connector and not decrypting with
         incorrect acra-connector or using direct connection to db"""
         keyname = 'keypair1_storage'
-        with open('.acrakeys/{}.pub'.format(keyname), 'rb') as f:
+        with open('{}/{}.pub'.format(KEYS_FOLDER.name, keyname), 'rb') as f:
             server_public1 = f.read()
-        data = self.get_random_data()
+        data = get_random_data()
         acra_struct = create_acrastruct(
             data.encode('ascii'), server_public1)
         row_id = self.get_random_id()
@@ -2035,10 +2283,10 @@ class BasePrepareStatementMixin:
         """test correct decrypting acrastruct when acrastruct concatenated to
         partial another acrastruct"""
         keyname = 'keypair1_storage'
-        with open('.acrakeys/{}.pub'.format(keyname), 'rb') as f:
+        with open('{}/{}.pub'.format(KEYS_FOLDER.name, keyname), 'rb') as f:
             server_public1 = f.read()
-        incorrect_data = self.get_random_data()
-        correct_data = self.get_random_data()
+        incorrect_data = get_random_data()
+        correct_data = get_random_data()
         fake_offset = (3+45+84) - 4
         fake_acra_struct = create_acrastruct(
             incorrect_data.encode('ascii'), server_public1)[:fake_offset]
@@ -2138,6 +2386,322 @@ class TestPostgresqlPreparedStatement(BasePrepareStatementMixin, BaseTestCase):
                 row = cursor.fetchone()
                 row['data'] = row['data'].tobytes()
                 return row
+
+
+class ProcessContextManager(object):
+    """wrap subprocess.Popen result to use as context manager that call
+    stop_process on __exit__
+    """
+    def __init__(self, process):
+        self.process = process
+
+    def __enter__(self):
+        return self.process
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        stop_process(self.process)
+
+
+class BaseAcraTranslatorTest(BaseTestCase):
+
+    def fork_translator(self, translator_kwargs, popen_kwargs=None):
+        logging.info("fork acra-translator")
+        from utils import load_default_config
+        default_config = load_default_config("acra-translator")
+        default_args = {
+            'incoming_connection_close_timeout': 0,
+            'incoming_connection_grpc_string': 'grpc://127.0.0.1:9696',
+            'incoming_connection_http_string': 'http://127.0.0.1:9595',
+            'keys_dir': KEYS_FOLDER.name,
+        }
+        default_config.update(default_args)
+        default_config.update(translator_kwargs)
+        if not popen_kwargs:
+            popen_kwargs = {}
+        if self.DEBUG_LOG:
+            default_config['d'] = 1
+        cli_args = ['--{}={}'.format(k, v) for k, v in default_config.items()]
+
+        translator = self.fork(lambda: subprocess.Popen(['./acra-translator'] + cli_args,
+                                                     **popen_kwargs))
+        try:
+            if default_config['incoming_connection_grpc_string']:
+                wait_connection(urlparse(default_config['incoming_connection_grpc_string']).port)
+            if default_config['incoming_connection_http_string']:
+                wait_connection(urlparse(default_config['incoming_connection_http_string']).port)
+        except:
+            stop_process(translator)
+            raise
+        return translator
+
+    def fork_connector(self, connector_port: int, server_port: int, client_id: str, check_connection: bool=True):
+        logging.info("fork connector")
+        server_connection = get_tcp_connection_string(server_port)
+        connector_connection = get_tcp_connection_string(connector_port)
+        args = [
+            './acra-connector',
+            '-acratranslator_connection_string={}'.format(server_connection),
+            '-mode=acratranslator',
+             '-client_id={}'.format(client_id),
+            '-incoming_connection_string={}'.format(connector_connection),
+            '-user_check_disable=true',
+            '-keys_dir={}'.format(KEYS_FOLDER.name),
+        ]
+        if self.DEBUG_LOG:
+            args.append('-v=true')
+        process = self.fork(lambda: subprocess.Popen(args))
+        if check_connection:
+            try:
+                wait_connection(connector_port)
+            except:
+                stop_process(process)
+                raise
+        return process
+
+    def checkSkip(self):
+        return
+
+    def setUp(self):
+        self.checkSkip()
+
+    def grpc_decrypt_request(self, port, client_id, zone_id, acrastruct):
+        channel = grpc.insecure_channel('127.0.0.1:{}'.format(port))
+        stub = api_pb2_grpc.ReaderStub(channel)
+        try:
+            if zone_id:
+                response = stub.Decrypt(api_pb2.DecryptRequest(
+                    zone_id=zone_id.encode('ascii'), acrastruct=acrastruct,
+                    client_id=client_id.encode('ascii')))
+            else:
+                response = stub.Decrypt(api_pb2.DecryptRequest(
+                    client_id=client_id.encode('ascii'), acrastruct=acrastruct))
+        except grpc.RpcError:
+            return b''
+        return response.data
+
+    def http_decrypt_request(self, port, client_id, zone_id, acrastruct):
+        api_url = 'http://127.0.0.1:{}/v1/decrypt'.format(port)
+        if zone_id:
+            api_url = '{}?zone_id={}'.format(api_url, zone_id)
+        with requests.post(api_url, data=acrastruct, timeout=REQUEST_TIMEOUT) as response:
+            return response.content
+
+    def _testApiDecryption(self, request_func, use_http=False, use_grpc=False):
+        # one is set
+        self.assertTrue(use_http or use_grpc)
+        # two is not acceptable
+        self.assertFalse(use_http and use_grpc)
+        translator_port = 3456
+        connector_port = 12345
+        connector_port2 = connector_port+1
+        client_id = "keypair1"
+        data = get_random_data().encode('ascii')
+        encryption_key = read_storage_public_key(
+            client_id, keys_dir=KEYS_FOLDER.name)
+        acrastruct = create_acrastruct(data, encryption_key)
+
+        zone = zones[0]
+        incorrect_zone = zones[1]
+        zone_public = b64decode(zone['public_key'].encode('ascii'))
+        acrastruct_with_zone = create_acrastruct(
+            data, zone_public, context=zone['id'].encode('ascii'))
+        connection_string = 'tcp://127.0.0.1:{}'.format(translator_port)
+        translator_kwargs = {
+            'incoming_connection_http_string': connection_string if use_http else '',
+            # turn off grpc to avoid check connection to it without acra-connector
+            'incoming_connection_grpc_string': connection_string if use_grpc else '',}
+
+        correct_client_id = 'keypair1'
+        incorrect_client_id = 'keypair2'
+        with ProcessContextManager(self.fork_translator(translator_kwargs)):
+            with ProcessContextManager(self.fork_connector(connector_port, translator_port, client_id)):
+                response = request_func(connector_port, correct_client_id, None, acrastruct)
+                self.assertEqual(data, response)
+
+                # test with correct zone id
+                response = request_func(
+                    connector_port, client_id, zone['id'], acrastruct_with_zone)
+                self.assertEqual(data, response)
+
+                # test with incorrect zone id
+                response = request_func(
+                    connector_port, client_id, incorrect_zone['id'],
+                    acrastruct_with_zone)
+                self.assertNotEqual(data, response)
+
+            # wait decryption error with incorrect client id
+            with ProcessContextManager(self.fork_connector(connector_port2, translator_port, incorrect_client_id)):
+                response = request_func(connector_port2, incorrect_client_id, None, acrastruct)
+                self.assertNotEqual(data, response)
+
+    def testHTTPApiResponses(self):
+        translator_port = 3456
+        connector_port = 8000
+        data = get_random_data().encode('ascii')
+        encryption_key = read_storage_public_key(
+            'keypair1', keys_dir=KEYS_FOLDER.name)
+        acrastruct = create_acrastruct(data, encryption_key)
+        connection_string = 'tcp://127.0.0.1:{}'.format(translator_port)
+        translator_kwargs = {
+            'incoming_connection_http_string': connection_string ,
+        }
+        api_url = 'http://127.0.0.1:{}/v1/decrypt'.format(connector_port)
+        import http
+        with ProcessContextManager(self.fork_translator(translator_kwargs)):
+            with ProcessContextManager(self.fork_connector(connector_port, translator_port, 'keypair1')):
+                # test incorrect HTTP method
+                response = requests.get(api_url, data=acrastruct,
+                                        timeout=REQUEST_TIMEOUT)
+                self.assertEqual(
+                    response.status_code, http.HTTPStatus.METHOD_NOT_ALLOWED)
+                self.assertIn('HTTP method is not allowed, expected POST, got'.lower(),
+                              response.text.lower())
+                self.assertEqual(response.headers['Content-Type'], 'text/plain')
+
+                # test without api version
+                without_version_api_url = api_url.replace('v1/', '')
+                response = requests.post(
+                    without_version_api_url, data=acrastruct,
+                    timeout=REQUEST_TIMEOUT)
+                self.assertEqual(response.status_code,
+                                 http.HTTPStatus.BAD_REQUEST)
+                self.assertIn('Malformed URL, expected /<version>/<endpoint>, got'.lower(),
+                              response.text.lower())
+                self.assertEqual(response.headers['Content-Type'], 'text/plain')
+
+                # incorrect version
+                without_version_api_url = api_url.replace('v1/', 'v2/')
+                response = requests.post(
+                    without_version_api_url, data=acrastruct,
+                    timeout=REQUEST_TIMEOUT)
+                self.assertEqual(response.status_code,
+                                 http.HTTPStatus.BAD_REQUEST)
+                self.assertIn('HTTP request version is not supported: expected v1, got'.lower(),
+                              response.text.lower())
+                self.assertEqual(response.headers['Content-Type'], 'text/plain')
+
+                # incorrect url
+                incorrect_url = 'http://127.0.0.1:{}/v1/someurl'.format(connector_port)
+                response = requests.post(
+                    incorrect_url, data=acrastruct, timeout=REQUEST_TIMEOUT)
+                self.assertEqual(
+                    response.status_code, http.HTTPStatus.BAD_REQUEST)
+                self.assertEqual('HTTP endpoint not supported'.lower(),
+                                 response.text.lower())
+                self.assertEqual(response.headers['Content-Type'], 'text/plain')
+
+
+                # without acrastruct (http body), pass empty byte array as data
+                response = requests.post(api_url, data=b'',
+                                         timeout=REQUEST_TIMEOUT)
+                self.assertEqual(response.status_code,
+                                 http.HTTPStatus.UNPROCESSABLE_ENTITY)
+                self.assertIn("Can't decrypt AcraStruct".lower(),
+                              response.text.lower())
+                self.assertEqual(response.headers['Content-Type'], 'text/plain')
+
+
+                # test with correct acrastruct
+                response = requests.post(api_url, data=acrastruct,
+                                         timeout=REQUEST_TIMEOUT)
+                self.assertEqual(data, response.content)
+                self.assertEqual(response.status_code, http.HTTPStatus.OK)
+                self.assertEqual(response.headers['Content-Type'],
+                                 'application/octet-stream')
+
+    def testGRPCApi(self):
+        self._testApiDecryption(self.grpc_decrypt_request, use_grpc=True)
+
+    def testHTTPApi(self):
+        self._testApiDecryption(self.http_decrypt_request, use_http=True)
+
+
+class TestAcraRotate(unittest.TestCase):
+    def testFileRotation(self):
+        """
+        generate some zones, create AcraStructs with them and save to files
+        call acra-rotate and check that public keys of zones different,
+        AcraStructs different and decrypted AcraStructs (raw data) the same"""
+
+        TestData = collections.namedtuple("TestData", ["acrastruct", "data"])
+        zone_map = collections.defaultdict(list)
+        # how much generate acrastructs per zone
+        zone_file_count = 3
+        # count of different zones
+        zone_id_count = 3
+        filename_template = '{dir}/{id}_{num}.acrastruct'
+
+        zones_before_rotate = {}
+
+        # generated acrastructs to compare with rotated
+        acrastructs = {}
+        with tempfile.TemporaryDirectory() as keys_folder, \
+                tempfile.TemporaryDirectory() as data_folder:
+            # generate zones in separate folder
+            # create acrastructs with this zones
+            for i in range(zone_id_count):
+                zone_data = json.loads(
+                    subprocess.check_output(
+                        ['./acra-addzone', '--keys_output_dir={}'.format(keys_folder)],
+                        cwd=os.getcwd(), timeout=PROCESS_CALL_TIMEOUT).decode('utf-8'))
+                public_key = b64decode(zone_data[ZONE_PUBLIC_KEY])
+                zone_id = zone_data[ZONE_ID]
+                zones_before_rotate[zone_id] = zone_data[ZONE_PUBLIC_KEY]
+                for i in range(zone_file_count):
+                    data = get_random_data().encode('ascii')
+                    acrastruct = create_acrastruct(
+                        data, public_key, zone_id.encode("ascii"))
+                    filename = filename_template.format(
+                        dir=data_folder, id=zone_id, num=i)
+                    acrastructs[filename] = TestData(
+                        acrastruct=acrastruct, data=data)
+                    with open(filename, 'wb') as f:
+                        f.write(acrastruct)
+                    zone_map[zone_id].append(filename)
+
+            # keys of json objects that will be in output
+            PUBLIC_KEY = 'new_public_key'
+            FILES = 'file_paths'
+            with contextlib.closing(tempfile.NamedTemporaryFile(
+                    'w', delete=False)) as zone_map_file:
+                json.dump(zone_map, zone_map_file)
+                zone_map_file.close()
+                result = subprocess.check_output(
+                    ['./acra-rotate', '--keys_dir={}'.format(keys_folder),
+                     '--file_map_config={}'.format(zone_map_file.name)])
+                if not isinstance(result, str):
+                    result = result.decode('utf-8')
+                result = json.loads(result)
+                for zone_id in result:
+                    self.assertIn(zone_id, zones_before_rotate)
+                    # new public key must be different from previous
+                    self.assertNotEqual(
+                        result[zone_id][PUBLIC_KEY],
+                        zones_before_rotate[zone_id])
+                    # check that all files was processed and are in result
+                    self.assertEqual(
+                        zone_map[zone_id],  # already sorted by loop index
+                        sorted(result[zone_id][FILES]))
+                    # compare rotated acrastructs
+                    for path in result[zone_id][FILES]:
+                        with open(path, 'rb') as acrastruct_file:
+                            rotated_acrastruct = acrastruct_file.read()
+                        zone_private_key_path = '{}/{}_zone'.format(
+                            keys_folder, zone_id)
+                        with open(zone_private_key_path, 'rb') as f:
+                            zone_private = decrypt_private_key(
+                                f.read(), zone_id.encode("ascii"),
+                                b64decode(get_master_key()))
+                        decrypted_rotated = decrypt_acrastruct(
+                            rotated_acrastruct, zone_private,
+                            zone_id=zone_id.encode('ascii'))
+
+                        self.assertNotEqual(
+                            rotated_acrastruct, acrastructs[path].acrastruct)
+                        # data should be unchanged
+                        self.assertEqual(
+                            decrypted_rotated, acrastructs[path].data)
+
 
 if __name__ == '__main__':
     unittest.main()

@@ -1,0 +1,42 @@
+# path to config
+config_file: 
+
+# Log everything to stderr
+d: false
+
+# dump config
+dump_config: false
+
+# Time that AcraTranslator will wait (in seconds) on stop signal before closing all connections
+incoming_connection_close_timeout: 10
+
+# Default option: connection string for gRPC transport like grpc://0.0.0.0:9696
+incoming_connection_grpc_string: 
+
+# Connection string for HTTP transport like http://0.0.0.0:9595
+incoming_connection_http_string: 
+
+# Folder from which will be loaded keys
+keys_dir: .acrakeys
+
+# Count of keys that will be stored in in-memory LRU cache in encrypted form. 0 - no limits, -1 - turn off cache
+keystore_cache_size: 0
+
+# Logging format: plaintext, json or CEF
+logging_format: plaintext
+
+# Turn on poison record detection, if server shutdown is disabled, AcraTranslator logs the poison record detection and returns error
+poison_detect_enable: true
+
+# On detecting poison record: log about poison record detection, execute script, return decrypted data
+poison_run_script_file: 
+
+# On detecting poison record: log about poison record detection, stop and shutdown
+poison_shutdown_enable: false
+
+# Id that will be sent in secure session
+securesession_id: acra_translator
+
+# Log to stderr all INFO, WARNING and ERROR logs
+v: false
+

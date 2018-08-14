@@ -1,31 +1,44 @@
-// Copyright 2016, Cossack Labs Limited
+/*
+Copyright 2018, Cossack Labs Limited
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
+// Package logging contains custom log formatters (plaintext, JSON and CEF) to use through Acra components.
+// Logging mode and verbosity level can be configured for AcraServer, AcraConnector, and AcraWebConfig in the
+// corresponding yaml files or passed as CLI parameter.
 //
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-// http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
+// https://github.com/cossacklabs/acra/wiki/Logging
 package logging
 
 import (
+	"context"
 	"fmt"
 	log "github.com/sirupsen/logrus"
 	"os"
 	"strings"
 )
 
+// Log modes
 const (
 	LOG_DEBUG = iota
 	LOG_VERBOSE
 	LOG_DISCARD
 )
 
+const loggerKey = "logger"
+
+// SetLogLevel sets logging level
 func SetLogLevel(level int) {
 	if level == LOG_DEBUG {
 		log.SetLevel(log.DebugLevel)
@@ -38,6 +51,18 @@ func SetLogLevel(level int) {
 	}
 }
 
+// GetLogLevel gets logrus log level and returns int Acra log level
+func GetLogLevel() int {
+	if log.GetLevel() == log.DebugLevel {
+		return LOG_DEBUG
+	}
+	if log.GetLevel() == log.InfoLevel {
+		return LOG_VERBOSE
+	}
+	return LOG_DISCARD
+}
+
+// CustomizeLogging changes logging format
 func CustomizeLogging(loggingFormat string, serviceName string) {
 	log.SetOutput(os.Stderr)
 	log.SetFormatter(logFormatterFor(loggingFormat, serviceName))
@@ -56,4 +81,23 @@ func logFormatterFor(loggingFormat string, serviceName string) log.Formatter {
 	}
 
 	return TextFormatter()
+}
+
+// SetLoggerToContext sets logger to corresponded context
+func SetLoggerToContext(ctx context.Context, logger *log.Entry) context.Context {
+	return context.WithValue(ctx, loggerKey, logger)
+}
+
+// GetLoggerFromContext gets logger from context, returns nil if no logger.
+func GetLoggerFromContext(ctx context.Context) *log.Entry {
+	if entry, ok := GetLoggerFromContextOk(ctx); ok {
+		return entry
+	}
+	return nil
+}
+
+// GetLoggerFromContextOk gets logger from context, returns logger and success code.
+func GetLoggerFromContextOk(ctx context.Context) (*log.Entry, bool) {
+	entry, ok := ctx.Value(loggerKey).(*log.Entry)
+	return entry, ok
 }

@@ -12,7 +12,7 @@ for version in $VERSIONS; do
     export TEST_CONNECTOR_COMMAND_PORT=$(expr ${TEST_CONNECTOR_COMMAND_PORT} + 1);
     export GOROOT=$HOME/go_root_$version/go;
     export PATH=$GOROOT/bin/:$PATH;
-    export GOPATH=$HOME/go_path_$version;
+    export GOPATH=$HOME/$GOPATH_FOLDER;
 
     # setup postgresql credentials
     #export TEST_DB_USER=${POSTGRES_USER}

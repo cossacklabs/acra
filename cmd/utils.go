@@ -1,3 +1,20 @@
+/*
+Copyright 2016, Cossack Labs Limited
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
+// Package cmd contains shared settings/constants among most of Acra component utilities.
 package cmd
 
 import (
@@ -32,7 +49,10 @@ func init() {
 	flag_.CommandLine.Usage = PrintDefaults
 }
 
+// SignalCallback callback function
 type SignalCallback func()
+
+// SignalHandler sends Signal to listeners and call registered callbacks
 type SignalHandler struct {
 	ch        chan os.Signal
 	listeners []net.Listener
@@ -40,18 +60,22 @@ type SignalHandler struct {
 	signals   []os.Signal
 }
 
+// NewSignalHandler returns new SignalHandler registered for particular os.Signals
 func NewSignalHandler(handledSignals []os.Signal) (*SignalHandler, error) {
 	return &SignalHandler{ch: make(chan os.Signal), signals: handledSignals}, nil
 }
 
+// AddListener to listeners list
 func (handler *SignalHandler) AddListener(listener net.Listener) {
 	handler.listeners = append(handler.listeners, listener)
 }
 
+// GetChannel returns channel of os.Signal
 func (handler *SignalHandler) GetChannel() chan os.Signal {
 	return handler.ch
 }
 
+// AddCallback to callbacks list
 func (handler *SignalHandler) AddCallback(callback SignalCallback) {
 	handler.callbacks = append(handler.callbacks, callback)
 }
@@ -71,10 +95,11 @@ func (handler *SignalHandler) Register() {
 	os.Exit(1)
 }
 
-func ValidateClientId(clientId string) {
-	if !keystore.ValidateId([]byte(clientId)) {
-		log.Errorf("invalid client id,  %d <= len(client id) <= %d, only digits, letters and '_', '-', ' ' characters",
-			keystore.MIN_CLIENT_ID_LENGTH, keystore.MAX_CLIENT_ID_LENGTH)
+// ValidateClientID checks that clientID has digits, letters, _ - ' '
+func ValidateClientID(clientID string) {
+	if !keystore.ValidateID([]byte(clientID)) {
+		log.Errorf("Invalid client ID,  %d <= len(client ID) <= %d, only digits, letters and '_', '-', ' ' characters",
+			keystore.MinClientIdLength, keystore.MaxClientIdLength)
 		os.Exit(1)
 	}
 }
@@ -107,6 +132,7 @@ func isZeroValue(flag *flag_.Flag, value string) bool {
 	return false
 }
 
+// PrintDefaults prints CLI params to console
 func PrintDefaults() {
 	/* took from flag/flag.go and overrided arg display format (-/--) */
 	flag_.CommandLine.VisitAll(func(flag *flag_.Flag) {
@@ -144,6 +170,7 @@ func PrintDefaults() {
 	})
 }
 
+// GenerateYaml generates YAML file from CLI params
 func GenerateYaml(output io.Writer, useDefault bool) {
 	flag_.CommandLine.VisitAll(func(flag *flag_.Flag) {
 		var s string
@@ -156,6 +183,7 @@ func GenerateYaml(output io.Writer, useDefault bool) {
 	})
 }
 
+// GenerateMarkdownDoc generates Markdown file from CLI params
 func GenerateMarkdownDoc(output io.Writer, serviceName string) {
 	// escape column separator symbol from text
 	escapeColumn := func(text string) string {
@@ -169,6 +197,7 @@ func GenerateMarkdownDoc(output io.Writer, serviceName string) {
 	})
 }
 
+// DumpConfig writes CLI params to configPath
 func DumpConfig(configPath, serviceName string, useDefault bool) error {
 	var absPath string
 	var err error
@@ -209,6 +238,7 @@ func DumpConfig(configPath, serviceName string, useDefault bool) error {
 	return nil
 }
 
+// Parse loads CLI params from yaml config and cli
 func Parse(configPath, serviceName string) error {
 	/*load from yaml config and cli. if dumpconfig option pass than generate config and exit*/
 	log.Debugf("Parsing config from path %v", configPath)
@@ -273,6 +303,7 @@ func Parse(configPath, serviceName string) error {
 	return nil
 }
 
+// Argon2Params describes params for Argon2 hashing
 type Argon2Params struct {
 	Time    uint32
 	Memory  uint32
@@ -280,12 +311,14 @@ type Argon2Params struct {
 	Length  uint32
 }
 
+// UserAuth describes user params for password hashing: salt, params, hash
 type UserAuth struct {
 	Salt string
 	Argon2Params
 	Hash []byte
 }
 
+// UserAuthString returns string representation of UserAuth
 func (auth UserAuth) UserAuthString(userDataDelimiter string, paramsDelimiter string) string {
 	var userData []string
 	var argon2P []string
@@ -309,7 +342,7 @@ const (
 
 var randSrc = rand.NewSource(time.Now().UnixNano())
 
-// getting random string using faster randSrc.Int63() and true distribution for letterBytes
+// RandomStringBytes getting random string using faster randSrc.Int63() and true distribution for letterBytes.
 func RandomStringBytes(n int) string {
 	b := make([]byte, n)
 	// A randSrc.Int63() generates 63 random bits, enough for letterIdxMax characters!

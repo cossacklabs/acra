@@ -1,16 +1,20 @@
-// Copyright 2016, Cossack Labs Limited
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-// http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
+/*
+Copyright 2016, Cossack Labs Limited
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
+// Package binary contains BinaryDecryptor, that finds and decrypts AcraStruct from any binary blobs.
 package binary
 
 import (
@@ -28,24 +32,26 @@ import (
 	"io"
 )
 
+// BinaryDecryptor stores settings for finding and decrypting AcraStruct from binary data
 type BinaryDecryptor struct {
 	currentIndex    uint8
 	isWithZone      bool
 	isWholeMatch    bool
 	keyBlockBuffer  []byte
-	lengthBuf       [base.DATA_LENGTH_SIZE]byte
+	lengthBuf       [base.DataLengthSize]byte
 	buf             []byte
 	keyStore        keystore.KeyStore
-	zoneMatcher     *zone.ZoneIdMatcher
+	zoneMatcher     *zone.ZoneIDMatcher
 	poisonKey       []byte
 	callbackStorage *base.PoisonCallbackStorage
 }
 
+// NewBinaryDecryptor returns new BinaryDecryptor
 func NewBinaryDecryptor() *BinaryDecryptor {
-	return &BinaryDecryptor{keyBlockBuffer: make([]byte, base.KEY_BLOCK_LENGTH)}
+	return &BinaryDecryptor{keyBlockBuffer: make([]byte, base.KeyBlockLength)}
 }
 
-/* not implemented Decryptor interface */
+// MatchBeginTag not implemented Decryptor interface
 func (decryptor *BinaryDecryptor) MatchBeginTag(char byte) bool {
 	if char == base.TAG_BEGIN[decryptor.currentIndex] {
 		decryptor.currentIndex++
@@ -53,15 +59,23 @@ func (decryptor *BinaryDecryptor) MatchBeginTag(char byte) bool {
 	}
 	return false
 }
+
+// IsMatched returns true if AcraStruct BeginTag found
 func (decryptor *BinaryDecryptor) IsMatched() bool {
 	return len(base.TAG_BEGIN) == int(decryptor.currentIndex)
 }
+
+// Reset pointer on current Index of binary data
 func (decryptor *BinaryDecryptor) Reset() {
 	decryptor.currentIndex = 0
 }
+
+// GetMatched returns bytes from binary data that match with AcraStruct BeginTag
 func (decryptor *BinaryDecryptor) GetMatched() []byte {
 	return base.TAG_BEGIN[:decryptor.currentIndex]
 }
+
+// ReadSymmetricKey returns symmetric key wrapped in AcraStruct
 func (decryptor *BinaryDecryptor) ReadSymmetricKey(privateKey *keys.PrivateKey, reader io.Reader) ([]byte, []byte, error) {
 	n, err := io.ReadFull(reader, decryptor.keyBlockBuffer[:])
 	if err != nil {
@@ -70,10 +84,10 @@ func (decryptor *BinaryDecryptor) ReadSymmetricKey(privateKey *keys.PrivateKey, 
 		}
 		return nil, decryptor.keyBlockBuffer[:n], err
 	}
-	pubkey := &keys.PublicKey{Value: decryptor.keyBlockBuffer[:base.PUBLIC_KEY_LENGTH]}
+	pubkey := &keys.PublicKey{Value: decryptor.keyBlockBuffer[:base.PublicKeyLength]}
 
 	smessage := message.New(privateKey, pubkey)
-	symmetricKey, err := smessage.Unwrap(decryptor.keyBlockBuffer[base.PUBLIC_KEY_LENGTH:])
+	symmetricKey, err := smessage.Unwrap(decryptor.keyBlockBuffer[base.PublicKeyLength:])
 	if err != nil {
 		return nil, decryptor.keyBlockBuffer[:n], base.ErrFakeAcraStruct
 	}
@@ -116,13 +130,14 @@ func (decryptor *BinaryDecryptor) readScellData(length int, reader io.Reader) ([
 		return nil, decryptor.buf[:n], err
 	}
 	if n != int(length) {
-		log.Warningf("%v", utils.ErrorMessage("can't decode hex data", err))
+		log.Warningf("%v", utils.ErrorMessage("Can't decode hex data", err))
 		return nil, decryptor.buf[:n], base.ErrFakeAcraStruct
 	}
 	return decryptor.buf[:length], decryptor.buf[:length], nil
 }
 
-func (decryptor *BinaryDecryptor) ReadData(symmetricKey, zoneId []byte, reader io.Reader) ([]byte, error) {
+// ReadData decrypts encrypted content of AcraStruct using Symmetric key and Zone
+func (decryptor *BinaryDecryptor) ReadData(symmetricKey, zoneID []byte, reader io.Reader) ([]byte, error) {
 	length, rawLengthData, err := decryptor.readDataLength(reader)
 	if err != nil {
 		return rawLengthData, err
@@ -133,7 +148,7 @@ func (decryptor *BinaryDecryptor) ReadData(symmetricKey, zoneId []byte, reader i
 	}
 
 	scell := cell.New(symmetricKey, cell.CELL_MODE_SEAL)
-	decrypted, err := scell.Unprotect(data, nil, zoneId)
+	decrypted, err := scell.Unprotect(data, nil, zoneID)
 	data = nil
 	// fill zero symmetric_key
 	utils.FillSlice(byte(0), symmetricKey)
@@ -143,6 +158,7 @@ func (decryptor *BinaryDecryptor) ReadData(symmetricKey, zoneId []byte, reader i
 	return decrypted, nil
 }
 
+// GetTagBeginLength returns length of AcraStruct BeginTag
 func (*BinaryDecryptor) GetTagBeginLength() int {
 	return len(base.TAG_BEGIN)
 }

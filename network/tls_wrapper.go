@@ -1,3 +1,19 @@
+/*
+Copyright 2016, Cossack Labs Limited
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
 package network
 
 import (
@@ -11,17 +27,21 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
+// TLSConnectionWrapper for wrapping connection into TLS encryption
 type TLSConnectionWrapper struct {
 	config   *tls.Config
-	clientId []byte
+	clientID []byte
 }
 
+// ErrEmptyTLSConfig if not TLS config found
 var ErrEmptyTLSConfig = errors.New("empty TLS config")
 
-func NewTLSConnectionWrapper(clientId []byte, config *tls.Config) (*TLSConnectionWrapper, error) {
-	return &TLSConnectionWrapper{config: config, clientId: clientId}, nil
+// NewTLSConnectionWrapper returns new TLSConnectionWrapper
+func NewTLSConnectionWrapper(clientID []byte, config *tls.Config) (*TLSConnectionWrapper, error) {
+	return &TLSConnectionWrapper{config: config, clientID: clientID}, nil
 }
 
+// WrapClient wraps client connection into TLS
 func (wrapper *TLSConnectionWrapper) WrapClient(id []byte, conn net.Conn) (net.Conn, error) {
 	tlsConn := tls.Client(conn, wrapper.config)
 	err := tlsConn.Handshake()
@@ -30,15 +50,18 @@ func (wrapper *TLSConnectionWrapper) WrapClient(id []byte, conn net.Conn) (net.C
 	}
 	return tlsConn, nil
 }
+
+// WrapServer wraps server connection into TLS
 func (wrapper *TLSConnectionWrapper) WrapServer(conn net.Conn) (net.Conn, []byte, error) {
 	tlsConn := tls.Server(conn, wrapper.config)
 	err := tlsConn.Handshake()
 	if err != nil {
 		return conn, nil, err
 	}
-	return tlsConn, wrapper.clientId, nil
+	return tlsConn, wrapper.clientID, nil
 }
 
+// NewTLSConfig creates x509 TLS config from provided params, tried to load system CA certificate
 func NewTLSConfig(serverName string, caPath, keyPath, crtPath string, authType tls.ClientAuthType) (*tls.Config, error) {
 	var roots *x509.CertPool
 	var err error

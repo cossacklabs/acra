@@ -1,33 +1,36 @@
-// Copyright 2016, Cossack Labs Limited
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-// http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
+/*
+Copyright 2016, Cossack Labs Limited
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
 package main
 
 import (
 	"fmt"
 	"net"
 
-	"github.com/cossacklabs/acra/decryptor/mysql"
-	"github.com/cossacklabs/acra/decryptor/postgresql"
 	log "github.com/sirupsen/logrus"
 
-	"io"
-
 	"github.com/cossacklabs/acra/decryptor/base"
+	"github.com/cossacklabs/acra/decryptor/mysql"
+	"github.com/cossacklabs/acra/decryptor/postgresql"
 	"github.com/cossacklabs/acra/keystore"
 	"github.com/cossacklabs/acra/logging"
+	"io"
 )
 
+// ClientSession handles connection between database and AcraServer.
 type ClientSession struct {
 	config         *Config
 	keystorage     keystore.KeyStore
@@ -36,10 +39,12 @@ type ClientSession struct {
 	Server         *SServer
 }
 
+// NewClientSession creates new ClientSession object.
 func NewClientSession(keystorage keystore.KeyStore, config *Config, connection net.Conn) (*ClientSession, error) {
 	return &ClientSession{connection: connection, keystorage: keystorage, config: config}, nil
 }
 
+// ConnectToDb connects to the database via tcp using Host and Port from config.
 func (clientSession *ClientSession) ConnectToDb() error {
 	conn, err := net.Dial("tcp", fmt.Sprintf("%v:%v", clientSession.config.GetDBHost(), clientSession.config.GetDBPort()))
 	if err != nil {
@@ -66,10 +71,9 @@ func (clientSession *ClientSession) close() {
 	log.Debugln("All connections closed")
 }
 
-/* acra-connector connections from client to db and decrypt responses from db to client
-if any error occurred than end processing
-*/
-func (clientSession *ClientSession) HandleClientConnection(decryptorImpl base.Decryptor) {
+// HandleClientConnection handles Acra-connector connections from client to db and decrypt responses from db to client.
+// If any error occurred – ends processing.
+func (clientSession *ClientSession) HandleClientConnection(clientID []byte, decryptorImpl base.Decryptor) {
 	log.Infof("Handle client's connection")
 	clientProxyErrorCh := make(chan error, 1)
 	dbProxyErrorCh := make(chan error, 1)
@@ -91,7 +95,7 @@ func (clientSession *ClientSession) HandleClientConnection(decryptorImpl base.De
 	var pgProxy *postgresql.PgProxy
 	if clientSession.config.UseMySQL() {
 		log.Debugln("MySQL connection")
-		handler, err := mysql.NewMysqlHandler(decryptorImpl, clientSession.connectionToDb, clientSession.connection, clientSession.config.GetTLSConfig(), clientSession.config.censor)
+		handler, err := mysql.NewMysqlHandler(clientID, decryptorImpl, clientSession.connectionToDb, clientSession.connection, clientSession.config.GetTLSConfig(), clientSession.config.censor)
 		if err != nil {
 			log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantInitDecryptor).
 				Errorln("Can't initialize mysql handler")
@@ -113,12 +117,12 @@ func (clientSession *ClientSession) HandleClientConnection(decryptorImpl base.De
 	for {
 		select {
 		case err = <-dbProxyErrorCh:
-			log.Debugln("error from db proxy")
+			log.WithError(err).Debugln("error from db proxy")
 			channelToWait = clientProxyErrorCh
 			break
 		case err = <-clientProxyErrorCh:
 			channelToWait = dbProxyErrorCh
-			log.Debugln("error from client proxy")
+			log.WithError(err).Debugln("error from client proxy")
 			break
 		}
 
@@ -130,7 +134,7 @@ func (clientSession *ClientSession) HandleClientConnection(decryptorImpl base.De
 				if clientSession.config.UseMySQL() {
 					break
 				} else {
-					pgProxy.TlsCh <- true
+					pgProxy.TLSCh <- true
 					// in postgresql mode timeout used to stop listening connection in background goroutine
 					// and it's normal behaviour
 					continue

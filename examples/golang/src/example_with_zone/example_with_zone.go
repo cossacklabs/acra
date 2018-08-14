@@ -1,5 +1,3 @@
-// +build go1.8
-
 // Copyright 2016, Cossack Labs Limited
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
@@ -32,11 +30,13 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
+// AcraConnectorAddress default address
 var AcraConnectorAddress = "http://127.0.0.1:9191"
 
+// ZoneData stores zone: zoneID and PublicKey
 type ZoneData struct {
-	Id         string
-	Public_key []byte
+	Id        string
+	PublicKey []byte
 }
 
 func main() {
@@ -49,7 +49,7 @@ func main() {
 	password := flag.String("db_password", "password", "Database user's password")
 	data := flag.String("data", "", "Data to save")
 	printData := flag.Bool("print", false, "Print data from database")
-	zoneId := flag.String("zone_id", "", "Zone id to fetch")
+	zoneID := flag.String("zone_id", "", "Zone ID to fetch")
 	flag.Parse()
 
 	connectionString := fmt.Sprintf("user=%v password=%v dbname=%v host=%v port=%v", *user, *password, *dbname, *host, *port)
@@ -101,18 +101,18 @@ func main() {
 		if err != nil {
 			panic(err)
 		}
-		zonePublic := parsedZoneData.Public_key
-		zoneId := []byte(parsedZoneData.Id)
+		zonePublic := parsedZoneData.PublicKey
+		zoneID := []byte(parsedZoneData.Id)
 
-		acrastruct, err := acrawriter.CreateAcrastruct([]byte(*data), &keys.PublicKey{Value: zonePublic}, zoneId)
+		acrastruct, err := acrawriter.CreateAcrastruct([]byte(*data), &keys.PublicKey{Value: zonePublic}, zoneID)
 		if err != nil {
 			panic(err)
 		}
-		fmt.Printf("saved with zone: %v\n", string(zoneId))
+		fmt.Printf("saved with zone: %v\n", string(zoneID))
 		if *mysql {
-			_, err = db.Exec("insert into test_example_with_zone (id, zone, data, raw_data) values (?, ?, ?, ?);", rand.Int31(), zoneId, acrastruct, *data)
+			_, err = db.Exec("insert into test_example_with_zone (id, zone, data, raw_data) values (?, ?, ?, ?);", rand.Int31(), zoneID, acrastruct, *data)
 		} else {
-			_, err = db.Exec("insert into test_example_with_zone (id, zone, data, raw_data) values ($1, $2, $3, $4);", rand.Int31(), zoneId, acrastruct, *data)
+			_, err = db.Exec("insert into test_example_with_zone (id, zone, data, raw_data) values ($1, $2, $3, $4);", rand.Int31(), zoneID, acrastruct, *data)
 		}
 		if err != nil {
 			panic(err)
@@ -126,7 +126,7 @@ func main() {
 		}
 
 		fmt.Printf("Select from db with command: '%v'\n", query)
-		rows, err := db.Query(query, []byte(*zoneId))
+		rows, err := db.Query(query, []byte(*zoneID))
 		defer rows.Close()
 		if err != nil {
 			log.Fatal(err)
@@ -138,7 +138,6 @@ func main() {
 			err := rows.Scan(&zone, &data, &rawData, &rawZone)
 			if err != nil {
 				panic(err)
-				return
 			}
 			fmt.Printf("zone: %v\ndata: %v\nraw_data: %v\nrow zone: %v\n\n", string(zone), string(data), string(rawData), string(rawZone))
 		}

@@ -1,4 +1,4 @@
-# Port of Acra HTTP api
+# Port of Acra HTTP API
 acraserver_api_connection_port: 9090
 
 # Connection string to Acra's API like tcp://x.x.x.x:yyyy or unix:///path/to/socket
@@ -22,19 +22,34 @@ acraserver_tls_transport_enable: false
 # Use raw transport (tcp/unix socket) between acraserver and acraproxy/client (don't use this flag if you not connect to database with ssl/tls
 acraserver_transport_encryption_disable: false
 
-# Client id
+# IP or domain to AcraTranslator daemon
+acratranslator_connection_host: 0.0.0.0
+
+# Port of AcraTranslator daemon
+acratranslator_connection_port: 9696
+
+# Connection string to AcraTranslator like grpc://0.0.0.0:9696 or http://0.0.0.0:9595
+acratranslator_connection_string: 
+
+# Expected id from AcraTranslator for Secure Session
+acratranslator_securesession_id: acra_translator
+
+# Client ID
 client_id: 
 
 # path to config
 config_file: 
 
+# Log everything to stderr
+d: false
+
 # dump config
 dump_config: false
 
-# Enable HTTP API
+# Enable connection to AcraServer via HTTP API
 http_api_enable: false
 
-# Port for AcraConnector HTTP api
+# Port for AcraConnector HTTP API
 incoming_connection_api_port: 9191
 
 # Connection string like tcp://x.x.x.x:yyyy or unix:///path/to/socket
@@ -52,10 +67,16 @@ keys_dir: .acrakeys
 # Logging format: plaintext, json or CEF
 logging_format: plaintext
 
+# Expected mode of connection. Possible values are: AcraServer or AcraTranslator. Corresponded connection host/port/string/session_id will be used.
+mode: AcraServer
+
+# URL of Prometheus server for AcraConnector to upload stats and metrics (upload address is <URL>/metrics)
+prometheus_metrics_address: 
+
 # Expected Server Name (SNI) from AcraServer
 tls_acraserver_sni: 
 
-# Set authentication mode that will be used in TLS connection with Postgresql. Values in range 0-4 that set auth type (https://golang.org/pkg/crypto/tls/#ClientAuthType). Default is tls.RequireAndVerifyClientCert
+# Set authentication mode that will be used in TLS connection with AcraServer/AcraTranslator. Values in range 0-4 that set auth type (https://golang.org/pkg/crypto/tls/#ClientAuthType). Default is tls.RequireAndVerifyClientCert
 tls_auth: 4
 
 # Path to root certificate which will be used with system root certificates to validate AcraServer's certificate
@@ -70,6 +91,6 @@ tls_key:
 # Disable checking that connections from app running from another user
 user_check_disable: false
 
-# Log to stderr
+# Log to stderr all INFO, WARNING and ERROR logs
 v: false
 

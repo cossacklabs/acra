@@ -103,7 +103,7 @@ func GenerateAcrastructWithZone(db *sql.DB) {
 		}
 
 		zoneData := zones[count%config.ZONE_COUNT]
-		acrastruct, err := acrawriter.CreateAcrastruct(data, &keys.PublicKey{Value: zoneData.Public_Key}, zoneData.Id)
+		acrastruct, err := acrawriter.CreateAcrastruct(data, &keys.PublicKey{Value: zoneData.PublicKey}, zoneData.Id)
 		if err != nil {
 			panic(err)
 		}

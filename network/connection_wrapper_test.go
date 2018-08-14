@@ -1,3 +1,18 @@
+/*
+Copyright 2016, Cossack Labs Limited
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
 package network
 
 import (
@@ -26,9 +41,9 @@ func wait(ch chan bool, t *testing.T) {
 	}
 }
 
-func test_wrapper(clientWrapper, serverWrapper ConnectionWrapper, t *testing.T) {
+func testWrapper(clientWrapper, serverWrapper ConnectionWrapper, t *testing.T) {
 	const iterations = 10
-	socket := "/tmp/test_wrapper"
+	socket := "/tmp/testWrapper"
 	os.Remove(socket)
 	clientCh := make(chan bool)
 	serverCh := make(chan bool)
@@ -49,13 +64,13 @@ func test_wrapper(clientWrapper, serverWrapper ConnectionWrapper, t *testing.T) 
 			return
 		}
 		t.Log("wrap server")
-		conn, clientId, err := serverWrapper.WrapServer(conn)
+		conn, clientID, err := serverWrapper.WrapServer(conn)
 		if err != nil {
 			conn.Close()
 			t.Fatal(err)
 			return
 		}
-		if !bytes.Equal(clientId, TEST_CLIENT_ID) {
+		if !bytes.Equal(clientID, TEST_CLIENT_ID) {
 			t.Fatal("client id incorrect")
 		}
 		for i := 0; i < iterations; i++ {
@@ -124,7 +139,7 @@ func test_wrapper(clientWrapper, serverWrapper ConnectionWrapper, t *testing.T) 
 }
 
 func TestRawConnectionWrapper(t *testing.T) {
-	test_wrapper(&RawConnectionWrapper{}, &RawConnectionWrapper{ClientId: TEST_CLIENT_ID}, t)
+	testWrapper(&RawConnectionWrapper{}, &RawConnectionWrapper{ClientID: TEST_CLIENT_ID}, t)
 }
 
 type SimpleKeyStore struct {
@@ -156,7 +171,7 @@ func TestSessionWrapper(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	test_wrapper(clientWrapper, serverWrapper, t)
+	testWrapper(clientWrapper, serverWrapper, t)
 }
 
 func TestTLSWRapper(t *testing.T) {
@@ -205,5 +220,5 @@ Mmsz2rgkLFqKpYS30+CYbzwIXMfHImhBX2kO9HkodBWvNApu
 	if err != nil {
 		t.Fatal(err)
 	}
-	test_wrapper(clientWrapper, serverWrapper, t)
+	testWrapper(clientWrapper, serverWrapper, t)
 }

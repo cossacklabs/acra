@@ -1,5 +1,22 @@
+/*
+Copyright 2016, Cossack Labs Limited
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
 package cmd
 
+// Acra component constants: default port, host, names, path.
 const (
 	DEFAULT_ACRACONNECTOR_PORT                = 9494
 	DEFAULT_ACRACONNECTOR_API_PORT            = 9191
@@ -18,4 +35,8 @@ const (
 	ACRAWEBCONFIG_AUTH_ARGON2_MEMORY          = 8 * 1024
 	ACRAWEBCONFIG_AUTH_ARGON2_TIME            = 3
 	ACRAWEBCONFIG_AUTH_ARGON2_THREADS         = 2
+	DEFAULT_ACRATRANSLATOR_HTTP_HOST          = "0.0.0.0"
+	DEFAULT_ACRATRANSLATOR_HTTP_PORT          = 9595
+	DEFAULT_ACRATRANSLATOR_GRPC_HOST          = "0.0.0.0"
+	DEFAULT_ACRATRANSLATOR_GRPC_PORT          = 9696
 )
