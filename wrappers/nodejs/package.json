@@ -1,7 +1,7 @@
 {
   "name": "acrawriter",
-  "version": "1.0.0",
-  "description": "node.js binding for creating acra struct",
+  "version": "1.0.1",
+  "description": "AcraWriter library for iOS: encrypts data into AcraStructs, allowing Acra to decrypt it",
   "main": "acrawriter.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"
