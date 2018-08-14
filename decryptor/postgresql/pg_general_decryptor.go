@@ -374,21 +374,21 @@ var HexSymbol = byte(hexTagSymbols[0])
 func (decryptor *PgDecryptor) BeginTagIndex(block []byte) (int, int) {
 	_, ok := decryptor.pgDecryptor.(*PgHexDecryptor)
 	if ok {
-		if i := utils.FindTag(HexSymbol, decryptor.pgDecryptor.GetTagBeginLength(), block); i != utils.NotFound {
+		if i := bytes.Index(block, HexTagBegin); i != utils.NotFound {
 			decryptor.logger.Debugln("Matched pg decryptor")
 			decryptor.matchedDecryptor = decryptor.pgDecryptor
 			return i, decryptor.pgDecryptor.GetTagBeginLength()
 		}
 	} else {
 		// escape format
-		if i := utils.FindTag(base.TagSymbol, decryptor.pgDecryptor.GetTagBeginLength(), block); i != utils.NotFound {
+		if i := bytes.Index(block, base.TAG_BEGIN); i != utils.NotFound {
 			decryptor.logger.Debugln("Matched pg decryptor")
 			decryptor.matchedDecryptor = decryptor.pgDecryptor
 			return i, decryptor.pgDecryptor.GetTagBeginLength()
 			// binary format
 		}
 	}
-	if i := utils.FindTag(base.TagSymbol, decryptor.binaryDecryptor.GetTagBeginLength(), block); i != utils.NotFound {
+	if i := bytes.Index(block, base.TAG_BEGIN); i != utils.NotFound {
 		decryptor.logger.Debugln("Matched binary decryptor")
 		decryptor.matchedDecryptor = decryptor.binaryDecryptor
 		return i, decryptor.binaryDecryptor.GetTagBeginLength()
@@ -409,7 +409,7 @@ func (decryptor *PgDecryptor) MatchZoneInBlock(block []byte) {
 	if ok {
 		sliceCopy := block[:]
 		for {
-			i := utils.FindTag(HexZoneSymbol, HexZoneTagLength, sliceCopy)
+			i := bytes.Index(sliceCopy, HexTagBegin)
 			if i == utils.NotFound {
 				break
 			} else {
@@ -427,7 +427,7 @@ func (decryptor *PgDecryptor) MatchZoneInBlock(block []byte) {
 		sliceCopy := block[:]
 		for {
 			// escape format
-			i := utils.FindTag(zone.ZoneTagSymbol, EscapeZoneTagLength, block)
+			i := bytes.Index(block, zone.ZoneIDBegin)
 			if i == utils.NotFound {
 				break
 			} else {
@@ -443,7 +443,7 @@ func (decryptor *PgDecryptor) MatchZoneInBlock(block []byte) {
 	sliceCopy := block[:]
 	for {
 		// binary format
-		i := utils.FindTag(zone.ZoneTagSymbol, zone.ZoneTagLength, block)
+		i := bytes.Index(block, zone.ZoneIDBegin)
 		if i == utils.NotFound {
 			break
 		} else {

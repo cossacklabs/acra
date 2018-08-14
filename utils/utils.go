@@ -23,7 +23,6 @@ import (
 	"io"
 	"io/ioutil"
 
-	"bytes"
 	"fmt"
 
 	log "github.com/sirupsen/logrus"
@@ -160,45 +159,6 @@ func Min(x, y int) int {
 		return x
 	}
 	return y
-}
-
-// FindTag returns first index of symbol in block
-// return -1 if not found
-func FindTag(symbol byte, count int, block []byte) int {
-	if len(block) < count {
-		return NotFound
-	}
-	halfCount := count / 2
-	tag := make([]byte, halfCount)
-
-	for i := 0; i < halfCount; i++ {
-		tag[i] = symbol
-	}
-
-	for i := 0; i+halfCount <= len(block); i += halfCount {
-		if bytes.Equal(tag, block[i:i+halfCount]) {
-			start := i
-			if i != 0 {
-				for ; start > i-halfCount; start-- {
-					if block[start-1] != symbol {
-						break
-					}
-				}
-			}
-			end := i + halfCount - 1
-			rightRange := Min(end+halfCount, len(block)-1)
-			for ; end < rightRange; end++ {
-				if block[end+1] != symbol {
-					break
-				}
-			}
-
-			if count <= (end-start)+1 {
-				return start
-			}
-		}
-	}
-	return NotFound
 }
 
 // GetConfigPathByName returns filepath to config file named "name" from default configs folder
