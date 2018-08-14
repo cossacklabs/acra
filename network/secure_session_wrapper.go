@@ -30,6 +30,12 @@ import (
 	"time"
 )
 
+const (
+	// sessionInitTimeout should be enough 5 seconds for secure session initialization and handshake
+	// chosen manually
+	sessionInitTimeout = time.Second * 5
+)
+
 // SessionCallback used for wrapping connection into SecureSession using SecureSession transport keys
 type SessionCallback struct {
 	keystorage keystore.SecureSessionKeyStore
@@ -189,6 +195,8 @@ func (wrapper *SecureSessionConnectionWrapper) hasHandshakeTimeout() bool {
 }
 
 func (wrapper *SecureSessionConnectionWrapper) wrap(id []byte, conn net.Conn, isServer bool) (net.Conn, []byte, error) {
+	conn.SetDeadline(time.Now().Add(sessionInitTimeout))
+	defer conn.SetDeadline(time.Time{})
 	secureConnection, err := newSecureSessionConnection(wrapper.keystore, conn)
 	if err != nil {
 		return conn, nil, err

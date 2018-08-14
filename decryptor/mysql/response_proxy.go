@@ -211,6 +211,8 @@ func (handler *MysqlHandler) ClientToDbConnector(errCh chan<- error) {
 			errCh <- err
 			return
 		}
+		// after reading client's packet we start deadline on write to db side
+		handler.dbConnection.SetWriteDeadline(time.Now().Add(network.DefaultNetworkTimeout))
 		if firstPacket {
 			firstPacket = false
 			handler.clientProtocol41 = packet.ClientSupportProtocol41()
@@ -649,6 +651,8 @@ func (handler *MysqlHandler) DbToClientConnector(errCh chan<- error) {
 			errCh <- err
 			return
 		}
+		// after reading response from db response set deadline on writing data to client
+		handler.clientConnection.SetWriteDeadline(time.Now().Add(network.DefaultNetworkTimeout))
 		handler.logger.WithField("sequence_number", packet.GetSequenceNumber()).Debugln("New packet from db to client")
 		if packet.IsErr() {
 			handler.resetQueryHandler()

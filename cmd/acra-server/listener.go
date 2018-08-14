@@ -348,7 +348,9 @@ func (server *SServer) handleCommandsConnection(connection net.Conn) {
 		return
 	}
 	clientSession.connection = wrappedConnection
+	wrappedConnection.SetDeadline(time.Now().Add(network.DefaultNetworkTimeout))
 	clientSession.HandleSession()
+	wrappedConnection.SetDeadline(time.Time{})
 }
 
 // StartCommands starts listening commands connections from proxy.

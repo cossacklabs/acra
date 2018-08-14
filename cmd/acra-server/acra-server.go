@@ -300,7 +300,8 @@ func main() {
 		debugServerAddress := "127.0.0.1:6060"
 		log.Debugf("Starting Debug server on %s", debugServerAddress)
 		go func() {
-			err := http.ListenAndServe(debugServerAddress, nil)
+			debugServer := &http.Server{ReadTimeout: network.DefaultNetworkTimeout, WriteTimeout: network.DefaultNetworkTimeout, Addr: debugServerAddress}
+			err := debugServer.ListenAndServe()
 			if err != nil {
 				log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantStartService).
 					Errorln("System error: got error from Debug Server")

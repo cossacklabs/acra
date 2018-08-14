@@ -126,6 +126,7 @@ func (proxy *PgProxy) PgProxyClientRequests(acraCensor acracensor.AcraCensorInte
 			errCh <- err
 			return
 		}
+		dbConnection.SetWriteDeadline(time.Now().Add(network.DefaultNetworkTimeout))
 		// we are interested only in requests that contains sql queries
 		if !packet.IsSimpleQuery() {
 			if err := packet.sendPacket(); err != nil {
@@ -469,6 +470,7 @@ func (proxy *PgProxy) PgDecryptStream(censor acracensor.AcraCensorInterface, dec
 			errCh <- err
 			return
 		}
+		clientConnection.SetWriteDeadline(time.Now().Add(network.DefaultNetworkTimeout))
 
 		if !packetHandler.IsDataRow() {
 			if err := packetHandler.sendPacket(); err != nil {
