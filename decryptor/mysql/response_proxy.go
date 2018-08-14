@@ -281,10 +281,17 @@ func (handler *MysqlHandler) ClientToDbConnector(errCh chan<- error) {
 			return
 		case COM_QUERY, COM_STMT_EXECUTE:
 			query := string(data)
-			queryWithHiddenValues, err := handlers.RedactSQLQuery(query)
-			if err == handlers.ErrQuerySyntaxError {
-				clientLog.WithError(err).Infof("Parsing error on query (first %v symbols): %s", handlers.LogQueryLength, handlers.TrimStringToN(queryWithHiddenValues, handlers.LogQueryLength))
+
+			// log query with hidden values for debug mode
+			if logging.GetLogLevel() == logging.LOG_DEBUG {
+				_, queryWithHiddenValues, err := handlers.NormalizeAndRedactSQLQuery(query)
+				if err == handlers.ErrQuerySyntaxError {
+					clientLog.WithError(err).Infof("Parsing error on query: %s", queryWithHiddenValues)
+				} else {
+					clientLog.WithField("sql", queryWithHiddenValues).Debugln("Com_query")
+				}
 			}
+
 			if err := handler.acracensor.HandleQuery(query); err != nil {
 				clientLog.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCensorQueryIsNotAllowed).Errorln("Error on AcraCensor check")
 				errPacket := NewQueryInterruptedError(handler.clientProtocol41)
@@ -295,7 +302,6 @@ func (handler *MysqlHandler) ClientToDbConnector(errCh chan<- error) {
 				}
 				continue
 			}
-			clientLog.WithField("sql", queryWithHiddenValues).Debugln("Com_query")
 			handler.setQueryHandler(handler.QueryResponseHandler)
 			break
 		case COM_STMT_PREPARE, COM_STMT_CLOSE, COM_STMT_SEND_LONG_DATA, COM_STMT_RESET:

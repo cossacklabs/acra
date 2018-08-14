@@ -14,5 +14,5 @@ handlers:
     tables:
       - EMPLOYEE_TBL
       - Customers
-    rules:
-      - SELECT * FROM EMPLOYEE WHERE CITY='Seattle';
+    patterns:
+      - SELECT EMP_ID, LAST_NAME FROM EMPLOYEE %%WHERE%%;

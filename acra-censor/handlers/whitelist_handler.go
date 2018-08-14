@@ -17,10 +17,8 @@ limitations under the License.
 package handlers
 
 import (
-	"errors"
 	"github.com/cossacklabs/acra/logging"
 	"github.com/xwb1989/sqlparser"
-	"reflect"
 	"strings"
 
 	log "github.com/sirupsen/logrus"
@@ -28,22 +26,23 @@ import (
 
 // WhitelistHandler allows query/pattern/table and restricts/forbids everything else
 type WhitelistHandler struct {
-	queries map[string]bool
-	tables  map[string]bool
-	rules   []string
-	logger  *log.Entry
+	queries  map[string]bool
+	tables   map[string]bool
+	patterns [][]sqlparser.SQLNode
+	logger   *log.Entry
 }
 
-// NewWhitelistHandler creates new white handler
+// NewWhitelistHandler creates new whitelist instance
 func NewWhitelistHandler() *WhitelistHandler {
 	handler := &WhitelistHandler{}
 	handler.queries = make(map[string]bool)
 	handler.tables = make(map[string]bool)
+	handler.patterns = make([][]sqlparser.SQLNode, 0)
 	handler.logger = log.WithField("handler", "whitelist")
 	return handler
 }
 
-// CheckQuery checks each query, returns false and error if query is not in a white list or
+// CheckQuery checks each query, returns false and error if query is not whitelisted or
 // if query tries to access to non-whitelisted table
 func (handler *WhitelistHandler) CheckQuery(query string) (bool, error) {
 	//Check queries
@@ -98,21 +97,22 @@ func (handler *WhitelistHandler) CheckQuery(query string) (bool, error) {
 			}
 			if !tableIsAllowed {
 				handler.logger.WithError(err).Debugln("Error from WhitelistHandler [insert]")
-				handler.logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCensorQueryIsNotAllowed).WithError(ErrAccessToForbiddenTableWhitelist).Errorln("Query has been blocked by blacklist [tables]")
+				handler.logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCensorQueryIsNotAllowed).WithError(ErrAccessToForbiddenTableWhitelist).Errorln("Query has been blocked by whitelist [tables]")
 				return false, ErrAccessToForbiddenTableWhitelist
 			}
 		case *sqlparser.Update:
 			return false, ErrNotImplemented
 		}
 	}
-	//Check rules
-	if len(handler.rules) != 0 {
-		violationOccured, err := handler.testRulesViolation(query)
+	//Check patterns
+	if len(handler.patterns) != 0 {
+		matchingOccurred, err := checkPatternsMatching(handler.patterns, query)
 		if err != nil {
-			return false, ErrParseSQLRuleWhitelist
+			handler.logger.WithError(err).Debugln("Error from WhitelistHandler [patterns]")
+			return false, ErrPatternCheckError
 		}
-		if violationOccured {
-			return false, ErrForbiddenSQLStructureWhitelist
+		if !matchingOccurred {
+			return false, ErrWhitelistPatternMismatch
 		}
 	}
 	//We do not continue verification because query matches whitelist
@@ -125,26 +125,24 @@ func (handler *WhitelistHandler) handleAliasedTables(parsedQuery sqlparser.Table
 		switch table.(type) {
 		case *sqlparser.AliasedTableExpr:
 			if !handler.tables[sqlparser.String(table.(*sqlparser.AliasedTableExpr).Expr)] {
+				handler.logger.WithError(ErrAccessToForbiddenTableWhitelist).Debugln("Error from WhitelistHandler.handleAliasedTables. [evaluated table not found in whitelist]")
 				return ErrAccessToForbiddenTableWhitelist
 			}
-			break
 		case *sqlparser.JoinTableExpr:
 			err = handler.handleJoinedTables(table.(*sqlparser.JoinTableExpr))
 			if err != nil {
+				handler.logger.WithError(err).Debugln("Error from WhitelistHandler.handleAliasedTables [joined table]")
 				return ErrAccessToForbiddenTableWhitelist
 			}
-			break
 		case *sqlparser.ParenTableExpr:
 			err = handler.handleParenTables(table.(*sqlparser.ParenTableExpr))
 			if err != nil {
+				handler.logger.WithError(err).Debugln("Error from WhitelistHandler.handleAliasedTables [paren table]")
 				return ErrAccessToForbiddenTableWhitelist
 			}
-			break
 		default:
+			handler.logger.WithError(ErrUnexpectedTypeError).Debugln("Error from WhitelistHandler.handleAliasedTables [unexpected type of table]")
 			return ErrUnexpectedTypeError
-		}
-		if err != nil {
-			return ErrAccessToForbiddenTableWhitelist
 		}
 	}
 	return nil
@@ -157,14 +155,19 @@ func (handler *WhitelistHandler) handleJoinedTables(statement *sqlparser.JoinTab
 		var tables sqlparser.TableExprs
 		tables = append(tables, statement.LeftExpr)
 		err = handler.handleAliasedTables(tables)
+		handler.logger.WithError(err).Debugln("Error from WhitelistHandler.handleJoinedTables - left expr. [aliased table]")
 	case *sqlparser.JoinTableExpr:
 		err = handler.handleJoinedTables(statement.LeftExpr.(*sqlparser.JoinTableExpr))
+		handler.logger.WithError(err).Debugln("Error from WhitelistHandler.handleJoinedTables - left expr. [joined table]")
 	case *sqlparser.ParenTableExpr:
 		err = handler.handleParenTables(statement.LeftExpr.(*sqlparser.ParenTableExpr))
+		handler.logger.WithError(err).Debugln("Error from WhitelistHandler.handleJoinedTables - left expr. [paren table]")
 	default:
+		handler.logger.WithError(ErrUnexpectedTypeError).Debugln("Error from WhitelistHandler.handleJoinedTables - left expr. [unexpected type of table]")
 		return ErrUnexpectedTypeError
 	}
 	if err != nil {
+		//this err will be already logged
 		return err
 	}
 	switch statement.RightExpr.(type) {
@@ -172,14 +175,19 @@ func (handler *WhitelistHandler) handleJoinedTables(statement *sqlparser.JoinTab
 		var tables sqlparser.TableExprs
 		tables = append(tables, statement.RightExpr)
 		err = handler.handleAliasedTables(tables)
+		handler.logger.WithError(err).Debugln("Error from WhitelistHandler.handleJoinedTables - right expr. [aliased table]")
 	case *sqlparser.JoinTableExpr:
 		err = handler.handleJoinedTables(statement.RightExpr.(*sqlparser.JoinTableExpr))
+		handler.logger.WithError(err).Debugln("Error from WhitelistHandler.handleJoinedTables - right expr. [joined table]")
 	case *sqlparser.ParenTableExpr:
 		err = handler.handleParenTables(statement.RightExpr.(*sqlparser.ParenTableExpr))
+		handler.logger.WithError(err).Debugln("Error from WhitelistHandler.handleJoinedTables - right expr. [paren table]")
 	default:
+		handler.logger.WithError(ErrUnexpectedTypeError).Debugln("Error from WhitelistHandler.handleJoinedTables - right expr. [unexpected type of table]")
 		err = ErrUnexpectedTypeError
 	}
 	if err != nil {
+		//this error will be already logged
 		return err
 	}
 	return nil
@@ -193,43 +201,56 @@ func (handler *WhitelistHandler) handleParenTables(statement *sqlparser.ParenTab
 			var tables sqlparser.TableExprs
 			tables = append(tables, singleExpression)
 			err = handler.handleAliasedTables(tables)
+			handler.logger.WithError(err).Debugln("Error from WhitelistHandler.handleParenTables. [aliased table]")
 		case *sqlparser.JoinTableExpr:
 			err = handler.handleJoinedTables(singleExpression.(*sqlparser.JoinTableExpr))
+			handler.logger.WithError(err).Debugln("Error from WhitelistHandler.handleParenTables. [joined table]")
 		case *sqlparser.ParenTableExpr:
 			err = handler.handleParenTables(singleExpression.(*sqlparser.ParenTableExpr))
+			handler.logger.WithError(err).Debugln("Error from WhitelistHandler.handleParenTables. [paren table]")
 		default:
+			handler.logger.WithError(ErrUnexpectedTypeError).Debugln("Error from WhitelistHandler.handleParenTables. [unexpected type of table]")
 			return ErrUnexpectedTypeError
 		}
 		if err != nil {
+			//this error will be already logged
 			return err
 		}
 	}
 	return nil
 }
 
-// Reset whitelist rules
+// Reset resets whitelist to initial state
 func (handler *WhitelistHandler) Reset() {
 	handler.queries = make(map[string]bool)
 	handler.tables = make(map[string]bool)
-	handler.rules = nil
+	handler.patterns = nil
 }
 
-// Release / reset whitelist rules
+// Release releases all resources
 func (handler *WhitelistHandler) Release() {
 	handler.Reset()
 }
 
-// AddQueries adds queries to the list that should be whitelisted
+// AddQueries normalizes and adds queries to the list that should be whitelisted
 func (handler *WhitelistHandler) AddQueries(queries []string) {
 	for _, query := range queries {
-		handler.queries[query] = true
+		normalizedQuery, _, err := NormalizeAndRedactSQLQuery(query)
+		if err != nil {
+			continue
+		}
+		handler.queries[normalizedQuery] = true
 	}
 }
 
 // RemoveQueries removes queries from the list that should be whitelisted
 func (handler *WhitelistHandler) RemoveQueries(queries []string) {
 	for _, query := range queries {
-		delete(handler.queries, query)
+		normalizedQuery, _, err := NormalizeAndRedactSQLQuery(query)
+		if err != nil {
+			continue
+		}
+		delete(handler.queries, normalizedQuery)
 	}
 }
 
@@ -247,109 +268,27 @@ func (handler *WhitelistHandler) RemoveTables(tableNames []string) {
 	}
 }
 
-// AddRules adds rules that should be whitelisted
-func (handler *WhitelistHandler) AddRules(rules []string) error {
-	for _, rule := range rules {
-		handler.rules = append(handler.rules, rule)
-		_, err := sqlparser.Parse(rule)
-		if err != nil {
-			log.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCensorQueryParseError).WithError(err).Errorln("Can't parse query to add rule to whitelist handler")
-			return ErrQuerySyntaxError
+// AddPatterns adds patterns that should be whitelisted
+func (handler *WhitelistHandler) AddPatterns(patterns []string) error {
+	placeholders := []string{SelectConfigPlaceholder, ColumnConfigPlaceholder, WhereConfigPlaceholder, ValueConfigPlaceholder}
+	replacers := []string{SelectConfigPlaceholderReplacer, ColumnConfigPlaceholderReplacer, WhereConfigPlaceholderReplacer, ValueConfigPlaceholderReplacer}
+	patternValue := ""
+	for _, pattern := range patterns {
+		patternValue = pattern
+		for index, placeholder := range placeholders {
+			patternValue = strings.Replace(patternValue, placeholder, replacers[index], -1)
 		}
+		statement, err := sqlparser.Parse(patternValue)
+		if err != nil {
+			log.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCensorQueryParseError).WithError(err).Errorln("Can't add specified pattern in whitelist handler")
+			return ErrPatternSyntaxError
+		}
+		var newPatternNodes []sqlparser.SQLNode
+		sqlparser.Walk(func(node sqlparser.SQLNode) (bool, error) {
+			newPatternNodes = append(newPatternNodes, node)
+			return true, nil
+		}, statement)
+		handler.patterns = append(handler.patterns, newPatternNodes)
 	}
-	handler.rules = removeDuplicates(handler.rules)
 	return nil
-}
-
-// RemoveRules removes rules that should be whitelisted
-func (handler *WhitelistHandler) RemoveRules(rules []string) {
-	for _, rule := range rules {
-		yes, index := contains(handler.rules, rule)
-		if yes {
-			handler.rules = append(handler.rules[:index], handler.rules[index+1:]...)
-		}
-	}
-}
-
-func (handler *WhitelistHandler) testRulesViolation(query string) (bool, error) {
-	if sqlparser.Preview(query) != sqlparser.StmtSelect {
-		return true, errors.New("non-select queries are not supported")
-	}
-	//parse one rule and get forbidden tables and columns for specific 'where' clause
-	var whereClause sqlparser.SQLNode
-	var tables sqlparser.TableExprs
-	var columns sqlparser.SelectExprs
-	//Parse each rule and then test query
-	for _, rule := range handler.rules {
-		parsedRule, err := sqlparser.Parse(rule)
-		if err != nil {
-			log.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCensorQueryParseError).WithError(err).Errorln("Can't parse rule in whitelist handler for test")
-			return true, ErrQuerySyntaxError
-		}
-		switch parsedRule := parsedRule.(type) {
-		case *sqlparser.Select:
-			whereClause = parsedRule.Where.Expr
-			tables = parsedRule.From
-			columns = parsedRule.SelectExprs
-			dangerousSelect, err := handler.isDangerousSelect(query, whereClause, tables, columns)
-			if err != nil {
-				return true, err
-			}
-			if dangerousSelect {
-				return true, nil
-			}
-		case *sqlparser.Insert:
-			return true, ErrNotImplemented
-		default:
-			return true, ErrNotImplemented
-		}
-		_ = whereClause
-		_ = tables
-		_ = columns
-	}
-	return false, nil
-}
-
-func (handler *WhitelistHandler) isDangerousSelect(selectQuery string, allowedWhere sqlparser.SQLNode, allowedTables sqlparser.TableExprs, allowedColumns sqlparser.SelectExprs) (bool, error) {
-	parsedSelectQuery, err := sqlparser.Parse(selectQuery)
-	if err != nil {
-		log.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCensorQueryParseError).WithError(err).Errorln("Can't parse query in whitelist handler to check is it dangerous select")
-		return true, ErrQuerySyntaxError
-	}
-	evaluatedStmt := parsedSelectQuery.(*sqlparser.Select)
-	if strings.EqualFold(sqlparser.String(allowedWhere), sqlparser.String(evaluatedStmt.Where.Expr)) {
-		if handler.isAllowedTableAccess(evaluatedStmt.From, allowedTables) {
-			if handler.isAllowedColumnAccess(evaluatedStmt.SelectExprs, allowedColumns) {
-				return false, nil
-			}
-		}
-	}
-	return true, nil
-}
-
-func (handler *WhitelistHandler) isAllowedTableAccess(tablesToEvaluate sqlparser.TableExprs, allowedTables sqlparser.TableExprs) bool {
-	accessOnlyToAllowedTables := true
-	for _, tableToEvaluate := range tablesToEvaluate {
-		for _, allowedTable := range allowedTables {
-			if !reflect.DeepEqual(tableToEvaluate.(*sqlparser.AliasedTableExpr).Expr, allowedTable.(*sqlparser.AliasedTableExpr).Expr) {
-				accessOnlyToAllowedTables = false
-			}
-		}
-	}
-	return accessOnlyToAllowedTables
-}
-
-func (handler *WhitelistHandler) isAllowedColumnAccess(columnsToEvaluate sqlparser.SelectExprs, allowedColumns sqlparser.SelectExprs) bool {
-	if strings.EqualFold(sqlparser.String(allowedColumns), "*") {
-		return true
-	}
-	accessOnlyToAllowedColumns := true
-	for _, columnToEvaluate := range columnsToEvaluate {
-		for _, allowedColumn := range allowedColumns {
-			if !reflect.DeepEqual(columnToEvaluate, allowedColumn) {
-				accessOnlyToAllowedColumns = false
-			}
-		}
-	}
-	return accessOnlyToAllowedColumns
 }

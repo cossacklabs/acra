@@ -27,6 +27,7 @@ import (
 	"time"
 
 	"github.com/cossacklabs/acra/acra-censor"
+	"github.com/cossacklabs/acra/acra-censor/handlers"
 	"github.com/cossacklabs/acra/decryptor/base"
 	"github.com/cossacklabs/acra/logging"
 	"github.com/cossacklabs/acra/network"
@@ -136,14 +137,23 @@ func (proxy *PgProxy) PgProxyClientRequests(acraCensor acracensor.AcraCensorInte
 			timer.ObserveDuration()
 			continue
 		}
-
 		query := string(packet.descriptionBuf.Bytes()[:packet.dataLength-1])
-		logger.WithField("query", query).Debugln("New query")
+
+		// log query with hidden values for debug mode
+		if logging.GetLogLevel() == logging.LOG_DEBUG {
+			_, queryWithHiddenValues, err := handlers.NormalizeAndRedactSQLQuery(query)
+			if err == handlers.ErrQuerySyntaxError {
+				log.WithError(err).Infof("Parsing error on query: %s", queryWithHiddenValues)
+			} else {
+				log.WithField("sql", queryWithHiddenValues).Debugln("New query")
+			}
+		}
+
 		if censorErr := acraCensor.HandleQuery(query); censorErr != nil {
 			logger.WithError(censorErr).Errorln("AcraCensor blocked query")
 			errorMessage, err := NewPgError("AcraCensor blocked this query")
 			if err != nil {
-				logger.WithError(err).Errorln("Can't create postgresql error message")
+				logger.WithError(err).Errorln("Can't create PostgreSQL error message")
 				errCh <- err
 				return
 			}
@@ -177,6 +187,7 @@ func handlePoisonCheckResult(decryptor base.Decryptor, poisoned bool, err error)
 		log.WithError(err).Errorln("Can't check on poison record")
 		return err
 	}
+
 	if poisoned {
 		log.Warningln("Recognized poison record")
 		callbacks := decryptor.GetPoisonCallbackStorage()

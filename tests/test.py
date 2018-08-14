@@ -107,7 +107,7 @@ POISON_KEY_PATH = '.poison_key/poison_key'
 SETUP_SQL_COMMAND_TIMEOUT = 0.1
 FORK_FAIL_SLEEP = 0.1
 CONNECTION_FAIL_SLEEP = 0.1
-SOCKET_CONNECT_TIMEOUT = 10
+SOCKET_CONNECT_TIMEOUT = 3
 KILL_WAIT_TIMEOUT = 10
 CONNECT_TRY_COUNT = 3
 SQL_EXECUTE_TRY_COUNT = 5
@@ -234,7 +234,7 @@ def wait_connection(port, count=10, sleep=0.3):
     while count:
         try:
             connection = socket.create_connection(('127.0.0.1', port),
-                                                  timeout=10)
+                                                  timeout=1)
             connection.close()
             return
         except ConnectionRefusedError:
@@ -828,12 +828,13 @@ class CensorBlacklistTest(BaseCensorTest):
         if TEST_POSTGRESQL:
             expectedException = sa.exc.ProgrammingError
 
+        #test block by query
         with self.assertRaises(expectedException):
-                result = self.engine1.execute(sa.text("select data from test where id='1'"))
-
+            result = self.engine1.execute(sa.text("select data from test where id='1'"))
+        #test block by table
         with self.assertRaises(expectedException):
             result = self.engine1.execute(sa.text("select data_raw from test"))
-
+        #test block by pattern
         with self.assertRaises(expectedException):
             result = self.engine1.execute(sa.text("select * from acrarollback_output"))
 
@@ -847,11 +848,12 @@ class CensorWhitelistTest(BaseCensorTest):
         if TEST_POSTGRESQL:
             expectedException = sa.exc.ProgrammingError
 
-        with self.assertRaises(expectedException):
-            result = self.engine1.execute(sa.text("select data from test where id='100'"))
-
+        #test block by table
         with self.assertRaises(expectedException):
             result = self.engine1.execute(sa.text("select * from acrarollback_output"))
+        #test block by pattern
+        with self.assertRaises(expectedException):
+            result = self.engine1.execute(sa.text("insert into test (a, b, c) values ('x', 'y', 'z')"))
 
 
 class ZoneHexFormatTest(BaseTestCase):
@@ -1531,6 +1533,7 @@ class AcraCatchLogsMixin(object):
         with open(self.log_files[process].name, 'r', errors='replace',
                   encoding='utf-8') as f:
             log = f.read()
+            #print(log.encode(encoding='utf-8', errors='replace'))
             print(log)
             return log
 
@@ -2490,6 +2493,7 @@ class BaseAcraTranslatorTest(BaseTestCase):
         self.assertFalse(use_http and use_grpc)
         translator_port = 3456
         connector_port = 12345
+        connector_port2 = connector_port+1
         client_id = "keypair1"
         data = get_random_data().encode('ascii')
         encryption_key = read_storage_public_key(
@@ -2526,8 +2530,8 @@ class BaseAcraTranslatorTest(BaseTestCase):
                 self.assertNotEqual(data, response)
 
             # wait decryption error with incorrect client id
-            with ProcessContextManager(self.fork_connector(connector_port, translator_port, 'keypair2')):
-                response = request_func(connector_port, incorrect_client_id, None, acrastruct)
+            with ProcessContextManager(self.fork_connector(connector_port2, translator_port, incorrect_client_id)):
+                response = request_func(connector_port2, incorrect_client_id, None, acrastruct)
                 self.assertNotEqual(data, response)
 
     def testHTTPApiResponses(self):
