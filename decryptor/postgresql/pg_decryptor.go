@@ -187,6 +187,7 @@ func handlePoisonCheckResult(decryptor base.Decryptor, poisoned bool, err error)
 		log.WithError(err).Errorln("Can't check on poison record")
 		return err
 	}
+
 	if poisoned {
 		log.Warningln("Recognized poison record")
 		callbacks := decryptor.GetPoisonCallbackStorage()
