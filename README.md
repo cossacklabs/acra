@@ -49,6 +49,8 @@ Acra is a continuously developing security tool. And as any proper security tool
 
 Acra relies on our cryptographic library [Themis](https://www.github.com/cossacklabs/themis), which implements high-level cryptosystems based on the best available [open-source implementations](https://github.com/cossacklabs/themis/wiki/Cryptographic-donors) of the [most reliable ciphers](https://github.com/cossacklabs/themis/wiki/Soter). Acra does not contain any self-made cryptographic primitives or obscure ciphers. Instead, to deliver its unique guarantees, Acra relies on the combination of well-known ciphers and smart key management scheme.
 
+Enterprise Acra can run on certified crypto-libraries you want (FIPS, GOST), [drop us an email](mailto:sales@cossacklabs.com) to get a quote.
+
 ## Availability
 
 ### Client-side
@@ -152,12 +154,23 @@ You might want to:
 - Read about the [logging format](https://github.com/cossacklabs/acra/wiki/Logging) that Acra supports if you are using a SIEM system.
 
 All of our documentation (including with the Acra documentation) can also be found on our dedicated [Cossack Labs Documentation Server](https://docs.cossacklabs.com/products/acra/). However, it is still in an early beta so there might be dragons 🐉.
-  
-## Project status
+
+## GDPR and HIPAA
+
+Acra can help you comply with GDPR and HIPAA regulations. Configuring and using Acra ina designated form will cover most demands described in articles 25, 32, 33 and 34 of GDPR, and PII data protection demands from HIPAA. Read more about [Acra and compliance](https://github.com/cossacklabs/acra/wiki/Acra-and-GDPR-compliance).
+
+## Open source vs Enterprise
 
 This open source version of Acra is free-to-use. Please let us know in the [Issues](https://www.github.com/cossacklabs/acra/issues) if you stumble upon a bug, see a possible enhancement, or have a comment on security design.
 
-There’s [commercial version of Acra](https://www.cossacklabs.com/acra/) available, which provides better performance, redunancy/load balancing, comes pre-configured with cryptoprimitives you want (FIPS, GOST), integrates with key/secret management tools in your stack, and has plenty of goodies for your Ops and SREs to operate Acra conveniently - deployment automation, scaling, monitoring and logging [Talk to us](mailto:sales@cossacklabs.com) if you're interested.
+There’s [commercial version of Acra](https://www.cossacklabs.com/acra/) available, which provides better performance, redunancy/load balancing, comes pre-configured with cryptoprimitives you want (FIPS, GOST), integrates with key/secret management tools in your stack, and has plenty of goodies for your Ops and SREs to operate Acra conveniently - deployment automation, scaling, monitoring and logging. [Talk to us](mailto:sales@cossacklabs.com) if you're interested.
+
+## Security consulting
+
+It takes more than getting cryptographic code to compile to secure sensitive data. Acra won't make you “compliant out of the box” and no other tool will. 
+
+[We help companies](https://www.cossacklabs.com/dgap/) to plan their data security strategy by auditing, assessing data flow and classifying the data, enumerating the risks. We do the hardest, least-attended part of compliance – turning it from “cost of doing business” into “security framework that prevents risks”.
+
 
 ## Contributing to us
 
