@@ -23,33 +23,33 @@
 | ---- | ---- | ---- | --- |
 
 ## What is Acra
-
+Acra - database encryption proxy for data-driven apps.
 Acra brings encryption and data leakage prevention to distributed applications, web and mobile apps with database backends. Acra provides selective encryption, multi-layered access control, database leakage prevention and intrusion detection capabilities in a convenient, developer-friendly package.
 
-Acra gives you tools for encrypting the data on the application's side into a special [cryptographic container](https://github.com/cossacklabs/acra/wiki/AcraStruct), storing it in the database or file storage, and then decrypting it in a secure compartmented area (separate virtual machine/container). 
+Acra gives you tools for encrypting the data on the application's side into special [cryptographic containers](https://github.com/cossacklabs/acra/wiki/AcraStruct), storing them in the database or file storage, and then decrypting them in a secure compartmented area (separate virtual machine/container). 
 
-Cryptographic design ensures that no secret (password, key, anything) leaked from the application or database will be sufficient for decryption of the protected data chunks that originate from it. 
+Cryptographic design ensures that no secret (password, key, etc.) leaked from the application or database will be sufficient for decryption of the protected data chunks that originate from it. 
 
 Acra was built with specific user experiences in mind: 
 
 - **quick and easy integration** of security instrumentation;
-- **easy to try**: you can experience the full might of Acra without commiting to its installation using [Docker containers](https://github.com/cossacklabs/acra/wiki/Trying-Acra-with-Docker);
-- **compatible with encryption-demanding compliance**, Acra can run on certified crypto-libraries (FIPS, GOST);
-- **cryptographic protection of data**: to compromise an Acra-powered app, an attacker will need to compromise a separate compartmented server, AcraServer - more specifically - its key storage and database, until that the data is safe.
+- **easy to try**: you can experience the full might of Acra without committing to its installation using [Docker containers](https://github.com/cossacklabs/acra/wiki/Trying-Acra-with-Docker);
+- **compatible with encryption-demanding compliances**: Acra can run on certified crypto-libraries (FIPS, GOST);
+- **cryptographic protection of data**: to compromise an Acra-powered app, an attacker will need to compromise a separate compartmented server, AcraServer - or more specifically - its key storage and database; until AcraServer is compromised, the data is safe.
 - **cryptography is hidden under the hood**: you're safe from the risk of selecting the wrong key length or algorithm padding;
 - **secure default settings** to get you going; 
-- **intrusion detection** to let you know early that something wrong is going on;
-- **SQL injections prevention** by built-in SQL firewall;
+- **intrusion detection** to give you an early warning if something wrong is going on;
+- **SQL injections prevention** through a built-in SQL firewall;
 - **ops-friendly**: Acra can be easy configured and automated using a configuration automation environment.
 
 
-Acra is a continuously developing security tool. And as any proper security tool, it requires enourmous human efforts for validation of the methods, code, and finding possible infrastructural weaknesses. Although we do run Acra in production in several instances, we're constantly enhancing and improving it as we go. This is done to ensure that the provided security benefits are not rendered useless through implementation problems or increased complexity.
+Acra is a continuously developing security tool. And as any proper security tool, it requires enormous human efforts for validation of the methods, code, and finding possible infrastructural weaknesses. We're constantly enhancing and improving Acra as we go. This is done to ensure that the provided security benefits are not rendered useless through implementation problems or increased complexity.
 
 ## Cryptography
 
-Acra relies on our cryptographic library [Themis](https://www.github.com/cossacklabs/themis), which implements high-level cryptosystems based on the best available [open-source implementations](https://github.com/cossacklabs/themis/wiki/Cryptographic-donors) of the [most reliable ciphers](https://github.com/cossacklabs/themis/wiki/Soter). Acra does not contain any self-made cryptographic primitives or obscure ciphers. Instead, to deliver its unique guarantees, Acra relies on the combination of well-known ciphers and smart key management scheme.
+Acra relies on our cryptographic library [Themis](https://www.github.com/cossacklabs/themis), which implements high-level cryptosystems based on the best available [open-source implementations](https://github.com/cossacklabs/themis/wiki/Cryptographic-donors) of the [most reliable ciphers](https://github.com/cossacklabs/themis/wiki/Soter). Acra does not contain any self-made cryptographic primitives or obscure ciphers. To deliver its unique guarantees, Acra relies on the combination of well-known ciphers and a smart key management scheme.
 
-Enterprise Acra can run on certified crypto-libraries you want (FIPS, GOST), [drop us an email](mailto:sales@cossacklabs.com) to get a quote.
+The [enterprise version of Acra](https://www.cossacklabs.com/acra/) can run on the certified crypto-libraries of your choice (i.e. FIPS, GOST), [drop us an email](mailto:sales@cossacklabs.com) to get a quote.
 
 ## Availability
 
@@ -97,84 +97,84 @@ Supported databases:
 
 ## How does Acra work?
 
-To better understand the architecture and data flow, please refer to [Architecture and data flow](https://github.com/cossacklabs/acra/wiki/Architecture-and-data-flow) section in the official documentation.
+To better understand the architecture and data flow, please refer to [Architecture and data flow](https://github.com/cossacklabs/acra/wiki/Architecture-and-data-flow) section in the GitHub documentation. Or refer to the documentation on the official Cossack Labs documentation server to get the most recent version of the [documentation and tutorials for Acra](https://docs.cossacklabs.com/products/acra/).
 
 ### Protecting data in SQL databases with AcraWriter and AcraServer
 
 <p align="center"><img src="https://raw.githubusercontent.com/wiki/cossacklabs/acra/Images/readme/AcraArchi-Readme.png" alt="Acra Server: simplified architecture" width="500"></p>
 
-This is how the process of encryption and decryption data in a database looks like:
+This is what the process of encryption and decryption data in a database looks like:
 
-- Your application encrypts some data using [**AcraWriter**](https://github.com/cossacklabs/acra/wiki/AcraConnector-and-AcraWriter), generating [**AcraStruct**](https://github.com/cossacklabs/acra/wiki/AcraStruct) using Acra storage public key, and updates the database. AcraStructs generated by AcraWriter can't be decrypted by it — only the Acra server side has the right keys to decrypt it.
-- To retrieve decrypted data, your application talks to [**AcraServer**](https://github.com/cossacklabs/acra/wiki/How-AcraServer-works). It is a server-side service that works as database proxy: it sits transparently between your application and the database, listens silently to all the traffic that's coming to and from the database. 
-- AcraServer monitors incoming SQL requests and blocks unwanted ones by built-in configurable firewall called [**AcraCensor**](https://github.com/cossacklabs/acra/wiki/acracensor).  AcraServer sends only allowed requests to the database. Certain configurations for AcraServer can be adjusted remotely using [**AcraWebConfig**](https://github.com/cossacklabs/acra/wiki/AcraWebConfig) web server.
-- Upon receiving the database response, AcraServer tries to detect the AcraStructs, decrypts them and returns decrypted data to the application.
-- There is also [**AcraConnector**](https://github.com/cossacklabs/acra/wiki/AcraConnector-and-AcraWriter), a client-side daemon, that is responsible for providing encrypted and authenticated connection between application and AcraServer. AcraConnector runs under a separate user / in a separate container, and acts as a middleware. It accepts connections from application, extra transport encryption layer using TLS or [Themis Secure Session](https://github.com/cossacklabs/themis/wiki/Secure-Session-cryptosystem), sends data to AcraServer, receives result and sends it back to application.
+- Your application encrypts some data through [**AcraWriter**](https://github.com/cossacklabs/acra/wiki/AcraConnector-and-AcraWriter), generating an [**AcraStruct**](https://github.com/cossacklabs/acra/wiki/AcraStruct) using Acra storage public key and updates the database. AcraStructs generated by AcraWriter can't be decrypted by it — only the Acra's server side has the right keys for decryption.
+- To retrieve the decrypted data, your application talks to [**AcraServer**](https://github.com/cossacklabs/acra/wiki/How-AcraServer-works). It is a server-side service that works as database proxy: it sits transparently between your application and the database, listens silently to all the traffic that's coming to and from the database. 
+- AcraServer monitors the incoming SQL requests and blocks the unwanted ones using the built-in configurable firewall called [**AcraCensor**](https://github.com/cossacklabs/acra/wiki/acracensor). AcraServer only sends allowed requests to the database. Certain configurations for AcraServer can be adjusted remotely using [**AcraWebConfig**](https://github.com/cossacklabs/acra/wiki/AcraWebConfig) web server.
+- Upon receiving the database response, AcraServer tries to detect the AcraStructs, decrypts them and returns the decrypted data to the application.
+-[**AcraConnector**](https://github.com/cossacklabs/acra/wiki/AcraConnector-and-AcraWriter) is a client-side daemon responsible for providing encrypted and authenticated connection between the application and AcraServer. AcraConnector runs under a separate user / in a separate container and acts as a middleware. It accepts connections from the application, extra transport encryption layer using TLS or [Themis Secure Session](https://github.com/cossacklabs/themis/wiki/Secure-Session-cryptosystem), sends the data to AcraServer, receives the result and sends it back to the application.
 
 ### Protecting data in any file storage with AcraWriter and AcraTranslator
 
 <p align="center"><img src="https://raw.githubusercontent.com/wiki/cossacklabs/acra/Images/readme/AcraArchi-AT-Readme.png" alt="Acra Translator: simplified architecture" width="500"></p>
 
-Depending on use-case your application can store encrypted data as separate blobs (files that are not in a database - i.e. in the S3 bucket, local file storage, etc.). You might use [**AcraTranslator**]() is a lightweight server that receives [**AcraStruct**](https://github.com/cossacklabs/acra/wiki/AcraStruct) and returns the decrypted data.
+In some use cases, the application can store encrypted data as separate blobs (files that are not in a database - i.e. in the S3 bucket, local file storage, etc.). In this case, you can use [**AcraTranslator**](https://github.com/cossacklabs/acra/wiki/AcraTranslator) - a lightweight server that receives [**AcraStructs**](https://github.com/cossacklabs/acra/wiki/AcraStruct) and returns the decrypted data.
 
-This is how the process of encryption and decryption data using AcraTranslator looks like:
+This is what the process of encryption and decryption data using AcraTranslator looks like:
 
-- Your application encrypts some data using [**AcraWriter**](https://github.com/cossacklabs/acra/wiki/AcraConnector-and-AcraWriter), generating AcraStruct using Acra storage public key, and puts data to any file storage. AcraStructs generated by AcraWriter can't be decrypted by it — only the Acra server side has the right keys to decrypt it.
-- To decrypt AcraStruct your application sends it to [**AcraTranslator**](https://github.com/cossacklabs/acra/wiki) as binary blob via HTTP or gRPC API. AcraTranslator doesn’t care about the source of the data, it is responsible for holding all the secrets required for data decryption and for actually decrypting the data.
-- AcraTranslator decrypts AcraStructs and returns decrypted data to the application.
-- To avoid sending plaintext via unsecured channel, AcraTranslator requires the use of [**AcraConnector**](https://github.com/cossacklabs/acra/wiki/AcraConnector-and-AcraWriter), a client-side daemon, that is responsible for providing encrypted and authenticated connection between application and AcraServer. AcraConnector runs under a separate user / in a separate container, and acts as a middleware. It accepts connections from application, adds transport encryption layer using TLS or [Themis Secure Session](https://github.com/cossacklabs/themis/wiki/Secure-Session-cryptosystem), sends data to AcraServer, receives result and sends it back to application.
+- Your application encrypts some data using [**AcraWriter**](https://github.com/cossacklabs/acra/wiki/AcraConnector-and-AcraWriter), generating an AcraStruct using Acra storage public key and puts the data into any file storage. AcraStructs generated by AcraWriter can't be decrypted by it — only the Acra's server side has the right keys for decrypting it.
+- To decrypt an AcraStruct, your application sends it to [**AcraTranslator**](https://github.com/cossacklabs/acra/wiki/AcraTranslator) as a binary blob via HTTP or gRPC API. AcraTranslator doesn’t care about the source of the data, it is responsible for holding all the secrets required for data decryption and for actually decrypting the data.
+- AcraTranslator decrypts AcraStructs and returns the decrypted data to the application.
+- To avoid sending the plaintext via an unsecured channel, AcraTranslator requires the use of [**AcraConnector**](https://github.com/cossacklabs/acra/wiki/AcraConnector-and-AcraWriter), a client-side daemon responsible for providing encrypted and authenticated connection between the application and AcraServer. AcraConnector runs under a separate user / in a separate container and acts as a middleware. It accepts connections from the application, adds transport encryption layer using TLS or [Themis Secure Session](https://github.com/cossacklabs/themis/wiki/Secure-Session-cryptosystem), sends data to AcraServer, receives the result, and sends it back to the application.
 
 AcraTranslator and AcraServer are fully independent server-side components and can be used together or separately depending on your infrastructure.
 
 ## Demo stand
 
-For a really quick start, we recommend [trying Acra with Docker](https://github.com/cossacklabs/acra/wiki/Trying-Acra-with-Docker) first. Using only two commands you will get all Acra components and database up and running, with secure transport layer between them. We prepared several typical infrastructures to play with.
+For a quick and easy start, we recommend [trying Acra with Docker](https://github.com/cossacklabs/acra/wiki/Trying-Acra-with-Docker) first. Using only two commands, you will get all the Acra's components and database up and running, with a secure transport layer between them. We prepared several typical infrastructure variants to experiment with.
 
-* From [pre-baked configurations](https://github.com/cossacklabs/acra/wiki/Trying-Acra-with-Docker#compose-files) select one appropriate for your use-case: AcraServer-based configuration to protect data in a database, select AcraTranslator to protect files or any binary blobs stored anywhere. 
-* Launch Acra server-side by running selected docker-compose file: it generates the appropriate keys, puts them into correct folders, performs a public key exchange, runs selected services and database, and then listens to incoming connections.
-* Integrate [AcraWriter](https://github.com/cossacklabs/acra/wiki/AcraConnector-and-AcraWriter#acrawriter) into your application code where you need to protect sensitive data, supply AcraWriter with a Acra storage public key (generated by docker-compose on previous step). Encrypt data into AcraStructs and send them into database or file storage.
-* Decrypt data by reading the database through AcraServer, or by decrypting files through AcraTranslator.
+* Select one appropriate use case from the [pre-made configurations](https://github.com/cossacklabs/acra/wiki/Trying-Acra-with-Docker#compose-files): use AcraServer-based configuration to protect data in a database or select AcraTranslator to protect files or any binary blobs stored anywhere. 
+* Launch Acra's server-side by running the selected docker-compose file: it will generate the appropriate keys, put them into correct folders, perform a public key exchange, run selected services and database, and then it will listen to incoming connections.
+* Integrate [AcraWriter](https://github.com/cossacklabs/acra/wiki/AcraConnector-and-AcraWriter#acrawriter) into your application code where you need to protect sensitive data, supply AcraWriter with an Acra storage public key (generated by docker-compose on the previous step). Encrypt data into AcraStructs and send them into the database or file storage.
+* Decrypt data by reading the database through AcraServer or by decrypting the files through AcraTranslator.
 
-Please use docker-demo stand for testing only, as encryption keys are pre-generated in the configuration.
+Please use the docker-demo stand for testing/experimenting purposes only as encryption keys are pre-generated in the configuration.
 
-## Manual and careful launch
+## Manual launch
 
-For production environments we insist on generating and exchanging keys manually. Refer to [Quick Start guide](https://github.com/cossacklabs/acra/wiki/Quick-start-guide#installing-acra-from-the-cossack-labs-repository) to understand how to download and launch Acra components, generate keys and performs a key exchange.
+For production environments, we insist on generating and exchanging keys manually. Refer to the [Quick Start guide](https://github.com/cossacklabs/acra/wiki/Quick-start-guide#installing-acra-from-the-cossack-labs-repository) to understand how to download and launch Acra components, generate keys, and perform a key exchange properly.
 
 
 ## Additionally
 
-We fill and update the [Wiki documentation](https://github.com/cossacklabs/acra/wiki) with useful articles about the core Acra concepts, use cases, details on cryptographic, and security design.
+For the versions of Acra up to the version 0.82.0, the documentation was mostly maintained and updated in the [GitHub Wiki documentation for Acra](https://github.com/cossacklabs/acra/wiki) with useful articles about the core Acra concepts, use cases, details on cryptographic, and security design. Starting with the version 0.82.0, we stop updating the GitHub Wiki documentation. The basic principles still hold true, but for the most recent versions of the docs, tutorials, and demos, please visit the official [Cossack Labs documentation server](https://docs.cossacklabs.com/products/acra/). However, it is still partially in beta so there might be dragons 🐉. Please report any bugs or submit suggestions about making the documentation better to info@cossacklabs.com.
 
-You might want to:
 
-- Read about using the lightweight [HTTP web server AcraWebConfig](https://github.com/cossacklabs/acra/wiki/AcraWebConfig) we provide to manage AcraServer configuration in a simple fashion.
-- Read the notes on [security design](https://github.com/cossacklabs/acra/wiki/Security-design) and [intrusion detection](https://github.com/cossacklabs/acra/wiki/Intrusion-detection) to better understand what you get when using Acra and what is the threat model that Acra operates in. 
-- Read [some notes on making Acra stronger / more productive and efficient](https://github.com/cossacklabs/acra/wiki/Tuning-Acra), and on adding security features or increasing throughput, depending on your goals and security model.
-- Read about the [logging format](https://github.com/cossacklabs/acra/wiki/Logging) that Acra supports if you are using a SIEM system.
+To gain an initial understanding of Acra, you might want to:
 
-All of our documentation (including with the Acra documentation) can also be found on our dedicated [Cossack Labs Documentation Server](https://docs.cossacklabs.com/products/acra/). However, it is still in an early beta so there might be dragons 🐉.
+- Read about using the lightweight [HTTP web server AcraWebConfig](https://docs.cossacklabs.com/pages/documentation-acra/#acrawebconfig) we provide to manage AcraServer configuration in a simple fashion.
+- Read the notes on [security design](https://docs.cossacklabs.com/pages/security-design/) and [intrusion detection](https://docs.cossacklabs.com/pages/intrusion-detection/) to better understand what you get when using Acra and what is the threat model that Acra operates in. 
+- Read [some notes on making Acra stronger / more productive and efficient](https://docs.cossacklabs.com/pages/tuning-acra/), and on adding security features or increasing throughput, depending on your goals and security model.
+- Read about the [logging format](https://docs.cossacklabs.com/pages/documentation-acra/#logging-in-acra) that Acra supports if you are using a SIEM system.
+
 
 ## GDPR and HIPAA
 
-Acra can help you comply with GDPR and HIPAA regulations. Configuring and using Acra ina designated form will cover most demands described in articles 25, 32, 33 and 34 of GDPR, and PII data protection demands from HIPAA. Read more about [Acra and compliance](https://github.com/cossacklabs/acra/wiki/Acra-and-GDPR-compliance).
+Acra can help you comply with GDPR and HIPAA regulations. Configuring and using Acra in a designated form will cover most demands described in articles 25, 32, 33 and 34 of GDPR, and PII data protection demands from HIPAA. Read more about [Acra and compliance](https://github.com/cossacklabs/acra/wiki/Acra-and-GDPR-compliance).
 
 ## Open source vs Enterprise
 
-This open source version of Acra is free-to-use. Please let us know in the [Issues](https://www.github.com/cossacklabs/acra/issues) if you stumble upon a bug, see a possible enhancement, or have a comment on security design.
+This open source version of Acra is free to use. Please let us know in the [Issues](https://www.github.com/cossacklabs/acra/issues) if you stumble upon a bug, see a possible enhancement, or have a comment on security design.
 
-There’s [commercial version of Acra](https://www.cossacklabs.com/acra/) available, which provides better performance, redunancy/load balancing, comes pre-configured with crypto-primitives you want (FIPS, GOST), integrates with key/secret management tools in your stack, and has plenty of goodies for your Ops and SREs to operate Acra conveniently - deployment automation, scaling, monitoring and logging. [Talk to us](mailto:sales@cossacklabs.com) if you're interested.
+There’s a [commercial version of Acra](https://www.cossacklabs.com/acra/) available. It provides better performance, redunancy/load balancing, comes pre-configured with crypto-primitives of your choice (FIPS, GOST), integrates with key/secret management tools in your stack, and has plenty of goodies for your Ops and SREs to operate Acra conveniently - deployment automation, scaling, monitoring, and logging. [Talk to us](mailto:sales@cossacklabs.com) if you're interested.
 
 ## Security consulting
 
-It takes more than getting cryptographic code to compile to secure sensitive data. Acra won't make you “compliant out of the box” and no other tool will. 
+It takes more than just getting cryptographic code to compile to secure the sensitive data. Acra won't make you “compliant out of the box” and no other tool will. 
 
-[We help companies](https://www.cossacklabs.com/dgap/) to plan their data security strategy by auditing, assessing data flow and classifying the data, enumerating the risks. We do the hardest, least-attended part of compliance – turning it from “cost of doing business” into “security framework that prevents risks”.
+[We help companies](https://www.cossacklabs.com/dgap/) to plan their data security strategy by auditing, assessing data flow, and classifying the data, enumerating the risks. We do the hardest, least-attended part of compliance – turning it from the “cost of doing business” into the “security framework that prevents risks”.
 
 
 ## Contributing to us
 
-If you’d like to contribute your code or other kind of input to Acra, you’re very welcome. Your starting point for contributing should be this [Contribution Wiki page](https://github.com/cossacklabs/acra/wiki/Contributing-to-Acra).
+If you’d like to contribute your code or provide any other kind of input to Acra, you’re very welcome. Your starting point for contributing should be this [Contribution Wiki page](https://github.com/cossacklabs/acra/wiki/Contributing-to-Acra).
 
 
 ## License
