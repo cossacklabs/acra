@@ -2258,7 +2258,9 @@ class SSLMysqlMixin(SSLPostgresqlMixin):
                 # connection will be closed on tls handshake
                 self.acra2 = self.fork_acra(
                     acraconnector_transport_encryption_disable=True, client_id='keypair1',
-                    incoming_connection_port=self.ACRASERVER2_PORT)
+                    incoming_connection_port=self.ACRASERVER2_PORT,
+                    prometheus_metrics_address=self.get_prometheus_address(
+                        self.ACRASERVER2_PROMETHEUS_PORT))
             self.driver_to_acraserver_ssl_settings = {
                 'ca': 'tests/server.crt',
                 #'cert': 'tests/client.crt',

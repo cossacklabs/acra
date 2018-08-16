@@ -78,8 +78,8 @@ type SecureSessionListenerWithMetrics struct {
 
 // NewSecureSessionListener create SecureSessionConnectionWrapper that will use keystorage to wrap new connections, create
 // listener by connectionString and return SecureSessionListener
-func NewSecureSessionListener(listener *network.SecureSessionListener) (*SecureSessionListenerWithMetrics, error) {
-	return &SecureSessionListenerWithMetrics{SecureSessionListener: listener}, nil
+func WrapListenerWithMetrics(listener *network.SecureSessionListener) net.Listener {
+	return &SecureSessionListenerWithMetrics{SecureSessionListener: listener}
 }
 
 // Accept new connection and wrap with secure session and collecting metrics

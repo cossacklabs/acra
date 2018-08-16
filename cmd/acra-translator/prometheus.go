@@ -25,7 +25,7 @@ import (
 const (
 	connectionTypeLabel = "connection_type"
 	httpConnectionType  = "http"
-	grpcConnectionType  = "grcp"
+	grpcConnectionType  = "grpc"
 )
 
 var (
@@ -36,7 +36,7 @@ var (
 		}, []string{connectionTypeLabel})
 
 	connectionProcessingTimeHistogram = prometheus.NewHistogramVec(prometheus.HistogramOpts{
-		Name:    "acratranslator_connections_processing_seconds_bucket",
+		Name:    "acratranslator_connections_processing_seconds",
 		Help:    "Time of connection processing",
 		Buckets: []float64{0.1, 0.2, 0.5, 1, 10, 60, 3600, 86400},
 	}, []string{connectionTypeLabel})
