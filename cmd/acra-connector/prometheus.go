@@ -15,7 +15,10 @@ limitations under the License.
 */
 package main
 
-import "github.com/prometheus/client_golang/prometheus"
+import (
+	"github.com/prometheus/client_golang/prometheus"
+	"sync"
+)
 
 const (
 	connectionTypeLabel = "connection_type"
@@ -37,7 +40,11 @@ var (
 	}, []string{connectionTypeLabel})
 )
 
-func init() {
-	prometheus.MustRegister(connectionCounter)
-	prometheus.MustRegister(connectionProcessingTimeHistogram)
+var registerLock = sync.Once{}
+
+func registerMetrics() {
+	registerLock.Do(func() {
+		prometheus.MustRegister(connectionCounter)
+		prometheus.MustRegister(connectionProcessingTimeHistogram)
+	})
 }

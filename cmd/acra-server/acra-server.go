@@ -309,13 +309,18 @@ func main() {
 	}
 
 	if *prometheusAddress != "" {
-		prometheusListener, err := cmd.RunPrometheusHTTPHandler(*prometheusAddress)
+		registerMetrics()
+		_, prometheusHttpServer, err := cmd.RunPrometheusHTTPHandler(*prometheusAddress)
 		if err != nil {
 			panic(err)
 		}
 		log.Infof("Configured to send metrics and stats to `prometheus_metrics_address`")
-		sigHandlerSIGHUP.AddListener(prometheusListener)
-		sigHandlerSIGTERM.AddListener(prometheusListener)
+		stopPrometheusServer := func() {
+			log.Infoln("Stop prometheus http exporter")
+			prometheusHttpServer.Close()
+		}
+		sigHandlerSIGHUP.AddCallback(stopPrometheusServer)
+		sigHandlerSIGTERM.AddCallback(stopPrometheusServer)
 	}
 
 	go sigHandlerSIGTERM.Register()

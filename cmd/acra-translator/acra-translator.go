@@ -66,6 +66,8 @@ func main() {
 
 	closeConnectionTimeout := flag.Int("incoming_connection_close_timeout", DEFAULT_WAIT_TIMEOUT, "Time that AcraTranslator will wait (in seconds) on stop signal before closing all connections")
 
+	prometheusAddress := flag.String("prometheus_metrics_address", "", "URL of Prometheus server for AcraConnector to upload stats and metrics (upload address is <URL>/metrics)")
+
 	verbose := flag.Bool("v", false, "Log to stderr all INFO, WARNING and ERROR logs")
 	debug := flag.Bool("d", false, "Log everything to stderr")
 
@@ -157,6 +159,19 @@ func main() {
 		log.Infof("Server graceful shutdown completed, bye PID: %v", os.Getpid())
 		os.Exit(0)
 	})
+
+	if *prometheusAddress != "" {
+		registerMetrics()
+		_, prometheusHttpServer, err := cmd.RunPrometheusHTTPHandler(*prometheusAddress)
+		if err != nil {
+			panic(err)
+		}
+		log.Infof("Configured to send metrics and stats to `prometheus_metrics_address`")
+		sigHandlerSIGTERM.AddCallback(func() {
+			log.Infoln("Stop prometheus http exporter")
+			prometheusHttpServer.Close()
+		})
+	}
 
 	// -------- START -----------
 

@@ -1,6 +1,9 @@
 package base
 
-import "github.com/prometheus/client_golang/prometheus"
+import (
+	"github.com/prometheus/client_golang/prometheus"
+	"sync"
+)
 
 const (
 	DecryptionTypeLabel   = "status"
@@ -39,8 +42,18 @@ var (
 	}, []string{DecryptionDBLabel})
 )
 
-func init() {
-	prometheus.MustRegister(AcrastructDecryptionCounter)
-	prometheus.MustRegister(ResponseProcessingTimeHistogram)
-	prometheus.MustRegister(RequestProcessingTimeHistogram)
+var dbRegisterLock = sync.Once{}
+var acraStructRegisterLock = sync.Once{}
+
+func RegisterDbProcessingMetrics() {
+	dbRegisterLock.Do(func() {
+		prometheus.MustRegister(ResponseProcessingTimeHistogram)
+		prometheus.MustRegister(RequestProcessingTimeHistogram)
+	})
+}
+func RegisterAcraStructProcessingMetrics() {
+	acraStructRegisterLock.Do(func() {
+		prometheus.MustRegister(AcrastructDecryptionCounter)
+	})
+
 }

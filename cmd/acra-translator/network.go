@@ -22,6 +22,7 @@ import (
 
 	"github.com/cossacklabs/acra/logging"
 	"github.com/cossacklabs/acra/network"
+	"github.com/prometheus/client_golang/prometheus"
 )
 
 // AcceptConnections return channel which will produce new connections from listener in background goroutine
@@ -45,6 +46,13 @@ func AcceptConnections(parentContext context.Context, connectionString string, e
 				cancel()
 				return
 			}
+			conn, err = wrapHttpConnectionWithTimer(conn)
+			if err != nil {
+				logger.WithError(err).Errorln("Can't wrap connection with metric")
+				errCh <- err
+				cancel()
+				return
+			}
 			connectionChannel <- conn
 		}
 	}()
@@ -60,4 +68,55 @@ func AcceptConnections(parentContext context.Context, connectionString string, e
 		}
 	}()
 	return connectionChannel, nil
+}
+
+// SecureSessionListener implement net.Listener and wrap all connections on listener.Accept before returning with
+// SecureSession
+type SecureSessionListenerWithMetrics struct {
+	*network.SecureSessionListener
+}
+
+// NewSecureSessionListener create SecureSessionConnectionWrapper that will use keystorage to wrap new connections, create
+// listener by connectionString and return SecureSessionListener
+func NewSecureSessionListener(listener *network.SecureSessionListener) (*SecureSessionListenerWithMetrics, error) {
+	return &SecureSessionListenerWithMetrics{SecureSessionListener: listener}, nil
+}
+
+// Accept new connection and wrap with secure session and collecting metrics
+// return ConnectionWrapError if error wa
+func (listener *SecureSessionListenerWithMetrics) Accept() (net.Conn, error) {
+	conn, err := listener.SecureSessionListener.Accept()
+	if err != nil {
+		return nil, err
+	}
+	return wrapGrpcConnectionWithTimer(conn)
+}
+
+// ConnectionMetric used to track connection time of life
+type ConnectionMetric struct {
+	net.Conn
+	timer *prometheus.Timer
+}
+
+// newConnectionMetric wrap connection with metric and specific label
+func newConnectionMetric(connectionType string, conn net.Conn) *ConnectionMetric {
+	return &ConnectionMetric{Conn: conn, timer: prometheus.NewTimer(prometheus.ObserverFunc(connectionProcessingTimeHistogram.WithLabelValues(connectionType).Observe))}
+}
+
+// wrapGrpcConnectionWithTimer wrap conn with ConnectionMetric and grpcConnectionType label value
+func wrapGrpcConnectionWithTimer(conn net.Conn) (net.Conn, error) {
+	connectionCounter.WithLabelValues(grpcConnectionType).Inc()
+	return newConnectionMetric(grpcConnectionType, conn), nil
+}
+
+// wrapHttpConnectionWithTimer wrap conn with ConnectionMetric and httpConnectionType label value
+func wrapHttpConnectionWithTimer(conn net.Conn) (net.Conn, error) {
+	connectionCounter.WithLabelValues(httpConnectionType).Inc()
+	return newConnectionMetric(httpConnectionType, conn), nil
+}
+
+// Close call Close() of wrapped connection and track time of connection life
+func (conn *ConnectionMetric) Close() error {
+	conn.timer.ObserveDuration()
+	return conn.Conn.Close()
 }
