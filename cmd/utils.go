@@ -203,12 +203,12 @@ func DumpConfig(configPath, serviceName string, useDefault bool) error {
 	var err error
 
 	if *config == "" {
-		absPath, err = utils.AbsPath(configPath)
+		absPath, err = filepath.Abs(configPath)
 		if err != nil {
 			return err
 		}
 	} else {
-		absPath, err = utils.AbsPath(*config)
+		absPath, err = filepath.Abs(*config)
 		if err != nil {
 			return err
 		}
@@ -255,7 +255,7 @@ func Parse(configPath, serviceName string) error {
 	// parse yaml and add params that wasn't passed from cli
 	if configPath != "" {
 
-		configPath, err := utils.AbsPath(configPath)
+		configPath, err := filepath.Abs(configPath)
 		if err != nil {
 			return err
 		}

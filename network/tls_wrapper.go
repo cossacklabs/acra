@@ -25,6 +25,7 @@ import (
 	"errors"
 	"github.com/cossacklabs/acra/logging"
 	log "github.com/sirupsen/logrus"
+	"time"
 )
 
 // TLSConnectionWrapper for wrapping connection into TLS encryption
@@ -43,21 +44,27 @@ func NewTLSConnectionWrapper(clientID []byte, config *tls.Config) (*TLSConnectio
 
 // WrapClient wraps client connection into TLS
 func (wrapper *TLSConnectionWrapper) WrapClient(id []byte, conn net.Conn) (net.Conn, error) {
+	conn.SetDeadline(time.Now().Add(DefaultNetworkTimeout))
 	tlsConn := tls.Client(conn, wrapper.config)
 	err := tlsConn.Handshake()
 	if err != nil {
+		conn.SetDeadline(time.Time{})
 		return conn, err
 	}
+	conn.SetDeadline(time.Time{})
 	return tlsConn, nil
 }
 
 // WrapServer wraps server connection into TLS
 func (wrapper *TLSConnectionWrapper) WrapServer(conn net.Conn) (net.Conn, []byte, error) {
+	conn.SetDeadline(time.Now().Add(DefaultNetworkTimeout))
 	tlsConn := tls.Server(conn, wrapper.config)
 	err := tlsConn.Handshake()
 	if err != nil {
+		conn.SetDeadline(time.Time{})
 		return conn, nil, err
 	}
+	conn.SetDeadline(time.Time{})
 	return tlsConn, wrapper.clientID, nil
 }
 

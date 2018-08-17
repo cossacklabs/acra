@@ -22,6 +22,10 @@ import (
 	"time"
 )
 
+const (
+	DefaultNetworkTimeout = time.Second * 60
+)
+
 // ErrUnsupportedListener represents net.Listener type unknown to Acra.
 var ErrUnsupportedListener = errors.New("unsupported network Listener type")
 

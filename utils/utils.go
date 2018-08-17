@@ -23,14 +23,12 @@ import (
 	"io"
 	"io/ioutil"
 
-	"bytes"
 	"fmt"
 
 	log "github.com/sirupsen/logrus"
 	"os"
-	"os/user"
+	"path/filepath"
 	"runtime"
-	"strings"
 )
 
 const (
@@ -92,35 +90,9 @@ func ReadData(reader io.Reader) ([]byte, error) {
 	return buf, nil
 }
 
-// AbsPath transforms relative file path to absolute
-func AbsPath(path string) (string, error) {
-	if len(path) == 0 {
-		return path, nil
-	}
-	if len(path) >= 2 {
-		if path[:2] == "~/" {
-			usr, err := user.Current()
-			if err != nil {
-				return path, err
-			}
-			dir := usr.HomeDir
-			path = strings.Replace(path, "~", dir, 1)
-			return path, nil
-		} else if path[:2] == "./" {
-			workdir, err := os.Getwd()
-			if err != nil {
-				return path, err
-			}
-			path = strings.Replace(path, ".", workdir, 1)
-			return path, nil
-		}
-	}
-	return path, nil
-}
-
 // ReadFile returns contents of file
 func ReadFile(path string) ([]byte, error) {
-	absPath, err := AbsPath(path)
+	absPath, err := filepath.Abs(path)
 	if err != nil {
 		return nil, err
 	}
@@ -163,7 +135,7 @@ func FillSlice(value byte, data []byte) {
 
 // FileExists returns true if file exists from path, path can be relative
 func FileExists(path string) (bool, error) {
-	absPath, err := AbsPath(path)
+	absPath, err := filepath.Abs(path)
 	if err != nil {
 		return false, err
 	}
@@ -187,45 +159,6 @@ func Min(x, y int) int {
 		return x
 	}
 	return y
-}
-
-// FindTag returns first index of symbol in block
-// return -1 if not found
-func FindTag(symbol byte, count int, block []byte) int {
-	if len(block) < count {
-		return NotFound
-	}
-	halfCount := count / 2
-	tag := make([]byte, halfCount)
-
-	for i := 0; i < halfCount; i++ {
-		tag[i] = symbol
-	}
-
-	for i := 0; i+halfCount <= len(block); i += halfCount {
-		if bytes.Equal(tag, block[i:i+halfCount]) {
-			start := i
-			if i != 0 {
-				for ; start > i-halfCount; start-- {
-					if block[start-1] != symbol {
-						break
-					}
-				}
-			}
-			end := i + halfCount - 1
-			rightRange := Min(end+halfCount, len(block)-1)
-			for ; end < rightRange; end++ {
-				if block[end+1] != symbol {
-					break
-				}
-			}
-
-			if count <= (end-start)+1 {
-				return start
-			}
-		}
-	}
-	return NotFound
 }
 
 // GetConfigPathByName returns filepath to config file named "name" from default configs folder

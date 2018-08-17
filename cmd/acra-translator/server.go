@@ -231,7 +231,7 @@ func (server *ReaderServer) Start(parentContext context.Context) {
 					Errorln("Can't create secure session listener")
 				return
 			}
-			grpcServer := grpc.NewServer()
+			grpcServer := grpc.NewServer(grpc.ConnectionTimeout(network.DefaultNetworkTimeout))
 			service, err := grpc_api.NewDecryptGRPCService(decryptorData)
 			if err != nil {
 				grpcLogger.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorTranslatorCantHandleGRPCConnection).
@@ -257,6 +257,8 @@ func (server *ReaderServer) Start(parentContext context.Context) {
 type ProcessingFunc func(context.Context, []byte, net.Conn)
 
 func (server *ReaderServer) processHTTPConnection(parentContext context.Context, clientID []byte, connection net.Conn) {
+	connection.SetDeadline(time.Now().Add(network.DefaultNetworkTimeout))
+	defer connection.SetDeadline(time.Time{})
 	// processing HTTP connection
 	logger := logging.GetLoggerFromContext(parentContext)
 	httpLogger := logger.WithField(CONNECTION_TYPE_KEY, HTTP_CONNECTION_TYPE)

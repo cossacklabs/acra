@@ -247,14 +247,14 @@ func (decryptor *PgEscapeDecryptor) readDataLength(reader io.Reader) (uint64, []
 	return length, decryptor.octLengthBuf[:octLenCount], nil
 }
 func (decryptor *PgEscapeDecryptor) readScellData(length uint64, reader io.Reader) ([]byte, []byte, error) {
-	hexBuf := make([]byte, int(length)*4)
-	buf := make([]byte, int(length))
+	hexBuf := make([]byte, length*4)
+	buf := make([]byte, length)
 	n, octN, err := decryptor.readOctalData(buf, hexBuf, reader)
 	if err != nil {
 		log.Warningf("%v", utils.ErrorMessage(fmt.Sprintf("can't read scell data with passed length=%v", length), err))
 		return nil, hexBuf[:octN], err
 	}
-	if n != int(length) {
+	if uint64(n) != length {
 		log.Warningf("read incorrect length, %v!=%v", n, length)
 		return nil, hexBuf[:octN], base.ErrFakeAcraStruct
 	}
