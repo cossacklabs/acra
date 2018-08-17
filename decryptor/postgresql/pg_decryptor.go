@@ -206,15 +206,15 @@ func checkInlinePoisonRecordInBlock(block []byte, decryptor base.Decryptor, logg
 		logger.Debugln("Check poison records")
 		currentIndex := 0
 		for {
-			if index, _ := decryptor.BeginTagIndex(block[currentIndex:]); index != utils.NotFound {
-				currentIndex += index
-				if err := checkWholePoisonRecord(block[currentIndex:], decryptor, logger); err != nil {
-					return err
-				}
-				currentIndex++
-				continue
+			index, _ := decryptor.BeginTagIndex(block[currentIndex:])
+			if index == utils.NotFound {
+				return nil
 			}
-			return nil
+			currentIndex += index
+			if err := checkWholePoisonRecord(block[currentIndex:], decryptor, logger); err != nil {
+				return err
+			}
+			currentIndex++
 		}
 	}
 	return nil

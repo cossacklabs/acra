@@ -50,9 +50,9 @@ import (
 
 // Constants used by AcraConnector.
 var (
-	// DEFAULT_CONFIG_PATH relative path to config which will be parsed as default
-	SERVICE_NAME        = "acra-connector"
-	DEFAULT_CONFIG_PATH = utils.GetConfigPathByName(SERVICE_NAME)
+	// DefaultConfigPath relative path to config which will be parsed as default
+	ServiceName       = "acra-connector"
+	DefaultConfigPath = utils.GetConfigPathByName(ServiceName)
 )
 
 func checkDependencies() error {
@@ -169,8 +169,8 @@ type Config struct {
 
 func main() {
 	loggingFormat := flag.String("logging_format", "plaintext", "Logging format: plaintext, json or CEF")
-	logging.CustomizeLogging(*loggingFormat, SERVICE_NAME)
-	log.Infof("Starting service %v", SERVICE_NAME)
+	logging.CustomizeLogging(*loggingFormat, ServiceName)
+	log.Infof("Starting service %v", ServiceName)
 
 	keysDir := flag.String("keys_dir", keystore.DefaultKeyDirShort, "Folder from which will be loaded keys")
 	clientID := flag.String("client_id", "", "Client ID")
@@ -205,7 +205,7 @@ func main() {
 	verbose := flag.Bool("v", false, "Log to stderr all INFO, WARNING and ERROR logs")
 	debug := flag.Bool("d", false, "Log everything to stderr")
 
-	err := cmd.Parse(DEFAULT_CONFIG_PATH, SERVICE_NAME)
+	err := cmd.Parse(DefaultConfigPath, ServiceName)
 	if err != nil {
 		log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantReadServiceConfig).
 			Errorln("Can't parse args")
@@ -213,7 +213,7 @@ func main() {
 	}
 
 	// if log format was overridden
-	logging.CustomizeLogging(*loggingFormat, SERVICE_NAME)
+	logging.CustomizeLogging(*loggingFormat, ServiceName)
 	log.Infof("Validating service configuration...")
 
 	if err := checkDependencies(); err != nil {

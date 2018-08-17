@@ -381,14 +381,14 @@ func (decryptor *PgDecryptor) BeginTagIndex(block []byte) (int, int) {
 		}
 	} else {
 		// escape format
-		if i := bytes.Index(block, base.TAG_BEGIN); i != utils.NotFound {
+		if i := bytes.Index(block, base.TagBegin); i != utils.NotFound {
 			decryptor.logger.Debugln("Matched pg decryptor")
 			decryptor.matchedDecryptor = decryptor.pgDecryptor
 			return i, decryptor.pgDecryptor.GetTagBeginLength()
 			// binary format
 		}
 	}
-	if i := bytes.Index(block, base.TAG_BEGIN); i != utils.NotFound {
+	if i := bytes.Index(block, base.TagBegin); i != utils.NotFound {
 		decryptor.logger.Debugln("Matched binary decryptor")
 		decryptor.matchedDecryptor = decryptor.binaryDecryptor
 		return i, decryptor.binaryDecryptor.GetTagBeginLength()

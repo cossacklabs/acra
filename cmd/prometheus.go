@@ -31,10 +31,10 @@ func RunPrometheusHTTPHandler(connectionString string) (net.Listener, *http.Serv
 	if err != nil {
 		return nil, nil, err
 	}
+	server := &http.Server{ReadTimeout: network.DefaultNetworkTimeout, WriteTimeout: network.DefaultNetworkTimeout}
 	http.Handle("/metrics", promhttp.Handler())
 	go func() {
 		logrus.WithField("connection_string", connectionString).Infoln("Start prometheus http handler")
-		server := &http.Server{ReadTimeout: network.DefaultNetworkTimeout, WriteTimeout: network.DefaultNetworkTimeout}
 		err := server.Serve(listener)
 		if err != nil {
 			logrus.WithError(err).Errorln("Error from http server that process prometheus metrics")
