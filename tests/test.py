@@ -582,9 +582,11 @@ class BaseTestCase(PrometheusMixin, unittest.TestCase):
             '-incoming_connection_api_string={}'.format(connector_api_connection),
             '-user_check_disable=true',
             '-keys_dir={}'.format(KEYS_FOLDER.name),
-            '-prometheus_metrics_address={}'.format(
-                self.get_prometheus_address(self.get_connector_prometheus_port(connector_port))),
         ]
+        if self.LOG_METRICS:
+            args.append('-prometheus_metrics_address={}'.format(
+                self.get_prometheus_address(
+                    self.get_connector_prometheus_port(connector_port))))
         if self.DEBUG_LOG:
             args.append('-v=true')
         if zone_mode:
@@ -659,8 +661,10 @@ class BaseTestCase(PrometheusMixin, unittest.TestCase):
             'http_api_enable': 'true' if self.ZONE else 'true',
             'auth_keys': self.ACRAWEBCONFIG_AUTH_KEYS_PATH,
             'keys_dir': KEYS_FOLDER.name,
-            'prometheus_metrics_address': self.get_prometheus_address(self.ACRASERVER_PROMETHEUS_PORT)
         }
+        if self.LOG_METRICS:
+            args['prometheus_metrics_address'] = self.get_prometheus_address(
+                self.ACRASERVER_PROMETHEUS_PORT)
         if self.TLS_ON:
             args['acraconnector_tls_transport_enable'] = 'true'
             args['tls_key'] = 'tests/server.key'
@@ -2762,6 +2766,7 @@ class TestAcraRotate(unittest.TestCase):
 
 
 class TestPrometheusMetrics(AcraTranslatorMixin, BaseTestCase):
+    LOG_METRICS = True
     def checkSkip(self):
         return
 
