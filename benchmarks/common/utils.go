@@ -20,10 +20,10 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/cossacklabs/acra/benchmarks/config"
-	"github.com/cossacklabs/acra/utils"
 	"github.com/cossacklabs/themis/gothemis/keys"
 	"io/ioutil"
 	"math/rand"
+	"path/filepath"
 )
 
 // GenerateData generates random data with MAX_DATA_LENGTH
@@ -57,7 +57,7 @@ type JSONData struct {
 
 // LoadZones loads zones keys
 func LoadZones() []*ZoneData {
-	absDir, err := utils.AbsPath("./src/github.com/cossacklabs/acra/benchmarks/.acrakeys")
+	absDir, err := filepath.Abs("./src/github.com/cossacklabs/acra/benchmarks/.acrakeys")
 	if err != nil {
 		panic(err)
 	}

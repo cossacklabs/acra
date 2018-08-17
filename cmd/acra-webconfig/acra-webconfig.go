@@ -32,6 +32,7 @@ import (
 	"fmt"
 	"github.com/cossacklabs/acra/cmd"
 	"github.com/cossacklabs/acra/logging"
+	"github.com/cossacklabs/acra/network"
 	"github.com/cossacklabs/acra/utils"
 	log "github.com/sirupsen/logrus"
 	"gopkg.in/yaml.v2"
@@ -195,7 +196,7 @@ func SubmitSettings(w http.ResponseWriter, r *http.Request) {
 func parseTemplate(staticPath string) (err error) {
 	log.Infof("Parsing template")
 	tplPath := filepath.Join(staticPath, "index.html")
-	tplPath, err = utils.AbsPath(tplPath)
+	tplPath, err = filepath.Abs(tplPath)
 	if err != nil {
 		log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantReadTemplate).
 			Errorf("No template file[%v]", tplPath)
@@ -434,6 +435,7 @@ func main() {
 	http.Handle("/static/", http.StripPrefix("/static/", http.FileServer(http.Dir(*staticPath))))
 	http.HandleFunc("/acra-server/submit_setting", basicAuthHandler(SubmitSettings))
 	log.Infof("AcraWebconfig is listening @ %s:%d with PID %d", *host, *port, os.Getpid())
-	err = http.ListenAndServe(fmt.Sprintf("%s:%d", *host, *port), nil)
+	server := &http.Server{ReadTimeout: network.DefaultNetworkTimeout, WriteTimeout: network.DefaultNetworkTimeout, Addr: fmt.Sprintf("%s:%d", *host, *port)}
+	err = server.ListenAndServe()
 	check(err)
 }

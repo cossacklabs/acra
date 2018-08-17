@@ -39,6 +39,7 @@ import (
 	"github.com/cossacklabs/themis/gothemis/keys"
 	log "github.com/sirupsen/logrus"
 	"os"
+	"path/filepath"
 )
 
 // Constants used by AcraAddZone util.
@@ -62,7 +63,7 @@ func main() {
 	//LoadFromConfig(DEFAULT_CONFIG_PATH)
 	//iniflags.Parse()
 
-	output, err := utils.AbsPath(*outputDir)
+	output, err := filepath.Abs(*outputDir)
 	if err != nil {
 		log.WithError(err).Errorln("can't get absolute path for output dir")
 		os.Exit(1)

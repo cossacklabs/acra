@@ -44,6 +44,7 @@ import (
 	_ "github.com/go-sql-driver/mysql"
 	_ "github.com/lib/pq"
 	log "github.com/sirupsen/logrus"
+	"path/filepath"
 )
 
 // Constants used by AcraRollback
@@ -131,7 +132,7 @@ type WriteToFileExecutor struct {
 
 // NewWriteToFileExecutor creates new object ready to write encoded sql to filePath
 func NewWriteToFileExecutor(filePath string, sql string, encoder BinaryEncoder) *WriteToFileExecutor {
-	absPath, err := utils.AbsPath(filePath)
+	absPath, err := filepath.Abs(filePath)
 	if err != nil {
 		ErrorExit("can't get absolute path for output file", err)
 	}
@@ -246,7 +247,7 @@ func main() {
 		log.Errorln("Sql_insert arg is missing")
 		os.Exit(1)
 	}
-	absKeysDir, err := utils.AbsPath(*keysDir)
+	absKeysDir, err := filepath.Abs(*keysDir)
 	if err != nil {
 		log.WithError(err).Errorln("Can't get absolute path for keys_dir")
 		os.Exit(1)

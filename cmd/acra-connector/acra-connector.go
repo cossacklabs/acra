@@ -27,6 +27,7 @@ import (
 	"crypto/tls"
 	"flag"
 	"fmt"
+	log "github.com/sirupsen/logrus"
 	"io"
 	"net"
 	"os"
@@ -36,9 +37,6 @@ import (
 	"strconv"
 	"strings"
 	"syscall"
-	"time"
-
-	log "github.com/sirupsen/logrus"
 
 	"github.com/cossacklabs/acra/cmd"
 	"github.com/cossacklabs/acra/cmd/acra-connector/connector-mode"
@@ -126,14 +124,12 @@ func handleConnection(config *Config, connection net.Conn) {
 	}
 	defer acraConn.Close()
 
-	acraConn.SetDeadline(time.Now().Add(time.Second * 2))
 	acraConnWrapped, err := config.ConnectionWrapper.WrapClient(config.ClientID, acraConn)
 	if err != nil {
 		log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantWrapConnection).
 			Errorln("Can't wrap connection")
 		return
 	}
-	acraConn.SetDeadline(time.Time{})
 	defer acraConnWrapped.Close()
 
 	toAcraErrCh := make(chan error, 1)

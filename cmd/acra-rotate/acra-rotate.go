@@ -27,6 +27,7 @@ import (
 	"github.com/cossacklabs/acra/utils"
 	log "github.com/sirupsen/logrus"
 	"os"
+	"path/filepath"
 )
 
 // Constants used by AcraRotate
@@ -37,7 +38,7 @@ var (
 )
 
 func initKeyStore(dirPath string) (keystore.KeyStore, error) {
-	absKeysDir, err := utils.AbsPath(dirPath)
+	absKeysDir, err := filepath.Abs(dirPath)
 	if err != nil {
 		log.WithError(err).Errorln("Can't get absolute path for keys_dir")
 		os.Exit(1)
