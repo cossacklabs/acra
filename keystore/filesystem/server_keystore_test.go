@@ -222,7 +222,7 @@ func TestFilesystemKeyStore(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	noCacheKeyStore, err := NewFileSystemKeyStoreWithCacheSize(privateKeyDirectory, encryptor, keystore.NO_CACHE)
+	noCacheKeyStore, err := NewFileSystemKeyStoreWithCacheSize(privateKeyDirectory, encryptor, keystore.WithoutCache)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -301,7 +301,7 @@ func TestFilesystemKeyStoreWithCache(t *testing.T) {
 	}
 
 	// check that store created with empty cache
-	store, err = NewFileSystemKeyStoreWithCacheSize(keyDirectory, encryptor, keystore.NO_CACHE)
+	store, err = NewFileSystemKeyStoreWithCacheSize(keyDirectory, encryptor, keystore.WithoutCache)
 	if err != nil {
 		t.Fatal(err)
 	}

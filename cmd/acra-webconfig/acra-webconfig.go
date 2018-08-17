@@ -57,8 +57,8 @@ var configParamsBytes []byte
 
 // Constants used by AcraWebconfig
 var (
-	SERVICE_NAME        = "acra-webconfig"
-	DEFAULT_CONFIG_PATH = utils.GetConfigPathByName(SERVICE_NAME)
+	ServiceName       = "acra-webconfig"
+	DefaultConfigPath = utils.GetConfigPathByName(ServiceName)
 )
 
 // ErrGetAuthDataFromAcraServer any error during loading AcraWebconfig
@@ -388,14 +388,14 @@ func main() {
 	host = flag.String("incoming_connection_host", cmd.DEFAULT_ACRAWEBCONFIG_HOST, "Host for AcraWebconfig HTTP endpoint")
 	port = flag.Int("incoming_connection_port", cmd.DEFAULT_ACRAWEBCONFIG_PORT, "Port for AcraWebconfig HTTP endpoint")
 	loggingFormat := flag.String("logging_format", "plaintext", "Logging format: plaintext, json or CEF")
-	logging.CustomizeLogging(*loggingFormat, SERVICE_NAME)
-	log.Infof("Starting service %v", SERVICE_NAME)
+	logging.CustomizeLogging(*loggingFormat, ServiceName)
+	log.Infof("Starting service %v", ServiceName)
 	destinationHost = flag.String("destination_host", "localhost", "Host for AcraServer HTTP endpoint or AcraConnector")
 	destinationPort = flag.Int("destination_port", cmd.DEFAULT_ACRACONNECTOR_API_PORT, "Port for AcraServer HTTP endpoint or AcraConnector")
 	staticPath = flag.String("static_path", cmd.DEFAULT_ACRAWEBCONFIG_STATIC, "Path to static content")
 	debug = flag.Bool("d", false, "Turn on debug logging")
 	authMode = flag.String("http_auth_mode", cmd.DEFAULT_ACRAWEBCONFIG_AUTH_MODE, "Mode for basic auth. Possible values: auth_on|auth_off_local|auth_off")
-	err := cmd.Parse(DEFAULT_CONFIG_PATH, SERVICE_NAME)
+	err := cmd.Parse(DefaultConfigPath, ServiceName)
 	if err != nil {
 		log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantReadServiceConfig).
 			Errorln("Can't parse args")
@@ -403,14 +403,14 @@ func main() {
 	}
 
 	// if log format was overridden
-	logging.CustomizeLogging(*loggingFormat, SERVICE_NAME)
+	logging.CustomizeLogging(*loggingFormat, ServiceName)
 
 	log.Infof("Validating service configuration")
 
 	if *debug {
-		logging.SetLogLevel(logging.LOG_DEBUG)
+		logging.SetLogLevel(logging.LogDebug)
 	} else {
-		logging.SetLogLevel(logging.LOG_VERBOSE)
+		logging.SetLogLevel(logging.LogVerbose)
 	}
 
 	err = parseTemplate(*staticPath)

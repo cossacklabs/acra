@@ -26,14 +26,14 @@ type SQLError struct {
 // Interrupted code constants.
 const (
 	// https://dev.mysql.com/doc/refman/5.5/en/error-messages-server.html#error_er_query_interrupted
-	ER_QUERY_INTERRUPTED_CODE  = 1317
-	ER_QUERY_INTERRUPTED_STATE = "70100"
+	ErQueryInterruptedCode  = 1317
+	ErQueryInterruptedState = "70100"
 )
 
 func newQueryInterruptedError() *SQLError {
 	e := new(SQLError)
-	e.Code = ER_QUERY_INTERRUPTED_CODE
-	e.State = ER_QUERY_INTERRUPTED_STATE
+	e.Code = ErQueryInterruptedCode
+	e.State = ErQueryInterruptedState
 	e.Message = "Query execution was interrupted"
 	return e
 }

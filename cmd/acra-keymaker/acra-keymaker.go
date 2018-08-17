@@ -51,7 +51,7 @@ func main() {
 	outputPublicKey := flag.String("keys_public_output_dir", keystore.DefaultKeyDirShort, "Folder where will be saved public key")
 	masterKey := flag.String("generate_master_key", "", "Generate new random master key and save to file")
 
-	logging.SetLogLevel(logging.LOG_VERBOSE)
+	logging.SetLogLevel(logging.LogVerbose)
 
 	err := cmd.Parse(DEFAULT_CONFIG_PATH, SERVICE_NAME)
 	if err != nil {

@@ -200,7 +200,7 @@ func main() {
 	useMysql := flag.Bool("mysql_enable", false, "Handle MySQL connections")
 	usePostgresql := flag.Bool("postgresql_enable", false, "Handle Postgresql connections")
 
-	logging.SetLogLevel(logging.LOG_VERBOSE)
+	logging.SetLogLevel(logging.LogVerbose)
 
 	err := cmd.Parse(DEFAULT_CONFIG_PATH, SERVICE_NAME)
 	if err != nil {

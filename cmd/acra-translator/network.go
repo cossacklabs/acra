@@ -46,7 +46,7 @@ func AcceptConnections(parentContext context.Context, connectionString string, e
 				cancel()
 				return
 			}
-			conn, err = wrapHttpConnectionWithTimer(conn)
+			conn, err = wrapHTTPConnectionWithTimer(conn)
 			if err != nil {
 				logger.WithError(err).Errorln("Can't wrap connection with metric")
 				errCh <- err
@@ -70,14 +70,12 @@ func AcceptConnections(parentContext context.Context, connectionString string, e
 	return connectionChannel, nil
 }
 
-// SecureSessionListener implement net.Listener and wrap all connections on listener.Accept before returning with
-// SecureSession
+// SecureSessionListenerWithMetrics wrap SecureSessionListener and collect metrics from accepted connections
 type SecureSessionListenerWithMetrics struct {
 	*network.SecureSessionListener
 }
 
-// NewSecureSessionListener create SecureSessionConnectionWrapper that will use keystorage to wrap new connections, create
-// listener by connectionString and return SecureSessionListener
+// WrapListenerWithMetrics wraps SecureSessionListener to collect metrics from connections
 func WrapListenerWithMetrics(listener *network.SecureSessionListener) net.Listener {
 	return &SecureSessionListenerWithMetrics{SecureSessionListener: listener}
 }
@@ -109,8 +107,8 @@ func wrapGrpcConnectionWithTimer(conn net.Conn) (net.Conn, error) {
 	return newConnectionMetric(grpcConnectionType, conn), nil
 }
 
-// wrapHttpConnectionWithTimer wrap conn with ConnectionMetric and httpConnectionType label value
-func wrapHttpConnectionWithTimer(conn net.Conn) (net.Conn, error) {
+// wrapHTTPConnectionWithTimer wrap conn with ConnectionMetric and httpConnectionType label value
+func wrapHTTPConnectionWithTimer(conn net.Conn) (net.Conn, error) {
 	connectionCounter.WithLabelValues(httpConnectionType).Inc()
 	return newConnectionMetric(httpConnectionType, conn), nil
 }

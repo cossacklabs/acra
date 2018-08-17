@@ -64,7 +64,7 @@ func main() {
 	keysDir := flag.String("keys_dir", keystore.DefaultKeyDirShort, "Folder from which the keys will be loaded")
 	fileMapConfig := flag.String("file_map_config", "", "Path to file with map of <ZoneId>: <FilePaths> in json format {\"zone_id1\": [\"filepath1\", \"filepath2\"], \"zone_id2\": [\"filepath1\", \"filepath2\"]}")
 
-	logging.SetLogLevel(logging.LOG_VERBOSE)
+	logging.SetLogLevel(logging.LogVerbose)
 
 	err := cmd.Parse(DefaultConfigPath, ServiceName)
 	if err != nil {

@@ -31,17 +31,17 @@ import (
 
 // Poison records length constants
 const (
-	DEFAULT_DATA_LENGTH = -1
-	MAX_DATA_LENGTH     = 100
+	UseDefaultDataLength = -1
+	DefaultDataLength    = 100
 )
 
 // CreatePoisonRecord generates AcraStruct encrypted with Poison Record public key
 func CreatePoisonRecord(keystore keystore.KeyStore, dataLength int) ([]byte, error) {
 	// data length can't be zero
-	if dataLength == DEFAULT_DATA_LENGTH {
+	if dataLength == UseDefaultDataLength {
 		math_rand.Seed(time.Now().UnixNano())
-		// from 1 to MAX_DATA_LENGTH
-		dataLength = 1 + int(math_rand.Int31n(MAX_DATA_LENGTH-1))
+		// from 1 to DefaultDataLength
+		dataLength = 1 + int(math_rand.Int31n(DefaultDataLength-1))
 	}
 	poisonKeypair, err := keystore.GetPoisonKeyPair()
 	if err != nil {

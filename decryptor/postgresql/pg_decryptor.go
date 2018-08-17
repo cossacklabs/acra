@@ -140,7 +140,7 @@ func (proxy *PgProxy) PgProxyClientRequests(acraCensor acracensor.AcraCensorInte
 		query := string(packet.descriptionBuf.Bytes()[:packet.dataLength-1])
 
 		// log query with hidden values for debug mode
-		if logging.GetLogLevel() == logging.LOG_DEBUG {
+		if logging.GetLogLevel() == logging.LogDebug {
 			_, queryWithHiddenValues, err := handlers.NormalizeAndRedactSQLQuery(query)
 			if err == handlers.ErrQuerySyntaxError {
 				log.WithError(err).Infof("Parsing error on query: %s", queryWithHiddenValues)
@@ -205,15 +205,15 @@ func checkInlinePoisonRecordInBlock(block []byte, decryptor base.Decryptor, logg
 		logger.Debugln("Check poison records")
 		currentIndex := 0
 		for {
-			if index, _ := decryptor.BeginTagIndex(block[currentIndex:]); index == utils.NotFound {
-				return nil
-			} else {
+			if index, _ := decryptor.BeginTagIndex(block[currentIndex:]); index != utils.NotFound {
 				currentIndex += index
 				if err := checkWholePoisonRecord(block[currentIndex:], decryptor, logger); err != nil {
 					return err
 				}
 				currentIndex++
+				continue
 			}
+			return nil
 		}
 	}
 	return nil

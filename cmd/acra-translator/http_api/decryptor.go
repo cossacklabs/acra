@@ -64,7 +64,7 @@ func (decryptor *HTTPConnectionsDecryptor) SendResponse(logger *log.Entry, respo
 // ParseRequestPrepareResponse parses HTTP request to find AcraStruct and ZoneID, then decrypts AcraStruct.
 // Returns HTTP response with appropriate status code, headers, decrypted AcraStruct or error message.
 func (decryptor *HTTPConnectionsDecryptor) ParseRequestPrepareResponse(logger *log.Entry, request *http.Request, clientID []byte) *http.Response {
-	timer := prometheus.NewTimer(prometheus.ObserverFunc(common.RequestProcessingTimeHistogram.WithLabelValues(common.HttpRequestType).Observe))
+	timer := prometheus.NewTimer(prometheus.ObserverFunc(common.RequestProcessingTimeHistogram.WithLabelValues(common.HTTPRequestType).Observe))
 	defer timer.ObserveDuration()
 
 	requestLogger := logger.WithFields(log.Fields{"client_id": string(clientID), "translator": "http"})

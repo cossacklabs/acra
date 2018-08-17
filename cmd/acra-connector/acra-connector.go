@@ -427,25 +427,25 @@ func main() {
 
 	if *debug {
 		log.Infof("Enabling DEBUG log level")
-		logging.SetLogLevel(logging.LOG_DEBUG)
+		logging.SetLogLevel(logging.LogDebug)
 	} else if *verbose {
 		log.Infof("Enabling VERBOSE log level")
-		logging.SetLogLevel(logging.LOG_VERBOSE)
+		logging.SetLogLevel(logging.LogVerbose)
 	} else {
 		log.Infof("Disabling future logs... Set -v -d to see logs")
-		logging.SetLogLevel(logging.LOG_DISCARD)
+		logging.SetLogLevel(logging.LogDiscard)
 	}
 
 	if *prometheusAddress != "" {
 		registerMetrics()
-		_, prometheusHttpServer, err := cmd.RunPrometheusHTTPHandler(*prometheusAddress)
+		_, prometheusHTTPServer, err := cmd.RunPrometheusHTTPHandler(*prometheusAddress)
 		if err != nil {
 			panic(err)
 		}
 		log.Infof("Configured to send metrics and stats to `prometheus_metrics_address`")
 		sigHandler.AddCallback(func() {
 			log.Infoln("Stop prometheus http exporter")
-			prometheusHttpServer.Close()
+			prometheusHTTPServer.Close()
 		})
 	}
 

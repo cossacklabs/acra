@@ -35,10 +35,10 @@ func getDataLengthFromAcraStruct(data []byte) int {
 }
 
 // GetMinAcraStructLength returns minimal length of AcraStruct
-// because in golang we can't declare byte array as constant we need to calculate length of TAG_BEGIN in runtime
-// or hardcode as constant and maintain len(TAG_BEGIN) == CONST_VALUE
+// because in golang we can't declare byte array as constant we need to calculate length of TagBegin in runtime
+// or hardcode as constant and maintain len(TagBegin) == CONST_VALUE
 func GetMinAcraStructLength() int {
-	return len(TAG_BEGIN) + KeyBlockLength + DataLengthSize
+	return len(TagBegin) + KeyBlockLength + DataLengthSize
 }
 
 // Errors show incorrect AcraStruct length
@@ -67,7 +67,7 @@ func DecryptAcrastruct(data []byte, privateKey *keys.PrivateKey, zone []byte) ([
 	if err := ValidateAcraStructLength(data); err != nil {
 		return nil, err
 	}
-	innerData := data[len(TAG_BEGIN):]
+	innerData := data[len(TagBegin):]
 	pubkey := &keys.PublicKey{Value: innerData[:PublicKeyLength]}
 	smessage := message.New(privateKey, pubkey)
 	symmetricKey, err := smessage.Unwrap(innerData[PublicKeyLength:KeyBlockLength])

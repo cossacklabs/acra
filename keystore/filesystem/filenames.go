@@ -25,8 +25,8 @@ var lock = sync.RWMutex{}
 
 // Default key folders' filenames
 const (
-	POISON_KEY_FILENAME     = ".poison_key/poison_key"
-	BASIC_AUTH_KEY_FILENAME = "auth_key"
+	PoisonKeyFilename    = ".poison_key/poison_key"
+	BasicAuthKeyFilename = "auth_key"
 )
 
 // getZoneKeyFilename

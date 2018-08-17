@@ -164,8 +164,8 @@ func (err *ConnectionWrapError) Temporary() bool {
 	return true
 }
 
-// SECURE_SESSION_ESTABLISHING_TIMEOUT timeout for secure session handshake that should be enough
-const SECURE_SESSION_ESTABLISHING_TIMEOUT = time.Second * 10
+// SecureSessionEstablishingTimeout timeout for secure session handshake that should be enough
+const SecureSessionEstablishingTimeout = time.Second * 10
 
 // SecureSessionConnectionWrapper adds SecureSession encryption above connection
 type SecureSessionConnectionWrapper struct {
@@ -176,7 +176,7 @@ type SecureSessionConnectionWrapper struct {
 
 // NewSecureSessionConnectionWrapper returns new SecureSessionConnectionWrapper with default handlshake timeout
 func NewSecureSessionConnectionWrapper(keystore keystore.SecureSessionKeyStore) (*SecureSessionConnectionWrapper, error) {
-	return &SecureSessionConnectionWrapper{keystore: keystore, clientID: nil, handshakeTimeout: SECURE_SESSION_ESTABLISHING_TIMEOUT}, nil
+	return &SecureSessionConnectionWrapper{keystore: keystore, clientID: nil, handshakeTimeout: SecureSessionEstablishingTimeout}, nil
 }
 
 // SetHandshakeTimeout set handshakeTimeout that will be used for secure session handshake. 0 - without handshakeTimeout

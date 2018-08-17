@@ -5,17 +5,21 @@ import (
 	"sync"
 )
 
+// Labels and values about AcraStruct decryptions status
 const (
 	DecryptionTypeLabel   = "status"
 	DecryptionTypeSuccess = "success"
 	DecryptionTypeFail    = "fail"
 )
+
+// Labels and values about AcraStruct processing modes
 const (
 	DecryptionModeLabel  = "mode"
 	DecryptionModeWhole  = "wholecell"
 	DecryptionModeInline = "inlinecell"
 )
 
+// Labels and values about db type in processing
 const (
 	DecryptionDBLabel      = "db"
 	DecryptionDBPostgresql = "postgresql"
@@ -23,18 +27,21 @@ const (
 )
 
 var (
+	// AcrastructDecryptionCounter collect decryptions count success/failed
 	AcrastructDecryptionCounter = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
 			Name: "acra_acrastruct_decryptions_total",
 			Help: "number of AcraStruct decryptions",
 		}, []string{DecryptionTypeLabel})
 
+	// ResponseProcessingTimeHistogram collect metrics about response processing time
 	ResponseProcessingTimeHistogram = prometheus.NewHistogramVec(prometheus.HistogramOpts{
 		Name:    "acraserver_response_processing_seconds",
 		Help:    "Time of response processing",
 		Buckets: []float64{0.000001, 0.00001, 0.00002, 0.00003, 0.00004, 0.00005, 0.00006, 0.00007, 0.00008, 0.00009, 0.0001, 0.0005, 0.001, 0.005, 0.01, 1},
 	}, []string{DecryptionDBLabel, DecryptionModeLabel})
 
+	// RequestProcessingTimeHistogram collect metrics about request processing time
 	RequestProcessingTimeHistogram = prometheus.NewHistogramVec(prometheus.HistogramOpts{
 		Name:    "acraserver_request_processing_seconds",
 		Help:    "Time of response processing",
@@ -45,12 +52,15 @@ var (
 var dbRegisterLock = sync.Once{}
 var acraStructRegisterLock = sync.Once{}
 
+// RegisterDbProcessingMetrics register in default prometheus registry metrics related with processing db requests/responses
 func RegisterDbProcessingMetrics() {
 	dbRegisterLock.Do(func() {
 		prometheus.MustRegister(ResponseProcessingTimeHistogram)
 		prometheus.MustRegister(RequestProcessingTimeHistogram)
 	})
 }
+
+// RegisterAcraStructProcessingMetrics register in default prometheus registry metrics related with AcraStruct decryption
 func RegisterAcraStructProcessingMetrics() {
 	acraStructRegisterLock.Do(func() {
 		prometheus.MustRegister(AcrastructDecryptionCounter)

@@ -35,9 +35,9 @@ import (
 
 // ZoneID begin tags, lengths, etc
 var (
-	// TAG_BEGIN in hex format
+	// TagBegin in hex format
 	//var HexTagBegin = []byte{56, 53, 50, 48, 102, 98}
-	HexTagBegin          = []byte(hex.EncodeToString(base.TAG_BEGIN))
+	HexTagBegin          = []byte(hex.EncodeToString(base.TagBegin))
 	HexZoneIDBegin       = []byte(hex.EncodeToString(zone.ZoneIDBegin))
 	HexZoneTagLength     = len(HexZoneIDBegin)
 	HexZoneIDLength      = hex.EncodedLen(16)
@@ -196,9 +196,9 @@ func (decryptor *PgHexDecryptor) readScellData(length int, reader io.Reader) ([]
 }
 
 func (*PgHexDecryptor) getFullDataLength(dataLength uint64) int {
-	// original data is tag_begin+key_block+data_length+data
+	// original data is TagBegin+key_block+data_length+data
 	// output data length should be hex(original_data)
-	return hex.EncodedLen(len(base.TAG_BEGIN) + base.KeyBlockLength + 8 + int(dataLength))
+	return hex.EncodedLen(len(base.TagBegin) + base.KeyBlockLength + 8 + int(dataLength))
 }
 
 // ReadData returns plaintext content from reader data, decrypting using SecureCell with ZoneID and symmetricKey

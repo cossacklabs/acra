@@ -20,11 +20,14 @@ import "github.com/prometheus/client_golang/prometheus"
 
 const (
 	requestTypeLabel = "request_type"
-	HttpRequestType  = "http"
-	GrpcRequestType  = "grpc"
+	// HTTPRequestType http type of request for metric label
+	HTTPRequestType = "http"
+	// GrpcRequestType grpc type of request for metric label
+	GrpcRequestType = "grpc"
 )
 
 var (
+	// RequestProcessingTimeHistogram collect metrics about time of processing requests to http/grpc api
 	RequestProcessingTimeHistogram = prometheus.NewHistogramVec(prometheus.HistogramOpts{
 		Name:    "translator_request_processing_seconds",
 		Help:    "Time of response processing",

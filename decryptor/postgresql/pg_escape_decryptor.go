@@ -35,7 +35,7 @@ import (
 
 // ZoneID begin tags, lengths, etc
 var (
-	EscapeTagBegin          = EncodeToOctal(base.TAG_BEGIN)
+	EscapeTagBegin          = EncodeToOctal(base.TagBegin)
 	EscapeZoneTagLength     = zone.ZoneTagLength
 	EscapeZoneIDBlockLength = zone.ZoneIDBlockLength
 )

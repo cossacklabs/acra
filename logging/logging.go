@@ -31,20 +31,20 @@ import (
 
 // Log modes
 const (
-	LOG_DEBUG = iota
-	LOG_VERBOSE
-	LOG_DISCARD
+	LogDebug = iota
+	LogVerbose
+	LogDiscard
 )
 
 const loggerKey = "logger"
 
 // SetLogLevel sets logging level
 func SetLogLevel(level int) {
-	if level == LOG_DEBUG {
+	if level == LogDebug {
 		log.SetLevel(log.DebugLevel)
-	} else if level == LOG_VERBOSE {
+	} else if level == LogVerbose {
 		log.SetLevel(log.InfoLevel)
-	} else if level == LOG_DISCARD {
+	} else if level == LogDiscard {
 		log.SetLevel(log.WarnLevel)
 	} else {
 		panic(fmt.Sprintf("Incorrect log level - %v", level))
@@ -54,12 +54,12 @@ func SetLogLevel(level int) {
 // GetLogLevel gets logrus log level and returns int Acra log level
 func GetLogLevel() int {
 	if log.GetLevel() == log.DebugLevel {
-		return LOG_DEBUG
+		return LogDebug
 	}
 	if log.GetLevel() == log.InfoLevel {
-		return LOG_VERBOSE
+		return LogVerbose
 	}
-	return LOG_DISCARD
+	return LogDiscard
 }
 
 // CustomizeLogging changes logging format
