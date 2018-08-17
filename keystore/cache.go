@@ -17,10 +17,10 @@ limitations under the License.
 package keystore
 
 const (
-	// INFINITE_CACHE_SIZE unlimited size
-	INFINITE_CACHE_SIZE = 0
-	// NO_CACHE means not using cache at all
-	NO_CACHE = -1
+	// InfiniteCacheSize unlimited size
+	InfiniteCacheSize = 0
+	// WithoutCache means not using cache at all
+	WithoutCache = -1
 )
 
 // NoCache is cache implementation for case when keystore should not to use any cache

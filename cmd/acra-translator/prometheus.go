@@ -16,25 +16,27 @@ limitations under the License.
 package main
 
 import (
+	"github.com/cossacklabs/acra/cmd/acra-translator/common"
+	"github.com/cossacklabs/acra/decryptor/base"
 	"github.com/prometheus/client_golang/prometheus"
 	"sync"
 )
 
 const (
 	connectionTypeLabel = "connection_type"
-	apiConnectionType   = "api"
-	dbConnectionType    = "db"
+	httpConnectionType  = "http"
+	grpcConnectionType  = "grpc"
 )
 
 var (
 	connectionCounter = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
-			Name: "acraconnector_connections_total",
+			Name: "acratranslator_connections_total",
 			Help: "number of connections to database",
 		}, []string{connectionTypeLabel})
 
 	connectionProcessingTimeHistogram = prometheus.NewHistogramVec(prometheus.HistogramOpts{
-		Name:    "acraconnector_connections_processing_seconds",
+		Name:    "acratranslator_connections_processing_seconds",
 		Help:    "Time of connection processing",
 		Buckets: []float64{0.1, 0.2, 0.5, 1, 10, 60, 3600, 86400},
 	}, []string{connectionTypeLabel})
@@ -46,5 +48,7 @@ func registerMetrics() {
 	registerLock.Do(func() {
 		prometheus.MustRegister(connectionCounter)
 		prometheus.MustRegister(connectionProcessingTimeHistogram)
+		prometheus.MustRegister(common.RequestProcessingTimeHistogram)
+		base.RegisterAcraStructProcessingMetrics()
 	})
 }

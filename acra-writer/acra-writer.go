@@ -68,8 +68,8 @@ func CreateAcrastruct(data []byte, acraPublic *keys.PublicKey, context []byte) (
 	// pack acrastruct
 	dateLength := make([]byte, base.DataLengthSize)
 	binary.LittleEndian.PutUint64(dateLength, uint64(len(encryptedData)))
-	output := make([]byte, len(base.TAG_BEGIN)+base.KeyBlockLength+base.DataLengthSize+len(encryptedData))
-	output = append(output[:0], base.TAG_BEGIN...)
+	output := make([]byte, len(base.TagBegin)+base.KeyBlockLength+base.DataLengthSize+len(encryptedData))
+	output = append(output[:0], base.TagBegin...)
 	output = append(output, randomKeyPair.Public.Value...)
 	output = append(output, encryptedKey...)
 	output = append(output, dateLength...)

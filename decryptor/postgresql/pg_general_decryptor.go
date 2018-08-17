@@ -57,7 +57,7 @@ func NewPgDecryptor(clientID []byte, decryptor base.DataDecryptor) *PgDecryptor 
 		binaryDecryptor: binary.NewBinaryDecryptor(),
 		clientID:        clientID,
 		// longest tag (escape) + bin
-		matchBuffer:        make([]byte, len(EscapeTagBegin)+len(base.TAG_BEGIN)),
+		matchBuffer:        make([]byte, len(EscapeTagBegin)+len(base.TagBegin)),
 		matchIndex:         0,
 		isWholeMatch:       true,
 		logger:             logrus.WithField("client_id", string(clientID)),
@@ -169,7 +169,7 @@ func (decryptor *PgDecryptor) ReadSymmetricKey(privateKey *keys.PrivateKey, read
 // ReadData returns plaintext data, decrypting using SecureCell with ZoneID and symmetricKey
 func (decryptor *PgDecryptor) ReadData(symmetricKey, zoneID []byte, reader io.Reader) ([]byte, error) {
 	/* due to using two decryptors can be case when one decryptor match 2 bytes
-	from TAG_BEGIN then didn't match anymore but another decryptor matched at
+	from TagBegin then didn't match anymore but another decryptor matched at
 	this time and was successfully used for decryption, we need return 2 bytes
 	matched and buffered by first decryptor and decrypted data from the second
 
@@ -381,14 +381,14 @@ func (decryptor *PgDecryptor) BeginTagIndex(block []byte) (int, int) {
 		}
 	} else {
 		// escape format
-		if i := bytes.Index(block, base.TAG_BEGIN); i != utils.NotFound {
+		if i := bytes.Index(block, base.TagBegin); i != utils.NotFound {
 			decryptor.logger.Debugln("Matched pg decryptor")
 			decryptor.matchedDecryptor = decryptor.pgDecryptor
 			return i, decryptor.pgDecryptor.GetTagBeginLength()
 			// binary format
 		}
 	}
-	if i := bytes.Index(block, base.TAG_BEGIN); i != utils.NotFound {
+	if i := bytes.Index(block, base.TagBegin); i != utils.NotFound {
 		decryptor.logger.Debugln("Matched binary decryptor")
 		decryptor.matchedDecryptor = decryptor.binaryDecryptor
 		return i, decryptor.binaryDecryptor.GetTagBeginLength()

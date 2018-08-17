@@ -53,7 +53,7 @@ func main() {
 	outputDir := flag.String("keys_output_dir", keystore.DefaultKeyDirShort, "Folder where will be saved generated zone keys")
 	fsKeystore := flag.Bool("fs_keystore_enable", true, "Use filesystem key store")
 
-	logging.SetLogLevel(logging.LOG_VERBOSE)
+	logging.SetLogLevel(logging.LogVerbose)
 
 	err := cmd.Parse(DEFAULT_CONFIG_PATH, SERVICE_NAME)
 	if err != nil {

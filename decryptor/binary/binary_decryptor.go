@@ -53,7 +53,7 @@ func NewBinaryDecryptor() *BinaryDecryptor {
 
 // MatchBeginTag not implemented Decryptor interface
 func (decryptor *BinaryDecryptor) MatchBeginTag(char byte) bool {
-	if char == base.TAG_BEGIN[decryptor.currentIndex] {
+	if char == base.TagBegin[decryptor.currentIndex] {
 		decryptor.currentIndex++
 		return true
 	}
@@ -62,7 +62,7 @@ func (decryptor *BinaryDecryptor) MatchBeginTag(char byte) bool {
 
 // IsMatched returns true if AcraStruct BeginTag found
 func (decryptor *BinaryDecryptor) IsMatched() bool {
-	return len(base.TAG_BEGIN) == int(decryptor.currentIndex)
+	return len(base.TagBegin) == int(decryptor.currentIndex)
 }
 
 // Reset pointer on current Index of binary data
@@ -72,7 +72,7 @@ func (decryptor *BinaryDecryptor) Reset() {
 
 // GetMatched returns bytes from binary data that match with AcraStruct BeginTag
 func (decryptor *BinaryDecryptor) GetMatched() []byte {
-	return base.TAG_BEGIN[:decryptor.currentIndex]
+	return base.TagBegin[:decryptor.currentIndex]
 }
 
 // ReadSymmetricKey returns symmetric key wrapped in AcraStruct
@@ -160,5 +160,5 @@ func (decryptor *BinaryDecryptor) ReadData(symmetricKey, zoneID []byte, reader i
 
 // GetTagBeginLength returns length of AcraStruct BeginTag
 func (*BinaryDecryptor) GetTagBeginLength() int {
-	return len(base.TAG_BEGIN)
+	return len(base.TagBegin)
 }

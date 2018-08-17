@@ -91,7 +91,7 @@ func (decryptor *MySQLDecryptor) MatchZoneBlock(block []byte) {
 
 // BeginTagIndex returns index where BeginTag is found in AcraStruct
 func (decryptor *MySQLDecryptor) BeginTagIndex(block []byte) (int, int) {
-	if i := bytes.Index(block, base.TAG_BEGIN); i != utils.NotFound {
+	if i := bytes.Index(block, base.TagBegin); i != utils.NotFound {
 		return i, decryptor.binaryDecryptor.GetTagBeginLength()
 	}
 	return utils.NotFound, decryptor.GetTagBeginLength()

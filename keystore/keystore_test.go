@@ -49,7 +49,7 @@ func TestValidateID(t *testing.T) {
 
 	// check that return false for chars less than allowed
 	for _, c := range []byte{'0', 'a', 'A'} {
-		incorrectID := bytes.Repeat([]byte{c - 1}, MinClientIdLength)
+		incorrectID := bytes.Repeat([]byte{c - 1}, MinClientIDLength)
 		if ValidateID(incorrectID) {
 			t.Errorf("Incorrect false validation. <%s> took", incorrectID)
 		}
@@ -57,7 +57,7 @@ func TestValidateID(t *testing.T) {
 
 	// check that return false for chars greater than allowed
 	for _, c := range []byte{'9', 'z', 'Z'} {
-		incorrectID := bytes.Repeat([]byte{c + 1}, MinClientIdLength)
+		incorrectID := bytes.Repeat([]byte{c + 1}, MinClientIDLength)
 		if ValidateID(incorrectID) {
 			t.Errorf("Incorrect false validation. <%s> took", incorrectID)
 		}
@@ -65,13 +65,13 @@ func TestValidateID(t *testing.T) {
 
 	// check that can used lowest and highest chars
 	for _, c := range []byte{'0', '9', 'a', 'A', 'z', 'Z'} {
-		correctID := bytes.Repeat([]byte{c}, MinClientIdLength)
+		correctID := bytes.Repeat([]byte{c}, MinClientIDLength)
 		if !ValidateID(correctID) {
 			t.Errorf("Incorrect true validation. <%s> took", correctID)
 		}
 	}
 
-	maxID := bytes.Repeat([]byte{'1'}, MaxClientIdLength)
+	maxID := bytes.Repeat([]byte{'1'}, MaxClientIDLength)
 	if !ValidateID(maxID) {
 		t.Errorf("Incorrect true validation. <%s> took", maxID)
 	}

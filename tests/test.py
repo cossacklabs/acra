@@ -16,6 +16,7 @@ import contextlib
 import socket
 import json
 import logging
+import http
 import tempfile
 import time
 import os
@@ -440,19 +441,56 @@ class KeyMakerTest(unittest.TestCase):
                     env={'ACRA_MASTER_KEY': long_key})
 
 
-class BaseTestCase(unittest.TestCase):
+class PrometheusMixin(object):
+    _prometheus_addresses_field_name = 'prometheus_addresses'
+    LOG_METRICS = os.environ.get('TEST_LOG_METRICS', False)
+
+    def get_prometheus_address(self, port):
+        addr = 'tcp://127.0.0.1:{}'.format(port)
+        if not hasattr(self, self._prometheus_addresses_field_name):
+            self.prometheus_addresses = []
+        self.prometheus_addresses.append(addr)
+        return addr
+
+    def clear_prometheus_addresses(self):
+        setattr(self, self._prometheus_addresses_field_name, [])
+
+    def _get_metrics_url(self, address):
+        addr = urlparse(address)
+        return 'http://{}/metrics'.format(addr.netloc)
+
+    def log_prometheus_metrics(self):
+        if not self.LOG_METRICS:
+            return
+
+        for address in getattr(self, self._prometheus_addresses_field_name, []):
+            response = requests.get(self._get_metrics_url(address))
+            if response.status_code == 200:
+                logging.info(response.text)
+            else:
+                logging.error(
+                    "Can't fetch prometheus metrics from address: %s",
+                    [address])
+
+
+class BaseTestCase(PrometheusMixin, unittest.TestCase):
     DB_HOST = os.environ.get('TEST_DB_HOST', '127.0.0.1')
     DB_NAME = os.environ.get('TEST_DB_NAME', 'postgres')
     DB_PORT = os.environ.get('TEST_DB_PORT', 5432)
     DEBUG_LOG = os.environ.get('DEBUG_LOG', True)
 
     CONNECTOR_PORT_1 = int(os.environ.get('TEST_CONNECTOR_PORT', 9595))
+    CONNECTOR_PROMETHEUS_PORT_1 = int(os.environ.get('TEST_CONNECTOR_PORT', CONNECTOR_PORT_1+1))
+
     CONNECTOR_PORT_2 = CONNECTOR_PORT_1 + 200
+    CONNECTOR_PROMETHEUS_PORT_2 = int(os.environ.get('TEST_CONNECTOR_PORT', CONNECTOR_PORT_2+1))
+
     CONNECTOR_API_PORT_1 = int(os.environ.get('TEST_CONNECTOR_API_PORT', 9696))
     ACRAWEBCONFIG_HTTP_PORT = int(os.environ.get('TEST_CONFIG_UI_HTTP_PORT', ACRAWEBCONFIG_HTTP_PORT))
     # for debugging with manually runned acra-server
     EXTERNAL_ACRA = False
     ACRASERVER_PORT = int(os.environ.get('TEST_ACRASERVER_PORT', 10003))
+    ACRASERVER_PROMETHEUS_PORT = int(os.environ.get('TEST_ACRASERVER_PROMETHEUS_PORT', 10004))
     ACRA_BYTEA = 'pgsql_hex_bytea'
     DB_BYTEA = 'hex'
     WHOLECELL_MODE = False
@@ -514,8 +552,12 @@ class BaseTestCase(unittest.TestCase):
             '--tls_acraserver_sni=acraserver',
         ]
 
+    def get_connector_prometheus_port(self, port):
+        return port+1
+
     def fork_connector(self, connector_port: int, acraserver_port: int, client_id: str, api_port: int=None, zone_mode: bool=False, check_connection: bool=True):
         logging.info("fork connector")
+
         acraserver_connection = self.get_acraserver_connection_string(acraserver_port)
         acraserver_api_connection = self.get_acraserver_api_connection_string(acraserver_port)
         connector_connection = self.get_connector_connection_string(connector_port)
@@ -541,6 +583,10 @@ class BaseTestCase(unittest.TestCase):
             '-user_check_disable=true',
             '-keys_dir={}'.format(KEYS_FOLDER.name),
         ]
+        if self.LOG_METRICS:
+            args.append('-prometheus_metrics_address={}'.format(
+                self.get_prometheus_address(
+                    self.get_connector_prometheus_port(connector_port))))
         if self.DEBUG_LOG:
             args.append('-v=true')
         if zone_mode:
@@ -616,6 +662,9 @@ class BaseTestCase(unittest.TestCase):
             'auth_keys': self.ACRAWEBCONFIG_AUTH_KEYS_PATH,
             'keys_dir': KEYS_FOLDER.name,
         }
+        if self.LOG_METRICS:
+            args['prometheus_metrics_address'] = self.get_prometheus_address(
+                self.ACRASERVER_PROMETHEUS_PORT)
         if self.TLS_ON:
             args['acraconnector_tls_transport_enable'] = 'true'
             args['tls_key'] = 'tests/server.key'
@@ -642,6 +691,36 @@ class BaseTestCase(unittest.TestCase):
 
     def fork_acra(self, popen_kwargs: dict=None, **acra_kwargs: dict):
         return self._fork_acra(acra_kwargs, popen_kwargs)
+
+    def fork_translator(self, translator_kwargs, popen_kwargs=None):
+        logging.info("fork acra-translator")
+        from utils import load_default_config
+        default_config = load_default_config("acra-translator")
+        default_args = {
+            'incoming_connection_close_timeout': 0,
+            'incoming_connection_grpc_string': 'grpc://127.0.0.1:9696',
+            'incoming_connection_http_string': 'http://127.0.0.1:9595',
+            'keys_dir': KEYS_FOLDER.name,
+        }
+        default_config.update(default_args)
+        default_config.update(translator_kwargs)
+        if not popen_kwargs:
+            popen_kwargs = {}
+        if self.DEBUG_LOG:
+            default_config['d'] = 1
+        cli_args = ['--{}={}'.format(k, v) for k, v in default_config.items()]
+
+        translator = self.fork(lambda: subprocess.Popen(['./acra-translator'] + cli_args,
+                                                     **popen_kwargs))
+        try:
+            if default_config['incoming_connection_grpc_string']:
+                wait_connection(urlparse(default_config['incoming_connection_grpc_string']).port)
+            if default_config['incoming_connection_http_string']:
+                wait_connection(urlparse(default_config['incoming_connection_http_string']).port)
+        except:
+            stop_process(translator)
+            raise
+        return translator
 
     def setUp(self):
         self.checkSkip()
@@ -686,6 +765,11 @@ class BaseTestCase(unittest.TestCase):
             raise
 
     def tearDown(self):
+        try:
+            self.log_prometheus_metrics()
+            self.clear_prometheus_addresses()
+        except:
+            pass
         processes = [getattr(self, 'connector_1', ProcessStub()),
                      getattr(self, 'connector_2', ProcessStub()),
                      getattr(self, 'acra', ProcessStub())]
@@ -2016,6 +2100,7 @@ class TestAcraWebconfigWeb(AcraCatchLogsMixin, BaseTestCase):
 
 class SSLPostgresqlMixin(AcraCatchLogsMixin):
     ACRASERVER2_PORT = BaseTestCase.ACRASERVER_PORT + 1000
+    ACRASERVER2_PROMETHEUS_PORT = BaseTestCase.ACRASERVER_PROMETHEUS_PORT + 1000
     DEBUG_LOG = True
 
     def get_acraserver_connection_string(self, port=None):
@@ -2061,7 +2146,8 @@ class SSLPostgresqlMixin(AcraCatchLogsMixin):
                 # connection will be closed on tls handshake
                 self.acra2 = self.fork_acra(
                     acraconnector_transport_encryption_disable=True, client_id='keypair1',
-                    incoming_connection_api_port=self.ACRASERVER2_PORT)
+                    incoming_connection_api_port=self.ACRASERVER2_PORT,
+                    prometheus_metrics_address=self.get_prometheus_address(self.ACRASERVER2_PROMETHEUS_PORT))
             self.engine1 = sa.create_engine(
                 get_postgresql_tcp_connection_string(self.ACRASERVER_PORT, self.DB_NAME), connect_args=get_connect_args(port=self.ACRASERVER_PORT))
             self.engine_raw = sa.create_engine(
@@ -2176,7 +2262,9 @@ class SSLMysqlMixin(SSLPostgresqlMixin):
                 # connection will be closed on tls handshake
                 self.acra2 = self.fork_acra(
                     acraconnector_transport_encryption_disable=True, client_id='keypair1',
-                    incoming_connection_port=self.ACRASERVER2_PORT)
+                    incoming_connection_port=self.ACRASERVER2_PORT,
+                    prometheus_metrics_address=self.get_prometheus_address(
+                        self.ACRASERVER2_PROMETHEUS_PORT))
             self.driver_to_acraserver_ssl_settings = {
                 'ca': 'tests/server.crt',
                 #'cert': 'tests/client.crt',
@@ -2402,39 +2490,9 @@ class ProcessContextManager(object):
         stop_process(self.process)
 
 
-class BaseAcraTranslatorTest(BaseTestCase):
+class AcraTranslatorMixin(object):
 
-    def fork_translator(self, translator_kwargs, popen_kwargs=None):
-        logging.info("fork acra-translator")
-        from utils import load_default_config
-        default_config = load_default_config("acra-translator")
-        default_args = {
-            'incoming_connection_close_timeout': 0,
-            'incoming_connection_grpc_string': 'grpc://127.0.0.1:9696',
-            'incoming_connection_http_string': 'http://127.0.0.1:9595',
-            'keys_dir': KEYS_FOLDER.name,
-        }
-        default_config.update(default_args)
-        default_config.update(translator_kwargs)
-        if not popen_kwargs:
-            popen_kwargs = {}
-        if self.DEBUG_LOG:
-            default_config['d'] = 1
-        cli_args = ['--{}={}'.format(k, v) for k, v in default_config.items()]
-
-        translator = self.fork(lambda: subprocess.Popen(['./acra-translator'] + cli_args,
-                                                     **popen_kwargs))
-        try:
-            if default_config['incoming_connection_grpc_string']:
-                wait_connection(urlparse(default_config['incoming_connection_grpc_string']).port)
-            if default_config['incoming_connection_http_string']:
-                wait_connection(urlparse(default_config['incoming_connection_http_string']).port)
-        except:
-            stop_process(translator)
-            raise
-        return translator
-
-    def fork_connector(self, connector_port: int, server_port: int, client_id: str, check_connection: bool=True):
+    def fork_connector_for_translator(self, connector_port: int, server_port: int, client_id: str, check_connection: bool=True):
         logging.info("fork connector")
         server_connection = get_tcp_connection_string(server_port)
         connector_connection = get_tcp_connection_string(connector_port)
@@ -2458,6 +2516,9 @@ class BaseAcraTranslatorTest(BaseTestCase):
                 raise
         return process
 
+
+class AcraTranslatorTest(AcraTranslatorMixin, BaseTestCase):
+
     def checkSkip(self):
         return
 
@@ -2471,10 +2532,12 @@ class BaseAcraTranslatorTest(BaseTestCase):
             if zone_id:
                 response = stub.Decrypt(api_pb2.DecryptRequest(
                     zone_id=zone_id.encode('ascii'), acrastruct=acrastruct,
-                    client_id=client_id.encode('ascii')))
+                    client_id=client_id.encode('ascii')),
+                    timeout=SOCKET_CONNECT_TIMEOUT)
             else:
                 response = stub.Decrypt(api_pb2.DecryptRequest(
-                    client_id=client_id.encode('ascii'), acrastruct=acrastruct))
+                    client_id=client_id.encode('ascii'), acrastruct=acrastruct),
+                    timeout=SOCKET_CONNECT_TIMEOUT)
         except grpc.RpcError:
             return b''
         return response.data
@@ -2514,7 +2577,7 @@ class BaseAcraTranslatorTest(BaseTestCase):
         correct_client_id = 'keypair1'
         incorrect_client_id = 'keypair2'
         with ProcessContextManager(self.fork_translator(translator_kwargs)):
-            with ProcessContextManager(self.fork_connector(connector_port, translator_port, client_id)):
+            with ProcessContextManager(self.fork_connector_for_translator(connector_port, translator_port, client_id)):
                 response = request_func(connector_port, correct_client_id, None, acrastruct)
                 self.assertEqual(data, response)
 
@@ -2530,7 +2593,7 @@ class BaseAcraTranslatorTest(BaseTestCase):
                 self.assertNotEqual(data, response)
 
             # wait decryption error with incorrect client id
-            with ProcessContextManager(self.fork_connector(connector_port2, translator_port, incorrect_client_id)):
+            with ProcessContextManager(self.fork_connector_for_translator(connector_port2, translator_port, incorrect_client_id)):
                 response = request_func(connector_port2, incorrect_client_id, None, acrastruct)
                 self.assertNotEqual(data, response)
 
@@ -2546,9 +2609,8 @@ class BaseAcraTranslatorTest(BaseTestCase):
             'incoming_connection_http_string': connection_string ,
         }
         api_url = 'http://127.0.0.1:{}/v1/decrypt'.format(connector_port)
-        import http
         with ProcessContextManager(self.fork_translator(translator_kwargs)):
-            with ProcessContextManager(self.fork_connector(connector_port, translator_port, 'keypair1')):
+            with ProcessContextManager(self.fork_connector_for_translator(connector_port, translator_port, 'keypair1')):
                 # test incorrect HTTP method
                 response = requests.get(api_url, data=acrastruct,
                                         timeout=REQUEST_TIMEOUT)
@@ -2701,6 +2763,86 @@ class TestAcraRotate(unittest.TestCase):
                         # data should be unchanged
                         self.assertEqual(
                             decrypted_rotated, acrastructs[path].data)
+
+
+class TestPrometheusMetrics(AcraTranslatorMixin, BaseTestCase):
+    LOG_METRICS = True
+    def checkSkip(self):
+        return
+
+    def checkMetrics(self, url, labels=None):
+        """
+        check that output of prometheus exporter contains all labels
+        """
+        labels = labels if labels else []
+        response = requests.get(url)
+        self.assertEqual(response.status_code, http.HTTPStatus.OK)
+        for label in labels:
+            self.assertIn(label, response.text)
+
+    def testAcraServer(self):
+        # run some queries to set some values for counters
+        HexFormatTest.testConnectorRead(self)
+        labels = [
+            'acraserver_connections_total',
+            'acraserver_connections_processing_seconds_bucket',
+            'acraserver_response_processing_seconds_bucket',
+            'acraserver_request_processing_seconds_bucket',
+            'acra_acrastruct_decryptions_total',
+        ]
+        self.checkMetrics('http://127.0.0.1:{}/metrics'.format(
+            self.ACRASERVER_PROMETHEUS_PORT), labels)
+
+    def testAcraConnector(self):
+        # connector should has some values in counter after connections checks
+        # on setUp
+        labels = [
+            'acraconnector_connections_total',
+            'acraconnector_connections_processing_seconds_bucket',
+        ]
+        self.checkMetrics('http://127.0.0.1:{}/metrics'.format(
+            self.get_connector_prometheus_port(self.CONNECTOR_PORT_1)), labels)
+
+    def testAcraTranslator(self):
+        labels = [
+            'acratranslator_connections_total',
+            'acratranslator_connections_processing_seconds_bucket',
+            'translator_request_processing_seconds_bucket',
+        ]
+        translator_port = 3456
+        metrics_port = translator_port+1
+        connector_port = 8000
+        data = get_random_data().encode('ascii')
+        client_id = 'keypair1'
+        encryption_key = read_storage_public_key(
+            client_id, keys_dir=KEYS_FOLDER.name)
+        acrastruct = create_acrastruct(data, encryption_key)
+
+        prometheus_metrics_address = 'tcp://127.0.0.1:{}'.format(metrics_port)
+        connection_string = 'tcp://127.0.0.1:{}'.format(translator_port)
+        translator_kwargs = {
+            'incoming_connection_http_string': connection_string,
+            'prometheus_metrics_address': prometheus_metrics_address,
+        }
+        metrics_url = 'http://127.0.0.1:{}/metrics'.format(metrics_port)
+        api_url = 'http://127.0.0.1:{}/v1/decrypt'.format(connector_port)
+        with ProcessContextManager(self.fork_translator(translator_kwargs)):
+            with ProcessContextManager(self.fork_connector_for_translator(connector_port, translator_port, client_id)):
+                # test with correct acrastruct
+                response = requests.post(api_url, data=acrastruct,
+                                         timeout=REQUEST_TIMEOUT)
+                self.assertEqual(response.status_code, http.HTTPStatus.OK)
+                self.checkMetrics(metrics_url, labels)
+
+        translator_kwargs = {
+            'incoming_connection_grpc_string': connection_string,
+            'prometheus_metrics_address': prometheus_metrics_address,
+        }
+        with ProcessContextManager(self.fork_translator(translator_kwargs)):
+            with ProcessContextManager(self.fork_connector_for_translator(connector_port, translator_port, client_id)):
+                AcraTranslatorTest.grpc_decrypt_request(
+                    self, connector_port, client_id, None, acrastruct)
+                self.checkMetrics(metrics_url, labels)
 
 
 if __name__ == '__main__':

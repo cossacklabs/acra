@@ -47,7 +47,7 @@ hex   char dec  bin
 <"> decided as less possible occurrence in sequence as 8 bytes in a row
 */
 
-//var TAG_BEGIN = []byte{133, 32, 251}
+//var TagBegin = []byte{133, 32, 251}
 
 // Constants that setup which symbol would be used at start in AcraStruct to simplify recognizing from other binary data
 // Double-quote was chosen because it's printable symbol (help in debugging when we can see in console that it's start of
@@ -58,8 +58,8 @@ const (
 	TagSymbol byte = '"'
 )
 
-// TAG_BEGIN represents begin sequence of bytes for AcraStruct.
-var TAG_BEGIN = []byte{TagSymbol, TagSymbol, TagSymbol, TagSymbol, TagSymbol, TagSymbol, TagSymbol, TagSymbol}
+// TagBegin represents begin sequence of bytes for AcraStruct.
+var TagBegin = []byte{TagSymbol, TagSymbol, TagSymbol, TagSymbol, TagSymbol, TagSymbol, TagSymbol, TagSymbol}
 
 // Shows key and data length.
 const (

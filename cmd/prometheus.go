@@ -13,6 +13,7 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
+
 package cmd
 
 import (
@@ -25,19 +26,19 @@ import (
 
 // RunPrometheusHTTPHandler run in goroutine http server that process with connectionString address and export
 // prometheus metrics
-func RunPrometheusHTTPHandler(connectionString string) (net.Listener, error) {
+func RunPrometheusHTTPHandler(connectionString string) (net.Listener, *http.Server, error) {
 	listener, err := network.Listen(connectionString)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
+	server := &http.Server{ReadTimeout: network.DefaultNetworkTimeout, WriteTimeout: network.DefaultNetworkTimeout}
 	http.Handle("/metrics", promhttp.Handler())
 	go func() {
 		logrus.WithField("connection_string", connectionString).Infoln("Start prometheus http handler")
-		server := &http.Server{ReadTimeout: network.DefaultNetworkTimeout, WriteTimeout: network.DefaultNetworkTimeout}
 		err := server.Serve(listener)
 		if err != nil {
 			logrus.WithError(err).Errorln("Error from http server that process prometheus metrics")
 		}
 	}()
-	return listener, nil
+	return listener, server, nil
 }

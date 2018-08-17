@@ -101,41 +101,22 @@ const (
 
 // MySQL types
 const (
-	MYSQL_TYPE_NEWDECIMAL byte = iota + 0xf6
-	MYSQL_TYPE_ENUM
-	MYSQL_TYPE_SET
-	MYSQL_TYPE_TINY_BLOB
-	MYSQL_TYPE_MEDIUM_BLOB
-	MYSQL_TYPE_LONG_BLOB
-	MYSQL_TYPE_BLOB
-	MYSQL_TYPE_VAR_STRING
-	MYSQL_TYPE_STRING
-	MYSQL_TYPE_GEOMETRY
-)
-
-// Flags
-const (
-	NOT_NULL_FLAG       = 1
-	PRI_KEY_FLAG        = 2
-	UNIQUE_KEY_FLAG     = 4
-	BLOB_FLAG           = 16
-	UNSIGNED_FLAG       = 32
-	ZEROFILL_FLAG       = 64
-	BINARY_FLAG         = 128
-	ENUM_FLAG           = 256
-	AUTO_INCREMENT_FLAG = 512
-	TIMESTAMP_FLAG      = 1024
-	SET_FLAG            = 2048
-	NUM_FLAG            = 32768
-	PART_KEY_FLAG       = 16384
-	GROUP_FLAG          = 32768
-	UNIQUE_FLAG         = 65536
+	MysqlTypeNewDecimal byte = iota + 0xf6
+	MysqlTypeEnum
+	MysqlTypeSet
+	MysqlTypeTinyBlob
+	MysqlTypeMediumBlob
+	MysqlTypeLongBlob
+	MysqlTypeBlob
+	MysqlTypeVarString
+	MysqlTypeString
+	MysqlTypeGeometry
 )
 
 // IsBinaryColumn returns if column is binary data
 func IsBinaryColumn(value byte) bool {
-	isBlob := value >= MYSQL_TYPE_TINY_BLOB && value <= MYSQL_TYPE_BLOB
-	isString := value == MYSQL_TYPE_VAR_STRING || value == MYSQL_TYPE_STRING
+	isBlob := value >= MysqlTypeTinyBlob && value <= MysqlTypeBlob
+	isString := value == MysqlTypeVarString || value == MysqlTypeString
 	return isString || isBlob || value == MYSQL_TYPE_VARCHAR
 }
 
@@ -285,7 +266,7 @@ func (handler *MysqlHandler) ClientToDbConnector(errCh chan<- error) {
 			query := string(data)
 
 			// log query with hidden values for debug mode
-			if logging.GetLogLevel() == logging.LOG_DEBUG {
+			if logging.GetLogLevel() == logging.LogDebug {
 				_, queryWithHiddenValues, err := handlers.NormalizeAndRedactSQLQuery(query)
 				if err == handlers.ErrQuerySyntaxError {
 					clientLog.WithError(err).Infof("Parsing error on query: %s", queryWithHiddenValues)
@@ -323,8 +304,8 @@ func (handler *MysqlHandler) ClientToDbConnector(errCh chan<- error) {
 
 func (handler *MysqlHandler) isFieldToDecrypt(field *ColumnDescription) bool {
 	switch field.Type {
-	case MYSQL_TYPE_VARCHAR, MYSQL_TYPE_TINY_BLOB, MYSQL_TYPE_MEDIUM_BLOB, MYSQL_TYPE_LONG_BLOB, MYSQL_TYPE_BLOB,
-		MYSQL_TYPE_VAR_STRING, MYSQL_TYPE_STRING:
+	case MYSQL_TYPE_VARCHAR, MysqlTypeTinyBlob, MysqlTypeMediumBlob, MysqlTypeLongBlob, MysqlTypeBlob,
+		MysqlTypeVarString, MysqlTypeString:
 		return true
 	default:
 		return false
@@ -459,8 +440,8 @@ func (handler *MysqlHandler) processBinaryDataRow(rowData []byte, fields []*Colu
 			pos += 8
 			continue
 
-		case MYSQL_TYPE_DECIMAL, MYSQL_TYPE_NEWDECIMAL,
-			MYSQL_TYPE_BIT, MYSQL_TYPE_ENUM, MYSQL_TYPE_SET, MYSQL_TYPE_GEOMETRY:
+		case MYSQL_TYPE_DECIMAL, MysqlTypeNewDecimal,
+			MYSQL_TYPE_BIT, MysqlTypeEnum, MysqlTypeSet, MysqlTypeGeometry:
 			value, _, n, err = LengthEncodedString(rowData[pos:])
 			output = append(output, rowData[pos:pos+n]...)
 			pos += n

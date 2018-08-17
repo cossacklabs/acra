@@ -47,9 +47,9 @@ var (
 
 func main() {
 	keysDir := flag.String("keys_dir", keystore.DefaultKeyDirShort, "Folder from which will be loaded keys")
-	dataLength := flag.Int("data_length", poison.DEFAULT_DATA_LENGTH, fmt.Sprintf("Length of random data for data block in acrastruct. -1 is random in range 1..%v", poison.MAX_DATA_LENGTH))
+	dataLength := flag.Int("data_length", poison.UseDefaultDataLength, fmt.Sprintf("Length of random data for data block in acrastruct. -1 is random in range 1..%v", poison.DefaultDataLength))
 
-	logging.SetLogLevel(logging.LOG_DISCARD)
+	logging.SetLogLevel(logging.LogDiscard)
 
 	err := cmd.Parse(DEFAULT_CONFIG_PATH, SERVICE_NAME)
 	if err != nil {

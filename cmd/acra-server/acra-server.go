@@ -92,7 +92,7 @@ func main() {
 	apiPort := flag.Int("incoming_connection_api_port", cmd.DEFAULT_ACRASERVER_API_PORT, "Port for AcraServer for HTTP API")
 
 	keysDir := flag.String("keys_dir", keystore.DefaultKeyDirShort, "Folder from which will be loaded keys")
-	keysCacheSize := flag.Int("keystore_cache_size", keystore.INFINITE_CACHE_SIZE, "Count of keys that will be stored in in-memory LRU cache in encrypted form. 0 - no limits, -1 - turn off cache")
+	keysCacheSize := flag.Int("keystore_cache_size", keystore.InfiniteCacheSize, "Count of keys that will be stored in in-memory LRU cache in encrypted form. 0 - no limits, -1 - turn off cache")
 
 	pgHexFormat := flag.Bool("pgsql_hex_bytea", false, "Hex format for Postgresql bytea data (default)")
 	pgEscapeFormat := flag.Bool("pgsql_escape_bytea", false, "Escape format for Postgresql bytea data")
@@ -310,13 +310,18 @@ func main() {
 	}
 
 	if *prometheusAddress != "" {
-		prometheusListener, err := cmd.RunPrometheusHTTPHandler(*prometheusAddress)
+		registerMetrics()
+		_, prometheusHTTPServer, err := cmd.RunPrometheusHTTPHandler(*prometheusAddress)
 		if err != nil {
 			panic(err)
 		}
 		log.Infof("Configured to send metrics and stats to `prometheus_metrics_address`")
-		sigHandlerSIGHUP.AddListener(prometheusListener)
-		sigHandlerSIGTERM.AddListener(prometheusListener)
+		stopPrometheusServer := func() {
+			log.Infoln("Stop prometheus http exporter")
+			prometheusHTTPServer.Close()
+		}
+		sigHandlerSIGHUP.AddCallback(stopPrometheusServer)
+		sigHandlerSIGTERM.AddCallback(stopPrometheusServer)
 	}
 
 	go sigHandlerSIGTERM.Register()
@@ -392,13 +397,13 @@ func main() {
 
 	if *debug {
 		log.Infof("Enabling DEBUG log level")
-		logging.SetLogLevel(logging.LOG_DEBUG)
+		logging.SetLogLevel(logging.LogDebug)
 	} else if *verbose {
 		log.Infof("Enabling VERBOSE log level")
-		logging.SetLogLevel(logging.LOG_VERBOSE)
+		logging.SetLogLevel(logging.LogVerbose)
 	} else {
 		log.Infof("Disabling future logs... Set -v -d to see logs")
-		logging.SetLogLevel(logging.LOG_DISCARD)
+		logging.SetLogLevel(logging.LogDiscard)
 	}
 
 	if os.Getenv(GRACEFUL_ENV) == "true" {

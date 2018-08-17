@@ -22,11 +22,11 @@ def decrypt_acrastruct(data, private_key, client_id=None, zone_id=None):
     encrypted_symmetric = data[8+45:8+45+84]
     smessage_decryptor = smessage.SMessage(private_key, public_key)
     symmetric = smessage_decryptor.unwrap(encrypted_symmetric)
-    data = data[8+45+84+8:]
+    encrypted_data = data[8+45+84+8:]
     if zone_id:
-        return scell.SCellSeal(symmetric).decrypt(data, zone_id)
+        return scell.SCellSeal(symmetric).decrypt(encrypted_data, zone_id)
     else:
-        return scell.SCellSeal(symmetric).decrypt(data)
+        return scell.SCellSeal(symmetric).decrypt(encrypted_data)
 
 
 def decrypt_private_key(private_key, key_id, master_key):

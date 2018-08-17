@@ -31,8 +31,8 @@ const (
 	ClientProtocol41 = 0x00000200
 	// SslRequest - https://dev.mysql.com/doc/internals/en/capability-flags.html#flag-CLIENT_SSL
 	SslRequest = 0x00000800
-	// ClientDeprecateEof - https://dev.mysql.com/doc/internals/en/capability-flags.html#flag-CLIENT_DEPRECATE_EOF - 0x1000000
-	ClientDeprecateEof = 0x01000000
+	// ClientDeprecateEOF - https://dev.mysql.com/doc/internals/en/capability-flags.html#flag-CLIENT_DEPRECATE_EOF - 0x1000000
+	ClientDeprecateEOF = 0x01000000
 )
 
 // MySQL packets significant bytes.
@@ -47,8 +47,8 @@ const (
 const (
 	// PacketHeaderSize https://dev.mysql.com/doc/internals/en/mysql-packet.html#idm140406396409840
 	PacketHeaderSize = 4
-	// SequenceIdIndex last byte of header https://dev.mysql.com/doc/internals/en/mysql-packet.html#idm140406396409840
-	SequenceIdIndex = 3
+	// SequenceIDIndex last byte of header https://dev.mysql.com/doc/internals/en/mysql-packet.html#idm140406396409840
+	SequenceIDIndex = 3
 )
 
 // ErrPacketHasNotExtendedCapabilities if packet has capability flags
@@ -89,7 +89,7 @@ func (packet *MysqlPacket) GetPacketPayloadLength() int {
 
 // GetSequenceNumber returned as byte
 func (packet *MysqlPacket) GetSequenceNumber() byte {
-	return packet.header[SequenceIdIndex]
+	return packet.header[SequenceIDIndex]
 }
 
 // GetData returns packet payload
@@ -212,7 +212,7 @@ func (packet *MysqlPacket) IsSSLRequest() bool {
 // https://dev.mysql.com/doc/internals/en/capability-flags.html#flag-CLIENT_DEPRECATE_EOF
 func (packet *MysqlPacket) IsClientDeprecateEOF() bool {
 	capabilities := packet.getClientCapabilities()
-	return (capabilities & ClientDeprecateEof) > 0
+	return (capabilities & ClientDeprecateEOF) > 0
 }
 
 // ReadPacket from connection and return MysqlPacket struct with data or error

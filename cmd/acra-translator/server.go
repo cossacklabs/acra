@@ -231,6 +231,8 @@ func (server *ReaderServer) Start(parentContext context.Context) {
 					Errorln("Can't create secure session listener")
 				return
 			}
+			grpcListener := WrapListenerWithMetrics(secureSessionListener)
+
 			grpcServer := grpc.NewServer(grpc.ConnectionTimeout(network.DefaultNetworkTimeout))
 			service, err := grpc_api.NewDecryptGRPCService(decryptorData)
 			if err != nil {
@@ -242,7 +244,7 @@ func (server *ReaderServer) Start(parentContext context.Context) {
 			server.grpcServer = grpcServer
 			// Register reflection service on gRPC server.
 			reflection.Register(grpcServer)
-			if err := grpcServer.Serve(secureSessionListener); err != nil {
+			if err := grpcServer.Serve(grpcListener); err != nil {
 				grpcLogger.Errorf("failed to serve: %v", err)
 				server.Stop()
 				os.Exit(1)
