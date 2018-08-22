@@ -1,4 +1,4 @@
-package acrawriter;
+package com.cossacklabs.acrawriter;
 
 import com.cossacklabs.themis.AsymmetricKey;
 import com.cossacklabs.themis.InvalidArgumentException;
@@ -82,7 +82,7 @@ public class AcraWriter {
         // convert encrypted data length to little endian
         ByteBuffer bb = ByteBuffer.allocate(8); // 8 bytes, uint64
         bb.order(ByteOrder.LITTLE_ENDIAN);
-        bb.putInt(encryptedData.length);
+        bb.putLong(encryptedData.length);
         byte[] encryptedDataLengthArray = bb.array();
 
         // zeroing symm key

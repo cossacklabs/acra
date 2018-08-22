@@ -5,8 +5,8 @@ import android.os.Bundle;
 import android.support.v7.app.AppCompatActivity;
 import android.util.Base64;
 
-import acrawriter.AcraStruct;
-import acrawriter.AcraWriter;
+import com.cossacklabs.acrawriter.AcraStruct;
+import com.cossacklabs.acrawriter.AcraWriter;
 import com.cossacklabs.themis.InvalidArgumentException;
 import com.cossacklabs.themis.KeyGenerationException;
 import com.cossacklabs.themis.NullArgumentException;

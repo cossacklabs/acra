@@ -1,4 +1,4 @@
-package acrawriter;
+package com.cossacklabs.acrawriter;
 
 
 /**
