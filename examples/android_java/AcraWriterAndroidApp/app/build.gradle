@@ -21,8 +21,9 @@ android {
     }
 
     sourceSets {
-        main.java.srcDirs += 'libs/java'
-        androidTest.java.srcDirs += 'libs/java'
+        // acra/wrappers/java
+        main.java.srcDirs += '../../../../wrappers/java'
+        androidTest.java.srcDirs += '../../../../wrappers/java'
     }
 }
 
