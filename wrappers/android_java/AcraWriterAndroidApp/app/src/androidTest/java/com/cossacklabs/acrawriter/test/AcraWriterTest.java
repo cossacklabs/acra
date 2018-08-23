@@ -1,5 +1,6 @@
-package com.cossacklabs.acrawriter;
+package com.cossacklabs.acrawriter.test;
 
+import com.cossacklabs.acrawriter.*;
 import com.cossacklabs.themis.AsymmetricKey;
 import com.cossacklabs.themis.InvalidArgumentException;
 import com.cossacklabs.themis.KeyGenerationException;
@@ -21,7 +22,6 @@ import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.util.Arrays;
 
-import static java.lang.System.in;
 import static junit.framework.Assert.assertNotNull;
 import static junit.framework.Assert.assertTrue;
 

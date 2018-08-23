@@ -4,7 +4,7 @@ android {
     compileSdkVersion 26
     buildToolsVersion '26.0.2'
     defaultConfig {
-        applicationId "com.cossacklabs.acra"
+        applicationId "com.cossacklabs.acrawriter_example"
         minSdkVersion 25
         targetSdkVersion 26
         versionCode 1
@@ -18,6 +18,11 @@ android {
         }
     }
     productFlavors {
+    }
+
+    sourceSets {
+        main.java.srcDirs += 'libs/java'
+        androidTest.java.srcDirs += 'libs/java'
     }
 }
 
