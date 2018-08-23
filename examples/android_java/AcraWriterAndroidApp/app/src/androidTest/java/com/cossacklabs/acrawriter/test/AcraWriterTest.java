@@ -21,6 +21,7 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.util.Arrays;
+import java.util.Random;
 
 import static junit.framework.Assert.assertNotNull;
 import static junit.framework.Assert.assertTrue;
@@ -88,12 +89,27 @@ public class AcraWriterTest {
 
     @Test
     public void testCreateAcraStructFormat() {
+        createAndTestAcraStructWithPayloadSize(10); // 10 bytes
+        createAndTestAcraStructWithPayloadSize(100); // 100 bytes
+        createAndTestAcraStructWithPayloadSize(1024); // 1 Kb
+        createAndTestAcraStructWithPayloadSize(100 * 1024); // 100 Kb
+        createAndTestAcraStructWithPayloadSize(1024 * 1024); // 1 Mb
+        createAndTestAcraStructWithPayloadSize(10 * 1024 * 1024); // 10 Mb
+//        createAndTestAcraStructWithPayloadSize(100 * 1024 * 1024); // 100 Mb
+//        createAndTestAcraStructWithPayloadSize(1024 * 1024 * 1024); // 1 Gb
+//        createAndTestAcraStructWithPayloadSize(2 * 1024 * 1024 * 1024); // 2 Gb
+//        createAndTestAcraStructWithPayloadSize(4 * 1024 * 1024 * 1024); // 4 Gb
+    }
+
+    private void createAndTestAcraStructWithPayloadSize(int payloadSize) {
         AcraWriter aw = new AcraWriter();
         assertNotNull(aw);
 
         try {
+            byte[] message = new byte[payloadSize];
+            new Random().nextBytes(message);
+
             byte[] zoneID = "some zone id".getBytes();
-            byte[] message = "message to encrypt".getBytes();
             Keypair keypair = KeypairGenerator.generateKeypair(AsymmetricKey.KEYTYPE_EC);
 
             AcraStruct acraStruct = aw.createAcraStruct(message, keypair.getPublicKey(), zoneID);
