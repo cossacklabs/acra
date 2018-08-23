@@ -38,6 +38,8 @@ public class MainActivityAcraStructExample extends AppCompatActivity {
         }
     }
 
+    // Generate storage keys, AcraWriter is using <client_id>_storage.pub public key
+    // https://github.com/cossacklabs/acra/wiki/AcraConnector-and-AcraWriter#client-side-with-zones
     void generateAndSendAcraStruct() throws SecureCellException, NullArgumentException, InvalidArgumentException {
         String message = "hello message";
 
@@ -47,8 +49,10 @@ public class MainActivityAcraStructExample extends AppCompatActivity {
         String URL = "http://10.0.2.2:9494/v1/decrypt";
 
         try {
-            AcraStruct acraStruct = (new AcraWriter()).createAcraStruct(message.getBytes(), publicKey, null);
+            AcraWriter aw = new AcraWriter();
+            AcraStruct acraStruct = aw.createAcraStruct(message.getBytes(), publicKey, null);
 
+            // sending acrastructs will work in AcraConnector and AcraTranslator are up and running, and listening on localhost
             AsyncHttpPost asyncHttpPost = new AsyncHttpPost(acraStruct.toByteArray());
             asyncHttpPost.execute(URL);
 
@@ -57,6 +61,8 @@ public class MainActivityAcraStructExample extends AppCompatActivity {
         }
     }
 
+    // Generate Zone keys, AcraWriter is using <zone_id>_zone.pub public key
+    // https://github.com/cossacklabs/acra/wiki/AcraConnector-and-AcraWriter#client-side-with-zones
     void generateAndSendAcraStructWithZone() throws SecureCellException, NullArgumentException, InvalidArgumentException {
         String message = "zone hello message";
         String zoneID = "DDDDDDDDbBnbDdyQhsIKDHmg";
@@ -68,8 +74,10 @@ public class MainActivityAcraStructExample extends AppCompatActivity {
 
 
         try {
-            AcraStruct acraStruct = (new AcraWriter()).createAcraStruct(message.getBytes(), publicKey, zoneID.getBytes());
+            AcraWriter aw = new AcraWriter();
+            AcraStruct acraStruct = aw.createAcraStruct(message.getBytes(), publicKey, zoneID.getBytes());
 
+            // sending acrastructs will work in AcraConnector and AcraTranslator are up and running, and listening on localhost
             AsyncHttpPost asyncHttpPost = new AsyncHttpPost(acraStruct.toByteArray());
             asyncHttpPost.execute(URL);
 
