@@ -5,8 +5,8 @@ android {
     buildToolsVersion '26.0.2'
     defaultConfig {
         applicationId "com.cossacklabs.acrawriter_example"
-        minSdkVersion 25
-        targetSdkVersion 26
+        minSdkVersion 16
+        targetSdkVersion 16
         versionCode 1
         versionName "1.0"
         testInstrumentationRunner "android.support.test.runner.AndroidJUnitRunner"
