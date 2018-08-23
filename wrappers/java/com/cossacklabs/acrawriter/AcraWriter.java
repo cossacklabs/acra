@@ -34,6 +34,8 @@ import java.util.Arrays;
 public class AcraWriter {
 
     private static byte kSymmetricKeySize = 32;
+
+    // AcraStruct header format has eight ' symbols, 34 is ascii code of '
     private static byte kAcraStructHeaderByte = 34;
 
     /**
@@ -80,6 +82,7 @@ public class AcraWriter {
         byte[] encryptedData = encryptedPayload.getProtectedData();
 
         // convert encrypted data length to little endian
+
         ByteBuffer bb = ByteBuffer.allocate(8); // 8 bytes, uint64
         bb.order(ByteOrder.LITTLE_ENDIAN);
         bb.putLong(encryptedData.length);
@@ -89,17 +92,21 @@ public class AcraWriter {
         Arrays.fill(randomSymmetricKey, (byte)0);
 
         // 5. pack acrastruct
+        byte[] throwAwayPublicKey = throwAwayKeypair.getPublicKey().toByteArray();
         byte[] header = new byte[]{kAcraStructHeaderByte, kAcraStructHeaderByte, kAcraStructHeaderByte, kAcraStructHeaderByte, kAcraStructHeaderByte, kAcraStructHeaderByte, kAcraStructHeaderByte, kAcraStructHeaderByte};
-        ByteArrayOutputStream output = new ByteArrayOutputStream();
+        ByteArrayOutputStream output = new ByteArrayOutputStream(header.length + throwAwayPublicKey.length + wrappedSymmetricKey.length + encryptedDataLengthArray.length + encryptedData.length);
 
         try {
             output.write(header);
-            output.write(throwAwayKeypair.getPublicKey().toByteArray());
+            output.write(throwAwayPublicKey);
             output.write(wrappedSymmetricKey);
             output.write(encryptedDataLengthArray);
             output.write(encryptedData);
 
-            return new AcraStruct(output.toByteArray());
+            AcraStruct as = new AcraStruct(output.toByteArray());
+            output.flush();
+
+            return as;
 
         } catch (IOException e) {
 
