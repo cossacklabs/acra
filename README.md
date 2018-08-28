@@ -19,8 +19,8 @@
 <br>
 
 
-|[Documentation](https://github.com/cossacklabs/acra/wiki) | [Python sample project](https://github.com/cossacklabs/djangoproject.com) | [Ruby sample project](https://github.com/cossacklabs/rubygems.org) | [Examples](https://github.com/cossacklabs/acra/tree/master/examples) |
-| ---- | ---- | ---- | --- |
+| [Documentation](https://github.com/cossacklabs/acra/wiki) | [Acra Live Demo](https://www.cossacklabs.com/acra/#acralivedemo) | [Python sample project](https://github.com/cossacklabs/djangoproject.com) | [Ruby sample project](https://github.com/cossacklabs/rubygems.org) | [Examples](https://github.com/cossacklabs/acra/tree/master/examples) |
+| ---- | ---- | ---- | --- | --- |
 
 ## What is Acra
 Acra - database encryption proxy for data-driven apps.
@@ -94,6 +94,10 @@ Supported databases:
 | MySQL | 5.7+ |
 | PostgreSQL | 9.4+ |
 
+## Acra Live Demo
+
+| 💻 [Request a free Acra Live Demo](https://www.cossacklabs.com/acra/#acralivedemo) 💻 |
+|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 
 ## How does Acra work?
 
