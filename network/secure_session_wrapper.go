@@ -21,6 +21,7 @@ import (
 	"net"
 	"sync"
 
+	"errors"
 	"github.com/cossacklabs/acra/keystore"
 	"github.com/cossacklabs/acra/logging"
 	"github.com/cossacklabs/acra/utils"
@@ -173,6 +174,13 @@ func (err *ConnectionWrapError) Temporary() bool {
 // SecureSessionEstablishingTimeout timeout for secure session handshake that should be enough
 const SecureSessionEstablishingTimeout = time.Second * 10
 
+// MaxClientIDDataLength max data length of first packet that send from client. 1 kb was chosen manually and that should
+// be enough
+const MaxClientIDDataLength = 1024 // 1kb
+
+// ErrClientIDPacketToBig show that packet with ClientID too big
+var ErrClientIDPacketToBig = errors.New("packet with ClientID too big")
+
 // SecureSessionConnectionWrapper adds SecureSession encryption above connection
 type SecureSessionConnectionWrapper struct {
 	keystore         keystore.SecureSessionKeyStore
@@ -207,7 +215,15 @@ func (wrapper *SecureSessionConnectionWrapper) wrap(id []byte, conn net.Conn, is
 	}
 	var clientID []byte
 	if isServer {
-		clientID, err = utils.ReadData(conn)
+		lengthBuf, length, err := utils.ReadDataLength(conn)
+		if err != nil {
+			return conn, lengthBuf, err
+		}
+		if length > MaxClientIDDataLength {
+			return conn, lengthBuf, ErrClientIDPacketToBig
+		}
+		clientID = make([]byte, length)
+		_, err = io.ReadFull(conn, clientID)
 		if err != nil {
 			return conn, nil, err
 		}

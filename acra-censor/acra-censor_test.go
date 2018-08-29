@@ -245,6 +245,7 @@ func testWhitelistColumnsPattern(t *testing.T) {
 	acceptableQueries := []string{
 		"SELECT A, B",
 		"SELECT 1, GETDATE()",
+		"SELECT 1, (select a from t inner join b on b.id=t.id where b=1)",
 	}
 	blockableQueries := []string{
 		"SELECT A",
@@ -458,6 +459,86 @@ func testWhitelistValuePattern(t *testing.T) {
 		"SELECT a, b FROM t WHERE ID = Date()",
 		// with ALL (*)
 		"SELECT * FROM t WHERE ID = NULL",
+	}
+
+	for _, query := range acceptableQueries {
+		err = censor.HandleQuery(query)
+		if err != nil {
+			t.Fatal(err, "Whitelist pattern blocked query. \nPattern:", pattern, "\nQuery:", query)
+		}
+	}
+	for _, query := range blockableQueries {
+		err = censor.HandleQuery(query)
+		if err != handlers.ErrWhitelistPatternMismatch {
+			t.Fatal(err, "Whitelist pattern passed query. \nPattern:", pattern, "\nQuery:", query)
+		}
+	}
+
+	// test delete query
+	whitelist.Reset()
+	pattern = "delete from t where ID = %%VALUE%%"
+	err = whitelist.AddPatterns([]string{pattern})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	acceptableQueries = []string{
+		// string
+		"delete FROM t WHERE ID = 'someValue_testValue_1234567890'",
+		// int
+		"delete FROM t WHERE ID = 1",
+		// null
+		"delete FROM t WHERE ID = NULL",
+		// boolean
+		"delete FROM t WHERE ID = TRUE",
+		// subquery
+		"delete FROM t WHERE ID = (select 1)",
+		// float
+		"delete FROM t WHERE ID = 1.0",
+		// function
+		"delete FROM t WHERE ID = Date()",
+		// with ALL (*)
+		"delete FROM t WHERE ID = NULL",
+	}
+
+	for _, query := range acceptableQueries {
+		err = censor.HandleQuery(query)
+		if err != nil {
+			t.Fatal(err, "Whitelist pattern blocked query. \nPattern:", pattern, "\nQuery:", query)
+		}
+	}
+	for _, query := range blockableQueries {
+		err = censor.HandleQuery(query)
+		if err != handlers.ErrWhitelistPatternMismatch {
+			t.Fatal(err, "Whitelist pattern passed query. \nPattern:", pattern, "\nQuery:", query)
+		}
+	}
+
+	// test update query
+	whitelist.Reset()
+	pattern = "update t set a=1 where ID = %%VALUE%%"
+	err = whitelist.AddPatterns([]string{pattern})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	acceptableQueries = []string{
+		// string
+		"update t set a=1 WHERE ID = 'someValue_testValue_1234567890'",
+		// int
+		"update t set a=1 WHERE ID = 1",
+		// null
+		"update t set a=1 WHERE ID = NULL",
+		// boolean
+		"update t set a=1 WHERE ID = TRUE",
+		// subquery
+		"update t set a=1 WHERE ID = (select 1)",
+		// float
+		"update t set a=1 WHERE ID = 1.0",
+		// function
+		"update t set a=1 WHERE ID = Date()",
+		// with ALL (*)
+		"update t set a=1 WHERE ID = NULL",
 	}
 
 	for _, query := range acceptableQueries {

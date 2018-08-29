@@ -73,16 +73,25 @@ func SendData(data []byte, conn io.Writer) error {
 	return nil
 }
 
-// ReadData reads length of data block, then reads data content
-// returns data content
-func ReadData(reader io.Reader) ([]byte, error) {
+// ReadDataLength return read data from reader, parsed data length or err
+func ReadDataLength(reader io.Reader) ([]byte, int, error) {
 	var length [4]byte
 	_, err := io.ReadFull(reader, length[:])
 	if err != nil {
-		return nil, err
+		return nil, 0, err
 	}
 	dataSize := int(binary.LittleEndian.Uint32(length[:]))
-	buf := make([]byte, dataSize)
+	return length[:], dataSize, nil
+}
+
+// ReadData reads length of data block, then reads data content
+// returns data content
+func ReadData(reader io.Reader) ([]byte, error) {
+	lengthBuf, length, err := ReadDataLength(reader)
+	if err != nil {
+		return lengthBuf, err
+	}
+	buf := make([]byte, length)
 	_, err = io.ReadFull(reader, buf)
 	if err != nil {
 		return nil, err
