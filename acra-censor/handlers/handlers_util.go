@@ -260,25 +260,20 @@ func handleSelectWherePattern(queryNodes, patternNodes []sqlparser.SQLNode) bool
 
 // handle SELECT a, b FROM t1 WHERE userID=%%VALUE%% pattern
 func handleValuePattern(queryNodes, patternNodes []sqlparser.SQLNode) bool {
-	querySelect, ok := queryNodes[0].(*sqlparser.Select)
-	if !ok {
+	// collect only SelectExpr, From, Where, OrderBy ... nodes without their children
+	queryTopNodes, err := getTopNodes(queryNodes[0])
+	if err != nil {
 		return false
 	}
-	patternSelect, ok := patternNodes[0].(*sqlparser.Select)
-	if !ok {
+	patternTopNodes, err := getTopNodes(patternNodes[0])
+	if err != nil {
 		return false
+	}
+	hasStar := false
+	if selectExpr, ok := patternNodes[0].(*sqlparser.Select); ok {
+		hasStar = starFound(selectExpr.SelectExprs)
 	}
 
-	// collect only SelectExpr, From, Where, OrderBy ... nodes without their children
-	queryTopNodes, err := getTopNodes(querySelect)
-	if err != nil {
-		return false
-	}
-	patternTopNodes, err := getTopNodes(patternSelect)
-	if err != nil {
-		return false
-	}
-	hasStar := starFound(patternSelect.SelectExprs)
 	for i := 0; i < len(queryTopNodes); i++ {
 		patternNode := patternTopNodes[i]
 		queryNode := queryTopNodes[i]
