@@ -153,6 +153,12 @@ type MysqlHandler struct {
 
 // NewMysqlHandler returns new MysqlHandler
 func NewMysqlHandler(clientID []byte, decryptor base.Decryptor, dbConnection, clientConnection net.Conn, tlsConfig *tls.Config, censor acracensor.AcraCensorInterface) (*MysqlHandler, error) {
+	var newTLSConfig *tls.Config
+	if tlsConfig != nil {
+		// use less secure protocol versions because some drivers and db images doesn't support secure and modern options
+		newTLSConfig = tlsConfig.Clone()
+		network.SetMySQLCompatibleTLSSettings(newTLSConfig)
+	}
 	return &MysqlHandler{
 		isTLSHandshake:         false,
 		dbTLSHandshakeFinished: make(chan bool),
@@ -162,7 +168,7 @@ func NewMysqlHandler(clientID []byte, decryptor base.Decryptor, dbConnection, cl
 		acracensor:             censor,
 		clientConnection:       clientConnection,
 		dbConnection:           dbConnection,
-		tlsConfig:              tlsConfig,
+		tlsConfig:              newTLSConfig,
 		logger:                 logrus.WithField("client_id", string(clientID))}, nil
 }
 
