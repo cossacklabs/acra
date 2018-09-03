@@ -24,6 +24,7 @@ import (
 	"time"
 
 	"github.com/cossacklabs/themis/gothemis/keys"
+	"strings"
 )
 
 var TEST_CLIENT_ID = []byte("test client id")
@@ -206,7 +207,12 @@ E0B2xKAzGuMumud6IbYpoIk3uj7bjfeejSyZPgxIOkEPAjEA+adYfhHGieUnnC26
 Mmsz2rgkLFqKpYS30+CYbzwIXMfHImhBX2kO9HkodBWvNApu
 -----END CERTIFICATE-----
 `)
-	clientWrapper, err := NewTLSConnectionWrapper(nil, &tls.Config{InsecureSkipVerify: true})
+	clientConfig, err := NewTLSConfig("", "", "", "", tls.NoClientCert)
+	if err != nil {
+		t.Fatal(err)
+	}
+	clientConfig.InsecureSkipVerify = true
+	clientWrapper, err := NewTLSConnectionWrapper(nil, clientConfig)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -216,9 +222,159 @@ Mmsz2rgkLFqKpYS30+CYbzwIXMfHImhBX2kO9HkodBWvNApu
 		t.Fatal(err)
 		return
 	}
-	serverWrapper, err := NewTLSConnectionWrapper(TEST_CLIENT_ID, &tls.Config{Certificates: []tls.Certificate{cer}})
+
+	serverConfig, err := NewTLSConfig("", "", "", "", tls.NoClientCert)
+	if err != nil {
+		t.Fatal(err)
+	}
+	serverConfig.Certificates = []tls.Certificate{cer}
+	serverWrapper, err := NewTLSConnectionWrapper(TEST_CLIENT_ID, serverConfig)
 	if err != nil {
 		t.Fatal(err)
 	}
 	testWrapper(clientWrapper, serverWrapper, t)
+
+	testTLSConfig(serverWrapper, t)
+}
+
+func getConnectionPair(address string, listener net.Listener, t *testing.T) (net.Conn, net.Conn) {
+	serverConnCh := make(chan net.Conn)
+	clientConnCh := make(chan net.Conn)
+	go func() {
+		conn, err := listener.Accept()
+		if err != nil {
+			t.Fatal(err)
+		}
+		serverConnCh <- conn
+	}()
+	go func() {
+		conn, err := net.Dial("tcp", address)
+		if err != nil {
+			t.Fatal(err)
+		}
+		clientConnCh <- conn
+	}()
+	// wait when client connect to server
+	var clientConn, serverConn net.Conn
+	for i := 0; i < 2; i++ {
+		select {
+		case clientConn = <-clientConnCh:
+			continue
+		case serverConn = <-serverConnCh:
+			continue
+		case <-time.NewTimer(time.Second / 2).C:
+			t.Fatal("Timeout on connection client with server")
+		}
+	}
+	return clientConn, serverConn
+}
+
+func testTLSConfig(serverWrapper *TLSConnectionWrapper, t *testing.T) {
+	const address = "127.0.0.1:4567"
+	listener, err := net.Listen("tcp", address)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	clientConn, serverConn := getConnectionPair(address, listener, t)
+
+	wrapErrorCh := make(chan bool)
+	// check not allowed cipher suit
+	config, err := NewTLSConfig("", "", "", "", tls.NoClientCert)
+	if err != nil {
+		t.Fatal(err)
+	}
+	config.InsecureSkipVerify = true
+	config.CipherSuites = []uint16{tls.TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA256}
+	clientWrapper, err := NewTLSConnectionWrapper([]byte("some client"), config)
+	if err != nil {
+		t.Fatal(err)
+	}
+	go func() {
+		_, _, err := serverWrapper.WrapServer(serverConn)
+		if err != nil {
+			if err.Error() != "tls: no cipher suite supported by both client and server" {
+				t.Fatal("Expected error with unsupported ciphersuits")
+			}
+			wrapErrorCh <- true
+			return
+		}
+		t.Fatal("expected error")
+	}()
+	go func() {
+		_, err := clientWrapper.WrapClient([]byte("some client"), clientConn)
+		if err != nil {
+			if err.Error() != "remote error: tls: handshake failure" {
+				t.Fatal("Expected with handshake failure")
+			}
+			wrapErrorCh <- true
+			return
+		}
+		t.Fatal("expected error")
+	}()
+	for i := 0; i < 2; i++ {
+		select {
+		case <-wrapErrorCh:
+			continue
+		case <-time.NewTimer(time.Second / 2).C:
+			t.Fatal("Timeout on wrap with incorrect cipher suits")
+		}
+	}
+	if err := clientConn.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if err := serverConn.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	// check not allowed protocol version
+	clientConn, serverConn = getConnectionPair(address, listener, t)
+	config, err = NewTLSConfig("", "", "", "", tls.NoClientCert)
+	if err != nil {
+		t.Fatal(err)
+	}
+	config.InsecureSkipVerify = true
+	config.MinVersion = tls.VersionSSL30
+	config.MaxVersion = tls.VersionTLS11
+	clientWrapper, err = NewTLSConnectionWrapper([]byte("some client"), config)
+	if err != nil {
+		t.Fatal(err)
+	}
+	go func() {
+		_, _, err := serverWrapper.WrapServer(serverConn)
+		if err != nil {
+			// error has concatenated protocol version at end of string and we doesn't need to compare as equality
+			if !strings.HasPrefix(err.Error(), "tls: client offered an unsupported, maximum protocol version of") {
+				t.Fatal("Expected incorrect protocol version error")
+			}
+			wrapErrorCh <- true
+			return
+		}
+		t.Fatal("expected error")
+	}()
+	go func() {
+		_, err := clientWrapper.WrapClient([]byte("some client"), clientConn)
+		if err != nil {
+			if err.Error() != "remote error: tls: protocol version not supported" {
+				t.Fatal("Expected incorrect protocol version error")
+			}
+			wrapErrorCh <- true
+			return
+		}
+		t.Fatal("expected error")
+	}()
+	for i := 0; i < 2; i++ {
+		select {
+		case <-wrapErrorCh:
+			continue
+		case <-time.NewTimer(time.Second / 2).C:
+			t.Fatal("Timeout on wrap with unsupported protocol version")
+		}
+	}
+	if err := clientConn.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if err := serverConn.Close(); err != nil {
+		t.Fatal(err)
+	}
 }
