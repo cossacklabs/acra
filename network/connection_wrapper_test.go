@@ -27,7 +27,7 @@ import (
 	"strings"
 )
 
-var TestClientId = []byte("test client id")
+var TestClientID = []byte("test client id")
 
 func wait(ch chan bool, t *testing.T) {
 	select {
@@ -71,7 +71,7 @@ func testWrapper(clientWrapper, serverWrapper ConnectionWrapper, t *testing.T) {
 			t.Fatal(err)
 			return
 		}
-		if !bytes.Equal(clientID, TestClientId) {
+		if !bytes.Equal(clientID, TestClientID) {
 			t.Fatal("client id incorrect")
 		}
 		for i := 0; i < iterations; i++ {
@@ -108,7 +108,7 @@ func testWrapper(clientWrapper, serverWrapper ConnectionWrapper, t *testing.T) {
 	}
 	defer connection.Close()
 	t.Log("wrap client")
-	connection, err = clientWrapper.WrapClient(TestClientId, connection)
+	connection, err = clientWrapper.WrapClient(TestClientID, connection)
 	if err != nil {
 		connection.Close()
 		t.Fatal(err)
@@ -140,7 +140,7 @@ func testWrapper(clientWrapper, serverWrapper ConnectionWrapper, t *testing.T) {
 }
 
 func TestRawConnectionWrapper(t *testing.T) {
-	testWrapper(&RawConnectionWrapper{}, &RawConnectionWrapper{ClientID: TestClientId}, t)
+	testWrapper(&RawConnectionWrapper{}, &RawConnectionWrapper{ClientID: TestClientID}, t)
 }
 
 type SimpleKeyStore struct {
@@ -228,7 +228,7 @@ Mmsz2rgkLFqKpYS30+CYbzwIXMfHImhBX2kO9HkodBWvNApu
 		t.Fatal(err)
 	}
 	serverConfig.Certificates = []tls.Certificate{cer}
-	serverWrapper, err := NewTLSConnectionWrapper(TEST_CLIENT_ID, serverConfig)
+	serverWrapper, err := NewTLSConnectionWrapper(TestClientID, serverConfig)
 	if err != nil {
 		t.Fatal(err)
 	}
