@@ -73,10 +73,6 @@ func main() {
 	connectionString := flag.String("db_connection_string", "", "Connection string to db")
 	useMysql := flag.Bool("mysql_enable", false, "Handle MySQL connections")
 	usePostgresql := flag.Bool("postgresql_enable", false, "Handle Postgresql connections")
-	// --sql_select=select id, zone_id, data from test_example_with_zone;
-	// --sql_update="update test set data=? where id=?;"
-	// --db_connection_string="postgres://test:test@127.0.0.1:5432/test"
-	// --db_connection_string="postgres://test:test@127.0.0.1:5432/test" --sql_update="update test_example_with_zone set data=? where id=?;" --sql_select=select id, zone_id, data from test_example_with_zone;
 	logging.SetLogLevel(logging.LogVerbose)
 
 	err := cmd.Parse(DefaultConfigPath, ServiceName)
