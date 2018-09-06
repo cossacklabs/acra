@@ -19,14 +19,23 @@ package network
 import (
 	"crypto/tls"
 	"crypto/x509"
-	"io/ioutil"
-	"net"
-
 	"errors"
 	"github.com/cossacklabs/acra/logging"
 	log "github.com/sirupsen/logrus"
+	"io/ioutil"
+	"net"
 	"time"
 )
+
+// allowedCipherSuits that set in default tls config
+var allowedCipherSuits = []uint16{
+	tls.TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256,
+	tls.TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384,
+	tls.TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305,
+	tls.TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256,
+	tls.TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384,
+	tls.TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305,
+}
 
 // TLSConnectionWrapper for wrapping connection into TLS encryption
 type TLSConnectionWrapper struct {
@@ -107,5 +116,38 @@ func NewTLSConfig(serverName string, caPath, keyPath, crtPath string, authType t
 		ClientCAs:    roots,
 		Certificates: certificates,
 		ServerName:   serverName,
-		ClientAuth:   authType}, nil
+		ClientAuth:   authType,
+		MinVersion:   tls.VersionTLS12,
+		CipherSuites: allowedCipherSuits,
+	}, nil
+}
+
+// SetMySQLCompatibleTLSSettings set minimal protocol version to TLSv1.1 and extend list of allowed cipher suits
+func SetMySQLCompatibleTLSSettings(config *tls.Config) {
+	log.Infoln("Use less secure TLS options to connect to MySQL")
+	config.MinVersion = tls.VersionTLS10
+	// took from golang sources crypto/tls/cipher_suites.go:71 and order with most secure top, less - bottom,
+	// prefer ecdsa to rsa
+	config.CipherSuites = []uint16{
+		tls.TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256,
+		tls.TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384,
+		tls.TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305,
+		tls.TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256,
+		tls.TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384,
+		tls.TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305,
+
+		tls.TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA256,
+		tls.TLS_ECDHE_ECDSA_WITH_AES_256_CBC_SHA,
+		tls.TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA,
+
+		tls.TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA256,
+		tls.TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA,
+		tls.TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA,
+
+		tls.TLS_RSA_WITH_AES_256_GCM_SHA384,
+		tls.TLS_RSA_WITH_AES_128_GCM_SHA256,
+		tls.TLS_RSA_WITH_AES_128_CBC_SHA256,
+		tls.TLS_RSA_WITH_AES_256_CBC_SHA,
+		tls.TLS_RSA_WITH_AES_128_CBC_SHA,
+	}
 }
