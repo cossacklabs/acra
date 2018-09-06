@@ -32,12 +32,12 @@ import (
 )
 
 const (
-	// SESSION_DATA_LIMIT maximum block size
-	SESSION_DATA_LIMIT = 8 * 1024 // 8 kb
+	// SessionDataLimit maximum block size
+	SessionDataLimit = 8 * 1024 // 8 kb
 )
 
 // ErrBigDataBlockSize represents data encoding error
-var ErrBigDataBlockSize = fmt.Errorf("Block size greater than %v", SESSION_DATA_LIMIT)
+var ErrBigDataBlockSize = fmt.Errorf("Block size greater than %v", SessionDataLimit)
 
 // WriteFull writes data to io.Writer.
 // if wr.Write will return n <= len(data) will

@@ -121,7 +121,7 @@ func rotateDb(selectQuery, updateQuery string, db *sql.DB, keystore keystore.Key
 		rowPointers[i] = &row[i]
 	}
 	var extraArgs []interface{}
-	acraStructIdIndex := len(columns) - 2 // last but one item
+	acraStructIDIndex := len(columns) - 2 // last but one item
 	acraStructIndex := len(columns) - 1   // last item
 	for rows.Next() {
 		err = rows.Scan(rowPointers...)
@@ -130,10 +130,10 @@ func rotateDb(selectQuery, updateQuery string, db *sql.DB, keystore keystore.Key
 			return false
 		}
 
-		acraStructId, ok := row[acraStructIdIndex].([]byte)
+		acraStructID, ok := row[acraStructIDIndex].([]byte)
 		// check that acrastruct and id have correct types ([]byte)
 		if !ok {
-			log.Errorf("ClientId/ZoneId column has incorrect type (bytes expected, took %s)", reflect.TypeOf(row[acraStructIdIndex]))
+			log.Errorf("ClientId/ZoneId column has incorrect type (bytes expected, took %s)", reflect.TypeOf(row[acraStructIDIndex]))
 			return false
 		}
 
@@ -142,27 +142,27 @@ func rotateDb(selectQuery, updateQuery string, db *sql.DB, keystore keystore.Key
 			log.Errorf("AcraStruct column has incorrect type (bytes expected, took %s)", reflect.TypeOf(row[acraStructIndex]))
 			return false
 		}
-		logger := log.WithFields(log.Fields{"ZoneId": string(acraStructId)})
-		logger.Infof("Rotate AcraStruct with ZoneId=%s", string(acraStructId))
+		logger := log.WithFields(log.Fields{"ZoneId": string(acraStructID)})
+		logger.Infof("Rotate AcraStruct with ZoneId=%s", string(acraStructID))
 
 		// rotate
-		privateKey, err := keysStore.getPrivateKey(acraStructId)
+		privateKey, err := keysStore.getPrivateKey(acraStructID)
 		if err != nil {
 			logger.WithField("acrastruct", hex.EncodeToString(acraStruct)).WithError(err).Errorln("Can't get private key")
 			return false
 		}
-		publicKey, err := keysStore.getPublicKey(acraStructId)
+		publicKey, err := keysStore.getPublicKey(acraStructID)
 		if err != nil {
 			logger.WithField("acrastruct", hex.EncodeToString(acraStruct)).WithError(err).Errorln("Can't load public key")
 			return false
 		}
-		decrypted, err := base.DecryptAcrastruct(acraStruct, privateKey, acraStructId)
+		decrypted, err := base.DecryptAcrastruct(acraStruct, privateKey, acraStructID)
 		if err != nil {
 			logger.WithField("acrastruct", hex.EncodeToString(acraStruct)).WithError(err).Errorln("Can't decrypt AcraStruct")
 			return false
 		}
 
-		rotated, err := acrawriter.CreateAcrastruct(decrypted, publicKey, acraStructId)
+		rotated, err := acrawriter.CreateAcrastruct(decrypted, publicKey, acraStructID)
 		if err != nil {
 			logger.WithField("acrastruct", hex.EncodeToString(acraStruct)).WithError(err).Errorln("Can't rotate data")
 			return false

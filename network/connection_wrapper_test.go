@@ -26,7 +26,7 @@ import (
 	"github.com/cossacklabs/themis/gothemis/keys"
 )
 
-var TEST_CLIENT_ID = []byte("test client id")
+var TestClientId = []byte("test client id")
 
 func wait(ch chan bool, t *testing.T) {
 	select {
@@ -70,7 +70,7 @@ func testWrapper(clientWrapper, serverWrapper ConnectionWrapper, t *testing.T) {
 			t.Fatal(err)
 			return
 		}
-		if !bytes.Equal(clientID, TEST_CLIENT_ID) {
+		if !bytes.Equal(clientID, TestClientId) {
 			t.Fatal("client id incorrect")
 		}
 		for i := 0; i < iterations; i++ {
@@ -107,7 +107,7 @@ func testWrapper(clientWrapper, serverWrapper ConnectionWrapper, t *testing.T) {
 	}
 	defer connection.Close()
 	t.Log("wrap client")
-	connection, err = clientWrapper.WrapClient(TEST_CLIENT_ID, connection)
+	connection, err = clientWrapper.WrapClient(TestClientId, connection)
 	if err != nil {
 		connection.Close()
 		t.Fatal(err)
@@ -139,7 +139,7 @@ func testWrapper(clientWrapper, serverWrapper ConnectionWrapper, t *testing.T) {
 }
 
 func TestRawConnectionWrapper(t *testing.T) {
-	testWrapper(&RawConnectionWrapper{}, &RawConnectionWrapper{ClientID: TEST_CLIENT_ID}, t)
+	testWrapper(&RawConnectionWrapper{}, &RawConnectionWrapper{ClientID: TestClientId}, t)
 }
 
 type SimpleKeyStore struct {
@@ -216,7 +216,7 @@ Mmsz2rgkLFqKpYS30+CYbzwIXMfHImhBX2kO9HkodBWvNApu
 		t.Fatal(err)
 		return
 	}
-	serverWrapper, err := NewTLSConnectionWrapper(TEST_CLIENT_ID, &tls.Config{Certificates: []tls.Certificate{cer}})
+	serverWrapper, err := NewTLSConnectionWrapper(TestClientId, &tls.Config{Certificates: []tls.Certificate{cer}})
 	if err != nil {
 		t.Fatal(err)
 	}

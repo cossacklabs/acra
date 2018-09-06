@@ -184,9 +184,9 @@ func (server *ReaderServer) HandleConnectionString(parentContext context.Context
 
 // Constants show possible connection types.
 const (
-	CONNECTION_TYPE_KEY  = "connection_type"
-	HTTP_CONNECTION_TYPE = "http"
-	GRPC_CONNECTION_TYPE = "grpc"
+	ConnectionTypeKey  = "connection_type"
+	HTTPConnectionType = "http"
+	GRPCConnectionType = "grpc"
 )
 
 // Start setups gRPC handler or HTTP handler, poison records callbacks and starts listening to connections.
@@ -206,7 +206,7 @@ func (server *ReaderServer) Start(parentContext context.Context) {
 	decryptorData := &common.TranslatorData{Keystorage: server.keystorage, PoisonRecordCallbacks: poisonCallbacks, CheckPoisonRecords: server.config.detectPoisonRecords}
 	if server.config.incomingConnectionHTTPString != "" {
 		go func() {
-			httpContext := logging.SetLoggerToContext(parentContext, logger.WithField(CONNECTION_TYPE_KEY, HTTP_CONNECTION_TYPE))
+			httpContext := logging.SetLoggerToContext(parentContext, logger.WithField(ConnectionTypeKey, HTTPConnectionType))
 			httpDecryptor, err := http_api.NewHTTPConnectionsDecryptor(decryptorData)
 			logger.WithField("connection_string", server.config.incomingConnectionHTTPString).Infof("Start process HTTP requests")
 			if err != nil {
@@ -223,7 +223,7 @@ func (server *ReaderServer) Start(parentContext context.Context) {
 	}
 	if server.config.incomingConnectionGRPCString != "" {
 		go func() {
-			grpcLogger := logger.WithField(CONNECTION_TYPE_KEY, GRPC_CONNECTION_TYPE)
+			grpcLogger := logger.WithField(ConnectionTypeKey, GRPCConnectionType)
 			logger.WithField("connection_string", server.config.incomingConnectionGRPCString).Infof("Start process gRPC requests")
 			secureSessionListener, err := network.NewSecureSessionListener(server.config.incomingConnectionGRPCString, server.keystorage)
 			if err != nil {
@@ -263,7 +263,7 @@ func (server *ReaderServer) processHTTPConnection(parentContext context.Context,
 	defer connection.SetDeadline(time.Time{})
 	// processing HTTP connection
 	logger := logging.GetLoggerFromContext(parentContext)
-	httpLogger := logger.WithField(CONNECTION_TYPE_KEY, HTTP_CONNECTION_TYPE)
+	httpLogger := logger.WithField(ConnectionTypeKey, HTTPConnectionType)
 	httpLogger.Debugln("HTTP handler")
 
 	reader := bufio.NewReader(connection)
