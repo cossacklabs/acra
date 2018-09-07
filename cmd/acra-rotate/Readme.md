@@ -77,3 +77,32 @@ Then run rotation:
 ```
 $GOPATH/bin/acra-rotate --keys_dir=/path/to/zone-private-keys --file_map_config=/path/to/config.json
 ```
+Output like:
+```
+{
+    "DDDDDDDDFSckOyJqVmENXawn": {
+        "new_public_key": "VUVDMgAAAC1Vq8RnA4Q1BJnUye29lkj0rbSImHiKRPzzPxp1use2BGPYCug+",
+        "file_paths": [
+            "/tmp/tmpchz_kgy5/DDDDDDDDFSckOyJqVmENXawn_0.acrastruct",
+            "/tmp/tmpchz_kgy5/DDDDDDDDFSckOyJqVmENXawn_1.acrastruct",
+            "/tmp/tmpchz_kgy5/DDDDDDDDFSckOyJqVmENXawn_2.acrastruct"
+        ]
+    },
+    "DDDDDDDDNWuqISbEdXtokBfu": {
+        "new_public_key": "VUVDMgAAAC10hAftA3sOEp9qhe5h0yWugZb1DHEpj0BUK+5WE1/h9FDvKEsO",
+        "file_paths": [
+            "/tmp/tmpchz_kgy5/DDDDDDDDNWuqISbEdXtokBfu_0.acrastruct",
+            "/tmp/tmpchz_kgy5/DDDDDDDDNWuqISbEdXtokBfu_1.acrastruct",
+            "/tmp/tmpchz_kgy5/DDDDDDDDNWuqISbEdXtokBfu_2.acrastruct"
+        ]
+    },
+    "DDDDDDDDUIUNdhWUSIXlTczw": {
+        "new_public_key": "VUVDMgAAAC0hvsSPA78cxoxHOeEVZtwJT6bhK1SWNLj0J+GjRD7j5kZwb8Be",
+        "file_paths": [
+            "/tmp/tmpchz_kgy5/DDDDDDDDUIUNdhWUSIXlTczw_0.acrastruct",
+            "/tmp/tmpchz_kgy5/DDDDDDDDUIUNdhWUSIXlTczw_1.acrastruct",
+            "/tmp/tmpchz_kgy5/DDDDDDDDUIUNdhWUSIXlTczw_2.acrastruct"
+        ]
+    }
+}
+```
