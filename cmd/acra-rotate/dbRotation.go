@@ -24,6 +24,7 @@ import (
 	"github.com/cossacklabs/acra/acra-writer"
 	"github.com/cossacklabs/acra/decryptor/base"
 	"github.com/cossacklabs/acra/keystore"
+	"github.com/cossacklabs/acra/utils"
 	"github.com/cossacklabs/themis/gothemis/keys"
 	log "github.com/sirupsen/logrus"
 	"reflect"
@@ -95,7 +96,7 @@ func (store *keyRotatationStore) getPrivateKey(id []byte) (*keys.PrivateKey, err
 }
 
 // rotateDb execute selectQuery to fetch AcraStructs with related zone ids, decrypt with rotated zone keys and
-func rotateDb(selectQuery, updateQuery string, db *sql.DB, keystore keystore.KeyStore) bool {
+func rotateDb(selectQuery, updateQuery string, db *sql.DB, keystore keystore.KeyStore, encoder utils.BinaryEncoder) bool {
 	rows, err := db.Query(selectQuery)
 	if err != nil {
 		log.WithError(err).Errorf("Can't fetch result")
@@ -167,10 +168,11 @@ func rotateDb(selectQuery, updateQuery string, db *sql.DB, keystore keystore.Key
 			logger.WithField("acrastruct", hex.EncodeToString(acraStruct)).WithError(err).Errorln("Can't rotate data")
 			return false
 		}
+		rotatedStr := encoder.Encode(rotated)
 		if len(rowPointers) > 2 {
-			extraArgs = append([]interface{}{rotated}, row[:len(rowPointers)-2]...)
+			extraArgs = append([]interface{}{rotatedStr}, row[:len(rowPointers)-2]...)
 		} else {
-			extraArgs = []interface{}{}
+			extraArgs = []interface{}{rotatedStr}
 		}
 		_, err = db.Exec(updateQuery, extraArgs...)
 		if err != nil {

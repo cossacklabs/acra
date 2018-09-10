@@ -72,7 +72,7 @@ func main() {
 	sqlUpdate := flag.String("sql_update", "", "Insert/Update query with ? as placeholder where into first will be placed rotated AcraStruct")
 	connectionString := flag.String("db_connection_string", "", "Connection string to db")
 	useMysql := flag.Bool("mysql_enable", false, "Handle MySQL connections")
-	usePostgresql := flag.Bool("postgresql_enable", false, "Handle Postgresql connections")
+	_ = flag.Bool("postgresql_enable", false, "Handle Postgresql connections")
 	logging.SetLogLevel(logging.LogVerbose)
 
 	err := cmd.Parse(DefaultConfigPath, ServiceName)
@@ -95,10 +95,14 @@ func main() {
 			os.Exit(1)
 		}
 		var db *sql.DB
-		if *usePostgresql {
-			db, err = sql.Open("postgres", *connectionString)
-		} else if *useMysql {
+		var encoder utils.BinaryEncoder
+		if *useMysql {
 			db, err = sql.Open("mysql", *connectionString)
+			encoder = &utils.HexEncoder{}
+		} else {
+			db, err = sql.Open("postgres", *connectionString)
+
+			encoder = &utils.MysqlEncoder{}
 		}
 
 		if err != nil {
@@ -113,7 +117,7 @@ func main() {
 			log.WithError(err).Errorln("Error on database ping", *connectionString)
 			os.Exit(1)
 		}
-		if !rotateDb(*sqlSelect, *sqlUpdate, db, keystorage) {
+		if !rotateDb(*sqlSelect, *sqlUpdate, db, keystorage, encoder) {
 			os.Exit(1)
 		}
 	}

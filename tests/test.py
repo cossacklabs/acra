@@ -2843,8 +2843,6 @@ class TestAcraRotate(BaseTestCase):
             self.assertEqual(row['data'], row['raw_data'].encode('utf-8'))
 
 
-
-
 class TestPrometheusMetrics(AcraTranslatorMixin, BaseTestCase):
     LOG_METRICS = True
     def checkSkip(self):

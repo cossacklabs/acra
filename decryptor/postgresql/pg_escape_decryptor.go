@@ -35,56 +35,10 @@ import (
 
 // ZoneID begin tags, lengths, etc
 var (
-	EscapeTagBegin          = EncodeToOctal(base.TagBegin)
+	EscapeTagBegin          = utils.EncodeToOctal(base.TagBegin)
 	EscapeZoneTagLength     = zone.ZoneTagLength
 	EscapeZoneIDBlockLength = zone.ZoneIDBlockLength
 )
-
-func encodeToOctal(from, to []byte) {
-	to = to[:0]
-	for _, c := range from {
-		if utils.IsPrintableEscapeChar(c) {
-			if c == utils.SlashChar {
-				to = append(to, []byte{utils.SlashChar, utils.SlashChar}...)
-			} else {
-				to = append(to, c)
-			}
-		} else {
-			to = append(to, utils.SlashChar)
-			octal := strconv.FormatInt(int64(c), 8)
-			switch len(octal) {
-			case 3:
-				to = append(to, []byte(octal)...)
-			case 2:
-				to = append(to, '0', octal[0], octal[1])
-
-			case 1:
-				to = append(to, '0', '0', octal[0])
-			}
-		}
-	}
-}
-
-// EncodeToOctal returns octal representation on bytes
-// each byte has 4 bytes, filled with leading 0's is needed
-func EncodeToOctal(from []byte) []byte {
-	// count output size
-	outputLength := 0
-	for _, c := range from {
-		if utils.IsPrintableEscapeChar(c) {
-			if c == utils.SlashChar {
-				outputLength += 2
-			} else {
-				outputLength++
-			}
-		} else {
-			outputLength += 4
-		}
-	}
-	buffer := make([]byte, outputLength)
-	encodeToOctal(from, buffer)
-	return buffer
-}
 
 // PgEscapeDecryptor decrypts AcraStruct from Escape-encoded PostgreSQL binary format
 type PgEscapeDecryptor struct {
@@ -284,7 +238,7 @@ func (decryptor *PgEscapeDecryptor) ReadData(symmetricKey, zoneID []byte, reader
 	if err != nil {
 		return append(hexLengthBuf, octData...), base.ErrFakeAcraStruct
 	}
-	return EncodeToOctal(decrypted), nil
+	return utils.EncodeToOctal(decrypted), nil
 }
 
 // GetTagBeginLength returns length of EscapeTagBegin

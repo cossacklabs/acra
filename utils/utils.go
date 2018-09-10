@@ -19,11 +19,10 @@ package utils
 
 import (
 	"encoding/binary"
+	"fmt"
 	"github.com/cossacklabs/themis/gothemis/keys"
 	"io"
 	"io/ioutil"
-
-	"fmt"
 
 	log "github.com/sirupsen/logrus"
 	"os"

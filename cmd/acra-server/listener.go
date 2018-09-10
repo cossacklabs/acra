@@ -43,12 +43,10 @@ type SServer struct {
 	listenerAPI           net.Listener
 	fddACRA               uintptr
 	fdAPI                 uintptr
-	cmACRA                *network.ConnectionManager
-	cmAPI                 *network.ConnectionManager
+	connectionManager     *network.ConnectionManager
 	listeners             []net.Listener
 	errorSignalChannel    chan os.Signal
 	restartSignalsChannel chan os.Signal
-	connectionsToClose    map[net.Conn]struct{}
 }
 
 // NewServer creates new SServer.
@@ -56,11 +54,9 @@ func NewServer(config *Config, keystorage keystore.KeyStore, errorChan chan os.S
 	return &SServer{
 		config:                config,
 		keystorage:            keystorage,
-		cmACRA:                network.NewConnectionManager(),
-		cmAPI:                 network.NewConnectionManager(),
+		connectionManager:     network.NewConnectionManager(),
 		errorSignalChannel:    errorChan,
 		restartSignalsChannel: restarChan,
-		connectionsToClose:    make(map[net.Conn]struct{}),
 	}, nil
 }
 
@@ -98,9 +94,8 @@ func (server *SServer) Close() {
 	if err != nil {
 		log.WithError(err).Infoln("server.Close()")
 	}
-	for conn, _ := range server.connectionsToClose {
-		// don't check errors because here can be already closed connections and we don't need handle it
-		conn.Close()
+	if err := server.connectionManager.CloseConnections(); err != nil {
+		log.WithError(err).Errorln("Error on close connections")
 	}
 	log.Debugln("Closed server listeners")
 }
@@ -151,8 +146,6 @@ func (server *SServer) handleConnection(connection net.Conn) {
 	connectionCounter.WithLabelValues(dbConnectionType).Inc()
 	timer := prometheus.NewTimer(prometheus.ObserverFunc(connectionProcessingTimeHistogram.WithLabelValues(dbConnectionType).Observe))
 	defer timer.ObserveDuration()
-	server.cmACRA.Incr()
-	defer server.cmACRA.Done()
 	log.Infof("Handle new connection")
 	wrappedConnection, clientID, err := server.config.ConnectionWrapper.WrapServer(connection)
 	if err != nil {
@@ -201,9 +194,9 @@ func (server *SServer) start(listener net.Listener, connectionHandler func(net.C
 			logger.Infof("Got new connection to AcraServer: %v", connection.RemoteAddr())
 		}
 		go func() {
-			server.connectionsToClose[connection] = struct{}{}
+			server.connectionManager.AddConnection(connection)
 			connectionHandler(connection)
-			delete(server.connectionsToClose, connection)
+			server.connectionManager.RemoveConnection(connection)
 		}()
 	}
 }
@@ -294,10 +287,7 @@ func (server *SServer) StopListeners() {
 // WaitConnections waits until connection complete or stops them after duration time.
 func (server *SServer) WaitConnections(duration time.Duration) {
 	log.Infof("Waiting for %v connections to complete", server.ConnectionsCounter())
-	server.cmACRA.Wait()
-	if server.listenerAPI != nil {
-		server.cmAPI.Wait()
-	}
+	server.connectionManager.Wait()
 }
 
 // WaitWithTimeout waits until connection complete or stops them after duration time.
@@ -319,7 +309,7 @@ func (server *SServer) WaitWithTimeout(duration time.Duration) error {
 
 // ConnectionsCounter counts number of active data and API connections.
 func (server *SServer) ConnectionsCounter() int {
-	return server.cmACRA.Counter + server.cmAPI.Counter
+	return server.connectionManager.Counter
 }
 
 /*
@@ -330,8 +320,6 @@ func (server *SServer) handleCommandsConnection(connection net.Conn) {
 	connectionCounter.WithLabelValues(apiConnectionType).Inc()
 	timer := prometheus.NewTimer(prometheus.ObserverFunc(connectionProcessingTimeHistogram.WithLabelValues(apiConnectionType).Observe))
 	defer timer.ObserveDuration()
-	server.cmAPI.Incr()
-	defer server.cmAPI.Done()
 	log.Infof("Handle commands connection")
 	clientSession, err := NewClientCommandsSession(server.keystorage, server.config, connection)
 	clientSession.Server = server
