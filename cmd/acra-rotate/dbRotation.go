@@ -35,14 +35,14 @@ type keyPair struct {
 	NewPublicKey  *keys.PublicKey
 }
 
-// keyRotatationStore store previous privateKeys and new public keys after rotation to use same private/public keys during rotation
-type keyRotatationStore struct {
+// keyRotationStore store previous privateKeys and new public keys after rotation to use same private/public keys during rotation
+type keyRotationStore struct {
 	keys     map[string]*keyPair
 	keystore keystore.KeyStore
 }
 
 // Marshal encode new public keys for zones to json
-func (store *keyRotatationStore) Marshal() ([]byte, error) {
+func (store *keyRotationStore) Marshal() ([]byte, error) {
 	// encode to json in compatible format as in file rotation
 	const PublicKey = "new_public_key"
 	output := make(map[string]map[string][]byte)
@@ -53,7 +53,7 @@ func (store *keyRotatationStore) Marshal() ([]byte, error) {
 }
 
 // rotateKey load current private key to memory, rotate and save new public key in memory
-func (store *keyRotatationStore) rotateKey(id []byte) error {
+func (store *keyRotationStore) rotateKey(id []byte) error {
 	idStr := string(id)
 	privateKey, err := store.keystore.GetZonePrivateKey(id)
 	if err != nil {
@@ -70,7 +70,7 @@ func (store *keyRotatationStore) rotateKey(id []byte) error {
 }
 
 // getPublicKey return new rotated public key of zone
-func (store *keyRotatationStore) getPublicKey(id []byte) (*keys.PublicKey, error) {
+func (store *keyRotationStore) getPublicKey(id []byte) (*keys.PublicKey, error) {
 	idStr := string(id)
 	if keypair, ok := store.keys[idStr]; ok {
 		return keypair.NewPublicKey, nil
@@ -83,7 +83,7 @@ func (store *keyRotatationStore) getPublicKey(id []byte) (*keys.PublicKey, error
 }
 
 // getPrivateKey return private key before rotation
-func (store *keyRotatationStore) getPrivateKey(id []byte) (*keys.PrivateKey, error) {
+func (store *keyRotationStore) getPrivateKey(id []byte) (*keys.PrivateKey, error) {
 	idStr := string(id)
 	if keypair, ok := store.keys[idStr]; ok {
 		return keypair.oldPrivatekey, nil
@@ -93,6 +93,12 @@ func (store *keyRotatationStore) getPrivateKey(id []byte) (*keys.PrivateKey, err
 	}
 	keypair := store.keys[idStr]
 	return keypair.oldPrivatekey, nil
+}
+
+func (store *keyRotationStore) clear() {
+	for _, keypair := range store.keys {
+		utils.FillSlice(0, keypair.oldPrivatekey.Value)
+	}
 }
 
 // rotateDb execute selectQuery to fetch AcraStructs with related zone ids, decrypt with rotated zone keys and
@@ -113,7 +119,9 @@ func rotateDb(selectQuery, updateQuery string, db *sql.DB, keystore keystore.Key
 		return false
 	}
 
-	keysStore := &keyRotatationStore{keystore: keystore, keys: make(map[string]*keyPair)}
+	keysStore := &keyRotationStore{keystore: keystore, keys: make(map[string]*keyPair)}
+	// zeroing private keys at end
+	defer keysStore.clear()
 
 	row := make([]interface{}, len(columns))
 	rowPointers := make([]interface{}, len(columns))
@@ -162,12 +170,12 @@ func rotateDb(selectQuery, updateQuery string, db *sql.DB, keystore keystore.Key
 			logger.WithField("acrastruct", hex.EncodeToString(acraStruct)).WithError(err).Errorln("Can't decrypt AcraStruct")
 			return false
 		}
-
 		rotated, err := acrawriter.CreateAcrastruct(decrypted, publicKey, acraStructID)
 		if err != nil {
 			logger.WithField("acrastruct", hex.EncodeToString(acraStruct)).WithError(err).Errorln("Can't rotate data")
 			return false
 		}
+		utils.FillSlice(0, decrypted)
 		rotatedStr := encoder.Encode(rotated)
 		if len(rowPointers) > 2 {
 			extraArgs = append([]interface{}{rotatedStr}, row[:len(rowPointers)-2]...)

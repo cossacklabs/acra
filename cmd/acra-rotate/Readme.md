@@ -63,7 +63,21 @@ MySQL:
 ```
 $GOPATH/bin/acra-rotate --keys_dir=/path/to/zone-private-keys --mysql_enable --sql_select="select id, data from Test" --sql_update="insert into Test values (?, ?);" --connection_string="test:test@tcp(127.0.0.1:3306)/test"
 ```      
+Output like:
+```
+{
+    "DDDDDDDDDROGqDEAapfPhSrD": {
+        "new_public_key": "VUVDMgAAAC2S4KHmAmQrS33ij6nUcSEZo4HCh/Cw7zkoqtdofTPjAhUeNSjS"
+    },
+    "DDDDDDDDLJPIbFYZuqCAgUiv": {
+        "new_public_key": "VUVDMgAAAC3mlU5YArGGhn15qnw9A+a/rHt3M/tPZ/S5OCQB1GgzUn+oJc3o"
+    },
+    "DDDDDDDDNbxERTXcVVJSmTcx": {
+        "new_public_key": "VUVDMgAAAC1bbs0CA7GHfwFkIkoQm/dWlm92g26C7NEOR/LWsjk8OSEBTNQ7"
+    }
+}
 
+```
 **Important**
 
 Don't forget to reload keystore via running AcraServer after rotation if you run AcraServer without `--keystore_cache_size=-1` option (that turn off cache of keys)
