@@ -12,10 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 # coding: utf-8
+import os
 import argparse
 import json
-import string
-import subprocess
 from base64 import b64decode
 from random import randint, choice
 try:
@@ -26,35 +25,102 @@ except ImportError:
     from urllib2 import urlopen
 
 from sqlalchemy import (Table, Column, Integer, MetaData, create_engine,
-    select, Binary, Text)
-from sqlalchemy import cast
+                        select, Binary, Text, cast)
 from sqlalchemy.dialects.postgresql import BYTEA
 
 from acrawriter import create_acrastruct
 
 
 def get_zone():
-    response = urlopen('http://127.0.0.1:9191/getNewZone')
+    """make http response to AcraServer api to generate new zone and return tuple
+    of zone id and public key
+    """
+    response = urlopen('{}/getNewZone'.format(ACRA_SERVER_API_HOST))
     json_data = response.read().decode('utf-8')
     zone_data = json.loads(json_data)
     return zone_data['id'], b64decode(zone_data['public_key'])
 
 
+def get_default(name, value):
+    return os.environ.get('EXAMPLE_{}'.format(name.upper()), value)
+
+
+def print_data(zone_id, connection):
+    if zone_id:
+        print("use zone_id: ", zone_id)
+        result = connection.execute(
+            select([cast(zone_id.encode('utf-8'), BYTEA), test]))
+    else:
+        result = connection.execute(
+            select([cast('without zone'.encode('utf-8'), BYTEA),
+                    test.c.id, test.c.data, test.c.raw_data]))
+    result = result.fetchall()
+    print("{:<3} - {} - {} - {:>10}".format("id", 'zone', "data", "raw_data"))
+    for row in result:
+        print("{:<3} - {} - {} - {:>10}\n".format(
+            row['id'], row[0], row['data'].decode('utf-8', errors='ignore'),
+            row['raw_data']))
+
+
+def write_data(zone_id, data, connection):
+    if zone_id:
+        print("To encrypt data script will generate new zone and print zone id"
+              " with public key after execution. Don't use --zone_id option "
+              "with --data option.")
+        exit(1)
+    zone_id, key = get_zone()
+
+    print("data: {}\nzone: {}".format(data, zone_id))
+    encrypted_data = create_acrastruct(
+        data.encode('utf-8'), key, zone_id.encode('utf-8'))
+    random_id = randint(1, 100500)
+    connection.execute(
+        test.insert(), data=encrypted_data, id=random_id, zone_id=zone_id,
+        raw_data='(zone: {}) - {}'.format(zone_id, data))
+    print("saved with zone: {} with random id: {}".format(zone_id, random_id))
+
+
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument('--zone_id', type=str, default='', help='zone id for fetching data')
-    parser.add_argument('--db_name', type=str, default='acra', help='db name to connect')
-    parser.add_argument('--db_user', type=str, default='test', help='db user to connect')
-    parser.add_argument('--db_password', type=str, default='test', help='db password to connect')
-    parser.add_argument('--port', type=int, default=5433, help='port of acra-connector to connect')
-    parser.add_argument('--host', type=str, default='localhost', help='host of acra-connector to connect')
-    parser.add_argument('--data', type=str, help='data to save in ascii. default random data')
-    parser.add_argument('--print', action='store_true', help='just print data', default=False)
-    parser.add_argument('-v', '--verbose', dest='verbose', action='store_true', help='verbose', default=False)
-    parser.add_argument('--postgresql', action='store_true', help="use postgresql driver (default if nothing else   set)")
-    parser.add_argument('--mysql', action='store_true', help="use mysql driver")
+    parser.add_argument('--zone_id', type=str,
+                        default=get_default('zone_id', ''),
+                        help='Zone id for fetching data. Use only with --print '
+                             'option')
+    parser.add_argument('--db_name', type=str,
+                        default=get_default('db_name', 'acra'),
+                        help='Database name')
+    parser.add_argument('--db_user', type=str,
+                        default=get_default('db_user','test'),
+                        help='Database user')
+    parser.add_argument('--db_password', type=str,
+                        default=get_default('db_password', 'test'),
+                        help='Database user\'s password')
+    parser.add_argument('--port', type=int,
+                        default=get_default('port', 5433),
+                        help='Port of database or AcraConnector')
+    parser.add_argument('--host', type=str,
+                        default=get_default('host', 'localhost'),
+                        help='Host of database or AcraConnector')
+    parser.add_argument('--data', type=str,
+                        default=get_default('data', ''),
+                        help='data to save in ascii. default random data')
+    parser.add_argument('--print', action='store_true',
+                        default=get_default('print', False),
+                        help='Print data (use --zone_id to set specific ZoneId '
+                             'which will be used to fetch data)')
+    parser.add_argument('-v', '--verbose', dest='verbose', action='store_true',
+                        default=get_default('verbose', False), help='verbose')
+    parser.add_argument('--postgresql', action='store_true',
+                        default=get_default('postgresql', False),
+                        help="Use postgresql driver (default if nothing else "
+                             "set)")
+    parser.add_argument('--mysql', action='store_true',
+                        default=get_default('mysql', False),
+                        help="Use mysql driver")
     args = parser.parse_args()
 
+    ACRA_SERVER_API_HOST = get_default(
+        'acra_server_api_host', 'http://127.0.0.1:9191')
     # default driver
     driver = 'postgresql'
     if args.mysql:
@@ -62,46 +128,23 @@ if __name__ == '__main__':
 
     metadata = MetaData()
     test = Table('test_example_with_zone', metadata,
-        Column('id', Integer, primary_key=True),
-        Column('data', Binary),
-        Column('raw_data', Text),
+        Column('id', Integer, primary_key=True, nullable=False),
+        Column('zone_id', Binary, nullable=True),
+        Column('data', Binary, nullable=False),
+        Column('raw_data', Text, nullable=False),
     )
-    if args.verbose:
-        proxy_engine = create_engine('{}://{}:{}@{}:{}/{}'.format(driver, args.db_user, args.db_password, args.host, args.port, args.db_name), echo=True)
-    else:
-        proxy_engine = create_engine('{}://{}:{}@{}:{}/{}'.format(driver, args.db_user, args.db_password, args.host, args.port, args.db_name))
+    proxy_engine = create_engine(
+        '{}://{}:{}@{}:{}/{}'.format(
+            driver, args.db_user, args.db_password, args.host, args.port,
+            args.db_name),
+        echo=bool(args.verbose))
     proxy_connection = proxy_engine.connect()
     metadata.create_all(proxy_engine)
 
-    if getattr(args, 'print', False):
-        if args.zone_id:
-            print("use zone_id: ", args.zone_id)
-            result = proxy_connection.execute(
-                select([cast(args.zone_id.encode('utf-8'), BYTEA), test]))
-        else:
-            result = proxy_connection.execute(
-                select([cast('without zone'.encode('utf-8'), BYTEA), test]))
-        result = result.fetchall()
-        print("{:<3} - {} - {} - {:>10}".format("id", 'zone', "data", "raw_data"))
-        for row in result:
-            try:
-                print("{:<3} - {} - {} - {:>10}\n".format(row['id'], row[0], row['data'].decode('utf-8'), row['raw_data']))
-            except:
-                print("{:<3} - {} - {} - {:>10}\n".format(row['id'], row[0], row['data'], row['raw_data']))
-
+    if args.print:
+        print_data(args.zone_id, proxy_connection)
+    elif args.data:
+        write_data(args.zone_id, args.data, proxy_connection)
     else:
-        if args.zone_id:
-            print("For encrypting will be used random generated zone_id")
-            exit(1)
-        zone_id, key = get_zone()
-        data = bytes([randint(32, 126) for _ in range(randint(10, 20))])
-        string_data = ''.join(choice(string.ascii_letters) for _ in range(randint(10, 20)))
-
-        data = args.data or string_data
-        print("data: {}\nzone: {}".format(data, zone_id))
-
-        encrypted_data = create_acrastruct(data.encode('utf-8'), key, zone_id.encode('utf-8'))
-        rid = randint(1, 100500)
-        proxy_connection.execute(test.insert(), data=encrypted_data, id=rid,
-                                 raw_data='(zone: {}) - {}'.format(zone_id, data))
-        print("saved with zone: {}".format(zone_id))
+        print('Use --print or --data options')
+        exit(1)
