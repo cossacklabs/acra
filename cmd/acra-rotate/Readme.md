@@ -64,6 +64,10 @@ MySQL:
 $GOPATH/bin/acra-rotate --keys_dir=/path/to/zone-private-keys --mysql_enable --sql_select="select id, data from Test" --sql_update="insert into Test values (?, ?);" --connection_string="test:test@tcp(127.0.0.1:3306)/test"
 ```      
 
+**Important**
+
+Don't forget to reload keystore via running AcraServer after rotation if you run AcraServer without `--keystore_cache_size=-1` option (that turn off cache of keys)
+
 ## File rotation
 
 Before running rotation of keys and data in files you should generate json config for it with "zone id" as key and list with paths to files which was encrypted with this zone id

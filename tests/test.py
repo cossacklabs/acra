@@ -2680,6 +2680,13 @@ class AcraTranslatorTest(AcraTranslatorMixin, BaseTestCase):
 class TestAcraRotate(BaseTestCase):
     ZONE = True
 
+    def checkSkip(self):
+        return
+
+    def fork_acra(self, popen_kwargs: dict=None, **acra_kwargs: dict):
+        acra_kwargs['keystore_cache_size'] = -1  # no cache
+        return super(TestAcraRotate, self).fork_acra(popen_kwargs, **acra_kwargs)
+
     def testFileRotation(self):
         """
         generate some zones, create AcraStructs with them and save to files
@@ -2766,12 +2773,14 @@ class TestAcraRotate(BaseTestCase):
                             decrypted_rotated, acrastructs[path].data)
 
     def testDatabaseRotation(self):
-        rotate_test_table = sa.Table('rotate_test', metadata,
-                              sa.Column('id', sa.Integer, primary_key=True),
-                              sa.Column('zone_id', sa.LargeBinary(length=COLUMN_DATA_SIZE)),
-                              sa.Column('data', sa.LargeBinary(length=COLUMN_DATA_SIZE)),
-                              sa.Column('raw_data', sa.Text),
-                              )
+        rotate_test_table = sa.Table(
+            'rotate_test',
+            metadata,
+            sa.Column('id', sa.Integer, primary_key=True),
+            sa.Column('zone_id', sa.LargeBinary(length=COLUMN_DATA_SIZE)),
+            sa.Column('data', sa.LargeBinary(length=COLUMN_DATA_SIZE)),
+            sa.Column('raw_data', sa.Text),
+        )
         metadata.create_all(self.engine_raw)
         self.engine_raw.execute(sa.delete(rotate_test_table))
         zones = []
@@ -2816,16 +2825,59 @@ class TestAcraRotate(BaseTestCase):
         else:
             self.fail("unsupported settings of tested db")
 
+        # use extra arg in select and update
         subprocess.check_output(
             ['./acra-rotate', '--keys_dir={}'.format(KEYS_FOLDER.name),
-             '--sql_select=select id, zone_id, data from rotate_test;',
+             '--sql_select=select id, zone_id, data from rotate_test order by id;',
              '--sql_update={}'.format(sql_update),
              '--db_connection_string={}'.format(connection_string),
              mode_arg
              ]
         )
 
+        result = self.engine1.execute(sa.select([rotate_test_table]))
+        self.check_decrypted_data(result)
         result = self.engine_raw.execute(sa.select([rotate_test_table]))
+        self.check_rotation(result, data_before_rotate)
+
+        # chose any id to operate with specific row
+        if TEST_MYSQL:
+            sql_update = "update rotate_test set data=? where id={};"
+        elif TEST_POSTGRESQL:
+            sql_update = "update rotate_test set data=$1 where id={};"
+        else:
+            self.fail("unsupported settings of tested db")
+        some_id = list(data_before_rotate.keys())[0]
+        sql_update = sql_update.format(some_id)
+
+        # rotate with select without extra arg
+        subprocess.check_output(
+            ['./acra-rotate', '--keys_dir={}'.format(KEYS_FOLDER.name),
+             '--sql_select=select zone_id, data from rotate_test where id={};'.format(some_id),
+             '--sql_update={}'.format(sql_update),
+             '--db_connection_string={}'.format(connection_string),
+             mode_arg
+             ]
+        )
+
+        result = self.engine1.execute(
+            sa.select([rotate_test_table],
+                      whereclause=rotate_test_table.c.id==some_id))
+        self.check_decrypted_data(result)
+        # check that after rotation we can read actual data
+        result = self.engine_raw.execute(
+            sa.select([rotate_test_table],
+                      whereclause=rotate_test_table.c.id==some_id))
+        self.check_rotation(result, data_before_rotate)
+
+    def check_decrypted_data(self, result):
+        data = result.fetchall()
+        self.assertTrue(data)
+        for row in data:
+            # check that data was not changed
+            self.assertEqual(row['data'], row['raw_data'].encode('utf-8'))
+
+    def check_rotation(self, result, data_before_rotate):
         data = result.fetchall()
         self.assertTrue(data)
         for row in data:
@@ -2833,14 +2885,8 @@ class TestAcraRotate(BaseTestCase):
             self.assertNotEqual(row['data'], data_before_rotate[row['id']])
             # check that after rotation encrypted data != raw data
             self.assertNotEqual(row['data'], row['raw_data'].encode('utf-8'))
-
-        # check that after rotation we can read actual data
-        result = self.engine1.execute(sa.select([rotate_test_table]))
-        data = result.fetchall()
-        self.assertTrue(data)
-        for row in data:
-            # check that data was changed
-            self.assertEqual(row['data'], row['raw_data'].encode('utf-8'))
+            # update with new data to check on next stage
+            data_before_rotate[row['id']] = row['data']
 
 
 class TestPrometheusMetrics(AcraTranslatorMixin, BaseTestCase):
