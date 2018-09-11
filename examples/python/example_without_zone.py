@@ -16,39 +16,10 @@ import argparse
 import string
 from random import randint, choice
 
-from sqlalchemy import (Table, Column, Integer, MetaData, types,
-    create_engine, select, Text)
+from sqlalchemy import (Table, Column, Integer, MetaData, create_engine,
+                        select, Text)
 
-from acrawriter import create_acrastruct
-
-
-class AcraBinary(types.TypeDecorator):
-    impl = types.Binary
-
-    def __init__(self, public_key, *args, **kwargs):
-        super(AcraBinary, self).__init__(*args, **kwargs)
-        self._public_key = public_key
-
-    def process_bind_param(self, value, dialect):
-        return create_acrastruct(value, self._public_key)
-
-    def process_result_value(self, value, dialect):
-        return value
-
-
-class AcraString(AcraBinary):
-    def __init__(self, public_key, encoding='utf-8', *args, **kwargs):
-        super(AcraString, self).__init__(public_key, *args, **kwargs)
-        self._encoding = encoding
-
-    def process_bind_param(self, value, dialect):
-        return super(AcraString, self).process_bind_param(value.encode(self._encoding), dialect)
-
-    def process_result_value(self, value, dialect):
-        if isinstance(value, str):
-            return value
-        else:
-            return value.decode(self._encoding)
+from acrawriter.sqlalchemy import AcraBinary
 
 
 if __name__ == '__main__':
@@ -87,7 +58,7 @@ if __name__ == '__main__':
         result = result.fetchall()
         print("{:<3} - {:<20} - {}".format("id", "data", "raw_data"))
         for row in result:
-            print("{:<3} - {} - {:>10}".format(row['id'], row['data'], row['raw_data']))
+            print("{:<3} - {:<20} - {}".format(row['id'], row['data'].decode("utf-8", errors='ignore'), row['raw_data']))
     else:
         data = bytes([randint(32, 126) for _ in range(randint(10, 20))])
         string_data = ''.join(choice(string.ascii_letters) for _ in range(randint(10, 20)))
