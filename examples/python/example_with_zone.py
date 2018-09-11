@@ -35,7 +35,7 @@ def get_zone():
     """make http response to AcraServer api to generate new zone and return tuple
     of zone id and public key
     """
-    response = urlopen('{}/getNewZone'.format(ACRA_SERVER_API_HOST))
+    response = urlopen('{}/getNewZone'.format(ACRA_CONNECTOR_API_ADDRESS))
     json_data = response.read().decode('utf-8')
     zone_data = json.loads(json_data)
     return zone_data['id'], b64decode(zone_data['public_key'])
@@ -56,11 +56,11 @@ def print_data(zone_id, connection):
     result = result.fetchall()
     ZONE_ID_INDEX = 0
     print("use zone_id: ", zone_id)
-    print("{:<3} - {} - {} - {:>10}".format("id", 'zone', "data", "raw_data"))
+    print("{:<3} - {} - {} - {}".format("id", 'zone', "data", "raw_data"))
     for row in result:
         print(
-            "{:<3} - {} - {} - {:>10}\n".format(
-            row['id'], row[ZONE_ID_INDEX],
+            "{:<3} - {} - {} - {}\n".format(
+            row['id'], row[ZONE_ID_INDEX].decode('utf-8'),
             row['data'].decode('utf-8', errors='ignore'), row['raw_data']))
 
 
@@ -72,11 +72,10 @@ def write_data(data, connection):
     encrypted_data = create_acrastruct(
         data.encode('utf-8'), key, zone_id.encode('utf-8'))
 
-    random_id = randint(1, 100500)
     connection.execute(
-        test_table.insert(), data=encrypted_data, id=random_id, zone_id=zone_id,
-        raw_data='(zone: {}) - {}'.format(zone_id, data))
-    print("saved with zone: {} with random id: {}".format(zone_id, random_id))
+        test_table.insert(), data=encrypted_data,
+        zone_id=zone_id.encode('utf-8'),
+        raw_data=data)
 
 
 if __name__ == '__main__':
@@ -118,8 +117,8 @@ if __name__ == '__main__':
                         help="Use mysql driver")
     args = parser.parse_args()
 
-    ACRA_SERVER_API_HOST = get_default(
-        'acra_server_api_host', 'http://127.0.0.1:9191')
+    ACRA_CONNECTOR_API_ADDRESS = get_default(
+        'acra_connector_api_address', 'http://127.0.0.1:9191')
     # default driver
     driver = 'postgresql'
     if args.mysql:
