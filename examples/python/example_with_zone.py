@@ -42,40 +42,39 @@ def get_zone():
 
 
 def get_default(name, value):
+    """return value from environment variables with name EXAMPLE_<name>
+    or value"""
     return os.environ.get('EXAMPLE_{}'.format(name.upper()), value)
 
 
 def print_data(zone_id, connection):
-    if zone_id:
-        print("use zone_id: ", zone_id)
-        result = connection.execute(
-            select([cast(zone_id.encode('utf-8'), BYTEA), test]))
-    else:
-        result = connection.execute(
-            select([cast('without zone'.encode('utf-8'), BYTEA),
-                    test.c.id, test.c.data, test.c.raw_data]))
+    """fetch data from database (use zone_id if not empty/None) and print to
+    console"""
+    result = connection.execute(
+        # explicitly pass zone id before related data
+        select([cast(zone_id.encode('utf-8'), BYTEA), test_table]))
     result = result.fetchall()
+    ZONE_ID_INDEX = 0
+    print("use zone_id: ", zone_id)
     print("{:<3} - {} - {} - {:>10}".format("id", 'zone', "data", "raw_data"))
     for row in result:
-        print("{:<3} - {} - {} - {:>10}\n".format(
-            row['id'], row[0], row['data'].decode('utf-8', errors='ignore'),
-            row['raw_data']))
+        print(
+            "{:<3} - {} - {} - {:>10}\n".format(
+            row['id'], row[ZONE_ID_INDEX],
+            row['data'].decode('utf-8', errors='ignore'), row['raw_data']))
 
 
-def write_data(zone_id, data, connection):
-    if zone_id:
-        print("To encrypt data script will generate new zone and print zone id"
-              " with public key after execution. Don't use --zone_id option "
-              "with --data option.")
-        exit(1)
+def write_data(data, connection):
     zone_id, key = get_zone()
-
     print("data: {}\nzone: {}".format(data, zone_id))
+
+    # here we encrypt our data and wrap into AcraStruct
     encrypted_data = create_acrastruct(
         data.encode('utf-8'), key, zone_id.encode('utf-8'))
+
     random_id = randint(1, 100500)
     connection.execute(
-        test.insert(), data=encrypted_data, id=random_id, zone_id=zone_id,
+        test_table.insert(), data=encrypted_data, id=random_id, zone_id=zone_id,
         raw_data='(zone: {}) - {}'.format(zone_id, data))
     print("saved with zone: {} with random id: {}".format(zone_id, random_id))
 
@@ -127,24 +126,30 @@ if __name__ == '__main__':
         driver = 'mysql+pymysql'
 
     metadata = MetaData()
-    test = Table('test_example_with_zone', metadata,
+    test_table = Table(
+        'test_example_with_zone', metadata,
         Column('id', Integer, primary_key=True, nullable=False),
         Column('zone_id', Binary, nullable=True),
         Column('data', Binary, nullable=False),
         Column('raw_data', Text, nullable=False),
     )
-    proxy_engine = create_engine(
+    engine = create_engine(
         '{}://{}:{}@{}:{}/{}'.format(
             driver, args.db_user, args.db_password, args.host, args.port,
             args.db_name),
         echo=bool(args.verbose))
-    proxy_connection = proxy_engine.connect()
-    metadata.create_all(proxy_engine)
+    connection = engine.connect()
+    metadata.create_all(engine)
 
     if args.print:
-        print_data(args.zone_id, proxy_connection)
+        print_data(args.zone_id, connection)
     elif args.data:
-        write_data(args.zone_id, args.data, proxy_connection)
+        if args.zone_id:
+            print("To encrypt data script will generate new zone and print "
+                  "zone id with public key after execution. Don't use "
+                  "--zone_id option with --data option.")
+            exit(1)
+        write_data(args.data, connection)
     else:
         print('Use --print or --data options')
         exit(1)
