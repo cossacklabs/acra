@@ -15,12 +15,12 @@
 from setuptools import setup
 
 setup(name='acrawriter',
-      version='1.0.1',
+      version='1.0.2',
       description='AcraWriter library for Python: encrypts data into AcraStructs, allowing Acra to decrypt it',
       author='Cossack Labs',
       author_email='dev@cossacklabs.com',
       url='https://github.com/cossacklabs/acra/',
-      packages=['acrawriter', 'acrawriter.django'],
+      packages=['acrawriter', 'acrawriter.django', 'acrawriter.sqlalchemy'],
       install_requires=[
           'pythemis',
       ],
