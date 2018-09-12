@@ -26,7 +26,6 @@ import (
 	"bufio"
 	"container/list"
 	"database/sql"
-	"encoding/hex"
 	"flag"
 	"fmt"
 	"os"
@@ -34,7 +33,6 @@ import (
 
 	"github.com/cossacklabs/acra/cmd"
 	"github.com/cossacklabs/acra/decryptor/base"
-	"github.com/cossacklabs/acra/decryptor/postgresql"
 	"github.com/cossacklabs/acra/keystore"
 	"github.com/cossacklabs/acra/utils"
 	"github.com/cossacklabs/themis/gothemis/keys"
@@ -58,35 +56,6 @@ var (
 func ErrorExit(msg string, err error) {
 	fmt.Println(utils.ErrorMessage(msg, err))
 	os.Exit(1)
-}
-
-// BinaryEncoder encodes binary to string
-type BinaryEncoder interface {
-	Encode([]byte) string
-}
-
-// MysqlEncoder encodes MySQL packets
-type MysqlEncoder struct{}
-
-// Encode bytes to Hex supported by MySQL
-func (e *MysqlEncoder) Encode(data []byte) string {
-	return fmt.Sprintf("X'%s'", hex.EncodeToString(data))
-}
-
-// EscapeEncoder for Postgres
-type EscapeEncoder struct{}
-
-// Encode bytes to Postgres Octal format
-func (e *EscapeEncoder) Encode(data []byte) string {
-	return QuoteValue(string(postgresql.EncodeToOctal(data)))
-}
-
-// HexEncoder for hex
-type HexEncoder struct{}
-
-// Encode bytes to Hex
-func (*HexEncoder) Encode(data []byte) string {
-	return fmt.Sprintf("E'\\\\x%s'", hex.EncodeToString(data))
 }
 
 // Executor interface for any executor.
@@ -124,14 +93,14 @@ func (ex *InsertExecutor) Close() {
 
 // WriteToFileExecutor writes to file
 type WriteToFileExecutor struct {
-	encoder BinaryEncoder
+	encoder utils.BinaryEncoder
 	file    *os.File
 	sql     string
 	writer  *bufio.Writer
 }
 
 // NewWriteToFileExecutor creates new object ready to write encoded sql to filePath
-func NewWriteToFileExecutor(filePath string, sql string, encoder BinaryEncoder) *WriteToFileExecutor {
+func NewWriteToFileExecutor(filePath string, sql string, encoder utils.BinaryEncoder) *WriteToFileExecutor {
 	absPath, err := filepath.Abs(filePath)
 	if err != nil {
 		ErrorExit("can't get absolute path for output file", err)
@@ -150,18 +119,9 @@ var PLACEHOLDER = "$1"
 // NEWLINE char
 var NEWLINE = []byte{'\n'}
 
-// QuoteValue returns name in quotes, if name contains quotes, doubles them
-func QuoteValue(name string) string {
-	end := strings.IndexRune(name, 0)
-	if end > -1 {
-		name = name[:end]
-	}
-	return `'` + strings.Replace(name, `'`, `''`, -1) + `'`
-}
-
 // Execute write to file
 func (ex *WriteToFileExecutor) Execute(data []byte) {
-	encoded := ex.encoder.Encode(data)
+	encoded := ex.encoder.EncodeToString(data)
 	outputSQL := strings.Replace(ex.sql, PLACEHOLDER, encoded, 1)
 	n, err := ex.writer.Write([]byte(outputSQL))
 	if err != nil {
@@ -292,12 +252,12 @@ func main() {
 	executors := list.New()
 	if *outputFile != "" {
 		if *useMysql {
-			executors.PushFront(NewWriteToFileExecutor(*outputFile, *sqlInsert, &MysqlEncoder{}))
+			executors.PushFront(NewWriteToFileExecutor(*outputFile, *sqlInsert, &utils.MysqlEncoder{}))
 		} else {
 			if *escapeFormat {
-				executors.PushFront(NewWriteToFileExecutor(*outputFile, *sqlInsert, &EscapeEncoder{}))
+				executors.PushFront(NewWriteToFileExecutor(*outputFile, *sqlInsert, &utils.EscapeEncoder{}))
 			} else {
-				executors.PushFront(NewWriteToFileExecutor(*outputFile, *sqlInsert, &HexEncoder{}))
+				executors.PushFront(NewWriteToFileExecutor(*outputFile, *sqlInsert, &utils.HexEncoder{}))
 			}
 		}
 	}
