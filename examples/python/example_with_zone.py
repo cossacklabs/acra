@@ -94,7 +94,7 @@ if __name__ == '__main__':
                         default=get_default('db_password', 'test'),
                         help='Database user\'s password')
     parser.add_argument('--port', type=int,
-                        default=get_default('port', 5433),
+                        default=get_default('port', 9494),
                         help='Port of database or AcraConnector')
     parser.add_argument('--host', type=str,
                         default=get_default('host', 'localhost'),

@@ -82,7 +82,7 @@ Output like:
 
 Don't forget to reload keystore via running AcraServer after rotation if you run AcraServer without `--keystore_cache_size=-1` option (that turn off cache of keys)
 
-## File rotation
+Use AcraConnector's host:port to see decrypted data and databases host:port to see encrypted data*## File rotation
 
 Before running rotation of keys and data in files you should generate json config for it with "zone id" as key and list with paths to files which was encrypted with this zone id
 ```
