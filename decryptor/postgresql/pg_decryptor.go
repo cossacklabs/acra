@@ -79,9 +79,6 @@ const (
 	TLSTimeout              = time.Second * 2
 )
 
-// CancelRequest indicates beginning tag of Cancel request.
-var CancelRequest = []byte{0x04, 0xd2, 0x16, 0x2e}
-
 // PgProxy represents PgSQL database connection between client and database with TLS support
 type PgProxy struct {
 	clientConnection net.Conn
@@ -109,21 +106,12 @@ func (proxy *PgProxy) PgProxyClientRequests(acraCensor acracensor.AcraCensorInte
 		return
 	}
 	prometheusLabels := []string{base.DecryptionDBPostgresql}
-	// first packet doesn't contain MessageType, only packet length and data and should be processed differently
-	firstPacket := true
 	for {
 		timer := prometheus.NewTimer(prometheus.ObserverFunc(base.RequestProcessingTimeHistogram.WithLabelValues(prometheusLabels...).Observe))
-		packet.descriptionBuf.Reset()
-		if firstPacket {
-			// read only data block without message type
-			err = packet.readData()
-			firstPacket = false
-		} else {
-			// read whole packet with message type
-			err = packet.ReadPacket()
-		}
-		if err != nil {
-			logger.WithError(err).Errorln("Can't read packet")
+		packet.Reset()
+
+		if err := packet.ReadClientPacket(); err != nil {
+			logger.WithError(err).Errorln("Can't read packet from client to database")
 			errCh <- err
 			return
 		}
@@ -423,12 +411,14 @@ func (proxy *PgProxy) PgDecryptStream(censor acracensor.AcraCensorInterface, dec
 	}
 	firstByte := true
 	for {
+		packetHandler.Reset()
 		if firstByte {
 			timer := prometheus.NewTimer(prometheus.ObserverFunc(base.ResponseProcessingTimeHistogram.WithLabelValues(prometheusLabels...).Observe))
 			// https://www.postgresql.org/docs/9.1/static/protocol-flow.html#AEN92112
 			// we should know that we shouldn't read anymore bytes
 			// first response from server may contain only one byte of response on SSLRequest
 			firstByte = false
+			log.Debugln("Read startup message")
 			if err := packetHandler.readMessageType(); err != nil {
 				logger.WithError(err).Errorln("Can't read first message type")
 				errCh <- err
@@ -441,6 +431,7 @@ func (proxy *PgProxy) PgDecryptStream(censor acracensor.AcraCensorInterface, dec
 					return
 				}
 				timer.ObserveDuration()
+				//firstByte = true
 				continue
 			} else if packetHandler.IsSSLRequestAllowed() {
 				tlsClientConnection, dbTLSConnection, err := proxy.handleSSLRequest(packetHandler, tlsConfig, clientConnection, dbConnection, logger)
@@ -461,8 +452,9 @@ func (proxy *PgProxy) PgDecryptStream(censor acracensor.AcraCensorInterface, dec
 				timer.ObserveDuration()
 				continue
 			}
+			log.Debugln("Non-ssl request start up message")
 			// if it is not ssl request than we just forward it to client
-			if err := packetHandler.readData(); err != nil {
+			if err := packetHandler.readData(true); err != nil {
 				logger.WithError(err).Errorln("Can't read data of packet")
 				errCh <- err
 				return
@@ -513,7 +505,9 @@ func (proxy *PgProxy) PgDecryptStream(censor acracensor.AcraCensorInterface, dec
 		logger.Debugf("Process columns data")
 		for i := 0; i < packetHandler.columnCount; i++ {
 			column := packetHandler.Columns[i]
-
+			if column.IsNull() {
+				continue
+			}
 			// try to skip small piece of data that can't be valuable for us
 			if (decryptor.IsWithZone() && column.Length() >= zone.ZoneIDBlockLength) || column.Length() >= base.KeyBlockLength {
 				decryptor.Reset()
