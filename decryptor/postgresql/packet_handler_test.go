@@ -56,9 +56,11 @@ func TestClientUnknownCommand(t *testing.T) {
 }
 
 func TestClientSpecialMessageTypes(t *testing.T) {
-	lengthBuf := []byte{0, 0, 0, 8}
-	for _, data := range [][]byte{SSLRequest, CancelRequest, StartupRequest} {
-		packet := bytes.Join([][]byte{lengthBuf, data}, []byte{})
+	sslLengthBuf := []byte{0, 0, 0, 8}
+	cancelRequestLengthBuf := []byte{0, 0, 0, 16}
+	lengthBufs := [][]byte{sslLengthBuf, cancelRequestLengthBuf}
+	for i, data := range [][]byte{SSLRequest, CancelRequest} {
+		packet := bytes.Join([][]byte{lengthBufs[i], data}, []byte{})
 		reader := bytes.NewReader(packet)
 		output := make([]byte, 8)
 		writer := bufio.NewWriter(bytes.NewBuffer(output[:0]))
@@ -72,10 +74,10 @@ func TestClientSpecialMessageTypes(t *testing.T) {
 		if packetHander.messageType[0] != WithoutMessageType {
 			t.Fatal("Incorrect message type")
 		}
-		if !bytes.Equal(packetHander.descriptionLengthBuf, lengthBuf) {
+		if !bytes.Equal(packetHander.descriptionLengthBuf, lengthBufs[i]) {
 			t.Fatal("Incorrect length buf")
 		}
-		if !bytes.Equal(packetHander.descriptionBuf.Bytes(), SSLRequest) {
+		if !bytes.Equal(packetHander.descriptionBuf.Bytes(), data) {
 			t.Fatal("Incorrect data buf")
 		}
 		if err := packetHander.sendPacket(); err != nil {
