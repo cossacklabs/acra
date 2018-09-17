@@ -35,9 +35,6 @@ const (
 	SessionDataLimit = 8 * 1024 // 8 kb
 )
 
-// ErrBigDataBlockSize represents data encoding error
-var ErrBigDataBlockSize = fmt.Errorf("Block size greater than %v", SessionDataLimit)
-
 // WriteFull writes data to io.Writer.
 // if wr.Write will return n <= len(data) will
 //	sent the rest of data until error or total sent byte count == len(data)
@@ -59,8 +56,6 @@ func WriteFull(data []byte, wr io.Writer) (int, error) {
 
 // SendData writes length of data block to connection, then writes data itself
 func SendData(data []byte, conn io.Writer) error {
-	log.Infof("Send %v bytes", len(data))
-	log.Infof("send data ", string(data))
 	var buf [4]byte
 	binary.LittleEndian.PutUint32(buf[:], uint32(len(data)))
 	_, err := WriteFull(buf[:], conn)
@@ -82,7 +77,6 @@ func ReadDataLength(reader io.Reader) ([]byte, int, error) {
 		return nil, 0, err
 	}
 	dataSize := int(binary.LittleEndian.Uint32(length[:]))
-	log.Infof("Read %v bytes", dataSize)
 	return length[:], dataSize, nil
 }
 
@@ -98,7 +92,6 @@ func ReadData(reader io.Reader) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	log.Infof("Read data ", string(buf))
 	return buf, nil
 }
 
