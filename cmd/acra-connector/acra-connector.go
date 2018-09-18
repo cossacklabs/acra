@@ -160,10 +160,11 @@ func handleConnection(config *Config, connection net.Conn) {
 	}
 	log.Infoln("Close wrapped connection with AcraServer")
 	if err := acraConnWrapped.Close(); err != nil {
-		log.WithError(err).Errorln("Error on closing wrapped connection with AcraServer")
+		log.WithError(err).Errorf("Error on closing wrapped connection with %s", connector_mode.ModeToServiceName(config.Mode))
+
 	}
 	if err := acraConn.Close(); err != nil {
-		log.WithError(err).Errorln("Error on closing connection with AcraServer")
+		log.WithError(err).Errorln("Error on closing connection with %s", connector_mode.ModeToServiceName(config.Mode))
 	}
 }
 
@@ -177,6 +178,7 @@ type Config struct {
 	DisableUserCheck         bool
 	KeyStore                 keystore.SecureSessionKeyStore
 	ConnectionWrapper        network.ConnectionWrapper
+	Mode                     connector_mode.ConnectorMode
 }
 
 func main() {
@@ -339,7 +341,7 @@ func main() {
 
 	// --------- Config  -----------
 	log.Infof("Configuring transport...")
-	config := &Config{KeyStore: keyStore, KeysDir: *keysDir, ClientID: []byte(*clientID), OutgoingConnectionString: outgoingConnectionString, IncomingConnectionString: *connectionString, OutgoingServiceID: []byte(outgoingSecureSessionID), DisableUserCheck: *disableUserCheck}
+	config := &Config{KeyStore: keyStore, KeysDir: *keysDir, ClientID: []byte(*clientID), OutgoingConnectionString: outgoingConnectionString, IncomingConnectionString: *connectionString, OutgoingServiceID: []byte(outgoingSecureSessionID), DisableUserCheck: *disableUserCheck, Mode: connectorMode}
 	listener, err := network.Listen(*connectionString)
 	if err != nil {
 		log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantStartListenConnections).
