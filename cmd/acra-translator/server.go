@@ -195,11 +195,13 @@ func (server *ReaderServer) Start(parentContext context.Context) {
 	poisonCallbacks := base.NewPoisonCallbackStorage()
 	if server.config.DetectPoisonRecords() {
 		if server.config.scriptOnPoison != "" {
+			log.Infof("Add poison record callback with script execution %v", server.config.scriptOnPoison)
 			poisonCallbacks.AddCallback(base.NewExecuteScriptCallback(server.config.scriptOnPoison))
 		}
 
 		// must be last
 		if server.config.stopOnPoison {
+			log.Infoln("Add poison record callback with AcraTranslator termination")
 			poisonCallbacks.AddCallback(&base.StopCallback{})
 		}
 	}

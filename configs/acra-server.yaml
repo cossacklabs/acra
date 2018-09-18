@@ -55,6 +55,9 @@ incoming_connection_host: 0.0.0.0
 # Port for AcraServer
 incoming_connection_port: 9393
 
+# URL (tcp://host:port) which will be used to expose Prometheus metrics (<URL>/metrics address to pull metrics)
+incoming_connection_prometheus_metrics_string: 
+
 # Connection string like tcp://x.x.x.x:yyyy or unix:///path/to/socket
 incoming_connection_string: tcp://0.0.0.0:9393/
 
@@ -87,9 +90,6 @@ poison_shutdown_enable: false
 
 # Handle Postgresql connections (default true)
 postgresql_enable: false
-
-# URL of Prometheus server for AcraConnector to upload stats and metrics (upload address is <URL>/metrics)
-prometheus_metrics_address: 
 
 # Id that will be sent in secure session
 securesession_id: acra_server

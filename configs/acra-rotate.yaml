@@ -1,6 +1,9 @@
 # path to config
 config_file: 
 
+# Connection string to db
+db_connection_string: 
+
 # dump config
 dump_config: false
 
@@ -9,4 +12,16 @@ file_map_config:
 
 # Folder from which the keys will be loaded
 keys_dir: .acrakeys
+
+# Handle MySQL connections
+mysql_enable: false
+
+# Handle Postgresql connections
+postgresql_enable: false
+
+# Select query with ? as placeholders where last columns in result must be ClientId/ZoneId and AcraStruct. Other columns will be passed into insert/update query into placeholders
+sql_select: 
+
+# Insert/Update query with ? as placeholder where into first will be placed rotated AcraStruct
+sql_update: 
 
