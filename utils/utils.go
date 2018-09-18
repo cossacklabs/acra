@@ -35,9 +35,6 @@ const (
 	SessionDataLimit = 8 * 1024 // 8 kb
 )
 
-// ErrBigDataBlockSize represents data encoding error
-var ErrBigDataBlockSize = fmt.Errorf("Block size greater than %v", SessionDataLimit)
-
 // WriteFull writes data to io.Writer.
 // if wr.Write will return n <= len(data) will
 //	sent the rest of data until error or total sent byte count == len(data)

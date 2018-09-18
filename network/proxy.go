@@ -31,7 +31,7 @@ func Proxy(connFrom, connTo net.Conn, errCh chan<- error) {
 			return
 		}
 		if n == 0 {
-			log.Warningln("read 0 bytes")
+			log.Warningln("Read 0 bytes")
 			continue
 		}
 		for nTo := 0; nTo < n; {

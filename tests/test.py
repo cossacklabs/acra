@@ -71,8 +71,8 @@ DB_HOST = os.environ.get('TEST_DB_HOST', '127.0.0.1')
 DB_NAME = os.environ.get('TEST_DB_NAME', 'postgres')
 DB_PORT = os.environ.get('TEST_DB_PORT', 5432)
 
-DATA_MIN_SIZE = 1000
-DATA_MAX_SIZE = DATA_MIN_SIZE * 10
+DATA_MIN_SIZE = 10
+DATA_MAX_SIZE = DATA_MIN_SIZE * 1000
 # 200 is overhead of encryption (chosen manually)
 # multiply 2 because tested acrastruct in acrastruct
 COLUMN_DATA_SIZE = (DATA_MAX_SIZE + 200) * 2

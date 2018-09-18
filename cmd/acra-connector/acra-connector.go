@@ -77,7 +77,12 @@ func handleApiConnection(config *Config, connection net.Conn) {
 }
 
 func handleConnection(config *Config, connection net.Conn) {
-	defer connection.Close()
+	defer func() {
+		log.Infoln("Close connection with client")
+		if err := connection.Close(); err != nil {
+			log.WithError(err).Errorln("Error on closing client's connection")
+		}
+	}()
 
 	if !(config.DisableUserCheck) {
 		host, port, err := net.SplitHostPort(connection.RemoteAddr().String())
@@ -122,15 +127,16 @@ func handleConnection(config *Config, connection net.Conn) {
 			Errorln("Can't connect to AcraServer")
 		return
 	}
-	defer acraConn.Close()
 
 	acraConnWrapped, err := config.ConnectionWrapper.WrapClient(config.ClientID, acraConn)
 	if err != nil {
 		log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantWrapConnection).
 			Errorln("Can't wrap connection")
+		if err := acraConn.Close(); err != nil {
+			log.WithError(err).Errorln("Error on closing connection with AcraServer")
+		}
 		return
 	}
-	defer acraConnWrapped.Close()
 
 	toAcraErrCh := make(chan error, 1)
 	fromAcraErrCh := make(chan error, 1)
@@ -151,7 +157,14 @@ func handleConnection(config *Config, connection net.Conn) {
 			log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantStartConnection).
 				Errorln("Connector error")
 		}
-		return
+	}
+	log.Infoln("Close wrapped connection with AcraServer")
+	if err := acraConnWrapped.Close(); err != nil {
+		log.WithError(err).Errorf("Error on closing wrapped connection with %s", connector_mode.ModeToServiceName(config.Mode))
+
+	}
+	if err := acraConn.Close(); err != nil {
+		log.WithError(err).Errorln("Error on closing connection with %s", connector_mode.ModeToServiceName(config.Mode))
 	}
 }
 
@@ -165,6 +178,7 @@ type Config struct {
 	DisableUserCheck         bool
 	KeyStore                 keystore.SecureSessionKeyStore
 	ConnectionWrapper        network.ConnectionWrapper
+	Mode                     connector_mode.ConnectorMode
 }
 
 func main() {
@@ -327,7 +341,7 @@ func main() {
 
 	// --------- Config  -----------
 	log.Infof("Configuring transport...")
-	config := &Config{KeyStore: keyStore, KeysDir: *keysDir, ClientID: []byte(*clientID), OutgoingConnectionString: outgoingConnectionString, IncomingConnectionString: *connectionString, OutgoingServiceID: []byte(outgoingSecureSessionID), DisableUserCheck: *disableUserCheck}
+	config := &Config{KeyStore: keyStore, KeysDir: *keysDir, ClientID: []byte(*clientID), OutgoingConnectionString: outgoingConnectionString, IncomingConnectionString: *connectionString, OutgoingServiceID: []byte(outgoingSecureSessionID), DisableUserCheck: *disableUserCheck, Mode: connectorMode}
 	listener, err := network.Listen(*connectionString)
 	if err != nil {
 		log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantStartListenConnections).

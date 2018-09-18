@@ -32,6 +32,18 @@ const (
 	AcraTranslatorMode ConnectorMode = "AcraTranslator"
 )
 
+// ModeToServiceName return service name related with mode
+func ModeToServiceName(mode ConnectorMode) string {
+	switch mode {
+	case AcraServerMode:
+		return "AcraServer"
+	case AcraTranslatorMode:
+		return "AcraTranslator"
+	default:
+		return "Undefined service"
+	}
+}
+
 // CheckConnectorMode converts string to ConnectorMode.
 func CheckConnectorMode(mode string) ConnectorMode {
 	lowerCaseMode := strings.ToLower(mode)
