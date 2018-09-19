@@ -932,6 +932,7 @@ func testBlacklistWherePattern(t *testing.T) {
 		}
 	}
 }
+
 func testBlacklistValuePattern(t *testing.T) {
 	var err error
 
