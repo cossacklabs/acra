@@ -40,8 +40,9 @@ import (
 )
 
 var (
-	config     = flag_.String("config_file", "", "path to config")
-	dumpconfig = flag_.Bool("dump_config", false, "dump config")
+	config                   = flag_.String("config_file", "", "path to config")
+	dumpconfig               = flag_.Bool("dump_config", false, "dump config")
+	generateMarkdownArgTable = flag_.Bool("generate_markdown_args_table", false, "Generate with yaml config markdown text file with descriptions of all args")
 )
 
 func init() {
@@ -189,8 +190,10 @@ func GenerateMarkdownDoc(output io.Writer, serviceName string) {
 	escapeColumn := func(text string) string {
 		return strings.Replace(text, "|", "\\|", -1)
 	}
-	// serviceName | arg name | rename to | default value | description
-	fmt.Fprintf(output, "|%v|||||\n", serviceName)
+	// table header with service name
+	// |serviceName | arg name | rename to | default value | description|
+	// |:-:         |:-:       |:-:        |:-:            |:-:         |
+	fmt.Fprintf(output, "|%v|||||\n|:-:|:-:|:-:|:-:|:-:|\n", serviceName)
 	flag_.CommandLine.VisitAll(func(flag *flag_.Flag) {
 
 		fmt.Fprintf(output, "||%v||%v|%v|\n", flag.Name, flag.DefValue, escapeColumn(flag.Usage))
@@ -228,12 +231,14 @@ func DumpConfig(configPath, serviceName string, useDefault bool) error {
 
 	GenerateYaml(file, useDefault)
 
-	file2, err := os.Create(fmt.Sprintf("/tmp/markdown_%v.txt", serviceName))
-	if err != nil {
-		return err
-	}
+	if *generateMarkdownArgTable {
+		file2, err := os.Create(fmt.Sprintf("%v/markdown_%v.md", dirPath, serviceName))
+		if err != nil {
+			return err
+		}
 
-	GenerateMarkdownDoc(file2, serviceName)
+		GenerateMarkdownDoc(file2, serviceName)
+	}
 	log.Infof("Config dumped to %s", configPath)
 	return nil
 }

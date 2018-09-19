@@ -7,6 +7,9 @@ d: false
 # dump config
 dump_config: false
 
+# Generate with yaml config markdown text file with descriptions of all args
+generate_markdown_args_table: false
+
 # Time that AcraTranslator will wait (in seconds) on stop signal before closing all connections
 incoming_connection_close_timeout: 10
 

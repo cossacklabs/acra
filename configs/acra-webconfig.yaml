@@ -13,6 +13,9 @@ destination_port: 9191
 # dump config
 dump_config: false
 
+# Generate with yaml config markdown text file with descriptions of all args
+generate_markdown_args_table: false
+
 # Mode for basic auth. Possible values: auth_on|auth_off_local|auth_off
 http_auth_mode: auth_on
 
