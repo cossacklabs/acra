@@ -61,6 +61,9 @@ incoming_connection_api_string: tcp://127.0.0.1:9191/
 # Port to AcraConnector
 incoming_connection_port: 9494
 
+# URL which will be used to expose Prometheus metrics (use <URL>/metrics address to pull metrics)
+incoming_connection_prometheus_metrics_string: 
+
 # Connection string like tcp://x.x.x.x:yyyy or unix:///path/to/socket
 incoming_connection_string: tcp://127.0.0.1:9494/
 
@@ -72,9 +75,6 @@ logging_format: plaintext
 
 # Expected mode of connection. Possible values are: AcraServer or AcraTranslator. Corresponded connection host/port/string/session_id will be used.
 mode: AcraServer
-
-# URL of Prometheus server for AcraConnector to upload stats and metrics (upload address is <URL>/metrics)
-prometheus_metrics_address: 
 
 # Expected Server Name (SNI) from AcraServer
 tls_acraserver_sni: 

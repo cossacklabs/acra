@@ -5,7 +5,13 @@ import yaml
 
 def load_default_config(service_name):
     with open('configs/{}.yaml'.format(service_name), 'r') as f:
-        return yaml.safe_load(f)
+        config = yaml.safe_load(f)
+    # convert empty values to empty strings to avoid pass them to Popen as
+    # "None" string value
+    for key in config:
+        if config[key] is None:
+            config[key] = ''
+    return config
 
 
 def read_storage_public_key(client_id, keys_dir='.acrakeys'):

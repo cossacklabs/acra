@@ -66,7 +66,7 @@ func main() {
 
 	closeConnectionTimeout := flag.Int("incoming_connection_close_timeout", DEFAULT_WAIT_TIMEOUT, "Time that AcraTranslator will wait (in seconds) on stop signal before closing all connections")
 
-	prometheusAddress := flag.String("prometheus_metrics_address", "", "URL of Prometheus server for AcraConnector to upload stats and metrics (upload address is <URL>/metrics)")
+	prometheusAddress := flag.String("incoming_connection_prometheus_metrics_string", "", "URL which will be used to expose Prometheus metrics (use <URL>/metrics address to pull metrics)")
 
 	verbose := flag.Bool("v", false, "Log to stderr all INFO, WARNING and ERROR logs")
 	debug := flag.Bool("d", false, "Log everything to stderr")
@@ -164,9 +164,10 @@ func main() {
 		registerMetrics()
 		_, prometheusHTTPServer, err := cmd.RunPrometheusHTTPHandler(*prometheusAddress)
 		if err != nil {
-			panic(err)
+			log.WithError(err).WithField("incoming_connection_prometheus_metrics_string", *prometheusAddress).Errorln("Can't run prometheus handler")
+			os.Exit(1)
 		}
-		log.Infof("Configured to send metrics and stats to `prometheus_metrics_address`")
+		log.Infof("Configured to send metrics and stats to `incoming_connection_prometheus_metrics_string`")
 		sigHandlerSIGTERM.AddCallback(func() {
 			log.Infoln("Stop prometheus http exporter")
 			prometheusHTTPServer.Close()

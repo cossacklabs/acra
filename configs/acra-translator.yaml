@@ -19,6 +19,9 @@ incoming_connection_grpc_string:
 # Connection string for HTTP transport like http://0.0.0.0:9595
 incoming_connection_http_string: 
 
+# URL which will be used to expose Prometheus metrics (use <URL>/metrics address to pull metrics)
+incoming_connection_prometheus_metrics_string: 
+
 # Folder from which will be loaded keys
 keys_dir: .acrakeys
 
