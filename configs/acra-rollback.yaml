@@ -16,6 +16,9 @@ escape: false
 # Execute inserts
 execute: false
 
+# Generate with yaml config markdown text file with descriptions of all args
+generate_markdown_args_table: false
+
 # Query for insert decrypted data with placeholders (pg: $n, mysql: ?)
 insert: 
 

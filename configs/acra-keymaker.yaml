@@ -22,6 +22,9 @@ generate_acrawebconfig_keys: false
 # Create keypair for data encryption/decryption
 generate_acrawriter_keys: false
 
+# Generate with yaml config markdown text file with descriptions of all args
+generate_markdown_args_table: false
+
 # Generate new random master key and save to file
 generate_master_key: 
 

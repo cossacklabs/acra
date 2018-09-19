@@ -37,6 +37,9 @@ ds: false
 # dump config
 dump_config: false
 
+# Generate with yaml config markdown text file with descriptions of all args
+generate_markdown_args_table: false
+
 # Enable HTTP API
 http_api_enable: false
 

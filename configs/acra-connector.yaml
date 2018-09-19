@@ -46,6 +46,9 @@ d: false
 # dump config
 dump_config: false
 
+# Generate with yaml config markdown text file with descriptions of all args
+generate_markdown_args_table: false
+
 # Enable connection to AcraServer via HTTP API
 http_api_enable: false
 
