@@ -40,9 +40,6 @@ poison_run_script_file:
 # On detecting poison record: log about poison record detection, stop and shutdown
 poison_shutdown_enable: false
 
-# URL of Prometheus server for AcraConnector to upload stats and metrics (upload address is <URL>/metrics)
-prometheus_metrics_address: 
-
 # Id that will be sent in secure session
 securesession_id: acra_translator
 
