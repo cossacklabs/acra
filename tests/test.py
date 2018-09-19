@@ -586,7 +586,7 @@ class BaseTestCase(PrometheusMixin, unittest.TestCase):
             '-keys_dir={}'.format(KEYS_FOLDER.name),
         ]
         if self.LOG_METRICS:
-            args.append('-prometheus_metrics_address={}'.format(
+            args.append('-incoming_connection_prometheus_metrics_string={}'.format(
                 self.get_prometheus_address(
                     self.get_connector_prometheus_port(connector_port))))
         if self.DEBUG_LOG:
@@ -665,7 +665,7 @@ class BaseTestCase(PrometheusMixin, unittest.TestCase):
             'keys_dir': KEYS_FOLDER.name,
         }
         if self.LOG_METRICS:
-            args['prometheus_metrics_address'] = self.get_prometheus_address(
+            args['incoming_connection_prometheus_metrics_string'] = self.get_prometheus_address(
                 self.ACRASERVER_PROMETHEUS_PORT)
         if self.TLS_ON:
             args['acraconnector_tls_transport_enable'] = 'true'
@@ -2146,7 +2146,7 @@ class SSLPostgresqlMixin(AcraCatchLogsMixin):
                 self.acra2 = self.fork_acra(
                     acraconnector_transport_encryption_disable=True, client_id='keypair1',
                     incoming_connection_api_port=self.ACRASERVER2_PORT,
-                    prometheus_metrics_address=self.get_prometheus_address(self.ACRASERVER2_PROMETHEUS_PORT))
+                    incoming_connection_prometheus_metrics_string=self.get_prometheus_address(self.ACRASERVER2_PROMETHEUS_PORT))
             self.engine1 = sa.create_engine(
                 get_postgresql_tcp_connection_string(self.ACRASERVER_PORT, DB_NAME), connect_args=get_connect_args(port=self.ACRASERVER_PORT))
             self.engine_raw = sa.create_engine(
@@ -2262,7 +2262,7 @@ class SSLMysqlMixin(SSLPostgresqlMixin):
                 self.acra2 = self.fork_acra(
                     acraconnector_transport_encryption_disable=True, client_id='keypair1',
                     incoming_connection_port=self.ACRASERVER2_PORT,
-                    prometheus_metrics_address=self.get_prometheus_address(
+                    incoming_connection_prometheus_metrics_string=self.get_prometheus_address(
                         self.ACRASERVER2_PROMETHEUS_PORT))
             self.driver_to_acraserver_ssl_settings = {
                 'ca': 'tests/server.crt',
@@ -2946,7 +2946,7 @@ class TestPrometheusMetrics(AcraTranslatorMixin, BaseTestCase):
         connection_string = 'tcp://127.0.0.1:{}'.format(translator_port)
         translator_kwargs = {
             'incoming_connection_http_string': connection_string,
-            'prometheus_metrics_address': prometheus_metrics_address,
+            'incoming_connection_prometheus_metrics_string': prometheus_metrics_address,
         }
         metrics_url = 'http://127.0.0.1:{}/metrics'.format(metrics_port)
         api_url = 'http://127.0.0.1:{}/v1/decrypt'.format(connector_port)
@@ -2960,7 +2960,7 @@ class TestPrometheusMetrics(AcraTranslatorMixin, BaseTestCase):
 
         translator_kwargs = {
             'incoming_connection_grpc_string': connection_string,
-            'prometheus_metrics_address': prometheus_metrics_address,
+            'incoming_connection_prometheus_metrics_string': prometheus_metrics_address,
         }
         with ProcessContextManager(self.fork_translator(translator_kwargs)):
             with ProcessContextManager(self.fork_connector_for_translator(connector_port, translator_port, client_id)):
