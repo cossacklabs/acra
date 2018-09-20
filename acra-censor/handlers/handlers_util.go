@@ -286,6 +286,17 @@ func isValuePattern(node sqlparser.SQLNode) bool {
 	return bytes.Equal(sqlVal.Val, []byte(ValueConfigPlaceholderRawReplacer))
 }
 
+// isSupportedValueWithValuePattern return true if %%VALUE%% pattern should mask value of node
+// return true for any literal values, boolean and null
+// return false on other values like subqueries
+func isSupportedValueWithValuePattern(node sqlparser.SQLNode) bool {
+	switch node.(type) {
+	case *sqlparser.SQLVal, sqlparser.BoolVal, *sqlparser.NullVal:
+		return true
+	}
+	return false
+}
+
 // handleRangeCondition handle range queries (age BETWEEN %%value%% and 5)
 // return true if match (with or without %%value%% patterns) otherwise false
 func handleRangeCondition(patternNode, queryNode *sqlparser.RangeCond) bool {
@@ -295,12 +306,12 @@ func handleRangeCondition(patternNode, queryNode *sqlparser.RangeCond) bool {
 	if !reflect.DeepEqual(queryNode.Left, patternNode.Left) {
 		return false
 	}
-	if !isValuePattern(patternNode.From) {
+	if !(isValuePattern(patternNode.From) && isSupportedValueWithValuePattern(queryNode.From)) {
 		if !reflect.DeepEqual(patternNode.From, queryNode.From) {
 			return false
 		}
 	}
-	if !isValuePattern(patternNode.To) {
+	if !(isValuePattern(patternNode.To) && isSupportedValueWithValuePattern(queryNode.To)) {
 		if !reflect.DeepEqual(patternNode.To, queryNode.To) {
 			return false
 		}

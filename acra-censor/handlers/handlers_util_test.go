@@ -34,6 +34,8 @@ func TestHandleRangeCondition(t *testing.T) {
 		"select 1 from t where param between 1 and 2",
 		// two explicit str values
 		"select 1 from t where param between 'qwe' and 'asd'",
+		// subqueries instead values
+		"select 1 from t where param between (select 1) and (select 2)",
 	}
 	parsedPatterns, err := ParsePatterns(patterns)
 	if err != nil {
@@ -46,6 +48,7 @@ func TestHandleRangeCondition(t *testing.T) {
 			"select 1 from t where param between 'value placeholder' and 'qwe'",
 			"select 1 from t where param between 'value placeholder' and TRUE",
 			"select 1 from t where param between 'value placeholder' and NULL",
+			"select 1 from t where param between (select 1) and 2",
 		},
 		// right side value placeholder
 		[]string{
@@ -53,11 +56,13 @@ func TestHandleRangeCondition(t *testing.T) {
 			"select 1 from t where param between 'qwe' and 'value placeholder'",
 			"select 1 from t where param between TRUE and 'value placeholder'",
 			"select 1 from t where param between NULL and 'value placeholder'",
+			"select 1 from t where param between (select 1) and 'value placeholder'",
 		},
 		// two sides placeholder
 		[]string{
 			// incorrect column name
 			"select 1 from t where incorrect_column between NULL and 'value placeholder'",
+			"select 1 from t where param between (select 1) and (select 1)",
 		}, // all queries should match
 		// two explicit int values
 		[]string{
@@ -75,6 +80,11 @@ func TestHandleRangeCondition(t *testing.T) {
 			"select 1 from t where param between True and 'asd'",
 			"select 1 from t where param between 'qwe' and NULL",
 		},
+		// subqueries
+		[]string{
+			"select 1 from t where param between (select 1) and (select 1)",
+			"select 1 from t where param between (select 2) and (select 2)",
+		},
 	}
 	matchableQueries := [][]string{
 		// left side value placeholder
@@ -82,6 +92,7 @@ func TestHandleRangeCondition(t *testing.T) {
 			"SELECT 1 FROM t WHERE param BETWEEN 1 AND 2",
 			"SELECT 1 FROM t WHERE param BETWEEN 'qwe' AND 2",
 			"SELECT 1 FROM t WHERE param BETWEEN TRUE AND 2",
+			"SELECT 1 FROM t WHERE param BETWEEN FALSE AND 2",
 			"SELECT 1 FROM t WHERE param BETWEEN NULL AND 2",
 		},
 		// right side value placeholder
@@ -89,6 +100,7 @@ func TestHandleRangeCondition(t *testing.T) {
 			"SELECT 1 FROM t WHERE param BETWEEN 1 AND 2",
 			"SELECT 1 FROM t WHERE param BETWEEN 1 AND 'qwe'",
 			"SELECT 1 FROM t WHERE param BETWEEN 1 AND TRUE",
+			"SELECT 1 FROM t WHERE param BETWEEN 1 AND FALSE",
 			"SELECT 1 FROM t WHERE param BETWEEN 1 AND NULL",
 		},
 		// two sides placeholder
@@ -106,6 +118,10 @@ func TestHandleRangeCondition(t *testing.T) {
 		[]string{
 			"SELECT 1 FROM t WHERE param BETWEEN 'qwe' and 'asd'",
 		},
+		// explicit subqueries
+		[]string{
+			"select 1 from t where param between (select 1) and (select 2)",
+		},
 	}
 	if len(parsedPatterns) != len(matchableQueries) {
 		t.Fatal("Mismatch test configuration")
@@ -116,7 +132,7 @@ func TestHandleRangeCondition(t *testing.T) {
 		for _, query := range matchableQueries[i] {
 			parsedQuery, err := sqlparser.Parse(query)
 			if err != nil {
-				t.Fatal(err)
+				t.Fatalf("Can't parse query <%s> with error <%s>", query, err.Error())
 			}
 			queryRange := parsedQuery.(*sqlparser.Select).Where.Expr.(*sqlparser.RangeCond)
 			if !handleRangeCondition(patternRange, queryRange) {
