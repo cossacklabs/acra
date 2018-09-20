@@ -453,7 +453,7 @@ func TestPatternsInWhereClauses(t *testing.T) {
 			if err != nil {
 				t.Fatalf("Can't parse query <%s> with error <%s>", query, err.Error())
 			}
-			if !handleValuePattern([]sqlparser.SQLNode{parsedQuery}, []sqlparser.SQLNode{pattern}) {
+			if !handleWherePatterns([]sqlparser.SQLNode{parsedQuery}, []sqlparser.SQLNode{pattern}) {
 				t.Fatalf("Expected match in query <%s> with pattern <%s>", query, sqlparser.String(pattern))
 			}
 		}
@@ -463,7 +463,7 @@ func TestPatternsInWhereClauses(t *testing.T) {
 			if err != nil {
 				t.Fatalf("Error <%s> with query <%s>", err.Error(), query)
 			}
-			if handleValuePattern([]sqlparser.SQLNode{parsedQuery}, []sqlparser.SQLNode{pattern}) {
+			if handleWherePatterns([]sqlparser.SQLNode{parsedQuery}, []sqlparser.SQLNode{pattern}) {
 				t.Fatalf("Expected not match in query <%s> with pattern <%s>", query, sqlparser.String(pattern))
 			}
 		}

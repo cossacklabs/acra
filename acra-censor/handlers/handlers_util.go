@@ -149,7 +149,7 @@ func checkSinglePatternMatch(queryNodes []sqlparser.SQLNode, patternNodes []sqlp
 	if matchOccurred {
 		return true
 	}
-	matchOccurred = handleValuePattern(queryNodes, patternNodes)
+	matchOccurred = handleWherePatterns(queryNodes, patternNodes)
 	if matchOccurred {
 		return true
 	}
@@ -307,7 +307,7 @@ func isListOfValuesPattern(node sqlparser.SQLNode) bool {
 
 // skipValueWithValuePattern return true if pattern node is %%VALUE%% pattern and value of query node has type that masked with this pattern
 func skipValueWithValuePattern(patternNode, queryNode sqlparser.SQLNode) bool {
-	return isValuePattern(patternNode) && isSupportedValueWithValuePattern(queryNode)
+	return isValuePattern(patternNode) && isSupportedValueTypeWithValuePattern(queryNode)
 }
 
 // skipSubqueryValuePattern return true if pattern are %%SUBQUERY%% and queryNode has correct type for this pattern otherwise false
@@ -325,10 +325,10 @@ func skipSubqueryValuePattern(patternNode, queryNode sqlparser.SQLNode) bool {
 	return false
 }
 
-// isSupportedValueWithValuePattern return true if %%VALUE%% pattern should mask value of node
+// isSupportedValueTypeWithValuePattern return true if %%VALUE%% pattern should mask value of node
 // return true for any literal values, boolean and null
 // return false on other values like subqueries
-func isSupportedValueWithValuePattern(node sqlparser.SQLNode) bool {
+func isSupportedValueTypeWithValuePattern(node sqlparser.SQLNode) bool {
 	switch node.(type) {
 	case *sqlparser.SQLVal, sqlparser.BoolVal, *sqlparser.NullVal:
 		return true
@@ -428,8 +428,8 @@ func handleWhereNode(patternNode, queryNode sqlparser.SQLNode) bool {
 	return true
 }
 
-// handle SELECT a, b FROM t1 WHERE userID=%%VALUE%% pattern
-func handleValuePattern(queryNodes, patternNodes []sqlparser.SQLNode) bool {
+// handleWherePatterns try to match all WHERE conditions with supported patterns
+func handleWherePatterns(queryNodes, patternNodes []sqlparser.SQLNode) bool {
 	// collect only SelectExpr, From, Where, OrderBy ... nodes without their children
 	queryTopNodes, err := getTopNodes(queryNodes[0])
 	if err != nil {
@@ -471,6 +471,7 @@ func handleValuePattern(queryNodes, patternNodes []sqlparser.SQLNode) bool {
 	return true
 }
 
+// IsEqualComparisonNode try to match patternNode with queryNode with supported patterns for ComparisonExpr
 func IsEqualComparisonNode(patternNode, queryNode *sqlparser.ComparisonExpr) bool {
 	if reflect.DeepEqual(patternNode.Left, queryNode.Left) &&
 		strings.EqualFold(patternNode.Operator, queryNode.Operator) &&
@@ -579,6 +580,8 @@ func handleStarPattern(queryNodes, patternNodes []sqlparser.SQLNode) bool {
 	//this is a case when pattern == query
 	return true
 }
+
+// starFound return true if Select has '*' expression
 func starFound(selectExpression sqlparser.SelectExprs) bool {
 	starDetected := false
 	sqlparser.Walk(func(node sqlparser.SQLNode) (bool, error) {
