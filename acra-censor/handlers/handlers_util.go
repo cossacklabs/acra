@@ -78,7 +78,12 @@ const (
 	ListOfValuesConfigPlaceholder            = "%%LIST_OF_VALUES%%"
 	ListOfValuesConfigPlaceholderRawReplacer = "LIST_OF_VALUES_1KVA2TWY"
 	ListOfValuesConfigPlaceholderReplacer    = "'" + ListOfValuesConfigPlaceholderRawReplacer + "'"
+
+	SubqueryConfigPlaceholder         = "%%SUBQUERY%%"
+	SubqueryConfigPlaceholderReplacer = "SELECT 'SUBQUERY_953IKLIJU4C8joVsZqCr8hYducQWNx'"
 )
+
+var SubqueryConfigPlaceholderReplacerParsed, _ = sqlparser.Parse(SubqueryConfigPlaceholderReplacer)
 
 // TrimStringToN trims query to N chars.
 func TrimStringToN(query string, n int) string {
@@ -305,6 +310,21 @@ func skipValueWithValuePattern(patternNode, queryNode sqlparser.SQLNode) bool {
 	return isValuePattern(patternNode) && isSupportedValueWithValuePattern(queryNode)
 }
 
+// skipSubqueryValuePattern return true if pattern are %%SUBQUERY%% and queryNode has correct type for this pattern otherwise false
+func skipSubqueryValuePattern(patternNode, queryNode sqlparser.SQLNode) bool {
+	if _, ok := patternNode.(*sqlparser.Subquery); !ok {
+		return false
+	}
+	if _, ok := queryNode.(*sqlparser.Subquery); !ok {
+		return false
+	}
+	// check that patterns query the same as our parsed placeholder
+	if reflect.DeepEqual(patternNode.(*sqlparser.Subquery).Select, SubqueryConfigPlaceholderReplacerParsed) {
+		return true
+	}
+	return false
+}
+
 // isSupportedValueWithValuePattern return true if %%VALUE%% pattern should mask value of node
 // return true for any literal values, boolean and null
 // return false on other values like subqueries
@@ -458,37 +478,52 @@ func IsEqualComparisonNode(patternNode, queryNode *sqlparser.ComparisonExpr) boo
 
 		switch patternNode.Operator {
 		case sqlparser.InStr, sqlparser.NotInStr:
-			queryInNodes, ok := queryNode.Right.(sqlparser.ValTuple)
-			if !ok {
-				return false
-			}
-			patternInNodes, ok := patternNode.Right.(sqlparser.ValTuple)
-			if !ok {
-				return false
-			}
-			// pattern may have less nodes due to %%list of values%% but not vice versa
-			if len(queryInNodes) < len(patternInNodes) {
-				return false
-			}
-			var i int
-			for i = 0; i < len(patternInNodes); i++ {
-				if isListOfValuesPattern(patternInNodes[i]) {
-					// don't check least query nodes
-					return true
-				}
-				if skipValueWithValuePattern(patternInNodes[i], queryInNodes[i]) {
-					// we don't care about type of query value because pattern has %%VALUE%%
-					continue
-				}
-				if !reflect.DeepEqual(patternInNodes[i], queryInNodes[i]) {
+			switch patternNode.Right.(type) {
+			case sqlparser.ValTuple:
+				queryInNodes, ok := queryNode.Right.(sqlparser.ValTuple)
+				if !ok {
 					return false
 				}
+				patternInNodes := patternNode.Right.(sqlparser.ValTuple)
+
+				// pattern may have less nodes due to %%list of values%% but not vice versa
+				if len(queryInNodes) < len(patternInNodes) {
+					return false
+				}
+				var i int
+				for i = 0; i < len(patternInNodes); i++ {
+					if isListOfValuesPattern(patternInNodes[i]) {
+						// don't check least query nodes
+						return true
+					}
+					if skipValueWithValuePattern(patternInNodes[i], queryInNodes[i]) {
+						// we don't care about type of query value because pattern has %%VALUE%%
+						continue
+					}
+					if skipSubqueryValuePattern(patternInNodes[i], queryInNodes[i]) {
+						continue
+					}
+					if !reflect.DeepEqual(patternInNodes[i], queryInNodes[i]) {
+						return false
+					}
+				}
+				// if pattern has less nodes than query
+				if i != len(queryInNodes) {
+					return false
+				}
+				return true
+			case *sqlparser.Subquery: // a in (select 1)
+				patternSubquery := patternNode.Right.(*sqlparser.Subquery)
+
+				querySubquery, ok := queryNode.Right.(*sqlparser.Subquery)
+				if !ok {
+					return false
+				}
+				if skipSubqueryValuePattern(patternSubquery, querySubquery) {
+					return true
+				}
+				return reflect.DeepEqual(patternSubquery, querySubquery)
 			}
-			// if pattern has less nodes than query
-			if i != len(queryInNodes) {
-				return false
-			}
-			return true
 		default:
 			if isValuePattern(patternNode.Right) {
 				return true

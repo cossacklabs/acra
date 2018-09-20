@@ -22,6 +22,7 @@ import (
 	"testing"
 )
 
+// TestHandleRangeCondition test queries with "column BETWEEN VALUE1 and VALUE2"
 func TestHandleRangeCondition(t *testing.T) {
 	patterns := []string{
 		// left side value placeholder
@@ -153,7 +154,40 @@ func TestHandleRangeCondition(t *testing.T) {
 	}
 }
 
-func TestHandleValuePatternWithRangeCondition(t *testing.T) {
+// TestSkipSubqueryValuePattern test %%SUBQUERY%% pattern
+func TestSkipSubqueryValuePattern(t *testing.T) {
+	parsedPatterns, err := ParsePatterns([]string{
+		fmt.Sprintf("select 1 from t where a=(%s)", SubqueryConfigPlaceholder),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	patternSubexpr, ok := parsedPatterns[0][0].(*sqlparser.Select).Where.Expr.(*sqlparser.ComparisonExpr).Right.(*sqlparser.Subquery)
+	if !ok {
+		t.Fatal("Incorrect pattern format")
+	}
+	queries := []string{
+		"Select 1 from t where a=(select column1, column2 from table1 where a=1)",
+		"Select 1 from t where a=(select column1, column2 from table1 inner join table2 on table2.id=table1.id where a=1)",
+		"Select 1 from t where a=(select column1, column2 from table1 where a=1 union select column1, column2 from table2)",
+	}
+	for _, query := range queries {
+		parsedQuery, err := sqlparser.Parse(query)
+		if err != nil {
+			t.Fatalf("Can't parse query %s with error %s", query, err.Error())
+		}
+		querySubexpr, ok := parsedQuery.(*sqlparser.Select).Where.Expr.(*sqlparser.ComparisonExpr).Right.(*sqlparser.Subquery)
+		if !ok {
+			t.Fatal("Incorrect query syntax")
+		}
+		if !skipSubqueryValuePattern(patternSubexpr, querySubexpr) {
+			t.Fatalf("Expected true result with query - %s", query)
+		}
+	}
+}
+
+// TestPatternsInWhereClauses test all patterns in WHERE clause
+func TestPatternsInWhereClauses(t *testing.T) {
 	patterns := []string{
 		// left side value placeholder
 		fmt.Sprintf("select 1 from t where param between %s and 2", ValueConfigPlaceholder),
@@ -181,6 +215,10 @@ func TestHandleValuePatternWithRangeCondition(t *testing.T) {
 		fmt.Sprintf("select 1 from t where b='qwe' and t IN (%s)", ListOfValuesConfigPlaceholder),
 		// IN clause with %%VALUE%% and %%LIST_OF_VALUES%% placeholders
 		fmt.Sprintf("select 1 from t where b='qwe' and t IN (%s, 1, %s)", ValueConfigPlaceholder, ListOfValuesConfigPlaceholder),
+		// column IN (%%SUBQUERY%%)
+		fmt.Sprintf("select 1 from t where b='qwe' and t IN ((%s))", SubqueryConfigPlaceholder),
+		// column IN (%%VALUE, %%SUBQUERY%%, 1, %%LIST_OF_VALUES%%)
+		fmt.Sprintf("select 1 from t where b='qwe' and t IN (%s, (%s), 1, %s)", ValueConfigPlaceholder, SubqueryConfigPlaceholder, ListOfValuesConfigPlaceholder),
 	}
 	parsedPatterns, err := ParsePatterns(patterns)
 	if err != nil {
@@ -293,6 +331,18 @@ func TestHandleValuePatternWithRangeCondition(t *testing.T) {
 			// empty values on list of values
 			"select 1 from t where b='qwe' and t IN (1, 1)",
 		},
+
+		// column IN (%%SUBQUERY%%)
+		[]string{
+			// anything except subquery
+			"select 1 from t where b='qwe' and t IN (1)",
+		},
+
+		// column IN (%%VALUE, %%SUBQUERY%%, 1, %%LIST_OF_VALUES%%)
+		[]string{
+			// anything except subquery on subquery placeholder
+			"select 1 from t where b='qwe' and t IN (1, 2, 1, 3)",
+		},
 	}
 	matchableQueries := [][]string{
 		// left side value placeholder
@@ -377,6 +427,20 @@ func TestHandleValuePatternWithRangeCondition(t *testing.T) {
 			// many values as list of values
 			"select 1 from t where b='qwe' and t IN ('qwe', 1, 1, True, NULL, FALSE)",
 		},
+
+		// column IN (%%SUBQUERY%%)
+		[]string{
+			"select 1 from t where b='qwe' and t IN ((select 1))",
+			"select 1 from t where b='qwe' and t IN ((select 1 from table1))",
+			"select 1 from t where b='qwe' and t IN ((select column1 from table1 where a=1 union select column1 from table2 where b=1))",
+		},
+
+		// column IN (%%VALUE, %%SUBQUERY%%, 1, %%LIST_OF_VALUES%%)
+		[]string{
+			"select 1 from t where b='qwe' and t IN (1, (select 1), 1, 1, 2)",
+			"select 1 from t where b='qwe' and t IN (1, (select 1 from table1), 1, 1, 2)",
+			"select 1 from t where b='qwe' and t IN (1, (select column1 from table1 where a=1 union select column1 from table2 where b=1), 1, 1, 2)",
+		},
 	}
 	if len(patterns) != len(matchableQueries) || len(matchableQueries) != len(notMatchableQueries) {
 		t.Fatal("Mismatch test configuration with incorrect array dimensions")
@@ -387,7 +451,7 @@ func TestHandleValuePatternWithRangeCondition(t *testing.T) {
 		for _, query := range matchableQueries[i] {
 			parsedQuery, err := sqlparser.Parse(query)
 			if err != nil {
-				t.Fatal(err)
+				t.Fatalf("Can't parse query <%s> with error <%s>", query, err.Error())
 			}
 			if !handleValuePattern([]sqlparser.SQLNode{parsedQuery}, []sqlparser.SQLNode{pattern}) {
 				t.Fatalf("Expected match in query <%s> with pattern <%s>", query, sqlparser.String(pattern))

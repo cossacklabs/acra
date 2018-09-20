@@ -25,8 +25,8 @@ import (
 
 // ParsePatterns replace placeholders with our values which used to match patterns and parse them with sqlparser
 func ParsePatterns(patterns []string) ([][]sqlparser.SQLNode, error) {
-	placeholders := []string{SelectConfigPlaceholder, ColumnConfigPlaceholder, WhereConfigPlaceholder, ValueConfigPlaceholder, ListOfValuesConfigPlaceholder}
-	replacers := []string{SelectConfigPlaceholderReplacer, ColumnConfigPlaceholderReplacer, WhereConfigPlaceholderReplacer, ValueConfigPlaceholderReplacer, ListOfValuesConfigPlaceholderReplacer}
+	placeholders := []string{SelectConfigPlaceholder, ColumnConfigPlaceholder, WhereConfigPlaceholder, ValueConfigPlaceholder, ListOfValuesConfigPlaceholder, SubqueryConfigPlaceholder}
+	replacers := []string{SelectConfigPlaceholderReplacer, ColumnConfigPlaceholderReplacer, WhereConfigPlaceholderReplacer, ValueConfigPlaceholderReplacer, ListOfValuesConfigPlaceholderReplacer, SubqueryConfigPlaceholderReplacer}
 	patternValue := ""
 	var outputPatterns [][]sqlparser.SQLNode
 	for _, pattern := range patterns {
