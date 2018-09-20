@@ -74,6 +74,10 @@ const (
 	ValueConfigPlaceholderRawReplacer = "VALUE_AE920B7D"
 	// quoted value
 	ValueConfigPlaceholderReplacer = "'" + ValueConfigPlaceholderRawReplacer + "'"
+
+	ListOfValuesConfigPlaceholder            = "%%LIST_OF_VALUES%%"
+	ListOfValuesConfigPlaceholderRawReplacer = "LIST_OF_VALUES_1KVA2TWY"
+	ListOfValuesConfigPlaceholderReplacer    = "'" + ListOfValuesConfigPlaceholderRawReplacer + "'"
 )
 
 // TrimStringToN trims query to N chars.
@@ -274,8 +278,8 @@ func handleSelectWherePattern(queryNodes, patternNodes []sqlparser.SQLNode) bool
 	return true
 }
 
-// isValuePattern return true if node is ValueConfigPlaceholder pattern otherwise false
-func isValuePattern(node sqlparser.SQLNode) bool {
+// isValueReplacer return true if node is SQLVal and has value same as replacer
+func isValueReplacer(node sqlparser.SQLNode, replacer string) bool {
 	sqlVal, ok := node.(*sqlparser.SQLVal)
 	if !ok {
 		return false
@@ -283,7 +287,22 @@ func isValuePattern(node sqlparser.SQLNode) bool {
 	if sqlVal.Type != sqlparser.StrVal {
 		return false
 	}
-	return bytes.Equal(sqlVal.Val, []byte(ValueConfigPlaceholderRawReplacer))
+	return bytes.Equal(sqlVal.Val, []byte(replacer))
+}
+
+// isValuePattern return true if node is ValueConfigPlaceholder pattern otherwise false
+func isValuePattern(node sqlparser.SQLNode) bool {
+	return isValueReplacer(node, ValueConfigPlaceholderRawReplacer)
+}
+
+// isListOfValuesPattern return true if node is ListOfValuesConfigPlaceholder pattern otherwise false
+func isListOfValuesPattern(node sqlparser.SQLNode) bool {
+	return isValueReplacer(node, ListOfValuesConfigPlaceholderRawReplacer)
+}
+
+// skipValueWithValuePattern return true if pattern node is %%VALUE%% pattern and value of query node has type that masked with this pattern
+func skipValueWithValuePattern(patternNode, queryNode sqlparser.SQLNode) bool {
+	return isValuePattern(patternNode) && isSupportedValueWithValuePattern(queryNode)
 }
 
 // isSupportedValueWithValuePattern return true if %%VALUE%% pattern should mask value of node
@@ -306,12 +325,12 @@ func handleRangeCondition(patternNode, queryNode *sqlparser.RangeCond) bool {
 	if !reflect.DeepEqual(queryNode.Left, patternNode.Left) {
 		return false
 	}
-	if !(isValuePattern(patternNode.From) && isSupportedValueWithValuePattern(queryNode.From)) {
+	if !skipValueWithValuePattern(patternNode.From, queryNode.From) {
 		if !reflect.DeepEqual(patternNode.From, queryNode.From) {
 			return false
 		}
 	}
-	if !(isValuePattern(patternNode.To) && isSupportedValueWithValuePattern(queryNode.To)) {
+	if !skipValueWithValuePattern(patternNode.To, queryNode.To) {
 		if !reflect.DeepEqual(patternNode.To, queryNode.To) {
 			return false
 		}
@@ -436,8 +455,44 @@ func IsEqualComparisonNode(patternNode, queryNode *sqlparser.ComparisonExpr) boo
 	if reflect.DeepEqual(patternNode.Left, queryNode.Left) &&
 		strings.EqualFold(patternNode.Operator, queryNode.Operator) &&
 		reflect.DeepEqual(patternNode.Escape, queryNode.Escape) {
-		if isValuePattern(patternNode.Right) {
+
+		switch patternNode.Operator {
+		case sqlparser.InStr, sqlparser.NotInStr:
+			queryInNodes, ok := queryNode.Right.(sqlparser.ValTuple)
+			if !ok {
+				return false
+			}
+			patternInNodes, ok := patternNode.Right.(sqlparser.ValTuple)
+			if !ok {
+				return false
+			}
+			// pattern may have less nodes due to %%list of values%% but not vice versa
+			if len(queryInNodes) < len(patternInNodes) {
+				return false
+			}
+			var i int
+			for i = 0; i < len(patternInNodes); i++ {
+				if isListOfValuesPattern(patternInNodes[i]) {
+					// don't check least query nodes
+					return true
+				}
+				if skipValueWithValuePattern(patternInNodes[i], queryInNodes[i]) {
+					// we don't care about type of query value because pattern has %%VALUE%%
+					continue
+				}
+				if !reflect.DeepEqual(patternInNodes[i], queryInNodes[i]) {
+					return false
+				}
+			}
+			// if pattern has less nodes than query
+			if i != len(queryInNodes) {
+				return false
+			}
 			return true
+		default:
+			if isValuePattern(patternNode.Right) {
+				return true
+			}
 		}
 		// pattern node hasn't %%VALUE%% pattern so compare their values as is
 		return reflect.DeepEqual(patternNode.Right, queryNode.Right)

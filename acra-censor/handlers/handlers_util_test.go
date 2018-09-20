@@ -175,6 +175,12 @@ func TestHandleValuePatternWithRangeCondition(t *testing.T) {
 		"select 1 from t where param between 'qwe' and 'asd'",
 		// two explicit str values with other conditions
 		"select 1 from t where b='qwe' and param between 'qwe' and 'asd' and t in (1,2,3)",
+		// IN clause with %%VALUE%% placeholders
+		fmt.Sprintf("select 1 from t where b='qwe' and t IN (%s, %s, 1)", ValueConfigPlaceholder, ValueConfigPlaceholder),
+		// IN clause with %%LIST_OF_VALUES%% placeholders
+		fmt.Sprintf("select 1 from t where b='qwe' and t IN (%s)", ListOfValuesConfigPlaceholder),
+		// IN clause with %%VALUE%% and %%LIST_OF_VALUES%% placeholders
+		fmt.Sprintf("select 1 from t where b='qwe' and t IN (%s, 1, %s)", ValueConfigPlaceholder, ListOfValuesConfigPlaceholder),
 	}
 	parsedPatterns, err := ParsePatterns(patterns)
 	if err != nil {
@@ -267,6 +273,26 @@ func TestHandleValuePatternWithRangeCondition(t *testing.T) {
 			// incorrect column of between
 			"select 1 from t where b='qwe' and incorrect_column between 'qwe' and 'asd' and t in (1,2,3)",
 		},
+		// IN clause with %%VALUE%% placeholders
+		[]string{
+			// incorrect specific value
+			"select 1 from t where b='qwe' and t IN (1, 'qwe', 2)",
+			// subquery instead value
+			"select 1 from t where b='qwe' and t IN ((select 1), NULL, 1)",
+			// another length of list
+			"select 1 from t where b='qwe' and t IN (1, 2, 1, 1)",
+		},
+		// IN clause with %%LIST_OF_VALUES%% placeholders
+		[]string{}, // any length of list is acceptable
+		// IN clause with %%VALUE%% and %%LIST_OF_VALUES%% placeholders
+		[]string{
+			// incorrect specific value
+			"select 1 from t where b='qwe' and t IN (1, 2, 1)",
+			// subquery as value
+			"select 1 from t where b='qwe' and t IN ((select 1), 1, 2)",
+			// empty values on list of values
+			"select 1 from t where b='qwe' and t IN (1, 1)",
+		},
 	}
 	matchableQueries := [][]string{
 		// left side value placeholder
@@ -328,6 +354,28 @@ func TestHandleValuePatternWithRangeCondition(t *testing.T) {
 		// two explicit str values with other conditions
 		[]string{
 			"select 1 from t where b='qwe' and param between 'qwe' and 'asd' and t in (1,2,3)",
+		},
+		// IN clause with %%VALUE%% placeholders
+		[]string{
+			// int, str
+			"select 1 from t where b='qwe' and t IN (1, 'qwe', 1)",
+			// boolean, nullable
+			"select 1 from t where b='qwe' and t IN (FALSE, NULL, 1)",
+		},
+		// IN clause with %%LIST_OF_VALUES%% placeholders
+		[]string{
+			// one value
+			"select 1 from t where b='qwe' and t IN (1)",
+			// many values
+			"select 1 from t where b='qwe' and t IN (1, 'qwe', True, NULL, FALSE)",
+		},
+
+		// IN clause with %%VALUE%% and %%LIST_OF_VALUES%% placeholders
+		[]string{
+			// one value as list of values
+			"select 1 from t where b='qwe' and t IN ('qwe', 1, 1)",
+			// many values as list of values
+			"select 1 from t where b='qwe' and t IN ('qwe', 1, 1, True, NULL, FALSE)",
 		},
 	}
 	if len(patterns) != len(matchableQueries) || len(matchableQueries) != len(notMatchableQueries) {
