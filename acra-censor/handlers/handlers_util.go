@@ -529,6 +529,9 @@ func IsEqualComparisonNodes(patternNode, queryNode *sqlparser.ComparisonExpr) bo
 			if isValuePattern(patternNode.Right) {
 				return true
 			}
+			if matchSubqueryPattern(patternNode.Right, queryNode.Right) {
+				return true
+			}
 		}
 		// pattern node hasn't %%VALUE%% pattern so compare their values as is
 		return reflect.DeepEqual(patternNode.Right, queryNode.Right)
