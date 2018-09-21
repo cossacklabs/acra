@@ -305,13 +305,13 @@ func isListOfValuesPattern(node sqlparser.SQLNode) bool {
 	return isValueReplacer(node, ListOfValuesConfigPlaceholderRawReplacer)
 }
 
-// skipValueWithValuePattern return true if pattern node is %%VALUE%% pattern and value of query node has type that masked with this pattern
-func skipValueWithValuePattern(patternNode, queryNode sqlparser.SQLNode) bool {
-	return isValuePattern(patternNode) && isSupportedValueTypeWithValuePattern(queryNode)
+// matchValuePattern return true if pattern node is %%VALUE%% pattern and value of query node has type that masked with this pattern
+func matchValuePattern(patternNode, queryNode sqlparser.SQLNode) bool {
+	return isValuePattern(patternNode) && matchQueryNodeWithValuePattern(queryNode)
 }
 
-// skipSubqueryValuePattern return true if pattern are %%SUBQUERY%% and queryNode has correct type for this pattern otherwise false
-func skipSubqueryValuePattern(patternNode, queryNode sqlparser.SQLNode) bool {
+// matchSubqueryPattern return true if pattern are %%SUBQUERY%% and queryNode has correct type for this pattern otherwise false
+func matchSubqueryPattern(patternNode, queryNode sqlparser.SQLNode) bool {
 	if _, ok := patternNode.(*sqlparser.Subquery); !ok {
 		return false
 	}
@@ -325,10 +325,10 @@ func skipSubqueryValuePattern(patternNode, queryNode sqlparser.SQLNode) bool {
 	return false
 }
 
-// isSupportedValueTypeWithValuePattern return true if %%VALUE%% pattern should mask value of node
+// matchQueryNodeWithValuePattern return true if %%VALUE%% pattern should mask value of node
 // return true for any literal values, boolean and null
 // return false on other values like subqueries
-func isSupportedValueTypeWithValuePattern(node sqlparser.SQLNode) bool {
+func matchQueryNodeWithValuePattern(node sqlparser.SQLNode) bool {
 	switch node.(type) {
 	case *sqlparser.SQLVal, sqlparser.BoolVal, *sqlparser.NullVal:
 		return true
@@ -345,12 +345,12 @@ func handleRangeCondition(patternNode, queryNode *sqlparser.RangeCond) bool {
 	if !reflect.DeepEqual(queryNode.Left, patternNode.Left) {
 		return false
 	}
-	if !skipValueWithValuePattern(patternNode.From, queryNode.From) {
+	if !matchValuePattern(patternNode.From, queryNode.From) {
 		if !reflect.DeepEqual(patternNode.From, queryNode.From) {
 			return false
 		}
 	}
-	if !skipValueWithValuePattern(patternNode.To, queryNode.To) {
+	if !matchValuePattern(patternNode.To, queryNode.To) {
 		if !reflect.DeepEqual(patternNode.To, queryNode.To) {
 			return false
 		}
@@ -407,7 +407,7 @@ func handleWhereNode(patternNode, queryNode sqlparser.SQLNode) bool {
 			return false
 		case *sqlparser.ComparisonExpr:
 			if queryNodeComparison, ok := queryWhereNode.(*sqlparser.ComparisonExpr); ok && queryNodeComparison != nil {
-				if IsEqualComparisonNode(patternWhereNode.(*sqlparser.ComparisonExpr), queryNodeComparison) {
+				if IsEqualComparisonNodes(patternWhereNode.(*sqlparser.ComparisonExpr), queryNodeComparison) {
 					continue
 				}
 			}
@@ -471,8 +471,8 @@ func handleWherePatterns(queryNodes, patternNodes []sqlparser.SQLNode) bool {
 	return true
 }
 
-// IsEqualComparisonNode try to match patternNode with queryNode with supported patterns for ComparisonExpr
-func IsEqualComparisonNode(patternNode, queryNode *sqlparser.ComparisonExpr) bool {
+// IsEqualComparisonNodes try to match patternNode with queryNode with supported patterns for ComparisonExpr
+func IsEqualComparisonNodes(patternNode, queryNode *sqlparser.ComparisonExpr) bool {
 	if reflect.DeepEqual(patternNode.Left, queryNode.Left) &&
 		strings.EqualFold(patternNode.Operator, queryNode.Operator) &&
 		reflect.DeepEqual(patternNode.Escape, queryNode.Escape) {
@@ -497,11 +497,11 @@ func IsEqualComparisonNode(patternNode, queryNode *sqlparser.ComparisonExpr) boo
 						// don't check least query nodes
 						return true
 					}
-					if skipValueWithValuePattern(patternInNodes[i], queryInNodes[i]) {
+					if matchValuePattern(patternInNodes[i], queryInNodes[i]) {
 						// we don't care about type of query value because pattern has %%VALUE%%
 						continue
 					}
-					if skipSubqueryValuePattern(patternInNodes[i], queryInNodes[i]) {
+					if matchSubqueryPattern(patternInNodes[i], queryInNodes[i]) {
 						continue
 					}
 					if !reflect.DeepEqual(patternInNodes[i], queryInNodes[i]) {
@@ -520,7 +520,7 @@ func IsEqualComparisonNode(patternNode, queryNode *sqlparser.ComparisonExpr) boo
 				if !ok {
 					return false
 				}
-				if skipSubqueryValuePattern(patternSubquery, querySubquery) {
+				if matchSubqueryPattern(patternSubquery, querySubquery) {
 					return true
 				}
 				return reflect.DeepEqual(patternSubquery, querySubquery)

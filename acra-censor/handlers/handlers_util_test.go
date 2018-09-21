@@ -180,7 +180,7 @@ func TestSkipSubqueryValuePattern(t *testing.T) {
 		if !ok {
 			t.Fatal("Incorrect query syntax")
 		}
-		if !skipSubqueryValuePattern(patternSubexpr, querySubexpr) {
+		if !matchSubqueryPattern(patternSubexpr, querySubexpr) {
 			t.Fatalf("Expected true result with query - %s", query)
 		}
 	}
