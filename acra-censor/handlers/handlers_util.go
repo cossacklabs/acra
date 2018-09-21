@@ -345,12 +345,12 @@ func handleRangeCondition(patternNode, queryNode *sqlparser.RangeCond) bool {
 	if !reflect.DeepEqual(queryNode.Left, patternNode.Left) {
 		return false
 	}
-	if !matchValuePattern(patternNode.From, queryNode.From) {
+	if !(matchValuePattern(patternNode.From, queryNode.From) || matchSubqueryPattern(patternNode.From, queryNode.From)) {
 		if !reflect.DeepEqual(patternNode.From, queryNode.From) {
 			return false
 		}
 	}
-	if !matchValuePattern(patternNode.To, queryNode.To) {
+	if !(matchValuePattern(patternNode.To, queryNode.To) || matchSubqueryPattern(patternNode.To, queryNode.To)) {
 		if !reflect.DeepEqual(patternNode.To, queryNode.To) {
 			return false
 		}
@@ -417,6 +417,15 @@ func handleWhereNode(patternNode, queryNode sqlparser.SQLNode) bool {
 				if handleRangeCondition(patternWhereNode.(*sqlparser.RangeCond), queryRangeCondition) {
 					continue
 				}
+			}
+			return false
+		case *sqlparser.ExistsExpr:
+			if queryExists, ok := queryWhereNode.(*sqlparser.ExistsExpr); ok {
+				if matchSubqueryPattern(patternWhereNode.(*sqlparser.ExistsExpr).Subquery, queryExists.Subquery) {
+					continue
+				}
+				// break switch to reflect.DeepEqual whole node
+				break
 			}
 			return false
 		}
@@ -527,6 +536,9 @@ func IsEqualComparisonNodes(patternNode, queryNode *sqlparser.ComparisonExpr) bo
 			}
 		default:
 			if isValuePattern(patternNode.Right) {
+				return true
+			}
+			if matchSubqueryPattern(patternNode.Right, queryNode.Right) {
 				return true
 			}
 		}

@@ -37,6 +37,10 @@ func TestHandleRangeCondition(t *testing.T) {
 		"select 1 from t where param between 'qwe' and 'asd'",
 		// subqueries instead values
 		"select 1 from t where param between (select 1) and (select 2)",
+		// subqueries with %%SUBQUERY%% placeholder
+		fmt.Sprintf("select 1 from t where param between (%s) and (%s)", SubqueryConfigPlaceholder, SubqueryConfigPlaceholder),
+		// subqueries with %%SUBQUERY%% and %%VALUE%% placeholders
+		fmt.Sprintf("select 1 from t where param between (%s) and %s", SubqueryConfigPlaceholder, ValueConfigPlaceholder),
 	}
 	parsedPatterns, err := ParsePatterns(patterns)
 	if err != nil {
@@ -86,6 +90,17 @@ func TestHandleRangeCondition(t *testing.T) {
 			"select 1 from t where param between (select 1) and (select 1)",
 			"select 1 from t where param between (select 2) and (select 2)",
 		},
+		// subqueries with %%SUBQUERY%% placeholder
+		[]string{
+			"select 1 from t where param between 1 and (select 1)",
+			"select 1 from t where param between (select 1) and 1",
+			"select 1 from t where param between (select 1) and someFunc()",
+		},
+		// subqueries with %%SUBQUERY%% and %%VALUE%% placeholders
+		[]string{
+			"select 1 from t where param between 'some value' and (select 'some query')",
+			"select 1 from t where param between someFunc() and 'some value'",
+		},
 	}
 	matchableQueries := [][]string{
 		// left side value placeholder
@@ -123,6 +138,17 @@ func TestHandleRangeCondition(t *testing.T) {
 		[]string{
 			"select 1 from t where param between (select 1) and (select 2)",
 		},
+		// subqueries with %%SUBQUERY%% placeholder
+		[]string{
+			"select 1 from t where param between (select 1) and (select 1)",
+			"select 1 from t where param between (select 1) and (select 1 from table1 union select 2 from table2)",
+		},
+		// subqueries with %%SUBQUERY%% and %%VALUE%% placeholders
+		[]string{
+			"select 1 from t where param between (select 'some query') and 'some value'",
+			"select 1 from t where param between (select 'some query') and 123",
+			"select 1 from t where param between (select 'some query') and FALSE",
+		},
 	}
 	if len(parsedPatterns) != len(matchableQueries) {
 		t.Fatal("Mismatch test configuration")
@@ -154,7 +180,7 @@ func TestHandleRangeCondition(t *testing.T) {
 	}
 }
 
-// TestSkipSubqueryValuePattern test %%SUBQUERY%% pattern
+// TestSkipSubqueryValuePattern test a=(%%SUBQUERY%%) pattern
 func TestSkipSubqueryValuePattern(t *testing.T) {
 	parsedPatterns, err := ParsePatterns([]string{
 		fmt.Sprintf("select 1 from t where a=(%s)", SubqueryConfigPlaceholder),
@@ -219,6 +245,12 @@ func TestPatternsInWhereClauses(t *testing.T) {
 		fmt.Sprintf("select 1 from t where b='qwe' and t IN ((%s))", SubqueryConfigPlaceholder),
 		// column IN (%%VALUE, %%SUBQUERY%%, 1, %%LIST_OF_VALUES%%)
 		fmt.Sprintf("select 1 from t where b='qwe' and t IN (%s, (%s), 1, %s)", ValueConfigPlaceholder, SubqueryConfigPlaceholder, ListOfValuesConfigPlaceholder),
+		// age = (%%SUBQUERY%%)
+		fmt.Sprintf("select 1 from t where b='qwe' and a=(%s)", SubqueryConfigPlaceholder),
+		// exists without patterns
+		fmt.Sprintf("select 1 from t where exists(select 1) and a=2"),
+		// exists with %%SUBQUERY%%
+		fmt.Sprintf("select 1 from t where exists(%s) and a=2", SubqueryConfigPlaceholder),
 	}
 	parsedPatterns, err := ParsePatterns(patterns)
 	if err != nil {
@@ -343,6 +375,25 @@ func TestPatternsInWhereClauses(t *testing.T) {
 			// anything except subquery on subquery placeholder
 			"select 1 from t where b='qwe' and t IN (1, 2, 1, 3)",
 		},
+		// age = (%%SUBQUERY%%)
+		[]string{
+			// not subquery
+			"select 1 from t where b='qwe' and a=1",
+			// func instead subquery
+			"select 1 from t where b='qwe' and a=someFunc(2)",
+		},
+		// exists without patterns
+		[]string{
+			// different query in exists
+			"select 1 from t where exists(select 2) and a=2",
+		},
+		// exists with %%SUBQUERY%%
+		[]string{
+			// func instead exists
+			"select 1 from t where someFunc(1) and a=2",
+			// another value in second param
+			"select 1 from t where exists(select 1) and a=3",
+		},
 	}
 	matchableQueries := [][]string{
 		// left side value placeholder
@@ -440,6 +491,23 @@ func TestPatternsInWhereClauses(t *testing.T) {
 			"select 1 from t where b='qwe' and t IN (1, (select 1), 1, 1, 2)",
 			"select 1 from t where b='qwe' and t IN (1, (select 1 from table1), 1, 1, 2)",
 			"select 1 from t where b='qwe' and t IN (1, (select column1 from table1 where a=1 union select column1 from table2 where b=1), 1, 1, 2)",
+		},
+		// age = (%%SUBQUERY%%)
+		[]string{
+			"select 1 from t where b='qwe' and a=(select 1)",
+			"select 1 from t where b='qwe' and a=(select 1 from table1 union select 2 from table2)",
+		},
+		// exists without patterns
+		[]string{
+			// different query in exists
+			"select 1 from t where exists(select 1) and a=2",
+		},
+		// exists with %%SUBQUERY%%
+		[]string{
+			// simple query
+			"select 1 from t where exists(select 1) and a=2",
+			// query with union
+			"select 1 from t where exists(select 1 from table1 union select 2 from table2) and a=2",
 		},
 	}
 	if len(patterns) != len(matchableQueries) || len(matchableQueries) != len(notMatchableQueries) {
