@@ -419,6 +419,15 @@ func handleWhereNode(patternNode, queryNode sqlparser.SQLNode) bool {
 				}
 			}
 			return false
+		case *sqlparser.ExistsExpr:
+			if queryExists, ok := queryWhereNode.(*sqlparser.ExistsExpr); ok {
+				if matchSubqueryPattern(patternWhereNode.(*sqlparser.ExistsExpr).Subquery, queryExists.Subquery) {
+					continue
+				}
+				// break switch to reflect.DeepEqual whole node
+				break
+			}
+			return false
 		}
 		// unknown and conditions without specific rules check recursively by values as is
 		if !reflect.DeepEqual(patternWhereNode, queryWhereNode) {

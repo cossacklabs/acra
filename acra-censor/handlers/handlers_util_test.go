@@ -180,7 +180,7 @@ func TestHandleRangeCondition(t *testing.T) {
 	}
 }
 
-// TestSkipSubqueryValuePattern test %%SUBQUERY%% pattern
+// TestSkipSubqueryValuePattern test a=(%%SUBQUERY%%) pattern
 func TestSkipSubqueryValuePattern(t *testing.T) {
 	parsedPatterns, err := ParsePatterns([]string{
 		fmt.Sprintf("select 1 from t where a=(%s)", SubqueryConfigPlaceholder),
@@ -247,6 +247,10 @@ func TestPatternsInWhereClauses(t *testing.T) {
 		fmt.Sprintf("select 1 from t where b='qwe' and t IN (%s, (%s), 1, %s)", ValueConfigPlaceholder, SubqueryConfigPlaceholder, ListOfValuesConfigPlaceholder),
 		// age = (%%SUBQUERY%%)
 		fmt.Sprintf("select 1 from t where b='qwe' and a=(%s)", SubqueryConfigPlaceholder),
+		// exists without patterns
+		fmt.Sprintf("select 1 from t where exists(select 1) and a=2"),
+		// exists with %%SUBQUERY%%
+		fmt.Sprintf("select 1 from t where exists(%s) and a=2", SubqueryConfigPlaceholder),
 	}
 	parsedPatterns, err := ParsePatterns(patterns)
 	if err != nil {
@@ -378,6 +382,18 @@ func TestPatternsInWhereClauses(t *testing.T) {
 			// func instead subquery
 			"select 1 from t where b='qwe' and a=someFunc(2)",
 		},
+		// exists without patterns
+		[]string{
+			// different query in exists
+			"select 1 from t where exists(select 2) and a=2",
+		},
+		// exists with %%SUBQUERY%%
+		[]string{
+			// func instead exists
+			"select 1 from t where someFunc(1) and a=2",
+			// another value in second param
+			"select 1 from t where exists(select 1) and a=3",
+		},
 	}
 	matchableQueries := [][]string{
 		// left side value placeholder
@@ -480,6 +496,18 @@ func TestPatternsInWhereClauses(t *testing.T) {
 		[]string{
 			"select 1 from t where b='qwe' and a=(select 1)",
 			"select 1 from t where b='qwe' and a=(select 1 from table1 union select 2 from table2)",
+		},
+		// exists without patterns
+		[]string{
+			// different query in exists
+			"select 1 from t where exists(select 1) and a=2",
+		},
+		// exists with %%SUBQUERY%%
+		[]string{
+			// simple query
+			"select 1 from t where exists(select 1) and a=2",
+			// query with union
+			"select 1 from t where exists(select 1 from table1 union select 2 from table2) and a=2",
 		},
 	}
 	if len(patterns) != len(matchableQueries) || len(matchableQueries) != len(notMatchableQueries) {
