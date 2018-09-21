@@ -25,8 +25,8 @@ import (
 
 // ParsePatterns replace placeholders with our values which used to match patterns and parse them with sqlparser
 func ParsePatterns(patterns []string) ([][]sqlparser.SQLNode, error) {
-	placeholders := []string{SelectConfigPlaceholder, ColumnConfigPlaceholder, WhereConfigPlaceholder, ValueConfigPlaceholder}
-	replacers := []string{SelectConfigPlaceholderReplacer, ColumnConfigPlaceholderReplacer, WhereConfigPlaceholderReplacer, ValueConfigPlaceholderReplacer}
+	placeholders := []string{SelectConfigPlaceholder, ColumnConfigPlaceholder, WhereConfigPlaceholder, ValueConfigPlaceholder, ListOfValuesConfigPlaceholder, SubqueryConfigPlaceholder}
+	replacers := []string{SelectConfigPlaceholderReplacer, ColumnConfigPlaceholderReplacer, WhereConfigPlaceholderReplacer, ValueConfigPlaceholderReplacer, ListOfValuesConfigPlaceholderReplacer, SubqueryConfigPlaceholderReplacer}
 	patternValue := ""
 	var outputPatterns [][]sqlparser.SQLNode
 	for _, pattern := range patterns {
@@ -36,7 +36,7 @@ func ParsePatterns(patterns []string) ([][]sqlparser.SQLNode, error) {
 		}
 		statement, err := sqlparser.Parse(patternValue)
 		if err != nil {
-			log.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCensorQueryParseError).WithError(err).Errorln("Can't add specified pattern in blacklist handler")
+			log.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCensorQueryParseError).WithField("pattern", patternValue).WithError(err).Errorln("Can't add specified pattern in blacklist handler")
 			return nil, ErrPatternSyntaxError
 		}
 		var newPatternNodes []sqlparser.SQLNode

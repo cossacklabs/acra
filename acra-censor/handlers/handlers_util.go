@@ -74,7 +74,16 @@ const (
 	ValueConfigPlaceholderRawReplacer = "VALUE_AE920B7D"
 	// quoted value
 	ValueConfigPlaceholderReplacer = "'" + ValueConfigPlaceholderRawReplacer + "'"
+
+	ListOfValuesConfigPlaceholder            = "%%LIST_OF_VALUES%%"
+	ListOfValuesConfigPlaceholderRawReplacer = "LIST_OF_VALUES_1KVA2TWY"
+	ListOfValuesConfigPlaceholderReplacer    = "'" + ListOfValuesConfigPlaceholderRawReplacer + "'"
+
+	SubqueryConfigPlaceholder         = "%%SUBQUERY%%"
+	SubqueryConfigPlaceholderReplacer = "SELECT 'SUBQUERY_953IKLIJU4C8joVsZqCr8hYducQWNx'"
 )
+
+var SubqueryConfigPlaceholderReplacerParsed, _ = sqlparser.Parse(SubqueryConfigPlaceholderReplacer)
 
 // TrimStringToN trims query to N chars.
 func TrimStringToN(query string, n int) string {
@@ -140,7 +149,7 @@ func checkSinglePatternMatch(queryNodes []sqlparser.SQLNode, patternNodes []sqlp
 	if matchOccurred {
 		return true
 	}
-	matchOccurred = handleValuePattern(queryNodes, patternNodes)
+	matchOccurred = handleWherePatterns(queryNodes, patternNodes)
 	if matchOccurred {
 		return true
 	}
@@ -274,8 +283,8 @@ func handleSelectWherePattern(queryNodes, patternNodes []sqlparser.SQLNode) bool
 	return true
 }
 
-// isValuePattern return true if node is ValueConfigPlaceholder pattern otherwise false
-func isValuePattern(node sqlparser.SQLNode) bool {
+// isValueReplacer return true if node is SQLVal and has value same as replacer
+func isValueReplacer(node sqlparser.SQLNode, replacer string) bool {
 	sqlVal, ok := node.(*sqlparser.SQLVal)
 	if !ok {
 		return false
@@ -283,13 +292,43 @@ func isValuePattern(node sqlparser.SQLNode) bool {
 	if sqlVal.Type != sqlparser.StrVal {
 		return false
 	}
-	return bytes.Equal(sqlVal.Val, []byte(ValueConfigPlaceholderRawReplacer))
+	return bytes.Equal(sqlVal.Val, []byte(replacer))
 }
 
-// isSupportedValueWithValuePattern return true if %%VALUE%% pattern should mask value of node
+// isValuePattern return true if node is ValueConfigPlaceholder pattern otherwise false
+func isValuePattern(node sqlparser.SQLNode) bool {
+	return isValueReplacer(node, ValueConfigPlaceholderRawReplacer)
+}
+
+// isListOfValuesPattern return true if node is ListOfValuesConfigPlaceholder pattern otherwise false
+func isListOfValuesPattern(node sqlparser.SQLNode) bool {
+	return isValueReplacer(node, ListOfValuesConfigPlaceholderRawReplacer)
+}
+
+// matchValuePattern return true if pattern node is %%VALUE%% pattern and value of query node has type that masked with this pattern
+func matchValuePattern(patternNode, queryNode sqlparser.SQLNode) bool {
+	return isValuePattern(patternNode) && matchQueryNodeWithValuePattern(queryNode)
+}
+
+// matchSubqueryPattern return true if pattern are %%SUBQUERY%% and queryNode has correct type for this pattern otherwise false
+func matchSubqueryPattern(patternNode, queryNode sqlparser.SQLNode) bool {
+	if _, ok := patternNode.(*sqlparser.Subquery); !ok {
+		return false
+	}
+	if _, ok := queryNode.(*sqlparser.Subquery); !ok {
+		return false
+	}
+	// check that patterns query the same as our parsed placeholder
+	if reflect.DeepEqual(patternNode.(*sqlparser.Subquery).Select, SubqueryConfigPlaceholderReplacerParsed) {
+		return true
+	}
+	return false
+}
+
+// matchQueryNodeWithValuePattern return true if %%VALUE%% pattern should mask value of node
 // return true for any literal values, boolean and null
 // return false on other values like subqueries
-func isSupportedValueWithValuePattern(node sqlparser.SQLNode) bool {
+func matchQueryNodeWithValuePattern(node sqlparser.SQLNode) bool {
 	switch node.(type) {
 	case *sqlparser.SQLVal, sqlparser.BoolVal, *sqlparser.NullVal:
 		return true
@@ -306,12 +345,12 @@ func handleRangeCondition(patternNode, queryNode *sqlparser.RangeCond) bool {
 	if !reflect.DeepEqual(queryNode.Left, patternNode.Left) {
 		return false
 	}
-	if !(isValuePattern(patternNode.From) && isSupportedValueWithValuePattern(queryNode.From)) {
+	if !matchValuePattern(patternNode.From, queryNode.From) {
 		if !reflect.DeepEqual(patternNode.From, queryNode.From) {
 			return false
 		}
 	}
-	if !(isValuePattern(patternNode.To) && isSupportedValueWithValuePattern(queryNode.To)) {
+	if !matchValuePattern(patternNode.To, queryNode.To) {
 		if !reflect.DeepEqual(patternNode.To, queryNode.To) {
 			return false
 		}
@@ -368,7 +407,7 @@ func handleWhereNode(patternNode, queryNode sqlparser.SQLNode) bool {
 			return false
 		case *sqlparser.ComparisonExpr:
 			if queryNodeComparison, ok := queryWhereNode.(*sqlparser.ComparisonExpr); ok && queryNodeComparison != nil {
-				if IsEqualComparisonNode(patternWhereNode.(*sqlparser.ComparisonExpr), queryNodeComparison) {
+				if IsEqualComparisonNodes(patternWhereNode.(*sqlparser.ComparisonExpr), queryNodeComparison) {
 					continue
 				}
 			}
@@ -389,8 +428,8 @@ func handleWhereNode(patternNode, queryNode sqlparser.SQLNode) bool {
 	return true
 }
 
-// handle SELECT a, b FROM t1 WHERE userID=%%VALUE%% pattern
-func handleValuePattern(queryNodes, patternNodes []sqlparser.SQLNode) bool {
+// handleWherePatterns try to match all WHERE conditions with supported patterns
+func handleWherePatterns(queryNodes, patternNodes []sqlparser.SQLNode) bool {
 	// collect only SelectExpr, From, Where, OrderBy ... nodes without their children
 	queryTopNodes, err := getTopNodes(queryNodes[0])
 	if err != nil {
@@ -432,12 +471,64 @@ func handleValuePattern(queryNodes, patternNodes []sqlparser.SQLNode) bool {
 	return true
 }
 
-func IsEqualComparisonNode(patternNode, queryNode *sqlparser.ComparisonExpr) bool {
+// IsEqualComparisonNodes try to match patternNode with queryNode with supported patterns for ComparisonExpr
+func IsEqualComparisonNodes(patternNode, queryNode *sqlparser.ComparisonExpr) bool {
 	if reflect.DeepEqual(patternNode.Left, queryNode.Left) &&
 		strings.EqualFold(patternNode.Operator, queryNode.Operator) &&
 		reflect.DeepEqual(patternNode.Escape, queryNode.Escape) {
-		if isValuePattern(patternNode.Right) {
-			return true
+
+		switch patternNode.Operator {
+		case sqlparser.InStr, sqlparser.NotInStr:
+			switch patternNode.Right.(type) {
+			case sqlparser.ValTuple:
+				queryInNodes, ok := queryNode.Right.(sqlparser.ValTuple)
+				if !ok {
+					return false
+				}
+				patternInNodes := patternNode.Right.(sqlparser.ValTuple)
+
+				// pattern may have less nodes due to %%list of values%% but not vice versa
+				if len(queryInNodes) < len(patternInNodes) {
+					return false
+				}
+				var i int
+				for i = 0; i < len(patternInNodes); i++ {
+					if isListOfValuesPattern(patternInNodes[i]) {
+						// don't check least query nodes
+						return true
+					}
+					if matchValuePattern(patternInNodes[i], queryInNodes[i]) {
+						// we don't care about type of query value because pattern has %%VALUE%%
+						continue
+					}
+					if matchSubqueryPattern(patternInNodes[i], queryInNodes[i]) {
+						continue
+					}
+					if !reflect.DeepEqual(patternInNodes[i], queryInNodes[i]) {
+						return false
+					}
+				}
+				// if pattern has less nodes than query
+				if i != len(queryInNodes) {
+					return false
+				}
+				return true
+			case *sqlparser.Subquery: // a in (select 1)
+				patternSubquery := patternNode.Right.(*sqlparser.Subquery)
+
+				querySubquery, ok := queryNode.Right.(*sqlparser.Subquery)
+				if !ok {
+					return false
+				}
+				if matchSubqueryPattern(patternSubquery, querySubquery) {
+					return true
+				}
+				return reflect.DeepEqual(patternSubquery, querySubquery)
+			}
+		default:
+			if isValuePattern(patternNode.Right) {
+				return true
+			}
 		}
 		// pattern node hasn't %%VALUE%% pattern so compare their values as is
 		return reflect.DeepEqual(patternNode.Right, queryNode.Right)
@@ -489,6 +580,8 @@ func handleStarPattern(queryNodes, patternNodes []sqlparser.SQLNode) bool {
 	//this is a case when pattern == query
 	return true
 }
+
+// starFound return true if Select has '*' expression
 func starFound(selectExpression sqlparser.SelectExprs) bool {
 	starDetected := false
 	sqlparser.Walk(func(node sqlparser.SQLNode) (bool, error) {
