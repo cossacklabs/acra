@@ -345,12 +345,12 @@ func handleRangeCondition(patternNode, queryNode *sqlparser.RangeCond) bool {
 	if !reflect.DeepEqual(queryNode.Left, patternNode.Left) {
 		return false
 	}
-	if !matchValuePattern(patternNode.From, queryNode.From) {
+	if !(matchValuePattern(patternNode.From, queryNode.From) || matchSubqueryPattern(patternNode.From, queryNode.From)) {
 		if !reflect.DeepEqual(patternNode.From, queryNode.From) {
 			return false
 		}
 	}
-	if !matchValuePattern(patternNode.To, queryNode.To) {
+	if !(matchValuePattern(patternNode.To, queryNode.To) || matchSubqueryPattern(patternNode.To, queryNode.To)) {
 		if !reflect.DeepEqual(patternNode.To, queryNode.To) {
 			return false
 		}

@@ -37,6 +37,10 @@ func TestHandleRangeCondition(t *testing.T) {
 		"select 1 from t where param between 'qwe' and 'asd'",
 		// subqueries instead values
 		"select 1 from t where param between (select 1) and (select 2)",
+		// subqueries with %%SUBQUERY%% placeholder
+		fmt.Sprintf("select 1 from t where param between (%s) and (%s)", SubqueryConfigPlaceholder, SubqueryConfigPlaceholder),
+		// subqueries with %%SUBQUERY%% and %%VALUE%% placeholders
+		fmt.Sprintf("select 1 from t where param between (%s) and %s", SubqueryConfigPlaceholder, ValueConfigPlaceholder),
 	}
 	parsedPatterns, err := ParsePatterns(patterns)
 	if err != nil {
@@ -86,6 +90,17 @@ func TestHandleRangeCondition(t *testing.T) {
 			"select 1 from t where param between (select 1) and (select 1)",
 			"select 1 from t where param between (select 2) and (select 2)",
 		},
+		// subqueries with %%SUBQUERY%% placeholder
+		[]string{
+			"select 1 from t where param between 1 and (select 1)",
+			"select 1 from t where param between (select 1) and 1",
+			"select 1 from t where param between (select 1) and someFunc()",
+		},
+		// subqueries with %%SUBQUERY%% and %%VALUE%% placeholders
+		[]string{
+			"select 1 from t where param between 'some value' and (select 'some query')",
+			"select 1 from t where param between someFunc() and 'some value'",
+		},
 	}
 	matchableQueries := [][]string{
 		// left side value placeholder
@@ -122,6 +137,17 @@ func TestHandleRangeCondition(t *testing.T) {
 		// explicit subqueries
 		[]string{
 			"select 1 from t where param between (select 1) and (select 2)",
+		},
+		// subqueries with %%SUBQUERY%% placeholder
+		[]string{
+			"select 1 from t where param between (select 1) and (select 1)",
+			"select 1 from t where param between (select 1) and (select 1 from table1 union select 2 from table2)",
+		},
+		// subqueries with %%SUBQUERY%% and %%VALUE%% placeholders
+		[]string{
+			"select 1 from t where param between (select 'some query') and 'some value'",
+			"select 1 from t where param between (select 'some query') and 123",
+			"select 1 from t where param between (select 'some query') and FALSE",
 		},
 	}
 	if len(parsedPatterns) != len(matchableQueries) {
