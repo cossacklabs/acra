@@ -59,12 +59,13 @@ The [enterprise version of Acra](https://www.cossacklabs.com/acra/) can run on t
 
 | Client platform |  Documentation and guides | Examples |
 | :----- | :----- | :------ |
-| 🐹 Go | [Installation guide](https://github.com/cossacklabs/acra/wiki/AcraWriter-installation#golang) | [examples/golang](https://github.com/cossacklabs/acra/tree/master/examples/golang) |
-| 🐍 Python | [Installation guide](https://github.com/cossacklabs/acra/wiki/AcraWriter-installation#python) | [examples/python](https://github.com/cossacklabs/acra/tree/master/examples/python) |
-| ♦️ Ruby | [Installation guide](https://github.com/cossacklabs/acra/wiki/AcraWriter-installation#ruby) | [examples/ruby](https://github.com/cossacklabs/acra/tree/master/examples/ruby) |
-| 📱 Objective-C (iOS) | [Installation guide](https://github.com/cossacklabs/acra/wiki/AcraWriter-installation#ios) | [examples/objc](https://github.com/cossacklabs/acra/tree/master/examples/objc) |
-| 🐘 PHP | [Installation guide](https://github.com/cossacklabs/acra/wiki/AcraWriter-installation#php) | [examples/php](https://github.com/cossacklabs/acra/tree/master/examples/php) |
-| 🍭 Javascript (NodeJS) | [Installation guide](https://github.com/cossacklabs/acra/wiki/AcraWriter-installation#nodejs) | [examples/nodejs](https://github.com/cossacklabs/acra/tree/master/examples/nodejs) |
+| 🐹 Go | [Installation guide](https://docs.cossacklabs.com/pages/documentation-acra/#building-acrawriter-for-go) | [examples/golang](https://github.com/cossacklabs/acra/tree/master/examples/golang) |
+| 🐍 Python | [Installation guide](https://docs.cossacklabs.com/pages/documentation-acra/#building-acrawriter-for-python) | [examples/python](https://github.com/cossacklabs/acra/tree/master/examples/python) |
+| ♦️ Ruby | [Installation guide](https://docs.cossacklabs.com/pages/documentation-acra/#building-acrawriter-for-ruby) | [examples/ruby](https://github.com/cossacklabs/acra/tree/master/examples/ruby) |
+| 📱 Objective-C / Swift (iOS) | [Installation guide](https://docs.cossacklabs.com/pages/documentation-acra/#building-acrawriter-for-ios) | [examples/objc](https://github.com/cossacklabs/acra/tree/master/examples/objc) |
+| 📱 Java (Android) | [Installation guide](https://docs.cossacklabs.com/pages/documentation-acra/#building-acrawriter-for-android) | [examples/android_java](https://github.com/cossacklabs/acra/tree/master/examples/android_java) |
+| 🐘 PHP | [Installation guide](https://docs.cossacklabs.com/pages/documentation-acra/#building-acrawriter-for-php) | [examples/php](https://github.com/cossacklabs/acra/tree/master/examples/php) |
+| 🍭 Javascript (NodeJS) | [Installation guide](https://docs.cossacklabs.com/pages/documentation-acra/#building-acrawriter-for-nodejs) | [examples/nodejs](https://github.com/cossacklabs/acra/tree/master/examples/nodejs) |
 
 ### Server-side
 
@@ -96,8 +97,14 @@ Supported databases:
 
 ## Acra Live Demo
 
+Acra Live Demo is a website that illustrates typical Acra workflow: encrypting data from Python web application and storing it in the PostgreSQL database, decrypting data through Acra. 
+
+Components shown: web application, PostgreSQL database, AcraServer with AcraCensor, log monitor.
+
+Among available functions – adding new rows to the database plaintext and encrypted, watching how database content changes, running specific SQL queries that can be blocked by AcraCensor, adding poison records and detection intrusions. 
+
 | 💻 [Request a free Acra Live Demo](https://www.cossacklabs.com/acra/#acralivedemo) 💻 |
-|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+|---|
 
 ## How does Acra work?
 
@@ -148,8 +155,7 @@ For production environments, we insist on generating and exchanging keys manuall
 
 ## Additionally
 
-For the versions of Acra up to the version 0.82.0, the documentation was mostly maintained and updated in the [GitHub Wiki documentation for Acra](https://github.com/cossacklabs/acra/wiki) with useful articles about the core Acra concepts, use cases, details on cryptographic, and security design. Starting with the version 0.82.0, we stop updating the GitHub Wiki documentation. The basic principles still hold true, but for the most recent versions of the docs, tutorials, and demos, please visit the official [Cossack Labs documentation server](https://docs.cossacklabs.com/products/acra/). However, it is still partially in beta so there might be dragons 🐉. Please report any bugs or submit suggestions about making the documentation better to info@cossacklabs.com.
-
+The most recent version of the documentation, tutorials, and demos for Acra is available in the official [Cossack Labs Documentation Server](https://docs.cossacklabs.com/products/acra/). The wiki documentation is deprecated and not updated since 0.82.0.
 
 To gain an initial understanding of Acra, you might want to:
 
@@ -167,7 +173,7 @@ Acra can help you comply with GDPR and HIPAA regulations. Configuring and using 
 
 This open source version of Acra is free to use. Please let us know in the [Issues](https://www.github.com/cossacklabs/acra/issues) if you stumble upon a bug, see a possible enhancement, or have a comment on security design.
 
-There’s a [commercial version of Acra](https://www.cossacklabs.com/acra/) available. It provides better performance, redunancy/load balancing, comes pre-configured with crypto-primitives of your choice (FIPS, GOST), integrates with key/secret management tools in your stack, and has plenty of goodies for your Ops and SREs to operate Acra conveniently - deployment automation, scaling, monitoring, and logging. [Talk to us](mailto:sales@cossacklabs.com) if you're interested.
+There’s a [commercial version of Acra](https://www.cossacklabs.com/acra/) available. It provides better performance, redunancy/load balancing, comes pre-configured with crypto-primitives of your choice (FIPS, GOST), integrates with key/secret management tools in your stack, and has plenty of goodies for your Ops and SREs to operate Acra conveniently – deployment automation, scaling, monitoring, and logging. [Talk to us](mailto:sales@cossacklabs.com) if you're interested.
 
 ## Security consulting
 
