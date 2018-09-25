@@ -9,11 +9,9 @@ Please run project from Acra repository. Run `MainActivityAcraStructExample`.
 
 ## Dependencies
 
-AcraWriter and AcraStruct files are placed in `acra/wrappers/java` folder.
+1. AcraWriter and AcraStruct files are placed in the [`acra/wrappers/java`](https://github.com/cossacklabs/acra/tree/master/wrappers/java/com/cossacklabs/acrawriter) folder. Grab files into your project!
 
-## Themis
-
-This project has included Themis for android library: `app/libs/themis-release.aar`, linked by gradle (inside `app/build.gradle`).
+2. AcraWriter depends on Themis. This project has included Themis as Android `.aar` library: `app/libs/themis-release.aar`, linked by gradle (inside `app/build.gradle`).
 
 
 # Generating AcraStruct without zone
@@ -55,7 +53,7 @@ AcraStruct acraStruct = aw.createAcraStruct(message.getBytes(), publicKey, zoneI
 
 1. Download Themis repository https://github.com/cossacklabs/themis
 
-2. Compile BoringSLL for android architectures, check instructions in the [themis -> Building and Installing -> Android](https://github.com/cossacklabs/themis/wiki/Building-and-installing#android) section. 
+2. Compile BoringSSL for android architectures, check instructions in the [themis -> Building and Installing -> Android](https://github.com/cossacklabs/themis/wiki/Building-and-installing#android) section. 
 
 3. Build `themis.aar` archive:
 https://github.com/cossacklabs/themis/wiki/Building-and-installing#android
