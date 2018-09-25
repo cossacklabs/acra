@@ -162,7 +162,7 @@ func TestHandleRangeCondition(t *testing.T) {
 				t.Fatalf("Can't parse query <%s> with error <%s>", query, err.Error())
 			}
 			queryRange := parsedQuery.(*sqlparser.Select).Where.Expr.(*sqlparser.RangeCond)
-			if !handleRangeCondition(patternRange, queryRange) {
+			if !matchRangeCondition(patternRange, queryRange) {
 				t.Fatalf("Expected match in query <%s> with pattern <%s>", query, sqlparser.String(pattern))
 			}
 		}
@@ -173,7 +173,7 @@ func TestHandleRangeCondition(t *testing.T) {
 				t.Fatal(err)
 			}
 			queryRange := parsedQuery.(*sqlparser.Select).Where.Expr.(*sqlparser.RangeCond)
-			if handleRangeCondition(patternRange, queryRange) {
+			if matchRangeCondition(patternRange, queryRange) {
 				t.Fatalf("Expected not match in query <%s> with pattern <%s>", query, sqlparser.String(pattern))
 			}
 		}
@@ -535,6 +535,87 @@ func TestPatternsInWhereClauses(t *testing.T) {
 				t.Fatalf("Expected not match in query <%s> with pattern <%s>", query, sqlparser.String(pattern))
 			}
 		}
+	}
+}
+
+func TestOrderByWithColumnPattern(t *testing.T) {
+	patterns := []string{
+		// ORDER BY with column placeholder
+		fmt.Sprintf("SELECT a1 FROM table1 ORDER BY %s", ColumnConfigPlaceholder),
+	}
+
+	parsedPatterns, err := ParsePatterns(patterns)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	matchableQueries := [][]string{
+		[]string{
+			"SELECT a1 FROM table1 ORDER BY column1",
+			"SELECT a1 FROM table1 ORDER BY 1",
+			"SELECT a1 FROM table1 ORDER BY (select priority from ordering o where o.val = e.name)",
+			"SELECT a1 FROM table1 ORDER BY Date()",
+			"SELECT a1 FROM table1 ORDER BY (case when f1 then 1 when f1 is null then 2 else 3 end)",
+		},
+	}
+
+	notMatchableQueries := [][]string{
+		[]string{
+			"SELECT a1 FROM table1 ORDER BY column1 DESC",
+			"SELECT a1 FROM table1 ORDER BY 1 DESC",
+			"SELECT a1 FROM table1 ORDER BY column1, column2",
+			"SELECT a1 FROM table1 ORDER BY Date() DESC",
+			"SELECT a1 FROM table1 ORDER BY (case when f1 then 1 when f1 is null then 2 else 3 end), a2",
+			"SELECT a1 FROM table1 ORDER BY (case when f1 then 1 when f1 is null then 2 else 3 end) DESC",
+		},
+	}
+
+	if len(parsedPatterns) != len(matchableQueries) {
+		t.Fatal("Mismatch test configuration")
+	}
+
+	for i, _ := range parsedPatterns {
+		patternOrderBy := parsedPatterns[i][0].(*sqlparser.Select).OrderBy
+		for _, query := range matchableQueries[i] {
+			parsedQuery, err := sqlparser.Parse(query)
+			if err != nil {
+				t.Fatal(err)
+			}
+			queryOrderBy := parsedQuery.(*sqlparser.Select).OrderBy
+			if !matchOrderBy(patternOrderBy, queryOrderBy) {
+				t.Fatalf("Expected match in query <%s> with pattern <%s>", query, sqlparser.String(parsedPatterns[i][0]))
+			}
+		}
+
+		for _, query := range notMatchableQueries[i] {
+			parsedQuery, err := sqlparser.Parse(query)
+			if err != nil {
+				t.Fatal(err)
+			}
+			queryOrderBy := parsedQuery.(*sqlparser.Select).OrderBy
+			if matchOrderBy(patternOrderBy, queryOrderBy) {
+				t.Fatalf("Expected not match in query <%s> with pattern <%s>", query, sqlparser.String(parsedPatterns[i][0]))
+			}
+		}
+	}
+}
+
+func TestSingleQueryPatternMatch(t *testing.T) {
+
+	pattern := "SELECT %%COLUMN%% FROM testTable ORDER BY %%COLUMN%%"
+
+	query := "SELECT x FROM testTable ORDER BY Date()"
+
+	parsedPatterns, err := ParsePatterns([]string{pattern})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	match, err := checkPatternsMatching(parsedPatterns, query)
+	if match {
+		fmt.Println("match")
+	} else {
+		fmt.Println("not match")
 	}
 
 }
