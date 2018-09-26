@@ -586,6 +586,44 @@ func testWhitelistValuePattern(t *testing.T) {
 			t.Fatal(err, "Whitelist pattern passed query. \nPattern:", pattern, "\nQuery:", query)
 		}
 	}
+
+	// test limit
+	whitelist.Reset()
+	pattern = "SELECT * from t where ID > 10 LIMIT %%VALUE%%"
+	err = whitelist.AddPatterns([]string{pattern})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	blockableQueries = []string{
+		// OFFSET presents
+		"SELECT * from t where ID > 10 LIMIT 100 OFFSET 100",
+		// no LIMIT expression
+		"SELECT * from t where ID > 10",
+		// wrong table
+		"SELECT * from t1 where ID > 10 LIMIT 100",
+		// wrong WHERE clause
+		"SELECT * from t where ID < 10 LIMIT 100",
+		// wrong columns
+		"SELECT a,b from t where ID > 10 LIMIT 100",
+	}
+
+	acceptableQueries = []string{
+		"SELECT * from t where ID > 10 LIMIT 100500",
+	}
+
+	for _, query := range acceptableQueries {
+		err = censor.HandleQuery(query)
+		if err != nil {
+			t.Fatal(err, "Whitelist pattern blocked query. \nPattern:", pattern, "\nQuery:", query)
+		}
+	}
+	for _, query := range blockableQueries {
+		err = censor.HandleQuery(query)
+		if err != handlers.ErrWhitelistPatternMismatch {
+			t.Fatal(err, "Whitelist pattern passed query. \nPattern:", pattern, "\nQuery:", query)
+		}
+	}
 }
 func testWhitelistStarPattern(t *testing.T) {
 	var err error
@@ -1050,6 +1088,43 @@ func testBlacklistValuePattern(t *testing.T) {
 		"SELECT a, b FROM t WHERE ID = 1.0",
 		"SELECT a, b, c, d FROM t WHERE ID = 'someValue'",
 		"SELECT a, b, c FROM t WHERE ID = TRUE",
+	}
+
+	for _, query := range acceptableQueries {
+		err = censor.HandleQuery(query)
+		if err != nil {
+			t.Fatal(err, "Blacklist pattern blocked query. \nPattern:", blacklistPattern, "\nQuery:", query)
+		}
+	}
+	for _, query := range blockableQueries {
+		err = censor.HandleQuery(query)
+		if err != handlers.ErrBlacklistPatternMatch {
+			t.Fatal(err, "Blacklist pattern passed query. \nPattern:", blacklistPattern, "\nQuery:", query)
+		}
+	}
+
+	// test limit
+	blacklist.Reset()
+	blacklistPattern = "SELECT * from t where ID > 10 LIMIT %%VALUE%%"
+	err = blacklist.AddPatterns([]string{blacklistPattern})
+	if err != nil {
+		t.Fatal(err)
+	}
+	acceptableQueries = []string{
+		// OFFSET presents
+		"SELECT * from t where ID > 10 LIMIT 100 OFFSET 100",
+		// no LIMIT expression
+		"SELECT * from t where ID > 10",
+		// wrong table
+		"SELECT * from t1 where ID > 10 LIMIT 100",
+		// wrong WHERE clause
+		"SELECT * from t where ID < 10 LIMIT 100",
+		// wrong columns
+		"SELECT a,b from t where ID > 10 LIMIT 100",
+	}
+
+	blockableQueries = []string{
+		"SELECT * from t where ID > 10 LIMIT 100500",
 	}
 
 	for _, query := range acceptableQueries {

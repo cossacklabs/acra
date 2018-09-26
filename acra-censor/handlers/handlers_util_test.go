@@ -574,7 +574,7 @@ func TestOrderByWithColumnPattern(t *testing.T) {
 		t.Fatal("Mismatch test configuration")
 	}
 
-	for i, _ := range parsedPatterns {
+	for i := 0; i < len(parsedPatterns); i++ {
 		patternOrderBy := parsedPatterns[i][0].(*sqlparser.Select).OrderBy
 		for _, query := range matchableQueries[i] {
 			parsedQuery, err := sqlparser.Parse(query)
@@ -600,22 +600,75 @@ func TestOrderByWithColumnPattern(t *testing.T) {
 	}
 }
 
-func TestSingleQueryPatternMatch(t *testing.T) {
+func TestLimitExpression(t *testing.T) {
+	patterns := []string{
+		// LIMIT with value placeholder
+		fmt.Sprintf("SELECT a1 FROM table1 LIMIT %s", ValueConfigPlaceholder),
+		fmt.Sprintf("SELECT a1 FROM table1 LIMIT %s OFFSET %s", ValueConfigPlaceholder, ValueConfigPlaceholder),
+	}
 
-	pattern := "SELECT %%COLUMN%% FROM testTable ORDER BY %%COLUMN%%"
-
-	query := "SELECT x FROM testTable ORDER BY Date()"
-
-	parsedPatterns, err := ParsePatterns([]string{pattern})
+	parsedPatterns, err := ParsePatterns(patterns)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	match, err := checkPatternsMatching(parsedPatterns, query)
-	if match {
-		fmt.Println("match")
-	} else {
-		fmt.Println("not match")
+	matchableQueries := [][]string{
+		[]string{
+			"SELECT a1 FROM table1 LIMIT 100500",
+			"SELECT a1 FROM table1 LIMIT 1",
+		},
+		[]string{
+			"SELECT a1 FROM table1 LIMIT 100500 OFFSET 100500",
+			"SELECT a1 FROM table1 LIMIT 1 OFFSET 1",
+		},
 	}
 
+	notMatchableQueries := [][]string{
+		[]string{
+			// OFFSET presents
+			"SELECT a1 FROM table1 LIMIT 100500 OFFSET 100500",
+			// OFFSET presents
+			"SELECT a1 FROM table1 LIMIT 1 OFFSET 1",
+			// LIMIT is not present
+			"SELECT a1 FROM table1",
+			// different column
+			"SELECT a2 FROM table1",
+			// different table
+			"SELECT a1 FROM table2",
+		},
+		[]string{
+			// OFFSET is not present
+			"SELECT a1 FROM table1 LIMIT 100500",
+			// OFFSET is not present
+			"SELECT a1 FROM table1 LIMIT 18446744073709551610",
+			// LIMIT is not present
+			"SELECT a1 FROM table1",
+		},
+	}
+
+	if len(parsedPatterns) != len(matchableQueries) {
+		t.Fatal("Mismatch test configuration")
+	}
+
+	for i := 0; i < len(parsedPatterns); i++ {
+		for _, query := range matchableQueries[i] {
+			parsedQuery, err := sqlparser.Parse(query)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !handleLimitValuePattern([]sqlparser.SQLNode{parsedQuery}, parsedPatterns[i]) {
+				t.Fatalf("Expected match in query <%s> with pattern <%s>", query, sqlparser.String(parsedPatterns[i][0]))
+			}
+		}
+
+		for _, query := range notMatchableQueries[i] {
+			parsedQuery, err := sqlparser.Parse(query)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if handleLimitValuePattern([]sqlparser.SQLNode{parsedQuery}, parsedPatterns[i]) {
+				t.Fatalf("Expected not match in query <%s> with pattern <%s>", query, sqlparser.String(parsedPatterns[i][0]))
+			}
+		}
+	}
 }

@@ -58,31 +58,45 @@ const (
 	LogQueryLength = 100
 	// ValuePlaceholder used to mask real Values from SQL queries before logging to syslog.
 	ValuePlaceholder = "replaced"
-	// These constants are used to create unique SQL query that express security patterns (such patterns will be wittingly parsed correctly)
-	SelectConfigPlaceholder              = "%%SELECT%%"
+	// SelectConfigPlaceholder and further constants are used to create unique SQL query that express security patterns (such patterns will be wittingly parsed correctly)
+	SelectConfigPlaceholder = "%%SELECT%%"
+	// SelectConfigPlaceholderReplacerPart1 is used when matching %%SELECT%% pattern
 	SelectConfigPlaceholderReplacerPart1 = "SELECT"
+	// SelectConfigPlaceholderReplacerPart2 is used when matching %%SELECT%% pattern
 	SelectConfigPlaceholderReplacerPart2 = "F1F0A98E"
-	SelectConfigPlaceholderReplacer      = SelectConfigPlaceholderReplacerPart1 + " " + SelectConfigPlaceholderReplacerPart2
-	ColumnConfigPlaceholder              = "%%COLUMN%%"
-	ColumnConfigPlaceholderReplacer      = "COLUMN_A8D6EB40"
-	WhereConfigPlaceholder               = "%%WHERE%%"
-	WhereConfigPlaceholderReplacerPart1  = "WHERE"
-	WhereConfigPlaceholderReplacerPart2  = "VALUE_EF930A9B = 'VALUE_CD329E0D'"
-	WhereConfigPlaceholderReplacer       = WhereConfigPlaceholderReplacerPart1 + " " + WhereConfigPlaceholderReplacerPart2
-	ValueConfigPlaceholder               = "%%VALUE%%"
-	// value without quotes
+	// SelectConfigPlaceholderReplacer is used when matching %%SELECT%% pattern
+	SelectConfigPlaceholderReplacer = SelectConfigPlaceholderReplacerPart1 + " " + SelectConfigPlaceholderReplacerPart2
+	// ColumnConfigPlaceholder is used when matching %%COLUMN%% pattern
+	ColumnConfigPlaceholder = "%%COLUMN%%"
+	// ColumnConfigPlaceholderReplacer is used when matching %%COLUMN%% pattern
+	ColumnConfigPlaceholderReplacer = "COLUMN_A8D6EB40"
+	// WhereConfigPlaceholder is used when matching %%WHERE%% pattern
+	WhereConfigPlaceholder = "%%WHERE%%"
+	// WhereConfigPlaceholderReplacerPart1 is used when matching %%WHERE%% pattern
+	WhereConfigPlaceholderReplacerPart1 = "WHERE"
+	// WhereConfigPlaceholderReplacerPart2 is used when matching %%WHERE%% pattern
+	WhereConfigPlaceholderReplacerPart2 = "VALUE_EF930A9B = 'VALUE_CD329E0D'"
+	// WhereConfigPlaceholderReplacer is used when matching %%WHERE%% pattern
+	WhereConfigPlaceholderReplacer = WhereConfigPlaceholderReplacerPart1 + " " + WhereConfigPlaceholderReplacerPart2
+	// ValueConfigPlaceholder is used when matching %%VALUE%% pattern
+	ValueConfigPlaceholder = "%%VALUE%%"
+	// ValueConfigPlaceholderRawReplacer represents value without quotes
 	ValueConfigPlaceholderRawReplacer = "VALUE_AE920B7D"
-	// quoted value
+	// ValueConfigPlaceholderReplacer represents quoted value
 	ValueConfigPlaceholderReplacer = "'" + ValueConfigPlaceholderRawReplacer + "'"
-
-	ListOfValuesConfigPlaceholder            = "%%LIST_OF_VALUES%%"
+	// ListOfValuesConfigPlaceholder is used when matching %%LIST_OF_VALUES%% pattern
+	ListOfValuesConfigPlaceholder = "%%LIST_OF_VALUES%%"
+	// ListOfValuesConfigPlaceholderRawReplacer is used when matching %%LIST_OF_VALUES%% pattern
 	ListOfValuesConfigPlaceholderRawReplacer = "LIST_OF_VALUES_1KVA2TWY"
-	ListOfValuesConfigPlaceholderReplacer    = "'" + ListOfValuesConfigPlaceholderRawReplacer + "'"
-
-	SubqueryConfigPlaceholder         = "%%SUBQUERY%%"
+	// ListOfValuesConfigPlaceholderReplacer is used when matching %%LIST_OF_VALUES%% pattern
+	ListOfValuesConfigPlaceholderReplacer = "'" + ListOfValuesConfigPlaceholderRawReplacer + "'"
+	// SubqueryConfigPlaceholder is used when matching %%SUBQUERY%% pattern
+	SubqueryConfigPlaceholder = "%%SUBQUERY%%"
+	// SubqueryConfigPlaceholderReplacer is used when matching %%SUBQUERY%% pattern
 	SubqueryConfigPlaceholderReplacer = "SELECT 'SUBQUERY_953IKLIJU4C8joVsZqCr8hYducQWNx'"
 )
 
+// SubqueryConfigPlaceholderReplacerParsed represents parsed subquery used while pattern matching
 var SubqueryConfigPlaceholderReplacerParsed, _ = sqlparser.Parse(SubqueryConfigPlaceholderReplacer)
 
 // TrimStringToN trims query to N chars.
@@ -154,6 +168,10 @@ func checkSinglePatternMatch(queryNodes []sqlparser.SQLNode, patternNodes []sqlp
 		return true
 	}
 	matchOccurred = handleStarPattern(queryNodes, patternNodes)
+	if matchOccurred {
+		return true
+	}
+	matchOccurred = handleLimitValuePattern(queryNodes, patternNodes)
 	if matchOccurred {
 		return true
 	}
@@ -336,7 +354,43 @@ func handleWherePatterns(queryNodes, patternNodes []sqlparser.SQLNode) bool {
 		if !reflect.DeepEqual(patternNode, queryNode) {
 			return false
 		}
+	}
+	return true
+}
 
+// handleLimitValuePattern evaluates LIMIT=%%VALUE%% and OFFSET=%%VALUE%% patterns
+func handleLimitValuePattern(queryNodes, patternNodes []sqlparser.SQLNode) bool {
+	querySelect, ok := queryNodes[0].(*sqlparser.Select)
+	if !ok {
+		return false
+	}
+	patternSelect, ok := patternNodes[0].(*sqlparser.Select)
+	if !ok {
+		return false
+	}
+	queryTopNodes, err := getTopNodes(queryNodes[0])
+	if err != nil {
+		return false
+	}
+	patternTopNodes, err := getTopNodes(patternNodes[0])
+	if err != nil {
+		return false
+	}
+
+	for i := 0; i < len(queryTopNodes); i++ {
+		patternNode := patternTopNodes[i]
+		queryNode := queryTopNodes[i]
+
+		switch patternNode.(type) {
+		case *sqlparser.Limit:
+			if !matchLimit(querySelect.Limit, patternSelect.Limit) {
+				return false
+			}
+		default:
+			if !reflect.DeepEqual(queryNode, patternNode) {
+				return false
+			}
+		}
 	}
 	return true
 }
@@ -511,11 +565,38 @@ func matchOrderBy(patternNode, queryNode sqlparser.OrderBy) bool {
 	if len(patternNode) != len(queryNode) {
 		return false
 	}
-	for index, _ := range patternNode {
+	for index := 0; index < len(patternNode); index++ {
 		if !strings.EqualFold(patternNode[index].Direction, queryNode[index].Direction) {
 			return false
 		}
 		if !isColumnReplacer(patternNode[index].Expr, ColumnConfigPlaceholderReplacer) {
+			return false
+		}
+	}
+	return true
+}
+
+// matchLimit handles limit and offset constructions
+// return true if match otherwise false
+func matchLimit(queryLimit *sqlparser.Limit, patternLimit *sqlparser.Limit) bool {
+	// start check if both LIMITs present, otherwise not match
+	if queryLimit != nil && patternLimit != nil {
+		if !reflect.DeepEqual(queryLimit.Rowcount, patternLimit.Rowcount) {
+			if !isValuePattern(patternLimit.Rowcount) {
+				return false
+			}
+		}
+	} else {
+		return false
+	}
+
+	// LIMITs are equal and OFFSETs are not present, so it's match
+	if queryLimit.Offset == nil && patternLimit.Offset == nil {
+		return true
+	}
+
+	if !reflect.DeepEqual(queryLimit.Offset, patternLimit.Offset) {
+		if !isValuePattern(patternLimit.Offset) || queryLimit.Offset == nil {
 			return false
 		}
 	}
