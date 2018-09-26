@@ -1,5 +1,5 @@
 <h3 align="center">
-  <a href="https://www.cossacklabs.com"><img src="https://github.com/cossacklabs/acra/wiki/Images/acralogo.png" alt="Acra: database security suite" width="500"></a>
+  <a href="https://www.cossacklabs.com/acra/"><img src="https://github.com/cossacklabs/acra/wiki/Images/acralogo.png" alt="Acra: database security suite" width="420"></a>
   <br>
   Database protection suite with selective encryption and intrusion detection.
   <br>
