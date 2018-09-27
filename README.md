@@ -113,7 +113,7 @@ To better understand the architecture and data flow, please refer to [Architectu
 
 ### Protecting data in SQL databases using AcraWriter and AcraServer
 
-<p align="center"><img src="https://raw.githubusercontent.com/wiki/cossacklabs/acra/Images/readme/AcraArchi-Readme.png" alt="Acra Server: simplified architecture" width="500"></p>
+<p align="center"><img src="https://docs.cossacklabs.com/files/wiki/acrawriter-acraserver-SQL.png" alt="Acra Server: simplified architecture" width="500"></p>
 
 This is what the process of encryption and decryption of the data in a database looks like:
 
@@ -121,11 +121,11 @@ This is what the process of encryption and decryption of the data in a database 
 - To retrieve the decrypted data, your application talks to [**AcraServer**](https://docs.cossacklabs.com/pages/documentation-acra/#server-side-acraserver). It is a server-side service that works as database proxy: it sits transparently between your application and the database, listens silently to all the traffic that's coming to and from the database.     
 - AcraServer monitors the incoming SQL requests and blocks the unwanted ones using the built-in configurable firewall called [**AcraCensor**](https://docs.cossacklabs.com/pages/documentation-acra/#acracensor-acra-s-firewall). AcraServer only sends allowed requests to the database. Certain configurations for AcraServer can be adjusted remotely using [**AcraWebConfig**](https://docs.cossacklabs.com/pages/documentation-acra/#acrawebconfig) web server.    
 - Upon receiving the database response, AcraServer tries to detect the AcraStructs, decrypts them, and returns the decrypted data to the application.    
--[**AcraConnector**](https://github.com/cossacklabs/acra/wiki/AcraConnector-and-AcraWriter) is a client-side daemon responsible for providing encrypted and authenticated connection between the application and AcraServer. AcraConnector runs under a separate user/in a separate container and acts as middleware. AcraConnector accepts connections from the application, adds an extra transport encryption layer using TLS or [Themis Secure Session](http://docs.cossacklabs.com/pages/secure-session-cryptosystem/), sends the data to AcraServer, receives the result, and sends it back to the application.
+- [**AcraConnector**](https://github.com/cossacklabs/acra/wiki/AcraConnector-and-AcraWriter) is a client-side daemon responsible for providing encrypted and authenticated connection between the application and AcraServer. AcraConnector runs under a separate user/in a separate container and acts as middleware. AcraConnector accepts connections from the application, adds an extra transport encryption layer using TLS or [Themis Secure Session](http://docs.cossacklabs.com/pages/secure-session-cryptosystem/), sends the data to AcraServer, receives the result, and sends it back to the application.
 
 ### Protecting data in any file storage using AcraWriter and AcraTranslator
 
-<p align="center"><img src="https://raw.githubusercontent.com/wiki/cossacklabs/acra/Images/readme/AcraArchi-AT-Readme.png" alt="Acra Translator: simplified architecture" width="500"></p>
+<p align="center"><img src="https://docs.cossacklabs.com/files/wiki/acrawriter-acratranslator-elsewhere.png" alt="Acra Translator: simplified architecture" width="500"></p>
 
 In some use cases, the application can store encrypted data as separate blobs (files that are not in a database, i.e. in a S3 bucket, local file storage, etc.). In this case, you can use [**AcraTranslator**](http://docs.cossacklabs.com/pages/acratranslator/) — a lightweight server that receives [**AcraStructs**](https://docs.cossacklabs.com/pages/documentation-acra/#acrastruct) and returns the decrypted data.
 
