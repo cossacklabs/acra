@@ -189,7 +189,7 @@ func handleSelectPattern(queryNodes, patternNodes []sqlparser.SQLNode) bool {
 	return false
 }
 
-// handleSelectColumnPattern handles SELECT %%COLUMN%% .. %%COLUMN%% pattern
+// handleSelectColumnPattern handles SELECT %%COLUMN%% pattern
 func handleSelectColumnPattern(queryNodes, patternNodes []sqlparser.SQLNode) bool {
 	querySelect, ok := queryNodes[0].(*sqlparser.Select)
 	if !ok {
@@ -233,6 +233,18 @@ func handleSelectColumnPattern(queryNodes, patternNodes []sqlparser.SQLNode) boo
 		case sqlparser.OrderBy:
 			if queryOrderBy, ok := queryNode.(sqlparser.OrderBy); ok {
 				if !matchOrderBy(patternNode.(sqlparser.OrderBy), queryOrderBy) {
+					return false
+				}
+			}
+		case sqlparser.GroupBy:
+			if queryGroupBy, ok := queryNode.(sqlparser.GroupBy); ok {
+				if !matchGroupBy(patternNode.(sqlparser.GroupBy), queryGroupBy) {
+					return false
+				}
+			}
+		case *sqlparser.Where:
+			if queryHaving, ok := queryNode.(*sqlparser.Where); ok {
+				if !matchHaving(patternNode.(*sqlparser.Where), queryHaving) {
 					return false
 				}
 			}
@@ -395,256 +407,6 @@ func handleLimitValuePattern(queryNodes, patternNodes []sqlparser.SQLNode) bool 
 	return true
 }
 
-// isColumnPattern return true if this SelectExpr is our %%COLUMN%% pattern
-func isColumnPattern(expr sqlparser.SelectExpr) bool {
-	if aliased, ok := expr.(*sqlparser.AliasedExpr); ok {
-		if colName, ok := aliased.Expr.(*sqlparser.ColName); ok {
-			return strings.EqualFold(colName.Name.String(), ColumnConfigPlaceholderReplacer)
-		}
-		return false
-	}
-	return false
-}
-
-// isColumnReplacer returns true if node is %%COLUMN%%
-func isColumnReplacer(node sqlparser.SQLNode, replacer string) bool {
-	sqlColumn, ok := node.(*sqlparser.ColName)
-	if !ok {
-		return false
-	}
-
-	return strings.EqualFold(sqlColumn.Name.String(), replacer)
-}
-
-// isValueReplacer return true if node is SQLVal and has value same as replacer
-func isValueReplacer(node sqlparser.SQLNode, replacer string) bool {
-	sqlVal, ok := node.(*sqlparser.SQLVal)
-	if !ok {
-		return false
-	}
-	if sqlVal.Type != sqlparser.StrVal {
-		return false
-	}
-	return bytes.Equal(sqlVal.Val, []byte(replacer))
-}
-
-// isValuePattern return true if node is ValueConfigPlaceholder pattern otherwise false
-func isValuePattern(node sqlparser.SQLNode) bool {
-	return isValueReplacer(node, ValueConfigPlaceholderRawReplacer)
-}
-
-// isListOfValuesPattern return true if node is ListOfValuesConfigPlaceholder pattern otherwise false
-func isListOfValuesPattern(node sqlparser.SQLNode) bool {
-	return isValueReplacer(node, ListOfValuesConfigPlaceholderRawReplacer)
-}
-
-// IsEqualComparisonNodes try to match patternNode with queryNode with supported patterns for ComparisonExpr
-func IsEqualComparisonNodes(patternNode, queryNode *sqlparser.ComparisonExpr) bool {
-	if reflect.DeepEqual(patternNode.Left, queryNode.Left) &&
-		strings.EqualFold(patternNode.Operator, queryNode.Operator) &&
-		reflect.DeepEqual(patternNode.Escape, queryNode.Escape) {
-
-		switch patternNode.Operator {
-		case sqlparser.InStr, sqlparser.NotInStr:
-			switch patternNode.Right.(type) {
-			case sqlparser.ValTuple:
-				queryInNodes, ok := queryNode.Right.(sqlparser.ValTuple)
-				if !ok {
-					return false
-				}
-				patternInNodes := patternNode.Right.(sqlparser.ValTuple)
-
-				// pattern may have less nodes due to %%list of values%% but not vice versa
-				if len(queryInNodes) < len(patternInNodes) {
-					return false
-				}
-				var i int
-				for i = 0; i < len(patternInNodes); i++ {
-					if isListOfValuesPattern(patternInNodes[i]) {
-						// don't check least query nodes
-						return true
-					}
-					if matchValuePattern(patternInNodes[i], queryInNodes[i]) {
-						// we don't care about type of query value because pattern has %%VALUE%%
-						continue
-					}
-					if matchSubqueryPattern(patternInNodes[i], queryInNodes[i]) {
-						continue
-					}
-					if !reflect.DeepEqual(patternInNodes[i], queryInNodes[i]) {
-						return false
-					}
-				}
-				// if pattern has less nodes than query
-				if i != len(queryInNodes) {
-					return false
-				}
-				return true
-			case *sqlparser.Subquery: // a in (select 1)
-				patternSubquery := patternNode.Right.(*sqlparser.Subquery)
-
-				querySubquery, ok := queryNode.Right.(*sqlparser.Subquery)
-				if !ok {
-					return false
-				}
-				if matchSubqueryPattern(patternSubquery, querySubquery) {
-					return true
-				}
-				return reflect.DeepEqual(patternSubquery, querySubquery)
-			}
-		default:
-			if isValuePattern(patternNode.Right) {
-				return true
-			}
-			if matchSubqueryPattern(patternNode.Right, queryNode.Right) {
-				return true
-			}
-		}
-		// pattern node hasn't %%VALUE%% pattern so compare their values as is
-		return reflect.DeepEqual(patternNode.Right, queryNode.Right)
-	}
-	return false
-}
-
-// matchValuePattern return true if pattern node is %%VALUE%% pattern and value of query node has type that masked with this pattern
-func matchValuePattern(patternNode, queryNode sqlparser.SQLNode) bool {
-	return isValuePattern(patternNode) && matchQueryNodeWithValuePattern(queryNode)
-}
-
-// matchSubqueryPattern return true if pattern are %%SUBQUERY%% and queryNode has correct type for this pattern otherwise false
-func matchSubqueryPattern(patternNode, queryNode sqlparser.SQLNode) bool {
-	if _, ok := patternNode.(*sqlparser.Subquery); !ok {
-		return false
-	}
-	if _, ok := queryNode.(*sqlparser.Subquery); !ok {
-		return false
-	}
-	// check that patterns query the same as our parsed placeholder
-	if reflect.DeepEqual(patternNode.(*sqlparser.Subquery).Select, SubqueryConfigPlaceholderReplacerParsed) {
-		return true
-	}
-	return false
-}
-
-// matchQueryNodeWithValuePattern return true if %%VALUE%% pattern should mask value of node
-// return true for any literal values, boolean and null
-// return false on other values like subqueries
-func matchQueryNodeWithValuePattern(node sqlparser.SQLNode) bool {
-	switch node.(type) {
-	case *sqlparser.SQLVal, sqlparser.BoolVal, *sqlparser.NullVal:
-		return true
-	}
-	return false
-}
-
-// matchRangeCondition handle range queries (age BETWEEN %%value%% and 5)
-// return true if match (with or without %%value%% patterns) otherwise false
-func matchRangeCondition(patternNode, queryNode *sqlparser.RangeCond) bool {
-	if queryNode.Operator != patternNode.Operator {
-		return false
-	}
-	if !reflect.DeepEqual(queryNode.Left, patternNode.Left) {
-		return false
-	}
-	if !(matchValuePattern(patternNode.From, queryNode.From) || matchSubqueryPattern(patternNode.From, queryNode.From)) {
-		if !reflect.DeepEqual(patternNode.From, queryNode.From) {
-			return false
-		}
-	}
-	if !(matchValuePattern(patternNode.To, queryNode.To) || matchSubqueryPattern(patternNode.To, queryNode.To)) {
-		if !reflect.DeepEqual(patternNode.To, queryNode.To) {
-			return false
-		}
-	}
-	return true
-}
-
-// matchOrderBy handles order by construction
-// return true if match otherwise false
-func matchOrderBy(patternNode, queryNode sqlparser.OrderBy) bool {
-	if len(patternNode) != len(queryNode) {
-		return false
-	}
-	for index := 0; index < len(patternNode); index++ {
-		if !strings.EqualFold(patternNode[index].Direction, queryNode[index].Direction) {
-			return false
-		}
-		if !isColumnReplacer(patternNode[index].Expr, ColumnConfigPlaceholderReplacer) {
-			return false
-		}
-	}
-	return true
-}
-
-// matchLimit handles limit and offset constructions
-// return true if match otherwise false
-func matchLimit(queryLimit *sqlparser.Limit, patternLimit *sqlparser.Limit) bool {
-	// start check if both LIMITs present, otherwise not match
-	if queryLimit != nil && patternLimit != nil {
-		if !reflect.DeepEqual(queryLimit.Rowcount, patternLimit.Rowcount) {
-			if !isValuePattern(patternLimit.Rowcount) {
-				return false
-			}
-		}
-	} else {
-		return false
-	}
-
-	// LIMITs are equal and OFFSETs are not present, so it's match
-	if queryLimit.Offset == nil && patternLimit.Offset == nil {
-		return true
-	}
-
-	if !reflect.DeepEqual(queryLimit.Offset, patternLimit.Offset) {
-		if !isValuePattern(patternLimit.Offset) || queryLimit.Offset == nil {
-			return false
-		}
-	}
-	return true
-}
-
-// getAllNodes recusively walk through node and return all children of node with node itself
-func getAllNodes(node sqlparser.SQLNode) ([]sqlparser.SQLNode, error) {
-	var queryNodes []sqlparser.SQLNode
-	err := sqlparser.Walk(func(node sqlparser.SQLNode) (bool, error) {
-		queryNodes = append(queryNodes, node)
-		return true, nil
-	}, node)
-	if err != nil {
-		return nil, err
-	}
-	return queryNodes, nil
-}
-
-// getTopNodes walk only once at depth and return first level children of firstNode
-func getTopNodes(firstNode sqlparser.SQLNode) ([]sqlparser.SQLNode, error) {
-	goToSubtree := true
-	var outNodes []sqlparser.SQLNode
-	err := sqlparser.Walk(func(node sqlparser.SQLNode) (kontinue bool, err error) {
-		if goToSubtree {
-			goToSubtree = false
-			return true, nil
-		}
-		outNodes = append(outNodes, node)
-		return false, nil
-
-	}, firstNode)
-	return outNodes, err
-}
-
-// starFound return true if Select has '*' expression
-func starFound(selectExpression sqlparser.SelectExprs) bool {
-	starDetected := false
-	sqlparser.Walk(func(node sqlparser.SQLNode) (bool, error) {
-		if _, ok := node.(*sqlparser.StarExpr); ok {
-			starDetected = true
-			return false, nil
-		}
-		return true, nil
-	}, selectExpression)
-	return starDetected
-}
-
 // handleWhereNode process all patterns and rules related with Where conditions
 func handleWhereNode(patternNode, queryNode sqlparser.SQLNode) bool {
 	// get all fields of node struct without recursion
@@ -694,7 +456,7 @@ func handleWhereNode(patternNode, queryNode sqlparser.SQLNode) bool {
 			return false
 		case *sqlparser.ComparisonExpr:
 			if queryNodeComparison, ok := queryWhereNode.(*sqlparser.ComparisonExpr); ok && queryNodeComparison != nil {
-				if IsEqualComparisonNodes(patternWhereNode.(*sqlparser.ComparisonExpr), queryNodeComparison) {
+				if IsEqualComparisonNodes(patternWhereNode.(*sqlparser.ComparisonExpr), queryNodeComparison, sqlparser.WhereStr) {
 					continue
 				}
 			}
@@ -708,7 +470,7 @@ func handleWhereNode(patternNode, queryNode sqlparser.SQLNode) bool {
 			return false
 		case *sqlparser.ExistsExpr:
 			if queryExists, ok := queryWhereNode.(*sqlparser.ExistsExpr); ok {
-				if matchSubqueryPattern(patternWhereNode.(*sqlparser.ExistsExpr).Subquery, queryExists.Subquery) {
+				if matchSubquery(patternWhereNode.(*sqlparser.ExistsExpr).Subquery, queryExists.Subquery) {
 					continue
 				}
 				// break switch to reflect.DeepEqual whole node
@@ -722,4 +484,352 @@ func handleWhereNode(patternNode, queryNode sqlparser.SQLNode) bool {
 		}
 	}
 	return true
+}
+
+// isColumnPattern return true if this SelectExpr is our %%COLUMN%% pattern
+func isColumnPattern(expr sqlparser.SelectExpr) bool {
+	if aliased, ok := expr.(*sqlparser.AliasedExpr); ok {
+		if colName, ok := aliased.Expr.(*sqlparser.ColName); ok {
+			return strings.EqualFold(colName.Name.String(), ColumnConfigPlaceholderReplacer)
+		}
+		return false
+	}
+	return false
+}
+
+// isColumnReplacer returns true if node is %%COLUMN%%
+func isColumnReplacer(node sqlparser.SQLNode, replacer string) bool {
+	sqlColumn, ok := node.(*sqlparser.ColName)
+	if !ok {
+		return false
+	}
+
+	return strings.EqualFold(sqlColumn.Name.String(), replacer)
+}
+
+// isValueReplacer return true if node is SQLVal and has value same as replacer
+func isValueReplacer(node sqlparser.SQLNode, replacer string) bool {
+	sqlVal, ok := node.(*sqlparser.SQLVal)
+	if !ok {
+		return false
+	}
+	if sqlVal.Type != sqlparser.StrVal {
+		return false
+	}
+	return bytes.Equal(sqlVal.Val, []byte(replacer))
+}
+
+// isValuePattern return true if node is ValueConfigPlaceholder pattern otherwise false
+func isValuePattern(node sqlparser.SQLNode) bool {
+	return isValueReplacer(node, ValueConfigPlaceholderRawReplacer)
+}
+
+// isListOfValuesPattern return true if node is ListOfValuesConfigPlaceholder pattern otherwise false
+func isListOfValuesPattern(node sqlparser.SQLNode) bool {
+	return isValueReplacer(node, ListOfValuesConfigPlaceholderRawReplacer)
+}
+
+func isEqualComparisonNodesInWhere(patternNode, queryNode *sqlparser.ComparisonExpr) bool {
+	if reflect.DeepEqual(patternNode.Left, queryNode.Left) &&
+		strings.EqualFold(patternNode.Operator, queryNode.Operator) &&
+		reflect.DeepEqual(patternNode.Escape, queryNode.Escape) {
+
+		switch patternNode.Operator {
+		case sqlparser.InStr, sqlparser.NotInStr:
+			switch patternNode.Right.(type) {
+			case sqlparser.ValTuple:
+				queryInNodes, ok := queryNode.Right.(sqlparser.ValTuple)
+				if !ok {
+					return false
+				}
+				patternInNodes := patternNode.Right.(sqlparser.ValTuple)
+
+				// pattern may have less nodes due to %%list of values%% but not vice versa
+				if len(queryInNodes) < len(patternInNodes) {
+					return false
+				}
+				var i int
+				for i = 0; i < len(patternInNodes); i++ {
+					if isListOfValuesPattern(patternInNodes[i]) {
+						// don't check least query nodes
+						return true
+					}
+					if matchValue(patternInNodes[i], queryInNodes[i]) {
+						// we don't care about type of query value because pattern has %%VALUE%%
+						continue
+					}
+					if matchSubquery(patternInNodes[i], queryInNodes[i]) {
+						continue
+					}
+					if !reflect.DeepEqual(patternInNodes[i], queryInNodes[i]) {
+						return false
+					}
+				}
+				// if pattern has less nodes than query
+				if i != len(queryInNodes) {
+					return false
+				}
+				return true
+			case *sqlparser.Subquery: // a in (select 1)
+				patternSubquery := patternNode.Right.(*sqlparser.Subquery)
+
+				querySubquery, ok := queryNode.Right.(*sqlparser.Subquery)
+				if !ok {
+					return false
+				}
+				if matchSubquery(patternSubquery, querySubquery) {
+					return true
+				}
+				return reflect.DeepEqual(patternSubquery, querySubquery)
+			}
+		default:
+			if isValuePattern(patternNode.Right) {
+				return true
+			}
+			if matchSubquery(patternNode.Right, queryNode.Right) {
+				return true
+			}
+		}
+		// pattern node hasn't %%VALUE%% pattern so compare their values as is
+		return reflect.DeepEqual(patternNode.Right, queryNode.Right)
+	}
+	return false
+}
+
+func isEqualComparisonNodesInHaving(patternNode, queryNode *sqlparser.ComparisonExpr) bool {
+	if !(strings.EqualFold(patternNode.Operator, queryNode.Operator) &&
+		reflect.DeepEqual(patternNode.Escape, queryNode.Escape)) {
+		return false
+	}
+
+	if !(matchValue(patternNode.Left, queryNode.Left) ||
+		matchColumnInHaving(patternNode.Left, queryNode.Left) ||
+		reflect.DeepEqual(patternNode.Left, queryNode.Left)) {
+		return false
+	}
+
+	if !(matchValue(patternNode.Right, queryNode.Right) ||
+		matchColumnInHaving(patternNode.Right, queryNode.Right) ||
+		reflect.DeepEqual(patternNode.Right, queryNode.Right)) {
+		return false
+	}
+
+	return true
+}
+
+// isEqualComparisonNodes try to match patternNode with queryNode with supported patterns for ComparisonExpr
+func IsEqualComparisonNodes(patternNode, queryNode *sqlparser.ComparisonExpr, whereType string) bool {
+	switch whereType {
+	case sqlparser.HavingStr:
+		return isEqualComparisonNodesInHaving(patternNode, queryNode)
+	case sqlparser.WhereStr:
+		return isEqualComparisonNodesInWhere(patternNode, queryNode)
+	default:
+		// unexpected type of parent node
+		return false
+	}
+}
+
+// matchValue return true if pattern node is %%VALUE%% pattern and value of query node has type that masked with this pattern
+func matchValue(patternNode, queryNode sqlparser.SQLNode) bool {
+	return isValuePattern(patternNode) && matchSQLValue(queryNode)
+}
+
+func matchColumnInHaving(patternNode, queryNode sqlparser.Expr) bool {
+	switch patternNode.(type) {
+	case *sqlparser.FuncExpr:
+		if queryFuncExpr, ok := queryNode.(*sqlparser.FuncExpr); ok && queryFuncExpr != nil {
+			patternFuncExpr := patternNode.(*sqlparser.FuncExpr)
+			if len(patternFuncExpr.Exprs) != len(queryFuncExpr.Exprs) || !patternFuncExpr.Name.Equal(queryFuncExpr.Name) {
+				return false
+			}
+			for _, patternFuncExprArgument := range patternFuncExpr.Exprs {
+				if colName, ok := patternFuncExprArgument.(sqlparser.SelectExpr); ok {
+					if !isColumnPattern(colName) {
+						return false
+					}
+				}
+			}
+		}
+	default:
+		if !reflect.DeepEqual(patternNode, patternNode) {
+			return false
+		}
+	}
+	return true
+}
+
+// matchSubquery return true if pattern are %%SUBQUERY%% and queryNode has correct type for this pattern otherwise false
+func matchSubquery(patternNode, queryNode sqlparser.SQLNode) bool {
+	if _, ok := patternNode.(*sqlparser.Subquery); !ok {
+		return false
+	}
+	if _, ok := queryNode.(*sqlparser.Subquery); !ok {
+		return false
+	}
+	// check that patterns query the same as our parsed placeholder
+	if reflect.DeepEqual(patternNode.(*sqlparser.Subquery).Select, SubqueryConfigPlaceholderReplacerParsed) {
+		return true
+	}
+	return false
+}
+
+// matchSQLValue return true if %%VALUE%% pattern should mask value of node
+// return true for any literal values, boolean and null
+// return false on other values like subqueries
+func matchSQLValue(node sqlparser.SQLNode) bool {
+	switch node.(type) {
+	case *sqlparser.SQLVal, sqlparser.BoolVal, *sqlparser.NullVal:
+		return true
+	}
+	return false
+}
+
+// matchRangeCondition handle range queries (age BETWEEN %%value%% and 5)
+// return true if match (with or without %%value%% patterns) otherwise false
+func matchRangeCondition(patternNode, queryNode *sqlparser.RangeCond) bool {
+	if queryNode.Operator != patternNode.Operator {
+		return false
+	}
+	if !reflect.DeepEqual(queryNode.Left, patternNode.Left) {
+		return false
+	}
+	if !(matchValue(patternNode.From, queryNode.From) || matchSubquery(patternNode.From, queryNode.From)) {
+		if !reflect.DeepEqual(patternNode.From, queryNode.From) {
+			return false
+		}
+	}
+	if !(matchValue(patternNode.To, queryNode.To) || matchSubquery(patternNode.To, queryNode.To)) {
+		if !reflect.DeepEqual(patternNode.To, queryNode.To) {
+			return false
+		}
+	}
+	return true
+}
+
+// matchOrderBy handles order by construction
+// return true if match otherwise false
+func matchOrderBy(patternNode, queryNode sqlparser.OrderBy) bool {
+	if len(patternNode) != len(queryNode) {
+		return false
+	}
+	for index := 0; index < len(patternNode); index++ {
+		if !strings.EqualFold(patternNode[index].Direction, queryNode[index].Direction) {
+			return false
+		}
+		if !isColumnReplacer(patternNode[index].Expr, ColumnConfigPlaceholderReplacer) {
+			if !reflect.DeepEqual(patternNode[index].Expr, queryNode[index].Expr) {
+				return false
+			}
+		}
+	}
+	return true
+}
+
+// matchLimit handles limit and offset constructions
+// return true if match otherwise false
+func matchLimit(queryLimit, patternLimit *sqlparser.Limit) bool {
+	// start check if both LIMITs present, otherwise not match
+	if queryLimit != nil && patternLimit != nil {
+		if !isValuePattern(patternLimit.Rowcount) {
+			if !reflect.DeepEqual(queryLimit.Rowcount, patternLimit.Rowcount) {
+				return false
+			}
+		}
+	} else {
+		return false
+	}
+	// LIMITs are equal and OFFSETs are not present, so it's match
+	if queryLimit.Offset == nil && patternLimit.Offset == nil {
+		return true
+	}
+
+	if !isValuePattern(patternLimit.Offset) || queryLimit.Offset == nil {
+		if !reflect.DeepEqual(queryLimit.Offset, patternLimit.Offset) {
+			return false
+		}
+	}
+	return true
+}
+
+// matchGroupBy handles group by constructions
+// return true if match otherwise false
+func matchGroupBy(patternNode, queryNode sqlparser.GroupBy) bool {
+	if len(patternNode) != len(queryNode) {
+		return false
+	}
+	for index := 0; index < len(patternNode); index++ {
+		if !isColumnReplacer(patternNode[index], ColumnConfigPlaceholderReplacer) {
+			if !reflect.DeepEqual(patternNode[index], queryNode[index]) {
+				return false
+			}
+		}
+	}
+	return true
+}
+
+func matchHaving(patternNode *sqlparser.Where, queryNode *sqlparser.Where) bool {
+	if reflect.DeepEqual(patternNode, queryNode) {
+		return true
+	}
+
+	if patternNode.Type != sqlparser.HavingStr || queryNode.Type != sqlparser.HavingStr {
+		return false
+	}
+
+	switch patternNode.Expr.(type) {
+	case *sqlparser.ComparisonExpr:
+		if queryComparisonExpr, ok := queryNode.Expr.(*sqlparser.ComparisonExpr); ok {
+			if !IsEqualComparisonNodes(patternNode.Expr.(*sqlparser.ComparisonExpr), queryComparisonExpr, sqlparser.HavingStr) {
+				return false
+			}
+		}
+	default:
+		if !reflect.DeepEqual(patternNode.Expr, queryNode.Expr) {
+			return false
+		}
+	}
+	return true
+}
+
+// getAllNodes recusively walk through node and return all children of node with node itself
+func getAllNodes(node sqlparser.SQLNode) ([]sqlparser.SQLNode, error) {
+	var queryNodes []sqlparser.SQLNode
+	err := sqlparser.Walk(func(node sqlparser.SQLNode) (bool, error) {
+		queryNodes = append(queryNodes, node)
+		return true, nil
+	}, node)
+	if err != nil {
+		return nil, err
+	}
+	return queryNodes, nil
+}
+
+// getTopNodes walk only once at depth and return first level children of firstNode
+func getTopNodes(firstNode sqlparser.SQLNode) ([]sqlparser.SQLNode, error) {
+	goToSubtree := true
+	var outNodes []sqlparser.SQLNode
+	err := sqlparser.Walk(func(node sqlparser.SQLNode) (kontinue bool, err error) {
+		if goToSubtree {
+			goToSubtree = false
+			return true, nil
+		}
+		outNodes = append(outNodes, node)
+		return false, nil
+
+	}, firstNode)
+	return outNodes, err
+}
+
+// starFound return true if Select has '*' expression
+func starFound(selectExpression sqlparser.SelectExprs) bool {
+	starDetected := false
+	sqlparser.Walk(func(node sqlparser.SQLNode) (bool, error) {
+		if _, ok := node.(*sqlparser.StarExpr); ok {
+			starDetected = true
+			return false, nil
+		}
+		return true, nil
+	}, selectExpression)
+	return starDetected
 }

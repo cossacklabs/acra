@@ -206,7 +206,7 @@ func TestSkipSubqueryValuePattern(t *testing.T) {
 		if !ok {
 			t.Fatal("Incorrect query syntax")
 		}
-		if !matchSubqueryPattern(patternSubexpr, querySubexpr) {
+		if !matchSubquery(patternSubexpr, querySubexpr) {
 			t.Fatalf("Expected true result with query - %s", query)
 		}
 	}
@@ -542,6 +542,7 @@ func TestOrderByWithColumnPattern(t *testing.T) {
 	patterns := []string{
 		// ORDER BY with column placeholder
 		fmt.Sprintf("SELECT a1 FROM table1 ORDER BY %s", ColumnConfigPlaceholder),
+		fmt.Sprintf("SELECT a FROM b ORDER BY a, %s, 1, %s", ColumnConfigPlaceholder, ColumnConfigPlaceholder),
 	}
 
 	parsedPatterns, err := ParsePatterns(patterns)
@@ -557,16 +558,30 @@ func TestOrderByWithColumnPattern(t *testing.T) {
 			"SELECT a1 FROM table1 ORDER BY Date()",
 			"SELECT a1 FROM table1 ORDER BY (case when f1 then 1 when f1 is null then 2 else 3 end)",
 		},
+		[]string{
+			"select a from b order by a, 2, 1, ABC",
+		},
 	}
 
 	notMatchableQueries := [][]string{
 		[]string{
+			// DESC ordering (default is ASC)
 			"SELECT a1 FROM table1 ORDER BY column1 DESC",
+			// DESC ordering (default is ASC)
 			"SELECT a1 FROM table1 ORDER BY 1 DESC",
+			// two columns
 			"SELECT a1 FROM table1 ORDER BY column1, column2",
+			// DESC ordering (default is ASC)
 			"SELECT a1 FROM table1 ORDER BY Date() DESC",
+			// two columns
 			"SELECT a1 FROM table1 ORDER BY (case when f1 then 1 when f1 is null then 2 else 3 end), a2",
+			// DESC ordering (default is ASC)
 			"SELECT a1 FROM table1 ORDER BY (case when f1 then 1 when f1 is null then 2 else 3 end) DESC",
+		},
+		[]string{
+			"SELECT a from b ORDER BY 1, abc, 1, abs",
+			"SELECT a from b ORDER BY a, abc, b, ABC",
+			"SELECT a from b ORDER BY a, abc, 1, ABC, ABC",
 		},
 	}
 
@@ -600,7 +615,7 @@ func TestOrderByWithColumnPattern(t *testing.T) {
 	}
 }
 
-func TestLimitExpression(t *testing.T) {
+func TestLimitValuePattern(t *testing.T) {
 	patterns := []string{
 		// LIMIT with value placeholder
 		fmt.Sprintf("SELECT a1 FROM table1 LIMIT %s", ValueConfigPlaceholder),
@@ -667,6 +682,157 @@ func TestLimitExpression(t *testing.T) {
 				t.Fatal(err)
 			}
 			if handleLimitValuePattern([]sqlparser.SQLNode{parsedQuery}, parsedPatterns[i]) {
+				t.Fatalf("Expected not match in query <%s> with pattern <%s>", query, sqlparser.String(parsedPatterns[i][0]))
+			}
+		}
+	}
+}
+
+func TestGroupByWithColumnPattern(t *testing.T) {
+	patterns := []string{
+		// GROUP BY with column placeholder
+		fmt.Sprintf("SELECT a1 FROM table1 GROUP BY %s", ColumnConfigPlaceholder),
+		fmt.Sprintf("SELECT a FROM b GROUP BY a, %s, 1, %s", ColumnConfigPlaceholder, ColumnConfigPlaceholder),
+	}
+
+	parsedPatterns, err := ParsePatterns(patterns)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	matchableQueries := [][]string{
+		[]string{
+			"SELECT a1 FROM table1 GROUP BY column1",
+			"SELECT a1 FROM table1 GROUP BY 1",
+			"SELECT a1 FROM table1 GROUP BY (select priority from ordering o where o.val = e.name)",
+			"SELECT a1 FROM table1 GROUP BY Date()",
+			"SELECT a1 FROM table1 GROUP BY (case when f1 then 1 when f1 is null then 2 else 3 end)",
+		},
+		[]string{
+			"select a from b group by a, 2, 1, ABC",
+		},
+	}
+
+	notMatchableQueries := [][]string{
+		[]string{
+			// two columns
+			"SELECT a1 FROM table1 GROUP BY column1, column2",
+		},
+		[]string{
+			"SELECT a from b GROUP BY 1, abc, 1, abs",
+			"SELECT a from b GROUP BY a, abc, b, ABC",
+			"SELECT a from b GROUP BY a, abc, 1, ABC, ABC",
+		},
+	}
+
+	if len(parsedPatterns) != len(matchableQueries) {
+		t.Fatal("Mismatch test configuration")
+	}
+
+	for i := 0; i < len(parsedPatterns); i++ {
+		patternGroupBy := parsedPatterns[i][0].(*sqlparser.Select).GroupBy
+		for _, query := range matchableQueries[i] {
+			parsedQuery, err := sqlparser.Parse(query)
+			if err != nil {
+				t.Fatal(err)
+			}
+			queryGroupBy := parsedQuery.(*sqlparser.Select).GroupBy
+			if !matchGroupBy(patternGroupBy, queryGroupBy) {
+				t.Fatalf("Expected match in query <%s> with pattern <%s>", query, sqlparser.String(parsedPatterns[i][0]))
+			}
+		}
+
+		for _, query := range notMatchableQueries[i] {
+			parsedQuery, err := sqlparser.Parse(query)
+			if err != nil {
+				t.Fatal(err)
+			}
+			queryGroupBy := parsedQuery.(*sqlparser.Select).GroupBy
+			if matchGroupBy(patternGroupBy, queryGroupBy) {
+				t.Fatalf("Expected not match in query <%s> with pattern <%s>", query, sqlparser.String(parsedPatterns[i][0]))
+			}
+		}
+	}
+}
+
+func TestHavingWithColumnAndValueMatch(t *testing.T) {
+	patterns := []string{
+		fmt.Sprintf("SELECT a1 FROM table1 GROUP BY a2 HAVING COUNT(%s) > 100", ColumnConfigPlaceholder),
+		fmt.Sprintf("SELECT a1 FROM table1 GROUP BY a2 HAVING COUNT(a3) > %s", ValueConfigPlaceholder),
+		fmt.Sprintf("SELECT a1 FROM table1 GROUP BY a2 HAVING COUNT(%s) > %s", ColumnConfigPlaceholder, ValueConfigPlaceholder),
+	}
+
+	parsedPatterns, err := ParsePatterns(patterns)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	matchableQueries := [][]string{
+		[]string{
+			"SELECT a1 FROM table1 GROUP BY a2 HAVING COUNT(a) > 100",
+			"SELECT a1 FROM table1 GROUP BY a2 HAVING COUNT(*) > 100",
+		},
+		[]string{
+			"SELECT a1 FROM table1 GROUP BY a2 HAVING COUNT(a3) > 100",
+			"SELECT a1 FROM table1 GROUP BY a2 HAVING COUNT(a3) > 200.0",
+			"SELECT a1 FROM table1 GROUP BY a2 HAVING COUNT(a3) > NULL",
+			"SELECT a1 FROM table1 GROUP BY a2 HAVING COUNT(a3) > (select 1)",
+		},
+		[]string{
+			"SELECT a1 FROM table1 GROUP BY a2 HAVING COUNT(a3) > 0",
+			"SELECT a1 FROM table1 GROUP BY a2 HAVING COUNT(a2) > 1000",
+			"SELECT a1 FROM table1 GROUP BY a2 HAVING COUNT(a1) > (select 1)",
+		},
+	}
+
+	notMatchableQueries := [][]string{
+		[]string{
+			// GroupBy not match
+			"SELECT a1 FROM table1 GROUP BY a3 HAVING COUNT(a) > 100",
+			// Comparison inside Having not match
+			"SELECT a1 FROM table1 GROUP BY a2 HAVING COUNT(a) < 100",
+		},
+		[]string{
+			// Wrong ColName inside FuncExpr of Having
+			"SELECT a1 FROM table1 GROUP BY a2 HAVING COUNT(a1) > 100",
+			// Wrong ComparisonExpr inside Having
+			"SELECT a1 FROM table1 GROUP BY a2 HAVING COUNT(a3) < 200.0",
+			// Wrong GroupBy column
+			"SELECT a1 FROM table1 GROUP BY a3 HAVING COUNT(a3) > NULL",
+		},
+		[]string{
+			// 2 columns inside FuncExpr
+			"SELECT a1 FROM table1 GROUP BY a2 HAVING COUNT(a1, a2) > (select 1)",
+			// Wrong FuncExpr name
+			"SELECT a1 FROM table1 GROUP BY a2 HAVING MIN(a1) > 1000",
+			// Wrong ComparisonExpr inside Having
+			"SELECT a1 FROM table1 GROUP BY a2 HAVING COUNT(a10) < 1000",
+		},
+	}
+
+	if len(parsedPatterns) != len(matchableQueries) {
+		t.Fatal("Mismatch test configuration")
+	}
+
+	for i := 0; i < len(parsedPatterns); i++ {
+		for _, query := range matchableQueries[i] {
+			parsedQuery, err := sqlparser.Parse(query)
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			if !handleSelectColumnPattern([]sqlparser.SQLNode{parsedQuery}, parsedPatterns[i]) {
+				t.Fatalf("Expected match in query <%s> with pattern <%s>", query, sqlparser.String(parsedPatterns[i][0]))
+			}
+		}
+
+		for _, query := range notMatchableQueries[i] {
+			parsedQuery, err := sqlparser.Parse(query)
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			if handleSelectColumnPattern([]sqlparser.SQLNode{parsedQuery}, parsedPatterns[i]) {
 				t.Fatalf("Expected not match in query <%s> with pattern <%s>", query, sqlparser.String(parsedPatterns[i][0]))
 			}
 		}

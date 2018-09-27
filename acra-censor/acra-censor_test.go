@@ -353,6 +353,82 @@ func testWhitelistColumnsPattern(t *testing.T) {
 			t.Fatal(err, "Whitelist pattern passed query. \nPattern:", pattern, "\nQuery:", query)
 		}
 	}
+
+	// test GroupBy
+	whitelist.Reset()
+	pattern = "SELECT * FROM testTable GROUP BY %%COLUMN%%"
+	err = whitelist.AddPatterns([]string{pattern})
+	if err != nil {
+		t.Fatal(err)
+	}
+	acceptableQueries = []string{
+		"SELECT * FROM testTable GROUP BY Date()",
+		"SELECT * FROM testTable GROUP BY 1",
+		"SELECT * FROM testTable GROUP BY testColumn",
+		"SELECT * FROM testTable GROUP BY (case when f1 then 1 when f1 is null then 2 else 3 end)",
+	}
+	blockableQueries = []string{
+		// two columns
+		"SELECT * FROM testTable GROUP BY column1, column2",
+		// ORDER BY presents
+		"SELECT * FROM testTable GROUP BY column1 ORDER BY 1",
+		// different table
+		"SELECT * FROM testTable1 GROUP BY 1",
+		// different columns in select expressions
+		"SELECT A FROM testTable GROUP BY (case when f1 then 1 when f1 is null then 2 else 3 end)",
+	}
+	for _, query := range acceptableQueries {
+		err = censor.HandleQuery(query)
+		if err != nil {
+			t.Fatal(err, "Whitelist pattern blocked query. \nPattern:", pattern, "\nQuery:", query)
+		}
+	}
+	for _, query := range blockableQueries {
+		err = censor.HandleQuery(query)
+		if err != handlers.ErrWhitelistPatternMismatch {
+			t.Fatal(err, "Whitelist pattern passed query. \nPattern:", pattern, "\nQuery:", query)
+		}
+	}
+
+	// test GroupBy with Having
+	whitelist.Reset()
+	pattern = "SELECT a1 FROM table1 GROUP BY a2 HAVING COUNT(%%COLUMN%%) > %%VALUE%%"
+	err = whitelist.AddPatterns([]string{pattern})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	blockableQueries = []string{
+		// 2 columns inside FuncExpr
+		"SELECT a1 FROM table1 GROUP BY a2 HAVING COUNT(a1, a2) > 1000",
+		// wrong FuncExpr name
+		"SELECT a1 FROM table1 GROUP BY a2 HAVING MIN(a1) > 1000",
+		// wrong ComparisonExpr inside Having
+		"SELECT a1 FROM table1 GROUP BY a2 HAVING COUNT(a10) < 1000",
+		// wrong column in GroupBy
+		"SELECT a1 FROM table1 GROUP BY a4 HAVING COUNT(a3) > 0",
+		// star in SelectExprs
+		"SELECT * FROM table1 GROUP BY a2 HAVING COUNT(a3) > 0",
+	}
+
+	acceptableQueries = []string{
+		"SELECT a1 FROM table1 GROUP BY a2 HAVING COUNT(a3) > 0",
+		"SELECT a1 FROM table1 GROUP BY a2 HAVING COUNT(a2) > 1000",
+		"SELECT a1 FROM table1 GROUP BY a2 HAVING COUNT(a1) > (select 1)",
+	}
+
+	for _, query := range acceptableQueries {
+		err = censor.HandleQuery(query)
+		if err != nil {
+			t.Fatal(err, "Whitelist pattern blocked query. \nPattern:", pattern, "\nQuery:", query)
+		}
+	}
+	for _, query := range blockableQueries {
+		err = censor.HandleQuery(query)
+		if err != handlers.ErrWhitelistPatternMismatch {
+			t.Fatal(err, "Whitelist pattern passed query. \nPattern:", pattern, "\nQuery:", query)
+		}
+	}
 }
 func testWhitelistWherePattern(t *testing.T) {
 	var err error
@@ -965,6 +1041,82 @@ func testBlacklistColumnsPattern(t *testing.T) {
 		"SELECT * FROM testTable ORDER BY testColumn",
 		"SELECT * FROM testTable ORDER BY (case when f1 then 1 when f1 is null then 2 else 3 end)",
 	}
+	for _, query := range acceptableQueries {
+		err = censor.HandleQuery(query)
+		if err != nil {
+			t.Fatal(err, "Blacklist pattern blocked query. \nPattern:", blacklistPattern, "\nQuery:", query)
+		}
+	}
+	for _, query := range blockableQueries {
+		err = censor.HandleQuery(query)
+		if err != handlers.ErrBlacklistPatternMatch {
+			t.Fatal(err, "Blacklist pattern passed query. \nPattern:", blacklistPattern, "\nQuery:", query)
+		}
+	}
+
+	// test GroupBy
+	blacklist.Reset()
+	blacklistPattern = "SELECT * FROM testTable GROUP BY %%COLUMN%%"
+	err = blacklist.AddPatterns([]string{blacklistPattern})
+	if err != nil {
+		t.Fatal(err)
+	}
+	acceptableQueries = []string{
+		// two columns
+		"SELECT * FROM testTable GROUP BY column1, column2",
+		// ORDER BY presents
+		"SELECT * FROM testTable GROUP BY column1 ORDER BY 1",
+		// different table
+		"SELECT * FROM testTable1 GROUP BY 1",
+		// different columns in select expressions
+		"SELECT A FROM testTable GROUP BY (case when f1 then 1 when f1 is null then 2 else 3 end)",
+	}
+	blockableQueries = []string{
+		"SELECT * FROM testTable GROUP BY Date()",
+		"SELECT * FROM testTable GROUP BY 1",
+		"SELECT * FROM testTable GROUP BY testColumn",
+		"SELECT * FROM testTable GROUP BY (case when f1 then 1 when f1 is null then 2 else 3 end)",
+	}
+	for _, query := range acceptableQueries {
+		err = censor.HandleQuery(query)
+		if err != nil {
+			t.Fatal(err, "Blacklist pattern blocked query. \nPattern:", blacklistPattern, "\nQuery:", query)
+		}
+	}
+	for _, query := range blockableQueries {
+		err = censor.HandleQuery(query)
+		if err != handlers.ErrBlacklistPatternMatch {
+			t.Fatal(err, "Blacklist pattern passed query. \nPattern:", blacklistPattern, "\nQuery:", query)
+		}
+	}
+
+	// test GroupBy with Having
+	blacklist.Reset()
+	blacklistPattern = "SELECT a1 FROM table1 GROUP BY a2 HAVING COUNT(%%COLUMN%%) > %%VALUE%%"
+	err = blacklist.AddPatterns([]string{blacklistPattern})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	acceptableQueries = []string{
+		// 2 columns inside FuncExpr
+		"SELECT a1 FROM table1 GROUP BY a2 HAVING COUNT(a1, a2) > 1000",
+		// wrong FuncExpr name
+		"SELECT a1 FROM table1 GROUP BY a2 HAVING MIN(a1) > 1000",
+		// wrong ComparisonExpr inside Having
+		"SELECT a1 FROM table1 GROUP BY a2 HAVING COUNT(a10) < 1000",
+		// wrong column in GroupBy
+		"SELECT a1 FROM table1 GROUP BY a4 HAVING COUNT(a3) > 0",
+		// star in SelectExprs
+		"SELECT * FROM table1 GROUP BY a2 HAVING COUNT(a3) > 0",
+	}
+
+	blockableQueries = []string{
+		"SELECT a1 FROM table1 GROUP BY a2 HAVING COUNT(a3) > 0",
+		"SELECT a1 FROM table1 GROUP BY a2 HAVING COUNT(a2) > 1000",
+		"SELECT a1 FROM table1 GROUP BY a2 HAVING COUNT(a1) > (select 1)",
+	}
+
 	for _, query := range acceptableQueries {
 		err = censor.HandleQuery(query)
 		if err != nil {
