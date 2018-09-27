@@ -34,7 +34,7 @@ Cryptographic design ensures that no secret (password, key, etc.) leaked from th
 Acra was built with specific user experiences in mind: 
 
 - **Quick and straightforward integration** of security instrumentation.
-- **Easy to try**: you can experience the full might of Acra without committing to its installation using [Docker containers](https://docs.cossacklabs.com/pages/trying-acra-with-docker/) (you can also request acess to [Acra Live Demo](https://www.cossacklabs.com/acra/#acralivedemo) to play around with Acra without installing a thing).
+- **Easy to try**: you can experience the full might of Acra without committing to its installation using [Docker containers](https://docs.cossacklabs.com/pages/trying-acra-with-docker/) (you can also request access to [Acra Live Demo](https://www.cossacklabs.com/acra/#acralivedemo) to play around with Acra without installing a thing).
 - **Compatibility with encryption-demanding compliances**: Acra can run on certified crypto-libraries (FIPS, GOST).
 - **Cryptographic protection of data**: to compromise an Acra-powered app, the attacker will need to compromise a separate compartmented server, AcraServer - more specifically - its key storage and database; until AcraServer is compromised, the data is safe.
 - **Cryptography is hidden under the hood**: you're safe from the risk of selecting a wrong key length or algorithm padding.
