@@ -71,7 +71,7 @@ _Infrastructure_:
 
 _Documentation_:
 
-- Made the [Documentation Server](https://docs.cossacklabs.com/) the primary and the only regularly updated source of [documentation for Acra](https://docs.cossacklabs.com/products/acra/). The most recent version of the [documentation](https://docs.cossacklabs.com/products/acra/#documentation), tutorials(https://docs.cossacklabs.com/products/acra/#tutorials), and demos(https://docs.cossacklabs.com/products/acra/#undefined) for Acra can be found there. The [GitHub Wiki documentation](https://github.com/cossacklabs/acra/wiki) for Acra is still present, but is no longer updated (with the exception of Changelog and README files with every new version release).
+- Made the [Documentation Server](https://docs.cossacklabs.com/) the primary and the only regularly updated source of [documentation for Acra](https://docs.cossacklabs.com/products/acra/). The most recent version of the [documentation](https://docs.cossacklabs.com/products/acra/#documentation), tutorials (https://docs.cossacklabs.com/products/acra/#tutorials), and demos (https://docs.cossacklabs.com/products/acra/#undefined) for Acra can be found there. The [GitHub Wiki documentation](https://github.com/cossacklabs/acra/wiki) for Acra is still present, but is no longer updated (with the exception of Changelog and README files with every new version release).
 
 - [AcraCensor](https://docs.cossacklabs.com/pages/documentation-acra/#acracensor-acra-s-firewall): updated the details on how the "patterns" filter works.
 
