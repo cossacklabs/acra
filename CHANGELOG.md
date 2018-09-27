@@ -77,7 +77,7 @@ _Documentation_:
 
 - [AcraRotate](https://docs.cossacklabs.com/pages/acrarotate/): added a tutorial for using AcraRotate to rotate Zone keys and re-encrypt the data.
 
-- Tons of small fixes here and there to make your overall experience of using Acra smoother and clearer ;)
+- Tons of small fixes here and there to make your overall experience of using Acra's docs on a new platform distinctive and smooth ;).
 
 
 ## [0.82.0](https://github.com/cossacklabs/acra/releases/tag/0.82), August 14th 2018
