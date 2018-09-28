@@ -60,7 +60,7 @@ _Core_:
 
   - Added export of CLI parameters for AcraServer, AcraConnector, and AcraTranslator to markdown ([#261](https://github.com/cossacklabs/acra/pull/261)).
 
-  - Improved readability of CEF-formatted logs by sorting extension fields in alphabetic order ([#255](https://github.com/cossacklabs/acra/pull/255)).
+  - Improved readability of CEF-formatted logs by sorting extension fields in alphabetical order ([#255](https://github.com/cossacklabs/acra/pull/255)).
 
   - Improved quality of our codebase — cleaned up the old unnecessary code ([#250](https://github.com/cossacklabs/acra/pull/250)).
 
