@@ -6,9 +6,9 @@ _Core_:
 
 - **Security**
 
-  - Updated the default and other available TLS configurations ([#254](https://github.com/cossacklabs/acra/pull/254)).
+  - Updated the default and allowed TLS configurations ([#254](https://github.com/cossacklabs/acra/pull/254)).
 
-     Use TLS v1.2 (the most recent supported version in Golang now) and limited cipher suite recommended by [Internet Assigned Numbers Authority](https://www.iana.org/assignments/tls-parameters/tls-parameters.xml) and [OWASP](https://www.owasp.org/index.php/TLS_Cipher_String_Cheat_Sheet) for most transport connections. 
+     Use TLS v1.2 (the latest supported version in Golang now) and limited cipher suite recommended by [Internet Assigned Numbers Authority](https://www.iana.org/assignments/tls-parameters/tls-parameters.xml) and [OWASP](https://www.owasp.org/index.php/TLS_Cipher_String_Cheat_Sheet) for most transport connections. 
   
      Use TLS v1.0 and extended cipher suit for MySQL TLS connections due to the limited support of MySQL database and drivers. 
   
