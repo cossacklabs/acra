@@ -23,9 +23,9 @@
 | ---- | ---- | ---- | --- | --- |
 
 ## What is Acra
-Acra — database encryption proxy for data-driven apps.
+Acra — database security suite with protection for sensitive and personal data.
 
-Acra provides greater security through the use of cryptography and intrusion detection. Acra brings encryption and data leakage prevention to distributed applications, web and mobile apps with database backends in a convenient, developer-friendly package.
+Acra provides selective encryption, multi-layered access control, database leakage prevention, and intrusion detection capabilities in a convenient, developer-friendly package. Acra was specifically designed for web and mobile apps with centralised data storage, including with distributed, microservice-rich applications.
 
 Acra gives you tools for encrypting the data on the application's side into special [cryptographic containers](https://github.com/cossacklabs/acra/wiki/AcraStruct), storing them in the database or file storage, and then decrypting them in a secure compartmented area (separate virtual machine/container). 
 
@@ -98,11 +98,17 @@ Supported databases:
 
 ## Acra Live Demo
 
-[Acra Live Demo](https://acra.cossacklabs.com/) is a website that illustrates the typical workflow of Acra: encrypting data from a Python web application and storing it in a PostgreSQL database, decrypting data through Acra. 
+[Acra Live Demo](https://acra.cossacklabs.com/) is a web-based demo of a typical web-infrastructure protected by Acra and deployed on our servers for your convenience.
 
-Components of the demo: web application, PostgreSQL database, AcraServer with AcraCensor, log monitor.
+Acra Live Demo illustrates the process of data protection for web: encrypting data from a Python application, storing it in a PostgreSQL database, and decrypting data through Acra.
 
-Among available functions – adding new rows to the database in plaintext and encrypted form, watching the database content change, running specific SQL queries that can be blocked by AcraCensor, adding and detecting [poison records](http://docs.cossacklabs.com/pages/intrusion-detection/) (intrusion detection). 
+Acra Live Demo infrastructure contains: web application, PostgreSQL database, AcraServer with AcraCensor, log monitor.
+
+The available functions of Acra Live Demo include:
+* adding new rows to the database (in plaintext and encrypted form);
+* watching the database content change in real-time;
+* running malicious SQL queries that can be blocked by AcraCensor;
+* [detecting intrusions](http://docs.cossacklabs.com/pages/intrusion-detection/).
 
 | 💻 [Request a free Acra Live Demo](https://www.cossacklabs.com/acra/#acralivedemo) 💻 |
 |---|
