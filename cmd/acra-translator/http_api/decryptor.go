@@ -27,6 +27,7 @@ import (
 	"github.com/cossacklabs/acra/logging"
 	"github.com/cossacklabs/acra/utils"
 	"github.com/cossacklabs/themis/gothemis/keys"
+	"github.com/prometheus/client_golang/prometheus"
 	log "github.com/sirupsen/logrus"
 	"io/ioutil"
 	"net"
@@ -63,6 +64,9 @@ func (decryptor *HTTPConnectionsDecryptor) SendResponse(logger *log.Entry, respo
 // ParseRequestPrepareResponse parses HTTP request to find AcraStruct and ZoneID, then decrypts AcraStruct.
 // Returns HTTP response with appropriate status code, headers, decrypted AcraStruct or error message.
 func (decryptor *HTTPConnectionsDecryptor) ParseRequestPrepareResponse(logger *log.Entry, request *http.Request, clientID []byte) *http.Response {
+	timer := prometheus.NewTimer(prometheus.ObserverFunc(common.RequestProcessingTimeHistogram.WithLabelValues(common.HTTPRequestType).Observe))
+	defer timer.ObserveDuration()
+
 	requestLogger := logger.WithFields(log.Fields{"client_id": string(clientID), "translator": "http"})
 	if request == nil || request.URL == nil {
 		return emptyResponseWithStatus(request, http.StatusBadRequest)
@@ -130,6 +134,7 @@ func (decryptor *HTTPConnectionsDecryptor) ParseRequestPrepareResponse(logger *l
 		decryptedStruct, err := decryptor.decryptAcraStruct(logger, acraStruct, zoneID, clientID)
 
 		if err != nil {
+			base.AcrastructDecryptionCounter.WithLabelValues(base.DecryptionTypeFail).Inc()
 			msg := fmt.Sprintf("Can't decrypt AcraStruct")
 			requestLogger.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorTranslatorCantDecryptAcraStruct).Warningln(msg)
 			response := responseWithMessage(request, http.StatusUnprocessableEntity, msg)
@@ -152,7 +157,7 @@ func (decryptor *HTTPConnectionsDecryptor) ParseRequestPrepareResponse(logger *l
 			}
 			return response
 		}
-
+		base.AcrastructDecryptionCounter.WithLabelValues(base.DecryptionTypeSuccess).Inc()
 		requestLogger.Infoln("Decrypted AcraStruct")
 
 		response := emptyResponseWithStatus(request, http.StatusOK)

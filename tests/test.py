@@ -16,6 +16,7 @@ import contextlib
 import socket
 import json
 import logging
+import http
 import tempfile
 import time
 import os
@@ -66,9 +67,12 @@ logger = logging.getLogger()
 logger.addHandler(handler)
 logger.setLevel(logging.DEBUG)
 
+DB_HOST = os.environ.get('TEST_DB_HOST', '127.0.0.1')
+DB_NAME = os.environ.get('TEST_DB_NAME', 'postgres')
+DB_PORT = os.environ.get('TEST_DB_PORT', 5432)
 
-DATA_MIN_SIZE = 1000
-DATA_MAX_SIZE = DATA_MIN_SIZE * 10
+DATA_MIN_SIZE = 10
+DATA_MAX_SIZE = DATA_MIN_SIZE * 1000
 # 200 is overhead of encryption (chosen manually)
 # multiply 2 because tested acrastruct in acrastruct
 COLUMN_DATA_SIZE = (DATA_MAX_SIZE + 200) * 2
@@ -138,6 +142,8 @@ else:
         'user': DB_USER, 'password': DB_USER_PASSWORD,
         "options": "-c statement_timeout=1000", 'sslmode': SSLMODE}
 
+def get_random_id():
+    return random.randint(1, 100000)
 
 def get_random_data():
         size = random.randint(DATA_MIN_SIZE, DATA_MAX_SIZE)
@@ -440,19 +446,53 @@ class KeyMakerTest(unittest.TestCase):
                     env={'ACRA_MASTER_KEY': long_key})
 
 
-class BaseTestCase(unittest.TestCase):
-    DB_HOST = os.environ.get('TEST_DB_HOST', '127.0.0.1')
-    DB_NAME = os.environ.get('TEST_DB_NAME', 'postgres')
-    DB_PORT = os.environ.get('TEST_DB_PORT', 5432)
+class PrometheusMixin(object):
+    _prometheus_addresses_field_name = 'prometheus_addresses'
+    LOG_METRICS = os.environ.get('TEST_LOG_METRICS', False)
+
+    def get_prometheus_address(self, port):
+        addr = 'tcp://127.0.0.1:{}'.format(port)
+        if not hasattr(self, self._prometheus_addresses_field_name):
+            self.prometheus_addresses = []
+        self.prometheus_addresses.append(addr)
+        return addr
+
+    def clear_prometheus_addresses(self):
+        setattr(self, self._prometheus_addresses_field_name, [])
+
+    def _get_metrics_url(self, address):
+        addr = urlparse(address)
+        return 'http://{}/metrics'.format(addr.netloc)
+
+    def log_prometheus_metrics(self):
+        if not self.LOG_METRICS:
+            return
+
+        for address in getattr(self, self._prometheus_addresses_field_name, []):
+            response = requests.get(self._get_metrics_url(address))
+            if response.status_code == 200:
+                logging.info(response.text)
+            else:
+                logging.error(
+                    "Can't fetch prometheus metrics from address: %s",
+                    [address])
+
+
+class BaseTestCase(PrometheusMixin, unittest.TestCase):
     DEBUG_LOG = os.environ.get('DEBUG_LOG', True)
 
     CONNECTOR_PORT_1 = int(os.environ.get('TEST_CONNECTOR_PORT', 9595))
+    CONNECTOR_PROMETHEUS_PORT_1 = int(os.environ.get('TEST_CONNECTOR_PORT', CONNECTOR_PORT_1+1))
+
     CONNECTOR_PORT_2 = CONNECTOR_PORT_1 + 200
+    CONNECTOR_PROMETHEUS_PORT_2 = int(os.environ.get('TEST_CONNECTOR_PORT', CONNECTOR_PORT_2+1))
+
     CONNECTOR_API_PORT_1 = int(os.environ.get('TEST_CONNECTOR_API_PORT', 9696))
     ACRAWEBCONFIG_HTTP_PORT = int(os.environ.get('TEST_CONFIG_UI_HTTP_PORT', ACRAWEBCONFIG_HTTP_PORT))
     # for debugging with manually runned acra-server
     EXTERNAL_ACRA = False
     ACRASERVER_PORT = int(os.environ.get('TEST_ACRASERVER_PORT', 10003))
+    ACRASERVER_PROMETHEUS_PORT = int(os.environ.get('TEST_ACRASERVER_PROMETHEUS_PORT', 10004))
     ACRA_BYTEA = 'pgsql_hex_bytea'
     DB_BYTEA = 'hex'
     WHOLECELL_MODE = False
@@ -469,7 +509,7 @@ class BaseTestCase(unittest.TestCase):
     ZONE = False
     TEST_DATA_LOG = False
     TLS_ON = False
-    maxDiff = None
+
     # hack to simplify handling errors on forks and don't check `if hasattr(self, 'connector_1')`
     connector_1 = ProcessStub()
     connector_2 = ProcessStub()
@@ -514,8 +554,12 @@ class BaseTestCase(unittest.TestCase):
             '--tls_acraserver_sni=acraserver',
         ]
 
+    def get_connector_prometheus_port(self, port):
+        return port+1
+
     def fork_connector(self, connector_port: int, acraserver_port: int, client_id: str, api_port: int=None, zone_mode: bool=False, check_connection: bool=True):
         logging.info("fork connector")
+
         acraserver_connection = self.get_acraserver_connection_string(acraserver_port)
         acraserver_api_connection = self.get_acraserver_api_connection_string(acraserver_port)
         connector_connection = self.get_connector_connection_string(connector_port)
@@ -541,6 +585,10 @@ class BaseTestCase(unittest.TestCase):
             '-user_check_disable=true',
             '-keys_dir={}'.format(KEYS_FOLDER.name),
         ]
+        if self.LOG_METRICS:
+            args.append('-incoming_connection_prometheus_metrics_string={}'.format(
+                self.get_prometheus_address(
+                    self.get_connector_prometheus_port(connector_port))))
         if self.DEBUG_LOG:
             args.append('-v=true')
         if zone_mode:
@@ -600,8 +648,8 @@ class BaseTestCase(unittest.TestCase):
                 pass
 
         args = {
-            'db_host': self.DB_HOST,
-            'db_port': self.DB_PORT,
+            'db_host': DB_HOST,
+            'db_port': DB_PORT,
             'logging_format': 'cef',
             # we doesn't need in tests waiting closing connections
             'incoming_connection_close_timeout': 0,
@@ -616,6 +664,9 @@ class BaseTestCase(unittest.TestCase):
             'auth_keys': self.ACRAWEBCONFIG_AUTH_KEYS_PATH,
             'keys_dir': KEYS_FOLDER.name,
         }
+        if self.LOG_METRICS:
+            args['incoming_connection_prometheus_metrics_string'] = self.get_prometheus_address(
+                self.ACRASERVER_PROMETHEUS_PORT)
         if self.TLS_ON:
             args['acraconnector_tls_transport_enable'] = 'true'
             args['tls_key'] = 'tests/server.key'
@@ -643,6 +694,36 @@ class BaseTestCase(unittest.TestCase):
     def fork_acra(self, popen_kwargs: dict=None, **acra_kwargs: dict):
         return self._fork_acra(acra_kwargs, popen_kwargs)
 
+    def fork_translator(self, translator_kwargs, popen_kwargs=None):
+        logging.info("fork acra-translator")
+        from utils import load_default_config
+        default_config = load_default_config("acra-translator")
+        default_args = {
+            'incoming_connection_close_timeout': 0,
+            'incoming_connection_grpc_string': 'grpc://127.0.0.1:9696',
+            'incoming_connection_http_string': 'http://127.0.0.1:9595',
+            'keys_dir': KEYS_FOLDER.name,
+        }
+        default_config.update(default_args)
+        default_config.update(translator_kwargs)
+        if not popen_kwargs:
+            popen_kwargs = {}
+        if self.DEBUG_LOG:
+            default_config['d'] = 1
+        cli_args = ['--{}={}'.format(k, v) for k, v in default_config.items()]
+
+        translator = self.fork(lambda: subprocess.Popen(['./acra-translator'] + cli_args,
+                                                     **popen_kwargs))
+        try:
+            if default_config['incoming_connection_grpc_string']:
+                wait_connection(urlparse(default_config['incoming_connection_grpc_string']).port)
+            if default_config['incoming_connection_http_string']:
+                wait_connection(urlparse(default_config['incoming_connection_http_string']).port)
+        except:
+            stop_process(translator)
+            raise
+        return translator
+
     def setUp(self):
         self.checkSkip()
         try:
@@ -652,12 +733,12 @@ class BaseTestCase(unittest.TestCase):
             self.connector_2 = self.fork_connector(self.CONNECTOR_PORT_2, self.ACRASERVER_PORT, 'keypair2')
 
             self.engine1 = sa.create_engine(
-                get_unix_connection_string(self.CONNECTOR_PORT_1, self.DB_NAME), connect_args=get_connect_args(port=self.CONNECTOR_PORT_1))
+                get_unix_connection_string(self.CONNECTOR_PORT_1, DB_NAME), connect_args=get_connect_args(port=self.CONNECTOR_PORT_1))
             self.engine2 = sa.create_engine(
                 get_unix_connection_string(
-                    self.CONNECTOR_PORT_2, self.DB_NAME), connect_args=get_connect_args(port=self.CONNECTOR_PORT_2))
+                    self.CONNECTOR_PORT_2, DB_NAME), connect_args=get_connect_args(port=self.CONNECTOR_PORT_2))
             self.engine_raw = sa.create_engine(
-                '{}://{}:{}/{}'.format(DB_DRIVER, self.DB_HOST, self.DB_PORT, self.DB_NAME),
+                '{}://{}:{}/{}'.format(DB_DRIVER, DB_HOST, DB_PORT, DB_NAME),
                 connect_args=connect_args)
 
             self.engines = [self.engine1, self.engine2, self.engine_raw]
@@ -686,6 +767,11 @@ class BaseTestCase(unittest.TestCase):
             raise
 
     def tearDown(self):
+        try:
+            self.log_prometheus_metrics()
+            self.clear_prometheus_addresses()
+        except:
+            pass
         processes = [getattr(self, 'connector_1', ProcessStub()),
                      getattr(self, 'connector_2', ProcessStub()),
                      getattr(self, 'acra', ProcessStub())]
@@ -696,9 +782,6 @@ class BaseTestCase(unittest.TestCase):
             pass
         for engine in getattr(self, 'engines', []):
             engine.dispose()
-
-    def get_random_id(self):
-        return random.randint(1, 100000)
 
     def log(self, acra_key_name, data, expected):
         """this function for printing data which used in test and for
@@ -738,7 +821,7 @@ class HexFormatTest(BaseTestCase):
         data = get_random_data()
         acra_struct = create_acrastruct(
             data.encode('ascii'), server_public1)
-        row_id = self.get_random_id()
+        row_id = get_random_id()
 
         self.log(keyname, acra_struct, data.encode('ascii'))
 
@@ -779,7 +862,7 @@ class HexFormatTest(BaseTestCase):
         inner_acra_struct = create_acrastruct(
             correct_data.encode('ascii'), server_public1)
         data = fake_acra_struct + inner_acra_struct
-        row_id = self.get_random_id()
+        row_id = get_random_id()
 
         self.log(keyname, data, fake_acra_struct+correct_data.encode('ascii'))
 
@@ -865,7 +948,7 @@ class ZoneHexFormatTest(BaseTestCase):
         acra_struct = create_acrastruct(
             data.encode('ascii'), zone_public,
             context=zones[0][ZONE_ID].encode('ascii'))
-        row_id = self.get_random_id()
+        row_id = get_random_id()
         self.log(zones[0][ZONE_ID]+'_zone', acra_struct, data.encode('ascii'))
         self.engine1.execute(
             test_table.insert(),
@@ -897,7 +980,7 @@ class ZoneHexFormatTest(BaseTestCase):
             correct_data.encode('ascii'), zone_public, context=zones[0][ZONE_ID].encode('ascii'))
         data = fake_acra_struct + inner_acra_struct
         self.log(zones[0][ZONE_ID]+'_zone', data, fake_acra_struct+correct_data.encode('ascii'))
-        row_id = self.get_random_id()
+        row_id = get_random_id()
         self.engine1.execute(
             test_table.insert(),
             {'id': row_id, 'data': data, 'raw_data': correct_data})
@@ -1265,7 +1348,7 @@ class TestPoisonRecordShutdown(BasePoisonRecordTest):
     SHUTDOWN = True
 
     def testShutdown(self):
-        row_id = self.get_random_id()
+        row_id = get_random_id()
         data = get_poison_record()
         self.engine1.execute(
             test_table.insert(),
@@ -1280,7 +1363,7 @@ class TestPoisonRecordShutdown(BasePoisonRecordTest):
 
     def testShutdown2(self):
         """check working poison record callback on full select"""
-        row_id = self.get_random_id()
+        row_id = get_random_id()
         data = get_poison_record()
         self.engine1.execute(
             test_table.insert(),
@@ -1295,7 +1378,7 @@ class TestPoisonRecordShutdown(BasePoisonRecordTest):
 
     def testShutdown3(self):
         """check working poison record callback on full select inside another data"""
-        row_id = self.get_random_id()
+        row_id = get_random_id()
         poison_record = get_poison_record()
         begin_tag = poison_record[:4]
         # test with extra long begin tag
@@ -1317,7 +1400,7 @@ class TestPoisonRecordOffStatus(BasePoisonRecordTest):
     DETECT_POISON_RECORDS = False
 
     def testShutdown(self):
-        row_id = self.get_random_id()
+        row_id = get_random_id()
         data = get_poison_record()
         self.engine1.execute(
             test_table.insert(),
@@ -1333,7 +1416,7 @@ class TestPoisonRecordOffStatus(BasePoisonRecordTest):
 
     def testShutdown2(self):
         """check working poison record callback on full select"""
-        row_id = self.get_random_id()
+        row_id = get_random_id()
         data = get_poison_record()
         self.engine1.execute(
             test_table.insert(),
@@ -1349,7 +1432,7 @@ class TestPoisonRecordOffStatus(BasePoisonRecordTest):
 
     def testShutdown3(self):
         """check working poison record callback on full select inside another data"""
-        row_id = self.get_random_id()
+        row_id = get_random_id()
         poison_record = get_poison_record()
         begin_tag = poison_record[:4]
         # test with extra long begin tag
@@ -1374,7 +1457,7 @@ class TestShutdownPoisonRecordWithZone(TestPoisonRecordShutdown):
 
     def testShutdown(self):
         """check callback with select by id and zone"""
-        row_id = self.get_random_id()
+        row_id = get_random_id()
         self.engine1.execute(
             test_table.insert(),
             {'id': row_id, 'data': get_poison_record(), 'raw_data': 'poison_record'})
@@ -1387,7 +1470,7 @@ class TestShutdownPoisonRecordWithZone(TestPoisonRecordShutdown):
 
     def testShutdown2(self):
         """check callback with select by id and without zone"""
-        row_id = self.get_random_id()
+        row_id = get_random_id()
         self.engine1.execute(
             test_table.insert(),
             {'id': row_id, 'data': get_poison_record(), 'raw_data': 'poison_record'})
@@ -1398,7 +1481,7 @@ class TestShutdownPoisonRecordWithZone(TestPoisonRecordShutdown):
 
     def testShutdown3(self):
         """check working poison record callback on full select"""
-        row_id = self.get_random_id()
+        row_id = get_random_id()
         self.engine1.execute(
             test_table.insert(),
             {'id': row_id, 'data': get_poison_record(), 'raw_data': 'poison_record'})
@@ -1409,7 +1492,7 @@ class TestShutdownPoisonRecordWithZone(TestPoisonRecordShutdown):
 
     def testShutdown4(self):
         """check working poison record callback on full select inside another data"""
-        row_id = self.get_random_id()
+        row_id = get_random_id()
         begin_tag = poison_record[:4]
         # test with extra long begin tag
         data = os.urandom(100) + begin_tag + poison_record + os.urandom(100)
@@ -1433,7 +1516,7 @@ class TestShutdownPoisonRecordWithZoneOffStatus(TestPoisonRecordShutdown):
 
     def testShutdown(self):
         """check callback with select by id and zone"""
-        row_id = self.get_random_id()
+        row_id = get_random_id()
         poison_record = get_poison_record()
         self.engine1.execute(
             test_table.insert(),
@@ -1449,7 +1532,7 @@ class TestShutdownPoisonRecordWithZoneOffStatus(TestPoisonRecordShutdown):
 
     def testShutdown2(self):
         """check callback with select by id and without zone"""
-        row_id = self.get_random_id()
+        row_id = get_random_id()
         poison_record = get_poison_record()
         self.engine1.execute(
             test_table.insert(),
@@ -1463,7 +1546,7 @@ class TestShutdownPoisonRecordWithZoneOffStatus(TestPoisonRecordShutdown):
 
     def testShutdown3(self):
         """check working poison record callback on full select"""
-        row_id = self.get_random_id()
+        row_id = get_random_id()
         poison_record = get_poison_record()
         self.engine1.execute(
             test_table.insert(),
@@ -1476,7 +1559,7 @@ class TestShutdownPoisonRecordWithZoneOffStatus(TestPoisonRecordShutdown):
 
     def testShutdown4(self):
         """check working poison record callback on full select inside another data"""
-        row_id = self.get_random_id()
+        row_id = get_random_id()
         poison_record = get_poison_record()
         begin_tag = poison_record[:4]
         # test with extra long begin tag
@@ -1570,7 +1653,7 @@ class TestNoCheckPoisonRecord(AcraCatchLogsMixin, BasePoisonRecordTest):
     DETECT_POISON_RECORDS = False
 
     def testNoDetect(self):
-        row_id = self.get_random_id()
+        row_id = get_random_id()
         poison_record = get_poison_record()
         self.engine1.execute(
             test_table.insert(),
@@ -1614,7 +1697,7 @@ class TestCheckLogPoisonRecord(AcraCatchLogsMixin, BasePoisonRecordTest):
         super(TestCheckLogPoisonRecord, self).tearDown()
 
     def testDetect(self):
-        row_id = self.get_random_id()
+        row_id = get_random_id()
         self.engine1.execute(
             test_table.insert(),
             {'id': row_id, 'data': get_poison_record(), 'raw_data': 'poison_record'})
@@ -1639,11 +1722,11 @@ class TestKeyStorageClearing(BaseTestCase):
                     zonemode_enable='true', http_api_enable='true')
 
             self.engine1 = sa.create_engine(
-                get_unix_connection_string(self.CONNECTOR_PORT_1, self.DB_NAME),
+                get_unix_connection_string(self.CONNECTOR_PORT_1, DB_NAME),
                 connect_args=get_connect_args(port=self.CONNECTOR_PORT_1))
 
             self.engine_raw = sa.create_engine(
-                '{}://{}:{}/{}'.format(DB_DRIVER, self.DB_HOST, self.DB_PORT, self.DB_NAME),
+                '{}://{}:{}/{}'.format(DB_DRIVER, DB_HOST, DB_PORT, DB_NAME),
                 connect_args=connect_args)
 
             self.engines = [self.engine1, self.engine_raw]
@@ -1699,8 +1782,8 @@ class TestAcraRollback(BaseTestCase):
     def setUp(self):
         self.checkSkip()
         self.engine_raw = sa.create_engine(
-            '{}://{}:{}/{}'.format(DB_DRIVER, self.DB_HOST, self.DB_PORT,
-                                   self.DB_NAME),
+            '{}://{}:{}/{}'.format(DB_DRIVER, DB_HOST, DB_PORT,
+                                   DB_NAME),
             connect_args=connect_args)
 
         self.output_filename = 'acra-rollback_output.txt'
@@ -1712,23 +1795,23 @@ class TestAcraRollback(BaseTestCase):
         if TEST_MYSQL:
             # https://github.com/go-sql-driver/mysql/
             connection_string = "{user}:{password}@tcp({host}:{port})/{dbname}".format(
-                user=DB_USER, password=DB_USER_PASSWORD, dbname=self.DB_NAME,
-                port=self.DB_PORT, host=self.DB_HOST
+                user=DB_USER, password=DB_USER_PASSWORD, dbname=DB_NAME,
+                port=DB_PORT, host=DB_HOST
             )
 
             # https://github.com/ziutek/mymysql
             # connection_string = "tcp:{host}:{port}*{dbname}/{user}/{password}".format(
-            #     user=DB_USER, password=DB_USER_PASSWORD, dbname=self.DB_NAME,
-            #     port=self.DB_PORT, host=self.DB_HOST
+            #     user=DB_USER, password=DB_USER_PASSWORD, dbname=DB_NAME,
+            #     port=DB_PORT, host=DB_HOST
             # )
         else:
             connection_string = (
                 'dbname={dbname} user={user} '
                 'sslmode={sslmode} password={password} host={host} '
                 'port={port}').format(
-                     sslmode=self.sslmode, dbname=self.DB_NAME,
-                     user=DB_USER, port=self.DB_PORT,
-                     password=DB_USER_PASSWORD, host=self.DB_HOST
+                     sslmode=self.sslmode, dbname=DB_NAME,
+                     user=DB_USER, port=DB_PORT,
+                     password=DB_USER_PASSWORD, host=DB_HOST
             )
 
         if TEST_MYSQL:
@@ -1778,7 +1861,7 @@ class TestAcraRollback(BaseTestCase):
             row = {
                 'raw_data': data,
                 'data': create_acrastruct(data.encode('ascii'), server_public1),
-                'id': self.get_random_id()
+                'id': get_random_id()
             }
             rows.append(row)
         self.engine_raw.execute(test_table.insert(), rows)
@@ -1810,7 +1893,7 @@ class TestAcraRollback(BaseTestCase):
                 'data': create_acrastruct(
                     data.encode('ascii'), zone_public,
                     context=zones[0][ZONE_ID].encode('ascii')),
-                'id': self.get_random_id()
+                'id': get_random_id()
             }
             rows.append(row)
         self.engine_raw.execute(test_table.insert(), rows)
@@ -1850,7 +1933,7 @@ class TestAcraRollback(BaseTestCase):
             row = {
                 'raw_data': data,
                 'data': create_acrastruct(data.encode('ascii'), server_public1),
-                'id': self.get_random_id()
+                'id': get_random_id()
             }
             rows.append(row)
         self.engine_raw.execute(test_table.insert(), rows)
@@ -1879,7 +1962,7 @@ class TestAcraRollback(BaseTestCase):
                 'data': create_acrastruct(
                     data.encode('ascii'), zone_public,
                     context=zones[0][ZONE_ID].encode('ascii')),
-                'id': self.get_random_id()
+                'id': get_random_id()
             }
             rows.append(row)
         self.engine_raw.execute(test_table.insert(), rows)
@@ -2016,6 +2099,7 @@ class TestAcraWebconfigWeb(AcraCatchLogsMixin, BaseTestCase):
 
 class SSLPostgresqlMixin(AcraCatchLogsMixin):
     ACRASERVER2_PORT = BaseTestCase.ACRASERVER_PORT + 1000
+    ACRASERVER2_PROMETHEUS_PORT = BaseTestCase.ACRASERVER_PROMETHEUS_PORT + 1000
     DEBUG_LOG = True
 
     def get_acraserver_connection_string(self, port=None):
@@ -2030,7 +2114,7 @@ class SSLPostgresqlMixin(AcraCatchLogsMixin):
 
     def get_ssl_engine(self):
         return sa.create_engine(
-                get_postgresql_tcp_connection_string(self.ACRASERVER2_PORT, self.DB_NAME),
+                get_postgresql_tcp_connection_string(self.ACRASERVER2_PORT, DB_NAME),
                 connect_args=get_connect_args(port=self.ACRASERVER2_PORT, sslmode='require'))
 
     def testConnectionCloseOnTls(self):
@@ -2061,12 +2145,13 @@ class SSLPostgresqlMixin(AcraCatchLogsMixin):
                 # connection will be closed on tls handshake
                 self.acra2 = self.fork_acra(
                     acraconnector_transport_encryption_disable=True, client_id='keypair1',
-                    incoming_connection_api_port=self.ACRASERVER2_PORT)
+                    incoming_connection_api_port=self.ACRASERVER2_PORT,
+                    incoming_connection_prometheus_metrics_string=self.get_prometheus_address(self.ACRASERVER2_PROMETHEUS_PORT))
             self.engine1 = sa.create_engine(
-                get_postgresql_tcp_connection_string(self.ACRASERVER_PORT, self.DB_NAME), connect_args=get_connect_args(port=self.ACRASERVER_PORT))
+                get_postgresql_tcp_connection_string(self.ACRASERVER_PORT, DB_NAME), connect_args=get_connect_args(port=self.ACRASERVER_PORT))
             self.engine_raw = sa.create_engine(
-                '{}://{}:{}/{}'.format(DB_DRIVER, self.DB_HOST, self.DB_PORT, self.DB_NAME),
-                connect_args=get_connect_args(self.DB_PORT))
+                '{}://{}:{}/{}'.format(DB_DRIVER, DB_HOST, DB_PORT, DB_NAME),
+                connect_args=get_connect_args(DB_PORT))
             # test case from HexFormatTest expect two engines with different client_id but here enough one and
             # raw connection
             self.engine2 = self.engine_raw
@@ -2154,7 +2239,7 @@ class SSLMysqlMixin(SSLPostgresqlMixin):
 
     def get_ssl_engine(self):
         return sa.create_engine(
-                get_postgresql_tcp_connection_string(self.ACRASERVER2_PORT, self.DB_NAME),
+                get_postgresql_tcp_connection_string(self.ACRASERVER2_PORT, DB_NAME),
                 connect_args=get_connect_args(
                     port=self.ACRASERVER2_PORT, ssl=self.driver_to_acraserver_ssl_settings))
 
@@ -2176,7 +2261,9 @@ class SSLMysqlMixin(SSLPostgresqlMixin):
                 # connection will be closed on tls handshake
                 self.acra2 = self.fork_acra(
                     acraconnector_transport_encryption_disable=True, client_id='keypair1',
-                    incoming_connection_port=self.ACRASERVER2_PORT)
+                    incoming_connection_port=self.ACRASERVER2_PORT,
+                    incoming_connection_prometheus_metrics_string=self.get_prometheus_address(
+                        self.ACRASERVER2_PROMETHEUS_PORT))
             self.driver_to_acraserver_ssl_settings = {
                 'ca': 'tests/server.crt',
                 #'cert': 'tests/client.crt',
@@ -2184,14 +2271,14 @@ class SSLMysqlMixin(SSLPostgresqlMixin):
                 'check_hostname': False
             }
             self.engine_raw = sa.create_engine(
-                '{}://{}:{}/{}'.format(DB_DRIVER, self.DB_HOST,
-                                       self.DB_PORT, self.DB_NAME),
+                '{}://{}:{}/{}'.format(DB_DRIVER, DB_HOST,
+                                       DB_PORT, DB_NAME),
                 # don't provide any client's certificates to driver that connects
                 # directly to mysql to avoid verifying by mysql server
-                connect_args=get_connect_args(self.DB_PORT, ssl={'ca': None}))
+                connect_args=get_connect_args(DB_PORT, ssl={'ca': None}))
 
             self.engine1 = sa.create_engine(
-                get_postgresql_tcp_connection_string(self.ACRASERVER_PORT, self.DB_NAME),
+                get_postgresql_tcp_connection_string(self.ACRASERVER_PORT, DB_NAME),
                 connect_args=get_connect_args(
                     port=self.ACRASERVER_PORT, ssl=self.driver_to_acraserver_ssl_settings))
 
@@ -2252,7 +2339,7 @@ class BasePrepareStatementMixin:
         data = get_random_data()
         acra_struct = create_acrastruct(
             data.encode('ascii'), server_public1)
-        row_id = self.get_random_id()
+        row_id = get_random_id()
 
         self.log(keyname, acra_struct, data.encode('ascii'))
 
@@ -2293,7 +2380,7 @@ class BasePrepareStatementMixin:
         inner_acra_struct = create_acrastruct(
             correct_data.encode('ascii'), server_public1)
         data = fake_acra_struct + inner_acra_struct
-        row_id = self.get_random_id()
+        row_id = get_random_id()
 
         self.log(keyname, data, fake_acra_struct+correct_data.encode('ascii'))
 
@@ -2340,7 +2427,7 @@ class TestMysqlTextPreparedStatement(BasePrepareStatementMixin, BaseTestCase):
         # Connect to the database
         with contextlib.closing(pymysql.connect(
                 host='localhost', port=self.CONNECTOR_PORT_1, user=DB_USER, password=DB_USER_PASSWORD,
-                db=self.DB_NAME, cursorclass=pymysql.cursors.DictCursor)) as connection:
+                db=DB_NAME, cursorclass=pymysql.cursors.DictCursor)) as connection:
             with connection.cursor() as cursor:
                 cursor.execute("PREPARE test_statement FROM '{}'".format(query))
                 cursor.execute('EXECUTE test_statement')
@@ -2359,7 +2446,7 @@ class TestMysqlBinaryPreparedStatement(BasePrepareStatementMixin, BaseTestCase):
         with contextlib.closing(mysql.connector.Connect(
                 use_unicode=False, raw=True, charset='ascii',
                 host='127.0.0.1', port=self.CONNECTOR_PORT_1,
-                user=DB_USER, password=DB_USER_PASSWORD, database=self.DB_NAME,
+                user=DB_USER, password=DB_USER_PASSWORD, database=DB_NAME,
                 ssl_ca='tests/server.crt', ssl_cert='tests/client.crt',
                 ssl_key='tests/client.key',
                 ssl_disabled=not TEST_WITH_TLS)) as connection:
@@ -2402,39 +2489,9 @@ class ProcessContextManager(object):
         stop_process(self.process)
 
 
-class BaseAcraTranslatorTest(BaseTestCase):
+class AcraTranslatorMixin(object):
 
-    def fork_translator(self, translator_kwargs, popen_kwargs=None):
-        logging.info("fork acra-translator")
-        from utils import load_default_config
-        default_config = load_default_config("acra-translator")
-        default_args = {
-            'incoming_connection_close_timeout': 0,
-            'incoming_connection_grpc_string': 'grpc://127.0.0.1:9696',
-            'incoming_connection_http_string': 'http://127.0.0.1:9595',
-            'keys_dir': KEYS_FOLDER.name,
-        }
-        default_config.update(default_args)
-        default_config.update(translator_kwargs)
-        if not popen_kwargs:
-            popen_kwargs = {}
-        if self.DEBUG_LOG:
-            default_config['d'] = 1
-        cli_args = ['--{}={}'.format(k, v) for k, v in default_config.items()]
-
-        translator = self.fork(lambda: subprocess.Popen(['./acra-translator'] + cli_args,
-                                                     **popen_kwargs))
-        try:
-            if default_config['incoming_connection_grpc_string']:
-                wait_connection(urlparse(default_config['incoming_connection_grpc_string']).port)
-            if default_config['incoming_connection_http_string']:
-                wait_connection(urlparse(default_config['incoming_connection_http_string']).port)
-        except:
-            stop_process(translator)
-            raise
-        return translator
-
-    def fork_connector(self, connector_port: int, server_port: int, client_id: str, check_connection: bool=True):
+    def fork_connector_for_translator(self, connector_port: int, server_port: int, client_id: str, check_connection: bool=True):
         logging.info("fork connector")
         server_connection = get_tcp_connection_string(server_port)
         connector_connection = get_tcp_connection_string(connector_port)
@@ -2458,6 +2515,9 @@ class BaseAcraTranslatorTest(BaseTestCase):
                 raise
         return process
 
+
+class AcraTranslatorTest(AcraTranslatorMixin, BaseTestCase):
+
     def checkSkip(self):
         return
 
@@ -2471,10 +2531,12 @@ class BaseAcraTranslatorTest(BaseTestCase):
             if zone_id:
                 response = stub.Decrypt(api_pb2.DecryptRequest(
                     zone_id=zone_id.encode('ascii'), acrastruct=acrastruct,
-                    client_id=client_id.encode('ascii')))
+                    client_id=client_id.encode('ascii')),
+                    timeout=SOCKET_CONNECT_TIMEOUT)
             else:
                 response = stub.Decrypt(api_pb2.DecryptRequest(
-                    client_id=client_id.encode('ascii'), acrastruct=acrastruct))
+                    client_id=client_id.encode('ascii'), acrastruct=acrastruct),
+                    timeout=SOCKET_CONNECT_TIMEOUT)
         except grpc.RpcError:
             return b''
         return response.data
@@ -2514,7 +2576,7 @@ class BaseAcraTranslatorTest(BaseTestCase):
         correct_client_id = 'keypair1'
         incorrect_client_id = 'keypair2'
         with ProcessContextManager(self.fork_translator(translator_kwargs)):
-            with ProcessContextManager(self.fork_connector(connector_port, translator_port, client_id)):
+            with ProcessContextManager(self.fork_connector_for_translator(connector_port, translator_port, client_id)):
                 response = request_func(connector_port, correct_client_id, None, acrastruct)
                 self.assertEqual(data, response)
 
@@ -2530,7 +2592,7 @@ class BaseAcraTranslatorTest(BaseTestCase):
                 self.assertNotEqual(data, response)
 
             # wait decryption error with incorrect client id
-            with ProcessContextManager(self.fork_connector(connector_port2, translator_port, incorrect_client_id)):
+            with ProcessContextManager(self.fork_connector_for_translator(connector_port2, translator_port, incorrect_client_id)):
                 response = request_func(connector_port2, incorrect_client_id, None, acrastruct)
                 self.assertNotEqual(data, response)
 
@@ -2546,9 +2608,8 @@ class BaseAcraTranslatorTest(BaseTestCase):
             'incoming_connection_http_string': connection_string ,
         }
         api_url = 'http://127.0.0.1:{}/v1/decrypt'.format(connector_port)
-        import http
         with ProcessContextManager(self.fork_translator(translator_kwargs)):
-            with ProcessContextManager(self.fork_connector(connector_port, translator_port, 'keypair1')):
+            with ProcessContextManager(self.fork_connector_for_translator(connector_port, translator_port, 'keypair1')):
                 # test incorrect HTTP method
                 response = requests.get(api_url, data=acrastruct,
                                         timeout=REQUEST_TIMEOUT)
@@ -2616,7 +2677,16 @@ class BaseAcraTranslatorTest(BaseTestCase):
         self._testApiDecryption(self.http_decrypt_request, use_http=True)
 
 
-class TestAcraRotate(unittest.TestCase):
+class TestAcraRotate(BaseTestCase):
+    ZONE = True
+
+    def checkSkip(self):
+        return
+
+    def fork_acra(self, popen_kwargs: dict=None, **acra_kwargs: dict):
+        acra_kwargs['keystore_cache_size'] = -1  # no cache
+        return super(TestAcraRotate, self).fork_acra(popen_kwargs, **acra_kwargs)
+
     def testFileRotation(self):
         """
         generate some zones, create AcraStructs with them and save to files
@@ -2701,6 +2771,202 @@ class TestAcraRotate(unittest.TestCase):
                         # data should be unchanged
                         self.assertEqual(
                             decrypted_rotated, acrastructs[path].data)
+
+    def testDatabaseRotation(self):
+        rotate_test_table = sa.Table(
+            'rotate_test',
+            metadata,
+            sa.Column('id', sa.Integer, primary_key=True),
+            sa.Column('zone_id', sa.LargeBinary(length=COLUMN_DATA_SIZE)),
+            sa.Column('data', sa.LargeBinary(length=COLUMN_DATA_SIZE)),
+            sa.Column('raw_data', sa.Text),
+        )
+        metadata.create_all(self.engine_raw)
+        self.engine_raw.execute(sa.delete(rotate_test_table))
+        zones = []
+        zone_count = 5
+        data_per_zone_count = 2
+        for i in range(zone_count):
+            zones.append(
+                json.loads(subprocess.check_output(
+                    ['./acra-addzone', '--keys_output_dir={}'.format(KEYS_FOLDER.name)],
+                    cwd=os.getcwd(), timeout=PROCESS_CALL_TIMEOUT).decode('utf-8')))
+        data_before_rotate = {}
+        for zone in zones:
+            for _ in range(data_per_zone_count):
+                data = get_random_data()
+                zone_public = b64decode(zone[ZONE_PUBLIC_KEY].encode('ascii'))
+                acra_struct = create_acrastruct(
+                    data.encode('ascii'), zone_public,
+                    context=zone[ZONE_ID].encode('ascii'))
+                row_id = get_random_id()
+                data_before_rotate[row_id] = acra_struct
+                self.engine_raw.execute(
+                    rotate_test_table.insert(),
+                    {'id': row_id, 'data': acra_struct, 'raw_data': data, 'zone_id': zone[ZONE_ID].encode('ascii')})
+
+        if TEST_MYSQL:
+            sql_update = "update rotate_test set data=? where id=?;"
+            # test:test@tcp(127.0.0.1:3306)/test
+            connection_string = "{user}:{password}@tcp({host}:{port})/{db_name}".format(
+                user=DB_USER, password=DB_USER_PASSWORD, host=DB_HOST, port=DB_PORT, db_name=DB_NAME)
+            mode_arg = '--mysql_enable'
+        elif TEST_POSTGRESQL:
+            sql_update = "update rotate_test set data=$1 where id=$2;"
+            if TEST_WITH_TLS:
+                sslmode = "require"
+            else:
+                sslmode = "disable"
+
+            connection_string = "postgres://{user}:{password}@{db_host}:{db_port}/{db_name}?sslmode={sslmode}".format(
+                sslmode=sslmode, user=DB_USER, password=DB_USER_PASSWORD, db_host=DB_HOST, db_port=DB_PORT,
+                db_name=DB_NAME)
+            mode_arg = '--postgresql_enable'
+        else:
+            self.fail("unsupported settings of tested db")
+
+        # use extra arg in select and update
+        subprocess.check_output(
+            ['./acra-rotate', '--keys_dir={}'.format(KEYS_FOLDER.name),
+             '--sql_select=select id, zone_id, data from rotate_test order by id;',
+             '--sql_update={}'.format(sql_update),
+             '--db_connection_string={}'.format(connection_string),
+             mode_arg
+             ]
+        )
+
+        result = self.engine1.execute(sa.select([rotate_test_table]))
+        self.check_decrypted_data(result)
+        result = self.engine_raw.execute(sa.select([rotate_test_table]))
+        self.check_rotation(result, data_before_rotate)
+
+        # chose any id to operate with specific row
+        if TEST_MYSQL:
+            sql_update = "update rotate_test set data=? where id={};"
+        elif TEST_POSTGRESQL:
+            sql_update = "update rotate_test set data=$1 where id={};"
+        else:
+            self.fail("unsupported settings of tested db")
+        some_id = list(data_before_rotate.keys())[0]
+        sql_update = sql_update.format(some_id)
+
+        # rotate with select without extra arg
+        subprocess.check_output(
+            ['./acra-rotate', '--keys_dir={}'.format(KEYS_FOLDER.name),
+             '--sql_select=select zone_id, data from rotate_test where id={};'.format(some_id),
+             '--sql_update={}'.format(sql_update),
+             '--db_connection_string={}'.format(connection_string),
+             mode_arg
+             ]
+        )
+
+        result = self.engine1.execute(
+            sa.select([rotate_test_table],
+                      whereclause=rotate_test_table.c.id==some_id))
+        self.check_decrypted_data(result)
+        # check that after rotation we can read actual data
+        result = self.engine_raw.execute(
+            sa.select([rotate_test_table],
+                      whereclause=rotate_test_table.c.id==some_id))
+        self.check_rotation(result, data_before_rotate)
+
+    def check_decrypted_data(self, result):
+        data = result.fetchall()
+        self.assertTrue(data)
+        for row in data:
+            # check that data was not changed
+            self.assertEqual(row['data'], row['raw_data'].encode('utf-8'))
+
+    def check_rotation(self, result, data_before_rotate):
+        data = result.fetchall()
+        self.assertTrue(data)
+        for row in data:
+            # check that data was changed
+            self.assertNotEqual(row['data'], data_before_rotate[row['id']])
+            # check that after rotation encrypted data != raw data
+            self.assertNotEqual(row['data'], row['raw_data'].encode('utf-8'))
+            # update with new data to check on next stage
+            data_before_rotate[row['id']] = row['data']
+
+
+class TestPrometheusMetrics(AcraTranslatorMixin, BaseTestCase):
+    LOG_METRICS = True
+    def checkSkip(self):
+        return
+
+    def checkMetrics(self, url, labels=None):
+        """
+        check that output of prometheus exporter contains all labels
+        """
+        labels = labels if labels else []
+        response = requests.get(url)
+        self.assertEqual(response.status_code, http.HTTPStatus.OK)
+        for label in labels:
+            self.assertIn(label, response.text)
+
+    def testAcraServer(self):
+        # run some queries to set some values for counters
+        HexFormatTest.testConnectorRead(self)
+        labels = [
+            'acraserver_connections_total',
+            'acraserver_connections_processing_seconds_bucket',
+            'acraserver_response_processing_seconds_bucket',
+            'acraserver_request_processing_seconds_bucket',
+            'acra_acrastruct_decryptions_total',
+        ]
+        self.checkMetrics('http://127.0.0.1:{}/metrics'.format(
+            self.ACRASERVER_PROMETHEUS_PORT), labels)
+
+    def testAcraConnector(self):
+        # connector should has some values in counter after connections checks
+        # on setUp
+        labels = [
+            'acraconnector_connections_total',
+            'acraconnector_connections_processing_seconds_bucket',
+        ]
+        self.checkMetrics('http://127.0.0.1:{}/metrics'.format(
+            self.get_connector_prometheus_port(self.CONNECTOR_PORT_1)), labels)
+
+    def testAcraTranslator(self):
+        labels = [
+            'acratranslator_connections_total',
+            'acratranslator_connections_processing_seconds_bucket',
+            'translator_request_processing_seconds_bucket',
+        ]
+        translator_port = 3456
+        metrics_port = translator_port+1
+        connector_port = 8000
+        data = get_random_data().encode('ascii')
+        client_id = 'keypair1'
+        encryption_key = read_storage_public_key(
+            client_id, keys_dir=KEYS_FOLDER.name)
+        acrastruct = create_acrastruct(data, encryption_key)
+
+        prometheus_metrics_address = 'tcp://127.0.0.1:{}'.format(metrics_port)
+        connection_string = 'tcp://127.0.0.1:{}'.format(translator_port)
+        translator_kwargs = {
+            'incoming_connection_http_string': connection_string,
+            'incoming_connection_prometheus_metrics_string': prometheus_metrics_address,
+        }
+        metrics_url = 'http://127.0.0.1:{}/metrics'.format(metrics_port)
+        api_url = 'http://127.0.0.1:{}/v1/decrypt'.format(connector_port)
+        with ProcessContextManager(self.fork_translator(translator_kwargs)):
+            with ProcessContextManager(self.fork_connector_for_translator(connector_port, translator_port, client_id)):
+                # test with correct acrastruct
+                response = requests.post(api_url, data=acrastruct,
+                                         timeout=REQUEST_TIMEOUT)
+                self.assertEqual(response.status_code, http.HTTPStatus.OK)
+                self.checkMetrics(metrics_url, labels)
+
+        translator_kwargs = {
+            'incoming_connection_grpc_string': connection_string,
+            'incoming_connection_prometheus_metrics_string': prometheus_metrics_address,
+        }
+        with ProcessContextManager(self.fork_translator(translator_kwargs)):
+            with ProcessContextManager(self.fork_connector_for_translator(connector_port, translator_port, client_id)):
+                AcraTranslatorTest.grpc_decrypt_request(
+                    self, connector_port, client_id, None, acrastruct)
+                self.checkMetrics(metrics_url, labels)
 
 
 if __name__ == '__main__':

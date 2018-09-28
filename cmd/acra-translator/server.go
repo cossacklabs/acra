@@ -184,9 +184,9 @@ func (server *ReaderServer) HandleConnectionString(parentContext context.Context
 
 // Constants show possible connection types.
 const (
-	CONNECTION_TYPE_KEY  = "connection_type"
-	HTTP_CONNECTION_TYPE = "http"
-	GRPC_CONNECTION_TYPE = "grpc"
+	ConnectionTypeKey  = "connection_type"
+	HTTPConnectionType = "http"
+	GRPCConnectionType = "grpc"
 )
 
 // Start setups gRPC handler or HTTP handler, poison records callbacks and starts listening to connections.
@@ -195,18 +195,20 @@ func (server *ReaderServer) Start(parentContext context.Context) {
 	poisonCallbacks := base.NewPoisonCallbackStorage()
 	if server.config.DetectPoisonRecords() {
 		if server.config.scriptOnPoison != "" {
+			log.Infof("Add poison record callback with script execution %v", server.config.scriptOnPoison)
 			poisonCallbacks.AddCallback(base.NewExecuteScriptCallback(server.config.scriptOnPoison))
 		}
 
 		// must be last
 		if server.config.stopOnPoison {
+			log.Infoln("Add poison record callback with AcraTranslator termination")
 			poisonCallbacks.AddCallback(&base.StopCallback{})
 		}
 	}
 	decryptorData := &common.TranslatorData{Keystorage: server.keystorage, PoisonRecordCallbacks: poisonCallbacks, CheckPoisonRecords: server.config.detectPoisonRecords}
 	if server.config.incomingConnectionHTTPString != "" {
 		go func() {
-			httpContext := logging.SetLoggerToContext(parentContext, logger.WithField(CONNECTION_TYPE_KEY, HTTP_CONNECTION_TYPE))
+			httpContext := logging.SetLoggerToContext(parentContext, logger.WithField(ConnectionTypeKey, HTTPConnectionType))
 			httpDecryptor, err := http_api.NewHTTPConnectionsDecryptor(decryptorData)
 			logger.WithField("connection_string", server.config.incomingConnectionHTTPString).Infof("Start process HTTP requests")
 			if err != nil {
@@ -223,7 +225,7 @@ func (server *ReaderServer) Start(parentContext context.Context) {
 	}
 	if server.config.incomingConnectionGRPCString != "" {
 		go func() {
-			grpcLogger := logger.WithField(CONNECTION_TYPE_KEY, GRPC_CONNECTION_TYPE)
+			grpcLogger := logger.WithField(ConnectionTypeKey, GRPCConnectionType)
 			logger.WithField("connection_string", server.config.incomingConnectionGRPCString).Infof("Start process gRPC requests")
 			secureSessionListener, err := network.NewSecureSessionListener(server.config.incomingConnectionGRPCString, server.keystorage)
 			if err != nil {
@@ -231,7 +233,9 @@ func (server *ReaderServer) Start(parentContext context.Context) {
 					Errorln("Can't create secure session listener")
 				return
 			}
-			grpcServer := grpc.NewServer()
+			grpcListener := WrapListenerWithMetrics(secureSessionListener)
+
+			grpcServer := grpc.NewServer(grpc.ConnectionTimeout(network.DefaultNetworkTimeout))
 			service, err := grpc_api.NewDecryptGRPCService(decryptorData)
 			if err != nil {
 				grpcLogger.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorTranslatorCantHandleGRPCConnection).
@@ -242,7 +246,7 @@ func (server *ReaderServer) Start(parentContext context.Context) {
 			server.grpcServer = grpcServer
 			// Register reflection service on gRPC server.
 			reflection.Register(grpcServer)
-			if err := grpcServer.Serve(secureSessionListener); err != nil {
+			if err := grpcServer.Serve(grpcListener); err != nil {
 				grpcLogger.Errorf("failed to serve: %v", err)
 				server.Stop()
 				os.Exit(1)
@@ -257,9 +261,11 @@ func (server *ReaderServer) Start(parentContext context.Context) {
 type ProcessingFunc func(context.Context, []byte, net.Conn)
 
 func (server *ReaderServer) processHTTPConnection(parentContext context.Context, clientID []byte, connection net.Conn) {
+	connection.SetDeadline(time.Now().Add(network.DefaultNetworkTimeout))
+	defer connection.SetDeadline(time.Time{})
 	// processing HTTP connection
 	logger := logging.GetLoggerFromContext(parentContext)
-	httpLogger := logger.WithField(CONNECTION_TYPE_KEY, HTTP_CONNECTION_TYPE)
+	httpLogger := logger.WithField(ConnectionTypeKey, HTTPConnectionType)
 	httpLogger.Debugln("HTTP handler")
 
 	reader := bufio.NewReader(connection)

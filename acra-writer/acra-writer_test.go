@@ -44,21 +44,21 @@ func TestCreateAcrastruct(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if bytes.Compare(acra_struct[:len(base.TAG_BEGIN)], base.TAG_BEGIN) != 0 {
+	if bytes.Compare(acra_struct[:len(base.TagBegin)], base.TagBegin) != 0 {
 		t.Fatal("Acrastruct has incorrect tag begin")
 	}
-	public_key := acra_struct[len(base.TAG_BEGIN) : len(base.TAG_BEGIN)+base.PublicKeyLength]
+	public_key := acra_struct[len(base.TagBegin) : len(base.TagBegin)+base.PublicKeyLength]
 	smessage := message.New(acra_kp.Private, &keys.PublicKey{Value: public_key})
-	wrapped_key := acra_struct[len(base.TAG_BEGIN)+base.PublicKeyLength : len(base.TAG_BEGIN)+base.KeyBlockLength]
+	wrapped_key := acra_struct[len(base.TagBegin)+base.PublicKeyLength : len(base.TagBegin)+base.KeyBlockLength]
 
 	unwrapped_key, err := smessage.Unwrap(wrapped_key)
 	if err != nil {
 		t.Fatal(err)
 	}
 	scell := cell.New(unwrapped_key, cell.CELL_MODE_SEAL)
-	data_length_buf := acra_struct[len(base.TAG_BEGIN)+base.KeyBlockLength : len(base.TAG_BEGIN)+base.KeyBlockLength+base.DataLengthSize]
+	data_length_buf := acra_struct[len(base.TagBegin)+base.KeyBlockLength : len(base.TagBegin)+base.KeyBlockLength+base.DataLengthSize]
 	data_length := int(binary.LittleEndian.Uint64(data_length_buf))
-	data := acra_struct[len(base.TAG_BEGIN)+base.KeyBlockLength+base.DataLengthSize:]
+	data := acra_struct[len(base.TagBegin)+base.KeyBlockLength+base.DataLengthSize:]
 	if len(data) != data_length {
 		t.Fatal("Incorrect data length")
 	}

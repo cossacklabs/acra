@@ -58,17 +58,17 @@ func NewFileSystemKeyStoreWithCacheSize(directory string, encryptor keystore.Key
 
 // NewFilesystemKeyStore represents keystore that reads keys from key folders, and stores them in memory.
 func NewFilesystemKeyStore(directory string, encryptor keystore.KeyEncryptor) (*FilesystemKeyStore, error) {
-	return newFilesystemKeyStore(directory, directory, encryptor, keystore.INFINITE_CACHE_SIZE)
+	return newFilesystemKeyStore(directory, directory, encryptor, keystore.InfiniteCacheSize)
 }
 
 // NewFilesystemKeyStoreTwoPath creates new FilesystemKeyStore using separate folders for private and public keys.
 func NewFilesystemKeyStoreTwoPath(privateKeyFolder, publicKeyFolder string, encryptor keystore.KeyEncryptor) (*FilesystemKeyStore, error) {
-	return newFilesystemKeyStore(privateKeyFolder, publicKeyFolder, encryptor, keystore.INFINITE_CACHE_SIZE)
+	return newFilesystemKeyStore(privateKeyFolder, publicKeyFolder, encryptor, keystore.InfiniteCacheSize)
 }
 
 func newFilesystemKeyStore(privateKeyFolder, publicKeyFolder string, encryptor keystore.KeyEncryptor, cacheSize int) (*FilesystemKeyStore, error) {
 	// check folder for private key
-	directory, err := utils.AbsPath(privateKeyFolder)
+	directory, err := filepath.Abs(privateKeyFolder)
 	if err != nil {
 		return nil, err
 	}
@@ -79,7 +79,7 @@ func newFilesystemKeyStore(privateKeyFolder, publicKeyFolder string, encryptor k
 	}
 	if privateKeyFolder != publicKeyFolder {
 		// check folder for public key
-		directory, err = utils.AbsPath(privateKeyFolder)
+		directory, err = filepath.Abs(privateKeyFolder)
 		if err != nil {
 			return nil, err
 		}
@@ -89,7 +89,7 @@ func newFilesystemKeyStore(privateKeyFolder, publicKeyFolder string, encryptor k
 		}
 	}
 	var cache keystore.Cache
-	if cacheSize == keystore.NO_CACHE {
+	if cacheSize == keystore.WithoutCache {
 		cache = keystore.NoCache{}
 	} else {
 		cache, err = lru_cache.NewLRUCacheKeystoreWrapper(cacheSize)
@@ -359,8 +359,8 @@ func (store *FilesystemKeyStore) Reset() {
 // encrypting private key or reads existing keypair from fs.
 // Returns keypair or error if generation/decryption failed.
 func (store *FilesystemKeyStore) GetPoisonKeyPair() (*keys.Keypair, error) {
-	privatePath := store.getPrivateKeyFilePath(POISON_KEY_FILENAME)
-	publicPath := store.getPublicKeyFilePath(fmt.Sprintf("%s.pub", POISON_KEY_FILENAME))
+	privatePath := store.getPrivateKeyFilePath(PoisonKeyFilename)
+	publicPath := store.getPublicKeyFilePath(fmt.Sprintf("%s.pub", PoisonKeyFilename))
 	privateExists, err := utils.FileExists(privatePath)
 	if err != nil {
 		return nil, err
@@ -374,7 +374,7 @@ func (store *FilesystemKeyStore) GetPoisonKeyPair() (*keys.Keypair, error) {
 		if err != nil {
 			return nil, err
 		}
-		if private.Value, err = store.encryptor.Decrypt(private.Value, []byte(POISON_KEY_FILENAME)); err != nil {
+		if private.Value, err = store.encryptor.Decrypt(private.Value, []byte(PoisonKeyFilename)); err != nil {
 			return nil, err
 		}
 		public, err := utils.LoadPublicKey(publicPath)
@@ -384,14 +384,14 @@ func (store *FilesystemKeyStore) GetPoisonKeyPair() (*keys.Keypair, error) {
 		return &keys.Keypair{Public: public, Private: private}, nil
 	}
 	log.Infoln("Generate poison key pair")
-	return store.generateKeyPair(POISON_KEY_FILENAME, []byte(POISON_KEY_FILENAME))
+	return store.generateKeyPair(PoisonKeyFilename, []byte(PoisonKeyFilename))
 }
 
 // GetAuthKey generates basic auth key for acraWebconfig, and writes it encrypted to fs,
 // or reads existing key from fs.
 // Returns key or error of generation/decryption failed.
 func (store *FilesystemKeyStore) GetAuthKey(remove bool) ([]byte, error) {
-	keyPath := store.getPrivateKeyFilePath(BASIC_AUTH_KEY_FILENAME)
+	keyPath := store.getPrivateKeyFilePath(BasicAuthKeyFilename)
 	keyExists, err := utils.FileExists(keyPath)
 	if err != nil {
 		log.Error(err)
@@ -406,7 +406,7 @@ func (store *FilesystemKeyStore) GetAuthKey(remove bool) ([]byte, error) {
 		return key, nil
 	}
 	log.Infof("Generate basic auth key for AcraWebconfig to %v", keyPath)
-	return store.generateKey(BASIC_AUTH_KEY_FILENAME, keystore.BasicAuthKeyLength)
+	return store.generateKey(BasicAuthKeyFilename, keystore.BasicAuthKeyLength)
 }
 
 // RotateZoneKey generate new key pair for ZoneId, overwrite private key with new and return new public key

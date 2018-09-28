@@ -36,8 +36,8 @@ const (
 	// DefaultKeyDirShort
 	DefaultKeyDirShort   = ".acrakeys"
 	ValidChars           = "_- "
-	MaxClientIdLength    = 256
-	MinClientIdLength    = 5
+	MaxClientIDLength    = 256
+	MinClientIDLength    = 5
 	BasicAuthKeyLength   = 32
 	AcraMasterKeyVarName = "ACRA_MASTER_KEY"
 	// SymmetricKeyLength in bytes for master key
@@ -68,7 +68,7 @@ func GenerateSymmetricKey() ([]byte, error) {
 // ValidateID checks that clientID length is within required limits and
 // clientID contains only valid chars (digits, letters, -, _, ' ').
 func ValidateID(clientID []byte) bool {
-	if len(clientID) < MinClientIdLength || len(clientID) > MaxClientIdLength {
+	if len(clientID) < MinClientIDLength || len(clientID) > MaxClientIDLength {
 		return false
 	}
 	// letters, digits, ValidChars = '-', '_', ' '

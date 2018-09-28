@@ -5,7 +5,13 @@ import yaml
 
 def load_default_config(service_name):
     with open('configs/{}.yaml'.format(service_name), 'r') as f:
-        return yaml.safe_load(f)
+        config = yaml.safe_load(f)
+    # convert empty values to empty strings to avoid pass them to Popen as
+    # "None" string value
+    for key in config:
+        if config[key] is None:
+            config[key] = ''
+    return config
 
 
 def read_storage_public_key(client_id, keys_dir='.acrakeys'):
@@ -22,11 +28,11 @@ def decrypt_acrastruct(data, private_key, client_id=None, zone_id=None):
     encrypted_symmetric = data[8+45:8+45+84]
     smessage_decryptor = smessage.SMessage(private_key, public_key)
     symmetric = smessage_decryptor.unwrap(encrypted_symmetric)
-    data = data[8+45+84+8:]
+    encrypted_data = data[8+45+84+8:]
     if zone_id:
-        return scell.SCellSeal(symmetric).decrypt(data, zone_id)
+        return scell.SCellSeal(symmetric).decrypt(encrypted_data, zone_id)
     else:
-        return scell.SCellSeal(symmetric).decrypt(data)
+        return scell.SCellSeal(symmetric).decrypt(encrypted_data)
 
 
 def decrypt_private_key(private_key, key_id, master_key):

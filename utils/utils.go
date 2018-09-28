@@ -19,27 +19,21 @@ package utils
 
 import (
 	"encoding/binary"
+	"fmt"
 	"github.com/cossacklabs/themis/gothemis/keys"
 	"io"
 	"io/ioutil"
 
-	"bytes"
-	"fmt"
-
 	log "github.com/sirupsen/logrus"
 	"os"
-	"os/user"
+	"path/filepath"
 	"runtime"
-	"strings"
 )
 
 const (
-	// SESSION_DATA_LIMIT maximum block size
-	SESSION_DATA_LIMIT = 8 * 1024 // 8 kb
+	// SessionDataLimit maximum block size
+	SessionDataLimit = 8 * 1024 // 8 kb
 )
-
-// ErrBigDataBlockSize represents data encoding error
-var ErrBigDataBlockSize = fmt.Errorf("Block size greater than %v", SESSION_DATA_LIMIT)
 
 // WriteFull writes data to io.Writer.
 // if wr.Write will return n <= len(data) will
@@ -75,16 +69,25 @@ func SendData(data []byte, conn io.Writer) error {
 	return nil
 }
 
-// ReadData reads length of data block, then reads data content
-// returns data content
-func ReadData(reader io.Reader) ([]byte, error) {
+// ReadDataLength return read data from reader, parsed data length or err
+func ReadDataLength(reader io.Reader) ([]byte, int, error) {
 	var length [4]byte
 	_, err := io.ReadFull(reader, length[:])
 	if err != nil {
-		return nil, err
+		return nil, 0, err
 	}
 	dataSize := int(binary.LittleEndian.Uint32(length[:]))
-	buf := make([]byte, dataSize)
+	return length[:], dataSize, nil
+}
+
+// ReadData reads length of data block, then reads data content
+// returns data content
+func ReadData(reader io.Reader) ([]byte, error) {
+	lengthBuf, length, err := ReadDataLength(reader)
+	if err != nil {
+		return lengthBuf, err
+	}
+	buf := make([]byte, length)
 	_, err = io.ReadFull(reader, buf)
 	if err != nil {
 		return nil, err
@@ -92,35 +95,9 @@ func ReadData(reader io.Reader) ([]byte, error) {
 	return buf, nil
 }
 
-// AbsPath transforms relative file path to absolute
-func AbsPath(path string) (string, error) {
-	if len(path) == 0 {
-		return path, nil
-	}
-	if len(path) >= 2 {
-		if path[:2] == "~/" {
-			usr, err := user.Current()
-			if err != nil {
-				return path, err
-			}
-			dir := usr.HomeDir
-			path = strings.Replace(path, "~", dir, 1)
-			return path, nil
-		} else if path[:2] == "./" {
-			workdir, err := os.Getwd()
-			if err != nil {
-				return path, err
-			}
-			path = strings.Replace(path, ".", workdir, 1)
-			return path, nil
-		}
-	}
-	return path, nil
-}
-
 // ReadFile returns contents of file
 func ReadFile(path string) ([]byte, error) {
-	absPath, err := AbsPath(path)
+	absPath, err := filepath.Abs(path)
 	if err != nil {
 		return nil, err
 	}
@@ -163,7 +140,7 @@ func FillSlice(value byte, data []byte) {
 
 // FileExists returns true if file exists from path, path can be relative
 func FileExists(path string) (bool, error) {
-	absPath, err := AbsPath(path)
+	absPath, err := filepath.Abs(path)
 	if err != nil {
 		return false, err
 	}
@@ -187,45 +164,6 @@ func Min(x, y int) int {
 		return x
 	}
 	return y
-}
-
-// FindTag returns first index of symbol in block
-// return -1 if not found
-func FindTag(symbol byte, count int, block []byte) int {
-	if len(block) < count {
-		return NotFound
-	}
-	halfCount := count / 2
-	tag := make([]byte, halfCount)
-
-	for i := 0; i < halfCount; i++ {
-		tag[i] = symbol
-	}
-
-	for i := 0; i+halfCount <= len(block); i += halfCount {
-		if bytes.Equal(tag, block[i:i+halfCount]) {
-			start := i
-			if i != 0 {
-				for ; start > i-halfCount; start-- {
-					if block[start-1] != symbol {
-						break
-					}
-				}
-			}
-			end := i + halfCount - 1
-			rightRange := Min(end+halfCount, len(block)-1)
-			for ; end < rightRange; end++ {
-				if block[end+1] != symbol {
-					break
-				}
-			}
-
-			if count <= (end-start)+1 {
-				return start
-			}
-		}
-	}
-	return NotFound
 }
 
 // GetConfigPathByName returns filepath to config file named "name" from default configs folder

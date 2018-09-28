@@ -18,10 +18,8 @@ package handlers
 
 import (
 	"github.com/cossacklabs/acra/logging"
-	"github.com/xwb1989/sqlparser"
-	"strings"
-
 	log "github.com/sirupsen/logrus"
+	"github.com/xwb1989/sqlparser"
 )
 
 // BlacklistHandler allows everything and forbids specific query/pattern/table
@@ -242,25 +240,10 @@ func (handler *BlacklistHandler) RemoveTables(tableNames []string) {
 
 // AddPatterns adds patterns that should be blacklisted
 func (handler *BlacklistHandler) AddPatterns(patterns []string) error {
-	placeholders := []string{SelectConfigPlaceholder, ColumnConfigPlaceholder, WhereConfigPlaceholder, ValueConfigPlaceholder}
-	replacers := []string{SelectConfigPlaceholderReplacer, ColumnConfigPlaceholderReplacer, WhereConfigPlaceholderReplacer, ValueConfigPlaceholderReplacer}
-	patternValue := ""
-	for _, pattern := range patterns {
-		patternValue = pattern
-		for index, placeholder := range placeholders {
-			patternValue = strings.Replace(patternValue, placeholder, replacers[index], -1)
-		}
-		statement, err := sqlparser.Parse(patternValue)
-		if err != nil {
-			log.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCensorQueryParseError).WithError(err).Errorln("Can't add specified pattern in blacklist handler")
-			return ErrPatternSyntaxError
-		}
-		var newPatternNodes []sqlparser.SQLNode
-		sqlparser.Walk(func(node sqlparser.SQLNode) (bool, error) {
-			newPatternNodes = append(newPatternNodes, node)
-			return true, nil
-		}, statement)
-		handler.patterns = append(handler.patterns, newPatternNodes)
+	parsedPatterns, err := ParsePatterns(patterns)
+	if err != nil {
+		return err
 	}
+	handler.patterns = parsedPatterns
 	return nil
 }

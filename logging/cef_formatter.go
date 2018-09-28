@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"github.com/sirupsen/logrus"
 	"os"
+	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -135,7 +136,7 @@ func (f *CEFTextFormatter) Format(entry *logrus.Entry) ([]byte, error) {
 }
 
 func otherExtensionKeys(data logrus.Fields) []string {
-	extensionKeys := make([]string, 0, len(data))
+	extensionKeys := make(sort.StringSlice, 0, len(data))
 	for k := range data {
 
 		if k != FieldKeyVendor && k != FieldKeyProduct && k != FieldKeyVersion &&
@@ -144,6 +145,7 @@ func otherExtensionKeys(data logrus.Fields) []string {
 			extensionKeys = append(extensionKeys, k)
 		}
 	}
+	extensionKeys.Sort()
 	return extensionKeys
 }
 

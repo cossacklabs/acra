@@ -21,6 +21,7 @@ import (
 	"net"
 	"sync"
 
+	"errors"
 	"github.com/cossacklabs/acra/keystore"
 	"github.com/cossacklabs/acra/logging"
 	"github.com/cossacklabs/acra/utils"
@@ -28,6 +29,12 @@ import (
 	"github.com/cossacklabs/themis/gothemis/session"
 	log "github.com/sirupsen/logrus"
 	"time"
+)
+
+const (
+	// sessionInitTimeout should be enough 5 seconds for secure session initialization and handshake
+	// chosen manually
+	sessionInitTimeout = time.Second * 5
 )
 
 // SessionCallback used for wrapping connection into SecureSession using SecureSession transport keys
@@ -164,8 +171,15 @@ func (err *ConnectionWrapError) Temporary() bool {
 	return true
 }
 
-// SECURE_SESSION_ESTABLISHING_TIMEOUT timeout for secure session handshake that should be enough
-const SECURE_SESSION_ESTABLISHING_TIMEOUT = time.Second * 10
+// SecureSessionEstablishingTimeout timeout for secure session handshake that should be enough
+const SecureSessionEstablishingTimeout = time.Second * 10
+
+// MaxClientIDDataLength max data length of first packet that send from client. 1 kb was chosen manually and that should
+// be enough
+const MaxClientIDDataLength = 1024 // 1kb
+
+// ErrClientIDPacketToBig show that packet with ClientID too big
+var ErrClientIDPacketToBig = errors.New("packet with ClientID too big")
 
 // SecureSessionConnectionWrapper adds SecureSession encryption above connection
 type SecureSessionConnectionWrapper struct {
@@ -176,7 +190,7 @@ type SecureSessionConnectionWrapper struct {
 
 // NewSecureSessionConnectionWrapper returns new SecureSessionConnectionWrapper with default handlshake timeout
 func NewSecureSessionConnectionWrapper(keystore keystore.SecureSessionKeyStore) (*SecureSessionConnectionWrapper, error) {
-	return &SecureSessionConnectionWrapper{keystore: keystore, clientID: nil, handshakeTimeout: SECURE_SESSION_ESTABLISHING_TIMEOUT}, nil
+	return &SecureSessionConnectionWrapper{keystore: keystore, clientID: nil, handshakeTimeout: SecureSessionEstablishingTimeout}, nil
 }
 
 // SetHandshakeTimeout set handshakeTimeout that will be used for secure session handshake. 0 - without handshakeTimeout
@@ -189,6 +203,8 @@ func (wrapper *SecureSessionConnectionWrapper) hasHandshakeTimeout() bool {
 }
 
 func (wrapper *SecureSessionConnectionWrapper) wrap(id []byte, conn net.Conn, isServer bool) (net.Conn, []byte, error) {
+	conn.SetDeadline(time.Now().Add(sessionInitTimeout))
+	defer conn.SetDeadline(time.Time{})
 	secureConnection, err := newSecureSessionConnection(wrapper.keystore, conn)
 	if err != nil {
 		return conn, nil, err
@@ -199,7 +215,15 @@ func (wrapper *SecureSessionConnectionWrapper) wrap(id []byte, conn net.Conn, is
 	}
 	var clientID []byte
 	if isServer {
-		clientID, err = utils.ReadData(conn)
+		lengthBuf, length, err := utils.ReadDataLength(conn)
+		if err != nil {
+			return conn, lengthBuf, err
+		}
+		if length > MaxClientIDDataLength {
+			return conn, lengthBuf, ErrClientIDPacketToBig
+		}
+		clientID = make([]byte, length)
+		_, err = io.ReadFull(conn, clientID)
 		if err != nil {
 			return conn, nil, err
 		}

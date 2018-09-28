@@ -35,56 +35,10 @@ import (
 
 // ZoneID begin tags, lengths, etc
 var (
-	EscapeTagBegin          = EncodeToOctal(base.TAG_BEGIN)
+	EscapeTagBegin          = utils.EncodeToOctal(base.TagBegin)
 	EscapeZoneTagLength     = zone.ZoneTagLength
 	EscapeZoneIDBlockLength = zone.ZoneIDBlockLength
 )
-
-func encodeToOctal(from, to []byte) {
-	to = to[:0]
-	for _, c := range from {
-		if utils.IsPrintableEscapeChar(c) {
-			if c == utils.SlashChar {
-				to = append(to, []byte{utils.SlashChar, utils.SlashChar}...)
-			} else {
-				to = append(to, c)
-			}
-		} else {
-			to = append(to, utils.SlashChar)
-			octal := strconv.FormatInt(int64(c), 8)
-			switch len(octal) {
-			case 3:
-				to = append(to, []byte(octal)...)
-			case 2:
-				to = append(to, '0', octal[0], octal[1])
-
-			case 1:
-				to = append(to, '0', '0', octal[0])
-			}
-		}
-	}
-}
-
-// EncodeToOctal returns octal representation on bytes
-// each byte has 4 bytes, filled with leading 0's is needed
-func EncodeToOctal(from []byte) []byte {
-	// count output size
-	outputLength := 0
-	for _, c := range from {
-		if utils.IsPrintableEscapeChar(c) {
-			if c == utils.SlashChar {
-				outputLength += 2
-			} else {
-				outputLength++
-			}
-		} else {
-			outputLength += 4
-		}
-	}
-	buffer := make([]byte, outputLength)
-	encodeToOctal(from, buffer)
-	return buffer
-}
 
 // PgEscapeDecryptor decrypts AcraStruct from Escape-encoded PostgreSQL binary format
 type PgEscapeDecryptor struct {
@@ -247,14 +201,14 @@ func (decryptor *PgEscapeDecryptor) readDataLength(reader io.Reader) (uint64, []
 	return length, decryptor.octLengthBuf[:octLenCount], nil
 }
 func (decryptor *PgEscapeDecryptor) readScellData(length uint64, reader io.Reader) ([]byte, []byte, error) {
-	hexBuf := make([]byte, int(length)*4)
-	buf := make([]byte, int(length))
+	hexBuf := make([]byte, length*4)
+	buf := make([]byte, length)
 	n, octN, err := decryptor.readOctalData(buf, hexBuf, reader)
 	if err != nil {
 		log.Warningf("%v", utils.ErrorMessage(fmt.Sprintf("can't read scell data with passed length=%v", length), err))
 		return nil, hexBuf[:octN], err
 	}
-	if n != int(length) {
+	if uint64(n) != length {
 		log.Warningf("read incorrect length, %v!=%v", n, length)
 		return nil, hexBuf[:octN], base.ErrFakeAcraStruct
 	}
@@ -284,7 +238,7 @@ func (decryptor *PgEscapeDecryptor) ReadData(symmetricKey, zoneID []byte, reader
 	if err != nil {
 		return append(hexLengthBuf, octData...), base.ErrFakeAcraStruct
 	}
-	return EncodeToOctal(decrypted), nil
+	return utils.EncodeToOctal(decrypted), nil
 }
 
 // GetTagBeginLength returns length of EscapeTagBegin

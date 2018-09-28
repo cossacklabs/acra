@@ -19,14 +19,18 @@ limitations under the License.
 package main
 
 import (
+	"database/sql"
 	"flag"
 	"github.com/cossacklabs/acra/cmd"
 	"github.com/cossacklabs/acra/keystore"
 	"github.com/cossacklabs/acra/keystore/filesystem"
 	"github.com/cossacklabs/acra/logging"
 	"github.com/cossacklabs/acra/utils"
+	_ "github.com/go-sql-driver/mysql"
+	_ "github.com/lib/pq"
 	log "github.com/sirupsen/logrus"
 	"os"
+	"path/filepath"
 )
 
 // Constants used by AcraRotate
@@ -37,7 +41,7 @@ var (
 )
 
 func initKeyStore(dirPath string) (keystore.KeyStore, error) {
-	absKeysDir, err := utils.AbsPath(dirPath)
+	absKeysDir, err := filepath.Abs(dirPath)
 	if err != nil {
 		log.WithError(err).Errorln("Can't get absolute path for keys_dir")
 		os.Exit(1)
@@ -64,7 +68,12 @@ func main() {
 	keysDir := flag.String("keys_dir", keystore.DefaultKeyDirShort, "Folder from which the keys will be loaded")
 	fileMapConfig := flag.String("file_map_config", "", "Path to file with map of <ZoneId>: <FilePaths> in json format {\"zone_id1\": [\"filepath1\", \"filepath2\"], \"zone_id2\": [\"filepath1\", \"filepath2\"]}")
 
-	logging.SetLogLevel(logging.LOG_VERBOSE)
+	sqlSelect := flag.String("sql_select", "", "Select query with ? as placeholders where last columns in result must be ClientId/ZoneId and AcraStruct. Other columns will be passed into insert/update query into placeholders")
+	sqlUpdate := flag.String("sql_update", "", "Insert/Update query with ? as placeholder where into first will be placed rotated AcraStruct")
+	connectionString := flag.String("db_connection_string", "", "Connection string to db")
+	useMysql := flag.Bool("mysql_enable", false, "Handle MySQL connections")
+	_ = flag.Bool("postgresql_enable", false, "Handle Postgresql connections")
+	logging.SetLogLevel(logging.LogVerbose)
 
 	err := cmd.Parse(DefaultConfigPath, ServiceName)
 	if err != nil {
@@ -74,9 +83,42 @@ func main() {
 
 	keystorage, err := initKeyStore(*keysDir)
 	if err != nil {
+		log.WithError(err).Errorln("Can't initialize keystore")
 		os.Exit(1)
 	}
 	if *fileMapConfig != "" {
 		runFileRotation(*fileMapConfig, keystorage)
+	}
+	if *sqlSelect != "" || *sqlUpdate != "" {
+		if *sqlSelect == "" || *sqlUpdate == "" {
+			log.Errorln("sql_select and sql_update must be set both")
+			os.Exit(1)
+		}
+		var db *sql.DB
+		var encoder utils.BinaryEncoder
+		if *useMysql {
+			db, err = sql.Open("mysql", *connectionString)
+			encoder = &utils.HexEncoder{}
+		} else {
+			db, err = sql.Open("postgres", *connectionString)
+
+			encoder = &utils.MysqlEncoder{}
+		}
+
+		if err != nil {
+			log.WithError(err).Errorln("Can't connect to db")
+			os.Exit(1)
+		}
+		if db == nil {
+			log.Errorln("Can't initialize db driver")
+			os.Exit(1)
+		}
+		if err := db.Ping(); err != nil {
+			log.WithError(err).Errorln("Error on database ping", *connectionString)
+			os.Exit(1)
+		}
+		if !rotateDb(*sqlSelect, *sqlUpdate, db, keystorage, encoder) {
+			os.Exit(1)
+		}
 	}
 }

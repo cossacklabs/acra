@@ -35,6 +35,26 @@ import (
 	"github.com/cossacklabs/acra/utils"
 )
 
+var selectPatternQueries = []string{
+	"INSERT SalesStaff1 VALUES (2, 'Michael', 'Blythe'), (3, 'Linda', 'Mitchell'),(4, 'Jillian', 'Carson'), (5, 'Garrett', 'Vargas');",
+	"INSERT INTO SalesStaff2 (StaffGUID, FirstName, LastName) VALUES (NEWID(), 'Stephen', 'Jiang');",
+	"INSERT INTO SalesStaff3 (StaffID, FullNameTbl) VALUES (X, M);",
+	"INSERT INTO Customers VALUES ('Cardinal', 'Stavanger', 'Norway');",
+	"INSERT INTO dbo.Points (PointValue) VALUES ('1,99');",
+	"INSERT INTO dbo.Points (Type, PointValue) VALUES ('Point', '1,5');",
+	"SELECT EMP_ID, LAST_NAME FROM EMPLOYEE_TBL WHERE CITY = 'Seattle'",
+	"SELECT EMP_ID, LAST_NAME FROM EMPLOYEE WHERE NAME1 = 'Seattle' ORDER BY EMP_ID;",
+	"SELECT EMP_ID FROM EMPLOYEE, EMPLOYEE_TBL WHERE CITY = 'Seattle' ORDER BY EMP_ID;",
+	"SELECT EMP_ID, LAST_NAME FROM EMPLOYEE WHERE CITY1 = 'INDIANAPOLIS' ORDER BY EMP_ID asc;",
+	"SELECT EMP_ID, LAST_NAME FROM EMPLOYEE_TBL AS EMPL_TBL WHERE CITY2 = 'Seattle' ORDER BY EMP_ID;",
+	"select songName from t where personName in ('Ryan', 'Holly') group by songName having count(distinct personName) = 10",
+	"SELECT SUM(Salary) FROM Employee WHERE Emp_Age < 30;",
+	"SELECT AVG(Price) FROM Products;",
+	"SELECT A, B",
+	"SELECT A",
+	"SELECT 1",
+}
+
 func TestWhitelistQueries(t *testing.T) {
 	var err error
 	sqlSelectQueries := []string{
@@ -181,27 +201,6 @@ func TestWhitelistPatterns(t *testing.T) {
 	//test SELECT * FROM company %%WHERE%%
 	testWhitelistStarPattern(t)
 }
-
-var selectPatternQueries = []string{
-	"INSERT SalesStaff1 VALUES (2, 'Michael', 'Blythe'), (3, 'Linda', 'Mitchell'),(4, 'Jillian', 'Carson'), (5, 'Garrett', 'Vargas');",
-	"INSERT INTO SalesStaff2 (StaffGUID, FirstName, LastName) VALUES (NEWID(), 'Stephen', 'Jiang');",
-	"INSERT INTO SalesStaff3 (StaffID, FullNameTbl) VALUES (X, M);",
-	"INSERT INTO Customers VALUES ('Cardinal', 'Stavanger', 'Norway');",
-	"INSERT INTO dbo.Points (PointValue) VALUES ('1,99');",
-	"INSERT INTO dbo.Points (Type, PointValue) VALUES ('Point', '1,5');",
-	"SELECT EMP_ID, LAST_NAME FROM EMPLOYEE_TBL WHERE CITY = 'Seattle'",
-	"SELECT EMP_ID, LAST_NAME FROM EMPLOYEE WHERE NAME1 = 'Seattle' ORDER BY EMP_ID;",
-	"SELECT EMP_ID FROM EMPLOYEE, EMPLOYEE_TBL WHERE CITY = 'Seattle' ORDER BY EMP_ID;",
-	"SELECT EMP_ID, LAST_NAME FROM EMPLOYEE WHERE CITY1 = 'INDIANAPOLIS' ORDER BY EMP_ID asc;",
-	"SELECT EMP_ID, LAST_NAME FROM EMPLOYEE_TBL AS EMPL_TBL WHERE CITY2 = 'Seattle' ORDER BY EMP_ID;",
-	"select songName from t where personName in ('Ryan', 'Holly') group by songName having count(distinct personName) = 10",
-	"SELECT SUM(Salary) FROM Employee WHERE Emp_Age < 30;",
-	"SELECT AVG(Price) FROM Products;",
-	"SELECT A, B",
-	"SELECT A",
-	"SELECT 1",
-}
-
 func testWhitelistSelectPattern(t *testing.T) {
 	var err error
 
@@ -245,6 +244,7 @@ func testWhitelistColumnsPattern(t *testing.T) {
 	acceptableQueries := []string{
 		"SELECT A, B",
 		"SELECT 1, GETDATE()",
+		"SELECT 1, (select a from t inner join b on b.id=t.id where b=1)",
 	}
 	blockableQueries := []string{
 		"SELECT A",
@@ -292,6 +292,7 @@ func testWhitelistColumnsPattern(t *testing.T) {
 		}
 	}
 
+	whitelist.Reset()
 	pattern = "SELECT %%COLUMN%%, B FROM testTable"
 	err = whitelist.AddPatterns([]string{pattern})
 	if err != nil {
@@ -307,6 +308,115 @@ func testWhitelistColumnsPattern(t *testing.T) {
 		"SELECT B, A FROM testTable",
 		"SELECT A, B, C FROM testTable",
 	}
+	for _, query := range acceptableQueries {
+		err = censor.HandleQuery(query)
+		if err != nil {
+			t.Fatal(err, "Whitelist pattern blocked query. \nPattern:", pattern, "\nQuery:", query)
+		}
+	}
+	for _, query := range blockableQueries {
+		err = censor.HandleQuery(query)
+		if err != handlers.ErrWhitelistPatternMismatch {
+			t.Fatal(err, "Whitelist pattern passed query. \nPattern:", pattern, "\nQuery:", query)
+		}
+	}
+
+	whitelist.Reset()
+	pattern = "SELECT * FROM testTable ORDER BY %%COLUMN%%"
+	err = whitelist.AddPatterns([]string{pattern})
+	if err != nil {
+		t.Fatal(err)
+	}
+	acceptableQueries = []string{
+		"SELECT * FROM testTable ORDER BY Date()",
+		"SELECT * FROM testTable ORDER BY 1",
+		"SELECT * FROM testTable ORDER BY testColumn",
+		"SELECT * FROM testTable ORDER BY (case when f1 then 1 when f1 is null then 2 else 3 end)",
+	}
+	blockableQueries = []string{
+		// defferent ordering
+		"SELECT * FROM testTable ORDER BY Date() DESC",
+		// different table
+		"SELECT * FROM testTable1 ORDER BY 1",
+		// different columns in select expressions
+		"SELECT A FROM testTable ORDER BY (case when f1 then 1 when f1 is null then 2 else 3 end)",
+	}
+	for _, query := range acceptableQueries {
+		err = censor.HandleQuery(query)
+		if err != nil {
+			t.Fatal(err, "Whitelist pattern blocked query. \nPattern:", pattern, "\nQuery:", query)
+		}
+	}
+	for _, query := range blockableQueries {
+		err = censor.HandleQuery(query)
+		if err != handlers.ErrWhitelistPatternMismatch {
+			t.Fatal(err, "Whitelist pattern passed query. \nPattern:", pattern, "\nQuery:", query)
+		}
+	}
+
+	// test GroupBy
+	whitelist.Reset()
+	pattern = "SELECT * FROM testTable GROUP BY %%COLUMN%%"
+	err = whitelist.AddPatterns([]string{pattern})
+	if err != nil {
+		t.Fatal(err)
+	}
+	acceptableQueries = []string{
+		"SELECT * FROM testTable GROUP BY Date()",
+		"SELECT * FROM testTable GROUP BY 1",
+		"SELECT * FROM testTable GROUP BY testColumn",
+		"SELECT * FROM testTable GROUP BY (case when f1 then 1 when f1 is null then 2 else 3 end)",
+	}
+	blockableQueries = []string{
+		// two columns
+		"SELECT * FROM testTable GROUP BY column1, column2",
+		// ORDER BY presents
+		"SELECT * FROM testTable GROUP BY column1 ORDER BY 1",
+		// different table
+		"SELECT * FROM testTable1 GROUP BY 1",
+		// different columns in select expressions
+		"SELECT A FROM testTable GROUP BY (case when f1 then 1 when f1 is null then 2 else 3 end)",
+	}
+	for _, query := range acceptableQueries {
+		err = censor.HandleQuery(query)
+		if err != nil {
+			t.Fatal(err, "Whitelist pattern blocked query. \nPattern:", pattern, "\nQuery:", query)
+		}
+	}
+	for _, query := range blockableQueries {
+		err = censor.HandleQuery(query)
+		if err != handlers.ErrWhitelistPatternMismatch {
+			t.Fatal(err, "Whitelist pattern passed query. \nPattern:", pattern, "\nQuery:", query)
+		}
+	}
+
+	// test GroupBy with Having
+	whitelist.Reset()
+	pattern = "SELECT a1 FROM table1 GROUP BY a2 HAVING COUNT(%%COLUMN%%) > %%VALUE%%"
+	err = whitelist.AddPatterns([]string{pattern})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	blockableQueries = []string{
+		// 2 columns inside FuncExpr
+		"SELECT a1 FROM table1 GROUP BY a2 HAVING COUNT(a1, a2) > 1000",
+		// wrong FuncExpr name
+		"SELECT a1 FROM table1 GROUP BY a2 HAVING MIN(a1) > 1000",
+		// wrong ComparisonExpr inside Having
+		"SELECT a1 FROM table1 GROUP BY a2 HAVING COUNT(a10) < 1000",
+		// wrong column in GroupBy
+		"SELECT a1 FROM table1 GROUP BY a4 HAVING COUNT(a3) > 0",
+		// star in SelectExprs
+		"SELECT * FROM table1 GROUP BY a2 HAVING COUNT(a3) > 0",
+	}
+
+	acceptableQueries = []string{
+		"SELECT a1 FROM table1 GROUP BY a2 HAVING COUNT(a3) > 0",
+		"SELECT a1 FROM table1 GROUP BY a2 HAVING COUNT(a2) > 1000",
+		"SELECT a1 FROM table1 GROUP BY a2 HAVING COUNT(a1) > (select 1)",
+	}
+
 	for _, query := range acceptableQueries {
 		err = censor.HandleQuery(query)
 		if err != nil {
@@ -458,6 +568,124 @@ func testWhitelistValuePattern(t *testing.T) {
 		"SELECT a, b FROM t WHERE ID = Date()",
 		// with ALL (*)
 		"SELECT * FROM t WHERE ID = NULL",
+	}
+
+	for _, query := range acceptableQueries {
+		err = censor.HandleQuery(query)
+		if err != nil {
+			t.Fatal(err, "Whitelist pattern blocked query. \nPattern:", pattern, "\nQuery:", query)
+		}
+	}
+	for _, query := range blockableQueries {
+		err = censor.HandleQuery(query)
+		if err != handlers.ErrWhitelistPatternMismatch {
+			t.Fatal(err, "Whitelist pattern passed query. \nPattern:", pattern, "\nQuery:", query)
+		}
+	}
+
+	// test delete query
+	whitelist.Reset()
+	pattern = "delete from t where ID = %%VALUE%%"
+	err = whitelist.AddPatterns([]string{pattern})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	acceptableQueries = []string{
+		// string
+		"delete FROM t WHERE ID = 'someValue_testValue_1234567890'",
+		// int
+		"delete FROM t WHERE ID = 1",
+		// null
+		"delete FROM t WHERE ID = NULL",
+		// boolean
+		"delete FROM t WHERE ID = TRUE",
+		// subquery
+		"delete FROM t WHERE ID = (select 1)",
+		// float
+		"delete FROM t WHERE ID = 1.0",
+		// function
+		"delete FROM t WHERE ID = Date()",
+		// with ALL (*)
+		"delete FROM t WHERE ID = NULL",
+	}
+
+	for _, query := range acceptableQueries {
+		err = censor.HandleQuery(query)
+		if err != nil {
+			t.Fatal(err, "Whitelist pattern blocked query. \nPattern:", pattern, "\nQuery:", query)
+		}
+	}
+	for _, query := range blockableQueries {
+		err = censor.HandleQuery(query)
+		if err != handlers.ErrWhitelistPatternMismatch {
+			t.Fatal(err, "Whitelist pattern passed query. \nPattern:", pattern, "\nQuery:", query)
+		}
+	}
+
+	// test update query
+	whitelist.Reset()
+	pattern = "update t set a=1 where ID = %%VALUE%%"
+	err = whitelist.AddPatterns([]string{pattern})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	acceptableQueries = []string{
+		// string
+		"update t set a=1 WHERE ID = 'someValue_testValue_1234567890'",
+		// int
+		"update t set a=1 WHERE ID = 1",
+		// null
+		"update t set a=1 WHERE ID = NULL",
+		// boolean
+		"update t set a=1 WHERE ID = TRUE",
+		// subquery
+		"update t set a=1 WHERE ID = (select 1)",
+		// float
+		"update t set a=1 WHERE ID = 1.0",
+		// function
+		"update t set a=1 WHERE ID = Date()",
+		// with ALL (*)
+		"update t set a=1 WHERE ID = NULL",
+	}
+
+	for _, query := range acceptableQueries {
+		err = censor.HandleQuery(query)
+		if err != nil {
+			t.Fatal(err, "Whitelist pattern blocked query. \nPattern:", pattern, "\nQuery:", query)
+		}
+	}
+	for _, query := range blockableQueries {
+		err = censor.HandleQuery(query)
+		if err != handlers.ErrWhitelistPatternMismatch {
+			t.Fatal(err, "Whitelist pattern passed query. \nPattern:", pattern, "\nQuery:", query)
+		}
+	}
+
+	// test limit
+	whitelist.Reset()
+	pattern = "SELECT * from t where ID > 10 LIMIT %%VALUE%%"
+	err = whitelist.AddPatterns([]string{pattern})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	blockableQueries = []string{
+		// OFFSET presents
+		"SELECT * from t where ID > 10 LIMIT 100 OFFSET 100",
+		// no LIMIT expression
+		"SELECT * from t where ID > 10",
+		// wrong table
+		"SELECT * from t1 where ID > 10 LIMIT 100",
+		// wrong WHERE clause
+		"SELECT * from t where ID < 10 LIMIT 100",
+		// wrong columns
+		"SELECT a,b from t where ID > 10 LIMIT 100",
+	}
+
+	acceptableQueries = []string{
+		"SELECT * from t where ID > 10 LIMIT 100500",
 	}
 
 	for _, query := range acceptableQueries {
@@ -762,6 +990,7 @@ func testBlacklistColumnsPattern(t *testing.T) {
 		}
 	}
 
+	blacklist.Reset()
 	blacklistPattern = "SELECT %%COLUMN%%, B FROM testTable"
 	err = blacklist.AddPatterns([]string{blacklistPattern})
 	if err != nil {
@@ -781,7 +1010,7 @@ func testBlacklistColumnsPattern(t *testing.T) {
 	for _, query := range acceptableQueries {
 		err = censor.HandleQuery(query)
 		if err != nil {
-			t.Fatal(err, "Blacklist pattern passed query. \nPattern:", blacklistPattern, "\nQuery:", query)
+			t.Fatal(err, "Blacklist pattern blocked query. \nPattern:", blacklistPattern, "\nQuery:", query)
 		}
 	}
 	for _, query := range blockableQueries {
@@ -791,6 +1020,115 @@ func testBlacklistColumnsPattern(t *testing.T) {
 		}
 	}
 
+	blacklist.Reset()
+	blacklistPattern = "SELECT * FROM testTable ORDER BY %%COLUMN%%"
+	err = blacklist.AddPatterns([]string{blacklistPattern})
+	if err != nil {
+		t.Fatal(err)
+	}
+	acceptableQueries = []string{
+		// defferent ordering
+		"SELECT * FROM testTable ORDER BY Date() DESC",
+		// different table
+		"SELECT * FROM testTable1 ORDER BY 1",
+		// different columns in select expressions
+		"SELECT A FROM testTable ORDER BY (case when f1 then 1 when f1 is null then 2 else 3 end)",
+	}
+
+	blockableQueries = []string{
+		"SELECT * FROM testTable ORDER BY Date()",
+		"SELECT * FROM testTable ORDER BY 1",
+		"SELECT * FROM testTable ORDER BY testColumn",
+		"SELECT * FROM testTable ORDER BY (case when f1 then 1 when f1 is null then 2 else 3 end)",
+	}
+	for _, query := range acceptableQueries {
+		err = censor.HandleQuery(query)
+		if err != nil {
+			t.Fatal(err, "Blacklist pattern blocked query. \nPattern:", blacklistPattern, "\nQuery:", query)
+		}
+	}
+	for _, query := range blockableQueries {
+		err = censor.HandleQuery(query)
+		if err != handlers.ErrBlacklistPatternMatch {
+			t.Fatal(err, "Blacklist pattern passed query. \nPattern:", blacklistPattern, "\nQuery:", query)
+		}
+	}
+
+	// test GroupBy
+	blacklist.Reset()
+	blacklistPattern = "SELECT * FROM testTable GROUP BY %%COLUMN%%"
+	err = blacklist.AddPatterns([]string{blacklistPattern})
+	if err != nil {
+		t.Fatal(err)
+	}
+	acceptableQueries = []string{
+		// two columns
+		"SELECT * FROM testTable GROUP BY column1, column2",
+		// ORDER BY presents
+		"SELECT * FROM testTable GROUP BY column1 ORDER BY 1",
+		// different table
+		"SELECT * FROM testTable1 GROUP BY 1",
+		// different columns in select expressions
+		"SELECT A FROM testTable GROUP BY (case when f1 then 1 when f1 is null then 2 else 3 end)",
+	}
+	blockableQueries = []string{
+		"SELECT * FROM testTable GROUP BY Date()",
+		"SELECT * FROM testTable GROUP BY 1",
+		"SELECT * FROM testTable GROUP BY testColumn",
+		"SELECT * FROM testTable GROUP BY (case when f1 then 1 when f1 is null then 2 else 3 end)",
+	}
+	for _, query := range acceptableQueries {
+		err = censor.HandleQuery(query)
+		if err != nil {
+			t.Fatal(err, "Blacklist pattern blocked query. \nPattern:", blacklistPattern, "\nQuery:", query)
+		}
+	}
+	for _, query := range blockableQueries {
+		err = censor.HandleQuery(query)
+		if err != handlers.ErrBlacklistPatternMatch {
+			t.Fatal(err, "Blacklist pattern passed query. \nPattern:", blacklistPattern, "\nQuery:", query)
+		}
+	}
+
+	// test GroupBy with Having
+	blacklist.Reset()
+	blacklistPattern = "SELECT a1 FROM table1 GROUP BY a2 HAVING COUNT(%%COLUMN%%) > %%VALUE%%"
+	err = blacklist.AddPatterns([]string{blacklistPattern})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	acceptableQueries = []string{
+		// 2 columns inside FuncExpr
+		"SELECT a1 FROM table1 GROUP BY a2 HAVING COUNT(a1, a2) > 1000",
+		// wrong FuncExpr name
+		"SELECT a1 FROM table1 GROUP BY a2 HAVING MIN(a1) > 1000",
+		// wrong ComparisonExpr inside Having
+		"SELECT a1 FROM table1 GROUP BY a2 HAVING COUNT(a10) < 1000",
+		// wrong column in GroupBy
+		"SELECT a1 FROM table1 GROUP BY a4 HAVING COUNT(a3) > 0",
+		// star in SelectExprs
+		"SELECT * FROM table1 GROUP BY a2 HAVING COUNT(a3) > 0",
+	}
+
+	blockableQueries = []string{
+		"SELECT a1 FROM table1 GROUP BY a2 HAVING COUNT(a3) > 0",
+		"SELECT a1 FROM table1 GROUP BY a2 HAVING COUNT(a2) > 1000",
+		"SELECT a1 FROM table1 GROUP BY a2 HAVING COUNT(a1) > (select 1)",
+	}
+
+	for _, query := range acceptableQueries {
+		err = censor.HandleQuery(query)
+		if err != nil {
+			t.Fatal(err, "Blacklist pattern blocked query. \nPattern:", blacklistPattern, "\nQuery:", query)
+		}
+	}
+	for _, query := range blockableQueries {
+		err = censor.HandleQuery(query)
+		if err != handlers.ErrBlacklistPatternMatch {
+			t.Fatal(err, "Blacklist pattern passed query. \nPattern:", blacklistPattern, "\nQuery:", query)
+		}
+	}
 }
 func testBlacklistWherePattern(t *testing.T) {
 	var err error
@@ -902,6 +1240,43 @@ func testBlacklistValuePattern(t *testing.T) {
 		"SELECT a, b FROM t WHERE ID = 1.0",
 		"SELECT a, b, c, d FROM t WHERE ID = 'someValue'",
 		"SELECT a, b, c FROM t WHERE ID = TRUE",
+	}
+
+	for _, query := range acceptableQueries {
+		err = censor.HandleQuery(query)
+		if err != nil {
+			t.Fatal(err, "Blacklist pattern blocked query. \nPattern:", blacklistPattern, "\nQuery:", query)
+		}
+	}
+	for _, query := range blockableQueries {
+		err = censor.HandleQuery(query)
+		if err != handlers.ErrBlacklistPatternMatch {
+			t.Fatal(err, "Blacklist pattern passed query. \nPattern:", blacklistPattern, "\nQuery:", query)
+		}
+	}
+
+	// test limit
+	blacklist.Reset()
+	blacklistPattern = "SELECT * from t where ID > 10 LIMIT %%VALUE%%"
+	err = blacklist.AddPatterns([]string{blacklistPattern})
+	if err != nil {
+		t.Fatal(err)
+	}
+	acceptableQueries = []string{
+		// OFFSET presents
+		"SELECT * from t where ID > 10 LIMIT 100 OFFSET 100",
+		// no LIMIT expression
+		"SELECT * from t where ID > 10",
+		// wrong table
+		"SELECT * from t1 where ID > 10 LIMIT 100",
+		// wrong WHERE clause
+		"SELECT * from t where ID < 10 LIMIT 100",
+		// wrong columns
+		"SELECT a,b from t where ID > 10 LIMIT 100",
+	}
+
+	blockableQueries = []string{
+		"SELECT * from t where ID > 10 LIMIT 100500",
 	}
 
 	for _, query := range acceptableQueries {

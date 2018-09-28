@@ -40,8 +40,9 @@ import (
 )
 
 var (
-	config     = flag_.String("config_file", "", "path to config")
-	dumpconfig = flag_.Bool("dump_config", false, "dump config")
+	config                   = flag_.String("config_file", "", "path to config")
+	dumpconfig               = flag_.Bool("dump_config", false, "dump config")
+	generateMarkdownArgTable = flag_.Bool("generate_markdown_args_table", false, "Generate with yaml config markdown text file with descriptions of all args")
 )
 
 func init() {
@@ -99,7 +100,7 @@ func (handler *SignalHandler) Register() {
 func ValidateClientID(clientID string) {
 	if !keystore.ValidateID([]byte(clientID)) {
 		log.Errorf("Invalid client ID,  %d <= len(client ID) <= %d, only digits, letters and '_', '-', ' ' characters",
-			keystore.MinClientIdLength, keystore.MaxClientIdLength)
+			keystore.MinClientIDLength, keystore.MaxClientIDLength)
 		os.Exit(1)
 	}
 }
@@ -189,8 +190,10 @@ func GenerateMarkdownDoc(output io.Writer, serviceName string) {
 	escapeColumn := func(text string) string {
 		return strings.Replace(text, "|", "\\|", -1)
 	}
-	// serviceName | arg name | rename to | default value | description
-	fmt.Fprintf(output, "|%v|||||\n", serviceName)
+	// table header with service name
+	// |serviceName | arg name | rename to | default value | description|
+	// |:-:         |:-:       |:-:        |:-:            |:-:         |
+	fmt.Fprintf(output, "|%v|||||\n|:-:|:-:|:-:|:-:|:-:|\n", serviceName)
 	flag_.CommandLine.VisitAll(func(flag *flag_.Flag) {
 
 		fmt.Fprintf(output, "||%v||%v|%v|\n", flag.Name, flag.DefValue, escapeColumn(flag.Usage))
@@ -203,12 +206,12 @@ func DumpConfig(configPath, serviceName string, useDefault bool) error {
 	var err error
 
 	if *config == "" {
-		absPath, err = utils.AbsPath(configPath)
+		absPath, err = filepath.Abs(configPath)
 		if err != nil {
 			return err
 		}
 	} else {
-		absPath, err = utils.AbsPath(*config)
+		absPath, err = filepath.Abs(*config)
 		if err != nil {
 			return err
 		}
@@ -228,12 +231,14 @@ func DumpConfig(configPath, serviceName string, useDefault bool) error {
 
 	GenerateYaml(file, useDefault)
 
-	file2, err := os.Create(fmt.Sprintf("/tmp/markdown_%v.txt", serviceName))
-	if err != nil {
-		return err
-	}
+	if *generateMarkdownArgTable {
+		file2, err := os.Create(fmt.Sprintf("%v/markdown_%v.md", dirPath, serviceName))
+		if err != nil {
+			return err
+		}
 
-	GenerateMarkdownDoc(file2, serviceName)
+		GenerateMarkdownDoc(file2, serviceName)
+	}
 	log.Infof("Config dumped to %s", configPath)
 	return nil
 }
@@ -255,7 +260,7 @@ func Parse(configPath, serviceName string) error {
 	// parse yaml and add params that wasn't passed from cli
 	if configPath != "" {
 
-		configPath, err := utils.AbsPath(configPath)
+		configPath, err := filepath.Abs(configPath)
 		if err != nil {
 			return err
 		}

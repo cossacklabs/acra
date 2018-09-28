@@ -186,9 +186,9 @@ func main() {
 	flags := []*bool{set, remove}
 
 	if *debug {
-		logging.SetLogLevel(logging.LOG_DEBUG)
+		logging.SetLogLevel(logging.LogDebug)
 	} else {
-		logging.SetLogLevel(logging.LOG_VERBOSE)
+		logging.SetLogLevel(logging.LogVerbose)
 	}
 
 	masterKey, err := keystore.GetMasterKeyFromEnvironment()

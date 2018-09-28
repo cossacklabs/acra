@@ -1,5 +1,85 @@
 # Acra ChangeLog
 
+## [0.83.0](https://github.com/cossacklabs/acra/releases/tag/0.83), September 28th 2018
+
+_Core_:
+
+- **Security**
+
+  - Updated the default and allowed TLS configurations ([#254](https://github.com/cossacklabs/acra/pull/254)).
+
+     Use TLS v1.2 (the latest supported version in Golang now) and limited cipher suite recommended by [Internet Assigned Numbers Authority](https://www.iana.org/assignments/tls-parameters/tls-parameters.xml) and [OWASP](https://www.owasp.org/index.php/TLS_Cipher_String_Cheat_Sheet) for most transport connections. 
+  
+     Use TLS v1.0 and extended cipher suit for MySQL TLS connections due to the limited support of MySQL database and drivers. 
+  
+  - Improved security of transport connection between Acra's services by validating the clientId length. This decreases the chance of misusing the clientId ([#253](https://github.com/cossacklabs/acra/pull/253)).
+
+- **Key management – key rotation**
+
+  - Added [AcraRotate](https://docs.cossacklabs.com/pages/acrarotate/) utility for rotation of Zone keys and re-encryption of AcraStructs. AcraRotate generates a new Zone keypair (`zoneid_zone.pub` and `zoneid_zone`) for a particular ZoneId and re-encrypts the corresponding AcraStructs with new keys. ZoneId stays the same ([#256](https://github.com/cossacklabs/acra/pull/256), [#239](https://github.com/cossacklabs/acra/pull/239)).
+
+    AcraRotate doesn't affect the `ACRA_MASTER_KEY` or storage keypair used without Zones (`clientid_storage.pub` / `clientid_storage` keys).
+    
+    AcraRotate rotates only the Zone storage keys and affects only the AcraStructs encrypted with Zones.
+    
+    AcraRotate works with AcraStructs stored both in database cells (MySQL or PostgreSQL) or files.
+    
+    Read the full documentation on [AcraRotate on the Documentation Server](https://docs.cossacklabs.com/pages/acrarotate/).
+
+- **AcraCensor – SQL filter and firewall**
+
+  - Improved SQL filtering through more complex pattern matching ([#264](https://github.com/cossacklabs/acra/pull/264), [#263](https://github.com/cossacklabs/acra/pull/263), [#262](https://github.com/cossacklabs/acra/pull/262), [#238](https://github.com/cossacklabs/acra/pull/238)).
+  
+      - `%%VALUE%%` pattern represents literal value (string, binary, number, boolean) and is supported in the following expressions: WHERE, IN, ORDER BY, GROUP BY, BETWEEN.
+      - `%%LIST_OF_VALUES%%` pattern represents several values one by one, used with IN expressions.
+      - `%%SUBQUERY%%` pattern represents a subquery expression inside the main query.
+      - `%%WHERE%%` pattern represents one or more expressions after a WHERE statement. This pattern works for SELECT/UPDATE/DELETE queries.
+      - `%%COLUMN%%` pattern represents a column expression used after SELECT and ORDER BY expressions.
+      - `%%SELECT%%` pattern represents a whole SELECT expression.
+
+
+  Read the detailed description and usage examples on the [AcraCensor page on DocServer](https://docs.cossacklabs.com/pages/documentation-acra/#acracensor-acra-s-firewall).
+
+- **AcraWriter**
+
+  - Added Java/Android AcraWriter library, added examples and tests ([#252](https://github.com/cossacklabs/acra/pull/252)).
+
+     Read the usage guide and examples in [examples/android_java](https://github.com/cossacklabs/acra/tree/master/examples/android_java) folder.
+  
+  - Added SQLAlchemy type wrappers for the Python AcraWriter ([#257](https://github.com/cossacklabs/acra/pull/257)).
+  
+  - Improved and refactored the Python AcraWriter example of encrypting data and reading it from the database ([#258](https://github.com/cossacklabs/acra/pull/258)).
+
+- **Prometheus Metrics**
+
+  - Added functionality for exporting the basic metrics of AcraServer, AcraConnector, and AcraTranslator to Prometheus: if `incoming_connection_prometheus_metrics_string` is set, the service will generate specific metrics (time of connection life, time of processing requests, AcraStruct decryption counters) and push them to Prometheus ([#260](https://github.com/cossacklabs/acra/pull/260), [#251](https://github.com/cossacklabs/acra/pull/251), [#234](https://github.com/cossacklabs/acra/pull/234)).
+
+- **Other**
+
+  - Improved AcraConnector's compatibility with PostgreSQL: AcraConnector now correctly handles the database's denial to use TLS connection ([#259](https://github.com/cossacklabs/acra/pull/259)).
+
+  - Added export of CLI parameters for AcraServer, AcraConnector, and AcraTranslator to markdown ([#261](https://github.com/cossacklabs/acra/pull/261)).
+
+  - Improved readability of CEF-formatted logs by sorting extension fields in alphabetical order ([#255](https://github.com/cossacklabs/acra/pull/255)).
+
+  - Improved quality of our codebase — cleaned up the old unnecessary code ([#250](https://github.com/cossacklabs/acra/pull/250)).
+
+_Infrastructure_:
+
+  - Added AcraRotate as a ready-to-use tool inside AcraTranslator and AcraServer Docker containers ([#236](https://github.com/cossacklabs/acra/pull/236)).
+
+
+_Documentation_:
+
+- Made the [Documentation Server](https://docs.cossacklabs.com/) the primary and the only regularly updated source of [documentation for Acra](https://docs.cossacklabs.com/products/acra/). The most recent version of the [documentation](https://docs.cossacklabs.com/products/acra/#documentation), [tutorials](https://docs.cossacklabs.com/products/acra/#tutorials), and [demos](https://docs.cossacklabs.com/products/acra/#undefined) for Acra can be found there. The [GitHub Wiki documentation](https://github.com/cossacklabs/acra/wiki) for Acra is still available, but is no longer updated starting with the version 0.82.0 (with the exception of Changelog and README files with every new version release).
+
+- [AcraCensor](https://docs.cossacklabs.com/pages/documentation-acra/#acracensor-acra-s-firewall): updated the details on how the "patterns" filter works.
+
+- [AcraRotate](https://docs.cossacklabs.com/pages/acrarotate/): added a tutorial for using AcraRotate to rotate Zone keys and re-encrypt the data.
+
+- Tons of small fixes here and there to make your overall experience of using Acra's docs on a new platform distinctive and smooth ;).
+
+
 ## [0.82.0](https://github.com/cossacklabs/acra/releases/tag/0.82), August 14th 2018
 
 _Core_:
@@ -43,7 +123,7 @@ _Core_:
   - Added configurable LRU cache for the in-memory keys: this will increase the performance if you operate with hundreds of storage keys on AcraServer and AcraTranslator ([#219](https://github.com/cossacklabs/acra/pull/219)).
 
 
-- **AcraCensor / SQL filter and firewall**
+- **AcraCensor – SQL filter and firewall**
 
   - Improved SQL filtering by adding pattern matching: now you can blacklist or whitelist queries that match particular patterns, like `SELECT %%COLUMN%% FROM company %%WHERE%%`. 
 

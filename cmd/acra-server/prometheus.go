@@ -15,7 +15,11 @@ limitations under the License.
 */
 package main
 
-import "github.com/prometheus/client_golang/prometheus"
+import (
+	"github.com/cossacklabs/acra/decryptor/base"
+	"github.com/prometheus/client_golang/prometheus"
+	"sync"
+)
 
 const (
 	connectionTypeLabel = "connection_type"
@@ -31,13 +35,19 @@ var (
 		}, []string{connectionTypeLabel})
 
 	connectionProcessingTimeHistogram = prometheus.NewHistogramVec(prometheus.HistogramOpts{
-		Name:    "acraserver_connections_processing_seconds_bucket",
+		Name:    "acraserver_connections_processing_seconds",
 		Help:    "Time of connection processing",
 		Buckets: []float64{0.1, 0.2, 0.5, 1, 10, 60, 3600, 86400},
 	}, []string{connectionTypeLabel})
 )
 
-func init() {
-	prometheus.MustRegister(connectionCounter)
-	prometheus.MustRegister(connectionProcessingTimeHistogram)
+var registerLock = sync.Once{}
+
+func registerMetrics() {
+	registerLock.Do(func() {
+		prometheus.MustRegister(connectionCounter)
+		prometheus.MustRegister(connectionProcessingTimeHistogram)
+		base.RegisterAcraStructProcessingMetrics()
+		base.RegisterDbProcessingMetrics()
+	})
 }

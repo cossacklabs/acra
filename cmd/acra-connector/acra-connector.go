@@ -27,6 +27,7 @@ import (
 	"crypto/tls"
 	"flag"
 	"fmt"
+	log "github.com/sirupsen/logrus"
 	"io"
 	"net"
 	"os"
@@ -36,9 +37,6 @@ import (
 	"strconv"
 	"strings"
 	"syscall"
-	"time"
-
-	log "github.com/sirupsen/logrus"
 
 	"github.com/cossacklabs/acra/cmd"
 	"github.com/cossacklabs/acra/cmd/acra-connector/connector-mode"
@@ -52,9 +50,9 @@ import (
 
 // Constants used by AcraConnector.
 var (
-	// DEFAULT_CONFIG_PATH relative path to config which will be parsed as default
-	SERVICE_NAME        = "acra-connector"
-	DEFAULT_CONFIG_PATH = utils.GetConfigPathByName(SERVICE_NAME)
+	// DefaultConfigPath relative path to config which will be parsed as default
+	ServiceName       = "acra-connector"
+	DefaultConfigPath = utils.GetConfigPathByName(ServiceName)
 )
 
 func checkDependencies() error {
@@ -79,7 +77,12 @@ func handleApiConnection(config *Config, connection net.Conn) {
 }
 
 func handleConnection(config *Config, connection net.Conn) {
-	defer connection.Close()
+	defer func() {
+		log.Infoln("Close connection with client")
+		if err := connection.Close(); err != nil {
+			log.WithError(err).Errorln("Error on closing client's connection")
+		}
+	}()
 
 	if !(config.DisableUserCheck) {
 		host, port, err := net.SplitHostPort(connection.RemoteAddr().String())
@@ -124,17 +127,16 @@ func handleConnection(config *Config, connection net.Conn) {
 			Errorln("Can't connect to AcraServer")
 		return
 	}
-	defer acraConn.Close()
 
-	acraConn.SetDeadline(time.Now().Add(time.Second * 2))
 	acraConnWrapped, err := config.ConnectionWrapper.WrapClient(config.ClientID, acraConn)
 	if err != nil {
 		log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantWrapConnection).
 			Errorln("Can't wrap connection")
+		if err := acraConn.Close(); err != nil {
+			log.WithError(err).Errorln("Error on closing connection with AcraServer")
+		}
 		return
 	}
-	acraConn.SetDeadline(time.Time{})
-	defer acraConnWrapped.Close()
 
 	toAcraErrCh := make(chan error, 1)
 	fromAcraErrCh := make(chan error, 1)
@@ -155,7 +157,14 @@ func handleConnection(config *Config, connection net.Conn) {
 			log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantStartConnection).
 				Errorln("Connector error")
 		}
-		return
+	}
+	log.Infoln("Close wrapped connection with AcraServer")
+	if err := acraConnWrapped.Close(); err != nil {
+		log.WithError(err).Errorf("Error on closing wrapped connection with %s", connector_mode.ModeToServiceName(config.Mode))
+
+	}
+	if err := acraConn.Close(); err != nil {
+		log.WithError(err).Errorln("Error on closing connection with %s", connector_mode.ModeToServiceName(config.Mode))
 	}
 }
 
@@ -169,12 +178,13 @@ type Config struct {
 	DisableUserCheck         bool
 	KeyStore                 keystore.SecureSessionKeyStore
 	ConnectionWrapper        network.ConnectionWrapper
+	Mode                     connector_mode.ConnectorMode
 }
 
 func main() {
 	loggingFormat := flag.String("logging_format", "plaintext", "Logging format: plaintext, json or CEF")
-	logging.CustomizeLogging(*loggingFormat, SERVICE_NAME)
-	log.Infof("Starting service %v", SERVICE_NAME)
+	logging.CustomizeLogging(*loggingFormat, ServiceName)
+	log.Infof("Starting service %v", ServiceName)
 
 	keysDir := flag.String("keys_dir", keystore.DefaultKeyDirShort, "Folder from which will be loaded keys")
 	clientID := flag.String("client_id", "", "Client ID")
@@ -198,7 +208,7 @@ func main() {
 	connectionAPIString := flag.String("incoming_connection_api_string", network.BuildConnectionString(cmd.DEFAULT_ACRACONNECTOR_CONNECTION_PROTOCOL, cmd.DEFAULT_ACRACONNECTOR_HOST, cmd.DEFAULT_ACRACONNECTOR_API_PORT, ""), "Connection string like tcp://x.x.x.x:yyyy or unix:///path/to/socket")
 	acraServerConnectionString := flag.String("acraserver_connection_string", "", "Connection string to AcraServer like tcp://x.x.x.x:yyyy or unix:///path/to/socket")
 	acraServerAPIConnectionString := flag.String("acraserver_api_connection_string", "", "Connection string to Acra's API like tcp://x.x.x.x:yyyy or unix:///path/to/socket")
-	prometheusAddress := flag.String("prometheus_metrics_address", "", "URL of Prometheus server for AcraConnector to upload stats and metrics (upload address is <URL>/metrics)")
+	prometheusAddress := flag.String("incoming_connection_prometheus_metrics_string", "", "URL which will be used to expose Prometheus metrics (use <URL>/metrics address to pull metrics)")
 
 	connectorModeString := flag.String("mode", "AcraServer", "Expected mode of connection. Possible values are: AcraServer or AcraTranslator. Corresponded connection host/port/string/session_id will be used.")
 	acraTranslatorHost := flag.String("acratranslator_connection_host", cmd.DEFAULT_ACRATRANSLATOR_GRPC_HOST, "IP or domain to AcraTranslator daemon")
@@ -209,7 +219,7 @@ func main() {
 	verbose := flag.Bool("v", false, "Log to stderr all INFO, WARNING and ERROR logs")
 	debug := flag.Bool("d", false, "Log everything to stderr")
 
-	err := cmd.Parse(DEFAULT_CONFIG_PATH, SERVICE_NAME)
+	err := cmd.Parse(DefaultConfigPath, ServiceName)
 	if err != nil {
 		log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantReadServiceConfig).
 			Errorln("Can't parse args")
@@ -217,7 +227,7 @@ func main() {
 	}
 
 	// if log format was overridden
-	logging.CustomizeLogging(*loggingFormat, SERVICE_NAME)
+	logging.CustomizeLogging(*loggingFormat, ServiceName)
 	log.Infof("Validating service configuration...")
 
 	if err := checkDependencies(); err != nil {
@@ -331,7 +341,7 @@ func main() {
 
 	// --------- Config  -----------
 	log.Infof("Configuring transport...")
-	config := &Config{KeyStore: keyStore, KeysDir: *keysDir, ClientID: []byte(*clientID), OutgoingConnectionString: outgoingConnectionString, IncomingConnectionString: *connectionString, OutgoingServiceID: []byte(outgoingSecureSessionID), DisableUserCheck: *disableUserCheck}
+	config := &Config{KeyStore: keyStore, KeysDir: *keysDir, ClientID: []byte(*clientID), OutgoingConnectionString: outgoingConnectionString, IncomingConnectionString: *connectionString, OutgoingServiceID: []byte(outgoingSecureSessionID), DisableUserCheck: *disableUserCheck, Mode: connectorMode}
 	listener, err := network.Listen(*connectionString)
 	if err != nil {
 		log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantStartListenConnections).
@@ -427,22 +437,26 @@ func main() {
 
 	if *debug {
 		log.Infof("Enabling DEBUG log level")
-		logging.SetLogLevel(logging.LOG_DEBUG)
+		logging.SetLogLevel(logging.LogDebug)
 	} else if *verbose {
 		log.Infof("Enabling VERBOSE log level")
-		logging.SetLogLevel(logging.LOG_VERBOSE)
+		logging.SetLogLevel(logging.LogVerbose)
 	} else {
 		log.Infof("Disabling future logs... Set -v -d to see logs")
-		logging.SetLogLevel(logging.LOG_DISCARD)
+		logging.SetLogLevel(logging.LogDiscard)
 	}
 
 	if *prometheusAddress != "" {
-		prometheusListener, err := cmd.RunPrometheusHTTPHandler(*prometheusAddress)
+		registerMetrics()
+		_, prometheusHTTPServer, err := cmd.RunPrometheusHTTPHandler(*prometheusAddress)
 		if err != nil {
 			panic(err)
 		}
-		log.Infof("Configured to send metrics and stats to `prometheus_metrics_address`")
-		sigHandler.AddListener(prometheusListener)
+		log.Infof("Configured to send metrics and stats to `incoming_connection_prometheus_metrics_string`")
+		sigHandler.AddCallback(func() {
+			log.Infoln("Stop prometheus http exporter")
+			prometheusHTTPServer.Close()
+		})
 	}
 
 	for {

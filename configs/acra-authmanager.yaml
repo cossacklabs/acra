@@ -10,6 +10,9 @@ dump_config: false
 # Auth file
 file: configs/auth.keys
 
+# Generate with yaml config markdown text file with descriptions of all args
+generate_markdown_args_table: false
+
 # Folder from which will be loaded keys
 keys_dir: .acrakeys
 

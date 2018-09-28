@@ -119,11 +119,16 @@ type ColumnData struct {
 	LengthBuf [4]byte
 	Data      []byte
 	changed   bool
+	isNull    bool
 }
 
 // Length return column length converted from LengthBuf
 func (column *ColumnData) Length() int {
 	return int(binary.BigEndian.Uint32(column.LengthBuf[:]))
+}
+
+func (column *ColumnData) IsNull() bool {
+	return column.isNull
 }
 
 // ReadLength of column
@@ -146,8 +151,10 @@ func (column *ColumnData) readData(reader io.Reader) error {
 	length := column.Length()
 	if int32(length) == NullColumnValue {
 		column.Data = nil
+		column.isNull = true
 		return nil
 	}
+	column.isNull = false
 	column.Data = make([]byte, length)
 	// first 4 bytes is packet length and then 2 bytes of column count
 	// https://www.postgresql.org/docs/9.3/static/protocol-message-formats.html
@@ -218,8 +225,13 @@ func (packet *PacketHandler) IsSimpleQuery() bool {
 // ErrShortRead error during reading
 var ErrShortRead = errors.New("read less bytes than expected")
 
-// readData part of packet
-func (packet *PacketHandler) readData() error {
+func (packet *PacketHandler) setDataLengthBuffer(dataLengthBuffer []byte) {
+	copy(packet.descriptionLengthBuf, dataLengthBuffer)
+	// set data length without length itself
+	packet.dataLength = int(binary.BigEndian.Uint32(dataLengthBuffer)) - len(dataLengthBuffer)
+}
+
+func (packet *PacketHandler) readDataLength() error {
 	packet.logger.Debugln("Read data length")
 	n, err := packet.reader.Read(packet.descriptionLengthBuf)
 	if err != nil {
@@ -228,18 +240,21 @@ func (packet *PacketHandler) readData() error {
 	if n != len(packet.descriptionLengthBuf) {
 		return ErrShortRead
 	}
-	packet.dataLength = int(binary.BigEndian.Uint32(packet.descriptionLengthBuf)) - len(packet.descriptionLengthBuf)
-	packet.descriptionBuf.Reset()
+	packet.setDataLengthBuffer(packet.descriptionLengthBuf)
+	return nil
+}
+
+// readData part of packet
+func (packet *PacketHandler) readData(readLength bool) error {
+	if readLength {
+		if err := packet.readDataLength(); err != nil {
+			return err
+		}
+	}
 	packet.descriptionBuf.Grow(packet.dataLength)
 	packet.logger.Debugln("Read data")
 	nn, err := io.CopyN(packet.descriptionBuf, packet.reader, int64(packet.dataLength))
-	if err != nil {
-		return err
-	}
-	if nn != int64(packet.dataLength) {
-		return ErrShortRead
-	}
-	return nil
+	return base.CheckReadWrite(int(nn), packet.dataLength, err)
 }
 
 // ReadPacket read message type and data part of packet
@@ -248,14 +263,112 @@ func (packet *PacketHandler) ReadPacket() error {
 	if err := packet.readMessageType(); err != nil {
 		return err
 	}
-	return packet.readData()
+	return packet.readData(true)
+}
+
+// Constant values of specific postgresql messages - https://www.postgresql.org/docs/current/static/protocol-message-formats.html
+var (
+	SSLRequest     = []byte{4, 210, 22, 47}
+	CancelRequest  = []byte{4, 210, 22, 46}
+	StartupRequest = []byte{0, 3, 0, 0}
+)
+
+// WithoutMessageType used to indicate that MessageType wasn't set and shouldn't marshaled
+const WithoutMessageType = 0
+
+// ErrUnsupportedPacketType error when recognized unsupported message type or new added to postgresql wire protocol
+var ErrUnsupportedPacketType = errors.New("unsupported postgresql message type")
+
+// ReadClientPacket read and recognize packets that may be sent only from client/frontend. It's all message types marked
+// with (F) or (F/B) on https://www.postgresql.org/docs/current/static/protocol-message-formats.html
+func (packet *PacketHandler) ReadClientPacket() error {
+	packet.Reset()
+	// 8 bytes because startup/ssl/cancel messages has at least 8 bytes
+	packetBuf := make([]byte, 8)
+	packet.messageType[0] = WithoutMessageType
+	// any message has at least 5 bytes: TypeOfMessage(1) + Length(4) or 8 bytes of special messages
+	n, err := packet.reader.Read(packetBuf[:5])
+	if err := base.CheckReadWrite(n, 5, err); err != nil {
+		packet.logger.WithError(err).Errorln("Can't read first 5 bytes")
+		return err
+	}
+	/*
+		Postgresql has 3 messages that hasn't general message format <MessageType> + <Message Length>. It's ssl request, cancelation and startup message
+		General message has at least 5 bytes in packet, these 3 packets has at least 8 bytes (<Message Length> + <Constant Value>)
+		We read first 5 bytes, check is there known message types. If not then we try to read 3 more bytes and recognize 3 special messages
+		by their values. If we don't recognize, then process it as general message. We may have error if it's unknown message with message length < 8 bytes when
+		we not recognize, try to read +3 bytes and will block on system call read to read more when message may have only 1 bytes of MessageType and minimal MessageLength = 4 bytes (itself)
+	*/
+	switch packetBuf[0] {
+	// all known message types with flags (F) or (F/B) on https://www.postgresql.org/docs/current/static/protocol-message-formats.html
+	case 'X', 'S', 'p', 'F', 'H', 'E', 'D', 'f', 'c', 'd', 'C', 'B', 'Q':
+		// set message type
+		packet.messageType[0] = packetBuf[0]
+		// general message has 4 bytes after first as length
+		packet.setDataLengthBuffer(packetBuf[1:5])
+		return packet.readData(false)
+	default:
+		// fill our buf with other 3 bytes to check is it special message
+		n, err := packet.reader.Read(packetBuf[5:])
+		if err := base.CheckReadWrite(n, 3, err); err != nil {
+			return err
+		}
+		// write packet data to correct buf
+		n, err = packet.descriptionBuf.Write(packetBuf[4:])
+		if err := base.CheckReadWrite(n, 4, err); err != nil {
+			return err
+		}
+		packet.setDataLengthBuffer(packetBuf[:4])
+
+		// ssl and cancel requests have known and different lengths (8 and 16 respectively) or variable-length in startup request
+		switch packetBuf[3] {
+		// ssl/cancel requests
+		case 8, 16:
+			// ssl/cancel request has 8 byte length and 5 bytes we already read
+			if bytes.Equal(SSLRequest, packetBuf[4:]) {
+				return nil
+			} else if bytes.Equal(CancelRequest, packetBuf[4:]) {
+				return nil
+			}
+			return ErrUnsupportedPacketType
+		// startup request or unknown message type
+		default:
+			if !bytes.Equal(StartupRequest, packetBuf[4:]) {
+				packet.logger.Errorln("Expected startup message. Process as general message")
+				// we took unknown message type that wasn't recognized on top case and it's not special messages startup/ssl/cancel
+				// so we process it as general message type which has first byte as type and next 4 bytes is length of message
+				// above we read 8 bytes as for special messages, so we need to read dataLength -3 bytes
+				packet.messageType[0] = packetBuf[0]
+				packet.setDataLengthBuffer(packetBuf[1:5])
+				packet.descriptionBuf.Reset()
+				packet.descriptionBuf.Write(packetBuf[5:])
+				packet.dataLength -= 3
+				if err := packet.readData(false); err != nil {
+					return err
+				}
+				packet.dataLength += 3
+				return nil
+			}
+
+			// we read 4 bytes before. decrease before call readData because it read exactly as dataLength
+			packet.dataLength -= 4
+
+			if err := packet.readData(false); err != nil {
+				return err
+			}
+			// restore correct value
+			packet.dataLength += 4
+			return nil
+		}
+	}
+	return ErrUnsupportedPacketType
 }
 
 // Marshal transforms data row into bytes array
 // it's not marshal message type if it == 0 (if it was first Startup/SSLRequest packet without message type)
 func (packet *PacketHandler) Marshal() ([]byte, error) {
 	output := make([]byte, 0, 5+packet.dataLength)
-	if packet.messageType[0] != 0 {
+	if packet.messageType[0] != WithoutMessageType {
 		output = append(output, packet.messageType[0])
 	}
 	output = append(output, packet.descriptionLengthBuf...)

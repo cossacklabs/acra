@@ -56,7 +56,7 @@ func main() {
 	incomingConnectionGRPCString := flag.String("incoming_connection_grpc_string", "", "Default option: connection string for gRPC transport like grpc://0.0.0.0:9696")
 
 	keysDir := flag.String("keys_dir", keystore.DefaultKeyDirShort, "Folder from which will be loaded keys")
-	keysCacheSize := flag.Int("keystore_cache_size", keystore.INFINITE_CACHE_SIZE, "Count of keys that will be stored in in-memory LRU cache in encrypted form. 0 - no limits, -1 - turn off cache")
+	keysCacheSize := flag.Int("keystore_cache_size", keystore.InfiniteCacheSize, "Count of keys that will be stored in in-memory LRU cache in encrypted form. 0 - no limits, -1 - turn off cache")
 
 	secureSessionID := flag.String("securesession_id", "acra_translator", "Id that will be sent in secure session")
 
@@ -65,6 +65,8 @@ func main() {
 	scriptOnPoison := flag.String("poison_run_script_file", "", "On detecting poison record: log about poison record detection, execute script, return decrypted data")
 
 	closeConnectionTimeout := flag.Int("incoming_connection_close_timeout", DEFAULT_WAIT_TIMEOUT, "Time that AcraTranslator will wait (in seconds) on stop signal before closing all connections")
+
+	prometheusAddress := flag.String("incoming_connection_prometheus_metrics_string", "", "URL which will be used to expose Prometheus metrics (use <URL>/metrics address to pull metrics)")
 
 	verbose := flag.Bool("v", false, "Log to stderr all INFO, WARNING and ERROR logs")
 	debug := flag.Bool("d", false, "Log everything to stderr")
@@ -158,19 +160,33 @@ func main() {
 		os.Exit(0)
 	})
 
+	if *prometheusAddress != "" {
+		registerMetrics()
+		_, prometheusHTTPServer, err := cmd.RunPrometheusHTTPHandler(*prometheusAddress)
+		if err != nil {
+			log.WithError(err).WithField("incoming_connection_prometheus_metrics_string", *prometheusAddress).Errorln("Can't run prometheus handler")
+			os.Exit(1)
+		}
+		log.Infof("Configured to send metrics and stats to `incoming_connection_prometheus_metrics_string`")
+		sigHandlerSIGTERM.AddCallback(func() {
+			log.Infoln("Stop prometheus http exporter")
+			prometheusHTTPServer.Close()
+		})
+	}
+
 	// -------- START -----------
 
 	log.Infof("Setup ready. Start listening to connections. Current PID: %v", os.Getpid())
 
 	if *debug {
 		log.Infof("Enabling DEBUG log level")
-		logging.SetLogLevel(logging.LOG_DEBUG)
+		logging.SetLogLevel(logging.LogDebug)
 	} else if *verbose {
 		log.Infof("Enabling VERBOSE log level")
-		logging.SetLogLevel(logging.LOG_VERBOSE)
+		logging.SetLogLevel(logging.LogVerbose)
 	} else {
 		log.Infof("Disabling future logs... Set -v -d to see logs")
-		logging.SetLogLevel(logging.LOG_DISCARD)
+		logging.SetLogLevel(logging.LogDiscard)
 	}
 
 	readerServer.Start(mainContext)

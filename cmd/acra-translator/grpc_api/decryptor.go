@@ -27,6 +27,7 @@ import (
 	"github.com/cossacklabs/acra/decryptor/base"
 	"github.com/cossacklabs/acra/utils"
 	"github.com/cossacklabs/themis/gothemis/keys"
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/sirupsen/logrus"
 )
 
@@ -51,6 +52,10 @@ func (service *DecryptGRPCService) Decrypt(ctx context.Context, request *Decrypt
 	var privateKey *keys.PrivateKey
 	var err error
 	var decryptionContext []byte
+
+	timer := prometheus.NewTimer(prometheus.ObserverFunc(common.RequestProcessingTimeHistogram.WithLabelValues(common.GrpcRequestType).Observe))
+	defer timer.ObserveDuration()
+
 	logger := logrus.WithFields(logrus.Fields{"client_id": string(request.ClientId), "zone_id": string(request.ZoneId), "translator": "grpc"})
 	if len(request.ClientId) == 0 {
 		logrus.Errorln("GRPC request without ClientID not allowed")
@@ -63,12 +68,14 @@ func (service *DecryptGRPCService) Decrypt(ctx context.Context, request *Decrypt
 		privateKey, err = service.TranslatorData.Keystorage.GetServerDecryptionPrivateKey(request.ClientId)
 	}
 	if err != nil {
+		base.AcrastructDecryptionCounter.WithLabelValues(base.DecryptionTypeFail).Inc()
 		logger.WithError(err).Errorln("Can't load private key for decryption")
 		return nil, ErrCantDecrypt
 	}
 	data, decryptErr := base.DecryptAcrastruct(request.Acrastruct, privateKey, decryptionContext)
 	utils.FillSlice(byte(0), privateKey.Value)
 	if decryptErr != nil {
+		base.AcrastructDecryptionCounter.WithLabelValues(base.DecryptionTypeFail).Inc()
 		logger.WithError(decryptErr).Errorln("Can't decrypt AcraStruct")
 		if service.TranslatorData.CheckPoisonRecords {
 			poisoned, err := base.CheckPoisonRecord(request.Acrastruct, service.TranslatorData.Keystorage)
@@ -89,5 +96,6 @@ func (service *DecryptGRPCService) Decrypt(ctx context.Context, request *Decrypt
 		}
 		return nil, ErrCantDecrypt
 	}
+	base.AcrastructDecryptionCounter.WithLabelValues(base.DecryptionTypeSuccess).Inc()
 	return &DecryptResponse{Data: data}, nil
 }
