@@ -23,7 +23,7 @@
 | ---- | ---- | ---- | --- | --- |
 
 ## What is Acra
-Acra — database security suite with protection for sensitive and personal data.
+Acra — database security suite for sensitive and personal data protection.
 
 Acra provides selective encryption, multi-layered access control, database leakage prevention, and intrusion detection capabilities in a convenient, developer-friendly package. Acra was specifically designed for web and mobile apps with centralised data storage, including with distributed, microservice-rich applications.
 
@@ -51,6 +51,51 @@ Acra is a continuously developing security tool. And as any proper security tool
 Acra relies on our cryptographic library [Themis](https://www.cossacklabs.com/themis/), which implements high-level cryptosystems based on the best available [open-source implementations](https://docs.cossacklabs.com/pages/themis-cryptographic-donors/) of the [most reliable ciphers](https://docs.cossacklabs.com/pages/soter/). Acra does not contain any self-made cryptographic primitives or obscure ciphers. To deliver its unique guarantees, Acra relies on the combination of well-known ciphers and a smart key management scheme.
 
 The [enterprise version of Acra](https://www.cossacklabs.com/acra/) can run on the certified crypto-libraries of your choice (i.e. the abovementioned FIPS, GOST, etc.), [drop us an email](mailto:sales@cossacklabs.com) to get a quote.
+
+
+## Try Acra without writing code
+
+### Acra Live Demo (see Acra in action in one click)
+
+[Acra Live Demo](https://acra.cossacklabs.com/) is a web-based demo of protecting data in a typical web-infrastructure (deployed on our servers for your convenience).
+
+<img src="https://github.com/cossacklabs/acra/wiki/Images/readme/AcraLiveDemo.png" width="600">
+
+Acra Live Demo infrastructure contains: Django-based application, PostgreSQL database, AcraServer with AcraCensor, log monitor. Sensitive data is encrypted in a Django application, stored in a database, and decrypted through Acra. 
+
+From the users' perspective, the website works as it used to. However, the data is protected in a way that even hacking the web application won't lead to the data leakage.
+
+The available actions include:
+* adding new rows to the database (in plaintext and encrypted form);
+* watching the database content change in real-time;
+* running malicious SQL queries that will be [blocked by AcraCensor](https://docs.cossacklabs.com/pages/documentation-acra/#acracensor-acra-s-firewall);
+* [rolling back](https://docs.cossacklabs.com/pages/acrarollback/) the encrypted data;
+* [detecting intrusions](http://docs.cossacklabs.com/pages/intrusion-detection/).
+
+Requirements: Chrome, Firefox or Safari browser.
+
+> Note: We create separate playground for each user, that's why we ask for your email; you'll receive the invitation email.
+
+| 🖥 [Access Live Demo](https://www.cossacklabs.com/acra/#acralivedemo) 🖥 |
+|---|
+
+### Acra Engineering Demo (deploy the whole infrastructure in one command)
+
+[Acra Engineering Demo](https://github.com/cossacklabs/acra-engineering-demo) illustrates the integration of Acra data protection suite into existing applications: Django-based web application and python CLI application. We took well-known applications and added the encryption layer.
+
+<img src="https://github.com/cossacklabs/acra/wiki//Images/readme/AcraEngDemo.png" width="600">
+Protecting the data is completely transparent for the users and requires minimal changes in the infrastructure.
+ 
+Developers and Ops friendly:
+* run single command to deploy application, database, Acra components, logs and dashboards;
+* read code changes – how little it takes to integrate encryption into the client application;
+* explore how Acra works by reading logs, monitoring metrics in Prometheus and watching Grafana dashboards;
+* inspect Docker-compose files, architecture schemes, database tables, and many more.
+
+Requirements: Linux or macOS terminal.
+
+| ⚙️ [Run Engineering Demo](https://github.com/cossacklabs/acra-engineering-demo) ⚙️ |
+|---|
 
 ## Availability
 
@@ -96,23 +141,6 @@ Supported databases:
 | MySQL | 5.7+ |
 | PostgreSQL | 9.4+ |
 
-## Acra Live Demo
-
-[Acra Live Demo](https://acra.cossacklabs.com/) is a web-based demo of a typical web-infrastructure protected by Acra and deployed on our servers for your convenience.
-
-Acra Live Demo illustrates the process of data protection for web: encrypting data from a Python application, storing it in a PostgreSQL database, and decrypting data through Acra.
-
-Acra Live Demo infrastructure contains: web application, PostgreSQL database, AcraServer with AcraCensor, log monitor.
-
-The available functions of Acra Live Demo include:
-* adding new rows to the database (in plaintext and encrypted form);
-* watching the database content change in real-time;
-* running malicious SQL queries that can be blocked by AcraCensor;
-* [detecting intrusions](http://docs.cossacklabs.com/pages/intrusion-detection/).
-
-| 💻 [Request a free Acra Live Demo](https://www.cossacklabs.com/acra/#acralivedemo) 💻 |
-|---|
-
 ## How does Acra work?
 
 To better understand the architecture and data flow, please refer to [Architecture and data flow](https://docs.cossacklabs.com/pages/documentation-acra/#architecture-and-data-flow) section in the documentation.
@@ -144,7 +172,9 @@ This is what the process of encryption and decryption data using AcraTranslator 
 
 AcraTranslator and AcraServer are fully independent server-side components and can be used together or separately depending on your infrastructure.
 
-## Demo stand
+## Installation and launch
+
+### Quick launch
 
 For a quick and easy start, we recommend [trying Acra with Docker](http://docs.cossacklabs.com/pages/trying-acra-with-docker/) first. Using only two commands, you will get all the Acra's components and database up and running, with a secure transport layer between them. We prepared several typical infrastructure variants to experiment with.
 
@@ -155,7 +185,7 @@ For a quick and easy start, we recommend [trying Acra with Docker](http://docs.c
 
 Please use the Acra Docker demo stand for testing/experimenting purposes only as the encryption keys are pre-generated in the configuration.
 
-## Manual launch
+### Manual launch
 
 For production environments, we insist on generating and exchanging keys manually. Refer to the [Quick Start guide](https://docs.cossacklabs.com/pages/documentation-acra/#installing-acra-from-the-cossack-labs-repository) to understand how to download and launch Acra components, generate keys, and perform a key exchange properly.
 
