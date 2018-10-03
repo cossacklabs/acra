@@ -60,7 +60,6 @@ The [enterprise version of Acra](https://www.cossacklabs.com/acra/) can run on t
 [Acra Live Demo](https://acra.cossacklabs.com/) is a web-based demo of protecting data in a typical web-infrastructure (deployed on our servers for your convenience).
 
 <img src="https://github.com/cossacklabs/acra/wiki/Images/readme/AcraLiveDemo.png" width="600">
-
 Acra Live Demo infrastructure contains: Django-based application, PostgreSQL database, AcraServer with AcraCensor, log monitor. Sensitive data is encrypted in a Django application, stored in a database, and decrypted through Acra. 
 
 From the users' perspective, the website works as it used to. However, the data is protected in a way that even hacking the web application won't lead to the data leakage.
@@ -87,10 +86,10 @@ Requirements: Chrome, Firefox or Safari browser.
 Protecting the data is completely transparent for the users and requires minimal changes in the infrastructure.
  
 Developers and Ops friendly:
-* run single command to deploy application, database, Acra components, logs and dashboards;
-* read code changes – how little it takes to integrate encryption into the client application;
-* explore how Acra works by reading logs, monitoring metrics in Prometheus and watching Grafana dashboards;
-* inspect Docker-compose files, architecture schemes, database tables, and many more.
+* run a single command to deploy the application, database, Acra's components, logs, and dashboards;
+* read the code changes and see how little it takes to integrate encryption into the client application;
+* learn how Acra works by reading logs, monitoring metrics in Prometheus, and watching Grafana dashboards;
+* inspect Docker-compose files, architecture schemes, database tables, and much more.
 
 Requirements: Linux or macOS terminal.
 
