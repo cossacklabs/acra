@@ -62,14 +62,14 @@ The [enterprise version of Acra](https://www.cossacklabs.com/acra/) can run on t
 <img src="https://github.com/cossacklabs/acra/wiki/Images/readme/AcraLiveDemo.png" width="600">
 Acra Live Demo infrastructure contains: Django-based application, PostgreSQL database, AcraServer with AcraCensor, log monitor. Sensitive data is encrypted in a Django application, stored in a database, and decrypted through Acra. 
 
-From the users' perspective, the website works as it used to. However, the data is protected in a way that even hacking the web application won't lead to the data leakage.
+From the users' perspective, the website's work is unchanged. However, the data is securely protected so that even hacking the web application won't lead to data leakage.
 
 The available actions include:
 * adding new rows to the database (in plaintext and encrypted form);
 * watching the database content change in real-time;
 * running malicious SQL queries that will be [blocked by AcraCensor](https://docs.cossacklabs.com/pages/documentation-acra/#acracensor-acra-s-firewall);
 * [rolling back](https://docs.cossacklabs.com/pages/acrarollback/) the encrypted data;
-* [detecting intrusions](http://docs.cossacklabs.com/pages/intrusion-detection/).
+* [intrusion detection](http://docs.cossacklabs.com/pages/intrusion-detection/).
 
 Requirements: Chrome, Firefox or Safari browser.
 
