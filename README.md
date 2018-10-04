@@ -18,9 +18,9 @@
 </p>
 <br>
 
+| [Documentation](https://docs.cossacklabs.com/products/acra/) | [Acra Live Demo](https://www.cossacklabs.com/acra/#acralivedemo) | [Acra Engineering Demo](https://github.com/cossacklabs/acra-engineering-demo) | [Django sample project](https://github.com/cossacklabs/djangoproject.com) | [RubyGems sample project](https://github.com/cossacklabs/rubygems.org) | [Other examples](https://github.com/cossacklabs/acra/tree/master/examples) |
+| ---- | ---- | ---- | --- | --- | --- |
 
-| [Documentation](https://docs.cossacklabs.com/products/acra/) | [Acra Live Demo](https://www.cossacklabs.com/acra/#acralivedemo) | [Python sample project](https://github.com/cossacklabs/djangoproject.com) | [Ruby sample project](https://github.com/cossacklabs/rubygems.org) | [Examples](https://github.com/cossacklabs/acra/tree/master/examples) |
-| ---- | ---- | ---- | --- | --- |
 
 ## What is Acra
 Acra — database security suite for sensitive and personal data protection.
