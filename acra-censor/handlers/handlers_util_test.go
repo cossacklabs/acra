@@ -70,7 +70,7 @@ func testSingleTopLevelPlaceholder(t *testing.T, pattern string, indexOfMatchedQ
 		t.Fatal(err)
 	}
 	match := false
-	for index, _ := range testQueries {
+	for index := range testQueries {
 		match, err = checkPatternsMatching(parsedPatterns, testQueries[index])
 		if err != nil {
 			t.Fatal(err)

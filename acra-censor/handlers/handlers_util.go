@@ -113,15 +113,36 @@ const (
 	ColumnReplacer = "column_443112402399486586659464580"
 )
 
+// UnionPatternStatement is used while comparison with %%UNION%% pattern
 var UnionPatternStatement, _ = sqlparser.Parse(UnionReplacer)
+
+// SelectPatternStatement is used while comparison with %%SELECT%% pattern
 var SelectPatternStatement, _ = sqlparser.Parse(SelectReplacer)
+
+// InsertPatternStatement is used while comparison with %%INSERT%% pattern
 var InsertPatternStatement, _ = sqlparser.Parse(InsertReplacer)
+
+// UpdatePatternStatement is used while comparison with %%UPDATE%% pattern
 var UpdatePatternStatement, _ = sqlparser.Parse(UpdateReplacer)
+
+// DeletePatternStatement is used while comparison with %%DELETE%% pattern
 var DeletePatternStatement, _ = sqlparser.Parse(DeleteReplacer)
-var ValuePatternStatement = sqlparser.NewStrVal([]byte(ValueReplacer[1:34])) // ValueReplacer without quotes
+
+// ValuePatternStatement is used while comparison with %%VALUE%% pattern
+// replacer is used without quotes
+var ValuePatternStatement = sqlparser.NewStrVal([]byte(ValueReplacer[1:34]))
+
+// SubqueryPatternStatement is used while comparison with %%SUBQUERY%% pattern
 var SubqueryPatternStatement, _ = sqlparser.Parse(SubqueryReplacer)
-var ListOfValuePatternStatement = sqlparser.NewStrVal([]byte(ListOfValuesReplacer[1:43])) // ListOfValuesReplacer without quotes
+
+// ListOfValuePatternStatement is used while comparison with %%LIST_OF_VALUES%% pattern
+// replacer is used without quotes
+var ListOfValuePatternStatement = sqlparser.NewStrVal([]byte(ListOfValuesReplacer[1:43]))
+
+// ColumnPatternStatement is used while comparison with %%COLUMN%% pattern
 var ColumnPatternStatement = sqlparser.NewColIdent(ColumnReplacer)
+
+// WherePatternStatement is used while comparison with %%WHERE%% pattern
 var WherePatternStatement, _ = sqlparser.Parse("SELECT * FROM table_883909268 " + WhereReplacer)
 
 // TrimStringToN trims query to N chars.
@@ -577,7 +598,7 @@ func matchSelectComments(query, pattern sqlparser.Comments) bool {
 	if len(query) != len(pattern) {
 		return false
 	}
-	for index, _ := range pattern {
+	for index := range pattern {
 		if !bytes.Equal(query[index], pattern[index]) {
 			return false
 		}
@@ -598,7 +619,7 @@ func matchSelectSelectExprs(query, pattern sqlparser.SelectExprs) bool {
 	if len(query) != len(pattern) {
 		return false
 	}
-	for index, _ := range pattern {
+	for index := range pattern {
 		if !areEqualSelectExpr(query[index], pattern[index]) {
 			return false
 		}
@@ -610,7 +631,7 @@ func matchSelectFrom(query, pattern sqlparser.TableExprs) bool {
 	if len(query) != len(pattern) {
 		return false
 	}
-	for index, _ := range pattern {
+	for index := range pattern {
 		if !areEqualTableExpr(query[index], pattern[index]) {
 			return false
 		}
@@ -639,7 +660,7 @@ func matchSelectGroupBy(query, pattern sqlparser.GroupBy) bool {
 	if len(query) != len(pattern) {
 		return false
 	}
-	for index, _ := range pattern {
+	for index := range pattern {
 		if !areEqualExpr(query[index], pattern[index]) {
 			return false
 		}
@@ -666,7 +687,7 @@ func matchSelectOrderBy(query, pattern sqlparser.OrderBy) bool {
 	if len(query) != len(pattern) {
 		return false
 	}
-	for index, _ := range pattern {
+	for index := range pattern {
 		if !areEqualExpr(query[index].Expr, pattern[index].Expr) {
 			return false
 		}
@@ -717,7 +738,7 @@ func matchInsertColumns(query, pattern sqlparser.Columns) bool {
 	if len(query) != len(pattern) {
 		return false
 	}
-	for index, _ := range pattern {
+	for index := range pattern {
 		if !areEqualColIdent(query[index], pattern[index]) {
 			return false
 		}
@@ -752,7 +773,7 @@ func matchInsertRows(query, pattern sqlparser.InsertRows) bool {
 		if len(queryValues) != len(patternValues) {
 			return false
 		}
-		for index, _ := range pattern.(sqlparser.Values) {
+		for index := range pattern.(sqlparser.Values) {
 			if !areEqualValTuple(queryValues[index], patternValues[index]) {
 				return false
 			}
@@ -778,7 +799,7 @@ func matchInsertOnDup(query, pattern sqlparser.OnDup) bool {
 		return false
 	}
 
-	for index, _ := range pattern {
+	for index := range pattern {
 		if !areEqualExpr(query[index].Expr, pattern[index].Expr) {
 			return false
 		}
@@ -804,7 +825,7 @@ func matchUpdateExprs(query, pattern sqlparser.UpdateExprs) bool {
 	if len(query) != len(pattern) {
 		return false
 	}
-	for index, _ := range pattern {
+	for index := range pattern {
 		if !areEqualUpdateExpr(query[index], pattern[index]) {
 			return false
 		}
@@ -838,7 +859,7 @@ func matchDeleteTargets(query sqlparser.TableNames, pattern sqlparser.TableNames
 	if len(query) != len(pattern) {
 		return false
 	}
-	for index, _ := range pattern {
+	for index := range pattern {
 		if !areEqualTableName(query[index], pattern[index]) {
 			return false
 		}
@@ -889,7 +910,7 @@ func areEqualParenTableExpr(query, pattern *sqlparser.ParenTableExpr) bool {
 	if len(query.Exprs) != len(pattern.Exprs) {
 		return false
 	}
-	for index, _ := range pattern.Exprs {
+	for index := range pattern.Exprs {
 		if !areEqualTableExpr(query.Exprs[index], pattern.Exprs[index]) {
 			return false
 		}
@@ -930,7 +951,7 @@ func areEqualPartitions(query, pattern sqlparser.Partitions) bool {
 	if len(query) != len(pattern) {
 		return false
 	}
-	for index, _ := range pattern {
+	for index := range pattern {
 		if !areEqualColIdent(query[index], pattern[index]) {
 			return false
 		}
@@ -951,7 +972,7 @@ func areEqualIndexHints(query, pattern *sqlparser.IndexHints) bool {
 	if !strings.EqualFold(query.Type, pattern.Type) {
 		return false
 	}
-	for index, _ := range pattern.Indexes {
+	for index := range pattern.Indexes {
 		if !areEqualColIdent(query.Indexes[index], pattern.Indexes[index]) {
 			return false
 		}
@@ -1397,7 +1418,7 @@ func areEqualCaseExpr(query, pattern *sqlparser.CaseExpr) bool {
 		return false
 	}
 
-	for index, _ := range pattern.Whens {
+	for index := range pattern.Whens {
 		if !areEqualWhen(query.Whens[index], pattern.Whens[index]) {
 			return false
 		}
@@ -1567,7 +1588,7 @@ func areEqualJoinConditions(query, pattern sqlparser.JoinCondition) bool {
 	if len(query.Using) != len(pattern.Using) {
 		return false
 	}
-	for index, _ := range pattern.Using {
+	for index := range pattern.Using {
 		if !areEqualColIdent(query.Using[index], pattern.Using[index]) {
 			return false
 		}
@@ -1640,7 +1661,7 @@ func areEqualValTuple(query sqlparser.ValTuple, pattern sqlparser.ValTuple) bool
 	if query == nil || pattern == nil {
 		return false
 	}
-	for index, _ := range pattern {
+	for index := range pattern {
 		if index >= len(query) {
 			return false
 		}
