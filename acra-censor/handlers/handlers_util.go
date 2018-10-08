@@ -56,48 +56,73 @@ var (
 const (
 	// LogQueryLength is maximum query length for logging to syslog.
 	LogQueryLength = 100
-	// ValuePlaceholder used to mask real Values from SQL queries before logging to syslog.
-	ValuePlaceholder = "replaced"
-	// SelectConfigPlaceholder and further constants are used to create unique SQL query that express security patterns (such patterns will be wittingly parsed correctly)
-	SelectConfigPlaceholder = "%%SELECT%%"
-	// SelectConfigPlaceholderReplacerPart1 is used when matching %%SELECT%% pattern
-	SelectConfigPlaceholderReplacerPart1 = "SELECT"
-	// SelectConfigPlaceholderReplacerPart2 is used when matching %%SELECT%% pattern
-	SelectConfigPlaceholderReplacerPart2 = "F1F0A98E"
-	// SelectConfigPlaceholderReplacer is used when matching %%SELECT%% pattern
-	SelectConfigPlaceholderReplacer = SelectConfigPlaceholderReplacerPart1 + " " + SelectConfigPlaceholderReplacerPart2
-	// ColumnConfigPlaceholder is used when matching %%COLUMN%% pattern
-	ColumnConfigPlaceholder = "%%COLUMN%%"
-	// ColumnConfigPlaceholderReplacer is used when matching %%COLUMN%% pattern
-	ColumnConfigPlaceholderReplacer = "COLUMN_A8D6EB40"
-	// WhereConfigPlaceholder is used when matching %%WHERE%% pattern
-	WhereConfigPlaceholder = "%%WHERE%%"
-	// WhereConfigPlaceholderReplacerPart1 is used when matching %%WHERE%% pattern
-	WhereConfigPlaceholderReplacerPart1 = "WHERE"
-	// WhereConfigPlaceholderReplacerPart2 is used when matching %%WHERE%% pattern
-	WhereConfigPlaceholderReplacerPart2 = "VALUE_EF930A9B = 'VALUE_CD329E0D'"
-	// WhereConfigPlaceholderReplacer is used when matching %%WHERE%% pattern
-	WhereConfigPlaceholderReplacer = WhereConfigPlaceholderReplacerPart1 + " " + WhereConfigPlaceholderReplacerPart2
-	// ValueConfigPlaceholder is used when matching %%VALUE%% pattern
-	ValueConfigPlaceholder = "%%VALUE%%"
-	// ValueConfigPlaceholderRawReplacer represents value without quotes
-	ValueConfigPlaceholderRawReplacer = "VALUE_AE920B7D"
-	// ValueConfigPlaceholderReplacer represents quoted value
-	ValueConfigPlaceholderReplacer = "'" + ValueConfigPlaceholderRawReplacer + "'"
-	// ListOfValuesConfigPlaceholder is used when matching %%LIST_OF_VALUES%% pattern
-	ListOfValuesConfigPlaceholder = "%%LIST_OF_VALUES%%"
-	// ListOfValuesConfigPlaceholderRawReplacer is used when matching %%LIST_OF_VALUES%% pattern
-	ListOfValuesConfigPlaceholderRawReplacer = "LIST_OF_VALUES_1KVA2TWY"
-	// ListOfValuesConfigPlaceholderReplacer is used when matching %%LIST_OF_VALUES%% pattern
-	ListOfValuesConfigPlaceholderReplacer = "'" + ListOfValuesConfigPlaceholderRawReplacer + "'"
-	// SubqueryConfigPlaceholder is used when matching %%SUBQUERY%% pattern
-	SubqueryConfigPlaceholder = "%%SUBQUERY%%"
-	// SubqueryConfigPlaceholderReplacer is used when matching %%SUBQUERY%% pattern
-	SubqueryConfigPlaceholderReplacer = "SELECT 'SUBQUERY_953IKLIJU4C8joVsZqCr8hYducQWNx'"
+	// ValueMask is used to mask real Values from SQL queries before logging to syslog.
+	ValueMask = "replaced"
+	// UnionPlaceholder is used when matching %%UNION%% pattern
+	UnionPlaceholder = "%%UNION%%"
+	// SelectPlaceholder is used when matching %%SELECT%% pattern
+	SelectPlaceholder = "%%SELECT%%"
+	// InsertPlaceholder is used when matching %%INSERT%% pattern
+	InsertPlaceholder = "%%INSERT%%"
+	// UpdatePlaceholder is used when matching %%UPDATE%% pattern
+	UpdatePlaceholder = "%%UPDATE%%"
+	// DeletePlaceholder is used when matching %%DELETE%% pattern
+	DeletePlaceholder = "%%DELETE%%"
+	// BeginPlaceholder is used when matching BEGIN pattern
+	BeginPlaceholder = "%%BEGIN%%"
+	// CommitPlaceholder is used when matching COMMIT pattern
+	CommitPlaceholder = "%%COMMIT%%"
+	// RollbackPlaceholder is used when matching ROLLBACK pattern
+	RollbackPlaceholder = "%%ROLLBACK%%"
+	// WherePlaceholder is used when matching %%WHERE%% pattern
+	WherePlaceholder = "%%WHERE%%"
+	// ValuePlaceholder is used when matching %%VALUE%% pattern
+	ValuePlaceholder = "%%VALUE%%"
+	// SubqueryPlaceholder is used when matching %%SUBQUERY%% pattern
+	SubqueryPlaceholder = "%%SUBQUERY%%"
+	// ListOfValuesPlaceholder is used when matching %%LIST_OF_VALUES%% pattern
+	ListOfValuesPlaceholder = "%%LIST_OF_VALUES"
+	// ColumnPlaceholder is used when matching %%COLUMN%% pattern
+	ColumnPlaceholder = "%%COLUMN%%"
+
+	// SelectReplacer is used when matching %%SELECT%% pattern
+	SelectReplacer = "SELECT 253768160274445518137315681"
+	// UnionReplacer is used when matching %%UNION%% pattern
+	UnionReplacer = "SELECT 254775710223443243272234290 UNION SELECT 486264166657867240626457666"
+	// InsertReplacer is used when matching %%INSERT%% pattern
+	InsertReplacer = "INSERT INTO table_150624360841713829746677497 (column_454716724) VALUES (value_151516596)"
+	// UpdateReplacer is used when matching %%UPDATE%% pattern
+	UpdateReplacer = "UPDATE table_795749362101944825892661393 SET column_148943040 = 577742781 WHERE row_788570922 = 840343494"
+	// DeleteReplacer is used when matching %%DELETE%% pattern
+	DeleteReplacer = "DELETE FROM table_359557854899217835429634591"
+	// BeginReplacer is used when matching BEGIN pattern
+	BeginReplacer = "BEGIN"
+	// CommitReplacer is used when matching COMMIT pattern
+	CommitReplacer = "COMMIT"
+	// RollbackReplacer is used when matching ROLLBACK pattern
+	RollbackReplacer = "ROLLBACK"
+	// WhereReplacer is used when matching %%WHERE%% pattern
+	WhereReplacer = "where value = where_651453831047102383248696721"
+	// ValueReplacer is used when matching %%VALUE%% pattern
+	ValueReplacer = "'value_877452131373673274532373116'"
+	// SubqueryReplacer is used when matching %%SUBQUERY%% pattern
+	SubqueryReplacer = "SELECT 'subquery_820753242875385807714016705'"
+	// ListOfValuesReplacer is used when matching %%LIST_OF_VALUES%% pattern
+	ListOfValuesReplacer = "'list_of_values_980254824737236160411017007'"
+	// ColumnReplacer is used when matching %%COLUMN%% pattern
+	ColumnReplacer = "column_443112402399486586659464580"
 )
 
-// SubqueryConfigPlaceholderReplacerParsed represents parsed subquery used while pattern matching
-var SubqueryConfigPlaceholderReplacerParsed, _ = sqlparser.Parse(SubqueryConfigPlaceholderReplacer)
+var UnionPatternStatement, _ = sqlparser.Parse(UnionReplacer)
+var SelectPatternStatement, _ = sqlparser.Parse(SelectReplacer)
+var InsertPatternStatement, _ = sqlparser.Parse(InsertReplacer)
+var UpdatePatternStatement, _ = sqlparser.Parse(UpdateReplacer)
+var DeletePatternStatement, _ = sqlparser.Parse(DeleteReplacer)
+var ValuePatternStatement = sqlparser.NewStrVal([]byte(ValueReplacer[1:34])) // ValueReplacer without quotes
+var SubqueryPatternStatement, _ = sqlparser.Parse(SubqueryReplacer)
+var ListOfValuePatternStatement = sqlparser.NewStrVal([]byte(ListOfValuesReplacer[1:43])) // ListOfValuesReplacer without quotes
+var ColumnPatternStatement = sqlparser.NewColIdent(ColumnReplacer)
+var WherePatternStatement, _ = sqlparser.Parse("SELECT * FROM table_883909268 " + WhereReplacer)
 
 // TrimStringToN trims query to N chars.
 func TrimStringToN(query string, n int) string {
@@ -125,711 +150,1560 @@ func NormalizeAndRedactSQLQuery(sql string) (normalizedQuery string, redactedQue
 	normalizedQ := sqlparser.String(stmt)
 
 	// redact and mask VALUES
-	sqlparser.Normalize(stmt, bv, ValuePlaceholder)
+	sqlparser.Normalize(stmt, bv, ValueMask)
 	redactedQ := sqlparser.String(stmt)
 
 	return normalizedQ, redactedQ, nil
 }
 
-func checkPatternsMatching(patterns [][]sqlparser.SQLNode, query string) (bool, error) {
-	statement, err := sqlparser.Parse(query)
+func checkPatternsMatching(patterns []sqlparser.Statement, query string) (bool, error) {
+	parsedQuery, err := sqlparser.Parse(query)
 	if err != nil {
 		log.WithError(err).Errorln("Can't parse query")
 		return false, ErrQuerySyntaxError
 	}
-	queryNodes, err := getAllNodes(statement)
-	if err != nil {
-		return false, err
-	}
-	for _, singlePatternNodes := range patterns {
-		if checkSinglePatternMatch(queryNodes, singlePatternNodes) {
+
+	for _, pattern := range patterns {
+		if checkSinglePatternMatch(parsedQuery, pattern) {
 			return true, nil
 		}
 	}
 	return false, nil
 }
 
-func checkSinglePatternMatch(queryNodes []sqlparser.SQLNode, patternNodes []sqlparser.SQLNode) bool {
-	matchOccurred := false
-	matchOccurred = handleSelectPattern(queryNodes, patternNodes)
-	if matchOccurred {
+func checkSinglePatternMatch(query, pattern sqlparser.Statement) bool {
+	match := false
+	match = handleUnionStatement(query, pattern)
+	if match {
 		return true
 	}
-	matchOccurred = handleSelectColumnPattern(queryNodes, patternNodes)
-	if matchOccurred {
+	match = handleSelectStatement(query, pattern)
+	if match {
 		return true
 	}
-	matchOccurred = handleSelectWherePattern(queryNodes, patternNodes)
-	if matchOccurred {
+	match = handleStreamStatement(query, pattern)
+	if match {
 		return true
 	}
-	matchOccurred = handleWherePatterns(queryNodes, patternNodes)
-	if matchOccurred {
+	match = handleInsertStatement(query, pattern)
+	if match {
 		return true
 	}
-	matchOccurred = handleStarPattern(queryNodes, patternNodes)
-	if matchOccurred {
+	match = handleUpdateStatement(query, pattern)
+	if match {
 		return true
 	}
-	matchOccurred = handleLimitValuePattern(queryNodes, patternNodes)
-	if matchOccurred {
+	match = handleDeleteStatement(query, pattern)
+	if match {
 		return true
 	}
-	//query doesn't match any stored pattern
+	match = handleSetStatement(query, pattern)
+	if match {
+		return true
+	}
+	match = handleDBDDLStatement(query, pattern)
+	if match {
+		return true
+	}
+	match = handleDDLStatement(query, pattern)
+	if match {
+		return true
+	}
+	match = handleShowStatement(query, pattern)
+	if match {
+		return true
+	}
+	match = handleUseStatement(query, pattern)
+	if match {
+		return true
+	}
+	match = handleBeginStatement(query, pattern)
+	if match {
+		return true
+	}
+	match = handleCommitStatement(query, pattern)
+	if match {
+		return true
+	}
+	match = handleRollbackStatement(query, pattern)
+	if match {
+		return true
+	}
+	match = handleOtherReadStatement(query, pattern)
+	if match {
+		return true
+	}
+	match = handleOtherAdminStatement(query, pattern)
+	if match {
+		return true
+	}
+
+	//query doesn't match any pattern
 	return false
 }
 
-// handleSelectPattern handles %%SELECT%% pattern
-func handleSelectPattern(queryNodes, patternNodes []sqlparser.SQLNode) bool {
-	if reflect.TypeOf(queryNodes[0]) == reflect.TypeOf(patternNodes[0]) {
-		if patternNodeSelect, ok := patternNodes[0].(*sqlparser.Select); ok && strings.EqualFold(sqlparser.String(patternNodeSelect.SelectExprs), SelectConfigPlaceholderReplacerPart2) {
+//SQL statemnent handlers
+func handleUnionStatement(query, pattern sqlparser.Statement) bool {
+	match := false
+	queryUnionNode, ok := query.(*sqlparser.Union)
+	if !ok {
+		return false
+	}
+	patternUnionNode, ok := pattern.(*sqlparser.Union)
+	if !ok {
+		return false
+	}
+
+	// check %%UNION%%
+	if reflect.DeepEqual(pattern, UnionPatternStatement) {
+		return true
+	}
+
+	match = matchUnionLeft(queryUnionNode.Left, patternUnionNode.Left)
+	if !match {
+		return false
+	}
+	match = matchUnionRight(queryUnionNode.Right, patternUnionNode.Right)
+	if !match {
+		return false
+	}
+	match = matchUnionOrderBy(queryUnionNode.OrderBy, patternUnionNode.OrderBy)
+	if !match {
+		return false
+	}
+	match = matchUnionLimit(queryUnionNode.Limit, patternUnionNode.Limit)
+	if !match {
+		return false
+	}
+	match = matchUnionLock(queryUnionNode.Lock, patternUnionNode.Lock)
+	if !match {
+		return false
+	}
+
+	return true
+}
+func handleSelectStatement(query, pattern sqlparser.Statement) bool {
+	match := false
+	querySelectNode, ok := query.(*sqlparser.Select)
+	if !ok {
+		return false
+	}
+	patternSelectNode, ok := pattern.(*sqlparser.Select)
+	if !ok {
+		return false
+	}
+
+	// check %%SELECT%%
+	if reflect.DeepEqual(pattern, SelectPatternStatement) {
+		return true
+	}
+
+
+	match = matchSelectCache(querySelectNode.Cache, patternSelectNode.Cache)
+	if !match {
+		return false
+	}
+	match = matchSelectComments(querySelectNode.Comments, patternSelectNode.Comments)
+	if !match {
+		return false
+	}
+	match = matchSelectDistinct(querySelectNode.Distinct, patternSelectNode.Distinct)
+	if !match {
+		return false
+	}
+	match = matchSelectHints(querySelectNode.Hints, patternSelectNode.Hints)
+	if !match {
+		return false
+	}
+	match = matchSelectSelectExprs(querySelectNode.SelectExprs, patternSelectNode.SelectExprs)
+	if !match {
+		return false
+	}
+	match = matchSelectFrom(querySelectNode.From, patternSelectNode.From)
+	if !match {
+		return false
+	}
+	match = matchSelectWhere(querySelectNode.Where, patternSelectNode.Where)
+	if !match {
+		// Check %%WHERE%% pattern
+		if isWherePattern(patternSelectNode.Where) {
+			return true
+		}
+		return false
+	}
+	match = matchSelectGroupBy(querySelectNode.GroupBy, patternSelectNode.GroupBy)
+	if !match {
+		return false
+	}
+	match = matchSelectHaving(querySelectNode.Having, patternSelectNode.Having)
+	if !match {
+		return false
+	}
+	match = matchSelectOrderBy(querySelectNode.OrderBy, patternSelectNode.OrderBy)
+	if !match {
+		return false
+	}
+	match = matchSelectLimit(querySelectNode.Limit, patternSelectNode.Limit)
+	if !match {
+		return false
+	}
+	match = matchSelectLock(querySelectNode.Lock, patternSelectNode.Lock)
+	if !match {
+		return false
+	}
+
+	return true
+}
+func handleStreamStatement(query, pattern sqlparser.Statement) bool {
+	// TODO
+	_ = query
+	_ = pattern
+	return false
+}
+func handleInsertStatement(query, pattern sqlparser.Statement) bool {
+	match := false
+	queryInsertNode, ok := query.(*sqlparser.Insert)
+	if !ok {
+		return false
+	}
+	patternInsertNode, ok := pattern.(*sqlparser.Insert)
+	if !ok {
+		return false
+	}
+
+	// check %%INSERT%%
+	if reflect.DeepEqual(pattern, InsertPatternStatement) {
+		return true
+	}
+
+
+	match = matchInsertAction(queryInsertNode.Action, patternInsertNode.Action)
+	if !match {
+		return false
+	}
+	match = matchInsertComments(queryInsertNode.Comments, patternInsertNode.Comments)
+	if !match {
+		return false
+	}
+	match = matchInsertIgnore(queryInsertNode.Ignore, patternInsertNode.Ignore)
+	if !match {
+		return false
+	}
+	match = matchInsertTable(queryInsertNode.Table, patternInsertNode.Table)
+	if !match {
+		return false
+	}
+	match = matchInsertPartitions(queryInsertNode.Partitions, patternInsertNode.Partitions)
+	if !match {
+		return false
+	}
+	match = matchInsertColumns(queryInsertNode.Columns, patternInsertNode.Columns)
+	if !match {
+		return false
+	}
+	match = matchInsertRows(queryInsertNode.Rows, patternInsertNode.Rows)
+	if !match {
+		return false
+	}
+	match = matchInsertOnDup(queryInsertNode.OnDup, patternInsertNode.OnDup)
+	if !match {
+		return false
+	}
+	return false
+}
+func handleUpdateStatement(query, pattern sqlparser.Statement) bool {
+	match := false
+	queryUpdateNode, ok := query.(*sqlparser.Update)
+	if !ok {
+		return false
+	}
+	patternUpdateNode, ok := pattern.(*sqlparser.Update)
+	if !ok {
+		return false
+	}
+	// check %%UPDATE%%
+	if reflect.DeepEqual(pattern, UpdatePatternStatement) {
+		return true
+	}
+
+	match = matchUpdateComments(queryUpdateNode.Comments, patternUpdateNode.Comments)
+	if !match {
+		return false
+	}
+	match = matchUpdateTableExprs(queryUpdateNode.TableExprs, patternUpdateNode.TableExprs)
+	if !match {
+		return false
+	}
+	match = matchUpdateExprs(queryUpdateNode.Exprs, patternUpdateNode.Exprs)
+	if !match {
+		return false
+	}
+	match = matchUpdateWhere(queryUpdateNode.Where, patternUpdateNode.Where)
+	if !match {
+		return false
+	}
+	match = matchUpdateOrderBy(queryUpdateNode.OrderBy, patternUpdateNode.OrderBy)
+	if !match {
+		return false
+	}
+	match = matchUpdateLimit(queryUpdateNode.Limit, patternUpdateNode.Limit)
+	if !match {
+		return false
+	}
+
+	return true
+}
+func handleDeleteStatement(query, pattern sqlparser.Statement) bool {
+	match := false
+	queryDeleteNode, ok := query.(*sqlparser.Delete)
+	if !ok {
+		return false
+	}
+	patternDeleteNode, ok := pattern.(*sqlparser.Delete)
+	if !ok {
+		return false
+	}
+	// check %%DELETE%%
+	if reflect.DeepEqual(pattern, DeletePatternStatement) {
+		return true
+	}
+	match = matchDeleteComments(queryDeleteNode.Comments, patternDeleteNode.Comments)
+	if !match {
+		return false
+	}
+	match = matchDeleteTargets(queryDeleteNode.Targets, patternDeleteNode.Targets)
+	if !match {
+		return false
+	}
+	match = matchDeleteTableExprs(queryDeleteNode.TableExprs, patternDeleteNode.TableExprs)
+	if !match {
+		return false
+	}
+	match = matchDeletePartitions(queryDeleteNode.Partitions, patternDeleteNode.Partitions)
+	if !match {
+		return false
+	}
+	match = matchDeleteWhere(queryDeleteNode.Where, patternDeleteNode.Where)
+	if !match {
+		return false
+	}
+	match = matchDeleteOrderBy(queryDeleteNode.OrderBy, patternDeleteNode.OrderBy)
+	if !match {
+		return false
+	}
+	match = matchDeleteLimit(queryDeleteNode.Limit, patternDeleteNode.Limit)
+	if !match {
+		return false
+	}
+
+	return true
+}
+func handleSetStatement(query, pattern sqlparser.Statement) bool {
+	// TODO
+	_ = query
+	_ = pattern
+	return false
+}
+func handleDBDDLStatement(query, pattern sqlparser.Statement) bool {
+	// TODO
+	_ = query
+	_ = pattern
+	return false
+}
+func handleDDLStatement(query, pattern sqlparser.Statement) bool {
+	// TODO
+	_ = query
+	_ = pattern
+	return false
+}
+func handleShowStatement(query, pattern sqlparser.Statement) bool {
+	// TODO
+	_ = query
+	_ = pattern
+	return false
+}
+func handleUseStatement(query, pattern sqlparser.Statement) bool {
+	// TODO
+	_ = query
+	_ = pattern
+	return false
+}
+func handleBeginStatement(query, pattern sqlparser.Statement) bool {
+	if _, ok := query.(*sqlparser.Begin); ok {
+		if _, ok := pattern.(*sqlparser.Begin); ok {
+			return true
+		}
+	}
+	return false
+}
+func handleCommitStatement(query, pattern sqlparser.Statement) bool {
+	if _, ok := query.(*sqlparser.Commit); ok {
+		if _, ok := pattern.(*sqlparser.Commit); ok {
+			return true
+		}
+	}
+	return false
+}
+func handleRollbackStatement(query, pattern sqlparser.Statement) bool {
+	if _, ok := query.(*sqlparser.Rollback); ok {
+		if _, ok := pattern.(*sqlparser.Rollback); ok {
+			return true
+		}
+	}
+	return false
+}
+func handleOtherReadStatement(query, pattern sqlparser.Statement) bool {
+	// TODO
+	if _, ok := query.(*sqlparser.OtherRead); ok {
+		if _, ok := pattern.(*sqlparser.OtherRead); ok {
+			return true
+		}
+	}
+	return false
+}
+func handleOtherAdminStatement(query, pattern sqlparser.Statement) bool {
+	// TODO
+	if _, ok := query.(*sqlparser.OtherAdmin); ok {
+		if _, ok := pattern.(*sqlparser.OtherAdmin); ok {
 			return true
 		}
 	}
 	return false
 }
 
-// handleSelectColumnPattern handles SELECT %%COLUMN%% pattern
-func handleSelectColumnPattern(queryNodes, patternNodes []sqlparser.SQLNode) bool {
-	querySelect, ok := queryNodes[0].(*sqlparser.Select)
-	if !ok {
-		return false
-	}
-	patternSelect, ok := patternNodes[0].(*sqlparser.Select)
-	if !ok {
-		return false
-	}
-	// check column count
-	if len(querySelect.SelectExprs) != len(patternSelect.SelectExprs) {
-		return false
-	}
-	// collect only SelectExpr, From, Where, OrderBy ... nodes without their children
-	queryTopNodes, err := getTopNodes(querySelect)
-	if err != nil {
-		return false
-	}
-	patternTopNodes, err := getTopNodes(patternSelect)
-	if err != nil {
-		return false
-	}
-
-	// skip zero node - it's parent Select
-	for i := 1; i < len(queryTopNodes); i++ {
-		patternNode := patternTopNodes[i]
-		queryNode := queryTopNodes[i]
-
-		switch patternNode.(type) {
-		case sqlparser.SelectExprs:
-			for i, column := range patternSelect.SelectExprs {
-				// if it pattern %%COLUMN%% node then we doesn't need to check query's node
-				if isColumnPattern(column) {
-					continue
-				}
-				// two nodes must be equal if pattern node is not %%COLUMN%%
-				if !reflect.DeepEqual(column, querySelect.SelectExprs[i]) {
-					return false
-				}
-			}
-		case sqlparser.OrderBy:
-			if queryOrderBy, ok := queryNode.(sqlparser.OrderBy); ok {
-				if !matchOrderBy(patternNode.(sqlparser.OrderBy), queryOrderBy) {
-					return false
-				}
-			}
-		case sqlparser.GroupBy:
-			if queryGroupBy, ok := queryNode.(sqlparser.GroupBy); ok {
-				if !matchGroupBy(patternNode.(sqlparser.GroupBy), queryGroupBy) {
-					return false
-				}
-			}
-		case *sqlparser.Where:
-			if queryHaving, ok := queryNode.(*sqlparser.Where); ok {
-				if !matchHaving(patternNode.(*sqlparser.Where), queryHaving) {
-					return false
-				}
-			}
-		default:
-			if !reflect.DeepEqual(patternNode, queryNode) {
-				return false
-			}
-		}
-	}
-	return true
+//Select statement matchers
+func matchSelectCache(query, pattern string) bool {
+	return strings.EqualFold(query, pattern)
 }
-
-// handleSelectWherePattern handles SELECT a, b from t %%WHERE%% pattern
-func handleSelectWherePattern(queryNodes, patternNodes []sqlparser.SQLNode) bool {
-	patternWhereDetected := false
-	queryWhereDetected := false
-	for index, patternNode := range patternNodes {
-		if index >= len(queryNodes) {
+func matchSelectComments(query, pattern sqlparser.Comments) bool {
+	if len(query) != len(pattern) {
+		return false
+	}
+	for index, _ := range pattern {
+		if !bytes.Equal(query[index], pattern[index]) {
 			return false
 		}
-		if index == 0 || reflect.DeepEqual(queryNodes[index], patternNode) {
-			continue
-		}
-		if patternWhereNode, ok := patternNode.(*sqlparser.Where); ok && patternWhereNode != nil && strings.EqualFold(sqlparser.String(patternWhereNode.Expr), WhereConfigPlaceholderReplacerPart2) {
-			patternWhereDetected = true
-		}
-		if queryWhereNode, ok := queryNodes[index].(*sqlparser.Where); ok && queryWhereNode != nil {
-			queryWhereDetected = true
-		}
-		if queryWhereDetected && patternWhereDetected {
-			return true
-		}
-		return false
 	}
-	//this is a case when pattern == query
 	return true
 }
-
-// handleStarPattern handles SELECT * FROM table %%WHERE%% pattern
-func handleStarPattern(queryNodes, patternNodes []sqlparser.SQLNode) bool {
-	patternWhereDetected := false
-	queryWhereDetected := false
-	patternNodeOffset := 0
-	queryNodeOffset := 0
-	for index := 1; index < len(patternNodes); index++ {
-		if index+patternNodeOffset >= len(patternNodes) || index+queryNodeOffset >= len(queryNodes) {
-			return false
-		}
-		if reflect.DeepEqual(patternNodes[index+patternNodeOffset], queryNodes[index+queryNodeOffset]) {
-			continue
-		}
-		if patternSelectExpr, ok := patternNodes[index+patternNodeOffset].(sqlparser.SelectExprs); ok && starFound(patternSelectExpr) {
-			if _, ok := queryNodes[index+queryNodeOffset].(sqlparser.SelectExprs); ok {
-				for i := index; i < len(queryNodes); i++ {
-					if _, ok := queryNodes[i].(sqlparser.TableExprs); ok {
-						break
-					}
-					queryNodeOffset++
-				}
-				for i := index; i < len(queryNodes); i++ {
-					if _, ok := patternNodes[i].(sqlparser.TableExprs); ok {
-						break
-					}
-					patternNodeOffset++
-				}
-				continue
-			}
-		}
-		if patternWhereNode, ok := patternNodes[index+patternNodeOffset].(*sqlparser.Where); ok && patternWhereNode != nil && strings.EqualFold(sqlparser.String(patternWhereNode.Expr), WhereConfigPlaceholderReplacerPart2) {
-			patternWhereDetected = true
-		}
-		if queryWhereNode, ok := queryNodes[index+queryNodeOffset].(*sqlparser.Where); ok && queryWhereNode != nil {
-			queryWhereDetected = true
-		}
-		if queryWhereDetected && patternWhereDetected {
-			return true
-		}
-		return false
-	}
-	//this is a case when pattern == query
-	return true
+func matchSelectDistinct(query, pattern string) bool {
+	return strings.EqualFold(query, pattern)
 }
-
-// handleWherePatterns try to match all WHERE conditions with supported patterns
-func handleWherePatterns(queryNodes, patternNodes []sqlparser.SQLNode) bool {
-	// collect only SelectExpr, From, Where, OrderBy ... nodes without their children
-	queryTopNodes, err := getTopNodes(queryNodes[0])
-	if err != nil {
+func matchSelectHints(query, pattern string) bool {
+	return strings.EqualFold(query, pattern)
+}
+func matchSelectSelectExprs(query, pattern sqlparser.SelectExprs) bool {
+	// check star (all columns are allowed)
+	if isStarExpr(pattern) {
+		return true
+	}
+	if len(query) != len(pattern) {
 		return false
 	}
-	patternTopNodes, err := getTopNodes(patternNodes[0])
-	if err != nil {
-		return false
-	}
-	hasStar := false
-	if selectExpr, ok := patternNodes[0].(*sqlparser.Select); ok {
-		hasStar = starFound(selectExpr.SelectExprs)
-	}
-
-	for i := 0; i < len(queryTopNodes); i++ {
-		patternNode := patternTopNodes[i]
-		queryNode := queryTopNodes[i]
-		switch patternNode.(type) {
-		case sqlparser.SelectExprs:
-			if hasStar {
-				// if select * in pattern then skip columns in query
-				continue
-			}
-		case *sqlparser.Where:
-			if _, ok := queryNode.(*sqlparser.Where); !ok {
-				return false
-			}
-			if !handleWhereNode(patternNode.(*sqlparser.Where), queryNode.(*sqlparser.Where)) {
-				return false
-			}
-			continue
-		}
-
-		if !reflect.DeepEqual(patternNode, queryNode) {
+	for index, _ := range pattern {
+		if !areEqualSelectExpr(query[index], pattern[index]) {
 			return false
 		}
 	}
 	return true
 }
 
-// handleLimitValuePattern evaluates LIMIT=%%VALUE%% and OFFSET=%%VALUE%% patterns
-func handleLimitValuePattern(queryNodes, patternNodes []sqlparser.SQLNode) bool {
-	querySelect, ok := queryNodes[0].(*sqlparser.Select)
-	if !ok {
+func matchSelectFrom(query, pattern sqlparser.TableExprs) bool {
+	if len(query) != len(pattern) {
 		return false
 	}
-	patternSelect, ok := patternNodes[0].(*sqlparser.Select)
-	if !ok {
-		return false
-	}
-	queryTopNodes, err := getTopNodes(queryNodes[0])
-	if err != nil {
-		return false
-	}
-	patternTopNodes, err := getTopNodes(patternNodes[0])
-	if err != nil {
-		return false
-	}
-
-	for i := 0; i < len(queryTopNodes); i++ {
-		patternNode := patternTopNodes[i]
-		queryNode := queryTopNodes[i]
-
-		switch patternNode.(type) {
-		case *sqlparser.Limit:
-			if !matchLimit(querySelect.Limit, patternSelect.Limit) {
-				return false
-			}
-		default:
-			if !reflect.DeepEqual(queryNode, patternNode) {
-				return false
-			}
-		}
-	}
-	return true
-}
-
-// handleWhereNode process all patterns and rules related with Where conditions
-func handleWhereNode(patternNode, queryNode sqlparser.SQLNode) bool {
-	// get all fields of node struct without recursion
-	patternWhereNodes, err := getTopNodes(patternNode)
-	if err != nil {
-		return false
-	}
-	queryWhereNodes, err := getTopNodes(queryNode)
-	if err != nil {
-		return false
-	}
-
-	// we don't need to check their length because some patterns may accept queries with different node count (list of  values as example)
-
-	//if len(patternWhereNodes) != len(queryWhereNodes) {
-	//	return false
-	//}
-	for i, patternWhereNode := range patternWhereNodes {
-		queryWhereNode := queryWhereNodes[i]
-		switch patternWhereNode.(type) {
-		case *sqlparser.Where:
-			if _, ok := queryWhereNode.(*sqlparser.Where); !ok {
-				// different types
-				return false
-			}
-			return handleWhereNode(patternWhereNode, queryWhereNode)
-		case *sqlparser.AndExpr, *sqlparser.OrExpr, *sqlparser.NotExpr:
-			// check that complex structs with children has same type and then recursively check them
-			if reflect.TypeOf(queryWhereNode) != reflect.TypeOf(patternWhereNode) {
-				return false
-			}
-			if !handleWhereNode(patternWhereNode, queryWhereNode) {
-				return false
-			}
-			continue
-		case *sqlparser.IsExpr:
-			if queryIsExpr, ok := queryWhereNode.(*sqlparser.IsExpr); ok {
-				if queryIsExpr.Operator != patternWhereNode.(*sqlparser.IsExpr).Operator {
-					return false
-				}
-				if !handleWhereNode(patternWhereNode.(*sqlparser.IsExpr).Expr, queryWhereNode.(*sqlparser.IsExpr).Expr) {
-					return false
-				}
-				continue
-			}
-			// query node has different type
-			return false
-		case *sqlparser.ComparisonExpr:
-			if queryNodeComparison, ok := queryWhereNode.(*sqlparser.ComparisonExpr); ok && queryNodeComparison != nil {
-				if IsEqualComparisonNodes(patternWhereNode.(*sqlparser.ComparisonExpr), queryNodeComparison, sqlparser.WhereStr) {
-					continue
-				}
-			}
-			return false
-		case *sqlparser.RangeCond:
-			if queryRangeCondition, ok := queryWhereNode.(*sqlparser.RangeCond); ok {
-				if matchRangeCondition(patternWhereNode.(*sqlparser.RangeCond), queryRangeCondition) {
-					continue
-				}
-			}
-			return false
-		case *sqlparser.ExistsExpr:
-			if queryExists, ok := queryWhereNode.(*sqlparser.ExistsExpr); ok {
-				if matchSubquery(patternWhereNode.(*sqlparser.ExistsExpr).Subquery, queryExists.Subquery) {
-					continue
-				}
-				// break switch to reflect.DeepEqual whole node
-				break
-			}
-			return false
-		}
-		// unknown and conditions without specific rules check recursively by values as is
-		if !reflect.DeepEqual(patternWhereNode, queryWhereNode) {
+	for index, _ := range pattern {
+		if !areEqualTableExpr(query[index], pattern[index]) {
 			return false
 		}
 	}
 	return true
 }
-
-// isColumnPattern return true if this SelectExpr is our %%COLUMN%% pattern
-func isColumnPattern(expr sqlparser.SelectExpr) bool {
-	if aliased, ok := expr.(*sqlparser.AliasedExpr); ok {
-		if colName, ok := aliased.Expr.(*sqlparser.ColName); ok {
-			return strings.EqualFold(colName.Name.String(), ColumnConfigPlaceholderReplacer)
+func matchSelectWhere(query, pattern *sqlparser.Where) bool {
+	if query == nil && pattern == nil {
+		return true
+	}
+	if query == nil || pattern == nil {
+		return false
+	}
+	if !strings.EqualFold(query.Type, pattern.Type) {
+		return false
+	}
+	if !areEqualExpr(query.Expr, pattern.Expr) {
+		return false
+	}
+	return true
+}
+func matchSelectHaving(query, pattern *sqlparser.Where) bool {
+	return matchSelectWhere(query, pattern)
+}
+func matchSelectGroupBy(query, pattern sqlparser.GroupBy) bool {
+	if len(query) != len(pattern) {
+		return false
+	}
+	for index, _ := range pattern {
+		if !areEqualExpr(query[index], pattern[index]) {
+			return false
 		}
+	}
+	return true
+}
+func matchSelectLimit(query, pattern *sqlparser.Limit) bool {
+	if query == nil && pattern == nil {
+		return true
+	}
+	if query == nil || pattern == nil {
 		return false
 	}
-	return false
+
+	if !areEqualExpr(query.Offset, pattern.Offset) {
+		return false
+	}
+	if !areEqualExpr(query.Rowcount, pattern.Rowcount) {
+		return false
+	}
+	return true
+}
+func matchSelectOrderBy(query, pattern sqlparser.OrderBy) bool {
+	if len(query) != len(pattern) {
+		return false
+	}
+	for index, _ := range pattern {
+		if !areEqualExpr(query[index].Expr, pattern[index].Expr) {
+			return false
+		}
+		if !strings.EqualFold(query[index].Direction, pattern[index].Direction) {
+			return false
+		}
+	}
+	return true
+}
+func matchSelectLock(query, pattern string) bool {
+	return strings.EqualFold(query, pattern)
 }
 
-// isColumnReplacer returns true if node is %%COLUMN%%
-func isColumnReplacer(node sqlparser.SQLNode, replacer string) bool {
-	sqlColumn, ok := node.(*sqlparser.ColName)
-	if !ok {
+//Union statement matchers
+func matchUnionLeft(query, pattern sqlparser.SelectStatement) bool {
+	return areEqualSelectStatement(query, pattern)
+}
+func matchUnionRight(query, pattern sqlparser.SelectStatement) bool {
+	return areEqualSelectStatement(query, pattern)
+}
+func matchUnionOrderBy(query, pattern sqlparser.OrderBy) bool {
+	return matchSelectOrderBy(query, pattern)
+}
+func matchUnionLimit(query, pattern *sqlparser.Limit) bool {
+	return matchSelectLimit(query, pattern)
+}
+func matchUnionLock(query, pattern string) bool {
+	return matchSelectLock(query, pattern)
+}
+
+//Insert statement matchers
+func matchInsertAction(query, handler string) bool {
+	return strings.EqualFold(query, handler)
+}
+func matchInsertComments(query, pattern sqlparser.Comments) bool {
+	return matchSelectComments(query, pattern)
+}
+func matchInsertIgnore(query, pattern string) bool {
+	return strings.EqualFold(query, pattern)
+}
+func matchInsertTable(query sqlparser.TableName, pattern sqlparser.TableName) bool {
+	return areEqualTableName(query, pattern)
+}
+func matchInsertPartitions(query, pattern sqlparser.Partitions) bool {
+	return areEqualPartitions(query, pattern)
+}
+func matchInsertColumns(query, pattern sqlparser.Columns) bool {
+	if len(query) != len(pattern) {
+		return false
+	}
+	for index, _ := range pattern {
+		if !areEqualColIdent(query[index], pattern[index]) {
+			return false
+		}
+	}
+	return true
+}
+func matchInsertRows(query, pattern sqlparser.InsertRows) bool {
+	switch pattern.(type) {
+	case *sqlparser.Select:
+		querySelect, ok := query.(*sqlparser.Select)
+		if !ok {
+			return false
+		}
+		if !handleSelectStatement(querySelect, pattern.(*sqlparser.Select)) {
+			return false
+		}
+	case *sqlparser.Union:
+		queryUnion, ok := query.(*sqlparser.Union)
+		if !ok {
+			return false
+		}
+		if !handleUnionStatement(queryUnion, pattern.(*sqlparser.Union)) {
+			return false
+		}
+
+	case sqlparser.Values:
+		queryValues, ok := query.(sqlparser.Values)
+		if !ok {
+			return false
+		}
+		patternValues := pattern.(sqlparser.Values)
+		if len(queryValues) != len(patternValues) {
+			return false
+		}
+		for index, _ := range pattern.(sqlparser.Values) {
+			if !areEqualValTuple(queryValues[index], patternValues[index]) {
+				return false
+			}
+		}
+
+	case *sqlparser.ParenSelect:
+		queryParenSelect, ok := query.(*sqlparser.ParenSelect)
+		if !ok {
+			return false
+		}
+		if !handleSelectStatement(queryParenSelect.Select, pattern.(*sqlparser.ParenSelect).Select) {
+			return false
+		}
+	default:
+		// unexpected
 		return false
 	}
 
-	return strings.EqualFold(sqlColumn.Name.String(), replacer)
+	return true
 }
-
-// isValueReplacer return true if node is SQLVal and has value same as replacer
-func isValueReplacer(node sqlparser.SQLNode, replacer string) bool {
-	sqlVal, ok := node.(*sqlparser.SQLVal)
-	if !ok {
+func matchInsertOnDup(query, pattern sqlparser.OnDup) bool {
+	if len(query) != len(pattern) {
 		return false
 	}
-	if sqlVal.Type != sqlparser.StrVal {
+
+	for index, _ := range pattern {
+		if !areEqualExpr(query[index].Expr, pattern[index].Expr) {
+			return false
+		}
+		if !areEqualColName(query[index].Name, pattern[index].Name) {
+			return false
+		}
+	}
+
+	return true
+}
+
+//Update statement matchers
+func matchUpdateLimit(query *sqlparser.Limit, pattern *sqlparser.Limit) bool {
+	return matchSelectLimit(query, pattern)
+}
+func matchUpdateOrderBy(query, pattern sqlparser.OrderBy) bool {
+	return matchSelectOrderBy(query, pattern)
+}
+func matchUpdateWhere(query, pattern *sqlparser.Where) bool {
+	return matchSelectWhere(query, pattern)
+}
+func matchUpdateExprs(query, pattern sqlparser.UpdateExprs) bool {
+	if len(query) != len(pattern) {
 		return false
 	}
-	return bytes.Equal(sqlVal.Val, []byte(replacer))
+	for index, _ := range pattern {
+		if !areEqualUpdateExpr(query[index], pattern[index]) {
+			return false
+		}
+	}
+	return true
+}
+func matchUpdateTableExprs(query, pattern sqlparser.TableExprs) bool {
+	return matchSelectFrom(query, pattern)
+}
+func matchUpdateComments(query, pattern sqlparser.Comments) bool {
+	return matchSelectComments(query, pattern)
 }
 
-// isValuePattern return true if node is ValueConfigPlaceholder pattern otherwise false
-func isValuePattern(node sqlparser.SQLNode) bool {
-	return isValueReplacer(node, ValueConfigPlaceholderRawReplacer)
+//Delete statement matchers
+func matchDeleteLimit(query *sqlparser.Limit, pattern *sqlparser.Limit) bool {
+	return matchSelectLimit(query, pattern)
+}
+func matchDeleteOrderBy(query sqlparser.OrderBy, pattern sqlparser.OrderBy) bool {
+	return matchSelectOrderBy(query, pattern)
+}
+func matchDeleteWhere(query *sqlparser.Where, pattern *sqlparser.Where) bool {
+	return matchSelectWhere(query, pattern)
+}
+func matchDeletePartitions(query sqlparser.Partitions, pattern sqlparser.Partitions) bool {
+	return matchInsertPartitions(query, pattern)
+}
+func matchDeleteTableExprs(query sqlparser.TableExprs, pattern sqlparser.TableExprs) bool {
+	return matchSelectFrom(query, pattern)
+}
+func matchDeleteTargets(query sqlparser.TableNames, pattern sqlparser.TableNames) bool {
+	if len(query) != len(pattern) {
+		return false
+	}
+	for index, _ := range pattern {
+		if !areEqualTableName(query[index], pattern[index]) {
+			return false
+		}
+	}
+	return true
+}
+func matchDeleteComments(query, pattern sqlparser.Comments) bool {
+	return matchSelectComments(query, pattern)
 }
 
-// isListOfValuesPattern return true if node is ListOfValuesConfigPlaceholder pattern otherwise false
-func isListOfValuesPattern(node sqlparser.SQLNode) bool {
-	return isValueReplacer(node, ListOfValuesConfigPlaceholderRawReplacer)
+// Type comparators
+func areEqualTableExpr(query, pattern sqlparser.TableExpr) bool {
+	switch pattern.(type) {
+	case *sqlparser.AliasedTableExpr:
+		queryAliasedTableExpr, ok := query.(*sqlparser.AliasedTableExpr)
+		if !ok {
+			return false
+		}
+		if !areEqualAliasedTableExpr(queryAliasedTableExpr, pattern.(*sqlparser.AliasedTableExpr)) {
+			return false
+		}
+
+	case *sqlparser.JoinTableExpr:
+		queryJoinTableExpr, ok := query.(*sqlparser.JoinTableExpr)
+		if !ok {
+			return false
+		}
+		if !areEqualJoinTableExpr(queryJoinTableExpr, pattern.(*sqlparser.JoinTableExpr)){
+			return false
+		}
+
+	case *sqlparser.ParenTableExpr:
+		queryParenTableExpr, ok := query.(*sqlparser.ParenTableExpr)
+		if !ok {
+			return false
+		}
+		if !areEqualParenTableExpr(queryParenTableExpr, pattern.(*sqlparser.ParenTableExpr)) {
+			return false
+		}
+	default:
+		// unexpected
+		return false
+	}
+
+	return true
 }
+func areEqualParenTableExpr(query, pattern *sqlparser.ParenTableExpr) bool {
+	if len(query.Exprs) != len(pattern.Exprs) {
+		return false
+	}
+	for index, _ := range pattern.Exprs {
+		if !areEqualTableExpr(query.Exprs[index], pattern.Exprs[index]) {
+			return false
+		}
+	}
+	return true
+}
+func areEqualJoinTableExpr(query, pattern *sqlparser.JoinTableExpr) bool {
+	if !areEqualJoinConditions(query.Condition, pattern.Condition) {
+		return false
+	}
+	if !strings.EqualFold(query.Join, pattern.Join) {
+		return false
+	}
+	if !areEqualTableExpr(query.LeftExpr, pattern.LeftExpr) {
+		return false
+	}
+	if !areEqualTableExpr(query.RightExpr, pattern.RightExpr) {
+		return false
+	}
+	return true
+}
+func areEqualAliasedTableExpr(query, pattern *sqlparser.AliasedTableExpr) bool {
+	if !areEqualSimpleTableExpr(query.Expr, pattern.Expr) {
+		return false
+	}
+	if !areEqualPartitions(query.Partitions, pattern.Partitions) {
+		return false
+	}
+	if !areEqualTableIdent(query.As, pattern.As) {
+		return false
+	}
+	if !areEqualIndexHints(query.Hints, pattern.Hints) {
+		return false
+	}
+	return true
+}
+func areEqualPartitions(query, pattern sqlparser.Partitions) bool {
+	if len(query) != len(pattern) {
+		return false
+	}
+	for index, _ := range pattern {
+		if !areEqualColIdent(query[index], pattern[index]) {
+			return false
+		}
+	}
+	return true
+}
+func areEqualIndexHints(query, pattern *sqlparser.IndexHints) bool {
+	if query == nil && pattern == nil {
+		return true
+	}
+	if query == nil || pattern == nil {
+		return false
+	}
 
-func isEqualComparisonNodesInWhere(patternNode, queryNode *sqlparser.ComparisonExpr) bool {
-	if reflect.DeepEqual(patternNode.Left, queryNode.Left) &&
-		strings.EqualFold(patternNode.Operator, queryNode.Operator) &&
-		reflect.DeepEqual(patternNode.Escape, queryNode.Escape) {
-
-		switch patternNode.Operator {
-		case sqlparser.InStr, sqlparser.NotInStr:
-			switch patternNode.Right.(type) {
-			case sqlparser.ValTuple:
-				queryInNodes, ok := queryNode.Right.(sqlparser.ValTuple)
-				if !ok {
-					return false
-				}
-				patternInNodes := patternNode.Right.(sqlparser.ValTuple)
-
-				// pattern may have less nodes due to %%list of values%% but not vice versa
-				if len(queryInNodes) < len(patternInNodes) {
-					return false
-				}
-				var i int
-				for i = 0; i < len(patternInNodes); i++ {
-					if isListOfValuesPattern(patternInNodes[i]) {
-						// don't check least query nodes
+	if len(query.Indexes) != len(pattern.Indexes) {
+		return false
+	}
+	if !strings.EqualFold(query.Type, pattern.Type) {
+		return false
+	}
+	for index, _ := range pattern.Indexes {
+		if !areEqualColIdent(query.Indexes[index], pattern.Indexes[index]) {
+			return false
+		}
+	}
+	return true
+}
+func areEqualSimpleTableExpr(query, pattern sqlparser.SimpleTableExpr) bool {
+	switch pattern.(type) {
+	case sqlparser.TableName:
+		queryTableName, ok := query.(sqlparser.TableName)
+		if !ok {
+			return false
+		}
+		if !areEqualTableName(queryTableName, pattern.(sqlparser.TableName)) {
+			return false
+		}
+	case *sqlparser.Subquery:
+		querySubquery, ok := query.(*sqlparser.Subquery)
+		if !ok {
+			return false
+		}
+		if !areEqualSubquery(querySubquery, pattern.(*sqlparser.Subquery)) {
+			return false
+		}
+	default:
+		// unexpected
+		return false
+	}
+	return true
+}
+func areEqualSelectExpr(query, pattern sqlparser.SelectExpr) bool {
+	switch pattern.(type) {
+	case *sqlparser.StarExpr:
+		queryStarExpr, ok := query.(*sqlparser.StarExpr);
+		if !ok {
+			return false
+		}
+		return areEqualTableName(queryStarExpr.TableName, pattern.(*sqlparser.StarExpr).TableName)
+	case *sqlparser.AliasedExpr:
+		// check %%COLUMN%% pattern
+		queryAliasedExpr, ok := query.(*sqlparser.AliasedExpr);
+		if !ok {
+			switch query.(type) {
+			case *sqlparser.StarExpr:
+				switch pattern.(*sqlparser.AliasedExpr).Expr.(type) {
+				case *sqlparser.ColName:
+					if isColumnPattern(pattern.(*sqlparser.AliasedExpr).Expr.(*sqlparser.ColName).Name) {
 						return true
 					}
-					if matchValue(patternInNodes[i], queryInNodes[i]) {
-						// we don't care about type of query value because pattern has %%VALUE%%
-						continue
-					}
-					if matchSubquery(patternInNodes[i], queryInNodes[i]) {
-						continue
-					}
-					if !reflect.DeepEqual(patternInNodes[i], queryInNodes[i]) {
-						return false
-					}
 				}
-				// if pattern has less nodes than query
-				if i != len(queryInNodes) {
-					return false
-				}
-				return true
-			case *sqlparser.Subquery: // a in (select 1)
-				patternSubquery := patternNode.Right.(*sqlparser.Subquery)
+			}
+			return false
+		}
+		if !areEqualAliasedExpr(queryAliasedExpr, pattern.(*sqlparser.AliasedExpr)) {
+			return false
+		}
+	case sqlparser.Nextval:
+		queryNextval, ok := query.(sqlparser.Nextval);
+		if !ok {
+			return false
+		}
+		if !areEqualNextval(queryNextval, pattern.(sqlparser.Nextval)) {
+			return false
+		}
+	default:
+		// unexpected
+		return false
+	}
+	return true
+}
+func areEqualNextval(query, pattern sqlparser.Nextval) bool {
+	return areEqualExpr(query.Expr, pattern.Expr)
+}
+func areEqualTableName(query, pattern sqlparser.TableName) bool {
+	if !areEqualTableIdent(query.Name, pattern.Name) {
+		return false
+	}
+	if !areEqualTableIdent(query.Qualifier, pattern.Qualifier) {
+		return false
+	}
+	return true
+}
+func areEqualTableIdent(query, pattern sqlparser.TableIdent) bool {
+	return strings.EqualFold(query.CompliantName(), pattern.CompliantName())
+}
+func areEqualAliasedExpr(query, pattern *sqlparser.AliasedExpr) bool {
+	if !areEqualColIdent(query.As, pattern.As) {
+		return false
+	}
+	if !areEqualExpr(query.Expr, pattern.Expr) {
+		return false
+	}
+	return true
+}
+func areEqualExpr(query, pattern sqlparser.Expr) bool {
+	if query == nil && pattern == nil{
+		return true
+	}
+	if query == nil || pattern == nil{
+		return false
+	}
 
-				querySubquery, ok := queryNode.Right.(*sqlparser.Subquery)
-				if !ok {
-					return false
-				}
-				if matchSubquery(patternSubquery, querySubquery) {
+	switch pattern.(type) {
+	case *sqlparser.AndExpr:
+		queryAndExpr, ok := query.(*sqlparser.AndExpr)
+		if !ok {
+			return false
+		}
+		if !areEqualAndExpr(queryAndExpr, pattern.(*sqlparser.AndExpr)) {
+			return false
+		}
+	case *sqlparser.OrExpr:
+		queryOrExpr, ok := query.(*sqlparser.OrExpr)
+		if !ok {
+			return false
+		}
+		if !areEqualOrExpr(queryOrExpr, pattern.(*sqlparser.OrExpr)) {
+			return false
+		}
+	case *sqlparser.NotExpr:
+		queryNotExpr, ok := query.(*sqlparser.NotExpr)
+		if !ok {
+			return false
+		}
+		if !areEqualNotExpr(queryNotExpr, pattern.(*sqlparser.NotExpr)) {
+			return false
+		}
+	case *sqlparser.ParenExpr:
+		queryParenExpr, ok := query.(*sqlparser.ParenExpr)
+		if !ok {
+			return false
+		}
+		if !areEqualParenExpr(queryParenExpr, pattern.(*sqlparser.ParenExpr)) {
+			return false
+		}
+	case *sqlparser.ComparisonExpr:
+		queryComparisonExpr, ok := query.(*sqlparser.ComparisonExpr)
+		if !ok {
+			return false
+		}
+		if !areEqualComparisonExpr(queryComparisonExpr, pattern.(*sqlparser.ComparisonExpr)) {
+			return false
+		}
+	case *sqlparser.RangeCond:
+		queryRangeCond, ok := query.(*sqlparser.RangeCond)
+		if !ok {
+			return false
+		}
+		if !areEqualRangeCond(queryRangeCond, pattern.(*sqlparser.RangeCond)) {
+			return false
+		}
+	case *sqlparser.IsExpr:
+		queryIsExpr, ok := query.(*sqlparser.IsExpr)
+		if !ok {
+			return false
+		}
+		if !areEqualIsExpr(queryIsExpr, pattern.(*sqlparser.IsExpr)) {
+			return false
+		}
+	case *sqlparser.ExistsExpr:
+		queryExistsExpr, ok := query.(*sqlparser.ExistsExpr)
+		if !ok {
+			return false
+		}
+		if !areEqualExistsExpr(queryExistsExpr, pattern.(*sqlparser.ExistsExpr)) {
+			return false
+		}
+	case *sqlparser.SQLVal:
+		// check %%VALUE%% and %%LIST_OF_VALUES%% patterns
+		// if %%VALUE%% pattern should mask value of node
+		// return true for any literal values, boolean and null
+		// return false on other values like subqueries
+		querySQLVal, ok := query.(*sqlparser.SQLVal)
+		if !ok {
+			switch query.(type) {
+			case sqlparser.BoolVal, *sqlparser.NullVal, *sqlparser.FuncExpr:
+				if isValuePattern(pattern.(*sqlparser.SQLVal)) {
 					return true
 				}
-				return reflect.DeepEqual(patternSubquery, querySubquery)
-			}
-		default:
-			if isValuePattern(patternNode.Right) {
-				return true
-			}
-			if matchSubquery(patternNode.Right, queryNode.Right) {
-				return true
-			}
-		}
-		// pattern node hasn't %%VALUE%% pattern so compare their values as is
-		return reflect.DeepEqual(patternNode.Right, queryNode.Right)
-	}
-	return false
-}
-
-func isEqualComparisonNodesInHaving(patternNode, queryNode *sqlparser.ComparisonExpr) bool {
-	if !(strings.EqualFold(patternNode.Operator, queryNode.Operator) &&
-		reflect.DeepEqual(patternNode.Escape, queryNode.Escape)) {
-		return false
-	}
-
-	if !(matchValue(patternNode.Left, queryNode.Left) ||
-		matchColumnInHaving(patternNode.Left, queryNode.Left) ||
-		reflect.DeepEqual(patternNode.Left, queryNode.Left)) {
-		return false
-	}
-
-	if !(matchValue(patternNode.Right, queryNode.Right) ||
-		matchColumnInHaving(patternNode.Right, queryNode.Right) ||
-		reflect.DeepEqual(patternNode.Right, queryNode.Right)) {
-		return false
-	}
-
-	return true
-}
-
-// isEqualComparisonNodes try to match patternNode with queryNode with supported patterns for ComparisonExpr
-func IsEqualComparisonNodes(patternNode, queryNode *sqlparser.ComparisonExpr, whereType string) bool {
-	switch whereType {
-	case sqlparser.HavingStr:
-		return isEqualComparisonNodesInHaving(patternNode, queryNode)
-	case sqlparser.WhereStr:
-		return isEqualComparisonNodesInWhere(patternNode, queryNode)
-	default:
-		// unexpected type of parent node
-		return false
-	}
-}
-
-// matchValue return true if pattern node is %%VALUE%% pattern and value of query node has type that masked with this pattern
-func matchValue(patternNode, queryNode sqlparser.SQLNode) bool {
-	return isValuePattern(patternNode) && matchSQLValue(queryNode)
-}
-
-func matchColumnInHaving(patternNode, queryNode sqlparser.Expr) bool {
-	switch patternNode.(type) {
-	case *sqlparser.FuncExpr:
-		if queryFuncExpr, ok := queryNode.(*sqlparser.FuncExpr); ok && queryFuncExpr != nil {
-			patternFuncExpr := patternNode.(*sqlparser.FuncExpr)
-			if len(patternFuncExpr.Exprs) != len(queryFuncExpr.Exprs) || !patternFuncExpr.Name.Equal(queryFuncExpr.Name) {
-				return false
-			}
-			for _, patternFuncExprArgument := range patternFuncExpr.Exprs {
-				if colName, ok := patternFuncExprArgument.(sqlparser.SelectExpr); ok {
-					if !isColumnPattern(colName) {
-						return false
-					}
+				if isListOfValuesPattern(pattern.(*sqlparser.SQLVal)) {
+					return true
 				}
 			}
+			return false
+		}
+		if !areEqualSQLVal(querySQLVal, pattern.(*sqlparser.SQLVal)) {
+			return false
+		}
+	case *sqlparser.NullVal:
+		queryNullVal, ok := query.(*sqlparser.NullVal)
+		if !ok {
+			return false
+		}
+		if !areEqualNullVal(queryNullVal, pattern.(*sqlparser.NullVal)) {
+			return false
+		}
+	case sqlparser.BoolVal:
+		queryBoolVal, ok := query.(sqlparser.BoolVal)
+		if !ok {
+			return false
+		}
+		if !areEqualBoolVal(queryBoolVal, pattern.(sqlparser.BoolVal)) {
+			return false
+		}
+	case *sqlparser.ColName:
+		// check %%COLUMN%% pattern
+		queryColName, ok := query.(*sqlparser.ColName)
+		if !ok {
+			switch query.(type) {
+			case *sqlparser.SQLVal, *sqlparser.Subquery, *sqlparser.FuncExpr, *sqlparser.CaseExpr, *sqlparser.ParenExpr:
+				if isColumnPattern(pattern.(*sqlparser.ColName).Name) {
+					return true
+				}
+			}
+			return false
+		}
+		if !areEqualColName(queryColName, pattern.(*sqlparser.ColName)) {
+			return false
+		}
+	case sqlparser.ValTuple:
+		queryValTuple, ok := query.(sqlparser.ValTuple)
+		if !ok {
+			return false
+		}
+		if !areEqualValTuple(queryValTuple, pattern.(sqlparser.ValTuple)) {
+			return false
+		}
+	case *sqlparser.Subquery:
+		querySubquery, ok := query.(*sqlparser.Subquery)
+		if !ok {
+			return false
+		}
+		if !areEqualSubquery(querySubquery, pattern.(*sqlparser.Subquery)) {
+			return false
+		}
+	case sqlparser.ListArg:
+		queryListArg, ok := query.(sqlparser.ListArg)
+		if !ok {
+			return false
+		}
+		if !areEqualListArg(queryListArg, pattern.(sqlparser.ListArg)) {
+			return false
+		}
+	case *sqlparser.BinaryExpr:
+		queryBinaryExpr, ok := query.(*sqlparser.BinaryExpr)
+		if !ok {
+			return false
+		}
+		if !areEqualBinaryExpr(queryBinaryExpr, pattern.(*sqlparser.BinaryExpr)) {
+			return false
+		}
+	case *sqlparser.UnaryExpr:
+		queryUnaryExpr, ok := query.(*sqlparser.UnaryExpr)
+		if !ok {
+			return false
+		}
+		if !areEqualUnaryExpr(queryUnaryExpr, pattern.(*sqlparser.UnaryExpr)) {
+			return false
+		}
+	case *sqlparser.IntervalExpr:
+		queryIntervalExpr, ok := query.(*sqlparser.IntervalExpr)
+		if !ok {
+			return false
+		}
+		if !areEqualIntervalExpr(queryIntervalExpr, pattern.(*sqlparser.IntervalExpr)) {
+			return false
+		}
+	case *sqlparser.CollateExpr:
+		queryCollateExpr, ok := query.(*sqlparser.CollateExpr)
+		if !ok {
+			return false
+		}
+		if !areEqualCollateExpr(queryCollateExpr, pattern.(*sqlparser.CollateExpr)) {
+			return false
+		}
+	case *sqlparser.FuncExpr:
+		queryFuncExpr, ok := query.(*sqlparser.FuncExpr)
+		if !ok {
+			return false
+		}
+		if !areEqualFuncExpr(queryFuncExpr, pattern.(*sqlparser.FuncExpr)) {
+			return false
+		}
+	case *sqlparser.CaseExpr:
+		queryCaseExpr, ok := query.(*sqlparser.CaseExpr)
+		if !ok {
+			return false
+		}
+		if !areEqualCaseExpr(queryCaseExpr, pattern.(*sqlparser.CaseExpr)) {
+			return false
+		}
+	case *sqlparser.ValuesFuncExpr:
+		queryValuesFuncExpr, ok := query.(*sqlparser.ValuesFuncExpr)
+		if !ok {
+			return false
+		}
+		if !areEqualValuesFuncExpr(queryValuesFuncExpr, pattern.(*sqlparser.ValuesFuncExpr)) {
+			return false
+		}
+	case *sqlparser.ConvertExpr:
+		queryValuesConvertExpr, ok := query.(*sqlparser.ConvertExpr)
+		if !ok {
+			return false
+		}
+		if !areEqualConvertExpr(queryValuesConvertExpr, pattern.(*sqlparser.ConvertExpr)) {
+			return false
+		}
+	case *sqlparser.SubstrExpr:
+		querySubstrExpr, ok := query.(*sqlparser.SubstrExpr)
+		if !ok {
+			return false
+		}
+		if !areEqualSubstrExpr(querySubstrExpr, pattern.(*sqlparser.SubstrExpr)) {
+			return false
+		}
+	case *sqlparser.ConvertUsingExpr:
+		queryConvertUsingExpr, ok := query.(*sqlparser.ConvertUsingExpr)
+		if !ok {
+			return false
+		}
+		if !areEqualConvertUsingExpr(queryConvertUsingExpr, pattern.(*sqlparser.ConvertUsingExpr)) {
+			return false
+		}
+	case *sqlparser.MatchExpr:
+		queryMatchExpr, ok := query.(*sqlparser.MatchExpr)
+		if !ok {
+			return false
+		}
+		if !areEqualMatchExpr(queryMatchExpr, pattern.(*sqlparser.MatchExpr)) {
+			return false
+		}
+	case *sqlparser.GroupConcatExpr:
+		queryGroupConcatExpr, ok := query.(*sqlparser.GroupConcatExpr)
+		if !ok {
+			return false
+		}
+		if !areEqualGroupConcatExpr(queryGroupConcatExpr, pattern.(*sqlparser.GroupConcatExpr)) {
+			return false
+		}
+	case *sqlparser.Default:
+		queryDefault, ok := query.(*sqlparser.Default)
+		if !ok {
+			return false
+		}
+		if !strings.EqualFold(queryDefault.ColName, pattern.(*sqlparser.Default).ColName) {
+			return false
 		}
 	default:
-		if !reflect.DeepEqual(patternNode, patternNode) {
+		// unexpected
+		return false
+	}
+
+	return true
+}
+func areEqualGroupConcatExpr(query, pattern *sqlparser.GroupConcatExpr) bool {
+	if !strings.EqualFold(query.Distinct, pattern.Distinct) {
+		return false
+	}
+	if !strings.EqualFold(query.Separator, pattern.Separator) {
+		return false
+	}
+	if !matchSelectSelectExprs(query.Exprs, pattern.Exprs) {
+		return false
+	}
+	if !matchSelectOrderBy(query.OrderBy, pattern.OrderBy) {
+		return false
+	}
+	return true
+}
+func areEqualMatchExpr(query, pattern *sqlparser.MatchExpr) bool {
+	if !strings.EqualFold(query.Option, pattern.Option) {
+		return false
+	}
+	if !areEqualExpr(query.Expr, pattern.Expr) {
+		return false
+	}
+
+	if !matchSelectSelectExprs(query.Columns, pattern.Columns) {
+		return false
+	}
+	return true
+}
+func areEqualConvertUsingExpr(query, pattern *sqlparser.ConvertUsingExpr) bool {
+	if !strings.EqualFold(query.Type, pattern.Type) {
+		return false
+	}
+	if areEqualExpr(query.Expr, pattern.Expr) {
+		return false
+	}
+	return true
+}
+func areEqualSubstrExpr(query, pattern *sqlparser.SubstrExpr) bool {
+	if !areEqualExpr(query.To, pattern.To) {
+		return false
+	}
+	if !areEqualExpr(query.From, pattern.From) {
+		return false
+	}
+	if !areEqualColName(query.Name, pattern.Name) {
+		return false
+	}
+	return true
+}
+func areEqualConvertExpr(query, pattern *sqlparser.ConvertExpr) bool {
+	if !areEqualExpr(query.Expr, pattern.Expr) {
+		return false
+	}
+	if !areEqualConvertType(query.Type, pattern.Type) {
+		return false
+	}
+	return true
+}
+func areEqualConvertType(query, pattern *sqlparser.ConvertType) bool {
+	if !strings.EqualFold(query.Type, pattern.Type) {
+		return false
+	}
+	if !strings.EqualFold(query.Charset, pattern.Charset) {
+		return false
+	}
+	if !strings.EqualFold(query.Operator, pattern.Operator) {
+		return false
+	}
+	if areEqualSQLVal(query.Length, pattern.Length) {
+		return false
+	}
+	if areEqualSQLVal(query.Scale, pattern.Scale) {
+		return false
+	}
+	return true
+}
+func areEqualValuesFuncExpr(query, pattern *sqlparser.ValuesFuncExpr) bool {
+	return areEqualColName(query.Name, pattern.Name)
+}
+func areEqualCaseExpr(query, pattern *sqlparser.CaseExpr) bool {
+	if !areEqualExpr(query.Expr, pattern.Expr) {
+		return false
+	}
+	if !areEqualExpr(query.Else, pattern.Expr) {
+		return false
+	}
+
+	if len(query.Whens) != len(pattern.Whens) {
+		return false
+	}
+
+	for index, _ := range pattern.Whens {
+		if !areEqualWhen(query.Whens[index], pattern.Whens[index]) {
 			return false
 		}
 	}
 	return true
 }
-
-// matchSubquery return true if pattern are %%SUBQUERY%% and queryNode has correct type for this pattern otherwise false
-func matchSubquery(patternNode, queryNode sqlparser.SQLNode) bool {
-	if _, ok := patternNode.(*sqlparser.Subquery); !ok {
+func areEqualWhen(query *sqlparser.When, pattern *sqlparser.When) bool {
+	if !areEqualExpr(query.Val, pattern.Val) {
 		return false
 	}
-	if _, ok := queryNode.(*sqlparser.Subquery); !ok {
+	if !areEqualExpr(query.Cond, pattern.Cond) {
 		return false
 	}
-	// check that patterns query the same as our parsed placeholder
-	if reflect.DeepEqual(patternNode.(*sqlparser.Subquery).Select, SubqueryConfigPlaceholderReplacerParsed) {
+	return true
+}
+func areEqualFuncExpr(query, pattern *sqlparser.FuncExpr) bool {
+	if query.Distinct != pattern.Distinct {
+		return false
+	}
+	if !areEqualColIdent(query.Name, pattern.Name) {
+		return false
+	}
+	if !areEqualTableIdent(query.Qualifier, pattern.Qualifier) {
+		return false
+	}
+	if !matchSelectSelectExprs(query.Exprs, pattern.Exprs) {
+		return false
+	}
+	return true
+}
+func areEqualCollateExpr(query, pattern *sqlparser.CollateExpr) bool {
+	if !strings.EqualFold(query.Charset, pattern.Charset) {
+		return false
+	}
+	if !areEqualExpr(query.Expr, pattern.Expr) {
+		return false
+	}
+	return true
+}
+func areEqualIntervalExpr(query, pattern *sqlparser.IntervalExpr) bool {
+	if !strings.EqualFold(query.Unit, pattern.Unit) {
+		return false
+	}
+	if areEqualExpr(query.Expr, pattern.Expr) {
+		return false
+	}
+	return true
+}
+func areEqualUnaryExpr(query *sqlparser.UnaryExpr, pattern *sqlparser.UnaryExpr) bool {
+	if !strings.EqualFold(query.Operator, pattern.Operator) {
+		return false
+	}
+	if !areEqualExpr(query.Expr, pattern.Expr) {
+		return false
+	}
+	return true
+}
+func areEqualBinaryExpr(query, pattern *sqlparser.BinaryExpr) bool {
+	if !strings.EqualFold(query.Operator, pattern.Operator) {
+		return false
+	}
+	if !areEqualExpr(query.Left, pattern.Left) {
+		return false
+	}
+	if !areEqualExpr(query.Right, pattern.Right) {
+		return false
+	}
+	return true
+}
+func areEqualListArg(query sqlparser.ListArg, pattern sqlparser.ListArg) bool {
+	return bytes.Equal(query, pattern)
+}
+func areEqualBoolVal(query, pattern sqlparser.BoolVal) bool {
+	return query == pattern
+}
+func areEqualNullVal(query, pattern *sqlparser.NullVal) bool {
+	return reflect.DeepEqual(query, pattern)
+}
+func areEqualSQLVal(query, pattern *sqlparser.SQLVal) bool {
+	if isValuePattern(pattern) {
+		return true
+	}
+	if isListOfValuesPattern(pattern) {
+		return true
+	}
+	if query.Type == pattern.Type && bytes.Equal(query.Val, pattern.Val) {
 		return true
 	}
 	return false
 }
+func areEqualExistsExpr(query, pattern *sqlparser.ExistsExpr) bool {
+	return areEqualSubquery(query.Subquery, pattern.Subquery)
+}
+func areEqualIsExpr(query, pattern *sqlparser.IsExpr) bool {
+	if !strings.EqualFold(query.Operator, pattern.Operator) {
+		return false
+	}
+	if !areEqualExpr(query.Expr, pattern.Expr) {
+		return false
+	}
+	return true
+}
+func areEqualRangeCond(query, pattern *sqlparser.RangeCond) bool {
+	if !strings.EqualFold(query.Operator, pattern.Operator) {
+		return false
+	}
+	if !areEqualExpr(query.Left, pattern.Left) {
+		return false
+	}
+	if !areEqualExpr(query.From, pattern.From) {
+		return false
+	}
+	if !areEqualExpr(query.To, pattern.To) {
+		return false
+	}
+	return true
+}
+func areEqualComparisonExpr(query, pattern *sqlparser.ComparisonExpr) bool {
+	if !strings.EqualFold(query.Operator, pattern.Operator) {
+		return false
+	}
+	if !areEqualExpr(query.Escape, pattern.Escape) {
+		return false
+	}
+	if !areEqualExpr(query.Left, pattern.Left) {
+		return false
+	}
+	if !areEqualExpr(query.Right, pattern.Right) {
+		return false
+	}
+	return true
+}
+func areEqualParenExpr(query, pattern *sqlparser.ParenExpr) bool {
+	return areEqualExpr(query.Expr, pattern.Expr)
+}
+func areEqualNotExpr(query, pattern *sqlparser.NotExpr) bool {
+	return areEqualExpr(query.Expr, pattern.Expr)
+}
+func areEqualOrExpr(query, pattern *sqlparser.OrExpr) bool {
+	if !areEqualExpr(query.Right, pattern.Right) {
+		return false
+	}
+	if !areEqualExpr(query.Left, pattern.Left) {
+		return false
+	}
+	return true
+}
+func areEqualAndExpr(query, pattern *sqlparser.AndExpr) bool {
+	if !areEqualExpr(query.Right, pattern.Right) {
+		return false
+	}
+	if !areEqualExpr(query.Left, pattern.Left) {
+		return false
+	}
+	return true
+}
+func areEqualColIdent(query, pattern sqlparser.ColIdent) bool {
+	if isColumnPattern(pattern) {
+		return true
+	}
+	return query.Equal(pattern)
+}
+func areEqualJoinConditions(query, pattern sqlparser.JoinCondition) bool {
+	if !areEqualExpr(query.On, pattern.On) {
+		return false
+	}
+	if len(query.Using) != len(pattern.Using) {
+		return false
+	}
+	for index, _ := range pattern.Using {
+		if !areEqualColIdent(query.Using[index], pattern.Using[index]) {
+			return false
+		}
+	}
+	return true
+}
+func areEqualSelectStatement(query, pattern sqlparser.SelectStatement) bool {
+	switch pattern.(type) {
+	case *sqlparser.Select:
+		querySelect, ok := query.(*sqlparser.Select)
+		if !ok {
+			return false
+		}
+		if !handleSelectStatement(querySelect, pattern.(*sqlparser.Select)) {
+			return false
+		}
+	case *sqlparser.Union:
+		queryUnion, ok := query.(*sqlparser.Union)
+		if !ok {
+			return false
+		}
+		if !handleUnionStatement(queryUnion, pattern.(*sqlparser.Union)) {
+			return false
+		}
+	case *sqlparser.ParenSelect:
+		queryParenSelect, ok := query.(*sqlparser.ParenSelect)
+		if !ok {
+			return false
+		}
+		if !areEqualSelectStatement(queryParenSelect.Select, pattern.(*sqlparser.ParenSelect).Select) {
+			return false
+		}
+	default:
+		// unexpected
+		return false
+	}
+	return true
+}
+func areEqualColName(query *sqlparser.ColName, pattern *sqlparser.ColName) bool {
+	if !areEqualColIdent(query.Name, pattern.Name) {
+		return false
+	}
+	if !areEqualTableName(query.Qualifier, pattern.Qualifier) {
+		return false
+	}
+	if !reflect.DeepEqual(query.Metadata, pattern.Metadata) {
+		return false
+	}
+	return true
+}
+func areEqualUpdateExpr(query, pattern *sqlparser.UpdateExpr) bool {
+	if !areEqualExpr(query.Expr, pattern.Expr) {
+		return false
+	}
+	if !areEqualColName(query.Name, pattern.Name) {
+		return false
+	}
+	return true
+}
+func areEqualSubquery(query, pattern *sqlparser.Subquery) bool {
+	if !areEqualSelectStatement(query.Select, pattern.Select) {
+		return isSubqueryPattern(pattern)
+	}
+	return true
+}
+func areEqualValTuple(query sqlparser.ValTuple, pattern sqlparser.ValTuple) bool {
+	if query == nil && pattern == nil{
+		return true
+	}
+	if query == nil || pattern == nil{
+		return false
+	}
+	for index, _ := range pattern {
+		if index >= len(query) {
+			return false
+		}
+		if !areEqualExpr(query[index], pattern[index]) {
+			return false
+		}
+	}
 
-// matchSQLValue return true if %%VALUE%% pattern should mask value of node
-// return true for any literal values, boolean and null
-// return false on other values like subqueries
-func matchSQLValue(node sqlparser.SQLNode) bool {
-	switch node.(type) {
-	case *sqlparser.SQLVal, sqlparser.BoolVal, *sqlparser.NullVal:
+	// Case when %%LIST_OF_VALUES%% pattern presents in tuple of patterns.
+	// It's allowed to use this pattern combined with %%VALUE%% only
+	// at last position in tuple
+	if len(query) > len(pattern) {
+		patternValue, ok := pattern[len(pattern) - 1].(*sqlparser.SQLVal)
+		if !ok {
+			return false
+		}
+		if !isListOfValuesPattern(patternValue){
+			return false
+		}
+	}
+	return true
+}
+
+// Patterns detectors
+func isListOfValuesPattern(pattern *sqlparser.SQLVal) bool {
+	if pattern.Type != ListOfValuePatternStatement.Type {
+		return false
+	}
+
+	return bytes.Equal(pattern.Val, ListOfValuePatternStatement.Val)
+}
+func isValuePattern(pattern *sqlparser.SQLVal) bool {
+	if pattern.Type != ValuePatternStatement.Type {
+		return false
+	}
+	return bytes.Equal(pattern.Val, ValuePatternStatement.Val)
+}
+func isColumnPattern(pattern sqlparser.ColIdent) bool {
+	if pattern.Equal(ColumnPatternStatement) {
 		return true
 	}
 	return false
 }
-
-// matchRangeCondition handle range queries (age BETWEEN %%value%% and 5)
-// return true if match (with or without %%value%% patterns) otherwise false
-func matchRangeCondition(patternNode, queryNode *sqlparser.RangeCond) bool {
-	if queryNode.Operator != patternNode.Operator {
+func isSubqueryPattern(pattern *sqlparser.Subquery) bool {
+	return reflect.DeepEqual(pattern.Select, SubqueryPatternStatement.(*sqlparser.Select))
+}
+func isWherePattern(pattern *sqlparser.Where) bool {
+	if !strings.EqualFold(pattern.Type, WherePatternStatement.(*sqlparser.Select).Where.Type) {
 		return false
 	}
-	if !reflect.DeepEqual(queryNode.Left, patternNode.Left) {
+	if !areEqualExpr(pattern.Expr, WherePatternStatement.(*sqlparser.Select).Where.Expr) {
 		return false
-	}
-	if !(matchValue(patternNode.From, queryNode.From) || matchSubquery(patternNode.From, queryNode.From)) {
-		if !reflect.DeepEqual(patternNode.From, queryNode.From) {
-			return false
-		}
-	}
-	if !(matchValue(patternNode.To, queryNode.To) || matchSubquery(patternNode.To, queryNode.To)) {
-		if !reflect.DeepEqual(patternNode.To, queryNode.To) {
-			return false
-		}
 	}
 	return true
 }
-
-// matchOrderBy handles order by construction
-// return true if match otherwise false
-func matchOrderBy(patternNode, queryNode sqlparser.OrderBy) bool {
-	if len(patternNode) != len(queryNode) {
+func isStarExpr(pattern sqlparser.SelectExprs) bool {
+	if len(pattern) != 1 {
 		return false
 	}
-	for index := 0; index < len(patternNode); index++ {
-		if !strings.EqualFold(patternNode[index].Direction, queryNode[index].Direction) {
-			return false
-		}
-		if !isColumnReplacer(patternNode[index].Expr, ColumnConfigPlaceholderReplacer) {
-			if !reflect.DeepEqual(patternNode[index].Expr, queryNode[index].Expr) {
-				return false
-			}
-		}
-	}
-	return true
-}
-
-// matchLimit handles limit and offset constructions
-// return true if match otherwise false
-func matchLimit(queryLimit, patternLimit *sqlparser.Limit) bool {
-	// start check if both LIMITs present, otherwise not match
-	if queryLimit != nil && patternLimit != nil {
-		if !isValuePattern(patternLimit.Rowcount) {
-			if !reflect.DeepEqual(queryLimit.Rowcount, patternLimit.Rowcount) {
-				return false
-			}
-		}
-	} else {
+	if _, ok := pattern[0].(*sqlparser.StarExpr); !ok {
 		return false
 	}
-	// LIMITs are equal and OFFSETs are not present, so it's match
-	if queryLimit.Offset == nil && patternLimit.Offset == nil {
-		return true
-	}
-
-	if !isValuePattern(patternLimit.Offset) || queryLimit.Offset == nil {
-		if !reflect.DeepEqual(queryLimit.Offset, patternLimit.Offset) {
-			return false
-		}
-	}
 	return true
-}
-
-// matchGroupBy handles group by constructions
-// return true if match otherwise false
-func matchGroupBy(patternNode, queryNode sqlparser.GroupBy) bool {
-	if len(patternNode) != len(queryNode) {
-		return false
-	}
-	for index := 0; index < len(patternNode); index++ {
-		if !isColumnReplacer(patternNode[index], ColumnConfigPlaceholderReplacer) {
-			if !reflect.DeepEqual(patternNode[index], queryNode[index]) {
-				return false
-			}
-		}
-	}
-	return true
-}
-
-func matchHaving(patternNode *sqlparser.Where, queryNode *sqlparser.Where) bool {
-	if reflect.DeepEqual(patternNode, queryNode) {
-		return true
-	}
-
-	if patternNode.Type != sqlparser.HavingStr || queryNode.Type != sqlparser.HavingStr {
-		return false
-	}
-
-	switch patternNode.Expr.(type) {
-	case *sqlparser.ComparisonExpr:
-		if queryComparisonExpr, ok := queryNode.Expr.(*sqlparser.ComparisonExpr); ok {
-			if !IsEqualComparisonNodes(patternNode.Expr.(*sqlparser.ComparisonExpr), queryComparisonExpr, sqlparser.HavingStr) {
-				return false
-			}
-		}
-	default:
-		if !reflect.DeepEqual(patternNode.Expr, queryNode.Expr) {
-			return false
-		}
-	}
-	return true
-}
-
-// getAllNodes recusively walk through node and return all children of node with node itself
-func getAllNodes(node sqlparser.SQLNode) ([]sqlparser.SQLNode, error) {
-	var queryNodes []sqlparser.SQLNode
-	err := sqlparser.Walk(func(node sqlparser.SQLNode) (bool, error) {
-		queryNodes = append(queryNodes, node)
-		return true, nil
-	}, node)
-	if err != nil {
-		return nil, err
-	}
-	return queryNodes, nil
-}
-
-// getTopNodes walk only once at depth and return first level children of firstNode
-func getTopNodes(firstNode sqlparser.SQLNode) ([]sqlparser.SQLNode, error) {
-	goToSubtree := true
-	var outNodes []sqlparser.SQLNode
-	err := sqlparser.Walk(func(node sqlparser.SQLNode) (kontinue bool, err error) {
-		if goToSubtree {
-			goToSubtree = false
-			return true, nil
-		}
-		outNodes = append(outNodes, node)
-		return false, nil
-
-	}, firstNode)
-	return outNodes, err
-}
-
-// starFound return true if Select has '*' expression
-func starFound(selectExpression sqlparser.SelectExprs) bool {
-	starDetected := false
-	sqlparser.Walk(func(node sqlparser.SQLNode) (bool, error) {
-		if _, ok := node.(*sqlparser.StarExpr); ok {
-			starDetected = true
-			return false, nil
-		}
-		return true, nil
-	}, selectExpression)
-	return starDetected
 }

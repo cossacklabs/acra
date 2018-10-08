@@ -24,11 +24,41 @@ import (
 )
 
 // ParsePatterns replace placeholders with our values which used to match patterns and parse them with sqlparser
-func ParsePatterns(patterns []string) ([][]sqlparser.SQLNode, error) {
-	placeholders := []string{SelectConfigPlaceholder, ColumnConfigPlaceholder, WhereConfigPlaceholder, ValueConfigPlaceholder, ListOfValuesConfigPlaceholder, SubqueryConfigPlaceholder}
-	replacers := []string{SelectConfigPlaceholderReplacer, ColumnConfigPlaceholderReplacer, WhereConfigPlaceholderReplacer, ValueConfigPlaceholderReplacer, ListOfValuesConfigPlaceholderReplacer, SubqueryConfigPlaceholderReplacer}
+func ParsePatterns(patterns []string) ([]sqlparser.Statement, error) {
+	placeholders := []string{
+		SelectPlaceholder,
+		UnionPlaceholder,
+		InsertPlaceholder,
+		UpdatePlaceholder,
+		DeletePlaceholder,
+		BeginPlaceholder,
+		CommitPlaceholder,
+		RollbackPlaceholder,
+		WherePlaceholder,
+		ValuePlaceholder,
+		SubqueryPlaceholder,
+		ListOfValuesPlaceholder,
+		ColumnPlaceholder,
+	}
+
+	replacers := []string{
+		SelectReplacer,
+		UnionReplacer,
+		InsertReplacer,
+		UpdateReplacer,
+		DeleteReplacer,
+		BeginReplacer,
+		CommitReplacer,
+		RollbackReplacer,
+		WhereReplacer,
+		ValueReplacer,
+		SubqueryReplacer,
+		ListOfValuesReplacer,
+		ColumnReplacer,
+	}
+
 	patternValue := ""
-	var outputPatterns [][]sqlparser.SQLNode
+	var outputPatterns []sqlparser.Statement
 	for _, pattern := range patterns {
 		patternValue = pattern
 		for index, placeholder := range placeholders {
@@ -36,16 +66,10 @@ func ParsePatterns(patterns []string) ([][]sqlparser.SQLNode, error) {
 		}
 		statement, err := sqlparser.Parse(patternValue)
 		if err != nil {
-			log.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCensorQueryParseError).WithField("pattern", patternValue).WithError(err).Errorln("Can't add specified pattern in blacklist handler")
+			log.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCensorQueryParseError).WithField("pattern", patternValue).WithError(err).Errorln("Can't parse specified pattern")
 			return nil, ErrPatternSyntaxError
 		}
-		var newPatternNodes []sqlparser.SQLNode
-		sqlparser.Walk(func(node sqlparser.SQLNode) (bool, error) {
-			newPatternNodes = append(newPatternNodes, node)
-			return true, nil
-		}, statement)
-		outputPatterns = append(outputPatterns, newPatternNodes)
+		outputPatterns = append(outputPatterns, statement)
 	}
 	return outputPatterns, nil
-
 }
