@@ -298,7 +298,6 @@ func handleSelectStatement(query, pattern sqlparser.Statement) bool {
 		return true
 	}
 
-
 	match = matchSelectCache(querySelectNode.Cache, patternSelectNode.Cache)
 	if !match {
 		return false
@@ -375,7 +374,6 @@ func handleInsertStatement(query, pattern sqlparser.Statement) bool {
 	if reflect.DeepEqual(pattern, InsertPatternStatement) {
 		return true
 	}
-
 
 	match = matchInsertAction(queryInsertNode.Action, patternInsertNode.Action)
 	if !match {
@@ -868,7 +866,7 @@ func areEqualTableExpr(query, pattern sqlparser.TableExpr) bool {
 		if !ok {
 			return false
 		}
-		if !areEqualJoinTableExpr(queryJoinTableExpr, pattern.(*sqlparser.JoinTableExpr)){
+		if !areEqualJoinTableExpr(queryJoinTableExpr, pattern.(*sqlparser.JoinTableExpr)) {
 			return false
 		}
 
@@ -987,14 +985,14 @@ func areEqualSimpleTableExpr(query, pattern sqlparser.SimpleTableExpr) bool {
 func areEqualSelectExpr(query, pattern sqlparser.SelectExpr) bool {
 	switch pattern.(type) {
 	case *sqlparser.StarExpr:
-		queryStarExpr, ok := query.(*sqlparser.StarExpr);
+		queryStarExpr, ok := query.(*sqlparser.StarExpr)
 		if !ok {
 			return false
 		}
 		return areEqualTableName(queryStarExpr.TableName, pattern.(*sqlparser.StarExpr).TableName)
 	case *sqlparser.AliasedExpr:
 		// check %%COLUMN%% pattern
-		queryAliasedExpr, ok := query.(*sqlparser.AliasedExpr);
+		queryAliasedExpr, ok := query.(*sqlparser.AliasedExpr)
 		if !ok {
 			switch query.(type) {
 			case *sqlparser.StarExpr:
@@ -1011,7 +1009,7 @@ func areEqualSelectExpr(query, pattern sqlparser.SelectExpr) bool {
 			return false
 		}
 	case sqlparser.Nextval:
-		queryNextval, ok := query.(sqlparser.Nextval);
+		queryNextval, ok := query.(sqlparser.Nextval)
 		if !ok {
 			return false
 		}
@@ -1049,10 +1047,10 @@ func areEqualAliasedExpr(query, pattern *sqlparser.AliasedExpr) bool {
 	return true
 }
 func areEqualExpr(query, pattern sqlparser.Expr) bool {
-	if query == nil && pattern == nil{
+	if query == nil && pattern == nil {
 		return true
 	}
-	if query == nil || pattern == nil{
+	if query == nil || pattern == nil {
 		return false
 	}
 
@@ -1636,10 +1634,10 @@ func areEqualSubquery(query, pattern *sqlparser.Subquery) bool {
 	return true
 }
 func areEqualValTuple(query sqlparser.ValTuple, pattern sqlparser.ValTuple) bool {
-	if query == nil && pattern == nil{
+	if query == nil && pattern == nil {
 		return true
 	}
-	if query == nil || pattern == nil{
+	if query == nil || pattern == nil {
 		return false
 	}
 	for index, _ := range pattern {
@@ -1655,11 +1653,11 @@ func areEqualValTuple(query sqlparser.ValTuple, pattern sqlparser.ValTuple) bool
 	// It's allowed to use this pattern combined with %%VALUE%% only
 	// at last position in tuple
 	if len(query) > len(pattern) {
-		patternValue, ok := pattern[len(pattern) - 1].(*sqlparser.SQLVal)
+		patternValue, ok := pattern[len(pattern)-1].(*sqlparser.SQLVal)
 		if !ok {
 			return false
 		}
-		if !isListOfValuesPattern(patternValue){
+		if !isListOfValuesPattern(patternValue) {
 			return false
 		}
 	}

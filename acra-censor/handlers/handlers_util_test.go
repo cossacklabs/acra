@@ -65,7 +65,7 @@ func TestMatchTopLevelPlaceholders(t *testing.T) {
 
 }
 func testSingleTopLevelPlaceholder(t *testing.T, pattern string, indexOfMatchedQuery ...int) {
-	parsedPatterns, err := ParsePatterns([]string {pattern})
+	parsedPatterns, err := ParsePatterns([]string{pattern})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -95,7 +95,6 @@ func contains(s []int, e int) bool {
 	}
 	return false
 }
-
 
 // TestHandleRangeCondition test queries with "column BETWEEN VALUE1 and VALUE2"
 func TestHandleRangeCondition(t *testing.T) {
