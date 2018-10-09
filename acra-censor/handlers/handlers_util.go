@@ -58,92 +58,7 @@ const (
 	LogQueryLength = 100
 	// ValueMask is used to mask real Values from SQL queries before logging to syslog.
 	ValueMask = "replaced"
-	// UnionPlaceholder is used when matching %%UNION%% pattern
-	UnionPlaceholder = "%%UNION%%"
-	// SelectPlaceholder is used when matching %%SELECT%% pattern
-	SelectPlaceholder = "%%SELECT%%"
-	// InsertPlaceholder is used when matching %%INSERT%% pattern
-	InsertPlaceholder = "%%INSERT%%"
-	// UpdatePlaceholder is used when matching %%UPDATE%% pattern
-	UpdatePlaceholder = "%%UPDATE%%"
-	// DeletePlaceholder is used when matching %%DELETE%% pattern
-	DeletePlaceholder = "%%DELETE%%"
-	// BeginPlaceholder is used when matching BEGIN pattern
-	BeginPlaceholder = "%%BEGIN%%"
-	// CommitPlaceholder is used when matching COMMIT pattern
-	CommitPlaceholder = "%%COMMIT%%"
-	// RollbackPlaceholder is used when matching ROLLBACK pattern
-	RollbackPlaceholder = "%%ROLLBACK%%"
-	// WherePlaceholder is used when matching %%WHERE%% pattern
-	WherePlaceholder = "%%WHERE%%"
-	// ValuePlaceholder is used when matching %%VALUE%% pattern
-	ValuePlaceholder = "%%VALUE%%"
-	// SubqueryPlaceholder is used when matching %%SUBQUERY%% pattern
-	SubqueryPlaceholder = "%%SUBQUERY%%"
-	// ListOfValuesPlaceholder is used when matching %%LIST_OF_VALUES%% pattern
-	ListOfValuesPlaceholder = "%%LIST_OF_VALUES"
-	// ColumnPlaceholder is used when matching %%COLUMN%% pattern
-	ColumnPlaceholder = "%%COLUMN%%"
-
-	// SelectReplacer is used when matching %%SELECT%% pattern
-	SelectReplacer = "SELECT 253768160274445518137315681"
-	// UnionReplacer is used when matching %%UNION%% pattern
-	UnionReplacer = "SELECT 254775710223443243272234290 UNION SELECT 486264166657867240626457666"
-	// InsertReplacer is used when matching %%INSERT%% pattern
-	InsertReplacer = "INSERT INTO table_150624360841713829746677497 (column_454716724) VALUES (value_151516596)"
-	// UpdateReplacer is used when matching %%UPDATE%% pattern
-	UpdateReplacer = "UPDATE table_795749362101944825892661393 SET column_148943040 = 577742781 WHERE row_788570922 = 840343494"
-	// DeleteReplacer is used when matching %%DELETE%% pattern
-	DeleteReplacer = "DELETE FROM table_359557854899217835429634591"
-	// BeginReplacer is used when matching BEGIN pattern
-	BeginReplacer = "BEGIN"
-	// CommitReplacer is used when matching COMMIT pattern
-	CommitReplacer = "COMMIT"
-	// RollbackReplacer is used when matching ROLLBACK pattern
-	RollbackReplacer = "ROLLBACK"
-	// WhereReplacer is used when matching %%WHERE%% pattern
-	WhereReplacer = "where value = where_651453831047102383248696721"
-	// ValueReplacer is used when matching %%VALUE%% pattern
-	ValueReplacer = "'value_877452131373673274532373116'"
-	// SubqueryReplacer is used when matching %%SUBQUERY%% pattern
-	SubqueryReplacer = "SELECT 'subquery_820753242875385807714016705'"
-	// ListOfValuesReplacer is used when matching %%LIST_OF_VALUES%% pattern
-	ListOfValuesReplacer = "'list_of_values_980254824737236160411017007'"
-	// ColumnReplacer is used when matching %%COLUMN%% pattern
-	ColumnReplacer = "column_443112402399486586659464580"
 )
-
-// UnionPatternStatement is used while comparison with %%UNION%% pattern
-var UnionPatternStatement, _ = sqlparser.Parse(UnionReplacer)
-
-// SelectPatternStatement is used while comparison with %%SELECT%% pattern
-var SelectPatternStatement, _ = sqlparser.Parse(SelectReplacer)
-
-// InsertPatternStatement is used while comparison with %%INSERT%% pattern
-var InsertPatternStatement, _ = sqlparser.Parse(InsertReplacer)
-
-// UpdatePatternStatement is used while comparison with %%UPDATE%% pattern
-var UpdatePatternStatement, _ = sqlparser.Parse(UpdateReplacer)
-
-// DeletePatternStatement is used while comparison with %%DELETE%% pattern
-var DeletePatternStatement, _ = sqlparser.Parse(DeleteReplacer)
-
-// ValuePatternStatement is used while comparison with %%VALUE%% pattern
-// replacer is used without quotes
-var ValuePatternStatement = sqlparser.NewStrVal([]byte(ValueReplacer[1:34]))
-
-// SubqueryPatternStatement is used while comparison with %%SUBQUERY%% pattern
-var SubqueryPatternStatement, _ = sqlparser.Parse(SubqueryReplacer)
-
-// ListOfValuePatternStatement is used while comparison with %%LIST_OF_VALUES%% pattern
-// replacer is used without quotes
-var ListOfValuePatternStatement = sqlparser.NewStrVal([]byte(ListOfValuesReplacer[1:43]))
-
-// ColumnPatternStatement is used while comparison with %%COLUMN%% pattern
-var ColumnPatternStatement = sqlparser.NewColIdent(ColumnReplacer)
-
-// WherePatternStatement is used while comparison with %%WHERE%% pattern
-var WherePatternStatement, _ = sqlparser.Parse("SELECT * FROM table_883909268 " + WhereReplacer)
 
 // TrimStringToN trims query to N chars.
 func TrimStringToN(query string, n int) string {
@@ -193,73 +108,41 @@ func checkPatternsMatching(patterns []sqlparser.Statement, query string) (bool, 
 }
 
 func checkSinglePatternMatch(query, pattern sqlparser.Statement) bool {
-	match := false
-	match = handleUnionStatement(query, pattern)
-	if match {
-		return true
+	switch pattern.(type) {
+	case *sqlparser.Union:
+		return handleUnionStatement(query, pattern)
+	case *sqlparser.Select:
+		return handleSelectStatement(query, pattern)
+	case *sqlparser.Stream:
+		return handleStreamStatement(query, pattern)
+	case *sqlparser.Insert:
+		return handleInsertStatement(query, pattern)
+	case *sqlparser.Update:
+		return handleUpdateStatement(query, pattern)
+	case *sqlparser.Delete:
+		return handleDeleteStatement(query, pattern)
+	case *sqlparser.Set:
+		return handleSetStatement(query, pattern)
+	case *sqlparser.DBDDL:
+		return handleDBDDLStatement(query, pattern)
+	case *sqlparser.DDL:
+		return handleDDLStatement(query, pattern)
+	case *sqlparser.Show:
+		return handleShowStatement(query, pattern)
+	case *sqlparser.Use:
+		return handleUseStatement(query, pattern)
+	case *sqlparser.Begin:
+		return handleBeginStatement(query, pattern)
+	case *sqlparser.Commit:
+		return handleCommitStatement(query, pattern)
+	case *sqlparser.Rollback:
+		return handleRollbackStatement(query, pattern)
+	case *sqlparser.OtherRead:
+		return handleOtherReadStatement(query, pattern)
+	case *sqlparser.OtherAdmin:
+		return handleOtherAdminStatement(query, pattern)
 	}
-	match = handleSelectStatement(query, pattern)
-	if match {
-		return true
-	}
-	match = handleStreamStatement(query, pattern)
-	if match {
-		return true
-	}
-	match = handleInsertStatement(query, pattern)
-	if match {
-		return true
-	}
-	match = handleUpdateStatement(query, pattern)
-	if match {
-		return true
-	}
-	match = handleDeleteStatement(query, pattern)
-	if match {
-		return true
-	}
-	match = handleSetStatement(query, pattern)
-	if match {
-		return true
-	}
-	match = handleDBDDLStatement(query, pattern)
-	if match {
-		return true
-	}
-	match = handleDDLStatement(query, pattern)
-	if match {
-		return true
-	}
-	match = handleShowStatement(query, pattern)
-	if match {
-		return true
-	}
-	match = handleUseStatement(query, pattern)
-	if match {
-		return true
-	}
-	match = handleBeginStatement(query, pattern)
-	if match {
-		return true
-	}
-	match = handleCommitStatement(query, pattern)
-	if match {
-		return true
-	}
-	match = handleRollbackStatement(query, pattern)
-	if match {
-		return true
-	}
-	match = handleOtherReadStatement(query, pattern)
-	if match {
-		return true
-	}
-	match = handleOtherAdminStatement(query, pattern)
-	if match {
-		return true
-	}
-
-	//query doesn't match any pattern
+	// unexpected case
 	return false
 }
 
@@ -626,7 +509,6 @@ func matchSelectSelectExprs(query, pattern sqlparser.SelectExprs) bool {
 	}
 	return true
 }
-
 func matchSelectFrom(query, pattern sqlparser.TableExprs) bool {
 	if len(query) != len(pattern) {
 		return false
