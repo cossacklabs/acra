@@ -26,6 +26,18 @@ type testKeystore struct {
 	PoisonKeyPair *keys.Keypair
 }
 
+func (*testKeystore) SaveDataEncryptionKeys(id []byte, keypair *keys.Keypair) error {
+	panic("implement me")
+}
+func (*testKeystore) SaveTranslatorKeypair(id []byte, keypair *keys.Keypair) error {
+	panic("implement me")
+}
+func (*testKeystore) SaveServerKeypair(id []byte, keypair *keys.Keypair) error { panic("implement me") }
+func (*testKeystore) SaveConnectorKeypair(id []byte, keypair *keys.Keypair) error {
+	panic("implement me")
+}
+func (*testKeystore) SaveZoneKeypair(id []byte, keypair *keys.Keypair) error { panic("implement me") }
+
 func (*testKeystore) GetPrivateKey(id []byte) (*keys.PrivateKey, error) {
 	panic("implement me")
 }

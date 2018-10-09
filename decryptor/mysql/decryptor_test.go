@@ -59,6 +59,17 @@ func (keystore *testKeystore) GetAuthKey(remove bool) ([]byte, error) {
 	return nil, nil
 }
 func (keystore *testKeystore) Reset() {}
+func (*testKeystore) SaveDataEncryptionKeys(id []byte, keypair *keys.Keypair) error {
+	panic("implement me")
+}
+func (*testKeystore) SaveTranslatorKeypair(id []byte, keypair *keys.Keypair) error {
+	panic("implement me")
+}
+func (*testKeystore) SaveServerKeypair(id []byte, keypair *keys.Keypair) error { panic("implement me") }
+func (*testKeystore) SaveConnectorKeypair(id []byte, keypair *keys.Keypair) error {
+	panic("implement me")
+}
+func (*testKeystore) SaveZoneKeypair(id []byte, keypair *keys.Keypair) error { panic("implement me") }
 
 func getDecryptor(keystore keystore.KeyStore) *MySQLDecryptor {
 	dataDecryptor := binary.NewBinaryDecryptor()
