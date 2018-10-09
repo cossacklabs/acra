@@ -163,23 +163,23 @@ func handleUnionStatement(query, pattern sqlparser.Statement) bool {
 		return true
 	}
 
-	match = matchUnionLeft(queryUnionNode.Left, patternUnionNode.Left)
+	match = areEqualSelectStatement(queryUnionNode.Left, patternUnionNode.Left)
 	if !match {
 		return false
 	}
-	match = matchUnionRight(queryUnionNode.Right, patternUnionNode.Right)
+	match = areEqualSelectStatement(queryUnionNode.Right, patternUnionNode.Right)
 	if !match {
 		return false
 	}
-	match = matchUnionOrderBy(queryUnionNode.OrderBy, patternUnionNode.OrderBy)
+	match = areEqualOrderBy(queryUnionNode.OrderBy, patternUnionNode.OrderBy)
 	if !match {
 		return false
 	}
-	match = matchUnionLimit(queryUnionNode.Limit, patternUnionNode.Limit)
+	match = areEqualLimit(queryUnionNode.Limit, patternUnionNode.Limit)
 	if !match {
 		return false
 	}
-	match = matchUnionLock(queryUnionNode.Lock, patternUnionNode.Lock)
+	match = strings.EqualFold(queryUnionNode.Lock, patternUnionNode.Lock)
 	if !match {
 		return false
 	}
@@ -202,31 +202,31 @@ func handleSelectStatement(query, pattern sqlparser.Statement) bool {
 		return true
 	}
 
-	match = matchSelectCache(querySelectNode.Cache, patternSelectNode.Cache)
+	match = strings.EqualFold(querySelectNode.Cache, patternSelectNode.Cache)
 	if !match {
 		return false
 	}
-	match = matchSelectComments(querySelectNode.Comments, patternSelectNode.Comments)
+	match = areEqualComments(querySelectNode.Comments, patternSelectNode.Comments)
 	if !match {
 		return false
 	}
-	match = matchSelectDistinct(querySelectNode.Distinct, patternSelectNode.Distinct)
+	match = strings.EqualFold(querySelectNode.Distinct, patternSelectNode.Distinct)
 	if !match {
 		return false
 	}
-	match = matchSelectHints(querySelectNode.Hints, patternSelectNode.Hints)
+	match = strings.EqualFold(querySelectNode.Hints, patternSelectNode.Hints)
 	if !match {
 		return false
 	}
-	match = matchSelectSelectExprs(querySelectNode.SelectExprs, patternSelectNode.SelectExprs)
+	match = areEqualSelectExprs(querySelectNode.SelectExprs, patternSelectNode.SelectExprs)
 	if !match {
 		return false
 	}
-	match = matchSelectFrom(querySelectNode.From, patternSelectNode.From)
+	match = areEqualTableExprs(querySelectNode.From, patternSelectNode.From)
 	if !match {
 		return false
 	}
-	match = matchSelectWhere(querySelectNode.Where, patternSelectNode.Where)
+	match = areEqualWhere(querySelectNode.Where, patternSelectNode.Where)
 	if !match {
 		// Check %%WHERE%% pattern
 		if isWherePattern(patternSelectNode.Where) {
@@ -234,23 +234,23 @@ func handleSelectStatement(query, pattern sqlparser.Statement) bool {
 		}
 		return false
 	}
-	match = matchSelectGroupBy(querySelectNode.GroupBy, patternSelectNode.GroupBy)
+	match = areEqualGroupBy(querySelectNode.GroupBy, patternSelectNode.GroupBy)
 	if !match {
 		return false
 	}
-	match = matchSelectHaving(querySelectNode.Having, patternSelectNode.Having)
+	match = areEqualWhere(querySelectNode.Having, patternSelectNode.Having)
 	if !match {
 		return false
 	}
-	match = matchSelectOrderBy(querySelectNode.OrderBy, patternSelectNode.OrderBy)
+	match = areEqualOrderBy(querySelectNode.OrderBy, patternSelectNode.OrderBy)
 	if !match {
 		return false
 	}
-	match = matchSelectLimit(querySelectNode.Limit, patternSelectNode.Limit)
+	match = areEqualLimit(querySelectNode.Limit, patternSelectNode.Limit)
 	if !match {
 		return false
 	}
-	match = matchSelectLock(querySelectNode.Lock, patternSelectNode.Lock)
+	match = strings.EqualFold(querySelectNode.Lock, patternSelectNode.Lock)
 	if !match {
 		return false
 	}
@@ -279,35 +279,35 @@ func handleInsertStatement(query, pattern sqlparser.Statement) bool {
 		return true
 	}
 
-	match = matchInsertAction(queryInsertNode.Action, patternInsertNode.Action)
+	match = strings.EqualFold(queryInsertNode.Action, patternInsertNode.Action)
 	if !match {
 		return false
 	}
-	match = matchInsertComments(queryInsertNode.Comments, patternInsertNode.Comments)
+	match = areEqualComments(queryInsertNode.Comments, queryInsertNode.Comments)
 	if !match {
 		return false
 	}
-	match = matchInsertIgnore(queryInsertNode.Ignore, patternInsertNode.Ignore)
+	match = strings.EqualFold(queryInsertNode.Ignore, patternInsertNode.Ignore)
 	if !match {
 		return false
 	}
-	match = matchInsertTable(queryInsertNode.Table, patternInsertNode.Table)
+	match = areEqualTableName(queryInsertNode.Table, patternInsertNode.Table)
 	if !match {
 		return false
 	}
-	match = matchInsertPartitions(queryInsertNode.Partitions, patternInsertNode.Partitions)
+	match = areEqualPartitions(queryInsertNode.Partitions, patternInsertNode.Partitions)
 	if !match {
 		return false
 	}
-	match = matchInsertColumns(queryInsertNode.Columns, patternInsertNode.Columns)
+	match = areEqualColumns(queryInsertNode.Columns, patternInsertNode.Columns)
 	if !match {
 		return false
 	}
-	match = matchInsertRows(queryInsertNode.Rows, patternInsertNode.Rows)
+	match = areEqualInsertRows(queryInsertNode.Rows, patternInsertNode.Rows)
 	if !match {
 		return false
 	}
-	match = matchInsertOnDup(queryInsertNode.OnDup, patternInsertNode.OnDup)
+	match = areEqualOnDup(queryInsertNode.OnDup, patternInsertNode.OnDup)
 	if !match {
 		return false
 	}
@@ -328,27 +328,27 @@ func handleUpdateStatement(query, pattern sqlparser.Statement) bool {
 		return true
 	}
 
-	match = matchUpdateComments(queryUpdateNode.Comments, patternUpdateNode.Comments)
+	match = areEqualComments(queryUpdateNode.Comments, patternUpdateNode.Comments)
 	if !match {
 		return false
 	}
-	match = matchUpdateTableExprs(queryUpdateNode.TableExprs, patternUpdateNode.TableExprs)
+	match = areEqualTableExprs(queryUpdateNode.TableExprs, patternUpdateNode.TableExprs)
 	if !match {
 		return false
 	}
-	match = matchUpdateExprs(queryUpdateNode.Exprs, patternUpdateNode.Exprs)
+	match = areEqualUpdateExprs(queryUpdateNode.Exprs, patternUpdateNode.Exprs)
 	if !match {
 		return false
 	}
-	match = matchUpdateWhere(queryUpdateNode.Where, patternUpdateNode.Where)
+	match = areEqualWhere(queryUpdateNode.Where, patternUpdateNode.Where)
 	if !match {
 		return false
 	}
-	match = matchUpdateOrderBy(queryUpdateNode.OrderBy, patternUpdateNode.OrderBy)
+	match = areEqualOrderBy(queryUpdateNode.OrderBy, patternUpdateNode.OrderBy)
 	if !match {
 		return false
 	}
-	match = matchUpdateLimit(queryUpdateNode.Limit, patternUpdateNode.Limit)
+	match = areEqualLimit(queryUpdateNode.Limit, patternUpdateNode.Limit)
 	if !match {
 		return false
 	}
@@ -369,31 +369,31 @@ func handleDeleteStatement(query, pattern sqlparser.Statement) bool {
 	if reflect.DeepEqual(pattern, DeletePatternStatement) {
 		return true
 	}
-	match = matchDeleteComments(queryDeleteNode.Comments, patternDeleteNode.Comments)
+	match = areEqualComments(queryDeleteNode.Comments, patternDeleteNode.Comments)
 	if !match {
 		return false
 	}
-	match = matchDeleteTargets(queryDeleteNode.Targets, patternDeleteNode.Targets)
+	match = areEqualTableNames(queryDeleteNode.Targets, patternDeleteNode.Targets)
 	if !match {
 		return false
 	}
-	match = matchDeleteTableExprs(queryDeleteNode.TableExprs, patternDeleteNode.TableExprs)
+	match = areEqualTableExprs(queryDeleteNode.TableExprs, patternDeleteNode.TableExprs)
 	if !match {
 		return false
 	}
-	match = matchDeletePartitions(queryDeleteNode.Partitions, patternDeleteNode.Partitions)
+	match = areEqualPartitions(queryDeleteNode.Partitions, patternDeleteNode.Partitions)
 	if !match {
 		return false
 	}
-	match = matchDeleteWhere(queryDeleteNode.Where, patternDeleteNode.Where)
+	match = areEqualWhere(queryDeleteNode.Where, patternDeleteNode.Where)
 	if !match {
 		return false
 	}
-	match = matchDeleteOrderBy(queryDeleteNode.OrderBy, patternDeleteNode.OrderBy)
+	match = areEqualOrderBy(queryDeleteNode.OrderBy, patternDeleteNode.OrderBy)
 	if !match {
 		return false
 	}
-	match = matchDeleteLimit(queryDeleteNode.Limit, patternDeleteNode.Limit)
+	match = areEqualLimit(queryDeleteNode.Limit, patternDeleteNode.Limit)
 	if !match {
 		return false
 	}
@@ -402,82 +402,44 @@ func handleDeleteStatement(query, pattern sqlparser.Statement) bool {
 }
 func handleSetStatement(query, pattern sqlparser.Statement) bool {
 	// TODO
-	_ = query
-	_ = pattern
-	return false
+	return reflect.DeepEqual(query, pattern)
 }
 func handleDBDDLStatement(query, pattern sqlparser.Statement) bool {
 	// TODO
-	_ = query
-	_ = pattern
-	return false
+	return reflect.DeepEqual(query, pattern)
 }
 func handleDDLStatement(query, pattern sqlparser.Statement) bool {
 	// TODO
-	_ = query
-	_ = pattern
-	return false
+	return reflect.DeepEqual(query, pattern)
 }
 func handleShowStatement(query, pattern sqlparser.Statement) bool {
 	// TODO
-	_ = query
-	_ = pattern
-	return false
+	return reflect.DeepEqual(query, pattern)
 }
 func handleUseStatement(query, pattern sqlparser.Statement) bool {
 	// TODO
-	_ = query
-	_ = pattern
-	return false
+	return reflect.DeepEqual(query, pattern)
 }
 func handleBeginStatement(query, pattern sqlparser.Statement) bool {
-	if _, ok := query.(*sqlparser.Begin); ok {
-		if _, ok := pattern.(*sqlparser.Begin); ok {
-			return true
-		}
-	}
-	return false
+	return reflect.DeepEqual(query, pattern)
 }
 func handleCommitStatement(query, pattern sqlparser.Statement) bool {
-	if _, ok := query.(*sqlparser.Commit); ok {
-		if _, ok := pattern.(*sqlparser.Commit); ok {
-			return true
-		}
-	}
-	return false
+	return reflect.DeepEqual(query, pattern)
 }
 func handleRollbackStatement(query, pattern sqlparser.Statement) bool {
-	if _, ok := query.(*sqlparser.Rollback); ok {
-		if _, ok := pattern.(*sqlparser.Rollback); ok {
-			return true
-		}
-	}
-	return false
+	return reflect.DeepEqual(query, pattern)
 }
 func handleOtherReadStatement(query, pattern sqlparser.Statement) bool {
 	// TODO
-	if _, ok := query.(*sqlparser.OtherRead); ok {
-		if _, ok := pattern.(*sqlparser.OtherRead); ok {
-			return true
-		}
-	}
-	return false
+	return reflect.DeepEqual(query, pattern)
 }
 func handleOtherAdminStatement(query, pattern sqlparser.Statement) bool {
 	// TODO
-	if _, ok := query.(*sqlparser.OtherAdmin); ok {
-		if _, ok := pattern.(*sqlparser.OtherAdmin); ok {
-			return true
-		}
-	}
-	return false
+	return reflect.DeepEqual(query, pattern)
 }
 
-//Select statement matchers
-func matchSelectCache(query, pattern string) bool {
-	return strings.EqualFold(query, pattern)
-}
-func matchSelectComments(query, pattern sqlparser.Comments) bool {
+// Type comparators
+func areEqualComments(query, pattern sqlparser.Comments) bool {
 	if len(query) != len(pattern) {
 		return false
 	}
@@ -488,13 +450,7 @@ func matchSelectComments(query, pattern sqlparser.Comments) bool {
 	}
 	return true
 }
-func matchSelectDistinct(query, pattern string) bool {
-	return strings.EqualFold(query, pattern)
-}
-func matchSelectHints(query, pattern string) bool {
-	return strings.EqualFold(query, pattern)
-}
-func matchSelectSelectExprs(query, pattern sqlparser.SelectExprs) bool {
+func areEqualSelectExprs(query, pattern sqlparser.SelectExprs) bool {
 	// check star (all columns are allowed)
 	if isStarExpr(pattern) {
 		return true
@@ -509,7 +465,7 @@ func matchSelectSelectExprs(query, pattern sqlparser.SelectExprs) bool {
 	}
 	return true
 }
-func matchSelectFrom(query, pattern sqlparser.TableExprs) bool {
+func areEqualTableExprs(query, pattern sqlparser.TableExprs) bool {
 	if len(query) != len(pattern) {
 		return false
 	}
@@ -520,7 +476,7 @@ func matchSelectFrom(query, pattern sqlparser.TableExprs) bool {
 	}
 	return true
 }
-func matchSelectWhere(query, pattern *sqlparser.Where) bool {
+func areEqualWhere(query, pattern *sqlparser.Where) bool {
 	if query == nil && pattern == nil {
 		return true
 	}
@@ -535,10 +491,7 @@ func matchSelectWhere(query, pattern *sqlparser.Where) bool {
 	}
 	return true
 }
-func matchSelectHaving(query, pattern *sqlparser.Where) bool {
-	return matchSelectWhere(query, pattern)
-}
-func matchSelectGroupBy(query, pattern sqlparser.GroupBy) bool {
+func areEqualGroupBy(query, pattern sqlparser.GroupBy) bool {
 	if len(query) != len(pattern) {
 		return false
 	}
@@ -549,7 +502,7 @@ func matchSelectGroupBy(query, pattern sqlparser.GroupBy) bool {
 	}
 	return true
 }
-func matchSelectLimit(query, pattern *sqlparser.Limit) bool {
+func areEqualLimit(query, pattern *sqlparser.Limit) bool {
 	if query == nil && pattern == nil {
 		return true
 	}
@@ -565,7 +518,7 @@ func matchSelectLimit(query, pattern *sqlparser.Limit) bool {
 	}
 	return true
 }
-func matchSelectOrderBy(query, pattern sqlparser.OrderBy) bool {
+func areEqualOrderBy(query, pattern sqlparser.OrderBy) bool {
 	if len(query) != len(pattern) {
 		return false
 	}
@@ -579,44 +532,7 @@ func matchSelectOrderBy(query, pattern sqlparser.OrderBy) bool {
 	}
 	return true
 }
-func matchSelectLock(query, pattern string) bool {
-	return strings.EqualFold(query, pattern)
-}
-
-//Union statement matchers
-func matchUnionLeft(query, pattern sqlparser.SelectStatement) bool {
-	return areEqualSelectStatement(query, pattern)
-}
-func matchUnionRight(query, pattern sqlparser.SelectStatement) bool {
-	return areEqualSelectStatement(query, pattern)
-}
-func matchUnionOrderBy(query, pattern sqlparser.OrderBy) bool {
-	return matchSelectOrderBy(query, pattern)
-}
-func matchUnionLimit(query, pattern *sqlparser.Limit) bool {
-	return matchSelectLimit(query, pattern)
-}
-func matchUnionLock(query, pattern string) bool {
-	return matchSelectLock(query, pattern)
-}
-
-//Insert statement matchers
-func matchInsertAction(query, handler string) bool {
-	return strings.EqualFold(query, handler)
-}
-func matchInsertComments(query, pattern sqlparser.Comments) bool {
-	return matchSelectComments(query, pattern)
-}
-func matchInsertIgnore(query, pattern string) bool {
-	return strings.EqualFold(query, pattern)
-}
-func matchInsertTable(query sqlparser.TableName, pattern sqlparser.TableName) bool {
-	return areEqualTableName(query, pattern)
-}
-func matchInsertPartitions(query, pattern sqlparser.Partitions) bool {
-	return areEqualPartitions(query, pattern)
-}
-func matchInsertColumns(query, pattern sqlparser.Columns) bool {
+func areEqualColumns(query, pattern sqlparser.Columns) bool {
 	if len(query) != len(pattern) {
 		return false
 	}
@@ -627,7 +543,7 @@ func matchInsertColumns(query, pattern sqlparser.Columns) bool {
 	}
 	return true
 }
-func matchInsertRows(query, pattern sqlparser.InsertRows) bool {
+func areEqualInsertRows(query, pattern sqlparser.InsertRows) bool {
 	switch pattern.(type) {
 	case *sqlparser.Select:
 		querySelect, ok := query.(*sqlparser.Select)
@@ -676,7 +592,7 @@ func matchInsertRows(query, pattern sqlparser.InsertRows) bool {
 
 	return true
 }
-func matchInsertOnDup(query, pattern sqlparser.OnDup) bool {
+func areEqualOnDup(query, pattern sqlparser.OnDup) bool {
 	if len(query) != len(pattern) {
 		return false
 	}
@@ -692,18 +608,7 @@ func matchInsertOnDup(query, pattern sqlparser.OnDup) bool {
 
 	return true
 }
-
-//Update statement matchers
-func matchUpdateLimit(query *sqlparser.Limit, pattern *sqlparser.Limit) bool {
-	return matchSelectLimit(query, pattern)
-}
-func matchUpdateOrderBy(query, pattern sqlparser.OrderBy) bool {
-	return matchSelectOrderBy(query, pattern)
-}
-func matchUpdateWhere(query, pattern *sqlparser.Where) bool {
-	return matchSelectWhere(query, pattern)
-}
-func matchUpdateExprs(query, pattern sqlparser.UpdateExprs) bool {
+func areEqualUpdateExprs(query, pattern sqlparser.UpdateExprs) bool {
 	if len(query) != len(pattern) {
 		return false
 	}
@@ -714,30 +619,7 @@ func matchUpdateExprs(query, pattern sqlparser.UpdateExprs) bool {
 	}
 	return true
 }
-func matchUpdateTableExprs(query, pattern sqlparser.TableExprs) bool {
-	return matchSelectFrom(query, pattern)
-}
-func matchUpdateComments(query, pattern sqlparser.Comments) bool {
-	return matchSelectComments(query, pattern)
-}
-
-//Delete statement matchers
-func matchDeleteLimit(query *sqlparser.Limit, pattern *sqlparser.Limit) bool {
-	return matchSelectLimit(query, pattern)
-}
-func matchDeleteOrderBy(query sqlparser.OrderBy, pattern sqlparser.OrderBy) bool {
-	return matchSelectOrderBy(query, pattern)
-}
-func matchDeleteWhere(query *sqlparser.Where, pattern *sqlparser.Where) bool {
-	return matchSelectWhere(query, pattern)
-}
-func matchDeletePartitions(query sqlparser.Partitions, pattern sqlparser.Partitions) bool {
-	return matchInsertPartitions(query, pattern)
-}
-func matchDeleteTableExprs(query sqlparser.TableExprs, pattern sqlparser.TableExprs) bool {
-	return matchSelectFrom(query, pattern)
-}
-func matchDeleteTargets(query sqlparser.TableNames, pattern sqlparser.TableNames) bool {
+func areEqualTableNames(query sqlparser.TableNames, pattern sqlparser.TableNames) bool {
 	if len(query) != len(pattern) {
 		return false
 	}
@@ -748,11 +630,6 @@ func matchDeleteTargets(query sqlparser.TableNames, pattern sqlparser.TableNames
 	}
 	return true
 }
-func matchDeleteComments(query, pattern sqlparser.Comments) bool {
-	return matchSelectComments(query, pattern)
-}
-
-// Type comparators
 func areEqualTableExpr(query, pattern sqlparser.TableExpr) bool {
 	switch pattern.(type) {
 	case *sqlparser.AliasedTableExpr:
@@ -1216,10 +1093,10 @@ func areEqualGroupConcatExpr(query, pattern *sqlparser.GroupConcatExpr) bool {
 	if !strings.EqualFold(query.Separator, pattern.Separator) {
 		return false
 	}
-	if !matchSelectSelectExprs(query.Exprs, pattern.Exprs) {
+	if !areEqualSelectExprs(query.Exprs, pattern.Exprs) {
 		return false
 	}
-	if !matchSelectOrderBy(query.OrderBy, pattern.OrderBy) {
+	if !areEqualOrderBy(query.OrderBy, pattern.OrderBy) {
 		return false
 	}
 	return true
@@ -1232,7 +1109,7 @@ func areEqualMatchExpr(query, pattern *sqlparser.MatchExpr) bool {
 		return false
 	}
 
-	if !matchSelectSelectExprs(query.Columns, pattern.Columns) {
+	if !areEqualSelectExprs(query.Columns, pattern.Columns) {
 		return false
 	}
 	return true
@@ -1241,7 +1118,7 @@ func areEqualConvertUsingExpr(query, pattern *sqlparser.ConvertUsingExpr) bool {
 	if !strings.EqualFold(query.Type, pattern.Type) {
 		return false
 	}
-	if areEqualExpr(query.Expr, pattern.Expr) {
+	if !areEqualExpr(query.Expr, pattern.Expr) {
 		return false
 	}
 	return true
@@ -1326,7 +1203,7 @@ func areEqualFuncExpr(query, pattern *sqlparser.FuncExpr) bool {
 	if !areEqualTableIdent(query.Qualifier, pattern.Qualifier) {
 		return false
 	}
-	if !matchSelectSelectExprs(query.Exprs, pattern.Exprs) {
+	if !areEqualSelectExprs(query.Exprs, pattern.Exprs) {
 		return false
 	}
 	return true

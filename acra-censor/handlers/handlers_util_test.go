@@ -659,7 +659,7 @@ func TestGroupByWithColumnPattern(t *testing.T) {
 				t.Fatal(err)
 			}
 			queryGroupBy := parsedQuery.(*sqlparser.Select).GroupBy
-			if !matchSelectGroupBy(queryGroupBy, patternGroupBy) {
+			if !areEqualGroupBy(queryGroupBy, patternGroupBy) {
 				t.Fatalf("Expected match in query <%s> with pattern <%s>", query, sqlparser.String(parsedPatterns[i]))
 			}
 		}
@@ -670,7 +670,7 @@ func TestGroupByWithColumnPattern(t *testing.T) {
 				t.Fatal(err)
 			}
 			queryGroupBy := parsedQuery.(*sqlparser.Select).GroupBy
-			if matchSelectGroupBy(queryGroupBy, patternGroupBy) {
+			if areEqualGroupBy(queryGroupBy, patternGroupBy) {
 				t.Fatalf("Expected not match in query <%s> with pattern <%s>", query, sqlparser.String(parsedPatterns[i]))
 			}
 		}
