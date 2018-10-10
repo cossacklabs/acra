@@ -73,6 +73,7 @@ func main() {
 	connectionString := flag.String("db_connection_string", "", "Connection string to db")
 	useMysql := flag.Bool("mysql_enable", false, "Handle MySQL connections")
 	_ = flag.Bool("postgresql_enable", false, "Handle Postgresql connections")
+	dryRun := flag.Bool("dry-run", false, "perform rotation without saving rotated AcraStructs and keys")
 	logging.SetLogLevel(logging.LogVerbose)
 
 	err := cmd.Parse(DefaultConfigPath, ServiceName)
@@ -87,7 +88,7 @@ func main() {
 		os.Exit(1)
 	}
 	if *fileMapConfig != "" {
-		runFileRotation(*fileMapConfig, keystorage)
+		runFileRotation(*fileMapConfig, keystorage, *dryRun)
 	}
 	if *sqlSelect != "" || *sqlUpdate != "" {
 		if *sqlSelect == "" || *sqlUpdate == "" {
@@ -117,7 +118,8 @@ func main() {
 			log.WithError(err).Errorln("Error on database ping", *connectionString)
 			os.Exit(1)
 		}
-		if !rotateDb(*sqlSelect, *sqlUpdate, db, keystorage, encoder) {
+		log.WithFields(log.Fields{"select_query": *sqlSelect, "update_query": *sqlUpdate}).Infoln("Rotate data in database")
+		if !rotateDb(*sqlSelect, *sqlUpdate, db, keystorage, encoder, *dryRun) {
 			os.Exit(1)
 		}
 	}

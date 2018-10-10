@@ -19,10 +19,7 @@ package main
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/cossacklabs/acra/acra-writer"
-	"github.com/cossacklabs/acra/decryptor/base"
 	"github.com/cossacklabs/acra/keystore"
-	"github.com/cossacklabs/themis/gothemis/keys"
 	log "github.com/sirupsen/logrus"
 	"io/ioutil"
 	"os"
@@ -47,22 +44,22 @@ type ZoneRotateData struct {
 type ZoneRotateResult map[string]*ZoneRotateData
 
 // rotateFiles generate new key pair for each zone in ZoneIDFileMap and re-encrypt all files encrypted with each zone
-func rotateFiles(fileMap ZoneIDFileMap, keyStore keystore.KeyStore) (ZoneRotateResult, error) {
+func rotateFiles(fileMap ZoneIDFileMap, keyStore keystore.KeyStore, dryRun bool) (ZoneRotateResult, error) {
+	rotator, err := newRotator(keyStore)
+	if err != nil {
+		return nil, err
+	}
+	defer rotator.clearKeys()
 	output := ZoneRotateResult{}
 	for zoneID, paths := range fileMap {
 		logger := log.WithField("zone_id", zoneID)
 		binZoneID := []byte(zoneID)
-		privateKey, err := keyStore.GetZonePrivateKey(binZoneID)
-		if err != nil {
-			logger.WithError(err).Errorln("Can't load private key of zone")
-			return nil, err
-		}
-		newPublicKey, err := keyStore.RotateZoneKey(binZoneID)
+		newPublicKey, err := rotator.getRotatedPublicKey(binZoneID)
 		if err != nil {
 			logger.WithError(err).Errorln("Can't rotate zone key")
 			return nil, err
 		}
-		result := &ZoneRotateData{NewPublicKey: newPublicKey}
+		result := &ZoneRotateData{NewPublicKey: newPublicKey.Value}
 		for _, path := range paths {
 			fileLogger := logger.WithField("filepath", path)
 			result.FilePaths = append(result.FilePaths, path)
@@ -71,12 +68,8 @@ func rotateFiles(fileMap ZoneIDFileMap, keyStore keystore.KeyStore) (ZoneRotateR
 				fileLogger.WithError(err).Errorf("Can't read file %s", path)
 				return nil, err
 			}
-			decrypted, err := base.DecryptAcrastruct(acraStruct, privateKey, binZoneID)
-			if err != nil {
-				fileLogger.WithError(err).Errorln("Can't decrypt AcraStruct")
-				return nil, err
-			}
-			rotated, err := acrawriter.CreateAcrastruct(decrypted, &keys.PublicKey{Value: newPublicKey}, binZoneID)
+
+			rotated, err := rotator.rotateAcrastruct(binZoneID, acraStruct)
 			if err != nil {
 				fileLogger.WithError(err).Errorln("Can't re-encrypt AcraStruct with rotated zone key")
 				return nil, err
@@ -86,26 +79,33 @@ func rotateFiles(fileMap ZoneIDFileMap, keyStore keystore.KeyStore) (ZoneRotateR
 				fileLogger.WithError(err).Errorln("Can't get stat info about file to retrieve current file permissions")
 				return nil, err
 			}
-			if err := ioutil.WriteFile(path, rotated, stat.Mode()); err != nil {
-				fileLogger.WithError(err).Errorln("Can't write rotated AcraStruct with zone")
-				return nil, err
+			if !dryRun {
+				if err := ioutil.WriteFile(path, rotated, stat.Mode()); err != nil {
+					fileLogger.WithError(err).Errorln("Can't write rotated AcraStruct with zone")
+					return nil, err
+				}
 			}
 			fileLogger.Infof("Finish rotate file")
 		}
 		output[zoneID] = result
 		logger.Infoln("Finish rotate zone")
 	}
+	if !dryRun {
+		if err := rotator.saveRotatedKeys(); err != nil {
+			log.WithError(err).Errorln("Can't save rotated keys")
+		}
+	}
 	return output, nil
 }
 
 // runFileRotation read map zones to files, re-generate zone key pairs and re-encrypt files
-func runFileRotation(fileMapConfigPath string, keystorage keystore.KeyStore) {
+func runFileRotation(fileMapConfigPath string, keystorage keystore.KeyStore, dryRun bool) {
 	fileMap, err := loadFileMap(fileMapConfigPath)
 	if err != nil {
 		log.WithError(err).Errorln("Can't load config with map <ZoneId>: <FilePath>")
 		os.Exit(1)
 	}
-	result, err := rotateFiles(fileMap, keystorage)
+	result, err := rotateFiles(fileMap, keystorage, dryRun)
 	if err != nil {
 		log.WithError(err).Errorln("Can't rotate files")
 		os.Exit(1)
