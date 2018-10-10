@@ -3,19 +3,14 @@
 
 #include <vector>
 #include <random>
-#include <climits>
-#include <algorithm>
-#include <functional>
-#include <iostream>
 
+// themis should be installed as system library (run `make install` from Themis code folder)
 #include <themis/themis.h>
-#include "themispp/secure_cell.hpp"
-#include "themispp/secure_message.hpp"
-#include "themispp/secure_keygen.hpp"
-#include "themispp/secure_rand.hpp"
 
-#include <cstdint>
-
+// themispp should be installed as system library (run `themispp_install` from Themis code folder)
+#include <themispp/secure_cell.hpp>
+#include <themispp/secure_message.hpp>
+#include <themispp/secure_keygen.hpp>
 
 /// https://github.com/steinwurf/endian/blob/master/src/endian/is_big_endian.hpp
 namespace endian {
