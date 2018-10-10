@@ -283,7 +283,7 @@ func handleInsertStatement(query, pattern sqlparser.Statement) bool {
 	if !match {
 		return false
 	}
-	match = areEqualComments(queryInsertNode.Comments, queryInsertNode.Comments)
+	match = areEqualComments(queryInsertNode.Comments, patternInsertNode.Comments)
 	if !match {
 		return false
 	}
@@ -440,15 +440,7 @@ func handleOtherAdminStatement(query, pattern sqlparser.Statement) bool {
 
 // Type comparators
 func areEqualComments(query, pattern sqlparser.Comments) bool {
-	if len(query) != len(pattern) {
-		return false
-	}
-	for index := range pattern {
-		if !bytes.Equal(query[index], pattern[index]) {
-			return false
-		}
-	}
-	return true
+	return reflect.DeepEqual(query, pattern)
 }
 func areEqualSelectExprs(query, pattern sqlparser.SelectExprs) bool {
 	// check star (all columns are allowed)
