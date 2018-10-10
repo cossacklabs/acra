@@ -6,27 +6,45 @@
 
 
 int main() {
-  std::cout << "Hello, World!" << std::endl;
-
-  using acra = acrawriterpp::acrawriter_t;
+  using acra = acrawriter::acrawriter;
   using base64 = cppcodec::base64_rfc4648;
   using hex = cppcodec::hex_lower;
+  using namespace std;
 
-  acra::data_t message = {'h', '3', 'l', 'l', '0', 'a', 'c', 'r', 'a'};
+  static string message("secret message");
+  acra::data message_vector(message.c_str(), message.c_str() + message.length());
 
-  std::vector<uint8_t> pub_key = base64::decode("VUVDMgAAAC1SGS5iAprH9f1sf7GR4OZ/J1YEn8lEwrgmI36G1JOnx7BITfK/");
+  vector<uint8_t> pub_key = base64::decode("VUVDMgAAAC1SGS5iAprH9f1sf7GR4OZ/J1YEn8lEwrgmI36G1JOnx7BITfK/");
 
+  // init acrawriter
   acra acrawriter;
-  acra::acrastruct_t as = acrawriter.create_acra_struct(message, pub_key);
 
-  std::cout << "AcraStruct B64:" << std::endl;
-  std::cout << base64::encode(as) << std::endl;
+  // create acrastruct
+  acra::acrastruct as = acrawriter.create_acrastruct(message_vector, pub_key);
 
-  std::cout << "AcraStruct hex:" << std::endl;
-  std::cout << hex::encode(as) << std::endl;
+  cout << "AcraStruct (hex):" << endl;
+  cout << hex::encode(as) << endl;
 
-  std::cout << "Just AS:" << std::endl;
-  std::cout.write((const char*)(&as[0]), as.size());
+  cout << "AcraStruct (Base64):" << endl;
+  cout << base64::encode(as) << endl;
+
+  // ------- with zone -------
+  static string message_with_zone("message with zone");
+  acra::data message_with_zone_vector(message_with_zone.c_str(), message_with_zone.c_str() + message_with_zone.length());
+
+  static string zone_id("DDDDDDDDvTOInNRROHOihRkf");
+  acra::data zone_id_vector(zone_id.c_str(), zone_id.c_str() + zone_id.length());
+
+  vector<uint8_t> zone_pub_key = base64::decode("VUVDMgAAAC1GQ4j5AgEwz22ion8C0lvwRGJSjaC/G6ver3oOqmbBrIBjpdRo");
+
+  // create acrastruct
+  acra::acrastruct as_with_zone = acrawriter.create_acrastruct(message_with_zone_vector, zone_pub_key, zone_id_vector);
+
+  cout << "AcraStruct with zone (hex):" << endl;
+  cout << hex::encode(as_with_zone) << endl;
+
+  cout << "AcraStruct with zone (Base64):" << endl;
+  cout << base64::encode(as_with_zone) << endl;
 
   return 0;
 }
