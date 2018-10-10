@@ -50,7 +50,7 @@ from sqlalchemy.exc import DatabaseError
 from sqlalchemy.dialects.postgresql import BYTEA
 
 from utils import (read_storage_public_key, decrypt_acrastruct,
-                   decrypt_private_key)
+                   decrypt_private_key, read_zone_public_key)
 
 import sys
 # add to path our wrapper until not published to PYPI
@@ -2688,6 +2688,14 @@ class TestAcraRotate(BaseTestCase):
         return super(TestAcraRotate, self).fork_acra(
             popen_kwargs, **acra_kwargs)
 
+    def isSameZonePublicKeys(self, keys_folder, zone_data):
+        """check is equal zone public key on filesystem and from zone_data"""
+        for zone_id, public_key in zone_data.items():
+            current_public = read_zone_public_key(zone_id, keys_folder)
+            if b64decode(public_key) != current_public:
+                return False
+        return True
+
     def testFileRotation(self):
         """
         generate some zones, create AcraStructs with them and save to files
@@ -2735,6 +2743,7 @@ class TestAcraRotate(BaseTestCase):
             # keys of json objects that will be in output
             PUBLIC_KEY = 'new_public_key'
             FILES = 'file_paths'
+            # True must be first because code below depends on it
             for dryRun in (True, False):
                 with contextlib.closing(tempfile.NamedTemporaryFile(
                         'w', delete=False)) as zone_map_file:
@@ -2747,9 +2756,20 @@ class TestAcraRotate(BaseTestCase):
                     if not isinstance(result, str):
                         result = result.decode('utf-8')
                     result = json.loads(result)
+                    if dryRun:
+                        # keys on filesystem should not changed
+                        self.assertTrue(
+                            self.isSameZonePublicKeys(
+                                keys_folder, zones_before_rotate))
+                    else:
+                        # keys on filesystem must be changed
+                        self.assertFalse(
+                            self.isSameZonePublicKeys(
+                                keys_folder, zones_before_rotate))
                     for zone_id in result:
                         self.assertIn(zone_id, zones_before_rotate)
-                        # new public key must be different from previous
+                        # new public key in output must be different from
+                        # previous
                         self.assertNotEqual(
                             result[zone_id][PUBLIC_KEY],
                             zones_before_rotate[zone_id])
@@ -2783,6 +2803,13 @@ class TestAcraRotate(BaseTestCase):
                                 decrypted_rotated, acrastructs[path].data)
 
     def testDatabaseRotation(self):
+        def load_zones_from_folder(keys_folder, zone_ids):
+            """load zone public keys from filesystem"""
+            output = {}
+            for id in zone_ids:
+                output[id] = b64encode(read_zone_public_key(id, keys_folder))
+            return output
+
         rotate_test_table = sa.Table(
             'rotate_test',
             metadata,
@@ -2803,6 +2830,7 @@ class TestAcraRotate(BaseTestCase):
                      '--keys_output_dir={}'.format(KEYS_FOLDER.name)],
                     cwd=os.getcwd(),
                     timeout=PROCESS_CALL_TIMEOUT).decode('utf-8')))
+        zone_ids = [data[ZONE_ID] for data in zones]
         data_before_rotate = {}
         for zone in zones:
             for _ in range(data_per_zone_count):
@@ -2852,6 +2880,8 @@ class TestAcraRotate(BaseTestCase):
                 '--dry-run={}'.format(1 if dry_run else 0),
                 mode_arg
              ]
+
+            zone_map = load_zones_from_folder(KEYS_FOLDER.name, zone_ids)
             # use extra arg in select and update
             subprocess.check_output(
                 default_args + [
@@ -2859,6 +2889,12 @@ class TestAcraRotate(BaseTestCase):
                     '--sql_update={}'.format(sql_update)
                 ]
             )
+            if dry_run:
+                self.assertTrue(
+                    self.isSameZonePublicKeys(KEYS_FOLDER.name, zone_map))
+            else:
+                self.assertFalse(
+                    self.isSameZonePublicKeys(KEYS_FOLDER.name, zone_map))
 
             result = self.engine1.execute(sa.select([rotate_test_table]))
             self.check_decrypted_data(result)
@@ -2875,6 +2911,8 @@ class TestAcraRotate(BaseTestCase):
             some_id = list(data_before_rotate.keys())[0]
             sql_update = sql_update.format(some_id)
 
+
+            zone_map = load_zones_from_folder(KEYS_FOLDER.name, zone_ids)
             # rotate with select without extra arg
             subprocess.check_output(
                 default_args + [
@@ -2882,6 +2920,13 @@ class TestAcraRotate(BaseTestCase):
                     '--sql_update={}'.format(sql_update)
                  ]
             )
+
+            if dry_run:
+                self.assertTrue(
+                    self.isSameZonePublicKeys(KEYS_FOLDER.name, zone_map))
+            else:
+                self.assertFalse(
+                    self.isSameZonePublicKeys(KEYS_FOLDER.name, zone_map))
 
             result = self.engine1.execute(
                 sa.select([rotate_test_table],
