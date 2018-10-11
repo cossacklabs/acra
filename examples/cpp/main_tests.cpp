@@ -125,11 +125,6 @@ void generate_acrastruct_and_check_structure(uint64_t random_data_length) {
 }
 
 TEST_CASE( "generate many acrastructs" ) {
-  static string zone_id("DDDDDDDDvTOInNRROHOihRkf");
-  acra::data zone_id_vector(zone_id.c_str(), zone_id.c_str() + zone_id.length());
-
-  vector<uint8_t> zone_pub_key = base64::decode("VUVDMgAAAC1GQ4j5AgEwz22ion8C0lvwRGJSjaC/G6ver3oOqmbBrIBjpdRo");
-
   generate_acrastruct_and_check_structure(10); // 10 bytes
   generate_acrastruct_and_check_structure(100); // 100 bytes
   generate_acrastruct_and_check_structure(1024); // 1 kB
@@ -148,7 +143,6 @@ TEST_CASE ( " different acrastructs") {
   acra::data zone_id_vector(zone_id_string.c_str(), zone_id_string.c_str() + zone_id_string.length());
 
   secure_key_pair_generator_t<EC> key_pair_generator;
-  acra::data temp_private_key = key_pair_generator.get_priv();
   acra::data temp_public_key = key_pair_generator.get_pub();
 
   // pack acrastruct
