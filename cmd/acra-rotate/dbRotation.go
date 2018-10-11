@@ -36,13 +36,13 @@ func rotateDb(selectQuery, updateQuery string, db *sql.DB, keystore keystore.Key
 
 	rows, err := db.Query(selectQuery)
 	if err != nil {
-		log.WithError(err).Errorf("Can't fetch result")
+		log.WithError(err).Errorf("Can't fetch result with sql_select query")
 		return false
 	}
 	defer rows.Close()
 	columns, err := rows.Columns()
 	if err != nil {
-		log.WithError(err).Errorln("Can't fetch info about result columns")
+		log.WithError(err).Errorln("Can't fetch metadata for result columns")
 		return false
 	}
 	if len(columns) < 2 {
@@ -97,7 +97,7 @@ func rotateDb(selectQuery, updateQuery string, db *sql.DB, keystore keystore.Key
 		if !dryRun {
 			_, err = db.Exec(updateQuery, extraArgs...)
 			if err != nil {
-				logger.WithError(err).Errorln("Can't update data in db via update query")
+				logger.WithError(err).Errorln("Can't update data in db via sql_update query")
 				return false
 			}
 		}

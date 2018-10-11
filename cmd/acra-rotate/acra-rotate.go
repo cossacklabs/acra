@@ -87,6 +87,9 @@ func main() {
 		log.WithError(err).Errorln("Can't initialize keystore")
 		os.Exit(1)
 	}
+	if *dryRun {
+		log.Infoln("Rotating in dry-run mode")
+	}
 	if *fileMapConfig != "" {
 		runFileRotation(*fileMapConfig, keystorage, *dryRun)
 	}
@@ -115,7 +118,7 @@ func main() {
 			os.Exit(1)
 		}
 		if err := db.Ping(); err != nil {
-			log.WithError(err).Errorln("Error on database ping", *connectionString)
+			log.WithError(err).Errorln("Error on pinging database", *connectionString)
 			os.Exit(1)
 		}
 		log.WithFields(log.Fields{"select_query": *sqlSelect, "update_query": *sqlUpdate}).Infoln("Rotate data in database")

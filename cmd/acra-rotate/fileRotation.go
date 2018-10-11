@@ -17,6 +17,7 @@ limitations under the License.
 package main
 
 import (
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"github.com/cossacklabs/acra/keystore"
@@ -71,7 +72,7 @@ func rotateFiles(fileMap ZoneIDFileMap, keyStore keystore.KeyStore, dryRun bool)
 
 			rotated, err := rotator.rotateAcrastruct(binZoneID, acraStruct)
 			if err != nil {
-				fileLogger.WithError(err).Errorln("Can't re-encrypt AcraStruct with rotated zone key")
+				fileLogger.WithField("acrastruct", hex.EncodeToString(acraStruct)).WithError(err).Errorln("Can't rotate data")
 				return nil, err
 			}
 			stat, err := os.Stat(path)
