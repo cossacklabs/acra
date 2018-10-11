@@ -19,6 +19,21 @@ using hex = cppcodec::hex_lower;
 using namespace std;
 using namespace themispp;
 
+/// https://github.com/steinwurf/endian/blob/master/src/endian/is_big_endian.hpp
+/// Checks if the platform is big- or little-endian.
+///
+/// From a test proposed here:
+/// http://stackoverflow.com/questions/1001307/
+///
+/// @return True if the platform is big endian otherwise false.
+inline bool is_big_endian() {
+  union {
+      uint32_t i;
+      uint8_t c[4];
+  } test = {0x01020304};
+
+  return test.c[0] == 1;
+}
 
 void generate_acrastruct_and_check_structure(uint64_t random_data_length) {
   cout << "generating AcraStruct with size: " << random_data_length << endl;
@@ -87,6 +102,10 @@ void generate_acrastruct_and_check_structure(uint64_t random_data_length) {
   as_end = as_start + encrypted_data_length_length;
   acra::data encrypted_data_length_vector(encrypted_data_length_length);
   copy(as.begin() + as_start, as.begin() + as_end, encrypted_data_length_vector.begin());
+
+  if (is_big_endian()) {
+    reverse(begin(encrypted_data_length_vector), end(encrypted_data_length_vector));
+  }
 
   // check endianess
   uint64_t encrypted_data_length = *reinterpret_cast<const uint64_t*>(&encrypted_data_length_vector[0]);
