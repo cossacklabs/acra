@@ -1,11 +1,12 @@
 #define CATCH_CONFIG_MAIN  // This tells Catch to provide a main() - only do this in one cpp file
-#include "catch.hpp"
 
 #include <iostream>
 #include <vector>
 #include <random>
-#include "cppcodec/base64_default_rfc4648.hpp"
-#include "cppcodec/hex_default_lower.hpp"
+
+#include <catch.hpp>
+#include <cppcodec/base64_default_rfc4648.hpp>
+#include <cppcodec/hex_default_lower.hpp>
 
 #include "acrawriter.hpp"
 #include <themis/themis.h>

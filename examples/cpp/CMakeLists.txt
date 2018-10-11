@@ -3,12 +3,15 @@ project(acrawriter_cpp)
 set(CMAKE_CXX_STANDARD 14)
 
 set(ACRAWRITER ../../wrappers/cpp)
-
 include_directories(${ACRAWRITER})
+
+set(LIBS libs)
+include_directories(${LIBS})
 
 set(
     SOURCE_FILES
     ${ACRAWRITER}/acrawriter.hpp
+    ${LIBS}
     main.cpp
     )
 
@@ -22,9 +25,13 @@ set(CMAKE_CXX_STANDARD 14)
 set(ACRAWRITER ../../wrappers/cpp)
 include_directories(${ACRAWRITER})
 
+set(LIBS libs)
+include_directories(${LIBS})
+
 set(
         SOURCE_FILES
         ${ACRAWRITER}/acrawriter.hpp
+        ${LIBS}
         main_tests.cpp
 )
 
