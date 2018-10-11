@@ -26,7 +26,7 @@ import (
 type WhitelistHandler struct {
 	queries  map[string]bool
 	tables   map[string]bool
-	patterns [][]sqlparser.SQLNode
+	patterns []sqlparser.Statement
 	logger   *log.Entry
 }
 
@@ -35,7 +35,7 @@ func NewWhitelistHandler() *WhitelistHandler {
 	handler := &WhitelistHandler{}
 	handler.queries = make(map[string]bool)
 	handler.tables = make(map[string]bool)
-	handler.patterns = make([][]sqlparser.SQLNode, 0)
+	handler.patterns = make([]sqlparser.Statement, 0)
 	handler.logger = log.WithField("handler", "whitelist")
 	return handler
 }
