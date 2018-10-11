@@ -70,6 +70,17 @@ func (keystore *TestKeyStore) GetAuthKey(remove bool) ([]byte, error) {
 	return nil, nil
 }
 func (storage *TestKeyStore) GetPoisonKeyPair() (*keys.Keypair, error) { return nil, nil }
+func (*TestKeyStore) SaveDataEncryptionKeys(id []byte, keypair *keys.Keypair) error {
+	panic("implement me")
+}
+func (*TestKeyStore) SaveTranslatorKeypair(id []byte, keypair *keys.Keypair) error {
+	panic("implement me")
+}
+func (*TestKeyStore) SaveServerKeypair(id []byte, keypair *keys.Keypair) error { panic("implement me") }
+func (*TestKeyStore) SaveConnectorKeypair(id []byte, keypair *keys.Keypair) error {
+	panic("implement me")
+}
+func (*TestKeyStore) SaveZoneKeypair(id []byte, keypair *keys.Keypair) error { panic("implement me") }
 
 func testZoneIDMatcher(t *testing.T) {
 	var keystorage keystore.KeyStore = &TestKeyStore{}

@@ -172,12 +172,11 @@ func (server *ReaderServer) HandleConnectionString(parentContext context.Context
 	select {
 	case <-parentContext.Done():
 		log.WithError(parentContext.Err()).Debugln("Exit from handling connection string. Close all connections")
+		outErr = parentContext.Err()
 	case outErr = <-errCh:
 		log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorTranslatorCantAcceptNewHTTPConnection).
 			Errorln("Error on accepting new connections")
 		server.Stop()
-		os.Exit(1)
-
 	}
 	return outErr
 }
@@ -220,6 +219,8 @@ func (server *ReaderServer) Start(parentContext context.Context) {
 			if err != nil {
 				log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorTranslatorCantHandleHTTPConnection).
 					Errorln("Took error on handling http requests")
+				server.Stop()
+				os.Exit(1)
 			}
 		}()
 	}

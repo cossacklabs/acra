@@ -30,6 +30,18 @@ func (*testKeystore) GetPeerPublicKey(id []byte) (*keys.PublicKey, error) {
 	panic("implement me")
 }
 
+func (*testKeystore) SaveDataEncryptionKeys(id []byte, keypair *keys.Keypair) error {
+	panic("implement me")
+}
+func (*testKeystore) SaveTranslatorKeypair(id []byte, keypair *keys.Keypair) error {
+	panic("implement me")
+}
+func (*testKeystore) SaveServerKeypair(id []byte, keypair *keys.Keypair) error { panic("implement me") }
+func (*testKeystore) SaveConnectorKeypair(id []byte, keypair *keys.Keypair) error {
+	panic("implement me")
+}
+func (*testKeystore) SaveZoneKeypair(id []byte, keypair *keys.Keypair) error { panic("implement me") }
+
 var ErrKeyNotFound = errors.New("some error")
 
 func (keystore *testKeystore) GetZonePrivateKey(id []byte) (*keys.PrivateKey, error) {

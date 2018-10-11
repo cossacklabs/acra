@@ -109,31 +109,39 @@ func (store *FilesystemKeyStore) generateKeyPair(filename string, clientID []byt
 	if err != nil {
 		return nil, err
 	}
-	privateKeysFolder := filepath.Dir(store.getPrivateKeyFilePath(filename))
-	err = os.MkdirAll(privateKeysFolder, 0700)
-	if err != nil {
+	if err := store.saveKeyPairWithFilename(keypair, filename, clientID); err != nil {
 		return nil, err
+	}
+	return keypair, nil
+}
+
+func (store *FilesystemKeyStore) saveKeyPairWithFilename(keypair *keys.Keypair, filename string, id []byte) error {
+	privateKeysFolder := filepath.Dir(store.getPrivateKeyFilePath(filename))
+	err := os.MkdirAll(privateKeysFolder, 0700)
+	if err != nil {
+		return err
 	}
 
 	publicKeysFolder := filepath.Dir(store.getPublicKeyFilePath(filename))
 	err = os.MkdirAll(publicKeysFolder, 0700)
 	if err != nil {
-		return nil, err
+		return err
 	}
 
-	encryptedPrivate, err := store.encryptor.Encrypt(keypair.Private.Value, clientID)
+	encryptedPrivate, err := store.encryptor.Encrypt(keypair.Private.Value, id)
 	if err != nil {
-		return nil, err
+		return err
 	}
 	err = ioutil.WriteFile(store.getPrivateKeyFilePath(filename), encryptedPrivate, 0600)
 	if err != nil {
-		return nil, err
+		return err
 	}
 	err = ioutil.WriteFile(store.getPublicKeyFilePath(fmt.Sprintf("%s.pub", filename)), keypair.Public.Value, 0644)
 	if err != nil {
-		return nil, err
+		return err
 	}
-	return keypair, nil
+	store.cache.Add(filename, encryptedPrivate)
+	return nil
 }
 
 func (store *FilesystemKeyStore) generateKey(filename string, length uint8) ([]byte, error) {
@@ -413,4 +421,34 @@ func (store *FilesystemKeyStore) GetAuthKey(remove bool) ([]byte, error) {
 func (store *FilesystemKeyStore) RotateZoneKey(zoneID []byte) ([]byte, error) {
 	_, public, err := store.generateZoneKey(zoneID)
 	return public, err
+}
+
+// SaveZoneKeypair save or overwrite zone keypair
+func (store *FilesystemKeyStore) SaveZoneKeypair(id []byte, keypair *keys.Keypair) error {
+	filename := getZoneKeyFilename(id)
+	return store.saveKeyPairWithFilename(keypair, filename, id)
+}
+
+// SaveZoneKeypair save or overwrite acra-connector keypair
+func (store *FilesystemKeyStore) SaveConnectorKeypair(id []byte, keypair *keys.Keypair) error {
+	filename := getConnectorKeyFilename(id)
+	return store.saveKeyPairWithFilename(keypair, filename, id)
+}
+
+// SaveZoneKeypair save or overwrite acra-server keypair
+func (store *FilesystemKeyStore) SaveServerKeypair(id []byte, keypair *keys.Keypair) error {
+	filename := getServerKeyFilename(id)
+	return store.saveKeyPairWithFilename(keypair, filename, id)
+}
+
+// SaveZoneKeypair save or overwrite acra-translator keypair
+func (store *FilesystemKeyStore) SaveTranslatorKeypair(id []byte, keypair *keys.Keypair) error {
+	filename := getTranslatorKeyFilename(id)
+	return store.saveKeyPairWithFilename(keypair, filename, id)
+}
+
+// SaveZoneKeypair save or overwrite decryption keypair for client id
+func (store *FilesystemKeyStore) SaveDataEncryptionKeys(id []byte, keypair *keys.Keypair) error {
+	filename := getServerDecryptionKeyFilename(id)
+	return store.saveKeyPairWithFilename(keypair, filename, id)
 }

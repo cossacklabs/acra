@@ -19,109 +19,36 @@ package main
 import (
 	"database/sql"
 	"encoding/hex"
-	"encoding/json"
 	"fmt"
-	"github.com/cossacklabs/acra/acra-writer"
-	"github.com/cossacklabs/acra/decryptor/base"
 	"github.com/cossacklabs/acra/keystore"
 	"github.com/cossacklabs/acra/utils"
-	"github.com/cossacklabs/themis/gothemis/keys"
 	log "github.com/sirupsen/logrus"
 	"reflect"
 )
 
-type keyPair struct {
-	oldPrivatekey *keys.PrivateKey
-	NewPublicKey  *keys.PublicKey
-}
-
-// keyRotationStore store previous privateKeys and new public keys after rotation to use same private/public keys during rotation
-type keyRotationStore struct {
-	keys     map[string]*keyPair
-	keystore keystore.KeyStore
-}
-
-// Marshal encode new public keys for zones to json
-func (store *keyRotationStore) Marshal() ([]byte, error) {
-	// encode to json in compatible format as in file rotation
-	const PublicKey = "new_public_key"
-	output := make(map[string]map[string][]byte)
-	for id, keypair := range store.keys {
-		output[id] = map[string][]byte{PublicKey: keypair.NewPublicKey.Value}
-	}
-	return json.Marshal(output)
-}
-
-// rotateKey load current private key to memory, rotate and save new public key in memory
-func (store *keyRotationStore) rotateKey(id []byte) error {
-	idStr := string(id)
-	privateKey, err := store.keystore.GetZonePrivateKey(id)
-	if err != nil {
-		log.WithError(err).Errorf("Can't load current private key of zone=%s", string(id))
-		return err
-	}
-	newPublicKey, err := store.keystore.RotateZoneKey(id)
-	if err != nil {
-		log.WithError(err).Errorf("Rotate private key of zone=%s", string(id))
-		return err
-	}
-	store.keys[idStr] = &keyPair{oldPrivatekey: privateKey, NewPublicKey: &keys.PublicKey{newPublicKey}}
-	return nil
-}
-
-// getPublicKey return new rotated public key of zone
-func (store *keyRotationStore) getPublicKey(id []byte) (*keys.PublicKey, error) {
-	idStr := string(id)
-	if keypair, ok := store.keys[idStr]; ok {
-		return keypair.NewPublicKey, nil
-	}
-	if err := store.rotateKey(id); err != nil {
-		return nil, err
-	}
-	keypair := store.keys[idStr]
-	return keypair.NewPublicKey, nil
-}
-
-// getPrivateKey return private key before rotation
-func (store *keyRotationStore) getPrivateKey(id []byte) (*keys.PrivateKey, error) {
-	idStr := string(id)
-	if keypair, ok := store.keys[idStr]; ok {
-		return keypair.oldPrivatekey, nil
-	}
-	if err := store.rotateKey(id); err != nil {
-		return nil, err
-	}
-	keypair := store.keys[idStr]
-	return keypair.oldPrivatekey, nil
-}
-
-func (store *keyRotationStore) clear() {
-	for _, keypair := range store.keys {
-		utils.FillSlice(0, keypair.oldPrivatekey.Value)
-	}
-}
-
 // rotateDb execute selectQuery to fetch AcraStructs with related zone ids, decrypt with rotated zone keys and
-func rotateDb(selectQuery, updateQuery string, db *sql.DB, keystore keystore.KeyStore, encoder utils.BinaryEncoder) bool {
+func rotateDb(selectQuery, updateQuery string, db *sql.DB, keystore keystore.KeyStore, encoder utils.BinaryEncoder, dryRun bool) bool {
+	rotator, err := newRotator(keystore)
+	if err != nil {
+		return false
+	}
+	defer rotator.clearKeys()
+
 	rows, err := db.Query(selectQuery)
 	if err != nil {
-		log.WithError(err).Errorf("Can't fetch result")
+		log.WithError(err).Errorf("Can't fetch result with sql_select query")
 		return false
 	}
 	defer rows.Close()
 	columns, err := rows.Columns()
 	if err != nil {
-		log.WithError(err).Errorln("Can't fetch info about result columns")
+		log.WithError(err).Errorln("Can't fetch metadata for result columns")
 		return false
 	}
 	if len(columns) < 2 {
 		log.Errorln("Result has < 2 columns. Expected at least ZoneId and AcraStruct")
 		return false
 	}
-
-	keysStore := &keyRotationStore{keystore: keystore, keys: make(map[string]*keyPair)}
-	// zeroing private keys at end
-	defer keysStore.clear()
 
 	row := make([]interface{}, len(columns))
 	rowPointers := make([]interface{}, len(columns))
@@ -152,43 +79,36 @@ func rotateDb(selectQuery, updateQuery string, db *sql.DB, keystore keystore.Key
 			return false
 		}
 		logger := log.WithFields(log.Fields{"ZoneId": string(acraStructID)})
-		logger.Infof("Rotate AcraStruct with ZoneId=%s", string(acraStructID))
+		logger.Infof("Rotate AcraStruct")
 
 		// rotate
-		privateKey, err := keysStore.getPrivateKey(acraStructID)
-		if err != nil {
-			logger.WithField("acrastruct", hex.EncodeToString(acraStruct)).WithError(err).Errorln("Can't get private key")
-			return false
-		}
-		publicKey, err := keysStore.getPublicKey(acraStructID)
-		if err != nil {
-			logger.WithField("acrastruct", hex.EncodeToString(acraStruct)).WithError(err).Errorln("Can't load public key")
-			return false
-		}
-		decrypted, err := base.DecryptAcrastruct(acraStruct, privateKey, acraStructID)
-		if err != nil {
-			logger.WithField("acrastruct", hex.EncodeToString(acraStruct)).WithError(err).Errorln("Can't decrypt AcraStruct")
-			return false
-		}
-		rotated, err := acrawriter.CreateAcrastruct(decrypted, publicKey, acraStructID)
+		rotated, err := rotator.rotateAcrastruct(acraStructID, acraStruct)
 		if err != nil {
 			logger.WithField("acrastruct", hex.EncodeToString(acraStruct)).WithError(err).Errorln("Can't rotate data")
 			return false
 		}
-		utils.FillSlice(0, decrypted)
+
 		rotatedStr := encoder.Encode(rotated)
 		if len(rowPointers) > 2 {
 			extraArgs = append([]interface{}{rotatedStr}, row[:len(rowPointers)-2]...)
 		} else {
 			extraArgs = []interface{}{rotatedStr}
 		}
-		_, err = db.Exec(updateQuery, extraArgs...)
-		if err != nil {
-			logger.WithField("acrastruct", hex.EncodeToString(acraStruct)).WithError(err).Errorln("Can't update data in db via update query")
+		if !dryRun {
+			_, err = db.Exec(updateQuery, extraArgs...)
+			if err != nil {
+				logger.WithError(err).Errorln("Can't update data in db via sql_update query")
+				return false
+			}
+		}
+	}
+	if !dryRun {
+		if err := rotator.saveRotatedKeys(); err != nil {
+			log.WithError(err).Errorln("Can't save rotated keys")
 			return false
 		}
 	}
-	jsonOutput, err := keysStore.Marshal()
+	jsonOutput, err := rotator.marshal()
 	if err != nil {
 		log.WithError(err).Errorln("Can't encode to json")
 		return false

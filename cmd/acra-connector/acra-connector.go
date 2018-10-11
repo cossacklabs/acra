@@ -164,7 +164,7 @@ func handleConnection(config *Config, connection net.Conn) {
 
 	}
 	if err := acraConn.Close(); err != nil {
-		log.WithError(err).Errorln("Error on closing connection with %s", connector_mode.ModeToServiceName(config.Mode))
+		log.WithError(err).Errorf("Error on closing connection with %s", connector_mode.ModeToServiceName(config.Mode))
 	}
 }
 
