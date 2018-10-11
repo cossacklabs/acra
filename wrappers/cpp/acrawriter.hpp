@@ -55,15 +55,12 @@ namespace acrawriter {
           secure_message_t secure_message(temp_private_key, public_key);
           data encrypted_symm_key = secure_message.encrypt(symmertic_key);
 
+          // zeroing temp_private_key key
+          fill(temp_private_key.begin(), temp_private_key.end(), 0);
+
           // 4. encrypt payload using symmetric encryption and random symm key
           secure_cell_seal_t secure_cell(symmertic_key);
-          data encrypted_message;
-
-          if (zone_id.empty()) {
-            encrypted_message = secure_cell.encrypt(message);
-          } else {
-            encrypted_message = secure_cell.encrypt(message, zone_id);
-          }
+          data encrypted_message = zone_id.empty() ? secure_cell.encrypt(message) : secure_cell.encrypt(message, zone_id);
 
           // pack into array because I don't know how to push uint64_t into vector<uint8_t>
           uint64_t em_length = encrypted_message.size();
