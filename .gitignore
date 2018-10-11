@@ -145,3 +145,12 @@ ENV/
 .ropeproject
 
 cmd/acra-webconfig/auth.keys
+
+# cmake
+examples/cpp/CMakeCache.txt
+examples/cpp/CMakeFiles
+examples/cpp/CMakeScripts
+examples/cpp/Testing
+examples/cpp/cmake-build-debug/*
+examples/cpp/cmake_install.cmake
+examples/cpp/cmake-build-debug
