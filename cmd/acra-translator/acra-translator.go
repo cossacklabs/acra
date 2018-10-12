@@ -23,6 +23,8 @@ package main
 import (
 	"context"
 	"flag"
+	"go.opencensus.io/exporter/jaeger"
+	"go.opencensus.io/trace"
 	_ "net/http/pprof"
 	"os"
 	"syscall"
@@ -39,18 +41,18 @@ import (
 
 // Constants handy for AcraTranslator.
 const (
-	SERVICE_NAME         = "acra-translator"
+	ServiceName          = "acra-translator"
 	DEFAULT_WAIT_TIMEOUT = 10
 )
 
 // DEFAULT_CONFIG_PATH relative path to config which will be parsed as default
-var DEFAULT_CONFIG_PATH = utils.GetConfigPathByName(SERVICE_NAME)
+var DEFAULT_CONFIG_PATH = utils.GetConfigPathByName(ServiceName)
 
 func main() {
 	config := NewConfig()
 	loggingFormat := flag.String("logging_format", "plaintext", "Logging format: plaintext, json or CEF")
-	logging.CustomizeLogging(*loggingFormat, SERVICE_NAME)
-	log.Infof("Starting service %v", SERVICE_NAME)
+	logging.CustomizeLogging(*loggingFormat, ServiceName)
+	log.Infof("Starting service %v", ServiceName)
 
 	incomingConnectionHTTPString := flag.String("incoming_connection_http_string", "", "Connection string for HTTP transport like http://0.0.0.0:9595")
 	incomingConnectionGRPCString := flag.String("incoming_connection_grpc_string", "", "Default option: connection string for gRPC transport like grpc://0.0.0.0:9696")
@@ -68,10 +70,16 @@ func main() {
 
 	prometheusAddress := flag.String("incoming_connection_prometheus_metrics_string", "", "URL which will be used to expose Prometheus metrics (use <URL>/metrics address to pull metrics)")
 
+	tracing := flag.Bool("tracing_enable", false, "Enable tracing")
+	traceToLog := flag.Bool("tracing_log_enable", false, "Export trace data to log")
+	traceToJaeger := flag.Bool("tracing_jaeger_enable", false, "Export trace data to jaeger")
+	jaegerAgentEndpoint := flag.String("jaeger_agent_endpoint", "127.0.0.1:6831", "Jaeger agent endpoint that will be used to export trace data")
+	jaegerEndpoint := flag.String("jaeger_endpoint", "http://localhost:14268", "Jaeger endpoint that will be used to export trace data")
+
 	verbose := flag.Bool("v", false, "Log to stderr all INFO, WARNING and ERROR logs")
 	debug := flag.Bool("d", false, "Log everything to stderr")
 
-	err := cmd.Parse(DEFAULT_CONFIG_PATH, SERVICE_NAME)
+	err := cmd.Parse(DEFAULT_CONFIG_PATH, ServiceName)
 	if err != nil {
 		log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantReadServiceConfig).
 			Errorln("Can't parse args")
@@ -79,7 +87,7 @@ func main() {
 	}
 
 	// if log format was overridden
-	logging.CustomizeLogging(*loggingFormat, SERVICE_NAME)
+	logging.CustomizeLogging(*loggingFormat, ServiceName)
 
 	log.Infof("Validating service configuration...")
 	cmd.ValidateClientID(*secureSessionID)
@@ -99,16 +107,38 @@ func main() {
 	config.SetIncomingConnectionGRPCString(*incomingConnectionGRPCString)
 	config.SetConfigPath(DEFAULT_CONFIG_PATH)
 	config.SetDebug(*debug)
+	config.SetTraceToLog(*traceToLog)
+	config.SetTracing(*tracing)
+
+	if *tracing {
+		if *traceToLog {
+			trace.RegisterExporter(&logging.LogSpanExporter{})
+		}
+
+		if *traceToJaeger {
+			jaegerEndpoint, err := jaeger.NewExporter(jaeger.Options{
+				AgentEndpoint: *jaegerAgentEndpoint,
+				Endpoint:      *jaegerEndpoint,
+				ServiceName:   ServiceName,
+			})
+			if err != nil {
+				log.Fatalf("Failed to create the Jaeger exporter: %v", err)
+				os.Exit(1)
+			}
+			// And now finally register it as a Trace Exporter
+			trace.RegisterExporter(jaegerEndpoint)
+		}
+	}
 
 	log.Infof("Initialising keystore...")
 	masterKey, err := keystore.GetMasterKeyFromEnvironment()
 	if err != nil {
-		log.WithError(err).Errorln("can't load master key")
+		log.WithError(err).Errorln("Can't load master key")
 		os.Exit(1)
 	}
 	scellEncryptor, err := keystore.NewSCellKeyEncryptor(masterKey)
 	if err != nil {
-		log.WithError(err).Errorln("can't init scell encryptor")
+		log.WithError(err).Errorln("Can't init scell encryptor")
 		os.Exit(1)
 	}
 	keyStore, err := filesystem.NewTranslatorFileSystemKeyStore(*keysDir, scellEncryptor, *keysCacheSize)
@@ -142,7 +172,7 @@ func main() {
 	readerServer, err = NewReaderServer(config, keyStore, waitTimeout)
 	if err != nil {
 		log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantStartService).
-			Errorf("System error: can't start %s", SERVICE_NAME)
+			Errorf("System error: can't start %s", ServiceName)
 		panic(err)
 	}
 

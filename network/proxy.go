@@ -17,12 +17,18 @@ limitations under the License.
 package network
 
 import (
-	log "github.com/sirupsen/logrus"
+	"context"
+	"github.com/cossacklabs/acra/logging"
+	"go.opencensus.io/trace"
 	"net"
 )
 
-// Proxy reads data from connFrom, writes data to connTo
-func Proxy(connFrom, connTo net.Conn, errCh chan<- error) {
+// ProxyWithTracing reads data from connFrom, writes data to connTo and trace with OpenCensus
+func ProxyWithTracing(context context.Context, connFrom, connTo net.Conn, errCh chan<- error) {
+	_, span := trace.StartSpan(context, "ProxyWithTracing")
+	defer span.End()
+	logger := logging.NewLoggerWithTrace(context)
+
 	buf := make([]byte, 8192)
 	for {
 		n, err := connFrom.Read(buf)
@@ -31,7 +37,7 @@ func Proxy(connFrom, connTo net.Conn, errCh chan<- error) {
 			return
 		}
 		if n == 0 {
-			log.Warningln("Read 0 bytes")
+			logger.Warningln("Read 0 bytes")
 			continue
 		}
 		for nTo := 0; nTo < n; {

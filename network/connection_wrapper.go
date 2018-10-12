@@ -17,6 +17,7 @@ limitations under the License.
 package network
 
 import (
+	"context"
 	"net"
 )
 
@@ -27,6 +28,6 @@ type ConnectionTimeoutWrapper interface {
 
 // ConnectionWrapper interface
 type ConnectionWrapper interface {
-	WrapClient(id []byte, conn net.Conn) (net.Conn, error)
-	WrapServer(conn net.Conn) (net.Conn, []byte, error) // conn, ClientID, error
+	WrapClient(ctx context.Context, id []byte, conn net.Conn) (net.Conn, error)
+	WrapServer(ctx context.Context, conn net.Conn) (net.Conn, []byte, error) // conn, ClientID, error
 }

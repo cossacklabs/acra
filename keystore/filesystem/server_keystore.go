@@ -74,7 +74,7 @@ func newFilesystemKeyStore(privateKeyFolder, publicKeyFolder string, encryptor k
 	}
 	fi, err := os.Stat(directory)
 	if nil == err && runtime.GOOS == "linux" && fi.Mode().Perm().String() != "-rwx------" {
-		log.Errorln(" key store folder has an incorrect permissions")
+		log.Errorln("Key store folder has an incorrect permissions")
 		return nil, errors.New("key store folder has an incorrect permissions")
 	}
 	if privateKeyFolder != publicKeyFolder {
@@ -227,7 +227,7 @@ func (store *FilesystemKeyStore) getPrivateKeyByFilename(id []byte, filename str
 	if err != nil {
 		return nil, err
 	}
-	log.Debugf("load key from fs: %s", filename)
+	log.Debugf("Load key from fs: %s", filename)
 	store.cache.Add(filename, encryptedKey)
 	return &keys.PrivateKey{Value: decryptedKey}, nil
 }
@@ -270,14 +270,14 @@ func (store *FilesystemKeyStore) GetPeerPublicKey(id []byte) (*keys.PublicKey, e
 	defer store.lock.Unlock()
 	key, ok := store.cache.Get(fname)
 	if ok {
-		log.Debugf("load cached key: %s", fname)
+		log.Debugf("Load cached key: %s", fname)
 		return &keys.PublicKey{Value: key}, nil
 	}
 	publicKey, err := utils.LoadPublicKey(store.getPublicKeyFilePath(fname))
 	if err != nil {
 		return nil, err
 	}
-	log.Debugf("load key from fs: %s", fname)
+	log.Debugf("Load key from fs: %s", fname)
 	store.cache.Add(fname, publicKey.Value)
 	return publicKey, nil
 }
