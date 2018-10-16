@@ -154,7 +154,9 @@ var (
 // Note: the given entry is copied and not changed during the formatting process.
 func (f AcraJSONFormatter) Format(e *logrus.Entry) ([]byte, error) {
 	ne := copyEntry(e, f.Fields)
-	ne.Data[FieldKeyUnixTime] = unixTimeWithMilliseconds(e)
+	if _, ok := ne.Data[FieldKeyUnixTime]; !ok {
+		ne.Data[FieldKeyUnixTime] = unixTimeWithMilliseconds(e)
+	}
 	dataBytes, err := f.Formatter.Format(ne)
 	releaseEntry(ne)
 	return dataBytes, err
@@ -165,16 +167,22 @@ func (f AcraJSONFormatter) Format(e *logrus.Entry) ([]byte, error) {
 // Note: the given entry is copied and not changed during the formatting process.
 func (f AcraCEFFormatter) Format(e *logrus.Entry) ([]byte, error) {
 	ne := copyEntry(e, f.Fields)
-	ne.Data[FieldKeyUnixTime] = unixTimeWithMilliseconds(e)
+	if _, ok := ne.Data[FieldKeyUnixTime]; !ok {
+		ne.Data[FieldKeyUnixTime] = unixTimeWithMilliseconds(e)
+	}
 	dataBytes, err := f.CEFTextFormatter.Format(ne)
 	releaseEntry(ne)
 	return dataBytes, err
 }
 
-func unixTimeWithMilliseconds(e *logrus.Entry) string {
-	nanos := e.Time.UnixNano()
+// TimeToString return string representation of timestamp with milliseconds
+func TimeToString(t time.Time) string {
+	nanos := t.UnixNano()
 	millis := nanos / 1000000
 	millisf := float64(millis) / 1000.0
-
 	return fmt.Sprintf("%.3f", millisf)
+}
+
+func unixTimeWithMilliseconds(e *logrus.Entry) string {
+	return TimeToString(e.Time)
 }
