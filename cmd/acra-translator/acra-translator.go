@@ -142,7 +142,7 @@ func main() {
 	readerServer, err = NewReaderServer(config, keyStore, waitTimeout)
 	if err != nil {
 		log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantStartService).
-			Errorln("System error: can't start %s", SERVICE_NAME)
+			Errorf("System error: can't start %s", SERVICE_NAME)
 		panic(err)
 	}
 

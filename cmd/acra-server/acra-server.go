@@ -285,7 +285,7 @@ func main() {
 	server, err = NewServer(config, keyStore, errorSignalChannel, restartSignalsChannel)
 	if err != nil {
 		log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantStartService).
-			Errorln("System error: can't start %s", SERVICE_NAME)
+			Errorf("System error: can't start %s", SERVICE_NAME)
 		panic(err)
 	}
 
