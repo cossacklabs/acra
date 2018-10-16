@@ -37,7 +37,7 @@ jobs:
       - run: pip3 install -r $HOME/project/tests/requirements.txt
       # install from sources because pip install git+https://github.com/mysql/mysql-connector-python not support recursive submodules
       - run: git clone https://github.com/Lagovas/mysql-connector-python; cd mysql-connector-python; sudo python3 setup.py clean build_py install_lib
-      - run: cd $HOME && GOPATH=$HOME/$GOPATH_FOLDER go get -u -v github.com/golang/lint/golint
+      - run: cd $HOME && GOPATH=$HOME/$GOPATH_FOLDER go get -u -v golang.org/x/lint/golint
       - run: sudo ldconfig
     # testing
       # check that code formatted with gofmt
