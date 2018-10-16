@@ -296,7 +296,7 @@ func main() {
 		}
 		decrypted, err := base.DecryptAcrastruct(data, privateKey, zone)
 		if err != nil {
-			log.WithError(err).Errorln("Can't decrypt acrastruct in row with number %v", i)
+			log.WithError(err).Errorf("Can't decrypt acrastruct in row with number %v", i)
 			continue
 		}
 		for e := executors.Front(); e != nil; e = e.Next() {
