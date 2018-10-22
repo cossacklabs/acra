@@ -81,7 +81,6 @@ var ErrWaitTimeout = errors.New("timeout")
 func main() {
 	config := NewConfig()
 	loggingFormat := flag.String("logging_format", "plaintext", "Logging format: plaintext, json or CEF")
-	logging.CustomizeLogging(*loggingFormat, ServiceName)
 	log.Infof("Starting service %v", ServiceName)
 
 	dbHost := flag.String("db_host", "", "Host to db")
@@ -146,6 +145,8 @@ func main() {
 		os.Exit(1)
 	}
 
+	logging.CustomizeLogging(*loggingFormat, ServiceName)
+
 	config.TraceToLog = *traceToLog
 	if *tracing {
 		if *traceToLog {
@@ -165,9 +166,6 @@ func main() {
 			trace.RegisterExporter(jaegerEndpoint)
 		}
 	}
-
-	// if log format was overridden
-	logging.CustomizeLogging(*loggingFormat, ServiceName)
 
 	log.Infof("Validating service configuration...")
 	cmd.ValidateClientID(*secureSessionID)

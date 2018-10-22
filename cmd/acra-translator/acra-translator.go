@@ -51,7 +51,6 @@ var DEFAULT_CONFIG_PATH = utils.GetConfigPathByName(ServiceName)
 func main() {
 	config := NewConfig()
 	loggingFormat := flag.String("logging_format", "plaintext", "Logging format: plaintext, json or CEF")
-	logging.CustomizeLogging(*loggingFormat, ServiceName)
 	log.Infof("Starting service %v", ServiceName)
 
 	incomingConnectionHTTPString := flag.String("incoming_connection_http_string", "", "Connection string for HTTP transport like http://0.0.0.0:9595")
@@ -86,7 +85,6 @@ func main() {
 		os.Exit(1)
 	}
 
-	// if log format was overridden
 	logging.CustomizeLogging(*loggingFormat, ServiceName)
 
 	log.Infof("Validating service configuration...")

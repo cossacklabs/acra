@@ -217,6 +217,8 @@ type Config struct {
 }
 
 func main() {
+	log.Infof("Starting service %v", ServiceName)
+
 	loggingFormat := flag.String("logging_format", "plaintext", "Logging format: plaintext, json or CEF")
 	keysDir := flag.String("keys_dir", keystore.DefaultKeyDirShort, "Folder from which will be loaded keys")
 	clientID := flag.String("client_id", "", "Client ID")
@@ -263,9 +265,6 @@ func main() {
 			Errorln("Can't parse args")
 		os.Exit(1)
 	}
-
-	log.Infof("Starting service %v", ServiceName)
-	logging.CustomizeLogging(*loggingFormat, ServiceName)
 
 	// if log format was overridden
 	logging.CustomizeLogging(*loggingFormat, ServiceName)
