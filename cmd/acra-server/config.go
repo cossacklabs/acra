@@ -83,7 +83,7 @@ func NewConfig() *Config {
 // ErrTwoDBSetup shows that AcraServer can connects only to one database at the same time
 var ErrTwoDBSetup = errors.New("only one db supported at one time")
 
-// WithConnector show that acra-server will or not accept connections from acra-connector. Default: true
+// WithConnector shows that AcraServer expects connections from AcraConnector
 func (config *Config) WithConnector() bool {
 	return config.withConnector
 }
