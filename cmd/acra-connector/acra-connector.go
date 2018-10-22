@@ -151,7 +151,7 @@ func handleConnection(config *Config, connection net.Conn) {
 			Errorln("Can't wrap connection")
 		span.SetStatus(trace.Status{Code: trace.StatusCodeUnknown})
 		if err := acraConn.Close(); err != nil {
-			logger.WithError(err).Errorln("Error on closing connection with AcraServer")
+			logger.WithError(err).Errorf("Error on closing connection with %v", connector_mode.ModeToServiceName(config.Mode))
 		}
 		wrapSpan.End()
 		return
