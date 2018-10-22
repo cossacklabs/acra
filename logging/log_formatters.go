@@ -177,7 +177,10 @@ func (f AcraCEFFormatter) Format(e *logrus.Entry) ([]byte, error) {
 
 // TimeToString return string representation of timestamp with milliseconds
 func TimeToString(t time.Time) string {
-	nanos := t.UnixNano()
+	return nanosecondsToMillisecondsString(t.UnixNano())
+}
+
+func nanosecondsToMillisecondsString(nanos int64) string {
 	millis := nanos / 1000000
 	millisf := float64(millis) / 1000.0
 	return fmt.Sprintf("%.3f", millisf)
