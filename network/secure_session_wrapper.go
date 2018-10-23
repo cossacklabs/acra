@@ -17,6 +17,7 @@ limitations under the License.
 package network
 
 import (
+	"context"
 	"io"
 	"net"
 	"sync"
@@ -134,7 +135,7 @@ func (wrapper *secureSessionConnection) Close() error {
 	wrapper.closed = true
 	err := wrapper.Conn.Close()
 	sessionErr := wrapper.session.Close()
-	log.Debugln("secure session connection closed")
+	log.Debugln("Secure session connection closed")
 	if sessionErr != nil {
 		return sessionErr
 	}
@@ -285,11 +286,12 @@ func (wrapper *SecureSessionConnectionWrapper) wrap(id []byte, conn net.Conn, is
 
 // WrapClient wraps client connection with secure session
 // cancels connection if timeout expired
-func (wrapper *SecureSessionConnectionWrapper) WrapClient(id []byte, conn net.Conn) (net.Conn, error) {
-	log.Debugln("wrap client connection with secure session")
+func (wrapper *SecureSessionConnectionWrapper) WrapClient(ctx context.Context, id []byte, conn net.Conn) (net.Conn, error) {
+	logger := logging.NewLoggerWithTrace(ctx)
+	logger.Debugln("Wrap client connection with secure session")
 	if wrapper.hasHandshakeTimeout() {
 		if err := conn.SetDeadline(time.Now().Add(wrapper.handshakeTimeout)); err != nil {
-			log.WithError(err).Errorln("Can't set deadline for secure session handshake")
+			logger.WithError(err).Errorln("Can't set deadline for secure session handshake")
 			return nil, err
 		}
 	}
@@ -297,18 +299,19 @@ func (wrapper *SecureSessionConnectionWrapper) WrapClient(id []byte, conn net.Co
 	if wrapper.hasHandshakeTimeout() {
 		// reset deadline
 		if err := conn.SetDeadline(time.Time{}); err != nil {
-			log.WithError(err).Errorln("Can't reset deadline after secure session handshake")
+			logger.WithError(err).Errorln("Can't reset deadline after secure session handshake")
 			return nil, err
 		}
 	}
-	log.Debugln("wrap client connection with secure session finished")
+	logger.Debugln("Wrap client connection with secure session finished")
 	return newConn, NewConnectionWrapError(err)
 }
 
 // WrapServer wraps server connection with secure session
 // cancels connection if timeout expired
-func (wrapper *SecureSessionConnectionWrapper) WrapServer(conn net.Conn) (net.Conn, []byte, error) {
-	log.Debugln("wrap server connection with secure session")
+func (wrapper *SecureSessionConnectionWrapper) WrapServer(ctx context.Context, conn net.Conn) (net.Conn, []byte, error) {
+	logger := logging.NewLoggerWithTrace(ctx)
+	logger.Debugln("Wrap server connection with secure session")
 	if wrapper.hasHandshakeTimeout() {
 		if err := conn.SetDeadline(time.Now().Add(wrapper.handshakeTimeout)); err != nil {
 			log.WithError(err).Errorln("Can't set deadline for secure session handshake")
@@ -319,10 +322,10 @@ func (wrapper *SecureSessionConnectionWrapper) WrapServer(conn net.Conn) (net.Co
 	if wrapper.hasHandshakeTimeout() {
 		// reset deadline
 		if err := conn.SetDeadline(time.Time{}); err != nil {
-			log.WithError(err).Errorln("Can't reset deadline after secure session handshake")
+			logger.WithError(err).Errorln("Can't reset deadline after secure session handshake")
 			return nil, nil, err
 		}
 	}
-	log.Debugln("wrap server connection with secure session finished")
+	logger.Debugln("Wrap server connection with secure session finished")
 	return newConn, clientID, NewConnectionWrapError(err)
 }

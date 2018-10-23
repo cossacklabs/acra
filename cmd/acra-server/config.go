@@ -59,6 +59,9 @@ type Config struct {
 	debug                   bool
 	censor                  acracensor.AcraCensorInterface
 	tlsConfig               *tls.Config
+	tracing                 bool
+	withConnector           bool
+	TraceToLog              bool
 }
 
 // UIEditableConfig describes which parts of AcraServer configuration can be changed from AcraWebconfig page
@@ -74,11 +77,31 @@ type UIEditableConfig struct {
 
 // NewConfig returns new Config object
 func NewConfig() *Config {
-	return &Config{withZone: false, stopOnPoison: false, wholeMatch: true, mysql: false, postgresql: false}
+	return &Config{withZone: false, stopOnPoison: false, wholeMatch: true, mysql: false, postgresql: false, withConnector: true}
 }
 
 // ErrTwoDBSetup shows that AcraServer can connects only to one database at the same time
 var ErrTwoDBSetup = errors.New("only one db supported at one time")
+
+// WithConnector shows that AcraServer expects connections from AcraConnector
+func (config *Config) WithConnector() bool {
+	return config.withConnector
+}
+
+// SetWithConnector set that acra-server will or not accept connections from acra-connector
+func (config *Config) SetWithConnector(v bool) {
+	config.withConnector = v
+}
+
+// GetTracing status on/off
+func (config *Config) GetTracing() bool {
+	return config.tracing
+}
+
+// SetTracing status on/off
+func (config *Config) SetTracing(v bool) {
+	config.tracing = v
+}
 
 // SetCensor creates AcraCensor and sets its configuration
 func (config *Config) SetCensor(censorConfigPath string) error {

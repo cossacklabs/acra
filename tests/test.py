@@ -120,6 +120,8 @@ SQL_EXECUTE_TRY_COUNT = 5
 REQUEST_TIMEOUT = (5, 5)  # connect_timeout, read_timeout
 
 TEST_WITH_TLS = os.environ.get('TEST_TLS', 'off').lower() == 'on'
+TEST_WITH_TRACING = os.environ.get('TEST_TRACE', 'off').lower() == 'on'
+TEST_TRACE_TO_JAEGER = os.environ.get('TEST_TRACE_JAEGER', 'off').lower() == 'on'
 
 PG_UNIX_HOST = '/tmp'
 
@@ -584,11 +586,17 @@ class BaseTestCase(PrometheusMixin, unittest.TestCase):
             '-incoming_connection_api_string={}'.format(connector_api_connection),
             '-user_check_disable=true',
             '-keys_dir={}'.format(KEYS_FOLDER.name),
+            '-logging_format=cef',
         ]
         if self.LOG_METRICS:
             args.append('-incoming_connection_prometheus_metrics_string={}'.format(
                 self.get_prometheus_address(
                     self.get_connector_prometheus_port(connector_port))))
+        if TEST_WITH_TRACING:
+            args.append('--tracing_enable')
+            args.append('--tracing_log_enable')
+            if TEST_TRACE_TO_JAEGER:
+                args.append('--tracing_jaeger_enable')
         if self.DEBUG_LOG:
             args.append('-v=true')
         if zone_mode:
@@ -664,6 +672,11 @@ class BaseTestCase(PrometheusMixin, unittest.TestCase):
             'auth_keys': self.ACRAWEBCONFIG_AUTH_KEYS_PATH,
             'keys_dir': KEYS_FOLDER.name,
         }
+        if TEST_WITH_TRACING:
+            args['tracing_enable'] = 'true'
+            args['tracing_log_enable'] = 'true'
+            if TEST_TRACE_TO_JAEGER:
+                args['tracing_jaeger_enable'] = 'true'
         if self.LOG_METRICS:
             args['incoming_connection_prometheus_metrics_string'] = self.get_prometheus_address(
                 self.ACRASERVER_PROMETHEUS_PORT)
@@ -700,9 +713,8 @@ class BaseTestCase(PrometheusMixin, unittest.TestCase):
         default_config = load_default_config("acra-translator")
         default_args = {
             'incoming_connection_close_timeout': 0,
-            'incoming_connection_grpc_string': 'grpc://127.0.0.1:9696',
-            'incoming_connection_http_string': 'http://127.0.0.1:9595',
             'keys_dir': KEYS_FOLDER.name,
+            'logging_format': 'cef',
         }
         default_config.update(default_args)
         default_config.update(translator_kwargs)
@@ -710,6 +722,12 @@ class BaseTestCase(PrometheusMixin, unittest.TestCase):
             popen_kwargs = {}
         if self.DEBUG_LOG:
             default_config['d'] = 1
+        if TEST_WITH_TRACING:
+            default_config['tracing_enable'] = 1
+            default_config['tracing_log_enable'] = 1
+            if TEST_TRACE_TO_JAEGER:
+                default_config['tracing_jaeger_enable'] = 1
+
         cli_args = ['--{}={}'.format(k, v) for k, v in default_config.items()]
 
         translator = self.fork(lambda: subprocess.Popen(['./acra-translator'] + cli_args,

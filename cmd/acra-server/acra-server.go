@@ -34,6 +34,8 @@ import (
 	"crypto/tls"
 	"errors"
 	"flag"
+	"go.opencensus.io/exporter/jaeger"
+	"go.opencensus.io/trace"
 	"net/http"
 	_ "net/http/pprof"
 	"os"
@@ -67,11 +69,11 @@ const (
 	GRACEFUL_ENV                    = "GRACEFUL_RESTART"
 	DESCRIPTOR_ACRA                 = 3
 	DESCRIPTOR_API                  = 4
-	SERVICE_NAME                    = "acra-server"
+	ServiceName                     = "acra-server"
 )
 
 // DEFAULT_CONFIG_PATH relative path to config which will be parsed as default
-var DEFAULT_CONFIG_PATH = utils.GetConfigPathByName(SERVICE_NAME)
+var DEFAULT_CONFIG_PATH = utils.GetConfigPathByName(ServiceName)
 
 // ErrWaitTimeout error indicates that server was shutdown and waited N seconds while shutting down all connections.
 var ErrWaitTimeout = errors.New("timeout")
@@ -79,8 +81,7 @@ var ErrWaitTimeout = errors.New("timeout")
 func main() {
 	config := NewConfig()
 	loggingFormat := flag.String("logging_format", "plaintext", "Logging format: plaintext, json or CEF")
-	logging.CustomizeLogging(*loggingFormat, SERVICE_NAME)
-	log.Infof("Starting service %v", SERVICE_NAME)
+	log.Infof("Starting service %v", ServiceName)
 
 	dbHost := flag.String("db_host", "", "Host to db")
 	dbPort := flag.Int("db_port", 5432, "Port to db")
@@ -128,18 +129,43 @@ func main() {
 	usePostgresql := flag.Bool("postgresql_enable", false, "Handle Postgresql connections (default true)")
 	censorConfig := flag.String("acracensor_config_file", "", "Path to AcraCensor configuration file")
 
+	tracing := flag.Bool("tracing_enable", false, "Enable tracing")
+	traceToLog := flag.Bool("tracing_log_enable", false, "Export trace data to log")
+	traceToJaeger := flag.Bool("tracing_jaeger_enable", false, "Export trace data to jaeger")
+	jaegerAgentEndpoint := flag.String("jaeger_agent_endpoint", "127.0.0.1:6831", "Jaeger agent endpoint that will be used to export trace data")
+	jaegerEndpoint := flag.String("jaeger_endpoint", "http://localhost:14268", "Jaeger endpoint that will be used to export trace data")
+
 	verbose := flag.Bool("v", false, "Log to stderr all INFO, WARNING and ERROR logs")
 	debug := flag.Bool("d", false, "Log everything to stderr")
 
-	err := cmd.Parse(DEFAULT_CONFIG_PATH, SERVICE_NAME)
+	err := cmd.Parse(DEFAULT_CONFIG_PATH, ServiceName)
 	if err != nil {
 		log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantReadServiceConfig).
 			Errorln("Can't parse args")
 		os.Exit(1)
 	}
 
-	// if log format was overridden
-	logging.CustomizeLogging(*loggingFormat, SERVICE_NAME)
+	logging.CustomizeLogging(*loggingFormat, ServiceName)
+
+	config.TraceToLog = *traceToLog
+	if *tracing {
+		if *traceToLog {
+			trace.RegisterExporter(&logging.LogSpanExporter{})
+		}
+		if *traceToJaeger {
+			jaegerEndpoint, err := jaeger.NewExporter(jaeger.Options{
+				AgentEndpoint: *jaegerAgentEndpoint,
+				Endpoint:      *jaegerEndpoint,
+				ServiceName:   ServiceName,
+			})
+			if err != nil {
+				log.Fatalf("Failed to create the Jaeger exporter: %v", err)
+				os.Exit(1)
+			}
+			// And now finally register it as a Trace Exporter
+			trace.RegisterExporter(jaegerEndpoint)
+		}
+	}
 
 	log.Infof("Validating service configuration...")
 	cmd.ValidateClientID(*secureSessionID)
@@ -176,6 +202,7 @@ func main() {
 	}
 
 	// now it's stub as default values
+	config.SetTracing(*tracing)
 	config.SetDetectPoisonRecords(*detectPoisonRecords)
 	config.SetStopOnPoison(*stopOnPoison)
 	config.SetScriptOnPoison(*scriptOnPoison)
@@ -247,6 +274,7 @@ func main() {
 			os.Exit(1)
 		}
 	} else if *noEncryptionTransport {
+		config.SetWithConnector(false)
 		if *clientID == "" && !*withZone {
 			log.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorTransportConfiguration).
 				Errorln("Configuration error: without zone mode and without encryption you must set <client_id> which will be used to connect from AcraConnector to AcraServer")
@@ -285,7 +313,7 @@ func main() {
 	server, err = NewServer(config, keyStore, errorSignalChannel, restartSignalsChannel)
 	if err != nil {
 		log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantStartService).
-			Errorf("System error: can't start %s", SERVICE_NAME)
+			Errorf("System error: can't start %s", ServiceName)
 		panic(err)
 	}
 
@@ -371,7 +399,7 @@ func main() {
 			Files: []uintptr{os.Stdin.Fd(), os.Stdout.Fd(), os.Stderr.Fd(), fdACRA, fdAPI},
 		}
 
-		log.Debugf("Forking new process of %s", SERVICE_NAME)
+		log.Debugf("Forking new process of %s", ServiceName)
 
 		// Fork new process
 		var fork, err = syscall.ForkExec(os.Args[0], os.Args, execSpec)
@@ -379,7 +407,7 @@ func main() {
 			log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantForkProcess).
 				Fatalln("System error: failed to fork new process", err)
 		}
-		log.Infof("%s process forked to PID: %v", SERVICE_NAME, fork)
+		log.Infof("%s process forked to PID: %v", ServiceName, fork)
 
 		// Wait a maximum of N seconds for existing connections to finish
 		err = server.WaitWithTimeout(time.Duration(*closeConnectionTimeout) * time.Second)

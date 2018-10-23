@@ -24,10 +24,13 @@ limitations under the License.
 package main
 
 import (
+	"context"
 	"crypto/tls"
 	"flag"
 	"fmt"
 	log "github.com/sirupsen/logrus"
+	"go.opencensus.io/exporter/jaeger"
+	"go.opencensus.io/trace"
 	"io"
 	"net"
 	"os"
@@ -77,24 +80,36 @@ func handleApiConnection(config *Config, connection net.Conn) {
 }
 
 func handleConnection(config *Config, connection net.Conn) {
+	options := []trace.StartOption{trace.WithSpanKind(trace.SpanKindClient)}
+	ctx := logging.SetTraceStatus(context.Background(), config.TraceToLog)
+	if config.Tracing {
+		options = append(options, trace.WithSampler(trace.AlwaysSample()))
+	} else {
+		options = append(options, trace.WithSampler(trace.NeverSample()))
+	}
+	ctx, span := trace.StartSpan(ctx, "handleConnection", options...)
+	defer span.End()
+
+	logger := logging.NewLoggerWithTrace(ctx)
+
 	defer func() {
-		log.Infoln("Close connection with client")
+		logger.Infoln("Close connection with client")
 		if err := connection.Close(); err != nil {
-			log.WithError(err).Errorln("Error on closing client's connection")
+			logger.WithError(err).Errorln("Error on closing client's connection")
 		}
 	}()
 
 	if !(config.DisableUserCheck) {
 		host, port, err := net.SplitHostPort(connection.RemoteAddr().String())
 		if nil != err {
-			log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantStartConnection).
+			logger.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantStartConnection).
 				Errorln("Can't parse client remote address")
 			return
 		}
 		if host == "127.0.0.1" {
 			netstat, err := exec.Command("sh", "-c", "netstat -atlnpe | awk '/:"+port+" */ {print $7}'").Output()
 			if nil != err {
-				log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantStartConnection).
+				logger.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantStartConnection).
 					Errorln("Can't get owner UID of localhost client connection")
 				return
 			}
@@ -102,11 +117,11 @@ func handleConnection(config *Config, connection net.Conn) {
 			correctPeer := false
 			userID, err := user.Current()
 			if nil != err {
-				log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantStartConnection).
+				logger.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantStartConnection).
 					Errorln("Can't get current user UID")
 				return
 			}
-			log.Infof("%v\ncur_user=%v", parsedNetstat, userID.Uid)
+			logger.Infof("%v\ncur_user=%v", parsedNetstat, userID.Uid)
 			for i := 0; i < len(parsedNetstat); i++ {
 				if _, err := strconv.Atoi(parsedNetstat[i]); err == nil && parsedNetstat[i] != userID.Uid {
 					correctPeer = true
@@ -114,7 +129,7 @@ func handleConnection(config *Config, connection net.Conn) {
 				}
 			}
 			if !correctPeer {
-				log.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantStartConnection).
+				logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantStartConnection).
 					Errorln("Client application and ssproxy need to be start from different users")
 				return
 			}
@@ -123,48 +138,66 @@ func handleConnection(config *Config, connection net.Conn) {
 
 	acraConn, err := network.Dial(config.OutgoingConnectionString)
 	if err != nil {
-		log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantStartConnection).
-			Errorln("Can't connect to AcraServer")
+		msg := "Can't connect to AcraServer"
+		logger.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantStartConnection).
+			Errorln(msg)
+		span.SetStatus(trace.Status{Code: trace.StatusCodeUnknown, Message: msg})
 		return
 	}
-
-	acraConnWrapped, err := config.ConnectionWrapper.WrapClient(config.ClientID, acraConn)
+	_, wrapSpan := trace.StartSpan(ctx, "WrapClient")
+	acraConnWrapped, err := config.ConnectionWrapper.WrapClient(ctx, config.ClientID, acraConn)
 	if err != nil {
-		log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantWrapConnection).
+		logger.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantWrapConnection).
 			Errorln("Can't wrap connection")
+		span.SetStatus(trace.Status{Code: trace.StatusCodeUnknown})
 		if err := acraConn.Close(); err != nil {
-			log.WithError(err).Errorln("Error on closing connection with AcraServer")
+			logger.WithError(err).Errorf("Error on closing connection with %v", connector_mode.ModeToServiceName(config.Mode))
 		}
+		wrapSpan.End()
+		return
+	}
+	wrapSpan.End()
+	defer func() {
+		if err := acraConnWrapped.Close(); err != nil {
+			logger.WithError(err).Errorln("Error on closing wrapped connection to Acra-Server")
+		}
+	}()
+
+	if err := network.SendTrace(ctx, acraConnWrapped); err != nil {
+		logger.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorTracingCantSendTrace).
+			Errorln("Can't send trace data")
+		span.SetStatus(trace.Status{Code: trace.StatusCodeUnknown})
 		return
 	}
 
 	toAcraErrCh := make(chan error, 1)
 	fromAcraErrCh := make(chan error, 1)
-	go network.Proxy(connection, acraConnWrapped, toAcraErrCh)
-	go network.Proxy(acraConnWrapped, connection, fromAcraErrCh)
+	go network.ProxyWithTracing(ctx, connection, acraConnWrapped, toAcraErrCh)
+	go network.ProxyWithTracing(ctx, acraConnWrapped, connection, fromAcraErrCh)
 	select {
 	case err = <-toAcraErrCh:
-		log.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantStartConnection).
+		logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantStartConnection).
 			WithError(err).Errorln("Error from connection with client")
 	case err = <-fromAcraErrCh:
-		log.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantStartConnection).WithError(err).
+		logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantStartConnection).WithError(err).
 			Errorln("Error from connection with AcraServer")
 	}
 	if err != nil {
 		if err == io.EOF {
-			log.Debugln("Connection closed")
+			logger.Debugln("Connection closed")
 		} else {
-			log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantStartConnection).
+			logger.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantStartConnection).
 				Errorln("Connector error")
+			span.SetStatus(trace.Status{Code: trace.StatusCodeUnknown})
 		}
 	}
-	log.Infoln("Close wrapped connection with AcraServer")
+	logger.Infoln("Close wrapped connection with AcraServer")
 	if err := acraConnWrapped.Close(); err != nil {
-		log.WithError(err).Errorf("Error on closing wrapped connection with %s", connector_mode.ModeToServiceName(config.Mode))
+		logger.WithError(err).Errorf("Error on closing wrapped connection with %s", connector_mode.ModeToServiceName(config.Mode))
 
 	}
 	if err := acraConn.Close(); err != nil {
-		log.WithError(err).Errorf("Error on closing connection with %s", connector_mode.ModeToServiceName(config.Mode))
+		logger.WithError(err).Errorf("Error on closing connection with %s", connector_mode.ModeToServiceName(config.Mode))
 	}
 }
 
@@ -179,13 +212,14 @@ type Config struct {
 	KeyStore                 keystore.SecureSessionKeyStore
 	ConnectionWrapper        network.ConnectionWrapper
 	Mode                     connector_mode.ConnectorMode
+	Tracing                  bool
+	TraceToLog               bool
 }
 
 func main() {
-	loggingFormat := flag.String("logging_format", "plaintext", "Logging format: plaintext, json or CEF")
-	logging.CustomizeLogging(*loggingFormat, ServiceName)
 	log.Infof("Starting service %v", ServiceName)
 
+	loggingFormat := flag.String("logging_format", "plaintext", "Logging format: plaintext, json or CEF")
 	keysDir := flag.String("keys_dir", keystore.DefaultKeyDirShort, "Folder from which will be loaded keys")
 	clientID := flag.String("client_id", "", "Client ID")
 	acraServerHost := flag.String("acraserver_connection_host", "", "IP or domain to AcraServer daemon")
@@ -215,6 +249,12 @@ func main() {
 	acraTranslatorPort := flag.Int("acratranslator_connection_port", cmd.DEFAULT_ACRATRANSLATOR_GRPC_PORT, "Port of AcraTranslator daemon")
 	acraTranslatorConnectionString := flag.String("acratranslator_connection_string", "", "Connection string to AcraTranslator like grpc://0.0.0.0:9696 or http://0.0.0.0:9595")
 	acraTranslatorID := flag.String("acratranslator_securesession_id", "acra_translator", "Expected id from AcraTranslator for Secure Session")
+
+	tracing := flag.Bool("tracing_enable", false, "Enable tracing")
+	traceToLog := flag.Bool("tracing_log_enable", false, "Export trace data to log")
+	traceToJaeger := flag.Bool("tracing_jaeger_enable", false, "Export trace data to jaeger")
+	jaegerAgentEndpoint := flag.String("jaeger_agent_endpoint", "127.0.0.1:6831", "Jaeger agent endpoint that will be used to export trace data")
+	jaegerEndpoint := flag.String("jaeger_endpoint", "http://localhost:14268", "Jaeger endpoint that will be used to export trace data")
 
 	verbose := flag.Bool("v", false, "Log to stderr all INFO, WARNING and ERROR logs")
 	debug := flag.Bool("d", false, "Log everything to stderr")
@@ -341,7 +381,7 @@ func main() {
 
 	// --------- Config  -----------
 	log.Infof("Configuring transport...")
-	config := &Config{KeyStore: keyStore, KeysDir: *keysDir, ClientID: []byte(*clientID), OutgoingConnectionString: outgoingConnectionString, IncomingConnectionString: *connectionString, OutgoingServiceID: []byte(outgoingSecureSessionID), DisableUserCheck: *disableUserCheck, Mode: connectorMode}
+	config := &Config{KeyStore: keyStore, KeysDir: *keysDir, ClientID: []byte(*clientID), OutgoingConnectionString: outgoingConnectionString, IncomingConnectionString: *connectionString, OutgoingServiceID: []byte(outgoingSecureSessionID), DisableUserCheck: *disableUserCheck, Mode: connectorMode, Tracing: *tracing, TraceToLog: *traceToLog}
 	listener, err := network.Listen(*connectionString)
 	if err != nil {
 		log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantStartListenConnections).
@@ -457,6 +497,26 @@ func main() {
 			log.Infoln("Stop prometheus http exporter")
 			prometheusHTTPServer.Close()
 		})
+	}
+
+	if *tracing {
+		if *traceToLog {
+			trace.RegisterExporter(&logging.LogSpanExporter{})
+		}
+
+		if *traceToJaeger {
+			jaegerEndpoint, err := jaeger.NewExporter(jaeger.Options{
+				AgentEndpoint: *jaegerAgentEndpoint,
+				Endpoint:      *jaegerEndpoint,
+				ServiceName:   ServiceName,
+			})
+			if err != nil {
+				log.Fatalf("Failed to create the Jaeger exporter: %v", err)
+				os.Exit(1)
+			}
+			// And now finally register it as a Trace Exporter
+			trace.RegisterExporter(jaegerEndpoint)
+		}
 	}
 
 	for {

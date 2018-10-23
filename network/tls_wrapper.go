@@ -17,6 +17,7 @@ limitations under the License.
 package network
 
 import (
+	"context"
 	"crypto/tls"
 	"crypto/x509"
 	"errors"
@@ -52,7 +53,7 @@ func NewTLSConnectionWrapper(clientID []byte, config *tls.Config) (*TLSConnectio
 }
 
 // WrapClient wraps client connection into TLS
-func (wrapper *TLSConnectionWrapper) WrapClient(id []byte, conn net.Conn) (net.Conn, error) {
+func (wrapper *TLSConnectionWrapper) WrapClient(ctx context.Context, id []byte, conn net.Conn) (net.Conn, error) {
 	conn.SetDeadline(time.Now().Add(DefaultNetworkTimeout))
 	tlsConn := tls.Client(conn, wrapper.config)
 	err := tlsConn.Handshake()
@@ -65,7 +66,7 @@ func (wrapper *TLSConnectionWrapper) WrapClient(id []byte, conn net.Conn) (net.C
 }
 
 // WrapServer wraps server connection into TLS
-func (wrapper *TLSConnectionWrapper) WrapServer(conn net.Conn) (net.Conn, []byte, error) {
+func (wrapper *TLSConnectionWrapper) WrapServer(ctx context.Context, conn net.Conn) (net.Conn, []byte, error) {
 	conn.SetDeadline(time.Now().Add(DefaultNetworkTimeout))
 	tlsConn := tls.Server(conn, wrapper.config)
 	err := tlsConn.Handshake()

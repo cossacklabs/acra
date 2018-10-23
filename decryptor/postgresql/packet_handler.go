@@ -27,24 +27,23 @@ type PacketHandler struct {
 }
 
 // NewClientSidePacketHandler return new PacketHandler with initialized own logger for client's packets
-func NewClientSidePacketHandler(reader io.Reader, writer *bufio.Writer) (*PacketHandler, error) {
-	return &PacketHandler{
-		descriptionBuf:       bytes.NewBuffer(make([]byte, OutputDefaultSize)),
-		descriptionLengthBuf: make([]byte, 4),
-		reader:               reader,
-		writer:               writer,
-		logger:               logrus.WithField("proxy", "client_side"),
-	}, nil
+func NewClientSidePacketHandler(reader io.Reader, writer *bufio.Writer, logger *logrus.Entry) (*PacketHandler, error) {
+	return newPacketHandlerWithLogger(reader, writer, logger.WithField("proxy", "client_side"))
 }
 
 // NewDbSidePacketHandler return new PacketHandler with initialized own logger for databases's packets
-func NewDbSidePacketHandler(reader io.Reader, writer *bufio.Writer) (*PacketHandler, error) {
+func NewDbSidePacketHandler(reader io.Reader, writer *bufio.Writer, logger *logrus.Entry) (*PacketHandler, error) {
+	return newPacketHandlerWithLogger(reader, writer, logger.WithField("proxy", "db_side"))
+}
+
+// newPacketHandlerWithLogger return new PacketHandler with specific logger
+func newPacketHandlerWithLogger(reader io.Reader, writer *bufio.Writer, logger *logrus.Entry) (*PacketHandler, error) {
 	return &PacketHandler{
 		descriptionBuf:       bytes.NewBuffer(make([]byte, OutputDefaultSize)),
 		descriptionLengthBuf: make([]byte, 4),
 		reader:               reader,
 		writer:               writer,
-		logger:               logrus.WithField("proxy", "db_side"),
+		logger:               logger,
 	}, nil
 }
 

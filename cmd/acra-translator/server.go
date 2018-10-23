@@ -18,6 +18,7 @@ package main
 
 import (
 	"context"
+	"go.opencensus.io/trace"
 	"net"
 	"os"
 	"time"
@@ -129,7 +130,7 @@ func (server *ReaderServer) HandleConnectionString(parentContext context.Context
 				return
 			}
 
-			wrappedConnection, clientID, err := server.config.ConnectionWrapper.WrapServer(connection)
+			wrappedConnection, clientID, err := server.config.ConnectionWrapper.WrapServer(context.TODO(), connection)
 			if err != nil {
 				logger.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorTranslatorCantWrapConnectionToSS).
 					Errorln("Can't wrap new connection")
@@ -139,12 +140,22 @@ func (server *ReaderServer) HandleConnectionString(parentContext context.Context
 				}
 				continue
 			}
+			spanContext, err := network.ReadTrace(wrappedConnection)
+			if err != nil {
+				logger.WithError(err).Errorln("Can't read trace from wrapped connection")
+				if err := wrappedConnection.Close(); err != nil {
+					log.WithError(err).Errorln("Can't close wrapped connection")
+				}
+				continue
+			}
+			ctx, span := trace.StartSpanWithRemoteParent(listenerContext, getHandlerName(listenerContext), spanContext, server.config.GetTraceOptions()...)
 			logger = logger.WithField("client_id", string(clientID))
 			logger.Debugln("Pass wrapped connection to processing function")
-			logging.SetLoggerToContext(parentContext, logger)
+			logging.SetLoggerToContext(ctx, logger)
 
 			go func() {
 				defer func() {
+					span.End()
 					err := wrappedConnection.Close()
 					if err != nil {
 						logger.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorTranslatorCantCloseConnection).
@@ -159,7 +170,7 @@ func (server *ReaderServer) HandleConnectionString(parentContext context.Context
 					return
 				}
 
-				processingFunc(parentContext, clientID, wrappedConnection)
+				processingFunc(ctx, clientID, wrappedConnection)
 
 				if err := server.connectionManager.RemoveConnection(wrappedConnection); err != nil {
 					logger.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorTranslatorCantHandleHTTPConnection).
@@ -188,6 +199,19 @@ const (
 	GRPCConnectionType = "grpc"
 )
 
+type handlerName struct{}
+
+func withHandlerName(ctx context.Context, name string) context.Context {
+	return context.WithValue(ctx, handlerName{}, name)
+}
+
+func getHandlerName(ctx context.Context) string {
+	if s, ok := ctx.Value(handlerName{}).(string); ok {
+		return s
+	}
+	return "undefined"
+}
+
 // Start setups gRPC handler or HTTP handler, poison records callbacks and starts listening to connections.
 func (server *ReaderServer) Start(parentContext context.Context) {
 	logger := logging.GetLoggerFromContext(parentContext)
@@ -215,7 +239,7 @@ func (server *ReaderServer) Start(parentContext context.Context) {
 					Errorln("Can't create http decryptor")
 			}
 			server.httpDecryptor = httpDecryptor
-			err = server.HandleConnectionString(httpContext, server.config.incomingConnectionHTTPString, server.processHTTPConnection)
+			err = server.HandleConnectionString(withHandlerName(httpContext, "processHTTPConnection"), server.config.incomingConnectionHTTPString, server.processHTTPConnection)
 			if err != nil {
 				log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorTranslatorCantHandleHTTPConnection).
 					Errorln("Took error on handling http requests")
@@ -264,8 +288,12 @@ type ProcessingFunc func(context.Context, []byte, net.Conn)
 func (server *ReaderServer) processHTTPConnection(parentContext context.Context, clientID []byte, connection net.Conn) {
 	connection.SetDeadline(time.Now().Add(network.DefaultNetworkTimeout))
 	defer connection.SetDeadline(time.Time{})
+
+	spanCtx, span := trace.StartSpan(parentContext, "processHTTPConnection")
+	defer span.End()
+
 	// processing HTTP connection
-	logger := logging.GetLoggerFromContext(parentContext)
+	logger := logging.LoggerWithTrace(spanCtx, logging.GetLoggerFromContext(parentContext))
 	httpLogger := logger.WithField(ConnectionTypeKey, HTTPConnectionType)
 	httpLogger.Debugln("HTTP handler")
 
