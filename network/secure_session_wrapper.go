@@ -45,11 +45,11 @@ type SessionCallback struct {
 
 // GetPublicKeyForId from Themis, returns correct public for particular secure session id
 func (callback *SessionCallback) GetPublicKeyForId(ss *session.SecureSession, id []byte) *keys.PublicKey {
-	log.Infof("Load public key for id %v", string(id))
+	log.Infof("Load public key for id <%v>", string(id))
 	key, err := callback.keystorage.GetPeerPublicKey(id)
 	if err != nil {
 		log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantReadKeys).
-			Errorf("Can't load public key for id %v", string(id))
+			Errorf("Can't load public key for id <%v>", string(id))
 		return nil
 	}
 	return key

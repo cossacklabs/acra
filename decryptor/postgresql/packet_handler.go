@@ -92,11 +92,11 @@ func (packet *PacketHandler) sendPacket() error {
 	// anyway try to write data that was marshaled even if not full
 
 	if _, err := packet.writer.Write(data); err != nil {
-		packet.logger.WithError(err).Errorln("Can't dump marshaled packet")
+		packet.logger.WithError(err).Debugln("Can't dump marshaled packet")
 		return err
 	}
 	if err := packet.writer.Flush(); err != nil {
-		packet.logger.WithError(err).Errorln("Can't flush writer")
+		packet.logger.WithError(err).Debugln("Can't flush writer")
 		return err
 	}
 	return nil
@@ -109,7 +109,7 @@ func (packet *PacketHandler) sendMessageType() error {
 		return err2
 	}
 	if err := packet.writer.Flush(); err != nil {
-		packet.logger.WithError(err).Errorln("Can't flush writer")
+		packet.logger.WithError(err).Debugln("Can't flush writer")
 		return err
 	}
 	return nil
@@ -290,7 +290,7 @@ func (packet *PacketHandler) ReadClientPacket() error {
 	// any message has at least 5 bytes: TypeOfMessage(1) + Length(4) or 8 bytes of special messages
 	n, err := packet.reader.Read(packetBuf[:5])
 	if err := base.CheckReadWrite(n, 5, err); err != nil {
-		packet.logger.WithError(err).Errorln("Can't read first 5 bytes")
+		packet.logger.WithError(err).Debugln("Can't read first 5 bytes")
 		return err
 	}
 	/*
@@ -346,7 +346,7 @@ func (packet *PacketHandler) ReadClientPacket() error {
 		// startup request or unknown message type
 		default:
 			if !bytes.Equal(StartupRequest, packetBuf[4:]) {
-				packet.logger.Errorln("Expected startup message. Process as general message")
+				packet.logger.Warningln("Expected startup message. Process as general message")
 				// we took unknown message type that wasn't recognized on top case and it's not special messages startup/ssl/cancel
 				// so we process it as general message type which has first byte as type and next 4 bytes is length of message
 				// above we read 8 bytes as for special messages, so we need to read dataLength -3 bytes

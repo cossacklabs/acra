@@ -239,7 +239,7 @@ func (handler *MysqlHandler) ClientToDbConnector(errCh chan<- error) {
 					packet.SetData(errPacket)
 					if _, err := handler.clientConnection.Write(packet.Dump()); err != nil {
 						handler.logger.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorResponseConnectorCantWriteToClient).
-							Errorln("Can't write response with error to client")
+							Debugln("Can't write response with error to client")
 					}
 					errCh <- network.ErrEmptyTLSConfig
 					return
@@ -359,10 +359,6 @@ func (handler *MysqlHandler) processTextDataRow(rowData []byte, fields []*Column
 		}
 		if handler.isFieldToDecrypt(fields[i]) {
 			decryptedValue, err := handler.decryptor.DecryptBlock(value)
-			if err != nil {
-				fieldLogger.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorDecryptorCantDecryptBinary).
-					Errorln("Can't decrypt binary data")
-			}
 			if err == nil && len(decryptedValue) != len(value) {
 				fieldLogger.Debugln("Update with decrypted value")
 				output = append(output, PutLengthEncodedString(decryptedValue)...)
@@ -524,7 +520,7 @@ func (handler *MysqlHandler) QueryResponseHandler(packet *MysqlPacket, dbConnect
 			fieldPacket, err := ReadPacket(dbConnection)
 			if err != nil {
 				handler.logger.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorResponseConnectorCantProcessColumn).
-					Errorln("Can't read packet with column description")
+					Debugln("Can't read packet with column description")
 				return err
 			}
 			output = append(output, fieldPacket)
@@ -558,7 +554,7 @@ func (handler *MysqlHandler) QueryResponseHandler(packet *MysqlPacket, dbConnect
 			for {
 				fieldDataPacket, err := ReadPacket(dbConnection)
 				if err != nil {
-					handler.logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorProtocolProcessing).WithError(err).Errorln("Can't read data packet")
+					handler.logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorProtocolProcessing).WithError(err).Debugln("Can't read data packet")
 					return err
 				}
 				output = append(output, fieldDataPacket)
@@ -586,7 +582,7 @@ func (handler *MysqlHandler) QueryResponseHandler(packet *MysqlPacket, dbConnect
 				dataLog.Debugln("Read data row")
 				fieldDataPacket, err := ReadPacket(dbConnection)
 				if err != nil {
-					handler.logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorProtocolProcessing).WithError(err).Errorln("Can't read data packet")
+					handler.logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorProtocolProcessing).WithError(err).Debugln("Can't read data packet")
 					return err
 				}
 				output = append(output, fieldDataPacket)
@@ -622,7 +618,7 @@ func (handler *MysqlHandler) QueryResponseHandler(packet *MysqlPacket, dbConnect
 	for _, dumper := range output {
 		if _, err := clientConnection.Write(dumper.Dump()); err != nil {
 			handler.logger.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorResponseConnectorCantWriteToClient).
-				Errorln("Can't proxy output")
+				Debugln("Can't proxy output")
 			return err
 		}
 	}

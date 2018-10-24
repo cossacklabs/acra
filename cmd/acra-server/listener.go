@@ -20,6 +20,7 @@ import (
 	"context"
 	"go.opencensus.io/trace"
 	"net"
+	url_ "net/url"
 	"os"
 	"syscall"
 	"time"
@@ -33,7 +34,6 @@ import (
 	"github.com/cossacklabs/acra/zone"
 	"github.com/prometheus/client_golang/prometheus"
 	log "github.com/sirupsen/logrus"
-	url_ "net/url"
 )
 
 // SServer represents AcraServer server, connects with KeyStorage, configuration file,
@@ -99,6 +99,10 @@ func (server *SServer) Close() {
 				if err3 != nil {
 					log.WithError(err3).Warningf("UnixListener.Close  file.Remove(%s)", url.Path)
 				}
+			}
+		default:
+			if err := listener.Close(); err != nil {
+				log.WithError(err).Warningln("Error on closing listener")
 			}
 		}
 	}
@@ -229,7 +233,7 @@ func (server *SServer) start(listener net.Listener, callback *callbackData, logg
 			}
 			logger.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantAcceptNewConnections).
 				Errorln("Can't accept new connection")
-			continue
+			return
 		}
 		// unix socket and value == '@'
 		if len(connection.RemoteAddr().String()) == 1 {

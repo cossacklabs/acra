@@ -120,24 +120,25 @@ func (clientSession *ClientSession) HandleClientConnection(clientID []byte, decr
 		go pgProxy.PgDecryptStream(clientSession.config.censor, decryptorImpl, clientSession.config.GetTLSConfig(), clientSession.connectionToDb, clientSession.connection, dbProxyErrorCh)
 	}
 	var channelToWait chan error
+	const (
+		acraDbSide     = "AcraServer<->Database"
+		clientAcraSide = "Client/Connector<->Database"
+	)
+	var errorSide string
 	for {
 		select {
 		case err = <-dbProxyErrorCh:
 			clientSession.logger.Debugln("Stop to proxy Database -> AcraServer")
-			if err != nil {
-				clientSession.logger.WithError(err).Errorln("Error from db proxy side")
-			}
+			errorSide = acraDbSide
 			channelToWait = clientProxyErrorCh
 			break
 		case err = <-clientProxyErrorCh:
+			errorSide = clientAcraSide
 			clientSession.logger.Debugln("Stop to proxy AcraServer -> Client")
 			channelToWait = dbProxyErrorCh
-			if err != nil {
-				clientSession.logger.WithError(err).Errorln("Error from client proxy")
-			}
 			break
 		}
-
+		clientSession.logger = clientSession.logger.WithField("error_side", errorSide)
 		if err == io.EOF {
 			clientSession.logger.Debugln("EOF connection closed")
 		} else if err == nil {

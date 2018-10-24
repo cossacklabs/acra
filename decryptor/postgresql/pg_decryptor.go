@@ -136,7 +136,7 @@ func (proxy *PgProxy) PgProxyClientRequests(acraCensor acracensor.AcraCensorInte
 		spanEndFunc = packetSpan.End
 
 		if err := packet.ReadClientPacket(); err != nil {
-			logger.WithError(err).Errorln("Can't read packet from client to database")
+			logger.WithError(err).Debugln("Can't read packet from client to database")
 			errCh <- err
 			return
 		}
@@ -469,7 +469,7 @@ func (proxy *PgProxy) PgDecryptStream(censor acracensor.AcraCensorInterface, dec
 			firstByte = false
 			logger.Debugln("Read startup message")
 			if err := packetHandler.readMessageType(); err != nil {
-				logger.WithError(err).Errorln("Can't read first message type")
+				logger.WithError(err).Debugln("Can't read first message type")
 				errCh <- err
 				return
 			}
@@ -518,7 +518,7 @@ func (proxy *PgProxy) PgDecryptStream(censor acracensor.AcraCensorInterface, dec
 		}
 		timer := prometheus.NewTimer(prometheus.ObserverFunc(base.ResponseProcessingTimeHistogram.WithLabelValues(prometheusLabels...).Observe))
 		if err := packetHandler.ReadPacket(); err != nil {
-			logger.WithError(err).Errorln("Can't read packet")
+			logger.WithError(err).Debugln("Can't read packet")
 			errCh <- err
 			return
 		}
