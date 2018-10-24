@@ -22,6 +22,7 @@ import (
 	url_ "net/url"
 	"os"
 	"strings"
+	"sync"
 )
 
 // Custom connection schemes, used in AcraConnector and AcraTranslator
@@ -37,6 +38,74 @@ func customSchemeToBaseGolangScheme(scheme string) string {
 	return scheme
 }
 
+// safeCloseConnection wrap connection and ensure that net.Conn.Close will be called only once
+type safeCloseConnection struct {
+	net.Conn
+	once sync.Once
+	err  error
+}
+
+// close proxy Close call and store error
+func (conn *safeCloseConnection) close() {
+	conn.err = conn.Conn.Close()
+}
+
+// Close connection only once and return error of first Close call
+func (conn *safeCloseConnection) Close() error {
+	conn.once.Do(conn.close)
+	return conn.err
+}
+
+// newSafeCloseConnection wrap conn with safeCloseConnection
+func newSafeCloseConnection(conn net.Conn) net.Conn {
+	return &safeCloseConnection{Conn: conn}
+}
+
+// UnwrapSafeCloseConnection return wrapped Conn implementation or conn from parameter as is
+func UnwrapSafeCloseConnection(conn net.Conn) net.Conn {
+	if safeConn, ok := conn.(*safeCloseConnection); ok {
+		return safeConn.Conn
+	}
+	return conn
+}
+
+// safeCloseListener ensure that Close method of wrapped listener will be called only once and wrap all accepted connections
+// with safeCloseConnection
+type safeCloseListener struct {
+	net.Listener
+	once sync.Once
+	err  error
+}
+
+func newSafeCloseListener(l net.Listener) net.Listener {
+	return &safeCloseListener{Listener: l}
+}
+
+// UnwrapSafeCloseListener return wrapped listener or listener from parameter as is
+func UnwrapSafeCloseListener(listener net.Listener) net.Listener {
+	if safeListener, ok := listener.(*safeCloseListener); ok {
+		return safeListener.Listener
+	}
+	return listener
+}
+
+// close proxy Close call and store error
+func (listener *safeCloseListener) close() {
+	listener.err = listener.Listener.Close()
+}
+
+// Close listener only once and return error of first Close call
+func (listener *safeCloseListener) Close() error {
+	listener.once.Do(listener.close)
+	return listener.err
+}
+
+// Accept proxy call to wrapped listener and wrapp accepted connection with safeCloseConnection
+func (listener *safeCloseListener) Accept() (net.Conn, error) {
+	conn, err := listener.Listener.Accept()
+	return newSafeCloseConnection(conn), err
+}
+
 // Dial connectionString like protocol://path where protocol is any supported via net.Dial (tcp|unix)
 func Dial(connectionString string) (net.Conn, error) {
 	url, err := url_.Parse(connectionString)
@@ -44,10 +113,13 @@ func Dial(connectionString string) (net.Conn, error) {
 		return nil, err
 	}
 	url.Scheme = customSchemeToBaseGolangScheme(url.Scheme)
+	var conn net.Conn
 	if url.Scheme == "unix" {
-		return net.Dial(url.Scheme, url.Path)
+		conn, err = net.Dial(url.Scheme, url.Path)
+	} else {
+		conn, err = net.Dial(url.Scheme, url.Host)
 	}
-	return net.Dial(url.Scheme, url.Host)
+	return newSafeCloseConnection(conn), err
 }
 
 // ListenerWithFileDescriptor listens to file
@@ -63,10 +135,13 @@ func Listen(connectionString string) (net.Listener, error) {
 		return nil, err
 	}
 	url.Scheme = customSchemeToBaseGolangScheme(url.Scheme)
+	var listener net.Listener
 	if url.Scheme == "unix" {
-		return net.Listen(url.Scheme, url.Path)
+		listener, err = net.Listen(url.Scheme, url.Path)
+	} else {
+		listener, err = net.Listen(url.Scheme, url.Host)
 	}
-	return net.Listen(url.Scheme, url.Host)
+	return newSafeCloseListener(listener), err
 }
 
 // BuildConnectionString as <protocol>://<host>:<port>/<path>
@@ -76,6 +151,7 @@ func BuildConnectionString(protocol, host string, port int, path string) string 
 
 // ListenerFileDescriptor returns file descriptor if listener listens file
 func ListenerFileDescriptor(socket net.Listener) (uintptr, error) {
+	socket = UnwrapSafeCloseListener(socket)
 	file, err := socket.(ListenerWithFileDescriptor).File()
 	if err != nil {
 		return 0, err

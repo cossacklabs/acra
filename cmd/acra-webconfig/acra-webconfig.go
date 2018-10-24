@@ -390,7 +390,7 @@ func main() {
 	port = flag.Int("incoming_connection_port", cmd.DEFAULT_ACRAWEBCONFIG_PORT, "Port for AcraWebconfig HTTP endpoint")
 	loggingFormat := flag.String("logging_format", "plaintext", "Logging format: plaintext, json or CEF")
 	logging.CustomizeLogging(*loggingFormat, ServiceName)
-	log.Infof("Starting service %v", ServiceName)
+	log.Infof("Starting service %v[pid=%v]", ServiceName, os.Getpid())
 	destinationHost = flag.String("destination_host", "localhost", "Host for AcraServer HTTP endpoint or AcraConnector")
 	destinationPort = flag.Int("destination_port", cmd.DEFAULT_ACRACONNECTOR_API_PORT, "Port for AcraServer HTTP endpoint or AcraConnector")
 	staticPath = flag.String("static_path", cmd.DEFAULT_ACRAWEBCONFIG_STATIC, "Path to static content")

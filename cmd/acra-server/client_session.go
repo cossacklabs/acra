@@ -18,7 +18,7 @@ package main
 
 import (
 	"context"
-	"fmt"
+	"github.com/cossacklabs/acra/network"
 	"go.opencensus.io/trace"
 	"net"
 
@@ -50,7 +50,7 @@ func NewClientSession(ctx context.Context, keystorage keystore.KeyStore, config 
 
 // ConnectToDb connects to the database via tcp using Host and Port from config.
 func (clientSession *ClientSession) ConnectToDb() error {
-	conn, err := net.Dial("tcp", fmt.Sprintf("%v:%v", clientSession.config.GetDBHost(), clientSession.config.GetDBPort()))
+	conn, err := network.Dial(network.BuildConnectionString("tcp", clientSession.config.GetDBHost(), clientSession.config.GetDBPort(), ""))
 	if err != nil {
 		return err
 	}
@@ -123,17 +123,25 @@ func (clientSession *ClientSession) HandleClientConnection(clientID []byte, decr
 	for {
 		select {
 		case err = <-dbProxyErrorCh:
-			clientSession.logger.WithError(err).Debugln("error from db proxy")
+			clientSession.logger.Debugln("Stop to proxy Database -> AcraServer")
+			if err != nil {
+				clientSession.logger.WithError(err).Errorln("Error from db proxy side")
+			}
 			channelToWait = clientProxyErrorCh
 			break
 		case err = <-clientProxyErrorCh:
+			clientSession.logger.Debugln("Stop to proxy AcraServer -> Client")
 			channelToWait = dbProxyErrorCh
-			clientSession.logger.WithError(err).Debugln("error from client proxy")
+			if err != nil {
+				clientSession.logger.WithError(err).Errorln("Error from client proxy")
+			}
 			break
 		}
 
 		if err == io.EOF {
 			clientSession.logger.Debugln("EOF connection closed")
+		} else if err == nil {
+			break
 		} else if netErr, ok := err.(net.Error); ok {
 			if netErr.Timeout() {
 				clientSession.logger.Debugln("Network timeout")
@@ -159,6 +167,6 @@ func (clientSession *ClientSession) HandleClientConnection(clientID []byte, decr
 	clientSession.close()
 
 	// wait second error from closed second connection
-	clientSession.logger.WithError(<-channelToWait).Debugln("second proxy goroutine stopped")
+	clientSession.logger.WithError(<-channelToWait).Debugln("Second proxy goroutine stopped")
 	clientSession.logger.Infoln("Finished processing client's connection")
 }

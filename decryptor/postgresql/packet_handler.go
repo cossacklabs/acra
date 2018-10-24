@@ -18,12 +18,13 @@ type PacketHandler struct {
 	descriptionLengthBuf []byte
 	descriptionBuf       *bytes.Buffer
 
-	columnCount int
-	dataLength  int
-	reader      io.Reader
-	writer      *bufio.Writer
-	logger      *logrus.Entry
-	Columns     []*ColumnData
+	columnCount     int
+	dataLength      int
+	reader          io.Reader
+	writer          *bufio.Writer
+	logger          *logrus.Entry
+	Columns         []*ColumnData
+	terminatePacket bool
 }
 
 // NewClientSidePacketHandler return new PacketHandler with initialized own logger for client's packets
@@ -44,6 +45,7 @@ func newPacketHandlerWithLogger(reader io.Reader, writer *bufio.Writer, logger *
 		reader:               reader,
 		writer:               writer,
 		logger:               logger,
+		terminatePacket:      false,
 	}, nil
 }
 
@@ -306,6 +308,17 @@ func (packet *PacketHandler) ReadClientPacket() error {
 		// general message has 4 bytes after first as length
 		packet.setDataLengthBuffer(packetBuf[1:5])
 		return packet.readData(false)
+	case TerminatePacket[0]:
+		// set message type
+		packet.messageType[0] = packetBuf[0]
+		// general message has 4 bytes after first as length
+		packet.setDataLengthBuffer(packetBuf[1:5])
+		packet.terminatePacket = true
+		if !bytes.Equal(TerminatePacket, packetBuf[:5]) {
+			packet.logger.Warningln("Expected Terminate packet but receive something else")
+			return packet.readData(false)
+		}
+		return nil
 	default:
 		// fill our buf with other 3 bytes to check is it special message
 		n, err := packet.reader.Read(packetBuf[5:])

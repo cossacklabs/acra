@@ -39,15 +39,10 @@ type DeadlineListener interface {
 // CastListenerToDeadline casts any net.Listener to DeadlineListener
 // or throws ErrUnsupportedListener error.
 func CastListenerToDeadline(listener net.Listener) (DeadlineListener, error) {
-	var deadlineListener DeadlineListener
-
-	switch listener.(type) {
-	case *net.TCPListener:
-		deadlineListener = listener.(*net.TCPListener)
-	case *net.UnixListener:
-		deadlineListener = listener.(*net.UnixListener)
-	default:
-		return nil, ErrUnsupportedListener
+	listener = UnwrapSafeCloseListener(listener)
+	deadlineListener, ok := listener.(DeadlineListener)
+	if ok {
+		return deadlineListener, nil
 	}
-	return deadlineListener, nil
+	return nil, ErrUnsupportedListener
 }

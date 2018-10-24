@@ -81,7 +81,7 @@ var ErrWaitTimeout = errors.New("timeout")
 func main() {
 	config := NewConfig()
 	loggingFormat := flag.String("logging_format", "plaintext", "Logging format: plaintext, json or CEF")
-	log.Infof("Starting service %v", ServiceName)
+	log.Infof("Starting service %v[pid=%v]", ServiceName, os.Getpid())
 
 	dbHost := flag.String("db_host", "", "Host to db")
 	dbPort := flag.Int("db_port", 5432, "Port to db")
@@ -416,7 +416,6 @@ func main() {
 			os.Exit(0)
 		}
 		log.Infof("Server graceful restart completed, bye PID: %v", os.Getpid())
-
 		// Stop the old server, all the connections have been closed and the new one is running
 		os.Exit(0)
 	})

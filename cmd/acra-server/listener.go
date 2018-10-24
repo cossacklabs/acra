@@ -20,7 +20,6 @@ import (
 	"context"
 	"go.opencensus.io/trace"
 	"net"
-	url_ "net/url"
 	"os"
 	"syscall"
 	"time"
@@ -34,6 +33,7 @@ import (
 	"github.com/cossacklabs/acra/zone"
 	"github.com/prometheus/client_golang/prometheus"
 	log "github.com/sirupsen/logrus"
+	url_ "net/url"
 )
 
 // SServer represents AcraServer server, connects with KeyStorage, configuration file,
@@ -75,6 +75,7 @@ func (server *SServer) Close() {
 	log.Debugln("Closing server listeners..")
 	var err error
 	for _, listener := range server.listeners {
+		listener = network.UnwrapSafeCloseListener(listener)
 		switch listener.(type) {
 		case *net.TCPListener:
 			err = listener.(*net.TCPListener).Close()
@@ -294,15 +295,11 @@ func stopAcceptConnections(listener network.DeadlineListener) (err error) {
 	if listener != nil {
 		err = listener.SetDeadline(time.Now())
 		if err != nil {
-			if nerr, ok := err.(net.Error); ok && nerr.Timeout() {
-				log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantStopListenConnections).
-					Errorln("Unable to SetDeadLine for listener")
-			} else {
-				log.WithError(err).Errorln("Non-timeout error")
-			}
+			log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantStopListenConnections).
+				Errorln("Unable to SetDeadLine for listener")
 		}
 	} else {
-		log.Warningln("can't set deadline for server listener")
+		log.Warningln("Can't set deadline for server listener")
 	}
 	return
 }
@@ -317,7 +314,7 @@ func (server *SServer) StopListeners() {
 
 		deadlineListener, err = network.CastListenerToDeadline(listener)
 		if err != nil {
-			log.WithError(err).Warningln("Can't cast listener")
+			log.WithError(err).Warningln("Listener doesn't support deadlines")
 			continue
 		}
 

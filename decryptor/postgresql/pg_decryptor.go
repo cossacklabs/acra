@@ -43,6 +43,10 @@ import (
 // https://www.postgresql.org/docs/9.3/static/protocol-message-formats.html
 var ReadyForQueryPacket = []byte{'Z', 0, 0, 0, 5, 'I'}
 
+// TerminatePacket sent by client to close connection with db
+// https://www.postgresql.org/docs/9.4/static/protocol-message-formats.html
+var TerminatePacket = []byte{'X', 0, 0, 0, 4}
+
 // NewPgError returns packed error
 func NewPgError(message string) ([]byte, error) {
 	// 5 = E marker + 4 bytes for message length
@@ -142,6 +146,10 @@ func (proxy *PgProxy) PgProxyClientRequests(acraCensor acracensor.AcraCensorInte
 			if err := packet.sendPacket(); err != nil {
 				logger.WithError(err).Errorln("Can't forward packet to db")
 				errCh <- err
+				return
+			}
+			if packet.terminatePacket {
+				errCh <- nil
 				return
 			}
 			continue

@@ -135,7 +135,6 @@ func (wrapper *secureSessionConnection) Close() error {
 	wrapper.closed = true
 	err := wrapper.Conn.Close()
 	sessionErr := wrapper.session.Close()
-	log.Debugln("Secure session connection closed")
 	if sessionErr != nil {
 		return sessionErr
 	}
@@ -304,7 +303,7 @@ func (wrapper *SecureSessionConnectionWrapper) WrapClient(ctx context.Context, i
 		}
 	}
 	logger.Debugln("Wrap client connection with secure session finished")
-	return newConn, NewConnectionWrapError(err)
+	return newSafeCloseConnection(newConn), NewConnectionWrapError(err)
 }
 
 // WrapServer wraps server connection with secure session
@@ -327,5 +326,5 @@ func (wrapper *SecureSessionConnectionWrapper) WrapServer(ctx context.Context, c
 		}
 	}
 	logger.Debugln("Wrap server connection with secure session finished")
-	return newConn, clientID, NewConnectionWrapError(err)
+	return newSafeCloseConnection(newConn), clientID, NewConnectionWrapError(err)
 }

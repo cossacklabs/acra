@@ -30,11 +30,11 @@ type RawConnectionWrapper struct {
 // WrapClient returns RawConnectionWrapper above client connection
 func (wrapper *RawConnectionWrapper) WrapClient(ctx context.Context, id []byte, conn net.Conn) (net.Conn, error) {
 	wrapper.Conn = conn
-	return conn, nil
+	return newSafeCloseConnection(conn), nil
 }
 
 // WrapServer returns RawConnectionWrapper above server connection
 func (wrapper *RawConnectionWrapper) WrapServer(ctx context.Context, conn net.Conn) (net.Conn, []byte, error) {
 	wrapper.Conn = conn
-	return conn, wrapper.ClientID, nil
+	return newSafeCloseConnection(conn), wrapper.ClientID, nil
 }
