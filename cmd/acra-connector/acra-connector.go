@@ -135,7 +135,7 @@ func handleConnection(config *Config, connection net.Conn) {
 			}
 		}
 	}
-
+	logger.WithField("connection_string", config.OutgoingConnectionString).Infof("Connect to AcraServer")
 	acraConn, err := network.Dial(config.OutgoingConnectionString)
 	if err != nil {
 		msg := "Can't connect to AcraServer"

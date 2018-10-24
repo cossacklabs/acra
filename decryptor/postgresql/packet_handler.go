@@ -29,12 +29,12 @@ type PacketHandler struct {
 
 // NewClientSidePacketHandler return new PacketHandler with initialized own logger for client's packets
 func NewClientSidePacketHandler(reader io.Reader, writer *bufio.Writer, logger *logrus.Entry) (*PacketHandler, error) {
-	return newPacketHandlerWithLogger(reader, writer, logger.WithField("proxy", "client_side"))
+	return newPacketHandlerWithLogger(reader, writer, logger.WithField("proxy", "client"))
 }
 
 // NewDbSidePacketHandler return new PacketHandler with initialized own logger for databases's packets
 func NewDbSidePacketHandler(reader io.Reader, writer *bufio.Writer, logger *logrus.Entry) (*PacketHandler, error) {
-	return newPacketHandlerWithLogger(reader, writer, logger.WithField("proxy", "db_side"))
+	return newPacketHandlerWithLogger(reader, writer, logger.WithField("proxy", "server"))
 }
 
 // newPacketHandlerWithLogger return new PacketHandler with specific logger
@@ -302,7 +302,7 @@ func (packet *PacketHandler) ReadClientPacket() error {
 	*/
 	switch packetBuf[0] {
 	// all known message types with flags (F) or (F/B) on https://www.postgresql.org/docs/current/static/protocol-message-formats.html
-	case 'X', 'S', 'p', 'F', 'H', 'E', 'D', 'f', 'c', 'd', 'C', 'B', 'Q':
+	case 'S', 'p', 'F', 'H', 'E', 'D', 'f', 'c', 'd', 'C', 'B', 'Q':
 		// set message type
 		packet.messageType[0] = packetBuf[0]
 		// general message has 4 bytes after first as length

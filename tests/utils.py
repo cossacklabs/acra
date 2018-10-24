@@ -1,6 +1,28 @@
 # coding: utf-8
+import json
+import os
+import subprocess
+
 from pythemis import smessage, scell
 import yaml
+
+
+def get_random_data_files():
+    folder = os.environ.get('TEST_RANDOM_DATA_FOLDER')
+    if not folder:
+        print('You must set TEST_RANDOM_DATA_FOLDER env variable and generate '
+              'test data')
+        exit(1)
+    if not os.path.exists(folder):
+        command = ['python', '.circleci/generate_random_data.py']
+        print('call {}'.format(' '.join(command)))
+        subprocess.check_call(command)
+    return [os.path.join(folder, i) for i in os.listdir(folder)]
+
+
+def load_random_data_config():
+    with open('.circleci/random_data_config.json', 'r') as f:
+        return json.load(f)
 
 
 def load_default_config(service_name):

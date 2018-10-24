@@ -124,21 +124,21 @@ func (clientSession *ClientSession) HandleClientConnection(clientID []byte, decr
 		acraDbSide     = "AcraServer<->Database"
 		clientAcraSide = "Client/Connector<->Database"
 	)
-	var errorSide string
+	var interruptSide string
 	for {
 		select {
 		case err = <-dbProxyErrorCh:
 			clientSession.logger.Debugln("Stop to proxy Database -> AcraServer")
-			errorSide = acraDbSide
+			interruptSide = acraDbSide
 			channelToWait = clientProxyErrorCh
 			break
 		case err = <-clientProxyErrorCh:
-			errorSide = clientAcraSide
+			interruptSide = clientAcraSide
 			clientSession.logger.Debugln("Stop to proxy AcraServer -> Client")
 			channelToWait = dbProxyErrorCh
 			break
 		}
-		clientSession.logger = clientSession.logger.WithField("error_side", errorSide)
+		clientSession.logger = clientSession.logger.WithField("interrupt_side", interruptSide)
 		if err == io.EOF {
 			clientSession.logger.Debugln("EOF connection closed")
 		} else if err == nil {

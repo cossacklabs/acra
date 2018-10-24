@@ -25,6 +25,7 @@ jobs:
       TEST_DB_USER_PASSWORD: test
       TEST_DB_NAME: test
       GOPATH_FOLDER: gopath
+      TEST_RANDOM_DATA_FOLDER: /tmp/test_data
     steps:
     # prepare
       - run: sudo apt-get update && sudo DEBIAN_FRONTEND=noninteractive apt-get -y install libssl-dev python python-setuptools python3 python3-setuptools python3-pip git rsync psmisc
@@ -50,6 +51,8 @@ jobs:
       - run: cd $HOME && for version in $VERSIONS; do export GOROOT=$HOME/go_root_$version/go; export PATH=$GOROOT/bin/:$PATH; export GOPATH=$HOME/$GOPATH_FOLDER; rm -rf $HOME/$GOPATH_FOLDER/bin; rm -rf $HOME/$GOPATH_FOLDER/pkg; go test -v github.com/cossacklabs/acra/...; if [ "$?" != "0" ]; then echo "$version" >> "$FILEPATH_ERROR_FLAG"; fi done
       # if file exists (exit code of stat == 0 ) then something was wrong. cat file with versions of environments where was error and return exit 1
       - run: if [ -f  $FILEPATH_ERROR_FLAG ]; then cat "$FILEPATH_ERROR_FLAG"; rm "$FILEPATH_ERROR_FLAG"; exit 1; fi
+      # generate test data for integration tests
+      - run: python .circleci/generate_random_data.py
       # each iteration pass to test different ports for forks to avoid problems with TCP TIME WAIT between tests
       - run: .circleci/integration.sh
       - run: if [ -f  $FILEPATH_ERROR_FLAG ]; then cat "$FILEPATH_ERROR_FLAG"; rm "$FILEPATH_ERROR_FLAG"; exit 1; fi

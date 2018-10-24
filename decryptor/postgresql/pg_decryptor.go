@@ -25,6 +25,7 @@ import (
 	"encoding/binary"
 	"errors"
 	"go.opencensus.io/trace"
+	"io"
 	"net"
 	"time"
 
@@ -103,7 +104,7 @@ func NewPgProxy(ctx context.Context, clientConnection, dbConnection net.Conn) (*
 func (proxy *PgProxy) PgProxyClientRequests(acraCensor acracensor.AcraCensorInterface, dbConnection, clientConnection net.Conn, errCh chan<- error) {
 	ctx, span := trace.StartSpan(proxy.ctx, "PgProxyClientRequests")
 	defer span.End()
-	logger := logging.NewLoggerWithTrace(ctx).WithField("proxy", "pg_client")
+	logger := logging.NewLoggerWithTrace(ctx).WithField("proxy", "client")
 	logger.Debugln("Pg client proxy")
 	writer := bufio.NewWriter(dbConnection)
 
@@ -149,7 +150,7 @@ func (proxy *PgProxy) PgProxyClientRequests(acraCensor acracensor.AcraCensorInte
 				return
 			}
 			if packet.terminatePacket {
-				errCh <- nil
+				errCh <- io.EOF
 				return
 			}
 			continue
@@ -423,7 +424,7 @@ func (proxy *PgProxy) processInlineBlockDecryption(ctx context.Context, packet *
 func (proxy *PgProxy) PgDecryptStream(censor acracensor.AcraCensorInterface, decryptor base.Decryptor, tlsConfig *tls.Config, dbConnection net.Conn, clientConnection net.Conn, errCh chan<- error) {
 	ctx, span := trace.StartSpan(proxy.ctx, "PgDecryptStream")
 	defer span.End()
-	logger := logging.NewLoggerWithTrace(ctx).WithField("proxy", "db_side")
+	logger := logging.NewLoggerWithTrace(ctx).WithField("proxy", "server")
 	if decryptor.IsWholeMatch() {
 		logger = logger.WithField("decrypt_mode", "wholecell")
 	} else {

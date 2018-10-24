@@ -75,7 +75,7 @@ func (e *LogSpanExporter) ExportSpan(vd *trace.SpanData) {
 			logger.WithFields(annotations).Infoln(item.Message)
 		}
 	}
-	logger.Infoln("span end")
+	logger.Infoln(vd.Name)
 }
 
 // LoggerWithTrace return logger with added span_id/trace_id fields from context

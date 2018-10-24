@@ -287,6 +287,12 @@ func (handler *MysqlHandler) ClientToDbConnector(errCh chan<- error) {
 		switch cmd {
 		case COM_QUIT:
 			clientLog.Debugln("Close connections on COM_QUIT command")
+			if _, err := handler.dbConnection.Write(inOutput); err != nil {
+				clientLog.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorResponseConnectorCantWriteToDB).
+					Debugln("Can't write send packet to db")
+				errCh <- err
+				return
+			}
 			handler.clientConnection.Close()
 			handler.dbConnection.Close()
 			errCh <- io.EOF
@@ -696,8 +702,6 @@ func (handler *MysqlHandler) DbToClientConnector(errCh chan<- error) {
 		err = responseHandler(packet, handler.dbConnection, handler.clientConnection)
 		if err != nil {
 			handler.resetQueryHandler()
-			handler.logger.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorResponseConnectorCantWriteToServer).
-				Errorln("Error in responseHandler")
 			errCh <- err
 			return
 		}
