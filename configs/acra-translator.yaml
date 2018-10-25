@@ -22,6 +22,18 @@ incoming_connection_http_string:
 # URL which will be used to expose Prometheus metrics (use <URL>/metrics address to pull metrics)
 incoming_connection_prometheus_metrics_string: 
 
+# Jaeger agent endpoint that will be used to export trace data
+jaeger_agent_endpoint: 127.0.0.1:6831
+
+# Password used for basic auth (optional) to jaeger
+jaeger_basic_auth_password: 
+
+# Username used for basic auth (optional) to jaeger
+jaeger_basic_auth_username: 
+
+# Jaeger endpoint that will be used to export trace data
+jaeger_collector_endpoint: 127.0.0.1:14268
+
 # Folder from which will be loaded keys
 keys_dir: .acrakeys
 
@@ -42,6 +54,15 @@ poison_shutdown_enable: false
 
 # Id that will be sent in secure session
 securesession_id: acra_translator
+
+# Enable tracing
+tracing_enable: false
+
+# Export trace data to jaeger
+tracing_jaeger_enable: false
+
+# Export trace data to log
+tracing_log_enable: false
 
 # Log to stderr all INFO, WARNING and ERROR logs
 v: false
