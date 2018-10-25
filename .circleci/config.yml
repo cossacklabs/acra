@@ -9,14 +9,6 @@ jobs:
           POSTGRES_PASSWORD: test
           POSTGRES_USER: test
           POSTGRES_DB: test
-      # use the same credentials for mysql db as for postgresql (which support was added first)
-      # has latest tag on 2018.03.29
-      - image: mysql:5.7.21
-        environment:
-          MYSQL_DATABASE: test
-          MYSQL_USER: test
-          MYSQL_PASSWORD: test
-          MYSQL_ROOT_PASSWORD: root
     environment:
       GOTHEMIS_IMPORT: github.com/cossacklabs/themis/gothemis
       FILEPATH_ERROR_FLAG: /tmp/test_fail
@@ -27,7 +19,9 @@ jobs:
     steps:
     # prepare
       - checkout
-      - run: bash -e .circleci/prepare.sh
+      - run: .circleci/prepare.sh
+      - run: sudo apt-get install -y postgresql-client
+      - run: pg_isready -U${POSTGRES_USER} -d${POSTGRES_DB} -h127.0.0.1
     # testing
       # check that code formatted with gofmt
       - run: .circleci/check_gofmt.sh
@@ -66,7 +60,9 @@ jobs:
     steps:
     # prepare
     - checkout
-    - run: bash -e .circleci/prepare.sh
+    - run: .circleci/prepare.sh
+    - run: sudo apt-get install -y mysql-client
+    - run: mysqladmin ping -h127.0.0.1
     # testing
     # check that code formatted with gofmt
     - run: .circleci/check_gofmt.sh
@@ -105,7 +101,9 @@ jobs:
     steps:
     # prepare
     - checkout
-    - run: bash -e .circleci/prepare.sh
+    - run: .circleci/prepare.sh
+    - run: sudo apt-get install -y mysql-client
+    - run: mysqladmin ping -h127.0.0.1
     # testing
     # check that code formatted with gofmt
     - run: .circleci/check_gofmt.sh
@@ -128,4 +126,5 @@ workflows:
     jobs:
       - postgresql
       - mysql
-      - mariadb
+      # has errors with tls connections
+      #- mariadb

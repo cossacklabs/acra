@@ -1,4 +1,4 @@
-#!/usr/bin/env bash
+#!/usr/bin/env bash -e
 
 export TEST_ACRASERVER_PORT=6000
 export TEST_CONNECTOR_PORT=7000

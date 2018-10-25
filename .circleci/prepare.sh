@@ -1,4 +1,4 @@
-#!/usr/bin/env bash
+#!/usr/bin/env bash -e
 sudo apt-get update && sudo DEBIAN_FRONTEND=noninteractive apt-get -y install libssl-dev python python-setuptools python3 python3-setuptools python3-pip git rsync psmisc
 cd $HOME && git clone https://github.com/cossacklabs/themis && cd themis && sudo make install
 cd $HOME && for version in $VERSIONS; do mkdir go_root_$version; cd go_root_$version; wget https://storage.googleapis.com/golang/go$version.linux-amd64.tar.gz; tar xf go$version.linux-amd64.tar.gz; cd -; done
