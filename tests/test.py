@@ -51,7 +51,8 @@ from sqlalchemy.dialects.postgresql import BYTEA
 
 from utils import (read_storage_public_key, decrypt_acrastruct,
                    decrypt_private_key, read_zone_public_key,
-                   load_random_data_config, get_random_data_files)
+                   load_random_data_config, get_random_data_files,
+                   clean_test_data)
 
 import sys
 # add to path our wrapper until not published to PYPI
@@ -414,6 +415,7 @@ def tearDownModule():
     clean_binaries()
     clean_misc()
     KEYS_FOLDER.cleanup()
+    clean_test_data()
     try:
         os.remove(MASTER_KEY_PATH)
     except:
