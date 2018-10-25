@@ -15,7 +15,7 @@ if __name__ == '__main__':
         print("You must set TEST_RANDOM_DATA_FOLDER env variable")
         exit(1)
     os.makedirs(data_folder, exist_ok=True)
-    with open('.circleci/random_data_config.json', 'r') as f:
+    with open('tests/random_data_config.json', 'r') as f:
         config = json.load(f)
 
     for i in range(config['file_count']):

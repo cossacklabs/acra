@@ -14,14 +14,14 @@ def get_random_data_files():
               'test data')
         exit(1)
     if not os.path.exists(folder):
-        command = ['python', '.circleci/generate_random_data.py']
+        command = ['python', 'tests/generate_random_data.py']
         print('call {}'.format(' '.join(command)))
         subprocess.check_call(command)
     return [os.path.join(folder, i) for i in os.listdir(folder)]
 
 
 def load_random_data_config():
-    with open('.circleci/random_data_config.json', 'r') as f:
+    with open('tests/random_data_config.json', 'r') as f:
         return json.load(f)
 
 
