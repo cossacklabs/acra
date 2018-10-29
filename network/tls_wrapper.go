@@ -62,7 +62,7 @@ func (wrapper *TLSConnectionWrapper) WrapClient(ctx context.Context, id []byte, 
 		return conn, err
 	}
 	conn.SetDeadline(time.Time{})
-	return tlsConn, nil
+	return newSafeCloseConnection(tlsConn), nil
 }
 
 // WrapServer wraps server connection into TLS
@@ -75,7 +75,7 @@ func (wrapper *TLSConnectionWrapper) WrapServer(ctx context.Context, conn net.Co
 		return conn, nil, err
 	}
 	conn.SetDeadline(time.Time{})
-	return tlsConn, wrapper.clientID, nil
+	return newSafeCloseConnection(tlsConn), wrapper.clientID, nil
 }
 
 // NewTLSConfig creates x509 TLS config from provided params, tried to load system CA certificate

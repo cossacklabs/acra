@@ -18,7 +18,7 @@ package main
 
 import (
 	"context"
-	"fmt"
+	"github.com/cossacklabs/acra/network"
 	"go.opencensus.io/trace"
 	"net"
 
@@ -50,7 +50,7 @@ func NewClientSession(ctx context.Context, keystorage keystore.KeyStore, config 
 
 // ConnectToDb connects to the database via tcp using Host and Port from config.
 func (clientSession *ClientSession) ConnectToDb() error {
-	conn, err := net.Dial("tcp", fmt.Sprintf("%v:%v", clientSession.config.GetDBHost(), clientSession.config.GetDBPort()))
+	conn, err := network.Dial(network.BuildConnectionString("tcp", clientSession.config.GetDBHost(), clientSession.config.GetDBPort(), ""))
 	if err != nil {
 		return err
 	}
@@ -120,20 +120,29 @@ func (clientSession *ClientSession) HandleClientConnection(clientID []byte, decr
 		go pgProxy.PgDecryptStream(clientSession.config.censor, decryptorImpl, clientSession.config.GetTLSConfig(), clientSession.connectionToDb, clientSession.connection, dbProxyErrorCh)
 	}
 	var channelToWait chan error
+	const (
+		acraDbSide     = "AcraServer<->Database"
+		clientAcraSide = "Client/Connector<->Database"
+	)
+	var interruptSide string
 	for {
 		select {
 		case err = <-dbProxyErrorCh:
-			clientSession.logger.WithError(err).Debugln("error from db proxy")
+			clientSession.logger.Debugln("Stop to proxy Database -> AcraServer")
+			interruptSide = acraDbSide
 			channelToWait = clientProxyErrorCh
 			break
 		case err = <-clientProxyErrorCh:
+			interruptSide = clientAcraSide
+			clientSession.logger.Debugln("Stop to proxy AcraServer -> Client")
 			channelToWait = dbProxyErrorCh
-			clientSession.logger.WithError(err).Debugln("error from client proxy")
 			break
 		}
-
+		clientSession.logger = clientSession.logger.WithField("interrupt_side", interruptSide)
 		if err == io.EOF {
 			clientSession.logger.Debugln("EOF connection closed")
+		} else if err == nil {
+			break
 		} else if netErr, ok := err.(net.Error); ok {
 			if netErr.Timeout() {
 				clientSession.logger.Debugln("Network timeout")
@@ -159,6 +168,6 @@ func (clientSession *ClientSession) HandleClientConnection(clientID []byte, decr
 	clientSession.close()
 
 	// wait second error from closed second connection
-	clientSession.logger.WithError(<-channelToWait).Debugln("second proxy goroutine stopped")
+	clientSession.logger.WithError(<-channelToWait).Debugln("Second proxy goroutine stopped")
 	clientSession.logger.Infoln("Finished processing client's connection")
 }

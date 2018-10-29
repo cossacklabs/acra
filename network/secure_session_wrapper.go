@@ -45,11 +45,11 @@ type SessionCallback struct {
 
 // GetPublicKeyForId from Themis, returns correct public for particular secure session id
 func (callback *SessionCallback) GetPublicKeyForId(ss *session.SecureSession, id []byte) *keys.PublicKey {
-	log.Infof("Load public key for id %v", string(id))
+	log.Infof("Load public key for id <%v>", string(id))
 	key, err := callback.keystorage.GetPeerPublicKey(id)
 	if err != nil {
 		log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantReadKeys).
-			Errorf("Can't load public key for id %v", string(id))
+			Errorf("Can't load public key for id <%v>", string(id))
 		return nil
 	}
 	return key
@@ -135,7 +135,6 @@ func (wrapper *secureSessionConnection) Close() error {
 	wrapper.closed = true
 	err := wrapper.Conn.Close()
 	sessionErr := wrapper.session.Close()
-	log.Debugln("Secure session connection closed")
 	if sessionErr != nil {
 		return sessionErr
 	}
@@ -228,7 +227,7 @@ func (wrapper *SecureSessionConnectionWrapper) wrap(id []byte, conn net.Conn, is
 		if err != nil {
 			return conn, nil, err
 		}
-		log.WithField("client_id", string(clientID)).Debugln("new secure session connection to server")
+		log.WithField("client_id", string(clientID)).Debugln("New secure session connection to server")
 		privateKey, err := wrapper.keystore.GetPrivateKey(clientID)
 		if err != nil {
 			return conn, nil, err
@@ -304,7 +303,7 @@ func (wrapper *SecureSessionConnectionWrapper) WrapClient(ctx context.Context, i
 		}
 	}
 	logger.Debugln("Wrap client connection with secure session finished")
-	return newConn, NewConnectionWrapError(err)
+	return newSafeCloseConnection(newConn), NewConnectionWrapError(err)
 }
 
 // WrapServer wraps server connection with secure session
@@ -327,5 +326,5 @@ func (wrapper *SecureSessionConnectionWrapper) WrapServer(ctx context.Context, c
 		}
 	}
 	logger.Debugln("Wrap server connection with secure session finished")
-	return newConn, clientID, NewConnectionWrapError(err)
+	return newSafeCloseConnection(newConn), clientID, NewConnectionWrapError(err)
 }

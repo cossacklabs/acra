@@ -31,7 +31,7 @@ var ErrContextWithoutTrace = errors.New("context hasn't any trace")
 
 // SendTrace fetch span from context and propagate it to conn as binary data. If context doesn't contain trace then ErrContextWithoutTrace return
 func SendTrace(ctx context.Context, conn net.Conn) error {
-	log.Infoln("Send trace")
+	log.Debugln("Send trace")
 	span := trace.FromContext(ctx)
 	if span == nil {
 		return ErrContextWithoutTrace
@@ -42,7 +42,7 @@ func SendTrace(ctx context.Context, conn net.Conn) error {
 
 // ReadTrace read trace from conn and return
 func ReadTrace(conn net.Conn) (trace.SpanContext, error) {
-	log.Infoln("Read trace")
+	log.Debugln("Read trace")
 	binContext, err := utils.ReadData(conn)
 	if err != nil {
 		return trace.SpanContext{}, err

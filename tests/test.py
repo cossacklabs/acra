@@ -50,7 +50,9 @@ from sqlalchemy.exc import DatabaseError
 from sqlalchemy.dialects.postgresql import BYTEA
 
 from utils import (read_storage_public_key, decrypt_acrastruct,
-                   decrypt_private_key, read_zone_public_key)
+                   decrypt_private_key, read_zone_public_key,
+                   load_random_data_config, get_random_data_files,
+                   clean_test_data)
 
 import sys
 # add to path our wrapper until not published to PYPI
@@ -71,11 +73,13 @@ DB_HOST = os.environ.get('TEST_DB_HOST', '127.0.0.1')
 DB_NAME = os.environ.get('TEST_DB_NAME', 'postgres')
 DB_PORT = os.environ.get('TEST_DB_PORT', 5432)
 
-DATA_MIN_SIZE = 10
-DATA_MAX_SIZE = DATA_MIN_SIZE * 1000
+
+TEST_RANDOM_DATA_CONFIG = load_random_data_config()
+TEST_RANDOM_DATA_FILES = get_random_data_files()
+
 # 200 is overhead of encryption (chosen manually)
 # multiply 2 because tested acrastruct in acrastruct
-COLUMN_DATA_SIZE = (DATA_MAX_SIZE + 200) * 2
+COLUMN_DATA_SIZE = (TEST_RANDOM_DATA_CONFIG['data_max_size'] + 200) * 2
 metadata = sa.MetaData()
 test_table = sa.Table('test', metadata,
     sa.Column('id', sa.Integer, primary_key=True),
@@ -108,6 +112,7 @@ ACRAWEBCONFIG_HTTP_TIMEOUT = 3
 
 POISON_KEY_PATH = '.poison_key/poison_key'
 
+STATEMENT_TIMEOUT = 5 * 1000 # 5 sec
 SETUP_SQL_COMMAND_TIMEOUT = 0.1
 FORK_FAIL_SLEEP = 0.1
 CONNECTION_FAIL_SLEEP = 0.1
@@ -142,14 +147,18 @@ else:
     connect_args = {
         'connect_timeout': SOCKET_CONNECT_TIMEOUT,
         'user': DB_USER, 'password': DB_USER_PASSWORD,
-        "options": "-c statement_timeout=1000", 'sslmode': SSLMODE}
+        "options": "-c statement_timeout={}".format(STATEMENT_TIMEOUT),
+        'sslmode': SSLMODE}
+
 
 def get_random_id():
     return random.randint(1, 100000)
 
+
 def get_random_data():
-        size = random.randint(DATA_MIN_SIZE, DATA_MAX_SIZE)
-        return ''.join(random.SystemRandom().choice(string.ascii_letters) for _ in range(size))
+    data_file = random.choice(TEST_RANDOM_DATA_FILES)
+    with open(data_file, 'r') as f:
+        return f.read()
 
 
 def stop_process(process):
@@ -406,6 +415,7 @@ def tearDownModule():
     clean_binaries()
     clean_misc()
     KEYS_FOLDER.cleanup()
+    clean_test_data()
     try:
         os.remove(MASTER_KEY_PATH)
     except:

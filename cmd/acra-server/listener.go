@@ -75,6 +75,7 @@ func (server *SServer) Close() {
 	log.Debugln("Closing server listeners..")
 	var err error
 	for _, listener := range server.listeners {
+		listener = network.UnwrapSafeCloseListener(listener)
 		switch listener.(type) {
 		case *net.TCPListener:
 			err = listener.(*net.TCPListener).Close()
@@ -98,6 +99,10 @@ func (server *SServer) Close() {
 				if err3 != nil {
 					log.WithError(err3).Warningf("UnixListener.Close  file.Remove(%s)", url.Path)
 				}
+			}
+		default:
+			if err := listener.Close(); err != nil {
+				log.WithError(err).Warningln("Error on closing listener")
 			}
 		}
 	}
@@ -228,7 +233,7 @@ func (server *SServer) start(listener net.Listener, callback *callbackData, logg
 			}
 			logger.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantAcceptNewConnections).
 				Errorln("Can't accept new connection")
-			continue
+			return
 		}
 		// unix socket and value == '@'
 		if len(connection.RemoteAddr().String()) == 1 {
@@ -294,15 +299,11 @@ func stopAcceptConnections(listener network.DeadlineListener) (err error) {
 	if listener != nil {
 		err = listener.SetDeadline(time.Now())
 		if err != nil {
-			if nerr, ok := err.(net.Error); ok && nerr.Timeout() {
-				log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantStopListenConnections).
-					Errorln("Unable to SetDeadLine for listener")
-			} else {
-				log.WithError(err).Errorln("Non-timeout error")
-			}
+			log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantStopListenConnections).
+				Errorln("Unable to SetDeadLine for listener")
 		}
 	} else {
-		log.Warningln("can't set deadline for server listener")
+		log.Warningln("Can't set deadline for server listener")
 	}
 	return
 }
@@ -317,7 +318,7 @@ func (server *SServer) StopListeners() {
 
 		deadlineListener, err = network.CastListenerToDeadline(listener)
 		if err != nil {
-			log.WithError(err).Warningln("Can't cast listener")
+			log.WithError(err).Warningln("Listener doesn't support deadlines")
 			continue
 		}
 

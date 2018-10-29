@@ -25,6 +25,7 @@ import (
 	"encoding/binary"
 	"errors"
 	"go.opencensus.io/trace"
+	"io"
 	"net"
 	"time"
 
@@ -42,6 +43,10 @@ import (
 // ReadyForQueryPacket - 'Z' ReadyForQuery, 0 0 0 5 length, 'I' idle status
 // https://www.postgresql.org/docs/9.3/static/protocol-message-formats.html
 var ReadyForQueryPacket = []byte{'Z', 0, 0, 0, 5, 'I'}
+
+// TerminatePacket sent by client to close connection with db
+// https://www.postgresql.org/docs/9.4/static/protocol-message-formats.html
+var TerminatePacket = []byte{'X', 0, 0, 0, 4}
 
 // NewPgError returns packed error
 func NewPgError(message string) ([]byte, error) {
@@ -99,7 +104,7 @@ func NewPgProxy(ctx context.Context, clientConnection, dbConnection net.Conn) (*
 func (proxy *PgProxy) PgProxyClientRequests(acraCensor acracensor.AcraCensorInterface, dbConnection, clientConnection net.Conn, errCh chan<- error) {
 	ctx, span := trace.StartSpan(proxy.ctx, "PgProxyClientRequests")
 	defer span.End()
-	logger := logging.NewLoggerWithTrace(ctx).WithField("proxy", "pg_client")
+	logger := logging.NewLoggerWithTrace(ctx).WithField("proxy", "client")
 	logger.Debugln("Pg client proxy")
 	writer := bufio.NewWriter(dbConnection)
 
@@ -132,7 +137,7 @@ func (proxy *PgProxy) PgProxyClientRequests(acraCensor acracensor.AcraCensorInte
 		spanEndFunc = packetSpan.End
 
 		if err := packet.ReadClientPacket(); err != nil {
-			logger.WithError(err).Errorln("Can't read packet from client to database")
+			logger.WithError(err).Debugln("Can't read packet from client to database")
 			errCh <- err
 			return
 		}
@@ -142,6 +147,10 @@ func (proxy *PgProxy) PgProxyClientRequests(acraCensor acracensor.AcraCensorInte
 			if err := packet.sendPacket(); err != nil {
 				logger.WithError(err).Errorln("Can't forward packet to db")
 				errCh <- err
+				return
+			}
+			if packet.terminatePacket {
+				errCh <- io.EOF
 				return
 			}
 			continue
@@ -415,7 +424,7 @@ func (proxy *PgProxy) processInlineBlockDecryption(ctx context.Context, packet *
 func (proxy *PgProxy) PgDecryptStream(censor acracensor.AcraCensorInterface, decryptor base.Decryptor, tlsConfig *tls.Config, dbConnection net.Conn, clientConnection net.Conn, errCh chan<- error) {
 	ctx, span := trace.StartSpan(proxy.ctx, "PgDecryptStream")
 	defer span.End()
-	logger := logging.NewLoggerWithTrace(ctx).WithField("proxy", "db_side")
+	logger := logging.NewLoggerWithTrace(ctx).WithField("proxy", "server")
 	if decryptor.IsWholeMatch() {
 		logger = logger.WithField("decrypt_mode", "wholecell")
 	} else {
@@ -461,7 +470,7 @@ func (proxy *PgProxy) PgDecryptStream(censor acracensor.AcraCensorInterface, dec
 			firstByte = false
 			logger.Debugln("Read startup message")
 			if err := packetHandler.readMessageType(); err != nil {
-				logger.WithError(err).Errorln("Can't read first message type")
+				logger.WithError(err).Debugln("Can't read first message type")
 				errCh <- err
 				return
 			}
@@ -510,7 +519,7 @@ func (proxy *PgProxy) PgDecryptStream(censor acracensor.AcraCensorInterface, dec
 		}
 		timer := prometheus.NewTimer(prometheus.ObserverFunc(base.ResponseProcessingTimeHistogram.WithLabelValues(prometheusLabels...).Observe))
 		if err := packetHandler.ReadPacket(); err != nil {
-			logger.WithError(err).Errorln("Can't read packet")
+			logger.WithError(err).Debugln("Can't read packet")
 			errCh <- err
 			return
 		}
