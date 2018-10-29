@@ -4,6 +4,9 @@ config_file:
 # Connection string to db
 db_connection_string: 
 
+# perform rotation without saving rotated AcraStructs and keys
+dry-run: false
+
 # dump config
 dump_config: false
 

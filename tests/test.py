@@ -114,7 +114,7 @@ POISON_KEY_PATH = '.poison_key/poison_key'
 
 STATEMENT_TIMEOUT = 5 * 1000 # 5 sec
 SETUP_SQL_COMMAND_TIMEOUT = 0.1
-FORK_FAIL_SLEEP = 0.1
+FORK_FAIL_SLEEP = 0.5
 CONNECTION_FAIL_SLEEP = 0.1
 SOCKET_CONNECT_TIMEOUT = 3
 KILL_WAIT_TIMEOUT = 10
@@ -262,18 +262,20 @@ def wait_connection(port, count=10, sleep=0.3):
 
 
 def wait_unix_socket(socket_path, count=10, sleep=0.5):
+    last_exc = Exception("can't wait unix socket")
     while count:
+        connection = socket.socket(socket.AF_UNIX)
         try:
-            connection = socket.socket(socket.AF_UNIX)
+            connection.settimeout(SOCKET_CONNECT_TIMEOUT)
             connection.connect(socket_path)
             return
-        except:
-            pass
+        except Exception as exc:
+            last_exc = exc
         finally:
             connection.close()
         count -= 1
         time.sleep(sleep)
-    raise Exception("can't wait connection")
+    raise last_exc
 
 def get_unix_connection_string(port, dbname):
     if TEST_MYSQL:
@@ -536,11 +538,12 @@ class BaseTestCase(PrometheusMixin, unittest.TestCase):
         count = 0
         while count <= 3:
             if process.poll() is None:
+                print('forked')
                 return process
             count += 1
             time.sleep(FORK_FAIL_SLEEP)
         stop_process(process)
-        self.fail("can't fork")
+        raise Exception("Can't fork")
 
     def wait_acraserver_connection(self, *args, **kwargs):
         return wait_unix_socket(*args, **kwargs)
@@ -1521,6 +1524,7 @@ class TestShutdownPoisonRecordWithZone(TestPoisonRecordShutdown):
     def testShutdown4(self):
         """check working poison record callback on full select inside another data"""
         row_id = get_random_id()
+        poison_record = get_poison_record()
         begin_tag = poison_record[:4]
         # test with extra long begin tag
         data = os.urandom(100) + begin_tag + poison_record + os.urandom(100)
@@ -1658,6 +1662,7 @@ class AcraCatchLogsMixin(object):
         process = super(AcraCatchLogsMixin, self).fork_acra(
             popen_args, **acra_kwargs
         )
+        assert process
         # register process to not forget close all descriptors
         self.log_files[process] = log_file
         return process
@@ -2520,7 +2525,7 @@ class ProcessContextManager(object):
 class AcraTranslatorMixin(object):
 
     def fork_connector_for_translator(self, connector_port: int, server_port: int, client_id: str, check_connection: bool=True):
-        logging.info("fork connector")
+        logging.info("fork connector for translator")
         server_connection = get_tcp_connection_string(server_port)
         connector_connection = get_tcp_connection_string(connector_port)
         args = [
@@ -2535,6 +2540,7 @@ class AcraTranslatorMixin(object):
         if self.DEBUG_LOG:
             args.append('-v=true')
         process = self.fork(lambda: subprocess.Popen(args))
+        assert process
         if check_connection:
             try:
                 wait_connection(connector_port)

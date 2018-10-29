@@ -72,8 +72,7 @@ func main() {
 	tracing := flag.Bool("tracing_enable", false, "Enable tracing")
 	traceToLog := flag.Bool("tracing_log_enable", false, "Export trace data to log")
 	traceToJaeger := flag.Bool("tracing_jaeger_enable", false, "Export trace data to jaeger")
-	jaegerAgentEndpoint := flag.String("jaeger_agent_endpoint", "127.0.0.1:6831", "Jaeger agent endpoint that will be used to export trace data")
-	jaegerEndpoint := flag.String("jaeger_endpoint", "http://localhost:14268", "Jaeger endpoint that will be used to export trace data")
+	cmd.RegisterJaegerCmdParameters()
 
 	verbose := flag.Bool("v", false, "Log to stderr all INFO, WARNING and ERROR logs")
 	debug := flag.Bool("d", false, "Log everything to stderr")
@@ -114,11 +113,9 @@ func main() {
 		}
 
 		if *traceToJaeger {
-			jaegerEndpoint, err := jaeger.NewExporter(jaeger.Options{
-				AgentEndpoint: *jaegerAgentEndpoint,
-				Endpoint:      *jaegerEndpoint,
-				ServiceName:   ServiceName,
-			})
+			jaegerOptions := cmd.GetJaegerCmdParameters()
+			jaegerOptions.ServiceName = ServiceName
+			jaegerEndpoint, err := jaeger.NewExporter(jaegerOptions)
 			if err != nil {
 				log.Fatalf("Failed to create the Jaeger exporter: %v", err)
 				os.Exit(1)
