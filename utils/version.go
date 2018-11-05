@@ -17,4 +17,4 @@ limitations under the License.
 package utils
 
 // VERSION is current Acra suite version
-var VERSION = "0.83.0" // change on current during build
+var VERSION = "0.84.0" // change on current during build
