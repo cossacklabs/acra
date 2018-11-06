@@ -606,7 +606,6 @@ class BaseTestCase(PrometheusMixin, unittest.TestCase):
                 self.get_prometheus_address(
                     self.get_connector_prometheus_port(connector_port))))
         if TEST_WITH_TRACING:
-            args.append('--tracing_enable')
             args.append('--tracing_log_enable')
             if TEST_TRACE_TO_JAEGER:
                 args.append('--tracing_jaeger_enable')
@@ -686,7 +685,6 @@ class BaseTestCase(PrometheusMixin, unittest.TestCase):
             'keys_dir': KEYS_FOLDER.name,
         }
         if TEST_WITH_TRACING:
-            args['tracing_enable'] = 'true'
             args['tracing_log_enable'] = 'true'
             if TEST_TRACE_TO_JAEGER:
                 args['tracing_jaeger_enable'] = 'true'
@@ -736,7 +734,6 @@ class BaseTestCase(PrometheusMixin, unittest.TestCase):
         if self.DEBUG_LOG:
             default_config['d'] = 1
         if TEST_WITH_TRACING:
-            default_config['tracing_enable'] = 1
             default_config['tracing_log_enable'] = 1
             if TEST_TRACE_TO_JAEGER:
                 default_config['tracing_jaeger_enable'] = 1
