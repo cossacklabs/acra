@@ -75,14 +75,9 @@ services:
 
     # Postgresql container
     mysql:
-        # Build and run container based on official mysql image
-        # with disabled SSL
-        build:
-            context: ../
-            dockerfile: docker/mysql-nossl.dockerfile
+        image: mariadb:10.3
         # INSECURE!!! You MUST define your own DB name and credentials
         environment:
-            MYSQL_ONETIME_PASSWORD: ${MYSQL_ONETIME_PASSWORD:-urLK7YJPndDWsnJC}
             MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-hy53uBLmBuihUK29}
             MYSQL_DATABASE: ${MYSQL_DATABASE:-test}
             MYSQL_USER: ${MYSQL_USER:-test}
