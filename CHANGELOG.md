@@ -56,10 +56,14 @@ _Infrastructure_:
 
 - Updated [AcraStruct Validator](https://docs.cossacklabs.com/simulator/acra/) – an online tool that can decrypt your AcraStructs. AcraStruct Validator is useful for developers who build their own AcraWriters (to validate AcraStruct binary structure).
 
+- Drop testing and supporting go version below 1.9. This will only affect the users who build Acra manually from sources.
+  You can install pre-built Acra components shipped for various Ubuntu, Debian, and CentOS distributives using [Installation guide](https://github.com/cossacklabs/acra/wiki/Quick-start-guide#installing-acra-from-the-cossack-labs-repository). Alternatively, you can check out our Docker images and Docker-compose files in [docker folder](https://github.com/cossacklabs/acra/tree/master/docker) 
+  ([#277](https://github.com/cossacklabs/acra/pull/277)).
+
 
 _Features coming soon_:
 
-- **Search in encrypted data** 
+- **Search in encrypted data**
 
 - **Pseudonymization**
 
