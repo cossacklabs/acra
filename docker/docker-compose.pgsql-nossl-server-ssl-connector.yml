@@ -58,7 +58,7 @@ services:
 
     # Postgresql container
     postgresql:
-        image: postgres:9.6
+        image: postgres:11
         # INSECURE!!! You MUST define your own DB name and credentials
         environment:
             POSTGRES_DB: ${POSTGRES_DB:-test}
@@ -103,6 +103,7 @@ services:
         command: >-
             --db_host=postgresql
             --keys_dir=/keys
+            --client_id=${ACRA_CLIENT_ID:-testclientid}
             --auth_keys=/keys/httpauth.accounts
             --http_api_enable
             --incoming_connection_api_string=tcp://0.0.0.0:9090

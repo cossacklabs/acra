@@ -108,6 +108,8 @@ if __name__ == '__main__':
     metadata.create_all(engine)
     connection = engine.connect()
 
+    print('DB driver: {}'.format(driver))
+
     if args.print:
         print_data(connection)
     else:
