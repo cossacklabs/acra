@@ -33,7 +33,7 @@ _Core_:
 
 - **Tracing with OpenCensus**
 
-  - Added tracing with OpenCensus: AcraServer, AcraConnector and AcraTranslator track every request from client application to the database and back. Each client request has unique `traceID`, that helps to measure how much time it needs to perform a certain data processing functions (like checking requests via AcraCensor, encrypting data, decrypting AcraStructs, ect). Traces can be exported to Jaeger ([#276](https://github.com/cossacklabs/acra/pull/276), [#274](https://github.com/cossacklabs/acra/pull/274)). 
+  - Added tracing with OpenCensus: AcraServer, AcraConnector and AcraTranslator track every request from client application to the database and back. Each client request has unique `traceID`, that helps to measure how much time it needs to perform a certain data processing functions (like checking requests via AcraCensor, encrypting data, decrypting AcraStructs, ect). Traces can be exported to Jaeger ([#279](https://github.com/cossacklabs/acra/pull/279), [#276](https://github.com/cossacklabs/acra/pull/276), [#274](https://github.com/cossacklabs/acra/pull/274)). 
 
   Read more about tracing in our documentation in [Tracing in Acra](https://docs.cossacklabs.com/pages/documentation-acra/#tracing-in-acra).
 
