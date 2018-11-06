@@ -34,8 +34,6 @@ import (
 	"crypto/tls"
 	"errors"
 	"flag"
-	"go.opencensus.io/exporter/jaeger"
-	"go.opencensus.io/trace"
 	"net/http"
 	_ "net/http/pprof"
 	"os"
@@ -129,9 +127,7 @@ func main() {
 	usePostgresql := flag.Bool("postgresql_enable", false, "Handle Postgresql connections (default true)")
 	censorConfig := flag.String("acracensor_config_file", "", "Path to AcraCensor configuration file")
 
-	tracing := flag.Bool("tracing_enable", false, "Enable tracing")
-	traceToLog := flag.Bool("tracing_log_enable", false, "Export trace data to log")
-	traceToJaeger := flag.Bool("tracing_jaeger_enable", false, "Export trace data to jaeger")
+	cmd.RegisterTracingCmdParameters()
 	cmd.RegisterJaegerCmdParameters()
 
 	verbose := flag.Bool("v", false, "Log to stderr all INFO, WARNING and ERROR logs")
@@ -146,23 +142,9 @@ func main() {
 
 	logging.CustomizeLogging(*loggingFormat, ServiceName)
 
-	config.TraceToLog = *traceToLog
-	if *tracing {
-		if *traceToLog {
-			trace.RegisterExporter(&logging.LogSpanExporter{})
-		}
-		if *traceToJaeger {
-			jaegerOptions := cmd.GetJaegerCmdParameters()
-			jaegerOptions.ServiceName = ServiceName
-			jaegerEndpoint, err := jaeger.NewExporter(jaegerOptions)
-			if err != nil {
-				log.Fatalf("Failed to create the Jaeger exporter: %v", err)
-				os.Exit(1)
-			}
-			// And now finally register it as a Trace Exporter
-			trace.RegisterExporter(jaegerEndpoint)
-		}
-	}
+	config.TraceToLog = cmd.IsTraceToLogOn()
+
+	cmd.SetupTracing(ServiceName)
 
 	log.Infof("Validating service configuration...")
 	cmd.ValidateClientID(*secureSessionID)
@@ -199,7 +181,6 @@ func main() {
 	}
 
 	// now it's stub as default values
-	config.SetTracing(*tracing)
 	config.SetDetectPoisonRecords(*detectPoisonRecords)
 	config.SetStopOnPoison(*stopOnPoison)
 	config.SetScriptOnPoison(*scriptOnPoison)

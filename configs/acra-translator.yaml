@@ -55,9 +55,6 @@ poison_shutdown_enable: false
 # Id that will be sent in secure session
 securesession_id: acra_translator
 
-# Enable tracing
-tracing_enable: false
-
 # Export trace data to jaeger
 tracing_jaeger_enable: false
 

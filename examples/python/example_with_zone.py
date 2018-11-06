@@ -140,6 +140,8 @@ if __name__ == '__main__':
     connection = engine.connect()
     metadata.create_all(engine)
 
+    print('DB driver: {}'.format(driver))
+
     if args.print:
         print_data(args.zone_id, connection)
     elif args.data:

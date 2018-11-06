@@ -58,11 +58,7 @@ services:
 
     # Postgresql container
     mysql:
-        # Build and run container based on official mysql image
-        # with disabled SSL
-        build:
-            context: ../
-            dockerfile: docker/mysql-nossl.dockerfile
+        image: mariadb:10.3
         # INSECURE!!! You MUST define your own DB name and credentials
         environment:
             MYSQL_ONETIME_PASSWORD: ${MYSQL_ONETIME_PASSWORD:-urLK7YJPndDWsnJC}
@@ -111,6 +107,7 @@ services:
             --db_host=mysql
             --db_port=3306
             --keys_dir=/keys
+            --client_id=${ACRA_CLIENT_ID:-testclientid}
             --auth_keys=/keys/httpauth.accounts
             --http_api_enable
             --incoming_connection_api_string=tcp://0.0.0.0:9090

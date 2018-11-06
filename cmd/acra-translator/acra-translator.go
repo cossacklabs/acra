@@ -23,8 +23,6 @@ package main
 import (
 	"context"
 	"flag"
-	"go.opencensus.io/exporter/jaeger"
-	"go.opencensus.io/trace"
 	_ "net/http/pprof"
 	"os"
 	"syscall"
@@ -69,9 +67,7 @@ func main() {
 
 	prometheusAddress := flag.String("incoming_connection_prometheus_metrics_string", "", "URL which will be used to expose Prometheus metrics (use <URL>/metrics address to pull metrics)")
 
-	tracing := flag.Bool("tracing_enable", false, "Enable tracing")
-	traceToLog := flag.Bool("tracing_log_enable", false, "Export trace data to log")
-	traceToJaeger := flag.Bool("tracing_jaeger_enable", false, "Export trace data to jaeger")
+	cmd.RegisterTracingCmdParameters()
 	cmd.RegisterJaegerCmdParameters()
 
 	verbose := flag.Bool("v", false, "Log to stderr all INFO, WARNING and ERROR logs")
@@ -104,26 +100,9 @@ func main() {
 	config.SetIncomingConnectionGRPCString(*incomingConnectionGRPCString)
 	config.SetConfigPath(DEFAULT_CONFIG_PATH)
 	config.SetDebug(*debug)
-	config.SetTraceToLog(*traceToLog)
-	config.SetTracing(*tracing)
+	config.SetTraceToLog(cmd.IsTraceToLogOn())
 
-	if *tracing {
-		if *traceToLog {
-			trace.RegisterExporter(&logging.LogSpanExporter{})
-		}
-
-		if *traceToJaeger {
-			jaegerOptions := cmd.GetJaegerCmdParameters()
-			jaegerOptions.ServiceName = ServiceName
-			jaegerEndpoint, err := jaeger.NewExporter(jaegerOptions)
-			if err != nil {
-				log.Fatalf("Failed to create the Jaeger exporter: %v", err)
-				os.Exit(1)
-			}
-			// And now finally register it as a Trace Exporter
-			trace.RegisterExporter(jaegerEndpoint)
-		}
-	}
+	cmd.SetupTracing(ServiceName)
 
 	log.Infof("Initialising keystore...")
 	masterKey, err := keystore.GetMasterKeyFromEnvironment()
