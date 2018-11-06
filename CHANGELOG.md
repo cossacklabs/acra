@@ -50,15 +50,15 @@ _Core_:
 
 _Infrastructure_:
 
-- Tested Acra suite with PostgreSQL 11 and updated [Acra Engineering Demo](https://github.com/cossacklabs/acra-engineering-demo) to use it.
+- Drop testing and supporting Go version below 1.9. This will only affect the users who build Acra manually from sources.
+  You can install pre-built Acra components shipped for various Ubuntu, Debian, and CentOS distributives using [Installation guide](https://github.com/cossacklabs/acra/wiki/Quick-start-guide#installing-acra-from-the-cossack-labs-repository). Alternatively, you can check out our Docker images and Docker-compose files in [docker folder](https://github.com/cossacklabs/acra/tree/master/docker) 
+  ([#277](https://github.com/cossacklabs/acra/pull/277)).
+
+- Tested Acra suite with PostgreSQL v11 and MariaDB v10.3 and updated [docker compose examples](https://github.com/cossacklabs/acra/tree/master/docker) to use it ([#278](https://github.com/cossacklabs/acra/pull/278)).
 
 - Published [Acra load balancing demo](https://github.com/cossacklabs/acra-balancer-demo): it discovers some of many possible variants of building high availability and balanced infrastructure, based on Acra data protection suite components, PostgreSQL and python web application. In these examples we used HAProxy – one of the most popular high availability balancers today.
 
 - Updated [AcraStruct Validator](https://docs.cossacklabs.com/simulator/acra/) – an online tool that can decrypt your AcraStructs. AcraStruct Validator is useful for developers who build their own AcraWriters (to validate AcraStruct binary structure).
-
-- Drop testing and supporting go version below 1.9. This will only affect the users who build Acra manually from sources.
-  You can install pre-built Acra components shipped for various Ubuntu, Debian, and CentOS distributives using [Installation guide](https://github.com/cossacklabs/acra/wiki/Quick-start-guide#installing-acra-from-the-cossack-labs-repository). Alternatively, you can check out our Docker images and Docker-compose files in [docker folder](https://github.com/cossacklabs/acra/tree/master/docker) 
-  ([#277](https://github.com/cossacklabs/acra/pull/277)).
 
 
 _Features coming soon_:
