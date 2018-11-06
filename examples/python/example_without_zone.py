@@ -29,8 +29,7 @@ def get_default(name, value):
     return os.environ.get('EXAMPLE_{}'.format(name.upper()), value)
 
 
-def print_data(connection, driver):
-    print('DB driver: {}'.format(driver))
+def print_data(connection):
     result = connection.execute(select([test_table]))
     result = result.fetchall()
     print("{:<3} - {:<20} - {}".format("id", "data", "raw_data"))
@@ -39,8 +38,7 @@ def print_data(connection, driver):
             "utf-8", errors='ignore'), row['raw_data']))
 
 
-def write_data(data, connection, driver):
-    print('DB driver: {}'.format(driver))
+def write_data(data, connection):
     print('insert data: {}'.format(data))
     connection.execute(
         test_table.insert(), data=data.encode('utf-8'), raw_data=data)
@@ -110,7 +108,9 @@ if __name__ == '__main__':
     metadata.create_all(engine)
     connection = engine.connect()
 
+    print('DB driver: {}'.format(driver))
+
     if args.print:
-        print_data(connection, driver)
+        print_data(connection)
     else:
-        write_data(args.data, connection, driver)
+        write_data(args.data, connection)

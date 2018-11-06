@@ -47,10 +47,9 @@ def get_default(name, value):
     return os.environ.get('EXAMPLE_{}'.format(name.upper()), value)
 
 
-def print_data(zone_id, connection, driver):
+def print_data(zone_id, connection):
     """fetch data from database (use zone_id if not empty/None) and print to
     console"""
-    print('DB driver: {}'.format(driver))
     result = connection.execute(
         # explicitly pass zone id before related data
         select([cast(zone_id.encode('utf-8'), BYTEA), test_table]))
@@ -65,8 +64,7 @@ def print_data(zone_id, connection, driver):
             row['data'].decode('utf-8', errors='ignore'), row['raw_data']))
 
 
-def write_data(data, connection, driver):
-    print('DB driver: {}'.format(driver))
+def write_data(data, connection):
     zone_id, key = get_zone()
     print("data: {}\nzone: {}".format(data, zone_id))
 
@@ -142,15 +140,17 @@ if __name__ == '__main__':
     connection = engine.connect()
     metadata.create_all(engine)
 
+    print('DB driver: {}'.format(driver))
+
     if args.print:
-        print_data(args.zone_id, connection, driver)
+        print_data(args.zone_id, connection)
     elif args.data:
         if args.zone_id:
             print("To encrypt data script will generate new zone and print "
                   "zone id with public key after execution. Don't use "
                   "--zone_id option with --data option.")
             exit(1)
-        write_data(args.data, connection, driver)
+        write_data(args.data, connection)
     else:
         print('Use --print or --data options')
         exit(1)
