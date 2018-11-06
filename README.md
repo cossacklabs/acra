@@ -14,7 +14,7 @@
   <a href='https://goreportcard.com/report/github.com/cossacklabs/acra'><img class="badge" tag="github.com/cossacklabs/acra" src="https://goreportcard.com/badge/github.com/cossacklabs/acra"></a>
   <a href='https://godoc.org/github.com/cossacklabs/acra'><img src='https://godoc.org/github.com/cossacklabs/acra?status.svg'  alt='godoc'/></a>
   <br/><a href="https://github.com/cossacklabs/acra/releases/latest"><img src="https://img.shields.io/badge/Server%20Platforms-Ubuntu%20%7C%20Debian%20%7C%20CentOS-green.svg" alt="Server platforms"></a>
-  <a href="https://github.com/cossacklabs/acra/releases/latest"><img src="https://img.shields.io/badge/Client%20Platforms-Go%20%7C%20Ruby%20%7C%20Python%20%7C%20PHP%20%7C%20NodeJS%20%7C%20iOS%20%7C%20Android-green.svg" alt="Client platforms"></a>
+  <a href="https://github.com/cossacklabs/acra/releases/latest"><img src="https://img.shields.io/badge/Client%20Platforms-Go%20%7C%20Ruby%20%7C%20Python%20%7C%20PHP%20%7C%20NodeJS%20%7C%20C++%20%7C%20iOS%20%7C%20Android-green.svg" alt="Client platforms"></a>
 </p>
 <br>
 
@@ -27,21 +27,49 @@ Acra — database security suite for sensitive and personal data protection.
 
 Acra provides selective encryption, multi-layered access control, database leakage prevention, and intrusion detection capabilities in a convenient, developer-friendly package. Acra was specifically designed for web and mobile apps with centralised data storage, including with distributed, microservice-rich applications.
 
+| Typical applications and use cases |
+| :---- |
+| Web and mobile applications that store data in centralized database or object storage |
+| IoT projects collecting telemetry, and processing data in cloud |
+| Cloud-based infrastructures |
+| Areas: medicine, finance, e-commerce, critical infrastructure, processing a lot of personal data |
+
 Acra gives you tools for encrypting the data on the application's side into special [cryptographic containers](https://github.com/cossacklabs/acra/wiki/AcraStruct), storing them in the database or file storage, and then decrypting them in a secure compartmented area (separate virtual machine/container). 
 
 Cryptographic design ensures that no secret (password, key, etc.) leaked from the application or database will be sufficient for decryption of the protected data chunks that originate from it. 
 
-Acra was built with specific user experiences in mind: 
+| **Security features:** | |
+| :---- | :--- |
+| Compatibility with encryption-demanding compliances | Acra can run on certified crypto-libraries (FIPS, GOST) |
+| Cryptographic protection of data | during storage and transmission |
+| Selective encryption | protect only sensitive data to achieve both security and performance |
+| Compartmentalization | to compromise an Acra-powered app, the attacker needs to compromise a separate compartmented server, AcraServer;<br/>until AcraServer is compromised, the data is safe |
+| SQL injections prevention | through a built-in SQL firewall |
+| Intrusion detection | to give an early warning about suspicious behaviour |
+| Search through encrypted data | _coming in next releases_ |
+| Pseudonymisation | _coming in next releases_ |
+| Audit log | _coming in next releases_ |
 
-- **Quick and straightforward integration** of security instrumentation.
-- **Easy to try**: you can experience the full might of Acra without committing to its installation using [Docker containers](https://docs.cossacklabs.com/pages/trying-acra-with-docker/) (you can also request access to [Acra Live Demo](https://www.cossacklabs.com/acra/#acralivedemo) to play around with Acra without installing a thing).
-- **Compatibility with encryption-demanding compliances**: Acra can run on certified crypto-libraries (FIPS, GOST).
-- **Cryptographic protection of data**: to compromise an Acra-powered app, the attacker will need to compromise a separate compartmented server, AcraServer - more specifically - its key storage and database; until AcraServer is compromised, the data is safe.
-- **Cryptography is hidden under the hood**: you're safe from the risk of selecting a wrong key length or algorithm padding.
-- **Secure default settings** to get you going. 
-- **Intrusion detection** to give you an early warning about suspicious behaviour.
-- **SQL injections prevention** through a built-in SQL firewall.
-- **Ops-friendly**: Acra can be easily configured and automated using a configuration automation environment.
+
+| Developers and DevOps friendly | |
+| :---- | :--- |
+| Secure default settings | no need to configure to make your infrastructure secure |
+| Cryptography is hidden<br/>under the hood | no risk of selecting a wrong key length or algorithm padding |
+| Ready-for-automation | easily configured and automated using a configuration automation environment |
+| Server-side installation | via binary packages or Docker images |
+| Code integration | client-side libraries support ~10 languages |
+| Logging | in CEF and JSON formats, compatible with ELK stack |
+| Metrics | to track basic behavior of every Acra component,<br/> compatible with Prometheus format |
+| Tracing | to track every request from client application to the database and back,<br/> compatible with Jaeger format |
+| Demos and simulators | Numerous web-based and Docker-based demo projects |
+
+
+| Compatibility and integration | |
+| :---- | :--- |
+| Cloud platforms | AWS, GCP, Heroku |
+| SQL databases | MySQL, PosgtreSQL, MariaDB, Google Cloud SQL, Amazon RDS |
+| Object stores | filesystems, KV databases, Amazon S3, Google Cloud DataStore |
+| Load balancing | HAProxy |
 
 
 Acra is a continuously developing security tool. And as any proper security tool, it requires enormous human efforts for validation of the methods, code, and finding possible infrastructural weaknesses. We're constantly enhancing and improving Acra as we go. This is done to ensure that the provided security benefits are not rendered useless through implementation problems or increased complexity.
@@ -49,6 +77,11 @@ Acra is a continuously developing security tool. And as any proper security tool
 ## Cryptography
 
 Acra relies on our cryptographic library [Themis](https://www.cossacklabs.com/themis/), which implements high-level cryptosystems based on the best available [open-source implementations](https://docs.cossacklabs.com/pages/themis-cryptographic-donors/) of the [most reliable ciphers](https://docs.cossacklabs.com/pages/soter/). Acra does not contain any self-made cryptographic primitives or obscure ciphers. To deliver its unique guarantees, Acra relies on the combination of well-known ciphers and a smart key management scheme.
+
+| Default crypto-engine | OpenSSL |
+| :---- | :---- |
+| Storage encryption | AES-256-GCM, ECC, ECDH |
+| Transport encryption | TLS v1.2 / Themis Secure Sessions |
 
 The [enterprise version of Acra](https://www.cossacklabs.com/acra/) can run on the certified crypto-libraries of your choice (i.e. the abovementioned FIPS, GOST, etc.), [drop us an email](mailto:sales@cossacklabs.com) to get a quote.
 
@@ -96,6 +129,13 @@ Requirements: Linux or macOS terminal.
 | ⚙️ [Run Engineering Demo](https://github.com/cossacklabs/acra-engineering-demo) ⚙️ |
 |---|
 
+### Acra Load Balancing Demo
+
+[Acra Load Balancing Demo](https://github.com/cossacklabs/acra-balancer-demo) discovers building high availability and balanced infrastructure, based on Acra components, PostgreSQL and python web application. We prepared several configuration with mulltiple databases and HAProxy.
+
+| 🔛 [Run Load Balancing Demo](https://github.com/cossacklabs/acra-balancer-demo) 🔛 |
+|---|
+
 ## Availability
 
 ### Client-side
@@ -107,6 +147,7 @@ Requirements: Linux or macOS terminal.
 | 🐹 Go | [Installation guide](https://docs.cossacklabs.com/pages/documentation-acra/#building-acrawriter-for-go) | [examples/golang](https://github.com/cossacklabs/acra/tree/master/examples/golang) |
 | 🐍 Python | [Installation guide](https://docs.cossacklabs.com/pages/documentation-acra/#building-acrawriter-for-python) | [examples/python](https://github.com/cossacklabs/acra/tree/master/examples/python) |
 | ♦️ Ruby | [Installation guide](https://docs.cossacklabs.com/pages/documentation-acra/#building-acrawriter-for-ruby) | [examples/ruby](https://github.com/cossacklabs/acra/tree/master/examples/ruby) |
+| ➕ C++ | [Installation guide](https://docs.cossacklabs.com/pages/documentation-acra/#building-acrawriter-for-c-) | [examples/cpp](https://github.com/cossacklabs/acra/tree/master/examples/cpp) |
 | 📱 Objective-C / Swift (iOS) | [Installation guide](https://docs.cossacklabs.com/pages/documentation-acra/#building-acrawriter-for-ios) | [examples/objc](https://github.com/cossacklabs/acra/tree/master/examples/objc) |
 | ☎️ Java (Android) | [Installation guide](https://docs.cossacklabs.com/pages/documentation-acra/#building-acrawriter-for-android) | [examples/android_java](https://github.com/cossacklabs/acra/tree/master/examples/android_java) |
 | 🐘 PHP | [Installation guide](https://docs.cossacklabs.com/pages/documentation-acra/#building-acrawriter-for-php) | [examples/php](https://github.com/cossacklabs/acra/tree/master/examples/php) |
@@ -118,7 +159,7 @@ Requirements: Linux or macOS terminal.
 * There are three possible ways to install and launch Acra components:
   - [download and run our Docker-based demo stand](https://docs.cossacklabs.com/pages/trying-acra-with-docker/) to deploy all you need using a single command (read more about it below).
   - [download pre-built Acra binaries](https://docs.cossacklabs.com/pages/documentation-acra/#installing-acra-from-the-cossack-labs-repository) for supported distributives (see list below).
-  - [build from sources](https://docs.cossacklabs.com/pages/documentation-acra/#installing-from-github) (Acra is built and tested with Go versions 1.8 – 1.10).
+  - [build from sources](https://docs.cossacklabs.com/pages/documentation-acra/#installing-from-github) (Acra is built and tested with Go versions 1.9.7 – 1.11).
   
 * Acra binaries are built for: 
 
@@ -133,12 +174,13 @@ Requirements: Linux or macOS terminal.
 
 AcraServer is a server-side service that works as database proxy: it sits transparently between your application and the database, listens silently to all the traffic that's coming to and from the database. 
 
-Supported databases:
+Supported and continuously tested databases:
 
 | RDBMS | Version |
 |--------| ------|
 | MySQL | 5.7+ |
-| PostgreSQL | 9.4+ |
+| MariaDB | 10.3+ |
+| PostgreSQL | v9.4 - v11 |
 
 ## How does Acra work?
 
@@ -189,9 +231,9 @@ Please use the Acra Docker demo stand for testing/experimenting purposes only as
 For production environments, we insist on generating and exchanging keys manually. Refer to the [Quick Start guide](https://docs.cossacklabs.com/pages/documentation-acra/#installing-acra-from-the-cossack-labs-repository) to understand how to download and launch Acra components, generate keys, and perform a key exchange properly.
 
 
-## Additionally
+## Documentation and tutorials
 
-The most recent version of the documentation, tutorials, and demos for Acra is available in the official [Cossack Labs Documentation Server](https://docs.cossacklabs.com/products/acra/). The Wiki documentation is deprecated and no longer updated since 0.82.0.
+The most recent version of the documentation, tutorials, and demos for Acra is available in the official [Cossack Labs Documentation Server](https://docs.cossacklabs.com/products/acra/). The Github Wiki documentation is deprecated and no longer updated since 0.82.0.
 
 To gain an initial understanding of Acra, you might want to:
 
