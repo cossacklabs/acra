@@ -34,17 +34,11 @@ type AcraTranslatorConfig struct {
 	configPath                   string
 	debug                        bool
 	traceToLog                   bool
-	tracing                      bool
 }
 
 // NewConfig creates new AcraTranslatorConfig.
 func NewConfig() *AcraTranslatorConfig {
 	return &AcraTranslatorConfig{stopOnPoison: false}
-}
-
-// SetTracing if should export trace data
-func (a *AcraTranslatorConfig) SetTracing(v bool) {
-	a.tracing = v
 }
 
 // SetTraceToLog true if want to log trace data otherwise false
@@ -54,10 +48,7 @@ func (a *AcraTranslatorConfig) SetTraceToLog(v bool) {
 
 // GetTraceOptions for opencensus trace
 func (a *AcraTranslatorConfig) GetTraceOptions() []trace.StartOption {
-	if a.tracing {
-		return []trace.StartOption{trace.WithSampler(trace.AlwaysSample()), trace.WithSpanKind(trace.SpanKindServer)}
-	}
-	return []trace.StartOption{trace.WithSampler(trace.NeverSample()), trace.WithSpanKind(trace.SpanKindServer)}
+	return []trace.StartOption{trace.WithSampler(trace.AlwaysSample()), trace.WithSpanKind(trace.SpanKindServer)}
 }
 
 // KeysDir returns keys directory.

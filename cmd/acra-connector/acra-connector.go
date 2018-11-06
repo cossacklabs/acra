@@ -29,7 +29,6 @@ import (
 	"flag"
 	"fmt"
 	log "github.com/sirupsen/logrus"
-	"go.opencensus.io/exporter/jaeger"
 	"go.opencensus.io/trace"
 	"io"
 	"net"
@@ -81,12 +80,8 @@ func handleApiConnection(config *Config, connection net.Conn) {
 
 func handleConnection(config *Config, connection net.Conn) {
 	options := []trace.StartOption{trace.WithSpanKind(trace.SpanKindClient)}
-	ctx := logging.SetTraceStatus(context.Background(), config.TraceToLog)
-	if config.Tracing {
-		options = append(options, trace.WithSampler(trace.AlwaysSample()))
-	} else {
-		options = append(options, trace.WithSampler(trace.NeverSample()))
-	}
+	ctx := logging.SetTraceStatus(context.Background(), cmd.IsTraceToLogOn())
+	options = append(options, trace.WithSampler(trace.AlwaysSample()))
 	ctx, span := trace.StartSpan(ctx, "handleConnection", options...)
 	defer span.End()
 
@@ -210,8 +205,6 @@ type Config struct {
 	KeyStore                 keystore.SecureSessionKeyStore
 	ConnectionWrapper        network.ConnectionWrapper
 	Mode                     connector_mode.ConnectorMode
-	Tracing                  bool
-	TraceToLog               bool
 }
 
 func main() {
@@ -248,9 +241,7 @@ func main() {
 	acraTranslatorConnectionString := flag.String("acratranslator_connection_string", "", "Connection string to AcraTranslator like grpc://0.0.0.0:9696 or http://0.0.0.0:9595")
 	acraTranslatorID := flag.String("acratranslator_securesession_id", "acra_translator", "Expected id from AcraTranslator for Secure Session")
 
-	tracing := flag.Bool("tracing_enable", false, "Enable tracing")
-	traceToLog := flag.Bool("tracing_log_enable", false, "Export trace data to log")
-	traceToJaeger := flag.Bool("tracing_jaeger_enable", false, "Export trace data to jaeger")
+	cmd.RegisterTracingCmdParameters()
 	cmd.RegisterJaegerCmdParameters()
 
 	verbose := flag.Bool("v", false, "Log to stderr all INFO, WARNING and ERROR logs")
@@ -378,7 +369,7 @@ func main() {
 
 	// --------- Config  -----------
 	log.Infof("Configuring transport...")
-	config := &Config{KeyStore: keyStore, KeysDir: *keysDir, ClientID: []byte(*clientID), OutgoingConnectionString: outgoingConnectionString, IncomingConnectionString: *connectionString, OutgoingServiceID: []byte(outgoingSecureSessionID), DisableUserCheck: *disableUserCheck, Mode: connectorMode, Tracing: *tracing, TraceToLog: *traceToLog}
+	config := &Config{KeyStore: keyStore, KeysDir: *keysDir, ClientID: []byte(*clientID), OutgoingConnectionString: outgoingConnectionString, IncomingConnectionString: *connectionString, OutgoingServiceID: []byte(outgoingSecureSessionID), DisableUserCheck: *disableUserCheck, Mode: connectorMode}
 	listener, err := network.Listen(*connectionString)
 	if err != nil {
 		log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantStartListenConnections).
@@ -496,23 +487,7 @@ func main() {
 		})
 	}
 
-	if *tracing {
-		if *traceToLog {
-			trace.RegisterExporter(&logging.LogSpanExporter{})
-		}
-
-		if *traceToJaeger {
-			jaegerOptions := cmd.GetJaegerCmdParameters()
-			jaegerOptions.ServiceName = ServiceName
-			jaegerEndpoint, err := jaeger.NewExporter(jaegerOptions)
-			if err != nil {
-				log.Fatalf("Failed to create the Jaeger exporter: %v", err)
-				os.Exit(1)
-			}
-			// And now finally register it as a Trace Exporter
-			trace.RegisterExporter(jaegerEndpoint)
-		}
-	}
+	cmd.SetupTracing(ServiceName)
 
 	for {
 		connection, err := listener.Accept()
