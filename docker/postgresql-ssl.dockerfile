@@ -1,4 +1,4 @@
-FROM postgres:9.6
+FROM postgres:11
 
 # Original postgresql init script expects empty $PGDATA so we initially place
 # certificates into the image to the intermediate directory
