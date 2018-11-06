@@ -59,7 +59,6 @@ type Config struct {
 	debug                   bool
 	censor                  acracensor.AcraCensorInterface
 	tlsConfig               *tls.Config
-	tracing                 bool
 	withConnector           bool
 	TraceToLog              bool
 }
@@ -91,16 +90,6 @@ func (config *Config) WithConnector() bool {
 // SetWithConnector set that acra-server will or not accept connections from acra-connector
 func (config *Config) SetWithConnector(v bool) {
 	config.withConnector = v
-}
-
-// GetTracing status on/off
-func (config *Config) GetTracing() bool {
-	return config.tracing
-}
-
-// SetTracing status on/off
-func (config *Config) SetTracing(v bool) {
-	config.tracing = v
 }
 
 // SetCensor creates AcraCensor and sets its configuration

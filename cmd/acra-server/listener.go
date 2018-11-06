@@ -55,11 +55,8 @@ type SServer struct {
 // NewServer creates new SServer.
 func NewServer(config *Config, keystorage keystore.KeyStore, errorChan chan os.Signal, restarChan chan os.Signal) (server *SServer, err error) {
 	traceOptions := []trace.StartOption{trace.WithSpanKind(trace.SpanKindClient)}
-	if config.GetTracing() {
-		traceOptions = append(traceOptions, trace.WithSampler(trace.AlwaysSample()))
-	} else {
-		traceOptions = append(traceOptions, trace.WithSampler(trace.NeverSample()))
-	}
+	traceOptions = append(traceOptions, trace.WithSampler(trace.AlwaysSample()))
+
 	return &SServer{
 		config:                config,
 		keystorage:            keystorage,

@@ -124,9 +124,6 @@ tls_db_sni:
 # Path to private key that will be used in TLS handshake with AcraConnector as server's key and Postgresql as client's key
 tls_key: 
 
-# Enable tracing
-tracing_enable: false
-
 # Export trace data to jaeger
 tracing_jaeger_enable: false
 
