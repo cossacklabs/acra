@@ -322,10 +322,15 @@ func (handler *MysqlHandler) ClientToDbConnector(errCh chan<- error) {
 				}
 				continue
 			}
-			handler.setQueryHandler(handler.QueryResponseHandler)
+			if cmd == COM_QUERY {
+				handler.setQueryHandler(handler.QueryResponseHandler)
+			}
 			censorSpan.End()
 			break
-		case COM_STMT_EXECUTE, COM_STMT_CLOSE, COM_STMT_SEND_LONG_DATA, COM_STMT_RESET:
+		case COM_STMT_EXECUTE:
+			handler.setQueryHandler(handler.QueryResponseHandler)
+			break
+		case COM_STMT_CLOSE, COM_STMT_SEND_LONG_DATA, COM_STMT_RESET:
 			fallthrough
 		default:
 			clientLog.Debugf("Command %d not supported now", cmd)
