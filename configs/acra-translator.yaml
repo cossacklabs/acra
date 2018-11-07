@@ -22,8 +22,8 @@ incoming_connection_http_string:
 # URL which will be used to expose Prometheus metrics (use <URL>/metrics address to pull metrics)
 incoming_connection_prometheus_metrics_string: 
 
-# Jaeger agent endpoint that will be used to export trace data
-jaeger_agent_endpoint: 127.0.0.1:6831
+# Jaeger agent endpoint (for example, localhost:6831) that will be used to export trace data
+jaeger_agent_endpoint: 
 
 # Password used for basic auth (optional) to jaeger
 jaeger_basic_auth_password: 
@@ -31,8 +31,8 @@ jaeger_basic_auth_password:
 # Username used for basic auth (optional) to jaeger
 jaeger_basic_auth_username: 
 
-# Jaeger endpoint that will be used to export trace data
-jaeger_collector_endpoint: 127.0.0.1:14268
+# Jaeger endpoint (for example, http://localhost:14268/api/traces) that will be used to export trace data
+jaeger_collector_endpoint: 
 
 # Folder from which will be loaded keys
 keys_dir: .acrakeys

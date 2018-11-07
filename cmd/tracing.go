@@ -50,6 +50,10 @@ func SetupTracing(serviceName string) {
 		trace.RegisterExporter(&logging.LogSpanExporter{})
 	}
 	if IsTraceToJaegerOn() {
+		if err := ValidateJaegerCmdParameters(); err != nil {
+			log.WithError(err).Errorln("Invalid jaeger parameters")
+			os.Exit(1)
+		}
 		jaegerOptions := GetJaegerCmdParameters()
 		jaegerOptions.ServiceName = serviceName
 		jaegerEndpoint, err := jaeger.NewExporter(jaegerOptions)
