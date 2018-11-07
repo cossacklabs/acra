@@ -52,8 +52,8 @@ Cryptographic design ensures that no secret (password, key, etc.) leaked from th
 </tr><tr><td><li>Trust compartmentalisation </li></td><td> datastore and application components can be compromised, yet the data is protected</td>
 </tr><tr><td><li>Prevention of SQL injections </li></td><td> through a built-in SQL firewall </td>
 </tr><tr><td><li>Intrusion detection system </li></td><td> to give an early warning about suspicious behaviour </td>
-</tr><tr><td><li>Running SQL queries over encrypted data </li></td><td> <i>Enterprise version only</i> </td>
-</tr><tr><td><li>Pseudonymisation </li></td><td rowspan=2> <i>coming in the (near) future releases</i>
+</tr><tr><td><li>Running SQL queries over encrypted data </li></td><td rowspan=3> <i>coming in the (near) future releases</i>
+</tr><tr><td><li>Pseudonymisation </li></td>
 </tr><tr><td><li>Cryptographically protected audit log </li></td>
 </tr></tbody></table>
 
@@ -82,7 +82,7 @@ Acra relies on our cryptographic library [Themis](https://www.cossacklabs.com/th
 <tr><td> KMS integration ᵉ</td><td> Amazon KMS, Google Cloud Platform KMS, Hashicorp Vault, Keywhiz </td></tr>
 </tbody></table>
 
-ᵉ — available in the [Enterprise version of Acra](https://www.cossacklabs.com/acra/) only. [Drop us an email](mailto:sales@cossacklabs.com) to get aa full list of features and quote.
+ᵉ — available in the [Enterprise version of Acra](https://www.cossacklabs.com/acra/) only. [Drop us an email](mailto:sales@cossacklabs.com) to get a full list of features and quote.
 
 
 ## Try Acra without writing code
@@ -189,7 +189,7 @@ Acra is compatible with numerous RDBMS, object and KV stores, cloud platforms, e
 <tr><td> Load balancing </td><td> HAProxy, cloud balancers </td></tr>
 </tbody></table>
 
-> Note: some features are available in [the Enterprise version of Acra](https://github.com/cossacklabs/acra#open-source-vs-enterprise) only.
+Open source Acra has limited integration support, more services are available in the [Enterprise version of Acra](https://github.com/cossacklabs/acra#open-source-vs-enterprise) only.
 
 ## Installation and launch
 
