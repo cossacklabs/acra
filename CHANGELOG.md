@@ -65,9 +65,11 @@ _Infrastructure_:
 
 _Features coming soon_:
 
-- **Search in encrypted data**
+- Running SQL queries over encrypted data: perform AcraServer-side lookups over protected data.
 
-- **Pseudonymization**
+- Pseudonymisation: early version of pseudonymisation library/plugin for Acra for transparent data pseudonymisation.
+
+- Cryptographically protected audit log: tamper protection for logs.
 
 
 _Documentation_:
