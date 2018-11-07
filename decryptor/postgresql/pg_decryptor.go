@@ -83,6 +83,7 @@ const (
 	// https://www.postgresql.org/docs/9.4/static/protocol-message-formats.html
 	DataRowMessageType byte = 'D'
 	QueryMessageType   byte = 'Q'
+	ParseMessageType   byte = 'P'
 	TLSTimeout              = time.Second * 2
 )
 
@@ -143,7 +144,7 @@ func (proxy *PgProxy) PgProxyClientRequests(acraCensor acracensor.AcraCensorInte
 		}
 		dbConnection.SetWriteDeadline(time.Now().Add(network.DefaultNetworkTimeout))
 		// we are interested only in requests that contains sql queries
-		if !packet.IsSimpleQuery() {
+		if !(packet.IsSimpleQuery() || packet.IsParse()) {
 			if err := packet.sendPacket(); err != nil {
 				logger.WithError(err).Errorln("Can't forward packet to db")
 				errCh <- err
@@ -156,8 +157,26 @@ func (proxy *PgProxy) PgProxyClientRequests(acraCensor acracensor.AcraCensorInte
 			continue
 		}
 		_, censorSpan := trace.StartSpan(packetSpanCtx, "censor")
-
-		query := string(packet.descriptionBuf.Bytes()[:packet.dataLength-1])
+		var query string
+		if packet.IsSimpleQuery() {
+			query, err = packet.GetSimpleQuery()
+			if err != nil {
+				logger.WithError(err).Errorln("Can't fetch query string from Query packet")
+				errCh <- err
+				return
+			}
+		} else if packet.IsParse() {
+			query, err = packet.GetParseQuery()
+			if err != nil {
+				logger.WithError(err).Errorln("Can't fetch query string from Parse packet")
+				errCh <- err
+				return
+			}
+		} else {
+			logger.Errorf("Unhandled message type <%v>", packet.messageType[0])
+			errCh <- errors.New("unhandled message type")
+			return
+		}
 
 		// log query with hidden values for debug mode
 		if logging.GetLogLevel() == logging.LogDebug {
