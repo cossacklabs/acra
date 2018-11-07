@@ -46,16 +46,15 @@ Cryptographic design ensures that no secret (password, key, etc.) leaked from th
 
 ### Major security features
 
-<table><tbody><tr><td><li>Compatibility with encryption-demanding compliance </li></td><td>Acra can run on certified crypto-libraries (FIPS, GOST, etc.) </td>
-</tr><tr><td><li>Cryptographic protection of data </li></td><td> during storage and transmission </td>
+<table><tbody><tr><tr><td><li>Cryptographic protection of data </li></td><td> during storage and transmission </td>
 </tr><tr><td><li>Selective encryption </li></td><td> protect only the sensitive data to have both good security and performance </td>
 </tr><tr><td><li>Key management tools </li></td><td> built-in tools for key distribution, key rotation, and compartmentalisation</td>
 </tr><tr><td><li>Trust compartmentalisation </li></td><td> datastore and application components can be compromised, yet the data is protected</td>
 </tr><tr><td><li>Prevention of SQL injections </li></td><td> through a built-in SQL firewall </td>
 </tr><tr><td><li>Intrusion detection system </li></td><td> to give an early warning about suspicious behaviour </td>
-</tr><tr><td><li>Search through encrypted data </li></td><td rowspan=3> <i>coming in the (near) future releases</i> </td>
-</tr><tr><td><li>Pseudonymisation </li></td>
-</tr><tr><td><li>Audit log </li></td>
+</tr><tr><td><li>Running SQL queries over encrypted data </li></td><td> <i>Enterprise version only</i> </td>
+</tr><tr><td><li>Pseudonymisation </li></td><td rowspan=2> <i>coming in the (near) future releases</i>
+</tr><tr><td><li>Cryptographically protected audit log </li></td>
 </tr></tbody></table>
 
 ### Developer and DevOps friendly
@@ -67,6 +66,7 @@ Cryptographic design ensures that no secret (password, key, etc.) leaked from th
 <tr><td><li> Quick infrastructure integration </td><td> via binary packages or Docker images </li></td></tr>
 <tr><td><li> Easy client code integration </td><td> client-side encryption libraries support ~10 languages </li></td></tr>
 <tr><td><li> Logging, metrics, tracing </td><td> throughout all Acra components;<br/>compatible with ELK stack, Prometheus, Jaeger</li> </td></tr>
+<tr><td><li> No vendor lock </td><td> rollback utilities to decrypt database into plaintext </li> </td></tr>
 <tr><td><li> Demos and simulators </td><td> numerous web-based and Docker-based demo projects </li></td></tr>
 </tbody></table>
 
@@ -76,12 +76,13 @@ Acra relies on our cryptographic library [Themis](https://www.cossacklabs.com/th
 
 <table><tbody>
 <tr><td> Default crypto-primitive source </td><td> OpenSSL </td></tr>
-<tr><td> Supported crypto-primitive sources </td><td> BoringSSL, LibreSSL, FIPS-compliant, GOST-compliant, HSM</td></tr>
+<tr><td> Supported crypto-primitive sources ᵉ<td> BoringSSL, LibreSSL, FIPS-compliant, GOST-compliant, HSM</td></tr>
 <tr><td> Storage encryption </td><td> AES-256-GCM + ECDH </td></tr>
 <tr><td> Transport encryption </td><td> TLS v1.2+ / Themis Secure Session </td></tr>
+<tr><td> KMS integration ᵉ</td><td> Amazon KMS, Google Cloud Platform KMS, Hashicorp Vault, Keywhiz </td></tr>
 </tbody></table>
 
-The [Enterprise version of Acra](https://www.cossacklabs.com/acra/) can run on the certified crypto-engines of your choice, [drop us an email](mailto:sales@cossacklabs.com) to get a quote.
+ᵉ — available in the [Enterprise version of Acra](https://www.cossacklabs.com/acra/) only. [Drop us an email](mailto:sales@cossacklabs.com) to get aa full list of features and quote.
 
 
 ## Try Acra without writing code
