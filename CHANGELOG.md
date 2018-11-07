@@ -43,6 +43,8 @@ _Core_:
 
   - Improved AcraServer's connection handling: stop accepting connections after error and stop AcraServer instead of trying to accept connections after listening socket was closed ([#275](https://github.com/cossacklabs/acra/pull/275).
 
+  - Improved AcraCensor's handling of prepared statements for PostgreSQL binary protocol ([#280](https://github.com/cossacklabs/acra/pull/280)).
+
   - Improved handling of terminating packets (COM_QUIT for PostgreSQL and TerminatePacket for MySQL) to correctly handle closing connections from clients ([#275](https://github.com/cossacklabs/acra/pull/275).
 
   - Refactored inner logic of AcraCensor: improved code quality and stability, added more tests that use more patterns ([#268](https://github.com/cossacklabs/acra/pull/268)).
@@ -54,7 +56,7 @@ _Infrastructure_:
   You can install pre-built Acra components shipped for various Ubuntu, Debian, and CentOS distributives using [Installation guide](https://github.com/cossacklabs/acra/wiki/Quick-start-guide#installing-acra-from-the-cossack-labs-repository). Alternatively, you can check out our Docker images and Docker-compose files in [docker folder](https://github.com/cossacklabs/acra/tree/master/docker) 
   ([#277](https://github.com/cossacklabs/acra/pull/277)).
 
-- Tested Acra suite with PostgreSQL v11 and MariaDB v10.3 and updated [docker compose examples](https://github.com/cossacklabs/acra/tree/master/docker) to use it ([#278](https://github.com/cossacklabs/acra/pull/278)).
+- Tested Acra suite with PostgreSQL v11 and MariaDB v10.3 and updated [docker compose examples](https://github.com/cossacklabs/acra/tree/master/docker) and [Acra Engineering Demo](https://github.com/cossacklabs/acra-engineering-demo/) to use it ([#278](https://github.com/cossacklabs/acra/pull/278)).
 
 - Published [Acra load balancing demo](https://github.com/cossacklabs/acra-balancer-demo): it discovers some of many possible variants of building high availability and balanced infrastructure, based on Acra data protection suite components, PostgreSQL and python web application. In these examples we used HAProxy – one of the most popular high availability balancers today.
 
