@@ -163,17 +163,17 @@ AcraTranslator and AcraServer are fully independent server-side components and c
 * The Server-side Acra components should run as a separate services/servers. 
 * There are three possible ways to install and launch Acra components:
   - [download and run our Docker-based demo stand](https://docs.cossacklabs.com/pages/trying-acra-with-docker/) to deploy all you need using a single command.
-  - [download pre-built Acra binaries](https://docs.cossacklabs.com/pages/documentation-acra/#installing-acra-from-the-cossack-labs-repository) for supported distributives (see list below).
+  - [download pre-built Acra binaries](https://docs.cossacklabs.com/pages/documentation-acra/#installing-acra-from-the-cossack-labs-repository) for supported distributives.
   - [build from sources](https://docs.cossacklabs.com/pages/documentation-acra/#installing-from-github) (Acra is built and tested with Go versions 1.9.7 – 1.11).
   
 * Acra binaries are built for: 
 
 | Distributive | Instruction set | Download and install |
 |---------------| ------| ------|
-| CentOS 7 | x86_64 | [using rpm/deb packages](https://docs.cossacklabs.com/pages/documentation-acra/#centos-rhel-oel) |
-| Debian Stretch (9)<br/> Debian Jessie (8) | x86_64/i386 | [using apt-get](https://docs.cossacklabs.com/pages/documentation-acra/#debian-ubuntu)|
-| Ubuntu Bionic (18.04) | x86_64 | [using apt-get](https://docs.cossacklabs.com/pages/documentation-acra/#debian-ubuntu)||
-| Ubuntu Artful (17.10)<br/> Ubuntu Xenial (16.04)<br/>Ubuntu Trusty (14.04)| x86_64/i386 |[using apt-get](https://docs.cossacklabs.com/pages/documentation-acra/#debian-ubuntu)| |
+| CentOS 7 | x86_64 | [using rpm packages](https://docs.cossacklabs.com/pages/documentation-acra/#centos-rhel-oel) |
+| Debian Stretch (9)<br/> Debian Jessie (8) | x86_64/i386 | [using deb packages](https://docs.cossacklabs.com/pages/documentation-acra/#debian-ubuntu)|
+| Ubuntu Bionic (18.04) | x86_64 | [using deb packages](https://docs.cossacklabs.com/pages/documentation-acra/#debian-ubuntu)||
+| Ubuntu Artful (17.10)<br/> Ubuntu Xenial (16.04)<br/>Ubuntu Trusty (14.04)| x86_64/i386 | [using deb packages](https://docs.cossacklabs.com/pages/documentation-acra/#debian-ubuntu)| |
 
 ### Compatibility and integration
 
