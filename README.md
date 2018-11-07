@@ -18,8 +18,8 @@
 </p>
 <br>
 
-| [Documentation](https://docs.cossacklabs.com/products/acra/) | [Acra Live Demo](https://www.cossacklabs.com/acra/#acralivedemo) | [Acra Engineering Demo](https://github.com/cossacklabs/acra-engineering-demo) | [Django sample project](https://github.com/cossacklabs/djangoproject.com) | [RubyGems sample project](https://github.com/cossacklabs/rubygems.org) | [Other examples](https://github.com/cossacklabs/acra/tree/master/examples) |
-| ---- | ---- | ---- | --- | --- | --- |
+| [Acra Live Demo](https://www.cossacklabs.com/acra/#acralivedemo) | [Acra Engineering Demo](https://github.com/cossacklabs/acra-engineering-demo) | [Documentation](https://docs.cossacklabs.com/products/acra/) | [Installation](https://github.com/cossacklabs/acra/blob/pre-release/README.md#installation-and-launch) | [Examples and tutorials](https://github.com/cossacklabs/acra/blob/pre-release/README.md#documentation-and-tutorials) |
+| ---- | ---- | ---- | --- | --- |
 
 
 ## What is Acra
@@ -46,28 +46,28 @@ Cryptographic design ensures that no secret (password, key, etc.) leaked from th
 
 ### Major security features
 
-<table><tbody><tr><td> Compatibility with encryption-demanding compliance </td><td>Acra can run on certified crypto-libraries (FIPS, GOST) </td>
-</tr><tr><td> Cryptographic protection of data </td><td> during storage and transmission </td>
-</tr><tr><td> Selective encryption </td><td> protect only sensitive data to achieve both security and performance </td>
-</tr><tr><td> Key management tools </td><td> built-in tools for key distribution, key rotation and compartmentalization</td>
-</tr><tr><td> Trust compartmentalization </td><td> datastore and application components can be compromised, yet data is protected</td>
-</tr><tr><td> SQL injections prevention </td><td> through a built-in SQL firewall </td>
-</tr><tr><td> Intrusion detection system </td><td> to give an early warning about suspicious behaviour </td>
-</tr><tr><td> Search through encrypted data </td><td rowspan=3> <i>coming in next releases</i> </td>
-</tr><tr><td> Pseudonymisation </td>
-</tr><tr><td> Audit log </td>
+<table><tbody><tr><td><li>Compatibility with encryption-demanding compliance </li></td><td>Acra can run on certified crypto-libraries (FIPS, GOST) </td>
+</tr><tr><td><li>Cryptographic protection of data </li></td><td> during storage and transmission </td>
+</tr><tr><td><li>Selective encryption </li></td><td> protect only sensitive data to achieve both security and performance </td>
+</tr><tr><td><li>Key management tools </li></td><td> built-in tools for key distribution, key rotation and compartmentalization</td>
+</tr><tr><td><li>Trust compartmentalization </li></td><td> datastore and application components can be compromised, yet data is protected</td>
+</tr><tr><td><li>SQL injections prevention </li></td><td> through a built-in SQL firewall </td>
+</tr><tr><td><li>Intrusion detection system </li></td><td> to give an early warning about suspicious behaviour </td>
+</tr><tr><td><li>Search through encrypted data </li></td><td rowspan=3> <i>coming in next releases</i> </td>
+</tr><tr><td><li>Pseudonymisation </li></td>
+</tr><tr><td><li>Audit log </li></td>
 </tr></tbody></table>
 
 ### Developers and DevOps friendly
 
 <table><tbody>
-<tr><td> Secure default settings </td><td> no need to configure to make your infrastructure secure </td></tr>
-<tr><td> Cryptography is hidden<br/>under the hood </td><td> no risk of selecting a wrong key length or algorithm padding </td></tr>
-<tr><td> Automation friendly </td><td> easy to configure and automate </td></tr>
-<tr><td> Quick infrastructure integration </td><td> via binary packages or Docker images </td></tr>
-<tr><td> Easy client code integration </td><td> client-side encryption libraries support ~10 languages </td></tr>
-<tr><td> Logging, metrics, tracing </td><td> throughout all Acra components;<br/>compatible with ELK stack, Prometheus, Jaeger </td></tr>
-<tr><td> Demos and simulators </td><td> numerous web-based and Docker-based demo projects </td></tr>
+<tr><td><li> Secure default settings </td><td> no need to configure to make your infrastructure secure </li></td></tr>
+<tr><td><li> Cryptography is hidden<br/>under the hood </td><td> no risk of selecting a wrong key length or algorithm padding </li></td></tr>
+<tr><td><li> Automation friendly </td><td> easy to configure and automate </li></td></tr>
+<tr><td><li> Quick infrastructure integration </td><td> via binary packages or Docker images </li></td></tr>
+<tr><td><li> Easy client code integration </td><td> client-side encryption libraries support ~10 languages </li></td></tr>
+<tr><td><li> Logging, metrics, tracing </td><td> throughout all Acra components;<br/>compatible with ELK stack, Prometheus, Ja</li>eger </td></tr>
+<tr><td><li> Demos and simulators </td><td> numerous web-based and Docker-based demo projects </li></td></tr>
 </tbody></table>
 
 ### Compatibility and integration
@@ -164,7 +164,7 @@ Requirements: Linux or macOS terminal.
 
 * The Server-side Acra components should run as a separate services/servers. 
 * There are three possible ways to install and launch Acra components:
-  - [download and run our Docker-based demo stand](https://docs.cossacklabs.com/pages/trying-acra-with-docker/) to deploy all you need using a single command (read more about it below).
+  - [download and run our Docker-based demo stand](https://docs.cossacklabs.com/pages/trying-acra-with-docker/) to deploy all you need using a single command.
   - [download pre-built Acra binaries](https://docs.cossacklabs.com/pages/documentation-acra/#installing-acra-from-the-cossack-labs-repository) for supported distributives (see list below).
   - [build from sources](https://docs.cossacklabs.com/pages/documentation-acra/#installing-from-github) (Acra is built and tested with Go versions 1.9.7 – 1.11).
   
@@ -172,7 +172,7 @@ Requirements: Linux or macOS terminal.
 
 | Distributive | Instruction set | Download and install |
 |---------------| ------| ------|
-| CentOS 7 | x86_64 | [using rpm](https://docs.cossacklabs.com/pages/documentation-acra/#centos-rhel-oel) |
+| CentOS 7 | x86_64 | [using rpm/deb packages](https://docs.cossacklabs.com/pages/documentation-acra/#centos-rhel-oel) |
 | Debian Stretch (9)<br/> Debian Jessie (8) | x86_64/i386 | [using apt-get](https://docs.cossacklabs.com/pages/documentation-acra/#debian-ubuntu)|
 | Ubuntu Bionic (18.04) | x86_64 | [using apt-get](https://docs.cossacklabs.com/pages/documentation-acra/#debian-ubuntu)||
 | Ubuntu Artful (17.10)<br/> Ubuntu Xenial (16.04)<br/>Ubuntu Trusty (14.04)| x86_64/i386 |[using apt-get](https://docs.cossacklabs.com/pages/documentation-acra/#debian-ubuntu)| |
@@ -242,10 +242,15 @@ For production environments, we insist on generating and exchanging keys manuall
 
 The most recent version of the documentation, tutorials, and demos for Acra is available in the official [Cossack Labs Documentation Server](https://docs.cossacklabs.com/products/acra/). The Github Wiki documentation is deprecated and no longer updated since 0.82.0.
 
+| [Django sample project](https://github.com/cossacklabs/djangoproject.com) | [RubyGems sample project](https://github.com/cossacklabs/rubygems.org) |
+| --- | --- |
+
 To gain an initial understanding of Acra, you might want to:
 
 - Read about using the lightweight [HTTP web server AcraWebConfig](https://docs.cossacklabs.com/pages/documentation-acra/#acrawebconfig) we provide to manage AcraServer configuration in a simple fashion.
 - Read the notes on [security design](https://docs.cossacklabs.com/pages/security-design/) and [intrusion detection](https://docs.cossacklabs.com/pages/intrusion-detection/) to better understand what you get when you use Acra and what is the threat model that Acra operates in. 
+- Key and trust management tools: [key distribution](https://docs.cossacklabs.com/pages/documentation-acra/#key-management), [key rotation](https://docs.cossacklabs.com/pages/acrarotate/) and [database rollback](https://docs.cossacklabs.com/pages/acrarollback/).
+- Set up [rules for AcraCensor (SQL firewall)](https://doc-staging.dev.cossacklabs.com/pages/documentation-acra/#acracensor-acra-s-firewall) suitable for your application.
 - Read [some notes on making Acra stronger, more productive, and efficient](https://docs.cossacklabs.com/pages/tuning-acra/) and about adding security features or increasing throughput, depending on your goals and security model.
 - Read about the [logging format](https://docs.cossacklabs.com/pages/documentation-acra/#logging-in-acra) that Acra supports if you are using a SIEM system.
 
