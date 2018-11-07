@@ -22,14 +22,14 @@ import (
 )
 
 var options = jaeger.Options{
-	AgentEndpoint:     "127.0.0.1:6831",
-	CollectorEndpoint: "127.0.0.1:14268",
+	AgentEndpoint:     "",
+	CollectorEndpoint: "",
 }
 
 // RegisterJaegerCmdParameters register cli parameters with flag for jaeger options
 func RegisterJaegerCmdParameters() {
-	flag.StringVar(&options.AgentEndpoint, "jaeger_agent_endpoint", options.AgentEndpoint, "Jaeger agent endpoint that will be used to export trace data")
-	flag.StringVar(&options.CollectorEndpoint, "jaeger_collector_endpoint", options.CollectorEndpoint, "Jaeger endpoint that will be used to export trace data")
+	flag.StringVar(&options.AgentEndpoint, "jaeger_agent_endpoint", options.AgentEndpoint, "Jaeger agent endpoint (for example, localhost:6831) that will be used to export trace data")
+	flag.StringVar(&options.CollectorEndpoint, "jaeger_collector_endpoint", options.CollectorEndpoint, "Jaeger endpoint (for example, http://localhost:14268/api/traces) that will be used to export trace data")
 	flag.StringVar(&options.Username, "jaeger_basic_auth_username", "", "Username used for basic auth (optional) to jaeger")
 	flag.StringVar(&options.Password, "jaeger_basic_auth_password", "", "Password used for basic auth (optional) to jaeger")
 }
