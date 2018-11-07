@@ -27,63 +27,71 @@ Acra — database security suite for sensitive and personal data protection.
 
 Acra provides selective encryption, multi-layered access control, database leakage prevention, and intrusion detection capabilities in a convenient, developer-friendly package. Acra was specifically designed for web and mobile apps with centralised data storage, including with distributed, microservice-rich applications.
 
-| Typical applications and use cases |
-| :---- |
-| Web and mobile applications that store data in centralized database or object storage |
-| IoT projects collecting telemetry, and processing data in cloud |
-| Cloud-based infrastructures |
-| Areas: medicine, finance, e-commerce, critical infrastructure, processing a lot of personal data |
+<table><thead><tr><th>Perfect Acra-compatible applications</th>
+<th>Typical industries</th></tr></thead>
+<tbody><tr><td>Web and mobile apps that store data in centralized database or object storage</td>
+<td rowspan=3><ul>
+<li>Medicine</li>
+<li>Finance</li>
+<li>E-commerce</li>
+<li>Critical infrastructures</li>
+<li>Apps with > 1000 users</li></ul></td>
+</tr><tr><td>IoT apps that collect telemetry and process data in cloud</td>
+</tr><tr><td>High-load data processing apps</td>
+</tr></tbody></table>
 
 Acra gives you tools for encrypting the data on the application's side into special [cryptographic containers](https://github.com/cossacklabs/acra/wiki/AcraStruct), storing them in the database or file storage, and then decrypting them in a secure compartmented area (separate virtual machine/container). 
 
 Cryptographic design ensures that no secret (password, key, etc.) leaked from the application or database will be sufficient for decryption of the protected data chunks that originate from it. 
 
-| **Security features:** | |
-| :---- | :--- |
-| Compatibility with encryption-demanding compliances | Acra can run on certified crypto-libraries (FIPS, GOST) |
-| Cryptographic protection of data | during storage and transmission |
-| Selective encryption | protect only sensitive data to achieve both security and performance |
-| Compartmentalization | to compromise an Acra-powered app, the attacker needs to compromise a separate compartmented server, AcraServer;<br/>until AcraServer is compromised, the data is safe |
-| SQL injections prevention | through a built-in SQL firewall |
-| Intrusion detection | to give an early warning about suspicious behaviour |
-| Search through encrypted data | _coming in next releases_ |
-| Pseudonymisation | _coming in next releases_ |
-| Audit log | _coming in next releases_ |
-
-
-| Developers and DevOps friendly | |
-| :---- | :--- |
-| Secure default settings | no need to configure to make your infrastructure secure |
-| Cryptography is hidden<br/>under the hood | no risk of selecting a wrong key length or algorithm padding |
-| Ready-for-automation | easily configured and automated using a configuration automation environment |
-| Server-side installation | via binary packages or Docker images |
-| Code integration | client-side libraries support ~10 languages |
-| Logging | in CEF and JSON formats, compatible with ELK stack |
-| Metrics | to track basic behavior of every Acra component,<br/> compatible with Prometheus format |
-| Tracing | to track every request from client application to the database and back,<br/> compatible with Jaeger format |
-| Demos and simulators | Numerous web-based and Docker-based demo projects |
-
-
-| Compatibility and integration | |
-| :---- | :--- |
-| Cloud platforms | AWS, GCP, Heroku |
-| SQL databases | MySQL, PosgtreSQL, MariaDB, Google Cloud SQL, Amazon RDS |
-| Object stores | filesystems, KV databases, Amazon S3, Google Cloud DataStore |
-| Load balancing | HAProxy |
-
-
 Acra is a continuously developing security tool. And as any proper security tool, it requires enormous human efforts for validation of the methods, code, and finding possible infrastructural weaknesses. We're constantly enhancing and improving Acra as we go. This is done to ensure that the provided security benefits are not rendered useless through implementation problems or increased complexity.
+
+### Major security features
+
+<table><tbody><tr><td> Compatibility with encryption-demanding compliance </td><td>Acra can run on certified crypto-libraries (FIPS, GOST) </td>
+</tr><tr><td> Cryptographic protection of data </td><td> during storage and transmission </td>
+</tr><tr><td> Selective encryption </td><td> protect only sensitive data to achieve both security and performance </td>
+</tr><tr><td> Trust compartmentalization </td><td> only simultaneous compromisation of AcraServer, database server and keystorage might lead to data breach</td>
+</tr><tr><td> SQL injections prevention </td><td> through a built-in SQL firewall </td>
+</tr><tr><td> Intrusion detection system </td><td> to give an early warning about suspicious behaviour </td>
+</tr><tr><td> Search through encrypted data </td><td rowspan=3> <i>coming in next releases</i> </td>
+</tr><tr><td> Pseudonymisation </td>
+</tr><tr><td> Audit log </td>
+</tr></tbody></table>
+
+### Developers and DevOps friendly
+
+<table><tbody>
+<tr><td> Secure default settings </td><td> no need to configure to make your infrastructure secure </td></tr>
+<tr><td> Cryptography is hidden<br/>under the hood </td><td> no risk of selecting a wrong key length or algorithm padding </td></tr>
+<tr><td> Automation friendly </td><td> easy to configure and automate </td></tr>
+<tr><td> Quick infrastructure integration </td><td> via binary packages or Docker images </td></tr>
+<tr><td> Easy client code integration </td><td> client-side encryption libraries support ~10 languages </td></tr>
+<tr><td> Logging, metrics, tracing </td><td> throughout all Acra components;<br/>compatible with ELK stack, Prometheus, Jaeger </td></tr>
+<tr><td> Demos and simulators </td><td> numerous web-based and Docker-based demo projects </td></tr>
+</tbody></table>
+
+### Compatibility and integration
+
+<table><tbody>
+<tr><td> Cloud platforms </td><td> AWS, GCP, Heroku </td></tr>
+<tr><td> SQL databases </td><td> MySQL, PosgtreSQL, MariaDB, Google Cloud SQL, Amazon RDS </td></tr>
+<tr><td> Object stores </td><td> filesystems, KV databases, Amazon S3, Google Cloud DataStore </td></tr>
+<tr><td> Load balancing </td><td> HAProxy, cloud balancers </td></tr>
+</tbody></table>
 
 ## Cryptography
 
 Acra relies on our cryptographic library [Themis](https://www.cossacklabs.com/themis/), which implements high-level cryptosystems based on the best available [open-source implementations](https://docs.cossacklabs.com/pages/themis-cryptographic-donors/) of the [most reliable ciphers](https://docs.cossacklabs.com/pages/soter/). Acra does not contain any self-made cryptographic primitives or obscure ciphers. To deliver its unique guarantees, Acra relies on the combination of well-known ciphers and a smart key management scheme.
 
-| Default crypto-engine | OpenSSL |
-| :---- | :---- |
-| Storage encryption | AES-256-GCM, ECC, ECDH |
-| Transport encryption | TLS v1.2 / Themis Secure Sessions |
+<table><tbody>
+<tr><td> Default crypto-primitive source </td><td> OpenSSL </td></tr>
+<tr><td> Supported crypto-primitive sources </td><td> BoringSSL, LibreSSL, FIPS-compliant, GOST-compliant, HSM</td></tr>
+<tr><td> Storage encryption </td><td> AES-256-GCM + ECDH </td></tr>
+<tr><td> Transport encryption </td><td> TLS v1.2+ / Themis Secure Sessions </td></tr>
+</tbody></table>
 
-The [enterprise version of Acra](https://www.cossacklabs.com/acra/) can run on the certified crypto-libraries of your choice (i.e. the abovementioned FIPS, GOST, etc.), [drop us an email](mailto:sales@cossacklabs.com) to get a quote.
+The [enterprise version of Acra](https://www.cossacklabs.com/acra/) can run on the certified crypto-engines of your choice, [drop us an email](mailto:sales@cossacklabs.com) to get a quote.
 
 
 ## Try Acra without writing code
