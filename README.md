@@ -161,7 +161,7 @@ AcraTranslator and AcraServer are fully independent server-side components and c
 ### Server-side
 
 * The Server-side Acra components should run as a separate services/servers. 
-* There are three possible ways to install and launch Acra components:
+* There are three possible ways to install and launch Acra components in your infrastructures:
   - [download and run our Docker-based demo stand](https://docs.cossacklabs.com/pages/trying-acra-with-docker/) to deploy all you need using a single command.
   - [download pre-built Acra binaries](https://docs.cossacklabs.com/pages/documentation-acra/#installing-acra-from-the-cossack-labs-repository) for supported distributives.
   - [build from sources](https://docs.cossacklabs.com/pages/documentation-acra/#installing-from-github) (Acra is built and tested with Go versions 1.9.7 – 1.11).
@@ -194,10 +194,9 @@ Acra is compatible with numerous RDBMS, object and KV stores, cloud platforms, e
 
 ### Quick try (run demo app)
 
-[Acra Engineering Demo](https://github.com/cossacklabs/acra-engineering-demo) illustrates the integration of Acra data protection suite into existing applications: Django-based web application and python CLI application. We took well-known applications and added the encryption layer.
+[Acra Engineering Demo](https://github.com/cossacklabs/acra-engineering-demo) illustrates the integration of Acra data protection suite into existing applications: Django-based web application and python CLI application. We took well-known applications and added the encryption layer. Protecting the data is completely transparent for the users and requires minimal changes in the infrastructure.
 
 <img src="https://github.com/cossacklabs/acra/wiki//Images/readme/AcraEngDemo.png" width="600">
-Protecting the data is completely transparent for the users and requires minimal changes in the infrastructure.
  
 Developers and Ops friendly:
 * run a single command to deploy the application, database, Acra's components, logs, and dashboards;
