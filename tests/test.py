@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 # coding: utf-8
+import asyncio
 import contextlib
 import socket
 import json
@@ -21,7 +22,6 @@ import tempfile
 import time
 import os
 import random
-import string
 import subprocess
 import traceback
 import unittest
@@ -45,6 +45,7 @@ import sqlalchemy as sa
 import api_pb2_grpc
 import api_pb2
 import grpc
+import asyncpg
 from requests.auth import HTTPBasicAuth
 from sqlalchemy.exc import DatabaseError
 from sqlalchemy.dialects.postgresql import BYTEA
@@ -149,6 +150,11 @@ else:
         'user': DB_USER, 'password': DB_USER_PASSWORD,
         "options": "-c statement_timeout={}".format(STATEMENT_TIMEOUT),
         'sslmode': SSLMODE}
+    asyncpg_connect_args = {
+        'timeout': SOCKET_CONNECT_TIMEOUT,
+        'user': DB_USER, 'password': DB_USER_PASSWORD,
+        'ssl': TEST_WITH_TLS
+    }
 
 
 def get_random_id():
@@ -2488,7 +2494,7 @@ class TestMysqlBinaryPreparedStatement(BasePrepareStatementMixin, BaseTestCase):
         return {'id': data[0], 'data': data[1], 'raw_data': data[2].decode('utf-8')}
 
 
-class TestPostgresqlPreparedStatement(BasePrepareStatementMixin, BaseTestCase):
+class TestPostgresqlTextPreparedStatement(BasePrepareStatementMixin, BaseTestCase):
     def checkSkip(self):
         if not TEST_POSTGRESQL:
             self.skipTest("run test only for postgresql")
@@ -2503,6 +2509,31 @@ class TestPostgresqlPreparedStatement(BasePrepareStatementMixin, BaseTestCase):
                 row = cursor.fetchone()
                 row['data'] = row['data'].tobytes()
                 return row
+
+
+class TestPostgresqlBinaryPreparedStatement(BasePrepareStatementMixin,
+                                            BaseTestCase):
+    def checkSkip(self):
+        self.skipTest("to unstable to use always in tests but useful in "
+                      "manual local testing")
+        # asyncpg doesn't support tls over unixsocket
+        if not TEST_POSTGRESQL or TEST_WITH_TLS:
+            self.skipTest("run test only for postgresql")
+
+    def executePreparedStatement(self, query):
+        loop = asyncio.get_event_loop()
+        args = asyncpg_connect_args.copy()
+        args['port'] = self.CONNECTOR_PORT_1
+        conn = loop.run_until_complete(asyncpg.connect(
+            host=PG_UNIX_HOST, **args))
+        try:
+            stmt = loop.run_until_complete(
+                conn.prepare(query, timeout=STATEMENT_TIMEOUT))
+            result = loop.run_until_complete(
+                stmt.fetchrow(timeout=STATEMENT_TIMEOUT))
+            return result
+        finally:
+            loop.run_until_complete(conn.close(timeout=STATEMENT_TIMEOUT))
 
 
 class ProcessContextManager(object):

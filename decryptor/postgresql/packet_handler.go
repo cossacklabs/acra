@@ -160,10 +160,7 @@ func (column *ColumnData) readData(reader io.Reader) error {
 	// first 4 bytes is packet length and then 2 bytes of column count
 	// https://www.postgresql.org/docs/9.3/static/protocol-message-formats.html
 	n, err := reader.Read(column.Data)
-	if err2 := base.CheckReadWrite(n, length, err); err2 != nil {
-		return err
-	}
-	return nil
+	return base.CheckReadWrite(n, length, err)
 }
 
 // SetData to column and update LengthBuf with new size
@@ -207,10 +204,7 @@ func (packet *PacketHandler) Reset() {
 
 func (packet *PacketHandler) readMessageType() error {
 	n, err := packet.reader.Read(packet.messageType[:])
-	if err := base.CheckReadWrite(n, 1, err); err != nil {
-		return err
-	}
-	return nil
+	return base.CheckReadWrite(n, 1, err)
 }
 
 // IsDataRow return true if packet has DataRow type
@@ -223,8 +217,24 @@ func (packet *PacketHandler) IsSimpleQuery() bool {
 	return packet.messageType[0] == QueryMessageType
 }
 
-// ErrShortRead error during reading
-var ErrShortRead = errors.New("read less bytes than expected")
+// IsParse return true if packet has Parse type
+func (packet *PacketHandler) IsParse() bool {
+	return packet.messageType[0] == ParseMessageType
+}
+
+//GetParseQuery return query string from Parse packet or error
+func (packet *PacketHandler) GetParseQuery() (string, error) {
+	query, err := FetchQueryFromParse(packet.descriptionBuf.Bytes())
+	if err != nil {
+		return "", err
+	}
+	return string(query[:len(query)-1]), nil
+}
+
+// GetSimpleQuery return query value as string from Query packet
+func (packet *PacketHandler) GetSimpleQuery() (string, error) {
+	return string(packet.descriptionBuf.Bytes()[:packet.dataLength-1]), nil
+}
 
 func (packet *PacketHandler) setDataLengthBuffer(dataLengthBuffer []byte) {
 	copy(packet.descriptionLengthBuf, dataLengthBuffer)
@@ -235,11 +245,8 @@ func (packet *PacketHandler) setDataLengthBuffer(dataLengthBuffer []byte) {
 func (packet *PacketHandler) readDataLength() error {
 	packet.logger.Debugln("Read data length")
 	n, err := packet.reader.Read(packet.descriptionLengthBuf)
-	if err != nil {
-		return err
-	}
-	if n != len(packet.descriptionLengthBuf) {
-		return ErrShortRead
+	if err2 := base.CheckReadWrite(n, len(packet.descriptionLengthBuf), err); err2 != nil {
+		return err2
 	}
 	packet.setDataLengthBuffer(packet.descriptionLengthBuf)
 	return nil
