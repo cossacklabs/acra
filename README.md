@@ -42,14 +42,15 @@ Acra provides selective encryption, multi-layered access control, database leaka
 
 Acra gives you tools for encrypting the data on the application's side into special [cryptographic containers](https://github.com/cossacklabs/acra/wiki/AcraStruct), storing them in the database or file storage, and then decrypting them in a secure compartmented area (separate virtual machine/container). 
 
-Cryptographic design ensures that no secret (password, key, etc.) leaked from the application or database will be sufficient for decryption of the protected data chunks that originate from it.
+Cryptographic design ensures that no secret (password, key, etc.) leaked from the application or database will be sufficient for decryption of the protected data chunks that originate from it. Acra minimises the leakage scope, detects unauthorised behavior, and prevents the leakage, informing operators of the incident underway.
 
 ### Major security features
 
 <table><tbody><tr><td> Compatibility with encryption-demanding compliance </td><td>Acra can run on certified crypto-libraries (FIPS, GOST) </td>
 </tr><tr><td> Cryptographic protection of data </td><td> during storage and transmission </td>
 </tr><tr><td> Selective encryption </td><td> protect only sensitive data to achieve both security and performance </td>
-</tr><tr><td> Trust compartmentalization </td><td> only simultaneous compromisation of AcraServer, database server and keystorage might lead to data breach</td>
+</tr><tr><td> Key management tools </td><td> built-in tools for key distribution, key rotation and compartmentalization</td>
+</tr><tr><td> Trust compartmentalization </td><td> datastore and application components can be compromised, yet data is protected</td>
 </tr><tr><td> SQL injections prevention </td><td> through a built-in SQL firewall </td>
 </tr><tr><td> Intrusion detection system </td><td> to give an early warning about suspicious behaviour </td>
 </tr><tr><td> Search through encrypted data </td><td rowspan=3> <i>coming in next releases</i> </td>
