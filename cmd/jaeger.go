@@ -17,6 +17,7 @@ limitations under the License.
 package cmd
 
 import (
+	"errors"
 	"flag"
 	"go.opencensus.io/exporter/jaeger"
 )
@@ -25,6 +26,7 @@ var options = jaeger.Options{
 	AgentEndpoint:     "",
 	CollectorEndpoint: "",
 }
+var ErrInvalidJaegerExporterEndpoint = errors.New("empty jaeger_agent_endpoint and jaeger_collector_endpoint")
 
 // RegisterJaegerCmdParameters register cli parameters with flag for jaeger options
 func RegisterJaegerCmdParameters() {
@@ -37,4 +39,12 @@ func RegisterJaegerCmdParameters() {
 // GetJaegerCmdParameters return jaeger.Options parsed from config/cmd parameters
 func GetJaegerCmdParameters() jaeger.Options {
 	return options
+}
+
+// ValidateJaegerCmdParameters validate cli parameters
+func ValidateJaegerCmdParameters() error {
+	if options.AgentEndpoint == "" && options.CollectorEndpoint == "" {
+		return ErrInvalidJaegerExporterEndpoint
+	}
+	return nil
 }
