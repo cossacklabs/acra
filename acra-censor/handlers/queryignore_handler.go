@@ -52,7 +52,8 @@ func (handler *QueryIgnoreHandler) AddQueries(queries []string) {
 	for _, query := range queries {
 		normalizedQuery, _, err := NormalizeAndRedactSQLQuery(query)
 		if err != nil {
-			continue
+			// add as is
+			handler.ignoredQueries[query] = true
 		}
 		handler.ignoredQueries[normalizedQuery] = true
 	}

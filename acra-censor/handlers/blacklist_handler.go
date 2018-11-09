@@ -55,7 +55,7 @@ func (handler *BlacklistHandler) CheckQuery(query string) (bool, error) {
 	if len(handler.tables) != 0 {
 		parsedQuery, err := sqlparser.Parse(query)
 		if err != nil {
-			handler.logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCensorQueryParseError).WithError(ErrQuerySyntaxError).Errorln("Query has been blocked by blacklist [tables]. Parsing error")
+			handler.logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCensorQueryParseError).WithError(err).Errorln("Query has been blocked by blacklist [tables]. Parsing error")
 			return false, ErrQuerySyntaxError
 		}
 		switch parsedQuery := parsedQuery.(type) {

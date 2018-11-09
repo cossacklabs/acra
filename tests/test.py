@@ -46,6 +46,8 @@ import api_pb2_grpc
 import api_pb2
 import grpc
 import asyncpg
+import mysql.connector
+from mysql.connector.cursor import MySQLCursorPrepared
 from requests.auth import HTTPBasicAuth
 from sqlalchemy.exc import DatabaseError
 from sqlalchemy.dialects.postgresql import BYTEA
@@ -53,7 +55,7 @@ from sqlalchemy.dialects.postgresql import BYTEA
 from utils import (read_storage_public_key, decrypt_acrastruct,
                    decrypt_private_key, read_zone_public_key,
                    load_random_data_config, get_random_data_files,
-                   clean_test_data)
+                   clean_test_data, safe_string)
 
 import sys
 # add to path our wrapper until not published to PYPI
@@ -283,6 +285,15 @@ def wait_unix_socket(socket_path, count=10, sleep=0.5):
         time.sleep(sleep)
     raise last_exc
 
+
+def get_db_host():
+    """use unix socket for postgresql and tcp with localhost for mysql"""
+    if TEST_POSTGRESQL:
+        return PG_UNIX_HOST
+    else:
+        return '127.0.0.1'
+
+
 def get_unix_connection_string(port, dbname):
     if TEST_MYSQL:
         return get_postgresql_tcp_connection_string(port, dbname)
@@ -440,6 +451,166 @@ class ProcessStub(object):
         pass
     def poll(self, *args, **kwargs):
         pass
+
+
+ConnectionArgs = collections.namedtuple(
+    "ConnectionArgs", ["user", "password", "host", "port", "dbname",
+                       "ssl_ca", "ssl_key", "ssl_cert"],
+    defaults={'ssl_ca': None, 'ssl_key': None, 'ssl_cert': None})
+
+
+class QueryExecutor(object):
+    def __init__(self, connection_args):
+        self.connection_args = connection_args
+
+    def execute(self, query, args=None):
+        raise NotImplementedError
+
+    def execute_prepared_statement(self, query, args=None):
+        raise NotImplementedError
+
+
+class PyMysqlExecutor(QueryExecutor):
+    def execute(self, query, args=None):
+        with contextlib.closing(pymysql.connect(
+                host=self.connection_args.host, port=self.connection_args.port,
+                user=self.connection_args.user,
+                password=self.connection_args.password,
+                db=self.connection_args.dbname,
+                cursorclass=pymysql.cursors.DictCursor)) as connection:
+            with connection.cursor() as cursor:
+                cursor.execute(query, args)
+                return cursor.fetchall()
+
+    def execute_prepared_statement(self, query, args=None):
+        with contextlib.closing(pymysql.connect(
+                host=self.connection_args.host, port=self.connection_args.port,
+                user=self.connection_args.user,
+                password=self.connection_args.password,
+                db=self.connection_args.dbname,
+                cursorclass=pymysql.cursors.DictCursor)) as connection:
+            with connection.cursor() as cursor:
+                cursor.execute("PREPARE test_statement FROM '{}'".format(query))
+                cursor.execute('EXECUTE test_statement')
+                return cursor.fetchall()
+
+
+class MysqlExecutor(QueryExecutor):
+    def _result_to_dict(self, description, data):
+        """convert list of tuples of rows to list of dicts"""
+        columns_name = [i[0] for i in description]
+        result = []
+        for row in data:
+            row_data = {column_name: value
+                        for column_name, value in zip(columns_name, row)}
+            result.append(row_data)
+        return result
+
+    def execute(self, query, args=None):
+        with contextlib.closing(mysql.connector.Connect(
+                use_unicode=False, raw=True, charset='ascii',
+                host=self.connection_args.host, port=self.connection_args.port,
+                user=self.connection_args.user,
+                password=self.connection_args.password,
+                database=self.connection_args.dbname,
+                ssl_ca=self.connection_args.ssl_ca,
+                ssl_cert=self.connection_args.ssl_cert,
+                ssl_key=self.connection_args.ssl_key,
+                ssl_disabled=not TEST_WITH_TLS)) as connection:
+
+            with contextlib.closing(connection.cursor()) as cursor:
+                cursor.execute(query)
+                data = cursor.fetchall()
+                result = self._result_to_dict(cursor.description, data)
+        return result
+
+    def execute_prepared_statement(self, query, args=None):
+        with contextlib.closing(mysql.connector.Connect(
+                use_unicode=False, raw=True, charset='ascii',
+                host=self.connection_args.host, port=self.connection_args.port,
+                user=self.connection_args.user,
+                password=self.connection_args.password,
+                database=self.connection_args.dbname,
+                ssl_ca=self.connection_args.ssl_ca,
+                ssl_cert=self.connection_args.ssl_cert,
+                ssl_key=self.connection_args.ssl_key,
+                ssl_disabled=not TEST_WITH_TLS)) as connection:
+
+            with contextlib.closing(connection.cursor(
+                    cursor_class=MySQLCursorPrepared)) as cursor:
+                cursor.execute(query)
+                data = cursor.fetchall()
+                result = self._result_to_dict(cursor.description, data)
+        return result
+
+
+class AsyncpgExecutor(QueryExecutor):
+    def _connect(self, loop):
+        return loop.run_until_complete(
+            asyncpg.connect(
+                host=self.connection_args.host, port=self.connection_args.port,
+                user=self.connection_args.user, password=self.connection_args.password,
+                ssl=TEST_WITH_TLS, timeout=STATEMENT_TIMEOUT,
+                statement_cache_size=0,
+                command_timeout=STATEMENT_TIMEOUT))
+
+    def execute_prepared_statement(self, query, args=None):
+        loop = asyncio.get_event_loop()
+        conn = self._connect(loop)
+        try:
+            stmt = loop.run_until_complete(
+                conn.prepare(query, timeout=STATEMENT_TIMEOUT))
+            result = loop.run_until_complete(
+                stmt.fetch(timeout=STATEMENT_TIMEOUT))
+            return result
+        finally:
+            conn.terminate()
+
+    def execute(self, query, args=None):
+        loop = asyncio.get_event_loop()
+        conn = self._connect(loop)
+        try:
+            result = loop.run_until_complete(
+                conn.execute(query, timeout=STATEMENT_TIMEOUT))
+            result = loop.run_until_complete(
+                result.fetch(timeout=STATEMENT_TIMEOUT))
+            return result
+        finally:
+            loop.run_until_complete(conn.close(timeout=STATEMENT_TIMEOUT))
+
+
+class Psycopg2Executor(QueryExecutor):
+    def execute(self, query, args=None):
+        args = get_connect_args(self.connection_args.port)
+        with psycopg2.connect(
+                host=self.connection_args.host,
+                dbname=self.connection_args.dbname, **args) as connection:
+            with connection.cursor(
+                    cursor_factory=psycopg2.extras.DictCursor) as cursor:
+                cursor.execute(query, args)
+                data = cursor.fetchall()
+                self.memoryview_to_bytes(data)
+                return data
+
+    def memoryview_to_bytes(self, data):
+        for row in data:
+            items = row.items()
+            for key, value in items:
+                if hasattr(value, 'tobytes'):
+                    row[key] = value.tobytes()
+
+    def execute_prepared_statement(self, query, args=None):
+        kwargs = get_connect_args(self.connection_args.port)
+        with psycopg2.connect(
+                host=self.connection_args.host,
+                dbname=self.connection_args.dbname, **kwargs) as connection:
+            with connection.cursor(
+                    cursor_factory=psycopg2.extras.DictCursor) as cursor:
+                cursor.execute("prepare test_statement as {}".format(query))
+                cursor.execute("execute test_statement")
+                data = cursor.fetchall()
+                self.memoryview_to_bytes(data)
+                return data
 
 
 class KeyMakerTest(unittest.TestCase):
@@ -940,37 +1111,87 @@ class BaseCensorTest(BaseTestCase):
 class CensorBlacklistTest(BaseCensorTest):
     CENSOR_CONFIG_FILE = 'tests/acra-censor_configs/acra-censor_blacklist.yaml'
     def testBlacklist(self):
-        if TEST_MYSQL:
-            expectedException = sa.exc.OperationalError
-        if TEST_POSTGRESQL:
-            expectedException = sa.exc.ProgrammingError
 
-        #test block by query
-        with self.assertRaises(expectedException):
-            result = self.engine1.execute(sa.text("select data from test where id='1'"))
-        #test block by table
-        with self.assertRaises(expectedException):
-            result = self.engine1.execute(sa.text("select data_raw from test"))
-        #test block by pattern
-        with self.assertRaises(expectedException):
-            result = self.engine1.execute(sa.text("select * from acrarollback_output"))
+        connection_args = ConnectionArgs(host=get_db_host(), port=self.CONNECTOR_PORT_1,
+                           user=DB_USER, password=DB_USER_PASSWORD,
+                           dbname=DB_NAME, ssl_ca='tests/server.crt',
+                           ssl_key='tests/client.key',
+                           ssl_cert='tests/client.crt')
+        if TEST_MYSQL:
+            expectedException = (pymysql.err.OperationalError,
+                                 mysql.connector.errors.DatabaseError)
+            executors = [PyMysqlExecutor(connection_args),
+                         MysqlExecutor(connection_args)]
+        if TEST_POSTGRESQL:
+            expectedException = (psycopg2.ProgrammingError,
+                                 asyncpg.exceptions.SyntaxOrAccessError)
+            executors = [Psycopg2Executor(connection_args),
+                         AsyncpgExecutor(connection_args)]
+
+        for executor in executors:
+            #test block by query
+            with self.assertRaises(expectedException):
+                result = executor.execute(
+                    "select data from test where id='1'")
+            #test block by query in prepared statement
+            with self.assertRaises(expectedException):
+                result = executor.execute_prepared_statement(
+                    "select data from test where id='1'")
+
+            #test block by table
+            with self.assertRaises(expectedException):
+                result = executor.execute("select data_raw from test")
+
+            #test block by table in prepared statement
+            with self.assertRaises(expectedException):
+                result = executor.execute_prepared_statement(
+                    "select data_raw from test")
+
+            #test block by pattern
+            with self.assertRaises(expectedException):
+                result = executor.execute(
+                    "select * from acrarollback_output")
+
+            #test block by pattern in prepared statement
+            with self.assertRaises(expectedException):
+                result = executor.execute_prepared_statement(
+                    "select * from acrarollback_output")
 
 
 class CensorWhitelistTest(BaseCensorTest):
     CENSOR_CONFIG_FILE = 'tests/acra-censor_configs/acra-censor_whitelist.yaml'
     def testWhitelist(self):
-        expectedException = None
+        connection_args = ConnectionArgs(host=get_db_host(), port=self.CONNECTOR_PORT_1,
+                           user=DB_USER, password=DB_USER_PASSWORD,
+                           dbname=DB_NAME, ssl_ca='tests/server.crt',
+                           ssl_key='tests/client.key',
+                           ssl_cert='tests/client.crt')
         if TEST_MYSQL:
-            expectedException = sa.exc.OperationalError
+            expectedException = (pymysql.err.OperationalError,
+                                 mysql.connector.errors.DatabaseError)
+            executors = [PyMysqlExecutor(connection_args),
+                         MysqlExecutor(connection_args)]
         if TEST_POSTGRESQL:
-            expectedException = sa.exc.ProgrammingError
+            expectedException = (psycopg2.ProgrammingError,
+                                 asyncpg.exceptions.SyntaxOrAccessError)
+            executors = [Psycopg2Executor(connection_args),
+                         AsyncpgExecutor(connection_args)]
 
-        #test block by table
-        with self.assertRaises(expectedException):
-            result = self.engine1.execute(sa.text("select * from acrarollback_output"))
-        #test block by pattern
-        with self.assertRaises(expectedException):
-            result = self.engine1.execute(sa.text("insert into test (a, b, c) values ('x', 'y', 'z')"))
+        for executor in executors:
+
+            #test block by table
+            with self.assertRaises(expectedException):
+                result = executor.execute("select * from acrarollback_output")
+            #test block by table with prepared statement
+            with self.assertRaises(expectedException):
+                result = executor.execute_prepared_statement("select * from acrarollback_output")
+
+            #test block by pattern
+            with self.assertRaises(expectedException):
+                result = executor.execute("insert into test (a, b, c) values ('x', 'y', 'z')")
+            #test block by pattern with prepared statement
+            with self.assertRaises(expectedException):
+                result = executor.execute_prepared_statement("insert into test (a, b, c) values ('x', 'y', 'z')")
 
 
 class ZoneHexFormatTest(BaseTestCase):
@@ -1109,7 +1330,7 @@ class TestConnectionClosing(BaseTestCase):
                         pymysql.connect(**get_connect_args(port=self.CONNECTOR_PORT_1)))
                 else:
                     return TestConnectionClosing.mysql_closing(psycopg2.connect(
-                        host=PG_UNIX_HOST, **get_connect_args(port=self.CONNECTOR_PORT_1)))
+                        host=get_db_host(), **get_connect_args(port=self.CONNECTOR_PORT_1)))
             except:
                 count -= 1
                 if count == 0:
@@ -1250,7 +1471,7 @@ class TestKeyNonExistence(BaseTestCase):
         try:
             if not self.EXTERNAL_ACRA:
                 self.acra = self.fork_acra()
-            self.dsn = get_connect_args(port=self.CONNECTOR_PORT_1, host=PG_UNIX_HOST)
+            self.dsn = get_connect_args(port=self.CONNECTOR_PORT_1, host=get_db_host())
         except:
             self.tearDown()
             raise
@@ -2384,9 +2605,9 @@ class BasePrepareStatementMixin:
             {'id': row_id, 'data': acra_struct, 'raw_data': data})
 
         query = sa.select([test_table]).where(test_table.c.id == row_id).compile(compile_kwargs={"literal_binds": True}).string
-        row = self.executePreparedStatement(query)
+        row = self.executePreparedStatement(query)[0]
 
-        self.assertEqual(row['data'], row['raw_data'].encode('utf-8'))
+        self.assertEqual(row['data'], safe_string(row['raw_data']).encode('utf-8'))
 
         result = self.engine2.execute(
             sa.select([test_table])
@@ -2427,11 +2648,11 @@ class BasePrepareStatementMixin:
         query = (sa.select([test_table])
                  .where(test_table.c.id == row_id)
                  .compile(compile_kwargs={"literal_binds": True}).string)
-        row = self.executePreparedStatement(query)
+        row = self.executePreparedStatement(query)[0]
 
         try:
             self.assertEqual(row['data'][fake_offset:],
-                             row['raw_data'].encode('utf-8'))
+                             safe_string(row['raw_data']).encode('utf-8'))
         except:
             print('incorrect data: {}\ncorrect data: {}\ndata: {}\n data len: {}'.format(
                 incorrect_data, correct_data, row['data'], len(row['data'])))
@@ -2458,16 +2679,10 @@ class TestMysqlTextPreparedStatement(BasePrepareStatementMixin, BaseTestCase):
             self.skipTest("run test only for mysql")
 
     def executePreparedStatement(self, query):
-        # test prepared statements as text protocol to mysql
-        import pymysql.cursors
-        # Connect to the database
-        with contextlib.closing(pymysql.connect(
-                host='localhost', port=self.CONNECTOR_PORT_1, user=DB_USER, password=DB_USER_PASSWORD,
-                db=DB_NAME, cursorclass=pymysql.cursors.DictCursor)) as connection:
-            with connection.cursor() as cursor:
-                cursor.execute("PREPARE test_statement FROM '{}'".format(query))
-                cursor.execute('EXECUTE test_statement')
-                return cursor.fetchone()
+        return PyMysqlExecutor(
+            ConnectionArgs(host=get_db_host(), port=self.CONNECTOR_PORT_1,
+                           user=DB_USER, password=DB_USER_PASSWORD,
+                           dbname=DB_NAME)).execute_prepared_statement(query)
 
 
 class TestMysqlBinaryPreparedStatement(BasePrepareStatementMixin, BaseTestCase):
@@ -2476,22 +2691,13 @@ class TestMysqlBinaryPreparedStatement(BasePrepareStatementMixin, BaseTestCase):
             self.skipTest("run test only for mysql")
 
     def executePreparedStatement(self, query):
-        # test prepared statements as binary protocol to mysql
-        import mysql.connector
-        from mysql.connector.cursor import MySQLCursorPrepared
-        with contextlib.closing(mysql.connector.Connect(
-                use_unicode=False, raw=True, charset='ascii',
-                host='127.0.0.1', port=self.CONNECTOR_PORT_1,
-                user=DB_USER, password=DB_USER_PASSWORD, database=DB_NAME,
-                ssl_ca='tests/server.crt', ssl_cert='tests/client.crt',
-                ssl_key='tests/client.key',
-                ssl_disabled=not TEST_WITH_TLS)) as connection:
-
-            with contextlib.closing(connection.cursor(
-                    cursor_class=MySQLCursorPrepared)) as cursor:
-                cursor.execute(query)
-                data = cursor.fetchone()
-        return {'id': data[0], 'data': data[1], 'raw_data': data[2].decode('utf-8')}
+        return MysqlExecutor(
+            ConnectionArgs(host=get_db_host(), port=self.CONNECTOR_PORT_1,
+                           user=DB_USER, password=DB_USER_PASSWORD,
+                           dbname=DB_NAME, ssl_ca='tests/server.crt',
+                           ssl_key='tests/client.key',
+                           ssl_cert='tests/client.crt')
+        ).execute_prepared_statement(query)
 
 
 class TestPostgresqlTextPreparedStatement(BasePrepareStatementMixin, BaseTestCase):
@@ -2500,40 +2706,23 @@ class TestPostgresqlTextPreparedStatement(BasePrepareStatementMixin, BaseTestCas
             self.skipTest("run test only for postgresql")
 
     def executePreparedStatement(self, query):
-        with psycopg2.connect(host=PG_UNIX_HOST,
-                              **get_connect_args(port=self.CONNECTOR_PORT_1)) as connection:
-            with connection.cursor(
-                    cursor_factory=psycopg2.extras.DictCursor) as cursor:
-                cursor.execute("prepare test_statement as {}".format(query))
-                cursor.execute("execute test_statement")
-                row = cursor.fetchone()
-                row['data'] = row['data'].tobytes()
-                return row
+        return Psycopg2Executor(ConnectionArgs(host=get_db_host(), port=self.CONNECTOR_PORT_1,
+                           user=DB_USER, password=DB_USER_PASSWORD,
+                           dbname=DB_NAME)).execute_prepared_statement(query)
 
 
 class TestPostgresqlBinaryPreparedStatement(BasePrepareStatementMixin,
                                             BaseTestCase):
     def checkSkip(self):
-        self.skipTest("to unstable to use always in tests but useful in "
-                      "manual local testing")
-        # asyncpg doesn't support tls over unixsocket
         if not TEST_POSTGRESQL or TEST_WITH_TLS:
             self.skipTest("run test only for postgresql")
 
     def executePreparedStatement(self, query):
-        loop = asyncio.get_event_loop()
-        args = asyncpg_connect_args.copy()
-        args['port'] = self.CONNECTOR_PORT_1
-        conn = loop.run_until_complete(asyncpg.connect(
-            host=PG_UNIX_HOST, **args))
-        try:
-            stmt = loop.run_until_complete(
-                conn.prepare(query, timeout=STATEMENT_TIMEOUT))
-            result = loop.run_until_complete(
-                stmt.fetchrow(timeout=STATEMENT_TIMEOUT))
-            return result
-        finally:
-            loop.run_until_complete(conn.close(timeout=STATEMENT_TIMEOUT))
+        return AsyncpgExecutor(
+            ConnectionArgs(host=get_db_host(), port=self.CONNECTOR_PORT_1,
+                           user=DB_USER, password=DB_USER_PASSWORD,
+                           dbname=DB_NAME)
+        ).execute_prepared_statement(query)
 
 
 class ProcessContextManager(object):

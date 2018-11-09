@@ -307,7 +307,7 @@ func (handler *MysqlHandler) ClientToDbConnector(errCh chan<- error) {
 				if err == handlers.ErrQuerySyntaxError {
 					clientLog.WithError(err).Infof("Parsing error on query: %s", queryWithHiddenValues)
 				} else {
-					clientLog.WithField("sql", queryWithHiddenValues).Debugln("Com_query")
+					clientLog.WithFields(logrus.Fields{"sql": queryWithHiddenValues, "command": cmd}).Debugln("Query command")
 				}
 			}
 

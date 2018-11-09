@@ -20,6 +20,12 @@ def clean_test_data():
         shutil.rmtree(folder)
 
 
+def safe_string(str_or_bytes, encoding='utf-8'):
+    if isinstance(str_or_bytes, str):
+        return str_or_bytes
+    return str_or_bytes.decode(encoding)
+
+
 def get_random_data_files():
     folder = os.environ.get(TEMP_DATA_FOLDER_VARNAME)
     if not folder:
