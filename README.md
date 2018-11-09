@@ -245,7 +245,7 @@ To gain an initial understanding of Acra, you might want to:
 
 ### Acra Load Balancing Demo (HAProxy-based infrastructures)
 
-[Acra Load Balancing Demo](https://github.com/cossacklabs/acra-balancer-demo) discovers building high availability and balanced infrastructure, based on Acra components, PostgreSQL, and Python web application. We prepared several configurations with mulltiple databases and HAProxy.
+[Acra Load Balancing Demo](https://github.com/cossacklabs/acra-balancer-demo) illustrates building high availability and balanced infrastructure, based on Acra components, PostgreSQL, and Python web application. We prepared several configurations with mulltiple databases and HAProxy.
 
 | 🔛 [Run Load Balancing Demo](https://github.com/cossacklabs/acra-balancer-demo) 🔛 |
 |---|
