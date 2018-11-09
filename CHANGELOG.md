@@ -17,12 +17,11 @@ _Core_:
 - **AcraWriter**
 
   - Added C++ AcraWriter library, added examples and tests. The library itself is a single header-only file `acrawriter.hpp` with dependency on Themis, placed in [wrappers/cpp](https://github.com/cossacklabs/acra/tree/master/wrappers/cpp). 
-  Read the usage guide and examples in [examples/cpp](https://github.com/cossacklabs/acra/tree/master/examples/cpp) folder.
-
-  [AcraWriter C++ documentation](https://docs.cossacklabs.com/pages/documentation-acra/#building-acrawriter-for-c-).
-
+  Read the usage guide and examples in [examples/cpp](https://github.com/cossacklabs/acra/tree/master/examples/cpp) folder 
   ([#270](https://github.com/cossacklabs/acra/pull/270))
 
+  [AcraWriter C++ documentation](https://docs.cossacklabs.com/pages/documentation-acra/#building-acrawriter-for-c-).
+  
 - **Logging**
 
   - Improved logs of AcraConnector and AcraServer: use Debug log level for all network errors (closed connection, unavailable network, etc) and use Error log level only for cases of certainly unexpected behavior ([#275](https://github.com/cossacklabs/acra/pull/275)).
