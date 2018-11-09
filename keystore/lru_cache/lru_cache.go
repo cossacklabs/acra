@@ -22,11 +22,13 @@ import (
 	"github.com/cossacklabs/acra/utils"
 	"github.com/cossacklabs/themis/gothemis/keys"
 	"github.com/golang/groupcache/lru"
+	"sync"
 )
 
 // LRUCache implement keystore.Cache
 type LRUCache struct {
-	lru *lru.Cache
+	lru   *lru.Cache
+	mutex sync.RWMutex
 }
 
 // clearCacheValue callback for lru.Cache that called on value remove operation
@@ -48,11 +50,15 @@ func NewLRUCacheKeystoreWrapper(size int) (*LRUCache, error) {
 
 // Add value by keyID
 func (cache *LRUCache) Add(keyID string, keyValue []byte) {
+	cache.mutex.Lock()
 	cache.lru.Add(keyID, keyValue)
+	cache.mutex.Unlock()
 }
 
 // Get value by keyID
 func (cache *LRUCache) Get(keyID string) ([]byte, bool) {
+	cache.mutex.RLock()
+	defer cache.mutex.RUnlock()
 	value, ok := cache.lru.Get(keyID)
 	if ok {
 		return value.([]byte), ok
@@ -62,5 +68,7 @@ func (cache *LRUCache) Get(keyID string) ([]byte, bool) {
 
 // Clear cache and remove all values with zeroing
 func (cache *LRUCache) Clear() {
+	cache.mutex.Lock()
 	cache.lru.Clear()
+	cache.mutex.Unlock()
 }

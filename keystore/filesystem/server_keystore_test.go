@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"github.com/cossacklabs/acra/keystore"
 	"github.com/cossacklabs/acra/utils"
+	"github.com/cossacklabs/themis/gothemis/keys"
 	"io/ioutil"
 	"os"
 	"path/filepath"
@@ -105,26 +106,27 @@ func testGeneratingDataEncryptionKeys(store *FilesystemKeyStore, t *testing.T) {
 	}
 }
 
+func checkPath(path string, t *testing.T) {
+	exists, err := utils.FileExists(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !exists {
+		t.Fatal(fmt.Sprintf("File <%s> doesn't exists", path))
+	}
+}
+
 func testGenerateServerKeys(store *FilesystemKeyStore, t *testing.T) {
 	testID := []byte("test id")
 	err := store.GenerateServerKeys(testID)
 	if err != nil {
 		t.Fatal(err)
 	}
-	expectedPaths := []string{
-		getServerKeyFilename(testID),
-		fmt.Sprintf("%s.pub", getServerKeyFilename(testID)),
-	}
-	for _, name := range expectedPaths {
-		absPath := store.getPrivateKeyFilePath(name)
-		exists, err := utils.FileExists(absPath)
-		if err != nil {
-			t.Fatal(err)
-		}
-		if !exists {
-			t.Fatal(fmt.Sprintf("File <%s> doesn't exists", absPath))
-		}
-	}
+
+	absPath := store.getPrivateKeyFilePath(getServerKeyFilename(testID))
+	checkPath(absPath, t)
+	absPath = store.getPublicKeyFilePath(fmt.Sprintf("%s.pub", getServerKeyFilename(testID)))
+	checkPath(absPath, t)
 }
 
 func testGenerateTranslatorKeys(store *FilesystemKeyStore, t *testing.T) {
@@ -133,20 +135,10 @@ func testGenerateTranslatorKeys(store *FilesystemKeyStore, t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	expectedPaths := []string{
-		getTranslatorKeyFilename(testID),
-		fmt.Sprintf("%s.pub", getTranslatorKeyFilename(testID)),
-	}
-	for _, name := range expectedPaths {
-		absPath := store.getPrivateKeyFilePath(name)
-		exists, err := utils.FileExists(absPath)
-		if err != nil {
-			t.Fatal(err)
-		}
-		if !exists {
-			t.Fatal(fmt.Sprintf("File <%s> doesn't exists", absPath))
-		}
-	}
+	absPath := store.getPrivateKeyFilePath(getTranslatorKeyFilename(testID))
+	checkPath(absPath, t)
+	absPath = store.getPublicKeyFilePath(fmt.Sprintf("%s.pub", getTranslatorKeyFilename(testID)))
+	checkPath(absPath, t)
 }
 
 func testGenerateConnectorKeys(store *FilesystemKeyStore, t *testing.T) {
@@ -155,20 +147,13 @@ func testGenerateConnectorKeys(store *FilesystemKeyStore, t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	expectedPaths := []string{
-		getConnectorKeyFilename(testID),
-		fmt.Sprintf("%s.pub", getConnectorKeyFilename(testID)),
-	}
-	for _, name := range expectedPaths {
-		absPath := store.getPrivateKeyFilePath(name)
-		exists, err := utils.FileExists(absPath)
-		if err != nil {
-			t.Fatal(err)
-		}
-		if !exists {
-			t.Fatal(fmt.Sprintf("File <%s> doesn't exists", absPath))
-		}
-	}
+
+	absPath := store.getPrivateKeyFilePath(getConnectorKeyFilename(testID))
+	checkPath(absPath, t)
+
+	absPath = store.getPublicKeyFilePath(fmt.Sprintf("%s.pub", getConnectorKeyFilename(testID)))
+	checkPath(absPath, t)
+
 }
 
 func testReset(store *FilesystemKeyStore, t *testing.T) {
@@ -199,21 +184,27 @@ func testReset(store *FilesystemKeyStore, t *testing.T) {
 }
 
 func TestFilesystemKeyStore(t *testing.T) {
+
 	privateKeyDirectory := fmt.Sprintf(".%s%s", string(filepath.Separator), "cache")
 	os.MkdirAll(privateKeyDirectory, 0700)
-	defer func() {
+	defer os.RemoveAll(privateKeyDirectory)
+
+	publicKeyDirectory := fmt.Sprintf(".%s%s", string(filepath.Separator), "public_keys")
+	os.MkdirAll(publicKeyDirectory, 0700)
+	defer os.RemoveAll(publicKeyDirectory)
+
+	resetKeyFolders := func() {
 		os.RemoveAll(privateKeyDirectory)
-	}()
+		os.MkdirAll(privateKeyDirectory, 0700)
+
+		os.RemoveAll(publicKeyDirectory)
+		os.MkdirAll(publicKeyDirectory, 0700)
+	}
 
 	encryptor, err := keystore.NewSCellKeyEncryptor([]byte("some key"))
 	if err != nil {
 		t.Fatal(err)
 	}
-	publicKeyDirectory := fmt.Sprintf(".%s%s", string(filepath.Separator), "public_keys")
-	os.MkdirAll(publicKeyDirectory, 0700)
-	defer func() {
-		os.RemoveAll(publicKeyDirectory)
-	}()
 	generalStore, err := NewFilesystemKeyStore(privateKeyDirectory, encryptor)
 	if err != nil {
 		t.Fatal(err)
@@ -234,6 +225,8 @@ func TestFilesystemKeyStore(t *testing.T) {
 		testGenerateTranslatorKeys(store, t)
 		testReset(store, t)
 		testGenerateKeyPair(store, t)
+		testSaveKeypairs(store, t)
+		resetKeyFolders()
 	}
 }
 
@@ -350,5 +343,44 @@ func TestFilesystemKeyStore_RotateZoneKey(t *testing.T) {
 	}
 	if bytes.Equal(rotatedPrivateKey.Value, privateKey.Value) {
 		t.Fatal("Private key the same as rotated")
+	}
+}
+
+func testSaveKeypairs(store *FilesystemKeyStore, t *testing.T) {
+	store.Reset()
+	testID := []byte("testid")
+	startKeypair, err := keys.New(keys.KEYTYPE_EC)
+	if err != nil {
+		t.Fatal(err)
+	}
+	overwritedKeypair, err := keys.New(keys.KEYTYPE_EC)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// no matter which function to generate correct filename we will use
+	filename := getServerDecryptionKeyFilename(testID)
+	if _, err := store.getPrivateKeyByFilename(testID, filename); err == nil {
+		t.Fatal("Expected error")
+	}
+	if err := store.saveKeyPairWithFilename(startKeypair, filename, testID); err != nil {
+		t.Fatal(err)
+	}
+	if privateKey, err := store.getPrivateKeyByFilename(testID, filename); err != nil {
+		t.Fatal(err)
+	} else {
+		if !bytes.Equal(startKeypair.Private.Value, privateKey.Value) {
+			t.Fatal("Private key not equal")
+		}
+	}
+
+	if err := store.saveKeyPairWithFilename(overwritedKeypair, filename, testID); err != nil {
+		t.Fatal(err)
+	}
+	if privateKey, err := store.getPrivateKeyByFilename(testID, filename); err != nil {
+		t.Fatal(err)
+	} else {
+		if !bytes.Equal(overwritedKeypair.Private.Value, privateKey.Value) {
+			t.Fatal("Private key not equal")
+		}
 	}
 }

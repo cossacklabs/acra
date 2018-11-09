@@ -1,19 +1,3 @@
-/*
-Copyright 2018, Cossack Labs Limited
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
-
 package handlers
 
 import (
@@ -22,15 +6,105 @@ import (
 	"testing"
 )
 
+var testQueries = []string{
+	// Union
+	"SELECT x1 FROM x2 UNION SELECT x3 FROM x4",
+	// Select
+	"SELECT 1",
+	// Insert (Insert)
+	"INSERT INTO Customers (CustomerName, ContactName) VALUES ('Cardinal', 'Tom B. Erichsen')",
+	// Insert (Replace)
+	"REPLACE INTO test VALUES (1, 'Old', '2014-08-20 18:47:00')",
+	// Update
+	"UPDATE Customers SET ContactName = 'Alfred Schmidt', City = 'Frankfurt' WHERE CustomerID = 1",
+	// Delete
+	"DELETE FROM Customers WHERE CustomerName = 'Alfreds Futterkiste'",
+	// Set
+	"SET x = 2",
+	//DBDDL (Create database)
+	"CREATE DATABASE demo",
+	//DBDDL (Drop database)
+	"DROP DATABASE demo",
+	// DDL (Create table)
+	"CREATE TABLE Persons (PersonID int, LastName varchar(255), FirstName varchar(255), Address varchar(255), City varchar(255))",
+	// DDL (Drop table)
+	"DROP TABLE Shippers",
+	// Show
+	"SHOW PRIVILEGES",
+	// Use
+	"USE demo",
+	// Begin
+	"BEGIN",
+	// Commit
+	"COMMIT",
+	// Rollback
+	"ROLLBACK",
+	// OtherRead (Describe)
+	"DESCRIBE City",
+	// OtherRead (Explain)
+	"EXPLAIN SELECT * FROM x",
+	// OtherAdmin (Repair)
+	"REPAIR TABLE x",
+	// OtherAdmin (Truncate)
+	"TRUNCATE TABLE x",
+	// OtherAdmin (Optimize)
+	"OPTIMIZE TABLE x",
+}
+
+// TestMatchTopLevelPlaceholders tests top level patterns
+func TestMatchTopLevelPlaceholders(t *testing.T) {
+	testSingleTopLevelPlaceholder(t, "%%UNION%%", 0)
+	testSingleTopLevelPlaceholder(t, "%%SELECT%%", 1)
+	testSingleTopLevelPlaceholder(t, "%%INSERT%%", 2, 3)
+	testSingleTopLevelPlaceholder(t, "%%UPDATE%%", 4)
+	testSingleTopLevelPlaceholder(t, "%%DELETE%%", 5)
+
+	testSingleTopLevelPlaceholder(t, "%%BEGIN%%", 13)
+	testSingleTopLevelPlaceholder(t, "%%COMMIT%%", 14)
+	testSingleTopLevelPlaceholder(t, "%%ROLLBACK%%", 15)
+
+}
+func testSingleTopLevelPlaceholder(t *testing.T, pattern string, indexOfMatchedQuery ...int) {
+	parsedPatterns, err := ParsePatterns([]string{pattern})
+	if err != nil {
+		t.Fatal(err)
+	}
+	match := false
+	for index := range testQueries {
+		match, err = checkPatternsMatching(parsedPatterns, testQueries[index])
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		if contains(indexOfMatchedQuery, index) {
+			if !match {
+				t.Fatalf("Expected match in query <%s> with pattern <%s>", testQueries[index], pattern)
+			}
+		} else {
+			if match {
+				t.Fatalf("Expected not match in query <%s> with pattern <%s>", testQueries[index], pattern)
+			}
+		}
+	}
+}
+func contains(s []int, e int) bool {
+	for _, a := range s {
+		if a == e {
+			return true
+		}
+	}
+	return false
+}
+
 // TestHandleRangeCondition test queries with "column BETWEEN VALUE1 and VALUE2"
 func TestHandleRangeCondition(t *testing.T) {
 	patterns := []string{
 		// left side value placeholder
-		fmt.Sprintf("select 1 from t where param between %s and 2", ValueConfigPlaceholder),
+		fmt.Sprintf("select 1 from t where param between %s and 2", ValuePlaceholder),
 		// right side value placeholder
-		fmt.Sprintf("select 1 from t where param between 1 and %s", ValueConfigPlaceholder),
+		fmt.Sprintf("select 1 from t where param between 1 and %s", ValuePlaceholder),
 		// two sides placeholder
-		fmt.Sprintf("select 1 from t where param between %s and %s", ValueConfigPlaceholder, ValueConfigPlaceholder),
+		fmt.Sprintf("select 1 from t where param between %s and %s", ValuePlaceholder, ValuePlaceholder),
 		// two explicit int values
 		"select 1 from t where param between 1 and 2",
 		// two explicit str values
@@ -38,9 +112,9 @@ func TestHandleRangeCondition(t *testing.T) {
 		// subqueries instead values
 		"select 1 from t where param between (select 1) and (select 2)",
 		// subqueries with %%SUBQUERY%% placeholder
-		fmt.Sprintf("select 1 from t where param between (%s) and (%s)", SubqueryConfigPlaceholder, SubqueryConfigPlaceholder),
+		fmt.Sprintf("select 1 from t where param between (%s) and (%s)", SubqueryPlaceholder, SubqueryPlaceholder),
 		// subqueries with %%SUBQUERY%% and %%VALUE%% placeholders
-		fmt.Sprintf("select 1 from t where param between (%s) and %s", SubqueryConfigPlaceholder, ValueConfigPlaceholder),
+		fmt.Sprintf("select 1 from t where param between (%s) and %s", SubqueryPlaceholder, ValuePlaceholder),
 	}
 	parsedPatterns, err := ParsePatterns(patterns)
 	if err != nil {
@@ -154,15 +228,13 @@ func TestHandleRangeCondition(t *testing.T) {
 		t.Fatal("Mismatch test configuration")
 	}
 	for i := 0; i < len(parsedPatterns); i++ {
-		pattern := parsedPatterns[i][0]
-		patternRange := pattern.(*sqlparser.Select).Where.Expr.(*sqlparser.RangeCond)
+		pattern := parsedPatterns[i]
 		for _, query := range matchableQueries[i] {
 			parsedQuery, err := sqlparser.Parse(query)
 			if err != nil {
 				t.Fatalf("Can't parse query <%s> with error <%s>", query, err.Error())
 			}
-			queryRange := parsedQuery.(*sqlparser.Select).Where.Expr.(*sqlparser.RangeCond)
-			if !matchRangeCondition(patternRange, queryRange) {
+			if !checkSinglePatternMatch(parsedQuery, pattern) {
 				t.Fatalf("Expected match in query <%s> with pattern <%s>", query, sqlparser.String(pattern))
 			}
 		}
@@ -172,8 +244,7 @@ func TestHandleRangeCondition(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			queryRange := parsedQuery.(*sqlparser.Select).Where.Expr.(*sqlparser.RangeCond)
-			if matchRangeCondition(patternRange, queryRange) {
+			if checkSinglePatternMatch(parsedQuery, pattern) {
 				t.Fatalf("Expected not match in query <%s> with pattern <%s>", query, sqlparser.String(pattern))
 			}
 		}
@@ -183,12 +254,12 @@ func TestHandleRangeCondition(t *testing.T) {
 // TestSkipSubqueryValuePattern test a=(%%SUBQUERY%%) pattern
 func TestSkipSubqueryValuePattern(t *testing.T) {
 	parsedPatterns, err := ParsePatterns([]string{
-		fmt.Sprintf("select 1 from t where a=(%s)", SubqueryConfigPlaceholder),
+		fmt.Sprintf("select 1 from t where a=(%s)", SubqueryPlaceholder),
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
-	patternSubexpr, ok := parsedPatterns[0][0].(*sqlparser.Select).Where.Expr.(*sqlparser.ComparisonExpr).Right.(*sqlparser.Subquery)
+	patternSubexpr, ok := parsedPatterns[0].(*sqlparser.Select).Where.Expr.(*sqlparser.ComparisonExpr).Right.(*sqlparser.Subquery)
 	if !ok {
 		t.Fatal("Incorrect pattern format")
 	}
@@ -206,7 +277,7 @@ func TestSkipSubqueryValuePattern(t *testing.T) {
 		if !ok {
 			t.Fatal("Incorrect query syntax")
 		}
-		if !matchSubquery(patternSubexpr, querySubexpr) {
+		if !areEqualSubquery(querySubexpr, patternSubexpr) {
 			t.Fatalf("Expected true result with query - %s", query)
 		}
 	}
@@ -216,17 +287,17 @@ func TestSkipSubqueryValuePattern(t *testing.T) {
 func TestPatternsInWhereClauses(t *testing.T) {
 	patterns := []string{
 		// left side value placeholder
-		fmt.Sprintf("select 1 from t where param between %s and 2", ValueConfigPlaceholder),
+		fmt.Sprintf("select 1 from t where param between %s and 2", ValuePlaceholder),
 		// left side value placeholder with other conditions
-		fmt.Sprintf("select 1 from t where param1 = 2 and param between %s and 2 or param3='qwe'", ValueConfigPlaceholder),
+		fmt.Sprintf("select 1 from t where param1 = 2 and param between %s and 2 or param3='qwe'", ValuePlaceholder),
 		// right side value placeholder
-		fmt.Sprintf("select 1 from t where param between 1 and %s", ValueConfigPlaceholder),
+		fmt.Sprintf("select 1 from t where param between 1 and %s", ValuePlaceholder),
 		// right side value placeholder with other conditions
-		fmt.Sprintf("select 1 from t where param1 = 2 and param between 1 and %s or param1 = TRUE", ValueConfigPlaceholder),
+		fmt.Sprintf("select 1 from t where param1 = 2 and param between 1 and %s or param1 = TRUE", ValuePlaceholder),
 		// two sides placeholder
-		fmt.Sprintf("select 1 from t where param between %s and %s", ValueConfigPlaceholder, ValueConfigPlaceholder),
+		fmt.Sprintf("select 1 from t where param between %s and %s", ValuePlaceholder, ValuePlaceholder),
 		// two sides placeholder with other conditions
-		fmt.Sprintf("select 1 from t where param1 = 2 and param between %s and %s or param2 is NULL", ValueConfigPlaceholder, ValueConfigPlaceholder),
+		fmt.Sprintf("select 1 from t where param1 = 2 and param between %s and %s or param2 is NULL", ValuePlaceholder, ValuePlaceholder),
 		// two explicit int values
 		"select 1 from t where param between 1 and 2",
 		// two explicit int values with other conditions
@@ -236,21 +307,21 @@ func TestPatternsInWhereClauses(t *testing.T) {
 		// two explicit str values with other conditions
 		"select 1 from t where b='qwe' and param between 'qwe' and 'asd' and t in (1,2,3)",
 		// IN clause with %%VALUE%% placeholders
-		fmt.Sprintf("select 1 from t where b='qwe' and t IN (%s, %s, 1)", ValueConfigPlaceholder, ValueConfigPlaceholder),
+		fmt.Sprintf("select 1 from t where b='qwe' and t IN (%s, %s, 1)", ValuePlaceholder, ValuePlaceholder),
 		// IN clause with %%LIST_OF_VALUES%% placeholders
-		fmt.Sprintf("select 1 from t where b='qwe' and t IN (%s)", ListOfValuesConfigPlaceholder),
+		fmt.Sprintf("select 1 from t where b='qwe' and t IN (%s)", ListOfValuesPlaceholder),
 		// IN clause with %%VALUE%% and %%LIST_OF_VALUES%% placeholders
-		fmt.Sprintf("select 1 from t where b='qwe' and t IN (%s, 1, %s)", ValueConfigPlaceholder, ListOfValuesConfigPlaceholder),
+		fmt.Sprintf("select 1 from t where b='qwe' and t IN (%s, 1, %s)", ValuePlaceholder, ListOfValuesPlaceholder),
 		// column IN (%%SUBQUERY%%)
-		fmt.Sprintf("select 1 from t where b='qwe' and t IN ((%s))", SubqueryConfigPlaceholder),
+		fmt.Sprintf("select 1 from t where b='qwe' and t IN ((%s))", SubqueryPlaceholder),
 		// column IN (%%VALUE, %%SUBQUERY%%, 1, %%LIST_OF_VALUES%%)
-		fmt.Sprintf("select 1 from t where b='qwe' and t IN (%s, (%s), 1, %s)", ValueConfigPlaceholder, SubqueryConfigPlaceholder, ListOfValuesConfigPlaceholder),
+		fmt.Sprintf("select 1 from t where b='qwe' and t IN (%s, (%s), 1, %s)", ValuePlaceholder, SubqueryPlaceholder, ListOfValuesPlaceholder),
 		// age = (%%SUBQUERY%%)
-		fmt.Sprintf("select 1 from t where b='qwe' and a=(%s)", SubqueryConfigPlaceholder),
+		fmt.Sprintf("select 1 from t where b='qwe' and a=(%s)", SubqueryPlaceholder),
 		// exists without patterns
 		fmt.Sprintf("select 1 from t where exists(select 1) and a=2"),
 		// exists with %%SUBQUERY%%
-		fmt.Sprintf("select 1 from t where exists(%s) and a=2", SubqueryConfigPlaceholder),
+		fmt.Sprintf("select 1 from t where exists(%s) and a=2", SubqueryPlaceholder),
 	}
 	parsedPatterns, err := ParsePatterns(patterns)
 	if err != nil {
@@ -515,13 +586,13 @@ func TestPatternsInWhereClauses(t *testing.T) {
 	}
 
 	for i := 0; i < len(parsedPatterns); i++ {
-		pattern := parsedPatterns[i][0]
+		pattern := parsedPatterns[i]
 		for _, query := range matchableQueries[i] {
 			parsedQuery, err := sqlparser.Parse(query)
 			if err != nil {
 				t.Fatalf("Can't parse query <%s> with error <%s>", query, err.Error())
 			}
-			if !handleWherePatterns([]sqlparser.SQLNode{parsedQuery}, []sqlparser.SQLNode{pattern}) {
+			if !checkSinglePatternMatch(parsedQuery, pattern) {
 				t.Fatalf("Expected match in query <%s> with pattern <%s>", query, sqlparser.String(pattern))
 			}
 		}
@@ -531,168 +602,19 @@ func TestPatternsInWhereClauses(t *testing.T) {
 			if err != nil {
 				t.Fatalf("Error <%s> with query <%s>", err.Error(), query)
 			}
-			if handleWherePatterns([]sqlparser.SQLNode{parsedQuery}, []sqlparser.SQLNode{pattern}) {
+			if checkSinglePatternMatch(parsedQuery, pattern) {
 				t.Fatalf("Expected not match in query <%s> with pattern <%s>", query, sqlparser.String(pattern))
 			}
 		}
 	}
 }
 
-func TestOrderByWithColumnPattern(t *testing.T) {
-	patterns := []string{
-		// ORDER BY with column placeholder
-		fmt.Sprintf("SELECT a1 FROM table1 ORDER BY %s", ColumnConfigPlaceholder),
-		fmt.Sprintf("SELECT a FROM b ORDER BY a, %s, 1, %s", ColumnConfigPlaceholder, ColumnConfigPlaceholder),
-	}
-
-	parsedPatterns, err := ParsePatterns(patterns)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	matchableQueries := [][]string{
-		[]string{
-			"SELECT a1 FROM table1 ORDER BY column1",
-			"SELECT a1 FROM table1 ORDER BY 1",
-			"SELECT a1 FROM table1 ORDER BY (select priority from ordering o where o.val = e.name)",
-			"SELECT a1 FROM table1 ORDER BY Date()",
-			"SELECT a1 FROM table1 ORDER BY (case when f1 then 1 when f1 is null then 2 else 3 end)",
-		},
-		[]string{
-			"select a from b order by a, 2, 1, ABC",
-		},
-	}
-
-	notMatchableQueries := [][]string{
-		[]string{
-			// DESC ordering (default is ASC)
-			"SELECT a1 FROM table1 ORDER BY column1 DESC",
-			// DESC ordering (default is ASC)
-			"SELECT a1 FROM table1 ORDER BY 1 DESC",
-			// two columns
-			"SELECT a1 FROM table1 ORDER BY column1, column2",
-			// DESC ordering (default is ASC)
-			"SELECT a1 FROM table1 ORDER BY Date() DESC",
-			// two columns
-			"SELECT a1 FROM table1 ORDER BY (case when f1 then 1 when f1 is null then 2 else 3 end), a2",
-			// DESC ordering (default is ASC)
-			"SELECT a1 FROM table1 ORDER BY (case when f1 then 1 when f1 is null then 2 else 3 end) DESC",
-		},
-		[]string{
-			"SELECT a from b ORDER BY 1, abc, 1, abs",
-			"SELECT a from b ORDER BY a, abc, b, ABC",
-			"SELECT a from b ORDER BY a, abc, 1, ABC, ABC",
-		},
-	}
-
-	if len(parsedPatterns) != len(matchableQueries) {
-		t.Fatal("Mismatch test configuration")
-	}
-
-	for i := 0; i < len(parsedPatterns); i++ {
-		patternOrderBy := parsedPatterns[i][0].(*sqlparser.Select).OrderBy
-		for _, query := range matchableQueries[i] {
-			parsedQuery, err := sqlparser.Parse(query)
-			if err != nil {
-				t.Fatal(err)
-			}
-			queryOrderBy := parsedQuery.(*sqlparser.Select).OrderBy
-			if !matchOrderBy(patternOrderBy, queryOrderBy) {
-				t.Fatalf("Expected match in query <%s> with pattern <%s>", query, sqlparser.String(parsedPatterns[i][0]))
-			}
-		}
-
-		for _, query := range notMatchableQueries[i] {
-			parsedQuery, err := sqlparser.Parse(query)
-			if err != nil {
-				t.Fatal(err)
-			}
-			queryOrderBy := parsedQuery.(*sqlparser.Select).OrderBy
-			if matchOrderBy(patternOrderBy, queryOrderBy) {
-				t.Fatalf("Expected not match in query <%s> with pattern <%s>", query, sqlparser.String(parsedPatterns[i][0]))
-			}
-		}
-	}
-}
-
-func TestLimitValuePattern(t *testing.T) {
-	patterns := []string{
-		// LIMIT with value placeholder
-		fmt.Sprintf("SELECT a1 FROM table1 LIMIT %s", ValueConfigPlaceholder),
-		fmt.Sprintf("SELECT a1 FROM table1 LIMIT %s OFFSET %s", ValueConfigPlaceholder, ValueConfigPlaceholder),
-	}
-
-	parsedPatterns, err := ParsePatterns(patterns)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	matchableQueries := [][]string{
-		[]string{
-			"SELECT a1 FROM table1 LIMIT 100500",
-			"SELECT a1 FROM table1 LIMIT 1",
-		},
-		[]string{
-			"SELECT a1 FROM table1 LIMIT 100500 OFFSET 100500",
-			"SELECT a1 FROM table1 LIMIT 1 OFFSET 1",
-		},
-	}
-
-	notMatchableQueries := [][]string{
-		[]string{
-			// OFFSET presents
-			"SELECT a1 FROM table1 LIMIT 100500 OFFSET 100500",
-			// OFFSET presents
-			"SELECT a1 FROM table1 LIMIT 1 OFFSET 1",
-			// LIMIT is not present
-			"SELECT a1 FROM table1",
-			// different column
-			"SELECT a2 FROM table1",
-			// different table
-			"SELECT a1 FROM table2",
-		},
-		[]string{
-			// OFFSET is not present
-			"SELECT a1 FROM table1 LIMIT 100500",
-			// OFFSET is not present
-			"SELECT a1 FROM table1 LIMIT 18446744073709551610",
-			// LIMIT is not present
-			"SELECT a1 FROM table1",
-		},
-	}
-
-	if len(parsedPatterns) != len(matchableQueries) {
-		t.Fatal("Mismatch test configuration")
-	}
-
-	for i := 0; i < len(parsedPatterns); i++ {
-		for _, query := range matchableQueries[i] {
-			parsedQuery, err := sqlparser.Parse(query)
-			if err != nil {
-				t.Fatal(err)
-			}
-			if !handleLimitValuePattern([]sqlparser.SQLNode{parsedQuery}, parsedPatterns[i]) {
-				t.Fatalf("Expected match in query <%s> with pattern <%s>", query, sqlparser.String(parsedPatterns[i][0]))
-			}
-		}
-
-		for _, query := range notMatchableQueries[i] {
-			parsedQuery, err := sqlparser.Parse(query)
-			if err != nil {
-				t.Fatal(err)
-			}
-			if handleLimitValuePattern([]sqlparser.SQLNode{parsedQuery}, parsedPatterns[i]) {
-				t.Fatalf("Expected not match in query <%s> with pattern <%s>", query, sqlparser.String(parsedPatterns[i][0]))
-			}
-		}
-	}
-}
-
+// TestOrderByWithColumnPattern tests %%COLUMN%% pattern in GroupBy statement
 func TestGroupByWithColumnPattern(t *testing.T) {
 	patterns := []string{
 		// GROUP BY with column placeholder
-		fmt.Sprintf("SELECT a1 FROM table1 GROUP BY %s", ColumnConfigPlaceholder),
-		fmt.Sprintf("SELECT a FROM b GROUP BY a, %s, 1, %s", ColumnConfigPlaceholder, ColumnConfigPlaceholder),
+		fmt.Sprintf("SELECT a1 FROM table1 GROUP BY %s", ColumnPlaceholder),
+		fmt.Sprintf("SELECT a FROM b GROUP BY a, %s, 1, %s", ColumnPlaceholder, ColumnPlaceholder),
 	}
 
 	parsedPatterns, err := ParsePatterns(patterns)
@@ -730,15 +652,15 @@ func TestGroupByWithColumnPattern(t *testing.T) {
 	}
 
 	for i := 0; i < len(parsedPatterns); i++ {
-		patternGroupBy := parsedPatterns[i][0].(*sqlparser.Select).GroupBy
+		patternGroupBy := parsedPatterns[i].(*sqlparser.Select).GroupBy
 		for _, query := range matchableQueries[i] {
 			parsedQuery, err := sqlparser.Parse(query)
 			if err != nil {
 				t.Fatal(err)
 			}
 			queryGroupBy := parsedQuery.(*sqlparser.Select).GroupBy
-			if !matchGroupBy(patternGroupBy, queryGroupBy) {
-				t.Fatalf("Expected match in query <%s> with pattern <%s>", query, sqlparser.String(parsedPatterns[i][0]))
+			if !areEqualGroupBy(queryGroupBy, patternGroupBy) {
+				t.Fatalf("Expected match in query <%s> with pattern <%s>", query, sqlparser.String(parsedPatterns[i]))
 			}
 		}
 
@@ -748,18 +670,19 @@ func TestGroupByWithColumnPattern(t *testing.T) {
 				t.Fatal(err)
 			}
 			queryGroupBy := parsedQuery.(*sqlparser.Select).GroupBy
-			if matchGroupBy(patternGroupBy, queryGroupBy) {
-				t.Fatalf("Expected not match in query <%s> with pattern <%s>", query, sqlparser.String(parsedPatterns[i][0]))
+			if areEqualGroupBy(queryGroupBy, patternGroupBy) {
+				t.Fatalf("Expected not match in query <%s> with pattern <%s>", query, sqlparser.String(parsedPatterns[i]))
 			}
 		}
 	}
 }
 
+// TestOrderByWithColumnPattern tests %%COLUMN%% and %%VALUE%% patterns in Having statement
 func TestHavingWithColumnAndValueMatch(t *testing.T) {
 	patterns := []string{
-		fmt.Sprintf("SELECT a1 FROM table1 GROUP BY a2 HAVING COUNT(%s) > 100", ColumnConfigPlaceholder),
-		fmt.Sprintf("SELECT a1 FROM table1 GROUP BY a2 HAVING COUNT(a3) > %s", ValueConfigPlaceholder),
-		fmt.Sprintf("SELECT a1 FROM table1 GROUP BY a2 HAVING COUNT(%s) > %s", ColumnConfigPlaceholder, ValueConfigPlaceholder),
+		fmt.Sprintf("SELECT a1 FROM table1 GROUP BY a2 HAVING COUNT(%s) > 100", ColumnPlaceholder),
+		fmt.Sprintf("SELECT a1 FROM table1 GROUP BY a2 HAVING COUNT(a3) > %s", ValuePlaceholder),
+		fmt.Sprintf("SELECT a1 FROM table1 GROUP BY a2 HAVING COUNT(%s) > %s", ColumnPlaceholder, ValuePlaceholder),
 	}
 
 	parsedPatterns, err := ParsePatterns(patterns)
@@ -776,12 +699,11 @@ func TestHavingWithColumnAndValueMatch(t *testing.T) {
 			"SELECT a1 FROM table1 GROUP BY a2 HAVING COUNT(a3) > 100",
 			"SELECT a1 FROM table1 GROUP BY a2 HAVING COUNT(a3) > 200.0",
 			"SELECT a1 FROM table1 GROUP BY a2 HAVING COUNT(a3) > NULL",
-			"SELECT a1 FROM table1 GROUP BY a2 HAVING COUNT(a3) > (select 1)",
 		},
 		[]string{
 			"SELECT a1 FROM table1 GROUP BY a2 HAVING COUNT(a3) > 0",
 			"SELECT a1 FROM table1 GROUP BY a2 HAVING COUNT(a2) > 1000",
-			"SELECT a1 FROM table1 GROUP BY a2 HAVING COUNT(a1) > (select 1)",
+			"SELECT a1 FROM table1 GROUP BY a2 HAVING COUNT(a1) > TRUE",
 		},
 	}
 
@@ -799,14 +721,18 @@ func TestHavingWithColumnAndValueMatch(t *testing.T) {
 			"SELECT a1 FROM table1 GROUP BY a2 HAVING COUNT(a3) < 200.0",
 			// Wrong GroupBy column
 			"SELECT a1 FROM table1 GROUP BY a3 HAVING COUNT(a3) > NULL",
+			// Subquery as value
+			"SELECT a1 FROM table1 GROUP BY a2 HAVING COUNT(a3) > (select 1)",
 		},
 		[]string{
 			// 2 columns inside FuncExpr
-			"SELECT a1 FROM table1 GROUP BY a2 HAVING COUNT(a1, a2) > (select 1)",
+			"SELECT a1 FROM table1 GROUP BY a2 HAVING COUNT(a1, a2) > 10",
 			// Wrong FuncExpr name
 			"SELECT a1 FROM table1 GROUP BY a2 HAVING MIN(a1) > 1000",
 			// Wrong ComparisonExpr inside Having
 			"SELECT a1 FROM table1 GROUP BY a2 HAVING COUNT(a10) < 1000",
+			// Subquery as value
+			"SELECT a1 FROM table1 GROUP BY a2 HAVING COUNT(a10) > (select 1)",
 		},
 	}
 
@@ -821,8 +747,8 @@ func TestHavingWithColumnAndValueMatch(t *testing.T) {
 				t.Fatal(err)
 			}
 
-			if !handleSelectColumnPattern([]sqlparser.SQLNode{parsedQuery}, parsedPatterns[i]) {
-				t.Fatalf("Expected match in query <%s> with pattern <%s>", query, sqlparser.String(parsedPatterns[i][0]))
+			if !checkSinglePatternMatch(parsedQuery, parsedPatterns[i]) {
+				t.Fatalf("Expected match in query <%s> with pattern <%s>", query, sqlparser.String(parsedPatterns[i]))
 			}
 		}
 
@@ -832,8 +758,8 @@ func TestHavingWithColumnAndValueMatch(t *testing.T) {
 				t.Fatal(err)
 			}
 
-			if handleSelectColumnPattern([]sqlparser.SQLNode{parsedQuery}, parsedPatterns[i]) {
-				t.Fatalf("Expected not match in query <%s> with pattern <%s>", query, sqlparser.String(parsedPatterns[i][0]))
+			if checkSinglePatternMatch(parsedQuery, parsedPatterns[i]) {
+				t.Fatalf("Expected not match in query <%s> with pattern <%s>", query, sqlparser.String(parsedPatterns[i]))
 			}
 		}
 	}

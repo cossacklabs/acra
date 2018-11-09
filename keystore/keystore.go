@@ -141,22 +141,34 @@ type SecureSessionKeyStore interface {
 // to encrypt and decrypt AcraStructs with and without Zones,
 // to find Poison records.
 // Moreover KeyStore can generate various Keys using ClientID.
+// Save*Keypair methods save or overwrite existing keypair with new
+// Genenerate*Keys - generate new keypair and save
 type KeyStore interface {
 	SecureSessionKeyStore
 	GetZonePrivateKey(id []byte) (*keys.PrivateKey, error)
 	HasZonePrivateKey(id []byte) bool
 	GetServerDecryptionPrivateKey(id []byte) (*keys.PrivateKey, error)
+
 	// return id, public key, error
 	GenerateZoneKey() ([]byte, []byte, error)
+	SaveZoneKeypair(id []byte, keypair *keys.Keypair) error
+
 	// return new_public_key, error
 	RotateZoneKey(zoneID []byte) ([]byte, error)
 
+	SaveConnectorKeypair(id []byte, keypair *keys.Keypair) error
 	GenerateConnectorKeys(id []byte) error
+
+	SaveServerKeypair(id []byte, keypair *keys.Keypair) error
 	GenerateServerKeys(id []byte) error
+
+	SaveTranslatorKeypair(id []byte, keypair *keys.Keypair) error
 	GenerateTranslatorKeys(id []byte) error
 
 	// generate key pair for data encryption/decryption
 	GenerateDataEncryptionKeys(id []byte) error
+	SaveDataEncryptionKeys(id []byte, keypair *keys.Keypair) error
+
 	GetPoisonKeyPair() (*keys.Keypair, error)
 
 	GetAuthKey(remove bool) ([]byte, error)

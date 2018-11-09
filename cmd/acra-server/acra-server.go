@@ -67,11 +67,11 @@ const (
 	GRACEFUL_ENV                    = "GRACEFUL_RESTART"
 	DESCRIPTOR_ACRA                 = 3
 	DESCRIPTOR_API                  = 4
-	SERVICE_NAME                    = "acra-server"
+	ServiceName                     = "acra-server"
 )
 
 // DEFAULT_CONFIG_PATH relative path to config which will be parsed as default
-var DEFAULT_CONFIG_PATH = utils.GetConfigPathByName(SERVICE_NAME)
+var DEFAULT_CONFIG_PATH = utils.GetConfigPathByName(ServiceName)
 
 // ErrWaitTimeout error indicates that server was shutdown and waited N seconds while shutting down all connections.
 var ErrWaitTimeout = errors.New("timeout")
@@ -79,8 +79,7 @@ var ErrWaitTimeout = errors.New("timeout")
 func main() {
 	config := NewConfig()
 	loggingFormat := flag.String("logging_format", "plaintext", "Logging format: plaintext, json or CEF")
-	logging.CustomizeLogging(*loggingFormat, SERVICE_NAME)
-	log.Infof("Starting service %v", SERVICE_NAME)
+	log.Infof("Starting service %v [pid=%v]", ServiceName, os.Getpid())
 
 	dbHost := flag.String("db_host", "", "Host to db")
 	dbPort := flag.Int("db_port", 5432, "Port to db")
@@ -128,18 +127,24 @@ func main() {
 	usePostgresql := flag.Bool("postgresql_enable", false, "Handle Postgresql connections (default true)")
 	censorConfig := flag.String("acracensor_config_file", "", "Path to AcraCensor configuration file")
 
+	cmd.RegisterTracingCmdParameters()
+	cmd.RegisterJaegerCmdParameters()
+
 	verbose := flag.Bool("v", false, "Log to stderr all INFO, WARNING and ERROR logs")
 	debug := flag.Bool("d", false, "Log everything to stderr")
 
-	err := cmd.Parse(DEFAULT_CONFIG_PATH, SERVICE_NAME)
+	err := cmd.Parse(DEFAULT_CONFIG_PATH, ServiceName)
 	if err != nil {
 		log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantReadServiceConfig).
 			Errorln("Can't parse args")
 		os.Exit(1)
 	}
 
-	// if log format was overridden
-	logging.CustomizeLogging(*loggingFormat, SERVICE_NAME)
+	logging.CustomizeLogging(*loggingFormat, ServiceName)
+
+	config.TraceToLog = cmd.IsTraceToLogOn()
+
+	cmd.SetupTracing(ServiceName)
 
 	log.Infof("Validating service configuration...")
 	cmd.ValidateClientID(*secureSessionID)
@@ -247,6 +252,7 @@ func main() {
 			os.Exit(1)
 		}
 	} else if *noEncryptionTransport {
+		config.SetWithConnector(false)
 		if *clientID == "" && !*withZone {
 			log.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorTransportConfiguration).
 				Errorln("Configuration error: without zone mode and without encryption you must set <client_id> which will be used to connect from AcraConnector to AcraServer")
@@ -285,7 +291,7 @@ func main() {
 	server, err = NewServer(config, keyStore, errorSignalChannel, restartSignalsChannel)
 	if err != nil {
 		log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantStartService).
-			Errorln("System error: can't start %s", SERVICE_NAME)
+			Errorf("System error: can't start %s", ServiceName)
 		panic(err)
 	}
 
@@ -371,7 +377,7 @@ func main() {
 			Files: []uintptr{os.Stdin.Fd(), os.Stdout.Fd(), os.Stderr.Fd(), fdACRA, fdAPI},
 		}
 
-		log.Debugf("Forking new process of %s", SERVICE_NAME)
+		log.Debugf("Forking new process of %s", ServiceName)
 
 		// Fork new process
 		var fork, err = syscall.ForkExec(os.Args[0], os.Args, execSpec)
@@ -379,7 +385,7 @@ func main() {
 			log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantForkProcess).
 				Fatalln("System error: failed to fork new process", err)
 		}
-		log.Infof("%s process forked to PID: %v", SERVICE_NAME, fork)
+		log.Infof("%s process forked to PID: %v", ServiceName, fork)
 
 		// Wait a maximum of N seconds for existing connections to finish
 		err = server.WaitWithTimeout(time.Duration(*closeConnectionTimeout) * time.Second)
@@ -388,7 +394,6 @@ func main() {
 			os.Exit(0)
 		}
 		log.Infof("Server graceful restart completed, bye PID: %v", os.Getpid())
-
 		// Stop the old server, all the connections have been closed and the new one is running
 		os.Exit(0)
 	})

@@ -67,7 +67,7 @@ Output:
 id  - data                 - raw_data
 14  - some data            - some data
 ```
-*Use AcraConnector's host:port to see encrypted data and databases host:port to see encrypted data*
+*Use AcraConnector's host:port to see decrypted data and databases host:port to see encrypted data*
 
 # With zone
 
@@ -93,7 +93,7 @@ use zone_id:  DDDDDDDDKbYPUFOEyryvaQda
 id  - zone - data - raw_data
 6   - DDDDDDDDKbYPUFOEyryvaQda - some data - some data
 ```
-*Use AcraConnector's host:port to see encrypted data and databases host:port to see encrypted data*
+*Use AcraConnector's host:port to see decrypted data and databases host:port to see encrypted data*
 
 Add one more row with another zone id:
 ```

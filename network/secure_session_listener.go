@@ -17,6 +17,7 @@ limitations under the License.
 package network
 
 import (
+	"context"
 	"net"
 
 	"github.com/cossacklabs/acra/keystore"
@@ -53,11 +54,16 @@ func (listener *SecureSessionListener) Accept() (net.Conn, error) {
 	if err != nil {
 		return nil, err
 	}
-	wrappedConnection, _, err := listener.wrapper.WrapServer(conn)
+	wrappedConnection, _, err := listener.wrapper.WrapServer(context.TODO(), conn)
 	if err != nil {
 		log.WithError(err).Errorln("Can't wrap connection with secure session")
 		// mark that it's not fatal error and may be temporary (need for grpc that stop listening on non-temporary error
 		// from listener.Accept
+		return nil, err
+	}
+	// connector always send trace, but now we can't pass it to grpc method
+	_, err = ReadTrace(wrappedConnection)
+	if err != nil {
 		return nil, err
 	}
 	return wrappedConnection, nil

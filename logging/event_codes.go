@@ -116,4 +116,6 @@ const (
 	EventCodeErrorTranslatorCantWrapConnectionToSS      = 711
 	EventCodeErrorTranslatorCantAcceptNewHTTPConnection = 712
 	EventCodeErrorTranslatorCantHandleGRPCConnection    = 713
+
+	EventCodeErrorTracingCantSendTrace = 800
 )

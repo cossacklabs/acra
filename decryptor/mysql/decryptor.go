@@ -285,8 +285,6 @@ func (decryptor *MySQLDecryptor) decryptInlineBlock(block []byte) ([]byte, error
 		return block, nil
 	}
 	for index < len(block) {
-		decryptor.log.Debugf("Index=%v", index)
-		decryptor.log.Debugf("Index: %v", index)
 		beginTagIndex, tagLength := decryptor.BeginTagIndex(block[index:])
 		if beginTagIndex == utils.NotFound {
 			output.Write(block[index:])

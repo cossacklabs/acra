@@ -16,7 +16,10 @@ limitations under the License.
 
 package network
 
-import "net"
+import (
+	"context"
+	"net"
+)
 
 // RawConnectionWrapper doesn't add any encryption above connection
 type RawConnectionWrapper struct {
@@ -25,13 +28,13 @@ type RawConnectionWrapper struct {
 }
 
 // WrapClient returns RawConnectionWrapper above client connection
-func (wrapper *RawConnectionWrapper) WrapClient(id []byte, conn net.Conn) (net.Conn, error) {
+func (wrapper *RawConnectionWrapper) WrapClient(ctx context.Context, id []byte, conn net.Conn) (net.Conn, error) {
 	wrapper.Conn = conn
-	return conn, nil
+	return newSafeCloseConnection(conn), nil
 }
 
 // WrapServer returns RawConnectionWrapper above server connection
-func (wrapper *RawConnectionWrapper) WrapServer(conn net.Conn) (net.Conn, []byte, error) {
+func (wrapper *RawConnectionWrapper) WrapServer(ctx context.Context, conn net.Conn) (net.Conn, []byte, error) {
 	wrapper.Conn = conn
-	return conn, wrapper.ClientID, nil
+	return newSafeCloseConnection(conn), wrapper.ClientID, nil
 }

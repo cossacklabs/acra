@@ -18,6 +18,8 @@ package main
 
 import (
 	"bufio"
+	"context"
+	"go.opencensus.io/trace"
 	"net"
 	"net/http"
 
@@ -52,7 +54,7 @@ type ClientCommandsSession struct {
 
 // NewClientCommandsSession returns new ClientCommandsSession
 func NewClientCommandsSession(keystorage keystore.KeyStore, config *Config, connection net.Conn) (*ClientCommandsSession, error) {
-	clientSession, err := NewClientSession(keystorage, config, connection)
+	clientSession, err := NewClientSession(context.Background(), keystorage, config, connection)
 	if err != nil {
 		return nil, err
 	}
@@ -77,81 +79,87 @@ func (clientSession *ClientCommandsSession) close() {
 
 // HandleSession gets, parses and executes each client HTTP request, writes response to the connection
 func (clientSession *ClientCommandsSession) HandleSession() {
+	_, requestSpan := trace.StartSpan(clientSession.ctx, "HandleSession")
+	defer requestSpan.End()
+
+	logger := logging.NewLoggerWithTrace(clientSession.ctx)
 	reader := bufio.NewReader(clientSession.connection)
 	req, err := http.ReadRequest(reader)
 	// req = clientSession.connection.Write(*http.ResponseWriter)
 	if err != nil {
 
-		log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorGeneral).
+		logger.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorGeneral).
 			Warningln("Got new command request, but can't read it")
 		clientSession.close()
 		return
 	}
 	response := "HTTP/1.1 404 Not Found\r\n\r\nincorrect request\r\n\r\n"
 
-	log.Debugf("Incoming API request to %v", req.URL.Path)
+	logger.Debugf("Incoming API request to %v", req.URL.Path)
+
+	requestSpan.AddAttributes(trace.StringAttribute("http.url", req.URL.Path))
 
 	switch req.URL.Path {
 	case "/getNewZone":
-		log.Debugln("Got /getNewZone request")
+		logger.Debugln("Got /getNewZone request")
 		id, publicKey, err := clientSession.keystorage.GenerateZoneKey()
 		if err != nil {
-			log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantGenerateZone).Errorln("Can't generate zone key")
+			logger.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantGenerateZone).Errorln("Can't generate zone key")
 		} else {
 			zoneData, err := zone.ZoneDataToJSON(id, &keys.PublicKey{Value: publicKey})
 			if err != nil {
-				log.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantGenerateZone).WithError(err).Errorln("Can't create json with zone key")
+				logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantGenerateZone).WithError(err).Errorln("Can't create json with zone key")
 			} else {
-				log.Debugln("Handled request correctly")
+				logger.Debugln("Handled request correctly")
 				response = fmt.Sprintf("HTTP/1.1 200 OK Found\r\n\r\n%s\r\n\r\n", string(zoneData))
 			}
 		}
 	case "/resetKeyStorage":
-		log.Debugln("Got /resetKeyStorage request")
+		logger.Debugln("Got /resetKeyStorage request")
 		clientSession.keystorage.Reset()
 		response = "HTTP/1.1 200 OK Found\r\n\r\n"
-		log.Debugln("Cleared key storage cache")
+		logger.Debugln("Cleared key storage cache")
 	case "/loadAuthData":
 		response = Response500Error
 		key, err := clientSession.keystore.GetAuthKey(false)
 		if err != nil {
-			log.WithError(err).Error("loadAuthData: keystore.GetAuthKey()")
+			logger.WithError(err).Error("loadAuthData: keystore.GetAuthKey()")
 			response = Response500Error
 			break
 		}
 		authDataCrypted, err := getAuthDataFromFile(*authPath)
 		if err != nil {
-			log.Warningf("%v\n", utils.ErrorMessage("loadAuthData: no auth data", err))
+			logger.Warningf("%v\n", utils.ErrorMessage("loadAuthData: no auth data", err))
 			response = Response500Error
 			break
 		}
 		SecureCell := cell.New(key, cell.CELL_MODE_SEAL)
 		authData, err := SecureCell.Unprotect(authDataCrypted, nil, nil)
 		if err != nil {
-			log.WithError(err).Error("loadAuthData: SecureCell.Unprotect")
+			logger.WithError(err).Error("loadAuthData: SecureCell.Unprotect")
 
 			break
 		}
 		response = fmt.Sprintf("HTTP/1.1 200 OK Found\r\n\r\n%s\r\n\r\n", authData)
 	case "/getConfig":
-		log.Debugln("Got /getConfig request")
+		logger.Debugln("Got /getConfig request")
 		jsonOutput, err := clientSession.config.ToJSON()
 		if err != nil {
-			log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorGeneral).
+			logger.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorGeneral).
 				Warningln("Can't convert config to JSON")
 			response = Response500Error
 		} else {
-			log.Debugln("Handled request correctly")
-			log.Debugln(string(jsonOutput))
+			logger.Debugln("Handled request correctly")
+			logger.Debugln(string(jsonOutput))
 			response = fmt.Sprintf("HTTP/1.1 200 OK Found\r\n\r\n%s\r\n\r\n", string(jsonOutput))
 		}
 	case "/setConfig":
-		log.Debugln("Got /setConfig request")
+		logger.Debugln("Got /setConfig request")
 		decoder := json.NewDecoder(req.Body)
 		var configFromUI UIEditableConfig
 		err := decoder.Decode(&configFromUI)
 		if err != nil {
-			log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorGeneral).
+			logger.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorGeneral).
 				Warningln("Can't convert config from incoming")
 			response = Response500Error
 			return
@@ -165,21 +173,23 @@ func (clientSession *ClientCommandsSession) HandleSession() {
 		flag.Set("poison_shutdown_enable", fmt.Sprintf("%v", configFromUI.StopOnPoison))
 		flag.Set("zonemode_enable", fmt.Sprintf("%v", configFromUI.WithZone))
 
-		err = cmd.DumpConfig(clientSession.Server.config.GetConfigPath(), SERVICE_NAME, false)
+		err = cmd.DumpConfig(clientSession.Server.config.GetConfigPath(), ServiceName, false)
 		if err != nil {
-			log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantDumpConfig).
+			logger.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantDumpConfig).
 				Errorln("DumpConfig failed")
 			response = Response500Error
 			return
 
 		}
-		log.Debugln("Handled request correctly, restarting server")
+		logger.Debugln("Handled request correctly, restarting server")
 		clientSession.Server.restartSignalsChannel <- syscall.SIGHUP
+	default:
+		requestSpan.AddAttributes(trace.StringAttribute("http.url", "undefined"))
 	}
 
 	_, err = clientSession.connection.Write([]byte(response))
 	if err != nil {
-		log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorGeneral).Errorln("Can't send data with secure session to acra-connector")
+		logger.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorGeneral).Errorln("Can't send data with secure session to acra-connector")
 		return
 	}
 	clientSession.close()

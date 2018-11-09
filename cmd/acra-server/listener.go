@@ -17,6 +17,8 @@ limitations under the License.
 package main
 
 import (
+	"context"
+	"go.opencensus.io/trace"
 	"net"
 	url_ "net/url"
 	"os"
@@ -47,16 +49,21 @@ type SServer struct {
 	listeners             []net.Listener
 	errorSignalChannel    chan os.Signal
 	restartSignalsChannel chan os.Signal
+	traceOptions          []trace.StartOption
 }
 
 // NewServer creates new SServer.
 func NewServer(config *Config, keystorage keystore.KeyStore, errorChan chan os.Signal, restarChan chan os.Signal) (server *SServer, err error) {
+	traceOptions := []trace.StartOption{trace.WithSpanKind(trace.SpanKindClient)}
+	traceOptions = append(traceOptions, trace.WithSampler(trace.AlwaysSample()))
+
 	return &SServer{
 		config:                config,
 		keystorage:            keystorage,
 		connectionManager:     network.NewConnectionManager(),
 		errorSignalChannel:    errorChan,
 		restartSignalsChannel: restarChan,
+		traceOptions:          traceOptions,
 	}, nil
 }
 
@@ -65,6 +72,7 @@ func (server *SServer) Close() {
 	log.Debugln("Closing server listeners..")
 	var err error
 	for _, listener := range server.listeners {
+		listener = network.UnwrapSafeCloseListener(listener)
 		switch listener.(type) {
 		case *net.TCPListener:
 			err = listener.(*net.TCPListener).Close()
@@ -88,6 +96,10 @@ func (server *SServer) Close() {
 				if err3 != nil {
 					log.WithError(err3).Warningf("UnixListener.Close  file.Remove(%s)", url.Path)
 				}
+			}
+		default:
+			if err := listener.Close(); err != nil {
+				log.WithError(err).Warningln("Error on closing listener")
 			}
 		}
 	}
@@ -138,42 +150,75 @@ func (server *SServer) getDecryptor(clientID []byte) base.Decryptor {
 	return decryptor
 }
 
+type callbackData struct {
+	connectionType string
+	funcName       string
+	callbackFunc   func(context.Context, []byte, net.Conn)
+}
+
 /*
 handle new connection by initializing secure session, starting proxy request
 to db and decrypting responses from db
 */
-func (server *SServer) handleConnection(connection net.Conn) {
-	connectionCounter.WithLabelValues(dbConnectionType).Inc()
-	timer := prometheus.NewTimer(prometheus.ObserverFunc(connectionProcessingTimeHistogram.WithLabelValues(dbConnectionType).Observe))
-	defer timer.ObserveDuration()
-	log.Infof("Handle new connection")
-	wrappedConnection, clientID, err := server.config.ConnectionWrapper.WrapServer(connection)
-	if err != nil {
-		log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantWrapConnection).
-			Errorln("Can't wrap connection from acra-connector")
-		if closeErr := connection.Close(); closeErr != nil {
-			log.WithError(closeErr).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantCloseConnection).
-				Errorln("Can't close connection")
-		}
-		return
-	}
-	clientSession, err := NewClientSession(server.keystorage, server.config, connection)
+func (server *SServer) handleConnection(ctx context.Context, clientID []byte, connection net.Conn) {
+	logger := logging.NewLoggerWithTrace(ctx)
+	clientSession, err := NewClientSession(ctx, server.keystorage, server.config, connection)
 	clientSession.Server = server
 	if err != nil {
-		log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantInitClientSession).
+		logger.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantInitClientSession).
 			Errorln("Can't initialize client session")
-		if closeErr := wrappedConnection.Close(); closeErr != nil {
-			log.WithError(closeErr).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantCloseConnection).
+		if closeErr := connection.Close(); closeErr != nil {
+			logger.WithError(closeErr).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantCloseConnection).
 				Errorln("Can't close connection")
 		}
 		return
 	}
-	clientSession.connection = wrappedConnection
 	decryptor := server.getDecryptor(clientID)
 	clientSession.HandleClientConnection(clientID, decryptor)
 }
 
-func (server *SServer) start(listener net.Listener, connectionHandler func(net.Conn), logger *log.Entry) {
+func (server *SServer) processConnection(connection net.Conn, callback *callbackData) {
+	connectionCounter.WithLabelValues(callback.connectionType).Inc()
+	timer := prometheus.NewTimer(prometheus.ObserverFunc(connectionProcessingTimeHistogram.WithLabelValues(callback.connectionType).Observe))
+	defer timer.ObserveDuration()
+
+	ctx := logging.SetTraceStatus(context.Background(), server.config.TraceToLog)
+
+	wrapCtx, wrapSpan := trace.StartSpan(ctx, "WrapServer", server.traceOptions...)
+	logger := logging.NewLoggerWithTrace(wrapCtx)
+
+	wrappedConnection, clientID, err := server.config.ConnectionWrapper.WrapServer(wrapCtx, connection)
+	if err != nil {
+		logger.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantWrapConnection).
+			Errorln("Can't wrap connection from acra-connector")
+		if closeErr := connection.Close(); closeErr != nil {
+			logger.WithError(closeErr).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantCloseConnection).
+				Errorln("Can't close connection")
+		}
+		wrapSpan.End()
+		return
+	}
+	wrapSpan.End()
+	var span *trace.Span
+	if server.config.WithConnector() {
+		spanContext, err := network.ReadTrace(wrappedConnection)
+		if err != nil {
+			log.WithError(err).Errorln("Can't read trace from Acra-Proxy")
+			return
+		}
+		ctx, span = trace.StartSpanWithRemoteParent(wrapCtx, callback.funcName, spanContext, server.traceOptions...)
+	} else {
+		ctx, span = trace.StartSpan(wrapCtx, callback.funcName, server.traceOptions...)
+	}
+	span.AddAttributes(trace.BoolAttribute("from_connector", server.config.WithConnector()))
+	defer span.End()
+	wrapSpanContext := wrapSpan.SpanContext()
+	// mark that wrapSpan related with new remote span
+	span.AddLink(trace.Link{TraceID: wrapSpanContext.TraceID, SpanID: wrapSpanContext.SpanID, Type: trace.LinkTypeParent})
+	callback.callbackFunc(ctx, clientID, wrappedConnection)
+}
+
+func (server *SServer) start(listener net.Listener, callback *callbackData, logger *log.Entry) {
 	logger.Infof("Start listening connections")
 	for {
 		connection, err := listener.Accept()
@@ -185,7 +230,7 @@ func (server *SServer) start(listener net.Listener, connectionHandler func(net.C
 			}
 			logger.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantAcceptNewConnections).
 				Errorln("Can't accept new connection")
-			continue
+			return
 		}
 		// unix socket and value == '@'
 		if len(connection.RemoteAddr().String()) == 1 {
@@ -195,7 +240,7 @@ func (server *SServer) start(listener net.Listener, connectionHandler func(net.C
 		}
 		go func() {
 			server.connectionManager.AddConnection(connection)
-			connectionHandler(connection)
+			server.processConnection(connection, callback)
 			server.connectionManager.RemoveConnection(connection)
 		}()
 	}
@@ -214,7 +259,7 @@ func (server *SServer) Start() {
 	}
 	server.listenerACRA = listener
 	server.addListener(listener)
-	server.start(listener, server.handleConnection, logger)
+	server.start(listener, &callbackData{funcName: "handleConnection", connectionType: dbConnectionType, callbackFunc: server.handleConnection}, logger)
 }
 
 // StartFromFileDescriptor starts listening Acra data connections from file descriptor.
@@ -242,7 +287,7 @@ func (server *SServer) StartFromFileDescriptor(fd uintptr) {
 	}
 	server.listenerACRA = listenerWithFileDescriptor
 	server.addListener(listenerWithFileDescriptor)
-	server.start(listenerWithFileDescriptor, server.handleConnection, logger)
+	server.start(listenerWithFileDescriptor, &callbackData{funcName: "handleConnection", connectionType: dbConnectionType, callbackFunc: server.handleConnection}, logger)
 }
 
 // stopAcceptConnections stop accepting by setting deadline and then background code that call Accept will took error and
@@ -251,15 +296,11 @@ func stopAcceptConnections(listener network.DeadlineListener) (err error) {
 	if listener != nil {
 		err = listener.SetDeadline(time.Now())
 		if err != nil {
-			if nerr, ok := err.(net.Error); ok && nerr.Timeout() {
-				log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantStopListenConnections).
-					Errorln("Unable to SetDeadLine for listener")
-			} else {
-				log.WithError(err).Errorln("Non-timeout error")
-			}
+			log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantStopListenConnections).
+				Errorln("Unable to SetDeadLine for listener")
 		}
 	} else {
-		log.Warningln("can't set deadline for server listener")
+		log.Warningln("Can't set deadline for server listener")
 	}
 	return
 }
@@ -274,7 +315,7 @@ func (server *SServer) StopListeners() {
 
 		deadlineListener, err = network.CastListenerToDeadline(listener)
 		if err != nil {
-			log.WithError(err).Warningln("Can't cast listener")
+			log.WithError(err).Warningln("Listener doesn't support deadlines")
 			continue
 		}
 
@@ -316,29 +357,18 @@ func (server *SServer) ConnectionsCounter() int {
 handle new connection by initializing secure session, starting proxy request
 to db and decrypting responses from db
 */
-func (server *SServer) handleCommandsConnection(connection net.Conn) {
-	connectionCounter.WithLabelValues(apiConnectionType).Inc()
-	timer := prometheus.NewTimer(prometheus.ObserverFunc(connectionProcessingTimeHistogram.WithLabelValues(apiConnectionType).Observe))
-	defer timer.ObserveDuration()
-	log.Infof("Handle commands connection")
+func (server *SServer) handleCommandsConnection(ctx context.Context, clientID []byte, connection net.Conn) {
+	logger := logging.NewLoggerWithTrace(ctx)
 	clientSession, err := NewClientCommandsSession(server.keystorage, server.config, connection)
 	clientSession.Server = server
 	if err != nil {
-		log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantStartConnection).
+		logger.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantStartConnection).
 			Errorln("Can't init API session")
 		return
 	}
-
-	wrappedConnection, _, err := server.config.ConnectionWrapper.WrapServer(connection)
-	if err != nil {
-		log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantWrapConnection).
-			Errorln("Can't wrap API connection")
-		return
-	}
-	clientSession.connection = wrappedConnection
-	wrappedConnection.SetDeadline(time.Now().Add(network.DefaultNetworkTimeout))
+	connection.SetDeadline(time.Now().Add(network.DefaultNetworkTimeout))
 	clientSession.HandleSession()
-	wrappedConnection.SetDeadline(time.Time{})
+	connection.SetDeadline(time.Time{})
 }
 
 // StartCommands starts listening commands connections from proxy.
@@ -353,7 +383,7 @@ func (server *SServer) StartCommands() {
 	}
 	server.listenerAPI = listener
 	server.addListener(listener)
-	server.start(listener, server.handleCommandsConnection, logger)
+	server.start(listener, &callbackData{funcName: "handleCommandsConnection", connectionType: apiConnectionType, callbackFunc: server.handleCommandsConnection}, logger)
 }
 
 // StartCommandsFromFileDescriptor starts listening commands connections from file descriptor.
@@ -380,5 +410,5 @@ func (server *SServer) StartCommandsFromFileDescriptor(fd uintptr) {
 	}
 	server.listenerAPI = listenerWithFileDescriptor
 	server.addListener(listenerWithFileDescriptor)
-	server.start(listenerWithFileDescriptor, server.handleCommandsConnection, logger)
+	server.start(listenerWithFileDescriptor, &callbackData{funcName: "handleCommandsConnection", connectionType: apiConnectionType, callbackFunc: server.handleCommandsConnection}, logger)
 }

@@ -20,9 +20,12 @@ package postgresql
 import (
 	"bufio"
 	"bytes"
+	"context"
 	"crypto/tls"
 	"encoding/binary"
 	"errors"
+	"go.opencensus.io/trace"
+	"io"
 	"net"
 	"time"
 
@@ -40,6 +43,10 @@ import (
 // ReadyForQueryPacket - 'Z' ReadyForQuery, 0 0 0 5 length, 'I' idle status
 // https://www.postgresql.org/docs/9.3/static/protocol-message-formats.html
 var ReadyForQueryPacket = []byte{'Z', 0, 0, 0, 5, 'I'}
+
+// TerminatePacket sent by client to close connection with db
+// https://www.postgresql.org/docs/9.4/static/protocol-message-formats.html
+var TerminatePacket = []byte{'X', 0, 0, 0, 4}
 
 // NewPgError returns packed error
 func NewPgError(message string) ([]byte, error) {
@@ -76,6 +83,7 @@ const (
 	// https://www.postgresql.org/docs/9.4/static/protocol-message-formats.html
 	DataRowMessageType byte = 'D'
 	QueryMessageType   byte = 'Q'
+	ParseMessageType   byte = 'P'
 	TLSTimeout              = time.Second * 2
 )
 
@@ -84,61 +92,104 @@ type PgProxy struct {
 	clientConnection net.Conn
 	dbConnection     net.Conn
 	TLSCh            chan bool
+	ctx              context.Context
 }
 
 // NewPgProxy returns new PgProxy
-func NewPgProxy(clientConnection, dbConnection net.Conn) (*PgProxy, error) {
-	return &PgProxy{clientConnection: clientConnection, dbConnection: dbConnection, TLSCh: make(chan bool)}, nil
+func NewPgProxy(ctx context.Context, clientConnection, dbConnection net.Conn) (*PgProxy, error) {
+	return &PgProxy{clientConnection: clientConnection, dbConnection: dbConnection, TLSCh: make(chan bool), ctx: ctx}, nil
 }
 
 // PgProxyClientRequests checks every client request using AcraCensor,
 // if request is allowed, sends it to the Pg database
 func (proxy *PgProxy) PgProxyClientRequests(acraCensor acracensor.AcraCensorInterface, dbConnection, clientConnection net.Conn, errCh chan<- error) {
-	logger := log.WithField("proxy", "pg_client")
+	ctx, span := trace.StartSpan(proxy.ctx, "PgProxyClientRequests")
+	defer span.End()
+	logger := logging.NewLoggerWithTrace(ctx).WithField("proxy", "client")
 	logger.Debugln("Pg client proxy")
 	writer := bufio.NewWriter(dbConnection)
 
 	reader := bufio.NewReader(clientConnection)
-	packet, err := NewClientSidePacketHandler(reader, writer)
+	packet, err := NewClientSidePacketHandler(reader, writer, logger)
 	if err != nil {
 		logger.WithError(err).Errorln("Can't initialize DataRow object")
 		errCh <- err
 		return
 	}
 	prometheusLabels := []string{base.DecryptionDBPostgresql}
+	// use pointers to function where should be stored some function that should be called if code return error and interrupt loop
+	// default value empty func to avoid != nil check
+	var spanEndFunc = func() {}
+	var timerObserveFunc = func() {}
+	// always call span.End for case if was error
+	defer func() {
+		spanEndFunc()
+		timerObserveFunc()
+	}()
 	for {
+		timerObserveFunc()
 		timer := prometheus.NewTimer(prometheus.ObserverFunc(base.RequestProcessingTimeHistogram.WithLabelValues(prometheusLabels...).Observe))
+		timerObserveFunc = timer.ObserveDuration
+
 		packet.Reset()
 
+		spanEndFunc()
+		packetSpanCtx, packetSpan := trace.StartSpan(ctx, "PgProxyClientRequestsLoop")
+		spanEndFunc = packetSpan.End
+
 		if err := packet.ReadClientPacket(); err != nil {
-			logger.WithError(err).Errorln("Can't read packet from client to database")
+			logger.WithError(err).Debugln("Can't read packet from client to database")
 			errCh <- err
 			return
 		}
 		dbConnection.SetWriteDeadline(time.Now().Add(network.DefaultNetworkTimeout))
 		// we are interested only in requests that contains sql queries
-		if !packet.IsSimpleQuery() {
+		if !(packet.IsSimpleQuery() || packet.IsParse()) {
 			if err := packet.sendPacket(); err != nil {
 				logger.WithError(err).Errorln("Can't forward packet to db")
 				errCh <- err
 				return
 			}
-			timer.ObserveDuration()
+			if packet.terminatePacket {
+				errCh <- io.EOF
+				return
+			}
 			continue
 		}
-		query := string(packet.descriptionBuf.Bytes()[:packet.dataLength-1])
+		_, censorSpan := trace.StartSpan(packetSpanCtx, "censor")
+		var query string
+		if packet.IsSimpleQuery() {
+			query, err = packet.GetSimpleQuery()
+			if err != nil {
+				logger.WithError(err).Errorln("Can't fetch query string from Query packet")
+				errCh <- err
+				return
+			}
+		} else if packet.IsParse() {
+			query, err = packet.GetParseQuery()
+			if err != nil {
+				logger.WithError(err).Errorln("Can't fetch query string from Parse packet")
+				errCh <- err
+				return
+			}
+		} else {
+			logger.Errorf("Unhandled message type <%v>", packet.messageType[0])
+			errCh <- errors.New("unhandled message type")
+			return
+		}
 
 		// log query with hidden values for debug mode
 		if logging.GetLogLevel() == logging.LogDebug {
 			_, queryWithHiddenValues, err := handlers.NormalizeAndRedactSQLQuery(query)
 			if err == handlers.ErrQuerySyntaxError {
-				log.WithError(err).Infof("Parsing error on query: %s", queryWithHiddenValues)
+				logger.WithError(err).Infof("Parsing error on query: %s", queryWithHiddenValues)
 			} else {
-				log.WithField("sql", queryWithHiddenValues).Debugln("New query")
+				logger.WithField("sql", queryWithHiddenValues).Debugln("New query")
 			}
 		}
 
 		if censorErr := acraCensor.HandleQuery(query); censorErr != nil {
+			censorSpan.End()
 			logger.WithError(censorErr).Errorln("AcraCensor blocked query")
 			errorMessage, err := NewPgError("AcraCensor blocked this query")
 			if err != nil {
@@ -156,29 +207,28 @@ func (proxy *PgProxy) PgProxyClientRequests(acraCensor acracensor.AcraCensorInte
 				errCh <- err
 				return
 			}
-			timer.ObserveDuration()
 			continue
 		}
+		censorSpan.End()
 
 		if err := packet.sendPacket(); err != nil {
 			logger.WithError(err).Errorln("Can't send packet")
 			errCh <- err
 			return
 		}
-		timer.ObserveDuration()
 	}
 }
 
 // handlePoisonCheckResult return error err != nil, if can't check on poison record or any callback on poison record
 // return error
-func handlePoisonCheckResult(decryptor base.Decryptor, poisoned bool, err error) error {
+func handlePoisonCheckResult(decryptor base.Decryptor, poisoned bool, err error, logger *log.Entry) error {
 	if err != nil {
-		log.WithError(err).Errorln("Can't check on poison record")
+		logger.WithError(err).Errorln("Can't check on poison record")
 		return err
 	}
 
 	if poisoned {
-		log.Warningln("Recognized poison record")
+		logger.Warningln("Recognized poison record")
 		callbacks := decryptor.GetPoisonCallbackStorage()
 		if callbacks.HasCallbacks() {
 			return callbacks.Call()
@@ -219,7 +269,7 @@ func checkWholePoisonRecord(block []byte, decryptor base.Decryptor, logger *log.
 		return nil
 	}
 	poisoned, checkErr := decryptor.CheckPoisonRecord(bytes.NewReader(skippedBegin))
-	if innerErr := handlePoisonCheckResult(decryptor, poisoned, checkErr); err != nil {
+	if innerErr := handlePoisonCheckResult(decryptor, poisoned, checkErr, logger); err != nil {
 		logger.WithError(innerErr).Errorln("Error on poison record check")
 		return innerErr
 	}
@@ -227,10 +277,12 @@ func checkWholePoisonRecord(block []byte, decryptor base.Decryptor, logger *log.
 }
 
 // processWholeBlockDecryption try to decrypt data of column as whole AcraStruct and replace with decrypted data on success
-func (proxy *PgProxy) processWholeBlockDecryption(packet *PacketHandler, column *ColumnData, decryptor base.Decryptor, logger *log.Entry) error {
+func (proxy *PgProxy) processWholeBlockDecryption(ctx context.Context, packet *PacketHandler, column *ColumnData, decryptor base.Decryptor, logger *log.Entry) error {
+	span := trace.FromContext(ctx)
 	decryptor.Reset()
 	decrypted, err := decryptor.DecryptBlock(column.Data)
 	if err != nil {
+		span.AddAttributes(trace.BoolAttribute("failed_decryption", true))
 		// check poison records on failed decryption
 		logger.WithError(err).Errorln("Can't decrypt possible AcraStruct")
 		base.AcrastructDecryptionCounter.WithLabelValues(base.DecryptionTypeFail).Inc()
@@ -251,7 +303,7 @@ func (proxy *PgProxy) processWholeBlockDecryption(packet *PacketHandler, column 
 func (proxy *PgProxy) handleSSLRequest(packet *PacketHandler, tlsConfig *tls.Config, clientConnection, dbConnection net.Conn, logger *log.Entry) (net.Conn, net.Conn, error) {
 	// if server allow SSLRequest than we wrap our connections with tls
 	if tlsConfig == nil {
-		logger.Errorln("To support TLS connections you must pass TLS key and certificate for AcraServer that will be used" +
+		logger.Errorln("To support TLS connections you must pass TLS key and certificate for AcraServer that will be used " +
 			"for connections AcraServer->Database and CA certificate which will be used to verify certificate " +
 			"from database")
 		return nil, nil, network.ErrEmptyTLSConfig
@@ -303,7 +355,8 @@ func (proxy *PgProxy) handleSSLRequest(packet *PacketHandler, tlsConfig *tls.Con
 	return tlsClientConnection, dbTLSConnection, nil
 }
 
-func (proxy *PgProxy) processInlineBlockDecryption(packet *PacketHandler, column *ColumnData, decryptor base.Decryptor, logger *log.Entry) error {
+func (proxy *PgProxy) processInlineBlockDecryption(ctx context.Context, packet *PacketHandler, column *ColumnData, decryptor base.Decryptor, logger *log.Entry) error {
+	span := trace.FromContext(ctx)
 	// inline mode
 	currentIndex := 0
 	endIndex := column.Length()
@@ -326,10 +379,10 @@ func (proxy *PgProxy) processInlineBlockDecryption(packet *PacketHandler, column
 		if err != nil {
 			logger.WithError(err).Warningln("Can't read private key")
 			if decryptor.IsPoisonRecordCheckOn() {
-				log.Infoln("Check poison records")
+				logger.Infoln("Check poison records")
 				blockReader := bytes.NewReader(column.Data[beginTagIndex+tagLength:])
 				poisoned, err := decryptor.CheckPoisonRecord(blockReader)
-				err = handlePoisonCheckResult(decryptor, poisoned, err)
+				err = handlePoisonCheckResult(decryptor, poisoned, err, logger)
 				if err != nil {
 					logger.WithError(err).Errorln("Error on poison record processing")
 					return err
@@ -341,13 +394,14 @@ func (proxy *PgProxy) processInlineBlockDecryption(packet *PacketHandler, column
 		blockReader := bytes.NewReader(column.Data[beginTagIndex+tagLength:])
 		symKey, _, err := decryptor.ReadSymmetricKey(key, blockReader)
 		if err != nil {
+			span.AddAttributes(trace.BoolAttribute("failed_decryption", true))
 			base.AcrastructDecryptionCounter.WithLabelValues(base.DecryptionTypeFail).Inc()
 			logger.WithError(err).Warningln("Can't unwrap symmetric key")
 			if decryptor.IsPoisonRecordCheckOn() {
-				log.Infoln("Check poison records")
+				logger.Infoln("Check poison records")
 				blockReader = bytes.NewReader(column.Data[beginTagIndex+tagLength:])
 				poisoned, err := decryptor.CheckPoisonRecord(blockReader)
-				err = handlePoisonCheckResult(decryptor, poisoned, err)
+				err = handlePoisonCheckResult(decryptor, poisoned, err, logger)
 				if err != nil {
 					logger.WithError(err).Errorln("Error on poison record processing")
 					return err
@@ -361,6 +415,7 @@ func (proxy *PgProxy) processInlineBlockDecryption(packet *PacketHandler, column
 		}
 		decryptedData, err := decryptor.ReadData(symKey, decryptor.GetMatchedZoneID(), blockReader)
 		if err != nil {
+			span.AddAttributes(trace.BoolAttribute("failed_decryption", true))
 			base.AcrastructDecryptionCounter.WithLabelValues(base.DecryptionTypeFail).Inc()
 			logger.WithError(err).Warningln("Can't decrypt data with unwrapped symmetric key")
 			// write current read byte to not process him in next iteration
@@ -386,7 +441,9 @@ func (proxy *PgProxy) processInlineBlockDecryption(packet *PacketHandler, column
 
 // PgDecryptStream process data rows from database
 func (proxy *PgProxy) PgDecryptStream(censor acracensor.AcraCensorInterface, decryptor base.Decryptor, tlsConfig *tls.Config, dbConnection net.Conn, clientConnection net.Conn, errCh chan<- error) {
-	logger := log.WithField("proxy", "db_side")
+	ctx, span := trace.StartSpan(proxy.ctx, "PgDecryptStream")
+	defer span.End()
+	logger := logging.NewLoggerWithTrace(ctx).WithField("proxy", "server")
 	if decryptor.IsWholeMatch() {
 		logger = logger.WithField("decrypt_mode", "wholecell")
 	} else {
@@ -397,7 +454,7 @@ func (proxy *PgProxy) PgDecryptStream(censor acracensor.AcraCensorInterface, dec
 	writer := bufio.NewWriter(clientConnection)
 
 	reader := bufio.NewReader(dbConnection)
-	packetHandler, err := NewDbSidePacketHandler(reader, writer)
+	packetHandler, err := NewDbSidePacketHandler(reader, writer, logger)
 	if err != nil {
 		errCh <- err
 		return
@@ -410,17 +467,29 @@ func (proxy *PgProxy) PgDecryptStream(censor acracensor.AcraCensorInterface, dec
 		prometheusLabels = append(prometheusLabels, base.DecryptionModeInline)
 	}
 	firstByte := true
+	// use pointer to function where should be stored some function that should be called if code return error and interrupt loop
+	// default value empty func to avoid != nil check
+	var endLoopSpanFunc = func() {}
+	defer func() {
+		endLoopSpanFunc()
+	}()
 	for {
+		// end span of previous iteration
+		endLoopSpanFunc()
+		packetCtx, packetSpan := trace.StartSpan(ctx, "PgDecryptStreamLoop")
+		endLoopSpanFunc = packetSpan.End
+
 		packetHandler.Reset()
 		if firstByte {
+			packetSpan.AddAttributes(trace.BoolAttribute("startup", true))
 			timer := prometheus.NewTimer(prometheus.ObserverFunc(base.ResponseProcessingTimeHistogram.WithLabelValues(prometheusLabels...).Observe))
 			// https://www.postgresql.org/docs/9.1/static/protocol-flow.html#AEN92112
 			// we should know that we shouldn't read anymore bytes
 			// first response from server may contain only one byte of response on SSLRequest
 			firstByte = false
-			log.Debugln("Read startup message")
+			logger.Debugln("Read startup message")
 			if err := packetHandler.readMessageType(); err != nil {
-				logger.WithError(err).Errorln("Can't read first message type")
+				logger.WithError(err).Debugln("Can't read first message type")
 				errCh <- err
 				return
 			}
@@ -452,7 +521,7 @@ func (proxy *PgProxy) PgDecryptStream(censor acracensor.AcraCensorInterface, dec
 				timer.ObserveDuration()
 				continue
 			}
-			log.Debugln("Non-ssl request start up message")
+			logger.Debugln("Non-ssl request start up message")
 			// if it is not ssl request than we just forward it to client
 			if err := packetHandler.readData(true); err != nil {
 				logger.WithError(err).Errorln("Can't read data of packet")
@@ -469,7 +538,7 @@ func (proxy *PgProxy) PgDecryptStream(censor acracensor.AcraCensorInterface, dec
 		}
 		timer := prometheus.NewTimer(prometheus.ObserverFunc(base.ResponseProcessingTimeHistogram.WithLabelValues(prometheusLabels...).Observe))
 		if err := packetHandler.ReadPacket(); err != nil {
-			logger.WithError(err).Errorln("Can't read packet")
+			logger.WithError(err).Debugln("Can't read packet")
 			errCh <- err
 			return
 		}
@@ -511,10 +580,12 @@ func (proxy *PgProxy) PgDecryptStream(censor acracensor.AcraCensorInterface, dec
 			// try to skip small piece of data that can't be valuable for us
 			if (decryptor.IsWithZone() && column.Length() >= zone.ZoneIDBlockLength) || column.Length() >= base.KeyBlockLength {
 				decryptor.Reset()
+				packetSpan.AddAttributes(trace.BoolAttribute("decryption", true))
 
 				// Zone anyway should be passed as whole block
 				// so try to match before any operations if we process with ZoneMode on
 				if decryptor.IsWithZone() && !decryptor.IsMatchedZone() {
+					packetSpan.AddAttributes(trace.BoolAttribute("match_zone", true))
 					// try to match zone
 					decryptor.MatchZoneBlock(column.Data)
 					if decryptor.IsWholeMatch() {
@@ -534,16 +605,16 @@ func (proxy *PgProxy) PgDecryptStream(censor acracensor.AcraCensorInterface, dec
 				}
 
 				if decryptor.IsWholeMatch() {
-					err := proxy.processWholeBlockDecryption(packetHandler, column, decryptor, logger)
+					err := proxy.processWholeBlockDecryption(packetCtx, packetHandler, column, decryptor, logger)
 					if err != nil {
-						log.WithError(err).Errorln("Can't process whole block")
+						logger.WithError(err).Errorln("Can't process whole block")
 						errCh <- err
 						return
 					}
 				} else {
-					err := proxy.processInlineBlockDecryption(packetHandler, column, decryptor, logger)
+					err := proxy.processInlineBlockDecryption(packetCtx, packetHandler, column, decryptor, logger)
 					if err != nil {
-						log.WithError(err).Errorln("Can't process block with inline mode")
+						logger.WithError(err).Errorln("Can't process block with inline mode")
 						errCh <- err
 						return
 					}
@@ -553,7 +624,6 @@ func (proxy *PgProxy) PgDecryptStream(censor acracensor.AcraCensorInterface, dec
 			}
 		}
 		packetHandler.updateDataFromColumns()
-		logger.Debugln("send packet")
 		if err := packetHandler.sendPacket(); err != nil {
 			logger.WithError(err).Errorln("Can't send packet")
 			errCh <- err

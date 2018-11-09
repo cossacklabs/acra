@@ -20,6 +20,7 @@ import (
 	"bufio"
 	"bytes"
 	"encoding/hex"
+	"github.com/sirupsen/logrus"
 	"testing"
 )
 
@@ -31,7 +32,7 @@ func TestClientUnknownCommand(t *testing.T) {
 	reader := bytes.NewReader(packet)
 	output := make([]byte, 8)
 	writer := bufio.NewWriter(bytes.NewBuffer(output[:0]))
-	packetHander, err := NewClientSidePacketHandler(reader, writer)
+	packetHander, err := NewClientSidePacketHandler(reader, writer, logrus.NewEntry(logrus.StandardLogger()))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -64,7 +65,7 @@ func TestClientSpecialMessageTypes(t *testing.T) {
 		reader := bytes.NewReader(packet)
 		output := make([]byte, 8)
 		writer := bufio.NewWriter(bytes.NewBuffer(output[:0]))
-		packetHander, err := NewClientSidePacketHandler(reader, writer)
+		packetHander, err := NewClientSidePacketHandler(reader, writer, logrus.NewEntry(logrus.StandardLogger()))
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -98,7 +99,7 @@ func TestClientStartupMessageWithData(t *testing.T) {
 	reader := bytes.NewReader(packet)
 	output := &bytes.Buffer{}
 	writer := bufio.NewWriter(output)
-	packetHander, err := NewClientSidePacketHandler(reader, writer)
+	packetHander, err := NewClientSidePacketHandler(reader, writer, logrus.NewEntry(logrus.StandardLogger()))
 	if err != nil {
 		t.Fatal(err)
 	}

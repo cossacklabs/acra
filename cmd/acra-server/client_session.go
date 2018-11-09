@@ -17,7 +17,9 @@ limitations under the License.
 package main
 
 import (
-	"fmt"
+	"context"
+	"github.com/cossacklabs/acra/network"
+	"go.opencensus.io/trace"
 	"net"
 
 	log "github.com/sirupsen/logrus"
@@ -37,16 +39,18 @@ type ClientSession struct {
 	connection     net.Conn
 	connectionToDb net.Conn
 	Server         *SServer
+	ctx            context.Context
+	logger         *log.Entry
 }
 
 // NewClientSession creates new ClientSession object.
-func NewClientSession(keystorage keystore.KeyStore, config *Config, connection net.Conn) (*ClientSession, error) {
-	return &ClientSession{connection: connection, keystorage: keystorage, config: config}, nil
+func NewClientSession(ctx context.Context, keystorage keystore.KeyStore, config *Config, connection net.Conn) (*ClientSession, error) {
+	return &ClientSession{connection: connection, keystorage: keystorage, config: config, ctx: ctx, logger: logging.NewLoggerWithTrace(ctx)}, nil
 }
 
 // ConnectToDb connects to the database via tcp using Host and Port from config.
 func (clientSession *ClientSession) ConnectToDb() error {
-	conn, err := net.Dial("tcp", fmt.Sprintf("%v:%v", clientSession.config.GetDBHost(), clientSession.config.GetDBPort()))
+	conn, err := network.Dial(network.BuildConnectionString("tcp", clientSession.config.GetDBHost(), clientSession.config.GetDBPort(), ""))
 	if err != nil {
 		return err
 	}
@@ -55,82 +59,93 @@ func (clientSession *ClientSession) ConnectToDb() error {
 }
 
 func (clientSession *ClientSession) close() {
-	log.Debugln("Close acra-connector connection")
+	clientSession.logger.Debugln("Close acra-connector connection")
 
 	err := clientSession.connection.Close()
 	if err != nil {
-		log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantCloseConnectionToService).
+		clientSession.logger.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantCloseConnectionToService).
 			Errorln("Error with closing connection to acra-connector")
 	}
-	log.Debugln("Close db connection")
+	clientSession.logger.Debugln("Close db connection")
 	err = clientSession.connectionToDb.Close()
 	if err != nil {
-		log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantCloseConnectionDB).
+		clientSession.logger.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantCloseConnectionDB).
 			Errorln("Error with closing connection to db")
 	}
-	log.Debugln("All connections closed")
+	clientSession.logger.Debugln("All connections closed")
 }
 
 // HandleClientConnection handles Acra-connector connections from client to db and decrypt responses from db to client.
 // If any error occurred – ends processing.
 func (clientSession *ClientSession) HandleClientConnection(clientID []byte, decryptorImpl base.Decryptor) {
-	log.Infof("Handle client's connection")
+	clientSession.logger.Infof("Handle client's connection")
 	clientProxyErrorCh := make(chan error, 1)
 	dbProxyErrorCh := make(chan error, 1)
 
-	log.Debugf("Connecting to db")
+	clientSession.logger.Debugf("Connecting to db")
 	err := clientSession.ConnectToDb()
 	if err != nil {
-		log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantConnectToDB).
+		clientSession.logger.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantConnectToDB).
 			Errorln("Can't connect to db")
 
-		log.Debugln("Close connection with acra-connector")
+		clientSession.logger.Debugln("Close connection with acra-connector")
 		err = clientSession.connection.Close()
 		if err != nil {
-			log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantCloseConnectionToService).
+			clientSession.logger.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantCloseConnectionToService).
 				Errorln("Error with closing connection to acra-connector")
 		}
 		return
 	}
 	var pgProxy *postgresql.PgProxy
 	if clientSession.config.UseMySQL() {
-		log.Debugln("MySQL connection")
-		handler, err := mysql.NewMysqlHandler(clientID, decryptorImpl, clientSession.connectionToDb, clientSession.connection, clientSession.config.GetTLSConfig(), clientSession.config.censor)
+		clientSession.logger.Debugln("MySQL connection")
+		trace.FromContext(clientSession.ctx).AddAttributes(trace.StringAttribute("db.type", "mysql"))
+		handler, err := mysql.NewMysqlHandler(clientSession.ctx, clientID, decryptorImpl, clientSession.connectionToDb, clientSession.connection, clientSession.config.GetTLSConfig(), clientSession.config.censor)
 		if err != nil {
-			log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantInitDecryptor).
+			clientSession.logger.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantInitDecryptor).
 				Errorln("Can't initialize mysql handler")
 			return
 		}
 		go handler.ClientToDbConnector(clientProxyErrorCh)
 		go handler.DbToClientConnector(dbProxyErrorCh)
 	} else {
-		pgProxy, err = postgresql.NewPgProxy(clientSession.connection, clientSession.connectionToDb)
+		trace.FromContext(clientSession.ctx).AddAttributes(trace.StringAttribute("db.type", "postgresql"))
+		pgProxy, err = postgresql.NewPgProxy(clientSession.ctx, clientSession.connection, clientSession.connectionToDb)
 		if err != nil {
-			log.WithError(err).Errorln("can't initialize postgresql proxy")
+			clientSession.logger.WithError(err).Errorln("can't initialize postgresql proxy")
 			return
 		}
-		log.Debugln("PostgreSQL connection")
+		clientSession.logger.Debugln("PostgreSQL connection")
 		go pgProxy.PgProxyClientRequests(clientSession.config.censor, clientSession.connectionToDb, clientSession.connection, clientProxyErrorCh)
 		go pgProxy.PgDecryptStream(clientSession.config.censor, decryptorImpl, clientSession.config.GetTLSConfig(), clientSession.connectionToDb, clientSession.connection, dbProxyErrorCh)
 	}
 	var channelToWait chan error
+	const (
+		acraDbSide     = "AcraServer<->Database"
+		clientAcraSide = "Client/Connector<->Database"
+	)
+	var interruptSide string
 	for {
 		select {
 		case err = <-dbProxyErrorCh:
-			log.WithError(err).Debugln("error from db proxy")
+			clientSession.logger.Debugln("Stop to proxy Database -> AcraServer")
+			interruptSide = acraDbSide
 			channelToWait = clientProxyErrorCh
 			break
 		case err = <-clientProxyErrorCh:
+			interruptSide = clientAcraSide
+			clientSession.logger.Debugln("Stop to proxy AcraServer -> Client")
 			channelToWait = dbProxyErrorCh
-			log.WithError(err).Debugln("error from client proxy")
 			break
 		}
-
+		clientSession.logger = clientSession.logger.WithField("interrupt_side", interruptSide)
 		if err == io.EOF {
-			log.Debugln("EOF connection closed")
+			clientSession.logger.Debugln("EOF connection closed")
+		} else if err == nil {
+			break
 		} else if netErr, ok := err.(net.Error); ok {
 			if netErr.Timeout() {
-				log.Debugln("Network timeout")
+				clientSession.logger.Debugln("Network timeout")
 				if clientSession.config.UseMySQL() {
 					break
 				} else {
@@ -140,19 +155,19 @@ func (clientSession *ClientSession) HandleClientConnection(clientID []byte, decr
 					continue
 				}
 			}
-			log.WithError(netErr).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantHandleSecureSession).
+			clientSession.logger.WithError(netErr).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantHandleSecureSession).
 				Errorln("Network error")
 		} else if opErr, ok := err.(*net.OpError); ok {
-			log.WithError(opErr).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantHandleSecureSession).Errorln("Network error")
+			clientSession.logger.WithError(opErr).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantHandleSecureSession).Errorln("Network error")
 		} else {
-			log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantHandleSecureSession).Errorln("Unexpected error")
+			clientSession.logger.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantHandleSecureSession).Errorln("Unexpected error")
 		}
 		break
 	}
-	log.Infof("Closing client's connection")
+	clientSession.logger.Infof("Closing client's connection")
 	clientSession.close()
 
 	// wait second error from closed second connection
-	log.WithError(<-channelToWait).Debugln("second proxy goroutine stopped")
-	log.Infoln("Finished processing client's connection")
+	clientSession.logger.WithError(<-channelToWait).Debugln("Second proxy goroutine stopped")
+	clientSession.logger.Infoln("Finished processing client's connection")
 }

@@ -18,6 +18,7 @@ package main
 
 import (
 	"github.com/cossacklabs/acra/network"
+	"go.opencensus.io/trace"
 )
 
 // AcraTranslatorConfig stores keys, poison record settings, connection attributes.
@@ -32,11 +33,22 @@ type AcraTranslatorConfig struct {
 	ConnectionWrapper            network.ConnectionWrapper
 	configPath                   string
 	debug                        bool
+	traceToLog                   bool
 }
 
 // NewConfig creates new AcraTranslatorConfig.
 func NewConfig() *AcraTranslatorConfig {
 	return &AcraTranslatorConfig{stopOnPoison: false}
+}
+
+// SetTraceToLog true if want to log trace data otherwise false
+func (a *AcraTranslatorConfig) SetTraceToLog(v bool) {
+	a.traceToLog = v
+}
+
+// GetTraceOptions for opencensus trace
+func (a *AcraTranslatorConfig) GetTraceOptions() []trace.StartOption {
+	return []trace.StartOption{trace.WithSampler(trace.AlwaysSample()), trace.WithSpanKind(trace.SpanKindServer)}
 }
 
 // KeysDir returns keys directory.

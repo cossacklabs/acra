@@ -67,6 +67,18 @@ incoming_connection_prometheus_metrics_string:
 # Connection string like tcp://x.x.x.x:yyyy or unix:///path/to/socket
 incoming_connection_string: tcp://127.0.0.1:9494/
 
+# Jaeger agent endpoint (for example, localhost:6831) that will be used to export trace data
+jaeger_agent_endpoint: 
+
+# Password used for basic auth (optional) to jaeger
+jaeger_basic_auth_password: 
+
+# Username used for basic auth (optional) to jaeger
+jaeger_basic_auth_username: 
+
+# Jaeger endpoint (for example, http://localhost:14268/api/traces) that will be used to export trace data
+jaeger_collector_endpoint: 
+
 # Folder from which will be loaded keys
 keys_dir: .acrakeys
 
@@ -90,6 +102,12 @@ tls_cert:
 
 # Path to private key that will be used in TLS handshake with AcraServer
 tls_key: 
+
+# Export trace data to jaeger
+tracing_jaeger_enable: false
+
+# Export trace data to log
+tracing_log_enable: false
 
 # Disable checking that connections from app running from another user
 user_check_disable: false
