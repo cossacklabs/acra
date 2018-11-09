@@ -148,16 +148,16 @@ AcraTranslator and AcraServer are fully independent server-side components and c
 
 [AcraWriter](https://docs.cossacklabs.com/pages/documentation-acra/#client-side-acraconnector-and-acrawriter) is a client-side library that encrypts data into a special binary format called [AcraStruct](https://docs.cossacklabs.com/pages/documentation-acra/#acrastruct). AcraWriter is available for Ruby, Python, Go, C++, NodeJS, iOS, Android/Java and PHP, but you can easily [generate AcraStruct containers](https://github.com/cossacklabs/acra/wiki/Acrawriter-installation) with [Themis](https://github.com/cossacklabs/themis) for any platform you want. 
 
-| Client platform |  Documentation and guides | Examples |
-| :----- | :----- | :------ |
-| 🐹 Go | [Installation guide](https://docs.cossacklabs.com/pages/documentation-acra/#building-acrawriter-for-go) | [examples/golang](https://github.com/cossacklabs/acra/tree/master/examples/golang) |
-| 🐍 Python | [Installation guide](https://docs.cossacklabs.com/pages/documentation-acra/#building-acrawriter-for-python) | [examples/python](https://github.com/cossacklabs/acra/tree/master/examples/python) |
-| ♦️ Ruby | [Installation guide](https://docs.cossacklabs.com/pages/documentation-acra/#building-acrawriter-for-ruby) | [examples/ruby](https://github.com/cossacklabs/acra/tree/master/examples/ruby) |
-| ➕ C++ | [Installation guide](https://docs.cossacklabs.com/pages/documentation-acra/#building-acrawriter-for-c-) | [examples/cpp](https://github.com/cossacklabs/acra/tree/master/examples/cpp) |
-| 📱 Objective-C / Swift (iOS) | [Installation guide](https://docs.cossacklabs.com/pages/documentation-acra/#building-acrawriter-for-ios) | [examples/objc](https://github.com/cossacklabs/acra/tree/master/examples/objc) |
-| ☎️ Java (Android) | [Installation guide](https://docs.cossacklabs.com/pages/documentation-acra/#building-acrawriter-for-android) | [examples/android_java](https://github.com/cossacklabs/acra/tree/master/examples/android_java) |
-| 🐘 PHP | [Installation guide](https://docs.cossacklabs.com/pages/documentation-acra/#building-acrawriter-for-php) | [examples/php](https://github.com/cossacklabs/acra/tree/master/examples/php) |
-| 🍭 Javascript (NodeJS) | [Installation guide](https://docs.cossacklabs.com/pages/documentation-acra/#building-acrawriter-for-nodejs) | [examples/nodejs](https://github.com/cossacklabs/acra/tree/master/examples/nodejs) |
+| Client platform |  Documentation and guides | Examples | Package manager |
+| :----- | :----- | :------ | :---- |
+| 🐹 Go | [Installation guide](https://docs.cossacklabs.com/pages/documentation-acra/#building-acrawriter-for-go) | [examples/golang](https://github.com/cossacklabs/acra/tree/master/examples/golang) ||
+| 🐍 Python | [Installation guide](https://docs.cossacklabs.com/pages/documentation-acra/#building-acrawriter-for-python) | [examples/python](https://github.com/cossacklabs/acra/tree/master/examples/python) | [![PyPI](https://img.shields.io/pypi/v/acrawriter.svg)](https://pypi.org/project/acrawriter/) |
+| ♦️ Ruby | [Installation guide](https://docs.cossacklabs.com/pages/documentation-acra/#building-acrawriter-for-ruby) | [examples/ruby](https://github.com/cossacklabs/acra/tree/master/examples/ruby) | [![Gem](https://img.shields.io/gem/v/acrawriter.svg)](https://rubygems.org/gems/acrawriter) |
+| ➕ C++ | [Installation guide](https://docs.cossacklabs.com/pages/documentation-acra/#building-acrawriter-for-c-) | [examples/cpp](https://github.com/cossacklabs/acra/tree/master/examples/cpp) ||
+| 📱 Objective-C / Swift (iOS) | [Installation guide](https://docs.cossacklabs.com/pages/documentation-acra/#building-acrawriter-for-ios) | [examples/objc](https://github.com/cossacklabs/acra/tree/master/examples/objc) | [![CocoaPods](https://img.shields.io/cocoapods/v/acrawriter.svg)](https://cocoapods.org/pods/acrawriter) |
+| ☎️ Java (Android) | [Installation guide](https://docs.cossacklabs.com/pages/documentation-acra/#building-acrawriter-for-android) | [examples/android_java](https://github.com/cossacklabs/acra/tree/master/examples/android_java) ||
+| 🐘 PHP | [Installation guide](https://docs.cossacklabs.com/pages/documentation-acra/#building-acrawriter-for-php) | [examples/php](https://github.com/cossacklabs/acra/tree/master/examples/php) ||
+| 🍭 Javascript (NodeJS) | [Installation guide](https://docs.cossacklabs.com/pages/documentation-acra/#building-acrawriter-for-nodejs) | [examples/nodejs](https://github.com/cossacklabs/acra/tree/master/examples/nodejs) | [![npm](https://img.shields.io/npm/v/acrawriter.svg)](https://www.npmjs.com/package/acrawriter) |
 
 ### Server-side
 
