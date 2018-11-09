@@ -455,8 +455,7 @@ class ProcessStub(object):
 
 ConnectionArgs = collections.namedtuple(
     "ConnectionArgs", ["user", "password", "host", "port", "dbname",
-                       "ssl_ca", "ssl_key", "ssl_cert"],
-    defaults={'ssl_ca': None, 'ssl_key': None, 'ssl_cert': None})
+                       "ssl_ca", "ssl_key", "ssl_cert"])
 
 
 class QueryExecutor(object):
@@ -2682,7 +2681,10 @@ class TestMysqlTextPreparedStatement(BasePrepareStatementMixin, BaseTestCase):
         return PyMysqlExecutor(
             ConnectionArgs(host=get_db_host(), port=self.CONNECTOR_PORT_1,
                            user=DB_USER, password=DB_USER_PASSWORD,
-                           dbname=DB_NAME)).execute_prepared_statement(query)
+                           dbname=DB_NAME, ssl_ca='tests/server.crt',
+                           ssl_key='tests/client.key',
+                           ssl_cert='tests/client.crt')
+        ).execute_prepared_statement(query)
 
 
 class TestMysqlBinaryPreparedStatement(BasePrepareStatementMixin, BaseTestCase):
@@ -2708,7 +2710,10 @@ class TestPostgresqlTextPreparedStatement(BasePrepareStatementMixin, BaseTestCas
     def executePreparedStatement(self, query):
         return Psycopg2Executor(ConnectionArgs(host=get_db_host(), port=self.CONNECTOR_PORT_1,
                            user=DB_USER, password=DB_USER_PASSWORD,
-                           dbname=DB_NAME)).execute_prepared_statement(query)
+                           dbname=DB_NAME, ssl_ca='tests/server.crt',
+                           ssl_key='tests/client.key',
+                           ssl_cert='tests/client.crt')
+                                ).execute_prepared_statement(query)
 
 
 class TestPostgresqlBinaryPreparedStatement(BasePrepareStatementMixin,
@@ -2721,7 +2726,9 @@ class TestPostgresqlBinaryPreparedStatement(BasePrepareStatementMixin,
         return AsyncpgExecutor(
             ConnectionArgs(host=get_db_host(), port=self.CONNECTOR_PORT_1,
                            user=DB_USER, password=DB_USER_PASSWORD,
-                           dbname=DB_NAME)
+                           dbname=DB_NAME, ssl_ca='tests/server.crt',
+                           ssl_key='tests/client.key',
+                           ssl_cert='tests/client.crt')
         ).execute_prepared_statement(query)
 
 
