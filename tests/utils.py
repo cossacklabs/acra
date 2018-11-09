@@ -40,7 +40,7 @@ def get_random_data_files():
     if not os.path.exists(folder) or len(os.listdir(folder)) == 0:
         command = ['python', 'tests/generate_random_data.py']
         print('call {}'.format(' '.join(command)))
-        subprocess.check_call(command, env=os.environ)
+        subprocess.check_call(command, env=os.environ, cwd=os.getcwd())
     return [os.path.join(folder, i) for i in os.listdir(folder)]
 
 
