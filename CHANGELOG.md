@@ -1,5 +1,87 @@
 # Acra ChangeLog
 
+## [0.84.0](https://github.com/cossacklabs/acra/releases/tag/0.84), November 9th 2018
+
+_Core_:
+
+- **Key management**
+
+  - Improved LRU cache: fixed concurrent access to LRU cache by adding mutex. LRU cache is used for quick access to in-memory keys (private keys are stored encrypted) in AcraServer and AcraTranslator ([#272](https://github.com/cossacklabs/acra/pull/272)).
+
+  [AcraServer documentation](https://docs.cossacklabs.com/pages/documentation-acra/#getting-started-with-acraserver), [AcraTranslator documentation](https://docs.cossacklabs.com/pages/acratranslator/).
+
+  - Improved AcraRotate utility: added "dry-run" mode for testing AcraRotate before it is used for real. In the "dry-run" mode AcraRotate doesn't rotate keys: it fetches AcraStructs (from files or database), decrypts, rotates in-memory keys, encrypts the data with new public keys and prints the resulting JSON with new public keys without actually saving the rotated keys and AcraStructs. As key rotation might be tricky, we want users to make sure that AcraRotate has all the required permissions and access right before actually re-encrypting the data ([#269](https://github.com/cossacklabs/acra/pull/269)).
+
+  [AcraRotate documentation](https://docs.cossacklabs.com/pages/acrarotate/).
+
+- **AcraWriter**
+
+  - Added C++ AcraWriter library, added examples and tests. The library itself is a single header-only file `acrawriter.hpp` with dependency on Themis, placed in [wrappers/cpp](https://github.com/cossacklabs/acra/tree/master/wrappers/cpp). 
+  Read the usage guide and examples in [examples/cpp](https://github.com/cossacklabs/acra/tree/master/examples/cpp) folder 
+  ([#270](https://github.com/cossacklabs/acra/pull/270))
+
+  [AcraWriter C++ documentation](https://docs.cossacklabs.com/pages/documentation-acra/#building-acrawriter-for-c-).
+  
+- **Logging**
+
+  - Improved logs of AcraConnector and AcraServer: use Debug log level for all network errors (closed connection, unavailable network, etc) and use Error log level only for cases of certainly unexpected behavior ([#275](https://github.com/cossacklabs/acra/pull/275)).
+
+  - Improved startup logs: log process PID on start of AcraServer, AcraConnector, AcraTranslator, and AcraWebConfig ([#275](https://github.com/cossacklabs/acra/pull/275)).
+
+  - Fixed timestamps: do not overwrite logs' timestamps ([#273](https://github.com/cossacklabs/acra/pull/273)).
+
+- **Tracing with OpenCensus**
+
+  - Added tracing with OpenCensus: AcraServer, AcraConnector, and AcraTranslator track every request from client application to the database and back. Each client request has a unique `traceID` that helps measure how much time it needs to perform a certain data processing functions (i.e. checking requests via AcraCensor, encrypting data, decrypting AcraStructs, etc.). Traces can be exported to Jaeger ([#279](https://github.com/cossacklabs/acra/pull/279), [#276](https://github.com/cossacklabs/acra/pull/276), [#274](https://github.com/cossacklabs/acra/pull/274)). 
+
+  You can read more about tracing in our documentation in [Tracing in Acra](https://docs.cossacklabs.com/pages/documentation-acra/#tracing-in-acra).
+
+  A blogpost about technical details, profits, and pitfalls during the implementation of traces is coming soon.
+
+- **Other**
+
+  - Improved AcraServer's connection handling: stop accepting connections after error and stop AcraServer instead of trying to accept connections after the listening socket was closed ([#275](https://github.com/cossacklabs/acra/pull/275).
+
+  - Improved AcraCensor's handling of prepared statements for PostgreSQL binary protocol ([#280](https://github.com/cossacklabs/acra/pull/280)).
+
+  - Improved handling of terminating packets (COM_QUIT for PostgreSQL and TerminatePacket for MySQL) to correctly handle the closing connections from clients ([#275](https://github.com/cossacklabs/acra/pull/275).
+
+  - Refactored inner logic of AcraCensor: improved code quality and stability, added more tests that use more patterns ([#268](https://github.com/cossacklabs/acra/pull/268)).
+
+
+_Infrastructure_:
+
+- Ceased testing and supporting Go versions below 1.9. This will only affect the users who build Acra manually from sources.
+  You can install the pre-built Acra components shipped for various Ubuntu, Debian, and CentOS distributives using [Installation guide](https://github.com/cossacklabs/acra/wiki/Quick-start-guide#installing-acra-from-the-cossack-labs-repository). Alternatively, you can check out our Docker images and Docker-compose files in [docker folder](https://github.com/cossacklabs/acra/tree/master/docker) 
+  ([#277](https://github.com/cossacklabs/acra/pull/277)).
+
+- Tested Acra suite with PostgreSQL v11 and MariaDB v10.3 and updated [docker compose examples](https://github.com/cossacklabs/acra/tree/master/docker) and [Acra Engineering Demo](https://github.com/cossacklabs/acra-engineering-demo/) to use it ([#278](https://github.com/cossacklabs/acra/pull/278)).
+
+- Published [Acra load balancing demo](https://github.com/cossacklabs/acra-balancer-demo): it discovers some of the many possible variants of building high availability and balanced infrastructure based on Acra data protection suite components, PostgreSQL, and Python web application. In these examples we used HAProxy – one of the most popular high availability balancers today.
+
+- Updated [AcraStruct Validator](https://docs.cossacklabs.com/simulator/acra/) – an online tool that can decrypt your AcraStructs. AcraStruct Validator is useful for developers who build their own AcraWriters (to validate AcraStruct binary structure).
+
+
+_Features coming soon_:
+
+- Running SQL queries over encrypted data: perform AcraServer-side lookups (search) over protected data.
+
+- Pseudonymisation: early version of pseudonymisation library/plugin for Acra for transparent data pseudonymisation.
+
+- Cryptographically protected audit log: protection for logs against tampering.
+
+
+_Documentation_:
+
+- [AcraWriter C++](https://docs.cossacklabs.com/pages/documentation-acra/#building-acrawriter-for-c-) has a short guide for installing and using AcraWriter for C++.
+
+- [AcraRotate](https://docs.cossacklabs.com/pages/acrarotate/): added description and notes about "dry-run" mode.
+
+- Updated documentation for [logging](https://docs.cossacklabs.com/pages/documentation-acra/#logging-in-acra), [collecting metrics](https://docs.cossacklabs.com/pages/documentation-acra/#metrics-in-acra), and [tracing](https://docs.cossacklabs.com/pages/documentation-acra/#tracing-in-acra) in Acra.
+
+- Many small fixes here and there to make your overall experience of using Acra's docs on a new platform distinctive and smooth ;)
+
+
 ## [0.83.0](https://github.com/cossacklabs/acra/releases/tag/0.83), September 28th 2018
 
 _Core_:

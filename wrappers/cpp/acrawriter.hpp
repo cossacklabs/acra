@@ -5,9 +5,11 @@
 #include <random>
 
 // themis should be installed as system library (run `make install` from Themis code folder)
+// or check https://github.com/cossacklabs/themis/wiki/CPP-Howto
 #include <themis/themis.h>
 
 // themispp should be installed as system library (run `themispp_install` from Themis code folder)
+// or check https://github.com/cossacklabs/themis/wiki/CPP-Howto
 #include <themispp/secure_cell.hpp>
 #include <themispp/secure_message.hpp>
 #include <themispp/secure_keygen.hpp>
