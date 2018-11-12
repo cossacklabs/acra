@@ -95,17 +95,16 @@ func (handler *BlacklistHandler) CheckQuery(query string) (bool, error) {
 				handler.logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCensorQueryIsNotAllowed).WithError(ErrAccessToForbiddenTableBlacklist).Errorln("Query has been blocked by blacklist [tables]")
 				return false, ErrAccessToForbiddenTableBlacklist
 			}
-		case *sqlparser.Update:
-			return false, ErrNotImplemented
-
-		default:
-			return false, ErrNotImplemented
 		}
 	}
 	//Check patterns
 	if len(handler.patterns) != 0 {
 		matchingOccurred, err := checkPatternsMatching(handler.patterns, query)
 		if err != nil {
+			handler.logger.WithError(err).Debugln("Error from BlacklistHandler [patterns]")
+			if err == ErrQuerySyntaxError {
+				return false, ErrQuerySyntaxError
+			}
 			return false, ErrPatternCheckError
 		}
 		if matchingOccurred {
