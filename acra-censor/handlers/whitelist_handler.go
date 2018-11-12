@@ -98,8 +98,6 @@ func (handler *WhitelistHandler) CheckQuery(query string) (bool, error) {
 				handler.logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCensorQueryIsNotAllowed).WithError(ErrAccessToForbiddenTableWhitelist).Errorln("Query has been blocked by whitelist [tables]")
 				return false, ErrAccessToForbiddenTableWhitelist
 			}
-		case *sqlparser.Update:
-			return false, ErrNotImplemented
 		}
 	}
 	//Check patterns
@@ -107,6 +105,9 @@ func (handler *WhitelistHandler) CheckQuery(query string) (bool, error) {
 		matchingOccurred, err := checkPatternsMatching(handler.patterns, query)
 		if err != nil {
 			handler.logger.WithError(err).Debugln("Error from WhitelistHandler [patterns]")
+			if err == ErrQuerySyntaxError {
+				return false, ErrQuerySyntaxError
+			}
 			return false, ErrPatternCheckError
 		}
 		if !matchingOccurred {
