@@ -54,7 +54,7 @@ func (handler *QueryIgnoreHandler) AddQueries(queries []string) {
 	for _, query := range queries {
 		normalizedQuery, _, err := NormalizeAndRedactSQLQuery(query)
 		if err != nil {
-			logrus.WithError(err).Warningln("Can't add query to QuieryIgnoreHandler in normalized form, added as is")
+			logrus.WithError(err).Warningln("Can't add query to QueryIgnoreHandler in normalized form, added as is")
 			// add as is
 			handler.ignoredQueries[query] = true
 			continue
