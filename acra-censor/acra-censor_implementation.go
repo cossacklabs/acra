@@ -64,6 +64,9 @@ func (acraCensor *AcraCensor) ReleaseAll() {
 
 // HandleQuery processes every query through each handler.
 func (acraCensor *AcraCensor) HandleQuery(query string) error {
+	if query == "" {
+		return nil
+	}
 	if len(acraCensor.handlers) == 0 {
 		// no handlers, AcraCensor won't work
 		return nil
@@ -71,6 +74,11 @@ func (acraCensor *AcraCensor) HandleQuery(query string) error {
 	normalizedQuery, queryWithHiddenValues, err := handlers.NormalizeAndRedactSQLQuery(query)
 	if err == handlers.ErrQuerySyntaxError && acraCensor.ignoreParseError {
 		acraCensor.logger.WithError(err).Infof("Parsing error on query (first %v symbols): %s", handlers.LogQueryLength, handlers.TrimStringToN(queryWithHiddenValues, handlers.LogQueryLength))
+
+	}
+	if err != nil {
+		// ignore parsing errors to forward it as is to acra-censor to allow filter it via QueryIgnore handler
+		normalizedQuery = query
 	}
 	for _, handler := range acraCensor.handlers {
 		// in QueryCapture Handler use only redacted queries
