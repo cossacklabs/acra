@@ -1,0 +1,23 @@
+schemas:
+  - table: test
+    columns:
+      - id
+      - data
+      - raw_data
+    encrypted:
+      - name: data
+        zone_id: DDDDDDDDMatNOMYjqVOuhACC
+
+  - table: test2
+    columns:
+      - id
+      - zone
+      - data
+      - raw_data
+    encrypted:
+      - name: data
+        client_id: someclientid
+
+        # use key by client_id from transport
+      - name: raw_data
+

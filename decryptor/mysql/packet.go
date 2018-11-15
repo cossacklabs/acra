@@ -101,11 +101,29 @@ func (packet *MysqlPacket) GetData() []byte {
 func (packet *MysqlPacket) SetData(newData []byte) {
 	packet.data = newData
 	newSize := len(newData)
+	packet.updatePacketSize(newSize)
+}
+
+// updatePacketSize in header
+func (packet *MysqlPacket) updatePacketSize(newSize int) {
 	// update payload size, first 3 bytes of header
 	// https://dev.mysql.com/doc/internals/en/mysql-packet.html#idm140406396409840
 	packet.header[0] = byte(newSize)
 	packet.header[1] = byte(newSize >> 8)
 	packet.header[2] = byte(newSize >> 16)
+}
+
+// replaceQuery replace query in payload with new and update header with new size
+func (packet *MysqlPacket) replaceQuery(newQuery string) {
+	if len(newQuery) > len(packet.data[1:]) {
+		// first byte CMD + new query
+		packet.data = append(packet.data[:1], []byte(newQuery)...)
+	} else {
+		// if new query less than before then reuse memory of previous query
+		n := copy(packet.data[1:], newQuery)
+		packet.data = packet.data[:1+n] // CMD + n
+	}
+	packet.updatePacketSize(len(newQuery) + 1)
 }
 
 // readPacket read header to struct and return payload as return result or error

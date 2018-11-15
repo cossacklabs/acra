@@ -152,6 +152,7 @@ type MysqlHandler struct {
 	clientID               []byte
 	logger                 *logrus.Entry
 	ctx                    context.Context
+	queryObserverManager   base.QueryObserverManager
 }
 
 // NewMysqlHandler returns new MysqlHandler
@@ -174,7 +175,13 @@ func NewMysqlHandler(ctx context.Context, clientID []byte, decryptor base.Decryp
 		dbConnection:           dbConnection,
 		tlsConfig:              newTLSConfig,
 		ctx:                    ctx,
-		logger:                 logger.WithField("client_id", string(clientID))}, nil
+		logger:                 logger.WithField("client_id", string(clientID)),
+		queryObserverManager:   &base.ArrayQueryObserverableManager{},
+	}, nil
+}
+
+func (handler *MysqlHandler) AddQueryObserver(obs base.QueryObserver) {
+	handler.queryObserverManager.AddQueryObserver(obs)
 }
 
 func (handler *MysqlHandler) setQueryHandler(callback ResponseHandler) {
@@ -322,6 +329,12 @@ func (handler *MysqlHandler) ClientToDbConnector(errCh chan<- error) {
 				}
 				continue
 			}
+
+			newQuery, changed := handler.queryObserverManager.OnQuery(query)
+			if changed {
+				packet.replaceQuery(newQuery)
+			}
+
 			if cmd == COM_QUERY {
 				handler.setQueryHandler(handler.QueryResponseHandler)
 			}
