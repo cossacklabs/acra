@@ -19,6 +19,7 @@ package encryptor
 import (
 	"encoding/base64"
 	"encoding/hex"
+	"github.com/cossacklabs/acra/decryptor/base"
 	"github.com/sirupsen/logrus"
 	"github.com/xwb1989/sqlparser"
 )
@@ -59,9 +60,10 @@ func (parser *MysqlQueryParser) Encrypt(query string) (string, error) {
 		for _, col := range insert.Columns {
 			columnsName = append(columnsName, sqlparser.String(col))
 		}
-	} else {
+	} else if len(schema.Columns) > 0 {
 		columnsName = schema.Columns
-
+	} else {
+		return query, nil
 	}
 
 	switch rows := insert.Rows.(type) {
@@ -80,6 +82,10 @@ func (parser *MysqlQueryParser) Encrypt(query string) (string, error) {
 							if err != nil {
 								logrus.WithError(err).Errorln("Can't decode hex string literal")
 								return "", err
+							}
+							if err := base.ValidateAcraStructLength(binValue); err == nil {
+								logrus.Debugln("Skip encryption for matched AcraStruct structure")
+								continue
 							}
 							encrypted, err := parser.encryptWithColumnSettings(schema.GetColumnEncryptionSettings(columnName), binValue)
 							if err != nil {

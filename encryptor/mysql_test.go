@@ -20,7 +20,6 @@ import (
 	"encoding/hex"
 	"fmt"
 	"github.com/xwb1989/sqlparser"
-	"gopkg.in/yaml.v2"
 	"testing"
 )
 
@@ -44,30 +43,6 @@ func normalizeQuery(query string, t *testing.T) string {
 }
 
 func TestMysqlQueryParser_Parse(t *testing.T) {
-	type T struct {
-		Schemas []TableScheme
-	}
-	tt := &T{}
-	err := yaml.Unmarshal([]byte(`
-schemas:
-  - table: test
-    columns:
-      - id
-      - data
-      - raw_data
-    encrypted:
-      - name: data
-
-  - table: test2
-    columns:
-      - id
-      - zone
-      - data
-      - raw_data
-`), &tt)
-	if err != nil {
-		t.Fatal(err)
-	}
 	encryptedValue := []byte("encrypted")
 	hexEncryptedValue := hex.EncodeToString(encryptedValue)
 	dataValue := "some data"
@@ -78,10 +53,18 @@ schemas:
 	}{
 		{Query: fmt.Sprintf(`INSERT INTO Some_Table VALUES (1, X'%s',3)`, dataHexValue), Expected: normalizeQuery(fmt.Sprintf(`INSERT INTO Some_Table VALUES (1, X'%s',3)`, hexEncryptedValue), t)},
 		{Query: fmt.Sprintf(`INSERT INTO Some_Table VALUES (1, X'%s',3), (1, X'%s',3)`, dataHexValue, dataHexValue), Expected: normalizeQuery(fmt.Sprintf(`INSERT INTO Some_Table VALUES (1, X'%s',3), (1, X'%s',3)`, hexEncryptedValue, hexEncryptedValue), t)},
+		{Query: fmt.Sprintf(`INSERT INTO second_table VALUES (1, X'%s',3), (1, X'%s',3)`, dataHexValue, dataHexValue), Expected: fmt.Sprintf(`INSERT INTO second_table VALUES (1, X'%s',3), (1, X'%s',3)`, dataHexValue, dataHexValue)},
 	}
 	schemaStore := &MapTableSchemeStore{}
 	schemaStore.schemas = map[string]*TableScheme{
-		"Some_Table": &TableScheme{Columns: []string{"col1", "col2", "col3"}, TableName: "some_table", EncryptionColumnSettings: []*ColumnEncryptionSetting{&ColumnEncryptionSetting{Name: "col2"}}},
+		"Some_Table": &TableScheme{
+			Columns:                  []string{"col1", "col2", "col3"},
+			TableName:                "some_table",
+			EncryptionColumnSettings: []*ColumnEncryptionSetting{&ColumnEncryptionSetting{Name: "col2"}}},
+		"second_table": &TableScheme{
+			Columns:                  nil,
+			TableName:                "some_table",
+			EncryptionColumnSettings: []*ColumnEncryptionSetting{&ColumnEncryptionSetting{Name: "col2"}}},
 	}
 	clientID := []byte("clientid")
 	mysqlParser, err := NewMysqlQueryParser(schemaStore, clientID)
