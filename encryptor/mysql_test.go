@@ -26,7 +26,11 @@ import (
 
 type testEncryptor struct{ value []byte }
 
-func (e *testEncryptor) Encrypt(data []byte) ([]byte, error) {
+func (e *testEncryptor) EncryptWithZoneID(zoneIDdata, data []byte) ([]byte, error) {
+	return e.value, nil
+}
+
+func (e *testEncryptor) EncryptWithClientID(clientID, data []byte) ([]byte, error) {
 	return e.value, nil
 }
 
@@ -52,7 +56,7 @@ schemas:
       - data
       - raw_data
     encrypted:
-      - data
+      - name: data
 
   - table: test2
     columns:
@@ -77,9 +81,10 @@ schemas:
 	}
 	schemaStore := &MapTableSchemeStore{}
 	schemaStore.schemas = map[string]*TableScheme{
-		"Some_Table": &TableScheme{Columns: []string{"col1", "col2", "col3"}, TableName: "some_table", EncryptedColumns: []string{"col2"}},
+		"Some_Table": &TableScheme{Columns: []string{"col1", "col2", "col3"}, TableName: "some_table", EncryptionColumnSettings: []*ColumnEncryptionSetting{&ColumnEncryptionSetting{Name: "col2"}}},
 	}
-	mysqlParser, err := NewMysqlQueryParser(schemaStore)
+	clientID := []byte("clientid")
+	mysqlParser, err := NewMysqlQueryParser(schemaStore, clientID)
 	if err != nil {
 		t.Fatal(err)
 	}

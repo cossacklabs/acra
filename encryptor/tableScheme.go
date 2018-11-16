@@ -18,7 +18,7 @@ package encryptor
 
 import "gopkg.in/yaml.v2"
 
-type TableSchemeStore interface {
+type TableSchemaStore interface {
 	GetTableSchema(tableName string) *TableScheme
 }
 
@@ -50,25 +50,39 @@ func (store *MapTableSchemeStore) GetTableSchema(tableName string) *TableScheme 
 	return nil
 }
 
-type TableScheme struct {
-	TableName           string   `yaml:"table"`
-	Columns             []string `yaml:"columns"`
-	EncryptedColumns    []string `yaml:"encrypted"`
-	mapEncryptedColumns map[string]struct{}
+// ColumnEncryptionSetting describe how to encrypt column
+type ColumnEncryptionSetting struct {
+	Name     string `yaml:"name"`
+	ClientId string `yaml:"client_id"`
+	ZoneId   string `yaml:"zone_id"`
 }
 
+type TableScheme struct {
+	TableName                string                     `yaml:"table"`
+	Columns                  []string                   `yaml:"columns"`
+	EncryptionColumnSettings []*ColumnEncryptionSetting `yaml:"encrypted"`
+	mapEncryptedColumns      map[string]*ColumnEncryptionSetting
+}
+
+// initMap create map of columns to encrypt from array
 func (schema *TableScheme) initMap() {
-	mapEncryptedColumns := make(map[string]struct{})
-	for _, column := range schema.EncryptedColumns {
-		mapEncryptedColumns[column] = struct{}{}
+	mapEncryptedColumns := make(map[string]*ColumnEncryptionSetting)
+	for _, column := range schema.EncryptionColumnSettings {
+		mapEncryptedColumns[column.Name] = column
 	}
 	schema.mapEncryptedColumns = mapEncryptedColumns
 }
 
+// NeedToEncrypt return true if columnName should be encrypted by config
 func (schema *TableScheme) NeedToEncrypt(columnName string) bool {
 	if schema.mapEncryptedColumns == nil {
 		schema.initMap()
 	}
 	_, ok := schema.mapEncryptedColumns[columnName]
 	return ok
+}
+
+// GetColumnEncryptionSettings return setting or nil
+func (schema *TableScheme) GetColumnEncryptionSettings(columnName string) *ColumnEncryptionSetting {
+	return schema.mapEncryptedColumns[columnName]
 }

@@ -16,11 +16,6 @@ limitations under the License.
 
 package encryptor
 
-// DataEncryptor replace raw data in queries with encrypted
-type DataEncryptor interface {
-	Encrypt(data []byte) ([]byte, error)
-}
-
 // QueryEncryptor replace raw data in query with encrypted according to configuration
 type QueryEncryptor interface {
 	Encrypt(string) (string, error)

@@ -17,20 +17,25 @@ limitations under the License.
 package encryptor
 
 import (
+	"encoding/base64"
 	"encoding/hex"
 	"github.com/sirupsen/logrus"
 	"github.com/xwb1989/sqlparser"
 )
 
+// MysqlQueryParser parse query and encrypt raw data according to TableSchemaStore
 type MysqlQueryParser struct {
-	schemaStore TableSchemeStore
+	schemaStore TableSchemaStore
 	encryptor   DataEncryptor
+	clientID    []byte
 }
 
-func NewMysqlQueryParser(schema TableSchemeStore) (*MysqlQueryParser, error) {
-	return &MysqlQueryParser{schemaStore: schema}, nil
+// NewMysqlQueryParser create MysqlQueryParser with schema and clientID
+func NewMysqlQueryParser(schema TableSchemaStore, clientID []byte) (*MysqlQueryParser, error) {
+	return &MysqlQueryParser{schemaStore: schema, clientID: clientID}, nil
 }
 
+// Encrypt raw data in query according to TableSchemaStore
 func (parser *MysqlQueryParser) Encrypt(query string) (string, error) {
 	parsed, err := sqlparser.Parse(query)
 	if err != nil {
@@ -76,7 +81,7 @@ func (parser *MysqlQueryParser) Encrypt(query string) (string, error) {
 								logrus.WithError(err).Errorln("Can't decode hex string literal")
 								return "", err
 							}
-							encrypted, err := parser.encryptor.Encrypt(binValue)
+							encrypted, err := parser.encryptWithColumnSettings(schema.GetColumnEncryptionSettings(columnName), binValue)
 							if err != nil {
 								logrus.WithError(err).Errorln("Can't encrypt hex value from query")
 								return "", err
@@ -89,4 +94,26 @@ func (parser *MysqlQueryParser) Encrypt(query string) (string, error) {
 		}
 	}
 	return sqlparser.String(insert), nil
+}
+
+// encryptWithColumnSettings encrypt data and use ZoneId or ClientId from ColumnEncryptionSettings if not empty otherwise static ClientID that passed to parser
+func (parser *MysqlQueryParser) encryptWithColumnSettings(column *ColumnEncryptionSetting, data []byte) ([]byte, error) {
+	if len(column.ZoneId) > 0 {
+		id, err := base64.StdEncoding.DecodeString(column.ZoneId)
+		if err != nil {
+			return data, err
+		}
+		return parser.encryptor.EncryptWithZoneID(id, data)
+	}
+	var id []byte
+	var err error
+	if len(column.ClientId) > 0 {
+		id, err = base64.StdEncoding.DecodeString(column.ClientId)
+	} else {
+		id = parser.clientID
+	}
+	if err != nil {
+		return data, err
+	}
+	return parser.encryptor.EncryptWithClientID(id, data)
 }
