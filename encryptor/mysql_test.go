@@ -19,6 +19,7 @@ package encryptor
 import (
 	"encoding/hex"
 	"fmt"
+	"github.com/cossacklabs/themis/gothemis/keys"
 	"github.com/xwb1989/sqlparser"
 	"testing"
 )
@@ -31,6 +32,16 @@ func (e *testEncryptor) EncryptWithZoneID(zoneIDdata, data []byte) ([]byte, erro
 
 func (e *testEncryptor) EncryptWithClientID(clientID, data []byte) ([]byte, error) {
 	return e.value, nil
+}
+
+type testKeystore struct{}
+
+func (*testKeystore) GetZonePublicKey(zoneID []byte) (*keys.PublicKey, error) {
+	return &keys.PublicKey{Value: []byte("some key")}, nil
+}
+
+func (*testKeystore) GetClientIDEncryptionPublicKey(clientID []byte) (*keys.PublicKey, error) {
+	return &keys.PublicKey{Value: []byte("some key")}, nil
 }
 
 // normalizeQuery convert to lower case parts that case-insensitive
@@ -55,25 +66,25 @@ func TestMysqlQueryParser_Parse(t *testing.T) {
 		{Query: fmt.Sprintf(`INSERT INTO Some_Table VALUES (1, X'%s',3), (1, X'%s',3)`, dataHexValue, dataHexValue), Expected: normalizeQuery(fmt.Sprintf(`INSERT INTO Some_Table VALUES (1, X'%s',3), (1, X'%s',3)`, hexEncryptedValue, hexEncryptedValue), t)},
 		{Query: fmt.Sprintf(`INSERT INTO second_table VALUES (1, X'%s',3), (1, X'%s',3)`, dataHexValue, dataHexValue), Expected: fmt.Sprintf(`INSERT INTO second_table VALUES (1, X'%s',3), (1, X'%s',3)`, dataHexValue, dataHexValue)},
 	}
-	schemaStore := &MapTableSchemeStore{}
-	schemaStore.schemas = map[string]*TableScheme{
-		"Some_Table": &TableScheme{
+	schemaStore := &MapTableSchemaStore{}
+	schemaStore.schemas = map[string]*TableSchema{
+		"Some_Table": &TableSchema{
 			Columns:                  []string{"col1", "col2", "col3"},
 			TableName:                "some_table",
 			EncryptionColumnSettings: []*ColumnEncryptionSetting{&ColumnEncryptionSetting{Name: "col2"}}},
-		"second_table": &TableScheme{
+		"second_table": &TableSchema{
 			Columns:                  nil,
 			TableName:                "some_table",
 			EncryptionColumnSettings: []*ColumnEncryptionSetting{&ColumnEncryptionSetting{Name: "col2"}}},
 	}
 	clientID := []byte("clientid")
-	mysqlParser, err := NewMysqlQueryParser(schemaStore, clientID)
+	mysqlParser, err := NewMysqlQueryEncryptor(schemaStore, clientID, &testKeystore{})
 	if err != nil {
 		t.Fatal(err)
 	}
 	mysqlParser.encryptor = &testEncryptor{value: encryptedValue}
 	for i, testCase := range testData {
-		data, err := mysqlParser.Encrypt(testCase.Query)
+		data, _, err := mysqlParser.OnQuery(testCase.Query)
 		if err != nil {
 			t.Fatal(err)
 		}

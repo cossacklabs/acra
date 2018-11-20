@@ -50,12 +50,12 @@ var (
 
 // ValidateAcraStructLength check that data has minimal length for AcraStruct and data block equal to data length in AcraStruct
 func ValidateAcraStructLength(data []byte) error {
-	if !bytes.Equal(data[:len(TagBegin)], TagBegin) {
-		return ErrIncorrectAcraStructTagBegin
-	}
 	baseLength := GetMinAcraStructLength()
 	if len(data) < baseLength {
 		return ErrIncorrectAcraStructLength
+	}
+	if !bytes.Equal(data[:len(TagBegin)], TagBegin) {
+		return ErrIncorrectAcraStructTagBegin
 	}
 	dataLength := getDataLengthFromAcraStruct(data)
 	if dataLength != len(data[GetMinAcraStructLength():]) {

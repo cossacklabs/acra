@@ -18,6 +18,7 @@ package main
 
 import (
 	"context"
+	"github.com/cossacklabs/acra/encryptor"
 	"github.com/cossacklabs/acra/network"
 	"go.opencensus.io/trace"
 	"net"
@@ -106,13 +107,19 @@ func (clientSession *ClientSession) HandleClientConnection(clientID []byte, decr
 				Errorln("Can't initialize mysql handler")
 			return
 		}
+		queryEncryptor, err := encryptor.NewMysqlQueryEncryptor(clientSession.config.tableSchema, clientID, clientSession.Server.keystorage)
+		if err != nil {
+			clientSession.logger.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorEncryptorInitialization).Errorln("Can't initialize query encryptor")
+			return
+		}
+		handler.AddQueryObserver(queryEncryptor)
 		go handler.ClientToDbConnector(clientProxyErrorCh)
 		go handler.DbToClientConnector(dbProxyErrorCh)
 	} else {
 		trace.FromContext(clientSession.ctx).AddAttributes(trace.StringAttribute("db.type", "postgresql"))
 		pgProxy, err = postgresql.NewPgProxy(clientSession.ctx, clientSession.connection, clientSession.connectionToDb)
 		if err != nil {
-			clientSession.logger.WithError(err).Errorln("can't initialize postgresql proxy")
+			clientSession.logger.WithError(err).Errorln("Can't initialize postgresql proxy")
 			return
 		}
 		clientSession.logger.Debugln("PostgreSQL connection")

@@ -17,41 +17,45 @@ limitations under the License.
 package encryptor
 
 import (
-	"encoding/base64"
 	"encoding/hex"
 	"github.com/cossacklabs/acra/decryptor/base"
+	"github.com/cossacklabs/acra/keystore"
 	"github.com/sirupsen/logrus"
 	"github.com/xwb1989/sqlparser"
 )
 
-// MysqlQueryParser parse query and encrypt raw data according to TableSchemaStore
-type MysqlQueryParser struct {
+// MysqlQueryEncryptor parse query and encrypt raw data according to TableSchemaStore
+type MysqlQueryEncryptor struct {
 	schemaStore TableSchemaStore
 	encryptor   DataEncryptor
 	clientID    []byte
 }
 
-// NewMysqlQueryParser create MysqlQueryParser with schema and clientID
-func NewMysqlQueryParser(schema TableSchemaStore, clientID []byte) (*MysqlQueryParser, error) {
-	return &MysqlQueryParser{schemaStore: schema, clientID: clientID}, nil
+// NewMysqlQueryEncryptor create MysqlQueryEncryptor with schema and clientID
+func NewMysqlQueryEncryptor(schema TableSchemaStore, clientID []byte, keystore keystore.PublicKeyStore) (*MysqlQueryEncryptor, error) {
+	encryptor, err := NewAcrawriterDataEncryptor(keystore)
+	if err != nil {
+		return nil, err
+	}
+	return &MysqlQueryEncryptor{schemaStore: schema, clientID: clientID, encryptor: encryptor}, nil
 }
 
 // Encrypt raw data in query according to TableSchemaStore
-func (parser *MysqlQueryParser) Encrypt(query string) (string, error) {
+func (parser *MysqlQueryEncryptor) OnQuery(query string) (string, bool, error) {
 	parsed, err := sqlparser.Parse(query)
 	if err != nil {
-		return "", err
+		return query, false, err
 	}
 
 	insert, ok := parsed.(*sqlparser.Insert)
 	if !ok {
-		return query, nil
+		return query, false, nil
 	}
 	tableName := sqlparser.String(insert.Table.Name)
 	schema := parser.schemaStore.GetTableSchema(tableName)
 	if schema == nil {
 		// unsupported table, we have not schema and query hasn't columns description
-		return query, nil
+		return query, false, nil
 	}
 
 	var columnsName []string
@@ -63,7 +67,7 @@ func (parser *MysqlQueryParser) Encrypt(query string) (string, error) {
 	} else if len(schema.Columns) > 0 {
 		columnsName = schema.Columns
 	} else {
-		return query, nil
+		return query, false, nil
 	}
 
 	switch rows := insert.Rows.(type) {
@@ -81,7 +85,7 @@ func (parser *MysqlQueryParser) Encrypt(query string) (string, error) {
 							_, err := hex.Decode(binValue, val.Val)
 							if err != nil {
 								logrus.WithError(err).Errorln("Can't decode hex string literal")
-								return "", err
+								return query, false, err
 							}
 							if err := base.ValidateAcraStructLength(binValue); err == nil {
 								logrus.Debugln("Skip encryption for matched AcraStruct structure")
@@ -90,7 +94,7 @@ func (parser *MysqlQueryParser) Encrypt(query string) (string, error) {
 							encrypted, err := parser.encryptWithColumnSettings(schema.GetColumnEncryptionSettings(columnName), binValue)
 							if err != nil {
 								logrus.WithError(err).Errorln("Can't encrypt hex value from query")
-								return "", err
+								return query, false, err
 							}
 							val.Val = []byte(hex.EncodeToString(encrypted))
 						}
@@ -99,23 +103,22 @@ func (parser *MysqlQueryParser) Encrypt(query string) (string, error) {
 			}
 		}
 	}
-	return sqlparser.String(insert), nil
+	return sqlparser.String(insert), true, nil
 }
 
-// encryptWithColumnSettings encrypt data and use ZoneId or ClientId from ColumnEncryptionSettings if not empty otherwise static ClientID that passed to parser
-func (parser *MysqlQueryParser) encryptWithColumnSettings(column *ColumnEncryptionSetting, data []byte) ([]byte, error) {
-	if len(column.ZoneId) > 0 {
-		id, err := base64.StdEncoding.DecodeString(column.ZoneId)
-		if err != nil {
-			return data, err
-		}
-		return parser.encryptor.EncryptWithZoneID(id, data)
+// encryptWithColumnSettings encrypt data and use ZoneId or ClientID from ColumnEncryptionSettings if not empty otherwise static ClientID that passed to parser
+func (parser *MysqlQueryEncryptor) encryptWithColumnSettings(column *ColumnEncryptionSetting, data []byte) ([]byte, error) {
+	if len(column.ZoneID) > 0 {
+		logrus.WithField("zone_id", column.ZoneID).Debugln("Encrypt with specific ZoneID for column")
+		return parser.encryptor.EncryptWithZoneID([]byte(column.ZoneID), data)
 	}
 	var id []byte
 	var err error
-	if len(column.ClientId) > 0 {
-		id, err = base64.StdEncoding.DecodeString(column.ClientId)
+	if len(column.ClientID) > 0 {
+		logrus.WithField("client_id", column.ClientID).Debugln("Encrypt with specific ClientID for column")
+		id = []byte(column.ClientID)
 	} else {
+		logrus.WithField("client_id", parser.clientID).Debugln("Encrypt with ClientID from connection")
 		id = parser.clientID
 	}
 	if err != nil {

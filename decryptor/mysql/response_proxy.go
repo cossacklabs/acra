@@ -286,7 +286,6 @@ func (handler *MysqlHandler) ClientToDbConnector(errCh chan<- error) {
 		handler.clientSequenceNumber = int(packet.GetSequenceNumber())
 		clientLog = clientLog.WithField("sequence_number", handler.clientSequenceNumber)
 		clientLog.Debugln("New packet")
-		inOutput := packet.Dump()
 		data := packet.GetData()
 		cmd := data[0]
 		data = data[1:]
@@ -294,7 +293,7 @@ func (handler *MysqlHandler) ClientToDbConnector(errCh chan<- error) {
 		switch cmd {
 		case COM_QUIT:
 			clientLog.Debugln("Close connections on COM_QUIT command")
-			if _, err := handler.dbConnection.Write(inOutput); err != nil {
+			if _, err := handler.dbConnection.Write(packet.Dump()); err != nil {
 				clientLog.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorResponseConnectorCantWriteToDB).
 					Debugln("Can't write send packet to db")
 				errCh <- err
@@ -330,8 +329,11 @@ func (handler *MysqlHandler) ClientToDbConnector(errCh chan<- error) {
 				continue
 			}
 
-			newQuery, changed := handler.queryObserverManager.OnQuery(query)
-			if changed {
+			newQuery, changed, err := handler.queryObserverManager.OnQuery(query)
+			if err != nil {
+				clientLog.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorEncryptQueryData).Errorln("Error occurred on query handler")
+
+			} else if changed {
 				packet.replaceQuery(newQuery)
 			}
 
@@ -348,7 +350,7 @@ func (handler *MysqlHandler) ClientToDbConnector(errCh chan<- error) {
 		default:
 			clientLog.Debugf("Command %d not supported now", cmd)
 		}
-		if _, err := handler.dbConnection.Write(inOutput); err != nil {
+		if _, err := handler.dbConnection.Write(packet.Dump()); err != nil {
 			clientLog.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorResponseConnectorCantWriteToDB).
 				Debugln("Can't write send packet to db")
 			errCh <- err
@@ -443,9 +445,7 @@ func (handler *MysqlHandler) processBinaryDataRow(rowData []byte, fields []*Colu
 			}
 			decryptedValue, err := handler.decryptor.DecryptBlock(value)
 			if err != nil {
-				handler.logger.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorDecryptorCantDecryptBinary).
-					Errorln("Can't decrypt binary data")
-				return nil, err
+				handler.logger.Debugln("Leave value as is")
 			}
 			if len(value) != len(decryptedValue) {
 				output = append(output, PutLengthEncodedString(decryptedValue)...)

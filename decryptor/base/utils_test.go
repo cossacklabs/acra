@@ -44,7 +44,7 @@ func TestDecryptAcrastruct(t *testing.T) {
 
 	// test error on short acrastruct
 	_, err = base.DecryptAcrastruct([]byte("short data"), keypair.Private, nil)
-	if err != base.ErrIncorrectAcraStructTagBegin {
+	if err != base.ErrIncorrectAcraStructLength {
 		t.Fatal("incorrect error")
 	}
 

@@ -18,31 +18,40 @@ package encryptor
 
 import "gopkg.in/yaml.v2"
 
+// TableSchemaStore interface to fetch schema for table
 type TableSchemaStore interface {
-	GetTableSchema(tableName string) *TableScheme
+	GetTableSchema(tableName string) *TableSchema
 }
 
 type storeConfig struct {
-	Schemas []*TableScheme
+	Schemas []*TableSchema
 }
 
-type MapTableSchemeStore struct {
-	schemas map[string]*TableScheme
+// MapTableSchemaStore store schemas per table name
+type MapTableSchemaStore struct {
+	schemas map[string]*TableSchema
 }
 
-func MapTableSchemeStoreFromConfig(config []byte) (*MapTableSchemeStore, error) {
+// NewMapTableSchemaStore return new MapTableSchemaStore
+func NewMapTableSchemaStore() (*MapTableSchemaStore, error) {
+	return &MapTableSchemaStore{make(map[string]*TableSchema)}, nil
+}
+
+// MapTableSchemaStoreFromConfig parse config and return MapTableSchemaStore with data from config
+func MapTableSchemaStoreFromConfig(config []byte) (*MapTableSchemaStore, error) {
 	storeConfig := &storeConfig{}
 	if err := yaml.Unmarshal(config, &storeConfig); err != nil {
 		return nil, err
 	}
-	mapSchemas := make(map[string]*TableScheme, len(storeConfig.Schemas))
+	mapSchemas := make(map[string]*TableSchema, len(storeConfig.Schemas))
 	for _, schema := range storeConfig.Schemas {
 		mapSchemas[schema.TableName] = schema
 	}
-	return &MapTableSchemeStore{mapSchemas}, nil
+	return &MapTableSchemaStore{mapSchemas}, nil
 }
 
-func (store *MapTableSchemeStore) GetTableSchema(tableName string) *TableScheme {
+// GetTableSchema return table schema if exists otherwise nil
+func (store *MapTableSchemaStore) GetTableSchema(tableName string) *TableSchema {
 	schema, ok := store.schemas[tableName]
 	if ok {
 		return schema
@@ -53,11 +62,12 @@ func (store *MapTableSchemeStore) GetTableSchema(tableName string) *TableScheme 
 // ColumnEncryptionSetting describe how to encrypt column
 type ColumnEncryptionSetting struct {
 	Name     string `yaml:"name"`
-	ClientId string `yaml:"client_id"`
-	ZoneId   string `yaml:"zone_id"`
+	ClientID string `yaml:"client_id"`
+	ZoneID   string `yaml:"zone_id"`
 }
 
-type TableScheme struct {
+// TableSchema store table schema and encryption settings per column
+type TableSchema struct {
 	TableName                string                     `yaml:"table"`
 	Columns                  []string                   `yaml:"columns"`
 	EncryptionColumnSettings []*ColumnEncryptionSetting `yaml:"encrypted"`
@@ -65,7 +75,7 @@ type TableScheme struct {
 }
 
 // initMap create map of columns to encrypt from array
-func (schema *TableScheme) initMap() {
+func (schema *TableSchema) initMap() {
 	mapEncryptedColumns := make(map[string]*ColumnEncryptionSetting)
 	for _, column := range schema.EncryptionColumnSettings {
 		mapEncryptedColumns[column.Name] = column
@@ -74,7 +84,7 @@ func (schema *TableScheme) initMap() {
 }
 
 // NeedToEncrypt return true if columnName should be encrypted by config
-func (schema *TableScheme) NeedToEncrypt(columnName string) bool {
+func (schema *TableSchema) NeedToEncrypt(columnName string) bool {
 	if schema.mapEncryptedColumns == nil {
 		schema.initMap()
 	}
@@ -83,6 +93,6 @@ func (schema *TableScheme) NeedToEncrypt(columnName string) bool {
 }
 
 // GetColumnEncryptionSettings return setting or nil
-func (schema *TableScheme) GetColumnEncryptionSettings(columnName string) *ColumnEncryptionSetting {
+func (schema *TableSchema) GetColumnEncryptionSettings(columnName string) *ColumnEncryptionSetting {
 	return schema.mapEncryptedColumns[columnName]
 }

@@ -19,7 +19,7 @@ package base
 // QueryObserver will be used to notify about coming new query
 type QueryObserver interface {
 	// OnQuery return true if output query was changed otherwise false
-	OnQuery(query string) (string, bool)
+	OnQuery(query string) (string, bool, error)
 }
 
 // QueryObservable used to handle subscribers for new incoming queries
@@ -43,14 +43,17 @@ func (manager *ArrayQueryObserverableManager) AddQueryObserver(obs QueryObserver
 }
 
 // OnQuery would be called for each added observer to manager
-func (manager *ArrayQueryObserverableManager) OnQuery(query string) (string, bool) {
+func (manager *ArrayQueryObserverableManager) OnQuery(query string) (string, bool, error) {
 	changedOut := false
 	for _, obs := range manager.subscribers {
-		newQuery, changed := obs.OnQuery(query)
+		newQuery, changed, err := obs.OnQuery(query)
+		if err != nil {
+			return query, false, err
+		}
 		if changed {
 			changedOut = changed
 			query = newQuery
 		}
 	}
-	return query, changedOut
+	return query, changedOut, nil
 }
