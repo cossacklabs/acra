@@ -17,30 +17,39 @@ limitations under the License.
 package encryptor
 
 import (
+	"bytes"
 	"encoding/hex"
 	"fmt"
+	"github.com/cossacklabs/acra/zone"
 	"github.com/cossacklabs/themis/gothemis/keys"
 	"github.com/xwb1989/sqlparser"
 	"testing"
 )
 
-type testEncryptor struct{ value []byte }
+type testEncryptor struct {
+	value      []byte
+	fetchedIDs [][]byte
+}
 
 func (e *testEncryptor) EncryptWithZoneID(zoneIDdata, data []byte) ([]byte, error) {
+	e.fetchedIDs = append(e.fetchedIDs, zoneIDdata)
 	return e.value, nil
+}
+func (e *testEncryptor) reset() {
+	e.fetchedIDs = [][]byte{}
 }
 
 func (e *testEncryptor) EncryptWithClientID(clientID, data []byte) ([]byte, error) {
+	e.fetchedIDs = append(e.fetchedIDs, clientID)
 	return e.value, nil
 }
 
 type testKeystore struct{}
 
-func (*testKeystore) GetZonePublicKey(zoneID []byte) (*keys.PublicKey, error) {
+func (tk *testKeystore) GetZonePublicKey(zoneID []byte) (*keys.PublicKey, error) {
 	return &keys.PublicKey{Value: []byte("some key")}, nil
 }
-
-func (*testKeystore) GetClientIDEncryptionPublicKey(clientID []byte) (*keys.PublicKey, error) {
+func (tk *testKeystore) GetClientIDEncryptionPublicKey(clientID []byte) (*keys.PublicKey, error) {
 	return &keys.PublicKey{Value: []byte("some key")}, nil
 }
 
@@ -48,48 +57,196 @@ func (*testKeystore) GetClientIDEncryptionPublicKey(clientID []byte) (*keys.Publ
 func normalizeQuery(query string, t *testing.T) string {
 	parsed, err := sqlparser.Parse(query)
 	if err != nil {
-		t.Fatal(err)
+		t.Fatalf("Can't normalize query: %s - %s", err.Error(), query)
 	}
 	return sqlparser.String(parsed)
 }
 
 func TestMysqlQueryParser_Parse(t *testing.T) {
+	zoneID := zone.GenerateZoneID()
+	zoneIDStr := string(zoneID)
+	clientIDStr := "specified_client_id"
+	specifiedClientID := []byte(clientIDStr)
+	defaultClientIDStr := "default_client_id"
+	defaultClientID := []byte(defaultClientIDStr)
+
+	config := fmt.Sprintf(`
+schemas:
+  - table: TableWithColumnSchema
+    columns: ["other_column", "default_client_id", "specified_client_id", "zone_id"]
+    encrypted: 
+      - name: "default_client_id"
+      - name: specified_client_id
+        client_id: %s
+      - name: zone_id
+        zone_id: %s
+
+  - table: TableWithoutColumnSchema
+    encrypted: 
+      - name: "default_client_id"
+      - name: specified_client_id
+        client_id: %s
+      - name: zone_id
+        zone_id: %s
+`, clientIDStr, zoneIDStr, clientIDStr, zoneIDStr)
+	schemaStore, err := MapTableSchemaStoreFromConfig([]byte(config))
+	if err != nil {
+		t.Fatalf("Can't parse config: %s", err.Error())
+	}
 	encryptedValue := []byte("encrypted")
 	hexEncryptedValue := hex.EncodeToString(encryptedValue)
 	dataValue := "some data"
 	dataHexValue := hex.EncodeToString([]byte(dataValue))
+	t.Logf("value - %s\nencrypted - %s", dataHexValue, hexEncryptedValue)
 	testData := []struct {
-		Query    string
-		Expected string
+		Query             string
+		QueryData         []interface{}
+		Normalized        bool
+		ExpectedQueryData []interface{}
+		Changed           bool
+		ExpectedIDS       [][]byte
 	}{
-		{Query: fmt.Sprintf(`INSERT INTO Some_Table VALUES (1, X'%s',3)`, dataHexValue), Expected: normalizeQuery(fmt.Sprintf(`INSERT INTO Some_Table VALUES (1, X'%s',3)`, hexEncryptedValue), t)},
-		{Query: fmt.Sprintf(`INSERT INTO Some_Table VALUES (1, X'%s',3), (1, X'%s',3)`, dataHexValue, dataHexValue), Expected: normalizeQuery(fmt.Sprintf(`INSERT INTO Some_Table VALUES (1, X'%s',3), (1, X'%s',3)`, hexEncryptedValue, hexEncryptedValue), t)},
-		{Query: fmt.Sprintf(`INSERT INTO second_table VALUES (1, X'%s',3), (1, X'%s',3)`, dataHexValue, dataHexValue), Expected: fmt.Sprintf(`INSERT INTO second_table VALUES (1, X'%s',3), (1, X'%s',3)`, dataHexValue, dataHexValue)},
+		// 0. without list of columns and with schema, one value
+		{
+			Query:             `INSERT INTO TableWithColumnSchema VALUES (1, X'%s', X'%s', X'%s')`,
+			QueryData:         []interface{}{dataHexValue, dataHexValue, dataHexValue},
+			ExpectedQueryData: []interface{}{hexEncryptedValue, hexEncryptedValue, hexEncryptedValue},
+			Normalized:        true,
+			Changed:           true,
+			ExpectedIDS:       [][]byte{defaultClientID, specifiedClientID, zoneID},
+		},
+		// 1. without list of columns and with schema
+		{
+			Query:             `INSERT INTO TableWithColumnSchema VALUES (1, X'%s', X'%s', X'%s'), (1, X'%s', X'%s', X'%s')`,
+			QueryData:         []interface{}{dataHexValue, dataHexValue, dataHexValue, dataHexValue, dataHexValue, dataHexValue},
+			ExpectedQueryData: []interface{}{hexEncryptedValue, hexEncryptedValue, hexEncryptedValue, hexEncryptedValue, hexEncryptedValue, hexEncryptedValue},
+			Normalized:        true,
+			Changed:           true,
+			ExpectedIDS:       [][]byte{defaultClientID, specifiedClientID, zoneID, defaultClientID, specifiedClientID, zoneID},
+		},
+		// 2. without list of columns and without schema
+		{
+			Query:             `INSERT INTO TableWithoutColumnSchema VALUES (1, X'%s', X'%s', X'%s'), (1, X'%s', X'%s', X'%s')`,
+			QueryData:         []interface{}{dataHexValue, dataHexValue, dataHexValue, dataHexValue, dataHexValue, dataHexValue},
+			ExpectedQueryData: []interface{}{dataHexValue, dataHexValue, dataHexValue, dataHexValue, dataHexValue, dataHexValue},
+			Normalized:        false,
+			Changed:           false,
+			ExpectedIDS:       [][]byte{},
+		},
+		// 3. with list of columns and without schema
+		{
+			Query:             `INSERT INTO TableWithoutColumnSchema (zone_id, specified_client_id, other_column, default_client_id) VALUES (X'%s', X'%s', 1, X'%s')`,
+			QueryData:         []interface{}{dataHexValue, dataHexValue, dataHexValue},
+			ExpectedQueryData: []interface{}{hexEncryptedValue, hexEncryptedValue, hexEncryptedValue},
+			Normalized:        true,
+			Changed:           true,
+			ExpectedIDS:       [][]byte{zoneID, specifiedClientID, defaultClientID},
+		},
+		// 4. insert with ON DUPLICATE without columns and with schema
+		{
+			Query:             `INSERT INTO TableWithColumnSchema VALUES (X'%s', X'%s', X'%s', X'%s'), (1, X'%s', X'%s', X'%s') ON DUPLICATE KEY UPDATE other_column=X'%s', specified_client_id=X'%s', zone_id=X'%s', default_client_id=X'%s';`,
+			QueryData:         []interface{}{dataHexValue, dataHexValue, dataHexValue, dataHexValue, dataHexValue, dataHexValue, dataHexValue, dataHexValue, dataHexValue, dataHexValue, dataHexValue},
+			ExpectedQueryData: []interface{}{dataHexValue, hexEncryptedValue, hexEncryptedValue, hexEncryptedValue, hexEncryptedValue, hexEncryptedValue, hexEncryptedValue, dataHexValue, hexEncryptedValue, hexEncryptedValue, hexEncryptedValue},
+			Normalized:        true,
+			Changed:           true,
+			ExpectedIDS:       [][]byte{defaultClientID, specifiedClientID, zoneID, defaultClientID, specifiedClientID, zoneID, specifiedClientID, zoneID, defaultClientID},
+		},
+		// 5. insert with ON DUPLICATE without columns and without schema
+		{
+			Query:             `INSERT INTO TableWithoutColumnSchema VALUES (X'%s', X'%s', X'%s', X'%s') ON DUPLICATE KEY UPDATE other_column=X'%s', specified_client_id=X'%s', zone_id=X'%s', default_client_id=X'%s';`,
+			QueryData:         []interface{}{dataHexValue, dataHexValue, dataHexValue, dataHexValue, dataHexValue, dataHexValue, dataHexValue, dataHexValue},
+			ExpectedQueryData: []interface{}{dataHexValue, dataHexValue, dataHexValue, dataHexValue, dataHexValue, hexEncryptedValue, hexEncryptedValue, hexEncryptedValue},
+			Normalized:        true,
+			Changed:           true,
+			ExpectedIDS:       [][]byte{specifiedClientID, zoneID, defaultClientID},
+		},
+		// 6. insert with ON DUPLICATE with columns and without schema
+		{
+			Query:             `INSERT INTO TableWithoutColumnSchema (zone_id, specified_client_id, other_column, default_client_id) VALUES (X'%s', X'%s', X'%s', X'%s') ON DUPLICATE KEY UPDATE default_client_id=X'%s', other_column=X'%s', specified_client_id=X'%s', zone_id=X'%s';`,
+			QueryData:         []interface{}{dataHexValue, dataHexValue, dataHexValue, dataHexValue, dataHexValue, dataHexValue, dataHexValue, dataHexValue},
+			ExpectedQueryData: []interface{}{hexEncryptedValue, hexEncryptedValue, dataHexValue, hexEncryptedValue, hexEncryptedValue, dataHexValue, hexEncryptedValue, hexEncryptedValue},
+			Normalized:        true,
+			Changed:           true,
+			ExpectedIDS:       [][]byte{zoneID, specifiedClientID, defaultClientID, defaultClientID, specifiedClientID, zoneID},
+		},
+		// 7. insert without encryption
+		{
+			Query:             `INSERT INTO TableWithoutColumnSchema (other_column, other_column) VALUES (X'%s', X'%s') ON DUPLICATE KEY UPDATE other_column=X'%s', other_column=X'%s';`,
+			QueryData:         []interface{}{dataHexValue, dataHexValue, dataHexValue, dataHexValue},
+			ExpectedQueryData: []interface{}{dataHexValue, dataHexValue, dataHexValue, dataHexValue},
+			Normalized:        false,
+			Changed:           false,
+			ExpectedIDS:       [][]byte{},
+		},
+		// 8. insert without table info
+		{
+			Query:             `INSERT INTO UnknownTable (other_column, specified_client_id, default_client_id, zone_id) VALUES (X'%s', X'%s', X'%s', X'%s') ON DUPLICATE KEY UPDATE other_column=X'%s', other_column=X'%s';`,
+			QueryData:         []interface{}{dataHexValue, dataHexValue, dataHexValue, dataHexValue, dataHexValue, dataHexValue},
+			ExpectedQueryData: []interface{}{dataHexValue, dataHexValue, dataHexValue, dataHexValue, dataHexValue, dataHexValue},
+			Normalized:        false,
+			Changed:           false,
+			ExpectedIDS:       [][]byte{},
+		},
+		// 9. update with encryptable and not encryptable column
+		{
+			Query:             `UPDATE TableWithoutColumnSchema set other_column=X'%s', specified_client_id=X'%s', zone_id=X'%s', default_client_id=X'%s'`,
+			QueryData:         []interface{}{dataHexValue, dataHexValue, dataHexValue, dataHexValue},
+			ExpectedQueryData: []interface{}{dataHexValue, hexEncryptedValue, hexEncryptedValue, hexEncryptedValue},
+			Normalized:        true,
+			Changed:           true,
+			ExpectedIDS:       [][]byte{specifiedClientID, zoneID, defaultClientID},
+		},
+		// 10. update without encryption
+		{
+			Query:             `UPDATE TableWithoutColumnSchema set other_column=X'%s', other_column=X'%s'`,
+			QueryData:         []interface{}{dataHexValue, dataHexValue},
+			ExpectedQueryData: []interface{}{dataHexValue, dataHexValue},
+			Normalized:        false,
+			Changed:           false,
+			ExpectedIDS:       [][]byte{},
+		},
+		// 10. update without table info
+		{
+			Query:             `UPDATE UnknownTable set other_column=X'%s', other_column=X'%s', specified_client_id=X'%s', default_client_id=X'%s', zone_id=X'%s'`,
+			QueryData:         []interface{}{dataHexValue, dataHexValue, dataHexValue, dataHexValue, dataHexValue},
+			ExpectedQueryData: []interface{}{dataHexValue, dataHexValue, dataHexValue, dataHexValue, dataHexValue},
+			Normalized:        false,
+			Changed:           false,
+			ExpectedIDS:       [][]byte{},
+		},
 	}
-	schemaStore := &MapTableSchemaStore{}
-	schemaStore.schemas = map[string]*TableSchema{
-		"Some_Table": &TableSchema{
-			Columns:                  []string{"col1", "col2", "col3"},
-			TableName:                "some_table",
-			EncryptionColumnSettings: []*ColumnEncryptionSetting{&ColumnEncryptionSetting{Name: "col2"}}},
-		"second_table": &TableSchema{
-			Columns:                  nil,
-			TableName:                "some_table",
-			EncryptionColumnSettings: []*ColumnEncryptionSetting{&ColumnEncryptionSetting{Name: "col2"}}},
-	}
-	clientID := []byte("clientid")
-	mysqlParser, err := NewMysqlQueryEncryptor(schemaStore, clientID, &testKeystore{})
+	keystore := &testKeystore{}
+	mysqlParser, err := NewMysqlQueryEncryptor(schemaStore, defaultClientID, keystore)
 	if err != nil {
 		t.Fatal(err)
 	}
-	mysqlParser.encryptor = &testEncryptor{value: encryptedValue}
+	encryptor := &testEncryptor{value: encryptedValue}
+	// mock encryptor
+	mysqlParser.encryptor = encryptor
 	for i, testCase := range testData {
-		data, _, err := mysqlParser.OnQuery(testCase.Query)
-		if err != nil {
-			t.Fatal(err)
+		encryptor.reset()
+		query := fmt.Sprintf(testCase.Query, testCase.QueryData...)
+		expectedQuery := fmt.Sprintf(testCase.Query, testCase.ExpectedQueryData...)
+		if testCase.Normalized {
+			expectedQuery = normalizeQuery(expectedQuery, t)
 		}
-		if data != testCase.Expected {
-			t.Fatalf("%v. Incorrect value. Took - %s; Expected - %s;", i, data, testCase.Expected)
+		data, changed, err := mysqlParser.OnQuery(query)
+		if err != nil {
+			t.Fatalf("%v. %s", i, err.Error())
+		}
+		if data != expectedQuery {
+			t.Fatalf("%v. Incorrect value\nTook:\n%s\nExpected:\n%s;", i, data, expectedQuery)
+		}
+		if testCase.Changed != changed {
+			t.Fatalf("%v. Incorrect <changed> value. Took - %t; Expected - %t", i, changed, testCase.Changed)
+		}
+		if len(encryptor.fetchedIDs) != len(testCase.ExpectedIDS) {
+			t.Fatalf("%v. Incorrect length of fetched keys id. Took: %v; Expected: %v", i, len(encryptor.fetchedIDs), len(testCase.ExpectedIDS))
+		}
+		for i := 0; i < len(encryptor.fetchedIDs); i++ {
+			if !bytes.Equal(encryptor.fetchedIDs[i], testCase.ExpectedIDS[i]) {
+				t.Fatalf("%v. Incorrect fetched id\nTook: %v\nExpected: %v", i, encryptor.fetchedIDs, testCase.ExpectedIDS)
+			}
 		}
 	}
 }
