@@ -20,6 +20,7 @@ import (
 	"bytes"
 	"encoding/hex"
 	"fmt"
+	"github.com/cossacklabs/acra/acra-writer"
 	"github.com/cossacklabs/acra/zone"
 	"github.com/cossacklabs/themis/gothemis/keys"
 	"github.com/xwb1989/sqlparser"
@@ -69,6 +70,16 @@ func TestMysqlQueryParser_Parse(t *testing.T) {
 	specifiedClientID := []byte(clientIDStr)
 	defaultClientIDStr := "default_client_id"
 	defaultClientID := []byte(defaultClientIDStr)
+
+	keypair, err := keys.New(keys.KEYTYPE_EC)
+	if err != nil {
+		t.Fatal(err)
+	}
+	acrastruct, err := acrawriter.CreateAcrastruct([]byte("some data"), keypair.Public, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	hexAcrastruct := hex.EncodeToString(acrastruct)
 
 	config := fmt.Sprintf(`
 schemas:
@@ -189,7 +200,7 @@ schemas:
 		},
 		// 9. update with encryptable and not encryptable column
 		{
-			Query:             `UPDATE TableWithoutColumnSchema set other_column=X'%s', specified_client_id=X'%s', zone_id=X'%s', default_client_id=X'%s'`,
+			Query:             `UPDATE TableWithoutColumnSchema as t set other_column=X'%s', specified_client_id=X'%s', zone_id=X'%s', default_client_id=X'%s'`,
 			QueryData:         []interface{}{dataHexValue, dataHexValue, dataHexValue, dataHexValue},
 			ExpectedQueryData: []interface{}{dataHexValue, hexEncryptedValue, hexEncryptedValue, hexEncryptedValue},
 			Normalized:        true,
@@ -205,7 +216,7 @@ schemas:
 			Changed:           false,
 			ExpectedIDS:       [][]byte{},
 		},
-		// 10. update without table info
+		// 11. update without table info
 		{
 			Query:             `UPDATE UnknownTable set other_column=X'%s', other_column=X'%s', specified_client_id=X'%s', default_client_id=X'%s', zone_id=X'%s'`,
 			QueryData:         []interface{}{dataHexValue, dataHexValue, dataHexValue, dataHexValue, dataHexValue},
@@ -213,6 +224,87 @@ schemas:
 			Normalized:        false,
 			Changed:           false,
 			ExpectedIDS:       [][]byte{},
+		},
+		// 12. aliased update with encryptable and not encryptable column
+		{
+			Query:             `UPDATE TableWithoutColumnSchema as t set other_column=X'%s', t.specified_client_id=X'%s', t.zone_id=X'%s', default_client_id=X'%s'`,
+			QueryData:         []interface{}{dataHexValue, dataHexValue, dataHexValue, dataHexValue},
+			ExpectedQueryData: []interface{}{dataHexValue, hexEncryptedValue, hexEncryptedValue, hexEncryptedValue},
+			Normalized:        true,
+			Changed:           true,
+			ExpectedIDS:       [][]byte{specifiedClientID, zoneID, defaultClientID},
+		},
+		// 13. update with two tables with encryptable and not encryptable column
+		{
+			Query:             `UPDATE TableWithoutColumnSchema, TableWithoutColumnSchema as t2, UnknownTable as un set un.other_column=X'%s', t2.specified_client_id=X'%s', zone_id=X'%s', default_client_id=X'%s'`,
+			QueryData:         []interface{}{dataHexValue, dataHexValue, dataHexValue, dataHexValue},
+			ExpectedQueryData: []interface{}{dataHexValue, hexEncryptedValue, hexEncryptedValue, hexEncryptedValue},
+			Normalized:        true,
+			Changed:           true,
+			ExpectedIDS:       [][]byte{specifiedClientID, zoneID, defaultClientID},
+		},
+		// 14. insert with subquery and ON DUPLICATE
+		{
+			Query:             `INSERT INTO TableWithoutColumnSchema (other_column, specified_client_id, default_client_id, zone_id) SELECT * FROM TableWithoutColumnSchema ON DUPLICATE KEY UPDATE other_column=X'%s', specified_client_id=X'%s', zone_id=X'%s', default_client_id=X'%s'`,
+			QueryData:         []interface{}{dataHexValue, dataHexValue, dataHexValue, dataHexValue},
+			ExpectedQueryData: []interface{}{dataHexValue, hexEncryptedValue, hexEncryptedValue, hexEncryptedValue},
+			Normalized:        true,
+			Changed:           true,
+			ExpectedIDS:       [][]byte{specifiedClientID, zoneID, defaultClientID},
+		},
+		// 15. insert with subquery
+		{
+			Query:             `INSERT INTO TableWithoutColumnSchema (other_column, specified_client_id, default_client_id, zone_id) SELECT * FROM TableWithoutColumnSchema`,
+			QueryData:         []interface{}{},
+			ExpectedQueryData: []interface{}{},
+			Normalized:        false,
+			Changed:           false,
+			ExpectedIDS:       [][]byte{},
+		},
+		// 16. insert with SET expressions
+		{
+			Query:             `INSERT INTO TableWithoutColumnSchema SET other_column=X'%s', specified_client_id=X'%s', default_client_id=X'%s', zone_id=X'%s'`,
+			QueryData:         []interface{}{dataHexValue, dataHexValue, dataHexValue, dataHexValue},
+			ExpectedQueryData: []interface{}{dataHexValue, hexEncryptedValue, hexEncryptedValue, hexEncryptedValue},
+			Normalized:        true,
+			Changed:           true,
+			ExpectedIDS:       [][]byte{specifiedClientID, defaultClientID, zoneID},
+		},
+		// 17. update with join
+		{
+			Query:             `UPDATE TableWithoutColumnSchema INNER JOIN TableWithoutColumnSchema as t2 on t2.id=TableWithoutColumnSchema.id, (SELECT * FROM UnknownTable) as un set un.other_column=X'%s', t2.specified_client_id=X'%s', zone_id=X'%s', default_client_id=X'%s'`,
+			QueryData:         []interface{}{dataHexValue, dataHexValue, dataHexValue, dataHexValue},
+			ExpectedQueryData: []interface{}{dataHexValue, hexEncryptedValue, hexEncryptedValue, hexEncryptedValue},
+			Normalized:        true,
+			Changed:           true,
+			ExpectedIDS:       [][]byte{specifiedClientID, zoneID, defaultClientID},
+		},
+		// 18. update with parenthesized tables
+		{
+			Query:             `UPDATE (TableWithoutColumnSchema, TableWithoutColumnSchema as t2, UnknownTable as un) SET un.other_column=X'%s', t2.specified_client_id=X'%s', zone_id=X'%s', default_client_id=X'%s'`,
+			QueryData:         []interface{}{dataHexValue, dataHexValue, dataHexValue, dataHexValue},
+			ExpectedQueryData: []interface{}{dataHexValue, hexEncryptedValue, hexEncryptedValue, hexEncryptedValue},
+			Normalized:        true,
+			Changed:           true,
+			ExpectedIDS:       [][]byte{specifiedClientID, zoneID, defaultClientID},
+		},
+		// 19. INSERT with ignorable acrastruct
+		{
+			Query:             `INSERT INTO TableWithColumnSchema VALUES (1, X'%s', X'%s', X'%s')`,
+			QueryData:         []interface{}{hexAcrastruct, hexAcrastruct, dataHexValue},
+			ExpectedQueryData: []interface{}{hexAcrastruct, hexAcrastruct, hexEncryptedValue},
+			Normalized:        true,
+			Changed:           true,
+			ExpectedIDS:       [][]byte{zoneID},
+		},
+		// 20. update ignorable acrastruct
+		{
+			Query:             `UPDATE TableWithoutColumnSchema as t set other_column=X'%s', specified_client_id=X'%s', zone_id=X'%s', default_client_id=X'%s'`,
+			QueryData:         []interface{}{dataHexValue, hexAcrastruct, hexAcrastruct, dataHexValue},
+			ExpectedQueryData: []interface{}{dataHexValue, hexAcrastruct, hexAcrastruct, hexEncryptedValue},
+			Normalized:        true,
+			Changed:           true,
+			ExpectedIDS:       [][]byte{defaultClientID},
 		},
 	}
 	keystore := &testKeystore{}
