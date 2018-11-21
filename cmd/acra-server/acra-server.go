@@ -76,6 +76,7 @@ var DEFAULT_CONFIG_PATH = utils.GetConfigPathByName(ServiceName)
 // ErrWaitTimeout error indicates that server was shutdown and waited N seconds while shutting down all connections.
 var ErrWaitTimeout = errors.New("timeout")
 
+// ServerKeystore aggregate two interfaces to use for query encryptions, AcraStruct decryptions and SecureSession
 type ServerKeystore interface {
 	keystore.KeyStore
 	keystore.PublicKeyStore

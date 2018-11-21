@@ -27,6 +27,7 @@ type QueryObservable interface {
 	AddQueryObserver(QueryObserver)
 }
 
+// QueryObserverManager interface for observer aggregations
 type QueryObserverManager interface {
 	QueryObserver
 	QueryObservable

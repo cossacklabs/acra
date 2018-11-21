@@ -37,9 +37,9 @@ func NewMysqlQueryEncryptor(schema TableSchemaStore, clientID []byte, dataEncryp
 }
 
 // encryptInsertQuery encrypt data in insert query in VALUES and ON DUPLICATE KEY UPDATE statements
-func (parser *MysqlQueryEncryptor) encryptInsertQuery(insert *sqlparser.Insert) (bool, error) {
+func (encryptor *MysqlQueryEncryptor) encryptInsertQuery(insert *sqlparser.Insert) (bool, error) {
 	tableName := sqlparser.String(insert.Table.Name)
-	schema := parser.schemaStore.GetTableSchema(tableName)
+	schema := encryptor.schemaStore.GetTableSchema(tableName)
 	if schema == nil {
 		// unsupported table, we have not schema and query hasn't columns description
 		return false, nil
@@ -64,7 +64,7 @@ func (parser *MysqlQueryEncryptor) encryptInsertQuery(insert *sqlparser.Insert) 
 				// collect values per column
 				for j, value := range valTuple {
 					columnName := columnsName[j]
-					if changedValue, err := parser.encryptExpression(value, schema, columnName); err != nil {
+					if changedValue, err := encryptor.encryptExpression(value, schema, columnName); err != nil {
 						logrus.WithError(err).Errorln("Can't encrypt expression")
 						return changed, err
 					} else if changedValue {
@@ -76,7 +76,7 @@ func (parser *MysqlQueryEncryptor) encryptInsertQuery(insert *sqlparser.Insert) 
 	}
 
 	if len(insert.OnDup) > 0 {
-		onDupChanged, err := parser.encryptUpdateExpressions(sqlparser.UpdateExprs(insert.OnDup), insert.Table, qualifierToTableMap{insert.Table.Name.String(): insert.Table.Name.String()})
+		onDupChanged, err := encryptor.encryptUpdateExpressions(sqlparser.UpdateExprs(insert.OnDup), insert.Table, qualifierToTableMap{insert.Table.Name.String(): insert.Table.Name.String()})
 		if err != nil {
 			return changed, err
 		}
@@ -87,7 +87,7 @@ func (parser *MysqlQueryEncryptor) encryptInsertQuery(insert *sqlparser.Insert) 
 }
 
 // encryptExpression check that expr is SQLVal and has Hexval then try to encrypt
-func (parser *MysqlQueryEncryptor) encryptExpression(expr sqlparser.Expr, schema *TableSchema, columnName string) (bool, error) {
+func (encryptor *MysqlQueryEncryptor) encryptExpression(expr sqlparser.Expr, schema *TableSchema, columnName string) (bool, error) {
 	if schema.NeedToEncrypt(columnName) {
 		switch val := expr.(type) {
 		case *sqlparser.SQLVal:
@@ -103,7 +103,7 @@ func (parser *MysqlQueryEncryptor) encryptExpression(expr sqlparser.Expr, schema
 					logrus.Debugln("Skip encryption for matched AcraStruct structure")
 					return false, nil
 				}
-				encrypted, err := parser.encryptWithColumnSettings(schema.GetColumnEncryptionSettings(columnName), binValue)
+				encrypted, err := encryptor.encryptWithColumnSettings(schema.GetColumnEncryptionSettings(columnName), binValue)
 				if err != nil {
 					logrus.WithError(err).Errorln("Can't encrypt hex value from query")
 					return false, err
@@ -116,31 +116,32 @@ func (parser *MysqlQueryEncryptor) encryptExpression(expr sqlparser.Expr, schema
 	return false, nil
 }
 
-type TableData struct {
+// tableData store TableName and related As value together
+type tableData struct {
 	TableName sqlparser.TableName
 	As        sqlparser.TableIdent
 }
 
 // getTablesFromUpdate collect all tables from all update TableExprs which may be as subquery/table/join/etc
 // collect only table names and ignore aliases for subqueries
-func (parser *MysqlQueryEncryptor) getTablesFromUpdate(tables sqlparser.TableExprs) []*TableData {
-	var outputTables []*TableData
+func (encryptor *MysqlQueryEncryptor) getTablesFromUpdate(tables sqlparser.TableExprs) []*tableData {
+	var outputTables []*tableData
 	for _, tableExpr := range tables {
 		switch statement := tableExpr.(type) {
 		case *sqlparser.AliasedTableExpr:
 			aliasedStatement := statement.Expr.(sqlparser.SimpleTableExpr)
 			switch simpleTableStatement := aliasedStatement.(type) {
 			case sqlparser.TableName:
-				outputTables = append(outputTables, &TableData{TableName: simpleTableStatement, As: statement.As})
+				outputTables = append(outputTables, &tableData{TableName: simpleTableStatement, As: statement.As})
 			case *sqlparser.Subquery:
 				// unsupported
 			default:
 				logrus.Debugf("Unsupported SimpleTableExpr type %s", reflect.TypeOf(simpleTableStatement))
 			}
 		case *sqlparser.ParenTableExpr:
-			outputTables = append(outputTables, parser.getTablesFromUpdate(statement.Exprs)...)
+			outputTables = append(outputTables, encryptor.getTablesFromUpdate(statement.Exprs)...)
 		case *sqlparser.JoinTableExpr:
-			outputTables = append(outputTables, parser.getTablesFromUpdate(sqlparser.TableExprs{statement.LeftExpr, statement.RightExpr})...)
+			outputTables = append(outputTables, encryptor.getTablesFromUpdate(sqlparser.TableExprs{statement.LeftExpr, statement.RightExpr})...)
 		default:
 			logrus.Debugf("Unsupported TableExpr type %s", reflect.TypeOf(tableExpr))
 		}
@@ -149,9 +150,9 @@ func (parser *MysqlQueryEncryptor) getTablesFromUpdate(tables sqlparser.TableExp
 }
 
 // hasTablesToEncrypt check that exists schema for any table in tables
-func (parser *MysqlQueryEncryptor) hasTablesToEncrypt(tables []*TableData) bool {
+func (encryptor *MysqlQueryEncryptor) hasTablesToEncrypt(tables []*tableData) bool {
 	for _, table := range tables {
-		if v := parser.schemaStore.GetTableSchema(table.TableName.Name.String()); v != nil {
+		if v := encryptor.schemaStore.GetTableSchema(table.TableName.Name.String()); v != nil {
 			return true
 		}
 	}
@@ -159,22 +160,22 @@ func (parser *MysqlQueryEncryptor) hasTablesToEncrypt(tables []*TableData) bool 
 }
 
 // encryptUpdateExpressions try to encrypt all supported exprs. Use firstTable if column has not explicit table name because it's implicitly used in DBMSs
-func (parser *MysqlQueryEncryptor) encryptUpdateExpressions(exprs sqlparser.UpdateExprs, firstTable sqlparser.TableName, qualifierMap qualifierToTableMap) (bool, error) {
+func (encryptor *MysqlQueryEncryptor) encryptUpdateExpressions(exprs sqlparser.UpdateExprs, firstTable sqlparser.TableName, qualifierMap qualifierToTableMap) (bool, error) {
 	var schema *TableSchema
 	changed := false
 	for _, expr := range exprs {
 		// recognize table name of column
 		if expr.Name.Qualifier.IsEmpty() {
-			schema = parser.schemaStore.GetTableSchema(firstTable.Name.String())
+			schema = encryptor.schemaStore.GetTableSchema(firstTable.Name.String())
 		} else {
 			tableName := qualifierMap[expr.Name.Qualifier.Name.String()]
-			schema = parser.schemaStore.GetTableSchema(tableName)
+			schema = encryptor.schemaStore.GetTableSchema(tableName)
 		}
 		if schema == nil {
 			continue
 		}
 		columnName := expr.Name.Name.String()
-		if changedExpr, err := parser.encryptExpression(expr.Expr, schema, columnName); err != nil {
+		if changedExpr, err := encryptor.encryptExpression(expr.Expr, schema, columnName); err != nil {
 			logrus.WithError(err).Errorln("Can't encrypt update expression")
 			return changed, err
 		} else if changedExpr {
@@ -184,12 +185,13 @@ func (parser *MysqlQueryEncryptor) encryptUpdateExpressions(exprs sqlparser.Upda
 	return changed, nil
 }
 
+// qualifierToTableMap store table alias as key and table name as value
 type qualifierToTableMap map[string]string
 
 // encryptUpdateQuery encrypt data in Update query and return true if any fields was encrypted, false if wasn't and error if error occurred
-func (parser *MysqlQueryEncryptor) encryptUpdateQuery(update *sqlparser.Update) (bool, error) {
-	tables := parser.getTablesFromUpdate(update.TableExprs)
-	if !parser.hasTablesToEncrypt(tables) {
+func (encryptor *MysqlQueryEncryptor) encryptUpdateQuery(update *sqlparser.Update) (bool, error) {
+	tables := encryptor.getTablesFromUpdate(update.TableExprs)
+	if !encryptor.hasTablesToEncrypt(tables) {
 		return false, nil
 	}
 	if len(tables) == 0 {
@@ -204,11 +206,11 @@ func (parser *MysqlQueryEncryptor) encryptUpdateQuery(update *sqlparser.Update) 
 		}
 	}
 	firstTable := tables[0].TableName
-	return parser.encryptUpdateExpressions(update.Exprs, firstTable, qualifierMap)
+	return encryptor.encryptUpdateExpressions(update.Exprs, firstTable, qualifierMap)
 }
 
 // Encrypt raw data in query according to TableSchemaStore
-func (parser *MysqlQueryEncryptor) OnQuery(query string) (string, bool, error) {
+func (encryptor *MysqlQueryEncryptor) OnQuery(query string) (string, bool, error) {
 	parsed, err := sqlparser.Parse(query)
 	if err != nil {
 		return query, false, err
@@ -216,9 +218,9 @@ func (parser *MysqlQueryEncryptor) OnQuery(query string) (string, bool, error) {
 	changed := false
 	switch statement := parsed.(type) {
 	case *sqlparser.Insert:
-		changed, err = parser.encryptInsertQuery(statement)
+		changed, err = encryptor.encryptInsertQuery(statement)
 	case *sqlparser.Update:
-		changed, err = parser.encryptUpdateQuery(statement)
+		changed, err = encryptor.encryptUpdateQuery(statement)
 	}
 	if err != nil {
 		return query, false, err
@@ -230,18 +232,18 @@ func (parser *MysqlQueryEncryptor) OnQuery(query string) (string, bool, error) {
 }
 
 // encryptWithColumnSettings encrypt data and use ZoneId or ClientID from ColumnEncryptionSettings if not empty otherwise static ClientID that passed to parser
-func (parser *MysqlQueryEncryptor) encryptWithColumnSettings(column *ColumnEncryptionSetting, data []byte) ([]byte, error) {
+func (encryptor *MysqlQueryEncryptor) encryptWithColumnSettings(column *ColumnEncryptionSetting, data []byte) ([]byte, error) {
 	if len(column.ZoneID) > 0 {
 		logrus.WithField("zone_id", column.ZoneID).Debugln("Encrypt with specific ZoneID for column")
-		return parser.encryptor.EncryptWithZoneID([]byte(column.ZoneID), data)
+		return encryptor.encryptor.EncryptWithZoneID([]byte(column.ZoneID), data)
 	}
 	var id []byte
 	if len(column.ClientID) > 0 {
 		logrus.WithField("client_id", column.ClientID).Debugln("Encrypt with specific ClientID for column")
 		id = []byte(column.ClientID)
 	} else {
-		logrus.WithField("client_id", parser.clientID).Debugln("Encrypt with ClientID from connection")
-		id = parser.clientID
+		logrus.WithField("client_id", encryptor.clientID).Debugln("Encrypt with ClientID from connection")
+		id = encryptor.clientID
 	}
-	return parser.encryptor.EncryptWithClientID(id, data)
+	return encryptor.encryptor.EncryptWithClientID(id, data)
 }

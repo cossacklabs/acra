@@ -180,6 +180,7 @@ func NewMysqlHandler(ctx context.Context, clientID []byte, decryptor base.Decryp
 	}, nil
 }
 
+// AddQueryObserver implement QueryObservable interface and proxy call to ObserverManager
 func (handler *MysqlHandler) AddQueryObserver(obs base.QueryObserver) {
 	handler.queryObserverManager.AddQueryObserver(obs)
 }
