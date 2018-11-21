@@ -209,7 +209,7 @@ func (encryptor *MysqlQueryEncryptor) encryptUpdateQuery(update *sqlparser.Updat
 	return encryptor.encryptUpdateExpressions(update.Exprs, firstTable, qualifierMap)
 }
 
-// Encrypt raw data in query according to TableSchemaStore
+// OnQuery raw data in query according to TableSchemaStore
 func (encryptor *MysqlQueryEncryptor) OnQuery(query string) (string, bool, error) {
 	parsed, err := sqlparser.Parse(query)
 	if err != nil {

@@ -14,7 +14,8 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-/* package encryptor contains code related with parsing DBMS specific queries with raw data that should be encrypted,
+/*
+Package encryptor contains code related with parsing DBMS specific queries with raw data that should be encrypted,
 with encryption logic and loading schema description and encryption settings
 */
 package encryptor
