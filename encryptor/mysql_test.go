@@ -45,15 +45,6 @@ func (e *testEncryptor) EncryptWithClientID(clientID, data []byte) ([]byte, erro
 	return e.value, nil
 }
 
-type testKeystore struct{}
-
-func (tk *testKeystore) GetZonePublicKey(zoneID []byte) (*keys.PublicKey, error) {
-	return &keys.PublicKey{Value: []byte("some key")}, nil
-}
-func (tk *testKeystore) GetClientIDEncryptionPublicKey(clientID []byte) (*keys.PublicKey, error) {
-	return &keys.PublicKey{Value: []byte("some key")}, nil
-}
-
 // normalizeQuery convert to lower case parts that case-insensitive
 func normalizeQuery(query string, t *testing.T) string {
 	parsed, err := sqlparser.Parse(query)
@@ -307,14 +298,12 @@ schemas:
 			ExpectedIDS:       [][]byte{defaultClientID},
 		},
 	}
-	keystore := &testKeystore{}
-	mysqlParser, err := NewMysqlQueryEncryptor(schemaStore, defaultClientID, keystore)
+	encryptor := &testEncryptor{value: encryptedValue}
+	mysqlParser, err := NewMysqlQueryEncryptor(schemaStore, defaultClientID, encryptor)
 	if err != nil {
 		t.Fatal(err)
 	}
-	encryptor := &testEncryptor{value: encryptedValue}
-	// mock encryptor
-	mysqlParser.encryptor = encryptor
+
 	for i, testCase := range testData {
 		encryptor.reset()
 		query := fmt.Sprintf(testCase.Query, testCase.QueryData...)

@@ -107,7 +107,13 @@ func (clientSession *ClientSession) HandleClientConnection(clientID []byte, decr
 				Errorln("Can't initialize mysql handler")
 			return
 		}
-		queryEncryptor, err := encryptor.NewMysqlQueryEncryptor(clientSession.config.tableSchema, clientID, clientSession.Server.keystorage)
+		dataEncryptor, err := encryptor.NewAcrawriterDataEncryptor(clientSession.Server.keystorage)
+		if err != nil {
+			clientSession.logger.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorDataEncryptorInitialization).
+				Errorln("Can't initialize data encryptor to encrypt data in queries")
+			return
+		}
+		queryEncryptor, err := encryptor.NewMysqlQueryEncryptor(clientSession.config.tableSchema, clientID, dataEncryptor)
 		if err != nil {
 			clientSession.logger.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorEncryptorInitialization).Errorln("Can't initialize query encryptor")
 			return

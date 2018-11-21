@@ -332,7 +332,6 @@ func (handler *MysqlHandler) ClientToDbConnector(errCh chan<- error) {
 			newQuery, changed, err := handler.queryObserverManager.OnQuery(query)
 			if err != nil {
 				clientLog.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorEncryptQueryData).Errorln("Error occurred on query handler")
-
 			} else if changed {
 				packet.replaceQuery(newQuery)
 			}

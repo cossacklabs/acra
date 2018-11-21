@@ -120,6 +120,7 @@ const (
 	EventCodeErrorTracingCantSendTrace = 800
 
 	// encryptor
-	EventCodeErrorEncryptQueryData        = 900
-	EventCodeErrorEncryptorInitialization = 901
+	EventCodeErrorEncryptQueryData            = 900
+	EventCodeErrorEncryptorInitialization     = 901
+	EventCodeErrorDataEncryptorInitialization = 902
 )

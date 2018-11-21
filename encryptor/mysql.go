@@ -19,7 +19,6 @@ package encryptor
 import (
 	"encoding/hex"
 	"github.com/cossacklabs/acra/decryptor/base"
-	"github.com/cossacklabs/acra/keystore"
 	"github.com/sirupsen/logrus"
 	"github.com/xwb1989/sqlparser"
 	"reflect"
@@ -33,12 +32,8 @@ type MysqlQueryEncryptor struct {
 }
 
 // NewMysqlQueryEncryptor create MysqlQueryEncryptor with schema and clientID
-func NewMysqlQueryEncryptor(schema TableSchemaStore, clientID []byte, keystore keystore.PublicKeyStore) (*MysqlQueryEncryptor, error) {
-	encryptor, err := NewAcrawriterDataEncryptor(keystore)
-	if err != nil {
-		return nil, err
-	}
-	return &MysqlQueryEncryptor{schemaStore: schema, clientID: clientID, encryptor: encryptor}, nil
+func NewMysqlQueryEncryptor(schema TableSchemaStore, clientID []byte, dataEncryptor DataEncryptor) (*MysqlQueryEncryptor, error) {
+	return &MysqlQueryEncryptor{schemaStore: schema, clientID: clientID, encryptor: dataEncryptor}, nil
 }
 
 // encryptInsertQuery encrypt data in insert query in VALUES and ON DUPLICATE KEY UPDATE statements
