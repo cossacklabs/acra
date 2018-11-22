@@ -16,7 +16,10 @@ limitations under the License.
 
 package handlers
 
-import "github.com/sirupsen/logrus"
+import (
+	"github.com/cossacklabs/acra/acra-censor/common"
+	"github.com/sirupsen/logrus"
+)
 
 // QueryIgnoreHandler allows to ignore any query
 type QueryIgnoreHandler struct {
@@ -52,7 +55,7 @@ func (handler *QueryIgnoreHandler) Release() {
 // AddQueries normalizes and adds queries to the list that should be ignored
 func (handler *QueryIgnoreHandler) AddQueries(queries []string) {
 	for _, query := range queries {
-		normalizedQuery, _, err := NormalizeAndRedactSQLQuery(query)
+		normalizedQuery, _, err := common.NormalizeAndRedactSQLQuery(query)
 		if err != nil {
 			logrus.WithError(err).Warningln("Can't add query to QueryIgnoreHandler in normalized form, added as is")
 			// add as is
@@ -66,7 +69,7 @@ func (handler *QueryIgnoreHandler) AddQueries(queries []string) {
 // RemoveQueries removes queries from the list that should be whitelisted
 func (handler *QueryIgnoreHandler) RemoveQueries(queries []string) {
 	for _, query := range queries {
-		normalizedQuery, _, err := NormalizeAndRedactSQLQuery(query)
+		normalizedQuery, _, err := common.NormalizeAndRedactSQLQuery(query)
 		if err != nil {
 			continue
 		}

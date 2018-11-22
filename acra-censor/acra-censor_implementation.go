@@ -17,6 +17,7 @@ limitations under the License.
 package acracensor
 
 import (
+	"github.com/cossacklabs/acra/acra-censor/common"
 	"github.com/cossacklabs/acra/acra-censor/handlers"
 	log "github.com/sirupsen/logrus"
 )
@@ -71,9 +72,9 @@ func (acraCensor *AcraCensor) HandleQuery(query string) error {
 		// no handlers, AcraCensor won't work
 		return nil
 	}
-	normalizedQuery, queryWithHiddenValues, err := handlers.NormalizeAndRedactSQLQuery(query)
-	if err == handlers.ErrQuerySyntaxError && acraCensor.ignoreParseError {
-		acraCensor.logger.WithError(err).Infof("Parsing error on query (first %v symbols): %s", handlers.LogQueryLength, handlers.TrimStringToN(queryWithHiddenValues, handlers.LogQueryLength))
+	normalizedQuery, queryWithHiddenValues, err := common.NormalizeAndRedactSQLQuery(query)
+	if err == common.ErrQuerySyntaxError && acraCensor.ignoreParseError {
+		acraCensor.logger.WithError(err).Infof("Parsing error on query (first %v symbols): %s", common.LogQueryLength, common.TrimStringToN(queryWithHiddenValues, common.LogQueryLength))
 
 	}
 	if err != nil {
@@ -89,7 +90,7 @@ func (acraCensor *AcraCensor) HandleQuery(query string) error {
 		continueHandling, err := handler.CheckQuery(normalizedQuery)
 		if err != nil {
 			// continue to next handler
-			if err == handlers.ErrQuerySyntaxError && acraCensor.ignoreParseError {
+			if err == common.ErrQuerySyntaxError && acraCensor.ignoreParseError {
 				continue
 			}
 			acraCensor.logger.Errorf("Forbidden query: '%s'", queryWithHiddenValues)

@@ -14,12 +14,14 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package handlers
+package common
 
 import (
+	"errors"
 	"github.com/cossacklabs/acra/logging"
 	log "github.com/sirupsen/logrus"
 	"github.com/xwb1989/sqlparser"
+	"github.com/xwb1989/sqlparser/dependency/querypb"
 	"strings"
 )
 
@@ -27,6 +29,30 @@ type pattern struct {
 	placeholder string
 	replacer    string
 }
+
+// Errors returned during parsing SQL queries.
+var (
+	ErrQueryNotInWhitelist             = errors.New("query not in whitelist")
+	ErrQueryInBlacklist                = errors.New("query in blacklist")
+	ErrAccessToForbiddenTableBlacklist = errors.New("query tries to access forbidden table")
+	ErrAccessToForbiddenTableWhitelist = errors.New("query tries to access forbidden table")
+	ErrBlacklistPatternMatch           = errors.New("query's structure is forbidden")
+	ErrWhitelistPatternMismatch        = errors.New("query's structure is forbidden")
+	ErrPatternSyntaxError              = errors.New("fail to parse specified pattern")
+	ErrPatternCheckError               = errors.New("failed to check specified pattern match")
+	ErrQuerySyntaxError                = errors.New("fail to parse specified query")
+	ErrComplexSerializationError       = errors.New("can't perform complex serialization of queries")
+	ErrCantOpenFileError               = errors.New("can't open file to write queries")
+	ErrCantReadQueriesFromFileError    = errors.New("can't read queries from file")
+	ErrUnexpectedTypeError             = errors.New("should never appear")
+)
+
+const (
+	// LogQueryLength is maximum query length for logging to syslog.
+	LogQueryLength = 100
+	// ValueMask is used to mask real Values from SQL queries before logging to syslog.
+	ValueMask = "replaced"
+)
 
 const (
 	// UnionPlaceholder is used when matching %%UNION%% pattern
@@ -149,4 +175,36 @@ func ParsePatterns(rawPatterns []string) ([]sqlparser.Statement, error) {
 		outputPatterns = append(outputPatterns, statement)
 	}
 	return outputPatterns, nil
+}
+
+// TrimStringToN trims query to N chars.
+func TrimStringToN(query string, n int) string {
+	if len(query) <= n {
+		return query
+	}
+	return query[:n]
+}
+
+// NormalizeAndRedactSQLQuery returns a normalized (lowercases SQL commands) SQL string,
+// and redacted SQL string with the params stripped out for display.
+// Taken from sqlparser package
+func NormalizeAndRedactSQLQuery(sql string) (normalizedQuery string, redactedQuery string, error error) {
+	bv := map[string]*querypb.BindVariable{}
+	sqlStripped, _ := sqlparser.SplitMarginComments(sql)
+
+	// sometimes queries might have ; at the end, that should be stripped
+	sqlStripped = strings.TrimSuffix(sqlStripped, ";")
+
+	stmt, err := sqlparser.Parse(sqlStripped)
+	if err != nil {
+		return "", "", err
+	}
+
+	normalizedQ := sqlparser.String(stmt)
+
+	// redact and mask VALUES
+	sqlparser.Normalize(stmt, bv, ValueMask)
+	redactedQ := sqlparser.String(stmt)
+
+	return normalizedQ, redactedQ, nil
 }

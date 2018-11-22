@@ -1,4 +1,4 @@
-package handlers
+package common
 
 import (
 	"fmt"
@@ -71,7 +71,7 @@ func testSingleTopLevelPlaceholder(t *testing.T, pattern string, indexOfMatchedQ
 	}
 	match := false
 	for index := range testQueries {
-		match, err = checkPatternsMatching(parsedPatterns, testQueries[index])
+		match, err = CheckPatternsMatching(parsedPatterns, testQueries[index])
 		if err != nil {
 			t.Fatal(err)
 		}

@@ -18,6 +18,7 @@ package handlers
 
 import (
 	"encoding/json"
+	"github.com/cossacklabs/acra/acra-censor/common"
 	"io/ioutil"
 	"os"
 	"os/signal"
@@ -56,7 +57,7 @@ func NewQueryCaptureHandler(filePath string) (*QueryCaptureHandler, error) {
 	// open or create file, APPEND MODE
 	openedFile, err := os.OpenFile(filePath, os.O_APPEND|os.O_RDWR|os.O_CREATE, 0600)
 	if err != nil {
-		log.WithField("handler", "querycapture").WithError(ErrCantReadQueriesFromFileError).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCensorIOError).Errorln("Can't create QueryCaptureHandler instance")
+		log.WithField("handler", "querycapture").WithError(common.ErrCantReadQueriesFromFileError).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCensorIOError).Errorln("Can't create QueryCaptureHandler instance")
 		return nil, err
 	}
 	// signals
@@ -73,7 +74,7 @@ func NewQueryCaptureHandler(filePath string) (*QueryCaptureHandler, error) {
 	// read existing queries from file
 	err = handler.ReadAllQueriesFromFile()
 	if err != nil {
-		handler.logger.WithError(ErrCantReadQueriesFromFileError).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCensorIOError).Errorln("Can't create QueryCaptureHandler instance")
+		handler.logger.WithError(common.ErrCantReadQueriesFromFileError).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCensorIOError).Errorln("Can't create QueryCaptureHandler instance")
 		openedFile.Close()
 		return nil, err
 	}
@@ -84,7 +85,7 @@ func NewQueryCaptureHandler(filePath string) (*QueryCaptureHandler, error) {
 			case <-handler.serializationTicker.C:
 				err := handler.DumpBufferedQueriesToFile(openedFile)
 				if err != nil {
-					handler.logger.WithError(ErrComplexSerializationError).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCensorIOError).Errorln("Can't create QueryCaptureHandler instance")
+					handler.logger.WithError(common.ErrComplexSerializationError).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCensorIOError).Errorln("Can't create QueryCaptureHandler instance")
 				}
 				handler.serializationTicker.Stop()
 				handler.serializationTicker = time.NewTicker(handler.serializationTimeout)
@@ -92,14 +93,14 @@ func NewQueryCaptureHandler(filePath string) (*QueryCaptureHandler, error) {
 			case <-signalBackgroundExit:
 				err := handler.FinishAndCloseFile(openedFile)
 				if err != nil {
-					handler.logger.WithError(ErrComplexSerializationError).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCensorIOError).Errorln("Can't create QueryCaptureHandler instance")
+					handler.logger.WithError(common.ErrComplexSerializationError).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCensorIOError).Errorln("Can't create QueryCaptureHandler instance")
 				}
 				return
 
 			case <-signalShutdown:
 				err := handler.FinishAndCloseFile(openedFile)
 				if err != nil {
-					handler.logger.WithError(ErrComplexSerializationError).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCensorIOError).Errorln("Can't create QueryCaptureHandler instance")
+					handler.logger.WithError(common.ErrComplexSerializationError).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCensorIOError).Errorln("Can't create QueryCaptureHandler instance")
 				}
 				return
 
@@ -113,7 +114,7 @@ func NewQueryCaptureHandler(filePath string) (*QueryCaptureHandler, error) {
 
 // RedactAndCheckQuery redacts query first, then calls CheckQuery
 func (handler *QueryCaptureHandler) RedactAndCheckQuery(query string) (bool, error) {
-	_, queryWithHiddenValues, err := NormalizeAndRedactSQLQuery(query)
+	_, queryWithHiddenValues, err := common.NormalizeAndRedactSQLQuery(query)
 	if err != nil {
 		return true, nil
 	}
@@ -171,7 +172,7 @@ func (handler *QueryCaptureHandler) GetAllInputQueries() []string {
 
 // RedactAndMarkQueryAsForbidden redacts query first, then calls CheckQuery
 func (handler *QueryCaptureHandler) RedactAndMarkQueryAsForbidden(query string) {
-	_, queryWithHiddenValues, err := NormalizeAndRedactSQLQuery(query)
+	_, queryWithHiddenValues, err := common.NormalizeAndRedactSQLQuery(query)
 	if err != nil {
 		return
 	}
@@ -215,7 +216,7 @@ func (handler *QueryCaptureHandler) DumpAllQueriesToFile() error {
 	// open or create file, NO APPEND
 	f, err := os.OpenFile(handler.filePath, os.O_TRUNC|os.O_RDWR|os.O_CREATE, 0600)
 	if err != nil {
-		handler.logger.WithError(ErrCantOpenFileError).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCensorIOError).Errorln("Can't dump queries to file")
+		handler.logger.WithError(common.ErrCantOpenFileError).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCensorIOError).Errorln("Can't dump queries to file")
 		return err
 	}
 	// write all queries
@@ -242,7 +243,7 @@ func (handler *QueryCaptureHandler) DumpBufferedQueriesToFile(openedFile *os.Fil
 func (handler *QueryCaptureHandler) ReadAllQueriesFromFile() error {
 	q, err := ReadQueries(handler.filePath)
 	if err != nil {
-		handler.logger.WithError(ErrCantReadQueriesFromFileError).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCensorIOError).Errorln("Can't read queries from file")
+		handler.logger.WithError(common.ErrCantReadQueriesFromFileError).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCensorIOError).Errorln("Can't read queries from file")
 		return err
 	}
 	// read existing queries from file
