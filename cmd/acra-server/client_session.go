@@ -118,6 +118,7 @@ func (clientSession *ClientSession) HandleClientConnection(clientID []byte, decr
 			clientSession.logger.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorEncryptorInitialization).Errorln("Can't initialize query encryptor")
 			return
 		}
+		clientSession.logger.Debugln("Add query encryptor")
 		handler.AddQueryObserver(queryEncryptor)
 		go handler.ClientToDbConnector(clientProxyErrorCh)
 		go handler.DbToClientConnector(dbProxyErrorCh)

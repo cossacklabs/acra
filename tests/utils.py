@@ -8,6 +8,10 @@ import shutil
 from pythemis import smessage, scell
 import yaml
 
+ENCRYPTOR_DEFAULT_CONFIG = os.environ.get(
+    'TEST_ENCRYPTOR_DEFAULT_CONFIG', 'tests/encryptor_config.yaml')
+ENCRYPTOR_TEST_CONFIG = os.environ.get(
+    'TEST_ENCRYPTOR_TEST_CONFIG', ENCRYPTOR_DEFAULT_CONFIG + '.test')
 
 TEMP_DATA_GENERATED = 'TEST_RANDOM_DATA_FOLDER_GENERATE'
 TEMP_DATA_FOLDER_VARNAME = 'TEST_RANDOM_DATA_FOLDER'
@@ -64,6 +68,7 @@ def read_storage_public_key(client_id, keys_dir='.acrakeys'):
     with open('{}/{}_storage.pub'.format(keys_dir, client_id), 'rb') as f:
             return f.read()
 
+
 def read_zone_public_key(zone_id, keys_dir='.acrakeys'):
     with open('{}/{}_zone.pub'.format(keys_dir, zone_id), 'rb') as f:
         return f.read()
@@ -83,3 +88,14 @@ def decrypt_acrastruct(data, private_key, client_id=None, zone_id=None):
 
 def decrypt_private_key(private_key, key_id, master_key):
     return scell.SCellSeal(master_key).decrypt(private_key, key_id)
+
+
+def prepare_encryptor_config(zone_id):
+    with open(ENCRYPTOR_DEFAULT_CONFIG, 'r') as f:
+        config = yaml.load(f)
+    for table in config['schemas']:
+        for column in table['encrypted']:
+            if 'zone_id' in column:
+                column['zone_id'] = zone_id
+    with open(ENCRYPTOR_TEST_CONFIG, 'w') as f:
+        yaml.dump(config, f)

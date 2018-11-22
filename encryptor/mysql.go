@@ -42,6 +42,7 @@ func (encryptor *MysqlQueryEncryptor) encryptInsertQuery(insert *sqlparser.Inser
 	schema := encryptor.schemaStore.GetTableSchema(tableName)
 	if schema == nil {
 		// unsupported table, we have not schema and query hasn't columns description
+		logrus.Debugf("Hasn't schema for table %s", tableName)
 		return false, nil
 	}
 
@@ -92,6 +93,18 @@ func (encryptor *MysqlQueryEncryptor) encryptExpression(expr sqlparser.Expr, sch
 		switch val := expr.(type) {
 		case *sqlparser.SQLVal:
 			switch val.Type {
+			case sqlparser.StrVal:
+				if err := base.ValidateAcraStructLength(val.Val); err == nil {
+					logrus.Debugln("Skip encryption for matched AcraStruct structure")
+					return false, nil
+				}
+				encrypted, err := encryptor.encryptWithColumnSettings(schema.GetColumnEncryptionSettings(columnName), val.Val)
+				if err != nil {
+					logrus.WithError(err).Errorln("Can't encrypt hex value from query")
+					return false, err
+				}
+				val.Val = encrypted
+				return true, nil
 			case sqlparser.HexVal:
 				binValue := make([]byte, hex.DecodedLen(len(val.Val)))
 				_, err := hex.Decode(binValue, val.Val)

@@ -177,10 +177,12 @@ func main() {
 	}
 
 	if *encryptorConfig != "" {
+		log.Infof("Load encryptor configuration from %s ...", *encryptorConfig)
 		if err := config.LoadMapTableSchemaConfig(*encryptorConfig); err != nil {
 			log.WithError(err).Errorln("Can't load encryptor config")
 			os.Exit(1)
 		}
+		log.Infoln("Encryptor configuration loaded")
 	}
 
 	if err := config.SetMySQL(*useMysql); err != nil {
