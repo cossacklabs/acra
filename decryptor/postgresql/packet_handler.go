@@ -125,6 +125,9 @@ type ColumnData struct {
 
 // Length return column length converted from LengthBuf
 func (column *ColumnData) Length() int {
+	if column.isNull {
+		return 0
+	}
 	return int(binary.BigEndian.Uint32(column.LengthBuf[:]))
 }
 

@@ -88,6 +88,7 @@ test_table = sa.Table('test', metadata,
     sa.Column('id', sa.Integer, primary_key=True),
     sa.Column('data', sa.LargeBinary(length=COLUMN_DATA_SIZE)),
     sa.Column('raw_data', sa.Text),
+    sa.Column('nullable_column', sa.Text, nullable=True),
 )
 
 acrarollback_output_table = sa.Table('acrarollback_output', metadata,
@@ -1781,7 +1782,7 @@ class TestShutdownPoisonRecordWithZoneOffStatus(TestPoisonRecordShutdown):
         result = self.engine1.execute(
             sa.select([sa.cast(zone, BYTEA), test_table])
                 .where(test_table.c.id == row_id))
-        for zone, _, data, raw_data in result:
+        for zone, _, data, raw_data, _ in result:
             self.assertEqual(zone, zone)
             self.assertEqual(data, poison_record)
 
@@ -1796,7 +1797,7 @@ class TestShutdownPoisonRecordWithZoneOffStatus(TestPoisonRecordShutdown):
         result = self.engine1.execute(
             sa.select([test_table])
                 .where(test_table.c.id == row_id))
-        for _, data, raw_data in result:
+        for _, data, raw_data, _ in result:
             self.assertEqual(data, poison_record)
 
     def testShutdown3(self):
@@ -1809,7 +1810,7 @@ class TestShutdownPoisonRecordWithZoneOffStatus(TestPoisonRecordShutdown):
 
         result = self.engine1.execute(
             sa.select([test_table]))
-        for _, data, raw_data in result:
+        for _, data, raw_data, _ in result:
             self.assertEqual(data, poison_record)
 
     def testShutdown4(self):
@@ -1826,7 +1827,7 @@ class TestShutdownPoisonRecordWithZoneOffStatus(TestPoisonRecordShutdown):
 
         result = self.engine1.execute(
             sa.select([test_table]))
-        for _, data, raw_data in result:
+        for _, data, raw_data, _ in result:
             self.assertEqual(testData, data)
 
 
@@ -1920,7 +1921,7 @@ class TestNoCheckPoisonRecord(AcraCatchLogsMixin, BasePoisonRecordTest):
         self.assertNotIn('Check poison records', log)
         result = self.engine1.execute(
             sa.select([test_table]))
-        for _, data, raw_data in result:
+        for _, data, raw_data, _ in result:
             self.assertEqual(poison_record, data)
 
 
