@@ -17,6 +17,7 @@ limitations under the License.
 package encryptor
 
 import (
+	"bytes"
 	"encoding/hex"
 	"github.com/cossacklabs/acra/decryptor/base"
 	"github.com/cossacklabs/acra/sqlparser"
@@ -87,6 +88,8 @@ func (encryptor *MysqlQueryEncryptor) encryptInsertQuery(insert *sqlparser.Inser
 	return changed, nil
 }
 
+var pgHexStringPrefix = []byte{'\\', 'x'}
+
 // encryptExpression check that expr is SQLVal and has Hexval then try to encrypt
 func (encryptor *MysqlQueryEncryptor) encryptExpression(expr sqlparser.Expr, schema *TableSchema, columnName string) (bool, error) {
 	if schema.NeedToEncrypt(columnName) {
@@ -123,6 +126,29 @@ func (encryptor *MysqlQueryEncryptor) encryptExpression(expr sqlparser.Expr, sch
 				}
 				val.Val = []byte(hex.EncodeToString(encrypted))
 				return true, nil
+			case sqlparser.PgEscapeString:
+				if len(val.Val) >= 4 && bytes.Equal(val.Val[:2], pgHexStringPrefix) {
+					hexValue := val.Val[2:]
+					binValue := make([]byte, hex.DecodedLen(len(hexValue)))
+					_, err := hex.Decode(binValue, hexValue)
+					if err != nil {
+						return false, nil
+					}
+					if err := base.ValidateAcraStructLength(binValue); err == nil {
+						logrus.Debugln("Skip encryption for matched AcraStruct structure")
+						return false, nil
+					}
+					encrypted, err := encryptor.encryptWithColumnSettings(schema.GetColumnEncryptionSettings(columnName), binValue)
+					if err != nil {
+						logrus.WithError(err).Errorln("Can't encrypt hex value from query")
+						return false, err
+					}
+					newVal := make([]byte, 0, 2+hex.EncodedLen(len(encrypted)))
+					copy(newVal, pgHexStringPrefix)
+					hex.Encode(newVal[2:], encrypted)
+					val.Val = newVal
+					return true, nil
+				}
 			}
 		}
 	}

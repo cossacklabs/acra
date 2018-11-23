@@ -97,6 +97,17 @@ func (clientSession *ClientSession) HandleClientConnection(clientID []byte, decr
 		}
 		return
 	}
+	dataEncryptor, err := encryptor.NewAcrawriterDataEncryptor(clientSession.Server.keystorage)
+	if err != nil {
+		clientSession.logger.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorDataEncryptorInitialization).
+			Errorln("Can't initialize data encryptor to encrypt data in queries")
+		return
+	}
+	queryEncryptor, err := encryptor.NewMysqlQueryEncryptor(clientSession.config.tableSchema, clientID, dataEncryptor)
+	if err != nil {
+		clientSession.logger.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorEncryptorInitialization).Errorln("Can't initialize query encryptor")
+		return
+	}
 	var pgProxy *postgresql.PgProxy
 	if clientSession.config.UseMySQL() {
 		clientSession.logger.Debugln("MySQL connection")
@@ -107,17 +118,7 @@ func (clientSession *ClientSession) HandleClientConnection(clientID []byte, decr
 				Errorln("Can't initialize mysql handler")
 			return
 		}
-		dataEncryptor, err := encryptor.NewAcrawriterDataEncryptor(clientSession.Server.keystorage)
-		if err != nil {
-			clientSession.logger.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorDataEncryptorInitialization).
-				Errorln("Can't initialize data encryptor to encrypt data in queries")
-			return
-		}
-		queryEncryptor, err := encryptor.NewMysqlQueryEncryptor(clientSession.config.tableSchema, clientID, dataEncryptor)
-		if err != nil {
-			clientSession.logger.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorEncryptorInitialization).Errorln("Can't initialize query encryptor")
-			return
-		}
+
 		clientSession.logger.Debugln("Add query encryptor")
 		handler.AddQueryObserver(queryEncryptor)
 		go handler.ClientToDbConnector(clientProxyErrorCh)
@@ -130,6 +131,7 @@ func (clientSession *ClientSession) HandleClientConnection(clientID []byte, decr
 			return
 		}
 		clientSession.logger.Debugln("PostgreSQL connection")
+		pgProxy.AddQueryObserver(queryEncryptor)
 		go pgProxy.PgProxyClientRequests(clientSession.config.censor, clientSession.connectionToDb, clientSession.connection, clientProxyErrorCh)
 		go pgProxy.PgDecryptStream(clientSession.config.censor, decryptorImpl, clientSession.config.GetTLSConfig(), clientSession.connectionToDb, clientSession.connection, dbProxyErrorCh)
 	}

@@ -89,15 +89,22 @@ const (
 
 // PgProxy represents PgSQL database connection between client and database with TLS support
 type PgProxy struct {
-	clientConnection net.Conn
-	dbConnection     net.Conn
-	TLSCh            chan bool
-	ctx              context.Context
+	clientConnection     net.Conn
+	dbConnection         net.Conn
+	TLSCh                chan bool
+	ctx                  context.Context
+	queryObserverManager base.QueryObserverManager
 }
 
 // NewPgProxy returns new PgProxy
 func NewPgProxy(ctx context.Context, clientConnection, dbConnection net.Conn) (*PgProxy, error) {
-	return &PgProxy{clientConnection: clientConnection, dbConnection: dbConnection, TLSCh: make(chan bool), ctx: ctx}, nil
+	return &PgProxy{clientConnection: clientConnection, dbConnection: dbConnection, TLSCh: make(chan bool), ctx: ctx,
+		queryObserverManager: &base.ArrayQueryObserverableManager{}}, nil
+}
+
+// AddQueryObserver implement QueryObservable interface and proxy call to ObserverManager
+func (proxy *PgProxy) AddQueryObserver(obs base.QueryObserver) {
+	proxy.queryObserverManager.AddQueryObserver(obs)
 }
 
 // PgProxyClientRequests checks every client request using AcraCensor,
@@ -209,6 +216,12 @@ func (proxy *PgProxy) PgProxyClientRequests(acraCensor acracensor.AcraCensorInte
 			}
 			continue
 		}
+
+		newQuery, changed, err := proxy.queryObserverManager.OnQuery(query)
+		if err != nil {
+			logger.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorEncryptQueryData).Errorln("Error occurred on query handler")
+		}
+
 		censorSpan.End()
 
 		if err := packet.sendPacket(); err != nil {

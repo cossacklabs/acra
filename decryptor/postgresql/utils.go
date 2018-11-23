@@ -18,6 +18,7 @@ package postgresql
 
 import (
 	"bytes"
+	"encoding/binary"
 	"errors"
 )
 
@@ -44,4 +45,54 @@ func FetchQueryFromParse(data []byte) ([]byte, error) {
 	// convert to absolute
 	endIndex += startIndex
 	return data[startIndex : endIndex+1], nil
+}
+
+type ParsePacket struct {
+	Name      []byte
+	Query     []byte
+	ParamsNum int16
+	Params    []int32
+}
+
+// TODO finish parsing Parse packet and replace query
+func NewParsePacket(data []byte) (*ParsePacket, error) {
+	startIndex := bytes.Index(data, terminator)
+	if startIndex == -1 {
+		return nil, ErrTerminatorNotFound
+	}
+	name := data[:startIndex]
+	// skip terminator of previous field
+	startIndex += 1
+	endIndex := bytes.Index(data[startIndex:], terminator)
+	if endIndex == -1 {
+		return nil, ErrTerminatorNotFound
+	}
+	// convert to absolute
+	endIndex += startIndex + 1
+	query := data[startIndex:endIndex]
+	numParams := int(binary.BigEndian.Uint16(data[endIndex : endIndex+2]))
+	var params []int32
+	for i := 0; i < numParams; i++ {
+
+	}
+
+}
+
+// ReplaceQueryInParse return new data with replaced query or error
+func ReplaceQueryInParse(data, newQuery []byte) ([]byte, error) {
+	startIndex := bytes.Index(data, terminator)
+	if startIndex == -1 {
+		return nil, ErrTerminatorNotFound
+	}
+	// skip terminator of previous field
+	startIndex += 1
+	endIndex := bytes.Index(data[startIndex:], terminator)
+	if endIndex == -1 {
+		return nil, ErrTerminatorNotFound
+	}
+	oldQueryLength := endIndex
+	// convert to absolute
+	endIndex += startIndex
+
+	oldQueryLength := endIndex + 1 - startIndex
 }

@@ -234,6 +234,21 @@ func (packet *PacketHandler) GetParseQuery() (string, error) {
 	return string(query[:len(query)-1]), nil
 }
 
+// ReplaceQuery query in packet with new query and update packet length
+func (packet *PacketHandler) ReplaceQuery(newQuery string) {
+	if packet.IsSimpleQuery() {
+		packet.descriptionBuf.Reset()
+		newQueryLength := len(newQuery) + 1 // query + '0' terminator
+		packet.descriptionBuf.Grow(newQueryLength)
+		packet.descriptionBuf.Write([]byte(newQuery))
+		packet.descriptionBuf.WriteByte(0)
+		// update packet size
+		binary.BigEndian.PutUint32(packet.descriptionLengthBuf[:], uint32(newQueryLength+DataRowLengthBufSize))
+	} else if packet.IsParse() {
+
+	}
+}
+
 // GetSimpleQuery return query value as string from Query packet
 func (packet *PacketHandler) GetSimpleQuery() (string, error) {
 	return string(packet.descriptionBuf.Bytes()[:packet.dataLength-1]), nil
