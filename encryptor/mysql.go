@@ -19,8 +19,8 @@ package encryptor
 import (
 	"encoding/hex"
 	"github.com/cossacklabs/acra/decryptor/base"
+	"github.com/cossacklabs/acra/sqlparser"
 	"github.com/sirupsen/logrus"
-	"github.com/xwb1989/sqlparser"
 	"reflect"
 )
 

@@ -21,9 +21,9 @@ import (
 	"encoding/hex"
 	"fmt"
 	"github.com/cossacklabs/acra/acra-writer"
+	"github.com/cossacklabs/acra/sqlparser"
 	"github.com/cossacklabs/acra/zone"
 	"github.com/cossacklabs/themis/gothemis/keys"
-	"github.com/xwb1989/sqlparser"
 	"testing"
 )
 

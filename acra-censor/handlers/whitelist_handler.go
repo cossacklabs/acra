@@ -18,8 +18,8 @@ package handlers
 
 import (
 	"github.com/cossacklabs/acra/logging"
+	"github.com/cossacklabs/acra/sqlparser"
 	log "github.com/sirupsen/logrus"
-	"github.com/xwb1989/sqlparser"
 )
 
 // WhitelistHandler allows query/pattern/table and restricts/forbids everything else
