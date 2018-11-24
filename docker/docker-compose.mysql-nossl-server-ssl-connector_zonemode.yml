@@ -56,7 +56,7 @@ services:
             --keys_output_dir=/keys/acra-server
             --keys_public_output_dir=/keys/acra-writer
 
-    # Postgresql container
+    # MySQL container
     mysql:
         image: mariadb:10.3
         # INSECURE!!! You MUST define your own DB name and credentials
