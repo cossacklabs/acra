@@ -41,10 +41,9 @@ public:
     {
     }
 
-    char last() const { return *(m_ptr - 1); }
-    void push_back(char c) { *m_ptr = c; ++m_ptr; }
-    size_t size() const { return m_ptr - m_begin; }
-    void resize(size_t size) { m_ptr = m_begin + size; }
+    CPPCODEC_ALWAYS_INLINE void push_back(char c) { *m_ptr = c; ++m_ptr; }
+    CPPCODEC_ALWAYS_INLINE size_t size() const { return m_ptr - m_begin; }
+    CPPCODEC_ALWAYS_INLINE void resize(size_t size) { m_ptr = m_begin + size; }
 
 private:
     char* m_ptr;
@@ -56,7 +55,7 @@ template <> inline void init<raw_result_buffer>(
         raw_result_buffer& result, empty_result_state&, size_t capacity)
 {
     // This version of init() doesn't do a reserve(), and instead checks whether the
-    // initial size (capacity) is enough before resizing to 0.
+    // initial size (capacity) is enough before resetting m_ptr to m_begin.
     // The codec is expected not to exceed this capacity.
     if (capacity > result.size()) {
         abort();

@@ -53,17 +53,17 @@ public:
 
 template <bool GeneratesPadding> // default for CodecVariant::generates_padding() == false
 struct padder {
-    template <typename CodecVariant, typename Result, typename ResultState, typename EncodedBlockSizeT>
-    CPPCODEC_ALWAYS_INLINE void operator()(Result&, ResultState&, EncodedBlockSizeT) { }
+    template <typename CodecVariant, typename Result, typename ResultState, typename SizeT>
+    static CPPCODEC_ALWAYS_INLINE void pad(Result&, ResultState&, SizeT) { }
 };
 
 template<> // specialization for CodecVariant::generates_padding() == true
 struct padder<true> {
-    template <typename CodecVariant, typename Result, typename ResultState, typename EncodedBlockSizeT>
-    CPPCODEC_ALWAYS_INLINE void operator()(
-            Result& encoded, ResultState& state, EncodedBlockSizeT num_padding_characters)
+    template <typename CodecVariant, typename Result, typename ResultState, typename SizeT>
+    static CPPCODEC_ALWAYS_INLINE void pad(
+            Result& encoded, ResultState& state, SizeT num_padding_characters)
     {
-        for (EncodedBlockSizeT i = 0; i < num_padding_characters; ++i) {
+        for (SizeT i = 0; i < num_padding_characters; ++i) {
             data::put(encoded, state, CodecVariant::padding_symbol());
         }
     }
@@ -93,12 +93,6 @@ struct enc {
 
         if (num_symbols == NumSymbols) {
             data::put(encoded, state, CodecVariant::symbol(Codec::template index_last<SymbolIndex>(src)));
-            padder<CodecVariant::generates_padding()> pad;
-#ifdef _MSC_VER
-            pad.operator()<CodecVariant>(encoded, state, Codec::encoded_block_size() - NumSymbols);
-#else
-            pad.template operator()<CodecVariant>(encoded, state, Codec::encoded_block_size() - NumSymbols);
-#endif
             return;
         }
         data::put(encoded, state, CodecVariant::symbol(Codec::template index<SymbolIndex>(src)));
@@ -144,8 +138,14 @@ inline void stream_codec<Codec, CodecVariant>::encode(
             abort();
             return;
         }
-        auto num_symbols = Codec::num_encoded_tail_symbols(static_cast<uint8_t>(remaining_src_len));
+
+        auto num_symbols = Codec::num_encoded_tail_symbols(
+                static_cast<uint8_t>(remaining_src_len));
+
         encoder::template tail<Codec, CodecVariant>(encoded_result, state, src, num_symbols);
+
+        padder<CodecVariant::generates_padding()>::template pad<CodecVariant>(
+                encoded_result, state, Codec::encoded_block_size() - num_symbols);
     }
 }
 
@@ -187,8 +187,8 @@ template <typename T>
 static CPPCODEC_ALWAYS_INLINE constexpr size_t num_possible_values()
 {
     return static_cast<size_t>(
-            static_cast<intmax_t>(std::numeric_limits<T>::max())
-                    - static_cast<intmax_t>(std::numeric_limits<T>::min()) + 1);
+            static_cast<intmax_t>((std::numeric_limits<T>::max)())
+                    - static_cast<intmax_t>((std::numeric_limits<T>::min)()) + 1);
 }
 
 template <typename CodecVariant, alphabet_index_t InvalidIdx, size_t I>

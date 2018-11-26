@@ -31,7 +31,7 @@ namespace cppcodec {
 
 namespace detail {
 
-// RFC 4648 uses a simple alphabet: A-Z starting at index 0, then 2-7 starting at index 26.
+// RFC 4648 also specifies a hex encoding system which uses 0-9, then A-V.
 static constexpr const char base32_hex_alphabet[] = {
     '0', '1', '2', '3', '4', '5', '6', '7', '8', '9',
     'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K',
