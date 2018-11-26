@@ -50,8 +50,7 @@ vector<uint8_t> pub_key = base64::decode("VUVDMgAAAC1SGS5iAprH9f1sf7GR4OZ/J1YEn8
 Create AcraStructs from data-to-encrypt and Acra public storage key (don't forget to update key to your AcraServer's key):
 
 ```cpp
-#include <cppcodec/base64_default_rfc4648.hpp>
-#include <cppcodec/hex_default_lower.hpp>
+#include <cppcodec/base64_rfc4648.hpp>
 
 #include "acrawriter.hpp"
 
@@ -77,8 +76,7 @@ acra::acrastruct as = acrawriter.create_acrastruct(message_vector, pub_key);
 Create AcraStructs from data-to-encrypt, ZoneID and Acra public zone key (don't forget to update key to your AcraServer's key):
 
 ```cpp
-#include <cppcodec/base64_default_rfc4648.hpp>
-#include <cppcodec/hex_default_lower.hpp>
+#include <cppcodec/base64_rfc4648.hpp>
 
 #include "acrawriter.hpp"
 
