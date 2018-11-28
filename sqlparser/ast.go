@@ -2267,12 +2267,20 @@ const (
 	ValArg
 	BitVal
 	PgEscapeString
+	Casted
 )
 
 // SQLVal represents a single value.
 type SQLVal struct {
-	Type ValType
-	Val  []byte
+	Type     ValType
+	Val      []byte
+	CastType []byte
+}
+
+// NewCastVal builds new CastVal
+func NewCastVal(val Expr, castType []byte) *SQLVal {
+	v := val.(*SQLVal)
+	return &SQLVal{Type: v.Type, Val: v.Val, CastType: castType}
 }
 
 // NewStrVal builds a new StrVal.
@@ -2328,8 +2336,13 @@ func (node *SQLVal) Format(buf *TrackedBuffer) {
 		buf.Myprintf("B'%s'", []byte(node.Val))
 	case ValArg:
 		buf.WriteArg(string(node.Val))
+	case PgEscapeString:
+		buf.Myprintf("E'%s'", sqltypes.EncodeBytesSQLWithoutQuotes(node.Val))
 	default:
 		panic("unexpected")
+	}
+	if len(node.CastType) > 0 {
+		buf.Myprintf("%s", node.CastType)
 	}
 }
 

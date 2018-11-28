@@ -3316,6 +3316,7 @@ class TestTransparentEncryption(BaseTestCase):
     )
 
     def checkSkip(self):
+        return
         if TEST_POSTGRESQL:
             self.skipTest("PostgreSQL is unsupported now")
 

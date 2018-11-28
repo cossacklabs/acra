@@ -777,7 +777,10 @@ exit:
 
 func (tkn *Tokenizer) scanString(delim uint16, typ int) (int, []byte) {
 	var buffer bytes2.Buffer
+	// start from -1 to allow auto-increment at start of loop
+	index := -1
 	for {
+		index++
 		ch := tkn.lastChar
 		if ch == eofChar {
 			// Unterminated string.
@@ -815,6 +818,14 @@ func (tkn *Tokenizer) scanString(delim uint16, typ int) (int, []byte) {
 			if tkn.lastChar == eofChar {
 				// String terminates mid escape character.
 				return LEX_ERROR, buffer.Bytes()
+			}
+			// specific case for postgresql where binary string encoded as hex with \x prefix then we should skip general
+			// mysql behaviour and escape logic
+			if index == 0 && (tkn.lastChar == 'x' || tkn.lastChar == 'X') {
+				buffer.WriteByte(byte(ch))
+				buffer.WriteByte(byte(tkn.lastChar))
+				tkn.next()
+				continue
 			}
 			if decodedChar := sqltypes.SQLDecodeMap[byte(tkn.lastChar)]; decodedChar == sqltypes.DontEscape {
 				ch = tkn.lastChar

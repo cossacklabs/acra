@@ -146,6 +146,7 @@ func forceEOF(yylex interface{}) {
 %right <bytes> INTERVAL
 %nonassoc <bytes> '.'
 
+
 // There is no need to define precedence for the JSON
 // operators because the syntax is restricted enough that
 // they don't cause conflicts.
@@ -292,6 +293,7 @@ func forceEOF(yylex interface{}) {
 %type <vindexParams> vindex_param_list vindex_params_opt
 %type <colIdent> vindex_type vindex_type_opt
 %type <bytes> alter_object_type
+%type <bytes> typecast
 
 %start any_command
 
@@ -2553,6 +2555,18 @@ value:
   {
     $$ = NewPgEscapeString($1)
   }
+| value typecast
+  {
+    $$ = NewCastVal($1, $2)
+  }
+
+typecast:
+  LIST_ARG
+  {
+    $$ = $1
+  }
+
+
 
 num_val:
   sql_id

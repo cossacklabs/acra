@@ -221,6 +221,9 @@ func (proxy *PgProxy) PgProxyClientRequests(acraCensor acracensor.AcraCensorInte
 		if err != nil {
 			logger.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorEncryptQueryData).Errorln("Error occurred on query handler")
 		}
+		if changed {
+			packet.ReplaceQuery(newQuery)
+		}
 
 		censorSpan.End()
 
@@ -330,6 +333,7 @@ func (proxy *PgProxy) handleSSLRequest(packet *PacketHandler, tlsConfig *tls.Con
 	}
 	select {
 	case <-proxy.TLSCh:
+		proxy.TLSCh = nil
 		break
 	case <-time.NewTimer(TLSTimeout).C:
 		logger.Errorln("Can't stop background goroutine to start tls handshake")

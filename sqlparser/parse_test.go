@@ -457,8 +457,8 @@ var (
 	}, {
 		input: "select /* all escapes */ '\\0\\'\\\"\\b\\n\\r\\t\\Z\\\\' from t",
 	}, {
-		input:  "select /* non-escape */ '\\x' from t",
-		output: "select /* non-escape */ 'x' from t",
+		input:  "select /* non-escape */ '\\q' from t",
+		output: "select /* non-escape */ 'q' from t",
 	}, {
 		input: "select /* unescaped backslash */ '\\n' from t",
 	}, {

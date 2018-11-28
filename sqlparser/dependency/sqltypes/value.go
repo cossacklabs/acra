@@ -18,6 +18,7 @@ limitations under the License.
 package sqltypes
 
 import (
+	"bytes"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
@@ -318,9 +319,15 @@ func (v *Value) UnmarshalJSON(b []byte) error {
 	return err
 }
 
+var hexPrefix = []byte{'\\', 'x'}
+
 func encodeBytesSQL(val []byte, b BinWriter) {
 	buf := &bytes2.Buffer{}
 	buf.WriteByte('\'')
+	if len(val) > len(hexPrefix) && bytes.Equal(hexPrefix, val[:2]) {
+		buf.Write(hexPrefix)
+		val = val[len(hexPrefix):]
+	}
 	for _, ch := range val {
 		if encodedChar := SQLEncodeMap[ch]; encodedChar == DontEscape {
 			buf.WriteByte(ch)
@@ -331,6 +338,20 @@ func encodeBytesSQL(val []byte, b BinWriter) {
 	}
 	buf.WriteByte('\'')
 	b.Write(buf.Bytes())
+}
+
+// EncodeBytesSQLWithoutQuotes escape special symbols in byte value
+func EncodeBytesSQLWithoutQuotes(val []byte) []byte {
+	buf := &bytes2.Buffer{}
+	for _, ch := range val {
+		if encodedChar := SQLEncodeMap[ch]; encodedChar == DontEscape {
+			buf.WriteByte(ch)
+		} else {
+			buf.WriteByte('\\')
+			buf.WriteByte(encodedChar)
+		}
+	}
+	return buf.Bytes()
 }
 
 func encodeBytesASCII(val []byte, b BinWriter) {

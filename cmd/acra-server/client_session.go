@@ -103,11 +103,6 @@ func (clientSession *ClientSession) HandleClientConnection(clientID []byte, decr
 			Errorln("Can't initialize data encryptor to encrypt data in queries")
 		return
 	}
-	queryEncryptor, err := encryptor.NewMysqlQueryEncryptor(clientSession.config.tableSchema, clientID, dataEncryptor)
-	if err != nil {
-		clientSession.logger.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorEncryptorInitialization).Errorln("Can't initialize query encryptor")
-		return
-	}
 	var pgProxy *postgresql.PgProxy
 	if clientSession.config.UseMySQL() {
 		clientSession.logger.Debugln("MySQL connection")
@@ -120,6 +115,11 @@ func (clientSession *ClientSession) HandleClientConnection(clientID []byte, decr
 		}
 
 		clientSession.logger.Debugln("Add query encryptor")
+		queryEncryptor, err := encryptor.NewMysqlQueryEncryptor(clientSession.config.tableSchema, clientID, dataEncryptor)
+		if err != nil {
+			clientSession.logger.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorEncryptorInitialization).Errorln("Can't initialize query encryptor")
+			return
+		}
 		handler.AddQueryObserver(queryEncryptor)
 		go handler.ClientToDbConnector(clientProxyErrorCh)
 		go handler.DbToClientConnector(dbProxyErrorCh)
@@ -131,6 +131,11 @@ func (clientSession *ClientSession) HandleClientConnection(clientID []byte, decr
 			return
 		}
 		clientSession.logger.Debugln("PostgreSQL connection")
+		queryEncryptor, err := encryptor.NewPostgresqlQueryEncryptor(clientSession.config.tableSchema, clientID, dataEncryptor)
+		if err != nil {
+			clientSession.logger.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorEncryptorInitialization).Errorln("Can't initialize query encryptor")
+			return
+		}
 		pgProxy.AddQueryObserver(queryEncryptor)
 		go pgProxy.PgProxyClientRequests(clientSession.config.censor, clientSession.connectionToDb, clientSession.connection, clientProxyErrorCh)
 		go pgProxy.PgDecryptStream(clientSession.config.censor, decryptorImpl, clientSession.config.GetTLSConfig(), clientSession.connectionToDb, clientSession.connection, dbProxyErrorCh)
@@ -165,10 +170,13 @@ func (clientSession *ClientSession) HandleClientConnection(clientID []byte, decr
 				if clientSession.config.UseMySQL() {
 					break
 				} else {
-					pgProxy.TLSCh <- true
-					// in postgresql mode timeout used to stop listening connection in background goroutine
-					// and it's normal behaviour
-					continue
+					if pgProxy.TLSCh != nil {
+						pgProxy.TLSCh <- true
+						// in postgresql mode timeout used to stop listening connection in background goroutine
+						// and it's normal behaviour
+						continue
+					}
+					break
 				}
 			}
 			clientSession.logger.WithError(netErr).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantHandleSecureSession).
