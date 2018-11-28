@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-// Package handlers contains all query handlers for AcraCensor:
+// Package common contains all query handlers for AcraCensor:
 // blacklist handler, which allows everything and forbids specific query/pattern/table;
 // whitelist handler, which allows query/pattern/table and restricts/forbids everything else;
 // ignore handler, which allows to ignore any query;
@@ -25,26 +25,10 @@ package common
 
 import (
 	"bytes"
-	log "github.com/sirupsen/logrus"
 	"github.com/xwb1989/sqlparser"
 	"reflect"
 	"strings"
 )
-
-func CheckPatternsMatching(patterns []sqlparser.Statement, query string) (bool, error) {
-	parsedQuery, err := sqlparser.Parse(query)
-	if err != nil {
-		log.WithError(err).Errorln("Can't parse query")
-		return false, ErrQuerySyntaxError
-	}
-
-	for _, pattern := range patterns {
-		if checkSinglePatternMatch(parsedQuery, pattern) {
-			return true, nil
-		}
-	}
-	return false, nil
-}
 
 func checkSinglePatternMatch(query, pattern sqlparser.Statement) bool {
 	switch pattern.(type) {

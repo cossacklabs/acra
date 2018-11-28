@@ -19,6 +19,7 @@ package handlers
 import (
 	"encoding/json"
 	"github.com/cossacklabs/acra/acra-censor/common"
+	"github.com/xwb1989/sqlparser"
 	"io/ioutil"
 	"os"
 	"os/signal"
@@ -114,16 +115,18 @@ func NewQueryCaptureHandler(filePath string) (*QueryCaptureHandler, error) {
 
 // RedactAndCheckQuery redacts query first, then calls CheckQuery
 func (handler *QueryCaptureHandler) RedactAndCheckQuery(query string) (bool, error) {
-	_, queryWithHiddenValues, err := common.NormalizeAndRedactSQLQuery(query)
+	_, queryWithHiddenValues, parsedQuery, err := common.HandleRawSQLQuery(query)
 	if err != nil {
 		return true, nil
 	}
-	return handler.CheckQuery(queryWithHiddenValues)
+	return handler.CheckQuery(queryWithHiddenValues, parsedQuery)
 }
 
 // CheckQuery returns "yes" if Query was already captured, no otherwise.
 // Expects already redacted queries
-func (handler *QueryCaptureHandler) CheckQuery(queryWithHiddenValues string) (bool, error) {
+func (handler *QueryCaptureHandler) CheckQuery(queryWithHiddenValues string, parsedQuery sqlparser.Statement) (bool, error) {
+	_ = parsedQuery
+
 	//skip already captured queries
 	for _, queryInfo := range handler.Queries {
 		if strings.EqualFold(queryInfo.RawQuery, queryWithHiddenValues) {
@@ -172,7 +175,7 @@ func (handler *QueryCaptureHandler) GetAllInputQueries() []string {
 
 // RedactAndMarkQueryAsForbidden redacts query first, then calls CheckQuery
 func (handler *QueryCaptureHandler) RedactAndMarkQueryAsForbidden(query string) {
-	_, queryWithHiddenValues, err := common.NormalizeAndRedactSQLQuery(query)
+	_, queryWithHiddenValues, _, err := common.HandleRawSQLQuery(query)
 	if err != nil {
 		return
 	}

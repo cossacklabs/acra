@@ -185,10 +185,10 @@ func TrimStringToN(query string, n int) string {
 	return query[:n]
 }
 
-// NormalizeAndRedactSQLQuery returns a normalized (lowercases SQL commands) SQL string,
+// HandleRawSQLQuery returns a normalized (lowercases SQL commands) SQL string,
 // and redacted SQL string with the params stripped out for display.
 // Taken from sqlparser package
-func NormalizeAndRedactSQLQuery(sql string) (normalizedQuery string, redactedQuery string, error error) {
+func HandleRawSQLQuery(sql string) (normalizedQuery, redactedQuery string, parsedQuery sqlparser.Statement, err error) {
 	bv := map[string]*querypb.BindVariable{}
 	sqlStripped, _ := sqlparser.SplitMarginComments(sql)
 
@@ -197,8 +197,9 @@ func NormalizeAndRedactSQLQuery(sql string) (normalizedQuery string, redactedQue
 
 	stmt, err := sqlparser.Parse(sqlStripped)
 	if err != nil {
-		return "", "", err
+		return "", "", nil, ErrQuerySyntaxError
 	}
+	outputStmt, _ := sqlparser.Parse(sqlStripped)
 
 	normalizedQ := sqlparser.String(stmt)
 
@@ -206,5 +207,97 @@ func NormalizeAndRedactSQLQuery(sql string) (normalizedQuery string, redactedQue
 	sqlparser.Normalize(stmt, bv, ValueMask)
 	redactedQ := sqlparser.String(stmt)
 
-	return normalizedQ, redactedQ, nil
+	return normalizedQ, redactedQ, outputStmt, nil
+}
+
+// CheckPatternsMatching evaluates if parsed query matches specified set of patterns
+func CheckPatternsMatching(patterns []sqlparser.Statement, parsedQuery sqlparser.Statement) bool {
+	for _, pattern := range patterns {
+		if checkSinglePatternMatch(parsedQuery, pattern) {
+			return true
+		}
+	}
+	return false
+}
+
+// CheckExactQueriesMatch evaluates if query presents in set of queries
+func CheckExactQueriesMatch(normalizedQuery string, setOfQueries map[string]bool) bool {
+	if !setOfQueries[normalizedQuery] {
+		return false
+	}
+	return true
+}
+
+// CheckTableNamesMatch evaluates if query contains table presented in specified set of tables
+func CheckTableNamesMatch(parsedQuery sqlparser.Statement, setOfTables map[string]bool) (bool, bool) {
+	atLeastOneTableNameMatch := false
+	allTableNamesMatch := false
+
+	switch query := parsedQuery.(type) {
+	case *sqlparser.Select:
+		atLeastOneTableNameMatch, allTableNamesMatch = checkTableExprsMatch(query.From, setOfTables)
+		break
+	case *sqlparser.Insert:
+		if setOfTables[query.Table.Name.String()] {
+			atLeastOneTableNameMatch = true
+			allTableNamesMatch = true
+		} else {
+			atLeastOneTableNameMatch = false
+			allTableNamesMatch = false
+		}
+		break
+	default:
+		//TODO other query types
+		return false, false
+	}
+
+	return atLeastOneTableNameMatch, allTableNamesMatch
+}
+
+// Tables matchers
+func checkTableExprsMatch(tables sqlparser.TableExprs, setOfTables map[string]bool) (bool, bool) {
+	oneTableMatch := false
+	allTablesMatch := false
+	counter := 0
+	for _, tableExpr := range tables {
+		oneTableMatchInternal, allTablesMatchInternal := checkTableExprMatch(tableExpr, setOfTables)
+		if oneTableMatchInternal {
+			oneTableMatch = true
+			if allTablesMatchInternal {
+				counter++
+			} else {
+				break
+			}
+		}
+	}
+	if counter == len(tables) {
+		allTablesMatch = true
+	}
+	return oneTableMatch, allTablesMatch
+}
+
+func checkTableExprMatch(table sqlparser.TableExpr, setOfTables map[string]bool) (bool, bool) {
+	oneTableMatch := false
+	allTablesMatch := false
+
+	switch tbl := table.(type) {
+	case *sqlparser.AliasedTableExpr:
+		if setOfTables[sqlparser.String(tbl.Expr)] {
+			oneTableMatch = true
+			allTablesMatch = true
+		}
+	case *sqlparser.JoinTableExpr:
+		oneLeftTableMatchInternal, allLeftTablesMatchInternal := checkTableExprMatch(tbl.LeftExpr, setOfTables)
+		oneRightTableMatchInternal, allRightTablesMatchInternal := checkTableExprMatch(tbl.RightExpr, setOfTables)
+		if oneLeftTableMatchInternal || oneRightTableMatchInternal {
+			oneTableMatch = true
+		}
+		if allLeftTablesMatchInternal && allRightTablesMatchInternal {
+			allTablesMatch = true
+		}
+
+	case *sqlparser.ParenTableExpr:
+		oneTableMatch, allTablesMatch = checkTableExprsMatch(tbl.Exprs, setOfTables)
+	}
+	return oneTableMatch, allTablesMatch
 }

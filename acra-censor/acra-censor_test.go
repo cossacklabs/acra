@@ -105,7 +105,7 @@ func TestWhitelistQueries(t *testing.T) {
 		}
 	}
 	//acracensor should block this query because it is not in whitelist
-	err = acraCensor.HandleQuery("SELECT * FROM Schema.views;")
+	err = acraCensor.HandleQuery("SELECT * FROM testDB.testTbl;")
 	if err != common.ErrQueryNotInWhitelist {
 		t.Fatal(err)
 	}
@@ -774,7 +774,6 @@ func TestBlacklistQueries(t *testing.T) {
 		"SELECT Name, Age FROM Patients WHERE Age > 40 GROUP BY Age ORDER BY Name;",
 		"SELECT COUNT(CustomerID), Country FROM Customers GROUP BY Country;",
 		"SELECT SUM(Salary) FROM Employee WHERE Emp_Age < 30;",
-		"SELECT * FROM Schema.views;",
 	}
 	sqlInsertQueries := []string{
 		"INSERT SalesStaff1 VALUES (2, 'Michael', 'Blythe'), (3, 'Linda', 'Mitchell'),(4, 'Jillian', 'Carson'), (5, 'Garrett', 'Vargas');",
@@ -1828,23 +1827,35 @@ func TestDifferentTablesParsing(t *testing.T) {
 
 	blacklist := handlers.NewBlacklistHandler()
 	blacklist.AddTables([]string{"x", "y"})
-	_, err := blacklist.CheckQuery(testQuery)
+
+	acraCensor := NewAcraCensor()
+	defer acraCensor.ReleaseAll()
+	//set our acracensor to use blacklist for query evaluating
+	acraCensor.AddHandler(blacklist)
+
+	err := acraCensor.HandleQuery(testQuery)
 	if err != nil {
 		t.Fatal(err)
 	}
 	blacklist.AddTables([]string{"z", "Shippers"})
-	_, err = blacklist.CheckQuery(testQuery)
+	err = acraCensor.HandleQuery(testQuery)
 	if err != common.ErrAccessToForbiddenTableBlacklist {
 		t.Fatal(err)
 	}
+
+	acraCensor.RemoveHandler(blacklist)
+
 	whitelist := handlers.NewWhitelistHandler()
 	whitelist.AddTables([]string{"Orders", "Customers", "NotShippers"})
-	_, err = whitelist.CheckQuery(testQuery)
+
+	//set our acracensor to use whitelist for query evaluating
+	acraCensor.AddHandler(whitelist)
+	err = acraCensor.HandleQuery(testQuery)
 	if err != common.ErrAccessToForbiddenTableWhitelist {
 		t.Fatal(err)
 	}
 	whitelist.AddTables([]string{"Shippers"})
-	_, err = whitelist.CheckQuery(testQuery)
+	err = acraCensor.HandleQuery(testQuery)
 	if err != nil {
 		t.Fatal(err)
 	}
