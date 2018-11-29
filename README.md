@@ -18,7 +18,7 @@
 </p>
 <br>
 
-| [Acra Live Demo](https://www.cossacklabs.com/acra/#acralivedemo) | [Acra Engineering Demo](https://github.com/cossacklabs/acra-engineering-demo) | [Documentation](https://docs.cossacklabs.com/products/acra/) | [Installation](https://github.com/cossacklabs/acra/blob/pre-release/README.md#installation-and-launch) | [Examples and tutorials](https://github.com/cossacklabs/acra/blob/pre-release/README.md#documentation-and-tutorials) |
+| [Acra Live Demo](https://www.cossacklabs.com/acra/#acralivedemo) | [Acra Engineering Demo](https://github.com/cossacklabs/acra-engineering-demo) | [Documentation](https://docs.cossacklabs.com/products/acra/) | [Installation](https://github.com/cossacklabs/acra#installation-and-launch) | [Examples and tutorials](https://github.com/cossacklabs/acra#documentation-and-tutorials) |
 | ---- | ---- | ---- | --- | --- |
 
 
