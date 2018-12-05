@@ -26,15 +26,19 @@ import (
 
 var pgHexStringPrefix = []byte{'\\', 'x'}
 
+// DBDataCoder encode/decode binary data to correct string form for specific db
 type DBDataCoder interface {
 	Decode(sqlparser.Expr) ([]byte, error)
 	Encode(sqlparser.Expr, []byte) ([]byte, error)
 }
 
+// errUnsupportedExpression unsupported type of literal to binary encode/decode
 var errUnsupportedExpression = errors.New("unsupported expression")
 
+// MysqlDBDataCoder implement DBDataCoder for MySQL
 type MysqlDBDataCoder struct{}
 
+// Decode decode literals from string to byte slice
 func (*MysqlDBDataCoder) Decode(expr sqlparser.Expr) ([]byte, error) {
 	switch val := expr.(type) {
 	case *sqlparser.SQLVal:
@@ -53,6 +57,8 @@ func (*MysqlDBDataCoder) Decode(expr sqlparser.Expr) ([]byte, error) {
 	}
 	return nil, errUnsupportedExpression
 }
+
+// Encode data to correct literal from binary data for this expression
 func (*MysqlDBDataCoder) Encode(expr sqlparser.Expr, data []byte) ([]byte, error) {
 	switch val := expr.(type) {
 	case *sqlparser.SQLVal:
@@ -68,8 +74,10 @@ func (*MysqlDBDataCoder) Encode(expr sqlparser.Expr, data []byte) ([]byte, error
 	return nil, errUnsupportedExpression
 }
 
+// PostgresqlDBDataCoder implement DBDataCoder for PostgreSQL
 type PostgresqlDBDataCoder struct{}
 
+// Decode literal in expression to binary
 func (*PostgresqlDBDataCoder) Decode(expr sqlparser.Expr) ([]byte, error) {
 	switch val := expr.(type) {
 	case *sqlparser.SQLVal:
@@ -98,6 +106,7 @@ func (*PostgresqlDBDataCoder) Decode(expr sqlparser.Expr) ([]byte, error) {
 	return nil, errUnsupportedExpression
 }
 
+// Encode data to correct literal from binary data for this expression
 func (*PostgresqlDBDataCoder) Encode(expr sqlparser.Expr, data []byte) ([]byte, error) {
 	switch val := expr.(type) {
 	case *sqlparser.SQLVal:

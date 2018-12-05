@@ -99,7 +99,6 @@ schemas:
 	hexEncryptedValue := hex.EncodeToString(encryptedValue)
 	dataValue := "some data"
 	dataHexValue := hex.EncodeToString([]byte(dataValue))
-	t.Logf("value - %s\nencrypted - %s", dataHexValue, hexEncryptedValue)
 	testData := []struct {
 		Query             string
 		QueryData         []interface{}
