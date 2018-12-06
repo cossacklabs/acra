@@ -16,7 +16,10 @@ limitations under the License.
 
 package handlers
 
-import "github.com/sirupsen/logrus"
+import (
+	"github.com/cossacklabs/acra/acra-censor/common"
+	"github.com/xwb1989/sqlparser"
+)
 
 // QueryIgnoreHandler allows to ignore any query
 type QueryIgnoreHandler struct {
@@ -31,8 +34,9 @@ func NewQueryIgnoreHandler() *QueryIgnoreHandler {
 }
 
 // CheckQuery checks each query, returns false if query handling should be ignored.
-func (handler *QueryIgnoreHandler) CheckQuery(query string) (bool, error) {
-	if handler.ignoredQueries[query] {
+func (handler *QueryIgnoreHandler) CheckQuery(rawQuery string, parsedQuery sqlparser.Statement) (bool, error) {
+	normalizedQ := sqlparser.String(parsedQuery)
+	if handler.ignoredQueries[normalizedQ] || handler.ignoredQueries[rawQuery] {
 		//do not continue query handling
 		return false, nil
 	}
@@ -52,24 +56,21 @@ func (handler *QueryIgnoreHandler) Release() {
 // AddQueries normalizes and adds queries to the list that should be ignored
 func (handler *QueryIgnoreHandler) AddQueries(queries []string) {
 	for _, query := range queries {
-		normalizedQuery, _, err := NormalizeAndRedactSQLQuery(query)
-		if err != nil {
-			logrus.WithError(err).Warningln("Can't add query to QueryIgnoreHandler in normalized form, added as is")
-			// add as is
-			handler.ignoredQueries[query] = true
-			continue
+		handler.ignoredQueries[query] = true
+		normalizedQuery, _, _, err := common.HandleRawSQLQuery(query)
+		if err == nil {
+			handler.ignoredQueries[normalizedQuery] = true
 		}
-		handler.ignoredQueries[normalizedQuery] = true
 	}
 }
 
-// RemoveQueries removes queries from the list that should be whitelisted
+// RemoveQueries removes queries from the list that should be ignored
 func (handler *QueryIgnoreHandler) RemoveQueries(queries []string) {
 	for _, query := range queries {
-		normalizedQuery, _, err := NormalizeAndRedactSQLQuery(query)
-		if err != nil {
-			continue
+		delete(handler.ignoredQueries, query)
+		normalizedQuery, _, _, err := common.HandleRawSQLQuery(query)
+		if err == nil {
+			delete(handler.ignoredQueries, normalizedQuery)
 		}
-		delete(handler.ignoredQueries, normalizedQuery)
 	}
 }

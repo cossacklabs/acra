@@ -17,6 +17,7 @@ limitations under the License.
 package handlers
 
 import (
+	"github.com/cossacklabs/acra/acra-censor/common"
 	"github.com/cossacklabs/acra/logging"
 	log "github.com/sirupsen/logrus"
 	"github.com/xwb1989/sqlparser"
@@ -42,150 +43,33 @@ func NewBlacklistHandler() *BlacklistHandler {
 
 // CheckQuery checks each query, returns false and error if query is blacklisted or
 // if query tries to access to forbidden table
-func (handler *BlacklistHandler) CheckQuery(query string) (bool, error) {
-	//Check queries
+func (handler *BlacklistHandler) CheckQuery(normalizedQuery string, parsedQuery sqlparser.Statement) (bool, error) {
+	//Check exact queries
 	if len(handler.queries) != 0 {
-		//Check that query is not in blacklist
-		if handler.queries[query] {
-			handler.logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCensorQueryIsNotAllowed).WithError(ErrQueryInBlacklist).Errorln("Query has been blocked by blacklist [queries]")
-			return false, ErrQueryInBlacklist
+		queryMatch := common.CheckExactQueriesMatch(normalizedQuery, handler.queries)
+		if queryMatch {
+			handler.logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCensorQueryIsNotAllowed).WithError(common.ErrQueryInBlacklist).Errorln("Query has been blocked by blacklist [queries]")
+			return false, common.ErrQueryInBlacklist
 		}
 	}
 	//Check tables
 	if len(handler.tables) != 0 {
-		parsedQuery, err := sqlparser.Parse(query)
-		if err != nil {
-			handler.logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCensorQueryParseError).WithError(err).Errorln("Query has been blocked by blacklist [tables]. Parsing error")
-			return false, ErrQuerySyntaxError
-		}
-		switch parsedQuery := parsedQuery.(type) {
-		case *sqlparser.Select:
-			for _, fromStatement := range parsedQuery.From {
-				switch fromStatement.(type) {
-				case *sqlparser.AliasedTableExpr:
-					err = handler.handleAliasedTables(fromStatement.(*sqlparser.AliasedTableExpr))
-					if err != nil {
-						log.WithError(err).Debugln("Error from BlacklistHandler.handleAliasedTables")
-						handler.logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCensorQueryIsNotAllowed).WithError(err).Errorln("Query has been blocked by blacklist [tables]")
-						return false, ErrAccessToForbiddenTableBlacklist
-					}
-					break
-				case *sqlparser.JoinTableExpr:
-					err = handler.handleJoinedTables(fromStatement.(*sqlparser.JoinTableExpr))
-					if err != nil {
-						log.WithError(err).Debugln("Error from BlacklistHandler.handleJoinedTables")
-						handler.logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCensorQueryIsNotAllowed).WithError(err).Errorln("Query has been blocked by blacklist [tables]")
-						return false, ErrAccessToForbiddenTableBlacklist
-					}
-					break
-				case *sqlparser.ParenTableExpr:
-					err = handler.handleParenTables(fromStatement.(*sqlparser.ParenTableExpr))
-					if err != nil {
-						log.WithError(err).Debugln("Error from BlacklistHandler.handleParenTables")
-						handler.logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCensorQueryIsNotAllowed).WithError(err).Errorln("Query has been blocked by blacklist [tables]")
-						return false, ErrAccessToForbiddenTableBlacklist
-					}
-					break
-				default:
-					return false, ErrUnexpectedTypeError
-				}
-			}
-		case *sqlparser.Insert:
-			if handler.tables[parsedQuery.Table.Name.String()] {
-				handler.logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCensorQueryIsNotAllowed).WithError(ErrAccessToForbiddenTableBlacklist).Errorln("Query has been blocked by blacklist [tables]")
-				return false, ErrAccessToForbiddenTableBlacklist
-			}
+		atLeastOneTableInBlacklist, _ := common.CheckTableNamesMatch(parsedQuery, handler.tables)
+		if atLeastOneTableInBlacklist {
+			handler.logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCensorQueryIsNotAllowed).WithError(common.ErrQueryInBlacklist).Errorln("Query has been blocked by blacklist [tables]")
+			return false, common.ErrAccessToForbiddenTableBlacklist
 		}
 	}
 	//Check patterns
 	if len(handler.patterns) != 0 {
-		matchingOccurred, err := checkPatternsMatching(handler.patterns, query)
-		if err != nil {
-			handler.logger.WithError(err).Debugln("Error from BlacklistHandler [patterns]")
-			if err == ErrQuerySyntaxError {
-				return false, ErrQuerySyntaxError
-			}
-			return false, ErrPatternCheckError
-		}
+		matchingOccurred := common.CheckPatternsMatching(handler.patterns, parsedQuery)
 		if matchingOccurred {
-			return false, ErrBlacklistPatternMatch
+			return false, common.ErrBlacklistPatternMatch
 		}
 	}
+
+	//Our blacklist is empty, so let's continue further verification
 	return true, nil
-}
-
-func (handler *BlacklistHandler) handleAliasedTables(statement *sqlparser.AliasedTableExpr) error {
-	if handler.tables[sqlparser.String(statement.Expr)] {
-		handler.logger.WithError(ErrAccessToForbiddenTableBlacklist).Debugln("Error from BlacklistHandler.handleAliasedTables. [evaluated table found in blacklist]")
-		return ErrAccessToForbiddenTableBlacklist
-	}
-	return nil
-}
-
-func (handler *BlacklistHandler) handleJoinedTables(statement *sqlparser.JoinTableExpr) error {
-	var err error
-	switch statement.LeftExpr.(type) {
-	case *sqlparser.AliasedTableExpr:
-		err = handler.handleAliasedTables(statement.LeftExpr.(*sqlparser.AliasedTableExpr))
-		handler.logger.WithError(err).Debugln("Error from BlacklistHandler.handleJoinedTables - left expr. [aliased table]")
-	case *sqlparser.JoinTableExpr:
-		err = handler.handleJoinedTables(statement.LeftExpr.(*sqlparser.JoinTableExpr))
-		handler.logger.WithError(err).Debugln("Error from BlacklistHandler.handleJoinedTables - left expr. [joined table]")
-	case *sqlparser.ParenTableExpr:
-		err = handler.handleParenTables(statement.LeftExpr.(*sqlparser.ParenTableExpr))
-		handler.logger.WithError(err).Debugln("Error from BlacklistHandler.handleJoinedTables - left expr. [paren table]")
-	default:
-		handler.logger.WithError(ErrUnexpectedTypeError).Debugln("Error from BlacklistHandler.handleJoinedTables - left expr. [unexpected type of table]")
-		return ErrUnexpectedTypeError
-	}
-	if err != nil {
-		//this err will be already logged
-		return err
-	}
-	switch statement.RightExpr.(type) {
-	case *sqlparser.AliasedTableExpr:
-		err = handler.handleAliasedTables(statement.RightExpr.(*sqlparser.AliasedTableExpr))
-		handler.logger.WithError(err).Debugln("Error from BlacklistHandler.handleJoinedTables - right expr. [aliased table]")
-	case *sqlparser.JoinTableExpr:
-		err = handler.handleJoinedTables(statement.RightExpr.(*sqlparser.JoinTableExpr))
-		handler.logger.WithError(err).Debugln("Error from BlacklistHandler.handleJoinedTables - right expr. [joined table]")
-	case *sqlparser.ParenTableExpr:
-		err = handler.handleParenTables(statement.RightExpr.(*sqlparser.ParenTableExpr))
-		handler.logger.WithError(err).Debugln("Error from BlacklistHandler.handleJoinedTables - right expr. [paren table]")
-	default:
-		handler.logger.WithError(ErrUnexpectedTypeError).Debugln("Error from BlacklistHandler.handleJoinedTables - right expr. [unexpected type of table]")
-		err = ErrUnexpectedTypeError
-	}
-	if err != nil {
-		//this err will be already logged
-		return err
-	}
-	return nil
-}
-
-func (handler *BlacklistHandler) handleParenTables(statement *sqlparser.ParenTableExpr) error {
-	var err error
-	for _, singleExpression := range statement.Exprs {
-		switch singleExpression.(type) {
-		case *sqlparser.AliasedTableExpr:
-			err = handler.handleAliasedTables(singleExpression.(*sqlparser.AliasedTableExpr))
-			handler.logger.WithError(err).Debugln("Error from BlacklistHandler.handleParenTables. [aliased table]")
-		case *sqlparser.JoinTableExpr:
-			err = handler.handleJoinedTables(singleExpression.(*sqlparser.JoinTableExpr))
-			handler.logger.WithError(err).Debugln("Error from BlacklistHandler.handleParenTables. [joined table]")
-		case *sqlparser.ParenTableExpr:
-			err = handler.handleParenTables(singleExpression.(*sqlparser.ParenTableExpr))
-			handler.logger.WithError(err).Debugln("Error from BlacklistHandler.handleParenTables. [paren table]")
-		default:
-			handler.logger.WithError(ErrUnexpectedTypeError).Debugln("Error from BlacklistHandler.handleParenTables. [unexpected type of table]")
-			return ErrUnexpectedTypeError
-		}
-		if err != nil {
-			//this err will be already logged
-			return err
-		}
-	}
-	return nil
 }
 
 // Reset resets blacklist to initial state
@@ -202,25 +86,27 @@ func (handler *BlacklistHandler) Release() {
 }
 
 // AddQueries normalizes and adds queries to the list that should be blacklisted
-func (handler *BlacklistHandler) AddQueries(queries []string) {
+func (handler *BlacklistHandler) AddQueries(queries []string) error {
 	for _, query := range queries {
-		normalizedQuery, _, err := NormalizeAndRedactSQLQuery(query)
+		normalizedQuery, _, _, err := common.HandleRawSQLQuery(query)
 		if err != nil {
-			continue
+			return err
 		}
 		handler.queries[normalizedQuery] = true
 	}
+	return nil
 }
 
 // RemoveQueries removes queries from the list that should be blacklisted
-func (handler *BlacklistHandler) RemoveQueries(queries []string) {
+func (handler *BlacklistHandler) RemoveQueries(queries []string) error {
 	for _, query := range queries {
-		normalizedQuery, _, err := NormalizeAndRedactSQLQuery(query)
+		normalizedQuery, _, _, err := common.HandleRawSQLQuery(query)
 		if err != nil {
-			continue
+			return err
 		}
 		delete(handler.queries, normalizedQuery)
 	}
+	return nil
 }
 
 // AddTables adds tables that should be blacklisted
@@ -239,7 +125,7 @@ func (handler *BlacklistHandler) RemoveTables(tableNames []string) {
 
 // AddPatterns adds patterns that should be blacklisted
 func (handler *BlacklistHandler) AddPatterns(patterns []string) error {
-	parsedPatterns, err := ParsePatterns(patterns)
+	parsedPatterns, err := common.ParsePatterns(patterns)
 	if err != nil {
 		return err
 	}

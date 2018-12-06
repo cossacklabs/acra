@@ -17,6 +17,7 @@ limitations under the License.
 package acracensor
 
 import (
+	"github.com/cossacklabs/acra/acra-censor/common"
 	"github.com/cossacklabs/acra/acra-censor/handlers"
 	log "github.com/sirupsen/logrus"
 )
@@ -63,35 +64,40 @@ func (acraCensor *AcraCensor) ReleaseAll() {
 }
 
 // HandleQuery processes every query through each handler.
-func (acraCensor *AcraCensor) HandleQuery(query string) error {
-	if query == "" {
-		return nil
-	}
+func (acraCensor *AcraCensor) HandleQuery(rawQuery string) error {
 	if len(acraCensor.handlers) == 0 {
 		// no handlers, AcraCensor won't work
 		return nil
 	}
-	normalizedQuery, queryWithHiddenValues, err := handlers.NormalizeAndRedactSQLQuery(query)
-	if err == handlers.ErrQuerySyntaxError && acraCensor.ignoreParseError {
-		acraCensor.logger.WithError(err).Infof("Parsing error on query (first %v symbols): %s", handlers.LogQueryLength, handlers.TrimStringToN(queryWithHiddenValues, handlers.LogQueryLength))
+	normalizedQuery, queryWithHiddenValues, parsedQuery, err := common.HandleRawSQLQuery(rawQuery)
+	if err == common.ErrQuerySyntaxError {
+		acraCensor.logger.WithError(err).Warning("Failed to parse input query")
+		if acraCensor.ignoreParseError {
+			acraCensor.logger.Infof("Unparsed query has been allowed")
+			return nil
+		}
+		acraCensor.logger.Errorf("Unparsed query has been forbidden")
+		return err
+	}
 
-	}
-	if err != nil {
-		// ignore parsing errors to forward it as is to acra-censor to allow filter it via QueryIgnore handler
-		normalizedQuery = query
-	}
 	for _, handler := range acraCensor.handlers {
-		// in QueryCapture Handler use only redacted queries
+		// in QueryCapture Handler we use only redacted queries
 		if queryCaptureHandler, ok := handler.(*handlers.QueryCaptureHandler); ok {
-			queryCaptureHandler.CheckQuery(queryWithHiddenValues)
+			queryCaptureHandler.CheckQuery(queryWithHiddenValues, parsedQuery)
 			continue
 		}
-		continueHandling, err := handler.CheckQuery(normalizedQuery)
-		if err != nil {
-			// continue to next handler
-			if err == handlers.ErrQuerySyntaxError && acraCensor.ignoreParseError {
+		// in QueryIgnore Handler we use only raw queries
+		if queryIgnoreHandler, ok := handler.(*handlers.QueryIgnoreHandler); ok {
+			continueHandling, _ := queryIgnoreHandler.CheckQuery(rawQuery, parsedQuery)
+			if continueHandling {
 				continue
+			} else {
+				break
 			}
+		}
+		// remained handlers operate
+		continueHandling, err := handler.CheckQuery(normalizedQuery, parsedQuery)
+		if err != nil {
 			acraCensor.logger.Errorf("Forbidden query: '%s'", queryWithHiddenValues)
 			return err
 		}

@@ -30,7 +30,7 @@ import (
 	"time"
 
 	"github.com/cossacklabs/acra/acra-censor"
-	"github.com/cossacklabs/acra/acra-censor/handlers"
+	"github.com/cossacklabs/acra/acra-censor/common"
 	"github.com/cossacklabs/acra/decryptor/base"
 	"github.com/cossacklabs/acra/logging"
 	"github.com/cossacklabs/acra/network"
@@ -180,8 +180,8 @@ func (proxy *PgProxy) PgProxyClientRequests(acraCensor acracensor.AcraCensorInte
 
 		// log query with hidden values for debug mode
 		if logging.GetLogLevel() == logging.LogDebug {
-			_, queryWithHiddenValues, err := handlers.NormalizeAndRedactSQLQuery(query)
-			if err == handlers.ErrQuerySyntaxError {
+			_, queryWithHiddenValues, _, err := common.HandleRawSQLQuery(query)
+			if err == common.ErrQuerySyntaxError {
 				logger.WithError(err).Infof("Parsing error on query: %s", queryWithHiddenValues)
 			} else {
 				logger.WithField("sql", queryWithHiddenValues).Debugln("New query")
