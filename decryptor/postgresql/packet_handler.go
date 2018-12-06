@@ -49,6 +49,12 @@ func newPacketHandlerWithLogger(reader io.Reader, writer *bufio.Writer, logger *
 	}, nil
 }
 
+// updatePacketLength update buffer of packet length and set correct size and include size buf itself
+func (packet *PacketHandler) updatePacketLength(newLength int) {
+	// update packet size
+	binary.BigEndian.PutUint32(packet.descriptionLengthBuf[:], uint32(newLength+DataRowLengthBufSize))
+}
+
 // updateDataFromColumns check that any column's data was changed and update packet length and data block with new data
 func (packet *PacketHandler) updateDataFromColumns() {
 	columnsDataChanged := false
@@ -77,8 +83,7 @@ func (packet *PacketHandler) updateDataFromColumns() {
 			packet.descriptionBuf.Write(packet.Columns[i].LengthBuf[:])
 			packet.descriptionBuf.Write(packet.Columns[i].Data)
 		}
-		// update packet size
-		binary.BigEndian.PutUint32(packet.descriptionLengthBuf[:], uint32(newDataLength+DataRowLengthBufSize))
+		packet.updatePacketLength(newDataLength)
 	}
 }
 
@@ -227,11 +232,43 @@ func (packet *PacketHandler) IsParse() bool {
 
 //GetParseQuery return query string from Parse packet or error
 func (packet *PacketHandler) GetParseQuery() (string, error) {
-	query, err := FetchQueryFromParse(packet.descriptionBuf.Bytes())
+	packet.logger.Debugln("GetParseQuery")
+	parse, err := NewParsePacket(packet.descriptionBuf.Bytes())
 	if err != nil {
+		packet.logger.Debugln("GetParseQuery error")
 		return "", err
 	}
-	return string(query[:len(query)-1]), nil
+	packet.logger.Debugln("GetParseQuery success")
+	return parse.QueryString(), nil
+	//query, err := FetchQueryFromParse(packet.descriptionBuf.Bytes())
+	//if err != nil {
+	//	return "", err
+	//}
+	//return string(query[:len(query)-1]), nil
+}
+
+// ReplaceQuery query in packet with new query and update packet length
+func (packet *PacketHandler) ReplaceQuery(newQuery string) {
+	if packet.IsSimpleQuery() {
+		packet.descriptionBuf.Reset()
+		newQueryLength := len(newQuery) + 1 // query + '0' terminator
+		packet.descriptionBuf.Grow(newQueryLength)
+		packet.descriptionBuf.Write([]byte(newQuery))
+		packet.descriptionBuf.WriteByte(0)
+		packet.updatePacketLength(newQueryLength)
+	} else if packet.IsParse() {
+		packet.logger.Debugln("ReplaceQuery for prepared")
+		parse, err := NewParsePacket(packet.descriptionBuf.Bytes())
+		if err != nil {
+			packet.logger.WithError(err).Errorln("Can't parse Parse packet")
+			return
+		}
+		parse.ReplaceQuery(newQuery)
+		packet.descriptionBuf.Reset()
+		packet.descriptionBuf.Grow(parse.Length())
+		packet.descriptionBuf.Write(parse.Marshal())
+		packet.updatePacketLength(parse.Length())
+	}
 }
 
 // GetSimpleQuery return query value as string from Query packet

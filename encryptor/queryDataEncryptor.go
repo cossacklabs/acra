@@ -17,27 +17,32 @@ limitations under the License.
 package encryptor
 
 import (
-	"encoding/hex"
 	"github.com/cossacklabs/acra/decryptor/base"
+	"github.com/cossacklabs/acra/sqlparser"
 	"github.com/sirupsen/logrus"
-	"github.com/xwb1989/sqlparser"
 	"reflect"
 )
 
-// MysqlQueryEncryptor parse query and encrypt raw data according to TableSchemaStore
-type MysqlQueryEncryptor struct {
+// QueryDataEncryptor parse query and encrypt raw data according to TableSchemaStore
+type QueryDataEncryptor struct {
 	schemaStore TableSchemaStore
 	encryptor   DataEncryptor
 	clientID    []byte
+	dataCoder   DBDataCoder
 }
 
-// NewMysqlQueryEncryptor create MysqlQueryEncryptor with schema and clientID
-func NewMysqlQueryEncryptor(schema TableSchemaStore, clientID []byte, dataEncryptor DataEncryptor) (*MysqlQueryEncryptor, error) {
-	return &MysqlQueryEncryptor{schemaStore: schema, clientID: clientID, encryptor: dataEncryptor}, nil
+// NewMysqlQueryEncryptor create QueryDataEncryptor with MySQLDBDataCoder
+func NewMysqlQueryEncryptor(schema TableSchemaStore, clientID []byte, dataEncryptor DataEncryptor) (*QueryDataEncryptor, error) {
+	return &QueryDataEncryptor{schemaStore: schema, clientID: clientID, encryptor: dataEncryptor, dataCoder: &MysqlDBDataCoder{}}, nil
+}
+
+// NewPostgresqlQueryEncryptor create QueryDataEncryptor with PostgresqlDBDataCoder
+func NewPostgresqlQueryEncryptor(schema TableSchemaStore, clientID []byte, dataEncryptor DataEncryptor) (*QueryDataEncryptor, error) {
+	return &QueryDataEncryptor{schemaStore: schema, clientID: clientID, encryptor: dataEncryptor, dataCoder: &PostgresqlDBDataCoder{}}, nil
 }
 
 // encryptInsertQuery encrypt data in insert query in VALUES and ON DUPLICATE KEY UPDATE statements
-func (encryptor *MysqlQueryEncryptor) encryptInsertQuery(insert *sqlparser.Insert) (bool, error) {
+func (encryptor *QueryDataEncryptor) encryptInsertQuery(insert *sqlparser.Insert) (bool, error) {
 	tableName := sqlparser.String(insert.Table.Name)
 	schema := encryptor.schemaStore.GetTableSchema(tableName)
 	if schema == nil {
@@ -88,40 +93,36 @@ func (encryptor *MysqlQueryEncryptor) encryptInsertQuery(insert *sqlparser.Inser
 }
 
 // encryptExpression check that expr is SQLVal and has Hexval then try to encrypt
-func (encryptor *MysqlQueryEncryptor) encryptExpression(expr sqlparser.Expr, schema *TableSchema, columnName string) (bool, error) {
+func (encryptor *QueryDataEncryptor) encryptExpression(expr sqlparser.Expr, schema *TableSchema, columnName string) (bool, error) {
 	if schema.NeedToEncrypt(columnName) {
 		switch val := expr.(type) {
 		case *sqlparser.SQLVal:
 			switch val.Type {
-			case sqlparser.StrVal:
-				if err := base.ValidateAcraStructLength(val.Val); err == nil {
+			case sqlparser.StrVal, sqlparser.HexVal, sqlparser.PgEscapeString:
+				rawData, err := encryptor.dataCoder.Decode(val)
+				if err != nil {
+					if err != errUnsupportedExpression {
+						logrus.WithError(err).Errorln("Can't decode data")
+					}
+					return false, nil
+				}
+				if err := base.ValidateAcraStructLength(rawData); err == nil {
 					logrus.Debugln("Skip encryption for matched AcraStruct structure")
 					return false, nil
 				}
-				encrypted, err := encryptor.encryptWithColumnSettings(schema.GetColumnEncryptionSettings(columnName), val.Val)
+				encrypted, err := encryptor.encryptWithColumnSettings(schema.GetColumnEncryptionSettings(columnName), rawData)
 				if err != nil {
 					logrus.WithError(err).Errorln("Can't encrypt hex value from query")
 					return false, err
 				}
-				val.Val = encrypted
-				return true, nil
-			case sqlparser.HexVal:
-				binValue := make([]byte, hex.DecodedLen(len(val.Val)))
-				_, err := hex.Decode(binValue, val.Val)
+				encoded, err := encryptor.dataCoder.Encode(val, encrypted)
 				if err != nil {
-					logrus.WithError(err).Errorln("Can't decode hex string literal")
+					if err != errUnsupportedExpression {
+						logrus.WithError(err).Errorln("Can't encode data")
+					}
 					return false, err
 				}
-				if err := base.ValidateAcraStructLength(binValue); err == nil {
-					logrus.Debugln("Skip encryption for matched AcraStruct structure")
-					return false, nil
-				}
-				encrypted, err := encryptor.encryptWithColumnSettings(schema.GetColumnEncryptionSettings(columnName), binValue)
-				if err != nil {
-					logrus.WithError(err).Errorln("Can't encrypt hex value from query")
-					return false, err
-				}
-				val.Val = []byte(hex.EncodeToString(encrypted))
+				val.Val = encoded
 				return true, nil
 			}
 		}
@@ -137,7 +138,7 @@ type tableData struct {
 
 // getTablesFromUpdate collect all tables from all update TableExprs which may be as subquery/table/join/etc
 // collect only table names and ignore aliases for subqueries
-func (encryptor *MysqlQueryEncryptor) getTablesFromUpdate(tables sqlparser.TableExprs) []*tableData {
+func (encryptor *QueryDataEncryptor) getTablesFromUpdate(tables sqlparser.TableExprs) []*tableData {
 	var outputTables []*tableData
 	for _, tableExpr := range tables {
 		switch statement := tableExpr.(type) {
@@ -163,7 +164,7 @@ func (encryptor *MysqlQueryEncryptor) getTablesFromUpdate(tables sqlparser.Table
 }
 
 // hasTablesToEncrypt check that exists schema for any table in tables
-func (encryptor *MysqlQueryEncryptor) hasTablesToEncrypt(tables []*tableData) bool {
+func (encryptor *QueryDataEncryptor) hasTablesToEncrypt(tables []*tableData) bool {
 	for _, table := range tables {
 		if v := encryptor.schemaStore.GetTableSchema(table.TableName.Name.String()); v != nil {
 			return true
@@ -173,7 +174,7 @@ func (encryptor *MysqlQueryEncryptor) hasTablesToEncrypt(tables []*tableData) bo
 }
 
 // encryptUpdateExpressions try to encrypt all supported exprs. Use firstTable if column has not explicit table name because it's implicitly used in DBMSs
-func (encryptor *MysqlQueryEncryptor) encryptUpdateExpressions(exprs sqlparser.UpdateExprs, firstTable sqlparser.TableName, qualifierMap qualifierToTableMap) (bool, error) {
+func (encryptor *QueryDataEncryptor) encryptUpdateExpressions(exprs sqlparser.UpdateExprs, firstTable sqlparser.TableName, qualifierMap qualifierToTableMap) (bool, error) {
 	var schema *TableSchema
 	changed := false
 	for _, expr := range exprs {
@@ -202,7 +203,7 @@ func (encryptor *MysqlQueryEncryptor) encryptUpdateExpressions(exprs sqlparser.U
 type qualifierToTableMap map[string]string
 
 // encryptUpdateQuery encrypt data in Update query and return true if any fields was encrypted, false if wasn't and error if error occurred
-func (encryptor *MysqlQueryEncryptor) encryptUpdateQuery(update *sqlparser.Update) (bool, error) {
+func (encryptor *QueryDataEncryptor) encryptUpdateQuery(update *sqlparser.Update) (bool, error) {
 	tables := encryptor.getTablesFromUpdate(update.TableExprs)
 	if !encryptor.hasTablesToEncrypt(tables) {
 		return false, nil
@@ -223,7 +224,7 @@ func (encryptor *MysqlQueryEncryptor) encryptUpdateQuery(update *sqlparser.Updat
 }
 
 // OnQuery raw data in query according to TableSchemaStore
-func (encryptor *MysqlQueryEncryptor) OnQuery(query string) (string, bool, error) {
+func (encryptor *QueryDataEncryptor) OnQuery(query string) (string, bool, error) {
 	parsed, err := sqlparser.Parse(query)
 	if err != nil {
 		return query, false, err
@@ -245,7 +246,7 @@ func (encryptor *MysqlQueryEncryptor) OnQuery(query string) (string, bool, error
 }
 
 // encryptWithColumnSettings encrypt data and use ZoneId or ClientID from ColumnEncryptionSettings if not empty otherwise static ClientID that passed to parser
-func (encryptor *MysqlQueryEncryptor) encryptWithColumnSettings(column *ColumnEncryptionSetting, data []byte) ([]byte, error) {
+func (encryptor *QueryDataEncryptor) encryptWithColumnSettings(column *ColumnEncryptionSetting, data []byte) ([]byte, error) {
 	if len(column.ZoneID) > 0 {
 		logrus.WithField("zone_id", column.ZoneID).Debugln("Encrypt with specific ZoneID for column")
 		return encryptor.encryptor.EncryptWithZoneID([]byte(column.ZoneID), data)

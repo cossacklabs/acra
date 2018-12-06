@@ -253,7 +253,7 @@ def manage_basic_auth_user(action, user_name, user_password):
     return subprocess.call(args, cwd=os.getcwd(), timeout=PROCESS_CALL_TIMEOUT)
 
 
-def wait_connection(port, count=10, sleep=0.3):
+def wait_connection(port, count=1000, sleep=0.001):
     """try connect to 127.0.0.1:port and close connection
     if can't then sleep on and try again (<count> times)
     if <count> times is failed than raise Exception
@@ -271,7 +271,7 @@ def wait_connection(port, count=10, sleep=0.3):
     raise Exception("can't wait connection")
 
 
-def wait_unix_socket(socket_path, count=10, sleep=0.5):
+def wait_unix_socket(socket_path, count=1000, sleep=0.005):
     last_exc = Exception("can't wait unix socket")
     while count:
         connection = socket.socket(socket.AF_UNIX)
@@ -3224,6 +3224,7 @@ class TestAcraRotate(BaseTestCase):
 
 class TestPrometheusMetrics(AcraTranslatorMixin, BaseTestCase):
     LOG_METRICS = True
+
     def checkSkip(self):
         return
 
@@ -3316,8 +3317,7 @@ class TestTransparentEncryption(BaseTestCase):
     )
 
     def checkSkip(self):
-        if TEST_POSTGRESQL:
-            self.skipTest("PostgreSQL is unsupported now")
+        return
 
     def setUp(self):
         prepare_encryptor_config(zones[0][ZONE_ID])

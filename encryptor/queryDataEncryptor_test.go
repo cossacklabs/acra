@@ -21,9 +21,9 @@ import (
 	"encoding/hex"
 	"fmt"
 	"github.com/cossacklabs/acra/acra-writer"
+	"github.com/cossacklabs/acra/sqlparser"
 	"github.com/cossacklabs/acra/zone"
 	"github.com/cossacklabs/themis/gothemis/keys"
-	"github.com/xwb1989/sqlparser"
 	"testing"
 )
 
@@ -99,7 +99,6 @@ schemas:
 	hexEncryptedValue := hex.EncodeToString(encryptedValue)
 	dataValue := "some data"
 	dataHexValue := hex.EncodeToString([]byte(dataValue))
-	t.Logf("value - %s\nencrypted - %s", dataHexValue, hexEncryptedValue)
 	testData := []struct {
 		Query             string
 		QueryData         []interface{}

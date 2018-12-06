@@ -19,9 +19,9 @@ package common
 import (
 	"errors"
 	"github.com/cossacklabs/acra/logging"
+	"github.com/cossacklabs/acra/sqlparser"
+	"github.com/cossacklabs/acra/sqlparser/dependency/querypb"
 	log "github.com/sirupsen/logrus"
-	"github.com/xwb1989/sqlparser"
-	"github.com/xwb1989/sqlparser/dependency/querypb"
 	"strings"
 )
 

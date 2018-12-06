@@ -25,7 +25,7 @@ package common
 
 import (
 	"bytes"
-	"github.com/xwb1989/sqlparser"
+	"github.com/cossacklabs/acra/sqlparser"
 	"reflect"
 	"strings"
 )
