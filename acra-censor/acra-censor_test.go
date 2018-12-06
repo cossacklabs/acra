@@ -23,6 +23,7 @@ limitations under the License.
 package acracensor
 
 import (
+	"github.com/cossacklabs/acra/acra-censor/common"
 	"io/ioutil"
 	"os"
 	"path/filepath"
@@ -104,13 +105,13 @@ func TestWhitelistQueries(t *testing.T) {
 		}
 	}
 	//acracensor should block this query because it is not in whitelist
-	err = acraCensor.HandleQuery("SELECT * FROM Schema.views;")
-	if err != handlers.ErrQueryNotInWhitelist {
+	err = acraCensor.HandleQuery("SELECT * FROM testDB.testTbl;")
+	if err != common.ErrQueryNotInWhitelist {
 		t.Fatal(err)
 	}
 	//ditto
 	err = acraCensor.HandleQuery("INSERT INTO SalesStaff1 VALUES (1, 'Stephen', 'Jiang');")
-	if err != handlers.ErrQueryNotInWhitelist {
+	if err != common.ErrQueryNotInWhitelist {
 		t.Fatal(err)
 	}
 
@@ -129,7 +130,7 @@ func TestWhitelistQueries(t *testing.T) {
 	whitelistHandler.RemoveQueries([]string{lowerCaseWhiteListedQuery})
 	err = acraCensor.HandleQuery(lowerCaseWhiteListedQuery)
 	//now acracensor should block this query because it is not in whitelist anymore
-	if err != handlers.ErrQueryNotInWhitelist {
+	if err != common.ErrQueryNotInWhitelist {
 		t.Fatal(err)
 	}
 }
@@ -156,7 +157,7 @@ func TestWhitelistTables(t *testing.T) {
 	//acracensor should block those queries
 	for _, i := range queryIndexesToBlock {
 		err := censor.HandleQuery(testQueries[i])
-		if err != handlers.ErrAccessToForbiddenTableWhitelist {
+		if err != common.ErrAccessToForbiddenTableWhitelist {
 			t.Fatal(err)
 		}
 	}
@@ -179,7 +180,7 @@ func TestWhitelistTables(t *testing.T) {
 	whitelistHandler.AddTables([]string{"EMPLOYEE", "EMPLOYEE_TBL"})
 	err = censor.HandleQuery(testQuery)
 	//acracensor should block this query
-	if err != handlers.ErrAccessToForbiddenTableWhitelist {
+	if err != common.ErrAccessToForbiddenTableWhitelist {
 		t.Fatal(err)
 	}
 	whitelistHandler.AddTables([]string{"CUSTOMERS"})
@@ -218,7 +219,7 @@ func testWhitelistSelectPattern(t *testing.T) {
 	for i, query := range selectPatternQueries {
 		err := censor.HandleQuery(query)
 		if !strings.HasPrefix(strings.ToLower(query), "select") {
-			if err != handlers.ErrWhitelistPatternMismatch {
+			if err != common.ErrWhitelistPatternMismatch {
 				t.Fatal(err, "Whitelist pattern passed query. \nPattern:", pattern, "\nQuery:", selectPatternQueries[i])
 			}
 		} else {
@@ -258,7 +259,7 @@ func testWhitelistColumnsPattern(t *testing.T) {
 	}
 	for _, query := range blockableQueries {
 		err = censor.HandleQuery(query)
-		if err != handlers.ErrWhitelistPatternMismatch {
+		if err != common.ErrWhitelistPatternMismatch {
 			t.Fatal(err, "Whitelist pattern passed query. \nPattern:", pattern, "\nQuery:", query)
 		}
 	}
@@ -287,7 +288,7 @@ func testWhitelistColumnsPattern(t *testing.T) {
 	}
 	for _, query := range blockableQueries {
 		err = censor.HandleQuery(query)
-		if err != handlers.ErrWhitelistPatternMismatch {
+		if err != common.ErrWhitelistPatternMismatch {
 			t.Fatal(err, "Whitelist pattern passed query. \nPattern:", pattern, "\nQuery:", query)
 		}
 	}
@@ -316,7 +317,7 @@ func testWhitelistColumnsPattern(t *testing.T) {
 	}
 	for _, query := range blockableQueries {
 		err = censor.HandleQuery(query)
-		if err != handlers.ErrWhitelistPatternMismatch {
+		if err != common.ErrWhitelistPatternMismatch {
 			t.Fatal(err, "Whitelist pattern passed query. \nPattern:", pattern, "\nQuery:", query)
 		}
 	}
@@ -349,7 +350,7 @@ func testWhitelistColumnsPattern(t *testing.T) {
 	}
 	for _, query := range blockableQueries {
 		err = censor.HandleQuery(query)
-		if err != handlers.ErrWhitelistPatternMismatch {
+		if err != common.ErrWhitelistPatternMismatch {
 			t.Fatal(err, "Whitelist pattern passed query. \nPattern:", pattern, "\nQuery:", query)
 		}
 	}
@@ -385,7 +386,7 @@ func testWhitelistColumnsPattern(t *testing.T) {
 	}
 	for _, query := range blockableQueries {
 		err = censor.HandleQuery(query)
-		if err != handlers.ErrWhitelistPatternMismatch {
+		if err != common.ErrWhitelistPatternMismatch {
 			t.Fatal(err, "Whitelist pattern passed query. \nPattern:", pattern, "\nQuery:", query)
 		}
 	}
@@ -425,7 +426,7 @@ func testWhitelistColumnsPattern(t *testing.T) {
 	}
 	for _, query := range blockableQueries {
 		err = censor.HandleQuery(query)
-		if err != handlers.ErrWhitelistPatternMismatch {
+		if err != common.ErrWhitelistPatternMismatch {
 			t.Fatal(err, "Whitelist pattern passed query. \nPattern:", pattern, "\nQuery:", query)
 		}
 	}
@@ -481,7 +482,7 @@ func testWhitelistWherePattern(t *testing.T) {
 	}
 	for _, query := range blockableQueries {
 		err = censor.HandleQuery(query)
-		if err != handlers.ErrWhitelistPatternMismatch {
+		if err != common.ErrWhitelistPatternMismatch {
 			t.Fatal(err, "Whitelist pattern passed query. \nPattern:", pattern, "\nQuery:", query)
 		}
 	}
@@ -539,7 +540,7 @@ func testWhitelistValuePattern(t *testing.T) {
 	}
 	for _, query := range blockableQueries {
 		err = censor.HandleQuery(query)
-		if err != handlers.ErrWhitelistPatternMismatch {
+		if err != common.ErrWhitelistPatternMismatch {
 			t.Fatal(err, "Blacklist pattern passed query. \nPattern: ", pattern, "\nQuery: ", query)
 		}
 	}
@@ -578,7 +579,7 @@ func testWhitelistValuePattern(t *testing.T) {
 	}
 	for _, query := range blockableQueries {
 		err = censor.HandleQuery(query)
-		if err != handlers.ErrWhitelistPatternMismatch {
+		if err != common.ErrWhitelistPatternMismatch {
 			t.Fatal(err, "Whitelist pattern passed query. \nPattern:", pattern, "\nQuery:", query)
 		}
 	}
@@ -618,7 +619,7 @@ func testWhitelistValuePattern(t *testing.T) {
 	}
 	for _, query := range blockableQueries {
 		err = censor.HandleQuery(query)
-		if err != handlers.ErrWhitelistPatternMismatch {
+		if err != common.ErrWhitelistPatternMismatch {
 			t.Fatal(err, "Whitelist pattern passed query. \nPattern:", pattern, "\nQuery:", query)
 		}
 	}
@@ -658,7 +659,7 @@ func testWhitelistValuePattern(t *testing.T) {
 	}
 	for _, query := range blockableQueries {
 		err = censor.HandleQuery(query)
-		if err != handlers.ErrWhitelistPatternMismatch {
+		if err != common.ErrWhitelistPatternMismatch {
 			t.Fatal(err, "Whitelist pattern passed query. \nPattern:", pattern, "\nQuery:", query)
 		}
 	}
@@ -696,7 +697,7 @@ func testWhitelistValuePattern(t *testing.T) {
 	}
 	for _, query := range blockableQueries {
 		err = censor.HandleQuery(query)
-		if err != handlers.ErrWhitelistPatternMismatch {
+		if err != common.ErrWhitelistPatternMismatch {
 			t.Fatal(err, "Whitelist pattern passed query. \nPattern:", pattern, "\nQuery:", query)
 		}
 	}
@@ -756,7 +757,7 @@ func testWhitelistStarPattern(t *testing.T) {
 	}
 	for _, query := range blockableQueries {
 		err = censor.HandleQuery(query)
-		if err != handlers.ErrWhitelistPatternMismatch {
+		if err != common.ErrWhitelistPatternMismatch {
 			t.Fatal(err, "Whitelist pattern passed query. \nPattern: ", pattern, "\nQuery: ", query)
 		}
 	}
@@ -773,7 +774,6 @@ func TestBlacklistQueries(t *testing.T) {
 		"SELECT Name, Age FROM Patients WHERE Age > 40 GROUP BY Age ORDER BY Name;",
 		"SELECT COUNT(CustomerID), Country FROM Customers GROUP BY Country;",
 		"SELECT SUM(Salary) FROM Employee WHERE Emp_Age < 30;",
-		"SELECT * FROM Schema.views;",
 	}
 	sqlInsertQueries := []string{
 		"INSERT SalesStaff1 VALUES (2, 'Michael', 'Blythe'), (3, 'Linda', 'Mitchell'),(4, 'Jillian', 'Carson'), (5, 'Garrett', 'Vargas');",
@@ -816,7 +816,7 @@ func TestBlacklistQueries(t *testing.T) {
 	blacklist.AddQueries([]string{testQuery})
 	err = acraCensor.HandleQuery(testQuery)
 	//acracensor should block this query because it's in blacklist
-	if err != handlers.ErrQueryInBlacklist {
+	if err != common.ErrQueryInBlacklist {
 		t.Fatal(err)
 	}
 	acraCensor.RemoveHandler(blacklist)
@@ -829,7 +829,7 @@ func TestBlacklistQueries(t *testing.T) {
 	acraCensor.AddHandler(blacklist)
 	err = acraCensor.HandleQuery(testQuery)
 	//now acracensor should block testQuery because it's in blacklist
-	if err != handlers.ErrQueryInBlacklist {
+	if err != common.ErrQueryInBlacklist {
 		t.Fatal(err)
 	}
 	blacklist.RemoveQueries([]string{testQuery})
@@ -861,7 +861,7 @@ func TestBlacklistTables(t *testing.T) {
 	queryIndexesToBlock := []int{0, 2, 4, 5, 6}
 	for _, i := range queryIndexesToBlock {
 		err := censor.HandleQuery(testQueries[i])
-		if err != handlers.ErrAccessToForbiddenTableBlacklist {
+		if err != common.ErrAccessToForbiddenTableBlacklist {
 			t.Fatal(err)
 		}
 	}
@@ -914,7 +914,7 @@ func testBlacklistSelectPattern(t *testing.T) {
 	for i, query := range selectPatternQueries {
 		err := censor.HandleQuery(query)
 		if strings.HasPrefix(strings.ToLower(query), "select") {
-			if err != handlers.ErrBlacklistPatternMatch {
+			if err != common.ErrBlacklistPatternMatch {
 				t.Fatal(err, "Blacklist pattern passed query. \nPattern:", blacklistPattern+"\nQuery:", selectPatternQueries[i])
 			}
 		} else {
@@ -955,7 +955,7 @@ func testBlacklistColumnsPattern(t *testing.T) {
 	}
 	for _, query := range blockableQueries {
 		err = censor.HandleQuery(query)
-		if err != handlers.ErrBlacklistPatternMatch {
+		if err != common.ErrBlacklistPatternMatch {
 			t.Fatal(err, "Blacklist pattern passed query. \nPattern:", blacklistPattern, "\nQuery:", query)
 		}
 	}
@@ -985,7 +985,7 @@ func testBlacklistColumnsPattern(t *testing.T) {
 	}
 	for _, query := range blockableQueries {
 		err = censor.HandleQuery(query)
-		if err != handlers.ErrBlacklistPatternMatch {
+		if err != common.ErrBlacklistPatternMatch {
 			t.Fatal("Blacklist pattern passed query. \nPattern:", blacklistPattern, "\nQuery:", query)
 		}
 	}
@@ -1015,7 +1015,7 @@ func testBlacklistColumnsPattern(t *testing.T) {
 	}
 	for _, query := range blockableQueries {
 		err = censor.HandleQuery(query)
-		if err != handlers.ErrBlacklistPatternMatch {
+		if err != common.ErrBlacklistPatternMatch {
 			t.Fatal(err, "Blacklist pattern passed query. \nPattern:", blacklistPattern, "\nQuery:", query)
 		}
 	}
@@ -1049,7 +1049,7 @@ func testBlacklistColumnsPattern(t *testing.T) {
 	}
 	for _, query := range blockableQueries {
 		err = censor.HandleQuery(query)
-		if err != handlers.ErrBlacklistPatternMatch {
+		if err != common.ErrBlacklistPatternMatch {
 			t.Fatal(err, "Blacklist pattern passed query. \nPattern:", blacklistPattern, "\nQuery:", query)
 		}
 	}
@@ -1085,7 +1085,7 @@ func testBlacklistColumnsPattern(t *testing.T) {
 	}
 	for _, query := range blockableQueries {
 		err = censor.HandleQuery(query)
-		if err != handlers.ErrBlacklistPatternMatch {
+		if err != common.ErrBlacklistPatternMatch {
 			t.Fatal(err, "Blacklist pattern passed query. \nPattern:", blacklistPattern, "\nQuery:", query)
 		}
 	}
@@ -1125,7 +1125,7 @@ func testBlacklistColumnsPattern(t *testing.T) {
 	}
 	for _, query := range blockableQueries {
 		err = censor.HandleQuery(query)
-		if err != handlers.ErrBlacklistPatternMatch {
+		if err != common.ErrBlacklistPatternMatch {
 			t.Fatal(err, "Blacklist pattern passed query. \nPattern:", blacklistPattern, "\nQuery:", query)
 		}
 	}
@@ -1184,7 +1184,7 @@ func testBlacklistWherePattern(t *testing.T) {
 	}
 	for _, query := range blockableQueries {
 		err = censor.HandleQuery(query)
-		if err != handlers.ErrBlacklistPatternMatch {
+		if err != common.ErrBlacklistPatternMatch {
 			t.Fatal(err, "Blacklist pattern passed query. \nPattern:", blacklistPattern, "\nQuery:", query)
 		}
 	}
@@ -1223,7 +1223,7 @@ func testBlacklistValuePattern(t *testing.T) {
 	}
 	for _, query := range blockableQueries {
 		err = censor.HandleQuery(query)
-		if err != handlers.ErrBlacklistPatternMatch {
+		if err != common.ErrBlacklistPatternMatch {
 			t.Fatal(err, "Blacklist pattern passed query. \nPattern:", blacklistPattern, "\nQuery:", query)
 		}
 	}
@@ -1250,7 +1250,7 @@ func testBlacklistValuePattern(t *testing.T) {
 	}
 	for _, query := range blockableQueries {
 		err = censor.HandleQuery(query)
-		if err != handlers.ErrBlacklistPatternMatch {
+		if err != common.ErrBlacklistPatternMatch {
 			t.Fatal(err, "Blacklist pattern passed query. \nPattern:", blacklistPattern, "\nQuery:", query)
 		}
 	}
@@ -1287,7 +1287,7 @@ func testBlacklistValuePattern(t *testing.T) {
 	}
 	for _, query := range blockableQueries {
 		err = censor.HandleQuery(query)
-		if err != handlers.ErrBlacklistPatternMatch {
+		if err != common.ErrBlacklistPatternMatch {
 			t.Fatal(err, "Blacklist pattern passed query. \nPattern:", blacklistPattern, "\nQuery:", query)
 		}
 	}
@@ -1347,7 +1347,7 @@ func testBlacklistStarPattern(t *testing.T) {
 	}
 	for _, query := range blockableQueries {
 		err = censor.HandleQuery(query)
-		if err != handlers.ErrBlacklistPatternMatch {
+		if err != common.ErrBlacklistPatternMatch {
 			t.Fatal(err, "Blacklist pattern passed query. \nPattern:", blacklistPattern, "\nQuery:", query)
 		}
 	}
@@ -1400,7 +1400,7 @@ func TestQueryIgnoring(t *testing.T) {
 	//should block
 	for _, query := range testQueries {
 		err = acraCensor.HandleQuery(query)
-		if err != handlers.ErrQueryInBlacklist {
+		if err != common.ErrQueryInBlacklist {
 			t.Fatal(err)
 		}
 	}
@@ -1596,15 +1596,15 @@ func TestAddingCapturedQueriesIntoBlacklist(t *testing.T) {
 
 	blacklist.AddQueries(captureHandler.GetForbiddenQueries())
 	err = acraCensor.HandleQuery(testQueries[0])
-	if err != handlers.ErrQueryInBlacklist {
+	if err != common.ErrQueryInBlacklist {
 		t.Fatal(err)
 	}
 	err = acraCensor.HandleQuery(testQueries[1])
-	if err != handlers.ErrQueryInBlacklist {
+	if err != common.ErrQueryInBlacklist {
 		t.Fatal(err)
 	}
 	err = acraCensor.HandleQuery(testQueries[2])
-	if err != handlers.ErrQueryInBlacklist {
+	if err != common.ErrQueryInBlacklist {
 		t.Fatal(err)
 	}
 	//zero, first and second query are forbidden
@@ -1707,7 +1707,7 @@ func TestQueryCapture(t *testing.T) {
 	suffix := strings.TrimPrefix(strings.ToUpper(string(result)), strings.ToUpper(expectedPrefix))
 
 	//we expect TWO placeholders here: instead of "('Ryan', 'Holly')" and instead of "10"
-	if strings.Count(suffix, strings.ToUpper(handlers.ValueMask)) != 2 {
+	if strings.Count(suffix, strings.ToUpper(common.ValueMask)) != 2 {
 		t.Fatal("unexpected placeholder values in following: " + string(result))
 	}
 
@@ -1752,7 +1752,7 @@ func TestConfigurationProvider(t *testing.T) {
 	//acracensor should block those queries
 	for _, queryToBlock := range testQueries {
 		err = acraCensor.HandleQuery(queryToBlock)
-		if err != handlers.ErrQueryInBlacklist {
+		if err != common.ErrQueryInBlacklist {
 			t.Fatal(err)
 		}
 	}
@@ -1763,7 +1763,7 @@ func TestConfigurationProvider(t *testing.T) {
 	//acracensor should block those tables
 	for _, queryToBlock := range testQueries {
 		err = acraCensor.HandleQuery(queryToBlock)
-		if err != handlers.ErrAccessToForbiddenTableBlacklist {
+		if err != common.ErrAccessToForbiddenTableBlacklist {
 			t.Fatal(err)
 		}
 	}
@@ -1774,7 +1774,7 @@ func TestConfigurationProvider(t *testing.T) {
 	//acracensor should block those structures
 	for _, queryToBlock := range testQueries {
 		err = acraCensor.HandleQuery(queryToBlock)
-		if err != handlers.ErrBlacklistPatternMatch {
+		if err != common.ErrBlacklistPatternMatch {
 			t.Fatal(err)
 		}
 	}
@@ -1814,7 +1814,7 @@ func testSyntax(t *testing.T) {
       - SELECT * ROM EMPLOYEE WHERE CITY='Seattle';`
 
 	err = acraCensor.LoadConfiguration([]byte(configuration))
-	if err != handlers.ErrPatternSyntaxError {
+	if err != common.ErrPatternSyntaxError {
 		t.Fatal(err)
 	}
 }
@@ -1827,23 +1827,35 @@ func TestDifferentTablesParsing(t *testing.T) {
 
 	blacklist := handlers.NewBlacklistHandler()
 	blacklist.AddTables([]string{"x", "y"})
-	_, err := blacklist.CheckQuery(testQuery)
+
+	acraCensor := NewAcraCensor()
+	defer acraCensor.ReleaseAll()
+	//set our acracensor to use blacklist for query evaluating
+	acraCensor.AddHandler(blacklist)
+
+	err := acraCensor.HandleQuery(testQuery)
 	if err != nil {
 		t.Fatal(err)
 	}
 	blacklist.AddTables([]string{"z", "Shippers"})
-	_, err = blacklist.CheckQuery(testQuery)
-	if err != handlers.ErrAccessToForbiddenTableBlacklist {
+	err = acraCensor.HandleQuery(testQuery)
+	if err != common.ErrAccessToForbiddenTableBlacklist {
 		t.Fatal(err)
 	}
+
+	acraCensor.RemoveHandler(blacklist)
+
 	whitelist := handlers.NewWhitelistHandler()
 	whitelist.AddTables([]string{"Orders", "Customers", "NotShippers"})
-	_, err = whitelist.CheckQuery(testQuery)
-	if err != handlers.ErrAccessToForbiddenTableWhitelist {
+
+	//set our acracensor to use whitelist for query evaluating
+	acraCensor.AddHandler(whitelist)
+	err = acraCensor.HandleQuery(testQuery)
+	if err != common.ErrAccessToForbiddenTableWhitelist {
 		t.Fatal(err)
 	}
 	whitelist.AddTables([]string{"Shippers"})
-	_, err = whitelist.CheckQuery(testQuery)
+	err = acraCensor.HandleQuery(testQuery)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1872,10 +1884,10 @@ func TestIgnoringQueryParseErrors(t *testing.T) {
 			acraCensor.RemoveHandler(handler)
 		}
 	}
-	checkHandler([]QueryHandlerInterface{whitelist}, handlers.ErrQuerySyntaxError)
-	checkHandler([]QueryHandlerInterface{blacklist}, handlers.ErrQuerySyntaxError)
+	checkHandler([]QueryHandlerInterface{whitelist}, common.ErrQuerySyntaxError)
+	checkHandler([]QueryHandlerInterface{blacklist}, common.ErrQuerySyntaxError)
 	// check when censor with two handlers and each one will return query parse error
-	checkHandler([]QueryHandlerInterface{whitelist, blacklist}, handlers.ErrQuerySyntaxError)
+	checkHandler([]QueryHandlerInterface{whitelist, blacklist}, common.ErrQuerySyntaxError)
 	acraCensor.ignoreParseError = true
 	checkHandler([]QueryHandlerInterface{whitelist}, nil)
 	checkHandler([]QueryHandlerInterface{blacklist}, nil)
