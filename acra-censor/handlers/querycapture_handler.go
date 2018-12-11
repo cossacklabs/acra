@@ -136,6 +136,8 @@ func (handler *QueryCaptureHandler) CheckQuery(queryWithHiddenValues string, par
 	queryInfo := &QueryInfo{}
 	queryInfo.RawQuery = queryWithHiddenValues
 	queryInfo.IsForbidden = false
+	// TODO refactor to use only handler.Queries and index of not dumped queries. On dump signal dump all queries after index
+	// TODO and only increment index without overhead of extra queries in memory
 	handler.Queries = append(handler.Queries, queryInfo)
 	handler.BufferedQueries = append(handler.BufferedQueries, queryInfo)
 	return true, nil
