@@ -21,6 +21,7 @@ import (
 	"encoding/hex"
 	"fmt"
 	"github.com/cossacklabs/acra/acra-writer"
+	"github.com/cossacklabs/acra/decryptor/base"
 	"github.com/cossacklabs/acra/sqlparser"
 	"github.com/cossacklabs/acra/zone"
 	"github.com/cossacklabs/themis/gothemis/keys"
@@ -310,11 +311,11 @@ schemas:
 		if testCase.Normalized {
 			expectedQuery = normalizeQuery(expectedQuery, t)
 		}
-		data, changed, err := mysqlParser.OnQuery(query)
+		data, changed, err := mysqlParser.OnQuery(base.NewOnQueryObjectFromQuery(query))
 		if err != nil {
 			t.Fatalf("%v. %s", i, err.Error())
 		}
-		if data != expectedQuery {
+		if data.Query() != expectedQuery {
 			t.Fatalf("%v. Incorrect value\nTook:\n%s\nExpected:\n%s;", i, data, expectedQuery)
 		}
 		if testCase.Changed != changed {

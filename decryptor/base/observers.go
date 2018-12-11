@@ -16,10 +16,45 @@ limitations under the License.
 
 package base
 
+import "github.com/cossacklabs/acra/sqlparser"
+
+type OnQueryObject interface {
+	Statement() (sqlparser.Statement, error)
+	Query() string
+}
+
+// onQueryObject store result of QueryObserver.OnQuery call to reuse statements/queries between calls and do not parse/encode queries/statements
+type onQueryObject struct {
+	statement sqlparser.Statement
+	query     string
+}
+
+func (obj *onQueryObject) Statement() (sqlparser.Statement, error) {
+	if obj.statement != nil {
+		return obj.statement, nil
+	}
+	return sqlparser.Parse(obj.query)
+}
+
+func (obj *onQueryObject) Query() string {
+	if obj.query == "" {
+		return sqlparser.String(obj.statement)
+	}
+	return obj.query
+}
+
+func NewOnQueryObjectFromStatement(stmt sqlparser.Statement) OnQueryObject {
+	return &onQueryObject{statement: stmt}
+}
+
+func NewOnQueryObjectFromQuery(query string) OnQueryObject {
+	return &onQueryObject{query: query}
+}
+
 // QueryObserver will be used to notify about coming new query
 type QueryObserver interface {
 	// OnQuery return true if output query was changed otherwise false
-	OnQuery(query string) (string, bool, error)
+	OnQuery(data OnQueryObject) (OnQueryObject, bool, error)
 }
 
 // QueryObservable used to handle subscribers for new incoming queries
@@ -44,7 +79,7 @@ func (manager *ArrayQueryObserverableManager) AddQueryObserver(obs QueryObserver
 }
 
 // OnQuery would be called for each added observer to manager
-func (manager *ArrayQueryObserverableManager) OnQuery(query string) (string, bool, error) {
+func (manager *ArrayQueryObserverableManager) OnQuery(query OnQueryObject) (OnQueryObject, bool, error) {
 	changedOut := false
 	for _, obs := range manager.subscribers {
 		newQuery, changed, err := obs.OnQuery(query)

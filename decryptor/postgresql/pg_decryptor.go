@@ -217,12 +217,12 @@ func (proxy *PgProxy) PgProxyClientRequests(acraCensor acracensor.AcraCensorInte
 			continue
 		}
 
-		newQuery, changed, err := proxy.queryObserverManager.OnQuery(query)
+		newQuery, changed, err := proxy.queryObserverManager.OnQuery(base.NewOnQueryObjectFromQuery(query))
 		if err != nil {
 			logger.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorEncryptQueryData).Errorln("Error occurred on query handler")
 		}
 		if changed {
-			packet.ReplaceQuery(newQuery)
+			packet.ReplaceQuery(newQuery.Query())
 		}
 
 		censorSpan.End()

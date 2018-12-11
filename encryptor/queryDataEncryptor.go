@@ -17,6 +17,7 @@ limitations under the License.
 package encryptor
 
 import (
+	"errors"
 	"github.com/cossacklabs/acra/decryptor/base"
 	"github.com/cossacklabs/acra/sqlparser"
 	"github.com/sirupsen/logrus"
@@ -92,40 +93,50 @@ func (encryptor *QueryDataEncryptor) encryptInsertQuery(insert *sqlparser.Insert
 	return changed, nil
 }
 
+func UpdateExpressionValue(expr sqlparser.Expr, coder DBDataCoder, updateFunc func([]byte) ([]byte, error)) error {
+	switch val := expr.(type) {
+	case *sqlparser.SQLVal:
+		switch val.Type {
+		case sqlparser.StrVal, sqlparser.HexVal, sqlparser.PgEscapeString:
+			rawData, err := coder.Decode(val)
+			if err != nil {
+				if err != errUnsupportedExpression {
+					logrus.WithError(err).Errorln("Can't decode data")
+				}
+				return err
+			}
+
+			newData, err := updateFunc(rawData)
+			if err != nil {
+				return err
+			}
+			coded, err := coder.Encode(expr, newData)
+			if err != nil {
+				return err
+			}
+			val.Val = coded
+		}
+	}
+	return nil
+}
+
 // encryptExpression check that expr is SQLVal and has Hexval then try to encrypt
 func (encryptor *QueryDataEncryptor) encryptExpression(expr sqlparser.Expr, schema *TableSchema, columnName string) (bool, error) {
+	errAcraStructMatch := errors.New("AcraStruct match")
 	if schema.NeedToEncrypt(columnName) {
-		switch val := expr.(type) {
-		case *sqlparser.SQLVal:
-			switch val.Type {
-			case sqlparser.StrVal, sqlparser.HexVal, sqlparser.PgEscapeString:
-				rawData, err := encryptor.dataCoder.Decode(val)
-				if err != nil {
-					if err != errUnsupportedExpression {
-						logrus.WithError(err).Errorln("Can't decode data")
-					}
-					return false, nil
-				}
-				if err := base.ValidateAcraStructLength(rawData); err == nil {
-					logrus.Debugln("Skip encryption for matched AcraStruct structure")
-					return false, nil
-				}
-				encrypted, err := encryptor.encryptWithColumnSettings(schema.GetColumnEncryptionSettings(columnName), rawData)
-				if err != nil {
-					logrus.WithError(err).Errorln("Can't encrypt hex value from query")
-					return false, err
-				}
-				encoded, err := encryptor.dataCoder.Encode(val, encrypted)
-				if err != nil {
-					if err != errUnsupportedExpression {
-						logrus.WithError(err).Errorln("Can't encode data")
-					}
-					return false, err
-				}
-				val.Val = encoded
-				return true, nil
+		err := UpdateExpressionValue(expr, encryptor.dataCoder, func(data []byte) ([]byte, error) {
+			if err := base.ValidateAcraStructLength(data); err == nil {
+				logrus.Debugln("Skip encryption for matched AcraStruct structure")
+				return nil, errAcraStructMatch
 			}
+			return encryptor.encryptWithColumnSettings(schema.GetColumnEncryptionSettings(columnName), data)
+		})
+		if err == errAcraStructMatch {
+			return false, nil
+		} else if err != nil {
+			return false, err
 		}
+		return true, nil
 	}
 	return false, nil
 }
@@ -224,13 +235,13 @@ func (encryptor *QueryDataEncryptor) encryptUpdateQuery(update *sqlparser.Update
 }
 
 // OnQuery raw data in query according to TableSchemaStore
-func (encryptor *QueryDataEncryptor) OnQuery(query string) (string, bool, error) {
-	parsed, err := sqlparser.Parse(query)
+func (encryptor *QueryDataEncryptor) OnQuery(query base.OnQueryObject) (base.OnQueryObject, bool, error) {
+	statement, err := query.Statement()
 	if err != nil {
 		return query, false, err
 	}
 	changed := false
-	switch statement := parsed.(type) {
+	switch statement := statement.(type) {
 	case *sqlparser.Insert:
 		changed, err = encryptor.encryptInsertQuery(statement)
 	case *sqlparser.Update:
@@ -240,13 +251,17 @@ func (encryptor *QueryDataEncryptor) OnQuery(query string) (string, bool, error)
 		return query, false, err
 	}
 	if changed {
-		return sqlparser.String(parsed), true, nil
+		return base.NewOnQueryObjectFromStatement(statement), true, nil
 	}
 	return query, false, nil
 }
 
 // encryptWithColumnSettings encrypt data and use ZoneId or ClientID from ColumnEncryptionSettings if not empty otherwise static ClientID that passed to parser
 func (encryptor *QueryDataEncryptor) encryptWithColumnSettings(column *ColumnEncryptionSetting, data []byte) ([]byte, error) {
+	if err := base.ValidateAcraStructLength(data); err == nil {
+		logrus.Debugln("Skip encryption for matched AcraStruct structure")
+		return nil, nil
+	}
 	if len(column.ZoneID) > 0 {
 		logrus.WithField("zone_id", column.ZoneID).Debugln("Encrypt with specific ZoneID for column")
 		return encryptor.encryptor.EncryptWithZoneID([]byte(column.ZoneID), data)
