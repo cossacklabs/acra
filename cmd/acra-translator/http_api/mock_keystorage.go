@@ -113,3 +113,9 @@ func (*testKeystore) GetAuthKey(remove bool) ([]byte, error) {
 func (*testKeystore) Reset() {
 	panic("implement me")
 }
+
+func (*testKeystore) GetClientIDEncryptionPublicKey(clientID []byte) (*keys.PublicKey, error) {
+	panic("implement me")
+}
+
+func (*testKeystore) GetZonePublicKey(zoneID []byte) (*keys.PublicKey, error) { panic("implement me") }

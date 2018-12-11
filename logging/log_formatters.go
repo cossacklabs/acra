@@ -50,7 +50,6 @@ func JSONFormatter(fields logrus.Fields) logrus.Formatter {
 			TimestampFormat: time.RFC3339,
 		},
 		Fields: fields,
-		lock:   &sync.RWMutex{},
 	}
 }
 
@@ -73,7 +72,6 @@ func CEFFormatter(fields logrus.Fields) logrus.Formatter {
 			TimestampFormat: time.RFC3339,
 		},
 		Fields: fields,
-		lock:   &sync.RWMutex{},
 	}
 }
 
@@ -117,14 +115,12 @@ func releaseEntry(e *logrus.Entry) {
 type AcraJSONFormatter struct {
 	logrus.Formatter
 	logrus.Fields
-	lock *sync.RWMutex
 }
 
 // AcraCEFFormatter is based on CEFTextFormatter with extra logrus fields.
 type AcraCEFFormatter struct {
 	CEFTextFormatter
 	logrus.Fields
-	lock *sync.RWMutex
 }
 
 // Constants showing extra filed added to loggers by default

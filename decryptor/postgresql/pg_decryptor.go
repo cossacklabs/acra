@@ -94,12 +94,24 @@ type PgProxy struct {
 	TLSCh                chan bool
 	ctx                  context.Context
 	queryObserverManager base.QueryObserverManager
+	tlsConfig            *tls.Config
+	censor               acracensor.AcraCensorInterface
+	decryptor            base.Decryptor
+	tlsSwitch            bool
 }
 
 // NewPgProxy returns new PgProxy
-func NewPgProxy(ctx context.Context, clientConnection, dbConnection net.Conn) (*PgProxy, error) {
-	return &PgProxy{clientConnection: clientConnection, dbConnection: dbConnection, TLSCh: make(chan bool), ctx: ctx,
-		queryObserverManager: &base.ArrayQueryObserverableManager{}}, nil
+func NewPgProxy(ctx context.Context, clientID []byte, decryptor base.Decryptor, dbConnection, clientConnection net.Conn, tlsConfig *tls.Config, censor acracensor.AcraCensorInterface) (*PgProxy, error) {
+	return &PgProxy{
+		clientConnection:     clientConnection,
+		dbConnection:         dbConnection,
+		TLSCh:                make(chan bool),
+		ctx:                  ctx,
+		queryObserverManager: &base.ArrayQueryObserverableManager{},
+		tlsConfig:            tlsConfig,
+		censor:               censor,
+		decryptor:            decryptor,
+	}, nil
 }
 
 // AddQueryObserver implement QueryObservable interface and proxy call to ObserverManager
@@ -107,16 +119,16 @@ func (proxy *PgProxy) AddQueryObserver(obs base.QueryObserver) {
 	proxy.queryObserverManager.AddQueryObserver(obs)
 }
 
-// PgProxyClientRequests checks every client request using AcraCensor,
+// ProxyClientConnection checks every client request using AcraCensor,
 // if request is allowed, sends it to the Pg database
-func (proxy *PgProxy) PgProxyClientRequests(acraCensor acracensor.AcraCensorInterface, dbConnection, clientConnection net.Conn, errCh chan<- error) {
+func (proxy *PgProxy) ProxyClientConnection(errCh chan<- error) {
 	ctx, span := trace.StartSpan(proxy.ctx, "PgProxyClientRequests")
 	defer span.End()
 	logger := logging.NewLoggerWithTrace(ctx).WithField("proxy", "client")
 	logger.Debugln("Pg client proxy")
-	writer := bufio.NewWriter(dbConnection)
+	writer := bufio.NewWriter(proxy.dbConnection)
 
-	reader := bufio.NewReader(clientConnection)
+	reader := bufio.NewReader(proxy.clientConnection)
 	packet, err := NewClientSidePacketHandler(reader, writer, logger)
 	if err != nil {
 		logger.WithError(err).Errorln("Can't initialize DataRow object")
@@ -145,11 +157,16 @@ func (proxy *PgProxy) PgProxyClientRequests(acraCensor acracensor.AcraCensorInte
 		spanEndFunc = packetSpan.End
 
 		if err := packet.ReadClientPacket(); err != nil {
+			if proxy.tlsSwitch {
+				proxy.tlsSwitch = false
+				proxy.TLSCh <- true
+				return
+			}
 			logger.WithError(err).Debugln("Can't read packet from client to database")
 			errCh <- err
 			return
 		}
-		dbConnection.SetWriteDeadline(time.Now().Add(network.DefaultNetworkTimeout))
+		proxy.dbConnection.SetWriteDeadline(time.Now().Add(network.DefaultNetworkTimeout))
 		// we are interested only in requests that contains sql queries
 		if !(packet.IsSimpleQuery() || packet.IsParse()) {
 			if err := packet.sendPacket(); err != nil {
@@ -195,7 +212,7 @@ func (proxy *PgProxy) PgProxyClientRequests(acraCensor acracensor.AcraCensorInte
 			}
 		}
 
-		if censorErr := acraCensor.HandleQuery(query); censorErr != nil {
+		if censorErr := proxy.censor.HandleQuery(query); censorErr != nil {
 			censorSpan.End()
 			logger.WithError(censorErr).Errorln("AcraCensor blocked query")
 			errorMessage, err := NewPgError("AcraCensor blocked this query")
@@ -204,12 +221,12 @@ func (proxy *PgProxy) PgProxyClientRequests(acraCensor acracensor.AcraCensorInte
 				errCh <- err
 				return
 			}
-			n, err := clientConnection.Write(errorMessage)
+			n, err := proxy.clientConnection.Write(errorMessage)
 			if err := base.CheckReadWrite(n, len(errorMessage), err); err != nil {
 				errCh <- err
 				return
 			}
-			n, err = clientConnection.Write(ReadyForQueryPacket)
+			n, err = proxy.clientConnection.Write(ReadyForQueryPacket)
 			if err := base.CheckReadWrite(n, len(ReadyForQueryPacket), err); err != nil {
 				errCh <- err
 				return
@@ -316,7 +333,7 @@ func (proxy *PgProxy) processWholeBlockDecryption(ctx context.Context, packet *P
 }
 
 // handleSSLRequest return wrapped with tls (client's, db's connections, nil) or (nil, nil, error)
-func (proxy *PgProxy) handleSSLRequest(packet *PacketHandler, tlsConfig *tls.Config, clientConnection, dbConnection net.Conn, logger *log.Entry) (net.Conn, net.Conn, error) {
+func (proxy *PgProxy) handleSSLRequest(packet *PacketHandler, tlsConfig *tls.Config, logger *log.Entry) (net.Conn, net.Conn, error) {
 	// if server allow SSLRequest than we wrap our connections with tls
 	if tlsConfig == nil {
 		logger.Errorln("To support TLS connections you must pass TLS key and certificate for AcraServer that will be used " +
@@ -325,8 +342,9 @@ func (proxy *PgProxy) handleSSLRequest(packet *PacketHandler, tlsConfig *tls.Con
 		return nil, nil, network.ErrEmptyTLSConfig
 	}
 	logger.Debugln("Start tls proxy")
+	proxy.tlsSwitch = true
 	// stop reading from client in goroutine
-	if err := clientConnection.SetDeadline(time.Now()); err != nil {
+	if err := proxy.clientConnection.SetDeadline(time.Now()); err != nil {
 		logger.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorDecryptorCantSetDeadlineToClientConnection).
 			Errorln("Can't set deadline")
 		return nil, nil, err
@@ -340,14 +358,14 @@ func (proxy *PgProxy) handleSSLRequest(packet *PacketHandler, tlsConfig *tls.Con
 		return nil, nil, errors.New("can't stop background goroutine")
 	}
 	logger.Debugln("Stop client connection")
-	if err := clientConnection.SetDeadline(time.Time{}); err != nil {
+	if err := proxy.clientConnection.SetDeadline(time.Time{}); err != nil {
 		logger.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorDecryptorCantSetDeadlineToClientConnection).
 			Errorln("Can't set deadline")
 		return nil, nil, err
 	}
 	logger.Debugln("Init tls with client")
 	// convert to tls connection
-	tlsClientConnection := tls.Server(clientConnection, tlsConfig)
+	tlsClientConnection := tls.Server(proxy.clientConnection, tlsConfig)
 
 	// send server's response only after successful interrupting background goroutine that process client's connection
 	// to take control over connection and avoid two places that communicate with one connection
@@ -363,7 +381,7 @@ func (proxy *PgProxy) handleSSLRequest(packet *PacketHandler, tlsConfig *tls.Con
 	}
 
 	logger.Debugln("Init tls with db")
-	dbTLSConnection := tls.Client(dbConnection, tlsConfig)
+	dbTLSConnection := tls.Client(proxy.dbConnection, tlsConfig)
 	if err := dbTLSConnection.Handshake(); err != nil {
 		logger.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorDecryptorCantInitializeTLS).
 			Errorln("Can't initialize tls connection with db")
@@ -456,21 +474,21 @@ func (proxy *PgProxy) processInlineBlockDecryption(ctx context.Context, packet *
 	return nil
 }
 
-// PgDecryptStream process data rows from database
-func (proxy *PgProxy) PgDecryptStream(censor acracensor.AcraCensorInterface, decryptor base.Decryptor, tlsConfig *tls.Config, dbConnection net.Conn, clientConnection net.Conn, errCh chan<- error) {
+// ProxyDatabaseConnection process data rows from database
+func (proxy *PgProxy) ProxyDatabaseConnection(errCh chan<- error) {
 	ctx, span := trace.StartSpan(proxy.ctx, "PgDecryptStream")
 	defer span.End()
 	logger := logging.NewLoggerWithTrace(ctx).WithField("proxy", "server")
-	if decryptor.IsWholeMatch() {
+	if proxy.decryptor.IsWholeMatch() {
 		logger = logger.WithField("decrypt_mode", "wholecell")
 	} else {
 		logger = logger.WithField("decrypt_mode", "inline")
 	}
 	logger.Debugln("Pg db proxy")
 	// use buffered writer because we generate response by parts
-	writer := bufio.NewWriter(clientConnection)
+	writer := bufio.NewWriter(proxy.clientConnection)
 
-	reader := bufio.NewReader(dbConnection)
+	reader := bufio.NewReader(proxy.dbConnection)
 	packetHandler, err := NewDbSidePacketHandler(reader, writer, logger)
 	if err != nil {
 		errCh <- err
@@ -478,7 +496,7 @@ func (proxy *PgProxy) PgDecryptStream(censor acracensor.AcraCensorInterface, dec
 	}
 
 	prometheusLabels := []string{base.DecryptionDBPostgresql}
-	if decryptor.IsWholeMatch() {
+	if proxy.decryptor.IsWholeMatch() {
 		prometheusLabels = append(prometheusLabels, base.DecryptionModeWhole)
 	} else {
 		prometheusLabels = append(prometheusLabels, base.DecryptionModeInline)
@@ -520,14 +538,16 @@ func (proxy *PgProxy) PgDecryptStream(censor acracensor.AcraCensorInterface, dec
 				//firstByte = true
 				continue
 			} else if packetHandler.IsSSLRequestAllowed() {
-				tlsClientConnection, dbTLSConnection, err := proxy.handleSSLRequest(packetHandler, tlsConfig, clientConnection, dbConnection, logger)
+				tlsClientConnection, dbTLSConnection, err := proxy.handleSSLRequest(packetHandler, proxy.tlsConfig, logger)
 				if err != nil {
 					logger.WithError(err).Errorln("Can't process SSL request")
 					errCh <- err
 					return
 				}
+				proxy.clientConnection = tlsClientConnection
+				proxy.dbConnection = dbTLSConnection
 				// restart proxing client's requests
-				go proxy.PgProxyClientRequests(censor, dbTLSConnection, tlsClientConnection, errCh)
+				go proxy.ProxyClientConnection(errCh)
 				reader = bufio.NewReader(dbTLSConnection)
 				writer = bufio.NewWriter(tlsClientConnection)
 				firstByte = true
@@ -559,7 +579,7 @@ func (proxy *PgProxy) PgDecryptStream(censor acracensor.AcraCensorInterface, dec
 			errCh <- err
 			return
 		}
-		clientConnection.SetWriteDeadline(time.Now().Add(network.DefaultNetworkTimeout))
+		proxy.clientConnection.SetWriteDeadline(time.Now().Add(network.DefaultNetworkTimeout))
 
 		if !packetHandler.IsDataRow() {
 			if err := packetHandler.sendPacket(); err != nil {
@@ -595,22 +615,22 @@ func (proxy *PgProxy) PgDecryptStream(censor acracensor.AcraCensorInterface, dec
 				continue
 			}
 			// try to skip small piece of data that can't be valuable for us
-			if (decryptor.IsWithZone() && column.Length() >= zone.ZoneIDBlockLength) || column.Length() >= base.KeyBlockLength {
-				decryptor.Reset()
+			if (proxy.decryptor.IsWithZone() && column.Length() >= zone.ZoneIDBlockLength) || column.Length() >= base.GetMinAcraStructLength() {
+				proxy.decryptor.Reset()
 				packetSpan.AddAttributes(trace.BoolAttribute("decryption", true))
 
 				// Zone anyway should be passed as whole block
 				// so try to match before any operations if we process with ZoneMode on
-				if decryptor.IsWithZone() && !decryptor.IsMatchedZone() {
+				if proxy.decryptor.IsWithZone() && !proxy.decryptor.IsMatchedZone() {
 					packetSpan.AddAttributes(trace.BoolAttribute("match_zone", true))
 					// try to match zone
-					decryptor.MatchZoneBlock(column.Data)
-					if decryptor.IsWholeMatch() {
+					proxy.decryptor.MatchZoneBlock(column.Data)
+					if proxy.decryptor.IsWholeMatch() {
 						// check that it's not poison record
-						err = checkWholePoisonRecord(column.Data, decryptor, logger)
+						err = checkWholePoisonRecord(column.Data, proxy.decryptor, logger)
 					} else {
 						// check that it's not poison record
-						err = checkInlinePoisonRecordInBlock(column.Data, decryptor, logger)
+						err = checkInlinePoisonRecordInBlock(column.Data, proxy.decryptor, logger)
 					}
 
 					if err != nil {
@@ -621,15 +641,15 @@ func (proxy *PgProxy) PgDecryptStream(censor acracensor.AcraCensorInterface, dec
 					continue
 				}
 
-				if decryptor.IsWholeMatch() {
-					err := proxy.processWholeBlockDecryption(packetCtx, packetHandler, column, decryptor, logger)
+				if proxy.decryptor.IsWholeMatch() {
+					err := proxy.processWholeBlockDecryption(packetCtx, packetHandler, column, proxy.decryptor, logger)
 					if err != nil {
 						logger.WithError(err).Errorln("Can't process whole block")
 						errCh <- err
 						return
 					}
 				} else {
-					err := proxy.processInlineBlockDecryption(packetCtx, packetHandler, column, decryptor, logger)
+					err := proxy.processInlineBlockDecryption(packetCtx, packetHandler, column, proxy.decryptor, logger)
 					if err != nil {
 						logger.WithError(err).Errorln("Can't process block with inline mode")
 						errCh <- err
@@ -646,8 +666,8 @@ func (proxy *PgProxy) PgDecryptStream(censor acracensor.AcraCensorInterface, dec
 			errCh <- err
 			return
 		}
-		decryptor.Reset()
-		decryptor.ResetZoneMatch()
+		proxy.decryptor.Reset()
+		proxy.decryptor.ResetZoneMatch()
 		timer.ObserveDuration()
 	}
 }

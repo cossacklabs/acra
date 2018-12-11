@@ -17,8 +17,10 @@ limitations under the License.
 package encryptor
 
 import (
+	"bytes"
 	"errors"
 	"github.com/cossacklabs/acra/decryptor/base"
+	"github.com/cossacklabs/acra/encryptor/config"
 	"github.com/cossacklabs/acra/sqlparser"
 	"github.com/sirupsen/logrus"
 	"reflect"
@@ -26,19 +28,19 @@ import (
 
 // QueryDataEncryptor parse query and encrypt raw data according to TableSchemaStore
 type QueryDataEncryptor struct {
-	schemaStore TableSchemaStore
+	schemaStore config.TableSchemaStore
 	encryptor   DataEncryptor
 	clientID    []byte
 	dataCoder   DBDataCoder
 }
 
 // NewMysqlQueryEncryptor create QueryDataEncryptor with MySQLDBDataCoder
-func NewMysqlQueryEncryptor(schema TableSchemaStore, clientID []byte, dataEncryptor DataEncryptor) (*QueryDataEncryptor, error) {
+func NewMysqlQueryEncryptor(schema config.TableSchemaStore, clientID []byte, dataEncryptor DataEncryptor) (*QueryDataEncryptor, error) {
 	return &QueryDataEncryptor{schemaStore: schema, clientID: clientID, encryptor: dataEncryptor, dataCoder: &MysqlDBDataCoder{}}, nil
 }
 
 // NewPostgresqlQueryEncryptor create QueryDataEncryptor with PostgresqlDBDataCoder
-func NewPostgresqlQueryEncryptor(schema TableSchemaStore, clientID []byte, dataEncryptor DataEncryptor) (*QueryDataEncryptor, error) {
+func NewPostgresqlQueryEncryptor(schema config.TableSchemaStore, clientID []byte, dataEncryptor DataEncryptor) (*QueryDataEncryptor, error) {
 	return &QueryDataEncryptor{schemaStore: schema, clientID: clientID, encryptor: dataEncryptor, dataCoder: &PostgresqlDBDataCoder{}}, nil
 }
 
@@ -93,6 +95,10 @@ func (encryptor *QueryDataEncryptor) encryptInsertQuery(insert *sqlparser.Insert
 	return changed, nil
 }
 
+// ErrUpdateLeaveDataUnchanged show that data wasn't changed in UpdateExpressionValue with updateFunc
+var ErrUpdateLeaveDataUnchanged = errors.New("updateFunc didn't change data")
+
+// UpdateExpressionValue decode value from DB related string to binary format, call updateFunc, encode to DB string format and replace value in expression with new
 func UpdateExpressionValue(expr sqlparser.Expr, coder DBDataCoder, updateFunc func([]byte) ([]byte, error)) error {
 	switch val := expr.(type) {
 	case *sqlparser.SQLVal:
@@ -110,6 +116,9 @@ func UpdateExpressionValue(expr sqlparser.Expr, coder DBDataCoder, updateFunc fu
 			if err != nil {
 				return err
 			}
+			if len(newData) == len(rawData) && bytes.Equal(newData, rawData) {
+				return ErrUpdateLeaveDataUnchanged
+			}
 			coded, err := coder.Encode(expr, newData)
 			if err != nil {
 				return err
@@ -121,17 +130,13 @@ func UpdateExpressionValue(expr sqlparser.Expr, coder DBDataCoder, updateFunc fu
 }
 
 // encryptExpression check that expr is SQLVal and has Hexval then try to encrypt
-func (encryptor *QueryDataEncryptor) encryptExpression(expr sqlparser.Expr, schema *TableSchema, columnName string) (bool, error) {
-	errAcraStructMatch := errors.New("AcraStruct match")
+func (encryptor *QueryDataEncryptor) encryptExpression(expr sqlparser.Expr, schema *config.TableSchema, columnName string) (bool, error) {
 	if schema.NeedToEncrypt(columnName) {
 		err := UpdateExpressionValue(expr, encryptor.dataCoder, func(data []byte) ([]byte, error) {
-			if err := base.ValidateAcraStructLength(data); err == nil {
-				logrus.Debugln("Skip encryption for matched AcraStruct structure")
-				return nil, errAcraStructMatch
-			}
 			return encryptor.encryptWithColumnSettings(schema.GetColumnEncryptionSettings(columnName), data)
 		})
-		if err == errAcraStructMatch {
+		// didn't change anything because it already encrypted
+		if err == ErrUpdateLeaveDataUnchanged {
 			return false, nil
 		} else if err != nil {
 			return false, err
@@ -186,7 +191,7 @@ func (encryptor *QueryDataEncryptor) hasTablesToEncrypt(tables []*tableData) boo
 
 // encryptUpdateExpressions try to encrypt all supported exprs. Use firstTable if column has not explicit table name because it's implicitly used in DBMSs
 func (encryptor *QueryDataEncryptor) encryptUpdateExpressions(exprs sqlparser.UpdateExprs, firstTable sqlparser.TableName, qualifierMap qualifierToTableMap) (bool, error) {
-	var schema *TableSchema
+	var schema *config.TableSchema
 	changed := false
 	for _, expr := range exprs {
 		// recognize table name of column
@@ -257,22 +262,19 @@ func (encryptor *QueryDataEncryptor) OnQuery(query base.OnQueryObject) (base.OnQ
 }
 
 // encryptWithColumnSettings encrypt data and use ZoneId or ClientID from ColumnEncryptionSettings if not empty otherwise static ClientID that passed to parser
-func (encryptor *QueryDataEncryptor) encryptWithColumnSettings(column *ColumnEncryptionSetting, data []byte) ([]byte, error) {
-	if err := base.ValidateAcraStructLength(data); err == nil {
-		logrus.Debugln("Skip encryption for matched AcraStruct structure")
-		return nil, nil
-	}
-	if len(column.ZoneID) > 0 {
-		logrus.WithField("zone_id", column.ZoneID).Debugln("Encrypt with specific ZoneID for column")
-		return encryptor.encryptor.EncryptWithZoneID([]byte(column.ZoneID), data)
+func (encryptor *QueryDataEncryptor) encryptWithColumnSettings(columnSetting *config.ColumnEncryptionSetting, data []byte) ([]byte, error) {
+	logrus.Debugln("QueryDataEncryptor.encryptWithColumnSettings")
+	if len(columnSetting.ZoneID) > 0 {
+		logrus.WithField("zone_id", string(columnSetting.ZoneID)).Debugln("Encrypt with specific ZoneID for column")
+		return encryptor.encryptor.EncryptWithZoneID([]byte(columnSetting.ZoneID), data, columnSetting)
 	}
 	var id []byte
-	if len(column.ClientID) > 0 {
-		logrus.WithField("client_id", column.ClientID).Debugln("Encrypt with specific ClientID for column")
-		id = []byte(column.ClientID)
+	if len(columnSetting.ClientID) > 0 {
+		logrus.WithField("client_id", string(columnSetting.ClientID)).Debugln("Encrypt with specific ClientID for column")
+		id = []byte(columnSetting.ClientID)
 	} else {
-		logrus.WithField("client_id", encryptor.clientID).Debugln("Encrypt with ClientID from connection")
+		logrus.WithField("client_id", string(encryptor.clientID)).Debugln("Encrypt with ClientID from connection")
 		id = encryptor.clientID
 	}
-	return encryptor.encryptor.EncryptWithClientID(id, data)
+	return encryptor.encryptor.EncryptWithClientID(id, data, columnSetting)
 }

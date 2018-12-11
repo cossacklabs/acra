@@ -85,7 +85,7 @@ func handleConnection(config *Config, connection net.Conn) {
 	ctx, span := trace.StartSpan(ctx, "handleConnection", options...)
 	defer span.End()
 
-	logger := logging.NewLoggerWithTrace(ctx)
+	logger := logging.NewLoggerWithTrace(ctx).WithField("client_id", string(config.ClientID))
 
 	defer func() {
 		logger.Infoln("Close connection with client")

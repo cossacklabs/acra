@@ -18,10 +18,12 @@ package postgresql
 
 import (
 	"bytes"
+	"context"
 	"encoding/hex"
 	"github.com/cossacklabs/acra/decryptor/base"
 	"github.com/cossacklabs/acra/decryptor/binary"
 	"github.com/cossacklabs/acra/keystore"
+	"github.com/cossacklabs/acra/logging"
 	"github.com/cossacklabs/acra/utils"
 	"github.com/cossacklabs/acra/zone"
 	"github.com/cossacklabs/themis/gothemis/keys"
@@ -40,28 +42,32 @@ type PgDecryptor struct {
 	matchedDecryptor   base.DataDecryptor
 	checkPoisonRecords bool
 
-	poisonKey       []byte
-	clientID        []byte
-	matchBuffer     []byte
-	matchIndex      int
-	callbackStorage *base.PoisonCallbackStorage
-	logger          *logrus.Entry
+	clientID             []byte
+	matchBuffer          []byte
+	matchIndex           int
+	callbackStorage      *base.PoisonCallbackStorage
+	logger               *logrus.Entry
+	dataProcessor        base.DataProcessor
+	dataProcessorContext *base.DataProcessorContext
 }
 
 // NewPgDecryptor returns new PgDecryptor hiding inner HEX decryptor or ESCAPE decryptor
 // by default checks poison recods and uses WholeMatch mode without zones
-func NewPgDecryptor(clientID []byte, decryptor base.DataDecryptor) *PgDecryptor {
+func NewPgDecryptor(clientID []byte, decryptor base.DataDecryptor, withZone bool, keystore keystore.KeyStore) *PgDecryptor {
+	logger := logrus.WithField("client_id", string(clientID))
 	return &PgDecryptor{
-		isWithZone:      false,
+		isWithZone:      withZone,
 		pgDecryptor:     decryptor,
 		binaryDecryptor: binary.NewBinaryDecryptor(),
 		clientID:        clientID,
 		// longest tag (escape) + bin
-		matchBuffer:        make([]byte, len(EscapeTagBegin)+len(base.TagBegin)),
-		matchIndex:         0,
-		isWholeMatch:       true,
-		logger:             logrus.WithField("client_id", string(clientID)),
-		checkPoisonRecords: true,
+		matchBuffer:          make([]byte, len(EscapeTagBegin)+len(base.TagBegin)),
+		matchIndex:           0,
+		isWholeMatch:         true,
+		logger:               logger,
+		checkPoisonRecords:   true,
+		keyStore:             keystore,
+		dataProcessorContext: base.NewDataProcessorContext(clientID, withZone, keystore).WithContext(logging.SetLoggerToContext(context.Background(), logger)),
 	}
 }
 
@@ -308,31 +314,8 @@ func (decryptor *PgDecryptor) SkipBeginInBlock(block []byte) ([]byte, error) {
 // handles all settings (if AcraStruct has Zone, if keys can be read etc)
 // appends HEX Prefix for Hex bytes mode
 func (decryptor *PgDecryptor) DecryptBlock(block []byte) ([]byte, error) {
-	dataBlock, err := decryptor.SkipBeginInBlock(block)
-	if err != nil {
-		return []byte{}, err
-	}
-
-	reader := bytes.NewReader(dataBlock)
-	privateKey, err := decryptor.GetPrivateKey()
-	if err != nil {
-		decryptor.logger.Warningln("Can't read private key")
-		return []byte{}, err
-	}
-	key, _, err := decryptor.ReadSymmetricKey(privateKey, reader)
-	if err != nil {
-		decryptor.logger.Warningf("%v", utils.ErrorMessage("Can't unwrap symmetric key", err))
-		return []byte{}, err
-	}
-	data, err := decryptor.ReadData(key, decryptor.GetMatchedZoneID(), reader)
-	if err != nil {
-		decryptor.logger.Warningf("%v", utils.ErrorMessage("Can't decrypt data with unwrapped symmetric key", err))
-		return []byte{}, err
-	}
-	if _, ok := decryptor.pgDecryptor.(*PgHexDecryptor); ok {
-		return append(HexPrefix, data...), nil
-	}
-	return data, nil
+	ctx := decryptor.dataProcessorContext.WithZoneID(decryptor.GetMatchedZoneID())
+	return decryptor.dataProcessor.Process(block, ctx)
 }
 
 // CheckPoisonRecord tries to decrypt AcraStruct using Poison records keys
@@ -465,4 +448,9 @@ func (decryptor *PgDecryptor) GetTagBeginLength() int {
 // GetZoneIDLength returns begin tag length, depends on decryptor type
 func (decryptor *PgDecryptor) GetZoneIDLength() int {
 	return decryptor.pgDecryptor.GetTagBeginLength()
+}
+
+// SetDataProcessor replace current with new processor
+func (decryptor *PgDecryptor) SetDataProcessor(processor base.DataProcessor) {
+	decryptor.dataProcessor = processor
 }

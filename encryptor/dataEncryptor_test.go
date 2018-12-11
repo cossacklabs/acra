@@ -38,6 +38,12 @@ func (ks *keyStore) GetClientIDEncryptionPublicKey(clientID []byte) (*keys.Publi
 	return ks.keypair.Public, nil
 }
 
+type emptyEncryptionSetting struct{}
+
+func (*emptyEncryptionSetting) IsSearchable() bool {
+	return false
+}
+
 func TestAcrawriterDataEncryptor_EncryptWithClientID(t *testing.T) {
 	keypair, err := keys.New(keys.KEYTYPE_EC)
 	if err != nil {
@@ -49,7 +55,7 @@ func TestAcrawriterDataEncryptor_EncryptWithClientID(t *testing.T) {
 		t.Fatal(err)
 	}
 	testData := []byte("some raw data")
-	encrypted, err := encryptor.EncryptWithClientID([]byte("some id"), testData)
+	encrypted, err := encryptor.EncryptWithClientID([]byte("some id"), testData, &emptyEncryptionSetting{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -60,7 +66,7 @@ func TestAcrawriterDataEncryptor_EncryptWithClientID(t *testing.T) {
 		t.Fatal("Wasn't used client id key")
 	}
 
-	encrypted, err = encryptor.EncryptWithZoneID([]byte("id"), testData)
+	encrypted, err = encryptor.EncryptWithZoneID([]byte("id"), testData, &emptyEncryptionSetting{})
 	if err != nil {
 		t.Fatal(err)
 	}

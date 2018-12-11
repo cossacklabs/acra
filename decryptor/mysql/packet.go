@@ -128,7 +128,7 @@ func (packet *MysqlPacket) replaceQuery(newQuery string) {
 
 // readPacket read header to struct and return payload as return result or error
 func (packet *MysqlPacket) readPacket(connection net.Conn) ([]byte, error) {
-	if _, err := connection.Read(packet.header); err != nil {
+	if _, err := io.ReadFull(connection, packet.header); err != nil {
 		return nil, err
 	}
 

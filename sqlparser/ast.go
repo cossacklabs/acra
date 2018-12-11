@@ -29,6 +29,8 @@ import (
 	"github.com/cossacklabs/acra/sqlparser/dependency/sqltypes"
 )
 
+//go:generate goyacc -o sql.go sql.y
+
 // Instructions for creating new types: If a type
 // needs to satisfy an interface, declare that function
 // along with that interface. This will help users
@@ -2267,7 +2269,6 @@ const (
 	ValArg
 	BitVal
 	PgEscapeString
-	Casted
 )
 
 // SQLVal represents a single value.

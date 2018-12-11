@@ -7,11 +7,12 @@ schemas:
   - default_client_id
   - zone_id
   - nullable
+
   encrypted:
-  - name: specified_client_id
+  - column: specified_client_id
     client_id: keypair1
 
-  - name: default_client_id
+  - column: default_client_id
 
-  - name: zone_id
+  - column: zone_id
     zone_id: DDDDDDDDMatNOMYjqVOuhACC

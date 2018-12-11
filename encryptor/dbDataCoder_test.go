@@ -127,7 +127,7 @@ func TestPostgresqlDBDataCoder_Decode(t *testing.T) {
 		{
 			Err: errUnsupportedExpression,
 			// without prefix
-			Expr: sqlparser.NewStrVal([]byte(fmt.Sprintf("%s", hex.EncodeToString(testData)))),
+			Expr: sqlparser.NewStrVal([]byte(hex.EncodeToString(testData))),
 		},
 		{
 			Err: hex.ErrLength,
@@ -143,7 +143,7 @@ func TestPostgresqlDBDataCoder_Decode(t *testing.T) {
 		{
 			Err: errUnsupportedExpression,
 			// without prefix
-			Expr: sqlparser.NewPgEscapeString([]byte(fmt.Sprintf("%s", hex.EncodeToString(testData)))),
+			Expr: sqlparser.NewPgEscapeString([]byte(hex.EncodeToString(testData))),
 		},
 		{
 			Err: hex.ErrLength,

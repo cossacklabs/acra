@@ -181,7 +181,7 @@ func (clientSession *ClientCommandsSession) HandleSession() {
 			return
 
 		}
-		logger.Debugln("Handled request correctly, restarting server")
+		logger.Infoln("Handled request correctly, restarting server")
 		clientSession.Server.restartSignalsChannel <- syscall.SIGHUP
 	default:
 		requestSpan.AddAttributes(trace.StringAttribute("http.url", "undefined"))

@@ -34,6 +34,9 @@ import (
 	"crypto/tls"
 	"errors"
 	"flag"
+	"github.com/cossacklabs/acra/decryptor/base"
+	"github.com/cossacklabs/acra/decryptor/mysql"
+	"github.com/cossacklabs/acra/decryptor/postgresql"
 	"net/http"
 	_ "net/http/pprof"
 	"os"
@@ -76,12 +79,6 @@ var DEFAULT_CONFIG_PATH = utils.GetConfigPathByName(ServiceName)
 // ErrWaitTimeout error indicates that server was shutdown and waited N seconds while shutting down all connections.
 var ErrWaitTimeout = errors.New("timeout")
 
-// ServerKeystore aggregate two interfaces to use for query encryptions, AcraStruct decryptions and SecureSession
-type ServerKeystore interface {
-	keystore.KeyStore
-	keystore.PublicKeyStore
-}
-
 func main() {
 	loggingFormat := flag.String("logging_format", "plaintext", "Logging format: plaintext, json or CEF")
 	log.Infof("Starting service %v [pid=%v]", ServiceName, os.Getpid())
@@ -98,7 +95,7 @@ func main() {
 	keysDir := flag.String("keys_dir", keystore.DefaultKeyDirShort, "Folder from which will be loaded keys")
 	keysCacheSize := flag.Int("keystore_cache_size", keystore.InfiniteCacheSize, "Count of keys that will be stored in in-memory LRU cache in encrypted form. 0 - no limits, -1 - turn off cache")
 
-	pgHexFormat := flag.Bool("pgsql_hex_bytea", false, "Hex format for Postgresql bytea data (default)")
+	_ = flag.Bool("pgsql_hex_bytea", false, "Hex format for Postgresql bytea data (default)")
 	pgEscapeFormat := flag.Bool("pgsql_escape_bytea", false, "Escape format for Postgresql bytea data")
 
 	secureSessionID := flag.String("securesession_id", "acra_server", "Id that will be sent in secure session")
@@ -162,11 +159,13 @@ func main() {
 	log.Infof("Validating service configuration...")
 	cmd.ValidateClientID(*secureSessionID)
 
+	config.SetAcraConnectionString(*acraConnectionString)
 	if *host != cmd.DEFAULT_ACRA_HOST || *port != cmd.DEFAULT_ACRASERVER_PORT {
-		*acraConnectionString = network.BuildConnectionString("tcp", *host, *port, "")
+		config.SetAcraConnectionString(network.BuildConnectionString("tcp", *host, *port, ""))
 	}
+	config.SetAcraAPIConnectionString(*acraAPIConnectionString)
 	if *apiPort != cmd.DEFAULT_ACRASERVER_API_PORT {
-		*acraConnectionString = network.BuildConnectionString("tcp", *host, *apiPort, "")
+		config.SetAcraAPIConnectionString(network.BuildConnectionString("tcp", *host, *apiPort, ""))
 	}
 
 	if *dbHost == "" {
@@ -175,6 +174,7 @@ func main() {
 		flag.Usage()
 		return
 	}
+	config.setDBConnectionSettings(*dbHost, *dbPort)
 
 	if *encryptorConfig != "" {
 		log.Infof("Load encryptor configuration from %s ...", *encryptorConfig)
@@ -185,14 +185,9 @@ func main() {
 		log.Infoln("Encryptor configuration loaded")
 	}
 
-	if err := config.SetMySQL(*useMysql); err != nil {
+	if err := config.SetDatabaseType(*useMysql, *usePostgresql); err != nil {
 		log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorWrongConfiguration).
-			Errorln("Can't set MySQL support")
-		os.Exit(1)
-	}
-	if err := config.SetPostgresql(*usePostgresql); err != nil {
-		log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorWrongConfiguration).
-			Errorln("Can't set PostgreSQL support")
+			Errorln("Can't configure database type")
 		os.Exit(1)
 	}
 
@@ -204,40 +199,20 @@ func main() {
 
 	// now it's stub as default values
 	config.SetDetectPoisonRecords(*detectPoisonRecords)
-	config.SetStopOnPoison(*stopOnPoison)
-	config.SetScriptOnPoison(*scriptOnPoison)
 	config.SetWithZone(*withZone)
-	config.SetDBHost(*dbHost)
-	config.SetDBPort(*dbPort)
-	config.SetConnectorHost(*host)
-	config.SetConnectorPort(*port)
-	config.SetConnectorAPIPort(*apiPort)
-	config.SetKeysDir(*keysDir)
-	config.SetServerID([]byte(*secureSessionID))
-	config.SetAcraConnectionString(*acraConnectionString)
-	config.SetAcraAPIConnectionString(*acraAPIConnectionString)
-	config.SetTLSServerCertPath(*tlsCert)
-	config.SetTLSServerKeyPath(*tlsKey)
 	config.SetWholeMatch(!(*injectedcell))
 	config.SetEnableHTTPAPI(*enableHTTPAPI)
-	config.SetConfigPath(DEFAULT_CONFIG_PATH)
 	config.SetDebug(*debug)
-
-	if *pgHexFormat || !*pgEscapeFormat {
-		config.SetByteaFormat(HEX_BYTEA_FORMAT)
-	} else {
-		config.SetByteaFormat(ESCAPE_BYTEA_FORMAT)
-	}
 
 	log.Infof("Initialising keystore...")
 	masterKey, err := keystore.GetMasterKeyFromEnvironment()
 	if err != nil {
-		log.WithError(err).Errorln("can't load master key")
+		log.WithError(err).Errorln("Can't load master key")
 		os.Exit(1)
 	}
 	scellEncryptor, err := keystore.NewSCellKeyEncryptor(masterKey)
 	if err != nil {
-		log.WithError(err).Errorln("can't init scell encryptor")
+		log.WithError(err).Errorln("Can't init scell encryptor")
 		os.Exit(1)
 	}
 
@@ -247,6 +222,7 @@ func main() {
 			Errorln("Can't initialise keystore")
 		os.Exit(1)
 	}
+	config.setKeyStore(keyStore)
 	log.Infof("Keystore init OK")
 
 	log.Infof("Configuring transport...")
@@ -265,7 +241,6 @@ func main() {
 			log.Warningln("Skip verifying TLS certificate, use for tests only!")
 		}
 	}
-	config.SetTLSConfig(tlsConfig)
 	if *useTLS {
 		log.Println("Selecting transport: use TLS transport wrapper")
 		config.ConnectionWrapper, err = network.NewTLSConnectionWrapper([]byte(*clientID), tlsConfig)
@@ -275,7 +250,7 @@ func main() {
 			os.Exit(1)
 		}
 	} else if *noEncryptionTransport {
-		config.SetWithConnector(false)
+		config.setWithConnector(false)
 		if *clientID == "" && !*withZone {
 			log.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorTransportConfiguration).
 				Errorln("Configuration error: without zone mode and without encryption you must set <client_id> which will be used to connect from AcraConnector to AcraServer")
@@ -310,8 +285,46 @@ func main() {
 		os.Exit(1)
 	}
 
+	poisonCallbacks := base.NewPoisonCallbackStorage()
+	if *scriptOnPoison != "" {
+		poisonCallbacks.AddCallback(base.NewExecuteScriptCallback(*scriptOnPoison))
+		config.scriptOnPoison = *scriptOnPoison
+	}
+	// must be last
+	if *stopOnPoison {
+		poisonCallbacks.AddCallback(&base.StopCallback{})
+		config.stopOnPoison = *stopOnPoison
+	}
+
+	decryptorSetting := base.NewDecryptorSetting(config.withZone, config.GetWholeMatch(), *detectPoisonRecords, poisonCallbacks, keyStore)
+	var decryptorFactory base.DecryptorFactory
+	var proxyFactory base.ProxyFactory
+	if *useMysql {
+		decryptorFactory = mysql.NewMysqlDecryptorFactory(decryptorSetting)
+		proxyFactory, err = mysql.NewProxyFactory(base.NewProxySetting(decryptorFactory, config.tableSchema, keyStore, tlsConfig, config.censor))
+		if err != nil {
+			log.WithError(err).Errorln("Can't initialize proxy for connections")
+			os.Exit(1)
+		}
+	} else {
+		// postgresql as default
+		var byteFormat postgresql.EscapeType
+		if *pgEscapeFormat {
+			byteFormat = postgresql.EscapeByteaFormat
+		} else {
+			byteFormat = postgresql.HexByteaFormat
+		}
+
+		decryptorFactory = postgresql.NewDecryptorFactory(byteFormat, decryptorSetting)
+		proxyFactory, err = postgresql.NewProxyFactory(base.NewProxySetting(decryptorFactory, config.tableSchema, keyStore, tlsConfig, config.censor))
+		if err != nil {
+			log.WithError(err).Errorln("Can't initialize proxy for connections")
+			os.Exit(1)
+		}
+	}
+
 	var server *SServer
-	server, err = NewServer(config, keyStore, errorSignalChannel, restartSignalsChannel)
+	server, err = NewServer(config, proxyFactory, errorSignalChannel, restartSignalsChannel)
 	if err != nil {
 		log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantStartService).
 			Errorf("System error: can't start %s", ServiceName)
@@ -347,7 +360,9 @@ func main() {
 		log.Infof("Configured to send metrics and stats to `incoming_connection_prometheus_metrics_string`")
 		stopPrometheusServer := func() {
 			log.Infoln("Stop prometheus http exporter")
-			prometheusHTTPServer.Close()
+			if err := prometheusHTTPServer.Close(); err != nil {
+				log.WithError(err).Errorln("Error on prometheus server close")
+			}
 		}
 		sigHandlerSIGHUP.AddCallback(stopPrometheusServer)
 		sigHandlerSIGTERM.AddCallback(stopPrometheusServer)
@@ -394,7 +409,9 @@ func main() {
 		}
 
 		// Set env flag for forked process
-		os.Setenv(GRACEFUL_ENV, "true")
+		if err := os.Setenv(GRACEFUL_ENV, "true"); err != nil {
+			log.WithError(err).Errorln("Unexpected error on os.Setenv")
+		}
 		execSpec := &syscall.ProcAttr{
 			Env:   os.Environ(),
 			Files: []uintptr{os.Stdin.Fd(), os.Stdout.Fd(), os.Stderr.Fd(), fdACRA, fdAPI},

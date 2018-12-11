@@ -119,7 +119,7 @@ func (e *MysqlEncoder) EncodeToString(data []byte) string {
 }
 
 // Encode return data as is
-func (encoder *MysqlEncoder) Encode(data []byte) interface{} {
+func (e *MysqlEncoder) Encode(data []byte) interface{} {
 	return data
 }
 
@@ -141,7 +141,7 @@ type HexEncoder struct{}
 
 // EncodeToString bytes to Hex
 func (*HexEncoder) EncodeToString(data []byte) string {
-	return fmt.Sprintf("E'\\x%s'", hex.EncodeToString(data))
+	return fmt.Sprintf("E'\\\\x%s'", hex.EncodeToString(data))
 }
 
 // Encode return data as is

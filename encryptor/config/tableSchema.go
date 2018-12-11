@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package encryptor
+package config
 
 import "gopkg.in/yaml.v2"
 
@@ -61,9 +61,15 @@ func (store *MapTableSchemaStore) GetTableSchema(tableName string) *TableSchema 
 
 // ColumnEncryptionSetting describe how to encrypt column
 type ColumnEncryptionSetting struct {
-	Name     string `yaml:"name"`
-	ClientID string `yaml:"client_id"`
-	ZoneID   string `yaml:"zone_id"`
+	Name       string `yaml:"column"`
+	ClientID   string `yaml:"client_id"`
+	ZoneID     string `yaml:"zone_id"`
+	Searchable bool   `yaml:"searchable"`
+}
+
+// IsSearchable return true if column should be searchable
+func (s *ColumnEncryptionSetting) IsSearchable() bool {
+	return s.Searchable
 }
 
 // TableSchema store table schema and encryption settings per column

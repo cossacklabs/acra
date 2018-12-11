@@ -22,9 +22,7 @@ import (
 	"encoding/binary"
 	"fmt"
 	"github.com/cossacklabs/acra/decryptor/base"
-	"github.com/cossacklabs/acra/keystore"
 	"github.com/cossacklabs/acra/utils"
-	"github.com/cossacklabs/acra/zone"
 	"github.com/cossacklabs/themis/gothemis/cell"
 	"github.com/cossacklabs/themis/gothemis/keys"
 	"github.com/cossacklabs/themis/gothemis/message"
@@ -34,16 +32,10 @@ import (
 
 // BinaryDecryptor stores settings for finding and decrypting AcraStruct from binary data
 type BinaryDecryptor struct {
-	currentIndex    uint8
-	isWithZone      bool
-	isWholeMatch    bool
-	keyBlockBuffer  []byte
-	lengthBuf       [base.DataLengthSize]byte
-	buf             []byte
-	keyStore        keystore.KeyStore
-	zoneMatcher     *zone.ZoneIDMatcher
-	poisonKey       []byte
-	callbackStorage *base.PoisonCallbackStorage
+	currentIndex   uint8
+	keyBlockBuffer []byte
+	lengthBuf      [base.DataLengthSize]byte
+	buf            []byte
 }
 
 // NewBinaryDecryptor returns new BinaryDecryptor

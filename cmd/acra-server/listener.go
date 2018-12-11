@@ -26,11 +26,8 @@ import (
 	"time"
 
 	"github.com/cossacklabs/acra/decryptor/base"
-	"github.com/cossacklabs/acra/decryptor/mysql"
-	pg "github.com/cossacklabs/acra/decryptor/postgresql"
 	"github.com/cossacklabs/acra/logging"
 	"github.com/cossacklabs/acra/network"
-	"github.com/cossacklabs/acra/zone"
 	"github.com/prometheus/client_golang/prometheus"
 	log "github.com/sirupsen/logrus"
 )
@@ -39,7 +36,6 @@ import (
 // data and command connections (listeners, managers, file descriptors), and signals.
 type SServer struct {
 	config                *Config
-	keystorage            ServerKeystore
 	listenerACRA          net.Listener
 	listenerAPI           net.Listener
 	fddACRA               uintptr
@@ -48,21 +44,17 @@ type SServer struct {
 	listeners             []net.Listener
 	errorSignalChannel    chan os.Signal
 	restartSignalsChannel chan os.Signal
-	traceOptions          []trace.StartOption
+	proxyFactory          base.ProxyFactory
 }
 
 // NewServer creates new SServer.
-func NewServer(config *Config, keystorage ServerKeystore, errorChan chan os.Signal, restarChan chan os.Signal) (server *SServer, err error) {
-	traceOptions := []trace.StartOption{trace.WithSpanKind(trace.SpanKindClient)}
-	traceOptions = append(traceOptions, trace.WithSampler(trace.AlwaysSample()))
-
+func NewServer(config *Config, proxyFactory base.ProxyFactory, errorChan chan os.Signal, restarChan chan os.Signal) (server *SServer, err error) {
 	return &SServer{
 		config:                config,
-		keystorage:            keystorage,
 		connectionManager:     network.NewConnectionManager(),
 		errorSignalChannel:    errorChan,
 		restartSignalsChannel: restarChan,
-		traceOptions:          traceOptions,
+		proxyFactory:          proxyFactory,
 	}, nil
 }
 
@@ -115,40 +107,6 @@ func (server *SServer) addListener(listener net.Listener) {
 	server.listeners = append(server.listeners, listener)
 }
 
-func (server *SServer) getDecryptor(clientID []byte) base.Decryptor {
-	var dataDecryptor base.DataDecryptor
-	var matcherPool *zone.MatcherPool
-	if server.config.GetByteaFormat() == HEX_BYTEA_FORMAT {
-		dataDecryptor = pg.NewPgHexDecryptor()
-		matcherPool = zone.NewMatcherPool(zone.NewPgHexMatcherFactory())
-	} else {
-		dataDecryptor = pg.NewPgEscapeDecryptor()
-		matcherPool = zone.NewMatcherPool(zone.NewPgEscapeMatcherFactory())
-	}
-	pgDecryptorImpl := pg.NewPgDecryptor(clientID, dataDecryptor)
-	pgDecryptorImpl.SetWithZone(server.config.GetWithZone())
-	pgDecryptorImpl.SetWholeMatch(server.config.GetWholeMatch())
-	pgDecryptorImpl.SetKeyStore(server.keystorage)
-	zoneMatcher := zone.NewZoneMatcher(matcherPool, server.keystorage)
-	pgDecryptorImpl.SetZoneMatcher(zoneMatcher)
-
-	poisonCallbackStorage := base.NewPoisonCallbackStorage()
-	if server.config.GetScriptOnPoison() != "" {
-		poisonCallbackStorage.AddCallback(base.NewExecuteScriptCallback(server.config.GetScriptOnPoison()))
-	}
-	// must be last
-	if server.config.GetStopOnPoison() {
-		poisonCallbackStorage.AddCallback(&base.StopCallback{})
-	}
-	pgDecryptorImpl.SetPoisonCallbackStorage(poisonCallbackStorage)
-	var decryptor base.Decryptor = pgDecryptorImpl
-	if server.config.UseMySQL() {
-		decryptor = mysql.NewMySQLDecryptor(clientID, pgDecryptorImpl, server.keystorage)
-	}
-	decryptor.TurnOnPoisonRecordCheck(server.config.DetectPoisonRecords())
-	return decryptor
-}
-
 type callbackData struct {
 	connectionType string
 	funcName       string
@@ -161,7 +119,8 @@ to db and decrypting responses from db
 */
 func (server *SServer) handleConnection(ctx context.Context, clientID []byte, connection net.Conn) {
 	logger := logging.NewLoggerWithTrace(ctx)
-	clientSession, err := NewClientSession(ctx, server.keystorage, server.config, connection)
+	logging.SetLoggerToContext(ctx, logger)
+	clientSession, err := NewClientSession(ctx, server.config.GetKeyStore(), server.config, connection)
 	clientSession.Server = server
 	if err != nil {
 		logger.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantInitClientSession).
@@ -172,8 +131,7 @@ func (server *SServer) handleConnection(ctx context.Context, clientID []byte, co
 		}
 		return
 	}
-	decryptor := server.getDecryptor(clientID)
-	clientSession.HandleClientConnection(clientID, decryptor)
+	clientSession.HandleClientConnection(clientID, server.proxyFactory)
 }
 
 func (server *SServer) processConnection(connection net.Conn, callback *callbackData) {
@@ -183,7 +141,7 @@ func (server *SServer) processConnection(connection net.Conn, callback *callback
 
 	ctx := logging.SetTraceStatus(context.Background(), server.config.TraceToLog)
 
-	wrapCtx, wrapSpan := trace.StartSpan(ctx, "WrapServer", server.traceOptions...)
+	wrapCtx, wrapSpan := trace.StartSpan(ctx, "WrapServer", server.config.GetTraceOptions()...)
 	logger := logging.NewLoggerWithTrace(wrapCtx)
 
 	wrappedConnection, clientID, err := server.config.ConnectionWrapper.WrapServer(wrapCtx, connection)
@@ -205,10 +163,11 @@ func (server *SServer) processConnection(connection net.Conn, callback *callback
 			log.WithError(err).Errorln("Can't read trace from Acra-Proxy")
 			return
 		}
-		ctx, span = trace.StartSpanWithRemoteParent(wrapCtx, callback.funcName, spanContext, server.traceOptions...)
+		ctx, span = trace.StartSpanWithRemoteParent(wrapCtx, callback.funcName, spanContext, server.config.GetTraceOptions()...)
 	} else {
-		ctx, span = trace.StartSpan(wrapCtx, callback.funcName, server.traceOptions...)
+		ctx, span = trace.StartSpan(wrapCtx, callback.funcName, server.config.GetTraceOptions()...)
 	}
+	ctx = logging.SetLoggerToContext(ctx, logger.WithField("client_id", string(clientID)))
 	span.AddAttributes(trace.BoolAttribute("from_connector", server.config.WithConnector()))
 	defer span.End()
 	wrapSpanContext := wrapSpan.SpanContext()
@@ -358,7 +317,7 @@ to db and decrypting responses from db
 */
 func (server *SServer) handleCommandsConnection(ctx context.Context, clientID []byte, connection net.Conn) {
 	logger := logging.NewLoggerWithTrace(ctx)
-	clientSession, err := NewClientCommandsSession(server.keystorage, server.config, connection)
+	clientSession, err := NewClientCommandsSession(server.config.GetKeyStore(), server.config, connection)
 	clientSession.Server = server
 	if err != nil {
 		logger.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantStartConnection).

@@ -127,6 +127,7 @@ type Decryptor interface {
 	// return tag start index and length of tag (depends on decryptor type)
 	BeginTagIndex([]byte) (int, int)
 	MatchZoneInBlock([]byte)
+	SetDataProcessor(processor DataProcessor)
 }
 
 // CheckReadWrite check that n == expectedN and err != nil
