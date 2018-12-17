@@ -240,11 +240,6 @@ func (packet *PacketHandler) GetParseQuery() (string, error) {
 	}
 	packet.logger.Debugln("GetParseQuery success")
 	return parse.QueryString(), nil
-	//query, err := FetchQueryFromParse(packet.descriptionBuf.Bytes())
-	//if err != nil {
-	//	return "", err
-	//}
-	//return string(query[:len(query)-1]), nil
 }
 
 // ReplaceQuery query in packet with new query and update packet length

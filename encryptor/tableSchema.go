@@ -61,7 +61,7 @@ func (store *MapTableSchemaStore) GetTableSchema(tableName string) *TableSchema 
 
 // ColumnEncryptionSetting describe how to encrypt column
 type ColumnEncryptionSetting struct {
-	Name     string `yaml:"name"`
+	Name     string `yaml:"column"`
 	ClientID string `yaml:"client_id"`
 	ZoneID   string `yaml:"zone_id"`
 }
