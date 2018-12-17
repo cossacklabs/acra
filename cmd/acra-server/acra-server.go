@@ -76,8 +76,13 @@ var DEFAULT_CONFIG_PATH = utils.GetConfigPathByName(ServiceName)
 // ErrWaitTimeout error indicates that server was shutdown and waited N seconds while shutting down all connections.
 var ErrWaitTimeout = errors.New("timeout")
 
+// ServerKeystore aggregate two interfaces to use for query encryptions, AcraStruct decryptions and SecureSession
+type ServerKeystore interface {
+	keystore.KeyStore
+	keystore.PublicKeyStore
+}
+
 func main() {
-	config := NewConfig()
 	loggingFormat := flag.String("logging_format", "plaintext", "Logging format: plaintext, json or CEF")
 	log.Infof("Starting service %v [pid=%v]", ServiceName, os.Getpid())
 
@@ -127,6 +132,8 @@ func main() {
 	usePostgresql := flag.Bool("postgresql_enable", false, "Handle Postgresql connections (default true)")
 	censorConfig := flag.String("acracensor_config_file", "", "Path to AcraCensor configuration file")
 
+	encryptorConfig := flag.String("encryptor_config_file", "", "Path to Encryptor configuration file")
+
 	cmd.RegisterTracingCmdParameters()
 	cmd.RegisterJaegerCmdParameters()
 
@@ -141,6 +148,12 @@ func main() {
 	}
 
 	logging.CustomizeLogging(*loggingFormat, ServiceName)
+
+	config, err := NewConfig()
+	if err != nil {
+		log.WithError(err).Errorln("Can't initialize config")
+		os.Exit(1)
+	}
 
 	config.TraceToLog = cmd.IsTraceToLogOn()
 
@@ -161,6 +174,15 @@ func main() {
 			Errorln("db_host is empty: you must specify db_host")
 		flag.Usage()
 		return
+	}
+
+	if *encryptorConfig != "" {
+		log.Infof("Load encryptor configuration from %s ...", *encryptorConfig)
+		if err := config.LoadMapTableSchemaConfig(*encryptorConfig); err != nil {
+			log.WithError(err).Errorln("Can't load encryptor config")
+			os.Exit(1)
+		}
+		log.Infoln("Encryptor configuration loaded")
 	}
 
 	if err := config.SetMySQL(*useMysql); err != nil {
@@ -218,6 +240,7 @@ func main() {
 		log.WithError(err).Errorln("can't init scell encryptor")
 		os.Exit(1)
 	}
+
 	keyStore, err := filesystem.NewFileSystemKeyStoreWithCacheSize(*keysDir, scellEncryptor, *keysCacheSize)
 	if err != nil {
 		log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantInitKeyStore).

@@ -1,0 +1,17 @@
+schemas:
+  # used in test.py
+- table: test_transparent_encryption
+  columns:
+  - id
+  - specified_client_id
+  - default_client_id
+  - zone_id
+  - nullable
+  encrypted:
+  - column: specified_client_id
+    client_id: keypair1
+
+  - column: default_client_id
+
+  - column: zone_id
+    zone_id: DDDDDDDDMatNOMYjqVOuhACC

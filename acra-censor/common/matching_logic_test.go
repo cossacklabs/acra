@@ -2,7 +2,7 @@ package common
 
 import (
 	"fmt"
-	"github.com/xwb1989/sqlparser"
+	"github.com/cossacklabs/acra/sqlparser"
 	"testing"
 )
 

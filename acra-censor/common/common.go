@@ -19,9 +19,9 @@ package common
 import (
 	"errors"
 	"github.com/cossacklabs/acra/logging"
+	"github.com/cossacklabs/acra/sqlparser"
+	"github.com/cossacklabs/acra/sqlparser/dependency/querypb"
 	log "github.com/sirupsen/logrus"
-	"github.com/xwb1989/sqlparser"
-	"github.com/xwb1989/sqlparser/dependency/querypb"
 	"strings"
 )
 
@@ -197,6 +197,7 @@ func HandleRawSQLQuery(sql string) (normalizedQuery, redactedQuery string, parse
 
 	stmt, err := sqlparser.Parse(sqlStripped)
 	if err != nil {
+		log.WithError(err).Errorln("Can't process raw query")
 		return "", "", nil, ErrQuerySyntaxError
 	}
 	outputStmt, _ := sqlparser.Parse(sqlStripped)

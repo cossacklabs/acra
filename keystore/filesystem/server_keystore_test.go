@@ -183,6 +183,33 @@ func testReset(store *FilesystemKeyStore, t *testing.T) {
 	}
 }
 
+func testGetZonePublicKey(store *FilesystemKeyStore, t *testing.T) {
+	id, binPublic, err := store.GenerateZoneKey()
+	if err != nil {
+		t.Fatal(err)
+	}
+	public, err := store.GetZonePublicKey(id)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Equal(binPublic, public.Value) {
+		t.Fatal("Incorrect public key value")
+	}
+}
+func testGetClientIDEncryptionPublicKey(store *FilesystemKeyStore, t *testing.T) {
+	id := []byte("some id")
+	if err := store.GenerateDataEncryptionKeys(id); err != nil {
+		t.Fatal("Can't generate data encryption keys")
+	}
+	key, err := store.GetClientIDEncryptionPublicKey(id)
+	if err != nil {
+		t.Fatal("Can't fetch encryption public key by id")
+	}
+	if key == nil {
+		t.Fatal("Unexpected empty public key")
+	}
+}
+
 func TestFilesystemKeyStore(t *testing.T) {
 
 	privateKeyDirectory := fmt.Sprintf(".%s%s", string(filepath.Separator), "cache")
@@ -227,6 +254,8 @@ func TestFilesystemKeyStore(t *testing.T) {
 		testGenerateKeyPair(store, t)
 		testSaveKeypairs(store, t)
 		resetKeyFolders()
+		testGetZonePublicKey(store, t)
+		testGetClientIDEncryptionPublicKey(store, t)
 	}
 }
 

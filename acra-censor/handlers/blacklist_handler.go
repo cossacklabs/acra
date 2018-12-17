@@ -19,8 +19,8 @@ package handlers
 import (
 	"github.com/cossacklabs/acra/acra-censor/common"
 	"github.com/cossacklabs/acra/logging"
+	"github.com/cossacklabs/acra/sqlparser"
 	log "github.com/sirupsen/logrus"
-	"github.com/xwb1989/sqlparser"
 )
 
 // BlacklistHandler allows everything and forbids specific query/pattern/table

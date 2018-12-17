@@ -19,7 +19,7 @@ package handlers
 import (
 	"encoding/json"
 	"github.com/cossacklabs/acra/acra-censor/common"
-	"github.com/xwb1989/sqlparser"
+	"github.com/cossacklabs/acra/sqlparser"
 	"io/ioutil"
 	"os"
 	"os/signal"

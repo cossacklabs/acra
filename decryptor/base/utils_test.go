@@ -19,6 +19,7 @@ import (
 	"bytes"
 	"crypto/rand"
 	"github.com/cossacklabs/acra/acra-writer"
+	// use another package name and explicit import to avoid cyclic import
 	"github.com/cossacklabs/acra/decryptor/base"
 	"github.com/cossacklabs/acra/zone"
 	"github.com/cossacklabs/themis/gothemis/keys"
@@ -79,5 +80,41 @@ func TestDecryptAcrastruct(t *testing.T) {
 	}
 	if !bytes.Equal(decrypted, testData) {
 		t.Fatal("decrypted != test_data")
+	}
+}
+
+func TestValidateAcraStructLength(t *testing.T) {
+	testData := make([]byte, 1000)
+	_, err := rand.Read(testData)
+	if err != nil {
+		t.Fatal(err)
+	}
+	keypair, err := keys.New(keys.KEYTYPE_EC)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	acrastruct, err := acrawriter.CreateAcrastruct(testData, keypair.Public, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// incorrect TagBegin
+	if err := base.ValidateAcraStructLength(acrastruct[1:]); err != base.ErrIncorrectAcraStructTagBegin {
+		t.Fatal("Incorrect validation of TagBegin")
+	}
+	// test short AcraStruct
+	if err := base.ValidateAcraStructLength(acrastruct[:base.GetMinAcraStructLength()-1]); err != base.ErrIncorrectAcraStructLength {
+		t.Fatal("Incorrect validation of minimal AcraStruct length")
+	}
+	// test long AcraStruct
+	if err := base.ValidateAcraStructLength(append(acrastruct, 1)); err != base.ErrIncorrectAcraStructDataLength {
+		t.Fatal("Incorrect validation of AcraStruct length")
+	}
+	// test with incorrect data length value
+	// change value of data length by incrementing any of bytes
+	testData[base.GetMinAcraStructLength()-base.DataLengthSize]++
+	// test long AcraStruct
+	if err := base.ValidateAcraStructLength(append(acrastruct, 1)); err != base.ErrIncorrectAcraStructDataLength {
+		t.Fatal("Incorrect validation of AcraStruct data length")
 	}
 }

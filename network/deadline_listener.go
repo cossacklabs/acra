@@ -23,6 +23,7 @@ import (
 )
 
 const (
+	// DefaultNetworkTimeout default timeout for network related communication
 	DefaultNetworkTimeout = time.Second * 60
 )
 
