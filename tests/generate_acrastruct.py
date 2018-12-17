@@ -35,10 +35,10 @@ if as_out_file == '':
 
 if args.zone_id:
     encryption_key = read_zone_public_key(args.zone_id, args.keys_dir)
-    acrastruct = create_acrastruct(args.data, encryption_key, args.zone_id.encode('ascii'))
+    acrastruct = create_acrastruct(args.data.encode('utf-8'), encryption_key, args.zone_id.encode('utf-8'))
 else:
     encryption_key = read_storage_public_key(args.client_id, args.keys_dir)
-    acrastruct = create_acrastruct(args.data, encryption_key)
+    acrastruct = create_acrastruct(args.data.encode('utf-8'), encryption_key)
 
 with open(as_out_file, 'wb') as f:
     f.write(acrastruct)
