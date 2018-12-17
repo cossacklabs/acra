@@ -77,18 +77,18 @@ schemas:
   - table: TableWithColumnSchema
     columns: ["other_column", "default_client_id", "specified_client_id", "zone_id"]
     encrypted: 
-      - name: "default_client_id"
-      - name: specified_client_id
+      - column: "default_client_id"
+      - column: specified_client_id
         client_id: %s
-      - name: zone_id
+      - column: zone_id
         zone_id: %s
 
   - table: TableWithoutColumnSchema
     encrypted: 
-      - name: "default_client_id"
-      - name: specified_client_id
+      - column: "default_client_id"
+      - column: specified_client_id
         client_id: %s
-      - name: zone_id
+      - column: zone_id
         zone_id: %s
 `, clientIDStr, zoneIDStr, clientIDStr, zoneIDStr)
 	schemaStore, err := MapTableSchemaStoreFromConfig([]byte(config))
