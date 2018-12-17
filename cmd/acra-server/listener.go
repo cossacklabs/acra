@@ -28,7 +28,6 @@ import (
 	"github.com/cossacklabs/acra/decryptor/base"
 	"github.com/cossacklabs/acra/decryptor/mysql"
 	pg "github.com/cossacklabs/acra/decryptor/postgresql"
-	"github.com/cossacklabs/acra/keystore"
 	"github.com/cossacklabs/acra/logging"
 	"github.com/cossacklabs/acra/network"
 	"github.com/cossacklabs/acra/zone"
@@ -40,7 +39,7 @@ import (
 // data and command connections (listeners, managers, file descriptors), and signals.
 type SServer struct {
 	config                *Config
-	keystorage            keystore.KeyStore
+	keystorage            ServerKeystore
 	listenerACRA          net.Listener
 	listenerAPI           net.Listener
 	fddACRA               uintptr
@@ -53,7 +52,7 @@ type SServer struct {
 }
 
 // NewServer creates new SServer.
-func NewServer(config *Config, keystorage keystore.KeyStore, errorChan chan os.Signal, restarChan chan os.Signal) (server *SServer, err error) {
+func NewServer(config *Config, keystorage ServerKeystore, errorChan chan os.Signal, restarChan chan os.Signal) (server *SServer, err error) {
 	traceOptions := []trace.StartOption{trace.WithSpanKind(trace.SpanKindClient)}
 	traceOptions = append(traceOptions, trace.WithSampler(trace.AlwaysSample()))
 

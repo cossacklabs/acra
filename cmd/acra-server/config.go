@@ -20,9 +20,10 @@ import (
 	"crypto/tls"
 	"encoding/json"
 	"errors"
-
 	"github.com/cossacklabs/acra/acra-censor"
+	"github.com/cossacklabs/acra/encryptor"
 	"github.com/cossacklabs/acra/network"
+	log "github.com/sirupsen/logrus"
 	"io/ioutil"
 )
 
@@ -61,6 +62,7 @@ type Config struct {
 	tlsConfig               *tls.Config
 	withConnector           bool
 	TraceToLog              bool
+	tableSchema             *encryptor.MapTableSchemaStore
 }
 
 // UIEditableConfig describes which parts of AcraServer configuration can be changed from AcraWebconfig page
@@ -75,8 +77,12 @@ type UIEditableConfig struct {
 }
 
 // NewConfig returns new Config object
-func NewConfig() *Config {
-	return &Config{withZone: false, stopOnPoison: false, wholeMatch: true, mysql: false, postgresql: false, withConnector: true}
+func NewConfig() (*Config, error) {
+	schemaStore, err := encryptor.NewMapTableSchemaStore()
+	if err != nil {
+		return nil, err
+	}
+	return &Config{withZone: false, stopOnPoison: false, wholeMatch: true, mysql: false, postgresql: false, withConnector: true, tableSchema: schemaStore}, nil
 }
 
 // ErrTwoDBSetup shows that AcraServer can connects only to one database at the same time
@@ -90,6 +96,22 @@ func (config *Config) WithConnector() bool {
 // SetWithConnector set that acra-server will or not accept connections from acra-connector
 func (config *Config) SetWithConnector(v bool) {
 	config.withConnector = v
+}
+
+// LoadMapTableSchemaConfig load table schemas from config file
+func (config *Config) LoadMapTableSchemaConfig(path string) error {
+	mapConfig, err := ioutil.ReadFile(path)
+	if err != nil {
+		log.WithError(err).Errorln("Can't read config for encryptor")
+		return err
+	}
+	schema, err := encryptor.MapTableSchemaStoreFromConfig(mapConfig)
+	if err != nil {
+		log.WithError(err).Errorln("Can't parse table schemas from config")
+		return err
+	}
+	config.tableSchema = schema
+	return nil
 }
 
 // SetCensor creates AcraCensor and sets its configuration

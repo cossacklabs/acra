@@ -22,7 +22,7 @@ limitations under the License.
 // https://github.com/cossacklabs/acra/wiki/AcraCensor
 package acracensor
 
-import "github.com/xwb1989/sqlparser"
+import "github.com/cossacklabs/acra/sqlparser"
 
 // QueryHandlerInterface describes what actions are available for queries.
 type QueryHandlerInterface interface {

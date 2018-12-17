@@ -18,6 +18,7 @@ package postgresql
 
 import (
 	"bytes"
+	"encoding/binary"
 	"errors"
 )
 
@@ -44,4 +45,82 @@ func FetchQueryFromParse(data []byte) ([]byte, error) {
 	// convert to absolute
 	endIndex += startIndex
 	return data[startIndex : endIndex+1], nil
+}
+
+type objectID []byte
+type paramsNum []byte
+
+// ToInt convert byte array to int
+func (num paramsNum) ToInt() int {
+	return int(binary.BigEndian.Uint16(num))
+}
+
+// ParsePacket store data related with Parse postgresql message
+type ParsePacket struct {
+	name  []byte
+	query []byte
+	// int16
+	paramsNum paramsNum
+	// []int32
+	params []objectID
+}
+
+// Marshal packet to bytes
+func (packet *ParsePacket) Marshal() []byte {
+	output := make([]byte, 0, packet.Length())
+	output = append(output, packet.name...)
+	output = append(output, packet.query...)
+	output = append(output, packet.paramsNum...)
+	for _, param := range packet.params {
+		output = append(output, param...)
+	}
+	return output
+}
+
+// Length return total length of packet
+func (packet *ParsePacket) Length() int {
+	return len(packet.name) + len(packet.query) + len(packet.paramsNum) + (4 * len(packet.params))
+}
+
+// QueryString return query as string
+func (packet *ParsePacket) QueryString() string {
+	return string(packet.query[:len(packet.query)-1])
+}
+
+// ReplaceQuery with new query
+func (packet *ParsePacket) ReplaceQuery(newQuery string) {
+	packet.query = append([]byte(newQuery), 0)
+}
+
+// NewParsePacket parse data and return as ParsePacket or error
+func NewParsePacket(data []byte) (*ParsePacket, error) {
+	startIndex := bytes.Index(data, terminator)
+	if startIndex == -1 {
+		return nil, ErrTerminatorNotFound
+	}
+	startIndex++
+	name := data[:startIndex]
+	// skip terminator of previous field
+	endIndex := bytes.Index(data[startIndex:], terminator)
+	if endIndex == -1 {
+		return nil, ErrTerminatorNotFound
+	}
+	// convert to absolute
+	endIndex += startIndex + 1
+	query := data[startIndex:endIndex]
+	numParams := paramsNum(data[endIndex : endIndex+2])
+	endIndex++
+	var params []objectID
+	if endIndex < len(data) {
+		for i := 0; i < numParams.ToInt(); i++ {
+			params = append(params, data[endIndex:endIndex+4])
+		}
+	}
+	return &ParsePacket{
+		name:      name,
+		query:     query,
+		paramsNum: numParams,
+		params:    params,
+	}, nil
+
 }

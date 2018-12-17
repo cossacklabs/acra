@@ -232,6 +232,36 @@ func (store *FilesystemKeyStore) getPrivateKeyByFilename(id []byte, filename str
 	return &keys.PrivateKey{Value: decryptedKey}, nil
 }
 
+// getPublicKeyByFilename return public key from cache or load from filesystem, store in cache and return
+func (store *FilesystemKeyStore) getPublicKeyByFilename(filename string) (*keys.PublicKey, error) {
+	binKey, ok := store.cache.Get(filename)
+	if !ok {
+		publicKey, err := utils.LoadPublicKey(filename)
+		if err != nil {
+			return nil, err
+		}
+		store.cache.Add(filename, publicKey.Value)
+		return publicKey, nil
+	}
+	return &keys.PublicKey{Value: binKey}, nil
+}
+
+// GetZonePublicKey return PublicKey by zoneID from cache or load from main store
+func (store *FilesystemKeyStore) GetZonePublicKey(zoneID []byte) (*keys.PublicKey, error) {
+	fname := store.getPublicKeyFilePath(getZonePublicKeyFilename(zoneID))
+	return store.getPublicKeyByFilename(fname)
+}
+
+// GetClientIDEncryptionPublicKey return PublicKey by clientID from cache or load from main store
+func (store *FilesystemKeyStore) GetClientIDEncryptionPublicKey(clientID []byte) (*keys.PublicKey, error) {
+	fname := store.getPublicKeyFilePath(
+		// use correct suffix for public keys
+		getPublicKeyFilename(
+			// use correct suffix as type of key
+			[]byte(getServerDecryptionKeyFilename(clientID))))
+	return store.getPublicKeyByFilename(fname)
+}
+
 // GetZonePrivateKey reads encrypted zone private key from fs, decrypts it with master key and zoneId
 // and returns plaintext private key, or reading/decryption error.
 func (store *FilesystemKeyStore) GetZonePrivateKey(id []byte) (*keys.PrivateKey, error) {

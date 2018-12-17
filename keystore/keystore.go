@@ -137,6 +137,12 @@ type SecureSessionKeyStore interface {
 	GetPeerPublicKey(id []byte) (*keys.PublicKey, error)
 }
 
+// PublicKeyStore provide interface to fetch public keys to encrypt data
+type PublicKeyStore interface {
+	GetZonePublicKey(zoneID []byte) (*keys.PublicKey, error)
+	GetClientIDEncryptionPublicKey(clientID []byte) (*keys.PublicKey, error)
+}
+
 // KeyStore describes any KeyStore that reads keys to handle Themis Secure Session connection,
 // to encrypt and decrypt AcraStructs with and without Zones,
 // to find Poison records.

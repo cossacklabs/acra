@@ -18,7 +18,7 @@ package handlers
 
 import (
 	"github.com/cossacklabs/acra/acra-censor/common"
-	"github.com/xwb1989/sqlparser"
+	"github.com/cossacklabs/acra/sqlparser"
 )
 
 // QueryIgnoreHandler allows to ignore any query

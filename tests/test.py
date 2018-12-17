@@ -55,7 +55,8 @@ from sqlalchemy.dialects.postgresql import BYTEA
 from utils import (read_storage_public_key, decrypt_acrastruct,
                    decrypt_private_key, read_zone_public_key,
                    load_random_data_config, get_random_data_files,
-                   clean_test_data, safe_string)
+                   clean_test_data, safe_string, prepare_encryptor_config,
+                   ENCRYPTOR_TEST_CONFIG)
 
 import sys
 # add to path our wrapper until not published to PYPI
@@ -252,7 +253,7 @@ def manage_basic_auth_user(action, user_name, user_password):
     return subprocess.call(args, cwd=os.getcwd(), timeout=PROCESS_CALL_TIMEOUT)
 
 
-def wait_connection(port, count=10, sleep=0.3):
+def wait_connection(port, count=1000, sleep=0.001):
     """try connect to 127.0.0.1:port and close connection
     if can't then sleep on and try again (<count> times)
     if <count> times is failed than raise Exception
@@ -270,7 +271,7 @@ def wait_connection(port, count=10, sleep=0.3):
     raise Exception("can't wait connection")
 
 
-def wait_unix_socket(socket_path, count=10, sleep=0.5):
+def wait_unix_socket(socket_path, count=1000, sleep=0.005):
     last_exc = Exception("can't wait unix socket")
     while count:
         connection = socket.socket(socket.AF_UNIX)
@@ -436,10 +437,11 @@ def tearDownModule():
     clean_misc()
     KEYS_FOLDER.cleanup()
     clean_test_data()
-    try:
-        os.remove(MASTER_KEY_PATH)
-    except:
-        pass
+    for path in [MASTER_KEY_PATH, ENCRYPTOR_TEST_CONFIG]:
+        try:
+            os.remove(path)
+        except:
+            pass
 
 
 class ProcessStub(object):
@@ -3222,6 +3224,7 @@ class TestAcraRotate(BaseTestCase):
 
 class TestPrometheusMetrics(AcraTranslatorMixin, BaseTestCase):
     LOG_METRICS = True
+
     def checkSkip(self):
         return
 
@@ -3298,6 +3301,182 @@ class TestPrometheusMetrics(AcraTranslatorMixin, BaseTestCase):
                 AcraTranslatorTest.grpc_decrypt_request(
                     self, connector_port, client_id, None, acrastruct)
                 self.checkMetrics(metrics_url, labels)
+
+
+class TestTransparentEncryption(BaseTestCase):
+    encryptor_table = sa.Table('test_transparent_encryption', metadata,
+        sa.Column('id', sa.Integer, primary_key=True),
+        sa.Column('specified_client_id',
+                  sa.LargeBinary(length=COLUMN_DATA_SIZE)),
+        sa.Column('default_client_id',
+                  sa.LargeBinary(length=COLUMN_DATA_SIZE)),
+
+        sa.Column('zone_id', sa.LargeBinary(length=COLUMN_DATA_SIZE)),
+        sa.Column('raw_data', sa.LargeBinary(length=COLUMN_DATA_SIZE)),
+        sa.Column('nullable', sa.Text, nullable=True),
+    )
+
+    def checkSkip(self):
+        return
+
+    def setUp(self):
+        prepare_encryptor_config(zones[0][ZONE_ID])
+        super(TestTransparentEncryption, self).setUp()
+
+    def tearDown(self):
+        self.engine_raw.execute(self.encryptor_table.delete())
+        super(TestTransparentEncryption, self).tearDown()
+
+    def fork_acra(self, popen_kwargs: dict=None, **acra_kwargs: dict):
+        acra_kwargs['encryptor_config_file'] = ENCRYPTOR_TEST_CONFIG
+        return super(TestTransparentEncryption, self).fork_acra(
+            popen_kwargs, **acra_kwargs)
+
+    def get_context_data(self):
+        context = {}
+        context['row_id'] = get_random_id()
+        context['default_client_id'] = get_random_data().encode('ascii')
+        context['zone_id'] = get_random_data().encode('ascii')
+        context['specified_client_id'] = get_random_data().encode('ascii')
+        context['raw_data'] = get_random_data().encode('ascii')
+        context['zone'] = zones[0]
+        return context
+
+    def checkDefaultIdEncryption(self, row_id, default_client_id, specified_client_id,
+                                 zone_id, zone, raw_data):
+        result = self.engine2.execute(
+            sa.select([self.encryptor_table])
+            .where(self.encryptor_table.c.id == row_id))
+        row = result.fetchone()
+        self.assertIsNotNone(row)
+
+        # should be decrypted
+        self.assertEqual(row['default_client_id'], default_client_id)
+        # should be as is
+        self.assertEqual(row['raw_data'], raw_data)
+        # other data should be encrypted
+        self.assertNotEqual(row['specified_client_id'], specified_client_id)
+        self.assertNotEqual(row['zone_id'], zone_id)
+
+    def checkSpecifiedIdEncryption(self, row_id, default_client_id, specified_client_id,
+                                 zone_id, zone, raw_data):
+        # fetch using another acra-connector that will authenticated as keypair1
+        result = self.engine1.execute(
+            sa.select([self.encryptor_table])
+            .where(self.encryptor_table.c.id == row_id))
+        row = result.fetchone()
+        self.assertIsNotNone(row)
+
+        # should be decrypted
+        self.assertEqual(row['specified_client_id'], specified_client_id)
+        # should be as is
+        self.assertEqual(row['raw_data'], raw_data)
+        # other data should be encrypted
+        self.assertNotEqual(row['default_client_id'], default_client_id)
+        self.assertNotEqual(row['zone_id'], zone_id)
+
+    def insertRow(self, context):
+        # send through acra-connector that authenticates as client_id=keypair2
+        self.engine2.execute(
+            self.encryptor_table.insert(),
+            {'id': context['row_id'],
+             'default_client_id': context['default_client_id'],
+             'specified_client_id': context['specified_client_id'],
+             'raw_data': context['raw_data'],
+             'zone_id': context['zone_id']})
+
+    def check_all_decryptions(self, **context):
+        self.checkDefaultIdEncryption(**context)
+        self.checkSpecifiedIdEncryption(**context)
+
+    def testEncryptedInsert(self):
+        context = self.get_context_data()
+        self.insertRow(context)
+        self.check_all_decryptions(**context)
+
+        encrypted_data = self.fetch_raw_data(context)
+
+        # update with acrastructs and AcraServer should not
+        # re-encrypt
+        data_fields = ['default_client_id', 'specified_client_id', 'zone_id',
+                       'raw_data']
+        data = {k: encrypted_data[k] for k in data_fields}
+        data['row_id'] = context['row_id']
+        self.update_data(data)
+
+        data = self.fetch_raw_data(context)
+        for field in data_fields:
+            # check that acrastructs the same
+            self.assertEqual(data[field], encrypted_data[field])
+
+        # generate new data
+        new_context = self.get_context_data()
+        # use same id
+        new_context['row_id'] = context['row_id']
+        # update with not encrypted raw data
+        self.update_data(new_context)
+
+        # check that data re-encrypted
+        new_data = self.fetch_raw_data(new_context)
+
+        for field in ['default_client_id', 'specified_client_id', 'zone_id']:
+            # not equal with previously encrypted
+            self.assertNotEqual(new_data[field], encrypted_data[field])
+            # not equal with raw data
+            self.assertNotEqual(new_data[field], new_context[field])
+
+        # check that can decrypt after re-encryption
+        self.check_all_decryptions(**new_context)
+
+    def update_data(self, context):
+        self.engine2.execute(
+            sa.update(self.encryptor_table)
+            .where(self.encryptor_table.c.id == context['row_id'])
+            .values(default_client_id=context['default_client_id'],
+                    specified_client_id=context['specified_client_id'],
+                    zone_id=context['zone_id'],
+                    raw_data=context['raw_data'])
+        )
+
+    def fetch_raw_data(self, context):
+        result = self.engine_raw.execute(
+            sa.select([self.encryptor_table.c.default_client_id,
+                       self.encryptor_table.c.specified_client_id,
+                       sa.cast(context['zone'][ZONE_ID].encode('ascii'), BYTEA),
+                       self.encryptor_table.c.zone_id,
+                       self.encryptor_table.c.raw_data,
+                       self.encryptor_table.c.nullable])
+            .where(self.encryptor_table.c.id == context['row_id']))
+        data = result.fetchone()
+        return data
+
+
+class TestTransparentEncryptionWithZone(TestTransparentEncryption):
+    ZONE = True
+
+    def checkZoneIdEncryption(self, zone, row_id, default_client_id,
+                              specified_client_id, zone_id, raw_data):
+        result = self.engine1.execute(
+            sa.select([self.encryptor_table.c.default_client_id,
+                       self.encryptor_table.c.specified_client_id,
+                       sa.cast(zone[ZONE_ID].encode('ascii'), BYTEA),
+                       self.encryptor_table.c.zone_id,
+                       self.encryptor_table.c.raw_data,
+                       self.encryptor_table.c.nullable])
+            .where(self.encryptor_table.c.id == row_id))
+        row = result.fetchone()
+        self.assertIsNotNone(row)
+
+        # should be decrypted
+        self.assertEqual(row['zone_id'], zone_id)
+        # should be as is
+        self.assertEqual(row['raw_data'], raw_data)
+        # other data should be encrypted
+        self.assertNotEqual(row['default_client_id'], default_client_id)
+        self.assertNotEqual(row['specified_client_id'], specified_client_id)
+
+    def check_all_decryptions(self, **context):
+        self.checkZoneIdEncryption(**context)
 
 
 if __name__ == '__main__':

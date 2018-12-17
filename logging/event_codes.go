@@ -118,4 +118,9 @@ const (
 	EventCodeErrorTranslatorCantHandleGRPCConnection    = 713
 
 	EventCodeErrorTracingCantSendTrace = 800
+
+	// encryptor
+	EventCodeErrorEncryptQueryData            = 900
+	EventCodeErrorEncryptorInitialization     = 901
+	EventCodeErrorDataEncryptorInitialization = 902
 )
