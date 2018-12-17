@@ -16,7 +16,7 @@
 import unittest
 from pythemis.skeygen import GenerateKeyPair, KEY_PAIR_TYPE
 
-from . import create_acrastruct, generate_key, SYMMETRIC_KEY_LENGTH
+from acrawriter import create_acrastruct, generate_key, SYMMETRIC_KEY_LENGTH
 
 
 class TestGenerateKey(unittest.TestCase):
