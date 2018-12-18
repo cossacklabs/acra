@@ -52,7 +52,7 @@ sudo python3 setup.py clean build_py install_lib
 
 # Regenerate grpc code for python
 ```
-python -m grpc_tools.protoc -I cmd/acra-translator/grpc_api --python_out=tests/ --grpc_python_out=tests/ cmd/acra-translator/grpc_api/api.proto
+python3 -m grpc_tools.protoc -I cmd/acra-translator/grpc_api --python_out=tests/ --grpc_python_out=tests/ cmd/acra-translator/grpc_api/api.proto
 ```
 
 # Run tests
