@@ -166,7 +166,7 @@ func main() {
 		*acraConnectionString = network.BuildConnectionString("tcp", *host, *port, "")
 	}
 	if *apiPort != cmd.DEFAULT_ACRASERVER_API_PORT {
-		*acraConnectionString = network.BuildConnectionString("tcp", *host, *apiPort, "")
+		*acraAPIConnectionString = network.BuildConnectionString("tcp", *host, *apiPort, "")
 	}
 
 	if *dbHost == "" {
