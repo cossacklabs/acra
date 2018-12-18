@@ -836,9 +836,9 @@ class BaseTestCase(PrometheusMixin, unittest.TestCase):
     def _fork_acra(self, acra_kwargs, popen_kwargs):
         logging.info("fork acra")
         connection_string = self.get_acraserver_connection_string(
-            acra_kwargs.get('incoming_connection_api_port'))
+            acra_kwargs.get('incoming_connection_port'))
         api_connection_string = self.get_acraserver_api_connection_string(
-            acra_kwargs.get('connection_api_port')
+            acra_kwargs.get('incoming_connection_api_port')
         )
         for path in [socket_path_from_connection_string(connection_string), socket_path_from_connection_string(api_connection_string)]:
             try:
@@ -2404,7 +2404,7 @@ class SSLPostgresqlMixin(AcraCatchLogsMixin):
                 # connection will be closed on tls handshake
                 self.acra2 = self.fork_acra(
                     acraconnector_transport_encryption_disable=True, client_id='keypair1',
-                    incoming_connection_api_port=self.ACRASERVER2_PORT,
+                    incoming_connection_port=self.ACRASERVER2_PORT,
                     incoming_connection_prometheus_metrics_string=self.get_prometheus_address(self.ACRASERVER2_PROMETHEUS_PORT))
             self.engine1 = sa.create_engine(
                 get_postgresql_tcp_connection_string(self.ACRASERVER_PORT, DB_NAME), connect_args=get_connect_args(port=self.ACRASERVER_PORT))
@@ -3477,6 +3477,27 @@ class TestTransparentEncryptionWithZone(TestTransparentEncryption):
 
     def check_all_decryptions(self, **context):
         self.checkZoneIdEncryption(**context)
+
+
+class TestSetupCustomApiPort(BaseTestCase):
+    def setUp(self):
+        pass
+
+    def tearDown(self):
+        pass
+
+    def get_acraserver_api_connection_string(self, port=None):
+        # use tcp instead unix socket which set as default in tests
+        return 'tcp://127.0.0.1:{}'.format(port)
+
+    def testCustomPort(self):
+        custom_port = 7373
+        acra = self.fork_acra(
+            None, incoming_connection_api_port=custom_port)
+        try:
+            wait_connection(custom_port)
+        finally:
+            stop_process(acra)
 
 
 if __name__ == '__main__':
