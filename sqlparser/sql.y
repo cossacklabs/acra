@@ -72,6 +72,7 @@ func forceEOF(yylex interface{}) {
   tableName     TableName
   tableNames    TableNames
   indexHints    *IndexHints
+  returning     Returning
   expr          Expr
   exprs         Exprs
   boolVal       BoolVal
@@ -196,6 +197,9 @@ func forceEOF(yylex interface{}) {
 // MySQL reserved words that are unused by this grammar will map to this token.
 %token <bytes> UNUSED
 
+// Postgresql
+%token <bytes> RETURNING
+
 %type <statement> command
 %type <selStmt> select_statement base_select union_lhs union_rhs
 %type <statement> stream_statement insert_statement update_statement delete_statement set_statement
@@ -294,6 +298,7 @@ func forceEOF(yylex interface{}) {
 %type <colIdent> vindex_type vindex_type_opt
 %type <bytes> alter_object_type
 %type <bytes> typecast
+%type <returning> returning_opt
 
 %start any_command
 
@@ -385,7 +390,7 @@ union_rhs:
 
 
 insert_statement:
-  insert_or_replace comment_opt ignore_opt into_table_name opt_partition_clause insert_data on_dup_opt
+  insert_or_replace comment_opt ignore_opt into_table_name opt_partition_clause insert_data on_dup_opt returning_opt
   {
     // insert_data returns a *Insert pre-filled with Columns & Values
     ins := $6
@@ -395,6 +400,7 @@ insert_statement:
     ins.Table = $4
     ins.Partitions = $5
     ins.OnDup = OnDup($7)
+    ins.Returning = $8
     $$ = ins
   }
 | insert_or_replace comment_opt ignore_opt into_table_name opt_partition_clause SET update_list on_dup_opt
@@ -1158,11 +1164,12 @@ table_option:
 table_opt_value:
   reserved_sql_id
   {
-    $$ = $1.String()
-  }
-| STRING
-  {
-    $$ = "'" + string($1) + "'"
+    if $1.NeedQuotes() {
+      $$ = "'" + $1.String() + "'"
+    } else {
+      $$ = $1.String()
+    }
+
   }
 | INTEGRAL
   {
@@ -1664,10 +1671,6 @@ as_ci_opt:
 
 col_alias:
   sql_id
-| STRING
-  {
-    $$ = NewColIdent(string($1))
-  }
 
 from_opt:
   {
@@ -1799,10 +1802,7 @@ as_opt_id:
 
 table_alias:
   table_id
-| STRING
-  {
-    $$ = NewTableIdent(string($1))
-  }
+
 
 inner_join:
   JOIN
@@ -2771,6 +2771,22 @@ tuple_expression:
     }
   }
 
+returning_opt:
+  {
+    $$ = nil
+  }
+  |
+  RETURNING '*'
+  {
+    $$ = Returning{&StarExpr{}}
+  }
+|
+  RETURNING expression_list
+  {
+    $$ = Returning($2)
+  }
+
+
 update_list:
   update_expression
   {
@@ -2823,10 +2839,6 @@ charset_value:
   sql_id
   {
     $$ = NewStrVal([]byte($1.String()))
-  }
-| STRING
-  {
-    $$ = NewStrVal($1)
   }
 | DEFAULT
   {
@@ -2908,6 +2920,10 @@ sql_id:
   {
     $$ = NewColIdent(string($1))
   }
+| STRING
+{
+  $$ = NewColIdentWithQuotes(string($1), true)
+}
 
 reserved_sql_id:
   sql_id
@@ -2917,13 +2933,9 @@ reserved_sql_id:
   }
 
 table_id:
-  ID
+  sql_id
   {
-    $$ = NewTableIdent(string($1))
-  }
-| non_reserved_keyword
-  {
-    $$ = NewTableIdent(string($1))
+    $$ = NewTableIdentWithQuotes($1.String(), $1.NeedQuotes())
   }
 
 reserved_table_id:
