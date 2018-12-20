@@ -2090,15 +2090,17 @@ expression_list:
   }
 
 value_expression:
+// due to conflict of <column_name> and <value> because both work with STRING place <column_name> first to prioritize <column_name>
+column_name
+  {
+    $$ = $1
+  }
+|
   value
   {
     $$ = $1
   }
 | boolean_value
-  {
-    $$ = $1
-  }
-| column_name
   {
     $$ = $1
   }
