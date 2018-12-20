@@ -3322,7 +3322,7 @@ func NewColIdent(str string) ColIdent {
 	}
 }
 
-// NewPostgresqlColIdent create ColIdent with quotes to escape column name in Postgresql style
+// NewColIdentWithQuotes create ColIdent with quotes to escape column name in Postgresql style
 func NewColIdentWithQuotes(str string, quotes bool) ColIdent {
 	return ColIdent{
 		val:            str,
@@ -3420,7 +3420,7 @@ func NewTableIdent(str string) TableIdent {
 	return TableIdent{v: str}
 }
 
-// NewPostgresqlTableIdentWithQuotes creates a new TableIdent with flag to escape name
+// NewTableIdentWithQuotes creates a new TableIdent with flag to escape name
 func NewTableIdentWithQuotes(str string, quotes bool) TableIdent {
 	return TableIdent{v: str, wrapWithQuotes: quotes}
 }
