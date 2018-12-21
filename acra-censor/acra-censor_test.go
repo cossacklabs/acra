@@ -1961,7 +1961,7 @@ handlers:
 	i := 0
 	scanner := bufio.NewScanner(file)
 	for scanner.Scan() {
-		if scanner.Text() != testQueries[i]{
+		if scanner.Text() != testQueries[i] {
 			t.Fatal("Scanned: " + scanner.Text() + ", expected: " + testQueries[i])
 		}
 		i++

@@ -40,8 +40,8 @@ type Config struct {
 		Patterns []string
 		Filepath string
 	}
-	IgnoreParseError bool `yaml:"ignore_parse_error"`
-	ParseErrorsLog string `yaml:"parse_errors_log"`
+	IgnoreParseError bool   `yaml:"ignore_parse_error"`
+	ParseErrorsLog   string `yaml:"parse_errors_log"`
 }
 
 // LoadConfiguration loads configuration of AcraCensor
