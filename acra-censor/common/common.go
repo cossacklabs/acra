@@ -45,6 +45,7 @@ var (
 	ErrCantOpenFileError               = errors.New("can't open file to write queries")
 	ErrCantReadQueriesFromFileError    = errors.New("can't read queries from file")
 	ErrUnexpectedTypeError             = errors.New("should never appear")
+	ErrDenyallQueries                  = errors.New("deny all queries error")
 )
 
 const (
