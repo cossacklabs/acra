@@ -19,6 +19,7 @@ package acracensor
 import (
 	"github.com/cossacklabs/acra/acra-censor/handlers"
 	"gopkg.in/yaml.v2"
+	"os"
 	"strings"
 )
 
@@ -40,6 +41,7 @@ type Config struct {
 		Filepath string
 	}
 	IgnoreParseError bool `yaml:"ignore_parse_error"`
+	ParseErrorsLog string `yaml:"parse_errors_log"`
 }
 
 // LoadConfiguration loads configuration of AcraCensor
@@ -50,6 +52,15 @@ func (acraCensor *AcraCensor) LoadConfiguration(configuration []byte) error {
 		return err
 	}
 	acraCensor.ignoreParseError = censorConfiguration.IgnoreParseError
+	acraCensor.parseErrorsLogPath = censorConfiguration.ParseErrorsLog
+	if acraCensor.parseErrorsLogPath != "" {
+		openedFile, err := os.OpenFile(acraCensor.parseErrorsLogPath, os.O_APPEND|os.O_RDWR|os.O_CREATE, 0600)
+		if err != nil {
+			return err
+		}
+		defer openedFile.Close()
+	}
+
 	for _, handlerConfiguration := range censorConfiguration.Handlers {
 		switch handlerConfiguration.Handler {
 		case WhitelistConfigStr:

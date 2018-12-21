@@ -23,6 +23,7 @@ limitations under the License.
 package acracensor
 
 import (
+	"bufio"
 	"github.com/cossacklabs/acra/acra-censor/common"
 	"io/ioutil"
 	"os"
@@ -1734,6 +1735,10 @@ func TestConfigurationProvider(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
+		err = os.Remove("unparsed_queries_log")
+		if err != nil {
+			t.Fatal(err)
+		}
 	}()
 	err = acraCensor.LoadConfiguration(configuration)
 	if err != nil {
@@ -1771,13 +1776,14 @@ func TestConfigurationProvider(t *testing.T) {
 		"SELECT EMP_ID, LAST_NAME FROM EMPLOYEE WHERE CITY = 'Seattle' ORDER BY EMP_ID;",
 		//"SELECT EMP_ID, LAST_NAME FROM EMPLOYEE AS EMPL WHERE CITY = 'Seattle' ORDER BY EMP_ID;",
 	}
-	//acracensor should block those structures
+	//acracensor should block those queries by pattern
 	for _, queryToBlock := range testQueries {
 		err = acraCensor.HandleQuery(queryToBlock)
 		if err != common.ErrBlacklistPatternMatch {
 			t.Fatal(err)
 		}
 	}
+
 	for _, currentHandler := range acraCensor.handlers {
 		original, ok := currentHandler.(*handlers.QueryCaptureHandler)
 		if ok {
@@ -1893,4 +1899,75 @@ func TestIgnoringQueryParseErrors(t *testing.T) {
 	checkHandler([]QueryHandlerInterface{blacklist}, nil)
 	// check when censor with two handlers and each one will return query parse error
 	checkHandler([]QueryHandlerInterface{whitelist, blacklist}, nil)
+}
+func TestLogUnparsedQueries(t *testing.T) {
+	var err error
+
+	configuration := `ignore_parse_error: true
+parse_errors_log: unparsed_queries_log
+handlers:
+  - handler: query_capture
+    filepath: censor_log
+  - handler: query_ignore
+    queries:
+      - ROLLBACK
+      - COMMIT
+      - BEGIN
+  - handler: blacklist
+    queries:
+      - INSERT INTO SalesStaff1 VALUES (1, 'Stephen', 'Jiang');
+      - SELECT AVG(Price) FROM Products;
+    tables:
+      - EMPLOYEE_TBL
+      - Customers
+    patterns:
+      - SELECT EMP_ID, LAST_NAME FROM EMPLOYEE %%WHERE%%;`
+
+	acraCensor := NewAcraCensor()
+	defer func() {
+		acraCensor.ReleaseAll()
+		err = os.Remove("censor_log")
+		if err != nil {
+			t.Fatal(err)
+		}
+		err = os.Remove("unparsed_queries_log")
+		if err != nil {
+			t.Fatal(err)
+		}
+	}()
+	err = acraCensor.LoadConfiguration([]byte(configuration))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	testQueries := []string{
+		"select * from x )))(((unparsable query",
+		"qwerty",
+	}
+
+	for _, query := range testQueries {
+		err = acraCensor.HandleQuery(query)
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	file, err := os.Open("unparsed_queries_log")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer file.Close()
+
+	i := 0
+	scanner := bufio.NewScanner(file)
+	for scanner.Scan() {
+		if scanner.Text() != testQueries[i]{
+			t.Fatal("Scanned: " + scanner.Text() + ", expected: " + testQueries[i])
+		}
+		i++
+	}
+
+	if err := scanner.Err(); err != nil {
+		t.Fatal(err)
+	}
 }

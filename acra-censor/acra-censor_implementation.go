@@ -20,6 +20,7 @@ import (
 	"github.com/cossacklabs/acra/acra-censor/common"
 	"github.com/cossacklabs/acra/acra-censor/handlers"
 	log "github.com/sirupsen/logrus"
+	"os"
 )
 
 // ServiceName to use in logs
@@ -27,9 +28,10 @@ const ServiceName = "acra-censor"
 
 // AcraCensor describes censor data: query handler, logger and reaction on parsing errors.
 type AcraCensor struct {
-	handlers         []QueryHandlerInterface
-	ignoreParseError bool
-	logger           *log.Entry
+	handlers           []QueryHandlerInterface
+	ignoreParseError   bool
+	parseErrorsLogPath string
+	logger             *log.Entry
 }
 
 // NewAcraCensor creates new censor object.
@@ -37,6 +39,7 @@ func NewAcraCensor() *AcraCensor {
 	acraCensor := &AcraCensor{}
 	acraCensor.logger = log.WithField("service", ServiceName)
 	acraCensor.ignoreParseError = false
+	acraCensor.parseErrorsLogPath = ""
 	return acraCensor
 }
 
@@ -72,6 +75,13 @@ func (acraCensor *AcraCensor) HandleQuery(rawQuery string) error {
 	normalizedQuery, queryWithHiddenValues, parsedQuery, err := common.HandleRawSQLQuery(rawQuery)
 	if err == common.ErrQuerySyntaxError {
 		acraCensor.logger.WithError(err).Warning("Failed to parse input query")
+		if acraCensor.parseErrorsLogPath != "" {
+			err := acraCensor.saveQuery(rawQuery)
+			if err != nil {
+				acraCensor.logger.WithError(err).Errorf("An error occurred while saving unparsable query")
+				return err
+			}
+		}
 		if acraCensor.ignoreParseError {
 			acraCensor.logger.Infof("Unparsed query has been allowed")
 			return nil
@@ -108,5 +118,21 @@ func (acraCensor *AcraCensor) HandleQuery(rawQuery string) error {
 		}
 	}
 	acraCensor.logger.Infof("Allowed query: '%s'", queryWithHiddenValues)
+	return nil
+}
+
+func (acraCensor *AcraCensor) saveQuery(rawQuery string) error {
+	openedFile, err := os.OpenFile(acraCensor.parseErrorsLogPath, os.O_APPEND|os.O_RDWR|os.O_CREATE, 0600)
+	if err != nil {
+		return err
+	}
+
+	defer openedFile.Close()
+
+	_, err = openedFile.WriteString(rawQuery + "\n")
+	if err != nil {
+		return err
+	}
+
 	return nil
 }
