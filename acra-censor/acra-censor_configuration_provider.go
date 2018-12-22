@@ -25,9 +25,9 @@ import (
 
 // Query handlers' names.
 const (
-	BlacklistConfigStr            = "blacklist"
-	WhitelistConfigStr            = "whitelist"
-	QueryIgnoreConfigStr          = "query_ignore"
+	BlacklistConfigStr   = "blacklist"
+	WhitelistConfigStr   = "whitelist"
+	QueryIgnoreConfigStr = "query_ignore"
 )
 
 // Config shows handlers configuration: queries, tables, patterns
