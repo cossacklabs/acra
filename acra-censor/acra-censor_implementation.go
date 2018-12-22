@@ -104,10 +104,11 @@ func (acraCensor *AcraCensor) HandleQuery(rawQuery string) error {
 	return nil
 }
 
+// GetLoggingTimeout returns current timeout of censor's logging process
 func (acraCensor *AcraCensor) GetLoggingTimeout() time.Duration {
 	return acraCensor.parsedQueriesWriter.GetSerializationTimeout()
 }
-
+// SetLoggingTimeout sets timeout of censor's logging process
 func (acraCensor *AcraCensor) SetLoggingTimeout(duration time.Duration) {
 	acraCensor.parsedQueriesWriter.SetSerializationTimeout(duration)
 	acraCensor.unparsedQueriesWriter.SetSerializationTimeout(duration)

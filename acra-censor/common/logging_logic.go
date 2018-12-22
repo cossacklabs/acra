@@ -14,13 +14,16 @@ import (
 	"time"
 )
 
+// DefaultSerializationTimeout defines a default ticker' timeout
 const DefaultSerializationTimeout = time.Second
 
+// QueryInfo defines format of exporting query into file
 type QueryInfo struct {
 	RawQuery    string `json:"raw_query"`
 	IsForbidden bool   `json:"_blacklisted_by_web_config"`
 }
 
+// QueryWriter is a mechanism that provides dumping stored queries into file in background
 type QueryWriter struct {
 	filePath             string
 	Queries              []*QueryInfo
@@ -31,6 +34,7 @@ type QueryWriter struct {
 	logger               *log.Entry
 }
 
+// NewQueryWriter creates QueryWriter instance
 func NewQueryWriter(filePath string) (*QueryWriter, error) {
 	// open or create file, APPEND MODE
 	openedFile, err := os.OpenFile(filePath, os.O_APPEND|os.O_RDWR|os.O_CREATE, 0600)
@@ -213,38 +217,38 @@ func (queryWriter *QueryWriter) finishAndCloseFile(openedFile *os.File) error {
 }
 
 // GetAllInputQueries returns a list of non-masked RawQueries.
-func (handler *QueryWriter) GetAllInputQueries() []string {
+func (queryWriter *QueryWriter) GetAllInputQueries() []string {
 	var queries []string
-	for _, queryInfo := range handler.Queries {
+	for _, queryInfo := range queryWriter.Queries {
 		queries = append(queries, queryInfo.RawQuery)
 	}
 	return queries
 }
 
 // RedactAndMarkQueryAsForbidden redacts query first, then calls CheckQuery
-func (handler *QueryWriter) RedactAndMarkQueryAsForbidden(query string) {
+func (queryWriter *QueryWriter) RedactAndMarkQueryAsForbidden(query string) {
 	_, queryWithHiddenValues, _, err := HandleRawSQLQuery(query)
 	if err != nil {
 		return
 	}
-	handler.MarkQueryAsForbidden(queryWithHiddenValues)
+	queryWriter.MarkQueryAsForbidden(queryWithHiddenValues)
 }
 
 // MarkQueryAsForbidden marks particular query as forbidden.
 // It will be written to file on Stop, Reset or Release.
 // Expects redacted query
-func (handler *QueryWriter) MarkQueryAsForbidden(queryWithHiddenValues string) {
-	for index, queryInfo := range handler.Queries {
+func (queryWriter *QueryWriter) MarkQueryAsForbidden(queryWithHiddenValues string) {
+	for index, queryInfo := range queryWriter.Queries {
 		if strings.EqualFold(queryWithHiddenValues, queryInfo.RawQuery) {
-			handler.Queries[index].IsForbidden = true
+			queryWriter.Queries[index].IsForbidden = true
 		}
 	}
 }
 
 // GetForbiddenQueries returns a list of non-masked forbidden RawQueries.
-func (handler *QueryWriter) GetForbiddenQueries() []string {
+func (queryWriter *QueryWriter) GetForbiddenQueries() []string {
 	var forbiddenQueries []string
-	for _, queryInfo := range handler.Queries {
+	for _, queryInfo := range queryWriter.Queries {
 		if queryInfo.IsForbidden == true {
 			forbiddenQueries = append(forbiddenQueries, queryInfo.RawQuery)
 		}
@@ -253,21 +257,21 @@ func (handler *QueryWriter) GetForbiddenQueries() []string {
 }
 
 // RedactAndCheckQuery redacts query first, then calls CheckQuery
-func (handler *QueryWriter) RedactAndCheckQuery(query string) (bool, error) {
+func (queryWriter *QueryWriter) RedactAndCheckQuery(query string) (bool, error) {
 	_, queryWithHiddenValues, parsedQuery, err := HandleRawSQLQuery(query)
 	if err != nil {
 		return true, nil
 	}
-	return handler.CheckQuery(queryWithHiddenValues, parsedQuery)
+	return queryWriter.CheckQuery(queryWithHiddenValues, parsedQuery)
 }
 
 // CheckQuery returns "yes" if Query was already captured, no otherwise.
 // Expects already redacted queries
-func (handler *QueryWriter) CheckQuery(queryWithHiddenValues string, parsedQuery sqlparser.Statement) (bool, error) {
+func (queryWriter *QueryWriter) CheckQuery(queryWithHiddenValues string, parsedQuery sqlparser.Statement) (bool, error) {
 	_ = parsedQuery
 
 	//skip already captured queries
-	for _, queryInfo := range handler.Queries {
+	for _, queryInfo := range queryWriter.Queries {
 		if strings.EqualFold(queryInfo.RawQuery, queryWithHiddenValues) {
 			return true, nil
 		}
@@ -275,7 +279,7 @@ func (handler *QueryWriter) CheckQuery(queryWithHiddenValues string, parsedQuery
 	queryInfo := &QueryInfo{}
 	queryInfo.RawQuery = queryWithHiddenValues
 	queryInfo.IsForbidden = false
-	handler.Queries = append(handler.Queries, queryInfo)
-	handler.BufferedQueries = append(handler.BufferedQueries, queryInfo)
+	queryWriter.Queries = append(queryWriter.Queries, queryInfo)
+	queryWriter.BufferedQueries = append(queryWriter.BufferedQueries, queryInfo)
 	return true, nil
 }
