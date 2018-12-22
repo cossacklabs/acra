@@ -22,7 +22,10 @@ limitations under the License.
 // https://github.com/cossacklabs/acra/wiki/AcraCensor
 package acracensor
 
-import "github.com/cossacklabs/acra/sqlparser"
+import (
+	"github.com/cossacklabs/acra/sqlparser"
+	"time"
+)
 
 // QueryHandlerInterface describes what actions are available for queries.
 type QueryHandlerInterface interface {
@@ -36,4 +39,6 @@ type AcraCensorInterface interface {
 	AddHandler(handler QueryHandlerInterface)
 	RemoveHandler(handler QueryHandlerInterface)
 	ReleaseAll()
+	GetLoggingTimeout() time.Duration
+	SetLoggingTimeout(duration time.Duration)
 }

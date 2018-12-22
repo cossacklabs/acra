@@ -18,9 +18,9 @@ package acracensor
 
 import (
 	"github.com/cossacklabs/acra/acra-censor/common"
-	"github.com/cossacklabs/acra/acra-censor/handlers"
 	log "github.com/sirupsen/logrus"
-	"os"
+	"strings"
+	"time"
 )
 
 // ServiceName to use in logs
@@ -28,10 +28,11 @@ const ServiceName = "acra-censor"
 
 // AcraCensor describes censor data: query handler, logger and reaction on parsing errors.
 type AcraCensor struct {
-	handlers           []QueryHandlerInterface
-	ignoreParseError   bool
-	parseErrorsLogPath string
-	logger             *log.Entry
+	handlers              []QueryHandlerInterface
+	ignoreParseError      bool
+	parsedQueriesWriter   *common.QueryWriter
+	unparsedQueriesWriter *common.QueryWriter
+	logger                *log.Entry
 }
 
 // NewAcraCensor creates new censor object.
@@ -39,7 +40,8 @@ func NewAcraCensor() *AcraCensor {
 	acraCensor := &AcraCensor{}
 	acraCensor.logger = log.WithField("service", ServiceName)
 	acraCensor.ignoreParseError = false
-	acraCensor.parseErrorsLogPath = ""
+	acraCensor.parsedQueriesWriter = nil
+	acraCensor.unparsedQueriesWriter = nil
 	return acraCensor
 }
 
@@ -68,44 +70,25 @@ func (acraCensor *AcraCensor) ReleaseAll() {
 
 // HandleQuery processes every query through each handler.
 func (acraCensor *AcraCensor) HandleQuery(rawQuery string) error {
-	if len(acraCensor.handlers) == 0 {
+	if len(acraCensor.handlers) == 0 && acraCensor.parsedQueriesWriter == nil && acraCensor.unparsedQueriesWriter == nil {
 		// no handlers, AcraCensor won't work
 		return nil
 	}
 	normalizedQuery, queryWithHiddenValues, parsedQuery, err := common.HandleRawSQLQuery(rawQuery)
+	// Unparsed query handling
 	if err == common.ErrQuerySyntaxError {
 		acraCensor.logger.WithError(err).Warning("Failed to parse input query")
-		if acraCensor.parseErrorsLogPath != "" {
-			err := acraCensor.saveQuery(rawQuery)
-			if err != nil {
-				acraCensor.logger.WithError(err).Errorf("An error occurred while saving unparsable query")
-				return err
-			}
-		}
+		acraCensor.saveUnparsedQuery(rawQuery)
 		if acraCensor.ignoreParseError {
-			acraCensor.logger.Infof("Unparsed query has been allowed")
+			acraCensor.logger.Infoln("Unparsed query has been allowed")
 			return nil
 		}
-		acraCensor.logger.Errorf("Unparsed query has been forbidden")
+		acraCensor.logger.Errorln("Unparsed query has been forbidden")
 		return err
 	}
-
+	// Parsed query handling
+	acraCensor.saveParsedQuery(queryWithHiddenValues)
 	for _, handler := range acraCensor.handlers {
-		// in QueryCapture Handler we use only redacted queries
-		if queryCaptureHandler, ok := handler.(*handlers.QueryCaptureHandler); ok {
-			queryCaptureHandler.CheckQuery(queryWithHiddenValues, parsedQuery)
-			continue
-		}
-		// in QueryIgnore Handler we use only raw queries
-		if queryIgnoreHandler, ok := handler.(*handlers.QueryIgnoreHandler); ok {
-			continueHandling, _ := queryIgnoreHandler.CheckQuery(rawQuery, parsedQuery)
-			if continueHandling {
-				continue
-			} else {
-				break
-			}
-		}
-		// remained handlers operate
 		continueHandling, err := handler.CheckQuery(normalizedQuery, parsedQuery)
 		if err != nil {
 			acraCensor.logger.Errorf("Forbidden query: '%s'", queryWithHiddenValues)
@@ -121,18 +104,37 @@ func (acraCensor *AcraCensor) HandleQuery(rawQuery string) error {
 	return nil
 }
 
-func (acraCensor *AcraCensor) saveQuery(rawQuery string) error {
-	openedFile, err := os.OpenFile(acraCensor.parseErrorsLogPath, os.O_APPEND|os.O_RDWR|os.O_CREATE, 0600)
-	if err != nil {
-		return err
+func (acraCensor *AcraCensor) GetLoggingTimeout() time.Duration {
+	return acraCensor.parsedQueriesWriter.GetSerializationTimeout()
+}
+
+func (acraCensor *AcraCensor) SetLoggingTimeout(duration time.Duration) {
+	acraCensor.parsedQueriesWriter.SetSerializationTimeout(duration)
+	acraCensor.unparsedQueriesWriter.SetSerializationTimeout(duration)
+}
+
+func (acraCensor *AcraCensor) saveUnparsedQuery(query string) {
+	if acraCensor.unparsedQueriesWriter != nil {
+		saveQuery(acraCensor.unparsedQueriesWriter, query)
 	}
+}
 
-	defer openedFile.Close()
-
-	_, err = openedFile.WriteString(rawQuery + "\n")
-	if err != nil {
-		return err
+func (acraCensor *AcraCensor) saveParsedQuery(query string) {
+	if acraCensor.parsedQueriesWriter != nil {
+		saveQuery(acraCensor.parsedQueriesWriter, query)
 	}
+}
 
-	return nil
+func saveQuery(writer *common.QueryWriter, query string) {
+	//skip already captured queries
+	for _, capturedQuery := range writer.Queries {
+		if strings.EqualFold(capturedQuery.RawQuery, query) {
+			return
+		}
+	}
+	queryInfo := &common.QueryInfo{}
+	queryInfo.RawQuery = query
+	queryInfo.IsForbidden = false
+	writer.Queries = append(writer.Queries, queryInfo)
+	writer.BufferedQueries = append(writer.BufferedQueries, queryInfo)
 }

@@ -17,18 +17,17 @@ limitations under the License.
 package acracensor
 
 import (
+	"github.com/cossacklabs/acra/acra-censor/common"
 	"github.com/cossacklabs/acra/acra-censor/handlers"
 	"gopkg.in/yaml.v2"
-	"os"
 	"strings"
 )
 
 // Query handlers' names.
 const (
-	BlacklistConfigStr    = "blacklist"
-	WhitelistConfigStr    = "whitelist"
-	QueryCaptureConfigStr = "query_capture"
-	QueryIgnoreConfigStr  = "query_ignore"
+	BlacklistConfigStr            = "blacklist"
+	WhitelistConfigStr            = "whitelist"
+	QueryIgnoreConfigStr          = "query_ignore"
 )
 
 // Config shows handlers configuration: queries, tables, patterns
@@ -38,10 +37,10 @@ type Config struct {
 		Queries  []string
 		Tables   []string
 		Patterns []string
-		Filepath string
 	}
 	IgnoreParseError bool   `yaml:"ignore_parse_error"`
 	ParseErrorsLog   string `yaml:"parse_errors_log"`
+	CaptureLog       string `yaml:"capture_log"`
 }
 
 // LoadConfiguration loads configuration of AcraCensor
@@ -52,13 +51,19 @@ func (acraCensor *AcraCensor) LoadConfiguration(configuration []byte) error {
 		return err
 	}
 	acraCensor.ignoreParseError = censorConfiguration.IgnoreParseError
-	acraCensor.parseErrorsLogPath = censorConfiguration.ParseErrorsLog
-	if acraCensor.parseErrorsLogPath != "" {
-		openedFile, err := os.OpenFile(acraCensor.parseErrorsLogPath, os.O_APPEND|os.O_RDWR|os.O_CREATE, 0600)
+	if !strings.EqualFold(censorConfiguration.CaptureLog, "") {
+		queryWriter, err := common.NewQueryWriter(censorConfiguration.CaptureLog)
 		if err != nil {
 			return err
 		}
-		defer openedFile.Close()
+		acraCensor.parsedQueriesWriter = queryWriter
+	}
+	if !strings.EqualFold(censorConfiguration.ParseErrorsLog, "") {
+		queryWriter, err := common.NewQueryWriter(censorConfiguration.ParseErrorsLog)
+		if err != nil {
+			return err
+		}
+		acraCensor.unparsedQueriesWriter = queryWriter
 	}
 
 	for _, handlerConfiguration := range censorConfiguration.Handlers {
@@ -88,16 +93,6 @@ func (acraCensor *AcraCensor) LoadConfiguration(configuration []byte) error {
 				return err
 			}
 			acraCensor.AddHandler(blacklistHandler)
-			break
-		case QueryCaptureConfigStr:
-			if strings.EqualFold(handlerConfiguration.Filepath, "") {
-				break
-			}
-			queryCaptureHandler, err := handlers.NewQueryCaptureHandler(handlerConfiguration.Filepath)
-			if err != nil {
-				return err
-			}
-			acraCensor.AddHandler(queryCaptureHandler)
 			break
 		case QueryIgnoreConfigStr:
 			queryIgnoreHandler := handlers.NewQueryIgnoreHandler()
