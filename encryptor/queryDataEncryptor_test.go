@@ -54,7 +54,7 @@ func normalizeQuery(query string, t *testing.T) string {
 	return sqlparser.String(parsed)
 }
 
-func TestMysqlQueryParser_Parse(t *testing.T) {
+func TestGeneralQueryParser_Parse(t *testing.T) {
 	zoneID := zone.GenerateZoneID()
 	zoneIDStr := string(zoneID)
 	clientIDStr := "specified_client_id"
@@ -97,7 +97,10 @@ schemas:
 	}
 	encryptedValue := []byte("encrypted")
 	hexEncryptedValue := hex.EncodeToString(encryptedValue)
-	dataValue := "some data"
+	dataValue := make([]byte, 256)
+	for i := 0; i < 256; i++ {
+		dataValue[i] = byte(i)
+	}
 	dataHexValue := hex.EncodeToString([]byte(dataValue))
 	testData := []struct {
 		Query             string
@@ -295,6 +298,42 @@ schemas:
 			Normalized:        true,
 			Changed:           true,
 			ExpectedIDS:       [][]byte{defaultClientID},
+		},
+		// 21. with double quoted table and column names
+		{
+			Query:             `INSERT INTO "TableWithoutColumnSchema" ("zone_id", "specified_client_id", "other_column", "default_client_id") VALUES (X'%s', X'%s', 1, X'%s')`,
+			QueryData:         []interface{}{dataHexValue, dataHexValue, dataHexValue},
+			ExpectedQueryData: []interface{}{hexEncryptedValue, hexEncryptedValue, hexEncryptedValue},
+			Normalized:        true,
+			Changed:           true,
+			ExpectedIDS:       [][]byte{zoneID, specifiedClientID, defaultClientID},
+		},
+		// 22. with back quoted table and column names
+		{
+			Query:             "INSERT INTO `TableWithoutColumnSchema` (`zone_id`, `specified_client_id`, `other_column`, `default_client_id`) VALUES (X'%s', X'%s', 1, X'%s')",
+			QueryData:         []interface{}{dataHexValue, dataHexValue, dataHexValue},
+			ExpectedQueryData: []interface{}{hexEncryptedValue, hexEncryptedValue, hexEncryptedValue},
+			Normalized:        true,
+			Changed:           true,
+			ExpectedIDS:       [][]byte{zoneID, specifiedClientID, defaultClientID},
+		},
+		// 23. update with double quoted identifiers
+		{
+			Query:             `UPDATE "TableWithoutColumnSchema" as "t" set "other_column"=X'%s', "specified_client_id"=X'%s', "zone_id"=X'%s', "default_client_id"=X'%s'`,
+			QueryData:         []interface{}{dataHexValue, dataHexValue, dataHexValue, dataHexValue},
+			ExpectedQueryData: []interface{}{dataHexValue, hexEncryptedValue, hexEncryptedValue, hexEncryptedValue},
+			Normalized:        true,
+			Changed:           true,
+			ExpectedIDS:       [][]byte{specifiedClientID, zoneID, defaultClientID},
+		},
+		// 24. update with back quoted identifiers
+		{
+			Query:             "UPDATE `TableWithoutColumnSchema` as `t` set `other_column`=X'%s', `specified_client_id`=X'%s', `zone_id`=X'%s', `default_client_id`=X'%s'",
+			QueryData:         []interface{}{dataHexValue, dataHexValue, dataHexValue, dataHexValue},
+			ExpectedQueryData: []interface{}{dataHexValue, hexEncryptedValue, hexEncryptedValue, hexEncryptedValue},
+			Normalized:        true,
+			Changed:           true,
+			ExpectedIDS:       [][]byte{specifiedClientID, zoneID, defaultClientID},
 		},
 	}
 	encryptor := &testEncryptor{value: encryptedValue}

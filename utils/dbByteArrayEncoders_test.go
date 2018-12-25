@@ -34,3 +34,27 @@ func TestEncodeToOctal(t *testing.T) {
 		t.Fatal("Expected != Encoded")
 	}
 }
+
+func BenchmarkEncodeToOctal(b *testing.B) {
+	data := make([]byte, 256)
+	for i := 0; i < len(data); i++ {
+		data[i] = byte(i)
+	}
+
+	for n := 0; n < b.N; n++ {
+		EncodeToOctal(data)
+	}
+}
+
+func BenchmarkDecodeOctal(b *testing.B) {
+	data := make([]byte, 256)
+	for i := 0; i < len(data); i++ {
+		data[i] = byte(i)
+	}
+	encodedData := EncodeToOctal(data)
+	for n := 0; n < b.N; n++ {
+		if _, err := DecodeOctal(encodedData); err != nil {
+			b.Fatal(err)
+		}
+	}
+}
