@@ -127,6 +127,7 @@ func (encryptor *QueryDataEncryptor) encryptExpression(expr sqlparser.Expr, sche
 			}
 		}
 	}
+	logrus.WithField("column_name", columnName).Debugln("Skip encryption for column")
 	return false, nil
 }
 
