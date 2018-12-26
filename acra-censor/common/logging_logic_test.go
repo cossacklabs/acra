@@ -59,10 +59,7 @@ func TestSerializationOnUniqueQueries(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	defaultTimeout := writer.GetSerializationTimeout()
-	writer.SetSerializationTimeout(50 * time.Millisecond)
-	//wait until goroutine handles complex serialization
-	time.Sleep(defaultTimeout + writer.GetSerializationTimeout() + 10*time.Millisecond)
+	time.Sleep(DefaultSerializationTimeout + 100 * time.Millisecond)
 	if len(writer.GetAllInputQueries()) != len(testQueries) {
 		t.Fatal("Expected: " + strings.Join(testQueries, " | ") + "\nGot: " + strings.Join(writer.GetAllInputQueries(), " | "))
 	}
@@ -128,11 +125,7 @@ func TestSerializationOnSameQueries(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	defaultTimeout := writer.GetSerializationTimeout()
-	writer.SetSerializationTimeout(50 * time.Millisecond)
-	//wait until goroutine handles complex serialization
-	time.Sleep(defaultTimeout + writer.GetSerializationTimeout() + 10*time.Millisecond)
-
+	time.Sleep(DefaultSerializationTimeout + 100 * time.Millisecond)
 	if len(writer.GetAllInputQueries()) != numOfUniqueQueries {
 		t.Fatal("Expected to have " + fmt.Sprint(numOfUniqueQueries) + " unique queries. \n Got:" + strings.Join(writer.GetAllInputQueries(), " | "))
 	}
@@ -195,10 +188,7 @@ func TestQueryCapture(t *testing.T) {
 		"{\"raw_query\":\"SELECT * FROM X\",\"_blacklisted_by_web_config\":false}\n" +
 		"{\"raw_query\":\"SELECT * FROM Y\",\"_blacklisted_by_web_config\":false}\n"
 
-	defaultTimeout := writer.GetSerializationTimeout()
-	writer.SetSerializationTimeout(50 * time.Millisecond)
-	//wait until goroutine handles complex serialization
-	time.Sleep(defaultTimeout + writer.GetSerializationTimeout() + extraWaitTime)
+	time.Sleep(DefaultSerializationTimeout + extraWaitTime)
 	result, err := ioutil.ReadFile(tmpFile.Name())
 	if err != nil {
 		t.Fatal(err)
@@ -217,7 +207,7 @@ func TestQueryCapture(t *testing.T) {
 		"{\"raw_query\":\"SELECT * FROM Y\",\"_blacklisted_by_web_config\":false}\n" +
 		"{\"raw_query\":\"SELECT * FROM Z\",\"_blacklisted_by_web_config\":false}\n"
 
-	time.Sleep(writer.GetSerializationTimeout() + extraWaitTime)
+	time.Sleep(DefaultSerializationTimeout + extraWaitTime)
 	result, err = ioutil.ReadFile(tmpFile.Name())
 	if err != nil {
 		t.Fatal(err)
@@ -232,7 +222,7 @@ func TestQueryCapture(t *testing.T) {
 	writer.RedactAndCheckQuery(testQuery)
 
 	//wait until serialization completes
-	time.Sleep(writer.GetSerializationTimeout() + extraWaitTime)
+	time.Sleep(DefaultSerializationTimeout + extraWaitTime)
 
 	result, err = ioutil.ReadFile(tmpFile.Name())
 	if err != nil {

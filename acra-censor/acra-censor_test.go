@@ -1536,21 +1536,6 @@ func TestConfigurationProvider(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-
-	defaultTimeout := acraCensor.GetLoggingTimeout()
-	acraCensor.SetLoggingTimeout(50 * time.Millisecond)
-	time.Sleep(defaultTimeout + acraCensor.GetLoggingTimeout() + 10*time.Millisecond)
-
-	/*
-		for _, currentHandler := range acraCensor.handlers {
-			original, ok := currentHandler.(*handlers.QueryCaptureHandler)
-			if ok {
-				defaultTimeout := original.GetSerializationTimeout()
-				original.SetSerializationTimeout(50 * time.Millisecond)
-				//wait until goroutine handles complex serialization
-				time.Sleep(defaultTimeout + original.GetSerializationTimeout() + 10*time.Millisecond)
-			}
-		}*/
 	testSyntax(t)
 }
 func testSyntax(t *testing.T) {
@@ -1697,7 +1682,7 @@ handlers:
 		}
 	}
 	//wait until goroutine handles complex serialization
-	time.Sleep(time.Second + 100*time.Millisecond)
+	time.Sleep(common.DefaultSerializationTimeout + 100 * time.Millisecond)
 	bufferBytes, err := ioutil.ReadFile("unparsed_queries.log")
 	if err != nil {
 		t.Fatal(err)

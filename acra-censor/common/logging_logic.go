@@ -38,7 +38,7 @@ type QueryWriter struct {
 	Queries              []*QueryInfo
 	logStorage           LogStorage
 	queryIndex           int
-	mutex                *sync.Mutex
+	mutex                *sync.RWMutex
 	signalBackgroundExit chan bool
 	serializationTimeout time.Duration
 	serializationTicker  *time.Ticker
@@ -55,7 +55,7 @@ func NewFileQueryWriter(filePath string) (*QueryWriter, error) {
 	}
 	writer.logStorage = storage
 	writer.queryIndex = 0
-	writer.mutex = &sync.Mutex{}
+	writer.mutex = &sync.RWMutex{}
 	// signals
 	signalShutdown := make(chan os.Signal, 2)
 	signal.Notify(signalShutdown, os.Interrupt, syscall.SIGTERM)
@@ -69,7 +69,7 @@ func NewFileQueryWriter(filePath string) (*QueryWriter, error) {
 	// read existing queries
 	err = writer.readStoredQueries()
 	if err != nil {
-		writer.logger.WithError(ErrCantReadQueriesFromFileError).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCensorIOError).Errorln("Can't create QueryWriter instance")
+		writer.logger.WithError(ErrCantReadQueriesFromStorageError).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCensorIOError).Errorln("Can't create QueryWriter instance")
 		writer.logStorage.Close()
 		return nil, err
 	}
@@ -81,7 +81,7 @@ func NewFileQueryWriter(filePath string) (*QueryWriter, error) {
 			case <-writer.serializationTicker.C:
 				err := writer.dumpBufferedQueries()
 				if err != nil {
-					writer.logger.WithError(ErrComplexSerializationError).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCensorIOError).Errorln("Can't dump buffered queries")
+					writer.logger.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCensorIOError).Errorln("Can't dump buffered queries")
 				}
 				writer.serializationTicker.Stop()
 				writer.serializationTicker = time.NewTicker(writer.serializationTimeout)
@@ -106,21 +106,14 @@ func NewFileQueryWriter(filePath string) (*QueryWriter, error) {
 	return writer, nil
 }
 
-// SetSerializationTimeout sets timeout of dumping captured queries to the file.
-func (queryWriter *QueryWriter) SetSerializationTimeout(timeout time.Duration) {
-	queryWriter.serializationTimeout = timeout
-}
-
-// GetSerializationTimeout gets timeout of dumping captured queries to the file.
-func (queryWriter *QueryWriter) GetSerializationTimeout() time.Duration {
-	return queryWriter.serializationTimeout
-}
-
 // DumpQueries writes all queries into file.
 func (queryWriter *QueryWriter) DumpQueries() error {
+	queryWriter.mutex.Lock()
+	defer queryWriter.mutex.Unlock()
+
 	rawData := queryWriter.serializeQueries(queryWriter.Queries)
 	if err := queryWriter.logStorage.WriteAll(rawData); err != nil {
-		queryWriter.logger.WithError(ErrCantOpenFileError).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCensorIOError).Errorln("Can't dump queries to storage")
+		queryWriter.logger.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCensorIOError).Errorln("Can't dump queries to storage")
 		return err
 	}
 	return nil
@@ -134,13 +127,13 @@ func (queryWriter *QueryWriter) Release() {
 }
 
 func (queryWriter *QueryWriter) reset() {
+	queryWriter.mutex.Lock()
+	defer queryWriter.mutex.Unlock()
+
 	queryWriter.Queries = nil
 }
 
 func (queryWriter *QueryWriter) readStoredQueries() error {
-	queryWriter.mutex.Lock()
-	defer queryWriter.mutex.Unlock()
-
 	q, err := queryWriter.deserializeQueries()
 	if err != nil {
 		queryWriter.logger.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCensorIOError).Errorln("Can't read stored queries")
@@ -153,6 +146,7 @@ func (queryWriter *QueryWriter) readStoredQueries() error {
 func (queryWriter *QueryWriter) dumpBufferedQueries() error {
 	queryWriter.mutex.Lock()
 	defer queryWriter.mutex.Unlock()
+
 	partialRawData := queryWriter.serializeQueries(queryWriter.Queries[queryWriter.queryIndex:])
 	if err := queryWriter.logStorage.Append(partialRawData); err != nil {
 		return err
@@ -202,6 +196,9 @@ func (queryWriter *QueryWriter) serializeQueries(queries []*QueryInfo) []byte {
 
 // GetAllInputQueries returns a list of non-masked RawQueries.
 func (queryWriter *QueryWriter) GetAllInputQueries() []string {
+	queryWriter.mutex.RLock()
+	defer queryWriter.mutex.RUnlock()
+
 	var queries []string
 	for _, queryInfo := range queryWriter.Queries {
 		queries = append(queries, queryInfo.RawQuery)
@@ -222,6 +219,9 @@ func (queryWriter *QueryWriter) RedactAndMarkQueryAsForbidden(query string) {
 // It will be written to file on Stop, Reset or Release.
 // Expects redacted query
 func (queryWriter *QueryWriter) MarkQueryAsForbidden(queryWithHiddenValues string) {
+	queryWriter.mutex.Lock()
+	defer queryWriter.mutex.Unlock()
+
 	for index, queryInfo := range queryWriter.Queries {
 		if strings.EqualFold(queryWithHiddenValues, queryInfo.RawQuery) {
 			queryWriter.Queries[index].IsForbidden = true
@@ -231,6 +231,9 @@ func (queryWriter *QueryWriter) MarkQueryAsForbidden(queryWithHiddenValues strin
 
 // GetForbiddenQueries returns a list of non-masked forbidden RawQueries.
 func (queryWriter *QueryWriter) GetForbiddenQueries() []string {
+	queryWriter.mutex.RLock()
+	defer queryWriter.mutex.RUnlock()
+
 	var forbiddenQueries []string
 	for _, queryInfo := range queryWriter.Queries {
 		if queryInfo.IsForbidden == true {
@@ -252,8 +255,10 @@ func (queryWriter *QueryWriter) RedactAndCheckQuery(query string) (bool, error) 
 // CheckQuery returns "yes" if Query was already captured, no otherwise.
 // Expects already redacted queries
 func (queryWriter *QueryWriter) CheckQuery(queryWithHiddenValues string, parsedQuery sqlparser.Statement) (bool, error) {
-	_ = parsedQuery
+	queryWriter.mutex.Lock()
+	defer queryWriter.mutex.Unlock()
 
+	_ = parsedQuery
 	//skip already captured queries
 	for _, queryInfo := range queryWriter.Queries {
 		if strings.EqualFold(queryInfo.RawQuery, queryWithHiddenValues) {

@@ -19,8 +19,6 @@ package acracensor
 import (
 	"github.com/cossacklabs/acra/acra-censor/common"
 	log "github.com/sirupsen/logrus"
-	"strings"
-	"time"
 )
 
 // ServiceName to use in logs
@@ -40,8 +38,6 @@ func NewAcraCensor() *AcraCensor {
 	acraCensor := &AcraCensor{}
 	acraCensor.logger = log.WithField("service", ServiceName)
 	acraCensor.ignoreParseError = false
-	acraCensor.parsedQueriesWriter = nil
-	acraCensor.unparsedQueriesWriter = nil
 	return acraCensor
 }
 
@@ -104,38 +100,15 @@ func (acraCensor *AcraCensor) HandleQuery(rawQuery string) error {
 	return nil
 }
 
-// GetLoggingTimeout returns current timeout of censor's logging process
-func (acraCensor *AcraCensor) GetLoggingTimeout() time.Duration {
-	return acraCensor.parsedQueriesWriter.GetSerializationTimeout()
-}
-
-// SetLoggingTimeout sets timeout of censor's logging process
-func (acraCensor *AcraCensor) SetLoggingTimeout(duration time.Duration) {
-	acraCensor.parsedQueriesWriter.SetSerializationTimeout(duration)
-	acraCensor.unparsedQueriesWriter.SetSerializationTimeout(duration)
-}
 
 func (acraCensor *AcraCensor) saveUnparsedQuery(query string) {
 	if acraCensor.unparsedQueriesWriter != nil {
-		saveQuery(acraCensor.unparsedQueriesWriter, query)
+		acraCensor.unparsedQueriesWriter.CheckQuery(query, nil)
 	}
 }
 
 func (acraCensor *AcraCensor) saveParsedQuery(query string) {
 	if acraCensor.parsedQueriesWriter != nil {
-		saveQuery(acraCensor.parsedQueriesWriter, query)
+		acraCensor.parsedQueriesWriter.CheckQuery(query, nil)
 	}
-}
-
-func saveQuery(writer *common.QueryWriter, query string) {
-	//skip already captured queries
-	for _, capturedQuery := range writer.Queries {
-		if strings.EqualFold(capturedQuery.RawQuery, query) {
-			return
-		}
-	}
-	queryInfo := &common.QueryInfo{}
-	queryInfo.RawQuery = query
-	queryInfo.IsForbidden = false
-	writer.Queries = append(writer.Queries, queryInfo)
 }

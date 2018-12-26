@@ -24,7 +24,6 @@ package acracensor
 
 import (
 	"github.com/cossacklabs/acra/sqlparser"
-	"time"
 )
 
 // QueryHandlerInterface describes what actions are available for queries.
@@ -39,6 +38,4 @@ type AcraCensorInterface interface {
 	AddHandler(handler QueryHandlerInterface)
 	RemoveHandler(handler QueryHandlerInterface)
 	ReleaseAll()
-	GetLoggingTimeout() time.Duration
-	SetLoggingTimeout(duration time.Duration)
 }
