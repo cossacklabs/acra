@@ -109,9 +109,8 @@ func NewFileQueryWriter(filePath string) (*QueryWriter, error) {
 // DumpQueries writes all queries into file.
 func (queryWriter *QueryWriter) DumpQueries() error {
 	queryWriter.mutex.Lock()
-	defer queryWriter.mutex.Unlock()
-
 	rawData := queryWriter.serializeQueries(queryWriter.Queries)
+	queryWriter.mutex.Unlock()
 	if err := queryWriter.logStorage.WriteAll(rawData); err != nil {
 		queryWriter.logger.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCensorIOError).Errorln("Can't dump queries to storage")
 		return err
@@ -128,9 +127,8 @@ func (queryWriter *QueryWriter) Release() {
 
 func (queryWriter *QueryWriter) reset() {
 	queryWriter.mutex.Lock()
-	defer queryWriter.mutex.Unlock()
-
 	queryWriter.Queries = nil
+	queryWriter.mutex.Unlock()
 }
 
 func (queryWriter *QueryWriter) readStoredQueries() error {
