@@ -6,10 +6,11 @@ import (
 	"github.com/cossacklabs/acra/logging"
 	"github.com/cossacklabs/acra/sqlparser"
 	log "github.com/sirupsen/logrus"
-	"io/ioutil"
+	"io"
 	"os"
 	"os/signal"
 	"strings"
+	"sync"
 	"syscall"
 	"time"
 )
@@ -23,45 +24,53 @@ type QueryInfo struct {
 	IsForbidden bool   `json:"_blacklisted_by_web_config"`
 }
 
-// QueryWriter is a mechanism that provides dumping stored queries into file in background
+// LogStorage defines basic storage that should be used by QueryWriter
+type LogStorage interface {
+	io.Closer
+	ReadAll() ([]byte, error)
+	WriteAll([]byte) error
+	Append([]byte) error
+}
+
+// QueryWriter is a mechanism that provides dumping input queries in background.
+// It can be used as separate component or as one of censor's handlers
 type QueryWriter struct {
-	filePath             string
 	Queries              []*QueryInfo
-	BufferedQueries      []*QueryInfo
+	logStorage           LogStorage
+	queryIndex           int
+	mutex                *sync.Mutex
 	signalBackgroundExit chan bool
 	serializationTimeout time.Duration
 	serializationTicker  *time.Ticker
 	logger               *log.Entry
 }
 
-// NewQueryWriter creates QueryWriter instance
-func NewQueryWriter(filePath string) (*QueryWriter, error) {
-	// open or create file, APPEND MODE
-	openedFile, err := os.OpenFile(filePath, os.O_APPEND|os.O_RDWR|os.O_CREATE, 0600)
+// NewFileQueryWriter creates QueryWriter instance
+func NewFileQueryWriter(filePath string) (*QueryWriter, error) {
+	// create writer
+	writer := &QueryWriter{}
+	storage, err := NewFileLogStorage(filePath)
 	if err != nil {
-		log.WithField("internal_object", "querywriter").WithError(ErrCantReadQueriesFromFileError).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCensorIOError).Errorln("Can't create QueryWriter instance")
-		return nil, err
+		writer.logger.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCensorIOError).Errorln("Can't create QueryWriter instance")
 	}
-
+	writer.logStorage = storage
+	writer.queryIndex = 0
+	writer.mutex = &sync.Mutex{}
 	// signals
 	signalShutdown := make(chan os.Signal, 2)
 	signal.Notify(signalShutdown, os.Interrupt, syscall.SIGTERM)
 	signalBackgroundExit := make(chan bool)
+	writer.signalBackgroundExit = signalBackgroundExit
 
-	// create handler
-	handler := &QueryWriter{}
-	handler.filePath = filePath
-	handler.signalBackgroundExit = signalBackgroundExit
+	writer.serializationTimeout = DefaultSerializationTimeout
+	writer.serializationTicker = time.NewTicker(DefaultSerializationTimeout)
+	writer.logger = log.WithField("internal_object", "querywriter")
 
-	handler.serializationTimeout = DefaultSerializationTimeout
-	handler.serializationTicker = time.NewTicker(DefaultSerializationTimeout)
-	handler.logger = log.WithField("internal_object", "querywriter")
-
-	// read existing queries from file
-	err = handler.readAllQueriesFromFile()
+	// read existing queries
+	err = writer.readStoredQueries()
 	if err != nil {
-		handler.logger.WithError(ErrCantReadQueriesFromFileError).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCensorIOError).Errorln("Can't create QueryWriter instance")
-		openedFile.Close()
+		writer.logger.WithError(ErrCantReadQueriesFromFileError).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCensorIOError).Errorln("Can't create QueryWriter instance")
+		writer.logStorage.Close()
 		return nil, err
 	}
 
@@ -69,34 +78,32 @@ func NewQueryWriter(filePath string) (*QueryWriter, error) {
 	go func() {
 		for {
 			select {
-			case <-handler.serializationTicker.C:
-				err := handler.dumpBufferedQueriesToFile(openedFile)
+			case <-writer.serializationTicker.C:
+				err := writer.dumpBufferedQueries()
 				if err != nil {
-					handler.logger.WithError(ErrComplexSerializationError).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCensorIOError).Errorln("Can't create QueryWriter instance")
+					writer.logger.WithError(ErrComplexSerializationError).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCensorIOError).Errorln("Can't dump buffered queries")
 				}
-				handler.serializationTicker.Stop()
-				handler.serializationTicker = time.NewTicker(handler.serializationTimeout)
-
+				writer.serializationTicker.Stop()
+				writer.serializationTicker = time.NewTicker(writer.serializationTimeout)
 			case <-signalBackgroundExit:
-				err := handler.finishAndCloseFile(openedFile)
+				writer.serializationTicker.Stop()
+				err := writer.logStorage.Close()
 				if err != nil {
-					handler.logger.WithError(ErrComplexSerializationError).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCensorIOError).Errorln("Can't create QueryWriter instance")
+					writer.logger.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCensorIOError).Errorln("Error occurred on exit QueryWriter instance")
 				}
-				return
-
 			case <-signalShutdown:
-				err := handler.finishAndCloseFile(openedFile)
+				writer.serializationTicker.Stop()
+				err := writer.logStorage.Close()
 				if err != nil {
-					handler.logger.WithError(ErrComplexSerializationError).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCensorIOError).Errorln("Can't create QueryWriter instance")
+					writer.logger.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCensorIOError).Errorln("Error occurred on shutdown QueryWriter instance")
 				}
 				return
-
 			default:
 				//do nothing. This means that channel has no data to read yet
 			}
 		}
 	}()
-	return handler, nil
+	return writer, nil
 }
 
 // SetSerializationTimeout sets timeout of dumping captured queries to the file.
@@ -109,42 +116,53 @@ func (queryWriter *QueryWriter) GetSerializationTimeout() time.Duration {
 	return queryWriter.serializationTimeout
 }
 
-// DumpAllQueriesToFile writes stored queries into file.
-func (queryWriter *QueryWriter) DumpAllQueriesToFile() error {
-	// open or create file, NO APPEND
-	f, err := os.OpenFile(queryWriter.filePath, os.O_TRUNC|os.O_RDWR|os.O_CREATE, 0600)
-	if err != nil {
-		queryWriter.logger.WithError(ErrCantOpenFileError).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCensorIOError).Errorln("Can't dump queries to file")
+// DumpQueries writes all queries into file.
+func (queryWriter *QueryWriter) DumpQueries() error {
+	rawData := queryWriter.serializeQueries(queryWriter.Queries)
+	if err := queryWriter.logStorage.WriteAll(rawData); err != nil {
+		queryWriter.logger.WithError(ErrCantOpenFileError).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCensorIOError).Errorln("Can't dump queries to storage")
 		return err
 	}
-	// write all queries
-	return queryWriter.appendQueries(queryWriter.Queries, f)
+	return nil
 }
 
 // Release dumps all Captured queries to file and resets Captured queries list.
 func (queryWriter *QueryWriter) Release() {
+	queryWriter.DumpQueries()
 	queryWriter.signalBackgroundExit <- true
 	queryWriter.reset()
 }
 
 func (queryWriter *QueryWriter) reset() {
 	queryWriter.Queries = nil
-	queryWriter.BufferedQueries = nil
 }
 
-func (queryWriter *QueryWriter) readAllQueriesFromFile() error {
-	q, err := readQueries(queryWriter.filePath)
+func (queryWriter *QueryWriter) readStoredQueries() error {
+	queryWriter.mutex.Lock()
+	defer queryWriter.mutex.Unlock()
+
+	q, err := queryWriter.deserializeQueries()
 	if err != nil {
-		queryWriter.logger.WithError(ErrCantReadQueriesFromFileError).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCensorIOError).Errorln("Can't read queries from file")
+		queryWriter.logger.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCensorIOError).Errorln("Can't read stored queries")
 		return err
 	}
-	// read existing queries from file
 	queryWriter.Queries = q
 	return nil
 }
 
-func readQueries(filePath string) ([]*QueryInfo, error) {
-	bufferBytes, err := ioutil.ReadFile(filePath)
+func (queryWriter *QueryWriter) dumpBufferedQueries() error {
+	queryWriter.mutex.Lock()
+	defer queryWriter.mutex.Unlock()
+	partialRawData := queryWriter.serializeQueries(queryWriter.Queries[queryWriter.queryIndex:])
+	if err := queryWriter.logStorage.Append(partialRawData); err != nil {
+		return err
+	}
+	queryWriter.queryIndex = len(queryWriter.Queries)
+	return nil
+}
+
+func (queryWriter *QueryWriter) deserializeQueries() ([]*QueryInfo, error) {
+	bufferBytes, err := queryWriter.logStorage.ReadAll()
 	if err != nil {
 		return nil, err
 	}
@@ -164,31 +182,6 @@ func readQueries(filePath string) ([]*QueryInfo, error) {
 	return queries, nil
 }
 
-func (queryWriter *QueryWriter) dumpBufferedQueriesToFile(openedFile *os.File) error {
-	// nothing to dump
-	if len(queryWriter.BufferedQueries) == 0 {
-		return nil
-	}
-	err := queryWriter.appendQueries(queryWriter.BufferedQueries, openedFile)
-	if err != nil {
-		return err
-	}
-	// clean buffered queries only after successful write
-	queryWriter.BufferedQueries = nil
-	return nil
-}
-
-func (queryWriter *QueryWriter) appendQueries(queries []*QueryInfo, openedFile *os.File) error {
-	if len(queries) == 0 {
-		return nil
-	}
-	lines := queryWriter.serializeQueries(queries)
-	if _, err := openedFile.Write(lines); err != nil {
-		return err
-	}
-	return nil
-}
-
 func (queryWriter *QueryWriter) serializeQueries(queries []*QueryInfo) []byte {
 	var linesToAppend []byte
 	var tempQueryInfo = &QueryInfo{}
@@ -205,15 +198,6 @@ func (queryWriter *QueryWriter) serializeQueries(queries []*QueryInfo) []byte {
 		}
 	}
 	return linesToAppend
-}
-
-func (queryWriter *QueryWriter) finishAndCloseFile(openedFile *os.File) error {
-	queryWriter.serializationTicker.Stop()
-	err := queryWriter.DumpAllQueriesToFile()
-	if err != nil {
-		return err
-	}
-	return openedFile.Close()
 }
 
 // GetAllInputQueries returns a list of non-masked RawQueries.
@@ -280,6 +264,5 @@ func (queryWriter *QueryWriter) CheckQuery(queryWithHiddenValues string, parsedQ
 	queryInfo.RawQuery = queryWithHiddenValues
 	queryInfo.IsForbidden = false
 	queryWriter.Queries = append(queryWriter.Queries, queryInfo)
-	queryWriter.BufferedQueries = append(queryWriter.BufferedQueries, queryInfo)
 	return true, nil
 }

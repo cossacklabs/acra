@@ -52,14 +52,14 @@ func (acraCensor *AcraCensor) LoadConfiguration(configuration []byte) error {
 	}
 	acraCensor.ignoreParseError = censorConfiguration.IgnoreParseError
 	if !strings.EqualFold(censorConfiguration.CaptureLog, "") {
-		queryWriter, err := common.NewQueryWriter(censorConfiguration.CaptureLog)
+		queryWriter, err := common.NewFileQueryWriter(censorConfiguration.CaptureLog)
 		if err != nil {
 			return err
 		}
 		acraCensor.parsedQueriesWriter = queryWriter
 	}
 	if !strings.EqualFold(censorConfiguration.ParseErrorsLog, "") {
-		queryWriter, err := common.NewQueryWriter(censorConfiguration.ParseErrorsLog)
+		queryWriter, err := common.NewFileQueryWriter(censorConfiguration.ParseErrorsLog)
 		if err != nil {
 			return err
 		}

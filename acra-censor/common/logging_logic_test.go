@@ -40,7 +40,7 @@ func TestSerializationOnUniqueQueries(t *testing.T) {
 	if err = tmpFile.Close(); err != nil {
 		t.Fatal(err)
 	}
-	writer, err := NewQueryWriter(tmpFile.Name())
+	writer, err := NewFileQueryWriter(tmpFile.Name())
 
 	defer func() {
 		writer.Release()
@@ -66,7 +66,7 @@ func TestSerializationOnUniqueQueries(t *testing.T) {
 	if len(writer.GetAllInputQueries()) != len(testQueries) {
 		t.Fatal("Expected: " + strings.Join(testQueries, " | ") + "\nGot: " + strings.Join(writer.GetAllInputQueries(), " | "))
 	}
-	err = writer.DumpAllQueriesToFile()
+	err = writer.DumpQueries()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -74,7 +74,7 @@ func TestSerializationOnUniqueQueries(t *testing.T) {
 	if len(writer.GetAllInputQueries()) != 0 {
 		t.Fatal("Expected no queries \nGot: " + strings.Join(writer.GetAllInputQueries(), " | "))
 	}
-	err = writer.readAllQueriesFromFile()
+	err = writer.readStoredQueries()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -109,7 +109,7 @@ func TestSerializationOnSameQueries(t *testing.T) {
 	if err = tmpFile.Close(); err != nil {
 		t.Fatal(err)
 	}
-	writer, err := NewQueryWriter(tmpFile.Name())
+	writer, err := NewFileQueryWriter(tmpFile.Name())
 
 	defer func() {
 		writer.Release()
@@ -136,7 +136,7 @@ func TestSerializationOnSameQueries(t *testing.T) {
 	if len(writer.GetAllInputQueries()) != numOfUniqueQueries {
 		t.Fatal("Expected to have " + fmt.Sprint(numOfUniqueQueries) + " unique queries. \n Got:" + strings.Join(writer.GetAllInputQueries(), " | "))
 	}
-	err = writer.DumpAllQueriesToFile()
+	err = writer.DumpQueries()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -144,7 +144,7 @@ func TestSerializationOnSameQueries(t *testing.T) {
 	if len(writer.GetAllInputQueries()) != 0 {
 		t.Fatal("Expected no queries \nGot: " + strings.Join(writer.GetAllInputQueries(), " | "))
 	}
-	err = writer.readAllQueriesFromFile()
+	err = writer.readStoredQueries()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -167,7 +167,7 @@ func TestQueryCapture(t *testing.T) {
 	if err = tmpFile.Close(); err != nil {
 		t.Fatal(err)
 	}
-	writer, err := NewQueryWriter(tmpFile.Name())
+	writer, err := NewFileQueryWriter(tmpFile.Name())
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -138,5 +138,4 @@ func saveQuery(writer *common.QueryWriter, query string) {
 	queryInfo.RawQuery = query
 	queryInfo.IsForbidden = false
 	writer.Queries = append(writer.Queries, queryInfo)
-	writer.BufferedQueries = append(writer.BufferedQueries, queryInfo)
 }

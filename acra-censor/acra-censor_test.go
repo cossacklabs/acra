@@ -1370,7 +1370,7 @@ func TestAddingCapturedQueriesIntoBlacklist(t *testing.T) {
 	if err = tmpFile.Close(); err != nil {
 		t.Fatal(err)
 	}
-	writer, err := common.NewQueryWriter(tmpFile.Name())
+	writer, err := common.NewFileQueryWriter(tmpFile.Name())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1396,7 +1396,7 @@ func TestAddingCapturedQueriesIntoBlacklist(t *testing.T) {
 	writer.RedactAndMarkQueryAsForbidden(testQueries[0])
 	writer.RedactAndMarkQueryAsForbidden(testQueries[1])
 	writer.RedactAndMarkQueryAsForbidden(testQueries[2])
-	writer.DumpAllQueriesToFile()
+	writer.DumpQueries()
 
 	blacklist.AddQueries(writer.GetForbiddenQueries())
 	err = acraCensor.HandleQuery(testQueries[0])
