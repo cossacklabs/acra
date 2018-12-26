@@ -100,7 +100,6 @@ func (acraCensor *AcraCensor) HandleQuery(rawQuery string) error {
 	return nil
 }
 
-
 func (acraCensor *AcraCensor) saveUnparsedQuery(query string) {
 	if acraCensor.unparsedQueriesWriter != nil {
 		acraCensor.unparsedQueriesWriter.CheckQuery(query, nil)

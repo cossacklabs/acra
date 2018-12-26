@@ -1682,7 +1682,7 @@ handlers:
 		}
 	}
 	//wait until goroutine handles complex serialization
-	time.Sleep(common.DefaultSerializationTimeout + 100 * time.Millisecond)
+	time.Sleep(common.DefaultSerializationTimeout + 100*time.Millisecond)
 	bufferBytes, err := ioutil.ReadFile("unparsed_queries.log")
 	if err != nil {
 		t.Fatal(err)

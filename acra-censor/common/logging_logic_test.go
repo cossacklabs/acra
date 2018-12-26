@@ -59,7 +59,7 @@ func TestSerializationOnUniqueQueries(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	time.Sleep(DefaultSerializationTimeout + 100 * time.Millisecond)
+	time.Sleep(DefaultSerializationTimeout + 100*time.Millisecond)
 	if len(writer.GetAllInputQueries()) != len(testQueries) {
 		t.Fatal("Expected: " + strings.Join(testQueries, " | ") + "\nGot: " + strings.Join(writer.GetAllInputQueries(), " | "))
 	}
@@ -125,7 +125,7 @@ func TestSerializationOnSameQueries(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	time.Sleep(DefaultSerializationTimeout + 100 * time.Millisecond)
+	time.Sleep(DefaultSerializationTimeout + 100*time.Millisecond)
 	if len(writer.GetAllInputQueries()) != numOfUniqueQueries {
 		t.Fatal("Expected to have " + fmt.Sprint(numOfUniqueQueries) + " unique queries. \n Got:" + strings.Join(writer.GetAllInputQueries(), " | "))
 	}
