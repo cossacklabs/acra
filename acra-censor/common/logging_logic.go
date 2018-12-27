@@ -53,14 +53,14 @@ type QueryWriter struct {
 func NewFileQueryWriter(filePath string) (*QueryWriter, error) {
 	// create writer
 	writer := &QueryWriter{
-		queryIndex:0,
-		mutex:&sync.RWMutex{},
-		serializationTimeout:DefaultSerializationTimeout,
-		serializationTicker:time.NewTicker(DefaultSerializationTimeout),
-		logger:log.WithField("internal_object", "querywriter"),
-		signalBackgroundExit:make(chan bool),
-		signalWriteQuery:make(chan string, DefaultWriteQueryChannelSize),
-		signalShutdown:make(chan os.Signal, 2),
+		queryIndex:           0,
+		mutex:                &sync.RWMutex{},
+		serializationTimeout: DefaultSerializationTimeout,
+		serializationTicker:  time.NewTicker(DefaultSerializationTimeout),
+		logger:               log.WithField("internal_object", "querywriter"),
+		signalBackgroundExit: make(chan bool),
+		signalWriteQuery:     make(chan string, DefaultWriteQueryChannelSize),
+		signalShutdown:       make(chan os.Signal, 2),
 	}
 	signal.Notify(writer.signalShutdown, os.Interrupt, syscall.SIGTERM)
 
@@ -90,10 +90,10 @@ func (queryWriter *QueryWriter) GetQueries() []*QueryInfo {
 }
 
 // WalkQueries walks through each query and perform some action on it
-func (writer *QueryWriter) WalkQueries(visitor func (query *QueryInfo) error) error {
-	writer.mutex.Lock()
-	defer writer.mutex.Unlock()
-	for _, query := range writer.Queries {
+func (queryWriter *QueryWriter) WalkQueries(visitor func(query *QueryInfo) error) error {
+	queryWriter.mutex.Lock()
+	defer queryWriter.mutex.Unlock()
+	for _, query := range queryWriter.Queries {
 		if err := visitor(query); err != nil {
 			return err
 		}

@@ -18,7 +18,7 @@ func NewFileLogStorage(filePath string) (*FileLogStorage, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &FileLogStorage{file:openedFile, mutex:&sync.Mutex{}}, nil
+	return &FileLogStorage{file: openedFile, mutex: &sync.Mutex{}}, nil
 }
 
 // ReadAll returns stored queries in raw form from internal file
