@@ -2,18 +2,21 @@ package handlers
 
 import (
 	"github.com/cossacklabs/acra/acra-censor/common"
+	"github.com/cossacklabs/acra/logging"
 	"github.com/cossacklabs/acra/sqlparser"
+	log "github.com/sirupsen/logrus"
 	"strings"
 )
 
 // QueryCaptureHandler provides logging mechanism of censor
 type QueryCaptureHandler struct {
 	writer *common.QueryWriter
+	logger *log.Entry
 }
 
 // NewQueryCaptureHandler is a constructor of QueryCaptureHandler instance
 func NewQueryCaptureHandler(filePath string) (*QueryCaptureHandler, error) {
-	queryCaptureHandler := &QueryCaptureHandler{}
+	queryCaptureHandler := &QueryCaptureHandler{logger: log.WithField("handler", "query-capture")}
 	writer, err := common.NewFileQueryWriter(filePath)
 	if err != nil {
 		return nil, err
@@ -47,6 +50,7 @@ func (handler *QueryCaptureHandler) Release() {
 func (handler *QueryCaptureHandler) DumpQueries() error {
 	err := handler.writer.DumpQueries()
 	if err != nil {
+		handler.logger.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCensorIOError).Errorln("Can't dump queries")
 		return err
 	}
 	return nil
@@ -57,6 +61,7 @@ func (handler *QueryCaptureHandler) DumpQueries() error {
 func (handler *QueryCaptureHandler) MarkQueryAsForbidden(query string) error {
 	_, queryWithHiddenValues, _, err := common.HandleRawSQLQuery(query)
 	if err != nil {
+		handler.logger.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCensorQueryParseError).Errorln("Can't mark query as forbidden")
 		return err
 	}
 	err = handler.writer.WalkQueries(func(queryInfo *common.QueryInfo) error {
@@ -70,12 +75,15 @@ func (handler *QueryCaptureHandler) MarkQueryAsForbidden(query string) error {
 
 // GetForbiddenQueries returns a list of non-masked forbidden RawQueries.
 func (handler *QueryCaptureHandler) GetForbiddenQueries() []string {
-	queries := handler.writer.GetQueries()
 	var forbiddenQueries []string
-	for _, queryInfo := range queries {
-		if queryInfo.IsForbidden == true {
+	err := handler.writer.WalkQueries(func(queryInfo *common.QueryInfo) error {
+		if queryInfo.IsForbidden {
 			forbiddenQueries = append(forbiddenQueries, queryInfo.RawQuery)
 		}
+		return nil
+	})
+	if err != nil {
+		handler.logger.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCensorWriterMemoryError).Errorln("Can't get forbidden queries")
 	}
 	return forbiddenQueries
 }

@@ -66,25 +66,25 @@ func TestSerializationOnUniqueQueries(t *testing.T) {
 		}
 	}
 	time.Sleep(DefaultSerializationTimeout + 100*time.Millisecond)
-	if len(writer.GetQueries()) != len(testQueries) {
-		t.Fatal("Expected: " + strings.Join(testQueries, " | ") + "\nGot: " + strings.Join(rawStrings(writer.GetQueries()), " | "))
+	if len(writer.Queries) != len(testQueries) {
+		t.Fatal("Expected: " + strings.Join(testQueries, " | ") + "\nGot: " + strings.Join(rawStrings(writer.Queries), " | "))
 	}
 	err = writer.DumpQueries()
 	if err != nil {
 		t.Fatal(err)
 	}
 	writer.reset()
-	if len(writer.GetQueries()) != 0 {
-		t.Fatal("Expected no queries \nGot: " + strings.Join(rawStrings(writer.GetQueries()), " | "))
+	if len(writer.Queries) != 0 {
+		t.Fatal("Expected no queries \nGot: " + strings.Join(rawStrings(writer.Queries), " | "))
 	}
 	err = writer.readStoredQueries()
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(writer.GetQueries()) != len(testQueries) {
-		t.Fatal("Expected: " + strings.Join(testQueries, " | ") + "\nGot: " + strings.Join(rawStrings(writer.GetQueries()), " | "))
+	if len(writer.Queries) != len(testQueries) {
+		t.Fatal("Expected: " + strings.Join(testQueries, " | ") + "\nGot: " + strings.Join(rawStrings(writer.Queries), " | "))
 	}
-	for index, query := range writer.GetQueries() {
+	for index, query := range writer.Queries {
 		if strings.EqualFold(testQueries[index], query.RawQuery) {
 			t.Fatal("Expected: " + testQueries[index] + "\nGot: " + query.RawQuery)
 		}
@@ -141,25 +141,25 @@ func TestSerializationOnSameQueries(t *testing.T) {
 
 	time.Sleep(DefaultSerializationTimeout + 100*time.Millisecond)
 
-	if len(writer.GetQueries()) != numOfUniqueQueries {
-		t.Fatal("Expected to have " + fmt.Sprint(numOfUniqueQueries) + " unique queries. \n Got:" + strings.Join(rawStrings(writer.GetQueries()), " | "))
+	if len(writer.Queries) != numOfUniqueQueries {
+		t.Fatal("Expected to have " + fmt.Sprint(numOfUniqueQueries) + " unique queries. \n Got:" + strings.Join(rawStrings(writer.Queries), " | "))
 	}
 	err = writer.DumpQueries()
 	if err != nil {
 		t.Fatal(err)
 	}
 	writer.reset()
-	if len(writer.GetQueries()) != 0 {
-		t.Fatal("Expected no queries \nGot: " + strings.Join(rawStrings(writer.GetQueries()), " | "))
+	if len(writer.Queries) != 0 {
+		t.Fatal("Expected no queries \nGot: " + strings.Join(rawStrings(writer.Queries), " | "))
 	}
 	err = writer.readStoredQueries()
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(writer.GetQueries()) != numOfUniqueQueries {
-		t.Fatal("Expected to have " + fmt.Sprint(numOfUniqueQueries) + " unique queries. \n Got:" + strings.Join(rawStrings(writer.GetQueries()), " | "))
+	if len(writer.Queries) != numOfUniqueQueries {
+		t.Fatal("Expected to have " + fmt.Sprint(numOfUniqueQueries) + " unique queries. \n Got:" + strings.Join(rawStrings(writer.Queries), " | "))
 	}
-	for index, query := range writer.GetQueries() {
+	for index, query := range writer.Queries {
 		if strings.EqualFold(testQueries[index], query.RawQuery) {
 			t.Fatal("Expected: " + testQueries[index] + "\nGot: " + query.RawQuery)
 		}

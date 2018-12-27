@@ -72,10 +72,11 @@ const (
 	// acracensor
 	EventCodeErrorCensorQueryIsNotAllowed   = 560
 	EventCodeErrorCensorSetupError          = 561
-	EventCodeErrorCensorSecurityError       = 562
+	EventCodeErrorCensorBackgroundError     = 562
 	EventCodeErrorCensorQueryParseError     = 563
 	EventCodeErrorCensorIOError             = 564
 	EventCodeErrorCensorQuerySerializeError = 565
+	EventCodeErrorCensorWriterMemoryError   = 566
 
 	// response connector
 	EventCodeErrorResponseConnectorCantWriteToDB      = 570

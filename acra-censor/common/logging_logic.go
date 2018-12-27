@@ -81,14 +81,6 @@ func NewFileQueryWriter(filePath string) (*QueryWriter, error) {
 	return writer, nil
 }
 
-// GetQueries returns copy of internal buffer
-func (queryWriter *QueryWriter) GetQueries() []*QueryInfo {
-	queryWriter.mutex.RLock()
-	queriesCopy := queryWriter.Queries
-	queryWriter.mutex.RUnlock()
-	return queriesCopy
-}
-
 // WalkQueries walks through each query and perform some action on it
 func (queryWriter *QueryWriter) WalkQueries(visitor func(query *QueryInfo) error) error {
 	queryWriter.mutex.Lock()
@@ -161,7 +153,7 @@ func (queryWriter *QueryWriter) WriteQuery(query string) {
 	case queryWriter.signalWriteQuery <- query:
 		break
 	default:
-		queryWriter.logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCensorIOError).Warningln("Too much input queries")
+		queryWriter.logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCensorBackgroundError).Warningln("Too much input queries")
 	}
 }
 
