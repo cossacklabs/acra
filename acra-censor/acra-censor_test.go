@@ -23,6 +23,8 @@ limitations under the License.
 package acracensor
 
 import (
+	"bytes"
+	"encoding/json"
 	"github.com/cossacklabs/acra/acra-censor/common"
 	"io/ioutil"
 	"os"
@@ -1353,6 +1355,77 @@ func testBlacklistStarPattern(t *testing.T) {
 	}
 }
 
+func TestAddingCapturedQueriesIntoBlacklist(t *testing.T) {
+	// Currently we support adding only non-redacted queries
+	testQueries := []string{
+		"SELECT Student_ID FROM STUDENT;",
+		"SELECT * FROM STUDENT;",
+		"select * FROM X;",
+		"SELECT * FROM Y;",
+	}
+	tmpFile, err := ioutil.TempFile("", "censor_log")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err = tmpFile.Close(); err != nil {
+		t.Fatal(err)
+	}
+	queryCaptureHandler, err := handlers.NewQueryCaptureHandler(tmpFile.Name())
+	if err != nil {
+		t.Fatal(err)
+	}
+	go queryCaptureHandler.Start()
+
+	blacklist := handlers.NewBlacklistHandler()
+	acraCensor := NewAcraCensor()
+	defer func() {
+		acraCensor.ReleaseAll()
+		err = os.Remove(tmpFile.Name())
+		if err != nil {
+			t.Fatal(err)
+		}
+	}()
+
+	acraCensor.AddHandler(queryCaptureHandler)
+	acraCensor.AddHandler(blacklist)
+	for _, testQuery := range testQueries {
+		err = acraCensor.HandleQuery(testQuery)
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	// need to wait extra time to be sure that queryCaptureHandler captured all input queries
+	time.Sleep(time.Millisecond * 100)
+
+	indexesOfForbiddenQueries := []int{0, 1, 2}
+	for _, forbiddenQueryIndex := range indexesOfForbiddenQueries {
+		err = queryCaptureHandler.MarkQueryAsForbidden(testQueries[indexesOfForbiddenQueries[forbiddenQueryIndex]])
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+	err = queryCaptureHandler.DumpQueries()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	blacklist.AddQueries(queryCaptureHandler.GetForbiddenQueries())
+	for _, forbiddenQueryIndex := range indexesOfForbiddenQueries {
+		err = acraCensor.HandleQuery(testQueries[forbiddenQueryIndex])
+		if err != common.ErrQueryInBlacklist {
+			t.Fatal(err)
+		}
+	}
+
+	//zero, first and second query are forbidden
+	for index := 3; index < len(testQueries); index++ {
+		err = acraCensor.HandleQuery(testQueries[index])
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+}
 func TestQueryIgnoring(t *testing.T) {
 	var err error
 	testQueries := []string{
@@ -1405,318 +1478,6 @@ func TestQueryIgnoring(t *testing.T) {
 		}
 	}
 }
-func TestSerializationOnUniqueQueries(t *testing.T) {
-	testQueries := []string{
-		"SELECT Student_ID FROM STUDENT;",
-		"SELECT * FROM STUDENT;",
-		"SELECT * FROM X;",
-		"SELECT * FROM Y;",
-		"SELECT EMP_ID, NAME FROM EMPLOYEE_TBL WHERE EMP_ID = '0000';",
-		"SELECT EMP_ID, LAST_NAME FROM EMPLOYEE WHERE CITY = 'Seattle' ORDER BY EMP_ID;",
-		"SELECT EMP_ID, LAST_NAME FROM EMPLOYEE_TBL WHERE CITY = 'INDIANAPOLIS' ORDER BY EMP_ID asc;",
-		"SELECT Name, Age FROM Patients WHERE Age > 40 GROUP BY Age ORDER BY Name;",
-		"SELECT COUNT(CustomerID), Country FROM Customers GROUP BY Country;",
-		"SELECT SUM(Salary)FROM Employee WHERE Emp_Age < 30;",
-		"SELECT AVG(Price)FROM Products;",
-		"INSERT SalesStaff1 VALUES (2, 'Michael', 'Blythe'), (3, 'Linda', 'Mitchell'),(4, 'Jillian', 'Carson'), (5, 'Garrett', 'Vargas');",
-		"INSERT INTO SalesStaff2 (StaffGUID, FirstName, LastName) VALUES (NEWID(), 'Stephen', 'Jiang');",
-		"INSERT INTO SalesStaff3 (StaffID, FullName) VALUES (X, 'Y');",
-		"INSERT INTO SalesStaff3 (StaffID, FullNameTbl) VALUES (X, M);",
-		"INSERT INTO X.Customers (CustomerName, ContactName, Address, City, PostalCode, Country) VALUES ('Cardinal', 'Tom B. Erichsen', 'Skagen 21', 'Stavanger', '4006', 'Norway');",
-		"INSERT INTO Customers (CustomerName, City, Country) VALUES ('Cardinal', 'Stavanger', 'Norway');",
-		"INSERT INTO Production (Name, UnitMeasureCode,	ModifiedDate) VALUES ('Square Yards', 'Y2', GETDATE());",
-		"INSERT INTO T1 (Name, UnitMeasureCode,	ModifiedDate) VALUES ('Square Yards', 'Y2', GETDATE());",
-		"INSERT INTO dbo.Points (Type, PointValue) VALUES ('Point', '1,5');",
-		"INSERT INTO dbo.Points (PointValue) VALUES ('1,99');",
-	}
-	tmpFile, err := ioutil.TempFile("", "censor_log")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err = tmpFile.Close(); err != nil {
-		t.Fatal(err)
-	}
-	handler, err := handlers.NewQueryCaptureHandler(tmpFile.Name())
-
-	defer func() {
-		handler.Release()
-		err = os.Remove(tmpFile.Name())
-		if err != nil {
-			t.Fatal(err)
-		}
-	}()
-
-	if err != nil {
-		t.Fatal(err)
-	}
-	for _, query := range testQueries {
-		_, err = handler.RedactAndCheckQuery(query)
-		if err != nil {
-			t.Fatal(err)
-		}
-	}
-	defaultTimeout := handler.GetSerializationTimeout()
-	handler.SetSerializationTimeout(50 * time.Millisecond)
-	//wait until goroutine handles complex serialization
-	time.Sleep(defaultTimeout + handler.GetSerializationTimeout() + 10*time.Millisecond)
-	if len(handler.GetAllInputQueries()) != len(testQueries) {
-		t.Fatal("Expected: " + strings.Join(testQueries, " | ") + "\nGot: " + strings.Join(handler.GetAllInputQueries(), " | "))
-	}
-	err = handler.DumpAllQueriesToFile()
-	if err != nil {
-		t.Fatal(err)
-	}
-	handler.Reset()
-	if len(handler.GetAllInputQueries()) != 0 {
-		t.Fatal("Expected no queries \nGot: " + strings.Join(handler.GetAllInputQueries(), " | "))
-	}
-	err = handler.ReadAllQueriesFromFile()
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(handler.GetAllInputQueries()) != len(testQueries) {
-		t.Fatal("Expected: " + strings.Join(testQueries, " | ") + "\nGot: " + strings.Join(handler.GetAllInputQueries(), " | "))
-	}
-	for index, query := range handler.GetAllInputQueries() {
-		if strings.EqualFold(testQueries[index], query) {
-			t.Fatal("Expected: " + testQueries[index] + "\nGot: " + query)
-		}
-	}
-}
-func TestSerializationOnSameQueries(t *testing.T) {
-	// 5 queries, 3 unique redacted queries
-	numOfUniqueQueries := 3
-	testQueries := []string{
-		// will be redacted
-		"SELECT NAME WHERE EMP_ID = '1234';",
-		"SELECT NAME WHERE EMP_ID = '345';",
-
-		// different
-		"SELECT EMP_ID, LAST_NAME FROM EMPLOYEE WHERE CITY = 'Seattle' ORDER BY EMP_ID;",
-		"SELECT EMP_ID FROM EMPLOYEE WHERE CITY = 'Seattle' ORDER BY EMP_ID;",
-
-		// similar to previous one, will be redacted
-		"SELECT EMP_ID FROM EMPLOYEE WHERE CITY = 'London' ORDER BY EMP_ID;",
-	}
-	tmpFile, err := ioutil.TempFile("", "censor_log")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err = tmpFile.Close(); err != nil {
-		t.Fatal(err)
-	}
-	handler, err := handlers.NewQueryCaptureHandler(tmpFile.Name())
-
-	defer func() {
-		handler.Release()
-		err = os.Remove(tmpFile.Name())
-		if err != nil {
-			t.Fatal(err)
-		}
-	}()
-
-	if err != nil {
-		t.Fatal(err)
-	}
-	for _, query := range testQueries {
-		_, err = handler.RedactAndCheckQuery(query)
-		if err != nil {
-			t.Fatal(err)
-		}
-	}
-	defaultTimeout := handler.GetSerializationTimeout()
-	handler.SetSerializationTimeout(50 * time.Millisecond)
-	//wait until goroutine handles complex serialization
-	time.Sleep(defaultTimeout + handler.GetSerializationTimeout() + 10*time.Millisecond)
-
-	if len(handler.GetAllInputQueries()) != numOfUniqueQueries {
-		t.Fatal("Expected to have " + fmt.Sprint(numOfUniqueQueries) + " unique queries. \n Got:" + strings.Join(handler.GetAllInputQueries(), " | "))
-	}
-	err = handler.DumpAllQueriesToFile()
-	if err != nil {
-		t.Fatal(err)
-	}
-	handler.Reset()
-	if len(handler.GetAllInputQueries()) != 0 {
-		t.Fatal("Expected no queries \nGot: " + strings.Join(handler.GetAllInputQueries(), " | "))
-	}
-	err = handler.ReadAllQueriesFromFile()
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(handler.GetAllInputQueries()) != numOfUniqueQueries {
-		t.Fatal("Expected to have " + fmt.Sprint(numOfUniqueQueries) + " unique queries. \n Got:" + strings.Join(handler.GetAllInputQueries(), " | "))
-	}
-	for index, query := range handler.GetAllInputQueries() {
-		if strings.EqualFold(testQueries[index], query) {
-			t.Fatal("Expected: " + testQueries[index] + "\nGot: " + query)
-		}
-	}
-}
-func TestAddingCapturedQueriesIntoBlacklist(t *testing.T) {
-	// Currently we support adding only non-redacted queries
-	testQueries := []string{
-		"SELECT Student_ID FROM STUDENT;",
-		"SELECT * FROM STUDENT;",
-		"select * FROM X;",
-		"SELECT * FROM Y;",
-	}
-	tmpFile, err := ioutil.TempFile("", "censor_log")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err = tmpFile.Close(); err != nil {
-		t.Fatal(err)
-	}
-	captureHandler, err := handlers.NewQueryCaptureHandler(tmpFile.Name())
-	if err != nil {
-		t.Fatal(err)
-	}
-	blacklist := handlers.NewBlacklistHandler()
-	acraCensor := NewAcraCensor()
-	defer func() {
-		acraCensor.ReleaseAll()
-		err = os.Remove(tmpFile.Name())
-		if err != nil {
-			t.Fatal(err)
-		}
-	}()
-	acraCensor.AddHandler(captureHandler)
-	acraCensor.AddHandler(blacklist)
-	for _, testQuery := range testQueries {
-		err = acraCensor.HandleQuery(testQuery)
-		if err != nil {
-			t.Fatal(err)
-		}
-	}
-	captureHandler.RedactAndMarkQueryAsForbidden(testQueries[0])
-	captureHandler.RedactAndMarkQueryAsForbidden(testQueries[1])
-	captureHandler.RedactAndMarkQueryAsForbidden(testQueries[2])
-	captureHandler.DumpAllQueriesToFile()
-
-	blacklist.AddQueries(captureHandler.GetForbiddenQueries())
-	err = acraCensor.HandleQuery(testQueries[0])
-	if err != common.ErrQueryInBlacklist {
-		t.Fatal(err)
-	}
-	err = acraCensor.HandleQuery(testQueries[1])
-	if err != common.ErrQueryInBlacklist {
-		t.Fatal(err)
-	}
-	err = acraCensor.HandleQuery(testQueries[2])
-	if err != common.ErrQueryInBlacklist {
-		t.Fatal(err)
-	}
-	//zero, first and second query are forbidden
-	for index := 3; index < len(testQueries); index++ {
-		err = acraCensor.HandleQuery(testQueries[index])
-		if err != nil {
-			t.Fatal(err)
-		}
-	}
-}
-func TestQueryCapture(t *testing.T) {
-	// extraWaitTime provide extra time to serialize in background goroutine before check
-	const extraWaitTime = 100 * time.Millisecond
-	tmpFile, err := ioutil.TempFile("", "censor_log")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err = tmpFile.Close(); err != nil {
-		t.Fatal(err)
-	}
-	handler, err := handlers.NewQueryCaptureHandler(tmpFile.Name())
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer func() {
-		handler.Release()
-		err = os.Remove(tmpFile.Name())
-		if err != nil {
-			t.Fatal(err)
-		}
-	}()
-	testQueries := []string{
-		"SELECT Student_ID FROM STUDENT;",
-		"SELECT * FROM STUDENT;",
-		"SELECT * FROM X;",
-		"SELECT * FROM Y;",
-	}
-	for _, query := range testQueries {
-		_, err = handler.RedactAndCheckQuery(query)
-		if err != nil {
-			t.Fatal(err)
-		}
-	}
-	expected := "{\"raw_query\":\"SELECT Student_ID FROM STUDENT\",\"_blacklisted_by_web_config\":false}\n" +
-		"{\"raw_query\":\"SELECT * FROM STUDENT\",\"_blacklisted_by_web_config\":false}\n" +
-		"{\"raw_query\":\"SELECT * FROM X\",\"_blacklisted_by_web_config\":false}\n" +
-		"{\"raw_query\":\"SELECT * FROM Y\",\"_blacklisted_by_web_config\":false}\n"
-
-	defaultTimeout := handler.GetSerializationTimeout()
-	handler.SetSerializationTimeout(50 * time.Millisecond)
-	//wait until goroutine handles complex serialization
-	time.Sleep(defaultTimeout + handler.GetSerializationTimeout() + extraWaitTime)
-	result, err := ioutil.ReadFile(tmpFile.Name())
-	if err != nil {
-		t.Fatal(err)
-	}
-	if !strings.EqualFold(strings.ToUpper(string(result)), strings.ToUpper(expected)) {
-		t.Fatal("Expected: " + expected + "\nGot: " + string(result))
-	}
-	testQuery := "SELECT * FROM Z;"
-	_, err = handler.RedactAndCheckQuery(testQuery)
-	if err != nil {
-		t.Fatal(err)
-	}
-	expected = "{\"raw_query\":\"SELECT Student_ID FROM STUDENT\",\"_blacklisted_by_web_config\":false}\n" +
-		"{\"raw_query\":\"SELECT * FROM STUDENT\",\"_blacklisted_by_web_config\":false}\n" +
-		"{\"raw_query\":\"SELECT * FROM X\",\"_blacklisted_by_web_config\":false}\n" +
-		"{\"raw_query\":\"SELECT * FROM Y\",\"_blacklisted_by_web_config\":false}\n" +
-		"{\"raw_query\":\"SELECT * FROM Z\",\"_blacklisted_by_web_config\":false}\n"
-
-	time.Sleep(handler.GetSerializationTimeout() + extraWaitTime)
-	result, err = ioutil.ReadFile(tmpFile.Name())
-	if err != nil {
-		t.Fatal(err)
-	}
-	if !strings.EqualFold(strings.ToUpper(string(result)), strings.ToUpper(expected)) {
-		t.Fatal("Expected: " + expected + "\nGot: " + string(result))
-	}
-
-	//Check that values are hidden while logging
-	testQuery = "select songName from t where personName in ('Ryan', 'Holly') group by songName having count(distinct personName) = 10"
-
-	handler.RedactAndCheckQuery(testQuery)
-
-	//wait until serialization completes
-	time.Sleep(handler.GetSerializationTimeout() + extraWaitTime)
-
-	result, err = ioutil.ReadFile(tmpFile.Name())
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	expectedPrefix := "{\"raw_query\":\"SELECT Student_ID FROM STUDENT\",\"_blacklisted_by_web_config\":false}\n" +
-		"{\"raw_query\":\"SELECT * FROM STUDENT\",\"_blacklisted_by_web_config\":false}\n" +
-		"{\"raw_query\":\"SELECT * FROM X\",\"_blacklisted_by_web_config\":false}\n" +
-		"{\"raw_query\":\"SELECT * FROM Y\",\"_blacklisted_by_web_config\":false}\n" +
-		"{\"raw_query\":\"SELECT * FROM Z\",\"_blacklisted_by_web_config\":false}\n" +
-		"{\"raw_query\":\"select songName from t where personName in"
-
-	suffix := strings.TrimPrefix(strings.ToUpper(string(result)), strings.ToUpper(expectedPrefix))
-
-	//we expect TWO placeholders here: instead of "('Ryan', 'Holly')" and instead of "10"
-	if strings.Count(suffix, strings.ToUpper(common.ValueMask)) != 2 {
-		t.Fatal("unexpected placeholder values in following: " + string(result))
-	}
-
-	if strings.Contains(strings.ToUpper(string(result)), strings.ToUpper("Ryan")) ||
-		strings.Contains(strings.ToUpper(string(result)), strings.ToUpper("Holly")) ||
-		strings.Contains(strings.ToUpper(string(result)), strings.ToUpper("10")) {
-		t.Fatal("values detected in logs: " + string(result))
-	}
-}
 func TestConfigurationProvider(t *testing.T) {
 	var defaultConfigPath = utils.GetConfigPathByName("acra-censor.example")
 	filePath, err := os.Getwd()
@@ -1730,7 +1491,11 @@ func TestConfigurationProvider(t *testing.T) {
 	acraCensor := NewAcraCensor()
 	defer func() {
 		acraCensor.ReleaseAll()
-		err = os.Remove("censor_log")
+		err = os.Remove("censor.log")
+		if err != nil {
+			t.Fatal(err)
+		}
+		err = os.Remove("unparsed_queries.log")
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -1771,20 +1536,11 @@ func TestConfigurationProvider(t *testing.T) {
 		"SELECT EMP_ID, LAST_NAME FROM EMPLOYEE WHERE CITY = 'Seattle' ORDER BY EMP_ID;",
 		//"SELECT EMP_ID, LAST_NAME FROM EMPLOYEE AS EMPL WHERE CITY = 'Seattle' ORDER BY EMP_ID;",
 	}
-	//acracensor should block those structures
+	//acracensor should block those queries by pattern
 	for _, queryToBlock := range testQueries {
 		err = acraCensor.HandleQuery(queryToBlock)
 		if err != common.ErrBlacklistPatternMatch {
 			t.Fatal(err)
-		}
-	}
-	for _, currentHandler := range acraCensor.handlers {
-		original, ok := currentHandler.(*handlers.QueryCaptureHandler)
-		if ok {
-			defaultTimeout := original.GetSerializationTimeout()
-			original.SetSerializationTimeout(50 * time.Millisecond)
-			//wait until goroutine handles complex serialization
-			time.Sleep(defaultTimeout + original.GetSerializationTimeout() + 10*time.Millisecond)
 		}
 	}
 	testSyntax(t)
@@ -1893,4 +1649,68 @@ func TestIgnoringQueryParseErrors(t *testing.T) {
 	checkHandler([]QueryHandlerInterface{blacklist}, nil)
 	// check when censor with two handlers and each one will return query parse error
 	checkHandler([]QueryHandlerInterface{whitelist, blacklist}, nil)
+}
+func TestLogUnparsedQueries(t *testing.T) {
+	var err error
+	configuration := `ignore_parse_error: true
+parse_errors_log: unparsed_queries.log
+handlers:
+  - handler: blacklist
+    queries:
+      - INSERT INTO SalesStaff1 VALUES (1, 'Stephen', 'Jiang');
+      - SELECT AVG(Price) FROM Products;
+    tables:
+      - EMPLOYEE_TBL
+      - Customers
+    patterns:
+      - SELECT EMP_ID, LAST_NAME FROM EMPLOYEE %%WHERE%%;`
+
+	acraCensor := NewAcraCensor()
+	defer func() {
+		acraCensor.ReleaseAll()
+		err = os.Remove("unparsed_queries.log")
+		if err != nil {
+			t.Fatal(err)
+		}
+	}()
+	err = acraCensor.LoadConfiguration([]byte(configuration))
+	if err != nil {
+		t.Fatal(err)
+	}
+	testQueries := []string{
+		"select * from x )))(((unparsable query",
+		"qwerty",
+		"qwerty_xxx",
+	}
+	for _, query := range testQueries {
+		err = acraCensor.HandleQuery(query)
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+	//wait until goroutine handles complex serialization
+	time.Sleep(common.DefaultSerializationTimeout + 100*time.Millisecond)
+	bufferBytes, err := ioutil.ReadFile("unparsed_queries.log")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var queries []*common.QueryInfo
+	if len(bufferBytes) != 0 {
+		for _, line := range bytes.Split(bufferBytes, []byte{'\n'}) {
+			if len(line) == 0 {
+				continue
+			}
+			var oneQuery common.QueryInfo
+			if err = json.Unmarshal(line, &oneQuery); err != nil {
+				t.Fatal(err)
+			}
+			queries = append(queries, &oneQuery)
+		}
+	}
+	for index, query := range testQueries {
+		if !strings.EqualFold(query, queries[index].RawQuery) {
+			fmt.Println(queries[index].RawQuery)
+			t.Fatal("Scanned: " + queries[index].RawQuery + ", expected: " + query)
+		}
+	}
 }
