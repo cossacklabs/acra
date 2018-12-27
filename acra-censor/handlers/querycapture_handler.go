@@ -65,10 +65,7 @@ func (handler *QueryCaptureHandler) MarkQueryAsForbidden(query string) error {
 		}
 		return nil
 	})
-	if err != nil {
-		return err
-	}
-	return nil
+	return err
 }
 
 // GetForbiddenQueries returns a list of non-masked forbidden RawQueries.
