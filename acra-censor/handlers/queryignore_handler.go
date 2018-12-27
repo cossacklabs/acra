@@ -43,12 +43,12 @@ func (handler *QueryIgnoreHandler) CheckQuery(rawQuery string, parsedQuery sqlpa
 	return true, nil
 }
 
-// Reset ignored patterns
+// Reset resets list of ignored patterns
 func (handler *QueryIgnoreHandler) Reset() {
 	handler.ignoredQueries = make(map[string]bool)
 }
 
-// Release / reset ignored patterns
+// Release resets list of ignored patterns
 func (handler *QueryIgnoreHandler) Release() {
 	handler.Reset()
 }

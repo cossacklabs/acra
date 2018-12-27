@@ -17,9 +17,9 @@ limitations under the License.
 package acracensor
 
 import (
+	"github.com/cossacklabs/acra/acra-censor/common"
 	"github.com/cossacklabs/acra/acra-censor/handlers"
 	"gopkg.in/yaml.v2"
-	"os"
 	"strings"
 )
 
@@ -38,7 +38,7 @@ type Config struct {
 		Queries  []string
 		Tables   []string
 		Patterns []string
-		Filepath string
+		FilePath string
 	}
 	IgnoreParseError bool   `yaml:"ignore_parse_error"`
 	ParseErrorsLog   string `yaml:"parse_errors_log"`
@@ -52,13 +52,13 @@ func (acraCensor *AcraCensor) LoadConfiguration(configuration []byte) error {
 		return err
 	}
 	acraCensor.ignoreParseError = censorConfiguration.IgnoreParseError
-	acraCensor.parseErrorsLogPath = censorConfiguration.ParseErrorsLog
-	if acraCensor.parseErrorsLogPath != "" {
-		openedFile, err := os.OpenFile(acraCensor.parseErrorsLogPath, os.O_APPEND|os.O_RDWR|os.O_CREATE, 0600)
+	if !strings.EqualFold(censorConfiguration.ParseErrorsLog, "") {
+		queryWriter, err := common.NewFileQueryWriter(censorConfiguration.ParseErrorsLog)
 		if err != nil {
 			return err
 		}
-		defer openedFile.Close()
+		go queryWriter.Start()
+		acraCensor.unparsedQueriesWriter = queryWriter
 	}
 
 	for _, handlerConfiguration := range censorConfiguration.Handlers {
@@ -89,21 +89,18 @@ func (acraCensor *AcraCensor) LoadConfiguration(configuration []byte) error {
 			}
 			acraCensor.AddHandler(blacklistHandler)
 			break
-		case QueryCaptureConfigStr:
-			if strings.EqualFold(handlerConfiguration.Filepath, "") {
-				break
-			}
-			queryCaptureHandler, err := handlers.NewQueryCaptureHandler(handlerConfiguration.Filepath)
-			if err != nil {
-				return err
-			}
-			acraCensor.AddHandler(queryCaptureHandler)
-			break
 		case QueryIgnoreConfigStr:
 			queryIgnoreHandler := handlers.NewQueryIgnoreHandler()
 			queryIgnoreHandler.AddQueries(handlerConfiguration.Queries)
 			acraCensor.AddHandler(queryIgnoreHandler)
 			break
+		case QueryCaptureConfigStr:
+			queryCaptureHandler, err := handlers.NewQueryCaptureHandler(handlerConfiguration.FilePath)
+			if err != nil {
+				return err
+			}
+			go queryCaptureHandler.Start()
+			acraCensor.AddHandler(queryCaptureHandler)
 		default:
 			break
 		}
