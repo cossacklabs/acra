@@ -41,9 +41,7 @@ var (
 	ErrPatternSyntaxError              = errors.New("fail to parse specified pattern")
 	ErrPatternCheckError               = errors.New("failed to check specified pattern match")
 	ErrQuerySyntaxError                = errors.New("fail to parse specified query")
-	ErrComplexSerializationError       = errors.New("can't perform complex serialization of queries")
-	ErrCantOpenFileError               = errors.New("can't open file to write queries")
-	ErrCantReadQueriesFromFileError    = errors.New("can't read queries from file")
+	ErrCantReadQueriesFromStorageError = errors.New("can't read queries from storage")
 	ErrUnexpectedTypeError             = errors.New("should never appear")
 )
 
