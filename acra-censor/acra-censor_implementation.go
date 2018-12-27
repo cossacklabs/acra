@@ -84,7 +84,7 @@ func (acraCensor *AcraCensor) HandleQuery(rawQuery string) error {
 	}
 	// Parsed query handling
 	for _, handler := range acraCensor.handlers {
-		if queryCaptureHandler, ok := handler.(*handlers.QueryCapture); ok {
+		if queryCaptureHandler, ok := handler.(*handlers.QueryCaptureHandler); ok {
 			queryCaptureHandler.CheckQuery(queryWithHiddenValues, nil)
 		}
 		continueHandling, err := handler.CheckQuery(normalizedQuery, parsedQuery)

@@ -1370,7 +1370,7 @@ func TestAddingCapturedQueriesIntoBlacklist(t *testing.T) {
 	if err = tmpFile.Close(); err != nil {
 		t.Fatal(err)
 	}
-	queryCaptureHandler, err := handlers.NewQueryCapture(tmpFile.Name())
+	queryCaptureHandler, err := handlers.NewQueryCaptureHandler(tmpFile.Name())
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -95,7 +95,7 @@ func (acraCensor *AcraCensor) LoadConfiguration(configuration []byte) error {
 			acraCensor.AddHandler(queryIgnoreHandler)
 			break
 		case QueryCaptureConfigStr:
-			queryCaptureHandler, err := handlers.NewQueryCapture(handlerConfiguration.FilePath)
+			queryCaptureHandler, err := handlers.NewQueryCaptureHandler(handlerConfiguration.FilePath)
 			if err != nil {
 				return err
 			}

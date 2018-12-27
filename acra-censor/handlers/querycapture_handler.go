@@ -6,12 +6,14 @@ import (
 	"strings"
 )
 
-type QueryCapture struct {
+// QueryCaptureHandler provides logging mechanism of censor
+type QueryCaptureHandler struct {
 	writer *common.QueryWriter
 }
 
-func NewQueryCapture(filePath string) (*QueryCapture, error) {
-	queryCaptureHandler := &QueryCapture{}
+// NewQueryCaptureHandler is a constructor of QueryCaptureHandler instance
+func NewQueryCaptureHandler(filePath string) (*QueryCaptureHandler, error) {
+	queryCaptureHandler := &QueryCaptureHandler{}
 	writer, err := common.NewFileQueryWriter(filePath)
 	if err != nil {
 		return nil, err
@@ -20,12 +22,13 @@ func NewQueryCapture(filePath string) (*QueryCapture, error) {
 	return queryCaptureHandler, nil
 }
 
-func (handler *QueryCapture) Start() {
+// Start starts logging in background
+func (handler *QueryCaptureHandler) Start() {
 	handler.writer.Start()
 }
 
 // CheckQuery sends query to internal writer to save
-func (handler *QueryCapture) CheckQuery(sqlQuery string, parsedQuery sqlparser.Statement) (bool, error) {
+func (handler *QueryCaptureHandler) CheckQuery(sqlQuery string, parsedQuery sqlparser.Statement) (bool, error) {
 	// skip unparsed queries
 	if parsedQuery == nil {
 		return true, nil
@@ -35,12 +38,13 @@ func (handler *QueryCapture) CheckQuery(sqlQuery string, parsedQuery sqlparser.S
 }
 
 // Release frees all resources
-func (handler *QueryCapture) Release() {
+func (handler *QueryCaptureHandler) Release() {
 	handler.writer.Free()
 }
 
-// DumpQueries
-func (handler *QueryCapture) DumpQueries() error {
+// DumpQueries saves all queries stored in memory of internal writer instance.
+// Expected to be called after marking queries as forbidden
+func (handler *QueryCaptureHandler) DumpQueries() error {
 	err := handler.writer.DumpQueries()
 	if err != nil {
 		return err
@@ -50,7 +54,7 @@ func (handler *QueryCapture) DumpQueries() error {
 
 // MarkQueryAsForbidden marks particular query as forbidden.
 // Expects redacted query
-func (handler *QueryCapture) MarkQueryAsForbidden(query string) error {
+func (handler *QueryCaptureHandler) MarkQueryAsForbidden(query string) error {
 	_, queryWithHiddenValues, _, err := common.HandleRawSQLQuery(query)
 	if err != nil {
 		return err
@@ -68,7 +72,7 @@ func (handler *QueryCapture) MarkQueryAsForbidden(query string) error {
 }
 
 // GetForbiddenQueries returns a list of non-masked forbidden RawQueries.
-func (handler *QueryCapture) GetForbiddenQueries() []string {
+func (handler *QueryCaptureHandler) GetForbiddenQueries() []string {
 	queries := handler.writer.GetQueries()
 	var forbiddenQueries []string
 	for _, queryInfo := range queries {

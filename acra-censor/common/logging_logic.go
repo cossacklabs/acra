@@ -82,6 +82,8 @@ func NewFileQueryWriter(filePath string) (*QueryWriter, error) {
 	}
 	return writer, nil
 }
+
+// GetQueries returns copy of internal buffer
 func (queryWriter *QueryWriter) GetQueries() []*QueryInfo {
 	queryWriter.mutex.RLock()
 	queriesCopy := queryWriter.Queries
@@ -89,6 +91,7 @@ func (queryWriter *QueryWriter) GetQueries() []*QueryInfo {
 	return queriesCopy
 }
 
+// SetQuery sets actual query value to the specified index in internal buffer
 func (queryWriter *QueryWriter) SetQuery(queryInfo *QueryInfo, index int) {
 	queryWriter.mutex.Lock()
 	queryWriter.Queries[index] = queryInfo
