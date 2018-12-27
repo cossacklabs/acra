@@ -52,26 +52,24 @@ type QueryWriter struct {
 // NewFileQueryWriter creates QueryWriter instance
 func NewFileQueryWriter(filePath string) (*QueryWriter, error) {
 	// create writer
-	writer := &QueryWriter{}
+	writer := &QueryWriter{
+		queryIndex:0,
+		mutex:&sync.RWMutex{},
+		serializationTimeout:DefaultSerializationTimeout,
+		serializationTicker:time.NewTicker(DefaultSerializationTimeout),
+		logger:log.WithField("internal_object", "querywriter"),
+		signalBackgroundExit:make(chan bool),
+		signalWriteQuery:make(chan string, DefaultWriteQueryChannelSize),
+		signalShutdown:make(chan os.Signal, 2),
+	}
+	signal.Notify(writer.signalShutdown, os.Interrupt, syscall.SIGTERM)
+
 	storage, err := NewFileLogStorage(filePath)
 	if err != nil {
 		writer.logger.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCensorIOError).Errorln("Can't create QueryWriter instance")
+		return nil, err
 	}
 	writer.logStorage = storage
-	writer.queryIndex = 0
-	writer.mutex = &sync.RWMutex{}
-	// signals
-	signalShutdown := make(chan os.Signal, 2)
-	signal.Notify(signalShutdown, os.Interrupt, syscall.SIGTERM)
-	signalBackgroundExit := make(chan bool)
-	signalWriteQuery := make(chan string, DefaultWriteQueryChannelSize)
-	writer.signalBackgroundExit = signalBackgroundExit
-	writer.signalWriteQuery = signalWriteQuery
-	writer.signalShutdown = signalShutdown
-
-	writer.serializationTimeout = DefaultSerializationTimeout
-	writer.serializationTicker = time.NewTicker(DefaultSerializationTimeout)
-	writer.logger = log.WithField("internal_object", "querywriter")
 
 	// load existing queries
 	err = writer.readStoredQueries()
@@ -91,11 +89,16 @@ func (queryWriter *QueryWriter) GetQueries() []*QueryInfo {
 	return queriesCopy
 }
 
-// SetQuery sets actual query value to the specified index in internal buffer
-func (queryWriter *QueryWriter) SetQuery(queryInfo *QueryInfo, index int) {
-	queryWriter.mutex.Lock()
-	queryWriter.Queries[index] = queryInfo
-	queryWriter.mutex.Unlock()
+// WalkQueries walks through each query and perform some action on it
+func (writer *QueryWriter) WalkQueries(visitor func (query *QueryInfo) error) error {
+	writer.mutex.Lock()
+	defer writer.mutex.Unlock()
+	for _, query := range writer.Queries {
+		if err := visitor(query); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // DumpQueries writes all queries into file

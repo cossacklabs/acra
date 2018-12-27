@@ -3,12 +3,13 @@ package common
 import (
 	"io/ioutil"
 	"os"
+	"sync"
 )
 
 // FileLogStorage is a file-based implementation of LogStorage interface
 type FileLogStorage struct {
-	file           *os.File
-	openedToAppend bool
+	file  *os.File
+	mutex *sync.Mutex
 }
 
 // NewFileLogStorage is a constructor for FileLogStorage
@@ -17,9 +18,7 @@ func NewFileLogStorage(filePath string) (*FileLogStorage, error) {
 	if err != nil {
 		return nil, err
 	}
-	fileLogStorage := &FileLogStorage{}
-	fileLogStorage.file = openedFile
-	return fileLogStorage, nil
+	return &FileLogStorage{file:openedFile, mutex:&sync.Mutex{}}, nil
 }
 
 // ReadAll returns stored queries in raw form from internal file
@@ -29,6 +28,8 @@ func (storage *FileLogStorage) ReadAll() ([]byte, error) {
 
 // WriteAll writes raw queries that need to be stored to internal file
 func (storage *FileLogStorage) WriteAll(p []byte) error {
+	storage.mutex.Lock()
+	defer storage.mutex.Unlock()
 	if err := storage.file.Truncate(0); err != nil {
 		return err
 	}
@@ -41,6 +42,8 @@ func (storage *FileLogStorage) WriteAll(p []byte) error {
 
 // Append appends raw queries to the end of internal file
 func (storage *FileLogStorage) Append(p []byte) error {
+	storage.mutex.Lock()
+	defer storage.mutex.Unlock()
 	_, err := storage.file.Write(p)
 	if err != nil {
 		return err

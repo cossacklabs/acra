@@ -59,14 +59,14 @@ func (handler *QueryCaptureHandler) MarkQueryAsForbidden(query string) error {
 	if err != nil {
 		return err
 	}
-	queries := handler.writer.GetQueries()
-	for index, queryInfo := range queries {
-		if strings.EqualFold(queryWithHiddenValues, queryInfo.RawQuery) {
-			newQueryInfo := &common.QueryInfo{}
-			newQueryInfo.RawQuery = queryWithHiddenValues
-			newQueryInfo.IsForbidden = true
-			handler.writer.SetQuery(newQueryInfo, index)
+	err = handler.writer.WalkQueries(func(queryInfo *common.QueryInfo) error {
+		if strings.EqualFold(queryInfo.RawQuery, queryWithHiddenValues) {
+			queryInfo.IsForbidden = true
 		}
+		return nil
+	})
+	if err != nil {
+		return err
 	}
 	return nil
 }
