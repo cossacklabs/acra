@@ -1,7 +1,8 @@
 ignore_parse_error: false
 parse_errors_log: unparsed_queries.log
-capture_log: censor.log
 handlers:
+  - handler: query_capture
+    filepath: censor.log
   - handler: query_ignore
     queries:
       - ROLLBACK

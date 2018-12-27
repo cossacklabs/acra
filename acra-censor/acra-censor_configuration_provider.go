@@ -25,9 +25,10 @@ import (
 
 // Query handlers' names.
 const (
-	BlacklistConfigStr   = "blacklist"
-	WhitelistConfigStr   = "whitelist"
-	QueryIgnoreConfigStr = "query_ignore"
+	BlacklistConfigStr    = "blacklist"
+	WhitelistConfigStr    = "whitelist"
+	QueryCaptureConfigStr = "query_capture"
+	QueryIgnoreConfigStr  = "query_ignore"
 )
 
 // Config shows handlers configuration: queries, tables, patterns
@@ -37,10 +38,10 @@ type Config struct {
 		Queries  []string
 		Tables   []string
 		Patterns []string
+		FilePath string
 	}
 	IgnoreParseError bool   `yaml:"ignore_parse_error"`
 	ParseErrorsLog   string `yaml:"parse_errors_log"`
-	CaptureLog       string `yaml:"capture_log"`
 }
 
 // LoadConfiguration loads configuration of AcraCensor
@@ -51,18 +52,12 @@ func (acraCensor *AcraCensor) LoadConfiguration(configuration []byte) error {
 		return err
 	}
 	acraCensor.ignoreParseError = censorConfiguration.IgnoreParseError
-	if !strings.EqualFold(censorConfiguration.CaptureLog, "") {
-		queryWriter, err := common.NewFileQueryWriter(censorConfiguration.CaptureLog)
-		if err != nil {
-			return err
-		}
-		acraCensor.parsedQueriesWriter = queryWriter
-	}
 	if !strings.EqualFold(censorConfiguration.ParseErrorsLog, "") {
 		queryWriter, err := common.NewFileQueryWriter(censorConfiguration.ParseErrorsLog)
 		if err != nil {
 			return err
 		}
+		go queryWriter.Start()
 		acraCensor.unparsedQueriesWriter = queryWriter
 	}
 
@@ -99,6 +94,13 @@ func (acraCensor *AcraCensor) LoadConfiguration(configuration []byte) error {
 			queryIgnoreHandler.AddQueries(handlerConfiguration.Queries)
 			acraCensor.AddHandler(queryIgnoreHandler)
 			break
+		case QueryCaptureConfigStr:
+			queryCaptureHandler, err := handlers.NewQueryCapture(handlerConfiguration.FilePath)
+			if err != nil {
+				return err
+			}
+			go queryCaptureHandler.Start()
+			acraCensor.AddHandler(queryCaptureHandler)
 		default:
 			break
 		}

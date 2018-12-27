@@ -18,6 +18,7 @@ package acracensor
 
 import (
 	"github.com/cossacklabs/acra/acra-censor/common"
+	"github.com/cossacklabs/acra/acra-censor/handlers"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -28,7 +29,6 @@ const ServiceName = "acra-censor"
 type AcraCensor struct {
 	handlers              []QueryHandlerInterface
 	ignoreParseError      bool
-	parsedQueriesWriter   *common.QueryWriter
 	unparsedQueriesWriter *common.QueryWriter
 	logger                *log.Entry
 }
@@ -66,7 +66,7 @@ func (acraCensor *AcraCensor) ReleaseAll() {
 
 // HandleQuery processes every query through each handler.
 func (acraCensor *AcraCensor) HandleQuery(rawQuery string) error {
-	if len(acraCensor.handlers) == 0 && acraCensor.parsedQueriesWriter == nil && acraCensor.unparsedQueriesWriter == nil {
+	if len(acraCensor.handlers) == 0 && acraCensor.unparsedQueriesWriter == nil {
 		// no handlers, AcraCensor won't work
 		return nil
 	}
@@ -83,8 +83,10 @@ func (acraCensor *AcraCensor) HandleQuery(rawQuery string) error {
 		return err
 	}
 	// Parsed query handling
-	acraCensor.saveParsedQuery(queryWithHiddenValues)
 	for _, handler := range acraCensor.handlers {
+		if queryCaptureHandler, ok := handler.(*handlers.QueryCapture); ok {
+			queryCaptureHandler.CheckQuery(queryWithHiddenValues, nil)
+		}
 		continueHandling, err := handler.CheckQuery(normalizedQuery, parsedQuery)
 		if err != nil {
 			acraCensor.logger.Errorf("Forbidden query: '%s'", queryWithHiddenValues)
@@ -102,12 +104,6 @@ func (acraCensor *AcraCensor) HandleQuery(rawQuery string) error {
 
 func (acraCensor *AcraCensor) saveUnparsedQuery(query string) {
 	if acraCensor.unparsedQueriesWriter != nil {
-		acraCensor.unparsedQueriesWriter.CheckQuery(query, nil)
-	}
-}
-
-func (acraCensor *AcraCensor) saveParsedQuery(query string) {
-	if acraCensor.parsedQueriesWriter != nil {
-		acraCensor.parsedQueriesWriter.CheckQuery(query, nil)
+		acraCensor.unparsedQueriesWriter.WriteQuery(query)
 	}
 }

@@ -41,9 +41,10 @@ func TestSerializationOnUniqueQueries(t *testing.T) {
 		t.Fatal(err)
 	}
 	writer, err := NewFileQueryWriter(tmpFile.Name())
+	go writer.Start()
 
 	defer func() {
-		writer.Release()
+		writer.Free()
 		err = os.Remove(tmpFile.Name())
 		if err != nil {
 			t.Fatal(err)
@@ -53,34 +54,39 @@ func TestSerializationOnUniqueQueries(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	for _, query := range testQueries {
-		_, err = writer.RedactAndCheckQuery(query)
+		_, queryWithHiddenValues, _, err := HandleRawSQLQuery(query)
+		if err != nil {
+			t.Fatal(err)
+		}
+		writer.captureQuery(queryWithHiddenValues)
 		if err != nil {
 			t.Fatal(err)
 		}
 	}
 	time.Sleep(DefaultSerializationTimeout + 100*time.Millisecond)
-	if len(writer.GetAllInputQueries()) != len(testQueries) {
-		t.Fatal("Expected: " + strings.Join(testQueries, " | ") + "\nGot: " + strings.Join(writer.GetAllInputQueries(), " | "))
+	if len(writer.GetQueries()) != len(testQueries) {
+		t.Fatal("Expected: " + strings.Join(testQueries, " | ") + "\nGot: " + strings.Join(rawStrings(writer.GetQueries()), " | "))
 	}
 	err = writer.DumpQueries()
 	if err != nil {
 		t.Fatal(err)
 	}
 	writer.reset()
-	if len(writer.GetAllInputQueries()) != 0 {
-		t.Fatal("Expected no queries \nGot: " + strings.Join(writer.GetAllInputQueries(), " | "))
+	if len(writer.GetQueries()) != 0 {
+		t.Fatal("Expected no queries \nGot: " + strings.Join(rawStrings(writer.GetQueries()), " | "))
 	}
 	err = writer.readStoredQueries()
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(writer.GetAllInputQueries()) != len(testQueries) {
-		t.Fatal("Expected: " + strings.Join(testQueries, " | ") + "\nGot: " + strings.Join(writer.GetAllInputQueries(), " | "))
+	if len(writer.GetQueries()) != len(testQueries) {
+		t.Fatal("Expected: " + strings.Join(testQueries, " | ") + "\nGot: " + strings.Join(rawStrings(writer.GetQueries()), " | "))
 	}
-	for index, query := range writer.GetAllInputQueries() {
-		if strings.EqualFold(testQueries[index], query) {
-			t.Fatal("Expected: " + testQueries[index] + "\nGot: " + query)
+	for index, query := range writer.GetQueries() {
+		if strings.EqualFold(testQueries[index], query.RawQuery) {
+			t.Fatal("Expected: " + testQueries[index] + "\nGot: " + query.RawQuery)
 		}
 	}
 }
@@ -109,7 +115,7 @@ func TestSerializationOnSameQueries(t *testing.T) {
 	writer, err := NewFileQueryWriter(tmpFile.Name())
 
 	defer func() {
-		writer.Release()
+		writer.Free()
 		err = os.Remove(tmpFile.Name())
 		if err != nil {
 			t.Fatal(err)
@@ -119,34 +125,43 @@ func TestSerializationOnSameQueries(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+
+	go writer.Start()
+
 	for _, query := range testQueries {
-		_, err = writer.RedactAndCheckQuery(query)
+		_, queryWithHiddenValues, _, err := HandleRawSQLQuery(query)
+		if err != nil {
+			t.Fatal(err)
+		}
+		writer.captureQuery(queryWithHiddenValues)
 		if err != nil {
 			t.Fatal(err)
 		}
 	}
+
 	time.Sleep(DefaultSerializationTimeout + 100*time.Millisecond)
-	if len(writer.GetAllInputQueries()) != numOfUniqueQueries {
-		t.Fatal("Expected to have " + fmt.Sprint(numOfUniqueQueries) + " unique queries. \n Got:" + strings.Join(writer.GetAllInputQueries(), " | "))
+
+	if len(writer.GetQueries()) != numOfUniqueQueries {
+		t.Fatal("Expected to have " + fmt.Sprint(numOfUniqueQueries) + " unique queries. \n Got:" + strings.Join(rawStrings(writer.GetQueries()), " | "))
 	}
 	err = writer.DumpQueries()
 	if err != nil {
 		t.Fatal(err)
 	}
 	writer.reset()
-	if len(writer.GetAllInputQueries()) != 0 {
-		t.Fatal("Expected no queries \nGot: " + strings.Join(writer.GetAllInputQueries(), " | "))
+	if len(writer.GetQueries()) != 0 {
+		t.Fatal("Expected no queries \nGot: " + strings.Join(rawStrings(writer.GetQueries()), " | "))
 	}
 	err = writer.readStoredQueries()
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(writer.GetAllInputQueries()) != numOfUniqueQueries {
-		t.Fatal("Expected to have " + fmt.Sprint(numOfUniqueQueries) + " unique queries. \n Got:" + strings.Join(writer.GetAllInputQueries(), " | "))
+	if len(writer.GetQueries()) != numOfUniqueQueries {
+		t.Fatal("Expected to have " + fmt.Sprint(numOfUniqueQueries) + " unique queries. \n Got:" + strings.Join(rawStrings(writer.GetQueries()), " | "))
 	}
-	for index, query := range writer.GetAllInputQueries() {
-		if strings.EqualFold(testQueries[index], query) {
-			t.Fatal("Expected: " + testQueries[index] + "\nGot: " + query)
+	for index, query := range writer.GetQueries() {
+		if strings.EqualFold(testQueries[index], query.RawQuery) {
+			t.Fatal("Expected: " + testQueries[index] + "\nGot: " + query.RawQuery)
 		}
 	}
 }
@@ -161,91 +176,104 @@ func TestQueryCapture(t *testing.T) {
 		t.Fatal(err)
 	}
 	writer, err := NewFileQueryWriter(tmpFile.Name())
-	if err != nil {
-		t.Fatal(err)
-	}
 	defer func() {
-		writer.Release()
+		writer.Free()
 		err = os.Remove(tmpFile.Name())
 		if err != nil {
 			t.Fatal(err)
 		}
 	}()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	go writer.Start()
+
 	testQueries := []string{
 		"SELECT Student_ID FROM STUDENT;",
 		"SELECT * FROM STUDENT;",
 		"SELECT * FROM X;",
 		"SELECT * FROM Y;",
 	}
-	for _, query := range testQueries {
-		_, err = writer.RedactAndCheckQuery(query)
+	_ = testQueries
+	/*
+		for _, query := range testQueries {
+			_, err = writer.RedactAndCheckQuery(query)
+			if err != nil {
+				t.Fatal(err)
+			}
+		}
+		expected := "{\"raw_query\":\"SELECT Student_ID FROM STUDENT\",\"_blacklisted_by_web_config\":false}\n" +
+			"{\"raw_query\":\"SELECT * FROM STUDENT\",\"_blacklisted_by_web_config\":false}\n" +
+			"{\"raw_query\":\"SELECT * FROM X\",\"_blacklisted_by_web_config\":false}\n" +
+			"{\"raw_query\":\"SELECT * FROM Y\",\"_blacklisted_by_web_config\":false}\n"
+
+		time.Sleep(DefaultSerializationTimeout + extraWaitTime)
+		result, err := ioutil.ReadFile(tmpFile.Name())
 		if err != nil {
 			t.Fatal(err)
 		}
+		if !strings.EqualFold(strings.ToUpper(string(result)), strings.ToUpper(expected)) {
+			t.Fatal("Expected: " + expected + "\nGot: " + string(result))
+		}
+		testQuery := "SELECT * FROM Z;"
+		_, err = writer.RedactAndCheckQuery(testQuery)
+		if err != nil {
+			t.Fatal(err)
+		}
+		expected = "{\"raw_query\":\"SELECT Student_ID FROM STUDENT\",\"_blacklisted_by_web_config\":false}\n" +
+			"{\"raw_query\":\"SELECT * FROM STUDENT\",\"_blacklisted_by_web_config\":false}\n" +
+			"{\"raw_query\":\"SELECT * FROM X\",\"_blacklisted_by_web_config\":false}\n" +
+			"{\"raw_query\":\"SELECT * FROM Y\",\"_blacklisted_by_web_config\":false}\n" +
+			"{\"raw_query\":\"SELECT * FROM Z\",\"_blacklisted_by_web_config\":false}\n"
+
+		time.Sleep(DefaultSerializationTimeout + extraWaitTime)
+		result, err = ioutil.ReadFile(tmpFile.Name())
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !strings.EqualFold(strings.ToUpper(string(result)), strings.ToUpper(expected)) {
+			t.Fatal("Expected: " + expected + "\nGot: " + string(result))
+		}
+
+		//Check that values are hidden while logging
+		testQuery = "select songName from t where personName in ('Ryan', 'Holly') group by songName having count(distinct personName) = 10"
+
+		writer.RedactAndCheckQuery(testQuery)
+
+		//wait until serialization completes
+		time.Sleep(DefaultSerializationTimeout + extraWaitTime)
+
+		result, err = ioutil.ReadFile(tmpFile.Name())
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		expectedPrefix := "{\"raw_query\":\"SELECT Student_ID FROM STUDENT\",\"_blacklisted_by_web_config\":false}\n" +
+			"{\"raw_query\":\"SELECT * FROM STUDENT\",\"_blacklisted_by_web_config\":false}\n" +
+			"{\"raw_query\":\"SELECT * FROM X\",\"_blacklisted_by_web_config\":false}\n" +
+			"{\"raw_query\":\"SELECT * FROM Y\",\"_blacklisted_by_web_config\":false}\n" +
+			"{\"raw_query\":\"SELECT * FROM Z\",\"_blacklisted_by_web_config\":false}\n" +
+			"{\"raw_query\":\"select songName from t where personName in"
+
+		suffix := strings.TrimPrefix(strings.ToUpper(string(result)), strings.ToUpper(expectedPrefix))
+
+		//we expect TWO placeholders here: instead of "('Ryan', 'Holly')" and instead of "10"
+		if strings.Count(suffix, strings.ToUpper(ValueMask)) != 2 {
+			t.Fatal("unexpected placeholder values in following: " + string(result))
+		}
+
+		if strings.Contains(strings.ToUpper(string(result)), strings.ToUpper("Ryan")) ||
+			strings.Contains(strings.ToUpper(string(result)), strings.ToUpper("Holly")) ||
+			strings.Contains(strings.ToUpper(string(result)), strings.ToUpper("10")) {
+			t.Fatal("values detected in logs: " + string(result))
+		}*/
+}
+
+func rawStrings(input []*QueryInfo) []string {
+	var result []string
+	for _, queryInfo := range input {
+		result = append(result, queryInfo.RawQuery)
 	}
-	expected := "{\"raw_query\":\"SELECT Student_ID FROM STUDENT\",\"_blacklisted_by_web_config\":false}\n" +
-		"{\"raw_query\":\"SELECT * FROM STUDENT\",\"_blacklisted_by_web_config\":false}\n" +
-		"{\"raw_query\":\"SELECT * FROM X\",\"_blacklisted_by_web_config\":false}\n" +
-		"{\"raw_query\":\"SELECT * FROM Y\",\"_blacklisted_by_web_config\":false}\n"
-
-	time.Sleep(DefaultSerializationTimeout + extraWaitTime)
-	result, err := ioutil.ReadFile(tmpFile.Name())
-	if err != nil {
-		t.Fatal(err)
-	}
-	if !strings.EqualFold(strings.ToUpper(string(result)), strings.ToUpper(expected)) {
-		t.Fatal("Expected: " + expected + "\nGot: " + string(result))
-	}
-	testQuery := "SELECT * FROM Z;"
-	_, err = writer.RedactAndCheckQuery(testQuery)
-	if err != nil {
-		t.Fatal(err)
-	}
-	expected = "{\"raw_query\":\"SELECT Student_ID FROM STUDENT\",\"_blacklisted_by_web_config\":false}\n" +
-		"{\"raw_query\":\"SELECT * FROM STUDENT\",\"_blacklisted_by_web_config\":false}\n" +
-		"{\"raw_query\":\"SELECT * FROM X\",\"_blacklisted_by_web_config\":false}\n" +
-		"{\"raw_query\":\"SELECT * FROM Y\",\"_blacklisted_by_web_config\":false}\n" +
-		"{\"raw_query\":\"SELECT * FROM Z\",\"_blacklisted_by_web_config\":false}\n"
-
-	time.Sleep(DefaultSerializationTimeout + extraWaitTime)
-	result, err = ioutil.ReadFile(tmpFile.Name())
-	if err != nil {
-		t.Fatal(err)
-	}
-	if !strings.EqualFold(strings.ToUpper(string(result)), strings.ToUpper(expected)) {
-		t.Fatal("Expected: " + expected + "\nGot: " + string(result))
-	}
-
-	//Check that values are hidden while logging
-	testQuery = "select songName from t where personName in ('Ryan', 'Holly') group by songName having count(distinct personName) = 10"
-
-	writer.RedactAndCheckQuery(testQuery)
-
-	//wait until serialization completes
-	time.Sleep(DefaultSerializationTimeout + extraWaitTime)
-
-	result, err = ioutil.ReadFile(tmpFile.Name())
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	expectedPrefix := "{\"raw_query\":\"SELECT Student_ID FROM STUDENT\",\"_blacklisted_by_web_config\":false}\n" +
-		"{\"raw_query\":\"SELECT * FROM STUDENT\",\"_blacklisted_by_web_config\":false}\n" +
-		"{\"raw_query\":\"SELECT * FROM X\",\"_blacklisted_by_web_config\":false}\n" +
-		"{\"raw_query\":\"SELECT * FROM Y\",\"_blacklisted_by_web_config\":false}\n" +
-		"{\"raw_query\":\"SELECT * FROM Z\",\"_blacklisted_by_web_config\":false}\n" +
-		"{\"raw_query\":\"select songName from t where personName in"
-
-	suffix := strings.TrimPrefix(strings.ToUpper(string(result)), strings.ToUpper(expectedPrefix))
-
-	//we expect TWO placeholders here: instead of "('Ryan', 'Holly')" and instead of "10"
-	if strings.Count(suffix, strings.ToUpper(ValueMask)) != 2 {
-		t.Fatal("unexpected placeholder values in following: " + string(result))
-	}
-
-	if strings.Contains(strings.ToUpper(string(result)), strings.ToUpper("Ryan")) ||
-		strings.Contains(strings.ToUpper(string(result)), strings.ToUpper("Holly")) ||
-		strings.Contains(strings.ToUpper(string(result)), strings.ToUpper("10")) {
-		t.Fatal("values detected in logs: " + string(result))
-	}
+	return result
 }

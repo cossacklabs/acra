@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"encoding/json"
 	"github.com/cossacklabs/acra/logging"
-	"github.com/cossacklabs/acra/sqlparser"
 	log "github.com/sirupsen/logrus"
 	"io"
 	"os"
@@ -17,6 +16,9 @@ import (
 
 // DefaultSerializationTimeout defines a default ticker' timeout
 const DefaultSerializationTimeout = time.Second
+
+// DefaultWriteQueryChannelSize defines size of channel used for writing input queries
+const DefaultWriteQueryChannelSize = 50
 
 // QueryInfo defines format of exporting query into file
 type QueryInfo struct {
@@ -40,6 +42,8 @@ type QueryWriter struct {
 	queryIndex           int
 	mutex                *sync.RWMutex
 	signalBackgroundExit chan bool
+	signalWriteQuery     chan string
+	signalShutdown       chan os.Signal
 	serializationTimeout time.Duration
 	serializationTicker  *time.Ticker
 	logger               *log.Entry
@@ -60,53 +64,38 @@ func NewFileQueryWriter(filePath string) (*QueryWriter, error) {
 	signalShutdown := make(chan os.Signal, 2)
 	signal.Notify(signalShutdown, os.Interrupt, syscall.SIGTERM)
 	signalBackgroundExit := make(chan bool)
+	signalWriteQuery := make(chan string, DefaultWriteQueryChannelSize)
 	writer.signalBackgroundExit = signalBackgroundExit
+	writer.signalWriteQuery = signalWriteQuery
+	writer.signalShutdown = signalShutdown
 
 	writer.serializationTimeout = DefaultSerializationTimeout
 	writer.serializationTicker = time.NewTicker(DefaultSerializationTimeout)
 	writer.logger = log.WithField("internal_object", "querywriter")
 
-	// read existing queries
+	// load existing queries
 	err = writer.readStoredQueries()
 	if err != nil {
 		writer.logger.WithError(ErrCantReadQueriesFromStorageError).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCensorIOError).Errorln("Can't create QueryWriter instance")
 		writer.logStorage.Close()
 		return nil, err
 	}
-
-	//handling goroutine
-	go func() {
-		for {
-			select {
-			case <-writer.serializationTicker.C:
-				err := writer.dumpBufferedQueries()
-				if err != nil {
-					writer.logger.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCensorIOError).Errorln("Can't dump buffered queries")
-				}
-				writer.serializationTicker.Stop()
-				writer.serializationTicker = time.NewTicker(writer.serializationTimeout)
-			case <-signalBackgroundExit:
-				writer.serializationTicker.Stop()
-				err := writer.logStorage.Close()
-				if err != nil {
-					writer.logger.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCensorIOError).Errorln("Error occurred on exit QueryWriter instance")
-				}
-			case <-signalShutdown:
-				writer.serializationTicker.Stop()
-				err := writer.logStorage.Close()
-				if err != nil {
-					writer.logger.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCensorIOError).Errorln("Error occurred on shutdown QueryWriter instance")
-				}
-				return
-			default:
-				//do nothing. This means that channel has no data to read yet
-			}
-		}
-	}()
 	return writer, nil
 }
+func (queryWriter *QueryWriter) GetQueries() []*QueryInfo {
+	queryWriter.mutex.RLock()
+	queriesCopy := queryWriter.Queries
+	queryWriter.mutex.RUnlock()
+	return queriesCopy
+}
 
-// DumpQueries writes all queries into file.
+func (queryWriter *QueryWriter) SetQuery(queryInfo *QueryInfo, index int) {
+	queryWriter.mutex.Lock()
+	queryWriter.Queries[index] = queryInfo
+	queryWriter.mutex.Unlock()
+}
+
+// DumpQueries writes all queries into file
 func (queryWriter *QueryWriter) DumpQueries() error {
 	queryWriter.mutex.Lock()
 	rawData := queryWriter.serializeQueries(queryWriter.Queries)
@@ -118,11 +107,56 @@ func (queryWriter *QueryWriter) DumpQueries() error {
 	return nil
 }
 
-// Release dumps all Captured queries to file and resets Captured queries list.
-func (queryWriter *QueryWriter) Release() {
+// Free dumps all Captured queries to file and resets captured queries list
+func (queryWriter *QueryWriter) Free() {
 	queryWriter.DumpQueries()
 	queryWriter.signalBackgroundExit <- true
 	queryWriter.reset()
+}
+
+// Start starts background logging of input queries. Should be called in separate goroutine
+func (queryWriter *QueryWriter) Start() {
+	for {
+		select {
+		case query := <-queryWriter.signalWriteQuery:
+			queryWriter.captureQuery(query)
+			break
+		case <-queryWriter.serializationTicker.C:
+			err := queryWriter.dumpBufferedQueries()
+			if err != nil {
+				queryWriter.logger.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCensorIOError).Errorln("Can't dump buffered queries")
+			}
+			queryWriter.serializationTicker.Stop()
+			queryWriter.serializationTicker = time.NewTicker(queryWriter.serializationTimeout)
+			break
+		case <-queryWriter.signalBackgroundExit:
+			queryWriter.serializationTicker.Stop()
+			err := queryWriter.logStorage.Close()
+			if err != nil {
+				queryWriter.logger.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCensorIOError).Errorln("Error occurred on exit QueryWriter instance")
+			}
+			return
+		case <-queryWriter.signalShutdown:
+			queryWriter.serializationTicker.Stop()
+			err := queryWriter.logStorage.Close()
+			if err != nil {
+				queryWriter.logger.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCensorIOError).Errorln("Error occurred on shutdown QueryWriter instance")
+			}
+			return
+		default:
+			//do nothing. This means that channel has no data to read yet
+		}
+	}
+}
+
+// WriteQuery writes input query to captured queries list
+func (queryWriter *QueryWriter) WriteQuery(query string) {
+	select {
+	case queryWriter.signalWriteQuery <- query:
+		break
+	default:
+		queryWriter.logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCensorIOError).Warningln("Too much input queries")
+	}
 }
 
 func (queryWriter *QueryWriter) reset() {
@@ -192,80 +226,15 @@ func (queryWriter *QueryWriter) serializeQueries(queries []*QueryInfo) []byte {
 	return linesToAppend
 }
 
-// GetAllInputQueries returns a list of non-masked RawQueries.
-func (queryWriter *QueryWriter) GetAllInputQueries() []string {
-	queryWriter.mutex.RLock()
-	defer queryWriter.mutex.RUnlock()
-
-	var queries []string
-	for _, queryInfo := range queryWriter.Queries {
-		queries = append(queries, queryInfo.RawQuery)
-	}
-	return queries
-}
-
-// RedactAndMarkQueryAsForbidden redacts query first, then calls CheckQuery
-func (queryWriter *QueryWriter) RedactAndMarkQueryAsForbidden(query string) {
-	_, queryWithHiddenValues, _, err := HandleRawSQLQuery(query)
-	if err != nil {
-		return
-	}
-	queryWriter.MarkQueryAsForbidden(queryWithHiddenValues)
-}
-
-// MarkQueryAsForbidden marks particular query as forbidden.
-// It will be written to file on Stop, Reset or Release.
-// Expects redacted query
-func (queryWriter *QueryWriter) MarkQueryAsForbidden(queryWithHiddenValues string) {
-	queryWriter.mutex.Lock()
-	defer queryWriter.mutex.Unlock()
-
-	for index, queryInfo := range queryWriter.Queries {
-		if strings.EqualFold(queryWithHiddenValues, queryInfo.RawQuery) {
-			queryWriter.Queries[index].IsForbidden = true
-		}
-	}
-}
-
-// GetForbiddenQueries returns a list of non-masked forbidden RawQueries.
-func (queryWriter *QueryWriter) GetForbiddenQueries() []string {
-	queryWriter.mutex.RLock()
-	defer queryWriter.mutex.RUnlock()
-
-	var forbiddenQueries []string
-	for _, queryInfo := range queryWriter.Queries {
-		if queryInfo.IsForbidden == true {
-			forbiddenQueries = append(forbiddenQueries, queryInfo.RawQuery)
-		}
-	}
-	return forbiddenQueries
-}
-
-// RedactAndCheckQuery redacts query first, then calls CheckQuery
-func (queryWriter *QueryWriter) RedactAndCheckQuery(query string) (bool, error) {
-	_, queryWithHiddenValues, parsedQuery, err := HandleRawSQLQuery(query)
-	if err != nil {
-		return true, nil
-	}
-	return queryWriter.CheckQuery(queryWithHiddenValues, parsedQuery)
-}
-
-// CheckQuery returns "yes" if Query was already captured, no otherwise.
-// Expects already redacted queries
-func (queryWriter *QueryWriter) CheckQuery(queryWithHiddenValues string, parsedQuery sqlparser.Statement) (bool, error) {
-	queryWriter.mutex.Lock()
-	defer queryWriter.mutex.Unlock()
-
-	_ = parsedQuery
+func (queryWriter *QueryWriter) captureQuery(query string) {
 	//skip already captured queries
 	for _, queryInfo := range queryWriter.Queries {
-		if strings.EqualFold(queryInfo.RawQuery, queryWithHiddenValues) {
-			return true, nil
+		if strings.EqualFold(queryInfo.RawQuery, query) {
+			return
 		}
 	}
 	queryInfo := &QueryInfo{}
-	queryInfo.RawQuery = queryWithHiddenValues
+	queryInfo.RawQuery = query
 	queryInfo.IsForbidden = false
 	queryWriter.Queries = append(queryWriter.Queries, queryInfo)
-	return true, nil
 }

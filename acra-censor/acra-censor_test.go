@@ -1370,10 +1370,12 @@ func TestAddingCapturedQueriesIntoBlacklist(t *testing.T) {
 	if err = tmpFile.Close(); err != nil {
 		t.Fatal(err)
 	}
-	writer, err := common.NewFileQueryWriter(tmpFile.Name())
+	queryCaptureHandler, err := handlers.NewQueryCapture(tmpFile.Name())
 	if err != nil {
 		t.Fatal(err)
 	}
+	go queryCaptureHandler.Start()
+
 	blacklist := handlers.NewBlacklistHandler()
 	acraCensor := NewAcraCensor()
 	defer func() {
@@ -1383,9 +1385,8 @@ func TestAddingCapturedQueriesIntoBlacklist(t *testing.T) {
 			t.Fatal(err)
 		}
 	}()
-	// writer may be added to censor object as handler to activate functionality of
-	// marking query as forbidden
-	acraCensor.AddHandler(writer)
+
+	acraCensor.AddHandler(queryCaptureHandler)
 	acraCensor.AddHandler(blacklist)
 	for _, testQuery := range testQueries {
 		err = acraCensor.HandleQuery(testQuery)
@@ -1393,24 +1394,30 @@ func TestAddingCapturedQueriesIntoBlacklist(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	writer.RedactAndMarkQueryAsForbidden(testQueries[0])
-	writer.RedactAndMarkQueryAsForbidden(testQueries[1])
-	writer.RedactAndMarkQueryAsForbidden(testQueries[2])
-	writer.DumpQueries()
 
-	blacklist.AddQueries(writer.GetForbiddenQueries())
-	err = acraCensor.HandleQuery(testQueries[0])
-	if err != common.ErrQueryInBlacklist {
+	// need to wait extra time to be sure that queryCaptureHandler captured all input queries
+	time.Sleep(time.Millisecond * 100)
+
+	indexesOfForbiddenQueries := []int{0, 1, 2}
+	for _, forbiddenQueryIndex := range indexesOfForbiddenQueries {
+		err = queryCaptureHandler.MarkQueryAsForbidden(testQueries[indexesOfForbiddenQueries[forbiddenQueryIndex]])
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+	err = queryCaptureHandler.DumpQueries()
+	if err != nil {
 		t.Fatal(err)
 	}
-	err = acraCensor.HandleQuery(testQueries[1])
-	if err != common.ErrQueryInBlacklist {
-		t.Fatal(err)
+
+	blacklist.AddQueries(queryCaptureHandler.GetForbiddenQueries())
+	for _, forbiddenQueryIndex := range indexesOfForbiddenQueries {
+		err = acraCensor.HandleQuery(testQueries[forbiddenQueryIndex])
+		if err != common.ErrQueryInBlacklist {
+			t.Fatal(err)
+		}
 	}
-	err = acraCensor.HandleQuery(testQueries[2])
-	if err != common.ErrQueryInBlacklist {
-		t.Fatal(err)
-	}
+
 	//zero, first and second query are forbidden
 	for index := 3; index < len(testQueries); index++ {
 		err = acraCensor.HandleQuery(testQueries[index])
@@ -1500,7 +1507,7 @@ func TestConfigurationProvider(t *testing.T) {
 	if acraCensor.ignoreParseError {
 		t.Fatal("ignore_parse_error must be 'false' as default")
 	}
-	if len(acraCensor.handlers) != 2 {
+	if len(acraCensor.handlers) != 3 {
 		t.Fatal("Unexpected amount of handlers: ", len(acraCensor.handlers))
 	}
 	testQueries := []string{
