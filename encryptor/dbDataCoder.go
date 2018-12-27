@@ -94,6 +94,13 @@ func (*PostgresqlDBDataCoder) Decode(expr sqlparser.Expr) ([]byte, error) {
 			// try to decode hex/octal encoding
 			binValue, err := utils.DecodeEscaped(val.Val)
 			if err != nil {
+				// return error on hex decode
+				if _, ok := err.(hex.InvalidByteError); err == hex.ErrLength || ok {
+					return nil, err
+				} else if err == utils.ErrDecodeEscapedString {
+					return nil, err
+				}
+
 				logrus.WithError(err).Warningln("Can't decode value, process as unescaped string")
 				// return value as is because it may be string with printable characters that wasn't encoded on client
 				return val.Val, nil

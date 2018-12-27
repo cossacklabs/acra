@@ -52,6 +52,9 @@ func DecodeOctal(data []byte) ([]byte, error) {
 	output := make([]byte, 0, len(data))
 	for i := 0; i < len(data); i++ {
 		ch := data[i]
+		if !IsPrintableEscapeChar(ch) {
+			return nil, ErrDecodeEscapedString
+		}
 		if ch != '\\' {
 			output = append(output, ch)
 			continue
