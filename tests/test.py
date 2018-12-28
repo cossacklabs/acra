@@ -1131,33 +1131,43 @@ class CensorBlacklistTest(BaseCensorTest):
                          AsyncpgExecutor(connection_args)]
 
         for executor in executors:
-            #test block by query
+            #test block 1 (by query)
             with self.assertRaises(expectedException):
                 result = executor.execute(
-                    "select data from test where id='1'")
-            #test block by query in prepared statement
-            with self.assertRaises(expectedException):
-                result = executor.execute_prepared_statement(
-                    "select data from test where id='1'")
-
-            #test block by table
-            with self.assertRaises(expectedException):
-                result = executor.execute("select data_raw from test")
-
-            #test block by table in prepared statement
+                    "select data_raw from test")
+            #test block 1 (by query in prepared statement)
             with self.assertRaises(expectedException):
                 result = executor.execute_prepared_statement(
                     "select data_raw from test")
 
-            #test block by pattern
+            #test block 2 (by table)
+            with self.assertRaises(expectedException):
+                result = executor.execute("select * from acrarollback_output")
+
+            #test block 2 (by table in prepared statement)
+            #with self.assertRaises(expectedException):
+            #    result = executor.execute_prepared_statement(
+            #        "select * from acrarollback_output")
+
+            #test block 3 (by pattern)
             with self.assertRaises(expectedException):
                 result = executor.execute(
-                    "select * from acrarollback_output")
+                    "select data from test where id='1'")
 
-            #test block by pattern in prepared statement
+            #test block 3 (by pattern in prepared statement)
+            #with self.assertRaises(expectedException):
+            #    result = executor.execute_prepared_statement(
+            #        "select data from test where id='1'")
+
+            #test block 4 (by pattern)
+            with self.assertRaises(expectedException):
+                result = executor.execute(
+                    "insert into someTable (a, b, c) values ('x', 'y', 'z')")
+
+            #test block 4 (by pattern in prepared statement)
             with self.assertRaises(expectedException):
                 result = executor.execute_prepared_statement(
-                    "select * from acrarollback_output")
+                    "insert into someTable (a, b, c) values ('x', 'y', 'z')")
 
 
 class CensorWhitelistTest(BaseCensorTest):
@@ -1181,19 +1191,32 @@ class CensorWhitelistTest(BaseCensorTest):
 
         for executor in executors:
 
-            #test block by table
+            #test block 1
             with self.assertRaises(expectedException):
-                result = executor.execute("select * from acrarollback_output")
-            #test block by table with prepared statement
+                result = executor.execute(
+                    "select * from acrarollback_output")
+            #test block 1 with prepared statement
             with self.assertRaises(expectedException):
-                result = executor.execute_prepared_statement("select * from acrarollback_output")
+                result = executor.execute_prepared_statement(
+                    "select * from acrarollback_output")
 
-            #test block by pattern
+            #test block 2
             with self.assertRaises(expectedException):
-                result = executor.execute("insert into test (a, b, c) values ('x', 'y', 'z')")
-            #test block by pattern with prepared statement
+                result = executor.execute(
+                    "select * from noTestTable where someValue = 100")
+            #test block 2 with prepared statement
             with self.assertRaises(expectedException):
-                result = executor.execute_prepared_statement("insert into test (a, b, c) values ('x', 'y', 'z')")
+                result = executor.execute_prepared_statement(
+                    "select * from noTestTable where someValue = 100")
+
+            #test block 3
+            with self.assertRaises(expectedException):
+                 result = executor.execute(
+                    "insert into someTable (a, b, c) values ('x', 'y', 'z')")
+            #test block 3 with prepared statement
+            with self.assertRaises(expectedException):
+                 result = executor.execute_prepared_statement(
+                    "insert into someTable (a, b, c) values ('x', 'y', 'z')")
 
 
 class ZoneHexFormatTest(BaseTestCase):

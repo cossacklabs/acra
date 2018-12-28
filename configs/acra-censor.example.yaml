@@ -8,7 +8,7 @@ handlers:
       - ROLLBACK
       - COMMIT
       - BEGIN
-  - handler: blacklist
+  - handler: deny
     queries:
       - INSERT INTO SalesStaff1 VALUES (1, 'Stephen', 'Jiang');
       - SELECT AVG(Price) FROM Products;

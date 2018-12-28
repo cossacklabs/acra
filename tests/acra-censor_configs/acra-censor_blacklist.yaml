@@ -1,4 +1,4 @@
-ignore_parse_error: false
+ignore_parse_error: true
 handlers:
   - handler: query_ignore
     queries:
@@ -29,11 +29,11 @@ handlers:
       - show standard_conforming_strings
       - SELECT CAST('test plain returns' AS VARCHAR(60)) AS anon_1
       - SELECT CAST('test unicode returns' AS VARCHAR(60)) AS anon_1
-
-  - handler: blacklist
+  - handler: deny
     queries:
       - select data_raw from test
     tables:
       - acrarollback_output
     patterns:
       - select data from test %%WHERE%%
+      - "%%INSERT%%"

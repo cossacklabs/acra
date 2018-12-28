@@ -23,72 +23,70 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
-// WhitelistHandler allows query/pattern/table and restricts/forbids everything else
-type WhitelistHandler struct {
+// AllowHandler allows query/pattern/table and restricts/forbids everything else
+type AllowHandler struct {
 	queries  map[string]bool
 	tables   map[string]bool
 	patterns []sqlparser.Statement
 	logger   *log.Entry
 }
 
-// NewWhitelistHandler creates new whitelist instance
-func NewWhitelistHandler() *WhitelistHandler {
-	handler := &WhitelistHandler{}
+// NewAllowHandler creates new whitelist instance
+func NewAllowHandler() *AllowHandler {
+	handler := &AllowHandler{}
 	handler.queries = make(map[string]bool)
 	handler.tables = make(map[string]bool)
 	handler.patterns = make([]sqlparser.Statement, 0)
-	handler.logger = log.WithField("handler", "whitelist")
+	handler.logger = log.WithField("handler", "allow")
 	return handler
 }
 
 // CheckQuery checks each query, returns false and error if query is not whitelisted or
 // if query tries to access to non-whitelisted table
-func (handler *WhitelistHandler) CheckQuery(normalizedQuery string, parsedQuery sqlparser.Statement) (bool, error) {
+func (handler *AllowHandler) CheckQuery(normalizedQuery string, parsedQuery sqlparser.Statement) (bool, error) {
 	//Check exact queries
 	if len(handler.queries) != 0 {
 		queryMatch := common.CheckExactQueriesMatch(normalizedQuery, handler.queries)
-		if !queryMatch {
-			handler.logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCensorQueryIsNotAllowed).WithError(common.ErrQueryNotInWhitelist).Errorln("Query has been blocked by whitelist [queries]")
-			return false, common.ErrQueryNotInWhitelist
+		if queryMatch {
+			return false, nil
 		}
 	}
 	//Check tables
 	if len(handler.tables) != 0 {
 		_, allTablesInWhitelist := common.CheckTableNamesMatch(parsedQuery, handler.tables)
-		if !allTablesInWhitelist {
-			handler.logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCensorQueryIsNotAllowed).WithError(common.ErrQueryNotInWhitelist).Errorln("Query has been blocked by whitelist [tables]")
-			return false, common.ErrAccessToForbiddenTableWhitelist
+		if allTablesInWhitelist {
+			return false, nil
 		}
 	}
 	//Check patterns
 	if len(handler.patterns) != 0 {
 		matchingOccurred := common.CheckPatternsMatching(handler.patterns, parsedQuery)
-		if !matchingOccurred {
-			return false, common.ErrWhitelistPatternMismatch
+		if matchingOccurred {
+			return false, nil
 		}
 	}
 
-	//Our whitelist is empty, so let's continue further verification
 	return true, nil
 }
 
 // Reset resets whitelist to initial state
-func (handler *WhitelistHandler) Reset() {
+func (handler *AllowHandler) Reset() {
 	handler.queries = make(map[string]bool)
 	handler.tables = make(map[string]bool)
 	handler.patterns = nil
 }
 
 // Release releases all resources
-func (handler *WhitelistHandler) Release() {
+func (handler *AllowHandler) Release() {
 	handler.Reset()
 }
 
 // AddQueries normalizes and adds queries to the list that should be whitelisted
-func (handler *WhitelistHandler) AddQueries(queries []string) error {
+func (handler *AllowHandler) AddQueries(queries []string) error {
 	for _, query := range queries {
 		normalizedQuery, _, _, err := common.HandleRawSQLQuery(query)
 		if err != nil {
+			handler.logger.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCensorQueryParseError).Errorln("Can't add queries")
 			return err
 		}
 		handler.queries[normalizedQuery] = true
@@ -97,10 +95,11 @@ func (handler *WhitelistHandler) AddQueries(queries []string) error {
 }
 
 // RemoveQueries removes queries from the list that should be whitelisted
-func (handler *WhitelistHandler) RemoveQueries(queries []string) error {
+func (handler *AllowHandler) RemoveQueries(queries []string) error {
 	for _, query := range queries {
 		normalizedQuery, _, _, err := common.HandleRawSQLQuery(query)
 		if err != nil {
+			handler.logger.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCensorQueryParseError).Errorln("Can't remove queries")
 			return err
 		}
 		delete(handler.queries, normalizedQuery)
@@ -109,23 +108,24 @@ func (handler *WhitelistHandler) RemoveQueries(queries []string) error {
 }
 
 // AddTables adds tables that should be whitelisted
-func (handler *WhitelistHandler) AddTables(tableNames []string) {
+func (handler *AllowHandler) AddTables(tableNames []string) {
 	for _, tableName := range tableNames {
 		handler.tables[tableName] = true
 	}
 }
 
 // RemoveTables removes whitelisted tables
-func (handler *WhitelistHandler) RemoveTables(tableNames []string) {
+func (handler *AllowHandler) RemoveTables(tableNames []string) {
 	for _, tableName := range tableNames {
 		delete(handler.tables, tableName)
 	}
 }
 
 // AddPatterns adds patterns that should be whitelisted
-func (handler *WhitelistHandler) AddPatterns(patterns []string) error {
+func (handler *AllowHandler) AddPatterns(patterns []string) error {
 	parsedPatterns, err := common.ParsePatterns(patterns)
 	if err != nil {
+		handler.logger.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCensorQueryParseError).Errorln("Can't add patterns")
 		return err
 	}
 	handler.patterns = parsedPatterns
