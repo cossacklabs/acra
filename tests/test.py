@@ -3334,7 +3334,7 @@ class TestTransparentEncryption(BaseTestCase):
 
     def get_context_data(self):
         context = {}
-        context['row_id'] = get_random_id()
+        context['id'] = get_random_id()
         context['default_client_id'] = get_random_data().encode('ascii')
         context['zone_id'] = get_random_data().encode('ascii')
         context['specified_client_id'] = get_random_data().encode('ascii')
@@ -3342,11 +3342,11 @@ class TestTransparentEncryption(BaseTestCase):
         context['zone'] = zones[0]
         return context
 
-    def checkDefaultIdEncryption(self, row_id, default_client_id, specified_client_id,
+    def checkDefaultIdEncryption(self, id, default_client_id, specified_client_id,
                                  zone_id, zone, raw_data):
         result = self.engine2.execute(
             sa.select([self.encryptor_table])
-            .where(self.encryptor_table.c.id == row_id))
+            .where(self.encryptor_table.c.id == id))
         row = result.fetchone()
         self.assertIsNotNone(row)
 
@@ -3358,12 +3358,12 @@ class TestTransparentEncryption(BaseTestCase):
         self.assertNotEqual(row['specified_client_id'], specified_client_id)
         self.assertNotEqual(row['zone_id'], zone_id)
 
-    def checkSpecifiedIdEncryption(self, row_id, default_client_id, specified_client_id,
+    def checkSpecifiedIdEncryption(self, id, default_client_id, specified_client_id,
                                  zone_id, zone, raw_data):
         # fetch using another acra-connector that will authenticated as keypair1
         result = self.engine1.execute(
             sa.select([self.encryptor_table])
-            .where(self.encryptor_table.c.id == row_id))
+            .where(self.encryptor_table.c.id == id))
         row = result.fetchone()
         self.assertIsNotNone(row)
 
@@ -3375,11 +3375,11 @@ class TestTransparentEncryption(BaseTestCase):
         self.assertNotEqual(row['default_client_id'], default_client_id)
         self.assertNotEqual(row['zone_id'], zone_id)
 
-    def insertRow(self, context):
+    def insert_row(self, context):
         # send through acra-connector that authenticates as client_id=keypair2
         self.engine2.execute(
             self.encryptor_table.insert(),
-            {'id': context['row_id'],
+            {'id': context['id'],
              'default_client_id': context['default_client_id'],
              'specified_client_id': context['specified_client_id'],
              'raw_data': context['raw_data'],
@@ -3391,7 +3391,7 @@ class TestTransparentEncryption(BaseTestCase):
 
     def testEncryptedInsert(self):
         context = self.get_context_data()
-        self.insertRow(context)
+        self.insert_row(context)
         self.check_all_decryptions(**context)
 
         encrypted_data = self.fetch_raw_data(context)
@@ -3401,7 +3401,7 @@ class TestTransparentEncryption(BaseTestCase):
         data_fields = ['default_client_id', 'specified_client_id', 'zone_id',
                        'raw_data']
         data = {k: encrypted_data[k] for k in data_fields}
-        data['row_id'] = context['row_id']
+        data['id'] = context['id']
         self.update_data(data)
 
         data = self.fetch_raw_data(context)
@@ -3412,7 +3412,7 @@ class TestTransparentEncryption(BaseTestCase):
         # generate new data
         new_context = self.get_context_data()
         # use same id
-        new_context['row_id'] = context['row_id']
+        new_context['id'] = context['id']
         # update with not encrypted raw data
         self.update_data(new_context)
 
@@ -3431,7 +3431,7 @@ class TestTransparentEncryption(BaseTestCase):
     def update_data(self, context):
         self.engine2.execute(
             sa.update(self.encryptor_table)
-            .where(self.encryptor_table.c.id == context['row_id'])
+            .where(self.encryptor_table.c.id == context['id'])
             .values(default_client_id=context['default_client_id'],
                     specified_client_id=context['specified_client_id'],
                     zone_id=context['zone_id'],
@@ -3446,15 +3446,50 @@ class TestTransparentEncryption(BaseTestCase):
                        self.encryptor_table.c.zone_id,
                        self.encryptor_table.c.raw_data,
                        self.encryptor_table.c.nullable])
-            .where(self.encryptor_table.c.id == context['row_id']))
+            .where(self.encryptor_table.c.id == context['id']))
         data = result.fetchone()
         return data
+
+    def insert_row_with_quotes(self, context):
+        if TEST_MYSQL:
+            quote_char = '`'
+        else:
+            quote_char = '"'
+
+        wrap_identifier = lambda x: '{}{}{}'.format(quote_char, x, quote_char)
+        columns = ["id", "default_client_id", "specified_client_id", "raw_data", "zone_id"]
+        # create list of wrapped columns: "col1", "col2", "col3" or `col1`, `col2`, `col3`
+        table_columns = ', '.join([wrap_identifier(i) for i in columns])
+        # use %s as placeholder which will be used by engine
+        column_placeholders = ', '.join(['%s' for _ in range(len(columns))])
+
+        # add double quotes around table name and columns
+        # use raw sql to avoid processing sql by sqlalchemy
+        query = (
+            "insert into {} "
+            "({}) "
+            "values ({})"
+            ).format(
+            wrap_identifier(self.encryptor_table.name),
+            table_columns,
+            column_placeholders)
+        with self.engine2.connect() as connection:
+            connection.execute(
+                query,
+                (context['id'], context['default_client_id'],
+                 context['specified_client_id'], context['raw_data'],
+                 context['zone_id']))
+
+    def test_quoted_identifiers(self):
+        context = self.get_context_data()
+        self.insert_row_with_quotes(context)
+        self.check_all_decryptions(**context)
 
 
 class TestTransparentEncryptionWithZone(TestTransparentEncryption):
     ZONE = True
 
-    def checkZoneIdEncryption(self, zone, row_id, default_client_id,
+    def checkZoneIdEncryption(self, zone, id, default_client_id,
                               specified_client_id, zone_id, raw_data):
         result = self.engine1.execute(
             sa.select([self.encryptor_table.c.default_client_id,
@@ -3463,7 +3498,7 @@ class TestTransparentEncryptionWithZone(TestTransparentEncryption):
                        self.encryptor_table.c.zone_id,
                        self.encryptor_table.c.raw_data,
                        self.encryptor_table.c.nullable])
-            .where(self.encryptor_table.c.id == row_id))
+            .where(self.encryptor_table.c.id == id))
         row = result.fetchone()
         self.assertIsNotNone(row)
 
