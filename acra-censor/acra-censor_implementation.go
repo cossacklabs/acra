@@ -87,22 +87,22 @@ func (acraCensor *AcraCensor) HandleQuery(rawQuery string) error {
 			continue
 		}
 		if queryIgnoreHandler, ok := handler.(*handlers.QueryIgnoreHandler); ok {
-			continueHandling1, _ := queryIgnoreHandler.CheckQuery(rawQuery, nil)
-			if !continueHandling1 {
+			continueHandling, _ := queryIgnoreHandler.CheckQuery(rawQuery, nil)
+			if !continueHandling {
 				if queryWithHiddenValues != "" {
 					acraCensor.logger.Infof("Allowed query: '%s'", queryWithHiddenValues)
 				} else {
 					acraCensor.logger.Infoln("Allowed query can't be shown in plaintext")
 				}
 				return nil
-			} else {
-				continue
 			}
+			continue
 		}
 		// Security checks (allow/deny handlers)
 		continueHandling, err := handler.CheckQuery(normalizedQuery, parsedQuery)
 		if err != nil {
 			acraCensor.logger.Errorf("Denied query: '%s'", queryWithHiddenValues)
+			acraCensor.logger.Debugf("Denied query by %T", handler)
 			return err
 		}
 		//we don't have errors so allow query

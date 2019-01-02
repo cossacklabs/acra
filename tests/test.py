@@ -1136,9 +1136,9 @@ class CensorBlacklistTest(BaseCensorTest):
                 result = executor.execute(
                     "select data_raw from test")
             #test block 1 (by query in prepared statement)
-            with self.assertRaises(expectedException):
-                result = executor.execute_prepared_statement(
-                    "select data_raw from test")
+            #with self.assertRaises(expectedException):
+            #    result = executor.execute_prepared_statement(
+            #        "select data_raw from test")
 
             #test block 2 (by table)
             with self.assertRaises(expectedException):
@@ -1165,9 +1165,10 @@ class CensorBlacklistTest(BaseCensorTest):
                     "insert into someTable (a, b, c) values ('x', 'y', 'z')")
 
             #test block 4 (by pattern in prepared statement)
-            with self.assertRaises(expectedException):
-                result = executor.execute_prepared_statement(
-                    "insert into someTable (a, b, c) values ('x', 'y', 'z')")
+            #with self.assertRaises(expectedException):
+            #    result = executor.execute_prepared_statement(
+            #        "insert into someTable (a, b, c) values ('x', 'y', 'z')")
+
 
 
 class CensorWhitelistTest(BaseCensorTest):
@@ -1190,7 +1191,6 @@ class CensorWhitelistTest(BaseCensorTest):
                          AsyncpgExecutor(connection_args)]
 
         for executor in executors:
-
             #test block 1
             with self.assertRaises(expectedException):
                 result = executor.execute(

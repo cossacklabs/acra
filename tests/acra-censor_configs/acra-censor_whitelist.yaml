@@ -14,6 +14,7 @@ handlers:
       - SELECT CAST('test collated returns' AS CHAR CHARACTER SET utf8) COLLATE utf8_bin AS anon_1
       - SELECT CAST('test collated returns' AS CHAR CHARACTER SET utf8mb4) COLLATE utf8mb4_bin AS anon_1
       - select 1
+      - select 1;
       - SET AUTOCOMMIT = 0
       - SET NAMES 'ascii' COLLATE 'ascii_general_ci'
       - SET @@session.autocommit = OFF
