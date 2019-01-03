@@ -30,7 +30,7 @@ type pattern struct {
 	replacer    string
 }
 
-// Errors returned during parsing SQL queries.
+// Errors returned by censor
 var (
 	ErrDenyByQueryError                = errors.New("deny by query")
 	ErrDenyByTableError                = errors.New("deny by table")
@@ -41,6 +41,7 @@ var (
 	ErrCantReadQueriesFromStorageError = errors.New("can't read queries from storage")
 	ErrUnexpectedTypeError             = errors.New("should never appear")
 	ErrDenyAllError                    = errors.New("deny all queries error")
+	ErrCensorConfigurationError        = errors.New("configuration error")
 )
 
 const (

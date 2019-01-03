@@ -90,11 +90,11 @@ func (acraCensor *AcraCensor) LoadConfiguration(configuration []byte) error {
 			}
 			acraCensor.AddHandler(deny)
 		case AllowAllConfigStr:
-			allowall := handlers.NewAllowallHandler()
-			acraCensor.AddHandler(allowall)
+			allowAll := handlers.NewAllowallHandler()
+			acraCensor.AddHandler(allowAll)
 		case DenyAllConfigStr:
-			denyall := handlers.NewDenyallHandler()
-			acraCensor.AddHandler(denyall)
+			denyAll := handlers.NewDenyallHandler()
+			acraCensor.AddHandler(denyAll)
 		case QueryIgnoreConfigStr:
 			queryIgnoreHandler := handlers.NewQueryIgnoreHandler()
 			queryIgnoreHandler.AddQueries(handlerConfiguration.Queries)
@@ -108,6 +108,7 @@ func (acraCensor *AcraCensor) LoadConfiguration(configuration []byte) error {
 			acraCensor.AddHandler(queryCaptureHandler)
 		default:
 			acraCensor.logger.Errorln("Unexpected handler in configuration")
+			return common.ErrCensorConfigurationError
 		}
 	}
 	return nil
