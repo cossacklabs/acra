@@ -57,11 +57,14 @@ func (acraCensor *AcraCensor) RemoveHandler(handler QueryHandlerInterface) {
 
 // ReleaseAll stops all handlers.
 func (acraCensor *AcraCensor) ReleaseAll() {
-	acraCensor.logger = log.WithField("service", "acra-censor")
 	acraCensor.ignoreParseError = false
 	for _, handler := range acraCensor.handlers {
 		handler.Release()
 	}
+	if acraCensor.unparsedQueriesWriter != nil {
+		acraCensor.unparsedQueriesWriter.Free()
+	}
+
 }
 
 // HandleQuery processes every query through each handler.

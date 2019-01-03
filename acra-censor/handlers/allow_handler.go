@@ -44,6 +44,10 @@ func NewAllowHandler() *AllowHandler {
 // CheckQuery checks each query, returns false and error if query is not whitelisted or
 // if query tries to access to non-whitelisted table
 func (handler *AllowHandler) CheckQuery(normalizedQuery string, parsedQuery sqlparser.Statement) (bool, error) {
+	// skip unparsed queries
+	if parsedQuery == nil {
+		return true, nil
+	}
 	//Check exact queries
 	if len(handler.queries) != 0 {
 		queryMatch := common.CheckExactQueriesMatch(normalizedQuery, handler.queries)
@@ -65,7 +69,6 @@ func (handler *AllowHandler) CheckQuery(normalizedQuery string, parsedQuery sqlp
 			return false, nil
 		}
 	}
-
 	return true, nil
 }
 

@@ -44,6 +44,10 @@ func NewDenyHandler() *DenyHandler {
 // CheckQuery checks each query, returns false and error if query is blacklisted or
 // if query tries to access to forbidden table
 func (handler *DenyHandler) CheckQuery(normalizedQuery string, parsedQuery sqlparser.Statement) (bool, error) {
+	// skip unparsed queries
+	if parsedQuery == nil {
+		return true, nil
+	}
 	//Check exact queries
 	if len(handler.queries) != 0 {
 		queryMatch := common.CheckExactQueriesMatch(normalizedQuery, handler.queries)
@@ -68,8 +72,6 @@ func (handler *DenyHandler) CheckQuery(normalizedQuery string, parsedQuery sqlpa
 			return false, common.ErrDenyByPatternError
 		}
 	}
-
-	//Our blacklist is empty, so let's continue further verification
 	return true, nil
 }
 

@@ -38,3 +38,4 @@ handlers:
     patterns:
       - select data from test %%WHERE%%
       - "%%INSERT%%"
+  - handler: allowall
