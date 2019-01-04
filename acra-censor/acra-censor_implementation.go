@@ -57,11 +57,14 @@ func (acraCensor *AcraCensor) RemoveHandler(handler QueryHandlerInterface) {
 
 // ReleaseAll stops all handlers.
 func (acraCensor *AcraCensor) ReleaseAll() {
-	acraCensor.logger = log.WithField("service", "acra-censor")
 	acraCensor.ignoreParseError = false
 	for _, handler := range acraCensor.handlers {
 		handler.Release()
 	}
+	if acraCensor.unparsedQueriesWriter != nil {
+		acraCensor.unparsedQueriesWriter.Free()
+	}
+
 }
 
 // HandleQuery processes every query through each handler.
@@ -75,30 +78,43 @@ func (acraCensor *AcraCensor) HandleQuery(rawQuery string) error {
 	if err == common.ErrQuerySyntaxError {
 		acraCensor.logger.WithError(err).Warning("Failed to parse input query")
 		acraCensor.saveUnparsedQuery(rawQuery)
-		if acraCensor.ignoreParseError {
-			acraCensor.logger.Infoln("Unparsed query has been allowed")
-			return nil
+		if !acraCensor.ignoreParseError {
+			acraCensor.logger.Errorln("Unparsed query has been denied")
+			return err
 		}
-		acraCensor.logger.Errorln("Unparsed query has been forbidden")
-		return err
 	}
-	// Parsed query handling
+	// Handlers work
 	for _, handler := range acraCensor.handlers {
 		if queryCaptureHandler, ok := handler.(*handlers.QueryCaptureHandler); ok {
-			queryCaptureHandler.CheckQuery(queryWithHiddenValues, nil)
+			queryCaptureHandler.CheckQuery(queryWithHiddenValues, parsedQuery)
+			continue
 		}
+		if queryIgnoreHandler, ok := handler.(*handlers.QueryIgnoreHandler); ok {
+			continueHandling, _ := queryIgnoreHandler.CheckQuery(rawQuery, nil)
+			if !continueHandling {
+				if queryWithHiddenValues != "" {
+					acraCensor.logger.Infof("Allowed query: '%s'", common.TrimStringToN(queryWithHiddenValues, common.LogQueryLength))
+				} else {
+					acraCensor.logger.Infoln("Allowed query can't be shown in plaintext")
+				}
+				return nil
+			}
+			continue
+		}
+		// Security checks (allow/deny handlers)
 		continueHandling, err := handler.CheckQuery(normalizedQuery, parsedQuery)
 		if err != nil {
-			acraCensor.logger.Errorf("Forbidden query: '%s'", queryWithHiddenValues)
+			acraCensor.logger.Errorf("Denied query: '%s'", common.TrimStringToN(queryWithHiddenValues, common.LogQueryLength))
+			acraCensor.logger.Debugf("Denied query by %T", handler)
 			return err
 		}
 		//we don't have errors so allow query
 		if !continueHandling {
-			acraCensor.logger.Infof("Allowed query: '%s'", queryWithHiddenValues)
+			acraCensor.logger.Infof("Allowed query: '%s'", common.TrimStringToN(queryWithHiddenValues, common.LogQueryLength))
 			return nil
 		}
 	}
-	acraCensor.logger.Infof("Allowed query: '%s'", queryWithHiddenValues)
+	acraCensor.logger.Infof("Allowed query: '%s'", common.TrimStringToN(queryWithHiddenValues, common.LogQueryLength))
 	return nil
 }
 

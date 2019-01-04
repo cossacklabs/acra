@@ -25,8 +25,10 @@ import (
 
 // Query handlers' names.
 const (
-	BlacklistConfigStr    = "blacklist"
-	WhitelistConfigStr    = "whitelist"
+	DenyConfigStr         = "deny"
+	AllowConfigStr        = "allow"
+	DenyAllConfigStr      = "denyall"
+	AllowAllConfigStr     = "allowall"
 	QueryCaptureConfigStr = "query_capture"
 	QueryIgnoreConfigStr  = "query_ignore"
 )
@@ -63,37 +65,40 @@ func (acraCensor *AcraCensor) LoadConfiguration(configuration []byte) error {
 
 	for _, handlerConfiguration := range censorConfiguration.Handlers {
 		switch handlerConfiguration.Handler {
-		case WhitelistConfigStr:
-			whitelistHandler := handlers.NewWhitelistHandler()
-			err = whitelistHandler.AddQueries(handlerConfiguration.Queries)
+		case AllowConfigStr:
+			allow := handlers.NewAllowHandler()
+			err = allow.AddQueries(handlerConfiguration.Queries)
 			if err != nil {
 				return err
 			}
-			whitelistHandler.AddTables(handlerConfiguration.Tables)
-			err = whitelistHandler.AddPatterns(handlerConfiguration.Patterns)
+			allow.AddTables(handlerConfiguration.Tables)
+			err = allow.AddPatterns(handlerConfiguration.Patterns)
 			if err != nil {
 				return err
 			}
-			acraCensor.AddHandler(whitelistHandler)
-			break
-		case BlacklistConfigStr:
-			blacklistHandler := handlers.NewBlacklistHandler()
-			err = blacklistHandler.AddQueries(handlerConfiguration.Queries)
+			acraCensor.AddHandler(allow)
+		case DenyConfigStr:
+			deny := handlers.NewDenyHandler()
+			err = deny.AddQueries(handlerConfiguration.Queries)
 			if err != nil {
 				return err
 			}
-			blacklistHandler.AddTables(handlerConfiguration.Tables)
-			err = blacklistHandler.AddPatterns(handlerConfiguration.Patterns)
+			deny.AddTables(handlerConfiguration.Tables)
+			err = deny.AddPatterns(handlerConfiguration.Patterns)
 			if err != nil {
 				return err
 			}
-			acraCensor.AddHandler(blacklistHandler)
-			break
+			acraCensor.AddHandler(deny)
+		case AllowAllConfigStr:
+			allowAll := handlers.NewAllowallHandler()
+			acraCensor.AddHandler(allowAll)
+		case DenyAllConfigStr:
+			denyAll := handlers.NewDenyallHandler()
+			acraCensor.AddHandler(denyAll)
 		case QueryIgnoreConfigStr:
 			queryIgnoreHandler := handlers.NewQueryIgnoreHandler()
 			queryIgnoreHandler.AddQueries(handlerConfiguration.Queries)
 			acraCensor.AddHandler(queryIgnoreHandler)
-			break
 		case QueryCaptureConfigStr:
 			queryCaptureHandler, err := handlers.NewQueryCaptureHandler(handlerConfiguration.FilePath)
 			if err != nil {
@@ -102,7 +107,8 @@ func (acraCensor *AcraCensor) LoadConfiguration(configuration []byte) error {
 			go queryCaptureHandler.Start()
 			acraCensor.AddHandler(queryCaptureHandler)
 		default:
-			break
+			acraCensor.logger.Errorln("Unexpected handler in configuration")
+			return common.ErrCensorConfigurationError
 		}
 	}
 	return nil
