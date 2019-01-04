@@ -129,6 +129,7 @@ func (queryWriter *QueryWriter) Start() {
 			break
 		case <-queryWriter.signalBackgroundExit:
 			queryWriter.serializationTicker.Stop()
+			queryWriter.DumpQueries()
 			err := queryWriter.logStorage.Close()
 			if err != nil {
 				queryWriter.logger.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCensorIOError).Errorln("Error occurred on exit QueryWriter instance")
@@ -136,6 +137,7 @@ func (queryWriter *QueryWriter) Start() {
 			return
 		case <-queryWriter.signalShutdown:
 			queryWriter.serializationTicker.Stop()
+			queryWriter.DumpQueries()
 			err := queryWriter.logStorage.Close()
 			if err != nil {
 				queryWriter.logger.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCensorIOError).Errorln("Error occurred on shutdown QueryWriter instance")

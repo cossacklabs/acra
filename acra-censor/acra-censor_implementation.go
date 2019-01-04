@@ -19,6 +19,7 @@ package acracensor
 import (
 	"github.com/cossacklabs/acra/acra-censor/common"
 	"github.com/cossacklabs/acra/acra-censor/handlers"
+	"github.com/cossacklabs/acra/sqlparser"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -92,11 +93,7 @@ func (acraCensor *AcraCensor) HandleQuery(rawQuery string) error {
 		if queryIgnoreHandler, ok := handler.(*handlers.QueryIgnoreHandler); ok {
 			continueHandling, _ := queryIgnoreHandler.CheckQuery(rawQuery, nil)
 			if !continueHandling {
-				if queryWithHiddenValues != "" {
-					acraCensor.logger.Infof("Allowed query: '%s'", common.TrimStringToN(queryWithHiddenValues, common.LogQueryLength))
-				} else {
-					acraCensor.logger.Infoln("Allowed query can't be shown in plaintext")
-				}
+				acraCensor.logAllowedQuery(queryWithHiddenValues, parsedQuery)
 				return nil
 			}
 			continue
@@ -104,18 +101,45 @@ func (acraCensor *AcraCensor) HandleQuery(rawQuery string) error {
 		// Security checks (allow/deny handlers)
 		continueHandling, err := handler.CheckQuery(normalizedQuery, parsedQuery)
 		if err != nil {
-			acraCensor.logger.Errorf("Denied query: '%s'", common.TrimStringToN(queryWithHiddenValues, common.LogQueryLength))
-			acraCensor.logger.Debugf("Denied query by %T", handler)
+			acraCensor.logDeniedQuery(queryWithHiddenValues, handler, parsedQuery)
 			return err
 		}
 		//we don't have errors so allow query
 		if !continueHandling {
-			acraCensor.logger.Infof("Allowed query: '%s'", common.TrimStringToN(queryWithHiddenValues, common.LogQueryLength))
+			acraCensor.logAllowedQuery(queryWithHiddenValues, parsedQuery)
 			return nil
 		}
 	}
-	acraCensor.logger.Infof("Allowed query: '%s'", common.TrimStringToN(queryWithHiddenValues, common.LogQueryLength))
+	acraCensor.logAllowedQuery(queryWithHiddenValues, parsedQuery)
 	return nil
+}
+
+func (acraCensor *AcraCensor) logAllowedQuery(queryWithHiddenValues string, parsedQuery sqlparser.Statement) {
+	if parsedQuery != nil && queryWithHiddenValues != "" {
+		acraCensor.logger.Infof("Allowed query: '%s'", common.TrimStringToN(queryWithHiddenValues, common.LogQueryLength))
+		return
+	}
+	if parsedQuery == nil && queryWithHiddenValues == "" {
+		acraCensor.logger.Infoln("Allowed query can't be shown in plaintext")
+		return
+	}
+	acraCensor.logger.Debugf("parsedQuery: %T, queryWithHiddenValues: %s", parsedQuery, queryWithHiddenValues)
+	return
+}
+
+func (acraCensor *AcraCensor) logDeniedQuery(queryWithHiddenValues string, handler QueryHandlerInterface, parsedQuery sqlparser.Statement) {
+	if parsedQuery != nil && queryWithHiddenValues != "" {
+		acraCensor.logger.Errorf("Denied query: '%s'", common.TrimStringToN(queryWithHiddenValues, common.LogQueryLength))
+		acraCensor.logger.Debugf("Denied query by %T", handler)
+		return
+	}
+	if parsedQuery == nil && queryWithHiddenValues == "" {
+		acraCensor.logger.Errorln("Denied query can't be shown in plaintext")
+		acraCensor.logger.Debugf("Denied query by %T", handler)
+		return
+	}
+	acraCensor.logger.Debugf("parsedQuery: %T, queryWithHiddenValues: %s", parsedQuery, queryWithHiddenValues)
+	return
 }
 
 func (acraCensor *AcraCensor) saveUnparsedQuery(query string) {
