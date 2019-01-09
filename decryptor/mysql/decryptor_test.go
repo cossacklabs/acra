@@ -75,7 +75,7 @@ func (*testKeystore) GetClientIDEncryptionPublicKey(clientID []byte) (*keys.Publ
 }
 func (*testKeystore) GetZonePublicKey(zoneID []byte) (*keys.PublicKey, error) { panic("implement me") }
 
-func getDecryptor(keystore keystore.KeyStore) *MySQLDecryptor {
+func getDecryptor(keystore keystore.KeyStore) *Decryptor {
 	dataDecryptor := binary.NewBinaryDecryptor()
 	clientID := []byte("some id")
 	pgDecryptor := postgresql.NewPgDecryptor(clientID, dataDecryptor, false, keystore)
@@ -96,10 +96,10 @@ func TestMySQLDecryptor_CheckPoisonRecord_Inline(t *testing.T) {
 
 	part1 := make([]byte, 1024)
 	part2 := make([]byte, 1024)
-	if _, err := rand.Read(part1); err != nil {
+	if _, err = rand.Read(part1); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := rand.Read(part2); err != nil {
+	if _, err = rand.Read(part2); err != nil {
 		t.Fatal(err)
 	}
 

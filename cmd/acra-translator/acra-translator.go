@@ -39,12 +39,12 @@ import (
 
 // Constants handy for AcraTranslator.
 const (
-	ServiceName          = "acra-translator"
-	DEFAULT_WAIT_TIMEOUT = 10
+	ServiceName        = "acra-translator"
+	defaultWaitTimeout = 10
 )
 
-// DEFAULT_CONFIG_PATH relative path to config which will be parsed as default
-var DEFAULT_CONFIG_PATH = utils.GetConfigPathByName(ServiceName)
+// DefaultConfigPath relative path to config which will be parsed as default
+var DefaultConfigPath = utils.GetConfigPathByName(ServiceName)
 
 func main() {
 	config := NewConfig()
@@ -63,7 +63,7 @@ func main() {
 	stopOnPoison := flag.Bool("poison_shutdown_enable", false, "On detecting poison record: log about poison record detection, stop and shutdown")
 	scriptOnPoison := flag.String("poison_run_script_file", "", "On detecting poison record: log about poison record detection, execute script, return decrypted data")
 
-	closeConnectionTimeout := flag.Int("incoming_connection_close_timeout", DEFAULT_WAIT_TIMEOUT, "Time that AcraTranslator will wait (in seconds) on stop signal before closing all connections")
+	closeConnectionTimeout := flag.Int("incoming_connection_close_timeout", defaultWaitTimeout, "Time that AcraTranslator will wait (in seconds) on stop signal before closing all connections")
 
 	prometheusAddress := flag.String("incoming_connection_prometheus_metrics_string", "", "URL which will be used to expose Prometheus metrics (use <URL>/metrics address to pull metrics)")
 
@@ -73,7 +73,7 @@ func main() {
 	verbose := flag.Bool("v", false, "Log to stderr all INFO, WARNING and ERROR logs")
 	debug := flag.Bool("d", false, "Log everything to stderr")
 
-	err := cmd.Parse(DEFAULT_CONFIG_PATH, ServiceName)
+	err := cmd.Parse(DefaultConfigPath, ServiceName)
 	if err != nil {
 		log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantReadServiceConfig).
 			Errorln("Can't parse args")
@@ -86,7 +86,7 @@ func main() {
 	cmd.ValidateClientID(*secureSessionID)
 
 	if len(*incomingConnectionHTTPString) == 0 && len(*incomingConnectionGRPCString) == 0 {
-		*incomingConnectionGRPCString = network.BuildConnectionString(network.GRPC_SCHEME, cmd.DEFAULT_ACRATRANSLATOR_GRPC_HOST, cmd.DEFAULT_ACRATRANSLATOR_GRPC_PORT, "")
+		*incomingConnectionGRPCString = network.BuildConnectionString(network.GRPCScheme, cmd.DefaultAcraTranslatorGRPCHost, cmd.DefaultAcraTranslatorGRPCPort, "")
 		log.Infof("No incoming connection string is set: by default gRPC connections are being listen %v", *incomingConnectionGRPCString)
 	}
 
@@ -98,7 +98,7 @@ func main() {
 	config.SetServerID([]byte(*secureSessionID))
 	config.SetIncomingConnectionHTTPString(*incomingConnectionHTTPString)
 	config.SetIncomingConnectionGRPCString(*incomingConnectionGRPCString)
-	config.SetConfigPath(DEFAULT_CONFIG_PATH)
+	config.SetConfigPath(DefaultConfigPath)
 	config.SetDebug(*debug)
 	config.SetTraceToLog(cmd.IsTraceToLogOn())
 

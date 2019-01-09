@@ -28,12 +28,12 @@ import (
 
 // Custom connection schemes, used in AcraConnector and AcraTranslator
 const (
-	GRPC_SCHEME = "grpc"
-	HTTP_SCHEME = "http"
+	GRPCScheme = "grpc"
+	HTTPScheme = "http"
 )
 
 func customSchemeToBaseGolangScheme(scheme string) string {
-	if scheme == GRPC_SCHEME || scheme == HTTP_SCHEME {
+	if scheme == GRPCScheme || scheme == HTTPScheme {
 		return "tcp"
 	}
 	return scheme

@@ -58,7 +58,7 @@ var authPath *string
 
 // For testing purposes only, allows to skip checking TLS certificate when connecting to database.
 const (
-	TEST_MODE = "true"
+	testMode = "true"
 )
 
 // TestOnly is set in compile time for running integration tests
@@ -66,15 +66,15 @@ var TestOnly = "false"
 
 // Constants used by AcraServer.
 const (
-	DEFAULT_ACRASERVER_WAIT_TIMEOUT = 10
-	GRACEFUL_ENV                    = "GRACEFUL_RESTART"
-	DESCRIPTOR_ACRA                 = 3
-	DESCRIPTOR_API                  = 4
-	ServiceName                     = "acra-server"
+	defaultAcraserverWaitTimeout = 10
+	gracefulEnv                  = "GRACEFUL_RESTART"
+	descriptorAcra               = 3
+	descriptorAPI                = 4
+	ServiceName                  = "acra-server"
 )
 
-// DEFAULT_CONFIG_PATH relative path to config which will be parsed as default
-var DEFAULT_CONFIG_PATH = utils.GetConfigPathByName(ServiceName)
+// defaultConfigPath relative path to config which will be parsed as default
+var defaultConfigPath = utils.GetConfigPathByName(ServiceName)
 
 // ErrWaitTimeout error indicates that server was shutdown and waited N seconds while shutting down all connections.
 var ErrWaitTimeout = errors.New("timeout")
@@ -88,9 +88,9 @@ func main() {
 
 	prometheusAddress := flag.String("incoming_connection_prometheus_metrics_string", "", "URL (tcp://host:port) which will be used to expose Prometheus metrics (<URL>/metrics address to pull metrics)")
 
-	host := flag.String("incoming_connection_host", cmd.DEFAULT_ACRA_HOST, "Host for AcraServer")
-	port := flag.Int("incoming_connection_port", cmd.DEFAULT_ACRASERVER_PORT, "Port for AcraServer")
-	apiPort := flag.Int("incoming_connection_api_port", cmd.DEFAULT_ACRASERVER_API_PORT, "Port for AcraServer for HTTP API")
+	host := flag.String("incoming_connection_host", cmd.DefaultAcraServerHost, "Host for AcraServer")
+	port := flag.Int("incoming_connection_port", cmd.DefaultAcraServerPort, "Port for AcraServer")
+	apiPort := flag.Int("incoming_connection_api_port", cmd.DefaultAcraServerAPIPort, "Port for AcraServer for HTTP API")
 
 	keysDir := flag.String("keys_dir", keystore.DefaultKeyDirShort, "Folder from which will be loaded keys")
 	keysCacheSize := flag.Int("keystore_cache_size", keystore.InfiniteCacheSize, "Count of keys that will be stored in in-memory LRU cache in encrypted form. 0 - no limits, -1 - turn off cache")
@@ -104,7 +104,7 @@ func main() {
 	injectedcell := flag.Bool("acrastruct_injectedcell_enable", false, "Acrastruct may be injected into any place of data cell")
 
 	debugServer := flag.Bool("ds", false, "Turn on http debug server")
-	closeConnectionTimeout := flag.Int("incoming_connection_close_timeout", DEFAULT_ACRASERVER_WAIT_TIMEOUT, "Time that AcraServer will wait (in seconds) on restart before closing all connections")
+	closeConnectionTimeout := flag.Int("incoming_connection_close_timeout", defaultAcraserverWaitTimeout, "Time that AcraServer will wait (in seconds) on restart before closing all connections")
 
 	detectPoisonRecords := flag.Bool("poison_detect_enable", true, "Turn on poison record detection, if server shutdown is disabled, AcraServer logs the poison record detection and returns decrypted data")
 	stopOnPoison := flag.Bool("poison_shutdown_enable", false, "On detecting poison record: log about poison record detection, stop and shutdown")
@@ -121,9 +121,9 @@ func main() {
 	tlsAuthType := flag.Int("tls_auth", int(tls.RequireAndVerifyClientCert), "Set authentication mode that will be used in TLS connection with Postgresql. Values in range 0-4 that set auth type (https://golang.org/pkg/crypto/tls/#ClientAuthType). Default is tls.RequireAndVerifyClientCert")
 	noEncryptionTransport := flag.Bool("acraconnector_transport_encryption_disable", false, "Use raw transport (tcp/unix socket) between AcraServer and AcraConnector/client (don't use this flag if you not connect to database with ssl/tls")
 	clientID := flag.String("client_id", "", "Expected client ID of AcraConnector in mode without encryption")
-	acraConnectionString := flag.String("incoming_connection_string", network.BuildConnectionString(cmd.DEFAULT_ACRA_CONNECTION_PROTOCOL, cmd.DEFAULT_ACRA_HOST, cmd.DEFAULT_ACRASERVER_PORT, ""), "Connection string like tcp://x.x.x.x:yyyy or unix:///path/to/socket")
-	acraAPIConnectionString := flag.String("incoming_connection_api_string", network.BuildConnectionString(cmd.DEFAULT_ACRA_CONNECTION_PROTOCOL, cmd.DEFAULT_ACRA_HOST, cmd.DEFAULT_ACRASERVER_API_PORT, ""), "Connection string for api like tcp://x.x.x.x:yyyy or unix:///path/to/socket")
-	authPath = flag.String("auth_keys", cmd.DEFAULT_ACRA_AUTH_PATH, "Path to basic auth passwords. To add user, use: `./acra-authmanager --set --user <user> --pwd <pwd>`")
+	acraConnectionString := flag.String("incoming_connection_string", network.BuildConnectionString(cmd.DefaultAcraServerConnectionProtocol, cmd.DefaultAcraServerHost, cmd.DefaultAcraServerPort, ""), "Connection string like tcp://x.x.x.x:yyyy or unix:///path/to/socket")
+	acraAPIConnectionString := flag.String("incoming_connection_api_string", network.BuildConnectionString(cmd.DefaultAcraServerConnectionProtocol, cmd.DefaultAcraServerHost, cmd.DefaultAcraServerAPIPort, ""), "Connection string for api like tcp://x.x.x.x:yyyy or unix:///path/to/socket")
+	authPath = flag.String("auth_keys", cmd.DefaultAcraServerAuthPath, "Path to basic auth passwords. To add user, use: `./acra-authmanager --set --user <user> --pwd <pwd>`")
 
 	useMysql := flag.Bool("mysql_enable", false, "Handle MySQL connections")
 	usePostgresql := flag.Bool("postgresql_enable", false, "Handle Postgresql connections (default true)")
@@ -137,7 +137,7 @@ func main() {
 	verbose := flag.Bool("v", false, "Log to stderr all INFO, WARNING and ERROR logs")
 	debug := flag.Bool("d", false, "Log everything to stderr")
 
-	err := cmd.Parse(DEFAULT_CONFIG_PATH, ServiceName)
+	err := cmd.Parse(defaultConfigPath, ServiceName)
 	if err != nil {
 		log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantReadServiceConfig).
 			Errorln("Can't parse args")
@@ -160,11 +160,11 @@ func main() {
 	cmd.ValidateClientID(*secureSessionID)
 
 	config.SetAcraConnectionString(*acraConnectionString)
-	if *host != cmd.DEFAULT_ACRA_HOST || *port != cmd.DEFAULT_ACRASERVER_PORT {
+	if *host != cmd.DefaultAcraServerHost || *port != cmd.DefaultAcraServerPort {
 		config.SetAcraConnectionString(network.BuildConnectionString("tcp", *host, *port, ""))
 	}
 	config.SetAcraAPIConnectionString(*acraAPIConnectionString)
-	if *apiPort != cmd.DEFAULT_ACRASERVER_API_PORT {
+	if *apiPort != cmd.DefaultAcraServerAPIPort {
 		config.SetAcraAPIConnectionString(network.BuildConnectionString("tcp", *host, *apiPort, ""))
 	}
 
@@ -178,20 +178,20 @@ func main() {
 
 	if *encryptorConfig != "" {
 		log.Infof("Load encryptor configuration from %s ...", *encryptorConfig)
-		if err := config.LoadMapTableSchemaConfig(*encryptorConfig); err != nil {
+		if err = config.LoadMapTableSchemaConfig(*encryptorConfig); err != nil {
 			log.WithError(err).Errorln("Can't load encryptor config")
 			os.Exit(1)
 		}
 		log.Infoln("Encryptor configuration loaded")
 	}
 
-	if err := config.SetDatabaseType(*useMysql, *usePostgresql); err != nil {
+	if err = config.SetDatabaseType(*useMysql, *usePostgresql); err != nil {
 		log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorWrongConfiguration).
 			Errorln("Can't configure database type")
 		os.Exit(1)
 	}
 
-	if err := config.SetCensor(*censorConfig); err != nil {
+	if err = config.SetCensor(*censorConfig); err != nil {
 		log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCensorSetupError).
 			Errorln("Can't setup censor")
 		os.Exit(1)
@@ -235,7 +235,7 @@ func main() {
 			os.Exit(1)
 		}
 		// need for testing with mysql docker container that always generate new certificates
-		if TestOnly == TEST_MODE {
+		if TestOnly == testMode {
 			tlsConfig.InsecureSkipVerify = true
 			tlsConfig.ClientAuth = tls.NoClientCert
 			log.Warningln("Skip verifying TLS certificate, use for tests only!")
@@ -331,9 +331,9 @@ func main() {
 		panic(err)
 	}
 
-	if os.Getenv(GRACEFUL_ENV) == "true" {
-		server.fddACRA = DESCRIPTOR_ACRA
-		server.fdAPI = DESCRIPTOR_API
+	if os.Getenv(gracefulEnv) == "true" {
+		server.fddACRA = descriptorAcra
+		server.fdAPI = descriptorAPI
 		log.Debugf("Will be using GRACEFUL_RESTART if configured from WebUI")
 	}
 
@@ -409,8 +409,8 @@ func main() {
 		}
 
 		// Set env flag for forked process
-		if err := os.Setenv(GRACEFUL_ENV, "true"); err != nil {
-			log.WithError(err).Errorln("Unexpected error on os.Setenv, graceful restart won't work. Please check env variables, especially GRACEFUL_ENV")
+		if err := os.Setenv(gracefulEnv, "true"); err != nil {
+			log.WithError(err).Errorln("Unexpected error on os.Setenv, graceful restart won't work. Please check env variables, especially gracefulEnv")
 		}
 		execSpec := &syscall.ProcAttr{
 			Env:   os.Environ(),
@@ -451,11 +451,11 @@ func main() {
 		logging.SetLogLevel(logging.LogDiscard)
 	}
 
-	if os.Getenv(GRACEFUL_ENV) == "true" {
+	if os.Getenv(gracefulEnv) == "true" {
 		if *withZone || *enableHTTPAPI {
-			go server.StartCommandsFromFileDescriptor(DESCRIPTOR_API)
+			go server.StartCommandsFromFileDescriptor(descriptorAPI)
 		}
-		go server.StartFromFileDescriptor(DESCRIPTOR_ACRA)
+		go server.StartFromFileDescriptor(descriptorAcra)
 	} else {
 		if *withZone || *enableHTTPAPI {
 			go server.StartCommands()

@@ -25,8 +25,8 @@ type KeyChecker interface {
 	HasZonePrivateKey([]byte) bool
 }
 
-// ZoneIDMatcher represents exact binary Matcher
-type ZoneIDMatcher struct {
+// Matcher represents exact binary matcher
+type Matcher struct {
 	matched     bool
 	matchers    *list.List
 	zoneID      []byte
@@ -34,10 +34,10 @@ type ZoneIDMatcher struct {
 	keychecker  KeyChecker
 }
 
-// NewZoneMatcher returns new ZoneIDMatcher for exact zoneID
+// NewZoneMatcher returns new Matcher for exact zoneID
 // with keychecker and empty matchers
-func NewZoneMatcher(matcherPool *MatcherPool, keychecker KeyChecker) *ZoneIDMatcher {
-	matcher := &ZoneIDMatcher{
+func NewZoneMatcher(matcherPool *MatcherPool, keychecker KeyChecker) *Matcher {
+	matcher := &Matcher{
 		matchers:    list.New(),
 		matcherPool: matcherPool,
 		matched:     false,
@@ -48,19 +48,19 @@ func NewZoneMatcher(matcherPool *MatcherPool, keychecker KeyChecker) *ZoneIDMatc
 }
 
 // IsMatched returns true if zoneID found
-func (zoneMatcher *ZoneIDMatcher) IsMatched() bool {
+func (zoneMatcher *Matcher) IsMatched() bool {
 	return zoneMatcher.matched
 }
 
 // Reset clears matchers and reset matching state
-func (zoneMatcher *ZoneIDMatcher) Reset() {
+func (zoneMatcher *Matcher) Reset() {
 	zoneMatcher.matched = false
 	zoneMatcher.clearMatchers()
 }
 
 // GetZoneID returns zoneID if matched found it
 // return empty bytes otherwise
-func (zoneMatcher *ZoneIDMatcher) GetZoneID() []byte {
+func (zoneMatcher *Matcher) GetZoneID() []byte {
 	if zoneMatcher.IsMatched() {
 		return zoneMatcher.zoneID
 	}
@@ -68,24 +68,24 @@ func (zoneMatcher *ZoneIDMatcher) GetZoneID() []byte {
 }
 
 // SetMatched sets that matcher has found zoneID – id
-func (zoneMatcher *ZoneIDMatcher) SetMatched(id []byte) {
+func (zoneMatcher *Matcher) SetMatched(id []byte) {
 	zoneMatcher.zoneID = id
 	zoneMatcher.matched = true
 }
 
 // Match returns true if zoneID found inside c bytes
 // checks using different matchers from the loop
-func (zoneMatcher *ZoneIDMatcher) Match(c byte) bool {
+func (zoneMatcher *Matcher) Match(c byte) bool {
 	currentElement := zoneMatcher.matchers.Front()
 	var toRemove *list.Element
-	var matcher Matcher
+	var matcherImpl matcher
 	isMatched := false
 	for {
-		matcher = currentElement.Value.(Matcher)
-		if matcher.Match(c) {
-			if matcher.IsMatched() {
-				if zoneMatcher.keychecker.HasZonePrivateKey(matcher.GetZoneID()) {
-					zoneMatcher.zoneID = matcher.GetZoneID()
+		matcherImpl = currentElement.Value.(matcher)
+		if matcherImpl.Match(c) {
+			if matcherImpl.IsMatched() {
+				if zoneMatcher.keychecker.HasZonePrivateKey(matcherImpl.GetZoneID()) {
+					zoneMatcher.zoneID = matcherImpl.GetZoneID()
 					zoneMatcher.matched = true
 					isMatched = true
 				}
@@ -100,7 +100,7 @@ func (zoneMatcher *ZoneIDMatcher) Match(c byte) bool {
 			}
 		}
 		// if last matcher (previously was empty) has match, add empty matcher and quit
-		if currentElement == zoneMatcher.matchers.Back() && matcher.HasAnyMatch() {
+		if currentElement == zoneMatcher.matchers.Back() && matcherImpl.HasAnyMatch() {
 			zoneMatcher.addEmptyMatcher()
 			if toRemove != nil {
 				zoneMatcher.remove(toRemove)
@@ -120,12 +120,12 @@ func (zoneMatcher *ZoneIDMatcher) Match(c byte) bool {
 	return isMatched
 }
 
-func (zoneMatcher *ZoneIDMatcher) remove(element *list.Element) {
+func (zoneMatcher *Matcher) remove(element *list.Element) {
 	zoneMatcher.matchers.Remove(element)
-	zoneMatcher.matcherPool.Release(element.Value.(Matcher))
+	zoneMatcher.matcherPool.release(element.Value.(matcher))
 }
 
-func (zoneMatcher *ZoneIDMatcher) clearMatchers() {
+func (zoneMatcher *Matcher) clearMatchers() {
 	/* delete all matcher except the last that should be emptyMatcher */
 	var previous *list.Element
 	element := zoneMatcher.matchers.Front()
@@ -140,7 +140,7 @@ func (zoneMatcher *ZoneIDMatcher) clearMatchers() {
 	}
 }
 
-func (zoneMatcher *ZoneIDMatcher) addEmptyMatcher() {
-	matcher := zoneMatcher.matcherPool.Acquire()
+func (zoneMatcher *Matcher) addEmptyMatcher() {
+	matcher := zoneMatcher.matcherPool.acquire()
 	zoneMatcher.matchers.PushBack(matcher)
 }

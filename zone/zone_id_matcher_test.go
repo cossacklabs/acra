@@ -35,7 +35,7 @@ import (
 	"testing"
 )
 
-func assertZoneMatchNotFail(c byte, matcher *zone.ZoneIDMatcher, t *testing.T) {
+func assertZoneMatchNotFail(c byte, matcher *zone.Matcher, t *testing.T) {
 	if !matcher.Match(c) {
 		t.Fatal("Unexpected unmatch")
 	}

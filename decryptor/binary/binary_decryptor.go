@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-// Package binary contains BinaryDecryptor, that finds and decrypts AcraStruct from any binary blobs.
+// Package binary contains Decryptor, that finds and decrypts AcraStruct from any binary blobs.
 package binary
 
 import (
@@ -30,21 +30,21 @@ import (
 	"io"
 )
 
-// BinaryDecryptor stores settings for finding and decrypting AcraStruct from binary data
-type BinaryDecryptor struct {
+// Decryptor stores settings for finding and decrypting AcraStruct from binary data
+type Decryptor struct {
 	currentIndex   uint8
 	keyBlockBuffer []byte
 	lengthBuf      [base.DataLengthSize]byte
 	buf            []byte
 }
 
-// NewBinaryDecryptor returns new BinaryDecryptor
-func NewBinaryDecryptor() *BinaryDecryptor {
-	return &BinaryDecryptor{keyBlockBuffer: make([]byte, base.KeyBlockLength)}
+// NewBinaryDecryptor returns new Decryptor
+func NewBinaryDecryptor() *Decryptor {
+	return &Decryptor{keyBlockBuffer: make([]byte, base.KeyBlockLength)}
 }
 
 // MatchBeginTag not implemented Decryptor interface
-func (decryptor *BinaryDecryptor) MatchBeginTag(char byte) bool {
+func (decryptor *Decryptor) MatchBeginTag(char byte) bool {
 	if char == base.TagBegin[decryptor.currentIndex] {
 		decryptor.currentIndex++
 		return true
@@ -53,22 +53,22 @@ func (decryptor *BinaryDecryptor) MatchBeginTag(char byte) bool {
 }
 
 // IsMatched returns true if AcraStruct BeginTag found
-func (decryptor *BinaryDecryptor) IsMatched() bool {
+func (decryptor *Decryptor) IsMatched() bool {
 	return len(base.TagBegin) == int(decryptor.currentIndex)
 }
 
 // Reset pointer on current Index of binary data
-func (decryptor *BinaryDecryptor) Reset() {
+func (decryptor *Decryptor) Reset() {
 	decryptor.currentIndex = 0
 }
 
 // GetMatched returns bytes from binary data that match with AcraStruct BeginTag
-func (decryptor *BinaryDecryptor) GetMatched() []byte {
+func (decryptor *Decryptor) GetMatched() []byte {
 	return base.TagBegin[:decryptor.currentIndex]
 }
 
 // ReadSymmetricKey returns symmetric key wrapped in AcraStruct
-func (decryptor *BinaryDecryptor) ReadSymmetricKey(privateKey *keys.PrivateKey, reader io.Reader) ([]byte, []byte, error) {
+func (decryptor *Decryptor) ReadSymmetricKey(privateKey *keys.PrivateKey, reader io.Reader) ([]byte, []byte, error) {
 	n, err := io.ReadFull(reader, decryptor.keyBlockBuffer[:])
 	if err != nil {
 		if err == io.ErrUnexpectedEOF || err == io.EOF {
@@ -86,7 +86,7 @@ func (decryptor *BinaryDecryptor) ReadSymmetricKey(privateKey *keys.PrivateKey, 
 	return symmetricKey, decryptor.keyBlockBuffer[:n], nil
 }
 
-func (decryptor *BinaryDecryptor) readDataLength(reader io.Reader) (uint64, []byte, error) {
+func (decryptor *Decryptor) readDataLength(reader io.Reader) (uint64, []byte, error) {
 	var length uint64
 	lenCount, err := io.ReadFull(reader, decryptor.lengthBuf[:])
 	if err != nil {
@@ -105,13 +105,13 @@ func (decryptor *BinaryDecryptor) readDataLength(reader io.Reader) (uint64, []by
 	return length, decryptor.lengthBuf[:], nil
 }
 
-func (decryptor *BinaryDecryptor) checkBuf(buf *[]byte, length uint64) {
+func (decryptor *Decryptor) checkBuf(buf *[]byte, length uint64) {
 	if buf == nil || uint64(len(*buf)) < length {
 		*buf = make([]byte, length)
 	}
 }
 
-func (decryptor *BinaryDecryptor) readScellData(length uint64, reader io.Reader) ([]byte, []byte, error) {
+func (decryptor *Decryptor) readScellData(length uint64, reader io.Reader) ([]byte, []byte, error) {
 	decryptor.checkBuf(&decryptor.buf, length)
 	n, err := io.ReadFull(reader, decryptor.buf[:length])
 	if err != nil {
@@ -129,7 +129,7 @@ func (decryptor *BinaryDecryptor) readScellData(length uint64, reader io.Reader)
 }
 
 // ReadData decrypts encrypted content of AcraStruct using Symmetric key and Zone
-func (decryptor *BinaryDecryptor) ReadData(symmetricKey, zoneID []byte, reader io.Reader) ([]byte, error) {
+func (decryptor *Decryptor) ReadData(symmetricKey, zoneID []byte, reader io.Reader) ([]byte, error) {
 	length, rawLengthData, err := decryptor.readDataLength(reader)
 	if err != nil {
 		return rawLengthData, err
@@ -151,6 +151,6 @@ func (decryptor *BinaryDecryptor) ReadData(symmetricKey, zoneID []byte, reader i
 }
 
 // GetTagBeginLength returns length of AcraStruct BeginTag
-func (*BinaryDecryptor) GetTagBeginLength() int {
+func (*Decryptor) GetTagBeginLength() int {
 	return len(base.TagBegin)
 }

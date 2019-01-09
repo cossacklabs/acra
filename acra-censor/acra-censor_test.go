@@ -149,7 +149,7 @@ func TestAllowTables(t *testing.T) {
 	// now we should allow query that access EMPLOYEE or Customers tables and deny all others
 	queryIndexesToPass := []int{1, 4, 5}
 	for _, i := range queryIndexesToPass {
-		err := censor.HandleQuery(testQueries[i])
+		err = censor.HandleQuery(testQueries[i])
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -857,7 +857,7 @@ func TestDenyTables(t *testing.T) {
 	//acracensor should block these queries
 	queryIndexesToBlock := []int{0, 2, 4, 5, 6}
 	for _, i := range queryIndexesToBlock {
-		err := censor.HandleQuery(testQueries[i])
+		err = censor.HandleQuery(testQueries[i])
 		if err != common.ErrDenyByTableError {
 			t.Fatal(err)
 		}
@@ -865,7 +865,7 @@ func TestDenyTables(t *testing.T) {
 	//acracensor should not block these queries
 	queryIndexesToPass := []int{1, 3}
 	for _, i := range queryIndexesToPass {
-		err := censor.HandleQuery(testQueries[i])
+		err = censor.HandleQuery(testQueries[i])
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -915,7 +915,7 @@ func TestDenySelectPattern(t *testing.T) {
 	}
 	//Queries that should be blocked by specified pattern have indexes: [0 .. 12] (all select queries)
 	for i, query := range testQueries {
-		err := censor.HandleQuery(query)
+		err = censor.HandleQuery(query)
 		if strings.HasPrefix(strings.ToLower(query), "select") {
 			if err != common.ErrDenyByPatternError {
 				t.Fatal(err, "Blacklist pattern passed query. \nPattern:", blacklistPattern+"\nQuery:", testQueries[i])
@@ -1464,7 +1464,7 @@ func TestQueryIgnoring(t *testing.T) {
 	acraCensor.AddHandler(blacklist)
 	//should not block
 	for _, query := range testQueries {
-		err := acraCensor.HandleQuery(query)
+		err = acraCensor.HandleQuery(query)
 		if err != nil {
 			t.Fatal(err)
 		}

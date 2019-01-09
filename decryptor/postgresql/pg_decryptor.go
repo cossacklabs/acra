@@ -101,7 +101,7 @@ type PgProxy struct {
 }
 
 // NewPgProxy returns new PgProxy
-func NewPgProxy(ctx context.Context, clientID []byte, decryptor base.Decryptor, dbConnection, clientConnection net.Conn, tlsConfig *tls.Config, censor acracensor.AcraCensorInterface) (*PgProxy, error) {
+func NewPgProxy(ctx context.Context, decryptor base.Decryptor, dbConnection, clientConnection net.Conn, tlsConfig *tls.Config, censor acracensor.AcraCensorInterface) (*PgProxy, error) {
 	return &PgProxy{
 		clientConnection:     clientConnection,
 		dbConnection:         dbConnection,
@@ -156,7 +156,7 @@ func (proxy *PgProxy) ProxyClientConnection(errCh chan<- error) {
 		packetSpanCtx, packetSpan := trace.StartSpan(ctx, "PgProxyClientRequestsLoop")
 		spanEndFunc = packetSpan.End
 
-		if err := packet.ReadClientPacket(); err != nil {
+		if err = packet.ReadClientPacket(); err != nil {
 			if proxy.tlsSwitch {
 				proxy.tlsSwitch = false
 				proxy.TLSCh <- true
@@ -169,7 +169,7 @@ func (proxy *PgProxy) ProxyClientConnection(errCh chan<- error) {
 		proxy.dbConnection.SetWriteDeadline(time.Now().Add(network.DefaultNetworkTimeout))
 		// we are interested only in requests that contains sql queries
 		if !(packet.IsSimpleQuery() || packet.IsParse()) {
-			if err := packet.sendPacket(); err != nil {
+			if err = packet.sendPacket(); err != nil {
 				logger.WithError(err).Errorln("Can't forward packet to db")
 				errCh <- err
 				return
@@ -523,14 +523,14 @@ func (proxy *PgProxy) ProxyDatabaseConnection(errCh chan<- error) {
 			// first response from server may contain only one byte of response on SSLRequest
 			firstByte = false
 			logger.Debugln("Read startup message")
-			if err := packetHandler.readMessageType(); err != nil {
+			if err = packetHandler.readMessageType(); err != nil {
 				logger.WithError(err).Debugln("Can't read first message type")
 				errCh <- err
 				return
 			}
 			if packetHandler.IsSSLRequestDeny() {
 				logger.Debugln("Deny ssl request")
-				if err := packetHandler.sendMessageType(); err != nil {
+				if err = packetHandler.sendMessageType(); err != nil {
 					errCh <- err
 					return
 				}
@@ -560,12 +560,12 @@ func (proxy *PgProxy) ProxyDatabaseConnection(errCh chan<- error) {
 			}
 			logger.Debugln("Non-ssl request start up message")
 			// if it is not ssl request than we just forward it to client
-			if err := packetHandler.readData(true); err != nil {
+			if err = packetHandler.readData(true); err != nil {
 				logger.WithError(err).Errorln("Can't read data of packet")
 				errCh <- err
 				return
 			}
-			if err := packetHandler.sendPacket(); err != nil {
+			if err = packetHandler.sendPacket(); err != nil {
 				logger.WithError(err).Errorln("Can't forward first packet")
 				errCh <- err
 				return
@@ -574,7 +574,7 @@ func (proxy *PgProxy) ProxyDatabaseConnection(errCh chan<- error) {
 			continue
 		}
 		timer := prometheus.NewTimer(prometheus.ObserverFunc(base.ResponseProcessingTimeHistogram.WithLabelValues(prometheusLabels...).Observe))
-		if err := packetHandler.ReadPacket(); err != nil {
+		if err = packetHandler.ReadPacket(); err != nil {
 			logger.WithError(err).Debugln("Can't read packet")
 			errCh <- err
 			return
@@ -582,7 +582,7 @@ func (proxy *PgProxy) ProxyDatabaseConnection(errCh chan<- error) {
 		proxy.clientConnection.SetWriteDeadline(time.Now().Add(network.DefaultNetworkTimeout))
 
 		if !packetHandler.IsDataRow() {
-			if err := packetHandler.sendPacket(); err != nil {
+			if err = packetHandler.sendPacket(); err != nil {
 				logger.WithError(err).Errorln("Can't forward packet")
 				errCh <- err
 				return
@@ -592,14 +592,14 @@ func (proxy *PgProxy) ProxyDatabaseConnection(errCh chan<- error) {
 		}
 
 		logger.Debugln("Matched data row packet")
-		if err := packetHandler.parseColumns(); err != nil {
+		if err = packetHandler.parseColumns(); err != nil {
 			logger.WithError(err).Errorln("Can't parse columns in packet")
 			errCh <- err
 			return
 		}
 
 		if packetHandler.columnCount == 0 {
-			if err := packetHandler.sendPacket(); err != nil {
+			if err = packetHandler.sendPacket(); err != nil {
 				logger.WithError(err).Errorln("Can't send packet on column count 0")
 				errCh <- err
 				return
@@ -642,14 +642,14 @@ func (proxy *PgProxy) ProxyDatabaseConnection(errCh chan<- error) {
 				}
 
 				if proxy.decryptor.IsWholeMatch() {
-					err := proxy.processWholeBlockDecryption(packetCtx, packetHandler, column, proxy.decryptor, logger)
+					err = proxy.processWholeBlockDecryption(packetCtx, packetHandler, column, proxy.decryptor, logger)
 					if err != nil {
 						logger.WithError(err).Errorln("Can't process whole block")
 						errCh <- err
 						return
 					}
 				} else {
-					err := proxy.processInlineBlockDecryption(packetCtx, packetHandler, column, proxy.decryptor, logger)
+					err = proxy.processInlineBlockDecryption(packetCtx, packetHandler, column, proxy.decryptor, logger)
 					if err != nil {
 						logger.WithError(err).Errorln("Can't process block with inline mode")
 						errCh <- err
@@ -661,7 +661,7 @@ func (proxy *PgProxy) ProxyDatabaseConnection(errCh chan<- error) {
 			}
 		}
 		packetHandler.updateDataFromColumns()
-		if err := packetHandler.sendPacket(); err != nil {
+		if err = packetHandler.sendPacket(); err != nil {
 			logger.WithError(err).Errorln("Can't send packet")
 			errCh <- err
 			return

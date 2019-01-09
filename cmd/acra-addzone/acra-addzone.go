@@ -44,9 +44,9 @@ import (
 
 // Constants used by AcraAddZone util.
 var (
-	// DEFAULT_CONFIG_PATH relative path to config which will be parsed as default
-	DEFAULT_CONFIG_PATH = utils.GetConfigPathByName("acra-addzone")
-	SERVICE_NAME        = "acra-addzone"
+	// defaultConfigPath relative path to config which will be parsed as default
+	defaultConfigPath = utils.GetConfigPathByName("acra-addzone")
+	serviceName       = "acra-addzone"
 )
 
 func main() {
@@ -55,12 +55,12 @@ func main() {
 
 	logging.SetLogLevel(logging.LogVerbose)
 
-	err := cmd.Parse(DEFAULT_CONFIG_PATH, SERVICE_NAME)
+	err := cmd.Parse(defaultConfigPath, serviceName)
 	if err != nil {
 		log.WithError(err).Errorln("can't parse args")
 		os.Exit(1)
 	}
-	//LoadFromConfig(DEFAULT_CONFIG_PATH)
+	//LoadFromConfig(defaultConfigPath)
 	//iniflags.Parse()
 
 	output, err := filepath.Abs(*outputDir)

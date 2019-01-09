@@ -26,9 +26,9 @@ import (
 	"path/filepath"
 )
 
-// GenerateData generates random data with MAX_DATA_LENGTH
+// GenerateData generates random data with MaxDataLength
 func GenerateData() ([]byte, error) {
-	length := rand.Intn(config.MAX_DATA_LENGTH)
+	length := rand.Intn(config.MaxDataLength)
 	data := make([]byte, length)
 	_, err := data_rand.Read(data)
 	return data, err
@@ -45,13 +45,13 @@ func GetServerOneKeyPublic() *keys.PublicKey {
 
 // ZoneData stores zone: zoneID and PublicKey
 type ZoneData struct {
-	Id        []byte
+	ID        []byte
 	PublicKey []byte
 }
 
 // JSONData stores JSON zone: zoneID and PublicKey
 type JSONData struct {
-	Id        string
+	ID        string
 	PublicKey []byte
 }
 
@@ -61,7 +61,7 @@ func LoadZones() []*ZoneData {
 	if err != nil {
 		panic(err)
 	}
-	zones := make([]*ZoneData, config.ZONE_COUNT)
+	zones := make([]*ZoneData, config.ZoneCount)
 	dumpedZoneData, err := ioutil.ReadFile(fmt.Sprintf("%v/public_keys.txt", absDir))
 	if err != nil {
 		panic(err)
@@ -72,7 +72,7 @@ func LoadZones() []*ZoneData {
 		if err != nil {
 			panic(err)
 		}
-		zones[i] = &ZoneData{PublicKey: jsonData.PublicKey, Id: []byte(jsonData.Id)}
+		zones[i] = &ZoneData{PublicKey: jsonData.PublicKey, ID: []byte(jsonData.ID)}
 	}
 	return zones
 }

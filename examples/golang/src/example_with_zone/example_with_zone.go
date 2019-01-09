@@ -35,7 +35,7 @@ var AcraConnectorAddress = "http://127.0.0.1:9191"
 
 // ZoneData stores zone: zoneID and PublicKey
 type ZoneData struct {
-	Id        string
+	ID        string
 	PublicKey []byte
 }
 
@@ -102,7 +102,7 @@ func main() {
 			panic(err)
 		}
 		zonePublic := parsedZoneData.PublicKey
-		zoneID := []byte(parsedZoneData.Id)
+		zoneID := []byte(parsedZoneData.ID)
 
 		acrastruct, err := acrawriter.CreateAcrastruct([]byte(*data), &keys.PublicKey{Value: zonePublic}, zoneID)
 		if err != nil {

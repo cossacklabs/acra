@@ -157,7 +157,7 @@ func (clientSession *ClientCommandsSession) HandleSession() {
 		logger.Debugln("Got /setConfig request")
 		decoder := json.NewDecoder(req.Body)
 		var configFromUI UIEditableConfig
-		err := decoder.Decode(&configFromUI)
+		err = decoder.Decode(&configFromUI)
 		if err != nil {
 			logger.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorGeneral).
 				Warningln("Can't convert config from incoming")

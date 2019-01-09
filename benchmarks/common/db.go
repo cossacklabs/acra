@@ -99,7 +99,7 @@ func RunScripts(scripts []string, db *sql.DB) {
 func IsExistsData(tablename string, db *sql.DB) bool {
 	var count int
 	db.QueryRow(fmt.Sprintf("SELECT count(*) FROM %s;", tablename)).Scan(&count)
-	if count == config.ROW_COUNT {
+	if count == config.RowCount {
 		fmt.Printf("Data in table '%s' already exists\n", tablename)
 		return true
 	}
