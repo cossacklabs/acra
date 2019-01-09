@@ -290,7 +290,7 @@ func main() {
 		poisonCallbacks.AddCallback(base.NewExecuteScriptCallback(*scriptOnPoison))
 		config.scriptOnPoison = *scriptOnPoison
 	}
-	// must be last
+	// should setup "stopOnPoison" as last poison record callback"
 	if *stopOnPoison {
 		poisonCallbacks.AddCallback(&base.StopCallback{})
 		config.stopOnPoison = *stopOnPoison
