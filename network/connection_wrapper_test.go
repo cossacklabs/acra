@@ -28,7 +28,8 @@ import (
 	"strings"
 )
 
-var TestClientID = []byte("test client id")
+var TestClientID = []byte("client")
+var TestServerID = []byte("server")
 
 func wait(ch chan bool, t *testing.T) {
 	select {
@@ -109,7 +110,7 @@ func testWrapper(clientWrapper, serverWrapper ConnectionWrapper, t *testing.T) {
 	}
 	defer connection.Close()
 	t.Log("wrap client")
-	connection, err = clientWrapper.WrapClient(context.TODO(), TestClientID, connection)
+	connection, err = clientWrapper.WrapClient(context.TODO(), TestServerID, connection)
 	if err != nil {
 		connection.Close()
 		t.Fatal(err)
@@ -165,11 +166,11 @@ func TestSessionWrapper(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	clientWrapper, err := NewSecureSessionConnectionWrapper(&SimpleKeyStore{PrivateKey: clientPair.Private, PublicKey: serverPair.Public})
+	clientWrapper, err := NewSecureSessionConnectionWrapper(TestClientID, &SimpleKeyStore{PrivateKey: clientPair.Private, PublicKey: serverPair.Public})
 	if err != nil {
 		t.Fatal(err)
 	}
-	serverWrapper, err := NewSecureSessionConnectionWrapper(&SimpleKeyStore{PrivateKey: serverPair.Private, PublicKey: clientPair.Public})
+	serverWrapper, err := NewSecureSessionConnectionWrapper(TestServerID, &SimpleKeyStore{PrivateKey: serverPair.Private, PublicKey: clientPair.Public})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -303,7 +304,7 @@ func testTLSConfig(serverWrapper *TLSConnectionWrapper, t *testing.T) {
 		t.Fatal("expected error")
 	}()
 	go func() {
-		_, err := clientWrapper.WrapClient(context.TODO(), []byte("some client"), clientConn)
+		_, err := clientWrapper.WrapClient(context.TODO(), []byte("server"), clientConn)
 		if err != nil {
 			if err.Error() != "remote error: tls: handshake failure" {
 				t.Fatal("Expected with handshake failure")
@@ -354,7 +355,7 @@ func testTLSConfig(serverWrapper *TLSConnectionWrapper, t *testing.T) {
 		t.Fatal("expected error")
 	}()
 	go func() {
-		_, err := clientWrapper.WrapClient(context.TODO(), []byte("some client"), clientConn)
+		_, err := clientWrapper.WrapClient(context.TODO(), []byte("server"), clientConn)
 		if err != nil {
 			if err.Error() != "remote error: tls: protocol version not supported" {
 				t.Fatal("Expected incorrect protocol version error")

@@ -34,8 +34,8 @@ type SecureSessionListener struct {
 
 // NewSecureSessionListener create SecureSessionConnectionWrapper that will use keystorage to wrap new connections, create
 // listener by connectionString and return SecureSessionListener
-func NewSecureSessionListener(connectionString string, keystorage keystore.SecureSessionKeyStore) (*SecureSessionListener, error) {
-	connectionWrapper, err := NewSecureSessionConnectionWrapper(keystorage)
+func NewSecureSessionListener(id []byte, connectionString string, keystorage keystore.SecureSessionKeyStore) (*SecureSessionListener, error) {
+	connectionWrapper, err := NewSecureSessionConnectionWrapper(id, keystorage)
 	if err != nil {
 		return nil, err
 	}
