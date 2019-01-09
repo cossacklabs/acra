@@ -62,7 +62,7 @@ func normalizeQuery(query string, t *testing.T) string {
 	return sqlparser.String(parsed)
 }
 
-func TestMysqlQueryParser_Parse(t *testing.T) {
+func TestGeneralQueryParser_Parse(t *testing.T) {
 	zoneID := zone.GenerateZoneID()
 	zoneIDStr := string(zoneID)
 	clientIDStr := "specified_client_id"
@@ -103,9 +103,16 @@ schemas:
 	if err != nil {
 		t.Fatalf("Can't parse config: %s", err.Error())
 	}
+	simpleStringData := []byte("string data")
 	encryptedValue := []byte("encrypted")
 	hexEncryptedValue := hex.EncodeToString(encryptedValue)
-	dataValue := "some data"
+	toPgHexValue := func(s string) string {
+		return fmt.Sprintf("\\x%s", s)
+	}
+	dataValue := make([]byte, 256)
+	for i := 0; i < 256; i++ {
+		dataValue[i] = byte(i)
+	}
 	dataHexValue := hex.EncodeToString([]byte(dataValue))
 	testData := []struct {
 		Query             string
@@ -114,6 +121,7 @@ schemas:
 		ExpectedQueryData []interface{}
 		Changed           bool
 		ExpectedIDS       [][]byte
+		DataCoder         DBDataCoder
 	}{
 		// 0. without list of columns and with schema, one value
 		{
@@ -304,6 +312,81 @@ schemas:
 			Changed:           true,
 			ExpectedIDS:       [][]byte{defaultClientID},
 		},
+		// 21. with double quoted table and column names
+		{
+			Query:             `INSERT INTO "TableWithoutColumnSchema" ("zone_id", "specified_client_id", "other_column", "default_client_id") VALUES (X'%s', X'%s', 1, X'%s')`,
+			QueryData:         []interface{}{dataHexValue, dataHexValue, dataHexValue},
+			ExpectedQueryData: []interface{}{hexEncryptedValue, hexEncryptedValue, hexEncryptedValue},
+			Normalized:        true,
+			Changed:           true,
+			ExpectedIDS:       [][]byte{zoneID, specifiedClientID, defaultClientID},
+		},
+		// 22. with back quoted table and column names
+		{
+			Query:             "INSERT INTO `TableWithoutColumnSchema` (`zone_id`, `specified_client_id`, `other_column`, `default_client_id`) VALUES (X'%s', X'%s', 1, X'%s')",
+			QueryData:         []interface{}{dataHexValue, dataHexValue, dataHexValue},
+			ExpectedQueryData: []interface{}{hexEncryptedValue, hexEncryptedValue, hexEncryptedValue},
+			Normalized:        true,
+			Changed:           true,
+			ExpectedIDS:       [][]byte{zoneID, specifiedClientID, defaultClientID},
+		},
+		// 23. update with double quoted identifiers
+		{
+			Query:             `UPDATE "TableWithoutColumnSchema" as "t" set "other_column"=X'%s', "specified_client_id"=X'%s', "zone_id"=X'%s', "default_client_id"=X'%s'`,
+			QueryData:         []interface{}{dataHexValue, dataHexValue, dataHexValue, dataHexValue},
+			ExpectedQueryData: []interface{}{dataHexValue, hexEncryptedValue, hexEncryptedValue, hexEncryptedValue},
+			Normalized:        true,
+			Changed:           true,
+			ExpectedIDS:       [][]byte{specifiedClientID, zoneID, defaultClientID},
+		},
+		// 24. update with back quoted identifiers
+		{
+			Query:             "UPDATE `TableWithoutColumnSchema` as `t` set `other_column`=X'%s', `specified_client_id`=X'%s', `zone_id`=X'%s', `default_client_id`=X'%s'",
+			QueryData:         []interface{}{dataHexValue, dataHexValue, dataHexValue, dataHexValue},
+			ExpectedQueryData: []interface{}{dataHexValue, hexEncryptedValue, hexEncryptedValue, hexEncryptedValue},
+			Normalized:        true,
+			Changed:           true,
+			ExpectedIDS:       [][]byte{specifiedClientID, zoneID, defaultClientID},
+		},
+		// 25. insert with data as simple string
+		{
+			Query:             `INSERT INTO "TableWithoutColumnSchema" ("zone_id", "specified_client_id", "other_column", "default_client_id") VALUES ('%s', '%s', 1, '%s')`,
+			QueryData:         []interface{}{simpleStringData, simpleStringData, simpleStringData},
+			ExpectedQueryData: []interface{}{encryptedValue, encryptedValue, encryptedValue},
+			Normalized:        true,
+			Changed:           true,
+			ExpectedIDS:       [][]byte{zoneID, specifiedClientID, defaultClientID},
+		},
+		// 26. update with data as simple string
+		{
+			Query:             `UPDATE "TableWithoutColumnSchema" as "t" set "other_column"='%s', "specified_client_id"='%s', "zone_id"='%s', "default_client_id"='%s'`,
+			QueryData:         []interface{}{simpleStringData, simpleStringData, simpleStringData, simpleStringData},
+			ExpectedQueryData: []interface{}{simpleStringData, encryptedValue, encryptedValue, encryptedValue},
+			Normalized:        true,
+			Changed:           true,
+			ExpectedIDS:       [][]byte{specifiedClientID, zoneID, defaultClientID},
+		},
+
+		// 27. insert with data as simple string for postgresql
+		{
+			Query:             `INSERT INTO "TableWithoutColumnSchema" ("zone_id", "specified_client_id", "other_column", "default_client_id") VALUES ('%s', '%s', 1, '%s')`,
+			QueryData:         []interface{}{simpleStringData, simpleStringData, simpleStringData},
+			ExpectedQueryData: []interface{}{toPgHexValue(hexEncryptedValue), toPgHexValue(hexEncryptedValue), toPgHexValue(hexEncryptedValue)},
+			Normalized:        true,
+			Changed:           true,
+			ExpectedIDS:       [][]byte{zoneID, specifiedClientID, defaultClientID},
+			DataCoder:         &PostgresqlDBDataCoder{},
+		},
+		// 28. update with data as simple string for postgresql
+		{
+			Query:             `UPDATE "TableWithoutColumnSchema" as "t" set "other_column"='%s', "specified_client_id"='%s', "zone_id"='%s', "default_client_id"='%s'`,
+			QueryData:         []interface{}{simpleStringData, simpleStringData, simpleStringData, simpleStringData},
+			ExpectedQueryData: []interface{}{simpleStringData, toPgHexValue(hexEncryptedValue), toPgHexValue(hexEncryptedValue), toPgHexValue(hexEncryptedValue)},
+			Normalized:        true,
+			Changed:           true,
+			ExpectedIDS:       [][]byte{specifiedClientID, zoneID, defaultClientID},
+			DataCoder:         &PostgresqlDBDataCoder{},
+		},
 	}
 	encryptor := &testEncryptor{value: encryptedValue}
 	mysqlParser, err := NewMysqlQueryEncryptor(schemaStore, defaultClientID, encryptor)
@@ -313,6 +396,9 @@ schemas:
 
 	for i, testCase := range testData {
 		encryptor.reset()
+		if testCase.DataCoder != nil {
+			mysqlParser.dataCoder = testCase.DataCoder
+		}
 		query := fmt.Sprintf(testCase.Query, testCase.QueryData...)
 		expectedQuery := fmt.Sprintf(testCase.Query, testCase.ExpectedQueryData...)
 		if testCase.Normalized {

@@ -476,6 +476,7 @@ type Insert struct {
 	Columns    Columns
 	Rows       InsertRows
 	OnDup      OnDup
+	Returning  Returning
 }
 
 // DDL strings.
@@ -486,10 +487,10 @@ const (
 
 // Format formats the node.
 func (node *Insert) Format(buf *TrackedBuffer) {
-	buf.Myprintf("%s %v%sinto %v%v%v %v%v",
+	buf.Myprintf("%s %v%sinto %v%v%v %v%v%v",
 		node.Action,
 		node.Comments, node.Ignore,
-		node.Table, node.Partitions, node.Columns, node.Rows, node.OnDup)
+		node.Table, node.Partitions, node.Columns, node.Rows, node.OnDup, node.Returning)
 }
 
 func (node *Insert) walkSubtree(visit Visit) error {
@@ -1501,6 +1502,10 @@ func (node *StarExpr) walkSubtree(visit Visit) error {
 	)
 }
 
+func (*StarExpr) replace(from, to Expr) bool {
+	return false
+}
+
 // AliasedExpr defines an aliased SELECT expression.
 type AliasedExpr struct {
 	Expr Expr
@@ -1913,6 +1918,7 @@ type Expr interface {
 	SQLNode
 }
 
+func (*StarExpr) iExpr()         {}
 func (*AndExpr) iExpr()          {}
 func (*OrExpr) iExpr()           {}
 func (*NotExpr) iExpr()          {}
@@ -2269,6 +2275,7 @@ const (
 	ValArg
 	BitVal
 	PgEscapeString
+	Casted
 )
 
 // SQLVal represents a single value.
@@ -3272,14 +3279,40 @@ func (node OnDup) walkSubtree(visit Visit) error {
 	return Walk(visit, UpdateExprs(node))
 }
 
+// Returning represents RETURNING clause from postgresql syntex
+type Returning Exprs
+
+// Format formats the node.
+func (node Returning) Format(buf *TrackedBuffer) {
+	if node == nil {
+		return
+	}
+	buf.Myprintf(" returning %v", Exprs(node))
+}
+
+func (node Returning) walkSubtree(visit Visit) error {
+	return Walk(visit, Exprs(node))
+}
+
+// replace implement Expr interface
+func (node Returning) replace(from, to Expr) bool {
+	for i := range node {
+		if replaceExprs(from, to, &node[i]) {
+			return true
+		}
+	}
+	return false
+}
+
 // ColIdent is a case insensitive SQL identifier. It will be escaped with
 // backquotes if necessary.
 type ColIdent struct {
 	// This artifact prevents this struct from being compared
 	// with itself. It consumes no space as long as it's not the
 	// last field in the struct.
-	_            [0]struct{ _ []byte }
-	val, lowered string
+	_              [0]struct{ _ []byte }
+	val, lowered   string
+	wrapWithQuotes bool
 }
 
 // NewColIdent makes a new ColIdent.
@@ -3289,9 +3322,23 @@ func NewColIdent(str string) ColIdent {
 	}
 }
 
+// NewColIdentWithQuotes create ColIdent with quotes to escape column name in Postgresql style
+func NewColIdentWithQuotes(str string, quotes bool) ColIdent {
+	return ColIdent{
+		val:            str,
+		wrapWithQuotes: quotes,
+	}
+}
+
 // Format formats the node.
 func (node ColIdent) Format(buf *TrackedBuffer) {
-	formatID(buf, node.val, node.Lowered())
+	if node.wrapWithQuotes {
+		// print as is in quotes
+		buf.Myprintf(`"%s"`, node.val)
+	} else {
+		formatID(buf, node.val, node.Lowered())
+	}
+
 }
 
 func (node ColIdent) walkSubtree(visit Visit) error {
@@ -3309,6 +3356,11 @@ func (node ColIdent) IsEmpty() bool {
 // in templates.
 func (node ColIdent) String() string {
 	return node.val
+}
+
+// NeedQuotes return true if should wrapped with quotes to escape in postgresql style
+func (node ColIdent) NeedQuotes() bool {
+	return node.wrapWithQuotes
 }
 
 // CompliantName returns a compliant id name
@@ -3359,7 +3411,8 @@ func (node *ColIdent) UnmarshalJSON(b []byte) error {
 // TableIdent is a case sensitive SQL identifier. It will be escaped with
 // backquotes if necessary.
 type TableIdent struct {
-	v string
+	wrapWithQuotes bool
+	v              string
 }
 
 // NewTableIdent creates a new TableIdent.
@@ -3367,9 +3420,20 @@ func NewTableIdent(str string) TableIdent {
 	return TableIdent{v: str}
 }
 
+// NewTableIdentWithQuotes creates a new TableIdent with flag to escape name
+func NewTableIdentWithQuotes(str string, quotes bool) TableIdent {
+	return TableIdent{v: str, wrapWithQuotes: quotes}
+}
+
 // Format formats the node.
 func (node TableIdent) Format(buf *TrackedBuffer) {
-	formatID(buf, node.v, strings.ToLower(node.v))
+	if node.wrapWithQuotes {
+		// print as is in quotes
+		buf.Myprintf(`"%s"`, node.v)
+	} else {
+		formatID(buf, node.v, strings.ToLower(node.v))
+	}
+
 }
 
 func (node TableIdent) walkSubtree(visit Visit) error {

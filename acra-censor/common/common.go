@@ -30,21 +30,18 @@ type pattern struct {
 	replacer    string
 }
 
-// Errors returned during parsing SQL queries.
+// Errors returned by censor
 var (
-	ErrQueryNotInWhitelist             = errors.New("query not in whitelist")
-	ErrQueryInBlacklist                = errors.New("query in blacklist")
-	ErrAccessToForbiddenTableBlacklist = errors.New("query tries to access forbidden table")
-	ErrAccessToForbiddenTableWhitelist = errors.New("query tries to access forbidden table")
-	ErrBlacklistPatternMatch           = errors.New("query's structure is forbidden")
-	ErrWhitelistPatternMismatch        = errors.New("query's structure is forbidden")
+	ErrDenyByQueryError                = errors.New("deny by query")
+	ErrDenyByTableError                = errors.New("deny by table")
+	ErrDenyByPatternError              = errors.New("deny by pattern")
 	ErrPatternSyntaxError              = errors.New("fail to parse specified pattern")
 	ErrPatternCheckError               = errors.New("failed to check specified pattern match")
 	ErrQuerySyntaxError                = errors.New("fail to parse specified query")
-	ErrComplexSerializationError       = errors.New("can't perform complex serialization of queries")
-	ErrCantOpenFileError               = errors.New("can't open file to write queries")
-	ErrCantReadQueriesFromFileError    = errors.New("can't read queries from file")
+	ErrCantReadQueriesFromStorageError = errors.New("can't read queries from storage")
 	ErrUnexpectedTypeError             = errors.New("should never appear")
+	ErrDenyAllError                    = errors.New("deny all queries error")
+	ErrCensorConfigurationError        = errors.New("configuration error")
 )
 
 const (

@@ -11,7 +11,6 @@ import yaml
 BASE_DIR = os.path.dirname(os.path.dirname(__file__))
 abs_path = lambda x: os.path.join(BASE_DIR, x)
 
-
 TEMP_DATA_GENERATED = 'TEST_RANDOM_DATA_FOLDER_GENERATE'
 TEMP_DATA_FOLDER_VARNAME = 'TEST_RANDOM_DATA_FOLDER'
 

@@ -17,10 +17,10 @@ limitations under the License.
 package encryptor
 
 import (
-	"bytes"
 	"encoding/hex"
 	"errors"
 	"github.com/cossacklabs/acra/sqlparser"
+	"github.com/cossacklabs/acra/utils"
 	"github.com/sirupsen/logrus"
 )
 
@@ -91,16 +91,21 @@ func (*PostgresqlDBDataCoder) Decode(expr sqlparser.Expr) ([]byte, error) {
 			}
 			return binValue, err
 		case sqlparser.PgEscapeString, sqlparser.StrVal:
-			// 4 == "\x" + min 2 symbols for hex decoding
-			if len(val.Val) >= 4 && bytes.Equal(val.Val[:len(pgHexStringPrefix)], pgHexStringPrefix) {
-				hexValue := val.Val[len(pgHexStringPrefix):]
-				binValue := make([]byte, hex.DecodedLen(len(hexValue)))
-				_, err := hex.Decode(binValue, hexValue)
-				if err != nil {
+			// try to decode hex/octal encoding
+			binValue, err := utils.DecodeEscaped(val.Val)
+			if err != nil {
+				// return error on hex decode
+				if _, ok := err.(hex.InvalidByteError); err == hex.ErrLength || ok {
+					return nil, err
+				} else if err == utils.ErrDecodeEscapedString {
 					return nil, err
 				}
-				return binValue, err
+
+				logrus.WithError(err).Warningln("Can't decode value, process as unescaped string")
+				// return value as is because it may be string with printable characters that wasn't encoded on client
+				return val.Val, nil
 			}
+			return binValue, nil
 		}
 	}
 	return nil, errUnsupportedExpression

@@ -149,10 +149,10 @@ var (
 		input: "select /* keyword column alias */ a as `By` from t",
 	}, {
 		input:  "select /* column alias as string */ a as \"b\" from t",
-		output: "select /* column alias as string */ a as b from t",
+		output: "select /* column alias as string */ a as \"b\" from t",
 	}, {
 		input:  "select /* column alias as string without as */ a \"b\" from t",
-		output: "select /* column alias as string without as */ a as b from t",
+		output: "select /* column alias as string without as */ a as \"b\" from t",
 	}, {
 		input: "select /* a.* */ a.* from t",
 	}, {
@@ -204,10 +204,10 @@ var (
 		input: "select /* table alias with as */ 1 from t as t1",
 	}, {
 		input:  "select /* string table alias */ 1 from t as 't1'",
-		output: "select /* string table alias */ 1 from t as t1",
+		output: "select /* string table alias */ 1 from t as \"t1\"",
 	}, {
 		input:  "select /* string table alias without as */ 1 from t 't1'",
-		output: "select /* string table alias without as */ 1 from t as t1",
+		output: "select /* string table alias without as */ 1 from t as \"t1\"",
 	}, {
 		input: "select /* keyword table alias */ 1 from t as `By`",
 	}, {
@@ -1312,7 +1312,7 @@ var (
 )
 
 func TestValid(t *testing.T) {
-	for _, tcase := range validSQL {
+	for i, tcase := range validSQL {
 		if tcase.output == "" {
 			tcase.output = tcase.input
 		}
@@ -1323,7 +1323,7 @@ func TestValid(t *testing.T) {
 		}
 		out := String(tree)
 		if out != tcase.output {
-			t.Errorf("Parse(%q) = %q, want: %q", tcase.input, out, tcase.output)
+			t.Errorf("[%d] Parse(%q) = %q, want: %q", i, tcase.input, out, tcase.output)
 		}
 		// This test just exercises the tree walking functionality.
 		// There's no way automated way to verify that a node calls

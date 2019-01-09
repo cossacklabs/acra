@@ -46,8 +46,8 @@ func NewPostgresqlQueryEncryptor(schema config.TableSchemaStore, clientID []byte
 
 // encryptInsertQuery encrypt data in insert query in VALUES and ON DUPLICATE KEY UPDATE statements
 func (encryptor *QueryDataEncryptor) encryptInsertQuery(insert *sqlparser.Insert) (bool, error) {
-	tableName := sqlparser.String(insert.Table.Name)
-	schema := encryptor.schemaStore.GetTableSchema(tableName)
+	tableName := insert.Table.Name
+	schema := encryptor.schemaStore.GetTableSchema(tableName.String())
 	if schema == nil {
 		// unsupported table, we have not schema and query hasn't columns description
 		logrus.Debugf("Hasn't schema for table %s", tableName)
@@ -58,7 +58,7 @@ func (encryptor *QueryDataEncryptor) encryptInsertQuery(insert *sqlparser.Insert
 	if len(insert.Columns) > 0 {
 		columnsName = make([]string, 0, len(insert.Columns))
 		for _, col := range insert.Columns {
-			columnsName = append(columnsName, sqlparser.String(col))
+			columnsName = append(columnsName, col.String())
 		}
 	} else if len(schema.Columns) > 0 {
 		columnsName = schema.Columns

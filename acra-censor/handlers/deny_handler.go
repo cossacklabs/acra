@@ -23,17 +23,17 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
-// BlacklistHandler allows everything and forbids specific query/pattern/table
-type BlacklistHandler struct {
+// DenyHandler allows everything and forbids specific query/pattern/table
+type DenyHandler struct {
 	queries  map[string]bool
 	tables   map[string]bool
 	patterns []sqlparser.Statement
 	logger   *log.Entry
 }
 
-// NewBlacklistHandler creates new blacklist instance
-func NewBlacklistHandler() *BlacklistHandler {
-	handler := &BlacklistHandler{}
+// NewDenyHandler creates new blacklist instance
+func NewDenyHandler() *DenyHandler {
+	handler := &DenyHandler{}
 	handler.queries = make(map[string]bool)
 	handler.tables = make(map[string]bool)
 	handler.patterns = make([]sqlparser.Statement, 0)
@@ -43,50 +43,53 @@ func NewBlacklistHandler() *BlacklistHandler {
 
 // CheckQuery checks each query, returns false and error if query is blacklisted or
 // if query tries to access to forbidden table
-func (handler *BlacklistHandler) CheckQuery(normalizedQuery string, parsedQuery sqlparser.Statement) (bool, error) {
+func (handler *DenyHandler) CheckQuery(normalizedQuery string, parsedQuery sqlparser.Statement) (bool, error) {
+	// skip unparsed queries
+	if parsedQuery == nil {
+		return true, nil
+	}
 	//Check exact queries
 	if len(handler.queries) != 0 {
 		queryMatch := common.CheckExactQueriesMatch(normalizedQuery, handler.queries)
 		if queryMatch {
-			handler.logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCensorQueryIsNotAllowed).WithError(common.ErrQueryInBlacklist).Errorln("Query has been blocked by blacklist [queries]")
-			return false, common.ErrQueryInBlacklist
+			handler.logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCensorQueryIsNotAllowed).WithError(common.ErrDenyByQueryError).Errorln("Query has been blocked by DENY [queries]")
+			return false, common.ErrDenyByQueryError
 		}
 	}
 	//Check tables
 	if len(handler.tables) != 0 {
 		atLeastOneTableInBlacklist, _ := common.CheckTableNamesMatch(parsedQuery, handler.tables)
 		if atLeastOneTableInBlacklist {
-			handler.logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCensorQueryIsNotAllowed).WithError(common.ErrQueryInBlacklist).Errorln("Query has been blocked by blacklist [tables]")
-			return false, common.ErrAccessToForbiddenTableBlacklist
+			handler.logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCensorQueryIsNotAllowed).WithError(common.ErrDenyByQueryError).Errorln("Query has been blocked by DENY [tables]")
+			return false, common.ErrDenyByTableError
 		}
 	}
 	//Check patterns
 	if len(handler.patterns) != 0 {
 		matchingOccurred := common.CheckPatternsMatching(handler.patterns, parsedQuery)
 		if matchingOccurred {
-			return false, common.ErrBlacklistPatternMatch
+			handler.logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCensorQueryIsNotAllowed).WithError(common.ErrDenyByQueryError).Errorln("Query has been blocked by DENY [patterns]")
+			return false, common.ErrDenyByPatternError
 		}
 	}
-
-	//Our blacklist is empty, so let's continue further verification
 	return true, nil
 }
 
 // Reset resets blacklist to initial state
-func (handler *BlacklistHandler) Reset() {
+func (handler *DenyHandler) Reset() {
 	handler.queries = make(map[string]bool)
 	handler.tables = make(map[string]bool)
 	handler.patterns = make([]sqlparser.Statement, 0)
-	handler.logger = log.WithField("handler", "blacklist")
+	handler.logger = log.WithField("handler", "deny")
 }
 
 // Release releases all resources
-func (handler *BlacklistHandler) Release() {
+func (handler *DenyHandler) Release() {
 	handler.Reset()
 }
 
 // AddQueries normalizes and adds queries to the list that should be blacklisted
-func (handler *BlacklistHandler) AddQueries(queries []string) error {
+func (handler *DenyHandler) AddQueries(queries []string) error {
 	for _, query := range queries {
 		normalizedQuery, _, _, err := common.HandleRawSQLQuery(query)
 		if err != nil {
@@ -98,7 +101,7 @@ func (handler *BlacklistHandler) AddQueries(queries []string) error {
 }
 
 // RemoveQueries removes queries from the list that should be blacklisted
-func (handler *BlacklistHandler) RemoveQueries(queries []string) error {
+func (handler *DenyHandler) RemoveQueries(queries []string) error {
 	for _, query := range queries {
 		normalizedQuery, _, _, err := common.HandleRawSQLQuery(query)
 		if err != nil {
@@ -110,21 +113,21 @@ func (handler *BlacklistHandler) RemoveQueries(queries []string) error {
 }
 
 // AddTables adds tables that should be blacklisted
-func (handler *BlacklistHandler) AddTables(tableNames []string) {
+func (handler *DenyHandler) AddTables(tableNames []string) {
 	for _, tableName := range tableNames {
 		handler.tables[tableName] = true
 	}
 }
 
 // RemoveTables removes blacklisted tables
-func (handler *BlacklistHandler) RemoveTables(tableNames []string) {
+func (handler *DenyHandler) RemoveTables(tableNames []string) {
 	for _, tableName := range tableNames {
 		delete(handler.tables, tableName)
 	}
 }
 
 // AddPatterns adds patterns that should be blacklisted
-func (handler *BlacklistHandler) AddPatterns(patterns []string) error {
+func (handler *DenyHandler) AddPatterns(patterns []string) error {
 	parsedPatterns, err := common.ParsePatterns(patterns)
 	if err != nil {
 		return err

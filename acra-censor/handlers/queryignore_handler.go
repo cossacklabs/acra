@@ -18,18 +18,20 @@ package handlers
 
 import (
 	"github.com/cossacklabs/acra/acra-censor/common"
+	"github.com/cossacklabs/acra/logging"
 	"github.com/cossacklabs/acra/sqlparser"
+	log "github.com/sirupsen/logrus"
 )
 
 // QueryIgnoreHandler allows to ignore any query
 type QueryIgnoreHandler struct {
 	ignoredQueries map[string]bool
+	logger         *log.Entry
 }
 
 // NewQueryIgnoreHandler creates new ignore handler
 func NewQueryIgnoreHandler() *QueryIgnoreHandler {
-	handler := &QueryIgnoreHandler{}
-	handler.ignoredQueries = make(map[string]bool)
+	handler := &QueryIgnoreHandler{ignoredQueries: make(map[string]bool), logger: log.WithField("handler", "query-ignore")}
 	return handler
 }
 
@@ -43,12 +45,12 @@ func (handler *QueryIgnoreHandler) CheckQuery(rawQuery string, parsedQuery sqlpa
 	return true, nil
 }
 
-// Reset ignored patterns
+// Reset resets list of ignored patterns
 func (handler *QueryIgnoreHandler) Reset() {
 	handler.ignoredQueries = make(map[string]bool)
 }
 
-// Release / reset ignored patterns
+// Release resets list of ignored patterns
 func (handler *QueryIgnoreHandler) Release() {
 	handler.Reset()
 }
@@ -60,6 +62,8 @@ func (handler *QueryIgnoreHandler) AddQueries(queries []string) {
 		normalizedQuery, _, _, err := common.HandleRawSQLQuery(query)
 		if err == nil {
 			handler.ignoredQueries[normalizedQuery] = true
+		} else {
+			handler.logger.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCensorQueryParseError).Debugln("Can't parse query")
 		}
 	}
 }

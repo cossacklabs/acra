@@ -17,6 +17,7 @@ limitations under the License.
 package acracensor
 
 import (
+	"github.com/cossacklabs/acra/acra-censor/common"
 	"github.com/cossacklabs/acra/acra-censor/handlers"
 	"gopkg.in/yaml.v2"
 	"strings"
@@ -24,8 +25,10 @@ import (
 
 // Query handlers' names.
 const (
-	BlacklistConfigStr    = "blacklist"
-	WhitelistConfigStr    = "whitelist"
+	DenyConfigStr         = "deny"
+	AllowConfigStr        = "allow"
+	DenyAllConfigStr      = "denyall"
+	AllowAllConfigStr     = "allowall"
 	QueryCaptureConfigStr = "query_capture"
 	QueryIgnoreConfigStr  = "query_ignore"
 )
@@ -37,9 +40,10 @@ type Config struct {
 		Queries  []string
 		Tables   []string
 		Patterns []string
-		Filepath string
+		FilePath string
 	}
-	IgnoreParseError bool `yaml:"ignore_parse_error"`
+	IgnoreParseError bool   `yaml:"ignore_parse_error"`
+	ParseErrorsLog   string `yaml:"parse_errors_log"`
 }
 
 // LoadConfiguration loads configuration of AcraCensor
@@ -50,51 +54,61 @@ func (acraCensor *AcraCensor) LoadConfiguration(configuration []byte) error {
 		return err
 	}
 	acraCensor.ignoreParseError = censorConfiguration.IgnoreParseError
+	if !strings.EqualFold(censorConfiguration.ParseErrorsLog, "") {
+		queryWriter, err := common.NewFileQueryWriter(censorConfiguration.ParseErrorsLog)
+		if err != nil {
+			return err
+		}
+		go queryWriter.Start()
+		acraCensor.unparsedQueriesWriter = queryWriter
+	}
+
 	for _, handlerConfiguration := range censorConfiguration.Handlers {
 		switch handlerConfiguration.Handler {
-		case WhitelistConfigStr:
-			whitelistHandler := handlers.NewWhitelistHandler()
-			err = whitelistHandler.AddQueries(handlerConfiguration.Queries)
+		case AllowConfigStr:
+			allow := handlers.NewAllowHandler()
+			err = allow.AddQueries(handlerConfiguration.Queries)
 			if err != nil {
 				return err
 			}
-			whitelistHandler.AddTables(handlerConfiguration.Tables)
-			err = whitelistHandler.AddPatterns(handlerConfiguration.Patterns)
+			allow.AddTables(handlerConfiguration.Tables)
+			err = allow.AddPatterns(handlerConfiguration.Patterns)
 			if err != nil {
 				return err
 			}
-			acraCensor.AddHandler(whitelistHandler)
-			break
-		case BlacklistConfigStr:
-			blacklistHandler := handlers.NewBlacklistHandler()
-			err = blacklistHandler.AddQueries(handlerConfiguration.Queries)
+			acraCensor.AddHandler(allow)
+		case DenyConfigStr:
+			deny := handlers.NewDenyHandler()
+			err = deny.AddQueries(handlerConfiguration.Queries)
 			if err != nil {
 				return err
 			}
-			blacklistHandler.AddTables(handlerConfiguration.Tables)
-			err = blacklistHandler.AddPatterns(handlerConfiguration.Patterns)
+			deny.AddTables(handlerConfiguration.Tables)
+			err = deny.AddPatterns(handlerConfiguration.Patterns)
 			if err != nil {
 				return err
 			}
-			acraCensor.AddHandler(blacklistHandler)
-			break
-		case QueryCaptureConfigStr:
-			if strings.EqualFold(handlerConfiguration.Filepath, "") {
-				break
-			}
-			queryCaptureHandler, err := handlers.NewQueryCaptureHandler(handlerConfiguration.Filepath)
-			if err != nil {
-				return err
-			}
-			acraCensor.AddHandler(queryCaptureHandler)
-			break
+			acraCensor.AddHandler(deny)
+		case AllowAllConfigStr:
+			allowAll := handlers.NewAllowallHandler()
+			acraCensor.AddHandler(allowAll)
+		case DenyAllConfigStr:
+			denyAll := handlers.NewDenyallHandler()
+			acraCensor.AddHandler(denyAll)
 		case QueryIgnoreConfigStr:
 			queryIgnoreHandler := handlers.NewQueryIgnoreHandler()
 			queryIgnoreHandler.AddQueries(handlerConfiguration.Queries)
 			acraCensor.AddHandler(queryIgnoreHandler)
-			break
+		case QueryCaptureConfigStr:
+			queryCaptureHandler, err := handlers.NewQueryCaptureHandler(handlerConfiguration.FilePath)
+			if err != nil {
+				return err
+			}
+			go queryCaptureHandler.Start()
+			acraCensor.AddHandler(queryCaptureHandler)
 		default:
-			break
+			acraCensor.logger.Errorln("Unexpected handler in configuration")
+			return common.ErrCensorConfigurationError
 		}
 	}
 	return nil

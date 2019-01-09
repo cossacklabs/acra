@@ -477,8 +477,10 @@ func TestColIdentMarshal(t *testing.T) {
 func TestColIdentSize(t *testing.T) {
 	size := unsafe.Sizeof(NewColIdent(""))
 	want := 2 * unsafe.Sizeof("")
+	// add size of bool that will be aligned to platform size of pointer
+	want += unsafe.Sizeof(1)
 	if size != want {
-		t.Errorf("Size of ColIdent: %d, want 32", want)
+		t.Errorf("Size of ColIdent: %d, want %d", size, want)
 	}
 }
 

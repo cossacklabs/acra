@@ -21,6 +21,7 @@ import (
 	"encoding/hex"
 	"fmt"
 	"github.com/cossacklabs/acra/sqlparser"
+	"github.com/cossacklabs/acra/utils"
 	"testing"
 )
 
@@ -120,14 +121,14 @@ func TestPostgresqlDBDataCoder_Decode(t *testing.T) {
 			Expr: sqlparser.NewHexVal([]byte(hex.EncodeToString(testData))[1:]),
 		},
 		{
-			Err: errUnsupportedExpression,
+			Err: utils.ErrDecodeEscapedString,
 			// short data
 			Expr: sqlparser.NewStrVal([]byte{1, 2, 3}),
 		},
 		{
-			Err: errUnsupportedExpression,
+			Err: nil,
 			// without prefix
-			Expr: sqlparser.NewStrVal([]byte(hex.EncodeToString(testData))),
+			Expr: sqlparser.NewStrVal([]byte(fmt.Sprintf("%s", hex.EncodeToString(testData)))),
 		},
 		{
 			Err: hex.ErrLength,
@@ -136,14 +137,14 @@ func TestPostgresqlDBDataCoder_Decode(t *testing.T) {
 		},
 		// PgEscapeVal same as for StrVal
 		{
-			Err: errUnsupportedExpression,
+			Err: utils.ErrDecodeEscapedString,
 			// short data
 			Expr: sqlparser.NewPgEscapeString([]byte{1, 2, 3}),
 		},
 		{
-			Err: errUnsupportedExpression,
+			Err: nil,
 			// without prefix
-			Expr: sqlparser.NewPgEscapeString([]byte(hex.EncodeToString(testData))),
+			Expr: sqlparser.NewPgEscapeString([]byte(fmt.Sprintf("%s", hex.EncodeToString(testData)))),
 		},
 		{
 			Err: hex.ErrLength,
@@ -151,10 +152,10 @@ func TestPostgresqlDBDataCoder_Decode(t *testing.T) {
 			Expr: sqlparser.NewPgEscapeString([]byte(fmt.Sprintf("\\x%s", hex.EncodeToString(testData)[1:]))),
 		},
 	}
-	for _, testCase := range errTestCases {
+	for i, testCase := range errTestCases {
 		_, err := coder.Decode(testCase.Expr)
 		if err != testCase.Err {
-			t.Fatalf("Incorrect error. Took: %s; Expected: %s", err.Error(), testCase.Err.Error())
+			t.Fatalf("[%d] Incorrect error. Took: %s; Expected: %s", i, err, testCase.Err.Error())
 		}
 	}
 }
