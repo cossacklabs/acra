@@ -102,7 +102,8 @@ def decrypt_private_key(private_key, key_id, master_key):
 
 def prepare_encryptor_config(zone_id, config_path):
     with open(config_path, 'r') as f:
-        config = yaml.load(f)
+        config = yaml.safe_load(f)
+
     for table in config['schemas']:
         for column in table['encrypted']:
             if 'zone_id' in column:
