@@ -290,7 +290,7 @@ func main() {
 		poisonCallbacks.AddCallback(base.NewExecuteScriptCallback(*scriptOnPoison))
 		config.scriptOnPoison = *scriptOnPoison
 	}
-	// must be last
+	// should setup "stopOnPoison" as last poison record callback"
 	if *stopOnPoison {
 		poisonCallbacks.AddCallback(&base.StopCallback{})
 		config.stopOnPoison = *stopOnPoison
@@ -410,7 +410,7 @@ func main() {
 
 		// Set env flag for forked process
 		if err := os.Setenv(GRACEFUL_ENV, "true"); err != nil {
-			log.WithError(err).Errorln("Unexpected error on os.Setenv")
+			log.WithError(err).Errorln("Unexpected error on os.Setenv, graceful restart won't work. Please check env variables, especially GRACEFUL_ENV")
 		}
 		execSpec := &syscall.ProcAttr{
 			Env:   os.Environ(),
