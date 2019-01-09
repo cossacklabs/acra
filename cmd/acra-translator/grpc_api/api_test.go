@@ -10,7 +10,7 @@ import (
 	"github.com/cossacklabs/acra/decryptor/base"
 	"github.com/cossacklabs/acra/poison"
 	"github.com/cossacklabs/themis/gothemis/keys"
-	context "golang.org/x/net/context"
+	"golang.org/x/net/context"
 )
 
 type testKeystore struct {
@@ -90,11 +90,13 @@ func (keystore *testKeystore) GetPoisonKeyPair() (*keys.Keypair, error) {
 	return nil, nil
 }
 
-func (*testKeystore) GetAuthKey(remove bool) ([]byte, error) {
-	panic("implement me")
-}
+func (*testKeystore) GetAuthKey(remove bool) ([]byte, error) { panic("implement me") }
 
-func (*testKeystore) Reset() {
+func (*testKeystore) Reset() { panic("implement me") }
+
+func (*testKeystore) GetZonePublicKey(zoneID []byte) (*keys.PublicKey, error) { panic("implement me") }
+
+func (*testKeystore) GetClientIDEncryptionPublicKey(clientID []byte) (*keys.PublicKey, error) {
 	panic("implement me")
 }
 

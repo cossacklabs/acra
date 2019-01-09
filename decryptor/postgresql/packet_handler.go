@@ -136,13 +136,14 @@ func (column *ColumnData) Length() int {
 	return int(binary.BigEndian.Uint32(column.LengthBuf[:]))
 }
 
+// IsNull return true if column has null value
 func (column *ColumnData) IsNull() bool {
 	return column.isNull
 }
 
 // ReadLength of column
 func (column *ColumnData) ReadLength(reader io.Reader) error {
-	n, err := reader.Read(column.LengthBuf[:])
+	n, err := io.ReadFull(reader, column.LengthBuf[:])
 	if err2 := base.CheckReadWrite(n, 4, err); err2 != nil {
 		return err
 	}
@@ -167,7 +168,7 @@ func (column *ColumnData) readData(reader io.Reader) error {
 	column.Data = make([]byte, length)
 	// first 4 bytes is packet length and then 2 bytes of column count
 	// https://www.postgresql.org/docs/9.3/static/protocol-message-formats.html
-	n, err := reader.Read(column.Data)
+	n, err := io.ReadFull(reader, column.Data)
 	return base.CheckReadWrite(n, length, err)
 }
 
@@ -211,7 +212,7 @@ func (packet *PacketHandler) Reset() {
 }
 
 func (packet *PacketHandler) readMessageType() error {
-	n, err := packet.reader.Read(packet.messageType[:])
+	n, err := io.ReadFull(packet.reader, packet.messageType[:])
 	return base.CheckReadWrite(n, 1, err)
 }
 
@@ -238,7 +239,6 @@ func (packet *PacketHandler) GetParseQuery() (string, error) {
 		packet.logger.Debugln("GetParseQuery error")
 		return "", err
 	}
-	packet.logger.Debugln("GetParseQuery success")
 	return parse.QueryString(), nil
 }
 
@@ -279,7 +279,7 @@ func (packet *PacketHandler) setDataLengthBuffer(dataLengthBuffer []byte) {
 
 func (packet *PacketHandler) readDataLength() error {
 	packet.logger.Debugln("Read data length")
-	n, err := packet.reader.Read(packet.descriptionLengthBuf)
+	n, err := io.ReadFull(packet.reader, packet.descriptionLengthBuf)
 	if err2 := base.CheckReadWrite(n, len(packet.descriptionLengthBuf), err); err2 != nil {
 		return err2
 	}
@@ -330,7 +330,8 @@ func (packet *PacketHandler) ReadClientPacket() error {
 	packetBuf := make([]byte, 8)
 	packet.messageType[0] = WithoutMessageType
 	// any message has at least 5 bytes: TypeOfMessage(1) + Length(4) or 8 bytes of special messages
-	n, err := packet.reader.Read(packetBuf[:5])
+
+	n, err := io.ReadFull(packet.reader, packetBuf[:5])
 	if err := base.CheckReadWrite(n, 5, err); err != nil {
 		packet.logger.WithError(err).Debugln("Can't read first 5 bytes")
 		return err
@@ -344,7 +345,7 @@ func (packet *PacketHandler) ReadClientPacket() error {
 	*/
 	switch packetBuf[0] {
 	// all known message types with flags (F) or (F/B) on https://www.postgresql.org/docs/current/static/protocol-message-formats.html
-	case 'S', 'p', 'F', 'H', 'E', 'D', 'f', 'c', 'd', 'C', 'B', 'Q':
+	case 'S', 'p', 'F', 'H', 'E', 'D', 'f', 'c', 'd', 'C', 'B', 'Q', 'P':
 		// set message type
 		packet.messageType[0] = packetBuf[0]
 		// general message has 4 bytes after first as length
@@ -363,7 +364,7 @@ func (packet *PacketHandler) ReadClientPacket() error {
 		return nil
 	default:
 		// fill our buf with other 3 bytes to check is it special message
-		n, err := packet.reader.Read(packetBuf[5:])
+		n, err := io.ReadFull(packet.reader, packetBuf[5:])
 		if err := base.CheckReadWrite(n, 3, err); err != nil {
 			return err
 		}
@@ -388,7 +389,7 @@ func (packet *PacketHandler) ReadClientPacket() error {
 		// startup request or unknown message type
 		default:
 			if !bytes.Equal(StartupRequest, packetBuf[4:]) {
-				packet.logger.Warningln("Expected startup message. Process as general message")
+				packet.logger.WithField("packet_buffer", packetBuf).Warningln("Expected startup message. Process as general message.")
 				// we took unknown message type that wasn't recognized on top case and it's not special messages startup/ssl/cancel
 				// so we process it as general message type which has first byte as type and next 4 bytes is length of message
 				// above we read 8 bytes as for special messages, so we need to read dataLength -3 bytes
@@ -415,7 +416,6 @@ func (packet *PacketHandler) ReadClientPacket() error {
 			return nil
 		}
 	}
-	return ErrUnsupportedPacketType
 }
 
 // Marshal transforms data row into bytes array

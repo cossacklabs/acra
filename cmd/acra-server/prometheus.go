@@ -21,8 +21,6 @@ import (
 	"sync"
 )
 
-type connectionType string
-
 const (
 	connectionTypeLabel = "connection_type"
 	apiConnectionType   = "api"

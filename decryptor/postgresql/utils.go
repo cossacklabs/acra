@@ -23,6 +23,8 @@ import (
 )
 
 var terminator = []byte{0}
+
+// ErrTerminatorNotFound not found terminator for string value
 var ErrTerminatorNotFound = errors.New("invalid string, terminator not found")
 
 // FetchQueryFromParse return Query value from Parse packet payload (without message type and length of packet)
@@ -37,7 +39,7 @@ func FetchQueryFromParse(data []byte) ([]byte, error) {
 		return nil, ErrTerminatorNotFound
 	}
 	// skip terminator of previous field
-	startIndex += 1
+	startIndex++
 	endIndex := bytes.Index(data[startIndex:], terminator)
 	if endIndex == -1 {
 		return nil, ErrTerminatorNotFound

@@ -21,6 +21,8 @@ import (
 	"encoding/hex"
 	"fmt"
 	"github.com/cossacklabs/acra/acra-writer"
+	"github.com/cossacklabs/acra/decryptor/base"
+	"github.com/cossacklabs/acra/encryptor/config"
 	"github.com/cossacklabs/acra/sqlparser"
 	"github.com/cossacklabs/acra/zone"
 	"github.com/cossacklabs/themis/gothemis/keys"
@@ -32,7 +34,10 @@ type testEncryptor struct {
 	fetchedIDs [][]byte
 }
 
-func (e *testEncryptor) EncryptWithZoneID(zoneIDdata, data []byte) ([]byte, error) {
+func (e *testEncryptor) EncryptWithZoneID(zoneIDdata, data []byte, setting EncryptionSetting) ([]byte, error) {
+	if base.ValidateAcraStructLength(data) == nil {
+		return data, nil
+	}
 	e.fetchedIDs = append(e.fetchedIDs, zoneIDdata)
 	return e.value, nil
 }
@@ -40,7 +45,10 @@ func (e *testEncryptor) reset() {
 	e.fetchedIDs = [][]byte{}
 }
 
-func (e *testEncryptor) EncryptWithClientID(clientID, data []byte) ([]byte, error) {
+func (e *testEncryptor) EncryptWithClientID(clientID, data []byte, setting EncryptionSetting) ([]byte, error) {
+	if base.ValidateAcraStructLength(data) == nil {
+		return data, nil
+	}
 	e.fetchedIDs = append(e.fetchedIDs, clientID)
 	return e.value, nil
 }
@@ -72,7 +80,7 @@ func TestGeneralQueryParser_Parse(t *testing.T) {
 	}
 	hexAcrastruct := hex.EncodeToString(acrastruct)
 
-	config := fmt.Sprintf(`
+	configStr := fmt.Sprintf(`
 schemas:
   - table: TableWithColumnSchema
     columns: ["other_column", "default_client_id", "specified_client_id", "zone_id"]
@@ -91,7 +99,7 @@ schemas:
       - column: zone_id
         zone_id: %s
 `, clientIDStr, zoneIDStr, clientIDStr, zoneIDStr)
-	schemaStore, err := MapTableSchemaStoreFromConfig([]byte(config))
+	schemaStore, err := config.MapTableSchemaStoreFromConfig([]byte(configStr))
 	if err != nil {
 		t.Fatalf("Can't parse config: %s", err.Error())
 	}
@@ -396,12 +404,12 @@ schemas:
 		if testCase.Normalized {
 			expectedQuery = normalizeQuery(expectedQuery, t)
 		}
-		data, changed, err := mysqlParser.OnQuery(query)
+		data, changed, err := mysqlParser.OnQuery(base.NewOnQueryObjectFromQuery(query))
 		if err != nil {
 			t.Fatalf("%v. %s", i, err.Error())
 		}
-		if data != expectedQuery {
-			t.Fatalf("%v. Incorrect value\nTook:\n%s\nExpected:\n%s;", i, data, expectedQuery)
+		if data.Query() != expectedQuery {
+			t.Fatalf("%v. Incorrect value\nTook:\n%s\nExpected:\n%s;", i, data.Query(), expectedQuery)
 		}
 		if testCase.Changed != changed {
 			t.Fatalf("%v. Incorrect <changed> value. Took - %t; Expected - %t", i, changed, testCase.Changed)

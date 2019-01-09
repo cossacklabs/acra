@@ -165,14 +165,8 @@ func (decryptor *HTTPConnectionsDecryptor) ParseRequestPrepareResponse(logger *l
 		response.Body = ioutil.NopCloser(bytes.NewReader(decryptedStruct))
 		response.ContentLength = int64(len(decryptedStruct))
 		return response
-	default:
-		msg := "HTTP endpoint not supported"
-		requestLogger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorTranslatorEndpointNotSupported).
-			Warningln(msg)
-		return responseWithMessage(request, http.StatusBadRequest, msg)
 	}
-
-	msg := "Unexpected parsing end during HTTP request parsing"
+	msg := "HTTP endpoint not supported"
 	requestLogger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorTranslatorEndpointNotSupported).
 		Warningln(msg)
 	return responseWithMessage(request, http.StatusBadRequest, msg)

@@ -91,7 +91,7 @@ func LoggerWithTrace(context context.Context, logger *log.Entry) *log.Entry {
 
 // NewLoggerWithTrace return logger with trace_id/span_id fields
 func NewLoggerWithTrace(context context.Context) *log.Entry {
-	return LoggerWithTrace(context, log.NewEntry(log.StandardLogger()))
+	return LoggerWithTrace(context, GetLoggerFromContext(context))
 }
 
 // traceStatusKey used as key for context value

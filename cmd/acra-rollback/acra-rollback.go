@@ -125,7 +125,7 @@ func (ex *WriteToFileExecutor) Execute(data []byte) {
 	outputSQL := strings.Replace(ex.sql, PLACEHOLDER, encoded, 1)
 	n, err := ex.writer.Write([]byte(outputSQL))
 	if err != nil {
-		ErrorExit("can't write to output file", err)
+		ErrorExit("Can't write to output file", err)
 	}
 	if n != len(outputSQL) {
 		fmt.Println("Incorrect write count")
@@ -133,7 +133,7 @@ func (ex *WriteToFileExecutor) Execute(data []byte) {
 	}
 	n, err = ex.writer.Write(NEWLINE)
 	if err != nil {
-		ErrorExit("can't write newline char to output file", err)
+		ErrorExit("Can't write newline char to output file", err)
 	}
 	if n != 1 {
 		fmt.Println("Incorrect write count")
@@ -143,9 +143,15 @@ func (ex *WriteToFileExecutor) Execute(data []byte) {
 
 // Close file
 func (ex *WriteToFileExecutor) Close() {
-	ex.writer.Flush()
-	ex.file.Sync()
-	ex.file.Close()
+	if err := ex.writer.Flush(); err != nil {
+		log.WithError(err).Errorln("Can't flush data in writer")
+	}
+	if err := ex.file.Sync(); err != nil {
+		log.WithError(err).Errorln("Can't sync file")
+	}
+	if err := ex.file.Close(); err != nil {
+		log.WithError(err).Errorln("Can't close file")
+	}
 }
 
 func main() {

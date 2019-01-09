@@ -70,11 +70,15 @@ func (*testKeystore) SaveConnectorKeypair(id []byte, keypair *keys.Keypair) erro
 	panic("implement me")
 }
 func (*testKeystore) SaveZoneKeypair(id []byte, keypair *keys.Keypair) error { panic("implement me") }
+func (*testKeystore) GetClientIDEncryptionPublicKey(clientID []byte) (*keys.PublicKey, error) {
+	panic("implement me")
+}
+func (*testKeystore) GetZonePublicKey(zoneID []byte) (*keys.PublicKey, error) { panic("implement me") }
 
 func getDecryptor(keystore keystore.KeyStore) *MySQLDecryptor {
 	dataDecryptor := binary.NewBinaryDecryptor()
 	clientID := []byte("some id")
-	pgDecryptor := postgresql.NewPgDecryptor(clientID, dataDecryptor)
+	pgDecryptor := postgresql.NewPgDecryptor(clientID, dataDecryptor, false, keystore)
 	decryptor := NewMySQLDecryptor(clientID, pgDecryptor, keystore)
 
 	poisonCallbackStorage := base.NewPoisonCallbackStorage()

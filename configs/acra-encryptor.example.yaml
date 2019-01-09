@@ -5,7 +5,7 @@ schemas:
   - data
   - raw_data
   encrypted:
-  - name: data
+  - column: data
     zone_id: DDDDDDDDMatNOMYjqVOuhACC
 
 - table: test2
@@ -15,8 +15,8 @@ schemas:
   - data
   - raw_data
   encrypted:
-  - name: data
+  - column: data
     client_id: client
 
     # use key by client_id from transport
-  - name: raw_data
+  - column: raw_data

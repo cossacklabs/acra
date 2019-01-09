@@ -93,7 +93,7 @@ func GetLoggerFromContext(ctx context.Context) *log.Entry {
 	if entry, ok := GetLoggerFromContextOk(ctx); ok {
 		return entry
 	}
-	return nil
+	return log.NewEntry(log.StandardLogger())
 }
 
 // GetLoggerFromContextOk gets logger from context, returns logger and success code.

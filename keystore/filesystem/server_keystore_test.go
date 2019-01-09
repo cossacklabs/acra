@@ -86,7 +86,7 @@ func testGeneratingDataEncryptionKeys(store *FilesystemKeyStore, t *testing.T) {
 		t.Fatal(err)
 	}
 	exists, err := utils.FileExists(
-		store.getPrivateKeyFilePath(
+		store.GetPrivateKeyFilePath(
 			getServerDecryptionKeyFilename(testID)))
 	if err != nil {
 		t.Fatal(err)
@@ -123,7 +123,7 @@ func testGenerateServerKeys(store *FilesystemKeyStore, t *testing.T) {
 		t.Fatal(err)
 	}
 
-	absPath := store.getPrivateKeyFilePath(getServerKeyFilename(testID))
+	absPath := store.GetPrivateKeyFilePath(getServerKeyFilename(testID))
 	checkPath(absPath, t)
 	absPath = store.getPublicKeyFilePath(fmt.Sprintf("%s.pub", getServerKeyFilename(testID)))
 	checkPath(absPath, t)
@@ -135,7 +135,7 @@ func testGenerateTranslatorKeys(store *FilesystemKeyStore, t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	absPath := store.getPrivateKeyFilePath(getTranslatorKeyFilename(testID))
+	absPath := store.GetPrivateKeyFilePath(getTranslatorKeyFilename(testID))
 	checkPath(absPath, t)
 	absPath = store.getPublicKeyFilePath(fmt.Sprintf("%s.pub", getTranslatorKeyFilename(testID)))
 	checkPath(absPath, t)
@@ -148,7 +148,7 @@ func testGenerateConnectorKeys(store *FilesystemKeyStore, t *testing.T) {
 		t.Fatal(err)
 	}
 
-	absPath := store.getPrivateKeyFilePath(getConnectorKeyFilename(testID))
+	absPath := store.GetPrivateKeyFilePath(getConnectorKeyFilename(testID))
 	checkPath(absPath, t)
 
 	absPath = store.getPublicKeyFilePath(fmt.Sprintf("%s.pub", getConnectorKeyFilename(testID)))
@@ -168,7 +168,7 @@ func testReset(store *FilesystemKeyStore, t *testing.T) {
 		t.Fatal(err)
 	}
 	store.Reset()
-	if err := os.Remove(store.getPrivateKeyFilePath(getServerKeyFilename(testID))); err != nil {
+	if err := os.Remove(store.GetPrivateKeyFilePath(getServerKeyFilename(testID))); err != nil {
 		t.Fatal(err)
 	}
 	if err := os.Remove(fmt.Sprintf("%s.pub", store.getPublicKeyFilePath(getServerKeyFilename(testID)))); err != nil {

@@ -19,6 +19,7 @@ package mysql
 
 import (
 	"bytes"
+	"context"
 	"io"
 	"io/ioutil"
 
@@ -38,11 +39,13 @@ type decryptFunc func([]byte) ([]byte, error)
 // MySQLDecryptor used to decrypt AcraStruct from MySQL fields
 type MySQLDecryptor struct {
 	base.Decryptor
-	binaryDecryptor *binary.BinaryDecryptor
-	keyStore        keystore.KeyStore
-	decryptFunc     decryptFunc
-	log             *log.Entry
-	clientID        []byte
+	binaryDecryptor      *binary.BinaryDecryptor
+	keyStore             keystore.KeyStore
+	decryptFunc          decryptFunc
+	log                  *log.Entry
+	clientID             []byte
+	dataProcessor        base.DataProcessor
+	dataProcessorContext *base.DataProcessorContext
 }
 
 // Possible decryption modes: AcraStruct can start from beginning of cell, or be part of the cell
@@ -53,10 +56,17 @@ const (
 
 // NewMySQLDecryptor returns MySQLDecryptor with turned on poison record detection
 func NewMySQLDecryptor(clientID []byte, pgDecryptor *postgresql.PgDecryptor, keyStore keystore.KeyStore) *MySQLDecryptor {
-	decryptor := &MySQLDecryptor{keyStore: keyStore, binaryDecryptor: binary.NewBinaryDecryptor(), Decryptor: pgDecryptor}
+	logger := log.WithFields(log.Fields{"decryptor": "mysql", "client_id": string(clientID)})
+	processorCtx := base.NewDataProcessorContext(clientID, pgDecryptor.IsWithZone(), keyStore).UseContext(logging.SetLoggerToContext(context.Background(), logger))
+	decryptor := &MySQLDecryptor{
+		keyStore:             keyStore,
+		binaryDecryptor:      binary.NewBinaryDecryptor(),
+		Decryptor:            pgDecryptor,
+		clientID:             clientID,
+		dataProcessorContext: processorCtx,
+		log:                  logger}
 	// because we will use internal value of pgDecryptor then set it `true` as default on initialization
 	pgDecryptor.TurnOnPoisonRecordCheck(true)
-	decryptor.log = log.WithFields(log.Fields{"decryptor": "mysql", "client_id": string(clientID)})
 	decryptor.SetWholeMatch(pgDecryptor.IsWholeMatch())
 	return decryptor
 }
@@ -215,7 +225,7 @@ func (decryptor *MySQLDecryptor) decryptBlock(reader io.Reader, id []byte, keyFu
 	logger := decryptor.log.WithField("zone_id", string(id))
 	privateKey, err := keyFunc()
 	if err != nil {
-		logger.Warningln("Can't read private key")
+		logger.WithError(err).Warningln("Can't read private key")
 		return []byte{}, err
 	}
 	key, _, err := decryptor.ReadSymmetricKey(privateKey, reader)
@@ -248,11 +258,8 @@ func (decryptor *MySQLDecryptor) SetWholeMatch(value bool) {
 func (decryptor *MySQLDecryptor) decryptWholeBlock(block []byte) ([]byte, error) {
 	decryptor.Reset()
 	if !decryptor.IsWithZone() || decryptor.IsMatchedZone() {
-		skippedBegin, err := decryptor.SkipBeginInBlock(block)
-		if err != nil {
-			return nil, err
-		}
-		newData, err := decryptor.decryptBlock(bytes.NewReader(skippedBegin), decryptor.GetMatchedZoneID(), decryptor.GetPrivateKey)
+		ctx := decryptor.dataProcessorContext.UseZoneID(decryptor.GetMatchedZoneID())
+		newData, err := decryptor.dataProcessor.Process(block, ctx)
 		if err != nil {
 			base.AcrastructDecryptionCounter.WithLabelValues(base.DecryptionTypeFail).Inc()
 			if err := decryptor.checkPoisonRecord(block); err != nil {
@@ -317,4 +324,9 @@ func (decryptor *MySQLDecryptor) decryptInlineBlock(block []byte) ([]byte, error
 // DecryptBlock calls decrypt function on binary block
 func (decryptor *MySQLDecryptor) DecryptBlock(block []byte) ([]byte, error) {
 	return decryptor.decryptFunc(block)
+}
+
+// SetDataProcessor replace current with new processor
+func (decryptor *MySQLDecryptor) SetDataProcessor(processor base.DataProcessor) {
+	decryptor.dataProcessor = processor
 }

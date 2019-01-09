@@ -136,7 +136,6 @@ func defaultResponseHandler(packet *MysqlPacket, dbConnection, clientConnection 
 type MysqlHandler struct {
 	responseHandler      ResponseHandler
 	clientSequenceNumber int
-	serverSequenceNumber int
 	clientProtocol41     bool
 	serverProtocol41     bool
 	currentCommand       byte
@@ -149,15 +148,13 @@ type MysqlHandler struct {
 	clientConnection       net.Conn
 	dbConnection           net.Conn
 	tlsConfig              *tls.Config
-	clientID               []byte
 	logger                 *logrus.Entry
 	ctx                    context.Context
 	queryObserverManager   base.QueryObserverManager
 }
 
-// NewMysqlHandler returns new MysqlHandler
-func NewMysqlHandler(ctx context.Context, clientID []byte, decryptor base.Decryptor, dbConnection, clientConnection net.Conn, tlsConfig *tls.Config, censor acracensor.AcraCensorInterface) (*MysqlHandler, error) {
-	logger := logging.NewLoggerWithTrace(ctx)
+// NewMysqlProxy returns new MysqlHandler
+func NewMysqlProxy(ctx context.Context, clientID []byte, decryptor base.Decryptor, dbConnection, clientConnection net.Conn, tlsConfig *tls.Config, censor acracensor.AcraCensorInterface) (*MysqlHandler, error) {
 	var newTLSConfig *tls.Config
 	if tlsConfig != nil {
 		// use less secure protocol versions because some drivers and db images doesn't support secure and modern options
@@ -175,7 +172,7 @@ func NewMysqlHandler(ctx context.Context, clientID []byte, decryptor base.Decryp
 		dbConnection:           dbConnection,
 		tlsConfig:              newTLSConfig,
 		ctx:                    ctx,
-		logger:                 logger.WithField("client_id", string(clientID)),
+		logger:                 logging.GetLoggerFromContext(ctx),
 		queryObserverManager:   &base.ArrayQueryObserverableManager{},
 	}, nil
 }
@@ -197,7 +194,7 @@ func (handler *MysqlHandler) getResponseHandler() ResponseHandler {
 }
 
 // ClientToDbConnector connects to database, writes data and executes DB commands
-func (handler *MysqlHandler) ClientToDbConnector(errCh chan<- error) {
+func (handler *MysqlHandler) ProxyClientConnection(errCh chan<- error) {
 	ctx, span := trace.StartSpan(handler.ctx, "ClientToDbConnector")
 	defer span.End()
 	clientLog := handler.logger.WithField("proxy", "client")
@@ -330,11 +327,11 @@ func (handler *MysqlHandler) ClientToDbConnector(errCh chan<- error) {
 				continue
 			}
 
-			newQuery, changed, err := handler.queryObserverManager.OnQuery(query)
+			newQuery, changed, err := handler.queryObserverManager.OnQuery(base.NewOnQueryObjectFromQuery(query))
 			if err != nil {
 				clientLog.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorEncryptQueryData).Errorln("Error occurred on query handler")
 			} else if changed {
-				packet.replaceQuery(newQuery)
+				packet.replaceQuery(newQuery.Query())
 			}
 
 			if cmd == COM_QUERY {
@@ -652,7 +649,7 @@ func (handler *MysqlHandler) QueryResponseHandler(packet *MysqlPacket, dbConnect
 }
 
 // DbToClientConnector handles connection from database, returns data to client
-func (handler *MysqlHandler) DbToClientConnector(errCh chan<- error) {
+func (handler *MysqlHandler) ProxyDatabaseConnection(errCh chan<- error) {
 	ctx, span := trace.StartSpan(handler.ctx, "DbToClientConnector")
 	defer span.End()
 	serverLog := handler.logger.WithField("proxy", "server")

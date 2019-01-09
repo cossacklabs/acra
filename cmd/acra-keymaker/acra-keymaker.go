@@ -101,27 +101,32 @@ func main() {
 		if err != nil {
 			panic(err)
 		}
-	} else if *acraServer {
+	}
+	if *acraServer {
 		err = store.GenerateServerKeys([]byte(*clientID))
 		if err != nil {
 			panic(err)
 		}
-	} else if *acraTranslator {
+	}
+	if *acraTranslator {
 		err = store.GenerateTranslatorKeys([]byte(*clientID))
 		if err != nil {
 			panic(err)
 		}
-	} else if *dataKeys {
+	}
+	if *dataKeys {
 		err = store.GenerateDataEncryptionKeys([]byte(*clientID))
 		if err != nil {
 			panic(err)
 		}
-	} else if *basicauth {
+	}
+	if *basicauth {
 		_, err = store.GetAuthKey(true)
 		if err != nil {
 			panic(err)
 		}
-	} else {
+	}
+	if !(*acraConnector || *acraServer || *acraTranslator || *dataKeys || *basicauth) {
 		err = store.GenerateConnectorKeys([]byte(*clientID))
 		if err != nil {
 			panic(err)

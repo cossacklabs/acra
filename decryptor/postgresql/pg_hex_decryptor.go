@@ -70,8 +70,7 @@ type PgHexDecryptor struct {
 	buf    []byte
 	output []byte
 
-	poisonKey       []byte
-	callbackStorage *base.PoisonCallbackStorage
+	poisonKey []byte
 }
 
 // NewPgHexDecryptor returns new PgHexDecryptor without zone
@@ -199,12 +198,6 @@ func (decryptor *PgHexDecryptor) readScellData(length uint64, reader io.Reader) 
 		return nil, decryptor.hexBuf[:n], base.ErrFakeAcraStruct
 	}
 	return decryptor.buf[:int(length)], decryptor.hexBuf[:hexLength], nil
-}
-
-func (*PgHexDecryptor) getFullDataLength(dataLength uint64) int {
-	// original data is TagBegin+key_block+data_length+data
-	// output data length should be hex(original_data)
-	return hex.EncodedLen(len(base.TagBegin) + base.KeyBlockLength + 8 + int(dataLength))
 }
 
 // ReadData returns plaintext content from reader data, decrypting using SecureCell with ZoneID and symmetricKey

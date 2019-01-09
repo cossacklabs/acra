@@ -85,7 +85,7 @@ func handleConnection(config *Config, connection net.Conn) {
 	ctx, span := trace.StartSpan(ctx, "handleConnection", options...)
 	defer span.End()
 
-	logger := logging.NewLoggerWithTrace(ctx)
+	logger := logging.NewLoggerWithTrace(ctx).WithField("client_id", string(config.ClientID))
 
 	defer func() {
 		logger.Infoln("Close connection with client")
@@ -140,7 +140,7 @@ func handleConnection(config *Config, connection net.Conn) {
 		return
 	}
 	_, wrapSpan := trace.StartSpan(ctx, "WrapClient")
-	acraConnWrapped, err := config.ConnectionWrapper.WrapClient(ctx, config.ClientID, acraConn)
+	acraConnWrapped, err := config.ConnectionWrapper.WrapClient(ctx, config.OutgoingServiceID, acraConn)
 	if err != nil {
 		logger.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantWrapConnection).
 			Errorln("Can't wrap connection")
@@ -391,7 +391,7 @@ func main() {
 	// -------- TRANSPORT -----------
 	if connectorMode == connector_mode.AcraTranslatorMode {
 		log.Infof("Selecting transport: use Secure Session transport wrapper")
-		config.ConnectionWrapper, err = network.NewSecureSessionConnectionWrapper(keyStore)
+		config.ConnectionWrapper, err = network.NewSecureSessionConnectionWrapper([]byte(*clientID), keyStore)
 		if err != nil {
 			log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorTransportConfiguration).
 				Errorln("Configuration error: can't initialize secure session connection wrapper")
@@ -419,7 +419,7 @@ func main() {
 			config.ConnectionWrapper = &network.RawConnectionWrapper{ClientID: []byte(*clientID)}
 		} else {
 			log.Infof("Selecting transport: use Secure Session transport wrapper")
-			config.ConnectionWrapper, err = network.NewSecureSessionConnectionWrapper(keyStore)
+			config.ConnectionWrapper, err = network.NewSecureSessionConnectionWrapper([]byte(*clientID), keyStore)
 			if err != nil {
 				log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorTransportConfiguration).
 					Errorln("Configuration error: can't initialize secure session connection wrapper")

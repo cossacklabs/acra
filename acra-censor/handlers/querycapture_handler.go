@@ -37,6 +37,8 @@ func (handler *QueryCaptureHandler) CheckQuery(sqlQuery string, parsedQuery sqlp
 		return true, nil
 	}
 	handler.writer.WriteQuery(sqlQuery)
+	// TODO refactor to use only handler.Queries and index of not dumped queries. On dump signal dump all queries after index
+	// TODO and only increment index without overhead of extra queries in memory
 	return true, nil
 }
 

@@ -252,7 +252,7 @@ func (server *ReaderServer) Start(parentContext context.Context) {
 		go func() {
 			grpcLogger := logger.WithField(ConnectionTypeKey, GRPCConnectionType)
 			logger.WithField("connection_string", server.config.incomingConnectionGRPCString).Infof("Start process gRPC requests")
-			secureSessionListener, err := network.NewSecureSessionListener(server.config.incomingConnectionGRPCString, server.keystorage)
+			secureSessionListener, err := network.NewSecureSessionListener(server.config.ServerID(), server.config.incomingConnectionGRPCString, server.keystorage)
 			if err != nil {
 				grpcLogger.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorTranslatorCantHandleGRPCConnection).
 					Errorln("Can't create secure session listener")

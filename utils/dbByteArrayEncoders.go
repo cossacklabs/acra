@@ -122,7 +122,7 @@ func (e *MysqlEncoder) EncodeToString(data []byte) string {
 }
 
 // Encode return data as is
-func (encoder *MysqlEncoder) Encode(data []byte) interface{} {
+func (e *MysqlEncoder) Encode(data []byte) interface{} {
 	return data
 }
 

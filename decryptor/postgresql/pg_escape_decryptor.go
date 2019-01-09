@@ -26,7 +26,6 @@ import (
 
 	"fmt"
 	"github.com/cossacklabs/acra/decryptor/base"
-	"github.com/cossacklabs/acra/keystore"
 	"github.com/cossacklabs/acra/zone"
 	"github.com/cossacklabs/themis/gothemis/cell"
 	"github.com/cossacklabs/themis/gothemis/keys"
@@ -42,11 +41,8 @@ var (
 
 // PgEscapeDecryptor decrypts AcraStruct from Escape-encoded PostgreSQL binary format
 type PgEscapeDecryptor struct {
-	currentIndex    uint8
-	outputSize      int
-	isWithZone      bool
-	poisonKey       []byte
-	callbackStorage *base.PoisonCallbackStorage
+	currentIndex uint8
+	outputSize   int
 	// max size can be 4 characters for octal representation per byte
 	octKeyBlockBuffer     [base.KeyBlockLength * 4]byte
 	decodedKeyBlockBuffer []byte
@@ -55,15 +51,12 @@ type PgEscapeDecryptor struct {
 	// 4 oct symbols (\000) ber byte
 	octLengthBuf [8 * 4]byte
 	octCharBuf   [3]byte
-	keyStore     keystore.KeyStore
-	zoneMatcher  *zone.ZoneIDMatcher
 }
 
 // NewPgEscapeDecryptor returns new PgEscapeDecryptor
 func NewPgEscapeDecryptor() *PgEscapeDecryptor {
 	return &PgEscapeDecryptor{
 		currentIndex:          0,
-		isWithZone:            false,
 		outputSize:            0,
 		decodedKeyBlockBuffer: make([]byte, base.KeyBlockLength),
 	}
@@ -214,10 +207,6 @@ func (decryptor *PgEscapeDecryptor) readScellData(length uint64, reader io.Reade
 	}
 	decryptor.outputSize += octN
 	return buf, hexBuf[:octN], nil
-}
-
-func (decryptor *PgEscapeDecryptor) getFullDataLength() int {
-	return decryptor.outputSize
 }
 
 // ReadData returns plaintext content from reader data, decrypting using SecureCell with ZoneID and symmetricKey

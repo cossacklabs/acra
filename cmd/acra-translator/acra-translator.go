@@ -126,7 +126,7 @@ func main() {
 	// --------- Config  -----------
 	log.Infof("Configuring transport...")
 	log.Infof("Selecting transport: use Secure Session transport wrapper")
-	config.ConnectionWrapper, err = network.NewSecureSessionConnectionWrapper(keyStore)
+	config.ConnectionWrapper, err = network.NewSecureSessionConnectionWrapper([]byte(*secureSessionID), keyStore)
 	if err != nil {
 		log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorTransportConfiguration).
 			Errorln("Configuration error: can't initialize secure session connection wrapper")

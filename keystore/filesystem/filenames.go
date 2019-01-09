@@ -18,10 +18,7 @@ package filesystem
 
 import (
 	"fmt"
-	"sync"
 )
-
-var lock = sync.RWMutex{}
 
 // Default key folders' filenames
 const (

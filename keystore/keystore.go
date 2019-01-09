@@ -143,6 +143,13 @@ type PublicKeyStore interface {
 	GetClientIDEncryptionPublicKey(clientID []byte) (*keys.PublicKey, error)
 }
 
+// PrivateKeyStore interface for access to private keys
+type PrivateKeyStore interface {
+	GetZonePrivateKey(id []byte) (*keys.PrivateKey, error)
+	HasZonePrivateKey(id []byte) bool
+	GetServerDecryptionPrivateKey(id []byte) (*keys.PrivateKey, error)
+}
+
 // KeyStore describes any KeyStore that reads keys to handle Themis Secure Session connection,
 // to encrypt and decrypt AcraStructs with and without Zones,
 // to find Poison records.
@@ -151,6 +158,8 @@ type PublicKeyStore interface {
 // Genenerate*Keys - generate new keypair and save
 type KeyStore interface {
 	SecureSessionKeyStore
+	PublicKeyStore
+
 	GetZonePrivateKey(id []byte) (*keys.PrivateKey, error)
 	HasZonePrivateKey(id []byte) bool
 	GetServerDecryptionPrivateKey(id []byte) (*keys.PrivateKey, error)
