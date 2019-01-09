@@ -83,14 +83,14 @@ func (ctx *DataProcessorContext) Reset() *DataProcessorContext {
 	return ctx
 }
 
-// WithZoneID replace ZoneID and return itself
-func (ctx *DataProcessorContext) WithZoneID(id []byte) *DataProcessorContext {
+// UseZoneID replace ZoneID and return itself
+func (ctx *DataProcessorContext) UseZoneID(id []byte) *DataProcessorContext {
 	ctx.ZoneID = id
 	return ctx
 }
 
-// WithContext replace context and return itself
-func (ctx *DataProcessorContext) WithContext(newContext context.Context) *DataProcessorContext {
+// UseContext replace context and return itself
+func (ctx *DataProcessorContext) UseContext(newContext context.Context) *DataProcessorContext {
 	ctx.Context = newContext
 	return ctx
 }

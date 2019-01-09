@@ -67,7 +67,7 @@ func NewPgDecryptor(clientID []byte, decryptor base.DataDecryptor, withZone bool
 		logger:               logger,
 		checkPoisonRecords:   true,
 		keyStore:             keystore,
-		dataProcessorContext: base.NewDataProcessorContext(clientID, withZone, keystore).WithContext(logging.SetLoggerToContext(context.Background(), logger)),
+		dataProcessorContext: base.NewDataProcessorContext(clientID, withZone, keystore).UseContext(logging.SetLoggerToContext(context.Background(), logger)),
 	}
 }
 
@@ -314,7 +314,7 @@ func (decryptor *PgDecryptor) SkipBeginInBlock(block []byte) ([]byte, error) {
 // handles all settings (if AcraStruct has Zone, if keys can be read etc)
 // appends HEX Prefix for Hex bytes mode
 func (decryptor *PgDecryptor) DecryptBlock(block []byte) ([]byte, error) {
-	ctx := decryptor.dataProcessorContext.WithZoneID(decryptor.GetMatchedZoneID())
+	ctx := decryptor.dataProcessorContext.UseZoneID(decryptor.GetMatchedZoneID())
 	return decryptor.dataProcessor.Process(block, ctx)
 }
 

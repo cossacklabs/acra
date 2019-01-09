@@ -57,7 +57,7 @@ const (
 // NewMySQLDecryptor returns MySQLDecryptor with turned on poison record detection
 func NewMySQLDecryptor(clientID []byte, pgDecryptor *postgresql.PgDecryptor, keyStore keystore.KeyStore) *MySQLDecryptor {
 	logger := log.WithFields(log.Fields{"decryptor": "mysql", "client_id": string(clientID)})
-	processorCtx := base.NewDataProcessorContext(clientID, pgDecryptor.IsWithZone(), keyStore).WithContext(logging.SetLoggerToContext(context.Background(), logger))
+	processorCtx := base.NewDataProcessorContext(clientID, pgDecryptor.IsWithZone(), keyStore).UseContext(logging.SetLoggerToContext(context.Background(), logger))
 	decryptor := &MySQLDecryptor{
 		keyStore:             keyStore,
 		binaryDecryptor:      binary.NewBinaryDecryptor(),
@@ -258,7 +258,7 @@ func (decryptor *MySQLDecryptor) SetWholeMatch(value bool) {
 func (decryptor *MySQLDecryptor) decryptWholeBlock(block []byte) ([]byte, error) {
 	decryptor.Reset()
 	if !decryptor.IsWithZone() || decryptor.IsMatchedZone() {
-		ctx := decryptor.dataProcessorContext.WithZoneID(decryptor.GetMatchedZoneID())
+		ctx := decryptor.dataProcessorContext.UseZoneID(decryptor.GetMatchedZoneID())
 		newData, err := decryptor.dataProcessor.Process(block, ctx)
 		if err != nil {
 			base.AcrastructDecryptionCounter.WithLabelValues(base.DecryptionTypeFail).Inc()
