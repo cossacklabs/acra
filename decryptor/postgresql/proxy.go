@@ -40,7 +40,7 @@ func NewProxyFactory(proxySetting base.ProxySetting) (base.ProxyFactory, error) 
 	}, nil
 }
 
-// New return mysql proxy implementation
+// New return postgresql proxy implementation
 func (factory *proxyFactory) New(ctx context.Context, clientID []byte, dbConnection, clientConnection net.Conn) (base.Proxy, error) {
 	decryptor, err := factory.setting.DecryptorFactory().New(clientID)
 	if err != nil {
