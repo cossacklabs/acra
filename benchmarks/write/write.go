@@ -58,10 +58,10 @@ func GetPublicOneKey() *keys.PublicKey {
 	return publicKey
 }
 
-// GenerateAcrastructRowsOneKey generate ROW_COUNT acrastructs with random data
+// GenerateAcrastructRowsOneKey generate RowCount acrastructs with random data
 // using <onekey_storage.pub> and insert to db
 func GenerateAcrastructRowsOneKey(publicKey *keys.PublicKey, db *sql.DB) {
-	for count := 0; count < config.ROW_COUNT; count++ {
+	for count := 0; count < config.RowCount; count++ {
 		data, err := common.GenerateData()
 		if err != nil {
 			panic(err)
@@ -78,9 +78,9 @@ func GenerateAcrastructRowsOneKey(publicKey *keys.PublicKey, db *sql.DB) {
 	}
 }
 
-// GenerateDataRows generate ROW_COUNT raw random data and insert to db
+// GenerateDataRows generate RowCount raw random data and insert to db
 func GenerateDataRows(db *sql.DB) {
-	for count := 0; count < config.ROW_COUNT; count++ {
+	for count := 0; count < config.RowCount; count++ {
 		data, err := common.GenerateData()
 		if err != nil {
 			panic(err)
@@ -92,22 +92,22 @@ func GenerateDataRows(db *sql.DB) {
 	}
 }
 
-// GenerateAcrastructWithZone generate ROW_COUNT acrastructs using sequentially
-// all ZONE_COUNT zones
+// GenerateAcrastructWithZone generate RowCount acrastructs using sequentially
+// all ZoneCount zones
 func GenerateAcrastructWithZone(db *sql.DB) {
 	zones := common.LoadZones()
-	for count := 0; count < config.ROW_COUNT; count++ {
+	for count := 0; count < config.RowCount; count++ {
 		data, err := common.GenerateData()
 		if err != nil {
 			panic(err)
 		}
 
-		zoneData := zones[count%config.ZONE_COUNT]
-		acrastruct, err := acrawriter.CreateAcrastruct(data, &keys.PublicKey{Value: zoneData.PublicKey}, zoneData.Id)
+		zoneData := zones[count%config.ZoneCount]
+		acrastruct, err := acrawriter.CreateAcrastruct(data, &keys.PublicKey{Value: zoneData.PublicKey}, zoneData.ID)
 		if err != nil {
 			panic(err)
 		}
-		_, err = db.Exec("INSERT INTO test_with_zone(zone, data) VALUES ($1, $2);", &zoneData.Id, &acrastruct)
+		_, err = db.Exec("INSERT INTO test_with_zone(zone, data) VALUES ($1, $2);", &zoneData.ID, &acrastruct)
 		if err != nil {
 			panic(err)
 		}

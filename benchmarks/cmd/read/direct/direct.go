@@ -32,8 +32,8 @@ func main() {
 	}
 	fmt.Println("Start benchmark")
 	startTime := time.Now()
-	for i := 0; i < config.REQUEST_COUNT; i++ {
-		id := rand.Intn(config.ROW_COUNT)
+	for i := 0; i < config.RequestCount; i++ {
+		id := rand.Intn(config.RowCount)
 		rows, err := db.Query("SELECT id, data FROM test_raw WHERE id=$1;", &id)
 		if err != nil {
 			panic(err)

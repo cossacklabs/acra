@@ -21,10 +21,10 @@ import "golang.org/x/crypto/argon2"
 // InitArgon2Params returns default Argon2 params
 func InitArgon2Params() Argon2Params {
 	var p Argon2Params
-	p.Time = uint32(ACRAWEBCONFIG_AUTH_ARGON2_TIME)
-	p.Memory = uint32(ACRAWEBCONFIG_AUTH_ARGON2_MEMORY)
-	p.Threads = uint8(ACRAWEBCONFIG_AUTH_ARGON2_THREADS)
-	p.Length = uint32(ACRAWEBCONFIG_AUTH_ARGON2_LENGTH)
+	p.Time = uint32(DefaultWebConfigAuthArgon2Time)
+	p.Memory = uint32(DefaultWebConfigAuthArgon2Memory)
+	p.Threads = uint8(DefaultWebConfigAuthArgon2Threads)
+	p.Length = uint32(DefaultWebConfigAuthArgon2Length)
 	return p
 }
 

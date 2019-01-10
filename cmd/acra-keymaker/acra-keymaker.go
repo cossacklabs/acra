@@ -35,9 +35,9 @@ import (
 
 // Constants used by AcraKeymaker
 var (
-	// DEFAULT_CONFIG_PATH relative path to config which will be parsed as default
-	DEFAULT_CONFIG_PATH = utils.GetConfigPathByName("acra-keymaker")
-	SERVICE_NAME        = "acra-keymaker"
+	// defaultConfigPath relative path to config which will be parsed as default
+	defaultConfigPath = utils.GetConfigPathByName("acra-keymaker")
+	serviceName       = "acra-keymaker"
 )
 
 func main() {
@@ -53,7 +53,7 @@ func main() {
 
 	logging.SetLogLevel(logging.LogVerbose)
 
-	err := cmd.Parse(DEFAULT_CONFIG_PATH, SERVICE_NAME)
+	err := cmd.Parse(defaultConfigPath, serviceName)
 	if err != nil {
 		log.WithError(err).Errorln("Can't parse args")
 		os.Exit(1)

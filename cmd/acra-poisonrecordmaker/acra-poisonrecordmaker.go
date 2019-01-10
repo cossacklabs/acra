@@ -40,9 +40,9 @@ import (
 
 // Constants used by AcraPoisonRecordsMaker
 var (
-	// DEFAULT_CONFIG_PATH relative path to config which will be parsed as default
-	DEFAULT_CONFIG_PATH = utils.GetConfigPathByName("acra-poisonrecordmaker")
-	SERVICE_NAME        = "acra-poisonrecordmaker"
+	// defaultConfigPath relative path to config which will be parsed as default
+	defaultConfigPath = utils.GetConfigPathByName("acra-poisonrecordmaker")
+	serviceName       = "acra-poisonrecordmaker"
 )
 
 func main() {
@@ -51,7 +51,7 @@ func main() {
 
 	logging.SetLogLevel(logging.LogDiscard)
 
-	err := cmd.Parse(DEFAULT_CONFIG_PATH, SERVICE_NAME)
+	err := cmd.Parse(defaultConfigPath, serviceName)
 	if err != nil {
 		log.WithError(err).Errorln("can't parse args")
 		os.Exit(1)

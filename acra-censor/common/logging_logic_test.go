@@ -116,7 +116,7 @@ func TestSerializationOnSameQueries(t *testing.T) {
 
 	defer func() {
 		writer.Free()
-		err = os.Remove(tmpFile.Name())
+		err := os.Remove(tmpFile.Name())
 		if err != nil {
 			t.Fatal(err)
 		}

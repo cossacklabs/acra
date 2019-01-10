@@ -64,7 +64,7 @@ type PgHexDecryptor struct {
 	//uint64 in hex
 	hexLengthBuf [base.DataLengthSize * 2]byte
 	keyStore     keystore.KeyStore
-	zoneMatcher  *zone.ZoneIDMatcher
+	zoneMatcher  *zone.Matcher
 
 	hexBuf []byte
 	buf    []byte

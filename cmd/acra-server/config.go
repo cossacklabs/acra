@@ -228,7 +228,7 @@ func (config *Config) SetWholeMatch(value bool) {
 
 // GetConfigPath returns AcraServer config path
 func (config *Config) GetConfigPath() string {
-	return DEFAULT_CONFIG_PATH
+	return defaultConfigPath
 }
 
 // ToJSON AcraServer editable config in JSON format

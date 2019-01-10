@@ -47,9 +47,9 @@ import (
 
 // Constants used by AcraRollback
 var (
-	// DEFAULT_CONFIG_PATH relative path to config which will be parsed as default
-	DEFAULT_CONFIG_PATH = utils.GetConfigPathByName("acra-rollback")
-	SERVICE_NAME        = "acra-rollback"
+	// defaultConfigPath relative path to config which will be parsed as default
+	defaultConfigPath = utils.GetConfigPathByName("acra-rollback")
+	serviceName       = "acra-rollback"
 )
 
 // ErrorExit prints error and exits.
@@ -169,7 +169,7 @@ func main() {
 
 	logging.SetLogLevel(logging.LogVerbose)
 
-	err := cmd.Parse(DEFAULT_CONFIG_PATH, SERVICE_NAME)
+	err := cmd.Parse(defaultConfigPath, serviceName)
 	if err != nil {
 		log.WithError(err).Errorln("Can't parse args")
 		os.Exit(1)

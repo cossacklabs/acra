@@ -31,18 +31,18 @@ func NewMatcherPool(factory MatcherFactory) *MatcherPool {
 	return &MatcherPool{factory: factory, matchers: list.New()}
 }
 
-// Acquire returns first matcher from the list, or creates one from factory if matchers list is empty
-func (pool *MatcherPool) Acquire() Matcher {
+// acquire returns first matcher from the list, or creates one from factory if matchers list is empty
+func (pool *MatcherPool) acquire() matcher {
 	if pool.matchers.Len() == 0 {
-		return pool.factory.CreateMatcher()
+		return pool.factory.createMatcher()
 	}
 	/*pop from matchers and return*/
-	matcher := pool.matchers.Remove(pool.matchers.Front())
-	return matcher.(Matcher)
+	matcherImpl := pool.matchers.Remove(pool.matchers.Front())
+	return matcherImpl.(matcher)
 }
 
-// Release resets matcher and push it to the start of the list
-func (pool *MatcherPool) Release(matcher Matcher) {
+// release resets matcher and push it to the start of the list
+func (pool *MatcherPool) release(matcher matcher) {
 	matcher.Reset()
 	pool.matchers.PushFront(matcher)
 }

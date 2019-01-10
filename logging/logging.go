@@ -36,7 +36,7 @@ const (
 	LogDiscard
 )
 
-const loggerKey = "logger"
+type loggerKey struct{}
 
 // SetLogLevel sets logging level
 func SetLogLevel(level int) {
@@ -85,7 +85,7 @@ func logFormatterFor(loggingFormat string, serviceName string) log.Formatter {
 
 // SetLoggerToContext sets logger to corresponded context
 func SetLoggerToContext(ctx context.Context, logger *log.Entry) context.Context {
-	return context.WithValue(ctx, loggerKey, logger)
+	return context.WithValue(ctx, loggerKey{}, logger)
 }
 
 // GetLoggerFromContext gets logger from context, returns nil if no logger.
@@ -98,6 +98,6 @@ func GetLoggerFromContext(ctx context.Context) *log.Entry {
 
 // GetLoggerFromContextOk gets logger from context, returns logger and success code.
 func GetLoggerFromContextOk(ctx context.Context) (*log.Entry, bool) {
-	entry, ok := ctx.Value(loggerKey).(*log.Entry)
+	entry, ok := ctx.Value(loggerKey{}).(*log.Entry)
 	return entry, ok
 }

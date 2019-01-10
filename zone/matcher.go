@@ -50,7 +50,7 @@ type DbByteReader interface {
 
 // MatcherFactory creates matchers
 type MatcherFactory interface {
-	CreateMatcher() Matcher
+	createMatcher() matcher
 }
 
 /* custom matcher factories */
@@ -64,8 +64,8 @@ func NewPgHexMatcherFactory() MatcherFactory {
 }
 
 // CreateMatcher returns new PgHexMatcher
-func (*PgHexMatcherFactory) CreateMatcher() Matcher {
-	return NewPgMatcher(NewPgHexByteReader())
+func (*PgHexMatcherFactory) createMatcher() matcher {
+	return newPgMatcher(NewPgHexByteReader())
 }
 
 // PgEscapeMatcherFactory makes new pgMatchers for EscapedBytes mode
@@ -77,14 +77,14 @@ func NewPgEscapeMatcherFactory() MatcherFactory {
 }
 
 // CreateMatcher returns new PgEscapeMatcher
-func (*PgEscapeMatcherFactory) CreateMatcher() Matcher {
-	return NewPgMatcher(NewPgEscapeByteReader())
+func (*PgEscapeMatcherFactory) createMatcher() matcher {
+	return newPgMatcher(NewPgEscapeByteReader())
 }
 
 /* end custom matcher factories */
 
-// Matcher basic interface
-type Matcher interface {
+// matcher basic interface
+type matcher interface {
 	Match(byte) bool
 	Reset()
 	GetZoneID() []byte
@@ -94,15 +94,15 @@ type Matcher interface {
 
 // PgMatcher concatenates two matchers: pgMatcher and binaryMatcher
 type PgMatcher struct {
-	pgMatcher     Matcher
-	binaryMatcher Matcher
+	pgMatcher     matcher
+	binaryMatcher matcher
 }
 
-// NewPgMatcher returns new Matcher with pgMatcher and binaryMatcher
-func NewPgMatcher(dbReader DbByteReader) Matcher {
+// newPgMatcher returns new matcher with pgMatcher and binaryMatcher
+func newPgMatcher(dbReader DbByteReader) matcher {
 	return &PgMatcher{
-		pgMatcher:     NewBaseMatcher(dbReader),
-		binaryMatcher: NewBaseMatcher(NewBinaryByteReader()),
+		pgMatcher:     newBaseMatcher(dbReader),
+		binaryMatcher: newBaseMatcher(NewBinaryByteReader()),
 	}
 }
 
@@ -152,8 +152,8 @@ type BaseMatcher struct {
 	dbReader     DbByteReader
 }
 
-// NewBaseMatcher returns new Matcher
-func NewBaseMatcher(dbReader DbByteReader) Matcher {
+// newBaseMatcher returns new matcher
+func newBaseMatcher(dbReader DbByteReader) matcher {
 	return &BaseMatcher{
 		currentIndex: 0,
 		dbReader:     dbReader,
@@ -162,7 +162,7 @@ func NewBaseMatcher(dbReader DbByteReader) Matcher {
 		zoneID:       make([]byte, ZoneIDBlockLength)}
 }
 
-// Reset changes Matcher state to the initial one, used in tests only
+// Reset changes matcher state to the initial one, used in tests only
 func (matcher *BaseMatcher) Reset() {
 	// used only for tests
 	matcher.currentIndex = 0

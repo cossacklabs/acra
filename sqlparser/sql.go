@@ -6,7 +6,6 @@ package sqlparser
 import __yyfmt__ "fmt"
 
 //line sql.y:18
-
 func setParseTree(yylex interface{}, stmt Statement) {
 	yylex.(*Tokenizer).ParseTree = stmt
 }

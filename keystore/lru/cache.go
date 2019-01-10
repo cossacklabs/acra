@@ -14,9 +14,9 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-// Package lru_cache implements simple LRU cache used by Keystore. LRU cache stores in memory some amount of
+// Package lru implements simple LRU cache used by Keystore. LRU cache stores in memory some amount of
 // encrypted keys and removes less used keys upon adding new ones.
-package lru_cache
+package lru
 
 import (
 	"github.com/cossacklabs/acra/utils"
@@ -25,8 +25,8 @@ import (
 	"sync"
 )
 
-// LRUCache implement keystore.Cache
-type LRUCache struct {
+// Cache implement keystore.Cache
+type Cache struct {
 	lru   *lru.Cache
 	mutex sync.RWMutex
 }
@@ -41,22 +41,22 @@ func clearCacheValue(key lru.Key, value interface{}) {
 	}
 }
 
-// NewLRUCacheKeystoreWrapper return new *LRUCache
-func NewLRUCacheKeystoreWrapper(size int) (*LRUCache, error) {
-	cache := &LRUCache{lru: lru.New(size)}
+// NewCacheKeystoreWrapper return new *Cache
+func NewCacheKeystoreWrapper(size int) (*Cache, error) {
+	cache := &Cache{lru: lru.New(size)}
 	cache.lru.OnEvicted = clearCacheValue
 	return cache, nil
 }
 
 // Add value by keyID
-func (cache *LRUCache) Add(keyID string, keyValue []byte) {
+func (cache *Cache) Add(keyID string, keyValue []byte) {
 	cache.mutex.Lock()
 	cache.lru.Add(keyID, keyValue)
 	cache.mutex.Unlock()
 }
 
 // Get value by keyID
-func (cache *LRUCache) Get(keyID string) ([]byte, bool) {
+func (cache *Cache) Get(keyID string) ([]byte, bool) {
 	cache.mutex.RLock()
 	defer cache.mutex.RUnlock()
 	value, ok := cache.lru.Get(keyID)
@@ -67,7 +67,7 @@ func (cache *LRUCache) Get(keyID string) ([]byte, bool) {
 }
 
 // Clear cache and remove all values with zeroing
-func (cache *LRUCache) Clear() {
+func (cache *Cache) Clear() {
 	cache.mutex.Lock()
 	cache.lru.Clear()
 	cache.mutex.Unlock()

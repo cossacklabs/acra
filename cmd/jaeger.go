@@ -26,6 +26,8 @@ var options = jaeger.Options{
 	AgentEndpoint:     "",
 	CollectorEndpoint: "",
 }
+
+// ErrInvalidJaegerExporterEndpoint incorrect endpoint for jaeger
 var ErrInvalidJaegerExporterEndpoint = errors.New("empty jaeger_agent_endpoint and jaeger_collector_endpoint")
 
 // RegisterJaegerCmdParameters register cli parameters with flag for jaeger options

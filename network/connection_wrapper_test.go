@@ -322,10 +322,10 @@ func testTLSConfig(serverWrapper *TLSConnectionWrapper, t *testing.T) {
 			t.Fatal("Timeout on wrap with incorrect cipher suits")
 		}
 	}
-	if err := clientConn.Close(); err != nil {
+	if err = clientConn.Close(); err != nil {
 		t.Fatal(err)
 	}
-	if err := serverConn.Close(); err != nil {
+	if err = serverConn.Close(); err != nil {
 		t.Fatal(err)
 	}
 
@@ -373,10 +373,10 @@ func testTLSConfig(serverWrapper *TLSConnectionWrapper, t *testing.T) {
 			t.Fatal("Timeout on wrap with unsupported protocol version")
 		}
 	}
-	if err := clientConn.Close(); err != nil {
+	if err = clientConn.Close(); err != nil {
 		t.Fatal(err)
 	}
-	if err := serverConn.Close(); err != nil {
+	if err = serverConn.Close(); err != nil {
 		t.Fatal(err)
 	}
 }

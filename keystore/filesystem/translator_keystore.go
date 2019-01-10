@@ -25,7 +25,7 @@ import (
 
 // TranslatorFileSystemKeyStore stores AcraTranslator keys configuration
 type TranslatorFileSystemKeyStore struct {
-	*FilesystemKeyStore
+	*KeyStore
 	directory string
 	encryptor keystore.KeyEncryptor
 }
@@ -36,7 +36,7 @@ func NewTranslatorFileSystemKeyStore(directory string, encryptor keystore.KeyEnc
 	if err != nil {
 		return nil, err
 	}
-	return &TranslatorFileSystemKeyStore{FilesystemKeyStore: fsKeystore, directory: directory, encryptor: encryptor}, nil
+	return &TranslatorFileSystemKeyStore{KeyStore: fsKeystore, directory: directory, encryptor: encryptor}, nil
 }
 
 // CheckIfPrivateKeyExists checks if Keystore has Translator transport private key for establishing Secure Session connection,

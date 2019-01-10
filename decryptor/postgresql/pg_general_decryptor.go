@@ -36,7 +36,7 @@ type PgDecryptor struct {
 	isWithZone         bool
 	isWholeMatch       bool
 	keyStore           keystore.KeyStore
-	zoneMatcher        *zone.ZoneIDMatcher
+	zoneMatcher        *zone.Matcher
 	pgDecryptor        base.DataDecryptor
 	binaryDecryptor    base.DataDecryptor
 	matchedDecryptor   base.DataDecryptor
@@ -77,12 +77,12 @@ func (decryptor *PgDecryptor) SetWithZone(b bool) {
 }
 
 // SetZoneMatcher sets ZoneID matcher
-func (decryptor *PgDecryptor) SetZoneMatcher(zoneMatcher *zone.ZoneIDMatcher) {
+func (decryptor *PgDecryptor) SetZoneMatcher(zoneMatcher *zone.Matcher) {
 	decryptor.zoneMatcher = zoneMatcher
 }
 
 // GetZoneMatcher returns ZoneID matcher
-func (decryptor *PgDecryptor) GetZoneMatcher() *zone.ZoneIDMatcher {
+func (decryptor *PgDecryptor) GetZoneMatcher() *zone.Matcher {
 	return decryptor.zoneMatcher
 }
 
@@ -128,7 +128,7 @@ func (decryptor *PgDecryptor) IsWithZone() bool {
 	return decryptor.isWithZone
 }
 
-// IsMatched find Begin tag and maps it to Matcher (either PgDecryptor or BinaryDecryptor)
+// IsMatched find Begin tag and maps it to Matcher (either PgDecryptor or Decryptor)
 // returns false if can't find tag or can't find corresponded decryptor
 func (decryptor *PgDecryptor) IsMatched() bool {
 	// TODO here pg_decryptor has higher priority than binary_decryptor
@@ -148,7 +148,7 @@ func (decryptor *PgDecryptor) IsMatched() bool {
 	}
 }
 
-// Reset resets both PgDecryptor and BinaryDecryptor and clears matching index
+// Reset resets both PgDecryptor and Decryptor and clears matching index
 func (decryptor *PgDecryptor) Reset() {
 	decryptor.matchedDecryptor = nil
 	decryptor.binaryDecryptor.Reset()
@@ -337,7 +337,7 @@ func (decryptor *PgDecryptor) CheckPoisonRecord(reader io.Reader) (bool, error) 
 	if err == nil {
 		decryptor.logger.Warningln("Recognized poison record")
 		if decryptor.GetPoisonCallbackStorage().HasCallbacks() {
-			err := decryptor.GetPoisonCallbackStorage().Call()
+			err = decryptor.GetPoisonCallbackStorage().Call()
 			if err != nil {
 				decryptor.logger.WithError(err).Errorln("Unexpected error in poison record callbacks")
 			}
