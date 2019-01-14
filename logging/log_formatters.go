@@ -67,7 +67,7 @@ func CEFFormatter(fields logrus.Fields) logrus.Formatter {
 		}
 	}
 
-	return AcraCEFFormatter{
+	return &AcraCEFFormatter{
 		CEFTextFormatter: CEFTextFormatter{
 			TimestampFormat: time.RFC3339,
 		},
@@ -161,7 +161,7 @@ func (f AcraJSONFormatter) Format(e *logrus.Entry) ([]byte, error) {
 // Format formats an entry to a AcraCEF format according to the given Formatter and Fields.
 //
 // Note: the given entry is copied and not changed during the formatting process.
-func (f AcraCEFFormatter) Format(e *logrus.Entry) ([]byte, error) {
+func (f *AcraCEFFormatter) Format(e *logrus.Entry) ([]byte, error) {
 	ne := copyEntry(e, f.Fields)
 	if value, ok := ne.Data[FieldKeyUnixTime]; !ok || value == 0 {
 		ne.Data[FieldKeyUnixTime] = unixTimeWithMilliseconds(e)

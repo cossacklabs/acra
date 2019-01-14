@@ -85,7 +85,7 @@ func (encryptor *QueryDataEncryptor) encryptInsertQuery(insert *sqlparser.Insert
 	}
 
 	if len(insert.OnDup) > 0 {
-		onDupChanged, err := encryptor.encryptUpdateExpressions(sqlparser.UpdateExprs(insert.OnDup), insert.Table, qualifierToTableMap{insert.Table.Name.String(): insert.Table.Name.String()})
+		onDupChanged, err := encryptor.encryptUpdateExpressions(sqlparser.UpdateExprs(insert.OnDup), insert.Table, AliasToTableMap{insert.Table.Name.String(): insert.Table.Name.String()})
 		if err != nil {
 			return changed, err
 		}
@@ -133,6 +133,9 @@ func UpdateExpressionValue(expr sqlparser.Expr, coder DBDataCoder, updateFunc fu
 func (encryptor *QueryDataEncryptor) encryptExpression(expr sqlparser.Expr, schema *config.TableSchema, columnName string) (bool, error) {
 	if schema.NeedToEncrypt(columnName) {
 		err := UpdateExpressionValue(expr, encryptor.dataCoder, func(data []byte) ([]byte, error) {
+			if len(data) == 0 {
+				return data, nil
+			}
 			return encryptor.encryptWithColumnSettings(schema.GetColumnEncryptionSettings(columnName), data)
 		})
 		// didn't change anything because it already encrypted
@@ -146,32 +149,32 @@ func (encryptor *QueryDataEncryptor) encryptExpression(expr sqlparser.Expr, sche
 	return false, nil
 }
 
-// tableData store TableName and related As value together
-type tableData struct {
+// AliasedTableName store TableName and related As value together
+type AliasedTableName struct {
 	TableName sqlparser.TableName
 	As        sqlparser.TableIdent
 }
 
-// getTablesFromUpdate collect all tables from all update TableExprs which may be as subquery/table/join/etc
+// GetTablesWithAliases collect all tables from all update TableExprs which may be as subquery/table/join/etc
 // collect only table names and ignore aliases for subqueries
-func (encryptor *QueryDataEncryptor) getTablesFromUpdate(tables sqlparser.TableExprs) []*tableData {
-	var outputTables []*tableData
+func GetTablesWithAliases(tables sqlparser.TableExprs) []*AliasedTableName {
+	var outputTables []*AliasedTableName
 	for _, tableExpr := range tables {
 		switch statement := tableExpr.(type) {
 		case *sqlparser.AliasedTableExpr:
 			aliasedStatement := statement.Expr.(sqlparser.SimpleTableExpr)
 			switch simpleTableStatement := aliasedStatement.(type) {
 			case sqlparser.TableName:
-				outputTables = append(outputTables, &tableData{TableName: simpleTableStatement, As: statement.As})
+				outputTables = append(outputTables, &AliasedTableName{TableName: simpleTableStatement, As: statement.As})
 			case *sqlparser.Subquery:
 				// unsupported
 			default:
 				logrus.Debugf("Unsupported SimpleTableExpr type %s", reflect.TypeOf(simpleTableStatement))
 			}
 		case *sqlparser.ParenTableExpr:
-			outputTables = append(outputTables, encryptor.getTablesFromUpdate(statement.Exprs)...)
+			outputTables = append(outputTables, GetTablesWithAliases(statement.Exprs)...)
 		case *sqlparser.JoinTableExpr:
-			outputTables = append(outputTables, encryptor.getTablesFromUpdate(sqlparser.TableExprs{statement.LeftExpr, statement.RightExpr})...)
+			outputTables = append(outputTables, GetTablesWithAliases(sqlparser.TableExprs{statement.LeftExpr, statement.RightExpr})...)
 		default:
 			logrus.Debugf("Unsupported TableExpr type %s", reflect.TypeOf(tableExpr))
 		}
@@ -180,7 +183,7 @@ func (encryptor *QueryDataEncryptor) getTablesFromUpdate(tables sqlparser.TableE
 }
 
 // hasTablesToEncrypt check that exists schema for any table in tables
-func (encryptor *QueryDataEncryptor) hasTablesToEncrypt(tables []*tableData) bool {
+func (encryptor *QueryDataEncryptor) hasTablesToEncrypt(tables []*AliasedTableName) bool {
 	for _, table := range tables {
 		if v := encryptor.schemaStore.GetTableSchema(table.TableName.Name.String()); v != nil {
 			return true
@@ -190,7 +193,7 @@ func (encryptor *QueryDataEncryptor) hasTablesToEncrypt(tables []*tableData) boo
 }
 
 // encryptUpdateExpressions try to encrypt all supported exprs. Use firstTable if column has not explicit table name because it's implicitly used in DBMSs
-func (encryptor *QueryDataEncryptor) encryptUpdateExpressions(exprs sqlparser.UpdateExprs, firstTable sqlparser.TableName, qualifierMap qualifierToTableMap) (bool, error) {
+func (encryptor *QueryDataEncryptor) encryptUpdateExpressions(exprs sqlparser.UpdateExprs, firstTable sqlparser.TableName, qualifierMap AliasToTableMap) (bool, error) {
 	var schema *config.TableSchema
 	changed := false
 	for _, expr := range exprs {
@@ -215,19 +218,12 @@ func (encryptor *QueryDataEncryptor) encryptUpdateExpressions(exprs sqlparser.Up
 	return changed, nil
 }
 
-// qualifierToTableMap store table alias as key and table name as value
-type qualifierToTableMap map[string]string
+// AliasToTableMap store table alias as key and table name as value
+type AliasToTableMap map[string]string
 
-// encryptUpdateQuery encrypt data in Update query and return true if any fields was encrypted, false if wasn't and error if error occurred
-func (encryptor *QueryDataEncryptor) encryptUpdateQuery(update *sqlparser.Update) (bool, error) {
-	tables := encryptor.getTablesFromUpdate(update.TableExprs)
-	if !encryptor.hasTablesToEncrypt(tables) {
-		return false, nil
-	}
-	if len(tables) == 0 {
-		return false, nil
-	}
-	qualifierMap := qualifierToTableMap{}
+// NewAliasToTableMapFromTables create AliasToTableMap from slice of aliased tables
+func NewAliasToTableMapFromTables(tables []*AliasedTableName) AliasToTableMap {
+	qualifierMap := AliasToTableMap{}
 	for _, table := range tables {
 		if table.As.IsEmpty() {
 			qualifierMap[table.TableName.Name.String()] = table.TableName.Name.String()
@@ -235,6 +231,19 @@ func (encryptor *QueryDataEncryptor) encryptUpdateQuery(update *sqlparser.Update
 			qualifierMap[table.As.String()] = table.TableName.Name.String()
 		}
 	}
+	return qualifierMap
+}
+
+// encryptUpdateQuery encrypt data in Update query and return true if any fields was encrypted, false if wasn't and error if error occurred
+func (encryptor *QueryDataEncryptor) encryptUpdateQuery(update *sqlparser.Update) (bool, error) {
+	tables := GetTablesWithAliases(update.TableExprs)
+	if !encryptor.hasTablesToEncrypt(tables) {
+		return false, nil
+	}
+	if len(tables) == 0 {
+		return false, nil
+	}
+	qualifierMap := NewAliasToTableMapFromTables(tables)
 	firstTable := tables[0].TableName
 	return encryptor.encryptUpdateExpressions(update.Exprs, firstTable, qualifierMap)
 }
