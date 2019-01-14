@@ -2922,7 +2922,7 @@ sql_id:
   {
     $$ = NewColIdent(string($1))
   }
-| STRING
+| STRING // if comment this rule, current conflicts will be resolved. This is due to ambiguities in MySQL/PostgreSQL using quotes in table/column names
 {
   $$ = NewColIdentWithQuotes(string($1), true)
 }
