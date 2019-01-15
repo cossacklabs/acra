@@ -89,8 +89,8 @@ func DecodeOctal(data []byte) ([]byte, error) {
 
 // DecodeEscaped with hex or octal encodings
 func DecodeEscaped(data []byte) ([]byte, error) {
-	hexdata := data[2:]
-	if bytes.Equal(data[:2], []byte{'\\', 'x'}) {
+	if len(data) > 2 && bytes.Equal(data[:2], []byte{'\\', 'x'}) {
+		hexdata := data[2:]
 		output := make([]byte, hex.DecodedLen(len(hexdata)))
 		_, err := hex.Decode(output, hexdata)
 		return output, err

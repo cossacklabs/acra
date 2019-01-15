@@ -33,9 +33,17 @@ func NewEncodeDecodeWrapper(processor base.DataProcessor) base.DataProcessor {
 		if err != nil {
 			return data, err
 		}
-		output := make([]byte, len(HexPrefix)+hex.EncodedLen(len(data)))
-		copy(output, HexPrefix)
-		hex.Encode(output[len(HexPrefix):], data)
-		return output, nil
+
+		// if data was simple string without binary data then return it as is otherwise encode as hex value
+		for _, c := range data {
+			if !utils.IsPrintableEscapeChar(c) {
+				output := make([]byte, len(HexPrefix)+hex.EncodedLen(len(data)))
+				copy(output, HexPrefix)
+				hex.Encode(output[len(HexPrefix):], data)
+				data = output
+				break
+			}
+		}
+		return data, nil
 	})
 }

@@ -100,5 +100,8 @@ func (schema *TableSchema) NeedToEncrypt(columnName string) bool {
 
 // GetColumnEncryptionSettings return setting or nil
 func (schema *TableSchema) GetColumnEncryptionSettings(columnName string) *ColumnEncryptionSetting {
+	if schema.mapEncryptedColumns == nil {
+		schema.initMap()
+	}
 	return schema.mapEncryptedColumns[columnName]
 }
