@@ -1936,6 +1936,25 @@ func TestCreateTableEscaped(t *testing.T) {
 	}
 }
 
+func TestPreparedStatements(t *testing.T) {
+	testQueries := []string{
+		`prepare stmt1 from 'select 1'`,
+		`prepare stmt1 from @variable`,
+		`prepare stmt1 from E'pg_escape_string'`,
+		`execute stmt1`,
+		`execute stmt1 using @variable`,
+		`execute stmt1 using @variable1, @variable2`,
+		`deallocate prepare stmt1`,
+	}
+
+	for _, query := range testQueries {
+		_, err := Parse(query)
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+}
+
 var (
 	invalidSQL = []struct {
 		input        string

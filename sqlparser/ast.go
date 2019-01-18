@@ -21,12 +21,9 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
-	"io"
-	"log"
-	"strings"
-
 	"github.com/cossacklabs/acra/sqlparser/dependency/querypb"
 	"github.com/cossacklabs/acra/sqlparser/dependency/sqltypes"
+	"strings"
 )
 
 //go:generate goyacc -o sql.go sql.y
@@ -1338,86 +1335,24 @@ type ShowFilter struct {
 	Filter Expr
 }
 
-// Format formats the node.
-func (node *ShowFilter) Format(buf *TrackedBuffer) {
-	if node.Like != "" {
-		buf.Myprintf("like '%s'", node.Like)
-	} else {
-		buf.Myprintf("where %v", node.Filter)
-	}
-}
-
-func (node *ShowFilter) walkSubtree(visit Visit) error {
-	return nil
-}
-
 // Use represents a use statement.
 type Use struct {
 	DBName TableIdent
 }
 
-// Format formats the node.
-func (node *Use) Format(buf *TrackedBuffer) {
-	if node.DBName.v != "" {
-		buf.Myprintf("use %v", node.DBName)
-	} else {
-		buf.Myprintf("use")
-	}
-}
-
-func (node *Use) walkSubtree(visit Visit) error {
-	return Walk(visit, node.DBName)
-}
-
 // Begin represents a Begin statement.
 type Begin struct{}
-
-// Format formats the node.
-func (node *Begin) Format(buf *TrackedBuffer) {
-	buf.WriteString("begin")
-}
-
-func (node *Begin) walkSubtree(visit Visit) error {
-	return nil
-}
 
 // Commit represents a Commit statement.
 type Commit struct{}
 
-// Format formats the node.
-func (node *Commit) Format(buf *TrackedBuffer) {
-	buf.WriteString("commit")
-}
-
-func (node *Commit) walkSubtree(visit Visit) error {
-	return nil
-}
-
 // Rollback represents a Rollback statement.
 type Rollback struct{}
-
-// Format formats the node.
-func (node *Rollback) Format(buf *TrackedBuffer) {
-	buf.WriteString("rollback")
-}
-
-func (node *Rollback) walkSubtree(visit Visit) error {
-	return nil
-}
 
 // OtherRead represents a DESCRIBE, or EXPLAIN statement.
 // It should be used only as an indicator. It does not contain
 // the full AST for the statement.
 type OtherRead struct{}
-
-// Format formats the node.
-func (node *OtherRead) Format(buf *TrackedBuffer) {
-	buf.WriteString("otherread")
-}
-
-func (node *OtherRead) walkSubtree(visit Visit) error {
-	return nil
-}
 
 // OtherAdmin represents a misc statement that relies on ADMIN privileges,
 // such as REPAIR, OPTIMIZE, or TRUNCATE statement.
@@ -1425,49 +1360,39 @@ func (node *OtherRead) walkSubtree(visit Visit) error {
 // the full AST for the statement.
 type OtherAdmin struct{}
 
-// Format formats the node.
-func (node *OtherAdmin) Format(buf *TrackedBuffer) {
-	buf.WriteString("otheradmin")
+// FromInPrepare represents FROM statement in Prepare
+type FromInPrepare interface {
+	iFromInPrepare()
+	SQLNode
 }
 
-func (node *OtherAdmin) walkSubtree(visit Visit) error {
-	return nil
+func (TableIdent) iFromInPrepare() {}
+func (*SQLVal) iFromInPrepare()    {}
+
+type UsingInExecuteList []TableIdent
+
+// Execute executes prepared statement
+type Execute struct {
+	PreparedStatementName TableIdent
+	Using                 UsingInExecuteList
+}
+
+// Prepare prepares statement for future execution
+type Prepare struct {
+	PreparedStatementName TableIdent
+	From                  FromInPrepare
+}
+
+// DeallocatePrepare deallocates memory that stores compiled prepared statement
+type DeallocatePrepare struct {
+	PreparedStatementName TableIdent
 }
 
 // Comments represents a list of comments.
 type Comments [][]byte
 
-// Format formats the node.
-func (node Comments) Format(buf *TrackedBuffer) {
-	for _, c := range node {
-		buf.Myprintf("%s ", c)
-	}
-}
-
-func (node Comments) walkSubtree(visit Visit) error {
-	return nil
-}
-
 // SelectExprs represents SELECT expressions.
 type SelectExprs []SelectExpr
-
-// Format formats the node.
-func (node SelectExprs) Format(buf *TrackedBuffer) {
-	var prefix string
-	for _, n := range node {
-		buf.Myprintf("%s%v", prefix, n)
-		prefix = ", "
-	}
-}
-
-func (node SelectExprs) walkSubtree(visit Visit) error {
-	for _, n := range node {
-		if err := Walk(visit, n); err != nil {
-			return err
-		}
-	}
-	return nil
-}
 
 // SelectExpr represents a SELECT expression.
 type SelectExpr interface {

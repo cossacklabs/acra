@@ -393,6 +393,9 @@ var keywords = map[string]int{
 	"year_month":          UNUSED,
 	"zerofill":            ZEROFILL,
 	"returning":           RETURNING,
+	"deallocate":          DEALLOCATE,
+	"prepare":             PREPARE,
+	"execute":             EXECUTE,
 }
 
 // keywordStrings contains the reverse mapping of token to keyword strings

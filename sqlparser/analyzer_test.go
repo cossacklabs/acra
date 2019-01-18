@@ -68,6 +68,9 @@ func TestPreview(t *testing.T) {
 		{"optimize", StmtOther},
 		{"truncate", StmtDDL},
 		{"unknown", StmtUnknown},
+		{"deallocate prepare", StmtDeallocatePrepare},
+		{"prepare", StmtPrepare},
+		{"execute", StmtExecute},
 
 		{"/* leading comment */ select ...", StmtSelect},
 		{"/* leading comment */ (select ...", StmtSelect},

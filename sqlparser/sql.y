@@ -91,6 +91,7 @@ func forceEOF(yylex interface{}) {
   setExpr       *SetExpr
   colIdent      ColIdent
   tableIdent    TableIdent
+  usingInExecuteList   UsingInExecuteList
   convertType   *ConvertType
   aliasedTableName *AliasedTableExpr
   TableSpec  *TableSpec
@@ -111,6 +112,7 @@ func forceEOF(yylex interface{}) {
   vindexParam   VindexParam
   vindexParams  []VindexParam
   showFilter    *ShowFilter
+  fromInPrepare FromInPrepare
 }
 
 %token LEX_ERROR
@@ -164,6 +166,9 @@ func forceEOF(yylex interface{}) {
 // Transaction Tokens
 %token <bytes> BEGIN START TRANSACTION COMMIT ROLLBACK
 
+// Prepared statements Tokens
+%token <bytes> DEALLOCATE PREPARE EXECUTE
+
 // Type Tokens
 %token <bytes> BIT TINYINT SMALLINT MEDIUMINT INT INTEGER BIGINT INTNUM
 %token <bytes> REAL DOUBLE FLOAT_TYPE DECIMAL NUMERIC
@@ -207,6 +212,7 @@ func forceEOF(yylex interface{}) {
 %type <ddl> create_table_prefix
 %type <statement> analyze_statement show_statement use_statement other_statement
 %type <statement> begin_statement commit_statement rollback_statement
+%type <statement> deallocate_prepare_statement prepare_statement execute_statement
 %type <bytes2> comment_opt comment_list
 %type <str> union_op insert_or_replace
 %type <str> distinct_opt straight_join_opt cache_opt match_option separator_opt
@@ -299,6 +305,8 @@ func forceEOF(yylex interface{}) {
 %type <bytes> alter_object_type
 %type <bytes> typecast
 %type <returning> returning_opt
+%type <fromInPrepare> from_in_prepare
+%type <usingInExecuteList> using_in_execute_list
 
 %start any_command
 
@@ -336,6 +344,9 @@ command:
 | commit_statement
 | rollback_statement
 | other_statement
+| deallocate_prepare_statement
+| prepare_statement
+| execute_statement
 
 select_statement:
   base_select order_by_opt limit_opt lock_opt
@@ -1553,6 +1564,52 @@ other_statement:
 | OPTIMIZE force_eof
   {
     $$ = &OtherAdmin{}
+  }
+
+deallocate_prepare_statement:
+  DEALLOCATE PREPARE table_id
+  {
+    $$ = &DeallocatePrepare{PreparedStatementName: $3}
+  }
+
+prepare_statement:
+  PREPARE table_id FROM from_in_prepare
+  {
+    $$ = &Prepare{PreparedStatementName: $2, From: $4}
+  }
+
+from_in_prepare:
+  ID
+  {
+    $$ = NewTableIdent(string($1))
+  }
+| PG_ESCAPE_STRING
+  {
+    $$ = NewPgEscapeString($1)
+  }
+| STRING
+  {
+    $$ = NewStrVal($1)
+  }
+
+execute_statement:
+  EXECUTE ID
+  {
+    $$ = &Execute{PreparedStatementName: NewTableIdent(string($2))}
+  }
+| EXECUTE ID USING using_in_execute_list
+  {
+    $$ = &Execute{PreparedStatementName: NewTableIdent(string($2)), Using: $4}
+  }
+
+using_in_execute_list:
+  table_id
+  {
+    $$ = UsingInExecuteList{$1}
+  }
+| using_in_execute_list ',' table_id
+  {
+    $$ = append($1, $3)
   }
 
 comment_opt:
@@ -2923,9 +2980,9 @@ sql_id:
     $$ = NewColIdent(string($1))
   }
 | STRING // if comment this rule, current conflicts will be resolved. This is due to ambiguities in MySQL/PostgreSQL using quotes in table/column names
-{
-  $$ = NewColIdentWithQuotes(string($1), true)
-}
+  {
+    $$ = NewColIdentWithQuotes(string($1), true)
+  }
 
 reserved_sql_id:
   sql_id
