@@ -32,7 +32,7 @@ handlers:
       - SELECT CAST('test unicode returns' AS VARCHAR(60)) AS anon_1
   - handler: deny
     queries:
-      - select data_raw from test
+      - select * from test
     tables:
       - acrarollback_output
     patterns:
