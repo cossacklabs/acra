@@ -292,6 +292,7 @@ type Insert struct {
 	Comments   Comments
 	Ignore     string
 	Table      TableName
+	Default    bool
 	Partitions Partitions
 	Columns    Columns
 	Rows       InsertRows
@@ -739,6 +740,9 @@ type FromInPrepare interface {
 
 func (TableIdent) iFromInPrepare() {}
 func (*SQLVal) iFromInPrepare()    {}
+// dictates by PostgreSQL
+func (*Select) iFromInPrepare()    {}
+func (*Insert) iFromInPrepare()    {}
 
 type UsingInExecuteList []TableIdent
 

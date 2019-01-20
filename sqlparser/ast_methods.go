@@ -190,10 +190,17 @@ func (node *Stream) walkSubtree(visit Visit) error {
 
 // Format formats the node.
 func (node *Insert) Format(buf *TrackedBuffer) {
-	buf.Myprintf("%s %v%sinto %v%v%v %v%v%v",
-		node.Action,
-		node.Comments, node.Ignore,
-		node.Table, node.Partitions, node.Columns, node.Rows, node.OnDup, node.Returning)
+	if !node.Default {
+		buf.Myprintf("%s %v%sinto %v%v%v %v%v%v",
+			node.Action,
+			node.Comments, node.Ignore,
+			node.Table, node.Partitions, node.Columns, node.Rows, node.OnDup, node.Returning)
+	} else {
+		buf.Myprintf("%s %v%sinto %v default values",
+			node.Action,
+			node.Comments, node.Ignore,
+			node.Table)
+	}
 }
 
 func (node *Insert) walkSubtree(visit Visit) error {

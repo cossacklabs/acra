@@ -1945,6 +1945,9 @@ func TestPreparedStatements(t *testing.T) {
 		`execute stmt1 using @variable`,
 		`execute stmt1 using @variable1, @variable2`,
 		`deallocate prepare stmt1`,
+		`prepare test_statement as select * from test`,
+		`prepare test_statement as insert into test default values`,
+		`prepare test_statement as insert into test(id, data) values(1, DEFAULT)`,
 	}
 
 	for _, query := range testQueries {

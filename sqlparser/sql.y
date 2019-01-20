@@ -424,6 +424,10 @@ insert_statement:
     }
     $$ = &Insert{Action: $1, Comments: Comments($2), Ignore: $3, Table: $4, Partitions: $5, Columns: cols, Rows: Values{vals}, OnDup: OnDup($8)}
   }
+| insert_or_replace comment_opt ignore_opt into_table_name DEFAULT VALUES
+  {
+    $$ = &Insert{Action: $1, Comments: Comments($2), Ignore: $3, Table: $4, Default: true}
+  }
 
 insert_or_replace:
   INSERT
@@ -1577,9 +1581,21 @@ prepare_statement:
   {
     $$ = &Prepare{PreparedStatementName: $2, From: $4}
   }
+| PREPARE table_id AS from_in_prepare
+  {
+    $$ = &Prepare{PreparedStatementName: $2, From: $4}
+  }
 
 from_in_prepare:
-  ID
+  base_select
+  {
+    $$ = $1.(*Select)
+  }
+| insert_statement
+  {
+    $$ = $1.(*Insert)
+  }
+| ID
   {
     $$ = NewTableIdent(string($1))
   }
