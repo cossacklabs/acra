@@ -740,9 +740,10 @@ type FromInPrepare interface {
 
 func (TableIdent) iFromInPrepare() {}
 func (*SQLVal) iFromInPrepare()    {}
+
 // dictates by PostgreSQL
-func (*Select) iFromInPrepare()    {}
-func (*Insert) iFromInPrepare()    {}
+func (*Select) iFromInPrepare() {}
+func (*Insert) iFromInPrepare() {}
 
 type UsingInExecuteList []TableIdent
 
