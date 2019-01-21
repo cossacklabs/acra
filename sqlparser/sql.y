@@ -1023,6 +1023,10 @@ collate_opt:
   {
     $$ = string($2)
   }
+| COLLATE STRING
+  {
+    $$ = string($2)
+  }
 
 column_key_opt:
   {
@@ -1392,6 +1396,10 @@ show_statement:
     $$ = &Show{Scope: $2, Type: string($3)}
   }
 | SHOW TABLE ddl_force_eof
+  {
+    $$ = &Show{Type: string($2)}
+  }
+| SHOW TRANSACTION ISOLATION LEVEL
   {
     $$ = &Show{Type: string($2)}
   }
@@ -2532,6 +2540,10 @@ convert_type:
     $$ = &ConvertType{Type: string($1)}
   }
 | UNSIGNED INTEGER
+  {
+    $$ = &ConvertType{Type: string($1)}
+  }
+| VARCHAR openb INTEGRAL closeb
   {
     $$ = &ConvertType{Type: string($1)}
   }
