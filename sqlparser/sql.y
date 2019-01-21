@@ -112,7 +112,7 @@ func forceEOF(yylex interface{}) {
   vindexParam   VindexParam
   vindexParams  []VindexParam
   showFilter    *ShowFilter
-  fromInPrepare FromInPrepare
+  preparedQuery PreparedQuery
 }
 
 %token LEX_ERROR
@@ -305,7 +305,7 @@ func forceEOF(yylex interface{}) {
 %type <bytes> alter_object_type
 %type <bytes> typecast
 %type <returning> returning_opt
-%type <fromInPrepare> from_in_prepare
+%type <preparedQuery> prepared_query
 %type <usingInExecuteList> using_in_execute_list
 
 %start any_command
@@ -1585,16 +1585,16 @@ deallocate_prepare_statement:
   }
 
 prepare_statement:
-  PREPARE table_id FROM from_in_prepare
+  PREPARE table_id FROM prepared_query
   {
-    $$ = &Prepare{PreparedStatementName: $2, From: $4}
+    $$ = &Prepare{PreparedStatementName: $2, PreparedStatementQuery: $4}
   }
-| PREPARE table_id AS from_in_prepare
+| PREPARE table_id AS prepared_query
   {
-    $$ = &Prepare{PreparedStatementName: $2, From: $4}
+    $$ = &Prepare{PreparedStatementName: $2, PreparedStatementQuery: $4}
   }
 
-from_in_prepare:
+prepared_query:
   base_select
   {
     $$ = $1.(*Select)
@@ -1603,17 +1603,30 @@ from_in_prepare:
   {
     $$ = $1.(*Insert)
   }
+| delete_statement
+  {
+    $$ = $1.(*Delete)
+  }
+| update_statement
+  {
+    $$ = $1.(*Update)
+  }
 | ID
   {
     $$ = NewTableIdent(string($1))
   }
-| PG_ESCAPE_STRING
-  {
-    $$ = NewPgEscapeString($1)
-  }
 | STRING
   {
-    $$ = NewStrVal($1)
+    statement, err := NewPreparedQueryFromString(string($1))
+    if statement == nil {
+      yylex.Error("unsupported type of prepared query")
+      return 1
+    }
+    if err != nil {
+      yylex.Error("syntax error in prepared query")
+      return 1
+    }
+    $$ = statement
   }
 
 execute_statement:

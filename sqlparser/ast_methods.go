@@ -753,11 +753,11 @@ func (node *Execute) walkSubtree(visit Visit) error {
 
 // Format formats the node.
 func (node *Prepare) Format(buf *TrackedBuffer) {
-	buf.Myprintf("prepare %v from %v", node.PreparedStatementName, node.From)
+	buf.Myprintf("prepare %v from %v", node.PreparedStatementName, node.PreparedStatementQuery)
 }
 
 func (node *Prepare) walkSubtree(visit Visit) error {
-	return Walk(visit, node.PreparedStatementName, node.From)
+	return Walk(visit, node.PreparedStatementName, node.PreparedStatementQuery)
 }
 
 // Format formats the node.

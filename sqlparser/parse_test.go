@@ -1940,7 +1940,6 @@ func TestPreparedStatements(t *testing.T) {
 	testQueries := []string{
 		`prepare stmt1 from 'select 1'`,
 		`prepare stmt1 from @variable`,
-		`prepare stmt1 from E'pg_escape_string'`,
 		`execute stmt1`,
 		`execute stmt1 using @variable`,
 		`execute stmt1 using @variable1, @variable2`,
@@ -1948,6 +1947,18 @@ func TestPreparedStatements(t *testing.T) {
 		`prepare test_statement as select * from test`,
 		`prepare test_statement as insert into test default values`,
 		`prepare test_statement as insert into test(id, data) values(1, DEFAULT)`,
+		`prepare test_statement as delete from somelog where user = 'jcole' order by timestamp_column limit 1`,
+		`prepare test_statement as update t1 set col1 = col1 + 1`,
+		`prepare test_statement from 'select * from test'`,
+		`prepare test_statement from 'insert into test default values'`,
+		`prepare test_statement from 'insert into test(id, data) values(1, DEFAULT)'`,
+		`prepare test_statement from 'delete from somelog where user = "jcole" order by timestamp_column limit 1'`,
+		`prepare test_statement from 'update t1 set col1 = col1 + 1'`,
+		`prepare test_statement from "select * from test"`,
+		`prepare test_statement from "insert into test default values"`,
+		`prepare test_statement from "insert into test(id, data) values(1, DEFAULT)"`,
+		`prepare test_statement from "delete from somelog where user = 'jcole' order by timestamp_column limit 1"`,
+		`prepare test_statement from "update t1 set col1 = col1 + 1"`,
 	}
 
 	for _, query := range testQueries {

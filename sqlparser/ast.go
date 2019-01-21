@@ -732,18 +732,39 @@ type OtherRead struct{}
 // the full AST for the statement.
 type OtherAdmin struct{}
 
-// FromInPrepare represents FROM statement in Prepare
-type FromInPrepare interface {
-	iFromInPrepare()
+// PreparedQuery represents FROM statement in Prepare
+type PreparedQuery interface {
+	iPreparedQuery()
 	SQLNode
 }
 
-func (TableIdent) iFromInPrepare() {}
-func (*SQLVal) iFromInPrepare()    {}
+func (TableIdent) iPreparedQuery() {}
+func (*Select) iPreparedQuery() {}
+func (*Insert) iPreparedQuery() {}
+func (*Delete) iPreparedQuery() {}
+func (*Update) iPreparedQuery() {}
 
-// dictates by PostgreSQL
-func (*Select) iFromInPrepare() {}
-func (*Insert) iFromInPrepare() {}
+
+func NewPreparedQueryFromString(query string) (PreparedQuery, error){
+	statement, err := Parse(query)
+	if err != nil {
+		return nil, err
+	}
+	switch statement.(type) {
+	case *Select:
+		return statement.(*Select), nil
+	case *Insert:
+		return statement.(*Insert), nil
+	case *Delete:
+		return statement.(*Delete), nil
+	case *Update:
+		return statement.(*Update), nil
+	default:
+		return nil, nil
+	}
+	return nil, nil
+}
+
 
 type UsingInExecuteList []TableIdent
 
@@ -755,8 +776,8 @@ type Execute struct {
 
 // Prepare prepares statement for future execution
 type Prepare struct {
-	PreparedStatementName TableIdent
-	From                  FromInPrepare
+	PreparedStatementName  TableIdent
+	PreparedStatementQuery PreparedQuery
 }
 
 // DeallocatePrepare deallocates memory that stores compiled prepared statement
