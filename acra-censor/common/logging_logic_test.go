@@ -165,7 +165,7 @@ func TestSerializationOnSameQueries(t *testing.T) {
 		}
 	}
 }
-func TestQueryCapture(t *testing.T) {
+func TestQueryCaptureOnDuplicates(t *testing.T) {
 	// extraWaitTime provide extra time to serialize in background goroutine before check
 	const extraWaitTime = 100 * time.Millisecond
 	tmpFile, err := ioutil.TempFile("", "censor_log")
@@ -193,81 +193,58 @@ func TestQueryCapture(t *testing.T) {
 		"SELECT Student_ID FROM STUDENT;",
 		"SELECT * FROM STUDENT;",
 		"SELECT * FROM X;",
-		"SELECT * FROM Y;",
+		"SELECT * FROM X;",
 	}
-	_ = testQueries
-	/*
-		for _, query := range testQueries {
-			_, err = writer.RedactAndCheckQuery(query)
-			if err != nil {
-				t.Fatal(err)
-			}
-		}
-		expected := "{\"raw_query\":\"SELECT Student_ID FROM STUDENT\",\"_blacklisted_by_web_config\":false}\n" +
-			"{\"raw_query\":\"SELECT * FROM STUDENT\",\"_blacklisted_by_web_config\":false}\n" +
-			"{\"raw_query\":\"SELECT * FROM X\",\"_blacklisted_by_web_config\":false}\n" +
-			"{\"raw_query\":\"SELECT * FROM Y\",\"_blacklisted_by_web_config\":false}\n"
 
-		time.Sleep(DefaultSerializationTimeout + extraWaitTime)
-		result, err := ioutil.ReadFile(tmpFile.Name())
-		if err != nil {
-			t.Fatal(err)
-		}
-		if !strings.EqualFold(strings.ToUpper(string(result)), strings.ToUpper(expected)) {
-			t.Fatal("Expected: " + expected + "\nGot: " + string(result))
-		}
-		testQuery := "SELECT * FROM Z;"
-		_, err = writer.RedactAndCheckQuery(testQuery)
-		if err != nil {
-			t.Fatal(err)
-		}
-		expected = "{\"raw_query\":\"SELECT Student_ID FROM STUDENT\",\"_blacklisted_by_web_config\":false}\n" +
-			"{\"raw_query\":\"SELECT * FROM STUDENT\",\"_blacklisted_by_web_config\":false}\n" +
-			"{\"raw_query\":\"SELECT * FROM X\",\"_blacklisted_by_web_config\":false}\n" +
-			"{\"raw_query\":\"SELECT * FROM Y\",\"_blacklisted_by_web_config\":false}\n" +
-			"{\"raw_query\":\"SELECT * FROM Z\",\"_blacklisted_by_web_config\":false}\n"
+	for _, query := range testQueries {
+		writer.WriteQuery(query)
+	}
+	expected := "{\"raw_query\":\"SELECT Student_ID FROM STUDENT;\",\"_blacklisted_by_web_config\":false}\n" +
+		"{\"raw_query\":\"SELECT * FROM STUDENT;\",\"_blacklisted_by_web_config\":false}\n" +
+		"{\"raw_query\":\"SELECT * FROM X;\",\"_blacklisted_by_web_config\":false}\n"
 
-		time.Sleep(DefaultSerializationTimeout + extraWaitTime)
-		result, err = ioutil.ReadFile(tmpFile.Name())
-		if err != nil {
-			t.Fatal(err)
-		}
-		if !strings.EqualFold(strings.ToUpper(string(result)), strings.ToUpper(expected)) {
-			t.Fatal("Expected: " + expected + "\nGot: " + string(result))
-		}
+	time.Sleep(DefaultSerializationTimeout + extraWaitTime)
+	result, err := ioutil.ReadFile(tmpFile.Name())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.EqualFold(strings.ToUpper(string(result)), strings.ToUpper(expected)) {
+		t.Fatal("Expected: " + expected + "\nGot: " + string(result))
+	}
+	testQuery := "SELECT * FROM Z;"
+	writer.WriteQuery(testQuery)
+	expected = "{\"raw_query\":\"SELECT Student_ID FROM STUDENT;\",\"_blacklisted_by_web_config\":false}\n" +
+		"{\"raw_query\":\"SELECT * FROM STUDENT;\",\"_blacklisted_by_web_config\":false}\n" +
+		"{\"raw_query\":\"SELECT * FROM X;\",\"_blacklisted_by_web_config\":false}\n" +
+		"{\"raw_query\":\"SELECT * FROM Z;\",\"_blacklisted_by_web_config\":false}\n"
+	time.Sleep(DefaultSerializationTimeout + extraWaitTime)
+	result, err = ioutil.ReadFile(tmpFile.Name())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.EqualFold(strings.ToUpper(string(result)), strings.ToUpper(expected)) {
+		t.Fatal("Expected: " + expected + "\nGot: " + string(result))
+	}
 
-		//Check that values are hidden while logging
-		testQuery = "select songName from t where personName in ('Ryan', 'Holly') group by songName having count(distinct personName) = 10"
+	//Check that values are hidden while logging
+	testQuery = "select songName from t where personName in ('Ryan', 'Holly') group by songName having count(distinct personName) = 10"
+	writer.WriteQuery(testQuery)
+	//wait until serialization completes
+	time.Sleep(DefaultSerializationTimeout + extraWaitTime)
 
-		writer.RedactAndCheckQuery(testQuery)
+	result, err = ioutil.ReadFile(tmpFile.Name())
+	if err != nil {
+		t.Fatal(err)
+	}
+	expected = "{\"raw_query\":\"SELECT Student_ID FROM STUDENT;\",\"_blacklisted_by_web_config\":false}\n" +
+		"{\"raw_query\":\"SELECT * FROM STUDENT;\",\"_blacklisted_by_web_config\":false}\n" +
+		"{\"raw_query\":\"SELECT * FROM X;\",\"_blacklisted_by_web_config\":false}\n" +
+		"{\"raw_query\":\"SELECT * FROM Z;\",\"_blacklisted_by_web_config\":false}\n" +
+		"{\"raw_query\":\"select songName from t where personName in ('Ryan', 'Holly') group by songName having count(distinct personName) = 10\",\"_blacklisted_by_web_config\":false}\n"
 
-		//wait until serialization completes
-		time.Sleep(DefaultSerializationTimeout + extraWaitTime)
-
-		result, err = ioutil.ReadFile(tmpFile.Name())
-		if err != nil {
-			t.Fatal(err)
-		}
-
-		expectedPrefix := "{\"raw_query\":\"SELECT Student_ID FROM STUDENT\",\"_blacklisted_by_web_config\":false}\n" +
-			"{\"raw_query\":\"SELECT * FROM STUDENT\",\"_blacklisted_by_web_config\":false}\n" +
-			"{\"raw_query\":\"SELECT * FROM X\",\"_blacklisted_by_web_config\":false}\n" +
-			"{\"raw_query\":\"SELECT * FROM Y\",\"_blacklisted_by_web_config\":false}\n" +
-			"{\"raw_query\":\"SELECT * FROM Z\",\"_blacklisted_by_web_config\":false}\n" +
-			"{\"raw_query\":\"select songName from t where personName in"
-
-		suffix := strings.TrimPrefix(strings.ToUpper(string(result)), strings.ToUpper(expectedPrefix))
-
-		//we expect TWO placeholders here: instead of "('Ryan', 'Holly')" and instead of "10"
-		if strings.Count(suffix, strings.ToUpper(ValueMask)) != 2 {
-			t.Fatal("unexpected placeholder values in following: " + string(result))
-		}
-
-		if strings.Contains(strings.ToUpper(string(result)), strings.ToUpper("Ryan")) ||
-			strings.Contains(strings.ToUpper(string(result)), strings.ToUpper("Holly")) ||
-			strings.Contains(strings.ToUpper(string(result)), strings.ToUpper("10")) {
-			t.Fatal("values detected in logs: " + string(result))
-		}*/
+	if !strings.EqualFold(expected, string(result)) {
+		t.Fatal("Expected: ", expected, " | Got: ", string(result))
+	}
 }
 
 func rawStrings(input []*QueryInfo) []string {
