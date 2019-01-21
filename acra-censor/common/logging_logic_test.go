@@ -165,7 +165,7 @@ func TestSerializationOnSameQueries(t *testing.T) {
 		}
 	}
 }
-func TestQueryCapture(t *testing.T) {
+func TestQueryCaptureOnDuplicates(t *testing.T) {
 	// extraWaitTime provide extra time to serialize in background goroutine before check
 	const extraWaitTime = 100 * time.Millisecond
 	tmpFile, err := ioutil.TempFile("", "censor_log")
@@ -193,7 +193,7 @@ func TestQueryCapture(t *testing.T) {
 		"SELECT Student_ID FROM STUDENT;",
 		"SELECT * FROM STUDENT;",
 		"SELECT * FROM X;",
-		"SELECT * FROM Y;",
+		"SELECT * FROM X;",
 	}
 
 	for _, query := range testQueries {
@@ -201,8 +201,8 @@ func TestQueryCapture(t *testing.T) {
 	}
 	expected := "{\"raw_query\":\"SELECT Student_ID FROM STUDENT;\",\"_blacklisted_by_web_config\":false}\n" +
 		"{\"raw_query\":\"SELECT * FROM STUDENT;\",\"_blacklisted_by_web_config\":false}\n" +
-		"{\"raw_query\":\"SELECT * FROM X;\",\"_blacklisted_by_web_config\":false}\n" +
-		"{\"raw_query\":\"SELECT * FROM Y;\",\"_blacklisted_by_web_config\":false}\n"
+		"{\"raw_query\":\"SELECT * FROM X;\",\"_blacklisted_by_web_config\":false}\n"
+
 	time.Sleep(DefaultSerializationTimeout + extraWaitTime)
 	result, err := ioutil.ReadFile(tmpFile.Name())
 	if err != nil {
@@ -216,7 +216,6 @@ func TestQueryCapture(t *testing.T) {
 	expected = "{\"raw_query\":\"SELECT Student_ID FROM STUDENT;\",\"_blacklisted_by_web_config\":false}\n" +
 		"{\"raw_query\":\"SELECT * FROM STUDENT;\",\"_blacklisted_by_web_config\":false}\n" +
 		"{\"raw_query\":\"SELECT * FROM X;\",\"_blacklisted_by_web_config\":false}\n" +
-		"{\"raw_query\":\"SELECT * FROM Y;\",\"_blacklisted_by_web_config\":false}\n" +
 		"{\"raw_query\":\"SELECT * FROM Z;\",\"_blacklisted_by_web_config\":false}\n"
 	time.Sleep(DefaultSerializationTimeout + extraWaitTime)
 	result, err = ioutil.ReadFile(tmpFile.Name())
@@ -240,7 +239,6 @@ func TestQueryCapture(t *testing.T) {
 	expected = "{\"raw_query\":\"SELECT Student_ID FROM STUDENT;\",\"_blacklisted_by_web_config\":false}\n" +
 		"{\"raw_query\":\"SELECT * FROM STUDENT;\",\"_blacklisted_by_web_config\":false}\n" +
 		"{\"raw_query\":\"SELECT * FROM X;\",\"_blacklisted_by_web_config\":false}\n" +
-		"{\"raw_query\":\"SELECT * FROM Y;\",\"_blacklisted_by_web_config\":false}\n" +
 		"{\"raw_query\":\"SELECT * FROM Z;\",\"_blacklisted_by_web_config\":false}\n" +
 		"{\"raw_query\":\"select songName from t where personName in ('Ryan', 'Holly') group by songName having count(distinct personName) = 10\",\"_blacklisted_by_web_config\":false}\n"
 
