@@ -744,6 +744,7 @@ func (*Insert) iPreparedQuery()    {}
 func (*Delete) iPreparedQuery()    {}
 func (*Update) iPreparedQuery()    {}
 
+// NewPreparedQueryFromString creates typed statement based on query inside Prepare statement
 func NewPreparedQueryFromString(query string) (PreparedQuery, error) {
 	statement, err := Parse(query)
 	if err != nil {
@@ -764,6 +765,7 @@ func NewPreparedQueryFromString(query string) (PreparedQuery, error) {
 	return nil, nil
 }
 
+// UsingInExecuteList is a set of case sensitive SQL identifiers
 type UsingInExecuteList []TableIdent
 
 // Execute executes prepared statement
