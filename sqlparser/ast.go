@@ -739,13 +739,12 @@ type PreparedQuery interface {
 }
 
 func (TableIdent) iPreparedQuery() {}
-func (*Select) iPreparedQuery() {}
-func (*Insert) iPreparedQuery() {}
-func (*Delete) iPreparedQuery() {}
-func (*Update) iPreparedQuery() {}
+func (*Select) iPreparedQuery()    {}
+func (*Insert) iPreparedQuery()    {}
+func (*Delete) iPreparedQuery()    {}
+func (*Update) iPreparedQuery()    {}
 
-
-func NewPreparedQueryFromString(query string) (PreparedQuery, error){
+func NewPreparedQueryFromString(query string) (PreparedQuery, error) {
 	statement, err := Parse(query)
 	if err != nil {
 		return nil, err
@@ -764,7 +763,6 @@ func NewPreparedQueryFromString(query string) (PreparedQuery, error){
 	}
 	return nil, nil
 }
-
 
 type UsingInExecuteList []TableIdent
 
