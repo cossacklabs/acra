@@ -250,7 +250,7 @@ func (decryptor *MySQLDecryptor) decryptWholeBlock(block []byte) ([]byte, error)
 	if !decryptor.IsWithZone() || decryptor.IsMatchedZone() {
 		skippedBegin, err := decryptor.SkipBeginInBlock(block)
 		if err != nil {
-			return nil, err
+			return block, nil
 		}
 		newData, err := decryptor.decryptBlock(bytes.NewReader(skippedBegin), decryptor.GetMatchedZoneID(), decryptor.GetPrivateKey)
 		if err != nil {
@@ -258,6 +258,8 @@ func (decryptor *MySQLDecryptor) decryptWholeBlock(block []byte) ([]byte, error)
 			if err := decryptor.checkPoisonRecord(block); err != nil {
 				return nil, err
 			}
+			decryptor.log.Debugln("Can't decrypt block")
+			return block, nil
 		}
 		base.AcrastructDecryptionCounter.WithLabelValues(base.DecryptionTypeSuccess).Inc()
 		if decryptor.IsWithZone() && err == nil && len(newData) != len(block) {
