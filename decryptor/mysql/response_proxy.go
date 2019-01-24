@@ -198,7 +198,7 @@ func (handler *MysqlHandler) ClientToDbConnector(errCh chan<- error) {
 	prometheusLabels := []string{base.DecryptionDBMysql}
 	// use pointers to function where should be stored some function that should be called if code return error and interrupt loop
 	// default value empty func to avoid != nil check
-	var timerObserveFunc = func() time.Duration {return 0}
+	var timerObserveFunc = func() time.Duration { return 0 }
 	var packetSpanEndFunc = func() {}
 	var censorSpanEndFunc = func() {}
 	defer func() {
@@ -655,7 +655,7 @@ func (handler *MysqlHandler) DbToClientConnector(errCh chan<- error) {
 	// use pointers to function where should be stored some function that should be called if code return error and interrupt loop
 	// default value empty func to avoid != nil check
 	var packetSpanEndFunc = func() {}
-	var timerObserveFunc = func() time.Duration{return 0}
+	var timerObserveFunc = func() time.Duration { return 0 }
 	defer func() {
 		timerObserveFunc()
 		packetSpanEndFunc()

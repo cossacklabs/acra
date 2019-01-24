@@ -120,7 +120,7 @@ func (proxy *PgProxy) PgProxyClientRequests(acraCensor acracensor.AcraCensorInte
 	// use pointers to function where should be stored some function that should be called if code return error and interrupt loop
 	// default value empty func to avoid != nil check
 	var spanEndFunc = func() {}
-	var timerObserveFunc = func() time.Duration {return 0}
+	var timerObserveFunc = func() time.Duration { return 0 }
 	// always call span.End for case if was error
 	defer func() {
 		spanEndFunc()
