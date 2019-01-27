@@ -18,7 +18,6 @@ package handlers
 
 import (
 	"github.com/cossacklabs/acra/acra-censor/common"
-	"github.com/cossacklabs/acra/logging"
 	"github.com/cossacklabs/acra/sqlparser"
 	log "github.com/sirupsen/logrus"
 )
@@ -63,7 +62,7 @@ func (handler *QueryIgnoreHandler) AddQueries(queries []string) {
 		if err == nil {
 			handler.ignoredQueries[normalizedQuery] = true
 		} else {
-			handler.logger.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCensorQueryParseError).Debugln("Can't parse query")
+			handler.logger.Warningln("Can't add normalized query due to parse error, will add in raw form")
 		}
 	}
 }

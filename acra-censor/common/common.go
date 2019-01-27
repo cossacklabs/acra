@@ -98,7 +98,7 @@ const (
 	// SubqueryReplacer is used when matching %%SUBQUERY%% pattern
 	SubqueryReplacer = "SELECT 'subquery_820753242875385807714016705'"
 	// ListOfValuesPlaceholder is used when matching %%LIST_OF_VALUES%% pattern
-	ListOfValuesPlaceholder = "%%LIST_OF_VALUES"
+	ListOfValuesPlaceholder = "%%LIST_OF_VALUES%%"
 	// ListOfValuesReplacer is used when matching %%LIST_OF_VALUES%% pattern
 	ListOfValuesReplacer = "'list_of_values_980254824737236160411017007'"
 	// ColumnPlaceholder is used when matching %%COLUMN%% pattern
