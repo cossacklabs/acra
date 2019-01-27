@@ -96,6 +96,7 @@ func forceEOF(yylex interface{}) {
   aliasedTableName *AliasedTableExpr
   TableSpec  *TableSpec
   columnType    ColumnType
+  columnTypes   []ColumnType
   colKeyOpt     ColumnKeyOption
   optVal        *SQLVal
   LengthScaleOption LengthScaleOption
@@ -125,7 +126,7 @@ func forceEOF(yylex interface{}) {
 %left <bytes> JOIN STRAIGHT_JOIN LEFT RIGHT INNER OUTER CROSS NATURAL USE FORCE
 %left <bytes> ON USING
 %token <empty> '(' ',' ')'
-%token <bytes> ID PG_ESCAPE_STRING HEX STRING INTEGRAL FLOAT HEXNUM VALUE_ARG LIST_ARG COMMENT COMMENT_KEYWORD BIT_LITERAL
+%token <bytes> ID PG_ESCAPE_STRING HEX STRING INTEGRAL FLOAT HEXNUM VALUE_ARG LIST_ARG COMMENT COMMENT_KEYWORD BIT_LITERAL DOLLAR_SIGN
 %token <bytes> NULL TRUE FALSE
 
 // Precedence dictated by mysql. But the vitess grammar is simplified.
@@ -276,8 +277,9 @@ func forceEOF(yylex interface{}) {
 %type <str> charset
 %type <str> set_session_or_global show_session_or_global
 %type <convertType> convert_type
+%type <columnTypes> column_type_list
 %type <columnType> column_type
-%type <columnType> int_type decimal_type numeric_type time_type char_type spatial_type
+%type <columnType> int_type decimal_type numeric_type time_type char_type spatial_type bool_type
 %type <optVal> length_opt column_default_opt column_comment_opt on_update_opt
 %type <str> charset_opt collate_opt
 %type <boolVal> unsigned_opt zero_fill_opt
@@ -670,6 +672,17 @@ column_definition:
     $2.Comment = $8
     $$ = &ColumnDefinition{Name: NewColIdent(string($1)), Type: $2}
   }
+
+column_type_list:
+  column_type
+  {
+    $$ = ColumnTypes{$1}
+  }
+| column_type_list ',' column_type
+  {
+    $$ = append($1, $3)
+  }
+
 column_type:
   numeric_type unsigned_opt zero_fill_opt
   {
@@ -680,6 +693,14 @@ column_type:
 | char_type
 | time_type
 | spatial_type
+| bool_type
+
+bool_type:
+  BOOL
+  {
+    $$ = ColumnType{Type: string($1)}
+  }
+
 
 numeric_type:
   int_type length_opt
@@ -1593,6 +1614,10 @@ prepare_statement:
   {
     $$ = &Prepare{PreparedStatementName: $2, PreparedStatementQuery: $4}
   }
+| PREPARE table_id openb column_type_list closeb AS prepared_query
+  {
+    $$ = &Prepare{PreparedStatementName: $2, ColumnTypes: $4, PreparedStatementQuery: $7}
+  }
 
 prepared_query:
   base_select
@@ -2189,8 +2214,7 @@ column_name
   {
     $$ = $1
   }
-|
-  value
+| value
   {
     $$ = $1
   }
@@ -2654,6 +2678,15 @@ value:
 | PG_ESCAPE_STRING
   {
     $$ = NewPgEscapeString($1)
+  }
+| DOLLAR_SIGN
+  {
+    result, err := NewDollarExpr(string($1))
+    if err != nil {
+      yylex.Error("syntax error")
+      return 1
+    }
+    $$ = result
   }
 | value typecast
   {

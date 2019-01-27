@@ -446,6 +446,24 @@ func (ts *TableSpec) walkSubtree(visit Visit) error {
 	return nil
 }
 
+// Format formats the node.
+func (node ColumnTypes) Format(buf *TrackedBuffer) {
+	var prefix string
+	for _, n := range node {
+		buf.Myprintf("(%s%v)", prefix, n)
+		prefix = ", "
+	}
+}
+
+func (node ColumnTypes) walkSubtree(visit Visit) error {
+	for _, n := range node {
+		if err := Walk(visit, &n); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 // Format returns a canonical string representation of the type and all relevant options
 func (ct *ColumnType) Format(buf *TrackedBuffer) {
 	buf.Myprintf("%s", ct.Type)
@@ -720,7 +738,11 @@ func (node *OtherAdmin) walkSubtree(visit Visit) error {
 
 // Format formats the node
 func (node UsingInExecuteList) Format(buf *TrackedBuffer) {
-
+	var prefix string
+	for _, n := range node {
+		buf.Myprintf("%s%v", prefix, n)
+		prefix = ", "
+	}
 }
 
 func (node UsingInExecuteList) walkSubtree(visit Visit) error {
@@ -737,14 +759,8 @@ func (node *Execute) Format(buf *TrackedBuffer) {
 	if node.Using == nil {
 		buf.Myprintf("execute %v", node.PreparedStatementName)
 	} else {
-		buf.Myprintf("execute %v using ", node.PreparedStatementName)
-		var prefix string
-		for _, singleUsing := range node.Using {
-			buf.Myprintf("%s%v", prefix, singleUsing)
-			prefix = ", "
-		}
+		buf.Myprintf("execute %v using %v", node.PreparedStatementName, node.Using)
 	}
-
 }
 
 func (node *Execute) walkSubtree(visit Visit) error {
@@ -753,11 +769,14 @@ func (node *Execute) walkSubtree(visit Visit) error {
 
 // Format formats the node.
 func (node *Prepare) Format(buf *TrackedBuffer) {
-	buf.Myprintf("prepare %v from %v", node.PreparedStatementName, node.PreparedStatementQuery)
+	if node.ColumnTypes != nil {
+		buf.Myprintf("prepare %v (%v) from (as) %v", node.PreparedStatementName, node.ColumnTypes, node.PreparedStatementQuery)
+	}
+
 }
 
 func (node *Prepare) walkSubtree(visit Visit) error {
-	return Walk(visit, node.PreparedStatementName, node.PreparedStatementQuery)
+	return Walk(visit, node.PreparedStatementName, node.ColumnTypes, node.PreparedStatementQuery)
 }
 
 // Format formats the node.
@@ -1556,6 +1575,15 @@ func (node *Default) Format(buf *TrackedBuffer) {
 }
 
 func (node *Default) walkSubtree(visit Visit) error {
+	return nil
+}
+
+// Format formats the node.
+func (node DollarExpr) Format(buf *TrackedBuffer) {
+	buf.Myprintf("%s", node.Value)
+}
+
+func (node DollarExpr) walkSubtree(visit Visit) error {
 	return nil
 }
 

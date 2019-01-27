@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"github.com/cossacklabs/acra/sqlparser/dependency/querypb"
 	"github.com/cossacklabs/acra/sqlparser/dependency/sqltypes"
+	"strconv"
 	"strings"
 )
 
@@ -451,6 +452,9 @@ func (col *ColumnDefinition) walkSubtree(visit Visit) error {
 	)
 }
 
+// ColumnTypes represents list of column types, eg (int, bool, text, numeric) - dictated by Postgres
+type ColumnTypes []ColumnType
+
 // ColumnType represents a sql type in a CREATE TABLE statement
 // All optional fields are nil if not specified
 type ColumnType struct {
@@ -777,6 +781,7 @@ type Execute struct {
 // Prepare prepares statement for future execution
 type Prepare struct {
 	PreparedStatementName  TableIdent
+	ColumnTypes            ColumnTypes
 	PreparedStatementQuery PreparedQuery
 }
 
@@ -1009,6 +1014,7 @@ func (*ConvertUsingExpr) iExpr() {}
 func (*MatchExpr) iExpr()        {}
 func (*GroupConcatExpr) iExpr()  {}
 func (*Default) iExpr()          {}
+func (DollarExpr) iExpr()        {}
 
 // ReplaceExpr finds the from expression from root
 // and replaces it with to. If from matches root,
@@ -1580,6 +1586,24 @@ type Default struct {
 }
 
 func (node *Default) replace(from, to Expr) bool {
+	return false
+}
+
+// DollarExpr represents placeholder '$1' - dictated by Postgres
+type DollarExpr struct {
+	Value string
+}
+
+// NewDollarExpr creates new DollarExpr from input string
+func NewDollarExpr(value string) (DollarExpr, error) {
+	_, err := strconv.Atoi(value[1:])
+	if err != nil {
+		return DollarExpr{Value: ""}, err
+	}
+	return DollarExpr{Value: value}, nil
+}
+
+func (node DollarExpr) replace(from, to Expr) bool {
 	return false
 }
 
