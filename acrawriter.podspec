@@ -1,6 +1,6 @@
 Pod::Spec.new do |s|
     s.name = "acrawriter"
-    s.version = "1.0.0"
+    s.version = "1.0.1"
     s.summary = "AcraWriter library for iOS: encrypts data into AcraStructs, allowing Acra to decrypt it"
     s.description = "Part of Acra database protection suite: developers can encrypt the sensitive data by generating AcraStructs with AcraWriter anywhere across their apps. AcraServer or AcraTranslator can be used for decryption."
     s.homepage = "https://cossacklabs.com"
@@ -8,7 +8,7 @@ Pod::Spec.new do |s|
     s.license = { :type => 'Apache 2.0'}    
     s.author = {'cossacklabs' => 'info@cossacklabs.com'}
     
-    s.dependency 'themis', '0.10.0'
+    s.dependency 'themis', '~> 0.10.0'
 
     s.ios.deployment_target = '8.0'
     s.osx.deployment_target = '10.9'
