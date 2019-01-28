@@ -91,10 +91,12 @@ func forceEOF(yylex interface{}) {
   setExpr       *SetExpr
   colIdent      ColIdent
   tableIdent    TableIdent
+  usingInExecuteList   UsingInExecuteList
   convertType   *ConvertType
   aliasedTableName *AliasedTableExpr
   TableSpec  *TableSpec
   columnType    ColumnType
+  columnTypes   []ColumnType
   colKeyOpt     ColumnKeyOption
   optVal        *SQLVal
   LengthScaleOption LengthScaleOption
@@ -111,6 +113,7 @@ func forceEOF(yylex interface{}) {
   vindexParam   VindexParam
   vindexParams  []VindexParam
   showFilter    *ShowFilter
+  preparedQuery PreparedQuery
 }
 
 %token LEX_ERROR
@@ -123,7 +126,7 @@ func forceEOF(yylex interface{}) {
 %left <bytes> JOIN STRAIGHT_JOIN LEFT RIGHT INNER OUTER CROSS NATURAL USE FORCE
 %left <bytes> ON USING
 %token <empty> '(' ',' ')'
-%token <bytes> ID PG_ESCAPE_STRING HEX STRING INTEGRAL FLOAT HEXNUM VALUE_ARG LIST_ARG COMMENT COMMENT_KEYWORD BIT_LITERAL
+%token <bytes> ID PG_ESCAPE_STRING HEX STRING INTEGRAL FLOAT HEXNUM VALUE_ARG LIST_ARG COMMENT COMMENT_KEYWORD BIT_LITERAL DOLLAR_SIGN
 %token <bytes> NULL TRUE FALSE
 
 // Precedence dictated by mysql. But the vitess grammar is simplified.
@@ -163,6 +166,9 @@ func forceEOF(yylex interface{}) {
 
 // Transaction Tokens
 %token <bytes> BEGIN START TRANSACTION COMMIT ROLLBACK
+
+// Prepared statements Tokens
+%token <bytes> DEALLOCATE PREPARE EXECUTE
 
 // Type Tokens
 %token <bytes> BIT TINYINT SMALLINT MEDIUMINT INT INTEGER BIGINT INTNUM
@@ -207,6 +213,7 @@ func forceEOF(yylex interface{}) {
 %type <ddl> create_table_prefix
 %type <statement> analyze_statement show_statement use_statement other_statement
 %type <statement> begin_statement commit_statement rollback_statement
+%type <statement> deallocate_prepare_statement prepare_statement execute_statement
 %type <bytes2> comment_opt comment_list
 %type <str> union_op insert_or_replace
 %type <str> distinct_opt straight_join_opt cache_opt match_option separator_opt
@@ -270,8 +277,9 @@ func forceEOF(yylex interface{}) {
 %type <str> charset
 %type <str> set_session_or_global show_session_or_global
 %type <convertType> convert_type
+%type <columnTypes> column_type_list
 %type <columnType> column_type
-%type <columnType> int_type decimal_type numeric_type time_type char_type spatial_type
+%type <columnType> int_type decimal_type numeric_type time_type char_type spatial_type bool_type
 %type <optVal> length_opt column_default_opt column_comment_opt on_update_opt
 %type <str> charset_opt collate_opt
 %type <boolVal> unsigned_opt zero_fill_opt
@@ -299,6 +307,8 @@ func forceEOF(yylex interface{}) {
 %type <bytes> alter_object_type
 %type <bytes> typecast
 %type <returning> returning_opt
+%type <preparedQuery> prepared_query
+%type <usingInExecuteList> using_in_execute_list
 
 %start any_command
 
@@ -336,6 +346,9 @@ command:
 | commit_statement
 | rollback_statement
 | other_statement
+| deallocate_prepare_statement
+| prepare_statement
+| execute_statement
 
 select_statement:
   base_select order_by_opt limit_opt lock_opt
@@ -412,6 +425,10 @@ insert_statement:
       vals = append(vals, updateList.Expr)
     }
     $$ = &Insert{Action: $1, Comments: Comments($2), Ignore: $3, Table: $4, Partitions: $5, Columns: cols, Rows: Values{vals}, OnDup: OnDup($8)}
+  }
+| insert_or_replace comment_opt ignore_opt into_table_name DEFAULT VALUES
+  {
+    $$ = &Insert{Action: $1, Comments: Comments($2), Ignore: $3, Table: $4, Default: true}
   }
 
 insert_or_replace:
@@ -655,6 +672,17 @@ column_definition:
     $2.Comment = $8
     $$ = &ColumnDefinition{Name: NewColIdent(string($1)), Type: $2}
   }
+
+column_type_list:
+  column_type
+  {
+    $$ = ColumnTypes{$1}
+  }
+| column_type_list ',' column_type
+  {
+    $$ = append($1, $3)
+  }
+
 column_type:
   numeric_type unsigned_opt zero_fill_opt
   {
@@ -665,6 +693,14 @@ column_type:
 | char_type
 | time_type
 | spatial_type
+| bool_type
+
+bool_type:
+  BOOL
+  {
+    $$ = ColumnType{Type: string($1)}
+  }
+
 
 numeric_type:
   int_type length_opt
@@ -1005,6 +1041,10 @@ collate_opt:
     $$ = ""
   }
 | COLLATE ID
+  {
+    $$ = string($2)
+  }
+| COLLATE STRING
   {
     $$ = string($2)
   }
@@ -1380,6 +1420,10 @@ show_statement:
   {
     $$ = &Show{Type: string($2)}
   }
+| SHOW TRANSACTION ISOLATION LEVEL
+  {
+    $$ = &Show{Type: string($2)}
+  }
 | SHOW extended_opt full_opt tables_or_processlist from_database_opt like_or_where_opt
   {
     // this is ugly, but I couldn't find a better way for now
@@ -1553,6 +1597,81 @@ other_statement:
 | OPTIMIZE force_eof
   {
     $$ = &OtherAdmin{}
+  }
+
+deallocate_prepare_statement:
+  DEALLOCATE PREPARE table_id
+  {
+    $$ = &DeallocatePrepare{PreparedStatementName: $3}
+  }
+
+prepare_statement:
+  PREPARE table_id FROM prepared_query
+  {
+    $$ = &Prepare{PreparedStatementName: $2, PreparedStatementQuery: $4}
+  }
+| PREPARE table_id AS prepared_query
+  {
+    $$ = &Prepare{PreparedStatementName: $2, PreparedStatementQuery: $4}
+  }
+| PREPARE table_id openb column_type_list closeb AS prepared_query
+  {
+    $$ = &Prepare{PreparedStatementName: $2, ColumnTypes: $4, PreparedStatementQuery: $7}
+  }
+
+prepared_query:
+  base_select
+  {
+    $$ = $1.(*Select)
+  }
+| insert_statement
+  {
+    $$ = $1.(*Insert)
+  }
+| delete_statement
+  {
+    $$ = $1.(*Delete)
+  }
+| update_statement
+  {
+    $$ = $1.(*Update)
+  }
+| ID
+  {
+    $$ = NewTableIdent(string($1))
+  }
+| STRING
+  {
+    statement, err := NewPreparedQueryFromString(string($1))
+    if statement == nil {
+      yylex.Error("unsupported type of prepared query")
+      return 1
+    }
+    if err != nil {
+      yylex.Error("syntax error in prepared query")
+      return 1
+    }
+    $$ = statement
+  }
+
+execute_statement:
+  EXECUTE ID
+  {
+    $$ = &Execute{PreparedStatementName: NewTableIdent(string($2))}
+  }
+| EXECUTE ID USING using_in_execute_list
+  {
+    $$ = &Execute{PreparedStatementName: NewTableIdent(string($2)), Using: $4}
+  }
+
+using_in_execute_list:
+  table_id
+  {
+    $$ = UsingInExecuteList{$1}
+  }
+| using_in_execute_list ',' table_id
+  {
+    $$ = append($1, $3)
   }
 
 comment_opt:
@@ -2095,8 +2214,7 @@ column_name
   {
     $$ = $1
   }
-|
-  value
+| value
   {
     $$ = $1
   }
@@ -2462,6 +2580,10 @@ convert_type:
   {
     $$ = &ConvertType{Type: string($1)}
   }
+| VARCHAR openb INTEGRAL closeb
+  {
+    $$ = &ConvertType{Type: string($1)}
+  }
 
 expression_opt:
   {
@@ -2556,6 +2678,15 @@ value:
 | PG_ESCAPE_STRING
   {
     $$ = NewPgEscapeString($1)
+  }
+| DOLLAR_SIGN
+  {
+    result, err := NewDollarExpr(string($1))
+    if err != nil {
+      yylex.Error("syntax error")
+      return 1
+    }
+    $$ = result
   }
 | value typecast
   {
@@ -2922,10 +3053,10 @@ sql_id:
   {
     $$ = NewColIdent(string($1))
   }
-| STRING
-{
-  $$ = NewColIdentWithQuotes(string($1), true)
-}
+| STRING // if comment this rule, current conflicts will be resolved. This is due to ambiguities in MySQL/PostgreSQL using quotes in table/column names
+  {
+    $$ = NewColIdentWithQuotes(string($1), true)
+  }
 
 reserved_sql_id:
   sql_id

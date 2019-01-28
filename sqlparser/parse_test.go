@@ -1936,6 +1936,42 @@ func TestCreateTableEscaped(t *testing.T) {
 	}
 }
 
+func TestPreparedStatements(t *testing.T) {
+	testQueries := []string{
+		`prepare stmt1 from 'select 1'`,
+		`prepare stmt1 from @variable`,
+		`execute stmt1`,
+		`execute stmt1 using @variable`,
+		`execute stmt1 using @variable1, @variable2`,
+		`deallocate prepare stmt1`,
+		`prepare test_statement as select * from test`,
+		`prepare test_statement as insert into test default values`,
+		`prepare test_statement as insert into test(id, data) values(1, DEFAULT)`,
+		`prepare test_statement as delete from somelog where user = 'jcole' order by timestamp_column limit 1`,
+		`prepare test_statement as update t1 set col1 = col1 + 1`,
+		`prepare test_statement from 'select * from test'`,
+		`prepare test_statement from 'insert into test default values'`,
+		`prepare test_statement from 'insert into test(id, data) values(1, DEFAULT)'`,
+		`prepare test_statement from 'delete from somelog where user = "jcole" order by timestamp_column limit 1'`,
+		`prepare test_statement from 'update t1 set col1 = col1 + 1'`,
+		`prepare test_statement from "select * from test"`,
+		`prepare test_statement from "insert into test default values"`,
+		`prepare test_statement from "insert into test(id, data) values(1, DEFAULT)"`,
+		`prepare test_statement from "delete from somelog where user = 'jcole' order by timestamp_column limit 1"`,
+		`prepare test_statement from "update t1 set col1 = col1 + 1"`,
+		`PREPARE usrrptplan (int) AS SELECT * FROM users u, logs l WHERE u.usrid=$1 AND u.usrid=l.usrid AND l.date = $1;`,
+		`PREPARE fooplan (int, text, bool, numeric) AS	INSERT INTO foo DEFAULT VALUES;`,
+		`PREPARE fooplan (int, text, bool, numeric) AS INSERT INTO foo VALUES($1, $2, $3, $4);`,
+	}
+
+	for _, query := range testQueries {
+		_, err := Parse(query)
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+}
+
 var (
 	invalidSQL = []struct {
 		input        string

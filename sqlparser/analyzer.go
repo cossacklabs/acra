@@ -46,6 +46,9 @@ const (
 	StmtOther
 	StmtUnknown
 	StmtComment
+	StmtDeallocatePrepare
+	StmtPrepare
+	StmtExecute
 )
 
 // Preview analyzes the beginning of the query using a simpler and faster
@@ -73,6 +76,10 @@ func Preview(sql string) int {
 		return StmtUpdate
 	case "delete":
 		return StmtDelete
+	case "prepare":
+		return StmtPrepare
+	case "execute":
+		return StmtExecute
 	}
 	// For the following statements it is not sufficient to rely
 	// on loweredFirstWord. This is because they are not statements
@@ -87,6 +94,8 @@ func Preview(sql string) int {
 		return StmtCommit
 	case "rollback":
 		return StmtRollback
+	case "deallocate prepare":
+		return StmtDeallocatePrepare
 	}
 	switch loweredFirstWord {
 	case "create", "alter", "rename", "drop", "truncate":
@@ -137,6 +146,12 @@ func StmtType(stmtType int) string {
 		return "USE"
 	case StmtOther:
 		return "OTHER"
+	case StmtDeallocatePrepare:
+		return "DEALLOCATE PREPARE"
+	case StmtPrepare:
+		return "PREPARE"
+	case StmtExecute:
+		return "EXECUTE"
 	default:
 		return "UNKNOWN"
 	}

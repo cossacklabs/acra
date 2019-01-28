@@ -393,6 +393,9 @@ var keywords = map[string]int{
 	"year_month":          UNUSED,
 	"zerofill":            ZEROFILL,
 	"returning":           RETURNING,
+	"deallocate":          DEALLOCATE,
+	"prepare":             PREPARE,
+	"execute":             EXECUTE,
 }
 
 // keywordStrings contains the reverse mapping of token to keyword strings
@@ -606,10 +609,24 @@ func (tkn *Tokenizer) Scan() (int, []byte) {
 			return tkn.scanString(ch, STRING)
 		case '`':
 			return tkn.scanLiteralIdentifier()
+		case '$':
+			return tkn.scanDollarParameter()
 		default:
 			return LEX_ERROR, []byte{byte(ch)}
 		}
 	}
+}
+
+func (tkn *Tokenizer) scanDollarParameter() (int, []byte) {
+	buffer := &bytes2.Buffer{}
+	buffer.WriteByte(byte('$'))
+	result, value := tkn.scanNumber(false)
+	if result == INTEGRAL {
+		buffer.Write(value)
+		return DOLLAR_SIGN, buffer.Bytes()
+	}
+
+	return LEX_ERROR, nil
 }
 
 // skipStatement scans until the EOF, or end of statement is encountered.

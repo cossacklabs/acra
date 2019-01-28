@@ -1142,7 +1142,6 @@ class BaseCensorTest(BaseTestCase):
 class CensorBlacklistTest(BaseCensorTest):
     CENSOR_CONFIG_FILE = abs_path('tests/acra-censor_configs/acra-censor_blacklist.yaml')
     def testBlacklist(self):
-
         connection_args = ConnectionArgs(host=get_db_host(), port=self.CONNECTOR_PORT_1,
                            user=DB_USER, password=DB_USER_PASSWORD,
                            dbname=DB_NAME, ssl_ca=abs_path('tests/server.crt'),
@@ -1151,53 +1150,31 @@ class CensorBlacklistTest(BaseCensorTest):
         if TEST_MYSQL:
             expectedException = (pymysql.err.OperationalError,
                                  mysql.connector.errors.DatabaseError)
+            expectedExceptionInPreparedStatement = mysql.connector.errors.DatabaseError
             executors = [PyMysqlExecutor(connection_args),
                          MysqlExecutor(connection_args)]
         if TEST_POSTGRESQL:
             expectedException = (psycopg2.ProgrammingError,
                                  asyncpg.exceptions.SyntaxOrAccessError)
+            expectedExceptionInPreparedStatement = asyncpg.exceptions.SyntaxOrAccessError
             executors = [Psycopg2Executor(connection_args),
                          AsyncpgExecutor(connection_args)]
 
+        testQueries = ["select * from test",  # should be denied by query
+                       "select * from acrarollback_output",  # should be denied by table
+                       "select data from test where id=1",  # should be denied by pattern
+                       "insert into test(id, data) values(1, DEFAULT)"]  # should be denied by pattern
+
         for executor in executors:
-            #test block 1 (by query)
-            with self.assertRaises(expectedException):
-                result = executor.execute(
-                    "select data_raw from test")
-            #test block 1 (by query in prepared statement)
-            #with self.assertRaises(expectedException):
-            #    result = executor.execute_prepared_statement(
-            #        "select data_raw from test")
-
-            #test block 2 (by table)
-            with self.assertRaises(expectedException):
-                result = executor.execute("select * from acrarollback_output")
-
-            #test block 2 (by table in prepared statement)
-            #with self.assertRaises(expectedException):
-            #    result = executor.execute_prepared_statement(
-            #        "select * from acrarollback_output")
-
-            #test block 3 (by pattern)
-            with self.assertRaises(expectedException):
-                result = executor.execute(
-                    "select data from test where id='1'")
-
-            #test block 3 (by pattern in prepared statement)
-            #with self.assertRaises(expectedException):
-            #    result = executor.execute_prepared_statement(
-            #        "select data from test where id='1'")
-
-            #test block 4 (by pattern)
-            with self.assertRaises(expectedException):
-                result = executor.execute(
-                    "insert into someTable (a, b, c) values ('x', 'y', 'z')")
-
-            #test block 4 (by pattern in prepared statement)
-            #with self.assertRaises(expectedException):
-            #    result = executor.execute_prepared_statement(
-            #        "insert into someTable (a, b, c) values ('x', 'y', 'z')")
-
+            for testQuery in testQueries:
+                with self.assertRaises(expectedException):
+                    executor.execute(testQuery)
+                try:
+                    executor.execute_prepared_statement(testQuery)
+                except psycopg2.ProgrammingError as e:
+                    self.assertTrue(str(e) == "no results to fetch")
+                except expectedExceptionInPreparedStatement:
+                    return
 
 
 class CensorWhitelistTest(BaseCensorTest):
@@ -1211,41 +1188,30 @@ class CensorWhitelistTest(BaseCensorTest):
         if TEST_MYSQL:
             expectedException = (pymysql.err.OperationalError,
                                  mysql.connector.errors.DatabaseError)
+            expectedExceptionInPreparedStatement = mysql.connector.errors.DatabaseError
             executors = [PyMysqlExecutor(connection_args),
                          MysqlExecutor(connection_args)]
         if TEST_POSTGRESQL:
             expectedException = (psycopg2.ProgrammingError,
                                  asyncpg.exceptions.SyntaxOrAccessError)
+            expectedExceptionInPreparedStatement = asyncpg.exceptions.SyntaxOrAccessError
             executors = [Psycopg2Executor(connection_args),
                          AsyncpgExecutor(connection_args)]
 
+        # all those queries should be denied because no matching allow rules specified
+        testQueries = ["select * from acrarollback_output",
+                       "insert into test(id, data) values(1, DEFAULT)"]
+
         for executor in executors:
-            #test block 1
-            with self.assertRaises(expectedException):
-                result = executor.execute(
-                    "select * from acrarollback_output")
-            #test block 1 with prepared statement
-            with self.assertRaises(expectedException):
-                result = executor.execute_prepared_statement(
-                    "select * from acrarollback_output")
-
-            #test block 2
-            with self.assertRaises(expectedException):
-                result = executor.execute(
-                    "select * from noTestTable where someValue = 100")
-            #test block 2 with prepared statement
-            with self.assertRaises(expectedException):
-                result = executor.execute_prepared_statement(
-                    "select * from noTestTable where someValue = 100")
-
-            #test block 3
-            with self.assertRaises(expectedException):
-                 result = executor.execute(
-                    "insert into someTable (a, b, c) values ('x', 'y', 'z')")
-            #test block 3 with prepared statement
-            with self.assertRaises(expectedException):
-                 result = executor.execute_prepared_statement(
-                    "insert into someTable (a, b, c) values ('x', 'y', 'z')")
+            for testQuery in testQueries:
+                with self.assertRaises(expectedException):
+                    executor.execute(testQuery)
+                try:
+                    executor.execute_prepared_statement(testQuery)
+                except psycopg2.ProgrammingError as e:
+                    self.assertTrue(str(e) == "no results to fetch")
+                except expectedExceptionInPreparedStatement:
+                    return
 
 
 class ZoneHexFormatTest(BaseTestCase):
