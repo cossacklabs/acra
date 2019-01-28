@@ -550,7 +550,7 @@ class MysqlExecutor(QueryExecutor):
 
     def execute_prepared_statement(self, query, args=None):
         with contextlib.closing(mysql.connector.Connect(
-                use_unicode=False, raw=True, charset='ascii',
+                use_unicode=False, charset='ascii',
                 host=self.connection_args.host, port=self.connection_args.port,
                 user=self.connection_args.user,
                 password=self.connection_args.password,
@@ -560,8 +560,7 @@ class MysqlExecutor(QueryExecutor):
                 ssl_key=self.connection_args.ssl_key,
                 ssl_disabled=not TEST_WITH_TLS)) as connection:
 
-            with contextlib.closing(connection.cursor(
-                    cursor_class=MySQLCursorPrepared)) as cursor:
+            with contextlib.closing(connection.cursor(prepared=True)) as cursor:
                 cursor.execute(query)
                 data = cursor.fetchall()
                 result = self._result_to_dict(cursor.description, data)
@@ -574,6 +573,7 @@ class AsyncpgExecutor(QueryExecutor):
             asyncpg.connect(
                 host=self.connection_args.host, port=self.connection_args.port,
                 user=self.connection_args.user, password=self.connection_args.password,
+                database=self.connection_args.dbname,
                 ssl=TEST_WITH_TLS, timeout=STATEMENT_TIMEOUT,
                 statement_cache_size=0,
                 command_timeout=STATEMENT_TIMEOUT))
@@ -2679,8 +2679,11 @@ class BasePrepareStatementMixin:
         row = self.executePreparedStatement(query)[0]
 
         try:
-            self.assertEqual(row['data'][fake_offset:],
-                             safe_string(row['raw_data']).encode('utf-8'))
+            if self.WHOLECELL_MODE:
+                self.assertEqual(row['data'], data)
+            else:
+                self.assertEqual(row['data'][fake_offset:],
+                                 safe_string(row['raw_data']).encode('utf-8'))
         except:
             print('incorrect data: {}\ncorrect data: {}\ndata: {}\n data len: {}'.format(
                 incorrect_data, correct_data, row['data'], len(row['data'])))
@@ -2716,6 +2719,10 @@ class TestMysqlTextPreparedStatement(BasePrepareStatementMixin, BaseTestCase):
         ).execute_prepared_statement(query)
 
 
+class TestMysqlTextPreparedStatementWholeCell(TestMysqlTextPreparedStatement):
+    WHOLECELL_MODE = True
+
+
 class TestMysqlBinaryPreparedStatement(BasePrepareStatementMixin, BaseTestCase):
     def checkSkip(self):
         if not TEST_MYSQL:
@@ -2729,6 +2736,10 @@ class TestMysqlBinaryPreparedStatement(BasePrepareStatementMixin, BaseTestCase):
                            ssl_key=abs_path('tests/client.key'),
                            ssl_cert=abs_path('tests/client.crt'))
         ).execute_prepared_statement(query)
+
+
+class TestMysqlBinaryPreparedStatementWholeCell(TestMysqlBinaryPreparedStatement):
+    WHOLECELL_MODE = True
 
 
 class TestPostgresqlTextPreparedStatement(BasePrepareStatementMixin, BaseTestCase):
@@ -2745,10 +2756,13 @@ class TestPostgresqlTextPreparedStatement(BasePrepareStatementMixin, BaseTestCas
                                 ).execute_prepared_statement(query)
 
 
-class TestPostgresqlBinaryPreparedStatement(BasePrepareStatementMixin,
-                                            BaseTestCase):
+class TestPostgresqlTextPreparedStatementWholeCell(TestPostgresqlTextPreparedStatement):
+    WHOLECELL_MODE = True
+
+
+class TestPostgresqlBinaryPreparedStatement(BasePrepareStatementMixin, BaseTestCase):
     def checkSkip(self):
-        if not TEST_POSTGRESQL or TEST_WITH_TLS:
+        if not TEST_POSTGRESQL:
             self.skipTest("run test only for postgresql")
 
     def executePreparedStatement(self, query):
@@ -2759,6 +2773,10 @@ class TestPostgresqlBinaryPreparedStatement(BasePrepareStatementMixin,
                            ssl_key=abs_path('tests/client.key'),
                            ssl_cert=abs_path('tests/client.crt'))
         ).execute_prepared_statement(query)
+
+
+class TestPostgresqlBinaryPreparedStatementWholeCell(TestPostgresqlBinaryPreparedStatement):
+    WHOLECELL_MODE = True
 
 
 class ProcessContextManager(object):

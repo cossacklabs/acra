@@ -342,7 +342,8 @@ func (handler *Handler) ProxyClientConnection(errCh chan<- error) {
 			handler.setQueryHandler(handler.QueryResponseHandler)
 			break
 		case CommandStatementClose, CommandStatementSendLongData, CommandStatementReset:
-			fallthrough
+			clientLog.Debugln("Close|SendLongData|Reset command")
+			break
 		default:
 			clientLog.Debugf("Command %d not supported now", cmd)
 		}
@@ -381,7 +382,7 @@ func (handler *Handler) processTextDataRow(rowData []byte, fields []*ColumnDescr
 		}
 		if handler.isFieldToDecrypt(fields[i]) {
 			decryptedValue, err := handler.decryptor.DecryptBlock(value)
-			if err == nil && len(decryptedValue) != len(value) {
+			if err == nil && decryptedValue != nil && len(decryptedValue) != len(value) {
 				fieldLogger.Debugln("Update with decrypted value")
 				output = append(output, PutLengthEncodedString(decryptedValue)...)
 			} else {
@@ -443,7 +444,7 @@ func (handler *Handler) processBinaryDataRow(rowData []byte, fields []*ColumnDes
 			if err != nil {
 				handler.logger.Debugln("Leave value as is")
 			}
-			if len(value) != len(decryptedValue) {
+			if decryptedValue != nil && err == nil && len(value) != len(decryptedValue) {
 				output = append(output, PutLengthEncodedString(decryptedValue)...)
 			} else {
 				output = append(output, rowData[pos:pos+n]...)
