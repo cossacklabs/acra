@@ -20,6 +20,15 @@ Pod::Spec.new do |s|
 
     s.ios.xcconfig = { 'OTHER_CFLAGS' => '-DLIBRESSL', 'USE_HEADERMAP' => 'NO', 
         'HEADER_SEARCH_PATHS' => '"${PODS_ROOT}/themis/src" "${PODS_ROOT}/themis/src/wrappers/themis/Obj-C"', 'CLANG_ALLOW_NON_MODULAR_INCLUDES_IN_FRAMEWORK_MODULES' => 'YES' }
+
+    # Enable bitcode
+    # 'bitcode-marker' directive omits bitcode payload in binary for debug builds
+    s.ios.pod_target_xcconfig = {
+        'OTHER_CFLAGS[config=Debug]'                => '$(inherited) -fembed-bitcode-marker',
+        'OTHER_CFLAGS[config=Release]'              => '$(inherited) -fembed-bitcode',
+        'BITCODE_GENERATION_MODE[config=Release]'   => 'bitcode',
+        'BITCODE_GENERATION_MODE[config=Debug]'     => 'bitcode-marker'
+    }
         
     s.osx.xcconfig = { 'OTHER_CFLAGS' => '-DLIBRESSL', 'USE_HEADERMAP' => 'NO', 
         'HEADER_SEARCH_PATHS' => '"${PODS_ROOT}/themis/src" "${PODS_ROOT}/themis/src/wrappers/themis/Obj-C"', 'CLANG_ALLOW_NON_MODULAR_INCLUDES_IN_FRAMEWORK_MODULES' => 'YES' }
