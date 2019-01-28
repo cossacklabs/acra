@@ -9,6 +9,10 @@
 #import "AppDelegate.h"
 #import "AcraWriter/AcraWriter.h"
 
+// if ONLY_LOCAL_SETUP is true, don't send AcraStruct to AcraServer,
+// let users try project locally without being pissed off because of connection error
+#define ONLY_LOCAL_SETUP 0
+
 @interface AppDelegate ()
 
 @end
@@ -44,7 +48,12 @@
   if (generationError) {
     NSLog(@"Error occurred while generating AcraStruct: %@", generationError);
   }
-  [self sendAcraStruct:acraStruct zoneID:nil];
+  
+  if (ONLY_LOCAL_SETUP == 0) {
+    [self sendAcraStruct:acraStruct zoneID:nil];
+  } else {
+    NSLog(@"simple AcraStruct %@", [acraStruct.data base64EncodedDataWithOptions:0]);
+  }
 }
 
 
@@ -68,7 +77,12 @@
   if (generationError) {
     NSLog(@"Error occurred while generating AcraStruct with Zone: %@", generationError);
   }
-  [self sendAcraStruct:acraStructWithZone zoneID:zoneID];
+
+  if (ONLY_LOCAL_SETUP == 0) {
+    [self sendAcraStruct:acraStructWithZone zoneID:zoneID];
+  } else {
+    NSLog(@"AcraStruct with zone %@", [acraStructWithZone.data base64EncodedDataWithOptions:0]);
+  }
 }
 
 
