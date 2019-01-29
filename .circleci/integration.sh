@@ -8,6 +8,10 @@ export TEST_DB_USER_PASSWORD=test
 export TEST_DB_NAME=test
 
 cd $HOME/project
+# set correct permissions for ssl keys here because git by default recognize changing only executable bit
+# http://git.661346.n2.nabble.com/file-mode-td6467904.html#a6469081
+# https://stackoverflow.com/questions/11230171/git-is-changing-my-files-permissions-when-i-push-to-server/11231682#11231682
+find tests/ssl -name "*.key" -type f -exec chmod 0600 {} \;
 for version in $VERSIONS; do
     echo "-------------------- Testing Go version $version"
 
@@ -18,18 +22,11 @@ for version in $VERSIONS; do
     export PATH=$GOROOT/bin/:$PATH;
     export GOPATH=$HOME/$GOPATH_FOLDER;
 
-    export TEST_TLS=on
     
-    echo "--------------------  Testing with TEST_TLS=on"
+    echo "--------------------  Testing with TEST_TLS=${TEST_TLS}"
 
     python3 tests/test.py -v;
-    if [ "$?" != "0" ]; then echo "golang-$version" >> "$FILEPATH_ERROR_FLAG";
+    if [ "$?" != "0" ]; then echo "golang-$version test_tls=${TEST_TLS}" >> "$FILEPATH_ERROR_FLAG";
     fi
 
-    export TEST_TLS=off
-
-    echo "--------------------  Testing with TEST_TLS=off"
-    python3 tests/test.py -v;
-    if [ "$?" != "0" ]; then echo "golang-$version" >> "$FILEPATH_ERROR_FLAG";
-    fi
 done

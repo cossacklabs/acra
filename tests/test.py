@@ -29,6 +29,7 @@ import re
 import stat
 import uuid
 import signal
+import ssl
 from base64 import b64decode, b64encode
 from tempfile import NamedTemporaryFile
 from urllib.request import urlopen
@@ -74,13 +75,31 @@ logger = logging.getLogger()
 logger.addHandler(handler)
 logger.setLevel(logging.DEBUG)
 
-DB_HOST = os.environ.get('TEST_DB_HOST', '127.0.0.1')
+DB_HOST = os.environ.get('TEST_DB_HOST', 'localhost')
 DB_NAME = os.environ.get('TEST_DB_NAME', 'postgres')
 DB_PORT = os.environ.get('TEST_DB_PORT', 5432)
+
+TEST_TLS_CA = abs_path(os.environ.get('TEST_TLS_CA', 'tests/ssl/ca/ca.crt'))
+TEST_TLS_SERVER_CERT = abs_path(os.environ.get('TEST_TLS_SERVER_CERT', 'tests/ssl/acra-server/acra-server.crt'))
+TEST_TLS_SERVER_KEY = abs_path(os.environ.get('TEST_TLS_SERVER_KEY', 'tests/ssl/acra-server/acra-server.key'))
+# keys copied to tests/* with modified rights to 0400 because keys in docker/ssl/ has access from groups/other but some
+# db drivers prevent usage of keys with global rights
+TEST_TLS_CLIENT_CERT = abs_path(os.environ.get('TEST_TLS_CLIENT_CERT', 'tests/ssl/acra-writer/acra-writer.crt'))
+TEST_TLS_CLIENT_KEY = abs_path(os.environ.get('TEST_TLS_CLIENT_KEY', 'tests/ssl/acra-writer/acra-writer.key'))
+TEST_WITH_TLS = os.environ.get('TEST_TLS', 'off').lower() == 'on'
+
+TEST_WITH_TRACING = os.environ.get('TEST_TRACE', 'off').lower() == 'on'
+TEST_TRACE_TO_JAEGER = os.environ.get('TEST_TRACE_JAEGER', 'off').lower() == 'on'
 
 
 TEST_RANDOM_DATA_CONFIG = load_random_data_config()
 TEST_RANDOM_DATA_FILES = get_random_data_files()
+
+NoClientCert, RequestClientCert, RequireAnyClientCert, VerifyClientCertIfGiven, RequireAndVerifyClientCert = range(5)
+if TEST_WITH_TLS:
+    ACRA_TLS_AUTH = RequireAndVerifyClientCert  # verify if provided https://golang.org/pkg/crypto/tls/#ClientAuthType
+else:
+    ACRA_TLS_AUTH = VerifyClientCertIfGiven
 
 # 200 is overhead of encryption (chosen manually)
 # multiply 2 because tested acrastruct in acrastruct
@@ -129,11 +148,6 @@ SQL_EXECUTE_TRY_COUNT = 5
 # http://docs.python-requests.org/en/master/user/advanced/#timeouts
 # use only for requests.* methods
 REQUEST_TIMEOUT = (5, 5)  # connect_timeout, read_timeout
-
-TEST_WITH_TLS = os.environ.get('TEST_TLS', 'off').lower() == 'on'
-TEST_WITH_TRACING = os.environ.get('TEST_TRACE', 'off').lower() == 'on'
-TEST_TRACE_TO_JAEGER = os.environ.get('TEST_TRACE_JAEGER', 'off').lower() == 'on'
-
 PG_UNIX_HOST = '/tmp'
 
 DB_USER = os.environ.get('TEST_DB_USER', 'postgres')
@@ -145,8 +159,21 @@ if TEST_MYSQL:
     DB_DRIVER = "mysql+pymysql"
     TEST_MYSQL = True
     connect_args = {
-        'user': DB_USER, 'password': DB_USER_PASSWORD
+        'user': DB_USER, 'password': DB_USER_PASSWORD,
+        'read_timeout': SOCKET_CONNECT_TIMEOUT,
+        'write_timeout': SOCKET_CONNECT_TIMEOUT,
     }
+    pymysql_tls_args = {}
+    if TEST_WITH_TLS:
+        pymysql_tls_args.update(
+            ssl={
+                "ca": TEST_TLS_CA,
+                "cert": TEST_TLS_CLIENT_CERT,
+                "key": TEST_TLS_CLIENT_KEY,
+                'check_hostname': False,
+            }
+        )
+        connect_args.update(pymysql_tls_args)
 else:
     TEST_POSTGRESQL = True
     DB_DRIVER = "postgresql"
@@ -154,12 +181,27 @@ else:
         'connect_timeout': SOCKET_CONNECT_TIMEOUT,
         'user': DB_USER, 'password': DB_USER_PASSWORD,
         "options": "-c statement_timeout={}".format(STATEMENT_TIMEOUT),
-        'sslmode': SSLMODE}
+        'sslmode': 'disable',
+        'application_name': 'acra-tests'
+    }
     asyncpg_connect_args = {
         'timeout': SOCKET_CONNECT_TIMEOUT,
-        'user': DB_USER, 'password': DB_USER_PASSWORD,
-        'ssl': TEST_WITH_TLS
+        'statement_cache_size': 0,
+        'command_timeout': STATEMENT_TIMEOUT,
     }
+    if TEST_WITH_TLS:
+        connect_args.update({
+            # for psycopg2 key names took from
+            # https://www.postgresql.org/docs/current/libpq-connect.html#LIBPQ-CONNECT-SSLCERT
+            'sslcert': TEST_TLS_CLIENT_CERT,
+            'sslkey': TEST_TLS_CLIENT_KEY,
+            'sslrootcert': TEST_TLS_CA,
+            'sslmode': 'require',
+        })
+        ssl_context = ssl.create_default_context(cafile=TEST_TLS_CA)
+        ssl_context.load_cert_chain(TEST_TLS_CLIENT_CERT, TEST_TLS_CLIENT_KEY)
+        ssl_context.check_hostname = False
+        asyncpg_connect_args['ssl'] = ssl_context
 
 
 def get_random_id():
@@ -271,8 +313,7 @@ def wait_connection(port, count=1000, sleep=0.001):
     """
     while count:
         try:
-            connection = socket.create_connection(('127.0.0.1', port),
-                                                  timeout=1)
+            connection = socket.create_connection(('127.0.0.1', port), timeout=1)
             connection.close()
             return
         except ConnectionRefusedError:
@@ -301,14 +342,16 @@ def wait_unix_socket(socket_path, count=1000, sleep=0.005):
 
 def get_db_host():
     """use unix socket for postgresql and tcp with localhost for mysql"""
-    if TEST_POSTGRESQL:
+    if TEST_POSTGRESQL and not TEST_WITH_TLS:
         return PG_UNIX_HOST
     else:
-        return '127.0.0.1'
+        return DB_HOST
 
 
-def get_unix_connection_string(port, dbname):
-    if TEST_MYSQL:
+def get_engine_connection_string(connection_string, dbname):
+    addr = urlparse(connection_string)
+    port = addr.port
+    if connection_string.startswith('tcp'):
         return get_postgresql_tcp_connection_string(port, dbname)
     else:
         return get_postgresql_unix_connection_string(port, dbname)
@@ -317,18 +360,22 @@ def get_postgresql_unix_connection_string(port, dbname):
     return '{}:///{}?host={}'.format(DB_DRIVER, dbname, PG_UNIX_HOST)
 
 def get_postgresql_tcp_connection_string(port, dbname):
-    return '{}://127.0.0.1:{}/{}'.format(DB_DRIVER, port, dbname)
+    return '{}://{}:{}/{}'.format(DB_DRIVER, get_db_host(), port, dbname)
 
 def get_acraserver_unix_connection_string(port):
     return "unix://{}".format("{}/unix_socket_{}".format(PG_UNIX_HOST, port))
 
+def get_acraserver_tcp_connection_string(port):
+    return get_tcp_connection_string(port)
+
 def get_connector_connection_string(port):
     if TEST_MYSQL:
-        connection_string = get_postgresql_tcp_connection_string(port, '')
-        url = urlparse(connection_string)
-        return 'tcp://{}'.format(url.netloc)
+        return get_tcp_connection_string(port)
     else:
-        return 'unix://{}/.s.PGSQL.{}'.format(PG_UNIX_HOST, port)
+        if TEST_WITH_TLS:
+            return get_tcp_connection_string(port)
+        else:
+            return 'unix://{}/.s.PGSQL.{}'.format(PG_UNIX_HOST, port)
 
 def get_tcp_connection_string(port):
     return 'tcp://127.0.0.1:{}'.format(port)
@@ -356,7 +403,7 @@ BINARIES = [
            build_args=DEFAULT_BUILD_ARGS),
     # compile with Test=true to disable golang tls client server verification
     Binary(name='acra-server', from_version=DEFAULT_VERSION,
-           build_args=['-ldflags', '-X main.TestOnly=true']),
+           build_args=DEFAULT_BUILD_ARGS),
     Binary(name='acra-addzone', from_version=DEFAULT_VERSION,
            build_args=DEFAULT_BUILD_ARGS),
     Binary(name='acra-keymaker', from_version=DEFAULT_VERSION,
@@ -501,7 +548,8 @@ class PyMysqlExecutor(QueryExecutor):
                 user=self.connection_args.user,
                 password=self.connection_args.password,
                 db=self.connection_args.dbname,
-                cursorclass=pymysql.cursors.DictCursor)) as connection:
+                cursorclass=pymysql.cursors.DictCursor,
+                **pymysql_tls_args)) as connection:
             with connection.cursor() as cursor:
                 cursor.execute(query, args)
                 return cursor.fetchall()
@@ -512,7 +560,8 @@ class PyMysqlExecutor(QueryExecutor):
                 user=self.connection_args.user,
                 password=self.connection_args.password,
                 db=self.connection_args.dbname,
-                cursorclass=pymysql.cursors.DictCursor)) as connection:
+                cursorclass=pymysql.cursors.DictCursor,
+                **pymysql_tls_args)) as connection:
             with connection.cursor() as cursor:
                 cursor.execute("PREPARE test_statement FROM '{}'".format(query))
                 cursor.execute('EXECUTE test_statement')
@@ -574,9 +623,7 @@ class AsyncpgExecutor(QueryExecutor):
                 host=self.connection_args.host, port=self.connection_args.port,
                 user=self.connection_args.user, password=self.connection_args.password,
                 database=self.connection_args.dbname,
-                ssl=TEST_WITH_TLS, timeout=STATEMENT_TIMEOUT,
-                statement_cache_size=0,
-                command_timeout=STATEMENT_TIMEOUT))
+                **asyncpg_connect_args))
 
     def execute_prepared_statement(self, query, args=None):
         loop = asyncio.get_event_loop()
@@ -723,7 +770,7 @@ class BaseTestCase(PrometheusMixin, unittest.TestCase):
     )
     ZONE = False
     TEST_DATA_LOG = False
-    TLS_ON = False
+    CONNECTOR_TLS_TRANSPORT = False
 
     # hack to simplify handling errors on forks and don't check `if hasattr(self, 'connector_1')`
     connector_1 = ProcessStub()
@@ -819,13 +866,13 @@ class BaseTestCase(PrometheusMixin, unittest.TestCase):
             args.append('-d=true')
         if zone_mode:
             args.append('--http_api_enable=true')
-        if self.TLS_ON:
+        if self.CONNECTOR_TLS_TRANSPORT:
             args.extend(self.get_connector_tls_params())
-        print('connector args: {}', ' '.join(sorted(args)))
+        print('connector args: {}'.format(' '.join(sorted(args))))
         process = self.fork(lambda: subprocess.Popen(args))
         if check_connection:
             try:
-                if TEST_MYSQL:
+                if connector_connection.startswith('tcp'):
                     wait_connection(connector_port)
                 else:
                     wait_unix_socket(socket_path_from_connection_string(connector_connection))
@@ -861,10 +908,13 @@ class BaseTestCase(PrometheusMixin, unittest.TestCase):
     def get_acraserver_bin_path(self):
         return './acra-server'
 
+    def with_tls(self):
+        return TEST_WITH_TLS
+
     def _fork_acra(self, acra_kwargs, popen_kwargs):
         logging.info("fork acra")
         connection_string = self.get_acraserver_connection_string(
-            acra_kwargs.get('incoming_connection_port'))
+            acra_kwargs.get('incoming_connection_port', self.ACRASERVER_PORT))
         api_connection_string = self.get_acraserver_api_connection_string(
             acra_kwargs.get('incoming_connection_api_port')
         )
@@ -898,12 +948,13 @@ class BaseTestCase(PrometheusMixin, unittest.TestCase):
         if self.LOG_METRICS:
             args['incoming_connection_prometheus_metrics_string'] = self.get_prometheus_address(
                 self.ACRASERVER_PROMETHEUS_PORT)
-        if self.TLS_ON:
+        if self.CONNECTOR_TLS_TRANSPORT:
             args['acraconnector_tls_transport_enable'] = 'true'
-            args['tls_key'] = abs_path('tests/server.key')
-            args['tls_cert'] = abs_path('tests/server.crt')
-            args['tls_ca'] = abs_path('tests/server.crt')
-            args['tls_auth'] = 0
+        if self.with_tls():
+            args['tls_key'] = TEST_TLS_SERVER_KEY
+            args['tls_cert'] = TEST_TLS_SERVER_CERT
+            args['tls_ca'] = TEST_TLS_CA
+            args['tls_auth'] = ACRA_TLS_AUTH
         if TEST_MYSQL:
             args['mysql_enable'] = 'true'
             args['postgresql_enable'] = 'false'
@@ -969,10 +1020,10 @@ class BaseTestCase(PrometheusMixin, unittest.TestCase):
             self.connector_2 = self.fork_connector(self.CONNECTOR_PORT_2, self.ACRASERVER_PORT, 'keypair2')
 
             self.engine1 = sa.create_engine(
-                get_unix_connection_string(self.CONNECTOR_PORT_1, DB_NAME), connect_args=get_connect_args(port=self.CONNECTOR_PORT_1))
+                get_engine_connection_string(self.get_connector_connection_string(self.CONNECTOR_PORT_1), DB_NAME), connect_args=get_connect_args(port=self.CONNECTOR_PORT_1))
             self.engine2 = sa.create_engine(
-                get_unix_connection_string(
-                    self.CONNECTOR_PORT_2, DB_NAME), connect_args=get_connect_args(port=self.CONNECTOR_PORT_2))
+                get_engine_connection_string(
+                    self.get_connector_connection_string(self.CONNECTOR_PORT_2), DB_NAME), connect_args=get_connect_args(port=self.CONNECTOR_PORT_2))
             self.engine_raw = sa.create_engine(
                 '{}://{}:{}/{}'.format(DB_DRIVER, DB_HOST, DB_PORT, DB_NAME),
                 connect_args=connect_args)
@@ -1144,9 +1195,9 @@ class CensorBlacklistTest(BaseCensorTest):
     def testBlacklist(self):
         connection_args = ConnectionArgs(host=get_db_host(), port=self.CONNECTOR_PORT_1,
                            user=DB_USER, password=DB_USER_PASSWORD,
-                           dbname=DB_NAME, ssl_ca=abs_path('tests/server.crt'),
-                           ssl_key=abs_path('tests/client.key'),
-                           ssl_cert=abs_path('tests/client.crt'))
+                           dbname=DB_NAME, ssl_ca=TEST_TLS_CA,
+                           ssl_key=TEST_TLS_CLIENT_KEY,
+                           ssl_cert=TEST_TLS_CLIENT_CERT)
         if TEST_MYSQL:
             expectedException = (pymysql.err.OperationalError,
                                  mysql.connector.errors.DatabaseError)
@@ -1182,9 +1233,9 @@ class CensorWhitelistTest(BaseCensorTest):
     def testWhitelist(self):
         connection_args = ConnectionArgs(host=get_db_host(), port=self.CONNECTOR_PORT_1,
                            user=DB_USER, password=DB_USER_PASSWORD,
-                           dbname=DB_NAME, ssl_ca=abs_path('tests/server.crt'),
-                           ssl_key=abs_path('tests/client.key'),
-                           ssl_cert=abs_path('tests/client.crt'))
+                           dbname=DB_NAME, ssl_ca=TEST_TLS_CA,
+                           ssl_key=TEST_TLS_CLIENT_KEY,
+                           ssl_cert=TEST_TLS_CLIENT_CERT)
         if TEST_MYSQL:
             expectedException = (pymysql.err.OperationalError,
                                  mysql.connector.errors.DatabaseError)
@@ -1513,18 +1564,28 @@ class TestKeyNonExistence(BaseTestCase):
         if result != 0:
             self.fail("can't create keypairs")
         self.delete_key(keyname + '.pub')
-        connection = None
+        engine = None
+        if TEST_MYSQL:
+            expected_exception = pymysql.err.OperationalError
+        elif TEST_POSTGRESQL:
+            expected_exception = psycopg2.OperationalError
+
         try:
             self.connector = self.fork_connector(
                 self.CONNECTOR_PORT_1, self.ACRASERVER_PORT, keyname)
             self.assertIsNone(self.connector.poll())
-            with self.assertRaises(psycopg2.OperationalError) as exc:
-                connection = psycopg2.connect(**self.dsn)
+            with self.assertRaises(sa.exc.OperationalError) as exc:
+                engine = sa.create_engine(
+                    get_engine_connection_string(self.get_connector_connection_string(self.CONNECTOR_PORT_1), DB_NAME),
+                    connect_args=get_connect_args(port=self.CONNECTOR_PORT_1))
+                with engine.connect() as connection:
+                    connection.execute('select 1 from dual')
 
+            self.assertTrue(isinstance(exc.exception.orig, expected_exception))
         finally:
             stop_process(self.connector)
-            if connection:
-                connection.close()
+            if engine:
+                engine.dispose()
 
     def checkShutdownAcraConnector(self, process):
         total_wait_time = 2  # sec
@@ -1562,17 +1623,26 @@ class TestKeyNonExistence(BaseTestCase):
         if result != 0:
             self.fail("can't create keypairs")
         self.delete_key(keyname + '_server')
-        connection = None
+        if TEST_MYSQL:
+            expected_exception = pymysql.err.OperationalError
+        elif TEST_POSTGRESQL:
+            expected_exception = psycopg2.OperationalError
+        engine = None
         try:
             self.connector = self.fork_connector(
                 self.CONNECTOR_PORT_1, self.ACRASERVER_PORT, keyname)
             self.assertIsNone(self.connector.poll())
-            with self.assertRaises(psycopg2.OperationalError):
-                connection = psycopg2.connect(**self.dsn)
+            with self.assertRaises(sa.exc.OperationalError) as exc:
+                engine = sa.create_engine(
+                    get_engine_connection_string(self.get_connector_connection_string(self.CONNECTOR_PORT_1), DB_NAME),
+                    connect_args=get_connect_args(port=self.CONNECTOR_PORT_1))
+                with engine.connect() as connection:
+                    connection.execute('select 1 from dual')
+            self.assertTrue(isinstance(exc.exception.orig, expected_exception))
         finally:
             stop_process(self.connector)
-            if connection:
-                connection.close()
+            if engine:
+                engine.dispose()
 
     def test_without_acraserver_public(self):
         """acra-connector shouldn't start without acra-server public key"""
@@ -1999,7 +2069,7 @@ class TestKeyStorageClearing(BaseTestCase):
                     zonemode_enable='true', http_api_enable='true')
 
             self.engine1 = sa.create_engine(
-                get_unix_connection_string(self.CONNECTOR_PORT_1, DB_NAME),
+                get_engine_connection_string(self.get_connector_connection_string(self.CONNECTOR_PORT_1), DB_NAME),
                 connect_args=get_connect_args(port=self.CONNECTOR_PORT_1))
 
             self.engine_raw = sa.create_engine(
@@ -2387,6 +2457,9 @@ class SSLPostgresqlMixin(AcraCatchLogsMixin):
     ACRASERVER2_PROMETHEUS_PORT = BaseTestCase.ACRASERVER_PROMETHEUS_PORT + 1000
     DEBUG_LOG = True
 
+    def with_tls(self):
+        return False
+
     def get_acraserver_connection_string(self, port=None):
         return get_tcp_connection_string(port if port else self.ACRASERVER_PORT)
 
@@ -2423,8 +2496,9 @@ class SSLPostgresqlMixin(AcraCatchLogsMixin):
         try:
             if not self.EXTERNAL_ACRA:
                 self.acra = self.fork_acra(
-                    tls_key=abs_path('tests/server.key'), tls_cert=abs_path('tests/server.crt'),
-                    tls_ca=abs_path('tests/server.crt'),
+                    tls_key=abs_path(TEST_TLS_SERVER_KEY),
+                    tls_cert=abs_path(TEST_TLS_SERVER_CERT),
+                    tls_ca=TEST_TLS_CA,
                     acraconnector_transport_encryption_disable=True, client_id='keypair1')
                 # create second acra without settings for tls to check that
                 # connection will be closed on tls handshake
@@ -2499,7 +2573,7 @@ class TLSBetweenConnectorAndServerMixin(object):
     def get_connector_tls_params(self):
         base_params = super(TLSBetweenConnectorAndServerMixin, self).get_connector_tls_params()
         # client side need CA cert to verify server's
-        base_params.append('--tls_ca=tests/server.crt')
+        base_params.append('--tls_ca={}'.format(TEST_TLS_CA))
         return base_params
 
     def setUp(self):
@@ -2536,10 +2610,10 @@ class SSLMysqlMixin(SSLPostgresqlMixin):
         try:
             if not self.EXTERNAL_ACRA:
                 self.acra = self.fork_acra(
-                    tls_key=abs_path('tests/server.key'),
-                    tls_cert=abs_path('tests/server.crt'),
-                    tls_ca=abs_path('tests/server.crt'),
-                    tls_auth=0,
+                    tls_key=abs_path(TEST_TLS_SERVER_KEY),
+                    tls_cert=abs_path(TEST_TLS_SERVER_CERT),
+                    tls_ca=TEST_TLS_CA,
+                    tls_auth=ACRA_TLS_AUTH,
                     #tls_db_sni="127.0.0.1",
                     acraconnector_transport_encryption_disable=True, client_id='keypair1')
                 # create second acra without settings for tls to check that
@@ -2550,9 +2624,9 @@ class SSLMysqlMixin(SSLPostgresqlMixin):
                     incoming_connection_prometheus_metrics_string=self.get_prometheus_address(
                         self.ACRASERVER2_PROMETHEUS_PORT))
             self.driver_to_acraserver_ssl_settings = {
-                'ca': abs_path('tests/server.crt'),
-                #'cert': abs_path('tests/client.crt'),
-                #'key': abs_path('tests/client.key'),
+                'ca': TEST_TLS_CA,
+                'cert': TEST_TLS_CLIENT_CERT,
+                'key': TEST_TLS_CLIENT_KEY,
                 'check_hostname': False
             }
             self.engine_raw = sa.create_engine(
@@ -2603,14 +2677,6 @@ class SSLMysqlConnectionWithZoneTest(SSLMysqlMixin, ZoneHexFormatTest):
 class BasePrepareStatementMixin:
     def checkSkip(self):
         return
-
-    def fork_acra(self, popen_kwargs: dict=None, **acra_kwargs: dict):
-        if TEST_WITH_TLS:
-            acra_kwargs['tls_key'] = abs_path('tests/server.key')
-            acra_kwargs['tls_cert'] = abs_path('tests/server.crt')
-            acra_kwargs['tls_ca'] = abs_path('tests/server.crt')
-        return super(BasePrepareStatementMixin, self).fork_acra(
-            popen_kwargs, **acra_kwargs)
 
     def executePreparedStatement(self, query):
         raise NotImplementedError
@@ -2713,9 +2779,9 @@ class TestMysqlTextPreparedStatement(BasePrepareStatementMixin, BaseTestCase):
         return PyMysqlExecutor(
             ConnectionArgs(host=get_db_host(), port=self.CONNECTOR_PORT_1,
                            user=DB_USER, password=DB_USER_PASSWORD,
-                           dbname=DB_NAME, ssl_ca=abs_path('tests/server.crt'),
-                           ssl_key=abs_path('tests/client.key'),
-                           ssl_cert=abs_path('tests/client.crt'))
+                           dbname=DB_NAME, ssl_ca=TEST_TLS_CA,
+                           ssl_key=TEST_TLS_CLIENT_KEY,
+                           ssl_cert=TEST_TLS_CLIENT_CERT)
         ).execute_prepared_statement(query)
 
 
@@ -2732,9 +2798,9 @@ class TestMysqlBinaryPreparedStatement(BasePrepareStatementMixin, BaseTestCase):
         return MysqlExecutor(
             ConnectionArgs(host=get_db_host(), port=self.CONNECTOR_PORT_1,
                            user=DB_USER, password=DB_USER_PASSWORD,
-                           dbname=DB_NAME, ssl_ca=abs_path('tests/server.crt'),
-                           ssl_key=abs_path('tests/client.key'),
-                           ssl_cert=abs_path('tests/client.crt'))
+                           dbname=DB_NAME, ssl_ca=TEST_TLS_CA,
+                           ssl_key=TEST_TLS_CLIENT_KEY,
+                           ssl_cert=TEST_TLS_CLIENT_CERT)
         ).execute_prepared_statement(query)
 
 
@@ -2750,9 +2816,9 @@ class TestPostgresqlTextPreparedStatement(BasePrepareStatementMixin, BaseTestCas
     def executePreparedStatement(self, query):
         return Psycopg2Executor(ConnectionArgs(host=get_db_host(), port=self.CONNECTOR_PORT_1,
                            user=DB_USER, password=DB_USER_PASSWORD,
-                           dbname=DB_NAME, ssl_ca=abs_path('tests/server.crt'),
-                           ssl_key=abs_path('tests/client.key'),
-                           ssl_cert=abs_path('tests/client.crt'))
+                           dbname=DB_NAME, ssl_ca=TEST_TLS_CA,
+                           ssl_key=TEST_TLS_CLIENT_KEY,
+                           ssl_cert=TEST_TLS_CLIENT_CERT)
                                 ).execute_prepared_statement(query)
 
 
@@ -2767,11 +2833,13 @@ class TestPostgresqlBinaryPreparedStatement(BasePrepareStatementMixin, BaseTestC
 
     def executePreparedStatement(self, query):
         return AsyncpgExecutor(
-            ConnectionArgs(host=get_db_host(), port=self.CONNECTOR_PORT_1,
+            ConnectionArgs(host=get_db_host(), # asyncpg doesn't support ssl with unix socket
+                           port=self.CONNECTOR_PORT_1,
                            user=DB_USER, password=DB_USER_PASSWORD,
-                           dbname=DB_NAME, ssl_ca=abs_path('tests/server.crt'),
-                           ssl_key=abs_path('tests/client.key'),
-                           ssl_cert=abs_path('tests/client.crt'))
+                           dbname=DB_NAME,
+                           ssl_ca=TEST_TLS_CA,
+                           ssl_key=TEST_TLS_CLIENT_KEY,
+                           ssl_cert=TEST_TLS_CLIENT_CERT)
         ).execute_prepared_statement(query)
 
 
