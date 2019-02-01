@@ -21,6 +21,7 @@ import "gopkg.in/yaml.v2"
 // TableSchemaStore interface to fetch schema for table
 type TableSchemaStore interface {
 	GetTableSchema(tableName string) *TableSchema
+	IsEmpty() bool
 }
 
 type storeConfig struct {
@@ -57,6 +58,14 @@ func (store *MapTableSchemaStore) GetTableSchema(tableName string) *TableSchema 
 		return schema
 	}
 	return nil
+}
+
+// IsEmpty return true if hasn't any schemas
+func (store *MapTableSchemaStore) IsEmpty() bool {
+	if store.schemas == nil || len(store.schemas) == 0 {
+		return true
+	}
+	return false
 }
 
 // ColumnEncryptionSetting describe how to encrypt column
