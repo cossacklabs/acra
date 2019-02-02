@@ -343,7 +343,6 @@ func (handler *Handler) ProxyClientConnection(errCh chan<- error) {
 			break
 		case CommandStatementClose, CommandStatementSendLongData, CommandStatementReset:
 			clientLog.Debugln("Close|SendLongData|Reset command")
-			break
 		default:
 			clientLog.Debugf("Command %d not supported now", cmd)
 		}
