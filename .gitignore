@@ -27,6 +27,8 @@ _testmain.go
 bin
 src/github.com/
 
+.gradle
+
 
 # iOS and OSX
 .DS_Store

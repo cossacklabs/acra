@@ -1,0 +1,101 @@
+apply plugin: 'com.android.library'
+
+buildscript {
+    repositories {
+        google()
+        jcenter()
+    }
+
+    dependencies {
+        classpath 'com.android.tools.build:gradle:3.0.1'
+
+        // Two necessary plugins for uploading .aar to bintray
+        // from: https://android.jlelse.eu/how-to-distribute-android-library-in-a-convenient-way-d43fb68304a7
+        classpath 'com.jfrog.bintray.gradle:gradle-bintray-plugin:1.+'
+        classpath 'com.github.dcendents:android-maven-gradle-plugin:1.+'
+    }
+}
+
+repositories {
+    google()
+    jcenter()
+    maven { url "https://dl.bintray.com/cossacklabs/maven/" }
+}
+
+dependencies {
+    implementation 'com.cossacklabs.com:themis:0.10.+'
+}
+
+android {
+    compileSdkVersion 27
+    buildToolsVersion "27.0.3"
+    
+    defaultConfig {
+    	minSdkVersion 16
+        targetSdkVersion 16
+    }
+    
+    sourceSets {
+    	main {
+    		java.srcDirs = ['wrappers/java']
+    		manifest.srcFile 'wrappers/java/AndroidManifest.xml'
+    	}
+	}
+}
+
+// distribution
+
+apply plugin: 'com.jfrog.bintray'
+apply plugin: 'maven-publish'
+
+publishing {
+    publications {
+        Production(MavenPublication) {
+            artifact("$buildDir/outputs/aar/acra-release.aar")
+            groupId 'com.cossacklabs.com'
+            artifactId 'acrawriter'
+            version '1.0.1'
+        
+            pom.withXml {
+                def dependenciesNode = asNode().appendNode('dependencies')
+
+                // Iterate over the implementation dependencies (we don't want the test ones), adding a <dependency> node for each
+                configurations.implementation.allDependencies.each {
+                   // Ensure dependencies such as fileTree are not included.
+                   if (it.name != 'unspecified') {
+                      def dependencyNode = dependenciesNode.appendNode('dependency')
+                      dependencyNode.appendNode('groupId', it.group)
+                      dependencyNode.appendNode('artifactId', it.name)
+                      dependencyNode.appendNode('version', it.version)
+                   }
+                }
+            }
+        }
+    }
+}
+
+bintray {
+    // Get Bintray credential from environment variable
+    user = System.getenv('BINTRAY_USER') // Get bintray User
+    key = System.getenv('BINTRAY_KEY') // Get bintray API Key from https://bintray.com/profile/edit -> APIKey
+    configurations = ['archives']
+    pkg {
+        repo = 'maven'
+        name = 'acrawriter'
+        userOrg = 'cossacklabs'
+        licenses = ['Apache-2.0']
+        desc = 'AcraWriter library for Android: encrypts data into AcraStructs, allowing Acra to decrypt it.'
+        websiteUrl = "https://cossacklabs.com/acra/"
+        vcsUrl = 'https://github.com/cossacklabs/acra.git'
+        publish = true
+        version {
+            name = '1.0.1'
+            released  = new Date()            
+            gpg {
+                sign = true
+                passphrase = System.getenv('BINTRAY_GPG_PASSPHRASE')
+            }
+        }
+    }
+    publications = ['Production']
+}
