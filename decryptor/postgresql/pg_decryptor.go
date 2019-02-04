@@ -119,6 +119,11 @@ func (proxy *PgProxy) AddQueryObserver(obs base.QueryObserver) {
 	proxy.queryObserverManager.AddQueryObserver(obs)
 }
 
+// RegisteredObserversCount return count of registered observers
+func (proxy *PgProxy) RegisteredObserversCount() int {
+	return proxy.queryObserverManager.RegisteredObserversCount()
+}
+
 // ProxyClientConnection checks every client request using AcraCensor,
 // if request is allowed, sends it to the Pg database
 func (proxy *PgProxy) ProxyClientConnection(errCh chan<- error) {

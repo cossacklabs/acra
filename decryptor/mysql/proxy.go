@@ -50,11 +50,12 @@ func (factory *proxyFactory) New(ctx context.Context, clientID []byte, dbConnect
 	if err != nil {
 		return nil, err
 	}
-
-	queryEncryptor, err := encryptor.NewMysqlQueryEncryptor(factory.setting.TableSchemaStore(), clientID, factory.dataEncryptor)
-	if err != nil {
-		return nil, err
+	if !factory.setting.TableSchemaStore().IsEmpty() {
+		queryEncryptor, err := encryptor.NewMysqlQueryEncryptor(factory.setting.TableSchemaStore(), clientID, factory.dataEncryptor)
+		if err != nil {
+			return nil, err
+		}
+		proxy.AddQueryObserver(queryEncryptor)
 	}
-	proxy.AddQueryObserver(queryEncryptor)
 	return proxy, nil
 }

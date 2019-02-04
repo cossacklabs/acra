@@ -182,6 +182,11 @@ func (handler *Handler) AddQueryObserver(obs base.QueryObserver) {
 	handler.queryObserverManager.AddQueryObserver(obs)
 }
 
+// RegisteredObserversCount return count of registered observers
+func (handler *Handler) RegisteredObserversCount() int {
+	return handler.queryObserverManager.RegisteredObserversCount()
+}
+
 func (handler *Handler) setQueryHandler(callback ResponseHandler) {
 	handler.responseHandler = callback
 }
