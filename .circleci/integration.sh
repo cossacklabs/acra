@@ -7,9 +7,11 @@ export TEST_DB_USER=test
 export TEST_DB_USER_PASSWORD=test
 export TEST_DB_NAME=test
 
-declare -a tls_modes=("on" "off")
-
 cd $HOME/project
+# set correct permissions for ssl keys here because git by default recognize changing only executable bit
+# http://git.661346.n2.nabble.com/file-mode-td6467904.html#a6469081
+# https://stackoverflow.com/questions/11230171/git-is-changing-my-files-permissions-when-i-push-to-server/11231682#11231682
+find tests/ssl -name "*.key" -type f -exec chmod 0600 {} \;
 for version in $VERSIONS; do
     echo "-------------------- Testing Go version $version"
 
@@ -20,21 +22,16 @@ for version in $VERSIONS; do
     export PATH=$GOROOT/bin/:$PATH;
     export GOPATH=$HOME/$GOPATH_FOLDER;
 
-    for tls_mode in "${tls_modes[@]}"
-    do
+    
+    echo "--------------------  Testing with TEST_TLS=${TEST_TLS}"
 
-        export TEST_TLS="${tls_mode}"
-
-        echo "--------------------  Testing with TEST_TLS=${tls_mode}"
-
-        # use nohup to ignore unknown sighup signals from test environment (detected on circleci)
-        nohup python3 tests/test.py -v > logs.txt;
-        if [[ "$?" != "0" ]]; then
-            echo "golang-$version-${tls_mode}" >> "$FILEPATH_ERROR_FLAG";
-        else
-            echo "no errors";
-        fi
-        cat logs.txt;
-        rm logs.txt;
-    done
+    # use nohup to ignore unknown sighup signals from test environment (detected on circleci)
+    nohup python3 tests/test.py -v > logs.txt;
+    if [[ "$?" != "0" ]]; then
+        echo "golang-$version tls_on=${tls_mode}" >> "$FILEPATH_ERROR_FLAG";
+    else
+        echo "no errors";
+    fi
+    cat logs.txt;
+    rm logs.txt;
 done

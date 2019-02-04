@@ -1,10 +1,9 @@
 version: 2
 jobs:
-  postgresql:
+  postgresql-ssl:
     docker:
       - image: cossacklabs/android-build
-      # postgresql image with ssl support
-      - image: nimbustech/postgres-ssl:9.5
+      - image: cossacklabs/postgresql-ssl:11
         environment:
           POSTGRES_PASSWORD: test
           POSTGRES_USER: test
@@ -16,7 +15,7 @@ jobs:
       TEST_DB_PORT: 5432
       GOPATH_FOLDER: gopath
       TEST_RANDOM_DATA_FOLDER: /tmp/test_data
-      STRACE_OUT: "/tmp/strace"
+      TEST_TLS: "on"
     steps:
     # prepare
       - checkout
@@ -40,15 +39,118 @@ jobs:
       - run: python3 tests/generate_random_data.py
       # each iteration pass to test different ports for forks to avoid problems with TCP TIME WAIT between tests
       - run: .circleci/integration.sh
-      - store_artifacts:
-          path: /tmp/strace
       - run: if [ -f  $FILEPATH_ERROR_FLAG ]; then cat "$FILEPATH_ERROR_FLAG"; rm "$FILEPATH_ERROR_FLAG"; exit 1; fi
+
+  postgresql:
+    docker:
+      - image: cossacklabs/android-build
+      - image: postgres:11-alpine
+        environment:
+          POSTGRES_PASSWORD: test
+          POSTGRES_USER: test
+          POSTGRES_DB: test
+    environment:
+      GOTHEMIS_IMPORT: github.com/cossacklabs/themis/gothemis
+      FILEPATH_ERROR_FLAG: /tmp/test_fail
+      VERSIONS: 1.9.7 1.10.5 1.11.2
+      TEST_DB_PORT: 5432
+      GOPATH_FOLDER: gopath
+      TEST_RANDOM_DATA_FOLDER: /tmp/test_data
+      TEST_TLS: "off"
+    steps:
+      # prepare
+      - checkout
+      - run: .circleci/prepare.sh
+      - run: sudo apt-get install -y postgresql-client
+      - run: pg_isready -U${POSTGRES_USER} -d${POSTGRES_DB} -h127.0.0.1
+      # generate test data for integration tests
+      - run: python3 tests/generate_random_data.py
+      # each iteration pass to test different ports for forks to avoid problems with TCP TIME WAIT between tests
+      - run: .circleci/integration.sh
+      - run: if [ -f  $FILEPATH_ERROR_FLAG ]; then cat "$FILEPATH_ERROR_FLAG"; rm "$FILEPATH_ERROR_FLAG"; exit 1; fi
+
+  mariadb-ssl:
+    docker:
+    - image: cossacklabs/android-build
+    # use the same credentials for mysql db as for postgresql (which support was added first)
+    # has latest tag on 2018.03.29
+    - image: cossacklabs/mariadb-ssl:10.3
+      environment:
+        MYSQL_DATABASE: test
+        MYSQL_USER: test
+        MYSQL_PASSWORD: test
+        MYSQL_ROOT_PASSWORD: root
+    environment:
+      GOTHEMIS_IMPORT: github.com/cossacklabs/themis/gothemis
+      FILEPATH_ERROR_FLAG: /tmp/test_fail
+      VERSIONS: 1.9.7 1.10.5 1.11.2
+      TEST_MYSQL: true
+      TEST_DB_PORT: 3306
+      GOPATH_FOLDER: gopath
+      TEST_RANDOM_DATA_FOLDER: /tmp/test_data
+      TEST_TLS: "on"
+    steps:
+    # prepare
+    - checkout
+    - run: .circleci/prepare.sh
+    - run: sudo apt-get install -y mysql-client
+    - run: mysqladmin ping -h127.0.0.1
+    # testing
+    # check that code formatted with gofmt
+    - run: .circleci/check_gofmt.sh
+    # check that code doesn't have a lot of golint issues (currently removed because golint version is very different on other planforms)
+    - run: GOPATH=$HOME/$GOPATH_FOLDER .circleci/check_golint.sh
+    # delete file if exists
+    - run: if [ -f $FILEPATH_ERROR_FLAG ]; then rm "$FILEPATH_ERROR_FLAG"; fi
+    # run test in each go environment and create $FILEPATH_ERROR_FLAG file if was any error. But all tests should
+    - run: cd $HOME && for version in $VERSIONS; do export GOROOT=$HOME/go_root_$version/go; export PATH=$GOROOT/bin/:$PATH; export GOPATH=$HOME/$GOPATH_FOLDER; rm -rf $HOME/$GOPATH_FOLDER/bin; rm -rf $HOME/$GOPATH_FOLDER/pkg; go test -v github.com/cossacklabs/acra/...; if [ "$?" != "0" ]; then echo "$version" >> "$FILEPATH_ERROR_FLAG"; fi done
+    # if file exists (exit code of stat == 0 ) then something was wrong. cat file with versions of environments where was error and return exit 1
+    - run: if [ -f  $FILEPATH_ERROR_FLAG ]; then cat "$FILEPATH_ERROR_FLAG"; rm "$FILEPATH_ERROR_FLAG"; exit 1; fi
+    # generate test data for integration tests
+    - run: python3 tests/generate_random_data.py
+    # each iteration pass to test different ports for forks to avoid problems with TCP TIME WAIT between tests
+    - run: .circleci/integration.sh
+    - run: if [ -f  $FILEPATH_ERROR_FLAG ]; then cat "$FILEPATH_ERROR_FLAG"; rm "$FILEPATH_ERROR_FLAG"; exit 1; fi
+
+  mariadb:
+    docker:
+      - image: cossacklabs/android-build
+      # use the same credentials for mysql db as for postgresql (which support was added first)
+      # has latest tag on 2018.03.29
+      - image: mariadb:latest
+        environment:
+          MYSQL_DATABASE: test
+          MYSQL_USER: test
+          MYSQL_PASSWORD: test
+          MYSQL_ROOT_PASSWORD: root
+    environment:
+      GOTHEMIS_IMPORT: github.com/cossacklabs/themis/gothemis
+      FILEPATH_ERROR_FLAG: /tmp/test_fail
+      VERSIONS: 1.9.7 1.10.5 1.11.2
+      TEST_MYSQL: true
+      TEST_DB_PORT: 3306
+      GOPATH_FOLDER: gopath
+      TEST_RANDOM_DATA_FOLDER: /tmp/test_data
+      TEST_TLS: "off"
+    steps:
+      # prepare
+      - checkout
+      - run: .circleci/prepare.sh
+      - run: sudo apt-get install -y mysql-client
+      - run: mysqladmin ping -h127.0.0.1
+      # testing
+      # generate test data for integration tests
+      - run: python3 tests/generate_random_data.py
+      # each iteration pass to test different ports for forks to avoid problems with TCP TIME WAIT between tests
+      - run: .circleci/integration.sh
+      - run: if [ -f  $FILEPATH_ERROR_FLAG ]; then cat "$FILEPATH_ERROR_FLAG"; rm "$FILEPATH_ERROR_FLAG"; exit 1; fi
+
   mysql:
     docker:
     - image: cossacklabs/android-build
     # use the same credentials for mysql db as for postgresql (which support was added first)
     # has latest tag on 2018.03.29
-    - image: mysql:5.7.21
+    - image: cossacklabs/mysql-ssl:5.7.25
       environment:
         MYSQL_DATABASE: test
         MYSQL_USER: test
@@ -62,6 +164,7 @@ jobs:
       TEST_DB_PORT: 3306
       GOPATH_FOLDER: gopath
       TEST_RANDOM_DATA_FOLDER: /tmp/test_data
+      TEST_TLS: "on"
     steps:
     # prepare
     - checkout
@@ -84,17 +187,16 @@ jobs:
     # each iteration pass to test different ports for forks to avoid problems with TCP TIME WAIT between tests
     - run: .circleci/integration.sh
     - run: if [ -f  $FILEPATH_ERROR_FLAG ]; then cat "$FILEPATH_ERROR_FLAG"; rm "$FILEPATH_ERROR_FLAG"; exit 1; fi
-  mariadb:
+
+  mysql-ssl:
     docker:
-    - image: cossacklabs/android-build
-    # use the same credentials for mysql db as for postgresql (which support was added first)
-    # has latest tag on 2018.03.29
-    - image: mariadb:latest
-      environment:
-        MYSQL_DATABASE: test
-        MYSQL_USER: test
-        MYSQL_PASSWORD: test
-        MYSQL_ROOT_PASSWORD: root
+      - image: cossacklabs/android-build
+      - image: mysql:5.7.25
+        environment:
+          MYSQL_DATABASE: test
+          MYSQL_USER: test
+          MYSQL_PASSWORD: test
+          MYSQL_ROOT_PASSWORD: root
     environment:
       GOTHEMIS_IMPORT: github.com/cossacklabs/themis/gothemis
       FILEPATH_ERROR_FLAG: /tmp/test_fail
@@ -103,33 +205,26 @@ jobs:
       TEST_DB_PORT: 3306
       GOPATH_FOLDER: gopath
       TEST_RANDOM_DATA_FOLDER: /tmp/test_data
+      TEST_TLS: "off"
     steps:
-    # prepare
-    - checkout
-    - run: .circleci/prepare.sh
-    - run: sudo apt-get install -y mysql-client
-    - run: mysqladmin ping -h127.0.0.1
-    # testing
-    # check that code formatted with gofmt
-    - run: .circleci/check_gofmt.sh
-    # check that code doesn't have a lot of golint issues (currently removed because golint version is very different on other planforms)
-    - run: GOPATH=$HOME/$GOPATH_FOLDER .circleci/check_golint.sh
-    # delete file if exists
-    - run: if [ -f $FILEPATH_ERROR_FLAG ]; then rm "$FILEPATH_ERROR_FLAG"; fi
-    # run test in each go environment and create $FILEPATH_ERROR_FLAG file if was any error. But all tests should
-    - run: cd $HOME && for version in $VERSIONS; do export GOROOT=$HOME/go_root_$version/go; export PATH=$GOROOT/bin/:$PATH; export GOPATH=$HOME/$GOPATH_FOLDER; rm -rf $HOME/$GOPATH_FOLDER/bin; rm -rf $HOME/$GOPATH_FOLDER/pkg; go test -v github.com/cossacklabs/acra/...; if [ "$?" != "0" ]; then echo "$version" >> "$FILEPATH_ERROR_FLAG"; fi done
-    # if file exists (exit code of stat == 0 ) then something was wrong. cat file with versions of environments where was error and return exit 1
-    - run: if [ -f  $FILEPATH_ERROR_FLAG ]; then cat "$FILEPATH_ERROR_FLAG"; rm "$FILEPATH_ERROR_FLAG"; exit 1; fi
-    # generate test data for integration tests
-    - run: python3 tests/generate_random_data.py
-    # each iteration pass to test different ports for forks to avoid problems with TCP TIME WAIT between tests
-    - run: .circleci/integration.sh
-    - run: if [ -f  $FILEPATH_ERROR_FLAG ]; then cat "$FILEPATH_ERROR_FLAG"; rm "$FILEPATH_ERROR_FLAG"; exit 1; fi
+      # prepare
+      - checkout
+      - run: .circleci/prepare.sh
+      - run: sudo apt-get install -y mysql-client
+      - run: mysqladmin ping -h127.0.0.1
+      # testing
+      # generate test data for integration tests
+      - run: python3 tests/generate_random_data.py
+      # each iteration pass to test different ports for forks to avoid problems with TCP TIME WAIT between tests
+      - run: .circleci/integration.sh
+      - run: if [ -f  $FILEPATH_ERROR_FLAG ]; then cat "$FILEPATH_ERROR_FLAG"; rm "$FILEPATH_ERROR_FLAG"; exit 1; fi
 workflows:
   version: 2
   tests:
     jobs:
       - postgresql
+      - postgresql-ssl
       - mysql
-      # has errors with tls connections
-      #- mariadb
+      - mysql-ssl
+      - mariadb
+      - mariadb-ssl

@@ -56,14 +56,6 @@ var restartSignalsChannel chan os.Signal
 var errorSignalChannel chan os.Signal
 var authPath *string
 
-// For testing purposes only, allows to skip checking TLS certificate when connecting to database.
-const (
-	testMode = "true"
-)
-
-// TestOnly is set in compile time for running integration tests
-var TestOnly = "false"
-
 // Constants used by AcraServer.
 const (
 	defaultAcraserverWaitTimeout = 10
@@ -234,12 +226,7 @@ func main() {
 				Errorln("Configuration error: can't get config for TLS")
 			os.Exit(1)
 		}
-		// need for testing with mysql docker container that always generate new certificates
-		if TestOnly == testMode {
-			tlsConfig.InsecureSkipVerify = true
-			tlsConfig.ClientAuth = tls.NoClientCert
-			log.Warningln("Skip verifying TLS certificate, use for tests only!")
-		}
+		log.Infoln("Loaded tls config")
 	}
 	if *useTLS {
 		log.Println("Selecting transport: use TLS transport wrapper")

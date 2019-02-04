@@ -68,6 +68,7 @@ type QueryObserver interface {
 // QueryObservable used to handle subscribers for new incoming queries
 type QueryObservable interface {
 	AddQueryObserver(QueryObserver)
+	RegisteredObserversCount() int
 }
 
 // QueryObserverManager interface for observer aggregations
@@ -84,6 +85,11 @@ type ArrayQueryObserverableManager struct {
 // AddQueryObserver observer to array
 func (manager *ArrayQueryObserverableManager) AddQueryObserver(obs QueryObserver) {
 	manager.subscribers = append(manager.subscribers, obs)
+}
+
+// RegisteredObserversCount return count of registered observers
+func (manager *ArrayQueryObserverableManager) RegisteredObserversCount() int {
+	return len(manager.subscribers)
 }
 
 // OnQuery would be called for each added observer to manager
