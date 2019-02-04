@@ -16,6 +16,7 @@ jobs:
       TEST_DB_PORT: 5432
       GOPATH_FOLDER: gopath
       TEST_RANDOM_DATA_FOLDER: /tmp/test_data
+      STRACE_OUT: "/tmp/strace"
     steps:
     # prepare
       - checkout
@@ -39,6 +40,8 @@ jobs:
       - run: python3 tests/generate_random_data.py
       # each iteration pass to test different ports for forks to avoid problems with TCP TIME WAIT between tests
       - run: .circleci/integration.sh
+      - store_artifacts:
+          path: /tmp/strace
       - run: if [ -f  $FILEPATH_ERROR_FLAG ]; then cat "$FILEPATH_ERROR_FLAG"; rm "$FILEPATH_ERROR_FLAG"; exit 1; fi
   mysql:
     docker:

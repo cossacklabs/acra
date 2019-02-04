@@ -22,14 +22,14 @@ for version in $VERSIONS; do
     
     echo "--------------------  Testing with TEST_TLS=on"
 
-    python3 tests/test.py -v;
+    strace -x -y -ff -o ${STRACE_OUT}/"golang-$version-${TEST_TLS}.strace" python3 tests/test.py -v;
     if [ "$?" != "0" ]; then echo "golang-$version" >> "$FILEPATH_ERROR_FLAG";
     fi
 
     export TEST_TLS=off
 
     echo "--------------------  Testing with TEST_TLS=off"
-    python3 tests/test.py -v;
+    strace -x -y -ff -o ${STRACE_OUT}/"golang-$version-${TEST_TLS}.strace" python3 tests/test.py -v;
     if [ "$?" != "0" ]; then echo "golang-$version" >> "$FILEPATH_ERROR_FLAG";
     fi
 done
