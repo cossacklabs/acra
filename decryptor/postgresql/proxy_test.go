@@ -12,7 +12,7 @@ func (*decryptorFactory) New(clientID []byte) (base.Decryptor, error) {
 	return nil, nil
 }
 
-type tableSchemaStore struct{empty bool}
+type tableSchemaStore struct{ empty bool }
 
 func (*tableSchemaStore) GetTableSchema(tableName string) *config.TableSchema {
 	panic("implement me")
