@@ -7,6 +7,8 @@ export TEST_DB_USER=test
 export TEST_DB_USER_PASSWORD=test
 export TEST_DB_NAME=test
 
+declare -a tls_modes=("on" "off")
+
 cd $HOME/project
 for version in $VERSIONS; do
     echo "-------------------- Testing Go version $version"
@@ -18,18 +20,21 @@ for version in $VERSIONS; do
     export PATH=$GOROOT/bin/:$PATH;
     export GOPATH=$HOME/$GOPATH_FOLDER;
 
-    export TEST_TLS=on
-    
-    echo "--------------------  Testing with TEST_TLS=on"
+    for tls_mode in "${tls_modes[@]}"
+    do
 
-    strace -x -y -ff -o ${STRACE_OUT}/"golang-$version-${TEST_TLS}.strace" python3 tests/test.py -v;
-    if [ "$?" != "0" ]; then echo "golang-$version" >> "$FILEPATH_ERROR_FLAG";
-    fi
+        export TEST_TLS="${tls_mode}"
 
-    export TEST_TLS=off
+        echo "--------------------  Testing with TEST_TLS=${tls_mode}"
 
-    echo "--------------------  Testing with TEST_TLS=off"
-    strace -x -y -ff -o ${STRACE_OUT}/"golang-$version-${TEST_TLS}.strace" python3 tests/test.py -v;
-    if [ "$?" != "0" ]; then echo "golang-$version" >> "$FILEPATH_ERROR_FLAG";
-    fi
+        # use nohup to ignore unknown sighup signals from test environment (detected on circleci)
+        nohup python3 tests/test.py -v > logs.txt;
+        if [[ "$?" != "0" ]]; then
+            echo "golang-$version-${tls_mode}" >> "$FILEPATH_ERROR_FLAG";
+        else
+            echo "no errors";
+        fi
+        cat logs.txt;
+        rm logs.txt;
+    done
 done
