@@ -1,4 +1,4 @@
-SSL folder contains all tls keys that used in tests and must use databases used in tests
+SSL folder contains all TLS keys that used in tests and must use databases used in tests
 
 To create database with docker with correct keys, use dockerfiles from tests/docker which copies
 keys from tests/ssl to correct paths in images
