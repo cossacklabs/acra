@@ -2,11 +2,11 @@ version: '3'
 
 services:
   mydb:
-    image: postgres:9.6
+    image: cossacklabs/postgresql-ssl:11
     environment:
-      POSTGRES_DB: postgres
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: test
+      POSTGRES_USER: test
+      POSTGRES_PASSWORD: test
       POSTGRES_PORT: 5432
       PGDATA: /pgdata
     ports: ["5432:5432"]

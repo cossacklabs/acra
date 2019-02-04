@@ -20,16 +20,18 @@ import (
 	"encoding/hex"
 	"github.com/cossacklabs/acra/decryptor/base"
 	"github.com/cossacklabs/acra/utils"
+	"github.com/sirupsen/logrus"
 )
 
 // NewEncodeDecodeWrapper encode/decode data to/from escaped format (hex/octal)
 func NewEncodeDecodeWrapper(processor base.DataProcessor) base.DataProcessor {
 	return base.ProcessorFunc(func(data []byte, ctx *base.DataProcessorContext) ([]byte, error) {
-		data, err := utils.DecodeEscaped(data)
+		decodedData, err := utils.DecodeEscaped(data)
 		if err != nil {
-			return data, err
+			logrus.WithError(err).Debugln("Data is not in hex/escape format, process as binary data (used in prepared statements)")
+			decodedData = data
 		}
-		data, err = processor.Process(data, ctx)
+		data, err = processor.Process(decodedData, ctx)
 		if err != nil {
 			return data, err
 		}
