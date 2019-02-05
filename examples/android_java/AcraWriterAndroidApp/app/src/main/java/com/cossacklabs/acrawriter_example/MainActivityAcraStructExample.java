@@ -4,6 +4,7 @@ import android.os.AsyncTask;
 import android.os.Bundle;
 import android.support.v7.app.AppCompatActivity;
 import android.util.Base64;
+import android.util.Log;
 
 import com.cossacklabs.acrawriter.AcraStruct;
 import com.cossacklabs.acrawriter.AcraWriter;
@@ -28,12 +29,35 @@ public class MainActivityAcraStructExample extends AppCompatActivity {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
 
-        // Secure cell
         try {
-            generateAndSendAcraStruct();
-            generateAndSendAcraStructWithZone();
+            // use to generate AcraStruct and log it
+            generateAcraStructLocally();
+
+            // use with running AcraTranslator
+//            generateAndSendAcraStruct();
+//            generateAndSendAcraStructWithZone();
 
         } catch (InvalidArgumentException | NullArgumentException | SecureCellException e) {
+            e.printStackTrace();
+        }
+    }
+
+    // Generate storage keys, AcraWriter is using <client_id>_storage.pub public key
+    // https://github.com/cossacklabs/acra/wiki/AcraConnector-and-AcraWriter#client-side-with-zones
+    void generateAcraStructLocally() throws SecureCellException, NullArgumentException, InvalidArgumentException {
+        String message = "local acrastruct";
+
+        String acraTranslatorPublicKey = "VUVDMgAAAC240mpnAx8FSrZxhVNPsnhhZFYAm0+ARiRDdXPKAW0vI/2AY0QM";
+        PublicKey publicKey = new PublicKey(Base64.decode(acraTranslatorPublicKey.getBytes(), Base64.NO_WRAP));
+
+        try {
+            AcraWriter aw = new AcraWriter();
+            AcraStruct acraStruct = aw.createAcraStruct(message.getBytes(), publicKey, null);
+
+            String encodedString = Base64.encodeToString(acraStruct.toByteArray(), Base64.NO_WRAP);
+            Log.d("SMC", "acrastruct in base64 = " + encodedString);
+
+        } catch (KeyGenerationException | IOException e) {
             e.printStackTrace();
         }
     }
