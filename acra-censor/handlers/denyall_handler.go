@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"github.com/cossacklabs/acra/acra-censor/common"
+	"github.com/cossacklabs/acra/logging"
 	"github.com/cossacklabs/acra/sqlparser"
 	log "github.com/sirupsen/logrus"
 )
@@ -20,7 +21,7 @@ func NewDenyallHandler() *DenyAllHandler {
 // CheckQuery blocks any input query
 func (handler *DenyAllHandler) CheckQuery(sqlQuery string, parsedQuery sqlparser.Statement) (bool, error) {
 	// deny any query and stop further checks
-	handler.logger.Errorf("Query has been block by Denyall handler")
+	handler.logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCensorQueryIsNotAllowed).Errorf("Query has been block by Denyall handler")
 	return false, common.ErrDenyAllError
 }
 

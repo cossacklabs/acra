@@ -57,7 +57,7 @@ func main() {
 
 	err := cmd.Parse(defaultConfigPath, serviceName)
 	if err != nil {
-		log.WithError(err).Errorln("can't parse args")
+		log.WithError(err).Errorln("Can't parse args")
 		os.Exit(1)
 	}
 	//LoadFromConfig(defaultConfigPath)
@@ -65,24 +65,24 @@ func main() {
 
 	output, err := filepath.Abs(*outputDir)
 	if err != nil {
-		log.WithError(err).Errorln("can't get absolute path for output dir")
+		log.WithError(err).Errorln("Can't get absolute path for output dir")
 		os.Exit(1)
 	}
 	var keyStore keystore.KeyStore
 	if *fsKeystore {
 		masterKey, err := keystore.GetMasterKeyFromEnvironment()
 		if err != nil {
-			log.WithError(err).Errorln("can't load master key")
+			log.WithError(err).Errorln("Can't load master key")
 			os.Exit(1)
 		}
 		scellEncryptor, err := keystore.NewSCellKeyEncryptor(masterKey)
 		if err != nil {
-			log.WithError(err).Errorln("can't init scell encryptor")
+			log.WithError(err).Errorln("Can't init scell encryptor")
 			os.Exit(1)
 		}
 		keyStore, err = filesystem.NewFilesystemKeyStore(output, scellEncryptor)
 		if err != nil {
-			log.WithError(err).Errorln("can't create key store")
+			log.WithError(err).Errorln("Can't create key store")
 			os.Exit(1)
 		}
 	} else {
@@ -90,12 +90,12 @@ func main() {
 	}
 	id, publicKey, err := keyStore.GenerateZoneKey()
 	if err != nil {
-		log.WithError(err).Errorln("can't add zone")
+		log.WithError(err).Errorln("Can't add zone")
 		os.Exit(1)
 	}
 	json, err := zone.ZoneDataToJSON(id, &keys.PublicKey{Value: publicKey})
 	if err != nil {
-		log.WithError(err).Errorln("can't encode to json")
+		log.WithError(err).Errorln("Can't encode to json")
 		os.Exit(1)
 	}
 	fmt.Println(string(json))

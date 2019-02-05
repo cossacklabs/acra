@@ -179,7 +179,7 @@ func main() {
 	debug := flag.Bool("d", false, "Turn on debug logging")
 
 	if err := cmd.Parse(defaultConfigPath, serviceName); err != nil {
-		log.WithError(err).Errorln("can't parse cmd arguments")
+		log.WithError(err).Errorln("Can't parse cmd arguments")
 		os.Exit(1)
 	}
 
@@ -193,12 +193,12 @@ func main() {
 
 	masterKey, err := keystore.GetMasterKeyFromEnvironment()
 	if err != nil {
-		log.WithError(err).Errorln("can't load master key")
+		log.WithError(err).Errorln("Can't load master key")
 		os.Exit(1)
 	}
 	encryptor, err := keystore.NewSCellKeyEncryptor(masterKey)
 	if err != nil {
-		log.WithError(err).Errorln("can't initialize scell encryptor")
+		log.WithError(err).Errorln("Can't initialize scell encryptor")
 		os.Exit(1)
 	}
 	keyStore, err := filesystem.NewFilesystemKeyStore(*keysDir, encryptor)

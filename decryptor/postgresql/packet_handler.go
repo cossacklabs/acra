@@ -6,6 +6,7 @@ import (
 	"encoding/binary"
 	"errors"
 	"github.com/cossacklabs/acra/decryptor/base"
+	"github.com/cossacklabs/acra/logging"
 	"github.com/sirupsen/logrus"
 	"io"
 )
@@ -91,17 +92,17 @@ func (packet *PacketHandler) updateDataFromColumns() {
 func (packet *PacketHandler) sendPacket() error {
 	data, err := packet.Marshal()
 	if err != nil {
-		packet.logger.WithError(err).Errorln("Can't marshal packet")
+		packet.logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCodingCantSerializePostgresqlPacket).WithError(err).Errorln("Can't marshal packet")
 		return err
 	}
 	// anyway try to write data that was marshaled even if not full
 
 	if _, err := packet.writer.Write(data); err != nil {
-		packet.logger.WithError(err).Debugln("Can't dump marshaled packet")
+		packet.logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorNetworkWrite).WithError(err).Warningln("Can't dump marshaled packet")
 		return err
 	}
 	if err := packet.writer.Flush(); err != nil {
-		packet.logger.WithError(err).Debugln("Can't flush writer")
+		packet.logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorNetworkFlush).WithError(err).Warningln("Can't flush writer")
 		return err
 	}
 	return nil
@@ -114,7 +115,7 @@ func (packet *PacketHandler) sendMessageType() error {
 		return err2
 	}
 	if err := packet.writer.Flush(); err != nil {
-		packet.logger.WithError(err).Debugln("Can't flush writer")
+		packet.logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorNetworkFlush).WithError(err).Warningln("Can't flush writer")
 		return err
 	}
 	return nil
@@ -255,7 +256,7 @@ func (packet *PacketHandler) ReplaceQuery(newQuery string) {
 		packet.logger.Debugln("ReplaceQuery for prepared")
 		parse, err := NewParsePacket(packet.descriptionBuf.Bytes())
 		if err != nil {
-			packet.logger.WithError(err).Errorln("Can't parse Parse packet")
+			packet.logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCodingCantParsePostgresqlParseCommand).WithError(err).Errorln("Can't parse Parse packet")
 			return
 		}
 		parse.ReplaceQuery(newQuery)
@@ -333,7 +334,7 @@ func (packet *PacketHandler) ReadClientPacket() error {
 
 	n, err := io.ReadFull(packet.reader, packetBuf[:5])
 	if err := base.CheckReadWrite(n, 5, err); err != nil {
-		packet.logger.WithError(err).Debugln("Can't read first 5 bytes")
+		packet.logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorDecryptorReadPacket).WithError(err).Debugln("Can't read first 5 bytes")
 		return err
 	}
 	/*
@@ -358,7 +359,7 @@ func (packet *PacketHandler) ReadClientPacket() error {
 		packet.setDataLengthBuffer(packetBuf[1:5])
 		packet.terminatePacket = true
 		if !bytes.Equal(TerminatePacket, packetBuf[:5]) {
-			packet.logger.Warningln("Expected Terminate packet but receive something else")
+			packet.logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCodingPostgresqlUnexpectedPacket).Warningln("Expected Terminate packet but receive something else")
 			return packet.readData(false)
 		}
 		return nil
@@ -389,7 +390,7 @@ func (packet *PacketHandler) ReadClientPacket() error {
 		// startup request or unknown message type
 		default:
 			if !bytes.Equal(StartupRequest, packetBuf[4:]) {
-				packet.logger.WithField("packet_buffer", packetBuf).Warningln("Expected startup message. Process as general message.")
+				packet.logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCodingPostgresqlUnexpectedPacket).WithField("packet_buffer", packetBuf).Warningln("Expected startup message. Process as general message.")
 				// we took unknown message type that wasn't recognized on top case and it's not special messages startup/ssl/cancel
 				// so we process it as general message type which has first byte as type and next 4 bytes is length of message
 				// above we read 8 bytes as for special messages, so we need to read dataLength -3 bytes

@@ -36,6 +36,11 @@ const (
 	LogDiscard
 )
 
+// LoggerSetter abstract types that provide way to set logger which they should use
+type LoggerSetter interface {
+	SetLogger(*log.Entry)
+}
+
 type loggerKey struct{}
 
 // SetLogLevel sets logging level

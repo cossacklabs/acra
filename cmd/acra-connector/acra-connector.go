@@ -90,7 +90,7 @@ func handleConnection(config *Config, connection net.Conn) {
 	defer func() {
 		logger.Infoln("Close connection with client")
 		if err := connection.Close(); err != nil {
-			logger.WithError(err).Errorln("Error on closing client's connection")
+			logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantCloseConnectionToService).WithError(err).Errorln("Error on closing client's connection")
 		}
 	}()
 
@@ -330,12 +330,12 @@ func main() {
 	log.Infof("Initializing keystore...")
 	masterKey, err := keystore.GetMasterKeyFromEnvironment()
 	if err != nil {
-		log.WithError(err).Errorln("can't load master key")
+		log.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantLoadMasterKey).WithError(err).Errorln("Can't load master key")
 		os.Exit(1)
 	}
 	scellEncryptor, err := keystore.NewSCellKeyEncryptor(masterKey)
 	if err != nil {
-		log.WithError(err).Errorln("can't init scell encryptor")
+		log.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantInitPrivateKeysEncryptor).WithError(err).Errorln("Can't init scell encryptor")
 		os.Exit(1)
 	}
 	keyStore, err := filesystem.NewConnectorFileSystemKeyStore(*keysDir, []byte(*clientID), scellEncryptor, connectorMode)
@@ -354,7 +354,7 @@ func main() {
 	exists, err := keyStore.CheckIfPrivateKeyExists([]byte(*clientID))
 	if !exists || err != nil {
 		log.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorWrongConfiguration).
-			Errorf("Configuration error: can't check that AcraConnector private key exists, got error - %v", err)
+			Errorf("Configuration error: Can't check that AcraConnector private key exists, got error - %v", err)
 		os.Exit(1)
 	}
 	log.Infof("Client id = %v, and client key is OK", *clientID)
@@ -362,7 +362,7 @@ func main() {
 	_, err = keyStore.GetPeerPublicKey([]byte(*clientID))
 	if err != nil {
 		log.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorWrongConfiguration).
-			Errorf("Configuration error: can't check that %s public key exists, got error - %v", connectorMode, err)
+			Errorf("Configuration error: Can't check that %s public key exists, got error - %v", connectorMode, err)
 		os.Exit(1)
 	}
 	log.Infof("%v public key is OK", connectorMode)
@@ -394,7 +394,7 @@ func main() {
 		config.ConnectionWrapper, err = network.NewSecureSessionConnectionWrapper([]byte(*clientID), keyStore)
 		if err != nil {
 			log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorTransportConfiguration).
-				Errorln("Configuration error: can't initialize secure session connection wrapper")
+				Errorln("Configuration error: Can't initialize secure session connection wrapper")
 			os.Exit(1)
 		}
 	}
@@ -405,13 +405,13 @@ func main() {
 			tlsConfig, err := network.NewTLSConfig(network.SNIOrHostname(*tlsAcraserverSNI, *acraServerHost), *tlsCA, *tlsKey, *tlsCert, tls.ClientAuthType(*tlsAuthType))
 			if err != nil {
 				log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorTransportConfiguration).
-					Errorln("Configuration error: can't get config for TLS")
+					Errorln("Configuration error: Can't get config for TLS")
 				os.Exit(1)
 			}
 			config.ConnectionWrapper, err = network.NewTLSConnectionWrapper(nil, tlsConfig)
 			if err != nil {
 				log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorTransportConfiguration).
-					Errorln("Configuration error: can't initialize TLS connection wrapper")
+					Errorln("Configuration error: Can't initialize TLS connection wrapper")
 				os.Exit(1)
 			}
 		} else if *noEncryptionTransport {
@@ -422,7 +422,7 @@ func main() {
 			config.ConnectionWrapper, err = network.NewSecureSessionConnectionWrapper([]byte(*clientID), keyStore)
 			if err != nil {
 				log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorTransportConfiguration).
-					Errorln("Configuration error: can't initialize secure session connection wrapper")
+					Errorln("Configuration error: Can't initialize secure session connection wrapper")
 				os.Exit(1)
 			}
 		}
@@ -436,7 +436,7 @@ func main() {
 				commandsListener, err := network.Listen(*connectionAPIString)
 				if err != nil {
 					log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantStartListenConnections).
-						Errorln("System error: can't start listen connections to http API")
+						Errorln("System error: Can't start listen connections to HTTP API")
 					os.Exit(1)
 				}
 				sigHandler.AddListener(commandsListener)
@@ -444,15 +444,15 @@ func main() {
 					connection, err := commandsListener.Accept()
 					if err != nil {
 						log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantAcceptNewConnections).
-							Errorf("System error: can't accept new connection")
+							Errorf("System error: Can't accept new connection")
 						continue
 					}
 					connectionCounter.WithLabelValues(apiConnectionType).Inc()
 					// unix socket and value == '@'
 					if len(connection.RemoteAddr().String()) == 1 {
-						log.Infof("Got new connection to http API: %v", connection.LocalAddr())
+						log.Infof("Got new connection to HTTP API: %v", connection.LocalAddr())
 					} else {
-						log.Infof("Got new connection to http API: %v", connection.RemoteAddr())
+						log.Infof("Got new connection to HTTP API: %v", connection.RemoteAddr())
 					}
 					go handleAPIConnection(&commandsConfig, connection)
 				}
@@ -482,7 +482,7 @@ func main() {
 		}
 		log.Infof("Configured to send metrics and stats to `incoming_connection_prometheus_metrics_string`")
 		sigHandler.AddCallback(func() {
-			log.Infoln("Stop prometheus http exporter")
+			log.Infoln("Stop prometheus HTTP exporter")
 			prometheusHTTPServer.Close()
 		})
 	}

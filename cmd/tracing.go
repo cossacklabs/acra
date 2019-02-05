@@ -51,14 +51,14 @@ func SetupTracing(serviceName string) {
 	}
 	if IsTraceToJaegerOn() {
 		if err := ValidateJaegerCmdParameters(); err != nil {
-			log.WithError(err).Errorln("Invalid jaeger parameters")
+			log.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorJaegerInvalidParameters).WithError(err).Errorln("Invalid jaeger parameters")
 			os.Exit(1)
 		}
 		jaegerOptions := GetJaegerCmdParameters()
 		jaegerOptions.ServiceName = serviceName
 		jaegerEndpoint, err := jaeger.NewExporter(jaegerOptions)
 		if err != nil {
-			log.Fatalf("Failed to create the Jaeger exporter: %v", err)
+			log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorJaegerExporter).Fatalf("Failed to create the Jaeger exporter: %v", err)
 			os.Exit(1)
 		}
 		// And now finally register it as a Trace Exporter

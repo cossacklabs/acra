@@ -112,7 +112,7 @@ func (decryptor *HTTPConnectionsDecryptor) ParseRequestPrepareResponse(logger *l
 
 		if zoneID == nil && clientID == nil {
 			msg := fmt.Sprintf("HTTP request doesn't have a ZoneID, connection doesn't have a ClientID, expected to get one of them. Send ZoneID in request URL")
-			requestLogger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorTranslatorCantZoneIDMissing).Warningln(msg)
+			requestLogger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorTranslatorZoneIDMissing).Warningln(msg)
 			return responseWithMessage(request, http.StatusBadRequest, msg)
 		}
 
@@ -142,14 +142,14 @@ func (decryptor *HTTPConnectionsDecryptor) ParseRequestPrepareResponse(logger *l
 				// check poison records
 				poisoned, err := base.CheckPoisonRecord(acraStruct, decryptor.TranslatorData.Keystorage)
 				if err != nil {
-					requestLogger.WithError(err).Errorln("Can't check for poison record, possible missing Poison record decryption key")
+					requestLogger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorDecryptorCantCheckPoisonRecord).WithError(err).Errorln("Can't check for poison record, possible missing Poison record decryption key")
 					return response
 				}
 				if poisoned {
-					requestLogger.Errorln("Recognized poison record")
+					requestLogger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorDecryptorRecognizedPoisonRecord).Errorln("Recognized poison record")
 					if decryptor.TranslatorData.PoisonRecordCallbacks.HasCallbacks() {
 						if err := decryptor.TranslatorData.PoisonRecordCallbacks.Call(); err != nil {
-							requestLogger.WithError(err).Errorln("Unexpected error on poison record's callbacks")
+							requestLogger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorDecryptorCantHandleRecognizedPoisonRecord).WithError(err).Errorln("Unexpected error on poison record's callbacks")
 						}
 					}
 					return response
@@ -185,7 +185,7 @@ func (decryptor *HTTPConnectionsDecryptor) decryptAcraStruct(logger *log.Entry, 
 	}
 
 	if err != nil {
-		logger.Errorln("Can't load private key to decrypt AcraStruct")
+		logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantReadKeys).Errorln("Can't load private key to decrypt AcraStruct")
 		return nil, err
 	}
 

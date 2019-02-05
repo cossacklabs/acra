@@ -99,7 +99,7 @@ func NewTLSConfig(serverName string, caPath, keyPath, crtPath string, authType t
 		}
 		log.Debugln("Adding CA root certificate")
 		if ok := roots.AppendCertsFromPEM(caPem); !ok {
-			log.Errorln("Can't add CA certificate from PEM")
+			log.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorNetworkTLSGeneral).Errorln("Can't add CA certificate from PEM")
 			return nil, errors.New("can't add CA certificate")
 		}
 	}

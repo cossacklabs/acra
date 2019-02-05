@@ -18,6 +18,7 @@ package network
 
 import (
 	"context"
+	"github.com/cossacklabs/acra/logging"
 	"net"
 
 	"github.com/cossacklabs/acra/keystore"
@@ -56,7 +57,7 @@ func (listener *SecureSessionListener) Accept() (net.Conn, error) {
 	}
 	wrappedConnection, _, err := listener.wrapper.WrapServer(context.TODO(), conn)
 	if err != nil {
-		log.WithError(err).Errorln("Can't wrap connection with secure session")
+		log.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantWrapConnection).WithError(err).Errorln("Can't wrap connection with secure session")
 		// mark that it's not fatal error and may be temporary (need for grpc that stop listening on non-temporary error
 		// from listener.Accept
 		return nil, err

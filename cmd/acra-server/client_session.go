@@ -113,35 +113,31 @@ func (clientSession *ClientSession) HandleClientConnection(clientID []byte, prox
 		clientAcraSide = "Client/Connector<->Database"
 	)
 	var interruptSide string
-	for {
-		select {
-		case err = <-dbProxyErrorCh:
-			clientSession.logger.Debugln("Stop to proxy Database -> AcraServer")
-			interruptSide = acraDbSide
-			channelToWait = clientProxyErrorCh
-			break
-		case err = <-clientProxyErrorCh:
-			interruptSide = clientAcraSide
-			clientSession.logger.Debugln("Stop to proxy AcraServer -> Client")
-			channelToWait = dbProxyErrorCh
-			break
-		}
-		clientSession.logger = clientSession.logger.WithField("interrupt_side", interruptSide)
-		if err == io.EOF {
-			clientSession.logger.Debugln("EOF connection closed")
-		} else if err == nil {
-			clientSession.logger.Debugln("Err == nil from proxy goroutine")
-			break
-		} else if netErr, ok := err.(net.Error); ok {
-			clientSession.logger.WithError(netErr).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantHandleSecureSession).
-				Errorln("Network error")
-		} else if opErr, ok := err.(*net.OpError); ok {
-			clientSession.logger.WithError(opErr).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantHandleSecureSession).Errorln("Network error")
-		} else {
-			clientSession.logger.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantHandleSecureSession).Errorln("Unexpected error")
-		}
-		break
+
+	select {
+	case err = <-dbProxyErrorCh:
+		clientSession.logger.Debugln("Stop to proxy Database -> AcraServer")
+		interruptSide = acraDbSide
+		channelToWait = clientProxyErrorCh
+	case err = <-clientProxyErrorCh:
+		interruptSide = clientAcraSide
+		clientSession.logger.Debugln("Stop to proxy AcraServer -> Client")
+		channelToWait = dbProxyErrorCh
 	}
+	clientSession.logger = clientSession.logger.WithField("interrupt_side", interruptSide)
+	if err == io.EOF {
+		clientSession.logger.Debugln("EOF connection closed")
+	} else if err == nil {
+		clientSession.logger.Debugln("Err == nil from proxy goroutine")
+	} else if netErr, ok := err.(net.Error); ok {
+		clientSession.logger.WithError(netErr).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorGeneralConnectionProcessing).
+			Errorln("Network error")
+	} else if opErr, ok := err.(*net.OpError); ok {
+		clientSession.logger.WithError(opErr).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorGeneralConnectionProcessing).Errorln("Network error")
+	} else {
+		clientSession.logger.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorGeneralConnectionProcessing).Errorln("Unexpected error")
+	}
+
 	clientSession.logger.Infof("Closing client's connection")
 	clientSession.close()
 

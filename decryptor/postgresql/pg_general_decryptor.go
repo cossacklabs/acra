@@ -55,10 +55,11 @@ type PgDecryptor struct {
 // by default checks poison recods and uses WholeMatch mode without zones
 func NewPgDecryptor(clientID []byte, decryptor base.DataDecryptor, withZone bool, keystore keystore.KeyStore) *PgDecryptor {
 	logger := logrus.WithField("client_id", string(clientID))
+	decryptor.SetLogger(logger)
 	return &PgDecryptor{
 		isWithZone:      withZone,
 		pgDecryptor:     decryptor,
-		binaryDecryptor: binary.NewBinaryDecryptor(),
+		binaryDecryptor: binary.NewBinaryDecryptor(logger),
 		clientID:        clientID,
 		// longest tag (escape) + bin
 		matchBuffer:          make([]byte, len(EscapeTagBegin)+len(base.TagBegin)),
@@ -69,6 +70,12 @@ func NewPgDecryptor(clientID []byte, decryptor base.DataDecryptor, withZone bool
 		keyStore:             keystore,
 		dataProcessorContext: base.NewDataProcessorContext(clientID, withZone, keystore).UseContext(logging.SetLoggerToContext(context.Background(), logger)),
 	}
+}
+
+// SetLogger set logger
+func (decryptor *PgDecryptor) SetLogger(logger *logrus.Entry) {
+	decryptor.binaryDecryptor.SetLogger(logger)
+	decryptor.pgDecryptor.SetLogger(logger)
 }
 
 // SetWithZone enables or disables decrypting with ZoneID
@@ -329,17 +336,17 @@ func (decryptor *PgDecryptor) CheckPoisonRecord(reader io.Reader) (bool, error) 
 	// check poison record
 	poisonKeypair, err := decryptor.keyStore.GetPoisonKeyPair()
 	if err != nil {
-		decryptor.logger.WithError(err).Errorln("Can't load poison keypair")
+		decryptor.logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantReadKeys).WithError(err).Errorln("Can't load poison keypair")
 		return true, err
 	}
 	// try decrypt using poison key pair
 	_, _, err = decryptor.matchedDecryptor.ReadSymmetricKey(poisonKeypair.Private, reader)
 	if err == nil {
-		decryptor.logger.Warningln("Recognized poison record")
+		decryptor.logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorDecryptorRecognizedPoisonRecord).Warningln("Recognized poison record")
 		if decryptor.GetPoisonCallbackStorage().HasCallbacks() {
 			err = decryptor.GetPoisonCallbackStorage().Call()
 			if err != nil {
-				decryptor.logger.WithError(err).Errorln("Unexpected error in poison record callbacks")
+				decryptor.logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorDecryptorCantCheckPoisonRecord).WithError(err).Errorln("Unexpected error in poison record callbacks")
 			}
 		}
 		return true, nil

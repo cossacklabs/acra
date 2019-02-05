@@ -60,7 +60,7 @@ func NewMySQLDecryptor(clientID []byte, pgDecryptor *postgresql.PgDecryptor, key
 	processorCtx := base.NewDataProcessorContext(clientID, pgDecryptor.IsWithZone(), keyStore).UseContext(logging.SetLoggerToContext(context.Background(), logger))
 	decryptor := &Decryptor{
 		keyStore:             keyStore,
-		binaryDecryptor:      binary.NewBinaryDecryptor(),
+		binaryDecryptor:      binary.NewBinaryDecryptor(logger),
 		Decryptor:            pgDecryptor,
 		clientID:             clientID,
 		dataProcessorContext: processorCtx,
@@ -177,7 +177,7 @@ func (decryptor *Decryptor) checkPoisonRecord(block []byte) error {
 	decryptor.log.Debugln("Check block on poison")
 	_, err = decryptor.decryptBlock(bytes.NewReader(data), nil, decryptor.getPoisonPrivateKey)
 	if err == nil {
-		decryptor.log.Warningln("Recognized poison record")
+		decryptor.log.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorDecryptorRecognizedPoisonRecord).Warningln("Recognized poison record")
 		if decryptor.GetPoisonCallbackStorage().HasCallbacks() {
 			decryptor.log.Debugln("Check poison records")
 			if err := decryptor.GetPoisonCallbackStorage().Call(); err != nil {
@@ -205,10 +205,10 @@ func (decryptor *Decryptor) inlinePoisonRecordCheck(block []byte) error {
 		if beginTagIndex == utils.NotFound {
 			break
 		} else {
-			log.Debugln("Found AcraStruct")
+			decryptor.log.Debugln("Found AcraStruct")
 			err := decryptor.checkPoisonRecord(block[index+beginTagIndex:])
 			if err != nil {
-				decryptor.log.WithError(err).Errorln("Can't check on poison record")
+				decryptor.log.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorDecryptorCantCheckPoisonRecord).WithError(err).Errorln("Can't check on poison record")
 				return err
 			}
 
@@ -225,7 +225,7 @@ func (decryptor *Decryptor) decryptBlock(reader io.Reader, id []byte, keyFunc ge
 	logger := decryptor.log.WithField("zone_id", string(id))
 	privateKey, err := keyFunc()
 	if err != nil {
-		logger.WithError(err).Warningln("Can't read private key")
+		logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantReadKeys).WithError(err).Warningln("Can't read private key")
 		return []byte{}, err
 	}
 	key, _, err := decryptor.ReadSymmetricKey(privateKey, reader)

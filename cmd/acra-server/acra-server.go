@@ -95,7 +95,7 @@ func main() {
 	flag.Bool("acrastruct_wholecell_enable", true, "Acrastruct will stored in whole data cell")
 	injectedcell := flag.Bool("acrastruct_injectedcell_enable", false, "Acrastruct may be injected into any place of data cell")
 
-	debugServer := flag.Bool("ds", false, "Turn on http debug server")
+	debugServer := flag.Bool("ds", false, "Turn on HTTP debug server")
 	closeConnectionTimeout := flag.Int("incoming_connection_close_timeout", defaultAcraserverWaitTimeout, "Time that AcraServer will wait (in seconds) on restart before closing all connections")
 
 	detectPoisonRecords := flag.Bool("poison_detect_enable", true, "Turn on poison record detection, if server shutdown is disabled, AcraServer logs the poison record detection and returns decrypted data")
@@ -346,7 +346,7 @@ func main() {
 		}
 		log.Infof("Configured to send metrics and stats to `incoming_connection_prometheus_metrics_string`")
 		stopPrometheusServer := func() {
-			log.Infoln("Stop prometheus http exporter")
+			log.Infoln("Stop prometheus HTTP exporter")
 			if err := prometheusHTTPServer.Close(); err != nil {
 				log.WithError(err).Errorln("Error on prometheus server close")
 			}

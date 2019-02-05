@@ -24,6 +24,7 @@ import (
 	"errors"
 	"fmt"
 	"github.com/cossacklabs/acra/keystore"
+	"github.com/cossacklabs/acra/logging"
 	"github.com/cossacklabs/acra/zone"
 	"github.com/cossacklabs/themis/gothemis/keys"
 	"io"
@@ -77,6 +78,7 @@ const (
 
 // DataDecryptor describes AcraStruct decryptor.
 type DataDecryptor interface {
+	logging.LoggerSetter
 	// try match begin tag per byte
 	MatchBeginTag(byte) bool
 	// return true if all bytes from begin tag matched by MatchBeginTag

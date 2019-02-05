@@ -316,7 +316,7 @@ func parseArgon2Params(authDataSting []byte) {
 		if len(authItem) == AuthFieldCount {
 			decoded, err := base64.StdEncoding.DecodeString(string(authItem[AuthHashIDX]))
 			if err != nil {
-				log.WithError(err).Errorf("line[%v] DecodeString, user: %v", line, authItem[AuthUsernameIDX])
+				log.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantParseAuthData).WithError(err).Errorf("line[%v] DecodeString, user: %v", line, authItem[AuthUsernameIDX])
 				continue
 			}
 			argon2P := strings.Split(authItem[AuthArgon2ParamsIDX], Argon2ParamSeparator)

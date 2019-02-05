@@ -20,8 +20,8 @@ package binary
 import (
 	"bytes"
 	"encoding/binary"
-	"fmt"
 	"github.com/cossacklabs/acra/decryptor/base"
+	"github.com/cossacklabs/acra/logging"
 	"github.com/cossacklabs/acra/utils"
 	"github.com/cossacklabs/themis/gothemis/cell"
 	"github.com/cossacklabs/themis/gothemis/keys"
@@ -36,11 +36,17 @@ type Decryptor struct {
 	keyBlockBuffer []byte
 	lengthBuf      [base.DataLengthSize]byte
 	buf            []byte
+	logger         *log.Entry
 }
 
 // NewBinaryDecryptor returns new Decryptor
-func NewBinaryDecryptor() *Decryptor {
-	return &Decryptor{keyBlockBuffer: make([]byte, base.KeyBlockLength)}
+func NewBinaryDecryptor(logger *log.Entry) *Decryptor {
+	return &Decryptor{keyBlockBuffer: make([]byte, base.KeyBlockLength), logger: logger}
+}
+
+// SetLogger set logger
+func (decryptor *Decryptor) SetLogger(logger *log.Entry) {
+	decryptor.logger = logger
 }
 
 // MatchBeginTag not implemented Decryptor interface
@@ -90,14 +96,14 @@ func (decryptor *Decryptor) readDataLength(reader io.Reader) (uint64, []byte, er
 	var length uint64
 	lenCount, err := io.ReadFull(reader, decryptor.lengthBuf[:])
 	if err != nil {
-		log.Warningf("%v", utils.ErrorMessage("can't read data length", err))
+		decryptor.logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorDecryptorReadPacket).WithError(err).Warningln("Can't read data length")
 		if err == io.ErrUnexpectedEOF || err == io.EOF {
 			return uint64(lenCount), decryptor.lengthBuf[:lenCount], base.ErrFakeAcraStruct
 		}
 		return 0, []byte{}, err
 	}
 	if lenCount != len(decryptor.lengthBuf) {
-		log.Warningf("incorrect length count, %v!=%v", lenCount, len(decryptor.lengthBuf))
+		decryptor.logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorDecryptorReadPacket).Warningf("Incorrect length count, %v!=%v", lenCount, len(decryptor.lengthBuf))
 		return 0, decryptor.lengthBuf[:lenCount], base.ErrFakeAcraStruct
 	}
 	// convert from little endian
@@ -115,14 +121,14 @@ func (decryptor *Decryptor) readScellData(length uint64, reader io.Reader) ([]by
 	decryptor.checkBuf(&decryptor.buf, length)
 	n, err := io.ReadFull(reader, decryptor.buf[:length])
 	if err != nil {
-		log.Warningf("%v", utils.ErrorMessage(fmt.Sprintf("can't read scell data with passed length=%v", length), err))
+		decryptor.logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorDecryptorReadPacket).WithError(err).Warningf("Can't read scell data with passed length=%v", length)
 		if err == io.ErrUnexpectedEOF || err == io.EOF {
 			return nil, decryptor.buf[:n], base.ErrFakeAcraStruct
 		}
 		return nil, decryptor.buf[:n], err
 	}
 	if uint64(n) != length {
-		log.Warningf("%v", utils.ErrorMessage("Can't decode hex data", err))
+		decryptor.logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCodingCantDecodeHexData).WithError(err).Warningln("Can't decode hex data")
 		return nil, decryptor.buf[:n], base.ErrFakeAcraStruct
 	}
 	return decryptor.buf[:length], decryptor.buf[:length], nil
