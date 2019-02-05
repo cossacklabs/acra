@@ -25,8 +25,13 @@ for version in $VERSIONS; do
     
     echo "--------------------  Testing with TEST_TLS=${TEST_TLS}"
 
-    python3 tests/test.py -v;
-    if [ "$?" != "0" ]; then echo "golang-$version test_tls=${TEST_TLS}" >> "$FILEPATH_ERROR_FLAG";
+    # use nohup to ignore unknown sighup signals from test environment (detected on circleci)
+    nohup python3 tests/test.py -v > logs.txt;
+    if [[ "$?" != "0" ]]; then
+        echo "golang-$version tls_on=${tls_mode}" >> "$FILEPATH_ERROR_FLAG";
+    else
+        echo "no errors";
     fi
-
+    cat logs.txt;
+    rm logs.txt;
 done

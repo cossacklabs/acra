@@ -152,7 +152,7 @@ PG_UNIX_HOST = '/tmp'
 
 DB_USER = os.environ.get('TEST_DB_USER', 'postgres')
 DB_USER_PASSWORD = os.environ.get('TEST_DB_USER_PASSWORD', 'postgres')
-SSLMODE = os.environ.get('TEST_SSL_MODE', 'require')
+SSLMODE = os.environ.get('TEST_SSL_MODE', 'require' if TEST_WITH_TLS else 'disable')
 TEST_MYSQL = bool(os.environ.get('TEST_MYSQL', False))
 if TEST_MYSQL:
     TEST_POSTGRESQL = False
