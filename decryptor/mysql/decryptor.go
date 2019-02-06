@@ -48,12 +48,6 @@ type Decryptor struct {
 	dataProcessorContext *base.DataProcessorContext
 }
 
-// Possible decryption modes: AcraStruct can start from beginning of cell, or be part of the cell
-const (
-	DecryptWhole  = "whole_block"
-	DecryptInline = "inline_block"
-)
-
 // NewMySQLDecryptor returns Decryptor with turned on poison record detection
 func NewMySQLDecryptor(clientID []byte, pgDecryptor *postgresql.PgDecryptor, keyStore keystore.KeyStore) *Decryptor {
 	logger := log.WithFields(log.Fields{"decryptor": "mysql", "client_id": string(clientID)})
@@ -222,10 +216,11 @@ type getKeyFunc func() (*keys.PrivateKey, error)
 
 // decryptBlock try to process data after BEGIN_TAG, decrypt and return result
 func (decryptor *Decryptor) decryptBlock(reader io.Reader, id []byte, keyFunc getKeyFunc) ([]byte, error) {
-	logger := decryptor.log.WithField("zone_id", string(id))
+	logger := decryptor.log.WithField("zone_id", string(decryptor.GetMatchedZoneID()))
+
 	privateKey, err := keyFunc()
 	if err != nil {
-		logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantReadKeys).WithError(err).Warningln("Can't read private key")
+		logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantReadKeys).WithError(err).Warningln("Can't read private key for matched client_id/zone_id")
 		return []byte{}, err
 	}
 	key, _, err := decryptor.ReadSymmetricKey(privateKey, reader)
@@ -238,6 +233,7 @@ func (decryptor *Decryptor) decryptBlock(reader io.Reader, id []byte, keyFunc ge
 		logger.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorDecryptorCantDecryptBinary).Warningln("Can't decrypt data with unwrapped symmetric key")
 		return []byte{}, err
 	}
+
 	logger.Infoln("Decrypted AcraStruct")
 	return data, nil
 }
@@ -246,12 +242,16 @@ func (decryptor *Decryptor) decryptBlock(reader io.Reader, id []byte, keyFunc ge
 // if WholeMode: Decryptor tries to find AcraStruct from the beginning of cell
 // if InlineMode: Decryptor tries to find AcraStruct in the middle of cell
 func (decryptor *Decryptor) SetWholeMatch(value bool) {
+	var mode string
 	if value {
 		decryptor.decryptFunc = decryptor.decryptWholeBlock
-		decryptor.log = decryptor.log.WithField("decrypt_mode", DecryptWhole)
+		mode = base.DecryptWhole
 	} else {
 		decryptor.decryptFunc = decryptor.decryptInlineBlock
-		decryptor.log = decryptor.log.WithField("decrypt_mode", DecryptInline)
+		mode = base.DecryptInline
+	}
+	if logging.IsDebugLevel(decryptor.log) {
+		decryptor.log = decryptor.log.WithField("decrypt_mode", mode)
 	}
 }
 
@@ -265,7 +265,7 @@ func (decryptor *Decryptor) decryptWholeBlock(block []byte) ([]byte, error) {
 			if err := decryptor.checkPoisonRecord(block); err != nil {
 				return nil, err
 			}
-			decryptor.log.Debugln("Can't decrypt block")
+			decryptor.log.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorDecryptorCantDecryptBinary).WithError(err).Warningln("Can't decrypt AcraStruct")
 			return nil, err
 		}
 		base.AcrastructDecryptionCounter.WithLabelValues(base.DecryptionTypeSuccess).Inc()
@@ -285,7 +285,6 @@ func (decryptor *Decryptor) decryptWholeBlock(block []byte) ([]byte, error) {
 func (decryptor *Decryptor) decryptInlineBlock(block []byte) ([]byte, error) {
 	var output bytes.Buffer
 	index := 0
-	decryptor.log.Debugf("block len %v", len(block))
 	if decryptor.IsWithZone() && !decryptor.IsMatchedZone() {
 		decryptor.MatchZoneInBlock(block)
 		if err := decryptor.inlinePoisonRecordCheck(block); err != nil {
@@ -310,7 +309,7 @@ func (decryptor *Decryptor) decryptInlineBlock(block []byte) ([]byte, error) {
 			}
 			output.Write(block[index : index+1])
 			index++
-			decryptor.log.Debugln("Can't decrypt block")
+			decryptor.log.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorDecryptorCantDecryptBinary).WithError(err).Warningln("Can't decrypt AcraStruct")
 			continue
 		}
 		base.AcrastructDecryptionCounter.WithLabelValues(base.DecryptionTypeSuccess).Inc()

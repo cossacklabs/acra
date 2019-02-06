@@ -124,9 +124,9 @@ func IsBinaryColumn(value byte) bool {
 }
 
 // ResponseHandler database response header
-type ResponseHandler func(packet *Packet, dbConnection, clientConnection net.Conn) error
+type ResponseHandler func(ctx context.Context, packet *Packet, dbConnection, clientConnection net.Conn) error
 
-func defaultResponseHandler(packet *Packet, _, clientConnection net.Conn) error {
+func defaultResponseHandler(ctx context.Context, packet *Packet, _, clientConnection net.Conn) error {
 	if _, err := clientConnection.Write(packet.Dump()); err != nil {
 		return err
 	}
@@ -375,7 +375,8 @@ func (handler *Handler) isFieldToDecrypt(field *ColumnDescription) bool {
 	}
 }
 
-func (handler *Handler) processTextDataRow(rowData []byte, fields []*ColumnDescription) ([]byte, error) {
+func (handler *Handler) processTextDataRow(ctx context.Context, rowData []byte, fields []*ColumnDescription) ([]byte, error) {
+	span := trace.FromContext(ctx)
 	var err error
 	var value []byte
 	var pos int
@@ -392,9 +393,12 @@ func (handler *Handler) processTextDataRow(rowData []byte, fields []*ColumnDescr
 		if handler.isFieldToDecrypt(fields[i]) {
 			decryptedValue, err := handler.decryptor.DecryptBlock(value)
 			if err == nil && decryptedValue != nil && len(decryptedValue) != len(value) {
+				base.AcrastructDecryptionCounter.WithLabelValues(base.DecryptionTypeSuccess).Inc()
 				fieldLogger.Debugln("Update with decrypted value")
 				output = append(output, PutLengthEncodedString(decryptedValue)...)
 			} else {
+				span.AddAttributes(trace.BoolAttribute("failed_decryption", true))
+				base.AcrastructDecryptionCounter.WithLabelValues(base.DecryptionTypeFail).Inc()
 				fieldLogger.Debugln("Leave value as is")
 				output = append(output, rowData[pos:pos+n]...)
 			}
@@ -411,7 +415,8 @@ func (handler *Handler) processTextDataRow(rowData []byte, fields []*ColumnDescr
 	return output, nil
 }
 
-func (handler *Handler) processBinaryDataRow(rowData []byte, fields []*ColumnDescription) ([]byte, error) {
+func (handler *Handler) processBinaryDataRow(ctx context.Context, rowData []byte, fields []*ColumnDescription) ([]byte, error) {
+	span := trace.FromContext(ctx)
 	pos := 0
 	var n int
 	var err error
@@ -451,9 +456,12 @@ func (handler *Handler) processBinaryDataRow(rowData []byte, fields []*ColumnDes
 			}
 			decryptedValue, err := handler.decryptor.DecryptBlock(value)
 			if err != nil {
+				span.AddAttributes(trace.BoolAttribute("failed_decryption", true))
+				base.AcrastructDecryptionCounter.WithLabelValues(base.DecryptionTypeFail).Inc()
 				handler.logger.Debugln("Leave value as is")
 			}
 			if decryptedValue != nil && err == nil && len(value) != len(decryptedValue) {
+				base.AcrastructDecryptionCounter.WithLabelValues(base.DecryptionTypeSuccess).Inc()
 				output = append(output, PutLengthEncodedString(decryptedValue)...)
 			} else {
 				output = append(output, rowData[pos:pos+n]...)
@@ -532,7 +540,7 @@ func (handler *Handler) isPreparedStatementResult() bool {
 }
 
 // QueryResponseHandler parses data from database response
-func (handler *Handler) QueryResponseHandler(packet *Packet, dbConnection, clientConnection net.Conn) (err error) {
+func (handler *Handler) QueryResponseHandler(ctx context.Context, packet *Packet, dbConnection, clientConnection net.Conn) (err error) {
 	handler.resetQueryHandler()
 	handler.decryptor.Reset()
 	handler.decryptor.ResetZoneMatch()
@@ -591,7 +599,7 @@ func (handler *Handler) QueryResponseHandler(packet *Packet, dbConnection, clien
 				if fieldDataPacket.data[0] == EOFPacket {
 					break
 				}
-				newData, err := handler.processBinaryDataRow(fieldDataPacket.GetData(), fields)
+				newData, err := handler.processBinaryDataRow(ctx, fieldDataPacket.GetData(), fields)
 				if err != nil {
 					handler.logger.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorProtocolProcessing).
 						Debugln("Can't process binary data row")
@@ -625,7 +633,7 @@ func (handler *Handler) QueryResponseHandler(packet *Packet, dbConnection, clien
 					continue
 				}
 				dataLog.Debugln("Process data text row")
-				newData, err := handler.processTextDataRow(fieldDataPacket.GetData(), fields)
+				newData, err := handler.processTextDataRow(ctx, fieldDataPacket.GetData(), fields)
 				if err != nil {
 					dataLog.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorProtocolProcessing).
 						Debugln("Can't process text data row")
@@ -659,7 +667,7 @@ func (handler *Handler) QueryResponseHandler(packet *Packet, dbConnection, clien
 
 // ProxyDatabaseConnection handles connection from database, returns data to client
 func (handler *Handler) ProxyDatabaseConnection(errCh chan<- error) {
-	ctx, span := trace.StartSpan(handler.ctx, "DbToClientConnector")
+	ctx, span := trace.StartSpan(handler.ctx, "ProxyDatabaseConnection")
 	defer span.End()
 	serverLog := handler.logger.WithField("proxy", "server")
 	serverLog.Debugln("Start proxy db responses")
@@ -681,7 +689,7 @@ func (handler *Handler) ProxyDatabaseConnection(errCh chan<- error) {
 	}()
 	for {
 		packetSpanEndFunc()
-		_, packetSpan := trace.StartSpan(ctx, "DbToClientConnectorLoop")
+		_, packetSpan := trace.StartSpan(ctx, "ProxyDatabaseConnectionLoop")
 		packetSpanEndFunc = packetSpan.End
 
 		timerObserveFunc()
@@ -723,7 +731,7 @@ func (handler *Handler) ProxyDatabaseConnection(errCh chan<- error) {
 			serverLog.Debugf("Set support protocol 41 %v", handler.serverProtocol41)
 		}
 		responseHandler = handler.getResponseHandler()
-		err = responseHandler(packet, handler.dbConnection, handler.clientConnection)
+		err = responseHandler(ctx, packet, handler.dbConnection, handler.clientConnection)
 		if err != nil {
 			handler.resetQueryHandler()
 			errCh <- err

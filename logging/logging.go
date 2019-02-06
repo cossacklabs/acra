@@ -43,6 +43,11 @@ type LoggerSetter interface {
 
 type loggerKey struct{}
 
+// IsDebugLevel return true if logger configured to log debug messages
+func IsDebugLevel(logger *log.Entry) bool {
+	return logger.Level == log.DebugLevel
+}
+
 // SetLogLevel sets logging level
 func SetLogLevel(level int) {
 	if level == LogDebug {

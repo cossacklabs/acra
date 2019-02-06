@@ -48,7 +48,7 @@ type SessionCallback struct {
 // GetPublicKeyForId from Themis, returns correct public for particular secure session id
 func (callback *SessionCallback) GetPublicKeyForId(ss *session.SecureSession, id []byte) *keys.PublicKey {
 	if !bytes.Equal(id, callback.expectedID) {
-		log.WithField("client_id", id).Warningln("Come secure session connection with unexpected id")
+		log.WithField("client_id", string(id)).Warningln("Come secure session connection with unexpected id")
 		return nil
 	}
 	log.Infof("Load public key for id <%v>", string(id))

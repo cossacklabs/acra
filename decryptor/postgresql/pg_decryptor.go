@@ -327,7 +327,7 @@ func (proxy *PgProxy) processWholeBlockDecryption(ctx context.Context, packet *P
 	if err != nil {
 		span.AddAttributes(trace.BoolAttribute("failed_decryption", true))
 		// check poison records on failed decryption
-		logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorDecryptorCantDecryptBinary).WithError(err).Errorln("Can't decrypt possible AcraStruct")
+		logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorDecryptorCantDecryptBinary).WithError(err).Warningln("Can't decrypt AcraStruct")
 		base.AcrastructDecryptionCounter.WithLabelValues(base.DecryptionTypeFail).Inc()
 		if decryptor.IsPoisonRecordCheckOn() {
 			decryptor.Reset()
@@ -422,14 +422,12 @@ func (proxy *PgProxy) processInlineBlockDecryption(ctx context.Context, packet *
 
 		key, err := decryptor.GetPrivateKey()
 		if err != nil {
-			logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantReadKeys).WithError(err).Warningln("Can't read private key")
+			logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantReadKeys).WithError(err).Warningln("Can't read private key for matched client_id/zone_id")
 			if decryptor.IsPoisonRecordCheckOn() {
 				logger.Infoln("Check poison records")
 				blockReader := bytes.NewReader(column.Data[beginTagIndex+tagLength:])
 				poisoned, err := decryptor.CheckPoisonRecord(blockReader)
-				err = handlePoisonCheckResult(decryptor, poisoned, err, logger)
-				if err != nil {
-					logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorDecryptorCantCheckPoisonRecord).WithError(err).Errorln("Error on poison record processing")
+				if err = handlePoisonCheckResult(decryptor, poisoned, err, logger); err != nil {
 					return err
 				}
 			}
@@ -441,14 +439,12 @@ func (proxy *PgProxy) processInlineBlockDecryption(ctx context.Context, packet *
 		if err != nil {
 			span.AddAttributes(trace.BoolAttribute("failed_decryption", true))
 			base.AcrastructDecryptionCounter.WithLabelValues(base.DecryptionTypeFail).Inc()
-			logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorDecryptorCantDecryptSymmetricKey).WithError(err).Warningln("Can't unwrap symmetric key")
+			logger.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorDecryptorCantDecryptSymmetricKey).Warningln("Can't unwrap symmetric key")
 			if decryptor.IsPoisonRecordCheckOn() {
 				logger.Infoln("Check poison records")
 				blockReader = bytes.NewReader(column.Data[beginTagIndex+tagLength:])
 				poisoned, err := decryptor.CheckPoisonRecord(blockReader)
-				err = handlePoisonCheckResult(decryptor, poisoned, err, logger)
-				if err != nil {
-					logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorDecryptorCantCheckPoisonRecord).WithError(err).Errorln("Error on poison record processing")
+				if err = handlePoisonCheckResult(decryptor, poisoned, err, logger); err != nil {
 					return err
 				}
 			}
@@ -468,6 +464,7 @@ func (proxy *PgProxy) processInlineBlockDecryption(ctx context.Context, packet *
 			currentIndex++
 			continue
 		}
+		logger.Infoln("Decrypted AcraStruct")
 		base.AcrastructDecryptionCounter.WithLabelValues(base.DecryptionTypeSuccess).Inc()
 		outputBlock.Write(decryptedData)
 		currentIndex += tagLength + (len(column.Data[beginTagIndex+tagLength:]) - blockReader.Len())
@@ -651,17 +648,21 @@ func (proxy *PgProxy) ProxyDatabaseConnection(errCh chan<- error) {
 					continue
 				}
 
+				// create temporary logger to log related zone_id in flow of decryption
+				// client_id set on higher level on start of processing connection
+				decryptionLogger := logger.WithField("zone_id", string(proxy.decryptor.GetMatchedZoneID()))
+
 				if proxy.decryptor.IsWholeMatch() {
-					err = proxy.processWholeBlockDecryption(packetCtx, packetHandler, column, proxy.decryptor, logger)
+					err = proxy.processWholeBlockDecryption(packetCtx, packetHandler, column, proxy.decryptor, decryptionLogger)
 					if err != nil {
-						logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorDecryptorCantDecryptBinary).WithError(err).Errorln("Can't process whole block")
+						decryptionLogger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorDecryptorCantDecryptBinary).WithError(err).Errorln("Can't process whole block")
 						errCh <- err
 						return
 					}
 				} else {
-					err = proxy.processInlineBlockDecryption(packetCtx, packetHandler, column, proxy.decryptor, logger)
+					err = proxy.processInlineBlockDecryption(packetCtx, packetHandler, column, proxy.decryptor, decryptionLogger)
 					if err != nil {
-						logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorDecryptorCantDecryptBinary).WithError(err).Errorln("Can't process block with inline mode")
+						decryptionLogger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorDecryptorCantDecryptBinary).WithError(err).Errorln("Can't process block with inline mode")
 						errCh <- err
 						return
 					}

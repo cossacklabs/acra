@@ -76,6 +76,12 @@ const (
 	DataLengthSize = 8
 )
 
+// Possible decryption modes: AcraStruct can start from beginning of cell, or be part of the cell
+const (
+	DecryptWhole  = "whole_block"
+	DecryptInline = "inline_block"
+)
+
 // DataDecryptor describes AcraStruct decryptor.
 type DataDecryptor interface {
 	logging.LoggerSetter

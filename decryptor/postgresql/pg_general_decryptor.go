@@ -194,28 +194,36 @@ func (decryptor *PgDecryptor) ReadData(symmetricKey, zoneID []byte, reader io.Re
 	so we need return diff of two matches 'BE' and decrypted data
 	*/
 
+	// add zone_id to log if it used
+	logger := logrus.NewEntry(decryptor.logger.Logger)
+	if decryptor.GetMatchedZoneID() != nil {
+		logger = decryptor.logger.WithField("zone_id", string(decryptor.GetMatchedZoneID()))
+		// use temporary logger in matched decryptor
+		decryptor.matchedDecryptor.SetLogger(logger)
+		// reset to default logger without zone_id
+		defer decryptor.matchedDecryptor.SetLogger(decryptor.logger)
+	}
+
 	// take length of fully matched tag begin (each decryptor match tag begin with different length)
 	correctMatchBeginTagLength := len(decryptor.matchedDecryptor.GetMatched())
 	// take diff count of matched between two decryptors
 	falseBufferedBeginTagLength := decryptor.matchIndex - correctMatchBeginTagLength
 	if falseBufferedBeginTagLength > 0 {
-		decryptor.logger.Debugf("Return with false matched %v bytes", falseBufferedBeginTagLength)
+		logger.Debugf("Return with false matched %v bytes", falseBufferedBeginTagLength)
 		decrypted, err := decryptor.matchedDecryptor.ReadData(symmetricKey, zoneID, reader)
-		return append(decryptor.matchBuffer[:falseBufferedBeginTagLength], decrypted...), err
-	}
-	// add zone_id to log if it used
-	var tempLogger *logrus.Entry
-	if decryptor.GetMatchedZoneID() != nil {
-		tempLogger = decryptor.logger.WithField("zone_id", string(decryptor.GetMatchedZoneID()))
-	} else {
-		tempLogger = decryptor.logger
+		if err != nil {
+			return nil, err
+		}
+		logger.Infof("Decrypted AcraStruct")
+		return append(decryptor.matchBuffer[:falseBufferedBeginTagLength], decrypted...), nil
 	}
 
 	decrypted, err := decryptor.matchedDecryptor.ReadData(symmetricKey, zoneID, reader)
-	if err == nil {
-		tempLogger.Infof("Decrypted AcraStruct")
+	if err != nil {
+		return nil, err
 	}
-	return decrypted, err
+	logger.Infof("Decrypted AcraStruct")
+	return decrypted, nil
 }
 
 // SetKeyStore sets keystore
@@ -265,6 +273,12 @@ func (decryptor *PgDecryptor) IsWholeMatch() bool {
 // SetWholeMatch sets isWholeMatch
 func (decryptor *PgDecryptor) SetWholeMatch(value bool) {
 	decryptor.isWholeMatch = value
+	if logging.IsDebugLevel(decryptor.logger) {
+		if value {
+			decryptor.logger = decryptor.logger.WithField("decrypt_mode", base.DecryptWhole)
+		}
+		decryptor.logger = decryptor.logger.WithField("decrypt_mode", base.DecryptInline)
+	}
 }
 
 // MatchZoneBlock returns zone data
