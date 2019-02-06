@@ -20,6 +20,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/hex"
+	"errors"
 	"github.com/cossacklabs/acra/decryptor/base"
 	"github.com/cossacklabs/acra/decryptor/binary"
 	"github.com/cossacklabs/acra/keystore"
@@ -30,6 +31,8 @@ import (
 	"github.com/sirupsen/logrus"
 	"io"
 )
+
+var errPlainData = errors.New("plain data without AcraStruct signature")
 
 // PgDecryptor implements particular data decryptor for PostgreSQL binary format
 type PgDecryptor struct {
@@ -336,7 +339,17 @@ func (decryptor *PgDecryptor) SkipBeginInBlock(block []byte) ([]byte, error) {
 // appends HEX Prefix for Hex bytes mode
 func (decryptor *PgDecryptor) DecryptBlock(block []byte) ([]byte, error) {
 	ctx := decryptor.dataProcessorContext.UseZoneID(decryptor.GetMatchedZoneID())
-	return decryptor.dataProcessor.Process(block, ctx)
+	decrypted, err := decryptor.dataProcessor.Process(block, ctx)
+	if err == nil {
+		return decrypted, nil
+	}
+	// avoid logging errors when block is not AcraStruct
+	if err == base.ErrIncorrectAcraStructTagBegin {
+		return nil, errPlainData
+	} else if err == base.ErrIncorrectAcraStructLength {
+		return nil, errPlainData
+	}
+	return nil, err
 }
 
 // CheckPoisonRecord tries to decrypt AcraStruct using Poison records keys

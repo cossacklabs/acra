@@ -308,7 +308,7 @@ func checkWholePoisonRecord(block []byte, decryptor base.Decryptor, logger *log.
 	decryptor.Reset()
 	skippedBegin, err := decryptor.SkipBeginInBlock(block)
 	if err != nil {
-		logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorDecryptorCantSkipBeginInBlock).WithError(err).Errorln("Can't skip begin tag for poison record check")
+		logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorDecryptorCantSkipBeginInBlock).WithError(err).Debugln("Can't skip begin tag for poison record check")
 		return nil
 	}
 	poisoned, checkErr := decryptor.CheckPoisonRecord(bytes.NewReader(skippedBegin))
@@ -324,6 +324,10 @@ func (proxy *PgProxy) processWholeBlockDecryption(ctx context.Context, packet *P
 	span := trace.FromContext(ctx)
 	decryptor.Reset()
 	decrypted, err := decryptor.DecryptBlock(column.Data)
+	if err == errPlainData {
+		// it's not AcraStruct
+		return nil
+	}
 	if err != nil {
 		span.AddAttributes(trace.BoolAttribute("failed_decryption", true))
 		// check poison records on failed decryption
