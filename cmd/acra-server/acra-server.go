@@ -355,7 +355,6 @@ func main() {
 		sigHandlerSIGTERM.AddCallback(stopPrometheusServer)
 	}
 
-	go sigHandlerSIGTERM.Register()
 	sigHandlerSIGTERM.AddCallback(func() {
 		log.Infof("Received incoming SIGTERM or SIGINT signal")
 		log.Debugf("Stop accepting new connections, waiting until current connections close")
@@ -424,6 +423,7 @@ func main() {
 		// Stop the old server, all the connections have been closed and the new one is running
 		os.Exit(0)
 	})
+	go sigHandlerSIGHUP.Register()
 
 	log.Infof("Start listening to connections. Current PID: %v", os.Getpid())
 
@@ -452,5 +452,5 @@ func main() {
 
 	// on sighup we run callback that stop all listeners (that stop background goroutine of server.Start())
 	// and try to restart acra-server and only after that exits
-	sigHandlerSIGHUP.Register()
+	sigHandlerSIGTERM.Register()
 }

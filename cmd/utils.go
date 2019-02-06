@@ -94,7 +94,7 @@ func (handler *SignalHandler) Register() {
 	for _, callback := range handler.callbacks {
 		callback()
 	}
-	os.Exit(1)
+	os.Exit(0)
 }
 
 // ValidateClientID checks that clientID has digits, letters, _ - ' '
