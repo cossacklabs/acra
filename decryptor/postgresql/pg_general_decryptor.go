@@ -217,7 +217,7 @@ func (decryptor *PgDecryptor) ReadData(symmetricKey, zoneID []byte, reader io.Re
 		if err != nil {
 			return nil, err
 		}
-		logger.Infof("Decrypted AcraStruct")
+		logger.Debugln("Decrypted AcraStruct")
 		return append(decryptor.matchBuffer[:falseBufferedBeginTagLength], decrypted...), nil
 	}
 
@@ -225,7 +225,7 @@ func (decryptor *PgDecryptor) ReadData(symmetricKey, zoneID []byte, reader io.Re
 	if err != nil {
 		return nil, err
 	}
-	logger.Infof("Decrypted AcraStruct")
+	logger.Debugln("Decrypted AcraStruct")
 	return decrypted, nil
 }
 
@@ -375,6 +375,7 @@ func (decryptor *PgDecryptor) CheckPoisonRecord(reader io.Reader) (bool, error) 
 			if err != nil {
 				decryptor.logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorDecryptorCantCheckPoisonRecord).WithError(err).Errorln("Unexpected error in poison record callbacks")
 			}
+			decryptor.logger.Debugln("Processed all callbacks on poison record")
 		}
 		return true, nil
 	}

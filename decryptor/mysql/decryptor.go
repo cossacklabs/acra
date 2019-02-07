@@ -20,6 +20,7 @@ package mysql
 import (
 	"bytes"
 	"context"
+	"errors"
 	"io"
 	"io/ioutil"
 
@@ -35,6 +36,8 @@ import (
 )
 
 type decryptFunc func([]byte) ([]byte, error)
+
+var errPlainData = errors.New("plain data without AcraStruct signature")
 
 // Decryptor used to decrypt AcraStruct from MySQL fields
 type Decryptor struct {
@@ -154,6 +157,7 @@ func (decryptor *Decryptor) CheckPoisonRecord(reader io.Reader) (bool, error) {
 	return false, decryptor.checkPoisonRecord(block)
 }
 
+// checkPoisonRecord expect that block starts with AcraStruct begin tag
 func (decryptor *Decryptor) checkPoisonRecord(block []byte) error {
 	if !decryptor.IsPoisonRecordCheckOn() {
 		return nil
@@ -234,7 +238,7 @@ func (decryptor *Decryptor) decryptBlock(reader io.Reader, id []byte, keyFunc ge
 		return []byte{}, err
 	}
 
-	logger.Infoln("Decrypted AcraStruct")
+	logger.Debugln("Decrypted AcraStruct")
 	return data, nil
 }
 
@@ -257,29 +261,39 @@ func (decryptor *Decryptor) SetWholeMatch(value bool) {
 
 func (decryptor *Decryptor) decryptWholeBlock(block []byte) ([]byte, error) {
 	decryptor.Reset()
-	if !decryptor.IsWithZone() || decryptor.IsMatchedZone() {
-		ctx := decryptor.dataProcessorContext.UseZoneID(decryptor.GetMatchedZoneID())
-		newData, err := decryptor.dataProcessor.Process(block, ctx)
-		if err != nil {
-			base.AcrastructDecryptionCounter.WithLabelValues(base.DecryptionTypeFail).Inc()
-			if err := decryptor.checkPoisonRecord(block); err != nil {
-				return nil, err
-			}
-			decryptor.log.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorDecryptorCantDecryptBinary).WithError(err).Warningln("Can't decrypt AcraStruct")
+	if decryptor.IsWithZone() && !decryptor.IsMatchedZone() {
+		decryptor.MatchZoneBlock(block)
+		// check for poison record
+		if err := decryptor.checkPoisonRecord(block); err != nil {
 			return nil, err
 		}
+		return block, nil
+	}
+
+	decryptorCtx := decryptor.dataProcessorContext.UseZoneID(decryptor.GetMatchedZoneID())
+	newData, err := decryptor.dataProcessor.Process(block, decryptorCtx)
+	// true if data has incorrect AcraStruct signature
+	dataIsNotAcraStruct := err == base.ErrIncorrectAcraStructTagBegin || err == base.ErrIncorrectAcraStructLength
+	if err == nil {
 		base.AcrastructDecryptionCounter.WithLabelValues(base.DecryptionTypeSuccess).Inc()
-		if decryptor.IsWithZone() && err == nil && len(newData) != len(block) {
+		if decryptor.IsWithZone() {
 			// reset zone because decryption is successful
 			decryptor.ResetZoneMatch()
 		}
-		return newData, err
+		return newData, nil
+	} else if dataIsNotAcraStruct {
+		// it's not AcraStruct, avoid extra check for poison record, don't log any warnings
+		// return as is
+		return nil, errPlainData
+	} else {
+		// some error on decryption (has not private key, incorrect zone_id, corrupted AcraStruct, etc);
+		decryptor.log.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorDecryptorCantDecryptBinary).WithError(err).Warningln("Can't decrypt AcraStruct")
+		// check for poison record
+		if err := decryptor.checkPoisonRecord(block); err != nil {
+			return nil, err
+		}
+		return block, nil
 	}
-	decryptor.MatchZoneBlock(block)
-	if err := decryptor.checkPoisonRecord(block); err != nil {
-		return nil, err
-	}
-	return block, nil
 }
 
 func (decryptor *Decryptor) decryptInlineBlock(block []byte) ([]byte, error) {
@@ -296,7 +310,7 @@ func (decryptor *Decryptor) decryptInlineBlock(block []byte) ([]byte, error) {
 		beginTagIndex, tagLength := decryptor.BeginTagIndex(block[index:])
 		if beginTagIndex == utils.NotFound {
 			output.Write(block[index:])
-			return output.Bytes(), nil
+			return nil, errPlainData
 		}
 		output.Write(block[index : index+beginTagIndex])
 		index += beginTagIndex

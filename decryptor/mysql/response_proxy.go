@@ -397,8 +397,10 @@ func (handler *Handler) processTextDataRow(ctx context.Context, rowData []byte, 
 				fieldLogger.Debugln("Update with decrypted value")
 				output = append(output, PutLengthEncodedString(decryptedValue)...)
 			} else {
-				span.AddAttributes(trace.BoolAttribute("failed_decryption", true))
-				base.AcrastructDecryptionCounter.WithLabelValues(base.DecryptionTypeFail).Inc()
+				if err != errPlainData {
+					span.AddAttributes(trace.BoolAttribute("failed_decryption", true))
+					base.AcrastructDecryptionCounter.WithLabelValues(base.DecryptionTypeFail).Inc()
+				}
 				fieldLogger.Debugln("Leave value as is")
 				output = append(output, rowData[pos:pos+n]...)
 			}
@@ -456,8 +458,10 @@ func (handler *Handler) processBinaryDataRow(ctx context.Context, rowData []byte
 			}
 			decryptedValue, err := handler.decryptor.DecryptBlock(value)
 			if err != nil {
-				span.AddAttributes(trace.BoolAttribute("failed_decryption", true))
-				base.AcrastructDecryptionCounter.WithLabelValues(base.DecryptionTypeFail).Inc()
+				if err != errPlainData {
+					span.AddAttributes(trace.BoolAttribute("failed_decryption", true))
+					base.AcrastructDecryptionCounter.WithLabelValues(base.DecryptionTypeFail).Inc()
+				}
 				handler.logger.Debugln("Leave value as is")
 			}
 			if decryptedValue != nil && err == nil && len(value) != len(decryptedValue) {
