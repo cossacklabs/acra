@@ -155,9 +155,11 @@ func (server *SServer) processConnection(connection net.Conn, callback *callback
 		wrapSpan.End()
 		return
 	}
+	logger = logger.WithField("client_id", string(clientID))
 	wrapSpan.End()
 	var span *trace.Span
 	if server.config.WithConnector() {
+		logger.Debugln("Read trace")
 		spanContext, err := network.ReadTrace(wrappedConnection)
 		if err != nil {
 			log.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorTracingCantReadTrace).WithError(err).Errorln("Can't read trace from Acra-Proxy")
@@ -167,7 +169,7 @@ func (server *SServer) processConnection(connection net.Conn, callback *callback
 	} else {
 		ctx, span = trace.StartSpan(wrapCtx, callback.funcName, server.config.GetTraceOptions()...)
 	}
-	ctx = logging.SetLoggerToContext(ctx, logger.WithField("client_id", string(clientID)))
+	ctx = logging.SetLoggerToContext(ctx, logger)
 	span.AddAttributes(trace.BoolAttribute("from_connector", server.config.WithConnector()))
 	defer span.End()
 	wrapSpanContext := wrapSpan.SpanContext()

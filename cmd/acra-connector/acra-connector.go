@@ -158,6 +158,7 @@ func handleConnection(config *Config, connection net.Conn) {
 		}
 	}()
 
+	logger.Debugln("Send trace")
 	if err := network.SendTrace(ctx, acraConnWrapped); err != nil {
 		logger.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorTracingCantSendTrace).
 			Errorln("Can't send trace data")

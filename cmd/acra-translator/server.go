@@ -140,6 +140,8 @@ func (server *ReaderServer) HandleConnectionString(parentContext context.Context
 				}
 				continue
 			}
+			logger = logger.WithField("client_id", string(clientID))
+			logger.Debugln("Read trace")
 			spanContext, err := network.ReadTrace(wrappedConnection)
 			if err != nil {
 				logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorTracingCantReadTrace).WithError(err).Errorln("Can't read trace from wrapped connection")
@@ -149,7 +151,6 @@ func (server *ReaderServer) HandleConnectionString(parentContext context.Context
 				continue
 			}
 			ctx, span := trace.StartSpanWithRemoteParent(listenerContext, getHandlerName(listenerContext), spanContext, server.config.GetTraceOptions()...)
-			logger = logger.WithField("client_id", string(clientID))
 			logger.Debugln("Pass wrapped connection to processing function")
 			logging.SetLoggerToContext(ctx, logger)
 

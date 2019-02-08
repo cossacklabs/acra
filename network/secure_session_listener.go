@@ -55,13 +55,14 @@ func (listener *SecureSessionListener) Accept() (net.Conn, error) {
 	if err != nil {
 		return nil, err
 	}
-	wrappedConnection, _, err := listener.wrapper.WrapServer(context.TODO(), conn)
+	wrappedConnection, clientID, err := listener.wrapper.WrapServer(context.TODO(), conn)
 	if err != nil {
 		log.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantWrapConnection).WithError(err).Errorln("Can't wrap connection with secure session")
 		// mark that it's not fatal error and may be temporary (need for grpc that stop listening on non-temporary error
 		// from listener.Accept
 		return nil, err
 	}
+	log.WithField("client_id", string(clientID)).Debugln("Read trace")
 	// connector always send trace, but now we can't pass it to grpc method
 	_, err = ReadTrace(wrappedConnection)
 	if err != nil {
