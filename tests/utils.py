@@ -15,6 +15,18 @@ TEMP_DATA_GENERATED = 'TEST_RANDOM_DATA_FOLDER_GENERATE'
 TEMP_DATA_FOLDER_VARNAME = 'TEST_RANDOM_DATA_FOLDER'
 
 
+def send_signal_by_process_name(name, signal, timeout=1):
+    separator=' '
+    try:
+        output = subprocess.check_output(['pidof', '-S', separator, name], timeout=timeout)
+    except subprocess.CalledProcessError:
+        return
+    output = output.strip().decode('utf-8').split(separator)
+    for pid in output:
+        os.kill(int(pid), signal)
+
+
+
 def get_encryptor_config(new_path):
     return os.environ.get(
         'TEST_ENCRYPTOR_DEFAULT_CONFIG', new_path)

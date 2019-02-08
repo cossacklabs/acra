@@ -58,7 +58,7 @@ from utils import (read_storage_public_key, decrypt_acrastruct,
                    decrypt_private_key, read_zone_public_key,
                    load_random_data_config, get_random_data_files,
                    clean_test_data, safe_string, prepare_encryptor_config,
-                   get_encryptor_config, abs_path, get_test_encryptor_config)
+                   get_encryptor_config, abs_path, get_test_encryptor_config, send_signal_by_process_name)
 
 import sys
 # add to path our wrapper until not published to PYPI
@@ -313,7 +313,7 @@ def wait_connection(port, count=1000, sleep=0.001):
     """
     while count:
         try:
-            connection = socket.create_connection(('127.0.0.1', port), timeout=1)
+            connection = socket.create_connection(('127.0.0.1', port), timeout=SOCKET_CONNECT_TIMEOUT)
             connection.close()
             return
         except ConnectionRefusedError:
@@ -326,7 +326,7 @@ def wait_connection(port, count=1000, sleep=0.001):
 def wait_unix_socket(socket_path, count=1000, sleep=0.005):
     last_exc = Exception("can't wait unix socket")
     while count:
-        connection = socket.socket(socket.AF_UNIX)
+        connection = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
         try:
             connection.settimeout(SOCKET_CONNECT_TIMEOUT)
             connection.connect(socket_path)
@@ -826,7 +826,7 @@ class BaseTestCase(PrometheusMixin, unittest.TestCase):
         return port+1
 
     def fork_connector(self, connector_port: int, acraserver_port: int, client_id: str, api_port: int=None, zone_mode: bool=False, check_connection: bool=True):
-        logging.info("fork connector")
+        logging.info("fork connector with port {} and client_id={}", connector_port, client_id)
 
         acraserver_connection = self.get_acraserver_connection_string(acraserver_port)
         acraserver_api_connection = self.get_acraserver_api_connection_string(acraserver_port)
@@ -871,6 +871,7 @@ class BaseTestCase(PrometheusMixin, unittest.TestCase):
         print('connector args: {}'.format(' '.join(sorted(args))))
         process = self.fork(lambda: subprocess.Popen(args))
         if check_connection:
+            print('check connection {}'.format(connector_connection))
             try:
                 if connector_connection.startswith('tcp'):
                     wait_connection(connector_port)
@@ -1063,6 +1064,8 @@ class BaseTestCase(PrometheusMixin, unittest.TestCase):
                      getattr(self, 'connector_2', ProcessStub()),
                      getattr(self, 'acra', ProcessStub())]
         stop_process(processes)
+        send_signal_by_process_name('acra-server', signal.SIGTERM)
+        send_signal_by_process_name('acra-connector', signal.SIGTERM)
         try:
             self.engine_raw.execute('delete from test;')
         except:
@@ -1416,6 +1419,8 @@ class TestConnectionClosing(BaseTestCase):
         if not self.EXTERNAL_ACRA and hasattr(self, 'acra'):
             procs.append(self.acra)
         stop_process(procs)
+        send_signal_by_process_name('acra-server', signal.SIGTERM)
+        send_signal_by_process_name('acra-connector', signal.SIGTERM)
 
     def getActiveConnectionCount(self, cursor):
         if TEST_MYSQL:
@@ -1551,6 +1556,8 @@ class TestKeyNonExistence(BaseTestCase):
     def tearDown(self):
         if hasattr(self, 'acra'):
             stop_process(self.acra)
+        send_signal_by_process_name('acra-server', signal.SIGTERM)
+        send_signal_by_process_name('acra-connector', signal.SIGTERM)
 
     def delete_key(self, filename):
         os.remove('{dir}{sep}{name}'.format(
@@ -2092,6 +2099,8 @@ class TestKeyStorageClearing(BaseTestCase):
             processes.append(self.acra)
 
         stop_process(processes)
+        send_signal_by_process_name('acra-server', signal.SIGTERM)
+        send_signal_by_process_name('acra-connector', signal.SIGTERM)
 
         try:
             self.engine_raw.execute('delete from test;')
