@@ -194,7 +194,6 @@ func HandleRawSQLQuery(sql string) (normalizedQuery, redactedQuery string, parse
 
 	stmt, err := sqlparser.Parse(sqlStripped)
 	if err != nil {
-		log.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCensorQueryParseError).WithError(err).Errorln("Can't process raw query")
 		return "", "", nil, ErrQuerySyntaxError
 	}
 	outputStmt, _ := sqlparser.Parse(sqlStripped)
