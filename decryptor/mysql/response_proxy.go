@@ -318,7 +318,7 @@ func (handler *Handler) ProxyClientConnection(errCh chan<- error) {
 			if logging.GetLogLevel() == logging.LogDebug {
 				_, queryWithHiddenValues, _, err := common.HandleRawSQLQuery(query)
 				if err == common.ErrQuerySyntaxError {
-					clientLog.WithError(err).Debugf("Parsing error on query: %s", queryWithHiddenValues)
+					clientLog.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCensorQueryParseError).Debugf("Parsing error on query: %s", queryWithHiddenValues)
 				} else {
 					clientLog.WithFields(logrus.Fields{"sql": queryWithHiddenValues, "command": cmd}).Debugln("Query command")
 				}

@@ -173,7 +173,12 @@ func (decryptor *Decryptor) checkPoisonRecord(block []byte) error {
 		return nil
 	}
 	decryptor.log.Debugln("Check block on poison")
-	_, err = decryptor.decryptBlock(bytes.NewReader(data), nil, decryptor.getPoisonPrivateKey)
+	privateKey, err := decryptor.getPoisonPrivateKey()
+	if err != nil {
+		decryptor.log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantReadKeys).Errorln("Can't load private key for poison records")
+		return err
+	}
+	_, err = decryptor.decryptBlock(bytes.NewReader(data), nil, privateKey)
 	if err == nil {
 		decryptor.log.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorDecryptorRecognizedPoisonRecord).Warningln("Recognized poison record")
 		if decryptor.GetPoisonCallbackStorage().HasCallbacks() {
@@ -216,25 +221,18 @@ func (decryptor *Decryptor) inlinePoisonRecordCheck(block []byte) error {
 	return nil
 }
 
-type getKeyFunc func() (*keys.PrivateKey, error)
-
 // decryptBlock try to process data after BEGIN_TAG, decrypt and return result
-func (decryptor *Decryptor) decryptBlock(reader io.Reader, id []byte, keyFunc getKeyFunc) ([]byte, error) {
+func (decryptor *Decryptor) decryptBlock(reader io.Reader, id []byte, privateKey *keys.PrivateKey) ([]byte, error) {
 	logger := decryptor.log.WithField("zone_id", string(decryptor.GetMatchedZoneID()))
 
-	privateKey, err := keyFunc()
-	if err != nil {
-		logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantReadKeys).WithError(err).Warningln("Can't read private key for matched client_id/zone_id")
-		return []byte{}, err
-	}
 	key, _, err := decryptor.ReadSymmetricKey(privateKey, reader)
 	if err != nil {
-		logger.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorDecryptorCantDecryptSymmetricKey).Warningln("Can't unwrap symmetric key")
+		logger.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorDecryptorCantDecryptSymmetricKey).Debugln("Can't unwrap symmetric key")
 		return []byte{}, err
 	}
 	data, err := decryptor.ReadData(key, id, reader)
 	if err != nil {
-		logger.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorDecryptorCantDecryptBinary).Warningln("Can't decrypt data with unwrapped symmetric key")
+		logger.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorDecryptorCantDecryptBinary).Debugln("Can't decrypt data with unwrapped symmetric key")
 		return []byte{}, err
 	}
 
@@ -306,6 +304,7 @@ func (decryptor *Decryptor) decryptInlineBlock(block []byte) ([]byte, error) {
 		}
 		return block, nil
 	}
+	var decrypted []byte
 	for index < len(block) {
 		beginTagIndex, tagLength := decryptor.BeginTagIndex(block[index:])
 		if beginTagIndex == utils.NotFound {
@@ -315,21 +314,32 @@ func (decryptor *Decryptor) decryptInlineBlock(block []byte) ([]byte, error) {
 		output.Write(block[index : index+beginTagIndex])
 		index += beginTagIndex
 		blockReader := bytes.NewReader(block[index+tagLength:])
-		decrypted, err := decryptor.decryptBlock(blockReader, decryptor.GetMatchedZoneID(), decryptor.GetPrivateKey)
+		privateKey, err := decryptor.GetPrivateKey()
 		if err != nil {
 			base.AcrastructDecryptionCounter.WithLabelValues(base.DecryptionTypeFail).Inc()
+			decryptor.log.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorDecryptorCantDecryptBinary).WithError(err).Warningln("Can't decrypt AcraStruct")
+			decryptor.log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantReadKeys).Warningln("Can't load key for AcraStruct")
 			if err := decryptor.inlinePoisonRecordCheck(block[index:]); err != nil {
 				return nil, err
 			}
-			output.Write(block[index : index+1])
-			index++
+		} else {
+			decrypted, err = decryptor.decryptBlock(blockReader, decryptor.GetMatchedZoneID(), privateKey)
+			if err == nil {
+				base.AcrastructDecryptionCounter.WithLabelValues(base.DecryptionTypeSuccess).Inc()
+				index += tagLength + (len(block[beginTagIndex+tagLength:]) - blockReader.Len())
+				output.Write(decrypted)
+				decryptor.ResetZoneMatch()
+				continue
+			}
+			base.AcrastructDecryptionCounter.WithLabelValues(base.DecryptionTypeFail).Inc()
 			decryptor.log.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorDecryptorCantDecryptBinary).WithError(err).Warningln("Can't decrypt AcraStruct")
-			continue
+			if err := decryptor.inlinePoisonRecordCheck(block[index:]); err != nil {
+				return nil, err
+			}
 		}
-		base.AcrastructDecryptionCounter.WithLabelValues(base.DecryptionTypeSuccess).Inc()
-		index += tagLength + (len(block[beginTagIndex+tagLength:]) - blockReader.Len())
-		output.Write(decrypted)
-		decryptor.ResetZoneMatch()
+
+		output.Write(block[index : index+1])
+		index++
 	}
 	return output.Bytes(), nil
 }
