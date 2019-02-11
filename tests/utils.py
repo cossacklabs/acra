@@ -16,9 +16,8 @@ TEMP_DATA_FOLDER_VARNAME = 'TEST_RANDOM_DATA_FOLDER'
 
 
 def send_signal_by_process_name(name, signal, timeout=1):
-    separator=' '
     try:
-        output = subprocess.check_output(['pidof', '-S', separator, name], timeout=timeout)
+        output = subprocess.check_output(['pidof', name], timeout=timeout)
     except subprocess.CalledProcessError:
         return
     output = output.strip().decode('utf-8').split(separator)
