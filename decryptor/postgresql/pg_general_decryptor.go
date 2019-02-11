@@ -379,7 +379,6 @@ func (decryptor *PgDecryptor) CheckPoisonRecord(reader io.Reader) (bool, error) 
 		}
 		return true, nil
 	}
-	decryptor.logger.Debugf("Not recognized poison record. error returned - %v", err)
 	return false, nil
 }
 
