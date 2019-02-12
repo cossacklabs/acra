@@ -35,7 +35,7 @@ RUN ["/bin/bash", "-c", \
         bash -s -- --yes --method source --branch $VCS_BRANCH \
         --without-packing --without-clean"]
 # Install golang and set environment variables
-RUN GO_SRC_FILE="go1.10.3.linux-amd64.tar.gz" && \
+RUN GO_SRC_FILE="go1.11.5.linux-amd64.tar.gz" && \
     wget --no-verbose --no-check-certificate \
         "https://storage.googleapis.com/golang/${GO_SRC_FILE}" && \
     tar xf "./${GO_SRC_FILE}"
