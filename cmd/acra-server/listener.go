@@ -162,7 +162,7 @@ func (server *SServer) processConnection(connection net.Conn, callback *callback
 		logger.Debugln("Read trace")
 		spanContext, err := network.ReadTrace(wrappedConnection)
 		if err != nil {
-			log.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorTracingCantReadTrace).WithError(err).Errorln("Can't read trace from Acra-Proxy")
+			log.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorTracingCantReadTrace).WithError(err).Errorln("Can't read trace from AcraConnector")
 			return
 		}
 		ctx, span = trace.StartSpanWithRemoteParent(wrapCtx, callback.funcName, spanContext, server.config.GetTraceOptions()...)

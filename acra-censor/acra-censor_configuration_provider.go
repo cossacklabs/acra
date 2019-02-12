@@ -108,7 +108,9 @@ func (acraCensor *AcraCensor) LoadConfiguration(configuration []byte) error {
 			go queryCaptureHandler.Start()
 			acraCensor.AddHandler(queryCaptureHandler)
 		default:
-			acraCensor.logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCensorSetupError).Errorln("Unexpected handler in configuration")
+			acraCensor.logger.
+				WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCensorSetupError).
+				Errorln("Unexpected handler in configuration: probably AcraCensor configuration (acra-censor.yaml) is outdated")
 			return common.ErrCensorConfigurationError
 		}
 	}

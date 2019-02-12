@@ -21,7 +21,7 @@ func NewDenyallHandler() *DenyAllHandler {
 // CheckQuery blocks any input query
 func (handler *DenyAllHandler) CheckQuery(sqlQuery string, parsedQuery sqlparser.Statement) (bool, error) {
 	// deny any query and stop further checks
-	handler.logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCensorQueryIsNotAllowed).Errorf("Query has been block by Denyall handler")
+	handler.logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCensorQueryIsNotAllowed).Errorf("Query has been denied by Denyall handler")
 	return false, common.ErrDenyAllError
 }
 

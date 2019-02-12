@@ -371,6 +371,7 @@ func main() {
 		log.Infof("Server graceful shutdown completed, bye PID: %v", os.Getpid())
 		os.Exit(0)
 	})
+	go sigHandlerSIGTERM.Register()
 
 	sigHandlerSIGHUP.AddCallback(func() {
 		log.Infof("Received incoming SIGHUP signal")
@@ -423,7 +424,6 @@ func main() {
 		// Stop the old server, all the connections have been closed and the new one is running
 		os.Exit(0)
 	})
-	go sigHandlerSIGHUP.Register()
 
 	log.Infof("Start listening to connections. Current PID: %v", os.Getpid())
 
@@ -452,5 +452,5 @@ func main() {
 
 	// on sighup we run callback that stop all listeners (that stop background goroutine of server.Start())
 	// and try to restart acra-server and only after that exits
-	sigHandlerSIGTERM.Register()
+	sigHandlerSIGHUP.Register()
 }

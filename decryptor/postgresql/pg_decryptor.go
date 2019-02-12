@@ -171,7 +171,7 @@ func (proxy *PgProxy) ProxyClientConnection(errCh chan<- error) {
 				proxy.TLSCh <- true
 				return
 			}
-			// log message with debug level because onlt here we expect and can meet errors with closed connections .ioEOF
+			// log message with debug level because only here we expect and can meet errors with closed connections io.EOF
 			logger.WithError(err).Debugln("Can't read packet from client to database")
 			errCh <- err
 			return
@@ -331,7 +331,7 @@ func (proxy *PgProxy) processWholeBlockDecryption(ctx context.Context, packet *P
 	if err != nil {
 		span.AddAttributes(trace.BoolAttribute("failed_decryption", true))
 		// check poison records on failed decryption
-		logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorDecryptorCantDecryptBinary).WithError(err).Warningln("Can't decrypt AcraStruct")
+		logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorDecryptorCantDecryptBinary).WithError(err).Warningln("Can't decrypt AcraStruct: can't unwrap symmetric key")
 		base.AcrastructDecryptionCounter.WithLabelValues(base.DecryptionTypeFail).Inc()
 		if decryptor.IsPoisonRecordCheckOn() {
 			decryptor.Reset()
@@ -443,7 +443,7 @@ func (proxy *PgProxy) processInlineBlockDecryption(ctx context.Context, packet *
 		if err != nil {
 			span.AddAttributes(trace.BoolAttribute("failed_decryption", true))
 			base.AcrastructDecryptionCounter.WithLabelValues(base.DecryptionTypeFail).Inc()
-			logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorDecryptorCantDecryptBinary).WithError(err).Warningln("Can't decrypt AcraStruct")
+			logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorDecryptorCantDecryptBinary).WithError(err).Warningln("Can't decrypt AcraStruct: can't unwrap symmetric key")
 			if decryptor.IsPoisonRecordCheckOn() {
 				logger.Infoln("Check poison records")
 				blockReader = bytes.NewReader(column.Data[beginTagIndex+tagLength:])
@@ -462,7 +462,7 @@ func (proxy *PgProxy) processInlineBlockDecryption(ctx context.Context, packet *
 		if err != nil {
 			span.AddAttributes(trace.BoolAttribute("failed_decryption", true))
 			base.AcrastructDecryptionCounter.WithLabelValues(base.DecryptionTypeFail).Inc()
-			logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorDecryptorCantDecryptBinary).WithError(err).Warningln("Can't decrypt data with unwrapped symmetric key")
+			logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorDecryptorCantDecryptBinary).WithError(err).Warningln("Can't decrypt AcraStruct: can't decrypt data with unwrapped symmetric key")
 			// write current read byte to not process him in next iteration
 			outputBlock.Write([]byte{column.Data[currentIndex]})
 			currentIndex++

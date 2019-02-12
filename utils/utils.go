@@ -30,11 +30,6 @@ import (
 	"runtime"
 )
 
-const (
-	// SessionDataLimit maximum block size
-	SessionDataLimit = 8 * 1024 // 8 kb
-)
-
 // WriteFull writes data to io.Writer.
 // if wr.Write will return n <= len(data) will
 //	sent the rest of data until error or total sent byte count == len(data)
