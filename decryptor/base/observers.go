@@ -17,6 +17,8 @@ limitations under the License.
 package base
 
 import (
+	"context"
+	"github.com/cossacklabs/acra/logging"
 	"github.com/cossacklabs/acra/sqlparser"
 	"github.com/sirupsen/logrus"
 )
@@ -80,6 +82,12 @@ type QueryObserverManager interface {
 // ArrayQueryObserverableManager store all subscribed observes and call sequentially OnQuery on each observer
 type ArrayQueryObserverableManager struct {
 	subscribers []QueryObserver
+	logger      *logrus.Entry
+}
+
+// NewArrayQueryObserverableManager create new ArrayQueryObserverableManager
+func NewArrayQueryObserverableManager(ctx context.Context) (*ArrayQueryObserverableManager, error) {
+	return &ArrayQueryObserverableManager{logger: logging.GetLoggerFromContext(ctx)}, nil
 }
 
 // AddQueryObserver observer to array
@@ -94,7 +102,7 @@ func (manager *ArrayQueryObserverableManager) RegisteredObserversCount() int {
 
 // OnQuery would be called for each added observer to manager
 func (manager *ArrayQueryObserverableManager) OnQuery(query OnQueryObject) (OnQueryObject, bool, error) {
-	logrus.Debugf("Handlers: %d; OnQuery for %s", len(manager.subscribers), query.Query())
+	manager.logger.Debugf("Handlers: %d; OnQuery for %s", len(manager.subscribers), query.Query())
 	changedOut := false
 	for _, obs := range manager.subscribers {
 		newQuery, changed, err := obs.OnQuery(query)

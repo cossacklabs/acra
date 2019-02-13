@@ -20,6 +20,7 @@ limitations under the License.
 package grpc_api
 
 import (
+	"github.com/cossacklabs/acra/logging"
 	"golang.org/x/net/context"
 
 	"errors"
@@ -58,7 +59,7 @@ func (service *DecryptGRPCService) Decrypt(ctx context.Context, request *Decrypt
 
 	logger := logrus.WithFields(logrus.Fields{"client_id": string(request.ClientId), "zone_id": string(request.ZoneId), "translator": "grpc"})
 	if len(request.ClientId) == 0 {
-		logrus.Errorln("GRPC request without ClientID not allowed")
+		logrus.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorTranslatorClientIDMissing).Errorln("GRPC request without ClientID not allowed")
 		return nil, ErrClientIDRequired
 	}
 	if len(request.ZoneId) != 0 {
@@ -69,25 +70,25 @@ func (service *DecryptGRPCService) Decrypt(ctx context.Context, request *Decrypt
 	}
 	if err != nil {
 		base.AcrastructDecryptionCounter.WithLabelValues(base.DecryptionTypeFail).Inc()
-		logger.WithError(err).Errorln("Can't load private key for decryption")
+		logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantReadKeys).WithError(err).Errorln("Can't load private key for decryption")
 		return nil, ErrCantDecrypt
 	}
 	data, decryptErr := base.DecryptAcrastruct(request.Acrastruct, privateKey, decryptionContext)
 	utils.FillSlice(byte(0), privateKey.Value)
 	if decryptErr != nil {
 		base.AcrastructDecryptionCounter.WithLabelValues(base.DecryptionTypeFail).Inc()
-		logger.WithError(decryptErr).Errorln("Can't decrypt AcraStruct")
+		logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorTranslatorCantDecryptAcraStruct).WithError(decryptErr).Errorln("Can't decrypt AcraStruct")
 		if service.TranslatorData.CheckPoisonRecords {
 			poisoned, err := base.CheckPoisonRecord(request.Acrastruct, service.TranslatorData.Keystorage)
 			if err != nil {
-				logger.WithError(err).Errorln("Can't check for poison record, possible missing Poison record decryption key")
+				logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorDecryptorCantCheckPoisonRecord).WithError(err).Errorln("Can't check for poison record, possible missing Poison record decryption key")
 				return nil, ErrCantDecrypt
 			}
 			if poisoned {
-				logger.Errorln("Recognized poison record")
+				logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorDecryptorRecognizedPoisonRecord).Errorln("Recognized poison record")
 				if service.TranslatorData.PoisonRecordCallbacks.HasCallbacks() {
 					if err := service.TranslatorData.PoisonRecordCallbacks.Call(); err != nil {
-						logger.WithError(err).Errorln("Unexpected error on poison record's callbacks")
+						logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorDecryptorCantHandleRecognizedPoisonRecord).WithError(err).Errorln("Unexpected error on poison record's callbacks")
 					}
 				}
 				// don't show users that we found poison record

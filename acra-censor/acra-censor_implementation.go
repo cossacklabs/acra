@@ -19,6 +19,7 @@ package acracensor
 import (
 	"github.com/cossacklabs/acra/acra-censor/common"
 	"github.com/cossacklabs/acra/acra-censor/handlers"
+	"github.com/cossacklabs/acra/logging"
 	"github.com/cossacklabs/acra/sqlparser"
 	log "github.com/sirupsen/logrus"
 )
@@ -77,10 +78,12 @@ func (acraCensor *AcraCensor) HandleQuery(rawQuery string) error {
 	normalizedQuery, queryWithHiddenValues, parsedQuery, err := common.HandleRawSQLQuery(rawQuery)
 	// Unparsed query handling
 	if err == common.ErrQuerySyntaxError {
-		acraCensor.logger.WithError(err).Warning("Failed to parse input query")
 		acraCensor.saveUnparsedQuery(rawQuery)
-		if !acraCensor.ignoreParseError {
-			acraCensor.logger.Errorln("Unparsed query has been denied")
+		if acraCensor.ignoreParseError {
+			// log warning if we ignore such errors
+			acraCensor.logger.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCensorQueryParseError).Warning("Failed to parse input query")
+		} else {
+			acraCensor.logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCensorQueryParseError).Errorln("Unparsed query has been denied")
 			return err
 		}
 	}
@@ -129,13 +132,13 @@ func (acraCensor *AcraCensor) logAllowedQuery(queryWithHiddenValues string, pars
 
 func (acraCensor *AcraCensor) logDeniedQuery(queryWithHiddenValues string, handler QueryHandlerInterface, parsedQuery sqlparser.Statement) {
 	if parsedQuery != nil && queryWithHiddenValues != "" {
-		acraCensor.logger.Errorf("Denied query: '%s'", common.TrimStringToN(queryWithHiddenValues, common.LogQueryLength))
-		acraCensor.logger.Debugf("Denied query by %T", handler)
+		acraCensor.logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCensorQueryIsNotAllowed).Errorf("Denied query: '%s'", common.TrimStringToN(queryWithHiddenValues, common.LogQueryLength))
+		acraCensor.logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCensorQueryIsNotAllowed).Debugf("Denied query by %T", handler)
 		return
 	}
 	if parsedQuery == nil && queryWithHiddenValues == "" {
-		acraCensor.logger.Errorln("Denied query can't be shown in plaintext")
-		acraCensor.logger.Debugf("Denied query by %T", handler)
+		acraCensor.logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCensorQueryIsNotAllowed).Errorln("Denied query can't be shown in plaintext")
+		acraCensor.logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCensorQueryIsNotAllowed).Debugf("Denied query by %T", handler)
 		return
 	}
 	acraCensor.logger.Debugf("parsedQuery: %T, queryWithHiddenValues: %s", parsedQuery, queryWithHiddenValues)

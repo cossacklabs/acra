@@ -23,6 +23,7 @@ import (
 	"github.com/cossacklabs/acra/encryptor"
 	encryptorConfig "github.com/cossacklabs/acra/encryptor/config"
 	"github.com/cossacklabs/acra/keystore"
+	"github.com/cossacklabs/acra/logging"
 	"github.com/cossacklabs/acra/network"
 	log "github.com/sirupsen/logrus"
 	"go.opencensus.io/trace"
@@ -97,12 +98,12 @@ func (config *Config) setWithConnector(v bool) {
 func (config *Config) LoadMapTableSchemaConfig(path string) error {
 	mapConfig, err := ioutil.ReadFile(path)
 	if err != nil {
-		log.WithError(err).Errorln("Can't read config for encryptor")
+		log.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorWrongConfiguration).WithError(err).Errorln("Can't read config for encryptor")
 		return err
 	}
 	schema, err := encryptorConfig.MapTableSchemaStoreFromConfig(mapConfig)
 	if err != nil {
-		log.WithError(err).Errorln("Can't parse table schemas from config")
+		log.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorWrongConfiguration).WithError(err).Errorln("Can't parse table schemas from config")
 		return err
 	}
 	config.tableSchema = schema

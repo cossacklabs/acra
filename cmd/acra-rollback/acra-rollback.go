@@ -54,7 +54,7 @@ var (
 
 // ErrorExit prints error and exits.
 func ErrorExit(msg string, err error) {
-	fmt.Println(utils.ErrorMessage(msg, err))
+	log.WithError(err).Errorln(msg)
 	os.Exit(1)
 }
 

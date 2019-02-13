@@ -20,6 +20,7 @@ package cmd
 import (
 	flag_ "flag"
 	"fmt"
+	"github.com/cossacklabs/acra/logging"
 	"io"
 	"io/ioutil"
 	"net"
@@ -93,13 +94,14 @@ func (handler *SignalHandler) Register() {
 	for _, callback := range handler.callbacks {
 		callback()
 	}
-	os.Exit(1)
+	os.Exit(0)
 }
 
 // ValidateClientID checks that clientID has digits, letters, _ - ' '
 func ValidateClientID(clientID string) {
 	if !keystore.ValidateID([]byte(clientID)) {
-		log.Errorf("Invalid client ID,  %d <= len(client ID) <= %d, only digits, letters and '_', '-', ' ' characters",
+		log.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorInvalidClientID).Errorf(
+			"Invalid client ID,  %d <= len(client ID) <= %d, only digits, letters and '_', '-', ' ' characters",
 			keystore.MinClientIDLength, keystore.MaxClientIDLength)
 		os.Exit(1)
 	}

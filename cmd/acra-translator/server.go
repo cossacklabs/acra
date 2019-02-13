@@ -88,7 +88,7 @@ func (server *ReaderServer) Stop() {
 	}
 	// force close all connections
 	if err := server.connectionManager.CloseConnections(); err != nil {
-		log.WithError(err).Errorln("Took error on closing available connections")
+		log.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantCloseConnection).WithError(err).Errorln("Took error on closing available connections")
 	}
 }
 
@@ -114,7 +114,7 @@ func (server *ReaderServer) HandleConnectionString(parentContext context.Context
 	// start accept new connections from connectionString
 	connectionChannel, err := AcceptConnections(listenerContext, connectionString, errCh)
 	if err != nil {
-		logger.WithError(err).Errorf("Can't start to handle connection string %v", connectionString)
+		logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantAcceptNewConnections).WithError(err).Errorf("Can't start to handle connection string %v", connectionString)
 		return err
 	}
 	// use to send close packets to all unclosed connections at end
@@ -140,16 +140,17 @@ func (server *ReaderServer) HandleConnectionString(parentContext context.Context
 				}
 				continue
 			}
+			logger = logger.WithField("client_id", string(clientID))
+			logger.Debugln("Read trace")
 			spanContext, err := network.ReadTrace(wrappedConnection)
 			if err != nil {
-				logger.WithError(err).Errorln("Can't read trace from wrapped connection")
+				logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorTracingCantReadTrace).WithError(err).Errorln("Can't read trace from wrapped connection")
 				if err := wrappedConnection.Close(); err != nil {
-					log.WithError(err).Errorln("Can't close wrapped connection")
+					log.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantWrapConnection).WithError(err).Errorln("Can't close wrapped connection")
 				}
 				continue
 			}
 			ctx, span := trace.StartSpanWithRemoteParent(listenerContext, getHandlerName(listenerContext), spanContext, server.config.GetTraceOptions()...)
-			logger = logger.WithField("client_id", string(clientID))
 			logger.Debugln("Pass wrapped connection to processing function")
 			logging.SetLoggerToContext(ctx, logger)
 
@@ -236,13 +237,13 @@ func (server *ReaderServer) Start(parentContext context.Context) {
 			logger.WithField("connection_string", server.config.incomingConnectionHTTPString).Infof("Start process HTTP requests")
 			if err != nil {
 				log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorTranslatorCantHandleHTTPConnection).
-					Errorln("Can't create http decryptor")
+					Errorln("Can't create HTTP decryptor")
 			}
 			server.httpDecryptor = httpDecryptor
 			err = server.HandleConnectionString(withHandlerName(httpContext, "processHTTPConnection"), server.config.incomingConnectionHTTPString, server.processHTTPConnection)
 			if err != nil {
 				log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorTranslatorCantHandleHTTPConnection).
-					Errorln("Took error on handling http requests")
+					Errorln("Took error on handling HTTP requests")
 				server.Stop()
 				os.Exit(1)
 			}

@@ -19,6 +19,7 @@ package encryptor
 import (
 	"encoding/hex"
 	"errors"
+	"github.com/cossacklabs/acra/logging"
 	"github.com/cossacklabs/acra/sqlparser"
 	"github.com/cossacklabs/acra/utils"
 	"github.com/sirupsen/logrus"
@@ -49,7 +50,7 @@ func (*MysqlDBDataCoder) Decode(expr sqlparser.Expr) ([]byte, error) {
 			binValue := make([]byte, hex.DecodedLen(len(val.Val)))
 			_, err := hex.Decode(binValue, val.Val)
 			if err != nil {
-				logrus.WithError(err).Errorln("Can't decode hex string literal")
+				logrus.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCodingCantDecodeHexData).WithError(err).Errorln("Can't decode hex string literal")
 				return nil, err
 			}
 			return binValue, nil
@@ -86,7 +87,7 @@ func (*PostgresqlDBDataCoder) Decode(expr sqlparser.Expr) ([]byte, error) {
 			binValue := make([]byte, hex.DecodedLen(len(val.Val)))
 			_, err := hex.Decode(binValue, val.Val)
 			if err != nil {
-				logrus.WithError(err).Errorln("Can't decode hex string literal")
+				logrus.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCodingCantDecodeHexData).WithError(err).Errorln("Can't decode hex string literal")
 				return nil, err
 			}
 			return binValue, err
@@ -101,7 +102,7 @@ func (*PostgresqlDBDataCoder) Decode(expr sqlparser.Expr) ([]byte, error) {
 					return nil, err
 				}
 
-				logrus.WithError(err).Warningln("Can't decode value, process as unescaped string")
+				logrus.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCodingCantDecodeSQLValue).Warningln("Can't decode value, process as unescaped string")
 				// return value as is because it may be string with printable characters that wasn't encoded on client
 				return val.Val, nil
 			}

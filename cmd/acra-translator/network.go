@@ -41,14 +41,14 @@ func AcceptConnections(parentContext context.Context, connectionString string, e
 		for {
 			conn, err := listener.Accept()
 			if err != nil {
-				logger.WithError(err).Errorln("Error on accept connection")
+				logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantAcceptNewConnections).WithError(err).Errorln("Error on accept connection")
 				errCh <- err
 				cancel()
 				return
 			}
 			conn, err = wrapHTTPConnectionWithTimer(conn)
 			if err != nil {
-				logger.WithError(err).Errorln("Can't wrap connection with metric")
+				logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantWrapConnectionWithTimer).WithError(err).Errorln("Can't wrap connection with metric")
 				errCh <- err
 				cancel()
 				return
@@ -64,7 +64,7 @@ func AcceptConnections(parentContext context.Context, connectionString string, e
 		// stop listener and goroutine that produce connections from listener
 		err := listener.Close()
 		if err != nil {
-			logger.WithError(err).Errorln("Error on closing listener")
+			logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantStopListenConnections).WithError(err).Errorln("Error on closing listener")
 		}
 	}()
 	return connectionChannel, nil

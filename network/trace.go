@@ -20,7 +20,6 @@ import (
 	"context"
 	"errors"
 	"github.com/cossacklabs/acra/utils"
-	log "github.com/sirupsen/logrus"
 	"go.opencensus.io/trace"
 	"go.opencensus.io/trace/propagation"
 	"net"
@@ -31,7 +30,6 @@ var ErrContextWithoutTrace = errors.New("context hasn't any trace")
 
 // SendTrace fetch span from context and propagate it to conn as binary data. If context doesn't contain trace then ErrContextWithoutTrace return
 func SendTrace(ctx context.Context, conn net.Conn) error {
-	log.Debugln("Send trace")
 	span := trace.FromContext(ctx)
 	if span == nil {
 		return ErrContextWithoutTrace
@@ -42,7 +40,6 @@ func SendTrace(ctx context.Context, conn net.Conn) error {
 
 // ReadTrace read trace from conn and return
 func ReadTrace(conn net.Conn) (trace.SpanContext, error) {
-	log.Debugln("Read trace")
 	binContext, err := utils.ReadData(conn)
 	if err != nil {
 		return trace.SpanContext{}, err

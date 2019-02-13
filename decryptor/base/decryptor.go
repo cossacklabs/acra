@@ -24,6 +24,7 @@ import (
 	"errors"
 	"fmt"
 	"github.com/cossacklabs/acra/keystore"
+	"github.com/cossacklabs/acra/logging"
 	"github.com/cossacklabs/acra/zone"
 	"github.com/cossacklabs/themis/gothemis/keys"
 	"io"
@@ -75,8 +76,15 @@ const (
 	DataLengthSize = 8
 )
 
+// Possible decryption modes: AcraStruct can start from beginning of cell, or be part of the cell
+const (
+	DecryptWhole  = "whole_block"
+	DecryptInline = "inline_block"
+)
+
 // DataDecryptor describes AcraStruct decryptor.
 type DataDecryptor interface {
+	logging.LoggerSetter
 	// try match begin tag per byte
 	MatchBeginTag(byte) bool
 	// return true if all bytes from begin tag matched by MatchBeginTag

@@ -17,6 +17,7 @@ limitations under the License.
 package cmd
 
 import (
+	"github.com/cossacklabs/acra/logging"
 	"github.com/cossacklabs/acra/network"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/sirupsen/logrus"
@@ -37,7 +38,7 @@ func RunPrometheusHTTPHandler(connectionString string) (net.Listener, *http.Serv
 		logrus.WithField("connection_string", connectionString).Infoln("Start prometheus http handler")
 		err := server.Serve(listener)
 		if err != nil {
-			logrus.WithError(err).Errorln("Error from http server that process prometheus metrics")
+			logrus.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorPrometheusHTTPHandler).WithError(err).Errorln("Error from HTTP server that process prometheus metrics")
 		}
 	}()
 	return listener, server, nil

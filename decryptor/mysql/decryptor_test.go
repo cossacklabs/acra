@@ -2,6 +2,7 @@ package mysql
 
 import (
 	"encoding/base64"
+	"github.com/sirupsen/logrus"
 	"testing"
 
 	"crypto/rand"
@@ -76,7 +77,7 @@ func (*testKeystore) GetClientIDEncryptionPublicKey(clientID []byte) (*keys.Publ
 func (*testKeystore) GetZonePublicKey(zoneID []byte) (*keys.PublicKey, error) { panic("implement me") }
 
 func getDecryptor(keystore keystore.KeyStore) *Decryptor {
-	dataDecryptor := binary.NewBinaryDecryptor()
+	dataDecryptor := binary.NewBinaryDecryptor(logrus.NewEntry(logrus.StandardLogger()))
 	clientID := []byte("some id")
 	pgDecryptor := postgresql.NewPgDecryptor(clientID, dataDecryptor, false, keystore)
 	decryptor := NewMySQLDecryptor(clientID, pgDecryptor, keystore)
