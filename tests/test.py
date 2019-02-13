@@ -53,6 +53,8 @@ from mysql.connector.cursor import MySQLCursorPrepared
 from requests.auth import HTTPBasicAuth
 from sqlalchemy.exc import DatabaseError
 from sqlalchemy.dialects.postgresql import BYTEA
+from sqlalchemy.dialects import mysql as mysql_dialect
+from sqlalchemy.dialects import postgresql as postgresql_dialect
 
 from utils import (read_storage_public_key, decrypt_acrastruct,
                    decrypt_private_key, read_zone_public_key,
@@ -175,6 +177,7 @@ if TEST_MYSQL:
             }
         )
         connect_args.update(pymysql_tls_args)
+    db_dialect = mysql_dialect.dialect()
 else:
     TEST_POSTGRESQL = True
     DB_DRIVER = "postgresql"
@@ -190,6 +193,7 @@ else:
         'statement_cache_size': 0,
         'command_timeout': STATEMENT_TIMEOUT,
     }
+    db_dialect = postgresql_dialect.dialect()
     if TEST_WITH_TLS:
         connect_args.update({
             # for psycopg2 key names took from
@@ -564,7 +568,7 @@ class PyMysqlExecutor(QueryExecutor):
                 cursorclass=pymysql.cursors.DictCursor,
                 **pymysql_tls_args)) as connection:
             with connection.cursor() as cursor:
-                cursor.execute("PREPARE test_statement FROM '{}'".format(query))
+                cursor.execute("PREPARE test_statement FROM {}".format(str(sa.literal(query).compile(dialect=db_dialect, compile_kwargs={"literal_binds": True}))))
                 cursor.execute('EXECUTE test_statement')
                 return cursor.fetchall()
 
@@ -1221,7 +1225,7 @@ class CensorBlacklistTest(BaseCensorTest):
         testQueries = ["select * from test",  # should be denied by query
                        "select * from acrarollback_output",  # should be denied by table
                        "select data from test where id=1",  # should be denied by pattern
-                       "insert into test(id, data, empty) values(1, DEFAULT, \"\")"]  # should be denied by pattern
+                       "insert into test(id, data, empty) values(1, DEFAULT, '')"]  # should be denied by pattern
 
         for executor in executors:
             for testQuery in testQueries:
@@ -1258,7 +1262,7 @@ class CensorWhitelistTest(BaseCensorTest):
 
         # all those queries should be denied because no matching allow rules specified
         testQueries = ["select * from acrarollback_output",
-                       "insert into test(id, data, empty) values(1, DEFAULT, \"\")"]
+                       "insert into test(id, data, empty) values(1, DEFAULT, '')"]
 
         for executor in executors:
             for testQuery in testQueries:
