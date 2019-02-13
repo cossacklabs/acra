@@ -19,12 +19,12 @@ package postgresql
 import (
 	"bytes"
 	"encoding/binary"
+	"github.com/cossacklabs/acra/logging"
 	"github.com/cossacklabs/acra/utils"
 	log "github.com/sirupsen/logrus"
 	"io"
 	"strconv"
 
-	"fmt"
 	"github.com/cossacklabs/acra/decryptor/base"
 	"github.com/cossacklabs/acra/zone"
 	"github.com/cossacklabs/themis/gothemis/cell"
@@ -51,6 +51,7 @@ type PgEscapeDecryptor struct {
 	// 4 oct symbols (\000) ber byte
 	octLengthBuf [8 * 4]byte
 	octCharBuf   [3]byte
+	logger       *log.Entry
 }
 
 // NewPgEscapeDecryptor returns new PgEscapeDecryptor
@@ -59,7 +60,13 @@ func NewPgEscapeDecryptor() *PgEscapeDecryptor {
 		currentIndex:          0,
 		outputSize:            0,
 		decodedKeyBlockBuffer: make([]byte, base.KeyBlockLength),
+		logger:                log.NewEntry(log.StandardLogger()),
 	}
+}
+
+// SetLogger set logger
+func (decryptor *PgEscapeDecryptor) SetLogger(logger *log.Entry) {
+	decryptor.logger = logger
 }
 
 // MatchBeginTag returns true and updates currentIndex and outputSize,
@@ -99,7 +106,7 @@ func (decryptor *PgEscapeDecryptor) readOctalData(data, octData []byte, reader i
 			return dataIndex, octDataIndex, err
 		}
 		if n != 1 {
-			log.Debugln("readOctalData read 0 bytes")
+			decryptor.logger.Debugln("readOctalData read 0 bytes")
 			return dataIndex, octDataIndex, base.ErrFakeAcraStruct
 		}
 		octData[octDataIndex] = charBuf[0]
@@ -133,7 +140,7 @@ func (decryptor *PgEscapeDecryptor) readOctalData(data, octData []byte, reader i
 						copy(octData[octDataIndex:octDataIndex+n], decryptor.octCharBuf[1:1+n])
 						octDataIndex += n
 					}
-					log.Warningf("expected 2 octal symbols, but read %v", n)
+					decryptor.logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCodingPostgresqlOctalEscape).Warningf("Expected 2 octal symbols, but read %v", n)
 					return dataIndex, octDataIndex, base.ErrFakeAcraStruct
 				}
 				// parse 3 octal symbols
@@ -182,11 +189,11 @@ func (decryptor *PgEscapeDecryptor) readDataLength(reader io.Reader) (uint64, []
 
 	lenCount, octLenCount, err := decryptor.readOctalData(decryptor.lengthBuf[:], decryptor.octLengthBuf[:], reader)
 	if err != nil {
-		log.Warningf("%v", utils.ErrorMessage("can't read data length", err))
+		decryptor.logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorDecryptorReadPacket).WithError(err).Warningln("Can't read data length")
 		return 0, decryptor.octLengthBuf[:octLenCount], err
 	}
 	if lenCount != len(decryptor.lengthBuf) {
-		log.Warningf("incorrect length count, %v!=%v", lenCount, len(decryptor.lengthBuf))
+		decryptor.logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorDecryptorReadPacket).Warningf("Incorrect length count, %v!=%v", lenCount, len(decryptor.lengthBuf))
 		return 0, decryptor.octLengthBuf[:octLenCount], base.ErrFakeAcraStruct
 	}
 	decryptor.outputSize += octLenCount
@@ -198,11 +205,11 @@ func (decryptor *PgEscapeDecryptor) readScellData(length uint64, reader io.Reade
 	buf := make([]byte, length)
 	n, octN, err := decryptor.readOctalData(buf, hexBuf, reader)
 	if err != nil {
-		log.Warningf("%v", utils.ErrorMessage(fmt.Sprintf("can't read scell data with passed length=%v", length), err))
+		decryptor.logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorDecryptorReadPacket).WithError(err).Warningf("Can't read scell data with passed length=%v", length)
 		return nil, hexBuf[:octN], err
 	}
 	if uint64(n) != length {
-		log.Warningf("read incorrect length, %v!=%v", n, length)
+		decryptor.logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorDecryptorReadPacket).Warningf("Read incorrect length, %v!=%v", n, length)
 		return nil, hexBuf[:octN], base.ErrFakeAcraStruct
 	}
 	decryptor.outputSize += octN

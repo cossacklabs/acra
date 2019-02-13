@@ -22,8 +22,9 @@ const (
 	EventCodeGeneral = 100
 
 	// 500 .. 600 errors
-	EventCodeErrorGeneral    = 500
-	EventCodeErrorWrongParam = 501
+	EventCodeErrorGeneral         = 500
+	EventCodeErrorWrongParam      = 501
+	EventCodeErrorInvalidClientID = 502
 
 	// processes
 	EventCodeErrorCantStartService             = 505
@@ -33,8 +34,10 @@ const (
 	EventCodeErrorCantCloseConnectionToService = 509
 
 	// keys
-	EventCodeErrorCantInitKeyStore = 510
-	EventCodeErrorCantReadKeys     = 511
+	EventCodeErrorCantInitKeyStore             = 510
+	EventCodeErrorCantReadKeys                 = 511
+	EventCodeErrorCantLoadMasterKey            = 512
+	EventCodeErrorCantInitPrivateKeysEncryptor = 513
 
 	// system events
 	EventCodeErrorCantGetFileDescriptor     = 520
@@ -95,9 +98,15 @@ const (
 	EventCodeErrorDecryptorCantInitializeTLS                 = 584
 	EventCodeErrorDecryptorCantSetDeadlineToClientConnection = 585
 	EventCodeErrorDecryptorCantDecryptSymmetricKey           = 586
+	EventCodeErrorDecryptorRecognizedPoisonRecord            = 587
+	EventCodeErrorDecryptorReadPacket                        = 588
+	EventCodeErrorDecryptorCantCheckPoisonRecord             = 589
 
-	// api
-	EventCodeErrorCantGenerateZone = 590
+	// http api
+	EventCodeErrorHTTPAPICantGenerateZone    = 590
+	EventCodeErrorHTTPAPICantLoadAuthKey     = 591
+	EventCodeErrorHTTPAPICantLoadAuthData    = 592
+	EventCodeErrorHTTPAPICantDecryptAuthData = 593
 
 	// mysql processing
 	EventCodeErrorProtocolProcessing = 600
@@ -109,7 +118,7 @@ const (
 	EventCodeErrorTranslatorVersionNotSupported         = 703
 	EventCodeErrorTranslatorEndpointNotSupported        = 704
 	EventCodeErrorTranslatorCantParseRequestBody        = 705
-	EventCodeErrorTranslatorCantZoneIDMissing           = 706
+	EventCodeErrorTranslatorZoneIDMissing               = 706
 	EventCodeErrorTranslatorCantDecryptAcraStruct       = 707
 	EventCodeErrorTranslatorCantReturnResponse          = 708
 	EventCodeErrorTranslatorCantCloseConnection         = 709
@@ -117,11 +126,42 @@ const (
 	EventCodeErrorTranslatorCantWrapConnectionToSS      = 711
 	EventCodeErrorTranslatorCantAcceptNewHTTPConnection = 712
 	EventCodeErrorTranslatorCantHandleGRPCConnection    = 713
+	EventCodeErrorTranslatorClientIDMissing             = 714
 
-	EventCodeErrorTracingCantSendTrace = 800
+	// tracing
+	EventCodeErrorTracingCantSendTrace    = 800
+	EventCodeErrorTracingCantReadTrace    = 801
+	EventCodeErrorJaegerInvalidParameters = 811
+	EventCodeErrorJaegerExporter          = 812
 
 	// encryptor
-	EventCodeErrorEncryptQueryData            = 900
-	EventCodeErrorEncryptorInitialization     = 901
-	EventCodeErrorDataEncryptorInitialization = 902
+	EventCodeErrorEncryptQueryData               = 900
+	EventCodeErrorEncryptorInitialization        = 901
+	EventCodeErrorDataEncryptorInitialization    = 902
+	EventCodeErrorEncryptorCantEncryptExpression = 903
+
+	// metrics
+	EventCodeErrorPrometheusHTTPHandler       = 1000
+	EventCodeErrorCantWrapConnectionWithTimer = 1001
+
+	// connection processing on acra-server side
+	EventCodeErrorGeneralConnectionProcessing = 1100
+	EventCodeErrorCreateFileFromDescriptor    = 1101
+
+	// encoding/decoding
+	EventCodeErrorCodingCantDecodeHexData                      = 1200
+	EventCodeErrorCodingCantSerializePostgresqlPacket          = 1201
+	EventCodeErrorCodingCantParsePostgresqlParseCommand        = 1202
+	EventCodeErrorCodingPostgresqlUnexpectedPacket             = 1203
+	EventCodeErrorCodingPostgresqlPacketHandlerInitiailization = 1204
+	EventCodeErrorCodingPostgresqlCantExtractQueryString       = 1205
+	EventCodeErrorCodingPostgresqlCantGenerateErrorPacket      = 1206
+	EventCodeErrorCodingPostgresqlCantParseColumnsDescription  = 1207
+	EventCodeErrorCodingPostgresqlOctalEscape                  = 1208
+	EventCodeErrorCodingCantDecodeSQLValue                     = 1209
+
+	// network additional
+	EventCodeErrorNetworkWrite      = 1300
+	EventCodeErrorNetworkFlush      = 1301
+	EventCodeErrorNetworkTLSGeneral = 1302
 )

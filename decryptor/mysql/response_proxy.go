@@ -45,6 +45,7 @@ const (
 )
 
 // Possible commands
+// comment unused to avoid linter's warnings abous unused constant but leave correct order to re-use it in a future
 const (
 	_ byte = iota // CommandSleep
 	CommandQuit
@@ -123,9 +124,9 @@ func IsBinaryColumn(value byte) bool {
 }
 
 // ResponseHandler database response header
-type ResponseHandler func(packet *Packet, dbConnection, clientConnection net.Conn) error
+type ResponseHandler func(ctx context.Context, packet *Packet, dbConnection, clientConnection net.Conn) error
 
-func defaultResponseHandler(packet *Packet, _, clientConnection net.Conn) error {
+func defaultResponseHandler(ctx context.Context, packet *Packet, _, clientConnection net.Conn) error {
 	if _, err := clientConnection.Write(packet.Dump()); err != nil {
 		return err
 	}
@@ -161,6 +162,10 @@ func NewMysqlProxy(ctx context.Context, decryptor base.Decryptor, dbConnection, 
 		newTLSConfig = tlsConfig.Clone()
 		network.SetMySQLCompatibleTLSSettings(newTLSConfig)
 	}
+	observerManager, err := base.NewArrayQueryObserverableManager(ctx)
+	if err != nil {
+		return nil, err
+	}
 	return &Handler{
 		isTLSHandshake:         false,
 		dbTLSHandshakeFinished: make(chan bool),
@@ -173,7 +178,7 @@ func NewMysqlProxy(ctx context.Context, decryptor base.Decryptor, dbConnection, 
 		tlsConfig:              newTLSConfig,
 		ctx:                    ctx,
 		logger:                 logging.GetLoggerFromContext(ctx),
-		queryObserverManager:   &base.ArrayQueryObserverableManager{},
+		queryObserverManager:   observerManager,
 	}, nil
 }
 
@@ -200,7 +205,7 @@ func (handler *Handler) getResponseHandler() ResponseHandler {
 
 // ProxyClientConnection connects to database, writes data and executes DB commands
 func (handler *Handler) ProxyClientConnection(errCh chan<- error) {
-	ctx, span := trace.StartSpan(handler.ctx, "ClientToDbConnector")
+	ctx, span := trace.StartSpan(handler.ctx, "ProxyClientConnection")
 	defer span.End()
 	clientLog := handler.logger.WithField("proxy", "client")
 	clientLog.Debugln("Start proxy client's requests")
@@ -222,7 +227,7 @@ func (handler *Handler) ProxyClientConnection(errCh chan<- error) {
 		timerObserveFunc = timer.ObserveDuration
 
 		packetSpanEndFunc()
-		packetSpanCtx, packetSpan := trace.StartSpan(ctx, "ClientToDbConnectorLoop")
+		packetSpanCtx, packetSpan := trace.StartSpan(ctx, "ProxyClientConnectionLoop")
 		packetSpanEndFunc = packetSpan.End
 
 		packet, err := ReadPacket(handler.clientConnection)
@@ -241,7 +246,7 @@ func (handler *Handler) ProxyClientConnection(errCh chan<- error) {
 			clientLog = clientLog.WithField("deprecate_eof", handler.clientDeprecateEOF)
 			if packet.IsSSLRequest() {
 				if handler.tlsConfig == nil {
-					handler.logger.Errorln("To support TLS connections you must pass TLS key and certificate for AcraServer that will be used " +
+					handler.logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorDecryptorCantInitializeTLS).Errorln("To support TLS connections you must pass TLS key and certificate for AcraServer that will be used " +
 						"for connections AcraServer->Database and CA certificate which will be used to verify certificate " +
 						"from database")
 					handler.logger.Debugln("Send error to db")
@@ -265,7 +270,7 @@ func (handler *Handler) ProxyClientConnection(errCh chan<- error) {
 				handler.isTLSHandshake = true
 				handler.clientConnection = tlsConnection
 				if _, err := handler.dbConnection.Write(packet.Dump()); err != nil {
-					clientLog.Debugln("Can't write send packet to db")
+					clientLog.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorNetworkWrite).WithError(err).Debugln("Can't write send packet to db")
 					errCh <- err
 					return
 				}
@@ -279,7 +284,7 @@ func (handler *Handler) ProxyClientConnection(errCh chan<- error) {
 
 					continue
 				case <-time.NewTicker(time.Second * ClientWaitDbTLSHandshake).C:
-					clientLog.Errorln("Timeout on tls handshake with db")
+					clientLog.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorDecryptorCantInitializeTLS).Errorln("Timeout on tls handshake with db")
 					errCh <- errors.New("handshake timeout")
 					return
 				}
@@ -313,7 +318,7 @@ func (handler *Handler) ProxyClientConnection(errCh chan<- error) {
 			if logging.GetLogLevel() == logging.LogDebug {
 				_, queryWithHiddenValues, _, err := common.HandleRawSQLQuery(query)
 				if err == common.ErrQuerySyntaxError {
-					clientLog.WithError(err).Infof("Parsing error on query: %s", queryWithHiddenValues)
+					clientLog.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCensorQueryParseError).Debugf("Parsing error on query: %s", queryWithHiddenValues)
 				} else {
 					clientLog.WithFields(logrus.Fields{"sql": queryWithHiddenValues, "command": cmd}).Debugln("Query command")
 				}
@@ -352,7 +357,7 @@ func (handler *Handler) ProxyClientConnection(errCh chan<- error) {
 			clientLog.Debugf("Command %d not supported now", cmd)
 		}
 		if _, err := handler.dbConnection.Write(packet.Dump()); err != nil {
-			clientLog.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorResponseConnectorCantWriteToDB).
+			clientLog.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorNetworkWrite).
 				Debugln("Can't write send packet to db")
 			errCh <- err
 			return
@@ -370,7 +375,8 @@ func (handler *Handler) isFieldToDecrypt(field *ColumnDescription) bool {
 	}
 }
 
-func (handler *Handler) processTextDataRow(rowData []byte, fields []*ColumnDescription) ([]byte, error) {
+func (handler *Handler) processTextDataRow(ctx context.Context, rowData []byte, fields []*ColumnDescription) ([]byte, error) {
+	span := trace.FromContext(ctx)
 	var err error
 	var value []byte
 	var pos int
@@ -387,9 +393,14 @@ func (handler *Handler) processTextDataRow(rowData []byte, fields []*ColumnDescr
 		if handler.isFieldToDecrypt(fields[i]) {
 			decryptedValue, err := handler.decryptor.DecryptBlock(value)
 			if err == nil && decryptedValue != nil && len(decryptedValue) != len(value) {
+				base.AcrastructDecryptionCounter.WithLabelValues(base.DecryptionTypeSuccess).Inc()
 				fieldLogger.Debugln("Update with decrypted value")
 				output = append(output, PutLengthEncodedString(decryptedValue)...)
 			} else {
+				if err != errPlainData {
+					span.AddAttributes(trace.BoolAttribute("failed_decryption", true))
+					base.AcrastructDecryptionCounter.WithLabelValues(base.DecryptionTypeFail).Inc()
+				}
 				fieldLogger.Debugln("Leave value as is")
 				output = append(output, rowData[pos:pos+n]...)
 			}
@@ -406,7 +417,8 @@ func (handler *Handler) processTextDataRow(rowData []byte, fields []*ColumnDescr
 	return output, nil
 }
 
-func (handler *Handler) processBinaryDataRow(rowData []byte, fields []*ColumnDescription) ([]byte, error) {
+func (handler *Handler) processBinaryDataRow(ctx context.Context, rowData []byte, fields []*ColumnDescription) ([]byte, error) {
+	span := trace.FromContext(ctx)
 	pos := 0
 	var n int
 	var err error
@@ -446,9 +458,14 @@ func (handler *Handler) processBinaryDataRow(rowData []byte, fields []*ColumnDes
 			}
 			decryptedValue, err := handler.decryptor.DecryptBlock(value)
 			if err != nil {
+				if err != errPlainData {
+					span.AddAttributes(trace.BoolAttribute("failed_decryption", true))
+					base.AcrastructDecryptionCounter.WithLabelValues(base.DecryptionTypeFail).Inc()
+				}
 				handler.logger.Debugln("Leave value as is")
 			}
 			if decryptedValue != nil && err == nil && len(value) != len(decryptedValue) {
+				base.AcrastructDecryptionCounter.WithLabelValues(base.DecryptionTypeSuccess).Inc()
 				output = append(output, PutLengthEncodedString(decryptedValue)...)
 			} else {
 				output = append(output, rowData[pos:pos+n]...)
@@ -512,7 +529,7 @@ func (handler *Handler) processBinaryDataRow(rowData []byte, fields []*ColumnDes
 			pos += n
 			continue
 		default:
-			return nil, fmt.Errorf("while decrypting MySQL query found unknown FieldType %d %s", fields[i].Type, fields[i].Name)
+			return nil, fmt.Errorf("found unknown FieldType <type=%d> <name=%s> in MySQL response packet", fields[i].Type, fields[i].Name)
 		}
 	}
 	return output, nil
@@ -527,7 +544,7 @@ func (handler *Handler) isPreparedStatementResult() bool {
 }
 
 // QueryResponseHandler parses data from database response
-func (handler *Handler) QueryResponseHandler(packet *Packet, dbConnection, clientConnection net.Conn) (err error) {
+func (handler *Handler) QueryResponseHandler(ctx context.Context, packet *Packet, dbConnection, clientConnection net.Conn) (err error) {
 	handler.resetQueryHandler()
 	handler.decryptor.Reset()
 	handler.decryptor.ResetZoneMatch()
@@ -586,7 +603,7 @@ func (handler *Handler) QueryResponseHandler(packet *Packet, dbConnection, clien
 				if fieldDataPacket.data[0] == EOFPacket {
 					break
 				}
-				newData, err := handler.processBinaryDataRow(fieldDataPacket.GetData(), fields)
+				newData, err := handler.processBinaryDataRow(ctx, fieldDataPacket.GetData(), fields)
 				if err != nil {
 					handler.logger.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorProtocolProcessing).
 						Debugln("Can't process binary data row")
@@ -620,7 +637,7 @@ func (handler *Handler) QueryResponseHandler(packet *Packet, dbConnection, clien
 					continue
 				}
 				dataLog.Debugln("Process data text row")
-				newData, err := handler.processTextDataRow(fieldDataPacket.GetData(), fields)
+				newData, err := handler.processTextDataRow(ctx, fieldDataPacket.GetData(), fields)
 				if err != nil {
 					dataLog.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorProtocolProcessing).
 						Debugln("Can't process text data row")
@@ -642,7 +659,7 @@ func (handler *Handler) QueryResponseHandler(packet *Packet, dbConnection, clien
 	handler.logger.Debugln("Proxy output")
 	for _, dumper := range output {
 		if _, err := clientConnection.Write(dumper.Dump()); err != nil {
-			handler.logger.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorResponseConnectorCantWriteToClient).
+			handler.logger.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorNetworkWrite).
 				Debugln("Can't proxy output")
 			return err
 		}
@@ -654,7 +671,7 @@ func (handler *Handler) QueryResponseHandler(packet *Packet, dbConnection, clien
 
 // ProxyDatabaseConnection handles connection from database, returns data to client
 func (handler *Handler) ProxyDatabaseConnection(errCh chan<- error) {
-	ctx, span := trace.StartSpan(handler.ctx, "DbToClientConnector")
+	ctx, span := trace.StartSpan(handler.ctx, "ProxyDatabaseConnection")
 	defer span.End()
 	serverLog := handler.logger.WithField("proxy", "server")
 	serverLog.Debugln("Start proxy db responses")
@@ -676,7 +693,7 @@ func (handler *Handler) ProxyDatabaseConnection(errCh chan<- error) {
 	}()
 	for {
 		packetSpanEndFunc()
-		_, packetSpan := trace.StartSpan(ctx, "DbToClientConnectorLoop")
+		_, packetSpan := trace.StartSpan(ctx, "ProxyDatabaseConnectionLoop")
 		packetSpanEndFunc = packetSpan.End
 
 		timerObserveFunc()
@@ -718,7 +735,7 @@ func (handler *Handler) ProxyDatabaseConnection(errCh chan<- error) {
 			serverLog.Debugf("Set support protocol 41 %v", handler.serverProtocol41)
 		}
 		responseHandler = handler.getResponseHandler()
-		err = responseHandler(packet, handler.dbConnection, handler.clientConnection)
+		err = responseHandler(ctx, packet, handler.dbConnection, handler.clientConnection)
 		if err != nil {
 			handler.resetQueryHandler()
 			errCh <- err

@@ -98,7 +98,7 @@ func (server *SServer) Close() {
 		log.WithError(err).Infoln("server.Close()")
 	}
 	if err := server.connectionManager.CloseConnections(); err != nil {
-		log.WithError(err).Errorln("Error on close connections")
+		log.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantCloseConnectionToService).WithError(err).Errorln("Error on close connections")
 	}
 	log.Debugln("Closed server listeners")
 }
@@ -155,19 +155,21 @@ func (server *SServer) processConnection(connection net.Conn, callback *callback
 		wrapSpan.End()
 		return
 	}
+	logger = logger.WithField("client_id", string(clientID))
 	wrapSpan.End()
 	var span *trace.Span
 	if server.config.WithConnector() {
+		logger.Debugln("Read trace")
 		spanContext, err := network.ReadTrace(wrappedConnection)
 		if err != nil {
-			log.WithError(err).Errorln("Can't read trace from Acra-Proxy")
+			log.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorTracingCantReadTrace).WithError(err).Errorln("Can't read trace from AcraConnector")
 			return
 		}
 		ctx, span = trace.StartSpanWithRemoteParent(wrapCtx, callback.funcName, spanContext, server.config.GetTraceOptions()...)
 	} else {
 		ctx, span = trace.StartSpan(wrapCtx, callback.funcName, server.config.GetTraceOptions()...)
 	}
-	ctx = logging.SetLoggerToContext(ctx, logger.WithField("client_id", string(clientID)))
+	ctx = logging.SetLoggerToContext(ctx, logger)
 	span.AddAttributes(trace.BoolAttribute("from_connector", server.config.WithConnector()))
 	defer span.End()
 	wrapSpanContext := wrapSpan.SpanContext()
@@ -225,7 +227,7 @@ func (server *SServer) StartFromFileDescriptor(fd uintptr) {
 	logger := log.WithFields(log.Fields{"connection_string": server.config.GetAcraConnectionString(), "from_descriptor": true})
 	file := os.NewFile(fd, "/tmp/acra-server")
 	if file == nil {
-		logger.Errorln("Can't create new file from descriptor for acra listener")
+		logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCreateFileFromDescriptor).Errorln("Can't create new file from descriptor for acra listener")
 		server.errorSignalChannel <- syscall.SIGTERM
 		return
 	}
@@ -349,7 +351,7 @@ func (server *SServer) StartCommandsFromFileDescriptor(fd uintptr) {
 	logger := log.WithFields(log.Fields{"connection_string": server.config.GetAcraConnectionString(), "from_descriptor": true})
 	file := os.NewFile(fd, "/tmp/acra-server_http_api")
 	if file == nil {
-		logger.Errorln("Can't create new file from descriptor for API listener")
+		logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCreateFileFromDescriptor).Errorln("Can't create new file from descriptor for API listener")
 		server.errorSignalChannel <- syscall.SIGTERM
 		return
 	}

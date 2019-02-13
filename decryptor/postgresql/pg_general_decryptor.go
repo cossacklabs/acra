@@ -20,6 +20,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/hex"
+	"errors"
 	"github.com/cossacklabs/acra/decryptor/base"
 	"github.com/cossacklabs/acra/decryptor/binary"
 	"github.com/cossacklabs/acra/keystore"
@@ -30,6 +31,8 @@ import (
 	"github.com/sirupsen/logrus"
 	"io"
 )
+
+var errPlainData = errors.New("plain data without AcraStruct signature")
 
 // PgDecryptor implements particular data decryptor for PostgreSQL binary format
 type PgDecryptor struct {
@@ -55,10 +58,11 @@ type PgDecryptor struct {
 // by default checks poison recods and uses WholeMatch mode without zones
 func NewPgDecryptor(clientID []byte, decryptor base.DataDecryptor, withZone bool, keystore keystore.KeyStore) *PgDecryptor {
 	logger := logrus.WithField("client_id", string(clientID))
+	decryptor.SetLogger(logger)
 	return &PgDecryptor{
 		isWithZone:      withZone,
 		pgDecryptor:     decryptor,
-		binaryDecryptor: binary.NewBinaryDecryptor(),
+		binaryDecryptor: binary.NewBinaryDecryptor(logger),
 		clientID:        clientID,
 		// longest tag (escape) + bin
 		matchBuffer:          make([]byte, len(EscapeTagBegin)+len(base.TagBegin)),
@@ -69,6 +73,12 @@ func NewPgDecryptor(clientID []byte, decryptor base.DataDecryptor, withZone bool
 		keyStore:             keystore,
 		dataProcessorContext: base.NewDataProcessorContext(clientID, withZone, keystore).UseContext(logging.SetLoggerToContext(context.Background(), logger)),
 	}
+}
+
+// SetLogger set logger
+func (decryptor *PgDecryptor) SetLogger(logger *logrus.Entry) {
+	decryptor.binaryDecryptor.SetLogger(logger)
+	decryptor.pgDecryptor.SetLogger(logger)
 }
 
 // SetWithZone enables or disables decrypting with ZoneID
@@ -187,28 +197,36 @@ func (decryptor *PgDecryptor) ReadData(symmetricKey, zoneID []byte, reader io.Re
 	so we need return diff of two matches 'BE' and decrypted data
 	*/
 
+	// add zone_id to log if it used
+	logger := logrus.NewEntry(decryptor.logger.Logger)
+	if decryptor.GetMatchedZoneID() != nil {
+		logger = decryptor.logger.WithField("zone_id", string(decryptor.GetMatchedZoneID()))
+		// use temporary logger in matched decryptor
+		decryptor.matchedDecryptor.SetLogger(logger)
+		// reset to default logger without zone_id
+		defer decryptor.matchedDecryptor.SetLogger(decryptor.logger)
+	}
+
 	// take length of fully matched tag begin (each decryptor match tag begin with different length)
 	correctMatchBeginTagLength := len(decryptor.matchedDecryptor.GetMatched())
 	// take diff count of matched between two decryptors
 	falseBufferedBeginTagLength := decryptor.matchIndex - correctMatchBeginTagLength
 	if falseBufferedBeginTagLength > 0 {
-		decryptor.logger.Debugf("Return with false matched %v bytes", falseBufferedBeginTagLength)
+		logger.Debugf("Return with false matched %v bytes", falseBufferedBeginTagLength)
 		decrypted, err := decryptor.matchedDecryptor.ReadData(symmetricKey, zoneID, reader)
-		return append(decryptor.matchBuffer[:falseBufferedBeginTagLength], decrypted...), err
-	}
-	// add zone_id to log if it used
-	var tempLogger *logrus.Entry
-	if decryptor.GetMatchedZoneID() != nil {
-		tempLogger = decryptor.logger.WithField("zone_id", string(decryptor.GetMatchedZoneID()))
-	} else {
-		tempLogger = decryptor.logger
+		if err != nil {
+			return nil, err
+		}
+		logger.Debugln("Decrypted AcraStruct")
+		return append(decryptor.matchBuffer[:falseBufferedBeginTagLength], decrypted...), nil
 	}
 
 	decrypted, err := decryptor.matchedDecryptor.ReadData(symmetricKey, zoneID, reader)
-	if err == nil {
-		tempLogger.Infof("Decrypted AcraStruct")
+	if err != nil {
+		return nil, err
 	}
-	return decrypted, err
+	logger.Debugln("Decrypted AcraStruct")
+	return decrypted, nil
 }
 
 // SetKeyStore sets keystore
@@ -258,6 +276,12 @@ func (decryptor *PgDecryptor) IsWholeMatch() bool {
 // SetWholeMatch sets isWholeMatch
 func (decryptor *PgDecryptor) SetWholeMatch(value bool) {
 	decryptor.isWholeMatch = value
+	if logging.IsDebugLevel(decryptor.logger) {
+		if value {
+			decryptor.logger = decryptor.logger.WithField("decrypt_mode", base.DecryptWhole)
+		}
+		decryptor.logger = decryptor.logger.WithField("decrypt_mode", base.DecryptInline)
+	}
 }
 
 // MatchZoneBlock returns zone data
@@ -315,7 +339,17 @@ func (decryptor *PgDecryptor) SkipBeginInBlock(block []byte) ([]byte, error) {
 // appends HEX Prefix for Hex bytes mode
 func (decryptor *PgDecryptor) DecryptBlock(block []byte) ([]byte, error) {
 	ctx := decryptor.dataProcessorContext.UseZoneID(decryptor.GetMatchedZoneID())
-	return decryptor.dataProcessor.Process(block, ctx)
+	decrypted, err := decryptor.dataProcessor.Process(block, ctx)
+	if err == nil {
+		return decrypted, nil
+	}
+	// avoid logging errors when block is not AcraStruct
+	if err == base.ErrIncorrectAcraStructTagBegin {
+		return nil, errPlainData
+	} else if err == base.ErrIncorrectAcraStructLength {
+		return nil, errPlainData
+	}
+	return nil, err
 }
 
 // CheckPoisonRecord tries to decrypt AcraStruct using Poison records keys
@@ -329,22 +363,22 @@ func (decryptor *PgDecryptor) CheckPoisonRecord(reader io.Reader) (bool, error) 
 	// check poison record
 	poisonKeypair, err := decryptor.keyStore.GetPoisonKeyPair()
 	if err != nil {
-		decryptor.logger.WithError(err).Errorln("Can't load poison keypair")
+		decryptor.logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantReadKeys).WithError(err).Errorln("Can't load poison keypair")
 		return true, err
 	}
 	// try decrypt using poison key pair
 	_, _, err = decryptor.matchedDecryptor.ReadSymmetricKey(poisonKeypair.Private, reader)
 	if err == nil {
-		decryptor.logger.Warningln("Recognized poison record")
+		decryptor.logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorDecryptorRecognizedPoisonRecord).Warningln("Recognized poison record")
 		if decryptor.GetPoisonCallbackStorage().HasCallbacks() {
 			err = decryptor.GetPoisonCallbackStorage().Call()
 			if err != nil {
-				decryptor.logger.WithError(err).Errorln("Unexpected error in poison record callbacks")
+				decryptor.logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorDecryptorCantCheckPoisonRecord).WithError(err).Errorln("Unexpected error in poison record callbacks")
 			}
+			decryptor.logger.Debugln("Processed all callbacks on poison record")
 		}
 		return true, nil
 	}
-	decryptor.logger.Debugf("Not recognized poison record. error returned - %v", err)
 	return false, nil
 }
 

@@ -48,7 +48,7 @@ type SessionCallback struct {
 // GetPublicKeyForId from Themis, returns correct public for particular secure session id
 func (callback *SessionCallback) GetPublicKeyForId(ss *session.SecureSession, id []byte) *keys.PublicKey {
 	if !bytes.Equal(id, callback.expectedID) {
-		log.WithField("client_id", id).Warningln("Come secure session connection with unexpected id")
+		log.WithField("client_id", string(id)).Warningln("Come secure session connection with unexpected id")
 		return nil
 	}
 	log.Infof("Load public key for id <%v>", string(id))
@@ -300,7 +300,7 @@ func (wrapper *SecureSessionConnectionWrapper) WrapClient(ctx context.Context, i
 	logger.Debugln("Wrap client connection with secure session")
 	if wrapper.hasHandshakeTimeout() {
 		if err := conn.SetDeadline(time.Now().Add(wrapper.handshakeTimeout)); err != nil {
-			logger.WithError(err).Errorln("Can't set deadline for secure session handshake")
+			logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantHandleSecureSession).WithError(err).Errorln("Can't set deadline for secure session handshake")
 			return nil, err
 		}
 	}
@@ -308,7 +308,7 @@ func (wrapper *SecureSessionConnectionWrapper) WrapClient(ctx context.Context, i
 	if wrapper.hasHandshakeTimeout() {
 		// reset deadline
 		if err := conn.SetDeadline(time.Time{}); err != nil {
-			logger.WithError(err).Errorln("Can't reset deadline after secure session handshake")
+			logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantHandleSecureSession).WithError(err).Errorln("Can't reset deadline after secure session handshake")
 			return nil, err
 		}
 	}
@@ -323,7 +323,7 @@ func (wrapper *SecureSessionConnectionWrapper) WrapServer(ctx context.Context, c
 	logger.Debugln("Wrap server connection with secure session")
 	if wrapper.hasHandshakeTimeout() {
 		if err := conn.SetDeadline(time.Now().Add(wrapper.handshakeTimeout)); err != nil {
-			log.WithError(err).Errorln("Can't set deadline for secure session handshake")
+			log.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantHandleSecureSession).WithError(err).Errorln("Can't set deadline for secure session handshake")
 			return nil, nil, err
 		}
 	}
@@ -331,7 +331,7 @@ func (wrapper *SecureSessionConnectionWrapper) WrapServer(ctx context.Context, c
 	if wrapper.hasHandshakeTimeout() {
 		// reset deadline
 		if err := conn.SetDeadline(time.Time{}); err != nil {
-			logger.WithError(err).Errorln("Can't reset deadline after secure session handshake")
+			logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantHandleSecureSession).WithError(err).Errorln("Can't reset deadline after secure session handshake")
 			return nil, nil, err
 		}
 	}

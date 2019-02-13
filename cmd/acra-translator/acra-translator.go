@@ -107,12 +107,12 @@ func main() {
 	log.Infof("Initialising keystore...")
 	masterKey, err := keystore.GetMasterKeyFromEnvironment()
 	if err != nil {
-		log.WithError(err).Errorln("Can't load master key")
+		log.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantLoadMasterKey).WithError(err).Errorln("Can't load master key")
 		os.Exit(1)
 	}
 	scellEncryptor, err := keystore.NewSCellKeyEncryptor(masterKey)
 	if err != nil {
-		log.WithError(err).Errorln("Can't init scell encryptor")
+		log.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantInitPrivateKeysEncryptor).WithError(err).Errorln("Can't init scell encryptor")
 		os.Exit(1)
 	}
 	keyStore, err := filesystem.NewTranslatorFileSystemKeyStore(*keysDir, scellEncryptor, *keysCacheSize)
@@ -168,12 +168,12 @@ func main() {
 		registerMetrics()
 		_, prometheusHTTPServer, err := cmd.RunPrometheusHTTPHandler(*prometheusAddress)
 		if err != nil {
-			log.WithError(err).WithField("incoming_connection_prometheus_metrics_string", *prometheusAddress).Errorln("Can't run prometheus handler")
+			log.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorPrometheusHTTPHandler).WithError(err).WithField("incoming_connection_prometheus_metrics_string", *prometheusAddress).Errorln("Can't run prometheus handler")
 			os.Exit(1)
 		}
 		log.Infof("Configured to send metrics and stats to `incoming_connection_prometheus_metrics_string`")
 		sigHandlerSIGTERM.AddCallback(func() {
-			log.Infoln("Stop prometheus http exporter")
+			log.Infoln("Stop prometheus HTTP exporter")
 			prometheusHTTPServer.Close()
 		})
 	}

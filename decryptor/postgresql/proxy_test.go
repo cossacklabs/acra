@@ -1,6 +1,7 @@
 package postgresql
 
 import (
+	"context"
 	"github.com/cossacklabs/acra/decryptor/base"
 	"github.com/cossacklabs/acra/encryptor/config"
 	"testing"
@@ -30,7 +31,7 @@ func TestEncryptorTurnOnOff(t *testing.T) {
 	if err != nil {
 		t.Fatal(setting)
 	}
-	proxy, err := proxyFactory.New(nil, nil, nil, nil)
+	proxy, err := proxyFactory.New(context.TODO(), nil, nil, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -43,7 +44,7 @@ func TestEncryptorTurnOnOff(t *testing.T) {
 	if err != nil {
 		t.Fatal(setting)
 	}
-	proxy, err = proxyFactory.New(nil, nil, nil, nil)
+	proxy, err = proxyFactory.New(context.TODO(), nil, nil, nil)
 	if err != nil {
 		t.Fatal(err)
 	}

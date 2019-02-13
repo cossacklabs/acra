@@ -36,7 +36,17 @@ const (
 	LogDiscard
 )
 
+// LoggerSetter abstract types that provide way to set logger which they should use
+type LoggerSetter interface {
+	SetLogger(*log.Entry)
+}
+
 type loggerKey struct{}
+
+// IsDebugLevel return true if logger configured to log debug messages
+func IsDebugLevel(logger *log.Entry) bool {
+	return logger.Level == log.DebugLevel
+}
 
 // SetLogLevel sets logging level
 func SetLogLevel(level int) {

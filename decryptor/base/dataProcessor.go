@@ -56,7 +56,7 @@ func (DecryptProcessor) Process(data []byte, context *DataProcessorContext) ([]b
 	}
 	if err != nil {
 		logging.GetLoggerFromContext(context.Context).WithError(err).WithFields(
-			logrus.Fields{"client_id": context.ClientID, "zone_id": context.ZoneID}).Warningln("Can't read private key")
+			logrus.Fields{"client_id": string(context.ClientID), "zone_id": context.ZoneID}).Warningln("Can't read private key for matched client_id/zone_id")
 		return []byte{}, err
 	}
 	return DecryptAcrastruct(data, privateKey, context.ZoneID)

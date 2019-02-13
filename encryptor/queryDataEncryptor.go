@@ -21,6 +21,7 @@ import (
 	"errors"
 	"github.com/cossacklabs/acra/decryptor/base"
 	"github.com/cossacklabs/acra/encryptor/config"
+	"github.com/cossacklabs/acra/logging"
 	"github.com/cossacklabs/acra/sqlparser"
 	"github.com/sirupsen/logrus"
 	"reflect"
@@ -74,7 +75,7 @@ func (encryptor *QueryDataEncryptor) encryptInsertQuery(insert *sqlparser.Insert
 				for j, value := range valTuple {
 					columnName := columnsName[j]
 					if changedValue, err := encryptor.encryptExpression(value, schema, columnName); err != nil {
-						logrus.WithError(err).Errorln("Can't encrypt expression")
+						logrus.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorEncryptorCantEncryptExpression).WithError(err).Errorln("Can't encrypt expression")
 						return changed, err
 					} else if changedValue {
 						changed = true
@@ -107,7 +108,7 @@ func UpdateExpressionValue(expr sqlparser.Expr, coder DBDataCoder, updateFunc fu
 			rawData, err := coder.Decode(val)
 			if err != nil {
 				if err != errUnsupportedExpression {
-					logrus.WithError(err).Errorln("Can't decode data")
+					logrus.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCodingCantDecodeSQLValue).WithError(err).Errorln("Can't decode data")
 				}
 				return err
 			}
@@ -209,7 +210,7 @@ func (encryptor *QueryDataEncryptor) encryptUpdateExpressions(exprs sqlparser.Up
 		}
 		columnName := expr.Name.Name.String()
 		if changedExpr, err := encryptor.encryptExpression(expr.Expr, schema, columnName); err != nil {
-			logrus.WithError(err).Errorln("Can't encrypt update expression")
+			logrus.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorEncryptorCantEncryptExpression).WithError(err).Errorln("Can't update expression with encrypted sql value")
 			return changed, err
 		} else if changedExpr {
 			changed = true

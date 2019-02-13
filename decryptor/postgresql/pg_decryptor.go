@@ -102,12 +102,16 @@ type PgProxy struct {
 
 // NewPgProxy returns new PgProxy
 func NewPgProxy(ctx context.Context, decryptor base.Decryptor, dbConnection, clientConnection net.Conn, tlsConfig *tls.Config, censor acracensor.AcraCensorInterface) (*PgProxy, error) {
+	observerManager, err := base.NewArrayQueryObserverableManager(ctx)
+	if err != nil {
+		return nil, err
+	}
 	return &PgProxy{
 		clientConnection:     clientConnection,
 		dbConnection:         dbConnection,
 		TLSCh:                make(chan bool),
 		ctx:                  ctx,
-		queryObserverManager: &base.ArrayQueryObserverableManager{},
+		queryObserverManager: observerManager,
 		tlsConfig:            tlsConfig,
 		censor:               censor,
 		decryptor:            decryptor,
@@ -127,16 +131,16 @@ func (proxy *PgProxy) RegisteredObserversCount() int {
 // ProxyClientConnection checks every client request using AcraCensor,
 // if request is allowed, sends it to the Pg database
 func (proxy *PgProxy) ProxyClientConnection(errCh chan<- error) {
-	ctx, span := trace.StartSpan(proxy.ctx, "PgProxyClientRequests")
+	ctx, span := trace.StartSpan(proxy.ctx, "ProxyClientConnection")
 	defer span.End()
 	logger := logging.NewLoggerWithTrace(ctx).WithField("proxy", "client")
-	logger.Debugln("Pg client proxy")
+	logger.Debugln("ProxyClientConnection")
 	writer := bufio.NewWriter(proxy.dbConnection)
 
 	reader := bufio.NewReader(proxy.clientConnection)
 	packet, err := NewClientSidePacketHandler(reader, writer, logger)
 	if err != nil {
-		logger.WithError(err).Errorln("Can't initialize DataRow object")
+		logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCodingPostgresqlPacketHandlerInitiailization).WithError(err).Errorln("Can't initialize packet handler object")
 		errCh <- err
 		return
 	}
@@ -158,7 +162,7 @@ func (proxy *PgProxy) ProxyClientConnection(errCh chan<- error) {
 		packet.Reset()
 
 		spanEndFunc()
-		packetSpanCtx, packetSpan := trace.StartSpan(ctx, "PgProxyClientRequestsLoop")
+		packetSpanCtx, packetSpan := trace.StartSpan(ctx, "ProxyClientConnectionLoop")
 		spanEndFunc = packetSpan.End
 
 		if err = packet.ReadClientPacket(); err != nil {
@@ -167,6 +171,7 @@ func (proxy *PgProxy) ProxyClientConnection(errCh chan<- error) {
 				proxy.TLSCh <- true
 				return
 			}
+			// log message with debug level because only here we expect and can meet errors with closed connections io.EOF
 			logger.WithError(err).Debugln("Can't read packet from client to database")
 			errCh <- err
 			return
@@ -175,7 +180,7 @@ func (proxy *PgProxy) ProxyClientConnection(errCh chan<- error) {
 		// we are interested only in requests that contains sql queries
 		if !(packet.IsSimpleQuery() || packet.IsParse()) {
 			if err = packet.sendPacket(); err != nil {
-				logger.WithError(err).Errorln("Can't forward packet to db")
+				logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorNetworkWrite).WithError(err).Errorln("Can't forward packet to db")
 				errCh <- err
 				return
 			}
@@ -190,19 +195,19 @@ func (proxy *PgProxy) ProxyClientConnection(errCh chan<- error) {
 		if packet.IsSimpleQuery() {
 			query, err = packet.GetSimpleQuery()
 			if err != nil {
-				logger.WithError(err).Errorln("Can't fetch query string from Query packet")
+				logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCodingPostgresqlCantExtractQueryString).WithError(err).Errorln("Can't fetch query string from Query packet")
 				errCh <- err
 				return
 			}
 		} else if packet.IsParse() {
 			query, err = packet.GetParseQuery()
 			if err != nil {
-				logger.WithError(err).Errorln("Can't fetch query string from Parse packet")
+				logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCodingPostgresqlCantExtractQueryString).WithError(err).Errorln("Can't fetch query string from Parse packet")
 				errCh <- err
 				return
 			}
 		} else {
-			logger.Errorf("Unhandled message type <%v>", packet.messageType[0])
+			logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCodingPostgresqlUnexpectedPacket).Errorf("Unhandled message type <%v>", packet.messageType[0])
 			errCh <- errors.New("unhandled message type")
 			return
 		}
@@ -211,7 +216,7 @@ func (proxy *PgProxy) ProxyClientConnection(errCh chan<- error) {
 		if logging.GetLogLevel() == logging.LogDebug {
 			_, queryWithHiddenValues, _, err := common.HandleRawSQLQuery(query)
 			if err == common.ErrQuerySyntaxError {
-				logger.WithError(err).Infof("Parsing error on query: %s", queryWithHiddenValues)
+				logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCensorQueryParseError).WithError(err).Debugf("Parsing error on query: %s", queryWithHiddenValues)
 			} else {
 				logger.WithField("sql", queryWithHiddenValues).Debugln("New query")
 			}
@@ -219,10 +224,10 @@ func (proxy *PgProxy) ProxyClientConnection(errCh chan<- error) {
 
 		if censorErr := proxy.censor.HandleQuery(query); censorErr != nil {
 			censorSpan.End()
-			logger.WithError(censorErr).Errorln("AcraCensor blocked query")
+			logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCensorQueryIsNotAllowed).WithError(censorErr).Errorln("AcraCensor blocked query")
 			errorMessage, err := NewPgError("AcraCensor blocked this query")
 			if err != nil {
-				logger.WithError(err).Errorln("Can't create PostgreSQL error message")
+				logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCodingPostgresqlCantGenerateErrorPacket).WithError(err).Errorln("Can't create PostgreSQL error message")
 				errCh <- err
 				return
 			}
@@ -250,7 +255,7 @@ func (proxy *PgProxy) ProxyClientConnection(errCh chan<- error) {
 		censorSpan.End()
 
 		if err := packet.sendPacket(); err != nil {
-			logger.WithError(err).Errorln("Can't send packet")
+			logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorNetworkWrite).WithError(err).Errorln("Can't send packet")
 			errCh <- err
 			return
 		}
@@ -261,12 +266,12 @@ func (proxy *PgProxy) ProxyClientConnection(errCh chan<- error) {
 // return error
 func handlePoisonCheckResult(decryptor base.Decryptor, poisoned bool, err error, logger *log.Entry) error {
 	if err != nil {
-		logger.WithError(err).Errorln("Can't check on poison record")
+		logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorDecryptorCantCheckPoisonRecord).WithError(err).Errorln("Can't check on poison record")
 		return err
 	}
 
 	if poisoned {
-		logger.Warningln("Recognized poison record")
+		logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorDecryptorRecognizedPoisonRecord).Warningln("Recognized poison record")
 		callbacks := decryptor.GetPoisonCallbackStorage()
 		if callbacks.HasCallbacks() {
 			return callbacks.Call()
@@ -303,12 +308,12 @@ func checkWholePoisonRecord(block []byte, decryptor base.Decryptor, logger *log.
 	decryptor.Reset()
 	skippedBegin, err := decryptor.SkipBeginInBlock(block)
 	if err != nil {
-		logger.WithError(err).Errorln("Can't skip begin tag for poison record check")
+		logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorDecryptorCantSkipBeginInBlock).WithError(err).Debugln("Can't skip begin tag for poison record check")
 		return nil
 	}
 	poisoned, checkErr := decryptor.CheckPoisonRecord(bytes.NewReader(skippedBegin))
 	if innerErr := handlePoisonCheckResult(decryptor, poisoned, checkErr, logger); err != nil {
-		logger.WithError(innerErr).Errorln("Error on poison record check")
+		logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorDecryptorCantCheckPoisonRecord).WithError(innerErr).Errorln("Error on poison record check")
 		return innerErr
 	}
 	return checkErr
@@ -319,10 +324,14 @@ func (proxy *PgProxy) processWholeBlockDecryption(ctx context.Context, packet *P
 	span := trace.FromContext(ctx)
 	decryptor.Reset()
 	decrypted, err := decryptor.DecryptBlock(column.Data)
+	if err == errPlainData {
+		// it's not AcraStruct
+		return nil
+	}
 	if err != nil {
 		span.AddAttributes(trace.BoolAttribute("failed_decryption", true))
 		// check poison records on failed decryption
-		logger.WithError(err).Errorln("Can't decrypt possible AcraStruct")
+		logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorDecryptorCantDecryptBinary).WithError(err).Warningln("Can't decrypt AcraStruct: can't unwrap symmetric key")
 		base.AcrastructDecryptionCounter.WithLabelValues(base.DecryptionTypeFail).Inc()
 		if decryptor.IsPoisonRecordCheckOn() {
 			decryptor.Reset()
@@ -341,7 +350,7 @@ func (proxy *PgProxy) processWholeBlockDecryption(ctx context.Context, packet *P
 func (proxy *PgProxy) handleSSLRequest(packet *PacketHandler, tlsConfig *tls.Config, logger *log.Entry) (net.Conn, net.Conn, error) {
 	// if server allow SSLRequest than we wrap our connections with tls
 	if tlsConfig == nil {
-		logger.Errorln("To support TLS connections you must pass TLS key and certificate for AcraServer that will be used " +
+		logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorDecryptorCantInitializeTLS).Errorln("To support TLS connections you must pass TLS key and certificate for AcraServer that will be used " +
 			"for connections AcraServer->Database and CA certificate which will be used to verify certificate " +
 			"from database")
 		return nil, nil, network.ErrEmptyTLSConfig
@@ -359,7 +368,7 @@ func (proxy *PgProxy) handleSSLRequest(packet *PacketHandler, tlsConfig *tls.Con
 		proxy.TLSCh = nil
 		break
 	case <-time.NewTimer(TLSTimeout).C:
-		logger.Errorln("Can't stop background goroutine to start tls handshake")
+		logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorDecryptorCantInitializeTLS).Errorln("Can't stop background goroutine to start tls handshake")
 		return nil, nil, errors.New("can't stop background goroutine")
 	}
 	logger.Debugln("Stop client connection")
@@ -417,14 +426,12 @@ func (proxy *PgProxy) processInlineBlockDecryption(ctx context.Context, packet *
 
 		key, err := decryptor.GetPrivateKey()
 		if err != nil {
-			logger.WithError(err).Warningln("Can't read private key")
+			logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantReadKeys).WithError(err).Warningln("Can't read private key for matched client_id/zone_id")
 			if decryptor.IsPoisonRecordCheckOn() {
 				logger.Infoln("Check poison records")
 				blockReader := bytes.NewReader(column.Data[beginTagIndex+tagLength:])
 				poisoned, err := decryptor.CheckPoisonRecord(blockReader)
-				err = handlePoisonCheckResult(decryptor, poisoned, err, logger)
-				if err != nil {
-					logger.WithError(err).Errorln("Error on poison record processing")
+				if err = handlePoisonCheckResult(decryptor, poisoned, err, logger); err != nil {
 					return err
 				}
 			}
@@ -436,14 +443,12 @@ func (proxy *PgProxy) processInlineBlockDecryption(ctx context.Context, packet *
 		if err != nil {
 			span.AddAttributes(trace.BoolAttribute("failed_decryption", true))
 			base.AcrastructDecryptionCounter.WithLabelValues(base.DecryptionTypeFail).Inc()
-			logger.WithError(err).Warningln("Can't unwrap symmetric key")
+			logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorDecryptorCantDecryptBinary).WithError(err).Warningln("Can't decrypt AcraStruct: can't unwrap symmetric key")
 			if decryptor.IsPoisonRecordCheckOn() {
 				logger.Infoln("Check poison records")
 				blockReader = bytes.NewReader(column.Data[beginTagIndex+tagLength:])
 				poisoned, err := decryptor.CheckPoisonRecord(blockReader)
-				err = handlePoisonCheckResult(decryptor, poisoned, err, logger)
-				if err != nil {
-					logger.WithError(err).Errorln("Error on poison record processing")
+				if err = handlePoisonCheckResult(decryptor, poisoned, err, logger); err != nil {
 					return err
 				}
 			}
@@ -457,12 +462,13 @@ func (proxy *PgProxy) processInlineBlockDecryption(ctx context.Context, packet *
 		if err != nil {
 			span.AddAttributes(trace.BoolAttribute("failed_decryption", true))
 			base.AcrastructDecryptionCounter.WithLabelValues(base.DecryptionTypeFail).Inc()
-			logger.WithError(err).Warningln("Can't decrypt data with unwrapped symmetric key")
+			logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorDecryptorCantDecryptBinary).WithError(err).Warningln("Can't decrypt AcraStruct: can't decrypt data with unwrapped symmetric key")
 			// write current read byte to not process him in next iteration
 			outputBlock.Write([]byte{column.Data[currentIndex]})
 			currentIndex++
 			continue
 		}
+		logger.Infoln("Decrypted AcraStruct")
 		base.AcrastructDecryptionCounter.WithLabelValues(base.DecryptionTypeSuccess).Inc()
 		outputBlock.Write(decryptedData)
 		currentIndex += tagLength + (len(column.Data[beginTagIndex+tagLength:]) - blockReader.Len())
@@ -529,7 +535,7 @@ func (proxy *PgProxy) ProxyDatabaseConnection(errCh chan<- error) {
 			firstByte = false
 			logger.Debugln("Read startup message")
 			if err = packetHandler.readMessageType(); err != nil {
-				logger.WithError(err).Debugln("Can't read first message type")
+				logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorDecryptorReadPacket).WithError(err).Debugln("Can't read first message type")
 				errCh <- err
 				return
 			}
@@ -545,7 +551,7 @@ func (proxy *PgProxy) ProxyDatabaseConnection(errCh chan<- error) {
 			} else if packetHandler.IsSSLRequestAllowed() {
 				tlsClientConnection, dbTLSConnection, err := proxy.handleSSLRequest(packetHandler, proxy.tlsConfig, logger)
 				if err != nil {
-					logger.WithError(err).Errorln("Can't process SSL request")
+					logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorDecryptorCantInitializeTLS).WithError(err).Errorln("Can't process SSL request")
 					errCh <- err
 					return
 				}
@@ -566,12 +572,12 @@ func (proxy *PgProxy) ProxyDatabaseConnection(errCh chan<- error) {
 			logger.Debugln("Non-ssl request start up message")
 			// if it is not ssl request than we just forward it to client
 			if err = packetHandler.readData(true); err != nil {
-				logger.WithError(err).Errorln("Can't read data of packet")
+				logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorDecryptorReadPacket).WithError(err).Errorln("Can't read data of packet")
 				errCh <- err
 				return
 			}
 			if err = packetHandler.sendPacket(); err != nil {
-				logger.WithError(err).Errorln("Can't forward first packet")
+				logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorNetworkWrite).WithError(err).Errorln("Can't forward first packet")
 				errCh <- err
 				return
 			}
@@ -580,7 +586,7 @@ func (proxy *PgProxy) ProxyDatabaseConnection(errCh chan<- error) {
 		}
 		timer := prometheus.NewTimer(prometheus.ObserverFunc(base.ResponseProcessingTimeHistogram.WithLabelValues(prometheusLabels...).Observe))
 		if err = packetHandler.ReadPacket(); err != nil {
-			logger.WithError(err).Debugln("Can't read packet")
+			logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorDecryptorReadPacket).WithError(err).Debugln("Can't read packet")
 			errCh <- err
 			return
 		}
@@ -588,7 +594,7 @@ func (proxy *PgProxy) ProxyDatabaseConnection(errCh chan<- error) {
 
 		if !packetHandler.IsDataRow() {
 			if err = packetHandler.sendPacket(); err != nil {
-				logger.WithError(err).Errorln("Can't forward packet")
+				logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorNetworkWrite).WithError(err).Errorln("Can't forward packet")
 				errCh <- err
 				return
 			}
@@ -598,14 +604,14 @@ func (proxy *PgProxy) ProxyDatabaseConnection(errCh chan<- error) {
 
 		logger.Debugln("Matched data row packet")
 		if err = packetHandler.parseColumns(); err != nil {
-			logger.WithError(err).Errorln("Can't parse columns in packet")
+			logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCodingPostgresqlCantParseColumnsDescription).WithError(err).Errorln("Can't parse columns in packet")
 			errCh <- err
 			return
 		}
 
 		if packetHandler.columnCount == 0 {
 			if err = packetHandler.sendPacket(); err != nil {
-				logger.WithError(err).Errorln("Can't send packet on column count 0")
+				logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorNetworkWrite).WithError(err).Errorln("Can't send packet on column count 0")
 				errCh <- err
 				return
 			}
@@ -639,24 +645,28 @@ func (proxy *PgProxy) ProxyDatabaseConnection(errCh chan<- error) {
 					}
 
 					if err != nil {
-						logger.WithError(err).Errorln("Can't check poison record in block")
+						logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorDecryptorCantCheckPoisonRecord).WithError(err).Errorln("Can't check poison record in block")
 						errCh <- err
 						return
 					}
 					continue
 				}
 
+				// create temporary logger to log related zone_id in flow of decryption
+				// client_id set on higher level on start of processing connection
+				decryptionLogger := logger.WithField("zone_id", string(proxy.decryptor.GetMatchedZoneID()))
+
 				if proxy.decryptor.IsWholeMatch() {
-					err = proxy.processWholeBlockDecryption(packetCtx, packetHandler, column, proxy.decryptor, logger)
+					err = proxy.processWholeBlockDecryption(packetCtx, packetHandler, column, proxy.decryptor, decryptionLogger)
 					if err != nil {
-						logger.WithError(err).Errorln("Can't process whole block")
+						decryptionLogger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorDecryptorCantDecryptBinary).WithError(err).Errorln("Can't process whole block")
 						errCh <- err
 						return
 					}
 				} else {
-					err = proxy.processInlineBlockDecryption(packetCtx, packetHandler, column, proxy.decryptor, logger)
+					err = proxy.processInlineBlockDecryption(packetCtx, packetHandler, column, proxy.decryptor, decryptionLogger)
 					if err != nil {
-						logger.WithError(err).Errorln("Can't process block with inline mode")
+						decryptionLogger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorDecryptorCantDecryptBinary).WithError(err).Errorln("Can't process block with inline mode")
 						errCh <- err
 						return
 					}
@@ -667,7 +677,7 @@ func (proxy *PgProxy) ProxyDatabaseConnection(errCh chan<- error) {
 		}
 		packetHandler.updateDataFromColumns()
 		if err = packetHandler.sendPacket(); err != nil {
-			logger.WithError(err).Errorln("Can't send packet")
+			logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorNetworkWrite).WithError(err).Errorln("Can't send packet")
 			errCh <- err
 			return
 		}

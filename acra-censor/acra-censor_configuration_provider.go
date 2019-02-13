@@ -19,6 +19,7 @@ package acracensor
 import (
 	"github.com/cossacklabs/acra/acra-censor/common"
 	"github.com/cossacklabs/acra/acra-censor/handlers"
+	"github.com/cossacklabs/acra/logging"
 	"gopkg.in/yaml.v2"
 	"strings"
 )
@@ -107,7 +108,9 @@ func (acraCensor *AcraCensor) LoadConfiguration(configuration []byte) error {
 			go queryCaptureHandler.Start()
 			acraCensor.AddHandler(queryCaptureHandler)
 		default:
-			acraCensor.logger.Errorln("Unexpected handler in configuration")
+			acraCensor.logger.
+				WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCensorSetupError).
+				Errorln("Unexpected handler in configuration: probably AcraCensor configuration (acra-censor.yaml) is outdated")
 			return common.ErrCensorConfigurationError
 		}
 	}
