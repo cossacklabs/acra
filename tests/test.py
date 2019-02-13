@@ -110,6 +110,7 @@ test_table = sa.Table('test', metadata,
     sa.Column('data', sa.LargeBinary(length=COLUMN_DATA_SIZE)),
     sa.Column('raw_data', sa.Text),
     sa.Column('nullable_column', sa.Text, nullable=True),
+    sa.Column('empty', sa.LargeBinary(length=COLUMN_DATA_SIZE), nullable=False, default=b''),
 )
 
 acrarollback_output_table = sa.Table('acrarollback_output', metadata,
@@ -1120,6 +1121,7 @@ class HexFormatTest(BaseTestCase):
             .where(test_table.c.id == row_id))
         row = result.fetchone()
         self.assertEqual(row['data'], row['raw_data'].encode('utf-8'))
+        self.assertEqual(row['empty'], b'')
 
         result = self.engine2.execute(
             sa.select([test_table])
@@ -1127,6 +1129,7 @@ class HexFormatTest(BaseTestCase):
         row = result.fetchone()
         self.assertNotEqual(row['data'].decode('ascii', errors='ignore'),
                             row['raw_data'])
+        self.assertEqual(row['empty'], b'')
 
         result = self.engine_raw.execute(
             sa.select([test_table])
@@ -1134,6 +1137,7 @@ class HexFormatTest(BaseTestCase):
         row = result.fetchone()
         self.assertNotEqual(row['data'].decode('ascii', errors='ignore'),
                             row['raw_data'])
+        self.assertEqual(row['empty'], b'')
 
     def testReadAcrastructInAcrastruct(self):
         """test correct decrypting acrastruct when acrastruct concatenated to
@@ -1167,6 +1171,7 @@ class HexFormatTest(BaseTestCase):
             print('incorrect data: {}\ncorrect data: {}\ndata: {}\n data len: {}'.format(
                 incorrect_data, correct_data, row['data'], len(row['data'])))
             raise
+        self.assertEqual(row['empty'], b'')
 
         result = self.engine2.execute(
             sa.select([test_table])
@@ -1174,6 +1179,7 @@ class HexFormatTest(BaseTestCase):
         row = result.fetchone()
         self.assertNotEqual(row['data'][fake_offset:].decode('ascii', errors='ignore'),
                             row['raw_data'])
+        self.assertEqual(row['empty'], b'')
 
         result = self.engine_raw.execute(
             sa.select([test_table])
@@ -1181,6 +1187,7 @@ class HexFormatTest(BaseTestCase):
         row = result.fetchone()
         self.assertNotEqual(row['data'][fake_offset:].decode('ascii', errors='ignore'),
                             row['raw_data'])
+        self.assertEqual(row['empty'], b'')
 
 
 class BaseCensorTest(BaseTestCase):
@@ -1214,7 +1221,7 @@ class CensorBlacklistTest(BaseCensorTest):
         testQueries = ["select * from test",  # should be denied by query
                        "select * from acrarollback_output",  # should be denied by table
                        "select data from test where id=1",  # should be denied by pattern
-                       "insert into test(id, data) values(1, DEFAULT)"]  # should be denied by pattern
+                       "insert into test(id, data, empty) values(1, DEFAULT, '')"]  # should be denied by pattern
 
         for executor in executors:
             for testQuery in testQueries:
@@ -1251,7 +1258,7 @@ class CensorWhitelistTest(BaseCensorTest):
 
         # all those queries should be denied because no matching allow rules specified
         testQueries = ["select * from acrarollback_output",
-                       "insert into test(id, data) values(1, DEFAULT)"]
+                       "insert into test(id, data, empty) values(1, DEFAULT, '')"]
 
         for executor in executors:
             for testQuery in testQueries:
@@ -1286,6 +1293,7 @@ class ZoneHexFormatTest(BaseTestCase):
             .where(test_table.c.id == row_id))
         row = result.fetchone()
         self.assertEqual(row['data'], row['raw_data'].encode('utf-8'))
+        self.assertEqual(row['empty'], b'')
 
         # without zone in another connector, in the same connector and without any connector
         for engine in self.engines:
@@ -1294,6 +1302,7 @@ class ZoneHexFormatTest(BaseTestCase):
                 .where(test_table.c.id == row_id))
             row = result.fetchone()
             self.assertNotEqual(row['data'].decode('ascii', errors='ignore'), row['raw_data'])
+            self.assertEqual(row['empty'], b'')
 
     def testReadAcrastructInAcrastruct(self):
         incorrect_data = get_pregenerated_random_data()
@@ -1317,6 +1326,7 @@ class ZoneHexFormatTest(BaseTestCase):
         row = result.fetchone()
         self.assertEqual(row['data'][fake_offset:],
                          row['raw_data'].encode('utf-8'))
+        self.assertEqual(row['empty'], b'')
 
         result = self.engine2.execute(
             sa.select([test_table])
@@ -1324,6 +1334,7 @@ class ZoneHexFormatTest(BaseTestCase):
         row = result.fetchone()
         self.assertNotEqual(row['data'][fake_offset:].decode('ascii', errors='ignore'),
                             row['raw_data'])
+        self.assertEqual(row['empty'], b'')
 
         result = self.engine_raw.execute(
             sa.select([test_table])
@@ -1331,6 +1342,7 @@ class ZoneHexFormatTest(BaseTestCase):
         row = result.fetchone()
         self.assertNotEqual(row['data'][fake_offset:].decode('ascii', errors='ignore'),
                             row['raw_data'])
+        self.assertEqual(row['empty'], b'')
 
 
 class EscapeFormatTest(HexFormatTest):
@@ -1873,7 +1885,7 @@ class TestShutdownPoisonRecordWithZoneOffStatus(TestPoisonRecordShutdown):
         result = self.engine1.execute(
             sa.select([sa.cast(zone, BYTEA), test_table])
                 .where(test_table.c.id == row_id))
-        for zone, _, data, raw_data, _ in result:
+        for zone, _, data, raw_data, _, _ in result:
             self.assertEqual(zone, zone)
             self.assertEqual(data, poison_record)
 
@@ -1888,7 +1900,7 @@ class TestShutdownPoisonRecordWithZoneOffStatus(TestPoisonRecordShutdown):
         result = self.engine1.execute(
             sa.select([test_table])
                 .where(test_table.c.id == row_id))
-        for _, data, raw_data, _ in result:
+        for _, data, raw_data, _, _ in result:
             self.assertEqual(data, poison_record)
 
     def testShutdown3(self):
@@ -1901,7 +1913,7 @@ class TestShutdownPoisonRecordWithZoneOffStatus(TestPoisonRecordShutdown):
 
         result = self.engine1.execute(
             sa.select([test_table]))
-        for _, data, raw_data, _ in result:
+        for _, data, raw_data, _, _ in result:
             self.assertEqual(data, poison_record)
 
     def testShutdown4(self):
@@ -1918,7 +1930,7 @@ class TestShutdownPoisonRecordWithZoneOffStatus(TestPoisonRecordShutdown):
 
         result = self.engine1.execute(
             sa.select([test_table]))
-        for _, data, raw_data, _ in result:
+        for _, data, raw_data, _, _ in result:
             self.assertEqual(testData, data)
 
 
@@ -2011,7 +2023,7 @@ class TestNoCheckPoisonRecord(AcraCatchLogsMixin, BasePoisonRecordTest):
         self.assertNotIn('Check poison records', log)
         result = self.engine1.execute(
             sa.select([test_table]))
-        for _, data, raw_data, _ in result:
+        for _, data, raw_data, _, _ in result:
             self.assertEqual(poison_record, data)
 
 
@@ -2702,6 +2714,7 @@ class BasePrepareStatementMixin:
         row = self.executePreparedStatement(query)[0]
 
         self.assertEqual(row['data'], safe_string(row['raw_data']).encode('utf-8'))
+        self.assertEqual(row['empty'], b'')
 
         result = self.engine2.execute(
             sa.select([test_table])
@@ -2709,6 +2722,7 @@ class BasePrepareStatementMixin:
         row = result.fetchone()
         self.assertNotEqual(row['data'].decode('ascii', errors='ignore'),
                             row['raw_data'])
+        self.assertEqual(row['empty'], b'')
 
         result = self.engine_raw.execute(
             sa.select([test_table])
@@ -2716,6 +2730,7 @@ class BasePrepareStatementMixin:
         row = result.fetchone()
         self.assertNotEqual(row['data'].decode('ascii', errors='ignore'),
                             row['raw_data'])
+        self.assertEqual(row['empty'], b'')
 
     def testReadAcrastructInAcrastruct(self):
         """test correct decrypting acrastruct when acrastruct concatenated to
@@ -2750,6 +2765,7 @@ class BasePrepareStatementMixin:
             else:
                 self.assertEqual(row['data'][fake_offset:],
                                  safe_string(row['raw_data']).encode('utf-8'))
+            self.assertEqual(row['empty'], b'')
         except:
             print('incorrect data: {}\ncorrect data: {}\ndata: {}\n data len: {}'.format(
                 incorrect_data, correct_data, row['data'], len(row['data'])))
@@ -2761,6 +2777,7 @@ class BasePrepareStatementMixin:
         row = result.fetchone()
         self.assertNotEqual(row['data'][fake_offset:].decode('ascii', errors='ignore'),
                             row['raw_data'])
+        self.assertEqual(row['empty'], b'')
 
         result = self.engine_raw.execute(
             sa.select([test_table])
@@ -2768,6 +2785,7 @@ class BasePrepareStatementMixin:
         row = result.fetchone()
         self.assertNotEqual(row['data'][fake_offset:].decode('ascii', errors='ignore'),
                             row['raw_data'])
+        self.assertEqual(row['empty'], b'')
 
 
 class TestMysqlTextPreparedStatement(BasePrepareStatementMixin, BaseTestCase):
@@ -3427,6 +3445,7 @@ class TestTransparentEncryption(BaseTestCase):
         sa.Column('zone_id', sa.LargeBinary(length=COLUMN_DATA_SIZE)),
         sa.Column('raw_data', sa.LargeBinary(length=COLUMN_DATA_SIZE)),
         sa.Column('nullable', sa.Text, nullable=True),
+        sa.Column('empty', sa.LargeBinary(length=COLUMN_DATA_SIZE), nullable=False, default=b''),
     )
     ENCRYPTOR_CONFIG = get_encryptor_config('tests/encryptor_config.yaml')
 
@@ -3459,6 +3478,7 @@ class TestTransparentEncryption(BaseTestCase):
             'specified_client_id': get_pregenerated_random_data().encode('ascii'),
             'raw_data': get_pregenerated_random_data().encode('ascii'),
             'zone': zones[0],
+            'empty': b'',
         }
         return context
 
@@ -3478,6 +3498,7 @@ class TestTransparentEncryption(BaseTestCase):
         # other data should be encrypted
         self.assertNotEqual(row['specified_client_id'], specified_client_id)
         self.assertNotEqual(row['zone_id'], zone_id)
+        self.assertEqual(row['empty'], b'')
 
     def checkSpecifiedIdEncryption(
             self, id, default_client_id, specified_client_id, zone_id,
@@ -3496,6 +3517,7 @@ class TestTransparentEncryption(BaseTestCase):
         # other data should be encrypted
         self.assertNotEqual(row['default_client_id'], default_client_id)
         self.assertNotEqual(row['zone_id'], zone_id)
+        self.assertEqual(row['empty'], b'')
 
     def insertRow(self, data):
         # send through acra-connector that authenticates as client_id=keypair2
@@ -3515,7 +3537,7 @@ class TestTransparentEncryption(BaseTestCase):
         # update with acrastructs and AcraServer should not
         # re-encrypt
         data_fields = ['default_client_id', 'specified_client_id', 'zone_id',
-                       'raw_data']
+                       'raw_data', 'empty']
         data = {k: encrypted_data[k] for k in data_fields}
         data['id'] = context['id']
         self.update_data(data)
@@ -3561,7 +3583,8 @@ class TestTransparentEncryption(BaseTestCase):
                        sa.cast(context['zone'][ZONE_ID].encode('ascii'), BYTEA),
                        self.encryptor_table.c.zone_id,
                        self.encryptor_table.c.raw_data,
-                       self.encryptor_table.c.nullable])
+                       self.encryptor_table.c.nullable,
+                       self.encryptor_table.c.empty])
             .where(self.encryptor_table.c.id == context['id']))
         data = result.fetchone()
         return data
@@ -3585,7 +3608,8 @@ class TestTransparentEncryptionWithZone(TestTransparentEncryption):
                        sa.cast(zone[ZONE_ID].encode('ascii'), BYTEA),
                        self.encryptor_table.c.zone_id,
                        self.encryptor_table.c.raw_data,
-                       self.encryptor_table.c.nullable])
+                       self.encryptor_table.c.nullable,
+                       self.encryptor_table.c.empty])
             .where(self.encryptor_table.c.id == id))
         row = result.fetchone()
         self.assertIsNotNone(row)
@@ -3597,6 +3621,7 @@ class TestTransparentEncryptionWithZone(TestTransparentEncryption):
         # other data should be encrypted
         self.assertNotEqual(row['default_client_id'], default_client_id)
         self.assertNotEqual(row['specified_client_id'], specified_client_id)
+        self.assertEqual(row['empty'], b'')
 
     def check_all_decryptions(self, **context):
         self.checkZoneIdEncryption(**context)
