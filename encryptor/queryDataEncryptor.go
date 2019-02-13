@@ -22,6 +22,7 @@ import (
 	"github.com/cossacklabs/acra/decryptor/base"
 	"github.com/cossacklabs/acra/encryptor/config"
 	"github.com/cossacklabs/acra/sqlparser"
+	"github.com/cossacklabs/acra/utils"
 	"github.com/sirupsen/logrus"
 	"reflect"
 )
@@ -106,8 +107,10 @@ func UpdateExpressionValue(expr sqlparser.Expr, coder DBDataCoder, updateFunc fu
 		case sqlparser.StrVal, sqlparser.HexVal, sqlparser.PgEscapeString:
 			rawData, err := coder.Decode(val)
 			if err != nil {
-				if err != errUnsupportedExpression {
-					logrus.WithError(err).Errorln("Can't decode data")
+				if err == utils.ErrDecodeEscapedString || err == errUnsupportedExpression {
+					logrus.WithError(err).
+						Warningln("Can't decode data with unsupported coding format or unsupported expression")
+					return ErrUpdateLeaveDataUnchanged
 				}
 				return err
 			}
