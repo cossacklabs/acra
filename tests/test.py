@@ -3103,5 +3103,46 @@ class TestPrometheusMetrics(AcraTranslatorMixin, BaseTestCase):
                 self.checkMetrics(metrics_url, labels)
 
 
+class TestEmptyValues(BaseTestCase):
+    temp_table = sa.Table('test_empty_values', metadata,
+                          sa.Column('id', sa.Integer, primary_key=True),
+                          sa.Column('binary', sa.LargeBinary(length=10), nullable=True),
+                          sa.Column('text', sa.Text, nullable=True),
+                          )
+    def setUp(self):
+        super(TestEmptyValues, self).setUp()
+        #self.temp_table.create(self.engine_raw)
+
+    def tearDown(self):
+        self.temp_table.drop(self.engine_raw)
+        super(TestEmptyValues, self).tearDown()
+
+    def testEmptyValues(self):
+        null_value_id = get_random_id()
+        empty_value_id = get_random_id()
+        # insert with NULL value
+        self.engine1.execute(
+            self.temp_table.insert(),
+            {'id': null_value_id, 'text': None, 'binary': None})
+
+        # insert with empty value
+        self.engine1.execute(
+            self.temp_table.insert(),
+            {'id': empty_value_id, 'text': '', 'binary': b''})
+
+        # check null values
+        result = self.engine1.execute(sa.select([self.temp_table]).where(self.temp_table.c.id == null_value_id))
+        row = result.fetchone()
+        self.assertIsNone(row['text'])
+        self.assertIsNone(row['binary'])
+
+        # check empty values
+        result = self.engine1.execute(sa.select([self.temp_table]).where(self.temp_table.c.id == empty_value_id))
+        row = result.fetchone()
+        self.assertEqual(row['text'], '')
+        self.assertEqual(row['binary'], b'')
+
+
+
 if __name__ == '__main__':
     unittest.main()
