@@ -2422,6 +2422,7 @@ class TestAcraWebconfigWeb(AcraCatchLogsMixin, BaseTestCase):
     def tearDown(self):
         super(TestAcraWebconfigWeb, self).tearDown()
         stop_process(getattr(self, 'webconfig', ProcessStub()))
+        send_signal_by_process_name('acra-webconfig', signal.SIGKILL)
 
     def testAuthAndSubmitSettings(self):
         shutil.copy('configs/acra-server.yaml', 'configs/acra-server.yaml.backup')
@@ -2471,6 +2472,7 @@ class TestAcraWebconfigWeb(AcraCatchLogsMixin, BaseTestCase):
                         os.kill(int(pid), signal.SIGKILL)
                     except ProcessLookupError:
                         pass
+                    send_signal_by_process_name('acra-server', signal.SIGKILL)
 
             # restore changed config
             os.rename('configs/acra-server.yaml.backup',
