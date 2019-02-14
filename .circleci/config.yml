@@ -11,7 +11,7 @@ jobs:
     environment:
       GOTHEMIS_IMPORT: github.com/cossacklabs/themis/gothemis
       FILEPATH_ERROR_FLAG: /tmp/test_fail
-      VERSIONS: 1.9.7 1.10.8 1.11.5 1.12rc1
+      VERSIONS: 1.9.7 1.10.8 1.11.5
       TEST_DB_PORT: 5432
       GOPATH_FOLDER: gopath
       TEST_RANDOM_DATA_FOLDER: /tmp/test_data
