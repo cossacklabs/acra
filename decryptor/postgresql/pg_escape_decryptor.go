@@ -197,7 +197,7 @@ func (decryptor *PgEscapeDecryptor) readDataLength(reader io.Reader) (uint64, []
 		return 0, decryptor.octLengthBuf[:octLenCount], base.ErrFakeAcraStruct
 	}
 	decryptor.outputSize += octLenCount
-	binary.Read(bytes.NewBuffer(decryptor.lengthBuf[:]), binary.LittleEndian, &length)
+	binary.Read(bytes.NewReader(decryptor.lengthBuf[:]), binary.LittleEndian, &length)
 	return length, decryptor.octLengthBuf[:octLenCount], nil
 }
 func (decryptor *PgEscapeDecryptor) readScellData(length uint64, reader io.Reader) ([]byte, []byte, error) {
