@@ -1065,18 +1065,18 @@ class BaseTestCase(PrometheusMixin, unittest.TestCase):
             self.clear_prometheus_addresses()
         except:
             pass
-        processes = [getattr(self, 'connector_1', ProcessStub()),
-                     getattr(self, 'connector_2', ProcessStub()),
-                     getattr(self, 'acra', ProcessStub())]
-        stop_process(processes)
-        send_signal_by_process_name('acra-server', signal.SIGTERM)
-        send_signal_by_process_name('acra-connector', signal.SIGTERM)
         try:
             self.engine_raw.execute('delete from test;')
         except:
             pass
         for engine in getattr(self, 'engines', []):
             engine.dispose()
+        processes = [getattr(self, 'connector_1', ProcessStub()),
+                     getattr(self, 'connector_2', ProcessStub()),
+                     getattr(self, 'acra', ProcessStub())]
+        stop_process(processes)
+        send_signal_by_process_name('acra-server', signal.SIGTERM)
+        send_signal_by_process_name('acra-connector', signal.SIGTERM)
 
     def log(self, acra_key_name, data, expected):
         """this function for printing data which used in test and for
@@ -1606,9 +1606,9 @@ class TestKeyNonExistence(BaseTestCase):
 
             self.assertTrue(isinstance(exc.exception.orig, expected_exception))
         finally:
-            stop_process(self.connector)
             if engine:
                 engine.dispose()
+            stop_process(self.connector)
 
     def checkShutdownAcraConnector(self, process):
         total_wait_time = 2  # sec
@@ -1663,9 +1663,9 @@ class TestKeyNonExistence(BaseTestCase):
                     connection.execute('select 1 from dual')
             self.assertTrue(isinstance(exc.exception.orig, expected_exception))
         finally:
-            stop_process(self.connector)
             if engine:
                 engine.dispose()
+            stop_process(self.connector)
 
     def test_without_acraserver_public(self):
         """acra-connector shouldn't start without acra-server public key"""
@@ -2005,6 +2005,7 @@ class AcraCatchLogsMixin(object):
         return process
 
     def tearDown(self, *args, **kwargs):
+        super(AcraCatchLogsMixin, self).tearDown(*args, **kwargs)
         for process, log_file in self.log_files.items():
             log_file.close()
             try:
@@ -2012,8 +2013,6 @@ class AcraCatchLogsMixin(object):
             except:
                 pass
             stop_process(process)
-
-        super(AcraCatchLogsMixin, self).tearDown(*args, **kwargs)
 
 
 class TestNoCheckPoisonRecord(AcraCatchLogsMixin, BasePoisonRecordTest):
@@ -2108,6 +2107,14 @@ class TestKeyStorageClearing(BaseTestCase):
             raise
 
     def tearDown(self):
+        try:
+            self.engine_raw.execute('delete from test;')
+        except:
+            pass
+
+        for engine in getattr(self, 'engines', []):
+            engine.dispose()
+
         processes = []
         if hasattr(self, 'connector_1'):
             processes.append(self.connector_1)
@@ -2117,14 +2124,6 @@ class TestKeyStorageClearing(BaseTestCase):
         stop_process(processes)
         send_signal_by_process_name('acra-server', signal.SIGTERM)
         send_signal_by_process_name('acra-connector', signal.SIGTERM)
-
-        try:
-            self.engine_raw.execute('delete from test;')
-        except:
-            pass
-
-        for engine in getattr(self, 'engines', []):
-            engine.dispose()
 
     def test_clearing(self):
         # execute any query for loading key by acra
@@ -2420,8 +2419,8 @@ class TestAcraWebconfigWeb(AcraCatchLogsMixin, BaseTestCase):
             raise
 
     def tearDown(self):
-        stop_process(getattr(self, 'webconfig', ProcessStub()))
         super(TestAcraWebconfigWeb, self).tearDown()
+        stop_process(getattr(self, 'webconfig', ProcessStub()))
 
     def testAuthAndSubmitSettings(self):
         shutil.copy('configs/acra-server.yaml', 'configs/acra-server.yaml.backup')
