@@ -6,6 +6,7 @@ export TEST_CONNECTOR_COMMAND_PORT=8000
 export TEST_DB_USER=test
 export TEST_DB_USER_PASSWORD=test
 export TEST_DB_NAME=test
+export GOPATH=$HOME/$GOPATH_FOLDER;
 
 cd $HOME/project
 # set correct permissions for ssl keys here because git by default recognize changing only executable bit
@@ -20,18 +21,14 @@ for version in $VERSIONS; do
     export TEST_CONNECTOR_COMMAND_PORT=$(expr ${TEST_CONNECTOR_COMMAND_PORT} + 1);
     export GOROOT=$HOME/go_root_$version/go;
     export PATH=$GOROOT/bin/:$PATH;
-    export GOPATH=$HOME/$GOPATH_FOLDER;
 
     
     echo "--------------------  Testing with TEST_TLS=${TEST_TLS}"
 
-    # use nohup to ignore unknown sighup signals from test environment (detected on circleci)
-    nohup python3 tests/test.py -v > logs.txt;
+    python3 tests/test.py -v;
     if [[ "$?" != "0" ]]; then
-        echo "golang-$version tls_on=${tls_mode}" >> "$FILEPATH_ERROR_FLAG";
+        echo "golang-$version tls_on=${TEST_TLS}" >> "$FILEPATH_ERROR_FLAG";
     else
         echo "no errors";
     fi
-    cat logs.txt;
-    rm logs.txt;
 done
