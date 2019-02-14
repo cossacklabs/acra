@@ -324,7 +324,7 @@ var hexPrefix = []byte{'\\', 'x'}
 func encodeBytesSQL(val []byte, b BinWriter) {
 	buf := &bytes2.Buffer{}
 	buf.WriteByte('\'')
-	if len(val) > len(hexPrefix) && bytes.Equal(hexPrefix, val[:2]) {
+	if len(val) >= len(hexPrefix) && bytes.Equal(hexPrefix, val[:2]) {
 		buf.Write(hexPrefix)
 		val = val[len(hexPrefix):]
 	}

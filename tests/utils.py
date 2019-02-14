@@ -20,7 +20,7 @@ def send_signal_by_process_name(name, signal, timeout=1):
         output = subprocess.check_output(['pidof', name], timeout=timeout)
     except subprocess.CalledProcessError:
         return
-    output = output.strip().decode('utf-8').split(separator)
+    output = output.strip().decode('utf-8').split(' ')
     for pid in output:
         os.kill(int(pid), signal)
 
