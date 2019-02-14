@@ -252,6 +252,7 @@ def stop_process(process):
         try:
             logger.info("kill pid {}".format(p.pid))
             p.kill()
+            logger.info("killed pid {}".format(p.pid))
         except:
             traceback.print_exc()
 
