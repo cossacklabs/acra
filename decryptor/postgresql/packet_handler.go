@@ -41,7 +41,7 @@ func NewDbSidePacketHandler(reader io.Reader, writer *bufio.Writer, logger *logr
 // newPacketHandlerWithLogger return new PacketHandler with specific logger
 func newPacketHandlerWithLogger(reader io.Reader, writer *bufio.Writer, logger *logrus.Entry) (*PacketHandler, error) {
 	return &PacketHandler{
-		descriptionBuf:       bytes.NewBuffer(make([]byte, OutputDefaultSize)),
+		descriptionBuf:       bytes.NewBuffer(make([]byte, 0, OutputDefaultSize)),
 		descriptionLengthBuf: make([]byte, 4),
 		reader:               reader,
 		writer:               writer,
@@ -166,6 +166,10 @@ func (column *ColumnData) readData(reader io.Reader) error {
 		return nil
 	}
 	column.isNull = false
+	if length == 0 {
+		column.Data = []byte{}
+		return nil
+	}
 	column.Data = make([]byte, length)
 	// first 4 bytes is packet length and then 2 bytes of column count
 	// https://www.postgresql.org/docs/9.3/static/protocol-message-formats.html
