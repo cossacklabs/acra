@@ -73,9 +73,11 @@ func TestSerializationOnUniqueQueries(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	writer.reset()
 	if len(writer.Queries) != 0 {
 		t.Fatal("Expected no queries \nGot: " + strings.Join(rawStrings(writer.Queries), " | "))
+	}
+	if writer.queryIndex != 0 {
+		t.Fatalf("Expected queryIndex == 0 but queryIndex = %d", writer.queryIndex)
 	}
 	err = writer.readStoredQueries()
 	if err != nil {
@@ -90,6 +92,51 @@ func TestSerializationOnUniqueQueries(t *testing.T) {
 		}
 	}
 }
+
+func TestOutputFileAfterDumpStoredQueries(t *testing.T) {
+	// TODO finish test
+	tmpFile, err := ioutil.TempFile("", "censor_log")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() {
+		if err := os.Remove(tmpFile.Name()); err != nil {
+			t.Fatal(err)
+		}
+	}()
+	if err = tmpFile.Close(); err != nil {
+		t.Fatal(err)
+	}
+	writer, err := NewFileQueryWriter(tmpFile.Name())
+
+	defer func() {
+		writer.Free()
+		err = os.Remove(tmpFile.Name())
+		if err != nil {
+			t.Fatal(err)
+		}
+	}()
+
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	for _, query := range testQueries {
+		_, queryWithHiddenValues, _, err := HandleRawSQLQuery(query)
+		if err != nil {
+			t.Fatal(err)
+		}
+		writer.captureQuery(queryWithHiddenValues)
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+	time.Sleep(DefaultSerializationTimeout + 100*time.Millisecond)
+	if len(writer.Queries) != len(testQueries) {
+		t.Fatal("Expected: " + strings.Join(testQueries, " | ") + "\nGot: " + strings.Join(rawStrings(writer.Queries), " | "))
+	}
+}
+
 func TestSerializationOnSameQueries(t *testing.T) {
 	// 5 queries, 3 unique redacted queries
 	numOfUniqueQueries := 3
