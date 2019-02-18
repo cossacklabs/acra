@@ -832,7 +832,7 @@ class BaseTestCase(PrometheusMixin, unittest.TestCase):
         return port+1
 
     def fork_connector(self, connector_port: int, acraserver_port: int, client_id: str, api_port: int=None, zone_mode: bool=False, check_connection: bool=True):
-        logging.info("fork connector with port {} and client_id={}", connector_port, client_id)
+        logging.info("fork connector with port {} and client_id={}".format(connector_port, client_id))
 
         acraserver_connection = self.get_acraserver_connection_string(acraserver_port)
         acraserver_api_connection = self.get_acraserver_api_connection_string(acraserver_port)
