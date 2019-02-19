@@ -38,7 +38,7 @@ func TestSerializationOnUniqueQueries(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer func (){
+	defer func() {
 		err = os.Remove(tmpFile.Name())
 		if err != nil {
 			t.Fatal(err)
