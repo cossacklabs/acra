@@ -38,23 +38,21 @@ func TestSerializationOnUniqueQueries(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err = tmpFile.Close(); err != nil {
-		t.Fatal(err)
-	}
-	writer, err := NewFileQueryWriter(tmpFile.Name())
-	go writer.Start()
-
-	defer func() {
-		writer.Free()
+	defer func (){
 		err = os.Remove(tmpFile.Name())
 		if err != nil {
 			t.Fatal(err)
 		}
 	}()
-
+	if err = tmpFile.Close(); err != nil {
+		t.Fatal(err)
+	}
+	writer, err := NewFileQueryWriter(tmpFile.Name())
 	if err != nil {
 		t.Fatal(err)
 	}
+	go writer.Start()
+	defer writer.Free()
 
 	for _, query := range testQueries {
 		_, queryWithHiddenValues, _, err := HandleRawSQLQuery(query)
@@ -74,6 +72,7 @@ func TestSerializationOnUniqueQueries(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	writer.reset()
 	if len(writer.Queries) != 0 {
 		t.Fatal("Expected no queries \nGot: " + strings.Join(rawStrings(writer.Queries), " | "))
 	}

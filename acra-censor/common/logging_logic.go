@@ -214,7 +214,7 @@ func (queryWriter *QueryWriter) deserializeQueries() ([]*QueryInfo, error) {
 
 func (queryWriter *QueryWriter) serializeQueries(queries []*QueryInfo) []byte {
 	var linesToAppend []byte
-	var tempQueryInfo = &QueryInfo{}
+	var tempQueryInfo = QueryInfo{}
 	for _, queryInfo := range queries {
 		tempQueryInfo.RawQuery = queryInfo.RawQuery
 		tempQueryInfo.IsForbidden = queryInfo.IsForbidden
