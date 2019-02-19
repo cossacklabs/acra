@@ -1,6 +1,7 @@
 package common
 
 import (
+	"bytes"
 	"fmt"
 	"io/ioutil"
 	"os"
@@ -37,23 +38,21 @@ func TestSerializationOnUniqueQueries(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err = tmpFile.Close(); err != nil {
-		t.Fatal(err)
-	}
-	writer, err := NewFileQueryWriter(tmpFile.Name())
-	go writer.Start()
-
 	defer func() {
-		writer.Free()
 		err = os.Remove(tmpFile.Name())
 		if err != nil {
 			t.Fatal(err)
 		}
 	}()
-
+	if err = tmpFile.Close(); err != nil {
+		t.Fatal(err)
+	}
+	writer, err := NewFileQueryWriter(tmpFile.Name())
 	if err != nil {
 		t.Fatal(err)
 	}
+	go writer.Start()
+	defer writer.Free()
 
 	for _, query := range testQueries {
 		_, queryWithHiddenValues, _, err := HandleRawSQLQuery(query)
@@ -77,6 +76,9 @@ func TestSerializationOnUniqueQueries(t *testing.T) {
 	if len(writer.Queries) != 0 {
 		t.Fatal("Expected no queries \nGot: " + strings.Join(rawStrings(writer.Queries), " | "))
 	}
+	if writer.queryIndex != 0 {
+		t.Fatalf("Expected queryIndex == 0 but queryIndex = %d", writer.queryIndex)
+	}
 	err = writer.readStoredQueries()
 	if err != nil {
 		t.Fatal(err)
@@ -90,6 +92,56 @@ func TestSerializationOnUniqueQueries(t *testing.T) {
 		}
 	}
 }
+
+func TestOutputFileAfterDumpStoredQueries(t *testing.T) {
+	tmpFile, err := ioutil.TempFile("", "censor_log")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() {
+		if err := os.Remove(tmpFile.Name()); err != nil {
+			t.Fatal(err)
+		}
+	}()
+	if err = tmpFile.Close(); err != nil {
+		t.Fatal(err)
+	}
+	writer, err := NewFileQueryWriter(tmpFile.Name())
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	testQuery := "select 1 from dual"
+	writer.captureQuery(testQuery)
+	if err = writer.DumpQueries(); err != nil {
+		t.Fatal(err)
+	}
+	writer.reset()
+
+	if err = writer.readStoredQueries(); err != nil {
+		t.Fatal(err)
+	}
+	if writer.queryIndex != 1 {
+		t.Fatal("Expected queryIndex == 1")
+	}
+	if len(writer.Queries) != 1 {
+		t.Fatal("Expected len(writer.Queries) != 1")
+	}
+	if err = writer.dumpBufferedQueries(); err != nil {
+		t.Fatal(err)
+	}
+	dumpedLines, err := ioutil.ReadFile(tmpFile.Name())
+	if err != nil {
+		t.Fatal(err)
+	}
+	queries := bytes.Split(dumpedLines, []byte{'\n'})
+
+	// 1 expected query and 1 empty line from endline symbol
+	if len(queries) != 2 && !bytes.Equal(queries[1], []byte{}) {
+		t.Fatalf("Expected 1 dumped query, took %d: %s\n", len(queries), string(dumpedLines))
+	}
+}
+
 func TestSerializationOnSameQueries(t *testing.T) {
 	// 5 queries, 3 unique redacted queries
 	numOfUniqueQueries := 3

@@ -162,6 +162,7 @@ func (queryWriter *QueryWriter) WriteQuery(query string) {
 func (queryWriter *QueryWriter) reset() {
 	queryWriter.mutex.Lock()
 	queryWriter.Queries = nil
+	queryWriter.queryIndex = 0
 	queryWriter.mutex.Unlock()
 }
 
@@ -172,6 +173,7 @@ func (queryWriter *QueryWriter) readStoredQueries() error {
 		return err
 	}
 	queryWriter.Queries = q
+	queryWriter.queryIndex = len(q)
 	return nil
 }
 
@@ -179,11 +181,13 @@ func (queryWriter *QueryWriter) dumpBufferedQueries() error {
 	queryWriter.mutex.Lock()
 	defer queryWriter.mutex.Unlock()
 
-	partialRawData := queryWriter.serializeQueries(queryWriter.Queries[queryWriter.queryIndex:])
-	if err := queryWriter.logStorage.Append(partialRawData); err != nil {
-		return err
+	if len(queryWriter.Queries) != 0 {
+		partialRawData := queryWriter.serializeQueries(queryWriter.Queries[queryWriter.queryIndex:])
+		if err := queryWriter.logStorage.Append(partialRawData); err != nil {
+			return err
+		}
+		queryWriter.queryIndex = len(queryWriter.Queries)
 	}
-	queryWriter.queryIndex = len(queryWriter.Queries)
 	return nil
 }
 
@@ -210,7 +214,7 @@ func (queryWriter *QueryWriter) deserializeQueries() ([]*QueryInfo, error) {
 
 func (queryWriter *QueryWriter) serializeQueries(queries []*QueryInfo) []byte {
 	var linesToAppend []byte
-	var tempQueryInfo = &QueryInfo{}
+	var tempQueryInfo = QueryInfo{}
 	for _, queryInfo := range queries {
 		tempQueryInfo.RawQuery = queryInfo.RawQuery
 		tempQueryInfo.IsForbidden = queryInfo.IsForbidden
