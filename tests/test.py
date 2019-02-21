@@ -49,6 +49,7 @@ import api_pb2
 import grpc
 import asyncpg
 import mysql.connector
+from prometheus_client.parser import text_string_to_metric_families
 from mysql.connector.cursor import MySQLCursorPrepared
 from requests.auth import HTTPBasicAuth
 from sqlalchemy.exc import DatabaseError
@@ -3369,6 +3370,8 @@ class TestAcraRotate(BaseTestCase):
 
 class TestPrometheusMetrics(AcraTranslatorMixin, BaseTestCase):
     LOG_METRICS = True
+    # some small value but greater than 0 to compare with metrics value of time of processing
+    MIN_EXECUTION_TIME = 0.0000001
 
     def checkSkip(self):
         return
@@ -3377,41 +3380,93 @@ class TestPrometheusMetrics(AcraTranslatorMixin, BaseTestCase):
         """
         check that output of prometheus exporter contains all labels
         """
-        labels = labels if labels else []
+        exporter_metrics = [
+            'go_memstats',
+            'go_threads',
+            'go_info',
+            'go_goroutines',
+            'go_gc_duration_seconds',
+            'process_',
+            'promhttp_',
+        ]
+        # check that need_skip
+        def skip(need_skip):
+            for label in exporter_metrics:
+                if need_skip.startswith(label):
+                    return True
+            return False
+
+        labels = labels if labels else {}
+
         response = requests.get(url)
         self.assertEqual(response.status_code, http.HTTPStatus.OK)
-        for label in labels:
+
+        # check that all labels were exported
+        for label in labels.keys():
             self.assertIn(label, response.text)
+
+        # check that labels have minimal expected value
+        for family in text_string_to_metric_families(response.text):
+            if skip(family.name):
+                continue
+            for sample in family.samples:
+                self.assertGreaterEqual(sample.value, labels[sample.name]['min_value'],
+                                        '{} - {}'.format(sample.name, sample.value))
 
     def testAcraServer(self):
         # run some queries to set some values for counters
         HexFormatTest.testConnectorRead(self)
-        labels = [
-            'acraserver_connections_total',
-            'acraserver_connections_processing_seconds_bucket',
-            'acraserver_response_processing_seconds_bucket',
-            'acraserver_request_processing_seconds_bucket',
-            'acra_acrastruct_decryptions_total',
-        ]
+        labels = {
+            'acraserver_connections_total': {'min_value': 1},
+            'acraserver_connections_processing_seconds': {'min_value': TestPrometheusMetrics.MIN_EXECUTION_TIME},
+            'acraserver_connections_processing_seconds_bucket': {'min_value': TestPrometheusMetrics.MIN_EXECUTION_TIME},
+            'acraserver_connections_processing_seconds_sum': {'min_value': TestPrometheusMetrics.MIN_EXECUTION_TIME},
+            'acraserver_connections_processing_seconds_count': {'min_value': 1},
+            'acraserver_response_processing_seconds': {'min_value': TestPrometheusMetrics.MIN_EXECUTION_TIME},
+            'acraserver_request_processing_seconds': {'min_value': TestPrometheusMetrics.MIN_EXECUTION_TIME},
+            'acraserver_request_processing_seconds_sum': {'min_value': TestPrometheusMetrics.MIN_EXECUTION_TIME},
+            'acraserver_request_processing_seconds_count': {'min_value': 1},
+            'acraserver_response_processing_seconds_bucket': {'min_value': 0},
+            'acraserver_request_processing_seconds_bucket': {'min_value': 0},
+            'acra_acrastruct_decryptions_total': {'min_value': 1},
+            'acraserver_version_major': {'min_value': 0},
+            'acraserver_version_minor': {'min_value': 0},
+            'acraserver_version_patch': {'min_value': 0},
+        }
         self.checkMetrics('http://127.0.0.1:{}/metrics'.format(
             self.ACRASERVER_PROMETHEUS_PORT), labels)
 
     def testAcraConnector(self):
         # connector should has some values in counter after connections checks
         # on setUp
-        labels = [
-            'acraconnector_connections_total',
-            'acraconnector_connections_processing_seconds_bucket',
-        ]
+        labels = {
+            'acraconnector_connections_total': {'min_value': 1},
+            'acraconnector_connections_processing_seconds': {'min_value': TestPrometheusMetrics.MIN_EXECUTION_TIME},
+            'acraconnector_connections_processing_seconds_bucket': {'min_value': TestPrometheusMetrics.MIN_EXECUTION_TIME},
+            'acraconnector_connections_processing_seconds_sum': {'min_value': TestPrometheusMetrics.MIN_EXECUTION_TIME},
+            'acraconnector_connections_processing_seconds_count': {'min_value': 1},
+            'acraconnector_version_major': {'min_value': 0},
+            'acraconnector_version_minor': {'min_value': 0},
+            'acraconnector_version_patch': {'min_value': 0},
+        }
         self.checkMetrics('http://127.0.0.1:{}/metrics'.format(
             self.get_connector_prometheus_port(self.CONNECTOR_PORT_1)), labels)
 
     def testAcraTranslator(self):
-        labels = [
-            'acratranslator_connections_total',
-            'acratranslator_connections_processing_seconds_bucket',
-            'translator_request_processing_seconds_bucket',
-        ]
+        labels = {
+            'acratranslator_connections_total': {'min_value': 1},
+            'acratranslator_connections_processing_seconds': {'min_value': TestPrometheusMetrics.MIN_EXECUTION_TIME},
+            'acratranslator_connections_processing_seconds_bucket': {'min_value': TestPrometheusMetrics.MIN_EXECUTION_TIME},
+            'acratranslator_connections_processing_seconds_sum': {'min_value': TestPrometheusMetrics.MIN_EXECUTION_TIME},
+            'acratranslator_connections_processing_seconds_count': {'min_value': 1},
+            #'acratranslator_request_processing_seconds_sum': {'min_value': TestPrometheusMetrics.MIN_EXECUTION_TIME},
+            #'acratranslator_request_processing_seconds_count': {'min_value': 0},
+
+            'acratranslator_version_major': {'min_value': 0},
+            'acratranslator_version_minor': {'min_value': 0},
+            'acratranslator_version_patch': {'min_value': 0},
+            'acra_acrastruct_decryptions_total': {'min_value': 1},
+        }
         translator_port = 3456
         metrics_port = translator_port+1
         connector_port = 8000

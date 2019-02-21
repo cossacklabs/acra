@@ -17,6 +17,7 @@ package main
 
 import (
 	"github.com/cossacklabs/acra/decryptor/base"
+	"github.com/cossacklabs/acra/utils"
 	"github.com/prometheus/client_golang/prometheus"
 	"sync"
 )
@@ -49,5 +50,6 @@ func registerMetrics() {
 		prometheus.MustRegister(connectionProcessingTimeHistogram)
 		base.RegisterAcraStructProcessingMetrics()
 		base.RegisterDbProcessingMetrics()
+		utils.RegisterVersionMetrics(ServiceName)
 	})
 }

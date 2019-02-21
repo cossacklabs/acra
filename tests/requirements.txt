@@ -15,3 +15,4 @@ git+https://github.com/yaml/pyyaml@release/4.2
 grpcio==1.13.0
 grpcio-tools==1.13.0
 googleapis-common-protos==1.5.3
+prometheus_client==0.6.0
