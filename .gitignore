@@ -24,6 +24,8 @@ _testmain.go
 *.prof
 
 .idea/
+# used by intellij IDEA for project structures
+*.iml
 bin
 src/github.com/
 
