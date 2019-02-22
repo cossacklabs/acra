@@ -209,7 +209,7 @@ type Config struct {
 }
 
 func main() {
-	log.Infof("Starting service %v [pid=%v]", ServiceName, os.Getpid())
+	log.WithField("version", utils.VERSION).Infof("Starting service %v [pid=%v]", ServiceName, os.Getpid())
 
 	loggingFormat := flag.String("logging_format", "plaintext", "Logging format: plaintext, json or CEF")
 	keysDir := flag.String("keys_dir", keystore.DefaultKeyDirShort, "Folder from which will be loaded keys")
