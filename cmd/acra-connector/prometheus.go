@@ -48,5 +48,10 @@ func registerMetrics() {
 		prometheus.MustRegister(connectionCounter)
 		prometheus.MustRegister(connectionProcessingTimeHistogram)
 		utils.RegisterVersionMetrics(ServiceName)
+		version, err := utils.GetParsedVersion()
+		if err != nil {
+			panic(err)
+		}
+		utils.ExportVersionMetric(version)
 	})
 }

@@ -52,5 +52,10 @@ func registerMetrics() {
 		prometheus.MustRegister(common.RequestProcessingTimeHistogram)
 		base.RegisterAcraStructProcessingMetrics()
 		utils.RegisterVersionMetrics(ServiceName)
+		version, err := utils.GetParsedVersion()
+		if err != nil {
+			panic(err)
+		}
+		utils.ExportVersionMetric(version)
 	})
 }
