@@ -16,6 +16,7 @@ limitations under the License.
 package main
 
 import (
+	"github.com/cossacklabs/acra/cmd"
 	"github.com/cossacklabs/acra/utils"
 	"github.com/prometheus/client_golang/prometheus"
 	"sync"
@@ -47,11 +48,11 @@ func registerMetrics() {
 	registerLock.Do(func() {
 		prometheus.MustRegister(connectionCounter)
 		prometheus.MustRegister(connectionProcessingTimeHistogram)
-		utils.RegisterVersionMetrics(ServiceName)
+		cmd.RegisterVersionMetrics(ServiceName)
 		version, err := utils.GetParsedVersion()
 		if err != nil {
 			panic(err)
 		}
-		utils.ExportVersionMetric(version)
+		cmd.ExportVersionMetric(version)
 	})
 }

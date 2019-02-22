@@ -19,10 +19,8 @@ package utils
 import (
 	"errors"
 	"fmt"
-	"github.com/prometheus/client_golang/prometheus"
 	"strconv"
 	"strings"
-	"sync"
 )
 
 // VERSION is current Acra suite version
@@ -35,6 +33,11 @@ type Version struct {
 	Major string
 	Minor string
 	Patch string
+}
+
+// String format version as string
+func (v *Version) String() string {
+	return fmt.Sprintf("%s.%s.%s", v.Major, v.Minor, v.Patch)
 }
 
 // MajorAsFloat64 return major number as float64
@@ -74,68 +77,4 @@ func GetParsedVersion() (*Version, error) {
 		}
 	}
 	return &Version{parts[major], parts[minor], parts[patch]}, nil
-}
-
-var registerLock = sync.Once{}
-
-// serviceNameToLabelFormat convert service name to lower case and remove all '_'
-// ex. Acra-Server will be changed to acraserver
-func serviceNameToLabelFormat(serviceName string) string {
-	const replaceAll = -1
-	return strings.ToLower(strings.Replace(serviceName, "-", "", replaceAll))
-}
-
-// ExportVersionMetric set values for version metrics
-func ExportVersionMetric(version *Version) {
-	version, err := GetParsedVersion()
-	if err != nil {
-		panic(err)
-	}
-
-	if majorVersionGauge == nil || minorVersionGauge == nil || patchVersionGauge == nil {
-		panic("call RegisterVersionMetrics before exporting to initialize and register metrics")
-	}
-
-	val, _ := version.MajorAsFloat64()
-	majorVersionGauge.With(nil).Set(val)
-
-	val, _ = version.MinorAsFloat64()
-	minorVersionGauge.With(nil).Set(val)
-
-	val, _ = version.PatchAsFloat64()
-	patchVersionGauge.With(nil).Set(val)
-}
-
-var (
-	majorVersionGauge *prometheus.GaugeVec
-	minorVersionGauge *prometheus.GaugeVec
-	patchVersionGauge *prometheus.GaugeVec
-)
-
-// RegisterVersionMetrics set and register metrics with current version value
-func RegisterVersionMetrics(serviceName string) {
-	labelServiceName := serviceNameToLabelFormat(serviceName)
-	majorVersionGauge = prometheus.NewGaugeVec(
-		prometheus.GaugeOpts{
-			Name: fmt.Sprintf("%s_version_major", labelServiceName),
-			Help: "Major number of version",
-		}, []string{})
-
-	minorVersionGauge = prometheus.NewGaugeVec(
-		prometheus.GaugeOpts{
-			Name: fmt.Sprintf("%s_version_minor", labelServiceName),
-			Help: "Minor number of version",
-		}, []string{})
-
-	patchVersionGauge = prometheus.NewGaugeVec(
-		prometheus.GaugeOpts{
-			Name: fmt.Sprintf("%s_version_patch", labelServiceName),
-			Help: "Patch number of version",
-		}, []string{})
-
-	registerLock.Do(func() {
-		prometheus.MustRegister(majorVersionGauge)
-		prometheus.MustRegister(minorVersionGauge)
-		prometheus.MustRegister(patchVersionGauge)
-	})
 }
