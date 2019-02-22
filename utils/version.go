@@ -30,29 +30,60 @@ var VERSION = "0.84.2"
 
 // Version store version info
 type Version struct {
-	Major string
-	Minor string
-	Patch string
+	Major uint32
+	Minor uint32
+	Patch uint32
+}
+
+type ComparisonStatus int
+
+const (
+	Less    ComparisonStatus = iota - 1 // -1
+	Equal                               // 0
+	Greater                             // 1
+)
+
+func compareUint32(v1, v2 uint32) ComparisonStatus {
+	res := v1 - v2
+	if res == 0 {
+		return Equal
+	}
+	if res < 0 {
+
+		return Less
+	}
+	return Greater
+}
+
+// Compare compare v with v2 and return ComparisonStatus [Less|Equal|Greater]
+func (v *Version) Compare(v2 *Version) ComparisonStatus {
+	if res := compareUint32(v.Major, v2.Major); res != Equal {
+		return res
+	}
+	if res := compareUint32(v.Minor, v2.Minor); res != Equal {
+		return res
+	}
+	return compareUint32(v.Major, v2.Major)
 }
 
 // String format version as string
 func (v *Version) String() string {
-	return fmt.Sprintf("%s.%s.%s", v.Major, v.Minor, v.Patch)
+	return fmt.Sprintf("%d.%d.%d", v.Major, v.Minor, v.Patch)
 }
 
 // MajorAsFloat64 return major number as float64
 func (v *Version) MajorAsFloat64() (float64, error) {
-	return strconv.ParseFloat(v.Major, 64)
+	return float64(v.Major), nil
 }
 
 // MinorAsFloat64 return minor number as float64
 func (v *Version) MinorAsFloat64() (float64, error) {
-	return strconv.ParseFloat(v.Minor, 64)
+	return float64(v.Minor), nil
 }
 
 // PatchAsFloat64 return patch number as float64
 func (v *Version) PatchAsFloat64() (float64, error) {
-	return strconv.ParseFloat(v.Patch, 64)
+	return float64(v.Patch), nil
 }
 
 const (
@@ -62,11 +93,11 @@ const (
 )
 
 // ErrInvalidVersionFormat error for incorrectly formatted version value
-var ErrInvalidVersionFormat = errors.New("VERSION value has incorrect format (semver expected)")
+var ErrInvalidVersionFormat = errors.New("VERSION value has incorrect format (semver 2.0.0 format expected, https://semver.org/)")
 
-// GetParsedVersion return version as Version struct
-func GetParsedVersion() (*Version, error) {
-	parts := strings.Split(VERSION, ".")
+// ParseVersion and return as struct
+func ParseVersion(version string) (*Version, error) {
+	parts := strings.Split(version, ".")
 	if len(parts) != 3 {
 		return nil, ErrInvalidVersionFormat
 	}
@@ -76,5 +107,22 @@ func GetParsedVersion() (*Version, error) {
 			return nil, err
 		}
 	}
-	return &Version{parts[major], parts[minor], parts[patch]}, nil
+	majorValue, err := strconv.ParseUint(parts[major], 10, 32)
+	if err != nil {
+		return nil, err
+	}
+	minorValue, err := strconv.ParseUint(parts[minor], 10, 32)
+	if err != nil {
+		return nil, err
+	}
+	patchValue, err := strconv.ParseUint(parts[patch], 10, 32)
+	if err != nil {
+		return nil, err
+	}
+	return &Version{uint32(majorValue), uint32(minorValue), uint32(patchValue)}, nil
+}
+
+// GetParsedVersion return version as Version struct
+func GetParsedVersion() (*Version, error) {
+	return ParseVersion(VERSION)
 }

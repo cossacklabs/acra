@@ -9,9 +9,8 @@ jobs:
           POSTGRES_USER: test
           POSTGRES_DB: test
     environment:
-      GOTHEMIS_IMPORT: github.com/cossacklabs/themis/gothemis
       FILEPATH_ERROR_FLAG: /tmp/test_fail
-      VERSIONS: 1.9.7 1.10.8 1.11.5
+      VERSIONS: 1.10.8 1.11.5 1.12
       TEST_DB_PORT: 5432
       GOPATH_FOLDER: gopath
       TEST_RANDOM_DATA_FOLDER: /tmp/test_data
@@ -41,6 +40,11 @@ jobs:
       - run: .circleci/integration.sh
       - run: if [ -f  $FILEPATH_ERROR_FLAG ]; then cat "$FILEPATH_ERROR_FLAG"; rm "$FILEPATH_ERROR_FLAG"; exit 1; fi
 
+      - store_test_results:
+          path: /home/user/tests_output
+      - store_artifacts:
+          path: /home/user/tests_output
+
   postgresql:
     docker:
       - image: cossacklabs/android-build
@@ -50,9 +54,8 @@ jobs:
           POSTGRES_USER: test
           POSTGRES_DB: test
     environment:
-      GOTHEMIS_IMPORT: github.com/cossacklabs/themis/gothemis
       FILEPATH_ERROR_FLAG: /tmp/test_fail
-      VERSIONS: 1.9.7 1.10.5 1.11.2
+      VERSIONS: 1.10.8 1.11.5 1.12
       TEST_DB_PORT: 5432
       GOPATH_FOLDER: gopath
       TEST_RANDOM_DATA_FOLDER: /tmp/test_data
@@ -68,6 +71,10 @@ jobs:
       # each iteration pass to test different ports for forks to avoid problems with TCP TIME WAIT between tests
       - run: .circleci/integration.sh
       - run: if [ -f  $FILEPATH_ERROR_FLAG ]; then cat "$FILEPATH_ERROR_FLAG"; rm "$FILEPATH_ERROR_FLAG"; exit 1; fi
+      - store_test_results:
+          path: /home/user/tests_output
+        - store_artifacts:
+            path: /home/user/tests_output
 
   mariadb-ssl:
     docker:
@@ -81,9 +88,8 @@ jobs:
         MYSQL_PASSWORD: test
         MYSQL_ROOT_PASSWORD: root
     environment:
-      GOTHEMIS_IMPORT: github.com/cossacklabs/themis/gothemis
       FILEPATH_ERROR_FLAG: /tmp/test_fail
-      VERSIONS: 1.9.7 1.10.5 1.11.2
+      VERSIONS: 1.10.8 1.11.5 1.12
       TEST_MYSQL: true
       TEST_DB_PORT: 3306
       GOPATH_FOLDER: gopath
@@ -111,6 +117,11 @@ jobs:
     # each iteration pass to test different ports for forks to avoid problems with TCP TIME WAIT between tests
     - run: .circleci/integration.sh
     - run: if [ -f  $FILEPATH_ERROR_FLAG ]; then cat "$FILEPATH_ERROR_FLAG"; rm "$FILEPATH_ERROR_FLAG"; exit 1; fi
+
+    - store_test_results:
+      path: /home/user/tests_output
+    - store_artifacts:
+      path: /home/user/tests_output
 
   mariadb:
     docker:
@@ -124,9 +135,8 @@ jobs:
           MYSQL_PASSWORD: test
           MYSQL_ROOT_PASSWORD: root
     environment:
-      GOTHEMIS_IMPORT: github.com/cossacklabs/themis/gothemis
       FILEPATH_ERROR_FLAG: /tmp/test_fail
-      VERSIONS: 1.9.7 1.10.5 1.11.2
+      VERSIONS: 1.10.8 1.11.5 1.12
       TEST_MYSQL: true
       TEST_DB_PORT: 3306
       GOPATH_FOLDER: gopath
@@ -145,6 +155,11 @@ jobs:
       - run: .circleci/integration.sh
       - run: if [ -f  $FILEPATH_ERROR_FLAG ]; then cat "$FILEPATH_ERROR_FLAG"; rm "$FILEPATH_ERROR_FLAG"; exit 1; fi
 
+      - store_test_results:
+        path: /home/user/tests_output
+      - store_artifacts:
+        path: /home/user/tests_output
+
   mysql:
     docker:
     - image: cossacklabs/android-build
@@ -157,9 +172,8 @@ jobs:
         MYSQL_PASSWORD: test
         MYSQL_ROOT_PASSWORD: root
     environment:
-      GOTHEMIS_IMPORT: github.com/cossacklabs/themis/gothemis
       FILEPATH_ERROR_FLAG: /tmp/test_fail
-      VERSIONS: 1.9.7 1.10.5 1.11.2
+      VERSIONS: 1.10.8 1.11.5 1.12
       TEST_MYSQL: true
       TEST_DB_PORT: 3306
       GOPATH_FOLDER: gopath
@@ -188,6 +202,11 @@ jobs:
     - run: .circleci/integration.sh
     - run: if [ -f  $FILEPATH_ERROR_FLAG ]; then cat "$FILEPATH_ERROR_FLAG"; rm "$FILEPATH_ERROR_FLAG"; exit 1; fi
 
+    - store_test_results:
+      path: /home/user/tests_output
+    - store_artifacts:
+      path: /home/user/tests_output
+
   mysql-ssl:
     docker:
       - image: cossacklabs/android-build
@@ -198,9 +217,8 @@ jobs:
           MYSQL_PASSWORD: test
           MYSQL_ROOT_PASSWORD: root
     environment:
-      GOTHEMIS_IMPORT: github.com/cossacklabs/themis/gothemis
       FILEPATH_ERROR_FLAG: /tmp/test_fail
-      VERSIONS: 1.9.7 1.10.5 1.11.2
+      VERSIONS: 1.10.8 1.11.5 1.12
       TEST_MYSQL: true
       TEST_DB_PORT: 3306
       GOPATH_FOLDER: gopath
@@ -218,6 +236,12 @@ jobs:
       # each iteration pass to test different ports for forks to avoid problems with TCP TIME WAIT between tests
       - run: .circleci/integration.sh
       - run: if [ -f  $FILEPATH_ERROR_FLAG ]; then cat "$FILEPATH_ERROR_FLAG"; rm "$FILEPATH_ERROR_FLAG"; exit 1; fi
+
+      - store_test_results:
+        path: /home/user/tests_output
+      - store_artifacts:
+        path: /home/user/tests_output
+
 workflows:
   version: 2
   tests:

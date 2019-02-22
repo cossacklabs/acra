@@ -1077,8 +1077,8 @@ class BaseTestCase(PrometheusMixin, unittest.TestCase):
                      getattr(self, 'connector_2', ProcessStub()),
                      getattr(self, 'acra', ProcessStub())]
         stop_process(processes)
-        send_signal_by_process_name('acra-server', signal.SIGTERM)
-        send_signal_by_process_name('acra-connector', signal.SIGTERM)
+        send_signal_by_process_name('acra-server', signal.SIGKILL)
+        send_signal_by_process_name('acra-connector', signal.SIGKILL)
 
     def log(self, acra_key_name, data, expected):
         """this function for printing data which used in test and for
@@ -1204,6 +1204,44 @@ class BaseCensorTest(BaseTestCase):
     def fork_acra(self, popen_kwargs: dict=None, **acra_kwargs: dict):
         acra_kwargs['acracensor_config_file'] = self.CENSOR_CONFIG_FILE
         return self._fork_acra(acra_kwargs, popen_kwargs)
+
+
+class TestCensorVersionChecks(BaseCensorTest):
+    def setUp(self):
+        # doesn't need to start acra-server/acra-connector and connections
+        pass
+
+    def tearDown(self):
+        # doesn't need to stop acra-server/acra-connector and connections
+        pass
+
+    def checkErrorMessage(self, configFile, expectedMessage):
+        args = [self.get_acraserver_bin_path(),
+                '--acracensor_config_file={}'.format(configFile),
+                # required param
+                '--db_host={}'.format(DB_HOST)
+                ]
+        process = subprocess.Popen(args, stderr=subprocess.PIPE)
+        try:
+            _, stderr = process.communicate(timeout=5)  # 5 second enough to start binary and stop execution with error
+        except:
+            raise
+        finally:
+            process.kill()
+
+        self.assertIn(expectedMessage.lower(), stderr.decode('utf-8').lower(), "Hasn't expected message in output")
+
+    def testWithoutVersion(self):
+        expectedMessage = "VERSION value has incorrect format (semver 2.0.0 format expected, https://semver.org/)"
+        self.checkErrorMessage(abs_path('tests/acra-censor_configs/without_version.yaml'), expectedMessage)
+
+    def testNewerVersion(self):
+        expectedMessage = "acra-censor's config is outdated"
+        self.checkErrorMessage(abs_path('tests/acra-censor_configs/new_version.yaml'), expectedMessage)
+
+    def testIncorrectFormat(self):
+        expectedMessage = 'level=error msg="can\'t setup censor" code=561 error="strconv.parseuint: parsing'
+        self.checkErrorMessage(abs_path('tests/acra-censor_configs/incorrect_version_format.yaml'), expectedMessage)
 
 
 class CensorBlacklistTest(BaseCensorTest):
@@ -1437,8 +1475,8 @@ class TestConnectionClosing(BaseTestCase):
         if not self.EXTERNAL_ACRA and hasattr(self, 'acra'):
             procs.append(self.acra)
         stop_process(procs)
-        send_signal_by_process_name('acra-server', signal.SIGTERM)
-        send_signal_by_process_name('acra-connector', signal.SIGTERM)
+        send_signal_by_process_name('acra-server', signal.SIGKILL)
+        send_signal_by_process_name('acra-connector', signal.SIGKILL)
 
     def getActiveConnectionCount(self, cursor):
         if TEST_MYSQL:
@@ -1574,8 +1612,8 @@ class TestKeyNonExistence(BaseTestCase):
     def tearDown(self):
         if hasattr(self, 'acra'):
             stop_process(self.acra)
-        send_signal_by_process_name('acra-server', signal.SIGTERM)
-        send_signal_by_process_name('acra-connector', signal.SIGTERM)
+        send_signal_by_process_name('acra-server', signal.SIGKILL)
+        send_signal_by_process_name('acra-connector', signal.SIGKILL)
 
     def delete_key(self, filename):
         os.remove('{dir}{sep}{name}'.format(
@@ -2124,8 +2162,8 @@ class TestKeyStorageClearing(BaseTestCase):
             processes.append(self.acra)
 
         stop_process(processes)
-        send_signal_by_process_name('acra-server', signal.SIGTERM)
-        send_signal_by_process_name('acra-connector', signal.SIGTERM)
+        send_signal_by_process_name('acra-server', signal.SIGKILL)
+        send_signal_by_process_name('acra-connector', signal.SIGKILL)
 
     def test_clearing(self):
         # execute any query for loading key by acra
@@ -3783,4 +3821,10 @@ class TestEmptyValues(BaseTestCase):
 
 
 if __name__ == '__main__':
-    unittest.main()
+    import xmlrunner
+    output_path = os.environ.get('TEST_XMLOUTPUT', '')
+    if output_path:
+        with open(output_path, 'wb') as output:
+            unittest.main(testRunner=xmlrunner.XMLTestRunner(output=output))
+    else:
+        unittest.main()
