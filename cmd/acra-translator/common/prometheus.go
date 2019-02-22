@@ -29,7 +29,7 @@ const (
 var (
 	// RequestProcessingTimeHistogram collect metrics about time of processing requests to http/grpc api
 	RequestProcessingTimeHistogram = prometheus.NewHistogramVec(prometheus.HistogramOpts{
-		Name:    "translator_request_processing_seconds",
+		Name:    "acratranslator_request_processing_seconds",
 		Help:    "Time of response processing",
 		Buckets: []float64{0.000001, 0.00001, 0.00002, 0.00003, 0.00004, 0.00005, 0.00006, 0.00007, 0.00008, 0.00009, 0.0001, 0.0005, 0.001, 0.005, 0.01, 1},
 	}, []string{requestTypeLabel})

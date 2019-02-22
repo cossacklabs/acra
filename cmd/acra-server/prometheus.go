@@ -51,5 +51,10 @@ func registerMetrics() {
 		base.RegisterAcraStructProcessingMetrics()
 		base.RegisterDbProcessingMetrics()
 		utils.RegisterVersionMetrics(ServiceName)
+		version, err := utils.GetParsedVersion()
+		if err != nil {
+			panic(err)
+		}
+		utils.ExportVersionMetric(version)
 	})
 }

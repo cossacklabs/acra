@@ -3417,17 +3417,20 @@ class TestPrometheusMetrics(AcraTranslatorMixin, BaseTestCase):
         # run some queries to set some values for counters
         HexFormatTest.testConnectorRead(self)
         labels = {
-            'acraserver_connections_total': {'min_value': 1},
-            'acraserver_connections_processing_seconds': {'min_value': TestPrometheusMetrics.MIN_EXECUTION_TIME},
-            'acraserver_connections_processing_seconds_bucket': {'min_value': TestPrometheusMetrics.MIN_EXECUTION_TIME},
+            # acra-connector keypair1 + keypair2
+            'acraserver_connections_total': {'min_value': 2},
+            'acraserver_connections_processing_seconds_bucket': {'min_value': 1},
             'acraserver_connections_processing_seconds_sum': {'min_value': TestPrometheusMetrics.MIN_EXECUTION_TIME},
             'acraserver_connections_processing_seconds_count': {'min_value': 1},
-            'acraserver_response_processing_seconds': {'min_value': TestPrometheusMetrics.MIN_EXECUTION_TIME},
-            'acraserver_request_processing_seconds': {'min_value': TestPrometheusMetrics.MIN_EXECUTION_TIME},
+
+            'acraserver_response_processing_seconds_sum': {'min_value': TestPrometheusMetrics.MIN_EXECUTION_TIME},
+            'acraserver_response_processing_seconds_bucket': {'min_value': 0},
+            'acraserver_response_processing_seconds_count': {'min_value': 1},
+
             'acraserver_request_processing_seconds_sum': {'min_value': TestPrometheusMetrics.MIN_EXECUTION_TIME},
             'acraserver_request_processing_seconds_count': {'min_value': 1},
-            'acraserver_response_processing_seconds_bucket': {'min_value': 0},
             'acraserver_request_processing_seconds_bucket': {'min_value': 0},
+
             'acra_acrastruct_decryptions_total': {'min_value': 1},
             'acraserver_version_major': {'min_value': 0},
             'acraserver_version_minor': {'min_value': 0},
@@ -3440,9 +3443,9 @@ class TestPrometheusMetrics(AcraTranslatorMixin, BaseTestCase):
         # connector should has some values in counter after connections checks
         # on setUp
         labels = {
-            'acraconnector_connections_total': {'min_value': 1},
-            'acraconnector_connections_processing_seconds': {'min_value': TestPrometheusMetrics.MIN_EXECUTION_TIME},
-            'acraconnector_connections_processing_seconds_bucket': {'min_value': TestPrometheusMetrics.MIN_EXECUTION_TIME},
+            'acraconnector_connections_total': {'min_value': 2},
+            #'acraconnector_connections_processing_seconds': {'min_value': TestPrometheusMetrics.MIN_EXECUTION_TIME},
+            'acraconnector_connections_processing_seconds_bucket': {'min_value': 1},
             'acraconnector_connections_processing_seconds_sum': {'min_value': TestPrometheusMetrics.MIN_EXECUTION_TIME},
             'acraconnector_connections_processing_seconds_count': {'min_value': 1},
             'acraconnector_version_major': {'min_value': 0},
@@ -3455,16 +3458,19 @@ class TestPrometheusMetrics(AcraTranslatorMixin, BaseTestCase):
     def testAcraTranslator(self):
         labels = {
             'acratranslator_connections_total': {'min_value': 1},
-            'acratranslator_connections_processing_seconds': {'min_value': TestPrometheusMetrics.MIN_EXECUTION_TIME},
-            'acratranslator_connections_processing_seconds_bucket': {'min_value': TestPrometheusMetrics.MIN_EXECUTION_TIME},
+
+            'acratranslator_connections_processing_seconds_bucket': {'min_value': 1},
             'acratranslator_connections_processing_seconds_sum': {'min_value': TestPrometheusMetrics.MIN_EXECUTION_TIME},
             'acratranslator_connections_processing_seconds_count': {'min_value': 1},
-            #'acratranslator_request_processing_seconds_sum': {'min_value': TestPrometheusMetrics.MIN_EXECUTION_TIME},
-            #'acratranslator_request_processing_seconds_count': {'min_value': 0},
+
+            'acratranslator_request_processing_seconds_bucket': {'min_value': 0},
+            'acratranslator_request_processing_seconds_sum': {'min_value': TestPrometheusMetrics.MIN_EXECUTION_TIME},
+            'acratranslator_request_processing_seconds_count': {'min_value': 1},
 
             'acratranslator_version_major': {'min_value': 0},
             'acratranslator_version_minor': {'min_value': 0},
             'acratranslator_version_patch': {'min_value': 0},
+
             'acra_acrastruct_decryptions_total': {'min_value': 1},
         }
         translator_port = 3456

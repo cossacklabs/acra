@@ -26,7 +26,8 @@ import (
 )
 
 // VERSION is current Acra suite version
-// store it as string instead initialized struct value to easy change/grep/sed/replace value via scripts
+// store it as string instead initialized struct value to easy change/grep/sed/replace value via scripts or with
+// -ldflags "-X github.com/cossacklabs/acra/utils.VERSION=X.X.X"
 var VERSION = "0.84.2"
 
 // Version store version info
@@ -84,49 +85,53 @@ func serviceNameToLabelFormat(serviceName string) string {
 	return strings.ToLower(strings.Replace(serviceName, "-", "", replaceAll))
 }
 
-// RegisterVersionMetrics set and register metrics with current version value
-func RegisterVersionMetrics(serviceName string) {
-	labelServiceName := serviceNameToLabelFormat(serviceName)
-	majorVersionGauge := prometheus.NewGaugeVec(
-		prometheus.GaugeOpts{
-			Name: fmt.Sprintf("%s_version_major", labelServiceName),
-			Help: "Major number of version",
-		}, []string{})
-
-	minorVersionGauge := prometheus.NewGaugeVec(
-		prometheus.GaugeOpts{
-			Name: fmt.Sprintf("%s_version_minor", labelServiceName),
-			Help: "Minor number of version",
-		}, []string{})
-
-	patchVersionGauge := prometheus.NewGaugeVec(
-		prometheus.GaugeOpts{
-			Name: fmt.Sprintf("%s_version_patch", labelServiceName),
-			Help: "Patch number of version",
-		}, []string{})
-
+// ExportVersionMetric set values for version metrics
+func ExportVersionMetric(version *Version) {
 	version, err := GetParsedVersion()
 	if err != nil {
 		panic(err)
 	}
 
-	if val, err := version.MajorAsFloat64(); err == nil {
-		majorVersionGauge.With(nil).Set(val)
-	} else {
-		panic(err)
+	if majorVersionGauge == nil || minorVersionGauge == nil || patchVersionGauge == nil {
+		panic("call RegisterVersionMetrics before exporting to initialize and register metrics")
 	}
 
-	if val, err := version.MinorAsFloat64(); err == nil {
-		minorVersionGauge.With(nil).Set(val)
-	} else {
-		panic(err)
-	}
+	val, _ := version.MajorAsFloat64()
+	majorVersionGauge.With(nil).Set(val)
 
-	if val, err := version.PatchAsFloat64(); err == nil {
-		patchVersionGauge.With(nil).Set(val)
-	} else {
-		panic(err)
-	}
+	val, _ = version.MinorAsFloat64()
+	minorVersionGauge.With(nil).Set(val)
+
+	val, _ = version.PatchAsFloat64()
+	patchVersionGauge.With(nil).Set(val)
+}
+
+var (
+	majorVersionGauge *prometheus.GaugeVec
+	minorVersionGauge *prometheus.GaugeVec
+	patchVersionGauge *prometheus.GaugeVec
+)
+
+// RegisterVersionMetrics set and register metrics with current version value
+func RegisterVersionMetrics(serviceName string) {
+	labelServiceName := serviceNameToLabelFormat(serviceName)
+	majorVersionGauge = prometheus.NewGaugeVec(
+		prometheus.GaugeOpts{
+			Name: fmt.Sprintf("%s_version_major", labelServiceName),
+			Help: "Major number of version",
+		}, []string{})
+
+	minorVersionGauge = prometheus.NewGaugeVec(
+		prometheus.GaugeOpts{
+			Name: fmt.Sprintf("%s_version_minor", labelServiceName),
+			Help: "Minor number of version",
+		}, []string{})
+
+	patchVersionGauge = prometheus.NewGaugeVec(
+		prometheus.GaugeOpts{
+			Name: fmt.Sprintf("%s_version_patch", labelServiceName),
+			Help: "Patch number of version",
+		}, []string{})
 
 	registerLock.Do(func() {
 		prometheus.MustRegister(majorVersionGauge)
