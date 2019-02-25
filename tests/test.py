@@ -3419,6 +3419,7 @@ class TestPrometheusMetrics(AcraTranslatorMixin, BaseTestCase):
         labels = {
             # acra-connector keypair1 + keypair2
             'acraserver_connections_total': {'min_value': 2},
+
             'acraserver_connections_processing_seconds_bucket': {'min_value': 1},
             'acraserver_connections_processing_seconds_sum': {'min_value': TestPrometheusMetrics.MIN_EXECUTION_TIME},
             'acraserver_connections_processing_seconds_count': {'min_value': 1},
@@ -3432,6 +3433,7 @@ class TestPrometheusMetrics(AcraTranslatorMixin, BaseTestCase):
             'acraserver_request_processing_seconds_bucket': {'min_value': 0},
 
             'acra_acrastruct_decryptions_total': {'min_value': 1},
+
             'acraserver_version_major': {'min_value': 0},
             'acraserver_version_minor': {'min_value': 0},
             'acraserver_version_patch': {'min_value': 0},
@@ -3444,10 +3446,11 @@ class TestPrometheusMetrics(AcraTranslatorMixin, BaseTestCase):
         # on setUp
         labels = {
             'acraconnector_connections_total': {'min_value': 2},
-            #'acraconnector_connections_processing_seconds': {'min_value': TestPrometheusMetrics.MIN_EXECUTION_TIME},
+
             'acraconnector_connections_processing_seconds_bucket': {'min_value': 1},
             'acraconnector_connections_processing_seconds_sum': {'min_value': TestPrometheusMetrics.MIN_EXECUTION_TIME},
             'acraconnector_connections_processing_seconds_count': {'min_value': 1},
+
             'acraconnector_version_major': {'min_value': 0},
             'acraconnector_version_minor': {'min_value': 0},
             'acraconnector_version_patch': {'min_value': 0},
