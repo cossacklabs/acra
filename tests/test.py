@@ -2473,7 +2473,7 @@ class TestAcraWebconfigWeb(AcraCatchLogsMixin, BaseTestCase):
                         os.kill(int(pid), signal.SIGKILL)
                     except ProcessLookupError:
                         pass
-                    send_signal_by_process_name('acra-server', signal.SIGKILL)
+            send_signal_by_process_name('acra-server', signal.SIGKILL)
 
             # restore changed config
             os.rename('configs/acra-server.yaml.backup',
@@ -3420,7 +3420,7 @@ class TestPrometheusMetrics(AcraTranslatorMixin, BaseTestCase):
             # acra-connector keypair1 + keypair2
             'acraserver_connections_total': {'min_value': 2},
 
-            'acraserver_connections_processing_seconds_bucket': {'min_value': 1},
+            'acraserver_connections_processing_seconds_bucket': {'min_value': 0},
             'acraserver_connections_processing_seconds_sum': {'min_value': TestPrometheusMetrics.MIN_EXECUTION_TIME},
             'acraserver_connections_processing_seconds_count': {'min_value': 1},
 
@@ -3447,7 +3447,7 @@ class TestPrometheusMetrics(AcraTranslatorMixin, BaseTestCase):
         labels = {
             'acraconnector_connections_total': {'min_value': 2},
 
-            'acraconnector_connections_processing_seconds_bucket': {'min_value': 1},
+            'acraconnector_connections_processing_seconds_bucket': {'min_value': 0},
             'acraconnector_connections_processing_seconds_sum': {'min_value': TestPrometheusMetrics.MIN_EXECUTION_TIME},
             'acraconnector_connections_processing_seconds_count': {'min_value': 1},
 
@@ -3462,7 +3462,7 @@ class TestPrometheusMetrics(AcraTranslatorMixin, BaseTestCase):
         labels = {
             'acratranslator_connections_total': {'min_value': 1},
 
-            'acratranslator_connections_processing_seconds_bucket': {'min_value': 1},
+            'acratranslator_connections_processing_seconds_bucket': {'min_value': 0},
             'acratranslator_connections_processing_seconds_sum': {'min_value': TestPrometheusMetrics.MIN_EXECUTION_TIME},
             'acratranslator_connections_processing_seconds_count': {'min_value': 1},
 
