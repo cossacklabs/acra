@@ -35,8 +35,10 @@ type Version struct {
 	Patch uint32
 }
 
+// ComparisonStatus result of comparison versions
 type ComparisonStatus int
 
+// Available constant values for ComparisonStatus
 const (
 	Less    ComparisonStatus = iota - 1 // -1
 	Equal                               // 0

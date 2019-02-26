@@ -26,6 +26,7 @@ import (
 	"strings"
 )
 
+// MinimalCensorConfigVersion min version of config that support acra-censor
 var MinimalCensorConfigVersion = "0.84.2"
 
 // Query handlers' names.
@@ -52,6 +53,7 @@ type Config struct {
 	}
 }
 
+// ErrUnsupportedConfigVersion acra-censor's config has version less than MinimalCensorConfigVersion
 var ErrUnsupportedConfigVersion = errors.New("acra-censor's config is outdated")
 
 // LoadConfiguration loads configuration of AcraCensor
