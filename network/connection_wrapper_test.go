@@ -345,9 +345,19 @@ func testTLSConfig(serverWrapper *TLSConnectionWrapper, t *testing.T) {
 	go func() {
 		_, _, err := serverWrapper.WrapServer(context.TODO(), serverConn)
 		if err != nil {
-			// error has concatenated protocol version at end of string and we doesn't need to compare as equality
-			if !strings.HasPrefix(err.Error(), "tls: client offered an unsupported, maximum protocol version of") {
-				t.Fatal("Expected incorrect protocol version error")
+			expectedMessages := []string{
+				// go < 1.12
+				"tls: client offered an unsupported, maximum protocol version of",
+				// go >= 1.12
+				"tls: client offered only unsupported versions"}
+			found := false
+			for _, msg := range expectedMessages {
+				if strings.HasPrefix(err.Error(), msg) {
+					found = true
+				}
+			}
+			if !found {
+				t.Fatalf("Expected error related with unsupported tls protocol version, took: '%s'\n", err.Error())
 			}
 			wrapErrorCh <- true
 			return
