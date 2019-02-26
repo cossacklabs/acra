@@ -71,8 +71,9 @@ jobs:
       # each iteration pass to test different ports for forks to avoid problems with TCP TIME WAIT between tests
       - run: .circleci/integration.sh
       - run: if [ -f  $FILEPATH_ERROR_FLAG ]; then cat "$FILEPATH_ERROR_FLAG"; rm "$FILEPATH_ERROR_FLAG"; exit 1; fi
+        - 
       - store_test_results:
-        path: /home/user/tests_output
+          path: /home/user/tests_output
       - store_artifacts:
           path: /home/user/tests_output
 
@@ -119,9 +120,9 @@ jobs:
     - run: if [ -f  $FILEPATH_ERROR_FLAG ]; then cat "$FILEPATH_ERROR_FLAG"; rm "$FILEPATH_ERROR_FLAG"; exit 1; fi
 
     - store_test_results:
-      path: /home/user/tests_output
+        path: /home/user/tests_output
     - store_artifacts:
-      path: /home/user/tests_output
+        path: /home/user/tests_output
 
   mariadb:
     docker:
@@ -156,9 +157,9 @@ jobs:
       - run: if [ -f  $FILEPATH_ERROR_FLAG ]; then cat "$FILEPATH_ERROR_FLAG"; rm "$FILEPATH_ERROR_FLAG"; exit 1; fi
 
       - store_test_results:
-        path: /home/user/tests_output
+          path: /home/user/tests_output
       - store_artifacts:
-        path: /home/user/tests_output
+          path: /home/user/tests_output
 
   mysql:
     docker:
@@ -203,9 +204,9 @@ jobs:
     - run: if [ -f  $FILEPATH_ERROR_FLAG ]; then cat "$FILEPATH_ERROR_FLAG"; rm "$FILEPATH_ERROR_FLAG"; exit 1; fi
 
     - store_test_results:
-      path: /home/user/tests_output
+        path: /home/user/tests_output
     - store_artifacts:
-      path: /home/user/tests_output
+        path: /home/user/tests_output
 
   mysql-ssl:
     docker:
@@ -238,9 +239,9 @@ jobs:
       - run: if [ -f  $FILEPATH_ERROR_FLAG ]; then cat "$FILEPATH_ERROR_FLAG"; rm "$FILEPATH_ERROR_FLAG"; exit 1; fi
 
       - store_test_results:
-        path: /home/user/tests_output
+          path: /home/user/tests_output
       - store_artifacts:
-        path: /home/user/tests_output
+          path: /home/user/tests_output
 
 workflows:
   version: 2
