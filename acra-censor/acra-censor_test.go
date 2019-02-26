@@ -29,6 +29,7 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"testing"
 	"time"
@@ -1508,6 +1509,9 @@ func TestConfigurationProvider(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	re := regexp.MustCompile(`(version:\s+?)((\d+\.?){3})`)
+	// replace version from exapmle to current
+	configuration = []byte(re.ReplaceAllString(string(configuration), fmt.Sprintf("$1 %s", MinimalCensorConfigVersion)))
 	acraCensor := NewAcraCensor()
 	defer func() {
 		acraCensor.ReleaseAll()
@@ -1568,17 +1572,19 @@ func TestConfigurationProvider(t *testing.T) {
 func testSyntax(t *testing.T) {
 	acraCensor := NewAcraCensor()
 	defer acraCensor.ReleaseAll()
-	configuration := `handlers:
+	configuration := fmt.Sprintf(`version: %s
+handlers:
     handler: deny
     qeries:
       - INSERT INTO SalesStaff1 VALUES (1, 'Stephen', 'Jiang');
-      - SELECT AVG(Price) FROM Products;`
+      - SELECT AVG(Price) FROM Products;`, MinimalCensorConfigVersion)
 
 	err := acraCensor.LoadConfiguration([]byte(configuration))
 	if err == nil {
 		t.Fatal(err)
 	}
-	configuration = `handlers:
+	configuration = fmt.Sprintf(`version: %s
+handlers:
   - handler: deny
     queries:
       - INSERT INTO SalesStaff1 VALUES (1, 'Stephen', 'Jiang');
@@ -1587,7 +1593,7 @@ func testSyntax(t *testing.T) {
       - EMPLOYEE_TBL
       - Customers
     patterns:
-      - SELECT * ROM EMPLOYEE WHERE CITY='Seattle';`
+      - SELECT * ROM EMPLOYEE WHERE CITY='Seattle';`, MinimalCensorConfigVersion)
 
 	err = acraCensor.LoadConfiguration([]byte(configuration))
 	if err != common.ErrPatternSyntaxError {
@@ -1673,7 +1679,8 @@ func TestIgnoringQueryParseErrors(t *testing.T) {
 }
 func TestLogUnparsedQueries(t *testing.T) {
 	var err error
-	configuration := `ignore_parse_error: true
+	configuration := fmt.Sprintf(`ignore_parse_error: true
+version: %s
 parse_errors_log: unparsed_queries.log
 handlers:
   - handler: deny
@@ -1684,7 +1691,7 @@ handlers:
       - EMPLOYEE_TBL
       - Customers
     patterns:
-      - SELECT EMP_ID, LAST_NAME FROM EMPLOYEE %%WHERE%%;`
+      - SELECT EMP_ID, LAST_NAME FROM EMPLOYEE %%%%WHERE%%%%;`, MinimalCensorConfigVersion)
 
 	acraCensor := NewAcraCensor()
 	defer func() {
@@ -1774,7 +1781,8 @@ func TestAllowAllDenyAll(t *testing.T) {
 	}
 }
 func TestAllowDenyTables(t *testing.T) {
-	configuration := `handlers:
+	configuration := fmt.Sprintf(`version: %s
+handlers:
   - handler: allow
     tables:
       - x
@@ -1786,7 +1794,7 @@ func TestAllowDenyTables(t *testing.T) {
   - handler: allow
     tables:
       - x2
-  - handler: denyall`
+  - handler: denyall`, MinimalCensorConfigVersion)
 
 	acraCensor := NewAcraCensor()
 	defer acraCensor.ReleaseAll()
