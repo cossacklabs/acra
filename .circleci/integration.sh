@@ -36,7 +36,10 @@ for version in $VERSIONS; do
         export TEST_XMLOUTPUT="${TEST_OUTPUT_FOLDER}/${iteration}-${context}.xml"
         timeout ${TEST_RUN_TIMEOUT} python3 tests/test.py -v;
         if [[ "$?" != "0" ]]; then
-            echo "${context}" >> "$FILEPATH_ERROR_FLAG";
+            if [[ "${iteration}" == "3" ]]; then
+                echo "${context}" >> "$FILEPATH_ERROR_FLAG";
+            fi
+            continue
         else
             echo "no errors";
             break
