@@ -2467,38 +2467,38 @@ class TestAcraWebconfigWeb(AcraCatchLogsMixin, BaseTestCase):
         shutil.copy('configs/acra-server.yaml', 'configs/acra-server.yaml.backup')
         try:
             # test wrong auth
-            req = requests.post(
-                self.get_acrawebconfig_connection_url(), data={}, timeout=ACRAWEBCONFIG_HTTP_TIMEOUT,
-                auth=HTTPBasicAuth('wrong_user_name', 'wrong_password'))
-            self.assertEqual(req.status_code, 401)
-            req.close()
+            with requests.post(
+                    self.get_acrawebconfig_connection_url(), data={}, timeout=ACRAWEBCONFIG_HTTP_TIMEOUT,
+                    auth=HTTPBasicAuth('wrong_user_name', 'wrong_password')) as req:
+                self.assertEqual(req.status_code, 401)
+
 
             # test correct auth
-            req = requests.post(
-                self.get_acrawebconfig_connection_url(), data={}, timeout=ACRAWEBCONFIG_HTTP_TIMEOUT,
-                auth=HTTPBasicAuth(ACRAWEBCONFIG_BASIC_AUTH['user'], ACRAWEBCONFIG_BASIC_AUTH['password']))
-            self.assertEqual(req.status_code, 200)
-            req.close()
+            with requests.post(
+                    self.get_acrawebconfig_connection_url(), data={}, timeout=ACRAWEBCONFIG_HTTP_TIMEOUT,
+                    auth=HTTPBasicAuth(ACRAWEBCONFIG_BASIC_AUTH['user'], ACRAWEBCONFIG_BASIC_AUTH['password'])) as req:
+                self.assertEqual(req.status_code, 200)
 
             # test submit settings
             settings = self.ACRAWEBCONFIG_ACRASERVER_PARAMS
             settings['poison_run_script_file'] = str(uuid.uuid4())
             print(settings)
-            req = requests.post(
-                "{}/acra-server/submit_setting".format(self.get_acrawebconfig_connection_url()),
-                data=settings,
-                timeout=ACRAWEBCONFIG_HTTP_TIMEOUT,
-                auth=HTTPBasicAuth(ACRAWEBCONFIG_BASIC_AUTH['user'], ACRAWEBCONFIG_BASIC_AUTH['password']))
-            self.assertEqual(req.status_code, 200)
-            req.close()
+            with requests.post(
+                    "{}/acra-server/submit_setting".format(self.get_acrawebconfig_connection_url()),
+                    data=settings,
+                    timeout=ACRAWEBCONFIG_HTTP_TIMEOUT,
+                    auth=HTTPBasicAuth(ACRAWEBCONFIG_BASIC_AUTH['user'], ACRAWEBCONFIG_BASIC_AUTH['password'])) as req:
+                self.assertEqual(req.status_code, 200)
 
+            connection_string = self.get_acraserver_connection_string(self.ACRASERVER_PORT)
+            # wait restarted acra-server after submitting new config
+            self.wait_acraserver_connection(connection_string)
             # check for new config after acra-server's graceful restart
-            req = requests.post(
-                self.get_acrawebconfig_connection_url(), data={}, timeout=ACRAWEBCONFIG_HTTP_TIMEOUT,
-                auth=HTTPBasicAuth(ACRAWEBCONFIG_BASIC_AUTH['user'], ACRAWEBCONFIG_BASIC_AUTH['password']))
-            self.assertEqual(req.status_code, 200)
-            self.assertIn(settings['poison_run_script_file'], req.text)
-            req.close()
+            with requests.post(
+                    self.get_acrawebconfig_connection_url(), data={}, timeout=ACRAWEBCONFIG_HTTP_TIMEOUT,
+                    auth=HTTPBasicAuth(ACRAWEBCONFIG_BASIC_AUTH['user'], ACRAWEBCONFIG_BASIC_AUTH['password'])) as req:
+                self.assertEqual(req.status_code, 200)
+                self.assertIn(settings['poison_run_script_file'], req.text)
         finally:
             # search pid of forked acra-server process to kill
             out = self.read_log(self.acra)
@@ -2511,7 +2511,7 @@ class TestAcraWebconfigWeb(AcraCatchLogsMixin, BaseTestCase):
                         os.kill(int(pid), signal.SIGKILL)
                     except ProcessLookupError:
                         pass
-                    send_signal_by_process_name('acra-server', signal.SIGKILL)
+            send_signal_by_process_name('acra-server', signal.SIGKILL)
 
             # restore changed config
             os.rename('configs/acra-server.yaml.backup',
@@ -3457,7 +3457,8 @@ class TestPrometheusMetrics(AcraTranslatorMixin, BaseTestCase):
         labels = {
             # acra-connector keypair1 + keypair2
             'acraserver_connections_total': {'min_value': 2},
-            'acraserver_connections_processing_seconds_bucket': {'min_value': 1},
+
+            'acraserver_connections_processing_seconds_bucket': {'min_value': 0},
             'acraserver_connections_processing_seconds_sum': {'min_value': TestPrometheusMetrics.MIN_EXECUTION_TIME},
             'acraserver_connections_processing_seconds_count': {'min_value': 1},
 
@@ -3470,6 +3471,7 @@ class TestPrometheusMetrics(AcraTranslatorMixin, BaseTestCase):
             'acraserver_request_processing_seconds_bucket': {'min_value': 0},
 
             'acra_acrastruct_decryptions_total': {'min_value': 1},
+
             'acraserver_version_major': {'min_value': 0},
             'acraserver_version_minor': {'min_value': 0},
             'acraserver_version_patch': {'min_value': 0},
@@ -3482,10 +3484,11 @@ class TestPrometheusMetrics(AcraTranslatorMixin, BaseTestCase):
         # on setUp
         labels = {
             'acraconnector_connections_total': {'min_value': 2},
-            #'acraconnector_connections_processing_seconds': {'min_value': TestPrometheusMetrics.MIN_EXECUTION_TIME},
-            'acraconnector_connections_processing_seconds_bucket': {'min_value': 1},
+
+            'acraconnector_connections_processing_seconds_bucket': {'min_value': 0},
             'acraconnector_connections_processing_seconds_sum': {'min_value': TestPrometheusMetrics.MIN_EXECUTION_TIME},
             'acraconnector_connections_processing_seconds_count': {'min_value': 1},
+
             'acraconnector_version_major': {'min_value': 0},
             'acraconnector_version_minor': {'min_value': 0},
             'acraconnector_version_patch': {'min_value': 0},
@@ -3497,7 +3500,7 @@ class TestPrometheusMetrics(AcraTranslatorMixin, BaseTestCase):
         labels = {
             'acratranslator_connections_total': {'min_value': 1},
 
-            'acratranslator_connections_processing_seconds_bucket': {'min_value': 1},
+            'acratranslator_connections_processing_seconds_bucket': {'min_value': 0},
             'acratranslator_connections_processing_seconds_sum': {'min_value': TestPrometheusMetrics.MIN_EXECUTION_TIME},
             'acratranslator_connections_processing_seconds_count': {'min_value': 1},
 
