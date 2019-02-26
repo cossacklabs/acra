@@ -271,6 +271,12 @@ func getConnectionPair(address string, listener net.Listener, t *testing.T) (net
 	return clientConn, serverConn
 }
 
+// isTLS13 return true if connection has version > tls12 constant value in ConnectionState after successful handshake
+func isTLS13(conn net.Conn) bool {
+	// check with GREATER comparison because golang versions < 1.2 have not constant VersionTLS13
+	return UnwrapSafeCloseConnection(conn).(*tls.Conn).ConnectionState().Version > tls.VersionTLS12
+}
+
 func testTLSConfig(serverWrapper *TLSConnectionWrapper, t *testing.T) {
 	const address = "127.0.0.1:4567"
 	listener, err := net.Listen("tcp", address)
@@ -292,8 +298,9 @@ func testTLSConfig(serverWrapper *TLSConnectionWrapper, t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	go func() {
-		_, _, err := serverWrapper.WrapServer(context.TODO(), serverConn)
+		conn, _, err := serverWrapper.WrapServer(context.TODO(), serverConn)
 		if err != nil {
 			if err.Error() != "tls: no cipher suite supported by both client and server" {
 				t.Fatal("Expected error with unsupported ciphersuits")
@@ -301,14 +308,24 @@ func testTLSConfig(serverWrapper *TLSConnectionWrapper, t *testing.T) {
 			wrapErrorCh <- true
 			return
 		}
+		// tls1.3 in golang doesn't support ciphersuites configuration, so just return ok
+		if isTLS13(conn) {
+			wrapErrorCh <- true
+			return
+		}
 		t.Fatal("expected error")
 	}()
 	go func() {
-		_, err := clientWrapper.WrapClient(context.TODO(), []byte("server"), clientConn)
+		conn, err := clientWrapper.WrapClient(context.TODO(), []byte("server"), clientConn)
 		if err != nil {
 			if err.Error() != "remote error: tls: handshake failure" {
 				t.Fatal("Expected with handshake failure")
 			}
+			wrapErrorCh <- true
+			return
+		}
+		// tls1.3 in golang doesn't support ciphersuites configuration, so just return ok
+		if isTLS13(conn) {
 			wrapErrorCh <- true
 			return
 		}
