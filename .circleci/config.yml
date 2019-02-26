@@ -72,9 +72,9 @@ jobs:
       - run: .circleci/integration.sh
       - run: if [ -f  $FILEPATH_ERROR_FLAG ]; then cat "$FILEPATH_ERROR_FLAG"; rm "$FILEPATH_ERROR_FLAG"; exit 1; fi
       - store_test_results:
+        path: /home/user/tests_output
+      - store_artifacts:
           path: /home/user/tests_output
-        - store_artifacts:
-            path: /home/user/tests_output
 
   mariadb-ssl:
     docker:
