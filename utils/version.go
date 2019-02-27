@@ -30,9 +30,9 @@ var VERSION = "0.84.2"
 
 // Version store version info
 type Version struct {
-	Major uint32
-	Minor uint32
-	Patch uint32
+	Major string
+	Minor string
+	Patch string
 }
 
 // ComparisonStatus result of comparison versions
@@ -45,47 +45,35 @@ const (
 	Greater                             // 1
 )
 
-func compareUint32(v1, v2 uint32) ComparisonStatus {
-	res := v1 - v2
-	if res == 0 {
-		return Equal
-	}
-	if res < 0 {
-
-		return Less
-	}
-	return Greater
-}
-
 // Compare compare v with v2 and return ComparisonStatus [Less|Equal|Greater]
 func (v *Version) Compare(v2 *Version) ComparisonStatus {
-	if res := compareUint32(v.Major, v2.Major); res != Equal {
-		return res
+	if res := strings.Compare(v.Major, v2.Major); res != int(Equal) {
+		return ComparisonStatus(res)
 	}
-	if res := compareUint32(v.Minor, v2.Minor); res != Equal {
-		return res
+	if res := strings.Compare(v.Minor, v2.Minor); res != int(Equal) {
+		return ComparisonStatus(res)
 	}
-	return compareUint32(v.Major, v2.Major)
+	return ComparisonStatus(strings.Compare(v.Patch, v2.Patch))
 }
 
 // String format version as string
 func (v *Version) String() string {
-	return fmt.Sprintf("%d.%d.%d", v.Major, v.Minor, v.Patch)
+	return fmt.Sprintf("%s.%s.%s", v.Major, v.Minor, v.Patch)
 }
 
 // MajorAsFloat64 return major number as float64
 func (v *Version) MajorAsFloat64() (float64, error) {
-	return float64(v.Major), nil
+	return strconv.ParseFloat(v.Major, 64)
 }
 
 // MinorAsFloat64 return minor number as float64
 func (v *Version) MinorAsFloat64() (float64, error) {
-	return float64(v.Minor), nil
+	return strconv.ParseFloat(v.Minor, 64)
 }
 
 // PatchAsFloat64 return patch number as float64
 func (v *Version) PatchAsFloat64() (float64, error) {
-	return float64(v.Patch), nil
+	return strconv.ParseFloat(v.Patch, 64)
 }
 
 const (
@@ -109,19 +97,7 @@ func ParseVersion(version string) (*Version, error) {
 			return nil, err
 		}
 	}
-	majorValue, err := strconv.ParseUint(parts[major], 10, 32)
-	if err != nil {
-		return nil, err
-	}
-	minorValue, err := strconv.ParseUint(parts[minor], 10, 32)
-	if err != nil {
-		return nil, err
-	}
-	patchValue, err := strconv.ParseUint(parts[patch], 10, 32)
-	if err != nil {
-		return nil, err
-	}
-	return &Version{uint32(majorValue), uint32(minorValue), uint32(patchValue)}, nil
+	return &Version{parts[major], parts[minor], parts[patch]}, nil
 }
 
 // GetParsedVersion return version as Version struct
