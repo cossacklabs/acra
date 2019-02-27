@@ -32,16 +32,19 @@ for version in $VERSIONS; do
     echo "--------------------  Testing with TEST_TLS=${TEST_TLS}"
 
     for iteration in {1..3}; do
-        context="golang-$version-tls-${TEST_TLS}"
-        export TEST_XMLOUTPUT="${TEST_OUTPUT_FOLDER}/${iteration}-${context}.xml"
+        context="${iteration}-golang-${version}-tls-${TEST_TLS}"
+        export TEST_XMLOUTPUT="${TEST_OUTPUT_FOLDER}/${context}.xml"
         timeout ${TEST_RUN_TIMEOUT} python3 tests/test.py -v;
         if [[ "$?" != "0" ]]; then
-            if [[ "${iteration}" == "3" ]]; then
-                echo "${context}" >> "$FILEPATH_ERROR_FLAG";
-            fi
+            echo "${context}" >> "$FILEPATH_ERROR_FLAG";
             continue
         else
             echo "no errors";
+            if [[ "${iteration}" != "1" ]]; then
+                # if test run successful after retries then copy retries log to folder that will be available on circleci ui
+                cp "${FILEPATH_ERROR_FLAG}" "${TEST_OUTPUT_FOLDER}";
+                rm "${FILEPATH_ERROR_FLAG}";
+            fi
             break
         fi
     done
