@@ -21,7 +21,6 @@ cd $HOME/project
 find tests/ssl -name "*.key" -type f -exec chmod 0600 {} \;
 for version in $VERSIONS; do
     echo "-------------------- Testing Go version $version"
-    context="golang-$version-tls-${TEST_TLS}"
 
     export TEST_ACRASERVER_PORT=$(expr ${TEST_ACRASERVER_PORT} + 1);
     export TEST_CONNECTOR_PORT=$(expr ${TEST_CONNECTOR_PORT} + 1);
@@ -33,6 +32,7 @@ for version in $VERSIONS; do
     echo "--------------------  Testing with TEST_TLS=${TEST_TLS}"
 
     for iteration in {1..3}; do
+        context="golang-$version-tls-${TEST_TLS}"
         export TEST_XMLOUTPUT="${TEST_OUTPUT_FOLDER}/${iteration}-${context}.xml"
         timeout ${TEST_RUN_TIMEOUT} python3 tests/test.py -v;
         if [[ "$?" != "0" ]]; then
