@@ -34,9 +34,11 @@ for version in $VERSIONS; do
     for iteration in {1..3}; do
         context="${iteration}-golang-${version}-tls-${TEST_TLS}"
         export TEST_XMLOUTPUT="${TEST_OUTPUT_FOLDER}/${context}.xml"
-        timeout ${TEST_RUN_TIMEOUT} python3 tests/test.py -v;
+        LOG_OUTPUT="${TEST_OUTPUT_FOLDER}/${context}.log"
+        timeout ${TEST_RUN_TIMEOUT} python3 tests/test.py -v | tee "${LOG_OUTPUT}";
         if [[ "$?" != "0" ]]; then
-            echo "${context}" >> "$FILEPATH_ERROR_FLAG";
+            status="$?"
+            echo "${context}. status=${status}" >> "$FILEPATH_ERROR_FLAG";
             continue
         else
             echo "no errors";
