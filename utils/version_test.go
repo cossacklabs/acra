@@ -50,6 +50,9 @@ func TestVersion_Compare(t *testing.T) {
 
 		{"1.1.10", "1.1.1", Greater},
 		{"1.1.1", "1.1.10", Less},
+
+		{"0.84.2", "0.1.0", Greater},
+		{"0.84.2", "1.0.0", Less},
 	}
 
 	for _, data := range testData {

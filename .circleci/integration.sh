@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+set -o pipefail
 
 export TEST_ACRASERVER_PORT=6000
 export TEST_CONNECTOR_PORT=7000
@@ -36,7 +37,8 @@ for version in $VERSIONS; do
         export TEST_XMLOUTPUT="${TEST_OUTPUT_FOLDER}/${context}.xml"
         LOG_OUTPUT="${TEST_OUTPUT_FOLDER}/${context}.log"
         timeout ${TEST_RUN_TIMEOUT} python3 tests/test.py -v | tee "${LOG_OUTPUT}";
-        if [[ "$?" != "0" ]]; then
+        status="$?"
+        if [[ "${status}" != "0" ]]; then
             status="$?"
             echo "${context}. status=${status}" >> "$FILEPATH_ERROR_FLAG";
             continue

@@ -22,6 +22,7 @@ import (
 	"github.com/cossacklabs/acra/acra-censor/handlers"
 	"github.com/cossacklabs/acra/logging"
 	"github.com/cossacklabs/acra/utils"
+	"github.com/sirupsen/logrus"
 	"gopkg.in/yaml.v2"
 	"strings"
 )
@@ -63,15 +64,22 @@ func (acraCensor *AcraCensor) LoadConfiguration(configuration []byte) error {
 	if err != nil {
 		return err
 	}
+	if len(censorConfiguration.Version) == 0 {
+		return ErrUnsupportedConfigVersion
+	}
 	configVersion, err := utils.ParseVersion(censorConfiguration.Version)
 	if err != nil {
 		return err
 	}
-	censorVersion, err := utils.ParseVersion(MinimalCensorConfigVersion)
+	currentlySupportedVersion, err := utils.ParseVersion(MinimalCensorConfigVersion)
 	if err != nil {
 		return err
 	}
-	if censorVersion.Compare(configVersion) == utils.Greater {
+	if currentlySupportedVersion.Compare(configVersion) == utils.Greater {
+		logrus.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCensorSetupError).
+			Errorln("AcraCensor config file version is not supported: probably AcraCensor configuration " +
+				"(acra-censor.yaml) is outdated, check docs for deprecation warnings " +
+				"https://docs.cossacklabs.com/pages/documentation-acra/#acracensor-acra-s-firewall")
 		// censor has version newer than config
 		return ErrUnsupportedConfigVersion
 	}

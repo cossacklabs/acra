@@ -1232,7 +1232,7 @@ class TestCensorVersionChecks(BaseCensorTest):
         self.assertIn(expectedMessage.lower(), stderr.decode('utf-8').lower(), "Hasn't expected message in output")
 
     def testWithoutVersion(self):
-        expectedMessage = "VERSION value has incorrect format (semver 2.0.0 format expected, https://semver.org/)"
+        expectedMessage = 'level=error msg="can\'t setup censor" code=561 error="acra-censor\'s config is outdated"'
         self.checkErrorMessage(abs_path('tests/acra-censor_configs/without_version.yaml'), expectedMessage)
 
     def testNewerVersion(self):
