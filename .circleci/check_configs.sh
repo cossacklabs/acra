@@ -6,7 +6,8 @@ function compare_configs {
     status=0
     for cmd in "${binaries[@]}"; do
      cmp ${folder_a}/acra-${cmd}.yaml ${folder_b}/acra-${cmd}.yaml
-     if [[ "$?" != "0" ]]; then
+     status="$?"
+     if [[ "${status}" != "0" ]]; then
         echo "acra-${cmd} differ"
         status=1
      fi

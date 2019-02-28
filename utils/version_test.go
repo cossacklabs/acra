@@ -78,6 +78,7 @@ func TestVersion_CompareOnly(t *testing.T) {
 		{"0.0.0", "1.0.0", Less, allParts},
 
 		{"0.0.11", "0.0.0", Equal, majorMinorParts},
+		{"0.84.11", "0.84.0", Equal, majorMinorParts},
 		{"1.0.11", "0.0.0", Greater, majorMinorParts},
 		{"0.0.11", "1.0.0", Less, majorMinorParts},
 
@@ -86,7 +87,9 @@ func TestVersion_CompareOnly(t *testing.T) {
 		{"0.11.11", "1.11.0", Less, majorParts},
 
 		// unsupported value
-		{"0.0.0", "0.0.0", Less, allParts << 1},
+		{"0.0.0", "0.0.0", InvalidFlags, 0},
+		// unsupported value
+		{"0.0.0", "0.0.0", InvalidFlags, allParts << 1},
 	}
 
 	for i, data := range testData {

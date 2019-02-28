@@ -1206,7 +1206,20 @@ class BaseCensorTest(BaseTestCase):
         return self._fork_acra(acra_kwargs, popen_kwargs)
 
 
-class TestCensorVersionChecks(BaseCensorTest):
+class FailedRunProcessMixin(object):
+    def assertProcessHasErrors(self, args, expectedMessage):
+        process = subprocess.Popen(args, stderr=subprocess.PIPE)
+        try:
+            _, stderr = process.communicate(timeout=5)  # 5 second enough to start binary and stop execution with error
+        except:
+            raise
+        finally:
+            process.kill()
+
+        self.assertIn(expectedMessage.lower(), stderr.decode('utf-8').lower(), "Hasn't expected message in output")
+
+
+class TestCensorVersionChecks(BaseCensorTest, FailedRunProcessMixin):
     def setUp(self):
         # doesn't need to start acra-server/acra-connector and connections
         pass
@@ -1221,15 +1234,7 @@ class TestCensorVersionChecks(BaseCensorTest):
                 # required param
                 '--db_host={}'.format(DB_HOST)
                 ]
-        process = subprocess.Popen(args, stderr=subprocess.PIPE)
-        try:
-            _, stderr = process.communicate(timeout=5)  # 5 second enough to start binary and stop execution with error
-        except:
-            raise
-        finally:
-            process.kill()
-
-        self.assertIn(expectedMessage.lower(), stderr.decode('utf-8').lower(), "Hasn't expected message in output")
+        self.assertProcessHasErrors(args, expectedMessage)
 
     def testWithoutVersion(self):
         expectedMessage = 'level=error msg="can\'t setup censor" code=561 error="acra-censor\'s config is outdated"'
@@ -3821,6 +3826,56 @@ class TestEmptyValues(BaseTestCase):
         row = result.fetchone()
         self.assertEqual(row['text'], '')
         self.assertEqual(row['binary'], b'')
+
+
+class TestOutdatedServiceConfigs(BaseTestCase, FailedRunProcessMixin):
+    def setUp(self):
+        return
+
+    def tearDown(self):
+        return
+
+    def testStartupWithoutVersionInConfig(self):
+        files = os.listdir('cmd/')
+        services = [i for i in files if os.path.isdir(i)]
+
+        tmp_dir = tempfile.TemporaryDirectory()
+        # generate configs for tests
+        subprocess.check_output(['configs/regenerate.sh', tmp_dir.name])
+
+        for service in services:
+            # remove first line that contains version
+            subprocess.check_output(['sed', 'i', '1d', os.path.join(tmp_dir.name, service + '.yaml')])
+
+        default_args = {
+            'acra-server': ['-db_host=127.0.0.1'],
+            'acra-connector': ['-user_check_disable', '-acraserver_connection_host=127.0.0.1', '-client_id=keypair1'],
+        }
+        for service in services:
+            args = default_args.get(service, [])
+            self.assertProcessHasErrors(args, 'error="config hasn\'t version key"')
+
+    def testStartupWithOutdatedConfigVersion(self):
+        files = os.listdir('cmd/')
+        services = [i for i in files if os.path.isdir(i)]
+
+        tmp_dir = tempfile.TemporaryDirectory()
+        # generate configs for tests
+        subprocess.check_output(['configs/regenerate.sh', tmp_dir.name])
+
+        for service in services:
+            # replace version to 0.0.0
+            subprocess.check_output(['sed', 'i', 's/version: [0-9.]*/version: 0.0.0/', os.path.join(tmp_dir.name, service + '.yaml')])
+
+        default_args = {
+            'acra-server': ['-db_host=127.0.0.1'],
+            'acra-connector': ['-user_check_disable', '-acraserver_connection_host=127.0.0.1', '-client_id=keypair1'],
+        }
+        for service in services:
+            args = default_args.get(service, [])
+            self.assertProcessHasErrors(args, 'code=508 error="config version is outdated"')
+
+
 
 
 if __name__ == '__main__':

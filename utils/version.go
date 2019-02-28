@@ -43,10 +43,11 @@ const (
 	Less    ComparisonStatus = iota - 1 // -1
 	Equal                               // 0
 	Greater                             // 1
+	InvalidFlags
 )
 
 // CompareFlag flags what parts of version to compare
-type CompareFlag int
+type CompareFlag uint8
 
 const (
 	MajorFlag = 1 << iota
@@ -54,9 +55,12 @@ const (
 	PatchFlag
 )
 
-// CompareOnly compares only parts in order major -> minor -> patch if the corresponding bit is set to 1 or return Less
-// if used unsupported flags values
+// CompareOnly compares only parts in order major -> minor -> patch if the corresponding bit is set to 1
+// return InvalidFlags if flags == 0 or flags > (MajorFlag|MinorFlag|PatchFlag)
 func (v *Version) CompareOnly(flags CompareFlag, v2 *Version) ComparisonStatus {
+	if flags == 0 || flags > (MajorFlag|MinorFlag|PatchFlag) {
+		return InvalidFlags
+	}
 	if flags&MajorFlag == 1 {
 		if res := strings.Compare(v.Major, v2.Major); res != int(Equal) {
 			return ComparisonStatus(res)
@@ -72,7 +76,7 @@ func (v *Version) CompareOnly(flags CompareFlag, v2 *Version) ComparisonStatus {
 			return ComparisonStatus(res)
 		}
 	}
-	return Less
+	return Equal
 }
 
 // Compare compare v with v2 and return ComparisonStatus [Less|Equal|Greater]

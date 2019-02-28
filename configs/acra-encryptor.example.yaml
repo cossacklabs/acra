@@ -1,4 +1,3 @@
-schemas:
 - table: test
   columns:
   - id
