@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-function compare_configs {
+function compare_configs() {
     folder_a=$1
     folder_b=$2
     binaries=(server connector translator addzone webconfig rollback keymaker poisonrecordmaker authmanager rotate)
@@ -14,7 +14,7 @@ function compare_configs {
 }
 
 temp_configs=`mktemp -d`
-bash configs/regenerate.sh ${temp_configs} 2>/dev/null
+bash configs/regenerate.sh ${temp_configs}
 
 status=0
 compare_configs configs ${temp_configs}
