@@ -83,7 +83,7 @@ const (
 )
 
 // ErrInvalidVersionFormat error for incorrectly formatted version value
-var ErrInvalidVersionFormat = errors.New("VERSION value has incorrect format (semver 2.0.0 format expected, https://semver.org/)")
+var ErrInvalidVersionFormat = errors.New("value has incorrect format (semver 2.0.0 format expected, https://semver.org/)")
 
 // ParseVersion and return as struct
 func ParseVersion(version string) (*Version, error) {
