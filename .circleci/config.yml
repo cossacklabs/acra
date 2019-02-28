@@ -1,5 +1,27 @@
 version: 2
 jobs:
+  general_validation:
+    docker:
+      - image: cossacklabs/android-build
+    environment:
+      FILEPATH_ERROR_FLAG: /tmp/test_fail
+      VERSIONS: 1.10.8 1.11.5 1.12
+      TEST_DB_PORT: 5432
+      GOPATH_FOLDER: gopath
+      TEST_RANDOM_DATA_FOLDER: /tmp/test_data
+      TEST_TLS: "on"
+    steps:
+      # prepare
+      - checkout
+      - run: .circleci/prepare.sh
+      # validation
+      - run: .circleci/check_gofmt.sh
+      - run: .circleci/check_configs.sh
+      - run: GOPATH=$HOME/$GOPATH_FOLDER .circleci/check_golint.sh
+      - run: .circleci/check_gotest.sh
+      # check python wrapper
+      - run: PYTHONPATH=`pwd`/wrappers/python python3 wrappers/python/acrawriter/tests.py
+
   postgresql-ssl:
     docker:
       - image: cossacklabs/android-build
@@ -21,16 +43,7 @@ jobs:
       - run: .circleci/prepare.sh
       - run: sudo apt-get install -y postgresql-client
       - run: pg_isready -U${POSTGRES_USER} -d${POSTGRES_DB} -h127.0.0.1
-    # testing
-      # check that code formatted with gofmt
-      - run: .circleci/check_gofmt.sh
-      # check that code doesn't have a lot of golint issues (currently removed because golint version is very different on other planforms)
-      - run: GOPATH=$HOME/$GOPATH_FOLDER .circleci/check_golint.sh
-      # delete file if exists
-      - run: if [ -f $FILEPATH_ERROR_FLAG ]; then rm "$FILEPATH_ERROR_FLAG"; fi
-      - run: .circleci/check_gotest.sh
-      # check python wrapper
-      - run: PYTHONPATH=`pwd`/wrappers/python python3 wrappers/python/acrawriter/tests.py
+      # testing
       # generate test data for integration tests
       - run: python3 tests/generate_random_data.py
       # each iteration pass to test different ports for forks to avoid problems with TCP TIME WAIT between tests
@@ -98,13 +111,6 @@ jobs:
     - run: sudo apt-get install -y mysql-client
     - run: mysqladmin ping -h127.0.0.1
     # testing
-    # check that code formatted with gofmt
-    - run: .circleci/check_gofmt.sh
-    # check that code doesn't have a lot of golint issues (currently removed because golint version is very different on other planforms)
-    - run: GOPATH=$HOME/$GOPATH_FOLDER .circleci/check_golint.sh
-    # delete file if exists
-    - run: if [ -f $FILEPATH_ERROR_FLAG ]; then rm "$FILEPATH_ERROR_FLAG"; fi
-    - run: .circleci/check_gotest.sh
     # generate test data for integration tests
     - run: python3 tests/generate_random_data.py
     # each iteration pass to test different ports for forks to avoid problems with TCP TIME WAIT between tests
@@ -177,13 +183,6 @@ jobs:
     - run: sudo apt-get install -y mysql-client
     - run: mysqladmin ping -h127.0.0.1
     # testing
-    # check that code formatted with gofmt
-    - run: .circleci/check_gofmt.sh
-    # check that code doesn't have a lot of golint issues (currently removed because golint version is very different on other planforms)
-    - run: GOPATH=$HOME/$GOPATH_FOLDER .circleci/check_golint.sh
-    # delete file if exists
-    - run: if [ -f $FILEPATH_ERROR_FLAG ]; then rm "$FILEPATH_ERROR_FLAG"; fi
-    - run: .circleci/check_gotest.sh
     # generate test data for integration tests
     - run: python3 tests/generate_random_data.py
     # each iteration pass to test different ports for forks to avoid problems with TCP TIME WAIT between tests
@@ -232,6 +231,7 @@ workflows:
   version: 2
   tests:
     jobs:
+      - general_validation
       - postgresql
       - postgresql-ssl
       - mysql

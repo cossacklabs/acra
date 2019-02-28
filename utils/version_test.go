@@ -57,7 +57,40 @@ func TestVersion_Compare(t *testing.T) {
 			t.Fatalf("%s compare with %s == %d, expected = %d\n", data.v1, data.v2, res, data.result)
 		}
 	}
+}
 
+func TestVersion_CompareOnly(t *testing.T) {
+	const (
+		allParts        = MajorFlag | MinorFlag | PatchFlag
+		majorMinorParts = MajorFlag | MinorFlag
+		majorParts      = MajorFlag
+	)
+	testData := []struct {
+		v1, v2 string
+		result ComparisonStatus
+		flag   CompareFlag
+	}{
+		{"0.0.0", "0.0.0", Equal, allParts},
+		{"1.0.0", "0.0.0", Greater, allParts},
+		{"0.0.0", "1.0.0", Less, allParts},
+
+		{"0.0.11", "0.0.0", Equal, majorMinorParts},
+		{"1.0.11", "0.0.0", Greater, majorMinorParts},
+		{"0.0.11", "1.0.0", Less, majorMinorParts},
+
+		{"0.11.11", "0.12.0", Equal, majorParts},
+		{"1.11.11", "0.11.0", Greater, majorParts},
+		{"0.11.11", "1.11.0", Less, majorParts},
+
+		// unsupported value
+		{"0.0.0", "0.0.0", Less, allParts << 1},
+	}
+
+	for i, data := range testData {
+		if res := getVersion(data.v1, t).CompareOnly(data.flag, getVersion(data.v2, t)); res != data.result {
+			t.Fatalf("%d. %s compare only %d with %s == %d, expected = %d\n", i, data.v1, data.flag, data.v2, res, data.result)
+		}
+	}
 }
 
 func TestGetParsedVersion(t *testing.T) {

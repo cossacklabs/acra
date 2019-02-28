@@ -18,6 +18,7 @@ limitations under the License.
 package cmd
 
 import (
+	"errors"
 	flag_ "flag"
 	"fmt"
 	"github.com/cossacklabs/acra/logging"
@@ -175,6 +176,10 @@ func PrintDefaults() {
 
 // GenerateYaml generates YAML file from CLI params
 func GenerateYaml(output io.Writer, useDefault bool) {
+	// write version as first line in yaml format
+	if _, err := fmt.Fprintf(output, "version: %s\n", utils.VERSION); err != nil {
+		panic(err)
+	}
 	flag_.CommandLine.VisitAll(func(flag *flag_.Flag) {
 		var s string
 		if useDefault {
@@ -245,6 +250,32 @@ func DumpConfig(configPath, serviceName string, useDefault bool) error {
 	return nil
 }
 
+func checkVersion(config map[string]interface{}) error {
+	configVersion, ok := config["version"]
+	if !ok {
+		return errors.New("config hasn't version key")
+	}
+	versionValue, ok := configVersion.(string)
+	if !ok {
+		return errors.New("value of version is not string")
+	}
+
+	version, err := utils.ParseVersion(versionValue)
+	if err != nil {
+		return err
+	}
+
+	serverVersion, err := utils.GetParsedVersion()
+	if err != nil {
+		return err
+	}
+
+	if serverVersion.CompareOnly(utils.MajorFlag|utils.MinorFlag, version) != utils.Equal {
+		return errors.New("config version is outdated")
+	}
+	return nil
+}
+
 // Parse loads CLI params from yaml config and cli
 func Parse(configPath, serviceName string) error {
 	/*load from yaml config and cli. if dumpconfig option pass than generate config and exit*/
@@ -258,6 +289,7 @@ func Parse(configPath, serviceName string) error {
 	if *config != "" {
 		configPath = *config
 	}
+	var yamlConfig map[string]interface{}
 	var args []string
 	// parse yaml and add params that wasn't passed from cli
 	if configPath != "" {
@@ -275,7 +307,6 @@ func Parse(configPath, serviceName string) error {
 			if err != nil {
 				return err
 			}
-			yamlConfig := map[string]interface{}{}
 			err = yaml.Unmarshal([]byte(data), &yamlConfig)
 			if err != nil {
 				return err
@@ -306,6 +337,9 @@ func Parse(configPath, serviceName string) error {
 	if *dumpconfig {
 		DumpConfig(configPath, serviceName, true)
 		os.Exit(0)
+	}
+	if err = checkVersion(yamlConfig); err != nil {
+		return err
 	}
 	return nil
 }
