@@ -79,6 +79,13 @@ def load_default_config(service_name):
         config = yaml.safe_load(f)
     # convert empty values to empty strings to avoid pass them to Popen as
     # "None" string value
+
+    # every config has version but service's don't have such parameter and will exit with error if we will
+    # provide unexpected parameter
+    # when services parse configs they ignore unknown parameters and not down for that
+    skip_keys = ['version']
+    for skip in skip_keys:
+        del config[skip]
     for key in config:
         if config[key] is None:
             config[key] = ''

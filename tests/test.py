@@ -2948,7 +2948,7 @@ class AcraTranslatorMixin(object):
             './acra-connector',
             '-acratranslator_connection_string={}'.format(server_connection),
             '-mode=acratranslator',
-             '-client_id={}'.format(client_id),
+            '-client_id={}'.format(client_id),
             '-incoming_connection_string={}'.format(connector_connection),
             '-user_check_disable=true',
             '-keys_dir={}'.format(KEYS_FOLDER.name),
