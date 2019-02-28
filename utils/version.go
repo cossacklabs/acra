@@ -49,11 +49,27 @@ const (
 // CompareFlag flags what parts of version to compare
 type CompareFlag uint8
 
+// Flags used for CompareOnly to mark parts to check
 const (
-	MajorFlag = 1 << iota
+	MajorFlag CompareFlag = 1 << iota
 	MinorFlag
 	PatchFlag
 )
+
+// String return value as string in format major | major-minor | major-minor-patch | major-patch | minor-patch
+func (f CompareFlag) String() string {
+	parts := make([]string, 0, 3)
+	if f&MajorFlag == 1 {
+		parts = append(parts, "major")
+	}
+	if f&MinorFlag == 1 {
+		parts = append(parts, "minor")
+	}
+	if f&PatchFlag == 1 {
+		parts = append(parts, "patch")
+	}
+	return strings.Join(parts, "-")
+}
 
 // CompareOnly compares only parts in order major -> minor -> patch if the corresponding bit is set to 1
 // return InvalidFlags if flags == 0 or flags > (MajorFlag|MinorFlag|PatchFlag)
@@ -61,17 +77,17 @@ func (v *Version) CompareOnly(flags CompareFlag, v2 *Version) ComparisonStatus {
 	if flags == 0 || flags > (MajorFlag|MinorFlag|PatchFlag) {
 		return InvalidFlags
 	}
-	if flags&MajorFlag == 1 {
+	if flags&MajorFlag == MajorFlag {
 		if res := strings.Compare(v.Major, v2.Major); res != int(Equal) {
 			return ComparisonStatus(res)
 		}
 	}
-	if flags&MinorFlag == 1 {
+	if flags&MinorFlag == MinorFlag {
 		if res := strings.Compare(v.Minor, v2.Minor); res != int(Equal) {
 			return ComparisonStatus(res)
 		}
 	}
-	if flags&PatchFlag == 1 {
+	if flags&PatchFlag == PatchFlag {
 		if res := strings.Compare(v.Patch, v2.Patch); res != int(Equal) {
 			return ComparisonStatus(res)
 		}

@@ -67,6 +67,7 @@ func TestVersion_CompareOnly(t *testing.T) {
 		allParts        = MajorFlag | MinorFlag | PatchFlag
 		majorMinorParts = MajorFlag | MinorFlag
 		majorParts      = MajorFlag
+		majorPatchParts = MajorFlag | PatchFlag
 	)
 	testData := []struct {
 		v1, v2 string
@@ -79,12 +80,25 @@ func TestVersion_CompareOnly(t *testing.T) {
 
 		{"0.0.11", "0.0.0", Equal, majorMinorParts},
 		{"0.84.11", "0.84.0", Equal, majorMinorParts},
+
 		{"1.0.11", "0.0.0", Greater, majorMinorParts},
 		{"0.0.11", "1.0.0", Less, majorMinorParts},
 
 		{"0.11.11", "0.12.0", Equal, majorParts},
 		{"1.11.11", "0.11.0", Greater, majorParts},
 		{"0.11.11", "1.11.0", Less, majorParts},
+
+		{"0.12.0", "0.21.0", Equal, majorPatchParts},
+
+		// greater due to major part
+		{"1.12.0", "0.13.0", Greater, majorPatchParts},
+		// greater due to patch part
+		{"0.12.1", "0.13.0", Greater, majorPatchParts},
+
+		// less due to major part
+		{"0.12.0", "1.10.0", Less, majorPatchParts},
+		// less due to patch part
+		{"0.12.0", "0.10.1", Less, majorPatchParts},
 
 		// unsupported value
 		{"0.0.0", "0.0.0", InvalidFlags, 0},
@@ -94,7 +108,7 @@ func TestVersion_CompareOnly(t *testing.T) {
 
 	for i, data := range testData {
 		if res := getVersion(data.v1, t).CompareOnly(data.flag, getVersion(data.v2, t)); res != data.result {
-			t.Fatalf("%d. %s compare only %d with %s == %d, expected = %d\n", i, data.v1, data.flag, data.v2, res, data.result)
+			t.Fatalf("%d. %s compare only %s with %s == %d, expected = %d\n", i, data.v1, data.flag, data.v2, res, data.result)
 		}
 	}
 }
