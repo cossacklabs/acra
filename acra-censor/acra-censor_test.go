@@ -1510,7 +1510,7 @@ func TestConfigurationProvider(t *testing.T) {
 		t.Fatal(err)
 	}
 	re := regexp.MustCompile(`(version:\s+?)((\d+\.?){3})`)
-	// replace version from exapmle to current
+	// replace version from example to current
 	configuration = []byte(re.ReplaceAllString(string(configuration), fmt.Sprintf("$1 %s", MinimalCensorConfigVersion)))
 	acraCensor := NewAcraCensor()
 	defer func() {
