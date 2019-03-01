@@ -9,9 +9,8 @@ jobs:
           POSTGRES_USER: test
           POSTGRES_DB: test
     environment:
-      GOTHEMIS_IMPORT: github.com/cossacklabs/themis/gothemis
       FILEPATH_ERROR_FLAG: /tmp/test_fail
-      VERSIONS: 1.9.7 1.10.8 1.11.5
+      VERSIONS: 1.10.8 1.11.5 1.12
       TEST_DB_PORT: 5432
       GOPATH_FOLDER: gopath
       TEST_RANDOM_DATA_FOLDER: /tmp/test_data
@@ -29,10 +28,7 @@ jobs:
       - run: GOPATH=$HOME/$GOPATH_FOLDER .circleci/check_golint.sh
       # delete file if exists
       - run: if [ -f $FILEPATH_ERROR_FLAG ]; then rm "$FILEPATH_ERROR_FLAG"; fi
-      # run test in each go environment and create $FILEPATH_ERROR_FLAG file if was any error. But all tests should
-      - run: cd $HOME && for version in $VERSIONS; do export GOROOT=$HOME/go_root_$version/go; export PATH=$GOROOT/bin/:$PATH; export GOPATH=$HOME/$GOPATH_FOLDER; rm -rf $HOME/$GOPATH_FOLDER/bin; rm -rf $HOME/$GOPATH_FOLDER/pkg; go test -v github.com/cossacklabs/acra/...; if [ "$?" != "0" ]; then echo "$version" >> "$FILEPATH_ERROR_FLAG"; fi done
-      # if file exists (exit code of stat == 0 ) then something was wrong. cat file with versions of environments where was error and return exit 1
-      - run: if [ -f  $FILEPATH_ERROR_FLAG ]; then cat "$FILEPATH_ERROR_FLAG"; rm "$FILEPATH_ERROR_FLAG"; exit 1; fi
+      - run: .circleci/check_gotest.sh
       # check python wrapper
       - run: PYTHONPATH=`pwd`/wrappers/python python3 wrappers/python/acrawriter/tests.py
       # generate test data for integration tests
@@ -40,6 +36,10 @@ jobs:
       # each iteration pass to test different ports for forks to avoid problems with TCP TIME WAIT between tests
       - run: .circleci/integration.sh
       - run: if [ -f  $FILEPATH_ERROR_FLAG ]; then cat "$FILEPATH_ERROR_FLAG"; rm "$FILEPATH_ERROR_FLAG"; exit 1; fi
+      - store_test_results:
+          path: /home/user/tests_output
+      - store_artifacts:
+          path: /home/user/tests_output
 
   postgresql:
     docker:
@@ -50,9 +50,8 @@ jobs:
           POSTGRES_USER: test
           POSTGRES_DB: test
     environment:
-      GOTHEMIS_IMPORT: github.com/cossacklabs/themis/gothemis
       FILEPATH_ERROR_FLAG: /tmp/test_fail
-      VERSIONS: 1.9.7 1.10.5 1.11.2
+      VERSIONS: 1.10.8 1.11.5 1.12
       TEST_DB_PORT: 5432
       GOPATH_FOLDER: gopath
       TEST_RANDOM_DATA_FOLDER: /tmp/test_data
@@ -68,6 +67,10 @@ jobs:
       # each iteration pass to test different ports for forks to avoid problems with TCP TIME WAIT between tests
       - run: .circleci/integration.sh
       - run: if [ -f  $FILEPATH_ERROR_FLAG ]; then cat "$FILEPATH_ERROR_FLAG"; rm "$FILEPATH_ERROR_FLAG"; exit 1; fi
+      - store_test_results:
+          path: /home/user/tests_output
+      - store_artifacts:
+          path: /home/user/tests_output
 
   mariadb-ssl:
     docker:
@@ -81,9 +84,8 @@ jobs:
         MYSQL_PASSWORD: test
         MYSQL_ROOT_PASSWORD: root
     environment:
-      GOTHEMIS_IMPORT: github.com/cossacklabs/themis/gothemis
       FILEPATH_ERROR_FLAG: /tmp/test_fail
-      VERSIONS: 1.9.7 1.10.5 1.11.2
+      VERSIONS: 1.10.8 1.11.5 1.12
       TEST_MYSQL: true
       TEST_DB_PORT: 3306
       GOPATH_FOLDER: gopath
@@ -102,15 +104,16 @@ jobs:
     - run: GOPATH=$HOME/$GOPATH_FOLDER .circleci/check_golint.sh
     # delete file if exists
     - run: if [ -f $FILEPATH_ERROR_FLAG ]; then rm "$FILEPATH_ERROR_FLAG"; fi
-    # run test in each go environment and create $FILEPATH_ERROR_FLAG file if was any error. But all tests should
-    - run: cd $HOME && for version in $VERSIONS; do export GOROOT=$HOME/go_root_$version/go; export PATH=$GOROOT/bin/:$PATH; export GOPATH=$HOME/$GOPATH_FOLDER; rm -rf $HOME/$GOPATH_FOLDER/bin; rm -rf $HOME/$GOPATH_FOLDER/pkg; go test -v github.com/cossacklabs/acra/...; if [ "$?" != "0" ]; then echo "$version" >> "$FILEPATH_ERROR_FLAG"; fi done
-    # if file exists (exit code of stat == 0 ) then something was wrong. cat file with versions of environments where was error and return exit 1
-    - run: if [ -f  $FILEPATH_ERROR_FLAG ]; then cat "$FILEPATH_ERROR_FLAG"; rm "$FILEPATH_ERROR_FLAG"; exit 1; fi
+    - run: .circleci/check_gotest.sh
     # generate test data for integration tests
     - run: python3 tests/generate_random_data.py
     # each iteration pass to test different ports for forks to avoid problems with TCP TIME WAIT between tests
     - run: .circleci/integration.sh
     - run: if [ -f  $FILEPATH_ERROR_FLAG ]; then cat "$FILEPATH_ERROR_FLAG"; rm "$FILEPATH_ERROR_FLAG"; exit 1; fi
+    - store_test_results:
+        path: /home/user/tests_output
+    - store_artifacts:
+        path: /home/user/tests_output
 
   mariadb:
     docker:
@@ -124,9 +127,8 @@ jobs:
           MYSQL_PASSWORD: test
           MYSQL_ROOT_PASSWORD: root
     environment:
-      GOTHEMIS_IMPORT: github.com/cossacklabs/themis/gothemis
       FILEPATH_ERROR_FLAG: /tmp/test_fail
-      VERSIONS: 1.9.7 1.10.5 1.11.2
+      VERSIONS: 1.10.8 1.11.5 1.12
       TEST_MYSQL: true
       TEST_DB_PORT: 3306
       GOPATH_FOLDER: gopath
@@ -144,6 +146,10 @@ jobs:
       # each iteration pass to test different ports for forks to avoid problems with TCP TIME WAIT between tests
       - run: .circleci/integration.sh
       - run: if [ -f  $FILEPATH_ERROR_FLAG ]; then cat "$FILEPATH_ERROR_FLAG"; rm "$FILEPATH_ERROR_FLAG"; exit 1; fi
+      - store_test_results:
+          path: /home/user/tests_output
+      - store_artifacts:
+          path: /home/user/tests_output
 
   mysql:
     docker:
@@ -157,9 +163,8 @@ jobs:
         MYSQL_PASSWORD: test
         MYSQL_ROOT_PASSWORD: root
     environment:
-      GOTHEMIS_IMPORT: github.com/cossacklabs/themis/gothemis
       FILEPATH_ERROR_FLAG: /tmp/test_fail
-      VERSIONS: 1.9.7 1.10.5 1.11.2
+      VERSIONS: 1.10.8 1.11.5 1.12
       TEST_MYSQL: true
       TEST_DB_PORT: 3306
       GOPATH_FOLDER: gopath
@@ -178,15 +183,16 @@ jobs:
     - run: GOPATH=$HOME/$GOPATH_FOLDER .circleci/check_golint.sh
     # delete file if exists
     - run: if [ -f $FILEPATH_ERROR_FLAG ]; then rm "$FILEPATH_ERROR_FLAG"; fi
-    # run test in each go environment and create $FILEPATH_ERROR_FLAG file if was any error. But all tests should
-    - run: cd $HOME && for version in $VERSIONS; do export GOROOT=$HOME/go_root_$version/go; export PATH=$GOROOT/bin/:$PATH; export GOPATH=$HOME/$GOPATH_FOLDER; rm -rf $HOME/$GOPATH_FOLDER/bin; rm -rf $HOME/$GOPATH_FOLDER/pkg; go test -v github.com/cossacklabs/acra/...; if [ "$?" != "0" ]; then echo "$version" >> "$FILEPATH_ERROR_FLAG"; fi done
-    # if file exists (exit code of stat == 0 ) then something was wrong. cat file with versions of environments where was error and return exit 1
-    - run: if [ -f  $FILEPATH_ERROR_FLAG ]; then cat "$FILEPATH_ERROR_FLAG"; rm "$FILEPATH_ERROR_FLAG"; exit 1; fi
+    - run: .circleci/check_gotest.sh
     # generate test data for integration tests
     - run: python3 tests/generate_random_data.py
     # each iteration pass to test different ports for forks to avoid problems with TCP TIME WAIT between tests
     - run: .circleci/integration.sh
     - run: if [ -f  $FILEPATH_ERROR_FLAG ]; then cat "$FILEPATH_ERROR_FLAG"; rm "$FILEPATH_ERROR_FLAG"; exit 1; fi
+    - store_test_results:
+        path: /home/user/tests_output
+    - store_artifacts:
+        path: /home/user/tests_output
 
   mysql-ssl:
     docker:
@@ -198,9 +204,8 @@ jobs:
           MYSQL_PASSWORD: test
           MYSQL_ROOT_PASSWORD: root
     environment:
-      GOTHEMIS_IMPORT: github.com/cossacklabs/themis/gothemis
       FILEPATH_ERROR_FLAG: /tmp/test_fail
-      VERSIONS: 1.9.7 1.10.5 1.11.2
+      VERSIONS: 1.10.8 1.11.5 1.12
       TEST_MYSQL: true
       TEST_DB_PORT: 3306
       GOPATH_FOLDER: gopath
@@ -218,6 +223,11 @@ jobs:
       # each iteration pass to test different ports for forks to avoid problems with TCP TIME WAIT between tests
       - run: .circleci/integration.sh
       - run: if [ -f  $FILEPATH_ERROR_FLAG ]; then cat "$FILEPATH_ERROR_FLAG"; rm "$FILEPATH_ERROR_FLAG"; exit 1; fi
+      - store_test_results:
+          path: /home/user/tests_output
+      - store_artifacts:
+          path: /home/user/tests_output
+
 workflows:
   version: 2
   tests:

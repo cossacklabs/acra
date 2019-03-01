@@ -35,6 +35,27 @@ type Version struct {
 	Patch string
 }
 
+// ComparisonStatus result of comparison versions
+type ComparisonStatus int
+
+// Available constant values for ComparisonStatus
+const (
+	Less    ComparisonStatus = iota - 1 // -1
+	Equal                               // 0
+	Greater                             // 1
+)
+
+// Compare compare v with v2 and return ComparisonStatus [Less|Equal|Greater]
+func (v *Version) Compare(v2 *Version) ComparisonStatus {
+	if res := strings.Compare(v.Major, v2.Major); res != int(Equal) {
+		return ComparisonStatus(res)
+	}
+	if res := strings.Compare(v.Minor, v2.Minor); res != int(Equal) {
+		return ComparisonStatus(res)
+	}
+	return ComparisonStatus(strings.Compare(v.Patch, v2.Patch))
+}
+
 // String format version as string
 func (v *Version) String() string {
 	return fmt.Sprintf("%s.%s.%s", v.Major, v.Minor, v.Patch)
@@ -62,11 +83,11 @@ const (
 )
 
 // ErrInvalidVersionFormat error for incorrectly formatted version value
-var ErrInvalidVersionFormat = errors.New("VERSION value has incorrect format (semver expected)")
+var ErrInvalidVersionFormat = errors.New("value has incorrect format (semver 2.0.0 format expected, https://semver.org/)")
 
-// GetParsedVersion return version as Version struct
-func GetParsedVersion() (*Version, error) {
-	parts := strings.Split(VERSION, ".")
+// ParseVersion and return as struct
+func ParseVersion(version string) (*Version, error) {
+	parts := strings.Split(version, ".")
 	if len(parts) != 3 {
 		return nil, ErrInvalidVersionFormat
 	}
@@ -77,4 +98,9 @@ func GetParsedVersion() (*Version, error) {
 		}
 	}
 	return &Version{parts[major], parts[minor], parts[patch]}, nil
+}
+
+// GetParsedVersion return version as Version struct
+func GetParsedVersion() (*Version, error) {
+	return ParseVersion(VERSION)
 }

@@ -1,4 +1,5 @@
 ignore_parse_error: true
+version: 0.84.2
 handlers:
   - handler: query_ignore
     queries:

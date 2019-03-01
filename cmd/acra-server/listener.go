@@ -82,7 +82,7 @@ func (server *SServer) Close() {
 			if err2 != nil {
 				log.WithError(err2).Warningln("UnixListener.Close  url_.Parse")
 			}
-			if _, err = os.Stat(url.Path); err == nil {
+			if _, err := os.Stat(url.Path); err == nil {
 				err3 := os.Remove(url.Path)
 				if err3 != nil {
 					log.WithError(err3).Warningf("UnixListener.Close  file.Remove(%s)", url.Path)
