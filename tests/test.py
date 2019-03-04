@@ -1208,6 +1208,7 @@ class BaseCensorTest(BaseTestCase):
 
 class FailedRunProcessMixin(object):
     def assertProcessHasErrors(self, args, expectedMessage):
+        logger.info("run command '{}'".format(' '.join(args)))
         process = subprocess.Popen(args, stderr=subprocess.PIPE)
         try:
             _, stderr = process.communicate(timeout=5)  # 5 second enough to start binary and stop execution with error
@@ -1215,8 +1216,21 @@ class FailedRunProcessMixin(object):
             raise
         finally:
             process.kill()
-
+        logger.debug(stderr)
         self.assertIn(expectedMessage.lower(), stderr.decode('utf-8').lower(), "Hasn't expected message in output")
+
+    def assertProcessHasNotMessage(self, args, status_code, expectedMessage):
+        logger.info("run command '{}'".format(' '.join(args)))
+        process = subprocess.Popen(args, stderr=subprocess.PIPE, cwd=os.getcwd())
+        try:
+            _, stderr = process.communicate(timeout=1)
+            logger.debug(stderr)
+            self.assertEqual(process.returncode, status_code)
+            self.assertNotIn(expectedMessage.lower(), stderr.decode('utf-8').lower(), "Has message that should not to be in")
+        except:
+            raise
+        finally:
+            process.kill()
 
 
 class TestCensorVersionChecks(BaseCensorTest, FailedRunProcessMixin):
@@ -3837,45 +3851,100 @@ class TestOutdatedServiceConfigs(BaseTestCase, FailedRunProcessMixin):
 
     def testStartupWithoutVersionInConfig(self):
         files = os.listdir('cmd/')
-        services = [i for i in files if os.path.isdir(i)]
+        services = [i for i in files if os.path.isdir(os.path.join('cmd', i))]
+        self.assertTrue(services)
 
-        tmp_dir = tempfile.TemporaryDirectory()
-        # generate configs for tests
-        subprocess.check_output(['configs/regenerate.sh', tmp_dir.name])
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            # generate configs for tests
+            subprocess.check_output(['configs/regenerate.sh', tmp_dir])
 
-        for service in services:
-            # remove first line that contains version
-            subprocess.check_output(['sed', 'i', '1d', os.path.join(tmp_dir.name, service + '.yaml')])
+            for service in services:
+                # remove first line that contains version
+                subprocess.check_output(['sed', '-i', '1d', os.path.join(tmp_dir, service + '.yaml')])
 
-        default_args = {
-            'acra-server': ['-db_host=127.0.0.1'],
-            'acra-connector': ['-user_check_disable', '-acraserver_connection_host=127.0.0.1', '-client_id=keypair1'],
-        }
-        for service in services:
-            args = default_args.get(service, [])
-            self.assertProcessHasErrors(args, 'error="config hasn\'t version key"')
+            default_args = {
+                'acra-server': ['-db_host=127.0.0.1'],
+                'acra-connector': ['-user_check_disable', '-acraserver_connection_host=127.0.0.1', '-client_id=keypair1'],
+            }
+            for service in services:
+                config_param = '-config_file={}'.format(os.path.join(tmp_dir, '{}.yaml'.format(service)))
+                args = ['./' + service, config_param] + default_args.get(service, [])
+                self.assertProcessHasErrors(args, 'error="config hasn\'t version key"')
 
     def testStartupWithOutdatedConfigVersion(self):
         files = os.listdir('cmd/')
-        services = [i for i in files if os.path.isdir(i)]
+        services = [i for i in files if os.path.isdir(os.path.join('cmd', i))]
+        self.assertTrue(services)
 
-        tmp_dir = tempfile.TemporaryDirectory()
-        # generate configs for tests
-        subprocess.check_output(['configs/regenerate.sh', tmp_dir.name])
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            # generate configs for tests
+            subprocess.check_output(['configs/regenerate.sh', tmp_dir])
 
-        for service in services:
-            # replace version to 0.0.0
-            subprocess.check_output(['sed', 'i', 's/version: [0-9.]*/version: 0.0.0/', os.path.join(tmp_dir.name, service + '.yaml')])
+            for service in services:
+                # replace version to 0.0.0
+                subprocess.check_output(['sed', '-i', 's/version: [0-9.]*/version: 0.0.0/', os.path.join(tmp_dir, service + '.yaml')])
 
-        default_args = {
-            'acra-server': ['-db_host=127.0.0.1'],
-            'acra-connector': ['-user_check_disable', '-acraserver_connection_host=127.0.0.1', '-client_id=keypair1'],
-        }
-        for service in services:
-            args = default_args.get(service, [])
-            self.assertProcessHasErrors(args, 'code=508 error="config version is outdated"')
+            default_args = {
+                'acra-server': ['-db_host=127.0.0.1'],
+                'acra-connector': ['-user_check_disable', '-acraserver_connection_host=127.0.0.1', '-client_id=keypair1'],
+            }
+            for service in services:
+                config_param = '-config_file={}'.format(os.path.join(tmp_dir, '{}.yaml'.format(service)))
+                args = ['./' + service, config_param] + default_args.get(service, [])
+                self.assertProcessHasErrors(args, 'code=508 error="config version is outdated"')
 
 
+    def testStartupWithDifferentConfigsPatchVersion(self):
+        files = os.listdir('cmd/')
+        services = [i for i in files if os.path.isdir(os.path.join('cmd/', i))]
+        self.assertTrue(services)
+
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            # generate configs for tests
+            subprocess.check_output(['configs/regenerate.sh', tmp_dir])
+
+            for service in services:
+                # replace "version: X.X.X" to "version: X.X.100500"
+                subprocess.check_output(['sed', '-i', 's/\\(version: [0-9]*\\.[0-9]*\\)\\.[0-9]/\\1.100500/',
+                    os.path.join(tmp_dir, service + '.yaml')])
+            default_args = {
+                'acra-addzone': ['-keys_output_dir={}'.format(KEYS_FOLDER.name)],
+                'acra-authmanager': {'args': ['-keys_dir={}'.format(KEYS_FOLDER.name)],
+                                     'status': 1},
+                'acra-connector': {'connection': 'connection_string',
+                                   'args': ['-keys_dir={}'.format(KEYS_FOLDER.name)],
+                                   'status': 1},
+                'acra-keymaker': ['-keys_output_dir={}'.format(tmp_dir),
+                                  '-keys_public_output_dir={}'.format(tmp_dir)],
+                'acra-poisonrecordmaker': ['-keys_dir={}'.format(tmp_dir)],
+                'acra-rollback': {'args': ['-keys_dir={}'.format(tmp_dir)],
+                                  'status': 1},
+                'acra-rotate': {'args': ['-keys_dir={}'.format(tmp_dir)],
+                                'status': 0},
+                'acra-translator': {'connection': 'connection_string',
+                                   'args': ['-keys_dir={}'.format(KEYS_FOLDER.name),
+                                            # empty id to raise error
+                                            '--securesession_id=""'],
+                                   'status': 1},
+                'acra-server': {'args': ['-keys_dir={}'.format(KEYS_FOLDER.name)],
+                                'status': 1},
+                'acra-webconfig': {'args': ['-static_path={}'.format('/not/existed/path')],
+                                   'status': 1},
+            }
+
+            for service in services:
+                test_data = default_args.get(service)
+                expected_status_code = 0
+                if isinstance(test_data, dict):
+                    expected_status_code = test_data['status']
+                    service_args = test_data['args']
+                else:
+                    service_args = test_data
+
+                config_param = '-config_file={}'.format(os.path.join(tmp_dir, '{}.yaml'.format(service)))
+                args = ['./' + service, config_param] + service_args
+                self.assertProcessHasNotMessage(args, expected_status_code,
+                                                'code=508 error="config version is outdated"')
 
 
 if __name__ == '__main__':

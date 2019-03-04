@@ -164,7 +164,7 @@ func main() {
 		log.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorWrongConfiguration).
 			Errorln("db_host is empty: you must specify db_host")
 		flag.Usage()
-		return
+		os.Exit(1)
 	}
 	config.setDBConnectionSettings(*dbHost, *dbPort)
 
