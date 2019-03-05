@@ -3946,6 +3946,50 @@ class TestOutdatedServiceConfigs(BaseTestCase, FailedRunProcessMixin):
                 self.assertProcessHasNotMessage(args, expected_status_code,
                                                 'code=508 error="config version is outdated"')
 
+    def testStartupWithoutConfig(self):
+        files = os.listdir('cmd/')
+        services = [i for i in files if os.path.isdir(os.path.join('cmd/', i))]
+        self.assertTrue(services)
+
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            default_args = {
+                'acra-addzone': ['-keys_output_dir={}'.format(KEYS_FOLDER.name)],
+                'acra-authmanager': {'args': ['-keys_dir={}'.format(KEYS_FOLDER.name)],
+                                     'status': 1},
+                'acra-connector': {'connection': 'connection_string',
+                                   'args': ['-keys_dir={}'.format(KEYS_FOLDER.name)],
+                                   'status': 1},
+                'acra-keymaker': ['-keys_output_dir={}'.format(tmp_dir),
+                                  '-keys_public_output_dir={}'.format(tmp_dir)],
+                'acra-poisonrecordmaker': ['-keys_dir={}'.format(tmp_dir)],
+                'acra-rollback': {'args': ['-keys_dir={}'.format(tmp_dir)],
+                                  'status': 1},
+                'acra-rotate': {'args': ['-keys_dir={}'.format(tmp_dir)],
+                                'status': 0},
+                'acra-translator': {'connection': 'connection_string',
+                                    'args': ['-keys_dir={}'.format(KEYS_FOLDER.name),
+                                             # empty id to raise error
+                                             '--securesession_id=""'],
+                                    'status': 1},
+                'acra-server': {'args': ['-keys_dir={}'.format(KEYS_FOLDER.name)],
+                                'status': 1},
+                'acra-webconfig': {'args': ['-static_path={}'.format('/not/existed/path')],
+                                   'status': 1},
+            }
+
+            for service in services:
+                test_data = default_args.get(service)
+                expected_status_code = 0
+                if isinstance(test_data, dict):
+                    expected_status_code = test_data['status']
+                    service_args = test_data['args']
+                else:
+                    service_args = test_data
+
+                args = ['./' + service, '-config_file=""'] + service_args
+                self.assertProcessHasNotMessage(args, expected_status_code,
+                                                'code=508 error="config version is outdated"')
+
 
 if __name__ == '__main__':
     import xmlrunner

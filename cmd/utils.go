@@ -251,6 +251,9 @@ func DumpConfig(configPath, serviceName string, useDefault bool) error {
 }
 
 func checkVersion(config map[string]interface{}) error {
+	if config == nil {
+		return nil
+	}
 	configVersion, ok := config["version"]
 	if !ok {
 		return errors.New("config hasn't version key")
