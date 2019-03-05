@@ -1014,7 +1014,6 @@ func (*ConvertUsingExpr) iExpr() {}
 func (*MatchExpr) iExpr()        {}
 func (*GroupConcatExpr) iExpr()  {}
 func (*Default) iExpr()          {}
-func (DollarExpr) iExpr()        {}
 
 // ReplaceExpr finds the from expression from root
 // and replaces it with to. If from matches root,
@@ -1197,6 +1196,7 @@ const (
 	BitVal
 	PgEscapeString
 	Casted
+	PgPlaceholder
 )
 
 // SQLVal represents a single value.
@@ -1589,22 +1589,13 @@ func (node *Default) replace(from, to Expr) bool {
 	return false
 }
 
-// DollarExpr represents placeholder '$1' - dictated by Postgres
-type DollarExpr struct {
-	Value string
-}
-
-// NewDollarExpr creates new DollarExpr from input string
-func NewDollarExpr(value string) (DollarExpr, error) {
+// NewDollarExpr creates new SQLVal from input string
+func NewDollarExpr(value string) (*SQLVal, error) {
 	_, err := strconv.Atoi(value[1:])
 	if err != nil {
-		return DollarExpr{Value: ""}, err
+		return nil, err
 	}
-	return DollarExpr{Value: value}, nil
-}
-
-func (node DollarExpr) replace(from, to Expr) bool {
-	return false
+	return &SQLVal{Type: PgPlaceholder, Val: []byte(value)}, nil
 }
 
 // When represents a WHEN sub-expression.

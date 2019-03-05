@@ -550,6 +550,8 @@ class QueryExecutor(object):
 
 class PyMysqlExecutor(QueryExecutor):
     def execute(self, query, args=None):
+        if args:
+            self.fail("<args> param for executor {} not supported now".format(self.__class__))
         with contextlib.closing(pymysql.connect(
                 host=self.connection_args.host, port=self.connection_args.port,
                 user=self.connection_args.user,
@@ -562,6 +564,8 @@ class PyMysqlExecutor(QueryExecutor):
                 return cursor.fetchall()
 
     def execute_prepared_statement(self, query, args=None):
+        if args:
+            self.fail("<args> param for executor {} not supported now".format(self.__class__))
         with contextlib.closing(pymysql.connect(
                 host=self.connection_args.host, port=self.connection_args.port,
                 user=self.connection_args.user,
@@ -587,6 +591,8 @@ class MysqlExecutor(QueryExecutor):
         return result
 
     def execute(self, query, args=None):
+        if not args:
+            args = []
         with contextlib.closing(mysql.connector.Connect(
                 use_unicode=False, raw=True, charset='ascii',
                 host=self.connection_args.host, port=self.connection_args.port,
@@ -599,12 +605,14 @@ class MysqlExecutor(QueryExecutor):
                 ssl_disabled=not TEST_WITH_TLS)) as connection:
 
             with contextlib.closing(connection.cursor()) as cursor:
-                cursor.execute(query)
+                cursor.execute(query, args)
                 data = cursor.fetchall()
                 result = self._result_to_dict(cursor.description, data)
         return result
 
     def execute_prepared_statement(self, query, args=None):
+        if not args:
+            args = []
         with contextlib.closing(mysql.connector.Connect(
                 use_unicode=False, charset='ascii',
                 host=self.connection_args.host, port=self.connection_args.port,
@@ -617,7 +625,7 @@ class MysqlExecutor(QueryExecutor):
                 ssl_disabled=not TEST_WITH_TLS)) as connection:
 
             with contextlib.closing(connection.cursor(prepared=True)) as cursor:
-                cursor.execute(query)
+                cursor.execute(query, args)
                 data = cursor.fetchall()
                 result = self._result_to_dict(cursor.description, data)
         return result
@@ -633,25 +641,27 @@ class AsyncpgExecutor(QueryExecutor):
                 **asyncpg_connect_args))
 
     def execute_prepared_statement(self, query, args=None):
+        if not args:
+            args = []
         loop = asyncio.get_event_loop()
         conn = self._connect(loop)
         try:
             stmt = loop.run_until_complete(
                 conn.prepare(query, timeout=STATEMENT_TIMEOUT))
             result = loop.run_until_complete(
-                stmt.fetch(timeout=STATEMENT_TIMEOUT))
+                stmt.fetch(*args, timeout=STATEMENT_TIMEOUT))
             return result
         finally:
             conn.terminate()
 
     def execute(self, query, args=None):
+        if not args:
+            args = []
         loop = asyncio.get_event_loop()
         conn = self._connect(loop)
         try:
             result = loop.run_until_complete(
-                conn.execute(query, timeout=STATEMENT_TIMEOUT))
-            result = loop.run_until_complete(
-                result.fetch(timeout=STATEMENT_TIMEOUT))
+                conn.fetch(query, *args, timeout=STATEMENT_TIMEOUT))
             return result
         finally:
             loop.run_until_complete(conn.close(timeout=STATEMENT_TIMEOUT))
@@ -659,10 +669,12 @@ class AsyncpgExecutor(QueryExecutor):
 
 class Psycopg2Executor(QueryExecutor):
     def execute(self, query, args=None):
-        args = get_connect_args(self.connection_args.port)
+        if args:
+            self.fail("<args> param for executor {} not supported now".format(self.__class__))
+        connection_args = get_connect_args(self.connection_args.port)
         with psycopg2.connect(
                 host=self.connection_args.host,
-                dbname=self.connection_args.dbname, **args) as connection:
+                dbname=self.connection_args.dbname, **connection_args) as connection:
             with connection.cursor(
                     cursor_factory=psycopg2.extras.DictCursor) as cursor:
                 cursor.execute(query, args)
@@ -678,6 +690,8 @@ class Psycopg2Executor(QueryExecutor):
                     row[key] = value.tobytes()
 
     def execute_prepared_statement(self, query, args=None):
+        if args:
+            self.fail("<args> param for executor {} not supported now".format(self.__class__))
         kwargs = get_connect_args(self.connection_args.port)
         with psycopg2.connect(
                 host=self.connection_args.host,
@@ -2885,13 +2899,15 @@ class TestPostgresqlTextPreparedStatement(BasePrepareStatementMixin, BaseTestCas
         if not TEST_POSTGRESQL:
             self.skipTest("run test only for postgresql")
 
-    def executePreparedStatement(self, query):
+    def executePreparedStatement(self, query, args=None):
+        if not args:
+            args = []
         return Psycopg2Executor(ConnectionArgs(host=get_db_host(), port=self.CONNECTOR_PORT_1,
                            user=DB_USER, password=DB_USER_PASSWORD,
                            dbname=DB_NAME, ssl_ca=TEST_TLS_CA,
                            ssl_key=TEST_TLS_CLIENT_KEY,
                            ssl_cert=TEST_TLS_CLIENT_CERT)
-                                ).execute_prepared_statement(query)
+                                ).execute_prepared_statement(query, args)
 
 
 class TestPostgresqlTextPreparedStatementWholeCell(TestPostgresqlTextPreparedStatement):
@@ -3821,6 +3837,35 @@ class TestEmptyValues(BaseTestCase):
         row = result.fetchone()
         self.assertEqual(row['text'], '')
         self.assertEqual(row['binary'], b'')
+
+
+class TestPgPlaceholders(BaseTestCase):
+    def checkSkip(self):
+        if TEST_MYSQL or not TEST_POSTGRESQL:
+            self.skipTest("test only for postgresql")
+
+    def testPgPlaceholders(self):
+        connection_args = ConnectionArgs(host=get_db_host(), port=self.CONNECTOR_PORT_1,
+                                         user=DB_USER, password=DB_USER_PASSWORD,
+                                         dbname=DB_NAME, ssl_ca=TEST_TLS_CA,
+                                         ssl_key=TEST_TLS_CLIENT_KEY,
+                                         ssl_cert=TEST_TLS_CLIENT_CERT)
+
+        executor = AsyncpgExecutor(connection_args)
+
+        # empty table will return 0 rows in first select and return our expected data from union
+        # we test placeholders in SELECT and WHERE clause in such way
+        query = "select $1::bytea from {table} where {column}=$1::bytea UNION select $1::bytea;".format(
+            table=test_table.name, column=test_table.c.data.name)
+        test_data = b'some data'
+
+        data = executor.execute(query, [test_data])
+        self.assertEqual(len(data), 1)
+        self.assertEqual(data[0][0], test_data)
+
+        executor.execute_prepared_statement(query, [test_data])
+        self.assertEqual(len(data), 1)
+        self.assertEqual(data[0][0], test_data)
 
 
 if __name__ == '__main__':
