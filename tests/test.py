@@ -61,7 +61,8 @@ from utils import (read_storage_public_key, decrypt_acrastruct,
                    decrypt_private_key, read_zone_public_key,
                    load_random_data_config, get_random_data_files,
                    clean_test_data, safe_string, prepare_encryptor_config,
-                   get_encryptor_config, abs_path, get_test_encryptor_config, send_signal_by_process_name)
+                   get_encryptor_config, abs_path, get_test_encryptor_config, send_signal_by_process_name,
+                   load_yaml_config, dump_yaml_config)
 
 import sys
 # add to path our wrapper until not published to PYPI
@@ -3849,6 +3850,16 @@ class TestOutdatedServiceConfigs(BaseTestCase, FailedRunProcessMixin):
     def tearDown(self):
         return
 
+    def remove_version_from_config(self, path):
+        config = load_yaml_config(path)
+        del config['version']
+        dump_yaml_config(config, path)
+
+    def replace_version_in_config(self, version, path):
+        config = load_yaml_config(path)
+        config['version'] = version
+        dump_yaml_config(config, path)
+
     def testStartupWithoutVersionInConfig(self):
         files = os.listdir('cmd/')
         services = [i for i in files if os.path.isdir(os.path.join('cmd', i))]
@@ -3859,8 +3870,7 @@ class TestOutdatedServiceConfigs(BaseTestCase, FailedRunProcessMixin):
             subprocess.check_output(['configs/regenerate.sh', tmp_dir])
 
             for service in services:
-                # remove first line that contains version
-                subprocess.check_output(['sed', '-i', '1d', os.path.join(tmp_dir, service + '.yaml')])
+                self.remove_version_from_config(os.path.join(tmp_dir, service + '.yaml'))
 
             default_args = {
                 'acra-server': ['-db_host=127.0.0.1'],
@@ -3881,8 +3891,7 @@ class TestOutdatedServiceConfigs(BaseTestCase, FailedRunProcessMixin):
             subprocess.check_output(['configs/regenerate.sh', tmp_dir])
 
             for service in services:
-                # replace version to 0.0.0
-                subprocess.check_output(['sed', '-i', 's/version: [0-9.]*/version: 0.0.0/', os.path.join(tmp_dir, service + '.yaml')])
+                self.replace_version_in_config('0.0.0', os.path.join(tmp_dir, service + '.yaml'))
 
             default_args = {
                 'acra-server': ['-db_host=127.0.0.1'],
@@ -3904,9 +3913,13 @@ class TestOutdatedServiceConfigs(BaseTestCase, FailedRunProcessMixin):
             subprocess.check_output(['configs/regenerate.sh', tmp_dir])
 
             for service in services:
-                # replace "version: X.X.X" to "version: X.X.100500"
-                subprocess.check_output(['sed', '-i', 's/\\(version: [0-9]*\\.[0-9]*\\)\\.[0-9]/\\1.100500/',
-                    os.path.join(tmp_dir, service + '.yaml')])
+                config_path = os.path.join(tmp_dir, service + '.yaml')
+                config = load_yaml_config(config_path)
+                version = semver.parse(config['version'])
+                version['patch'] = 100500
+                config['version'] = semver.format_version(**version)
+                dump_yaml_config(config, config_path)
+
             default_args = {
                 'acra-addzone': ['-keys_output_dir={}'.format(KEYS_FOLDER.name)],
                 'acra-authmanager': {'args': ['-keys_dir={}'.format(KEYS_FOLDER.name)],
