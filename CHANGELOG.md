@@ -6,7 +6,7 @@ _Core_:
 
 - **Breaking changes:** 
 
-  - Introduced new more flexible configuration format for AcraCensor rules. AcraCensor doesn't support old format, all users should migrate (which is very-very easy).
+  Introduced new more flexible configuration format for AcraCensor rules. AcraCensor doesn't support old format, all users should migrate (which is very-very easy).
 
 - **Search through encrypted data**
 
@@ -14,7 +14,7 @@ _Core_:
 
 - **Transparent encryption mode**
 
-  Configure AcraServer to encrypt records in the specific database columns without altering the application code. This mode allows to specify exact columns in tables that should be encrypted. 
+  _TLDR:_ configure AcraServer to encrypt records in the specific database columns without altering the application code.
 
   The application flow doesn't need to change: application sends SQL requests through the AcraConnector and AcraServer to the database. AcraServer parses each request and encrypts desired values into AcraStructs, and passes modified requests to the database. To retrieve the decrypted data, your application talks to AcraServer as before: upon receiving the database response, AcraServer tries to detect the AcraStructs, decrypts them, and returns the decrypted data to the application.
 
@@ -24,7 +24,7 @@ _Core_:
 
   Read more details in Readme and Transparent encryption docs.
 
-  ([#285](https://github.com/cossacklabs/acra/pull/285)), [#309](https://github.com/cossacklabs/acra/pull/309), [#314](https://github.com/cossacklabs/acra/pull/314)).
+  ([#285](https://github.com/cossacklabs/acra/pull/285), [#309](https://github.com/cossacklabs/acra/pull/309), [#314](https://github.com/cossacklabs/acra/pull/314)).
 
 - **AcraCensor – SQL firewall to prevent SQL injections**
   
@@ -33,13 +33,16 @@ _Core_:
   _Breaking changes:_ introduced new format for configuration files, previos format is not supported, you should migrate to the new one.
   
   - New configuration file format allows to configure the allowlist and the denylist separately or simultaneously.
-  The `allow` handler allows something specific and restricts/forbids everything else. The `allowall` handler should be a final statement, that means that all other queries will be allowed.
-  The `deny` handler allows everything and forbids something specific. The `denyall` means to block all queries (that haven’t been allowed or ignored before).
-  For each handler, there are settings that regulate queries, tables and patterns. The order of priority for the lists is defined by their order in the configuration file. Priority of processing for each list is the following: queries, followed by tables, followed by patterns.
-
-  ([#298](https://github.com/cossacklabs/acra/pull/298), [#297](https://github.com/cossacklabs/acra/pull/297), [#304](https://github.com/cossacklabs/acra/pull/304), [#306](https://github.com/cossacklabs/acra/pull/306)).
-
-  Read more in [AcraCensor docs](https://docs.cossacklabs.com/pages/documentation-acra/#acracensor-acra-s-firewall).
+  
+    The `allow` handler allows something specific and restricts/forbids everything else. The `allowall` handler should be a final statement, that means that all other queries will be allowed.
+    
+    The `deny` handler allows everything and forbids something specific. The `denyall` means to block all queries (that haven’t been allowed or ignored before).
+    
+    For each handler, there are settings that regulate queries, tables and patterns. The order of priority for the lists is defined by their order in the configuration file. Priority of processing for each list is the following: queries, followed by tables, followed by patterns.
+    
+    ([#298](https://github.com/cossacklabs/acra/pull/298), [#297](https://github.com/cossacklabs/acra/pull/297), [#304](https://github.com/cossacklabs/acra/pull/304), [#306](https://github.com/cossacklabs/acra/pull/306)).
+    
+    Read more in [AcraCensor docs](https://docs.cossacklabs.com/pages/documentation-acra/#acracensor-acra-s-firewall).
   
   - Added version to configuration file that allows to detect outdated configuration easily. From now AcraCensor supports explicit configuration version and logs errors if configuration is not valid ([#321](https://github.com/cossacklabs/acra/pull/321)).
 
@@ -47,9 +50,11 @@ _Core_:
   
   - Improved error handling for queries that AcraCensor can't parse ([#291](https://github.com/cossacklabs/acra/pull/291), [#284](https://github.com/cossacklabs/acra/pull/284)).
 
-  - Added ability to log unparsed queries to the separate log file for debugging and configuration purposes. Sometimes AcraCensor can't parse all incoming queries, it is useful to have a separate log for them. Usage: provide path to the unparsed queries log file in the configuration file `parse_errors_log: unparsed_queries.log` ([#295](https://github.com/cossacklabs/acra/pull/295)).
+  - Added ability to log unparsed queries to the separate log file for debugging and configuration purposes. Sometimes AcraCensor can't parse all incoming queries, it is useful to have a separate log for them. 
+    
+    Usage: provide path to the unparsed queries log file in the configuration file `parse_errors_log: unparsed_queries.log` ([#295](https://github.com/cossacklabs/acra/pull/295)).
 
-  - Improved support for PostgreSQL queries ("RETURNING" clause) and quoted identifiers (allow use "tablename" and WHERE "column"=1) ([#296](https://github.com/cossacklabs/acra/pull/296)).
+  - Improved support for PostgreSQL queries (`"RETURNING"` clause) and quoted identifiers (allow use `"tablename"` and `WHERE "column"=1`) ([#296](https://github.com/cossacklabs/acra/pull/296)).
 
   - Fixed bug with QueryCapture log that caused duplicated records in the log ([#318](https://github.com/cossacklabs/acra/pull/318)).
 
@@ -94,7 +99,7 @@ _Core_:
 
 _Infrastructure_:
 
-- Updated docker files, added more comments and updated Go version ([#313](https://github.com/cossacklabs/acra/pull/313), [#288](https://github.com/cossacklabs/acra/pull/288))
+- Updated docker files, added more comments and updated Go version ([#313](https://github.com/cossacklabs/acra/pull/313), [#288](https://github.com/cossacklabs/acra/pull/288)).
 
 
 _Demo projects_:
