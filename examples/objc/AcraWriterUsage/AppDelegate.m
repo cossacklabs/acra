@@ -11,7 +11,7 @@
 
 // if ONLY_LOCAL_SETUP is true, don't send AcraStruct to AcraServer,
 // let users try project locally without being pissed off because of connection error
-#define ONLY_LOCAL_SETUP 0
+#define ONLY_LOCAL_SETUP 1
 
 @interface AppDelegate ()
 
