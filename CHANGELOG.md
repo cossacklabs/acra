@@ -86,7 +86,7 @@ _Core_:
 
   - Updated AcraWriter for C++, improved cpp codec usage ([#290](https://github.com/cossacklabs/acra/pull/290), [#289](https://github.com/cossacklabs/acra/pull/289)).
 
-  - Added bitcode for AcraWriter iOS ([#307](https://github.com/cossacklabs/acra/pull/307)).
+  - Added bitcode for AcraWriter iOS ([#323](https://github.com/cossacklabs/acra/pull/323), [#307](https://github.com/cossacklabs/acra/pull/307)).
 
   - Improved distribution of AcraWriter for Android, now it's available via maven ([#310](https://github.com/cossacklabs/acra/pull/310)).
 
