@@ -6,7 +6,7 @@ Pod::Spec.new do |s|
     s.homepage = "https://cossacklabs.com"
     
     # TODO: change on release :)
-    s.source = { :git => "https://github.com/cossacklabs/acra.git", :branch => 'vxtl/ios-acrawriter'}
+    s.source = { :git => "https://github.com/cossacklabs/acra.git", :commit => '0c366dd146521e2e8787e90813a819c72f97eb05'}
 
     s.license = { :type => 'Apache 2.0'}    
     s.author = {'cossacklabs' => 'info@cossacklabs.com'}
