@@ -274,7 +274,7 @@ func checkVersion(config map[string]interface{}) error {
 	}
 
 	if serverVersion.CompareOnly(utils.MajorFlag|utils.MinorFlag, version) != utils.Equal {
-		return errors.New("config version is outdated")
+		return fmt.Errorf("config version \"%s\" is not supported, expects \"%s\" version", version.String(), serverVersion.String())
 	}
 	return nil
 }
