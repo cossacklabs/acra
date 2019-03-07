@@ -16,7 +16,7 @@
 
 #import "AcraWriter.h"
 #import "AcraStruct+Internal.h"
-#import <themis/objcthemis.h>
+#import <objcthemis/objcthemis.h>
 
 @implementation AcraWriter
 
