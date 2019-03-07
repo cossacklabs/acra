@@ -1208,7 +1208,7 @@ class BaseCensorTest(BaseTestCase):
 
 
 class FailedRunProcessMixin(object):
-    def assertProcessHasErrors(self, args, expectedMessage):
+    def getOutputFromProcess(self, args):
         logger.info("run command '{}'".format(' '.join(args)))
         process = subprocess.Popen(args, stderr=subprocess.PIPE)
         try:
@@ -1218,7 +1218,7 @@ class FailedRunProcessMixin(object):
         finally:
             process.kill()
         logger.debug(stderr)
-        self.assertIn(expectedMessage.lower(), stderr.decode('utf-8').lower(), "Hasn't expected message in output")
+        return stderr.decode('utf-8')
 
     def assertProcessHasNotMessage(self, args, status_code, expectedMessage):
         logger.info("run command '{}'".format(' '.join(args)))
@@ -1249,7 +1249,8 @@ class TestCensorVersionChecks(BaseCensorTest, FailedRunProcessMixin):
                 # required param
                 '--db_host={}'.format(DB_HOST)
                 ]
-        self.assertProcessHasErrors(args, expectedMessage)
+        stderr = self.getOutputFromProcess(args)
+        self.assertIn(expectedMessage.lower(), stderr.lower())
 
     def testWithoutVersion(self):
         expectedMessage = 'level=error msg="can\'t setup censor" code=561 error="acra-censor\'s config is outdated"'
@@ -3879,7 +3880,8 @@ class TestOutdatedServiceConfigs(BaseTestCase, FailedRunProcessMixin):
             for service in services:
                 config_param = '-config_file={}'.format(os.path.join(tmp_dir, '{}.yaml'.format(service)))
                 args = ['./' + service, config_param] + default_args.get(service, [])
-                self.assertProcessHasErrors(args, 'error="config hasn\'t version key"')
+                stderr = self.getOutputFromProcess(args)
+                self.assertIn('error="config hasn\'t version key"', stderr)
 
     def testStartupWithOutdatedConfigVersion(self):
         files = os.listdir('cmd/')
@@ -3900,8 +3902,8 @@ class TestOutdatedServiceConfigs(BaseTestCase, FailedRunProcessMixin):
             for service in services:
                 config_param = '-config_file={}'.format(os.path.join(tmp_dir, '{}.yaml'.format(service)))
                 args = ['./' + service, config_param] + default_args.get(service, [])
-                self.assertProcessHasErrors(args, 'code=508 error="config version is outdated"')
-
+                stderr = self.getOutputFromProcess(args)
+                self.assertRegexpMatches(stderr, r'code=508 error="config version \\"0.0.0\\" is not supported, expects \\"[\d.]+\\" version')
 
     def testStartupWithDifferentConfigsPatchVersion(self):
         files = os.listdir('cmd/')
@@ -3956,8 +3958,8 @@ class TestOutdatedServiceConfigs(BaseTestCase, FailedRunProcessMixin):
 
                 config_param = '-config_file={}'.format(os.path.join(tmp_dir, '{}.yaml'.format(service)))
                 args = ['./' + service, config_param] + service_args
-                self.assertProcessHasNotMessage(args, expected_status_code,
-                                                'code=508 error="config version is outdated"')
+                stderr = self.getOutputFromProcess(args)
+                self.assertNotRegex(stderr, r'code=508 error="config version \\"[\d.+]\\" is not supported, expects \\"[\d.]+\\" version')
 
     def testStartupWithoutConfig(self):
         files = os.listdir('cmd/')
@@ -4000,8 +4002,8 @@ class TestOutdatedServiceConfigs(BaseTestCase, FailedRunProcessMixin):
                     service_args = test_data
 
                 args = ['./' + service, '-config_file=""'] + service_args
-                self.assertProcessHasNotMessage(args, expected_status_code,
-                                                'code=508 error="config version is outdated"')
+                stderr = self.getOutputFromProcess(args)
+                self.assertNotRegex(stderr, r'code=508 error="config version \\"[\d.]\\" is not supported, expects \\"[\d.]+\\" version')
 
 
 if __name__ == '__main__':
