@@ -1,5 +1,33 @@
 version: 2
 jobs:
+  general_validation:
+    docker:
+      - image: cossacklabs/android-build
+    environment:
+      FILEPATH_ERROR_FLAG: /tmp/test_fail
+      VERSIONS: 1.11.5 1.12
+      TEST_DB_PORT: 5432
+      GOPATH_FOLDER: gopath
+      TEST_RANDOM_DATA_FOLDER: /tmp/test_data
+      TEST_TLS: "on"
+      # $HOME/$GOPATH_FOLDER
+      GOPATH: /home/user/gopath
+      # set default goroot instead system available
+      GOROOT: /home/user/go_root_1.11.5/go
+    steps:
+      # prepare
+      - checkout
+      - run: .circleci/prepare.sh
+      # validation
+      - run: .circleci/check_gofmt.sh
+      - run: .circleci/check_configs.sh | tee /home/user/tests_output
+      - run: .circleci/check_golint.sh
+      - run: .circleci/check_gotest.sh
+      # check python wrapper
+      - run: PYTHONPATH=`pwd`/wrappers/python python3 wrappers/python/acrawriter/tests.py
+      - store_artifacts:
+          path: /home/user/tests_output
+
   postgresql-ssl:
     docker:
       - image: cossacklabs/android-build
@@ -10,27 +38,22 @@ jobs:
           POSTGRES_DB: test
     environment:
       FILEPATH_ERROR_FLAG: /tmp/test_fail
-      VERSIONS: 1.10.8 1.11.5 1.12
+      VERSIONS: 1.11.5 1.12
       TEST_DB_PORT: 5432
       GOPATH_FOLDER: gopath
       TEST_RANDOM_DATA_FOLDER: /tmp/test_data
       TEST_TLS: "on"
+      # $HOME/$GOPATH_FOLDER
+      GOPATH: /home/user/gopath
+      # set default goroot instead system available
+      GOROOT: /home/user/go_root_1.11.5/go
     steps:
     # prepare
       - checkout
       - run: .circleci/prepare.sh
       - run: sudo apt-get install -y postgresql-client
       - run: pg_isready -U${POSTGRES_USER} -d${POSTGRES_DB} -h127.0.0.1
-    # testing
-      # check that code formatted with gofmt
-      - run: .circleci/check_gofmt.sh
-      # check that code doesn't have a lot of golint issues (currently removed because golint version is very different on other planforms)
-      - run: GOPATH=$HOME/$GOPATH_FOLDER .circleci/check_golint.sh
-      # delete file if exists
-      - run: if [ -f $FILEPATH_ERROR_FLAG ]; then rm "$FILEPATH_ERROR_FLAG"; fi
-      - run: .circleci/check_gotest.sh
-      # check python wrapper
-      - run: PYTHONPATH=`pwd`/wrappers/python python3 wrappers/python/acrawriter/tests.py
+      # testing
       # generate test data for integration tests
       - run: python3 tests/generate_random_data.py
       # each iteration pass to test different ports for forks to avoid problems with TCP TIME WAIT between tests
@@ -51,11 +74,15 @@ jobs:
           POSTGRES_DB: test
     environment:
       FILEPATH_ERROR_FLAG: /tmp/test_fail
-      VERSIONS: 1.10.8 1.11.5 1.12
+      VERSIONS: 1.11.5 1.12
       TEST_DB_PORT: 5432
       GOPATH_FOLDER: gopath
       TEST_RANDOM_DATA_FOLDER: /tmp/test_data
       TEST_TLS: "off"
+      # $HOME/$GOPATH_FOLDER
+      GOPATH: /home/user/gopath
+      # set default goroot instead system available
+      GOROOT: /home/user/go_root_1.11.5/go
     steps:
       # prepare
       - checkout
@@ -85,12 +112,16 @@ jobs:
         MYSQL_ROOT_PASSWORD: root
     environment:
       FILEPATH_ERROR_FLAG: /tmp/test_fail
-      VERSIONS: 1.10.8 1.11.5 1.12
+      VERSIONS: 1.11.5 1.12
       TEST_MYSQL: true
       TEST_DB_PORT: 3306
       GOPATH_FOLDER: gopath
       TEST_RANDOM_DATA_FOLDER: /tmp/test_data
       TEST_TLS: "on"
+      # $HOME/$GOPATH_FOLDER
+      GOPATH: /home/user/gopath
+      # set default goroot instead system available
+      GOROOT: /home/user/go_root_1.11.5/go
     steps:
     # prepare
     - checkout
@@ -98,13 +129,6 @@ jobs:
     - run: sudo apt-get install -y mysql-client
     - run: mysqladmin ping -h127.0.0.1
     # testing
-    # check that code formatted with gofmt
-    - run: .circleci/check_gofmt.sh
-    # check that code doesn't have a lot of golint issues (currently removed because golint version is very different on other planforms)
-    - run: GOPATH=$HOME/$GOPATH_FOLDER .circleci/check_golint.sh
-    # delete file if exists
-    - run: if [ -f $FILEPATH_ERROR_FLAG ]; then rm "$FILEPATH_ERROR_FLAG"; fi
-    - run: .circleci/check_gotest.sh
     # generate test data for integration tests
     - run: python3 tests/generate_random_data.py
     # each iteration pass to test different ports for forks to avoid problems with TCP TIME WAIT between tests
@@ -128,12 +152,16 @@ jobs:
           MYSQL_ROOT_PASSWORD: root
     environment:
       FILEPATH_ERROR_FLAG: /tmp/test_fail
-      VERSIONS: 1.10.8 1.11.5 1.12
+      VERSIONS: 1.11.5 1.12
       TEST_MYSQL: true
       TEST_DB_PORT: 3306
       GOPATH_FOLDER: gopath
       TEST_RANDOM_DATA_FOLDER: /tmp/test_data
       TEST_TLS: "off"
+      # $HOME/$GOPATH_FOLDER
+      GOPATH: /home/user/gopath
+      # set default goroot instead system available
+      GOROOT: /home/user/go_root_1.11.5/go
     steps:
       # prepare
       - checkout
@@ -164,12 +192,16 @@ jobs:
         MYSQL_ROOT_PASSWORD: root
     environment:
       FILEPATH_ERROR_FLAG: /tmp/test_fail
-      VERSIONS: 1.10.8 1.11.5 1.12
+      VERSIONS: 1.11.5 1.12
       TEST_MYSQL: true
       TEST_DB_PORT: 3306
       GOPATH_FOLDER: gopath
       TEST_RANDOM_DATA_FOLDER: /tmp/test_data
       TEST_TLS: "on"
+      # $HOME/$GOPATH_FOLDER
+      GOPATH: /home/user/gopath
+      # set default goroot instead system available
+      GOROOT: /home/user/go_root_1.11.5/go
     steps:
     # prepare
     - checkout
@@ -177,13 +209,6 @@ jobs:
     - run: sudo apt-get install -y mysql-client
     - run: mysqladmin ping -h127.0.0.1
     # testing
-    # check that code formatted with gofmt
-    - run: .circleci/check_gofmt.sh
-    # check that code doesn't have a lot of golint issues (currently removed because golint version is very different on other planforms)
-    - run: GOPATH=$HOME/$GOPATH_FOLDER .circleci/check_golint.sh
-    # delete file if exists
-    - run: if [ -f $FILEPATH_ERROR_FLAG ]; then rm "$FILEPATH_ERROR_FLAG"; fi
-    - run: .circleci/check_gotest.sh
     # generate test data for integration tests
     - run: python3 tests/generate_random_data.py
     # each iteration pass to test different ports for forks to avoid problems with TCP TIME WAIT between tests
@@ -205,12 +230,16 @@ jobs:
           MYSQL_ROOT_PASSWORD: root
     environment:
       FILEPATH_ERROR_FLAG: /tmp/test_fail
-      VERSIONS: 1.10.8 1.11.5 1.12
+      VERSIONS: 1.11.5 1.12
       TEST_MYSQL: true
       TEST_DB_PORT: 3306
       GOPATH_FOLDER: gopath
       TEST_RANDOM_DATA_FOLDER: /tmp/test_data
       TEST_TLS: "off"
+      # $HOME/$GOPATH_FOLDER
+      GOPATH: /home/user/gopath
+      # set default goroot instead system available
+      GOROOT: /home/user/go_root_1.11.5/go
     steps:
       # prepare
       - checkout
@@ -232,6 +261,7 @@ workflows:
   version: 2
   tests:
     jobs:
+      - general_validation
       - postgresql
       - postgresql-ssl
       - mysql

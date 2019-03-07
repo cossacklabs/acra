@@ -39,7 +39,6 @@ for version in $VERSIONS; do
         timeout ${TEST_RUN_TIMEOUT} python3 tests/test.py -v | tee "${LOG_OUTPUT}";
         status="$?"
         if [[ "${status}" != "0" ]]; then
-            status="$?"
             echo "${context}. status=${status}" >> "$FILEPATH_ERROR_FLAG";
             continue
         else

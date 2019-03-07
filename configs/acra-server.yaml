@@ -1,3 +1,4 @@
+version: 0.84.2
 # Path to AcraCensor configuration file
 acracensor_config_file: 
 
@@ -31,7 +32,7 @@ db_host:
 # Port to db
 db_port: 5432
 
-# Turn on http debug server
+# Turn on HTTP debug server
 ds: false
 
 # dump config
