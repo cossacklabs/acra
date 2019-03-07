@@ -12,6 +12,8 @@ jobs:
       TEST_TLS: "on"
       # $HOME/$GOPATH_FOLDER
       GOPATH: /home/user/gopath
+      # set default goroot instead system available
+      GOROOT: /home/user/go_root_1.11.5/go
     steps:
       # prepare
       - checkout
@@ -41,6 +43,10 @@ jobs:
       GOPATH_FOLDER: gopath
       TEST_RANDOM_DATA_FOLDER: /tmp/test_data
       TEST_TLS: "on"
+      # $HOME/$GOPATH_FOLDER
+      GOPATH: /home/user/gopath
+      # set default goroot instead system available
+      GOROOT: /home/user/go_root_1.11.5/go
     steps:
     # prepare
       - checkout
@@ -73,6 +79,10 @@ jobs:
       GOPATH_FOLDER: gopath
       TEST_RANDOM_DATA_FOLDER: /tmp/test_data
       TEST_TLS: "off"
+      # $HOME/$GOPATH_FOLDER
+      GOPATH: /home/user/gopath
+      # set default goroot instead system available
+      GOROOT: /home/user/go_root_1.11.5/go
     steps:
       # prepare
       - checkout
@@ -108,6 +118,10 @@ jobs:
       GOPATH_FOLDER: gopath
       TEST_RANDOM_DATA_FOLDER: /tmp/test_data
       TEST_TLS: "on"
+      # $HOME/$GOPATH_FOLDER
+      GOPATH: /home/user/gopath
+      # set default goroot instead system available
+      GOROOT: /home/user/go_root_1.11.5/go
     steps:
     # prepare
     - checkout
@@ -144,6 +158,10 @@ jobs:
       GOPATH_FOLDER: gopath
       TEST_RANDOM_DATA_FOLDER: /tmp/test_data
       TEST_TLS: "off"
+      # $HOME/$GOPATH_FOLDER
+      GOPATH: /home/user/gopath
+      # set default goroot instead system available
+      GOROOT: /home/user/go_root_1.11.5/go
     steps:
       # prepare
       - checkout
@@ -180,6 +198,10 @@ jobs:
       GOPATH_FOLDER: gopath
       TEST_RANDOM_DATA_FOLDER: /tmp/test_data
       TEST_TLS: "on"
+      # $HOME/$GOPATH_FOLDER
+      GOPATH: /home/user/gopath
+      # set default goroot instead system available
+      GOROOT: /home/user/go_root_1.11.5/go
     steps:
     # prepare
     - checkout
@@ -214,6 +236,10 @@ jobs:
       GOPATH_FOLDER: gopath
       TEST_RANDOM_DATA_FOLDER: /tmp/test_data
       TEST_TLS: "off"
+      # $HOME/$GOPATH_FOLDER
+      GOPATH: /home/user/gopath
+      # set default goroot instead system available
+      GOROOT: /home/user/go_root_1.11.5/go
     steps:
       # prepare
       - checkout
