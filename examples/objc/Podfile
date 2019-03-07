@@ -1,4 +1,5 @@
 source 'https://github.com/CocoaPods/Specs.git'
+source 'https://github.com/cossacklabs/Podspecs.git'
 
 platform :ios, '8.0'
 project 'AcraWriterUsage.xcodeproj'
@@ -6,10 +7,10 @@ inhibit_all_warnings!
 use_frameworks!
 
 target :"AcraWriterUsage" do
-	pod 'acrawriter'
+	pod 'acrawriter', :podspec => 'https://gist.githubusercontent.com/vixentael/68294bb4006d55be60cf6453feba35fc/raw/8330744ddb65363028db2f8a7e44025462f2bf8a/acrawriter.podspec'
 end
 
 
 target "AcraWriterUsageTests" do
-	pod 'acrawriter'
+	pod 'acrawriter', :podspec => 'https://gist.githubusercontent.com/vixentael/68294bb4006d55be60cf6453feba35fc/raw/8330744ddb65363028db2f8a7e44025462f2bf8a/acrawriter.podspec'
 end
