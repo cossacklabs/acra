@@ -179,7 +179,8 @@ func main() {
 	debug := flag.Bool("d", false, "Turn on debug logging")
 
 	if err := cmd.Parse(defaultConfigPath, serviceName); err != nil {
-		log.WithError(err).Errorln("Can't parse cmd arguments")
+		log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantReadServiceConfig).
+			Errorln("Can't parse cmd args")
 		os.Exit(1)
 	}
 

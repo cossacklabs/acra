@@ -56,7 +56,8 @@ wrappers/objc/DerivedData
 wrappers/objc/AcraWriter/DerivedData
 examples/objc/Pods
 examples/objc/DerivedData
-
+examples/swift/Pods
+examples/swift/DerivedData
 
 # Python
 

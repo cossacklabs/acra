@@ -57,7 +57,8 @@ func main() {
 
 	err := cmd.Parse(defaultConfigPath, serviceName)
 	if err != nil {
-		log.WithError(err).Errorln("Can't parse args")
+		log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantReadServiceConfig).
+			Errorln("Can't parse args")
 		os.Exit(1)
 	}
 	//LoadFromConfig(defaultConfigPath)

@@ -1,3 +1,4 @@
+version: 0.84.2
 # Port of Acra HTTP API
 acraserver_api_connection_port: 9090
 

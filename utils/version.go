@@ -43,17 +43,61 @@ const (
 	Less    ComparisonStatus = iota - 1 // -1
 	Equal                               // 0
 	Greater                             // 1
+	InvalidFlags
 )
+
+// CompareFlag flags what parts of version to compare
+type CompareFlag uint8
+
+// Flags used for CompareOnly to mark parts to check
+const (
+	MajorFlag CompareFlag = 1 << iota
+	MinorFlag
+	PatchFlag
+)
+
+// String return value as string in format major | major-minor | major-minor-patch | major-patch | minor-patch
+func (f CompareFlag) String() string {
+	parts := make([]string, 0, 3)
+	if f&MajorFlag == 1 {
+		parts = append(parts, "major")
+	}
+	if f&MinorFlag == 1 {
+		parts = append(parts, "minor")
+	}
+	if f&PatchFlag == 1 {
+		parts = append(parts, "patch")
+	}
+	return strings.Join(parts, "-")
+}
+
+// CompareOnly compares only parts in order major -> minor -> patch if the corresponding bit is set to 1
+// return InvalidFlags if flags == 0 or flags > (MajorFlag|MinorFlag|PatchFlag)
+func (v *Version) CompareOnly(flags CompareFlag, v2 *Version) ComparisonStatus {
+	if flags == 0 || flags > (MajorFlag|MinorFlag|PatchFlag) {
+		return InvalidFlags
+	}
+	if flags&MajorFlag == MajorFlag {
+		if res := strings.Compare(v.Major, v2.Major); res != int(Equal) {
+			return ComparisonStatus(res)
+		}
+	}
+	if flags&MinorFlag == MinorFlag {
+		if res := strings.Compare(v.Minor, v2.Minor); res != int(Equal) {
+			return ComparisonStatus(res)
+		}
+	}
+	if flags&PatchFlag == PatchFlag {
+		if res := strings.Compare(v.Patch, v2.Patch); res != int(Equal) {
+			return ComparisonStatus(res)
+		}
+	}
+	return Equal
+}
 
 // Compare compare v with v2 and return ComparisonStatus [Less|Equal|Greater]
 func (v *Version) Compare(v2 *Version) ComparisonStatus {
-	if res := strings.Compare(v.Major, v2.Major); res != int(Equal) {
-		return ComparisonStatus(res)
-	}
-	if res := strings.Compare(v.Minor, v2.Minor); res != int(Equal) {
-		return ComparisonStatus(res)
-	}
-	return ComparisonStatus(strings.Compare(v.Patch, v2.Patch))
+	return v.CompareOnly(MajorFlag|MinorFlag|PatchFlag, v2)
 }
 
 // String format version as string

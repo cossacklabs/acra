@@ -74,11 +74,29 @@ def load_random_data_config():
         return json.load(f)
 
 
-def load_default_config(service_name):
-    with open(abs_path('configs/{}.yaml'.format(service_name)), 'r') as f:
+def load_yaml_config(path):
+    with open(abs_path(path), 'r') as f:
         config = yaml.safe_load(f)
+    return config
+
+
+def dump_yaml_config(config, path):
+    with open(abs_path(path), 'w') as f:
+        yaml.dump(config, f)
+
+
+def load_default_config(service_name):
+    config = load_yaml_config('configs/{}.yaml'.format(service_name))
+
     # convert empty values to empty strings to avoid pass them to Popen as
     # "None" string value
+
+    # every config has version but service's don't have such parameter and will exit with error if we will
+    # provide unexpected parameter
+    # when services parse configs they ignore unknown parameters and not down for that
+    skip_keys = ['version']
+    for skip in skip_keys:
+        del config[skip]
     for key in config:
         if config[key] is None:
             config[key] = ''

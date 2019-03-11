@@ -61,7 +61,8 @@ from utils import (read_storage_public_key, decrypt_acrastruct,
                    decrypt_private_key, read_zone_public_key,
                    load_random_data_config, get_random_data_files,
                    clean_test_data, safe_string, prepare_encryptor_config,
-                   get_encryptor_config, abs_path, get_test_encryptor_config, send_signal_by_process_name)
+                   get_encryptor_config, abs_path, get_test_encryptor_config, send_signal_by_process_name,
+                   load_yaml_config, dump_yaml_config)
 
 import sys
 # add to path our wrapper until not published to PYPI
@@ -1220,7 +1221,34 @@ class BaseCensorTest(BaseTestCase):
         return self._fork_acra(acra_kwargs, popen_kwargs)
 
 
-class TestCensorVersionChecks(BaseCensorTest):
+class FailedRunProcessMixin(object):
+    def getOutputFromProcess(self, args):
+        logger.info("run command '{}'".format(' '.join(args)))
+        process = subprocess.Popen(args, stderr=subprocess.PIPE)
+        try:
+            _, stderr = process.communicate(timeout=5)  # 5 second enough to start binary and stop execution with error
+        except:
+            raise
+        finally:
+            process.kill()
+        logger.debug(stderr)
+        return stderr.decode('utf-8')
+
+    def assertProcessHasNotMessage(self, args, status_code, expectedMessage):
+        logger.info("run command '{}'".format(' '.join(args)))
+        process = subprocess.Popen(args, stderr=subprocess.PIPE, cwd=os.getcwd())
+        try:
+            _, stderr = process.communicate(timeout=1)
+            logger.debug(stderr)
+            self.assertEqual(process.returncode, status_code)
+            self.assertNotIn(expectedMessage.lower(), stderr.decode('utf-8').lower(), "Has message that should not to be in")
+        except:
+            raise
+        finally:
+            process.kill()
+
+
+class TestCensorVersionChecks(BaseCensorTest, FailedRunProcessMixin):
     def setUp(self):
         # doesn't need to start acra-server/acra-connector and connections
         pass
@@ -1235,15 +1263,8 @@ class TestCensorVersionChecks(BaseCensorTest):
                 # required param
                 '--db_host={}'.format(DB_HOST)
                 ]
-        process = subprocess.Popen(args, stderr=subprocess.PIPE)
-        try:
-            _, stderr = process.communicate(timeout=5)  # 5 second enough to start binary and stop execution with error
-        except:
-            raise
-        finally:
-            process.kill()
-
-        self.assertIn(expectedMessage.lower(), stderr.decode('utf-8').lower(), "Hasn't expected message in output")
+        stderr = self.getOutputFromProcess(args)
+        self.assertIn(expectedMessage.lower(), stderr.lower())
 
     def testWithoutVersion(self):
         expectedMessage = 'level=error msg="can\'t setup censor" code=561 error="acra-censor\'s config is outdated"'
@@ -2959,7 +2980,7 @@ class AcraTranslatorMixin(object):
             './acra-connector',
             '-acratranslator_connection_string={}'.format(server_connection),
             '-mode=acratranslator',
-             '-client_id={}'.format(client_id),
+            '-client_id={}'.format(client_id),
             '-incoming_connection_string={}'.format(connector_connection),
             '-user_check_disable=true',
             '-keys_dir={}'.format(KEYS_FOLDER.name),
@@ -3837,6 +3858,168 @@ class TestEmptyValues(BaseTestCase):
         row = result.fetchone()
         self.assertEqual(row['text'], '')
         self.assertEqual(row['binary'], b'')
+
+
+class TestOutdatedServiceConfigs(BaseTestCase, FailedRunProcessMixin):
+    def setUp(self):
+        return
+
+    def tearDown(self):
+        return
+
+    def remove_version_from_config(self, path):
+        config = load_yaml_config(path)
+        del config['version']
+        dump_yaml_config(config, path)
+
+    def replace_version_in_config(self, version, path):
+        config = load_yaml_config(path)
+        config['version'] = version
+        dump_yaml_config(config, path)
+
+    def testStartupWithoutVersionInConfig(self):
+        files = os.listdir('cmd/')
+        services = [i for i in files if os.path.isdir(os.path.join('cmd', i))]
+        self.assertTrue(services)
+
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            # generate configs for tests
+            subprocess.check_output(['configs/regenerate.sh', tmp_dir])
+
+            for service in services:
+                self.remove_version_from_config(os.path.join(tmp_dir, service + '.yaml'))
+
+            default_args = {
+                'acra-server': ['-db_host=127.0.0.1'],
+                'acra-connector': ['-user_check_disable', '-acraserver_connection_host=127.0.0.1', '-client_id=keypair1'],
+            }
+            for service in services:
+                config_param = '-config_file={}'.format(os.path.join(tmp_dir, '{}.yaml'.format(service)))
+                args = ['./' + service, config_param] + default_args.get(service, [])
+                stderr = self.getOutputFromProcess(args)
+                self.assertIn('error="config hasn\'t version key"', stderr)
+
+    def testStartupWithOutdatedConfigVersion(self):
+        files = os.listdir('cmd/')
+        services = [i for i in files if os.path.isdir(os.path.join('cmd', i))]
+        self.assertTrue(services)
+
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            # generate configs for tests
+            subprocess.check_output(['configs/regenerate.sh', tmp_dir])
+
+            for service in services:
+                self.replace_version_in_config('0.0.0', os.path.join(tmp_dir, service + '.yaml'))
+
+            default_args = {
+                'acra-server': ['-db_host=127.0.0.1'],
+                'acra-connector': ['-user_check_disable', '-acraserver_connection_host=127.0.0.1', '-client_id=keypair1'],
+            }
+            for service in services:
+                config_param = '-config_file={}'.format(os.path.join(tmp_dir, '{}.yaml'.format(service)))
+                args = ['./' + service, config_param] + default_args.get(service, [])
+                stderr = self.getOutputFromProcess(args)
+                self.assertRegexpMatches(stderr, r'code=508 error="config version \\"0.0.0\\" is not supported, expects \\"[\d.]+\\" version')
+
+    def testStartupWithDifferentConfigsPatchVersion(self):
+        files = os.listdir('cmd/')
+        services = [i for i in files if os.path.isdir(os.path.join('cmd/', i))]
+        self.assertTrue(services)
+
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            # generate configs for tests
+            subprocess.check_output(['configs/regenerate.sh', tmp_dir])
+
+            for service in services:
+                config_path = os.path.join(tmp_dir, service + '.yaml')
+                config = load_yaml_config(config_path)
+                version = semver.parse(config['version'])
+                version['patch'] = 100500
+                config['version'] = semver.format_version(**version)
+                dump_yaml_config(config, config_path)
+
+            default_args = {
+                'acra-addzone': ['-keys_output_dir={}'.format(KEYS_FOLDER.name)],
+                'acra-authmanager': {'args': ['-keys_dir={}'.format(KEYS_FOLDER.name)],
+                                     'status': 1},
+                'acra-connector': {'connection': 'connection_string',
+                                   'args': ['-keys_dir={}'.format(KEYS_FOLDER.name)],
+                                   'status': 1},
+                'acra-keymaker': ['-keys_output_dir={}'.format(tmp_dir),
+                                  '-keys_public_output_dir={}'.format(tmp_dir)],
+                'acra-poisonrecordmaker': ['-keys_dir={}'.format(tmp_dir)],
+                'acra-rollback': {'args': ['-keys_dir={}'.format(tmp_dir)],
+                                  'status': 1},
+                'acra-rotate': {'args': ['-keys_dir={}'.format(tmp_dir)],
+                                'status': 0},
+                'acra-translator': {'connection': 'connection_string',
+                                   'args': ['-keys_dir={}'.format(KEYS_FOLDER.name),
+                                            # empty id to raise error
+                                            '--securesession_id=""'],
+                                   'status': 1},
+                'acra-server': {'args': ['-keys_dir={}'.format(KEYS_FOLDER.name)],
+                                'status': 1},
+                'acra-webconfig': {'args': ['-static_path={}'.format('/not/existed/path')],
+                                   'status': 1},
+            }
+
+            for service in services:
+                test_data = default_args.get(service)
+                expected_status_code = 0
+                if isinstance(test_data, dict):
+                    expected_status_code = test_data['status']
+                    service_args = test_data['args']
+                else:
+                    service_args = test_data
+
+                config_param = '-config_file={}'.format(os.path.join(tmp_dir, '{}.yaml'.format(service)))
+                args = ['./' + service, config_param] + service_args
+                stderr = self.getOutputFromProcess(args)
+                self.assertNotRegex(stderr, r'code=508 error="config version \\"[\d.+]\\" is not supported, expects \\"[\d.]+\\" version')
+
+    def testStartupWithoutConfig(self):
+        files = os.listdir('cmd/')
+        services = [i for i in files if os.path.isdir(os.path.join('cmd/', i))]
+        self.assertTrue(services)
+
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            default_args = {
+                'acra-addzone': ['-keys_output_dir={}'.format(KEYS_FOLDER.name)],
+                'acra-authmanager': {'args': ['-keys_dir={}'.format(KEYS_FOLDER.name)],
+                                     'status': 1},
+                'acra-connector': {'connection': 'connection_string',
+                                   'args': ['-keys_dir={}'.format(KEYS_FOLDER.name)],
+                                   'status': 1},
+                'acra-keymaker': ['-keys_output_dir={}'.format(tmp_dir),
+                                  '-keys_public_output_dir={}'.format(tmp_dir)],
+                'acra-poisonrecordmaker': ['-keys_dir={}'.format(tmp_dir)],
+                'acra-rollback': {'args': ['-keys_dir={}'.format(tmp_dir)],
+                                  'status': 1},
+                'acra-rotate': {'args': ['-keys_dir={}'.format(tmp_dir)],
+                                'status': 0},
+                'acra-translator': {'connection': 'connection_string',
+                                    'args': ['-keys_dir={}'.format(KEYS_FOLDER.name),
+                                             # empty id to raise error
+                                             '--securesession_id=""'],
+                                    'status': 1},
+                'acra-server': {'args': ['-keys_dir={}'.format(KEYS_FOLDER.name)],
+                                'status': 1},
+                'acra-webconfig': {'args': ['-static_path={}'.format('/not/existed/path')],
+                                   'status': 1},
+            }
+
+            for service in services:
+                test_data = default_args.get(service)
+                expected_status_code = 0
+                if isinstance(test_data, dict):
+                    expected_status_code = test_data['status']
+                    service_args = test_data['args']
+                else:
+                    service_args = test_data
+
+                args = ['./' + service, '-config_file=""'] + service_args
+                stderr = self.getOutputFromProcess(args)
+                self.assertNotRegex(stderr, r'code=508 error="config version \\"[\d.]\\" is not supported, expects \\"[\d.]+\\" version')
 
 
 class TestPgPlaceholders(BaseTestCase):
