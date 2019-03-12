@@ -2698,6 +2698,11 @@ typecast:
   {
     $$ = $1
   }
+  |
+  typecast LIST_ARG
+  {
+    $$ = append($1, $2...)
+  }
 
 
 

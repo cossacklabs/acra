@@ -1239,6 +1239,8 @@ func (node *SQLVal) Format(buf *TrackedBuffer) {
 		buf.WriteArg(string(node.Val))
 	case PgEscapeString:
 		buf.Myprintf("E'%s'", sqltypes.EncodeBytesSQLWithoutQuotes(node.Val))
+	case PgPlaceholder:
+		buf.Myprintf("%s", []byte(node.Val))
 	default:
 		panic("unexpected")
 	}
@@ -1575,15 +1577,6 @@ func (node *Default) Format(buf *TrackedBuffer) {
 }
 
 func (node *Default) walkSubtree(visit Visit) error {
-	return nil
-}
-
-// Format formats the node.
-func (node DollarExpr) Format(buf *TrackedBuffer) {
-	buf.Myprintf("%s", node.Value)
-}
-
-func (node DollarExpr) walkSubtree(visit Visit) error {
 	return nil
 }
 

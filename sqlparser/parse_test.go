@@ -1577,6 +1577,8 @@ func TestConvert(t *testing.T) {
 		input: "select convert('abc', json) from t",
 	}, {
 		input: "select convert('abc' using ascii) from t",
+	}, {
+		input: "select $1::integer::bytea from dual where test = $2::varchar::bytea",
 	}}
 
 	for _, tcase := range validSQL {
