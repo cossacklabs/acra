@@ -35,6 +35,16 @@ type Version struct {
 	Patch string
 }
 
+// ProductEdition type for edition values
+type ProductEdition int
+
+const (
+	CommunityEdition = iota
+	EnterpriseEdition
+)
+
+var Edition ProductEdition = CommunityEdition
+
 // ComparisonStatus result of comparison versions
 type ComparisonStatus int
 

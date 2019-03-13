@@ -48,11 +48,11 @@ func registerMetrics() {
 	registerLock.Do(func() {
 		prometheus.MustRegister(connectionCounter)
 		prometheus.MustRegister(connectionProcessingTimeHistogram)
-		cmd.RegisterVersionMetrics(ServiceName)
 		version, err := utils.GetParsedVersion()
 		if err != nil {
 			panic(err)
 		}
-		cmd.ExportVersionMetric(version)
+		cmd.RegisterVersionMetrics(ServiceName, version)
+		cmd.RegisterBuildInfoMetrics(ServiceName, utils.CommunityEdition)
 	})
 }
