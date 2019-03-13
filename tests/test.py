@@ -3485,8 +3485,17 @@ class TestPrometheusMetrics(AcraTranslatorMixin, BaseTestCase):
             if skip(family.name):
                 continue
             for sample in family.samples:
-                self.assertGreaterEqual(sample.value, labels[sample.name]['min_value'],
-                                        '{} - {}'.format(sample.name, sample.value))
+                try:
+                    self.assertGreaterEqual(sample.value, labels[sample.name]['min_value'],
+                                            '{} - {}'.format(sample.name, sample.value))
+                except KeyError:
+                    # python prometheus client append _total for sample names if they have type <counter> and
+                    # have not _total suffix
+                    if not sample.name.endswith('_total'):
+                        raise
+                    name = sample.name[:-len('_total')]
+                    self.assertGreaterEqual(sample.value, labels[name]['min_value'],
+                                            '{} - {}'.format(name, sample.value))
 
     def testAcraServer(self):
         # run some queries to set some values for counters
@@ -3512,6 +3521,8 @@ class TestPrometheusMetrics(AcraTranslatorMixin, BaseTestCase):
             'acraserver_version_major': {'min_value': 0},
             'acraserver_version_minor': {'min_value': 0},
             'acraserver_version_patch': {'min_value': 0},
+
+            'acraserver_build_info': {'min_value': 1},
         }
         self.checkMetrics('http://127.0.0.1:{}/metrics'.format(
             self.ACRASERVER_PROMETHEUS_PORT), labels)
@@ -3529,6 +3540,8 @@ class TestPrometheusMetrics(AcraTranslatorMixin, BaseTestCase):
             'acraconnector_version_major': {'min_value': 0},
             'acraconnector_version_minor': {'min_value': 0},
             'acraconnector_version_patch': {'min_value': 0},
+
+            'acraconnector_build_info': {'min_value': 1},
         }
         self.checkMetrics('http://127.0.0.1:{}/metrics'.format(
             self.get_connector_prometheus_port(self.CONNECTOR_PORT_1)), labels)
@@ -3550,6 +3563,8 @@ class TestPrometheusMetrics(AcraTranslatorMixin, BaseTestCase):
             'acratranslator_version_patch': {'min_value': 0},
 
             'acra_acrastruct_decryptions_total': {'min_value': 1},
+
+            'acratranslator_build_info': {'min_value': 1},
         }
         translator_port = 3456
         metrics_port = translator_port+1

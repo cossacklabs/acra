@@ -49,8 +49,6 @@ func RunPrometheusHTTPHandler(connectionString string) (net.Listener, *http.Serv
 	return listener, server, nil
 }
 
-var registerLock = sync.Once{}
-
 // serviceNameToLabelFormat convert service name to lower case and remove all '_'
 // ex. Acra-Server will be changed to acraserver
 func serviceNameToLabelFormat(serviceName string) string {
@@ -58,8 +56,19 @@ func serviceNameToLabelFormat(serviceName string) string {
 	return strings.ToLower(strings.Replace(serviceName, "-", "", replaceAll))
 }
 
-// ExportVersionMetric set values for version metrics
-func ExportVersionMetric(version *utils.Version) {
+// editionToLabel convert edition value to string to use as label
+func editionToLabel(edition utils.ProductEdition) string {
+	switch edition {
+	case utils.CommunityEdition:
+		return "ce"
+	case utils.EnterpriseEdition:
+		return "ee"
+	}
+	panic(fmt.Sprintf("undefined edition: %v", edition))
+}
+
+// exportVersionMetric set values for version metrics
+func exportVersionMetric(version *utils.Version) {
 	version, err := utils.GetParsedVersion()
 	if err != nil {
 		panic(err)
@@ -83,10 +92,18 @@ var (
 	majorVersionGauge *prometheus.GaugeVec
 	minorVersionGauge *prometheus.GaugeVec
 	patchVersionGauge *prometheus.GaugeVec
+	buildInfoCounter  *prometheus.CounterVec
 )
 
+const (
+	BuildInfoEditionLabel = "edition"
+	BuildInfoVersionLabel = "version"
+)
+
+var registerVersionMetricsLock = sync.Once{}
+
 // RegisterVersionMetrics set and register metrics with current version value
-func RegisterVersionMetrics(serviceName string) {
+func RegisterVersionMetrics(serviceName string, version *utils.Version) {
 	labelServiceName := serviceNameToLabelFormat(serviceName)
 	majorVersionGauge = prometheus.NewGaugeVec(
 		prometheus.GaugeOpts{
@@ -106,9 +123,30 @@ func RegisterVersionMetrics(serviceName string) {
 			Help: "Patch number of version",
 		}, []string{})
 
-	registerLock.Do(func() {
+	registerVersionMetricsLock.Do(func() {
 		prometheus.MustRegister(majorVersionGauge)
 		prometheus.MustRegister(minorVersionGauge)
 		prometheus.MustRegister(patchVersionGauge)
+		exportVersionMetric(version)
+	})
+}
+
+var registerBuildInfoLock = sync.Once{}
+
+// RegisterBuildInfoMetrics set and register metrics with build info
+func RegisterBuildInfoMetrics(serviceName string, edition utils.ProductEdition) {
+	buildInfoCounter = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: fmt.Sprintf("%s_build_info", serviceNameToLabelFormat(serviceName)),
+		}, []string{BuildInfoEditionLabel, BuildInfoVersionLabel})
+
+	registerBuildInfoLock.Do(func() {
+		prometheus.MustRegister(buildInfoCounter)
+		version, err := utils.GetParsedVersion()
+		if err != nil {
+			panic(err)
+		}
+		// increment on start only once
+		buildInfoCounter.With(prometheus.Labels{BuildInfoEditionLabel: editionToLabel(edition), BuildInfoVersionLabel: version.String()}).Inc()
 	})
 }
