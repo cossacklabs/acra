@@ -106,7 +106,7 @@ func main() {
 	enableHTTPAPI := flag.Bool("http_api_enable", false, "Enable HTTP API")
 
 	useTLS := flag.Bool("acraconnector_tls_transport_enable", false, "Use tls to encrypt transport between AcraServer and AcraConnector/client")
-	tlsKey := flag.String("tls_key", "", "Path to private key that will be used in TLS handshake with AcraServer as server's key and database as client's key")
+	tlsKey := flag.String("tls_key", "", "Path to private key that will be used in AcraServer's TLS handshake with AcraConnector as server's key and database as client's key")
 	tlsCert := flag.String("tls_cert", "", "Path to tls certificate")
 	tlsCA := flag.String("tls_ca", "", "Path to root certificate which will be used with system root certificates to validate Postgresql's and AcraConnector's certificate")
 	tlsDbSNI := flag.String("tls_db_sni", "", "Expected Server Name (SNI) from database")
