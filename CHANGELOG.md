@@ -102,7 +102,7 @@ _Infrastructure_:
 - Updated Docker files, added more comments, and updated Go version ([#313](https://github.com/cossacklabs/acra/pull/313), [#288](https://github.com/cossacklabs/acra/pull/288)).
 
 
-_Demo projects_:
+_Example projects (demos)_:
 
 - [AcraCensor demo](https://github.com/cossacklabs/acra-censor-demo) that shows how to configure AcraCensor for SQL injections prevention in OWASP Mutillidae 2 example app.
 
@@ -129,11 +129,11 @@ _Features coming soon_:
 
 _Documentation_:
 
-- Updated AcraServer documentation to describe Transparent mode in more details.
+- Updated [AcraServer documentation](https://docs.cossacklabs.com/pages/documentation-acra/#server-side-acraserver) to describe Transparent mode in more details.
 
-- Updated AcraCensor documentation to describe the new configuration format and procedures for migration from the previous one.
+- Updated [AcraCensor documentation](https://docs.cossacklabs.com/pages/documentation-acra/#acracensor-acra-s-firewall) to describe the new configuration format and procedures for migration from the previous one.
 
-- Updated AcraWriter documentation for iOS and Android to reflect the improved installation ways.
+- Updated [AcraWriter documentation](https://docs.cossacklabs.com/pages/documentation-acra/#client-side-acraconnector-and-acrawriter) for iOS and Android to reflect the improved installation ways.
 
 
 ## [0.84.2](https://github.com/cossacklabs/acra/releases/tag/0.84.2), February 19th 2019
