@@ -243,6 +243,24 @@ To gain an initial understanding of Acra, you might want to:
 | [Django sample project](https://github.com/cossacklabs/djangoproject.com) | [RubyGems sample project](https://github.com/cossacklabs/rubygems.org) |
 | --- | --- |
 
+### AcraCensor Demo (SQL firewall in action)
+
+[AcraCensor Demo](https://github.com/cossacklabs/acra-censor-demo) is an example project that illustrates how to use [AcraCensor](https://docs.cossacklabs.com/pages/documentation-acra/#acracensor-acra-s-firewall) as SQL firewall to prevent SQL injections. The target application is a well-known vulnerable web application [OWASP Mutillidae 2](https://github.com/webpwnized/mutillidae). 
+
+The demo project has a [Docker compose file](docker-compose.acra-censor-demo.yml) that runs the following web infrastructure:    
+
+- OWASP Mutillidae web application,         
+- [Acra encryption suite](https://github.com/cossacklabs/acra).  
+
+Acra works as a proxy between web and database. AcraCensor inspects every SQL query that runs from the web application to the database, and back.
+
+<a href="https://youtu.be/ABjIfx2_hJk" target="_blank"><img src="https://docs.cossacklabs.com/files/wiki/YouTube-Screencast-AcraCensor.png" alt="Watch the video" width="700"></a>
+
+Requirements: Linux or macOS terminal.
+
+| ⚙️ [Run AcraCensor Demo](https://github.com/cossacklabs/acra-censor-demo) ⚙️ |
+|---|
+
 ### Acra Load Balancing Demo (HAProxy-based infrastructures)
 
 [Acra Load Balancing Demo](https://github.com/cossacklabs/acra-balancer-demo) illustrates building high availability and balanced infrastructure, based on Acra components, PostgreSQL, and Python web application. We prepared several configurations with mulltiple databases and HAProxy.
