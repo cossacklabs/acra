@@ -240,7 +240,7 @@ To gain an initial understanding of Acra, you might want to:
 
 You can also check out the speaker slides for the following talks by Cossack Labs engineers:
 - ["Encryption Without Magic, Risk Management Without Pain"](https://speakerdeck.com/vixentael/encryption-without-magic-risk-management-without-pain) by [Anastasiia Voitova](https://github.com/vixentael).
-- ["Teach your application eloquence. Logs, metrics, traces."](https://speakerdeck.com/shad/teach-your-application-eloquence-logs-metrics-traces) by [Dmytro Shapovalov](https://github.com/shadinua).
+- ["Data encryption for Ruby web applications"](https://speakerdeck.com/shad/data-encryption-for-ruby-web-applications) by [Dmytro Shapovalov](https://github.com/shadinua).
 - ["Building SQL firewall(AcraCensor): insights from developers"](https://speakerdeck.com/storojs72/building-sql-firewall-insights-from-developers) by [Artem Storozhuk](https://github.com/storojs72).
 
 ## Demo projects
