@@ -225,7 +225,7 @@ Please use the Acra Docker demo stand for testing/experimenting purposes only as
 
 For production environments, we insist on generating and exchanging keys manually and deploying Acra as Docker containers or from source code. Refer to the [Quick Start guide](https://docs.cossacklabs.com/pages/documentation-acra/#installing-acra-from-the-cossack-labs-repository) to understand how to download and launch Acra components, generate keys, and perform key exchange properly.
 
-## Documentation and tutorials
+## Documentation, tutorials, additional information
 
 The most recent version of the documentation, tutorials, and demos for Acra is available on the official [Cossack Labs Documentation Server](https://docs.cossacklabs.com/products/acra/). The Github Wiki documentation is deprecated and no longer updated since v0.82.0.
 
@@ -236,7 +236,12 @@ To gain an initial understanding of Acra, you might want to:
 - Key and trust management tools: [key distribution](https://docs.cossacklabs.com/pages/documentation-acra/#key-management), [key rotation](https://docs.cossacklabs.com/pages/acrarotate/) and [database rollback](https://docs.cossacklabs.com/pages/acrarollback/).
 - Set up [rules for AcraCensor (SQL firewall)](https://doc-staging.dev.cossacklabs.com/pages/documentation-acra/#acracensor-acra-s-firewall) suitable for your application.
 - Read [some notes on making Acra stronger, more productive, and efficient](https://docs.cossacklabs.com/pages/tuning-acra/) and about adding security features or increasing throughput, depending on your goals and security model.
-- Read about the [logging format](https://docs.cossacklabs.com/pages/documentation-acra/#logging-in-acra) that Acra supports if you are using a SIEM system.
+- Read about the [logging format](https://docs.cossacklabs.com/pages/documentation-acra/#logging-in-acra) that Acra supports if you are using a SIEM system.    
+
+You can also check out the speaker slides for the following talks by Cossack Labs engineers:
+- ["Encryption Without Magic, Risk Management Without Pain"](https://speakerdeck.com/vixentael/encryption-without-magic-risk-management-without-pain) by [Anastasiia Voitova](https://github.com/vixentael).
+- ["Teach your application eloquence. Logs, metrics, traces."](https://speakerdeck.com/shad/teach-your-application-eloquence-logs-metrics-traces) by [Dmytro Shapovalov](https://github.com/shadinua).
+- ["Building SQL firewall(AcraCensor): insights from developers"](https://speakerdeck.com/storojs72/building-sql-firewall-insights-from-developers) by [Artem Storozhuk](https://github.com/storojs72).
 
 ## Demo projects
 
@@ -276,7 +281,7 @@ Acra can help you comply with GDPR and HIPAA regulations. Configuring and using 
 
 This open source version of Acra is free to use. Please let us know in the [Issues](https://www.github.com/cossacklabs/acra/issues) if you stumble upon a bug, see a possible enhancement, or have a comment on security design.
 
-There’s [the Enterprise version of Acra](https://www.cossacklabs.com/acra/) available. It provides better performance, redunancy/load balancing, comes pre-configured with crypto-primitives of your choice (FIPS, GOST), integrates with key/secret management tools in your stack, and has plenty of utils and tools for your Ops and SREs to operate Acra conveniently – deployment automation, scaling, monitoring, and logging. [Talk to us](mailto:sales@cossacklabs.com) to get a full feature list and a quote.
+There are also [Pro and Enterprise versions of Acra](https://www.cossacklabs.com/acra/#pricing) available. Those versions provide better performance, redunancy/load balancing, come pre-configured with crypto-primitives of your choice (FIPS, GOST), integrate with key/secret management tools in your stack, and have plenty of utils and tools for your Ops and SREs to operate Acra conveniently – deployment automation, scaling, monitoring, and logging. [Talk to us](mailto:sales@cossacklabs.com) to get full feature lists and a quote.
 
 ## Security consulting
 
