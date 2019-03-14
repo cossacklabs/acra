@@ -467,9 +467,6 @@ def drop_tables():
 def setUpModule():
     global zones
     global KEYS_FOLDER
-    # use list.clear instead >>> zones = []; to avoid creation new variable with new address and allow to use it from
-    # other test modules
-    zones.clear()
     clean_binaries()
     clean_misc()
     KEYS_FOLDER = tempfile.TemporaryDirectory()
@@ -515,6 +512,9 @@ def tearDownModule():
     clean_binaries()
     clean_misc()
     KEYS_FOLDER.cleanup()
+    # use list.clear instead >>> zones = []; to avoid creation new variable with new address and allow to use it from
+    # other test modules
+    zones.clear()
     clean_test_data()
     for path in [MASTER_KEY_PATH]:
         try:
