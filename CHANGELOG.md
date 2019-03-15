@@ -12,13 +12,13 @@ _Core_:
 
   You now can run SQL queries over encrypted AcraStructs allowing users to search through sensitive data without exposing it. This feature is only available in [Acra Enterprise version](https://www.cossacklabs.com/acra/#pricing).
 
-- **Transparent encryption mode**
+- **Transparent proxy mode**
 
-  _TLDR:_ Transparent encryption mode allows you to configure AcraServer to encrypt records in the specific database columns without altering the application code.
+  _TLDR:_ Transparent proxy mode allows you to configure AcraServer to encrypt records in the specific database columns without altering the application code.
 
   The application flow doesn't need to change: application sends SQL requests through AcraConnector and AcraServer to the database. AcraServer parses each request, encrypts the desired values into AcraStructs, and passes the modified requests to the database. To retrieve the decrypted data, your application talks to AcraServer again: upon receiving the database response, AcraServer tries to detect AcraStructs, decrypts them, and returns the decrypted data to the application.
 
-  Transparent encryption mode is useful for large distributed applications, where updating the source code of each client app separately would be complicated.
+  Transparent proxy mode is useful for large distributed applications, where updating the source code of each client app separately would be complicated.
 
   To enable this mode, you need to create a separate encryptor configuration file (`acra-encryptor.yaml`) that describes which columns to encrypt and provide a path to it in the AcraServer configuration file (or via CLI params `--encryptor_config_file=acra-encryptor.yaml`).
 
@@ -65,6 +65,8 @@ _Core_:
   - Fixed handling of setting a custom connection API port  ([#294](https://github.com/cossacklabs/acra/pull/294)).
 
   - Fixed handling of the plain text data response: if the database returns a plain text response, it is redirected "as is" ([#305](https://github.com/cossacklabs/acra/pull/305)).
+  
+  - Fixed handling of casted placeholders in expressions like `SELECT $1::type1::type2 FROM table1 WHERE column1=$2::type3::type4` ([#328](https://github.com/cossacklabs/acra/pull/328)).
 
   - Improved code quality (some refactoring here and there) ([#302](https://github.com/cossacklabs/acra/pull/302), [#301](https://github.com/cossacklabs/acra/pull/301)).
 
@@ -76,7 +78,9 @@ _Core_:
 
   - Added versioning for configuration files of each service ([#322](https://github.com/cossacklabs/acra/pull/322)).
 
-  - Added exporting version to metrics ([#320](https://github.com/cossacklabs/acra/pull/320)).
+  - Added exporting version to metrics ([#330](https://github.com/cossacklabs/acra/pull/330), [#320](https://github.com/cossacklabs/acra/pull/320)).
+  
+  - Updated some configuration parameters description to make them more user-friendly (please see our docs of [AcraConnector](https://docs.cossacklabs.com/pages/documentation-acra/#changing-configuration-options-for-acraconnector) and [AcraServer](https://docs.cossacklabs.com/pages/documentation-acra/#acraserver-configuration-files) for detailed descriptions of each parameter and usage examples) ([#329](https://github.com/cossacklabs/acra/pull/329)).
 
 - **AcraWriter**
 
@@ -86,13 +90,13 @@ _Core_:
 
   - Updated AcraWriter for C++, improved cpp codec usage ([#290](https://github.com/cossacklabs/acra/pull/290), [#289](https://github.com/cossacklabs/acra/pull/289)).
 
-  - Added bitcode for AcraWriter iOS ([#323](https://github.com/cossacklabs/acra/pull/323), [#307](https://github.com/cossacklabs/acra/pull/307)).
+  - Added bitcode for AcraWriter iOS and added Swift example project ([#327](https://github.com/cossacklabs/acra/pull/327), [#326](https://github.com/cossacklabs/acra/pull/326), [#325](https://github.com/cossacklabs/acra/pull/325), [#324](https://github.com/cossacklabs/acra/pull/324), [#323](https://github.com/cossacklabs/acra/pull/323), [#323](https://github.com/cossacklabs/acra/pull/323), [#307](https://github.com/cossacklabs/acra/pull/307)).
 
   - Improved distribution of AcraWriter for Android, now it's available via Maven ([#310](https://github.com/cossacklabs/acra/pull/310)).
 
 - **Other**
 
-  - Added more tests and then — added even more tests. We just love automating things! ([#311](https://github.com/cossacklabs/acra/pull/311), [#308](https://github.com/cossacklabs/acra/pull/308), [#292](https://github.com/cossacklabs/acra/pull/292)).
+  - Added more tests and then — added even more tests. We just love automating things! ([#331](https://github.com/cossacklabs/acra/pull/331), [#311](https://github.com/cossacklabs/acra/pull/311), [#308](https://github.com/cossacklabs/acra/pull/308), [#292](https://github.com/cossacklabs/acra/pull/292)).
 
   - Updated the version of pyyaml used in the tests due to [CVE-2017-18342](https://nvd.nist.gov/vuln/detail/CVE-2017-18342). This change doesn't affect the users of Acra, it only affects our test suite ([#300](https://github.com/cossacklabs/acra/pull/300)).
 
@@ -102,7 +106,11 @@ _Infrastructure_:
 - Updated Docker files, added more comments, and updated Go version ([#313](https://github.com/cossacklabs/acra/pull/313), [#288](https://github.com/cossacklabs/acra/pull/288)).
 
 
-_Example projects (demos)_:
+_Example projects and demos_:
+
+- [iOS Swift example project](https://github.com/cossacklabs/acra/tree/master/examples/swift) that shows how to generate AcraStructs with and without Zones.
+
+- [Android example project](https://github.com/cossacklabs/acra/tree/master/examples/android_java) that shows how to integrate AcraWriter library into Android app using maven, and then to generate AcraStructs with and without Zones, and to decrypt them using AcraTranslator.
 
 - [AcraCensor demo](https://github.com/cossacklabs/acra-censor-demo) that shows how to configure AcraCensor for SQL injections prevention in OWASP Mutillidae 2 example app.
 
@@ -110,7 +118,7 @@ _Example projects (demos)_:
 
 - [Protecting metrics in TimescaleDB demo](https://github.com/cossacklabs/acra-engineering-demo#protecting-metrics-in-timescaledb) based on AcraServer, TimescaleDB, and Grafana.
 
-- [Transparent encryption mode demo](https://github.com/cossacklabs/acra-engineering-demo#protecting-data-on-django-based-web-site) that shows how to configure AcraServer in Transparent encryption mode to protect Django-based application.
+- [Transparent proxy mode demo](https://github.com/cossacklabs/acra-engineering-demo#protecting-data-on-django-based-web-site) that shows how to configure AcraServer in Transparent proxy mode to protect Django-based application.
 
 
 _Related blog posts_:
