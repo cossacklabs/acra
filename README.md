@@ -59,6 +59,8 @@ This is [Acra Community Edition](https://www.cossacklabs.com/acra/#pricing), it'
 </tr><tr><td><li>Cryptographically protected audit log </li></td>
 </tr></tbody></table>
 
+Acra delivers different layers of defense for different parts and stages of the data lifecycle. This is what **defence in depth** is – an independent set of security controls aimed at mitigating multiple risks in case of an attacker crossing the outer perimeter. 
+
 ### Developer and DevOps friendly
 
 <table><tbody>
