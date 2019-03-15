@@ -146,7 +146,7 @@ AcraTranslator and AcraServer are fully independent server-side components and c
 
 ### Client-side
 
-[AcraWriter](https://docs.cossacklabs.com/pages/documentation-acra/#client-side-acraconnector-and-acrawriter) is a client-side library that encrypts data into a special binary format called [AcraStruct](https://docs.cossacklabs.com/pages/documentation-acra/#acrastruct). AcraWriter is available for Ruby, Python, Go, C++, NodeJS, iOS, Android/Java and PHP, but you can easily [generate AcraStruct containers](https://github.com/cossacklabs/acra/wiki/Acrawriter-installation) with [Themis](https://github.com/cossacklabs/themis) for any platform you want. 
+[AcraWriter](https://docs.cossacklabs.com/pages/documentation-acra/#client-side-acraconnector-and-acrawriter) is a client-side library that encrypts data into a special binary format called [AcraStruct](https://docs.cossacklabs.com/pages/documentation-acra/#acrastruct). AcraWriter is available for Ruby, Python, Go, C++, Node.js, iOS, Android/Java and PHP, but you can easily [generate AcraStruct containers](https://github.com/cossacklabs/acra/wiki/Acrawriter-installation) with [Themis](https://github.com/cossacklabs/themis) for any platform you want. 
 
 | Client platform |  Documentation and guides | Examples | Package manager |
 | :----- | :----- | :------ | :---- |
@@ -157,7 +157,7 @@ AcraTranslator and AcraServer are fully independent server-side components and c
 | 📱 Objective-C / Swift (iOS) | [Installation guide](https://docs.cossacklabs.com/pages/documentation-acra/#building-acrawriter-for-ios) | [examples/objc](https://github.com/cossacklabs/acra/tree/master/examples/objc) | [![CocoaPods](https://img.shields.io/cocoapods/v/acrawriter.svg)](https://cocoapods.org/pods/acrawriter) |
 | ☎️ Java (Android) | [Installation guide](https://docs.cossacklabs.com/pages/documentation-acra/#building-acrawriter-for-android) | [examples/android_java](https://github.com/cossacklabs/acra/tree/master/examples/android_java) |[ ![maven](https://api.bintray.com/packages/cossacklabs/maven/acrawriter/images/download.svg) ](https://bintray.com/cossacklabs/maven/acrawriter/_latestVersion)|
 | 🐘 PHP | [Installation guide](https://docs.cossacklabs.com/pages/documentation-acra/#building-acrawriter-for-php) | [examples/php](https://github.com/cossacklabs/acra/tree/master/examples/php) ||
-| 🍭 Javascript (NodeJS) | [Installation guide](https://docs.cossacklabs.com/pages/documentation-acra/#building-acrawriter-for-nodejs) | [examples/nodejs](https://github.com/cossacklabs/acra/tree/master/examples/nodejs) | [![npm](https://img.shields.io/npm/v/acrawriter.svg)](https://www.npmjs.com/package/acrawriter) |
+| 🍭 Javascript (Node.js) | [Installation guide](https://docs.cossacklabs.com/pages/documentation-acra/#building-acrawriter-for-nodejs) | [examples/nodejs](https://github.com/cossacklabs/acra/tree/master/examples/nodejs) | [![npm](https://img.shields.io/npm/v/acrawriter.svg)](https://www.npmjs.com/package/acrawriter) |
 
 ### Server-side
 
@@ -193,21 +193,21 @@ Open source Acra has limited integration support, more services are available in
 
 ## Installation and launch
 
-### Quick try (run demo app)
+### Quick try (run example apps)
 
-[Acra Engineering Demo](https://github.com/cossacklabs/acra-engineering-demo) illustrates the integration of Acra data protection suite into existing applications: Django-based web application and Python CLI application. We took well-known applications and added the encryption layer. Protecting the data is completely transparent for the users and requires minimal changes in the infrastructure.
+[Acra Example Projects](https://github.com/cossacklabs/acra-engineering-demo) illustrate the integration of Acra data protection suite into existing applications: web applications based on Django and Ruby on Rails frameworks, and simple CLI applications. We took well-known apps, detected sensitive data there and added the encryption layer. Protecting the data is completely transparent for the users and requires minimal changes in the infrastructure and application code.
 
 <img src="https://github.com/cossacklabs/acra/wiki//Images/readme/AcraEngDemo.png" width="600">
  
 Developers and Ops friendly:
 * run a single command to deploy the application, database, Acra's components, logs, and dashboards;
 * read the code changes and see how little it takes to integrate encryption into the client application;
-* learn how Acra works by reading logs, monitoring metrics in Prometheus, and watching Grafana dashboards;
+* learn how Acra works by reading logs, monitoring metrics in Prometheus, checking tracers in Jaeger and watching Grafana dashboards;
 * inspect Docker-compose files, architecture schemes, database tables, and much more.
 
-Requirements: Linux or macOS terminal.
+Requirements: Linux or macOS with installed Docker.
 
-| ⚙️ [Run Engineering Demo](https://github.com/cossacklabs/acra-engineering-demo) ⚙️ |
+| ⚙️ [Run Acra Example Projects](https://github.com/cossacklabs/acra-engineering-demo) ⚙️ |
 |---|
 
 ### Quick integration into your infrastructure
@@ -248,29 +248,29 @@ You can also check out the speaker slides for the following talks by Cossack Lab
 | [Django sample project](https://github.com/cossacklabs/djangoproject.com) | [RubyGems sample project](https://github.com/cossacklabs/rubygems.org) |
 | --- | --- |
 
-### AcraCensor Demo (SQL firewall in action)
+### AcraCensor Example (SQL firewall in action)
 
 [AcraCensor Demo](https://github.com/cossacklabs/acra-censor-demo) is an example project that illustrates how to use [AcraCensor](https://docs.cossacklabs.com/pages/documentation-acra/#acracensor-acra-s-firewall) as SQL firewall to prevent SQL injections. The target application is a well-known vulnerable web application [OWASP Mutillidae 2](https://github.com/webpwnized/mutillidae). 
 
-The demo project has a [Docker compose file](docker-compose.acra-censor-demo.yml) that runs the following web infrastructure:    
+The demo project has a Docker compose file that runs the following web infrastructure:    
 
 - OWASP Mutillidae web application,         
-- [Acra encryption suite](https://github.com/cossacklabs/acra).  
+- Acra encryption suite.  
 
-Acra works as a proxy between web and database. AcraCensor inspects every SQL query that runs from the web application to the database, and back.
+Acra works as a proxy between web and database. AcraCensor inspects every SQL query that runs from the web application to the database, and back, and blocks suspicious queries.
 
 <a href="https://youtu.be/ABjIfx2_hJk" target="_blank"><img src="https://docs.cossacklabs.com/files/wiki/YouTube-Screencast-AcraCensor.png" alt="Watch the video" width="700"></a>
 
-Requirements: Linux or macOS terminal.
+Requirements: Linux or macOS with installed Docker.
 
-| ⚙️ [Run AcraCensor Demo](https://github.com/cossacklabs/acra-censor-demo) ⚙️ |
+| ⚙️ [Run AcraCensor SQL firewall example](https://github.com/cossacklabs/acra-censor-demo) ⚙️ |
 |---|
 
-### Acra Load Balancing Demo (HAProxy-based infrastructures)
+### Acra Load Balancing Example (HAProxy-based infrastructures)
 
-[Acra Load Balancing Demo](https://github.com/cossacklabs/acra-balancer-demo) illustrates building high availability and balanced infrastructure, based on Acra components, PostgreSQL, and Python web application. We prepared several configurations with mulltiple databases and HAProxy.
+[Acra Load Balancing Example](https://github.com/cossacklabs/acra-balancer-demo) illustrates building high availability and balanced infrastructure, based on Acra components, PostgreSQL, and Python web application. We prepared several configurations with multiple databases and HAProxy.
 
-| 🔛 [Run Load Balancing Demo](https://github.com/cossacklabs/acra-balancer-demo) 🔛 |
+| 🔛 [Run Acra Load Balancing Example](https://github.com/cossacklabs/acra-balancer-demo) 🔛 |
 |---|
 
 ## GDPR and HIPAA
