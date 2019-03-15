@@ -1,5 +1,5 @@
 ignore_parse_error: false
-version: 0.0.0
+version: 0.85.0
 parse_errors_log: unparsed_queries.log
 handlers:
   - handler: query_capture
