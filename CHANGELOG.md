@@ -14,11 +14,11 @@ _Core_:
 
 - **Transparent proxy mode**
 
-  _TLDR:_ Transparent proxy mode allows you to configure AcraServer to encrypt records in the specific database columns without altering the application code.
+  _TLDR:_ Transparent proxy mode allows you to configure AcraServer to encrypt records in specific database columns without altering the application code.
 
   The application flow doesn't need to change: application sends SQL requests through AcraConnector and AcraServer to the database. AcraServer parses each request, encrypts the desired values into AcraStructs, and passes the modified requests to the database. To retrieve the decrypted data, your application talks to AcraServer again: upon receiving the database response, AcraServer tries to detect AcraStructs, decrypts them, and returns the decrypted data to the application.
 
-  Transparent proxy mode is useful for large distributed applications, where updating the source code of each client app separately would be complicated.
+  Transparent proxy mode is useful for large distributed applications where updating the source code of each client app separately would be complicated.
 
   To enable this mode, you need to create a separate encryptor configuration file (`acra-encryptor.yaml`) that describes which columns to encrypt and provide a path to it in the AcraServer configuration file (or via CLI params `--encryptor_config_file=acra-encryptor.yaml`).
 
@@ -80,7 +80,7 @@ _Core_:
 
   - Added exporting version to metrics ([#330](https://github.com/cossacklabs/acra/pull/330), [#320](https://github.com/cossacklabs/acra/pull/320)).
   
-  - Updated some configuration parameters description to make them more user-friendly (please see our docs of [AcraConnector](https://docs.cossacklabs.com/pages/documentation-acra/#changing-configuration-options-for-acraconnector) and [AcraServer](https://docs.cossacklabs.com/pages/documentation-acra/#acraserver-configuration-files) for detailed descriptions of each parameter and usage examples) ([#329](https://github.com/cossacklabs/acra/pull/329)).
+  - Updated some configuration parameters descriptions for better user-friendliness (please see our docs of [AcraConnector](https://docs.cossacklabs.com/pages/documentation-acra/#changing-configuration-options-for-acraconnector) and [AcraServer](https://docs.cossacklabs.com/pages/documentation-acra/#acraserver-configuration-files) for detailed descriptions of each parameter and usage examples) ([#329](https://github.com/cossacklabs/acra/pull/329)).
 
 - **AcraWriter**
 
