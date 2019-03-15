@@ -9,9 +9,29 @@ Please run project from Acra repository. Run `MainActivityAcraStructExample`.
 
 ## Dependencies
 
-1. AcraWriter and AcraStruct files are placed in the [`acra/wrappers/java`](https://github.com/cossacklabs/acra/tree/master/wrappers/java/com/cossacklabs/acrawriter) folder. Grab files into your project!
+This example depends on `acrawriter` library, which is installed via maven. We use [`bintray`](https://bintray.com/cossacklabs/maven/acrawriter) to distribute it.
 
-2. AcraWriter depends on Themis. This project has included Themis as Android `.aar` library: `app/libs/themis-release.aar`, linked by gradle (inside `app/build.gradle`).
+First, update your `build.gradle` file with URL to our maven repository:
+
+```
+repositories {
+        // whatever you have here, add maven
+        maven { url "https://dl.bintray.com/cossacklabs/maven/" }
+}
+```
+
+Then link acrawriter from `app/build.gradle` file:
+
+```
+dependencies {
+     // ....
+    implementation 'com.cossacklabs.com:acrawriter:1.0.1'
+}
+```
+
+And that's all! 
+
+Under the hood, AcraWriter depends on Themis, which depends on OpenSSL, but you don't need to install them separately.
 
 
 # Generating AcraStruct without zone
@@ -48,17 +68,3 @@ PublicKey publicKey = new PublicKey(Base64.decode(acraTranslatorZoneKey.getBytes
 AcraWriter aw = new AcraWriter();
 AcraStruct acraStruct = aw.createAcraStruct(message.getBytes(), publicKey, zoneID.getBytes());
 ```
-
-# Re-building Themis library
-
-1. Download Themis repository https://github.com/cossacklabs/themis
-
-2. Compile BoringSSL for android architectures, check instructions in the [themis -> Building and Installing -> Android](https://github.com/cossacklabs/themis/wiki/Building-and-installing#android) section. 
-
-3. Build `themis.aar` archive:
-https://github.com/cossacklabs/themis/wiki/Building-and-installing#android
-
-  You will get it in the themis folder `build/outputs/aar/`. Copy archive into `acra/examples/android_java/AcraWriterAndroidApp/app/libs/` folder and rename to `themis-release.aar`
-
-4. Now you can run this example :)
-

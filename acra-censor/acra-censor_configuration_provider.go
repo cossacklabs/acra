@@ -28,7 +28,7 @@ import (
 )
 
 // MinimalCensorConfigVersion min version of config that support acra-censor
-var MinimalCensorConfigVersion = "0.84.2"
+var MinimalCensorConfigVersion = "0.85.0"
 
 // Query handlers' names.
 const (
