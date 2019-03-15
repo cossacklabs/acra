@@ -171,6 +171,7 @@ func (column *ColumnData) readData(reader io.Reader) error {
 		return nil
 	}
 	column.Data = make([]byte, length)
+
 	// first 4 bytes is packet length and then 2 bytes of column count
 	// https://www.postgresql.org/docs/9.3/static/protocol-message-formats.html
 	n, err := io.ReadFull(reader, column.Data)
