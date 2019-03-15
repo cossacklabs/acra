@@ -24,6 +24,7 @@ import (
 	"errors"
 	"fmt"
 	"github.com/cossacklabs/acra/keystore"
+	"github.com/cossacklabs/acra/logging"
 	"github.com/cossacklabs/acra/zone"
 	"github.com/cossacklabs/themis/gothemis/keys"
 	"io"
@@ -75,8 +76,15 @@ const (
 	DataLengthSize = 8
 )
 
+// Possible decryption modes: AcraStruct can start from beginning of cell, or be part of the cell
+const (
+	DecryptWhole  = "whole_block"
+	DecryptInline = "inline_block"
+)
+
 // DataDecryptor describes AcraStruct decryptor.
 type DataDecryptor interface {
+	logging.LoggerSetter
 	// try match begin tag per byte
 	MatchBeginTag(byte) bool
 	// return true if all bytes from begin tag matched by MatchBeginTag
@@ -110,8 +118,8 @@ type Decryptor interface {
 	SetPoisonCallbackStorage(*PoisonCallbackStorage)
 	// get current storage of callbacks for detected poison records
 	GetPoisonCallbackStorage() *PoisonCallbackStorage
-	SetZoneMatcher(*zone.ZoneIDMatcher)
-	GetZoneMatcher() *zone.ZoneIDMatcher
+	SetZoneMatcher(*zone.Matcher)
+	GetZoneMatcher() *zone.Matcher
 	GetMatchedZoneID() []byte
 	MatchZone(byte) bool
 	IsWithZone() bool
@@ -127,6 +135,7 @@ type Decryptor interface {
 	// return tag start index and length of tag (depends on decryptor type)
 	BeginTagIndex([]byte) (int, int)
 	MatchZoneInBlock([]byte)
+	SetDataProcessor(processor DataProcessor)
 }
 
 // CheckReadWrite check that n == expectedN and err != nil

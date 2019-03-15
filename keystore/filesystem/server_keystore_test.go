@@ -28,7 +28,7 @@ import (
 	"testing"
 )
 
-func testGenerateKeyPair(store *FilesystemKeyStore, t *testing.T) {
+func testGenerateKeyPair(store *KeyStore, t *testing.T) {
 	clientID := []byte("some test id")
 	file, err := ioutil.TempFile("", "test_generate_key_pair")
 	if err != nil {
@@ -52,7 +52,7 @@ func testGenerateKeyPair(store *FilesystemKeyStore, t *testing.T) {
 	}
 }
 
-func testGeneral(store *FilesystemKeyStore, t *testing.T) {
+func testGeneral(store *KeyStore, t *testing.T) {
 	if store.HasZonePrivateKey([]byte("non-existent key")) {
 		t.Fatal("Expected false on non-existent key")
 	}
@@ -79,14 +79,14 @@ func testGeneral(store *FilesystemKeyStore, t *testing.T) {
 	}
 }
 
-func testGeneratingDataEncryptionKeys(store *FilesystemKeyStore, t *testing.T) {
+func testGeneratingDataEncryptionKeys(store *KeyStore, t *testing.T) {
 	testID := []byte("test id")
 	err := store.GenerateDataEncryptionKeys(testID)
 	if err != nil {
 		t.Fatal(err)
 	}
 	exists, err := utils.FileExists(
-		store.getPrivateKeyFilePath(
+		store.GetPrivateKeyFilePath(
 			getServerDecryptionKeyFilename(testID)))
 	if err != nil {
 		t.Fatal(err)
@@ -116,39 +116,39 @@ func checkPath(path string, t *testing.T) {
 	}
 }
 
-func testGenerateServerKeys(store *FilesystemKeyStore, t *testing.T) {
+func testGenerateServerKeys(store *KeyStore, t *testing.T) {
 	testID := []byte("test id")
 	err := store.GenerateServerKeys(testID)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	absPath := store.getPrivateKeyFilePath(getServerKeyFilename(testID))
+	absPath := store.GetPrivateKeyFilePath(getServerKeyFilename(testID))
 	checkPath(absPath, t)
 	absPath = store.getPublicKeyFilePath(fmt.Sprintf("%s.pub", getServerKeyFilename(testID)))
 	checkPath(absPath, t)
 }
 
-func testGenerateTranslatorKeys(store *FilesystemKeyStore, t *testing.T) {
+func testGenerateTranslatorKeys(store *KeyStore, t *testing.T) {
 	testID := []byte("test test id")
 	err := store.GenerateTranslatorKeys(testID)
 	if err != nil {
 		t.Fatal(err)
 	}
-	absPath := store.getPrivateKeyFilePath(getTranslatorKeyFilename(testID))
+	absPath := store.GetPrivateKeyFilePath(getTranslatorKeyFilename(testID))
 	checkPath(absPath, t)
 	absPath = store.getPublicKeyFilePath(fmt.Sprintf("%s.pub", getTranslatorKeyFilename(testID)))
 	checkPath(absPath, t)
 }
 
-func testGenerateConnectorKeys(store *FilesystemKeyStore, t *testing.T) {
+func testGenerateConnectorKeys(store *KeyStore, t *testing.T) {
 	testID := []byte("test id")
 	err := store.GenerateConnectorKeys(testID)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	absPath := store.getPrivateKeyFilePath(getConnectorKeyFilename(testID))
+	absPath := store.GetPrivateKeyFilePath(getConnectorKeyFilename(testID))
 	checkPath(absPath, t)
 
 	absPath = store.getPublicKeyFilePath(fmt.Sprintf("%s.pub", getConnectorKeyFilename(testID)))
@@ -156,7 +156,7 @@ func testGenerateConnectorKeys(store *FilesystemKeyStore, t *testing.T) {
 
 }
 
-func testReset(store *FilesystemKeyStore, t *testing.T) {
+func testReset(store *KeyStore, t *testing.T) {
 	testID := []byte("some test id")
 	if err := store.GenerateServerKeys(testID); err != nil {
 		t.Fatal(err)
@@ -168,7 +168,7 @@ func testReset(store *FilesystemKeyStore, t *testing.T) {
 		t.Fatal(err)
 	}
 	store.Reset()
-	if err := os.Remove(store.getPrivateKeyFilePath(getServerKeyFilename(testID))); err != nil {
+	if err := os.Remove(store.GetPrivateKeyFilePath(getServerKeyFilename(testID))); err != nil {
 		t.Fatal(err)
 	}
 	if err := os.Remove(fmt.Sprintf("%s.pub", store.getPublicKeyFilePath(getServerKeyFilename(testID)))); err != nil {
@@ -180,6 +180,33 @@ func testReset(store *FilesystemKeyStore, t *testing.T) {
 
 	if _, err := store.GetPrivateKey(testID); err == nil {
 		t.Fatal("Expected error on fetching cleared key")
+	}
+}
+
+func testGetZonePublicKey(store *KeyStore, t *testing.T) {
+	id, binPublic, err := store.GenerateZoneKey()
+	if err != nil {
+		t.Fatal(err)
+	}
+	public, err := store.GetZonePublicKey(id)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Equal(binPublic, public.Value) {
+		t.Fatal("Incorrect public key value")
+	}
+}
+func testGetClientIDEncryptionPublicKey(store *KeyStore, t *testing.T) {
+	id := []byte("some id")
+	if err := store.GenerateDataEncryptionKeys(id); err != nil {
+		t.Fatal("Can't generate data encryption keys")
+	}
+	key, err := store.GetClientIDEncryptionPublicKey(id)
+	if err != nil {
+		t.Fatal("Can't fetch encryption public key by id")
+	}
+	if key == nil {
+		t.Fatal("Unexpected empty public key")
 	}
 }
 
@@ -217,7 +244,7 @@ func TestFilesystemKeyStore(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, store := range []*FilesystemKeyStore{generalStore, splitKeysStore, noCacheKeyStore} {
+	for _, store := range []*KeyStore{generalStore, splitKeysStore, noCacheKeyStore} {
 		testGeneral(store, t)
 		testGeneratingDataEncryptionKeys(store, t)
 		testGenerateConnectorKeys(store, t)
@@ -227,6 +254,8 @@ func TestFilesystemKeyStore(t *testing.T) {
 		testGenerateKeyPair(store, t)
 		testSaveKeypairs(store, t)
 		resetKeyFolders()
+		testGetZonePublicKey(store, t)
+		testGetClientIDEncryptionPublicKey(store, t)
 	}
 }
 
@@ -235,7 +264,7 @@ func TestFilesystemKeyStoreWithCache(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := os.Chmod(keyDirectory, 0700); err != nil {
+	if err = os.Chmod(keyDirectory, 0700); err != nil {
 		t.Fatal(err)
 	}
 	defer func() {
@@ -262,7 +291,7 @@ func TestFilesystemKeyStoreWithCache(t *testing.T) {
 	}
 	testID2 := []byte("test id 2")
 	// create one more key that shouldn't saved in cache with 1 size
-	if err := store.GenerateDataEncryptionKeys(testID2); err != nil {
+	if err = store.GenerateDataEncryptionKeys(testID2); err != nil {
 		t.Fatal(err)
 	}
 	// load and save in cache. it must drop previous key from cache
@@ -308,7 +337,7 @@ func TestFilesystemKeyStore_RotateZoneKey(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := os.Chmod(keyDirectory, 0700); err != nil {
+	if err = os.Chmod(keyDirectory, 0700); err != nil {
 		t.Fatal(err)
 	}
 	defer func() {
@@ -346,7 +375,7 @@ func TestFilesystemKeyStore_RotateZoneKey(t *testing.T) {
 	}
 }
 
-func testSaveKeypairs(store *FilesystemKeyStore, t *testing.T) {
+func testSaveKeypairs(store *KeyStore, t *testing.T) {
 	store.Reset()
 	testID := []byte("testid")
 	startKeypair, err := keys.New(keys.KEYTYPE_EC)
@@ -362,7 +391,7 @@ func testSaveKeypairs(store *FilesystemKeyStore, t *testing.T) {
 	if _, err := store.getPrivateKeyByFilename(testID, filename); err == nil {
 		t.Fatal("Expected error")
 	}
-	if err := store.saveKeyPairWithFilename(startKeypair, filename, testID); err != nil {
+	if err = store.saveKeyPairWithFilename(startKeypair, filename, testID); err != nil {
 		t.Fatal(err)
 	}
 	if privateKey, err := store.getPrivateKeyByFilename(testID, filename); err != nil {
@@ -373,7 +402,7 @@ func testSaveKeypairs(store *FilesystemKeyStore, t *testing.T) {
 		}
 	}
 
-	if err := store.saveKeyPairWithFilename(overwritedKeypair, filename, testID); err != nil {
+	if err = store.saveKeyPairWithFilename(overwritedKeypair, filename, testID); err != nil {
 		t.Fatal(err)
 	}
 	if privateKey, err := store.getPrivateKeyByFilename(testID, filename); err != nil {

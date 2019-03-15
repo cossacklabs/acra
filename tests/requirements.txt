@@ -7,9 +7,13 @@ semver==2.7.9
 requests
 # driver with binary prepared statements support
 #mysql-connector-python==8.0.11
-PyYAML==3.13
+# stable release now 3.13 which has vulnerability
+# https://github.com/yaml/pyyaml/issues/243
+git+https://github.com/yaml/pyyaml@release/4.2
 
 # https://grpc.io/docs/quickstart/python.html
 grpcio==1.13.0
 grpcio-tools==1.13.0
 googleapis-common-protos==1.5.3
+prometheus_client==0.6.0
+unittest-xml-reporting==2.2.1

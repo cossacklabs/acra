@@ -21,18 +21,19 @@ import (
 	"net"
 	url_ "net/url"
 	"os"
+	"strconv"
 	"strings"
 	"sync"
 )
 
 // Custom connection schemes, used in AcraConnector and AcraTranslator
 const (
-	GRPC_SCHEME = "grpc"
-	HTTP_SCHEME = "http"
+	GRPCScheme = "grpc"
+	HTTPScheme = "http"
 )
 
 func customSchemeToBaseGolangScheme(scheme string) string {
-	if scheme == GRPC_SCHEME || scheme == HTTP_SCHEME {
+	if scheme == GRPCScheme || scheme == HTTPScheme {
 		return "tcp"
 	}
 	return scheme
@@ -169,4 +170,20 @@ func SNIOrHostname(sni, hostname string) string {
 		colonPos = len(hostname)
 	}
 	return hostname[:colonPos]
+}
+
+// SplitConnectionString to host, port
+func SplitConnectionString(connectionString string) (string, int, error) {
+	url, err := url_.Parse(connectionString)
+	if err != nil {
+		return "", 0, err
+	}
+	if url.Scheme == "unix" {
+		return "", 0, fmt.Errorf("can't split to host:port unix socket path <%s>", connectionString)
+	}
+	port, err := strconv.Atoi(url.Port())
+	if err != nil {
+		return "", 0, err
+	}
+	return url.Hostname(), port, nil
 }

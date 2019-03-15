@@ -34,7 +34,6 @@ import (
 
 	"github.com/cossacklabs/acra/cmd"
 	"github.com/cossacklabs/acra/keystore"
-	"github.com/cossacklabs/acra/utils"
 	"github.com/cossacklabs/acra/zone"
 	"github.com/cossacklabs/themis/gothemis/cell"
 	"github.com/cossacklabs/themis/gothemis/keys"
@@ -104,11 +103,11 @@ func (clientSession *ClientCommandsSession) HandleSession() {
 		logger.Debugln("Got /getNewZone request")
 		id, publicKey, err := clientSession.keystorage.GenerateZoneKey()
 		if err != nil {
-			logger.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantGenerateZone).Errorln("Can't generate zone key")
+			logger.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorHTTPAPICantGenerateZone).Errorln("Can't generate zone key")
 		} else {
 			zoneData, err := zone.ZoneDataToJSON(id, &keys.PublicKey{Value: publicKey})
 			if err != nil {
-				logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantGenerateZone).WithError(err).Errorln("Can't create json with zone key")
+				logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorHTTPAPICantGenerateZone).WithError(err).Errorln("Can't create json with zone key")
 			} else {
 				logger.Debugln("Handled request correctly")
 				response = fmt.Sprintf("HTTP/1.1 200 OK Found\r\n\r\n%s\r\n\r\n", string(zoneData))
@@ -123,20 +122,20 @@ func (clientSession *ClientCommandsSession) HandleSession() {
 		response = Response500Error
 		key, err := clientSession.keystore.GetAuthKey(false)
 		if err != nil {
-			logger.WithError(err).Error("loadAuthData: keystore.GetAuthKey()")
+			logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorHTTPAPICantLoadAuthKey).WithError(err).Error("loadAuthData: keystore.GetAuthKey()")
 			response = Response500Error
 			break
 		}
 		authDataCrypted, err := getAuthDataFromFile(*authPath)
 		if err != nil {
-			logger.Warningf("%v\n", utils.ErrorMessage("loadAuthData: no auth data", err))
+			logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorHTTPAPICantLoadAuthData).WithError(err).Warningln("loadAuthData: no auth data")
 			response = Response500Error
 			break
 		}
 		SecureCell := cell.New(key, cell.CELL_MODE_SEAL)
 		authData, err := SecureCell.Unprotect(authDataCrypted, nil, nil)
 		if err != nil {
-			logger.WithError(err).Error("loadAuthData: SecureCell.Unprotect")
+			logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorHTTPAPICantDecryptAuthData).WithError(err).Error("loadAuthData: SecureCell.Unprotect")
 
 			break
 		}
@@ -157,7 +156,7 @@ func (clientSession *ClientCommandsSession) HandleSession() {
 		logger.Debugln("Got /setConfig request")
 		decoder := json.NewDecoder(req.Body)
 		var configFromUI UIEditableConfig
-		err := decoder.Decode(&configFromUI)
+		err = decoder.Decode(&configFromUI)
 		if err != nil {
 			logger.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorGeneral).
 				Warningln("Can't convert config from incoming")
@@ -181,7 +180,7 @@ func (clientSession *ClientCommandsSession) HandleSession() {
 			return
 
 		}
-		logger.Debugln("Handled request correctly, restarting server")
+		logger.Infoln("Handled request correctly, restarting server")
 		clientSession.Server.restartSignalsChannel <- syscall.SIGHUP
 	default:
 		requestSpan.AddAttributes(trace.StringAttribute("http.url", "undefined"))

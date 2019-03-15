@@ -39,17 +39,17 @@ import (
 
 // Constants handy for AcraTranslator.
 const (
-	ServiceName          = "acra-translator"
-	DEFAULT_WAIT_TIMEOUT = 10
+	ServiceName        = "acra-translator"
+	defaultWaitTimeout = 10
 )
 
-// DEFAULT_CONFIG_PATH relative path to config which will be parsed as default
-var DEFAULT_CONFIG_PATH = utils.GetConfigPathByName(ServiceName)
+// DefaultConfigPath relative path to config which will be parsed as default
+var DefaultConfigPath = utils.GetConfigPathByName(ServiceName)
 
 func main() {
 	config := NewConfig()
 	loggingFormat := flag.String("logging_format", "plaintext", "Logging format: plaintext, json or CEF")
-	log.Infof("Starting service %v [pid=%v]", ServiceName, os.Getpid())
+	log.WithField("version", utils.VERSION).Infof("Starting service %v [pid=%v]", ServiceName, os.Getpid())
 
 	incomingConnectionHTTPString := flag.String("incoming_connection_http_string", "", "Connection string for HTTP transport like http://0.0.0.0:9595")
 	incomingConnectionGRPCString := flag.String("incoming_connection_grpc_string", "", "Default option: connection string for gRPC transport like grpc://0.0.0.0:9696")
@@ -63,7 +63,7 @@ func main() {
 	stopOnPoison := flag.Bool("poison_shutdown_enable", false, "On detecting poison record: log about poison record detection, stop and shutdown")
 	scriptOnPoison := flag.String("poison_run_script_file", "", "On detecting poison record: log about poison record detection, execute script, return decrypted data")
 
-	closeConnectionTimeout := flag.Int("incoming_connection_close_timeout", DEFAULT_WAIT_TIMEOUT, "Time that AcraTranslator will wait (in seconds) on stop signal before closing all connections")
+	closeConnectionTimeout := flag.Int("incoming_connection_close_timeout", defaultWaitTimeout, "Time that AcraTranslator will wait (in seconds) on stop signal before closing all connections")
 
 	prometheusAddress := flag.String("incoming_connection_prometheus_metrics_string", "", "URL which will be used to expose Prometheus metrics (use <URL>/metrics address to pull metrics)")
 
@@ -73,7 +73,7 @@ func main() {
 	verbose := flag.Bool("v", false, "Log to stderr all INFO, WARNING and ERROR logs")
 	debug := flag.Bool("d", false, "Log everything to stderr")
 
-	err := cmd.Parse(DEFAULT_CONFIG_PATH, ServiceName)
+	err := cmd.Parse(DefaultConfigPath, ServiceName)
 	if err != nil {
 		log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantReadServiceConfig).
 			Errorln("Can't parse args")
@@ -86,7 +86,7 @@ func main() {
 	cmd.ValidateClientID(*secureSessionID)
 
 	if len(*incomingConnectionHTTPString) == 0 && len(*incomingConnectionGRPCString) == 0 {
-		*incomingConnectionGRPCString = network.BuildConnectionString(network.GRPC_SCHEME, cmd.DEFAULT_ACRATRANSLATOR_GRPC_HOST, cmd.DEFAULT_ACRATRANSLATOR_GRPC_PORT, "")
+		*incomingConnectionGRPCString = network.BuildConnectionString(network.GRPCScheme, cmd.DefaultAcraTranslatorGRPCHost, cmd.DefaultAcraTranslatorGRPCPort, "")
 		log.Infof("No incoming connection string is set: by default gRPC connections are being listen %v", *incomingConnectionGRPCString)
 	}
 
@@ -98,7 +98,7 @@ func main() {
 	config.SetServerID([]byte(*secureSessionID))
 	config.SetIncomingConnectionHTTPString(*incomingConnectionHTTPString)
 	config.SetIncomingConnectionGRPCString(*incomingConnectionGRPCString)
-	config.SetConfigPath(DEFAULT_CONFIG_PATH)
+	config.SetConfigPath(DefaultConfigPath)
 	config.SetDebug(*debug)
 	config.SetTraceToLog(cmd.IsTraceToLogOn())
 
@@ -107,12 +107,12 @@ func main() {
 	log.Infof("Initialising keystore...")
 	masterKey, err := keystore.GetMasterKeyFromEnvironment()
 	if err != nil {
-		log.WithError(err).Errorln("Can't load master key")
+		log.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantLoadMasterKey).WithError(err).Errorln("Can't load master key")
 		os.Exit(1)
 	}
 	scellEncryptor, err := keystore.NewSCellKeyEncryptor(masterKey)
 	if err != nil {
-		log.WithError(err).Errorln("Can't init scell encryptor")
+		log.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantInitPrivateKeysEncryptor).WithError(err).Errorln("Can't init scell encryptor")
 		os.Exit(1)
 	}
 	keyStore, err := filesystem.NewTranslatorFileSystemKeyStore(*keysDir, scellEncryptor, *keysCacheSize)
@@ -126,7 +126,7 @@ func main() {
 	// --------- Config  -----------
 	log.Infof("Configuring transport...")
 	log.Infof("Selecting transport: use Secure Session transport wrapper")
-	config.ConnectionWrapper, err = network.NewSecureSessionConnectionWrapper(keyStore)
+	config.ConnectionWrapper, err = network.NewSecureSessionConnectionWrapper([]byte(*secureSessionID), keyStore)
 	if err != nil {
 		log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorTransportConfiguration).
 			Errorln("Configuration error: can't initialize secure session connection wrapper")
@@ -168,12 +168,12 @@ func main() {
 		registerMetrics()
 		_, prometheusHTTPServer, err := cmd.RunPrometheusHTTPHandler(*prometheusAddress)
 		if err != nil {
-			log.WithError(err).WithField("incoming_connection_prometheus_metrics_string", *prometheusAddress).Errorln("Can't run prometheus handler")
+			log.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorPrometheusHTTPHandler).WithError(err).WithField("incoming_connection_prometheus_metrics_string", *prometheusAddress).Errorln("Can't run prometheus handler")
 			os.Exit(1)
 		}
 		log.Infof("Configured to send metrics and stats to `incoming_connection_prometheus_metrics_string`")
 		sigHandlerSIGTERM.AddCallback(func() {
-			log.Infoln("Stop prometheus http exporter")
+			log.Infoln("Stop prometheus HTTP exporter")
 			prometheusHTTPServer.Close()
 		})
 	}

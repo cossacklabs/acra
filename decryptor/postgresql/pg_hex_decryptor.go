@@ -20,11 +20,11 @@ import (
 	"bytes"
 	"encoding/binary"
 	"encoding/hex"
+	"github.com/cossacklabs/acra/logging"
 	"github.com/cossacklabs/acra/utils"
 	log "github.com/sirupsen/logrus"
 	"io"
 
-	"fmt"
 	"github.com/cossacklabs/acra/decryptor/base"
 	"github.com/cossacklabs/acra/keystore"
 	"github.com/cossacklabs/acra/zone"
@@ -64,14 +64,14 @@ type PgHexDecryptor struct {
 	//uint64 in hex
 	hexLengthBuf [base.DataLengthSize * 2]byte
 	keyStore     keystore.KeyStore
-	zoneMatcher  *zone.ZoneIDMatcher
+	zoneMatcher  *zone.Matcher
 
 	hexBuf []byte
 	buf    []byte
 	output []byte
 
-	poisonKey       []byte
-	callbackStorage *base.PoisonCallbackStorage
+	poisonKey []byte
+	logger    *log.Entry
 }
 
 // NewPgHexDecryptor returns new PgHexDecryptor without zone
@@ -80,7 +80,13 @@ func NewPgHexDecryptor() *PgHexDecryptor {
 		currentIndex:          0,
 		isWithZone:            false,
 		decodedKeyBlockBuffer: make([]byte, base.KeyBlockLength),
+		logger:                log.NewEntry(log.StandardLogger()),
 	}
+}
+
+// SetLogger set logger
+func (decryptor *PgHexDecryptor) SetLogger(logger *log.Entry) {
+	decryptor.logger = logger
 }
 
 /* check that buf has free space to append length bytes otherwise extend */
@@ -126,12 +132,12 @@ func (decryptor *PgHexDecryptor) ReadSymmetricKey(privateKey *keys.PrivateKey, r
 		return nil, decryptor.keyBlockBuffer[:n], err
 	}
 	if n != hex.EncodedLen(base.KeyBlockLength) {
-		log.Warningf("%v", utils.ErrorMessage("Can't decode hex data", err))
+		decryptor.logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCodingCantDecodeHexData).WithError(err).Warningln("Can't decode hex data")
 		return nil, decryptor.keyBlockBuffer[:n], base.ErrFakeAcraStruct
 	}
 	_, err = hex.Decode(decryptor.decodedKeyBlockBuffer[:], decryptor.keyBlockBuffer[:])
 	if err != nil {
-		log.Warningf("%v", utils.ErrorMessage("Can't decode hex data", err))
+		decryptor.logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCodingCantDecodeHexData).WithError(err).Warningln("Can't decode hex data")
 		return nil, decryptor.keyBlockBuffer[:n], base.ErrFakeAcraStruct
 	}
 	pubkey := &keys.PublicKey{Value: decryptor.decodedKeyBlockBuffer[:base.PublicKeyLength]}
@@ -148,25 +154,25 @@ func (decryptor *PgHexDecryptor) readDataLength(reader io.Reader) (uint64, []byt
 	var length uint64
 	lenCount, err := io.ReadFull(reader, decryptor.hexLengthBuf[:])
 	if err != nil {
-		log.Warningf("%v", utils.ErrorMessage("can't read data length", err))
+		decryptor.logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorDecryptorReadPacket).WithError(err).Warningln("Can't read data length")
 		if err == io.ErrUnexpectedEOF || err == io.EOF {
 			return 0, decryptor.hexLengthBuf[:lenCount], base.ErrFakeAcraStruct
 		}
 		return 0, decryptor.hexLengthBuf[:lenCount], err
 	}
 	if lenCount != len(decryptor.hexLengthBuf) {
-		log.Warningf("incorrect length count, %v!=%v", lenCount, len(decryptor.lengthBuf))
+		decryptor.logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorDecryptorReadPacket).Warningf("Incorrect length count, %v!=%v", lenCount, len(decryptor.lengthBuf))
 		return 0, decryptor.hexLengthBuf[:lenCount], base.ErrFakeAcraStruct
 	}
 
 	// decode hex length to binary length
 	n, err := hex.Decode(decryptor.lengthBuf[:], decryptor.hexLengthBuf[:])
 	if err != nil {
-		log.Warningf("%v", utils.ErrorMessage("Can't decode hex data", err))
+		decryptor.logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCodingCantDecodeHexData).WithError(err).Warningln("Can't decode hex data")
 		return 0, decryptor.hexLengthBuf[:lenCount], base.ErrFakeAcraStruct
 	}
 	if n != len(decryptor.lengthBuf) {
-		log.Warningf("%v", utils.ErrorMessage("Can't decode hex data", err))
+		decryptor.logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCodingCantDecodeHexData).WithError(err).Warningln("Can't decode hex data")
 		return 0, decryptor.hexLengthBuf[:lenCount], base.ErrFakeAcraStruct
 	}
 	// convert from little endian
@@ -180,7 +186,7 @@ func (decryptor *PgHexDecryptor) readScellData(length uint64, reader io.Reader) 
 	decryptor.checkBuf(&decryptor.buf, length)
 	n, err := io.ReadFull(reader, decryptor.hexBuf[:hexLength])
 	if err != nil {
-		log.Warningf("%v", utils.ErrorMessage(fmt.Sprintf("can't read scell data with passed length=%v", length), err))
+		decryptor.logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorDecryptorReadPacket).WithError(err).Warningf("Can't read scell data with passed length=%v", length)
 		if err == io.ErrUnexpectedEOF || err == io.EOF {
 			return nil, decryptor.hexBuf[:n], base.ErrFakeAcraStruct
 		}
@@ -191,20 +197,14 @@ func (decryptor *PgHexDecryptor) readScellData(length uint64, reader io.Reader) 
 	}
 	n, err = hex.Decode(decryptor.buf[:int(length)], decryptor.hexBuf[:hexLength])
 	if err != nil {
-		log.Warningf("%v", utils.ErrorMessage("Can't decode hex data", err))
+		decryptor.logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCodingCantDecodeHexData).WithError(err).Warningln("Can't decode hex data")
 		return nil, decryptor.hexBuf[:n], base.ErrFakeAcraStruct
 	}
 	if n != int(length) {
-		log.Warningf("%v", utils.ErrorMessage("Can't decode hex data", err))
+		decryptor.logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCodingCantDecodeHexData).Warningln("Can't decode hex data")
 		return nil, decryptor.hexBuf[:n], base.ErrFakeAcraStruct
 	}
 	return decryptor.buf[:int(length)], decryptor.hexBuf[:hexLength], nil
-}
-
-func (*PgHexDecryptor) getFullDataLength(dataLength uint64) int {
-	// original data is TagBegin+key_block+data_length+data
-	// output data length should be hex(original_data)
-	return hex.EncodedLen(len(base.TagBegin) + base.KeyBlockLength + 8 + int(dataLength))
 }
 
 // ReadData returns plaintext content from reader data, decrypting using SecureCell with ZoneID and symmetricKey

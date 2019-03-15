@@ -41,8 +41,8 @@ type HashedPasswords map[string]string
 
 // Constants used by AcraAuthManager
 var (
-	DEFAULT_CONFIG_PATH = utils.GetConfigPathByName("acra-authmanager")
-	SERVICE_NAME        = "acra-authmanager"
+	defaultConfigPath = utils.GetConfigPathByName("acra-authmanager")
+	serviceName       = "acra-authmanager"
 )
 
 // Constants used for Argon password manager
@@ -65,7 +65,7 @@ func (hp HashedPasswords) Bytes() (passwordBytes []byte) {
 }
 
 // WriteToFile writes encrypted names and password hashes to file
-func (hp HashedPasswords) WriteToFile(file string, keystore *filesystem.FilesystemKeyStore) error {
+func (hp HashedPasswords) WriteToFile(file string, keystore *filesystem.KeyStore) error {
 	key, err := keystore.GetAuthKey(false)
 	if err != nil {
 		return err
@@ -97,7 +97,7 @@ func (hp HashedPasswords) SetPassword(name, password string) (err error) {
 	return nil
 }
 
-func parseHtpasswdFile(file string, keystore *filesystem.FilesystemKeyStore) (passwords HashedPasswords, err error) {
+func parseHtpasswdFile(file string, keystore *filesystem.KeyStore) (passwords HashedPasswords, err error) {
 	htpasswdBytes, err := ioutil.ReadFile(file)
 	if err != nil {
 		return
@@ -140,7 +140,7 @@ func parseHtpasswd(htpasswdBytes []byte) (passwords HashedPasswords, err error) 
 	return
 }
 
-func removeUser(file, user string, keystore *filesystem.FilesystemKeyStore) error {
+func removeUser(file, user string, keystore *filesystem.KeyStore) error {
 	passwords, err := parseHtpasswdFile(file, keystore)
 	if err != nil {
 		return err
@@ -153,7 +153,7 @@ func removeUser(file, user string, keystore *filesystem.FilesystemKeyStore) erro
 	return passwords.WriteToFile(file, keystore)
 }
 
-func setPassword(file, name, password string, keystore *filesystem.FilesystemKeyStore) error {
+func setPassword(file, name, password string, keystore *filesystem.KeyStore) error {
 	_, err := os.Stat(file)
 	passwords := HashedPasswords(map[string]string{})
 	if err == nil {
@@ -174,12 +174,13 @@ func main() {
 	remove := flag.Bool("remove", false, "Remove user")
 	user := flag.String("user", "", "User")
 	password := flag.String("password", "", "Password")
-	filePath := flag.String("file", cmd.DEFAULT_ACRA_AUTH_PATH, "Auth file")
+	filePath := flag.String("file", cmd.DefaultAcraServerAuthPath, "Auth file")
 	keysDir := flag.String("keys_dir", keystore.DefaultKeyDirShort, "Folder from which will be loaded keys")
 	debug := flag.Bool("d", false, "Turn on debug logging")
 
-	if err := cmd.Parse(DEFAULT_CONFIG_PATH, SERVICE_NAME); err != nil {
-		log.WithError(err).Errorln("can't parse cmd arguments")
+	if err := cmd.Parse(defaultConfigPath, serviceName); err != nil {
+		log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantReadServiceConfig).
+			Errorln("Can't parse cmd args")
 		os.Exit(1)
 	}
 
@@ -193,12 +194,12 @@ func main() {
 
 	masterKey, err := keystore.GetMasterKeyFromEnvironment()
 	if err != nil {
-		log.WithError(err).Errorln("can't load master key")
+		log.WithError(err).Errorln("Can't load master key")
 		os.Exit(1)
 	}
 	encryptor, err := keystore.NewSCellKeyEncryptor(masterKey)
 	if err != nil {
-		log.WithError(err).Errorln("can't initialize scell encryptor")
+		log.WithError(err).Errorln("Can't initialize scell encryptor")
 		os.Exit(1)
 	}
 	keyStore, err := filesystem.NewFilesystemKeyStore(*keysDir, encryptor)

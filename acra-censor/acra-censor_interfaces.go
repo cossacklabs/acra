@@ -22,9 +22,13 @@ limitations under the License.
 // https://github.com/cossacklabs/acra/wiki/AcraCensor
 package acracensor
 
+import (
+	"github.com/cossacklabs/acra/sqlparser"
+)
+
 // QueryHandlerInterface describes what actions are available for queries.
 type QueryHandlerInterface interface {
-	CheckQuery(sqlQuery string) (bool, error) //1st return arg specifies whether continue verification or not, 2nd specifies whether query is forbidden
+	CheckQuery(sqlQuery string, parsedQuery sqlparser.Statement) (bool, error) //1st return arg specifies whether continue verification or not, 2nd specifies whether query is forbidden
 	Release()
 }
 

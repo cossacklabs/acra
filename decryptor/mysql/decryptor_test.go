@@ -2,6 +2,7 @@ package mysql
 
 import (
 	"encoding/base64"
+	"github.com/sirupsen/logrus"
 	"testing"
 
 	"crypto/rand"
@@ -70,11 +71,15 @@ func (*testKeystore) SaveConnectorKeypair(id []byte, keypair *keys.Keypair) erro
 	panic("implement me")
 }
 func (*testKeystore) SaveZoneKeypair(id []byte, keypair *keys.Keypair) error { panic("implement me") }
+func (*testKeystore) GetClientIDEncryptionPublicKey(clientID []byte) (*keys.PublicKey, error) {
+	panic("implement me")
+}
+func (*testKeystore) GetZonePublicKey(zoneID []byte) (*keys.PublicKey, error) { panic("implement me") }
 
-func getDecryptor(keystore keystore.KeyStore) *MySQLDecryptor {
-	dataDecryptor := binary.NewBinaryDecryptor()
+func getDecryptor(keystore keystore.KeyStore) *Decryptor {
+	dataDecryptor := binary.NewBinaryDecryptor(logrus.NewEntry(logrus.StandardLogger()))
 	clientID := []byte("some id")
-	pgDecryptor := postgresql.NewPgDecryptor(clientID, dataDecryptor)
+	pgDecryptor := postgresql.NewPgDecryptor(clientID, dataDecryptor, false, keystore)
 	decryptor := NewMySQLDecryptor(clientID, pgDecryptor, keystore)
 
 	poisonCallbackStorage := base.NewPoisonCallbackStorage()
@@ -92,10 +97,10 @@ func TestMySQLDecryptor_CheckPoisonRecord_Inline(t *testing.T) {
 
 	part1 := make([]byte, 1024)
 	part2 := make([]byte, 1024)
-	if _, err := rand.Read(part1); err != nil {
+	if _, err = rand.Read(part1); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := rand.Read(part2); err != nil {
+	if _, err = rand.Read(part2); err != nil {
 		t.Fatal(err)
 	}
 

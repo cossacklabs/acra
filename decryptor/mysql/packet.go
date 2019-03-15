@@ -67,40 +67,45 @@ func (array ByteArrayDump) Dump() []byte {
 	return array
 }
 
-// MysqlPacket struct that store header and payload, reads it from connection
-type MysqlPacket struct {
+// Packet struct that store header and payload, reads it from connection
+type Packet struct {
 	header []byte
 	data   []byte
 }
 
-// NewMysqlPacket returns new MysqlPacket
-func NewMysqlPacket() *MysqlPacket {
+// NewPacket returns new Packet
+func NewPacket() *Packet {
 	// https://dev.mysql.com/doc/internals/en/mysql-packet.html#idm140406396409840
 	// 3 bytes payload length and 1 byte of sequence_id
-	return &MysqlPacket{header: make([]byte, PacketHeaderSize)}
+	return &Packet{header: make([]byte, PacketHeaderSize)}
 }
 
 // GetPacketPayloadLength returns payload length from first 3 bytes of header
-func (packet *MysqlPacket) GetPacketPayloadLength() int {
+func (packet *Packet) GetPacketPayloadLength() int {
 	// first 3 bytes of header
 	// https://dev.mysql.com/doc/internals/en/mysql-packet.html#idm140406396409840
 	return int(uint32(packet.header[0]) | uint32(packet.header[1])<<8 | uint32(packet.header[2])<<16)
 }
 
 // GetSequenceNumber returned as byte
-func (packet *MysqlPacket) GetSequenceNumber() byte {
+func (packet *Packet) GetSequenceNumber() byte {
 	return packet.header[SequenceIDIndex]
 }
 
 // GetData returns packet payload
-func (packet *MysqlPacket) GetData() []byte {
+func (packet *Packet) GetData() []byte {
 	return packet.data
 }
 
 // SetData replace packet data with newData and update payload length in header
-func (packet *MysqlPacket) SetData(newData []byte) {
+func (packet *Packet) SetData(newData []byte) {
 	packet.data = newData
 	newSize := len(newData)
+	packet.updatePacketSize(newSize)
+}
+
+// updatePacketSize in header
+func (packet *Packet) updatePacketSize(newSize int) {
 	// update payload size, first 3 bytes of header
 	// https://dev.mysql.com/doc/internals/en/mysql-packet.html#idm140406396409840
 	packet.header[0] = byte(newSize)
@@ -108,9 +113,22 @@ func (packet *MysqlPacket) SetData(newData []byte) {
 	packet.header[2] = byte(newSize >> 16)
 }
 
+// replaceQuery replace query in payload with new and update header with new size
+func (packet *Packet) replaceQuery(newQuery string) {
+	if len(newQuery) > len(packet.data[1:]) {
+		// first byte CMD + new query
+		packet.data = append(packet.data[:1], []byte(newQuery)...)
+	} else {
+		// if new query less than before then reuse memory of previous query
+		n := copy(packet.data[1:], newQuery)
+		packet.data = packet.data[:1+n] // CMD + n
+	}
+	packet.updatePacketSize(len(newQuery) + 1)
+}
+
 // readPacket read header to struct and return payload as return result or error
-func (packet *MysqlPacket) readPacket(connection net.Conn) ([]byte, error) {
-	if _, err := connection.Read(packet.header); err != nil {
+func (packet *Packet) readPacket(connection net.Conn) ([]byte, error) {
+	if _, err := io.ReadFull(connection, packet.header); err != nil {
 		return nil, err
 	}
 
@@ -136,12 +154,12 @@ func (packet *MysqlPacket) readPacket(connection net.Conn) ([]byte, error) {
 }
 
 // Dump returns packet header and data as []byte
-func (packet *MysqlPacket) Dump() []byte {
+func (packet *Packet) Dump() []byte {
 	return append(packet.header, packet.data...)
 }
 
 // ReadPacket header and payload from connection or return error
-func (packet *MysqlPacket) ReadPacket(connection net.Conn) error {
+func (packet *Packet) ReadPacket(connection net.Conn) error {
 	data, err := packet.readPacket(connection)
 	if err == nil {
 		packet.data = data
@@ -150,7 +168,7 @@ func (packet *MysqlPacket) ReadPacket(connection net.Conn) error {
 }
 
 // IsEOF return true if packet is OkPacket or EOFPacket
-func (packet *MysqlPacket) IsEOF() bool {
+func (packet *Packet) IsEOF() bool {
 	// https://dev.mysql.com/doc/internals/en/packet-OK_Packet.html
 	// https://dev.mysql.com/doc/internals/en/packet-EOF_Packet.html
 	isOkPacket := packet.data[0] == OkPacket && packet.GetPacketPayloadLength() > 7
@@ -159,11 +177,11 @@ func (packet *MysqlPacket) IsEOF() bool {
 }
 
 // IsErr return true if packet has ErrPacket flag
-func (packet *MysqlPacket) IsErr() bool {
+func (packet *Packet) IsErr() bool {
 	return packet.data[0] == ErrPacket
 }
 
-func (packet *MysqlPacket) getServerCapabilities() int {
+func (packet *Packet) getServerCapabilities() int {
 	// https://dev.mysql.com/doc/internals/en/connection-phase-packets.html#idm140437490034448
 	endOfServerVersion := bytes.Index(packet.data[1:], []byte{0}) + 2 // 1 first byte of protocol version and 1 to point to next byte
 	// 4 bytes connection string + 8 bytes of auth plugin + 1 byte filler
@@ -171,7 +189,7 @@ func (packet *MysqlPacket) getServerCapabilities() int {
 	return int(binary.LittleEndian.Uint16(rawCapabilities))
 }
 
-func (packet *MysqlPacket) getServerCapabilitiesExtended() (int, error) {
+func (packet *Packet) getServerCapabilitiesExtended() (int, error) {
 	// https://dev.mysql.com/doc/internals/en/connection-phase-packets.html#idm140437490034448
 	endOfServerVersion := bytes.Index(packet.data[1:], []byte{0}) + 2 // 1 first byte of protocol version and 1 to point to next byte
 	// 4 bytes connection string + 8 bytes of auth plugin + 1 byte filler
@@ -186,38 +204,38 @@ func (packet *MysqlPacket) getServerCapabilitiesExtended() (int, error) {
 }
 
 // ServerSupportProtocol41 if server supports client_protocol_41
-func (packet *MysqlPacket) ServerSupportProtocol41() bool {
+func (packet *Packet) ServerSupportProtocol41() bool {
 	capabilities := packet.getServerCapabilities()
 	return (capabilities & ClientProtocol41) > 0
 }
 
-func (packet *MysqlPacket) getClientCapabilities() uint32 {
+func (packet *Packet) getClientCapabilities() uint32 {
 	// https://dev.mysql.com/doc/internals/en/connection-phase-packets.html#idm140437489940880
 	return binary.LittleEndian.Uint32(packet.data[:4])
 }
 
 // ClientSupportProtocol41 if client supports client_protocol_41
-func (packet *MysqlPacket) ClientSupportProtocol41() bool {
+func (packet *Packet) ClientSupportProtocol41() bool {
 	capabilities := packet.getClientCapabilities()
 	return (capabilities & ClientProtocol41) > 0
 }
 
 // IsSSLRequest return true if SslRequest flag up
-func (packet *MysqlPacket) IsSSLRequest() bool {
+func (packet *Packet) IsSSLRequest() bool {
 	capabilities := packet.getClientCapabilities()
 	return (capabilities & SslRequest) > 0
 }
 
 // IsClientDeprecateEOF return true if flag set
 // https://dev.mysql.com/doc/internals/en/capability-flags.html#flag-CLIENT_DEPRECATE_EOF
-func (packet *MysqlPacket) IsClientDeprecateEOF() bool {
+func (packet *Packet) IsClientDeprecateEOF() bool {
 	capabilities := packet.getClientCapabilities()
 	return (capabilities & ClientDeprecateEOF) > 0
 }
 
-// ReadPacket from connection and return MysqlPacket struct with data or error
-func ReadPacket(connection net.Conn) (*MysqlPacket, error) {
-	packet := NewMysqlPacket()
+// ReadPacket from connection and return Packet struct with data or error
+func ReadPacket(connection net.Conn) (*Packet, error) {
+	packet := NewPacket()
 	err := packet.ReadPacket(connection)
 	if err != nil {
 		return nil, err

@@ -1,5 +1,167 @@
 # Acra ChangeLog
 
+## [0.85.0](https://github.com/cossacklabs/acra/releases/tag/0.85), March 7th 2018
+
+_Core_:
+
+- **Breaking changes:** 
+
+  Introducing a new more flexible configuration format for AcraCensor rules. AcraCensor doesn't support the old format, all users should migrate (don't worry, it's a simple procedure).
+
+- **Search through encrypted data**
+
+  You now can run SQL queries over encrypted AcraStructs allowing users to search through sensitive data without exposing it. This feature is only available in [Acra Enterprise version](https://www.cossacklabs.com/acra/#pricing).
+
+- **Transparent proxy mode**
+
+  _TLDR:_ Transparent proxy mode allows you to configure AcraServer to encrypt records in specific database columns without altering the application code.
+
+  The application flow doesn't need to change: application sends SQL requests through AcraConnector and AcraServer to the database. AcraServer parses each request, encrypts the desired values into AcraStructs, and passes the modified requests to the database. To retrieve the decrypted data, your application talks to AcraServer again: upon receiving the database response, AcraServer tries to detect AcraStructs, decrypts them, and returns the decrypted data to the application.
+
+  Transparent proxy mode is useful for large distributed applications where updating the source code of each client app separately would be complicated.
+
+  To enable this mode, you need to create a separate encryptor configuration file (`acra-encryptor.yaml`) that describes which columns to encrypt and provide a path to it in the AcraServer configuration file (or via CLI params `--encryptor_config_file=acra-encryptor.yaml`).
+
+  Read more details in the Readme and in the [Acra documentation](https://docs.cossacklabs.com/products/acra/) section dedicated to Transparent encryption.
+
+  ([#285](https://github.com/cossacklabs/acra/pull/285), [#309](https://github.com/cossacklabs/acra/pull/309), [#314](https://github.com/cossacklabs/acra/pull/314)).
+
+- **AcraCensor – SQL firewall to prevent SQL injections**
+  
+  _TLDR:_ Improved stability of AcraCensor, switched to more flexible rules' configuration.
+
+  _Breaking changes:_ Introducing a new format for configuration files, the previous format is no longer supported, you should migrate to the new one.
+  
+  - New configuration file format allows configuring the allowlist and the denylist separately or simultaneously.
+  
+    The `allow` handler allows something specific and restricts/forbids everything else. The `allowall` handler should be a final statement as that means that all the other queries will be allowed.
+    
+    The `deny` handler allows everything and forbids something specific. The `denyall` means "block all queries!" (that haven't been allowed or ignored before).
+    
+    For each handler, there are settings that regulate queries, tables, and patterns. The order of priority for the lists is defined by their position in the configuration file. The processing priority for each list is as follows: queries, followed by tables, followed by patterns.
+    
+    ([#298](https://github.com/cossacklabs/acra/pull/298), [#297](https://github.com/cossacklabs/acra/pull/297), [#304](https://github.com/cossacklabs/acra/pull/304), [#306](https://github.com/cossacklabs/acra/pull/306)).
+    
+    Read more in [AcraCensor docs](https://docs.cossacklabs.com/pages/documentation-acra/#acracensor-acra-s-firewall).
+  
+  - Added version to the configuration file. This allows detecting an outdated configuration easily. From now on, AcraCensor supports explicit configuration version and logs errors if the configuration is not valid ([#321](https://github.com/cossacklabs/acra/pull/321)).
+
+  - Improved parsing of SQL queries with prepared statements ([#303](https://github.com/cossacklabs/acra/pull/303), [#283](https://github.com/cossacklabs/acra/pull/283)).
+  
+  - Improved error handling for queries that AcraCensor can't parse ([#291](https://github.com/cossacklabs/acra/pull/291), [#284](https://github.com/cossacklabs/acra/pull/284)).
+
+  - Added ability to log unparsed queries to a separate log file for the debugging and configuration purposes. Sometimes AcraCensor can't parse all of the incoming queries and it is useful to have a separate log for them. 
+    
+    How to use it: Provide the path to the unparsed queries log file in the configuration file `parse_errors_log: unparsed_queries.log` ([#295](https://github.com/cossacklabs/acra/pull/295)).
+
+  - Improved support of PostgreSQL queries (`"RETURNING"` clause) and quoted identifiers (now you can use `"tablename"` and `WHERE "column"=1`) ([#296](https://github.com/cossacklabs/acra/pull/296)).
+
+  - Fixed the bug in QueryCapture log that caused duplicated of records in the log to appear ([#318](https://github.com/cossacklabs/acra/pull/318)).
+
+- **AcraServer**
+
+  - Fixed handling of null-size packets in PostgreSQL protocol ([#286](https://github.com/cossacklabs/acra/pull/286)).
+
+  - Fixed handling of setting a custom connection API port  ([#294](https://github.com/cossacklabs/acra/pull/294)).
+
+  - Fixed handling of the plain text data response: if the database returns a plain text response, it is redirected "as is" ([#305](https://github.com/cossacklabs/acra/pull/305)).
+  
+  - Fixed handling of casted placeholders in expressions like `SELECT $1::type1::type2 FROM table1 WHERE column1=$2::type3::type4` ([#328](https://github.com/cossacklabs/acra/pull/328)).
+
+  - Improved code quality (some refactoring here and there) ([#302](https://github.com/cossacklabs/acra/pull/302), [#301](https://github.com/cossacklabs/acra/pull/301)).
+
+- **AcraServer, AcraTranslator, AcraConnector**
+
+  - Refactored logs and error messages got even more descriptive and user-friendly ([#312](https://github.com/cossacklabs/acra/pull/312), [#299](https://github.com/cossacklabs/acra/pull/299), [#317](https://github.com/cossacklabs/acra/pull/317)).
+
+  - Added on-start version logging to make it easier to understand which version is running ([#319](https://github.com/cossacklabs/acra/pull/319)).
+
+  - Added versioning for configuration files of each service ([#322](https://github.com/cossacklabs/acra/pull/322)).
+
+  - Added exporting version to metrics ([#330](https://github.com/cossacklabs/acra/pull/330), [#320](https://github.com/cossacklabs/acra/pull/320)).
+  
+  - Updated some configuration parameters descriptions for better user-friendliness (please see our docs of [AcraConnector](https://docs.cossacklabs.com/pages/documentation-acra/#changing-configuration-options-for-acraconnector) and [AcraServer](https://docs.cossacklabs.com/pages/documentation-acra/#acraserver-configuration-files) for detailed descriptions of each parameter and usage examples) ([#329](https://github.com/cossacklabs/acra/pull/329)).
+
+- **AcraWriter**
+
+  - Updated AcraWriter for ActiveRecord (Ruby), fixed dependencies, added support of mysql2 adapter ([#287](https://github.com/cossacklabs/acra/pull/287)).
+
+  - Updated AcraWriter for Django (Python), fixed potential encoding issues ([#293](https://github.com/cossacklabs/acra/pull/293), [#292](https://github.com/cossacklabs/acra/pull/292)).
+
+  - Updated AcraWriter for C++, improved cpp codec usage ([#290](https://github.com/cossacklabs/acra/pull/290), [#289](https://github.com/cossacklabs/acra/pull/289)).
+
+  - Added bitcode for AcraWriter iOS and added Swift example project ([#327](https://github.com/cossacklabs/acra/pull/327), [#326](https://github.com/cossacklabs/acra/pull/326), [#325](https://github.com/cossacklabs/acra/pull/325), [#324](https://github.com/cossacklabs/acra/pull/324), [#323](https://github.com/cossacklabs/acra/pull/323), [#323](https://github.com/cossacklabs/acra/pull/323), [#307](https://github.com/cossacklabs/acra/pull/307)).
+
+  - Improved distribution of AcraWriter for Android, now it's available via Maven ([#310](https://github.com/cossacklabs/acra/pull/310)).
+
+- **Other**
+
+  - Added more tests and then — added even more tests. We just love automating things! ([#331](https://github.com/cossacklabs/acra/pull/331), [#311](https://github.com/cossacklabs/acra/pull/311), [#308](https://github.com/cossacklabs/acra/pull/308), [#292](https://github.com/cossacklabs/acra/pull/292)).
+
+  - Updated the version of pyyaml used in the tests due to [CVE-2017-18342](https://nvd.nist.gov/vuln/detail/CVE-2017-18342). This change doesn't affect the users of Acra, it only affects our test suite ([#300](https://github.com/cossacklabs/acra/pull/300)).
+
+
+_Infrastructure_:
+
+- Updated Docker files, added more comments, and updated Go version ([#313](https://github.com/cossacklabs/acra/pull/313), [#288](https://github.com/cossacklabs/acra/pull/288)).
+
+
+_Example projects and demos_:
+
+- [iOS Swift example project](https://github.com/cossacklabs/acra/tree/master/examples/swift) that shows how to generate AcraStructs with and without Zones.
+
+- [Android example project](https://github.com/cossacklabs/acra/tree/master/examples/android_java) that shows how to integrate AcraWriter library into Android app using maven, and then to generate AcraStructs with and without Zones, and to decrypt them using AcraTranslator.
+
+- [AcraCensor demo](https://github.com/cossacklabs/acra-censor-demo) that shows how to configure AcraCensor for SQL injections prevention in OWASP Mutillidae 2 example app.
+
+- [Protecting data in a Rails application demo](https://github.com/cossacklabs/acra-engineering-demo#protecting-data-in-a-rails-application) based on AcraServer, PostgreSQL, and Ruby on Rails client application.
+
+- [Protecting metrics in TimescaleDB demo](https://github.com/cossacklabs/acra-engineering-demo#protecting-metrics-in-timescaledb) based on AcraServer, TimescaleDB, and Grafana.
+
+- [Transparent proxy mode demo](https://github.com/cossacklabs/acra-engineering-demo#protecting-data-on-django-based-web-site) that shows how to configure AcraServer in Transparent proxy mode to protect Django-based application.
+
+
+_Related blog posts_:
+
+- [The difference between SQL firewalls and Web Application Firewalls](https://www.cossacklabs.com/blog/sql-firewall-vs-waf-against-sqli.html).
+
+- [Engineering details on how we built AcraCensor](https://www.cossacklabs.com/blog/how-to-build-sql-firewall-acracensor.html).
+
+
+_Features coming soon_:
+
+- Pseudonymisation: an early version of pseudonymisation library/plugin for Acra for transparent data pseudonymisation.
+
+- Cryptographically protected audit log: protection for logs against tampering.
+
+
+_Documentation_:
+
+- Updated [AcraServer documentation](https://docs.cossacklabs.com/pages/documentation-acra/#server-side-acraserver) to describe Transparent mode in more details.
+
+- Updated [AcraCensor documentation](https://docs.cossacklabs.com/pages/documentation-acra/#acracensor-acra-s-firewall) to describe the new configuration format and procedures for migration from the previous one.
+
+- Updated [AcraWriter documentation](https://docs.cossacklabs.com/pages/documentation-acra/#client-side-acraconnector-and-acrawriter) for iOS and Android to reflect the improved installation ways.
+
+
+## [0.84.2](https://github.com/cossacklabs/acra/releases/tag/0.84.2), February 19th 2019
+
+_Hotfix_:
+
+Fixed an issue in communication between AcraServer and PostgreSQL that caused AcraServer to stop processing connection due to an unexpected error in parsing packets. The issue occurred when the last data in data row column from PostgreSQL came with empty data (0 bytes).
+
+Details: [#315](https://github.com/cossacklabs/acra/pull/315)
+
+
+## [0.84.1](https://github.com/cossacklabs/acra/releases/tag/0.84.1), January 25th 2019
+
+_Hotfix_:
+
+Fixed an issue in the communication of AcraServer with some specific ORMs (xorm to be precise) with MySQL database. In some cases, when a database has plaintext data, AcraServer cannot decrypt it (which is OK), but it also propagated the decryption error and closed the connection (which is not OK and is fixed now).
+
+Details: [#305](https://github.com/cossacklabs/acra/pull/305)
+
+
 ## [0.84.0](https://github.com/cossacklabs/acra/releases/tag/0.84), November 9th 2018
 
 _Core_:

@@ -1,3 +1,4 @@
+version: 0.84.2
 # Port of Acra HTTP API
 acraserver_api_connection_port: 9090
 
@@ -19,7 +20,7 @@ acraserver_securesession_id: acra_server
 # Use tls to encrypt transport between AcraServer and AcraConnector/client
 acraserver_tls_transport_enable: false
 
-# Use raw transport (tcp/unix socket) between acraserver and acraproxy/client (don't use this flag if you not connect to database with ssl/tls
+# Enable this flag to omit AcraConnector and connect client app to AcraServer directly using raw transport (tcp/unix socket). From security perspective please use at least TLS encryption (over tcp socket) between AcraServer and client app.
 acraserver_transport_encryption_disable: false
 
 # IP or domain to AcraTranslator daemon
@@ -61,7 +62,7 @@ incoming_connection_api_string: tcp://127.0.0.1:9191/
 # Port to AcraConnector
 incoming_connection_port: 9494
 
-# URL which will be used to expose Prometheus metrics (use <URL>/metrics address to pull metrics)
+# URL (tcp://host:port) which will be used to expose Prometheus metrics (use <URL>/metrics address to pull metrics)
 incoming_connection_prometheus_metrics_string: 
 
 # Connection string like tcp://x.x.x.x:yyyy or unix:///path/to/socket

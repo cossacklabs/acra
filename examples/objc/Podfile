@@ -6,10 +6,10 @@ inhibit_all_warnings!
 use_frameworks!
 
 target :"AcraWriterUsage" do
-	pod 'acrawriter', '1.0.0'
+	pod 'acrawriter', '1.0.3'
 end
 
 
 target "AcraWriterUsageTests" do
-	pod 'acrawriter', '1.0.0'
+	pod 'acrawriter', '1.0.3'
 end

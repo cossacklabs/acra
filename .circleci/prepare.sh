@@ -5,7 +5,7 @@ cd $HOME && for version in $VERSIONS; do mkdir go_root_$version; cd go_root_$ver
 mkdir $HOME/$GOPATH_FOLDER
 cd $HOME && mkdir -p $HOME/$GOPATH_FOLDER/src/github.com/cossacklabs/themis; mkdir -p $HOME/$GOPATH_FOLDER/src/github.com/cossacklabs/acra; ln -s $HOME/themis/gothemis $HOME/$GOPATH_FOLDER/src/github.com/cossacklabs/themis/gothemis; cp -r $HOME/project/* $HOME/$GOPATH_FOLDER/src/github.com/cossacklabs/acra/
 cd $HOME && GOPATH=$HOME/$GOPATH_FOLDER go get -d github.com/cossacklabs/acra/...
-pip3 install -r $HOME/project/tests/requirements.txt
+pip3 install -r $HOME/project/tests/requirements.txt -r $HOME/project/wrappers/python/acrawriter/test-requirements.txt
 # install from sources because pip install git+https://github.com/mysql/mysql-connector-python not support recursive submodules
 git clone https://github.com/Lagovas/mysql-connector-python; cd mysql-connector-python; sudo python3 setup.py clean build_py install_lib
 cd $HOME && GOPATH=$HOME/$GOPATH_FOLDER go get -u -v golang.org/x/lint/golint

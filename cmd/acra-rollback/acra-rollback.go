@@ -47,14 +47,14 @@ import (
 
 // Constants used by AcraRollback
 var (
-	// DEFAULT_CONFIG_PATH relative path to config which will be parsed as default
-	DEFAULT_CONFIG_PATH = utils.GetConfigPathByName("acra-rollback")
-	SERVICE_NAME        = "acra-rollback"
+	// defaultConfigPath relative path to config which will be parsed as default
+	defaultConfigPath = utils.GetConfigPathByName("acra-rollback")
+	serviceName       = "acra-rollback"
 )
 
 // ErrorExit prints error and exits.
 func ErrorExit(msg string, err error) {
-	fmt.Println(utils.ErrorMessage(msg, err))
+	log.WithError(err).Errorln(msg)
 	os.Exit(1)
 }
 
@@ -125,7 +125,7 @@ func (ex *WriteToFileExecutor) Execute(data []byte) {
 	outputSQL := strings.Replace(ex.sql, PLACEHOLDER, encoded, 1)
 	n, err := ex.writer.Write([]byte(outputSQL))
 	if err != nil {
-		ErrorExit("can't write to output file", err)
+		ErrorExit("Can't write to output file", err)
 	}
 	if n != len(outputSQL) {
 		fmt.Println("Incorrect write count")
@@ -133,7 +133,7 @@ func (ex *WriteToFileExecutor) Execute(data []byte) {
 	}
 	n, err = ex.writer.Write(NEWLINE)
 	if err != nil {
-		ErrorExit("can't write newline char to output file", err)
+		ErrorExit("Can't write newline char to output file", err)
 	}
 	if n != 1 {
 		fmt.Println("Incorrect write count")
@@ -143,9 +143,15 @@ func (ex *WriteToFileExecutor) Execute(data []byte) {
 
 // Close file
 func (ex *WriteToFileExecutor) Close() {
-	ex.writer.Flush()
-	ex.file.Sync()
-	ex.file.Close()
+	if err := ex.writer.Flush(); err != nil {
+		log.WithError(err).Errorln("Can't flush data in writer")
+	}
+	if err := ex.file.Sync(); err != nil {
+		log.WithError(err).Errorln("Can't sync file")
+	}
+	if err := ex.file.Close(); err != nil {
+		log.WithError(err).Errorln("Can't close file")
+	}
 }
 
 func main() {
@@ -163,9 +169,10 @@ func main() {
 
 	logging.SetLogLevel(logging.LogVerbose)
 
-	err := cmd.Parse(DEFAULT_CONFIG_PATH, SERVICE_NAME)
+	err := cmd.Parse(defaultConfigPath, serviceName)
 	if err != nil {
-		log.WithError(err).Errorln("Can't parse args")
+		log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantReadServiceConfig).
+			Errorln("Can't parse args")
 		os.Exit(1)
 	}
 

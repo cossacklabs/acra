@@ -4,7 +4,7 @@
 # golint print issues it found in source files
 # count lines with wc and check that N lines was in output
 result=$($GOPATH/bin/golint ./... | wc -l)
-if [[ $result -gt 150 ]]; then
+if [[ $result -gt 10 ]]; then
   # too many golint issues
   echo "Too many golint issues: $result"
   exit 1;

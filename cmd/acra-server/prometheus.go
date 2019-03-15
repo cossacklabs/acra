@@ -16,12 +16,12 @@ limitations under the License.
 package main
 
 import (
+	"github.com/cossacklabs/acra/cmd"
 	"github.com/cossacklabs/acra/decryptor/base"
+	"github.com/cossacklabs/acra/utils"
 	"github.com/prometheus/client_golang/prometheus"
 	"sync"
 )
-
-type connectionType string
 
 const (
 	connectionTypeLabel = "connection_type"
@@ -51,5 +51,11 @@ func registerMetrics() {
 		prometheus.MustRegister(connectionProcessingTimeHistogram)
 		base.RegisterAcraStructProcessingMetrics()
 		base.RegisterDbProcessingMetrics()
+		version, err := utils.GetParsedVersion()
+		if err != nil {
+			panic(err)
+		}
+		cmd.RegisterVersionMetrics(ServiceName, version)
+		cmd.RegisterBuildInfoMetrics(ServiceName, utils.CommunityEdition)
 	})
 }

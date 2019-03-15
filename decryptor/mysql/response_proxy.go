@@ -27,7 +27,7 @@ import (
 	"time"
 
 	"github.com/cossacklabs/acra/acra-censor"
-	"github.com/cossacklabs/acra/acra-censor/handlers"
+	"github.com/cossacklabs/acra/acra-censor/common"
 	"github.com/cossacklabs/acra/decryptor/base"
 	"github.com/cossacklabs/acra/logging"
 	"github.com/cossacklabs/acra/network"
@@ -45,98 +45,98 @@ const (
 )
 
 // Possible commands
+// comment unused to avoid linter's warnings abous unused constant but leave correct order to re-use it in a future
 const (
-	COM_SLEEP byte = iota
-	COM_QUIT
-	COM_INIT_DB
-	COM_QUERY
-	COM_FIELD_LIST
-	COM_CREATE_DB
-	COM_DROP_DB
-	COM_REFRESH
-	COM_SHUTDOWN
-	COM_STATISTICS
-	COM_PROCESS_INFO
-	COM_CONNECT
-	COM_PROCESS_KILL
-	COM_DEBUG
-	COM_PING
-	COM_TIME
-	COM_DELAYED_INSERT
-	COM_CHANGE_USER
-	COM_BINLOG_DUMP
-	COM_TABLE_DUMP
-	COM_CONNECT_OUT
-	COM_REGISTER_SLAVE
-	COM_STMT_PREPARE
-	COM_STMT_EXECUTE
-	COM_STMT_SEND_LONG_DATA
-	COM_STMT_CLOSE
-	COM_STMT_RESET
-	COM_SET_OPTION
-	COM_STMT_FETCH
-	COM_DAEMON
-	COM_BINLOG_DUMP_GTID
-	COM_RESET_CONNECTION
+	_ byte = iota // CommandSleep
+	CommandQuit
+	_ // CommandInitDB
+	CommandQuery
+	_ // CommandFieldList
+	_ // CommandCreateDB
+	_ // CommandDropDB
+	_ // CommandRefresh
+	_ // CommandShutdown
+	_ // CommandStatistics
+	_ // CommandProcessInfo
+	_ // CommandConnect
+	_ // CommandProcessKill
+	_ // CommandDebug
+	_ // CommandPing
+	_ // CommandTime
+	_ // CommandDelayedInsert
+	_ // CommandChangeUser
+	_ // CommandBinLogDump
+	_ // CommandTableDump
+	_ // CommandConnectOut
+	_ // CommandRegisterSlave
+	CommandStatementPrepare
+	CommandStatementExecute
+	CommandStatementSendLongData
+	CommandStatementClose
+	CommandStatementReset
+	_ // CommandSetOption
+	_ // CommandStatementFetch
+	_ // CommandDaemon
+	_ // CommandBinLogDumpGTID
+	_ // CommandResetConnection
 )
 
 // Binary ColumnTypes https://dev.mysql.com/doc/internals/en/com-query-response.html#column-type
 const (
-	MYSQL_TYPE_DECIMAL byte = iota
-	MYSQL_TYPE_TINY
-	MYSQL_TYPE_SHORT
-	MYSQL_TYPE_LONG
-	MYSQL_TYPE_FLOAT
-	MYSQL_TYPE_DOUBLE
-	MYSQL_TYPE_NULL
-	MYSQL_TYPE_TIMESTAMP
-	MYSQL_TYPE_LONGLONG
-	MYSQL_TYPE_INT24
-	MYSQL_TYPE_DATE
-	MYSQL_TYPE_TIME
-	MYSQL_TYPE_DATETIME
-	MYSQL_TYPE_YEAR
-	MYSQL_TYPE_NEWDATE
-	MYSQL_TYPE_VARCHAR
-	MYSQL_TYPE_BIT
+	TypeDecimal byte = iota
+	TypeTiny
+	TypeShort
+	TypeLong
+	TypeFloat
+	TypeDouble
+	TypeNull
+	TypeTimestamp
+	TypeLongLong
+	TypeInt24
+	TypeDate
+	TypeTime
+	TypeDatetime
+	TypeYear
+	TypeNewDate
+	TypeVarchar
+	TypeBit
 )
 
 // MySQL types
 const (
-	MysqlTypeNewDecimal byte = iota + 0xf6
-	MysqlTypeEnum
-	MysqlTypeSet
-	MysqlTypeTinyBlob
-	MysqlTypeMediumBlob
-	MysqlTypeLongBlob
-	MysqlTypeBlob
-	MysqlTypeVarString
-	MysqlTypeString
-	MysqlTypeGeometry
+	TypeNewDecimal byte = iota + 0xf6
+	TypeEnum
+	TypeSet
+	TypeTinyBlob
+	TypeMediumBlob
+	TypeLongBlob
+	TypeBlob
+	TypeVarString
+	TypeString
+	TypeGeometry
 )
 
 // IsBinaryColumn returns if column is binary data
 func IsBinaryColumn(value byte) bool {
-	isBlob := value >= MysqlTypeTinyBlob && value <= MysqlTypeBlob
-	isString := value == MysqlTypeVarString || value == MysqlTypeString
-	return isString || isBlob || value == MYSQL_TYPE_VARCHAR
+	isBlob := value >= TypeTinyBlob && value <= TypeBlob
+	isString := value == TypeVarString || value == TypeString
+	return isString || isBlob || value == TypeVarchar
 }
 
 // ResponseHandler database response header
-type ResponseHandler func(packet *MysqlPacket, dbConnection, clientConnection net.Conn) error
+type ResponseHandler func(ctx context.Context, packet *Packet, dbConnection, clientConnection net.Conn) error
 
-func defaultResponseHandler(packet *MysqlPacket, dbConnection, clientConnection net.Conn) error {
+func defaultResponseHandler(ctx context.Context, packet *Packet, _, clientConnection net.Conn) error {
 	if _, err := clientConnection.Write(packet.Dump()); err != nil {
 		return err
 	}
 	return nil
 }
 
-// MysqlHandler handles connection between client and MySQL db
-type MysqlHandler struct {
+// Handler handles connection between client and MySQL db
+type Handler struct {
 	responseHandler      ResponseHandler
 	clientSequenceNumber int
-	serverSequenceNumber int
 	clientProtocol41     bool
 	serverProtocol41     bool
 	currentCommand       byte
@@ -149,21 +149,24 @@ type MysqlHandler struct {
 	clientConnection       net.Conn
 	dbConnection           net.Conn
 	tlsConfig              *tls.Config
-	clientID               []byte
 	logger                 *logrus.Entry
 	ctx                    context.Context
+	queryObserverManager   base.QueryObserverManager
 }
 
-// NewMysqlHandler returns new MysqlHandler
-func NewMysqlHandler(ctx context.Context, clientID []byte, decryptor base.Decryptor, dbConnection, clientConnection net.Conn, tlsConfig *tls.Config, censor acracensor.AcraCensorInterface) (*MysqlHandler, error) {
-	logger := logging.NewLoggerWithTrace(ctx)
+// NewMysqlProxy returns new Handler
+func NewMysqlProxy(ctx context.Context, decryptor base.Decryptor, dbConnection, clientConnection net.Conn, tlsConfig *tls.Config, censor acracensor.AcraCensorInterface) (*Handler, error) {
 	var newTLSConfig *tls.Config
 	if tlsConfig != nil {
 		// use less secure protocol versions because some drivers and db images doesn't support secure and modern options
 		newTLSConfig = tlsConfig.Clone()
 		network.SetMySQLCompatibleTLSSettings(newTLSConfig)
 	}
-	return &MysqlHandler{
+	observerManager, err := base.NewArrayQueryObserverableManager(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return &Handler{
 		isTLSHandshake:         false,
 		dbTLSHandshakeFinished: make(chan bool),
 		clientDeprecateEOF:     false,
@@ -174,23 +177,35 @@ func NewMysqlHandler(ctx context.Context, clientID []byte, decryptor base.Decryp
 		dbConnection:           dbConnection,
 		tlsConfig:              newTLSConfig,
 		ctx:                    ctx,
-		logger:                 logger.WithField("client_id", string(clientID))}, nil
+		logger:                 logging.GetLoggerFromContext(ctx),
+		queryObserverManager:   observerManager,
+	}, nil
 }
 
-func (handler *MysqlHandler) setQueryHandler(callback ResponseHandler) {
+// AddQueryObserver implement QueryObservable interface and proxy call to ObserverManager
+func (handler *Handler) AddQueryObserver(obs base.QueryObserver) {
+	handler.queryObserverManager.AddQueryObserver(obs)
+}
+
+// RegisteredObserversCount return count of registered observers
+func (handler *Handler) RegisteredObserversCount() int {
+	return handler.queryObserverManager.RegisteredObserversCount()
+}
+
+func (handler *Handler) setQueryHandler(callback ResponseHandler) {
 	handler.responseHandler = callback
 }
-func (handler *MysqlHandler) resetQueryHandler() {
+func (handler *Handler) resetQueryHandler() {
 	handler.responseHandler = defaultResponseHandler
 }
 
-func (handler *MysqlHandler) getResponseHandler() ResponseHandler {
+func (handler *Handler) getResponseHandler() ResponseHandler {
 	return handler.responseHandler
 }
 
-// ClientToDbConnector connects to database, writes data and executes DB commands
-func (handler *MysqlHandler) ClientToDbConnector(errCh chan<- error) {
-	ctx, span := trace.StartSpan(handler.ctx, "ClientToDbConnector")
+// ProxyClientConnection connects to database, writes data and executes DB commands
+func (handler *Handler) ProxyClientConnection(errCh chan<- error) {
+	ctx, span := trace.StartSpan(handler.ctx, "ProxyClientConnection")
 	defer span.End()
 	clientLog := handler.logger.WithField("proxy", "client")
 	clientLog.Debugln("Start proxy client's requests")
@@ -212,7 +227,7 @@ func (handler *MysqlHandler) ClientToDbConnector(errCh chan<- error) {
 		timerObserveFunc = timer.ObserveDuration
 
 		packetSpanEndFunc()
-		packetSpanCtx, packetSpan := trace.StartSpan(ctx, "ClientToDbConnectorLoop")
+		packetSpanCtx, packetSpan := trace.StartSpan(ctx, "ProxyClientConnectionLoop")
 		packetSpanEndFunc = packetSpan.End
 
 		packet, err := ReadPacket(handler.clientConnection)
@@ -231,7 +246,7 @@ func (handler *MysqlHandler) ClientToDbConnector(errCh chan<- error) {
 			clientLog = clientLog.WithField("deprecate_eof", handler.clientDeprecateEOF)
 			if packet.IsSSLRequest() {
 				if handler.tlsConfig == nil {
-					handler.logger.Errorln("To support TLS connections you must pass TLS key and certificate for AcraServer that will be used " +
+					handler.logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorDecryptorCantInitializeTLS).Errorln("To support TLS connections you must pass TLS key and certificate for AcraServer that will be used " +
 						"for connections AcraServer->Database and CA certificate which will be used to verify certificate " +
 						"from database")
 					handler.logger.Debugln("Send error to db")
@@ -255,7 +270,7 @@ func (handler *MysqlHandler) ClientToDbConnector(errCh chan<- error) {
 				handler.isTLSHandshake = true
 				handler.clientConnection = tlsConnection
 				if _, err := handler.dbConnection.Write(packet.Dump()); err != nil {
-					clientLog.Debugln("Can't write send packet to db")
+					clientLog.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorNetworkWrite).WithError(err).Debugln("Can't write send packet to db")
 					errCh <- err
 					return
 				}
@@ -269,25 +284,23 @@ func (handler *MysqlHandler) ClientToDbConnector(errCh chan<- error) {
 
 					continue
 				case <-time.NewTicker(time.Second * ClientWaitDbTLSHandshake).C:
-					clientLog.Errorln("Timeout on tls handshake with db")
+					clientLog.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorDecryptorCantInitializeTLS).Errorln("Timeout on tls handshake with db")
 					errCh <- errors.New("handshake timeout")
 					return
 				}
-				continue
 			}
 		}
 		handler.clientSequenceNumber = int(packet.GetSequenceNumber())
 		clientLog = clientLog.WithField("sequence_number", handler.clientSequenceNumber)
 		clientLog.Debugln("New packet")
-		inOutput := packet.Dump()
 		data := packet.GetData()
 		cmd := data[0]
 		data = data[1:]
 		handler.currentCommand = cmd
 		switch cmd {
-		case COM_QUIT:
-			clientLog.Debugln("Close connections on COM_QUIT command")
-			if _, err := handler.dbConnection.Write(inOutput); err != nil {
+		case CommandQuit:
+			clientLog.Debugln("Close connections on CommandQuit command")
+			if _, err := handler.dbConnection.Write(packet.Dump()); err != nil {
 				clientLog.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorResponseConnectorCantWriteToDB).
 					Debugln("Can't write send packet to db")
 				errCh <- err
@@ -297,17 +310,17 @@ func (handler *MysqlHandler) ClientToDbConnector(errCh chan<- error) {
 			handler.dbConnection.Close()
 			errCh <- io.EOF
 			return
-		case COM_QUERY, COM_STMT_PREPARE:
+		case CommandQuery, CommandStatementPrepare:
 			_, censorSpan := trace.StartSpan(packetSpanCtx, "censor")
 			query := string(data)
 
 			// log query with hidden values for debug mode
 			if logging.GetLogLevel() == logging.LogDebug {
-				_, queryWithHiddenValues, err := handlers.NormalizeAndRedactSQLQuery(query)
-				if err == handlers.ErrQuerySyntaxError {
-					clientLog.WithError(err).Infof("Parsing error on query: %s", queryWithHiddenValues)
+				_, queryWithHiddenValues, _, err := common.HandleRawSQLQuery(query)
+				if err == common.ErrQuerySyntaxError {
+					clientLog.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCensorQueryParseError).Debugf("Parsing error on query: %s", queryWithHiddenValues)
 				} else {
-					clientLog.WithField("sql", queryWithHiddenValues).Debugln("Com_query")
+					clientLog.WithFields(logrus.Fields{"sql": queryWithHiddenValues, "command": cmd}).Debugln("Query command")
 				}
 			}
 
@@ -322,21 +335,29 @@ func (handler *MysqlHandler) ClientToDbConnector(errCh chan<- error) {
 				}
 				continue
 			}
-			if cmd == COM_QUERY {
+
+			newQuery, changed, err := handler.queryObserverManager.OnQuery(base.NewOnQueryObjectFromQuery(query))
+			if err != nil {
+				clientLog.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorEncryptQueryData).Errorln("Error occurred on query handler")
+			} else if changed {
+				packet.replaceQuery(newQuery.Query())
+			}
+
+			if cmd == CommandQuery {
 				handler.setQueryHandler(handler.QueryResponseHandler)
 			}
 			censorSpan.End()
 			break
-		case COM_STMT_EXECUTE:
+		case CommandStatementExecute:
 			handler.setQueryHandler(handler.QueryResponseHandler)
 			break
-		case COM_STMT_CLOSE, COM_STMT_SEND_LONG_DATA, COM_STMT_RESET:
-			fallthrough
+		case CommandStatementClose, CommandStatementSendLongData, CommandStatementReset:
+			clientLog.Debugln("Close|SendLongData|Reset command")
 		default:
 			clientLog.Debugf("Command %d not supported now", cmd)
 		}
-		if _, err := handler.dbConnection.Write(inOutput); err != nil {
-			clientLog.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorResponseConnectorCantWriteToDB).
+		if _, err := handler.dbConnection.Write(packet.Dump()); err != nil {
+			clientLog.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorNetworkWrite).
 				Debugln("Can't write send packet to db")
 			errCh <- err
 			return
@@ -344,17 +365,18 @@ func (handler *MysqlHandler) ClientToDbConnector(errCh chan<- error) {
 	}
 }
 
-func (handler *MysqlHandler) isFieldToDecrypt(field *ColumnDescription) bool {
+func (handler *Handler) isFieldToDecrypt(field *ColumnDescription) bool {
 	switch field.Type {
-	case MYSQL_TYPE_VARCHAR, MysqlTypeTinyBlob, MysqlTypeMediumBlob, MysqlTypeLongBlob, MysqlTypeBlob,
-		MysqlTypeVarString, MysqlTypeString:
+	case TypeVarchar, TypeTinyBlob, TypeMediumBlob, TypeLongBlob, TypeBlob,
+		TypeVarString, TypeString:
 		return true
 	default:
 		return false
 	}
 }
 
-func (handler *MysqlHandler) processTextDataRow(rowData []byte, fields []*ColumnDescription) ([]byte, error) {
+func (handler *Handler) processTextDataRow(ctx context.Context, rowData []byte, fields []*ColumnDescription) ([]byte, error) {
+	span := trace.FromContext(ctx)
 	var err error
 	var value []byte
 	var pos int
@@ -370,10 +392,15 @@ func (handler *MysqlHandler) processTextDataRow(rowData []byte, fields []*Column
 		}
 		if handler.isFieldToDecrypt(fields[i]) {
 			decryptedValue, err := handler.decryptor.DecryptBlock(value)
-			if err == nil && len(decryptedValue) != len(value) {
+			if err == nil && decryptedValue != nil && len(decryptedValue) != len(value) {
+				base.AcrastructDecryptionCounter.WithLabelValues(base.DecryptionTypeSuccess).Inc()
 				fieldLogger.Debugln("Update with decrypted value")
 				output = append(output, PutLengthEncodedString(decryptedValue)...)
 			} else {
+				if err != errPlainData {
+					span.AddAttributes(trace.BoolAttribute("failed_decryption", true))
+					base.AcrastructDecryptionCounter.WithLabelValues(base.DecryptionTypeFail).Inc()
+				}
 				fieldLogger.Debugln("Leave value as is")
 				output = append(output, rowData[pos:pos+n]...)
 			}
@@ -390,7 +417,8 @@ func (handler *MysqlHandler) processTextDataRow(rowData []byte, fields []*Column
 	return output, nil
 }
 
-func (handler *MysqlHandler) processBinaryDataRow(rowData []byte, fields []*ColumnDescription) ([]byte, error) {
+func (handler *Handler) processBinaryDataRow(ctx context.Context, rowData []byte, fields []*ColumnDescription) ([]byte, error) {
+	span := trace.FromContext(ctx)
 	pos := 0
 	var n int
 	var err error
@@ -430,11 +458,14 @@ func (handler *MysqlHandler) processBinaryDataRow(rowData []byte, fields []*Colu
 			}
 			decryptedValue, err := handler.decryptor.DecryptBlock(value)
 			if err != nil {
-				handler.logger.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorDecryptorCantDecryptBinary).
-					Errorln("Can't decrypt binary data")
-				return nil, err
+				if err != errPlainData {
+					span.AddAttributes(trace.BoolAttribute("failed_decryption", true))
+					base.AcrastructDecryptionCounter.WithLabelValues(base.DecryptionTypeFail).Inc()
+				}
+				handler.logger.Debugln("Leave value as is")
 			}
-			if len(value) != len(decryptedValue) {
+			if decryptedValue != nil && err == nil && len(value) != len(decryptedValue) {
+				base.AcrastructDecryptionCounter.WithLabelValues(base.DecryptionTypeSuccess).Inc()
 				output = append(output, PutLengthEncodedString(decryptedValue)...)
 			} else {
 				output = append(output, rowData[pos:pos+n]...)
@@ -445,41 +476,41 @@ func (handler *MysqlHandler) processBinaryDataRow(rowData []byte, fields []*Colu
 		}
 		// https://dev.mysql.com/doc/internals/en/binary-protocol-value.html
 		switch fields[i].Type {
-		case MYSQL_TYPE_NULL:
+		case TypeNull:
 			continue
 
-		case MYSQL_TYPE_TINY:
+		case TypeTiny:
 			output = append(output, rowData[pos])
 			pos++
 			continue
 
-		case MYSQL_TYPE_SHORT, MYSQL_TYPE_YEAR:
+		case TypeShort, TypeYear:
 			output = append(output, rowData[pos:pos+2]...)
 			pos += 2
 			continue
 
-		case MYSQL_TYPE_INT24, MYSQL_TYPE_LONG:
+		case TypeInt24, TypeLong:
 			output = append(output, rowData[pos:pos+4]...)
 			pos += 4
 			continue
 
-		case MYSQL_TYPE_LONGLONG:
+		case TypeLongLong:
 			output = append(output, rowData[pos:pos+8]...)
 			pos += 8
 			continue
 
-		case MYSQL_TYPE_FLOAT:
+		case TypeFloat:
 			output = append(output, rowData[pos:pos+4]...)
 			pos += 4
 			continue
 
-		case MYSQL_TYPE_DOUBLE:
+		case TypeDouble:
 			output = append(output, rowData[pos:pos+8]...)
 			pos += 8
 			continue
 
-		case MYSQL_TYPE_DECIMAL, MysqlTypeNewDecimal,
-			MYSQL_TYPE_BIT, MysqlTypeEnum, MysqlTypeSet, MysqlTypeGeometry:
+		case TypeDecimal, TypeNewDecimal,
+			TypeBit, TypeEnum, TypeSet, TypeGeometry:
 			value, _, n, err = LengthEncodedString(rowData[pos:])
 			output = append(output, rowData[pos:pos+n]...)
 			pos += n
@@ -489,7 +520,7 @@ func (handler *MysqlHandler) processBinaryDataRow(rowData []byte, fields []*Colu
 				return nil, err
 			}
 			continue
-		case MYSQL_TYPE_DATE, MYSQL_TYPE_NEWDATE, MYSQL_TYPE_TIMESTAMP, MYSQL_TYPE_DATETIME, MYSQL_TYPE_TIME:
+		case TypeDate, TypeNewDate, TypeTimestamp, TypeDatetime, TypeTime:
 			_, _, n, err = LengthEncodedInt(rowData[pos:])
 			if err != nil {
 				return nil, err
@@ -498,22 +529,22 @@ func (handler *MysqlHandler) processBinaryDataRow(rowData []byte, fields []*Colu
 			pos += n
 			continue
 		default:
-			return nil, fmt.Errorf("while decrypting MySQL query found unknown FieldType %d %s", fields[i].Type, fields[i].Name)
+			return nil, fmt.Errorf("found unknown FieldType <type=%d> <name=%s> in MySQL response packet", fields[i].Type, fields[i].Name)
 		}
 	}
 	return output, nil
 }
 
-func (handler *MysqlHandler) expectEOFOnColumnDefinition() bool {
+func (handler *Handler) expectEOFOnColumnDefinition() bool {
 	return !handler.clientDeprecateEOF
 }
 
-func (handler *MysqlHandler) isPreparedStatementResult() bool {
-	return handler.currentCommand == COM_STMT_EXECUTE
+func (handler *Handler) isPreparedStatementResult() bool {
+	return handler.currentCommand == CommandStatementExecute
 }
 
 // QueryResponseHandler parses data from database response
-func (handler *MysqlHandler) QueryResponseHandler(packet *MysqlPacket, dbConnection, clientConnection net.Conn) (err error) {
+func (handler *Handler) QueryResponseHandler(ctx context.Context, packet *Packet, dbConnection, clientConnection net.Conn) (err error) {
 	handler.resetQueryHandler()
 	handler.decryptor.Reset()
 	handler.decryptor.ResetZoneMatch()
@@ -572,7 +603,7 @@ func (handler *MysqlHandler) QueryResponseHandler(packet *MysqlPacket, dbConnect
 				if fieldDataPacket.data[0] == EOFPacket {
 					break
 				}
-				newData, err := handler.processBinaryDataRow(fieldDataPacket.GetData(), fields)
+				newData, err := handler.processBinaryDataRow(ctx, fieldDataPacket.GetData(), fields)
 				if err != nil {
 					handler.logger.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorProtocolProcessing).
 						Debugln("Can't process binary data row")
@@ -606,7 +637,7 @@ func (handler *MysqlHandler) QueryResponseHandler(packet *MysqlPacket, dbConnect
 					continue
 				}
 				dataLog.Debugln("Process data text row")
-				newData, err := handler.processTextDataRow(fieldDataPacket.GetData(), fields)
+				newData, err := handler.processTextDataRow(ctx, fieldDataPacket.GetData(), fields)
 				if err != nil {
 					dataLog.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorProtocolProcessing).
 						Debugln("Can't process text data row")
@@ -628,7 +659,7 @@ func (handler *MysqlHandler) QueryResponseHandler(packet *MysqlPacket, dbConnect
 	handler.logger.Debugln("Proxy output")
 	for _, dumper := range output {
 		if _, err := clientConnection.Write(dumper.Dump()); err != nil {
-			handler.logger.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorResponseConnectorCantWriteToClient).
+			handler.logger.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorNetworkWrite).
 				Debugln("Can't proxy output")
 			return err
 		}
@@ -638,9 +669,9 @@ func (handler *MysqlHandler) QueryResponseHandler(packet *MysqlPacket, dbConnect
 	return nil
 }
 
-// DbToClientConnector handles connection from database, returns data to client
-func (handler *MysqlHandler) DbToClientConnector(errCh chan<- error) {
-	ctx, span := trace.StartSpan(handler.ctx, "DbToClientConnector")
+// ProxyDatabaseConnection handles connection from database, returns data to client
+func (handler *Handler) ProxyDatabaseConnection(errCh chan<- error) {
+	ctx, span := trace.StartSpan(handler.ctx, "ProxyDatabaseConnection")
 	defer span.End()
 	serverLog := handler.logger.WithField("proxy", "server")
 	serverLog.Debugln("Start proxy db responses")
@@ -662,7 +693,7 @@ func (handler *MysqlHandler) DbToClientConnector(errCh chan<- error) {
 	}()
 	for {
 		packetSpanEndFunc()
-		_, packetSpan := trace.StartSpan(ctx, "DbToClientConnectorLoop")
+		_, packetSpan := trace.StartSpan(ctx, "ProxyDatabaseConnectionLoop")
 		packetSpanEndFunc = packetSpan.End
 
 		timerObserveFunc()
@@ -676,7 +707,7 @@ func (handler *MysqlHandler) DbToClientConnector(errCh chan<- error) {
 					// reset deadline
 					handler.dbConnection.SetReadDeadline(time.Time{})
 					tlsConnection := tls.Client(handler.dbConnection, handler.tlsConfig)
-					if err := tlsConnection.Handshake(); err != nil {
+					if err = tlsConnection.Handshake(); err != nil {
 						handler.logger.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorDecryptorCantInitializeTLS).
 							Errorln("Error in tls handshake with db")
 						errCh <- err
@@ -704,7 +735,7 @@ func (handler *MysqlHandler) DbToClientConnector(errCh chan<- error) {
 			serverLog.Debugf("Set support protocol 41 %v", handler.serverProtocol41)
 		}
 		responseHandler = handler.getResponseHandler()
-		err = responseHandler(packet, handler.dbConnection, handler.clientConnection)
+		err = responseHandler(ctx, packet, handler.dbConnection, handler.clientConnection)
 		if err != nil {
 			handler.resetQueryHandler()
 			errCh <- err

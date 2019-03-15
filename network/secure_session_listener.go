@@ -18,6 +18,7 @@ package network
 
 import (
 	"context"
+	"github.com/cossacklabs/acra/logging"
 	"net"
 
 	"github.com/cossacklabs/acra/keystore"
@@ -34,8 +35,8 @@ type SecureSessionListener struct {
 
 // NewSecureSessionListener create SecureSessionConnectionWrapper that will use keystorage to wrap new connections, create
 // listener by connectionString and return SecureSessionListener
-func NewSecureSessionListener(connectionString string, keystorage keystore.SecureSessionKeyStore) (*SecureSessionListener, error) {
-	connectionWrapper, err := NewSecureSessionConnectionWrapper(keystorage)
+func NewSecureSessionListener(id []byte, connectionString string, keystorage keystore.SecureSessionKeyStore) (*SecureSessionListener, error) {
+	connectionWrapper, err := NewSecureSessionConnectionWrapper(id, keystorage)
 	if err != nil {
 		return nil, err
 	}
@@ -54,13 +55,14 @@ func (listener *SecureSessionListener) Accept() (net.Conn, error) {
 	if err != nil {
 		return nil, err
 	}
-	wrappedConnection, _, err := listener.wrapper.WrapServer(context.TODO(), conn)
+	wrappedConnection, clientID, err := listener.wrapper.WrapServer(context.TODO(), conn)
 	if err != nil {
-		log.WithError(err).Errorln("Can't wrap connection with secure session")
+		log.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantWrapConnection).WithError(err).Errorln("Can't wrap connection with secure session")
 		// mark that it's not fatal error and may be temporary (need for grpc that stop listening on non-temporary error
 		// from listener.Accept
 		return nil, err
 	}
+	log.WithField("client_id", string(clientID)).Debugln("Read trace")
 	// connector always send trace, but now we can't pass it to grpc method
 	_, err = ReadTrace(wrappedConnection)
 	if err != nil {

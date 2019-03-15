@@ -37,8 +37,8 @@ func main() {
 	startTime := time.Now()
 	var rowID int
 	var data []byte
-	for i := 0; i < config.REQUEST_COUNT; i++ {
-		id := rand.Intn(config.ROW_COUNT)
+	for i := 0; i < config.RequestCount; i++ {
+		id := rand.Intn(config.RowCount)
 		err := db.QueryRow("SELECT id, data FROM test_without_zone WHERE id=$1+1;", &id).Scan(&rowID, &data)
 		if err != nil {
 			panic(err)

@@ -26,12 +26,8 @@ import (
 	"time"
 
 	"github.com/cossacklabs/acra/decryptor/base"
-	"github.com/cossacklabs/acra/decryptor/mysql"
-	pg "github.com/cossacklabs/acra/decryptor/postgresql"
-	"github.com/cossacklabs/acra/keystore"
 	"github.com/cossacklabs/acra/logging"
 	"github.com/cossacklabs/acra/network"
-	"github.com/cossacklabs/acra/zone"
 	"github.com/prometheus/client_golang/prometheus"
 	log "github.com/sirupsen/logrus"
 )
@@ -40,7 +36,6 @@ import (
 // data and command connections (listeners, managers, file descriptors), and signals.
 type SServer struct {
 	config                *Config
-	keystorage            keystore.KeyStore
 	listenerACRA          net.Listener
 	listenerAPI           net.Listener
 	fddACRA               uintptr
@@ -49,21 +44,17 @@ type SServer struct {
 	listeners             []net.Listener
 	errorSignalChannel    chan os.Signal
 	restartSignalsChannel chan os.Signal
-	traceOptions          []trace.StartOption
+	proxyFactory          base.ProxyFactory
 }
 
 // NewServer creates new SServer.
-func NewServer(config *Config, keystorage keystore.KeyStore, errorChan chan os.Signal, restarChan chan os.Signal) (server *SServer, err error) {
-	traceOptions := []trace.StartOption{trace.WithSpanKind(trace.SpanKindClient)}
-	traceOptions = append(traceOptions, trace.WithSampler(trace.AlwaysSample()))
-
+func NewServer(config *Config, proxyFactory base.ProxyFactory, errorChan chan os.Signal, restarChan chan os.Signal) (server *SServer, err error) {
 	return &SServer{
 		config:                config,
-		keystorage:            keystorage,
 		connectionManager:     network.NewConnectionManager(),
 		errorSignalChannel:    errorChan,
 		restartSignalsChannel: restarChan,
-		traceOptions:          traceOptions,
+		proxyFactory:          proxyFactory,
 	}, nil
 }
 
@@ -98,7 +89,7 @@ func (server *SServer) Close() {
 				}
 			}
 		default:
-			if err := listener.Close(); err != nil {
+			if err = listener.Close(); err != nil {
 				log.WithError(err).Warningln("Error on closing listener")
 			}
 		}
@@ -107,47 +98,13 @@ func (server *SServer) Close() {
 		log.WithError(err).Infoln("server.Close()")
 	}
 	if err := server.connectionManager.CloseConnections(); err != nil {
-		log.WithError(err).Errorln("Error on close connections")
+		log.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantCloseConnectionToService).WithError(err).Errorln("Error on close connections")
 	}
 	log.Debugln("Closed server listeners")
 }
 
 func (server *SServer) addListener(listener net.Listener) {
 	server.listeners = append(server.listeners, listener)
-}
-
-func (server *SServer) getDecryptor(clientID []byte) base.Decryptor {
-	var dataDecryptor base.DataDecryptor
-	var matcherPool *zone.MatcherPool
-	if server.config.GetByteaFormat() == HEX_BYTEA_FORMAT {
-		dataDecryptor = pg.NewPgHexDecryptor()
-		matcherPool = zone.NewMatcherPool(zone.NewPgHexMatcherFactory())
-	} else {
-		dataDecryptor = pg.NewPgEscapeDecryptor()
-		matcherPool = zone.NewMatcherPool(zone.NewPgEscapeMatcherFactory())
-	}
-	pgDecryptorImpl := pg.NewPgDecryptor(clientID, dataDecryptor)
-	pgDecryptorImpl.SetWithZone(server.config.GetWithZone())
-	pgDecryptorImpl.SetWholeMatch(server.config.GetWholeMatch())
-	pgDecryptorImpl.SetKeyStore(server.keystorage)
-	zoneMatcher := zone.NewZoneMatcher(matcherPool, server.keystorage)
-	pgDecryptorImpl.SetZoneMatcher(zoneMatcher)
-
-	poisonCallbackStorage := base.NewPoisonCallbackStorage()
-	if server.config.GetScriptOnPoison() != "" {
-		poisonCallbackStorage.AddCallback(base.NewExecuteScriptCallback(server.config.GetScriptOnPoison()))
-	}
-	// must be last
-	if server.config.GetStopOnPoison() {
-		poisonCallbackStorage.AddCallback(&base.StopCallback{})
-	}
-	pgDecryptorImpl.SetPoisonCallbackStorage(poisonCallbackStorage)
-	var decryptor base.Decryptor = pgDecryptorImpl
-	if server.config.UseMySQL() {
-		decryptor = mysql.NewMySQLDecryptor(clientID, pgDecryptorImpl, server.keystorage)
-	}
-	decryptor.TurnOnPoisonRecordCheck(server.config.DetectPoisonRecords())
-	return decryptor
 }
 
 type callbackData struct {
@@ -162,7 +119,8 @@ to db and decrypting responses from db
 */
 func (server *SServer) handleConnection(ctx context.Context, clientID []byte, connection net.Conn) {
 	logger := logging.NewLoggerWithTrace(ctx)
-	clientSession, err := NewClientSession(ctx, server.keystorage, server.config, connection)
+	logging.SetLoggerToContext(ctx, logger)
+	clientSession, err := NewClientSession(ctx, server.config.GetKeyStore(), server.config, connection)
 	clientSession.Server = server
 	if err != nil {
 		logger.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantInitClientSession).
@@ -173,8 +131,7 @@ func (server *SServer) handleConnection(ctx context.Context, clientID []byte, co
 		}
 		return
 	}
-	decryptor := server.getDecryptor(clientID)
-	clientSession.HandleClientConnection(clientID, decryptor)
+	clientSession.HandleClientConnection(clientID, server.proxyFactory)
 }
 
 func (server *SServer) processConnection(connection net.Conn, callback *callbackData) {
@@ -184,7 +141,7 @@ func (server *SServer) processConnection(connection net.Conn, callback *callback
 
 	ctx := logging.SetTraceStatus(context.Background(), server.config.TraceToLog)
 
-	wrapCtx, wrapSpan := trace.StartSpan(ctx, "WrapServer", server.traceOptions...)
+	wrapCtx, wrapSpan := trace.StartSpan(ctx, "WrapServer", server.config.GetTraceOptions()...)
 	logger := logging.NewLoggerWithTrace(wrapCtx)
 
 	wrappedConnection, clientID, err := server.config.ConnectionWrapper.WrapServer(wrapCtx, connection)
@@ -198,18 +155,21 @@ func (server *SServer) processConnection(connection net.Conn, callback *callback
 		wrapSpan.End()
 		return
 	}
+	logger = logger.WithField("client_id", string(clientID))
 	wrapSpan.End()
 	var span *trace.Span
 	if server.config.WithConnector() {
+		logger.Debugln("Read trace")
 		spanContext, err := network.ReadTrace(wrappedConnection)
 		if err != nil {
-			log.WithError(err).Errorln("Can't read trace from Acra-Proxy")
+			log.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorTracingCantReadTrace).WithError(err).Errorln("Can't read trace from AcraConnector")
 			return
 		}
-		ctx, span = trace.StartSpanWithRemoteParent(wrapCtx, callback.funcName, spanContext, server.traceOptions...)
+		ctx, span = trace.StartSpanWithRemoteParent(wrapCtx, callback.funcName, spanContext, server.config.GetTraceOptions()...)
 	} else {
-		ctx, span = trace.StartSpan(wrapCtx, callback.funcName, server.traceOptions...)
+		ctx, span = trace.StartSpan(wrapCtx, callback.funcName, server.config.GetTraceOptions()...)
 	}
+	ctx = logging.SetLoggerToContext(ctx, logger)
 	span.AddAttributes(trace.BoolAttribute("from_connector", server.config.WithConnector()))
 	defer span.End()
 	wrapSpanContext := wrapSpan.SpanContext()
@@ -267,7 +227,7 @@ func (server *SServer) StartFromFileDescriptor(fd uintptr) {
 	logger := log.WithFields(log.Fields{"connection_string": server.config.GetAcraConnectionString(), "from_descriptor": true})
 	file := os.NewFile(fd, "/tmp/acra-server")
 	if file == nil {
-		logger.Errorln("Can't create new file from descriptor for acra listener")
+		logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCreateFileFromDescriptor).Errorln("Can't create new file from descriptor for acra listener")
 		server.errorSignalChannel <- syscall.SIGTERM
 		return
 	}
@@ -359,7 +319,7 @@ to db and decrypting responses from db
 */
 func (server *SServer) handleCommandsConnection(ctx context.Context, clientID []byte, connection net.Conn) {
 	logger := logging.NewLoggerWithTrace(ctx)
-	clientSession, err := NewClientCommandsSession(server.keystorage, server.config, connection)
+	clientSession, err := NewClientCommandsSession(server.config.GetKeyStore(), server.config, connection)
 	clientSession.Server = server
 	if err != nil {
 		logger.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantStartConnection).
@@ -391,7 +351,7 @@ func (server *SServer) StartCommandsFromFileDescriptor(fd uintptr) {
 	logger := log.WithFields(log.Fields{"connection_string": server.config.GetAcraConnectionString(), "from_descriptor": true})
 	file := os.NewFile(fd, "/tmp/acra-server_http_api")
 	if file == nil {
-		logger.Errorln("Can't create new file from descriptor for API listener")
+		logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCreateFileFromDescriptor).Errorln("Can't create new file from descriptor for API listener")
 		server.errorSignalChannel <- syscall.SIGTERM
 		return
 	}

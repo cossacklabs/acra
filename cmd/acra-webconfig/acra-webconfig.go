@@ -67,33 +67,33 @@ var ErrGetAuthDataFromAcraServer = errors.New("wrong status for loadAuthData")
 
 // Connection timeout secs
 const (
-	HTTP_TIMEOUT = 5
+	HTTPTimeout = 5
 )
 
 // Argon2 parameters
 const (
-	LINE_SEPARATOR = "\n"
+	LineSeparator = "\n"
 
-	AUTH_FIELD_SEPARATOR   = ":"
-	AUTH_FIELD_COUNT       = 4
-	AUTH_USER_NAME_IDX     = 0
-	AUTH_SALT_IDX          = 1
-	AUTH_ARGON2_PARAMS_IDX = 2
-	AUTH_HASH_IDX          = 3
+	AuthFieldSeparator  = ":"
+	AuthFieldCount      = 4
+	AuthUsernameIDX     = 0
+	AuthSaltIDX         = 1
+	AuthArgon2ParamsIDX = 2
+	AuthHashIDX         = 3
 
-	ARGON2_PARAM_SEPARATOR = ","
-	ARGON2_PARAM_COUNT     = 4
-	ARGON2_TIME_IDX        = 0
-	ARGON2_MEMORY_IDX      = 1
-	ARGON2_THREADS_IDX     = 2
-	ARGON2_LENGTH_IDX      = 3
+	Argon2ParamSeparator = ","
+	Argon2ParamCount     = 4
+	Argon2TimeIDX        = 0
+	Argon2MemoryIDX      = 1
+	Argon2ThreadsIDX     = 2
+	Argon2LengthIDX      = 3
 
-	ARGON2_TIME_INT    = 32
-	ARGON2_MEMORY_INT  = 32
-	ARGON2_THREADS_INT = 8
-	ARGON2_LENGTH_INT  = 32
+	Argon2TimeInt    = 32
+	Argon2MemoryInt  = 32
+	Argon2ThreadsInt = 8
+	Argon2LengthInt  = 32
 
-	UINT_BASE = 10
+	UIntBase = 10
 )
 
 var authUsers = make(map[string]cmd.UserAuth)
@@ -219,7 +219,7 @@ func index(w http.ResponseWriter, r *http.Request) {
 
 	// get current config
 	var netClient = &http.Client{
-		Timeout: time.Second * HTTP_TIMEOUT,
+		Timeout: time.Second * HTTPTimeout,
 	}
 	serverResponse, err := netClient.Get(fmt.Sprintf("http://%v:%v/getConfig", *destinationHost, *destinationPort))
 	if err != nil {
@@ -310,46 +310,46 @@ func basicAuthHandler(handler http.HandlerFunc) http.HandlerFunc {
 
 func parseArgon2Params(authDataSting []byte) {
 	line := 0
-	for _, authString := range strings.Split(string(authDataSting), LINE_SEPARATOR) {
-		authItem := strings.Split(authString, AUTH_FIELD_SEPARATOR)
+	for _, authString := range strings.Split(string(authDataSting), LineSeparator) {
+		authItem := strings.Split(authString, AuthFieldSeparator)
 		line++
-		if len(authItem) == AUTH_FIELD_COUNT {
-			decoded, err := base64.StdEncoding.DecodeString(string(authItem[AUTH_HASH_IDX]))
+		if len(authItem) == AuthFieldCount {
+			decoded, err := base64.StdEncoding.DecodeString(string(authItem[AuthHashIDX]))
 			if err != nil {
-				log.WithError(err).Errorf("line[%v] DecodeString, user: %v", line, authItem[AUTH_USER_NAME_IDX])
+				log.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantParseAuthData).WithError(err).Errorf("line[%v] DecodeString, user: %v", line, authItem[AuthUsernameIDX])
 				continue
 			}
-			argon2P := strings.Split(authItem[AUTH_ARGON2_PARAMS_IDX], ARGON2_PARAM_SEPARATOR)
-			if len(authItem) != ARGON2_PARAM_COUNT {
+			argon2P := strings.Split(authItem[AuthArgon2ParamsIDX], Argon2ParamSeparator)
+			if len(authItem) != Argon2ParamCount {
 				log.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantParseAuthData).
-					Errorf("line[%v] wrong number of argon2 params: got %v, expected %v", line, len(authItem), ARGON2_PARAM_COUNT)
+					Errorf("line[%v] wrong number of argon2 params: got %v, expected %v", line, len(authItem), Argon2ParamCount)
 				continue
 			}
-			Time, err := strconv.ParseUint(argon2P[ARGON2_TIME_IDX], UINT_BASE, ARGON2_TIME_INT)
+			Time, err := strconv.ParseUint(argon2P[Argon2TimeIDX], UIntBase, Argon2TimeInt)
 			if err != nil {
 				log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantParseAuthData).
-					Errorf("line[%v] argon2 strconv.ParseUint(%v), user: %v", line, "Time", authItem[AUTH_USER_NAME_IDX])
+					Errorf("line[%v] argon2 strconv.ParseUint(%v), user: %v", line, "Time", authItem[AuthUsernameIDX])
 				continue
 			}
-			Memory, err := strconv.ParseUint(argon2P[ARGON2_MEMORY_IDX], UINT_BASE, ARGON2_MEMORY_INT)
+			Memory, err := strconv.ParseUint(argon2P[Argon2MemoryIDX], UIntBase, Argon2MemoryInt)
 			if err != nil {
 				log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantParseAuthData).
-					Errorf("line[%v] argon2 strconv.ParseUint(%v), user: %v", line, "Memory", authItem[AUTH_USER_NAME_IDX])
+					Errorf("line[%v] argon2 strconv.ParseUint(%v), user: %v", line, "Memory", authItem[AuthUsernameIDX])
 				continue
 			}
-			Threads, err := strconv.ParseUint(argon2P[ARGON2_THREADS_IDX], UINT_BASE, ARGON2_THREADS_INT)
+			Threads, err := strconv.ParseUint(argon2P[Argon2ThreadsIDX], UIntBase, Argon2ThreadsInt)
 			if err != nil {
 				log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantParseAuthData).
-					Errorf("line[%v] argon2 strconv.ParseUint(%v), user: %v", line, "Threads", authItem[AUTH_USER_NAME_IDX])
+					Errorf("line[%v] argon2 strconv.ParseUint(%v), user: %v", line, "Threads", authItem[AuthUsernameIDX])
 				continue
 			}
-			Length, err := strconv.ParseUint(argon2P[ARGON2_LENGTH_IDX], UINT_BASE, ARGON2_LENGTH_INT)
+			Length, err := strconv.ParseUint(argon2P[Argon2LengthIDX], UIntBase, Argon2LengthInt)
 			if err != nil {
 				log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantParseAuthData).
-					Errorf("line[%v] argon2 strconv.ParseUint(%v), user: %v", line, "Length", authItem[AUTH_USER_NAME_IDX])
+					Errorf("line[%v] argon2 strconv.ParseUint(%v), user: %v", line, "Length", authItem[AuthUsernameIDX])
 				continue
 			}
-			authUsers[authItem[AUTH_USER_NAME_IDX]] = cmd.UserAuth{Salt: authItem[AUTH_SALT_IDX], Hash: decoded, Argon2Params: cmd.Argon2Params{
+			authUsers[authItem[AuthUsernameIDX]] = cmd.UserAuth{Salt: authItem[AuthSaltIDX], Hash: decoded, Argon2Params: cmd.Argon2Params{
 				Time:    uint32(Time),
 				Memory:  uint32(Memory),
 				Threads: uint8(Threads),
@@ -361,7 +361,7 @@ func parseArgon2Params(authDataSting []byte) {
 
 func loadAuthData() (err error) {
 	var netClient = &http.Client{
-		Timeout: time.Second * HTTP_TIMEOUT,
+		Timeout: time.Second * HTTPTimeout,
 	}
 	serverResponse, err := netClient.Get(fmt.Sprintf("http://%v:%v/loadAuthData", *destinationHost, *destinationPort))
 	if err != nil {
@@ -386,16 +386,16 @@ func loadAuthData() (err error) {
 }
 
 func main() {
-	host = flag.String("incoming_connection_host", cmd.DEFAULT_ACRAWEBCONFIG_HOST, "Host for AcraWebconfig HTTP endpoint")
-	port = flag.Int("incoming_connection_port", cmd.DEFAULT_ACRAWEBCONFIG_PORT, "Port for AcraWebconfig HTTP endpoint")
+	host = flag.String("incoming_connection_host", cmd.DefaultWebConfigHost, "Host for AcraWebconfig HTTP endpoint")
+	port = flag.Int("incoming_connection_port", cmd.DefaultWebConfigPort, "Port for AcraWebconfig HTTP endpoint")
 	loggingFormat := flag.String("logging_format", "plaintext", "Logging format: plaintext, json or CEF")
 	logging.CustomizeLogging(*loggingFormat, ServiceName)
 	log.Infof("Starting service %v [pid=%v]", ServiceName, os.Getpid())
 	destinationHost = flag.String("destination_host", "localhost", "Host for AcraServer HTTP endpoint or AcraConnector")
-	destinationPort = flag.Int("destination_port", cmd.DEFAULT_ACRACONNECTOR_API_PORT, "Port for AcraServer HTTP endpoint or AcraConnector")
-	staticPath = flag.String("static_path", cmd.DEFAULT_ACRAWEBCONFIG_STATIC, "Path to static content")
+	destinationPort = flag.Int("destination_port", cmd.DefaultAcraConnectorAPIPort, "Port for AcraServer HTTP endpoint or AcraConnector")
+	staticPath = flag.String("static_path", cmd.DefaultWebConfigStatic, "Path to static content")
 	debug = flag.Bool("d", false, "Turn on debug logging")
-	authMode = flag.String("http_auth_mode", cmd.DEFAULT_ACRAWEBCONFIG_AUTH_MODE, "Mode for basic auth. Possible values: auth_on|auth_off_local|auth_off")
+	authMode = flag.String("http_auth_mode", cmd.DefaultWebConfigAuthMode, "Mode for basic auth. Possible values: auth_on|auth_off_local|auth_off")
 	err := cmd.Parse(DefaultConfigPath, ServiceName)
 	if err != nil {
 		log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantReadServiceConfig).

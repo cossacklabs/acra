@@ -17,57 +17,85 @@ limitations under the License.
 package utils
 
 import (
+	"bytes"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"github.com/lib/pq"
-	"strconv"
+	"github.com/sirupsen/logrus"
 	"strings"
 )
 
-func encodeToOctal(from, to []byte) {
-	to = to[:0]
-	for _, c := range from {
-		if IsPrintableEscapeChar(c) {
-			if c == SlashChar {
-				to = append(to, []byte{SlashChar, SlashChar}...)
-			} else {
-				to = append(to, c)
-			}
+// EncodeToOctal escape string
+// See https://www.postgresql.org/docs/current/static/datatype-binary.html#AEN5667
+func EncodeToOctal(data []byte) []byte {
+	res := make([]byte, 0, len(data))
+	for _, c := range []byte(data) {
+		if c == '\\' {
+			res = append(res, '\\', '\\')
+		} else if !IsPrintableEscapeChar(c) {
+			// encode to octal \xxx format
+			res = append(res, '\\', '0'+(c>>6), '0'+((c>>3)&7), '0'+(c&7))
 		} else {
-			to = append(to, SlashChar)
-			octal := strconv.FormatInt(int64(c), 8)
-			switch len(octal) {
-			case 3:
-				to = append(to, []byte(octal)...)
-			case 2:
-				to = append(to, '0', octal[0], octal[1])
-
-			case 1:
-				to = append(to, '0', '0', octal[0])
-			}
+			res = append(res, c)
 		}
 	}
+	return res
 }
 
-// EncodeToOctal returns octal representation on bytes
-// each byte has 4 bytes, filled with leading 0's is needed
-func EncodeToOctal(from []byte) []byte {
-	// count output size
-	outputLength := 0
-	for _, c := range from {
-		if IsPrintableEscapeChar(c) {
-			if c == SlashChar {
-				outputLength += 2
-			} else {
-				outputLength++
-			}
-		} else {
-			outputLength += 4
+// ErrDecodeEscapedString on incorrect decoding with DecodeOctal
+var ErrDecodeEscapedString = errors.New("can't decode escaped string")
+
+// DecodeOctal escaped string
+// See https://www.postgresql.org/docs/current/static/datatype-binary.html#AEN5667
+func DecodeOctal(data []byte) ([]byte, error) {
+	output := make([]byte, 0, len(data))
+	for i := 0; i < len(data); i++ {
+		ch := data[i]
+		if !IsPrintableEscapeChar(ch) {
+			return nil, ErrDecodeEscapedString
 		}
+		if ch != '\\' {
+			output = append(output, ch)
+			continue
+		}
+		if i >= len(data)-1 {
+			logrus.Debugln("Encoded string incomplete")
+			return nil, ErrDecodeEscapedString
+		}
+		if data[i+1] == '\\' {
+			output = append(output, '\\')
+			i++
+			continue
+		}
+		if i+3 >= len(data) {
+			logrus.Debugln("Encoded string incomplete")
+			return nil, ErrDecodeEscapedString
+		}
+		b := byte(0)
+		for j := 1; j <= 3; j++ {
+			octDigit := data[i+j]
+			if octDigit < '0' || octDigit > '7' {
+				logrus.Debugln("Invalid bytea escape sequence")
+				return nil, ErrDecodeEscapedString
+			}
+			b = (b << 3) | (octDigit - '0')
+		}
+		output = append(output, b)
+		i += 3
 	}
-	buffer := make([]byte, outputLength)
-	encodeToOctal(from, buffer)
-	return buffer
+	return output, nil
+}
+
+// DecodeEscaped with hex or octal encodings
+func DecodeEscaped(data []byte) ([]byte, error) {
+	if len(data) > 2 && bytes.Equal(data[:2], []byte{'\\', 'x'}) {
+		hexdata := data[2:]
+		output := make([]byte, hex.DecodedLen(len(hexdata)))
+		_, err := hex.Decode(output, hexdata)
+		return output, err
+	}
+	return DecodeOctal(data)
 }
 
 // QuoteValue returns name in quotes, if name contains quotes, doubles them
@@ -94,7 +122,7 @@ func (e *MysqlEncoder) EncodeToString(data []byte) string {
 }
 
 // Encode return data as is
-func (encoder *MysqlEncoder) Encode(data []byte) interface{} {
+func (e *MysqlEncoder) Encode(data []byte) interface{} {
 	return data
 }
 

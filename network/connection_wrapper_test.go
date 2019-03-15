@@ -28,7 +28,8 @@ import (
 	"strings"
 )
 
-var TestClientID = []byte("test client id")
+var TestClientID = []byte("client")
+var TestServerID = []byte("server")
 
 func wait(ch chan bool, t *testing.T) {
 	select {
@@ -109,7 +110,7 @@ func testWrapper(clientWrapper, serverWrapper ConnectionWrapper, t *testing.T) {
 	}
 	defer connection.Close()
 	t.Log("wrap client")
-	connection, err = clientWrapper.WrapClient(context.TODO(), TestClientID, connection)
+	connection, err = clientWrapper.WrapClient(context.TODO(), TestServerID, connection)
 	if err != nil {
 		connection.Close()
 		t.Fatal(err)
@@ -165,11 +166,11 @@ func TestSessionWrapper(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	clientWrapper, err := NewSecureSessionConnectionWrapper(&SimpleKeyStore{PrivateKey: clientPair.Private, PublicKey: serverPair.Public})
+	clientWrapper, err := NewSecureSessionConnectionWrapper(TestClientID, &SimpleKeyStore{PrivateKey: clientPair.Private, PublicKey: serverPair.Public})
 	if err != nil {
 		t.Fatal(err)
 	}
-	serverWrapper, err := NewSecureSessionConnectionWrapper(&SimpleKeyStore{PrivateKey: serverPair.Private, PublicKey: clientPair.Public})
+	serverWrapper, err := NewSecureSessionConnectionWrapper(TestServerID, &SimpleKeyStore{PrivateKey: serverPair.Private, PublicKey: clientPair.Public})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -270,6 +271,12 @@ func getConnectionPair(address string, listener net.Listener, t *testing.T) (net
 	return clientConn, serverConn
 }
 
+// isTLS13 return true if connection has version > tls12 constant value in ConnectionState after successful handshake
+func isTLS13(conn net.Conn) bool {
+	// check with GREATER comparison because golang versions < 1.2 have not constant VersionTLS13
+	return UnwrapSafeCloseConnection(conn).(*tls.Conn).ConnectionState().Version > tls.VersionTLS12
+}
+
 func testTLSConfig(serverWrapper *TLSConnectionWrapper, t *testing.T) {
 	const address = "127.0.0.1:4567"
 	listener, err := net.Listen("tcp", address)
@@ -291,8 +298,9 @@ func testTLSConfig(serverWrapper *TLSConnectionWrapper, t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	go func() {
-		_, _, err := serverWrapper.WrapServer(context.TODO(), serverConn)
+		conn, _, err := serverWrapper.WrapServer(context.TODO(), serverConn)
 		if err != nil {
 			if err.Error() != "tls: no cipher suite supported by both client and server" {
 				t.Fatal("Expected error with unsupported ciphersuits")
@@ -300,14 +308,24 @@ func testTLSConfig(serverWrapper *TLSConnectionWrapper, t *testing.T) {
 			wrapErrorCh <- true
 			return
 		}
+		// tls1.3 in golang doesn't support ciphersuites configuration, so just return ok
+		if isTLS13(conn) {
+			wrapErrorCh <- true
+			return
+		}
 		t.Fatal("expected error")
 	}()
 	go func() {
-		_, err := clientWrapper.WrapClient(context.TODO(), []byte("some client"), clientConn)
+		conn, err := clientWrapper.WrapClient(context.TODO(), []byte("server"), clientConn)
 		if err != nil {
 			if err.Error() != "remote error: tls: handshake failure" {
 				t.Fatal("Expected with handshake failure")
 			}
+			wrapErrorCh <- true
+			return
+		}
+		// tls1.3 in golang doesn't support ciphersuites configuration, so just return ok
+		if isTLS13(conn) {
 			wrapErrorCh <- true
 			return
 		}
@@ -321,10 +339,10 @@ func testTLSConfig(serverWrapper *TLSConnectionWrapper, t *testing.T) {
 			t.Fatal("Timeout on wrap with incorrect cipher suits")
 		}
 	}
-	if err := clientConn.Close(); err != nil {
+	if err = clientConn.Close(); err != nil {
 		t.Fatal(err)
 	}
-	if err := serverConn.Close(); err != nil {
+	if err = serverConn.Close(); err != nil {
 		t.Fatal(err)
 	}
 
@@ -344,9 +362,19 @@ func testTLSConfig(serverWrapper *TLSConnectionWrapper, t *testing.T) {
 	go func() {
 		_, _, err := serverWrapper.WrapServer(context.TODO(), serverConn)
 		if err != nil {
-			// error has concatenated protocol version at end of string and we doesn't need to compare as equality
-			if !strings.HasPrefix(err.Error(), "tls: client offered an unsupported, maximum protocol version of") {
-				t.Fatal("Expected incorrect protocol version error")
+			expectedMessages := []string{
+				// go < 1.12
+				"tls: client offered an unsupported, maximum protocol version of",
+				// go >= 1.12
+				"tls: client offered only unsupported versions"}
+			found := false
+			for _, msg := range expectedMessages {
+				if strings.HasPrefix(err.Error(), msg) {
+					found = true
+				}
+			}
+			if !found {
+				t.Fatalf("Expected error related with unsupported tls protocol version, took: '%s'\n", err.Error())
 			}
 			wrapErrorCh <- true
 			return
@@ -354,7 +382,7 @@ func testTLSConfig(serverWrapper *TLSConnectionWrapper, t *testing.T) {
 		t.Fatal("expected error")
 	}()
 	go func() {
-		_, err := clientWrapper.WrapClient(context.TODO(), []byte("some client"), clientConn)
+		_, err := clientWrapper.WrapClient(context.TODO(), []byte("server"), clientConn)
 		if err != nil {
 			if err.Error() != "remote error: tls: protocol version not supported" {
 				t.Fatal("Expected incorrect protocol version error")
@@ -372,10 +400,10 @@ func testTLSConfig(serverWrapper *TLSConnectionWrapper, t *testing.T) {
 			t.Fatal("Timeout on wrap with unsupported protocol version")
 		}
 	}
-	if err := clientConn.Close(); err != nil {
+	if err = clientConn.Close(); err != nil {
 		t.Fatal(err)
 	}
-	if err := serverConn.Close(); err != nil {
+	if err = serverConn.Close(); err != nil {
 		t.Fatal(err)
 	}
 }

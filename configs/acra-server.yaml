@@ -1,10 +1,11 @@
+version: 0.84.2
 # Path to AcraCensor configuration file
 acracensor_config_file: 
 
 # Use tls to encrypt transport between AcraServer and AcraConnector/client
 acraconnector_tls_transport_enable: false
 
-# Use raw transport (tcp/unix socket) between AcraServer and AcraConnector/client (don't use this flag if you not connect to database with ssl/tls
+# Use raw transport (tcp/unix socket) between AcraServer and AcraConnector/client (don't use this flag if you not connect to database with SSL/TLS
 acraconnector_transport_encryption_disable: false
 
 # Acrastruct may be injected into any place of data cell
@@ -31,11 +32,14 @@ db_host:
 # Port to db
 db_port: 5432
 
-# Turn on http debug server
+# Turn on HTTP debug server
 ds: false
 
 # dump config
 dump_config: false
+
+# Path to Encryptor configuration file
+encryptor_config_file: 
 
 # Generate with yaml config markdown text file with descriptions of all args
 generate_markdown_args_table: false
@@ -79,7 +83,7 @@ jaeger_collector_endpoint:
 # Folder from which will be loaded keys
 keys_dir: .acrakeys
 
-# Count of keys that will be stored in in-memory LRU cache in encrypted form. 0 - no limits, -1 - turn off cache
+# Maximum number of keys stored in in-memory LRU cache in encrypted form. 0 - no limits, -1 - turn off cache
 keystore_cache_size: 0
 
 # Logging format: plaintext, json or CEF
@@ -109,7 +113,7 @@ postgresql_enable: false
 # Id that will be sent in secure session
 securesession_id: acra_server
 
-# Set authentication mode that will be used in TLS connection with Postgresql. Values in range 0-4 that set auth type (https://golang.org/pkg/crypto/tls/#ClientAuthType). Default is tls.RequireAndVerifyClientCert
+# Set authentication mode that will be used in TLS connection with AcraConnector. Values in range 0-4 that set auth type (https://golang.org/pkg/crypto/tls/#ClientAuthType). Default is tls.RequireAndVerifyClientCert
 tls_auth: 4
 
 # Path to root certificate which will be used with system root certificates to validate Postgresql's and AcraConnector's certificate
@@ -118,10 +122,10 @@ tls_ca:
 # Path to tls certificate
 tls_cert: 
 
-# Expected Server Name (SNI) from Postgresql
+# Expected Server Name (SNI) from database
 tls_db_sni: 
 
-# Path to private key that will be used in TLS handshake with AcraConnector as server's key and Postgresql as client's key
+# Path to private key that will be used in AcraServer's TLS handshake with AcraConnector as server's key and database as client's key
 tls_key: 
 
 # Export trace data to jaeger

@@ -17,6 +17,7 @@ limitations under the License.
 package network
 
 import (
+	"bytes"
 	"context"
 	"io"
 	"net"
@@ -41,10 +42,15 @@ const (
 // SessionCallback used for wrapping connection into SecureSession using SecureSession transport keys
 type SessionCallback struct {
 	keystorage keystore.SecureSessionKeyStore
+	expectedID []byte
 }
 
 // GetPublicKeyForId from Themis, returns correct public for particular secure session id
 func (callback *SessionCallback) GetPublicKeyForId(ss *session.SecureSession, id []byte) *keys.PublicKey {
+	if !bytes.Equal(id, callback.expectedID) {
+		log.WithField("client_id", string(id)).Warningln("Come secure session connection with unexpected id")
+		return nil
+	}
 	log.Infof("Load public key for id <%v>", string(id))
 	key, err := callback.keystorage.GetPeerPublicKey(id)
 	if err != nil {
@@ -59,8 +65,8 @@ func (callback *SessionCallback) GetPublicKeyForId(ss *session.SecureSession, id
 func (callback *SessionCallback) StateChanged(ss *session.SecureSession, state int) {}
 
 // NewSessionCallback creates new SessionCallback with SecureSessionKeyStore
-func NewSessionCallback(keystorage keystore.SecureSessionKeyStore) (*SessionCallback, error) {
-	return &SessionCallback{keystorage: keystorage}, nil
+func NewSessionCallback(expectedID []byte, keystorage keystore.SecureSessionKeyStore) (*SessionCallback, error) {
+	return &SessionCallback{keystorage: keystorage, expectedID: expectedID}, nil
 }
 
 type secureSessionConnection struct {
@@ -184,13 +190,13 @@ var ErrClientIDPacketToBig = errors.New("packet with ClientID too big")
 // SecureSessionConnectionWrapper adds SecureSession encryption above connection
 type SecureSessionConnectionWrapper struct {
 	keystore         keystore.SecureSessionKeyStore
-	clientID         []byte
 	handshakeTimeout time.Duration
+	id               []byte
 }
 
 // NewSecureSessionConnectionWrapper returns new SecureSessionConnectionWrapper with default handlshake timeout
-func NewSecureSessionConnectionWrapper(keystore keystore.SecureSessionKeyStore) (*SecureSessionConnectionWrapper, error) {
-	return &SecureSessionConnectionWrapper{keystore: keystore, clientID: nil, handshakeTimeout: SecureSessionEstablishingTimeout}, nil
+func NewSecureSessionConnectionWrapper(id []byte, keystore keystore.SecureSessionKeyStore) (*SecureSessionConnectionWrapper, error) {
+	return &SecureSessionConnectionWrapper{keystore: keystore, id: id, handshakeTimeout: SecureSessionEstablishingTimeout}, nil
 }
 
 // SetHandshakeTimeout set handshakeTimeout that will be used for secure session handshake. 0 - without handshakeTimeout
@@ -202,14 +208,10 @@ func (wrapper *SecureSessionConnectionWrapper) hasHandshakeTimeout() bool {
 	return wrapper.handshakeTimeout != 0
 }
 
-func (wrapper *SecureSessionConnectionWrapper) wrap(id []byte, conn net.Conn, isServer bool) (net.Conn, []byte, error) {
+func (wrapper *SecureSessionConnectionWrapper) wrap(outgoingID []byte, conn net.Conn, isServer bool) (net.Conn, []byte, error) {
 	conn.SetDeadline(time.Now().Add(sessionInitTimeout))
 	defer conn.SetDeadline(time.Time{})
 	secureConnection, err := newSecureSessionConnection(wrapper.keystore, conn)
-	if err != nil {
-		return conn, nil, err
-	}
-	callback, err := NewSessionCallback(wrapper.keystore)
 	if err != nil {
 		return conn, nil, err
 	}
@@ -232,21 +234,29 @@ func (wrapper *SecureSessionConnectionWrapper) wrap(id []byte, conn net.Conn, is
 		if err != nil {
 			return conn, nil, err
 		}
-		secureConnection.session, err = session.New(clientID, privateKey, callback)
+		callback, err := NewSessionCallback(clientID, wrapper.keystore)
+		if err != nil {
+			return conn, nil, err
+		}
+		secureConnection.session, err = session.New(wrapper.id, privateKey, callback)
 		if err != nil {
 			return conn, nil, err
 		}
 	} else {
-		clientID = id
-		privateKey, err := wrapper.keystore.GetPrivateKey(id)
+		clientID = outgoingID
+		privateKey, err := wrapper.keystore.GetPrivateKey(wrapper.id)
 		if err != nil {
 			return conn, nil, err
 		}
-		secureConnection.session, err = session.New(id, privateKey, callback)
+		callback, err := NewSessionCallback(outgoingID, wrapper.keystore)
 		if err != nil {
 			return conn, nil, err
 		}
-		err = utils.SendData(id, conn)
+		secureConnection.session, err = session.New(wrapper.id, privateKey, callback)
+		if err != nil {
+			return conn, nil, err
+		}
+		err = utils.SendData(wrapper.id, conn)
 		if err != nil {
 			return conn, nil, err
 		}
@@ -290,7 +300,7 @@ func (wrapper *SecureSessionConnectionWrapper) WrapClient(ctx context.Context, i
 	logger.Debugln("Wrap client connection with secure session")
 	if wrapper.hasHandshakeTimeout() {
 		if err := conn.SetDeadline(time.Now().Add(wrapper.handshakeTimeout)); err != nil {
-			logger.WithError(err).Errorln("Can't set deadline for secure session handshake")
+			logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantHandleSecureSession).WithError(err).Errorln("Can't set deadline for secure session handshake")
 			return nil, err
 		}
 	}
@@ -298,7 +308,7 @@ func (wrapper *SecureSessionConnectionWrapper) WrapClient(ctx context.Context, i
 	if wrapper.hasHandshakeTimeout() {
 		// reset deadline
 		if err := conn.SetDeadline(time.Time{}); err != nil {
-			logger.WithError(err).Errorln("Can't reset deadline after secure session handshake")
+			logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantHandleSecureSession).WithError(err).Errorln("Can't reset deadline after secure session handshake")
 			return nil, err
 		}
 	}
@@ -313,7 +323,7 @@ func (wrapper *SecureSessionConnectionWrapper) WrapServer(ctx context.Context, c
 	logger.Debugln("Wrap server connection with secure session")
 	if wrapper.hasHandshakeTimeout() {
 		if err := conn.SetDeadline(time.Now().Add(wrapper.handshakeTimeout)); err != nil {
-			log.WithError(err).Errorln("Can't set deadline for secure session handshake")
+			log.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantHandleSecureSession).WithError(err).Errorln("Can't set deadline for secure session handshake")
 			return nil, nil, err
 		}
 	}
@@ -321,7 +331,7 @@ func (wrapper *SecureSessionConnectionWrapper) WrapServer(ctx context.Context, c
 	if wrapper.hasHandshakeTimeout() {
 		// reset deadline
 		if err := conn.SetDeadline(time.Time{}); err != nil {
-			logger.WithError(err).Errorln("Can't reset deadline after secure session handshake")
+			logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantHandleSecureSession).WithError(err).Errorln("Can't reset deadline after secure session handshake")
 			return nil, nil, err
 		}
 	}

@@ -73,7 +73,7 @@ services:
             --file=/keys/acra-server/httpauth.accounts
             --keys_dir=/keys/acra-server/
 
-    # Postgresql container
+    # MySQL container
     mysql:
         image: mariadb:10.3
         # INSECURE!!! You MUST define your own DB name and credentials

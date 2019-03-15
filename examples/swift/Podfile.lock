@@ -1,0 +1,33 @@
+PODS:
+  - acrawriter (1.0.3):
+    - themis (~> 0.10.4)
+  - GRKOpenSSLFramework (1.0.2.16)
+  - themis (0.10.4):
+    - themis/themis-openssl (= 0.10.4)
+  - themis/themis-openssl (0.10.4):
+    - GRKOpenSSLFramework (~> 1.0.1)
+    - themis/themis-openssl/core (= 0.10.4)
+    - themis/themis-openssl/objcwrapper (= 0.10.4)
+  - themis/themis-openssl/core (0.10.4):
+    - GRKOpenSSLFramework (~> 1.0.1)
+  - themis/themis-openssl/objcwrapper (0.10.4):
+    - GRKOpenSSLFramework (~> 1.0.1)
+    - themis/themis-openssl/core
+
+DEPENDENCIES:
+  - acrawriter (= 1.0.3)
+
+SPEC REPOS:
+  https://github.com/cocoapods/specs.git:
+    - acrawriter
+    - GRKOpenSSLFramework
+    - themis
+
+SPEC CHECKSUMS:
+  acrawriter: ea9dab06ca801176c3e3299a04b488f3b5f47b56
+  GRKOpenSSLFramework: 35944e317e6336b2944ad70b059d84db6b2d8532
+  themis: 56654bb58700ece55439716058943f8f435b228d
+
+PODFILE CHECKSUM: 71ccc700de45c93317c6b36ddece022dc740f00b
+
+COCOAPODS: 1.5.3

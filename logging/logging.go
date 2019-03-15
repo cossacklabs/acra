@@ -36,7 +36,17 @@ const (
 	LogDiscard
 )
 
-const loggerKey = "logger"
+// LoggerSetter abstract types that provide way to set logger which they should use
+type LoggerSetter interface {
+	SetLogger(*log.Entry)
+}
+
+type loggerKey struct{}
+
+// IsDebugLevel return true if logger configured to log debug messages
+func IsDebugLevel(logger *log.Entry) bool {
+	return logger.Level == log.DebugLevel
+}
 
 // SetLogLevel sets logging level
 func SetLogLevel(level int) {
@@ -85,7 +95,7 @@ func logFormatterFor(loggingFormat string, serviceName string) log.Formatter {
 
 // SetLoggerToContext sets logger to corresponded context
 func SetLoggerToContext(ctx context.Context, logger *log.Entry) context.Context {
-	return context.WithValue(ctx, loggerKey, logger)
+	return context.WithValue(ctx, loggerKey{}, logger)
 }
 
 // GetLoggerFromContext gets logger from context, returns nil if no logger.
@@ -93,11 +103,11 @@ func GetLoggerFromContext(ctx context.Context) *log.Entry {
 	if entry, ok := GetLoggerFromContextOk(ctx); ok {
 		return entry
 	}
-	return nil
+	return log.NewEntry(log.StandardLogger())
 }
 
 // GetLoggerFromContextOk gets logger from context, returns logger and success code.
 func GetLoggerFromContextOk(ctx context.Context) (*log.Entry, bool) {
-	entry, ok := ctx.Value(loggerKey).(*log.Entry)
+	entry, ok := ctx.Value(loggerKey{}).(*log.Entry)
 	return entry, ok
 }

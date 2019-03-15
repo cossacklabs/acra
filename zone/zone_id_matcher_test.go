@@ -35,7 +35,7 @@ import (
 	"testing"
 )
 
-func assertZoneMatchNotFail(c byte, matcher *zone.ZoneIDMatcher, t *testing.T) {
+func assertZoneMatchNotFail(c byte, matcher *zone.Matcher, t *testing.T) {
 	if !matcher.Match(c) {
 		t.Fatal("Unexpected unmatch")
 	}
@@ -80,7 +80,11 @@ func (*TestKeyStore) SaveServerKeypair(id []byte, keypair *keys.Keypair) error {
 func (*TestKeyStore) SaveConnectorKeypair(id []byte, keypair *keys.Keypair) error {
 	panic("implement me")
 }
-func (*TestKeyStore) SaveZoneKeypair(id []byte, keypair *keys.Keypair) error { panic("implement me") }
+func (*TestKeyStore) SaveZoneKeypair(id []byte, keypair *keys.Keypair) error  { panic("implement me") }
+func (*TestKeyStore) GetZonePublicKey(zoneID []byte) (*keys.PublicKey, error) { panic("implement me") }
+func (*TestKeyStore) GetClientIDEncryptionPublicKey(clientID []byte) (*keys.PublicKey, error) {
+	panic("implement me")
+}
 
 func testZoneIDMatcher(t *testing.T) {
 	var keystorage keystore.KeyStore = &TestKeyStore{}

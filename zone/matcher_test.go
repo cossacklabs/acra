@@ -13,15 +13,14 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
-package zone_test
+package zone
 
 import (
 	"encoding/hex"
-	"github.com/cossacklabs/acra/zone"
 	"testing"
 )
 
-func assertMatchFail(c byte, matcher zone.Matcher, t *testing.T) {
+func assertMatchFail(c byte, matcher matcher, t *testing.T) {
 	if matcher.Match(c) {
 		t.Fatalf("Expected match fail on char %v", string(c))
 	}
@@ -29,31 +28,31 @@ func assertMatchFail(c byte, matcher zone.Matcher, t *testing.T) {
 		t.Fatal("Unexpected matched status")
 	}
 }
-func assertMatchNotFail(c byte, matcher zone.Matcher, t *testing.T) {
+func assertMatchNotFail(c byte, matcher matcher, t *testing.T) {
 	if !matcher.Match(c) {
 		t.Fatal("Unexpected unmatch")
 	}
 }
 
 func testMatcherWithHexReader(t *testing.T) {
-	matcher := zone.NewPgHexMatcherFactory().CreateMatcher()
+	matcher := NewPgHexMatcherFactory().createMatcher()
 	// we neen explicit "end" for escape format where zone_id has dynamic size
 	// 973feb
-	var HEX_ZONE_ID_BEGIN = []byte(hex.EncodeToString(zone.ZoneIDBegin))
+	var HexZoneIDBegin = []byte(hex.EncodeToString(ZoneIDBegin))
 
 	// test fail on first char of tab begin
 	assertMatchFail('q', matcher, t)
 	matcher.Reset()
 
 	// test fail on last char of tag begin
-	for _, c := range HEX_ZONE_ID_BEGIN[:len(HEX_ZONE_ID_BEGIN)-1] {
+	for _, c := range HexZoneIDBegin[:len(HexZoneIDBegin)-1] {
 		assertMatchNotFail(byte(c), matcher, t)
 	}
 	assertMatchFail('q', matcher, t)
 	matcher.Reset()
 
 	// test fail on incorrect char in zone_id block
-	for _, c := range HEX_ZONE_ID_BEGIN {
+	for _, c := range HexZoneIDBegin {
 		assertMatchNotFail(byte(c), matcher, t)
 	}
 	// 4 correct digits
@@ -64,11 +63,11 @@ func testMatcherWithHexReader(t *testing.T) {
 	matcher.Reset()
 
 	// test correct matching
-	for _, c := range HEX_ZONE_ID_BEGIN {
+	for _, c := range HexZoneIDBegin {
 		assertMatchNotFail(byte(c), matcher, t)
 	}
 	// fill zone id
-	for i := 0; i < (zone.ZoneIDLength * 2); i++ {
+	for i := 0; i < (ZoneIDLength * 2); i++ {
 		assertMatchNotFail('a', matcher, t)
 	}
 
@@ -78,22 +77,22 @@ func testMatcherWithHexReader(t *testing.T) {
 }
 
 func testMatcherWithEscapeReader(t *testing.T) {
-	matcher := zone.NewBaseMatcher(zone.NewPgEscapeByteReader())
-	var INCORRECT_VALUE byte = 31
+	matcher := newBaseMatcher(NewPgEscapeByteReader())
+	var IncorrectValue byte = 31
 
 	t.Log("Test fail on first char of begin tag")
-	assertMatchFail(INCORRECT_VALUE, matcher, t)
+	assertMatchFail(IncorrectValue, matcher, t)
 	matcher.Reset()
 
 	t.Log("Test fail on last char of begin tag")
-	for _, c := range zone.ZoneIDBegin[:len(zone.ZoneIDBegin)-1] {
+	for _, c := range ZoneIDBegin[:len(ZoneIDBegin)-1] {
 		assertMatchNotFail(byte(c), matcher, t)
 	}
-	assertMatchFail(INCORRECT_VALUE, matcher, t)
+	assertMatchFail(IncorrectValue, matcher, t)
 	matcher.Reset()
 
 	t.Log("Test fail on incorrect char in zone_id block")
-	for _, c := range zone.ZoneIDBegin {
+	for _, c := range ZoneIDBegin {
 		assertMatchNotFail(byte(c), matcher, t)
 	}
 	// 4 correct printable digits
@@ -106,15 +105,15 @@ func testMatcherWithEscapeReader(t *testing.T) {
 	assertMatchNotFail('0', matcher, t)
 	assertMatchNotFail('1', matcher, t)
 
-	assertMatchFail(INCORRECT_VALUE, matcher, t)
+	assertMatchFail(IncorrectValue, matcher, t)
 	matcher.Reset()
 
 	t.Log("Test correct matching")
-	for _, c := range zone.ZoneIDBegin {
+	for _, c := range ZoneIDBegin {
 		assertMatchNotFail(byte(c), matcher, t)
 	}
 	// fill zone id
-	for i := 0; i < zone.ZoneIDLength; i++ {
+	for i := 0; i < ZoneIDLength; i++ {
 		assertMatchNotFail('a', matcher, t)
 	}
 	if !matcher.IsMatched() {
@@ -123,24 +122,24 @@ func testMatcherWithEscapeReader(t *testing.T) {
 }
 
 func testMatcherWithBinaryReader(t *testing.T) {
-	matcher := zone.NewBaseMatcher(zone.NewBinaryByteReader())
+	matcher := newBaseMatcher(NewBinaryByteReader())
 	// test fail on first char of tab begin
 	assertMatchFail('q', matcher, t)
 	matcher.Reset()
 
 	// test fail on last char of tag begin
-	for _, c := range zone.ZoneIDBegin[:len(zone.ZoneIDBegin)-1] {
+	for _, c := range ZoneIDBegin[:len(ZoneIDBegin)-1] {
 		assertMatchNotFail(byte(c), matcher, t)
 	}
 	assertMatchFail('q', matcher, t)
 	matcher.Reset()
 
 	// test correct matching
-	for _, c := range zone.ZoneIDBegin {
+	for _, c := range ZoneIDBegin {
 		assertMatchNotFail(byte(c), matcher, t)
 	}
 	// fill zone id
-	for i := 0; i < zone.ZoneIDLength; i++ {
+	for i := 0; i < ZoneIDLength; i++ {
 		assertMatchNotFail('a', matcher, t)
 	}
 
@@ -150,22 +149,22 @@ func testMatcherWithBinaryReader(t *testing.T) {
 }
 
 func testHasAnyMatchWithHexReader(t *testing.T) {
-	factory := zone.NewPgHexMatcherFactory()
-	matcher := factory.CreateMatcher()
-	var HEX_ZONE_ID_BEGIN = []byte(hex.EncodeToString(zone.ZoneIDBegin))
+	factory := NewPgHexMatcherFactory()
+	matcher := factory.createMatcher()
+	var HexZoneIDBegin = []byte(hex.EncodeToString(ZoneIDBegin))
 	if matcher.HasAnyMatch() {
 		t.Fatal("Expected no match")
 	}
-	matcher.Match(HEX_ZONE_ID_BEGIN[0])
+	matcher.Match(HexZoneIDBegin[0])
 	if !matcher.HasAnyMatch() {
 		t.Fatal("Expected no match")
 	}
-	matcher.Match(HEX_ZONE_ID_BEGIN[1])
+	matcher.Match(HexZoneIDBegin[1])
 	if !matcher.HasAnyMatch() {
 		t.Fatal("Expected no match")
 	}
 
-	matcher = factory.CreateMatcher()
+	matcher = factory.createMatcher()
 	incorrectByte := byte(1)
 	matcher.Match(incorrectByte)
 	if matcher.HasAnyMatch() {
@@ -174,20 +173,20 @@ func testHasAnyMatchWithHexReader(t *testing.T) {
 }
 
 func testHasAnyMatchWithEscapeReader(t *testing.T) {
-	factory := zone.NewPgEscapeMatcherFactory()
-	matcher := factory.CreateMatcher()
+	factory := NewPgEscapeMatcherFactory()
+	matcher := factory.createMatcher()
 	if matcher.HasAnyMatch() {
 		t.Fatal("Expected no match")
 	}
 	// test first octal value from zone_id_begin
-	for _, c := range zone.ZoneIDBegin[:3] {
+	for _, c := range ZoneIDBegin[:3] {
 		matcher.Match(c)
 		if !matcher.HasAnyMatch() {
 			t.Fatal("Unexpected no match")
 		}
 	}
 
-	matcher = factory.CreateMatcher()
+	matcher = factory.createMatcher()
 	incorrectByte := byte(1)
 	matcher.Match(incorrectByte)
 	if matcher.HasAnyMatch() {
@@ -196,17 +195,17 @@ func testHasAnyMatchWithEscapeReader(t *testing.T) {
 }
 
 func testHasAnyMatchWithBinaryReader(t *testing.T) {
-	matcher := zone.NewBaseMatcher(zone.NewBinaryByteReader())
+	matcher := newBaseMatcher(NewBinaryByteReader())
 	if matcher.HasAnyMatch() {
 		t.Fatal("Expected no match")
 	}
-	if !matcher.Match(zone.ZoneIDBegin[0]) {
+	if !matcher.Match(ZoneIDBegin[0]) {
 		t.Fatal("Expected match")
 	}
 	if !matcher.HasAnyMatch() {
 		t.Fatal("Expected match")
 	}
-	if !matcher.Match(zone.ZoneIDBegin[1]) {
+	if !matcher.Match(ZoneIDBegin[1]) {
 		t.Fatal("Expected match")
 	}
 	if !matcher.HasAnyMatch() {
@@ -223,16 +222,16 @@ func testHasAnyMatchWithBinaryReader(t *testing.T) {
 }
 
 func testPgMatcher(t *testing.T) {
-	pgMatcher := zone.NewPgMatcher(zone.NewPgHexByteReader())
+	pgMatcher := newPgMatcher(NewPgHexByteReader())
 	t.Log("Test binary zone id")
 	t.Log("Fill zone begin")
 	// test correct matching with binary zone_id
-	for _, c := range zone.ZoneIDBegin {
+	for _, c := range ZoneIDBegin {
 		assertMatchNotFail(byte(c), pgMatcher, t)
 	}
 	t.Log("Fill zone id")
 	// fill zone id
-	for i := 0; i < zone.ZoneIDLength; i++ {
+	for i := 0; i < ZoneIDLength; i++ {
 		t.Log("Fill ", i)
 		assertMatchNotFail('a', pgMatcher, t)
 	}
@@ -246,13 +245,13 @@ func testPgMatcher(t *testing.T) {
 		t.Fatal("Unexpected match")
 	}
 	pgMatcher.Reset()
-	var HEX_ZONE_ID_BEGIN = []byte(hex.EncodeToString(zone.ZoneIDBegin))
+	var HexZoneIDBegin = []byte(hex.EncodeToString(ZoneIDBegin))
 	t.Log("Test hex zone id")
-	for _, c := range HEX_ZONE_ID_BEGIN {
+	for _, c := range HexZoneIDBegin {
 		assertMatchNotFail(byte(c), pgMatcher, t)
 	}
 	// fill zone id
-	for i := 0; i < (zone.ZoneIDLength * 2); i++ {
+	for i := 0; i < (ZoneIDLength * 2); i++ {
 		assertMatchNotFail('a', pgMatcher, t)
 	}
 

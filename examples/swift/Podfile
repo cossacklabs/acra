@@ -1,0 +1,10 @@
+source 'https://github.com/CocoaPods/Specs.git'
+
+platform :ios, '8.0'
+project 'AcraWriterSwift/AcraWriterSwift.xcodeproj'
+inhibit_all_warnings!
+use_frameworks!
+
+target :"AcraWriterSwift" do
+	pod 'acrawriter', '1.0.3'
+end

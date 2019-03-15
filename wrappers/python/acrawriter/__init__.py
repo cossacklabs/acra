@@ -12,37 +12,39 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 # coding: utf-8
+import os
 import sys
 import struct
-from random import randint
 
 from pythemis.scell import SCellSeal
 from pythemis.skeygen import GenerateKeyPair, KEY_PAIR_TYPE
 from pythemis.smessage import SMessage
 
-__all__ = ('create_acrastruct')
+__all__ = ('create_acrastruct', 'generate_key')
 
 BEGIN_TAG = [ord('"')]*8
-
-if sys.version[0] == 3:
-    BEGIN_TAG = bytes(BEGIN_TAG)
-    def generate_key():
-        return bytes([randint(0, 255) for _ in range(SYMMETRIC_KEY_LENGTH)])
-else:
-    BEGIN_TAG = bytes(bytearray(BEGIN_TAG))
-    def generate_key():
-        return bytes(bytearray([randint(0, 255) for _ in range(SYMMETRIC_KEY_LENGTH)]))
-
 SYMMETRIC_KEY_LENGTH = 32
 
 
-def create_acrastruct(data, acra_public_key, context=None):
+def generate_key():
+    return os.urandom(SYMMETRIC_KEY_LENGTH)
+
+
+if sys.version[0] == 3:
+    BEGIN_TAG = bytes(BEGIN_TAG)
+else:
+    BEGIN_TAG = bytes(bytearray(BEGIN_TAG))
+
+
+def create_acrastruct(data, acra_public_key, context=None, encoding='utf-8'):
     random_kp = GenerateKeyPair(KEY_PAIR_TYPE.EC)
     smessage = SMessage(random_kp.export_private_key(), acra_public_key)
     random_key = generate_key()
     wrapped_random_key = smessage.wrap(random_key)
 
     scell = SCellSeal(random_key)
+    if isinstance(data, str):
+        data = data.encode(encoding)
     encrypted_data = scell.encrypt(data, context)
     del random_key
     encrypted_data_len = struct.pack('<Q', len(encrypted_data))
@@ -57,5 +59,5 @@ def create_acrastruct(data, acra_public_key, context=None):
     del wrapped_random_key
     return acrastruct
 create_acrastruct.__annotations__ = {
-    'data': bytes, 'acra_public_key': bytes, 'context': bytes
+    'data': bytes, 'acra_public_key': bytes, 'context': bytes, 'encoding': str,
 }

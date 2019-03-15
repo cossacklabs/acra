@@ -1,4 +1,5 @@
-ignore_parse_error: false
+ignore_parse_error: true
+version: 0.85.0
 handlers:
   - handler: query_ignore
     queries:
@@ -13,8 +14,10 @@ handlers:
       - SELECT CAST('test unicode returns' AS CHAR(60)) AS anon_1
       - SELECT CAST('test collated returns' AS CHAR CHARACTER SET utf8) COLLATE utf8_bin AS anon_1
       - SELECT CAST('test collated returns' AS CHAR CHARACTER SET utf8mb4) COLLATE utf8mb4_bin AS anon_1
-      - select 1
+      - select 1;
       - SET AUTOCOMMIT = 0
+      - SET NAMES 'ascii' COLLATE 'ascii_general_ci'
+      - SET @@session.autocommit = OFF
       #postgres
       - BEGIN
       - "SELECT t.oid, typarray\nFROM pg_type t JOIN pg_namespace ns\n    ON typnamespace = ns.oid\nWHERE typname = 'hstore';\n"
@@ -27,10 +30,13 @@ handlers:
       - show standard_conforming_strings
       - SELECT CAST('test plain returns' AS VARCHAR(60)) AS anon_1
       - SELECT CAST('test unicode returns' AS VARCHAR(60)) AS anon_1
-
-  - handler: whitelist
+  - handler: allow
     queries:
-    tables:
-      - test
+      - prepare test_statement from 'select * from acrarollback_output'
+      - prepare test_statement from 'insert into test(id, data) values(1, DEFAULT)'
+      - prepare test_statement as select * from acrarollback_output
+      - prepare test_statement as insert into test(id, data) values(1, DEFAULT)
+      - execute test_statement
     patterns:
-      - "%%SELECT%%"
+      - select * from acra_rollback_output where someValue = %%VALUE%%
+  - handler: denyall

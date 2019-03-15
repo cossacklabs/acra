@@ -16,33 +16,40 @@ limitations under the License.
 
 package handlers
 
+import (
+	"github.com/cossacklabs/acra/acra-censor/common"
+	"github.com/cossacklabs/acra/sqlparser"
+	log "github.com/sirupsen/logrus"
+)
+
 // QueryIgnoreHandler allows to ignore any query
 type QueryIgnoreHandler struct {
 	ignoredQueries map[string]bool
+	logger         *log.Entry
 }
 
 // NewQueryIgnoreHandler creates new ignore handler
 func NewQueryIgnoreHandler() *QueryIgnoreHandler {
-	handler := &QueryIgnoreHandler{}
-	handler.ignoredQueries = make(map[string]bool)
+	handler := &QueryIgnoreHandler{ignoredQueries: make(map[string]bool), logger: log.WithField("handler", "query-ignore")}
 	return handler
 }
 
 // CheckQuery checks each query, returns false if query handling should be ignored.
-func (handler *QueryIgnoreHandler) CheckQuery(query string) (bool, error) {
-	if handler.ignoredQueries[query] {
+func (handler *QueryIgnoreHandler) CheckQuery(rawQuery string, parsedQuery sqlparser.Statement) (bool, error) {
+	normalizedQ := sqlparser.String(parsedQuery)
+	if handler.ignoredQueries[normalizedQ] || handler.ignoredQueries[rawQuery] {
 		//do not continue query handling
 		return false, nil
 	}
 	return true, nil
 }
 
-// Reset ignored patterns
+// Reset resets list of ignored patterns
 func (handler *QueryIgnoreHandler) Reset() {
 	handler.ignoredQueries = make(map[string]bool)
 }
 
-// Release / reset ignored patterns
+// Release resets list of ignored patterns
 func (handler *QueryIgnoreHandler) Release() {
 	handler.Reset()
 }
@@ -50,21 +57,23 @@ func (handler *QueryIgnoreHandler) Release() {
 // AddQueries normalizes and adds queries to the list that should be ignored
 func (handler *QueryIgnoreHandler) AddQueries(queries []string) {
 	for _, query := range queries {
-		normalizedQuery, _, err := NormalizeAndRedactSQLQuery(query)
-		if err != nil {
-			continue
+		handler.ignoredQueries[query] = true
+		normalizedQuery, _, _, err := common.HandleRawSQLQuery(query)
+		if err == nil {
+			handler.ignoredQueries[normalizedQuery] = true
+		} else {
+			handler.logger.Warningln("Can't add normalized query due to parse error, will add in raw form")
 		}
-		handler.ignoredQueries[normalizedQuery] = true
 	}
 }
 
-// RemoveQueries removes queries from the list that should be whitelisted
+// RemoveQueries removes queries from the list that should be ignored
 func (handler *QueryIgnoreHandler) RemoveQueries(queries []string) {
 	for _, query := range queries {
-		normalizedQuery, _, err := NormalizeAndRedactSQLQuery(query)
-		if err != nil {
-			continue
+		delete(handler.ignoredQueries, query)
+		normalizedQuery, _, _, err := common.HandleRawSQLQuery(query)
+		if err == nil {
+			delete(handler.ignoredQueries, normalizedQuery)
 		}
-		delete(handler.ignoredQueries, normalizedQuery)
 	}
 }

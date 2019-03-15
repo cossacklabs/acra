@@ -1,13 +1,15 @@
 ignore_parse_error: false
+version: 0.85.0
+parse_errors_log: unparsed_queries.log
 handlers:
   - handler: query_capture
-    filepath: censor_log
+    filepath: censor.log
   - handler: query_ignore
     queries:
       - ROLLBACK
       - COMMIT
       - BEGIN
-  - handler: blacklist
+  - handler: deny
     queries:
       - INSERT INTO SalesStaff1 VALUES (1, 'Stephen', 'Jiang');
       - SELECT AVG(Price) FROM Products;

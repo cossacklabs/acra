@@ -19,14 +19,11 @@ package main
 import (
 	"context"
 	"github.com/cossacklabs/acra/network"
-	"go.opencensus.io/trace"
 	"net"
 
 	log "github.com/sirupsen/logrus"
 
 	"github.com/cossacklabs/acra/decryptor/base"
-	"github.com/cossacklabs/acra/decryptor/mysql"
-	"github.com/cossacklabs/acra/decryptor/postgresql"
 	"github.com/cossacklabs/acra/keystore"
 	"github.com/cossacklabs/acra/logging"
 	"io"
@@ -45,7 +42,7 @@ type ClientSession struct {
 
 // NewClientSession creates new ClientSession object.
 func NewClientSession(ctx context.Context, keystorage keystore.KeyStore, config *Config, connection net.Conn) (*ClientSession, error) {
-	return &ClientSession{connection: connection, keystorage: keystorage, config: config, ctx: ctx, logger: logging.NewLoggerWithTrace(ctx)}, nil
+	return &ClientSession{connection: connection, keystorage: keystorage, config: config, ctx: ctx, logger: logging.GetLoggerFromContext(ctx)}, nil
 }
 
 // ConnectToDb connects to the database via tcp using Host and Port from config.
@@ -77,7 +74,7 @@ func (clientSession *ClientSession) close() {
 
 // HandleClientConnection handles Acra-connector connections from client to db and decrypt responses from db to client.
 // If any error occurred – ends processing.
-func (clientSession *ClientSession) HandleClientConnection(clientID []byte, decryptorImpl base.Decryptor) {
+func (clientSession *ClientSession) HandleClientConnection(clientID []byte, proxyFactory base.ProxyFactory) {
 	clientSession.logger.Infof("Handle client's connection")
 	clientProxyErrorCh := make(chan error, 1)
 	dbProxyErrorCh := make(chan error, 1)
@@ -96,74 +93,51 @@ func (clientSession *ClientSession) HandleClientConnection(clientID []byte, decr
 		}
 		return
 	}
-	var pgProxy *postgresql.PgProxy
-	if clientSession.config.UseMySQL() {
-		clientSession.logger.Debugln("MySQL connection")
-		trace.FromContext(clientSession.ctx).AddAttributes(trace.StringAttribute("db.type", "mysql"))
-		handler, err := mysql.NewMysqlHandler(clientSession.ctx, clientID, decryptorImpl, clientSession.connectionToDb, clientSession.connection, clientSession.config.GetTLSConfig(), clientSession.config.censor)
-		if err != nil {
-			clientSession.logger.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantInitDecryptor).
-				Errorln("Can't initialize mysql handler")
-			return
-		}
-		go handler.ClientToDbConnector(clientProxyErrorCh)
-		go handler.DbToClientConnector(dbProxyErrorCh)
-	} else {
-		trace.FromContext(clientSession.ctx).AddAttributes(trace.StringAttribute("db.type", "postgresql"))
-		pgProxy, err = postgresql.NewPgProxy(clientSession.ctx, clientSession.connection, clientSession.connectionToDb)
-		if err != nil {
-			clientSession.logger.WithError(err).Errorln("can't initialize postgresql proxy")
-			return
-		}
-		clientSession.logger.Debugln("PostgreSQL connection")
-		go pgProxy.PgProxyClientRequests(clientSession.config.censor, clientSession.connectionToDb, clientSession.connection, clientProxyErrorCh)
-		go pgProxy.PgDecryptStream(clientSession.config.censor, decryptorImpl, clientSession.config.GetTLSConfig(), clientSession.connectionToDb, clientSession.connection, dbProxyErrorCh)
+
+	if err != nil {
+		clientSession.logger.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorDataEncryptorInitialization).
+			Errorln("Can't initialize data encryptor to encrypt data in queries")
+		return
 	}
+	proxy, err := proxyFactory.New(clientSession.ctx, clientID, clientSession.connectionToDb, clientSession.connection)
+	if err != nil {
+		clientSession.logger.WithError(err).Errorln("Can't create new proxy for connection")
+		return
+	}
+	go proxy.ProxyClientConnection(clientProxyErrorCh)
+	go proxy.ProxyDatabaseConnection(dbProxyErrorCh)
+
 	var channelToWait chan error
 	const (
 		acraDbSide     = "AcraServer<->Database"
 		clientAcraSide = "Client/Connector<->Database"
 	)
 	var interruptSide string
-	for {
-		select {
-		case err = <-dbProxyErrorCh:
-			clientSession.logger.Debugln("Stop to proxy Database -> AcraServer")
-			interruptSide = acraDbSide
-			channelToWait = clientProxyErrorCh
-			break
-		case err = <-clientProxyErrorCh:
-			interruptSide = clientAcraSide
-			clientSession.logger.Debugln("Stop to proxy AcraServer -> Client")
-			channelToWait = dbProxyErrorCh
-			break
-		}
-		clientSession.logger = clientSession.logger.WithField("interrupt_side", interruptSide)
-		if err == io.EOF {
-			clientSession.logger.Debugln("EOF connection closed")
-		} else if err == nil {
-			break
-		} else if netErr, ok := err.(net.Error); ok {
-			if netErr.Timeout() {
-				clientSession.logger.Debugln("Network timeout")
-				if clientSession.config.UseMySQL() {
-					break
-				} else {
-					pgProxy.TLSCh <- true
-					// in postgresql mode timeout used to stop listening connection in background goroutine
-					// and it's normal behaviour
-					continue
-				}
-			}
-			clientSession.logger.WithError(netErr).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantHandleSecureSession).
-				Errorln("Network error")
-		} else if opErr, ok := err.(*net.OpError); ok {
-			clientSession.logger.WithError(opErr).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantHandleSecureSession).Errorln("Network error")
-		} else {
-			clientSession.logger.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantHandleSecureSession).Errorln("Unexpected error")
-		}
-		break
+
+	select {
+	case err = <-dbProxyErrorCh:
+		clientSession.logger.Debugln("Stop to proxy Database -> AcraServer")
+		interruptSide = acraDbSide
+		channelToWait = clientProxyErrorCh
+	case err = <-clientProxyErrorCh:
+		interruptSide = clientAcraSide
+		clientSession.logger.Debugln("Stop to proxy AcraServer -> Client")
+		channelToWait = dbProxyErrorCh
 	}
+	clientSession.logger = clientSession.logger.WithField("interrupt_side", interruptSide)
+	if err == io.EOF {
+		clientSession.logger.Debugln("EOF connection closed")
+	} else if err == nil {
+		clientSession.logger.Debugln("Err == nil from proxy goroutine")
+	} else if netErr, ok := err.(net.Error); ok {
+		clientSession.logger.WithError(netErr).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorGeneralConnectionProcessing).
+			Errorln("Network error")
+	} else if opErr, ok := err.(*net.OpError); ok {
+		clientSession.logger.WithError(opErr).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorGeneralConnectionProcessing).Errorln("Network error")
+	} else {
+		clientSession.logger.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorGeneralConnectionProcessing).Errorln("Unexpected error")
+	}
+
 	clientSession.logger.Infof("Closing client's connection")
 	clientSession.close()
 

@@ -103,7 +103,7 @@ func rotateDb(selectQuery, updateQuery string, db *sql.DB, keystore keystore.Key
 		}
 	}
 	if !dryRun {
-		if err := rotator.saveRotatedKeys(); err != nil {
+		if err = rotator.saveRotatedKeys(); err != nil {
 			log.WithError(err).Errorln("Can't save rotated keys")
 			return false
 		}

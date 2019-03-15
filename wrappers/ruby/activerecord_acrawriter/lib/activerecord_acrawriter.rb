@@ -16,18 +16,38 @@ require 'active_record'
 require 'acrawriter'
 
 class AcraType < ActiveRecord::Type::String
-  def cast(value)
-    # scell can't encrypt null or empty objects
-    if value.nil? or value == ''
-      super
-    else
-      key = Base64.decode64(Rails.application.secrets.acra_public_key)
-      ActiveRecord::Base.connection.escape_bytea(create_acrastruct(value.b, key))
+
+  def serialize(value)
+    return '' if value.to_s.empty?
+
+    key = Base64.decode64(Rails.application.secrets.acra_public_key)
+    acrastruct = create_acrastruct(value.b, key)
+
+    case ActiveRecord::Base.connection.adapter_name
+    when 'PostgreSQL'
+      return ActiveRecord::Base.connection.escape_bytea(acrastruct)
+    when 'Mysql2'
+      return acrastruct.b
     end
+
+    raise 'Do not know how to operate with adapter ' +
+        ActiveRecord::Base.connection.adapter_name
   end
 
-  def deserialize(value)
-    # override to avoid call cast method
-    value
-  end
+  private
+
+    def cast_value(value)
+      return '' if value.to_s.empty?
+
+      case ActiveRecord::Base.connection.adapter_name
+      when 'PostgreSQL'
+        return [value[2..-1]].pack('H*') if value.start_with?('\x')
+        return value.to_s
+      when 'Mysql2'
+        return value.to_s
+      end
+
+      raise 'Do not know how to operate with adapter ' +
+        ActiveRecord::Base.connection.adapter_name
+    end
 end

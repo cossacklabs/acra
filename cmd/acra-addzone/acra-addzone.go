@@ -44,9 +44,9 @@ import (
 
 // Constants used by AcraAddZone util.
 var (
-	// DEFAULT_CONFIG_PATH relative path to config which will be parsed as default
-	DEFAULT_CONFIG_PATH = utils.GetConfigPathByName("acra-addzone")
-	SERVICE_NAME        = "acra-addzone"
+	// defaultConfigPath relative path to config which will be parsed as default
+	defaultConfigPath = utils.GetConfigPathByName("acra-addzone")
+	serviceName       = "acra-addzone"
 )
 
 func main() {
@@ -55,34 +55,35 @@ func main() {
 
 	logging.SetLogLevel(logging.LogVerbose)
 
-	err := cmd.Parse(DEFAULT_CONFIG_PATH, SERVICE_NAME)
+	err := cmd.Parse(defaultConfigPath, serviceName)
 	if err != nil {
-		log.WithError(err).Errorln("can't parse args")
+		log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantReadServiceConfig).
+			Errorln("Can't parse args")
 		os.Exit(1)
 	}
-	//LoadFromConfig(DEFAULT_CONFIG_PATH)
+	//LoadFromConfig(defaultConfigPath)
 	//iniflags.Parse()
 
 	output, err := filepath.Abs(*outputDir)
 	if err != nil {
-		log.WithError(err).Errorln("can't get absolute path for output dir")
+		log.WithError(err).Errorln("Can't get absolute path for output dir")
 		os.Exit(1)
 	}
 	var keyStore keystore.KeyStore
 	if *fsKeystore {
 		masterKey, err := keystore.GetMasterKeyFromEnvironment()
 		if err != nil {
-			log.WithError(err).Errorln("can't load master key")
+			log.WithError(err).Errorln("Can't load master key")
 			os.Exit(1)
 		}
 		scellEncryptor, err := keystore.NewSCellKeyEncryptor(masterKey)
 		if err != nil {
-			log.WithError(err).Errorln("can't init scell encryptor")
+			log.WithError(err).Errorln("Can't init scell encryptor")
 			os.Exit(1)
 		}
 		keyStore, err = filesystem.NewFilesystemKeyStore(output, scellEncryptor)
 		if err != nil {
-			log.WithError(err).Errorln("can't create key store")
+			log.WithError(err).Errorln("Can't create key store")
 			os.Exit(1)
 		}
 	} else {
@@ -90,12 +91,12 @@ func main() {
 	}
 	id, publicKey, err := keyStore.GenerateZoneKey()
 	if err != nil {
-		log.WithError(err).Errorln("can't add zone")
+		log.WithError(err).Errorln("Can't add zone")
 		os.Exit(1)
 	}
 	json, err := zone.ZoneDataToJSON(id, &keys.PublicKey{Value: publicKey})
 	if err != nil {
-		log.WithError(err).Errorln("can't encode to json")
+		log.WithError(err).Errorln("Can't encode to json")
 		os.Exit(1)
 	}
 	fmt.Println(string(json))
