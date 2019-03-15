@@ -1,6 +1,6 @@
 # Acra ChangeLog
 
-## [0.85.0](https://github.com/cossacklabs/acra/releases/tag/0.85), March 7th 2018
+## [0.85.0](https://github.com/cossacklabs/acra/releases/tag/0.85), March 15th 2018
 
 _Core_:
 
