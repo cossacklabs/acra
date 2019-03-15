@@ -44,6 +44,8 @@ Acra gives you tools for encrypting the data on the application's side into spec
 
 Cryptographic design ensures that no secret (password, key, etc.) leaked from the application or database will be sufficient for decryption of the protected data chunks that originate from it. Acra minimises the leakage scope, detects unauthorised behavior, and prevents the leakage, informing operators of the incident underway.
 
+This is [Acra Community Edition](https://www.cossacklabs.com/acra/#pricing), it's free for commercial and non-commercial usage, forever.
+
 ### Major security features
 
 <table><tbody><tr><tr><td><li>Cryptographic protection of data </li></td><td> during storage and transmission </td>
@@ -52,22 +54,24 @@ Cryptographic design ensures that no secret (password, key, etc.) leaked from th
 </tr><tr><td><li>Trust compartmentalisation </li></td><td> datastore and application components can be compromised, yet the data is protected</td>
 </tr><tr><td><li>Prevention of SQL injections </li></td><td> through a built-in SQL firewall </td>
 </tr><tr><td><li>Intrusion detection system </li></td><td> to give an early warning about suspicious behaviour </td>
-</tr><tr><td><li>Running SQL queries over encrypted data </li></td><td rowspan=3> <i>coming in the (near) future releases</i>
-</tr><tr><td><li>Pseudonymisation </li></td>
+</tr><tr><td><li>Searchable encryption ᵉ </li></td><td>available for <a href="https://www.cossacklabs.com/acra/#pricing" target="_blank">Acra Enterprise</a> users</td>
+</tr><tr><td><li>Pseudonymisation </li></td><td rowspan=2> <i>coming in the (near) future releases</i>
 </tr><tr><td><li>Cryptographically protected audit log </li></td>
 </tr></tbody></table>
 
 ### Developer and DevOps friendly
 
 <table><tbody>
-<tr><td><li> Secure default settings </td><td> your infrastructure is secure from the start without additional configuring </li></td></tr>
-<tr><td><li> Cryptography is hidden<br/>under the hood </td><td> no risk of selecting the wrong key length or algorithm padding </li></td></tr>
-<tr><td><li> Automation-friendly </td><td> easy to configure and automate </li></td></tr>
-<tr><td><li> Quick infrastructure integration </td><td> via binary packages or Docker images </li></td></tr>
-<tr><td><li> Easy client code integration </td><td> client-side encryption libraries support ~10 languages </li></td></tr>
-<tr><td><li> Logging, metrics, tracing </td><td> throughout all Acra components;<br/>compatible with ELK stack, Prometheus, Jaeger</li> </td></tr>
-<tr><td><li> No vendor lock </td><td> rollback utilities to decrypt database into plaintext </li> </td></tr>
-<tr><td><li> Demos and simulators </td><td> numerous web-based and Docker-based demo projects </li></td></tr>
+<tr><td><li> Secure default settings </li></td><td> your infrastructure is secure from the start without additional configuring </td></tr>
+<tr><td><li> Cryptography is hidden<br/>under the hood </li></td><td> no risk of selecting the wrong key length or algorithm padding </td></tr>
+<tr><td><li> Automation-friendly </li></td><td> easy to configure and automate </td></tr>
+<tr><td><li> Quick infrastructure integration </li></td><td> via binary packages or Docker images </td></tr>
+<tr><td><li> Easy client-side integration </li></td><td> client-side encryption libraries support ~11 languages </td></tr>
+<tr><td><li> Code-less client-side integration </li></td><td> server-side encryption in AcraServer's Transparent proxy mode</td></tr>
+<tr><td><li> Logging, metrics, tracing </li></td><td> throughout all Acra components;<br/>compatible with ELK stack, Prometheus, Jaeger </td></tr>
+<tr><td><li> No vendor lock </li></td><td> rollback utilities to decrypt database into plaintext </td></tr>
+<tr><td><li> Demos, examples and simulators </li></td><td> numerous web-based and Docker-based example projects </td></tr>
+<tr><td><li> Managed solution available</li></td><td> we can <a href="https://www.cossacklabs.com/acra/#pricing" target="_blank">setup and manage Acra</a> for you </td></tr>
 </tbody></table>
 
 ## Cryptography
@@ -82,7 +86,7 @@ Acra relies on our cryptographic library [Themis](https://www.cossacklabs.com/th
 <tr><td> KMS integration ᵉ</td><td> Amazon KMS, Google Cloud Platform KMS, Hashicorp Vault, Keywhiz </td></tr>
 </tbody></table>
 
-ᵉ — available in the [Enterprise version of Acra](https://www.cossacklabs.com/acra/) only. [Drop us an email](mailto:sales@cossacklabs.com) to get a full list of features and a quote.
+ᵉ — available in the [Enterprise version of Acra](https://www.cossacklabs.com/acra/#pricing/) only. [Drop us an email](mailto:sales@cossacklabs.com) to get a full list of features and a quote.
 
 
 ## Try Acra without writing code
@@ -189,7 +193,7 @@ Acra is compatible with numerous RDBMS, object and KV stores, cloud platforms, e
 <tr><td> Load balancing </td><td> HAProxy, cloud balancers </td></tr>
 </tbody></table>
 
-Open source Acra has limited integration support, more services are available in the [Enterprise version of Acra](https://github.com/cossacklabs/acra#open-source-vs-enterprise) only.
+Open source Acra has limited integration support, more services are available in the [Enterprise version of Acra](https://www.cossacklabs.com/acra/#pricing) only.
 
 ## Installation and launch
 
@@ -279,7 +283,7 @@ Acra can help you comply with GDPR and HIPAA regulations. Configuring and using 
 
 ## Open source vs Pro vs Enterprise
 
-This open source version of Acra is free to use. Please let us know in the [Issues](https://www.github.com/cossacklabs/acra/issues) if you stumble upon a bug, see a possible enhancement, or have a comment on security design.
+This is Acra Community Edition, the open source version of Acra, which is 💯 free for commercial and non-commercial usage. Please let us know in the [Issues](https://www.github.com/cossacklabs/acra/issues) if you stumble upon a bug, see a possible enhancement, or have a comment on security design.
 
 There are also [Pro and Enterprise versions of Acra](https://www.cossacklabs.com/acra/#pricing) available. Those versions provide better performance, redunancy/load balancing, come pre-configured with crypto-primitives of your choice (FIPS, GOST), integrate with key/secret management tools in your stack, and have plenty of utils and tools for your Ops and SREs to operate Acra conveniently – deployment automation, scaling, monitoring, and logging. [Talk to us](mailto:sales@cossacklabs.com) to get full feature lists and a quote.
 
