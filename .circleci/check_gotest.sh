@@ -8,7 +8,6 @@ for version in $VERSIONS; do
     export PATH=$GOROOT/bin/:$PATH;
     export GOPATH=$HOME/$GOPATH_FOLDER;
     rm -rf $HOME/$GOPATH_FOLDER/bin;
-    rm -rf $HOME/$GOPATH_FOLDER/pkg;
 
     go test -v github.com/cossacklabs/acra/...;
     status="$?"
