@@ -9,11 +9,12 @@ sudo make install
 cd $HOME
 rm -rf themis
 for version in $VERSIONS; do
-    mkdir go_root_$version;
-    cd go_root_$version;
-    wget https://storage.googleapis.com/golang/go$version.linux-amd64.tar.gz;
-    tar xf go$version.linux-amd64.tar.gz;
-    cd -;
+    goroot_folder="go_root_${version}"
+    mkdir ${goroot_folder}
+    archive=go${version}.linux-amd64.tar.gz
+    wget https://storage.googleapis.com/golang/${archive}
+    tar -C ${goroot_folder} -xf ${archive};
+    rm ${archive}
 done
 
 
