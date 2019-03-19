@@ -44,7 +44,7 @@ ENV PATH="$GOROOT/bin/:$PATH"
 ENV PATH_ACRA="/acra"
 COPY ./ "${PATH_ACRA}/"
 # Fetch all dependencies and build all binaries in acra
-RUN cd /acra/ && go install -v -x ./cmd/...
+RUN cd "${PATH_ACRA}" && go install -v -x ./cmd/...
 # Include scripts for finding dependencies and prepare resulting directories
 COPY docker/_scripts/acra-build/add_component.sh .
 RUN chmod +x ./add_component.sh
