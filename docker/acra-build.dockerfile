@@ -39,17 +39,12 @@ RUN GO_SRC_FILE="go1.11.5.linux-amd64.tar.gz" && \
     wget --no-verbose --no-check-certificate \
         "https://storage.googleapis.com/golang/${GO_SRC_FILE}" && \
     tar xf "./${GO_SRC_FILE}"
-ENV GOROOT="/root/go" GOPATH="/root/gopath"
+ENV GOROOT="/root/go" GOPATH="/root/gopath" GO111MODULE=on
 ENV PATH="$GOROOT/bin/:$PATH"
-ENV GOPATH_ACRA="${GOPATH}/src/github.com/cossacklabs/acra"
-COPY ./ "${GOPATH}/src/github.com/cossacklabs/acra/"
-RUN mkdir -p "${GOPATH}/src/github.com/cossacklabs/themis/gothemis" && \
-    rsync -au themis/gothemis/ \
-        "${GOPATH}/src/github.com/cossacklabs/themis/gothemis"
-# Fetch and build dependencies
-RUN go get -d -t -v -x github.com/cossacklabs/acra/...
-# Build previously fetched acra
-RUN go get -v -x github.com/cossacklabs/acra/...
+ENV PATH_ACRA="/acra"
+COPY ./ "${PATH_ACRA}/"
+# Fetch all dependencies and build all binaries in acra
+RUN cd /acra/ && go install ./cmd/...
 # Include scripts for finding dependencies and prepare resulting directories
 COPY docker/_scripts/acra-build/add_component.sh .
 RUN chmod +x ./add_component.sh
@@ -67,5 +62,5 @@ RUN for component in server connector translator keymaker webconfig authmanager;
         ./add_component.sh "$component" "$component"; \
     done
 # Copy static resources for acra-webconfig
-RUN cp -r "${GOPATH}/src/github.com/cossacklabs/acra/cmd/acra-webconfig/static" \
+RUN cp -r "${PATH_ACRA}/cmd/acra-webconfig/static" \
     "/container.acra-webconfig/"
