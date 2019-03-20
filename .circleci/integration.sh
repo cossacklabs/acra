@@ -29,6 +29,9 @@ for version in $VERSIONS; do
     export GOROOT=$HOME/go_root_$version/go;
     export PATH=$GOROOT/bin/:$PATH;
 
+    # remove built packages with another golang version and force to rebuild
+    rm -rf $GOPATH/pkg
+
     
     echo "--------------------  Testing with TEST_TLS=${TEST_TLS}"
 

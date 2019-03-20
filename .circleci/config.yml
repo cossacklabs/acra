@@ -14,6 +14,7 @@ jobs:
       GOPATH: /home/user/gopath
       # set default goroot instead system available
       GOROOT: /home/user/go_root_1.11.5/go
+      GO111MODULE: "on"
     steps:
       # prepare
       - checkout
@@ -47,6 +48,7 @@ jobs:
       GOPATH: /home/user/gopath
       # set default goroot instead system available
       GOROOT: /home/user/go_root_1.11.5/go
+      GO111MODULE: "on"
     steps:
     # prepare
       - checkout
@@ -83,6 +85,7 @@ jobs:
       GOPATH: /home/user/gopath
       # set default goroot instead system available
       GOROOT: /home/user/go_root_1.11.5/go
+      GO111MODULE: "on"
     steps:
       # prepare
       - checkout
@@ -122,6 +125,7 @@ jobs:
       GOPATH: /home/user/gopath
       # set default goroot instead system available
       GOROOT: /home/user/go_root_1.11.5/go
+      GO111MODULE: "on"
     steps:
     # prepare
     - checkout
@@ -162,6 +166,7 @@ jobs:
       GOPATH: /home/user/gopath
       # set default goroot instead system available
       GOROOT: /home/user/go_root_1.11.5/go
+      GO111MODULE: "on"
     steps:
       # prepare
       - checkout
@@ -202,6 +207,7 @@ jobs:
       GOPATH: /home/user/gopath
       # set default goroot instead system available
       GOROOT: /home/user/go_root_1.11.5/go
+      GO111MODULE: "on"
     steps:
     # prepare
     - checkout
@@ -240,6 +246,7 @@ jobs:
       GOPATH: /home/user/gopath
       # set default goroot instead system available
       GOROOT: /home/user/go_root_1.11.5/go
+      GO111MODULE: "on"
     steps:
       # prepare
       - checkout
