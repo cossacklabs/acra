@@ -310,7 +310,7 @@ func main() {
 		if *acraServerEnableHTTPAPI {
 			if *acraServerHost == "" && *acraServerAPIConnectionString == "" {
 				log.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorWrongConfiguration).
-					Errorln("Configuration error: you must pass acraserver_connection_host or acra_api_connection_string parameter")
+					Errorln("Configuration error: you must pass acraserver_connection_host or acraserver_api_connection_string parameter")
 				os.Exit(1)
 			}
 			if *acraServerHost != "" {
