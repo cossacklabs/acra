@@ -236,11 +236,9 @@ func (config *Config) GetConfigPath() string {
 func (config *Config) ToJSON() ([]byte, error) {
 	var s UIEditableConfig
 	var err error
-	s.DbHost, s.DbPort, err = network.SplitConnectionString(config.acraConnectionString)
-	if err != nil {
-		return nil, err
-	}
-	s.DbHost, s.ConnectorAPIPort, err = network.SplitConnectionString(config.acraAPIConnectionString)
+	s.DbHost = config.dbHost
+	s.DbPort = config.dbPort
+	_, s.ConnectorAPIPort, err = network.SplitConnectionString(config.acraAPIConnectionString)
 	if err != nil {
 		return nil, err
 	}

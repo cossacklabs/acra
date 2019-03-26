@@ -784,15 +784,6 @@ class BaseTestCase(PrometheusMixin, unittest.TestCase):
     DB_BYTEA = 'hex'
     WHOLECELL_MODE = False
     ACRAWEBCONFIG_AUTH_KEYS_PATH = os.environ.get('TEST_CONFIG_UI_AUTH_DB_PATH', ACRAWEBCONFIG_AUTH_DB_PATH)
-    ACRAWEBCONFIG_ACRASERVER_PARAMS = dict(
-        db_host=DB_HOST,
-        db_port=DB_PORT,
-        incoming_connection_api_port=9090,
-        debug=DEBUG_LOG,
-        poison_run_script_file="",
-        poison_shutdown_enable=False,
-        zonemode_enable=False
-    )
     ZONE = False
     TEST_DATA_LOG = False
     CONNECTOR_TLS_TRANSPORT = False
@@ -987,7 +978,7 @@ class BaseTestCase(PrometheusMixin, unittest.TestCase):
         args.update(acra_kwargs)
         if not popen_kwargs:
             popen_kwargs = {}
-        cli_args = sorted(['--{}={}'.format(k, v) for k, v in args.items()])
+        cli_args = sorted(['--{}={}'.format(k, v) for k, v in args.items() if v is not None])
         print("acra-server args: {}".format(' '.join(cli_args)))
 
         process = self.fork(lambda: subprocess.Popen([self.get_acraserver_bin_path()] + cli_args,
@@ -2484,11 +2475,26 @@ class TestAcraWebconfigWeb(AcraCatchLogsMixin, BaseTestCase):
 
     def setUp(self):
         try:
+            base_config = load_yaml_config('configs/acra-server.yaml')
+            base_config['zonemode_enable'] = True
+            base_config['http_api_enable'] = True
+            base_config['db_host'] = DB_HOST
+            base_config['db_port'] = DB_PORT
+            self.config = NamedTemporaryFile(delete=False)
+            with self.config as f:
+                dump_yaml_config(base_config, f.name)
+
             # create auth file with default correct user
             manage_basic_auth_user('set', ACRAWEBCONFIG_BASIC_AUTH['user'], ACRAWEBCONFIG_BASIC_AUTH['password'])
+            # don't pass these args as cli params because they will have higher priority than config file
+            # so pass them with None value which will exclude them in fork_acra method
+            empty_overridable_args = {
+                i: None for i in ('db_host', 'db_port', 'zonemode_enable',  'incoming_connection_api_port',
+                                'd', 'poison_run_script_file', 'poison_shutdown_enable')
+            }
             self.acra = self.fork_acra(
                 popen_kwargs={'stderr': subprocess.STDOUT, 'stdout': subprocess.PIPE, 'close_fds': True},
-                zonemode_enable='true', http_api_enable='true')
+                config_file=self.config.name, **empty_overridable_args)
             self.connector_1 = self.fork_connector(
                 self.CONNECTOR_PORT_1, self.ACRASERVER_PORT, 'keypair1', zone_mode=True, api_port=self.CONNECTOR_API_PORT_1)
             self.webconfig = self.fork_webconfig(connector_port=self.CONNECTOR_API_PORT_1, http_port=self.ACRAWEBCONFIG_HTTP_PORT)
@@ -2497,11 +2503,14 @@ class TestAcraWebconfigWeb(AcraCatchLogsMixin, BaseTestCase):
             raise
 
     def tearDown(self):
+        self.config.close()
+        os.remove(self.config.name)
         super(TestAcraWebconfigWeb, self).tearDown()
         stop_process(getattr(self, 'webconfig', ProcessStub()))
         send_signal_by_process_name('acra-webconfig', signal.SIGKILL)
 
     def testAuthAndSubmitSettings(self):
+        base_config = load_yaml_config('configs/acra-server.yaml')
         shutil.copy('configs/acra-server.yaml', 'configs/acra-server.yaml.backup')
         try:
             # test wrong auth
@@ -2517,13 +2526,19 @@ class TestAcraWebconfigWeb(AcraCatchLogsMixin, BaseTestCase):
                     auth=HTTPBasicAuth(ACRAWEBCONFIG_BASIC_AUTH['user'], ACRAWEBCONFIG_BASIC_AUTH['password'])) as req:
                 self.assertEqual(req.status_code, 200)
 
-            # test submit settings
-            settings = self.ACRAWEBCONFIG_ACRASERVER_PARAMS
-            settings['poison_run_script_file'] = str(uuid.uuid4())
-            print(settings)
+            # test settings that inverse or extend existing values to diff changes after
+            new_settings = dict(
+                db_host=base_config.get('db_host') or '' + 'test',
+                db_port=int(base_config['db_port'])+1,
+                incoming_connection_api_port=int(base_config['incoming_connection_api_port'])+1,
+                debug=not base_config['d'],
+                poison_run_script_file=base_config.get('poison_run_script_file') or '' + 'test',
+                poison_shutdown_enable=base_config['poison_shutdown_enable'],
+                zonemode_enable=base_config['zonemode_enable']
+            )
             with requests.post(
                     "{}/acra-server/submit_setting".format(self.get_acrawebconfig_connection_url()),
-                    data=settings,
+                    data=new_settings,
                     timeout=ACRAWEBCONFIG_HTTP_TIMEOUT,
                     auth=HTTPBasicAuth(ACRAWEBCONFIG_BASIC_AUTH['user'], ACRAWEBCONFIG_BASIC_AUTH['password'])) as req:
                 self.assertEqual(req.status_code, 200)
@@ -2536,10 +2551,17 @@ class TestAcraWebconfigWeb(AcraCatchLogsMixin, BaseTestCase):
                     self.get_acrawebconfig_connection_url(), data={}, timeout=ACRAWEBCONFIG_HTTP_TIMEOUT,
                     auth=HTTPBasicAuth(ACRAWEBCONFIG_BASIC_AUTH['user'], ACRAWEBCONFIG_BASIC_AUTH['password'])) as req:
                 self.assertEqual(req.status_code, 200)
-                self.assertIn(settings['poison_run_script_file'], req.text)
+                config_regex = r'currentConfig\s*=\s*(.+?);'
+                match = re.search(config_regex, req.text)
+                if not match:
+                    self.fail("Can't find config in output html")
+                loaded_config = json.loads(match.group(1))
+                for key in new_settings.keys():
+                    self.assertEqual(new_settings[key], loaded_config[key])
         finally:
             # search pid of forked acra-server process to kill
             out = self.read_log(self.acra)
+            print(out)
             # acra-server process forked to PID: 56946
             if out and 'process forked to PID' in out:
                 pids = re.findall(r'process forked to PID: (\d+)', out)
