@@ -1481,7 +1481,7 @@ func TestKeywords(t *testing.T) {
 	}, {
 		input: "select left(a, 5) from t",
 	}, {
-		input: "update t set d = adddate(date('2003-12-31 01:02:03'), interval 5 days)",
+		input: "update t set d = adddate(date('2003-12-31 01:02:03'), interval 5 day)",
 	}, {
 		input: "insert into t(a, b) values (left('foo', 1), 'b')",
 	}, {
@@ -1504,6 +1504,9 @@ func TestKeywords(t *testing.T) {
 	}, {
 		input:  "select variables from t",
 		output: "select `variables` from t",
+	}, {
+		input:  "insert into cpu_temp(ts, device, unit_id, temp) values (NOW() - INTERVAL '32 minute', 'ABCDEF23', '1', '1615.400')",
+		output: "insert into cpu_temp(ts, device, unit_id, temp) values (NOW() - interval '32 minute', 'ABCDEF23', '1', '1615.400')",
 	}}
 
 	for _, tcase := range validSQL {

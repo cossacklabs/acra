@@ -1364,6 +1364,11 @@ func (node *UnaryExpr) walkSubtree(visit Visit) error {
 
 // Format formats the node.
 func (node *IntervalExpr) Format(buf *TrackedBuffer) {
+	if node.Unit == "" {
+		// avoid extra space if node.Unit empty
+		buf.Myprintf("interval %v", node.Expr)
+		return
+	}
 	buf.Myprintf("interval %v %s", node.Expr, node.Unit)
 }
 

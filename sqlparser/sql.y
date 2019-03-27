@@ -126,8 +126,9 @@ func forceEOF(yylex interface{}) {
 %left <bytes> JOIN STRAIGHT_JOIN LEFT RIGHT INNER OUTER CROSS NATURAL USE FORCE
 %left <bytes> ON USING
 %token <empty> '(' ',' ')'
-%token <bytes> ID PG_ESCAPE_STRING HEX STRING INTEGRAL FLOAT HEXNUM VALUE_ARG LIST_ARG COMMENT COMMENT_KEYWORD BIT_LITERAL DOLLAR_SIGN
+%token <bytes> ID PG_ESCAPE_STRING HEX STRING INTEGRAL FLOAT HEXNUM VALUE_ARG COMMENT COMMENT_KEYWORD BIT_LITERAL DOLLAR_SIGN
 %token <bytes> NULL TRUE FALSE
+%token <bytes> MICROSECOND SECOND MINUTE HOUR DAY WEEK MONTH QUARTER SECOND_MICROSECOND MINUTE_MICROSECOND MINUTE_SECOND HOUR_MICROSECOND HOUR_SECOND HOUR_MINUTE DAY_MICROSECOND DAY_SECOND DAY_MINUTE DAY_HOUR YEAR_MONTH
 
 // Precedence dictated by mysql. But the vitess grammar is simplified.
 // Some of these operators don't conflict in our situation. Nevertheless,
@@ -149,6 +150,8 @@ func forceEOF(yylex interface{}) {
 %right <bytes> BINARY UNDERSCORE_BINARY
 %right <bytes> INTERVAL
 %nonassoc <bytes> '.'
+%nonassoc empty PRECEDENCE
+%nonassoc <bytes> LIST_ARG
 
 
 // There is no need to define precedence for the JSON
@@ -309,6 +312,7 @@ func forceEOF(yylex interface{}) {
 %type <returning> returning_opt
 %type <preparedQuery> prepared_query
 %type <usingInExecuteList> using_in_execute_list
+%type <bytes> interval_units
 
 %start any_command
 
@@ -2328,13 +2332,19 @@ column_name
   {
     $$ = &UnaryExpr{Operator: BangStr, Expr: $2}
   }
-| INTERVAL value_expression sql_id
+| INTERVAL STRING
+  {
+
+  // Postgresql type of interval where interval value is string with values+units
+  $$ = &IntervalExpr{Expr: NewStrVal($2)}
+  }
+| INTERVAL value_expression interval_units
   {
     // This rule prevents the usage of INTERVAL
     // as a function. If support is needed for that,
     // we'll need to revisit this. The solution
     // will be non-trivial because of grammar conflicts.
-    $$ = &IntervalExpr{Expr: $2, Unit: $3.String()}
+    $$ = &IntervalExpr{Expr: $2, Unit: string($3)}
   }
 | function_call_generic
 | function_call_keyword
@@ -3083,6 +3093,30 @@ reserved_table_id:
     $$ = NewTableIdent(string($1))
   }
 
+// units for INTERVAL https://dev.mysql.com/doc/refman/5.7/en/expressions.html#temporal-intervals
+// Table 9.2 Temporal Interval Expression and Unit Arguments
+interval_units:
+  MICROSECOND
+| SECOND
+| MINUTE
+| HOUR
+| DAY
+| WEEK
+| MONTH
+| QUARTER
+| YEAR
+| SECOND_MICROSECOND
+| MINUTE_MICROSECOND
+| MINUTE_SECOND
+| HOUR_MICROSECOND
+| HOUR_SECOND
+| HOUR_MINUTE
+| DAY_MICROSECOND
+| DAY_SECOND
+| DAY_MINUTE
+| DAY_HOUR
+| YEAR_MONTH
+
 /*
   These are not all necessarily reserved in MySQL, but some are.
 
@@ -3290,8 +3324,8 @@ non_reserved_keyword:
 | VSCHEMA_TABLES
 | WITH
 | WRITE
-| YEAR
 | ZEROFILL
+| interval_units
 
 openb:
   '('
