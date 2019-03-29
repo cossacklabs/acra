@@ -37,6 +37,9 @@ import (
 	"github.com/cossacklabs/acra/decryptor/base"
 	"github.com/cossacklabs/acra/decryptor/mysql"
 	"github.com/cossacklabs/acra/decryptor/postgresql"
+	"github.com/cossacklabs/acra/sqlparser"
+	mysqlDialect "github.com/cossacklabs/acra/sqlparser/dialect/mysql"
+	pgDialect "github.com/cossacklabs/acra/sqlparser/dialect/postgresql"
 	"net/http"
 	_ "net/http/pprof"
 	"os"
@@ -293,6 +296,7 @@ func main() {
 			log.WithError(err).Errorln("Can't initialize proxy for connections")
 			os.Exit(1)
 		}
+		sqlparser.SetDefaultDialect(mysqlDialect.NewMySQLDialect())
 	} else {
 		// postgresql as default
 		var byteFormat postgresql.EscapeType
@@ -308,6 +312,7 @@ func main() {
 			log.WithError(err).Errorln("Can't initialize proxy for connections")
 			os.Exit(1)
 		}
+		sqlparser.SetDefaultDialect(pgDialect.NewPostgreSQLDialect())
 	}
 
 	var server *SServer

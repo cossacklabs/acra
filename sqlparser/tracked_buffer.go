@@ -19,6 +19,7 @@ package sqlparser
 import (
 	"bytes"
 	"fmt"
+	"github.com/cossacklabs/acra/sqlparser/dialect"
 )
 
 // NodeFormatter defines the signature of a custom node formatter
@@ -36,6 +37,7 @@ type TrackedBuffer struct {
 	*bytes.Buffer
 	bindLocations []bindLocation
 	nodeFormatter NodeFormatter
+	dialect       dialect.Dialect
 }
 
 // NewTrackedBuffer creates a new TrackedBuffer.
@@ -43,7 +45,13 @@ func NewTrackedBuffer(nodeFormatter NodeFormatter) *TrackedBuffer {
 	return &TrackedBuffer{
 		Buffer:        new(bytes.Buffer),
 		nodeFormatter: nodeFormatter,
+		dialect:       defaultDialect,
 	}
+}
+
+// SetDialect which will be used for formatting
+func (buf *TrackedBuffer) SetDialect(dialect dialect.Dialect) {
+	buf.dialect = dialect
 }
 
 // WriteNode function, initiates the writing of a single SQLNode tree by passing
@@ -94,11 +102,15 @@ func (buf *TrackedBuffer) Myprintf(format string, values ...interface{}) {
 				panic(fmt.Sprintf("unexpected TrackedBuffer type %T", v))
 			}
 		case 'v':
-			node := values[fieldnum].(SQLNode)
-			if buf.nodeFormatter == nil {
-				node.Format(buf)
-			} else {
-				buf.nodeFormatter(buf, node)
+			switch node := values[fieldnum].(type) {
+			case SQLNode:
+				if buf.nodeFormatter == nil {
+					node.Format(buf)
+				} else {
+					buf.nodeFormatter(buf, node)
+				}
+			case DialectFormat:
+				node.FormatForDialect(buf.dialect, buf)
 			}
 		case 'a':
 			buf.WriteArg(values[fieldnum].(string))
