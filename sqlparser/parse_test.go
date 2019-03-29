@@ -1511,32 +1511,28 @@ func TestKeywords(t *testing.T) {
 		input:  "select variables from t",
 		output: "select `variables` from t",
 	}, {
-		input:  "insert into cpu_temp(ts, device, unit_id, temp) values (NOW() - INTERVAL '32 minute', 'ABCDEF23', '1', '1615.400')",
-		output: "insert into cpu_temp(ts, device, unit_id, temp) values (NOW() - interval '32 minute', 'ABCDEF23', '1', '1615.400')",
-	}, {
-		input:  "insert into cpu_temp(timestamp, device, unit_id, temp) values (NOW() - INTERVAL '32 minute', 'ABCDEF23', '1', '1615.400')",
-		output: "insert into cpu_temp(`timestamp`, device, unit_id, temp) values (NOW() - interval '32 minute', 'ABCDEF23', '1', '1615.400')",
+		input:  "insert into cpu_temp(timestamp, device, unit_id, temp) values ('ABCDEF23', '1', '1615.400')",
+		output: "insert into cpu_temp(`timestamp`, device, unit_id, temp) values ('ABCDEF23', '1', '1615.400')",
 	}, {
 		input:   "insert into cpu_temp(timestamp, device, unit_id, temp) values (NOW() - INTERVAL '32 minute', 'ABCDEF23', '1', '1615.400')",
 		output:  "insert into cpu_temp(\"timestamp\", device, unit_id, temp) values (NOW() - interval '32 minute', 'ABCDEF23', '1', '1615.400')",
 		dialect: postgresql.NewPostgreSQLDialect(),
 	}}
-
+	var testDialect dialect.Dialect
 	for i, tcase := range validSQL {
 		if tcase.output == "" {
 			tcase.output = tcase.input
 		}
-		if tcase.dialect != nil {
-			SetDefaultDialect(tcase.dialect)
-		} else {
-			SetDefaultDialect(mysql.NewMySQLDialect())
+		testDialect = tcase.dialect
+		if tcase.dialect == nil {
+			testDialect = mysql.NewMySQLDialect()
 		}
-		tree, err := Parse(tcase.input)
+		tree, err := ParseDialect(testDialect, tcase.input)
 		if err != nil {
 			t.Errorf("[%d] input: %s, err: %v", i, tcase.input, err)
 			continue
 		}
-		out := String(tree)
+		out := StringWithDialect(testDialect, tree)
 		if out != tcase.output {
 			t.Errorf("[%d] out: %s, want %s", i, out, tcase.output)
 		}
@@ -2127,9 +2123,18 @@ var (
 	}, {
 		// mysql specific interval
 		input:   "select interval '2017' YEAR from dual",
-		output:  "syntax error at position 9 near '`'",
+		output:  "syntax error at position 28 near 'year'",
 		dialect: postgresql.NewPostgreSQLDialect(),
-	}}
+	},
+		{
+			input: "select adddate('2008-01-02', interval 31 day) from t",
+			output: "PostgreSQL don't support Mysql syntax of interval expression at position 45 near 'day'",
+			dialect: postgresql.NewPostgreSQLDialect(),
+		}, {
+			input: "select adddate('2008-01-02', interval 1 year) from t",
+			output: "PostgreSQL don't support Mysql syntax of interval expression at position 45 near 'year'",
+			dialect: postgresql.NewPostgreSQLDialect(),
+		}, }
 )
 
 func TestErrors(t *testing.T) {

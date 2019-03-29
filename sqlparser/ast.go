@@ -86,13 +86,19 @@ func Walk(visit Visit, nodes ...SQLNode) error {
 	return nil
 }
 
-// String returns a string representation of an SQLNode.
+// String returns a string representation of an SQLNode for default dialect
 func String(node SQLNode) string {
+	return StringWithDialect(defaultDialect, node)
+}
+
+// StringWithDialect returns a string representation of an SQLNode for specified dialect
+func StringWithDialect(dialect dialect.Dialect, node SQLNode) string {
 	if node == nil {
 		return "<nil>"
 	}
 
 	buf := NewTrackedBuffer(nil)
+	buf.SetDialect(dialect)
 	buf.Myprintf("%v", node)
 	return buf.String()
 }

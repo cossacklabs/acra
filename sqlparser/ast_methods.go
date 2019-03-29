@@ -1828,6 +1828,18 @@ func (node ColIdent) walkSubtree(visit Visit) error {
 	return nil
 }
 
+// FormatForDialect formats the node for specified dialect
+func (node TableIdent) FormatForDialect(dialect dialect.Dialect, buf *TrackedBuffer) {
+	if node.quote != 0 {
+		// print as is in quotes
+		buf.WriteByte(node.quote)
+		buf.Write([]byte(node.v))
+		buf.WriteByte(node.quote)
+	} else {
+		formatIDForDialect(dialect, buf, node.v, strings.ToLower(node.v))
+	}
+}
+
 // Format formats the node.
 func (node TableIdent) Format(buf *TrackedBuffer) {
 	if node.quote != 0 {

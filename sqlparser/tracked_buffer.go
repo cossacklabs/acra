@@ -102,15 +102,14 @@ func (buf *TrackedBuffer) Myprintf(format string, values ...interface{}) {
 				panic(fmt.Sprintf("unexpected TrackedBuffer type %T", v))
 			}
 		case 'v':
-			switch node := values[fieldnum].(type) {
-			case SQLNode:
-				if buf.nodeFormatter == nil {
-					node.Format(buf)
-				} else {
-					buf.nodeFormatter(buf, node)
-				}
-			case DialectFormat:
+			if node, ok := values[fieldnum].(DialectFormat); ok {
 				node.FormatForDialect(buf.dialect, buf)
+			} else if sqlnode, ok := values[fieldnum].(SQLNode); ok {
+				if buf.nodeFormatter == nil {
+					sqlnode.Format(buf)
+				} else {
+					buf.nodeFormatter(buf, sqlnode)
+				}
 			}
 		case 'a':
 			buf.WriteArg(values[fieldnum].(string))

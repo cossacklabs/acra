@@ -18,6 +18,8 @@ package sqlparser
 
 import (
 	"bytes"
+	"github.com/cossacklabs/acra/sqlparser/dialect"
+	"github.com/cossacklabs/acra/sqlparser/dialect/mysql"
 	"io"
 	"strings"
 	"testing"
@@ -60,14 +62,20 @@ func TestParseNextValid(t *testing.T) {
 // TestParseNextErrors tests all the error cases, and ensures a valid
 // SQL statement can be passed afterwards.
 func TestParseNextErrors(t *testing.T) {
+	var testDialect dialect.Dialect
 	for _, tcase := range invalidSQL {
 		if tcase.excludeMulti {
 			// Skip tests which leave unclosed strings, or comments.
 			continue
 		}
 
+		testDialect = tcase.dialect
+		if testDialect == nil {
+			testDialect = mysql.NewMySQLDialect()
+		}
+
 		sql := tcase.input + "; select 1 from t"
-		tokens := NewStringTokenizer(sql)
+		tokens := NewStringTokenizerWithDialect(testDialect, sql)
 
 		// The first statement should be an error
 		_, err := ParseNext(tokens)

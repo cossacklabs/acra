@@ -114,6 +114,7 @@ func forceEOF(yylex interface{}) {
   vindexParams  []VindexParam
   showFilter    *ShowFilter
   preparedQuery PreparedQuery
+  intervalExpr  *IntervalExpr
 }
 
 %token LEX_ERROR
@@ -126,6 +127,7 @@ func forceEOF(yylex interface{}) {
 %left <bytes> JOIN STRAIGHT_JOIN LEFT RIGHT INNER OUTER CROSS NATURAL USE FORCE
 %left <bytes> ON USING
 %token <empty> '(' ',' ')'
+%token <bytes> INTERVAL
 %token <bytes> ID PG_ESCAPE_STRING HEX SINGLE_QUOTE_STRING DOUBLE_QUOTE_STRING BACK_QUOTE_STRING INTEGRAL FLOAT HEXNUM VALUE_ARG COMMENT COMMENT_KEYWORD BIT_LITERAL DOLLAR_SIGN LIST_ARG
 %token <bytes> NULL TRUE FALSE
 %token <bytes> MICROSECOND SECOND MINUTE HOUR DAY WEEK MONTH QUARTER SECOND_MICROSECOND MINUTE_MICROSECOND MINUTE_SECOND HOUR_MICROSECOND HOUR_SECOND HOUR_MINUTE DAY_MICROSECOND DAY_SECOND DAY_MINUTE DAY_HOUR YEAR_MONTH YEAR
@@ -134,8 +136,6 @@ func forceEOF(yylex interface{}) {
 // Some of these operators don't conflict in our situation. Nevertheless,
 // it's better to have these listed in the correct order. Also, we don't
 // support all operators yet.
-// use this with %prec MYSQL_INTERVAL to increase priority for MYSQL interval syntax with specified units
-%nonassoc <empty> MYSQL_INTERVAL
 %left <bytes> OR
 %left <bytes> AND
 %right <bytes> NOT '!'
@@ -150,7 +150,6 @@ func forceEOF(yylex interface{}) {
 %right <bytes> '~' UNARY
 %left <bytes> COLLATE
 %right <bytes> BINARY UNDERSCORE_BINARY
-%right <bytes> INTERVAL
 %nonassoc <bytes> '.'
 
 
@@ -316,6 +315,7 @@ func forceEOF(yylex interface{}) {
 %type <usingInExecuteList> using_in_execute_list
 %type <bytes> interval_units
 %type <bytes> string
+%type <intervalExpr> mysql_interval postgresql_interval
 %start any_command
 
 %%
@@ -2365,15 +2365,14 @@ column_name
   {
     $$ = &UnaryExpr{Operator: BangStr, Expr: $2}
   }
-| mysql_interval '+' value_expression
-| mysql_interval '+' mysql_interval
-| mysql_interval '-' value_expression
-| value_expression '-' mysql_interval
-
-| postgresql_interval '+' value_expression
-| mysql_interval '+' postgresql_interval
-| postgresql_interval '-' value_expression
-| value_expression '-' postgresql_interval
+| mysql_interval
+{
+$$ = $1
+}
+| postgresql_interval
+{
+$$ = $1
+}
 | function_call_generic
 | function_call_keyword
 | function_call_nonkeyword
@@ -2391,7 +2390,7 @@ INTERVAL SINGLE_QUOTE_STRING
   }
 
 mysql_interval:
-INTERVAL value_expression interval_units %prec MYSQL_INTERVAL
+INTERVAL value_expression interval_units
   {
     if yylex.(*Tokenizer).IsPostgreSQL(){
       yylex.Error("PostgreSQL don't support Mysql syntax of interval expression")
@@ -2487,16 +2486,8 @@ function_call_keyword:
   {
     $$ = &ValuesFuncExpr{Name: $3}
   }
-// https://dev.mysql.com/doc/refman/5.5/en/date-and-time-functions.html#function_adddate
-// ADDDATE(date,INTERVAL expr unit), ADDDATE(expr,days)
-| ADDDATE openb string ',' mysql_interval closeb
-{
-  $$ = &FuncExpr{Name: $1, Exprs: SelectExpr{NewStrVal($3), $5}}
-}
-| ADDDATE openb expression ',' INTEGER closeb
-{
-  $$ = &FuncExpr{Name: $1, Exprs: SelectExpr{$3, NewIntVal($5)}}
-}
+
+
 
 /*
   Function calls using non reserved keywords but with special syntax forms.
@@ -3401,7 +3392,6 @@ non_reserved_keyword:
 | WITH
 | WRITE
 | ZEROFILL
-| interval_units
 
 string:
  SINGLE_QUOTE_STRING
