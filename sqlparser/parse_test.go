@@ -2127,14 +2127,14 @@ var (
 		dialect: postgresql.NewPostgreSQLDialect(),
 	},
 		{
-			input: "select adddate('2008-01-02', interval 31 day) from t",
-			output: "PostgreSQL don't support Mysql syntax of interval expression at position 45 near 'day'",
+			input:   "select adddate('2008-01-02', interval 31 day) from t",
+			output:  "PostgreSQL don't support Mysql syntax of interval expression at position 45 near 'day'",
 			dialect: postgresql.NewPostgreSQLDialect(),
 		}, {
-			input: "select adddate('2008-01-02', interval 1 year) from t",
-			output: "PostgreSQL don't support Mysql syntax of interval expression at position 45 near 'year'",
+			input:   "select adddate('2008-01-02', interval 1 year) from t",
+			output:  "PostgreSQL don't support Mysql syntax of interval expression at position 45 near 'year'",
 			dialect: postgresql.NewPostgreSQLDialect(),
-		}, }
+		}}
 )
 
 func TestErrors(t *testing.T) {
