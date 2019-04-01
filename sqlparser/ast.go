@@ -1726,9 +1726,6 @@ func (node ColIdent) IsEmpty() bool {
 // instead. The Stringer conformance is for usage
 // in templates.
 func (node ColIdent) String() string {
-	if node.quote != 0 {
-		return string(node.quote) + node.val + string(node.quote)
-	}
 	return node.val
 }
 

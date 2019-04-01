@@ -28,8 +28,9 @@ import (
 
 var (
 	validSQL = []struct {
-		input  string
-		output string
+		input   string
+		output  string
+		dialect dialect.Dialect
 	}{{
 		input:  "select 1",
 		output: "select 1 from dual",

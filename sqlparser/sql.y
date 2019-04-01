@@ -17,6 +17,8 @@ limitations under the License.
 %{
 package sqlparser
 
+import "github.com/cossacklabs/acra/sqlparser/dialect/mysql"
+
 func setParseTree(yylex interface{}, stmt Statement) {
   yylex.(*Tokenizer).ParseTree = stmt
 }
@@ -1945,19 +1947,6 @@ as_opt_id:
 
 table_alias:
   table_id
-| BACK_QUOTE_STRING
-  {
-    $$ = NewTableIdentWithQuotes(string($1), '`')
-  }
-| DOUBLE_QUOTE_STRING
-  {
-    $$ = NewTableIdentWithQuotes(string($1), '"')
-  }
-| SINGLE_QUOTE_STRING
-  {
-    $$ = NewTableIdentWithQuotes(string($1), '\'')
-  }
-
 
 
 inner_join:
@@ -3144,6 +3133,23 @@ reserved_sql_id:
   }
 
 table_id:
+DOUBLE_QUOTE_STRING
+{
+  if yylex.(*Tokenizer).IsMySQL() && !yylex.(*Tokenizer).dialect.(*mysql.MySQLDialect).IsModeANSIOn() {
+    yylex.Error("MySQL dialect configured ANSI_mode=off and doesn't allow double quoted table identifiers")
+    return 1
+  }
+  $$ = NewTableIdentWithQuotes(string($1), '"')
+}
+| BACK_QUOTE_STRING
+ {
+   if yylex.(*Tokenizer).IsPostgreSQL() {
+       yylex.Error("PostgreSQL dialect doesn't allow to use backtick quotes for table identifiers")
+       return 1
+     }
+   $$ = NewTableIdentWithQuotes(string($1), '`')
+ }
+|
   ID
   {
     $$ = NewTableIdent(string($1))

@@ -7,6 +7,11 @@ type MySQLDialect struct {
 	ansiMode bool
 }
 
+// IsANSIModeOn return true if ANSI mode used for mysql
+func (dialect *MySQLDialect) IsModeANSIOn() bool {
+	return dialect.ansiMode
+}
+
 // QuoteHandler return correct dialect according to sql mode
 func (dialect *MySQLDialect) QuoteHandler() dialect.QuoteHandler {
 	if dialect.ansiMode {
