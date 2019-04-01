@@ -3149,6 +3149,10 @@ DOUBLE_QUOTE_STRING
      }
    $$ = NewTableIdentWithQuotes(string($1), '`')
  }
+| SINGLE_QUOTE_STRING
+ {
+   $$ = NewTableIdentWithQuotes(string($1), '\'')
+ }
 |
   ID
   {

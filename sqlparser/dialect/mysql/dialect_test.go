@@ -9,11 +9,11 @@ func TestNewANSIMySQLDialect(t *testing.T) {
 }
 
 func TestMySQLDialect_IsANSIModeOn(t *testing.T) {
-	if !NewANSIMySQLDialect().IsANSIModeOn() {
+	if !NewANSIMySQLDialect().IsModeANSIOn() {
 		t.Fatal("Incorrectly set ANSI mode for dialect")
 	}
 
-	if NewMySQLDialect().IsANSIModeOn() {
+	if NewMySQLDialect().IsModeANSIOn() {
 		t.Fatal("Incorrectly set ANSI mode for dialect")
 	}
 }

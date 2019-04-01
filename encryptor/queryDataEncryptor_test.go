@@ -58,7 +58,7 @@ func (e *testEncryptor) EncryptWithClientID(clientID, data []byte, setting Encry
 
 // normalizeQueryWithDialect convert to lower case parts that case-insensitive for specified dialect
 func normalizeQueryWithDialect(dialect dialect.Dialect, query string) (string, error) {
-	parsed, err := sqlparser.ParseDialect(dialect, query)
+	parsed, err := sqlparser.ParseWithDialect(dialect, query)
 	if err != nil {
 		return "", err
 	}

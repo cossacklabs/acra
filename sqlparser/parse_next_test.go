@@ -34,15 +34,21 @@ func TestParseNextValid(t *testing.T) {
 		sql.WriteRune(';')
 	}
 
-	tokens := NewTokenizer(&sql)
+	var dialect dialect.Dialect
+	tokenizer := NewTokenizer(&sql)
 	for i, tcase := range validSQL {
+		dialect = tcase.dialect
+		if dialect == nil {
+			dialect = mysql.NewMySQLDialect()
+		}
+		tokenizer.dialect = dialect
 		input := tcase.input + ";"
 		want := tcase.output
 		if want == "" {
 			want = tcase.input
 		}
 
-		tree, err := ParseNext(tokens)
+		tree, err := ParseNext(tokenizer)
 		if err != nil {
 			t.Fatalf("[%d] ParseNext(%q) err: %q, want nil", i, input, err)
 			continue
@@ -54,8 +60,8 @@ func TestParseNextValid(t *testing.T) {
 	}
 
 	// Read once more and it should be EOF.
-	if tree, err := ParseNext(tokens); err != io.EOF {
-		t.Errorf("ParseNext(tokens) = (%q, %v) want io.EOF", String(tree), err)
+	if tree, err := ParseNext(tokenizer); err != io.EOF {
+		t.Errorf("ParseNext(tokenizer) = (%q, %v) want io.EOF", String(tree), err)
 	}
 }
 

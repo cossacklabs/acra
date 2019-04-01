@@ -11,14 +11,14 @@ import (
 
 // Parse using default dialect MySQl (for backward compatibility)
 func Parse(sql string) (Statement, error) {
-	return ParseDialect(defaultDialect, sql)
+	return ParseWithDialect(defaultDialect, sql)
 }
 
 // Parse parses the SQL in full withc specified dialect and returns a Statement, which
 // is the AST representation of the query. If a DDL statement
 // is partially parsed but still contains a syntax error, the
 // error is ignored and the DDL is returned anyway.
-func ParseDialect(dialect dialect.Dialect, sql string) (Statement, error) {
+func ParseWithDialect(dialect dialect.Dialect, sql string) (Statement, error) {
 	tokenizer := NewStringTokenizerWithDialect(dialect, sql)
 	if yyParse(tokenizer) != 0 {
 		if tokenizer.partialDDL != nil {

@@ -209,9 +209,13 @@ var (
 	}, {
 		input:  "select /* string table alias */ 1 from t as 't1'",
 		output: "select /* string table alias */ 1 from t as 't1'",
+		// mysql allow to use single quote for column/table aliases
+		dialect: mysql.NewMySQLDialect(),
 	}, {
 		input:  "select /* string table alias without as */ 1 from t 't1'",
 		output: "select /* string table alias without as */ 1 from t as 't1'",
+		// mysql allow to use single quote for column/table aliases
+		dialect: mysql.NewMySQLDialect(),
 	}, {
 		input: "select /* keyword table alias */ 1 from t as `By`",
 	}, {
@@ -1528,7 +1532,7 @@ func TestKeywords(t *testing.T) {
 		if tcase.dialect == nil {
 			testDialect = mysql.NewMySQLDialect()
 		}
-		tree, err := ParseDialect(testDialect, tcase.input)
+		tree, err := ParseWithDialect(testDialect, tcase.input)
 		if err != nil {
 			t.Errorf("[%d] input: %s, err: %v", i, tcase.input, err)
 			continue
@@ -1615,8 +1619,9 @@ func TestConvert(t *testing.T) {
 	}
 
 	invalidSQL := []struct {
-		input  string
-		output string
+		input   string
+		output  string
+		dialect dialect.Dialect
 	}{{
 		input:  "select convert('abc' as date) from t",
 		output: "syntax error at position 24 near 'as'",
@@ -1632,10 +1637,16 @@ func TestConvert(t *testing.T) {
 	}, {
 		input:  "select convert('abc', decimal(4+9)) from t",
 		output: "syntax error at position 33",
-	}}
+	},
+	}
 
+	var dialect dialect.Dialect
 	for _, tcase := range invalidSQL {
-		_, err := Parse(tcase.input)
+		dialect = tcase.dialect
+		if dialect == nil {
+			dialect = mysql.NewMySQLDialect()
+		}
+		_, err := ParseWithDialect(dialect, tcase.input)
 		if err == nil || err.Error() != tcase.output {
 			t.Errorf("%s: %v, want %s", tcase.input, err, tcase.output)
 		}
@@ -2146,7 +2157,7 @@ func TestErrors(t *testing.T) {
 		} else {
 			dialect = tcase.dialect
 		}
-		stmt, err := ParseDialect(dialect, tcase.input)
+		stmt, err := ParseWithDialect(dialect, tcase.input)
 		_ = stmt
 		if err == nil || err.Error() != tcase.output {
 			t.Errorf("[%d] %s: %v, want %s", i, tcase.input, err, tcase.output)
