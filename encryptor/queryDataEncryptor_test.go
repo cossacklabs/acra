@@ -406,7 +406,7 @@ schemas:
 
 	var dialect dialect.Dialect
 
-	for i, testCase := range testData[27:] {
+	for i, testCase := range testData {
 		encryptor.reset()
 		if testCase.DataCoder != nil {
 			mysqlParser.dataCoder = testCase.DataCoder
