@@ -2,7 +2,7 @@ version: '3'
 
 services:
   mydb:
-    image: cossacklabs/mysql:5.7.25
+    image: mysql:5.7.25
     environment:
       MYSQL_DATABASE: test
       MYSQL_USER: test
