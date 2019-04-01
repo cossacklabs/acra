@@ -155,8 +155,6 @@ func forceEOF(yylex interface{}) {
 %nonassoc <bytes> '.'
 
 
-
-
 // There is no need to define precedence for the JSON
 // operators because the syntax is restricted enough that
 // they don't cause conflicts.
