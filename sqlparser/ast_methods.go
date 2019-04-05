@@ -3,17 +3,23 @@ package sqlparser
 import (
 	"fmt"
 	"github.com/cossacklabs/acra/sqlparser/dependency/sqltypes"
+	"github.com/cossacklabs/acra/sqlparser/dialect"
 	"io"
 	"log"
 	"strings"
 )
 
-// Parse parses the SQL in full and returns a Statement, which
+// Parse using default dialect MySQl (for backward compatibility)
+func Parse(sql string) (Statement, error) {
+	return ParseWithDialect(defaultDialect, sql)
+}
+
+// Parse parses the SQL in full withc specified dialect and returns a Statement, which
 // is the AST representation of the query. If a DDL statement
 // is partially parsed but still contains a syntax error, the
 // error is ignored and the DDL is returned anyway.
-func Parse(sql string) (Statement, error) {
-	tokenizer := NewStringTokenizer(sql)
+func ParseWithDialect(dialect dialect.Dialect, sql string) (Statement, error) {
+	tokenizer := NewStringTokenizerWithDialect(dialect, sql)
 	if yyParse(tokenizer) != 0 {
 		if tokenizer.partialDDL != nil {
 			log.Printf("ignoring error parsing DDL '%s': %v", sql, tokenizer.LastError)
@@ -1364,6 +1370,11 @@ func (node *UnaryExpr) walkSubtree(visit Visit) error {
 
 // Format formats the node.
 func (node *IntervalExpr) Format(buf *TrackedBuffer) {
+	if node.Unit == "" {
+		// avoid extra space if node.Unit empty
+		buf.Myprintf("interval %v", node.Expr)
+		return
+	}
 	buf.Myprintf("interval %v %s", node.Expr, node.Unit)
 }
 
@@ -1796,26 +1807,46 @@ func (node Returning) walkSubtree(visit Visit) error {
 	return Walk(visit, Exprs(node))
 }
 
+// FormatForDialect formats the node for specified dialect
+func (node ColIdent) FormatForDialect(dialect dialect.Dialect, buf *TrackedBuffer) {
+	if node.quote != 0 {
+		// print as is in quotes
+		buf.WriteByte(node.quote)
+		buf.Write([]byte(node.val))
+		buf.WriteByte(node.quote)
+	} else {
+		formatIDForDialect(dialect, buf, node.val, node.Lowered())
+	}
+}
+
 // Format formats the node.
 func (node ColIdent) Format(buf *TrackedBuffer) {
-	if node.wrapWithQuotes {
-		// print as is in quotes
-		buf.Myprintf(`"%s"`, node.val)
-	} else {
-		formatID(buf, node.val, node.Lowered())
-	}
-
+	node.FormatForDialect(defaultDialect, buf)
 }
 
 func (node ColIdent) walkSubtree(visit Visit) error {
 	return nil
 }
 
+// FormatForDialect formats the node for specified dialect
+func (node TableIdent) FormatForDialect(dialect dialect.Dialect, buf *TrackedBuffer) {
+	if node.quote != 0 {
+		// print as is in quotes
+		buf.WriteByte(node.quote)
+		buf.Write([]byte(node.v))
+		buf.WriteByte(node.quote)
+	} else {
+		formatIDForDialect(dialect, buf, node.v, strings.ToLower(node.v))
+	}
+}
+
 // Format formats the node.
 func (node TableIdent) Format(buf *TrackedBuffer) {
-	if node.wrapWithQuotes {
+	if node.quote != 0 {
 		// print as is in quotes
-		buf.Myprintf(`"%s"`, node.v)
+		buf.WriteByte(node.quote)
+		buf.Write([]byte(node.v))
+		buf.WriteByte(node.quote)
 	} else {
 		formatID(buf, node.v, strings.ToLower(node.v))
 	}

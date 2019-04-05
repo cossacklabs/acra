@@ -24,6 +24,9 @@ import (
 	"github.com/cossacklabs/acra/decryptor/base"
 	"github.com/cossacklabs/acra/encryptor/config"
 	"github.com/cossacklabs/acra/sqlparser"
+	"github.com/cossacklabs/acra/sqlparser/dialect"
+	"github.com/cossacklabs/acra/sqlparser/dialect/mysql"
+	"github.com/cossacklabs/acra/sqlparser/dialect/postgresql"
 	"github.com/cossacklabs/acra/zone"
 	"github.com/cossacklabs/themis/gothemis/keys"
 	"testing"
@@ -53,13 +56,13 @@ func (e *testEncryptor) EncryptWithClientID(clientID, data []byte, setting Encry
 	return e.value, nil
 }
 
-// normalizeQuery convert to lower case parts that case-insensitive
-func normalizeQuery(query string, t *testing.T) string {
-	parsed, err := sqlparser.Parse(query)
+// normalizeQueryWithDialect convert to lower case parts that case-insensitive for specified dialect
+func normalizeQueryWithDialect(dialect dialect.Dialect, query string) (string, error) {
+	parsed, err := sqlparser.ParseWithDialect(dialect, query)
 	if err != nil {
-		t.Fatalf("Can't normalize query: %s - %s", err.Error(), query)
+		return "", err
 	}
-	return sqlparser.String(parsed)
+	return sqlparser.StringWithDialect(dialect, parsed), nil
 }
 
 func TestGeneralQueryParser_Parse(t *testing.T) {
@@ -122,6 +125,7 @@ schemas:
 		Changed           bool
 		ExpectedIDS       [][]byte
 		DataCoder         DBDataCoder
+		dialect           dialect.Dialect
 	}{
 		// 0. without list of columns and with schema, one value
 		{
@@ -320,6 +324,7 @@ schemas:
 			Normalized:        true,
 			Changed:           true,
 			ExpectedIDS:       [][]byte{zoneID, specifiedClientID, defaultClientID},
+			dialect:           mysql.NewANSIMySQLDialect(),
 		},
 		// 22. with back quoted table and column names
 		{
@@ -338,6 +343,7 @@ schemas:
 			Normalized:        true,
 			Changed:           true,
 			ExpectedIDS:       [][]byte{specifiedClientID, zoneID, defaultClientID},
+			dialect:           mysql.NewANSIMySQLDialect(),
 		},
 		// 24. update with back quoted identifiers
 		{
@@ -356,6 +362,7 @@ schemas:
 			Normalized:        true,
 			Changed:           true,
 			ExpectedIDS:       [][]byte{zoneID, specifiedClientID, defaultClientID},
+			dialect:           mysql.NewANSIMySQLDialect(),
 		},
 		// 26. update with data as simple string
 		{
@@ -365,17 +372,19 @@ schemas:
 			Normalized:        true,
 			Changed:           true,
 			ExpectedIDS:       [][]byte{specifiedClientID, zoneID, defaultClientID},
+			dialect:           mysql.NewANSIMySQLDialect(),
 		},
 
 		// 27. insert with data as simple string for postgresql
 		{
-			Query:             `INSERT INTO "TableWithoutColumnSchema" ("zone_id", "specified_client_id", "other_column", "default_client_id") VALUES ('%s', '%s', 1, '%s')`,
+			Query:             `INSERT INTO "TableWithoutColumnSchema" ('zone_id', 'specified_client_id', 'other_column', 'default_client_id') VALUES ('%s', '%s', 1, '%s')`,
 			QueryData:         []interface{}{simpleStringData, simpleStringData, simpleStringData},
 			ExpectedQueryData: []interface{}{toPgHexValue(hexEncryptedValue), toPgHexValue(hexEncryptedValue), toPgHexValue(hexEncryptedValue)},
 			Normalized:        true,
 			Changed:           true,
 			ExpectedIDS:       [][]byte{zoneID, specifiedClientID, defaultClientID},
 			DataCoder:         &PostgresqlDBDataCoder{},
+			dialect:           postgresql.NewPostgreSQLDialect(),
 		},
 		// 28. update with data as simple string for postgresql
 		{
@@ -386,6 +395,7 @@ schemas:
 			Changed:           true,
 			ExpectedIDS:       [][]byte{specifiedClientID, zoneID, defaultClientID},
 			DataCoder:         &PostgresqlDBDataCoder{},
+			dialect:           postgresql.NewPostgreSQLDialect(),
 		},
 	}
 	encryptor := &testEncryptor{value: encryptedValue}
@@ -394,15 +404,25 @@ schemas:
 		t.Fatal(err)
 	}
 
+	var dialect dialect.Dialect
+
 	for i, testCase := range testData {
 		encryptor.reset()
 		if testCase.DataCoder != nil {
 			mysqlParser.dataCoder = testCase.DataCoder
 		}
+		dialect = testCase.dialect
+		if dialect == nil {
+			dialect = mysql.NewMySQLDialect()
+		}
+		sqlparser.SetDefaultDialect(dialect)
 		query := fmt.Sprintf(testCase.Query, testCase.QueryData...)
 		expectedQuery := fmt.Sprintf(testCase.Query, testCase.ExpectedQueryData...)
 		if testCase.Normalized {
-			expectedQuery = normalizeQuery(expectedQuery, t)
+			expectedQuery, err = normalizeQueryWithDialect(dialect, expectedQuery)
+			if err != nil {
+				t.Fatalf("%v. Can't normalize query: %s - %s", i, err.Error(), query)
+			}
 		}
 		data, changed, err := mysqlParser.OnQuery(base.NewOnQueryObjectFromQuery(query))
 		if err != nil {
@@ -423,4 +443,6 @@ schemas:
 			}
 		}
 	}
+	// avoid side effect for other tests with configuring default dialect
+	sqlparser.SetDefaultDialect(mysql.NewMySQLDialect())
 }

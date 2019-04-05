@@ -17,6 +17,8 @@ limitations under the License.
 %{
 package sqlparser
 
+import "github.com/cossacklabs/acra/sqlparser/dialect/mysql"
+
 func setParseTree(yylex interface{}, stmt Statement) {
   yylex.(*Tokenizer).ParseTree = stmt
 }
@@ -114,6 +116,7 @@ func forceEOF(yylex interface{}) {
   vindexParams  []VindexParam
   showFilter    *ShowFilter
   preparedQuery PreparedQuery
+  intervalExpr  *IntervalExpr
 }
 
 %token LEX_ERROR
@@ -126,8 +129,10 @@ func forceEOF(yylex interface{}) {
 %left <bytes> JOIN STRAIGHT_JOIN LEFT RIGHT INNER OUTER CROSS NATURAL USE FORCE
 %left <bytes> ON USING
 %token <empty> '(' ',' ')'
-%token <bytes> ID PG_ESCAPE_STRING HEX STRING INTEGRAL FLOAT HEXNUM VALUE_ARG LIST_ARG COMMENT COMMENT_KEYWORD BIT_LITERAL DOLLAR_SIGN
+%token <bytes> INTERVAL
+%token <bytes> ID PG_ESCAPE_STRING HEX SINGLE_QUOTE_STRING DOUBLE_QUOTE_STRING BACK_QUOTE_STRING INTEGRAL FLOAT HEXNUM VALUE_ARG COMMENT COMMENT_KEYWORD BIT_LITERAL DOLLAR_SIGN LIST_ARG
 %token <bytes> NULL TRUE FALSE
+%token <bytes> MICROSECOND SECOND MINUTE HOUR DAY WEEK MONTH QUARTER SECOND_MICROSECOND MINUTE_MICROSECOND MINUTE_SECOND HOUR_MICROSECOND HOUR_SECOND HOUR_MINUTE DAY_MICROSECOND DAY_SECOND DAY_MINUTE DAY_HOUR YEAR_MONTH YEAR
 
 // Precedence dictated by mysql. But the vitess grammar is simplified.
 // Some of these operators don't conflict in our situation. Nevertheless,
@@ -147,7 +152,6 @@ func forceEOF(yylex interface{}) {
 %right <bytes> '~' UNARY
 %left <bytes> COLLATE
 %right <bytes> BINARY UNDERSCORE_BINARY
-%right <bytes> INTERVAL
 %nonassoc <bytes> '.'
 
 
@@ -173,7 +177,7 @@ func forceEOF(yylex interface{}) {
 // Type Tokens
 %token <bytes> BIT TINYINT SMALLINT MEDIUMINT INT INTEGER BIGINT INTNUM
 %token <bytes> REAL DOUBLE FLOAT_TYPE DECIMAL NUMERIC
-%token <bytes> TIME TIMESTAMP DATETIME YEAR
+%token <bytes> TIME TIMESTAMP DATETIME
 %token <bytes> CHAR VARCHAR BOOL CHARACTER VARBINARY NCHAR
 %token <bytes> TEXT TINYTEXT MEDIUMTEXT LONGTEXT
 %token <bytes> BLOB TINYBLOB MEDIUMBLOB LONGBLOB JSON ENUM
@@ -269,7 +273,7 @@ func forceEOF(yylex interface{}) {
 %type <byt> exists_opt
 %type <empty> not_exists_opt non_add_drop_or_rename_operation to_opt index_opt constraint_opt
 %type <bytes> reserved_keyword non_reserved_keyword
-%type <colIdent> sql_id reserved_sql_id col_alias as_ci_opt using_opt
+%type <colIdent> sql_id reserved_sql_id col_alias as_ci_opt using_opt column_id
 %type <expr> charset_value
 %type <tableIdent> table_id reserved_table_id table_alias as_opt_id
 %type <empty> as_opt
@@ -309,7 +313,9 @@ func forceEOF(yylex interface{}) {
 %type <returning> returning_opt
 %type <preparedQuery> prepared_query
 %type <usingInExecuteList> using_in_execute_list
-
+%type <bytes> interval_units
+%type <bytes> string
+%type <intervalExpr> mysql_interval postgresql_interval
 %start any_command
 
 %%
@@ -895,12 +901,12 @@ spatial_type:
   }
 
 enum_values:
-  STRING
+  string
   {
     $$ = make([]string, 0, 4)
     $$ = append($$, "'" + string($1) + "'")
   }
-| enum_values ',' STRING
+| enum_values ',' string
   {
     $$ = append($1, "'" + string($3) + "'")
   }
@@ -980,7 +986,7 @@ column_default_opt:
   {
     $$ = nil
   }
-| DEFAULT STRING
+| DEFAULT string
   {
     $$ = NewStrVal($2)
   }
@@ -1044,7 +1050,7 @@ collate_opt:
   {
     $$ = string($2)
   }
-| COLLATE STRING
+| COLLATE string
   {
     $$ = string($2)
   }
@@ -1074,7 +1080,7 @@ column_comment_opt:
   {
     $$ = nil
   }
-| COMMENT_KEYWORD STRING
+| COMMENT_KEYWORD string
   {
     $$ = NewStrVal($2)
   }
@@ -1109,7 +1115,7 @@ index_option:
     // should not be string
     $$ = &IndexOption{Name: string($1), Value: NewIntVal($3)}
   }
-| COMMENT_KEYWORD STRING
+| COMMENT_KEYWORD string
   {
     $$ = &IndexOption{Name: string($1), Value: NewStrVal($2)}
   }
@@ -1204,12 +1210,12 @@ table_option:
 table_opt_value:
   reserved_sql_id
   {
-    if $1.NeedQuotes() {
-      $$ = "'" + $1.String() + "'"
-    } else {
-      $$ = $1.String()
-    }
+    $$ = $1.String()
 
+  }
+| string
+  {
+    $$ = defaultDialect.QuoteHandler().WrapStringLiteral(string($1))
   }
 | INTEGRAL
   {
@@ -1522,7 +1528,7 @@ like_or_where_opt:
   {
     $$ = nil
   }
-| LIKE STRING
+| LIKE string
   {
     $$ = &ShowFilter{Like:string($2)}
   }
@@ -1640,7 +1646,7 @@ prepared_query:
   {
     $$ = NewTableIdent(string($1))
   }
-| STRING
+| string
   {
     statement, err := NewPreparedQueryFromString(string($1))
     if statement == nil {
@@ -1788,8 +1794,26 @@ as_ci_opt:
     $$ = $2
   }
 
+column_id:
+SINGLE_QUOTE_STRING
+  {
+    $$ = NewColIdentWithQuotes(string($1), '\'')
+  }
+| DOUBLE_QUOTE_STRING
+  {
+    $$ = NewColIdentWithQuotes(string($1), '"')
+  }
+| BACK_QUOTE_STRING
+  {
+    $$ = NewColIdentWithQuotes(string($1), '`')
+  }
+| sql_id
+
+// column alias may be quoted with any quotes
+// https://dev.mysql.com/doc/refman/5.7/en/identifiers.html
 col_alias:
-  sql_id
+  column_id
+
 
 from_opt:
   {
@@ -2328,18 +2352,43 @@ column_name
   {
     $$ = &UnaryExpr{Operator: BangStr, Expr: $2}
   }
-| INTERVAL value_expression sql_id
-  {
-    // This rule prevents the usage of INTERVAL
-    // as a function. If support is needed for that,
-    // we'll need to revisit this. The solution
-    // will be non-trivial because of grammar conflicts.
-    $$ = &IntervalExpr{Expr: $2, Unit: $3.String()}
-  }
+| mysql_interval
+{
+$$ = $1
+}
+| postgresql_interval
+{
+$$ = $1
+}
 | function_call_generic
 | function_call_keyword
 | function_call_nonkeyword
 | function_call_conflict
+
+postgresql_interval:
+INTERVAL SINGLE_QUOTE_STRING
+  {
+    if yylex.(*Tokenizer).IsMySQL(){
+      yylex.Error("MySQL don't support PostgreSQL syntax of interval expression")
+      return 1
+    }
+    // Postgresql type of interval where interval value is string with values+units
+    $$ = &IntervalExpr{Expr: NewStrVal($2)}
+  }
+
+mysql_interval:
+INTERVAL value_expression interval_units
+  {
+    if yylex.(*Tokenizer).IsPostgreSQL(){
+      yylex.Error("PostgreSQL don't support Mysql syntax of interval expression")
+      return 1
+    }
+    // This rule prevents the usage of INTERVAL
+    // as a function. If support is needed for that,
+    // we'll need to revisit this. The solution
+    // will be non-trivial because of grammar conflicts.
+    $$ = &IntervalExpr{Expr: $2, Unit: string($3)}
+  }
 
 /*
   Regular function calls without special token or syntax, guaranteed to not
@@ -2424,6 +2473,8 @@ function_call_keyword:
   {
     $$ = &ValuesFuncExpr{Name: $3}
   }
+
+
 
 /*
   Function calls using non reserved keywords but with special syntax forms.
@@ -2520,7 +2571,7 @@ charset:
 {
     $$ = string($1)
 }
-| STRING
+| string
 {
     $$ = string($1)
 }
@@ -2598,7 +2649,7 @@ separator_opt:
   {
     $$ = string("")
   }
-| SEPARATOR STRING
+| SEPARATOR string
   {
     $$ = " separator '"+string($2)+"'"
   }
@@ -2643,9 +2694,18 @@ column_name:
   }
 
 value:
-  STRING
+  SINGLE_QUOTE_STRING
   {
     $$ = NewStrVal($1)
+  }
+| DOUBLE_QUOTE_STRING
+  {
+    val, err := NewMySQLDoubleQuotedStrVal($1)
+    if err != nil {
+      yylex.Error("dialect don't allow to use double quotes for string literals. " + err.Error())
+      return 1
+    }
+    $$ = val
   }
 | HEX
   {
@@ -2847,19 +2907,19 @@ insert_data:
   }
 
 ins_column_list:
-  sql_id
+  column_id
   {
     $$ = Columns{$1}
   }
-| sql_id '.' sql_id
+| column_id '.' column_id
   {
     $$ = Columns{$3}
   }
-| ins_column_list ',' sql_id
+| ins_column_list ',' column_id
   {
     $$ = append($$, $3)
   }
-| ins_column_list ',' sql_id '.' sql_id
+| ins_column_list ',' column_id '.' column_id
   {
     $$ = append($$, $5)
   }
@@ -2978,6 +3038,10 @@ charset_value:
   {
     $$ = NewStrVal([]byte($1.String()))
   }
+| string
+  {
+    $$ = NewStrVal($1)
+  }
 | DEFAULT
   {
     $$ = &Default{}
@@ -3058,10 +3122,6 @@ sql_id:
   {
     $$ = NewColIdent(string($1))
   }
-| STRING // if comment this rule, current conflicts will be resolved. This is due to ambiguities in MySQL/PostgreSQL using quotes in table/column names
-  {
-    $$ = NewColIdentWithQuotes(string($1), true)
-  }
 
 reserved_sql_id:
   sql_id
@@ -3071,9 +3131,34 @@ reserved_sql_id:
   }
 
 table_id:
-  sql_id
+DOUBLE_QUOTE_STRING
+{
+  if yylex.(*Tokenizer).IsMySQL() && !yylex.(*Tokenizer).dialect.(*mysql.MySQLDialect).IsModeANSIOn() {
+    yylex.Error("MySQL dialect configured ANSI_mode=off and doesn't allow double quoted table identifiers")
+    return 1
+  }
+  $$ = NewTableIdentWithQuotes(string($1), '"')
+}
+| BACK_QUOTE_STRING
+ {
+   if yylex.(*Tokenizer).IsPostgreSQL() {
+       yylex.Error("PostgreSQL dialect doesn't allow to use backtick quotes for table identifiers")
+       return 1
+     }
+   $$ = NewTableIdentWithQuotes(string($1), '`')
+ }
+| SINGLE_QUOTE_STRING
+ {
+   $$ = NewTableIdentWithQuotes(string($1), '\'')
+ }
+|
+  ID
   {
-    $$ = NewTableIdentWithQuotes($1.String(), $1.NeedQuotes())
+    $$ = NewTableIdent(string($1))
+  }
+| non_reserved_keyword
+  {
+    $$ = NewTableIdent(string($1))
   }
 
 reserved_table_id:
@@ -3082,6 +3167,30 @@ reserved_table_id:
   {
     $$ = NewTableIdent(string($1))
   }
+
+// units for INTERVAL https://dev.mysql.com/doc/refman/5.7/en/expressions.html#temporal-intervals
+// Table 9.2 Temporal Interval Expression and Unit Arguments
+interval_units:
+  MICROSECOND
+| SECOND
+| MINUTE
+| HOUR
+| DAY
+| WEEK
+| MONTH
+| QUARTER
+| YEAR
+| SECOND_MICROSECOND
+| MINUTE_MICROSECOND
+| MINUTE_SECOND
+| HOUR_MICROSECOND
+| HOUR_SECOND
+| HOUR_MINUTE
+| DAY_MICROSECOND
+| DAY_SECOND
+| DAY_MINUTE
+| DAY_HOUR
+| YEAR_MONTH
 
 /*
   These are not all necessarily reserved in MySQL, but some are.
@@ -3290,8 +3399,12 @@ non_reserved_keyword:
 | VSCHEMA_TABLES
 | WITH
 | WRITE
-| YEAR
 | ZEROFILL
+
+string:
+ SINGLE_QUOTE_STRING
+ | DOUBLE_QUOTE_STRING
+ | BACK_QUOTE_STRING
 
 openb:
   '('

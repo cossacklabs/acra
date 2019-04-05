@@ -20,6 +20,9 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"github.com/cossacklabs/acra/sqlparser/dialect"
+	"github.com/cossacklabs/acra/sqlparser/dialect/mysql"
+	"github.com/cossacklabs/acra/sqlparser/dialect/postgresql"
 	"io"
 
 	"github.com/cossacklabs/acra/sqlparser/dependency/bytes2"
@@ -30,6 +33,24 @@ const (
 	defaultBufSize = 4096
 	eofChar        = 0x100
 )
+
+var stringTokenType = map[uint16]int{
+	'\'': SINGLE_QUOTE_STRING,
+	'"':  DOUBLE_QUOTE_STRING,
+	'`':  BACK_QUOTE_STRING,
+}
+
+const (
+	DialectMySQL = iota
+	DialectPostgreSQL
+)
+
+var defaultDialect dialect.Dialect = mysql.NewMySQLDialect()
+
+// SetDefaultDialect set globally default dialect used in old functions with default dialect
+func SetDefaultDialect(dialect dialect.Dialect) {
+	defaultDialect = dialect
+}
 
 // Tokenizer is the struct used to generate SQL
 // tokens for the parser.
@@ -51,16 +72,39 @@ type Tokenizer struct {
 	buf     []byte
 	bufPos  int
 	bufSize int
+	dialect dialect.Dialect
 }
 
 // NewStringTokenizer creates a new Tokenizer for the
 // sql string.
+// Set dialect MySQL to backward compatibility
 func NewStringTokenizer(sql string) *Tokenizer {
 	buf := []byte(sql)
 	return &Tokenizer{
 		buf:     buf,
 		bufSize: len(buf),
+		dialect: defaultDialect,
 	}
+}
+
+// NewStringTokenizerWithDialect create Tokenizer for string with specific dialect
+func NewStringTokenizerWithDialect(dialect dialect.Dialect, sql string) *Tokenizer {
+	buf := []byte(sql)
+	return &Tokenizer{
+		buf:     buf,
+		bufSize: len(buf),
+		dialect: dialect,
+	}
+}
+
+// NewMySQLStringTokenizer create mysql tokenizer for string
+func NewMySQLStringTokenizer(sql string) *Tokenizer {
+	return NewStringTokenizerWithDialect(mysql.NewMySQLDialect(), sql)
+}
+
+// NewPostgreSQLStringTokenizer create postgresql tokenizer for string
+func NewPostgreSQLStringTokenizer(sql string) *Tokenizer {
+	return NewStringTokenizerWithDialect(postgresql.NewPostgreSQLDialect(), sql)
 }
 
 // NewTokenizer creates a new Tokenizer reading a sql
@@ -69,6 +113,7 @@ func NewTokenizer(r io.Reader) *Tokenizer {
 	return &Tokenizer{
 		InStream: r,
 		buf:      make([]byte, defaultBufSize),
+		dialect:  defaultDialect,
 	}
 }
 
@@ -135,10 +180,11 @@ var keywords = map[string]int{
 	"cursor":              UNUSED,
 	"database":            DATABASE,
 	"databases":           DATABASES,
-	"day_hour":            UNUSED,
-	"day_microsecond":     UNUSED,
-	"day_minute":          UNUSED,
-	"day_second":          UNUSED,
+	"day":                 DAY,
+	"day_hour":            DAY_HOUR,
+	"day_microsecond":     DAY_MICROSECOND,
+	"day_minute":          DAY_MINUTE,
+	"day_second":          DAY_SECOND,
 	"date":                DATE,
 	"datetime":            DATETIME,
 	"dec":                 UNUSED,
@@ -190,9 +236,10 @@ var keywords = map[string]int{
 	"group_concat":        GROUP_CONCAT,
 	"having":              HAVING,
 	"high_priority":       UNUSED,
-	"hour_microsecond":    UNUSED,
-	"hour_minute":         UNUSED,
-	"hour_second":         UNUSED,
+	"hour":                HOUR,
+	"hour_microsecond":    HOUR_MICROSECOND,
+	"hour_minute":         HOUR_MINUTE,
+	"hour_second":         HOUR_SECOND,
 	"if":                  IF,
 	"ignore":              IGNORE,
 	"in":                  IN,
@@ -245,15 +292,18 @@ var keywords = map[string]int{
 	"master_bind":         UNUSED,
 	"match":               MATCH,
 	"maxvalue":            MAXVALUE,
+	"microsecond":         MICROSECOND,
 	"mediumblob":          MEDIUMBLOB,
 	"mediumint":           MEDIUMINT,
 	"mediumtext":          MEDIUMTEXT,
 	"middleint":           UNUSED,
-	"minute_microsecond":  UNUSED,
-	"minute_second":       UNUSED,
+	"minute":              MINUTE,
+	"minute_microsecond":  MINUTE_MICROSECOND,
+	"minute_second":       MINUTE_SECOND,
 	"mod":                 MOD,
 	"mode":                MODE,
 	"modifies":            UNUSED,
+	"month":               MONTH,
 	"multilinestring":     MULTILINESTRING,
 	"multipoint":          MULTIPOINT,
 	"multipolygon":        MULTIPOLYGON,
@@ -284,6 +334,7 @@ var keywords = map[string]int{
 	"primary":             PRIMARY,
 	"processlist":         PROCESSLIST,
 	"procedure":           PROCEDURE,
+	"quarter":             QUARTER,
 	"query":               QUERY,
 	"range":               UNUSED,
 	"read":                READ,
@@ -309,7 +360,8 @@ var keywords = map[string]int{
 	"rollback":            ROLLBACK,
 	"schema":              SCHEMA,
 	"schemas":             UNUSED,
-	"second_microsecond":  UNUSED,
+	"second":              SECOND,
+	"second_microsecond":  SECOND_MICROSECOND,
 	"select":              SELECT,
 	"sensitive":           UNUSED,
 	"separator":           SEPARATOR,
@@ -383,6 +435,7 @@ var keywords = map[string]int{
 	"vitess_shards":       VITESS_SHARDS,
 	"vitess_tablets":      VITESS_TABLETS,
 	"vschema_tables":      VSCHEMA_TABLES,
+	"week":                WEEK,
 	"when":                WHEN,
 	"where":               WHERE,
 	"while":               UNUSED,
@@ -390,7 +443,7 @@ var keywords = map[string]int{
 	"write":               WRITE,
 	"xor":                 UNUSED,
 	"year":                YEAR,
-	"year_month":          UNUSED,
+	"year_month":          YEAR_MONTH,
 	"zerofill":            ZEROFILL,
 	"returning":           RETURNING,
 	"deallocate":          DEALLOCATE,
@@ -408,6 +461,18 @@ func init() {
 		}
 		keywordStrings[id] = str
 	}
+}
+
+// IsMySQL return true if tokenizer configured with MySQL dialect
+func (tkn *Tokenizer) IsMySQL() bool {
+	_, ok := tkn.dialect.(*mysql.MySQLDialect)
+	return ok
+}
+
+// IsPostgreSQL return true if tokenizer configured with PostgreSQL dialect
+func (tkn *Tokenizer) IsPostgreSQL() bool {
+	_, ok := tkn.dialect.(*postgresql.PostgreSQLDialect)
+	return ok
 }
 
 // KeywordString returns the string corresponding to the given keyword
@@ -605,13 +670,16 @@ func (tkn *Tokenizer) Scan() (int, []byte) {
 				return NE, nil
 			}
 			return int(ch), nil
-		case '\'', '"':
-			return tkn.scanString(ch, STRING)
-		case '`':
-			return tkn.scanLiteralIdentifier()
 		case '$':
 			return tkn.scanDollarParameter()
 		default:
+			// must be before handling quotes as string literals to handle double
+			if tkn.dialect.QuoteHandler().IsIdentifierQuote(byte(ch)) {
+				return tkn.scanLiteralIdentifier()
+			}
+			if tkn.dialect.QuoteHandler().IsStringLiteralQuote(byte(ch)) {
+				return tkn.scanString(ch, stringTokenType[ch])
+			}
 			return LEX_ERROR, []byte{byte(ch)}
 		}
 	}
@@ -649,7 +717,7 @@ func (tkn *Tokenizer) skipBlank() {
 func (tkn *Tokenizer) scanIdentifier(firstByte byte, isDbSystemVariable bool) (int, []byte) {
 	buffer := &bytes2.Buffer{}
 	buffer.WriteByte(firstByte)
-	for isLetter(tkn.lastChar) || isDigit(tkn.lastChar) || (isDbSystemVariable && isCarat(tkn.lastChar)) {
+	for isLetter(tkn.lastChar) || isDigit(tkn.lastChar) || (isDbSystemVariable && isCarat(tkn.lastChar, tkn.dialect.QuoteHandler())) {
 		buffer.WriteByte(byte(tkn.lastChar))
 		tkn.next()
 	}
@@ -690,25 +758,23 @@ func (tkn *Tokenizer) scanBitLiteral() (int, []byte) {
 
 func (tkn *Tokenizer) scanLiteralIdentifier() (int, []byte) {
 	buffer := &bytes2.Buffer{}
-	backTickSeen := false
+	quoteSeen := false
 	for {
-		if backTickSeen {
-			if tkn.lastChar != '`' {
+		if quoteSeen {
+			if !tkn.dialect.QuoteHandler().IsIdentifierQuote(byte(tkn.lastChar)) {
 				break
 			}
-			backTickSeen = false
-			buffer.WriteByte('`')
+			quoteSeen = false
+			buffer.WriteByte(tkn.dialect.QuoteHandler().GetIdentifierQuote())
 			tkn.next()
 			continue
 		}
-		// The previous char was not a backtick.
-		switch tkn.lastChar {
-		case '`':
-			backTickSeen = true
-		case eofChar:
+		if tkn.dialect.QuoteHandler().IsIdentifierQuote(byte(tkn.lastChar)) {
+			quoteSeen = true
+		} else if tkn.lastChar == eofChar {
 			// Premature EOF.
 			return LEX_ERROR, buffer.Bytes()
-		default:
+		} else {
 			buffer.WriteByte(byte(tkn.lastChar))
 		}
 		tkn.next()
@@ -964,8 +1030,8 @@ func isLetter(ch uint16) bool {
 	return 'a' <= ch && ch <= 'z' || 'A' <= ch && ch <= 'Z' || ch == '_' || ch == '@'
 }
 
-func isCarat(ch uint16) bool {
-	return ch == '.' || ch == '\'' || ch == '"' || ch == '`'
+func isCarat(ch uint16, quoteHandler dialect.QuoteHandler) bool {
+	return ch == '.' || quoteHandler.IsIdentifierQuote(byte(ch)) || quoteHandler.IsStringLiteralQuote(byte(ch))
 }
 
 func digitVal(ch uint16) int {

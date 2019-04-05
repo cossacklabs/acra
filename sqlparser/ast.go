@@ -20,9 +20,12 @@ import (
 	"bytes"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"github.com/cossacklabs/acra/sqlparser/dependency/querypb"
 	"github.com/cossacklabs/acra/sqlparser/dependency/sqltypes"
+	"github.com/cossacklabs/acra/sqlparser/dialect"
+	"github.com/cossacklabs/acra/sqlparser/dialect/mysql"
 	"strconv"
 	"strings"
 )
@@ -49,6 +52,11 @@ type SQLNode interface {
 	// of the subtree, but not the current one. Walking
 	// must be interrupted if visit returns an error.
 	walkSubtree(visit Visit) error
+}
+
+// DialectFormat interface for nodes which can format itself for different dialects
+type DialectFormat interface {
+	FormatForDialect(dialect dialect.Dialect, buf *TrackedBuffer)
 }
 
 // Visit defines the signature of a function that
@@ -78,13 +86,19 @@ func Walk(visit Visit, nodes ...SQLNode) error {
 	return nil
 }
 
-// String returns a string representation of an SQLNode.
+// String returns a string representation of an SQLNode for default dialect
 func String(node SQLNode) string {
+	return StringWithDialect(defaultDialect, node)
+}
+
+// StringWithDialect returns a string representation of an SQLNode for specified dialect
+func StringWithDialect(dialect dialect.Dialect, node SQLNode) string {
 	if node == nil {
 		return "<nil>"
 	}
 
 	buf := NewTrackedBuffer(nil)
+	buf.SetDialect(dialect)
 	buf.Myprintf("%v", node)
 	return buf.String()
 }
@@ -1212,6 +1226,18 @@ func NewCastVal(val Expr, castType []byte) *SQLVal {
 	return &SQLVal{Type: v.Type, Val: v.Val, CastType: castType}
 }
 
+// ErrInvalidStringLiteralQuotes if used string token as literal with incorrect quotes
+var ErrInvalidStringLiteralQuotes = errors.New("invalid string literal quotes")
+
+// NewMySQLDoubleQuotedStrVal check that literal may be wrapped with double quotes and return SQLVal if may otherwise error
+func NewMySQLDoubleQuotedStrVal(in []byte) (*SQLVal, error) {
+	if mysqlDialect, ok := defaultDialect.(*mysql.MySQLDialect); !ok || mysqlDialect.QuoteHandler().(*mysql.QuoteHandler).IsModeANSIOn() {
+		// MySQL allow to use double quotes for literals only with ANSIQuoted = off
+		return nil, ErrInvalidStringLiteralQuotes
+	}
+	return &SQLVal{Type: StrVal, Val: in}, nil
+}
+
 // NewStrVal builds a new StrVal.
 func NewStrVal(in []byte) *SQLVal {
 	return &SQLVal{Type: StrVal, Val: in}
@@ -1670,9 +1696,9 @@ type ColIdent struct {
 	// This artifact prevents this struct from being compared
 	// with itself. It consumes no space as long as it's not the
 	// last field in the struct.
-	_              [0]struct{ _ []byte }
-	val, lowered   string
-	wrapWithQuotes bool
+	_            [0]struct{ _ []byte }
+	val, lowered string
+	quote        byte
 }
 
 // NewColIdent makes a new ColIdent.
@@ -1683,10 +1709,10 @@ func NewColIdent(str string) ColIdent {
 }
 
 // NewColIdentWithQuotes create ColIdent with quotes to escape column name in Postgresql style
-func NewColIdentWithQuotes(str string, quotes bool) ColIdent {
+func NewColIdentWithQuotes(str string, quote byte) ColIdent {
 	return ColIdent{
-		val:            str,
-		wrapWithQuotes: quotes,
+		val:   str,
+		quote: quote,
 	}
 }
 
@@ -1701,11 +1727,6 @@ func (node ColIdent) IsEmpty() bool {
 // in templates.
 func (node ColIdent) String() string {
 	return node.val
-}
-
-// NeedQuotes return true if should wrapped with quotes to escape in postgresql style
-func (node ColIdent) NeedQuotes() bool {
-	return node.wrapWithQuotes
 }
 
 // CompliantName returns a compliant id name
@@ -1756,8 +1777,8 @@ func (node *ColIdent) UnmarshalJSON(b []byte) error {
 // TableIdent is a case sensitive SQL identifier. It will be escaped with
 // backquotes if necessary.
 type TableIdent struct {
-	wrapWithQuotes bool
-	v              string
+	quote byte
+	v     string
 }
 
 // NewTableIdent creates a new TableIdent.
@@ -1766,8 +1787,8 @@ func NewTableIdent(str string) TableIdent {
 }
 
 // NewTableIdentWithQuotes creates a new TableIdent with flag to escape name
-func NewTableIdentWithQuotes(str string, quotes bool) TableIdent {
-	return TableIdent{v: str, wrapWithQuotes: quotes}
+func NewTableIdentWithQuotes(str string, quote byte) TableIdent {
+	return TableIdent{v: str, quote: quote}
 }
 
 // IsEmpty returns true if TabIdent is empty.
@@ -1780,6 +1801,9 @@ func (node TableIdent) IsEmpty() bool {
 // instead. The Stringer conformance is for usage
 // in templates.
 func (node TableIdent) String() string {
+	if node.quote != 0 {
+		return string(node.quote) + node.v + string(node.quote)
+	}
 	return node.v
 }
 
@@ -1805,28 +1829,14 @@ func (node *TableIdent) UnmarshalJSON(b []byte) error {
 	return nil
 }
 
-// Backtick produces a backticked literal given an input string.
-func Backtick(in string) string {
-	var buf bytes.Buffer
-	buf.WriteByte('`')
-	for _, c := range in {
-		buf.WriteRune(c)
-		if c == '`' {
-			buf.WriteByte('`')
-		}
-	}
-	buf.WriteByte('`')
-	return buf.String()
-}
-
-func formatID(buf *TrackedBuffer, original, lowered string) {
+func formatIDForDialect(dialect dialect.Dialect, buf *TrackedBuffer, original, lowered string) {
 	isDbSystemVariable := false
 	if len(original) > 1 && original[:2] == "@@" {
 		isDbSystemVariable = true
 	}
 
 	for i, c := range original {
-		if !isLetter(uint16(c)) && (!isDbSystemVariable || !isCarat(uint16(c))) {
+		if !isLetter(uint16(c)) && (!isDbSystemVariable || !isCarat(uint16(c), dialect.QuoteHandler())) {
 			if i == 0 || !isDigit(uint16(c)) {
 				goto mustEscape
 			}
@@ -1839,14 +1849,19 @@ func formatID(buf *TrackedBuffer, original, lowered string) {
 	return
 
 mustEscape:
-	buf.WriteByte('`')
+	escapeQuote := dialect.QuoteHandler().GetIdentifierQuote()
+	buf.WriteByte(escapeQuote)
 	for _, c := range original {
 		buf.WriteRune(c)
-		if c == '`' {
-			buf.WriteByte('`')
+		if c == int32(escapeQuote) {
+			buf.WriteByte(escapeQuote)
 		}
 	}
-	buf.WriteByte('`')
+	buf.WriteByte(escapeQuote)
+}
+
+func formatID(buf *TrackedBuffer, original, lowered string) {
+	formatIDForDialect(defaultDialect, buf, original, lowered)
 }
 
 func compliantName(in string) string {

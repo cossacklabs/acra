@@ -18,6 +18,10 @@ package sqlparser
 
 import (
 	"fmt"
+	"github.com/cossacklabs/acra/sqlparser/dialect"
+	"github.com/cossacklabs/acra/sqlparser/dialect/mysql"
+	"github.com/cossacklabs/acra/sqlparser/dialect/postgresql"
+	"reflect"
 	"testing"
 )
 
@@ -66,9 +70,14 @@ func TestLiteralID(t *testing.T) {
 }
 
 func tokenName(id int) string {
-	if id == STRING {
-		return "STRING"
-	} else if id == LEX_ERROR {
+	switch id {
+	case SINGLE_QUOTE_STRING:
+		return "SINGLE_QUOTE_STRING"
+	case DOUBLE_QUOTE_STRING:
+		return "DOUBLE_QUOTE_STRING"
+	case BACK_QUOTE_STRING:
+		return "BACK_QUOTE_STRING"
+	case LEX_ERROR:
 		return "LEX_ERROR"
 	}
 	return fmt.Sprintf("%d", id)
@@ -81,31 +90,31 @@ func TestString(t *testing.T) {
 		want string
 	}{{
 		in:   "''",
-		id:   STRING,
+		id:   SINGLE_QUOTE_STRING,
 		want: "",
 	}, {
 		in:   "''''",
-		id:   STRING,
+		id:   SINGLE_QUOTE_STRING,
 		want: "'",
 	}, {
 		in:   "'hello'",
-		id:   STRING,
+		id:   SINGLE_QUOTE_STRING,
 		want: "hello",
 	}, {
 		in:   "'\\n'",
-		id:   STRING,
+		id:   SINGLE_QUOTE_STRING,
 		want: "\n",
 	}, {
 		in:   "'\\nhello\\n'",
-		id:   STRING,
+		id:   SINGLE_QUOTE_STRING,
 		want: "\nhello\n",
 	}, {
 		in:   "'a''b'",
-		id:   STRING,
+		id:   SINGLE_QUOTE_STRING,
 		want: "a'b",
 	}, {
 		in:   "'a\\'b'",
-		id:   STRING,
+		id:   SINGLE_QUOTE_STRING,
 		want: "a'b",
 	}, {
 		in:   "'\\'",
@@ -187,5 +196,21 @@ func TestSplitStatement(t *testing.T) {
 		if tcase.rem != rem {
 			t.Errorf("EndOfStatementPosition(%s) got remainder \"%s\" want \"%s\"", tcase.in, rem, tcase.rem)
 		}
+	}
+}
+
+func TestSetDefaultDialect(t *testing.T) {
+	tests := []dialect.Dialect{
+		mysql.NewMySQLDialect(),
+		mysql.NewANSIMySQLDialect(),
+		postgresql.NewPostgreSQLDialect(),
+	}
+	for _, testDialect := range tests {
+		t.Run("check SetDefaultDialect that it changes global defaultDialect", func(t *testing.T) {
+			SetDefaultDialect(testDialect)
+			if reflect.TypeOf(testDialect) != reflect.TypeOf(defaultDialect) {
+				t.Fatal("incorrectly set default dialect")
+			}
+		})
 	}
 }

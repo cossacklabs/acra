@@ -19,14 +19,18 @@ package sqlparser
 import (
 	"bytes"
 	"fmt"
+	"github.com/cossacklabs/acra/sqlparser/dialect"
+	"github.com/cossacklabs/acra/sqlparser/dialect/mysql"
+	"github.com/cossacklabs/acra/sqlparser/dialect/postgresql"
 	"strings"
 	"testing"
 )
 
 var (
 	validSQL = []struct {
-		input  string
-		output string
+		input   string
+		output  string
+		dialect dialect.Dialect
 	}{{
 		input:  "select 1",
 		output: "select 1 from dual",
@@ -204,10 +208,14 @@ var (
 		input: "select /* table alias with as */ 1 from t as t1",
 	}, {
 		input:  "select /* string table alias */ 1 from t as 't1'",
-		output: "select /* string table alias */ 1 from t as \"t1\"",
+		output: "select /* string table alias */ 1 from t as 't1'",
+		// mysql allow to use single quote for column/table aliases
+		dialect: mysql.NewMySQLDialect(),
 	}, {
 		input:  "select /* string table alias without as */ 1 from t 't1'",
-		output: "select /* string table alias without as */ 1 from t as \"t1\"",
+		output: "select /* string table alias without as */ 1 from t as 't1'",
+		// mysql allow to use single quote for column/table aliases
+		dialect: mysql.NewMySQLDialect(),
 	}, {
 		input: "select /* keyword table alias */ 1 from t as `By`",
 	}, {
@@ -525,6 +533,8 @@ var (
 		input: "select /* ~ binary */ ~ binary b from t",
 	}, {
 		input: "select /* interval */ adddate('2008-01-02', interval 31 day) from t",
+	}, {
+		input: "select /* interval */ adddate('2008-01-02', 1) from t",
 	}, {
 		input: "select /* interval keyword */ adddate('2008-01-02', interval 1 year) from t",
 	}, {
@@ -1441,8 +1451,9 @@ func TestCaseSensitivity(t *testing.T) {
 
 func TestKeywords(t *testing.T) {
 	validSQL := []struct {
-		input  string
-		output string
+		input   string
+		output  string
+		dialect dialect.Dialect
 	}{{
 		input:  "select current_timestamp",
 		output: "select current_timestamp() from dual",
@@ -1481,7 +1492,7 @@ func TestKeywords(t *testing.T) {
 	}, {
 		input: "select left(a, 5) from t",
 	}, {
-		input: "update t set d = adddate(date('2003-12-31 01:02:03'), interval 5 days)",
+		input: "update t set d = adddate(date('2003-12-31 01:02:03'), interval 5 day)",
 	}, {
 		input: "insert into t(a, b) values (left('foo', 1), 'b')",
 	}, {
@@ -1504,20 +1515,31 @@ func TestKeywords(t *testing.T) {
 	}, {
 		input:  "select variables from t",
 		output: "select `variables` from t",
+	}, {
+		input:  "insert into cpu_temp(timestamp, device, unit_id, temp) values ('ABCDEF23', '1', '1615.400')",
+		output: "insert into cpu_temp(`timestamp`, device, unit_id, temp) values ('ABCDEF23', '1', '1615.400')",
+	}, {
+		input:   "insert into cpu_temp(timestamp, device, unit_id, temp) values (NOW() - INTERVAL '32 minute', 'ABCDEF23', '1', '1615.400')",
+		output:  "insert into cpu_temp(\"timestamp\", device, unit_id, temp) values (NOW() - interval '32 minute', 'ABCDEF23', '1', '1615.400')",
+		dialect: postgresql.NewPostgreSQLDialect(),
 	}}
-
-	for _, tcase := range validSQL {
+	var testDialect dialect.Dialect
+	for i, tcase := range validSQL {
 		if tcase.output == "" {
 			tcase.output = tcase.input
 		}
-		tree, err := Parse(tcase.input)
+		testDialect = tcase.dialect
+		if tcase.dialect == nil {
+			testDialect = mysql.NewMySQLDialect()
+		}
+		tree, err := ParseWithDialect(testDialect, tcase.input)
 		if err != nil {
-			t.Errorf("input: %s, err: %v", tcase.input, err)
+			t.Errorf("[%d] input: %s, err: %v", i, tcase.input, err)
 			continue
 		}
-		out := String(tree)
+		out := StringWithDialect(testDialect, tree)
 		if out != tcase.output {
-			t.Errorf("out: %s, want %s", out, tcase.output)
+			t.Errorf("[%d] out: %s, want %s", i, out, tcase.output)
 		}
 	}
 }
@@ -1597,8 +1619,9 @@ func TestConvert(t *testing.T) {
 	}
 
 	invalidSQL := []struct {
-		input  string
-		output string
+		input   string
+		output  string
+		dialect dialect.Dialect
 	}{{
 		input:  "select convert('abc' as date) from t",
 		output: "syntax error at position 24 near 'as'",
@@ -1614,10 +1637,16 @@ func TestConvert(t *testing.T) {
 	}, {
 		input:  "select convert('abc', decimal(4+9)) from t",
 		output: "syntax error at position 33",
-	}}
+	},
+	}
 
+	var dialect dialect.Dialect
 	for _, tcase := range invalidSQL {
-		_, err := Parse(tcase.input)
+		dialect = tcase.dialect
+		if dialect == nil {
+			dialect = mysql.NewMySQLDialect()
+		}
+		_, err := ParseWithDialect(dialect, tcase.input)
 		if err == nil || err.Error() != tcase.output {
 			t.Errorf("%s: %v, want %s", tcase.input, err, tcase.output)
 		}
@@ -1979,6 +2008,7 @@ var (
 		input        string
 		output       string
 		excludeMulti bool // Don't use in the ParseNext multi-statement parsing tests.
+		dialect      dialect.Dialect
 	}{{
 		input:  "select $ from t",
 		output: "syntax error at position 9 near '$'",
@@ -2093,14 +2123,44 @@ var (
 		input:        "select /* aa",
 		output:       "syntax error at position 13 near '/* aa'",
 		excludeMulti: true,
-	}}
+	}, {
+		input:   "select `invalid string literal` from dual",
+		output:  "syntax error at position 9 near '`'",
+		dialect: postgresql.NewPostgreSQLDialect(),
+	}, {
+		// postgresql specific interval
+		input:   "select interval '2017:12:12' from dual",
+		output:  "MySQL don't support PostgreSQL syntax of interval expression at position 34 near 'from'",
+		dialect: mysql.NewMySQLDialect(),
+	}, {
+		// mysql specific interval
+		input:   "select interval '2017' YEAR from dual",
+		output:  "syntax error at position 28 near 'year'",
+		dialect: postgresql.NewPostgreSQLDialect(),
+	},
+		{
+			input:   "select adddate('2008-01-02', interval 31 day) from t",
+			output:  "PostgreSQL don't support Mysql syntax of interval expression at position 45 near 'day'",
+			dialect: postgresql.NewPostgreSQLDialect(),
+		}, {
+			input:   "select adddate('2008-01-02', interval 1 year) from t",
+			output:  "PostgreSQL don't support Mysql syntax of interval expression at position 45 near 'year'",
+			dialect: postgresql.NewPostgreSQLDialect(),
+		}}
 )
 
 func TestErrors(t *testing.T) {
-	for _, tcase := range invalidSQL {
-		_, err := Parse(tcase.input)
+	var dialect dialect.Dialect
+	for i, tcase := range invalidSQL {
+		if tcase.dialect == nil {
+			dialect = mysql.NewMySQLDialect()
+		} else {
+			dialect = tcase.dialect
+		}
+		stmt, err := ParseWithDialect(dialect, tcase.input)
+		_ = stmt
 		if err == nil || err.Error() != tcase.output {
-			t.Errorf("%s: %v, want %s", tcase.input, err, tcase.output)
+			t.Errorf("[%d] %s: %v, want %s", i, tcase.input, err, tcase.output)
 		}
 	}
 }

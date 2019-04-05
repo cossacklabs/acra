@@ -18,6 +18,8 @@ package sqlparser
 
 import (
 	"bytes"
+	"github.com/cossacklabs/acra/sqlparser/dialect"
+	"github.com/cossacklabs/acra/sqlparser/dialect/mysql"
 	"io"
 	"strings"
 	"testing"
@@ -32,15 +34,21 @@ func TestParseNextValid(t *testing.T) {
 		sql.WriteRune(';')
 	}
 
-	tokens := NewTokenizer(&sql)
+	var dialect dialect.Dialect
+	tokenizer := NewTokenizer(&sql)
 	for i, tcase := range validSQL {
+		dialect = tcase.dialect
+		if dialect == nil {
+			dialect = mysql.NewMySQLDialect()
+		}
+		tokenizer.dialect = dialect
 		input := tcase.input + ";"
 		want := tcase.output
 		if want == "" {
 			want = tcase.input
 		}
 
-		tree, err := ParseNext(tokens)
+		tree, err := ParseNext(tokenizer)
 		if err != nil {
 			t.Fatalf("[%d] ParseNext(%q) err: %q, want nil", i, input, err)
 			continue
@@ -52,22 +60,28 @@ func TestParseNextValid(t *testing.T) {
 	}
 
 	// Read once more and it should be EOF.
-	if tree, err := ParseNext(tokens); err != io.EOF {
-		t.Errorf("ParseNext(tokens) = (%q, %v) want io.EOF", String(tree), err)
+	if tree, err := ParseNext(tokenizer); err != io.EOF {
+		t.Errorf("ParseNext(tokenizer) = (%q, %v) want io.EOF", String(tree), err)
 	}
 }
 
 // TestParseNextErrors tests all the error cases, and ensures a valid
 // SQL statement can be passed afterwards.
 func TestParseNextErrors(t *testing.T) {
+	var testDialect dialect.Dialect
 	for _, tcase := range invalidSQL {
 		if tcase.excludeMulti {
 			// Skip tests which leave unclosed strings, or comments.
 			continue
 		}
 
+		testDialect = tcase.dialect
+		if testDialect == nil {
+			testDialect = mysql.NewMySQLDialect()
+		}
+
 		sql := tcase.input + "; select 1 from t"
-		tokens := NewStringTokenizer(sql)
+		tokens := NewStringTokenizerWithDialect(testDialect, sql)
 
 		// The first statement should be an error
 		_, err := ParseNext(tokens)
