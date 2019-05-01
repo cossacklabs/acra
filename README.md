@@ -123,11 +123,17 @@ To better understand the architecture and data flow in Acra, please refer to the
 
 ### Protecting data in SQL databases using AcraServer
 
-<p align="center"><img src="https://github.com/cossacklabs/acra/wiki/Images/readme/AcraArchi-Readme-combined.png" alt="Acra Server: architecture" width="700"></p>
-
-_On the left: typical infrastructure with AcraConnector and AcraServer, data is encrypted on the client application using AcraWriter. On the right: server-side encryption using AcraServer in Transparent proxy mode._
+AcraServer works as transparent encryption/decryption proxy with SQL databases. Depending on your app architecture, it's possible to use client-side encryption or server-side encryption, or both simultaneously.
 
 #### Integrating client-side encryption using AcraWriter
+
+<p align="center"><img src="https://github.com/cossacklabs/acra/wiki/Images/readme/acra-server-acra-writer.png" alt="Client-side encryption using AcraServer and AcraWriter" width="1600"></p>
+
+_The typical infrastructure with AcraConnector and AcraServer, data is encrypted on the client side (web backend or mobile app) using AcraWriter, decrypted on the AcraServer side, that works as transparent database proxy._
+
+<p align="center"><img src="https://github.com/cossacklabs/acra/wiki/Images/readme/AcraArchi-Readme.png" alt="Client-side encryption using AcraServer and AcraWriter" width="400"></p>
+
+_The dataflow of encrypted and plaintext data. Note: it's possible to write encrypted data directly to the database, omitting the AcraServer._
 
 This is what the process of encryption and decryption of data in a database looks like:
 
@@ -138,6 +144,14 @@ This is what the process of encryption and decryption of data in a database look
 - AcraConnector is a client-side daemon responsible for providing encrypted and authenticated connection between the application and AcraServer. [**AcraConnector**](https://docs.cossacklabs.com/pages/documentation-acra/#client-side-acraconnector-and-acrawriter) runs under a separate user/in a separate container and acts as middleware. AcraConnector accepts connections from the application, adds an extra transport encryption layer using TLS or [Themis Secure Session](http://docs.cossacklabs.com/pages/secure-session-cryptosystem/), sends the data to AcraServer, receives the result, and sends it back to the application.
 
 #### Integrating server-side encryption using AcraServer in Transparent proxy mode
+
+<p align="center"><img src="https://github.com/cossacklabs/acra/wiki/Images/readme/acra-server-proxy.png" alt="Server-side encryption using AcraServer" width="1600"></p>
+
+_The typical infrastructure with AcraConnector and AcraServer, data is encrypted and decrypted by AcraServer, that works as transparent database proxy._
+
+<p align="center"><img src="https://github.com/cossacklabs/acra/wiki/Images/readme/AcraArchi-TransparentMode-Readme-2.png" alt="Server-side encryption using AcraServer" width="200"></p>
+
+_The dataflow of encrypted and plaintext data, AcraServer it encrypts and decrypts data._
 
 [Transparent proxy mode](https://docs.cossacklabs.com/pages/documentation-acra/#transparent-proxy-mode) allows you to configure [**AcraServer**](https://docs.cossacklabs.com/pages/documentation-acra/#server-side-acraserver) to encrypt records in specific database columns without altering the application code. Basically, AcraServer here performs AcraWriter's duties. 
 
@@ -154,9 +168,15 @@ Check out the [detailed documentation](https://docs.cossacklabs.com/pages/docume
 
 ### Protecting data in any file storage using AcraWriter and AcraTranslator
 
-<p align="center"><img src="https://docs.cossacklabs.com/files/wiki/acrawriter-acratranslator-elsewhere.png" alt="Acra Translator: simplified architecture" width="500"></p>
+<p align="center"><img src="https://github.com/cossacklabs/acra/wiki/Images/readme/acra-translator.png" alt="Client-side encryption and standalone decryption using AcraTranslator" width="700"></p>
 
-In some use cases, the application can store encrypted data as separate blobs (files that are not in a database, i.e. in a S3 bucket, local file storage, etc.). In this case, you can use [**AcraTranslator**](http://docs.cossacklabs.com/pages/acratranslator/) — a lightweight server that receives [**AcraStructs**](https://docs.cossacklabs.com/pages/documentation-acra/#acrastruct) and returns the decrypted data.
+_The typical infrastructure with AcraConnector and AcraTranslator, data is encrypted on the client side (web backend or mobile app) using AcraWriter, decrypted on the AcraTranslator side, that works as standalone decryption service._
+
+<p align="center"><img src="https://github.com/cossacklabs/acra/wiki/Images/readme/AcraArchi-AT-Readme.png" alt="Acra Translator: simplified architecture" width="500"></p>
+
+_The dataflow of encrypted and plaintext data, AcraTranslator only decrypts data on demand._
+
+In some use cases, the application can store encrypted data as separate blobs (in NoSQL databases, or as files that are not in a database, i.e. in a S3 bucket, local file storage, etc.). In this case, you can use [**AcraTranslator**](http://docs.cossacklabs.com/pages/acratranslator/) — a lightweight server that receives [**AcraStructs**](https://docs.cossacklabs.com/pages/documentation-acra/#acrastruct) and returns the decrypted data.
 
 This is what the process of encryption and decryption of data using AcraTranslator looks like:
 
@@ -171,7 +191,9 @@ AcraTranslator and AcraServer are fully independent server-side components and c
 
 ### Client-side
 
-[AcraWriter](https://docs.cossacklabs.com/pages/documentation-acra/#client-side-acraconnector-and-acrawriter) is a client-side library that encrypts data into a special binary format called [AcraStruct](https://docs.cossacklabs.com/pages/documentation-acra/#acrastruct). AcraWriter is available for Ruby, Python, Go, C++, Node.js, iOS, Android/Java and PHP, but you can easily [generate AcraStruct containers](https://github.com/cossacklabs/acra/wiki/Acrawriter-installation) with [Themis](https://github.com/cossacklabs/themis) for any platform you want. 
+[AcraWriter](https://docs.cossacklabs.com/pages/documentation-acra/#client-side-acraconnector-and-acrawriter) is a client-side library that encrypts data into a special binary format called [AcraStruct](https://docs.cossacklabs.com/pages/documentation-acra/#acrastruct). AcraWriter is available for Ruby, Python, Go, C++, Node.js, iOS, Android/Java and PHP, but you can easily [generate AcraStruct containers](https://github.com/cossacklabs/acra/wiki/Acrawriter-installation) with [Themis](https://github.com/cossacklabs/themis) for any platform you want.
+
+AcraWriter is required only for the client-side encryption dataflow. If you use AcraServer in Transparent encryption mode, you don't need AcraWriter at all.
 
 | Client platform |  Documentation and guides | Examples | Package manager |
 | :----- | :----- | :------ | :---- |
