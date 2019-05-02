@@ -15,6 +15,7 @@
   <a href='https://godoc.org/github.com/cossacklabs/acra'><img src='https://godoc.org/github.com/cossacklabs/acra?status.svg'  alt='godoc'/></a>
   <br/><a href="https://github.com/cossacklabs/acra/releases/latest"><img src="https://img.shields.io/badge/Server%20Platforms-Ubuntu%20%7C%20Debian%20%7C%20CentOS-green.svg" alt="Server platforms"></a>
   <a href="https://github.com/cossacklabs/acra/releases/latest"><img src="https://img.shields.io/badge/Client%20Platforms-Go%20%7C%20Ruby%20%7C%20Python%20%7C%20PHP%20%7C%20NodeJS%20%7C%20C++%20%7C%20iOS%20%7C%20Android-green.svg" alt="Client platforms"></a>
+  <a href="https://marketplace.digitalocean.com/apps/acra?action=deploy"><img src="http://installer.71m.us/button.svg" alt="Install on DigitalOceam"></a>
 </p>
 <br>
 
@@ -50,7 +51,7 @@ This is [Acra Community Edition](https://www.cossacklabs.com/acra/#pricing), it'
 
 ### Major security features
 
-<table><tbody><tr><tr><td><li>Cryptographic protection of data </li></td><td> during storage and transmission </td>
+<table><tbody><tr><tr><td><li>Cryptographic protection of data </li></td><td> during storage and transmission, using unique encryption keys per data blob, per user, per application </td>
 </tr><tr><td><li>Selective encryption </li></td><td> protect only the sensitive data to balance good security and performance </td>
 </tr><tr><td><li>Key management tools </li></td><td> built-in tools for key distribution, key rotation, and compartmentalisation</td>
 </tr><tr><td><li>Trust compartmentalisation </li></td><td> datastore and application components can be compromised, yet the data stays protected</td>
@@ -71,10 +72,11 @@ Acra delivers different layers of defense for different parts and stages of the 
 <tr><td><li> Automation-friendly </li></td><td> easy to configure and automate </td></tr>
 <tr><td><li> Quick infrastructure integration </li></td><td> via binary packages or Docker images </td></tr>
 <tr><td><li> Easy client-side integration </li></td><td> client-side encryption libraries support ~11 languages </td></tr>
-<tr><td><li> Code-less client-side integration </li></td><td> server-side encryption in AcraServer's Transparent proxy mode</td></tr>
+<tr><td><li> Code-less client-side integration </li></td><td> available for server-side encryption in AcraServer's Transparent proxy mode</td></tr>
 <tr><td><li> Logging, metrics, tracing </li></td><td> throughout all Acra components;<br/>compatible with ELK stack, Prometheus, Jaeger </td></tr>
 <tr><td><li> No vendor lock </li></td><td> rollback utilities to decrypt database into plaintext </td></tr>
 <tr><td><li> Demos, examples, simulators </li></td><td> numerous web-based and Docker-based example projects available </td></tr>
+<tr><td><li> <a href="https://marketplace.digitalocean.com/apps/acra?action=deploy" target="_blank">DigitalOcean Acra 1-Click App</a> </li></td><td> run AcraServer in your DigitalOcean cloud </td></tr>
 <tr><td><li> Managed solution available</li></td><td> we can <a href="https://www.cossacklabs.com/acra/#pricing" target="_blank">setup and manage Acra</a> for you </td></tr>
 </tbody></table>
 
@@ -210,10 +212,12 @@ AcraWriter is required only for the client-side encryption dataflow. If you use 
 ### Server-side
 
 * The Server-side Acra components should run as separate services/servers. 
-* There are three possible ways to install and launch Acra components in your infrastructures:
+* There are several possible ways to install and launch Acra components in your infrastructures:
   - [download and run our Docker-based demo stand](https://docs.cossacklabs.com/pages/trying-acra-with-docker/) to deploy everything you need using a single command.
   - [download pre-built Acra binaries](https://docs.cossacklabs.com/pages/documentation-acra/#installing-acra-from-the-cossack-labs-repository) for supported distributives.
+  - [install AcraServer droplet on DigitalOcean](https://marketplace.digitalocean.com/apps/acra?action=deploy), configure manually or use pre-defined interactive configuration script.
   - [build from sources](https://docs.cossacklabs.com/pages/documentation-acra/#installing-from-github) (Acra is built and tested with Go versions 1.9.7 – 1.11).
+  - [talk to us](https://www.cossacklabs.com/acra/#pricing), if you would like to run managed Acra (Acra-as-a-Service).
   
 * Acra binaries are built for: 
 
@@ -231,7 +235,7 @@ AcraServer is a server-side service that works as database proxy: it sits transp
 Acra is compatible with numerous RDBMS, object and KV stores, cloud platforms, external key management systems (KMS), load balancing systems.
 
 <table><tbody>
-<tr><td> Cloud platforms </td><td> AWS, GCP, Heroku </td></tr>
+<tr><td> Cloud platforms </td><td> DigitalOcean, AWS, GCP, Heroku </td></tr>
 <tr><td> RDBMS </td><td> MySQL v5.7+, PosgtreSQL v9.4-v11, MariaDB v10.3<br/> Google Cloud SQL, Amazon RDS </td></tr>
 <tr><td> Object stores </td><td> filesystems, KV databases, Amazon S3, Google Cloud DataStore </td></tr>
 <tr><td> Load balancing </td><td> HAProxy, cloud balancers </td></tr>
@@ -329,7 +333,7 @@ Acra can help you comply with GDPR and HIPAA regulations. Configuring and using 
 
 This is Acra Community Edition, the open source version of Acra, which is 💯 free for commercial and non-commercial usage. Please let us know in the [Issues](https://www.github.com/cossacklabs/acra/issues) if you stumble upon a bug, see a possible enhancement, or have a comment on security design.
 
-There are also [Pro and Enterprise versions of Acra](https://www.cossacklabs.com/acra/#pricing) available. Those versions provide better performance, redunancy/load balancing, come pre-configured with crypto-primitives of your choice (FIPS, GOST), integrate with key/secret management tools in your stack, and have plenty of utils and tools for your Ops and SREs to operate Acra conveniently – deployment automation, scaling, monitoring, and logging. [Talk to us](mailto:sales@cossacklabs.com) to get full feature lists and a quote.
+There are also [Pro and Enterprise versions of Acra](https://www.cossacklabs.com/acra/#pricing) available. Those versions provide better performance, redunancy/load balancing, come pre-configured with crypto-primitives of your choice (FIPS, GOST), integrate with key/secret management tools in your stack, provide unique security features like search through encrypted data, and have plenty of utils and tools for your Ops and SREs to operate Acra conveniently – deployment automation, scaling, monitoring, and logging. [Talk to us](mailto:sales@cossacklabs.com) to get full feature lists and a quote.
 
 ## Security consulting
 
