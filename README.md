@@ -47,7 +47,7 @@ Acra's cryptographic design ensures that no secret (password, key, etc.) leaked 
 
 This is [Acra Community Edition](https://www.cossacklabs.com/acra/#pricing), it's free for commercial and non-commercial use, forever.
 
-<p align="center"><img src="https://github.com/cossacklabs/acra/wiki/Images/readme/main-animation.gif" alt="User Acra suite for protecting data" width="760"></p>
+<p align="center"><img src="https://github.com/cossacklabs/acra/wiki/Images/readme/main-animation-v2.gif" alt="User Acra suite for protecting data" width="760"></p>
 
 ### Major security features
 
