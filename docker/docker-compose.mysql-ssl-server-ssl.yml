@@ -13,7 +13,7 @@ services:
         environment:
             # INSECURE!!! You MUST define your own ACRA_MASTER_KEY
             # The default is only for testing purposes
-            ACRA_MASTER_KEY: ${ACRA_MASTER_KEY:-UHZ3VUNNeTJ0SEFhbWVjNkt4eDdVYkc2WnNpUTlYa0E=}
+            ACRA_MASTER_KEY: ${ACRA_SERVER_MASTER_KEY:-N0MyZEVCRGY1cHA4ODRSVHp3c3BNeGtDekxaV3BhTHI=}
         volumes:
             # Mount the whole ./.acrakeys directory to be able generate keys and
             # place them in services' subdirectories
@@ -59,7 +59,7 @@ services:
         ports:
             - "9393:9393"
         environment:
-            ACRA_MASTER_KEY: ${ACRA_MASTER_KEY:-UHZ3VUNNeTJ0SEFhbWVjNkt4eDdVYkc2WnNpUTlYa0E=}
+            ACRA_MASTER_KEY: ${ACRA_SERVER_MASTER_KEY:-N0MyZEVCRGY1cHA4ODRSVHp3c3BNeGtDekxaV3BhTHI=}
         # We use internal network 'server-mysql' for AcraServer and
         # DB interconnection and external network 'world' for port exposing
         networks:
