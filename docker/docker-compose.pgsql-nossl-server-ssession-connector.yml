@@ -11,7 +11,7 @@ services:
         # We do not need network for keys' generation at all
         network_mode: "none"
         environment:
-            # INSECURE!!! You MUST define your own ACRA_MASTER_KEY
+            # INSECURE!!! You MUST define your own ACRA_SERVER_MASTER_KEY and ACRA_CONNECTOR_MASTER_KEY
             # The default is only for testing purposes
             ACRA_MASTER_KEY: ${ACRA_SERVER_MASTER_KEY:-N0MyZEVCRGY1cHA4ODRSVHp3c3BNeGtDekxaV3BhTHI=}
         volumes:
