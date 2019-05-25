@@ -12,10 +12,11 @@
 		7319361F222F1961004E6922 /* Main.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 7319361D222F1961004E6922 /* Main.storyboard */; };
 		73193621222F1961004E6922 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 73193620222F1961004E6922 /* Assets.xcassets */; };
 		73193624222F1961004E6922 /* LaunchScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 73193622222F1961004E6922 /* LaunchScreen.storyboard */; };
-		74A60212A84E24C2DD89E493 /* Pods_AcraWriterSwift.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = CBA2ABE0883A1FFE197CAFED /* Pods_AcraWriterSwift.framework */; };
+		93F396815A02BE9C9131AFED /* Pods_AcraWriterSwift.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = ABDE7353475872AB36BDD5BC /* Pods_AcraWriterSwift.framework */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
+		47322147922055B8BD0D5381 /* Pods-AcraWriterSwift.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-AcraWriterSwift.release.xcconfig"; path = "Target Support Files/Pods-AcraWriterSwift/Pods-AcraWriterSwift.release.xcconfig"; sourceTree = "<group>"; };
 		73193616222F1961004E6922 /* AcraWriterSwift.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = AcraWriterSwift.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		73193619222F1961004E6922 /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
 		7319361B222F1961004E6922 /* ViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ViewController.swift; sourceTree = "<group>"; };
@@ -23,9 +24,8 @@
 		73193620222F1961004E6922 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		73193623222F1961004E6922 /* Base */ = {isa = PBXFileReference; lastKnownFileType = file.storyboard; name = Base; path = Base.lproj/LaunchScreen.storyboard; sourceTree = "<group>"; };
 		73193625222F1961004E6922 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
-		82DDD196FCDAEEA42A7AC79C /* Pods-AcraWriterSwift.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-AcraWriterSwift.release.xcconfig"; path = "Target Support Files/Pods-AcraWriterSwift/Pods-AcraWriterSwift.release.xcconfig"; sourceTree = "<group>"; };
-		C4205E8D9C07C934B99CEF7F /* Pods-AcraWriterSwift.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-AcraWriterSwift.debug.xcconfig"; path = "Target Support Files/Pods-AcraWriterSwift/Pods-AcraWriterSwift.debug.xcconfig"; sourceTree = "<group>"; };
-		CBA2ABE0883A1FFE197CAFED /* Pods_AcraWriterSwift.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = Pods_AcraWriterSwift.framework; sourceTree = BUILT_PRODUCTS_DIR; };
+		90DA01B338F2DE08207BC4AB /* Pods-AcraWriterSwift.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-AcraWriterSwift.debug.xcconfig"; path = "Target Support Files/Pods-AcraWriterSwift/Pods-AcraWriterSwift.debug.xcconfig"; sourceTree = "<group>"; };
+		ABDE7353475872AB36BDD5BC /* Pods_AcraWriterSwift.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = Pods_AcraWriterSwift.framework; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -33,18 +33,18 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				74A60212A84E24C2DD89E493 /* Pods_AcraWriterSwift.framework in Frameworks */,
+				93F396815A02BE9C9131AFED /* Pods_AcraWriterSwift.framework in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
-		2A64B02A6981BC9384359E02 /* Pods */ = {
+		58D640A7C81AB1D6C2F8D5D6 /* Pods */ = {
 			isa = PBXGroup;
 			children = (
-				C4205E8D9C07C934B99CEF7F /* Pods-AcraWriterSwift.debug.xcconfig */,
-				82DDD196FCDAEEA42A7AC79C /* Pods-AcraWriterSwift.release.xcconfig */,
+				90DA01B338F2DE08207BC4AB /* Pods-AcraWriterSwift.debug.xcconfig */,
+				47322147922055B8BD0D5381 /* Pods-AcraWriterSwift.release.xcconfig */,
 			);
 			name = Pods;
 			path = Pods;
@@ -55,8 +55,8 @@
 			children = (
 				73193618222F1961004E6922 /* AcraWriterSwift */,
 				73193617222F1961004E6922 /* Products */,
-				2A64B02A6981BC9384359E02 /* Pods */,
-				FCCFBE0E54F577101CF01740 /* Frameworks */,
+				58D640A7C81AB1D6C2F8D5D6 /* Pods */,
+				FAFF9F58CCF931111DD36386 /* Frameworks */,
 			);
 			sourceTree = "<group>";
 		};
@@ -81,10 +81,10 @@
 			path = AcraWriterSwift;
 			sourceTree = "<group>";
 		};
-		FCCFBE0E54F577101CF01740 /* Frameworks */ = {
+		FAFF9F58CCF931111DD36386 /* Frameworks */ = {
 			isa = PBXGroup;
 			children = (
-				CBA2ABE0883A1FFE197CAFED /* Pods_AcraWriterSwift.framework */,
+				ABDE7353475872AB36BDD5BC /* Pods_AcraWriterSwift.framework */,
 			);
 			name = Frameworks;
 			sourceTree = "<group>";
@@ -96,11 +96,11 @@
 			isa = PBXNativeTarget;
 			buildConfigurationList = 73193628222F1961004E6922 /* Build configuration list for PBXNativeTarget "AcraWriterSwift" */;
 			buildPhases = (
-				4D1B9670081379BC86AC7D64 /* [CP] Check Pods Manifest.lock */,
+				551A2F8B3F794893D2EEADB7 /* [CP] Check Pods Manifest.lock */,
 				73193612222F1961004E6922 /* Sources */,
 				73193613222F1961004E6922 /* Frameworks */,
 				73193614222F1961004E6922 /* Resources */,
-				C0639D4E78C04C1163611FD4 /* [CP] Embed Pods Frameworks */,
+				7847F501F2524B3719BCA920 /* [CP] Embed Pods Frameworks */,
 			);
 			buildRules = (
 			);
@@ -159,7 +159,7 @@
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXShellScriptBuildPhase section */
-		4D1B9670081379BC86AC7D64 /* [CP] Check Pods Manifest.lock */ = {
+		551A2F8B3F794893D2EEADB7 /* [CP] Check Pods Manifest.lock */ = {
 			isa = PBXShellScriptBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -181,7 +181,7 @@
 			shellScript = "diff \"${PODS_PODFILE_DIR_PATH}/Podfile.lock\" \"${PODS_ROOT}/Manifest.lock\" > /dev/null\nif [ $? != 0 ] ; then\n    # print error to STDERR\n    echo \"error: The sandbox is not in sync with the Podfile.lock. Run 'pod install' or update your CocoaPods installation.\" >&2\n    exit 1\nfi\n# This output is used by Xcode 'outputs' to avoid re-running this script phase.\necho \"SUCCESS\" > \"${SCRIPT_OUTPUT_FILE_0}\"\n";
 			showEnvVarsInLog = 0;
 		};
-		C0639D4E78C04C1163611FD4 /* [CP] Embed Pods Frameworks */ = {
+		7847F501F2524B3719BCA920 /* [CP] Embed Pods Frameworks */ = {
 			isa = PBXShellScriptBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -350,7 +350,7 @@
 		};
 		73193629222F1961004E6922 /* Debug */ = {
 			isa = XCBuildConfiguration;
-			baseConfigurationReference = C4205E8D9C07C934B99CEF7F /* Pods-AcraWriterSwift.debug.xcconfig */;
+			baseConfigurationReference = 90DA01B338F2DE08207BC4AB /* Pods-AcraWriterSwift.debug.xcconfig */;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_STYLE = Automatic;
@@ -369,7 +369,7 @@
 		};
 		7319362A222F1961004E6922 /* Release */ = {
 			isa = XCBuildConfiguration;
-			baseConfigurationReference = 82DDD196FCDAEEA42A7AC79C /* Pods-AcraWriterSwift.release.xcconfig */;
+			baseConfigurationReference = 47322147922055B8BD0D5381 /* Pods-AcraWriterSwift.release.xcconfig */;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_STYLE = Automatic;
