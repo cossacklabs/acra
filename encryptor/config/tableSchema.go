@@ -74,6 +74,7 @@ type ColumnEncryptionSetting struct {
 	ClientID   string `yaml:"client_id"`
 	ZoneID     string `yaml:"zone_id"`
 	Searchable bool   `yaml:"searchable"`
+	SecureIndexFieldName string `yaml:"secure_index_field"`
 }
 
 // IsSearchable return true if column should be searchable
