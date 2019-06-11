@@ -70,15 +70,21 @@ func (store *MapTableSchemaStore) IsEmpty() bool {
 
 // ColumnEncryptionSetting describe how to encrypt column
 type ColumnEncryptionSetting struct {
-	Name       string `yaml:"column"`
-	ClientID   string `yaml:"client_id"`
-	ZoneID     string `yaml:"zone_id"`
-	Searchable bool   `yaml:"searchable"`
+	Name                    string `yaml:"column"`
+	ClientID                string `yaml:"client_id"`
+	ZoneID                  string `yaml:"zone_id"`
+	Searchable              bool   `yaml:"searchable"`
+	SearchableIndexField    string `yaml:"secure_index_field"`
+	SearchableIndexByteSize int    `yaml:"secure_index_size"`
 }
 
 // IsSearchable return true if column should be searchable
 func (s *ColumnEncryptionSetting) IsSearchable() bool {
 	return s.Searchable
+}
+
+func (s *ColumnEncryptionSetting) TruncationByteSize() int {
+	return s.SearchableIndexByteSize
 }
 
 // TableSchema store table schema and encryption settings per column

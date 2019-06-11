@@ -25,6 +25,7 @@ import (
 // EncryptionSetting provide interface to fetch data about encryption settings
 type EncryptionSetting interface {
 	IsSearchable() bool
+	TruncationByteSize() int
 }
 
 // DataEncryptor replace raw data in queries with encrypted

@@ -23,7 +23,9 @@ import (
 	"context"
 	"crypto/tls"
 	"encoding/binary"
+	"encoding/hex"
 	"errors"
+	"github.com/cossacklabs/acra/sqlparser"
 	"go.opencensus.io/trace"
 	"io"
 	"net"
@@ -98,6 +100,7 @@ type PgProxy struct {
 	censor               acracensor.AcraCensorInterface
 	decryptor            base.Decryptor
 	tlsSwitch            bool
+	filterValue          []byte
 }
 
 // NewPgProxy returns new PgProxy
@@ -115,6 +118,7 @@ func NewPgProxy(ctx context.Context, decryptor base.Decryptor, dbConnection, cli
 		tlsConfig:            tlsConfig,
 		censor:               censor,
 		decryptor:            decryptor,
+		filterValue:          nil,
 	}, nil
 }
 
@@ -244,6 +248,7 @@ func (proxy *PgProxy) ProxyClientConnection(errCh chan<- error) {
 			continue
 		}
 
+		proxy.filterValue = extractFilterValue(query, logger)
 		newQuery, changed, err := proxy.queryObserverManager.OnQuery(base.NewOnQueryObjectFromQuery(query))
 		if err != nil {
 			logger.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorEncryptQueryData).Errorln("Error occurred on query handler")
@@ -260,6 +265,30 @@ func (proxy *PgProxy) ProxyClientConnection(errCh chan<- error) {
 			return
 		}
 	}
+}
+
+func extractFilterValue(query string, logger *log.Entry) []byte {
+	_, _, stmt, err := common.HandleRawSQLQuery(query)
+	if err != nil {
+		return nil
+	}
+	var temp string
+	// filters can be created via some patterns that point value location (like censor configuration)
+	if filterSelect, ok := stmt.(*sqlparser.Select); ok {
+		if filterSelect.Where != nil {
+			if filterSelectWhereComparisonExpr, ok := filterSelect.Where.Expr.(*sqlparser.ComparisonExpr); ok {
+				if filterSelectWhereComparisonExprVal, ok := filterSelectWhereComparisonExpr.Right.(*sqlparser.SQLVal); ok {
+					temp = sqlparser.String(filterSelectWhereComparisonExprVal)
+					result, err := hex.DecodeString(temp[3 : len(temp)-1])
+					if err != nil {
+						return nil
+					}
+					return result
+				}
+			}
+		}
+	}
+	return nil
 }
 
 // handlePoisonCheckResult return error err != nil, if can't check on poison record or any callback on poison record
@@ -675,12 +704,15 @@ func (proxy *PgProxy) ProxyDatabaseConnection(errCh chan<- error) {
 				logger.Debugln("Skip decryption because length of block too small for ZoneId or AcraStruct")
 			}
 		}
-		packetHandler.updateDataFromColumns()
-		if err = packetHandler.sendPacket(); err != nil {
-			logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorNetworkWrite).WithError(err).Errorln("Can't send packet")
-			errCh <- err
-			return
+
+		if packetHandler.updateDataFromColumnsWithFiltration(proxy.filterValue) {
+			if err = packetHandler.sendPacket(); err != nil {
+				logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorNetworkWrite).WithError(err).Errorln("Can't send packet")
+				errCh <- err
+				return
+			}
 		}
+
 		proxy.decryptor.Reset()
 		proxy.decryptor.ResetZoneMatch()
 		timer.ObserveDuration()

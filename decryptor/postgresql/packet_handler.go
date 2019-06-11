@@ -88,6 +88,49 @@ func (packet *PacketHandler) updateDataFromColumns() {
 	}
 }
 
+// updateDataFromColumns check that any column's data was changed and update packet length and data block with new data
+func (packet *PacketHandler) updateDataFromColumnsWithFiltration(filter []byte) bool {
+	columnsDataChanged := false
+	// check is any column was changed
+	for i := 0; i < packet.columnCount; i++ {
+		if packet.Columns[i].changed {
+			columnsDataChanged = true
+			break
+		}
+	}
+	if columnsDataChanged {
+		// column length buffer wasn't included to column length value and should be accumulated too
+		// + 2 is column count buffer
+		newDataLength := packet.columnCount*4 + 2
+		for i := 0; i < packet.columnCount; i++ {
+			newDataLength += packet.Columns[i].Length()
+		}
+		packet.descriptionBuf.Reset()
+		packet.descriptionBuf.Grow(newDataLength)
+
+		columnCountBuf := make([]byte, 2)
+		binary.BigEndian.PutUint16(columnCountBuf, uint16(packet.columnCount))
+		packet.descriptionBuf.Write(columnCountBuf)
+
+		for i := 0; i < packet.columnCount; i++ {
+			packet.descriptionBuf.Write(packet.Columns[i].LengthBuf[:])
+			packet.descriptionBuf.Write(packet.Columns[i].Data)
+		}
+		packet.updatePacketLength(newDataLength)
+	}
+	if filter == nil {
+		// no filtering
+		return true
+	}
+	relevantPacket := false
+	for i := 0; i < packet.columnCount; i++ {
+		if bytes.Equal(packet.Columns[i].Data, filter) {
+			relevantPacket = true
+		}
+	}
+	return relevantPacket
+}
+
 // sendPacket marshal packet and send it with writer
 func (packet *PacketHandler) sendPacket() error {
 	data, err := packet.Marshal()
