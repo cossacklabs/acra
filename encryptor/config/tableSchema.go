@@ -75,7 +75,7 @@ type ColumnEncryptionSetting struct {
 	ZoneID                  string `yaml:"zone_id"`
 	Searchable              bool   `yaml:"searchable"`
 	SearchableIndexField    string `yaml:"secure_index_field"`
-	SearchableIndexByteSize int    `yaml:"secure_index_size"`
+	SearchableIndexHashFunc string `yaml:"secure_index_function"`
 }
 
 // IsSearchable return true if column should be searchable
@@ -83,8 +83,8 @@ func (s *ColumnEncryptionSetting) IsSearchable() bool {
 	return s.Searchable
 }
 
-func (s *ColumnEncryptionSetting) TruncationByteSize() int {
-	return s.SearchableIndexByteSize
+func (s *ColumnEncryptionSetting) GetSecureIndexHashFuncName() string {
+	return s.SearchableIndexHashFunc
 }
 
 // TableSchema store table schema and encryption settings per column

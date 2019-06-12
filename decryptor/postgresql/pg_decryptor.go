@@ -278,8 +278,9 @@ func extractFilterValue(query string, logger *log.Entry) []byte {
 		if filterSelect.Where != nil {
 			if filterSelectWhereComparisonExpr, ok := filterSelect.Where.Expr.(*sqlparser.ComparisonExpr); ok {
 				if filterSelectWhereComparisonExprVal, ok := filterSelectWhereComparisonExpr.Right.(*sqlparser.SQLVal); ok {
-					temp = sqlparser.String(filterSelectWhereComparisonExprVal)
-					result, err := hex.DecodeString(temp[3 : len(temp)-1])
+					temp = string(filterSelectWhereComparisonExprVal.Val)
+					// skip \x symbols in filter string
+					result, err := hex.DecodeString(temp[2:])
 					if err != nil {
 						return nil
 					}

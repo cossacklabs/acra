@@ -122,13 +122,12 @@ func (packet *PacketHandler) updateDataFromColumnsWithFiltration(filter []byte) 
 		// no filtering
 		return true
 	}
-	relevantPacket := false
 	for i := 0; i < packet.columnCount; i++ {
 		if bytes.Equal(packet.Columns[i].Data, filter) {
-			relevantPacket = true
+			return true
 		}
 	}
-	return relevantPacket
+	return false
 }
 
 // sendPacket marshal packet and send it with writer
