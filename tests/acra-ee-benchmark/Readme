@@ -1,0 +1,44 @@
+    IMPORTANT!
+
+    This code can be run only with enterprise version of Acra
+
+
+    [HARDWARE AND SOFTWARE] All measurements have been taken on a single desktop machine with Intel Core i7, 4000 MHz (12 cores), 16 GB RAM
+running Ubuntu 18.04 LTS x64 operating system. The benchmark application is implemented in Go programming language. The storage server runs
+PostgreSQL (version 11) and wrapped into a Docker container.
+
+    [DATABASE] The database consisted of one table with a sequence generator created with a following SQL queries:
+
+    - DROP TABLE IF EXISTS test_raw;
+    - DROP SEQUENCE IF EXISTS test_raw_seq;
+    - CREATE SEQUENCE test_raw_seq START 1;
+    - CREATE TABLE test_raw(id INTEGER PRIMARY KEY DEFAULT nextval('test_raw_seq'), plaintext BYTEA, ciphertext BYTEA);
+
+    A standard B-tree functional index used for measurements of different blind index truncation sizes was created with a following SQL pseudo-query:
+
+    - CREATE INDEX IF NOT EXISTS test_raw_ciphertext_secure_index_idx ON test_raw (substr(ciphertext, 1, blindIndexSize));
+
+    AcraServer was running in transparent mode and was configured to encrypt 'ciphertext' column and perform search on it.
+
+    An example of INSERT pseudo-query issued by benchmark application is following:
+
+    - INSERT INTO test_raw(plaintext, ciphertext) VALUES (input, input);
+
+    A typical SELECT pseudo-query issued by benchmark application is following:
+
+    - SELECT * FROM test_raw WHERE ciphertext=input;
+
+    The data material is a collection of 25000 unique test emails [https://wikileaks.org/gifiles/docs/12/1239817_25k-list-of-random-free-list-subscriber-emails-.html].
+
+    [EXPERIMENT] To evaluate the performance, we measured the time (query latency) consumed by the SSelect and SUpload procedures with a help of the following experiment:
+
+    1) generate input dataset (denoted as R) with predefined length (len) and distribution (dataDistribution) parameters
+by randomly taking values from provided data material.
+    2) insert R into the database;
+    3) select non-existing value from the database and check that no rows were fetched;
+    3) 1 time insert new row (r1) into the database, then select r1 and check that 1 row was fetched;
+    4) 10 times insert new row (r2) into the database, then select r2 and check that 10 rows was fetched.
+
+
+
+
