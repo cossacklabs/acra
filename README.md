@@ -226,7 +226,7 @@ AcraWriter is required only for the client-side encryption dataflow. If you use 
 | CentOS 7 | x86_64 | [using rpm packages](https://docs.cossacklabs.com/pages/documentation-acra/#centos-rhel-oel) |
 | Debian Stretch (9)<br/> Debian Jessie (8) | x86_64/i386 | [using deb packages](https://docs.cossacklabs.com/pages/documentation-acra/#debian-ubuntu)|
 | Ubuntu Bionic (18.04) | x86_64 | [using deb packages](https://docs.cossacklabs.com/pages/documentation-acra/#debian-ubuntu)||
-| Ubuntu Artful (17.10)<br/> Ubuntu Xenial (16.04)<br/>Ubuntu Trusty (14.04)| x86_64/i386 | [using deb packages](https://docs.cossacklabs.com/pages/documentation-acra/#debian-ubuntu)| |
+| Ubuntu Artful (17.10)<br/> Ubuntu Xenial (16.04)<br/>| x86_64/i386 | [using deb packages](https://docs.cossacklabs.com/pages/documentation-acra/#debian-ubuntu)| |
 
 ### Compatibility and integration
 
