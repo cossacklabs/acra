@@ -15,7 +15,7 @@
   <a href='https://godoc.org/github.com/cossacklabs/acra'><img src='https://godoc.org/github.com/cossacklabs/acra?status.svg'  alt='godoc'/></a>
   <br/><a href="https://github.com/cossacklabs/acra/releases/latest"><img src="https://img.shields.io/badge/Server%20Platforms-Ubuntu%20%7C%20Debian%20%7C%20CentOS-green.svg" alt="Server platforms"></a>
   <a href="https://github.com/cossacklabs/acra/releases/latest"><img src="https://img.shields.io/badge/Client%20Platforms-Go%20%7C%20Ruby%20%7C%20Python%20%7C%20PHP%20%7C%20NodeJS%20%7C%20C++%20%7C%20iOS%20%7C%20Android-green.svg" alt="Client platforms"></a>
-  <a href="https://marketplace.digitalocean.com/apps/acra?action=deploy"><img src="http://installer.71m.us/button.svg" alt="Install on DigitalOceam"></a>
+  <a href="https://marketplace.digitalocean.com/apps/acra?action=deploy"><img src="https://img.shields.io/badge/install%20on-DigitalOcean-blue" alt="Install on DigitalOcean"></a>
 </p>
 <br>
 
@@ -204,14 +204,15 @@ AcraWriter is required only for the client-side encryption dataflow. If you use 
 | 🐍 Python | [Installation guide](https://docs.cossacklabs.com/pages/documentation-acra/#building-acrawriter-for-python) | [examples/python](https://github.com/cossacklabs/acra/tree/master/examples/python) | [![PyPI](https://img.shields.io/pypi/v/acrawriter.svg)](https://pypi.org/project/acrawriter/) |
 | ♦️ Ruby | [Installation guide](https://docs.cossacklabs.com/pages/documentation-acra/#building-acrawriter-for-ruby) | [examples/ruby](https://github.com/cossacklabs/acra/tree/master/examples/ruby) | [![Gem](https://img.shields.io/gem/v/acrawriter.svg)](https://rubygems.org/gems/acrawriter) |
 | ➕ C++ | [Installation guide](https://docs.cossacklabs.com/pages/documentation-acra/#building-acrawriter-for-c-) | [examples/cpp](https://github.com/cossacklabs/acra/tree/master/examples/cpp) ||
-| 📱 Objective-C / Swift (iOS) | [Installation guide](https://docs.cossacklabs.com/pages/documentation-acra/#building-acrawriter-for-ios) | [examples/objc](https://github.com/cossacklabs/acra/tree/master/examples/objc) | [![CocoaPods](https://img.shields.io/cocoapods/v/acrawriter.svg)](https://cocoapods.org/pods/acrawriter) |
-| ☎️ Java (Android) | [Installation guide](https://docs.cossacklabs.com/pages/documentation-acra/#building-acrawriter-for-android) | [examples/android_java](https://github.com/cossacklabs/acra/tree/master/examples/android_java) |[ ![maven](https://api.bintray.com/packages/cossacklabs/maven/acrawriter/images/download.svg) ](https://bintray.com/cossacklabs/maven/acrawriter/_latestVersion)|
+| 📱 iOS (Swift / Objective-C) | [Installation guide](https://docs.cossacklabs.com/pages/documentation-acra/#building-acrawriter-for-ios) | [examples/objc](https://github.com/cossacklabs/acra/tree/master/examples/objc) | [![CocoaPods](https://img.shields.io/cocoapods/v/acrawriter.svg)](https://cocoapods.org/pods/acrawriter) |
+| ☎️ Android (Java / Kotlin) | [Installation guide](https://docs.cossacklabs.com/pages/documentation-acra/#building-acrawriter-for-android) | [examples/android_java](https://github.com/cossacklabs/acra/tree/master/examples/android_java) |[ ![maven](https://api.bintray.com/packages/cossacklabs/maven/acrawriter/images/download.svg) ](https://bintray.com/cossacklabs/maven/acrawriter/_latestVersion)|
 | 🐘 PHP | [Installation guide](https://docs.cossacklabs.com/pages/documentation-acra/#building-acrawriter-for-php) | [examples/php](https://github.com/cossacklabs/acra/tree/master/examples/php) ||
-| 🍭 Javascript (Node.js) | [Installation guide](https://docs.cossacklabs.com/pages/documentation-acra/#building-acrawriter-for-nodejs) | [examples/nodejs](https://github.com/cossacklabs/acra/tree/master/examples/nodejs) | [![npm](https://img.shields.io/npm/v/acrawriter.svg)](https://www.npmjs.com/package/acrawriter) |
+| 🍭 Node.js | [Installation guide](https://docs.cossacklabs.com/pages/documentation-acra/#building-acrawriter-for-nodejs) | [examples/nodejs](https://github.com/cossacklabs/acra/tree/master/examples/nodejs) | [![npm](https://img.shields.io/npm/v/acrawriter.svg)](https://www.npmjs.com/package/acrawriter) |
 
 ### Server-side
 
-* The Server-side Acra components should run as separate services/servers. 
+The Server-side Acra components (AcraServer, AcraTranslator) should run as separate services/servers/VMs. Key management utils and database helpers are usually run on the same server as AcraServer/AcraTranslator.
+
 * There are several possible ways to install and launch Acra components in your infrastructures:
   - [download and run our Docker-based demo stand](https://docs.cossacklabs.com/pages/trying-acra-with-docker/) to deploy everything you need using a single command.
   - [download pre-built Acra binaries](https://docs.cossacklabs.com/pages/documentation-acra/#installing-acra-from-the-cossack-labs-repository) for supported distributives.
@@ -219,14 +220,21 @@ AcraWriter is required only for the client-side encryption dataflow. If you use 
   - [build from sources](https://docs.cossacklabs.com/pages/documentation-acra/#installing-from-github) (Acra is built and tested with Go versions 1.9.7 – 1.11).
   - [talk to us](https://www.cossacklabs.com/acra/#pricing), if you would like to run managed Acra (Acra-as-a-Service).
   
-* Acra binaries are built for: 
+Install Server-side Acra components: 
 
-| Distributive | Instruction set | Download and install |
-|---------------| ------| ------|
-| CentOS 7 | x86_64 | [using rpm packages](https://docs.cossacklabs.com/pages/documentation-acra/#centos-rhel-oel) |
-| Debian Stretch (9)<br/> Debian Jessie (8) | x86_64/i386 | [using deb packages](https://docs.cossacklabs.com/pages/documentation-acra/#debian-ubuntu)|
-| Ubuntu Bionic (18.04) | x86_64 | [using deb packages](https://docs.cossacklabs.com/pages/documentation-acra/#debian-ubuntu)||
-| Ubuntu Artful (17.10)<br/> Ubuntu Xenial (16.04)<br/>| x86_64/i386 | [using deb packages](https://docs.cossacklabs.com/pages/documentation-acra/#debian-ubuntu)| |
+<table><thead><tr><th>Distributive</th>
+<th>Instruction set</th><th>Download package</th><th>or alternatively</th></tr></thead>
+<tbody>
+<tr><td>CentOS 7</td><td>x86_64</td><td><a href="https://docs.cossacklabs.com/pages/documentation-acra/#centos-rhel-oel">rpm package</a></td>
+<td rowspan=5><a href="https://docs.cossacklabs.com/pages/trying-acra-with-docker/">use Docker</a> or<br/><a href="https://docs.cossacklabs.com/pages/documentation-acra/#installing-from-github">build from source</a></td>
+</tr><tr><td>Debian Stretch (9)<br/> Debian Jessie (8)</td><td>x86_64/i386</td><td><a href="https://docs.cossacklabs.com/pages/documentation-acra/#debian-ubuntu">deb package</a></td>
+</tr><tr><td>Ubuntu Bionic (18.04)</td><td>x86_64</td><td><a href="https://docs.cossacklabs.com/pages/documentation-acra/#debian-ubuntu">deb package</a></td>
+</tr><tr><td>Ubuntu Artful (17.10)<br/> Ubuntu Xenial (16.04)</td><td>x86_64/i386</td><td><a href="https://docs.cossacklabs.com/pages/documentation-acra/#debian-ubuntu">deb package</a></td>
+</tr><tr><td>macOS (10.12 - 10.14)</td><td>x86_64</td><td>-</td>
+</tr></tbody></table>
+
+> Note: the server-side Acra components are not compatible with Windows OS as host OS, consider using Docker.
+
 
 ### Compatibility and integration
 
