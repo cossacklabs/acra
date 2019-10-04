@@ -184,7 +184,7 @@ jobs:
       - store_artifacts:
           path: /home/user/tests_output
 
-  mysql:
+  mysql-ssl:
     docker:
     - image: cossacklabs/android-build
     # use the same credentials for mysql db as for postgresql (which support was added first)
@@ -225,7 +225,7 @@ jobs:
     - store_artifacts:
         path: /home/user/tests_output
 
-  mysql-ssl:
+  mysql:
     docker:
       - image: cossacklabs/android-build
       - image: mysql:5.7.25
