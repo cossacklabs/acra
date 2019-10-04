@@ -21,6 +21,7 @@ handlers:
       - SHOW VARIABLES LIKE 'lower_case_table_names'
       - SET NAMES utf8mb4
       - show collation where `Charset` = 'utf8mb4' and `Collation` = 'utf8mb4_bin'
+      - SET NAMES latin1
       #postgres
       - BEGIN
       - "SELECT t.oid, typarray\nFROM pg_type t JOIN pg_namespace ns\n    ON typnamespace = ns.oid\nWHERE typname = 'hstore';\n"
