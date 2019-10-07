@@ -30,9 +30,10 @@ for version in $VERSIONS; do
     export PATH=$GOROOT/bin/:$PATH;
 
     # remove built packages with another golang version and force to rebuild
-    rm -rf $GOPATH/pkg
+    go clean -i -cache -testcache | true
+    go mod download
 
-    
+
     echo "--------------------  Testing with TEST_TLS=${TEST_TLS}"
 
     for iteration in {1..3}; do
