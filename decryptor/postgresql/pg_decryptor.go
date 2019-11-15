@@ -408,13 +408,13 @@ func (proxy *PgProxy) processInlineBlockDecryption(ctx context.Context, packet *
 	span := trace.FromContext(ctx)
 	// inline mode
 	currentIndex := 0
-	endIndex := column.Length()
 	outputBlock := bytes.NewBuffer(make([]byte, 0, column.Length()))
 	hasDecryptedData := false
 	for {
 		// search AcraStruct's begin tags through all block of data and try to decrypt
-		beginTagIndex, tagLength := decryptor.BeginTagIndex(column.Data[currentIndex:endIndex])
+		beginTagIndex, tagLength := decryptor.BeginTagIndex(column.Data[currentIndex:])
 		if beginTagIndex == utils.NotFound {
+			outputBlock.Write(column.Data[currentIndex:])
 			// no AcraStructs in column decryptedData
 			break
 		}
@@ -438,7 +438,7 @@ func (proxy *PgProxy) processInlineBlockDecryption(ctx context.Context, packet *
 			currentIndex++
 			continue
 		}
-		blockReader := bytes.NewReader(column.Data[beginTagIndex+tagLength:])
+		blockReader := bytes.NewReader(column.Data[currentIndex+tagLength:])
 		symKey, _, err := decryptor.ReadSymmetricKey(key, blockReader)
 		if err != nil {
 			span.AddAttributes(trace.BoolAttribute("failed_decryption", true))

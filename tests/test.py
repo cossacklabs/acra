@@ -1165,12 +1165,14 @@ class HexFormatTest(BaseTestCase):
             server_public1 = f.read()
         incorrect_data = get_pregenerated_random_data()
         correct_data = get_pregenerated_random_data()
+        suffix_data = get_pregenerated_random_data()[:10]
         fake_offset = (3+45+84) - 4
         fake_acra_struct = create_acrastruct(
             incorrect_data.encode('ascii'), server_public1)[:fake_offset]
         inner_acra_struct = create_acrastruct(
             correct_data.encode('ascii'), server_public1)
-        data = fake_acra_struct + inner_acra_struct
+        data = fake_acra_struct + inner_acra_struct + suffix_data.encode('ascii')
+        correct_data = correct_data + suffix_data
         row_id = get_random_id()
 
         self.log(keyname, data, fake_acra_struct+correct_data.encode('ascii'))
@@ -1185,6 +1187,7 @@ class HexFormatTest(BaseTestCase):
         try:
             self.assertEqual(row['data'][fake_offset:],
                              row['raw_data'].encode('utf-8'))
+            self.assertEqual(row['data'][:fake_offset], fake_acra_struct[:fake_offset])
         except:
             print('incorrect data: {}\ncorrect data: {}\ndata: {}\n data len: {}'.format(
                 incorrect_data, correct_data, row['data'], len(row['data'])))
@@ -1383,13 +1386,15 @@ class ZoneHexFormatTest(BaseTestCase):
     def testReadAcrastructInAcrastruct(self):
         incorrect_data = get_pregenerated_random_data()
         correct_data = get_pregenerated_random_data()
+        suffix_data = get_pregenerated_random_data()[:10]
         zone_public = b64decode(zones[0][ZONE_PUBLIC_KEY].encode('ascii'))
         fake_offset = (3+45+84) - 1
         fake_acra_struct = create_acrastruct(
             incorrect_data.encode('ascii'), zone_public, context=zones[0][ZONE_ID].encode('ascii'))[:fake_offset]
         inner_acra_struct = create_acrastruct(
             correct_data.encode('ascii'), zone_public, context=zones[0][ZONE_ID].encode('ascii'))
-        data = fake_acra_struct + inner_acra_struct
+        data = fake_acra_struct + inner_acra_struct + suffix_data.encode('ascii')
+        correct_data = correct_data + suffix_data
         self.log(zones[0][ZONE_ID]+'_zone', data, fake_acra_struct+correct_data.encode('ascii'))
         row_id = get_random_id()
         self.engine1.execute(
@@ -1401,17 +1406,16 @@ class ZoneHexFormatTest(BaseTestCase):
             .where(test_table.c.id == row_id))
         row = result.fetchone()
         self.assertEqual(row['data'][fake_offset:],
-                         row['raw_data'].encode('utf-8'))
+                         safe_string(row['raw_data']).encode('utf-8'))
+        self.assertEqual(row['data'][:fake_offset], fake_acra_struct[:fake_offset])
         self.assertEqual(row['empty'], b'')
 
         result = self.engine2.execute(
             sa.select([test_table])
             .where(test_table.c.id == row_id))
         row = result.fetchone()
-        self.assertNotEqual(row['data'][fake_offset:].decode('ascii', errors='ignore'),
-                            row['raw_data'])
+        self.assertNotEqual(len(row['data'][fake_offset:]), len(row['raw_data'][fake_offset:]))
         self.assertEqual(row['empty'], b'')
-
         result = self.engine_raw.execute(
             sa.select([test_table])
             .where(test_table.c.id == row_id))
@@ -2854,12 +2858,14 @@ class BasePrepareStatementMixin:
             server_public1 = f.read()
         incorrect_data = get_pregenerated_random_data()
         correct_data = get_pregenerated_random_data()
+        suffix_data = get_pregenerated_random_data()[:10]
         fake_offset = (3+45+84) - 4
         fake_acra_struct = create_acrastruct(
             incorrect_data.encode('ascii'), server_public1)[:fake_offset]
         inner_acra_struct = create_acrastruct(
             correct_data.encode('ascii'), server_public1)
-        data = fake_acra_struct + inner_acra_struct
+        data = fake_acra_struct + inner_acra_struct + suffix_data.encode('ascii')
+        correct_data = correct_data + suffix_data
         row_id = get_random_id()
 
         self.log(keyname, data, fake_acra_struct+correct_data.encode('ascii'))
@@ -2879,6 +2885,7 @@ class BasePrepareStatementMixin:
             else:
                 self.assertEqual(row['data'][fake_offset:],
                                  safe_string(row['raw_data']).encode('utf-8'))
+                self.assertEqual(row['data'][:fake_offset], fake_acra_struct[:fake_offset])
             self.assertEqual(row['empty'], b'')
         except:
             print('incorrect data: {}\ncorrect data: {}\ndata: {}\n data len: {}'.format(
@@ -3576,7 +3583,7 @@ class TestPrometheusMetrics(AcraTranslatorMixin, BaseTestCase):
             'acratranslator_connections_total': {'min_value': 1},
 
             'acratranslator_connections_processing_seconds_bucket': {'min_value': 0},
-            'acratranslator_connections_processing_seconds_sum': {'min_value': TestPrometheusMetrics.MIN_EXECUTION_TIME},
+            'acratranslator_connections_processing_seconds_sum': {'min_value': 0},
             'acratranslator_connections_processing_seconds_count': {'min_value': 1},
 
             'acratranslator_request_processing_seconds_bucket': {'min_value': 0},
