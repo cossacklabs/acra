@@ -87,15 +87,39 @@ func DecodeOctal(data []byte) ([]byte, error) {
 	return output, nil
 }
 
+type DecodedData struct {
+	data []byte
+	encodeFunc func([]byte)[]byte
+}
+
+func (d DecodedData) Data()[]byte{
+	return d.encodeFunc(d.data)
+}
+
+func hexEncode(data []byte)[]byte{
+	output := make([]byte, 2+hex.EncodedLen(len(data)))
+	copy(output[:2], []byte{'\\', 'x'})
+	hex.Encode(output[2:], data)
+	return output
+}
+
+func dryEncode(data[]byte)[]byte{
+	return data
+}
+
 // DecodeEscaped with hex or octal encodings
-func DecodeEscaped(data []byte) ([]byte, error) {
+func DecodeEscaped(data []byte) (DecodedData, error) {
 	if len(data) > 2 && bytes.Equal(data[:2], []byte{'\\', 'x'}) {
 		hexdata := data[2:]
 		output := make([]byte, hex.DecodedLen(len(hexdata)))
 		_, err := hex.Decode(output, hexdata)
-		return output, err
+		return DecodedData{data:output, encodeFunc:hexEncode}, err
 	}
-	return DecodeOctal(data)
+	result, err := DecodeOctal(data)
+	if err != nil {
+		return DecodedData{data: data, encodeFunc:dryEncode}, ErrDecodeEscapedString
+	}
+	return DecodedData{data:result, encodeFunc:EncodeToOctal}, nil
 }
 
 // QuoteValue returns name in quotes, if name contains quotes, doubles them

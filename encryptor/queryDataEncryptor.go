@@ -28,12 +28,24 @@ import (
 	"reflect"
 )
 
+type QueryEncryptionState interface {
+	GetColumnEncryptionSetting(index int)*config.ColumnEncryptionSetting
+}
+
+type querySelectSetting struct {
+	setting *config.ColumnEncryptionSetting
+	tableName string
+	columnName string
+	columnAlias string
+}
+
 // QueryDataEncryptor parse query and encrypt raw data according to TableSchemaStore
 type QueryDataEncryptor struct {
 	schemaStore config.TableSchemaStore
 	encryptor   DataEncryptor
 	clientID    []byte
 	dataCoder   DBDataCoder
+	querySelectSettings []*querySelectSetting
 }
 
 // NewMysqlQueryEncryptor create QueryDataEncryptor with MySQLDBDataCoder
@@ -253,6 +265,29 @@ func (encryptor *QueryDataEncryptor) encryptUpdateQuery(update *sqlparser.Update
 	return encryptor.encryptUpdateExpressions(update.Exprs, firstTable, qualifierMap)
 }
 
+func (encryptor *QueryDataEncryptor) onSelect(statement *sqlparser.Select)(bool, error){
+	columns := mapColumnsToAliases(statement)
+	querySelectSettings := make([]*querySelectSetting, 0, len(columns))
+	for _, data := range columns{
+		if data != nil {
+			if schema := encryptor.schemaStore.GetTableSchema(data.Table); schema != nil {
+				if columnSetting := schema.GetColumnEncryptionSettings(data.Name); columnSetting != nil {
+					querySelectSettings = append(querySelectSettings, &querySelectSetting{
+						setting:     columnSetting,
+						tableName:   data.Table,
+						columnName:  data.Name,
+						columnAlias: data.Alias,
+					})
+					continue
+				}
+			}
+		}
+		querySelectSettings = append(querySelectSettings, nil)
+	}
+	encryptor.querySelectSettings = querySelectSettings
+	return false, nil
+}
+
 // OnQuery raw data in query according to TableSchemaStore
 func (encryptor *QueryDataEncryptor) OnQuery(query base.OnQueryObject) (base.OnQueryObject, bool, error) {
 	statement, err := query.Statement()
@@ -261,6 +296,8 @@ func (encryptor *QueryDataEncryptor) OnQuery(query base.OnQueryObject) (base.OnQ
 	}
 	changed := false
 	switch statement := statement.(type) {
+	case *sqlparser.Select:
+		changed, err = encryptor.onSelect(statement)
 	case *sqlparser.Insert:
 		changed, err = encryptor.encryptInsertQuery(statement)
 	case *sqlparser.Update:
