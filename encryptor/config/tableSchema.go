@@ -74,11 +74,16 @@ type ColumnEncryptionSetting struct {
 	ClientID   string `yaml:"client_id"`
 	ZoneID     string `yaml:"zone_id"`
 	Searchable bool   `yaml:"searchable"`
+	Masking    string `yaml:"masking"`
 }
 
 // IsSearchable return true if column should be searchable
 func (s *ColumnEncryptionSetting) IsSearchable() bool {
 	return s.Searchable
+}
+
+func (s *ColumnEncryptionSetting) GetMaskingPattern() string {
+	return s.Masking
 }
 
 // TableSchema store table schema and encryption settings per column
