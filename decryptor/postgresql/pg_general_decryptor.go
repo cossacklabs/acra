@@ -30,6 +30,7 @@ import (
 	"github.com/cossacklabs/themis/gothemis/keys"
 	"github.com/sirupsen/logrus"
 	"io"
+	"io/ioutil"
 )
 
 var errPlainData = errors.New("plain data without AcraStruct signature")
@@ -323,14 +324,19 @@ func (decryptor *PgDecryptor) CheckPoisonRecord(reader io.Reader) (bool, error) 
 	if !decryptor.IsPoisonRecordCheckOn() {
 		return false, nil
 	}
+	data, err := ioutil.ReadAll(reader)
+	if err != nil {
+		return false, err
+	}
+
 	// check poison record
 	poisonKeypair, err := decryptor.keyStore.GetPoisonKeyPair()
 	if err != nil {
 		decryptor.logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantReadKeys).WithError(err).Errorln("Can't load poison keypair")
 		return true, err
 	}
-	// try decrypt using poison key pair
-	_, _, err = decryptor.binaryDecryptor.ReadSymmetricKey(poisonKeypair.Private, reader)
+
+	_, err = base.DecryptAcrastruct(data, poisonKeypair.Private, nil)
 	if err == nil {
 		decryptor.logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorDecryptorRecognizedPoisonRecord).Warningln("Recognized poison record")
 		if decryptor.GetPoisonCallbackStorage().HasCallbacks() {
@@ -342,6 +348,7 @@ func (decryptor *PgDecryptor) CheckPoisonRecord(reader io.Reader) (bool, error) 
 		}
 		return true, nil
 	}
+	decryptor.logger.WithField("data", string(data[:10])).WithError(err).Errorln("Didn't decrypt poison record")
 	return false, nil
 }
 

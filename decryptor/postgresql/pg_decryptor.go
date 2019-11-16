@@ -291,11 +291,18 @@ func checkInlinePoisonRecordInBlock(block []byte, decryptor base.Decryptor, logg
 			if index == utils.NotFound {
 				return nil
 			}
-			currentIndex += index
-			if err := checkWholePoisonRecord(block[currentIndex:], decryptor, logger); err != nil {
-				return err
+			if len(block[index:]) > base.GetMinAcraStructLength() {
+				acrastructLength := base.GetDataLengthFromAcraStruct(block[currentIndex:]) + base.GetMinAcraStructLength()
+				if acrastructLength > 0 && acrastructLength <= len(block[currentIndex:]) {
+					currentIndex += index
+					endIndex := currentIndex + acrastructLength
+					if err := checkWholePoisonRecord(block[currentIndex:endIndex], decryptor, logger); err != nil {
+						return err
+					}
+				}
 			}
 			currentIndex++
+
 		}
 	}
 	return nil
@@ -306,13 +313,8 @@ func checkWholePoisonRecord(block []byte, decryptor base.Decryptor, logger *log.
 		return nil
 	}
 	decryptor.Reset()
-	skippedBegin, err := decryptor.SkipBeginInBlock(block)
-	if err != nil {
-		logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorDecryptorCantSkipBeginInBlock).WithError(err).Debugln("Can't skip begin tag for poison record check")
-		return nil
-	}
-	poisoned, checkErr := decryptor.CheckPoisonRecord(bytes.NewReader(skippedBegin))
-	if innerErr := handlePoisonCheckResult(decryptor, poisoned, checkErr, logger); err != nil {
+	poisoned, checkErr := decryptor.CheckPoisonRecord(bytes.NewReader(block))
+	if innerErr := handlePoisonCheckResult(decryptor, poisoned, checkErr, logger); innerErr != nil {
 		logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorDecryptorCantCheckPoisonRecord).WithError(innerErr).Errorln("Error on poison record check")
 		return innerErr
 	}
@@ -412,7 +414,7 @@ func (proxy *PgProxy) processInlineBlockDecryption(ctx context.Context, packet *
 	hasDecryptedData := false
 	for {
 		// search AcraStruct's begin tags through all block of data and try to decrypt
-		beginTagIndex, tagLength := decryptor.BeginTagIndex(column.Data[currentIndex:])
+		beginTagIndex, _ := decryptor.BeginTagIndex(column.Data[currentIndex:])
 		if beginTagIndex == utils.NotFound {
 			outputBlock.Write(column.Data[currentIndex:])
 			// no AcraStructs in column decryptedData
@@ -424,55 +426,40 @@ func (proxy *PgProxy) processInlineBlockDecryption(ctx context.Context, packet *
 		outputBlock.Write(column.Data[currentIndex:beginTagIndex])
 		currentIndex = beginTagIndex
 
-		key, err := decryptor.GetPrivateKey()
-		if err != nil {
-			logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantReadKeys).WithError(err).Warningln("Can't read private key for matched client_id/zone_id")
-			if decryptor.IsPoisonRecordCheckOn() {
-				logger.Infoln("Check poison records")
-				blockReader := bytes.NewReader(column.Data[beginTagIndex+tagLength:])
-				poisoned, err := decryptor.CheckPoisonRecord(blockReader)
-				if err = handlePoisonCheckResult(decryptor, poisoned, err, logger); err != nil {
-					return err
+		if len(column.Data[currentIndex:]) > base.GetMinAcraStructLength() {
+			acrastructLength := base.GetDataLengthFromAcraStruct(column.Data[currentIndex:]) + base.GetMinAcraStructLength()
+			if acrastructLength > 0 && acrastructLength <= len(column.Data[currentIndex:]) {
+				endIndex := currentIndex + acrastructLength
+				decryptedData, err := decryptor.DecryptBlock(column.Data[currentIndex:endIndex])
+				if err != nil {
+					if decryptor.IsPoisonRecordCheckOn() {
+						logger.Infoln("Check poison records")
+						blockReader := bytes.NewReader(column.Data[currentIndex : endIndex])
+						poisoned, err := decryptor.CheckPoisonRecord(blockReader)
+						if err = handlePoisonCheckResult(decryptor, poisoned, err, logger); err != nil {
+							return err
+						}
+					}
+					span.AddAttributes(trace.BoolAttribute("failed_decryption", true))
+					base.AcrastructDecryptionCounter.WithLabelValues(base.DecryptionTypeFail).Inc()
+					logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorDecryptorCantDecryptBinary).WithError(err).Warningln("Can't decrypt AcraStruct: can't decrypt data with unwrapped symmetric key")
+					// write current read byte to not process him in next iteration
+					outputBlock.Write([]byte{column.Data[currentIndex]})
+					currentIndex++
+					continue
 				}
+				logger.Infoln("Decrypted AcraStruct")
+				base.AcrastructDecryptionCounter.WithLabelValues(base.DecryptionTypeSuccess).Inc()
+				outputBlock.Write(decryptedData)
+				currentIndex += acrastructLength
+				hasDecryptedData = true
+				continue
 			}
-			currentIndex++
-			continue
 		}
-		blockReader := bytes.NewReader(column.Data[currentIndex+tagLength:])
-		symKey, _, err := decryptor.ReadSymmetricKey(key, blockReader)
-		if err != nil {
-			span.AddAttributes(trace.BoolAttribute("failed_decryption", true))
-			base.AcrastructDecryptionCounter.WithLabelValues(base.DecryptionTypeFail).Inc()
-			logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorDecryptorCantDecryptBinary).WithError(err).Warningln("Can't decrypt AcraStruct: can't unwrap symmetric key")
-			if decryptor.IsPoisonRecordCheckOn() {
-				logger.Infoln("Check poison records")
-				blockReader = bytes.NewReader(column.Data[beginTagIndex+tagLength:])
-				poisoned, err := decryptor.CheckPoisonRecord(blockReader)
-				if err = handlePoisonCheckResult(decryptor, poisoned, err, logger); err != nil {
-					return err
-				}
-			}
-
-			// write current read byte to not process him in next iteration
-			outputBlock.Write([]byte{column.Data[currentIndex]})
-			currentIndex++
-			continue
-		}
-		decryptedData, err := decryptor.ReadData(symKey, decryptor.GetMatchedZoneID(), blockReader)
-		if err != nil {
-			span.AddAttributes(trace.BoolAttribute("failed_decryption", true))
-			base.AcrastructDecryptionCounter.WithLabelValues(base.DecryptionTypeFail).Inc()
-			logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorDecryptorCantDecryptBinary).WithError(err).Warningln("Can't decrypt AcraStruct: can't decrypt data with unwrapped symmetric key")
-			// write current read byte to not process him in next iteration
-			outputBlock.Write([]byte{column.Data[currentIndex]})
-			currentIndex++
-			continue
-		}
-		logger.Infoln("Decrypted AcraStruct")
-		base.AcrastructDecryptionCounter.WithLabelValues(base.DecryptionTypeSuccess).Inc()
-		outputBlock.Write(decryptedData)
-		currentIndex += tagLength + (len(column.Data[beginTagIndex+tagLength:]) - blockReader.Len())
-		hasDecryptedData = true
+		// write current read byte to not process him in next iteration
+		outputBlock.Write([]byte{column.Data[currentIndex]})
+		currentIndex++
+		continue
 	}
 	if hasDecryptedData {
 		logger.WithFields(log.Fields{"old_size": column.Length(), "new_size": outputBlock.Len()}).Debugln("Result was changed")

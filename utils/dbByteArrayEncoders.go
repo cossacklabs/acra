@@ -123,7 +123,7 @@ func DecodeEscaped(data []byte) (*DecodedData, error) {
 	}
 	result, err := DecodeOctal(data)
 	if err != nil {
-		return &DecodedData{data: data, encodeFunc: dryEncode}, ErrDecodeEscapedString
+		return &DecodedData{data: data, encodeFunc: dryEncode}, nil
 	}
 	return &DecodedData{data: result, encodeFunc: EncodeToOctal}, nil
 }
