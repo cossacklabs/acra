@@ -29,22 +29,22 @@ import (
 )
 
 type QueryEncryptionState interface {
-	GetColumnEncryptionSetting(index int)*config.ColumnEncryptionSetting
+	GetColumnEncryptionSetting(index int) *config.ColumnEncryptionSetting
 }
 
 type querySelectSetting struct {
-	setting *config.ColumnEncryptionSetting
-	tableName string
-	columnName string
+	setting     *config.ColumnEncryptionSetting
+	tableName   string
+	columnName  string
 	columnAlias string
 }
 
 // QueryDataEncryptor parse query and encrypt raw data according to TableSchemaStore
 type QueryDataEncryptor struct {
-	schemaStore config.TableSchemaStore
-	encryptor   DataEncryptor
-	clientID    []byte
-	dataCoder   DBDataCoder
+	schemaStore         config.TableSchemaStore
+	encryptor           DataEncryptor
+	clientID            []byte
+	dataCoder           DBDataCoder
 	querySelectSettings []*querySelectSetting
 }
 
@@ -265,10 +265,10 @@ func (encryptor *QueryDataEncryptor) encryptUpdateQuery(update *sqlparser.Update
 	return encryptor.encryptUpdateExpressions(update.Exprs, firstTable, qualifierMap)
 }
 
-func (encryptor *QueryDataEncryptor) onSelect(statement *sqlparser.Select)(bool, error){
+func (encryptor *QueryDataEncryptor) onSelect(statement *sqlparser.Select) (bool, error) {
 	columns := mapColumnsToAliases(statement)
 	querySelectSettings := make([]*querySelectSetting, 0, len(columns))
-	for _, data := range columns{
+	for _, data := range columns {
 		if data != nil {
 			if schema := encryptor.schemaStore.GetTableSchema(data.Table); schema != nil {
 				if columnSetting := schema.GetColumnEncryptionSettings(data.Name); columnSetting != nil {

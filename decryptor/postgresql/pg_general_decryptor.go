@@ -40,9 +40,7 @@ type PgDecryptor struct {
 	isWholeMatch       bool
 	keyStore           keystore.KeyStore
 	zoneMatcher        *zone.Matcher
-	pgDecryptor        base.DataDecryptor
 	binaryDecryptor    base.DataDecryptor
-	matchedDecryptor   base.DataDecryptor
 	checkPoisonRecords bool
 
 	clientID             []byte
@@ -61,7 +59,6 @@ func NewPgDecryptor(clientID []byte, decryptor base.DataDecryptor, withZone bool
 	decryptor.SetLogger(logger)
 	return &PgDecryptor{
 		isWithZone:      withZone,
-		pgDecryptor:     decryptor,
 		binaryDecryptor: binary.NewBinaryDecryptor(logger),
 		clientID:        clientID,
 		// longest tag (escape) + bin
@@ -78,7 +75,6 @@ func NewPgDecryptor(clientID []byte, decryptor base.DataDecryptor, withZone bool
 // SetLogger set logger
 func (decryptor *PgDecryptor) SetLogger(logger *logrus.Entry) {
 	decryptor.binaryDecryptor.SetLogger(logger)
-	decryptor.pgDecryptor.SetLogger(logger)
 }
 
 // SetWithZone enables or disables decrypting with ZoneID
@@ -124,8 +120,7 @@ func (decryptor *PgDecryptor) ResetZoneMatch() {
 // MatchBeginTag returns true if PgDecryptor and Binary decryptor found BeginTag
 func (decryptor *PgDecryptor) MatchBeginTag(char byte) bool {
 	/* should be called two decryptors */
-	matched := decryptor.pgDecryptor.MatchBeginTag(char)
-	matched = decryptor.binaryDecryptor.MatchBeginTag(char) || matched
+	matched := decryptor.binaryDecryptor.MatchBeginTag(char)
 	if matched {
 		decryptor.matchBuffer[decryptor.matchIndex] = char
 		decryptor.matchIndex++
@@ -141,28 +136,12 @@ func (decryptor *PgDecryptor) IsWithZone() bool {
 // IsMatched find Begin tag and maps it to Matcher (either PgDecryptor or Decryptor)
 // returns false if can't find tag or can't find corresponded decryptor
 func (decryptor *PgDecryptor) IsMatched() bool {
-	// TODO here pg_decryptor has higher priority than binary_decryptor
-	// but can be case when begin tag is equal for binary and escape formats
-	// in this case may be error in stream mode
-	if decryptor.pgDecryptor.IsMatched() {
-		decryptor.logger.Debugln("Matched pg decryptor")
-		decryptor.matchedDecryptor = decryptor.pgDecryptor
-		return true
-	} else if decryptor.binaryDecryptor.IsMatched() {
-		decryptor.logger.Debugln("Matched binary decryptor")
-		decryptor.matchedDecryptor = decryptor.binaryDecryptor
-		return true
-	} else {
-		decryptor.matchedDecryptor = nil
-		return false
-	}
+	return decryptor.binaryDecryptor.IsMatched()
 }
 
 // Reset resets both PgDecryptor and Decryptor and clears matching index
 func (decryptor *PgDecryptor) Reset() {
-	decryptor.matchedDecryptor = nil
 	decryptor.binaryDecryptor.Reset()
-	decryptor.pgDecryptor.Reset()
 	decryptor.matchIndex = 0
 }
 
@@ -175,7 +154,7 @@ func (decryptor *PgDecryptor) GetMatched() []byte {
 // AcraStruct using Secure message
 // returns decrypted symmetric key or ErrFakeAcraStruct error if can't decrypt
 func (decryptor *PgDecryptor) ReadSymmetricKey(privateKey *keys.PrivateKey, reader io.Reader) ([]byte, []byte, error) {
-	symmetricKey, rawData, err := decryptor.matchedDecryptor.ReadSymmetricKey(privateKey, reader)
+	symmetricKey, rawData, err := decryptor.binaryDecryptor.ReadSymmetricKey(privateKey, reader)
 	if err != nil {
 		return symmetricKey, rawData, err
 	}
@@ -202,18 +181,18 @@ func (decryptor *PgDecryptor) ReadData(symmetricKey, zoneID []byte, reader io.Re
 	if decryptor.GetMatchedZoneID() != nil {
 		logger = decryptor.logger.WithField("zone_id", string(decryptor.GetMatchedZoneID()))
 		// use temporary logger in matched decryptor
-		decryptor.matchedDecryptor.SetLogger(logger)
+		decryptor.binaryDecryptor.SetLogger(logger)
 		// reset to default logger without zone_id
-		defer decryptor.matchedDecryptor.SetLogger(decryptor.logger)
+		defer decryptor.binaryDecryptor.SetLogger(decryptor.logger)
 	}
 
 	// take length of fully matched tag begin (each decryptor match tag begin with different length)
-	correctMatchBeginTagLength := len(decryptor.matchedDecryptor.GetMatched())
+	correctMatchBeginTagLength := len(decryptor.binaryDecryptor.GetMatched())
 	// take diff count of matched between two decryptors
 	falseBufferedBeginTagLength := decryptor.matchIndex - correctMatchBeginTagLength
 	if falseBufferedBeginTagLength > 0 {
 		logger.Debugf("Return with false matched %v bytes", falseBufferedBeginTagLength)
-		decrypted, err := decryptor.matchedDecryptor.ReadData(symmetricKey, zoneID, reader)
+		decrypted, err := decryptor.binaryDecryptor.ReadData(symmetricKey, zoneID, reader)
 		if err != nil {
 			return nil, err
 		}
@@ -221,7 +200,7 @@ func (decryptor *PgDecryptor) ReadData(symmetricKey, zoneID []byte, reader io.Re
 		return append(decryptor.matchBuffer[:falseBufferedBeginTagLength], decrypted...), nil
 	}
 
-	decrypted, err := decryptor.matchedDecryptor.ReadData(symmetricKey, zoneID, reader)
+	decrypted, err := decryptor.binaryDecryptor.ReadData(symmetricKey, zoneID, reader)
 	if err != nil {
 		return nil, err
 	}
@@ -286,9 +265,6 @@ func (decryptor *PgDecryptor) SetWholeMatch(value bool) {
 
 // MatchZoneBlock returns zone data
 func (decryptor *PgDecryptor) MatchZoneBlock(block []byte) {
-	if _, ok := decryptor.pgDecryptor.(*PgHexDecryptor); ok && bytes.Equal(block[:2], HexPrefix) {
-		block = block[2:]
-	}
 	for _, c := range block {
 		if !decryptor.MatchZone(c) {
 			return
@@ -302,30 +278,17 @@ var HexPrefix = []byte{'\\', 'x'}
 // SkipBeginInBlock returns bytes without BeginTag
 // or ErrFakeAcraStruct otherwise
 func (decryptor *PgDecryptor) SkipBeginInBlock(block []byte) ([]byte, error) {
-	_, ok := decryptor.pgDecryptor.(*PgHexDecryptor)
 	// in hex format can be \x bytes at beginning
 	// we need skip them for correct matching begin tag
 	n := 0
-	if ok && bytes.Equal(block[:2], HexPrefix) {
-		block = block[2:]
-		for _, c := range block {
-			if !decryptor.pgDecryptor.MatchBeginTag(c) {
-				return []byte{}, base.ErrFakeAcraStruct
-			}
-			n++
-			if decryptor.pgDecryptor.IsMatched() {
-				break
-			}
+
+	for _, c := range block {
+		if !decryptor.MatchBeginTag(c) {
+			return []byte{}, base.ErrFakeAcraStruct
 		}
-	} else {
-		for _, c := range block {
-			if !decryptor.MatchBeginTag(c) {
-				return []byte{}, base.ErrFakeAcraStruct
-			}
-			n++
-			if decryptor.IsMatched() {
-				break
-			}
+		n++
+		if decryptor.IsMatched() {
+			break
 		}
 	}
 	if !decryptor.IsMatched() {
@@ -367,7 +330,7 @@ func (decryptor *PgDecryptor) CheckPoisonRecord(reader io.Reader) (bool, error) 
 		return true, err
 	}
 	// try decrypt using poison key pair
-	_, _, err = decryptor.matchedDecryptor.ReadSymmetricKey(poisonKeypair.Private, reader)
+	_, _, err = decryptor.binaryDecryptor.ReadSymmetricKey(poisonKeypair.Private, reader)
 	if err == nil {
 		decryptor.logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorDecryptorRecognizedPoisonRecord).Warningln("Recognized poison record")
 		if decryptor.GetPoisonCallbackStorage().HasCallbacks() {
@@ -389,28 +352,10 @@ var HexSymbol = byte(hexTagSymbols[0])
 
 // BeginTagIndex returns tag start index and length of tag (depends on decryptor type)
 func (decryptor *PgDecryptor) BeginTagIndex(block []byte) (int, int) {
-	_, ok := decryptor.pgDecryptor.(*PgHexDecryptor)
-	if ok {
-		if i := bytes.Index(block, HexTagBegin); i != utils.NotFound {
-			decryptor.logger.Debugln("Matched pg decryptor")
-			decryptor.matchedDecryptor = decryptor.pgDecryptor
-			return i, decryptor.pgDecryptor.GetTagBeginLength()
-		}
-	} else {
-		// escape format
-		if i := bytes.Index(block, base.TagBegin); i != utils.NotFound {
-			decryptor.logger.Debugln("Matched pg decryptor")
-			decryptor.matchedDecryptor = decryptor.pgDecryptor
-			return i, decryptor.pgDecryptor.GetTagBeginLength()
-			// binary format
-		}
-	}
 	if i := bytes.Index(block, base.TagBegin); i != utils.NotFound {
 		decryptor.logger.Debugln("Matched binary decryptor")
-		decryptor.matchedDecryptor = decryptor.binaryDecryptor
 		return i, decryptor.binaryDecryptor.GetTagBeginLength()
 	}
-	decryptor.matchedDecryptor = nil
 	return utils.NotFound, decryptor.GetTagBeginLength()
 }
 
@@ -422,41 +367,6 @@ var HexZoneSymbol = byte(hexZoneSymbols[0])
 // MatchZoneInBlock finds ZoneId in AcraStruct and marks decryptor matched
 // (depends on decryptor type)
 func (decryptor *PgDecryptor) MatchZoneInBlock(block []byte) {
-	_, ok := decryptor.pgDecryptor.(*PgHexDecryptor)
-	if ok {
-		sliceCopy := block[:]
-		for {
-			i := bytes.Index(sliceCopy, HexTagBegin)
-			if i == utils.NotFound {
-				break
-			} else {
-				id := make([]byte, zone.ZoneIDBlockLength)
-				hexID := sliceCopy[i : i+HexZoneIDBlockLength]
-				hex.Decode(id, hexID)
-				if decryptor.keyStore.HasZonePrivateKey(id) {
-					decryptor.zoneMatcher.SetMatched(id)
-					return
-				}
-				sliceCopy = sliceCopy[i+1:]
-			}
-		}
-	} else {
-		sliceCopy := block[:]
-		for {
-			// escape format
-			i := bytes.Index(block, zone.ZoneIDBegin)
-			if i == utils.NotFound {
-				break
-			} else {
-				if decryptor.keyStore.HasZonePrivateKey(sliceCopy[i : i+EscapeZoneIDBlockLength]) {
-					decryptor.zoneMatcher.SetMatched(sliceCopy[i : i+EscapeZoneIDBlockLength])
-					return
-				}
-				sliceCopy = sliceCopy[i+1:]
-			}
-
-		}
-	}
 	sliceCopy := block[:]
 	for {
 		// binary format
@@ -476,12 +386,12 @@ func (decryptor *PgDecryptor) MatchZoneInBlock(block []byte) {
 
 // GetTagBeginLength returns begin tag length, depends on decryptor type
 func (decryptor *PgDecryptor) GetTagBeginLength() int {
-	return decryptor.pgDecryptor.GetTagBeginLength()
+	return decryptor.binaryDecryptor.GetTagBeginLength()
 }
 
 // GetZoneIDLength returns begin tag length, depends on decryptor type
 func (decryptor *PgDecryptor) GetZoneIDLength() int {
-	return decryptor.pgDecryptor.GetTagBeginLength()
+	return decryptor.binaryDecryptor.GetTagBeginLength()
 }
 
 // SetDataProcessor replace current with new processor

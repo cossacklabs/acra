@@ -29,9 +29,9 @@ func NewEncodeDecodeWrapper(processor base.DataProcessor) base.DataProcessor {
 		decodedData, err := utils.DecodeEscaped(data)
 		if err != nil {
 			logrus.WithError(err).Debugln("Data is not in hex/escape format, process as binary data (used in prepared statements)")
-			decodedData = data
+			decodedData.Set(data)
 		}
-		data, err = processor.Process(decodedData, ctx)
+		data, err = processor.Process(decodedData.Data(), ctx)
 		if err != nil {
 			return data, err
 		}

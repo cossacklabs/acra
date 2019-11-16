@@ -76,6 +76,6 @@ func (fabric *DecryptorFactory) New(clientID []byte) (base.Decryptor, error) {
 	decryptor.zoneMatcher = zoneMatcher
 	decryptor.callbackStorage = fabric.settings.PoisonCallbacks()
 	decryptor.checkPoisonRecords = fabric.settings.CheckPoisonRecord()
-	decryptor.dataProcessor = NewEncodeDecodeWrapper(base.DecryptProcessor{})
+	decryptor.dataProcessor = base.DecryptProcessor{}
 	return decryptor, nil
 }

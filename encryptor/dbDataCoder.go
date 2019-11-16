@@ -106,7 +106,7 @@ func (*PostgresqlDBDataCoder) Decode(expr sqlparser.Expr) ([]byte, error) {
 				// return value as is because it may be string with printable characters that wasn't encoded on client
 				return val.Val, nil
 			}
-			return binValue, nil
+			return binValue.Data(), nil
 		}
 	}
 	return nil, errUnsupportedExpression
