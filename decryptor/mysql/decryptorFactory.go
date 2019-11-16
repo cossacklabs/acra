@@ -30,7 +30,7 @@ type DecryptorFactory struct {
 // NewMysqlDecryptorFactory return DecryptorFactory for mysql
 func NewMysqlDecryptorFactory(setting *base.DecryptorSetting) *DecryptorFactory {
 	// no matter which escape type to use
-	pgFactory := postgresql.NewDecryptorFactory(postgresql.HexByteaFormat, setting)
+	pgFactory := postgresql.NewDecryptorFactory(setting)
 	return &DecryptorFactory{settings: setting, pgDecryptorFactory: pgFactory}
 }
 

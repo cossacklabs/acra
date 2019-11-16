@@ -55,30 +55,17 @@ type MatcherFactory interface {
 
 /* custom matcher factories */
 
-// PgHexMatcherFactory makes new pgMatchers for HexBytes mode
-type PgHexMatcherFactory struct{}
+// PgMatcherFactory makes new pgMatchers for HexBytes mode
+type PgMatcherFactory struct{}
 
-// NewPgHexMatcherFactory creates new PgHexMatcherFactory
-func NewPgHexMatcherFactory() MatcherFactory {
-	return &PgHexMatcherFactory{}
+// NewPgMatcherFactory creates new PgMatcherFactory
+func NewPgMatcherFactory() MatcherFactory {
+	return &PgMatcherFactory{}
 }
 
 // CreateMatcher returns new PgHexMatcher
-func (*PgHexMatcherFactory) createMatcher() matcher {
-	return newPgMatcher(NewPgHexByteReader())
-}
-
-// PgEscapeMatcherFactory makes new pgMatchers for EscapedBytes mode
-type PgEscapeMatcherFactory struct{}
-
-// NewPgEscapeMatcherFactory creates new PgEscapeMatcherFactory
-func NewPgEscapeMatcherFactory() MatcherFactory {
-	return &PgEscapeMatcherFactory{}
-}
-
-// CreateMatcher returns new PgEscapeMatcher
-func (*PgEscapeMatcherFactory) createMatcher() matcher {
-	return newPgMatcher(NewPgEscapeByteReader())
+func (*PgMatcherFactory) createMatcher() matcher {
+	return newPgMatcher(NewBinaryByteReader())
 }
 
 /* end custom matcher factories */

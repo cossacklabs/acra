@@ -43,6 +43,9 @@ type emptyEncryptionSetting struct{}
 func (*emptyEncryptionSetting) IsSearchable() bool {
 	return false
 }
+func (*emptyEncryptionSetting) GetMaskingPattern() string {
+	return ""
+}
 
 func TestAcrawriterDataEncryptor_EncryptWithClientID(t *testing.T) {
 	keypair, err := keys.New(keys.KEYTYPE_EC)
