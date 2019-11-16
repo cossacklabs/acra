@@ -341,7 +341,7 @@ func (decryptor *Decryptor) decryptInlineBlock(block []byte) ([]byte, error) {
 		output.Write(block[index : index+1])
 		index++
 	}
-	if len(output.Bytes()) == len(block){
+	if len(output.Bytes()) == len(block) {
 		return block, errPlainData
 	}
 	return output.Bytes(), nil
