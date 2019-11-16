@@ -43,8 +43,8 @@ func EncodeToOctal(data []byte) []byte {
 	return res
 }
 
-// ErrDecodeEscapedString on incorrect decoding with DecodeOctal
-var ErrDecodeEscapedString = errors.New("can't decode escaped string")
+// ErrDecodeOctalString on incorrect decoding with DecodeOctal
+var ErrDecodeOctalString = errors.New("can't decode escaped string")
 
 // DecodeOctal escaped string
 // See https://www.postgresql.org/docs/current/static/datatype-binary.html#AEN5667
@@ -53,7 +53,7 @@ func DecodeOctal(data []byte) ([]byte, error) {
 	for i := 0; i < len(data); i++ {
 		ch := data[i]
 		if !IsPrintableEscapeChar(ch) {
-			return nil, ErrDecodeEscapedString
+			return nil, ErrDecodeOctalString
 		}
 		if ch != '\\' {
 			output = append(output, ch)
@@ -61,7 +61,7 @@ func DecodeOctal(data []byte) ([]byte, error) {
 		}
 		if i >= len(data)-1 {
 			logrus.Debugln("Encoded string incomplete")
-			return nil, ErrDecodeEscapedString
+			return nil, ErrDecodeOctalString
 		}
 		if data[i+1] == '\\' {
 			output = append(output, '\\')
@@ -70,14 +70,14 @@ func DecodeOctal(data []byte) ([]byte, error) {
 		}
 		if i+3 >= len(data) {
 			logrus.Debugln("Encoded string incomplete")
-			return nil, ErrDecodeEscapedString
+			return nil, ErrDecodeOctalString
 		}
 		b := byte(0)
 		for j := 1; j <= 3; j++ {
 			octDigit := data[i+j]
 			if octDigit < '0' || octDigit > '7' {
 				logrus.Debugln("Invalid bytea escape sequence")
-				return nil, ErrDecodeEscapedString
+				return nil, ErrDecodeOctalString
 			}
 			b = (b << 3) | (octDigit - '0')
 		}
@@ -123,7 +123,7 @@ func DecodeEscaped(data []byte) (*DecodedData, error) {
 	}
 	result, err := DecodeOctal(data)
 	if err != nil {
-		return &DecodedData{data: data, encodeFunc: dryEncode}, nil
+		return &DecodedData{data: data, encodeFunc: dryEncode}, ErrDecodeOctalString
 	}
 	return &DecodedData{data: result, encodeFunc: EncodeToOctal}, nil
 }

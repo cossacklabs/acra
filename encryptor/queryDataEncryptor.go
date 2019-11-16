@@ -120,7 +120,7 @@ func UpdateExpressionValue(expr sqlparser.Expr, coder DBDataCoder, updateFunc fu
 		case sqlparser.StrVal, sqlparser.HexVal, sqlparser.PgEscapeString:
 			rawData, err := coder.Decode(val)
 			if err != nil {
-				if err == utils.ErrDecodeEscapedString || err == errUnsupportedExpression {
+				if err == utils.ErrDecodeOctalString || err == errUnsupportedExpression {
 					logrus.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCodingCantDecodeSQLValue).
 						WithError(err).
 						Warningln("Can't decode data with unsupported coding format or unsupported expression")

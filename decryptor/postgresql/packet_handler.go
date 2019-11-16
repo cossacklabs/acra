@@ -182,9 +182,11 @@ func (column *ColumnData) readData(reader io.Reader) error {
 		return err
 	}
 	column.decodedData, err = utils.DecodeEscaped(column.data)
-	if err != nil {
+	if err != nil && err != utils.ErrDecodeOctalString {
 		return err
 	}
+	// ignore utils.ErrDecodeOctalString
+	err = nil
 	column.Data = column.decodedData.Data()
 	return base.CheckReadWrite(n, length, err)
 }

@@ -94,11 +94,11 @@ func (*PostgresqlDBDataCoder) Decode(expr sqlparser.Expr) ([]byte, error) {
 		case sqlparser.PgEscapeString, sqlparser.StrVal:
 			// try to decode hex/octal encoding
 			binValue, err := utils.DecodeEscaped(val.Val)
-			if err != nil {
+			if err != nil && err != utils.ErrDecodeOctalString {
 				// return error on hex decode
 				if _, ok := err.(hex.InvalidByteError); err == hex.ErrLength || ok {
 					return nil, err
-				} else if err == utils.ErrDecodeEscapedString {
+				} else if err == utils.ErrDecodeOctalString {
 					return nil, err
 				}
 
