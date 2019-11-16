@@ -124,12 +124,12 @@ func (packet *PacketHandler) sendMessageType() error {
 
 // ColumnData hold column length and data
 type ColumnData struct {
-	LengthBuf [4]byte
-	Data      []byte
-	data []byte
+	LengthBuf   [4]byte
+	Data        []byte
+	data        []byte
 	decodedData *utils.DecodedData
-	changed   bool
-	isNull    bool
+	changed     bool
+	isNull      bool
 }
 
 // Length return column length converted from LengthBuf

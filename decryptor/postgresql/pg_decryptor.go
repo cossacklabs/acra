@@ -434,7 +434,7 @@ func (proxy *PgProxy) processInlineBlockDecryption(ctx context.Context, packet *
 				if err != nil {
 					if decryptor.IsPoisonRecordCheckOn() {
 						logger.Infoln("Check poison records")
-						blockReader := bytes.NewReader(column.Data[currentIndex : endIndex])
+						blockReader := bytes.NewReader(column.Data[currentIndex:endIndex])
 						poisoned, err := decryptor.CheckPoisonRecord(blockReader)
 						if err = handlePoisonCheckResult(decryptor, poisoned, err, logger); err != nil {
 							return err
