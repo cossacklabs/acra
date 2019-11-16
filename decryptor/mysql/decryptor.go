@@ -295,7 +295,6 @@ func (decryptor *Decryptor) decryptWholeBlock(block []byte) ([]byte, error) {
 }
 
 func (decryptor *Decryptor) decryptInlineBlock(block []byte) ([]byte, error) {
-	var output bytes.Buffer
 	index := 0
 	if decryptor.IsWithZone() && !decryptor.IsMatchedZone() {
 		decryptor.MatchZoneInBlock(block)
@@ -304,12 +303,13 @@ func (decryptor *Decryptor) decryptInlineBlock(block []byte) ([]byte, error) {
 		}
 		return block, nil
 	}
-	var decrypted []byte
-	for index < len(block) {
+
+	output := bytes.NewBuffer(make([]byte, 0, len(block)))
+	for {
 		beginTagIndex, tagLength := decryptor.BeginTagIndex(block[index:])
 		if beginTagIndex == utils.NotFound {
 			output.Write(block[index:])
-			return nil, errPlainData
+			break
 		}
 		output.Write(block[index : index+beginTagIndex])
 		index += beginTagIndex
@@ -323,10 +323,10 @@ func (decryptor *Decryptor) decryptInlineBlock(block []byte) ([]byte, error) {
 				return nil, err
 			}
 		} else {
-			decrypted, err = decryptor.decryptBlock(blockReader, decryptor.GetMatchedZoneID(), privateKey)
+			decrypted, err := decryptor.decryptBlock(blockReader, decryptor.GetMatchedZoneID(), privateKey)
 			if err == nil {
 				base.AcrastructDecryptionCounter.WithLabelValues(base.DecryptionTypeSuccess).Inc()
-				index += tagLength + (len(block[beginTagIndex+tagLength:]) - blockReader.Len())
+				index += tagLength + (len(block[index+tagLength:]) - blockReader.Len())
 				output.Write(decrypted)
 				decryptor.ResetZoneMatch()
 				continue
@@ -340,6 +340,9 @@ func (decryptor *Decryptor) decryptInlineBlock(block []byte) ([]byte, error) {
 
 		output.Write(block[index : index+1])
 		index++
+	}
+	if len(output.Bytes()) == len(block) {
+		return block, errPlainData
 	}
 	return output.Bytes(), nil
 }
