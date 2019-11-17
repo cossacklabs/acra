@@ -26,6 +26,8 @@ import (
 type EncryptionSetting interface {
 	IsSearchable() bool
 	GetMaskingPattern() string
+	GetPartialPlaintextLen() int
+	IsEndMasking() bool
 }
 
 // DataEncryptor replace raw data in queries with encrypted

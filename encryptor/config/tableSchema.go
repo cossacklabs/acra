@@ -75,6 +75,8 @@ type ColumnEncryptionSetting struct {
 	ZoneID     string `yaml:"zone_id"`
 	Searchable bool   `yaml:"searchable"`
 	Masking    string `yaml:"masking"`
+	PartialPlaintextLenBytes int    `yaml:"open_part_length"`
+	EndOfPlaintext           bool   `yaml:"end_of_data"`
 }
 
 // IsSearchable return true if column should be searchable
@@ -84,6 +86,14 @@ func (s *ColumnEncryptionSetting) IsSearchable() bool {
 
 func (s *ColumnEncryptionSetting) GetMaskingPattern() string {
 	return s.Masking
+}
+
+func (s *ColumnEncryptionSetting) GetPartialPlaintextLen() int {
+	return s.PartialPlaintextLenBytes
+}
+
+func (s * ColumnEncryptionSetting) IsEndMasking() bool {
+	return s.EndOfPlaintext
 }
 
 // TableSchema store table schema and encryption settings per column
