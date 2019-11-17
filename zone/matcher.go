@@ -55,30 +55,17 @@ type MatcherFactory interface {
 
 /* custom matcher factories */
 
-// PgHexMatcherFactory makes new pgMatchers for HexBytes mode
-type PgHexMatcherFactory struct{}
+// PgMatcherFactory makes new pgMatchers for HexBytes mode
+type PgMatcherFactory struct{}
 
-// NewPgHexMatcherFactory creates new PgHexMatcherFactory
-func NewPgHexMatcherFactory() MatcherFactory {
-	return &PgHexMatcherFactory{}
+// NewPgMatcherFactory creates new PgMatcherFactory
+func NewPgMatcherFactory() MatcherFactory {
+	return &PgMatcherFactory{}
 }
 
 // CreateMatcher returns new PgHexMatcher
-func (*PgHexMatcherFactory) createMatcher() matcher {
-	return newPgMatcher(NewPgHexByteReader())
-}
-
-// PgEscapeMatcherFactory makes new pgMatchers for EscapedBytes mode
-type PgEscapeMatcherFactory struct{}
-
-// NewPgEscapeMatcherFactory creates new PgEscapeMatcherFactory
-func NewPgEscapeMatcherFactory() MatcherFactory {
-	return &PgEscapeMatcherFactory{}
-}
-
-// CreateMatcher returns new PgEscapeMatcher
-func (*PgEscapeMatcherFactory) createMatcher() matcher {
-	return newPgMatcher(NewPgEscapeByteReader())
+func (*PgMatcherFactory) createMatcher() matcher {
+	return newPgMatcher(NewBinaryByteReader())
 }
 
 /* end custom matcher factories */
@@ -94,36 +81,31 @@ type matcher interface {
 
 // PgMatcher concatenates two matchers: pgMatcher and binaryMatcher
 type PgMatcher struct {
-	pgMatcher     matcher
 	binaryMatcher matcher
 }
 
 // newPgMatcher returns new matcher with pgMatcher and binaryMatcher
 func newPgMatcher(dbReader DbByteReader) matcher {
 	return &PgMatcher{
-		pgMatcher:     newBaseMatcher(dbReader),
 		binaryMatcher: newBaseMatcher(NewBinaryByteReader()),
 	}
 }
 
 // Match returns true if pgMatcher or binaryMatcher has ZONE_ID block inside c bytes
 func (matcher *PgMatcher) Match(c byte) bool {
-	pgMatched := matcher.pgMatcher.Match(c)
 	binMatched := matcher.binaryMatcher.Match(c)
-	return pgMatched || binMatched
+	return binMatched
 }
 
 // HasAnyMatch returns true if pgMatcher or binaryMatcher has any match
 func (matcher *PgMatcher) HasAnyMatch() bool {
-	return matcher.pgMatcher.HasAnyMatch() || matcher.binaryMatcher.HasAnyMatch()
+	return matcher.binaryMatcher.HasAnyMatch()
 }
 
 // GetZoneID returns true if pgMatcher or binaryMatcher has zoneID
 // return empty bytes if no zoneID found
 func (matcher *PgMatcher) GetZoneID() []byte {
-	if matcher.pgMatcher.IsMatched() {
-		return matcher.pgMatcher.GetZoneID()
-	} else if matcher.binaryMatcher.IsMatched() {
+	if matcher.binaryMatcher.IsMatched() {
 		return matcher.binaryMatcher.GetZoneID()
 	} else {
 		return []byte{}
@@ -132,15 +114,12 @@ func (matcher *PgMatcher) GetZoneID() []byte {
 
 // Reset both pgMatcher and binaryMatcher
 func (matcher *PgMatcher) Reset() {
-	matcher.pgMatcher.Reset()
 	matcher.binaryMatcher.Reset()
 }
 
 // IsMatched returns true if pgMatcher or binaryMatcher has match
 func (matcher *PgMatcher) IsMatched() bool {
-	matched := matcher.pgMatcher.IsMatched()
-	matched = matched || matcher.binaryMatcher.IsMatched()
-	return matched
+	return matcher.binaryMatcher.IsMatched()
 }
 
 // BaseMatcher looks for zoneID in bytes read by dbReader

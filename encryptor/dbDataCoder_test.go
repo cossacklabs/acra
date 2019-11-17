@@ -99,8 +99,8 @@ func TestPostgresqlDBDataCoder_Decode(t *testing.T) {
 	coder := &PostgresqlDBDataCoder{}
 	testCases := []sqlparser.Expr{
 		sqlparser.NewHexVal([]byte(hex.EncodeToString(testData))),
+		sqlparser.NewPgEscapeString([]byte(fmt.Sprintf("%s", utils.EncodeToOctal(testData)))),
 		sqlparser.NewStrVal([]byte(fmt.Sprintf("\\x%s", hex.EncodeToString(testData)))),
-		sqlparser.NewPgEscapeString([]byte(fmt.Sprintf("\\x%s", hex.EncodeToString(testData)))),
 	}
 	for _, expr := range testCases {
 		data, err := coder.Decode(expr)
@@ -121,7 +121,7 @@ func TestPostgresqlDBDataCoder_Decode(t *testing.T) {
 			Expr: sqlparser.NewHexVal([]byte(hex.EncodeToString(testData))[1:]),
 		},
 		{
-			Err: utils.ErrDecodeOctalString,
+			Err: nil,
 			// short data
 			Expr: sqlparser.NewStrVal([]byte{1, 2, 3}),
 		},
@@ -134,12 +134,6 @@ func TestPostgresqlDBDataCoder_Decode(t *testing.T) {
 			Err: hex.ErrLength,
 			// incorrect hex
 			Expr: sqlparser.NewStrVal([]byte(fmt.Sprintf("\\x%s", hex.EncodeToString(testData)[1:]))),
-		},
-		// PgEscapeVal same as for StrVal
-		{
-			Err: utils.ErrDecodeOctalString,
-			// short data
-			Expr: sqlparser.NewPgEscapeString([]byte{1, 2, 3}),
 		},
 		{
 			Err: nil,
