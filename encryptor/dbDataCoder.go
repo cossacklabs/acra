@@ -17,14 +17,13 @@ limitations under the License.
 package encryptor
 
 import (
-	"encoding/binary"
 	"encoding/hex"
 	"errors"
 	"github.com/cossacklabs/acra/logging"
 	"github.com/cossacklabs/acra/sqlparser"
 	"github.com/cossacklabs/acra/utils"
 	"github.com/sirupsen/logrus"
-	"strconv"
+	"unicode/utf8"
 )
 
 var pgHexStringPrefix = []byte{'\\', 'x'}
@@ -122,13 +121,15 @@ func (*PostgresqlDBDataCoder) Encode(expr sqlparser.Expr, data []byte) ([]byte, 
 	case *sqlparser.SQLVal:
 		switch val.Type {
 		case sqlparser.IntVal:
-			strconv.FormatInt(int64(binary.BigEndian.Uint64(data)), 64)
 			return data, nil
 		case sqlparser.HexVal:
 			output := make([]byte, hex.EncodedLen(len(data)))
 			hex.Encode(output, data)
 			return output, nil
 		case sqlparser.PgEscapeString, sqlparser.StrVal:
+			if utf8.Valid(data){
+				return data, nil
+			}
 			newVal := make([]byte, len(pgHexStringPrefix)+hex.EncodedLen(len(data)))
 			copy(newVal, pgHexStringPrefix)
 			hex.Encode(newVal[len(pgHexStringPrefix):], data)
