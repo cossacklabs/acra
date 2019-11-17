@@ -43,8 +43,8 @@ func EncodeToOctal(data []byte) []byte {
 	return res
 }
 
-// ErrDecodeEscapedString on incorrect decoding with DecodeOctal
-var ErrDecodeEscapedString = errors.New("can't decode escaped string")
+// ErrDecodeOctalString on incorrect decoding with DecodeOctal
+var ErrDecodeOctalString = errors.New("can't decode escaped string")
 
 // DecodeOctal escaped string
 // See https://www.postgresql.org/docs/current/static/datatype-binary.html#AEN5667
@@ -53,7 +53,7 @@ func DecodeOctal(data []byte) ([]byte, error) {
 	for i := 0; i < len(data); i++ {
 		ch := data[i]
 		if !IsPrintableEscapeChar(ch) {
-			return nil, ErrDecodeEscapedString
+			return nil, ErrDecodeOctalString
 		}
 		if ch != '\\' {
 			output = append(output, ch)
@@ -61,7 +61,7 @@ func DecodeOctal(data []byte) ([]byte, error) {
 		}
 		if i >= len(data)-1 {
 			logrus.Debugln("Encoded string incomplete")
-			return nil, ErrDecodeEscapedString
+			return nil, ErrDecodeOctalString
 		}
 		if data[i+1] == '\\' {
 			output = append(output, '\\')
@@ -70,14 +70,14 @@ func DecodeOctal(data []byte) ([]byte, error) {
 		}
 		if i+3 >= len(data) {
 			logrus.Debugln("Encoded string incomplete")
-			return nil, ErrDecodeEscapedString
+			return nil, ErrDecodeOctalString
 		}
 		b := byte(0)
 		for j := 1; j <= 3; j++ {
 			octDigit := data[i+j]
 			if octDigit < '0' || octDigit > '7' {
 				logrus.Debugln("Invalid bytea escape sequence")
-				return nil, ErrDecodeEscapedString
+				return nil, ErrDecodeOctalString
 			}
 			b = (b << 3) | (octDigit - '0')
 		}
@@ -87,15 +87,45 @@ func DecodeOctal(data []byte) ([]byte, error) {
 	return output, nil
 }
 
+type DecodedData struct {
+	data       []byte
+	encodeFunc func([]byte) []byte
+}
+
+func (d *DecodedData) Data() []byte {
+	return d.data
+}
+func (d *DecodedData) Set(data []byte) {
+	d.data = data
+}
+func (d *DecodedData) Encoded() []byte {
+	return d.encodeFunc(d.data)
+}
+
+func hexEncode(data []byte) []byte {
+	output := make([]byte, 2+hex.EncodedLen(len(data)))
+	copy(output[:2], []byte{'\\', 'x'})
+	hex.Encode(output[2:], data)
+	return output
+}
+
+func dryEncode(data []byte) []byte {
+	return data
+}
+
 // DecodeEscaped with hex or octal encodings
-func DecodeEscaped(data []byte) ([]byte, error) {
+func DecodeEscaped(data []byte) (*DecodedData, error) {
 	if len(data) > 2 && bytes.Equal(data[:2], []byte{'\\', 'x'}) {
 		hexdata := data[2:]
 		output := make([]byte, hex.DecodedLen(len(hexdata)))
 		_, err := hex.Decode(output, hexdata)
-		return output, err
+		return &DecodedData{data: output, encodeFunc: hexEncode}, err
 	}
-	return DecodeOctal(data)
+	result, err := DecodeOctal(data)
+	if err != nil {
+		return &DecodedData{data: data, encodeFunc: dryEncode}, ErrDecodeOctalString
+	}
+	return &DecodedData{data: result, encodeFunc: EncodeToOctal}, nil
 }
 
 // QuoteValue returns name in quotes, if name contains quotes, doubles them

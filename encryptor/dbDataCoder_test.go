@@ -121,7 +121,7 @@ func TestPostgresqlDBDataCoder_Decode(t *testing.T) {
 			Expr: sqlparser.NewHexVal([]byte(hex.EncodeToString(testData))[1:]),
 		},
 		{
-			Err: utils.ErrDecodeEscapedString,
+			Err: utils.ErrDecodeOctalString,
 			// short data
 			Expr: sqlparser.NewStrVal([]byte{1, 2, 3}),
 		},
@@ -137,7 +137,7 @@ func TestPostgresqlDBDataCoder_Decode(t *testing.T) {
 		},
 		// PgEscapeVal same as for StrVal
 		{
-			Err: utils.ErrDecodeEscapedString,
+			Err: utils.ErrDecodeOctalString,
 			// short data
 			Expr: sqlparser.NewPgEscapeString([]byte{1, 2, 3}),
 		},

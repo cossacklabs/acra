@@ -17,12 +17,14 @@ limitations under the License.
 package encryptor
 
 import (
+	"encoding/binary"
 	"encoding/hex"
 	"errors"
 	"github.com/cossacklabs/acra/logging"
 	"github.com/cossacklabs/acra/sqlparser"
 	"github.com/cossacklabs/acra/utils"
 	"github.com/sirupsen/logrus"
+	"strconv"
 )
 
 var pgHexStringPrefix = []byte{'\\', 'x'}
@@ -83,6 +85,8 @@ func (*PostgresqlDBDataCoder) Decode(expr sqlparser.Expr) ([]byte, error) {
 	switch val := expr.(type) {
 	case *sqlparser.SQLVal:
 		switch val.Type {
+		case sqlparser.IntVal:
+			return val.Val, nil
 		case sqlparser.HexVal:
 			binValue := make([]byte, hex.DecodedLen(len(val.Val)))
 			_, err := hex.Decode(binValue, val.Val)
@@ -98,7 +102,7 @@ func (*PostgresqlDBDataCoder) Decode(expr sqlparser.Expr) ([]byte, error) {
 				// return error on hex decode
 				if _, ok := err.(hex.InvalidByteError); err == hex.ErrLength || ok {
 					return nil, err
-				} else if err == utils.ErrDecodeEscapedString {
+				} else if err == utils.ErrDecodeOctalString {
 					return nil, err
 				}
 
@@ -106,7 +110,7 @@ func (*PostgresqlDBDataCoder) Decode(expr sqlparser.Expr) ([]byte, error) {
 				// return value as is because it may be string with printable characters that wasn't encoded on client
 				return val.Val, nil
 			}
-			return binValue, nil
+			return binValue.Data(), nil
 		}
 	}
 	return nil, errUnsupportedExpression
@@ -117,6 +121,9 @@ func (*PostgresqlDBDataCoder) Encode(expr sqlparser.Expr, data []byte) ([]byte, 
 	switch val := expr.(type) {
 	case *sqlparser.SQLVal:
 		switch val.Type {
+		case sqlparser.IntVal:
+			strconv.FormatInt(int64(binary.BigEndian.Uint64(data)), 64)
+			return data, nil
 		case sqlparser.HexVal:
 			output := make([]byte, hex.EncodedLen(len(data)))
 			hex.Encode(output, data)
