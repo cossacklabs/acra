@@ -70,18 +70,53 @@ func (store *MapTableSchemaStore) IsEmpty() bool {
 
 // ColumnEncryptionSetting describe how to encrypt column
 type ColumnEncryptionSetting struct {
-	Name       string `yaml:"column"`
-	ClientID   string `yaml:"client_id"`
-	ZoneID     string `yaml:"zone_id"`
-	Searchable bool   `yaml:"searchable"`
-	Masking    string `yaml:"masking"`
-	PartialPlaintextLenBytes int    `yaml:"open_part_length"`
-	EndOfPlaintext           bool   `yaml:"end_of_data"`
+	Name                     string    `yaml:"column"`
+	ClientID                 string    `yaml:"client_id"`
+	ZoneID                   string    `yaml:"zone_id"`
+	Searchable               bool      `yaml:"searchable"`
+	Masking                  string    `yaml:"masking"`
+	PartialPlaintextLenBytes int       `yaml:"open_part_length"`
+	EndOfPlaintext           bool      `yaml:"end_of_data"`
+	Tokenized                bool      `yaml:"tokenized"`
+	TokenType                TokenType `yaml:"token_type"`
+}
+
+type TokenType string
+
+const (
+	TokenTypeInt32   TokenType = "int32"
+	TokenTypeInt64   TokenType = "int64"
+	TokenTypeString  TokenType = "str"
+	TokenTypeBytes   TokenType = "bytes"
+	TokenTypeEmail   TokenType = "email"
+	defaultTokenType TokenType = TokenTypeBytes
+)
+
+var tokenTypeMap = map[TokenType]TokenType{
+	TokenTypeEmail:  TokenTypeEmail,
+	TokenTypeInt32:  TokenTypeInt32,
+	TokenTypeInt64:  TokenTypeInt64,
+	TokenTypeBytes:  TokenTypeBytes,
+	TokenTypeString: TokenTypeString,
 }
 
 // IsSearchable return true if column should be searchable
 func (s *ColumnEncryptionSetting) IsSearchable() bool {
 	return s.Searchable
+}
+
+// IsSearchable return true if column should be searchable
+func (s *ColumnEncryptionSetting) IsTokenized() bool {
+	return s.Tokenized
+}
+
+// IsSearchable return true if column should be searchable
+func (s *ColumnEncryptionSetting) GetTokenType() TokenType {
+	t, ok := tokenTypeMap[s.TokenType]
+	if ok {
+		return t
+	}
+	return defaultTokenType
 }
 
 func (s *ColumnEncryptionSetting) GetMaskingPattern() string {
@@ -92,7 +127,7 @@ func (s *ColumnEncryptionSetting) GetPartialPlaintextLen() int {
 	return s.PartialPlaintextLenBytes
 }
 
-func (s * ColumnEncryptionSetting) IsEndMasking() bool {
+func (s *ColumnEncryptionSetting) IsEndMasking() bool {
 	return s.EndOfPlaintext
 }
 
