@@ -18,6 +18,7 @@ package encryptor
 
 import (
 	"bytes"
+	"crypto/rand"
 	"encoding/hex"
 	"fmt"
 	"github.com/cossacklabs/acra/sqlparser"
@@ -155,7 +156,8 @@ func TestPostgresqlDBDataCoder_Decode(t *testing.T) {
 }
 
 func TestPostgresqlDBDataCoder_Encode(t *testing.T) {
-	testData := []byte("some data")
+	testData := make([]byte, 100)
+	rand.Read(testData)
 	coder := &PostgresqlDBDataCoder{}
 	testCases := []struct {
 		Expr   sqlparser.Expr
@@ -183,7 +185,7 @@ func TestPostgresqlDBDataCoder_Encode(t *testing.T) {
 			t.Fatalf("Expr: %s\nTook: %s\nExpected: %s", sqlparser.String(testCase.Expr), string(coded), string(testCase.Output))
 		}
 	}
-	if _, err := coder.Encode(sqlparser.NewIntVal([]byte{1}), testData); err != errUnsupportedExpression {
+	if _, err := coder.Encode(sqlparser.NewFloatVal([]byte{1}), testData); err != errUnsupportedExpression {
 		t.Fatalf("Incorrect error. Took: %s; Expected: %s", err.Error(), errUnsupportedExpression.Error())
 	}
 }
