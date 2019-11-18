@@ -16,7 +16,10 @@ limitations under the License.
 
 package config
 
-import "gopkg.in/yaml.v2"
+import (
+	"errors"
+	"gopkg.in/yaml.v2"
+)
 
 // TableSchemaStore interface to fetch schema for table
 type TableSchemaStore interface {
@@ -38,6 +41,9 @@ func NewMapTableSchemaStore() (*MapTableSchemaStore, error) {
 	return &MapTableSchemaStore{make(map[string]*TableSchema)}, nil
 }
 
+var ErrInvalidTokenType = errors.New("invalid token type")
+var ErrInvalidPlainTextSide = errors.New("invalid plaintext_side")
+
 // MapTableSchemaStoreFromConfig parse config and return MapTableSchemaStore with data from config
 func MapTableSchemaStoreFromConfig(config []byte) (*MapTableSchemaStore, error) {
 	storeConfig := &storeConfig{}
@@ -46,6 +52,16 @@ func MapTableSchemaStoreFromConfig(config []byte) (*MapTableSchemaStore, error) 
 	}
 	mapSchemas := make(map[string]*TableSchema, len(storeConfig.Schemas))
 	for _, schema := range storeConfig.Schemas {
+		for _, setting := range schema.EncryptionColumnSettings {
+			if setting.Tokenized {
+				if !ValidateTokenType(setting.TokenType) {
+					return nil, ErrInvalidTokenType
+				}
+			}
+			if !ValidateMaskingParams(setting) {
+				return nil, ErrInvalidPlainTextSide
+			}
+		}
 		mapSchemas[schema.TableName] = schema
 	}
 	return &MapTableSchemaStore{mapSchemas}, nil
@@ -70,15 +86,48 @@ func (store *MapTableSchemaStore) IsEmpty() bool {
 
 // ColumnEncryptionSetting describe how to encrypt column
 type ColumnEncryptionSetting struct {
-	Name                     string    `yaml:"column"`
-	ClientID                 string    `yaml:"client_id"`
-	ZoneID                   string    `yaml:"zone_id"`
-	Searchable               bool      `yaml:"searchable"`
-	Masking                  string    `yaml:"masking"`
-	PartialPlaintextLenBytes int       `yaml:"open_part_length"`
-	EndOfPlaintext           bool      `yaml:"end_of_data"`
-	Tokenized                bool      `yaml:"tokenized"`
-	TokenType                TokenType `yaml:"token_type"`
+	Name                     string        `yaml:"column"`
+	ClientID                 string        `yaml:"client_id"`
+	ZoneID                   string        `yaml:"zone_id"`
+	Searchable               bool          `yaml:"searchable"`
+	Masking                  string        `yaml:"masking"`
+	PartialPlaintextLenBytes int           `yaml:"plaintext_length"`
+	PlaintextSide            PlainTextSide `yaml:"plaintext_side"`
+	Tokenized                bool          `yaml:"tokenized"`
+	TokenType                TokenType     `yaml:"token_type"`
+}
+
+type PlainTextSide string
+
+const (
+	PlainTextSideLeft  PlainTextSide = "left"
+	PlainTextSideRight PlainTextSide = "right"
+)
+
+func ValidateMaskingParams(setting *ColumnEncryptionSetting) bool {
+	if setting.Masking == "" {
+		return true
+	}
+	if setting.PartialPlaintextLenBytes < 0 {
+		return false
+	}
+	if setting.PlaintextSide != PlainTextSideRight && setting.PlaintextSide != PlainTextSideLeft {
+		return false
+	}
+	return true
+}
+
+var supportedTokenValues = map[TokenType]bool{
+	TokenTypeInt32:  true,
+	TokenTypeInt64:  true,
+	TokenTypeBytes:  true,
+	TokenTypeString: true,
+	TokenTypeEmail:  true,
+}
+
+func ValidateTokenType(value TokenType) bool {
+	_, ok := supportedTokenValues[value]
+	return ok
 }
 
 type TokenType string
@@ -128,7 +177,7 @@ func (s *ColumnEncryptionSetting) GetPartialPlaintextLen() int {
 }
 
 func (s *ColumnEncryptionSetting) IsEndMasking() bool {
-	return s.EndOfPlaintext
+	return s.PlaintextSide == PlainTextSideLeft
 }
 
 // TableSchema store table schema and encryption settings per column
