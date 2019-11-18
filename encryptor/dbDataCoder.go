@@ -127,7 +127,7 @@ func (*PostgresqlDBDataCoder) Encode(expr sqlparser.Expr, data []byte) ([]byte, 
 			hex.Encode(output, data)
 			return output, nil
 		case sqlparser.PgEscapeString, sqlparser.StrVal:
-			if utf8.Valid(data){
+			if utf8.Valid(data) {
 				return data, nil
 			}
 			newVal := make([]byte, len(pgHexStringPrefix)+hex.EncodedLen(len(data)))
