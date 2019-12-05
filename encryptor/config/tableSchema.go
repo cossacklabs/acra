@@ -94,6 +94,7 @@ type ColumnEncryptionSetting struct {
 	PartialPlaintextLenBytes int           `yaml:"plaintext_length"`
 	PlaintextSide            PlainTextSide `yaml:"plaintext_side"`
 	Tokenized                bool          `yaml:"tokenized"`
+	ConsistentTokenization   bool          `yaml:"consistent_tokenization"`
 	TokenType                TokenType     `yaml:"token_type"`
 }
 
@@ -157,6 +158,11 @@ func (s *ColumnEncryptionSetting) IsSearchable() bool {
 // IsSearchable return true if column should be searchable
 func (s *ColumnEncryptionSetting) IsTokenized() bool {
 	return s.Tokenized
+}
+
+// IsConsistentTokenization return true if tokens should be consistent
+func (s *ColumnEncryptionSetting) IsConsistentTokenization() bool {
+	return s.ConsistentTokenization
 }
 
 // IsSearchable return true if column should be searchable

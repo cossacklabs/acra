@@ -28,6 +28,7 @@ type EncryptionSetting interface {
 	GetMaskingPattern() string
 	GetPartialPlaintextLen() int
 	IsEndMasking() bool
+	IsConsistentTokenization() bool
 }
 
 // DataEncryptor replace raw data in queries with encrypted
