@@ -1,7 +1,7 @@
 <h3 align="center">
   <a href="https://www.cossacklabs.com/acra/"><img src="https://github.com/cossacklabs/acra/wiki/Images/acralogo.png" alt="Acra: database security suite" width="420"></a>
   <br>
-  Database protection suite with selective encryption and intrusion detection.
+  Database protection suite with field level encryption and intrusion detection.
   <br>
 </h3>
 
@@ -19,14 +19,14 @@
 </p>
 <br>
 
-| [Acra Live Demo](https://www.cossacklabs.com/acra/#acralivedemo) | [Acra Engineering Demo](https://github.com/cossacklabs/acra-engineering-demo) | [Documentation](https://docs.cossacklabs.com/products/acra/) | [Installation](https://github.com/cossacklabs/acra#installation-and-launch) | [Examples and tutorials](https://github.com/cossacklabs/acra#documentation-and-tutorials) |
+| [Acra Live Demo](https://www.cossacklabs.com/acra/#acralivedemo) | [Acra Engineering Examples](https://github.com/cossacklabs/acra-engineering-demo) | [Documentation](https://docs.cossacklabs.com/products/acra/) | [Installation](https://github.com/cossacklabs/acra#installation-and-launch) | [Examples and tutorials](https://github.com/cossacklabs/acra#documentation-and-tutorials) |
 | ---- | ---- | ---- | --- | --- |
 
 
 ## What is Acra
 Acra — database security suite for sensitive and personal data protection.
 
-Acra provides selective encryption, multi-layered access control, database leakage prevention, and intrusion detection capabilities in a convenient, developer-friendly package. Acra was specifically designed for web and mobile apps with centralised data storage, including with distributed, microservice-rich applications.
+Acra provides field level encryption (client-side or proxy-side), multi-layered access control, database leakage prevention, and intrusion detection capabilities in a convenient, developer-friendly package. Acra was specifically designed for web and mobile apps with centralised data storage, including with distributed, microservice-rich applications.
 
 <table><thead><tr><th>Perfect Acra-compatible applications</th>
 <th>Typical industries</th></tr></thead>
@@ -41,7 +41,7 @@ Acra provides selective encryption, multi-layered access control, database leaka
 </tr><tr><td>High-load data processing apps</td>
 </tr></tbody></table>
 
-Acra gives you tools for encrypting the data on the application's side into special [cryptographic containers](https://docs.cossacklabs.com/pages/documentation-acra/#acrastruct), storing them in the database or file storage and then decrypting them in a secure compartmented area (separate virtual machine/container). 
+Acra gives you tools for encrypting the data records into special [cryptographic containers](https://docs.cossacklabs.com/pages/documentation-acra/#acrastruct), storing them in the database or file storage and then decrypting them in a secure compartmented area (separate virtual machine/container). Acra allows to encrypt data as early as possible and operate on encrypted data.
 
 Acra's cryptographic design ensures that no secret (password, key, etc.) leaked from the application or database will be sufficient for decryption of the protected data chunks that originate from it. Acra minimises the leakage scope, detects unauthorised behavior, and prevents the leakage, informing operators of the incident underway.
 
@@ -51,14 +51,16 @@ This is [Acra Community Edition](https://www.cossacklabs.com/acra/#pricing), it'
 
 ### Major security features
 
-<table><tbody><tr><tr><td><li>Cryptographic protection of data </li></td><td> during storage and transmission, using unique encryption keys per data blob, per user, per application </td>
-</tr><tr><td><li>Selective encryption </li></td><td> protect only the sensitive data to balance good security and performance </td>
+<table><tbody><tr><tr><td><li>Cryptographic protection of data </li></td><td> field level encryption (client-side and/or proxy-side);<br/> each data record is encrypted using unique encryption keys</td>
+</tr><tr><td><li>Selective encryption </li></td><td> select which field/columns to encrypt to balance good security and performance </td>
 </tr><tr><td><li>Key management tools </li></td><td> built-in tools for key distribution, key rotation, and compartmentalisation</td>
 </tr><tr><td><li>Trust compartmentalisation </li></td><td> datastore and application components can be compromised, yet the data stays protected</td>
 </tr><tr><td><li>Prevention of SQL injections </li></td><td> through a built-in SQL firewall </td>
-</tr><tr><td><li>Intrusion detection system </li></td><td> early warning about suspicious behaviour </td>
-</tr><tr><td><li>Searchable encryption ᵉ </li></td><td>available for <a href="https://www.cossacklabs.com/acra/#pricing" target="_blank">Acra Enterprise</a> users</td>
-</tr><tr><td><li>Pseudonymisation </li></td><td rowspan=2> <i>coming in the (nearest) future releases</i>
+</tr><tr><td><li>Intrusion detection system </li></td><td> using poison records (honey tokens) to warn about suspicious behaviour </td>
+</tr><tr><td><li>Searchable encryption ᵉ </li></td><td rowspan=3>available for <a href="https://www.cossacklabs.com/acra/#pricing" target="_blank">Acra Enterprise</a> users</td>
+</tr><tr><td><li>Masking ᵉ </li></td>
+</tr><tr><td><li>Obfuscation / tokenization ᵉ </li></td>
+</tr><tr><td><li>Pseudonymisation </li></td><td rowspan=2> <i>coming in the nearest releases</i>
 </tr><tr><td><li>Cryptographically protected audit log </li></td>
 </tr></tbody></table>
 
@@ -146,7 +148,7 @@ This is what the process of encryption and decryption of data in a database look
 - Upon receiving the database response, AcraServer tries to detect AcraStructs, decrypts them, and returns the decrypted data to the application.    
 - AcraConnector is a client-side daemon responsible for providing encrypted and authenticated connection between the application and AcraServer. [**AcraConnector**](https://docs.cossacklabs.com/pages/documentation-acra/#client-side-acraconnector-and-acrawriter) runs under a separate user/in a separate container and acts as middleware. AcraConnector accepts connections from the application, adds an extra transport encryption layer using TLS or [Themis Secure Session](http://docs.cossacklabs.com/pages/secure-session-cryptosystem/), sends the data to AcraServer, receives the result, and sends it back to the application.
 
-#### Integrating server-side encryption using AcraServer in Transparent proxy mode
+#### Integrating proxy-side encryption using AcraServer in Transparent proxy mode
 
 <p align="center"><img src="https://github.com/cossacklabs/acra/wiki/Images/readme/acra-server-proxy.png" alt="Server-side encryption using AcraServer" width="1600"></p>
 
@@ -305,12 +307,12 @@ You can also check out the speaker slides for the following talks by Cossack Lab
 
 ## Demo projects
 
-| [Django sample project](https://github.com/cossacklabs/djangoproject.com) | [RubyGems sample project](https://github.com/cossacklabs/rubygems.org) |
+| [Client-side encryption mode](https://github.com/cossacklabs/acra-engineering-demo/#examples-1-2-protecting-data-on-django-based-web-site) | [Transparent encryption mode](https://github.com/cossacklabs/acra-engineering-demo/#transparent-encryption-mode) |
 | --- | --- |
 
-### AcraCensor Example (SQL firewall in action)
+### AcraCensor: SQL firewall to prevent SQL injections
 
-[AcraCensor Demo](https://github.com/cossacklabs/acra-censor-demo) is an example project that illustrates how to use [AcraCensor](https://docs.cossacklabs.com/pages/documentation-acra/#acracensor-acra-s-firewall) as SQL firewall to prevent SQL injections. The target application is a well-known vulnerable web application [OWASP Mutillidae 2](https://github.com/webpwnized/mutillidae). 
+[AcraCensor example application](https://github.com/cossacklabs/acra-engineering-demo/#example-6-sql-injections-prevention-with-acra) illustrates how to use [AcraCensor](https://docs.cossacklabs.com/pages/documentation-acra/#acracensor-acra-s-firewall) as SQL firewall to prevent SQL injections. The target application is a well-known vulnerable web application [OWASP Mutillidae 2](https://github.com/webpwnized/mutillidae). 
 
 The demo project has a Docker-compose file that runs the following web infrastructure:    
 
@@ -323,14 +325,23 @@ Acra works as a proxy between web and database. AcraCensor inspects every SQL qu
 
 Requirements: Linux or macOS with installed Docker.
 
-| ⚙️ [Run AcraCensor SQL firewall example](https://github.com/cossacklabs/acra-censor-demo) ⚙️ |
+| ⚙️ [Run AcraCensor SQL firewall example](https://github.com/cossacklabs/acra-engineering-demo/#example-6-sql-injections-prevention-with-acra) ⚙️ |
 |---|
 
-### Acra Load Balancing Example (HAProxy-based infrastructures)
+### Poison records: intrusion detection example
 
-[Acra Load Balancing Example](https://github.com/cossacklabs/acra-balancer-demo) illustrates building high availability and balanced infrastructure, based on Acra components, PostgreSQL, and Python web application. We prepared several configurations with multiple databases and HAProxy.
+[Intrusion detection example application](https://github.com/cossacklabs/acra-engineering-demo/#example-7-intrusion-detection-with-acra) illustrates how to use poison records (honey tokens) as "intrusion markers" that warn about possible attack.
 
-| 🔛 [Run Acra Load Balancing Example](https://github.com/cossacklabs/acra-balancer-demo) 🔛 |
+Requirements: Linux or macOS with installed Docker.
+
+| 🍯 [Run intrusion detection example](https://github.com/cossacklabs/acra-engineering-demo/#example-7-intrusion-detection-with-acra) 🐝 |
+|---|
+
+### Acra Load Balancing Example
+
+[Acra load balancing example application](https://github.com/cossacklabs/acra-engineering-demo/#example-8-load-balancing-with-acra) illustrates building high availability and balanced infrastructure, based on Acra components, PostgreSQL, and Python web application. We prepared several configurations with multiple databases and HAProxy.
+
+| 🔛 [Run Acra Load Balancing Example](https://github.com/cossacklabs/acra-engineering-demo/#example-8-load-balancing-with-acra) 🔛 |
 |---|
 
 ## GDPR and HIPAA
@@ -341,13 +352,13 @@ Acra can help you comply with GDPR and HIPAA regulations. Configuring and using 
 
 This is Acra Community Edition, the open source version of Acra, which is 💯 free for commercial and non-commercial usage. Please let us know in the [Issues](https://www.github.com/cossacklabs/acra/issues) if you stumble upon a bug, see a possible enhancement, or have a comment on security design.
 
-There are also [Pro and Enterprise versions of Acra](https://www.cossacklabs.com/acra/#pricing) available. Those versions provide better performance, redunancy/load balancing, come pre-configured with crypto-primitives of your choice (FIPS, GOST), integrate with key/secret management tools in your stack, provide unique security features like search through encrypted data, and have plenty of utils and tools for your Ops and SREs to operate Acra conveniently – deployment automation, scaling, monitoring, and logging. [Talk to us](mailto:sales@cossacklabs.com) to get full feature lists and a quote.
+There are also [Pro and Enterprise versions of Acra](https://www.cossacklabs.com/acra/#pricing) available. Those versions provide better performance, redundancy/load balancing, come pre-configured with crypto-primitives of your choice (FIPS, GOST), have integration with key/secret management tools in your stack, provide unique security features like search through encrypted data, and have plenty of utils and tools for your Ops and SREs to operate Acra conveniently – deployment automation, scaling, monitoring, and logging. [Talk to us](mailto:sales@cossacklabs.com) to get full feature lists and a quote.
 
 ## Security consulting
 
-It takes more than just getting cryptographic code to compile to secure the sensitive data. Acra won't make you “compliant out of the box” with all the modern security regulations, and no other tool will. 
+It takes more than just getting cryptographic code to compile to secure the sensitive data. Acra won't make you “compliant out of the box” with all the modern security regulations, and no other tool will.
 
-[We help companies](https://www.cossacklabs.com/dgap/) plan their data security strategy by auditing, assessing data flow, and classifying the data, enumerating the risks. We do the hardest, least-attended part of reaching the compliance – turning it from the “cost of doing business” into the “security framework that prevents risks”.
+[We help companies](https://www.cossacklabs.com/services/overview/) plan their data security strategy by auditing, assessing data flow, and classifying the data, enumerating the risks. We do the hardest, least-attended part of reaching the compliance – turning it from the “cost of doing business” into the “security framework that prevents risks”.
 
 
 ## Contributing to us
@@ -366,6 +377,5 @@ If you want to ask a technical question, feel free to raise an [Issue](https://g
 
 To talk to the business wing of Cossack Labs Limited, drop us an email to [info@cossacklabs.com](mailto:info@cossacklabs.com).
    
-[![Blog](https://img.shields.io/badge/blog-cossacklabs.com-7a7c98.svg)](https://cossacklabs.com/) [![Twitter CossackLabs](https://img.shields.io/badge/twitter-cossacklabs-fbb03b.svg)](http://twitter.com/cossacklabs) [![Medium CossackLabs](https://img.shields.io/badge/medium-%40cossacklabs-orange.svg)](https://medium.com/@cossacklabs/)
-
+[![Blog](https://img.shields.io/badge/blog-cossacklabs.com-7a7c98.svg)](https://cossacklabs.com/) [![Twitter CossackLabs](https://img.shields.io/badge/twitter-cossacklabs-fbb03b.svg)](https://twitter.com/cossacklabs) [![Medium CossackLabs](https://img.shields.io/badge/medium-%40cossacklabs-orange.svg)](https://medium.com/@cossacklabs/)
 
