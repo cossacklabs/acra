@@ -7,6 +7,7 @@ import (
 	"errors"
 	"github.com/cossacklabs/acra/decryptor/base"
 	"github.com/cossacklabs/acra/logging"
+	"github.com/cossacklabs/acra/utils"
 	"github.com/sirupsen/logrus"
 	"io"
 )
@@ -82,7 +83,7 @@ func (packet *PacketHandler) updateDataFromColumns() {
 
 		for i := 0; i < packet.columnCount; i++ {
 			packet.descriptionBuf.Write(packet.Columns[i].LengthBuf[:])
-			packet.descriptionBuf.Write(packet.Columns[i].Data)
+			packet.descriptionBuf.Write(packet.Columns[i].data)
 		}
 		packet.updatePacketLength(newDataLength)
 	}
@@ -123,10 +124,12 @@ func (packet *PacketHandler) sendMessageType() error {
 
 // ColumnData hold column length and data
 type ColumnData struct {
-	LengthBuf [4]byte
-	Data      []byte
-	changed   bool
-	isNull    bool
+	LengthBuf   [4]byte
+	Data        []byte
+	data        []byte
+	decodedData *utils.DecodedData
+	changed     bool
+	isNull      bool
 }
 
 // Length return column length converted from LengthBuf
@@ -167,22 +170,40 @@ func (column *ColumnData) readData(reader io.Reader) error {
 	}
 	column.isNull = false
 	if length == 0 {
-		column.Data = []byte{}
+		var err error
+		column.decodedData, err = utils.DecodeEscaped(column.data)
+		if err != nil && err != utils.ErrDecodeOctalString {
+			return err
+		}
+		// ignore utils.ErrDecodeOctalString
+		column.Data = column.decodedData.Data()
 		return nil
 	}
-	column.Data = make([]byte, length)
+	column.data = make([]byte, length)
 
 	// first 4 bytes is packet length and then 2 bytes of column count
 	// https://www.postgresql.org/docs/9.3/static/protocol-message-formats.html
-	n, err := io.ReadFull(reader, column.Data)
+	n, err := io.ReadFull(reader, column.data)
+	if err != nil {
+		return err
+	}
+	column.decodedData, err = utils.DecodeEscaped(column.data)
+	if err != nil && err != utils.ErrDecodeOctalString {
+		return err
+	}
+	// ignore utils.ErrDecodeOctalString
+	err = nil
+	column.Data = column.decodedData.Data()
 	return base.CheckReadWrite(n, length, err)
 }
 
 // SetData to column and update LengthBuf with new size
 func (column *ColumnData) SetData(newData []byte) {
 	column.changed = true
+	column.decodedData.Set(newData)
 	column.Data = newData
-	binary.BigEndian.PutUint32(column.LengthBuf[:], uint32(len(newData)))
+	column.data = column.decodedData.Encoded()
+	binary.BigEndian.PutUint32(column.LengthBuf[:], uint32(len(column.data)))
 }
 
 // parseColumns split whole data row packet into separate columns data

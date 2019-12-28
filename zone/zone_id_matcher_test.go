@@ -28,7 +28,6 @@ limitations under the License.
 package zone_test
 
 import (
-	"encoding/hex"
 	"github.com/cossacklabs/acra/keystore"
 	"github.com/cossacklabs/acra/zone"
 	"github.com/cossacklabs/themis/gothemis/keys"
@@ -88,17 +87,16 @@ func (*TestKeyStore) GetClientIDEncryptionPublicKey(clientID []byte) (*keys.Publ
 
 func testZoneIDMatcher(t *testing.T) {
 	var keystorage keystore.KeyStore = &TestKeyStore{}
-	matcherPool := zone.NewMatcherPool(zone.NewPgHexMatcherFactory())
+	matcherPool := zone.NewMatcherPool(zone.NewPgMatcherFactory())
 	zoneMatcher := zone.NewZoneMatcher(matcherPool, keystorage)
-	var HEX_ZONE_ID_BEGIN = []byte(hex.EncodeToString(zone.ZoneIDBegin))
 
 	// test correct matching
 	t.Log("Check zone id")
-	for _, c := range HEX_ZONE_ID_BEGIN {
+	for _, c := range zone.ZoneIDBegin {
 		assertZoneMatchNotFail(byte(c), zoneMatcher, t)
 	}
 	// fill zone id
-	for i := 0; i < (zone.ZoneIDLength * 2); i++ {
+	for i := 0; i < (zone.ZoneIDLength); i++ {
 		assertZoneMatchNotFail('a', zoneMatcher, t)
 	}
 
@@ -111,7 +109,7 @@ func testZoneIDMatcher(t *testing.T) {
 	// test correct matching inner zone id
 	t.Log("Check inner zone id")
 	// feed correct tag begin
-	for _, c := range HEX_ZONE_ID_BEGIN {
+	for _, c := range zone.ZoneIDBegin {
 		assertZoneMatchNotFail(byte(c), zoneMatcher, t)
 	}
 	// feed half of correct zone id
@@ -120,11 +118,11 @@ func testZoneIDMatcher(t *testing.T) {
 	}
 
 	// feed second correct tag begin in zone_id block
-	for _, c := range HEX_ZONE_ID_BEGIN {
+	for _, c := range zone.ZoneIDBegin {
 		assertZoneMatchNotFail(byte(c), zoneMatcher, t)
 	}
 	// feed correct zone id
-	for i := 0; i < (zone.ZoneIDLength * 2); i++ {
+	for i := 0; i < (zone.ZoneIDLength); i++ {
 		assertZoneMatchNotFail('a', zoneMatcher, t)
 	}
 

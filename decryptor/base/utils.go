@@ -28,8 +28,8 @@ import (
 	"github.com/cossacklabs/themis/gothemis/message"
 )
 
-// getDataLengthFromAcraStruct unpack data length value from AcraStruct
-func getDataLengthFromAcraStruct(data []byte) int {
+// GetDataLengthFromAcraStruct unpack data length value from AcraStruct
+func GetDataLengthFromAcraStruct(data []byte) int {
 	dataLengthBlock := data[GetMinAcraStructLength()-DataLengthSize : GetMinAcraStructLength()]
 	return int(binary.LittleEndian.Uint64(dataLengthBlock))
 }
@@ -57,7 +57,7 @@ func ValidateAcraStructLength(data []byte) error {
 	if !bytes.Equal(data[:len(TagBegin)], TagBegin) {
 		return ErrIncorrectAcraStructTagBegin
 	}
-	dataLength := getDataLengthFromAcraStruct(data)
+	dataLength := GetDataLengthFromAcraStruct(data)
 	if dataLength != len(data[GetMinAcraStructLength():]) {
 		return ErrIncorrectAcraStructDataLength
 	}

@@ -107,6 +107,7 @@ type DataDecryptor interface {
 // Decryptor describes all methods needed to find and decrypt AcraStruct in binary file.
 type Decryptor interface {
 	DataDecryptor
+	DecryptionSubscriber
 	// register key store that will be used for retrieving private keys
 	SetKeyStore(keystore.KeyStore)
 	// return private key for current connected client for decrypting symmetric

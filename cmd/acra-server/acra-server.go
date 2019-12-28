@@ -91,7 +91,7 @@ func main() {
 	keysCacheSize := flag.Int("keystore_cache_size", keystore.InfiniteCacheSize, "Maximum number of keys stored in in-memory LRU cache in encrypted form. 0 - no limits, -1 - turn off cache")
 
 	_ = flag.Bool("pgsql_hex_bytea", false, "Hex format for Postgresql bytea data (default)")
-	pgEscapeFormat := flag.Bool("pgsql_escape_bytea", false, "Escape format for Postgresql bytea data")
+	flag.Bool("pgsql_escape_bytea", false, "Escape format for Postgresql bytea data")
 
 	secureSessionID := flag.String("securesession_id", "acra_server", "Id that will be sent in secure session")
 
@@ -298,15 +298,7 @@ func main() {
 		}
 		sqlparser.SetDefaultDialect(mysqlDialect.NewMySQLDialect())
 	} else {
-		// postgresql as default
-		var byteFormat postgresql.EscapeType
-		if *pgEscapeFormat {
-			byteFormat = postgresql.EscapeByteaFormat
-		} else {
-			byteFormat = postgresql.HexByteaFormat
-		}
-
-		decryptorFactory = postgresql.NewDecryptorFactory(byteFormat, decryptorSetting)
+		decryptorFactory = postgresql.NewDecryptorFactory(decryptorSetting)
 		proxyFactory, err = postgresql.NewProxyFactory(base.NewProxySetting(decryptorFactory, config.tableSchema, keyStore, tlsConfig, config.censor))
 		if err != nil {
 			log.WithError(err).Errorln("Can't initialize proxy for connections")

@@ -37,7 +37,7 @@ func (*QuoteHandler) WrapIdentifier(identifier string) string {
 	return string(ansiIdentifierQuote) + identifier + string(ansiIdentifierQuote)
 }
 
-// GetStringLiteralQuote return correct quote for identifier
+// GetIdentifierQuote return correct quote for identifier
 func (*QuoteHandler) GetIdentifierQuote() byte {
 	return ansiIdentifierQuote
 }

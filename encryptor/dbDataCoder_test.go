@@ -18,6 +18,7 @@ package encryptor
 
 import (
 	"bytes"
+	"crypto/rand"
 	"encoding/hex"
 	"fmt"
 	"github.com/cossacklabs/acra/sqlparser"
@@ -99,8 +100,8 @@ func TestPostgresqlDBDataCoder_Decode(t *testing.T) {
 	coder := &PostgresqlDBDataCoder{}
 	testCases := []sqlparser.Expr{
 		sqlparser.NewHexVal([]byte(hex.EncodeToString(testData))),
+		sqlparser.NewPgEscapeString([]byte(fmt.Sprintf("%s", utils.EncodeToOctal(testData)))),
 		sqlparser.NewStrVal([]byte(fmt.Sprintf("\\x%s", hex.EncodeToString(testData)))),
-		sqlparser.NewPgEscapeString([]byte(fmt.Sprintf("\\x%s", hex.EncodeToString(testData)))),
 	}
 	for _, expr := range testCases {
 		data, err := coder.Decode(expr)
@@ -121,7 +122,7 @@ func TestPostgresqlDBDataCoder_Decode(t *testing.T) {
 			Expr: sqlparser.NewHexVal([]byte(hex.EncodeToString(testData))[1:]),
 		},
 		{
-			Err: utils.ErrDecodeEscapedString,
+			Err: nil,
 			// short data
 			Expr: sqlparser.NewStrVal([]byte{1, 2, 3}),
 		},
@@ -134,12 +135,6 @@ func TestPostgresqlDBDataCoder_Decode(t *testing.T) {
 			Err: hex.ErrLength,
 			// incorrect hex
 			Expr: sqlparser.NewStrVal([]byte(fmt.Sprintf("\\x%s", hex.EncodeToString(testData)[1:]))),
-		},
-		// PgEscapeVal same as for StrVal
-		{
-			Err: utils.ErrDecodeEscapedString,
-			// short data
-			Expr: sqlparser.NewPgEscapeString([]byte{1, 2, 3}),
 		},
 		{
 			Err: nil,
@@ -161,7 +156,8 @@ func TestPostgresqlDBDataCoder_Decode(t *testing.T) {
 }
 
 func TestPostgresqlDBDataCoder_Encode(t *testing.T) {
-	testData := []byte("some data")
+	testData := make([]byte, 100)
+	rand.Read(testData)
 	coder := &PostgresqlDBDataCoder{}
 	testCases := []struct {
 		Expr   sqlparser.Expr
@@ -189,7 +185,7 @@ func TestPostgresqlDBDataCoder_Encode(t *testing.T) {
 			t.Fatalf("Expr: %s\nTook: %s\nExpected: %s", sqlparser.String(testCase.Expr), string(coded), string(testCase.Output))
 		}
 	}
-	if _, err := coder.Encode(sqlparser.NewIntVal([]byte{1}), testData); err != errUnsupportedExpression {
+	if _, err := coder.Encode(sqlparser.NewFloatVal([]byte{1}), testData); err != errUnsupportedExpression {
 		t.Fatalf("Incorrect error. Took: %s; Expected: %s", err.Error(), errUnsupportedExpression.Error())
 	}
 }
