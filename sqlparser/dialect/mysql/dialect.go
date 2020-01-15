@@ -7,7 +7,7 @@ type MySQLDialect struct {
 	ansiMode bool
 }
 
-// IsANSIModeOn return true if ANSI mode used for mysql
+// IsModeANSIOn return true if ANSI mode used for mysql
 func (dialect *MySQLDialect) IsModeANSIOn() bool {
 	return dialect.ansiMode
 }

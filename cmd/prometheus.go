@@ -95,6 +95,7 @@ var (
 	buildInfoCounter  *prometheus.CounterVec
 )
 
+// Type of binary version
 const (
 	BuildInfoEditionLabel = "edition"
 	BuildInfoVersionLabel = "version"
