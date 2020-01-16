@@ -118,7 +118,7 @@ func UpdateExpressionValue(expr sqlparser.Expr, coder DBDataCoder, updateFunc fu
 	switch val := expr.(type) {
 	case *sqlparser.SQLVal:
 		switch val.Type {
-		case sqlparser.StrVal, sqlparser.HexVal, sqlparser.PgEscapeString, sqlparser.IntVal:
+		case sqlparser.StrVal, sqlparser.HexVal, sqlparser.PgEscapeString:
 			rawData, err := coder.Decode(val)
 			if err != nil {
 				if err == utils.ErrDecodeOctalString || err == errUnsupportedExpression {
