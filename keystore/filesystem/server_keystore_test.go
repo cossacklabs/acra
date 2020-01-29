@@ -87,7 +87,7 @@ func testGeneratingDataEncryptionKeys(store *KeyStore, t *testing.T) {
 	}
 	exists, err := utils.FileExists(
 		store.GetPrivateKeyFilePath(
-			getServerDecryptionKeyFilename(testID)))
+			GetServerDecryptionKeyFilename(testID)))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -96,8 +96,8 @@ func testGeneratingDataEncryptionKeys(store *KeyStore, t *testing.T) {
 	}
 
 	exists, err = utils.FileExists(
-		fmt.Sprintf("%s.pub", store.getPublicKeyFilePath(
-			getServerDecryptionKeyFilename(testID))))
+		fmt.Sprintf("%s.pub", store.GetPublicKeyFilePath(
+			GetServerDecryptionKeyFilename(testID))))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -125,7 +125,7 @@ func testGenerateServerKeys(store *KeyStore, t *testing.T) {
 
 	absPath := store.GetPrivateKeyFilePath(getServerKeyFilename(testID))
 	checkPath(absPath, t)
-	absPath = store.getPublicKeyFilePath(fmt.Sprintf("%s.pub", getServerKeyFilename(testID)))
+	absPath = store.GetPublicKeyFilePath(fmt.Sprintf("%s.pub", getServerKeyFilename(testID)))
 	checkPath(absPath, t)
 }
 
@@ -137,7 +137,7 @@ func testGenerateTranslatorKeys(store *KeyStore, t *testing.T) {
 	}
 	absPath := store.GetPrivateKeyFilePath(getTranslatorKeyFilename(testID))
 	checkPath(absPath, t)
-	absPath = store.getPublicKeyFilePath(fmt.Sprintf("%s.pub", getTranslatorKeyFilename(testID)))
+	absPath = store.GetPublicKeyFilePath(fmt.Sprintf("%s.pub", getTranslatorKeyFilename(testID)))
 	checkPath(absPath, t)
 }
 
@@ -151,7 +151,7 @@ func testGenerateConnectorKeys(store *KeyStore, t *testing.T) {
 	absPath := store.GetPrivateKeyFilePath(getConnectorKeyFilename(testID))
 	checkPath(absPath, t)
 
-	absPath = store.getPublicKeyFilePath(fmt.Sprintf("%s.pub", getConnectorKeyFilename(testID)))
+	absPath = store.GetPublicKeyFilePath(fmt.Sprintf("%s.pub", getConnectorKeyFilename(testID)))
 	checkPath(absPath, t)
 
 }
@@ -171,10 +171,10 @@ func testReset(store *KeyStore, t *testing.T) {
 	if err := os.Remove(store.GetPrivateKeyFilePath(getServerKeyFilename(testID))); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.Remove(fmt.Sprintf("%s.pub", store.getPublicKeyFilePath(getServerKeyFilename(testID)))); err != nil {
+	if err := os.Remove(fmt.Sprintf("%s.pub", store.GetPublicKeyFilePath(getServerKeyFilename(testID)))); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.Remove(fmt.Sprintf("%s.pub", store.getPublicKeyFilePath(getTranslatorKeyFilename(testID)))); err != nil {
+	if err := os.Remove(fmt.Sprintf("%s.pub", store.GetPublicKeyFilePath(getTranslatorKeyFilename(testID)))); err != nil {
 		t.Fatal(err)
 	}
 
@@ -301,7 +301,7 @@ func TestFilesystemKeyStoreWithCache(t *testing.T) {
 	}
 
 	// check that previous value was dropped
-	value, ok := store.cache.Get(getServerDecryptionKeyFilename(testID))
+	value, ok := store.cache.Get(GetServerDecryptionKeyFilename(testID))
 	if ok {
 		t.Fatal("Value wasn't expected")
 	}
@@ -310,7 +310,7 @@ func TestFilesystemKeyStoreWithCache(t *testing.T) {
 	}
 
 	// check that new values is what we expect: encrypted key
-	value, ok = store.cache.Get(getServerDecryptionKeyFilename(testID2))
+	value, ok = store.cache.Get(GetServerDecryptionKeyFilename(testID2))
 	if !ok {
 		t.Fatal("Expected key in result")
 	}
@@ -387,11 +387,11 @@ func testSaveKeypairs(store *KeyStore, t *testing.T) {
 		t.Fatal(err)
 	}
 	// no matter which function to generate correct filename we will use
-	filename := getServerDecryptionKeyFilename(testID)
+	filename := GetServerDecryptionKeyFilename(testID)
 	if _, err := store.getPrivateKeyByFilename(testID, filename); err == nil {
 		t.Fatal("Expected error")
 	}
-	if err = store.saveKeyPairWithFilename(startKeypair, filename, testID); err != nil {
+	if err = store.SaveKeyPairWithFilename(startKeypair, filename, testID); err != nil {
 		t.Fatal(err)
 	}
 	if privateKey, err := store.getPrivateKeyByFilename(testID, filename); err != nil {
@@ -402,7 +402,7 @@ func testSaveKeypairs(store *KeyStore, t *testing.T) {
 		}
 	}
 
-	if err = store.saveKeyPairWithFilename(overwritedKeypair, filename, testID); err != nil {
+	if err = store.SaveKeyPairWithFilename(overwritedKeypair, filename, testID); err != nil {
 		t.Fatal(err)
 	}
 	if privateKey, err := store.getPrivateKeyByFilename(testID, filename); err != nil {

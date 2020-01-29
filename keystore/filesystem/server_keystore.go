@@ -112,20 +112,21 @@ func (store *KeyStore) generateKeyPair(filename string, clientID []byte) (*keys.
 	if err != nil {
 		return nil, err
 	}
-	if err := store.saveKeyPairWithFilename(keypair, filename, clientID); err != nil {
+	if err := store.SaveKeyPairWithFilename(keypair, filename, clientID); err != nil {
 		return nil, err
 	}
 	return keypair, nil
 }
 
-func (store *KeyStore) saveKeyPairWithFilename(keypair *keys.Keypair, filename string, id []byte) error {
+// SaveKeyPairWithFilename save encrypted private key and public key to configured folders
+func (store *KeyStore) SaveKeyPairWithFilename(keypair *keys.Keypair, filename string, id []byte) error {
 	privateKeysFolder := filepath.Dir(store.GetPrivateKeyFilePath(filename))
 	err := os.MkdirAll(privateKeysFolder, 0700)
 	if err != nil {
 		return err
 	}
 
-	publicKeysFolder := filepath.Dir(store.getPublicKeyFilePath(filename))
+	publicKeysFolder := filepath.Dir(store.GetPublicKeyFilePath(filename))
 	err = os.MkdirAll(publicKeysFolder, 0700)
 	if err != nil {
 		return err
@@ -139,7 +140,7 @@ func (store *KeyStore) saveKeyPairWithFilename(keypair *keys.Keypair, filename s
 	if err != nil {
 		return err
 	}
-	err = ioutil.WriteFile(store.getPublicKeyFilePath(fmt.Sprintf("%s.pub", filename)), keypair.Public.Value, 0644)
+	err = ioutil.WriteFile(store.GetPublicKeyFilePath(fmt.Sprintf("%s.pub", filename)), keypair.Public.Value, 0644)
 	if err != nil {
 		return err
 	}
@@ -208,7 +209,8 @@ func (store *KeyStore) GetPrivateKeyFilePath(filename string) string {
 	return fmt.Sprintf("%s%s%s", store.privateKeyDirectory, string(os.PathSeparator), filename)
 }
 
-func (store *KeyStore) getPublicKeyFilePath(filename string) string {
+// GetPublicKeyFilePath return path for file with public key with configured folder for store
+func (store *KeyStore) GetPublicKeyFilePath(filename string) string {
 	return fmt.Sprintf("%s%s%s", store.publicKeyDirectory, string(os.PathSeparator), filename)
 }
 
@@ -252,17 +254,17 @@ func (store *KeyStore) getPublicKeyByFilename(filename string) (*keys.PublicKey,
 
 // GetZonePublicKey return PublicKey by zoneID from cache or load from main store
 func (store *KeyStore) GetZonePublicKey(zoneID []byte) (*keys.PublicKey, error) {
-	fname := store.getPublicKeyFilePath(getZonePublicKeyFilename(zoneID))
+	fname := store.GetPublicKeyFilePath(getZonePublicKeyFilename(zoneID))
 	return store.getPublicKeyByFilename(fname)
 }
 
 // GetClientIDEncryptionPublicKey return PublicKey by clientID from cache or load from main store
 func (store *KeyStore) GetClientIDEncryptionPublicKey(clientID []byte) (*keys.PublicKey, error) {
-	fname := store.getPublicKeyFilePath(
+	fname := store.GetPublicKeyFilePath(
 		// use correct suffix for public keys
 		getPublicKeyFilename(
 			// use correct suffix as type of key
-			[]byte(getServerDecryptionKeyFilename(clientID))))
+			[]byte(GetServerDecryptionKeyFilename(clientID))))
 	return store.getPublicKeyByFilename(fname)
 }
 
@@ -307,7 +309,7 @@ func (store *KeyStore) GetPeerPublicKey(id []byte) (*keys.PublicKey, error) {
 		log.Debugf("Load cached key: %s", fname)
 		return &keys.PublicKey{Value: key}, nil
 	}
-	publicKey, err := utils.LoadPublicKey(store.getPublicKeyFilePath(fname))
+	publicKey, err := utils.LoadPublicKey(store.GetPublicKeyFilePath(fname))
 	if err != nil {
 		return nil, err
 	}
@@ -327,7 +329,7 @@ func (store *KeyStore) GetPrivateKey(id []byte) (*keys.PrivateKey, error) {
 // decrypts it with master key and clientID,
 // and returns plaintext private key, or reading/decryption error.
 func (store *KeyStore) GetServerDecryptionPrivateKey(id []byte) (*keys.PrivateKey, error) {
-	fname := getServerDecryptionKeyFilename(id)
+	fname := GetServerDecryptionKeyFilename(id)
 	return store.getPrivateKeyByFilename(id, fname)
 }
 
@@ -385,7 +387,7 @@ func (store *KeyStore) GenerateDataEncryptionKeys(id []byte) error {
 	if !keystore.ValidateID(id) {
 		return keystore.ErrInvalidClientID
 	}
-	_, err := store.generateKeyPair(getServerDecryptionKeyFilename(id), id)
+	_, err := store.generateKeyPair(GetServerDecryptionKeyFilename(id), id)
 	if err != nil {
 		return err
 	}
@@ -402,7 +404,7 @@ func (store *KeyStore) Reset() {
 // Returns keypair or error if generation/decryption failed.
 func (store *KeyStore) GetPoisonKeyPair() (*keys.Keypair, error) {
 	privatePath := store.GetPrivateKeyFilePath(PoisonKeyFilename)
-	publicPath := store.getPublicKeyFilePath(fmt.Sprintf("%s.pub", PoisonKeyFilename))
+	publicPath := store.GetPublicKeyFilePath(fmt.Sprintf("%s.pub", PoisonKeyFilename))
 	privateExists, err := utils.FileExists(privatePath)
 	if err != nil {
 		return nil, err
@@ -460,31 +462,31 @@ func (store *KeyStore) RotateZoneKey(zoneID []byte) ([]byte, error) {
 // SaveZoneKeypair save or overwrite zone keypair
 func (store *KeyStore) SaveZoneKeypair(id []byte, keypair *keys.Keypair) error {
 	filename := getZoneKeyFilename(id)
-	return store.saveKeyPairWithFilename(keypair, filename, id)
+	return store.SaveKeyPairWithFilename(keypair, filename, id)
 }
 
 // SaveConnectorKeypair save or overwrite acra-connector keypair
 func (store *KeyStore) SaveConnectorKeypair(id []byte, keypair *keys.Keypair) error {
 	filename := getConnectorKeyFilename(id)
-	return store.saveKeyPairWithFilename(keypair, filename, id)
+	return store.SaveKeyPairWithFilename(keypair, filename, id)
 }
 
 // SaveServerKeypair save or overwrite acra-server keypair
 func (store *KeyStore) SaveServerKeypair(id []byte, keypair *keys.Keypair) error {
 	filename := getServerKeyFilename(id)
-	return store.saveKeyPairWithFilename(keypair, filename, id)
+	return store.SaveKeyPairWithFilename(keypair, filename, id)
 }
 
 // SaveTranslatorKeypair save or overwrite acra-translator keypair
 func (store *KeyStore) SaveTranslatorKeypair(id []byte, keypair *keys.Keypair) error {
 	filename := getTranslatorKeyFilename(id)
-	return store.saveKeyPairWithFilename(keypair, filename, id)
+	return store.SaveKeyPairWithFilename(keypair, filename, id)
 }
 
 // SaveDataEncryptionKeys save or overwrite decryption keypair for client id
 func (store *KeyStore) SaveDataEncryptionKeys(id []byte, keypair *keys.Keypair) error {
-	filename := getServerDecryptionKeyFilename(id)
-	return store.saveKeyPairWithFilename(keypair, filename, id)
+	filename := GetServerDecryptionKeyFilename(id)
+	return store.SaveKeyPairWithFilename(keypair, filename, id)
 }
 
 // Add value to inner cache
