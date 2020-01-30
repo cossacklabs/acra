@@ -21,20 +21,20 @@ import (
 	"errors"
 )
 
-// ZoneIDFileMap store dependencies between zone ids and file paths that was encrypted with this zone
-type ZoneIDFileMap map[string][]string
+// KeyIDFileMap store dependencies between zone ids and file paths that was encrypted with this zone
+type KeyIDFileMap map[string][]string
 
 // ErrIncorrectConfigFormat is the error when user pass config with incorrect json format
-var ErrIncorrectConfigFormat = errors.New("config must have json format {\"zoneId1\": pathToFileStr, \"zoneId2\": [pathToFileStr, pathToFileStr]}")
+var ErrIncorrectConfigFormat = errors.New("config must have json format {\"zoneId_or_clientId1\": pathToFileStr, \"zoneId_or_clientId2\": [pathToFileStr, pathToFileStr]}")
 
 // ParseConfig parse json config and convert string values to slice of strings to accept both variants of value
-func ParseConfig(configData []byte) (ZoneIDFileMap, error) {
+func ParseConfig(configData []byte) (KeyIDFileMap, error) {
 	var tempStruct map[string]interface{}
 	if err := json.Unmarshal(configData, &tempStruct); err != nil {
 		return nil, err
 	}
 
-	config := ZoneIDFileMap{}
+	config := KeyIDFileMap{}
 	for key, value := range tempStruct {
 		switch value.(type) {
 		case string:

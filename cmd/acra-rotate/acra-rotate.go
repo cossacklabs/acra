@@ -23,7 +23,6 @@ import (
 	"flag"
 	"github.com/cossacklabs/acra/cmd"
 	"github.com/cossacklabs/acra/keystore"
-	"github.com/cossacklabs/acra/keystore/filesystem"
 	"github.com/cossacklabs/acra/logging"
 	"github.com/cossacklabs/acra/utils"
 	_ "github.com/go-sql-driver/mysql"
@@ -40,7 +39,7 @@ var (
 	ServiceName       = "acra-rotate"
 )
 
-func initKeyStore(dirPath string) (keystore.KeyStore, error) {
+func initKeyStore(dirPath string) (KeyStore, error) {
 	absKeysDir, err := filepath.Abs(dirPath)
 	if err != nil {
 		log.WithError(err).Errorln("Can't get absolute path for keys_dir")
@@ -56,12 +55,7 @@ func initKeyStore(dirPath string) (keystore.KeyStore, error) {
 		log.WithError(err).Errorln("Can't init scell encryptor")
 		return nil, err
 	}
-	keystorage, err := filesystem.NewFilesystemKeyStore(absKeysDir, scellEncryptor)
-	if err != nil {
-		log.WithError(err).Errorln("Can't create key store")
-		return nil, err
-	}
-	return keystorage, nil
+	return NewKeyStore(absKeysDir, scellEncryptor)
 }
 
 func main() {
@@ -72,6 +66,7 @@ func main() {
 	sqlUpdate := flag.String("sql_update", "", "Insert/Update query with ? as placeholder where into first will be placed rotated AcraStruct")
 	connectionString := flag.String("db_connection_string", "", "Connection string to db")
 	useMysql := flag.Bool("mysql_enable", false, "Handle MySQL connections")
+	zoneMode := flag.Bool("zonemode_enable", true, "Rotate acrastructs as it was encrypted with zonemode or without. With zonemode_enable=true will be used zoneID for encryption/decryption. If false then key id will not be used")
 	_ = flag.Bool("postgresql_enable", false, "Handle Postgresql connections")
 	dryRun := flag.Bool("dry-run", false, "perform rotation without saving rotated AcraStructs and keys")
 	logging.SetLogLevel(logging.LogVerbose)
@@ -92,7 +87,7 @@ func main() {
 		log.Infoln("Rotating in dry-run mode")
 	}
 	if *fileMapConfig != "" {
-		runFileRotation(*fileMapConfig, keystorage, *dryRun)
+		runFileRotation(*fileMapConfig, keystorage, *zoneMode, *dryRun)
 	}
 	if *sqlSelect != "" || *sqlUpdate != "" {
 		if *sqlSelect == "" || *sqlUpdate == "" {
@@ -123,7 +118,7 @@ func main() {
 			os.Exit(1)
 		}
 		log.WithFields(log.Fields{"select_query": *sqlSelect, "update_query": *sqlUpdate}).Infoln("Rotate data in database")
-		if !rotateDb(*sqlSelect, *sqlUpdate, db, keystorage, encoder, *dryRun) {
+		if !rotateDb(*sqlSelect, *sqlUpdate, db, keystorage, encoder, *zoneMode, *dryRun) {
 			os.Exit(1)
 		}
 	}

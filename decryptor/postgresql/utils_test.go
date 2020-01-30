@@ -44,7 +44,7 @@ func TestFetchQueryFromParse(t *testing.T) {
 	}
 }
 
-func TestParseCommand(t *testing.T){
+func TestParseCommand(t *testing.T) {
 	// copied from wireshark and java app with data which found that error
 	parseHexWithParameters := `500000009e00696e7365727420696e746f20626c6f675f656e747269657328617574686f722c20626f64792c20626f64795f68746d6c2c20686561646c696e652c2073756d6d6172792c2073756d6d6172795f68746d6c2c206964292076616c756573202824312c2024322c2024332c2024342c2024352c2024362c2024372900000700000011000000110000001100000011000000110000001100000017`
 	parseBin, err := hex.DecodeString(parseHexWithParameters)
@@ -58,7 +58,7 @@ func TestParseCommand(t *testing.T){
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !bytes.Equal(parseBin, packet.Marshal()){
+	if !bytes.Equal(parseBin, packet.Marshal()) {
 		t.Fatal("parsed and marshaled data not equal")
 	}
 }

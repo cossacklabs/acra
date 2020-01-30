@@ -111,7 +111,7 @@ func NewParsePacket(data []byte) (*ParsePacket, error) {
 	endIndex += startIndex + 1
 	query := data[startIndex:endIndex]
 	numParams := paramsNum(data[endIndex : endIndex+2])
-	endIndex+=2
+	endIndex += 2
 	var params []objectID
 	if endIndex < len(data) {
 		for i := 0; i < numParams.ToInt(); i++ {
