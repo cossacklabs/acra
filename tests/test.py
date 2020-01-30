@@ -3402,7 +3402,7 @@ class TestAcraRotateWithZone(BaseTestCase):
             # use extra arg in select and update
             subprocess.check_output(
                 default_args + [
-                    '--sql_select=select id, zone_id, data from {} order by id;'.format(rotate_test_table.name),
+                    '--sql_select=select id, zone_id::bytea, data from {} order by id;'.format(rotate_test_table.name),
                     '--sql_update={}'.format(sql_update)
                 ]
             )
@@ -3433,7 +3433,7 @@ class TestAcraRotateWithZone(BaseTestCase):
             # rotate with select without extra arg
             subprocess.check_output(
                 default_args + [
-                    '--sql_select=select zone_id, data from {} where id={};'.format(rotate_test_table.name, some_id),
+                    '--sql_select=select zone_id::bytea, data from {} where id={};'.format(rotate_test_table.name, some_id),
                     '--sql_update={}'.format(sql_update)
                 ]
             )
@@ -3657,7 +3657,7 @@ class TestAcraRotate(TestAcraRotateWithZone):
                 # use extra arg in select and update
                 subprocess.check_output(
                     default_args + [
-                        "--sql_select=select id, '{}', data from {} order by id;".format(client_id, rotate_test_table.name),
+                        "--sql_select=select id, '{}'::bytea, data from {} order by id;".format(client_id, rotate_test_table.name),
                         '--sql_update={}'.format(sql_update),
                     ]
                 )
@@ -3691,7 +3691,7 @@ class TestAcraRotate(TestAcraRotateWithZone):
             # rotate with select without extra arg
             subprocess.check_output(
                 default_args + [
-                    "--sql_select=select '{}', data from {} where id={};".format(client_id, rotate_test_table.name, some_id),
+                    "--sql_select=select '{}'::bytea, data from {} where id={};".format(client_id, rotate_test_table.name, some_id),
                     '--sql_update={}'.format(sql_update)
                 ]
             )
