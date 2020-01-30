@@ -51,7 +51,7 @@ func getTranslatorKeyFilename(id []byte) string {
 	return fmt.Sprintf("%s_translator", string(id))
 }
 
-// GetServerDecryptionKeyFilename
+// GetServerDecryptionKeyFilename return filename for decryption key
 func GetServerDecryptionKeyFilename(id []byte) string {
 	return fmt.Sprintf("%s_storage", string(id))
 }
