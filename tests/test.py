@@ -3385,8 +3385,10 @@ class TestAcraRotateWithZone(BaseTestCase):
         for dry_run in (True, False):
             if TEST_MYSQL:
                 sql_update = "update {} set data=? where id=?;".format(rotate_test_table.name)
+                sql_select = 'select id, zone_id, data from {} order by id;'.format(rotate_test_table.name)
             elif TEST_POSTGRESQL:
                 sql_update = "update {} set data=$1 where id=$2;".format(rotate_test_table.name)
+                sql_select = 'select id, zone_id::bytea, data from {} order by id;'.format(rotate_test_table.name)
             else:
                 self.fail("unsupported settings of tested db")
 
@@ -3402,7 +3404,7 @@ class TestAcraRotateWithZone(BaseTestCase):
             # use extra arg in select and update
             subprocess.check_output(
                 default_args + [
-                    '--sql_select=select id, zone_id::bytea, data from {} order by id;'.format(rotate_test_table.name),
+                    '--sql_select={}'.format(sql_select),
                     '--sql_update={}'.format(sql_update)
                 ]
             )
@@ -3418,14 +3420,18 @@ class TestAcraRotateWithZone(BaseTestCase):
             result = self.engine_raw.execute(sa.select([rotate_test_table]))
             self.check_rotation(result, data_before_rotate, dry_run)
 
+            some_id = list(data_before_rotate.keys())[0]
+
             # chose any id to operate with specific row
             if TEST_MYSQL:
                 sql_update = "update {} set data=? where id={{}};".format(rotate_test_table.name)
+                sql_select = 'select zone_id, data from {} where id={};'.format(rotate_test_table.name, some_id)
             elif TEST_POSTGRESQL:
                 sql_update = "update {} set data=$1 where id={{}};".format(rotate_test_table.name)
+                sql_select = 'select zone_id::bytea, data from {} where id={};'.format(rotate_test_table.name, some_id)
             else:
                 self.fail("unsupported settings of tested db")
-            some_id = list(data_before_rotate.keys())[0]
+
             sql_update = sql_update.format(some_id)
 
 
@@ -3433,7 +3439,7 @@ class TestAcraRotateWithZone(BaseTestCase):
             # rotate with select without extra arg
             subprocess.check_output(
                 default_args + [
-                    '--sql_select=select zone_id::bytea, data from {} where id={};'.format(rotate_test_table.name, some_id),
+                    '--sql_select={}'.format(sql_select),
                     '--sql_update={}'.format(sql_update)
                 ]
             )
@@ -3638,8 +3644,10 @@ class TestAcraRotate(TestAcraRotateWithZone):
         for dry_run in (True, False):
             if TEST_MYSQL:
                 sql_update = "update {} set data=? where id=?;".format(rotate_test_table.name)
+                sql_select = "select id, '{}', data from {} order by id;".format(client_id, rotate_test_table.name)
             elif TEST_POSTGRESQL:
                 sql_update = "update {} set data=$1 where id=$2;".format(rotate_test_table.name)
+                sql_select = "select id, '{}'::bytea, data from {} order by id;".format(client_id, rotate_test_table.name)
             else:
                 self.fail("unsupported settings of tested db")
 
@@ -3657,7 +3665,7 @@ class TestAcraRotate(TestAcraRotateWithZone):
                 # use extra arg in select and update
                 subprocess.check_output(
                     default_args + [
-                        "--sql_select=select id, '{}'::bytea, data from {} order by id;".format(client_id, rotate_test_table.name),
+                        "--sql_select={}".format(sql_select),
                         '--sql_update={}'.format(sql_update),
                     ]
                 )
@@ -3675,23 +3683,24 @@ class TestAcraRotate(TestAcraRotateWithZone):
             self.check_decrypted_data(result)
             result = self.engine_raw.execute(sa.select([rotate_test_table]))
             self.check_rotation(result, data_before_rotate, dry_run)
+            some_id = list(data_before_rotate.keys())[0]
 
             # chose any id to operate with specific row
             if TEST_MYSQL:
                 sql_update = "update {} set data=? where id={{}};".format(rotate_test_table.name)
+                sql_select = "select '{}', data from {} where id={};".format(client_id, rotate_test_table.name, some_id)
             elif TEST_POSTGRESQL:
                 sql_update = "update {} set data=$1 where id={{}};".format(rotate_test_table.name)
+                sql_select = "select '{}'::bytea, data from {} where id={};".format(client_id, rotate_test_table.name, some_id)
             else:
                 self.fail("unsupported settings of tested db")
-            some_id = list(data_before_rotate.keys())[0]
             sql_update = sql_update.format(some_id)
-
 
             keys_map = load_keys_from_folder(KEYS_FOLDER.name, [client_id])
             # rotate with select without extra arg
             subprocess.check_output(
                 default_args + [
-                    "--sql_select=select '{}'::bytea, data from {} where id={};".format(client_id, rotate_test_table.name, some_id),
+                    "--sql_select={}".format(sql_select),
                     '--sql_update={}'.format(sql_update)
                 ]
             )
