@@ -39,6 +39,7 @@ var stringTokenType = map[uint16]int{
 	'"':  DOUBLE_QUOTE_STRING,
 	'`':  BACK_QUOTE_STRING,
 }
+
 // Types of SQL dialects
 const (
 	DialectMySQL = iota

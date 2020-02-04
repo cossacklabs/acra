@@ -102,6 +102,7 @@ func (d *DecodedData) Data() []byte {
 func (d *DecodedData) Set(data []byte) {
 	d.data = data
 }
+
 // Encoded return encoded binary data in final format according to encoding logic
 func (d *DecodedData) Encoded() []byte {
 	return d.encodeFunc(d.data)
@@ -116,6 +117,11 @@ func hexEncode(data []byte) []byte {
 
 func dryEncode(data []byte) []byte {
 	return data
+}
+
+// WrapRawDataAsDecoded return DecodedData with Encode function which return data as is
+func WrapRawDataAsDecoded(data []byte) *DecodedData {
+	return &DecodedData{data: data, encodeFunc: dryEncode}
 }
 
 // DecodeEscaped with hex or octal encodings

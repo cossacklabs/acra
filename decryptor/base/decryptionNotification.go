@@ -17,10 +17,12 @@ type columnInfo struct {
 func (info columnInfo) Index() int {
 	return info.index
 }
+
 // Alias return column alias from database response if available otherwise should be empty string
 func (info columnInfo) Alias() string {
 	return info.alias
 }
+
 // NewColumnInfo return ColumnInfo implementation for metadata
 func NewColumnInfo(index int, alias string) ColumnInfo {
 	return columnInfo{index: index, alias: alias}
@@ -33,20 +35,52 @@ func NewContextWithColumnInfo(ctx context.Context, info ColumnInfo) context.Cont
 	return context.WithValue(ctx, columnInfoKey{}, info)
 }
 
-// ClientZoneInfo store metadata of matched client/zone id and zonemode
-type ClientZoneInfo struct {
-	ClientID []byte
-	ZoneID   []byte
-	WithZone bool
+// clientZoneInfo store metadata of matched client/zone id and zonemode
+type clientZoneInfo struct {
+	clientID []byte
+	zoneID   []byte
+	withZone bool
+}
+
+// ClientID return client id
+func (info clientZoneInfo) ClientID() []byte {
+	return info.clientID
+}
+
+// ZoneID return zone id
+func (info clientZoneInfo) ZoneID() []byte {
+	return info.zoneID
+}
+
+// WithZone return true if used zone mode
+func (info clientZoneInfo) WithZone() bool {
+	return info.withZone
+}
+
+// ClientZoneInfo provide access method for data related to decryption metadata
+type ClientZoneInfo interface {
+	ClientID() []byte
+	ZoneID() []byte
+	WithZone() bool
+}
+
+// NewClientZoneInfo return new ClientZoneInfo implementation with passed data
+func NewClientZoneInfo(clientID, zoneID []byte, withZone bool) ClientZoneInfo {
+	return clientZoneInfo{
+		clientID: clientID,
+		zoneID:   zoneID,
+		withZone: withZone,
+	}
 }
 
 type clientZoneInfoKey struct{}
 
-// NewContextWithClientZoneInfo return new context with assigned ClientZoneInfo
+// NewContextWithClientZoneInfo return new context with assigned clientZoneInfo
 func NewContextWithClientZoneInfo(ctx context.Context, clientID, zoneID []byte, withZone bool) context.Context {
-	return context.WithValue(ctx, clientZoneInfoKey{}, ClientZoneInfo{ClientID: clientID, ZoneID: zoneID, WithZone: withZone})
+	return context.WithValue(ctx, clientZoneInfoKey{}, NewClientZoneInfo(clientID, zoneID, withZone))
 }
-// ClientZoneInfoFromContext return ClientZoneInfo and true if was assigned, otherwise empty ClientZoneInfo and false
+
+// ClientZoneInfoFromContext return clientZoneInfo and true if was assigned, otherwise empty clientZoneInfo and false
 func ClientZoneInfoFromContext(ctx context.Context) (ClientZoneInfo, bool) {
 	v, ok := ctx.Value(clientZoneInfoKey{}).(ClientZoneInfo)
 	return v, ok

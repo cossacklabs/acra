@@ -133,6 +133,7 @@ func (proxy *PgProxy) SubscribeOnColumnDecryption(i int, subscriber base.Decrypt
 	}
 	l.PushBack(subscriber)
 }
+
 // SubscribeOnAllColumnsDecryption subscribe on each column data in db response
 func (proxy *PgProxy) SubscribeOnAllColumnsDecryption(subscriber base.DecryptionSubscriber) {
 	proxy.allColumnsDecryptionSubscribers.PushBack(subscriber)
@@ -384,7 +385,7 @@ func checkWholePoisonRecord(block []byte, decryptor base.Decryptor, logger *log.
 func (proxy *PgProxy) processWholeBlockDecryption(ctx context.Context, packet *PacketHandler, column *ColumnData, decryptor base.Decryptor, logger *log.Entry) error {
 	span := trace.FromContext(ctx)
 	decryptor.Reset()
-	decrypted, err := decryptor.DecryptBlock(column.Data)
+	decrypted, err := decryptor.DecryptBlock(column.GetData())
 	if err == errPlainData {
 		// it's not AcraStruct
 		return nil
@@ -396,7 +397,7 @@ func (proxy *PgProxy) processWholeBlockDecryption(ctx context.Context, packet *P
 		base.AcrastructDecryptionCounter.WithLabelValues(base.DecryptionTypeFail).Inc()
 		if decryptor.IsPoisonRecordCheckOn() {
 			decryptor.Reset()
-			if err := checkWholePoisonRecord(column.Data, decryptor, logger); err != nil {
+			if err := checkWholePoisonRecord(column.GetData(), decryptor, logger); err != nil {
 				return err
 			}
 		}
@@ -473,16 +474,16 @@ func (proxy *PgProxy) processInlineBlockDecryption(ctx context.Context, packet *
 	hasDecryptedData := false
 	for {
 		// search AcraStruct's begin tags through all block of data and try to decrypt
-		beginTagIndex, tagLength := decryptor.BeginTagIndex(column.Data[currentIndex:])
+		beginTagIndex, tagLength := decryptor.BeginTagIndex(column.GetData()[currentIndex:])
 		if beginTagIndex == utils.NotFound {
-			outputBlock.Write(column.Data[currentIndex:])
+			outputBlock.Write(column.GetData()[currentIndex:])
 			// no AcraStructs in column decryptedData
 			break
 		}
 		// convert to absolute index
 		beginTagIndex += currentIndex
 		// write data before start of AcraStruct
-		outputBlock.Write(column.Data[currentIndex:beginTagIndex])
+		outputBlock.Write(column.GetData()[currentIndex:beginTagIndex])
 		currentIndex = beginTagIndex
 
 		key, err := decryptor.GetPrivateKey()
@@ -490,7 +491,7 @@ func (proxy *PgProxy) processInlineBlockDecryption(ctx context.Context, packet *
 			logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantReadKeys).WithError(err).Warningln("Can't read private key for matched client_id/zone_id")
 			if decryptor.IsPoisonRecordCheckOn() {
 				logger.Infoln("Check poison records")
-				blockReader := bytes.NewReader(column.Data[beginTagIndex+tagLength:])
+				blockReader := bytes.NewReader(column.GetData()[beginTagIndex+tagLength:])
 				poisoned, err := decryptor.CheckPoisonRecord(blockReader)
 				if err = handlePoisonCheckResult(decryptor, poisoned, err, logger); err != nil {
 					return err
@@ -499,7 +500,7 @@ func (proxy *PgProxy) processInlineBlockDecryption(ctx context.Context, packet *
 			currentIndex++
 			continue
 		}
-		blockReader := bytes.NewReader(column.Data[currentIndex+tagLength:])
+		blockReader := bytes.NewReader(column.GetData()[currentIndex+tagLength:])
 		symKey, _, err := decryptor.ReadSymmetricKey(key, blockReader)
 		if err != nil {
 			span.AddAttributes(trace.BoolAttribute("failed_decryption", true))
@@ -507,7 +508,7 @@ func (proxy *PgProxy) processInlineBlockDecryption(ctx context.Context, packet *
 			logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorDecryptorCantDecryptBinary).WithError(err).Warningln("Can't decrypt AcraStruct: can't unwrap symmetric key")
 			if decryptor.IsPoisonRecordCheckOn() {
 				logger.Infoln("Check poison records")
-				blockReader = bytes.NewReader(column.Data[beginTagIndex+tagLength:])
+				blockReader = bytes.NewReader(column.GetData()[beginTagIndex+tagLength:])
 				poisoned, err := decryptor.CheckPoisonRecord(blockReader)
 				if err = handlePoisonCheckResult(decryptor, poisoned, err, logger); err != nil {
 					return err
@@ -515,7 +516,7 @@ func (proxy *PgProxy) processInlineBlockDecryption(ctx context.Context, packet *
 			}
 
 			// write current read byte to not process him in next iteration
-			outputBlock.Write([]byte{column.Data[currentIndex]})
+			outputBlock.Write([]byte{column.GetData()[currentIndex]})
 			currentIndex++
 			continue
 		}
@@ -525,14 +526,14 @@ func (proxy *PgProxy) processInlineBlockDecryption(ctx context.Context, packet *
 			base.AcrastructDecryptionCounter.WithLabelValues(base.DecryptionTypeFail).Inc()
 			logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorDecryptorCantDecryptBinary).WithError(err).Warningln("Can't decrypt AcraStruct: can't decrypt data with unwrapped symmetric key")
 			// write current read byte to not process him in next iteration
-			outputBlock.Write([]byte{column.Data[currentIndex]})
+			outputBlock.Write([]byte{column.GetData()[currentIndex]})
 			currentIndex++
 			continue
 		}
 		logger.Infoln("Decrypted AcraStruct")
 		base.AcrastructDecryptionCounter.WithLabelValues(base.DecryptionTypeSuccess).Inc()
 		outputBlock.Write(decryptedData)
-		currentIndex += tagLength + (len(column.Data[beginTagIndex+tagLength:]) - blockReader.Len())
+		currentIndex += tagLength + (len(column.GetData()[beginTagIndex+tagLength:]) - blockReader.Len())
 		hasDecryptedData = true
 	}
 	if hasDecryptedData {
@@ -686,7 +687,7 @@ func (proxy *PgProxy) ProxyDatabaseConnection(errCh chan<- error) {
 			if column.IsNull() {
 				continue
 			}
-			newData, err := proxy.onColumnDecryption(packetCtx, i, column.Data)
+			newData, err := proxy.onColumnDecryption(packetCtx, i, column.GetData())
 			if err != nil {
 				logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorGeneral).WithError(err).Errorln("Error on column data processing")
 				errCh <- err

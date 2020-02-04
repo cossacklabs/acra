@@ -421,7 +421,7 @@ func (decryptor *PgDecryptor) OnColumn(ctx context.Context, data []byte) (contex
 
 		// Zone anyway should be passed as whole block
 		// so try to match before any operations if we process with ZoneMode on
-		if decryptor.IsWithZone() && !decryptor.IsMatchedZone() {
+		if base.NeedMatchZone(decryptor) {
 			span.AddAttributes(trace.BoolAttribute("match_zone", true))
 			// try to match zone
 			decryptor.MatchZoneBlock(data)

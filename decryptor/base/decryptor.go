@@ -139,6 +139,11 @@ type Decryptor interface {
 	SetDataProcessor(processor DataProcessor)
 }
 
+// NeedMatchZone return True is enabled zone mode and zone not matched yet
+func NeedMatchZone(decryptor Decryptor) bool {
+	return decryptor.IsWithZone() && !decryptor.IsMatchedZone()
+}
+
 // CheckReadWrite check that n == expectedN and err != nil
 func CheckReadWrite(n, expectedN int, err error) error {
 	if err != nil {
