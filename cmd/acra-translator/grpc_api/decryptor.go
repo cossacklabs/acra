@@ -20,16 +20,16 @@ limitations under the License.
 package grpc_api
 
 import (
-	"github.com/cossacklabs/acra/logging"
-	"golang.org/x/net/context"
-
 	"errors"
+	acrawriter "github.com/cossacklabs/acra/acra-writer"
 	"github.com/cossacklabs/acra/cmd/acra-translator/common"
 	"github.com/cossacklabs/acra/decryptor/base"
+	"github.com/cossacklabs/acra/logging"
 	"github.com/cossacklabs/acra/utils"
 	"github.com/cossacklabs/themis/gothemis/keys"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/sirupsen/logrus"
+	"golang.org/x/net/context"
 )
 
 // DecryptGRPCService represents decryptor for decrypting AcraStructs from gRPC requests.
@@ -46,7 +46,43 @@ func NewDecryptGRPCService(data *common.TranslatorData) (*DecryptGRPCService, er
 var (
 	ErrCantDecrypt      = errors.New("can't decrypt data")
 	ErrClientIDRequired = errors.New("clientID is empty")
+	ErrCantEncrypt      = errors.New("can't encrypt data")
 )
+
+// Encrypt encrypt data from gRPC request and returns AcraStruct or error.
+func (service *DecryptGRPCService) Encrypt(ctx context.Context, request *EncryptRequest) (*EncryptResponse, error) {
+	timer := prometheus.NewTimer(prometheus.ObserverFunc(common.RequestProcessingTimeHistogram.WithLabelValues(common.GrpcRequestType).Observe))
+	defer timer.ObserveDuration()
+
+	logger := logrus.WithFields(logrus.Fields{"client_id": string(request.ClientId), "zone_id": string(request.ZoneId), "translator": "grpc"})
+	var publicKey *keys.PublicKey
+	var err error
+	if len(request.ZoneId) != 0 {
+		publicKey, err = service.TranslatorData.Keystorage.GetZonePublicKey(request.ZoneId)
+		logger.Debugln("Loaded zoneID key for encryption")
+	} else {
+		publicKey, err = service.TranslatorData.Keystorage.GetClientIDEncryptionPublicKey(request.ClientId)
+		logger.Debugln("Loaded clientID key for encryption")
+	}
+	if err != nil {
+		base.APIEncryptionCounter.WithLabelValues(base.EncryptionTypeFail).Inc()
+		msg := "Invalid client or zone id"
+		logger.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantReadKeys).Warningln(msg)
+		return nil, ErrCantEncrypt
+	}
+	// publicKey will be clientID' if wasn't provided ZoneID and context.ZoneID will be nil, otherwise used ZoneID
+	// public key and context.ZoneID will have value
+	acrastruct, err := acrawriter.CreateAcrastruct(request.Data, publicKey, request.ZoneId)
+	if err != nil {
+		base.APIEncryptionCounter.WithLabelValues(base.EncryptionTypeFail).Inc()
+		msg := "Unexpected error with acrastruct generation"
+		logger.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantEncryptData).Warningln(msg)
+		return nil, ErrCantEncrypt
+	}
+	base.APIEncryptionCounter.WithLabelValues(base.EncryptionTypeSuccess).Inc()
+	logger.Infoln("Encrypted data to AcraStruct")
+	return &EncryptResponse{Acrastruct: acrastruct}, nil
+}
 
 // Decrypt decrypts AcraStruct from gRPC request and returns decrypted data or error.
 func (service *DecryptGRPCService) Decrypt(ctx context.Context, request *DecryptRequest) (*DecryptResponse, error) {

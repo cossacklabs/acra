@@ -4,6 +4,7 @@ import os
 import subprocess
 import tempfile
 import shutil
+from base64 import b64decode
 
 from pythemis import smessage, scell
 import yaml
@@ -127,6 +128,16 @@ def decrypt_acrastruct(data, private_key, client_id=None, zone_id=None):
 
 def decrypt_private_key(private_key, key_id, master_key):
     return scell.SCellSeal(master_key).decrypt(private_key, key_id)
+
+
+def read_storage_private_key(keys_folder, key_id, master_key_b64):
+    with open(os.path.join(keys_folder, '{}_storage'.format(key_id)), 'rb') as f:
+        return decrypt_private_key(f.read(), key_id.encode("ascii"), b64decode(master_key_b64))
+
+
+def read_zone_private_key(keys_folder, key_id, master_key_b64):
+    with open(os.path.join(keys_folder, '{}_zone'.format(key_id)), 'rb') as f:
+        return decrypt_private_key(f.read(), key_id.encode("ascii"), b64decode(master_key_b64))
 
 
 def prepare_encryptor_config(zone_id, config_path):

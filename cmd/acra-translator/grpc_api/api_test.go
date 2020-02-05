@@ -14,8 +14,8 @@ import (
 )
 
 type testKeystore struct {
-	PrivateKey *keys.PrivateKey
-	PoisonKey  *keys.Keypair
+	PoisonKey         *keys.Keypair
+	EncryptionKeypair *keys.Keypair
 }
 
 func (*testKeystore) RotateZoneKey(zoneID []byte) ([]byte, error) {
@@ -45,8 +45,8 @@ func (*testKeystore) SaveZoneKeypair(id []byte, keypair *keys.Keypair) error { p
 var ErrKeyNotFound = errors.New("some error")
 
 func (keystore *testKeystore) GetZonePrivateKey(id []byte) (*keys.PrivateKey, error) {
-	if keystore.PrivateKey != nil {
-		return &keys.PrivateKey{Value: append([]byte{}, keystore.PrivateKey.Value...)}, nil
+	if keystore.EncryptionKeypair != nil {
+		return &keys.PrivateKey{Value: append([]byte{}, keystore.EncryptionKeypair.Private.Value...)}, nil
 	}
 	return nil, ErrKeyNotFound
 
@@ -57,8 +57,8 @@ func (*testKeystore) HasZonePrivateKey(id []byte) bool {
 }
 
 func (keystore *testKeystore) GetServerDecryptionPrivateKey(id []byte) (*keys.PrivateKey, error) {
-	if keystore.PrivateKey != nil {
-		return &keys.PrivateKey{Value: append([]byte{}, keystore.PrivateKey.Value...)}, nil
+	if keystore.EncryptionKeypair != nil {
+		return &keys.PrivateKey{Value: append([]byte{}, keystore.EncryptionKeypair.Private.Value...)}, nil
 	}
 	return nil, ErrKeyNotFound
 }
@@ -94,10 +94,18 @@ func (*testKeystore) GetAuthKey(remove bool) ([]byte, error) { panic("implement 
 
 func (*testKeystore) Reset() { panic("implement me") }
 
-func (*testKeystore) GetZonePublicKey(zoneID []byte) (*keys.PublicKey, error) { panic("implement me") }
+func (keystore *testKeystore) GetZonePublicKey(zoneID []byte) (*keys.PublicKey, error) {
+	if keystore.EncryptionKeypair != nil {
+		return &keys.PublicKey{Value: keystore.EncryptionKeypair.Public.Value}, nil
+	}
+	return nil, ErrKeyNotFound
+}
 
-func (*testKeystore) GetClientIDEncryptionPublicKey(clientID []byte) (*keys.PublicKey, error) {
-	panic("implement me")
+func (keystore *testKeystore) GetClientIDEncryptionPublicKey(clientID []byte) (*keys.PublicKey, error) {
+	if keystore.EncryptionKeypair != nil {
+		return &keys.PublicKey{Value: keystore.EncryptionKeypair.Public.Value}, nil
+	}
+	return nil, ErrKeyNotFound
 }
 
 type poisonCallback struct {
@@ -112,14 +120,14 @@ func (callback *poisonCallback) Call() error {
 func TestDecryptGRPCService_Decrypt(t *testing.T) {
 	ctx := context.Background()
 
-	keypair, err := keys.New(keys.KEYTYPE_EC)
+	keypair, err := keys.New(keys.TypeEC)
 	if err != nil {
 		t.Fatal(err)
 	}
 	clientID := []byte("test client")
 	data := []byte("data")
 	keystore := &testKeystore{}
-	poisonKeypair, err := keys.New(keys.KEYTYPE_EC)
+	poisonKeypair, err := keys.New(keys.TypeEC)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -151,7 +159,7 @@ func TestDecryptGRPCService_Decrypt(t *testing.T) {
 	}
 
 	// set key
-	keystore.PrivateKey = keypair.Private
+	keystore.EncryptionKeypair = keypair
 
 	// test error on decyrption
 	response, err = service.Decrypt(ctx, &DecryptRequest{ClientId: clientID, Acrastruct: []byte("not acrastruct")})
@@ -209,5 +217,50 @@ func TestDecryptGRPCService_Decrypt(t *testing.T) {
 	}
 	if callback.Called {
 		t.Fatal("Poison record callback was called")
+	}
+}
+
+func TestDecryptGRPCService_Encrypt(t *testing.T) {
+	ctx := context.Background()
+	clientID := []byte("test client")
+	data := []byte("data")
+	keystore := &testKeystore{}
+	encryptionKey, err := keys.New(keys.TypeEC)
+	if err != nil {
+		t.Fatal(err)
+	}
+	keystore.EncryptionKeypair = encryptionKey
+
+	translatorData := &common.TranslatorData{Keystorage: keystore, CheckPoisonRecords: false}
+	service, err := NewDecryptGRPCService(translatorData)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// encrypt with client id
+	response, err := service.Encrypt(ctx, &EncryptRequest{Data: data, ClientId: clientID})
+	if err != nil {
+		t.Fatal(err)
+	}
+	decrypted, err := base.DecryptAcrastruct(response.Acrastruct, encryptionKey.Private, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Equal(decrypted, data) {
+		t.Fatal("Incorrect encryption/decryption with client id")
+	}
+
+	// encrypt with zone id
+	zoneID := []byte("some zone")
+	response, err = service.Encrypt(ctx, &EncryptRequest{Data: data, ClientId: clientID, ZoneId: zoneID})
+	if err != nil {
+		t.Fatal(err)
+	}
+	decrypted, err = base.DecryptAcrastruct(response.Acrastruct, encryptionKey.Private, zoneID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Equal(decrypted, data) {
+		t.Fatal("Incorrect encryption/decryption with zone id")
 	}
 }

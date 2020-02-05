@@ -85,7 +85,7 @@ func (rotator *keyRotator) rotateAcrastruct(id, acrastruct []byte) ([]byte, erro
 }
 
 func (rotator *keyRotator) rotateAcrastructWithClientID(clientID, acrastruct []byte) ([]byte, error) {
-	logger := log.WithFields(log.Fields{"ClientID": string(clientID)})
+	logger := log.WithFields(log.Fields{"KeyID": string(clientID)})
 	logger.Infof("Rotate AcraStruct")
 	// rotate
 	privateKey, err := rotator.keystore.GetServerDecryptionPrivateKey(clientID)

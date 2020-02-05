@@ -269,6 +269,7 @@ func (server *ReaderServer) Start(parentContext context.Context) {
 				return
 			}
 			grpc_api.RegisterReaderServer(grpcServer, service)
+			grpc_api.RegisterWriterServer(grpcServer, service)
 			server.grpcServer = grpcServer
 			// Register reflection service on gRPC server.
 			reflection.Register(grpcServer)
