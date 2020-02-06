@@ -75,7 +75,7 @@ func (service *DecryptGRPCService) Encrypt(ctx context.Context, request *Encrypt
 	acrastruct, err := acrawriter.CreateAcrastruct(request.Data, publicKey, request.ZoneId)
 	if err != nil {
 		base.APIEncryptionCounter.WithLabelValues(base.EncryptionTypeFail).Inc()
-		msg := "Unexpected error with acrastruct generation"
+		msg := "Unexpected error with AcraStruct generation"
 		logger.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantEncryptData).Warningln(msg)
 		return nil, ErrCantEncrypt
 	}
