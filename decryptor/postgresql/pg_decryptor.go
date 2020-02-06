@@ -352,14 +352,15 @@ func checkInlinePoisonRecordInBlock(block []byte, decryptor base.Decryptor, logg
 			if index == utils.NotFound {
 				return nil
 			}
-			if len(block[index:]) > base.GetMinAcraStructLength() {
-				acrastructLength := base.GetDataLengthFromAcraStruct(block[currentIndex:]) + base.GetMinAcraStructLength()
-				if acrastructLength > 0 && acrastructLength <= len(block[currentIndex:]) {
-					currentIndex += index
-					endIndex := currentIndex + acrastructLength
-					if err := checkWholePoisonRecord(block[currentIndex:endIndex], decryptor, logger); err != nil {
-						return err
-					}
+			if len(block[index:]) < base.GetMinAcraStructLength() {
+				break
+			}
+			acrastructLength := base.GetDataLengthFromAcraStruct(block[currentIndex:]) + base.GetMinAcraStructLength()
+			if acrastructLength > 0 && acrastructLength <= len(block[currentIndex:]) {
+				currentIndex += index
+				endIndex := currentIndex + acrastructLength
+				if err := checkWholePoisonRecord(block[currentIndex:endIndex], decryptor, logger); err != nil {
+					return err
 				}
 			}
 			currentIndex++
