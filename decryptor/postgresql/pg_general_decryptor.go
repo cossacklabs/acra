@@ -415,63 +415,63 @@ func (decryptor *PgDecryptor) OnColumn(ctx context.Context, data []byte) (contex
 	logger := logging.GetLoggerFromContext(ctx)
 	span := trace.FromContext(ctx)
 	// try to skip small piece of data that can't be valuable for us
-	if (decryptor.IsWithZone() && len(data) >= zone.ZoneIDBlockLength) || len(data) >= base.GetMinAcraStructLength() {
-		decryptor.Reset()
-		span.AddAttributes(trace.BoolAttribute("decryption", true))
+	// in zonemode skip data which less then zoneid length
+	// without zonemode check that data has length more than min AcraStruct length
+	if (decryptor.IsWithZone() && len(data) < zone.ZoneIDBlockLength) || (!decryptor.IsWithZone() && len(data) < base.GetMinAcraStructLength()) {
+		logger.WithFields(log.Fields{"lest": len(data) < zone.ZoneIDBlockLength, "zone_length": zone.ZoneIDBlockLength, "length": len(data), "with_zone": decryptor.IsWithZone()}).Debugln("Skip decryption because length of block too small for ZoneId or AcraStruct")
+		return ctx, data, nil
+	}
+	decryptor.Reset()
+	span.AddAttributes(trace.BoolAttribute("decryption", true))
 
-		// Zone anyway should be passed as whole block
-		// so try to match before any operations if we process with ZoneMode on
-		if base.NeedMatchZone(decryptor) {
-			span.AddAttributes(trace.BoolAttribute("match_zone", true))
-			// try to match zone
-			decryptor.MatchZoneBlock(data)
-			var err error
-			if decryptor.IsWholeMatch() {
-				// check that it's not poison record
-				err = checkWholePoisonRecord(data, decryptor, logger)
-			} else {
-				// check that it's not poison record
-				err = checkInlinePoisonRecordInBlock(data, decryptor, logger)
-			}
-
-			if err != nil {
-				logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorDecryptorCantCheckPoisonRecord).WithError(err).Errorln("Can't check poison record in block")
-				return ctx, nil, err
-			}
-			// TODO remove to back decryption only with matched zone_id
-			//return ctx, data, nil
-		}
-
-		// create temporary logger to log related zone_id in flow of decryption
-		// client_id set on higher level on start of processing connection
-		decryptionLogger := logger.WithField("zone_id", string(decryptor.GetMatchedZoneID()))
-		var newData []byte
+	// Zone anyway should be passed as whole block
+	// so try to match before any operations if we process with ZoneMode on
+	if base.NeedMatchZone(decryptor) {
+		span.AddAttributes(trace.BoolAttribute("match_zone", true))
+		// try to match zone
+		decryptor.MatchZoneBlock(data)
 		var err error
 		if decryptor.IsWholeMatch() {
-			newData, err = decryptor.processWholeBlockDecryption(ctx, data, decryptionLogger)
-			if err != nil {
-				decryptionLogger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorDecryptorCantDecryptBinary).WithError(err).Errorln("Can't process whole block")
-				return ctx, nil, err
-			}
-			return ctx, newData, err
+			// check that it's not poison record
+			err = checkWholePoisonRecord(data, decryptor, logger)
+		} else {
+			// check that it's not poison record
+			err = checkInlinePoisonRecordInBlock(data, decryptor, logger)
 		}
-		newData, err = decryptor.processInlineBlockDecryption(ctx, data, decryptionLogger)
 		if err != nil {
-			decryptionLogger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorDecryptorCantDecryptBinary).WithError(err).Errorln("Can't process block with inline mode")
+			logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorDecryptorCantCheckPoisonRecord).WithError(err).Errorln("Can't check poison record in block")
 			return ctx, nil, err
 		}
-
-		decryptor.Reset()
-		// reset matched zone only if was successful decryption
-		if len(data) != len(newData) {
-			if os.Getenv("ZONE_FOR_ROW") != "on" {
-				decryptor.ResetZoneMatch()
-			}
-		}
-		return ctx, newData, nil
 	}
-	logger.Debugln("Skip decryption because length of block too small for ZoneId or AcraStruct")
-	return ctx, data, nil
+
+	// create temporary logger to log related zone_id in flow of decryption
+	// client_id set on higher level on start of processing connection
+	decryptionLogger := logger.WithField("zone_id", string(decryptor.GetMatchedZoneID()))
+	var newData []byte
+	var err error
+	if decryptor.IsWholeMatch() {
+		newData, err = decryptor.processWholeBlockDecryption(ctx, data, decryptionLogger)
+		if err != nil {
+			decryptionLogger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorDecryptorCantDecryptBinary).WithError(err).Errorln("Can't process whole block")
+			return ctx, nil, err
+		}
+		return ctx, newData, err
+	}
+	// else "injected cell mode", inline acrastruct
+	newData, err = decryptor.processInlineBlockDecryption(ctx, data, decryptionLogger)
+	if err != nil {
+		decryptionLogger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorDecryptorCantDecryptBinary).WithError(err).Errorln("Can't process block with inline mode")
+		return ctx, nil, err
+	}
+
+	decryptor.Reset()
+	// reset matched zone only if was successful decryption
+	if len(data) != len(newData) {
+		if os.Getenv("ZONE_FOR_ROW") != "on" {
+			decryptor.ResetZoneMatch()
+		}
+	}
+	return ctx, newData, nil
 }
 
 // processWholeBlockDecryption try to decrypt data of column as whole AcraStruct and replace with decrypted data on success
