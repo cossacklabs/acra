@@ -89,11 +89,11 @@ func TestHTTPDecryptionAndResponse(t *testing.T) {
 	//logging.SetLogLevel(logging.LOG_DEBUG)
 	logger := log.NewEntry(log.StandardLogger())
 
-	keypair, err := keys.New(keys.KEYTYPE_EC)
+	keypair, err := keys.New(keys.TypeEC)
 	if err != nil {
 		t.Fatal(err)
 	}
-	keyStore.PrivateKey = keypair.Private
+	keyStore.EncryptionKeypair = keypair
 
 	clientID := []byte("some client id")
 	data := []byte("some data")
@@ -157,7 +157,7 @@ func TestHTTPDecryptionAndResponse(t *testing.T) {
 		t.Fatal("Response data not equal to initial data")
 	}
 
-	poisonKeyPair, err := keys.New(keys.KEYTYPE_EC)
+	poisonKeyPair, err := keys.New(keys.TypeEC)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -256,11 +256,11 @@ func TestHTTPDecryptionAcraStruct(t *testing.T) {
 		t.Fatalf("Can't create ReaderServer. err = %v\n", err)
 	}
 
-	keypair, err := keys.New(keys.KEYTYPE_EC)
+	keypair, err := keys.New(keys.TypeEC)
 	if err != nil {
 		t.Fatal(err)
 	}
-	keyStore.PrivateKey = keypair.Private
+	keyStore.EncryptionKeypair = keypair
 
 	clientID := []byte("some client id")
 	data := []byte("some data")
@@ -300,5 +300,124 @@ func TestHTTPDecryptionAcraStruct(t *testing.T) {
 
 	if !bytes.Equal(decrypted, data) {
 		t.Fatal("Decrypted acrastruct is not equal to initial data")
+	}
+}
+
+func TestHTTPEncryptionAndResponse(t *testing.T) {
+	logger := log.NewEntry(log.StandardLogger())
+	keypair, err := keys.New(keys.TypeEC)
+	if err != nil {
+		t.Fatal(err)
+	}
+	clientID := []byte("some client id")
+	data := []byte("some data")
+	keyStore := &testKeystore{EncryptionKeypair: keypair, KeyID: clientID}
+	translatorData := &common.TranslatorData{Keystorage: keyStore, CheckPoisonRecords: false}
+	httpConnectionsDecryptor, err := NewHTTPConnectionsDecryptor(translatorData)
+	if err != nil {
+		t.Fatalf("Can't create ReaderServer. err = %v\n", err)
+	}
+
+	// empty data
+	request := http.Request{Method: http.MethodGet}
+	request.URL, _ = url.Parse("http://smth.com/v1/encrypt")
+	request.Body = nil
+
+	res := httpConnectionsDecryptor.ParseRequestPrepareResponse(logger, &request, clientID)
+	if res.StatusCode != http.StatusMethodNotAllowed {
+		t.Fatalf(fmt.Sprintf("Should not be able to process GET requests -> Status code should be MethodNotAllowed, got %s\n", res.Status))
+	}
+
+	request.Method = http.MethodPost
+
+	res = httpConnectionsDecryptor.ParseRequestPrepareResponse(logger, &request, clientID)
+	if res.StatusCode != http.StatusBadRequest {
+		t.Fatalf(fmt.Sprintf("Should not be able to encrypt empty body -> Status code should be BadRequest, got %s\n", res.Status))
+	}
+	request.Body = ioutil.NopCloser(bytes.NewBuffer(data))
+
+	res = httpConnectionsDecryptor.ParseRequestPrepareResponse(logger, &request, nil)
+	if res.StatusCode != http.StatusBadRequest {
+		t.Fatalf(fmt.Sprintf("Should not be able to encrypt without client/zone id -> Status code should be BadRequest, got %s\n", res.Status))
+	}
+
+	res = httpConnectionsDecryptor.ParseRequestPrepareResponse(logger, &request, []byte(`incorrect client id`))
+	if res.StatusCode != http.StatusBadRequest {
+		t.Fatalf(fmt.Sprintf("Should not be able to encrypt with incorrect client id -> Status code should be BadRequest, got %s\n", res.Status))
+	}
+
+	request.URL, _ = url.Parse("http://smth.com/v1/encrypt?zone_id=incorrect_zone")
+	res = httpConnectionsDecryptor.ParseRequestPrepareResponse(logger, &request, []byte(`incorrect client id`))
+	if res.StatusCode != http.StatusBadRequest {
+		t.Fatalf(fmt.Sprintf("Should not be able to encrypt with incorrect zone id -> Status code should be BadRequest, got %s\n", res.Status))
+	}
+
+	request.Body = ioutil.NopCloser(bytes.NewReader(data))
+	keyStore.EncryptionKeypair.Public.Value = []byte("trash")
+	request.URL, _ = url.Parse("http://smth.com/v1/encrypt")
+	res = httpConnectionsDecryptor.ParseRequestPrepareResponse(logger, &request, clientID)
+	if res.StatusCode != http.StatusBadRequest {
+		t.Fatalf(fmt.Sprintf("Should not be able to encrypt with incorrect zone id -> Status code should be BadRequest, got %s\n", res.Status))
+	}
+
+}
+
+func TestHTTPEncryptionAcraStruct(t *testing.T) {
+	keyStore := &testKeystore{}
+	logger := log.NewEntry(log.New())
+	translatorData := &common.TranslatorData{Keystorage: keyStore, CheckPoisonRecords: false}
+	httpConnectionsDecryptor, err := NewHTTPConnectionsDecryptor(translatorData)
+	if err != nil {
+		t.Fatalf("Can't create ReaderServer. err = %v\n", err)
+	}
+
+	keypair, err := keys.New(keys.TypeEC)
+	if err != nil {
+		t.Fatal(err)
+	}
+	keyStore.EncryptionKeypair = keypair
+
+	clientID := []byte("some client id")
+	data := []byte("some data")
+	request := http.Request{Method: http.MethodPost}
+
+	// check with clientID
+	request.Body = ioutil.NopCloser(bytes.NewReader(data))
+	request.URL, _ = url.Parse(fmt.Sprintf("http://smth.com/v1/encrypt?client_id=%s", clientID))
+	res := httpConnectionsDecryptor.ParseRequestPrepareResponse(logger, &request, clientID)
+	if res.StatusCode != http.StatusOK {
+		t.Fatalf(fmt.Sprintf("Expects status OK, got %s\n", res.Status))
+	}
+	encryptedAcraStruct, err := ioutil.ReadAll(res.Body)
+	if err != nil {
+		t.Fatal(err)
+	}
+	decrypted, err := base.DecryptAcrastruct(encryptedAcraStruct, keypair.Private, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Equal(data, decrypted) {
+		t.Fatal("Incorrect response body")
+	}
+
+	// test with zone
+	zoneID := []byte("some zone")
+	// check with clientID
+	request.Body = ioutil.NopCloser(bytes.NewReader(data))
+	request.URL, _ = url.Parse(fmt.Sprintf("http://smth.com/v1/encrypt?zone_id=%s", zoneID))
+	res = httpConnectionsDecryptor.ParseRequestPrepareResponse(logger, &request, clientID)
+	if res.StatusCode != http.StatusOK {
+		t.Fatalf(fmt.Sprintf("Expects status OK, got %s\n", res.Status))
+	}
+	encryptedAcraStruct, err = ioutil.ReadAll(res.Body)
+	if err != nil {
+		t.Fatal(err)
+	}
+	decrypted, err = base.DecryptAcrastruct(encryptedAcraStruct, keypair.Private, zoneID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Equal(data, decrypted) {
+		t.Fatal("Incorrect response body")
 	}
 }
