@@ -3097,9 +3097,7 @@ class AcraTranslatorTest(AcraTranslatorMixin, BaseTestCase):
         client_id = "keypair1"
         data = get_pregenerated_random_data().encode('ascii')
         client_id_private_key = read_storage_private_key(KEYS_FOLDER.name, 'keypair1', get_master_key())
-
         zone = zones[0]
-        incorrect_zone = zones[1]
         zone_private_key = read_zone_private_key(KEYS_FOLDER.name, zone['id'], get_master_key())
         connection_string = 'tcp://127.0.0.1:{}'.format(translator_port)
         translator_kwargs = {
@@ -3114,7 +3112,6 @@ class AcraTranslatorTest(AcraTranslatorMixin, BaseTestCase):
                 response = request_func(connector_port, correct_client_id, None, data)
                 decrypted = decrypt_acrastruct(response, client_id_private_key, 'keypair1')
                 self.assertEqual(data, decrypted)
-
                 # test with correct zone id
                 print("encrypt with zone {}".format(zone['id']))
                 response = request_func(
@@ -3122,8 +3119,6 @@ class AcraTranslatorTest(AcraTranslatorMixin, BaseTestCase):
                 print("decrypt with zone {}".format(zone['id']))
                 decrypted = decrypt_acrastruct(response, zone_private_key, zone_id=zone['id'].encode('ascii'))
                 self.assertEqual(data, decrypted)
-
-
             # wait decryption error with incorrect client id
             with ProcessContextManager(self.fork_connector_for_translator(connector_port2, translator_port, incorrect_client_id)):
                 response = request_func(connector_port2, incorrect_client_id, None, None)
