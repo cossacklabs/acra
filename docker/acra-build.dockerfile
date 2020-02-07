@@ -32,8 +32,7 @@ WORKDIR /root
 RUN ["/bin/bash", "-c", \
     "set -o pipefail && \
     curl -sSL https://pkgs.cossacklabs.com/scripts/libthemis_install.sh | \
-        bash -s -- --yes --method source --branch $VCS_BRANCH \
-        --without-packing --without-clean"]
+        bash -s -- --yes"]
 # Install golang and set environment variables
 RUN GO_SRC_FILE="go1.13.7.linux-amd64.tar.gz" && \
     wget --no-verbose --no-check-certificate \
