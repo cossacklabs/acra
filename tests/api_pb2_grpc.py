@@ -44,3 +44,45 @@ def add_ReaderServicer_to_server(servicer, server):
   generic_handler = grpc.method_handlers_generic_handler(
       'grpc_api.Reader', rpc_method_handlers)
   server.add_generic_rpc_handlers((generic_handler,))
+
+
+class WriterStub(object):
+  # missing associated documentation comment in .proto file
+  pass
+
+  def __init__(self, channel):
+    """Constructor.
+
+    Args:
+      channel: A grpc.Channel.
+    """
+    self.Encrypt = channel.unary_unary(
+        '/grpc_api.Writer/Encrypt',
+        request_serializer=api__pb2.EncryptRequest.SerializeToString,
+        response_deserializer=api__pb2.EncryptResponse.FromString,
+        )
+
+
+class WriterServicer(object):
+  # missing associated documentation comment in .proto file
+  pass
+
+  def Encrypt(self, request, context):
+    # missing associated documentation comment in .proto file
+    pass
+    context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+    context.set_details('Method not implemented!')
+    raise NotImplementedError('Method not implemented!')
+
+
+def add_WriterServicer_to_server(servicer, server):
+  rpc_method_handlers = {
+      'Encrypt': grpc.unary_unary_rpc_method_handler(
+          servicer.Encrypt,
+          request_deserializer=api__pb2.EncryptRequest.FromString,
+          response_serializer=api__pb2.EncryptResponse.SerializeToString,
+      ),
+  }
+  generic_handler = grpc.method_handlers_generic_handler(
+      'grpc_api.Writer', rpc_method_handlers)
+  server.add_generic_rpc_handlers((generic_handler,))

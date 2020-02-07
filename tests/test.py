@@ -62,7 +62,7 @@ from utils import (read_storage_public_key, decrypt_acrastruct,
                    load_random_data_config, get_random_data_files,
                    clean_test_data, safe_string, prepare_encryptor_config,
                    get_encryptor_config, abs_path, get_test_encryptor_config, send_signal_by_process_name,
-                   load_yaml_config, dump_yaml_config)
+                   load_yaml_config, dump_yaml_config, read_storage_private_key, read_zone_private_key)
 
 import sys
 # add to path our wrapper until not published to PYPI
@@ -3062,6 +3062,68 @@ class AcraTranslatorTest(AcraTranslatorMixin, BaseTestCase):
         with requests.post(api_url, data=acrastruct, timeout=REQUEST_TIMEOUT) as response:
             return response.content
 
+    def grpc_encrypt_request(self, port, client_id, zone_id, data):
+        channel = grpc.insecure_channel('127.0.0.1:{}'.format(port))
+        stub = api_pb2_grpc.WriterStub(channel)
+        try:
+            if zone_id:
+                response = stub.Encrypt(api_pb2.EncryptRequest(
+                    zone_id=zone_id.encode('ascii'), data=data,
+                    client_id=client_id.encode('ascii')),
+                    timeout=SOCKET_CONNECT_TIMEOUT)
+            else:
+                response = stub.Encrypt(api_pb2.EncryptRequest(
+                    client_id=client_id.encode('ascii'), data=data),
+                    timeout=SOCKET_CONNECT_TIMEOUT)
+        except grpc.RpcError:
+            return b''
+        return response.acrastruct
+
+    def http_encrypt_request(self, port, client_id, zone_id, data):
+        api_url = 'http://127.0.0.1:{}/v1/encrypt'.format(port)
+        if zone_id:
+            api_url = '{}?zone_id={}'.format(api_url, zone_id)
+        with requests.post(api_url, data=data, timeout=REQUEST_TIMEOUT) as response:
+            return response.content
+
+    def _testApiEncryption(self, request_func, use_http=False, use_grpc=False):
+        # one is set
+        self.assertTrue(use_http or use_grpc)
+        # two is not acceptable
+        self.assertFalse(use_http and use_grpc)
+        translator_port = 3456
+        connector_port = 12345
+        connector_port2 = connector_port+1
+        client_id = "keypair1"
+        data = get_pregenerated_random_data().encode('ascii')
+        client_id_private_key = read_storage_private_key(KEYS_FOLDER.name, 'keypair1', get_master_key())
+        zone = zones[0]
+        zone_private_key = read_zone_private_key(KEYS_FOLDER.name, zone['id'], get_master_key())
+        connection_string = 'tcp://127.0.0.1:{}'.format(translator_port)
+        translator_kwargs = {
+            'incoming_connection_http_string': connection_string if use_http else '',
+            # turn off grpc to avoid check connection to it without acra-connector
+            'incoming_connection_grpc_string': connection_string if use_grpc else '',}
+
+        correct_client_id = 'keypair1'
+        incorrect_client_id = 'keypair2'
+        with ProcessContextManager(self.fork_translator(translator_kwargs)):
+            with ProcessContextManager(self.fork_connector_for_translator(connector_port, translator_port, client_id)):
+                response = request_func(connector_port, correct_client_id, None, data)
+                decrypted = decrypt_acrastruct(response, client_id_private_key, 'keypair1')
+                self.assertEqual(data, decrypted)
+                # test with correct zone id
+                print("encrypt with zone {}".format(zone['id']))
+                response = request_func(
+                    connector_port, client_id, zone['id'], data)
+                print("decrypt with zone {}".format(zone['id']))
+                decrypted = decrypt_acrastruct(response, zone_private_key, zone_id=zone['id'].encode('ascii'))
+                self.assertEqual(data, decrypted)
+            # wait decryption error with incorrect client id
+            with ProcessContextManager(self.fork_connector_for_translator(connector_port2, translator_port, incorrect_client_id)):
+                response = request_func(connector_port2, incorrect_client_id, None, None)
+                self.assertNotEqual(data, response)
+
     def _testApiDecryption(self, request_func, use_http=False, use_grpc=False):
         # one is set
         self.assertTrue(use_http or use_grpc)
@@ -3186,12 +3248,14 @@ class AcraTranslatorTest(AcraTranslatorMixin, BaseTestCase):
 
     def testGRPCApi(self):
         self._testApiDecryption(self.grpc_decrypt_request, use_grpc=True)
+        self._testApiEncryption(self.grpc_encrypt_request, use_grpc=True)
 
     def testHTTPApi(self):
         self._testApiDecryption(self.http_decrypt_request, use_http=True)
+        self._testApiEncryption(self.http_encrypt_request, use_http=True)
 
 
-class TestAcraRotate(BaseTestCase):
+class TestAcraRotateWithZone(BaseTestCase):
     ZONE = True
 
     def checkSkip(self):
@@ -3199,13 +3263,16 @@ class TestAcraRotate(BaseTestCase):
 
     def fork_acra(self, popen_kwargs: dict=None, **acra_kwargs: dict):
         acra_kwargs['keystore_cache_size'] = -1  # no cache
-        return super(TestAcraRotate, self).fork_acra(
+        return super(TestAcraRotateWithZone, self).fork_acra(
             popen_kwargs, **acra_kwargs)
 
-    def isSameZonePublicKeys(self, keys_folder, zone_data):
+    def read_public_key(self, key_id, keys_folder):
+        return read_zone_public_key(key_id, keys_folder)
+
+    def isSamePublicKeys(self, keys_folder, keys_data):
         """check is equal zone public key on filesystem and from zone_data"""
-        for zone_id, public_key in zone_data.items():
-            current_public = read_zone_public_key(zone_id, keys_folder)
+        for key_id, public_key in keys_data.items():
+            current_public = self.read_public_key(key_id, keys_folder)
             if b64decode(public_key) != current_public:
                 return False
         return True
@@ -3273,12 +3340,12 @@ class TestAcraRotate(BaseTestCase):
                     if dryRun:
                         # keys on filesystem should not changed
                         self.assertTrue(
-                            self.isSameZonePublicKeys(
+                            self.isSamePublicKeys(
                                 keys_folder, zones_before_rotate))
                     else:
                         # keys on filesystem must be changed
                         self.assertFalse(
-                            self.isSameZonePublicKeys(
+                            self.isSamePublicKeys(
                                 keys_folder, zones_before_rotate))
                     for zone_id in result:
                         self.assertIn(zone_id, zones_before_rotate)
@@ -3321,11 +3388,11 @@ class TestAcraRotate(BaseTestCase):
             """load zone public keys from filesystem"""
             output = {}
             for id in zone_ids:
-                output[id] = b64encode(read_zone_public_key(id, keys_folder))
+                output[id] = b64encode(self.read_public_key(id, keys_folder))
             return output
 
         rotate_test_table = sa.Table(
-            'rotate_test',
+            'rotate_zone_test',
             metadata,
             sa.Column('id', sa.Integer, primary_key=True),
             sa.Column('zone_id', sa.LargeBinary(length=COLUMN_DATA_SIZE)),
@@ -3381,9 +3448,11 @@ class TestAcraRotate(BaseTestCase):
 
         for dry_run in (True, False):
             if TEST_MYSQL:
-                sql_update = "update rotate_test set data=? where id=?;"
+                sql_update = "update {} set data=? where id=?;".format(rotate_test_table.name)
+                sql_select = 'select id, zone_id, data from {} order by id;'.format(rotate_test_table.name)
             elif TEST_POSTGRESQL:
-                sql_update = "update rotate_test set data=$1 where id=$2;"
+                sql_update = "update {} set data=$1 where id=$2;".format(rotate_test_table.name)
+                sql_select = 'select id, zone_id::bytea, data from {} order by id;'.format(rotate_test_table.name)
             else:
                 self.fail("unsupported settings of tested db")
 
@@ -3393,36 +3462,40 @@ class TestAcraRotate(BaseTestCase):
                 '--db_connection_string={}'.format(connection_string),
                 '--dry-run={}'.format(1 if dry_run else 0),
                 mode_arg
-             ]
+            ]
 
             zone_map = load_zones_from_folder(KEYS_FOLDER.name, zone_ids)
             # use extra arg in select and update
             subprocess.check_output(
                 default_args + [
-                    '--sql_select=select id, zone_id, data from rotate_test order by id;',
+                    '--sql_select={}'.format(sql_select),
                     '--sql_update={}'.format(sql_update)
                 ]
             )
             if dry_run:
                 self.assertTrue(
-                    self.isSameZonePublicKeys(KEYS_FOLDER.name, zone_map))
+                    self.isSamePublicKeys(KEYS_FOLDER.name, zone_map))
             else:
                 self.assertFalse(
-                    self.isSameZonePublicKeys(KEYS_FOLDER.name, zone_map))
+                    self.isSamePublicKeys(KEYS_FOLDER.name, zone_map))
 
             result = self.engine1.execute(sa.select([rotate_test_table]))
             self.check_decrypted_data(result)
             result = self.engine_raw.execute(sa.select([rotate_test_table]))
             self.check_rotation(result, data_before_rotate, dry_run)
 
+            some_id = list(data_before_rotate.keys())[0]
+
             # chose any id to operate with specific row
             if TEST_MYSQL:
-                sql_update = "update rotate_test set data=? where id={};"
+                sql_update = "update {} set data=? where id={{}};".format(rotate_test_table.name)
+                sql_select = 'select zone_id, data from {} where id={};'.format(rotate_test_table.name, some_id)
             elif TEST_POSTGRESQL:
-                sql_update = "update rotate_test set data=$1 where id={};"
+                sql_update = "update {} set data=$1 where id={{}};".format(rotate_test_table.name)
+                sql_select = 'select zone_id::bytea, data from {} where id={};'.format(rotate_test_table.name, some_id)
             else:
                 self.fail("unsupported settings of tested db")
-            some_id = list(data_before_rotate.keys())[0]
+
             sql_update = sql_update.format(some_id)
 
 
@@ -3430,17 +3503,17 @@ class TestAcraRotate(BaseTestCase):
             # rotate with select without extra arg
             subprocess.check_output(
                 default_args + [
-                    '--sql_select=select zone_id, data from rotate_test where id={};'.format(some_id),
+                    '--sql_select={}'.format(sql_select),
                     '--sql_update={}'.format(sql_update)
-                 ]
+                ]
             )
 
             if dry_run:
                 self.assertTrue(
-                    self.isSameZonePublicKeys(KEYS_FOLDER.name, zone_map))
+                    self.isSamePublicKeys(KEYS_FOLDER.name, zone_map))
             else:
                 self.assertFalse(
-                    self.isSameZonePublicKeys(KEYS_FOLDER.name, zone_map))
+                    self.isSamePublicKeys(KEYS_FOLDER.name, zone_map))
 
             result = self.engine1.execute(
                 sa.select([rotate_test_table],
@@ -3473,6 +3546,245 @@ class TestAcraRotate(BaseTestCase):
                 self.assertNotEqual(row['data'], data_before_rotate[row['id']])
                 # update with new data to check on next stage
                 data_before_rotate[row['id']] = row['data']
+
+
+class TestAcraRotate(TestAcraRotateWithZone):
+    ZONE = False
+
+    def read_public_key(self, key_id, keys_folder):
+        return read_storage_public_key(key_id, keys_folder)
+
+    def testFileRotation(self):
+        """
+        create AcraStructs with them and save to files
+        call acra-rotate and check that public keys for client_ids different,
+        AcraStructs different and decrypted AcraStructs (raw data) the same"""
+
+        TestData = collections.namedtuple("TestData", ["acrastruct", "data"])
+        filename_template = '{dir}/{id}_{num}.acrastruct'
+        key_before_rotate = {}
+        client_id = 'keypair1'
+        keys_map = collections.defaultdict(list)
+        keys_file_count = 3
+        # generated acrastructs to compare with rotated
+        acrastructs = {}
+        with tempfile.TemporaryDirectory() as keys_folder, \
+                tempfile.TemporaryDirectory() as data_folder:
+            # generate keys in separate folder
+
+            subprocess.check_output(
+                ['./acra-keymaker',
+                 '--client_id={}'.format(client_id),
+                 '--keys_output_dir={}'.format(keys_folder),
+                 '--keys_public_output_dir={}'.format(keys_folder)],
+                cwd=os.getcwd(),
+                timeout=PROCESS_CALL_TIMEOUT).decode('utf-8')
+            # create acrastructs with this client_id
+            key_before_rotate = {client_id: b64encode(self.read_public_key(client_id, keys_folder))}
+
+            for i in range(keys_file_count):
+                data = get_pregenerated_random_data().encode('ascii')
+                acrastruct = create_acrastruct(data, b64decode(key_before_rotate[client_id]))
+                filename = filename_template.format(
+                    dir=data_folder, id=client_id, num=i)
+                acrastructs[filename] = TestData(acrastruct=acrastruct, data=data)
+                with open(filename, 'wb') as f:
+                    f.write(acrastruct)
+                keys_map[client_id].append(filename)
+
+
+            # keys of json objects that will be in output
+            PUBLIC_KEY = 'new_public_key'
+            FILES = 'file_paths'
+            # True must be first because code below depends on it
+            for dryRun in (True, False):
+                with contextlib.closing(tempfile.NamedTemporaryFile(
+                        'w', delete=False)) as keys_map_file:
+                    json.dump(keys_map, keys_map_file)
+                    keys_map_file.close()
+                    result = subprocess.check_output(
+                        ['./acra-rotate', '--keys_dir={}'.format(keys_folder),
+                         '--file_map_config={}'.format(keys_map_file.name),
+                         '--dry-run={}'.format(1 if dryRun else 0),
+                         '--zonemode_enable=false'])
+                    if not isinstance(result, str):
+                        result = result.decode('utf-8')
+                    result = json.loads(result)
+                    if dryRun:
+                        # keys on filesystem should not changed
+                        self.assertTrue(
+                            self.isSamePublicKeys(
+                                keys_folder, key_before_rotate))
+                    else:
+                        # keys on filesystem must be changed
+                        self.assertFalse(
+                            self.isSamePublicKeys(
+                                keys_folder, key_before_rotate))
+                    for key_id in result:
+                        self.assertIn(key_id, key_before_rotate)
+                        # new public key in output must be different from
+                        # previous
+                        self.assertNotEqual(
+                            result[key_id][PUBLIC_KEY],
+                            key_before_rotate[key_id])
+                        # check that all files was processed and are in result
+                        self.assertEqual(
+                            keys_map[key_id],  # already sorted by loop index
+                            sorted(result[key_id][FILES]))
+                        # compare rotated acrastructs
+                        for path in result[key_id][FILES]:
+                            with open(path, 'rb') as acrastruct_file:
+                                rotated_acrastruct = acrastruct_file.read()
+                            private_key_path = '{}/{}_storage'.format(
+                                keys_folder, key_id)
+                            with open(private_key_path, 'rb') as f:
+                                client_id_private = decrypt_private_key(
+                                    f.read(), key_id.encode("ascii"),
+                                    b64decode(get_master_key()))
+                            decrypted_rotated = decrypt_acrastruct(
+                                rotated_acrastruct, client_id_private)
+                            if dryRun:
+                                self.assertEqual(
+                                    rotated_acrastruct,
+                                    acrastructs[path].acrastruct)
+                            else:
+                                self.assertNotEqual(
+                                    rotated_acrastruct,
+                                    acrastructs[path].acrastruct)
+                            # data should be unchanged
+                            self.assertEqual(
+                                decrypted_rotated, acrastructs[path].data)
+
+    def testDatabaseRotation(self):
+        def load_keys_from_folder(keys_folder, ids):
+            """load public keys from filesystem"""
+            output = {}
+            for id in ids:
+                output[id] = b64encode(self.read_public_key(id, keys_folder))
+            return output
+
+        rotate_test_table = sa.Table(
+            'rotate_client_id_test',
+            metadata,
+            sa.Column('id', sa.Integer, primary_key=True),
+            sa.Column('key_id', sa.LargeBinary(length=COLUMN_DATA_SIZE)),
+            sa.Column('data', sa.LargeBinary(length=COLUMN_DATA_SIZE)),
+            sa.Column('raw_data', sa.Text),
+        )
+        metadata.create_all(self.engine_raw)
+        self.engine_raw.execute(sa.delete(rotate_test_table))
+
+        data_before_rotate = {}
+
+        data = get_pregenerated_random_data()
+        client_id = 'keypair1'
+        acra_struct = create_acrastruct_with_client_id(data.encode('ascii'), client_id)
+        row_id = get_random_id()
+        data_before_rotate[row_id] = acra_struct
+        self.engine_raw.execute(
+            rotate_test_table.insert(),
+            {'id': row_id, 'data': acra_struct, 'raw_data': data,
+             'key_id': client_id.encode('ascii')})
+
+        if TEST_MYSQL:
+            # test:test@tcp(127.0.0.1:3306)/test
+            connection_string = "{user}:{password}@tcp({host}:{port})/{db_name}".format(
+                user=DB_USER, password=DB_USER_PASSWORD, host=DB_HOST,
+                port=DB_PORT, db_name=DB_NAME)
+            mode_arg = '--mysql_enable'
+        elif TEST_POSTGRESQL:
+            if TEST_WITH_TLS:
+                sslmode = "require"
+            else:
+                sslmode = "disable"
+
+            connection_string = "postgres://{user}:{password}@{db_host}:{db_port}/{db_name}?sslmode={sslmode}".format(
+                sslmode=sslmode, user=DB_USER, password=DB_USER_PASSWORD,
+                db_host=DB_HOST, db_port=DB_PORT, db_name=DB_NAME)
+            mode_arg = '--postgresql_enable'
+        else:
+            self.fail("unsupported settings of tested db")
+
+        for dry_run in (True, False):
+            if TEST_MYSQL:
+                sql_update = "update {} set data=? where id=?;".format(rotate_test_table.name)
+                sql_select = "select id, '{}', data from {} order by id;".format(client_id, rotate_test_table.name)
+            elif TEST_POSTGRESQL:
+                sql_update = "update {} set data=$1 where id=$2;".format(rotate_test_table.name)
+                sql_select = "select id, '{}'::bytea, data from {} order by id;".format(client_id, rotate_test_table.name)
+            else:
+                self.fail("unsupported settings of tested db")
+
+            default_args = [
+                './acra-rotate',
+                '--keys_dir={}'.format(KEYS_FOLDER.name),
+                '--db_connection_string={}'.format(connection_string),
+                '--dry-run={}'.format(1 if dry_run else 0),
+                '--zonemode_enable=false',
+                mode_arg
+            ]
+
+            keys_map = load_keys_from_folder(KEYS_FOLDER.name, [client_id])
+            try:
+                # use extra arg in select and update
+                subprocess.check_output(
+                    default_args + [
+                        "--sql_select={}".format(sql_select),
+                        '--sql_update={}'.format(sql_update),
+                    ]
+                )
+            except subprocess.CalledProcessError as exc:
+                print(exc.output)
+                raise
+            if dry_run:
+                self.assertTrue(
+                    self.isSamePublicKeys(KEYS_FOLDER.name, keys_map))
+            else:
+                self.assertFalse(
+                    self.isSamePublicKeys(KEYS_FOLDER.name, keys_map))
+
+            result = self.engine1.execute(sa.select([rotate_test_table]))
+            self.check_decrypted_data(result)
+            result = self.engine_raw.execute(sa.select([rotate_test_table]))
+            self.check_rotation(result, data_before_rotate, dry_run)
+            some_id = list(data_before_rotate.keys())[0]
+
+            # chose any id to operate with specific row
+            if TEST_MYSQL:
+                sql_update = "update {} set data=? where id={{}};".format(rotate_test_table.name)
+                sql_select = "select '{}', data from {} where id={};".format(client_id, rotate_test_table.name, some_id)
+            elif TEST_POSTGRESQL:
+                sql_update = "update {} set data=$1 where id={{}};".format(rotate_test_table.name)
+                sql_select = "select '{}'::bytea, data from {} where id={};".format(client_id, rotate_test_table.name, some_id)
+            else:
+                self.fail("unsupported settings of tested db")
+            sql_update = sql_update.format(some_id)
+
+            keys_map = load_keys_from_folder(KEYS_FOLDER.name, [client_id])
+            # rotate with select without extra arg
+            subprocess.check_output(
+                default_args + [
+                    "--sql_select={}".format(sql_select),
+                    '--sql_update={}'.format(sql_update)
+                ]
+            )
+
+            if dry_run:
+                self.assertTrue(
+                    self.isSamePublicKeys(KEYS_FOLDER.name, keys_map))
+            else:
+                self.assertFalse(
+                    self.isSamePublicKeys(KEYS_FOLDER.name, keys_map))
+
+            result = self.engine1.execute(
+                sa.select([rotate_test_table],
+                          whereclause=rotate_test_table.c.id==some_id))
+            self.check_decrypted_data(result)
+            # check that after rotation we can read actual data
+            result = self.engine_raw.execute(
+                sa.select([rotate_test_table],
+                          whereclause=rotate_test_table.c.id==some_id))
+            self.check_rotation(result, data_before_rotate, dry_run)
 
 
 class TestPrometheusMetrics(AcraTranslatorMixin, BaseTestCase):
