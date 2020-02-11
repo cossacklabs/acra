@@ -107,6 +107,7 @@ type DataDecryptor interface {
 // Decryptor describes all methods needed to find and decrypt AcraStruct in binary file.
 type Decryptor interface {
 	DataDecryptor
+	DecryptionSubscriber
 	// register key store that will be used for retrieving private keys
 	SetKeyStore(keystore.KeyStore)
 	// return private key for current connected client for decrypting symmetric
@@ -136,6 +137,11 @@ type Decryptor interface {
 	BeginTagIndex([]byte) (int, int)
 	MatchZoneInBlock([]byte)
 	SetDataProcessor(processor DataProcessor)
+}
+
+// NeedMatchZone return True is enabled zone mode and zone not matched yet
+func NeedMatchZone(decryptor Decryptor) bool {
+	return decryptor.IsWithZone() && !decryptor.IsMatchedZone()
 }
 
 // CheckReadWrite check that n == expectedN and err != nil

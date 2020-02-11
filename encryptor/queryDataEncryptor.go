@@ -28,12 +28,25 @@ import (
 	"reflect"
 )
 
+// QueryEncryptionState interface to access to encryption state for query
+type QueryEncryptionState interface {
+	GetColumnEncryptionSetting(index int) *config.ColumnEncryptionSetting
+}
+
+type querySelectSetting struct {
+	setting     *config.ColumnEncryptionSetting
+	tableName   string
+	columnName  string
+	columnAlias string
+}
+
 // QueryDataEncryptor parse query and encrypt raw data according to TableSchemaStore
 type QueryDataEncryptor struct {
-	schemaStore config.TableSchemaStore
-	encryptor   DataEncryptor
-	clientID    []byte
-	dataCoder   DBDataCoder
+	schemaStore         config.TableSchemaStore
+	encryptor           DataEncryptor
+	clientID            []byte
+	dataCoder           DBDataCoder
+	querySelectSettings []*querySelectSetting
 }
 
 // NewMysqlQueryEncryptor create QueryDataEncryptor with MySQLDBDataCoder
@@ -108,7 +121,7 @@ func UpdateExpressionValue(expr sqlparser.Expr, coder DBDataCoder, updateFunc fu
 		case sqlparser.StrVal, sqlparser.HexVal, sqlparser.PgEscapeString:
 			rawData, err := coder.Decode(val)
 			if err != nil {
-				if err == utils.ErrDecodeEscapedString || err == errUnsupportedExpression {
+				if err == utils.ErrDecodeOctalString || err == errUnsupportedExpression {
 					logrus.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCodingCantDecodeSQLValue).
 						WithError(err).
 						Warningln("Can't decode data with unsupported coding format or unsupported expression")

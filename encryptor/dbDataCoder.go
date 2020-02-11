@@ -23,6 +23,7 @@ import (
 	"github.com/cossacklabs/acra/sqlparser"
 	"github.com/cossacklabs/acra/utils"
 	"github.com/sirupsen/logrus"
+	"unicode/utf8"
 )
 
 var pgHexStringPrefix = []byte{'\\', 'x'}
@@ -83,6 +84,8 @@ func (*PostgresqlDBDataCoder) Decode(expr sqlparser.Expr) ([]byte, error) {
 	switch val := expr.(type) {
 	case *sqlparser.SQLVal:
 		switch val.Type {
+		case sqlparser.IntVal:
+			return val.Val, nil
 		case sqlparser.HexVal:
 			binValue := make([]byte, hex.DecodedLen(len(val.Val)))
 			_, err := hex.Decode(binValue, val.Val)
@@ -94,11 +97,11 @@ func (*PostgresqlDBDataCoder) Decode(expr sqlparser.Expr) ([]byte, error) {
 		case sqlparser.PgEscapeString, sqlparser.StrVal:
 			// try to decode hex/octal encoding
 			binValue, err := utils.DecodeEscaped(val.Val)
-			if err != nil {
+			if err != nil && err != utils.ErrDecodeOctalString {
 				// return error on hex decode
 				if _, ok := err.(hex.InvalidByteError); err == hex.ErrLength || ok {
 					return nil, err
-				} else if err == utils.ErrDecodeEscapedString {
+				} else if err == utils.ErrDecodeOctalString {
 					return nil, err
 				}
 
@@ -106,7 +109,7 @@ func (*PostgresqlDBDataCoder) Decode(expr sqlparser.Expr) ([]byte, error) {
 				// return value as is because it may be string with printable characters that wasn't encoded on client
 				return val.Val, nil
 			}
-			return binValue, nil
+			return binValue.Data(), nil
 		}
 	}
 	return nil, errUnsupportedExpression
@@ -117,11 +120,16 @@ func (*PostgresqlDBDataCoder) Encode(expr sqlparser.Expr, data []byte) ([]byte, 
 	switch val := expr.(type) {
 	case *sqlparser.SQLVal:
 		switch val.Type {
+		case sqlparser.IntVal:
+			return data, nil
 		case sqlparser.HexVal:
 			output := make([]byte, hex.EncodedLen(len(data)))
 			hex.Encode(output, data)
 			return output, nil
 		case sqlparser.PgEscapeString, sqlparser.StrVal:
+			if utf8.Valid(data) {
+				return data, nil
+			}
 			newVal := make([]byte, len(pgHexStringPrefix)+hex.EncodedLen(len(data)))
 			copy(newVal, pgHexStringPrefix)
 			hex.Encode(newVal[len(pgHexStringPrefix):], data)

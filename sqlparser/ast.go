@@ -1796,6 +1796,11 @@ func (node TableIdent) IsEmpty() bool {
 	return node.v == ""
 }
 
+// RawValue returns unescaped value
+func (node TableIdent) RawValue() string {
+	return node.v
+}
+
 // String returns the unescaped table name. It must
 // not be used for SQL generation. Use sqlparser.String
 // instead. The Stringer conformance is for usage

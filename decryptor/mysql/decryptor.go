@@ -259,7 +259,7 @@ func (decryptor *Decryptor) SetWholeMatch(value bool) {
 
 func (decryptor *Decryptor) decryptWholeBlock(block []byte) ([]byte, error) {
 	decryptor.Reset()
-	if decryptor.IsWithZone() && !decryptor.IsMatchedZone() {
+	if base.NeedMatchZone(decryptor) {
 		decryptor.MatchZoneBlock(block)
 		// check for poison record
 		if err := decryptor.checkPoisonRecord(block); err != nil {
@@ -296,7 +296,7 @@ func (decryptor *Decryptor) decryptWholeBlock(block []byte) ([]byte, error) {
 
 func (decryptor *Decryptor) decryptInlineBlock(block []byte) ([]byte, error) {
 	index := 0
-	if decryptor.IsWithZone() && !decryptor.IsMatchedZone() {
+	if base.NeedMatchZone(decryptor) {
 		decryptor.MatchZoneInBlock(block)
 		if err := decryptor.inlinePoisonRecordCheck(block); err != nil {
 			return nil, err

@@ -109,14 +109,12 @@ schemas:
 	simpleStringData := []byte("string data")
 	encryptedValue := []byte("encrypted")
 	hexEncryptedValue := hex.EncodeToString(encryptedValue)
-	toPgHexValue := func(s string) string {
-		return fmt.Sprintf("\\x%s", s)
-	}
 	dataValue := make([]byte, 256)
 	for i := 0; i < 256; i++ {
 		dataValue[i] = byte(i)
 	}
 	dataHexValue := hex.EncodeToString([]byte(dataValue))
+	// TODO add test cases with string, binary, int values. First should be decrypted as is, second as hex, third as is
 	testData := []struct {
 		Query             string
 		QueryData         []interface{}
@@ -379,7 +377,7 @@ schemas:
 		{
 			Query:             `INSERT INTO "TableWithoutColumnSchema" ('zone_id', 'specified_client_id', 'other_column', 'default_client_id') VALUES ('%s', '%s', 1, '%s')`,
 			QueryData:         []interface{}{simpleStringData, simpleStringData, simpleStringData},
-			ExpectedQueryData: []interface{}{toPgHexValue(hexEncryptedValue), toPgHexValue(hexEncryptedValue), toPgHexValue(hexEncryptedValue)},
+			ExpectedQueryData: []interface{}{encryptedValue, encryptedValue, encryptedValue},
 			Normalized:        true,
 			Changed:           true,
 			ExpectedIDS:       [][]byte{zoneID, specifiedClientID, defaultClientID},
@@ -390,7 +388,7 @@ schemas:
 		{
 			Query:             `UPDATE "TableWithoutColumnSchema" as "t" set "other_column"='%s', "specified_client_id"='%s', "zone_id"='%s', "default_client_id"='%s'`,
 			QueryData:         []interface{}{simpleStringData, simpleStringData, simpleStringData, simpleStringData},
-			ExpectedQueryData: []interface{}{simpleStringData, toPgHexValue(hexEncryptedValue), toPgHexValue(hexEncryptedValue), toPgHexValue(hexEncryptedValue)},
+			ExpectedQueryData: []interface{}{simpleStringData, encryptedValue, encryptedValue, encryptedValue},
 			Normalized:        true,
 			Changed:           true,
 			ExpectedIDS:       [][]byte{specifiedClientID, zoneID, defaultClientID},
