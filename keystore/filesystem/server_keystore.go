@@ -294,6 +294,17 @@ func (store *KeyStore) HasZonePrivateKey(id []byte) bool {
 	return exists
 }
 
+// GetZonePrivateKeys reads all historical encrypted zone private keys from fs,
+// decrypts them with master key and zoneId, and returns plaintext private keys,
+// or reading/decryption error.
+func (store *KeyStore) GetZonePrivateKeys(id []byte) ([]*keys.PrivateKey, error) {
+	key, err := store.GetPrivateKey(id)
+	if err != nil {
+		return nil, err
+	}
+	return []*keys.PrivateKey{key}, err
+}
+
 // GetPeerPublicKey returns public key for this clientID, gets it from cache or reads from fs.
 func (store *KeyStore) GetPeerPublicKey(id []byte) (*keys.PublicKey, error) {
 	if !keystore.ValidateID(id) {
@@ -329,6 +340,17 @@ func (store *KeyStore) GetPrivateKey(id []byte) (*keys.PrivateKey, error) {
 func (store *KeyStore) GetServerDecryptionPrivateKey(id []byte) (*keys.PrivateKey, error) {
 	fname := getServerDecryptionKeyFilename(id)
 	return store.getPrivateKeyByFilename(id, fname)
+}
+
+// GetServerDecryptionPrivateKeys reads encrypted server storage private keys from fs,
+// decrypts them with master key and clientID, and returns plaintext private keys,
+// or reading/decryption error.
+func (store *KeyStore) GetServerDecryptionPrivateKeys(id []byte) ([]*keys.PrivateKey, error) {
+	key, err := store.GetPrivateKey(id)
+	if err != nil {
+		return nil, err
+	}
+	return []*keys.PrivateKey{key}, err
 }
 
 // GenerateConnectorKeys generates AcraConnector transport EC keypair using clientID as part of key name.
