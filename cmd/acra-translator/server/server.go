@@ -18,8 +18,6 @@ package server
 
 import (
 	"context"
-	"github.com/cossacklabs/acra/cmd/acra-translator/common"
-	"go.opencensus.io/trace"
 	"net"
 	"os"
 	"time"
@@ -27,12 +25,14 @@ import (
 	"bufio"
 	"net/http"
 
+	"github.com/cossacklabs/acra/cmd/acra-translator/common"
 	"github.com/cossacklabs/acra/cmd/acra-translator/http_api"
 	"github.com/cossacklabs/acra/decryptor/base"
 	"github.com/cossacklabs/acra/keystore"
 	"github.com/cossacklabs/acra/logging"
 	"github.com/cossacklabs/acra/network"
 	log "github.com/sirupsen/logrus"
+	"go.opencensus.io/trace"
 	"google.golang.org/grpc"
 )
 
@@ -40,7 +40,7 @@ import (
 // gRPC and HTTP request parsers.
 type ReaderServer struct {
 	config            *common.AcraTranslatorConfig
-	keystorage        keystore.KeyStore
+	keystorage        keystore.MultiKeyStore
 	connectionManager *network.ConnectionManager
 	grpcServer        *grpc.Server
 
@@ -53,7 +53,7 @@ type ReaderServer struct {
 }
 
 // NewReaderServer creates Reader server with provided params.
-func NewReaderServer(config *common.AcraTranslatorConfig, keystorage keystore.KeyStore, grpcServerFactory common.GRPCServerFactory, waitTimeout time.Duration) (server *ReaderServer, err error) {
+func NewReaderServer(config *common.AcraTranslatorConfig, keystorage keystore.MultiKeyStore, grpcServerFactory common.GRPCServerFactory, waitTimeout time.Duration) (server *ReaderServer, err error) {
 	return &ReaderServer{
 		grpcServerFactory: grpcServerFactory,
 		waitTimeout:       waitTimeout,

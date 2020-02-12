@@ -25,7 +25,7 @@ import (
 
 // TranslatorData connects KeyStorage and Poison records settings for HTTP and gRPC decryptors.
 type TranslatorData struct {
-	Keystorage            keystore.KeyStore
+	Keystorage            keystore.MultiKeyStore
 	PoisonRecordCallbacks *base.PoisonCallbackStorage
 	CheckPoisonRecords    bool
 }

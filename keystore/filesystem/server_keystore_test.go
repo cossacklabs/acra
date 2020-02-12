@@ -413,3 +413,64 @@ func testSaveKeypairs(store *KeyStore, t *testing.T) {
 		}
 	}
 }
+
+func TestHistoricalKeyAccess(t *testing.T) {
+	keyDirectory, err := ioutil.TempDir("", "test_filesystem_store")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err = os.Chmod(keyDirectory, 0700); err != nil {
+		t.Fatal(err)
+	}
+	defer func() {
+		os.RemoveAll(keyDirectory)
+	}()
+
+	encryptor, err := keystore.NewSCellKeyEncryptor([]byte("some key"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	keyStore, err := NewFilesystemKeyStore(keyDirectory, encryptor)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	id, publicKey1, err := keyStore.GenerateZoneKey()
+	if err != nil {
+		t.Fatal(err)
+	}
+	privateKey1, err := keyStore.GetZonePrivateKey(id)
+	if err != nil {
+		t.Fatal(err)
+	}
+	publicKey2, err := keyStore.RotateZoneKey(id)
+	if err != nil {
+		t.Fatal(err)
+	}
+	privateKey2, err := keyStore.GetZonePrivateKey(id)
+	if err != nil {
+		t.Fatal(err)
+	}
+	allPrivateKeys, err := keyStore.GetZonePrivateKeys(id)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if bytes.Equal(publicKey1, publicKey2) {
+		t.Error("rotated public key should not stay the same")
+	}
+	if bytes.Equal(privateKey1.Value, privateKey2.Value) {
+		t.Error("rotated private key should not stay the same")
+	}
+	if len(allPrivateKeys) != 2 {
+		t.Errorf("incorrect total number of private keys: %v", len(allPrivateKeys))
+	} else {
+		// From newest to oldest
+		if !bytes.Equal(allPrivateKeys[0].Value, privateKey2.Value) {
+			t.Error("incorrect current private key value")
+		}
+		if !bytes.Equal(allPrivateKeys[1].Value, privateKey1.Value) {
+			t.Error("incorrect previous private key value")
+		}
+	}
+}

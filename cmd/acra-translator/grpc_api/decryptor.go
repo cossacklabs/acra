@@ -86,7 +86,7 @@ func (service *DecryptGRPCService) Encrypt(ctx context.Context, request *Encrypt
 
 // Decrypt decrypts AcraStruct from gRPC request and returns decrypted data or error.
 func (service *DecryptGRPCService) Decrypt(ctx context.Context, request *DecryptRequest) (*DecryptResponse, error) {
-	var privateKey *keys.PrivateKey
+	var privateKeys []*keys.PrivateKey
 	var err error
 	var decryptionContext []byte
 
@@ -99,18 +99,20 @@ func (service *DecryptGRPCService) Decrypt(ctx context.Context, request *Decrypt
 		return nil, ErrClientIDRequired
 	}
 	if len(request.ZoneId) != 0 {
-		privateKey, err = service.TranslatorData.Keystorage.GetZonePrivateKey(request.ZoneId)
+		privateKeys, err = service.TranslatorData.Keystorage.GetZonePrivateKeys(request.ZoneId)
 		decryptionContext = request.ZoneId
 	} else {
-		privateKey, err = service.TranslatorData.Keystorage.GetServerDecryptionPrivateKey(request.ClientId)
+		privateKeys, err = service.TranslatorData.Keystorage.GetServerDecryptionPrivateKeys(request.ClientId)
 	}
 	if err != nil {
 		base.AcrastructDecryptionCounter.WithLabelValues(base.DecryptionTypeFail).Inc()
 		logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantReadKeys).WithError(err).Errorln("Can't load private key for decryption")
 		return nil, ErrCantDecrypt
 	}
-	data, decryptErr := base.DecryptAcrastruct(request.Acrastruct, privateKey, decryptionContext)
-	utils.FillSlice(byte(0), privateKey.Value)
+	data, decryptErr := base.DecryptRotatedAcrastruct(request.Acrastruct, privateKeys, decryptionContext)
+	for _, privateKey := range privateKeys {
+		utils.FillSlice(byte(0), privateKey.Value)
+	}
 	if decryptErr != nil {
 		base.AcrastructDecryptionCounter.WithLabelValues(base.DecryptionTypeFail).Inc()
 		logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorTranslatorCantDecryptAcraStruct).WithError(decryptErr).Errorln("Can't decrypt AcraStruct")
