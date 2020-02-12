@@ -139,6 +139,7 @@ const (
 	EventCodeErrorEncryptorInitialization        = 901
 	EventCodeErrorDataEncryptorInitialization    = 902
 	EventCodeErrorEncryptorCantEncryptExpression = 903
+	EventCodeErrorCantEncryptData                = 904
 
 	// metrics
 	EventCodeErrorPrometheusHTTPHandler       = 1000

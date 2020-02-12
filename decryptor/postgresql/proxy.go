@@ -18,6 +18,7 @@ package postgresql
 
 import (
 	"context"
+	"errors"
 	"github.com/cossacklabs/acra/decryptor/base"
 	"github.com/cossacklabs/acra/encryptor"
 	"net"
@@ -58,6 +59,11 @@ func (factory *proxyFactory) New(ctx context.Context, clientID []byte, dbConnect
 		}
 		proxy.AddQueryObserver(queryEncryptor)
 	}
+	notifier, ok := decryptor.(base.DecryptionSubscriber)
+	if !ok {
+		return nil, errors.New("decryptor doesn't implement DecryptionSubscriber interface")
+	}
+	proxy.SubscribeOnAllColumnsDecryption(notifier)
 
 	return proxy, nil
 }

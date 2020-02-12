@@ -28,6 +28,7 @@ import (
 	"reflect"
 )
 
+// QueryEncryptionState interface to access to encryption state for query
 type QueryEncryptionState interface {
 	GetColumnEncryptionSetting(index int) *config.ColumnEncryptionSetting
 }

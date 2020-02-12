@@ -32,3 +32,6 @@ sql_select:
 # Insert/Update query with ? as placeholder where into first will be placed rotated AcraStruct
 sql_update: 
 
+# Rotate acrastructs as it was encrypted with zonemode or without. With zonemode_enable=true will be used zoneID for encryption/decryption. If false then key id will not be used
+zonemode_enable: true
+

@@ -22,6 +22,7 @@ package http_api
 import (
 	"bytes"
 	"fmt"
+	acrawriter "github.com/cossacklabs/acra/acra-writer"
 	"github.com/cossacklabs/acra/cmd/acra-translator/common"
 	"github.com/cossacklabs/acra/decryptor/base"
 	"github.com/cossacklabs/acra/logging"
@@ -34,6 +35,11 @@ import (
 	"net/http"
 	"os"
 	"strings"
+)
+
+const (
+	httpAPIMethodDecrypt = "decrypt"
+	httpAPIMethodEncrypt = "encrypt"
 )
 
 // HTTPConnectionsDecryptor object for decrypting AcraStructs from HTTP requests.
@@ -59,6 +65,57 @@ func (decryptor *HTTPConnectionsDecryptor) SendResponse(logger *log.Entry, respo
 		logger.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorTranslatorCantReturnResponse).
 			Warningln("Can't write response to buffer")
 	}
+}
+
+type encryptDecryptContext struct {
+	ZoneID   []byte
+	ClientID []byte
+	Data     []byte
+}
+
+func newEncryptDecryptContextOrErrorResponse(request *http.Request, clientID []byte, logger *log.Entry) (encryptDecryptContext, *http.Response) {
+	context := encryptDecryptContext{ClientID: clientID}
+	var zoneID []byte
+
+	// optional zone_id
+	query, ok := request.URL.Query()["zone_id"]
+	if ok && len(query) == 1 {
+		zoneID = []byte(query[0])
+		logger = logger.WithField("zone_id", query[0])
+	}
+
+	if zoneID == nil && clientID == nil {
+		msg := fmt.Sprintf("HTTP request doesn't have a ZoneID, connection doesn't have a ClientID, expected to get one of them. Send ZoneID in request URL")
+		logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorTranslatorZoneIDMissing).Warningln(msg)
+		return context, responseWithMessage(request, http.StatusBadRequest, msg)
+	}
+
+	if request.Body == nil {
+		msg := fmt.Sprintf("HTTP request doesn't have a body, expected to get AcraStruct")
+		logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorTranslatorCantParseRequestBody).Warningln(msg)
+		return context, responseWithMessage(request, http.StatusBadRequest, msg)
+	}
+
+	acraStruct, err := ioutil.ReadAll(request.Body)
+	defer request.Body.Close()
+
+	if acraStruct == nil || err != nil {
+		msg := fmt.Sprintf("Can't parse body from HTTP request, expected to get AcraStruct")
+		logger.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorTranslatorCantParseRequestBody).Warningln(msg)
+		return context, responseWithMessage(request, http.StatusBadRequest, msg)
+	}
+	context.ZoneID = zoneID
+	context.Data = acraStruct
+	return context, nil
+}
+
+// newBinaryResponseWithBody return response with 200 status, application/octet-stream content type and use data as response body
+func newBinaryResponseWithBody(request *http.Request, data []byte) *http.Response {
+	response := emptyResponseWithStatus(request, http.StatusOK)
+	response.Header.Set("Content-Type", "application/octet-stream")
+	response.Body = ioutil.NopCloser(bytes.NewReader(data))
+	response.ContentLength = int64(len(data))
+	return response
 }
 
 // ParseRequestPrepareResponse parses HTTP request to find AcraStruct and ZoneID, then decrypts AcraStruct.
@@ -100,38 +157,47 @@ func (decryptor *HTTPConnectionsDecryptor) ParseRequestPrepareResponse(logger *l
 	endpoint := pathParts[2] // decrypt
 
 	switch endpoint {
-	case "decrypt":
-		var zoneID []byte
-
-		// optional zone_id
-		query, ok := request.URL.Query()["zone_id"]
-		if ok && len(query) == 1 {
-			zoneID = []byte(query[0])
-			requestLogger = requestLogger.WithField("zone_id", query[0])
+	case httpAPIMethodEncrypt:
+		requestLogger.Debugln("Process HTTP request to encrypt data")
+		context, httpResponse := newEncryptDecryptContextOrErrorResponse(request, clientID, requestLogger)
+		if httpResponse != nil {
+			base.APIEncryptionCounter.WithLabelValues(base.EncryptionTypeFail).Inc()
+			return httpResponse
 		}
-
-		if zoneID == nil && clientID == nil {
-			msg := fmt.Sprintf("HTTP request doesn't have a ZoneID, connection doesn't have a ClientID, expected to get one of them. Send ZoneID in request URL")
-			requestLogger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorTranslatorZoneIDMissing).Warningln(msg)
+		requestLogger = requestLogger.WithField("zone_id", context.ZoneID)
+		var publicKey *keys.PublicKey
+		var err error
+		if context.ZoneID != nil {
+			publicKey, err = decryptor.Keystorage.GetZonePublicKey(context.ZoneID)
+		} else {
+			publicKey, err = decryptor.Keystorage.GetClientIDEncryptionPublicKey(clientID)
+		}
+		if err != nil {
+			base.APIEncryptionCounter.WithLabelValues(base.EncryptionTypeFail).Inc()
+			msg := "Invalid client or zone id"
+			requestLogger.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantReadKeys).Warningln(msg)
 			return responseWithMessage(request, http.StatusBadRequest, msg)
 		}
-
-		if request.Body == nil {
-			msg := fmt.Sprintf("HTTP request doesn't have a body, expected to get AcraStruct")
-			requestLogger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorTranslatorCantParseRequestBody).Warningln(msg)
+		// publicKey will be clientID' if wasn't provided ZoneID and context.ZoneID will be nil, otherwise used ZoneID
+		// public key and context.ZoneID will have value
+		acrastruct, err := acrawriter.CreateAcrastruct(context.Data, publicKey, context.ZoneID)
+		if err != nil {
+			base.APIEncryptionCounter.WithLabelValues(base.EncryptionTypeFail).Inc()
+			msg := "Unexpected error with AcraStruct generation"
+			requestLogger.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantEncryptData).Warningln(msg)
 			return responseWithMessage(request, http.StatusBadRequest, msg)
 		}
-
-		acraStruct, err := ioutil.ReadAll(request.Body)
-		defer request.Body.Close()
-
-		if acraStruct == nil || err != nil {
-			msg := fmt.Sprintf("Can't parse body from HTTP request, expected to get AcraStruct")
-			requestLogger.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorTranslatorCantParseRequestBody).Warningln(msg)
-			return responseWithMessage(request, http.StatusBadRequest, msg)
+		base.APIEncryptionCounter.WithLabelValues(base.EncryptionTypeSuccess).Inc()
+		requestLogger.Infoln("Encrypted data to AcraStruct")
+		return newBinaryResponseWithBody(request, acrastruct)
+	case httpAPIMethodDecrypt:
+		requestLogger.Debugln("Process HTTP request to decrypt data")
+		context, httpResponse := newEncryptDecryptContextOrErrorResponse(request, clientID, requestLogger)
+		if httpResponse != nil {
+			return httpResponse
 		}
 
-		decryptedStruct, err := decryptor.decryptAcraStruct(logger, acraStruct, zoneID, clientID)
+		decryptedStruct, err := decryptor.decryptAcraStruct(logger, context.Data, context.ZoneID, clientID)
 
 		if err != nil {
 			base.AcrastructDecryptionCounter.WithLabelValues(base.DecryptionTypeFail).Inc()
@@ -140,7 +206,7 @@ func (decryptor *HTTPConnectionsDecryptor) ParseRequestPrepareResponse(logger *l
 			response := responseWithMessage(request, http.StatusUnprocessableEntity, msg)
 			if decryptor.TranslatorData.CheckPoisonRecords {
 				// check poison records
-				poisoned, err := base.CheckPoisonRecord(acraStruct, decryptor.TranslatorData.Keystorage)
+				poisoned, err := base.CheckPoisonRecord(context.Data, decryptor.TranslatorData.Keystorage)
 				if err != nil {
 					requestLogger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorDecryptorCantCheckPoisonRecord).WithError(err).Errorln("Can't check for poison record, possible missing Poison record decryption key")
 					return response
@@ -159,12 +225,7 @@ func (decryptor *HTTPConnectionsDecryptor) ParseRequestPrepareResponse(logger *l
 		}
 		base.AcrastructDecryptionCounter.WithLabelValues(base.DecryptionTypeSuccess).Inc()
 		requestLogger.Infoln("Decrypted AcraStruct")
-
-		response := emptyResponseWithStatus(request, http.StatusOK)
-		response.Header.Set("Content-Type", "application/octet-stream")
-		response.Body = ioutil.NopCloser(bytes.NewReader(decryptedStruct))
-		response.ContentLength = int64(len(decryptedStruct))
-		return response
+		return newBinaryResponseWithBody(request, decryptedStruct)
 	}
 	msg := "HTTP endpoint not supported"
 	requestLogger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorTranslatorEndpointNotSupported).

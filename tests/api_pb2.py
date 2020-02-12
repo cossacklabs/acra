@@ -19,7 +19,7 @@ DESCRIPTOR = _descriptor.FileDescriptor(
   name='api.proto',
   package='grpc_api',
   syntax='proto3',
-  serialized_pb=_b('\n\tapi.proto\x12\x08grpc_api\"H\n\x0e\x44\x65\x63ryptRequest\x12\x11\n\tclient_id\x18\x01 \x01(\x0c\x12\x0f\n\x07zone_id\x18\x02 \x01(\x0c\x12\x12\n\nacrastruct\x18\x03 \x01(\x0c\"\x1f\n\x0f\x44\x65\x63ryptResponse\x12\x0c\n\x04\x64\x61ta\x18\x01 \x01(\x0c\x32J\n\x06Reader\x12@\n\x07\x44\x65\x63rypt\x12\x18.grpc_api.DecryptRequest\x1a\x19.grpc_api.DecryptResponse\"\x00\x62\x06proto3')
+  serialized_pb=_b('\n\tapi.proto\x12\x08grpc_api\"H\n\x0e\x44\x65\x63ryptRequest\x12\x11\n\tclient_id\x18\x01 \x01(\x0c\x12\x0f\n\x07zone_id\x18\x02 \x01(\x0c\x12\x12\n\nacrastruct\x18\x03 \x01(\x0c\"\x1f\n\x0f\x44\x65\x63ryptResponse\x12\x0c\n\x04\x64\x61ta\x18\x01 \x01(\x0c\"B\n\x0e\x45ncryptRequest\x12\x11\n\tclient_id\x18\x01 \x01(\x0c\x12\x0f\n\x07zone_id\x18\x02 \x01(\x0c\x12\x0c\n\x04\x64\x61ta\x18\x03 \x01(\x0c\"%\n\x0f\x45ncryptResponse\x12\x12\n\nacrastruct\x18\x01 \x01(\x0c\x32J\n\x06Reader\x12@\n\x07\x44\x65\x63rypt\x12\x18.grpc_api.DecryptRequest\x1a\x19.grpc_api.DecryptResponse\"\x00\x32J\n\x06Writer\x12@\n\x07\x45ncrypt\x12\x18.grpc_api.EncryptRequest\x1a\x19.grpc_api.EncryptResponse\"\x00\x62\x06proto3')
 )
 
 
@@ -100,8 +100,86 @@ _DECRYPTRESPONSE = _descriptor.Descriptor(
   serialized_end=128,
 )
 
+
+_ENCRYPTREQUEST = _descriptor.Descriptor(
+  name='EncryptRequest',
+  full_name='grpc_api.EncryptRequest',
+  filename=None,
+  file=DESCRIPTOR,
+  containing_type=None,
+  fields=[
+    _descriptor.FieldDescriptor(
+      name='client_id', full_name='grpc_api.EncryptRequest.client_id', index=0,
+      number=1, type=12, cpp_type=9, label=1,
+      has_default_value=False, default_value=_b(""),
+      message_type=None, enum_type=None, containing_type=None,
+      is_extension=False, extension_scope=None,
+      options=None, file=DESCRIPTOR),
+    _descriptor.FieldDescriptor(
+      name='zone_id', full_name='grpc_api.EncryptRequest.zone_id', index=1,
+      number=2, type=12, cpp_type=9, label=1,
+      has_default_value=False, default_value=_b(""),
+      message_type=None, enum_type=None, containing_type=None,
+      is_extension=False, extension_scope=None,
+      options=None, file=DESCRIPTOR),
+    _descriptor.FieldDescriptor(
+      name='data', full_name='grpc_api.EncryptRequest.data', index=2,
+      number=3, type=12, cpp_type=9, label=1,
+      has_default_value=False, default_value=_b(""),
+      message_type=None, enum_type=None, containing_type=None,
+      is_extension=False, extension_scope=None,
+      options=None, file=DESCRIPTOR),
+  ],
+  extensions=[
+  ],
+  nested_types=[],
+  enum_types=[
+  ],
+  options=None,
+  is_extendable=False,
+  syntax='proto3',
+  extension_ranges=[],
+  oneofs=[
+  ],
+  serialized_start=130,
+  serialized_end=196,
+)
+
+
+_ENCRYPTRESPONSE = _descriptor.Descriptor(
+  name='EncryptResponse',
+  full_name='grpc_api.EncryptResponse',
+  filename=None,
+  file=DESCRIPTOR,
+  containing_type=None,
+  fields=[
+    _descriptor.FieldDescriptor(
+      name='acrastruct', full_name='grpc_api.EncryptResponse.acrastruct', index=0,
+      number=1, type=12, cpp_type=9, label=1,
+      has_default_value=False, default_value=_b(""),
+      message_type=None, enum_type=None, containing_type=None,
+      is_extension=False, extension_scope=None,
+      options=None, file=DESCRIPTOR),
+  ],
+  extensions=[
+  ],
+  nested_types=[],
+  enum_types=[
+  ],
+  options=None,
+  is_extendable=False,
+  syntax='proto3',
+  extension_ranges=[],
+  oneofs=[
+  ],
+  serialized_start=198,
+  serialized_end=235,
+)
+
 DESCRIPTOR.message_types_by_name['DecryptRequest'] = _DECRYPTREQUEST
 DESCRIPTOR.message_types_by_name['DecryptResponse'] = _DECRYPTRESPONSE
+DESCRIPTOR.message_types_by_name['EncryptRequest'] = _ENCRYPTREQUEST
+DESCRIPTOR.message_types_by_name['EncryptResponse'] = _ENCRYPTRESPONSE
 _sym_db.RegisterFileDescriptor(DESCRIPTOR)
 
 DecryptRequest = _reflection.GeneratedProtocolMessageType('DecryptRequest', (_message.Message,), dict(
@@ -118,6 +196,20 @@ DecryptResponse = _reflection.GeneratedProtocolMessageType('DecryptResponse', (_
   ))
 _sym_db.RegisterMessage(DecryptResponse)
 
+EncryptRequest = _reflection.GeneratedProtocolMessageType('EncryptRequest', (_message.Message,), dict(
+  DESCRIPTOR = _ENCRYPTREQUEST,
+  __module__ = 'api_pb2'
+  # @@protoc_insertion_point(class_scope:grpc_api.EncryptRequest)
+  ))
+_sym_db.RegisterMessage(EncryptRequest)
+
+EncryptResponse = _reflection.GeneratedProtocolMessageType('EncryptResponse', (_message.Message,), dict(
+  DESCRIPTOR = _ENCRYPTRESPONSE,
+  __module__ = 'api_pb2'
+  # @@protoc_insertion_point(class_scope:grpc_api.EncryptResponse)
+  ))
+_sym_db.RegisterMessage(EncryptResponse)
+
 
 
 _READER = _descriptor.ServiceDescriptor(
@@ -126,8 +218,8 @@ _READER = _descriptor.ServiceDescriptor(
   file=DESCRIPTOR,
   index=0,
   options=None,
-  serialized_start=130,
-  serialized_end=204,
+  serialized_start=237,
+  serialized_end=311,
   methods=[
   _descriptor.MethodDescriptor(
     name='Decrypt',
@@ -142,5 +234,29 @@ _READER = _descriptor.ServiceDescriptor(
 _sym_db.RegisterServiceDescriptor(_READER)
 
 DESCRIPTOR.services_by_name['Reader'] = _READER
+
+
+_WRITER = _descriptor.ServiceDescriptor(
+  name='Writer',
+  full_name='grpc_api.Writer',
+  file=DESCRIPTOR,
+  index=1,
+  options=None,
+  serialized_start=313,
+  serialized_end=387,
+  methods=[
+  _descriptor.MethodDescriptor(
+    name='Encrypt',
+    full_name='grpc_api.Writer.Encrypt',
+    index=0,
+    containing_service=None,
+    input_type=_ENCRYPTREQUEST,
+    output_type=_ENCRYPTRESPONSE,
+    options=None,
+  ),
+])
+_sym_db.RegisterServiceDescriptor(_WRITER)
+
+DESCRIPTOR.services_by_name['Writer'] = _WRITER
 
 # @@protoc_insertion_point(module_scope)

@@ -12,6 +12,13 @@ const (
 	DecryptionTypeFail    = "fail"
 )
 
+// Labels and values about data encryption status
+const (
+	EncryptionTypeLabel   = "status"
+	EncryptionTypeSuccess = "success"
+	EncryptionTypeFail    = "fail"
+)
+
 // Labels and values about AcraStruct processing modes
 const (
 	DecryptionModeLabel  = "mode"
@@ -33,6 +40,13 @@ var (
 			Name: "acra_acrastruct_decryptions_total",
 			Help: "number of AcraStruct decryptions",
 		}, []string{DecryptionTypeLabel})
+
+	// APIEncryptionCounter collect encryptions count success/failed
+	APIEncryptionCounter = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "acra_api_encryptions_total",
+			Help: "number of encryptions data to AcraStruct",
+		}, []string{EncryptionTypeLabel})
 
 	// ResponseProcessingTimeHistogram collect metrics about response processing time
 	ResponseProcessingTimeHistogram = prometheus.NewHistogramVec(prometheus.HistogramOpts{
@@ -64,6 +78,7 @@ func RegisterDbProcessingMetrics() {
 func RegisterAcraStructProcessingMetrics() {
 	acraStructRegisterLock.Do(func() {
 		prometheus.MustRegister(AcrastructDecryptionCounter)
+		prometheus.MustRegister(APIEncryptionCounter)
 	})
 
 }

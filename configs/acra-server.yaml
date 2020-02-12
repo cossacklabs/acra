@@ -92,10 +92,10 @@ logging_format: plaintext
 # Handle MySQL connections
 mysql_enable: false
 
-# Escape format for Postgresql bytea data
+# Escape format for Postgresql bytea data (deprecated, ignored)
 pgsql_escape_bytea: false
 
-# Hex format for Postgresql bytea data (default)
+# Hex format for Postgresql bytea data (deprecated, ignored)
 pgsql_hex_bytea: false
 
 # Turn on poison record detection, if server shutdown is disabled, AcraServer logs the poison record detection and returns decrypted data

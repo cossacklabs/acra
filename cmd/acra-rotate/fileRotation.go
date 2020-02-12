@@ -20,14 +20,13 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
-	"github.com/cossacklabs/acra/keystore"
 	log "github.com/sirupsen/logrus"
 	"io/ioutil"
 	"os"
 )
 
-// loadFileMap read file with <path>, parse json and return it as ZoneIDFileMap
-func loadFileMap(path string) (ZoneIDFileMap, error) {
+// loadFileMap read file with <path>, parse json and return it as KeyIDFileMap
+func loadFileMap(path string) (KeyIDFileMap, error) {
 	configData, err := ioutil.ReadFile(path)
 	if err != nil {
 		return nil, err
@@ -44,16 +43,16 @@ type ZoneRotateData struct {
 // ZoneRotateResult store result of rotation
 type ZoneRotateResult map[string]*ZoneRotateData
 
-// rotateFiles generate new key pair for each zone in ZoneIDFileMap and re-encrypt all files encrypted with each zone
-func rotateFiles(fileMap ZoneIDFileMap, keyStore keystore.KeyStore, dryRun bool) (ZoneRotateResult, error) {
-	rotator, err := newRotator(keyStore)
+// rotateFiles generate new key pair for each zone in KeyIDFileMap and re-encrypt all files encrypted with each zone
+func rotateFiles(fileMap KeyIDFileMap, keyStore KeyStore, zoneMode, dryRun bool) (ZoneRotateResult, error) {
+	rotator, err := newRotator(keyStore, zoneMode)
 	if err != nil {
 		return nil, err
 	}
 	defer rotator.clearKeys()
 	output := ZoneRotateResult{}
 	for zoneID, paths := range fileMap {
-		logger := log.WithField("zone_id", zoneID)
+		logger := log.WithField("Key ID", zoneID)
 		binZoneID := []byte(zoneID)
 		newPublicKey, err := rotator.getRotatedPublicKey(binZoneID)
 		if err != nil {
@@ -100,13 +99,13 @@ func rotateFiles(fileMap ZoneIDFileMap, keyStore keystore.KeyStore, dryRun bool)
 }
 
 // runFileRotation read map zones to files, re-generate zone key pairs and re-encrypt files
-func runFileRotation(fileMapConfigPath string, keystorage keystore.KeyStore, dryRun bool) {
+func runFileRotation(fileMapConfigPath string, keystorage KeyStore, zoneMode, dryRun bool) {
 	fileMap, err := loadFileMap(fileMapConfigPath)
 	if err != nil {
 		log.WithError(err).Errorln("Can't load config with map <ZoneId>: <FilePath>")
 		os.Exit(1)
 	}
-	result, err := rotateFiles(fileMap, keystorage, dryRun)
+	result, err := rotateFiles(fileMap, keystorage, zoneMode, dryRun)
 	if err != nil {
 		log.WithError(err).Errorln("Can't rotate files")
 		os.Exit(1)

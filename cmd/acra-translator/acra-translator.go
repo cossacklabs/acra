@@ -23,6 +23,9 @@ package main
 import (
 	"context"
 	"flag"
+	"github.com/cossacklabs/acra/cmd/acra-translator/common"
+	"github.com/cossacklabs/acra/cmd/acra-translator/grpc_api"
+	"github.com/cossacklabs/acra/cmd/acra-translator/server"
 	_ "net/http/pprof"
 	"os"
 	"syscall"
@@ -47,7 +50,7 @@ const (
 var DefaultConfigPath = utils.GetConfigPathByName(ServiceName)
 
 func main() {
-	config := NewConfig()
+	config := common.NewConfig()
 	loggingFormat := flag.String("logging_format", "plaintext", "Logging format: plaintext, json or CEF")
 	log.WithField("version", utils.VERSION).Infof("Starting service %v [pid=%v]", ServiceName, os.Getpid())
 
@@ -140,10 +143,9 @@ func main() {
 			Errorln("System error: can't register SIGTERM handler")
 		os.Exit(1)
 	}
-
-	var readerServer *ReaderServer
+	var readerServer *server.ReaderServer
 	waitTimeout := time.Duration(*closeConnectionTimeout) * time.Second
-	readerServer, err = NewReaderServer(config, keyStore, waitTimeout)
+	readerServer, err = server.NewReaderServer(config, keyStore, &grpc_api.GRPCServerFactory{}, waitTimeout)
 	if err != nil {
 		log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantStartService).
 			Errorf("System error: can't start %s", ServiceName)
@@ -165,7 +167,7 @@ func main() {
 	})
 
 	if *prometheusAddress != "" {
-		registerMetrics()
+		common.RegisterMetrics(ServiceName)
 		_, prometheusHTTPServer, err := cmd.RunPrometheusHTTPHandler(*prometheusAddress)
 		if err != nil {
 			log.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorPrometheusHTTPHandler).WithError(err).WithField("incoming_connection_prometheus_metrics_string", *prometheusAddress).Errorln("Can't run prometheus handler")

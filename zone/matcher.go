@@ -107,9 +107,8 @@ func (matcher *PgMatcher) HasAnyMatch() bool {
 func (matcher *PgMatcher) GetZoneID() []byte {
 	if matcher.binaryMatcher.IsMatched() {
 		return matcher.binaryMatcher.GetZoneID()
-	} else {
-		return []byte{}
 	}
+	return []byte{}
 }
 
 // Reset both pgMatcher and binaryMatcher

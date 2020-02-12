@@ -29,8 +29,11 @@ import (
 	"github.com/cossacklabs/acra/zone"
 	"github.com/cossacklabs/themis/gothemis/keys"
 	"github.com/sirupsen/logrus"
+	log "github.com/sirupsen/logrus"
+	"go.opencensus.io/trace"
 	"io"
 	"io/ioutil"
+	"os"
 )
 
 var errPlainData = errors.New("plain data without AcraStruct signature")
@@ -303,6 +306,7 @@ func (decryptor *PgDecryptor) SkipBeginInBlock(block []byte) ([]byte, error) {
 // appends HEX Prefix for Hex bytes mode
 func (decryptor *PgDecryptor) DecryptBlock(block []byte) ([]byte, error) {
 	ctx := decryptor.dataProcessorContext.UseZoneID(decryptor.GetMatchedZoneID())
+	ctx.WithZone = decryptor.IsWithZone()
 	decrypted, err := decryptor.dataProcessor.Process(block, ctx)
 	if err == nil {
 		return decrypted, nil
@@ -404,4 +408,165 @@ func (decryptor *PgDecryptor) GetZoneIDLength() int {
 // SetDataProcessor replace current with new processor
 func (decryptor *PgDecryptor) SetDataProcessor(processor base.DataProcessor) {
 	decryptor.dataProcessor = processor
+}
+
+// OnColumn handler which process column data on db response and try to decrypt/detect poison record
+func (decryptor *PgDecryptor) OnColumn(ctx context.Context, data []byte) (context.Context, []byte, error) {
+	logger := logging.GetLoggerFromContext(ctx)
+	span := trace.FromContext(ctx)
+	// try to skip small piece of data that can't be valuable for us
+	// in zonemode skip data which less then zoneid length
+	// without zonemode check that data has length more than min AcraStruct length
+	if (decryptor.IsWithZone() && len(data) < zone.ZoneIDBlockLength) || (!decryptor.IsWithZone() && len(data) < base.GetMinAcraStructLength()) {
+		logger.WithFields(log.Fields{"lest": len(data) < zone.ZoneIDBlockLength, "zone_length": zone.ZoneIDBlockLength, "length": len(data), "with_zone": decryptor.IsWithZone()}).Debugln("Skip decryption because length of block too small for ZoneId or AcraStruct")
+		return ctx, data, nil
+	}
+	decryptor.Reset()
+	span.AddAttributes(trace.BoolAttribute("decryption", true))
+
+	// Zone anyway should be passed as whole block
+	// so try to match before any operations if we process with ZoneMode on
+	if base.NeedMatchZone(decryptor) {
+		span.AddAttributes(trace.BoolAttribute("match_zone", true))
+		// try to match zone
+		decryptor.MatchZoneBlock(data)
+		var err error
+		if decryptor.IsWholeMatch() {
+			// check that it's not poison record
+			err = checkWholePoisonRecord(data, decryptor, logger)
+		} else {
+			// check that it's not poison record
+			err = checkInlinePoisonRecordInBlock(data, decryptor, logger)
+		}
+		if err != nil {
+			logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorDecryptorCantCheckPoisonRecord).WithError(err).Errorln("Can't check poison record in block")
+			return ctx, nil, err
+		}
+	}
+
+	// create temporary logger to log related zone_id in flow of decryption
+	// client_id set on higher level on start of processing connection
+	decryptionLogger := logger.WithField("zone_id", string(decryptor.GetMatchedZoneID()))
+	var newData []byte
+	var err error
+	if decryptor.IsWholeMatch() {
+		newData, err = decryptor.processWholeBlockDecryption(ctx, data, decryptionLogger)
+		if err != nil {
+			decryptionLogger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorDecryptorCantDecryptBinary).WithError(err).Errorln("Can't process whole block")
+			return ctx, nil, err
+		}
+		return ctx, newData, err
+	}
+	// else "injected cell mode", inline acrastruct
+	newData, err = decryptor.processInlineBlockDecryption(ctx, data, decryptionLogger)
+	if err != nil {
+		decryptionLogger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorDecryptorCantDecryptBinary).WithError(err).Errorln("Can't process block with inline mode")
+		return ctx, nil, err
+	}
+
+	decryptor.Reset()
+	// reset matched zone only if was successful decryption
+	if len(data) != len(newData) {
+		if os.Getenv("ZONE_FOR_ROW") != "on" {
+			decryptor.ResetZoneMatch()
+		}
+	}
+	return ctx, newData, nil
+}
+
+// processWholeBlockDecryption try to decrypt data of column as whole AcraStruct and replace with decrypted data on success
+func (decryptor *PgDecryptor) processWholeBlockDecryption(ctx context.Context, data []byte, logger *log.Entry) ([]byte, error) {
+	span := trace.FromContext(ctx)
+	decryptor.Reset()
+	// TODO here we replace context with correct logger with new passed from caller
+	decryptor.dataProcessorContext.UseContext(ctx)
+	decrypted, err := decryptor.DecryptBlock(data)
+	if err == errPlainData {
+		// it's not AcraStruct
+		return data, nil
+	}
+	if err != nil {
+		span.AddAttributes(trace.BoolAttribute("failed_decryption", true))
+		// check poison records on failed decryption
+		logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorDecryptorCantDecryptBinary).WithError(err).Warningln("Can't decrypt AcraStruct: can't unwrap symmetric key")
+		base.AcrastructDecryptionCounter.WithLabelValues(base.DecryptionTypeFail).Inc()
+		if decryptor.IsPoisonRecordCheckOn() {
+			decryptor.Reset()
+			if err := checkWholePoisonRecord(data, decryptor, logger); err != nil {
+				return nil, err
+			}
+		}
+		return data, nil
+	}
+	base.AcrastructDecryptionCounter.WithLabelValues(base.DecryptionTypeSuccess).Inc()
+	return decrypted, nil
+}
+
+func (decryptor *PgDecryptor) processInlineBlockDecryption(ctx context.Context, data []byte, logger *log.Entry) ([]byte, error) {
+	span := trace.FromContext(ctx)
+	// inline mode
+	currentIndex := 0
+	outputBlock := bytes.NewBuffer(make([]byte, 0, len(data)))
+	hasDecryptedData := false
+	for {
+		// search AcraStruct's begin tags through all block of data and try to decrypt
+		beginTagIndex, _ := decryptor.BeginTagIndex(data[currentIndex:])
+		if beginTagIndex == utils.NotFound {
+			outputBlock.Write(data[currentIndex:])
+			// no AcraStructs in column decryptedData
+			break
+		}
+		// convert to absolute index
+		beginTagIndex += currentIndex
+		// write data before start of AcraStruct
+		outputBlock.Write(data[currentIndex:beginTagIndex])
+		currentIndex = beginTagIndex
+
+		if len(data[currentIndex:]) > base.GetMinAcraStructLength() {
+			acrastructLength := base.GetDataLengthFromAcraStruct(data[currentIndex:]) + base.GetMinAcraStructLength()
+			if acrastructLength > 0 && acrastructLength <= len(data[currentIndex:]) {
+				endIndex := currentIndex + acrastructLength
+				// TODO here we replace context with correct logger with new passed from caller
+				decryptor.dataProcessorContext.UseContext(ctx)
+				decryptedData, err := decryptor.DecryptBlock(data[currentIndex:endIndex])
+				if err != nil {
+					if decryptor.IsPoisonRecordCheckOn() {
+						logger.Infoln("Check poison records")
+						blockReader := bytes.NewReader(data[currentIndex:endIndex])
+						poisoned, err := decryptor.CheckPoisonRecord(blockReader)
+						if err = handlePoisonCheckResult(decryptor, poisoned, err, logger); err != nil {
+							return nil, err
+						}
+					}
+					span.AddAttributes(trace.BoolAttribute("failed_decryption", true))
+					base.AcrastructDecryptionCounter.WithLabelValues(base.DecryptionTypeFail).Inc()
+					logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorDecryptorCantDecryptBinary).WithError(err).Warningln("Can't decrypt AcraStruct: can't decrypt data with unwrapped symmetric key")
+					// write current read byte to not process him in next iteration
+					outputBlock.Write([]byte{data[currentIndex]})
+					currentIndex++
+					continue
+				}
+				logger.Infoln("Decrypted AcraStruct")
+				base.AcrastructDecryptionCounter.WithLabelValues(base.DecryptionTypeSuccess).Inc()
+				outputBlock.Write(decryptedData)
+				currentIndex += acrastructLength
+				hasDecryptedData = true
+				continue
+			}
+		}
+		// write current read byte to not process him in next iteration
+		outputBlock.Write([]byte{data[currentIndex]})
+		currentIndex++
+		continue
+	}
+	if hasDecryptedData {
+		logger.WithFields(log.Fields{"old_size": len(data), "new_size": outputBlock.Len()}).Debugln("Result was changed")
+		if os.Getenv("ZONE_FOR_ROW") != "on" {
+			decryptor.ResetZoneMatch()
+		}
+		decryptor.Reset()
+		return outputBlock.Bytes(), nil
+	}
+	logger.Debugln("Result was not changed")
+	return data, nil
 }

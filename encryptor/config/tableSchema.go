@@ -41,7 +41,10 @@ func NewMapTableSchemaStore() (*MapTableSchemaStore, error) {
 	return &MapTableSchemaStore{make(map[string]*TableSchema)}, nil
 }
 
+// ErrInvalidTokenType error for invalid value of token_type parameter
 var ErrInvalidTokenType = errors.New("invalid token type")
+
+// ErrInvalidPlainTextSide error for invalid value of plaintext_side parameter
 var ErrInvalidPlainTextSide = errors.New("invalid plaintext_side")
 
 // MapTableSchemaStoreFromConfig parse config and return MapTableSchemaStore with data from config
@@ -98,13 +101,16 @@ type ColumnEncryptionSetting struct {
 	TokenType                TokenType     `yaml:"token_type"`
 }
 
+// PlainTextSide type used to configure side where will be left plaintext, and where masking pattern
 type PlainTextSide string
 
+// Set of constants used to set plaintext side in masking
 const (
 	PlainTextSideLeft  PlainTextSide = "left"
 	PlainTextSideRight PlainTextSide = "right"
 )
 
+// ValidateMaskingParams return true if setting has valid configuration for masking
 func ValidateMaskingParams(setting *ColumnEncryptionSetting) bool {
 	if setting.Masking == "" {
 		return true
@@ -126,13 +132,16 @@ var supportedTokenValues = map[TokenType]bool{
 	TokenTypeEmail:  true,
 }
 
+// ValidateTokenType return true if value is supported TokenType
 func ValidateTokenType(value TokenType) bool {
 	_, ok := supportedTokenValues[value]
 	return ok
 }
 
+// TokenType used for constants of supported TokenTypes for tokenizator
 type TokenType string
 
+// Set of constants with supported TokenType
 const (
 	TokenTypeInt32   TokenType = "int32"
 	TokenTypeInt64   TokenType = "int64"
@@ -155,7 +164,7 @@ func (s *ColumnEncryptionSetting) IsSearchable() bool {
 	return s.Searchable
 }
 
-// IsSearchable return true if column should be searchable
+// IsTokenized return true if column should be searchable
 func (s *ColumnEncryptionSetting) IsTokenized() bool {
 	return s.Tokenized
 }
@@ -165,7 +174,7 @@ func (s *ColumnEncryptionSetting) IsConsistentTokenization() bool {
 	return s.ConsistentTokenization
 }
 
-// IsSearchable return true if column should be searchable
+// GetTokenType return true if column should be searchable
 func (s *ColumnEncryptionSetting) GetTokenType() TokenType {
 	t, ok := tokenTypeMap[s.TokenType]
 	if ok {
@@ -174,14 +183,17 @@ func (s *ColumnEncryptionSetting) GetTokenType() TokenType {
 	return defaultTokenType
 }
 
+// GetMaskingPattern return string which should be used instead AcraStruct
 func (s *ColumnEncryptionSetting) GetMaskingPattern() string {
 	return s.Masking
 }
 
+// GetPartialPlaintextLen return count of bytes which should be left untouched in masked value
 func (s *ColumnEncryptionSetting) GetPartialPlaintextLen() int {
 	return s.PartialPlaintextLenBytes
 }
 
+// IsEndMasking return true if value should be masked starting from left
 func (s *ColumnEncryptionSetting) IsEndMasking() bool {
 	return s.PlaintextSide == PlainTextSideLeft
 }
