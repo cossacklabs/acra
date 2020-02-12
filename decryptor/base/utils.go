@@ -95,6 +95,19 @@ func DecryptAcrastruct(data []byte, privateKey *keys.PrivateKey, zone []byte) ([
 	return decrypted, nil
 }
 
+// DecryptRotatedAcrastruct tries decrypting an AcraStruct with a set of rotated keys.
+// It either returns decrypted data if one of the keys succeeds, or an error if none is good.
+func DecryptRotatedAcrastruct(data []byte, privateKeys []*keys.PrivateKey, zone []byte) ([]byte, error) {
+	var err error
+	for _, privateKey := range privateKeys {
+		data, err := DecryptAcrastruct(data, privateKey, zone)
+		if err == nil {
+			return data, err
+		}
+	}
+	return nil, err
+}
+
 // CheckPoisonRecord checks if AcraStruct could be decrypted using Poison Record private key.
 // Returns true if AcraStruct is poison record, returns false otherwise.
 // Returns error if Poison record key is not found.
