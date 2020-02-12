@@ -212,6 +212,24 @@ func (store *KeyStore) getPublicKeyFilePath(filename string) string {
 	return fmt.Sprintf("%s%s%s", store.publicKeyDirectory, string(os.PathSeparator), filename)
 }
 
+func (store *KeyStore) getHistoricalPrivateKeyFilenames(filename string) ([]string, error) {
+	// getHistoricalFilePaths() expects a path, not a name, but we must return names.
+	// Add private key directory path and then remove it to avoid directory switching.
+	fullPath := filepath.Join(store.privateKeyDirectory, filename)
+	paths, err := getHistoricalFilePaths(fullPath)
+	if err != nil {
+		return nil, err
+	}
+	for i, path := range paths {
+		p, err := filepath.Rel(store.privateKeyDirectory, path)
+		if err != nil {
+			return nil, err
+		}
+		paths[i] = p
+	}
+	return paths, nil
+}
+
 func (store *KeyStore) getPrivateKeyByFilename(id []byte, filename string) (*keys.PrivateKey, error) {
 	if !keystore.ValidateID(id) {
 		return nil, keystore.ErrInvalidClientID
@@ -234,6 +252,23 @@ func (store *KeyStore) getPrivateKeyByFilename(id []byte, filename string) (*key
 	log.Debugf("Load key from fs: %s", filename)
 	store.cache.Add(filename, encryptedKey)
 	return &keys.PrivateKey{Value: decryptedKey}, nil
+}
+
+func (store *KeyStore) getPrivateKeysByFilenames(id []byte, filenames []string) ([]*keys.PrivateKey, error) {
+	// TODO: this can be optimized to avoid thrashing store.lock and repeatedly revalidating id
+	// by copy-pasting getPrivateKeyByFilename() and extending that to retrieve multiple keys
+	privateKeys := make([]*keys.PrivateKey, len(filenames))
+	for i, name := range filenames {
+		key, err := store.getPrivateKeyByFilename(id, name)
+		if err != nil {
+			for _, key := range privateKeys[:i] {
+				utils.FillSlice(0, key.Value)
+			}
+			return nil, err
+		}
+		privateKeys[i] = key
+	}
+	return privateKeys, nil
 }
 
 // getPublicKeyByFilename return public key from cache or load from filesystem, store in cache and return
@@ -298,11 +333,11 @@ func (store *KeyStore) HasZonePrivateKey(id []byte) bool {
 // decrypts them with master key and zoneId, and returns plaintext private keys,
 // or reading/decryption error.
 func (store *KeyStore) GetZonePrivateKeys(id []byte) ([]*keys.PrivateKey, error) {
-	key, err := store.GetPrivateKey(id)
+	filenames, err := store.getHistoricalPrivateKeyFilenames(getZoneKeyFilename(id))
 	if err != nil {
 		return nil, err
 	}
-	return []*keys.PrivateKey{key}, err
+	return store.getPrivateKeysByFilenames(id, filenames)
 }
 
 // GetPeerPublicKey returns public key for this clientID, gets it from cache or reads from fs.
@@ -346,11 +381,11 @@ func (store *KeyStore) GetServerDecryptionPrivateKey(id []byte) (*keys.PrivateKe
 // decrypts them with master key and clientID, and returns plaintext private keys,
 // or reading/decryption error.
 func (store *KeyStore) GetServerDecryptionPrivateKeys(id []byte) ([]*keys.PrivateKey, error) {
-	key, err := store.GetPrivateKey(id)
+	filenames, err := store.getHistoricalPrivateKeyFilenames(GetServerDecryptionKeyFilename(id))
 	if err != nil {
 		return nil, err
 	}
-	return []*keys.PrivateKey{key}, err
+	return store.getPrivateKeysByFilenames(id, filenames)
 }
 
 // GenerateConnectorKeys generates AcraConnector transport EC keypair using clientID as part of key name.
