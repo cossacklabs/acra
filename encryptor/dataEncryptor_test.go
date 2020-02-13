@@ -40,6 +40,10 @@ func (ks *keyStore) GetClientIDEncryptionPublicKey(clientID []byte) (*keys.Publi
 
 type emptyEncryptionSetting struct{}
 
+func (*emptyEncryptionSetting) IsConsistentTokenization() bool {
+	panic("implement me")
+}
+
 func (*emptyEncryptionSetting) IsSearchable() bool {
 	return false
 }

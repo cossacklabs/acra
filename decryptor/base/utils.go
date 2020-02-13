@@ -100,7 +100,7 @@ func DecryptAcrastruct(data []byte, privateKey *keys.PrivateKey, zone []byte) ([
 func DecryptRotatedAcrastruct(data []byte, privateKeys []*keys.PrivateKey, zone []byte) ([]byte, error) {
 	var err error
 	for _, privateKey := range privateKeys {
-		data, err := DecryptAcrastruct(data, privateKey, zone)
+		data, err = DecryptAcrastruct(data, privateKey, zone)
 		if err == nil {
 			return data, err
 		}
