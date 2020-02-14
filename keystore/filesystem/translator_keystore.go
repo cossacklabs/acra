@@ -67,13 +67,3 @@ func (store *TranslatorFileSystemKeyStore) GetPrivateKey(id []byte) (*keys.Priva
 	}
 	return &keys.PrivateKey{Value: privateKey}, nil
 }
-
-// GetPeerPublicKey returns other party transport public key.
-func (store *TranslatorFileSystemKeyStore) GetPeerPublicKey(id []byte) (*keys.PublicKey, error) {
-	filename := getConnectorKeyFilename(id)
-	key, err := ioutil.ReadFile(filepath.Join(store.directory, getPublicKeyFilename([]byte(filename))))
-	if err != nil {
-		return nil, err
-	}
-	return &keys.PublicKey{Value: key}, nil
-}
