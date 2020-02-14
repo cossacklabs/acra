@@ -17,10 +17,10 @@ limitations under the License.
 package filesystem
 
 import (
+	"path/filepath"
+
 	"github.com/cossacklabs/acra/keystore"
 	"github.com/cossacklabs/themis/gothemis/keys"
-	"io/ioutil"
-	"path/filepath"
 )
 
 // TranslatorFileSystemKeyStore stores AcraTranslator keys configuration
@@ -42,16 +42,12 @@ func NewTranslatorFileSystemKeyStore(directory string, encryptor keystore.KeyEnc
 // CheckIfPrivateKeyExists checks if Keystore has Translator transport private key for establishing Secure Session connection,
 // returns true if key exists in fs.
 func (store *TranslatorFileSystemKeyStore) CheckIfPrivateKeyExists(id []byte) (bool, error) {
-	_, err := ioutil.ReadFile(filepath.Join(store.directory, getTranslatorKeyFilename(id)))
-	if err != nil {
-		return false, err
-	}
-	return true, nil
+	return store.fs.Exists(filepath.Join(store.directory, getTranslatorKeyFilename(id)))
 }
 
 // GetPrivateKey reads and decrypts Translator transport private key for establishing Secure Session connection.
 func (store *TranslatorFileSystemKeyStore) GetPrivateKey(id []byte) (*keys.PrivateKey, error) {
-	keyData, err := ioutil.ReadFile(filepath.Join(store.directory, getTranslatorKeyFilename(id)))
+	keyData, err := store.fs.ReadFile(filepath.Join(store.directory, getTranslatorKeyFilename(id)))
 	if err != nil {
 		return nil, err
 	}
@@ -66,7 +62,7 @@ func (store *TranslatorFileSystemKeyStore) GetPrivateKey(id []byte) (*keys.Priva
 // GetPeerPublicKey returns other party transport public key.
 func (store *TranslatorFileSystemKeyStore) GetPeerPublicKey(id []byte) (*keys.PublicKey, error) {
 	filename := getConnectorKeyFilename(id)
-	key, err := ioutil.ReadFile(filepath.Join(store.directory, getPublicKeyFilename([]byte(filename))))
+	key, err := store.fs.ReadFile(filepath.Join(store.directory, getPublicKeyFilename([]byte(filename))))
 	if err != nil {
 		return nil, err
 	}

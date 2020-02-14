@@ -28,8 +28,6 @@ import (
 	"crypto/rand"
 	"errors"
 	"fmt"
-	"io"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -56,47 +54,39 @@ type KeyStore struct {
 	cache               keystore.Cache
 	privateKeyDirectory string
 	publicKeyDirectory  string
+	fs                  Storage
 	lock                *sync.RWMutex
 	encryptor           keystore.KeyEncryptor
 }
 
 // NewFileSystemKeyStoreWithCacheSize represents keystore that reads keys from key folders, and stores them in cache.
 func NewFileSystemKeyStoreWithCacheSize(directory string, encryptor keystore.KeyEncryptor, cacheSize int) (*KeyStore, error) {
-	return newFilesystemKeyStore(directory, directory, encryptor, cacheSize)
+	return newFilesystemKeyStore(directory, directory, &fileStorage{}, encryptor, cacheSize)
 }
 
 // NewFilesystemKeyStore represents keystore that reads keys from key folders, and stores them in memory.
 func NewFilesystemKeyStore(directory string, encryptor keystore.KeyEncryptor) (*KeyStore, error) {
-	return newFilesystemKeyStore(directory, directory, encryptor, keystore.InfiniteCacheSize)
+	return newFilesystemKeyStore(directory, directory, &fileStorage{}, encryptor, keystore.InfiniteCacheSize)
 }
 
 // NewFilesystemKeyStoreTwoPath creates new KeyStore using separate folders for private and public keys.
 func NewFilesystemKeyStoreTwoPath(privateKeyFolder, publicKeyFolder string, encryptor keystore.KeyEncryptor) (*KeyStore, error) {
-	return newFilesystemKeyStore(privateKeyFolder, publicKeyFolder, encryptor, keystore.InfiniteCacheSize)
+	return newFilesystemKeyStore(privateKeyFolder, publicKeyFolder, &fileStorage{}, encryptor, keystore.InfiniteCacheSize)
 }
 
-func newFilesystemKeyStore(privateKeyFolder, publicKeyFolder string, encryptor keystore.KeyEncryptor, cacheSize int) (*KeyStore, error) {
-	// check folder for private key
-	directory, err := filepath.Abs(privateKeyFolder)
-	if err != nil {
+func newFilesystemKeyStore(privateKeyFolder, publicKeyFolder string, storage Storage, encryptor keystore.KeyEncryptor, cacheSize int) (*KeyStore, error) {
+	fi, err := storage.Stat(privateKeyFolder)
+	if err != nil && !os.IsNotExist(err) {
 		return nil, err
 	}
-	fi, err := os.Stat(directory)
 	const expectedPermission = "-rwx------"
-	if nil == err && runtime.GOOS == "linux" && fi.Mode().Perm().String() != expectedPermission {
+	if runtime.GOOS == "linux" && fi.Mode().Perm().String() != expectedPermission {
 		log.Errorf("Key store folder has an incorrect permissions %s, expected: %s", fi.Mode().Perm().String(), expectedPermission)
 		return nil, errors.New("key store folder has an incorrect permissions")
 	}
-	if privateKeyFolder != publicKeyFolder {
-		// check folder for public key
-		directory, err = filepath.Abs(privateKeyFolder)
-		if err != nil {
-			return nil, err
-		}
-		fi, err = os.Stat(directory)
-		if nil != err && !os.IsNotExist(err) {
-			return nil, err
-		}
+	_, err = storage.Stat(publicKeyFolder)
+	if err != nil && !os.IsNotExist(err) {
+		return nil, err
 	}
 	var cache keystore.Cache
 	if cacheSize == keystore.WithoutCache {
@@ -108,7 +98,7 @@ func newFilesystemKeyStore(privateKeyFolder, publicKeyFolder string, encryptor k
 		}
 	}
 	store := &KeyStore{privateKeyDirectory: privateKeyFolder, publicKeyDirectory: publicKeyFolder,
-		cache: cache, lock: &sync.RWMutex{}, encryptor: encryptor}
+		cache: cache, lock: &sync.RWMutex{}, encryptor: encryptor, fs: storage}
 	// set callback on cache value removing
 
 	return store, nil
@@ -128,13 +118,13 @@ func (store *KeyStore) generateKeyPair(filename string, clientID []byte) (*keys.
 // SaveKeyPairWithFilename save encrypted private key and public key to configured folders
 func (store *KeyStore) SaveKeyPairWithFilename(keypair *keys.Keypair, filename string, id []byte) error {
 	privateKeysFolder := filepath.Dir(store.GetPrivateKeyFilePath(filename))
-	err := os.MkdirAll(privateKeysFolder, keyDirMode)
+	err := store.fs.MkdirAll(privateKeysFolder, keyDirMode)
 	if err != nil {
 		return err
 	}
 
 	publicKeysFolder := filepath.Dir(store.GetPublicKeyFilePath(filename))
-	err = os.MkdirAll(publicKeysFolder, keyDirMode)
+	err = store.fs.MkdirAll(publicKeysFolder, keyDirMode)
 	if err != nil {
 		return err
 	}
@@ -143,11 +133,11 @@ func (store *KeyStore) SaveKeyPairWithFilename(keypair *keys.Keypair, filename s
 	if err != nil {
 		return err
 	}
-	err = writePrivateKey(store.GetPrivateKeyFilePath(filename), encryptedPrivate)
+	err = store.writePrivateKey(store.GetPrivateKeyFilePath(filename), encryptedPrivate)
 	if err != nil {
 		return err
 	}
-	err = writePublicKey(store.GetPublicKeyFilePath(fmt.Sprintf("%s.pub", filename)), keypair.Public.Value)
+	err = store.writePublicKey(store.GetPublicKeyFilePath(fmt.Sprintf("%s.pub", filename)), keypair.Public.Value)
 	if err != nil {
 		return err
 	}
@@ -164,12 +154,12 @@ func (store *KeyStore) generateKey(filename string, length uint8) ([]byte, error
 		return nil, err
 	}
 	dirpath := filepath.Dir(store.GetPrivateKeyFilePath(filename))
-	err = os.MkdirAll(dirpath, keyDirMode)
+	err = store.fs.MkdirAll(dirpath, keyDirMode)
 	if err != nil {
 		log.Error(err)
 		return nil, err
 	}
-	err = writePrivateKey(store.GetPrivateKeyFilePath(filename), randomBytes)
+	err = store.writePrivateKey(store.GetPrivateKeyFilePath(filename), randomBytes)
 	if err != nil {
 		log.Error(err)
 		return nil, err
@@ -177,110 +167,54 @@ func (store *KeyStore) generateKey(filename string, length uint8) ([]byte, error
 	return randomBytes, nil
 }
 
-func writePrivateKey(filename string, data []byte) error {
-	return writeKeyFile(filename, data, PrivateFileMode)
+func (store *KeyStore) writePrivateKey(filename string, data []byte) error {
+	return store.writeKeyFile(filename, data, PrivateFileMode)
 }
 
-func writePublicKey(filename string, data []byte) error {
-	return writeKeyFile(filename, data, publicFileMode)
+func (store *KeyStore) writePublicKey(filename string, data []byte) error {
+	return store.writeKeyFile(filename, data, publicFileMode)
 }
 
-func writeKeyFile(filename string, data []byte, mode os.FileMode) error {
+func (store *KeyStore) writeKeyFile(filename string, data []byte, mode os.FileMode) error {
 	// We do quite a few filesystem manipulations to maintain old key data. Ensure that
 	// no data is lost due to errors or power faults. "filename" must contain either
 	// new key data on success, or old key data on error.
-	tmpFilename, err := writeTemporaryFile(filename, data, mode)
+	tmpFilename, err := store.fs.TempFile(filename, mode)
 	if err != nil {
 		return err
 	}
-	err = backupHistoricalKeyFile(filename)
+	err = store.fs.WriteFile(tmpFilename, data, mode)
 	if err != nil {
 		return err
 	}
-	err = os.Rename(tmpFilename, filename)
+	err = store.backupHistoricalKeyFile(filename)
+	if err != nil {
+		return err
+	}
+	err = store.fs.Rename(tmpFilename, filename)
 	if err != nil {
 		return err
 	}
 	return nil
 }
 
-func writeTemporaryFile(filename string, data []byte, mode os.FileMode) (string, error) {
-	tmp, err := ioutil.TempFile(filepath.Dir(filename), filepath.Base(filename)+".*")
-	if err != nil {
-		return "", err
-	}
-	name := tmp.Name()
-	err = tmp.Chmod(mode)
-	if err != nil {
-		return "", err
-	}
-	n, err := tmp.Write(data)
-	if err != nil {
-		return "", err
-	}
-	if err == nil && n < len(data) {
-		return "", io.ErrShortWrite
-	}
-	if err2 := tmp.Close(); err == nil {
-		err = err2
-	}
-	return name, err
-}
-
-func backupHistoricalKeyFile(filename string) error {
+func (store *KeyStore) backupHistoricalKeyFile(filename string) error {
 	// If the file does not exist then there's nothing to backup
-	_, err := os.Stat(filename)
+	_, err := store.fs.Stat(filename)
 	if os.IsNotExist(err) {
 		return nil
 	}
-	err = os.MkdirAll(getHistoryDirName(filename), keyDirMode)
+	err = store.fs.MkdirAll(getHistoryDirName(filename), keyDirMode)
 	if err != nil {
 		return err
 	}
 	backupName := getNewHistoricalFileName(filename)
 	// Try making a hard link if possible to avoid actually copying file content
-	err = os.Link(filename, backupName)
+	err = store.fs.Link(filename, backupName)
 	if err == nil {
 		return nil
 	}
-	return copyFileContent(filename, backupName)
-}
-
-func copyFileContent(src, dst string) error {
-	srcFile, err := os.Open(src)
-	if err != nil {
-		return err
-	}
-	defer srcFile.Close()
-
-	fi, err := srcFile.Stat()
-	if err != nil {
-		return err
-	}
-	perm := fi.Mode() & os.ModePerm
-
-	// Make sure we *do not* overwrite the file if something is already there
-	dstFile, err := os.OpenFile(dst, os.O_WRONLY|os.O_CREATE|os.O_EXCL, perm)
-	if err != nil {
-		return err
-	}
-	defer func() {
-		if err2 := dstFile.Close(); err == nil {
-			err = err2
-		}
-	}()
-
-	_, err = io.Copy(dstFile, srcFile)
-	if err != nil {
-		return err
-	}
-	err = dstFile.Sync()
-	if err != nil {
-		return err
-	}
-
-	// not nil to report deferred Close() errors
-	return err
+	return store.fs.Copy(filename, backupName)
 }
 
 // generateZoneKey for specific zone id. Will be generated new key pair and private key will be overwrited
@@ -331,7 +265,7 @@ func (store *KeyStore) getHistoricalPrivateKeyFilenames(filename string) ([]stri
 	// getHistoricalFilePaths() expects a path, not a name, but we must return names.
 	// Add private key directory path and then remove it to avoid directory switching.
 	fullPath := filepath.Join(store.privateKeyDirectory, filename)
-	paths, err := getHistoricalFilePaths(fullPath)
+	paths, err := getHistoricalFilePaths(fullPath, store.fs)
 	if err != nil {
 		return nil, err
 	}
@@ -345,6 +279,32 @@ func (store *KeyStore) getHistoricalPrivateKeyFilenames(filename string) ([]stri
 	return paths, nil
 }
 
+func (store *KeyStore) loadPrivateKey(path string) (*keys.PrivateKey, error) {
+	fi, err := store.fs.Stat(path)
+	if err != nil {
+		return nil, err
+	}
+	if runtime.GOOS == "linux" && fi.Mode().Perm() > PrivateFileMode {
+		log.Errorf("Private key file %v has incorrect permissions %s, expected: %s", path, fi.Mode().Perm().String(), PrivateFileMode.String())
+		return nil, fmt.Errorf("private key file %v has incorrect permissions", path)
+	}
+	// Strictly speaking, this is racy because the file we were statting
+	// may not be the same as we will be reading, but it's okay in this case.
+	key, err := store.fs.ReadFile(path)
+	if err != nil {
+		return nil, err
+	}
+	return &keys.PrivateKey{Value: key}, nil
+}
+
+func (store *KeyStore) loadPublicKey(path string) (*keys.PublicKey, error) {
+	key, err := store.fs.ReadFile(path)
+	if err != nil {
+		return nil, err
+	}
+	return &keys.PublicKey{Value: key}, nil
+}
+
 func (store *KeyStore) getPrivateKeyByFilename(id []byte, filename string) (*keys.PrivateKey, error) {
 	if !keystore.ValidateID(id) {
 		return nil, keystore.ErrInvalidClientID
@@ -353,7 +313,7 @@ func (store *KeyStore) getPrivateKeyByFilename(id []byte, filename string) (*key
 	defer store.lock.Unlock()
 	encryptedKey, ok := store.cache.Get(filename)
 	if !ok {
-		encryptedPrivateKey, err := utils.LoadPrivateKey(store.GetPrivateKeyFilePath(filename))
+		encryptedPrivateKey, err := store.loadPrivateKey(store.GetPrivateKeyFilePath(filename))
 		if err != nil {
 			return nil, err
 		}
@@ -390,7 +350,7 @@ func (store *KeyStore) getPrivateKeysByFilenames(id []byte, filenames []string) 
 func (store *KeyStore) getPublicKeyByFilename(filename string) (*keys.PublicKey, error) {
 	binKey, ok := store.cache.Get(filename)
 	if !ok {
-		publicKey, err := utils.LoadPublicKey(filename)
+		publicKey, err := store.loadPublicKey(filename)
 		if err != nil {
 			return nil, err
 		}
@@ -440,7 +400,7 @@ func (store *KeyStore) HasZonePrivateKey(id []byte) bool {
 	if ok {
 		return true
 	}
-	exists, _ := utils.FileExists(store.GetPrivateKeyFilePath(fname))
+	exists, _ := store.fs.Exists(store.GetPrivateKeyFilePath(fname))
 	return exists
 }
 
@@ -468,7 +428,7 @@ func (store *KeyStore) GetPeerPublicKey(id []byte) (*keys.PublicKey, error) {
 		log.Debugf("Load cached key: %s", fname)
 		return &keys.PublicKey{Value: key}, nil
 	}
-	publicKey, err := utils.LoadPublicKey(store.GetPublicKeyFilePath(fname))
+	publicKey, err := store.loadPublicKey(store.GetPublicKeyFilePath(fname))
 	if err != nil {
 		return nil, err
 	}
@@ -575,23 +535,23 @@ func (store *KeyStore) Reset() {
 func (store *KeyStore) GetPoisonKeyPair() (*keys.Keypair, error) {
 	privatePath := store.GetPrivateKeyFilePath(PoisonKeyFilename)
 	publicPath := store.GetPublicKeyFilePath(fmt.Sprintf("%s.pub", PoisonKeyFilename))
-	privateExists, err := utils.FileExists(privatePath)
+	privateExists, err := store.fs.Exists(privatePath)
 	if err != nil {
 		return nil, err
 	}
-	publicExists, err := utils.FileExists(publicPath)
+	publicExists, err := store.fs.Exists(publicPath)
 	if err != nil {
 		return nil, err
 	}
 	if privateExists && publicExists {
-		private, err := utils.LoadPrivateKey(privatePath)
+		private, err := store.loadPrivateKey(privatePath)
 		if err != nil {
 			return nil, err
 		}
 		if private.Value, err = store.encryptor.Decrypt(private.Value, []byte(PoisonKeyFilename)); err != nil {
 			return nil, err
 		}
-		public, err := utils.LoadPublicKey(publicPath)
+		public, err := store.loadPublicKey(publicPath)
 		if err != nil {
 			return nil, err
 		}
@@ -606,13 +566,13 @@ func (store *KeyStore) GetPoisonKeyPair() (*keys.Keypair, error) {
 // Returns key or error of generation/decryption failed.
 func (store *KeyStore) GetAuthKey(remove bool) ([]byte, error) {
 	keyPath := store.GetPrivateKeyFilePath(BasicAuthKeyFilename)
-	keyExists, err := utils.FileExists(keyPath)
+	keyExists, err := store.fs.Exists(keyPath)
 	if err != nil {
 		log.Error(err)
 		return nil, err
 	}
 	if keyExists && !remove {
-		key, err := utils.ReadFile(keyPath)
+		key, err := store.fs.ReadFile(keyPath)
 		if err != nil {
 			log.Error(err)
 			return nil, err
