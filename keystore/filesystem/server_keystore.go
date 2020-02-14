@@ -61,17 +61,87 @@ type KeyStore struct {
 
 // NewFileSystemKeyStoreWithCacheSize represents keystore that reads keys from key folders, and stores them in cache.
 func NewFileSystemKeyStoreWithCacheSize(directory string, encryptor keystore.KeyEncryptor, cacheSize int) (*KeyStore, error) {
-	return newFilesystemKeyStore(directory, directory, &fileStorage{}, encryptor, cacheSize)
+	return NewCustomFilesystemKeyStore().KeyDirectory(directory).Encryptor(encryptor).CacheSize(cacheSize).Build()
 }
 
 // NewFilesystemKeyStore represents keystore that reads keys from key folders, and stores them in memory.
 func NewFilesystemKeyStore(directory string, encryptor keystore.KeyEncryptor) (*KeyStore, error) {
-	return newFilesystemKeyStore(directory, directory, &fileStorage{}, encryptor, keystore.InfiniteCacheSize)
+	return NewCustomFilesystemKeyStore().KeyDirectory(directory).Encryptor(encryptor).Build()
 }
 
 // NewFilesystemKeyStoreTwoPath creates new KeyStore using separate folders for private and public keys.
 func NewFilesystemKeyStoreTwoPath(privateKeyFolder, publicKeyFolder string, encryptor keystore.KeyEncryptor) (*KeyStore, error) {
-	return newFilesystemKeyStore(privateKeyFolder, publicKeyFolder, &fileStorage{}, encryptor, keystore.InfiniteCacheSize)
+	return NewCustomFilesystemKeyStore().KeyDirectories(privateKeyFolder, publicKeyFolder).Encryptor(encryptor).Build()
+}
+
+// KeyStoreBuilder allows to build a custom key store.
+type KeyStoreBuilder struct {
+	privateKeyDir string
+	publicKeyDir  string
+	encryptor     keystore.KeyEncryptor
+	storage       Storage
+	cacheSize     int
+}
+
+// NewCustomFilesystemKeyStore allows a custom-made KeyStore to be built.
+// You must set at least root key directories and provide a KeyEncryptor.
+func NewCustomFilesystemKeyStore() *KeyStoreBuilder {
+	return &KeyStoreBuilder{
+		storage:   &fileStorage{},
+		cacheSize: keystore.InfiniteCacheSize,
+	}
+}
+
+// KeyDirectory sets root key directory. Private and public keys will be kept together.
+func (b *KeyStoreBuilder) KeyDirectory(directory string) *KeyStoreBuilder {
+	b.privateKeyDir = directory
+	b.publicKeyDir = directory
+	return b
+}
+
+// KeyDirectories sets root key directories for private and public keys.
+func (b *KeyStoreBuilder) KeyDirectories(privateKeyDir, publicKeyDir string) *KeyStoreBuilder {
+	b.privateKeyDir = privateKeyDir
+	b.publicKeyDir = publicKeyDir
+	return b
+}
+
+// Encryptor sets cryptographic backend.
+func (b *KeyStoreBuilder) Encryptor(encryptor keystore.KeyEncryptor) *KeyStoreBuilder {
+	b.encryptor = encryptor
+	return b
+}
+
+// Storage sets custom storage backend.
+func (b *KeyStoreBuilder) Storage(storage Storage) *KeyStoreBuilder {
+	b.storage = storage
+	return b
+}
+
+// CacheSize sets cache size to use. By default cache size is unlimited,
+func (b *KeyStoreBuilder) CacheSize(cacheSize int) *KeyStoreBuilder {
+	b.cacheSize = cacheSize
+	return b
+}
+
+var (
+	errNoPrivateKeyDir = errors.New("private key directory not specified")
+	errNoPublicKeyDir  = errors.New("public key directory not specified")
+	errNoEncryptor     = errors.New("encryptor not specified")
+)
+
+// Build constructs a KeyStore with specified parameters.
+func (b *KeyStoreBuilder) Build() (*KeyStore, error) {
+	if b.privateKeyDir == "" {
+		return nil, errNoPrivateKeyDir
+	}
+	if b.publicKeyDir == "" {
+		return nil, errNoPublicKeyDir
+	}
+	if b.encryptor == nil {
+		return nil, errNoEncryptor
+	}
+	return newFilesystemKeyStore(b.privateKeyDir, b.publicKeyDir, b.storage, b.encryptor, b.cacheSize)
 }
 
 func newFilesystemKeyStore(privateKeyFolder, publicKeyFolder string, storage Storage, encryptor keystore.KeyEncryptor, cacheSize int) (*KeyStore, error) {
