@@ -30,6 +30,11 @@ type TranslatorFileSystemKeyStore struct {
 	encryptor keystore.KeyEncryptor
 }
 
+// NewTranslatorFileSystemKeyStoreFromServerStore create TranslatorKeyStore which inherit KeyStore
+func NewTranslatorFileSystemKeyStoreFromServerStore(directory string, encryptor keystore.KeyEncryptor, store *KeyStore)(*TranslatorFileSystemKeyStore, error){
+	return &TranslatorFileSystemKeyStore{KeyStore: store, directory: directory, encryptor: encryptor}, nil
+}
+
 // NewTranslatorFileSystemKeyStore creates new TranslatorFileSystemKeyStore
 func NewTranslatorFileSystemKeyStore(directory string, encryptor keystore.KeyEncryptor, cacheSize int) (*TranslatorFileSystemKeyStore, error) {
 	fsKeystore, err := NewFileSystemKeyStoreWithCacheSize(directory, encryptor, cacheSize)
