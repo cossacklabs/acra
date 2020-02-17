@@ -149,10 +149,12 @@ func newFilesystemKeyStore(privateKeyFolder, publicKeyFolder string, storage Sto
 	if err != nil && !os.IsNotExist(err) {
 		return nil, err
 	}
-	const expectedPermission = "-rwx------"
-	if runtime.GOOS == "linux" && fi.Mode().Perm().String() != expectedPermission {
-		log.Errorf("Key store folder has an incorrect permissions %s, expected: %s", fi.Mode().Perm().String(), expectedPermission)
-		return nil, errors.New("key store folder has an incorrect permissions")
+	if !os.IsNotExist(err) {
+		const expectedPermission = "-rwx------"
+		if runtime.GOOS == "linux" && fi.Mode().Perm().String() != expectedPermission {
+			log.Errorf("Key store folder has an incorrect permissions %s, expected: %s", fi.Mode().Perm().String(), expectedPermission)
+			return nil, errors.New("key store folder has an incorrect permissions")
+		}
 	}
 	_, err = storage.Stat(publicKeyFolder)
 	if err != nil && !os.IsNotExist(err) {
