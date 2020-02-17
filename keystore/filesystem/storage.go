@@ -62,6 +62,9 @@ type Storage interface {
 	RemoveAll(path string) error
 }
 
+// DummyStorage keeps key files in filesystem directories.
+type DummyStorage struct{ fileStorage }
+
 type fileStorage struct{}
 
 func (*fileStorage) Stat(path string) (os.FileInfo, error) {
