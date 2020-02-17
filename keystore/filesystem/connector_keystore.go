@@ -55,6 +55,36 @@ var (
 	errNoConnectorMode = errors.New("connector mode not specified")
 )
 
+// KeyDirectory sets key directory.
+func (b *ConnectorFileSystemKeyStoreBuilder) KeyDirectory(directory string) *ConnectorFileSystemKeyStoreBuilder {
+	b.directory = directory
+	return b
+}
+
+// ClientID sets key client ID.
+func (b *ConnectorFileSystemKeyStoreBuilder) ClientID(clientID []byte) *ConnectorFileSystemKeyStoreBuilder {
+	b.clientID = clientID
+	return b
+}
+
+// Storage sets custom storage.
+func (b *ConnectorFileSystemKeyStoreBuilder) Storage(storage Storage) *ConnectorFileSystemKeyStoreBuilder {
+	b.storage = storage
+	return b
+}
+
+// Encryptor sets encryptor.
+func (b *ConnectorFileSystemKeyStoreBuilder) Encryptor(encryptor keystore.KeyEncryptor) *ConnectorFileSystemKeyStoreBuilder {
+	b.encryptor = encryptor
+	return b
+}
+
+// ConnectorMode sets connector mode.
+func (b *ConnectorFileSystemKeyStoreBuilder) ConnectorMode(connectorMode connector_mode.ConnectorMode) *ConnectorFileSystemKeyStoreBuilder {
+	b.connectorMode = connectorMode
+	return b
+}
+
 // Build a key store.
 func (b *ConnectorFileSystemKeyStoreBuilder) Build() (*ConnectorFileSystemKeyStore, error) {
 	if b.directory == "" {
