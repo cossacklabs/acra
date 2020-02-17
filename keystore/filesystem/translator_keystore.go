@@ -58,6 +58,12 @@ func (b *TranslatorFileSystemKeyStoreBuilder) Encryptor(encryptor keystore.KeyEn
 	return b
 }
 
+// Storage sets custom storage.
+func (b *TranslatorFileSystemKeyStoreBuilder) Storage(storage Storage) *TranslatorFileSystemKeyStoreBuilder {
+	b.keyStoreBuilder.Storage(storage)
+	return b
+}
+
 // Build a key store.
 func (b *TranslatorFileSystemKeyStoreBuilder) Build() (*TranslatorFileSystemKeyStore, error) {
 	if b.directory == "" {
