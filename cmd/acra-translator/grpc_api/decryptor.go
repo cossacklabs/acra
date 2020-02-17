@@ -52,8 +52,9 @@ var (
 
 // Encrypt encrypt data from gRPC request and returns AcraStruct or error.
 func (service *DecryptGRPCService) Encrypt(ctx context.Context, request *EncryptRequest) (*EncryptResponse, error) {
-	service.logger.WithFields(logrus.Fields{"client_id": string(request.ClientId), "zone_id": string(request.ZoneId), "operation": "Encrypt"}).Debugln("New request")
-	defer service.logger.WithFields(logrus.Fields{"client_id": string(request.ClientId), "zone_id": string(request.ZoneId), "operation": "Encrypt"}).Debugln("End processing request")
+	logger := service.logger.WithFields(logrus.Fields{"client_id": string(request.ClientId), "zone_id": string(request.ZoneId), "operation": "Encrypt"})
+	logger.Debugln("New request")
+	defer logger.WithFields(logrus.Fields{"client_id": string(request.ClientId), "zone_id": string(request.ZoneId), "operation": "Encrypt"}).Debugln("End processing request")
 	timer := prometheus.NewTimer(prometheus.ObserverFunc(common.RequestProcessingTimeHistogram.WithLabelValues(common.GrpcRequestType).Observe))
 	defer timer.ObserveDuration()
 
@@ -61,15 +62,15 @@ func (service *DecryptGRPCService) Encrypt(ctx context.Context, request *Encrypt
 	var err error
 	if len(request.ZoneId) != 0 {
 		publicKey, err = service.TranslatorData.Keystorage.GetZonePublicKey(request.ZoneId)
-		service.logger.Debugln("Loaded zoneID key for encryption")
+		logger.Debugln("Loaded zoneID key for encryption")
 	} else {
 		publicKey, err = service.TranslatorData.Keystorage.GetClientIDEncryptionPublicKey(request.ClientId)
-		service.logger.Debugln("Loaded clientID key for encryption")
+		logger.Debugln("Loaded clientID key for encryption")
 	}
 	if err != nil {
 		base.APIEncryptionCounter.WithLabelValues(base.EncryptionTypeFail).Inc()
 		msg := "Invalid client or zone id"
-		service.logger.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantReadKeys).Warningln(msg)
+		logger.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantReadKeys).Warningln(msg)
 		return nil, ErrCantEncrypt
 	}
 	// publicKey will be clientID' if wasn't provided ZoneID and context.ZoneID will be nil, otherwise used ZoneID
@@ -78,18 +79,19 @@ func (service *DecryptGRPCService) Encrypt(ctx context.Context, request *Encrypt
 	if err != nil {
 		base.APIEncryptionCounter.WithLabelValues(base.EncryptionTypeFail).Inc()
 		msg := "Unexpected error with AcraStruct generation"
-		service.logger.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantEncryptData).Warningln(msg)
+		logger.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantEncryptData).Warningln(msg)
 		return nil, ErrCantEncrypt
 	}
 	base.APIEncryptionCounter.WithLabelValues(base.EncryptionTypeSuccess).Inc()
-	service.logger.Infoln("Encrypted data to AcraStruct")
+	logger.Infoln("Encrypted data to AcraStruct")
 	return &EncryptResponse{Acrastruct: acrastruct}, nil
 }
 
 // Decrypt decrypts AcraStruct from gRPC request and returns decrypted data or error.
 func (service *DecryptGRPCService) Decrypt(ctx context.Context, request *DecryptRequest) (*DecryptResponse, error) {
-	service.logger.WithFields(logrus.Fields{"client_id": string(request.ClientId), "zone_id": string(request.ZoneId), "operation": "Decrypt"}).Debugln("New request")
-	defer service.logger.WithFields(logrus.Fields{"client_id": string(request.ClientId), "zone_id": string(request.ZoneId), "operation": "Decrypt"}).Debugln("End processing request")
+	logger := service.logger.WithFields(logrus.Fields{"client_id": string(request.ClientId), "zone_id": string(request.ZoneId), "operation": "Decrypt"})
+	logger.Debugln("New request")
+	defer logger.WithFields(logrus.Fields{"client_id": string(request.ClientId), "zone_id": string(request.ZoneId), "operation": "Decrypt"}).Debugln("End processing request")
 	var privateKeys []*keys.PrivateKey
 	var err error
 	var decryptionContext []byte
@@ -98,7 +100,7 @@ func (service *DecryptGRPCService) Decrypt(ctx context.Context, request *Decrypt
 	defer timer.ObserveDuration()
 
 	if len(request.ClientId) == 0 {
-		service.logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorTranslatorClientIDMissing).Errorln("GRPC request without ClientID not allowed")
+		logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorTranslatorClientIDMissing).Errorln("GRPC request without ClientID not allowed")
 		return nil, ErrClientIDRequired
 	}
 	if len(request.ZoneId) != 0 {
@@ -109,7 +111,7 @@ func (service *DecryptGRPCService) Decrypt(ctx context.Context, request *Decrypt
 	}
 	if err != nil {
 		base.AcrastructDecryptionCounter.WithLabelValues(base.DecryptionTypeFail).Inc()
-		service.logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantReadKeys).WithError(err).Errorln("Can't load private key for decryption")
+		logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantReadKeys).WithError(err).Errorln("Can't load private key for decryption")
 		return nil, ErrCantDecrypt
 	}
 	data, decryptErr := base.DecryptRotatedAcrastruct(request.Acrastruct, privateKeys, decryptionContext)
@@ -118,18 +120,18 @@ func (service *DecryptGRPCService) Decrypt(ctx context.Context, request *Decrypt
 	}
 	if decryptErr != nil {
 		base.AcrastructDecryptionCounter.WithLabelValues(base.DecryptionTypeFail).Inc()
-		service.logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorTranslatorCantDecryptAcraStruct).WithError(decryptErr).Errorln("Can't decrypt AcraStruct")
+		logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorTranslatorCantDecryptAcraStruct).WithError(decryptErr).Errorln("Can't decrypt AcraStruct")
 		if service.TranslatorData.CheckPoisonRecords {
 			poisoned, err := base.CheckPoisonRecord(request.Acrastruct, service.TranslatorData.Keystorage)
 			if err != nil {
-				service.logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorDecryptorCantCheckPoisonRecord).WithError(err).Errorln("Can't check for poison record, possible missing Poison record decryption key")
+				logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorDecryptorCantCheckPoisonRecord).WithError(err).Errorln("Can't check for poison record, possible missing Poison record decryption key")
 				return nil, ErrCantDecrypt
 			}
 			if poisoned {
-				service.logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorDecryptorRecognizedPoisonRecord).Errorln("Recognized poison record")
+				logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorDecryptorRecognizedPoisonRecord).Errorln("Recognized poison record")
 				if service.TranslatorData.PoisonRecordCallbacks.HasCallbacks() {
 					if err := service.TranslatorData.PoisonRecordCallbacks.Call(); err != nil {
-						service.logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorDecryptorCantHandleRecognizedPoisonRecord).WithError(err).Errorln("Unexpected error on poison record's callbacks")
+						logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorDecryptorCantHandleRecognizedPoisonRecord).WithError(err).Errorln("Unexpected error on poison record's callbacks")
 					}
 				}
 				// don't show users that we found poison record
