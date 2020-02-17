@@ -30,6 +30,31 @@ type TranslatorFileSystemKeyStore struct {
 	encryptor keystore.KeyEncryptor
 }
 
+// TranslatorFileSystemKeyStoreBuilder allows to build a custom key store.
+type TranslatorFileSystemKeyStoreBuilder struct {
+	*KeyStoreBuilder
+}
+
+// NewCustomTranslatorFileSystemKeyStore allows to customize a translator key store.
+func NewCustomTranslatorFileSystemKeyStore() *TranslatorFileSystemKeyStoreBuilder {
+	return &TranslatorFileSystemKeyStoreBuilder{
+		KeyStoreBuilder: NewCustomFilesystemKeyStore(),
+	}
+}
+
+// Build a key store.
+func (b *TranslatorFileSystemKeyStoreBuilder) Build() (*TranslatorFileSystemKeyStore, error) {
+	fsKeystore, err := b.KeyStoreBuilder.Build()
+	if err != nil {
+		return nil, err
+	}
+	return &TranslatorFileSystemKeyStore{
+		KeyStore:  fsKeystore,
+		directory: b.KeyStoreBuilder.privateKeyDir,
+		encryptor: b.KeyStoreBuilder.encryptor,
+	}, nil
+}
+
 // NewTranslatorFileSystemKeyStoreFromServerStore create TranslatorKeyStore which inherit KeyStore
 func NewTranslatorFileSystemKeyStoreFromServerStore(directory string, encryptor keystore.KeyEncryptor, store *KeyStore) (*TranslatorFileSystemKeyStore, error) {
 	return &TranslatorFileSystemKeyStore{KeyStore: store, directory: directory, encryptor: encryptor}, nil
