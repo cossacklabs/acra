@@ -35,11 +35,12 @@ import (
 // DecryptGRPCService represents decryptor for decrypting AcraStructs from gRPC requests.
 type DecryptGRPCService struct {
 	*common.TranslatorData
+	logger *logrus.Entry
 }
 
 // NewDecryptGRPCService creates new DecryptGRPCService.
 func NewDecryptGRPCService(data *common.TranslatorData) (*DecryptGRPCService, error) {
-	return &DecryptGRPCService{TranslatorData: data}, nil
+	return &DecryptGRPCService{TranslatorData: data, logger: logrus.WithField("service", "grpc_service")}, nil
 }
 
 // Errors possible during decrypting AcraStructs.
@@ -51,6 +52,8 @@ var (
 
 // Encrypt encrypt data from gRPC request and returns AcraStruct or error.
 func (service *DecryptGRPCService) Encrypt(ctx context.Context, request *EncryptRequest) (*EncryptResponse, error) {
+	service.logger.WithFields(logrus.Fields{"client_id": string(request.ClientId), "zone_id": string(request.ZoneId), "operation": "Encrypt"}).Debugln("New request")
+	defer service.logger.WithFields(logrus.Fields{"client_id": string(request.ClientId), "zone_id": string(request.ZoneId), "operation": "Encrypt"}).Debugln("End processing request")
 	timer := prometheus.NewTimer(prometheus.ObserverFunc(common.RequestProcessingTimeHistogram.WithLabelValues(common.GrpcRequestType).Observe))
 	defer timer.ObserveDuration()
 
@@ -86,6 +89,8 @@ func (service *DecryptGRPCService) Encrypt(ctx context.Context, request *Encrypt
 
 // Decrypt decrypts AcraStruct from gRPC request and returns decrypted data or error.
 func (service *DecryptGRPCService) Decrypt(ctx context.Context, request *DecryptRequest) (*DecryptResponse, error) {
+	service.logger.WithFields(logrus.Fields{"client_id": string(request.ClientId), "zone_id": string(request.ZoneId), "operation": "Decrypt"}).Debugln("New request")
+	defer service.logger.WithFields(logrus.Fields{"client_id": string(request.ClientId), "zone_id": string(request.ZoneId), "operation": "Decrypt"}).Debugln("End processing request")
 	var privateKeys []*keys.PrivateKey
 	var err error
 	var decryptionContext []byte
