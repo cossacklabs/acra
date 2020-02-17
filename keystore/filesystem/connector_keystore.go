@@ -34,6 +34,50 @@ type ConnectorFileSystemKeyStore struct {
 	connectorMode connector_mode.ConnectorMode
 }
 
+// ConnectorFileSystemKeyStoreBuilder allows to build a custom key store.
+type ConnectorFileSystemKeyStoreBuilder struct {
+	directory     string
+	clientID      []byte
+	storage       Storage
+	encryptor     keystore.KeyEncryptor
+	connectorMode connector_mode.ConnectorMode
+}
+
+// NewCustomConnectorFileSystemKeyStore allows to customize a translator key store.
+func NewCustomConnectorFileSystemKeyStore() *ConnectorFileSystemKeyStoreBuilder {
+	return &ConnectorFileSystemKeyStoreBuilder{
+		storage: &DummyStorage{},
+	}
+}
+
+var (
+	errNoClientID      = errors.New("client ID not specified")
+	errNoConnectorMode = errors.New("connector mode not specified")
+)
+
+// Build a key store.
+func (b *ConnectorFileSystemKeyStoreBuilder) Build() (*ConnectorFileSystemKeyStore, error) {
+	if b.directory == "" {
+		return nil, errNoPrivateKeyDir
+	}
+	if b.clientID == nil {
+		return nil, errNoClientID
+	}
+	if b.encryptor == nil {
+		return nil, errNoEncryptor
+	}
+	if b.connectorMode == "" {
+		return nil, errNoConnectorMode
+	}
+	return &ConnectorFileSystemKeyStore{
+		directory:     b.directory,
+		clientID:      b.clientID,
+		storage:       b.storage,
+		encryptor:     b.encryptor,
+		connectorMode: b.connectorMode,
+	}, nil
+}
+
 // NewConnectorFileSystemKeyStore creates new ConnectorFileSystemKeyStore
 func NewConnectorFileSystemKeyStore(directory string, clientID []byte, encryptor keystore.KeyEncryptor, mode connector_mode.ConnectorMode) (*ConnectorFileSystemKeyStore, error) {
 	return &ConnectorFileSystemKeyStore{directory: directory, clientID: clientID, storage: &fileStorage{}, encryptor: encryptor, connectorMode: mode}, nil
