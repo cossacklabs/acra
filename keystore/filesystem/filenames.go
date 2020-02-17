@@ -18,7 +18,6 @@ package filesystem
 
 import (
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"time"
@@ -85,9 +84,9 @@ func getNewHistoricalFileName(filename string) string {
 // getHistoricalFilePaths returns paths to all versions of the current base file.
 // "current" must be a valid path. Historical versions are returned from newest to oldest,
 // starting with the current version.
-func getHistoricalFilePaths(current string) ([]string, error) {
+func getHistoricalFilePaths(current string, storage Storage) ([]string, error) {
 	historyDir := getHistoryDirName(current)
-	history, err := ioutil.ReadDir(historyDir)
+	history, err := storage.ReadDir(historyDir)
 	// If the history directory does not exist then it's fine, we'll return only the current file.
 	// But if we can't read existing history directory then something is wrong.
 	if err != nil && !os.IsNotExist(err) {
