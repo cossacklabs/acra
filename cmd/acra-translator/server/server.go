@@ -18,6 +18,7 @@ package server
 
 import (
 	"context"
+	"crypto/tls"
 	"net"
 	"os"
 	"time"
@@ -254,13 +255,26 @@ func (server *ReaderServer) Start(parentContext context.Context) {
 		go func() {
 			grpcLogger := logger.WithField(ConnectionTypeKey, GRPCConnectionType)
 			logger.WithField("connection_string", server.config.IncomingConnectionGRPCString()).Infof("Start process gRPC requests")
-			secureSessionListener, err := network.NewSecureSessionListener(server.config.ServerID(), server.config.IncomingConnectionGRPCString(), server.keystorage)
-			if err != nil {
-				grpcLogger.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorTranslatorCantHandleGRPCConnection).
-					Errorln("Can't create secure session listener")
-				return
+			var listener net.Listener
+			var err error
+			if server.config.WithTLS() {
+				listener, err = network.Listen(server.config.IncomingConnectionGRPCString())
+				if err != nil {
+					grpcLogger.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorTranslatorCantHandleGRPCConnection).
+						Errorln("Can't create gRPC connection listener")
+					return
+				}
+				listener = tls.NewListener(listener, server.config.GetTLSConfig())
+			} else {
+				listener, err = network.NewSecureSessionListener(server.config.ServerID(), server.config.IncomingConnectionGRPCString(), server.keystorage)
+				if err != nil {
+					grpcLogger.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorTranslatorCantHandleGRPCConnection).
+						Errorln("Can't create secure session listener")
+					return
+				}
 			}
-			grpcListener := common.WrapListenerWithMetrics(secureSessionListener)
+
+			grpcListener := common.WrapListenerWithMetrics(listener)
 
 			grpcServer, err := server.grpcServerFactory.New(decryptorData)
 			if err != nil {

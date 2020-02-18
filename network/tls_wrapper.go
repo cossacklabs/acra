@@ -21,6 +21,7 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"errors"
+	"flag"
 	"github.com/cossacklabs/acra/logging"
 	log "github.com/sirupsen/logrus"
 	"io/ioutil"
@@ -47,35 +48,26 @@ type TLSConnectionWrapper struct {
 // ErrEmptyTLSConfig if not TLS config found
 var ErrEmptyTLSConfig = errors.New("empty TLS config")
 
-// NewTLSConnectionWrapper returns new TLSConnectionWrapper
-func NewTLSConnectionWrapper(clientID []byte, config *tls.Config) (*TLSConnectionWrapper, error) {
-	return &TLSConnectionWrapper{config: config, clientID: clientID}, nil
+var (
+	tlsCA string
+	tlsKey string
+	tlsCert string
+	tlsAuthType int
+	tlsServerName string
+)
+
+// RegisterTLSBaseArgs register CLI args tls_ca|tls_key|tls_cert|tls_auth which allow to get tls.Config by NewTLSConfigFromBaseArgs function
+func RegisterTLSBaseArgs(){
+	flag.StringVar(&tlsCA,"tls_ca", "", "Path to root certificate which will be used with system root certificates to validate peer's certificate")
+	flag.StringVar(&tlsKey,"tls_key", "", "Path to private key that will be used for TLS connections")
+	flag.StringVar(&tlsCert,"tls_cert", "", "Path to certificate")
+	flag.IntVar(&tlsAuthType,"tls_auth", int(tls.RequireAndVerifyClientCert), "Set authentication mode that will be used in TLS connection. Values in range 0-4 that set auth type (https://golang.org/pkg/crypto/tls/#ClientAuthType). Default is tls.RequireAndVerifyClientCert")
+	flag.StringVar(&tlsServerName, "tls_server_sni", "", "Server name used as sni value")
 }
 
-// WrapClient wraps client connection into TLS
-func (wrapper *TLSConnectionWrapper) WrapClient(ctx context.Context, id []byte, conn net.Conn) (net.Conn, error) {
-	conn.SetDeadline(time.Now().Add(DefaultNetworkTimeout))
-	tlsConn := tls.Client(conn, wrapper.config)
-	err := tlsConn.Handshake()
-	if err != nil {
-		conn.SetDeadline(time.Time{})
-		return conn, err
-	}
-	conn.SetDeadline(time.Time{})
-	return newSafeCloseConnection(tlsConn), nil
-}
-
-// WrapServer wraps server connection into TLS
-func (wrapper *TLSConnectionWrapper) WrapServer(ctx context.Context, conn net.Conn) (net.Conn, []byte, error) {
-	conn.SetDeadline(time.Now().Add(DefaultNetworkTimeout))
-	tlsConn := tls.Server(conn, wrapper.config)
-	err := tlsConn.Handshake()
-	if err != nil {
-		conn.SetDeadline(time.Time{})
-		return conn, nil, err
-	}
-	conn.SetDeadline(time.Time{})
-	return newSafeCloseConnection(tlsConn), wrapper.clientID, nil
+// NewTLSConfigFromBaseArgs
+func NewTLSConfigFromBaseArgs()(*tls.Config, error){
+	return NewTLSConfig(tlsServerName, tlsCA, tlsKey, tlsCert, tls.ClientAuthType(tlsAuthType))
 }
 
 // NewTLSConfig creates x509 TLS config from provided params, tried to load system CA certificate
@@ -121,6 +113,37 @@ func NewTLSConfig(serverName string, caPath, keyPath, crtPath string, authType t
 		MinVersion:   tls.VersionTLS12,
 		CipherSuites: allowedCipherSuits,
 	}, nil
+}
+
+// NewTLSConnectionWrapper returns new TLSConnectionWrapper
+func NewTLSConnectionWrapper(clientID []byte, config *tls.Config) (*TLSConnectionWrapper, error) {
+	return &TLSConnectionWrapper{config: config, clientID: clientID}, nil
+}
+
+// WrapClient wraps client connection into TLS
+func (wrapper *TLSConnectionWrapper) WrapClient(ctx context.Context, id []byte, conn net.Conn) (net.Conn, error) {
+	conn.SetDeadline(time.Now().Add(DefaultNetworkTimeout))
+	tlsConn := tls.Client(conn, wrapper.config)
+	err := tlsConn.Handshake()
+	if err != nil {
+		conn.SetDeadline(time.Time{})
+		return conn, err
+	}
+	conn.SetDeadline(time.Time{})
+	return newSafeCloseConnection(tlsConn), nil
+}
+
+// WrapServer wraps server connection into TLS
+func (wrapper *TLSConnectionWrapper) WrapServer(ctx context.Context, conn net.Conn) (net.Conn, []byte, error) {
+	conn.SetDeadline(time.Now().Add(DefaultNetworkTimeout))
+	tlsConn := tls.Server(conn, wrapper.config)
+	err := tlsConn.Handshake()
+	if err != nil {
+		conn.SetDeadline(time.Time{})
+		return conn, nil, err
+	}
+	conn.SetDeadline(time.Time{})
+	return newSafeCloseConnection(tlsConn), wrapper.clientID, nil
 }
 
 // SetMySQLCompatibleTLSSettings set minimal protocol version to TLSv1.1 and extend list of allowed cipher suits
