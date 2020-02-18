@@ -344,9 +344,9 @@ Requirements: Linux or macOS with installed Docker.
 | 🔛 [Run Acra Load Balancing Example](https://github.com/cossacklabs/acra-engineering-demo/#example-8-load-balancing-with-acra) 🔛 |
 |---|
 
-## GDPR and HIPAA
+## GDPR, HIPAA, CCPA
 
-Acra can help you comply with GDPR and HIPAA regulations. Configuring and using Acra in a designated form will cover most of the demands described in articles 25, 32, 33, and 34 of GDPR and the PII data protection demands of HIPAA. Read more about [Acra and GDPR compliance here](http://docs.cossacklabs.com/pages/acra-and-gdpr-compliance/).
+Acra can help you comply with the current privacy regulations like GDPR, HIPAA, and CCPA. Configuring and using Acra in a designated form will cover most of the demands described in articles 25, 32, 33, and 34 of GDPR and the PII data protection demands of HIPAA. Read more about [Acra and GDPR compliance here](http://docs.cossacklabs.com/pages/acra-and-gdpr-compliance/).
 
 ## Open source vs Pro vs Enterprise
 
