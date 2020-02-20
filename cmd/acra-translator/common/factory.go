@@ -22,5 +22,5 @@ import (
 
 // GRPCServerFactory factory which return new generated grpc.Server which implements API
 type GRPCServerFactory interface {
-	New(data *TranslatorData) (*grpc.Server, error)
+	New(data *TranslatorData, opts ...grpc.ServerOption) (*grpc.Server, error)
 }

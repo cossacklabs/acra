@@ -110,7 +110,7 @@ func testWrapper(clientWrapper, serverWrapper ConnectionWrapper, t *testing.T) {
 	}
 	defer connection.Close()
 	t.Log("wrap client")
-	connection, err = clientWrapper.WrapClient(context.TODO(), TestServerID, connection)
+	connection, err = clientWrapper.WrapClient(context.TODO(), connection)
 	if err != nil {
 		connection.Close()
 		t.Fatal(err)

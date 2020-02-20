@@ -29,8 +29,9 @@ import (
 type GRPCServerFactory struct{}
 
 // New return new generated grpc.Server with gRPC Translator API
-func (factory *GRPCServerFactory) New(data *common.TranslatorData) (*grpc.Server, error) {
-	grpcServer := grpc.NewServer(grpc.ConnectionTimeout(network.DefaultNetworkTimeout))
+func (factory *GRPCServerFactory) New(data *common.TranslatorData, opts ...grpc.ServerOption) (*grpc.Server, error) {
+	opts = append(opts, grpc.ConnectionTimeout(network.DefaultNetworkTimeout))
+	grpcServer := grpc.NewServer(opts...)
 	service, err := NewDecryptGRPCService(data)
 	if err != nil {
 		logrus.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorTranslatorCantHandleGRPCConnection).

@@ -121,7 +121,7 @@ func NewTLSConnectionWrapper(clientID []byte, config *tls.Config) (*TLSConnectio
 }
 
 // WrapClient wraps client connection into TLS
-func (wrapper *TLSConnectionWrapper) WrapClient(ctx context.Context, id []byte, conn net.Conn) (net.Conn, error) {
+func (wrapper *TLSConnectionWrapper) WrapClient(ctx context.Context, conn net.Conn) (net.Conn, error) {
 	conn.SetDeadline(time.Now().Add(DefaultNetworkTimeout))
 	tlsConn := tls.Client(conn, wrapper.config)
 	err := tlsConn.Handshake()

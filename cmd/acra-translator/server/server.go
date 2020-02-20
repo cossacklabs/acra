@@ -257,6 +257,7 @@ func (server *ReaderServer) Start(parentContext context.Context) {
 			logger.WithField("connection_string", server.config.IncomingConnectionGRPCString()).Infof("Start process gRPC requests")
 			var listener net.Listener
 			var err error
+			var opts []grpc.ServerOption
 			if server.config.WithTLS() {
 				listener, err = network.Listen(server.config.IncomingConnectionGRPCString())
 				if err != nil {
@@ -266,17 +267,28 @@ func (server *ReaderServer) Start(parentContext context.Context) {
 				}
 				listener = tls.NewListener(listener, server.config.GetTLSConfig())
 			} else {
-				listener, err = network.NewSecureSessionListener(server.config.ServerID(), server.config.IncomingConnectionGRPCString(), server.keystorage)
+				//listener, err = network.NewSecureSessionListener(server.config.ServerID(), server.config.IncomingConnectionGRPCString(), server.keystorage)
+				//if err != nil {
+				//	grpcLogger.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorTranslatorCantHandleGRPCConnection).
+				//		Errorln("Can't create secure session listener")
+				//	return
+				//}
+				listener, err = network.Listen(server.config.IncomingConnectionGRPCString())
 				if err != nil {
-					grpcLogger.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorTranslatorCantHandleGRPCConnection).
-						Errorln("Can't create secure session listener")
+					grpcLogger.WithError(err).Errorln("Can't initialize connection listener")
 					return
 				}
+				wrapper, err := network.NewSecureSessionConnectionWrapper(server.config.ServerID(), server.keystorage)
+				if err != nil {
+					grpcLogger.WithError(err).Errorln("Can't initialize Secure Session wrapper")
+					return
+				}
+				opts = append(opts, grpc.Creds(wrapper))
 			}
 
 			grpcListener := common.WrapListenerWithMetrics(listener)
 
-			grpcServer, err := server.grpcServerFactory.New(decryptorData)
+			grpcServer, err := server.grpcServerFactory.New(decryptorData, opts...)
 			if err != nil {
 				logger.WithError(err).Errorln("Can't create new grpc server")
 				os.Exit(1)
