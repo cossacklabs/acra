@@ -18,7 +18,7 @@ package server
 
 import (
 	"context"
-	"crypto/tls"
+	"google.golang.org/grpc/credentials"
 	"net"
 	"os"
 	"time"
@@ -265,7 +265,8 @@ func (server *ReaderServer) Start(parentContext context.Context) {
 						Errorln("Can't create gRPC connection listener")
 					return
 				}
-				listener = tls.NewListener(listener, server.config.GetTLSConfig())
+				//listener = tls.NewListener(listener, server.config.GetTLSConfig())
+				opts = append(opts, grpc.Creds(credentials.NewTLS(server.config.GetTLSConfig())))
 			} else {
 				//listener, err = network.NewSecureSessionListener(server.config.ServerID(), server.config.IncomingConnectionGRPCString(), server.keystorage)
 				//if err != nil {
