@@ -166,7 +166,7 @@ func TestSessionWrapper(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	clientWrapper, err := NewSecureSessionConnectionWrapper(TestClientID, &SimpleKeyStore{PrivateKey: clientPair.Private, PublicKey: serverPair.Public})
+	clientWrapper, err := NewSecureSessionConnectionWrapperWithServerID(TestClientID, TestServerID, &SimpleKeyStore{PrivateKey: clientPair.Private, PublicKey: serverPair.Public})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -316,7 +316,7 @@ func testTLSConfig(serverWrapper *TLSConnectionWrapper, t *testing.T) {
 		t.Fatal("expected error")
 	}()
 	go func() {
-		conn, err := clientWrapper.WrapClient(context.TODO(), []byte("server"), clientConn)
+		conn, err := clientWrapper.WrapClient(context.TODO(), clientConn)
 		if err != nil {
 			if err.Error() != "remote error: tls: handshake failure" {
 				t.Fatal("Expected with handshake failure")
@@ -382,7 +382,7 @@ func testTLSConfig(serverWrapper *TLSConnectionWrapper, t *testing.T) {
 		t.Fatal("expected error")
 	}()
 	go func() {
-		_, err := clientWrapper.WrapClient(context.TODO(), []byte("server"), clientConn)
+		_, err := clientWrapper.WrapClient(context.TODO(), clientConn)
 		if err != nil {
 			if err.Error() != "remote error: tls: protocol version not supported" {
 				t.Fatal("Expected incorrect protocol version error")
