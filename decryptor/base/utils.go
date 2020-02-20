@@ -99,10 +99,11 @@ func DecryptAcrastruct(data []byte, privateKey *keys.PrivateKey, zone []byte) ([
 // It either returns decrypted data if one of the keys succeeds, or an error if none is good.
 func DecryptRotatedAcrastruct(data []byte, privateKeys []*keys.PrivateKey, zone []byte) ([]byte, error) {
 	var err error
+	var decryptedData []byte
 	for _, privateKey := range privateKeys {
-		data, err = DecryptAcrastruct(data, privateKey, zone)
+		decryptedData, err = DecryptAcrastruct(data, privateKey, zone)
 		if err == nil {
-			return data, err
+			return decryptedData, nil
 		}
 	}
 	return nil, err

@@ -28,8 +28,8 @@ type ConnectionTimeoutWrapper interface {
 }
 
 type ConnectionMetadata interface {
-	SpanContext()(trace.SpanContext, bool)
-	ClientID()([]byte, bool)
+	SpanContext() (trace.SpanContext, bool)
+	ClientID() ([]byte, bool)
 }
 
 // ConnectionWrapper interface

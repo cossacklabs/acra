@@ -205,11 +205,11 @@ func (store *KeyStore) SaveKeyPairWithFilename(keypair *keys.Keypair, filename s
 	if err != nil {
 		return err
 	}
-	err = store.writePrivateKey(store.GetPrivateKeyFilePath(filename), encryptedPrivate)
+	err = store.WritePrivateKey(store.GetPrivateKeyFilePath(filename), encryptedPrivate)
 	if err != nil {
 		return err
 	}
-	err = store.writePublicKey(store.GetPublicKeyFilePath(fmt.Sprintf("%s.pub", filename)), keypair.Public.Value)
+	err = store.WritePublicKey(store.GetPublicKeyFilePath(fmt.Sprintf("%s.pub", filename)), keypair.Public.Value)
 	if err != nil {
 		return err
 	}
@@ -231,7 +231,7 @@ func (store *KeyStore) generateKey(filename string, length uint8) ([]byte, error
 		log.Error(err)
 		return nil, err
 	}
-	err = store.writePrivateKey(store.GetPrivateKeyFilePath(filename), randomBytes)
+	err = store.WritePrivateKey(store.GetPrivateKeyFilePath(filename), randomBytes)
 	if err != nil {
 		log.Error(err)
 		return nil, err
@@ -239,11 +239,11 @@ func (store *KeyStore) generateKey(filename string, length uint8) ([]byte, error
 	return randomBytes, nil
 }
 
-func (store *KeyStore) writePrivateKey(filename string, data []byte) error {
+func (store *KeyStore) WritePrivateKey(filename string, data []byte) error {
 	return store.WriteKeyFile(filename, data, PrivateFileMode)
 }
 
-func (store *KeyStore) writePublicKey(filename string, data []byte) error {
+func (store *KeyStore) WritePublicKey(filename string, data []byte) error {
 	return store.WriteKeyFile(filename, data, publicFileMode)
 }
 
@@ -298,7 +298,7 @@ func (store *KeyStore) backupHistoricalKeyFile(filename string) error {
 // generateZoneKey for specific zone id. Will be generated new key pair and private key will be overwrited
 func (store *KeyStore) generateZoneKey(id []byte) ([]byte, []byte, error) {
 	/* save private key in fs, return id and public key*/
-	keypair, err := store.generateKeyPair(getZoneKeyFilename(id), id)
+	keypair, err := store.generateKeyPair(GetZoneKeyFilename(id), id)
 	if err != nil {
 		return []byte{}, []byte{}, err
 	}
@@ -310,7 +310,7 @@ func (store *KeyStore) generateZoneKey(id []byte) ([]byte, []byte, error) {
 	}
 	utils.FillSlice(byte(0), keypair.Private.Value)
 	// cache key
-	store.cache.Add(getZoneKeyFilename(id), encryptedKey)
+	store.cache.Add(GetZoneKeyFilename(id), encryptedKey)
 	return id, keypair.Public.Value, nil
 }
 
@@ -339,7 +339,7 @@ func (store *KeyStore) GetPublicKeyFilePath(filename string) string {
 	return fmt.Sprintf("%s%s%s", store.publicKeyDirectory, string(os.PathSeparator), filename)
 }
 
-func (store *KeyStore) getHistoricalPrivateKeyFilenames(filename string) ([]string, error) {
+func (store *KeyStore) GetHistoricalPrivateKeyFilenames(filename string) ([]string, error) {
 	// getHistoricalFilePaths() expects a path, not a name, but we must return names.
 	// Add private key directory path and then remove it to avoid directory switching.
 	fullPath := filepath.Join(store.privateKeyDirectory, filename)
@@ -457,7 +457,7 @@ func (store *KeyStore) GetClientIDEncryptionPublicKey(clientID []byte) (*keys.Pu
 // GetZonePrivateKey reads encrypted zone private key from fs, decrypts it with master key and zoneId
 // and returns plaintext private key, or reading/decryption error.
 func (store *KeyStore) GetZonePrivateKey(id []byte) (*keys.PrivateKey, error) {
-	fname := getZoneKeyFilename(id)
+	fname := GetZoneKeyFilename(id)
 	return store.getPrivateKeyByFilename(id, fname)
 }
 
@@ -471,7 +471,7 @@ func (store *KeyStore) HasZonePrivateKey(id []byte) bool {
 	if len(id) == 0 {
 		return false
 	}
-	fname := getZoneKeyFilename(id)
+	fname := GetZoneKeyFilename(id)
 	store.lock.RLock()
 	defer store.lock.RUnlock()
 	_, ok := store.cache.Get(fname)
@@ -486,7 +486,7 @@ func (store *KeyStore) HasZonePrivateKey(id []byte) bool {
 // decrypts them with master key and zoneId, and returns plaintext private keys,
 // or reading/decryption error.
 func (store *KeyStore) GetZonePrivateKeys(id []byte) ([]*keys.PrivateKey, error) {
-	filenames, err := store.getHistoricalPrivateKeyFilenames(getZoneKeyFilename(id))
+	filenames, err := store.GetHistoricalPrivateKeyFilenames(GetZoneKeyFilename(id))
 	if err != nil {
 		return nil, err
 	}
@@ -534,7 +534,7 @@ func (store *KeyStore) GetServerDecryptionPrivateKey(id []byte) (*keys.PrivateKe
 // decrypts them with master key and clientID, and returns plaintext private keys,
 // or reading/decryption error.
 func (store *KeyStore) GetServerDecryptionPrivateKeys(id []byte) ([]*keys.PrivateKey, error) {
-	filenames, err := store.getHistoricalPrivateKeyFilenames(GetServerDecryptionKeyFilename(id))
+	filenames, err := store.GetHistoricalPrivateKeyFilenames(GetServerDecryptionKeyFilename(id))
 	if err != nil {
 		return nil, err
 	}
@@ -669,7 +669,7 @@ func (store *KeyStore) RotateZoneKey(zoneID []byte) ([]byte, error) {
 
 // SaveZoneKeypair save or overwrite zone keypair
 func (store *KeyStore) SaveZoneKeypair(id []byte, keypair *keys.Keypair) error {
-	filename := getZoneKeyFilename(id)
+	filename := GetZoneKeyFilename(id)
 	return store.SaveKeyPairWithFilename(keypair, filename, id)
 }
 

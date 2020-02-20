@@ -194,7 +194,7 @@ var ErrClientIDPacketToBig = errors.New("packet with ClientID too big")
 // SecureSessionInfo struct used to store metadata between connector<->server/translator and implement credentials.AuthInfo [grpc] interface
 // to pass these to end handlers
 type SecureSessionInfo struct {
-	clientID []byte
+	clientID    []byte
 	spanContext trace.SpanContext
 }
 
@@ -204,7 +204,7 @@ func (s SecureSessionInfo) ClientID() []byte {
 }
 
 // SpanContext return context from connector
-func (s SecureSessionInfo) SpanContext() trace.SpanContext{
+func (s SecureSessionInfo) SpanContext() trace.SpanContext {
 	return s.spanContext
 }
 
@@ -218,7 +218,7 @@ type SecureSessionConnectionWrapper struct {
 	keystore         keystore.SecureSessionKeyStore
 	handshakeTimeout time.Duration
 	id               []byte
-	serverID []byte
+	serverID         []byte
 }
 
 // ClientHandshake wrap outcoming client's connection to server with secure session as gRPC transport
@@ -242,15 +242,15 @@ func (wrapper *SecureSessionConnectionWrapper) ServerHandshake(conn net.Conn) (n
 	if err != nil {
 		return wrappedConn, nil, err
 	}
-	return wrappedConn, SecureSessionInfo{clientID: clientID, spanContext:spnCtx}, nil
+	return wrappedConn, SecureSessionInfo{clientID: clientID, spanContext: spnCtx}, nil
 }
 
 func (wrapper *SecureSessionConnectionWrapper) Info() credentials.ProtocolInfo {
 	return credentials.ProtocolInfo{
-		ProtocolVersion: "1.0.0",
+		ProtocolVersion:  "1.0.0",
 		SecurityProtocol: "secure session",
-		SecurityVersion: "1.0.0.",
-		ServerName: string(wrapper.serverID),
+		SecurityVersion:  "1.0.0.",
+		ServerName:       string(wrapper.serverID),
 	}
 }
 

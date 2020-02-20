@@ -48,11 +48,11 @@ func ReadTrace(conn net.Conn) (trace.SpanContext, error) {
 	return spanContext, nil
 }
 
-type traceWrapper struct{
+type traceWrapper struct {
 	wrapper ConnectionWrapper
 }
 
-func NewTraceConnectionWrapper(wrapper ConnectionWrapper)(*traceWrapper, error){
+func NewTraceConnectionWrapper(wrapper ConnectionWrapper) (*traceWrapper, error) {
 	return &traceWrapper{wrapper}, nil
 }
 

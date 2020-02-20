@@ -49,28 +49,28 @@ type TLSConnectionWrapper struct {
 var ErrEmptyTLSConfig = errors.New("empty TLS config")
 
 var (
-	tlsCA string
-	tlsKey string
-	tlsCert string
-	tlsAuthType int
+	tlsCA         string
+	tlsKey        string
+	tlsCert       string
+	tlsAuthType   int
 	tlsServerName string
 )
 
 // RegisterTLSBaseArgs register CLI args tls_ca|tls_key|tls_cert|tls_auth which allow to get tls.Config by NewTLSConfigFromBaseArgs function
-func RegisterTLSBaseArgs(){
-	flag.StringVar(&tlsCA,"tls_ca", "", "Path to root certificate which will be used with system root certificates to validate peer's certificate")
-	flag.StringVar(&tlsKey,"tls_key", "", "Path to private key that will be used for TLS connections")
-	flag.StringVar(&tlsCert,"tls_cert", "", "Path to certificate")
-	flag.IntVar(&tlsAuthType,"tls_auth", int(tls.RequireAndVerifyClientCert), "Set authentication mode that will be used in TLS connection. Values in range 0-4 that set auth type (https://golang.org/pkg/crypto/tls/#ClientAuthType). Default is tls.RequireAndVerifyClientCert")
+func RegisterTLSBaseArgs() {
+	flag.StringVar(&tlsCA, "tls_ca", "", "Path to root certificate which will be used with system root certificates to validate peer's certificate")
+	flag.StringVar(&tlsKey, "tls_key", "", "Path to private key that will be used for TLS connections")
+	flag.StringVar(&tlsCert, "tls_cert", "", "Path to certificate")
+	flag.IntVar(&tlsAuthType, "tls_auth", int(tls.RequireAndVerifyClientCert), "Set authentication mode that will be used in TLS connection. Values in range 0-4 that set auth type (https://golang.org/pkg/crypto/tls/#ClientAuthType). Default is tls.RequireAndVerifyClientCert")
 }
 
 // RegisterTLSClientArgs register CLI args tls_server_sni used by TLS client's connection
-func RegisterTLSClientArgs(){
+func RegisterTLSClientArgs() {
 	flag.StringVar(&tlsServerName, "tls_server_sni", "", "Server name used as sni value")
 }
 
 // NewTLSConfigFromBaseArgs
-func NewTLSConfigFromBaseArgs()(*tls.Config, error){
+func NewTLSConfigFromBaseArgs() (*tls.Config, error) {
 	return NewTLSConfig(tlsServerName, tlsCA, tlsKey, tlsCert, tls.ClientAuthType(tlsAuthType))
 }
 
