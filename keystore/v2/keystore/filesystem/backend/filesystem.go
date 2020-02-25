@@ -163,7 +163,8 @@ func (b *DirectoryBackend) Close() error {
 // Converts "key path" into "OS path" relative to the root directory.
 func (b *DirectoryBackend) osPath(path string) (string, error) {
 	if api.PathSeparator != string(os.PathSeparator) {
-		path = strings.ReplaceAll(path, api.PathSeparator, string(os.PathSeparator))
+		// ReplaceAll() not available in go 1.11
+		path = strings.Replace(path, api.PathSeparator, string(os.PathSeparator), -1)
 	}
 	fullPath := filepath.Join(b.root, path)
 	// This is conservative check that "fullPath" is child of "b.root",
