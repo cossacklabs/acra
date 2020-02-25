@@ -87,8 +87,10 @@ func TestValidSignature(t *testing.T) {
 	if verified.Payload.Version != exampleContentVersion {
 		t.Errorf("content version not preserved: %v (expected %v)", verified.Payload.Version, exampleContentVersion)
 	}
-	if verified.Payload.LastModified != now.Truncate(time.Second) {
-		t.Errorf("modification time not preserved: %v (expected %v)", verified.Payload.LastModified, now)
+	// ASN.1 does not preserve subsecond precision
+	nowSeconds := now.Truncate(time.Second)
+	if !verified.Payload.LastModified.Equal(nowSeconds) {
+		t.Errorf("modification time not preserved: %v (expected %v)", verified.Payload.LastModified, nowSeconds)
 	}
 
 	var verifiedPayload examplePayload
