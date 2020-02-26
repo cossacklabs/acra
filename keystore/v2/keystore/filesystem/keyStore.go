@@ -17,7 +17,6 @@
 package filesystem
 
 import (
-	"bytes"
 	"errors"
 	"runtime"
 	"time"
@@ -135,10 +134,10 @@ func (s *KeyStore) OpenKeyRingRW(path string) (api.MutableKeyRing, error) {
 //
 
 func (s *KeyStore) keyStoreContext(context []byte) []byte {
-	c := new(bytes.Buffer)
-	c.WriteString("AKSv2 keystore: ")
-	c.Write(context)
-	return c.Bytes()
+	c := make([]byte, 0, len("AKSv2 keystore: ")+len(context))
+	c = append(c, "AKSv2 keystore: "...)
+	c = append(c, context...)
+	return c
 }
 
 func (s *KeyStore) encrypt(data, context []byte) ([]byte, error) {
@@ -150,10 +149,10 @@ func (s *KeyStore) decrypt(data, context []byte) ([]byte, error) {
 }
 
 func (s *KeyStore) keyRingSignatureContext(path string) []byte {
-	c := new(bytes.Buffer)
-	c.WriteString("key ring signature: ")
-	c.WriteString(path)
-	return s.keyStoreContext(c.Bytes())
+	c := make([]byte, 0, len("key ring signature: ")+len(path))
+	c = append(c, "key ring signature: "...)
+	c = append(c, path...)
+	return s.keyStoreContext(c)
 }
 
 // Errors returned by signature verification:

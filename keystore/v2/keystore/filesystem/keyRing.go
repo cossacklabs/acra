@@ -17,7 +17,6 @@
 package filesystem
 
 import (
-	"bytes"
 	"errors"
 
 	"github.com/cossacklabs/acra/keystore/v2/keystore/api"
@@ -139,12 +138,12 @@ func (r *KeyRing) AddKey(key api.KeyDescription) (api.MutableKey, error) {
 //
 
 func (r *KeyRing) keyRingContext(context []byte) []byte {
-	c := new(bytes.Buffer)
-	c.WriteString("key ring ")
-	c.WriteString(r.path)
-	c.WriteString(": ")
-	c.Write(context)
-	return c.Bytes()
+	c := make([]byte, 0, len("key ring ")+len(r.path)+len(": ")+len(context))
+	c = append(c, "key ring "...)
+	c = append(c, r.path...)
+	c = append(c, ": "...)
+	c = append(c, context...)
+	return c
 }
 
 func (r *KeyRing) encrypt(data, context []byte) ([]byte, error) {
