@@ -19,12 +19,11 @@ package api
 import (
 	"errors"
 	"fmt"
-	"time"
 
 	"github.com/cossacklabs/acra/keystore/v2/keystore/asn1"
 )
 
-// Errors returned by Key methods:
+// Errors returned by KeyRing methods accessing key data:
 var (
 	ErrFormatDuplicated    = errors.New("KeyStore: key format used multiple times")
 	ErrFormatMissing       = errors.New("KeyStore: key format not available")
@@ -34,40 +33,6 @@ var (
 	ErrInvalidState        = errors.New("KeyStore: invalid state transition")
 	ErrInvalidCryptoperiod = errors.New("KeyStore: invalid key cryptoperiod")
 )
-
-// Key in a KeyRing.
-type Key interface {
-	// Seqnum returns sequential number of this key in the key ring.
-	Seqnum() (int, error)
-	// State of the key right now.
-	State() (KeyState, error)
-
-	// ValidSince returns the time before which the key cannot be used.
-	ValidSince() (time.Time, error)
-	// ValidUntil returns the time since which the key should not be used.
-	ValidUntil() (time.Time, error)
-
-	// Formats available for this key.
-	Formats() ([]KeyFormat, error)
-	// PublicKey data in given format, if available.
-	PublicKey(format KeyFormat) ([]byte, error)
-	// PrivateKey data in given format, if available.
-	PrivateKey(format KeyFormat) ([]byte, error)
-	// SymmetricKey data in given format, if available.
-	SymmetricKey(format KeyFormat) ([]byte, error)
-}
-
-// MutableKey in a KeyRing.
-type MutableKey interface {
-	Key
-
-	// SetState changes key State to the given one, if allowed.
-	SetState(newState KeyState) error
-
-	// SetCurrent makes this key current in its key ring.
-	// Does nothing if the key is already current.
-	SetCurrent() error
-}
 
 // KeyFormat describes key material format.
 type KeyFormat int

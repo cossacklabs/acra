@@ -69,18 +69,18 @@ func testKeyInitialState(t *testing.T, newKeyStore NewKeyStore) {
 		t.Fatalf("failed to add key: %v", err)
 	}
 
-	keyState, err := key.State()
+	keyState, err := ring.State(key)
 	if err != nil {
 		t.Fatalf("failed to get current state: %v", err)
 	}
 	if keyState != api.KeyPreActive {
 		t.Errorf("incorrect initial state, actual: %v, expected: %v", keyState, api.KeyPreActive)
 	}
-	keyValidSince, err := key.ValidSince()
+	keyValidSince, err := ring.ValidSince(key)
 	if err != nil {
 		t.Fatalf("failed to get validity range: %v", err)
 	}
-	keyValidUntil, err := key.ValidUntil()
+	keyValidUntil, err := ring.ValidUntil(key)
 	if err != nil {
 		t.Fatalf("failed to get validity range: %v", err)
 	}
@@ -88,21 +88,21 @@ func testKeyInitialState(t *testing.T, newKeyStore NewKeyStore) {
 		t.Errorf("incorrect validity range, actual: (%v .. %v), expected: (%v .. %v)",
 			keyValidSince, keyValidUntil, validSince, validUntil)
 	}
-	formats, err := key.Formats()
+	formats, err := ring.Formats(key)
 	if err != nil {
 		t.Fatalf("failed to get key format: %v", err)
 	}
 	if len(formats) != 1 && formats[0] != api.ThemisKeyPairFormat {
 		t.Errorf("incorrect initial format list: %v", formats)
 	}
-	actualPublicKey, err := key.PublicKey(api.ThemisKeyPairFormat)
+	actualPublicKey, err := ring.PublicKey(key, api.ThemisKeyPairFormat)
 	if err != nil {
 		t.Errorf("failed to get public key: %v", err)
 	}
 	if !bytes.Equal(actualPublicKey, publicKey) {
 		t.Errorf("incorrect public key value")
 	}
-	actualPrivateKey, err := key.PrivateKey(api.ThemisKeyPairFormat)
+	actualPrivateKey, err := ring.PrivateKey(key, api.ThemisKeyPairFormat)
 	if err != nil {
 		t.Errorf("failed to get private key: %v", err)
 	}
@@ -135,12 +135,12 @@ func testKeyFormatLookup(t *testing.T, newKeyStore NewKeyStore) {
 		t.Fatalf("failed to add key: %v", err)
 	}
 
-	_, err = key.PublicKey(api.ThemisPublicKeyFormat)
+	_, err = ring.PublicKey(key, api.ThemisPublicKeyFormat)
 	if err != api.ErrFormatMissing {
 		t.Errorf("found public key with key pair format: %v", err)
 	}
 
-	_, err = key.SymmetricKey(api.ThemisSymmetricKeyFormat)
+	_, err = ring.SymmetricKey(key, api.ThemisSymmetricKeyFormat)
 	if err != api.ErrFormatMissing {
 		t.Errorf("found symmetric key with key pair format: %v", err)
 	}
@@ -270,8 +270,8 @@ func testKeyStateSwitching(t *testing.T, newKeyStore NewKeyStore) {
 		t.Fatalf("failed to add key: %v", err)
 	}
 
-	checkKeyState := func(k api.Key, expected api.KeyState) {
-		actual, err := key.State()
+	checkKeyState := func(ring api.KeyRing, key int, expected api.KeyState) {
+		actual, err := ring.State(key)
 		if err != nil {
 			t.Fatalf("failed to get current state: %v", err)
 		}
@@ -280,59 +280,59 @@ func testKeyStateSwitching(t *testing.T, newKeyStore NewKeyStore) {
 		}
 	}
 
-	checkKeyState(key, api.KeyPreActive)
+	checkKeyState(ring, key, api.KeyPreActive)
 
-	err = key.SetState(api.KeyActive)
+	err = ring.SetState(key, api.KeyActive)
 	if err != nil {
 		t.Fatalf("failed to switch state to active: %v", err)
 	}
-	checkKeyState(key, api.KeyActive)
+	checkKeyState(ring, key, api.KeyActive)
 
-	err = key.SetState(api.KeySuspended)
+	err = ring.SetState(key, api.KeySuspended)
 	if err != nil {
 		t.Fatalf("failed to switch state to suspended: %v", err)
 	}
-	checkKeyState(key, api.KeySuspended)
+	checkKeyState(ring, key, api.KeySuspended)
 
-	err = key.SetState(api.KeyActive)
+	err = ring.SetState(key, api.KeyActive)
 	if err != nil {
 		t.Fatalf("failed to switch state to active: %v", err)
 	}
-	checkKeyState(key, api.KeyActive)
+	checkKeyState(ring, key, api.KeyActive)
 
-	err = key.SetState(api.KeyPreActive)
+	err = ring.SetState(key, api.KeyPreActive)
 	if err != api.ErrInvalidState {
 		t.Fatalf("cannot switch state back to pre-active: %v", err)
 	}
-	checkKeyState(key, api.KeyActive)
+	checkKeyState(ring, key, api.KeyActive)
 
-	err = key.SetState(api.KeyDeactivated)
+	err = ring.SetState(key, api.KeyDeactivated)
 	if err != nil {
 		t.Fatalf("failed to switch state to deactivated: %v", err)
 	}
-	checkKeyState(key, api.KeyDeactivated)
+	checkKeyState(ring, key, api.KeyDeactivated)
 
-	err = key.SetState(api.KeyActive)
+	err = ring.SetState(key, api.KeyActive)
 	if err != api.ErrInvalidState {
 		t.Fatalf("cannot switch state back to active: %v", err)
 	}
-	checkKeyState(key, api.KeyDeactivated)
+	checkKeyState(ring, key, api.KeyDeactivated)
 
-	err = key.SetState(api.KeyCompromised)
+	err = ring.SetState(key, api.KeyCompromised)
 	if err != nil {
 		t.Fatalf("failed to switch state to compromised: %v", err)
 	}
-	checkKeyState(key, api.KeyCompromised)
+	checkKeyState(ring, key, api.KeyCompromised)
 
-	err = key.SetState(api.KeyActive)
+	err = ring.SetState(key, api.KeyActive)
 	if err != api.ErrInvalidState {
 		t.Fatalf("cannot switch state back to active (from compromise): %v", err)
 	}
-	checkKeyState(key, api.KeyCompromised)
+	checkKeyState(ring, key, api.KeyCompromised)
 
-	err = key.SetState(api.KeyDestroyed)
+	err = ring.SetState(key, api.KeyDestroyed)
 	if err != nil {
 		t.Fatalf("failed to switch state to destroyed: %v", err)
 	}
-	checkKeyState(key, api.KeyDestroyed)
+	checkKeyState(ring, key, api.KeyDestroyed)
 }

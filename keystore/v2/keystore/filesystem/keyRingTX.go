@@ -52,12 +52,11 @@ func (tx *txSetKeyCurrent) Apply(ring *KeyRing) error {
 			return errTxKeyNotFound
 		}
 	}
-	newKey, i := ring.data.KeyWithSeqnum(tx.newSeqnum)
+	newKey, _ := ring.data.KeyWithSeqnum(tx.newSeqnum)
 	if newKey == nil {
 		return errTxKeyNotFound
 	}
 	ring.data.Current = tx.newSeqnum
-	ring.current = ring.keys[i]
 	return nil
 }
 
@@ -113,26 +112,23 @@ func (tx *txChangeKeyState) Rollback(ring *KeyRing) error {
 }
 
 type txAddKey struct {
-	newKey     *Key
-	newKeyData *asn1.Key
+	newKey *asn1.Key
 }
 
 func (tx *txAddKey) Apply(ring *KeyRing) error {
-	k, _ := ring.data.KeyWithSeqnum(tx.newKeyData.Seqnum)
+	k, _ := ring.data.KeyWithSeqnum(tx.newKey.Seqnum)
 	if k != nil {
 		return errTxKeyExists
 	}
-	ring.data.Keys = append(ring.data.Keys, *tx.newKeyData)
-	ring.keys = append(ring.keys, tx.newKey)
+	ring.data.Keys = append(ring.data.Keys, *tx.newKey)
 	return nil
 }
 
 func (tx *txAddKey) Rollback(ring *KeyRing) error {
-	if len(ring.keys) == 0 || ring.keys[len(ring.keys)-1] != tx.newKey {
+	lastKey := len(ring.data.Keys) - 1
+	if len(ring.data.Keys) == 0 || ring.data.Keys[lastKey].Seqnum != tx.newKey.Seqnum {
 		return errTxOOORollback
 	}
-	oneLessKey := len(ring.keys) - 1
-	ring.data.Keys = ring.data.Keys[:oneLessKey]
-	ring.keys = ring.keys[:oneLessKey]
+	ring.data.Keys = ring.data.Keys[:lastKey]
 	return nil
 }

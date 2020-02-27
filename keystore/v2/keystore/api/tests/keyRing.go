@@ -21,6 +21,7 @@ import (
 	"time"
 
 	"github.com/cossacklabs/acra/keystore/v2/keystore/api"
+	"github.com/cossacklabs/acra/keystore/v2/keystore/asn1"
 )
 
 // TestKeyRing runs KeyRing test suite.
@@ -57,7 +58,7 @@ func testKeyRingInitialState(t *testing.T, newKeyStore NewKeyStore) {
 	if err != api.ErrNoCurrentKey {
 		t.Errorf("expected no current key initially: %v", err)
 	}
-	if curr != nil {
+	if curr != asn1.NoKey {
 		t.Errorf("current key is not nil initially: %v", curr)
 	}
 }
@@ -120,7 +121,7 @@ func testKeyRingCurrent(t *testing.T, newKeyStore NewKeyStore) {
 	if err != api.ErrNoCurrentKey {
 		t.Errorf("incorrect error when no current key: %v", err)
 	}
-	if curr != nil {
+	if curr != asn1.NoKey {
 		t.Errorf("current key must be nil initially")
 	}
 
@@ -137,19 +138,15 @@ func testKeyRingCurrent(t *testing.T, newKeyStore NewKeyStore) {
 	if err != nil {
 		t.Fatalf("failed to add key 1: %v", err)
 	}
-	keyV1Seqnum, err := keyV1.Seqnum()
-	if err != nil {
-		t.Fatalf("failed to get key 1 seqnum: %v", err)
-	}
 
 	curr, err = ring.CurrentKey()
 	if err != api.ErrNoCurrentKey {
 		t.Errorf("incorrect error when no current key (added key 1): %v", err)
 	}
-	if curr != nil {
+	if curr != asn1.NoKey {
 		t.Errorf("current key must be still nil (added key 1)")
 	}
-	err = keyV1.SetCurrent()
+	err = ring.SetCurrent(keyV1)
 	if err != nil {
 		t.Fatalf("failed to set key 1 current: %v", err)
 	}
@@ -157,11 +154,7 @@ func testKeyRingCurrent(t *testing.T, newKeyStore NewKeyStore) {
 	if err != nil {
 		t.Fatalf("failed to get current key (added key 1): %v", err)
 	}
-	currSeqnum, err := curr.Seqnum()
-	if err != nil {
-		t.Fatalf("failed to get current key seqnum: %v", err)
-	}
-	if currSeqnum != keyV1Seqnum {
+	if curr != keyV1 {
 		t.Errorf("current key is not key 1")
 	}
 
@@ -178,23 +171,15 @@ func testKeyRingCurrent(t *testing.T, newKeyStore NewKeyStore) {
 	if err != nil {
 		t.Fatalf("failed to add key 2: %v", err)
 	}
-	keyV2Seqnum, err := keyV2.Seqnum()
-	if err != nil {
-		t.Fatalf("failed to get key 2 seqnum: %v", err)
-	}
 
 	curr, err = ring.CurrentKey()
 	if err != nil {
 		t.Fatalf("failed to get current key (added key 2): %v", err)
 	}
-	currSeqnum, err = curr.Seqnum()
-	if err != nil {
-		t.Fatalf("failed to get current key seqnum (added key 2): %v", err)
-	}
-	if currSeqnum != keyV1Seqnum {
+	if curr != keyV1 {
 		t.Errorf("current key is not key 1 (added key 2)")
 	}
-	err = keyV2.SetCurrent()
+	err = ring.SetCurrent(keyV2)
 	if err != nil {
 		t.Fatalf("failed to set key 2 current: %v", err)
 	}
@@ -202,15 +187,11 @@ func testKeyRingCurrent(t *testing.T, newKeyStore NewKeyStore) {
 	if err != nil {
 		t.Fatalf("failed to get current key (added key 2): %v", err)
 	}
-	currSeqnum, err = curr.Seqnum()
-	if err != nil {
-		t.Fatalf("failed to get current key seqnum (added key 2, set it current): %v", err)
-	}
-	if currSeqnum != keyV2Seqnum {
+	if curr != keyV2 {
 		t.Errorf("current key is not key 2 (added key 2, set it current)")
 	}
 
-	err = keyV2.SetCurrent()
+	err = ring.SetCurrent(keyV2)
 	if err != nil {
 		t.Fatalf("failed to set key 2 current (twice): %v", err)
 	}
@@ -218,15 +199,11 @@ func testKeyRingCurrent(t *testing.T, newKeyStore NewKeyStore) {
 	if err != nil {
 		t.Fatalf("failed to get current key (added key 2, set it current twice): %v", err)
 	}
-	currSeqnum, err = curr.Seqnum()
-	if err != nil {
-		t.Fatalf("failed to get current key seqnum (added key 2, set it current twice): %v", err)
-	}
-	if currSeqnum != keyV2Seqnum {
+	if curr != keyV2 {
 		t.Errorf("current key is not key 2 (added key 2, set it current twice)")
 	}
 
-	err = keyV1.SetCurrent()
+	err = ring.SetCurrent(keyV1)
 	if err != nil {
 		t.Fatalf("failed to set key 1 current (after key 2): %v", err)
 	}
@@ -234,11 +211,7 @@ func testKeyRingCurrent(t *testing.T, newKeyStore NewKeyStore) {
 	if err != nil {
 		t.Fatalf("failed to get current key (reset key 1): %v", err)
 	}
-	currSeqnum, err = curr.Seqnum()
-	if err != nil {
-		t.Fatalf("failed to get current key seqnum (reset key 1): %v", err)
-	}
-	if currSeqnum != keyV1Seqnum {
+	if curr != keyV1 {
 		t.Errorf("current key is not key 1 (reset key 1)")
 	}
 }

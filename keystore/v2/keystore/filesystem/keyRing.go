@@ -34,9 +34,7 @@ type KeyRing struct {
 	path string
 
 	// Data stored in the key ring and views into it.
-	data    *asn1.KeyRing
-	keys    []*Key
-	current *Key
+	data *asn1.KeyRing
 
 	// Transaction log of pending modifications to the key ring.
 	txLog []keyRingTX
@@ -68,25 +66,7 @@ func (r *KeyRing) toASN1() asn1.KeyRing {
 }
 
 func (r *KeyRing) loadASN1(ring *asn1.KeyRing) error {
-	keys := make([]*Key, len(ring.Keys))
-	for i := range keys {
-		keys[i] = &Key{
-			ring:   r,
-			log:    r.log,
-			seqnum: ring.Keys[i].Seqnum,
-		}
-	}
-	var current *Key
-	if ring.Current != asn1.NoKey {
-		key, i := ring.KeyWithSeqnum(ring.Current)
-		if key == nil {
-			return errInvalidCurrentIndex
-		}
-		current = keys[i]
-	}
 	r.data = ring
-	r.keys = keys
-	r.current = current
 	return nil
 }
 
@@ -95,42 +75,43 @@ func (r *KeyRing) loadASN1(ring *asn1.KeyRing) error {
 //
 
 // CurrentKey returns current key of this key ring, if available.
-func (r *KeyRing) CurrentKey() (api.Key, error) {
-	if r.current == nil {
-		return nil, api.ErrNoCurrentKey
+func (r *KeyRing) CurrentKey() (int, error) {
+	seqnum := r.data.Current
+	if seqnum == asn1.NoKey {
+		return seqnum, api.ErrNoCurrentKey
 	}
-	return r.current, nil
+	return seqnum, nil
 }
 
 // AllKeys returns all keys of this key ring, from newest to oldest.
-func (r *KeyRing) AllKeys() ([]api.Key, error) {
+func (r *KeyRing) AllKeys() ([]int, error) {
 	// Return a copy so that the caller cannot modify *our* cache. Also,
 	// return keys in reverse order, from newest to oldest. This makes
 	// AcraStruct decryption attempts more likely to succeed earlier.
-	keyCount := len(r.keys)
-	keys := make([]api.Key, keyCount)
-	for i := range r.keys {
-		keys[keyCount-i-1] = r.keys[i]
+	keyCount := len(r.data.Keys)
+	keySeqnums := make([]int, keyCount)
+	for i := range r.data.Keys {
+		keySeqnums[keyCount-i-1] = r.data.Keys[i].Seqnum
 	}
-	return keys, nil
+	return keySeqnums, nil
 }
 
 // AddKey appends a key to the key ring based on its description.
 // Newly added key is returned if you wish to inspect or modify its state.
 // Current key is not changed when a new key is added.
-func (r *KeyRing) AddKey(key api.KeyDescription) (api.MutableKey, error) {
-	k, data, err := newKey(r, key)
+func (r *KeyRing) AddKey(key api.KeyDescription) (int, error) {
+	newKey, err := r.newKey(key)
 	if err != nil {
 		r.log.WithError(err).Debug("failed to make new key")
-		return nil, err
+		return asn1.NoKey, err
 	}
-	err = r.addKey(k, data)
+	err = r.addKey(newKey)
 	if err != nil {
 		r.log.WithError(err).Debug("failed to add new key")
-		return nil, err
+		return asn1.NoKey, err
 	}
 	r.log.Trace("new key added to key ring")
-	return k, nil
+	return newKey.Seqnum, nil
 }
 
 //
@@ -188,10 +169,7 @@ func (r *KeyRing) commitTX() {
 }
 
 func (r *KeyRing) setCurrent(newSeqnum int) error {
-	oldSeqnum := asn1.NoKey
-	if r.current != nil {
-		oldSeqnum = r.current.seqnum
-	}
+	oldSeqnum := r.data.Current
 	r.pushTX(&txSetKeyCurrent{oldSeqnum, newSeqnum})
 	err := r.store.syncKeyRing(r)
 	if err != nil {
@@ -209,11 +187,8 @@ func (r *KeyRing) changeKeyState(keySeqnum int, oldState, newState api.KeyState)
 	return err
 }
 
-func (r *KeyRing) addKey(newKey *Key, newData *asn1.Key) error {
-	if newKey.ring != r {
-		panic("mismatched key ring")
-	}
-	r.pushTX(&txAddKey{newKey, newData})
+func (r *KeyRing) addKey(newKey *asn1.Key) error {
+	r.pushTX(&txAddKey{newKey})
 	err := r.store.syncKeyRing(r)
 	if err != nil {
 		r.popTX()

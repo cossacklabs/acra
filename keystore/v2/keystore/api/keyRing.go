@@ -29,10 +29,27 @@ var (
 // KeyRing is a bunch of keys, with currently active one.
 type KeyRing interface {
 	// CurrentKey returns the key that you should currently use.
-	CurrentKey() (Key, error)
+	CurrentKey() (int, error)
 
 	// AllKeys returns all keys in the key ring, from newest to oldest.
-	AllKeys() ([]Key, error)
+	AllKeys() ([]int, error)
+
+	// State of the key right now.
+	State(seqnum int) (KeyState, error)
+
+	// ValidSince returns the time before which the key cannot be used.
+	ValidSince(seqnum int) (time.Time, error)
+	// ValidUntil returns the time since which the key should not be used.
+	ValidUntil(seqnum int) (time.Time, error)
+
+	// Formats available for this key.
+	Formats(seqnum int) ([]KeyFormat, error)
+	// PublicKey data in given format, if available.
+	PublicKey(seqnum int, format KeyFormat) ([]byte, error)
+	// PrivateKey data in given format, if available.
+	PrivateKey(seqnum int, format KeyFormat) ([]byte, error)
+	// SymmetricKey data in given format, if available.
+	SymmetricKey(seqnum int, format KeyFormat) ([]byte, error)
 }
 
 // MutableKeyRing is a bunch of keys, with currently active one.
@@ -41,7 +58,14 @@ type MutableKeyRing interface {
 	KeyRing
 
 	// AddKey attaches a new key to the ring.
-	AddKey(key KeyDescription) (MutableKey, error)
+	AddKey(key KeyDescription) (int, error)
+
+	// SetState changes key State to the given one, if allowed.
+	SetState(seqnum int, newState KeyState) error
+
+	// SetCurrent makes this key current in its key ring.
+	// Does nothing if the key is already current.
+	SetCurrent(seqnum int) error
 }
 
 // KeyDescription describes a newly added key.
