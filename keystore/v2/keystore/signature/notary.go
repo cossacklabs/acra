@@ -88,8 +88,7 @@ func (s *Notary) Sign(container *asn1.SignedContainer, context []byte) ([]byte, 
 // value of container.Payload.ContentType.
 func (s *Notary) Verify(data, context []byte) (*asn1.VerifiedContainer, error) {
 	// Unnmarshal top-level container wrapper
-	var decoded asn1.VerifiedContainer
-	err := decoded.Unmarshal(data)
+	decoded, err := asn1.UnmarshalVerifiedContainer(data)
 	if err != nil {
 		s.log.WithError(err).Debug("failed to unmarshal signed data")
 		return nil, err
@@ -100,7 +99,7 @@ func (s *Notary) Verify(data, context []byte) (*asn1.VerifiedContainer, error) {
 		s.log.WithError(err).Debug("failed to verify signature")
 		return nil, err
 	}
-	return &decoded, nil
+	return decoded, nil
 }
 
 func (s *Notary) signData(data, context []byte) []asn1.Signature {

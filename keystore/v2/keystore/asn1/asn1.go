@@ -55,16 +55,17 @@ type VerifiedContainer struct {
 	Signatures []Signature `asn1:"set"`
 }
 
-// Unmarshal from bytes.
-func (container *VerifiedContainer) Unmarshal(data []byte) error {
+// UnmarshalVerifiedContainer constructs a VerifiedContainer from serialized representation.
+func UnmarshalVerifiedContainer(data []byte) (*VerifiedContainer, error) {
+	container := new(VerifiedContainer)
 	rest, err := asn1.Unmarshal(data, container)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	if len(rest) != 0 {
-		return ErrExtraData
+		return nil, ErrExtraData
 	}
-	return nil
+	return container, nil
 }
 
 // We have to duplicate data definitions for containers because ASN.1's ANY type
@@ -135,16 +136,17 @@ type KeyDirectory struct {
 	Children []KeyDirectoryReference `asn1:"set,optional,tag:2"`
 }
 
-// Unmarshal from bytes.
-func (container *KeyDirectory) Unmarshal(data []byte) error {
+// UnmarshalKeyDirectory constructs a KeyDirectory from serialized representation.
+func UnmarshalKeyDirectory(data []byte) (*KeyDirectory, error) {
+	container := new(KeyDirectory)
 	rest, err := asn1.Unmarshal(data, container)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	if len(rest) != 0 {
-		return ErrExtraData
+		return nil, ErrExtraData
 	}
-	return nil
+	return container, nil
 }
 
 // KeyRingReference to a child key ring, not included into KeyDirectory object directly.
@@ -177,16 +179,17 @@ type KeyRing struct {
 // NoKey indicates absence of key, such as for current key indication.
 const NoKey = -1
 
-// Unmarshal from bytes.
-func (r *KeyRing) Unmarshal(data []byte) error {
+// UnmarshalKeyRing constructs a KeyRing from serialized representation.
+func UnmarshalKeyRing(data []byte) (*KeyRing, error) {
+	r := new(KeyRing)
 	rest, err := asn1.Unmarshal(data, r)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	if len(rest) != 0 {
-		return ErrExtraData
+		return nil, ErrExtraData
 	}
-	return nil
+	return r, nil
 }
 
 // KeyWithSeqnum returns a reference to and index of the key with given seqnum.

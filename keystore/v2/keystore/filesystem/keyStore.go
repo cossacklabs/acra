@@ -195,8 +195,7 @@ func (s *KeyStore) verifyKeyRing(data []byte, path string) (*asn1.KeyRing, []asn
 			Debug("unsupported key ring Version")
 		return nil, nil, errUnsupportedVersion
 	}
-	ringData := new(asn1.KeyRing)
-	err = ringData.Unmarshal(verified.Payload.Data.FullBytes)
+	ringData, err := asn1.UnmarshalKeyRing(verified.Payload.Data.FullBytes)
 	if err != nil {
 		log.WithError(err).Debug("failed to unmarshal key ring data")
 	}
