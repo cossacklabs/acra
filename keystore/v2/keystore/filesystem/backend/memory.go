@@ -68,6 +68,7 @@ func (m *InMemory) Close() error {
 
 // Get data at given path.
 func (m *InMemory) Get(path string) ([]byte, error) {
+	path = pathSeparators.Replace(path)
 	data, found := m.storage[path]
 	if !found {
 		return nil, api.ErrNotExist
@@ -77,6 +78,7 @@ func (m *InMemory) Get(path string) ([]byte, error) {
 
 // Put data at given path.
 func (m *InMemory) Put(path string, data []byte) error {
+	path = pathSeparators.Replace(path)
 	_, found := m.storage[path]
 	if found {
 		return api.ErrExist
@@ -87,6 +89,8 @@ func (m *InMemory) Put(path string, data []byte) error {
 
 // Rename oldpath into newpath atomically.
 func (m *InMemory) Rename(oldpath, newpath string) error {
+	oldpath = pathSeparators.Replace(oldpath)
+	newpath = pathSeparators.Replace(newpath)
 	data, found := m.storage[oldpath]
 	if !found {
 		return api.ErrNotExist
@@ -98,6 +102,8 @@ func (m *InMemory) Rename(oldpath, newpath string) error {
 
 // RenameNX renames oldpath into newpath non-destructively.
 func (m *InMemory) RenameNX(oldpath, newpath string) error {
+	oldpath = pathSeparators.Replace(oldpath)
+	newpath = pathSeparators.Replace(newpath)
 	data, found := m.storage[oldpath]
 	if !found {
 		return api.ErrNotExist

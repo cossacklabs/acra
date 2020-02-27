@@ -18,7 +18,7 @@
 // as well as some basic implementations of it.
 //
 // Backend treats "paths" like UNIX filesystems usually do.
-// That is, components are separated by forward slash "/" character (filesystem.PathSeparator)
+// That is, components are separated by forward slash "/" character
 // and paths are expected to contain valid UTF-8 text.
 // However, paths are not interpreted in any way and may actually contain arbitrary byte sequences,
 // except for "/" and "\0" bytes that are treated specially.
@@ -27,9 +27,6 @@ package backend
 import (
 	"github.com/cossacklabs/acra/keystore/v2/keystore/filesystem/backend/api"
 )
-
-// PathSeparator used in key paths.
-const PathSeparator = api.PathSeparator
 
 // Backend defines how KeyStore persists internal key data.
 type Backend api.Backend

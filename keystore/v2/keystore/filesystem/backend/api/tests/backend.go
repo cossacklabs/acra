@@ -31,6 +31,9 @@ func TestBackend(t *testing.T, newBackend NewBackend) {
 	t.Run("TestGetPut", func(t *testing.T) {
 		testGetPut(t, newBackend)
 	})
+	t.Run("TestSeparators", func(t *testing.T) {
+		testSeparators(t, newBackend)
+	})
 	t.Run("TestRename", func(t *testing.T) {
 		testRename(t, newBackend)
 	})
@@ -67,6 +70,37 @@ func testGetPut(t *testing.T, newBackend NewBackend) {
 	err = b.Put("new", []byte("another data"))
 	if err != api.ErrExist {
 		t.Errorf("Put() for new entry (again): %v", err)
+	}
+}
+
+func testSeparators(t *testing.T, newBackend NewBackend) {
+	var err error
+	b := newBackend(t)
+
+	err = b.Put("like/this", []byte("alpha"))
+	if err != nil {
+		t.Errorf("Put() with forward slashes: %v", err)
+	}
+
+	err = b.Put("and\\like\\that", []byte("bravo"))
+	if err != nil {
+		t.Errorf("Put() with backward slashes: %v", err)
+	}
+
+	data, err := b.Get("like\\this")
+	if err != nil {
+		t.Errorf("Get() with backward slashes: %v", err)
+	}
+	if string(data) != "alpha" {
+		t.Errorf("Get() with backward slashes returned incorrect data: %v", string(data))
+	}
+
+	data, err = b.Get("and/like/that")
+	if err != nil {
+		t.Errorf("Get() with forward slashes: %v", err)
+	}
+	if string(data) != "bravo" {
+		t.Errorf("Get() with forward slashes returned incorrect data: %v", string(data))
 	}
 }
 

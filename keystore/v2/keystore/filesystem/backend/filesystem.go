@@ -160,13 +160,15 @@ func (b *DirectoryBackend) Close() error {
 	return nil
 }
 
+// Accept either UNIX or Windows separator.
+var pathSeparators = strings.NewReplacer(
+	"/", string(os.PathSeparator),
+	"\\", string(os.PathSeparator),
+)
+
 // Converts "key path" into "OS path" relative to the root directory.
 func (b *DirectoryBackend) osPath(path string) (string, error) {
-	if api.PathSeparator != string(os.PathSeparator) {
-		// ReplaceAll() not available in go 1.11
-		path = strings.Replace(path, api.PathSeparator, string(os.PathSeparator), -1)
-	}
-	fullPath := filepath.Join(b.root, path)
+	fullPath := filepath.Join(b.root, pathSeparators.Replace(path))
 	// This is conservative check that "fullPath" is child of "b.root",
 	// catching any funny "../../../.." that we might accidentally get.
 	if fullPath != filepath.Clean(fullPath) {
