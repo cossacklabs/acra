@@ -28,6 +28,8 @@ import (
 	"encoding/base64"
 	"flag"
 	"fmt"
+	"os"
+
 	"github.com/cossacklabs/acra/cmd"
 	"github.com/cossacklabs/acra/keystore"
 	"github.com/cossacklabs/acra/keystore/filesystem"
@@ -35,7 +37,6 @@ import (
 	"github.com/cossacklabs/acra/poison"
 	"github.com/cossacklabs/acra/utils"
 	log "github.com/sirupsen/logrus"
-	"os"
 )
 
 // Constants used by AcraPoisonRecordsMaker
@@ -68,7 +69,8 @@ func main() {
 		log.WithError(err).Errorln("can't init scell encryptor")
 		os.Exit(1)
 	}
-	store, err := filesystem.NewFilesystemKeyStore(*keysDir, scellEncryptor)
+	var store keystore.PoisonKeyStore
+	store, err = filesystem.NewFilesystemKeyStore(*keysDir, scellEncryptor)
 	if err != nil {
 		log.WithError(err).Errorln("can't initialize key store")
 		os.Exit(1)
