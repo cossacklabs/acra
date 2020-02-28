@@ -185,6 +185,13 @@ type StorageKeyCreation interface {
 	RotateZoneKey(zoneID []byte) ([]byte, error)
 }
 
+// KeyMaking enables key store initialization. It is used by acra-keymaker tool.
+type KeyMaking interface {
+	StorageKeyCreation
+	TransportKeyCreation
+	WebConfigKeyStore
+}
+
 // PoisonKeyStore provides access to poison record key pairs.
 type PoisonKeyStore interface {
 	// Reads current poison record key pair, creating it if it does not exist yet.
