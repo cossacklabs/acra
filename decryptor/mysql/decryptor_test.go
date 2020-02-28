@@ -76,7 +76,7 @@ func (*testKeystore) GetClientIDEncryptionPublicKey(clientID []byte) (*keys.Publ
 }
 func (*testKeystore) GetZonePublicKey(zoneID []byte) (*keys.PublicKey, error) { panic("implement me") }
 
-func getDecryptor(keystore keystore.KeyStore) *Decryptor {
+func getDecryptor(keystore keystore.DecryptionKeyStore) *Decryptor {
 	dataDecryptor := binary.NewBinaryDecryptor(logrus.NewEntry(logrus.StandardLogger()))
 	clientID := []byte("some id")
 	pgDecryptor := postgresql.NewPgDecryptor(clientID, dataDecryptor, false, keystore)

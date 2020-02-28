@@ -185,6 +185,13 @@ type StorageKeyCreation interface {
 	RotateZoneKey(zoneID []byte) ([]byte, error)
 }
 
+// DecryptionKeyStore enables AcraStruct decryption. It is used by acra-server.
+type DecryptionKeyStore interface {
+	PublicKeyStore
+	PrivateKeyStore
+	PoisonKeyStore
+}
+
 // KeyMaking enables key store initialization. It is used by acra-keymaker tool.
 type KeyMaking interface {
 	StorageKeyCreation
@@ -204,12 +211,21 @@ type RotateStorageKeyStore interface {
 	PrivateKeyStore
 }
 
+// ServerKeyStore enables AcraStruct encryption, decryption,
+// and secure communication of acra-server with other services.
+type ServerKeyStore interface {
+	DecryptionKeyStore
+	SecureSessionKeyStore
+	StorageKeyCreation
+	WebConfigKeyStore
+
+	Reset()
+}
+
 // TranslationKeyStore enables AcraStruct translation. It is used by acra-translator tool.
 type TranslationKeyStore interface {
-	PublicKeyStore
-	PrivateKeyStore
+	DecryptionKeyStore
 	SecureSessionKeyStore
-	PoisonKeyStore
 }
 
 // WebConfigKeyStore provides access to Acra Web Config.

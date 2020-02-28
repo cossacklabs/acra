@@ -42,7 +42,7 @@ var errPlainData = errors.New("plain data without AcraStruct signature")
 type PgDecryptor struct {
 	isWithZone         bool
 	isWholeMatch       bool
-	keyStore           keystore.KeyStore
+	keyStore           keystore.DecryptionKeyStore
 	zoneMatcher        *zone.Matcher
 	binaryDecryptor    base.DataDecryptor
 	checkPoisonRecords bool
@@ -58,7 +58,7 @@ type PgDecryptor struct {
 
 // NewPgDecryptor returns new PgDecryptor hiding inner HEX decryptor or ESCAPE decryptor
 // by default checks poison recods and uses WholeMatch mode without zones
-func NewPgDecryptor(clientID []byte, decryptor base.DataDecryptor, withZone bool, keystore keystore.KeyStore) *PgDecryptor {
+func NewPgDecryptor(clientID []byte, decryptor base.DataDecryptor, withZone bool, keystore keystore.DecryptionKeyStore) *PgDecryptor {
 	logger := logrus.WithField("client_id", string(clientID))
 	decryptor.SetLogger(logger)
 	return &PgDecryptor{
@@ -213,7 +213,7 @@ func (decryptor *PgDecryptor) ReadData(symmetricKey, zoneID []byte, reader io.Re
 }
 
 // SetKeyStore sets keystore
-func (decryptor *PgDecryptor) SetKeyStore(store keystore.KeyStore) {
+func (decryptor *PgDecryptor) SetKeyStore(store keystore.DecryptionKeyStore) {
 	decryptor.keyStore = store
 }
 

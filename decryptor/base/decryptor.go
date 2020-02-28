@@ -109,7 +109,7 @@ type Decryptor interface {
 	DataDecryptor
 	DecryptionSubscriber
 	// register key store that will be used for retrieving private keys
-	SetKeyStore(keystore.KeyStore)
+	SetKeyStore(keystore.DecryptionKeyStore)
 	// return private key for current connected client for decrypting symmetric
 	// key with secure message
 	GetPrivateKey() (*keys.PrivateKey, error)
