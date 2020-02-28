@@ -190,6 +190,14 @@ type RotateStorageKeyStore interface {
 	PrivateKeyStore
 }
 
+// TranslationKeyStore enables AcraStruct translation. It is used by acra-translator tool.
+type TranslationKeyStore interface {
+	PublicKeyStore
+	PrivateKeyStore
+	SecureSessionKeyStore
+	PoisonKeyStore
+}
+
 // WebConfigKeyStore provides access to Acra Web Config.
 type WebConfigKeyStore interface {
 	// Reads current symmetric key for Acra Web Config.
