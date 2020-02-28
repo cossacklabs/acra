@@ -131,23 +131,64 @@ func (encryptor *SCellKeyEncryptor) Decrypt(key, context []byte) ([]byte, error)
 	return encryptor.scell.Unprotect(key, nil, context)
 }
 
-// SecureSessionKeyStore describes KeyStore used for handling Themis Secure Session connection.
+// SecureSessionKeyStore provides access to transport keys, used for Themis Secure Session connections.
 type SecureSessionKeyStore interface {
 	GetPrivateKey(id []byte) (*keys.PrivateKey, error)
 	GetPeerPublicKey(id []byte) (*keys.PublicKey, error)
 }
 
-// PublicKeyStore provide interface to fetch public keys to encrypt data
+// TransportKeyCreation enables creation of new transport key pairs and rotation of existing ones.
+type TransportKeyCreation interface {
+	GenerateConnectorKeys(id []byte) error
+	SaveConnectorKeypair(id []byte, keypair *keys.Keypair) error
+
+	GenerateServerKeys(id []byte) error
+	SaveServerKeypair(id []byte, keypair *keys.Keypair) error
+
+	GenerateTranslatorKeys(id []byte) error
+	SaveTranslatorKeypair(id []byte, keypair *keys.Keypair) error
+}
+
+// PublicKeyStore provides access to storage public keys, used to encrypt data for storage.
 type PublicKeyStore interface {
 	GetZonePublicKey(zoneID []byte) (*keys.PublicKey, error)
 	GetClientIDEncryptionPublicKey(clientID []byte) (*keys.PublicKey, error)
 }
 
-// PrivateKeyStore interface for access to private keys
+// PrivateKeyStore provides access to storage private keys, used to decrypt stored data.
 type PrivateKeyStore interface {
 	GetZonePrivateKey(id []byte) (*keys.PrivateKey, error)
 	HasZonePrivateKey(id []byte) bool
 	GetServerDecryptionPrivateKey(id []byte) (*keys.PrivateKey, error)
+}
+
+// StorageKeyCreation enables creation of new storage key pairs and rotation of existing ones.
+type StorageKeyCreation interface {
+	// Generates a new storage key pair for given client ID.
+	GenerateDataEncryptionKeys(clientID []byte) error
+	// Sets storage key pair for given client ID.
+	SaveDataEncryptionKeys(clientID []byte, keypair *keys.Keypair) error
+	// Creates a new zone along with a key.
+	// Returns new zone ID, its public key data, error.
+	GenerateZoneKey() ([]byte, []byte, error)
+	// Replaces the current key pair for given zone ID.
+	SaveZoneKeypair(zoneID []byte, keypair *keys.Keypair) error
+	// Generates a new key pair and replaces the current key pair for given zone ID.
+	// Returns new publie key data, error.
+	RotateZoneKey(zoneID []byte) ([]byte, error)
+}
+
+// PoisonKeyStore provides access to poison record key pairs.
+type PoisonKeyStore interface {
+	// Reads current poison record key pair, creating it if it does not exist yet.
+	GetPoisonKeyPair() (*keys.Keypair, error)
+}
+
+// WebConfigKeyStore provides access to Acra Web Config.
+type WebConfigKeyStore interface {
+	// Reads current symmetric key for Acra Web Config.
+	// The key is created it if it does not exist yet, or recreated if "remove" is true.
+	GetAuthKey(remove bool) ([]byte, error)
 }
 
 // KeyStore describes any KeyStore that reads keys to handle Themis Secure Session connection,
@@ -158,34 +199,15 @@ type PrivateKeyStore interface {
 // Genenerate*Keys - generate new keypair and save
 type KeyStore interface {
 	SecureSessionKeyStore
+	TransportKeyCreation
+
 	PublicKeyStore
+	PrivateKeyStore
+	StorageKeyCreation
 
-	GetZonePrivateKey(id []byte) (*keys.PrivateKey, error)
-	HasZonePrivateKey(id []byte) bool
-	GetServerDecryptionPrivateKey(id []byte) (*keys.PrivateKey, error)
+	PoisonKeyStore
 
-	// return id, public key, error
-	GenerateZoneKey() ([]byte, []byte, error)
-	SaveZoneKeypair(id []byte, keypair *keys.Keypair) error
+	WebConfigKeyStore
 
-	// return new_public_key, error
-	RotateZoneKey(zoneID []byte) ([]byte, error)
-
-	SaveConnectorKeypair(id []byte, keypair *keys.Keypair) error
-	GenerateConnectorKeys(id []byte) error
-
-	SaveServerKeypair(id []byte, keypair *keys.Keypair) error
-	GenerateServerKeys(id []byte) error
-
-	SaveTranslatorKeypair(id []byte, keypair *keys.Keypair) error
-	GenerateTranslatorKeys(id []byte) error
-
-	// generate key pair for data encryption/decryption
-	GenerateDataEncryptionKeys(id []byte) error
-	SaveDataEncryptionKeys(id []byte, keypair *keys.Keypair) error
-
-	GetPoisonKeyPair() (*keys.Keypair, error)
-
-	GetAuthKey(remove bool) ([]byte, error)
 	Reset()
 }
