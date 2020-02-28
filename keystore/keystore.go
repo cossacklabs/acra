@@ -234,24 +234,3 @@ type WebConfigKeyStore interface {
 	// The key is created it if it does not exist yet, or recreated if "remove" is true.
 	GetAuthKey(remove bool) ([]byte, error)
 }
-
-// KeyStore describes any KeyStore that reads keys to handle Themis Secure Session connection,
-// to encrypt and decrypt AcraStructs with and without Zones,
-// to find Poison records.
-// Moreover KeyStore can generate various Keys using ClientID.
-// Save*Keypair methods save or overwrite existing keypair with new
-// Genenerate*Keys - generate new keypair and save
-type KeyStore interface {
-	SecureSessionKeyStore
-	TransportKeyCreation
-
-	PublicKeyStore
-	PrivateKeyStore
-	StorageKeyCreation
-
-	PoisonKeyStore
-
-	WebConfigKeyStore
-
-	Reset()
-}
