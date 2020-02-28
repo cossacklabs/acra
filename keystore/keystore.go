@@ -184,6 +184,12 @@ type PoisonKeyStore interface {
 	GetPoisonKeyPair() (*keys.Keypair, error)
 }
 
+// RotateStorageKeyStore enables storage key rotation. It is used by acra-rotate tool.
+type RotateStorageKeyStore interface {
+	StorageKeyCreation
+	PrivateKeyStore
+}
+
 // WebConfigKeyStore provides access to Acra Web Config.
 type WebConfigKeyStore interface {
 	// Reads current symmetric key for Acra Web Config.

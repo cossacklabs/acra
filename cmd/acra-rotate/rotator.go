@@ -19,20 +19,22 @@ package main
 import (
 	"encoding/hex"
 	"encoding/json"
-	"github.com/cossacklabs/acra/acra-writer"
+
+	acrawriter "github.com/cossacklabs/acra/acra-writer"
 	"github.com/cossacklabs/acra/decryptor/base"
+	"github.com/cossacklabs/acra/keystore"
 	"github.com/cossacklabs/acra/utils"
 	"github.com/cossacklabs/themis/gothemis/keys"
 	log "github.com/sirupsen/logrus"
 )
 
 type keyRotator struct {
-	keystore    KeyStore
+	keystore    keystore.RotateStorageKeyStore
 	newKeypairs map[string]*keys.Keypair
 	zoneMode    bool
 }
 
-func newRotator(store KeyStore, zoneMode bool) (*keyRotator, error) {
+func newRotator(store keystore.RotateStorageKeyStore, zoneMode bool) (*keyRotator, error) {
 	return &keyRotator{keystore: store, newKeypairs: make(map[string]*keys.Keypair), zoneMode: zoneMode}, nil
 }
 func (rotator *keyRotator) getRotatedPublicKey(keyID []byte) (*keys.PublicKey, error) {
@@ -117,7 +119,7 @@ func (rotator *keyRotator) saveRotatedKey(id []byte, keypair *keys.Keypair) erro
 	if rotator.zoneMode {
 		return rotator.keystore.SaveZoneKeypair(id, keypair)
 	}
-	return rotator.keystore.SaveClientIDKeypair(id, keypair)
+	return rotator.keystore.SaveDataEncryptionKeys(id, keypair)
 }
 
 func (rotator *keyRotator) saveRotatedKeys() error {
