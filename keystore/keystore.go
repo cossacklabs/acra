@@ -137,6 +137,13 @@ type SecureSessionKeyStore interface {
 	GetPeerPublicKey(id []byte) (*keys.PublicKey, error)
 }
 
+// TransportKeyStore provides access to transport keys. It is used by acra-connector tool.
+type TransportKeyStore interface {
+	SecureSessionKeyStore
+
+	CheckIfPrivateKeyExists(clientID []byte) (bool, error)
+}
+
 // TransportKeyCreation enables creation of new transport key pairs and rotation of existing ones.
 type TransportKeyCreation interface {
 	GenerateConnectorKeys(id []byte) error
