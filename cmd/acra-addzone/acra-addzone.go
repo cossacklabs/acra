@@ -69,7 +69,7 @@ func main() {
 		log.WithError(err).Errorln("Can't get absolute path for output dir")
 		os.Exit(1)
 	}
-	var keyStore keystore.KeyStore
+	var keyStore keystore.StorageKeyCreation
 	if *fsKeystore {
 		masterKey, err := keystore.GetMasterKeyFromEnvironment()
 		if err != nil {
