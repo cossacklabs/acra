@@ -36,14 +36,14 @@ const serviceName = "keystore"
 // What exactly is the underlying filesystem is somewhat flexible and controlled by filesystem.Backend.
 // Normally this is an actual filesystem but there are alternative implementations.
 type KeyStore struct {
-	encryptor crypto.KeyStoreSuite
+	encryptor crypto.KeyEncryptor
 	notary    *signature.Notary
 	log       *log.Entry
 	fs        backend.Backend
 }
 
 // OpenDirectory opens a read-only key store located in given directory.
-func OpenDirectory(rootDir string, cryptosuite crypto.KeyStoreSuite) (api.KeyStore, error) {
+func OpenDirectory(rootDir string, cryptosuite *crypto.KeyStoreSuite) (api.KeyStore, error) {
 	backend, err := backend.OpenDirectoryBackend(rootDir)
 	if err != nil {
 		return nil, err
@@ -53,7 +53,7 @@ func OpenDirectory(rootDir string, cryptosuite crypto.KeyStoreSuite) (api.KeySto
 
 // OpenDirectoryRW opens a key store located in given directory.
 // If the directory does not exist it will be created.
-func OpenDirectoryRW(rootDir string, cryptosuite crypto.KeyStoreSuite) (api.MutableKeyStore, error) {
+func OpenDirectoryRW(rootDir string, cryptosuite *crypto.KeyStoreSuite) (api.MutableKeyStore, error) {
 	backend, err := backend.CreateDirectoryBackend(rootDir)
 	if err != nil {
 		return nil, err
@@ -63,7 +63,7 @@ func OpenDirectoryRW(rootDir string, cryptosuite crypto.KeyStoreSuite) (api.Muta
 
 // NewInMemory returns a new, empty in-memory key store.
 // This is mostly useful for testing.
-func NewInMemory(cryptosuite crypto.KeyStoreSuite) (api.MutableKeyStore, error) {
+func NewInMemory(cryptosuite *crypto.KeyStoreSuite) (api.MutableKeyStore, error) {
 	return CustomKeyStore(backend.NewInMemory(), cryptosuite)
 }
 
@@ -72,13 +72,13 @@ func NewInMemory(cryptosuite crypto.KeyStoreSuite) (api.MutableKeyStore, error) 
 //
 // The backend will be closed when this key store is closed,
 // so a backend instance generally cannot be shared between key stores.
-func CustomKeyStore(backend backend.Backend, cryptosuite crypto.KeyStoreSuite) (api.MutableKeyStore, error) {
-	notary, err := signature.NewNotary(cryptosuite)
+func CustomKeyStore(backend backend.Backend, cryptosuite *crypto.KeyStoreSuite) (api.MutableKeyStore, error) {
+	notary, err := signature.NewNotary(cryptosuite.SignatureAlgorithms)
 	if err != nil {
 		return nil, err
 	}
 	keystore := &KeyStore{
-		encryptor: cryptosuite,
+		encryptor: cryptosuite.KeyEncryptor,
 		notary:    notary,
 		fs:        backend,
 		log: log.WithFields(log.Fields{

@@ -19,9 +19,8 @@
 package signature
 
 import (
-	"crypto/subtle"
-	"fmt"
-	"hash"
+	encodingASN1 "encoding/asn1"
+	"errors"
 	"time"
 
 	"github.com/cossacklabs/acra/keystore/v2/keystore/asn1"
@@ -33,29 +32,37 @@ const notarySubsystemName = "notary"
 
 // Errors produced by signature verification:
 var (
-	ErrNoSignature    = fmt.Errorf("KeyStore: missing signature")
-	ErrSignatureError = fmt.Errorf("KeyStore: invalid signature")
+	ErrNoAlgorithms   = errors.New("KeyStore: no signing algorithms")
+	ErrNoSignature    = errors.New("KeyStore: missing signature")
+	ErrSignatureError = errors.New("KeyStore: invalid signature")
 )
 
-// KeyedHMAC provides prekeyed HMAC algorithms used by Notary.
-type KeyedHMAC interface {
-	HmacSha256() hash.Hash
+// Algorithm interface defines a particular signing algorithm for Notary.
+// It signs and verifies raw byte data.
+// Each algorithm is identified by an ASN.1 Object Identifier.
+type Algorithm interface {
+	AlgorithmOID() encodingASN1.ObjectIdentifier
+	Sign(data, context []byte) []byte
+	Verify(signature, data, context []byte) bool
 }
 
 // Notary cryptographically signs provided ASN.1 data.
 type Notary struct {
-	hmac KeyedHMAC
-	log  *log.Entry
+	log        *log.Entry
+	algorithms []Algorithm
 }
 
 // NewNotary makes a new notary with given encryptor.
-func NewNotary(hmac KeyedHMAC) (*Notary, error) {
+func NewNotary(algorithms []Algorithm) (*Notary, error) {
+	if len(algorithms) < 1 {
+		return nil, ErrNoAlgorithms
+	}
 	return &Notary{
-		hmac: hmac,
 		log: log.WithFields(log.Fields{
 			"service":   serviceName,
 			"subsystem": notarySubsystemName,
 		}),
+		algorithms: algorithms,
 	}, nil
 }
 
@@ -103,11 +110,11 @@ func (s *Notary) Verify(data, context []byte) (*asn1.VerifiedContainer, error) {
 }
 
 func (s *Notary) signData(data, context []byte) []asn1.Signature {
-	signatures := make([]asn1.Signature, 0, 1)
-	signatures = append(signatures, asn1.Signature{
-		Algorithm: asn1.Sha256OID,
-		Signature: s.signSHA256(data, context),
-	})
+	signatures := make([]asn1.Signature, len(s.algorithms))
+	for i, algo := range s.algorithms {
+		signatures[i].Algorithm = algo.AlgorithmOID()
+		signatures[i].Signature = algo.Sign(data, context)
+	}
 	return signatures
 }
 
@@ -116,8 +123,9 @@ func (s *Notary) verifySignatures(signatures []asn1.Signature, data, context []b
 	// have at least one known algorithm and all known signatures should match.
 	noSignaturesVerified := true
 	for _, signature := range signatures {
-		if signature.Algorithm.Equal(asn1.Sha256OID) {
-			if !s.verifySHA256(signature.Signature, data, context) {
+		algorithm := s.algorithmWithOID(signature.Algorithm)
+		if algorithm != nil {
+			if !algorithm.Verify(signature.Signature, data, context) {
 				return ErrSignatureError
 			}
 			noSignaturesVerified = false
@@ -129,18 +137,11 @@ func (s *Notary) verifySignatures(signatures []asn1.Signature, data, context []b
 	return nil
 }
 
-func (s *Notary) signSHA256(data, context []byte) []byte {
-	mac := s.hmac.HmacSha256()
-	mac.Write(context)
-	mac.Write(data)
-	return mac.Sum(nil)
-}
-
-func (s *Notary) verifySHA256(signature, data, context []byte) bool {
-	mac := s.hmac.HmacSha256()
-	mac.Write(context)
-	mac.Write(data)
-	expected := mac.Sum(nil)
-	// Use constant-time comparison to mitigate side-channel attacks.
-	return subtle.ConstantTimeCompare(expected, signature) == 1
+func (s *Notary) algorithmWithOID(oid encodingASN1.ObjectIdentifier) Algorithm {
+	for _, algo := range s.algorithms {
+		if algo.AlgorithmOID().Equal(oid) {
+			return algo
+		}
+	}
+	return nil
 }

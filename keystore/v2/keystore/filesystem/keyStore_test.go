@@ -33,7 +33,7 @@ var (
 	testSignatureKey = []byte("test signature key")
 )
 
-func testKeyStoreSuite(t *testing.T) crypto.KeyStoreSuite {
+func testKeyStoreSuite(t *testing.T) *crypto.KeyStoreSuite {
 	encryptor, err := crypto.NewSCellSuite(testMasterKey, testSignatureKey)
 	if err != nil {
 		t.Fatalf("cannot create encryptor: %v", err)

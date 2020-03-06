@@ -18,47 +18,30 @@
 package crypto
 
 import (
-	"crypto/hmac"
-	"crypto/sha256"
-	"hash"
-
 	keystoreV1 "github.com/cossacklabs/acra/keystore"
 	"github.com/cossacklabs/acra/keystore/v2/keystore/signature"
-	"github.com/cossacklabs/themis/gothemis/cell"
 )
 
-// KeyStoreSuite implements cryptography used by KeyStore.
-type KeyStoreSuite interface {
-	keystoreV1.KeyEncryptor
-	signature.KeyedHMAC
+// KeyEncryptor defines how KeyStore encrypts keys.
+type KeyEncryptor keystoreV1.KeyEncryptor
+
+// KeyStoreSuite defines cryptography used by KeyStore.
+type KeyStoreSuite struct {
+	KeyEncryptor        KeyEncryptor
+	SignatureAlgorithms []signature.Algorithm
 }
 
-// SCellSuite uses Themis Secure Cell in Seal mode to encrypt and decrypt keys.
-type SCellSuite struct {
-	scell   *cell.SecureCell
-	signKey []byte
-}
-
-// NewSCellSuite creates new SCellSuite object with masterKey using Themis Secure Cell in Seal mode.
-func NewSCellSuite(encryptionKey, signatureKey []byte) (*SCellSuite, error) {
-	return &SCellSuite{
-		scell:   cell.New(encryptionKey, cell.ModeSeal),
-		signKey: signatureKey,
-	}, nil
-}
-
-// Encrypt provided key in given context.
-func (encryptor *SCellSuite) Encrypt(key, context []byte) ([]byte, error) {
-	encrypted, _, err := encryptor.scell.Protect(key, context)
-	return encrypted, err
-}
-
-// Decrypt provided key in given context.
-func (encryptor *SCellSuite) Decrypt(key, context []byte) ([]byte, error) {
-	return encryptor.scell.Unprotect(key, nil, context)
-}
-
-// HmacSha256 returns a HMAC-SHA-256 instance keyed by signature key.
-func (encryptor *SCellSuite) HmacSha256() hash.Hash {
-	return hmac.New(sha256.New, encryptor.signKey)
+// NewSCellSuite creates default cryptography suite for KeyStore:
+// - keys are encrypted by Themis Secure Cell in Seal mode
+// - key store is signed with HMAC-SHA-256
+func NewSCellSuite(encryptionKey, signatureKey []byte) (*KeyStoreSuite, error) {
+	encryptor, err := keystoreV1.NewSCellKeyEncryptor(encryptionKey)
+	if err != nil {
+		return nil, err
+	}
+	sha256, err := NewSignSha256(signatureKey)
+	if err != nil {
+		return nil, err
+	}
+	return &KeyStoreSuite{encryptor, []signature.Algorithm{sha256}}, nil
 }

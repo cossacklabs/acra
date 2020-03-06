@@ -17,10 +17,8 @@
 package signature
 
 import (
-	"crypto/hmac"
-	"crypto/sha256"
+	"bytes"
 	encodingASN1 "encoding/asn1"
-	"hash"
 	"testing"
 	"time"
 
@@ -40,10 +38,28 @@ type examplePayload struct {
 	Value2 int
 }
 
-type testKeyedHmac struct{}
+type echoSignature struct{}
 
-func (*testKeyedHmac) HmacSha256() hash.Hash {
-	return hmac.New(sha256.New, masterKey)
+func (*echoSignature) AlgorithmOID() encodingASN1.ObjectIdentifier {
+	return encodingASN1.ObjectIdentifier([]int{1, 1, 1, 1})
+}
+
+func (*echoSignature) Sign(data, context []byte) []byte {
+	result := make([]byte, 0, len(data)+len(context))
+	result = append(result, data...)
+	result = append(result, context...)
+	return result
+}
+
+func (*echoSignature) Verify(signature, data, context []byte) bool {
+	expected := make([]byte, 0, len(data)+len(context))
+	expected = append(expected, data...)
+	expected = append(expected, context...)
+	return bytes.Equal(expected, signature)
+}
+
+func testSignAlgorithms(t *testing.T) []Algorithm {
+	return []Algorithm{&echoSignature{}}
 }
 
 func TestValidSignature(t *testing.T) {
@@ -58,7 +74,8 @@ func TestValidSignature(t *testing.T) {
 		},
 	}}
 
-	s, err := NewNotary(new(testKeyedHmac))
+	algorithms := testSignAlgorithms(t)
+	s, err := NewNotary(algorithms)
 	if err != nil {
 		t.Fatalf("newNotary() failed: %v", err)
 	}
@@ -68,12 +85,8 @@ func TestValidSignature(t *testing.T) {
 		t.Fatalf("failed to sign payload: %v", err)
 	}
 
-	if len(container.Signatures) != 1 {
+	if len(container.Signatures) != len(algorithms) {
 		t.Errorf("invalid signature count")
-	} else {
-		if !container.Signatures[0].Algorithm.Equal(asn1.Sha256OID) {
-			t.Errorf("invalid signature algorithm")
-		}
 	}
 
 	verified, err := s.Verify(signed, context)
@@ -108,7 +121,7 @@ func TestValidSignature(t *testing.T) {
 }
 
 func TestEmptySignature(t *testing.T) {
-	s, err := NewNotary(new(testKeyedHmac))
+	s, err := NewNotary(testSignAlgorithms(t))
 	if err != nil {
 		t.Fatalf("newNotary() failed: %v", err)
 	}
@@ -137,7 +150,7 @@ func TestEmptySignature(t *testing.T) {
 var honestOID = encodingASN1.ObjectIdentifier([]int{2, 7, 18, 28, 18, 28})
 
 func TestUnknownSignature(t *testing.T) {
-	s, err := NewNotary(new(testKeyedHmac))
+	s, err := NewNotary(testSignAlgorithms(t))
 	if err != nil {
 		t.Fatalf("newNotary() failed: %v", err)
 	}
@@ -167,7 +180,7 @@ func TestUnknownSignature(t *testing.T) {
 }
 
 func TestBrokenSignature(t *testing.T) {
-	s, err := NewNotary(new(testKeyedHmac))
+	s, err := NewNotary(testSignAlgorithms(t))
 	if err != nil {
 		t.Fatalf("newNotary() failed: %v", err)
 	}
@@ -191,5 +204,12 @@ func TestBrokenSignature(t *testing.T) {
 	}
 	if verified != nil {
 		t.Errorf("verfied corrupted data")
+	}
+}
+
+func TestMissingAlgorithms(t *testing.T) {
+	_, err := NewNotary(nil)
+	if err != ErrNoAlgorithms {
+		t.Errorf("NewNotary() failed: %v", err)
 	}
 }
