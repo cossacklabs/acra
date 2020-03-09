@@ -26,6 +26,8 @@ import (
 	"github.com/cossacklabs/acra/keystore/v2/keystore/asn1"
 )
 
+var separator = []byte(": ")
+
 // SignSha256 computes HMAC-SHA-256 signatures.
 type SignSha256 struct {
 	hmac hash.Hash
@@ -45,6 +47,7 @@ func (s *SignSha256) AlgorithmOID() encodingASN1.ObjectIdentifier {
 func (s *SignSha256) Sign(data, context []byte) []byte {
 	s.hmac.Reset()
 	s.hmac.Write(context)
+	s.hmac.Write(separator)
 	s.hmac.Write(data)
 	return s.hmac.Sum(nil)
 }
