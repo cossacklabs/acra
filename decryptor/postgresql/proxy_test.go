@@ -50,7 +50,7 @@ func (t testDecryptor) OnColumn(context.Context, []byte) (context.Context, []byt
 	panic("implement me")
 }
 
-func (t testDecryptor) SetKeyStore(keystore.KeyStore) {
+func (t testDecryptor) SetKeyStore(keystore.DecryptionKeyStore) {
 	panic("implement me")
 }
 

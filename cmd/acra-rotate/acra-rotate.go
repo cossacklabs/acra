@@ -21,15 +21,17 @@ package main
 import (
 	"database/sql"
 	"flag"
+	"os"
+	"path/filepath"
+
 	"github.com/cossacklabs/acra/cmd"
 	"github.com/cossacklabs/acra/keystore"
+	"github.com/cossacklabs/acra/keystore/filesystem"
 	"github.com/cossacklabs/acra/logging"
 	"github.com/cossacklabs/acra/utils"
 	_ "github.com/go-sql-driver/mysql"
 	_ "github.com/lib/pq"
 	log "github.com/sirupsen/logrus"
-	"os"
-	"path/filepath"
 )
 
 // Constants used by AcraRotate
@@ -39,7 +41,7 @@ var (
 	ServiceName       = "acra-rotate"
 )
 
-func initKeyStore(dirPath string) (KeyStore, error) {
+func initKeyStore(dirPath string) (keystore.RotateStorageKeyStore, error) {
 	absKeysDir, err := filepath.Abs(dirPath)
 	if err != nil {
 		log.WithError(err).Errorln("Can't get absolute path for keys_dir")
@@ -55,7 +57,7 @@ func initKeyStore(dirPath string) (KeyStore, error) {
 		log.WithError(err).Errorln("Can't init scell encryptor")
 		return nil, err
 	}
-	return NewKeyStore(absKeysDir, scellEncryptor)
+	return filesystem.NewFilesystemKeyStore(absKeysDir, scellEncryptor)
 }
 
 func main() {

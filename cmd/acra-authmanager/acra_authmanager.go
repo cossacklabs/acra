@@ -24,6 +24,10 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"io/ioutil"
+	"os"
+	"strings"
+
 	"github.com/cossacklabs/acra/cmd"
 	"github.com/cossacklabs/acra/keystore"
 	"github.com/cossacklabs/acra/keystore/filesystem"
@@ -31,9 +35,6 @@ import (
 	"github.com/cossacklabs/acra/utils"
 	"github.com/cossacklabs/themis/gothemis/cell"
 	log "github.com/sirupsen/logrus"
-	"io/ioutil"
-	"os"
-	"strings"
 )
 
 // HashedPasswords stores username:hashed_password map
@@ -65,7 +66,7 @@ func (hp HashedPasswords) Bytes() (passwordBytes []byte) {
 }
 
 // WriteToFile writes encrypted names and password hashes to file
-func (hp HashedPasswords) WriteToFile(file string, keystore *filesystem.KeyStore) error {
+func (hp HashedPasswords) WriteToFile(file string, keystore keystore.WebConfigKeyStore) error {
 	key, err := keystore.GetAuthKey(false)
 	if err != nil {
 		return err
@@ -97,7 +98,7 @@ func (hp HashedPasswords) SetPassword(name, password string) (err error) {
 	return nil
 }
 
-func parseHtpasswdFile(file string, keystore *filesystem.KeyStore) (passwords HashedPasswords, err error) {
+func parseHtpasswdFile(file string, keystore keystore.WebConfigKeyStore) (passwords HashedPasswords, err error) {
 	htpasswdBytes, err := ioutil.ReadFile(file)
 	if err != nil {
 		return
@@ -140,7 +141,7 @@ func parseHtpasswd(htpasswdBytes []byte) (passwords HashedPasswords, err error) 
 	return
 }
 
-func removeUser(file, user string, keystore *filesystem.KeyStore) error {
+func removeUser(file, user string, keystore keystore.WebConfigKeyStore) error {
 	passwords, err := parseHtpasswdFile(file, keystore)
 	if err != nil {
 		return err
@@ -153,7 +154,7 @@ func removeUser(file, user string, keystore *filesystem.KeyStore) error {
 	return passwords.WriteToFile(file, keystore)
 }
 
-func setPassword(file, name, password string, keystore *filesystem.KeyStore) error {
+func setPassword(file, name, password string, keystore keystore.WebConfigKeyStore) error {
 	_, err := os.Stat(file)
 	passwords := HashedPasswords(map[string]string{})
 	if err == nil {
@@ -202,7 +203,8 @@ func main() {
 		log.WithError(err).Errorln("Can't initialize scell encryptor")
 		os.Exit(1)
 	}
-	keyStore, err := filesystem.NewFilesystemKeyStore(*keysDir, encryptor)
+	var keyStore keystore.WebConfigKeyStore
+	keyStore, err = filesystem.NewFilesystemKeyStore(*keysDir, encryptor)
 	if err != nil {
 		log.WithError(err).Errorln("NewFilesystemKeyStore")
 		os.Exit(1)

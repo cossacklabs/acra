@@ -42,7 +42,7 @@ import (
 // gRPC and HTTP request parsers.
 type ReaderServer struct {
 	config            *AcraTranslatorConfig
-	keystorage        keystore.KeyStore
+	keystorage        keystore.TranslationKeyStore
 	connectionManager *network.ConnectionManager
 	grpcServer        *grpc.Server
 
@@ -54,7 +54,7 @@ type ReaderServer struct {
 }
 
 // NewReaderServer creates Reader server with provided params.
-func NewReaderServer(config *AcraTranslatorConfig, keystorage keystore.KeyStore, waitTimeout time.Duration) (server *ReaderServer, err error) {
+func NewReaderServer(config *AcraTranslatorConfig, keystorage keystore.TranslationKeyStore, waitTimeout time.Duration) (server *ReaderServer, err error) {
 	return &ReaderServer{
 		waitTimeout:       waitTimeout,
 		config:            config,

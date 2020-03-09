@@ -86,7 +86,7 @@ func (*TestKeyStore) GetClientIDEncryptionPublicKey(clientID []byte) (*keys.Publ
 }
 
 func testZoneIDMatcher(t *testing.T) {
-	var keystorage keystore.KeyStore = &TestKeyStore{}
+	var keystorage keystore.PrivateKeyStore = &TestKeyStore{}
 	matcherPool := zone.NewMatcherPool(zone.NewPgMatcherFactory())
 	zoneMatcher := zone.NewZoneMatcher(matcherPool, keystorage)
 

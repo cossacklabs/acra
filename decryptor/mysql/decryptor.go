@@ -43,7 +43,7 @@ var errPlainData = errors.New("plain data without AcraStruct signature")
 type Decryptor struct {
 	base.Decryptor
 	binaryDecryptor      *binary.Decryptor
-	keyStore             keystore.KeyStore
+	keyStore             keystore.DecryptionKeyStore
 	decryptFunc          decryptFunc
 	log                  *log.Entry
 	clientID             []byte
@@ -52,7 +52,7 @@ type Decryptor struct {
 }
 
 // NewMySQLDecryptor returns Decryptor with turned on poison record detection
-func NewMySQLDecryptor(clientID []byte, pgDecryptor *postgresql.PgDecryptor, keyStore keystore.KeyStore) *Decryptor {
+func NewMySQLDecryptor(clientID []byte, pgDecryptor *postgresql.PgDecryptor, keyStore keystore.DecryptionKeyStore) *Decryptor {
 	logger := log.WithFields(log.Fields{"decryptor": "mysql", "client_id": string(clientID)})
 	processorCtx := base.NewDataProcessorContext(clientID, pgDecryptor.IsWithZone(), keyStore).UseContext(logging.SetLoggerToContext(context.Background(), logger))
 	decryptor := &Decryptor{

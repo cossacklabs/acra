@@ -339,7 +339,8 @@ func main() {
 		log.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantInitPrivateKeysEncryptor).WithError(err).Errorln("Can't init scell encryptor")
 		os.Exit(1)
 	}
-	keyStore, err := filesystem.NewConnectorFileSystemKeyStore(*keysDir, []byte(*clientID), scellEncryptor, connectorMode)
+	var keyStore keystore.TransportKeyStore
+	keyStore, err = filesystem.NewConnectorFileSystemKeyStore(*keysDir, []byte(*clientID), scellEncryptor, connectorMode)
 	if err != nil {
 		log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantInitKeyStore).
 			Errorln("Can't initialize keystore")

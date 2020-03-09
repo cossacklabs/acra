@@ -51,7 +51,7 @@ type Config struct {
 	TraceToLog              bool
 	tableSchema             *encryptorConfig.MapTableSchemaStore
 	dataEncryptor           encryptor.DataEncryptor
-	keystore                keystore.KeyStore
+	keystore                keystore.ServerKeyStore
 	traceOptions            []trace.StartOption
 }
 
@@ -261,12 +261,12 @@ func (config *Config) GetAcraAPIConnectionString() string {
 }
 
 // setKeyStore set keystore
-func (config *Config) setKeyStore(k keystore.KeyStore) {
+func (config *Config) setKeyStore(k keystore.ServerKeyStore) {
 	config.keystore = k
 }
 
 // GetKeyStore return configure KeyStore
-func (config *Config) GetKeyStore() keystore.KeyStore {
+func (config *Config) GetKeyStore() keystore.ServerKeyStore {
 	return config.keystore
 }
 

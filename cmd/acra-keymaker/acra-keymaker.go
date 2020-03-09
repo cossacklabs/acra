@@ -87,7 +87,7 @@ func main() {
 		log.WithError(err).Errorln("Can't init scell encryptor")
 		os.Exit(1)
 	}
-	var store keystore.KeyStore
+	var store keystore.KeyMaking
 	if *outputPublicKey != *outputDir {
 		store, err = filesystem.NewFilesystemKeyStoreTwoPath(*outputDir, *outputPublicKey, scellEncryptor)
 	} else {

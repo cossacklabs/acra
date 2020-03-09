@@ -131,61 +131,106 @@ func (encryptor *SCellKeyEncryptor) Decrypt(key, context []byte) ([]byte, error)
 	return encryptor.scell.Unprotect(key, nil, context)
 }
 
-// SecureSessionKeyStore describes KeyStore used for handling Themis Secure Session connection.
+// SecureSessionKeyStore provides access to transport keys, used for Themis Secure Session connections.
 type SecureSessionKeyStore interface {
 	GetPrivateKey(id []byte) (*keys.PrivateKey, error)
 	GetPeerPublicKey(id []byte) (*keys.PublicKey, error)
 }
 
-// PublicKeyStore provide interface to fetch public keys to encrypt data
+// TransportKeyStore provides access to transport keys. It is used by acra-connector tool.
+type TransportKeyStore interface {
+	SecureSessionKeyStore
+
+	CheckIfPrivateKeyExists(clientID []byte) (bool, error)
+}
+
+// TransportKeyCreation enables creation of new transport key pairs and rotation of existing ones.
+type TransportKeyCreation interface {
+	GenerateConnectorKeys(id []byte) error
+	SaveConnectorKeypair(id []byte, keypair *keys.Keypair) error
+
+	GenerateServerKeys(id []byte) error
+	SaveServerKeypair(id []byte, keypair *keys.Keypair) error
+
+	GenerateTranslatorKeys(id []byte) error
+	SaveTranslatorKeypair(id []byte, keypair *keys.Keypair) error
+}
+
+// PublicKeyStore provides access to storage public keys, used to encrypt data for storage.
 type PublicKeyStore interface {
 	GetZonePublicKey(zoneID []byte) (*keys.PublicKey, error)
 	GetClientIDEncryptionPublicKey(clientID []byte) (*keys.PublicKey, error)
 }
 
-// PrivateKeyStore interface for access to private keys
+// PrivateKeyStore provides access to storage private keys, used to decrypt stored data.
 type PrivateKeyStore interface {
 	GetZonePrivateKey(id []byte) (*keys.PrivateKey, error)
 	HasZonePrivateKey(id []byte) bool
 	GetServerDecryptionPrivateKey(id []byte) (*keys.PrivateKey, error)
 }
 
-// KeyStore describes any KeyStore that reads keys to handle Themis Secure Session connection,
-// to encrypt and decrypt AcraStructs with and without Zones,
-// to find Poison records.
-// Moreover KeyStore can generate various Keys using ClientID.
-// Save*Keypair methods save or overwrite existing keypair with new
-// Genenerate*Keys - generate new keypair and save
-type KeyStore interface {
-	SecureSessionKeyStore
-	PublicKeyStore
-
-	GetZonePrivateKey(id []byte) (*keys.PrivateKey, error)
-	HasZonePrivateKey(id []byte) bool
-	GetServerDecryptionPrivateKey(id []byte) (*keys.PrivateKey, error)
-
-	// return id, public key, error
+// StorageKeyCreation enables creation of new storage key pairs and rotation of existing ones.
+type StorageKeyCreation interface {
+	// Generates a new storage key pair for given client ID.
+	GenerateDataEncryptionKeys(clientID []byte) error
+	// Sets storage key pair for given client ID.
+	SaveDataEncryptionKeys(clientID []byte, keypair *keys.Keypair) error
+	// Creates a new zone along with a key.
+	// Returns new zone ID, its public key data, error.
 	GenerateZoneKey() ([]byte, []byte, error)
-	SaveZoneKeypair(id []byte, keypair *keys.Keypair) error
-
-	// return new_public_key, error
+	// Replaces the current key pair for given zone ID.
+	SaveZoneKeypair(zoneID []byte, keypair *keys.Keypair) error
+	// Generates a new key pair and replaces the current key pair for given zone ID.
+	// Returns new publie key data, error.
 	RotateZoneKey(zoneID []byte) ([]byte, error)
+}
 
-	SaveConnectorKeypair(id []byte, keypair *keys.Keypair) error
-	GenerateConnectorKeys(id []byte) error
+// DecryptionKeyStore enables AcraStruct decryption. It is used by acra-server.
+type DecryptionKeyStore interface {
+	PublicKeyStore
+	PrivateKeyStore
+	PoisonKeyStore
+}
 
-	SaveServerKeypair(id []byte, keypair *keys.Keypair) error
-	GenerateServerKeys(id []byte) error
+// KeyMaking enables key store initialization. It is used by acra-keymaker tool.
+type KeyMaking interface {
+	StorageKeyCreation
+	TransportKeyCreation
+	WebConfigKeyStore
+}
 
-	SaveTranslatorKeypair(id []byte, keypair *keys.Keypair) error
-	GenerateTranslatorKeys(id []byte) error
-
-	// generate key pair for data encryption/decryption
-	GenerateDataEncryptionKeys(id []byte) error
-	SaveDataEncryptionKeys(id []byte, keypair *keys.Keypair) error
-
+// PoisonKeyStore provides access to poison record key pairs.
+type PoisonKeyStore interface {
+	// Reads current poison record key pair, creating it if it does not exist yet.
 	GetPoisonKeyPair() (*keys.Keypair, error)
+}
 
-	GetAuthKey(remove bool) ([]byte, error)
+// RotateStorageKeyStore enables storage key rotation. It is used by acra-rotate tool.
+type RotateStorageKeyStore interface {
+	StorageKeyCreation
+	PrivateKeyStore
+}
+
+// ServerKeyStore enables AcraStruct encryption, decryption,
+// and secure communication of acra-server with other services.
+type ServerKeyStore interface {
+	DecryptionKeyStore
+	SecureSessionKeyStore
+	StorageKeyCreation
+	WebConfigKeyStore
+
 	Reset()
+}
+
+// TranslationKeyStore enables AcraStruct translation. It is used by acra-translator tool.
+type TranslationKeyStore interface {
+	DecryptionKeyStore
+	SecureSessionKeyStore
+}
+
+// WebConfigKeyStore provides access to Acra Web Config.
+type WebConfigKeyStore interface {
+	// Reads current symmetric key for Acra Web Config.
+	// The key is created it if it does not exist yet, or recreated if "remove" is true.
+	GetAuthKey(remove bool) ([]byte, error)
 }

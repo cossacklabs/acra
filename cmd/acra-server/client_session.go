@@ -18,21 +18,23 @@ package main
 
 import (
 	"context"
-	"github.com/cossacklabs/acra/network"
 	"net"
 
+	"github.com/cossacklabs/acra/network"
+
 	log "github.com/sirupsen/logrus"
+
+	"io"
 
 	"github.com/cossacklabs/acra/decryptor/base"
 	"github.com/cossacklabs/acra/keystore"
 	"github.com/cossacklabs/acra/logging"
-	"io"
 )
 
 // ClientSession handles connection between database and AcraServer.
 type ClientSession struct {
 	config         *Config
-	keystorage     keystore.KeyStore
+	keystorage     keystore.ServerKeyStore
 	connection     net.Conn
 	connectionToDb net.Conn
 	Server         *SServer
@@ -41,7 +43,7 @@ type ClientSession struct {
 }
 
 // NewClientSession creates new ClientSession object.
-func NewClientSession(ctx context.Context, keystorage keystore.KeyStore, config *Config, connection net.Conn) (*ClientSession, error) {
+func NewClientSession(ctx context.Context, keystorage keystore.ServerKeyStore, config *Config, connection net.Conn) (*ClientSession, error) {
 	return &ClientSession{connection: connection, keystorage: keystorage, config: config, ctx: ctx, logger: logging.GetLoggerFromContext(ctx)}, nil
 }
 
