@@ -26,6 +26,9 @@ insert:
 # Folder from which the keys will be loaded
 keys_dir: .acrakeys
 
+# Key Store format to use: v1 (current), v2 (experimental)
+keystore: v1
+
 # Handle MySQL connections
 mysql_enable: false
 

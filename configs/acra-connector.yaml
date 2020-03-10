@@ -83,6 +83,9 @@ jaeger_collector_endpoint:
 # Folder from which will be loaded keys
 keys_dir: .acrakeys
 
+# Key Store format to use: v1 (current), v2 (experimental)
+keystore: v1
+
 # Logging format: plaintext, json or CEF
 logging_format: plaintext
 
