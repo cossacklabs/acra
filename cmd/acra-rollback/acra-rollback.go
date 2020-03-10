@@ -29,20 +29,21 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 
 	"github.com/cossacklabs/acra/cmd"
 	"github.com/cossacklabs/acra/decryptor/base"
 	"github.com/cossacklabs/acra/keystore"
+	"github.com/cossacklabs/acra/keystore/filesystem"
+	keystoreV2 "github.com/cossacklabs/acra/keystore/v2/keystore"
+	filesystemV2 "github.com/cossacklabs/acra/keystore/v2/keystore/filesystem"
+	"github.com/cossacklabs/acra/logging"
 	"github.com/cossacklabs/acra/utils"
 	"github.com/cossacklabs/themis/gothemis/keys"
-	//_ "github.com/ziutek/mymysql/godrv"
-	"github.com/cossacklabs/acra/keystore/filesystem"
-	"github.com/cossacklabs/acra/logging"
 	_ "github.com/go-sql-driver/mysql"
 	_ "github.com/lib/pq"
 	log "github.com/sirupsen/logrus"
-	"path/filepath"
 )
 
 // Constants used by AcraRollback
@@ -156,6 +157,7 @@ func (ex *WriteToFileExecutor) Close() {
 
 func main() {
 	keysDir := flag.String("keys_dir", keystore.DefaultKeyDirShort, "Folder from which the keys will be loaded")
+	keystoreOpts := flag.String("keystore", "v1", "Key Store format to use: v1 (current), v2 (experimental)")
 	clientID := flag.String("client_id", "", "Client ID should be name of file with private key")
 	connectionString := flag.String("connection_string", "", "Connection string for db")
 	sqlSelect := flag.String("select", "", "Query to fetch data for decryption")
@@ -223,21 +225,18 @@ func main() {
 		log.Errorln("Output_file missing or execute flag")
 		os.Exit(1)
 	}
-	masterKey, err := keystore.GetMasterKeyFromEnvironment()
-	if err != nil {
-		log.WithError(err).Errorln("Can't load master key")
+
+	var keystorage keystore.DecryptionKeyStore
+	switch *keystoreOpts {
+	case "v1":
+		keystorage = openKeyStoreV1(absKeysDir)
+	case "v2":
+		keystorage = openKeyStoreV2(absKeysDir)
+	default:
+		log.Errorf("unknown keystore option: %v", *keystoreOpts)
 		os.Exit(1)
 	}
-	scellEncryptor, err := keystore.NewSCellKeyEncryptor(masterKey)
-	if err != nil {
-		log.WithError(err).Errorln("Can't init scell encryptor")
-		os.Exit(1)
-	}
-	keystorage, err := filesystem.NewFilesystemKeyStore(absKeysDir, scellEncryptor)
-	if err != nil {
-		log.WithError(err).Errorln("Can't create key store")
-		os.Exit(1)
-	}
+
 	db, err := sql.Open(dbDriverName, *connectionString)
 	if err != nil {
 		log.WithError(err).Errorln("Can't connect to db")
@@ -311,4 +310,42 @@ func main() {
 			executor.Execute(decrypted)
 		}
 	}
+}
+
+func openKeyStoreV1(keysDir string) keystore.DecryptionKeyStore {
+	masterKey, err := keystore.GetMasterKeyFromEnvironment()
+	if err != nil {
+		log.WithError(err).Errorln("Can't load master key")
+		os.Exit(1)
+	}
+	scellEncryptor, err := keystore.NewSCellKeyEncryptor(masterKey)
+	if err != nil {
+		log.WithError(err).Errorln("Can't init scell encryptor")
+		os.Exit(1)
+	}
+	keystorage, err := filesystem.NewFilesystemKeyStore(keysDir, scellEncryptor)
+	if err != nil {
+		log.WithError(err).Errorln("Can't initialize key store")
+		os.Exit(1)
+	}
+	return keystorage
+}
+
+func openKeyStoreV2(keyDirPath string) keystore.DecryptionKeyStore {
+	encryption, signature, err := keystoreV2.GetMasterKeysFromEnvironment()
+	if err != nil {
+		log.WithError(err).Error("cannot read master keys from environment")
+		os.Exit(1)
+	}
+	suite, err := keystoreV2.NewSCellSuite(encryption, signature)
+	if err != nil {
+		log.WithError(err).Error("failed to initialize Secure Cell crypto suite")
+		os.Exit(1)
+	}
+	keyDir, err := filesystemV2.OpenDirectoryRW(keyDirPath, suite)
+	if err != nil {
+		log.WithError(err).WithField("path", keyDirPath).Error("cannot open key directory")
+		os.Exit(1)
+	}
+	return keystoreV2.NewServerKeyStore(keyDir)
 }
