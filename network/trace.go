@@ -47,3 +47,34 @@ func ReadTrace(conn net.Conn) (trace.SpanContext, error) {
 	spanContext, _ := propagation.FromBinary(binContext)
 	return spanContext, nil
 }
+
+type traceWrapper struct {
+	wrapper ConnectionWrapper
+}
+
+func NewTraceConnectionWrapper(wrapper ConnectionWrapper) (*traceWrapper, error) {
+	return &traceWrapper{wrapper}, nil
+}
+
+func (t *traceWrapper) WrapClient(ctx context.Context, conn net.Conn) (net.Conn, error) {
+	wrappedConn, err := t.wrapper.WrapClient(ctx, conn)
+	if err != nil {
+		return nil, err
+	}
+	if err := SendTrace(ctx, wrappedConn); err != nil {
+		return nil, err
+	}
+	return wrappedConn, nil
+}
+
+func (t *traceWrapper) WrapServer(ctx context.Context, conn net.Conn) (net.Conn, []byte, error) {
+	wrappedConn, id, err := t.wrapper.WrapServer(ctx, conn)
+	if err != nil {
+		return nil, nil, err
+	}
+	_, err = ReadTrace(wrappedConn)
+	if err != nil {
+		return nil, nil, err
+	}
+	return wrappedConn, id, nil
+}

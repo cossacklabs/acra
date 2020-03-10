@@ -28,7 +28,7 @@ type RawConnectionWrapper struct {
 }
 
 // WrapClient returns RawConnectionWrapper above client connection
-func (wrapper *RawConnectionWrapper) WrapClient(ctx context.Context, id []byte, conn net.Conn) (net.Conn, error) {
+func (wrapper *RawConnectionWrapper) WrapClient(ctx context.Context, conn net.Conn) (net.Conn, error) {
 	wrapper.Conn = conn
 	return newSafeCloseConnection(conn), nil
 }

@@ -235,14 +235,14 @@ func (decryptor *HTTPConnectionsDecryptor) ParseRequestPrepareResponse(logger *l
 
 func (decryptor *HTTPConnectionsDecryptor) decryptAcraStruct(logger *log.Entry, acraStruct []byte, zoneID []byte, clientID []byte) ([]byte, error) {
 	var err error
-	var privateKey *keys.PrivateKey
+	var privateKeys []*keys.PrivateKey
 	var decryptionContext []byte
 
 	if len(zoneID) != 0 {
-		privateKey, err = decryptor.TranslatorData.Keystorage.GetZonePrivateKey(zoneID)
+		privateKeys, err = decryptor.TranslatorData.Keystorage.GetZonePrivateKeys(zoneID)
 		decryptionContext = zoneID
 	} else {
-		privateKey, err = decryptor.TranslatorData.Keystorage.GetServerDecryptionPrivateKey(clientID)
+		privateKeys, err = decryptor.TranslatorData.Keystorage.GetServerDecryptionPrivateKeys(clientID)
 	}
 
 	if err != nil {
@@ -251,9 +251,11 @@ func (decryptor *HTTPConnectionsDecryptor) decryptAcraStruct(logger *log.Entry, 
 	}
 
 	// decrypt
-	decryptedStruct, err := base.DecryptAcrastruct(acraStruct, privateKey, decryptionContext)
-	// zeroing private key
-	utils.FillSlice(byte(0), privateKey.Value)
+	decryptedStruct, err := base.DecryptRotatedAcrastruct(acraStruct, privateKeys, decryptionContext)
+	// zeroing private keys
+	for _, privateKey := range privateKeys {
+		utils.FillSlice(byte(0), privateKey.Value)
+	}
 
 	if err != nil {
 		return nil, err

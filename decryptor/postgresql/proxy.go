@@ -25,18 +25,12 @@ import (
 )
 
 type proxyFactory struct {
-	dataEncryptor encryptor.DataEncryptor
 	setting       base.ProxySetting
 }
 
 // NewProxyFactory return new proxyFactory
 func NewProxyFactory(proxySetting base.ProxySetting) (base.ProxyFactory, error) {
-	dataEncryptor, err := encryptor.NewAcrawriterDataEncryptor(proxySetting.KeyStore())
-	if err != nil {
-		return nil, err
-	}
 	return &proxyFactory{
-		dataEncryptor: dataEncryptor,
 		setting:       proxySetting,
 	}, nil
 }
@@ -47,13 +41,18 @@ func (factory *proxyFactory) New(ctx context.Context, clientID []byte, dbConnect
 	if err != nil {
 		return nil, err
 	}
+	decryptor.SetDataProcessor(base.DecryptProcessor{})
 	proxy, err := NewPgProxy(ctx, decryptor, dbConnection, clientConnection, factory.setting.TLSConfig(), factory.setting.Censor())
 	if err != nil {
 		return nil, err
 	}
 
 	if !factory.setting.TableSchemaStore().IsEmpty() {
-		queryEncryptor, err := encryptor.NewPostgresqlQueryEncryptor(factory.setting.TableSchemaStore(), clientID, factory.dataEncryptor)
+		dataEncryptor, err := encryptor.NewAcrawriterDataEncryptor(factory.setting.KeyStore())
+		if err != nil {
+			return nil, err
+		}
+		queryEncryptor, err := encryptor.NewPostgresqlQueryEncryptor(factory.setting.TableSchemaStore(), clientID, dataEncryptor)
 		if err != nil {
 			return nil, err
 		}
