@@ -34,12 +34,6 @@ import (
 	"crypto/tls"
 	"errors"
 	"flag"
-	"github.com/cossacklabs/acra/decryptor/base"
-	"github.com/cossacklabs/acra/decryptor/mysql"
-	"github.com/cossacklabs/acra/decryptor/postgresql"
-	"github.com/cossacklabs/acra/sqlparser"
-	mysqlDialect "github.com/cossacklabs/acra/sqlparser/dialect/mysql"
-	pgDialect "github.com/cossacklabs/acra/sqlparser/dialect/postgresql"
 	"net/http"
 	_ "net/http/pprof"
 	"os"
@@ -47,10 +41,18 @@ import (
 	"time"
 
 	"github.com/cossacklabs/acra/cmd"
+	"github.com/cossacklabs/acra/decryptor/base"
+	"github.com/cossacklabs/acra/decryptor/mysql"
+	"github.com/cossacklabs/acra/decryptor/postgresql"
 	"github.com/cossacklabs/acra/keystore"
 	"github.com/cossacklabs/acra/keystore/filesystem"
+	keystoreV2 "github.com/cossacklabs/acra/keystore/v2/keystore"
+	filesystemV2 "github.com/cossacklabs/acra/keystore/v2/keystore/filesystem"
 	"github.com/cossacklabs/acra/logging"
 	"github.com/cossacklabs/acra/network"
+	"github.com/cossacklabs/acra/sqlparser"
+	mysqlDialect "github.com/cossacklabs/acra/sqlparser/dialect/mysql"
+	pgDialect "github.com/cossacklabs/acra/sqlparser/dialect/postgresql"
 	"github.com/cossacklabs/acra/utils"
 	log "github.com/sirupsen/logrus"
 )
@@ -89,6 +91,7 @@ func main() {
 
 	keysDir := flag.String("keys_dir", keystore.DefaultKeyDirShort, "Folder from which will be loaded keys")
 	keysCacheSize := flag.Int("keystore_cache_size", keystore.InfiniteCacheSize, "Maximum number of keys stored in in-memory LRU cache in encrypted form. 0 - no limits, -1 - turn off cache")
+	keystoreOpts := flag.String("keystore", "v1", "Key Store format to use: v1 (current), v2 (experimental)")
 
 	_ = flag.Bool("pgsql_hex_bytea", false, "Hex format for Postgresql bytea data (deprecated, ignored)")
 	flag.Bool("pgsql_escape_bytea", false, "Escape format for Postgresql bytea data (deprecated, ignored)")
@@ -200,22 +203,14 @@ func main() {
 	config.SetDebug(*debug)
 
 	log.Infof("Initialising keystore...")
-	masterKey, err := keystore.GetMasterKeyFromEnvironment()
-	if err != nil {
-		log.WithError(err).Errorln("Can't load master key")
-		os.Exit(1)
-	}
-	scellEncryptor, err := keystore.NewSCellKeyEncryptor(masterKey)
-	if err != nil {
-		log.WithError(err).Errorln("Can't init scell encryptor")
-		os.Exit(1)
-	}
-
 	var keyStore keystore.ServerKeyStore
-	keyStore, err = filesystem.NewFileSystemKeyStoreWithCacheSize(*keysDir, scellEncryptor, *keysCacheSize)
-	if err != nil {
-		log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantInitKeyStore).
-			Errorln("Can't initialise keystore")
+	switch *keystoreOpts {
+	case "v1":
+		keyStore = openKeyStoreV1(*keysDir, *keysCacheSize)
+	case "v2":
+		keyStore = openKeyStoreV2(*keysDir)
+	default:
+		log.Errorf("unknown keystore option: %v", *keystoreOpts)
 		os.Exit(1)
 	}
 	config.setKeyStore(keyStore)
@@ -451,4 +446,46 @@ func main() {
 	// on sighup we run callback that stop all listeners (that stop background goroutine of server.Start())
 	// and try to restart acra-server and only after that exits
 	sigHandlerSIGHUP.Register()
+}
+
+func openKeyStoreV1(keysDir string, cacheSize int) keystore.ServerKeyStore {
+	masterKey, err := keystore.GetMasterKeyFromEnvironment()
+	if err != nil {
+		log.WithError(err).Errorln("Can't load master key")
+		os.Exit(1)
+	}
+	scellEncryptor, err := keystore.NewSCellKeyEncryptor(masterKey)
+	if err != nil {
+		log.WithError(err).Errorln("Can't init scell encryptor")
+		os.Exit(1)
+	}
+	keyStore, err := filesystem.NewFileSystemKeyStoreWithCacheSize(keysDir, scellEncryptor, cacheSize)
+	if err != nil {
+		log.WithError(err).
+			WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantInitKeyStore).
+			Errorln("Can't initialise keystore")
+		os.Exit(1)
+	}
+	return keyStore
+}
+
+func openKeyStoreV2(keyDirPath string) keystore.ServerKeyStore {
+	encryption, signature, err := keystoreV2.GetMasterKeysFromEnvironment()
+	if err != nil {
+		log.WithError(err).Error("cannot read master keys from environment")
+		os.Exit(1)
+	}
+	suite, err := keystoreV2.NewSCellSuite(encryption, signature)
+	if err != nil {
+		log.WithError(err).Error("failed to initialize Secure Cell crypto suite")
+		os.Exit(1)
+	}
+	keyDir, err := filesystemV2.OpenDirectoryRW(keyDirPath, suite)
+	if err != nil {
+		log.WithError(err).
+			WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantInitKeyStore).
+			WithField("path", keyDirPath).Error("cannot open key directory")
+		os.Exit(1)
+	}
+	return keystoreV2.NewServerKeyStore(keyDir)
 }
