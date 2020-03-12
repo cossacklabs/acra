@@ -413,3 +413,231 @@ func testSaveKeypairs(store *KeyStore, t *testing.T) {
 		}
 	}
 }
+
+func TestFilesystemKeyStoreExport(t *testing.T) {
+	// Prepare filesystem directory
+	keyDirectory, err := ioutil.TempDir(os.TempDir(), "test_filesystem_store")
+	if err != nil {
+		t.Fatalf("failed to create key directory: %v", err)
+	}
+	if err = os.Chmod(keyDirectory, 0700); err != nil {
+		t.Fatalf("failed to chmod key directory: %v", err)
+	}
+	defer func() {
+		os.RemoveAll(keyDirectory)
+	}()
+	publicKeys := filepath.Join(keyDirectory, "public")
+	privateKeys := filepath.Join(keyDirectory, "private")
+
+	// Prepare key store
+	encryptor, err := keystore.NewSCellKeyEncryptor([]byte("test key"))
+	if err != nil {
+		t.Fatalf("failed to initialize encryptor: %v", err)
+	}
+	keyStore, err := NewFilesystemKeyStoreTwoPath(privateKeys, publicKeys, encryptor)
+	if err != nil {
+		t.Fatalf("failed to initialize key store: %v", err)
+	}
+
+	// Prepare various keys for testing.
+	clientID := []byte("Alice Liddell")
+
+	err = keyStore.GenerateDataEncryptionKeys(clientID)
+	if err != nil {
+		t.Fatalf("GetZonePublicKey() failed: %v", err)
+	}
+	storagePublicKey, err := keyStore.GetClientIDEncryptionPublicKey(clientID)
+	if err != nil {
+		t.Fatalf("GetClientIDEncryptionPublicKey() failed: %v", err)
+	}
+	storagePrivateKey, err := keyStore.GetServerDecryptionPrivateKey(clientID)
+	if err != nil {
+		t.Fatalf("GetServerDecryptionPrivateKey() failed: %v", err)
+	}
+	zoneID, _, err := keyStore.GenerateZoneKey()
+	if err != nil {
+		t.Fatalf("GenerateZoneKey() failed: %v", err)
+	}
+	zonePublicKey, err := keyStore.GetZonePublicKey(zoneID)
+	if err != nil {
+		t.Fatalf("GetZonePublicKey() failed: %v", err)
+	}
+	zonePrivateKey, err := keyStore.GetZonePrivateKey(zoneID)
+	if err != nil {
+		t.Fatalf("GetZonePrivateKey() failed: %v", err)
+	}
+	// Since we cannot access all generated key pairs via AcraServer key store,
+	// we generate them here and use Save... API
+	connectorKeyPair, err := keys.New(keys.TypeEC)
+	err = keyStore.SaveConnectorKeypair(clientID, connectorKeyPair)
+	if err != nil {
+		t.Fatalf("SaveConnectorKeypair() failed: %v", err)
+	}
+	serverKeyPair, err := keys.New(keys.TypeEC)
+	err = keyStore.SaveServerKeypair(clientID, serverKeyPair)
+	if err != nil {
+		t.Fatalf("SaveServerKeypair() failed: %v", err)
+	}
+	translatorKeyPair, err := keys.New(keys.TypeEC)
+	err = keyStore.SaveTranslatorKeypair(clientID, translatorKeyPair)
+	if err != nil {
+		t.Fatalf("SaveTranslatorKeypair() failed: %v", err)
+	}
+	// And some finishing touches...
+	authenticationKey, err := keyStore.GetAuthKey(true)
+	if err != nil {
+		t.Fatalf("GetAuthKey() failed: %v", err)
+	}
+	poisonKeyPair, err := keyStore.GetPoisonKeyPair()
+	if err != nil {
+		t.Fatalf("GetPoisonKeyPair() failed: %v", err)
+	}
+
+	// Test setup complete, now we can finally verify exporting.
+	exportedKeys, err := keyStore.EnumerateExportedKeys()
+	if err != nil {
+		t.Errorf("EnumerateExportedKeys() failed: %v", err)
+	}
+
+	seenAuthenticationKey := false
+	seenPoisonKeyPair := false
+	seenStorageClientKeyPair := false
+	seenStorageZoneKeyPair := false
+	seenTransportConnectorKeyPair := false
+	seenTransportTranslatorKeyPair := false
+	seenTransportServerKeyPair := false
+
+	for i := range exportedKeys {
+		switch exportedKeys[i].Purpose {
+		case PurposeAuthenticationSymKey:
+			seenAuthenticationKey = true
+			storedValue, err := keyStore.ExportPlaintextSymmetricKey(exportedKeys[i])
+			if err != nil {
+				t.Errorf("ExportPlaintextSymmetricKey() failed: %v", err)
+			}
+			if !bytes.Equal(authenticationKey, storedValue) {
+				t.Error("incorrect authentication key value")
+			}
+		case PurposePoisonRecordKeyPair:
+			seenPoisonKeyPair = true
+			publicKey, err := keyStore.ExportPublicKey(exportedKeys[i])
+			if err != nil {
+				t.Errorf("ExportPublicKey() failed: %v", err)
+			}
+			privateKey, err := keyStore.ExportPrivateKey(exportedKeys[i])
+			if err != nil {
+				t.Errorf("ExportPrivateKey() failed: %v", err)
+			}
+			if !bytes.Equal(poisonKeyPair.Public.Value, publicKey.Value) {
+				t.Error("incorrect poison record public key value")
+			}
+			if !bytes.Equal(poisonKeyPair.Private.Value, privateKey.Value) {
+				t.Error("incorrect poison record private key value")
+			}
+		case PurposeStorageClientKeyPair:
+			seenStorageClientKeyPair = true
+			publicKey, err := keyStore.ExportPublicKey(exportedKeys[i])
+			if err != nil {
+				t.Errorf("ExportPublicKey() failed: %v", err)
+			}
+			privateKey, err := keyStore.ExportPrivateKey(exportedKeys[i])
+			if err != nil {
+				t.Errorf("ExportPrivateKey() failed: %v", err)
+			}
+			if !bytes.Equal(storagePublicKey.Value, publicKey.Value) {
+				t.Error("incorrect client storage public key value")
+			}
+			if !bytes.Equal(storagePrivateKey.Value, privateKey.Value) {
+				t.Error("incorrect client storage private key value")
+			}
+		case PurposeStorageZoneKeyPair:
+			seenStorageZoneKeyPair = true
+			publicKey, err := keyStore.ExportPublicKey(exportedKeys[i])
+			if err != nil {
+				t.Errorf("ExportPublicKey() failed: %v", err)
+			}
+			privateKey, err := keyStore.ExportPrivateKey(exportedKeys[i])
+			if err != nil {
+				t.Errorf("ExportPrivateKey() failed: %v", err)
+			}
+			if !bytes.Equal(zonePublicKey.Value, publicKey.Value) {
+				t.Error("incorrect zone storage public key value")
+			}
+			if !bytes.Equal(zonePrivateKey.Value, privateKey.Value) {
+				t.Error("incorrect zone storage private key value")
+			}
+		case PurposeTransportConnectorKeyPair:
+			seenTransportConnectorKeyPair = true
+			publicKey, err := keyStore.ExportPublicKey(exportedKeys[i])
+			if err != nil {
+				t.Errorf("ExportPublicKey() failed: %v", err)
+			}
+			privateKey, err := keyStore.ExportPrivateKey(exportedKeys[i])
+			if err != nil {
+				t.Errorf("ExportPrivateKey() failed: %v", err)
+			}
+			if !bytes.Equal(connectorKeyPair.Public.Value, publicKey.Value) {
+				t.Error("incorrect AcraConnector transport public key value")
+			}
+			if !bytes.Equal(connectorKeyPair.Private.Value, privateKey.Value) {
+				t.Error("incorrect AcraConnector transport private key value")
+			}
+		case PurposeTransportTranslatorKeyPair:
+			seenTransportTranslatorKeyPair = true
+			publicKey, err := keyStore.ExportPublicKey(exportedKeys[i])
+			if err != nil {
+				t.Errorf("ExportPublicKey() failed: %v", err)
+			}
+			privateKey, err := keyStore.ExportPrivateKey(exportedKeys[i])
+			if err != nil {
+				t.Errorf("ExportPrivateKey() failed: %v", err)
+			}
+			if !bytes.Equal(translatorKeyPair.Public.Value, publicKey.Value) {
+				t.Error("incorrect AcraTranslator transport public key value")
+			}
+			if !bytes.Equal(translatorKeyPair.Private.Value, privateKey.Value) {
+				t.Error("incorrect AcraTranslator transport private key value")
+			}
+		case PurposeTransportServerKeyPair:
+			seenTransportServerKeyPair = true
+			publicKey, err := keyStore.ExportPublicKey(exportedKeys[i])
+			if err != nil {
+				t.Errorf("ExportPublicKey() failed: %v", err)
+			}
+			privateKey, err := keyStore.ExportPrivateKey(exportedKeys[i])
+			if err != nil {
+				t.Errorf("ExportPrivateKey() failed: %v", err)
+			}
+			if !bytes.Equal(serverKeyPair.Public.Value, publicKey.Value) {
+				t.Error("incorrect AcraServer transport public key value")
+			}
+			if !bytes.Equal(serverKeyPair.Private.Value, privateKey.Value) {
+				t.Error("incorrect AcraServer transport private key value")
+			}
+		default:
+			t.Errorf("unknow key purpose: %s", exportedKeys[i].Purpose)
+		}
+	}
+
+	if !seenAuthenticationKey {
+		t.Error("authentication key not exported")
+	}
+	if !seenPoisonKeyPair {
+		t.Error("poison record key pair not exported")
+	}
+	if !seenStorageClientKeyPair {
+		t.Error("storage key for client not expoted")
+	}
+	if !seenStorageZoneKeyPair {
+		t.Error("storage key for zone not exported")
+	}
+	if !seenTransportConnectorKeyPair {
+		t.Error("transport key for AcraConnector not exported")
+	}
+	if !seenTransportTranslatorKeyPair {
+		t.Error("transport key for AcraTranslator not exported")
+	}
+	if !seenTransportServerKeyPair {
+		t.Error("transport key for AcraServer not exported")
+	}
+}

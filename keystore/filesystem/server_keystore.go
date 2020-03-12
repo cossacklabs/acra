@@ -404,7 +404,7 @@ func (store *KeyStore) Reset() {
 // Returns keypair or error if generation/decryption failed.
 func (store *KeyStore) GetPoisonKeyPair() (*keys.Keypair, error) {
 	privatePath := store.GetPrivateKeyFilePath(PoisonKeyFilename)
-	publicPath := store.GetPublicKeyFilePath(fmt.Sprintf("%s.pub", PoisonKeyFilename))
+	publicPath := store.GetPublicKeyFilePath(poisonKeyFilenamePublic)
 	privateExists, err := utils.FileExists(privatePath)
 	if err != nil {
 		return nil, err
