@@ -136,15 +136,23 @@ func (s *ServerKeyStore) newCurrentSymmetricKey(ring api.MutableKeyRing) ([]byte
 	if err != nil {
 		return nil, err
 	}
-	i, err := ring.AddKey(s.describeNewSymmetricKey(key))
-	if err != nil {
-		return nil, err
-	}
-	err = ring.SetCurrent(i)
+	err = s.addCurrentSymmetricKey(ring, key)
 	if err != nil {
 		return nil, err
 	}
 	return key, nil
+}
+
+func (s *ServerKeyStore) addCurrentSymmetricKey(ring api.MutableKeyRing, key []byte) error {
+	i, err := ring.AddKey(s.describeNewSymmetricKey(key))
+	if err != nil {
+		return err
+	}
+	err = ring.SetCurrent(i)
+	if err != nil {
+		return err
+	}
+	return nil
 }
 
 func (s *ServerKeyStore) describeNewSymmetricKey(key []byte) api.KeyDescription {

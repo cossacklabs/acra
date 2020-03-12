@@ -50,3 +50,18 @@ func (s *ServerKeyStore) GetAuthKey(remove bool) ([]byte, error) {
 	}
 	return key, nil
 }
+
+func (s *ServerKeyStore) saveAuthKey(key []byte) error {
+	ring, err := s.OpenKeyRingRW(authKeyPath)
+	if err != nil {
+		s.log.WithError(err).WithField("path", authKeyPath).
+			Debug("failed to open authentication key ring")
+		return err
+	}
+	err = s.addCurrentSymmetricKey(ring, key)
+	if err != nil {
+		s.log.WithError(err).Debug("failed to set current authentication key")
+		return err
+	}
+	return nil
+}

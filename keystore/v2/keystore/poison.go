@@ -47,3 +47,18 @@ func (s *ServerKeyStore) GetPoisonKeyPair() (*keys.Keypair, error) {
 	}
 	return keypair, nil
 }
+
+func (s *ServerKeyStore) savePoisonKeyPair(keypair *keys.Keypair) error {
+	ring, err := s.OpenKeyRingRW(poisonKeyPath)
+	if err != nil {
+		s.log.WithError(err).WithField("path", poisonKeyPath).
+			Debug("failed to open poison key ring")
+		return err
+	}
+	err = s.addCurrentKeyPair(ring, keypair)
+	if err != nil {
+		s.log.WithError(err).Debug("failed to set current poison record key pair")
+		return err
+	}
+	return nil
+}
