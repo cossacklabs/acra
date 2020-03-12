@@ -22,11 +22,13 @@ limitations under the License.
 package logging
 
 import (
+	"bytes"
 	"context"
 	"fmt"
-	log "github.com/sirupsen/logrus"
 	"os"
 	"strings"
+
+	log "github.com/sirupsen/logrus"
 )
 
 // Log modes
@@ -39,6 +41,20 @@ const (
 // LoggerSetter abstract types that provide way to set logger which they should use
 type LoggerSetter interface {
 	SetLogger(*log.Entry)
+}
+
+// FormatterHook provides post-processing customization to log formatters,
+// allowing you to execute additional code before or after an entry is completed.
+type FormatterHook interface {
+	// WillFormat is called before the entry is serialized by the formatter.
+	// You may inspect as well as add or remove fields of the log entry.
+	// If the error is not nil, formatting fails with returned error.
+	WillFormat(entry *log.Entry) error
+	// DidFormat is called after the entry has been serialized by the formatter.
+	// You may inspect log entry fields and the byte buffer with serialized data.
+	// You may also modify the resulting buffer with serialized entry.
+	// If the error is not nil, formatting fails with returned error.
+	DidFormat(entry *log.Entry, formatted *bytes.Buffer) error
 }
 
 type loggerKey struct{}
@@ -74,23 +90,26 @@ func GetLogLevel() int {
 
 // CustomizeLogging changes logging format
 func CustomizeLogging(loggingFormat string, serviceName string) {
+	CustomizeLoggingWithHooks(loggingFormat, serviceName, nil)
+}
+
+// CustomizeLoggingWithHooks changes logging format and sets additional post-processing hooks.
+func CustomizeLoggingWithHooks(loggingFormat, serviceName string, hooks []FormatterHook) {
 	log.SetOutput(os.Stderr)
-	log.SetFormatter(logFormatterFor(loggingFormat, serviceName))
+	log.SetFormatter(logFormatterFor(loggingFormat, serviceName, hooks))
 
 	log.Debugf("Changed logging format to %s", loggingFormat)
 }
 
-func logFormatterFor(loggingFormat string, serviceName string) log.Formatter {
-	loggingFormat = strings.ToLower(loggingFormat)
-
-	if loggingFormat == "json" {
-		return JSONFormatter(log.Fields{FieldKeyProduct: serviceName})
-
-	} else if loggingFormat == "cef" {
-		return CEFFormatter(log.Fields{FieldKeyProduct: serviceName})
+func logFormatterFor(loggingFormat string, serviceName string, hooks []FormatterHook) log.Formatter {
+	switch strings.ToLower(loggingFormat) {
+	case "json":
+		return JSONFormatter(log.Fields{FieldKeyProduct: serviceName}, hooks)
+	case "cef":
+		return CEFFormatter(log.Fields{FieldKeyProduct: serviceName}, hooks)
+	default:
+		return TextFormatter(hooks)
 	}
-
-	return TextFormatter()
 }
 
 // SetLoggerToContext sets logger to corresponded context
