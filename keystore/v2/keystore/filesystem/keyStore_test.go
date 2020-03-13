@@ -78,9 +78,17 @@ func TestKeyStoreOpeningDir(t *testing.T) {
 
 	rootPath := filepath.Join(testDir, "root")
 
+	if IsKeyDirectory(rootPath) {
+		t.Errorf("missing directory cannot be IsKeyDirectory()")
+	}
+
 	_, err = OpenDirectory(rootPath, testKeyStoreSuite(t))
 	if err != backendAPI.ErrNotExist {
 		t.Errorf("opened non-existant key store: %v", err)
+	}
+
+	if IsKeyDirectory(rootPath) {
+		t.Errorf("OpenDirectory() should not create key directory")
 	}
 
 	_, err = OpenDirectoryRW(rootPath, testKeyStoreSuite(t))
@@ -94,6 +102,10 @@ func TestKeyStoreOpeningDir(t *testing.T) {
 	}
 	if !fi.IsDir() {
 		t.Errorf("root key directory is not directory")
+	}
+
+	if !IsKeyDirectory(rootPath) {
+		t.Errorf("OpenDirectoryRW() must create key directory")
 	}
 
 	_, err = OpenDirectory(rootPath, testKeyStoreSuite(t))

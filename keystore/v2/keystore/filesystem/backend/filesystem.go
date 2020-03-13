@@ -36,12 +36,14 @@ const directorySubsystemName = "directory-backend"
 const (
 	keyDirPerm  = os.FileMode(0700)
 	keyFilePerm = os.FileMode(0600)
+	versionPerm = os.FileMode(0644)
 )
 
 // Errors returned by DirectoryBackend:
 var (
 	ErrNotDirectory       = errors.New("KeyStore: root directory is not a directory")
 	ErrInvalidPermissions = errors.New("KeyStore: invalid access permissions")
+	ErrInvalidVersion     = errors.New("KeyStore: invalid version file content")
 )
 
 // DirectoryBackend keeps data in filesystem directory hierarchy.
@@ -51,7 +53,11 @@ type DirectoryBackend struct {
 	lock *os.File
 }
 
-const lockFile = ".lock"
+const (
+	lockFile      = ".lock"
+	versionFile   = "version"
+	versionString = "Acra Key Store v2"
+)
 
 // CreateDirectoryBackend opens a directory backend at given root path.
 // The root directory will be created if it does not exist.
@@ -92,6 +98,11 @@ func CreateDirectoryBackend(root string) (*DirectoryBackend, error) {
 			errLog.WithError(err).Debug("failed to stat root key directory")
 			return nil, err
 		}
+	}
+	err = checkVersionFile(root)
+	if err != nil {
+		errLog.WithError(err).Debug("failed to create version file")
+		return nil, err
 	}
 	lock, err := os.Create(filepath.Join(root, lockFile))
 	if err != nil {
@@ -138,6 +149,11 @@ func OpenDirectoryBackend(root string) (*DirectoryBackend, error) {
 			Debugf("invalid access permissions on root key directory")
 		return nil, ErrInvalidPermissions
 	}
+	err = CheckDirectoryVersion(root)
+	if err != nil {
+		errLog.WithError(err).Debug("not a key store")
+		return nil, err
+	}
 	lock, err := os.Create(filepath.Join(root, lockFile))
 	if err != nil {
 		errLog.WithError(err).Debug("failed to create lock file")
@@ -148,6 +164,63 @@ func OpenDirectoryBackend(root string) (*DirectoryBackend, error) {
 		log:  newLog,
 		lock: lock,
 	}, nil
+}
+
+func versionFilePath(rootDir string) string {
+	return filepath.Join(rootDir, versionFile)
+}
+
+// CheckDirectoryVersion checks whether a key directory is of expected version.
+func CheckDirectoryVersion(rootDir string) error {
+	content, err := ioutil.ReadFile(versionFilePath(rootDir))
+	if err != nil {
+		return err
+	}
+	if string(content) != versionString {
+		return ErrInvalidVersion
+	}
+	return nil
+}
+
+func checkVersionFile(rootDir string) error {
+	// First, check whether we already have a valid version file. If so then we're done.
+	// Otherwise, create a new version file if and only if it does not exist yet.
+	// It might also be that the file has been removed, but we can't tell that for sure,
+	// so just reinitialize the file in that case.
+	err := CheckDirectoryVersion(rootDir)
+	if err == nil {
+		return nil
+	}
+	if !os.IsNotExist(err) {
+		return err
+	}
+	return createVersionFile(rootDir)
+}
+
+func createVersionFile(rootDir string) error {
+	path := versionFilePath(rootDir)
+	// Make sure the file does not exist and create it with proper mode.
+	file, err := os.OpenFile(path, os.O_CREATE|os.O_EXCL|os.O_WRONLY, versionPerm)
+	if err != nil {
+		return err
+	}
+	// Close() might fail for newly written files, make sure we don't lose this error.
+	defer func() {
+		err2 := file.Close()
+		if err == nil {
+			err = err2
+		}
+	}()
+	_, err = file.WriteString(versionString)
+	if err != nil {
+		return err
+	}
+	err = file.Sync()
+	if err != nil {
+		return err
+	}
+	// Return deferred Close() error, if any
+	return err
 }
 
 // Close this backend instance, freeing any associated resources.
