@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-binaries=(server connector translator addzone webconfig rollback keymaker poisonrecordmaker authmanager rotate)
+binaries=(server connector translator addzone webconfig rollback keymaker migrate-keys poisonrecordmaker authmanager rotate)
 
 args="--dump_config"
 
