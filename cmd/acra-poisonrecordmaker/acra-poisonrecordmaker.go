@@ -50,7 +50,7 @@ var (
 
 func main() {
 	keysDir := flag.String("keys_dir", keystore.DefaultKeyDirShort, "Folder from which will be loaded keys")
-	keystoreOpts := flag.String("keystore", "v1", "Key Store format to use: v1 (current), v2 (experimental)")
+	keystoreOpts := flag.String("keystore", "", "force Key Store format: v1 (current), v2 (experimental)")
 	dataLength := flag.Int("data_length", poison.UseDefaultDataLength, fmt.Sprintf("Length of random data for data block in acrastruct. -1 is random in range 1..%v", poison.DefaultDataLength))
 
 	logging.SetLogLevel(logging.LogDiscard)
@@ -63,6 +63,13 @@ func main() {
 	}
 
 	var store keystore.PoisonKeyStore
+	if *keystoreOpts == "" {
+		if filesystemV2.IsKeyDirectory(*keysDir) {
+			*keystoreOpts = "v2"
+		} else {
+			*keystoreOpts = "v1"
+		}
+	}
 	switch *keystoreOpts {
 	case "v1":
 		store = openKeyStoreV1(*keysDir)

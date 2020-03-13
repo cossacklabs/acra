@@ -179,7 +179,7 @@ func main() {
 	password := flag.String("password", "", "Password")
 	filePath := flag.String("file", cmd.DefaultAcraServerAuthPath, "Auth file")
 	keysDir := flag.String("keys_dir", keystore.DefaultKeyDirShort, "Folder from which will be loaded keys")
-	keystoreOpts := flag.String("keystore", "v1", "Key Store format to use: v1 (current), v2 (experimental)")
+	keystoreOpts := flag.String("keystore", "", "force Key Store format: v1 (current), v2 (experimental)")
 	debug := flag.Bool("d", false, "Turn on debug logging")
 
 	if err := cmd.Parse(defaultConfigPath, serviceName); err != nil {
@@ -197,6 +197,13 @@ func main() {
 	}
 
 	var keyStore keystore.WebConfigKeyStore
+	if *keystoreOpts == "" {
+		if filesystemV2.IsKeyDirectory(*keysDir) {
+			*keystoreOpts = "v2"
+		} else {
+			*keystoreOpts = "v1"
+		}
+	}
 	switch *keystoreOpts {
 	case "v1":
 		keyStore = openKeyStoreV1(*keysDir)

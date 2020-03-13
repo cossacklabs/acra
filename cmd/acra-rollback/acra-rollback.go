@@ -157,7 +157,7 @@ func (ex *WriteToFileExecutor) Close() {
 
 func main() {
 	keysDir := flag.String("keys_dir", keystore.DefaultKeyDirShort, "Folder from which the keys will be loaded")
-	keystoreOpts := flag.String("keystore", "v1", "Key Store format to use: v1 (current), v2 (experimental)")
+	keystoreOpts := flag.String("keystore", "", "force Key Store format: v1 (current), v2 (experimental)")
 	clientID := flag.String("client_id", "", "Client ID should be name of file with private key")
 	connectionString := flag.String("connection_string", "", "Connection string for db")
 	sqlSelect := flag.String("select", "", "Query to fetch data for decryption")
@@ -227,6 +227,13 @@ func main() {
 	}
 
 	var keystorage keystore.DecryptionKeyStore
+	if *keystoreOpts == "" {
+		if filesystemV2.IsKeyDirectory(absKeysDir) {
+			*keystoreOpts = "v2"
+		} else {
+			*keystoreOpts = "v1"
+		}
+	}
 	switch *keystoreOpts {
 	case "v1":
 		keystorage = openKeyStoreV1(absKeysDir)

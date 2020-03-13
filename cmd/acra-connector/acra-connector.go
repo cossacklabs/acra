@@ -215,7 +215,7 @@ func main() {
 
 	loggingFormat := flag.String("logging_format", "plaintext", "Logging format: plaintext, json or CEF")
 	keysDir := flag.String("keys_dir", keystore.DefaultKeyDirShort, "Folder from which will be loaded keys")
-	keystoreOpts := flag.String("keystore", "v1", "Key Store format to use: v1 (current), v2 (experimental)")
+	keystoreOpts := flag.String("keystore", "", "force Key Store format: v1 (current), v2 (experimental)")
 	clientID := flag.String("client_id", "", "Client ID")
 	acraServerHost := flag.String("acraserver_connection_host", "", "IP or domain to AcraServer daemon")
 	acraServerAPIPort := flag.Int("acraserver_api_connection_port", cmd.DefaultAcraServerAPIPort, "Port of Acra HTTP API")
@@ -333,6 +333,13 @@ func main() {
 	// --------- keystore  -----------
 	log.Infof("Initializing keystore...")
 	var keyStore keystore.TransportKeyStore
+	if *keystoreOpts == "" {
+		if filesystemV2.IsKeyDirectory(*keysDir) {
+			*keystoreOpts = "v2"
+		} else {
+			*keystoreOpts = "v1"
+		}
+	}
 	switch *keystoreOpts {
 	case "v1":
 		keyStore = openKeyStoreV1(*keysDir, []byte(*clientID), connectorMode)

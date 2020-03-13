@@ -20,8 +20,8 @@ generate_markdown_args_table: false
 # Folder from which the keys will be loaded
 keys_dir: .acrakeys
 
-# Key Store format to use: v1 (current), v2 (experimental)
-keystore: v1
+# force Key Store format: v1 (current), v2 (experimental)
+keystore: 
 
 # Handle MySQL connections
 mysql_enable: false
