@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package main
+package common
 
 import (
 	"context"
@@ -72,18 +72,18 @@ func AcceptConnections(parentContext context.Context, connectionString string, e
 
 // SecureSessionListenerWithMetrics wrap SecureSessionListener and collect metrics from accepted connections
 type SecureSessionListenerWithMetrics struct {
-	*network.SecureSessionListener
+	net.Listener
 }
 
 // WrapListenerWithMetrics wraps SecureSessionListener to collect metrics from connections
-func WrapListenerWithMetrics(listener *network.SecureSessionListener) net.Listener {
-	return &SecureSessionListenerWithMetrics{SecureSessionListener: listener}
+func WrapListenerWithMetrics(listener net.Listener) net.Listener {
+	return &SecureSessionListenerWithMetrics{Listener: listener}
 }
 
 // Accept new connection and wrap with secure session and collecting metrics
 // return ConnectionWrapError if error wa
 func (listener *SecureSessionListenerWithMetrics) Accept() (net.Conn, error) {
-	conn, err := listener.SecureSessionListener.Accept()
+	conn, err := listener.Listener.Accept()
 	if err != nil {
 		return nil, err
 	}

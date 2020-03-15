@@ -28,8 +28,8 @@ import (
 	"github.com/cossacklabs/themis/gothemis/message"
 )
 
-// getDataLengthFromAcraStruct unpack data length value from AcraStruct
-func getDataLengthFromAcraStruct(data []byte) int {
+// GetDataLengthFromAcraStruct unpack data length value from AcraStruct
+func GetDataLengthFromAcraStruct(data []byte) int {
 	dataLengthBlock := data[GetMinAcraStructLength()-DataLengthSize : GetMinAcraStructLength()]
 	return int(binary.LittleEndian.Uint64(dataLengthBlock))
 }
@@ -57,7 +57,7 @@ func ValidateAcraStructLength(data []byte) error {
 	if !bytes.Equal(data[:len(TagBegin)], TagBegin) {
 		return ErrIncorrectAcraStructTagBegin
 	}
-	dataLength := getDataLengthFromAcraStruct(data)
+	dataLength := GetDataLengthFromAcraStruct(data)
 	if dataLength != len(data[GetMinAcraStructLength():]) {
 		return ErrIncorrectAcraStructDataLength
 	}
@@ -93,6 +93,20 @@ func DecryptAcrastruct(data []byte, privateKey *keys.PrivateKey, zone []byte) ([
 		return []byte{}, err
 	}
 	return decrypted, nil
+}
+
+// DecryptRotatedAcrastruct tries decrypting an AcraStruct with a set of rotated keys.
+// It either returns decrypted data if one of the keys succeeds, or an error if none is good.
+func DecryptRotatedAcrastruct(data []byte, privateKeys []*keys.PrivateKey, zone []byte) ([]byte, error) {
+	var err error
+	var decryptedData []byte
+	for _, privateKey := range privateKeys {
+		decryptedData, err = DecryptAcrastruct(data, privateKey, zone)
+		if err == nil {
+			return decryptedData, nil
+		}
+	}
+	return nil, err
 }
 
 // CheckPoisonRecord checks if AcraStruct could be decrypted using Poison Record private key.

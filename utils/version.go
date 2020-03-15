@@ -38,11 +38,13 @@ type Version struct {
 // ProductEdition type for edition values
 type ProductEdition int
 
+// Set of types of product edition
 const (
 	CommunityEdition = iota
 	EnterpriseEdition
 )
 
+// Edition type of product
 var Edition ProductEdition = CommunityEdition
 
 // ComparisonStatus result of comparison versions

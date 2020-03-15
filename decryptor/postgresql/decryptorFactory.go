@@ -41,23 +41,12 @@ type DecryptorFactory struct {
 }
 
 // NewDecryptorFactory return new DecryptorFactory
-func NewDecryptorFactory(byteFormat EscapeType, setting *base.DecryptorSetting) *DecryptorFactory {
-	var dataDecryptor dataDecryptorFactoryMethod
-	var matcherPool matcherPoolFactoryMethod
-	if byteFormat == HexByteaFormat {
-		dataDecryptor = func() base.DataDecryptor {
-			return NewPgHexDecryptor()
-		}
-		matcherPool = func() *zone.MatcherPool {
-			return zone.NewMatcherPool(zone.NewPgHexMatcherFactory())
-		}
-	} else if byteFormat == EscapeByteaFormat {
-		dataDecryptor = func() base.DataDecryptor {
-			return NewPgEscapeDecryptor()
-		}
-		matcherPool = func() *zone.MatcherPool {
-			return zone.NewMatcherPool(zone.NewPgEscapeMatcherFactory())
-		}
+func NewDecryptorFactory(setting *base.DecryptorSetting) *DecryptorFactory {
+	dataDecryptor := func() base.DataDecryptor {
+		return NewPgHexDecryptor()
+	}
+	matcherPool := func() *zone.MatcherPool {
+		return zone.NewMatcherPool(zone.NewPgMatcherFactory())
 	}
 	return &DecryptorFactory{
 		decryptorFactory:   dataDecryptor,
@@ -76,6 +65,5 @@ func (fabric *DecryptorFactory) New(clientID []byte) (base.Decryptor, error) {
 	decryptor.zoneMatcher = zoneMatcher
 	decryptor.callbackStorage = fabric.settings.PoisonCallbacks()
 	decryptor.checkPoisonRecords = fabric.settings.CheckPoisonRecord()
-	decryptor.dataProcessor = NewEncodeDecodeWrapper(base.DecryptProcessor{})
 	return decryptor, nil
 }

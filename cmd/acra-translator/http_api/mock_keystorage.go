@@ -17,13 +17,15 @@ limitations under the License.
 package http_api
 
 import (
+	"bytes"
 	"errors"
 	"github.com/cossacklabs/themis/gothemis/keys"
 )
 
 type testKeystore struct {
-	PrivateKey    *keys.PrivateKey
-	PoisonKeyPair *keys.Keypair
+	EncryptionKeypair *keys.Keypair
+	PoisonKeyPair     *keys.Keypair
+	KeyID             []byte
 }
 
 func (*testKeystore) SaveDataEncryptionKeys(id []byte, keypair *keys.Keypair) error {
@@ -54,13 +56,20 @@ func (*testKeystore) RotateZoneKey(zoneID []byte) ([]byte, error) {
 }
 
 func (keystore *testKeystore) GetZonePrivateKey(id []byte) (*keys.PrivateKey, error) {
-	if keystore.PrivateKey != nil {
-		copied := make([]byte, len(keystore.PrivateKey.Value))
-		copy(copied, keystore.PrivateKey.Value)
+	if keystore.EncryptionKeypair != nil {
+		copied := make([]byte, len(keystore.EncryptionKeypair.Private.Value))
+		copy(copied, keystore.EncryptionKeypair.Private.Value)
 		return &keys.PrivateKey{Value: copied}, nil
 	}
 	return nil, ErrKeyNotFound
+}
 
+func (keystore *testKeystore) GetZonePrivateKeys(id []byte) ([]*keys.PrivateKey, error) {
+	key, err := keystore.GetZonePrivateKey(id)
+	if err != nil {
+		return nil, err
+	}
+	return []*keys.PrivateKey{key}, nil
 }
 
 func (*testKeystore) HasZonePrivateKey(id []byte) bool {
@@ -68,12 +77,20 @@ func (*testKeystore) HasZonePrivateKey(id []byte) bool {
 }
 
 func (keystore *testKeystore) GetServerDecryptionPrivateKey(id []byte) (*keys.PrivateKey, error) {
-	if keystore.PrivateKey != nil {
-		copied := make([]byte, len(keystore.PrivateKey.Value))
-		copy(copied, keystore.PrivateKey.Value)
+	if keystore.EncryptionKeypair != nil {
+		copied := make([]byte, len(keystore.EncryptionKeypair.Private.Value))
+		copy(copied, keystore.EncryptionKeypair.Private.Value)
 		return &keys.PrivateKey{Value: copied}, nil
 	}
 	return nil, ErrKeyNotFound
+}
+
+func (keystore *testKeystore) GetServerDecryptionPrivateKeys(id []byte) ([]*keys.PrivateKey, error) {
+	key, err := keystore.GetServerDecryptionPrivateKey(id)
+	if err != nil {
+		return nil, err
+	}
+	return []*keys.PrivateKey{key}, nil
 }
 
 func (*testKeystore) GenerateZoneKey() ([]byte, []byte, error) {
@@ -103,7 +120,7 @@ func (keystore *testKeystore) GetPoisonKeyPair() (*keys.Keypair, error) {
 		return &keys.Keypair{Private: privateKey, Public: keystore.PoisonKeyPair.Public}, nil
 	}
 	// we no matter what the key
-	return keys.New(keys.KEYTYPE_EC)
+	return keys.New(keys.TypeEC)
 }
 
 func (*testKeystore) GetAuthKey(remove bool) ([]byte, error) {
@@ -114,8 +131,26 @@ func (*testKeystore) Reset() {
 	panic("implement me")
 }
 
-func (*testKeystore) GetClientIDEncryptionPublicKey(clientID []byte) (*keys.PublicKey, error) {
-	panic("implement me")
+func (keystore *testKeystore) GetClientIDEncryptionPublicKey(clientID []byte) (*keys.PublicKey, error) {
+	if keystore.KeyID != nil && !bytes.Equal(clientID, keystore.KeyID) {
+		return nil, ErrKeyNotFound
+	}
+	// if explicitly set for tests
+	if keystore.EncryptionKeypair != nil {
+		return &keys.PublicKey{Value: keystore.EncryptionKeypair.Public.Value}, nil
+	}
+	// we no matter what the key
+	return nil, ErrKeyNotFound
 }
 
-func (*testKeystore) GetZonePublicKey(zoneID []byte) (*keys.PublicKey, error) { panic("implement me") }
+func (keystore *testKeystore) GetZonePublicKey(zoneID []byte) (*keys.PublicKey, error) {
+	if keystore.KeyID != nil && !bytes.Equal(zoneID, keystore.KeyID) {
+		return nil, ErrKeyNotFound
+	}
+	// if explicitly set for tests
+	if keystore.EncryptionKeypair != nil {
+		return &keys.PublicKey{Value: keystore.EncryptionKeypair.Public.Value}, nil
+	}
+	// we no matter what the key
+	return nil, ErrKeyNotFound
+}

@@ -21,34 +21,34 @@ import (
 	"encoding/json"
 	"github.com/cossacklabs/acra/acra-writer"
 	"github.com/cossacklabs/acra/decryptor/base"
-	"github.com/cossacklabs/acra/keystore"
 	"github.com/cossacklabs/acra/utils"
 	"github.com/cossacklabs/themis/gothemis/keys"
 	log "github.com/sirupsen/logrus"
 )
 
 type keyRotator struct {
-	keystore    keystore.KeyStore
+	keystore    KeyStore
 	newKeypairs map[string]*keys.Keypair
+	zoneMode    bool
 }
 
-func newRotator(store keystore.KeyStore) (*keyRotator, error) {
-	return &keyRotator{keystore: store, newKeypairs: make(map[string]*keys.Keypair)}, nil
+func newRotator(store KeyStore, zoneMode bool) (*keyRotator, error) {
+	return &keyRotator{keystore: store, newKeypairs: make(map[string]*keys.Keypair), zoneMode: zoneMode}, nil
 }
-func (rotator *keyRotator) getRotatedPublicKey(zoneID []byte) (*keys.PublicKey, error) {
-	keypair, ok := rotator.newKeypairs[string(zoneID)]
+func (rotator *keyRotator) getRotatedPublicKey(keyID []byte) (*keys.PublicKey, error) {
+	keypair, ok := rotator.newKeypairs[string(keyID)]
 	if ok {
 		return keypair.Public, nil
 	}
-	newKeypair, err := keys.New(keys.KEYTYPE_EC)
+	newKeypair, err := keys.New(keys.TypeEC)
 	if err != nil {
 		return nil, err
 	}
-	rotator.newKeypairs[string(zoneID)] = newKeypair
+	rotator.newKeypairs[string(keyID)] = newKeypair
 	return newKeypair.Public, nil
 }
 
-func (rotator *keyRotator) rotateAcrastruct(zoneID, acrastruct []byte) ([]byte, error) {
+func (rotator *keyRotator) rotateAcrastructWithZone(zoneID, acrastruct []byte) ([]byte, error) {
 	logger := log.WithFields(log.Fields{"ZoneId": string(zoneID)})
 	logger.Infof("Rotate AcraStruct")
 	// rotate
@@ -77,10 +77,55 @@ func (rotator *keyRotator) rotateAcrastruct(zoneID, acrastruct []byte) ([]byte, 
 	return rotated, nil
 }
 
+func (rotator *keyRotator) rotateAcrastruct(id, acrastruct []byte) ([]byte, error) {
+	if rotator.zoneMode {
+		return rotator.rotateAcrastructWithZone(id, acrastruct)
+	}
+	return rotator.rotateAcrastructWithClientID(id, acrastruct)
+}
+
+func (rotator *keyRotator) rotateAcrastructWithClientID(clientID, acrastruct []byte) ([]byte, error) {
+	logger := log.WithFields(log.Fields{"KeyID": string(clientID)})
+	logger.Infof("Rotate AcraStruct")
+	// rotate
+	privateKey, err := rotator.keystore.GetServerDecryptionPrivateKey(clientID)
+	if err != nil {
+		logger.WithField("acrastruct", hex.EncodeToString(acrastruct)).WithError(err).Errorln("Can't get private key")
+		return nil, err
+	}
+	defer utils.FillSlice(0, privateKey.Value)
+	decrypted, err := base.DecryptAcrastruct(acrastruct, privateKey, nil)
+	if err != nil {
+		logger.WithField("acrastruct", hex.EncodeToString(acrastruct)).WithError(err).Errorln("Can't decrypt AcraStruct")
+		return nil, err
+	}
+	defer utils.FillSlice(0, decrypted)
+	publicKey, err := rotator.getRotatedPublicKey(clientID)
+	if err != nil {
+		logger.WithField("acrastruct", hex.EncodeToString(acrastruct)).WithError(err).Errorln("Can't load public key")
+		return nil, err
+	}
+	rotated, err := acrawriter.CreateAcrastruct(decrypted, publicKey, nil)
+	if err != nil {
+		logger.WithField("acrastruct", hex.EncodeToString(acrastruct)).WithError(err).Errorln("Can't rotate data")
+		return nil, err
+	}
+	return rotated, nil
+}
+
+func (rotator *keyRotator) saveRotatedKey(id []byte, keypair *keys.Keypair) error {
+	if rotator.zoneMode {
+		return rotator.keystore.SaveZoneKeypair(id, keypair)
+	}
+	return rotator.keystore.SaveClientIDKeypair(id, keypair)
+}
+
 func (rotator *keyRotator) saveRotatedKeys() error {
-	for zoneID, keypair := range rotator.newKeypairs {
-		if err := rotator.keystore.SaveZoneKeypair([]byte(zoneID), keypair); err != nil {
-			log.WithField("zoneID", zoneID).WithError(err).Errorln("Can't save rotated keypair")
+	for id, keypair := range rotator.newKeypairs {
+		if err := rotator.saveRotatedKey([]byte(id), keypair); err != nil {
+			log.WithField("key_id", id).
+				WithField("zone_mode", rotator.zoneMode).
+				WithError(err).Errorln("Can't save rotated keypair")
 			return err
 		}
 	}

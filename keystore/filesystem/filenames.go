@@ -18,16 +18,20 @@ package filesystem
 
 import (
 	"fmt"
+	"os"
+	"path/filepath"
+	"time"
 )
 
 // Default key folders' filenames
 const (
 	PoisonKeyFilename    = ".poison_key/poison_key"
 	BasicAuthKeyFilename = "auth_key"
+	historyDirSuffix     = ".old"
 )
 
-// getZoneKeyFilename
-func getZoneKeyFilename(id []byte) string {
+// GetZoneKeyFilename
+func GetZoneKeyFilename(id []byte) string {
 	return fmt.Sprintf("%s_zone", string(id))
 }
 
@@ -38,7 +42,7 @@ func getPublicKeyFilename(id []byte) string {
 
 // getZonePublicKeyFilename
 func getZonePublicKeyFilename(id []byte) string {
-	return getPublicKeyFilename([]byte(getZoneKeyFilename(id)))
+	return getPublicKeyFilename([]byte(GetZoneKeyFilename(id)))
 }
 
 // getServerKeyFilename
@@ -51,12 +55,57 @@ func getTranslatorKeyFilename(id []byte) string {
 	return fmt.Sprintf("%s_translator", string(id))
 }
 
-// getServerDecryptionKeyFilename
-func getServerDecryptionKeyFilename(id []byte) string {
+// GetServerDecryptionKeyFilename return filename for decryption key
+func GetServerDecryptionKeyFilename(id []byte) string {
 	return fmt.Sprintf("%s_storage", string(id))
 }
 
 // getConnectorKeyFilename
 func getConnectorKeyFilename(id []byte) string {
 	return string(id)
+}
+
+// getHistoryDirName returns name of the directory used to store history for given file name.
+func getHistoryDirName(filename string) string {
+	return filename + historyDirSuffix
+}
+
+const HistoricalFileNameTimeFormat = "2006-01-02T15:04:05.999999999"
+
+// getNewHistoricalFileName returns a name of the file that can be used to store current content
+// of the given file. It does *not* create or reserve the new file name.
+func getNewHistoricalFileName(filename string) string {
+	// This is a modified version of time.RFC3339Nano which does not include timezone information.
+	// We use RFC 3339 (aka ISO 8601) so that timestamps can be easily sorted lexicographically.
+	// Nanoseconds are included to minimize likelihood of collisions if the same key is rotated twice
+	// within the same second. We use UTC and do not include trailing "Z" to not mess up the ordering.
+	timestamp := time.Now().UTC().Format(HistoricalFileNameTimeFormat)
+	return filepath.Join(getHistoryDirName(filename), timestamp)
+}
+
+// getHistoricalFilePaths returns paths to all versions of the current base file.
+// "current" must be a valid path. Historical versions are returned from newest to oldest,
+// starting with the current version.
+func getHistoricalFilePaths(current string, storage Storage) ([]string, error) {
+	historyDir := getHistoryDirName(current)
+	history, err := storage.ReadDir(historyDir)
+	// If the history directory does not exist then it's fine, we'll return only the current file.
+	// But if we can't read existing history directory then something is wrong.
+	if err != nil && !os.IsNotExist(err) {
+		return nil, err
+	}
+	filenames := make([]string, 1, len(history)+1)
+	filenames[0] = current
+	// ReadDir() returns directory content in lexicographically sorted order. History files
+	// have current time as a suffix so we need to reverse the order to move through them
+	// from newest to oldest.
+	for i := len(history) - 1; i >= 0; i-- {
+		file := history[i]
+		// We are interested in only regular files. Ignore directories, symlinks, etc.
+		if (file.Mode() & os.ModeType) != 0 {
+			continue
+		}
+		filenames = append(filenames, filepath.Join(historyDir, file.Name()))
+	}
+	return filenames, nil
 }

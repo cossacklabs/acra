@@ -61,7 +61,7 @@ func (handler *QuoteHandler) WrapIdentifier(identifier string) string {
 	return string(mysqlIdentifierQuote) + identifier + string(mysqlIdentifierQuote)
 }
 
-// GetStringLiteralQuote return correct quote for identifier
+// GetIdentifierQuote return correct quote for identifier
 func (handler *QuoteHandler) GetIdentifierQuote() byte {
 	if handler.ansiQuotes {
 		return ansiIdentifierQuote

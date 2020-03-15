@@ -1,5 +1,5 @@
 /*
-Copyright 2016, Cossack Labs Limited
+Copyright 2020, Cossack Labs Limited
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -14,20 +14,13 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package network
+package common
 
 import (
-	"context"
-	"net"
+	"google.golang.org/grpc"
 )
 
-// ConnectionTimeoutWrapper interface
-type ConnectionTimeoutWrapper interface {
-	net.Conn
-}
-
-// ConnectionWrapper interface
-type ConnectionWrapper interface {
-	WrapClient(ctx context.Context, conn net.Conn) (net.Conn, error)
-	WrapServer(ctx context.Context, conn net.Conn) (net.Conn, []byte, error) // conn, ClientID, error
+// GRPCServerFactory factory which return new generated grpc.Server which implements API
+type GRPCServerFactory interface {
+	New(data *TranslatorData, opts ...grpc.ServerOption) (*grpc.Server, error)
 }

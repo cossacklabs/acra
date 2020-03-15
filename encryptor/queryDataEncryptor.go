@@ -28,12 +28,25 @@ import (
 	"reflect"
 )
 
+// QueryEncryptionState interface to access to encryption state for query
+type QueryEncryptionState interface {
+	GetColumnEncryptionSetting(index int) *config.ColumnEncryptionSetting
+}
+
+type querySelectSetting struct {
+	setting     *config.ColumnEncryptionSetting
+	tableName   string
+	columnName  string
+	columnAlias string
+}
+
 // QueryDataEncryptor parse query and encrypt raw data according to TableSchemaStore
 type QueryDataEncryptor struct {
-	schemaStore config.TableSchemaStore
-	encryptor   DataEncryptor
-	clientID    []byte
-	dataCoder   DBDataCoder
+	schemaStore         config.TableSchemaStore
+	encryptor           DataEncryptor
+	clientID            []byte
+	dataCoder           DBDataCoder
+	querySelectSettings []*querySelectSetting
 }
 
 // NewMysqlQueryEncryptor create QueryDataEncryptor with MySQLDBDataCoder
@@ -105,10 +118,10 @@ func UpdateExpressionValue(expr sqlparser.Expr, coder DBDataCoder, updateFunc fu
 	switch val := expr.(type) {
 	case *sqlparser.SQLVal:
 		switch val.Type {
-		case sqlparser.StrVal, sqlparser.HexVal, sqlparser.PgEscapeString:
+		case sqlparser.StrVal, sqlparser.HexVal, sqlparser.PgEscapeString, sqlparser.IntVal:
 			rawData, err := coder.Decode(val)
 			if err != nil {
-				if err == utils.ErrDecodeEscapedString || err == errUnsupportedExpression {
+				if err == utils.ErrDecodeOctalString || err == errUnsupportedExpression {
 					logrus.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCodingCantDecodeSQLValue).
 						WithError(err).
 						Warningln("Can't decode data with unsupported coding format or unsupported expression")
@@ -253,6 +266,29 @@ func (encryptor *QueryDataEncryptor) encryptUpdateQuery(update *sqlparser.Update
 	return encryptor.encryptUpdateExpressions(update.Exprs, firstTable, qualifierMap)
 }
 
+func (encryptor *QueryDataEncryptor) onSelect(statement *sqlparser.Select) (bool, error) {
+	columns := mapColumnsToAliases(statement)
+	querySelectSettings := make([]*querySelectSetting, 0, len(columns))
+	for _, data := range columns {
+		if data != nil {
+			if schema := encryptor.schemaStore.GetTableSchema(data.Table); schema != nil {
+				if columnSetting := schema.GetColumnEncryptionSettings(data.Name); columnSetting != nil {
+					querySelectSettings = append(querySelectSettings, &querySelectSetting{
+						setting:     columnSetting,
+						tableName:   data.Table,
+						columnName:  data.Name,
+						columnAlias: data.Alias,
+					})
+					continue
+				}
+			}
+		}
+		querySelectSettings = append(querySelectSettings, nil)
+	}
+	encryptor.querySelectSettings = querySelectSettings
+	return false, nil
+}
+
 // OnQuery raw data in query according to TableSchemaStore
 func (encryptor *QueryDataEncryptor) OnQuery(query base.OnQueryObject) (base.OnQueryObject, bool, error) {
 	statement, err := query.Statement()
@@ -261,6 +297,8 @@ func (encryptor *QueryDataEncryptor) OnQuery(query base.OnQueryObject) (base.OnQ
 	}
 	changed := false
 	switch statement := statement.(type) {
+	case *sqlparser.Select:
+		changed, err = encryptor.onSelect(statement)
 	case *sqlparser.Insert:
 		changed, err = encryptor.encryptInsertQuery(statement)
 	case *sqlparser.Update:
@@ -277,17 +315,18 @@ func (encryptor *QueryDataEncryptor) OnQuery(query base.OnQueryObject) (base.OnQ
 
 // encryptWithColumnSettings encrypt data and use ZoneId or ClientID from ColumnEncryptionSettings if not empty otherwise static ClientID that passed to parser
 func (encryptor *QueryDataEncryptor) encryptWithColumnSettings(columnSetting *config.ColumnEncryptionSetting, data []byte) ([]byte, error) {
-	logrus.Debugln("QueryDataEncryptor.encryptWithColumnSettings")
+	logger := logrus.WithFields(logrus.Fields{"column": columnSetting.Name})
+	logger.Debugln("QueryDataEncryptor.encryptWithColumnSettings")
 	if len(columnSetting.ZoneID) > 0 {
-		logrus.WithField("zone_id", string(columnSetting.ZoneID)).Debugln("Encrypt with specific ZoneID for column")
+		logger.WithField("zone_id", string(columnSetting.ZoneID)).Debugln("Encrypt with specific ZoneID for column")
 		return encryptor.encryptor.EncryptWithZoneID([]byte(columnSetting.ZoneID), data, columnSetting)
 	}
 	var id []byte
 	if len(columnSetting.ClientID) > 0 {
-		logrus.WithField("client_id", string(columnSetting.ClientID)).Debugln("Encrypt with specific ClientID for column")
+		logger.WithField("client_id", string(columnSetting.ClientID)).Debugln("Encrypt with specific ClientID for column")
 		id = []byte(columnSetting.ClientID)
 	} else {
-		logrus.WithField("client_id", string(encryptor.clientID)).Debugln("Encrypt with ClientID from connection")
+		logger.WithField("client_id", string(encryptor.clientID)).Debugln("Encrypt with ClientID from connection")
 		id = encryptor.clientID
 	}
 	return encryptor.encryptor.EncryptWithClientID(id, data, columnSetting)
