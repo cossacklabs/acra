@@ -34,15 +34,19 @@ const (
 // GetMasterKeysFromEnvironment reads master keys from default environment variables.
 // Returns encryption key, signature key, error.
 func GetMasterKeysFromEnvironment() ([]byte, []byte, error) {
-	encryptionKey, err := getMasterKeyFromEnvironment(AcraMasterEncryptionKeyVarName)
-	if err != nil {
-		log.WithError(err).Errorf("cannot read %v", AcraMasterEncryptionKeyVarName)
-		return nil, nil, err
+	encryptionKey, errE := getMasterKeyFromEnvironment(AcraMasterEncryptionKeyVarName)
+	if errE != nil {
+		log.WithError(errE).Warnf("cannot read %v", AcraMasterEncryptionKeyVarName)
 	}
-	signatureKey, err := getMasterKeyFromEnvironment(AcraMasterSignatureKeyVarName)
-	if err != nil {
-		log.WithError(err).Errorf("cannot read %v", AcraMasterSignatureKeyVarName)
-		return nil, nil, err
+	signatureKey, errS := getMasterKeyFromEnvironment(AcraMasterSignatureKeyVarName)
+	if errS != nil {
+		log.WithError(errS).Warnf("cannot read %v", AcraMasterSignatureKeyVarName)
+	}
+	if errE != nil {
+		return nil, nil, errE
+	}
+	if errS != nil {
+		return nil, nil, errS
 	}
 	return encryptionKey, signatureKey, nil
 }
