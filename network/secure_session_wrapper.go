@@ -182,6 +182,7 @@ func (err *ConnectionWrapError) Temporary() bool {
 // SecureSessionEstablishingTimeout timeout for secure session handshake that should be enough
 const SecureSessionEstablishingTimeout = time.Second * 10
 
+// GRPCAuthType auth type used for acra-connector
 const GRPCAuthType = "acra-connector"
 
 // MaxClientIDDataLength max data length of first packet that send from client. 1 kb was chosen manually and that should
@@ -245,6 +246,7 @@ func (wrapper *SecureSessionConnectionWrapper) ServerHandshake(conn net.Conn) (n
 	return wrappedConn, SecureSessionInfo{clientID: clientID, spanContext: spnCtx}, nil
 }
 
+// Info return protocol info for Secure Session
 func (wrapper *SecureSessionConnectionWrapper) Info() credentials.ProtocolInfo {
 	return credentials.ProtocolInfo{
 		ProtocolVersion:  "1.0.0",
@@ -254,11 +256,13 @@ func (wrapper *SecureSessionConnectionWrapper) Info() credentials.ProtocolInfo {
 	}
 }
 
+// Clone return new copy of wrapper
 func (wrapper *SecureSessionConnectionWrapper) Clone() credentials.TransportCredentials {
 	wrapperCopy := *wrapper
 	return &wrapperCopy
 }
 
+// OverrideServerName set name as serviceID for SecureSesssion
 func (wrapper *SecureSessionConnectionWrapper) OverrideServerName(name string) error {
 	wrapper.serverID = []byte(name)
 	return nil
