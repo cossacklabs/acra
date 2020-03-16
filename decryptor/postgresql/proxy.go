@@ -25,13 +25,13 @@ import (
 )
 
 type proxyFactory struct {
-	setting       base.ProxySetting
+	setting base.ProxySetting
 }
 
 // NewProxyFactory return new proxyFactory
 func NewProxyFactory(proxySetting base.ProxySetting) (base.ProxyFactory, error) {
 	return &proxyFactory{
-		setting:       proxySetting,
+		setting: proxySetting,
 	}, nil
 }
 
