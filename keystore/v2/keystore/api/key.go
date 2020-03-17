@@ -25,13 +25,13 @@ import (
 
 // Errors returned by KeyRing methods accessing key data:
 var (
-	ErrFormatDuplicated    = errors.New("KeyStore: key format used multiple times")
-	ErrFormatMissing       = errors.New("KeyStore: key format not available")
-	ErrKeyNotExist         = errors.New("KeyStore: no key with such seqnum")
-	ErrNoKeyData           = errors.New("KeyStore: no key data")
-	ErrInvalidFormat       = errors.New("KeyStore: invalid key format")
-	ErrInvalidState        = errors.New("KeyStore: invalid state transition")
-	ErrInvalidCryptoperiod = errors.New("KeyStore: invalid key cryptoperiod")
+	ErrFormatDuplicated    = errors.New("key format used multiple times")
+	ErrFormatMissing       = errors.New("key format not available")
+	ErrKeyNotExist         = errors.New("no key with such seqnum")
+	ErrNoKeyData           = errors.New("no key data")
+	ErrInvalidFormat       = errors.New("invalid key format")
+	ErrInvalidState        = errors.New("invalid state transition")
+	ErrInvalidCryptoperiod = errors.New("invalid key cryptoperiod")
 )
 
 // KeyFormat describes key material format.

@@ -23,7 +23,7 @@ import (
 
 // Errors returned by KeyRing methods:
 var (
-	ErrNoCurrentKey = errors.New("KeyStore: key ring has no current key")
+	ErrNoCurrentKey = errors.New("key ring has no current key")
 )
 
 // KeyRing is a bunch of keys, with currently active one.

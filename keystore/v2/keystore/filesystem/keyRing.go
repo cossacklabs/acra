@@ -44,7 +44,7 @@ type KeyRing struct {
 // Construction
 //
 
-var errInvalidCurrentIndex = errors.New("KeyStore: invalid Current index in key ring")
+var errInvalidCurrentIndex = errors.New("invalid Current index in key ring")
 
 func newKeyRing(store *KeyStore, path string) *KeyRing {
 	ring := &KeyRing{

@@ -32,10 +32,10 @@ type keyRingTX interface {
 
 // Errors returned by transactions:
 var (
-	errTxConcurrentModification = errors.New("KeyStore: concurrent modification")
-	errTxOOORollback            = errors.New("KeyStore BUG: out-of-order rollback")
-	errTxKeyNotFound            = errors.New("KeyStore: no key with such seqnum")
-	errTxKeyExists              = errors.New("KeyStore: duplicate key with seqnum")
+	errTxConcurrentModification = errors.New("concurrent key store modification")
+	errTxOOORollback            = errors.New("out-of-order key store rollback")
+	errTxKeyNotFound            = errors.New("no key with such seqnum in key ring")
+	errTxKeyExists              = errors.New("duplicate key with seqnum in key ring")
 )
 
 type txSetKeyCurrent struct {

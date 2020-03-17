@@ -41,9 +41,9 @@ const (
 
 // Errors returned by DirectoryBackend:
 var (
-	ErrNotDirectory       = errors.New("KeyStore: root directory is not a directory")
-	ErrInvalidPermissions = errors.New("KeyStore: invalid access permissions")
-	ErrInvalidVersion     = errors.New("KeyStore: invalid version file content")
+	ErrNotDirectory       = errors.New("root key directory is not a directory")
+	ErrInvalidPermissions = errors.New("invalid key directory access permissions")
+	ErrInvalidVersion     = errors.New("invalid key store version file content")
 )
 
 // DirectoryBackend keeps data in filesystem directory hierarchy.

@@ -26,9 +26,9 @@ const PathSeparator = "/"
 
 // Errors returned by filesystem.Backend:
 var (
-	ErrNotExist    = errors.New("KeyStore: key path does not exist")
-	ErrExist       = errors.New("KeyStore: key path already exists")
-	ErrInvalidPath = errors.New("KeyStore: invalid key path")
+	ErrNotExist    = errors.New("key path does not exist")
+	ErrExist       = errors.New("key path already exists")
+	ErrInvalidPath = errors.New("invalid key path")
 )
 
 // Backend defines how KeyStore persists internal key data.
