@@ -14,3 +14,6 @@ generate_markdown_args_table: false
 # Folder from which will be loaded keys
 keys_dir: .acrakeys
 
+# force Key Store format: v1 (current), v2 (experimental)
+keystore: 
+

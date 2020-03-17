@@ -61,6 +61,15 @@ func OpenDirectoryRW(rootDir string, cryptosuite *crypto.KeyStoreSuite) (api.Mut
 	return CustomKeyStore(backend, cryptosuite)
 }
 
+// IsKeyDirectory checks if the directory contains a key store.
+// This is a conservative check.
+// That is, positive return value does not mean that the directory contains *a valid* key store.
+// However, false value means that the directory definitely is not a valid key store.
+// In particular, false is returned if the directory does not exists or cannot be opened.
+func IsKeyDirectory(rootDir string) bool {
+	return backend.CheckDirectoryVersion(rootDir) == nil
+}
+
 // NewInMemory returns a new, empty in-memory key store.
 // This is mostly useful for testing.
 func NewInMemory(cryptosuite *crypto.KeyStoreSuite) (api.MutableKeyStore, error) {

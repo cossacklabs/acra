@@ -27,6 +27,8 @@ import (
 	"github.com/cossacklabs/acra/cmd"
 	"github.com/cossacklabs/acra/keystore"
 	"github.com/cossacklabs/acra/keystore/filesystem"
+	keystoreV2 "github.com/cossacklabs/acra/keystore/v2/keystore"
+	filesystemV2 "github.com/cossacklabs/acra/keystore/v2/keystore/filesystem"
 	"github.com/cossacklabs/acra/logging"
 	"github.com/cossacklabs/acra/utils"
 	_ "github.com/go-sql-driver/mysql"
@@ -41,7 +43,7 @@ var (
 	ServiceName       = "acra-rotate"
 )
 
-func initKeyStore(dirPath string) (keystore.RotateStorageKeyStore, error) {
+func openKeyStoreV1(dirPath string) keystore.RotateStorageKeyStore {
 	absKeysDir, err := filepath.Abs(dirPath)
 	if err != nil {
 		log.WithError(err).Errorln("Can't get absolute path for keys_dir")
@@ -50,18 +52,43 @@ func initKeyStore(dirPath string) (keystore.RotateStorageKeyStore, error) {
 	masterKey, err := keystore.GetMasterKeyFromEnvironment()
 	if err != nil {
 		log.WithError(err).Errorln("Can't load master key")
-		return nil, err
+		os.Exit(1)
 	}
 	scellEncryptor, err := keystore.NewSCellKeyEncryptor(masterKey)
 	if err != nil {
 		log.WithError(err).Errorln("Can't init scell encryptor")
-		return nil, err
+		os.Exit(1)
 	}
-	return filesystem.NewFilesystemKeyStore(absKeysDir, scellEncryptor)
+	keystorage, err := filesystem.NewFilesystemKeyStore(absKeysDir, scellEncryptor)
+	if err != nil {
+		log.WithError(err).Errorln("can't initialize key store")
+		os.Exit(1)
+	}
+	return keystorage
+}
+
+func openKeyStoreV2(keyDirPath string) keystore.RotateStorageKeyStore {
+	encryption, signature, err := keystoreV2.GetMasterKeysFromEnvironment()
+	if err != nil {
+		log.WithError(err).Error("cannot read master keys from environment")
+		os.Exit(1)
+	}
+	suite, err := keystoreV2.NewSCellSuite(encryption, signature)
+	if err != nil {
+		log.WithError(err).Error("failed to initialize Secure Cell crypto suite")
+		os.Exit(1)
+	}
+	keyDir, err := filesystemV2.OpenDirectoryRW(keyDirPath, suite)
+	if err != nil {
+		log.WithError(err).WithField("path", keyDirPath).Error("cannot open key directory")
+		os.Exit(1)
+	}
+	return keystoreV2.NewServerKeyStore(keyDir)
 }
 
 func main() {
 	keysDir := flag.String("keys_dir", keystore.DefaultKeyDirShort, "Folder from which the keys will be loaded")
+	keystoreOpts := flag.String("keystore", "", "force Key Store format: v1 (current), v2 (experimental)")
 	fileMapConfig := flag.String("file_map_config", "", "Path to file with map of <ZoneId>: <FilePaths> in json format {\"zone_id1\": [\"filepath1\", \"filepath2\"], \"zone_id2\": [\"filepath1\", \"filepath2\"]}")
 
 	sqlSelect := flag.String("sql_select", "", "Select query with ? as placeholders where last columns in result must be ClientId/ZoneId and AcraStruct. Other columns will be passed into insert/update query into placeholders")
@@ -80,11 +107,24 @@ func main() {
 		os.Exit(1)
 	}
 
-	keystorage, err := initKeyStore(*keysDir)
-	if err != nil {
-		log.WithError(err).Errorln("Can't initialize keystore")
+	var keystorage keystore.RotateStorageKeyStore
+	if *keystoreOpts == "" {
+		if filesystemV2.IsKeyDirectory(*keysDir) {
+			*keystoreOpts = "v2"
+		} else {
+			*keystoreOpts = "v1"
+		}
+	}
+	switch *keystoreOpts {
+	case "v1":
+		keystorage = openKeyStoreV1(*keysDir)
+	case "v2":
+		keystorage = openKeyStoreV2(*keysDir)
+	default:
+		log.Errorf("unknown keystore option: %v", *keystoreOpts)
 		os.Exit(1)
 	}
+
 	if *dryRun {
 		log.Infoln("Rotating in dry-run mode")
 	}

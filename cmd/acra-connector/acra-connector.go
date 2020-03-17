@@ -28,8 +28,6 @@ import (
 	"crypto/tls"
 	"flag"
 	"fmt"
-	log "github.com/sirupsen/logrus"
-	"go.opencensus.io/trace"
 	"io"
 	"net"
 	"os"
@@ -41,13 +39,17 @@ import (
 	"syscall"
 
 	"github.com/cossacklabs/acra/cmd"
-	"github.com/cossacklabs/acra/cmd/acra-connector/connector-mode"
+	connector_mode "github.com/cossacklabs/acra/cmd/acra-connector/connector-mode"
 	"github.com/cossacklabs/acra/keystore"
 	"github.com/cossacklabs/acra/keystore/filesystem"
+	keystoreV2 "github.com/cossacklabs/acra/keystore/v2/keystore"
+	filesystemV2 "github.com/cossacklabs/acra/keystore/v2/keystore/filesystem"
 	"github.com/cossacklabs/acra/logging"
 	"github.com/cossacklabs/acra/network"
 	"github.com/cossacklabs/acra/utils"
 	"github.com/prometheus/client_golang/prometheus"
+	log "github.com/sirupsen/logrus"
+	"go.opencensus.io/trace"
 )
 
 // Constants used by AcraConnector.
@@ -213,6 +215,7 @@ func main() {
 
 	loggingFormat := flag.String("logging_format", "plaintext", "Logging format: plaintext, json or CEF")
 	keysDir := flag.String("keys_dir", keystore.DefaultKeyDirShort, "Folder from which will be loaded keys")
+	keystoreOpts := flag.String("keystore", "", "force Key Store format: v1 (current), v2 (experimental)")
 	clientID := flag.String("client_id", "", "Client ID")
 	acraServerHost := flag.String("acraserver_connection_host", "", "IP or domain to AcraServer daemon")
 	acraServerAPIPort := flag.Int("acraserver_api_connection_port", cmd.DefaultAcraServerAPIPort, "Port of Acra HTTP API")
@@ -329,21 +332,21 @@ func main() {
 
 	// --------- keystore  -----------
 	log.Infof("Initializing keystore...")
-	masterKey, err := keystore.GetMasterKeyFromEnvironment()
-	if err != nil {
-		log.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantLoadMasterKey).WithError(err).Errorln("Can't load master key")
-		os.Exit(1)
-	}
-	scellEncryptor, err := keystore.NewSCellKeyEncryptor(masterKey)
-	if err != nil {
-		log.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantInitPrivateKeysEncryptor).WithError(err).Errorln("Can't init scell encryptor")
-		os.Exit(1)
-	}
 	var keyStore keystore.TransportKeyStore
-	keyStore, err = filesystem.NewConnectorFileSystemKeyStore(*keysDir, []byte(*clientID), scellEncryptor, connectorMode)
-	if err != nil {
-		log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantInitKeyStore).
-			Errorln("Can't initialize keystore")
+	if *keystoreOpts == "" {
+		if filesystemV2.IsKeyDirectory(*keysDir) {
+			*keystoreOpts = "v2"
+		} else {
+			*keystoreOpts = "v1"
+		}
+	}
+	switch *keystoreOpts {
+	case "v1":
+		keyStore = openKeyStoreV1(*keysDir, []byte(*clientID), connectorMode)
+	case "v2":
+		keyStore = openKeyStoreV2(*keysDir, []byte(*clientID), connectorMode)
+	default:
+		log.Errorf("unknown keystore option: %v", *keystoreOpts)
 		os.Exit(1)
 	}
 	log.Infof("Keystore init OK")
@@ -507,4 +510,49 @@ func main() {
 		}
 		go handleClientConnection(config, connection)
 	}
+}
+
+func openKeyStoreV1(keysDir string, clientID []byte, connectorMode connector_mode.ConnectorMode) keystore.TransportKeyStore {
+	masterKey, err := keystore.GetMasterKeyFromEnvironment()
+	if err != nil {
+		log.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantLoadMasterKey).WithError(err).Errorln("Can't load master key")
+		os.Exit(1)
+	}
+	scellEncryptor, err := keystore.NewSCellKeyEncryptor(masterKey)
+	if err != nil {
+		log.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantInitPrivateKeysEncryptor).WithError(err).Errorln("Can't init scell encryptor")
+		os.Exit(1)
+	}
+	keyStore, err := filesystem.NewConnectorFileSystemKeyStore(keysDir, clientID, scellEncryptor, connectorMode)
+	if err != nil {
+		log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantInitKeyStore).
+			Errorln("Can't initialize keystore")
+		os.Exit(1)
+	}
+	return keyStore
+}
+
+func openKeyStoreV2(outputDir string, clientID []byte, mode connector_mode.ConnectorMode) keystore.TransportKeyStore {
+	encryption, signature, err := keystoreV2.GetMasterKeysFromEnvironment()
+	if err != nil {
+		log.WithError(err).
+			WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantLoadMasterKey).
+			Error("cannot read master keys from environment")
+		os.Exit(1)
+	}
+	suite, err := keystoreV2.NewSCellSuite(encryption, signature)
+	if err != nil {
+		log.WithError(err).
+			WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantInitPrivateKeysEncryptor).
+			Error("failed to initialize Secure Cell crypto suite")
+		os.Exit(1)
+	}
+	keyDir, err := filesystemV2.OpenDirectoryRW(outputDir, suite)
+	if err != nil {
+		log.WithError(err).
+			WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantInitKeyStore).
+			WithField("path", outputDir).Error("cannot open key directory")
+		os.Exit(1)
+	}
+	return keystoreV2.NewConnectorKeyStore(keyDir, clientID, mode)
 }

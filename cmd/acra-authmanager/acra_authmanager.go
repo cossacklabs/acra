@@ -31,6 +31,8 @@ import (
 	"github.com/cossacklabs/acra/cmd"
 	"github.com/cossacklabs/acra/keystore"
 	"github.com/cossacklabs/acra/keystore/filesystem"
+	keystoreV2 "github.com/cossacklabs/acra/keystore/v2/keystore"
+	filesystemV2 "github.com/cossacklabs/acra/keystore/v2/keystore/filesystem"
 	"github.com/cossacklabs/acra/logging"
 	"github.com/cossacklabs/acra/utils"
 	"github.com/cossacklabs/themis/gothemis/cell"
@@ -177,6 +179,7 @@ func main() {
 	password := flag.String("password", "", "Password")
 	filePath := flag.String("file", cmd.DefaultAcraServerAuthPath, "Auth file")
 	keysDir := flag.String("keys_dir", keystore.DefaultKeyDirShort, "Folder from which will be loaded keys")
+	keystoreOpts := flag.String("keystore", "", "force Key Store format: v1 (current), v2 (experimental)")
 	debug := flag.Bool("d", false, "Turn on debug logging")
 
 	if err := cmd.Parse(defaultConfigPath, serviceName); err != nil {
@@ -193,20 +196,21 @@ func main() {
 		logging.SetLogLevel(logging.LogVerbose)
 	}
 
-	masterKey, err := keystore.GetMasterKeyFromEnvironment()
-	if err != nil {
-		log.WithError(err).Errorln("Can't load master key")
-		os.Exit(1)
-	}
-	encryptor, err := keystore.NewSCellKeyEncryptor(masterKey)
-	if err != nil {
-		log.WithError(err).Errorln("Can't initialize scell encryptor")
-		os.Exit(1)
-	}
 	var keyStore keystore.WebConfigKeyStore
-	keyStore, err = filesystem.NewFilesystemKeyStore(*keysDir, encryptor)
-	if err != nil {
-		log.WithError(err).Errorln("NewFilesystemKeyStore")
+	if *keystoreOpts == "" {
+		if filesystemV2.IsKeyDirectory(*keysDir) {
+			*keystoreOpts = "v2"
+		} else {
+			*keystoreOpts = "v1"
+		}
+	}
+	switch *keystoreOpts {
+	case "v1":
+		keyStore = openKeyStoreV1(*keysDir)
+	case "v2":
+		keyStore = openKeyStoreV2(*keysDir)
+	default:
+		log.Errorf("unknown keystore option: %v", *keystoreOpts)
 		os.Exit(1)
 	}
 
@@ -246,5 +250,42 @@ func main() {
 			os.Exit(1)
 		}
 	}
+}
 
+func openKeyStoreV1(keysDir string) keystore.WebConfigKeyStore {
+	masterKey, err := keystore.GetMasterKeyFromEnvironment()
+	if err != nil {
+		log.WithError(err).Errorln("Can't load master key")
+		os.Exit(1)
+	}
+	encryptor, err := keystore.NewSCellKeyEncryptor(masterKey)
+	if err != nil {
+		log.WithError(err).Errorln("Can't init scell encryptor")
+		os.Exit(1)
+	}
+	keyStore, err := filesystem.NewFilesystemKeyStore(keysDir, encryptor)
+	if err != nil {
+		log.WithError(err).Errorln("Can't init key store")
+		os.Exit(1)
+	}
+	return keyStore
+}
+
+func openKeyStoreV2(keyDirPath string) keystore.WebConfigKeyStore {
+	encryption, signature, err := keystoreV2.GetMasterKeysFromEnvironment()
+	if err != nil {
+		log.WithError(err).Error("cannot read master keys from environment")
+		os.Exit(1)
+	}
+	suite, err := keystoreV2.NewSCellSuite(encryption, signature)
+	if err != nil {
+		log.WithError(err).Error("failed to initialize Secure Cell crypto suite")
+		os.Exit(1)
+	}
+	keyDir, err := filesystemV2.OpenDirectoryRW(keyDirPath, suite)
+	if err != nil {
+		log.WithError(err).WithField("path", keyDirPath).Error("cannot open key directory")
+		os.Exit(1)
+	}
+	return keystoreV2.NewServerKeyStore(keyDir)
 }
