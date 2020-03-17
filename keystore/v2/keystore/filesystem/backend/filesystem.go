@@ -197,7 +197,7 @@ func checkVersionFile(rootDir string) error {
 	return createVersionFile(rootDir)
 }
 
-func createVersionFile(rootDir string) error {
+func createVersionFile(rootDir string) (err error) {
 	path := versionFilePath(rootDir)
 	// Make sure the file does not exist and create it with proper mode.
 	file, err := os.OpenFile(path, os.O_CREATE|os.O_EXCL|os.O_WRONLY, versionPerm)
@@ -219,8 +219,7 @@ func createVersionFile(rootDir string) error {
 	if err != nil {
 		return err
 	}
-	// Return deferred Close() error, if any
-	return err
+	return nil
 }
 
 // Close this backend instance, freeing any associated resources.
