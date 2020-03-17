@@ -265,15 +265,8 @@ func (server *ReaderServer) Start(parentContext context.Context) {
 						Errorln("Can't create gRPC connection listener")
 					return
 				}
-				//listener = tls.NewListener(listener, server.config.GetTLSConfig())
 				opts = append(opts, grpc.Creds(credentials.NewTLS(server.config.GetTLSConfig())))
 			} else {
-				//listener, err = network.NewSecureSessionListener(server.config.ServerID(), server.config.IncomingConnectionGRPCString(), server.keystorage)
-				//if err != nil {
-				//	grpcLogger.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorTranslatorCantHandleGRPCConnection).
-				//		Errorln("Can't create secure session listener")
-				//	return
-				//}
 				listener, err = network.Listen(server.config.IncomingConnectionGRPCString())
 				if err != nil {
 					grpcLogger.WithError(err).Errorln("Can't initialize connection listener")
