@@ -69,7 +69,7 @@ func RegisterTLSClientArgs() {
 	flag.StringVar(&tlsServerName, "tls_server_sni", "", "Server name used as sni value")
 }
 
-// NewTLSConfigFromBaseArgs
+// NewTLSConfigFromBaseArgs return new tls config with params passed by cli params
 func NewTLSConfigFromBaseArgs() (*tls.Config, error) {
 	return NewTLSConfig(tlsServerName, tlsCA, tlsKey, tlsCert, tls.ClientAuthType(tlsAuthType))
 }

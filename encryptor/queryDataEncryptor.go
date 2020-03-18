@@ -315,17 +315,18 @@ func (encryptor *QueryDataEncryptor) OnQuery(query base.OnQueryObject) (base.OnQ
 
 // encryptWithColumnSettings encrypt data and use ZoneId or ClientID from ColumnEncryptionSettings if not empty otherwise static ClientID that passed to parser
 func (encryptor *QueryDataEncryptor) encryptWithColumnSettings(columnSetting *config.ColumnEncryptionSetting, data []byte) ([]byte, error) {
-	logrus.Debugln("QueryDataEncryptor.encryptWithColumnSettings")
+	logger := logrus.WithFields(logrus.Fields{"column": columnSetting.Name})
+	logger.Debugln("QueryDataEncryptor.encryptWithColumnSettings")
 	if len(columnSetting.ZoneID) > 0 {
-		logrus.WithField("zone_id", string(columnSetting.ZoneID)).Debugln("Encrypt with specific ZoneID for column")
+		logger.WithField("zone_id", string(columnSetting.ZoneID)).Debugln("Encrypt with specific ZoneID for column")
 		return encryptor.encryptor.EncryptWithZoneID([]byte(columnSetting.ZoneID), data, columnSetting)
 	}
 	var id []byte
 	if len(columnSetting.ClientID) > 0 {
-		logrus.WithField("client_id", string(columnSetting.ClientID)).Debugln("Encrypt with specific ClientID for column")
+		logger.WithField("client_id", string(columnSetting.ClientID)).Debugln("Encrypt with specific ClientID for column")
 		id = []byte(columnSetting.ClientID)
 	} else {
-		logrus.WithField("client_id", string(encryptor.clientID)).Debugln("Encrypt with ClientID from connection")
+		logger.WithField("client_id", string(encryptor.clientID)).Debugln("Encrypt with ClientID from connection")
 		id = encryptor.clientID
 	}
 	return encryptor.encryptor.EncryptWithClientID(id, data, columnSetting)

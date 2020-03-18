@@ -239,10 +239,12 @@ func (store *KeyStore) generateKey(filename string, length uint8) ([]byte, error
 	return randomBytes, nil
 }
 
+// WritePrivateKey writes private key from data to filename
 func (store *KeyStore) WritePrivateKey(filename string, data []byte) error {
 	return store.WriteKeyFile(filename, data, PrivateFileMode)
 }
 
+// WritePublicKey writes public key from data to filename
 func (store *KeyStore) WritePublicKey(filename string, data []byte) error {
 	return store.WriteKeyFile(filename, data, publicFileMode)
 }
@@ -339,6 +341,7 @@ func (store *KeyStore) GetPublicKeyFilePath(filename string) string {
 	return fmt.Sprintf("%s%s%s", store.publicKeyDirectory, string(os.PathSeparator), filename)
 }
 
+// GetHistoricalPrivateKeyFilenames return filenames for current and rotated keys
 func (store *KeyStore) GetHistoricalPrivateKeyFilenames(filename string) ([]string, error) {
 	// getHistoricalFilePaths() expects a path, not a name, but we must return names.
 	// Add private key directory path and then remove it to avoid directory switching.
