@@ -189,3 +189,13 @@ type KeyStore interface {
 	GetAuthKey(remove bool) ([]byte, error)
 	Reset()
 }
+
+// MultiKeyStore is a KeyStore with additional interface to retrieve historical versions of the key.
+// It is used to decrypt AcraStructs with possibly rotated keys.
+type MultiKeyStore interface {
+	KeyStore
+
+	GetZonePrivateKeys(id []byte) ([]*keys.PrivateKey, error)
+
+	GetServerDecryptionPrivateKeys(id []byte) ([]*keys.PrivateKey, error)
+}
