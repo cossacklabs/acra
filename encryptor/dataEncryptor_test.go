@@ -45,7 +45,7 @@ func (*emptyEncryptionSetting) IsSearchable() bool {
 }
 
 func TestAcrawriterDataEncryptor_EncryptWithClientID(t *testing.T) {
-	keypair, err := keys.New(keys.KEYTYPE_EC)
+	keypair, err := keys.New(keys.TypeEC)
 	if err != nil {
 		t.Fatal(err)
 	}
