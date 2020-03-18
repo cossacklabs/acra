@@ -219,7 +219,7 @@ func unixTimeWithMilliseconds(e *logrus.Entry) string {
 
 func formatEntry(e *logrus.Entry, formatter log.Formatter, hooks []FormatterHook) ([]byte, error) {
 	for _, hook := range hooks {
-		err := hook.WillFormat(e)
+		err := hook.PreFormat(e)
 		if err != nil {
 			return nil, err
 		}
@@ -230,7 +230,7 @@ func formatEntry(e *logrus.Entry, formatter log.Formatter, hooks []FormatterHook
 	}
 	buffer := bytes.NewBuffer(serialized)
 	for _, hook := range hooks {
-		err := hook.DidFormat(e, buffer)
+		err := hook.PostFormat(e, buffer)
 		if err != nil {
 			return nil, err
 		}

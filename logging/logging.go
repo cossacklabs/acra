@@ -24,7 +24,9 @@ package logging
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
+	"io"
 	"os"
 	"strings"
 
@@ -46,15 +48,15 @@ type LoggerSetter interface {
 // FormatterHook provides post-processing customization to log formatters,
 // allowing you to execute additional code before or after an entry is completed.
 type FormatterHook interface {
-	// WillFormat is called before the entry is serialized by the formatter.
+	// PreFormat is called before the entry is serialized by the formatter.
 	// You may inspect as well as add or remove fields of the log entry.
 	// If the error is not nil, formatting fails with returned error.
-	WillFormat(entry *log.Entry) error
-	// DidFormat is called after the entry has been serialized by the formatter.
+	PreFormat(entry *log.Entry) error
+	// PostFormat is called after the entry has been serialized by the formatter.
 	// You may inspect log entry fields and the byte buffer with serialized data.
 	// You may also modify the resulting buffer with serialized entry.
 	// If the error is not nil, formatting fails with returned error.
-	DidFormat(entry *log.Entry, formatted *bytes.Buffer) error
+	PostFormat(entry *log.Entry, formatted *bytes.Buffer) error
 }
 
 type loggerKey struct{}
@@ -88,16 +90,64 @@ func GetLogLevel() int {
 	return LogDiscard
 }
 
-// CustomizeLogging changes logging format
-func CustomizeLogging(loggingFormat string, serviceName string) {
-	CustomizeLoggingWithHooks(loggingFormat, serviceName, nil)
+var (
+	errNoWriter = errors.New("output writer is not specified")
+	errNoServiceName  = errors.New("service name is not specified")
+	errNoFormat     = errors.New("log format is not specified")
+)
+
+type CustomizeBuilder struct {
+	writer        io.Writer
+	serviceName   string
+	loggingFormat string
+	hooks         []FormatterHook
 }
 
-// CustomizeLoggingWithHooks changes logging format and sets additional post-processing hooks.
-func CustomizeLoggingWithHooks(loggingFormat, serviceName string, hooks []FormatterHook) {
-	log.SetOutput(os.Stderr)
-	log.SetFormatter(logFormatterFor(loggingFormat, serviceName, hooks))
+func Customize() *CustomizeBuilder{
+	return &CustomizeBuilder{}
+}
 
+func (c *CustomizeBuilder) SetOutput(w io.Writer) *CustomizeBuilder {
+	c.writer = w
+	return c
+}
+
+func (c *CustomizeBuilder) SetServiceName(serviceName string) *CustomizeBuilder {
+	c.serviceName = serviceName
+	return c
+}
+
+func (c *CustomizeBuilder) SetFormat(loggingFormat string) *CustomizeBuilder {
+	c.loggingFormat = loggingFormat
+	return c
+}
+
+func (c *CustomizeBuilder) SetHooks(hooks []FormatterHook) *CustomizeBuilder {
+	c.hooks = hooks
+	return c
+}
+
+func (c *CustomizeBuilder) Complete() error {
+	if c.writer == nil {
+		return errNoWriter
+	}
+	if c.serviceName == "" {
+		return errNoServiceName
+	}
+	if c.loggingFormat == "" {
+		return errNoFormat
+	}
+	/* We do not check hooks field, since it can be nil (standard log entry processing) */
+	log.SetOutput(c.writer)
+	log.SetFormatter(logFormatterFor(c.loggingFormat, c.serviceName, c.hooks))
+	log.Debugf("Changed logging format to %s", c.loggingFormat)
+	return nil
+}
+
+// CustomizeLogging changes logging format
+func CustomizeLogging(loggingFormat string, serviceName string) {
+	log.SetOutput(os.Stderr)
+	log.SetFormatter(logFormatterFor(loggingFormat, serviceName, nil))
 	log.Debugf("Changed logging format to %s", loggingFormat)
 }
 

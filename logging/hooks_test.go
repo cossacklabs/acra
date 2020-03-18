@@ -31,14 +31,14 @@ type stubFormatterHook struct {
 	WhenDidFormat  func(entry *log.Entry, formatted *bytes.Buffer) error
 }
 
-func (m *stubFormatterHook) WillFormat(entry *log.Entry) error {
+func (m *stubFormatterHook) PreFormat(entry *log.Entry) error {
 	if m.WhenWillFormat != nil {
 		return m.WhenWillFormat(entry)
 	}
 	return nil
 }
 
-func (m *stubFormatterHook) DidFormat(entry *log.Entry, formatted *bytes.Buffer) error {
+func (m *stubFormatterHook) PostFormat(entry *log.Entry, formatted *bytes.Buffer) error {
 	if m.WhenDidFormat != nil {
 		return m.WhenDidFormat(entry, formatted)
 	}
