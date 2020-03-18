@@ -40,6 +40,12 @@ const (
 	LogDiscard
 )
 
+const (
+	LoggingFormatPlaintext = "plaintext"
+	LoggingFormatJSON = "json"
+	LoggingFormatCEF = "cef"
+)
+
 // LoggerSetter abstract types that provide way to set logger which they should use
 type LoggerSetter interface {
 	SetLogger(*log.Entry)
