@@ -91,9 +91,9 @@ func GetLogLevel() int {
 }
 
 var (
-	errNoWriter = errors.New("output writer is not specified")
-	errNoServiceName  = errors.New("service name is not specified")
-	errNoFormat     = errors.New("log format is not specified")
+	errNoWriter      = errors.New("output writer is not specified")
+	errNoServiceName = errors.New("service name is not specified")
+	errNoFormat      = errors.New("log format is not specified")
 )
 
 type CustomizeBuilder struct {
@@ -103,7 +103,7 @@ type CustomizeBuilder struct {
 	hooks         []FormatterHook
 }
 
-func Customize() *CustomizeBuilder{
+func Customize() *CustomizeBuilder {
 	return &CustomizeBuilder{}
 }
 
