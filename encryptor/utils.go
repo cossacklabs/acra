@@ -117,11 +117,20 @@ func findTableName(alias, columnName string, expr sqlparser.SQLNode) (columnInfo
 						}
 						continue
 					}
-				} else if aliasExpr.As.EqualString(alias) {
+				} else if aliasExpr.As.EqualString(alias) || (alias == "" && aliasExpr.As.EqualString(columnName)) {
 					// select t1.col1 as columnName
 					switch aliasVal := aliasExpr.Expr.(type) {
 					case *sqlparser.ColName:
-						return findTableName(aliasVal.Qualifier.Name.RawValue(), aliasVal.Name.String(), val.From)
+						if aliasVal.Qualifier.Name.RawValue() == "" {
+							firstTable, err := getFirstTableWithoutAlias(val.From)
+							if err != nil {
+								return columnInfo{}, err
+							}
+							return findTableName(firstTable, aliasVal.Name.String(), val.From)
+						} else {
+							return findTableName(aliasVal.Qualifier.Name.RawValue(), aliasVal.Name.String(), val.From)
+						}
+
 					}
 				}
 			}

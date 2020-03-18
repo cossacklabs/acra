@@ -30,7 +30,7 @@ const (
 	historyDirSuffix     = ".old"
 )
 
-// GetZoneKeyFilename
+// GetZoneKeyFilename return filename for zone keys
 func GetZoneKeyFilename(id []byte) string {
 	return fmt.Sprintf("%s_zone", string(id))
 }
@@ -70,6 +70,7 @@ func getHistoryDirName(filename string) string {
 	return filename + historyDirSuffix
 }
 
+// HistoricalFileNameTimeFormat format used as filename for rotated keys
 const HistoricalFileNameTimeFormat = "2006-01-02T15:04:05.999999999"
 
 // getNewHistoricalFileName returns a name of the file that can be used to store current content
