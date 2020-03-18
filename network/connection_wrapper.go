@@ -18,12 +18,18 @@ package network
 
 import (
 	"context"
+	"go.opencensus.io/trace"
 	"net"
 )
 
 // ConnectionTimeoutWrapper interface
 type ConnectionTimeoutWrapper interface {
 	net.Conn
+}
+
+type ConnectionMetadata interface {
+	SpanContext() (trace.SpanContext, bool)
+	ClientID() ([]byte, bool)
 }
 
 // ConnectionWrapper interface
