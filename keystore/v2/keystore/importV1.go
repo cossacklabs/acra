@@ -21,7 +21,6 @@ import (
 
 	filesystemV1 "github.com/cossacklabs/acra/keystore/filesystem"
 	"github.com/cossacklabs/acra/utils"
-	"github.com/cossacklabs/themis/gothemis/keys"
 )
 
 // Errors returned by key import:
@@ -44,7 +43,7 @@ func (s *ServerKeyStore) ImportKeyFileV1(oldKeyStore filesystemV1.KeyExport, key
 			log.WithError(err).Debug("failed to export authentication key")
 			return err
 		}
-		defer zeroizeSymmetricKey(symkey)
+		defer utils.ZeroizeSymmetricKey(symkey)
 		err = s.saveAuthKey(symkey)
 		if err != nil {
 			log.WithError(err).Debug("failed to import authentication key")
@@ -56,7 +55,7 @@ func (s *ServerKeyStore) ImportKeyFileV1(oldKeyStore filesystemV1.KeyExport, key
 			log.WithError(err).Debug("failed to export poison record key pair")
 			return err
 		}
-		defer zeroizeKeyPair(keypair)
+		defer utils.ZeroizeKeyPair(keypair)
 		err = s.savePoisonKeyPair(keypair)
 		if err != nil {
 			log.WithError(err).Debug("failed to import poison record key pair")
@@ -68,7 +67,7 @@ func (s *ServerKeyStore) ImportKeyFileV1(oldKeyStore filesystemV1.KeyExport, key
 			log.WithError(err).Debug("failed to export client storage key pair")
 			return err
 		}
-		defer zeroizeKeyPair(keypair)
+		defer utils.ZeroizeKeyPair(keypair)
 		err = s.SaveDataEncryptionKeys(key.ID, keypair)
 		if err != nil {
 			log.WithError(err).Debug("failed to import client storage key pair")
@@ -80,7 +79,7 @@ func (s *ServerKeyStore) ImportKeyFileV1(oldKeyStore filesystemV1.KeyExport, key
 			log.WithError(err).Debug("failed to export zone storage key pair")
 			return err
 		}
-		defer zeroizeKeyPair(keypair)
+		defer utils.ZeroizeKeyPair(keypair)
 		err = s.SaveZoneKeypair(key.ID, keypair)
 		if err != nil {
 			log.WithError(err).Debug("failed to import zone storage key pair")
@@ -92,7 +91,7 @@ func (s *ServerKeyStore) ImportKeyFileV1(oldKeyStore filesystemV1.KeyExport, key
 			log.WithError(err).Debug("failed to export AcraConnector transport key pair")
 			return err
 		}
-		defer zeroizeKeyPair(keypair)
+		defer utils.ZeroizeKeyPair(keypair)
 		err = s.SaveConnectorKeypair(key.ID, keypair)
 		if err != nil {
 			log.WithError(err).Debug("failed to import AcraConnector transport key pair")
@@ -104,7 +103,7 @@ func (s *ServerKeyStore) ImportKeyFileV1(oldKeyStore filesystemV1.KeyExport, key
 			log.WithError(err).Debug("failed to export AcraTranslator transport key pair")
 			return err
 		}
-		defer zeroizeKeyPair(keypair)
+		defer utils.ZeroizeKeyPair(keypair)
 		err = s.SaveTranslatorKeypair(key.ID, keypair)
 		if err != nil {
 			log.WithError(err).Debug("failed to import AcraTranslator transport key pair")
@@ -116,7 +115,7 @@ func (s *ServerKeyStore) ImportKeyFileV1(oldKeyStore filesystemV1.KeyExport, key
 			log.WithError(err).Debug("failed to export AcraServer transport key pair")
 			return err
 		}
-		defer zeroizeKeyPair(keypair)
+		defer utils.ZeroizeKeyPair(keypair)
 		err = s.SaveServerKeypair(key.ID, keypair)
 		if err != nil {
 			log.WithError(err).Debug("failed to import AcraServer transport key pair")
@@ -127,14 +126,4 @@ func (s *ServerKeyStore) ImportKeyFileV1(oldKeyStore filesystemV1.KeyExport, key
 		return ErrUnknownPurpose
 	}
 	return nil
-}
-
-func zeroizeSymmetricKey(key []byte) {
-	utils.FillSlice(0, key)
-}
-
-func zeroizeKeyPair(keypair *keys.Keypair) {
-	if keypair.Private != nil {
-		utils.FillSlice(0, keypair.Private.Value)
-	}
 }
