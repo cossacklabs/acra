@@ -127,7 +127,6 @@ ZONE_PUBLIC_KEY = 'public_key'
 
 zones = []
 poison_record = None
-master_key = None
 master_keys = None
 KEYS_FOLDER = None
 ACRA_MASTER_KEY_VAR_NAME = 'ACRA_MASTER_KEY'
@@ -273,23 +272,6 @@ def get_connect_args(port=5432, sslmode=None, **kwargs):
 
 
 KEYSTORE_VERSION = os.environ.get('TEST_KEYSTORE', 'v1')
-
-
-def get_master_key():
-    """
-    return master key in base64 format if generated or generate and return
-    """
-    global master_key
-    if not master_key:
-        master_key = os.environ.get(ACRA_MASTER_KEY_VAR_NAME)
-        if not master_key:
-            subprocess.check_output([
-                './acra-keymaker', '--generate_master_key={}'.format(MASTER_KEY_PATH),
-                '--keys_output_dir={}'.format(KEYS_FOLDER.name),
-                '--keys_public_output_dir={}'.format(KEYS_FOLDER.name)])
-            with open(MASTER_KEY_PATH, 'rb') as f:
-                master_key = b64encode(f.read()).decode('ascii')
-    return master_key
 
 
 def get_master_keys():
