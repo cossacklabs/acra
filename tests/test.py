@@ -227,9 +227,7 @@ def get_pregenerated_random_data():
 
 
 def create_acrastruct_with_client_id(data, client_id='keypair1'):
-    keyname = '{}_storage'.format(client_id)
-    with open('{}/{}.pub'.format(KEYS_FOLDER.name, keyname), 'rb') as f:
-        server_public1 = f.read()
+    server_public1 = read_storage_public_key(client_id, KEYS_FOLDER.name)
     if isinstance(data, str):
         data = data.encode('utf-8')
     acra_struct = create_acrastruct(data, server_public1)
@@ -451,6 +449,8 @@ BINARIES = [
     Binary(name='acra-keymaker', from_version=DEFAULT_VERSION,
            build_args=DEFAULT_BUILD_ARGS),
     Binary(name='acra-migrate-keys', from_version=DEFAULT_VERSION,
+           build_args=DEFAULT_BUILD_ARGS),
+    Binary(name='acra-read-key', from_version=DEFAULT_VERSION,
            build_args=DEFAULT_BUILD_ARGS),
     Binary(name='acra-poisonrecordmaker', from_version=DEFAULT_VERSION,
            build_args=DEFAULT_BUILD_ARGS),
@@ -1159,8 +1159,7 @@ class HexFormatTest(BaseTestCase):
         """test decrypting with correct acra-connector and not decrypting with
         incorrect acra-connector or using direct connection to db"""
         keyname = 'keypair1_storage'
-        with open('{}/{}.pub'.format(KEYS_FOLDER.name, keyname), 'rb') as f:
-            server_public1 = f.read()
+        server_public1 = read_storage_public_key('keypair1', KEYS_FOLDER.name)
         data = get_pregenerated_random_data()
         acra_struct = create_acrastruct(
             data.encode('ascii'), server_public1)
@@ -1198,8 +1197,7 @@ class HexFormatTest(BaseTestCase):
         """test correct decrypting acrastruct when acrastruct concatenated to
         partial another acrastruct"""
         keyname = 'keypair1_storage'
-        with open('{}/{}.pub'.format(KEYS_FOLDER.name, keyname), 'rb') as f:
-            server_public1 = f.read()
+        server_public1 = read_storage_public_key('keypair1', KEYS_FOLDER.name)
         incorrect_data = get_pregenerated_random_data()
         correct_data = get_pregenerated_random_data()
         suffix_data = get_pregenerated_random_data()[:10]
@@ -2332,9 +2330,7 @@ class TestAcraRollback(BaseTestCase):
             raise
 
     def test_without_zone_to_file(self):
-        keyname = 'keypair1_storage'
-        with open('{}/{}.pub'.format(KEYS_FOLDER.name, keyname), 'rb') as f:
-            server_public1 = f.read()
+        server_public1 = read_storage_public_key('keypair1', KEYS_FOLDER.name)
 
         rows = []
         for _ in range(self.DATA_COUNT):
@@ -2404,9 +2400,7 @@ class TestAcraRollback(BaseTestCase):
             self.assertIn(data[0], source_data)
 
     def test_without_zone_execute(self):
-        keyname = 'keypair1_storage'
-        with open('{}/{}.pub'.format(KEYS_FOLDER.name, keyname), 'rb') as f:
-            server_public1 = f.read()
+        server_public1 = read_storage_public_key('keypair1', KEYS_FOLDER.name)
 
         rows = []
         for _ in range(self.DATA_COUNT):
@@ -2852,8 +2846,7 @@ class BasePrepareStatementMixin:
         """test decrypting with correct acra-connector and not decrypting with
         incorrect acra-connector or using direct connection to db"""
         keyname = 'keypair1_storage'
-        with open('{}/{}.pub'.format(KEYS_FOLDER.name, keyname), 'rb') as f:
-            server_public1 = f.read()
+        server_public1 = read_storage_public_key('keypair1', KEYS_FOLDER.name)
         data = get_pregenerated_random_data()
         acra_struct = create_acrastruct(
             data.encode('ascii'), server_public1)
@@ -2891,8 +2884,7 @@ class BasePrepareStatementMixin:
         """test correct decrypting acrastruct when acrastruct concatenated to
         partial another acrastruct"""
         keyname = 'keypair1_storage'
-        with open('{}/{}.pub'.format(KEYS_FOLDER.name, keyname), 'rb') as f:
-            server_public1 = f.read()
+        server_public1 = read_storage_public_key('keypair1', KEYS_FOLDER.name)
         incorrect_data = get_pregenerated_random_data()
         correct_data = get_pregenerated_random_data()
         suffix_data = get_pregenerated_random_data()[:10]
@@ -3133,9 +3125,9 @@ class AcraTranslatorTest(AcraTranslatorMixin, BaseTestCase):
         connector_port2 = connector_port+1
         client_id = "keypair1"
         data = get_pregenerated_random_data().encode('ascii')
-        client_id_private_key = read_storage_private_key(KEYS_FOLDER.name, 'keypair1', get_master_key())
+        client_id_private_key = read_storage_private_key(KEYS_FOLDER.name, 'keypair1')
         zone = zones[0]
-        zone_private_key = read_zone_private_key(KEYS_FOLDER.name, zone['id'], get_master_key())
+        zone_private_key = read_zone_private_key(KEYS_FOLDER.name, zone['id'])
         connection_string = 'tcp://127.0.0.1:{}'.format(translator_port)
         translator_kwargs = {
             'incoming_connection_http_string': connection_string if use_http else '',
@@ -3399,12 +3391,7 @@ class TestAcraRotateWithZone(BaseTestCase):
                         for path in result[zone_id][FILES]:
                             with open(path, 'rb') as acrastruct_file:
                                 rotated_acrastruct = acrastruct_file.read()
-                            zone_private_key_path = '{}/{}_zone'.format(
-                                keys_folder, zone_id)
-                            with open(zone_private_key_path, 'rb') as f:
-                                zone_private = decrypt_private_key(
-                                    f.read(), zone_id.encode("ascii"),
-                                    b64decode(get_master_key()))
+                            zone_private = read_zone_private_key(keys_folder, zone_id)
                             decrypted_rotated = decrypt_acrastruct(
                                 rotated_acrastruct, zone_private,
                                 zone_id=zone_id.encode('ascii'))
@@ -3673,12 +3660,7 @@ class TestAcraRotate(TestAcraRotateWithZone):
                         for path in result[key_id][FILES]:
                             with open(path, 'rb') as acrastruct_file:
                                 rotated_acrastruct = acrastruct_file.read()
-                            private_key_path = '{}/{}_storage'.format(
-                                keys_folder, key_id)
-                            with open(private_key_path, 'rb') as f:
-                                client_id_private = decrypt_private_key(
-                                    f.read(), key_id.encode("ascii"),
-                                    b64decode(get_master_key()))
+                            client_id_private = read_storage_private_key(keys_folder, key_id)
                             decrypted_rotated = decrypt_acrastruct(
                                 rotated_acrastruct, client_id_private)
                             if dryRun:
