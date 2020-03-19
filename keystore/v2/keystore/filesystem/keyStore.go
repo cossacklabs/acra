@@ -166,8 +166,8 @@ func (s *KeyStore) keyRingSignatureContext(path string) []byte {
 
 // Errors returned by signature verification:
 var (
-	errIncorrectContentType = errors.New("KeyStore: incorrect ASN.1 ContentType")
-	errUnsupportedVersion   = errors.New("KeyStore: unsupported ASN.1 Version")
+	errIncorrectContentType = errors.New("incorrect ASN.1 ContentType")
+	errUnsupportedVersion   = errors.New("unsupported ASN.1 Version")
 )
 
 func (s *KeyStore) signKeyRing(ring *asn1.KeyRing, path string) ([]byte, []asn1.Signature, error) {

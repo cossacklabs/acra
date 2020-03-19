@@ -32,9 +32,9 @@ const notarySubsystemName = "notary"
 
 // Errors produced by signature verification:
 var (
-	ErrNoAlgorithms   = errors.New("KeyStore: no signing algorithms")
-	ErrNoSignature    = errors.New("KeyStore: missing signature")
-	ErrSignatureError = errors.New("KeyStore: invalid signature")
+	ErrNoAlgorithms   = errors.New("no key ring signing algorithms")
+	ErrNoSignature    = errors.New("missing key ring signature")
+	ErrSignatureError = errors.New("invalid key ring signature")
 )
 
 // Algorithm interface defines a particular signing algorithm for Notary.

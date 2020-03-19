@@ -25,7 +25,7 @@ import (
 
 // Errors returned by ASN.1 processing:
 var (
-	ErrExtraData = fmt.Errorf("KeyStore: unexpected extra data")
+	ErrExtraData = fmt.Errorf("unexpected extra ASN.1 data")
 )
 
 // Miscellaneous ASN.1 constants:
