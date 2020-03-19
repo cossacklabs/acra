@@ -127,9 +127,14 @@ ZONE_PUBLIC_KEY = 'public_key'
 zones = []
 poison_record = None
 master_key = None
+master_keys = None
 KEYS_FOLDER = None
 ACRA_MASTER_KEY_VAR_NAME = 'ACRA_MASTER_KEY'
+ACRA_MASTER_ENCRYPTION_KEY_VAR_NAME = 'ACRA_MASTER_ENCRYPTION_KEY'
+ACRA_MASTER_SIGNATURE_KEY_VAR_NAME = 'ACRA_MASTER_SIGNATURE_KEY'
 MASTER_KEY_PATH = '/tmp/acra-test-master.key'
+MASTER_ENCRYPTION_KEY_PATH = '/tmp/acra-test-master-encryption.key'
+MASTER_SIGNATURE_KEY_PATH = '/tmp/acra-test-master-signature.key'
 
 ACRAWEBCONFIG_HTTP_PORT = 8022
 ACRAWEBCONFIG_AUTH_DB_PATH = 'auth.keys'
@@ -286,6 +291,28 @@ def get_master_key():
             with open(MASTER_KEY_PATH, 'rb') as f:
                 master_key = b64encode(f.read()).decode('ascii')
     return master_key
+
+
+def get_master_keys():
+    """Returns master key variable map: variable name => base64-encoded value."""
+    def obtain_key(env_var, key_file, keystore):
+        key = os.environ.get(env_var)
+        if not key:
+            subprocess.check_output([
+                './acra-keymaker', '--keystore={}'.format(keystore),
+                '--generate_master_key={}'.format(key_file)])
+            with open(key_file, 'rb') as f:
+                key = b64encode(f.read()).decode('ascii')
+        return env_var, key
+
+    global master_keys
+    if not master_keys:
+        master_keys = dict([
+            obtain_key(ACRA_MASTER_KEY_VAR_NAME, MASTER_KEY_PATH, 'v1'),
+            obtain_key(ACRA_MASTER_ENCRYPTION_KEY_VAR_NAME, MASTER_ENCRYPTION_KEY_PATH, 'v2'),
+            obtain_key(ACRA_MASTER_SIGNATURE_KEY_VAR_NAME, MASTER_SIGNATURE_KEY_PATH, 'v2'),
+        ])
+    return master_keys
 
 
 def get_poison_record():
@@ -501,7 +528,8 @@ def setUpModule():
                 continue
 
     # must be before any call of key generators or forks of acra/proxy servers
-    os.environ.setdefault(ACRA_MASTER_KEY_VAR_NAME, get_master_key())
+    for key_var, value in get_master_keys().items():
+        os.environ.setdefault(key_var, value)
 
     # first keypair for using without zones
     assert create_client_keypair('keypair1') == 0
@@ -1111,7 +1139,7 @@ class BaseTestCase(PrometheusMixin, unittest.TestCase):
             public_key = f.read()
         logging.debug("test log: {}".format(json.dumps(
             {
-                'master_key': get_master_key(),
+                'master_keys': get_master_keys(),
                 'key_name': acra_key_name,
                 'private_key': b64encode(private_key).decode('ascii'),
                 'public_key': b64encode(public_key).decode('ascii'),
