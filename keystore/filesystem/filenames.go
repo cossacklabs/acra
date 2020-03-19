@@ -22,8 +22,9 @@ import (
 
 // Default key folders' filenames
 const (
-	PoisonKeyFilename    = ".poison_key/poison_key"
-	BasicAuthKeyFilename = "auth_key"
+	PoisonKeyFilename       = ".poison_key/poison_key"
+	poisonKeyFilenamePublic = ".poison_key/poison_key.pub"
+	BasicAuthKeyFilename    = "auth_key"
 )
 
 // getZoneKeyFilename
