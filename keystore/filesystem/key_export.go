@@ -141,10 +141,12 @@ func (store *KeyStore) ExportPlaintextSymmetricKey(key ExportedKey) ([]byte, err
 // DefaultKeyFileClassifier is a KeyFileClassifier for standard key types.
 type DefaultKeyFileClassifier struct{}
 
+var defaultClassifier = &DefaultKeyFileClassifier{}
+
 // EnumerateExportedKeys prepares a list of keys that can be exported.
 // The keys are classified with default key file classifier.
 func (store *KeyStore) EnumerateExportedKeys() ([]ExportedKey, error) {
-	return store.EnumerateExportedKeysByClass(&DefaultKeyFileClassifier{})
+	return store.EnumerateExportedKeysByClass(defaultClassifier)
 }
 
 // EnumerateExportedKeysByClass prepares a list of keys that can be exported.
