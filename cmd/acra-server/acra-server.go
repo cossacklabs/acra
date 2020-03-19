@@ -139,7 +139,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	logging.CustomizeLogging(*loggingFormat, ServiceName)
+	logging.Customize().SetFormat(*loggingFormat).SetServiceName(ServiceName).SetOutput(os.Stderr).Complete()
 
 	config, err := NewConfig()
 	if err != nil {

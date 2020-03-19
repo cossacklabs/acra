@@ -389,7 +389,6 @@ func main() {
 	host = flag.String("incoming_connection_host", cmd.DefaultWebConfigHost, "Host for AcraWebconfig HTTP endpoint")
 	port = flag.Int("incoming_connection_port", cmd.DefaultWebConfigPort, "Port for AcraWebconfig HTTP endpoint")
 	loggingFormat := flag.String("logging_format", "plaintext", "Logging format: plaintext, json or CEF")
-	logging.CustomizeLogging(*loggingFormat, ServiceName)
 	log.Infof("Starting service %v [pid=%v]", ServiceName, os.Getpid())
 	destinationHost = flag.String("destination_host", "localhost", "Host for AcraServer HTTP endpoint or AcraConnector")
 	destinationPort = flag.Int("destination_port", cmd.DefaultAcraConnectorAPIPort, "Port for AcraServer HTTP endpoint or AcraConnector")
@@ -403,9 +402,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	// if log format was overridden
-	logging.CustomizeLogging(*loggingFormat, ServiceName)
-
+	logging.Customize().SetFormat(*loggingFormat).SetServiceName(ServiceName).SetOutput(os.Stderr).Complete()
 	log.Infof("Validating service configuration")
 
 	if *debug {

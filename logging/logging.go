@@ -24,7 +24,6 @@ package logging
 import (
 	"bytes"
 	"context"
-	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -42,8 +41,8 @@ const (
 
 const (
 	LoggingFormatPlaintext = "plaintext"
-	LoggingFormatJSON = "json"
-	LoggingFormatCEF = "cef"
+	LoggingFormatJSON      = "json"
+	LoggingFormatCEF       = "cef"
 )
 
 // LoggerSetter abstract types that provide way to set logger which they should use
@@ -96,12 +95,7 @@ func GetLogLevel() int {
 	return LogDiscard
 }
 
-var (
-	errNoWriter      = errors.New("output writer is not specified")
-	errNoServiceName = errors.New("service name is not specified")
-	errNoFormat      = errors.New("log format is not specified")
-)
-
+// CustomizeBuilder allows to customize logging process
 type CustomizeBuilder struct {
 	writer        io.Writer
 	serviceName   string
@@ -109,59 +103,64 @@ type CustomizeBuilder struct {
 	hooks         []FormatterHook
 }
 
+// Customize is a global function for logging customization.
+// Example of usage: Customize().SetServiceName(...).SetFormat(...).SetOutput(...).Complete()
 func Customize() *CustomizeBuilder {
 	return &CustomizeBuilder{}
 }
 
+// SetOutput specifies where logs should be written (stderr, file, etc.)
 func (c *CustomizeBuilder) SetOutput(w io.Writer) *CustomizeBuilder {
 	c.writer = w
 	return c
 }
 
+// SetServiceName specifies global name of service that produces logs
 func (c *CustomizeBuilder) SetServiceName(serviceName string) *CustomizeBuilder {
 	c.serviceName = serviceName
 	return c
 }
 
+// SetFormat specifies actual format
 func (c *CustomizeBuilder) SetFormat(loggingFormat string) *CustomizeBuilder {
 	c.loggingFormat = loggingFormat
 	return c
 }
 
+// SetHooks specifies additional pre-/post-processing actions with log entries
 func (c *CustomizeBuilder) SetHooks(hooks []FormatterHook) *CustomizeBuilder {
 	c.hooks = hooks
 	return c
 }
 
-func (c *CustomizeBuilder) Complete() error {
+// Complete finishes logging customization.
+// For default logging use Customize().Complete()
+func (c *CustomizeBuilder) Complete() {
 	if c.writer == nil {
-		return errNoWriter
-	}
-	if c.serviceName == "" {
-		return errNoServiceName
+		c.writer = os.Stderr
 	}
 	if c.loggingFormat == "" {
-		return errNoFormat
+		c.loggingFormat = LoggingFormatPlaintext
 	}
 	/* We do not check hooks field, since it can be nil (standard log entry processing) */
 	log.SetOutput(c.writer)
 	log.SetFormatter(logFormatterFor(c.loggingFormat, c.serviceName, c.hooks))
 	log.Debugf("Changed logging format to %s", c.loggingFormat)
-	return nil
 }
 
+/*
 // CustomizeLogging changes logging format
 func CustomizeLogging(loggingFormat string, serviceName string) {
 	log.SetOutput(os.Stderr)
 	log.SetFormatter(logFormatterFor(loggingFormat, serviceName, nil))
 	log.Debugf("Changed logging format to %s", loggingFormat)
-}
+}*/
 
 func logFormatterFor(loggingFormat string, serviceName string, hooks []FormatterHook) log.Formatter {
 	switch strings.ToLower(loggingFormat) {
-	case "json":
+	case LoggingFormatJSON:
 		return JSONFormatter(log.Fields{FieldKeyProduct: serviceName}, hooks)
-	case "cef":
+	case LoggingFormatCEF:
 		return CEFFormatter(log.Fields{FieldKeyProduct: serviceName}, hooks)
 	default:
 		return TextFormatter(hooks)
