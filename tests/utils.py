@@ -135,10 +135,6 @@ def decrypt_acrastruct(data, private_key, client_id=None, zone_id=None):
         return scell.SCellSeal(symmetric).decrypt(encrypted_data)
 
 
-def decrypt_private_key(private_key, key_id, master_key):
-    return scell.SCellSeal(master_key).decrypt(private_key, key_id)
-
-
 def read_storage_private_key(keys_folder, key_id):
     return read_key('storage-private', client_id=key_id, keys_dir=keys_folder)
 

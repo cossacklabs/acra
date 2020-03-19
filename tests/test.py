@@ -57,12 +57,13 @@ from sqlalchemy.dialects.postgresql import BYTEA
 from sqlalchemy.dialects import mysql as mysql_dialect
 from sqlalchemy.dialects import postgresql as postgresql_dialect
 
-from utils import (read_storage_public_key, decrypt_acrastruct,
-                   decrypt_private_key, read_zone_public_key,
+from utils import (read_storage_public_key, read_storage_private_key,
+                   read_zone_public_key, read_zone_private_key,
+                   decrypt_acrastruct,
                    load_random_data_config, get_random_data_files,
                    clean_test_data, safe_string, prepare_encryptor_config,
                    get_encryptor_config, abs_path, get_test_encryptor_config, send_signal_by_process_name,
-                   load_yaml_config, dump_yaml_config, read_storage_private_key, read_zone_private_key)
+                   load_yaml_config, dump_yaml_config)
 
 import sys
 # add to path our wrapper until not published to PYPI
