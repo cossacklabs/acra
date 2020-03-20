@@ -42,6 +42,8 @@ var (
 )
 
 const (
+	keyPoisonPublic   = "poison-public"
+	keyPoisonPrivate  = "poison-private"
 	keyStoragePublic  = "storage-public"
 	keyStoragePrivate = "storage-private"
 	keyZonePublic     = "zone-public"
@@ -49,6 +51,8 @@ const (
 )
 
 var keyKinds = strings.Join([]string{
+	keyPoisonPublic,
+	keyPoisonPrivate,
 	keyStoragePublic,
 	keyStoragePrivate,
 	keyZonePublic,
@@ -101,6 +105,18 @@ func main() {
 
 	var keyBytes []byte
 	switch params.KeyKind {
+	case keyPoisonPublic:
+		keypair, err := keyStore.GetPoisonKeyPair()
+		if err != nil {
+			log.WithError(err).Fatal("Cannot read poison record key pair")
+		}
+		keyBytes = keypair.Public.Value
+	case keyPoisonPrivate:
+		keypair, err := keyStore.GetPoisonKeyPair()
+		if err != nil {
+			log.WithError(err).Fatal("Cannot read poison record key pair")
+		}
+		keyBytes = keypair.Private.Value
 	case keyStoragePublic:
 		if params.ClientID == "" {
 			log.Fatal("--key " + keyStoragePublic + " requires --client_id")

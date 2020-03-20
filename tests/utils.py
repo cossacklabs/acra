@@ -143,6 +143,14 @@ def read_zone_private_key(keys_folder, key_id):
     return read_key('zone-private', zone_id=key_id, keys_dir=keys_folder)
 
 
+def read_poison_public_key(keys_dir):
+    return read_key('poison-public', keys_dir=keys_dir)
+
+
+def read_poison_private_key(keys_dir):
+    return read_key('poison-private', keys_dir=keys_dir)
+
+
 def prepare_encryptor_config(zone_id, config_path):
     with open(config_path, 'r') as f:
         config = yaml.safe_load(f)
