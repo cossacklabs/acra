@@ -105,6 +105,8 @@ func main() {
 
 	var keyBytes []byte
 	switch params.KeyKind {
+	case "":
+		// no key requested, do nothing
 	case keyPoisonPublic:
 		keypair, err := keyStore.GetPoisonKeyPair()
 		if err != nil {

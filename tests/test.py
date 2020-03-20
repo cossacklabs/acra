@@ -4287,6 +4287,7 @@ class TestOutdatedServiceConfigs(BaseTestCase, FailedRunProcessMixin):
                 'acra-server': ['-db_host=127.0.0.1'],
                 'acra-connector': ['-user_check_disable', '-acraserver_connection_host=127.0.0.1', '-client_id=keypair1'],
                 'acra-migrate-keys': ['--dry_run', '--src_keys_dir={}'.format(KEYS_FOLDER.name)],
+                'acra-read-key': ['--keys_dir={}'.format(KEYS_FOLDER.name)],
             }
             for service in services:
                 config_param = '-config_file={}'.format(os.path.join(tmp_dir, '{}.yaml'.format(service)))
@@ -4310,6 +4311,7 @@ class TestOutdatedServiceConfigs(BaseTestCase, FailedRunProcessMixin):
                 'acra-server': ['-db_host=127.0.0.1'],
                 'acra-connector': ['-user_check_disable', '-acraserver_connection_host=127.0.0.1', '-client_id=keypair1'],
                 'acra-migrate-keys': ['--dry_run', '--src_keys_dir={}'.format(KEYS_FOLDER.name)],
+                'acra-read-key': ['--keys_dir={}'.format(KEYS_FOLDER.name)],
             }
             for service in services:
                 config_param = '-config_file={}'.format(os.path.join(tmp_dir, '{}.yaml'.format(service)))
@@ -4345,6 +4347,7 @@ class TestOutdatedServiceConfigs(BaseTestCase, FailedRunProcessMixin):
                                   '-keys_public_output_dir={}'.format(tmp_dir),
                                   '--keystore={}'.format(KEYSTORE_VERSION)],
                 'acra-migrate-keys': ['--dry_run', '--src_keys_dir={}'.format(KEYS_FOLDER.name)],
+                'acra-read-key': ['--keys_dir={}'.format(KEYS_FOLDER.name)],
                 'acra-poisonrecordmaker': ['-keys_dir={}'.format(tmp_dir),
                                            '--keystore={}'.format(KEYSTORE_VERSION)],
                 'acra-rollback': {'args': ['-keys_dir={}'.format(tmp_dir),
@@ -4395,6 +4398,7 @@ class TestOutdatedServiceConfigs(BaseTestCase, FailedRunProcessMixin):
                                   '-keys_public_output_dir={}'.format(tmp_dir),
                                   '--keystore={}'.format(KEYSTORE_VERSION)],
                 'acra-migrate-keys': ['--dry_run', '--src_keys_dir={}'.format(KEYS_FOLDER.name)],
+                'acra-read-key': ['--keys_dir={}'.format(KEYS_FOLDER.name)],
                 'acra-poisonrecordmaker': ['-keys_dir={}'.format(tmp_dir),
                                            '--keystore={}'.format(KEYSTORE_VERSION)],
                 'acra-rollback': {'args': ['-keys_dir={}'.format(tmp_dir),
