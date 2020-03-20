@@ -732,26 +732,35 @@ class Psycopg2Executor(QueryExecutor):
 
 class KeyMakerTest(unittest.TestCase):
     def test_key_length(self):
-        with tempfile.TemporaryDirectory() as folder:
-            key_size = 32
-            short_key = b64encode((key_size - 1)*b'a')
-            standard_key = b64encode(key_size * b'a')
-            long_key = b64encode((key_size * 2) * b'a')
+        key_size = 32
+        short_key = b64encode((key_size - 1)*b'a')
+        short_master_keys = {var: short_key for var in get_master_keys().keys()}
+        standard_key = b64encode(key_size * b'a')
+        standard_master_keys = {var: standard_key for var in get_master_keys().keys()}
+        long_key = b64encode((key_size * 2) * b'a')
+        long_master_keys = {var: long_key for var in get_master_keys().keys()}
 
+        with tempfile.TemporaryDirectory() as folder:
             with self.assertRaises(subprocess.CalledProcessError) as exc:
                 subprocess.check_output(
-                    ['./acra-keymaker', '--keys_output_dir={}'.format(folder),
+                    ['./acra-keymaker', '--keystore={}'.format(KEYSTORE_VERSION),
+                     '--keys_output_dir={}'.format(folder),
                      '--keys_public_output_dir={}'.format(folder)],
-                    env={'ACRA_MASTER_KEY': short_key})
+                    env=short_master_keys)
 
+        with tempfile.TemporaryDirectory() as folder:
             subprocess.check_output(
-                    ['./acra-keymaker', '--keys_output_dir={}'.format(folder),
+                    ['./acra-keymaker', '--keystore={}'.format(KEYSTORE_VERSION),
+                     '--keys_output_dir={}'.format(folder),
                      '--keys_public_output_dir={}'.format(folder)],
-                    env={'ACRA_MASTER_KEY': standard_key})
+                    env=standard_master_keys)
+
+        with tempfile.TemporaryDirectory() as folder:
             subprocess.check_output(
-                    ['./acra-keymaker', '--keys_output_dir={}'.format(folder),
+                    ['./acra-keymaker', '--keystore={}'.format(KEYSTORE_VERSION),
+                     '--keys_output_dir={}'.format(folder),
                      '--keys_public_output_dir={}'.format(folder)],
-                    env={'ACRA_MASTER_KEY': long_key})
+                    env=long_master_keys)
 
 
 class PrometheusMixin(object):
