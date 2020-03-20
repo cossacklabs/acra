@@ -148,14 +148,6 @@ func (c *CustomizeBuilder) Complete() {
 	log.Debugf("Changed logging format to %s", c.loggingFormat)
 }
 
-/*
-// CustomizeLogging changes logging format
-func CustomizeLogging(loggingFormat string, serviceName string) {
-	log.SetOutput(os.Stderr)
-	log.SetFormatter(logFormatterFor(loggingFormat, serviceName, nil))
-	log.Debugf("Changed logging format to %s", loggingFormat)
-}*/
-
 func logFormatterFor(loggingFormat string, serviceName string, hooks []FormatterHook) log.Formatter {
 	switch strings.ToLower(loggingFormat) {
 	case LoggingFormatJSON:
