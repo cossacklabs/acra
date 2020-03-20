@@ -71,7 +71,7 @@ type commandLineParams struct {
 var params commandLineParams
 
 func main() {
-	flag.StringVar(&params.KeyStoreVersion, "keystore", "", "force key store format: v1 (current), v2 (experimental)")
+	flag.StringVar(&params.KeyStoreVersion, "keystore", "", "force key store format: v1 (current), v2 (new)")
 	flag.StringVar(&params.KeyDir, "keys_dir", defaultKeyDir, "path to key directory")
 	flag.StringVar(&params.KeyDirPublic, "keys_dir_public", "", "path to key directory for public keys")
 	flag.StringVar(&params.ClientID, "client_id", "", "client ID for which to retrieve key")
