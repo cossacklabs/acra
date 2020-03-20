@@ -27,7 +27,6 @@ import (
 type InMemory struct {
 	storage map[string][]byte
 	lock    sync.RWMutex
-	read    bool
 }
 
 // NewInMemory makes a new empty in-memory backend.
@@ -40,24 +39,24 @@ func NewInMemory() *InMemory {
 // Lock acquires an exclusive lock on the store.
 func (m *InMemory) Lock() error {
 	m.lock.Lock()
-	m.read = false
+	return nil
+}
+
+// Unlock releases currently held exclusive lock.
+func (m *InMemory) Unlock() error {
+	m.lock.Unlock()
 	return nil
 }
 
 // RLock acquires a shared lock on the store.
 func (m *InMemory) RLock() error {
 	m.lock.RLock()
-	m.read = true
 	return nil
 }
 
-// Unlock releases currently held lock.
-func (m *InMemory) Unlock() error {
-	if m.read {
-		m.lock.RUnlock()
-	} else {
-		m.lock.Unlock()
-	}
+// RUnlock releases currently held shared lock.
+func (m *InMemory) RUnlock() error {
+	m.lock.RUnlock()
 	return nil
 }
 

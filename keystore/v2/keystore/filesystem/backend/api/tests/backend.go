@@ -322,7 +322,7 @@ func testLockingShared(t *testing.T, newBackend NewBackend) {
 	}
 
 	// And even after we have released the lock once, the file does not exist yet.
-	err = b.Unlock()
+	err = b.RUnlock()
 	if err != nil {
 		t.Fatalf("A: failed to release shared lock: %v", err)
 	}
@@ -333,7 +333,7 @@ func testLockingShared(t *testing.T, newBackend NewBackend) {
 
 	// We need to release the lock once more, then wait for the goroutine to complete,
 	// and only then the file should be visible to us.
-	err = b.Unlock()
+	err = b.RUnlock()
 	if err != nil {
 		t.Fatalf("A: failed to release shared lock: %v", err)
 	}
