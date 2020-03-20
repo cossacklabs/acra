@@ -83,7 +83,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	logging.Customize().SetFormat(*loggingFormat).SetServiceName(ServiceName).SetOutput(os.Stderr).Complete()
+	logging.Customize().SetFormat(*loggingFormat).SetServiceName(ServiceName).Complete()
 
 	log.Infof("Validating service configuration...")
 	cmd.ValidateClientID(*secureSessionID)
