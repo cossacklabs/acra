@@ -58,7 +58,7 @@ func main() {
 
 	keysDir := flag.String("keys_dir", keystore.DefaultKeyDirShort, "Folder from which will be loaded keys")
 	keysCacheSize := flag.Int("keystore_cache_size", keystore.InfiniteCacheSize, "Count of keys that will be stored in in-memory LRU cache in encrypted form. 0 - no limits, -1 - turn off cache")
-	keystoreOpts := flag.String("keystore", "", "force Key Store format: v1 (current), v2 (experimental)")
+	keystoreOpts := flag.String("keystore", "", "force Key Store format: v1 (current), v2 (new)")
 
 	secureSessionID := flag.String("securesession_id", "acra_translator", "Id that will be sent in secure session")
 

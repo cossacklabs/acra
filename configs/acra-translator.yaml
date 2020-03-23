@@ -38,7 +38,7 @@ jaeger_collector_endpoint:
 # Folder from which will be loaded keys
 keys_dir: .acrakeys
 
-# force Key Store format: v1 (current), v2 (experimental)
+# force Key Store format: v1 (current), v2 (new)
 keystore: 
 
 # Count of keys that will be stored in in-memory LRU cache in encrypted form. 0 - no limits, -1 - turn off cache

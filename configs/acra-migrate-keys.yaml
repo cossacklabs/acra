@@ -14,7 +14,7 @@ dst_keys_dir:
 # path to destination key directory for public keys (default ".acrakeys.migrated")
 dst_keys_dir_public: 
 
-# key store format to use: v1 (current), v2 (experimental)
+# key store format to use: v1 (current), v2 (new)
 dst_keystore: v2
 
 # dump config
@@ -32,7 +32,7 @@ src_keys_dir: .acrakeys
 # path to source key directory for public keys
 src_keys_dir_public: .acrakeys
 
-# key store format to use: v1 (current), v2 (experimental)
+# key store format to use: v1 (current), v2 (new)
 src_keystore: v1
 
 # log everything to stderr
