@@ -255,8 +255,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	// if log format was overridden
-	logging.CustomizeLogging(*loggingFormat, ServiceName)
+	logging.Customize().SetFormat(*loggingFormat).SetServiceName(ServiceName).Complete()
 	log.Infof("Validating service configuration...")
 
 	if err = checkDependencies(); err != nil {

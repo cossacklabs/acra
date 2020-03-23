@@ -22,11 +22,14 @@ limitations under the License.
 package logging
 
 import (
+	"bytes"
 	"context"
 	"fmt"
-	log "github.com/sirupsen/logrus"
+	"io"
 	"os"
 	"strings"
+
+	log "github.com/sirupsen/logrus"
 )
 
 // Log modes
@@ -36,9 +39,29 @@ const (
 	LogDiscard
 )
 
+const (
+	LoggingFormatPlaintext = "plaintext"
+	LoggingFormatJSON      = "json"
+	LoggingFormatCEF       = "cef"
+)
+
 // LoggerSetter abstract types that provide way to set logger which they should use
 type LoggerSetter interface {
 	SetLogger(*log.Entry)
+}
+
+// FormatterHook provides post-processing customization to log formatters,
+// allowing you to execute additional code before or after an entry is completed.
+type FormatterHook interface {
+	// PreFormat is called before the entry is serialized by the formatter.
+	// You may inspect as well as add or remove fields of the log entry.
+	// If the error is not nil, formatting fails with returned error.
+	PreFormat(entry *log.Entry) error
+	// PostFormat is called after the entry has been serialized by the formatter.
+	// You may inspect log entry fields and the byte buffer with serialized data.
+	// You may also modify the resulting buffer with serialized entry.
+	// If the error is not nil, formatting fails with returned error.
+	PostFormat(entry *log.Entry, formatted *bytes.Buffer) error
 }
 
 type loggerKey struct{}
@@ -72,25 +95,68 @@ func GetLogLevel() int {
 	return LogDiscard
 }
 
-// CustomizeLogging changes logging format
-func CustomizeLogging(loggingFormat string, serviceName string) {
-	log.SetOutput(os.Stderr)
-	log.SetFormatter(logFormatterFor(loggingFormat, serviceName))
-
-	log.Debugf("Changed logging format to %s", loggingFormat)
+// CustomizeBuilder allows to customize logging process
+type CustomizeBuilder struct {
+	writer        io.Writer
+	serviceName   string
+	loggingFormat string
+	hooks         []FormatterHook
 }
 
-func logFormatterFor(loggingFormat string, serviceName string) log.Formatter {
-	loggingFormat = strings.ToLower(loggingFormat)
+// Customize is a global function for logging customization.
+// Example of usage: Customize().SetServiceName(...).SetFormat(...).SetOutput(...).Complete()
+func Customize() *CustomizeBuilder {
+	return &CustomizeBuilder{}
+}
 
-	if loggingFormat == "json" {
-		return JSONFormatter(log.Fields{FieldKeyProduct: serviceName})
+// SetOutput specifies where logs should be written (stderr, file, etc.)
+func (c *CustomizeBuilder) SetOutput(w io.Writer) *CustomizeBuilder {
+	c.writer = w
+	return c
+}
 
-	} else if loggingFormat == "cef" {
-		return CEFFormatter(log.Fields{FieldKeyProduct: serviceName})
+// SetServiceName specifies global name of service that produces logs
+func (c *CustomizeBuilder) SetServiceName(serviceName string) *CustomizeBuilder {
+	c.serviceName = serviceName
+	return c
+}
+
+// SetFormat specifies actual format
+func (c *CustomizeBuilder) SetFormat(loggingFormat string) *CustomizeBuilder {
+	c.loggingFormat = loggingFormat
+	return c
+}
+
+// SetHooks specifies additional pre-/post-processing actions with log entries
+func (c *CustomizeBuilder) SetHooks(hooks []FormatterHook) *CustomizeBuilder {
+	c.hooks = hooks
+	return c
+}
+
+// Complete finishes logging customization.
+// For default logging use Customize().Complete()
+func (c *CustomizeBuilder) Complete() {
+	if c.writer == nil {
+		c.writer = os.Stderr
 	}
+	if c.loggingFormat == "" {
+		c.loggingFormat = LoggingFormatPlaintext
+	}
+	/* We do not check hooks field, since it can be nil (standard log entry processing) */
+	log.SetOutput(c.writer)
+	log.SetFormatter(logFormatterFor(c.loggingFormat, c.serviceName, c.hooks))
+	log.Debugf("Changed logging format to %s", c.loggingFormat)
+}
 
-	return TextFormatter()
+func logFormatterFor(loggingFormat string, serviceName string, hooks []FormatterHook) log.Formatter {
+	switch strings.ToLower(loggingFormat) {
+	case LoggingFormatJSON:
+		return JSONFormatter(log.Fields{FieldKeyProduct: serviceName}, hooks)
+	case LoggingFormatCEF:
+		return CEFFormatter(log.Fields{FieldKeyProduct: serviceName}, hooks)
+	default:
+		return TextFormatter(hooks)
+	}
 }
 
 // SetLoggerToContext sets logger to corresponded context
