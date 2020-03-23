@@ -14,6 +14,6 @@ generate_markdown_args_table: false
 # Folder where will be saved generated zone keys
 keys_output_dir: .acrakeys
 
-# force Key Store format: v1 (current), v2 (experimental)
+# force Key Store format: v1 (current), v2 (new)
 keystore: 
 

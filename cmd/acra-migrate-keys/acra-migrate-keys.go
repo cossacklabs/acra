@@ -78,11 +78,11 @@ const (
 func RegisterCommandLineParams() *CommandLineParams {
 	params := &CommandLineParams{}
 	// Source key store
-	flag.StringVar(&params.Src.KeyStoreVersion, "src_keystore", "v1", "key store format to use: v1 (current), v2 (experimental)")
+	flag.StringVar(&params.Src.KeyStoreVersion, "src_keystore", "v1", "key store format to use: v1 (current), v2 (new)")
 	flag.StringVar(&params.Src.KeyDir, "src_keys_dir", defaultSrcDir, "path to source key directory")
 	flag.StringVar(&params.Src.KeyDirPublic, "src_keys_dir_public", defaultSrcDir, "path to source key directory for public keys")
 	// Destination key store
-	flag.StringVar(&params.Dst.KeyStoreVersion, "dst_keystore", "v2", "key store format to use: v1 (current), v2 (experimental)")
+	flag.StringVar(&params.Dst.KeyStoreVersion, "dst_keystore", "v2", "key store format to use: v1 (current), v2 (new)")
 	flag.StringVar(&params.Dst.KeyDir, "dst_keys_dir", "", "path to destination key directory (default \".acrakeys.migrated\")")
 	flag.StringVar(&params.Dst.KeyDirPublic, "dst_keys_dir_public", "", "path to destination key directory for public keys (default \".acrakeys.migrated\")")
 	// Miscellaneous

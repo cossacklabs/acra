@@ -55,7 +55,7 @@ var (
 func main() {
 	outputDir := flag.String("keys_output_dir", keystore.DefaultKeyDirShort, "Folder where will be saved generated zone keys")
 	flag.Bool("fs_keystore_enable", true, "Use filesystem key store (deprecated, ignored)")
-	keystoreOpts := flag.String("keystore", "", "force Key Store format: v1 (current), v2 (experimental)")
+	keystoreOpts := flag.String("keystore", "", "force Key Store format: v1 (current), v2 (new)")
 
 	logging.SetLogLevel(logging.LogVerbose)
 
