@@ -104,14 +104,23 @@ def load_default_config(service_name):
     return config
 
 
+def read_key(kind, client_id=None, zone_id=None, keys_dir='.acrakeys'):
+    """Reads key from Key Store with read-key utility."""
+    args = ['./acra-read-key', '--key={}'.format(kind),
+        '--keys_dir={}'.format(keys_dir)]
+    if client_id is not None:
+        args.append('--client_id={}'.format(client_id))
+    if zone_id is not None:
+        args.append('--zone_id={}'.format(zone_id))
+    return subprocess.check_output(args)
+
+
 def read_storage_public_key(client_id, keys_dir='.acrakeys'):
-    with open(abs_path('{}/{}_storage.pub'.format(keys_dir, client_id)), 'rb') as f:
-            return f.read()
+    return read_key('storage-public', client_id=client_id, keys_dir=keys_dir)
 
 
 def read_zone_public_key(zone_id, keys_dir='.acrakeys'):
-    with open(abs_path('{}/{}_zone.pub'.format(keys_dir, zone_id)), 'rb') as f:
-        return f.read()
+    return read_key('zone-public', zone_id=zone_id, keys_dir=keys_dir)
 
 
 def decrypt_acrastruct(data, private_key, client_id=None, zone_id=None):
@@ -126,18 +135,20 @@ def decrypt_acrastruct(data, private_key, client_id=None, zone_id=None):
         return scell.SCellSeal(symmetric).decrypt(encrypted_data)
 
 
-def decrypt_private_key(private_key, key_id, master_key):
-    return scell.SCellSeal(master_key).decrypt(private_key, key_id)
+def read_storage_private_key(keys_folder, key_id):
+    return read_key('storage-private', client_id=key_id, keys_dir=keys_folder)
 
 
-def read_storage_private_key(keys_folder, key_id, master_key_b64):
-    with open(os.path.join(keys_folder, '{}_storage'.format(key_id)), 'rb') as f:
-        return decrypt_private_key(f.read(), key_id.encode("ascii"), b64decode(master_key_b64))
+def read_zone_private_key(keys_folder, key_id):
+    return read_key('zone-private', zone_id=key_id, keys_dir=keys_folder)
 
 
-def read_zone_private_key(keys_folder, key_id, master_key_b64):
-    with open(os.path.join(keys_folder, '{}_zone'.format(key_id)), 'rb') as f:
-        return decrypt_private_key(f.read(), key_id.encode("ascii"), b64decode(master_key_b64))
+def read_poison_public_key(keys_dir):
+    return read_key('poison-public', keys_dir=keys_dir)
+
+
+def read_poison_private_key(keys_dir):
+    return read_key('poison-private', keys_dir=keys_dir)
 
 
 def prepare_encryptor_config(zone_id, config_path):

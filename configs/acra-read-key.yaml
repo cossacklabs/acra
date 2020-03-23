@@ -1,0 +1,27 @@
+version: 0.85.0
+# client ID for which to retrieve key
+client_id: 
+
+# path to config
+config_file: 
+
+# dump config
+dump_config: false
+
+# Generate with yaml config markdown text file with descriptions of all args
+generate_markdown_args_table: false
+
+# key kind to read, one of: poison-public, poison-private, storage-public, storage-private, zone-public, zone-private
+key: 
+
+# path to key directory
+keys_dir: .acrakeys
+
+# path to key directory for public keys
+keys_dir_public: 
+
+# force key store format: v1 (current), v2 (new)
+keystore: 
+
+# zone ID for which to retrieve key
+zone_id: 

@@ -57,12 +57,14 @@ from sqlalchemy.dialects.postgresql import BYTEA
 from sqlalchemy.dialects import mysql as mysql_dialect
 from sqlalchemy.dialects import postgresql as postgresql_dialect
 
-from utils import (read_storage_public_key, decrypt_acrastruct,
-                   decrypt_private_key, read_zone_public_key,
+from utils import (read_storage_public_key, read_storage_private_key,
+                   read_zone_public_key, read_zone_private_key,
+                   read_poison_public_key, read_poison_private_key,
+                   decrypt_acrastruct,
                    load_random_data_config, get_random_data_files,
                    clean_test_data, safe_string, prepare_encryptor_config,
                    get_encryptor_config, abs_path, get_test_encryptor_config, send_signal_by_process_name,
-                   load_yaml_config, dump_yaml_config, read_storage_private_key, read_zone_private_key)
+                   load_yaml_config, dump_yaml_config)
 
 import sys
 # add to path our wrapper until not published to PYPI
@@ -126,10 +128,14 @@ ZONE_PUBLIC_KEY = 'public_key'
 
 zones = []
 poison_record = None
-master_key = None
+master_keys = None
 KEYS_FOLDER = None
 ACRA_MASTER_KEY_VAR_NAME = 'ACRA_MASTER_KEY'
+ACRA_MASTER_ENCRYPTION_KEY_VAR_NAME = 'ACRA_MASTER_ENCRYPTION_KEY'
+ACRA_MASTER_SIGNATURE_KEY_VAR_NAME = 'ACRA_MASTER_SIGNATURE_KEY'
 MASTER_KEY_PATH = '/tmp/acra-test-master.key'
+MASTER_ENCRYPTION_KEY_PATH = '/tmp/acra-test-master-encryption.key'
+MASTER_SIGNATURE_KEY_PATH = '/tmp/acra-test-master-signature.key'
 
 ACRAWEBCONFIG_HTTP_PORT = 8022
 ACRAWEBCONFIG_AUTH_DB_PATH = 'auth.keys'
@@ -222,9 +228,7 @@ def get_pregenerated_random_data():
 
 
 def create_acrastruct_with_client_id(data, client_id='keypair1'):
-    keyname = '{}_storage'.format(client_id)
-    with open('{}/{}.pub'.format(KEYS_FOLDER.name, keyname), 'rb') as f:
-        server_public1 = f.read()
+    server_public1 = read_storage_public_key(client_id, KEYS_FOLDER.name)
     if isinstance(data, str):
         data = data.encode('utf-8')
     acra_struct = create_acrastruct(data, server_public1)
@@ -268,21 +272,29 @@ def get_connect_args(port=5432, sslmode=None, **kwargs):
     return args
 
 
-def get_master_key():
-    """
-    return master key in base64 format if generated or generate and return
-    """
-    global master_key
-    if not master_key:
-        master_key = os.environ.get(ACRA_MASTER_KEY_VAR_NAME)
-        if not master_key:
+KEYSTORE_VERSION = os.environ.get('TEST_KEYSTORE', 'v1')
+
+
+def get_master_keys():
+    """Returns master key variable map: variable name => base64-encoded value."""
+    def obtain_key(env_var, key_file, keystore):
+        key = os.environ.get(env_var)
+        if not key:
             subprocess.check_output([
-                './acra-keymaker', '--generate_master_key={}'.format(MASTER_KEY_PATH),
-                '--keys_output_dir={}'.format(KEYS_FOLDER.name),
-                '--keys_public_output_dir={}'.format(KEYS_FOLDER.name)])
-            with open(MASTER_KEY_PATH, 'rb') as f:
-                master_key = b64encode(f.read()).decode('ascii')
-    return master_key
+                './acra-keymaker', '--keystore={}'.format(keystore),
+                '--generate_master_key={}'.format(key_file)])
+            with open(key_file, 'rb') as f:
+                key = b64encode(f.read()).decode('ascii')
+        return env_var, key
+
+    global master_keys
+    if not master_keys:
+        master_keys = dict([
+            obtain_key(ACRA_MASTER_KEY_VAR_NAME, MASTER_KEY_PATH, 'v1'),
+            obtain_key(ACRA_MASTER_ENCRYPTION_KEY_VAR_NAME, MASTER_ENCRYPTION_KEY_PATH, 'v2'),
+            obtain_key(ACRA_MASTER_SIGNATURE_KEY_VAR_NAME, MASTER_SIGNATURE_KEY_PATH, 'v2'),
+        ])
+    return master_keys
 
 
 def get_poison_record():
@@ -290,15 +302,18 @@ def get_poison_record():
     for new records"""
     global poison_record
     if not poison_record:
-        poison_record = b64decode(subprocess.check_output(
-            ['./acra-poisonrecordmaker', '--keys_dir={}'.format(KEYS_FOLDER.name)], timeout=PROCESS_CALL_TIMEOUT))
+        poison_record = b64decode(subprocess.check_output([
+            './acra-poisonrecordmaker', '--keys_dir={}'.format(KEYS_FOLDER.name),
+            '--keystore={}'.format(KEYSTORE_VERSION)],
+            timeout=PROCESS_CALL_TIMEOUT))
     return poison_record
 
 
 def create_client_keypair(name, only_server=False, only_client=False):
     args = ['./acra-keymaker', '-client_id={}'.format(name),
             '-keys_output_dir={}'.format(KEYS_FOLDER.name),
-            '--keys_public_output_dir={}'.format(KEYS_FOLDER.name)]
+            '--keys_public_output_dir={}'.format(KEYS_FOLDER.name),
+            '--keystore={}'.format(KEYSTORE_VERSION)]
     if only_server:
         args.append('-acra-server')
     elif only_client:
@@ -310,6 +325,7 @@ def manage_basic_auth_user(action, user_name, user_password):
             '--file={}'.format(ACRAWEBCONFIG_AUTH_DB_PATH),
             '--user={}'.format(user_name),
             '--keys_dir={}'.format(KEYS_FOLDER.name),
+            '--keystore={}'.format(KEYSTORE_VERSION),
             '--password={}'.format(user_password)]
     return subprocess.call(args, cwd=os.getcwd(), timeout=PROCESS_CALL_TIMEOUT)
 
@@ -418,6 +434,8 @@ BINARIES = [
            build_args=DEFAULT_BUILD_ARGS),
     Binary(name='acra-migrate-keys', from_version=DEFAULT_VERSION,
            build_args=DEFAULT_BUILD_ARGS),
+    Binary(name='acra-read-key', from_version=DEFAULT_VERSION,
+           build_args=DEFAULT_BUILD_ARGS),
     Binary(name='acra-poisonrecordmaker', from_version=DEFAULT_VERSION,
            build_args=DEFAULT_BUILD_ARGS),
     Binary(name='acra-rollback', from_version=ACRAROLLBACK_MIN_VERSION,
@@ -494,7 +512,8 @@ def setUpModule():
                 continue
 
     # must be before any call of key generators or forks of acra/proxy servers
-    os.environ.setdefault(ACRA_MASTER_KEY_VAR_NAME, get_master_key())
+    for key_var, value in get_master_keys().items():
+        os.environ.setdefault(key_var, value)
 
     # first keypair for using without zones
     assert create_client_keypair('keypair1') == 0
@@ -713,26 +732,35 @@ class Psycopg2Executor(QueryExecutor):
 
 class KeyMakerTest(unittest.TestCase):
     def test_key_length(self):
-        with tempfile.TemporaryDirectory() as folder:
-            key_size = 32
-            short_key = b64encode((key_size - 1)*b'a')
-            standard_key = b64encode(key_size * b'a')
-            long_key = b64encode((key_size * 2) * b'a')
+        key_size = 32
+        short_key = b64encode((key_size - 1)*b'a')
+        short_master_keys = {var: short_key for var in get_master_keys().keys()}
+        standard_key = b64encode(key_size * b'a')
+        standard_master_keys = {var: standard_key for var in get_master_keys().keys()}
+        long_key = b64encode((key_size * 2) * b'a')
+        long_master_keys = {var: long_key for var in get_master_keys().keys()}
 
+        with tempfile.TemporaryDirectory() as folder:
             with self.assertRaises(subprocess.CalledProcessError) as exc:
                 subprocess.check_output(
-                    ['./acra-keymaker', '--keys_output_dir={}'.format(folder),
+                    ['./acra-keymaker', '--keystore={}'.format(KEYSTORE_VERSION),
+                     '--keys_output_dir={}'.format(folder),
                      '--keys_public_output_dir={}'.format(folder)],
-                    env={'ACRA_MASTER_KEY': short_key})
+                    env=short_master_keys)
 
+        with tempfile.TemporaryDirectory() as folder:
             subprocess.check_output(
-                    ['./acra-keymaker', '--keys_output_dir={}'.format(folder),
+                    ['./acra-keymaker', '--keystore={}'.format(KEYSTORE_VERSION),
+                     '--keys_output_dir={}'.format(folder),
                      '--keys_public_output_dir={}'.format(folder)],
-                    env={'ACRA_MASTER_KEY': standard_key})
+                    env=standard_master_keys)
+
+        with tempfile.TemporaryDirectory() as folder:
             subprocess.check_output(
-                    ['./acra-keymaker', '--keys_output_dir={}'.format(folder),
+                    ['./acra-keymaker', '--keystore={}'.format(KEYSTORE_VERSION),
+                     '--keys_output_dir={}'.format(folder),
                      '--keys_public_output_dir={}'.format(folder)],
-                    env={'ACRA_MASTER_KEY': long_key})
+                    env=long_master_keys)
 
 
 class PrometheusMixin(object):
@@ -1091,31 +1119,52 @@ class BaseTestCase(PrometheusMixin, unittest.TestCase):
         send_signal_by_process_name('acra-server', signal.SIGKILL)
         send_signal_by_process_name('acra-connector', signal.SIGKILL)
 
-    def log(self, acra_key_name, data, expected):
+    def log(self, data, expected=b'<no expected value>',
+            storage_client_id=None, zone_id=None,
+            poison_key=False):
         """this function for printing data which used in test and for
         reproducing error with them if any error detected"""
         if not self.TEST_DATA_LOG:
             return
-        with open('{}/{}_zone'.format(KEYS_FOLDER.name, zones[0][ZONE_ID]), 'rb') as f:
-            zone_private = f.read()
-        with open('{}/{}'.format(KEYS_FOLDER.name, acra_key_name), 'rb') as f:
-            private_key = f.read()
-        with open('{}/{}.pub'.format(KEYS_FOLDER.name, acra_key_name), 'rb') as f:
-            public_key = f.read()
-        logging.debug("test log: {}".format(json.dumps(
-            {
-                'master_key': get_master_key(),
-                'key_name': acra_key_name,
-                'private_key': b64encode(private_key).decode('ascii'),
-                'public_key': b64encode(public_key).decode('ascii'),
-                'data': b64encode(data).decode('ascii'),
-                'expected': b64encode(expected).decode('ascii'),
-                'zone_private': b64encode(zone_private).decode('ascii'),
-                'zone_public': zones[0][ZONE_PUBLIC_KEY],
-                'zone_id': zones[0][ZONE_ID],
-                'poison_record': b64encode(get_poison_record()).decode('ascii'),
-            }
-        )))
+
+        def key_name():
+            if storage_client_id:
+                return 'client storage, id={}'.format(storage_client_id)
+            elif zone_id:
+                return 'zone storage, id={}'.format(zone_id)
+            elif poison_key:
+                return 'poison record key'
+            else:
+                return 'unknown'
+
+        log_entry = {
+            'master_keys': get_master_keys(),
+            'key_name': key_name(),
+            'data': b64encode(data).decode('ascii'),
+            'expected': b64encode(expected).decode('ascii'),
+        }
+
+        if storage_client_id:
+            public_key = read_storage_public_key(storage_client_id, KEYS_FOLDER.name)
+            private_key = read_storage_private_key(KEYS_FOLDER.name, storage_client_id)
+            log_entry['public_key'] = b64encode(public_key).decode('ascii')
+            log_entry['private_key'] = b64encode(private_key).decode('ascii')
+
+        if zone_id:
+            public_key = read_zone_public_key(storage_client_id, KEYS_FOLDER.name)
+            private_key = read_zone_private_key(KEYS_FOLDER.name, storage_client_id)
+            log_entry['zone_public'] = b64encode(public_key).decode('ascii')
+            log_entry['zone_private'] = b64encode(private_key).decode('ascii')
+            log_entry['zone_id'] = zone_id
+
+        if poison_key:
+            public_key = read_poison_public_key(KEYS_FOLDER.name)
+            private_key = read_poison_private_key(KEYS_FOLDER.name)
+            log_entry['public_key'] = b64encode(public_key).decode('ascii')
+            log_entry['private_key'] = b64encode(private_key).decode('ascii')
+            log_entry['poison_record'] = b64encode(get_poison_record()).decode('ascii')
+
+        logging.debug("test log: {}".format(json.dumps(log_entry)))
 
 
 class HexFormatTest(BaseTestCase):
@@ -1123,15 +1172,15 @@ class HexFormatTest(BaseTestCase):
     def testConnectorRead(self):
         """test decrypting with correct acra-connector and not decrypting with
         incorrect acra-connector or using direct connection to db"""
-        keyname = 'keypair1_storage'
-        with open('{}/{}.pub'.format(KEYS_FOLDER.name, keyname), 'rb') as f:
-            server_public1 = f.read()
+        client_id = 'keypair1'
+        server_public1 = read_storage_public_key(client_id, KEYS_FOLDER.name)
         data = get_pregenerated_random_data()
         acra_struct = create_acrastruct(
             data.encode('ascii'), server_public1)
         row_id = get_random_id()
 
-        self.log(keyname, acra_struct, data.encode('ascii'))
+        self.log(storage_client_id=client_id,
+                 data=acra_struct, expected=data.encode('ascii'))
 
         self.engine1.execute(
             test_table.insert(),
@@ -1162,9 +1211,8 @@ class HexFormatTest(BaseTestCase):
     def testReadAcrastructInAcrastruct(self):
         """test correct decrypting acrastruct when acrastruct concatenated to
         partial another acrastruct"""
-        keyname = 'keypair1_storage'
-        with open('{}/{}.pub'.format(KEYS_FOLDER.name, keyname), 'rb') as f:
-            server_public1 = f.read()
+        client_id = 'keypair1'
+        server_public1 = read_storage_public_key(client_id, KEYS_FOLDER.name)
         incorrect_data = get_pregenerated_random_data()
         correct_data = get_pregenerated_random_data()
         suffix_data = get_pregenerated_random_data()[:10]
@@ -1177,7 +1225,9 @@ class HexFormatTest(BaseTestCase):
         correct_data = correct_data + suffix_data
         row_id = get_random_id()
 
-        self.log(keyname, data, fake_acra_struct+correct_data.encode('ascii'))
+        self.log(storage_client_id=client_id,
+                 data=data,
+                 expected=fake_acra_struct+correct_data.encode('ascii'))
 
         self.engine1.execute(
             test_table.insert(),
@@ -1363,7 +1413,8 @@ class ZoneHexFormatTest(BaseTestCase):
             data.encode('ascii'), zone_public,
             context=zones[0][ZONE_ID].encode('ascii'))
         row_id = get_random_id()
-        self.log(zones[0][ZONE_ID]+'_zone', acra_struct, data.encode('ascii'))
+        self.log(zone_id=zones[0][ZONE_ID],
+                 data=acra_struct, expected=data.encode('ascii'))
         self.engine1.execute(
             test_table.insert(),
             {'id': row_id, 'data': acra_struct, 'raw_data': data})
@@ -1397,7 +1448,9 @@ class ZoneHexFormatTest(BaseTestCase):
             correct_data.encode('ascii'), zone_public, context=zones[0][ZONE_ID].encode('ascii'))
         data = fake_acra_struct + inner_acra_struct + suffix_data.encode('ascii')
         correct_data = correct_data + suffix_data
-        self.log(zones[0][ZONE_ID]+'_zone', data, fake_acra_struct+correct_data.encode('ascii'))
+        self.log(zone_id=zones[0][ZONE_ID],
+                 data=data,
+                 expected=fake_acra_struct+correct_data.encode('ascii'))
         row_id = get_random_id()
         self.engine1.execute(
             test_table.insert(),
@@ -1636,6 +1689,9 @@ class TestConnectionClosing(BaseTestCase):
 class TestKeyNonExistence(BaseTestCase):
     def setUp(self):
         self.checkSkip()
+        # FIXME(ilammy, 2020-03-20): implement key removal for v2
+        if KEYSTORE_VERSION == 'v2':
+            self.skipTest('key store v2 does not support key removal')
         try:
             if not self.EXTERNAL_ACRA:
                 self.acra = self.fork_acra()
@@ -1770,8 +1826,7 @@ class BasePoisonRecordTest(BaseTestCase):
     def setUp(self):
         super(BasePoisonRecordTest, self).setUp()
         try:
-            self.log(POISON_KEY_PATH, get_poison_record(),
-                     b'no matter because poison record')
+            self.log(poison_key=True, data=get_poison_record())
         except:
             self.tearDown()
             raise
@@ -1941,7 +1996,7 @@ class TestShutdownPoisonRecordWithZone(TestPoisonRecordShutdown):
         begin_tag = poison_record[:4]
         # test with extra long begin tag
         data = os.urandom(100) + begin_tag + poison_record + os.urandom(100)
-        self.log(POISON_KEY_PATH, data, data)
+        self.log(poison_key=True, data=data, expected=data)
         self.engine1.execute(
             test_table.insert(),
             {'id': row_id, 'data': data, 'raw_data': 'poison_record'})
@@ -2009,7 +2064,7 @@ class TestShutdownPoisonRecordWithZoneOffStatus(TestPoisonRecordShutdown):
         begin_tag = poison_record[:4]
         # test with extra long begin tag
         testData = os.urandom(100) + begin_tag + poison_record + os.urandom(100)
-        self.log(POISON_KEY_PATH, testData, testData)
+        self.log(poison_key=True, data=testData, expected=testData)
         self.engine1.execute(
             test_table.insert(),
             {'id': row_id, 'data': testData, 'raw_data': 'poison_record'})
@@ -2155,6 +2210,9 @@ class TestCheckLogPoisonRecord(AcraCatchLogsMixin, BasePoisonRecordTest):
 class TestKeyStorageClearing(BaseTestCase):
     def setUp(self):
         self.checkSkip()
+        # FIXME(ilammy, 2020-03-20): implement key removal for v2
+        if KEYSTORE_VERSION == 'v2':
+            self.skipTest('key store v2 does not support key removal')
         try:
             self.key_name = 'clearing_keypair'
             create_client_keypair(self.key_name)
@@ -2297,9 +2355,7 @@ class TestAcraRollback(BaseTestCase):
             raise
 
     def test_without_zone_to_file(self):
-        keyname = 'keypair1_storage'
-        with open('{}/{}.pub'.format(KEYS_FOLDER.name, keyname), 'rb') as f:
-            server_public1 = f.read()
+        server_public1 = read_storage_public_key('keypair1', KEYS_FOLDER.name)
 
         rows = []
         for _ in range(self.DATA_COUNT):
@@ -2369,9 +2425,7 @@ class TestAcraRollback(BaseTestCase):
             self.assertIn(data[0], source_data)
 
     def test_without_zone_execute(self):
-        keyname = 'keypair1_storage'
-        with open('{}/{}.pub'.format(KEYS_FOLDER.name, keyname), 'rb') as f:
-            server_public1 = f.read()
+        server_public1 = read_storage_public_key('keypair1', KEYS_FOLDER.name)
 
         rows = []
         for _ in range(self.DATA_COUNT):
@@ -2816,15 +2870,15 @@ class BasePrepareStatementMixin:
     def testConnectorRead(self):
         """test decrypting with correct acra-connector and not decrypting with
         incorrect acra-connector or using direct connection to db"""
-        keyname = 'keypair1_storage'
-        with open('{}/{}.pub'.format(KEYS_FOLDER.name, keyname), 'rb') as f:
-            server_public1 = f.read()
+        client_id = 'keypair1'
+        server_public1 = read_storage_public_key(client_id, KEYS_FOLDER.name)
         data = get_pregenerated_random_data()
         acra_struct = create_acrastruct(
             data.encode('ascii'), server_public1)
         row_id = get_random_id()
 
-        self.log(keyname, acra_struct, data.encode('ascii'))
+        self.log(storage_client_id=client_id,
+                 data=acra_struct, expected=data.encode('ascii'))
 
         self.engine1.execute(
             test_table.insert(),
@@ -2855,9 +2909,8 @@ class BasePrepareStatementMixin:
     def testReadAcrastructInAcrastruct(self):
         """test correct decrypting acrastruct when acrastruct concatenated to
         partial another acrastruct"""
-        keyname = 'keypair1_storage'
-        with open('{}/{}.pub'.format(KEYS_FOLDER.name, keyname), 'rb') as f:
-            server_public1 = f.read()
+        client_id = 'keypair1'
+        server_public1 = read_storage_public_key(client_id, KEYS_FOLDER.name)
         incorrect_data = get_pregenerated_random_data()
         correct_data = get_pregenerated_random_data()
         suffix_data = get_pregenerated_random_data()[:10]
@@ -2870,7 +2923,9 @@ class BasePrepareStatementMixin:
         correct_data = correct_data + suffix_data
         row_id = get_random_id()
 
-        self.log(keyname, data, fake_acra_struct+correct_data.encode('ascii'))
+        self.log(storage_client_id=client_id,
+                 data=data,
+                 expected=fake_acra_struct+correct_data.encode('ascii'))
 
         self.engine1.execute(
             test_table.insert(),
@@ -3098,9 +3153,9 @@ class AcraTranslatorTest(AcraTranslatorMixin, BaseTestCase):
         connector_port2 = connector_port+1
         client_id = "keypair1"
         data = get_pregenerated_random_data().encode('ascii')
-        client_id_private_key = read_storage_private_key(KEYS_FOLDER.name, 'keypair1', get_master_key())
+        client_id_private_key = read_storage_private_key(KEYS_FOLDER.name, 'keypair1')
         zone = zones[0]
-        zone_private_key = read_zone_private_key(KEYS_FOLDER.name, zone['id'], get_master_key())
+        zone_private_key = read_zone_private_key(KEYS_FOLDER.name, zone['id'])
         connection_string = 'tcp://127.0.0.1:{}'.format(translator_port)
         translator_kwargs = {
             'incoming_connection_http_string': connection_string if use_http else '',
@@ -3364,12 +3419,7 @@ class TestAcraRotateWithZone(BaseTestCase):
                         for path in result[zone_id][FILES]:
                             with open(path, 'rb') as acrastruct_file:
                                 rotated_acrastruct = acrastruct_file.read()
-                            zone_private_key_path = '{}/{}_zone'.format(
-                                keys_folder, zone_id)
-                            with open(zone_private_key_path, 'rb') as f:
-                                zone_private = decrypt_private_key(
-                                    f.read(), zone_id.encode("ascii"),
-                                    b64decode(get_master_key()))
+                            zone_private = read_zone_private_key(keys_folder, zone_id)
                             decrypted_rotated = decrypt_acrastruct(
                                 rotated_acrastruct, zone_private,
                                 zone_id=zone_id.encode('ascii'))
@@ -3578,7 +3628,8 @@ class TestAcraRotate(TestAcraRotateWithZone):
                 ['./acra-keymaker',
                  '--client_id={}'.format(client_id),
                  '--keys_output_dir={}'.format(keys_folder),
-                 '--keys_public_output_dir={}'.format(keys_folder)],
+                 '--keys_public_output_dir={}'.format(keys_folder),
+                 '--keystore={}'.format(KEYSTORE_VERSION)],
                 cwd=os.getcwd(),
                 timeout=PROCESS_CALL_TIMEOUT).decode('utf-8')
             # create acrastructs with this client_id
@@ -3637,12 +3688,7 @@ class TestAcraRotate(TestAcraRotateWithZone):
                         for path in result[key_id][FILES]:
                             with open(path, 'rb') as acrastruct_file:
                                 rotated_acrastruct = acrastruct_file.read()
-                            private_key_path = '{}/{}_storage'.format(
-                                keys_folder, key_id)
-                            with open(private_key_path, 'rb') as f:
-                                client_id_private = decrypt_private_key(
-                                    f.read(), key_id.encode("ascii"),
-                                    b64decode(get_master_key()))
+                            client_id_private = read_storage_private_key(keys_folder, key_id)
                             decrypted_rotated = decrypt_acrastruct(
                                 rotated_acrastruct, client_id_private)
                             if dryRun:
@@ -4256,6 +4302,7 @@ class TestOutdatedServiceConfigs(BaseTestCase, FailedRunProcessMixin):
                 'acra-server': ['-db_host=127.0.0.1'],
                 'acra-connector': ['-user_check_disable', '-acraserver_connection_host=127.0.0.1', '-client_id=keypair1'],
                 'acra-migrate-keys': ['--dry_run', '--src_keys_dir={}'.format(KEYS_FOLDER.name)],
+                'acra-read-key': ['--keys_dir={}'.format(KEYS_FOLDER.name)],
             }
             for service in services:
                 config_param = '-config_file={}'.format(os.path.join(tmp_dir, '{}.yaml'.format(service)))
@@ -4279,6 +4326,7 @@ class TestOutdatedServiceConfigs(BaseTestCase, FailedRunProcessMixin):
                 'acra-server': ['-db_host=127.0.0.1'],
                 'acra-connector': ['-user_check_disable', '-acraserver_connection_host=127.0.0.1', '-client_id=keypair1'],
                 'acra-migrate-keys': ['--dry_run', '--src_keys_dir={}'.format(KEYS_FOLDER.name)],
+                'acra-read-key': ['--keys_dir={}'.format(KEYS_FOLDER.name)],
             }
             for service in services:
                 config_param = '-config_file={}'.format(os.path.join(tmp_dir, '{}.yaml'.format(service)))
@@ -4311,12 +4359,17 @@ class TestOutdatedServiceConfigs(BaseTestCase, FailedRunProcessMixin):
                                    'args': ['-keys_dir={}'.format(KEYS_FOLDER.name)],
                                    'status': 1},
                 'acra-keymaker': ['-keys_output_dir={}'.format(tmp_dir),
-                                  '-keys_public_output_dir={}'.format(tmp_dir)],
+                                  '-keys_public_output_dir={}'.format(tmp_dir),
+                                  '--keystore={}'.format(KEYSTORE_VERSION)],
                 'acra-migrate-keys': ['--dry_run', '--src_keys_dir={}'.format(KEYS_FOLDER.name)],
-                'acra-poisonrecordmaker': ['-keys_dir={}'.format(tmp_dir)],
-                'acra-rollback': {'args': ['-keys_dir={}'.format(tmp_dir)],
+                'acra-read-key': ['--keys_dir={}'.format(KEYS_FOLDER.name)],
+                'acra-poisonrecordmaker': ['-keys_dir={}'.format(tmp_dir),
+                                           '--keystore={}'.format(KEYSTORE_VERSION)],
+                'acra-rollback': {'args': ['-keys_dir={}'.format(tmp_dir),
+                                           '--keystore={}'.format(KEYSTORE_VERSION)],
                                   'status': 1},
-                'acra-rotate': {'args': ['-keys_dir={}'.format(tmp_dir)],
+                'acra-rotate': {'args': ['-keys_dir={}'.format(tmp_dir),
+                                         '--keystore={}'.format(KEYSTORE_VERSION)],
                                 'status': 0},
                 'acra-translator': {'connection': 'connection_string',
                                    'args': ['-keys_dir={}'.format(KEYS_FOLDER.name),
@@ -4357,12 +4410,17 @@ class TestOutdatedServiceConfigs(BaseTestCase, FailedRunProcessMixin):
                                    'args': ['-keys_dir={}'.format(KEYS_FOLDER.name)],
                                    'status': 1},
                 'acra-keymaker': ['-keys_output_dir={}'.format(tmp_dir),
-                                  '-keys_public_output_dir={}'.format(tmp_dir)],
+                                  '-keys_public_output_dir={}'.format(tmp_dir),
+                                  '--keystore={}'.format(KEYSTORE_VERSION)],
                 'acra-migrate-keys': ['--dry_run', '--src_keys_dir={}'.format(KEYS_FOLDER.name)],
-                'acra-poisonrecordmaker': ['-keys_dir={}'.format(tmp_dir)],
-                'acra-rollback': {'args': ['-keys_dir={}'.format(tmp_dir)],
+                'acra-read-key': ['--keys_dir={}'.format(KEYS_FOLDER.name)],
+                'acra-poisonrecordmaker': ['-keys_dir={}'.format(tmp_dir),
+                                           '--keystore={}'.format(KEYSTORE_VERSION)],
+                'acra-rollback': {'args': ['-keys_dir={}'.format(tmp_dir),
+                                           '--keystore={}'.format(KEYSTORE_VERSION)],
                                   'status': 1},
-                'acra-rotate': {'args': ['-keys_dir={}'.format(tmp_dir)],
+                'acra-rotate': {'args': ['-keys_dir={}'.format(tmp_dir),
+                                         '--keystore={}'.format(KEYSTORE_VERSION)],
                                 'status': 0},
                 'acra-translator': {'connection': 'connection_string',
                                     'args': ['-keys_dir={}'.format(KEYS_FOLDER.name),
