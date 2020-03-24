@@ -863,15 +863,18 @@ class BaseTestCase(PrometheusMixin, unittest.TestCase):
         return process
 
     def get_connector_tls_params(self):
-        return [
-            '--acraserver_tls_transport_enable',
-            '--tls_acraserver_sni=acraserver',
-        ]
+        return {
+            'acraserver_tls_transport_enable': True,
+            'tls_acraserver_sni': 'acraserver',
+        }
 
     def get_connector_prometheus_port(self, port):
         return port+1
 
-    def fork_connector(self, connector_port: int, acraserver_port: int, client_id: str, api_port: int=None, zone_mode: bool=False, check_connection: bool=True):
+    def fork_connector(self, connector_port: int, acraserver_port: int,
+                       client_id: str, api_port: int=None,
+                       zone_mode: bool=False, check_connection: bool=True,
+                       **extra_options: dict):
         logging.info("fork connector with port {} and client_id={}".format(connector_port, client_id))
 
         acraserver_connection = self.get_acraserver_connection_string(acraserver_port)
@@ -889,33 +892,37 @@ class BaseTestCase(PrometheusMixin, unittest.TestCase):
                 os.remove(path)
             except:
                 pass
-        args = [
-            './acra-connector',
-            '-acraserver_connection_string={}'.format(acraserver_connection),
-            '-acraserver_api_connection_string={}'.format(acraserver_api_connection),
-             '-client_id={}'.format(client_id),
-            '-incoming_connection_string={}'.format(connector_connection),
-            '-incoming_connection_api_string={}'.format(connector_api_connection),
-            '-user_check_disable=true',
-            '-keys_dir={}'.format(KEYS_FOLDER.name),
-            '-logging_format=cef',
-        ]
+        args = {
+            'acraserver_connection_string': acraserver_connection,
+            'acraserver_api_connection_string': acraserver_api_connection,
+            'client_id': client_id,
+            'incoming_connection_string': connector_connection,
+            'incoming_connection_api_string': connector_api_connection,
+            'user_check_disable': 'true',
+            'keys_dir': KEYS_FOLDER.name,
+            'logging_format': 'cef',
+        }
         if self.LOG_METRICS:
-            args.append('-incoming_connection_prometheus_metrics_string={}'.format(
+            args['incoming_connection_prometheus_metrics_string'] = \
                 self.get_prometheus_address(
-                    self.get_connector_prometheus_port(connector_port))))
+                    self.get_connector_prometheus_port(connector_port))
         if TEST_WITH_TRACING:
-            args.append('--tracing_log_enable')
+            args['tracing_log_enable'] = True
             if TEST_TRACE_TO_JAEGER:
-                args.append('--tracing_jaeger_enable')
+                args['tracing_jaeger_enable'] = True
         if self.DEBUG_LOG:
-            args.append('-d=true')
+            args['d'] = True
         if zone_mode:
-            args.append('--http_api_enable=true')
+            args['http_api_enable'] = True
         if self.CONNECTOR_TLS_TRANSPORT:
-            args.extend(self.get_connector_tls_params())
-        print('connector args: {}'.format(' '.join(sorted(args))))
-        process = self.fork(lambda: subprocess.Popen(args))
+            args.update(self.get_connector_tls_params())
+        if extra_options:
+            args.update(extra_options)
+
+        cli_args = sorted(['--{}={}'.format(k, v) for k, v in args.items()])
+        print('connector args: {}'.format(' '.join(cli_args)))
+
+        process = self.fork(lambda: subprocess.Popen(['./acra-connector'] + cli_args))
         if check_connection:
             print('check connection {}'.format(connector_connection))
             try:
@@ -2759,7 +2766,7 @@ class TLSBetweenConnectorAndServerMixin(object):
     def get_connector_tls_params(self):
         base_params = super(TLSBetweenConnectorAndServerMixin, self).get_connector_tls_params()
         # client side need CA cert to verify server's
-        base_params.append('--tls_ca={}'.format(TEST_TLS_CA))
+        base_params.update('tls_ca', TEST_TLS_CA)
         return base_params
 
     def setUp(self):
