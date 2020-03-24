@@ -2280,6 +2280,243 @@ class TestKeyStorageClearing(BaseTestCase):
             result = self.engine1.execute(test_table.select().limit(1))
 
 
+class TestKeyStoreMigration(BaseTestCase):
+    """Test acra-migrate-keys utility."""
+
+    # We need to test different key store formats so we can't touch
+    # the global KEYS_FOLDER. We need to launch service instances
+    # with particular key store configuration. Ignore the usual
+    # setup and teardown routines that start Acra services.
+
+    def setUp(self):
+        self.checkSkip()
+        self.test_dir = tempfile.TemporaryDirectory()
+        self.engine_raw = sa.create_engine(
+            '{}://{}:{}/{}'.format(DB_DRIVER, DB_HOST, DB_PORT, DB_NAME),
+            connect_args=get_connect_args(DB_PORT))
+        metadata.create_all(self.engine_raw)
+        self.engine_raw.execute(test_table.delete())
+
+    def tearDown(self):
+        self.engine_raw.execute(test_table.delete())
+        self.engine_raw.dispose()
+        self.test_dir.cleanup()
+
+    # Instead, use these methods according to individual test needs.
+
+    def create_key_store(self, version):
+        """Create new key store of given version."""
+        # Start with service transport keys and client storage keys.
+        self.client_id = 'test-client-please-ignore'
+        subprocess.check_call([
+                './acra-keymaker',
+                '--generate_acraconnector_keys',
+                '--generate_acraserver_keys',
+                '--generate_acrawriter_keys',
+                '--client_id={}'.format(self.client_id),
+                '--keys_output_dir={}'.format(self.current_key_store_path()),
+                '--keys_public_output_dir={}'.format(self.current_key_store_path()),
+                '--keystore={}'.format(version),
+            ],
+            timeout=PROCESS_CALL_TIMEOUT)
+
+        # Then add some zones that we're going to test with.
+        zone_output = subprocess.check_output([
+                './acra-addzone',
+                '--keys_output_dir={}'.format(self.current_key_store_path()),
+            ],
+            timeout=PROCESS_CALL_TIMEOUT)
+        zone_config = json.loads(zone_output.decode('utf-8'))
+        self.zone_id = zone_config[ZONE_ID]
+
+        # Keep the current version around, we'll need it for migration.
+        self.keystore_version = version
+
+    def migrate_key_store(self, new_version):
+        """Migrate key store from current to given new version."""
+        # Run the migration tool. New key store is in a new directory.
+        subprocess.check_call([
+                './acra-migrate-keys',
+                '--src_keys_dir={}'.format(self.current_key_store_path()),
+                '--src_keys_dir_public={}'.format(self.current_key_store_path()),
+                '--src_keystore={}'.format(self.keystore_version),
+                '--dst_keys_dir={}'.format(self.new_key_store_path()),
+                '--dst_keys_dir_public={}'.format(self.new_key_store_path()),
+                '--dst_keystore={}'.format(new_version),
+            ],
+            timeout=PROCESS_CALL_TIMEOUT)
+
+        # Finalize the migration, replacing old key store with the new one.
+        # We assume the services to be not running at this moment.
+        os.rename(self.current_key_store_path(), self.old_key_store_path())
+        os.rename(self.new_key_store_path(), self.current_key_store_path())
+        self.keystore_version = new_version
+
+    def start_services(self, zone_mode=False):
+        """Start Acra services required for testing."""
+        self.acra_server = self.fork_acra(
+            zonemode_enable='true' if zone_mode else 'false',
+            keys_dir=self.current_key_store_path())
+
+        self.acra_connector = self.fork_connector(
+            client_id=self.client_id,
+            zone_mode=zone_mode,
+            api_port=self.CONNECTOR_API_PORT_1,
+            connector_port=self.CONNECTOR_PORT_1,
+            acraserver_port=self.ACRASERVER_PORT,
+            keys_dir=self.current_key_store_path())
+
+        self.engine = sa.create_engine(
+            get_engine_connection_string(
+                self.get_connector_connection_string(self.CONNECTOR_PORT_1),
+                DB_NAME),
+            connect_args=get_connect_args(port=self.CONNECTOR_PORT_1))
+
+        # Remember whether we're running in zone mode. We need to know this
+        # to store and retrieve the data correctly.
+        self.zone_mode = zone_mode
+
+    def stop_services(self):
+        """Gracefully stop Acra services being tested."""
+        self.engine.dispose()
+        stop_process(self.acra_connector)
+        stop_process(self.acra_server)
+
+    @contextlib.contextmanager
+    def running_services(self, **kwargs):
+        self.start_services(**kwargs)
+        try:
+            yield
+        finally:
+            self.stop_services()
+
+    def insert_via_connector(self, data):
+        """Encrypt and insert data via Acra Connector."""
+        # Encryption depends on whether we're using zones or not.
+        if self.zone_mode:
+            acra_struct = create_acrastruct(
+                data.encode('ascii'),
+                read_zone_public_key(
+                    self.zone_id,
+                    self.current_key_store_path()),
+                context=self.zone_id.encode('ascii'))
+        else:
+            acra_struct = create_acrastruct(
+                data.encode('ascii'),
+                read_storage_public_key(
+                    self.client_id,
+                    self.current_key_store_path()))
+
+        row_id = get_random_id()
+        self.engine.execute(test_table.insert(), {
+            'id': row_id, 'data': acra_struct, 'raw_data': data,
+        })
+        return row_id
+
+    def select_via_connector(self, row_id):
+        """Select decrypted data via Acra Connector."""
+        # If we're using zones, zone ID should precede the encrypted data.
+        if self.zone_mode:
+            cols = [sa.cast(self.zone_id.encode('ascii'), BYTEA),
+                    test_table.c.data, test_table.c.raw_data]
+        else:
+            cols = [test_table.c.data, test_table.c.raw_data]
+
+        rows = self.engine.execute(
+            sa.select(cols).where(test_table.c.id == row_id))
+        return rows.first()
+
+    def select_directly(self, row_id):
+        """Select raw data directly from database."""
+        rows = self.engine_raw.execute(
+            sa.select([test_table.c.data]).where(test_table.c.id == row_id))
+        return rows.first()
+
+    def current_key_store_path(self):
+        return os.path.join(self.test_dir.name, '.acrakeys')
+
+    def new_key_store_path(self):
+        return os.path.join(self.test_dir.name, '.acrakeys.new')
+
+    def old_key_store_path(self):
+        return os.path.join(self.test_dir.name, '.acrakeys.old')
+
+    # Now we can proceed with the tests...
+
+    def test_migrate_v1_to_v2(self):
+        """Verify v1 -> v2 key store migration."""
+        data_1 = get_pregenerated_random_data()
+        data_2 = get_pregenerated_random_data()
+
+        self.create_key_store('v1')
+
+        # Try saving some data with default zone
+        with self.running_services():
+            row_id_1 = self.insert_via_connector(data_1)
+
+            # Check that we're able to put and get data via Connector.
+            selected = self.select_via_connector(row_id_1)
+            self.assertEquals(selected['data'], data_1.encode('ascii'))
+            self.assertEquals(selected['raw_data'], data_1)
+
+            # Get encrypted data. It should really be encrypted.
+            encrypted_1 = self.select_directly(row_id_1)
+            self.assertNotEquals(encrypted_1['data'], data_1.encode('ascii'))
+
+        # Now do the same with a specific zone
+        with self.running_services(zone_mode=True):
+            row_id_1_zoned = self.insert_via_connector(data_1)
+
+            # Check that we're able to put and get data via Connector.
+            selected = self.select_via_connector(row_id_1_zoned)
+            self.assertEquals(selected['data'], data_1.encode('ascii'))
+            self.assertEquals(selected['raw_data'], data_1)
+
+            # Get encrypted data. It should really be encrypted.
+            encrypted_1_zoned = self.select_directly(row_id_1_zoned)
+            self.assertNotEquals(encrypted_1_zoned['data'], data_1.encode('ascii'))
+            # Also, it should be different from the default-zoned data.
+            self.assertNotEquals(encrypted_1_zoned['data'], encrypted_1['data'])
+
+        self.migrate_key_store('v2')
+
+        # After we have migrated the keys, check the setup again.
+        with self.running_services():
+            # Old data should still be there, accessible via Connector.
+            selected = self.select_via_connector(row_id_1)
+            self.assertEquals(selected['data'], data_1.encode('ascii'))
+            self.assertEquals(selected['raw_data'], data_1)
+
+            # Key migration does not change encrypted data.
+            encrypted_1_migrated = self.select_directly(row_id_1)
+            self.assertEquals(encrypted_1_migrated['data'],
+                              encrypted_1['data'])
+
+            # We're able to put some new data into the table and get it back.
+            row_id_2 = self.insert_via_connector(data_2)
+            selected = self.select_via_connector(row_id_2)
+            self.assertEquals(selected['data'], data_2.encode('ascii'))
+            self.assertEquals(selected['raw_data'], data_2)
+
+        # And again, this time with zones.
+        with self.running_services(zone_mode=True):
+            # Old data should still be there, accessible via Connector.
+            selected = self.select_via_connector(row_id_1_zoned)
+            self.assertEquals(selected['data'], data_1.encode('ascii'))
+            self.assertEquals(selected['raw_data'], data_1)
+
+            # Key migration does not change encrypted data.
+            encrypted_1_zoned_migrated = self.select_directly(row_id_1_zoned)
+            self.assertEquals(encrypted_1_zoned_migrated['data'],
+                              encrypted_1_zoned['data'])
+
+            # We're able to put some new data into the table and get it back.
+            row_id_2_zoned = self.insert_via_connector(data_2)
+            selected = self.select_via_connector(row_id_2_zoned)
+            self.assertEquals(selected['data'], data_2.encode('ascii'))
+            self.assertEquals(selected['raw_data'], data_2)
+
+
 class TestAcraRollback(BaseTestCase):
     DATA_COUNT = 5
 
