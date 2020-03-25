@@ -234,3 +234,13 @@ type WebConfigKeyStore interface {
 	// The key is created it if it does not exist yet, or recreated if "remove" is true.
 	GetAuthKey(remove bool) ([]byte, error)
 }
+
+// MultiKeyStore is a KeyStore with additional interface to retrieve historical versions of the key.
+// It is used to decrypt AcraStructs with possibly rotated keys.
+type MultiKeyStore interface {
+	ServerKeyStore
+
+	GetZonePrivateKeys(id []byte) ([]*keys.PrivateKey, error)
+
+	GetServerDecryptionPrivateKeys(id []byte) ([]*keys.PrivateKey, error)
+}

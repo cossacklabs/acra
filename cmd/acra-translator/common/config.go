@@ -14,9 +14,10 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package main
+package common
 
 import (
+	"crypto/tls"
 	"github.com/cossacklabs/acra/network"
 	"go.opencensus.io/trace"
 )
@@ -34,11 +35,27 @@ type AcraTranslatorConfig struct {
 	configPath                   string
 	debug                        bool
 	traceToLog                   bool
+	tlsConfig                    *tls.Config
 }
 
 // NewConfig creates new AcraTranslatorConfig.
 func NewConfig() *AcraTranslatorConfig {
 	return &AcraTranslatorConfig{stopOnPoison: false}
+}
+
+// WithTLS true if server should use TLS connections to gRPC/HTTP server
+func (a *AcraTranslatorConfig) WithTLS() bool {
+	return a.tlsConfig != nil
+}
+
+// SetTLSConfig tls.Config which should be used
+func (a *AcraTranslatorConfig) SetTLSConfig(v *tls.Config) {
+	a.tlsConfig = v
+}
+
+// GetTLSConfig return tls.Config which should be used
+func (a *AcraTranslatorConfig) GetTLSConfig() *tls.Config {
+	return a.tlsConfig
 }
 
 // SetTraceToLog true if want to log trace data otherwise false

@@ -18,6 +18,20 @@ type testKeystore struct {
 	EncryptionKeypair *keys.Keypair
 }
 
+func (keystore *testKeystore) GetZonePrivateKeys(id []byte) ([]*keys.PrivateKey, error) {
+	if keystore.EncryptionKeypair != nil {
+		return []*keys.PrivateKey{{Value: append([]byte{}, keystore.EncryptionKeypair.Private.Value...)}}, nil
+	}
+	return nil, ErrKeyNotFound
+}
+
+func (keystore *testKeystore) GetServerDecryptionPrivateKeys(id []byte) ([]*keys.PrivateKey, error) {
+	if keystore.EncryptionKeypair != nil {
+		return []*keys.PrivateKey{{Value: append([]byte{}, keystore.EncryptionKeypair.Private.Value...)}}, nil
+	}
+	return nil, ErrKeyNotFound
+}
+
 func (*testKeystore) RotateZoneKey(zoneID []byte) ([]byte, error) {
 	panic("implement me")
 }

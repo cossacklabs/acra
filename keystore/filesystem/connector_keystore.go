@@ -18,39 +18,110 @@ package filesystem
 
 import (
 	"errors"
-	"github.com/cossacklabs/acra/cmd/acra-connector/connector-mode"
+	"path/filepath"
+
+	connector_mode "github.com/cossacklabs/acra/cmd/acra-connector/connector-mode"
 	"github.com/cossacklabs/acra/keystore"
 	"github.com/cossacklabs/themis/gothemis/keys"
-	"io/ioutil"
-	"path/filepath"
 )
 
 // ConnectorFileSystemKeyStore stores AcraConnector keys configuration
 type ConnectorFileSystemKeyStore struct {
 	directory     string
 	clientID      []byte
+	storage       Storage
 	encryptor     keystore.KeyEncryptor
 	connectorMode connector_mode.ConnectorMode
 }
 
+// ConnectorFileSystemKeyStoreBuilder allows to build a custom key store.
+type ConnectorFileSystemKeyStoreBuilder struct {
+	directory     string
+	clientID      []byte
+	storage       Storage
+	encryptor     keystore.KeyEncryptor
+	connectorMode connector_mode.ConnectorMode
+}
+
+// NewCustomConnectorFileSystemKeyStore allows to customize a translator key store.
+func NewCustomConnectorFileSystemKeyStore() *ConnectorFileSystemKeyStoreBuilder {
+	return &ConnectorFileSystemKeyStoreBuilder{
+		storage: &DummyStorage{},
+	}
+}
+
+var (
+	errNoClientID      = errors.New("client ID not specified")
+	errNoConnectorMode = errors.New("connector mode not specified")
+)
+
+// KeyDirectory sets key directory.
+func (b *ConnectorFileSystemKeyStoreBuilder) KeyDirectory(directory string) *ConnectorFileSystemKeyStoreBuilder {
+	b.directory = directory
+	return b
+}
+
+// ClientID sets key client ID.
+func (b *ConnectorFileSystemKeyStoreBuilder) ClientID(clientID []byte) *ConnectorFileSystemKeyStoreBuilder {
+	b.clientID = clientID
+	return b
+}
+
+// Storage sets custom storage.
+func (b *ConnectorFileSystemKeyStoreBuilder) Storage(storage Storage) *ConnectorFileSystemKeyStoreBuilder {
+	b.storage = storage
+	return b
+}
+
+// Encryptor sets encryptor.
+func (b *ConnectorFileSystemKeyStoreBuilder) Encryptor(encryptor keystore.KeyEncryptor) *ConnectorFileSystemKeyStoreBuilder {
+	b.encryptor = encryptor
+	return b
+}
+
+// ConnectorMode sets connector mode.
+func (b *ConnectorFileSystemKeyStoreBuilder) ConnectorMode(connectorMode connector_mode.ConnectorMode) *ConnectorFileSystemKeyStoreBuilder {
+	b.connectorMode = connectorMode
+	return b
+}
+
+// Build a key store.
+func (b *ConnectorFileSystemKeyStoreBuilder) Build() (*ConnectorFileSystemKeyStore, error) {
+	if b.directory == "" {
+		return nil, errNoPrivateKeyDir
+	}
+	if b.clientID == nil {
+		return nil, errNoClientID
+	}
+	if b.encryptor == nil {
+		return nil, errNoEncryptor
+	}
+	if b.connectorMode == "" {
+		return nil, errNoConnectorMode
+	}
+	return &ConnectorFileSystemKeyStore{
+		directory:     b.directory,
+		clientID:      b.clientID,
+		storage:       b.storage,
+		encryptor:     b.encryptor,
+		connectorMode: b.connectorMode,
+	}, nil
+}
+
 // NewConnectorFileSystemKeyStore creates new ConnectorFileSystemKeyStore
 func NewConnectorFileSystemKeyStore(directory string, clientID []byte, encryptor keystore.KeyEncryptor, mode connector_mode.ConnectorMode) (*ConnectorFileSystemKeyStore, error) {
-	return &ConnectorFileSystemKeyStore{directory: directory, clientID: clientID, encryptor: encryptor, connectorMode: mode}, nil
+	return &ConnectorFileSystemKeyStore{directory: directory, clientID: clientID, storage: &fileStorage{}, encryptor: encryptor, connectorMode: mode}, nil
 }
 
 // CheckIfPrivateKeyExists checks if Keystore has Connector transport private key for establishing Secure Session connection,
 // returns true if key exists in fs.
 func (store *ConnectorFileSystemKeyStore) CheckIfPrivateKeyExists(id []byte) (bool, error) {
-	_, err := ioutil.ReadFile(filepath.Join(store.directory, getConnectorKeyFilename(id)))
-	if err != nil {
-		return false, err
-	}
-	return true, nil
+	return store.storage.Exists(filepath.Join(store.directory, getConnectorKeyFilename(id)))
 }
 
 // GetPrivateKey reads and decrypts Connector transport private key for establishing Secure Session connection.
 func (store *ConnectorFileSystemKeyStore) GetPrivateKey(id []byte) (*keys.PrivateKey, error) {
-	keyData, err := ioutil.ReadFile(filepath.Join(store.directory, getConnectorKeyFilename(id)))
+	keyData, err := store.storage.ReadFile(filepath.Join(store.directory, getConnectorKeyFilename(id)))
 	if err != nil {
 		return nil, err
 	}
@@ -76,7 +147,7 @@ func (store *ConnectorFileSystemKeyStore) GetPeerPublicKey(id []byte) (*keys.Pub
 		return nil, errors.New("unsupported ConnectorMode, can't find PeerPublicKey")
 	}
 
-	key, err := ioutil.ReadFile(filepath.Join(store.directory, getPublicKeyFilename([]byte(filename))))
+	key, err := store.storage.ReadFile(filepath.Join(store.directory, getPublicKeyFilename([]byte(filename))))
 	if err != nil {
 		return nil, err
 	}

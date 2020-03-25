@@ -139,7 +139,7 @@ func (t testDecryptor) MatchZoneInBlock([]byte) {
 }
 
 func (t testDecryptor) SetDataProcessor(processor base.DataProcessor) {
-	panic("implement me")
+	return
 }
 
 type decryptorFactory struct{}

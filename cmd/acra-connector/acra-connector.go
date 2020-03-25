@@ -142,7 +142,7 @@ func handleConnection(config *Config, connection net.Conn) {
 		return
 	}
 	_, wrapSpan := trace.StartSpan(ctx, "WrapClient")
-	acraConnWrapped, err := config.ConnectionWrapper.WrapClient(ctx, config.OutgoingServiceID, acraConn)
+	acraConnWrapped, err := config.ConnectionWrapper.WrapClient(ctx, acraConn)
 	if err != nil {
 		logger.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantWrapConnection).
 			Errorln("Can't wrap connection")
@@ -396,7 +396,7 @@ func main() {
 	// -------- TRANSPORT -----------
 	if connectorMode == connector_mode.AcraTranslatorMode {
 		log.Infof("Selecting transport: use Secure Session transport wrapper")
-		config.ConnectionWrapper, err = network.NewSecureSessionConnectionWrapper([]byte(*clientID), keyStore)
+		config.ConnectionWrapper, err = network.NewSecureSessionConnectionWrapperWithServerID([]byte(*clientID), []byte(outgoingSecureSessionID), keyStore)
 		if err != nil {
 			log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorTransportConfiguration).
 				Errorln("Configuration error: Can't initialize secure session connection wrapper")
@@ -424,7 +424,7 @@ func main() {
 			config.ConnectionWrapper = &network.RawConnectionWrapper{ClientID: []byte(*clientID)}
 		} else {
 			log.Infof("Selecting transport: use Secure Session transport wrapper")
-			config.ConnectionWrapper, err = network.NewSecureSessionConnectionWrapper([]byte(*clientID), keyStore)
+			config.ConnectionWrapper, err = network.NewSecureSessionConnectionWrapperWithServerID([]byte(*clientID), []byte(outgoingSecureSessionID), keyStore)
 			if err != nil {
 				log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorTransportConfiguration).
 					Errorln("Configuration error: Can't initialize secure session connection wrapper")

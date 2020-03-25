@@ -21,6 +21,10 @@ import (
 	"context"
 	"encoding/hex"
 	"errors"
+	"io"
+	"io/ioutil"
+	"os"
+
 	"github.com/cossacklabs/acra/decryptor/base"
 	"github.com/cossacklabs/acra/decryptor/binary"
 	"github.com/cossacklabs/acra/keystore"
@@ -28,12 +32,8 @@ import (
 	"github.com/cossacklabs/acra/utils"
 	"github.com/cossacklabs/acra/zone"
 	"github.com/cossacklabs/themis/gothemis/keys"
-	"github.com/sirupsen/logrus"
 	log "github.com/sirupsen/logrus"
 	"go.opencensus.io/trace"
-	"io"
-	"io/ioutil"
-	"os"
 )
 
 var errPlainData = errors.New("plain data without AcraStruct signature")
@@ -51,7 +51,7 @@ type PgDecryptor struct {
 	matchBuffer          []byte
 	matchIndex           int
 	callbackStorage      *base.PoisonCallbackStorage
-	logger               *logrus.Entry
+	logger               *log.Entry
 	dataProcessor        base.DataProcessor
 	dataProcessorContext *base.DataProcessorContext
 }
@@ -59,7 +59,7 @@ type PgDecryptor struct {
 // NewPgDecryptor returns new PgDecryptor hiding inner HEX decryptor or ESCAPE decryptor
 // by default checks poison recods and uses WholeMatch mode without zones
 func NewPgDecryptor(clientID []byte, decryptor base.DataDecryptor, withZone bool, keystore keystore.DecryptionKeyStore) *PgDecryptor {
-	logger := logrus.WithField("client_id", string(clientID))
+	logger := log.WithField("client_id", string(clientID))
 	decryptor.SetLogger(logger)
 	return &PgDecryptor{
 		isWithZone:      withZone,
@@ -77,7 +77,7 @@ func NewPgDecryptor(clientID []byte, decryptor base.DataDecryptor, withZone bool
 }
 
 // SetLogger set logger
-func (decryptor *PgDecryptor) SetLogger(logger *logrus.Entry) {
+func (decryptor *PgDecryptor) SetLogger(logger *log.Entry) {
 	decryptor.binaryDecryptor.SetLogger(logger)
 }
 
@@ -181,7 +181,7 @@ func (decryptor *PgDecryptor) ReadData(symmetricKey, zoneID []byte, reader io.Re
 	*/
 
 	// add zone_id to log if it used
-	logger := logrus.NewEntry(decryptor.logger.Logger)
+	logger := log.NewEntry(decryptor.logger.Logger)
 	if decryptor.GetMatchedZoneID() != nil {
 		logger = decryptor.logger.WithField("zone_id", string(decryptor.GetMatchedZoneID()))
 		// use temporary logger in matched decryptor

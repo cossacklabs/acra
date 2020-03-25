@@ -17,10 +17,10 @@ limitations under the License.
 package filesystem
 
 import (
+	"path/filepath"
+
 	"github.com/cossacklabs/acra/keystore"
 	"github.com/cossacklabs/themis/gothemis/keys"
-	"io/ioutil"
-	"path/filepath"
 )
 
 // TranslatorFileSystemKeyStore stores AcraTranslator keys configuration
@@ -28,6 +28,64 @@ type TranslatorFileSystemKeyStore struct {
 	*KeyStore
 	directory string
 	encryptor keystore.KeyEncryptor
+}
+
+// TranslatorFileSystemKeyStoreBuilder allows to build a custom key store.
+type TranslatorFileSystemKeyStoreBuilder struct {
+	keyStoreBuilder *KeyStoreBuilder
+	directory       string
+	encryptor       keystore.KeyEncryptor
+}
+
+// NewCustomTranslatorFileSystemKeyStore allows to customize a translator key store.
+func NewCustomTranslatorFileSystemKeyStore() *TranslatorFileSystemKeyStoreBuilder {
+	return &TranslatorFileSystemKeyStoreBuilder{
+		keyStoreBuilder: NewCustomFilesystemKeyStore(),
+	}
+}
+
+// KeyDirectory sets key directory.
+func (b *TranslatorFileSystemKeyStoreBuilder) KeyDirectory(directory string) *TranslatorFileSystemKeyStoreBuilder {
+	b.keyStoreBuilder.KeyDirectory(directory)
+	b.directory = directory
+	return b
+}
+
+// Encryptor sets key encryptor.
+func (b *TranslatorFileSystemKeyStoreBuilder) Encryptor(encryptor keystore.KeyEncryptor) *TranslatorFileSystemKeyStoreBuilder {
+	b.keyStoreBuilder.Encryptor(encryptor)
+	b.encryptor = encryptor
+	return b
+}
+
+// Storage sets custom storage.
+func (b *TranslatorFileSystemKeyStoreBuilder) Storage(storage Storage) *TranslatorFileSystemKeyStoreBuilder {
+	b.keyStoreBuilder.Storage(storage)
+	return b
+}
+
+// Build a key store.
+func (b *TranslatorFileSystemKeyStoreBuilder) Build() (*TranslatorFileSystemKeyStore, error) {
+	if b.directory == "" {
+		return nil, errNoPrivateKeyDir
+	}
+	if b.encryptor == nil {
+		return nil, errNoEncryptor
+	}
+	fsKeystore, err := b.keyStoreBuilder.Build()
+	if err != nil {
+		return nil, err
+	}
+	return &TranslatorFileSystemKeyStore{
+		KeyStore:  fsKeystore,
+		directory: b.directory,
+		encryptor: b.encryptor,
+	}, nil
+}
+
+// NewTranslatorFileSystemKeyStoreFromServerStore create TranslatorKeyStore which inherit KeyStore
+func NewTranslatorFileSystemKeyStoreFromServerStore(directory string, encryptor keystore.KeyEncryptor, store *KeyStore) (*TranslatorFileSystemKeyStore, error) {
+	return &TranslatorFileSystemKeyStore{KeyStore: store, directory: directory, encryptor: encryptor}, nil
 }
 
 // NewTranslatorFileSystemKeyStore creates new TranslatorFileSystemKeyStore
@@ -42,16 +100,12 @@ func NewTranslatorFileSystemKeyStore(directory string, encryptor keystore.KeyEnc
 // CheckIfPrivateKeyExists checks if Keystore has Translator transport private key for establishing Secure Session connection,
 // returns true if key exists in fs.
 func (store *TranslatorFileSystemKeyStore) CheckIfPrivateKeyExists(id []byte) (bool, error) {
-	_, err := ioutil.ReadFile(filepath.Join(store.directory, getTranslatorKeyFilename(id)))
-	if err != nil {
-		return false, err
-	}
-	return true, nil
+	return store.fs.Exists(filepath.Join(store.directory, getTranslatorKeyFilename(id)))
 }
 
 // GetPrivateKey reads and decrypts Translator transport private key for establishing Secure Session connection.
 func (store *TranslatorFileSystemKeyStore) GetPrivateKey(id []byte) (*keys.PrivateKey, error) {
-	keyData, err := ioutil.ReadFile(filepath.Join(store.directory, getTranslatorKeyFilename(id)))
+	keyData, err := store.fs.ReadFile(filepath.Join(store.directory, getTranslatorKeyFilename(id)))
 	if err != nil {
 		return nil, err
 	}
@@ -61,14 +115,4 @@ func (store *TranslatorFileSystemKeyStore) GetPrivateKey(id []byte) (*keys.Priva
 		return nil, err
 	}
 	return &keys.PrivateKey{Value: privateKey}, nil
-}
-
-// GetPeerPublicKey returns other party transport public key.
-func (store *TranslatorFileSystemKeyStore) GetPeerPublicKey(id []byte) (*keys.PublicKey, error) {
-	filename := getConnectorKeyFilename(id)
-	key, err := ioutil.ReadFile(filepath.Join(store.directory, getPublicKeyFilename([]byte(filename))))
-	if err != nil {
-		return nil, err
-	}
-	return &keys.PublicKey{Value: key}, nil
 }

@@ -62,7 +62,14 @@ func (keystore *testKeystore) GetZonePrivateKey(id []byte) (*keys.PrivateKey, er
 		return &keys.PrivateKey{Value: copied}, nil
 	}
 	return nil, ErrKeyNotFound
+}
 
+func (keystore *testKeystore) GetZonePrivateKeys(id []byte) ([]*keys.PrivateKey, error) {
+	key, err := keystore.GetZonePrivateKey(id)
+	if err != nil {
+		return nil, err
+	}
+	return []*keys.PrivateKey{key}, nil
 }
 
 func (*testKeystore) HasZonePrivateKey(id []byte) bool {
@@ -76,6 +83,14 @@ func (keystore *testKeystore) GetServerDecryptionPrivateKey(id []byte) (*keys.Pr
 		return &keys.PrivateKey{Value: copied}, nil
 	}
 	return nil, ErrKeyNotFound
+}
+
+func (keystore *testKeystore) GetServerDecryptionPrivateKeys(id []byte) ([]*keys.PrivateKey, error) {
+	key, err := keystore.GetServerDecryptionPrivateKey(id)
+	if err != nil {
+		return nil, err
+	}
+	return []*keys.PrivateKey{key}, nil
 }
 
 func (*testKeystore) GenerateZoneKey() ([]byte, []byte, error) {
