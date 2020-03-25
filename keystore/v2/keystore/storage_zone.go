@@ -64,6 +64,23 @@ func (s *ServerKeyStore) GetZonePrivateKey(zoneID []byte) (*keys.PrivateKey, err
 	return privateKey, nil
 }
 
+// GetZonePrivateKeys retrieves all private key used to decrypt data in given zone.
+// The keys are returned from newest to oldest.
+func (s *ServerKeyStore) GetZonePrivateKeys(zoneID []byte) ([]*keys.PrivateKey, error) {
+	log := s.log.WithField("zoneID", zoneID)
+	ring, err := s.OpenKeyRing(s.zoneStorageKeyPairPath(zoneID))
+	if err != nil {
+		log.WithError(err).Debug("failed to open storage key ring for zone")
+		return nil, err
+	}
+	privateKeys, err := s.allPairPrivateKeys(ring)
+	if err != nil {
+		log.WithError(err).Debug("failed to get storage private key for zone")
+		return nil, err
+	}
+	return privateKeys, nil
+}
+
 // HasZonePrivateKey returns true if there is a private key used to decrypt data in given zone.
 func (s *ServerKeyStore) HasZonePrivateKey(zoneID []byte) bool {
 	ring, err := s.OpenKeyRing(s.zoneStorageKeyPairPath(zoneID))

@@ -35,10 +35,16 @@ func (keystore *testKeystore) GetPeerPublicKey(id []byte) (*keys.PublicKey, erro
 func (keystore *testKeystore) GetZonePrivateKey(id []byte) (*keys.PrivateKey, error) {
 	return nil, nil
 }
+func (keystore *testKeystore) GetZonePrivateKeys(id []byte) ([]*keys.PrivateKey, error) {
+	return nil, nil
+}
 func (keystore *testKeystore) HasZonePrivateKey(id []byte) bool {
 	return true
 }
 func (keystore *testKeystore) GetServerDecryptionPrivateKey(id []byte) (*keys.PrivateKey, error) {
+	return nil, nil
+}
+func (keystore *testKeystore) GetServerDecryptionPrivateKeys(id []byte) ([]*keys.PrivateKey, error) {
 	return nil, nil
 }
 func (keystore *testKeystore) GenerateZoneKey() ([]byte, []byte, error) {

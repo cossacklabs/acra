@@ -69,6 +69,22 @@ func (s *ServerKeyStore) currentPairPrivateKey(ring api.KeyRing) (*keys.PrivateK
 	return &keys.PrivateKey{Value: privateKey}, nil
 }
 
+func (s *ServerKeyStore) allPairPrivateKeys(ring api.KeyRing) ([]*keys.PrivateKey, error) {
+	seqnums, err := ring.AllKeys()
+	if err != nil {
+		return nil, err
+	}
+	privateKeys := make([]*keys.PrivateKey, len(seqnums))
+	for i, seqnum := range seqnums {
+		privateKey, err := ring.PrivateKey(seqnum, api.ThemisKeyPairFormat)
+		if err != nil {
+			return nil, err
+		}
+		privateKeys[i] = &keys.PrivateKey{Value: privateKey}
+	}
+	return privateKeys, nil
+}
+
 func (s *ServerKeyStore) newCurrentKeyPair(ring api.MutableKeyRing) (*keys.Keypair, error) {
 	pair, err := keys.New(keys.TypeEC)
 	if err != nil {

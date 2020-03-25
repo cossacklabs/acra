@@ -164,9 +164,11 @@ type PublicKeyStore interface {
 
 // PrivateKeyStore provides access to storage private keys, used to decrypt stored data.
 type PrivateKeyStore interface {
-	GetZonePrivateKey(id []byte) (*keys.PrivateKey, error)
 	HasZonePrivateKey(id []byte) bool
+	GetZonePrivateKey(id []byte) (*keys.PrivateKey, error)
+	GetZonePrivateKeys(id []byte) ([]*keys.PrivateKey, error)
 	GetServerDecryptionPrivateKey(id []byte) (*keys.PrivateKey, error)
+	GetServerDecryptionPrivateKeys(id []byte) ([]*keys.PrivateKey, error)
 }
 
 // StorageKeyCreation enables creation of new storage key pairs and rotation of existing ones.
@@ -233,14 +235,4 @@ type WebConfigKeyStore interface {
 	// Reads current symmetric key for Acra Web Config.
 	// The key is created it if it does not exist yet, or recreated if "remove" is true.
 	GetAuthKey(remove bool) ([]byte, error)
-}
-
-// MultiKeyStore is a KeyStore with additional interface to retrieve historical versions of the key.
-// It is used to decrypt AcraStructs with possibly rotated keys.
-type MultiKeyStore interface {
-	ServerKeyStore
-
-	GetZonePrivateKeys(id []byte) ([]*keys.PrivateKey, error)
-
-	GetServerDecryptionPrivateKeys(id []byte) ([]*keys.PrivateKey, error)
 }

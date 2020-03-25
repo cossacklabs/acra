@@ -62,6 +62,23 @@ func (s *ServerKeyStore) GetServerDecryptionPrivateKey(clientID []byte) (*keys.P
 	return privateKey, nil
 }
 
+// GetServerDecryptionPrivateKeys retrieves all private key used to decrypt data by given client.
+// The keys are returned from newest to oldest.
+func (s *ServerKeyStore) GetServerDecryptionPrivateKeys(clientID []byte) ([]*keys.PrivateKey, error) {
+	log := s.log.WithField("clientID", clientID)
+	ring, err := s.OpenKeyRing(s.clientStorageKeyPairPath(clientID))
+	if err != nil {
+		log.WithError(err).Debug("failed to open storage key ring for client")
+		return nil, err
+	}
+	privateKeys, err := s.allPairPrivateKeys(ring)
+	if err != nil {
+		log.WithError(err).Debug("failed to get storage private keys for client")
+		return nil, err
+	}
+	return privateKeys, nil
+}
+
 //
 // StorageKeyCreation interface (clients)
 //
