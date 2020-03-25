@@ -67,12 +67,6 @@ func CreateDirectoryBackend(root string) (*DirectoryBackend, error) {
 		"subsystem": directorySubsystemName,
 	})
 	errLog := newLog.WithField("path", root)
-	// Make sure the root directory stays the same even if somene changes current directory.
-	root, err := filepath.Abs(root)
-	if err != nil {
-		errLog.WithError(err).Debug("failed to get absolute root key directory")
-		return nil, err
-	}
 	fi, err := os.Stat(root)
 	if err == nil {
 		if !fi.IsDir() {
@@ -123,12 +117,6 @@ func OpenDirectoryBackend(root string) (*DirectoryBackend, error) {
 		"subsystem": directorySubsystemName,
 	})
 	errLog := newLog.WithField("path", root)
-	// Make sure the root directory stays the same even if somene changes current directory.
-	root, err := filepath.Abs(root)
-	if err != nil {
-		errLog.WithError(err).Debug("failed to get absolute root key directory")
-		return nil, err
-	}
 	fi, err := os.Stat(root)
 	if err != nil {
 		errLog.WithError(err).Debug("failed to stat root key directory")
