@@ -2352,6 +2352,19 @@ class TestKeyStoreMigration(BaseTestCase):
         os.rename(self.new_key_store_path(), self.current_key_store_path())
         self.keystore_version = new_version
 
+    def change_key_store_path(self):
+        """Change the absolute path of the key store directory."""
+        # Swap the whole testing directory for a new one.
+        old_key_store_path = self.current_key_store_path()
+        old_test_dir = self.test_dir
+        new_test_dir = tempfile.TemporaryDirectory()
+        self.test_dir = new_test_dir
+        new_key_store_path = self.current_key_store_path()
+        # Move the key store to the new location.
+        os.rename(old_key_store_path, new_key_store_path)
+        # Remove the old, now unneeded directory.
+        old_test_dir.cleanup()
+
     def start_services(self, zone_mode=False):
         """Start Acra services required for testing."""
         self.acra_server = self.fork_acra(
@@ -2515,6 +2528,27 @@ class TestKeyStoreMigration(BaseTestCase):
             selected = self.select_via_connector(row_id_2_zoned)
             self.assertEquals(selected['data'], data_2.encode('ascii'))
             self.assertEquals(selected['raw_data'], data_2)
+
+    def test_moved_key_store(self):
+        """Verify that key store can be moved to a different absolute path."""
+        self.create_key_store(KEYSTORE_VERSION)
+
+        # Save some data, do a sanity check.
+        data = get_pregenerated_random_data()
+        with self.running_services():
+            row_id = self.insert_via_connector(data)
+            selected = self.select_via_connector(row_id)
+            self.assertEquals(selected['data'], data.encode('ascii'))
+
+        # Move the key store to a different (still temporary) location.
+        self.change_key_store_path()
+
+        # Check that key store path is not included into encryption context.
+        # We should still be able to access the data with the same key store
+        # but located at different path.
+        with self.running_services():
+            selected = self.select_via_connector(row_id)
+            self.assertEquals(selected['data'], data.encode('ascii'))
 
 
 class TestAcraRollback(BaseTestCase):
