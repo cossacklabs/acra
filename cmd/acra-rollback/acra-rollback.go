@@ -214,11 +214,6 @@ func main() {
 		log.Errorln("Sql_insert arg is missing")
 		os.Exit(1)
 	}
-	absKeysDir, err := filepath.Abs(*keysDir)
-	if err != nil {
-		log.WithError(err).Errorln("Can't get absolute path for keys_dir")
-		os.Exit(1)
-	}
 	if *outputFile == "" && !*execute {
 		log.Errorln("Output_file missing or execute flag")
 		os.Exit(1)
@@ -233,7 +228,7 @@ func main() {
 		log.WithError(err).Errorln("Can't init scell encryptor")
 		os.Exit(1)
 	}
-	keystorage, err := filesystem.NewFilesystemKeyStore(absKeysDir, scellEncryptor)
+	keystorage, err := filesystem.NewFilesystemKeyStore(*keysDir, scellEncryptor)
 	if err != nil {
 		log.WithError(err).Errorln("Can't create key store")
 		os.Exit(1)
