@@ -19,24 +19,23 @@ package main
 import (
 	"bufio"
 	"context"
-	"go.opencensus.io/trace"
-	"net"
-	"net/http"
-
-	"github.com/cossacklabs/acra/logging"
-	log "github.com/sirupsen/logrus"
-
 	"encoding/json"
 	"errors"
 	"flag"
 	"fmt"
+	"net"
+	"net/http"
 	"syscall"
 
 	"github.com/cossacklabs/acra/cmd"
 	"github.com/cossacklabs/acra/keystore"
+	"github.com/cossacklabs/acra/logging"
+	"github.com/cossacklabs/acra/utils"
 	"github.com/cossacklabs/acra/zone"
 	"github.com/cossacklabs/themis/gothemis/cell"
 	"github.com/cossacklabs/themis/gothemis/keys"
+	log "github.com/sirupsen/logrus"
+	"go.opencensus.io/trace"
 )
 
 // HTTP 500 response
@@ -126,7 +125,7 @@ func (clientSession *ClientCommandsSession) HandleSession() {
 			response = Response500Error
 			break
 		}
-		authDataCrypted, err := getAuthDataFromFile(*authPath)
+		authDataCrypted, err := utils.ReadFile(*authPath)
 		if err != nil {
 			logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorHTTPAPICantLoadAuthData).WithError(err).Warningln("loadAuthData: no auth data")
 			response = Response500Error

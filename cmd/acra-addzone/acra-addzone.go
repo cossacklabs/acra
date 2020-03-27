@@ -30,6 +30,8 @@ package main
 import (
 	"flag"
 	"fmt"
+	"os"
+
 	"github.com/cossacklabs/acra/cmd"
 	"github.com/cossacklabs/acra/keystore"
 	"github.com/cossacklabs/acra/keystore/filesystem"
@@ -38,8 +40,6 @@ import (
 	"github.com/cossacklabs/acra/zone"
 	"github.com/cossacklabs/themis/gothemis/keys"
 	log "github.com/sirupsen/logrus"
-	"os"
-	"path/filepath"
 )
 
 // Constants used by AcraAddZone util.
@@ -61,14 +61,7 @@ func main() {
 			Errorln("Can't parse args")
 		os.Exit(1)
 	}
-	//LoadFromConfig(defaultConfigPath)
-	//iniflags.Parse()
 
-	output, err := filepath.Abs(*outputDir)
-	if err != nil {
-		log.WithError(err).Errorln("Can't get absolute path for output dir")
-		os.Exit(1)
-	}
 	var keyStore keystore.KeyStore
 	if *fsKeystore {
 		masterKey, err := keystore.GetMasterKeyFromEnvironment()
@@ -81,7 +74,7 @@ func main() {
 			log.WithError(err).Errorln("Can't init scell encryptor")
 			os.Exit(1)
 		}
-		keyStore, err = filesystem.NewFilesystemKeyStore(output, scellEncryptor)
+		keyStore, err = filesystem.NewFilesystemKeyStore(*outputDir, scellEncryptor)
 		if err != nil {
 			log.WithError(err).Errorln("Can't create key store")
 			os.Exit(1)

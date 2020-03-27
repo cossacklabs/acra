@@ -18,12 +18,16 @@ import (
 	"bytes"
 	data_rand "crypto/rand"
 	"encoding/json"
-	"fmt"
-	"github.com/cossacklabs/acra/benchmarks/config"
-	"github.com/cossacklabs/themis/gothemis/keys"
-	"io/ioutil"
 	"math/rand"
-	"path/filepath"
+
+	"github.com/cossacklabs/acra/benchmarks/config"
+	"github.com/cossacklabs/acra/utils"
+	"github.com/cossacklabs/themis/gothemis/keys"
+)
+
+const (
+	oneKeyPath   = "src/github.com/cossacklabs/acra/benchmarks/.acrakeys/onekey_server.pub"
+	zoneListPath = "src/github.com/cossacklabs/acra/benchmarks/.acrakeys/public_keys.txt"
 )
 
 // GenerateData generates random data with MaxDataLength
@@ -36,7 +40,7 @@ func GenerateData() ([]byte, error) {
 
 // GetServerOneKeyPublic reads public key
 func GetServerOneKeyPublic() *keys.PublicKey {
-	publicKey, err := ioutil.ReadFile("src/github.com/cossacklabs/acra/benchmarks/.acrakeys/onekey_server.pub")
+	publicKey, err := utils.ReadFile(oneKeyPath)
 	if err != nil {
 		panic(err)
 	}
@@ -57,12 +61,8 @@ type JSONData struct {
 
 // LoadZones loads zones keys
 func LoadZones() []*ZoneData {
-	absDir, err := filepath.Abs("./src/github.com/cossacklabs/acra/benchmarks/.acrakeys")
-	if err != nil {
-		panic(err)
-	}
 	zones := make([]*ZoneData, config.ZoneCount)
-	dumpedZoneData, err := ioutil.ReadFile(fmt.Sprintf("%v/public_keys.txt", absDir))
+	dumpedZoneData, err := utils.ReadFile(zoneListPath)
 	if err != nil {
 		panic(err)
 	}
