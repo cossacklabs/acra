@@ -733,12 +733,10 @@ class Psycopg2Executor(QueryExecutor):
 class KeyMakerTest(unittest.TestCase):
     def test_key_length(self):
         key_size = 32
-        short_key = b64encode((key_size - 1)*b'a')
-        short_master_keys = {var: short_key for var in get_master_keys().keys()}
-        standard_key = b64encode(key_size * b'a')
-        standard_master_keys = {var: standard_key for var in get_master_keys().keys()}
-        long_key = b64encode((key_size * 2) * b'a')
-        long_master_keys = {var: long_key for var in get_master_keys().keys()}
+
+        def random_keys(size):
+            return {var: b64encode(os.urandom(size))
+                    for var in get_master_keys().keys()}
 
         with tempfile.TemporaryDirectory() as folder:
             with self.assertRaises(subprocess.CalledProcessError) as exc:
@@ -746,21 +744,21 @@ class KeyMakerTest(unittest.TestCase):
                     ['./acra-keymaker', '--keystore={}'.format(KEYSTORE_VERSION),
                      '--keys_output_dir={}'.format(folder),
                      '--keys_public_output_dir={}'.format(folder)],
-                    env=short_master_keys)
+                    env=random_keys(key_size - 1))
 
         with tempfile.TemporaryDirectory() as folder:
             subprocess.check_output(
                     ['./acra-keymaker', '--keystore={}'.format(KEYSTORE_VERSION),
                      '--keys_output_dir={}'.format(folder),
                      '--keys_public_output_dir={}'.format(folder)],
-                    env=standard_master_keys)
+                    env=random_keys(key_size))
 
         with tempfile.TemporaryDirectory() as folder:
             subprocess.check_output(
                     ['./acra-keymaker', '--keystore={}'.format(KEYSTORE_VERSION),
                      '--keys_output_dir={}'.format(folder),
                      '--keys_public_output_dir={}'.format(folder)],
-                    env=long_master_keys)
+                    env=random_keys(key_size * 2))
 
 
 class PrometheusMixin(object):
