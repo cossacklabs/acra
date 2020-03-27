@@ -17,7 +17,9 @@
 package keystore
 
 import (
+	"crypto/subtle"
 	"encoding/base64"
+	"errors"
 	"os"
 
 	keystoreV1 "github.com/cossacklabs/acra/keystore"
@@ -29,6 +31,11 @@ import (
 const (
 	AcraMasterEncryptionKeyVarName = "ACRA_MASTER_ENCRYPTION_KEY"
 	AcraMasterSignatureKeyVarName  = "ACRA_MASTER_SIGNATURE_KEY"
+)
+
+// Errors produced by master key validation:
+var (
+	ErrEqualMasterKeys = errors.New("encryption and signature master keys are equal")
 )
 
 // GetMasterKeysFromEnvironment reads master keys from default environment variables.
@@ -48,6 +55,12 @@ func GetMasterKeysFromEnvironment() ([]byte, []byte, error) {
 	if errS != nil {
 		return nil, nil, errS
 	}
+
+	if subtle.ConstantTimeCompare(encryptionKey, signatureKey) == 1 {
+		log.Warnf("%v and %v must not be the same", AcraMasterEncryptionKeyVarName, AcraMasterSignatureKeyVarName)
+		return nil, nil, ErrEqualMasterKeys
+	}
+
 	return encryptionKey, signatureKey, nil
 }
 
