@@ -84,8 +84,8 @@ func demoHooks(t *testing.T) []FormatterHook {
 }
 
 func TestHooksPlaintext(t *testing.T) {
-	f := TextFormatter(demoHooks(t))
-
+	f := TextFormatter()
+	f.SetHooks(demoHooks(t))
 	serialized, err := f.Format(demoLogEntry())
 	if err != nil {
 		t.Errorf("formatting failed: %v", err)
@@ -98,29 +98,31 @@ func TestHooksPlaintext(t *testing.T) {
 }
 
 func TestHooksCEF(t *testing.T) {
-	f := CEFFormatter(log.Fields{"CEF": "yes"}, demoHooks(t))
-
+	f := CEFFormatter()
+	f.SetServiceName("add one more field to cef formatter")
+	f.SetHooks(demoHooks(t))
 	serialized, err := f.Format(demoLogEntry())
 	if err != nil {
 		t.Errorf("formatting failed: %v", err)
 	}
 
 	logLine := strings.TrimSpace(string(serialized))
-	if logLine != `CEF:0|cossacklabs|acra|0.85.0|100|test error please ignore|6|CEF=yes a-field=value A extra=field unixTime=528854399.000 z-field=value Z  (total: 9 fields)` {
+	if logLine != `CEF:0|cossacklabs|add one more field to cef formatter|0.85.0|100|test error please ignore|6|a-field=value A extra=field unixTime=528854399.000 z-field=value Z  (total: 8 fields)` {
 		t.Errorf("incorrect log line: %v", logLine)
 	}
 }
 
 func TestHooksJSON(t *testing.T) {
-	f := JSONFormatter(log.Fields{"JSON": "uh-huh"}, demoHooks(t))
-
+	f := JSONFormatter()
+	f.SetServiceName("add one more field to json formatter")
+	f.SetHooks(demoHooks(t))
 	serialized, err := f.Format(demoLogEntry())
 	if err != nil {
 		t.Errorf("formatting failed: %v", err)
 	}
 
 	logLine := strings.TrimSpace(string(serialized))
-	if logLine != `{"JSON":"uh-huh","a-field":"value A","extra":"field","level":"error","msg":"test error please ignore","product":"acra","timestamp":"1986-10-04T23:59:59Z","unixTime":"528854399.000","version":"0.85.0","z-field":"value Z"} (total: 7 fields)` {
+	if logLine != `{"a-field":"value A","extra":"field","level":"error","msg":"test error please ignore","product":"add one more field to json formatter","timestamp":"1986-10-04T23:59:59Z","unixTime":"528854399.000","version":"0.85.0","z-field":"value Z"} (total: 6 fields)` {
 		t.Errorf("incorrect log line: %v", logLine)
 	}
 }
@@ -132,7 +134,8 @@ func TestHooksWillFail(t *testing.T) {
 			return thisError
 		},
 	}}
-	f := TextFormatter(hooks)
+	f := TextFormatter()
+	f.SetHooks(hooks)
 
 	serialized, err := f.Format(demoLogEntry())
 	if err != thisError {
@@ -147,7 +150,8 @@ func TestHooksDidFail(t *testing.T) {
 			return thisError
 		},
 	}}
-	f := TextFormatter(hooks)
+	f := TextFormatter()
+	f.SetHooks(hooks)
 
 	serialized, err := f.Format(demoLogEntry())
 	if err != thisError {
