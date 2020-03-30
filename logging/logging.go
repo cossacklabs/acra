@@ -69,6 +69,9 @@ func IsDebugLevel(logger *log.Entry) bool {
 	return logger.Level == log.DebugLevel
 }
 
+// FormatterWrapper wraps log.Formatter interface and adds functions for customizations.
+// Intention for this interface is to provide ability to customize logging by accustomed:
+// `logging.SetServiceName` / `logging.SetHooks` from main function of Acra services
 type FormatterWrapper interface {
 	log.Formatter
 	SetServiceName(serviceName string)
@@ -88,6 +91,7 @@ func SetLogLevel(level int) {
 	}
 }
 
+// CreateFormatter creates formatter object
 func CreateFormatter(format string) FormatterWrapper {
 	var formatter FormatterWrapper
 	switch strings.ToLower(format) {
@@ -102,10 +106,13 @@ func CreateFormatter(format string) FormatterWrapper {
 	return formatter
 }
 
+// SetServiceName adds service-name label to log entries
+// (plaintext formatter ignores it)
 func SetServiceName(formatter FormatterWrapper, serviceName string) {
 	formatter.SetServiceName(serviceName)
 }
 
+// SetHooks allows further customizations for logging
 func SetHooks(formatter FormatterWrapper, hooks []FormatterHook) {
 	formatter.SetHooks(hooks)
 }
