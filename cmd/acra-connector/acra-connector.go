@@ -209,8 +209,6 @@ type Config struct {
 }
 
 func main() {
-	log.WithField("version", utils.VERSION).Infof("Starting service %v [pid=%v]", ServiceName, os.Getpid())
-
 	loggingFormat := flag.String("logging_format", "plaintext", "Logging format: plaintext, json or CEF")
 	keysDir := flag.String("keys_dir", keystore.DefaultKeyDirShort, "Folder from which will be loaded keys")
 	clientID := flag.String("client_id", "", "Client ID")
@@ -255,7 +253,11 @@ func main() {
 		os.Exit(1)
 	}
 
-	logging.Customize().SetFormat(*loggingFormat).SetServiceName(ServiceName).Complete()
+	// Start customizing logs here (directly after command line arguments parsing)
+	formatter := logging.CreateFormatter(*loggingFormat)
+	logging.SetServiceName(formatter, ServiceName)
+
+	log.WithField("version", utils.VERSION).Infof("Starting service %v [pid=%v]", ServiceName, os.Getpid())
 	log.Infof("Validating service configuration...")
 
 	if err = checkDependencies(); err != nil {
