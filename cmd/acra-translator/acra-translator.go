@@ -88,6 +88,7 @@ func main() {
 	logging.SetServiceName(formatter, ServiceName)
 	log.SetOutput(os.Stderr)
 
+	log.WithField("version", utils.VERSION).Infof("Starting service %v [pid=%v]", ServiceName, os.Getpid())
 	log.Infof("Validating service configuration...")
 	cmd.ValidateClientID(*secureSessionID)
 

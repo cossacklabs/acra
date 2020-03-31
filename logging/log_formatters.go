@@ -32,7 +32,7 @@ import (
 // ----------
 
 // TextFormatter returns a default logrus.TextFormatter with specific settings
-func TextFormatter() FormatterWrapper {
+func TextFormatter() Formatter {
 	return &AcraTextFormatter{
 		Formatter: &logrus.TextFormatter{
 			FullTimestamp:    true,
@@ -43,7 +43,7 @@ func TextFormatter() FormatterWrapper {
 	}
 }
 
-func JSONFormatter() FormatterWrapper {
+func JSONFormatter() Formatter {
 	return &AcraJSONFormatter{
 		Formatter: &logrus.JSONFormatter{
 			FieldMap:        JSONFieldMap,
@@ -54,7 +54,7 @@ func JSONFormatter() FormatterWrapper {
 	}
 }
 
-func CEFFormatter() FormatterWrapper {
+func CEFFormatter() Formatter {
 	return &AcraCEFFormatter{
 		CEFTextFormatter: CEFTextFormatter{
 			TimestampFormat: time.RFC3339,
