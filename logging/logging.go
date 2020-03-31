@@ -106,17 +106,6 @@ func CreateFormatter(format string) Formatter {
 	return formatter
 }
 
-// SetServiceName adds service-name label to log entries
-// (plaintext formatter ignores it)
-func SetServiceName(formatter Formatter, serviceName string) {
-	formatter.SetServiceName(serviceName)
-}
-
-// SetHooks allows further customizations for logging
-func SetHooks(formatter Formatter, hooks []FormatterHook) {
-	formatter.SetHooks(hooks)
-}
-
 // GetLogLevel gets logrus log level and returns int Acra log level
 func GetLogLevel() int {
 	if log.GetLevel() == log.DebugLevel {

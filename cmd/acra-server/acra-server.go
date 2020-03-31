@@ -139,7 +139,7 @@ func main() {
 
 	// Start customizing logs here (directly after command line arguments parsing)
 	formatter := logging.CreateFormatter(*loggingFormat)
-	logging.SetServiceName(formatter, ServiceName)
+	formatter.SetServiceName(ServiceName)
 	log.SetOutput(os.Stderr)
 
 	log.WithField("version", utils.VERSION).Infof("Starting service %v [pid=%v]", ServiceName, os.Getpid())
