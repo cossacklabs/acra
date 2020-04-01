@@ -115,6 +115,17 @@ def read_key(kind, client_id=None, zone_id=None, keys_dir='.acrakeys'):
     return subprocess.check_output(args)
 
 
+def destroy_key(kind, client_id=None, keys_dir='.acrakeys'):
+    if kind == 'transport-connector':
+        os.remove(os.path.join(keys_dir, client_id))
+        os.remove(os.path.join(keys_dir, client_id + '.pub'))
+    elif kind == 'transport-server':
+        os.remove(os.path.join(keys_dir, client_id + '_server'))
+        os.remove(os.path.join(keys_dir, client_id + '_server.pub'))
+    else:
+        raise Exception('unknown key kind: {}'.format(kind))
+
+
 def read_storage_public_key(client_id, keys_dir='.acrakeys'):
     return read_key('storage-public', client_id=client_id, keys_dir=keys_dir)
 
