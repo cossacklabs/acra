@@ -59,6 +59,10 @@ func (r *KeyRing) keyDataByFormat(seqnum int, format api.KeyFormat) (*asn1.KeyDa
 	if key == nil {
 		return nil, api.ErrKeyNotExist
 	}
+	// If the key data has been destroyed then there is no point in looking for it.
+	if api.KeyState(key.State) == api.KeyDestroyed {
+		return nil, api.ErrKeyDestroyed
+	}
 	for i := range key.Data {
 		if api.KeyFormat(key.Data[i].Format) == format {
 			return &key.Data[i], nil
@@ -111,6 +115,29 @@ func (r *KeyRing) SetCurrent(seqnum int) error {
 		return err
 	}
 	r.log.WithField("seqnum", seqnum).Trace("set key current")
+	return nil
+}
+
+// DestroyKey erases key data (but keeps the key in the key ring).
+func (r *KeyRing) DestroyKey(seqnum int) error {
+	log := r.log.WithField("seqnum", seqnum)
+	key := r.keyDataBySeqnum(seqnum)
+	if key == nil {
+		return api.ErrKeyNotExist
+	}
+	oldState := api.KeyState(key.State)
+
+	if !api.KeyStateTransitionValid(oldState, api.KeyDestroyed) {
+		log.WithField("oldState", oldState).Debug("Not allowed to destroy key")
+		return api.ErrInvalidState
+	}
+
+	err := r.destroyKey(seqnum, oldState)
+	if err != nil {
+		log.WithError(err).Debug("Failed to destroy key")
+		return err
+	}
+	log.Trace("Key destroyed")
 	return nil
 }
 
