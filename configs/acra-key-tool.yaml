@@ -11,9 +11,6 @@ dump_config: false
 # Generate with yaml config markdown text file with descriptions of all args
 generate_markdown_args_table: false
 
-# key kind to read, one of: poison-public, poison-private, storage-public, storage-private, zone-public, zone-private
-key: 
-
 # path to key directory
 keys_dir: .acrakeys
 
@@ -22,6 +19,9 @@ keys_dir_public:
 
 # force key store format: v1 (current), v2 (new)
 keystore: 
+
+# key kind to read, one of: poison-public, poison-private, storage-public, storage-private, zone-public, zone-private
+read_key: 
 
 # zone ID for which to retrieve key
 zone_id: 
