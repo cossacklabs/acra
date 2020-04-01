@@ -34,7 +34,7 @@ func (s *KeyStore) readKeyRing(ring *KeyRing) (err error) {
 		return err
 	}
 	defer func() {
-		err2 := s.fs.Unlock()
+		err2 := s.fs.RUnlock()
 		if err2 != nil {
 			s.log.WithError(err2).Debug("failed to unlock store")
 			if err == nil {

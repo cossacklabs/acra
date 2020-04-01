@@ -56,9 +56,12 @@ type Backend interface {
 	// RLock acquires a shared lock on the store, suitable for reading.
 	// This call blocks until the lock is acquired.
 	RLock() error
-	// Unlock releases the lock currently held by the process.
-	// It is an error to call it without calling Lock() or Unlock() first.
+	// Unlock releases the exclusive lock currently held by the process.
+	// It is an error to call it without calling Lock() first.
 	Unlock() error
+	// RUnlock releases the shared lock currently held by the process.
+	// It is an error to call it without calling RLock() first.
+	RUnlock() error
 
 	// Close this backend instance, freeing any associated resources.
 	// This implicitly unlocks the store if any locks are held.

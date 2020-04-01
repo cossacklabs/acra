@@ -22,7 +22,6 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-	"syscall"
 
 	"github.com/cossacklabs/acra/keystore/v2/keystore/filesystem/backend/api"
 	log "github.com/sirupsen/logrus"
@@ -50,7 +49,7 @@ var (
 type DirectoryBackend struct {
 	root string
 	log  *log.Entry
-	lock *os.File
+	lock *fileLock
 }
 
 const (
@@ -98,7 +97,7 @@ func CreateDirectoryBackend(root string) (*DirectoryBackend, error) {
 		errLog.WithError(err).Debug("failed to create version file")
 		return nil, err
 	}
-	lock, err := os.Create(filepath.Join(root, lockFile))
+	lock, err := newFileLock(filepath.Join(root, lockFile))
 	if err != nil {
 		errLog.WithError(err).Debug("failed to create lock file")
 		return nil, err
@@ -142,7 +141,7 @@ func OpenDirectoryBackend(root string) (*DirectoryBackend, error) {
 		errLog.WithError(err).Debug("not a key store")
 		return nil, err
 	}
-	lock, err := os.Create(filepath.Join(root, lockFile))
+	lock, err := newFileLock(filepath.Join(root, lockFile))
 	if err != nil {
 		errLog.WithError(err).Debug("failed to create lock file")
 		return nil, err
@@ -240,17 +239,22 @@ func (b *DirectoryBackend) osPath(path string) (string, error) {
 
 // Lock acquires an exclusive lock on the store.
 func (b *DirectoryBackend) Lock() error {
-	return syscall.Flock(int(b.lock.Fd()), syscall.LOCK_EX)
+	return b.lock.Lock()
+}
+
+// Unlock releases currently held exclusive lock.
+func (b *DirectoryBackend) Unlock() error {
+	return b.lock.Unlock()
 }
 
 // RLock acquires a shared lock on the store.
 func (b *DirectoryBackend) RLock() error {
-	return syscall.Flock(int(b.lock.Fd()), syscall.LOCK_SH)
+	return b.lock.RLock()
 }
 
-// Unlock releases currently held lock.
-func (b *DirectoryBackend) Unlock() error {
-	return syscall.Flock(int(b.lock.Fd()), syscall.LOCK_UN)
+// RUnlock releases currently held shared lock.
+func (b *DirectoryBackend) RUnlock() error {
+	return b.lock.RUnlock()
 }
 
 // Get data at given path.

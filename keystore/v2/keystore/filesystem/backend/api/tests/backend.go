@@ -283,14 +283,9 @@ func testLockingExclusive(t *testing.T, newBackend NewBackend) {
 func testLockingShared(t *testing.T, newBackend NewBackend) {
 	b := newBackend(t)
 
-	// We can grab a shared lock multiple times in a row.
 	err := b.RLock()
 	if err != nil {
 		t.Fatalf("A: failed to grab shared lock: %v", err)
-	}
-	err = b.RLock()
-	if err != nil {
-		t.Fatalf("A: failed to grab shared lock again: %v", err)
 	}
 
 	// We can also grab an exclusive lock (in a separate goroutine),
@@ -321,19 +316,9 @@ func testLockingShared(t *testing.T, newBackend NewBackend) {
 		t.Errorf("A: Get() seems to succeed: %v", err)
 	}
 
-	// And even after we have released the lock once, the file does not exist yet.
-	err = b.Unlock()
-	if err != nil {
-		t.Fatalf("A: failed to release shared lock: %v", err)
-	}
-	_, err = b.Get("a file")
-	if err != api.ErrNotExist {
-		t.Errorf("A: Get() seems to succeed (after Unlock x1): %v", err)
-	}
-
-	// We need to release the lock once more, then wait for the goroutine to complete,
+	// We need to release the lock, then wait for the goroutine to complete,
 	// and only then the file should be visible to us.
-	err = b.Unlock()
+	err = b.RUnlock()
 	if err != nil {
 		t.Fatalf("A: failed to release shared lock: %v", err)
 	}
