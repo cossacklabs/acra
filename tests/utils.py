@@ -116,14 +116,12 @@ def read_key(kind, client_id=None, zone_id=None, keys_dir='.acrakeys'):
 
 
 def destroy_key(kind, client_id=None, keys_dir='.acrakeys'):
-    if kind == 'transport-connector':
-        os.remove(os.path.join(keys_dir, client_id))
-        os.remove(os.path.join(keys_dir, client_id + '.pub'))
-    elif kind == 'transport-server':
-        os.remove(os.path.join(keys_dir, client_id + '_server'))
-        os.remove(os.path.join(keys_dir, client_id + '_server.pub'))
-    else:
-        raise Exception('unknown key kind: {}'.format(kind))
+    """Destroys key in the Key Store with acra-key-tool."""
+    args = ['./acra-key-tool', '--destroy_key={}'.format(kind),
+        '--keys_dir={}'.format(keys_dir)]
+    if client_id:
+        args.append('--client_id={}'.format(client_id))
+    return subprocess.check_output(args)
 
 
 def read_storage_public_key(client_id, keys_dir='.acrakeys'):
