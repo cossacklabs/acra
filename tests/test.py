@@ -2237,14 +2237,19 @@ class TestKeyStorageClearing(BaseTestCase):
         if KEYSTORE_VERSION == 'v2':
             self.skipTest('key store v2 does not support key removal')
         try:
-            self.key_name = 'clearing_keypair'
-            create_client_keypair(self.key_name)
+            self.init_key_stores()
             self.connector_1 = self.fork_connector(
-                self.CONNECTOR_PORT_1, self.ACRASERVER_PORT, self.key_name, self.CONNECTOR_API_PORT_1,
-                zone_mode=True)
+                connector_port=self.CONNECTOR_PORT_1,
+                acraserver_port=self.ACRASERVER_PORT,
+                client_id=self.client_id,
+                api_port=self.CONNECTOR_API_PORT_1,
+                zone_mode=True,
+                keys_dir=self.connector_keys_dir)
             if not self.EXTERNAL_ACRA:
                 self.acra = self.fork_acra(
-                    zonemode_enable='true', http_api_enable='true')
+                    zonemode_enable='true',
+                    http_api_enable='true',
+                    keys_dir=self.server_keys_dir)
 
             self.engine1 = sa.create_engine(
                 get_engine_connection_string(self.get_connector_connection_string(self.CONNECTOR_PORT_1), DB_NAME),
@@ -2280,6 +2285,20 @@ class TestKeyStorageClearing(BaseTestCase):
         stop_process(processes)
         send_signal_by_process_name('acra-server', signal.SIGKILL)
         send_signal_by_process_name('acra-connector', signal.SIGKILL)
+        self.server_keystore.cleanup()
+        self.connector_keystore.cleanup()
+
+    def init_key_stores(self):
+        self.client_id = 'clearing_keypair'
+        self.server_keystore = tempfile.TemporaryDirectory()
+        self.server_keys_dir = os.path.join(self.server_keystore.name, '.acrakeys')
+        self.connector_keystore = tempfile.TemporaryDirectory()
+        self.connector_keys_dir = os.path.join(self.connector_keystore.name, '.acrakeys')
+
+        # TODO(ilammy, 2020-03-30): generate keys separately, export/import them
+        # instead of just copying the entire key store
+        create_client_keypair(name=self.client_id, keys_dir=self.server_keys_dir)
+        shutil.copytree(self.server_keys_dir, self.connector_keys_dir)
 
     def test_clearing(self):
         # execute any query for loading key by acra
@@ -2288,7 +2307,9 @@ class TestKeyStorageClearing(BaseTestCase):
         with urlopen('http://127.0.0.1:{}/resetKeyStorage'.format(self.CONNECTOR_API_PORT_1)) as response:
             self.assertEqual(response.status, 200)
         # delete key for excluding reloading from FS
-        os.remove('{}/{}.pub'.format(KEYS_FOLDER.name, self.key_name))
+        destroy_key(kind='transport-connector',
+                    client_id=self.client_id,
+                    keys_dir=self.server_keys_dir)
         # close connections in pool and reconnect to reinitiate secure session
         self.engine1.dispose()
         # acra-server should close connection when doesn't find key
