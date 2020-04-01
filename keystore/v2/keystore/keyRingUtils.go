@@ -109,6 +109,18 @@ func (s *ServerKeyStore) addCurrentKeyPair(ring api.MutableKeyRing, pair *keys.K
 	return nil
 }
 
+func (s *ServerKeyStore) destroyCurrentKeyPair(ring api.MutableKeyRing) error {
+	current, err := ring.CurrentKey()
+	if err != nil {
+		return err
+	}
+	err = ring.DestroyKey(current)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
 func (s *ServerKeyStore) describeNewKeyPair(keypair *keys.Keypair) api.KeyDescription {
 	return api.KeyDescription{
 		ValidSince: time.Now(),

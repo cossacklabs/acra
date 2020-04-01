@@ -148,12 +148,15 @@ type TransportKeyStore interface {
 type TransportKeyCreation interface {
 	GenerateConnectorKeys(id []byte) error
 	SaveConnectorKeypair(id []byte, keypair *keys.Keypair) error
+	DestroyConnectorKeypair(id []byte) error
 
 	GenerateServerKeys(id []byte) error
 	SaveServerKeypair(id []byte, keypair *keys.Keypair) error
+	DestroyServerKeypair(id []byte) error
 
 	GenerateTranslatorKeys(id []byte) error
 	SaveTranslatorKeypair(id []byte, keypair *keys.Keypair) error
+	DestroyTranslatorKeypair(id []byte) error
 }
 
 // PublicKeyStore provides access to storage public keys, used to encrypt data for storage.

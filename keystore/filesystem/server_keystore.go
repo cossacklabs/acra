@@ -700,6 +700,44 @@ func (store *KeyStore) SaveDataEncryptionKeys(id []byte, keypair *keys.Keypair) 
 	return store.SaveKeyPairWithFilename(keypair, filename, id)
 }
 
+// destroyKeyWithFilename removes private and public key with given filename.
+func (store *KeyStore) destroyKeyWithFilename(filename string) error {
+	// Purge private key data from cache too.
+	store.cache.Add(filename, nil)
+
+	// Remove key files. It's okay if they are already removed (or never existed).
+	// Key store v1 does not differentiate between 'destroying' and 'removing' keys
+	// because multiple functinons depend on the key file to be absent, not empty.
+	err := store.fs.Remove(store.GetPrivateKeyFilePath(filename))
+	if err != nil && !os.IsNotExist(err) {
+		return err
+	}
+	err = store.fs.Remove(store.GetPublicKeyFilePath(filename + ".pub"))
+	if err != nil && !os.IsNotExist(err) {
+		return err
+	}
+
+	return nil
+}
+
+// DestroyConnectorKeypair destroys currently used AcraConnector transport keypair for given clientID.
+func (store *KeyStore) DestroyConnectorKeypair(id []byte) error {
+	filename := getConnectorKeyFilename(id)
+	return store.destroyKeyWithFilename(filename)
+}
+
+// DestroyServerKeypair destroys currently used AcraServer transport keypair for given clientID.
+func (store *KeyStore) DestroyServerKeypair(id []byte) error {
+	filename := getServerKeyFilename(id)
+	return store.destroyKeyWithFilename(filename)
+}
+
+// DestroyTranslatorKeypair destroys currently used AcraTranslator transport keypair for given clientID.
+func (store *KeyStore) DestroyTranslatorKeypair(id []byte) error {
+	filename := getTranslatorKeyFilename(id)
+	return store.destroyKeyWithFilename(filename)
+}
+
 // Add value to inner cache
 func (store *KeyStore) Add(keyID string, keyValue []byte) {
 	store.cache.Add(keyID, keyValue)
