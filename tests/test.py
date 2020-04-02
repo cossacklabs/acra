@@ -1697,9 +1697,6 @@ class TestConnectionClosing(BaseTestCase):
 class TestKeyNonExistence(BaseTestCase):
     def setUp(self):
         self.checkSkip()
-        # FIXME(ilammy, 2020-03-20): implement key removal for v2
-        if KEYSTORE_VERSION == 'v2':
-            self.skipTest('key store v2 does not support key removal')
         try:
             self.init_key_stores()
             if not self.EXTERNAL_ACRA:
@@ -2233,9 +2230,6 @@ class TestCheckLogPoisonRecord(AcraCatchLogsMixin, BasePoisonRecordTest):
 class TestKeyStorageClearing(BaseTestCase):
     def setUp(self):
         self.checkSkip()
-        # FIXME(ilammy, 2020-03-20): implement key removal for v2
-        if KEYSTORE_VERSION == 'v2':
-            self.skipTest('key store v2 does not support key removal')
         try:
             self.init_key_stores()
             self.connector_1 = self.fork_connector(
