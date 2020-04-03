@@ -296,9 +296,8 @@ endif
 		--package '$(BUILD_DIR_ABS)/$(PKG_TYPE)/$(PKG_NAME)' \
 		--version '$(PKG_VERSION)' \
 		--category security \
-		--depends openssl \
 		--depends libthemis \
-		--conflicts acra \
+		--conflicts acra-ee \
 		$(PKG_TYPE_SPECIFIC_ARGS) \
 		'$(BUILD_DIR_ABS)/$(PKG_TYPE).struct/bin=$(PKG_INSTALL_PREFIX)'
 	@find '$(BUILD_DIR_ABS)' -name \*.$(PKG_TYPE)
