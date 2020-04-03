@@ -128,15 +128,21 @@ func main() {
 	checkParameterConsistency()
 
 	if params.ReadKeyKind != "" {
-		keyBytes := readKeyBytes()
-		_, err = os.Stdout.Write(keyBytes)
-		if err != nil {
-			log.Fatalf("Failed to write key bytes: %v", err)
-		}
+		printKey()
 	}
 
 	if params.DestroyKeyKind != "" {
 		destroyKey()
+	}
+}
+
+func printKey() {
+	keyBytes := readKeyBytes()
+	defer utils.ZeroizeSymmetricKey(keyBytes)
+
+	_, err := os.Stdout.Write(keyBytes)
+	if err != nil {
+		log.Fatalf("Failed to write key bytes: %v", err)
 	}
 }
 
