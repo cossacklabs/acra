@@ -1,20 +1,41 @@
-FROM debian:stretch
+FROM debian:buster
+
+# Application name
+ARG APP_NAME
 # Product version
 ARG VERSION
+# Link to the product repository
+ARG VCS_URL
 # Hash of the commit
 ARG VCS_REF
 # Repository branch
 ARG VCS_BRANCH
 # Date of the build
 ARG BUILD_DATE
+
 # Include metadata
-LABEL com.cossacklabs.product.name="acra" \
+LABEL org.label-schema.schema-version="1.0" \
+    org.label-schema.vendor="Cossack Labs" \
+    org.label-schema.url="https://cossacklabs.com" \
+    org.label-schema.name="Acra CE build image" \
+    org.label-schema.description="Acra helps you easily secure your databases in distributed, microservice-rich environments" \
+    org.label-schema.version="$VERSION" \
+    org.label-schema.vcs-url="$VCS_URL" \
+    org.label-schema.vcs-ref="$VCS_REF" \
+    org.label-schema.build-date="$BUILD_DATE" \
+    com.cossacklabs.vendor.name="Cossack Labs Limited" \
+    com.cossacklabs.vendor.url="https://www.cossacklabs.com" \
+    com.cossacklabs.vendor.email="dev@cossacklabs.com" \
+    com.cossacklabs.product.name="$APP_NAME" \
     com.cossacklabs.product.version="$VERSION" \
     com.cossacklabs.product.vcs-ref="$VCS_REF" \
     com.cossacklabs.product.vcs-branch="$VCS_BRANCH" \
-    com.cossacklabs.product.component="acra-build" \
+    com.cossacklabs.product.component="$APP_NAME" \
     com.cossacklabs.docker.container.build-date="$BUILD_DATE" \
     com.cossacklabs.docker.container.type="build"
+
+SHELL ["/bin/bash", "-c"]
+
 # Install dependencies
 RUN apt-get update && apt-get -y install \
     apt-transport-https \
@@ -27,38 +48,49 @@ RUN apt-get update && apt-get -y install \
     openssl \
     rsync \
     wget
+
 WORKDIR /root
-# Install libthemis, keep sources for later use
-RUN ["/bin/bash", "-c", \
-    "set -o pipefail && \
+
+# Install libthemis
+RUN set -o pipefail && \
     curl -sSL https://pkgs.cossacklabs.com/scripts/libthemis_install.sh | \
-        bash -s -- --yes"]
-# Install golang and set environment variables
-RUN GO_SRC_FILE="go1.13.7.linux-amd64.tar.gz" && \
-    wget --no-verbose --no-check-certificate \
-        "https://storage.googleapis.com/golang/${GO_SRC_FILE}" && \
-    tar xf "./${GO_SRC_FILE}"
-ENV GOROOT="/root/go" GOPATH="/root/gopath" GO111MODULE=on
-ENV PATH="$GOROOT/bin/:$PATH"
+        bash -s -- --yes
+
+# Include scripts
+RUN mkdir /image.scripts
+COPY docker/_scripts/acra-build/add_component.sh /image.scripts/
+COPY docker/_scripts/acra-build/collect_dependencies.sh /image.scripts/
+COPY docker/_scripts/acra-build/install_go.sh /image.scripts/
+RUN chmod +x /image.scripts/*.sh
+
+# Install Go
+RUN GO_TARBALL_CLEAN=1 GO_PREFIX_DIR=/usr/local /image.scripts/install_go.sh
+ENV GOROOT="/usr/local/go" GOPATH="/root/gopath" GO111MODULE="auto"
+ENV PATH="$PATH:/usr/local/go/bin"
+
+# Copy Acra sources
 ENV PATH_ACRA="/acra"
 COPY ./ "${PATH_ACRA}/"
 # Fetch all dependencies and build all binaries in acra
-RUN cd "${PATH_ACRA}" && go install -v -x ./cmd/...
-# Include scripts for finding dependencies and prepare resulting directories
-COPY docker/_scripts/acra-build/add_component.sh .
-RUN chmod +x ./add_component.sh
-COPY docker/_scripts/acra-build/collect_dependencies.sh .
-RUN chmod +x ./collect_dependencies.sh
+RUN cd "${PATH_ACRA}" && go install ./cmd/...
+
 # Copy each product and its dependencies to resulting directories
-RUN for component in server connector translator keymaker webconfig authmanager; do \
-        if [ "$component" = "server" ]; then \
-            ./add_component.sh "poisonrecordmaker" "$component"; \
-            ./add_component.sh "rollback" "$component"; \
+RUN for component in authmanager connector keymaker server tools translator webconfig; do \
+        ADD_COMPONENTS=(); \
+        if [ "$component" == 'tools' ]; then \
+            ADD_COMPONENTS+=('addzone' 'authmanager' 'keymaker' 'poisonrecordmaker' 'rollback' 'rotate'); \
+        else \
+            ADD_COMPONENTS+=("$component"); \
         fi; \
-        if [ "$component" = "translator" ]; then \
-            ./add_component.sh "poisonrecordmaker" "$component"; \
+        if [ "$component" = 'server' ]; then \
+            ADD_COMPONENTS+=('poisonrecordmaker' 'rollback'); \
         fi; \
-        ./add_component.sh "$component" "$component"; \
+        if [ "$component" = 'translator' ]; then \
+            ADD_COMPONENTS+=('poisonrecordmaker'); \
+        fi; \
+        for c in ${ADD_COMPONENTS[@]}; do \
+            /image.scripts/add_component.sh "$c" "$component"; \
+        done; \
     done
 # Copy static resources for acra-webconfig
 RUN cp -r "${PATH_ACRA}/cmd/acra-webconfig/static" \
