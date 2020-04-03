@@ -25,8 +25,6 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	"io"
-	"os"
 	"strings"
 
 	log "github.com/sirupsen/logrus"
@@ -40,9 +38,9 @@ const (
 )
 
 const (
-	LoggingFormatPlaintext = "plaintext"
-	LoggingFormatJSON      = "json"
-	LoggingFormatCEF       = "cef"
+	PlaintextFormatString = "plaintext"
+	JsonFormatString      = "json"
+	CefFormatString       = "cef"
 )
 
 // LoggerSetter abstract types that provide way to set logger which they should use
@@ -71,6 +69,15 @@ func IsDebugLevel(logger *log.Entry) bool {
 	return logger.Level == log.DebugLevel
 }
 
+// Formatter wraps log.Formatter interface and adds functions for customizations.
+// Intention for this interface is to provide ability to customize logging by accustomed:
+// `logging.SetServiceName` / `logging.SetHooks` from main function of Acra services
+type Formatter interface {
+	log.Formatter
+	SetServiceName(serviceName string)
+	SetHooks(hooks []FormatterHook)
+}
+
 // SetLogLevel sets logging level
 func SetLogLevel(level int) {
 	if level == LogDebug {
@@ -84,6 +91,21 @@ func SetLogLevel(level int) {
 	}
 }
 
+// CreateFormatter creates formatter object
+func CreateFormatter(format string) Formatter {
+	var formatter Formatter
+	switch strings.ToLower(format) {
+	case JsonFormatString:
+		formatter = JSONFormatter()
+	case CefFormatString:
+		formatter = CEFFormatter()
+	default:
+		formatter = TextFormatter()
+	}
+	log.SetFormatter(formatter)
+	return formatter
+}
+
 // GetLogLevel gets logrus log level and returns int Acra log level
 func GetLogLevel() int {
 	if log.GetLevel() == log.DebugLevel {
@@ -93,70 +115,6 @@ func GetLogLevel() int {
 		return LogVerbose
 	}
 	return LogDiscard
-}
-
-// CustomizeBuilder allows to customize logging process
-type CustomizeBuilder struct {
-	writer        io.Writer
-	serviceName   string
-	loggingFormat string
-	hooks         []FormatterHook
-}
-
-// Customize is a global function for logging customization.
-// Example of usage: Customize().SetServiceName(...).SetFormat(...).SetOutput(...).Complete()
-func Customize() *CustomizeBuilder {
-	return &CustomizeBuilder{}
-}
-
-// SetOutput specifies where logs should be written (stderr, file, etc.)
-func (c *CustomizeBuilder) SetOutput(w io.Writer) *CustomizeBuilder {
-	c.writer = w
-	return c
-}
-
-// SetServiceName specifies global name of service that produces logs
-func (c *CustomizeBuilder) SetServiceName(serviceName string) *CustomizeBuilder {
-	c.serviceName = serviceName
-	return c
-}
-
-// SetFormat specifies actual format
-func (c *CustomizeBuilder) SetFormat(loggingFormat string) *CustomizeBuilder {
-	c.loggingFormat = loggingFormat
-	return c
-}
-
-// SetHooks specifies additional pre-/post-processing actions with log entries
-func (c *CustomizeBuilder) SetHooks(hooks []FormatterHook) *CustomizeBuilder {
-	c.hooks = hooks
-	return c
-}
-
-// Complete finishes logging customization.
-// For default logging use Customize().Complete()
-func (c *CustomizeBuilder) Complete() {
-	if c.writer == nil {
-		c.writer = os.Stderr
-	}
-	if c.loggingFormat == "" {
-		c.loggingFormat = LoggingFormatPlaintext
-	}
-	/* We do not check hooks field, since it can be nil (standard log entry processing) */
-	log.SetOutput(c.writer)
-	log.SetFormatter(logFormatterFor(c.loggingFormat, c.serviceName, c.hooks))
-	log.Debugf("Changed logging format to %s", c.loggingFormat)
-}
-
-func logFormatterFor(loggingFormat string, serviceName string, hooks []FormatterHook) log.Formatter {
-	switch strings.ToLower(loggingFormat) {
-	case LoggingFormatJSON:
-		return JSONFormatter(log.Fields{FieldKeyProduct: serviceName}, hooks)
-	case LoggingFormatCEF:
-		return CEFFormatter(log.Fields{FieldKeyProduct: serviceName}, hooks)
-	default:
-		return TextFormatter(hooks)
-	}
 }
 
 // SetLoggerToContext sets logger to corresponded context

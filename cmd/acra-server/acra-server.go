@@ -76,8 +76,6 @@ var ErrWaitTimeout = errors.New("timeout")
 
 func main() {
 	loggingFormat := flag.String("logging_format", "plaintext", "Logging format: plaintext, json or CEF")
-	log.WithField("version", utils.VERSION).Infof("Starting service %v [pid=%v]", ServiceName, os.Getpid())
-
 	dbHost := flag.String("db_host", "", "Host to db")
 	dbPort := flag.Int("db_port", 5432, "Port to db")
 
@@ -139,7 +137,12 @@ func main() {
 		os.Exit(1)
 	}
 
-	logging.Customize().SetFormat(*loggingFormat).SetServiceName(ServiceName).Complete()
+	// Start customizing logs here (directly after command line arguments parsing)
+	formatter := logging.CreateFormatter(*loggingFormat)
+	formatter.SetServiceName(ServiceName)
+	log.SetOutput(os.Stderr)
+
+	log.WithField("version", utils.VERSION).Infof("Starting service %v [pid=%v]", ServiceName, os.Getpid())
 
 	config, err := NewConfig()
 	if err != nil {
