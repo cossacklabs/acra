@@ -132,3 +132,32 @@ func (tx *txAddKey) Rollback(ring *KeyRing) error {
 	ring.data.Keys = ring.data.Keys[:lastKey]
 	return nil
 }
+
+type txDestroyKeyData struct {
+	keySeqnum  int
+	dataBackup []asn1.KeyData
+}
+
+func (tx *txDestroyKeyData) Apply(ring *KeyRing) error {
+	key, _ := ring.data.KeyWithSeqnum(tx.keySeqnum)
+	if key == nil {
+		return errTxKeyNotFound
+	}
+	// Keep the data for possible rollback. It's encrypted so we can get away
+	// with not wiping it after transaction object is destroyed.
+	tx.dataBackup = key.Data
+	// ASN.1 serialization requires this to be an empty slice, not nil.
+	key.Data = make([]asn1.KeyData, 0)
+	return nil
+}
+
+func (tx *txDestroyKeyData) Rollback(ring *KeyRing) error {
+	key, _ := ring.data.KeyWithSeqnum(tx.keySeqnum)
+	if key == nil || len(key.Data) != 0 {
+		return errTxOOORollback
+	}
+	// Move the data back into the key and forget about it.
+	key.Data = tx.dataBackup
+	tx.dataBackup = nil
+	return nil
+}

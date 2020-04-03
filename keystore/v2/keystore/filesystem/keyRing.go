@@ -196,6 +196,17 @@ func (r *KeyRing) addKey(newKey *asn1.Key) error {
 	return err
 }
 
+func (r *KeyRing) destroyKey(keySeqnum int, currentState api.KeyState) error {
+	r.pushTX(&txDestroyKeyData{keySeqnum: keySeqnum})
+	r.pushTX(&txChangeKeyState{keySeqnum, currentState, api.KeyDestroyed})
+	err := r.store.syncKeyRing(r)
+	if err != nil {
+		r.popTX()
+		r.popTX()
+	}
+	return err
+}
+
 //
 // Internal utilities
 //

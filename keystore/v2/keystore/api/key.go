@@ -28,6 +28,7 @@ var (
 	ErrFormatDuplicated    = errors.New("key format used multiple times")
 	ErrFormatMissing       = errors.New("key format not available")
 	ErrKeyNotExist         = errors.New("no key with such seqnum")
+	ErrKeyDestroyed        = errors.New("key has been destroyed")
 	ErrNoKeyData           = errors.New("no key data")
 	ErrInvalidFormat       = errors.New("invalid key format")
 	ErrInvalidState        = errors.New("invalid state transition")

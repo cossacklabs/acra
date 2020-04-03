@@ -17,6 +17,7 @@
 package tests
 
 import (
+	"bytes"
 	"testing"
 	"time"
 
@@ -34,6 +35,9 @@ func TestKeyRing(t *testing.T, newKeyStore NewKeyStore) {
 	})
 	t.Run("TestKeyRingCurrent", func(t *testing.T) {
 		testKeyRingCurrent(t, newKeyStore)
+	})
+	t.Run("TestKeyRingDestroyingKeys", func(t *testing.T) {
+		testKeyRingDestroyingKeys(t, newKeyStore)
 	})
 }
 
@@ -213,5 +217,121 @@ func testKeyRingCurrent(t *testing.T, newKeyStore NewKeyStore) {
 	}
 	if curr != keyV1 {
 		t.Errorf("current key is not key 1 (reset key 1)")
+	}
+}
+
+func testKeyRingDestroyingKeys(t *testing.T, newKeyStore NewKeyStore) {
+	store := newKeyStore(t)
+	defer store.Close()
+
+	ring, err := store.OpenKeyRingRW("my/precious/keyring")
+	if err != nil {
+		t.Fatalf("failed to create key ring: %v", err)
+	}
+
+	keyV1, err := ring.AddKey(api.KeyDescription{
+		ValidSince: time.Now(),
+		ValidUntil: time.Now().Add(time.Hour),
+		Data: []api.KeyData{
+			api.KeyData{
+				Format:     api.ThemisKeyPairFormat,
+				PublicKey:  []byte("public key v1"),
+				PrivateKey: []byte("private key v1"),
+			},
+		},
+	})
+	if err != nil {
+		t.Fatalf("failed to add key 1: %v", err)
+	}
+	keyV2, err := ring.AddKey(api.KeyDescription{
+		ValidSince: time.Now(),
+		ValidUntil: time.Now().Add(time.Hour),
+		Data: []api.KeyData{
+			api.KeyData{
+				Format:     api.ThemisKeyPairFormat,
+				PublicKey:  []byte("public key v2"),
+				PrivateKey: []byte("private key v2"),
+			},
+		},
+	})
+	if err != nil {
+		t.Fatalf("failed to add key 2: %v", err)
+	}
+	err = ring.SetCurrent(keyV2)
+	if err != nil {
+		t.Fatalf("failed to set current key: %v", err)
+	}
+
+	var keyData []byte
+
+	// Do a health check on the key store. Make sure it keeps the data right now.
+	keyData, err = ring.PrivateKey(keyV1, api.ThemisKeyPairFormat)
+	if err != nil {
+		t.Fatalf("failed to get private key v1 data: %v", err)
+	}
+	if !bytes.Equal(keyData, []byte("private key v1")) {
+		t.Errorf("public key v1 data incorrect")
+	}
+	keyData, err = ring.PublicKey(keyV2, api.ThemisKeyPairFormat)
+	if err != nil {
+		t.Fatalf("failed to get public key v2 data: %v", err)
+	}
+	if !bytes.Equal(keyData, []byte("public key v2")) {
+		t.Errorf("public key v2 data incorrect")
+	}
+
+	// Now, destroy the current key...
+	err = ring.DestroyKey(keyV2)
+	if err != nil {
+		t.Fatalf("failed to destroy key v2: %v", err)
+	}
+
+	// Version 2 should be destroyed and recognized as such when requested
+	keyData, err = ring.PrivateKey(keyV2, api.ThemisKeyPairFormat)
+	if err != api.ErrKeyDestroyed {
+		t.Fatalf("incorrect error when getting (destroyed) private key v2 data: %v", err)
+	}
+	if keyData != nil {
+		t.Errorf("private key v2 data is not nil")
+	}
+	keyData, err = ring.PublicKey(keyV2, api.ThemisKeyPairFormat)
+	if err != api.ErrKeyDestroyed {
+		t.Fatalf("incorrect error when getting (destroyed) public key v2 data: %v", err)
+	}
+	if keyData != nil {
+		t.Errorf("public key v2 data is not nil")
+	}
+
+	// Version 1 of the key should be still intact
+	keyData, err = ring.PrivateKey(keyV1, api.ThemisKeyPairFormat)
+	if err != nil {
+		t.Fatalf("failed to get private key v1 data (v2 destroyed): %v", err)
+	}
+	if !bytes.Equal(keyData, []byte("private key v1")) {
+		t.Errorf("public key v1 data incorrect")
+	}
+	keyData, err = ring.PublicKey(keyV1, api.ThemisKeyPairFormat)
+	if err != nil {
+		t.Fatalf("failed to get public key v1 data (v2 destroyed): %v", err)
+	}
+	if !bytes.Equal(keyData, []byte("public key v1")) {
+		t.Errorf("public key v1 data incorrect")
+	}
+
+	// Version 2 is still the current one (albeit, destroyed).
+	current, err := ring.CurrentKey()
+	if err != nil {
+		t.Fatalf("failed to get current key (v2 destroyed): %v", err)
+	}
+	if current != keyV2 {
+		t.Errorf("current key is not v2")
+	}
+
+	keyV2State, err := ring.State(keyV2)
+	if err != nil {
+		t.Fatalf("failed to key v2 state: %v", err)
+	}
+	if keyV2State != api.KeyDestroyed {
+		t.Errorf("key v2 state is not destroyed: %v", keyV2State)
 	}
 }

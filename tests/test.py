@@ -60,6 +60,7 @@ from sqlalchemy.dialects import postgresql as postgresql_dialect
 from utils import (read_storage_public_key, read_storage_private_key,
                    read_zone_public_key, read_zone_private_key,
                    read_poison_public_key, read_poison_private_key,
+                   destroy_key,
                    decrypt_acrastruct,
                    load_random_data_config, get_random_data_files,
                    clean_test_data, safe_string, prepare_encryptor_config,
@@ -309,10 +310,12 @@ def get_poison_record():
     return poison_record
 
 
-def create_client_keypair(name, only_server=False, only_client=False):
+def create_client_keypair(name, only_server=False, only_client=False, keys_dir=None):
+    if not keys_dir:
+        keys_dir = KEYS_FOLDER.name
     args = ['./acra-keymaker', '-client_id={}'.format(name),
-            '-keys_output_dir={}'.format(KEYS_FOLDER.name),
-            '--keys_public_output_dir={}'.format(KEYS_FOLDER.name),
+            '-keys_output_dir={}'.format(keys_dir),
+            '--keys_public_output_dir={}'.format(keys_dir),
             '--keystore={}'.format(KEYSTORE_VERSION)]
     if only_server:
         args.append('-acra-server')
@@ -434,7 +437,7 @@ BINARIES = [
            build_args=DEFAULT_BUILD_ARGS),
     Binary(name='acra-migrate-keys', from_version=DEFAULT_VERSION,
            build_args=DEFAULT_BUILD_ARGS),
-    Binary(name='acra-read-key', from_version=DEFAULT_VERSION,
+    Binary(name='acra-key-tool', from_version=DEFAULT_VERSION,
            build_args=DEFAULT_BUILD_ARGS),
     Binary(name='acra-poisonrecordmaker', from_version=DEFAULT_VERSION,
            build_args=DEFAULT_BUILD_ARGS),
@@ -1694,12 +1697,10 @@ class TestConnectionClosing(BaseTestCase):
 class TestKeyNonExistence(BaseTestCase):
     def setUp(self):
         self.checkSkip()
-        # FIXME(ilammy, 2020-03-20): implement key removal for v2
-        if KEYSTORE_VERSION == 'v2':
-            self.skipTest('key store v2 does not support key removal')
         try:
+            self.init_key_stores()
             if not self.EXTERNAL_ACRA:
-                self.acra = self.fork_acra()
+                self.acra = self.fork_acra(keys_dir=self.server_keys_dir)
             self.dsn = get_connect_args(port=self.CONNECTOR_PORT_1, host=get_db_host())
         except:
             self.tearDown()
@@ -1710,19 +1711,27 @@ class TestKeyNonExistence(BaseTestCase):
             stop_process(self.acra)
         send_signal_by_process_name('acra-server', signal.SIGKILL)
         send_signal_by_process_name('acra-connector', signal.SIGKILL)
+        self.server_keystore.cleanup()
+        self.connector_keystore.cleanup()
 
-    def delete_key(self, filename):
-        os.remove('{dir}{sep}{name}'.format(
-            dir=KEYS_FOLDER.name, sep=os.path.sep, name=filename))
+    def init_key_stores(self):
+        self.client_id = 'test_client_ID'
+        self.server_keystore = tempfile.TemporaryDirectory()
+        self.server_keys_dir = os.path.join(self.server_keystore.name, '.acrakeys')
+        self.connector_keystore = tempfile.TemporaryDirectory()
+        self.connector_keys_dir = os.path.join(self.connector_keystore.name, '.acrakeys')
+
+        # TODO(ilammy, 2020-03-30): generate keys separately, export/import them
+        # instead of just copying the entire key store
+        create_client_keypair(name=self.client_id, keys_dir=self.server_keys_dir)
+        shutil.copytree(self.server_keys_dir, self.connector_keys_dir)
 
     def test_without_acraconnector_public(self):
         """acra-server without acra-connector public key should drop connection
         from acra-connector than acra-connector should drop connection from psycopg2"""
-        keyname = 'without_acra-connector_public_test'
-        result = create_client_keypair(keyname)
-        if result != 0:
-            self.fail("can't create keypairs")
-        self.delete_key(keyname + '.pub')
+        destroy_key(kind='transport-connector',
+                    client_id=self.client_id,
+                    keys_dir=self.server_keys_dir)
         engine = None
         if TEST_MYSQL:
             expected_exception = pymysql.err.OperationalError
@@ -1731,7 +1740,10 @@ class TestKeyNonExistence(BaseTestCase):
 
         try:
             self.connector = self.fork_connector(
-                self.CONNECTOR_PORT_1, self.ACRASERVER_PORT, keyname)
+                connector_port=self.CONNECTOR_PORT_1,
+                acraserver_port=self.ACRASERVER_PORT,
+                client_id=self.client_id,
+                keys_dir=self.connector_keys_dir)
             self.assertIsNone(self.connector.poll())
             with self.assertRaises(sa.exc.OperationalError) as exc:
                 engine = sa.create_engine(
@@ -1758,15 +1770,16 @@ class TestKeyNonExistence(BaseTestCase):
 
     def test_without_acraconnector_private(self):
         """acra-connector shouldn't start without private key"""
-        keyname = 'without_acra-connector_private_test'
-        result = create_client_keypair(keyname)
-        if result != 0:
-            self.fail("can't create keypairs")
-        self.delete_key(keyname)
+        destroy_key(kind='transport-connector',
+                    client_id=self.client_id,
+                    keys_dir=self.connector_keys_dir)
         try:
             self.connector = self.fork_connector(
-                self.CONNECTOR_PORT_1, self.ACRASERVER_PORT, keyname,
-                check_connection=False)
+                connector_port=self.CONNECTOR_PORT_1,
+                acraserver_port=self.ACRASERVER_PORT,
+                client_id=self.client_id,
+                check_connection=False,
+                keys_dir=self.connector_keys_dir)
             self.checkShutdownAcraConnector(self.connector)
         finally:
             try:
@@ -1777,11 +1790,9 @@ class TestKeyNonExistence(BaseTestCase):
     def test_without_acraserver_private(self):
         """acra-server without private key should drop connection
         from acra-connector than acra-connector should drop connection from psycopg2"""
-        keyname = 'without_acraserver_private_test'
-        result = create_client_keypair(keyname)
-        if result != 0:
-            self.fail("can't create keypairs")
-        self.delete_key(keyname + '_server')
+        destroy_key(kind='transport-server',
+                    client_id=self.client_id,
+                    keys_dir=self.server_keys_dir)
         if TEST_MYSQL:
             expected_exception = pymysql.err.OperationalError
         elif TEST_POSTGRESQL:
@@ -1789,7 +1800,10 @@ class TestKeyNonExistence(BaseTestCase):
         engine = None
         try:
             self.connector = self.fork_connector(
-                self.CONNECTOR_PORT_1, self.ACRASERVER_PORT, keyname)
+                connector_port=self.CONNECTOR_PORT_1,
+                acraserver_port=self.ACRASERVER_PORT,
+                client_id=self.client_id,
+                keys_dir=self.connector_keys_dir)
             self.assertIsNone(self.connector.poll())
             with self.assertRaises(sa.exc.OperationalError) as exc:
                 engine = sa.create_engine(
@@ -1805,15 +1819,16 @@ class TestKeyNonExistence(BaseTestCase):
 
     def test_without_acraserver_public(self):
         """acra-connector shouldn't start without acra-server public key"""
-        keyname = 'without_acraserver_public_test'
-        result = create_client_keypair(keyname)
-        if result != 0:
-            self.fail("can't create keypairs")
-        self.delete_key(keyname + '_server.pub')
+        destroy_key(kind='transport-server',
+                    client_id=self.client_id,
+                    keys_dir=self.connector_keys_dir)
         try:
             self.connector = self.fork_connector(
-                self.CONNECTOR_PORT_1, self.ACRASERVER_PORT, keyname,
-                check_connection=False)
+                connector_port=self.CONNECTOR_PORT_1,
+                acraserver_port=self.ACRASERVER_PORT,
+                client_id=self.client_id,
+                check_connection=False,
+                keys_dir=self.connector_keys_dir)
             # time for start up connector and validation file existence.
             self.checkShutdownAcraConnector(self.connector)
         finally:
@@ -2215,18 +2230,20 @@ class TestCheckLogPoisonRecord(AcraCatchLogsMixin, BasePoisonRecordTest):
 class TestKeyStorageClearing(BaseTestCase):
     def setUp(self):
         self.checkSkip()
-        # FIXME(ilammy, 2020-03-20): implement key removal for v2
-        if KEYSTORE_VERSION == 'v2':
-            self.skipTest('key store v2 does not support key removal')
         try:
-            self.key_name = 'clearing_keypair'
-            create_client_keypair(self.key_name)
+            self.init_key_stores()
             self.connector_1 = self.fork_connector(
-                self.CONNECTOR_PORT_1, self.ACRASERVER_PORT, self.key_name, self.CONNECTOR_API_PORT_1,
-                zone_mode=True)
+                connector_port=self.CONNECTOR_PORT_1,
+                acraserver_port=self.ACRASERVER_PORT,
+                client_id=self.client_id,
+                api_port=self.CONNECTOR_API_PORT_1,
+                zone_mode=True,
+                keys_dir=self.connector_keys_dir)
             if not self.EXTERNAL_ACRA:
                 self.acra = self.fork_acra(
-                    zonemode_enable='true', http_api_enable='true')
+                    zonemode_enable='true',
+                    http_api_enable='true',
+                    keys_dir=self.server_keys_dir)
 
             self.engine1 = sa.create_engine(
                 get_engine_connection_string(self.get_connector_connection_string(self.CONNECTOR_PORT_1), DB_NAME),
@@ -2262,6 +2279,20 @@ class TestKeyStorageClearing(BaseTestCase):
         stop_process(processes)
         send_signal_by_process_name('acra-server', signal.SIGKILL)
         send_signal_by_process_name('acra-connector', signal.SIGKILL)
+        self.server_keystore.cleanup()
+        self.connector_keystore.cleanup()
+
+    def init_key_stores(self):
+        self.client_id = 'clearing_keypair'
+        self.server_keystore = tempfile.TemporaryDirectory()
+        self.server_keys_dir = os.path.join(self.server_keystore.name, '.acrakeys')
+        self.connector_keystore = tempfile.TemporaryDirectory()
+        self.connector_keys_dir = os.path.join(self.connector_keystore.name, '.acrakeys')
+
+        # TODO(ilammy, 2020-03-30): generate keys separately, export/import them
+        # instead of just copying the entire key store
+        create_client_keypair(name=self.client_id, keys_dir=self.server_keys_dir)
+        shutil.copytree(self.server_keys_dir, self.connector_keys_dir)
 
     def test_clearing(self):
         # execute any query for loading key by acra
@@ -2270,7 +2301,9 @@ class TestKeyStorageClearing(BaseTestCase):
         with urlopen('http://127.0.0.1:{}/resetKeyStorage'.format(self.CONNECTOR_API_PORT_1)) as response:
             self.assertEqual(response.status, 200)
         # delete key for excluding reloading from FS
-        os.remove('{}/{}.pub'.format(KEYS_FOLDER.name, self.key_name))
+        destroy_key(kind='transport-connector',
+                    client_id=self.client_id,
+                    keys_dir=self.server_keys_dir)
         # close connections in pool and reconnect to reinitiate secure session
         self.engine1.dispose()
         # acra-server should close connection when doesn't find key
@@ -4578,7 +4611,7 @@ class TestOutdatedServiceConfigs(BaseTestCase, FailedRunProcessMixin):
                 'acra-server': ['-db_host=127.0.0.1'],
                 'acra-connector': ['-user_check_disable', '-acraserver_connection_host=127.0.0.1', '-client_id=keypair1'],
                 'acra-migrate-keys': ['--dry_run', '--src_keys_dir={}'.format(KEYS_FOLDER.name)],
-                'acra-read-key': ['--keys_dir={}'.format(KEYS_FOLDER.name)],
+                'acra-key-tool': ['--keys_dir={}'.format(KEYS_FOLDER.name)],
             }
             for service in services:
                 config_param = '-config_file={}'.format(os.path.join(tmp_dir, '{}.yaml'.format(service)))
@@ -4602,7 +4635,7 @@ class TestOutdatedServiceConfigs(BaseTestCase, FailedRunProcessMixin):
                 'acra-server': ['-db_host=127.0.0.1'],
                 'acra-connector': ['-user_check_disable', '-acraserver_connection_host=127.0.0.1', '-client_id=keypair1'],
                 'acra-migrate-keys': ['--dry_run', '--src_keys_dir={}'.format(KEYS_FOLDER.name)],
-                'acra-read-key': ['--keys_dir={}'.format(KEYS_FOLDER.name)],
+                'acra-key-tool': ['--keys_dir={}'.format(KEYS_FOLDER.name)],
             }
             for service in services:
                 config_param = '-config_file={}'.format(os.path.join(tmp_dir, '{}.yaml'.format(service)))
@@ -4638,7 +4671,7 @@ class TestOutdatedServiceConfigs(BaseTestCase, FailedRunProcessMixin):
                                   '-keys_public_output_dir={}'.format(tmp_dir),
                                   '--keystore={}'.format(KEYSTORE_VERSION)],
                 'acra-migrate-keys': ['--dry_run', '--src_keys_dir={}'.format(KEYS_FOLDER.name)],
-                'acra-read-key': ['--keys_dir={}'.format(KEYS_FOLDER.name)],
+                'acra-key-tool': ['--keys_dir={}'.format(KEYS_FOLDER.name)],
                 'acra-poisonrecordmaker': ['-keys_dir={}'.format(tmp_dir),
                                            '--keystore={}'.format(KEYSTORE_VERSION)],
                 'acra-rollback': {'args': ['-keys_dir={}'.format(tmp_dir),
@@ -4689,7 +4722,7 @@ class TestOutdatedServiceConfigs(BaseTestCase, FailedRunProcessMixin):
                                   '-keys_public_output_dir={}'.format(tmp_dir),
                                   '--keystore={}'.format(KEYSTORE_VERSION)],
                 'acra-migrate-keys': ['--dry_run', '--src_keys_dir={}'.format(KEYS_FOLDER.name)],
-                'acra-read-key': ['--keys_dir={}'.format(KEYS_FOLDER.name)],
+                'acra-key-tool': ['--keys_dir={}'.format(KEYS_FOLDER.name)],
                 'acra-poisonrecordmaker': ['-keys_dir={}'.format(tmp_dir),
                                            '--keystore={}'.format(KEYSTORE_VERSION)],
                 'acra-rollback': {'args': ['-keys_dir={}'.format(tmp_dir),

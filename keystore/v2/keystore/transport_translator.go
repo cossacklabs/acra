@@ -109,3 +109,19 @@ func (s *ServerKeyStore) SaveTranslatorKeypair(clientID []byte, keypair *keys.Ke
 	}
 	return nil
 }
+
+// DestroyTranslatorKeypair destroys currently used AcraTranslator transport keypair for given clientID.
+func (s *ServerKeyStore) DestroyTranslatorKeypair(clientID []byte) error {
+	log := s.log.WithField("clientID", clientID)
+	ring, err := s.OpenKeyRingRW(s.translatorTransportKeyPairPath(clientID))
+	if err != nil {
+		log.WithError(err).Debug("Failed to open translator transport key ring for client")
+		return err
+	}
+	err = s.destroyCurrentKeyPair(ring)
+	if err != nil {
+		log.WithError(err).Debug("Failed to destroy translator transport key pair for client")
+		return err
+	}
+	return nil
+}

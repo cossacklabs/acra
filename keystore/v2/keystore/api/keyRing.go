@@ -63,6 +63,9 @@ type MutableKeyRing interface {
 	// SetState changes key State to the given one, if allowed.
 	SetState(seqnum int, newState KeyState) error
 
+	// DestroyKey erases key data (but keeps the key in the ring).
+	DestroyKey(seqnum int) error
+
 	// SetCurrent makes this key current in its key ring.
 	// Does nothing if the key is already current.
 	SetCurrent(seqnum int) error

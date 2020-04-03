@@ -121,3 +121,19 @@ func (s *ServerKeyStore) SaveConnectorKeypair(clientID []byte, keypair *keys.Key
 	}
 	return nil
 }
+
+// DestroyConnectorKeypair destroys currently used AcraConnector transport keypair for given clientID.
+func (s *ServerKeyStore) DestroyConnectorKeypair(clientID []byte) error {
+	log := s.log.WithField("clientID", clientID)
+	ring, err := s.OpenKeyRingRW(s.connectorTransportKeyPairPath(clientID))
+	if err != nil {
+		log.WithError(err).Debug("Failed to open connector transport key ring for client")
+		return err
+	}
+	err = s.destroyCurrentKeyPair(ring)
+	if err != nil {
+		log.WithError(err).Debug("Failed to destroy connector transport key pair for client")
+		return err
+	}
+	return nil
+}
