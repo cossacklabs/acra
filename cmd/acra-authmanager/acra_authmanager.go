@@ -24,6 +24,10 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"io/ioutil"
+	"os"
+	"strings"
+
 	"github.com/cossacklabs/acra/cmd"
 	"github.com/cossacklabs/acra/keystore"
 	"github.com/cossacklabs/acra/keystore/filesystem"
@@ -31,9 +35,6 @@ import (
 	"github.com/cossacklabs/acra/utils"
 	"github.com/cossacklabs/themis/gothemis/cell"
 	log "github.com/sirupsen/logrus"
-	"io/ioutil"
-	"os"
-	"strings"
 )
 
 // HashedPasswords stores username:hashed_password map
@@ -70,7 +71,7 @@ func (hp HashedPasswords) WriteToFile(file string, keystore *filesystem.KeyStore
 	if err != nil {
 		return err
 	}
-	SecureCell := cell.New(key, cell.CELL_MODE_SEAL)
+	SecureCell := cell.New(key, cell.ModeSeal)
 	crypted, _, err := SecureCell.Protect(hp.Bytes(), nil)
 	if err != nil {
 		return err
@@ -106,7 +107,7 @@ func parseHtpasswdFile(file string, keystore *filesystem.KeyStore) (passwords Ha
 	if err != nil {
 		return
 	}
-	SecureCell := cell.New(key, cell.CELL_MODE_SEAL)
+	SecureCell := cell.New(key, cell.ModeSeal)
 	authData, err := SecureCell.Unprotect(htpasswdBytes, nil, nil)
 	if err != nil {
 		return

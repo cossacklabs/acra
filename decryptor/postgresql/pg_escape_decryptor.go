@@ -19,17 +19,17 @@ package postgresql
 import (
 	"bytes"
 	"encoding/binary"
-	"github.com/cossacklabs/acra/logging"
-	"github.com/cossacklabs/acra/utils"
-	log "github.com/sirupsen/logrus"
 	"io"
 	"strconv"
 
 	"github.com/cossacklabs/acra/decryptor/base"
+	"github.com/cossacklabs/acra/logging"
+	"github.com/cossacklabs/acra/utils"
 	"github.com/cossacklabs/acra/zone"
 	"github.com/cossacklabs/themis/gothemis/cell"
 	"github.com/cossacklabs/themis/gothemis/keys"
 	"github.com/cossacklabs/themis/gothemis/message"
+	log "github.com/sirupsen/logrus"
 )
 
 // ZoneID begin tags, lengths, etc
@@ -227,7 +227,7 @@ func (decryptor *PgEscapeDecryptor) ReadData(symmetricKey, zoneID []byte, reader
 		return append(hexLengthBuf, octData...), err
 	}
 
-	scell := cell.New(symmetricKey, cell.CELL_MODE_SEAL)
+	scell := cell.New(symmetricKey, cell.ModeSeal)
 	decrypted, err := scell.Unprotect(data, nil, zoneID)
 	// fill zero symmetric_key
 	utils.FillSlice(byte(0), symmetricKey[:])

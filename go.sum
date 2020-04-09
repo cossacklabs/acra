@@ -10,6 +10,8 @@ github.com/beorn7/perks v0.0.0-20180321164747-3a771d992973/go.mod h1:Dwedo/Wpr24
 github.com/client9/misspell v0.3.4/go.mod h1:qj6jICC3Q7zFZvVWo7KLAzC3yx5G7kyvSDkc90ppPyw=
 github.com/cossacklabs/themis v0.0.0-20190313112615-419d5a3c2ca8 h1:6aC23IdI5R4gdBXsgqiTFPmkxEmcYwP7kiDl5f7xH2k=
 github.com/cossacklabs/themis v0.0.0-20190313112615-419d5a3c2ca8/go.mod h1:qMChJuHrlKgEbrzJqAiVncL2Put5W55nQUx38mrUfM0=
+github.com/cossacklabs/themis/gothemis v0.12.0 h1:XgfWhIc6FHCCqnYFnJ9JfCum04z8nHY2MdcZfaaJ5xU=
+github.com/cossacklabs/themis/gothemis v0.12.0/go.mod h1:6fvSguI8fMmChlgdG0cZywirhtTsRmp+/PsCWLDUID8=
 github.com/davecgh/go-spew v1.1.1 h1:vj9j/u1bqnvCEfJOwUhtlOARqs3+rkHYY13jYWTU97c=
 github.com/davecgh/go-spew v1.1.1/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=
 github.com/ghodss/yaml v1.0.0/go.mod h1:4dBDuWmgqj2HViK6kFavaiC9ZROes6MMH2rRYeMEF04=

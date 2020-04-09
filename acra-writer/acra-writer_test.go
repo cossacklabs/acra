@@ -19,16 +19,17 @@ import (
 	"bytes"
 	"crypto/rand"
 	"encoding/binary"
-	"github.com/cossacklabs/acra/acra-writer"
+	"testing"
+
+	acrawriter "github.com/cossacklabs/acra/acra-writer"
 	"github.com/cossacklabs/acra/decryptor/base"
 	"github.com/cossacklabs/themis/gothemis/cell"
 	"github.com/cossacklabs/themis/gothemis/keys"
 	"github.com/cossacklabs/themis/gothemis/message"
-	"testing"
 )
 
 func TestCreateAcrastruct(t *testing.T) {
-	acra_kp, err := keys.New(keys.KEYTYPE_EC)
+	acra_kp, err := keys.New(keys.TypeEC)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -55,7 +56,7 @@ func TestCreateAcrastruct(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	scell := cell.New(unwrapped_key, cell.CELL_MODE_SEAL)
+	scell := cell.New(unwrapped_key, cell.ModeSeal)
 	data_length_buf := acra_struct[len(base.TagBegin)+base.KeyBlockLength : len(base.TagBegin)+base.KeyBlockLength+base.DataLengthSize]
 	data_length := int(binary.LittleEndian.Uint64(data_length_buf))
 	data := acra_struct[len(base.TagBegin)+base.KeyBlockLength+base.DataLengthSize:]
