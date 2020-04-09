@@ -21,11 +21,11 @@ import (
 	"crypto/tls"
 	"net"
 	"os"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/cossacklabs/themis/gothemis/keys"
-	"strings"
 )
 
 var TestClientID = []byte("client")
@@ -158,11 +158,11 @@ func (keystore *SimpleKeyStore) GetPeerPublicKey(id []byte) (*keys.PublicKey, er
 }
 
 func TestSessionWrapper(t *testing.T) {
-	clientPair, err := keys.New(keys.KEYTYPE_EC)
+	clientPair, err := keys.New(keys.TypeEC)
 	if err != nil {
 		t.Fatal(err)
 	}
-	serverPair, err := keys.New(keys.KEYTYPE_EC)
+	serverPair, err := keys.New(keys.TypeEC)
 	if err != nil {
 		t.Fatal(err)
 	}

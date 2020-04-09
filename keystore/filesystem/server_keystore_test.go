@@ -403,11 +403,11 @@ func testFilesystemKeyStoreRotateZoneKey(storage Storage, t *testing.T) {
 func testSaveKeypairs(store *KeyStore, t *testing.T) {
 	store.Reset()
 	testID := []byte("testid")
-	startKeypair, err := keys.New(keys.KEYTYPE_EC)
+	startKeypair, err := keys.New(keys.TypeEC)
 	if err != nil {
 		t.Fatal(err)
 	}
-	overwritedKeypair, err := keys.New(keys.KEYTYPE_EC)
+	overwritedKeypair, err := keys.New(keys.TypeEC)
 	if err != nil {
 		t.Fatal(err)
 	}

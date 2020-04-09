@@ -1,7 +1,7 @@
 module github.com/cossacklabs/acra
 
 require (
-	github.com/cossacklabs/themis v0.0.0-20190313112615-419d5a3c2ca8
+	github.com/cossacklabs/themis/gothemis v0.12.0
 	github.com/go-sql-driver/mysql v1.4.1
 	github.com/golang/groupcache v0.0.0-20190129154638-5b532d6fd5ef
 	github.com/golang/protobuf v1.3.1

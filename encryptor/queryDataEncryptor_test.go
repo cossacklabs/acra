@@ -20,7 +20,9 @@ import (
 	"bytes"
 	"encoding/hex"
 	"fmt"
-	"github.com/cossacklabs/acra/acra-writer"
+	"testing"
+
+	acrawriter "github.com/cossacklabs/acra/acra-writer"
 	"github.com/cossacklabs/acra/decryptor/base"
 	"github.com/cossacklabs/acra/encryptor/config"
 	"github.com/cossacklabs/acra/sqlparser"
@@ -29,7 +31,6 @@ import (
 	"github.com/cossacklabs/acra/sqlparser/dialect/postgresql"
 	"github.com/cossacklabs/acra/zone"
 	"github.com/cossacklabs/themis/gothemis/keys"
-	"testing"
 )
 
 type testEncryptor struct {
@@ -73,7 +74,7 @@ func TestGeneralQueryParser_Parse(t *testing.T) {
 	defaultClientIDStr := "default_client_id"
 	defaultClientID := []byte(defaultClientIDStr)
 
-	keypair, err := keys.New(keys.KEYTYPE_EC)
+	keypair, err := keys.New(keys.TypeEC)
 	if err != nil {
 		t.Fatal(err)
 	}

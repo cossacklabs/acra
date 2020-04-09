@@ -20,6 +20,8 @@ package binary
 import (
 	"bytes"
 	"encoding/binary"
+	"io"
+
 	"github.com/cossacklabs/acra/decryptor/base"
 	"github.com/cossacklabs/acra/logging"
 	"github.com/cossacklabs/acra/utils"
@@ -27,7 +29,6 @@ import (
 	"github.com/cossacklabs/themis/gothemis/keys"
 	"github.com/cossacklabs/themis/gothemis/message"
 	log "github.com/sirupsen/logrus"
-	"io"
 )
 
 // Decryptor stores settings for finding and decrypting AcraStruct from binary data
@@ -145,7 +146,7 @@ func (decryptor *Decryptor) ReadData(symmetricKey, zoneID []byte, reader io.Read
 		return append(rawLengthData, rawData...), err
 	}
 
-	scell := cell.New(symmetricKey, cell.CELL_MODE_SEAL)
+	scell := cell.New(symmetricKey, cell.ModeSeal)
 	decrypted, err := scell.Unprotect(data, nil, zoneID)
 	data = nil
 	// fill zero symmetric_key

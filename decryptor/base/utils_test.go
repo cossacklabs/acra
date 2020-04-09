@@ -18,12 +18,13 @@ package base_test
 import (
 	"bytes"
 	"crypto/rand"
-	"github.com/cossacklabs/acra/acra-writer"
+	"testing"
+
+	acrawriter "github.com/cossacklabs/acra/acra-writer"
 	// use another package name and explicit import to avoid cyclic import
 	"github.com/cossacklabs/acra/decryptor/base"
 	"github.com/cossacklabs/acra/zone"
 	"github.com/cossacklabs/themis/gothemis/keys"
-	"testing"
 )
 
 func TestDecryptAcrastruct(t *testing.T) {
@@ -32,7 +33,7 @@ func TestDecryptAcrastruct(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	keypair, err := keys.New(keys.KEYTYPE_EC)
+	keypair, err := keys.New(keys.TypeEC)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -89,7 +90,7 @@ func TestValidateAcraStructLength(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	keypair, err := keys.New(keys.KEYTYPE_EC)
+	keypair, err := keys.New(keys.TypeEC)
 	if err != nil {
 		t.Fatal(err)
 	}

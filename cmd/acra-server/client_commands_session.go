@@ -132,7 +132,7 @@ func (clientSession *ClientCommandsSession) HandleSession() {
 			response = Response500Error
 			break
 		}
-		SecureCell := cell.New(key, cell.CELL_MODE_SEAL)
+		SecureCell := cell.New(key, cell.ModeSeal)
 		authData, err := SecureCell.Unprotect(authDataCrypted, nil, nil)
 		if err != nil {
 			logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorHTTPAPICantDecryptAuthData).WithError(err).Error("loadAuthData: SecureCell.Unprotect")
