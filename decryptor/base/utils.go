@@ -21,6 +21,7 @@ import (
 	"encoding/binary"
 
 	"errors"
+
 	"github.com/cossacklabs/acra/keystore"
 	"github.com/cossacklabs/acra/utils"
 	"github.com/cossacklabs/themis/gothemis/cell"
@@ -85,7 +86,7 @@ func DecryptAcrastruct(data []byte, privateKey *keys.PrivateKey, zone []byte) ([
 	if err != nil {
 		return []byte{}, err
 	}
-	scell := cell.New(symmetricKey, cell.CELL_MODE_SEAL)
+	scell := cell.New(symmetricKey, cell.ModeSeal)
 	decrypted, err := scell.Unprotect(innerData[KeyBlockLength+DataLengthSize:], nil, zone)
 	// fill zero symmetric_key
 	utils.FillSlice(byte(0), symmetricKey)

@@ -25,6 +25,7 @@ import (
 	"crypto/rand"
 	"encoding/binary"
 	"errors"
+
 	"github.com/cossacklabs/acra/decryptor/base"
 	"github.com/cossacklabs/acra/utils"
 	"github.com/cossacklabs/themis/gothemis/cell"
@@ -35,7 +36,7 @@ import (
 // CreateAcrastruct encrypt your data using acra_public key and context (optional)
 // and pack into correct Acrastruct format
 func CreateAcrastruct(data []byte, acraPublic *keys.PublicKey, context []byte) ([]byte, error) {
-	randomKeyPair, err := keys.New(keys.KEYTYPE_EC)
+	randomKeyPair, err := keys.New(keys.TypeEC)
 	if err != nil {
 		return nil, err
 	}
@@ -58,7 +59,7 @@ func CreateAcrastruct(data []byte, acraPublic *keys.PublicKey, context []byte) (
 	utils.FillSlice('0', randomKeyPair.Private.Value)
 
 	// create scell for encrypting data
-	scell := cell.New(randomKey, cell.CELL_MODE_SEAL)
+	scell := cell.New(randomKey, cell.ModeSeal)
 	encryptedData, _, err := scell.Protect(data, context)
 	if err != nil {
 		return nil, err
