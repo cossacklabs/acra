@@ -105,8 +105,8 @@ def load_default_config(service_name):
 
 
 def read_key(kind, client_id=None, zone_id=None, keys_dir='.acrakeys'):
-    """Reads key from Key Store with acra-key-tool."""
-    args = ['./acra-key-tool', '--read_key={}'.format(kind),
+    """Reads key from Key Store with acra-keys."""
+    args = ['./acra-keys', '--read_key={}'.format(kind),
         '--keys_dir={}'.format(keys_dir)]
     if client_id is not None:
         args.append('--client_id={}'.format(client_id))
@@ -116,8 +116,8 @@ def read_key(kind, client_id=None, zone_id=None, keys_dir='.acrakeys'):
 
 
 def destroy_key(kind, client_id=None, keys_dir='.acrakeys'):
-    """Destroys key in the Key Store with acra-key-tool."""
-    args = ['./acra-key-tool', '--destroy_key={}'.format(kind),
+    """Destroys key in the Key Store with acra-keys."""
+    args = ['./acra-keys', '--destroy_key={}'.format(kind),
         '--keys_dir={}'.format(keys_dir)]
     if client_id:
         args.append('--client_id={}'.format(client_id))

@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-// Package main is entry point for acra-key-tool utility.
+// Package main is entry point for acra-keys utility.
 //
 // It can access and maniplulate key stores:
 //
@@ -40,8 +40,8 @@ import (
 )
 
 var (
-	serviceName       = "acra-key-tool"
-	defaultConfigPath = utils.GetConfigPathByName("acra-key-tool")
+	serviceName       = "acra-keys"
+	defaultConfigPath = utils.GetConfigPathByName("acra-keys")
 	defaultKeyDir     = keystoreV1.DefaultKeyDirShort
 )
 
