@@ -332,10 +332,15 @@ func Parse(configPath, serviceName string) error {
 			})
 		}
 	}
-	// set options from config that wasn't set by cli
-	err = flag_.CommandLine.Parse(args)
-	if err != nil {
-		return err
+	// Set global options from config that wasn't set by CLI, if there are any.
+	if len(args) != 0 {
+		err = flag_.CommandLine.Parse(args)
+		if err != nil {
+			return err
+		}
+		// Parse the command-line options again so that flag.Args() returns
+		// whatever was left on the actual command-line, not the config values.
+		flag_.CommandLine.Parse(os.Args[1:])
 	}
 	if *dumpconfig {
 		DumpConfig(configPath, serviceName, true)
