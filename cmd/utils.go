@@ -49,7 +49,9 @@ var (
 
 func init() {
 	// override default usage message by ours
-	flag_.CommandLine.Usage = PrintDefaults
+	flag_.CommandLine.Usage = func() {
+		PrintFlags(flag_.CommandLine)
+	}
 }
 
 // SignalCallback callback function
@@ -136,10 +138,10 @@ func isZeroValue(flag *flag_.Flag, value string) bool {
 	return false
 }
 
-// PrintDefaults prints CLI params to console
-func PrintDefaults() {
+// PrintFlags pretty-prints CLI flag set with default values to stderr.
+func PrintFlags(flags *flag_.FlagSet) {
 	/* took from flag/flag.go and overrided arg display format (-/--) */
-	flag_.CommandLine.VisitAll(func(flag *flag_.Flag) {
+	flags.VisitAll(func(flag *flag_.Flag) {
 		var s string
 		if len(flag.Name) > 2 {
 			s = fmt.Sprintf("  --%s", flag.Name) // Two spaces before -; see next two comments.
