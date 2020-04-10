@@ -18,8 +18,8 @@
 package keys
 
 import (
+	"errors"
 	"flag"
-	"strings"
 
 	"github.com/cossacklabs/acra/cmd"
 	keystoreV1 "github.com/cossacklabs/acra/keystore"
@@ -38,6 +38,18 @@ const DefaultKeyDirectory = keystoreV1.DefaultKeyDirShort
 // DefaultConfigPath is the default path to service configuration file.
 var DefaultConfigPath = utils.GetConfigPathByName("acra-keys")
 
+// Sub-command names:
+const (
+	CmdReadKey    = "read"
+	CmdDestroyKey = "destroy"
+)
+
+// SupportedSubCommands lists supported sub-commands or CLI.
+var SupportedSubCommands = []string{
+	CmdReadKey,
+	CmdDestroyKey,
+}
+
 // Key kind constants:
 const (
 	KeyPoisonPublic   = "poison-public"
@@ -52,6 +64,13 @@ const (
 	KeyTransportTranslator = "transport-translator"
 )
 
+// Comman-line parsing errors:
+var (
+	ErrUnknownSubCommand = errors.New("unknown command")
+	ErrMissingKeyKind    = errors.New("missing key kind")
+	ErrMultipleKeyKinds  = errors.New("multiple key kinds")
+)
+
 // CommandLineParams describes all command-line options of acra-keys.
 type CommandLineParams struct {
 	KeyStoreVersion string
@@ -61,8 +80,13 @@ type CommandLineParams struct {
 	ClientID string
 	ZoneID   string
 
+	Command string
+
 	ReadKeyKind    string
 	DestroyKeyKind string
+
+	readFlags    *flag.FlagSet
+	destroyFlags *flag.FlagSet
 }
 
 // Params provide global access to command-line parameters.
@@ -75,8 +99,82 @@ func (params *CommandLineParams) Register() {
 	flag.StringVar(&params.KeyDirPublic, "keys_dir_public", "", "path to key directory for public keys")
 	flag.StringVar(&params.ClientID, "client_id", "", "client ID for which to retrieve key")
 	flag.StringVar(&params.ZoneID, "zone_id", "", "zone ID for which to retrieve key")
-	flag.StringVar(&params.ReadKeyKind, "read_key", "", "key kind to read, one of: "+strings.Join(SupportedReadKeyKinds, ", "))
-	flag.StringVar(&params.DestroyKeyKind, "destroy_key", "", "key kind to destroy, one of: "+strings.Join(SupportedDestroyKeyKinds, ", "))
+
+	params.readFlags = flag.NewFlagSet(CmdReadKey, flag.ContinueOnError)
+	params.readFlags.StringVar(&params.ClientID, "client_id", "", "client ID for which to retrieve key")
+	params.readFlags.StringVar(&params.ZoneID, "zone_id", "", "zone ID for which to retrieve key")
+
+	params.destroyFlags = flag.NewFlagSet(CmdDestroyKey, flag.ContinueOnError)
+	params.destroyFlags.StringVar(&params.ClientID, "client_id", "", "client ID for which to destroy key")
+	params.destroyFlags.StringVar(&params.ZoneID, "zone_id", "", "zone ID for which to destroy key")
+}
+
+// Parse parses complete command-line.
+func (params *CommandLineParams) Parse() error {
+	err := cmd.Parse(DefaultConfigPath, ServiceName)
+	if err != nil {
+		return err
+	}
+	err = params.ParseSubCommand()
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+// ParseSubCommand parses sub-command and its arguments.
+func (params *CommandLineParams) ParseSubCommand() error {
+	args := flag.Args()
+	if len(args) == 0 {
+		log.WithField("supported", SupportedSubCommands).
+			Info("No command specified")
+		return nil
+	}
+	params.Command = args[0]
+	switch args[0] {
+	case CmdReadKey:
+		err := params.readFlags.Parse(args[1:])
+		if err != nil {
+			return err
+		}
+		args := params.readFlags.Args()
+		if len(args) < 1 {
+			log.Errorf("\"%s\" command requires key kind", CmdReadKey)
+			return ErrMissingKeyKind
+		}
+		// It makes sense to allow multiple keys, but we can't think of a useful
+		// output format for that, so we currently don't allow it.
+		if len(args) > 1 {
+			log.Errorf("\"%s\" command does not support more than one key kind", CmdReadKey)
+			return ErrMultipleKeyKinds
+		}
+		params.ReadKeyKind = args[0]
+		return nil
+
+	case CmdDestroyKey:
+		err := params.destroyFlags.Parse(args[1:])
+		if err != nil {
+			return err
+		}
+		args := params.destroyFlags.Args()
+		if len(args) < 1 {
+			log.Errorf("\"%s\" command requires key kind", CmdDestroyKey)
+			return ErrMissingKeyKind
+		}
+		// It makes sense to allow multiple keys, but we can't think of a useful
+		// output format for that, so we currently don't allow it.
+		if len(args) > 1 {
+			log.Errorf("\"%s\" command does not support more than one key kind", CmdDestroyKey)
+			return ErrMultipleKeyKinds
+		}
+		params.DestroyKeyKind = args[0]
+		return nil
+
+	default:
+		log.WithField("expected", SupportedSubCommands).
+			Errorf("Unknown command: %s", args[0])
+		return ErrUnknownSubCommand
+	}
 }
 
 // SetDefaults sets dynamically configured default values of command-line parameters.
@@ -110,7 +208,7 @@ func (params *CommandLineParams) Check() {
 func ParseParams() {
 	Params.Register()
 
-	err := cmd.Parse(DefaultConfigPath, ServiceName)
+	err := Params.Parse()
 	if err != nil {
 		log.WithError(err).
 			WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantReadServiceConfig).

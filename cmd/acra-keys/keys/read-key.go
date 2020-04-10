@@ -61,7 +61,7 @@ func ReadKeyBytes(params *CommandLineParams, keyStore keystore.ServerKeyStore) (
 
 	case KeyStoragePublic:
 		if Params.ClientID == "" {
-			log.Error("--key " + KeyStoragePublic + " requires --client_id")
+			log.Errorf("\"%s\" key requires --client_id", KeyStoragePublic)
 			return nil, ErrMissingClientID
 		}
 		key, err := keyStore.GetClientIDEncryptionPublicKey([]byte(Params.ClientID))
@@ -73,7 +73,7 @@ func ReadKeyBytes(params *CommandLineParams, keyStore keystore.ServerKeyStore) (
 
 	case KeyStoragePrivate:
 		if Params.ClientID == "" {
-			log.Error("--key " + KeyStoragePrivate + " requires --client_id")
+			log.Errorf("\"%s\" key requires --client_id", KeyStoragePrivate)
 			return nil, ErrMissingClientID
 		}
 		key, err := keyStore.GetServerDecryptionPrivateKey([]byte(Params.ClientID))
@@ -85,7 +85,7 @@ func ReadKeyBytes(params *CommandLineParams, keyStore keystore.ServerKeyStore) (
 
 	case KeyZonePublic:
 		if Params.ZoneID == "" {
-			log.Error("--key " + KeyZonePublic + " requires --zone_id")
+			log.Errorf("\"%s\" key requires --zone_id", KeyZonePublic)
 			return nil, ErrMissingZoneID
 		}
 		key, err := keyStore.GetZonePublicKey([]byte(Params.ZoneID))
@@ -97,7 +97,7 @@ func ReadKeyBytes(params *CommandLineParams, keyStore keystore.ServerKeyStore) (
 
 	case KeyZonePrivate:
 		if Params.ZoneID == "" {
-			log.Error("--key " + KeyZonePrivate + " requires --zone_id")
+			log.Errorf("\"%s\" key requires --zone_id", KeyZonePrivate)
 			return nil, ErrMissingZoneID
 		}
 		key, err := keyStore.GetZonePrivateKey([]byte(Params.ZoneID))

@@ -33,7 +33,7 @@ func DestroyKey(params *CommandLineParams, keyStore keystore.KeyMaking) error {
 	switch params.DestroyKeyKind {
 	case KeyTransportConnector:
 		if params.ClientID == "" {
-			log.Error("--destroy_key " + KeyTransportConnector + " requires --client_id")
+			log.Errorf("\"%s\" key requires --client_id", KeyTransportConnector)
 			return ErrMissingClientID
 		}
 		err := keyStore.DestroyConnectorKeypair([]byte(params.ClientID))
@@ -45,7 +45,7 @@ func DestroyKey(params *CommandLineParams, keyStore keystore.KeyMaking) error {
 
 	case KeyTransportServer:
 		if params.ClientID == "" {
-			log.Error("--destroy_key " + KeyTransportServer + " requires --client_id")
+			log.Errorf("\"%s\" key requires --client_id", KeyTransportServer)
 			return ErrMissingClientID
 		}
 		err := keyStore.DestroyServerKeypair([]byte(params.ClientID))
@@ -57,7 +57,7 @@ func DestroyKey(params *CommandLineParams, keyStore keystore.KeyMaking) error {
 
 	case KeyTransportTranslator:
 		if params.ClientID == "" {
-			log.Error("--destroy_key " + KeyTransportTranslator + " requires --client_id")
+			log.Errorf("\"%s\" key requires --client_id", KeyTransportTranslator)
 			return ErrMissingClientID
 		}
 		err := keyStore.DestroyTranslatorKeypair([]byte(params.ClientID))

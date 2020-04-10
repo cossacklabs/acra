@@ -33,11 +33,10 @@ import (
 func main() {
 	keys.ParseParams()
 
-	if keys.Params.ReadKeyKind != "" {
+	switch keys.Params.Command {
+	case keys.CmdReadKey:
 		printKey(keys.Params)
-	}
-
-	if keys.Params.DestroyKeyKind != "" {
+	case keys.CmdDestroyKey:
 		destroyKey(keys.Params)
 	}
 }
