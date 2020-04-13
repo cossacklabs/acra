@@ -283,7 +283,12 @@ func main() {
 	}
 
 	var data, zone []byte
-	var privateKey *keys.PrivateKey
+	var privateKeys []*keys.PrivateKey
+	defer func() {
+		for _, key := range privateKeys {
+			utils.ZeroizePrivateKey(key)
+		}
+	}()
 
 	for i := 0; rows.Next(); i++ {
 		if *withZone {
@@ -291,7 +296,7 @@ func main() {
 			if err != nil {
 				ErrorExit("Can't read zone & data from row %v", err)
 			}
-			privateKey, err = keystorage.GetZonePrivateKey(zone)
+			privateKeys, err = keystorage.GetZonePrivateKeys(zone)
 			if err != nil {
 				log.WithError(err).Errorf("Can't get zone private key for row with number %v", i)
 				continue
@@ -301,13 +306,13 @@ func main() {
 			if err != nil {
 				ErrorExit("Can't read data from row", err)
 			}
-			privateKey, err = keystorage.GetServerDecryptionPrivateKey([]byte(*clientID))
+			privateKeys, err = keystorage.GetServerDecryptionPrivateKeys([]byte(*clientID))
 			if err != nil {
 				log.WithError(err).Errorf("Can't get private key for row with number %v", i)
 				continue
 			}
 		}
-		decrypted, err := base.DecryptAcrastruct(data, privateKey, zone)
+		decrypted, err := base.DecryptRotatedAcrastruct(data, privateKeys, zone)
 		if err != nil {
 			log.WithError(err).Errorf("Can't decrypt acrastruct in row with number %v", i)
 			continue

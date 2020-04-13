@@ -310,7 +310,7 @@ def get_poison_record():
     return poison_record
 
 
-def create_client_keypair(name, only_server=False, only_client=False, keys_dir=None):
+def create_client_keypair(name, only_server=False, only_client=False, only_storage=False, keys_dir=None):
     if not keys_dir:
         keys_dir = KEYS_FOLDER.name
     args = ['./acra-keymaker', '-client_id={}'.format(name),
@@ -321,6 +321,8 @@ def create_client_keypair(name, only_server=False, only_client=False, keys_dir=N
         args.append('-acra-server')
     elif only_client:
         args.append('-acra-connector')
+    elif only_storage:
+        args.append('--generate_acrawriter_keys')
     return subprocess.call(args, cwd=os.getcwd(), timeout=PROCESS_CALL_TIMEOUT)
 
 def manage_basic_auth_user(action, user_name, user_password):
@@ -2598,6 +2600,7 @@ class TestAcraRollback(BaseTestCase):
             '{}://{}:{}/{}'.format(DB_DRIVER, DB_HOST, DB_PORT,
                                    DB_NAME),
             connect_args=connect_args)
+        metadata.create_all(self.engine_raw)
 
         self.output_filename = 'acra-rollback_output.txt'
         acrarollback_output_table.create(self.engine_raw, checkfirst=True)
@@ -2817,6 +2820,40 @@ class TestAcraRollback(BaseTestCase):
         stop_process(process)
 
         self.assertIn(b"SQL INSERT statement doesn't contain any placeholders", err)
+
+    def test_with_rotated_keys(self):
+        # TODO(ilammy, 2020-03-13): test with rotated zone keys as well
+        # That is, as soon as it is possible to rotate them (T1581)
+
+        # Insert some encrypted test data into the table
+        rows = []
+        server_public1 = read_storage_public_key('keypair1', KEYS_FOLDER.name)
+        for _ in range(self.DATA_COUNT):
+            data = get_pregenerated_random_data()
+            row = {
+                'raw_data': data,
+                'data': create_acrastruct(data.encode('ascii'), server_public1),
+                'id': get_random_id()
+            }
+            rows.append(row)
+        self.engine_raw.execute(test_table.insert(), rows)
+
+        # Rotate storage keys for 'keypair1'
+        create_client_keypair('keypair1', only_storage=True)
+
+        # Run acra-rollback for the test table
+        self.run_acrarollback([
+            '--select=select data from {};'.format(test_table.name),
+            '--insert=insert into {} values({});'.format(
+                acrarollback_output_table.name, self.placeholder)
+        ])
+
+        # Rollback should successfuly use previous keys to decrypt data
+        source_data = set([i['raw_data'].encode('ascii') for i in rows])
+        result = self.engine_raw.execute(acrarollback_output_table.select())
+        result = result.fetchall()
+        for data in result:
+            self.assertIn(data[0], source_data)
 
 
 class TestAcraKeyMakers(unittest.TestCase):
