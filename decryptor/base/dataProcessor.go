@@ -18,8 +18,10 @@ package base
 
 import (
 	"context"
+
 	"github.com/cossacklabs/acra/keystore"
 	"github.com/cossacklabs/acra/logging"
+	"github.com/cossacklabs/acra/utils"
 	"github.com/cossacklabs/themis/gothemis/keys"
 	"github.com/sirupsen/logrus"
 )
@@ -47,19 +49,24 @@ type DecryptProcessor struct{}
 
 // Process implement DataProcessor with AcraStruct decryption
 func (DecryptProcessor) Process(data []byte, context *DataProcessorContext) ([]byte, error) {
-	var privateKey *keys.PrivateKey
+	var privateKeys []*keys.PrivateKey
 	var err error
+	defer func() {
+		for _, key := range privateKeys {
+			utils.ZeroizePrivateKey(key)
+		}
+	}()
 	if context.WithZone {
-		privateKey, err = context.Keystore.GetZonePrivateKey(context.ZoneID)
+		privateKeys, err = context.Keystore.GetZonePrivateKeys(context.ZoneID)
 	} else {
-		privateKey, err = context.Keystore.GetServerDecryptionPrivateKey(context.ClientID)
+		privateKeys, err = context.Keystore.GetServerDecryptionPrivateKeys(context.ClientID)
 	}
 	if err != nil {
 		logging.GetLoggerFromContext(context.Context).WithError(err).WithFields(
 			logrus.Fields{"client_id": string(context.ClientID), "zone_id": context.ZoneID}).Warningln("Can't read private key for matched client_id/zone_id")
 		return []byte{}, err
 	}
-	return DecryptAcrastruct(data, privateKey, context.ZoneID)
+	return DecryptRotatedAcrastruct(data, privateKeys, context.ZoneID)
 }
 
 // DataProcessorContext store data for DataProcessor

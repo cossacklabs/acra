@@ -2585,6 +2585,37 @@ class TestKeyStoreMigration(BaseTestCase):
             self.assertEquals(selected['data'], data.encode('ascii'))
 
 
+class TestKeyRotation(BaseTestCase):
+    """Verify key rotation without data reencryption."""
+    # TODO(ilammy, 2020-03-13): test with rotated zone keys as well
+    # That is, as soon as it is possible to rotate them (T1581)
+
+    def test_read_via_connector_after_rotation(self):
+        """Verify that AcraServer can decrypt data with old keys."""
+        # First, let's put some test data into the table.
+        client_id = 'keypair1'
+        row_id = get_random_id()
+        data = get_pregenerated_random_data()
+        public_key = read_storage_public_key(client_id, KEYS_FOLDER.name)
+        acra_struct = create_acrastruct(data.encode('ascii'), public_key)
+        self.engine1.execute(
+            test_table.insert(),
+            {'id': row_id, 'data': acra_struct, 'raw_data': data})
+
+        # After that rotate the storage key for the client,
+        # but don't touch the encrypted data.
+        create_client_keypair(client_id, only_storage=True)
+
+        # Request via AcraConnector should be successful.
+        # It should return expected decrypted data.
+        result = self.engine1.execute(
+            sa.select([test_table])
+            .where(test_table.c.id == row_id))
+        row = result.fetchone()
+        self.assertEqual(row['data'], row['raw_data'].encode('utf-8'))
+        self.assertEqual(row['empty'], b'')
+
+
 class TestAcraRollback(BaseTestCase):
     DATA_COUNT = 5
 
