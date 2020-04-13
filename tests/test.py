@@ -14,6 +14,7 @@
 # coding: utf-8
 import asyncio
 import contextlib
+from ddt import ddt, data
 import socket
 import json
 import logging
@@ -3782,6 +3783,9 @@ class TestAcraRotateWithZone(BaseTestCase):
                                 decrypted_rotated, acrastructs[path].data)
 
     def testDatabaseRotation(self):
+        # TODO(ilammy, 2020-03-13): test with rotated zone keys
+        # That is, as soon as it is possible to rotate them (T1581)
+
         def load_zones_from_folder(keys_folder, zone_ids):
             """load zone public keys from filesystem"""
             output = {}
@@ -3946,6 +3950,7 @@ class TestAcraRotateWithZone(BaseTestCase):
                 data_before_rotate[row['id']] = row['data']
 
 
+@ddt
 class TestAcraRotate(TestAcraRotateWithZone):
     ZONE = False
 
@@ -4049,7 +4054,12 @@ class TestAcraRotate(TestAcraRotateWithZone):
                             self.assertEqual(
                                 decrypted_rotated, acrastructs[path].data)
 
+    # Skip inherited non-decorated test
     def testDatabaseRotation(self):
+        pass
+
+    @data(False, True)
+    def testDatabaseRotation2(self, rotate_storage_keys):
         def load_keys_from_folder(keys_folder, ids):
             """load public keys from filesystem"""
             output = {}
@@ -4064,6 +4074,7 @@ class TestAcraRotate(TestAcraRotateWithZone):
             sa.Column('key_id', sa.LargeBinary(length=COLUMN_DATA_SIZE)),
             sa.Column('data', sa.LargeBinary(length=COLUMN_DATA_SIZE)),
             sa.Column('raw_data', sa.Text),
+            keep_existing=True,
         )
         metadata.create_all(self.engine_raw)
         self.engine_raw.execute(sa.delete(rotate_test_table))
@@ -4079,6 +4090,9 @@ class TestAcraRotate(TestAcraRotateWithZone):
             rotate_test_table.insert(),
             {'id': row_id, 'data': acra_struct, 'raw_data': data,
              'key_id': client_id.encode('ascii')})
+
+        if rotate_storage_keys:
+            create_client_keypair(client_id, only_storage=True)
 
         if TEST_MYSQL:
             # test:test@tcp(127.0.0.1:3306)/test
