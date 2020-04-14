@@ -101,7 +101,7 @@ func (rotator *keyRotator) rotateAcrastructWithClientID(clientID, acrastruct []b
 	}
 	defer func() {
 		for _, key := range privateKeys {
-			utils.FillSlice(0, key.Value)
+			utils.ZeroizePrivateKey(key)
 		}
 	}()
 	decrypted, err := base.DecryptRotatedAcrastruct(acrastruct, privateKeys, nil)
