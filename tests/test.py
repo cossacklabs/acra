@@ -2592,27 +2592,42 @@ class TestKeyRotation(BaseTestCase):
 
     def test_read_via_connector_after_rotation(self):
         """Verify that AcraServer can decrypt data with old keys."""
-        # First, let's put some test data into the table.
         client_id = 'keypair1'
-        row_id = get_random_id()
-        data = get_pregenerated_random_data()
-        public_key = read_storage_public_key(client_id, KEYS_FOLDER.name)
-        acra_struct = create_acrastruct(data.encode('ascii'), public_key)
-        self.engine1.execute(
-            test_table.insert(),
-            {'id': row_id, 'data': acra_struct, 'raw_data': data})
+
+        def insert_random_data():
+            row_id = get_random_id()
+            data = get_pregenerated_random_data()
+            public_key = read_storage_public_key(client_id, KEYS_FOLDER.name)
+            acra_struct = create_acrastruct(data.encode('ascii'), public_key)
+            self.engine1.execute(
+                test_table.insert(),
+                {'id': row_id, 'data': acra_struct, 'raw_data': data})
+            return row_id, data
+
+        # First, let's put some test data into the table.
+        row_id_1, raw_data_1 = insert_random_data()
 
         # After that rotate the storage key for the client,
         # but don't touch the encrypted data.
         create_client_keypair(client_id, only_storage=True)
 
+        # Insert some more data encrypted with the new key.
+        row_id_2, raw_data_2 = insert_random_data()
+
         # Request via AcraConnector should be successful.
         # It should return expected decrypted data.
         result = self.engine1.execute(
             sa.select([test_table])
-            .where(test_table.c.id == row_id))
+            .where(test_table.c.id == row_id_1))
         row = result.fetchone()
-        self.assertEqual(row['data'], row['raw_data'].encode('utf-8'))
+        self.assertEqual(row['data'], raw_data_1.encode('utf-8'))
+        self.assertEqual(row['empty'], b'')
+
+        result = self.engine1.execute(
+            sa.select([test_table])
+            .where(test_table.c.id == row_id_2))
+        row = result.fetchone()
+        self.assertEqual(row['data'], raw_data_2.encode('utf-8'))
         self.assertEqual(row['empty'], b'')
 
 
@@ -2857,21 +2872,28 @@ class TestAcraRollback(BaseTestCase):
         # TODO(ilammy, 2020-03-13): test with rotated zone keys as well
         # That is, as soon as it is possible to rotate them (T1581)
 
+        def insert_random_data():
+            rows = []
+            public_key = read_storage_public_key('keypair1', KEYS_FOLDER.name)
+            for _ in range(self.DATA_COUNT):
+                data = get_pregenerated_random_data()
+                row = {
+                    'raw_data': data,
+                    'data': create_acrastruct(data.encode('ascii'), public_key),
+                    'id': get_random_id()
+                }
+                rows.append(row)
+            self.engine_raw.execute(test_table.insert(), rows)
+            return rows
+
         # Insert some encrypted test data into the table
-        rows = []
-        server_public1 = read_storage_public_key('keypair1', KEYS_FOLDER.name)
-        for _ in range(self.DATA_COUNT):
-            data = get_pregenerated_random_data()
-            row = {
-                'raw_data': data,
-                'data': create_acrastruct(data.encode('ascii'), server_public1),
-                'id': get_random_id()
-            }
-            rows.append(row)
-        self.engine_raw.execute(test_table.insert(), rows)
+        rows = insert_random_data()
 
         # Rotate storage keys for 'keypair1'
         create_client_keypair('keypair1', only_storage=True)
+
+        # Insert some more data encrypted with new key
+        rows = rows + insert_random_data()
 
         # Run acra-rollback for the test table
         self.run_acrarollback([
