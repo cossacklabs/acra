@@ -123,7 +123,7 @@ func (decryptor *PgHexDecryptor) GetMatched() []byte {
 
 // ReadSymmetricKey decrypts symmetric key hidden in AcraStruct using SecureMessage and privateKey
 // returns decrypted symmetric key or ErrFakeAcraStruct error if can't decrypt
-func (decryptor *PgHexDecryptor) ReadSymmetricKey(privateKey *keys.PrivateKey, reader io.Reader) ([]byte, []byte, error) {
+func (decryptor *PgHexDecryptor) ReadSymmetricKey(privateKeys []*keys.PrivateKey, reader io.Reader) ([]byte, []byte, error) {
 	n, err := io.ReadFull(reader, decryptor.keyBlockBuffer[:])
 	if err != nil {
 		if err == io.ErrUnexpectedEOF || err == io.EOF {
@@ -142,12 +142,14 @@ func (decryptor *PgHexDecryptor) ReadSymmetricKey(privateKey *keys.PrivateKey, r
 	}
 	pubkey := &keys.PublicKey{Value: decryptor.decodedKeyBlockBuffer[:base.PublicKeyLength]}
 
-	smessage := message.New(privateKey, pubkey)
-	symmetricKey, err := smessage.Unwrap(decryptor.decodedKeyBlockBuffer[base.PublicKeyLength:])
-	if err != nil {
-		return nil, decryptor.keyBlockBuffer[:n], base.ErrFakeAcraStruct
+	for _, privateKey := range privateKeys {
+		smessage := message.New(privateKey, pubkey)
+		symmetricKey, err := smessage.Unwrap(decryptor.decodedKeyBlockBuffer[base.PublicKeyLength:])
+		if err == nil {
+			return symmetricKey, decryptor.keyBlockBuffer[:n], nil
+		}
 	}
-	return symmetricKey, decryptor.keyBlockBuffer[:n], nil
+	return nil, decryptor.keyBlockBuffer[:n], base.ErrFakeAcraStruct
 }
 
 func (decryptor *PgHexDecryptor) readDataLength(reader io.Reader) (uint64, []byte, error) {

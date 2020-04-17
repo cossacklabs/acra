@@ -74,7 +74,7 @@ func (decryptor *Decryptor) GetMatched() []byte {
 }
 
 // ReadSymmetricKey returns symmetric key wrapped in AcraStruct
-func (decryptor *Decryptor) ReadSymmetricKey(privateKey *keys.PrivateKey, reader io.Reader) ([]byte, []byte, error) {
+func (decryptor *Decryptor) ReadSymmetricKey(privateKeys []*keys.PrivateKey, reader io.Reader) ([]byte, []byte, error) {
 	n, err := io.ReadFull(reader, decryptor.keyBlockBuffer[:])
 	if err != nil {
 		if err == io.ErrUnexpectedEOF || err == io.EOF {
@@ -84,12 +84,14 @@ func (decryptor *Decryptor) ReadSymmetricKey(privateKey *keys.PrivateKey, reader
 	}
 	pubkey := &keys.PublicKey{Value: decryptor.keyBlockBuffer[:base.PublicKeyLength]}
 
-	smessage := message.New(privateKey, pubkey)
-	symmetricKey, err := smessage.Unwrap(decryptor.keyBlockBuffer[base.PublicKeyLength:])
-	if err != nil {
-		return nil, decryptor.keyBlockBuffer[:n], base.ErrFakeAcraStruct
+	for _, privateKey := range privateKeys {
+		smessage := message.New(privateKey, pubkey)
+		symmetricKey, err := smessage.Unwrap(decryptor.keyBlockBuffer[base.PublicKeyLength:])
+		if err == nil {
+			return symmetricKey, decryptor.keyBlockBuffer[:n], nil
+		}
 	}
-	return symmetricKey, decryptor.keyBlockBuffer[:n], nil
+	return nil, decryptor.keyBlockBuffer[:n], base.ErrFakeAcraStruct
 }
 
 func (decryptor *Decryptor) readDataLength(reader io.Reader) (uint64, []byte, error) {

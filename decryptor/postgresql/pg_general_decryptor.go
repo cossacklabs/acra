@@ -157,8 +157,8 @@ func (decryptor *PgDecryptor) GetMatched() []byte {
 // ReadSymmetricKey reads, decodes from database format block of data, decrypts symmetric key from
 // AcraStruct using Secure message
 // returns decrypted symmetric key or ErrFakeAcraStruct error if can't decrypt
-func (decryptor *PgDecryptor) ReadSymmetricKey(privateKey *keys.PrivateKey, reader io.Reader) ([]byte, []byte, error) {
-	symmetricKey, rawData, err := decryptor.binaryDecryptor.ReadSymmetricKey(privateKey, reader)
+func (decryptor *PgDecryptor) ReadSymmetricKey(privateKeys []*keys.PrivateKey, reader io.Reader) ([]byte, []byte, error) {
+	symmetricKey, rawData, err := decryptor.binaryDecryptor.ReadSymmetricKey(privateKeys, reader)
 	if err != nil {
 		return symmetricKey, rawData, err
 	}
@@ -217,13 +217,14 @@ func (decryptor *PgDecryptor) SetKeyStore(store keystore.DecryptionKeyStore) {
 	decryptor.keyStore = store
 }
 
-// GetPrivateKey returns either ZonePrivate key (if Zone mode enabled) or
-// Server Decryption private key otherwise
-func (decryptor *PgDecryptor) GetPrivateKey() (*keys.PrivateKey, error) {
+// GetPrivateKeys returns private keys for decrypting AcraStructs.
+// These are either ZonePrivate keys (if Zone mode enabled)
+// or Server Decryption private key otherwise.
+func (decryptor *PgDecryptor) GetPrivateKeys() ([]*keys.PrivateKey, error) {
 	if decryptor.IsWithZone() {
-		return decryptor.keyStore.GetZonePrivateKey(decryptor.GetMatchedZoneID())
+		return decryptor.keyStore.GetZonePrivateKeys(decryptor.GetMatchedZoneID())
 	}
-	return decryptor.keyStore.GetServerDecryptionPrivateKey(decryptor.clientID)
+	return decryptor.keyStore.GetServerDecryptionPrivateKeys(decryptor.clientID)
 }
 
 // TurnOnPoisonRecordCheck turns on or off poison recods check
