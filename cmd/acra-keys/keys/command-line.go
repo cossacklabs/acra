@@ -179,7 +179,7 @@ func (params *CommandLineParams) ParseSubCommand() error {
 			return ErrMultipleKeyKinds
 		}
 		params.ReadKeyKind = args[0]
-		return nil
+		return params.CheckForKeyKind(params.ReadKeyKind)
 
 	case CmdDestroyKey:
 		err := params.destroyFlags.Parse(args[1:])
@@ -198,7 +198,7 @@ func (params *CommandLineParams) ParseSubCommand() error {
 			return ErrMultipleKeyKinds
 		}
 		params.DestroyKeyKind = args[0]
-		return nil
+		return params.CheckForKeyKind(params.DestroyKeyKind)
 
 	default:
 		log.WithField("expected", SupportedSubCommands).
@@ -231,6 +231,23 @@ func (params *CommandLineParams) Check() {
 	if params.ReadKeyKind != "" && params.DestroyKeyKind != "" {
 		log.Fatal("--read_key and --destroy_key cannot be used simultaneously")
 	}
+}
+
+// CheckForKeyKind check options required by specified key kind
+func (params *CommandLineParams) CheckForKeyKind(keyKind string) error {
+	switch keyKind {
+	case KeyTransportConnector, KeyTransportServer, KeyTransportTranslator, KeyStoragePublic, KeyStoragePrivate:
+		if params.ClientID == "" {
+			log.Errorf("\"%s\" key requires --client_id", keyKind)
+			return ErrMissingClientID
+		}
+	case KeyZonePublic, KeyZonePrivate:
+		if Params.ZoneID == "" {
+			log.Errorf("\"%s\" key requires --zone_id", keyKind)
+			return ErrMissingZoneID
+		}
+	}
+	return nil
 }
 
 // ParseParams will parse complete command-line and fill in `Params` values.

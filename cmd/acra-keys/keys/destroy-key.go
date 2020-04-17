@@ -32,10 +32,6 @@ var SupportedDestroyKeyKinds = []string{
 func DestroyKey(params *CommandLineParams, keyStore keystore.KeyMaking) error {
 	switch params.DestroyKeyKind {
 	case KeyTransportConnector:
-		if params.ClientID == "" {
-			log.Errorf("\"%s\" key requires --client_id", KeyTransportConnector)
-			return ErrMissingClientID
-		}
 		err := keyStore.DestroyConnectorKeypair([]byte(params.ClientID))
 		if err != nil {
 			log.WithError(err).Error("Cannot destroy AcraConnector transport key pair")
@@ -44,10 +40,6 @@ func DestroyKey(params *CommandLineParams, keyStore keystore.KeyMaking) error {
 		return nil
 
 	case KeyTransportServer:
-		if params.ClientID == "" {
-			log.Errorf("\"%s\" key requires --client_id", KeyTransportServer)
-			return ErrMissingClientID
-		}
 		err := keyStore.DestroyServerKeypair([]byte(params.ClientID))
 		if err != nil {
 			log.WithError(err).Error("Cannot destroy AcraServer transport key pair")
@@ -56,10 +48,6 @@ func DestroyKey(params *CommandLineParams, keyStore keystore.KeyMaking) error {
 		return nil
 
 	case KeyTransportTranslator:
-		if params.ClientID == "" {
-			log.Errorf("\"%s\" key requires --client_id", KeyTransportTranslator)
-			return ErrMissingClientID
-		}
 		err := keyStore.DestroyTranslatorKeypair([]byte(params.ClientID))
 		if err != nil {
 			log.WithError(err).Error("Cannot destroy AcraTranslator transport key pair")
