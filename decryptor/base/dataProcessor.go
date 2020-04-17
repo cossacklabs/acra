@@ -51,16 +51,12 @@ type DecryptProcessor struct{}
 func (DecryptProcessor) Process(data []byte, context *DataProcessorContext) ([]byte, error) {
 	var privateKeys []*keys.PrivateKey
 	var err error
-	defer func() {
-		for _, key := range privateKeys {
-			utils.ZeroizePrivateKey(key)
-		}
-	}()
 	if context.WithZone {
 		privateKeys, err = context.Keystore.GetZonePrivateKeys(context.ZoneID)
 	} else {
 		privateKeys, err = context.Keystore.GetServerDecryptionPrivateKeys(context.ClientID)
 	}
+	defer utils.ZeroizePrivateKeys(privateKeys)
 	if err != nil {
 		logging.GetLoggerFromContext(context.Context).WithError(err).WithFields(
 			logrus.Fields{"client_id": string(context.ClientID), "zone_id": context.ZoneID}).Warningln("Can't read private key for matched client_id/zone_id")

@@ -244,18 +244,14 @@ func (decryptor *HTTPConnectionsDecryptor) decryptAcraStruct(logger *log.Entry, 
 	} else {
 		privateKeys, err = decryptor.TranslatorData.Keystorage.GetServerDecryptionPrivateKeys(clientID)
 	}
+	defer utils.ZeroizePrivateKeys(privateKeys)
 
 	if err != nil {
 		logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantReadKeys).Errorln("Can't load private key to decrypt AcraStruct")
 		return nil, err
 	}
 
-	// decrypt
 	decryptedStruct, err := base.DecryptRotatedAcrastruct(acraStruct, privateKeys, decryptionContext)
-	// zeroing private keys
-	for _, privateKey := range privateKeys {
-		utils.FillSlice(byte(0), privateKey.Value)
-	}
 
 	if err != nil {
 		return nil, err

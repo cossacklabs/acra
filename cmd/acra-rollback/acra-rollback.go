@@ -282,15 +282,9 @@ func main() {
 		defer executor.Close()
 	}
 
-	var data, zone []byte
-	var privateKeys []*keys.PrivateKey
-	defer func() {
-		for _, key := range privateKeys {
-			utils.ZeroizePrivateKey(key)
-		}
-	}()
-
 	for i := 0; rows.Next(); i++ {
+		var data, zone []byte
+		var privateKeys []*keys.PrivateKey
 		if *withZone {
 			err = rows.Scan(&zone, &data)
 			if err != nil {
@@ -312,6 +306,7 @@ func main() {
 				continue
 			}
 		}
+		defer utils.ZeroizePrivateKeys(privateKeys)
 		decrypted, err := base.DecryptRotatedAcrastruct(data, privateKeys, zone)
 		if err != nil {
 			log.WithError(err).Errorf("Can't decrypt acrastruct in row with number %v", i)

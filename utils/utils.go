@@ -149,6 +149,13 @@ func ZeroizePrivateKey(privateKey *keys.PrivateKey) {
 	}
 }
 
+// ZeroizePrivateKeys wipes a slice of private keys from memory, filling them with zero bytes.
+func ZeroizePrivateKeys(privateKeys []*keys.PrivateKey) {
+	for _, privateKey := range privateKeys {
+		ZeroizePrivateKey(privateKey)
+	}
+}
+
 // ZeroizeKeyPair wipes a private key of a key pair from memory, filling it with zero bytes.
 func ZeroizeKeyPair(keypair *keys.Keypair) {
 	if keypair != nil {

@@ -417,9 +417,7 @@ func (store *KeyStore) getPrivateKeysByFilenames(id []byte, filenames []string) 
 	for i, name := range filenames {
 		key, err := store.getPrivateKeyByFilename(id, name)
 		if err != nil {
-			for _, key := range privateKeys[:i] {
-				utils.FillSlice(0, key.Value)
-			}
+			utils.ZeroizePrivateKeys(privateKeys)
 			return nil, err
 		}
 		privateKeys[i] = key

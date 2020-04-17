@@ -59,11 +59,7 @@ func (rotator *keyRotator) rotateAcrastructWithZone(zoneID, acrastruct []byte) (
 		logger.WithField("acrastruct", hex.EncodeToString(acrastruct)).WithError(err).Errorln("Can't get private key")
 		return nil, err
 	}
-	defer func() {
-		for _, key := range privateKeys {
-			utils.ZeroizePrivateKey(key)
-		}
-	}()
+	defer utils.ZeroizePrivateKeys(privateKeys)
 	decrypted, err := base.DecryptRotatedAcrastruct(acrastruct, privateKeys, zoneID)
 	if err != nil {
 		logger.WithField("acrastruct", hex.EncodeToString(acrastruct)).WithError(err).Errorln("Can't decrypt AcraStruct")
@@ -99,11 +95,7 @@ func (rotator *keyRotator) rotateAcrastructWithClientID(clientID, acrastruct []b
 		logger.WithField("acrastruct", hex.EncodeToString(acrastruct)).WithError(err).Errorln("Can't get private key")
 		return nil, err
 	}
-	defer func() {
-		for _, key := range privateKeys {
-			utils.ZeroizePrivateKey(key)
-		}
-	}()
+	defer utils.ZeroizePrivateKeys(privateKeys)
 	decrypted, err := base.DecryptRotatedAcrastruct(acrastruct, privateKeys, nil)
 	if err != nil {
 		logger.WithField("acrastruct", hex.EncodeToString(acrastruct)).WithError(err).Errorln("Can't decrypt AcraStruct")
