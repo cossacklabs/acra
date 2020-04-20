@@ -502,7 +502,7 @@ func (proxy *PgProxy) processInlineBlockDecryption(ctx context.Context, packet *
 			continue
 		}
 		blockReader := bytes.NewReader(column.GetData()[currentIndex+tagLength:])
-		symKey, _, err := decryptor.ReadSymmetricKey(keys, blockReader)
+		symKey, _, err := decryptor.ReadSymmetricKeyRotated(keys, blockReader)
 		if err != nil {
 			span.AddAttributes(trace.BoolAttribute("failed_decryption", true))
 			base.AcrastructDecryptionCounter.WithLabelValues(base.DecryptionTypeFail).Inc()

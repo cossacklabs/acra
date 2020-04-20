@@ -157,8 +157,19 @@ func (decryptor *PgDecryptor) GetMatched() []byte {
 // ReadSymmetricKey reads, decodes from database format block of data, decrypts symmetric key from
 // AcraStruct using Secure message
 // returns decrypted symmetric key or ErrFakeAcraStruct error if can't decrypt
-func (decryptor *PgDecryptor) ReadSymmetricKey(privateKeys []*keys.PrivateKey, reader io.Reader) ([]byte, []byte, error) {
-	symmetricKey, rawData, err := decryptor.binaryDecryptor.ReadSymmetricKey(privateKeys, reader)
+func (decryptor *PgDecryptor) ReadSymmetricKey(privateKey *keys.PrivateKey, reader io.Reader) ([]byte, []byte, error) {
+	symmetricKey, rawData, err := decryptor.binaryDecryptor.ReadSymmetricKey(privateKey, reader)
+	if err != nil {
+		return symmetricKey, rawData, err
+	}
+	return symmetricKey, rawData, nil
+}
+
+// ReadSymmetricKeyRotated reads, decodes from database format block of data, decrypts symmetric key from
+// AcraStruct using Secure message
+// returns decrypted symmetric key or ErrFakeAcraStruct error if can't decrypt
+func (decryptor *PgDecryptor) ReadSymmetricKeyRotated(privateKeys []*keys.PrivateKey, reader io.Reader) ([]byte, []byte, error) {
+	symmetricKey, rawData, err := decryptor.binaryDecryptor.ReadSymmetricKeyRotated(privateKeys, reader)
 	if err != nil {
 		return symmetricKey, rawData, err
 	}
@@ -215,6 +226,16 @@ func (decryptor *PgDecryptor) ReadData(symmetricKey, zoneID []byte, reader io.Re
 // SetKeyStore sets keystore
 func (decryptor *PgDecryptor) SetKeyStore(store keystore.DecryptionKeyStore) {
 	decryptor.keyStore = store
+}
+
+// GetPrivateKey returns private key for decrypting AcraStructs.
+// This is either ZonePrivate key (if Zone mode enabled)
+// or Server Decryption private key otherwise.
+func (decryptor *PgDecryptor) GetPrivateKey() (*keys.PrivateKey, error) {
+	if decryptor.IsWithZone() {
+		return decryptor.keyStore.GetZonePrivateKey(decryptor.GetMatchedZoneID())
+	}
+	return decryptor.keyStore.GetServerDecryptionPrivateKey(decryptor.clientID)
 }
 
 // GetPrivateKeys returns private keys for decrypting AcraStructs.

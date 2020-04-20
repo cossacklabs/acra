@@ -74,7 +74,26 @@ func (decryptor *Decryptor) GetMatched() []byte {
 }
 
 // ReadSymmetricKey returns symmetric key wrapped in AcraStruct
-func (decryptor *Decryptor) ReadSymmetricKey(privateKeys []*keys.PrivateKey, reader io.Reader) ([]byte, []byte, error) {
+func (decryptor *Decryptor) ReadSymmetricKey(privateKey *keys.PrivateKey, reader io.Reader) ([]byte, []byte, error) {
+	n, err := io.ReadFull(reader, decryptor.keyBlockBuffer[:])
+	if err != nil {
+		if err == io.ErrUnexpectedEOF || err == io.EOF {
+			return nil, decryptor.keyBlockBuffer[:n], base.ErrFakeAcraStruct
+		}
+		return nil, decryptor.keyBlockBuffer[:n], err
+	}
+	pubkey := &keys.PublicKey{Value: decryptor.keyBlockBuffer[:base.PublicKeyLength]}
+
+	smessage := message.New(privateKey, pubkey)
+	symmetricKey, err := smessage.Unwrap(decryptor.keyBlockBuffer[base.PublicKeyLength:])
+	if err != nil {
+		return nil, decryptor.keyBlockBuffer[:n], base.ErrFakeAcraStruct
+	}
+	return symmetricKey, decryptor.keyBlockBuffer[:n], nil
+}
+
+// ReadSymmetricKeyRotated returns symmetric key wrapped in AcraStruct trying multiple private keys.
+func (decryptor *Decryptor) ReadSymmetricKeyRotated(privateKeys []*keys.PrivateKey, reader io.Reader) ([]byte, []byte, error) {
 	n, err := io.ReadFull(reader, decryptor.keyBlockBuffer[:])
 	if err != nil {
 		if err == io.ErrUnexpectedEOF || err == io.EOF {

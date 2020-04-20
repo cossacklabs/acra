@@ -97,7 +97,8 @@ type DataDecryptor interface {
 	// acrastruct using secure message
 	// return decrypted data or data as is if fail
 	// db specific
-	ReadSymmetricKey([]*keys.PrivateKey, io.Reader) ([]byte, []byte, error)
+	ReadSymmetricKey(*keys.PrivateKey, io.Reader) ([]byte, []byte, error)
+	ReadSymmetricKeyRotated([]*keys.PrivateKey, io.Reader) ([]byte, []byte, error)
 	// read and decrypt data or return as is if fail
 	// db specific
 	ReadData([]byte, []byte, io.Reader) ([]byte, error)
@@ -112,6 +113,7 @@ type Decryptor interface {
 	SetKeyStore(keystore.DecryptionKeyStore)
 	// Return private keys for current connected client used to decrypt
 	// symmetric keys embedded in AcraStructs
+	GetPrivateKey() (*keys.PrivateKey, error)
 	GetPrivateKeys() ([]*keys.PrivateKey, error)
 	TurnOnPoisonRecordCheck(bool)
 	IsPoisonRecordCheckOn() bool

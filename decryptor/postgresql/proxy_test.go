@@ -34,7 +34,11 @@ func (t testDecryptor) GetMatched() []byte {
 	panic("implement me")
 }
 
-func (t testDecryptor) ReadSymmetricKey([]*keys.PrivateKey, io.Reader) ([]byte, []byte, error) {
+func (t testDecryptor) ReadSymmetricKey(*keys.PrivateKey, io.Reader) ([]byte, []byte, error) {
+	panic("implement me")
+}
+
+func (t testDecryptor) ReadSymmetricKeyRotated([]*keys.PrivateKey, io.Reader) ([]byte, []byte, error) {
 	panic("implement me")
 }
 
@@ -51,6 +55,10 @@ func (t testDecryptor) OnColumn(context.Context, []byte) (context.Context, []byt
 }
 
 func (t testDecryptor) SetKeyStore(keystore.DecryptionKeyStore) {
+	panic("implement me")
+}
+
+func (t testDecryptor) GetPrivateKey() (*keys.PrivateKey, error) {
 	panic("implement me")
 }
 

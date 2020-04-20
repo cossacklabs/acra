@@ -128,8 +128,17 @@ func (decryptor *Decryptor) ReadData(symmetricKey, zoneID []byte, reader io.Read
 }
 
 // ReadSymmetricKey returns decrypted SymmetricKey that is used to encrypt AcraStruct content
-func (decryptor *Decryptor) ReadSymmetricKey(privateKeys []*keys.PrivateKey, reader io.Reader) ([]byte, []byte, error) {
-	symmetricKey, rawData, err := decryptor.binaryDecryptor.ReadSymmetricKey(privateKeys, reader)
+func (decryptor *Decryptor) ReadSymmetricKey(privateKey *keys.PrivateKey, reader io.Reader) ([]byte, []byte, error) {
+	symmetricKey, rawData, err := decryptor.binaryDecryptor.ReadSymmetricKey(privateKey, reader)
+	if err != nil {
+		return symmetricKey, rawData, err
+	}
+	return symmetricKey, rawData, nil
+}
+
+// ReadSymmetricKeyRotated returns decrypted SymmetricKey that is used to encrypt AcraStruct content trying multiple private keys.
+func (decryptor *Decryptor) ReadSymmetricKeyRotated(privateKeys []*keys.PrivateKey, reader io.Reader) ([]byte, []byte, error) {
+	symmetricKey, rawData, err := decryptor.binaryDecryptor.ReadSymmetricKeyRotated(privateKeys, reader)
 	if err != nil {
 		return symmetricKey, rawData, err
 	}
@@ -225,7 +234,7 @@ func (decryptor *Decryptor) inlinePoisonRecordCheck(block []byte) error {
 func (decryptor *Decryptor) decryptBlock(reader io.Reader, id []byte, privateKeys []*keys.PrivateKey) ([]byte, error) {
 	logger := decryptor.log.WithField("zone_id", string(decryptor.GetMatchedZoneID()))
 
-	key, _, err := decryptor.ReadSymmetricKey(privateKeys, reader)
+	key, _, err := decryptor.ReadSymmetricKeyRotated(privateKeys, reader)
 	if err != nil {
 		logger.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorDecryptorCantDecryptSymmetricKey).Debugln("Can't unwrap symmetric key")
 		return []byte{}, err
