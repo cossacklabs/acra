@@ -104,14 +104,10 @@ func (params *CommandLineParams) Register() {
 	flag.StringVar(&params.ZoneID, "zone_id", "", "zone ID for which to retrieve key")
 
 	params.readFlags = flag.NewFlagSet(CmdReadKey, flag.ContinueOnError)
-	params.readFlags.StringVar(&params.ClientID, "client_id", "", "client ID for which to retrieve key")
-	params.readFlags.StringVar(&params.ZoneID, "zone_id", "", "zone ID for which to retrieve key")
 	params.readFlags.Usage = func() {
 		fmt.Fprintf(os.Stderr, "Command \"%s\": read and print key material in plaintext\n", CmdReadKey)
 		fmt.Fprintf(os.Stderr, "\n\t%s %s [options...] <key-kind>\n\n", os.Args[0], CmdReadKey)
 		fmt.Fprintf(os.Stderr, "Supported key kinds:\n  %s\n", strings.Join(SupportedReadKeyKinds, ", "))
-		fmt.Fprintf(os.Stderr, "\nOptions:\n")
-		cmd.PrintFlags(params.readFlags)
 	}
 
 	params.destroyFlags = flag.NewFlagSet(CmdDestroyKey, flag.ContinueOnError)
@@ -121,8 +117,6 @@ func (params *CommandLineParams) Register() {
 		fmt.Fprintf(os.Stderr, "Command \"%s\": destroy key material\n", CmdDestroyKey)
 		fmt.Fprintf(os.Stderr, "\n\t%s %s [options...] <key-kind>\n\n", os.Args[0], CmdDestroyKey)
 		fmt.Fprintf(os.Stderr, "Supported key kinds:\n  %s\n", strings.Join(SupportedDestroyKeyKinds, ", "))
-		fmt.Fprintf(os.Stderr, "\nOptions:\n")
-		cmd.PrintFlags(params.destroyFlags)
 	}
 }
 
