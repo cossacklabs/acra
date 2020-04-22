@@ -5,9 +5,6 @@ client_id:
 # path to config
 config_file: 
 
-# key kind to destroy, one of: transport-connector, transport-server, transport-translator
-destroy_key: 
-
 # dump config
 dump_config: false
 
@@ -22,9 +19,6 @@ keys_dir_public:
 
 # force key store format: v1 (current), v2 (new)
 keystore: 
-
-# key kind to read, one of: poison-public, poison-private, storage-public, storage-private, zone-public, zone-private
-read_key: 
 
 # zone ID for which to retrieve key
 zone_id: 
