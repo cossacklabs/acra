@@ -487,7 +487,7 @@ func (proxy *PgProxy) processInlineBlockDecryption(ctx context.Context, packet *
 		outputBlock.Write(column.GetData()[currentIndex:beginTagIndex])
 		currentIndex = beginTagIndex
 
-		key, err := decryptor.GetPrivateKey()
+		keys, err := decryptor.GetPrivateKeys()
 		if err != nil {
 			logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantReadKeys).WithError(err).Warningln("Can't read private key for matched client_id/zone_id")
 			if decryptor.IsPoisonRecordCheckOn() {
@@ -502,7 +502,7 @@ func (proxy *PgProxy) processInlineBlockDecryption(ctx context.Context, packet *
 			continue
 		}
 		blockReader := bytes.NewReader(column.GetData()[currentIndex+tagLength:])
-		symKey, _, err := decryptor.ReadSymmetricKey(key, blockReader)
+		symKey, _, err := decryptor.ReadSymmetricKeyRotated(keys, blockReader)
 		if err != nil {
 			span.AddAttributes(trace.BoolAttribute("failed_decryption", true))
 			base.AcrastructDecryptionCounter.WithLabelValues(base.DecryptionTypeFail).Inc()

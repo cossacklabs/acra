@@ -150,6 +150,37 @@ func (decryptor *PgHexDecryptor) ReadSymmetricKey(privateKey *keys.PrivateKey, r
 	return symmetricKey, decryptor.keyBlockBuffer[:n], nil
 }
 
+// ReadSymmetricKeyRotated decrypts symmetric key hidden in AcraStruct using SecureMessage and privateKey
+// returns decrypted symmetric key or ErrFakeAcraStruct error if can't decrypt
+func (decryptor *PgHexDecryptor) ReadSymmetricKeyRotated(privateKeys []*keys.PrivateKey, reader io.Reader) ([]byte, []byte, error) {
+	n, err := io.ReadFull(reader, decryptor.keyBlockBuffer[:])
+	if err != nil {
+		if err == io.ErrUnexpectedEOF || err == io.EOF {
+			return nil, decryptor.keyBlockBuffer[:n], base.ErrFakeAcraStruct
+		}
+		return nil, decryptor.keyBlockBuffer[:n], err
+	}
+	if n != hex.EncodedLen(base.KeyBlockLength) {
+		decryptor.logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCodingCantDecodeHexData).WithError(err).Warningln("Can't decode hex data")
+		return nil, decryptor.keyBlockBuffer[:n], base.ErrFakeAcraStruct
+	}
+	_, err = hex.Decode(decryptor.decodedKeyBlockBuffer[:], decryptor.keyBlockBuffer[:])
+	if err != nil {
+		decryptor.logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCodingCantDecodeHexData).WithError(err).Warningln("Can't decode hex data")
+		return nil, decryptor.keyBlockBuffer[:n], base.ErrFakeAcraStruct
+	}
+	pubkey := &keys.PublicKey{Value: decryptor.decodedKeyBlockBuffer[:base.PublicKeyLength]}
+
+	for _, privateKey := range privateKeys {
+		smessage := message.New(privateKey, pubkey)
+		symmetricKey, err := smessage.Unwrap(decryptor.decodedKeyBlockBuffer[base.PublicKeyLength:])
+		if err == nil {
+			return symmetricKey, decryptor.keyBlockBuffer[:n], nil
+		}
+	}
+	return nil, decryptor.keyBlockBuffer[:n], base.ErrFakeAcraStruct
+}
+
 func (decryptor *PgHexDecryptor) readDataLength(reader io.Reader) (uint64, []byte, error) {
 	var length uint64
 	lenCount, err := io.ReadFull(reader, decryptor.hexLengthBuf[:])

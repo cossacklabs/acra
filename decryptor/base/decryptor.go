@@ -98,6 +98,7 @@ type DataDecryptor interface {
 	// return decrypted data or data as is if fail
 	// db specific
 	ReadSymmetricKey(*keys.PrivateKey, io.Reader) ([]byte, []byte, error)
+	ReadSymmetricKeyRotated([]*keys.PrivateKey, io.Reader) ([]byte, []byte, error)
 	// read and decrypt data or return as is if fail
 	// db specific
 	ReadData([]byte, []byte, io.Reader) ([]byte, error)
@@ -110,9 +111,10 @@ type Decryptor interface {
 	DecryptionSubscriber
 	// register key store that will be used for retrieving private keys
 	SetKeyStore(keystore.DecryptionKeyStore)
-	// return private key for current connected client for decrypting symmetric
-	// key with secure message
+	// Return private keys for current connected client used to decrypt
+	// symmetric keys embedded in AcraStructs
 	GetPrivateKey() (*keys.PrivateKey, error)
+	GetPrivateKeys() ([]*keys.PrivateKey, error)
 	TurnOnPoisonRecordCheck(bool)
 	IsPoisonRecordCheckOn() bool
 	// register storage of callbacks for detected poison records
