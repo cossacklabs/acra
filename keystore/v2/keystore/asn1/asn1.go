@@ -242,7 +242,7 @@ type KeyFormat asn1.Enumerated
 // Supported key formats:
 const (
 	ThemisKeyPairFormat KeyFormat = iota + 1
-	ThemisPublicKeyFormat
+	_                             // reserved
 	ThemisSymmetricKeyFormat
 )
 
