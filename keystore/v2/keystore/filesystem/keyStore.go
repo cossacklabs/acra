@@ -138,6 +138,36 @@ func (s *KeyStore) OpenKeyRingRW(path string) (api.MutableKeyRing, error) {
 	return ring, nil
 }
 
+// ExportKeyRings packages specified key rings for export.
+// Key ring data is encrypted and signed using given cryptosuite.
+// Resulting container can be imported into existing or different key store with ImportKeyRings().
+func (s *KeyStore) ExportKeyRings(paths []string, cryptosuite *crypto.KeyStoreSuite) ([]byte, error) {
+	keyRings, err := s.exportKeyRings(paths)
+	if err != nil {
+		return nil, err
+	}
+	defer zeroizeKeyRings(keyRings)
+	return s.encryptAndSignKeyRings(keyRings, cryptosuite)
+}
+
+// ImportKeyRings unpacks key rings packaged by ExportKeyRings.
+// The provided cryptosuite is used to verify the signature on the container and decrypt key ring data.
+// Optional delegate can be used to control various aspects of the import process, such as conflict resolution.
+func (s *KeyStore) ImportKeyRings(exportData []byte, cryptosuite *crypto.KeyStoreSuite, delegate *api.KeyRingImportDelegate) error {
+	keyRings, err := s.decryptAndVerifyKeyRings(exportData, cryptosuite)
+	if err != nil {
+		return err
+	}
+	defer zeroizeKeyRings(keyRings)
+	for i := range keyRings {
+		err := s.importKeyRing(&keyRings[i], delegate)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 //
 // Encryption and signatures
 //
