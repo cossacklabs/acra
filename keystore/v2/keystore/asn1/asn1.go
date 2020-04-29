@@ -102,6 +102,7 @@ const (
 	TypeKeyRing ContentType = iota + 1
 	TypeKeyDirectory
 	TypeDirectKeyDirectory
+	TypeEncryptedKeys
 )
 
 // Common Version constants:
@@ -147,6 +148,32 @@ func UnmarshalKeyDirectory(data []byte) (*KeyDirectory, error) {
 		return nil, ErrExtraData
 	}
 	return container, nil
+}
+
+// EncryptedKeys is a set of key rings.
+// It is typically used for backup purposes or to transfer keys between machines.
+// SignedContainer actually contains an OCTET STRING with DER serialization of this object
+// encrypted with Themis Secure Cell.
+type EncryptedKeys struct {
+	KeyRings []KeyRing `asn1:"set"`
+}
+
+// Marshal into bytes.
+func (keys *EncryptedKeys) Marshal() ([]byte, error) {
+	return asn1.Marshal(*keys)
+}
+
+// UnmarshalEncryptedKeys constructs EncryptedKeys from serialized representation.
+func UnmarshalEncryptedKeys(data []byte) (*EncryptedKeys, error) {
+	keys := new(EncryptedKeys)
+	rest, err := asn1.Unmarshal(data, keys)
+	if err != nil {
+		return nil, err
+	}
+	if len(rest) != 0 {
+		return nil, ErrExtraData
+	}
+	return keys, nil
 }
 
 // KeyRingReference to a child key ring, not included into KeyDirectory object directly.
