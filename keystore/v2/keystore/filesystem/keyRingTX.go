@@ -133,6 +133,34 @@ func (tx *txAddKey) Rollback(ring *KeyRing) error {
 	return nil
 }
 
+type txSetKeys struct {
+	newKeys []asn1.Key
+	current int
+
+	oldKeys    []asn1.Key
+	oldCurrent int
+}
+
+func (tx *txSetKeys) Apply(ring *KeyRing) error {
+	tx.oldKeys = ring.data.Keys
+	tx.oldCurrent = ring.data.Current
+	ring.data.Keys = tx.newKeys
+	ring.data.Current = tx.current
+	return nil
+}
+
+func (tx *txSetKeys) Rollback(ring *KeyRing) error {
+	if ring.data.Current != tx.oldCurrent {
+		return errTxOOORollback
+	}
+	if len(ring.data.Keys) != len(tx.oldKeys) {
+		return errTxOOORollback
+	}
+	ring.data.Keys = tx.oldKeys
+	ring.data.Current = tx.oldCurrent
+	return nil
+}
+
 type txDestroyKeyData struct {
 	keySeqnum  int
 	dataBackup []asn1.KeyData

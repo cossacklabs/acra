@@ -54,6 +54,31 @@ func (r *KeyRing) newKey(k api.KeyDescription) (*asn1.Key, error) {
 	return key, nil
 }
 
+func (r *KeyRing) copyKey(other *asn1.Key) (*asn1.Key, error) {
+	if other.ValidSince.After(other.ValidUntil) {
+		return nil, api.ErrInvalidCryptoperiod
+	}
+	if len(other.Data) == 0 {
+		return nil, api.ErrNoKeyData
+	}
+	key := *other
+	// Other key's data is currently in plaintext. We need to encrypt it.
+	key.Data = make([]asn1.KeyData, 0, len(other.Data))
+	for _, otherKey := range other.Data {
+		data := api.KeyData{
+			Format:       api.KeyFormat(otherKey.Format),
+			PublicKey:    otherKey.PublicKey,
+			PrivateKey:   otherKey.PrivateKey,
+			SymmetricKey: otherKey.SymmetricKey,
+		}
+		err := r.addKeyData(data, &key)
+		if err != nil {
+			return nil, err
+		}
+	}
+	return &key, nil
+}
+
 func (r *KeyRing) keyDataByFormat(seqnum int, format api.KeyFormat) (*asn1.KeyData, error) {
 	key := r.keyDataBySeqnum(seqnum)
 	if key == nil {

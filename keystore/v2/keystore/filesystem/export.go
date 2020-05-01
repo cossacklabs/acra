@@ -80,6 +80,7 @@ func (s *KeyStore) importKeyRing(newRingData *asn1.KeyRing, delegate api.KeyRing
 			if err != nil {
 				return err
 			}
+			return nil
 		case api.ImportSkip:
 			return nil
 		default:
@@ -88,16 +89,20 @@ func (s *KeyStore) importKeyRing(newRingData *asn1.KeyRing, delegate api.KeyRing
 
 	case backendAPI.ErrNotExist:
 		// If the key ring does not seem to exist right now, go ahead with clean-slate import.
-		err := keyRing.importASN1(newRingData)
+		err := s.openKeyRing(keyRing)
 		if err != nil {
 			return err
 		}
+		err = keyRing.importASN1(newRingData)
+		if err != nil {
+			return err
+		}
+		return nil
 
 	default:
 		// Otherwise, this is some unexpected error from the key store. Abort import and get out.
 		return err
 	}
-	return s.writeKeyRing(keyRing)
 }
 
 var exportKeyContext = []byte("AKSv2 keystore: exported key rings")
@@ -133,7 +138,33 @@ func (s *KeyStore) encryptAndSignKeyRings(rings []asn1.KeyRing, cryptosuite *cry
 }
 
 func (s *KeyStore) decryptAndVerifyKeyRings(ringData []byte, cryptosuite *crypto.KeyStoreSuite) ([]asn1.KeyRing, error) {
-	panic("not implemented")
+	notary, err := signature.NewNotary(cryptosuite.SignatureAlgorithms)
+	if err != nil {
+		return nil, err
+	}
+	container, err := notary.Verify(ringData, exportKeyContext)
+	if err != nil {
+		return nil, err
+	}
+	if container.Payload.ContentType != asn1.TypeEncryptedKeys {
+		return nil, errIncorrectContentType
+	}
+	if container.Payload.Version != asn1.KeyRingVersion2 {
+		return nil, errUnsupportedVersion
+	}
+
+	decryptedKeyBytes, err := cryptosuite.KeyEncryptor.Decrypt(container.Payload.Data.Bytes, exportKeyContext)
+	if err != nil {
+		return nil, err
+	}
+	defer utils.FillSlice(0, decryptedKeyBytes)
+
+	keys, err := asn1.UnmarshalEncryptedKeys(decryptedKeyBytes)
+	if err != nil {
+		return nil, err
+	}
+
+	return keys.KeyRings, nil
 }
 
 func (r *KeyRing) exportASN1() (exported asn1.KeyRing, err error) {
@@ -158,8 +189,22 @@ func (r *KeyRing) exportASN1() (exported asn1.KeyRing, err error) {
 	return exported, nil
 }
 
-func (r *KeyRing) importASN1(*asn1.KeyRing) error {
-	panic("not implemented")
+func (r *KeyRing) importASN1(ringData *asn1.KeyRing) error {
+	// Make properly encrypted copies of key data.
+	newKeys := make([]asn1.Key, len(ringData.Keys))
+	for i := range ringData.Keys {
+		newKey, err := r.copyKey(&ringData.Keys[i])
+		if err != nil {
+			return err
+		}
+		newKeys[i] = *newKey
+	}
+	r.pushTX(&txSetKeys{newKeys: newKeys, current: ringData.Current})
+	err := r.store.syncKeyRing(r)
+	if err != nil {
+		r.popTX()
+	}
+	return err
 }
 
 func (r *KeyRing) decryptAllKeyData(encrypted []asn1.KeyData, seqnum int) (decrypted []asn1.KeyData, err error) {
