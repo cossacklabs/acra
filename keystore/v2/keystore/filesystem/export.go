@@ -62,19 +62,16 @@ func (s *KeyStore) exportKeyRing(path string, ringData *asn1.KeyRing) error {
 	return nil
 }
 
-func (s *KeyStore) importKeyRing(newRingData *asn1.KeyRing, delegate *api.KeyRingImportDelegate) error {
+func (s *KeyStore) importKeyRing(newRingData *asn1.KeyRing, delegate api.KeyRingImportDelegate) error {
 	keyRing := newKeyRing(s, string(newRingData.Purpose))
+	// Try reading the key ring. If it succeeds, the key ring already exists.
 	err := s.readKeyRing(keyRing)
 	switch err {
 	case nil:
 		// If the key store successfuly returned an existing key ring with the same name,
 		// we have to resolve this conflict somehow. Present both current and new versions
 		// to the delegate and let it decide how to proceed.
-		decision := api.ImportAbort
-		err := ErrKeyRingExists
-		if delegate != nil && delegate.DecideKeyRingOverwrite != nil {
-			decision, err = delegate.DecideKeyRingOverwrite(keyRing.data, newRingData)
-		}
+		decision, err := delegate.DecideKeyRingOverwrite(keyRing.data, newRingData)
 		switch decision {
 		case api.ImportOverwrite:
 			// Forget whatever we just read and import into a clean key ring.

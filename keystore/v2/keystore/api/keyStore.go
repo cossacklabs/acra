@@ -48,7 +48,7 @@ type MutableKeyStore interface {
 	// ImportKeyRings unpacks key rings packaged by ExportKeyRings.
 	// The provided cryptosuite is used to verify the signature on the container and decrypt key ring data.
 	// Optional delegate can be used to control various aspects of the import process, such as conflict resolution.
-	ImportKeyRings(exportData []byte, cryptosuite *crypto.KeyStoreSuite, delegate *KeyRingImportDelegate) error
+	ImportKeyRings(exportData []byte, cryptosuite *crypto.KeyStoreSuite, delegate KeyRingImportDelegate) error
 }
 
 // ImportDecision constants describe how to proceed with import conflict resolution.
@@ -65,10 +65,9 @@ const (
 )
 
 // KeyRingImportDelegate controls details of key ring import process.
-type KeyRingImportDelegate struct {
-	// This callback is executed when an imported key ring already exists.
-	// If not set, import process will be aborted.
+type KeyRingImportDelegate interface {
+	// This method is executed when an imported key ring already exists.
 	// Current key ring content is encrypted, new key ring content is in plain.
 	// Don't look at the key material, decide based on validity ranges and sequence numbers.
-	DecideKeyRingOverwrite func(currentData, newData *asn1.KeyRing) (ImportDecision, error)
+	DecideKeyRingOverwrite(currentData, newData *asn1.KeyRing) (ImportDecision, error)
 }
