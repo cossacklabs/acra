@@ -33,7 +33,6 @@ type keyRingTX interface {
 // Errors returned by transactions:
 var (
 	errTxConcurrentModification = errors.New("concurrent key store modification")
-	errTxOOORollback            = errors.New("out-of-order key store rollback")
 	errTxKeyNotFound            = errors.New("no key with such seqnum in key ring")
 	errTxKeyExists              = errors.New("duplicate key with seqnum in key ring")
 )
@@ -64,9 +63,6 @@ func (tx *txSetKeyCurrent) Rollback(ring *KeyRing) error {
 	newKey, _ := ring.data.KeyWithSeqnum(tx.newSeqnum)
 	if newKey == nil {
 		return errTxKeyNotFound
-	}
-	if ring.data.Current != tx.newSeqnum {
-		return errTxOOORollback
 	}
 	if tx.oldSeqnum != asn1.NoKey {
 		oldKey, _ := ring.data.KeyWithSeqnum(tx.oldSeqnum)
@@ -102,12 +98,7 @@ func (tx *txChangeKeyState) Rollback(ring *KeyRing) error {
 	if key == nil {
 		return errTxKeyNotFound
 	}
-	oldState := asn1.KeyState(tx.oldState)
-	newState := asn1.KeyState(tx.newState)
-	if key.State != newState {
-		return errTxOOORollback
-	}
-	key.State = oldState
+	key.State = asn1.KeyState(tx.oldState)
 	return nil
 }
 
@@ -126,9 +117,6 @@ func (tx *txAddKey) Apply(ring *KeyRing) error {
 
 func (tx *txAddKey) Rollback(ring *KeyRing) error {
 	lastKey := len(ring.data.Keys) - 1
-	if len(ring.data.Keys) == 0 || ring.data.Keys[lastKey].Seqnum != tx.newKey.Seqnum {
-		return errTxOOORollback
-	}
 	ring.data.Keys = ring.data.Keys[:lastKey]
 	return nil
 }
@@ -150,12 +138,6 @@ func (tx *txSetKeys) Apply(ring *KeyRing) error {
 }
 
 func (tx *txSetKeys) Rollback(ring *KeyRing) error {
-	if ring.data.Current != tx.oldCurrent {
-		return errTxOOORollback
-	}
-	if len(ring.data.Keys) != len(tx.oldKeys) {
-		return errTxOOORollback
-	}
 	ring.data.Keys = tx.oldKeys
 	ring.data.Current = tx.oldCurrent
 	return nil
@@ -181,9 +163,6 @@ func (tx *txDestroyKeyData) Apply(ring *KeyRing) error {
 
 func (tx *txDestroyKeyData) Rollback(ring *KeyRing) error {
 	key, _ := ring.data.KeyWithSeqnum(tx.keySeqnum)
-	if key == nil || len(key.Data) != 0 {
-		return errTxOOORollback
-	}
 	// Move the data back into the key and forget about it.
 	key.Data = tx.dataBackup
 	tx.dataBackup = nil
