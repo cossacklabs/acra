@@ -23,6 +23,7 @@ import (
 	"testing"
 
 	"github.com/cossacklabs/acra/keystore/v2/keystore/api"
+	"github.com/cossacklabs/acra/keystore/v2/keystore/api/tests"
 	"github.com/cossacklabs/acra/keystore/v2/keystore/crypto"
 	backend "github.com/cossacklabs/acra/keystore/v2/keystore/filesystem/backend"
 	backendAPI "github.com/cossacklabs/acra/keystore/v2/keystore/filesystem/backend/api"
@@ -190,4 +191,14 @@ func TestKeyStorePersistence(t *testing.T) {
 	if err != nil {
 		t.Errorf("failed to open key ring: %v", err)
 	}
+}
+
+func TestKeyStoreInMemory(t *testing.T) {
+	tests.TestKeyStore(t, newInMemoryKeyStore)
+}
+
+func TestKeyStoreFilesystem(t *testing.T) {
+	newFilesystemKeyStore, cleanup := testFilesystemKeyStore(t)
+	defer cleanup()
+	tests.TestKeyStore(t, newFilesystemKeyStore)
 }

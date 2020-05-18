@@ -125,9 +125,8 @@ func testKeyFormatLookup(t *testing.T, newKeyStore NewKeyStore) {
 		ValidUntil: time.Now().Add(time.Hour),
 		Data: []api.KeyData{
 			api.KeyData{
-				Format:     api.ThemisKeyPairFormat,
-				PublicKey:  []byte("my public key"),
-				PrivateKey: []byte("my private key"),
+				Format:    api.ThemisKeyPairFormat,
+				PublicKey: []byte("my public key"),
 			},
 		},
 	})
@@ -135,9 +134,13 @@ func testKeyFormatLookup(t *testing.T, newKeyStore NewKeyStore) {
 		t.Fatalf("failed to add key: %v", err)
 	}
 
-	_, err = ring.PublicKey(key, api.ThemisPublicKeyFormat)
-	if err != api.ErrFormatMissing {
-		t.Errorf("found public key with key pair format: %v", err)
+	_, err = ring.PublicKey(key, api.ThemisKeyPairFormat)
+	if err != nil {
+		t.Errorf("cannot find public key with key pair format: %v", err)
+	}
+	_, err = ring.PrivateKey(key, api.ThemisKeyPairFormat)
+	if err != api.ErrNoKeyData {
+		t.Errorf("cannot find private key with key pair format: %v", err)
 	}
 
 	_, err = ring.SymmetricKey(key, api.ThemisSymmetricKeyFormat)
@@ -190,13 +193,12 @@ func testKeyInvalidInputs(t *testing.T, newKeyStore NewKeyStore) {
 		ValidUntil: time.Now().Add(time.Hour),
 		Data: []api.KeyData{
 			api.KeyData{
-				Format:     api.ThemisPublicKeyFormat,
-				PrivateKey: []byte("ompf"),
+				Format: api.ThemisKeyPairFormat,
 			},
 		},
 	})
 	if err != api.ErrNoKeyData {
-		t.Errorf("cannot add public key without data: %v", err)
+		t.Errorf("cannot add key pair without any data: %v", err)
 	}
 
 	_, err = ring.AddKey(api.KeyDescription{
@@ -211,7 +213,21 @@ func testKeyInvalidInputs(t *testing.T, newKeyStore NewKeyStore) {
 		},
 	})
 	if err != api.ErrNoKeyData {
-		t.Errorf("cannot add key pair without full data: %v", err)
+		t.Errorf("cannot add key pair without a public key: %v", err)
+	}
+
+	_, err = ring.AddKey(api.KeyDescription{
+		ValidSince: time.Now(),
+		ValidUntil: time.Now().Add(time.Hour),
+		Data: []api.KeyData{
+			api.KeyData{
+				Format:    api.ThemisKeyPairFormat,
+				PublicKey: []byte("it's okay to have no private key"),
+			},
+		},
+	})
+	if err != nil {
+		t.Errorf("failed to add key pair with only public key: %v", err)
 	}
 
 	_, err = ring.AddKey(api.KeyDescription{

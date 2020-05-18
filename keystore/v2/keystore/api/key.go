@@ -40,7 +40,6 @@ type KeyFormat int
 
 // Supported key material formats:
 const (
-	ThemisPublicKeyFormat    = KeyFormat(asn1.ThemisPublicKeyFormat)
 	ThemisKeyPairFormat      = KeyFormat(asn1.ThemisKeyPairFormat)
 	ThemisSymmetricKeyFormat = KeyFormat(asn1.ThemisSymmetricKeyFormat)
 )

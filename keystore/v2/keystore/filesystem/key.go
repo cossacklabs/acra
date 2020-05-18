@@ -54,6 +54,31 @@ func (r *KeyRing) newKey(k api.KeyDescription) (*asn1.Key, error) {
 	return key, nil
 }
 
+func (r *KeyRing) copyKey(other *asn1.Key) (*asn1.Key, error) {
+	if other.ValidSince.After(other.ValidUntil) {
+		return nil, api.ErrInvalidCryptoperiod
+	}
+	if len(other.Data) == 0 {
+		return nil, api.ErrNoKeyData
+	}
+	key := *other
+	// Other key's data is currently in plaintext. We need to encrypt it.
+	key.Data = make([]asn1.KeyData, 0, len(other.Data))
+	for _, otherKey := range other.Data {
+		data := api.KeyData{
+			Format:       api.KeyFormat(otherKey.Format),
+			PublicKey:    otherKey.PublicKey,
+			PrivateKey:   otherKey.PrivateKey,
+			SymmetricKey: otherKey.SymmetricKey,
+		}
+		err := r.addKeyData(data, &key)
+		if err != nil {
+			return nil, err
+		}
+	}
+	return &key, nil
+}
+
 func (r *KeyRing) keyDataByFormat(seqnum int, format api.KeyFormat) (*asn1.KeyData, error) {
 	key := r.keyDataBySeqnum(seqnum)
 	if key == nil {
@@ -192,7 +217,7 @@ func (r *KeyRing) PrivateKey(seqnum int, format api.KeyFormat) ([]byte, error) {
 		return nil, err
 	}
 	if len(data.PrivateKey) == 0 {
-		return nil, api.ErrInvalidFormat
+		return nil, api.ErrNoKeyData
 	}
 	decryptedKey, err := r.decryptPrivateKey(seqnum, data.PrivateKey)
 	if err != nil {
@@ -261,23 +286,19 @@ func (r *KeyRing) addKeyData(data api.KeyData, key *asn1.Key) error {
 		}
 	}
 	switch data.Format {
-	case api.ThemisPublicKeyFormat:
+	case api.ThemisKeyPairFormat:
 		if len(data.PublicKey) == 0 {
 			return api.ErrNoKeyData
 		}
 		newData.PublicKey = data.PublicKey
-
-	case api.ThemisKeyPairFormat:
-		if len(data.PublicKey) == 0 || len(data.PrivateKey) == 0 {
-			return api.ErrNoKeyData
+		if len(data.PrivateKey) != 0 {
+			encryptedPrivateKey, err := r.encryptPrivateKey(key.Seqnum, data.PrivateKey)
+			if err != nil {
+				log.WithError(err).Warn("failed to encrypt private key")
+				return err
+			}
+			newData.PrivateKey = encryptedPrivateKey
 		}
-		encryptedPrivateKey, err := r.encryptPrivateKey(key.Seqnum, data.PrivateKey)
-		if err != nil {
-			log.WithError(err).Warn("failed to encrypt private key")
-			return err
-		}
-		newData.PublicKey = data.PublicKey
-		newData.PrivateKey = encryptedPrivateKey
 
 	case api.ThemisSymmetricKeyFormat:
 		if len(data.SymmetricKey) == 0 {
