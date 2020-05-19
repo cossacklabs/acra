@@ -18,14 +18,17 @@
 //
 // It can access and maniplulate key stores:
 //
+//   - list keys
 //   - read key data
 //   - destroy keys
 package main
 
 import (
+	"fmt"
 	"os"
 
 	"github.com/cossacklabs/acra/cmd/acra-keys/keys"
+	"github.com/cossacklabs/acra/keystore"
 	"github.com/cossacklabs/acra/utils"
 	log "github.com/sirupsen/logrus"
 )
@@ -34,10 +37,35 @@ func main() {
 	keys.ParseParams()
 
 	switch keys.Params.Command {
+	case keys.CmdListKeys:
+		listKeys(keys.Params)
 	case keys.CmdReadKey:
 		printKey(keys.Params)
 	case keys.CmdDestroyKey:
 		destroyKey(keys.Params)
+	}
+}
+
+func listKeys(params *keys.CommandLineParams) {
+	keyStore, err := keys.OpenKeyStoreForReading(params)
+	if err != nil {
+		log.WithError(err).Fatal("Failed to open key store")
+	}
+
+	keyDescriptions, err := keyStore.ListKeys()
+	if err != nil {
+		if err == keystore.ErrNotImplemented {
+			log.Error(fmt.Sprintf("\"%s\" is not implemented for key store v1 in Acra Community Edition", keys.CmdListKeys))
+			log.Info("You can convert key store v1 into v2 with \"acra-migrate-keys\"")
+			// TODO(ilammy, 2020-05-19): production documentation does not describe migration yet
+			log.Info("Read more: https://docs.cossacklabs.com/pages/documentation-acra/#key-management")
+		}
+		log.WithError(err).Fatal("Failed to read key list")
+	}
+
+	err = keys.PrintKeys(keyDescriptions, os.Stdout, params)
+	if err != nil {
+		log.WithError(err).Fatal("Failed to print key list")
 	}
 }
 

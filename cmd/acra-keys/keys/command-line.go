@@ -43,12 +43,14 @@ var DefaultConfigPath = utils.GetConfigPathByName("acra-keys")
 
 // Sub-command names:
 const (
+	CmdListKeys   = "list"
 	CmdReadKey    = "read"
 	CmdDestroyKey = "destroy"
 )
 
 // SupportedSubCommands lists supported sub-commands or CLI.
 var SupportedSubCommands = []string{
+	CmdListKeys,
 	CmdReadKey,
 	CmdDestroyKey,
 }
@@ -88,6 +90,7 @@ type CommandLineParams struct {
 	ReadKeyKind    string
 	DestroyKeyKind string
 
+	listFlags    *flag.FlagSet
 	readFlags    *flag.FlagSet
 	destroyFlags *flag.FlagSet
 }
@@ -102,6 +105,12 @@ func (params *CommandLineParams) Register() {
 	flag.StringVar(&params.KeyDirPublic, "keys_dir_public", "", "path to key directory for public keys")
 	flag.StringVar(&params.ClientID, "client_id", "", "client ID for which to retrieve key")
 	flag.StringVar(&params.ZoneID, "zone_id", "", "zone ID for which to retrieve key")
+
+	params.listFlags = flag.NewFlagSet(CmdListKeys, flag.ContinueOnError)
+	params.listFlags.Usage = func() {
+		fmt.Fprintf(os.Stderr, "Command \"%s\": list available keys in the key store\n", CmdListKeys)
+		fmt.Fprintf(os.Stderr, "\n\t%s %s [options...]\n", os.Args[0], CmdListKeys)
+	}
 
 	params.readFlags = flag.NewFlagSet(CmdReadKey, flag.ContinueOnError)
 	params.readFlags.Usage = func() {
@@ -125,6 +134,9 @@ func usage() {
 
 	fmt.Fprintf(os.Stderr, "\nGlobal options:\n")
 	cmd.PrintFlags(flag.CommandLine)
+
+	fmt.Fprintf(os.Stderr, "\n")
+	Params.listFlags.Usage()
 
 	fmt.Fprintf(os.Stderr, "\n")
 	Params.readFlags.Usage()
@@ -156,6 +168,9 @@ func (params *CommandLineParams) ParseSubCommand() error {
 	}
 	params.Command = args[0]
 	switch args[0] {
+	case CmdListKeys:
+		return nil
+
 	case CmdReadKey:
 		err := params.readFlags.Parse(args[1:])
 		if err != nil {

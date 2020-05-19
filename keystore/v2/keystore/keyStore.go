@@ -19,6 +19,7 @@ package keystore
 
 import (
 	connector_mode "github.com/cossacklabs/acra/cmd/acra-connector/connector-mode"
+	"github.com/cossacklabs/acra/keystore"
 	"github.com/cossacklabs/acra/keystore/v2/keystore/api"
 	log "github.com/sirupsen/logrus"
 )
@@ -69,6 +70,11 @@ func NewTranslatorKeyStore(keyStore api.MutableKeyStore) *TranslatorKeyStore {
 	return &TranslatorKeyStore{
 		ServerKeyStore{keyStore, log.WithField("service", serviceName)},
 	}
+}
+
+// ListKeys enumerates keys present in the key store.
+func (s *ServerKeyStore) ListKeys() ([]keystore.KeyDescription, error) {
+	panic("not implemented")
 }
 
 // Reset is a compatibility method that does nothing.

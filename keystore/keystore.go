@@ -49,6 +49,7 @@ var (
 	ErrInvalidClientID          = errors.New("invalid client ID")
 	ErrEmptyMasterKey           = errors.New("master key is empty")
 	ErrMasterKeyIncorrectLength = fmt.Errorf("master key must have %v length in bytes", SymmetricKeyLength)
+	ErrNotImplemented           = errors.New("not implemented")
 )
 
 // GenerateSymmetricKey return new generated symmetric key that must used in keystore as master key and will comply
@@ -224,7 +225,20 @@ type ServerKeyStore interface {
 	StorageKeyCreation
 	WebConfigKeyStore
 
+	ListKeys() ([]KeyDescription, error)
 	Reset()
+}
+
+// KeyDescription describes a key in the key store.
+//
+// "ID" is unique string that can be used to identify this key set in the key store.
+// "Purpose" is short human-readable description of the key purpose.
+// "ClientID" and "ZoneID" are filled in where relevant.
+type KeyDescription struct {
+	ID       string
+	Purpose  string
+	ClientID []byte
+	ZoneID   []byte
 }
 
 // TranslationKeyStore enables AcraStruct translation. It is used by acra-translator tool.
