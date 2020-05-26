@@ -17,7 +17,7 @@
 package keystore
 
 import (
-	"fmt"
+	"path/filepath"
 
 	"github.com/cossacklabs/themis/gothemis/keys"
 )
@@ -74,8 +74,11 @@ func (s *ServerKeyStore) CheckIfPrivateKeyExists(clientID []byte) (bool, error) 
 // TransportKeyCreation interface (AcraServer)
 //
 
+const transportSuffix = "transport"
+const serverSuffix = "server"
+
 func (s *ServerKeyStore) serverTransportKeyPairPath(clientID []byte) string {
-	return fmt.Sprintf("client/%s/transport/server", string(clientID))
+	return filepath.Join(clientPrefix, string(clientID), transportSuffix, serverSuffix)
 }
 
 // GenerateServerKeys generates new AcraServer transport keypair for given clientID.

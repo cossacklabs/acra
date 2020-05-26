@@ -18,6 +18,7 @@ package keystore
 
 import (
 	"fmt"
+	"path/filepath"
 
 	connectorMode "github.com/cossacklabs/acra/cmd/acra-connector/connector-mode"
 	"github.com/cossacklabs/themis/gothemis/keys"
@@ -86,8 +87,10 @@ func (c *ConnectorKeyStore) CheckIfPrivateKeyExists(clientID []byte) (bool, erro
 // TransportKeyCreation interface (AcraConnector)
 //
 
+const connectorSuffix = "connector"
+
 func (s *ServerKeyStore) connectorTransportKeyPairPath(clientID []byte) string {
-	return fmt.Sprintf("client/%s/transport/connector", string(clientID))
+	return filepath.Join(clientPrefix, string(clientID), transportSuffix, connectorSuffix)
 }
 
 // GenerateConnectorKeys generates new AcraConnector transport keypair for given clientID.
