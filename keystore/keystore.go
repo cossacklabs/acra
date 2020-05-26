@@ -237,8 +237,8 @@ type ServerKeyStore interface {
 type KeyDescription struct {
 	ID       string
 	Purpose  string
-	ClientID []byte
-	ZoneID   []byte
+	ClientID []byte `json:",omitempty"`
+	ZoneID   []byte `json:",omitempty"`
 }
 
 // TranslationKeyStore enables AcraStruct translation. It is used by acra-translator tool.

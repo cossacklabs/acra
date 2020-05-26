@@ -90,6 +90,8 @@ type CommandLineParams struct {
 	ReadKeyKind    string
 	DestroyKeyKind string
 
+	UseJSON bool
+
 	listFlags    *flag.FlagSet
 	readFlags    *flag.FlagSet
 	destroyFlags *flag.FlagSet
@@ -105,6 +107,7 @@ func (params *CommandLineParams) Register() {
 	flag.StringVar(&params.KeyDirPublic, "keys_dir_public", "", "path to key directory for public keys")
 	flag.StringVar(&params.ClientID, "client_id", "", "client ID for which to retrieve key")
 	flag.StringVar(&params.ZoneID, "zone_id", "", "zone ID for which to retrieve key")
+	flag.BoolVar(&params.UseJSON, "json", false, "use machine-readable JSON output")
 
 	params.listFlags = flag.NewFlagSet(CmdListKeys, flag.ContinueOnError)
 	params.listFlags.Usage = func() {

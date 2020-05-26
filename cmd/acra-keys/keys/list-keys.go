@@ -17,6 +17,7 @@
 package keys
 
 import (
+	"encoding/json"
 	"fmt"
 	"io"
 
@@ -26,7 +27,20 @@ import (
 
 // PrintKeys prints key list prettily into the given writer.
 func PrintKeys(keys []keystore.KeyDescription, writer io.Writer, params *CommandLineParams) error {
+	if params.UseJSON {
+		return printKeysJSON(keys, writer)
+	}
 	return printKeysTable(keys, writer)
+}
+
+func printKeysJSON(keys []keystore.KeyDescription, writer io.Writer) error {
+	json, err := json.Marshal(keys)
+	if err != nil {
+		return err
+	}
+	json = append(json, byte('\n'))
+	_, err = writer.Write(json)
+	return err
 }
 
 const (
