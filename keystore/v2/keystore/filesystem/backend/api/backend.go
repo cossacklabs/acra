@@ -40,6 +40,10 @@ type Backend interface {
 	// Returns ErrExist if path already exists.
 	Put(path string, data []byte) error
 
+	// ListAll enumerates all paths currently stored.
+	// The paths are returned in lexicographical order.
+	ListAll() ([]string, error)
+
 	// Rename oldpath into newpath atomically.
 	// Replaces newpath if it already exists.
 	// Returns ErrNotExist if oldpath does not exist.

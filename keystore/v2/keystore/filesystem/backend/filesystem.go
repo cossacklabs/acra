@@ -334,6 +334,34 @@ func (b *DirectoryBackend) Put(path string, data []byte) error {
 	return nil
 }
 
+// ListAll enumerates all paths currently stored.
+// The paths are returned in lexicographical order.
+func (b *DirectoryBackend) ListAll() ([]string, error) {
+	paths := make([]string, 0)
+	err := filepath.Walk(b.root, func(path string, info os.FileInfo, err error) error {
+		// Immediately return an error if there's a problem walking the filesystem tree.
+		if err != nil {
+			return err
+		}
+		// filepath.Walk returns strings prefix with its first argument.
+		path = strings.TrimPrefix(path, b.root+string(os.PathSeparator))
+		// Skip special bookkeeping files that we have.
+		if path == lockFile || path == versionFile {
+			return nil
+		}
+		// Skip intermediate directories too.
+		if info.IsDir() {
+			return nil
+		}
+		paths = append(paths, path)
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	return paths, nil
+}
+
 // Rename oldpath into newpath.
 func (b *DirectoryBackend) Rename(oldpath, newpath string) error {
 	var err error

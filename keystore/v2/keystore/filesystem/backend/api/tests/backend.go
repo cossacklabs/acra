@@ -31,6 +31,9 @@ func TestBackend(t *testing.T, newBackend NewBackend) {
 	t.Run("TestGetPut", func(t *testing.T) {
 		testGetPut(t, newBackend)
 	})
+	t.Run("TestListAll", func(t *testing.T) {
+		testListAll(t, newBackend)
+	})
 	t.Run("TestSeparators", func(t *testing.T) {
 		testSeparators(t, newBackend)
 	})
@@ -101,6 +104,55 @@ func testSeparators(t *testing.T, newBackend NewBackend) {
 	}
 	if string(data) != "bravo" {
 		t.Errorf("Get() with forward slashes returned incorrect data: %v", string(data))
+	}
+}
+
+func testListAll(t *testing.T, newBackend NewBackend) {
+	b := newBackend(t)
+
+	list0, err := b.ListAll()
+	if err != nil {
+		t.Fatalf("failed to list: %v", err)
+	}
+	if len(list0) != 0 {
+		t.Errorf("not empty initially")
+	}
+
+	err = b.Put("alpha", nil)
+	if err != nil {
+		t.Fatalf("Put() failed: %v", err)
+	}
+	err = b.Put("bravo/delta", nil)
+	if err != nil {
+		t.Fatalf("Put() failed: %v", err)
+	}
+
+	list1, err := b.ListAll()
+	if err != nil {
+		t.Fatalf("failed to list: %v", err)
+	}
+	if len(list1) != 2 {
+		t.Fatalf("incorrect count: %d (expected %d)", len(list1), 2)
+	}
+	if list1[0] != "alpha" || list1[1] != "bravo/delta" {
+		t.Errorf("incorrect content: %v", list1)
+	}
+
+	err = b.Put("bravo/charlie", nil)
+	if err != nil {
+		t.Fatalf("Put() failed: %v", err)
+	}
+
+	list2, err := b.ListAll()
+	if err != nil {
+		t.Fatalf("failed to list: %v", err)
+	}
+	if len(list2) != 3 {
+		t.Fatalf("incorrect count: %d (expected %d)", len(list2), 3)
+	}
+	// Output is sorted lexicographically
+	if list2[0] != "alpha" || list2[1] != "bravo/charlie" || list2[2] != "bravo/delta" {
+		t.Errorf("incorrect content: %v", list2)
 	}
 }
 

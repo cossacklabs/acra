@@ -57,6 +57,9 @@ func TestKeyStore(t *testing.T, newKeyStore NewKeyStore) {
 	t.Run("TestKeyStoreDuplicateImportOverwrite", func(t *testing.T) {
 		testKeyStoreDuplicateImportOverwrite(t, newKeyStore)
 	})
+	t.Run("TestKeyStoreListing", func(t *testing.T) {
+		testKeyStoreListing(t, newKeyStore)
+	})
 }
 
 var (
@@ -480,5 +483,32 @@ func testKeyStoreDuplicateImportOverwrite(t *testing.T, newKeyStore NewKeyStore)
 		t.Errorf("cannot open key ring with symmetric key: %v", err)
 	} else {
 		checkDemoKeyRingSymmetric(t, ringSymmetric)
+	}
+}
+
+func testKeyStoreListing(t *testing.T, newKeyStore NewKeyStore) {
+	s := newKeyStore(t)
+
+	keyRingsBefore, err := s.ListKeyRings()
+	if err != nil {
+		t.Fatalf("cannot list key rings: %v", err)
+	}
+
+	setupDemoKeyStore(s, t)
+
+	keyRingsAfter, err := s.ListKeyRings()
+	if err != nil {
+		t.Fatalf("cannot list key rings: %v", err)
+	}
+
+	if len(keyRingsBefore) != 0 {
+		t.Errorf("key store is not empty initially")
+	}
+
+	if len(keyRingsAfter) != 3 {
+		t.Fatalf("incorrect key ring count after setup")
+	}
+	if (keyRingsAfter[0] != exportRingKeyPair) || (keyRingsAfter[1] != exportRingPublic) || (keyRingsAfter[2] != exportRingSymmetric) {
+		t.Errorf("incorrect listing content: %v", keyRingsAfter)
 	}
 }

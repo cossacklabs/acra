@@ -17,6 +17,7 @@
 package backend
 
 import (
+	"sort"
 	"sync"
 
 	"github.com/cossacklabs/acra/keystore/v2/keystore/filesystem/backend/api"
@@ -84,6 +85,17 @@ func (m *InMemory) Put(path string, data []byte) error {
 	}
 	m.storage[path] = data
 	return nil
+}
+
+// ListAll enumerates all paths currently stored.
+// The paths are returned in lexicographical order.
+func (m *InMemory) ListAll() ([]string, error) {
+	paths := make([]string, 0, len(m.storage))
+	for path := range m.storage {
+		paths = append(paths, path)
+	}
+	sort.Strings(paths)
+	return paths, nil
 }
 
 // Rename oldpath into newpath atomically.

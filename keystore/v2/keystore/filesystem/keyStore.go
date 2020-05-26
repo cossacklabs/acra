@@ -19,6 +19,7 @@ package filesystem
 import (
 	"errors"
 	"runtime"
+	"strings"
 	"time"
 
 	"github.com/cossacklabs/acra/keystore/v2/keystore/api"
@@ -136,6 +137,34 @@ func (s *KeyStore) OpenKeyRingRW(path string) (api.MutableKeyRing, error) {
 		return nil, err
 	}
 	return ring, nil
+}
+
+// ListKeyRings enumerates all key rings present in this key store.
+func (s *KeyStore) ListKeyRings() (rings []string, err error) {
+	err = s.fs.RLock()
+	if err != nil {
+		s.log.WithError(err).Debug("failed to lock store for reading")
+		return nil, err
+	}
+	defer func() {
+		err2 := s.fs.RUnlock()
+		if err2 != nil {
+			s.log.WithError(err2).Debug("failed to unlock store")
+			if err == nil {
+				err = err2
+			}
+		}
+	}()
+
+	rings, err = s.fs.ListAll()
+	if err != nil {
+		s.log.WithError(err).Debug("failed to list key rings")
+		return nil, err
+	}
+	for i := range rings {
+		rings[i] = strings.TrimSuffix(rings[i], keyringSuffix)
+	}
+	return rings, nil
 }
 
 // ExportKeyRings packages specified key rings for export.
