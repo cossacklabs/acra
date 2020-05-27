@@ -123,6 +123,15 @@ func (s *ServerKeyStore) describeKeyRing(path string) (*keystore.KeyDescription,
 		}, nil
 	}
 
+	// Paths which are not server-global symmetric keys look like this:
+	//
+	//     client/${client_id}/storage
+	//
+	// And transport paths look like this, with an additional component:
+	//
+	//     client/${client_id}/transport/connector
+	//
+	// Split them into components by slashes and parse the result.
 	components := strings.Split(path, string(filepath.Separator))
 	if len(components) == 3 {
 		if components[0] == clientPrefix && components[2] == storageSuffix {
@@ -132,7 +141,7 @@ func (s *ServerKeyStore) describeKeyRing(path string) (*keystore.KeyDescription,
 				ClientID: []byte(components[1]),
 			}, nil
 		}
-		if components[0] == clientPrefix && components[2] == storageSuffix {
+		if components[0] == zonePrefix && components[2] == storageSuffix {
 			return &keystore.KeyDescription{
 				ID:      path,
 				Purpose: PurposeStorageZone,
