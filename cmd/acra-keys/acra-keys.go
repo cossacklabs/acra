@@ -39,11 +39,20 @@ func main() {
 	switch keys.Params.Command {
 	case keys.CmdListKeys:
 		listKeys(keys.Params)
+	case keys.CmdExportKeys:
+		exportKeys(keys.Params)
 	case keys.CmdReadKey:
 		printKey(keys.Params)
 	case keys.CmdDestroyKey:
 		destroyKey(keys.Params)
 	}
+}
+
+func warnKeystoreV2Only(command string) {
+	log.Error(fmt.Sprintf("\"%s\" is not implemented for key store v1 in Acra Community Edition", command))
+	log.Info("You can convert key store v1 into v2 with \"acra-migrate-keys\"")
+	// TODO(ilammy, 2020-05-19): production documentation does not describe migration yet
+	log.Info("Read more: https://docs.cossacklabs.com/pages/documentation-acra/#key-management")
 }
 
 func listKeys(params *keys.CommandLineParams) {
@@ -55,10 +64,7 @@ func listKeys(params *keys.CommandLineParams) {
 	keyDescriptions, err := keyStore.ListKeys()
 	if err != nil {
 		if err == keystore.ErrNotImplemented {
-			log.Error(fmt.Sprintf("\"%s\" is not implemented for key store v1 in Acra Community Edition", keys.CmdListKeys))
-			log.Info("You can convert key store v1 into v2 with \"acra-migrate-keys\"")
-			// TODO(ilammy, 2020-05-19): production documentation does not describe migration yet
-			log.Info("Read more: https://docs.cossacklabs.com/pages/documentation-acra/#key-management")
+			warnKeystoreV2Only(keys.CmdListKeys)
 		}
 		log.WithError(err).Fatal("Failed to read key list")
 	}
@@ -67,6 +73,36 @@ func listKeys(params *keys.CommandLineParams) {
 	if err != nil {
 		log.WithError(err).Fatal("Failed to print key list")
 	}
+}
+
+func exportKeys(params *keys.CommandLineParams) {
+	keyStore, err := keys.OpenKeyStoreForExportImport(params)
+	if err != nil {
+		if err == keystore.ErrNotImplemented {
+			warnKeystoreV2Only(keys.CmdExportKeys)
+		}
+		log.WithError(err).Fatal("Failed to open key store")
+	}
+
+	encryptionKeyData, cryptosuite, err := keys.PrepareExportEncryptionKeys()
+	if err != nil {
+		log.WithError(err).Fatal("Failed to prepare encryption keys")
+	}
+	defer utils.ZeroizeSymmetricKey(encryptionKeyData)
+
+	exportedData, err := keys.ExportKeys(keyStore, cryptosuite, params)
+	if err != nil {
+		log.WithError(err).Fatal("Failed to export keys")
+	}
+
+	err = keys.WriteExportedData(exportedData, encryptionKeyData, params)
+	if err != nil {
+		log.WithError(err).Fatal("Failed to write exported data")
+	}
+
+	log.Infof("Exported key data is encrypted and saved here: %s", params.ExportDataFile)
+	log.Infof("New encryption keys for import generated here: %s", params.ExportKeysFile)
+	log.Infof("DO NOT transport or store these files together")
 }
 
 func printKey(params *keys.CommandLineParams) {

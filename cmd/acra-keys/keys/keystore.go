@@ -58,6 +58,20 @@ func OpenKeyStoreForModification(params *CommandLineParams) (keystore.KeyMaking,
 	}
 }
 
+// OpenKeyStoreForExportImport opens a key store suitable for export/import operations.
+func OpenKeyStoreForExportImport(params *CommandLineParams) (*keystoreV2.ServerKeyStore, error) {
+	switch params.KeyStoreVersion {
+	case "v1":
+		// Not supported in Acra CE
+		return nil, keystore.ErrNotImplemented
+	case "v2":
+		return openKeyStoreV2(params)
+	default:
+		log.WithField("actual", params.KeyStoreVersion).Error("Unknown key store version")
+		return nil, ErrUnknownKeystoreVersion
+	}
+}
+
 func openKeyStoreV1(params *CommandLineParams) (*filesystemV1.KeyStore, error) {
 	symmetricKey, err := keystoreV1.GetMasterKeyFromEnvironment()
 	if err != nil {

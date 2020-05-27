@@ -44,6 +44,7 @@ var DefaultConfigPath = utils.GetConfigPathByName("acra-keys")
 // Sub-command names:
 const (
 	CmdListKeys   = "list"
+	CmdExportKeys = "export"
 	CmdReadKey    = "read"
 	CmdDestroyKey = "destroy"
 )
@@ -51,6 +52,7 @@ const (
 // SupportedSubCommands lists supported sub-commands or CLI.
 var SupportedSubCommands = []string{
 	CmdListKeys,
+	CmdExportKeys,
 	CmdReadKey,
 	CmdDestroyKey,
 }
@@ -73,7 +75,10 @@ const (
 var (
 	ErrUnknownSubCommand = errors.New("unknown command")
 	ErrMissingKeyKind    = errors.New("missing key kind")
+	ErrMissingKeyID      = errors.New("missing key IDs")
 	ErrMultipleKeyKinds  = errors.New("multiple key kinds")
+	ErrMissingOutputFile = errors.New("output file not specified")
+	ErrOutputSame        = errors.New("output files are the same")
 )
 
 // CommandLineParams describes all command-line options of acra-keys.
@@ -90,8 +95,14 @@ type CommandLineParams struct {
 	ReadKeyKind    string
 	DestroyKeyKind string
 
+	ExportIDs      []string
+	ExportAll      bool
+	ExportDataFile string
+	ExportKeysFile string
+
 	UseJSON bool
 
+	exportFlags  *flag.FlagSet
 	listFlags    *flag.FlagSet
 	readFlags    *flag.FlagSet
 	destroyFlags *flag.FlagSet
@@ -113,6 +124,17 @@ func (params *CommandLineParams) Register() {
 	params.listFlags.Usage = func() {
 		fmt.Fprintf(os.Stderr, "Command \"%s\": list available keys in the key store\n", CmdListKeys)
 		fmt.Fprintf(os.Stderr, "\n\t%s %s [options...]\n", os.Args[0], CmdListKeys)
+	}
+
+	params.exportFlags = flag.NewFlagSet(CmdListKeys, flag.ContinueOnError)
+	params.exportFlags.BoolVar(&params.ExportAll, "all", false, "export all keys")
+	params.exportFlags.StringVar(&params.ExportDataFile, "data", "", "path to output file for exported key data")
+	params.exportFlags.StringVar(&params.ExportKeysFile, "keys", "", "path to output file for encryption keys")
+	params.exportFlags.Usage = func() {
+		fmt.Fprintf(os.Stderr, "Command \"%s\": export keys from the key store\n", CmdExportKeys)
+		fmt.Fprintf(os.Stderr, "\n\t%s %s [options...] --data <file> --keys <file> <key-ID...>\n", os.Args[0], CmdExportKeys)
+		fmt.Fprintf(os.Stderr, "\nOptions:\n")
+		cmd.PrintFlags(params.exportFlags)
 	}
 
 	params.readFlags = flag.NewFlagSet(CmdReadKey, flag.ContinueOnError)
@@ -140,6 +162,9 @@ func usage() {
 
 	fmt.Fprintf(os.Stderr, "\n")
 	Params.listFlags.Usage()
+
+	fmt.Fprintf(os.Stderr, "\n")
+	Params.exportFlags.Usage()
 
 	fmt.Fprintf(os.Stderr, "\n")
 	Params.readFlags.Usage()
@@ -172,6 +197,31 @@ func (params *CommandLineParams) ParseSubCommand() error {
 	params.Command = args[0]
 	switch args[0] {
 	case CmdListKeys:
+		return nil
+
+	case CmdExportKeys:
+		err := params.exportFlags.Parse(args[1:])
+		if err != nil {
+			return err
+		}
+
+		if params.ExportDataFile == "" || params.ExportKeysFile == "" {
+			log.Errorf("\"%s\" command requires output files specified with \"--data\" and \"--keys\"", CmdExportKeys)
+			return ErrMissingOutputFile
+		}
+		// We do not account for people getting creative with ".." and links.
+		if params.ExportDataFile == params.ExportKeysFile {
+			log.Errorf("\"--data\" and \"--keys\" must not be the same file")
+			return ErrOutputSame
+		}
+
+		args := params.exportFlags.Args()
+		if len(args) < 1 && !params.ExportAll {
+			log.Errorf("\"%s\" command requires at least one key ID", CmdExportKeys)
+			log.Infoln("Use \"--all\" to export all keys")
+			return ErrMissingKeyID
+		}
+		params.ExportIDs = args
 		return nil
 
 	case CmdReadKey:
