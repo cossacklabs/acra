@@ -52,6 +52,7 @@ const (
 func printKeysTable(keys []keystore.KeyDescription, writer io.Writer) error {
 	maxPurposeLen := len(purposeHeader)
 	maxExtraIDLen := len(extraIDHeader)
+	maxKeyIDLen := len(idHeader)
 	for _, key := range keys {
 		if len(key.Purpose) > maxPurposeLen {
 			maxPurposeLen = len(key.Purpose)
@@ -62,12 +63,17 @@ func printKeysTable(keys []keystore.KeyDescription, writer io.Writer) error {
 		if len(key.ZoneID) > maxExtraIDLen {
 			maxExtraIDLen = len(key.ZoneID)
 		}
+		if len(key.ID) > maxKeyIDLen {
+			maxKeyIDLen = len(key.ID)
+		}
 	}
 
-	fmt.Fprintf(writer, "%-*s  %-*s  %s\n", maxPurposeLen, purposeHeader, maxExtraIDLen, extraIDHeader, idHeader)
+	fmt.Fprintf(writer, "%-*s | %-*s | %s\n", maxPurposeLen, purposeHeader, maxExtraIDLen, extraIDHeader, idHeader)
 
-	separator := make([]byte, maxPurposeLen+maxExtraIDLen+len(idHeader)+4)
+	separator := make([]byte, maxPurposeLen+maxExtraIDLen+maxKeyIDLen+6)
 	utils.FillSlice(byte('-'), separator)
+	separator[maxPurposeLen+1] = byte('+')
+	separator[maxPurposeLen+maxExtraIDLen+4] = byte('+')
 	fmt.Fprintln(writer, string(separator))
 
 	for _, key := range keys {
@@ -78,7 +84,7 @@ func printKeysTable(keys []keystore.KeyDescription, writer io.Writer) error {
 		if key.ZoneID != nil {
 			extraID = string(key.ZoneID)
 		}
-		fmt.Fprintf(writer, "%*s  %*s  %s\n", maxPurposeLen, key.Purpose, maxExtraIDLen, extraID, key.ID)
+		fmt.Fprintf(writer, "%-*s | %-*s | %s\n", maxPurposeLen, key.Purpose, maxExtraIDLen, extraID, key.ID)
 	}
 	return nil
 }
