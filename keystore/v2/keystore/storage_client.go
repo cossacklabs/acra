@@ -17,7 +17,7 @@
 package keystore
 
 import (
-	"fmt"
+	"path/filepath"
 
 	"github.com/cossacklabs/themis/gothemis/keys"
 )
@@ -83,8 +83,11 @@ func (s *ServerKeyStore) GetServerDecryptionPrivateKeys(clientID []byte) ([]*key
 // StorageKeyCreation interface (clients)
 //
 
+const clientPrefix = "client"
+const storageSuffix = "storage"
+
 func (s *ServerKeyStore) clientStorageKeyPairPath(clientID []byte) string {
-	return fmt.Sprintf("client/%s/storage", string(clientID))
+	return filepath.Join(clientPrefix, string(clientID), storageSuffix)
 }
 
 // GenerateDataEncryptionKeys generates new storage keypair used by given client.

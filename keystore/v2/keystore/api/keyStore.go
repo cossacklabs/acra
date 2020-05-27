@@ -31,6 +31,9 @@ type KeyStore interface {
 	// This generally renders opened KeyRings unusable.
 	Close() error
 
+	// ListKeyRings enumerates all key rings present in this key store.
+	ListKeyRings() ([]string, error)
+
 	// ExportKeyRings packages specified key rings for export.
 	// Key ring data is encrypted and signed using given cryptosuite.
 	// Resulting container can be imported into existing or different key store with ImportKeyRings().

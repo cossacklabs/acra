@@ -18,12 +18,33 @@
 package keystore
 
 import (
+	"errors"
+	"path/filepath"
+	"strings"
+
 	connector_mode "github.com/cossacklabs/acra/cmd/acra-connector/connector-mode"
+	"github.com/cossacklabs/acra/keystore"
 	"github.com/cossacklabs/acra/keystore/v2/keystore/api"
 	log "github.com/sirupsen/logrus"
 )
 
 const serviceName = "keystore"
+
+// Errors in key store listing and export.
+var (
+	ErrUnrecognizedKeyPurpose = errors.New("key purpose not recognized")
+)
+
+// Key purpose constants.
+const (
+	PurposePoisonRecord        = "poison record key"
+	PurposeAuthentication      = "authentication key"
+	PurposeStorageClient       = "client storage key"
+	PurposeStorageZone         = "zone storage key"
+	PurposeTransportServer     = "AcraServer transport key"
+	PurposeTransportConnector  = "AcraConnector transport key"
+	PurposeTransportTranslator = "AcraTranslator transport key"
+)
 
 // ServerKeyStore provides full access to Acra Key Store.
 //
@@ -69,6 +90,90 @@ func NewTranslatorKeyStore(keyStore api.MutableKeyStore) *TranslatorKeyStore {
 	return &TranslatorKeyStore{
 		ServerKeyStore{keyStore, log.WithField("service", serviceName)},
 	}
+}
+
+// ListKeys enumerates keys present in the key store.
+func (s *ServerKeyStore) ListKeys() ([]keystore.KeyDescription, error) {
+	keyRings, err := s.ListKeyRings()
+	if err != nil {
+		return nil, err
+	}
+	keys := make([]keystore.KeyDescription, len(keyRings))
+	for i := range keys {
+		description, err := s.describeKeyRing(keyRings[i])
+		if err != nil {
+			return nil, err
+		}
+		keys[i] = *description
+	}
+	return keys, nil
+}
+
+func (s *ServerKeyStore) describeKeyRing(path string) (*keystore.KeyDescription, error) {
+	if path == poisonKeyPath {
+		return &keystore.KeyDescription{
+			ID:      path,
+			Purpose: PurposePoisonRecord,
+		}, nil
+	}
+	if path == authKeyPath {
+		return &keystore.KeyDescription{
+			ID:      path,
+			Purpose: PurposeAuthentication,
+		}, nil
+	}
+
+	// Paths which are not server-global symmetric keys look like this:
+	//
+	//     client/${client_id}/storage
+	//
+	// And transport paths look like this, with an additional component:
+	//
+	//     client/${client_id}/transport/connector
+	//
+	// Split them into components by slashes and parse the result.
+	components := strings.Split(path, string(filepath.Separator))
+	if len(components) == 3 {
+		if components[0] == clientPrefix && components[2] == storageSuffix {
+			return &keystore.KeyDescription{
+				ID:       path,
+				Purpose:  PurposeStorageClient,
+				ClientID: []byte(components[1]),
+			}, nil
+		}
+		if components[0] == zonePrefix && components[2] == storageSuffix {
+			return &keystore.KeyDescription{
+				ID:      path,
+				Purpose: PurposeStorageZone,
+				ZoneID:  []byte(components[1]),
+			}, nil
+		}
+	}
+	if len(components) == 4 {
+		if components[0] == clientPrefix && components[2] == transportSuffix && components[3] == serverSuffix {
+			return &keystore.KeyDescription{
+				ID:       path,
+				Purpose:  PurposeTransportServer,
+				ClientID: []byte(components[1]),
+			}, nil
+		}
+		if components[0] == clientPrefix && components[2] == transportSuffix && components[3] == connectorSuffix {
+			return &keystore.KeyDescription{
+				ID:       path,
+				Purpose:  PurposeTransportConnector,
+				ClientID: []byte(components[1]),
+			}, nil
+		}
+		if components[0] == clientPrefix && components[2] == transportSuffix && components[3] == translatorSuffix {
+			return &keystore.KeyDescription{
+				ID:       path,
+				Purpose:  PurposeTransportTranslator,
+				ClientID: []byte(components[1]),
+			}, nil
+		}
+	}
+
+	return nil, ErrUnrecognizedKeyPurpose
 }
 
 // Reset is a compatibility method that does nothing.

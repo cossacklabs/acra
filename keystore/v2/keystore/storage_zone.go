@@ -17,7 +17,7 @@
 package keystore
 
 import (
-	"fmt"
+	"path/filepath"
 
 	"github.com/cossacklabs/acra/utils"
 	"github.com/cossacklabs/acra/zone"
@@ -95,8 +95,10 @@ func (s *ServerKeyStore) HasZonePrivateKey(zoneID []byte) bool {
 // StorageKeyCreation interface (zones)
 //
 
+const zonePrefix = "client"
+
 func (s *ServerKeyStore) zoneStorageKeyPairPath(zoneID []byte) string {
-	return fmt.Sprintf("zone/%s/storage", string(zoneID))
+	return filepath.Join(zonePrefix, string(zoneID), storageSuffix)
 }
 
 // GenerateZoneKey generates new zone and a storage key for it.

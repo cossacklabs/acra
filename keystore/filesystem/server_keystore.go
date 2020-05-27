@@ -603,6 +603,12 @@ func (store *KeyStore) GenerateDataEncryptionKeys(id []byte) error {
 	return nil
 }
 
+// ListKeys enumerates keys present in the key store.
+func (store *KeyStore) ListKeys() ([]keystore.KeyDescription, error) {
+	// In Acra CE this method is implemented only for key store v2.
+	return nil, keystore.ErrNotImplemented
+}
+
 // Reset clears all cached keys
 func (store *KeyStore) Reset() {
 	store.cache.Clear()
