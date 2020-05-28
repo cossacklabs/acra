@@ -19,6 +19,7 @@ package keys
 import (
 	"encoding/json"
 	"errors"
+	"io/ioutil"
 	"os"
 
 	"github.com/cossacklabs/acra/keystore"
@@ -72,6 +73,31 @@ func PrepareExportEncryptionKeys() ([]byte, *crypto.KeyStoreSuite, error) {
 	return serializedKeys, cryptosuite, nil
 }
 
+// ReadImportEncryptionKeys reads ephemeral keys for key import operation.
+func ReadImportEncryptionKeys(params *CommandLineParams) (*crypto.KeyStoreSuite, error) {
+	importEncryptionKeyData, err := ioutil.ReadFile(params.ExportKeysFile)
+	if err != nil {
+		log.WithField("path", params.ExportKeysFile).WithError(err).Debug("Failed to read key file")
+		return nil, err
+	}
+	defer utils.ZeroizeSymmetricKey(importEncryptionKeyData)
+
+	var importEncryptionKeys serializedKeys
+	err = json.Unmarshal(importEncryptionKeyData, &importEncryptionKeys)
+	if err != nil {
+		log.WithField("path", params.ExportKeysFile).WithError(err).Debug("Failed to parse key file content")
+		return nil, err
+	}
+
+	cryptosuite, err := crypto.NewSCellSuite(importEncryptionKeys.Encryption, importEncryptionKeys.Signature)
+	if err != nil {
+		log.WithField("path", params.ExportKeysFile).WithError(err).Debug("Failed to initialize cryptosuite")
+		return nil, err
+	}
+
+	return cryptosuite, nil
+}
+
 // ExportKeys exports requested key rings.
 func ExportKeys(keyStore *keystoreV2.ServerKeyStore, cryptosuite *crypto.KeyStoreSuite, params *CommandLineParams) (exportedData []byte, err error) {
 	exportedIDs := params.ExportIDs
@@ -91,6 +117,11 @@ func ExportKeys(keyStore *keystoreV2.ServerKeyStore, cryptosuite *crypto.KeyStor
 	return exportedData, nil
 }
 
+// ImportKeys imports available key rings.
+func ImportKeys(exportedData []byte, keyStore *keystoreV2.ServerKeyStore, cryptosuite *crypto.KeyStoreSuite, params *CommandLineParams) error {
+	return keyStore.ImportKeyRings(exportedData, cryptosuite, nil)
+}
+
 // WriteExportedData saves exported key data and ephemeral keys into designated files.
 func WriteExportedData(data, keys []byte, params *CommandLineParams) error {
 	err := writeFileWithMode(data, params.ExportDataFile, ExportKeyPerm)
@@ -102,6 +133,16 @@ func WriteExportedData(data, keys []byte, params *CommandLineParams) error {
 		return err
 	}
 	return nil
+}
+
+// ReadExportedData reads exported key data from designated file.
+func ReadExportedData(params *CommandLineParams) ([]byte, error) {
+	exportedKeyData, err := ioutil.ReadFile(params.ExportDataFile)
+	if err != nil {
+		log.WithField("path", params.ExportDataFile).WithError(err).Debug("Failed to read data file")
+		return nil, err
+	}
+	return exportedKeyData, nil
 }
 
 func writeFileWithMode(data []byte, path string, perm os.FileMode) (err error) {

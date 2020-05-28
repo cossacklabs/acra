@@ -41,6 +41,8 @@ func main() {
 		listKeys(keys.Params)
 	case keys.CmdExportKeys:
 		exportKeys(keys.Params)
+	case keys.CmdImportKeys:
+		importKeys(keys.Params)
 	case keys.CmdReadKey:
 		printKey(keys.Params)
 	case keys.CmdDestroyKey:
@@ -103,6 +105,32 @@ func exportKeys(params *keys.CommandLineParams) {
 	log.Infof("Exported key data is encrypted and saved here: %s", params.ExportDataFile)
 	log.Infof("New encryption keys for import generated here: %s", params.ExportKeysFile)
 	log.Infof("DO NOT transport or store these files together")
+	log.Infof("Import the keys into another key store like this:\n\tacra-keys import --data \"%s\" --keys \"%s\"", params.ExportDataFile, params.ExportKeysFile)
+}
+
+func importKeys(params *keys.CommandLineParams) {
+	keyStore, err := keys.OpenKeyStoreForExportImport(params)
+	if err != nil {
+		if err == keystore.ErrNotImplemented {
+			warnKeystoreV2Only(keys.CmdExportKeys)
+		}
+		log.WithError(err).Fatal("Failed to open key store")
+	}
+
+	exportedData, err := keys.ReadExportedData(params)
+	if err != nil {
+		log.WithError(err).Fatal("Failed to read exported data")
+	}
+
+	cryptosuite, err := keys.ReadImportEncryptionKeys(params)
+	if err != nil {
+		log.WithError(err).Fatal("Failed to prepare encryption keys")
+	}
+
+	err = keys.ImportKeys(exportedData, keyStore, cryptosuite, params)
+	if err != nil {
+		log.WithError(err).Fatal("Failed to import keys")
+	}
 }
 
 func printKey(params *keys.CommandLineParams) {

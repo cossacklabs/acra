@@ -45,6 +45,7 @@ var DefaultConfigPath = utils.GetConfigPathByName("acra-keys")
 const (
 	CmdListKeys   = "list"
 	CmdExportKeys = "export"
+	CmdImportKeys = "import"
 	CmdReadKey    = "read"
 	CmdDestroyKey = "destroy"
 )
@@ -53,6 +54,7 @@ const (
 var SupportedSubCommands = []string{
 	CmdListKeys,
 	CmdExportKeys,
+	CmdImportKeys,
 	CmdReadKey,
 	CmdDestroyKey,
 }
@@ -103,6 +105,7 @@ type CommandLineParams struct {
 	UseJSON bool
 
 	exportFlags  *flag.FlagSet
+	importFlags  *flag.FlagSet
 	listFlags    *flag.FlagSet
 	readFlags    *flag.FlagSet
 	destroyFlags *flag.FlagSet
@@ -137,6 +140,16 @@ func (params *CommandLineParams) Register() {
 		cmd.PrintFlags(params.exportFlags)
 	}
 
+	params.importFlags = flag.NewFlagSet(CmdListKeys, flag.ContinueOnError)
+	params.importFlags.StringVar(&params.ExportDataFile, "data", "", "path to input file with exported key data")
+	params.importFlags.StringVar(&params.ExportKeysFile, "keys", "", "path to input file with encryption keys")
+	params.importFlags.Usage = func() {
+		fmt.Fprintf(os.Stderr, "Command \"%s\": import keys into the key store\n", CmdImportKeys)
+		fmt.Fprintf(os.Stderr, "\n\t%s %s [options...] --data <file> --keys <file>\n", os.Args[0], CmdImportKeys)
+		fmt.Fprintf(os.Stderr, "\nOptions:\n")
+		cmd.PrintFlags(params.importFlags)
+	}
+
 	params.readFlags = flag.NewFlagSet(CmdReadKey, flag.ContinueOnError)
 	params.readFlags.Usage = func() {
 		fmt.Fprintf(os.Stderr, "Command \"%s\": read and print key material in plaintext\n", CmdReadKey)
@@ -165,6 +178,9 @@ func usage() {
 
 	fmt.Fprintf(os.Stderr, "\n")
 	Params.exportFlags.Usage()
+
+	fmt.Fprintf(os.Stderr, "\n")
+	Params.importFlags.Usage()
 
 	fmt.Fprintf(os.Stderr, "\n")
 	Params.readFlags.Usage()
@@ -222,6 +238,17 @@ func (params *CommandLineParams) ParseSubCommand() error {
 			return ErrMissingKeyID
 		}
 		params.ExportIDs = args
+		return nil
+
+	case CmdImportKeys:
+		err := params.importFlags.Parse(args[1:])
+		if err != nil {
+			return err
+		}
+		if params.ExportDataFile == "" || params.ExportKeysFile == "" {
+			log.Errorf("\"%s\" command requires input files specified with \"--data\" and \"--keys\"", CmdImportKeys)
+			return ErrMissingOutputFile
+		}
 		return nil
 
 	case CmdReadKey:
