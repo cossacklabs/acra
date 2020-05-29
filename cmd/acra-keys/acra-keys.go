@@ -127,9 +127,16 @@ func importKeys(params *keys.CommandLineParams) {
 		log.WithError(err).Fatal("Failed to prepare encryption keys")
 	}
 
-	err = keys.ImportKeys(exportedData, keyStore, cryptosuite, params)
+	descriptions, err := keys.ImportKeys(exportedData, keyStore, cryptosuite, params)
 	if err != nil {
 		log.WithError(err).Fatal("Failed to import keys")
+	}
+
+	log.Infof("successfully imported %d keys", len(descriptions))
+
+	err = keys.PrintKeys(descriptions, os.Stdout, params)
+	if err != nil {
+		log.WithError(err).Fatal("Failed to print imported key list")
 	}
 }
 

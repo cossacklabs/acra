@@ -118,8 +118,18 @@ func ExportKeys(keyStore *keystoreV2.ServerKeyStore, cryptosuite *crypto.KeyStor
 }
 
 // ImportKeys imports available key rings.
-func ImportKeys(exportedData []byte, keyStore *keystoreV2.ServerKeyStore, cryptosuite *crypto.KeyStoreSuite, params *CommandLineParams) error {
-	return keyStore.ImportKeyRings(exportedData, cryptosuite, nil)
+func ImportKeys(exportedData []byte, keyStore *keystoreV2.ServerKeyStore, cryptosuite *crypto.KeyStoreSuite, params *CommandLineParams) ([]keystore.KeyDescription, error) {
+	keyIDs, err := keyStore.ImportKeyRings(exportedData, cryptosuite, nil)
+	if err != nil {
+		log.WithError(err).Debug("Failed to import key rings")
+		return nil, err
+	}
+	descriptions, err := keyStore.DescribeKeys(keyIDs)
+	if err != nil {
+		log.WithError(err).Debug("Failed to describe imported key rings")
+		return nil, err
+	}
+	return descriptions, nil
 }
 
 // WriteExportedData saves exported key data and ephemeral keys into designated files.

@@ -51,7 +51,8 @@ type MutableKeyStore interface {
 	// ImportKeyRings unpacks key rings packaged by ExportKeyRings.
 	// The provided cryptosuite is used to verify the signature on the container and decrypt key ring data.
 	// Optional delegate can be used to control various aspects of the import process, such as conflict resolution.
-	ImportKeyRings(exportData []byte, cryptosuite *crypto.KeyStoreSuite, delegate KeyRingImportDelegate) error
+	// Returns a list of processed key rings.
+	ImportKeyRings(exportData []byte, cryptosuite *crypto.KeyStoreSuite, delegate KeyRingImportDelegate) ([]string, error)
 }
 
 // ImportDecision constants describe how to proceed with import conflict resolution.
