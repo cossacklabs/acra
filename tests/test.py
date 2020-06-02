@@ -311,7 +311,7 @@ def get_poison_record():
     return poison_record
 
 
-def create_client_keypair(name, only_server=False, only_client=False, only_storage=False, keys_dir=None):
+def create_client_keypair(name, only_server=False, only_connector=False, only_storage=False, keys_dir=None):
     if not keys_dir:
         keys_dir = KEYS_FOLDER.name
     args = ['./acra-keymaker', '-client_id={}'.format(name),
@@ -319,12 +319,61 @@ def create_client_keypair(name, only_server=False, only_client=False, only_stora
             '--keys_public_output_dir={}'.format(keys_dir),
             '--keystore={}'.format(KEYSTORE_VERSION)]
     if only_server:
-        args.append('-acra-server')
-    elif only_client:
-        args.append('-acra-connector')
-    elif only_storage:
+        args.append('--generate_acraserver_keys')
+    if only_connector:
+        args.append('--generate_acraconnector_keys')
+    if only_storage:
         args.append('--generate_acrawriter_keys')
     return subprocess.call(args, cwd=os.getcwd(), timeout=PROCESS_CALL_TIMEOUT)
+
+
+def exchange_client_public_keys(client, server_keys_dir, connector_keys_dir):
+    if KEYSTORE_VERSION == 'v1':
+        # Older key stores expect the administrator to manually copy
+        # the following public key files. They are not encrypted or
+        # authenticated in any way.
+        connector_key = '{}.pub'.format(client)
+        server_key = '{}_server.pub'.format(client)
+
+        # Transfer AcraServer public key to AcraConnector
+        shutil.copy(os.path.join(server_keys_dir, server_key),
+                    connector_keys_dir)
+
+        # Transfer AcraConnector public key to AcraServer
+        shutil.copy(os.path.join(connector_keys_dir, connector_key),
+                    server_keys_dir)
+    else:
+        # Newer key stores have a bit more involved key transfer process.
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            bundle = os.path.join(tmp_dir, 'key-bundle')
+            secret = os.path.join(tmp_dir, 'key-bundle-secret')
+
+            # Transfer AcraServer public key to AcraConnector
+            subprocess.call(['./acra-keys', '--keys_dir={}'.format(server_keys_dir),
+                             'export',
+                             '--key_bundle_file={}'.format(bundle),
+                             '--key_bundle_secret={}'.format(secret),
+                             'client/{}/transport/server'.format(client)],
+                            timeout=PROCESS_CALL_TIMEOUT)
+            subprocess.call(['./acra-keys', '--keys_dir={}'.format(connector_keys_dir),
+                             'import',
+                             '--key_bundle_file={}'.format(bundle),
+                             '--key_bundle_secret={}'.format(secret)],
+                            timeout=PROCESS_CALL_TIMEOUT)
+
+            # Transfer AcraConnector public key to AcraServer
+            subprocess.call(['./acra-keys', '--keys_dir={}'.format(connector_keys_dir),
+                             'export',
+                             '--key_bundle_file={}'.format(bundle),
+                             '--key_bundle_secret={}'.format(secret),
+                             'client/{}/transport/connector'.format(client)],
+                            timeout=PROCESS_CALL_TIMEOUT)
+            subprocess.call(['./acra-keys', '--keys_dir={}'.format(server_keys_dir),
+                             'import',
+                             '--key_bundle_file={}'.format(bundle),
+                             '--key_bundle_secret={}'.format(secret)],
+                            timeout=PROCESS_CALL_TIMEOUT)
+
 
 def manage_basic_auth_user(action, user_name, user_password):
     args = ['./acra-authmanager', '--{}'.format(action),
@@ -1724,10 +1773,13 @@ class TestKeyNonExistence(BaseTestCase):
         self.connector_keystore = tempfile.TemporaryDirectory()
         self.connector_keys_dir = os.path.join(self.connector_keystore.name, '.acrakeys')
 
-        # TODO(ilammy, 2020-03-30): generate keys separately, export/import them
-        # instead of just copying the entire key store
-        create_client_keypair(name=self.client_id, keys_dir=self.server_keys_dir)
-        shutil.copytree(self.server_keys_dir, self.connector_keys_dir)
+        create_client_keypair(name=self.client_id, keys_dir=self.server_keys_dir,
+                              only_server=True, only_storage=True)
+        create_client_keypair(name=self.client_id, keys_dir=self.connector_keys_dir,
+                              only_connector=True)
+        exchange_client_public_keys(client=self.client_id,
+                                    server_keys_dir=self.server_keys_dir,
+                                    connector_keys_dir=self.connector_keys_dir)
 
     def test_without_acraconnector_public(self):
         """acra-server without acra-connector public key should drop connection
@@ -2292,10 +2344,13 @@ class TestKeyStorageClearing(BaseTestCase):
         self.connector_keystore = tempfile.TemporaryDirectory()
         self.connector_keys_dir = os.path.join(self.connector_keystore.name, '.acrakeys')
 
-        # TODO(ilammy, 2020-03-30): generate keys separately, export/import them
-        # instead of just copying the entire key store
-        create_client_keypair(name=self.client_id, keys_dir=self.server_keys_dir)
-        shutil.copytree(self.server_keys_dir, self.connector_keys_dir)
+        create_client_keypair(name=self.client_id, keys_dir=self.server_keys_dir,
+                              only_server=True, only_storage=True)
+        create_client_keypair(name=self.client_id, keys_dir=self.connector_keys_dir,
+                              only_connector=True)
+        exchange_client_public_keys(client=self.client_id,
+                                    server_keys_dir=self.server_keys_dir,
+                                    connector_keys_dir=self.connector_keys_dir)
 
     def test_clearing(self):
         # execute any query for loading key by acra
