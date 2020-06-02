@@ -105,7 +105,7 @@ func exportKeys(params *keys.CommandLineParams) {
 	log.Infof("Exported key data is encrypted and saved here: %s", params.ExportDataFile)
 	log.Infof("New encryption keys for import generated here: %s", params.ExportKeysFile)
 	log.Infof("DO NOT transport or store these files together")
-	log.Infof("Import the keys into another key store like this:\n\tacra-keys import --data \"%s\" --keys \"%s\"", params.ExportDataFile, params.ExportKeysFile)
+	log.Infof("Import the keys into another key store like this:\n\tacra-keys import --key_bundle_file \"%s\" --key_bundle_secret \"%s\"", params.ExportDataFile, params.ExportKeysFile)
 }
 
 func importKeys(params *keys.CommandLineParams) {

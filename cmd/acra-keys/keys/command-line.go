@@ -131,21 +131,21 @@ func (params *CommandLineParams) Register() {
 
 	params.exportFlags = flag.NewFlagSet(CmdListKeys, flag.ContinueOnError)
 	params.exportFlags.BoolVar(&params.ExportAll, "all", false, "export all keys")
-	params.exportFlags.StringVar(&params.ExportDataFile, "data", "", "path to output file for exported key data")
-	params.exportFlags.StringVar(&params.ExportKeysFile, "keys", "", "path to output file for encryption keys")
+	params.exportFlags.StringVar(&params.ExportDataFile, "key_bundle_file", "", "path to output file for exported key bundle")
+	params.exportFlags.StringVar(&params.ExportKeysFile, "key_bundle_secret", "", "path to output file for key encryption keys")
 	params.exportFlags.Usage = func() {
 		fmt.Fprintf(os.Stderr, "Command \"%s\": export keys from the key store\n", CmdExportKeys)
-		fmt.Fprintf(os.Stderr, "\n\t%s %s [options...] --data <file> --keys <file> <key-ID...>\n", os.Args[0], CmdExportKeys)
+		fmt.Fprintf(os.Stderr, "\n\t%s %s [options...] --key_bundle_file <file> --key_bundle_secret <file> <key-ID...>\n", os.Args[0], CmdExportKeys)
 		fmt.Fprintf(os.Stderr, "\nOptions:\n")
 		cmd.PrintFlags(params.exportFlags)
 	}
 
 	params.importFlags = flag.NewFlagSet(CmdListKeys, flag.ContinueOnError)
-	params.importFlags.StringVar(&params.ExportDataFile, "data", "", "path to input file with exported key data")
-	params.importFlags.StringVar(&params.ExportKeysFile, "keys", "", "path to input file with encryption keys")
+	params.importFlags.StringVar(&params.ExportDataFile, "key_bundle_file", "", "path to input file with exported key bundle")
+	params.importFlags.StringVar(&params.ExportKeysFile, "key_bundle_secret", "", "path to input file with key encryption keys")
 	params.importFlags.Usage = func() {
 		fmt.Fprintf(os.Stderr, "Command \"%s\": import keys into the key store\n", CmdImportKeys)
-		fmt.Fprintf(os.Stderr, "\n\t%s %s [options...] --data <file> --keys <file>\n", os.Args[0], CmdImportKeys)
+		fmt.Fprintf(os.Stderr, "\n\t%s %s [options...] --key_bundle_file <file> --key_bundle_secret <file>\n", os.Args[0], CmdImportKeys)
 		fmt.Fprintf(os.Stderr, "\nOptions:\n")
 		cmd.PrintFlags(params.importFlags)
 	}
@@ -222,12 +222,12 @@ func (params *CommandLineParams) ParseSubCommand() error {
 		}
 
 		if params.ExportDataFile == "" || params.ExportKeysFile == "" {
-			log.Errorf("\"%s\" command requires output files specified with \"--data\" and \"--keys\"", CmdExportKeys)
+			log.Errorf("\"%s\" command requires output files specified with \"--key_bundle_file\" and \"--key_bundle_secret\"", CmdExportKeys)
 			return ErrMissingOutputFile
 		}
 		// We do not account for people getting creative with ".." and links.
 		if params.ExportDataFile == params.ExportKeysFile {
-			log.Errorf("\"--data\" and \"--keys\" must not be the same file")
+			log.Errorf("\"--key_bundle_file\" and \"--key_bundle_secret\" must not be the same file")
 			return ErrOutputSame
 		}
 
@@ -246,7 +246,7 @@ func (params *CommandLineParams) ParseSubCommand() error {
 			return err
 		}
 		if params.ExportDataFile == "" || params.ExportKeysFile == "" {
-			log.Errorf("\"%s\" command requires input files specified with \"--data\" and \"--keys\"", CmdImportKeys)
+			log.Errorf("\"%s\" command requires input files specified with \"--key_bundle_file\" and \"--key_bundle_secret\"", CmdImportKeys)
 			return ErrMissingOutputFile
 		}
 		return nil
