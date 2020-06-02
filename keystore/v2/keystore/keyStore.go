@@ -98,6 +98,11 @@ func (s *ServerKeyStore) ListKeys() ([]keystore.KeyDescription, error) {
 	if err != nil {
 		return nil, err
 	}
+	return s.DescribeKeys(keyRings)
+}
+
+// DescribeKeys describes requested keys in the key store.
+func (s *ServerKeyStore) DescribeKeys(keyRings []string) ([]keystore.KeyDescription, error) {
 	keys := make([]keystore.KeyDescription, len(keyRings))
 	for i := range keys {
 		description, err := s.describeKeyRing(keyRings[i])

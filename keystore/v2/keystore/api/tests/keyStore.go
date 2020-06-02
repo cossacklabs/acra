@@ -206,6 +206,18 @@ func checkDemoKeyRingSymmetric(t *testing.T, ring api.KeyRing) {
 	}
 }
 
+func equalStringList(a, b []string) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for i := range a {
+		if a[i] != b[i] {
+			return false
+		}
+	}
+	return true
+}
+
 type stubImportDelegate struct {
 	decision api.ImportDecision
 	err      error
@@ -227,9 +239,12 @@ func testKeyStoreCleanImport(t *testing.T, newKeyStore NewKeyStore) {
 
 	s2 := newKeyStore(t)
 
-	err = s2.ImportKeyRings(exported, cryptosuite, nil)
+	imported, err := s2.ImportKeyRings(exported, cryptosuite, nil)
 	if err != nil {
 		t.Fatalf("failed to import key rings: %v", err)
+	}
+	if !equalStringList(imported, exportRingAll) {
+		t.Errorf("incorrect imported list: %v", imported)
 	}
 
 	ringKeyPair, err := s2.OpenKeyRing(exportRingKeyPair)
@@ -260,14 +275,18 @@ func testKeyStoreDuplicateImport(t *testing.T, newKeyStore NewKeyStore) {
 	setupDemoKeyStore(s, t)
 	cryptosuite := newExportStoreSuite(t)
 
-	exported1, err := s.ExportKeyRings([]string{exportRingPublic}, cryptosuite)
+	keyRingList := []string{exportRingPublic}
+	exported1, err := s.ExportKeyRings(keyRingList, cryptosuite)
 	if err != nil {
 		t.Fatalf("failed to export public key ring: %v", err)
 	}
 
-	err = s2.ImportKeyRings(exported1, cryptosuite, nil)
+	imported1, err := s2.ImportKeyRings(exported1, cryptosuite, nil)
 	if err != nil {
 		t.Fatalf("failed to import public key ring: %v", err)
+	}
+	if !equalStringList(imported1, keyRingList) {
+		t.Errorf("incorrect imported list: %v", imported1)
 	}
 
 	exported2, err := s.ExportKeyRings([]string{exportRingKeyPair, exportRingPublic, exportRingSymmetric}, cryptosuite)
@@ -280,9 +299,12 @@ func testKeyStoreDuplicateImport(t *testing.T, newKeyStore NewKeyStore) {
 		decision: api.ImportAbort,
 		err:      duplicateError,
 	}
-	err = s2.ImportKeyRings(exported2, cryptosuite, delegate)
+	imported2, err := s2.ImportKeyRings(exported2, cryptosuite, delegate)
 	if err != duplicateError {
 		t.Fatalf("duplicate import should be aborted: %v", err)
+	}
+	if !equalStringList(imported2, nil) {
+		t.Errorf("incorrect imported list: %v", imported2)
 	}
 
 	// Note that key exported key pair has been imported successfully, the process aborted at public key
@@ -312,17 +334,22 @@ func testKeyStoreDuplicateImportSkip(t *testing.T, newKeyStore NewKeyStore) {
 	setupDemoKeyStore(s, t)
 	cryptosuite := newExportStoreSuite(t)
 
-	exported1, err := s.ExportKeyRings([]string{exportRingPublic}, cryptosuite)
+	keyRingList1 := []string{exportRingPublic}
+	exported1, err := s.ExportKeyRings(keyRingList1, cryptosuite)
 	if err != nil {
 		t.Fatalf("failed to export public key ring: %v", err)
 	}
 
-	err = s2.ImportKeyRings(exported1, cryptosuite, nil)
+	imported1, err := s2.ImportKeyRings(exported1, cryptosuite, nil)
 	if err != nil {
 		t.Fatalf("failed to import public key ring: %v", err)
 	}
+	if !equalStringList(imported1, keyRingList1) {
+		t.Errorf("incorrect imported list: %v", imported1)
+	}
 
-	exported2, err := s.ExportKeyRings([]string{exportRingKeyPair, exportRingPublic, exportRingSymmetric}, cryptosuite)
+	keyRingList2 := []string{exportRingKeyPair, exportRingPublic, exportRingSymmetric}
+	exported2, err := s.ExportKeyRings(keyRingList2, cryptosuite)
 	if err != nil {
 		t.Fatalf("failed to export key rings: %v", err)
 	}
@@ -330,9 +357,12 @@ func testKeyStoreDuplicateImportSkip(t *testing.T, newKeyStore NewKeyStore) {
 	delegate := &stubImportDelegate{
 		decision: api.ImportSkip,
 	}
-	err = s2.ImportKeyRings(exported2, cryptosuite, delegate)
+	imported2, err := s2.ImportKeyRings(exported2, cryptosuite, delegate)
 	if err != nil {
 		t.Fatalf("duplicate import should be skipped: %v", err)
+	}
+	if !equalStringList(imported2, keyRingList2) {
+		t.Errorf("incorrect imported list: %v", imported2)
 	}
 
 	// Now all three key rings are imported without issue. Already present public key
@@ -416,14 +446,18 @@ func testKeyStoreDuplicateImportOverwrite(t *testing.T, newKeyStore NewKeyStore)
 	setupDemoKeyStore(s, t)
 	cryptosuite := newExportStoreSuite(t)
 
-	exported1, err := s.ExportKeyRings([]string{exportRingPublic}, cryptosuite)
+	keyRingList1 := []string{exportRingPublic}
+	exported1, err := s.ExportKeyRings(keyRingList1, cryptosuite)
 	if err != nil {
 		t.Fatalf("failed to export public key ring: %v", err)
 	}
 
-	err = s2.ImportKeyRings(exported1, cryptosuite, nil)
+	imported1, err := s2.ImportKeyRings(exported1, cryptosuite, nil)
 	if err != nil {
 		t.Fatalf("failed to import public key ring: %v", err)
+	}
+	if !equalStringList(imported1, keyRingList1) {
+		t.Errorf("incorrect imported list: %v", imported1)
 	}
 
 	ringPublic1, err := s.OpenKeyRingRW(exportRingPublic)
@@ -449,7 +483,8 @@ func testKeyStoreDuplicateImportOverwrite(t *testing.T, newKeyStore NewKeyStore)
 		t.Fatalf("failed to set new public key current: %v", err)
 	}
 
-	exported2, err := s.ExportKeyRings([]string{exportRingKeyPair, exportRingPublic, exportRingSymmetric}, cryptosuite)
+	keyRingList2 := []string{exportRingKeyPair, exportRingPublic, exportRingSymmetric}
+	exported2, err := s.ExportKeyRings(keyRingList2, cryptosuite)
 	if err != nil {
 		t.Fatalf("failed to export key rings: %v", err)
 	}
@@ -457,9 +492,12 @@ func testKeyStoreDuplicateImportOverwrite(t *testing.T, newKeyStore NewKeyStore)
 	delegate := &stubImportDelegate{
 		decision: api.ImportOverwrite,
 	}
-	err = s2.ImportKeyRings(exported2, cryptosuite, delegate)
+	imported2, err := s2.ImportKeyRings(exported2, cryptosuite, delegate)
 	if err != nil {
 		t.Fatalf("duplicate import should be overwritten: %v", err)
+	}
+	if !equalStringList(imported2, keyRingList2) {
+		t.Errorf("incorrect imported list: %v", imported2)
 	}
 
 	// Now all three key rings are imported without issue. Already present public key

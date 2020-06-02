@@ -182,22 +182,28 @@ func (s *KeyStore) ExportKeyRings(paths []string, cryptosuite *crypto.KeyStoreSu
 // ImportKeyRings unpacks key rings packaged by ExportKeyRings.
 // The provided cryptosuite is used to verify the signature on the container and decrypt key ring data.
 // Optional delegate can be used to control various aspects of the import process, such as conflict resolution.
-func (s *KeyStore) ImportKeyRings(exportData []byte, cryptosuite *crypto.KeyStoreSuite, delegate api.KeyRingImportDelegate) error {
+// Returns a list of processed key rings.
+func (s *KeyStore) ImportKeyRings(exportData []byte, cryptosuite *crypto.KeyStoreSuite, delegate api.KeyRingImportDelegate) ([]string, error) {
 	if delegate == nil {
 		delegate = &defaultImportDelegate{}
 	}
+
 	keyRings, err := s.decryptAndVerifyKeyRings(exportData, cryptosuite)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	defer zeroizeKeyRings(keyRings)
+
+	keyRingIDs := make([]string, len(keyRings))
 	for i := range keyRings {
 		err := s.importKeyRing(&keyRings[i], delegate)
 		if err != nil {
-			return err
+			return nil, err
 		}
+		keyRingIDs[i] = string(keyRings[i].Purpose)
 	}
-	return nil
+
+	return keyRingIDs, nil
 }
 
 type defaultImportDelegate struct{}
