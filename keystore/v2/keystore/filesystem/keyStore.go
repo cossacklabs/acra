@@ -170,8 +170,8 @@ func (s *KeyStore) ListKeyRings() (rings []string, err error) {
 // ExportKeyRings packages specified key rings for export.
 // Key ring data is encrypted and signed using given cryptosuite.
 // Resulting container can be imported into existing or different key store with ImportKeyRings().
-func (s *KeyStore) ExportKeyRings(paths []string, cryptosuite *crypto.KeyStoreSuite) ([]byte, error) {
-	keyRings, err := s.exportKeyRings(paths)
+func (s *KeyStore) ExportKeyRings(paths []string, cryptosuite *crypto.KeyStoreSuite, mode api.ExportMode) ([]byte, error) {
+	keyRings, err := s.exportKeyRings(paths, mode)
 	if err != nil {
 		return nil, err
 	}

@@ -33,7 +33,7 @@ var (
 	ErrKeyRingExists = errors.New("imported key ring already exists")
 )
 
-func (s *KeyStore) exportKeyRings(paths []string) (rings []asn1.KeyRing, err error) {
+func (s *KeyStore) exportKeyRings(paths []string, mode api.ExportMode) (rings []asn1.KeyRing, err error) {
 	rings = make([]asn1.KeyRing, len(paths))
 	defer func() {
 		if err != nil {
@@ -41,7 +41,7 @@ func (s *KeyStore) exportKeyRings(paths []string) (rings []asn1.KeyRing, err err
 		}
 	}()
 	for i, path := range paths {
-		err := s.exportKeyRing(path, &rings[i])
+		err := s.exportKeyRing(path, &rings[i], mode)
 		if err != nil {
 			return nil, err
 		}
@@ -49,13 +49,13 @@ func (s *KeyStore) exportKeyRings(paths []string) (rings []asn1.KeyRing, err err
 	return rings, nil
 }
 
-func (s *KeyStore) exportKeyRing(path string, ringData *asn1.KeyRing) error {
+func (s *KeyStore) exportKeyRing(path string, ringData *asn1.KeyRing, mode api.ExportMode) error {
 	ring := newKeyRing(s, path)
 	err := s.readKeyRing(ring)
 	if err != nil {
 		return err
 	}
-	*ringData, err = ring.exportASN1()
+	*ringData, err = ring.exportASN1(mode)
 	if err != nil {
 		return err
 	}
@@ -167,7 +167,7 @@ func (s *KeyStore) decryptAndVerifyKeyRings(ringData []byte, cryptosuite *crypto
 	return keys.KeyRings, nil
 }
 
-func (r *KeyRing) exportASN1() (exported asn1.KeyRing, err error) {
+func (r *KeyRing) exportASN1(mode api.ExportMode) (exported asn1.KeyRing, err error) {
 	exported = asn1.KeyRing{
 		Purpose: r.data.Purpose,
 		Current: r.data.Current,
@@ -180,7 +180,7 @@ func (r *KeyRing) exportASN1() (exported asn1.KeyRing, err error) {
 		}
 	}()
 	for i := range exported.Keys {
-		decrypted, err := r.decryptAllKeyData(exported.Keys[i].Data, exported.Keys[i].Seqnum)
+		decrypted, err := r.decryptAllKeyData(exported.Keys[i].Data, exported.Keys[i].Seqnum, mode)
 		if err != nil {
 			return exported, err
 		}
@@ -207,7 +207,7 @@ func (r *KeyRing) importASN1(ringData *asn1.KeyRing) error {
 	return err
 }
 
-func (r *KeyRing) decryptAllKeyData(encrypted []asn1.KeyData, seqnum int) (decrypted []asn1.KeyData, err error) {
+func (r *KeyRing) decryptAllKeyData(encrypted []asn1.KeyData, seqnum int, mode api.ExportMode) (decrypted []asn1.KeyData, err error) {
 	decrypted = make([]asn1.KeyData, len(encrypted))
 	copy(decrypted, encrypted)
 	defer func() {
@@ -216,7 +216,7 @@ func (r *KeyRing) decryptAllKeyData(encrypted []asn1.KeyData, seqnum int) (decry
 		}
 	}()
 	for i := range decrypted {
-		err = r.decryptKeyData(&decrypted[i], seqnum)
+		err = r.decryptKeyData(&decrypted[i], seqnum, mode)
 		if err != nil {
 			return nil, err
 		}
@@ -224,7 +224,14 @@ func (r *KeyRing) decryptAllKeyData(encrypted []asn1.KeyData, seqnum int) (decry
 	return decrypted, nil
 }
 
-func (r *KeyRing) decryptKeyData(data *asn1.KeyData, seqnum int) error {
+func (r *KeyRing) decryptKeyData(data *asn1.KeyData, seqnum int, mode api.ExportMode) error {
+	// If we do not export private key data then remove it without decryption.
+	if mode&api.ExportPrivateKeys == 0 {
+		data.PrivateKey = nil
+		data.SymmetricKey = nil
+		return nil
+	}
+
 	if len(data.PrivateKey) != 0 {
 		privateKey, err := r.decryptPrivateKey(seqnum, data.PrivateKey)
 		if err != nil {

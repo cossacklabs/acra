@@ -101,6 +101,7 @@ type CommandLineParams struct {
 	ExportAll      bool
 	ExportDataFile string
 	ExportKeysFile string
+	ExportPrivate  bool
 
 	UseJSON bool
 
@@ -133,6 +134,7 @@ func (params *CommandLineParams) Register() {
 	params.exportFlags.BoolVar(&params.ExportAll, "all", false, "export all keys")
 	params.exportFlags.StringVar(&params.ExportDataFile, "key_bundle_file", "", "path to output file for exported key bundle")
 	params.exportFlags.StringVar(&params.ExportKeysFile, "key_bundle_secret", "", "path to output file for key encryption keys")
+	params.exportFlags.BoolVar(&params.ExportPrivate, "private_keys", false, "export private key data")
 	params.exportFlags.Usage = func() {
 		fmt.Fprintf(os.Stderr, "Command \"%s\": export keys from the key store\n", CmdExportKeys)
 		fmt.Fprintf(os.Stderr, "\n\t%s %s [options...] --key_bundle_file <file> --key_bundle_secret <file> <key-ID...>\n", os.Args[0], CmdExportKeys)

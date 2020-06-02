@@ -37,8 +37,19 @@ type KeyStore interface {
 	// ExportKeyRings packages specified key rings for export.
 	// Key ring data is encrypted and signed using given cryptosuite.
 	// Resulting container can be imported into existing or different key store with ImportKeyRings().
-	ExportKeyRings(paths []string, cryptosuite *crypto.KeyStoreSuite) ([]byte, error)
+	ExportKeyRings(paths []string, cryptosuite *crypto.KeyStoreSuite, mode ExportMode) ([]byte, error)
 }
+
+// ExportMode constants describe which data to export from key storage.
+type ExportMode int
+
+// ExportMode flags.
+const (
+	// Export only public key data.
+	ExportPublicOnly ExportMode = 0
+	// Export private and public key data.
+	ExportPrivateKeys = (1 << iota)
+)
 
 // MutableKeyStore interface to KeyStore allowing write access.
 type MutableKeyStore interface {
