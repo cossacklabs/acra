@@ -31,35 +31,41 @@ import (
 // Errors returned by export/import routines.
 var (
 	ErrKeyRingExists = errors.New("imported key ring already exists")
+	ErrNoPublicData  = errors.New("key has no public data")
 )
 
 func (s *KeyStore) exportKeyRings(paths []string, mode api.ExportMode) (rings []asn1.KeyRing, err error) {
-	rings = make([]asn1.KeyRing, len(paths))
+	rings = make([]asn1.KeyRing, 0, len(paths))
 	defer func() {
 		if err != nil {
 			zeroizeKeyRings(rings)
 		}
 	}()
-	for i, path := range paths {
-		err := s.exportKeyRing(path, &rings[i], mode)
+	for _, path := range paths {
+		ring, err := s.exportKeyRing(path, mode)
+		if err == ErrNoPublicData {
+			s.log.Infof("Key not exported: %s (%v)", path, err)
+			continue
+		}
 		if err != nil {
 			return nil, err
 		}
+		rings = append(rings, ring)
 	}
 	return rings, nil
 }
 
-func (s *KeyStore) exportKeyRing(path string, ringData *asn1.KeyRing, mode api.ExportMode) error {
+func (s *KeyStore) exportKeyRing(path string, mode api.ExportMode) (asn1.KeyRing, error) {
 	ring := newKeyRing(s, path)
 	err := s.readKeyRing(ring)
 	if err != nil {
-		return err
+		return asn1.KeyRing{}, err
 	}
-	*ringData, err = ring.exportASN1(mode)
+	ringData, err := ring.exportASN1(mode)
 	if err != nil {
-		return err
+		return asn1.KeyRing{}, err
 	}
-	return nil
+	return ringData, nil
 }
 
 func (s *KeyStore) importKeyRing(newRingData *asn1.KeyRing, delegate api.KeyRingImportDelegate) error {
@@ -226,9 +232,13 @@ func (r *KeyRing) decryptAllKeyData(encrypted []asn1.KeyData, seqnum int, mode a
 
 func (r *KeyRing) decryptKeyData(data *asn1.KeyData, seqnum int, mode api.ExportMode) error {
 	// If we do not export private key data then remove it without decryption.
+	// If there is no public key data left then this is a symmetric key and we need to skip it.
 	if mode&api.ExportPrivateKeys == 0 {
 		data.PrivateKey = nil
 		data.SymmetricKey = nil
+		if len(data.PublicKey) == 0 {
+			return ErrNoPublicData
+		}
 		return nil
 	}
 
