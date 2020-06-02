@@ -92,8 +92,8 @@ func SetLogLevel(level int) {
 }
 
 // CreateFormatter creates formatter object
-func CreateFormatter(format string) Formatter {
-	var formatter Formatter
+func CreateFormatter(format string) AcraFormatter {
+	var formatter AcraFormatter
 	switch strings.ToLower(format) {
 	case JsonFormatString:
 		formatter = JSONFormatter()
