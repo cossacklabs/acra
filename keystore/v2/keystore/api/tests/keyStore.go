@@ -60,6 +60,9 @@ func TestKeyStore(t *testing.T, newKeyStore NewKeyStore) {
 	t.Run("TestKeyStoreListing", func(t *testing.T) {
 		testKeyStoreListing(t, newKeyStore)
 	})
+	t.Run("TestKeyStoreExportPublicOnly", func(t *testing.T) {
+		testKeyStoreExportPublicOnly(t, newKeyStore)
+	})
 }
 
 var (
@@ -139,6 +142,14 @@ func setupDemoKeyStore(s api.MutableKeyStore, t *testing.T) {
 }
 
 func checkDemoKeyRingKeyPair(t *testing.T, ring api.KeyRing) {
+	checkDemoKeyRingKeyPairData(t, ring, true)
+}
+
+func checkDemoKeyRingKeyPairOnlyPublic(t *testing.T, ring api.KeyRing) {
+	checkDemoKeyRingKeyPairData(t, ring, false)
+}
+
+func checkDemoKeyRingKeyPairData(t *testing.T, ring api.KeyRing, expectPrivateKey bool) {
 	seqnums, err := ring.AllKeys()
 	if err != nil {
 		t.Errorf("cannot get seqnums: %v", err)
@@ -152,15 +163,21 @@ func checkDemoKeyRingKeyPair(t *testing.T, ring api.KeyRing) {
 	if err != nil {
 		t.Errorf("cannot get public key data: %v", err)
 	}
-	privateKey, err := ring.PrivateKey(seqnums[0], api.ThemisKeyPairFormat)
-	if err != nil {
-		t.Errorf("cannot get private key data: %v", err)
-	}
 	if subtle.ConstantTimeCompare(publicKey, demoPublicKeyData) != 1 {
 		t.Errorf("incorrect public key data")
 	}
-	if subtle.ConstantTimeCompare(privateKey, demoPrivateKeyData) != 1 {
-		t.Errorf("incorrect private key data")
+	privateKey, err := ring.PrivateKey(seqnums[0], api.ThemisKeyPairFormat)
+	if expectPrivateKey {
+		if err != nil {
+			t.Errorf("cannot get private key data: %v", err)
+		}
+		if subtle.ConstantTimeCompare(privateKey, demoPrivateKeyData) != 1 {
+			t.Errorf("incorrect private key data")
+		}
+	} else {
+		if err != api.ErrNoKeyData {
+			t.Errorf("unexpected private key present: %v", err)
+		}
 	}
 }
 
@@ -548,5 +565,47 @@ func testKeyStoreListing(t *testing.T, newKeyStore NewKeyStore) {
 	}
 	if (keyRingsAfter[0] != exportRingKeyPair) || (keyRingsAfter[1] != exportRingPublic) || (keyRingsAfter[2] != exportRingSymmetric) {
 		t.Errorf("incorrect listing content: %v", keyRingsAfter)
+	}
+}
+
+func testKeyStoreExportPublicOnly(t *testing.T, newKeyStore NewKeyStore) {
+	s := newKeyStore(t)
+	setupDemoKeyStore(s, t)
+	cryptosuite := newExportStoreSuite(t)
+
+	exported, err := s.ExportKeyRings(exportRingAll, cryptosuite, api.ExportPublicOnly)
+	if err != nil {
+		t.Fatalf("failed to export key rings: %v", err)
+	}
+
+	s2 := newKeyStore(t)
+
+	imported, err := s2.ImportKeyRings(exported, cryptosuite, nil)
+	if err != nil {
+		t.Fatalf("failed to import key rings: %v", err)
+	}
+	if !equalStringList(imported, []string{exportRingKeyPair, exportRingPublic}) {
+		t.Errorf("incorrect imported list: %v", imported)
+	}
+
+	ringKeyPair, err := s2.OpenKeyRing(exportRingKeyPair)
+	if err != nil {
+		t.Errorf("cannot open key ring with key pair: %v", err)
+	} else {
+		checkDemoKeyRingKeyPairOnlyPublic(t, ringKeyPair)
+	}
+
+	ringPublic, err := s2.OpenKeyRing(exportRingPublic)
+	if err != nil {
+		t.Errorf("cannot open key ring with public key: %v", err)
+	} else {
+		checkDemoKeyRingPublic(t, ringPublic)
+	}
+
+	// We can't be specific with error here since it depends on the backend :(
+	// It's typically "ErrNotExist" for filesystem backends.
+	ringSymmetric, err := s2.OpenKeyRing(exportRingSymmetric)
+	if err == nil || ringSymmetric != nil {
+		t.Errorf("symmetric key not skipped")
 	}
 }
