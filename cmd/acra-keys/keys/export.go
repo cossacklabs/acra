@@ -24,6 +24,7 @@ import (
 
 	"github.com/cossacklabs/acra/keystore"
 	keystoreV2 "github.com/cossacklabs/acra/keystore/v2/keystore"
+	"github.com/cossacklabs/acra/keystore/v2/keystore/api"
 	"github.com/cossacklabs/acra/keystore/v2/keystore/crypto"
 	"github.com/cossacklabs/acra/utils"
 	log "github.com/sirupsen/logrus"
@@ -109,7 +110,11 @@ func ExportKeys(keyStore *keystoreV2.ServerKeyStore, cryptosuite *crypto.KeyStor
 		}
 	}
 
-	exportedData, err = keyStore.ExportKeyRings(exportedIDs, cryptosuite)
+	mode := api.ExportPublicOnly
+	if params.ExportPrivate {
+		mode = api.ExportPrivateKeys
+	}
+	exportedData, err = keyStore.ExportKeyRings(exportedIDs, cryptosuite, mode)
 	if err != nil {
 		log.WithError(err).Debug("Failed to export key rings")
 		return nil, err
