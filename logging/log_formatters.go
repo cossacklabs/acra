@@ -114,6 +114,10 @@ func (f *AcraTextFormatter) SetHooks(hooks []FormatterHook) {
 	f.Hooks = hooks
 }
 
+func (f *AcraTextFormatter) GetHooks() []FormatterHook {
+	return f.Hooks
+}
+
 // AcraJSONFormatter represents a format with specific fields.
 //
 // It has logrus.Formatter which formats the entry and logrus.Fields which
@@ -142,6 +146,10 @@ func (f *AcraJSONFormatter) SetHooks(hooks []FormatterHook) {
 	f.Hooks = hooks
 }
 
+func (f *AcraJSONFormatter) GetHooks() []FormatterHook {
+	return f.Hooks
+}
+
 // AcraCEFFormatter is based on CEFTextFormatter with extra logrus fields.
 //
 // Hooks may be used for more fine-tuned post-processing of entries.
@@ -168,6 +176,10 @@ func (f *AcraCEFFormatter) SetServiceName(serviceName string) {
 
 func (f *AcraCEFFormatter) SetHooks(hooks []FormatterHook) {
 	f.Hooks = hooks
+}
+
+func (f *AcraCEFFormatter) GetHooks() []FormatterHook {
+	return f.Hooks
 }
 
 // Constants showing extra filed added to loggers by default

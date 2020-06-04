@@ -76,6 +76,7 @@ type Formatter interface {
 	log.Formatter
 	SetServiceName(serviceName string)
 	SetHooks(hooks []FormatterHook)
+	GetHooks() []FormatterHook
 }
 
 // SetLogLevel sets logging level
