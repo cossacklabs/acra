@@ -27,17 +27,12 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
-type AcraFormatter interface {
-	Formatter
-	GetHooks() []FormatterHook
-}
-
 // ---------- custom Loggers
 // inspired by "github.com/bshuster-repo/logrus-logstash-hook"
 // ----------
 
 // TextFormatter returns a default logrus.TextFormatter with specific settings
-func TextFormatter() AcraFormatter {
+func TextFormatter() Formatter {
 	return &AcraTextFormatter{
 		Formatter: &logrus.TextFormatter{
 			FullTimestamp:    true,
@@ -48,7 +43,7 @@ func TextFormatter() AcraFormatter {
 	}
 }
 
-func JSONFormatter() AcraFormatter {
+func JSONFormatter() Formatter {
 	return &AcraJSONFormatter{
 		Formatter: &logrus.JSONFormatter{
 			FieldMap:        JSONFieldMap,
@@ -59,7 +54,7 @@ func JSONFormatter() AcraFormatter {
 	}
 }
 
-func CEFFormatter() AcraFormatter {
+func CEFFormatter() Formatter {
 	return &AcraCEFFormatter{
 		CEFTextFormatter: CEFTextFormatter{
 			TimestampFormat: time.RFC3339,

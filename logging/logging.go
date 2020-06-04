@@ -76,6 +76,7 @@ type Formatter interface {
 	log.Formatter
 	SetServiceName(serviceName string)
 	SetHooks(hooks []FormatterHook)
+	GetHooks() []FormatterHook
 }
 
 // SetLogLevel sets logging level
@@ -92,8 +93,8 @@ func SetLogLevel(level int) {
 }
 
 // CreateFormatter creates formatter object
-func CreateFormatter(format string) AcraFormatter {
-	var formatter AcraFormatter
+func CreateFormatter(format string) Formatter {
+	var formatter Formatter
 	switch strings.ToLower(format) {
 	case JsonFormatString:
 		formatter = JSONFormatter()
