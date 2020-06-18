@@ -161,9 +161,9 @@ help:
 			comment = "" }'\
 		$(MAKEFILE_LIST)
 	@echo "\n$(COLOR_MENU)Properties allowed for overriding:$(COLOR_DEFAULT)"
-	@awk 'BEGIN { FS = "[[:space:]]*\\?=[[:space:]]*" }\
+	@awk 'BEGIN { FS = " *\\?= *" }\
 		/^## / { split($$0,a,/## /); comment = a[2] }\
-		/^[a-zA-Z-][a-zA-Z_-]+[[:space:]]*\?=.*/ {\
+		/^[a-zA-Z][-_a-zA-Z]+ +\?=.*/ {\
 			if (length(comment) == 0) { next };\
 			printf "  $(COLOR_ENVVAR)%-23s$(COLOR_DEFAULT) - %s\n", $$1, comment;\
 			printf "%28s$(COLOR_COMMENT)'\''%s'\'' by default$(COLOR_DEFAULT)\n", "", $$2;\
