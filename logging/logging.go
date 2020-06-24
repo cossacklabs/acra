@@ -22,11 +22,12 @@ limitations under the License.
 package logging
 
 import (
+	"bytes"
 	"context"
 	"fmt"
-	log "github.com/sirupsen/logrus"
-	"os"
 	"strings"
+
+	log "github.com/sirupsen/logrus"
 )
 
 // Log modes
@@ -36,9 +37,29 @@ const (
 	LogDiscard
 )
 
+const (
+	PlaintextFormatString = "plaintext"
+	JsonFormatString      = "json"
+	CefFormatString       = "cef"
+)
+
 // LoggerSetter abstract types that provide way to set logger which they should use
 type LoggerSetter interface {
 	SetLogger(*log.Entry)
+}
+
+// FormatterHook provides post-processing customization to log formatters,
+// allowing you to execute additional code before or after an entry is completed.
+type FormatterHook interface {
+	// PreFormat is called before the entry is serialized by the formatter.
+	// You may inspect as well as add or remove fields of the log entry.
+	// If the error is not nil, formatting fails with returned error.
+	PreFormat(entry *log.Entry) error
+	// PostFormat is called after the entry has been serialized by the formatter.
+	// You may inspect log entry fields and the byte buffer with serialized data.
+	// You may also modify the resulting buffer with serialized entry.
+	// If the error is not nil, formatting fails with returned error.
+	PostFormat(entry *log.Entry, formatted *bytes.Buffer) error
 }
 
 type loggerKey struct{}
@@ -46,6 +67,16 @@ type loggerKey struct{}
 // IsDebugLevel return true if logger configured to log debug messages
 func IsDebugLevel(logger *log.Entry) bool {
 	return logger.Level == log.DebugLevel
+}
+
+// Formatter wraps log.Formatter interface and adds functions for customizations.
+// Intention for this interface is to provide ability to customize logging by accustomed:
+// `logging.SetServiceName` / `logging.SetHooks` from main function of Acra services
+type Formatter interface {
+	log.Formatter
+	SetServiceName(serviceName string)
+	SetHooks(hooks []FormatterHook)
+	GetHooks() []FormatterHook
 }
 
 // SetLogLevel sets logging level
@@ -61,6 +92,21 @@ func SetLogLevel(level int) {
 	}
 }
 
+// CreateFormatter creates formatter object
+func CreateFormatter(format string) Formatter {
+	var formatter Formatter
+	switch strings.ToLower(format) {
+	case JsonFormatString:
+		formatter = JSONFormatter()
+	case CefFormatString:
+		formatter = CEFFormatter()
+	default:
+		formatter = TextFormatter()
+	}
+	log.SetFormatter(formatter)
+	return formatter
+}
+
 // GetLogLevel gets logrus log level and returns int Acra log level
 func GetLogLevel() int {
 	if log.GetLevel() == log.DebugLevel {
@@ -70,27 +116,6 @@ func GetLogLevel() int {
 		return LogVerbose
 	}
 	return LogDiscard
-}
-
-// CustomizeLogging changes logging format
-func CustomizeLogging(loggingFormat string, serviceName string) {
-	log.SetOutput(os.Stderr)
-	log.SetFormatter(logFormatterFor(loggingFormat, serviceName))
-
-	log.Debugf("Changed logging format to %s", loggingFormat)
-}
-
-func logFormatterFor(loggingFormat string, serviceName string) log.Formatter {
-	loggingFormat = strings.ToLower(loggingFormat)
-
-	if loggingFormat == "json" {
-		return JSONFormatter(log.Fields{FieldKeyProduct: serviceName})
-
-	} else if loggingFormat == "cef" {
-		return CEFFormatter(log.Fields{FieldKeyProduct: serviceName})
-	}
-
-	return TextFormatter()
 }
 
 // SetLoggerToContext sets logger to corresponded context

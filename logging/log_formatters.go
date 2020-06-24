@@ -17,11 +17,14 @@ limitations under the License.
 package logging
 
 import (
+	"bytes"
 	"fmt"
-	"github.com/cossacklabs/acra/utils"
-	"github.com/sirupsen/logrus"
 	"sync"
 	"time"
+
+	"github.com/cossacklabs/acra/utils"
+	"github.com/sirupsen/logrus"
+	log "github.com/sirupsen/logrus"
 )
 
 // ---------- custom Loggers
@@ -29,49 +32,35 @@ import (
 // ----------
 
 // TextFormatter returns a default logrus.TextFormatter with specific settings
-func TextFormatter() logrus.Formatter {
-	return &logrus.TextFormatter{
-		FullTimestamp:    true,
-		TimestampFormat:  time.RFC3339,
-		QuoteEmptyFields: true}
+func TextFormatter() Formatter {
+	return &AcraTextFormatter{
+		Formatter: &logrus.TextFormatter{
+			FullTimestamp:    true,
+			TimestampFormat:  time.RFC3339,
+			QuoteEmptyFields: true,
+		},
+		Hooks: nil,
+	}
 }
 
-// JSONFormatter returns a AcraJSONFormatter
-func JSONFormatter(fields logrus.Fields) logrus.Formatter {
-	for k, v := range extraJSONFields {
-		if _, ok := fields[k]; !ok {
-			fields[k] = v
-		}
-	}
-
-	return AcraJSONFormatter{
+func JSONFormatter() Formatter {
+	return &AcraJSONFormatter{
 		Formatter: &logrus.JSONFormatter{
 			FieldMap:        JSONFieldMap,
 			TimestampFormat: time.RFC3339,
 		},
-		Fields: fields,
+		Hooks:  nil,
+		Fields: nil,
 	}
 }
 
-// CEFFormatter returns a AcraCEFFormatter
-func CEFFormatter(fields logrus.Fields) logrus.Formatter {
-	for k, v := range extraJSONFields {
-		if _, ok := fields[k]; !ok {
-			fields[k] = v
-		}
-	}
-
-	for k, v := range extraCEFFields {
-		if _, ok := fields[k]; !ok {
-			fields[k] = v
-		}
-	}
-
+func CEFFormatter() Formatter {
 	return &AcraCEFFormatter{
 		CEFTextFormatter: CEFTextFormatter{
 			TimestampFormat: time.RFC3339,
 		},
-		Fields: fields,
+		Fields: nil,
+		Hooks:  nil,
 	}
 }
 
@@ -107,20 +96,90 @@ func releaseEntry(e *logrus.Entry) {
 	entryPool.Put(e)
 }
 
+// AcraTextFormatter provides log formatting as plaintext.
+//
+// Hooks may be used for additional post-processing of entries.
+//
+// Use `TextFormatter` to instantiate AcraTextFormatter.
+type AcraTextFormatter struct {
+	logrus.Formatter
+	Hooks []FormatterHook
+}
+
+func (f *AcraTextFormatter) SetServiceName(serviceName string) {
+	// service name is ignored by plaintext formatter, so just do nothing
+}
+
+func (f *AcraTextFormatter) SetHooks(hooks []FormatterHook) {
+	f.Hooks = hooks
+}
+
+func (f *AcraTextFormatter) GetHooks() []FormatterHook {
+	return f.Hooks
+}
+
 // AcraJSONFormatter represents a format with specific fields.
+//
 // It has logrus.Formatter which formats the entry and logrus.Fields which
 // are added to the JSON/CEF message if not given in the entry data.
+//
+// Hooks may be used for more fine-tuned post-processing of entries.
 //
 // Note: use the `JSONFormatter` function to set a default AcraJSON formatter.
 type AcraJSONFormatter struct {
 	logrus.Formatter
 	logrus.Fields
+	Hooks []FormatterHook
+}
+
+func (f *AcraJSONFormatter) SetServiceName(serviceName string) {
+	fields := log.Fields{FieldKeyProduct: serviceName}
+	for k, v := range extraJSONFields {
+		if _, ok := fields[k]; !ok {
+			fields[k] = v
+		}
+	}
+	f.Fields = fields
+}
+
+func (f *AcraJSONFormatter) SetHooks(hooks []FormatterHook) {
+	f.Hooks = hooks
+}
+
+func (f *AcraJSONFormatter) GetHooks() []FormatterHook {
+	return f.Hooks
 }
 
 // AcraCEFFormatter is based on CEFTextFormatter with extra logrus fields.
+//
+// Hooks may be used for more fine-tuned post-processing of entries.
 type AcraCEFFormatter struct {
 	CEFTextFormatter
 	logrus.Fields
+	Hooks []FormatterHook
+}
+
+func (f *AcraCEFFormatter) SetServiceName(serviceName string) {
+	fields := log.Fields{FieldKeyProduct: serviceName}
+	for k, v := range extraJSONFields {
+		if _, ok := fields[k]; !ok {
+			fields[k] = v
+		}
+	}
+	for k, v := range extraCEFFields {
+		if _, ok := fields[k]; !ok {
+			fields[k] = v
+		}
+	}
+	f.Fields = fields
+}
+
+func (f *AcraCEFFormatter) SetHooks(hooks []FormatterHook) {
+	f.Hooks = hooks
+}
+
+func (f *AcraCEFFormatter) GetHooks() []FormatterHook {
+	return f.Hooks
 }
 
 // Constants showing extra filed added to loggers by default
@@ -145,6 +204,11 @@ var (
 	}
 )
 
+// Format a log entry in standard plaintext format.
+func (f *AcraTextFormatter) Format(e *logrus.Entry) ([]byte, error) {
+	return formatEntry(e, f.Formatter, f.Hooks)
+}
+
 // Format formats an entry to a AcraJSON format according to the given Formatter and Fields.
 //
 // Note: the given entry is copied and not changed during the formatting process.
@@ -153,7 +217,7 @@ func (f AcraJSONFormatter) Format(e *logrus.Entry) ([]byte, error) {
 	if value, ok := ne.Data[FieldKeyUnixTime]; !ok || value == 0 {
 		ne.Data[FieldKeyUnixTime] = unixTimeWithMilliseconds(e)
 	}
-	dataBytes, err := f.Formatter.Format(ne)
+	dataBytes, err := formatEntry(ne, f.Formatter, f.Hooks)
 	releaseEntry(ne)
 	return dataBytes, err
 }
@@ -166,7 +230,7 @@ func (f *AcraCEFFormatter) Format(e *logrus.Entry) ([]byte, error) {
 	if value, ok := ne.Data[FieldKeyUnixTime]; !ok || value == 0 {
 		ne.Data[FieldKeyUnixTime] = unixTimeWithMilliseconds(e)
 	}
-	dataBytes, err := f.CEFTextFormatter.Format(ne)
+	dataBytes, err := formatEntry(ne, &f.CEFTextFormatter, f.Hooks)
 	releaseEntry(ne)
 	return dataBytes, err
 }
@@ -184,4 +248,25 @@ func nanosecondsToMillisecondsString(nanos int64) string {
 
 func unixTimeWithMilliseconds(e *logrus.Entry) string {
 	return TimeToString(e.Time)
+}
+
+func formatEntry(e *logrus.Entry, formatter log.Formatter, hooks []FormatterHook) ([]byte, error) {
+	for _, hook := range hooks {
+		err := hook.PreFormat(e)
+		if err != nil {
+			return nil, err
+		}
+	}
+	serialized, err := formatter.Format(e)
+	if err != nil {
+		return nil, err
+	}
+	buffer := bytes.NewBuffer(serialized)
+	for _, hook := range hooks {
+		err := hook.PostFormat(e, buffer)
+		if err != nil {
+			return nil, err
+		}
+	}
+	return buffer.Bytes(), nil
 }

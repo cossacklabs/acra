@@ -216,11 +216,6 @@ func main() {
 		log.Errorln("Sql_insert arg is missing")
 		os.Exit(1)
 	}
-	absKeysDir, err := filepath.Abs(*keysDir)
-	if err != nil {
-		log.WithError(err).Errorln("Can't get absolute path for keys_dir")
-		os.Exit(1)
-	}
 	if *outputFile == "" && !*execute {
 		log.Errorln("Output_file missing or execute flag")
 		os.Exit(1)
@@ -228,7 +223,7 @@ func main() {
 
 	var keystorage keystore.DecryptionKeyStore
 	if *keystoreOpts == "" {
-		if filesystemV2.IsKeyDirectory(absKeysDir) {
+		if filesystemV2.IsKeyDirectory(*keysDir) {
 			*keystoreOpts = "v2"
 		} else {
 			*keystoreOpts = "v1"
@@ -236,9 +231,9 @@ func main() {
 	}
 	switch *keystoreOpts {
 	case "v1":
-		keystorage = openKeyStoreV1(absKeysDir)
+		keystorage = openKeyStoreV1(*keysDir)
 	case "v2":
-		keystorage = openKeyStoreV2(absKeysDir)
+		keystorage = openKeyStoreV2(*keysDir)
 	default:
 		log.Errorf("unknown keystore option: %v", *keystoreOpts)
 		os.Exit(1)

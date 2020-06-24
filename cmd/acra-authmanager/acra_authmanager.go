@@ -73,7 +73,7 @@ func (hp HashedPasswords) WriteToFile(file string, keystore keystore.WebConfigKe
 	if err != nil {
 		return err
 	}
-	SecureCell := cell.New(key, cell.CELL_MODE_SEAL)
+	SecureCell := cell.New(key, cell.ModeSeal)
 	crypted, _, err := SecureCell.Protect(hp.Bytes(), nil)
 	if err != nil {
 		return err
@@ -109,7 +109,7 @@ func parseHtpasswdFile(file string, keystore keystore.WebConfigKeyStore) (passwo
 	if err != nil {
 		return
 	}
-	SecureCell := cell.New(key, cell.CELL_MODE_SEAL)
+	SecureCell := cell.New(key, cell.ModeSeal)
 	authData, err := SecureCell.Unprotect(htpasswdBytes, nil, nil)
 	if err != nil {
 		return

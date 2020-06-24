@@ -17,7 +17,7 @@ limitations under the License.
 package network
 
 import (
-	"github.com/cossacklabs/themis/gothemis/errors"
+	"errors"
 	"net"
 	"time"
 )

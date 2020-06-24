@@ -20,17 +20,17 @@ import (
 	"bytes"
 	"encoding/binary"
 	"encoding/hex"
-	"github.com/cossacklabs/acra/logging"
-	"github.com/cossacklabs/acra/utils"
-	log "github.com/sirupsen/logrus"
 	"io"
 
 	"github.com/cossacklabs/acra/decryptor/base"
 	"github.com/cossacklabs/acra/keystore"
+	"github.com/cossacklabs/acra/logging"
+	"github.com/cossacklabs/acra/utils"
 	"github.com/cossacklabs/acra/zone"
 	"github.com/cossacklabs/themis/gothemis/cell"
 	"github.com/cossacklabs/themis/gothemis/keys"
 	"github.com/cossacklabs/themis/gothemis/message"
+	log "github.com/sirupsen/logrus"
 )
 
 // ZoneID begin tags, lengths, etc
@@ -249,7 +249,7 @@ func (decryptor *PgHexDecryptor) ReadData(symmetricKey, zoneID []byte, reader io
 		return append(hexLengthBuf, hexData...), err
 	}
 
-	scell := cell.New(symmetricKey, cell.CELL_MODE_SEAL)
+	scell := cell.New(symmetricKey, cell.ModeSeal)
 
 	decrypted, err := scell.Unprotect(data, nil, zoneID)
 	data = nil

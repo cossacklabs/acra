@@ -177,7 +177,7 @@ func newFilesystemKeyStore(privateKeyFolder, publicKeyFolder string, storage Sto
 }
 
 func (store *KeyStore) generateKeyPair(filename string, clientID []byte) (*keys.Keypair, error) {
-	keypair, err := keys.New(keys.KEYTYPE_EC)
+	keypair, err := keys.New(keys.TypeEC)
 	if err != nil {
 		return nil, err
 	}

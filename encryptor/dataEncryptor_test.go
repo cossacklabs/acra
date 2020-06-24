@@ -40,8 +40,23 @@ func (ks *keyStore) GetClientIDEncryptionPublicKey(clientID []byte) (*keys.Publi
 
 type emptyEncryptionSetting struct{}
 
+func (*emptyEncryptionSetting) IsConsistentTokenization() bool {
+	panic("implement me")
+}
+
 func (*emptyEncryptionSetting) IsSearchable() bool {
 	return false
+}
+
+func (*emptyEncryptionSetting) GetPartialPlaintextLen() int {
+	return 0
+}
+
+func (*emptyEncryptionSetting) IsEndMasking() bool {
+	return false
+}
+func (*emptyEncryptionSetting) GetMaskingPattern() string {
+	return ""
 }
 
 func TestAcrawriterDataEncryptor_EncryptWithClientID(t *testing.T) {

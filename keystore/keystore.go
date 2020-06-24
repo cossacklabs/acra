@@ -118,7 +118,7 @@ type SCellKeyEncryptor struct {
 
 // NewSCellKeyEncryptor creates new SCellKeyEncryptor object with masterKey using Themis Secure Cell in Seal mode.
 func NewSCellKeyEncryptor(masterKey []byte) (*SCellKeyEncryptor, error) {
-	return &SCellKeyEncryptor{scell: cell.New(masterKey, cell.CELL_MODE_SEAL)}, nil
+	return &SCellKeyEncryptor{scell: cell.New(masterKey, cell.ModeSeal)}, nil
 }
 
 // Encrypt return encrypted key using masterKey and context.

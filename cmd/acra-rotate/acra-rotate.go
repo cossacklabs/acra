@@ -22,7 +22,6 @@ import (
 	"database/sql"
 	"flag"
 	"os"
-	"path/filepath"
 
 	"github.com/cossacklabs/acra/cmd"
 	"github.com/cossacklabs/acra/keystore"
@@ -44,11 +43,6 @@ var (
 )
 
 func openKeyStoreV1(dirPath string) keystore.RotateStorageKeyStore {
-	absKeysDir, err := filepath.Abs(dirPath)
-	if err != nil {
-		log.WithError(err).Errorln("Can't get absolute path for keys_dir")
-		os.Exit(1)
-	}
 	masterKey, err := keystore.GetMasterKeyFromEnvironment()
 	if err != nil {
 		log.WithError(err).Errorln("Can't load master key")
@@ -59,7 +53,7 @@ func openKeyStoreV1(dirPath string) keystore.RotateStorageKeyStore {
 		log.WithError(err).Errorln("Can't init scell encryptor")
 		os.Exit(1)
 	}
-	keystorage, err := filesystem.NewFilesystemKeyStore(absKeysDir, scellEncryptor)
+	keystorage, err := filesystem.NewFilesystemKeyStore(dirPath, scellEncryptor)
 	if err != nil {
 		log.WithError(err).Errorln("can't initialize key store")
 		os.Exit(1)

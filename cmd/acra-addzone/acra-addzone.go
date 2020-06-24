@@ -31,7 +31,6 @@ import (
 	"flag"
 	"fmt"
 	"os"
-	"path/filepath"
 
 	"github.com/cossacklabs/acra/cmd"
 	"github.com/cossacklabs/acra/keystore"
@@ -65,18 +64,10 @@ func main() {
 			Errorln("Can't parse args")
 		os.Exit(1)
 	}
-	//LoadFromConfig(defaultConfigPath)
-	//iniflags.Parse()
-
-	output, err := filepath.Abs(*outputDir)
-	if err != nil {
-		log.WithError(err).Errorln("Can't get absolute path for output dir")
-		os.Exit(1)
-	}
 
 	var keyStore keystore.StorageKeyCreation
 	if *keystoreOpts == "" {
-		if filesystemV2.IsKeyDirectory(output) {
+		if filesystemV2.IsKeyDirectory(*outputDir) {
 			*keystoreOpts = "v2"
 		} else {
 			*keystoreOpts = "v1"
@@ -84,9 +75,9 @@ func main() {
 	}
 	switch *keystoreOpts {
 	case "v1":
-		keyStore = openKeyStoreV1(output)
+		keyStore = openKeyStoreV1(*outputDir)
 	case "v2":
-		keyStore = openKeyStoreV2(output)
+		keyStore = openKeyStoreV2(*outputDir)
 	default:
 		log.Errorf("unknown keystore option: %v", *keystoreOpts)
 		os.Exit(1)

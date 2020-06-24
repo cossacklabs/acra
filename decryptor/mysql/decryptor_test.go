@@ -1,11 +1,9 @@
 package mysql
 
 import (
-	"encoding/base64"
-	"github.com/sirupsen/logrus"
-	"testing"
-
 	"crypto/rand"
+	"encoding/base64"
+	"testing"
 
 	"github.com/cossacklabs/acra/decryptor/base"
 	"github.com/cossacklabs/acra/decryptor/binary"
@@ -13,6 +11,7 @@ import (
 	"github.com/cossacklabs/acra/keystore"
 	"github.com/cossacklabs/acra/poison"
 	"github.com/cossacklabs/themis/gothemis/keys"
+	"github.com/sirupsen/logrus"
 )
 
 type testKeystore struct {
@@ -94,7 +93,7 @@ func getDecryptor(keystore keystore.DecryptionKeyStore) *Decryptor {
 }
 
 func TestMySQLDecryptor_CheckPoisonRecord_Inline(t *testing.T) {
-	poisonKeypair, err := keys.New(keys.KEYTYPE_EC)
+	poisonKeypair, err := keys.New(keys.TypeEC)
 	if err != nil {
 		panic(err)
 	}
@@ -125,7 +124,7 @@ func TestMySQLDecryptor_CheckPoisonRecord_Inline(t *testing.T) {
 }
 
 func TestMySQLDecryptor_CheckPoisonRecord_Block(t *testing.T) {
-	poisonKeypair, err := keys.New(keys.KEYTYPE_EC)
+	poisonKeypair, err := keys.New(keys.TypeEC)
 	if err != nil {
 		panic(err)
 	}
