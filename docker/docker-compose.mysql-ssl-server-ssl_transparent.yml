@@ -24,7 +24,7 @@ services:
             --client_id=${ACRA_CLIENT_ID:-testclientid}
             --generate_acrawriter_keys
             --keys_output_dir=/keys/acra-server
-            --keys_public_output_dir=/keys/acra-writer
+            --keys_public_output_dir=/keys/acra-server
 
     # MySQL container
     mysql:
@@ -86,6 +86,7 @@ services:
             --tls_db_sni=mysql
             --acraconnector_transport_encryption_disable
             --config_file=/config/acra-server.yaml
+            --encryptor_config_file=/acra-encryptor.yaml
             --tls_auth=1
             -v
 
