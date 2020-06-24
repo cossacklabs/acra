@@ -1,6 +1,6 @@
 version: 0.85.0
 # Path to AcraCensor configuration file
-acracensor_config_file: 
+acracensor_config_file:
 
 # Use tls to encrypt transport between AcraServer and AcraConnector/client
 acraconnector_tls_transport_enable: false
@@ -18,16 +18,16 @@ acrastruct_wholecell_enable: true
 auth_keys: configs/auth.keys
 
 # Expected client ID of AcraConnector in mode without encryption
-client_id: 
+client_id:
 
 # path to config
-config_file: 
+config_file:
 
 # Log everything to stderr
 d: false
 
 # Host to db
-db_host: 
+db_host:
 
 # Port to db
 db_port: 5432
@@ -39,7 +39,7 @@ ds: false
 dump_config: false
 
 # Path to Encryptor configuration file
-encryptor_config_file: 
+encryptor_config_file:
 
 # Generate with yaml config markdown text file with descriptions of all args
 generate_markdown_args_table: false
@@ -63,22 +63,22 @@ incoming_connection_host: 0.0.0.0
 incoming_connection_port: 9393
 
 # URL (tcp://host:port) which will be used to expose Prometheus metrics (<URL>/metrics address to pull metrics)
-incoming_connection_prometheus_metrics_string: 
+incoming_connection_prometheus_metrics_string:
 
 # Connection string like tcp://x.x.x.x:yyyy or unix:///path/to/socket
 incoming_connection_string: tcp://0.0.0.0:9393/
 
 # Jaeger agent endpoint (for example, localhost:6831) that will be used to export trace data
-jaeger_agent_endpoint: 
+jaeger_agent_endpoint:
 
 # Password used for basic auth (optional) to jaeger
-jaeger_basic_auth_password: 
+jaeger_basic_auth_password:
 
 # Username used for basic auth (optional) to jaeger
-jaeger_basic_auth_username: 
+jaeger_basic_auth_username:
 
 # Jaeger endpoint (for example, http://localhost:14268/api/traces) that will be used to export trace data
-jaeger_collector_endpoint: 
+jaeger_collector_endpoint:
 
 # Folder from which will be loaded keys
 keys_dir: .acrakeys
@@ -102,7 +102,7 @@ pgsql_hex_bytea: false
 poison_detect_enable: true
 
 # On detecting poison record: log about poison record detection, execute script, return decrypted data
-poison_run_script_file: 
+poison_run_script_file:
 
 # On detecting poison record: log about poison record detection, stop and shutdown
 poison_shutdown_enable: false
@@ -117,16 +117,16 @@ securesession_id: acra_server
 tls_auth: 4
 
 # Path to root certificate which will be used with system root certificates to validate Postgresql's and AcraConnector's certificate
-tls_ca: 
+tls_ca:
 
 # Path to tls certificate
-tls_cert: 
+tls_cert:
 
 # Expected Server Name (SNI) from database
-tls_db_sni: 
+tls_db_sni:
 
 # Path to private key that will be used in AcraServer's TLS handshake with AcraConnector as server's key and database as client's key
-tls_key: 
+tls_key:
 
 # Export trace data to jaeger
 tracing_jaeger_enable: false

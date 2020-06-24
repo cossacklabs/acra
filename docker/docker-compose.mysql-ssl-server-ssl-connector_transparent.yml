@@ -54,7 +54,7 @@ services:
             --client_id=${ACRA_CLIENT_ID:-testclientid}
             --generate_acrawriter_keys
             --keys_output_dir=/keys/acra-server
-            --keys_public_output_dir=/keys/acra-writer
+            --keys_public_output_dir=/keys/acra-server
 
     # MySQL container
     mysql:
@@ -80,7 +80,9 @@ services:
             - world
 
     acra-server:
-        image: "cossacklabs/acra-server:${ACRA_DOCKER_IMAGE_TAG:-latest}"
+        build:
+            context: ../
+            dockerfile: docker/acra-server_transparent.dockerfile
         # Restart server after correct termination, for example after the config
         # was changed through the API
         restart: always
@@ -122,6 +124,7 @@ services:
             --tls_key=/ssl.server/acra-server.key
             --tls_db_sni=mysql
             --acraconnector_transport_encryption_disable
+            --encryptor_config_file=/acra-encryptor.yaml
             --tls_auth=1
             -v
 

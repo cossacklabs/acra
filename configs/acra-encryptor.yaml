@@ -1,0 +1,7 @@
+schemas:
+  - table: test
+    columns:
+      - id
+      - data
+    encrypted:
+      - column: data

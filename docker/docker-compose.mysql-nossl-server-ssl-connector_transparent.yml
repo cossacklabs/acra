@@ -54,15 +54,11 @@ services:
             --client_id=${ACRA_CLIENT_ID:-testclientid}
             --generate_acrawriter_keys
             --keys_output_dir=/keys/acra-server
-            --keys_public_output_dir=/keys/acra-writer
+            --keys_public_output_dir=/keys/acra-server
 
     # MySQL container
     mysql:
-        # Build and run container based on official mysql image
-        # with enabled SSL and included SSL certificates
-        build:
-            context: ../
-            dockerfile: docker/mysql-ssl.dockerfile
+        image: mariadb:10.3
         # INSECURE!!! You MUST define your own DB name and credentials
         environment:
             MYSQL_ONETIME_PASSWORD: ${MYSQL_ONETIME_PASSWORD:-urLK7YJPndDWsnJC}
@@ -80,7 +76,9 @@ services:
             - world
 
     acra-server:
-        image: "cossacklabs/acra-server:${ACRA_DOCKER_IMAGE_TAG:-latest}"
+        build:
+            context: ../
+            dockerfile: docker/acra-server_transparent.dockerfile
         # Restart server after correct termination, for example after the config
         # was changed through the API
         restart: always
@@ -120,9 +118,8 @@ services:
             --tls_ca=/ssl.ca/example.cossacklabs.com.crt
             --tls_cert=/ssl.server/acra-server.crt
             --tls_key=/ssl.server/acra-server.key
-            --tls_db_sni=mysql
             --acraconnector_transport_encryption_disable
-            --tls_auth=1
+            --encryptor_config_file=/acra-encryptor.yaml
             -v
 
     acra-connector:

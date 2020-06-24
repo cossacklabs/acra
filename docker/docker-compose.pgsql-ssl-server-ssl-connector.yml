@@ -117,6 +117,7 @@ services:
             --tls_cert=/ssl.server/acra-server.crt
             --tls_key=/ssl.server/acra-server.key
             --tls_db_sni=postgresql
+            --tls_auth=1
             --acraconnector_transport_encryption_disable
             -v
 
