@@ -83,8 +83,12 @@ func main() {
 		os.Exit(1)
 	}
 
-	logging.CustomizeLogging(*loggingFormat, ServiceName)
+	// Start customizing logs here (directly after command line arguments parsing)
+	formatter := logging.CreateFormatter(*loggingFormat)
+	formatter.SetServiceName(ServiceName)
+	log.SetOutput(os.Stderr)
 
+	log.WithField("version", utils.VERSION).Infof("Starting service %v [pid=%v]", ServiceName, os.Getpid())
 	log.Infof("Validating service configuration...")
 	cmd.ValidateClientID(*secureSessionID)
 

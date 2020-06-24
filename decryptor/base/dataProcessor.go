@@ -45,6 +45,17 @@ type ProcessorWrapper interface {
 // DecryptProcessor default implementation of DataProcessor with AcraStruct decryption
 type DecryptProcessor struct{}
 
+// NewDecryptProcessor return DataProcessor which wrap processor
+func NewDecryptProcessor(processor DataProcessor) DataProcessor {
+	return ProcessorFunc(func(data []byte, context *DataProcessorContext) ([]byte, error) {
+		data, err := processor.Process(data, context)
+		if err != nil {
+			return data, err
+		}
+		return DecryptProcessor{}.Process(data, context)
+	})
+}
+
 // Process implement DataProcessor with AcraStruct decryption
 func (DecryptProcessor) Process(data []byte, context *DataProcessorContext) ([]byte, error) {
 	var privateKey *keys.PrivateKey

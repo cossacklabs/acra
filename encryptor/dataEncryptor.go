@@ -25,6 +25,10 @@ import (
 // EncryptionSetting provide interface to fetch data about encryption settings
 type EncryptionSetting interface {
 	IsSearchable() bool
+	GetMaskingPattern() string
+	GetPartialPlaintextLen() int
+	IsEndMasking() bool
+	IsConsistentTokenization() bool
 }
 
 // DataEncryptor replace raw data in queries with encrypted
