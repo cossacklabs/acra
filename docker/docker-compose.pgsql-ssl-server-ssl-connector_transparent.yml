@@ -42,7 +42,7 @@ services:
             --keys_public_output_dir=/keys/acra-server
     # Create keys:
     # - ./.acrakeys/acra-server/${ACRA_CLIENT_ID}_storage
-    # - ./.acrakeys/acra-writer/${ACRA_CLIENT_ID}_storage.pub
+    # - ./.acrakeys/acra-server/${ACRA_CLIENT_ID}_storage.pub
     acra-keymaker_writer:
         image: "cossacklabs/acra-keymaker:${ACRA_DOCKER_IMAGE_TAG:-latest}"
         network_mode: "none"
