@@ -4,6 +4,7 @@ set -euo pipefail
 
 APP_CURR_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
 APP_SSL_MODE="${APP_SSL_MODE:-disable}"
+
 chmod 0600 ${APP_CURR_DIR}/ssl/acra-writer/acra-writer.key
 
 app_raise() {
