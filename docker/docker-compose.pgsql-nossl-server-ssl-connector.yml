@@ -112,7 +112,6 @@ services:
             --tls_ca=/ssl.ca/example.cossacklabs.com.crt
             --tls_cert=/ssl.server/acra-server.crt
             --tls_key=/ssl.server/acra-server.key
-            --acraconnector_transport_encryption_disable
             -v
 
     acra-connector:
