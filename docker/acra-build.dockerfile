@@ -58,9 +58,9 @@ RUN set -o pipefail && \
 
 # Include scripts
 RUN mkdir /image.scripts
-COPY docker/_scripts/acra-build/add_component.sh /image.scripts/
-COPY docker/_scripts/acra-build/collect_dependencies.sh /image.scripts/
-COPY docker/_scripts/acra-build/install_go.sh /image.scripts/
+COPY docker/scripts/acra-build/add_component.sh /image.scripts/
+COPY docker/scripts/acra-build/collect_dependencies.sh /image.scripts/
+COPY docker/scripts/acra-build/install_go.sh /image.scripts/
 RUN chmod +x /image.scripts/*.sh
 
 # Install Go

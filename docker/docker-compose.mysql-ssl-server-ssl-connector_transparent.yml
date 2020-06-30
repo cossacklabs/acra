@@ -124,7 +124,7 @@ services:
             --tls_key=/ssl.server/acra-server.key
             --tls_db_sni=mysql
             --encryptor_config_file=/acra-encryptor.yaml
-            -d
+            -v
 
     acra-connector:
         image: "cossacklabs/acra-connector:${ACRA_DOCKER_IMAGE_TAG:-latest}"

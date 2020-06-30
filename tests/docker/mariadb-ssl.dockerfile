@@ -7,4 +7,4 @@ COPY tests/ssl/mysql/mysql.key /tmp.ssl/
 COPY tests/ssl/ca/ca.crt /tmp.ssl/ca.crt
 RUN chown -R mysql:mysql /tmp.ssl
 
-COPY docker/_scripts/mysql/mariadb-ssl.cnf /etc/mysql/mariadb.conf.d/
+COPY docker/scripts/mysql/mariadb-ssl.cnf /etc/mysql/mariadb.conf.d/

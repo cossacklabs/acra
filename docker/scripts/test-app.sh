@@ -5,7 +5,7 @@ set -euo pipefail
 APP_CURR_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
 APP_SSL_MODE="${APP_SSL_MODE:-disable}"
 
-chmod 0600 ${APP_CURR_DIR}/ssl/acra-writer/acra-writer.key
+chmod 0600 ${APP_CURR_DIR}/../ssl/acra-writer/acra-writer.key
 
 app_raise() {
     echo -e "\\nERROR: $*\\n" >&2
@@ -20,8 +20,8 @@ app_mysql_exec() {
     if [ "$ssl" == "enable" ]; then
         mysql -h 127.0.0.1 -u ${MYSQL_USER:-test} -p -P ${port} -D ${MYSQL_DATABASE:-test} \
             --password="${MYSQL_PASSWORD:-test}" \
-            --ssl-cert="${APP_CURR_DIR}/ssl/acra-writer/acra-writer.crt" \
-            --ssl-key="${APP_CURR_DIR}/ssl/acra-writer/acra-writer.key" \
+            --ssl-cert="${APP_CURR_DIR}/../ssl/acra-writer/acra-writer.crt" \
+            --ssl-key="${APP_CURR_DIR}/../ssl/acra-writer/acra-writer.key" \
             --ssl \
             --execute "${command}"
     else
@@ -37,8 +37,8 @@ app_pgsql_exec() {
     local ssl="${3:-disable}"
 
     if [ "$ssl" == "enable" ]; then
-        export PGSSLCERT="${APP_CURR_DIR}/ssl/acra-writer/acra-writer.crt"
-        export PGSSLKEY="${APP_CURR_DIR}/ssl/acra-writer/acra-writer.key"
+        export PGSSLCERT="${APP_CURR_DIR}/../ssl/acra-writer/acra-writer.crt"
+        export PGSSLKEY="${APP_CURR_DIR}/../ssl/acra-writer/acra-writer.key"
     fi
 
     psql "postgresql://${POSTGRES_USER:-test}:${POSTGRES_PASSWORD:-test}@127.0.0.1:${port}/${POSTGRES_DB:-test}" \

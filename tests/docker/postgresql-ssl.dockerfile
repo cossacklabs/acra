@@ -7,4 +7,4 @@ COPY tests/ssl/postgresql/postgresql.key /tmp.ssl/server.key
 COPY tests/ssl/ca/ca.crt /tmp.ssl/root.crt
 RUN chown -R postgres:postgres /tmp.ssl
 
-COPY docker/_scripts/postgresql-ssl-configure.sh /docker-entrypoint-initdb.d/
+COPY docker/scripts/postgresql-ssl-configure.sh /docker-entrypoint-initdb.d/
