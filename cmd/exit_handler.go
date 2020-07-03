@@ -7,7 +7,7 @@ import (
 	"syscall"
 )
 
-
+// Priority is applied to callback or defer function
 type Priority int
 
 const (
@@ -15,12 +15,13 @@ const (
 	Indifferent
 )
 
-// SignalCallback callback function
+// SignalCallback_ callback function with priority
 type SignalCallback_ struct {
 	callbackFunc func()
 	priority     Priority
 }
 
+// NewSignalCallback creates a callback with priority
 func NewSignalCallback(callback func(), priority Priority) *SignalCallback_ {
 	return &SignalCallback_{
 		callback,
@@ -28,10 +29,12 @@ func NewSignalCallback(callback func(), priority Priority) *SignalCallback_ {
 	}
 }
 
+// GetPriority is a getter for callback's priority
 func (s *SignalCallback_) GetPriority() Priority {
 	return s.priority
 }
 
+// Call executes callback
 func (s *SignalCallback_) Call() {
 	s.callbackFunc()
 }
@@ -79,6 +82,7 @@ func (handler *SignalHandler_) Register() {
 	os.Exit(0)
 }
 
+// AcraExitHandler is a common interface for exit handlers of Acra services
 type AcraExitHandler interface {
 	AddExitSignalHandler(signal AcraSignal, priority Priority)
 	AddDeferFunc(deferFunc func(), priority Priority)
@@ -86,12 +90,14 @@ type AcraExitHandler interface {
 	ExitOne()
 }
 
+// ExitHandler is an implementation of AcraExitHandler
 type ExitHandler struct {
 	deferFunctions []DeferFunction
 	signalHandlers []AcraSignal
 	notification   chan os.Signal
 }
 
+// NewExitHandler is a constructor for ExitHandler
 func NewExitHandler() (*ExitHandler, error) {
 	return &ExitHandler{
 		deferFunctions: nil,
@@ -100,6 +106,7 @@ func NewExitHandler() (*ExitHandler, error) {
 	}, nil
 }
 
+// NewSigTERMHandler is a constructor for SigTERMHandler
 func NewSigTERMHandler() AcraSignal {
 	return &SigTERMHandler{
 		nil,
@@ -107,12 +114,14 @@ func NewSigTERMHandler() AcraSignal {
 	}
 }
 
+// NewSigINTHandler is a constructor for SigINTHandler
 func NewSigINTHandler() AcraSignal {
 	return &SigINTHandler{
 		NewSigTERMHandler().(*SigTERMHandler),
 	}
 }
 
+// AddExitSignalHandler appends new signal for handling
 func (s *ExitHandler) AddExitSignalHandler(input AcraSignal) {
 	s.signalHandlers = append(s.signalHandlers, input)
 }
@@ -128,6 +137,8 @@ func (s *ExitHandler) waitForExitSystemSignal(exitFuncOnSigINT func(), exitFuncO
 	}
 }
 
+// WaitForExitSystemSignal blocks and waits for signals.
+// It should be used in separate goroutine in main function of service
 func (s *ExitHandler) WaitForExitSystemSignal() {
 	s.waitForExitSystemSignal(s.ExitZero, s.ExitZero)
 }
@@ -140,6 +151,7 @@ func (s *ExitHandler) getSignals() []os.Signal {
 	return result
 }
 
+// AddDeferFunc appends new defer function (with priority) for execution
 func (s *ExitHandler) AddDeferFunc(input DeferFunction) {
 	inputHasLastPriority := input.GetPriority() == Last
 	for _, deferFunc := range s.deferFunctions {
@@ -150,11 +162,13 @@ func (s *ExitHandler) AddDeferFunc(input DeferFunction) {
 	s.deferFunctions = append(s.deferFunctions, input)
 }
 
+// ExitZero is a single point for exiting from the service with 0 code
 func (s *ExitHandler) ExitZero() {
 	s.gracefulExit()
 	os.Exit(0)
 }
 
+// ExitOne is a single point for exiting from the service with 1 code
 func (s *ExitHandler) ExitOne() {
 	s.gracefulExit()
 	os.Exit(1)
@@ -188,6 +202,7 @@ func (s *ExitHandler) executeFinalizeOnHandlers() {
 	}
 }
 
+// AcraSignal is a common interface for system signal handlers in Acra
 type AcraSignal interface {
 	Finalize()
 	GetSignal() os.Signal
@@ -195,12 +210,13 @@ type AcraSignal interface {
 	AddListener(listener net.Listener)
 }
 
-// SIGTERM
+// SigTERMHandler is an implementation of AcraSignal for SIGTERM signal
 type SigTERMHandler struct {
 	listeners []net.Listener
 	callbacks []*SignalCallback_
 }
 
+// AddCallback appends callback with priority to SigTERMHandler
 func (s *SigTERMHandler) AddCallback(input *SignalCallback_) {
 	inputHasLastPriority := input.GetPriority() == Last
 	for _, callback := range s.callbacks {
@@ -211,11 +227,12 @@ func (s *SigTERMHandler) AddCallback(input *SignalCallback_) {
 	s.callbacks = append(s.callbacks, input)
 }
 
-// AddListener to listeners list
+// AddListener appends listener to SigTERMHandler
 func (s *SigTERMHandler) AddListener(listener net.Listener) {
 	s.listeners = append(s.listeners, listener)
 }
 
+// Finalize closes all listeners and executes callbacks with priority considering
 func (s *SigTERMHandler) Finalize() {
 	for _, listener := range s.listeners {
 		listener.Close()
@@ -234,42 +251,49 @@ func (s *SigTERMHandler) Finalize() {
 	lastCallback.Call()
 }
 
+// GetSignal returns underlying constant that represents system signal
 func (s *SigTERMHandler) GetSignal() os.Signal {
 	return syscall.SIGTERM
 }
 
-// SIGINT (in Acra we do not distinguish between SIGINT and SIGTERM signals)
+// SigINTHandler is an implementation of AcraSignal for SIGINT signal (in Acra we do not distinguish between SIGINT and SIGTERM signals)
 type SigINTHandler struct {
 	handler *SigTERMHandler
 }
 
+// Finalize closes all listeners and executes callbacks with priority considering
 func (s *SigINTHandler) Finalize() {
 	s.handler.Finalize()
 }
 
+// GetSignal returns underlying constant that represents system signal
 func (s *SigINTHandler) GetSignal() os.Signal {
 	return syscall.SIGINT
 }
 
-// AddListener to listeners list
+// AddListener appends listener to SigINTHandler
 func (s *SigINTHandler) AddListener(listener net.Listener) {
 	s.handler.AddListener(listener)
 }
 
+// AddCallback appends callback with priority to SigINTHandler
 func (s *SigINTHandler) AddCallback(input *SignalCallback_) {
 	s.handler.AddCallback(input)
 }
 
+// DeferFunction is a common interface for defer function with priority to execution
 type DeferFunction interface {
 	GetPriority() Priority
 	Call()
 }
 
+// DeferFunc is an implementation of DeferFunction
 type DeferFunc struct {
 	deferFunc func()
 	priority  Priority
 }
 
+// NewDeferFunction is a constructor for DeferFunction
 func NewDeferFunction(deferFunc func(), priority Priority) DeferFunction {
 	return &DeferFunc{
 		deferFunc,
@@ -277,10 +301,12 @@ func NewDeferFunction(deferFunc func(), priority Priority) DeferFunction {
 	}
 }
 
+// GetPriority returns priority of execution for this defer function
 func (d *DeferFunc) GetPriority() Priority {
 	return d.priority
 }
 
+// Call just executes defer function
 func (d *DeferFunc) Call() {
 	d.deferFunc()
 }
