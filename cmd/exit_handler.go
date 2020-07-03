@@ -7,7 +7,9 @@ import (
 	"syscall"
 )
 
+
 type Priority int
+
 const (
 	Last Priority = iota
 	Indifferent
@@ -16,7 +18,7 @@ const (
 // SignalCallback callback function
 type SignalCallback_ struct {
 	callbackFunc func()
-	priority Priority
+	priority     Priority
 }
 
 func NewSignalCallback(callback func(), priority Priority) *SignalCallback_ {
@@ -87,14 +89,14 @@ type AcraExitHandler interface {
 type ExitHandler struct {
 	deferFunctions []DeferFunction
 	signalHandlers []AcraSignal
-	notification chan os.Signal
+	notification   chan os.Signal
 }
 
 func NewExitHandler() (*ExitHandler, error) {
 	return &ExitHandler{
 		deferFunctions: nil,
 		signalHandlers: nil,
-		notification: make(chan os.Signal),
+		notification:   make(chan os.Signal),
 	}, nil
 }
 
@@ -130,7 +132,7 @@ func (s *ExitHandler) WaitForExitSystemSignal() {
 	s.waitForExitSystemSignal(s.ExitZero, s.ExitZero)
 }
 
-func (s *ExitHandler) getSignals() []os.Signal{
+func (s *ExitHandler) getSignals() []os.Signal {
 	var result []os.Signal
 	for _, signal := range s.signalHandlers {
 		result = append(result, signal.GetSignal())
@@ -265,7 +267,7 @@ type DeferFunction interface {
 
 type DeferFunc struct {
 	deferFunc func()
-	priority Priority
+	priority  Priority
 }
 
 func NewDeferFunction(deferFunc func(), priority Priority) DeferFunction {

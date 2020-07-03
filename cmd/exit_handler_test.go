@@ -20,10 +20,10 @@ func TestDeferFunctionsPriority(t *testing.T) {
 		// we need that logFinalize to be called strictly as last defer function
 		results = append(results, "audit_log defer")
 	}
-	stubDefer1 := func(){
+	stubDefer1 := func() {
 		results = append(results, "stub1 defer")
 	}
-	stubDefer2 := func(){
+	stubDefer2 := func() {
 		results = append(results, "stub2 defer")
 	}
 
@@ -34,7 +34,7 @@ func TestDeferFunctionsPriority(t *testing.T) {
 	exitHandler.executeDeferFunctions()
 
 	// finally check indication of last string in results
-	if results[len(results) - 1] != "audit_log defer" {
+	if results[len(results)-1] != "audit_log defer" {
 		t.Fatal("auditLogDefer has not been executed as last defer")
 	}
 }
@@ -54,7 +54,6 @@ func testExitHandlerWithCallbacks(t *testing.T, signalToExit os.Signal) {
 
 	sigTERMHandler := NewSigTERMHandler()
 	sigINTHandler := NewSigINTHandler()
-
 
 	var results []string
 	auditLogCallback := func() {
@@ -99,7 +98,7 @@ func testExitHandlerWithCallbacks(t *testing.T, signalToExit os.Signal) {
 	exitHandler.waitForExitSystemSignal(exitHandler.gracefulExit, exitHandler.gracefulExit)
 
 	// finally check indication of last string in results
-	if results[len(results) - 1] != "audit_log callback" {
+	if results[len(results)-1] != "audit_log callback" {
 		t.Fatal("auditLogCallback has not been executed as last callback")
 	}
 }
