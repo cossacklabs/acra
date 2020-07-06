@@ -72,13 +72,13 @@ func testExitHandlerWithCallbacks(t *testing.T, signalToExit os.Signal) {
 	}
 
 	// create exit signal handlers and feed them to common exit handler mechanism
-	sigTERMHandler.AddCallback(NewSignalCallback(auditLogCallback, Last))
-	sigTERMHandler.AddCallback(NewSignalCallback(stubCallback1, Indifferent))
-	sigTERMHandler.AddCallback(NewSignalCallback(stubCallback2, Indifferent))
+	sigTERMHandler.AddCallback(NewSystemSignalCallback(auditLogCallback, Last))
+	sigTERMHandler.AddCallback(NewSystemSignalCallback(stubCallback1, Indifferent))
+	sigTERMHandler.AddCallback(NewSystemSignalCallback(stubCallback2, Indifferent))
 
-	sigINTHandler.AddCallback(NewSignalCallback(auditLogCallback, Last))
-	sigINTHandler.AddCallback(NewSignalCallback(stubCallback1, Indifferent))
-	sigINTHandler.AddCallback(NewSignalCallback(stubCallback2, Indifferent))
+	sigINTHandler.AddCallback(NewSystemSignalCallback(auditLogCallback, Last))
+	sigINTHandler.AddCallback(NewSystemSignalCallback(stubCallback1, Indifferent))
+	sigINTHandler.AddCallback(NewSystemSignalCallback(stubCallback2, Indifferent))
 
 	exitHandler.AddExitSignalHandler(sigTERMHandler)
 	exitHandler.AddExitSignalHandler(sigINTHandler)
@@ -95,7 +95,7 @@ func testExitHandlerWithCallbacks(t *testing.T, signalToExit os.Signal) {
 		}
 	}()
 
-	exitHandler.waitForExitSystemSignal(exitHandler.gracefulExit, exitHandler.gracefulExit)
+	exitHandler.waitAndHandle(exitHandler.gracefulExit, exitHandler.gracefulExit)
 
 	// finally check indication of last string in results
 	if results[len(results)-1] != "audit_log callback" {
@@ -124,5 +124,5 @@ func testExitHandler(t *testing.T, signalToExit os.Signal) {
 		}
 	}()
 
-	exitHandler.waitForExitSystemSignal(exitHandler.gracefulExit, exitHandler.gracefulExit)
+	exitHandler.waitAndHandle(exitHandler.gracefulExit, exitHandler.gracefulExit)
 }

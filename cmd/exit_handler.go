@@ -11,83 +11,32 @@ import (
 type Priority int
 
 const (
-	Last Priority = iota
-	Indifferent
+	Indifferent Priority = iota
+	Last
 )
 
-// SignalCallback_ callback function with priority
-type SignalCallback_ struct {
+// SystemSignalCallback callback function with priority
+type SystemSignalCallback struct {
 	callbackFunc func()
 	priority     Priority
 }
 
-// NewSignalCallback creates a callback with priority
-func NewSignalCallback(callback func(), priority Priority) *SignalCallback_ {
-	return &SignalCallback_{
+// NewSystemSignalCallback creates a callback with priority
+func NewSystemSignalCallback(callback func(), priority Priority) *SystemSignalCallback {
+	return &SystemSignalCallback{
 		callback,
 		priority,
 	}
 }
 
 // GetPriority is a getter for callback's priority
-func (s *SignalCallback_) GetPriority() Priority {
+func (s *SystemSignalCallback) GetPriority() Priority {
 	return s.priority
 }
 
 // Call executes callback
-func (s *SignalCallback_) Call() {
+func (s *SystemSignalCallback) Call() {
 	s.callbackFunc()
-}
-
-// SignalHandler sends Signal to listeners and call registered callbacks
-type SignalHandler_ struct {
-	ch        chan os.Signal
-	listeners []net.Listener
-	callbacks []*SignalCallback_
-	signals   []os.Signal
-}
-
-// NewSignalHandler returns new SignalHandler registered for particular os.Signals
-func NewSignalHandler_(handledSignals []os.Signal) (*SignalHandler_, error) {
-	return &SignalHandler_{ch: make(chan os.Signal), signals: handledSignals}, nil
-}
-
-// AddListener to listeners list
-func (handler *SignalHandler_) AddListener(listener net.Listener) {
-	handler.listeners = append(handler.listeners, listener)
-}
-
-// GetChannel returns channel of os.Signal
-func (handler *SignalHandler_) GetChannel() chan os.Signal {
-	return handler.ch
-}
-
-// AddCallback to callbacks list
-func (handler *SignalHandler_) AddCallback(callback *SignalCallback_) {
-	handler.callbacks = append(handler.callbacks, callback)
-}
-
-// Register should be called as goroutine
-func (handler *SignalHandler_) Register() {
-	signal.Notify(handler.ch, handler.signals...)
-
-	<-handler.ch
-
-	for _, listener := range handler.listeners {
-		listener.Close()
-	}
-	for _, callback := range handler.callbacks {
-		callback.Call()
-	}
-	os.Exit(0)
-}
-
-// AcraExitHandler is a common interface for exit handlers of Acra services
-type AcraExitHandler interface {
-	AddExitSignalHandler(signal AcraSignal, priority Priority)
-	AddDeferFunc(deferFunc func(), priority Priority)
-	ExitZero()
-	ExitOne()
 }
 
 // ExitHandler is an implementation of AcraExitHandler
@@ -117,7 +66,10 @@ func NewSigTERMHandler() AcraSignal {
 // NewSigINTHandler is a constructor for SigINTHandler
 func NewSigINTHandler() AcraSignal {
 	return &SigINTHandler{
-		NewSigTERMHandler().(*SigTERMHandler),
+		SigTERMHandler{
+			nil,
+			nil,
+		},
 	}
 }
 
@@ -126,7 +78,7 @@ func (s *ExitHandler) AddExitSignalHandler(input AcraSignal) {
 	s.signalHandlers = append(s.signalHandlers, input)
 }
 
-func (s *ExitHandler) waitForExitSystemSignal(exitFuncOnSigINT func(), exitFuncOnSigTERM func()) {
+func (s *ExitHandler) waitAndHandle(exitFuncOnSigINT func(), exitFuncOnSigTERM func()) {
 	signal.Notify(s.notification, s.getSignals()...)
 
 	switch <-s.notification {
@@ -137,10 +89,10 @@ func (s *ExitHandler) waitForExitSystemSignal(exitFuncOnSigINT func(), exitFuncO
 	}
 }
 
-// WaitForExitSystemSignal blocks and waits for signals.
+// WaitAndHandle blocks and waits for signals.
 // It should be used in separate goroutine in main function of service
-func (s *ExitHandler) WaitForExitSystemSignal() {
-	s.waitForExitSystemSignal(s.ExitZero, s.ExitZero)
+func (s *ExitHandler) WaitAndHandle() {
+	s.waitAndHandle(s.ExitSuccess, s.ExitSuccess)
 }
 
 func (s *ExitHandler) getSignals() []os.Signal {
@@ -162,14 +114,14 @@ func (s *ExitHandler) AddDeferFunc(input DeferFunction) {
 	s.deferFunctions = append(s.deferFunctions, input)
 }
 
-// ExitZero is a single point for exiting from the service with 0 code
-func (s *ExitHandler) ExitZero() {
+// ExitSuccess is a single point for exiting from the service with 0 code
+func (s *ExitHandler) ExitSuccess() {
 	s.gracefulExit()
 	os.Exit(0)
 }
 
-// ExitOne is a single point for exiting from the service with 1 code
-func (s *ExitHandler) ExitOne() {
+// ExitFailure is a single point for exiting from the service with 1 code
+func (s *ExitHandler) ExitFailure() {
 	s.gracefulExit()
 	os.Exit(1)
 }
@@ -206,18 +158,18 @@ func (s *ExitHandler) executeFinalizeOnHandlers() {
 type AcraSignal interface {
 	Finalize()
 	GetSignal() os.Signal
-	AddCallback(callback *SignalCallback_)
+	AddCallback(callback *SystemSignalCallback)
 	AddListener(listener net.Listener)
 }
 
 // SigTERMHandler is an implementation of AcraSignal for SIGTERM signal
 type SigTERMHandler struct {
 	listeners []net.Listener
-	callbacks []*SignalCallback_
+	callbacks []*SystemSignalCallback
 }
 
 // AddCallback appends callback with priority to SigTERMHandler
-func (s *SigTERMHandler) AddCallback(input *SignalCallback_) {
+func (s *SigTERMHandler) AddCallback(input *SystemSignalCallback) {
 	inputHasLastPriority := input.GetPriority() == Last
 	for _, callback := range s.callbacks {
 		if callback.GetPriority() == Last && inputHasLastPriority {
@@ -237,7 +189,7 @@ func (s *SigTERMHandler) Finalize() {
 	for _, listener := range s.listeners {
 		listener.Close()
 	}
-	var lastCallback *SignalCallback_
+	var lastCallback *SystemSignalCallback
 	for _, callback := range s.callbacks {
 		if callback.GetPriority() == Last {
 			lastCallback = callback
@@ -258,27 +210,12 @@ func (s *SigTERMHandler) GetSignal() os.Signal {
 
 // SigINTHandler is an implementation of AcraSignal for SIGINT signal (in Acra we do not distinguish between SIGINT and SIGTERM signals)
 type SigINTHandler struct {
-	handler *SigTERMHandler
-}
-
-// Finalize closes all listeners and executes callbacks with priority considering
-func (s *SigINTHandler) Finalize() {
-	s.handler.Finalize()
+	SigTERMHandler
 }
 
 // GetSignal returns underlying constant that represents system signal
 func (s *SigINTHandler) GetSignal() os.Signal {
 	return syscall.SIGINT
-}
-
-// AddListener appends listener to SigINTHandler
-func (s *SigINTHandler) AddListener(listener net.Listener) {
-	s.handler.AddListener(listener)
-}
-
-// AddCallback appends callback with priority to SigINTHandler
-func (s *SigINTHandler) AddCallback(input *SignalCallback_) {
-	s.handler.AddCallback(input)
 }
 
 // DeferFunction is a common interface for defer function with priority to execution
