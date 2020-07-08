@@ -22,9 +22,9 @@ package main
 
 import (
 	"errors"
-	"flag"
 
 	"github.com/cossacklabs/acra/cmd"
+	migratekeys "github.com/cossacklabs/acra/cmd/acra-migrate-keys/migrate-keys"
 	keystoreV1 "github.com/cossacklabs/acra/keystore"
 	filesystemV1 "github.com/cossacklabs/acra/keystore/filesystem"
 	keystoreV2 "github.com/cossacklabs/acra/keystore/v2/keystore"
@@ -38,80 +38,10 @@ import (
 var (
 	defaultConfigPath = utils.GetConfigPathByName("acra-migrate-keys")
 	serviceName       = "acra-migrate-keys"
-
-	defaultSrcDir       = keystoreV1.DefaultKeyDirShort
-	defaultDstDirSuffix = ".migrated"
 )
-
-// CommandLineParams - command-line options.
-type CommandLineParams struct {
-	Src, Dst KeyStoreParams
-	Misc     MiscParams
-}
-
-// KeyStoreParams - key store parameters.
-type KeyStoreParams struct {
-	KeyStoreVersion string
-	KeyDir          string
-	KeyDirPublic    string
-}
-
-// MiscParams - miscellaneous parameters.
-type MiscParams struct {
-	DryRun bool
-	Force  bool
-
-	LogDebug   bool
-	LogVerbose bool
-}
-
-// OpenMode - whether key store is source or destination.
-type OpenMode int
-
-// OpenMode constant values:
-const (
-	OpenSrc OpenMode = iota
-	OpenDst
-)
-
-// RegisterCommandLineParams registers command-line options for parsing.
-func RegisterCommandLineParams() *CommandLineParams {
-	params := &CommandLineParams{}
-	// Source key store
-	flag.StringVar(&params.Src.KeyStoreVersion, "src_keystore", "v1", "key store format to use: v1 (current), v2 (new)")
-	flag.StringVar(&params.Src.KeyDir, "src_keys_dir", defaultSrcDir, "path to source key directory")
-	flag.StringVar(&params.Src.KeyDirPublic, "src_keys_dir_public", defaultSrcDir, "path to source key directory for public keys")
-	// Destination key store
-	flag.StringVar(&params.Dst.KeyStoreVersion, "dst_keystore", "v2", "key store format to use: v1 (current), v2 (new)")
-	flag.StringVar(&params.Dst.KeyDir, "dst_keys_dir", "", "path to destination key directory (default \".acrakeys.migrated\")")
-	flag.StringVar(&params.Dst.KeyDirPublic, "dst_keys_dir_public", "", "path to destination key directory for public keys (default \".acrakeys.migrated\")")
-	// Miscellaneous
-	flag.BoolVar(&params.Misc.DryRun, "dry_run", false, "try migration without writing to the output key store")
-	flag.BoolVar(&params.Misc.Force, "force", false, "write to output key store even if it exists")
-	flag.BoolVar(&params.Misc.LogDebug, "d", false, "log debug messages to stderr")
-	flag.BoolVar(&params.Misc.LogVerbose, "v", false, "log everything to stderr")
-	return params
-}
-
-// SetDefaults initializes default paramater values.
-func (params *CommandLineParams) SetDefaults() {
-	if params.Misc.LogDebug {
-		log.SetLevel(log.DebugLevel)
-	}
-	if params.Misc.LogVerbose {
-		log.SetLevel(log.TraceLevel)
-	}
-
-	if params.Dst.KeyDir == "" {
-		params.Dst.KeyDir = params.Src.KeyDir + defaultDstDirSuffix
-	}
-	if params.Dst.KeyDirPublic == "" {
-		params.Dst.KeyDirPublic = params.Src.KeyDirPublic + defaultDstDirSuffix
-	}
-}
 
 func main() {
-	params := RegisterCommandLineParams()
+	params := migratekeys.RegisterCommandLineParams()
 	err := cmd.Parse(defaultConfigPath, serviceName)
 	if err != nil {
 		log.WithError(err).
@@ -121,11 +51,11 @@ func main() {
 	params.SetDefaults()
 
 	if params.Src.KeyStoreVersion == "v1" && params.Dst.KeyStoreVersion == "v2" {
-		keyStoreV1, err := OpenKeyStoreV1(OpenSrc, params.Src, params.Misc)
+		keyStoreV1, err := OpenKeyStoreV1(migratekeys.OpenSrc, params.Src, params.Misc)
 		if err != nil {
 			log.WithError(err).Fatal("Failed to open keystore v1 (src)")
 		}
-		keyStoreV2, err := OpenKeyStoreV2(OpenDst, params.Dst, params.Misc)
+		keyStoreV2, err := OpenKeyStoreV2(migratekeys.OpenDst, params.Dst, params.Misc)
 		if err != nil {
 			log.WithError(err).Fatal("Failed to open keystore v2 (dst)")
 		}
@@ -147,7 +77,7 @@ func main() {
 }
 
 // MigrateV1toV2 transfers keys from key store v1 to v2.
-func MigrateV1toV2(srcV1 filesystemV1.KeyExport, dstV2 keystoreV2.KeyFileImportV1, params MiscParams) error {
+func MigrateV1toV2(srcV1 filesystemV1.KeyExport, dstV2 keystoreV2.KeyFileImportV1, params migratekeys.MiscParams) error {
 	log.Trace("Enumerating keys for export")
 	keys, err := srcV1.EnumerateExportedKeys()
 	if err != nil {
@@ -183,7 +113,7 @@ func MigrateV1toV2(srcV1 filesystemV1.KeyExport, dstV2 keystoreV2.KeyFileImportV
 }
 
 // OpenKeyStoreV1 opens key store v1 for given purpose.
-func OpenKeyStoreV1(mode OpenMode, store KeyStoreParams, params MiscParams) (*filesystemV1.KeyStore, error) {
+func OpenKeyStoreV1(mode migratekeys.OpenMode, store migratekeys.KeyStoreParams, params migratekeys.MiscParams) (*filesystemV1.KeyStore, error) {
 	masterKey, err := keystoreV1.GetMasterKeyFromEnvironment()
 	if err != nil {
 		log.WithError(err).Error("Cannot load master key")
@@ -208,7 +138,7 @@ func OpenKeyStoreV1(mode OpenMode, store KeyStoreParams, params MiscParams) (*fi
 }
 
 // OpenKeyStoreV2 opens key store v2 for given purpose.
-func OpenKeyStoreV2(mode OpenMode, store KeyStoreParams, params MiscParams) (*keystoreV2.ServerKeyStore, error) {
+func OpenKeyStoreV2(mode migratekeys.OpenMode, store migratekeys.KeyStoreParams, params migratekeys.MiscParams) (*keystoreV2.ServerKeyStore, error) {
 	encryption, signature, err := keystoreV2.GetMasterKeysFromEnvironment()
 	if err != nil {
 		log.WithError(err).Error("Cannot read master keys from environment")
@@ -220,7 +150,7 @@ func OpenKeyStoreV2(mode OpenMode, store KeyStoreParams, params MiscParams) (*ke
 		return nil, err
 	}
 	path := store.KeyDir
-	if mode == OpenDst {
+	if mode == migratekeys.OpenDst {
 		if filesystemV2.IsKeyDirectory(path) && !params.Force {
 			log.WithField("path", path).Error("Key directory already exists")
 			log.Info("Run with --force to import into existing directory")
@@ -228,7 +158,7 @@ func OpenKeyStoreV2(mode OpenMode, store KeyStoreParams, params MiscParams) (*ke
 		}
 	}
 	var keyDir keystoreApiV2.MutableKeyStore
-	if mode == OpenDst && params.DryRun {
+	if mode == migratekeys.OpenDst && params.DryRun {
 		keyDir, err = filesystemV2.NewInMemory(suite)
 		if err != nil {
 			log.WithError(err).Error("Cannot create in-memory key store")
