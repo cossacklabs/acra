@@ -79,7 +79,7 @@ func main() {
 // MigrateV1toV2 transfers keys from key store v1 to v2.
 func MigrateV1toV2(srcV1 filesystemV1.KeyExport, dstV2 keystoreV2.KeyFileImportV1, params migratekeys.MiscParams) error {
 	log.Trace("Enumerating keys for export")
-	keys, err := srcV1.EnumerateExportedKeys()
+	keys, err := filesystemV1.EnumerateExportedKeys(srcV1)
 	if err != nil {
 		log.WithError(err).Debug("Failed to enumerate exported keys")
 		return err
