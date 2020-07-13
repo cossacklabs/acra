@@ -79,14 +79,10 @@ func main() {
 
 	var store keystore.KeyMaking
 	// If the key store already exists, detect its version automatically and allow to not specify it.
-	if *keystoreVersion == "" {
-		if fi, err := os.Stat(*outputDir); err == nil && fi.IsDir() {
-			if filesystemV2.IsKeyDirectory(*outputDir) {
-				*keystoreVersion = "v2"
-			} else {
-				*keystoreVersion = "v1"
-			}
-		}
+	if filesystemV2.IsKeyDirectory(*outputDir) {
+		*keystoreVersion = "v2"
+	} else if filesystem.IsKeyDirectory(*outputDir) {
+		*keystoreVersion = "v1"
 	}
 	switch *keystoreVersion {
 	case "v1":

@@ -144,6 +144,16 @@ func (b *KeyStoreBuilder) Build() (*KeyStore, error) {
 	return newFilesystemKeyStore(b.privateKeyDir, b.publicKeyDir, b.storage, b.encryptor, b.cacheSize)
 }
 
+// IsKeyDirectory checks if the local directory contains a key store.
+// This is a conservative check.
+// That is, positive return value does not mean that the directory contains *a valid* key store.
+// However, false value means that the directory definitely is not a valid key store.
+// In particular, false is returned if the directory does not exists or cannot be opened.
+func IsKeyDirectory(keyDirectory string) bool {
+	fi, err := os.Stat(keyDirectory)
+	return err == nil && fi.IsDir()
+}
+
 func newFilesystemKeyStore(privateKeyFolder, publicKeyFolder string, storage Storage, encryptor keystore.KeyEncryptor, cacheSize int) (*KeyStore, error) {
 	fi, err := storage.Stat(privateKeyFolder)
 	if err != nil && !os.IsNotExist(err) {
