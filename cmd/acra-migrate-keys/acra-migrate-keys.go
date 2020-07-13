@@ -23,7 +23,6 @@ package main
 import (
 	"errors"
 
-	"github.com/cossacklabs/acra/cmd"
 	migratekeys "github.com/cossacklabs/acra/cmd/acra-migrate-keys/migrate-keys"
 	keystoreV1 "github.com/cossacklabs/acra/keystore"
 	filesystemV1 "github.com/cossacklabs/acra/keystore/filesystem"
@@ -31,26 +30,16 @@ import (
 	keystoreApiV2 "github.com/cossacklabs/acra/keystore/v2/keystore/api"
 	filesystemV2 "github.com/cossacklabs/acra/keystore/v2/keystore/filesystem"
 	"github.com/cossacklabs/acra/logging"
-	"github.com/cossacklabs/acra/utils"
 	log "github.com/sirupsen/logrus"
-)
-
-var (
-	defaultConfigPath = utils.GetConfigPathByName("acra-migrate-keys")
-	serviceName       = "acra-migrate-keys"
 )
 
 func main() {
 	params := migratekeys.RegisterCommandLineParams()
-	err := cmd.Parse(defaultConfigPath, serviceName)
+	err := params.Parse()
 	if err != nil {
 		log.WithError(err).
 			WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantReadServiceConfig).
 			Fatal("Cannot parse arguments")
-	}
-	err = params.SetDefaults()
-	if err != nil {
-		log.WithError(err).Fatal("Invalid arguments")
 	}
 
 	if params.Src.KeyStoreVersion == "v1" && params.Dst.KeyStoreVersion == "v2" {

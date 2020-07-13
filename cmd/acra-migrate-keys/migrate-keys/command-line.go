@@ -21,6 +21,7 @@ import (
 	"errors"
 	"flag"
 
+	"github.com/cossacklabs/acra/cmd"
 	keystoreV1 "github.com/cossacklabs/acra/keystore"
 	"github.com/cossacklabs/acra/utils"
 	log "github.com/sirupsen/logrus"
@@ -92,8 +93,23 @@ func RegisterCommandLineParams() *CommandLineParams {
 	return &Params
 }
 
-// SetDefaults initializes default paramater values.
-func (params *CommandLineParams) SetDefaults() error {
+// Parse parses command-line, validates commad-line options, and initializes default paramater values.
+func (params *CommandLineParams) Parse() error {
+	err := cmd.Parse(defaultConfigPath, serviceName)
+	if err != nil {
+		return err
+	}
+
+	if params.Src.KeyStoreVersion == "" {
+		log.Warning("Missing required argument: --src_keystore={v1|v2}")
+	}
+	if params.Dst.KeyStoreVersion == "" {
+		log.Warning("Missing required argument: --dst_keystore={v1|v2}")
+	}
+	if params.Src.KeyStoreVersion == "" || params.Dst.KeyStoreVersion == "" {
+		return ErrMissingFormat
+	}
+
 	if params.Misc.LogDebug {
 		log.SetLevel(log.DebugLevel)
 	}
@@ -106,16 +122,6 @@ func (params *CommandLineParams) SetDefaults() error {
 	}
 	if params.Dst.KeyDirPublic == "" {
 		params.Dst.KeyDirPublic = params.Src.KeyDirPublic + defaultDstDirSuffix
-	}
-
-	if params.Src.KeyStoreVersion == "" {
-		log.Warning("Missing required argument: --src_keystore={v1|v2}")
-	}
-	if params.Dst.KeyStoreVersion == "" {
-		log.Warning("Missing required argument: --dst_keystore={v1|v2}")
-	}
-	if params.Src.KeyStoreVersion == "" || params.Dst.KeyStoreVersion == "" {
-		return ErrMissingFormat
 	}
 
 	return nil
