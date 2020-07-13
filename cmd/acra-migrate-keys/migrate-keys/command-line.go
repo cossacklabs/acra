@@ -58,8 +58,9 @@ type MiscParams struct {
 	DryRun bool
 	Force  bool
 
-	LogDebug   bool
-	LogVerbose bool
+	LogLevel   log.Level
+	logDebug   bool
+	logVerbose bool
 }
 
 // OpenMode - whether key store is source or destination.
@@ -87,8 +88,9 @@ func RegisterCommandLineParams() *CommandLineParams {
 	// Miscellaneous
 	flag.BoolVar(&Params.Misc.DryRun, "dry_run", false, "try migration without writing to the output key store")
 	flag.BoolVar(&Params.Misc.Force, "force", false, "write to output key store even if it exists")
-	flag.BoolVar(&Params.Misc.LogDebug, "d", false, "log debug messages to stderr")
-	flag.BoolVar(&Params.Misc.LogVerbose, "v", false, "log everything to stderr")
+	flag.BoolVar(&Params.Misc.logDebug, "d", false, "log debug messages to stderr")
+	flag.BoolVar(&Params.Misc.logVerbose, "v", false, "log everything to stderr")
+	Params.Misc.LogLevel = log.GetLevel()
 
 	return &Params
 }
@@ -110,12 +112,13 @@ func (params *CommandLineParams) Parse() error {
 		return ErrMissingFormat
 	}
 
-	if params.Misc.LogDebug {
-		log.SetLevel(log.DebugLevel)
+	if params.Misc.logDebug {
+		params.Misc.LogLevel = log.DebugLevel
 	}
-	if params.Misc.LogVerbose {
-		log.SetLevel(log.TraceLevel)
+	if params.Misc.logVerbose {
+		params.Misc.LogLevel = log.TraceLevel
 	}
+	log.SetLevel(params.Misc.LogLevel)
 
 	if params.Dst.KeyDir == "" {
 		params.Dst.KeyDir = params.Src.KeyDir + defaultDstDirSuffix
