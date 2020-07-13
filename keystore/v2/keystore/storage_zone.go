@@ -95,7 +95,7 @@ func (s *ServerKeyStore) HasZonePrivateKey(zoneID []byte) bool {
 // StorageKeyCreation interface (zones)
 //
 
-const zonePrefix = "client"
+const zonePrefix = "zone"
 
 func (s *ServerKeyStore) zoneStorageKeyPairPath(zoneID []byte) string {
 	return filepath.Join(zonePrefix, string(zoneID), storageSuffix)
