@@ -117,7 +117,6 @@ var Params *CommandLineParams = &CommandLineParams{}
 
 // Register configures command-line parameter parsing.
 func (params *CommandLineParams) Register() {
-	flag.StringVar(&params.KeyStoreVersion, "keystore", "", "force key store format: v1 (current), v2 (new)")
 	flag.StringVar(&params.KeyDir, "keys_dir", DefaultKeyDirectory, "path to key directory")
 	flag.StringVar(&params.KeyDirPublic, "keys_dir_public", "", "path to key directory for public keys")
 	flag.StringVar(&params.ClientID, "client_id", "", "client ID for which to retrieve key")
@@ -300,12 +299,10 @@ func (params *CommandLineParams) ParseSubCommand() error {
 
 // SetDefaults sets dynamically configured default values of command-line parameters.
 func (params *CommandLineParams) SetDefaults() {
-	if params.KeyStoreVersion == "" {
-		if filesystemV2.IsKeyDirectory(params.KeyDir) {
-			params.KeyStoreVersion = "v2"
-		} else {
-			params.KeyStoreVersion = "v1"
-		}
+	if filesystemV2.IsKeyDirectory(params.KeyDir) {
+		params.KeyStoreVersion = "v2"
+	} else {
+		params.KeyStoreVersion = "v1"
 	}
 
 	if params.KeyDirPublic == "" {

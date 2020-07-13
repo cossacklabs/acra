@@ -54,7 +54,6 @@ var (
 func main() {
 	outputDir := flag.String("keys_output_dir", keystore.DefaultKeyDirShort, "Folder where will be saved generated zone keys")
 	flag.Bool("fs_keystore_enable", true, "Use filesystem key store (deprecated, ignored)")
-	keystoreOpts := flag.String("keystore", "", "force Key Store format: v1 (current), v2 (new)")
 
 	logging.SetLogLevel(logging.LogVerbose)
 
@@ -66,21 +65,10 @@ func main() {
 	}
 
 	var keyStore keystore.StorageKeyCreation
-	if *keystoreOpts == "" {
-		if filesystemV2.IsKeyDirectory(*outputDir) {
-			*keystoreOpts = "v2"
-		} else {
-			*keystoreOpts = "v1"
-		}
-	}
-	switch *keystoreOpts {
-	case "v1":
-		keyStore = openKeyStoreV1(*outputDir)
-	case "v2":
+	if filesystemV2.IsKeyDirectory(*outputDir) {
 		keyStore = openKeyStoreV2(*outputDir)
-	default:
-		log.Errorf("unknown keystore option: %v", *keystoreOpts)
-		os.Exit(1)
+	} else {
+		keyStore = openKeyStoreV1(*outputDir)
 	}
 
 	id, publicKey, err := keyStore.GenerateZoneKey()
