@@ -18,11 +18,17 @@
 package migratekeys
 
 import (
+	"errors"
 	"flag"
 
 	keystoreV1 "github.com/cossacklabs/acra/keystore"
 	"github.com/cossacklabs/acra/utils"
 	log "github.com/sirupsen/logrus"
+)
+
+// Command-line errors:
+var (
+	ErrMissingFormat = errors.New("key store format not specified")
 )
 
 var (
@@ -70,11 +76,11 @@ var Params CommandLineParams
 // RegisterCommandLineParams registers command-line options for parsing.
 func RegisterCommandLineParams() *CommandLineParams {
 	// Source key store
-	flag.StringVar(&Params.Src.KeyStoreVersion, "src_keystore", "v1", "key store format to use: v1 (current), v2 (new)")
+	flag.StringVar(&Params.Src.KeyStoreVersion, "src_keystore", "", "key store format to use: v1 (current), v2 (new)")
 	flag.StringVar(&Params.Src.KeyDir, "src_keys_dir", defaultSrcDir, "path to source key directory")
 	flag.StringVar(&Params.Src.KeyDirPublic, "src_keys_dir_public", defaultSrcDir, "path to source key directory for public keys")
 	// Destination key store
-	flag.StringVar(&Params.Dst.KeyStoreVersion, "dst_keystore", "v2", "key store format to use: v1 (current), v2 (new)")
+	flag.StringVar(&Params.Dst.KeyStoreVersion, "dst_keystore", "", "key store format to use: v1 (current), v2 (new)")
 	flag.StringVar(&Params.Dst.KeyDir, "dst_keys_dir", "", "path to destination key directory (default \".acrakeys.migrated\")")
 	flag.StringVar(&Params.Dst.KeyDirPublic, "dst_keys_dir_public", "", "path to destination key directory for public keys (default \".acrakeys.migrated\")")
 	// Miscellaneous
@@ -87,7 +93,7 @@ func RegisterCommandLineParams() *CommandLineParams {
 }
 
 // SetDefaults initializes default paramater values.
-func (params *CommandLineParams) SetDefaults() {
+func (params *CommandLineParams) SetDefaults() error {
 	if params.Misc.LogDebug {
 		log.SetLevel(log.DebugLevel)
 	}
@@ -101,4 +107,16 @@ func (params *CommandLineParams) SetDefaults() {
 	if params.Dst.KeyDirPublic == "" {
 		params.Dst.KeyDirPublic = params.Src.KeyDirPublic + defaultDstDirSuffix
 	}
+
+	if params.Src.KeyStoreVersion == "" {
+		log.Warning("Missing required argument: --src_keystore={v1|v2}")
+	}
+	if params.Dst.KeyStoreVersion == "" {
+		log.Warning("Missing required argument: --dst_keystore={v1|v2}")
+	}
+	if params.Src.KeyStoreVersion == "" || params.Dst.KeyStoreVersion == "" {
+		return ErrMissingFormat
+	}
+
+	return nil
 }

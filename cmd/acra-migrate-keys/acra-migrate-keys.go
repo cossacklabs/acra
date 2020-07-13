@@ -48,7 +48,10 @@ func main() {
 			WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantReadServiceConfig).
 			Fatal("Cannot parse arguments")
 	}
-	params.SetDefaults()
+	err = params.SetDefaults()
+	if err != nil {
+		log.WithError(err).Fatal("Invalid arguments")
+	}
 
 	if params.Src.KeyStoreVersion == "v1" && params.Dst.KeyStoreVersion == "v2" {
 		keyStoreV1, err := OpenKeyStoreV1(migratekeys.OpenSrc, params.Src, params.Misc)
