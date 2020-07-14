@@ -88,7 +88,7 @@ func RegisterCommandLineParams() *CommandLineParams {
 	flag.BoolVar(&Params.Misc.DryRun, "dry_run", false, "try migration without writing to the output key store")
 	flag.BoolVar(&Params.Misc.Force, "force", false, "write to output key store even if it exists")
 	flag.BoolVar(&Params.Misc.LogDebug, "d", false, "log debug messages to stderr")
-	flag.BoolVar(&Params.Misc.LogVerbose, "v", false, "log everything to stderr")
+	flag.BoolVar(&Params.Misc.LogVerbose, "v", false, "log more information to stderr")
 
 	return &Params
 }
@@ -111,10 +111,10 @@ func (params *CommandLineParams) Parse() error {
 	}
 
 	if params.Misc.LogDebug {
-		log.SetLevel(log.DebugLevel)
+		log.SetLevel(log.TraceLevel)
 	}
 	if params.Misc.LogVerbose {
-		log.SetLevel(log.TraceLevel)
+		log.SetLevel(log.DebugLevel)
 	}
 
 	if params.Dst.KeyDir == "" {
