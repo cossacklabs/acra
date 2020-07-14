@@ -61,7 +61,6 @@ func main() {
 
 	keysDir := flag.String("keys_dir", keystore.DefaultKeyDirShort, "Folder from which will be loaded keys")
 	keysCacheSize := flag.Int("keystore_cache_size", keystore.InfiniteCacheSize, "Count of keys that will be stored in in-memory LRU cache in encrypted form. 0 - no limits, -1 - turn off cache")
-	keystoreOpts := flag.String("keystore", "", "force Key Store format: v1 (current), v2 (new)")
 
 	secureSessionID := flag.String("securesession_id", "acra_translator", "Id that will be sent in secure session")
 
@@ -116,21 +115,10 @@ func main() {
 
 	log.Infof("Initialising keystore...")
 	var keyStore keystore.TranslationKeyStore
-	if *keystoreOpts == "" {
-		if filesystemV2.IsKeyDirectory(*keysDir) {
-			*keystoreOpts = "v2"
-		} else {
-			*keystoreOpts = "v1"
-		}
-	}
-	switch *keystoreOpts {
-	case "v1":
-		keyStore = openKeyStoreV1(*keysDir, *keysCacheSize)
-	case "v2":
+	if filesystemV2.IsKeyDirectory(*keysDir) {
 		keyStore = openKeyStoreV2(*keysDir)
-	default:
-		log.Errorf("unknown keystore option: %v", *keystoreOpts)
-		os.Exit(1)
+	} else {
+		keyStore = openKeyStoreV1(*keysDir, *keysCacheSize)
 	}
 	log.Infof("Keystore init OK")
 

@@ -11,14 +11,14 @@ dump_config: false
 # Generate with yaml config markdown text file with descriptions of all args
 generate_markdown_args_table: false
 
+# use machine-readable JSON output
+json: false
+
 # path to key directory
 keys_dir: .acrakeys
 
 # path to key directory for public keys
 keys_dir_public: 
-
-# force key store format: v1 (current), v2 (new)
-keystore: 
 
 # zone ID for which to retrieve key
 zone_id: 

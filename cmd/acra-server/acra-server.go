@@ -89,7 +89,6 @@ func main() {
 
 	keysDir := flag.String("keys_dir", keystore.DefaultKeyDirShort, "Folder from which will be loaded keys")
 	keysCacheSize := flag.Int("keystore_cache_size", keystore.InfiniteCacheSize, "Maximum number of keys stored in in-memory LRU cache in encrypted form. 0 - no limits, -1 - turn off cache")
-	keystoreOpts := flag.String("keystore", "", "force Key Store format: v1 (current), v2 (new)")
 
 	_ = flag.Bool("pgsql_hex_bytea", false, "Hex format for Postgresql bytea data (deprecated, ignored)")
 	flag.Bool("pgsql_escape_bytea", false, "Escape format for Postgresql bytea data (deprecated, ignored)")
@@ -207,21 +206,10 @@ func main() {
 
 	log.Infof("Initialising keystore...")
 	var keyStore keystore.ServerKeyStore
-	if *keystoreOpts == "" {
-		if filesystemV2.IsKeyDirectory(*keysDir) {
-			*keystoreOpts = "v2"
-		} else {
-			*keystoreOpts = "v1"
-		}
-	}
-	switch *keystoreOpts {
-	case "v1":
-		keyStore = openKeyStoreV1(*keysDir, *keysCacheSize)
-	case "v2":
+	if filesystemV2.IsKeyDirectory(*keysDir) {
 		keyStore = openKeyStoreV2(*keysDir)
-	default:
-		log.Errorf("unknown keystore option: %v", *keystoreOpts)
-		os.Exit(1)
+	} else {
+		keyStore = openKeyStoreV1(*keysDir, *keysCacheSize)
 	}
 	config.setKeyStore(keyStore)
 	log.Infof("Keystore init OK")

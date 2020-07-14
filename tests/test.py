@@ -306,7 +306,7 @@ def get_poison_record():
     if not poison_record:
         poison_record = b64decode(subprocess.check_output([
             './acra-poisonrecordmaker', '--keys_dir={}'.format(KEYS_FOLDER.name),
-            '--keystore={}'.format(KEYSTORE_VERSION)],
+            ],
             timeout=PROCESS_CALL_TIMEOUT))
     return poison_record
 
@@ -380,7 +380,6 @@ def manage_basic_auth_user(action, user_name, user_password):
             '--file={}'.format(ACRAWEBCONFIG_AUTH_DB_PATH),
             '--user={}'.format(user_name),
             '--keys_dir={}'.format(KEYS_FOLDER.name),
-            '--keystore={}'.format(KEYSTORE_VERSION),
             '--password={}'.format(user_password)]
     return subprocess.call(args, cwd=os.getcwd(), timeout=PROCESS_CALL_TIMEOUT)
 
@@ -4831,13 +4830,10 @@ class TestOutdatedServiceConfigs(BaseTestCase, FailedRunProcessMixin):
                                   '--keystore={}'.format(KEYSTORE_VERSION)],
                 'acra-migrate-keys': ['--dry_run', '--src_keys_dir={}'.format(KEYS_FOLDER.name)],
                 'acra-keys': ['--keys_dir={}'.format(KEYS_FOLDER.name)],
-                'acra-poisonrecordmaker': ['-keys_dir={}'.format(tmp_dir),
-                                           '--keystore={}'.format(KEYSTORE_VERSION)],
-                'acra-rollback': {'args': ['-keys_dir={}'.format(tmp_dir),
-                                           '--keystore={}'.format(KEYSTORE_VERSION)],
+                'acra-poisonrecordmaker': ['-keys_dir={}'.format(tmp_dir)],
+                'acra-rollback': {'args': ['-keys_dir={}'.format(tmp_dir)],
                                   'status': 1},
-                'acra-rotate': {'args': ['-keys_dir={}'.format(tmp_dir),
-                                         '--keystore={}'.format(KEYSTORE_VERSION)],
+                'acra-rotate': {'args': ['-keys_dir={}'.format(tmp_dir)],
                                 'status': 0},
                 'acra-translator': {'connection': 'connection_string',
                                    'args': ['-keys_dir={}'.format(KEYS_FOLDER.name),
@@ -4882,13 +4878,10 @@ class TestOutdatedServiceConfigs(BaseTestCase, FailedRunProcessMixin):
                                   '--keystore={}'.format(KEYSTORE_VERSION)],
                 'acra-migrate-keys': ['--dry_run', '--src_keys_dir={}'.format(KEYS_FOLDER.name)],
                 'acra-keys': ['--keys_dir={}'.format(KEYS_FOLDER.name)],
-                'acra-poisonrecordmaker': ['-keys_dir={}'.format(tmp_dir),
-                                           '--keystore={}'.format(KEYSTORE_VERSION)],
-                'acra-rollback': {'args': ['-keys_dir={}'.format(tmp_dir),
-                                           '--keystore={}'.format(KEYSTORE_VERSION)],
+                'acra-poisonrecordmaker': ['-keys_dir={}'.format(tmp_dir)],
+                'acra-rollback': {'args': ['-keys_dir={}'.format(tmp_dir)],
                                   'status': 1},
-                'acra-rotate': {'args': ['-keys_dir={}'.format(tmp_dir),
-                                         '--keystore={}'.format(KEYSTORE_VERSION)],
+                'acra-rotate': {'args': ['-keys_dir={}'.format(tmp_dir)],
                                 'status': 0},
                 'acra-translator': {'connection': 'connection_string',
                                     'args': ['-keys_dir={}'.format(KEYS_FOLDER.name),

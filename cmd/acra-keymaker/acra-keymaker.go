@@ -53,7 +53,7 @@ func main() {
 	outputDir := flag.String("keys_output_dir", keystore.DefaultKeyDirShort, "Folder where will be saved keys")
 	outputPublicKey := flag.String("keys_public_output_dir", keystore.DefaultKeyDirShort, "Folder where will be saved public key")
 	masterKey := flag.String("generate_master_key", "", "Generate new random master key and save to file")
-	keystoreOpts := flag.String("keystore", "", "force Key Store format: v1 (current), v2 (new)")
+	keystoreVersion := flag.String("keystore", "", "set key store format: v1 (current), v2 (new)")
 
 	logging.SetLogLevel(logging.LogVerbose)
 
@@ -78,22 +78,22 @@ func main() {
 	}
 
 	var store keystore.KeyMaking
-	if *keystoreOpts == "" {
-		// IsKeyDirectory returns false for missing directories too.
-		// Create keystore v1 by default if it does not exist.
-		if filesystemV2.IsKeyDirectory(*outputDir) {
-			*keystoreOpts = "v2"
-		} else {
-			*keystoreOpts = "v1"
-		}
+	// If the key store already exists, detect its version automatically and allow to not specify it.
+	if filesystemV2.IsKeyDirectory(*outputDir) {
+		*keystoreVersion = "v2"
+	} else if filesystem.IsKeyDirectory(*outputDir) {
+		*keystoreVersion = "v1"
 	}
-	switch *keystoreOpts {
+	switch *keystoreVersion {
 	case "v1":
 		store = openKeyStoreV1(*outputDir, *outputPublicKey)
 	case "v2":
 		store = openKeyStoreV2(*outputDir)
+	case "":
+		log.Errorf("Key store version is required: --keystore={v1|v2}")
+		os.Exit(1)
 	default:
-		log.Errorf("unknown keystore option: %v", *keystoreOpts)
+		log.Errorf("Unknown --keystore option: %v", *keystoreVersion)
 		os.Exit(1)
 	}
 

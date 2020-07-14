@@ -157,7 +157,6 @@ func (ex *WriteToFileExecutor) Close() {
 
 func main() {
 	keysDir := flag.String("keys_dir", keystore.DefaultKeyDirShort, "Folder from which the keys will be loaded")
-	keystoreOpts := flag.String("keystore", "", "force Key Store format: v1 (current), v2 (new)")
 	clientID := flag.String("client_id", "", "Client ID should be name of file with private key")
 	connectionString := flag.String("connection_string", "", "Connection string for db")
 	sqlSelect := flag.String("select", "", "Query to fetch data for decryption")
@@ -222,21 +221,10 @@ func main() {
 	}
 
 	var keystorage keystore.DecryptionKeyStore
-	if *keystoreOpts == "" {
-		if filesystemV2.IsKeyDirectory(*keysDir) {
-			*keystoreOpts = "v2"
-		} else {
-			*keystoreOpts = "v1"
-		}
-	}
-	switch *keystoreOpts {
-	case "v1":
-		keystorage = openKeyStoreV1(*keysDir)
-	case "v2":
+	if filesystemV2.IsKeyDirectory(*keysDir) {
 		keystorage = openKeyStoreV2(*keysDir)
-	default:
-		log.Errorf("unknown keystore option: %v", *keystoreOpts)
-		os.Exit(1)
+	} else {
+		keystorage = openKeyStoreV1(*keysDir)
 	}
 
 	db, err := sql.Open(dbDriverName, *connectionString)
