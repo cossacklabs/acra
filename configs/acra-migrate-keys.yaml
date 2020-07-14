@@ -15,7 +15,7 @@ dst_keys_dir:
 dst_keys_dir_public: 
 
 # key store format to use: v1 (current), v2 (new)
-dst_keystore: v2
+dst_keystore: 
 
 # dump config
 dump_config: false
@@ -33,7 +33,7 @@ src_keys_dir: .acrakeys
 src_keys_dir_public: .acrakeys
 
 # key store format to use: v1 (current), v2 (new)
-src_keystore: v1
+src_keystore: 
 
 # log everything to stderr
 v: false

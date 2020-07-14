@@ -521,7 +521,7 @@ func TestFilesystemKeyStoreExport(t *testing.T) {
 	}
 
 	// Test setup complete, now we can finally verify exporting.
-	exportedKeys, err := keyStore.EnumerateExportedKeys()
+	exportedKeys, err := EnumerateExportedKeys(keyStore)
 	if err != nil {
 		t.Errorf("EnumerateExportedKeys() failed: %v", err)
 	}

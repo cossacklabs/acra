@@ -25,10 +25,14 @@ import (
 	"github.com/cossacklabs/themis/gothemis/keys"
 )
 
+// KeyExportEnumerator provides a list of key paths to be exported.
+type KeyExportEnumerator interface {
+	EnumerateExportedKeyPaths() ([]string, error)
+}
+
 // KeyExport allows to export plaintext key material by generic key description rather than specific purpose.
 type KeyExport interface {
-	EnumerateExportedKeys() ([]ExportedKey, error)
-	EnumerateExportedKeysByClass(classifier KeyFileClassifier) ([]ExportedKey, error)
+	KeyExportEnumerator
 
 	ExportPublicKey(key ExportedKey) (*keys.PublicKey, error)
 	ExportPrivateKey(key ExportedKey) (*keys.PrivateKey, error)
@@ -145,14 +149,14 @@ var defaultClassifier = &DefaultKeyFileClassifier{}
 
 // EnumerateExportedKeys prepares a list of keys that can be exported.
 // The keys are classified with default key file classifier.
-func (store *KeyStore) EnumerateExportedKeys() ([]ExportedKey, error) {
-	return store.EnumerateExportedKeysByClass(defaultClassifier)
+func EnumerateExportedKeys(enumerator KeyExportEnumerator) ([]ExportedKey, error) {
+	return EnumerateExportedKeysByClass(enumerator, defaultClassifier)
 }
 
 // EnumerateExportedKeysByClass prepares a list of keys that can be exported.
 // The keys are classified with the provided classifier.
-func (store *KeyStore) EnumerateExportedKeysByClass(classifier KeyFileClassifier) ([]ExportedKey, error) {
-	keyPaths, err := store.enumerateKeyFiles()
+func EnumerateExportedKeysByClass(enumerator KeyExportEnumerator, classifier KeyFileClassifier) ([]ExportedKey, error) {
+	keyPaths, err := enumerator.EnumerateExportedKeyPaths()
 	if err != nil {
 		return nil, err
 	}
@@ -177,7 +181,8 @@ func (store *KeyStore) EnumerateExportedKeysByClass(classifier KeyFileClassifier
 	return exportedKeys, nil
 }
 
-func (store *KeyStore) enumerateKeyFiles() ([]string, error) {
+// EnumerateExportedKeyPaths returns a list of key paths that can be exported from this key store.
+func (store *KeyStore) EnumerateExportedKeyPaths() ([]string, error) {
 	paths := make([]string, 0)
 
 	directories := []string{store.privateKeyDirectory}
