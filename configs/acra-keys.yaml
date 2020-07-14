@@ -11,6 +11,9 @@ dump_config: false
 # Generate with yaml config markdown text file with descriptions of all args
 generate_markdown_args_table: false
 
+# use machine-readable JSON output
+json: false
+
 # path to key directory
 keys_dir: .acrakeys
 
