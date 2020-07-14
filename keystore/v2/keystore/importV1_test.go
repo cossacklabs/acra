@@ -126,7 +126,7 @@ func TestImportKeyStoreV1(t *testing.T) {
 	}
 
 	// Test setup complete, now we transfer the keys.
-	exportedKeys, err := keyStoreV1.EnumerateExportedKeys()
+	exportedKeys, err := filesystemV1.EnumerateExportedKeys(keyStoreV1)
 	if err != nil {
 		t.Fatalf("EnumerateExportedKeys() failed: %v", err)
 	}
