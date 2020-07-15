@@ -98,14 +98,14 @@ func (s *ServerKeyStore) ListKeys() ([]keystore.KeyDescription, error) {
 	if err != nil {
 		return nil, err
 	}
-	return s.DescribeKeys(keyRings)
+	return DescribeKeyRings(keyRings, s)
 }
 
-// DescribeKeys describes requested keys in the key store.
-func (s *ServerKeyStore) DescribeKeys(keyRings []string) ([]keystore.KeyDescription, error) {
+// DescribeKeyRings describes multiple key rings by their purpose paths.
+func DescribeKeyRings(keyRings []string, keyStore api.KeyStore) ([]keystore.KeyDescription, error) {
 	keys := make([]keystore.KeyDescription, len(keyRings))
 	for i := range keys {
-		description, err := s.describeKeyRing(keyRings[i])
+		description, err := keyStore.DescribeKeyRing(keyRings[i])
 		if err != nil {
 			return nil, err
 		}
@@ -114,7 +114,8 @@ func (s *ServerKeyStore) DescribeKeys(keyRings []string) ([]keystore.KeyDescript
 	return keys, nil
 }
 
-func (s *ServerKeyStore) describeKeyRing(path string) (*keystore.KeyDescription, error) {
+// DescribeKeyRing describes key ring by its purpose path.
+func (s *ServerKeyStore) DescribeKeyRing(path string) (*keystore.KeyDescription, error) {
 	if path == poisonKeyPath {
 		return &keystore.KeyDescription{
 			ID:      path,

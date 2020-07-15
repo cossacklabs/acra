@@ -18,6 +18,7 @@
 package api
 
 import (
+	keystoreV1 "github.com/cossacklabs/acra/keystore"
 	"github.com/cossacklabs/acra/keystore/v2/keystore/asn1"
 	"github.com/cossacklabs/acra/keystore/v2/keystore/crypto"
 )
@@ -38,6 +39,9 @@ type KeyStore interface {
 	// Key ring data is encrypted and signed using given cryptosuite.
 	// Resulting container can be imported into existing or different key store with ImportKeyRings().
 	ExportKeyRings(paths []string, cryptosuite *crypto.KeyStoreSuite, mode ExportMode) ([]byte, error)
+
+	// DescribeKeyRing describes key ring by its purpose path.
+	DescribeKeyRing(purpose string) (*keystoreV1.KeyDescription, error)
 }
 
 // ExportMode constants describe which data to export from key storage.

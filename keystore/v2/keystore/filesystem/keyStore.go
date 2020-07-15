@@ -22,6 +22,7 @@ import (
 	"strings"
 	"time"
 
+	keystoreV1 "github.com/cossacklabs/acra/keystore"
 	"github.com/cossacklabs/acra/keystore/v2/keystore/api"
 	"github.com/cossacklabs/acra/keystore/v2/keystore/asn1"
 	"github.com/cossacklabs/acra/keystore/v2/keystore/crypto"
@@ -31,6 +32,11 @@ import (
 )
 
 const serviceName = "keystore"
+
+// Errors returned by basuc key store.
+var (
+	ErrNotImplemented = errors.New("not implemented")
+)
 
 // KeyStore is a filesystem-like key store which keeps key rings in files.
 //
@@ -165,6 +171,13 @@ func (s *KeyStore) ListKeyRings() (rings []string, err error) {
 		rings[i] = strings.TrimSuffix(rings[i], keyringSuffix)
 	}
 	return rings, nil
+}
+
+// DescribeKeyRing describes key ring by its purpose path.
+func (s *KeyStore) DescribeKeyRing(path string) (*keystoreV1.KeyDescription, error) {
+	// This is basic key store which does not define any particular key rings.
+	// This method will be overridden by actual key store implementation.
+	return nil, ErrNotImplemented
 }
 
 // ExportKeyRings packages specified key rings for export.

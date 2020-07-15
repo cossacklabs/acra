@@ -23,6 +23,7 @@ import (
 	"os"
 
 	"github.com/cossacklabs/acra/keystore"
+	keystoreV2 "github.com/cossacklabs/acra/keystore/v2/keystore"
 	"github.com/cossacklabs/acra/keystore/v2/keystore/api"
 	"github.com/cossacklabs/acra/keystore/v2/keystore/crypto"
 	"github.com/cossacklabs/acra/utils"
@@ -128,7 +129,7 @@ func ImportKeys(exportedData []byte, keyStore api.MutableKeyStore, cryptosuite *
 		log.WithError(err).Debug("Failed to import key rings")
 		return nil, err
 	}
-	descriptions, err := keyStore.DescribeKeys(keyIDs)
+	descriptions, err := keystoreV2.DescribeKeyRings(keyIDs, keyStore)
 	if err != nil {
 		log.WithError(err).Debug("Failed to describe imported key rings")
 		return nil, err
