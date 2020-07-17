@@ -100,7 +100,7 @@ func ReadImportEncryptionKeys(params *CommandLineParams) (*crypto.KeyStoreSuite,
 }
 
 // ExportKeys exports requested key rings.
-func ExportKeys(keyStore *keystoreV2.ServerKeyStore, cryptosuite *crypto.KeyStoreSuite, params *CommandLineParams) (exportedData []byte, err error) {
+func ExportKeys(keyStore api.KeyStore, cryptosuite *crypto.KeyStoreSuite, params *CommandLineParams) (exportedData []byte, err error) {
 	exportedIDs := params.ExportIDs
 	if params.ExportAll {
 		exportedIDs, err = keyStore.ListKeyRings()
@@ -123,13 +123,13 @@ func ExportKeys(keyStore *keystoreV2.ServerKeyStore, cryptosuite *crypto.KeyStor
 }
 
 // ImportKeys imports available key rings.
-func ImportKeys(exportedData []byte, keyStore *keystoreV2.ServerKeyStore, cryptosuite *crypto.KeyStoreSuite, params *CommandLineParams) ([]keystore.KeyDescription, error) {
+func ImportKeys(exportedData []byte, keyStore api.MutableKeyStore, cryptosuite *crypto.KeyStoreSuite, params *CommandLineParams) ([]keystore.KeyDescription, error) {
 	keyIDs, err := keyStore.ImportKeyRings(exportedData, cryptosuite, nil)
 	if err != nil {
 		log.WithError(err).Debug("Failed to import key rings")
 		return nil, err
 	}
-	descriptions, err := keyStore.DescribeKeys(keyIDs)
+	descriptions, err := keystoreV2.DescribeKeyRings(keyIDs, keyStore)
 	if err != nil {
 		log.WithError(err).Debug("Failed to describe imported key rings")
 		return nil, err
