@@ -17,37 +17,68 @@
 package keys
 
 import (
+	"errors"
+
 	"github.com/cossacklabs/acra/keystore"
 	keystoreV1 "github.com/cossacklabs/acra/keystore"
 	filesystemV1 "github.com/cossacklabs/acra/keystore/filesystem"
 	keystoreV2 "github.com/cossacklabs/acra/keystore/v2/keystore"
+	"github.com/cossacklabs/acra/keystore/v2/keystore/api"
 	filesystemV2 "github.com/cossacklabs/acra/keystore/v2/keystore/filesystem"
 	log "github.com/sirupsen/logrus"
 )
 
+// KeyStoreFactory defines how to construct key stores by parameters.
+// Export and import are available only for key store v2 so they are kept separate,
+// return an error if they cannot be provided (e.g, key store v1 is requested).
+type KeyStoreFactory interface {
+	OpenKeyStoreForReading(params *CommandLineParams) (keystore.ServerKeyStore, error)
+	OpenKeyStoreForWriting(params *CommandLineParams) (keystore.KeyMaking, error)
+	OpenKeyStoreForExport(params *CommandLineParams) (api.KeyStore, error)
+	OpenKeyStoreForImport(params *CommandLineParams) (api.MutableKeyStore, error)
+}
+
+// KeyStoreFactory should return one of those errors when it is not able to construct requested key store.
+var (
+	ErrNotImplementedV1 = errors.New("not implemented for key store v1")
+)
+
+// DefaultKeyStoreFactory it the default key store factory in Acra CE.
+// It chooses appropriate key store type based on its content.
+type DefaultKeyStoreFactory struct{}
+
 // OpenKeyStoreForReading opens a key store suitable for reading keys.
-func OpenKeyStoreForReading(params *CommandLineParams) (keystore.ServerKeyStore, error) {
+func (*DefaultKeyStoreFactory) OpenKeyStoreForReading(params *CommandLineParams) (keystore.ServerKeyStore, error) {
 	if filesystemV2.IsKeyDirectory(params.KeyDir) {
 		return openKeyStoreV2(params)
 	}
 	return openKeyStoreV1(params)
 }
 
-// OpenKeyStoreForModification opens a key store suitable for modifications.
-func OpenKeyStoreForModification(params *CommandLineParams) (keystore.KeyMaking, error) {
+// OpenKeyStoreForWriting opens a key store suitable for modifications.
+func (*DefaultKeyStoreFactory) OpenKeyStoreForWriting(params *CommandLineParams) (keystore.KeyMaking, error) {
 	if filesystemV2.IsKeyDirectory(params.KeyDir) {
 		return openKeyStoreV2(params)
 	}
 	return openKeyStoreV1(params)
 }
 
-// OpenKeyStoreForExportImport opens a key store suitable for export/import operations.
-func OpenKeyStoreForExportImport(params *CommandLineParams) (*keystoreV2.ServerKeyStore, error) {
+// OpenKeyStoreForExport opens a key store suitable for export operations.
+func (*DefaultKeyStoreFactory) OpenKeyStoreForExport(params *CommandLineParams) (api.KeyStore, error) {
 	if filesystemV2.IsKeyDirectory(params.KeyDir) {
 		return openKeyStoreV2(params)
 	}
 	// Not supported in Acra CE
-	return nil, keystore.ErrNotImplemented
+	return nil, ErrNotImplementedV1
+}
+
+// OpenKeyStoreForImport opens a key store suitable for import operations.
+func (*DefaultKeyStoreFactory) OpenKeyStoreForImport(params *CommandLineParams) (api.MutableKeyStore, error) {
+	if filesystemV2.IsKeyDirectory(params.KeyDir) {
+		return openKeyStoreV2(params)
+	}
+	// Not supported in Acra CE
+	return nil, ErrNotImplementedV1
 }
 
 func openKeyStoreV1(params *CommandLineParams) (*filesystemV1.KeyStore, error) {

@@ -28,7 +28,6 @@ import (
 	"os"
 
 	"github.com/cossacklabs/acra/cmd/acra-keys/keys"
-	"github.com/cossacklabs/acra/keystore"
 	"github.com/cossacklabs/acra/utils"
 	log "github.com/sirupsen/logrus"
 )
@@ -36,17 +35,18 @@ import (
 func main() {
 	keys.ParseParams()
 
+	factory := &keys.DefaultKeyStoreFactory{}
 	switch keys.Params.Command {
 	case keys.CmdListKeys:
-		listKeys(keys.Params)
+		listKeys(keys.Params, factory)
 	case keys.CmdExportKeys:
-		exportKeys(keys.Params)
+		exportKeys(keys.Params, factory)
 	case keys.CmdImportKeys:
-		importKeys(keys.Params)
+		importKeys(keys.Params, factory)
 	case keys.CmdReadKey:
-		printKey(keys.Params)
+		printKey(keys.Params, factory)
 	case keys.CmdDestroyKey:
-		destroyKey(keys.Params)
+		destroyKey(keys.Params, factory)
 	}
 }
 
@@ -57,15 +57,15 @@ func warnKeystoreV2Only(command string) {
 	log.Info("Read more: https://docs.cossacklabs.com/pages/documentation-acra/#key-management")
 }
 
-func listKeys(params *keys.CommandLineParams) {
-	keyStore, err := keys.OpenKeyStoreForReading(params)
+func listKeys(params *keys.CommandLineParams, factory keys.KeyStoreFactory) {
+	keyStore, err := factory.OpenKeyStoreForReading(params)
 	if err != nil {
 		log.WithError(err).Fatal("Failed to open key store")
 	}
 
 	keyDescriptions, err := keyStore.ListKeys()
 	if err != nil {
-		if err == keystore.ErrNotImplemented {
+		if err == keys.ErrNotImplementedV1 {
 			warnKeystoreV2Only(keys.CmdListKeys)
 		}
 		log.WithError(err).Fatal("Failed to read key list")
@@ -77,10 +77,10 @@ func listKeys(params *keys.CommandLineParams) {
 	}
 }
 
-func exportKeys(params *keys.CommandLineParams) {
-	keyStore, err := keys.OpenKeyStoreForExportImport(params)
+func exportKeys(params *keys.CommandLineParams, factory keys.KeyStoreFactory) {
+	keyStore, err := factory.OpenKeyStoreForExport(params)
 	if err != nil {
-		if err == keystore.ErrNotImplemented {
+		if err == keys.ErrNotImplementedV1 {
 			warnKeystoreV2Only(keys.CmdExportKeys)
 		}
 		log.WithError(err).Fatal("Failed to open key store")
@@ -108,10 +108,10 @@ func exportKeys(params *keys.CommandLineParams) {
 	log.Infof("Import the keys into another key store like this:\n\tacra-keys import --key_bundle_file \"%s\" --key_bundle_secret \"%s\"", params.ExportDataFile, params.ExportKeysFile)
 }
 
-func importKeys(params *keys.CommandLineParams) {
-	keyStore, err := keys.OpenKeyStoreForExportImport(params)
+func importKeys(params *keys.CommandLineParams, factory keys.KeyStoreFactory) {
+	keyStore, err := factory.OpenKeyStoreForImport(params)
 	if err != nil {
-		if err == keystore.ErrNotImplemented {
+		if err == keys.ErrNotImplementedV1 {
 			warnKeystoreV2Only(keys.CmdExportKeys)
 		}
 		log.WithError(err).Fatal("Failed to open key store")
@@ -140,8 +140,8 @@ func importKeys(params *keys.CommandLineParams) {
 	}
 }
 
-func printKey(params *keys.CommandLineParams) {
-	keyStore, err := keys.OpenKeyStoreForReading(params)
+func printKey(params *keys.CommandLineParams, factory keys.KeyStoreFactory) {
+	keyStore, err := factory.OpenKeyStoreForReading(params)
 	if err != nil {
 		log.WithError(err).Fatal("Failed to open key store")
 	}
@@ -158,8 +158,8 @@ func printKey(params *keys.CommandLineParams) {
 	}
 }
 
-func destroyKey(params *keys.CommandLineParams) {
-	keyStore, err := keys.OpenKeyStoreForModification(params)
+func destroyKey(params *keys.CommandLineParams, factory keys.KeyStoreFactory) {
+	keyStore, err := factory.OpenKeyStoreForWriting(params)
 	if err != nil {
 		log.WithError(err).Fatal("Failed to open key store")
 	}
