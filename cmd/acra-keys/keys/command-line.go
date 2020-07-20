@@ -14,7 +14,6 @@
  * limitations under the License.
  */
 
-// Package keys defines reusable business logic of `acra-keys` utility.
 package keys
 
 import (
@@ -26,7 +25,6 @@ import (
 
 	"github.com/cossacklabs/acra/cmd"
 	keystoreV1 "github.com/cossacklabs/acra/keystore"
-	filesystemV2 "github.com/cossacklabs/acra/keystore/v2/keystore/filesystem"
 	"github.com/cossacklabs/acra/logging"
 	"github.com/cossacklabs/acra/utils"
 	log "github.com/sirupsen/logrus"
@@ -85,9 +83,8 @@ var (
 
 // CommandLineParams describes all command-line options of acra-keys.
 type CommandLineParams struct {
-	KeyStoreVersion string
-	KeyDir          string
-	KeyDirPublic    string
+	KeyDir       string
+	KeyDirPublic string
 
 	ClientID string
 	ZoneID   string
@@ -299,12 +296,6 @@ func (params *CommandLineParams) ParseSubCommand() error {
 
 // SetDefaults sets dynamically configured default values of command-line parameters.
 func (params *CommandLineParams) SetDefaults() {
-	if filesystemV2.IsKeyDirectory(params.KeyDir) {
-		params.KeyStoreVersion = "v2"
-	} else {
-		params.KeyStoreVersion = "v1"
-	}
-
 	if params.KeyDirPublic == "" {
 		params.KeyDirPublic = params.KeyDir
 	}
