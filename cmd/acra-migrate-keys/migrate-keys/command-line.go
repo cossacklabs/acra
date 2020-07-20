@@ -22,7 +22,6 @@ import (
 	"flag"
 
 	"github.com/cossacklabs/acra/cmd"
-	keystoreV1 "github.com/cossacklabs/acra/keystore"
 	"github.com/cossacklabs/acra/utils"
 	log "github.com/sirupsen/logrus"
 )
@@ -30,14 +29,12 @@ import (
 // Command-line errors:
 var (
 	ErrMissingFormat = errors.New("key store format not specified")
+	ErrMissingKeyDir = errors.New("key directory not specified")
 )
 
 var (
 	defaultConfigPath = utils.GetConfigPathByName("acra-migrate-keys")
 	serviceName       = "acra-migrate-keys"
-
-	defaultSrcDir       = keystoreV1.DefaultKeyDirShort
-	defaultDstDirSuffix = ".migrated"
 )
 
 // CommandLineParams - command-line options.
@@ -78,12 +75,12 @@ var Params CommandLineParams
 func RegisterCommandLineParams() *CommandLineParams {
 	// Source key store
 	flag.StringVar(&Params.Src.KeyStoreVersion, "src_keystore", "", "key store format to use: v1 (current), v2 (new)")
-	flag.StringVar(&Params.Src.KeyDir, "src_keys_dir", defaultSrcDir, "path to source key directory")
-	flag.StringVar(&Params.Src.KeyDirPublic, "src_keys_dir_public", defaultSrcDir, "path to source key directory for public keys")
+	flag.StringVar(&Params.Src.KeyDir, "src_keys_dir", "", "path to source key directory")
+	flag.StringVar(&Params.Src.KeyDirPublic, "src_keys_dir_public", "", "path to source key directory for public keys")
 	// Destination key store
 	flag.StringVar(&Params.Dst.KeyStoreVersion, "dst_keystore", "", "key store format to use: v1 (current), v2 (new)")
-	flag.StringVar(&Params.Dst.KeyDir, "dst_keys_dir", "", "path to destination key directory (default \".acrakeys.migrated\")")
-	flag.StringVar(&Params.Dst.KeyDirPublic, "dst_keys_dir_public", "", "path to destination key directory for public keys (default \".acrakeys.migrated\")")
+	flag.StringVar(&Params.Dst.KeyDir, "dst_keys_dir", "", "path to destination key directory")
+	flag.StringVar(&Params.Dst.KeyDirPublic, "dst_keys_dir_public", "", "path to destination key directory for public keys")
 	// Miscellaneous
 	flag.BoolVar(&Params.Misc.DryRun, "dry_run", false, "try migration without writing to the output key store")
 	flag.BoolVar(&Params.Misc.Force, "force", false, "write to output key store even if it exists")
@@ -110,18 +107,28 @@ func (params *CommandLineParams) Parse() error {
 		return ErrMissingFormat
 	}
 
+	if params.Src.KeyDir == "" {
+		log.Warning("Missing required argument: --src_keys_dir=<path>")
+	}
+	if params.Dst.KeyDir == "" {
+		log.Warning("Missing required argument: --dst_keys_dir=<path>")
+	}
+	if params.Src.KeyDir == "" || params.Dst.KeyDir == "" {
+		return ErrMissingKeyDir
+	}
+
+	if params.Src.KeyDirPublic == "" {
+		params.Src.KeyDirPublic = params.Src.KeyDir
+	}
+	if params.Dst.KeyDirPublic == "" {
+		params.Dst.KeyDirPublic = params.Dst.KeyDir
+	}
+
 	if params.Misc.LogDebug {
 		log.SetLevel(log.TraceLevel)
 	}
 	if params.Misc.LogVerbose {
 		log.SetLevel(log.DebugLevel)
-	}
-
-	if params.Dst.KeyDir == "" {
-		params.Dst.KeyDir = params.Src.KeyDir + defaultDstDirSuffix
-	}
-	if params.Dst.KeyDirPublic == "" {
-		params.Dst.KeyDirPublic = params.Src.KeyDirPublic + defaultDstDirSuffix
 	}
 
 	return nil

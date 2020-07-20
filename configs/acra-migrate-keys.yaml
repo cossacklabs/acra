@@ -8,10 +8,10 @@ d: false
 # try migration without writing to the output key store
 dry_run: false
 
-# path to destination key directory (default ".acrakeys.migrated")
+# path to destination key directory
 dst_keys_dir: 
 
-# path to destination key directory for public keys (default ".acrakeys.migrated")
+# path to destination key directory for public keys
 dst_keys_dir_public: 
 
 # key store format to use: v1 (current), v2 (new)
@@ -27,14 +27,14 @@ force: false
 generate_markdown_args_table: false
 
 # path to source key directory
-src_keys_dir: .acrakeys
+src_keys_dir: 
 
 # path to source key directory for public keys
-src_keys_dir_public: .acrakeys
+src_keys_dir_public: 
 
 # key store format to use: v1 (current), v2 (new)
 src_keystore: 
 
-# log everything to stderr
+# log more information to stderr
 v: false
 
