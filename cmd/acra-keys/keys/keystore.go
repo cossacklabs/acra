@@ -17,8 +17,6 @@
 package keys
 
 import (
-	"errors"
-
 	"github.com/cossacklabs/acra/keystore"
 	keystoreV1 "github.com/cossacklabs/acra/keystore"
 	filesystemV1 "github.com/cossacklabs/acra/keystore/filesystem"
@@ -27,49 +25,29 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
-// Key store access errors:
-var (
-	ErrUnknownKeystoreVersion = errors.New("unknown key store version")
-)
-
 // OpenKeyStoreForReading opens a key store suitable for reading keys.
 func OpenKeyStoreForReading(params *CommandLineParams) (keystore.ServerKeyStore, error) {
-	switch params.KeyStoreVersion {
-	case "v1":
-		return openKeyStoreV1(params)
-	case "v2":
+	if filesystemV2.IsKeyDirectory(params.KeyDir) {
 		return openKeyStoreV2(params)
-	default:
-		log.WithField("actual", params.KeyStoreVersion).Error("Unknown key store version")
-		return nil, ErrUnknownKeystoreVersion
 	}
+	return openKeyStoreV1(params)
 }
 
 // OpenKeyStoreForModification opens a key store suitable for modifications.
 func OpenKeyStoreForModification(params *CommandLineParams) (keystore.KeyMaking, error) {
-	switch params.KeyStoreVersion {
-	case "v1":
-		return openKeyStoreV1(params)
-	case "v2":
+	if filesystemV2.IsKeyDirectory(params.KeyDir) {
 		return openKeyStoreV2(params)
-	default:
-		log.WithField("actual", params.KeyStoreVersion).Error("Unknown key store version")
-		return nil, ErrUnknownKeystoreVersion
 	}
+	return openKeyStoreV1(params)
 }
 
 // OpenKeyStoreForExportImport opens a key store suitable for export/import operations.
 func OpenKeyStoreForExportImport(params *CommandLineParams) (*keystoreV2.ServerKeyStore, error) {
-	switch params.KeyStoreVersion {
-	case "v1":
-		// Not supported in Acra CE
-		return nil, keystore.ErrNotImplemented
-	case "v2":
+	if filesystemV2.IsKeyDirectory(params.KeyDir) {
 		return openKeyStoreV2(params)
-	default:
-		log.WithField("actual", params.KeyStoreVersion).Error("Unknown key store version")
-		return nil, ErrUnknownKeystoreVersion
 	}
+	// Not supported in Acra CE
+	return nil, keystore.ErrNotImplemented
 }
 
 func openKeyStoreV1(params *CommandLineParams) (*filesystemV1.KeyStore, error) {
