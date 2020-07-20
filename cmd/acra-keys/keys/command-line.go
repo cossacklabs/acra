@@ -14,7 +14,6 @@
  * limitations under the License.
  */
 
-// Package keys defines reusable business logic of `acra-keys` utility.
 package keys
 
 import (
