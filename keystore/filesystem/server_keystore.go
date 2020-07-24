@@ -28,6 +28,7 @@ import (
 	"crypto/rand"
 	"errors"
 	"fmt"
+	"io/ioutil"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -151,7 +152,24 @@ func (b *KeyStoreBuilder) Build() (*KeyStore, error) {
 // In particular, false is returned if the directory does not exists or cannot be opened.
 func IsKeyDirectory(keyDirectory string) bool {
 	fi, err := os.Stat(keyDirectory)
-	return err == nil && fi.IsDir()
+	if err != nil {
+		log.WithError(err).WithField("path", keyDirectory).Debug("Failed to stat a key directory")
+		return false
+	}
+	if !fi.IsDir() {
+		log.WithField("path", keyDirectory).Debug("Not a key directory")
+		return false
+	}
+	files, err := ioutil.ReadDir(keyDirectory)
+	if err != nil {
+		log.WithError(err).WithField("path", keyDirectory).Debug("Failed to read key directory")
+		return false
+	}
+	if len(files) == 0 {
+		log.WithField("path", keyDirectory).Debug("Key directory is empty")
+		return false
+	}
+	return true
 }
 
 func newFilesystemKeyStore(privateKeyFolder, publicKeyFolder string, storage Storage, encryptor keystore.KeyEncryptor, cacheSize int) (*KeyStore, error) {
