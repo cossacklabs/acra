@@ -89,6 +89,7 @@ func (handler *SignalHandler) Register() {
 	os.Exit(0)
 }
 
+// RegisterWithoutExiting is a no-exit version of Register function
 func (handler *SignalHandler) RegisterWithoutExiting() {
 	signal.Notify(handler.ch, handler.signals...)
 
