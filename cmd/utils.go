@@ -85,6 +85,11 @@ func (handler *SignalHandler) AddCallback(callback SignalCallback) {
 
 // Register should be called as goroutine
 func (handler *SignalHandler) Register() {
+	handler.RegisterWithoutExiting()
+	os.Exit(0)
+}
+
+func (handler *SignalHandler) RegisterWithoutExiting() {
 	signal.Notify(handler.ch, handler.signals...)
 
 	<-handler.ch
@@ -95,7 +100,6 @@ func (handler *SignalHandler) Register() {
 	for _, callback := range handler.callbacks {
 		callback()
 	}
-	os.Exit(0)
 }
 
 // ValidateClientID checks that clientID has digits, letters, _ - ' '
