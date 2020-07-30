@@ -97,7 +97,7 @@ func ListKeysCommand(params ListKeysParams, keyStore keystore.ServerKeyStore) {
 }
 
 // ExportKeysCommand implements the "export" command.
-func ExportKeysCommand(params *CommandLineParams, keyStore api.KeyStore) {
+func ExportKeysCommand(params ExportKeysParams, keyStore api.KeyStore) {
 	encryptionKeyData, cryptosuite, err := PrepareExportEncryptionKeys()
 	if err != nil {
 		log.WithError(err).Fatal("Failed to prepare encryption keys")
@@ -114,10 +114,10 @@ func ExportKeysCommand(params *CommandLineParams, keyStore api.KeyStore) {
 		log.WithError(err).Fatal("Failed to write exported data")
 	}
 
-	log.Infof("Exported key data is encrypted and saved here: %s", params.ExportDataFile)
-	log.Infof("New encryption keys for import generated here: %s", params.ExportKeysFile)
+	log.Infof("Exported key data is encrypted and saved here: %s", params.ExportDataFile())
+	log.Infof("New encryption keys for import generated here: %s", params.ExportKeysFile())
 	log.Infof("DO NOT transport or store these files together")
-	log.Infof("Import the keys into another key store like this:\n\tacra-keys import --key_bundle_file \"%s\" --key_bundle_secret \"%s\"", params.ExportDataFile, params.ExportKeysFile)
+	log.Infof("Import the keys into another key store like this:\n\tacra-keys import --key_bundle_file \"%s\" --key_bundle_secret \"%s\"", params.ExportDataFile(), params.ExportKeysFile())
 }
 
 // ImportKeysCommand implements the "import" command.

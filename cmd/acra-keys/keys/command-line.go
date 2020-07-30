@@ -94,11 +94,11 @@ type CommandLineParams struct {
 	ReadKeyKind    string
 	DestroyKeyKind string
 
-	ExportIDs      []string
-	ExportAll      bool
-	ExportDataFile string
-	ExportKeysFile string
-	ExportPrivate  bool
+	exportIDs      []string
+	exportAll      bool
+	exportDataFile string
+	exportKeysFile string
+	exportPrivate  bool
 
 	useJSON bool
 
@@ -127,10 +127,10 @@ func (params *CommandLineParams) Register() {
 	}
 
 	params.exportFlags = flag.NewFlagSet(CmdListKeys, flag.ContinueOnError)
-	params.exportFlags.BoolVar(&params.ExportAll, "all", false, "export all keys")
-	params.exportFlags.StringVar(&params.ExportDataFile, "key_bundle_file", "", "path to output file for exported key bundle")
-	params.exportFlags.StringVar(&params.ExportKeysFile, "key_bundle_secret", "", "path to output file for key encryption keys")
-	params.exportFlags.BoolVar(&params.ExportPrivate, "private_keys", false, "export private key data")
+	params.exportFlags.BoolVar(&params.exportAll, "all", false, "export all keys")
+	params.exportFlags.StringVar(&params.exportDataFile, "key_bundle_file", "", "path to output file for exported key bundle")
+	params.exportFlags.StringVar(&params.exportKeysFile, "key_bundle_secret", "", "path to output file for key encryption keys")
+	params.exportFlags.BoolVar(&params.exportPrivate, "private_keys", false, "export private key data")
 	params.exportFlags.Usage = func() {
 		fmt.Fprintf(os.Stderr, "Command \"%s\": export keys from the key store\n", CmdExportKeys)
 		fmt.Fprintf(os.Stderr, "\n\t%s %s [options...] --key_bundle_file <file> --key_bundle_secret <file> <key-ID...>\n", os.Args[0], CmdExportKeys)
@@ -139,8 +139,8 @@ func (params *CommandLineParams) Register() {
 	}
 
 	params.importFlags = flag.NewFlagSet(CmdListKeys, flag.ContinueOnError)
-	params.importFlags.StringVar(&params.ExportDataFile, "key_bundle_file", "", "path to input file with exported key bundle")
-	params.importFlags.StringVar(&params.ExportKeysFile, "key_bundle_secret", "", "path to input file with key encryption keys")
+	params.importFlags.StringVar(&params.exportDataFile, "key_bundle_file", "", "path to input file with exported key bundle")
+	params.importFlags.StringVar(&params.exportKeysFile, "key_bundle_secret", "", "path to input file with key encryption keys")
 	params.importFlags.Usage = func() {
 		fmt.Fprintf(os.Stderr, "Command \"%s\": import keys into the key store\n", CmdImportKeys)
 		fmt.Fprintf(os.Stderr, "\n\t%s %s [options...] --key_bundle_file <file> --key_bundle_secret <file>\n", os.Args[0], CmdImportKeys)
@@ -202,6 +202,31 @@ func (params *CommandLineParams) UseJSON() bool {
 	return params.useJSON
 }
 
+//ExportIDs returns key IDs to export.
+func (params *CommandLineParams) ExportIDs() []string {
+	return params.exportIDs
+}
+
+//ExportAll returns true if all keys should be exported, regardless of ExportIDs() value.
+func (params *CommandLineParams) ExportAll() bool {
+	return params.exportAll
+}
+
+// ExportPrivate returns true if private keys should be included into exported data.
+func (params *CommandLineParams) ExportPrivate() bool {
+	return params.exportPrivate
+}
+
+// ExportKeysFile returns path to file with encryption keys for export.
+func (params *CommandLineParams) ExportKeysFile() string {
+	return params.exportKeysFile
+}
+
+// ExportDataFile returns path to file with encrypted exported key data.
+func (params *CommandLineParams) ExportDataFile() string {
+	return params.exportDataFile
+}
+
 // Parse parses complete command-line.
 func (params *CommandLineParams) Parse() error {
 	err := cmd.Parse(DefaultConfigPath, ServiceName)
@@ -234,23 +259,23 @@ func (params *CommandLineParams) ParseSubCommand() error {
 			return err
 		}
 
-		if params.ExportDataFile == "" || params.ExportKeysFile == "" {
+		if params.exportDataFile == "" || params.exportKeysFile == "" {
 			log.Errorf("\"%s\" command requires output files specified with \"--key_bundle_file\" and \"--key_bundle_secret\"", CmdExportKeys)
 			return ErrMissingOutputFile
 		}
 		// We do not account for people getting creative with ".." and links.
-		if params.ExportDataFile == params.ExportKeysFile {
+		if params.exportDataFile == params.exportKeysFile {
 			log.Errorf("\"--key_bundle_file\" and \"--key_bundle_secret\" must not be the same file")
 			return ErrOutputSame
 		}
 
 		args := params.exportFlags.Args()
-		if len(args) < 1 && !params.ExportAll {
+		if len(args) < 1 && !params.exportAll {
 			log.Errorf("\"%s\" command requires at least one key ID", CmdExportKeys)
 			log.Infoln("Use \"--all\" to export all keys")
 			return ErrMissingKeyID
 		}
-		params.ExportIDs = args
+		params.exportIDs = args
 		return nil
 
 	case CmdImportKeys:
@@ -258,7 +283,7 @@ func (params *CommandLineParams) ParseSubCommand() error {
 		if err != nil {
 			return err
 		}
-		if params.ExportDataFile == "" || params.ExportKeysFile == "" {
+		if params.exportDataFile == "" || params.exportKeysFile == "" {
 			log.Errorf("\"%s\" command requires input files specified with \"--key_bundle_file\" and \"--key_bundle_secret\"", CmdImportKeys)
 			return ErrMissingOutputFile
 		}

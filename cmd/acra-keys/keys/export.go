@@ -43,6 +43,15 @@ type serializedKeys struct {
 	Signature  []byte `json:"signature"`
 }
 
+// ExportKeysParams are parameters of "acra-keys export" subcommand.
+type ExportKeysParams interface {
+	ExportIDs() []string
+	ExportAll() bool
+	ExportPrivate() bool
+	ExportKeysFile() string
+	ExportDataFile() string
+}
+
 // PrepareExportEncryptionKeys generates new ephemeral keys for key export operation.
 func PrepareExportEncryptionKeys() ([]byte, *crypto.KeyStoreSuite, error) {
 	encryptionKey, err := keystore.GenerateSymmetricKey()
@@ -75,10 +84,11 @@ func PrepareExportEncryptionKeys() ([]byte, *crypto.KeyStoreSuite, error) {
 }
 
 // ReadImportEncryptionKeys reads ephemeral keys for key import operation.
-func ReadImportEncryptionKeys(params *CommandLineParams) (*crypto.KeyStoreSuite, error) {
-	importEncryptionKeyData, err := ioutil.ReadFile(params.ExportKeysFile)
+func ReadImportEncryptionKeys(params ExportKeysParams) (*crypto.KeyStoreSuite, error) {
+	keysFile := params.ExportKeysFile()
+	importEncryptionKeyData, err := ioutil.ReadFile(keysFile)
 	if err != nil {
-		log.WithField("path", params.ExportKeysFile).WithError(err).Debug("Failed to read key file")
+		log.WithField("path", keysFile).WithError(err).Debug("Failed to read key file")
 		return nil, err
 	}
 	defer utils.ZeroizeSymmetricKey(importEncryptionKeyData)
@@ -86,13 +96,13 @@ func ReadImportEncryptionKeys(params *CommandLineParams) (*crypto.KeyStoreSuite,
 	var importEncryptionKeys serializedKeys
 	err = json.Unmarshal(importEncryptionKeyData, &importEncryptionKeys)
 	if err != nil {
-		log.WithField("path", params.ExportKeysFile).WithError(err).Debug("Failed to parse key file content")
+		log.WithField("path", keysFile).WithError(err).Debug("Failed to parse key file content")
 		return nil, err
 	}
 
 	cryptosuite, err := crypto.NewSCellSuite(importEncryptionKeys.Encryption, importEncryptionKeys.Signature)
 	if err != nil {
-		log.WithField("path", params.ExportKeysFile).WithError(err).Debug("Failed to initialize cryptosuite")
+		log.WithField("path", keysFile).WithError(err).Debug("Failed to initialize cryptosuite")
 		return nil, err
 	}
 
@@ -100,9 +110,9 @@ func ReadImportEncryptionKeys(params *CommandLineParams) (*crypto.KeyStoreSuite,
 }
 
 // ExportKeys exports requested key rings.
-func ExportKeys(keyStore api.KeyStore, cryptosuite *crypto.KeyStoreSuite, params *CommandLineParams) (exportedData []byte, err error) {
-	exportedIDs := params.ExportIDs
-	if params.ExportAll {
+func ExportKeys(keyStore api.KeyStore, cryptosuite *crypto.KeyStoreSuite, params ExportKeysParams) (exportedData []byte, err error) {
+	exportedIDs := params.ExportIDs()
+	if params.ExportAll() {
 		exportedIDs, err = keyStore.ListKeyRings()
 		if err != nil {
 			log.WithError(err).Debug("Failed to list available keys")
@@ -111,7 +121,7 @@ func ExportKeys(keyStore api.KeyStore, cryptosuite *crypto.KeyStoreSuite, params
 	}
 
 	mode := api.ExportPublicOnly
-	if params.ExportPrivate {
+	if params.ExportPrivate() {
 		mode = api.ExportPrivateKeys
 	}
 	exportedData, err = keyStore.ExportKeyRings(exportedIDs, cryptosuite, mode)
@@ -138,12 +148,12 @@ func ImportKeys(exportedData []byte, keyStore api.MutableKeyStore, cryptosuite *
 }
 
 // WriteExportedData saves exported key data and ephemeral keys into designated files.
-func WriteExportedData(data, keys []byte, params *CommandLineParams) error {
-	err := writeFileWithMode(data, params.ExportDataFile, ExportKeyPerm)
+func WriteExportedData(data, keys []byte, params ExportKeysParams) error {
+	err := writeFileWithMode(data, params.ExportDataFile(), ExportKeyPerm)
 	if err != nil {
 		return err
 	}
-	err = writeFileWithMode(keys, params.ExportKeysFile, ExportKeyPerm)
+	err = writeFileWithMode(keys, params.ExportKeysFile(), ExportKeyPerm)
 	if err != nil {
 		return err
 	}
@@ -151,10 +161,11 @@ func WriteExportedData(data, keys []byte, params *CommandLineParams) error {
 }
 
 // ReadExportedData reads exported key data from designated file.
-func ReadExportedData(params *CommandLineParams) ([]byte, error) {
-	exportedKeyData, err := ioutil.ReadFile(params.ExportDataFile)
+func ReadExportedData(params ExportKeysParams) ([]byte, error) {
+	dataFile := params.ExportDataFile()
+	exportedKeyData, err := ioutil.ReadFile(dataFile)
 	if err != nil {
-		log.WithField("path", params.ExportDataFile).WithError(err).Debug("Failed to read data file")
+		log.WithField("path", dataFile).WithError(err).Debug("Failed to read data file")
 		return nil, err
 	}
 	return exportedKeyData, nil
