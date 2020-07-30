@@ -28,16 +28,6 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
-// KeyStoreFactory defines how to construct key stores by parameters.
-// Export and import are available only for key store v2 so they are kept separate,
-// return an error if they cannot be provided (e.g, key store v1 is requested).
-type KeyStoreFactory interface {
-	OpenKeyStoreForReading(params *CommandLineParams) (keystore.ServerKeyStore, error)
-	OpenKeyStoreForWriting(params *CommandLineParams) (keystore.KeyMaking, error)
-	OpenKeyStoreForExport(params *CommandLineParams) (api.KeyStore, error)
-	OpenKeyStoreForImport(params *CommandLineParams) (api.MutableKeyStore, error)
-}
-
 // KeyStoreFactory should return one of those errors when it is not able to construct requested key store.
 var (
 	ErrNotImplementedV1 = errors.New("not implemented for key store v1")

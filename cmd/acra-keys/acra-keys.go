@@ -31,5 +31,5 @@ import (
 
 func main() {
 	keys.ParseParams()
-	keys.ExecuteCommand(keys.Params, nil)
+	keys.ExecuteCommand(keys.Params)
 }

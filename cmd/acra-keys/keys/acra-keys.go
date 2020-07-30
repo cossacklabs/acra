@@ -28,7 +28,7 @@ import (
 )
 
 // ExecuteCommand executes the command requsted on the command line
-func ExecuteCommand(params *CommandLineParams, factory KeyStoreFactory) {
+func ExecuteCommand(params *CommandLineParams) {
 	switch params.Command {
 	case CmdListKeys:
 		keyStore, err := OpenKeyStoreForReading(params)
