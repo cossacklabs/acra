@@ -43,13 +43,24 @@ type serializedKeys struct {
 	Signature  []byte `json:"signature"`
 }
 
+// ExportImportCommonParams are common parameters of "acra-keys export" and "acra-keys import" subcommand.
+type ExportImportCommonParams interface {
+	ExportKeysFile() string
+	ExportDataFile() string
+}
+
 // ExportKeysParams are parameters of "acra-keys export" subcommand.
 type ExportKeysParams interface {
+	ExportImportCommonParams
 	ExportIDs() []string
 	ExportAll() bool
 	ExportPrivate() bool
-	ExportKeysFile() string
-	ExportDataFile() string
+}
+
+// ImportKeysParams are parameters of "acra-keys import" subcommand.
+type ImportKeysParams interface {
+	ExportImportCommonParams
+	ListKeysParams
 }
 
 // PrepareExportEncryptionKeys generates new ephemeral keys for key export operation.
@@ -84,7 +95,7 @@ func PrepareExportEncryptionKeys() ([]byte, *crypto.KeyStoreSuite, error) {
 }
 
 // ReadImportEncryptionKeys reads ephemeral keys for key import operation.
-func ReadImportEncryptionKeys(params ExportKeysParams) (*crypto.KeyStoreSuite, error) {
+func ReadImportEncryptionKeys(params ExportImportCommonParams) (*crypto.KeyStoreSuite, error) {
 	keysFile := params.ExportKeysFile()
 	importEncryptionKeyData, err := ioutil.ReadFile(keysFile)
 	if err != nil {
@@ -133,7 +144,7 @@ func ExportKeys(keyStore api.KeyStore, cryptosuite *crypto.KeyStoreSuite, params
 }
 
 // ImportKeys imports available key rings.
-func ImportKeys(exportedData []byte, keyStore api.MutableKeyStore, cryptosuite *crypto.KeyStoreSuite, params *CommandLineParams) ([]keystore.KeyDescription, error) {
+func ImportKeys(exportedData []byte, keyStore api.MutableKeyStore, cryptosuite *crypto.KeyStoreSuite, params ImportKeysParams) ([]keystore.KeyDescription, error) {
 	keyIDs, err := keyStore.ImportKeyRings(exportedData, cryptosuite, nil)
 	if err != nil {
 		log.WithError(err).Debug("Failed to import key rings")
@@ -161,7 +172,7 @@ func WriteExportedData(data, keys []byte, params ExportKeysParams) error {
 }
 
 // ReadExportedData reads exported key data from designated file.
-func ReadExportedData(params ExportKeysParams) ([]byte, error) {
+func ReadExportedData(params ExportImportCommonParams) ([]byte, error) {
 	dataFile := params.ExportDataFile()
 	exportedKeyData, err := ioutil.ReadFile(dataFile)
 	if err != nil {

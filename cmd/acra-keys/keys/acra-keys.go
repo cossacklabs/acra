@@ -121,7 +121,7 @@ func ExportKeysCommand(params ExportKeysParams, keyStore api.KeyStore) {
 }
 
 // ImportKeysCommand implements the "import" command.
-func ImportKeysCommand(params *CommandLineParams, keyStore api.MutableKeyStore) {
+func ImportKeysCommand(params ImportKeysParams, keyStore api.MutableKeyStore) {
 	exportedData, err := ReadExportedData(params)
 	if err != nil {
 		log.WithError(err).Fatal("Failed to read exported data")
