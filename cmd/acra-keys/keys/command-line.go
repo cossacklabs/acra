@@ -83,8 +83,8 @@ var (
 
 // CommandLineParams describes all command-line options of acra-keys.
 type CommandLineParams struct {
-	KeyDir       string
-	KeyDirPublic string
+	keyDir       string
+	keyDirPublic string
 
 	ClientID string
 	ZoneID   string
@@ -114,8 +114,8 @@ var Params *CommandLineParams = &CommandLineParams{}
 
 // Register configures command-line parameter parsing.
 func (params *CommandLineParams) Register() {
-	flag.StringVar(&params.KeyDir, "keys_dir", DefaultKeyDirectory, "path to key directory")
-	flag.StringVar(&params.KeyDirPublic, "keys_dir_public", "", "path to key directory for public keys")
+	flag.StringVar(&params.keyDir, "keys_dir", DefaultKeyDirectory, "path to key directory")
+	flag.StringVar(&params.keyDirPublic, "keys_dir_public", "", "path to key directory for public keys")
 	flag.StringVar(&params.ClientID, "client_id", "", "client ID for which to retrieve key")
 	flag.StringVar(&params.ZoneID, "zone_id", "", "zone ID for which to retrieve key")
 	flag.BoolVar(&params.UseJSON, "json", false, "use machine-readable JSON output")
@@ -185,6 +185,16 @@ func usage() {
 
 	fmt.Fprintf(os.Stderr, "\n")
 	Params.destroyFlags.Usage()
+}
+
+// KeyDir returns path to key directory.
+func (params *CommandLineParams) KeyDir() string {
+	return params.keyDir
+}
+
+// KeyDirPublic returns path to public key directory (if different from key directory).
+func (params *CommandLineParams) KeyDirPublic() string {
+	return params.keyDirPublic
 }
 
 // Parse parses complete command-line.
@@ -296,8 +306,8 @@ func (params *CommandLineParams) ParseSubCommand() error {
 
 // SetDefaults sets dynamically configured default values of command-line parameters.
 func (params *CommandLineParams) SetDefaults() {
-	if params.KeyDirPublic == "" {
-		params.KeyDirPublic = params.KeyDir
+	if params.keyDirPublic == "" {
+		params.keyDirPublic = params.keyDir
 	}
 }
 

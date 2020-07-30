@@ -43,29 +43,31 @@ var (
 	ErrNotImplementedV1 = errors.New("not implemented for key store v1")
 )
 
-// DefaultKeyStoreFactory it the default key store factory in Acra CE.
-// It chooses appropriate key store type based on its content.
-type DefaultKeyStoreFactory struct{}
+// KeyStoreParameters are parameters for DefaultKeyStoreFactory.
+type KeyStoreParameters interface {
+	KeyDir() string
+	KeyDirPublic() string
+}
 
 // OpenKeyStoreForReading opens a key store suitable for reading keys.
-func (*DefaultKeyStoreFactory) OpenKeyStoreForReading(params *CommandLineParams) (keystore.ServerKeyStore, error) {
-	if filesystemV2.IsKeyDirectory(params.KeyDir) {
+func OpenKeyStoreForReading(params KeyStoreParameters) (keystore.ServerKeyStore, error) {
+	if filesystemV2.IsKeyDirectory(params.KeyDir()) {
 		return openKeyStoreV2(params)
 	}
 	return openKeyStoreV1(params)
 }
 
 // OpenKeyStoreForWriting opens a key store suitable for modifications.
-func (*DefaultKeyStoreFactory) OpenKeyStoreForWriting(params *CommandLineParams) (keystore.KeyMaking, error) {
-	if filesystemV2.IsKeyDirectory(params.KeyDir) {
+func OpenKeyStoreForWriting(params KeyStoreParameters) (keystore.KeyMaking, error) {
+	if filesystemV2.IsKeyDirectory(params.KeyDir()) {
 		return openKeyStoreV2(params)
 	}
 	return openKeyStoreV1(params)
 }
 
 // OpenKeyStoreForExport opens a key store suitable for export operations.
-func (*DefaultKeyStoreFactory) OpenKeyStoreForExport(params *CommandLineParams) (api.KeyStore, error) {
-	if filesystemV2.IsKeyDirectory(params.KeyDir) {
+func OpenKeyStoreForExport(params KeyStoreParameters) (api.KeyStore, error) {
+	if filesystemV2.IsKeyDirectory(params.KeyDir()) {
 		return openKeyStoreV2(params)
 	}
 	// Not supported in Acra CE
@@ -73,15 +75,15 @@ func (*DefaultKeyStoreFactory) OpenKeyStoreForExport(params *CommandLineParams) 
 }
 
 // OpenKeyStoreForImport opens a key store suitable for import operations.
-func (*DefaultKeyStoreFactory) OpenKeyStoreForImport(params *CommandLineParams) (api.MutableKeyStore, error) {
-	if filesystemV2.IsKeyDirectory(params.KeyDir) {
+func OpenKeyStoreForImport(params KeyStoreParameters) (api.MutableKeyStore, error) {
+	if filesystemV2.IsKeyDirectory(params.KeyDir()) {
 		return openKeyStoreV2(params)
 	}
 	// Not supported in Acra CE
 	return nil, ErrNotImplementedV1
 }
 
-func openKeyStoreV1(params *CommandLineParams) (*filesystemV1.KeyStore, error) {
+func openKeyStoreV1(params KeyStoreParameters) (*filesystemV1.KeyStore, error) {
 	symmetricKey, err := keystoreV1.GetMasterKeyFromEnvironment()
 	if err != nil {
 		log.WithError(err).Errorln("Cannot read master keys from environment")
@@ -93,10 +95,12 @@ func openKeyStoreV1(params *CommandLineParams) (*filesystemV1.KeyStore, error) {
 		return nil, err
 	}
 	var store *filesystemV1.KeyStore
-	if params.KeyDir != params.KeyDirPublic {
-		store, err = filesystemV1.NewFilesystemKeyStoreTwoPath(params.KeyDir, params.KeyDirPublic, scellEncryptor)
+	keyDir := params.KeyDir()
+	keyDirPublic := params.KeyDirPublic()
+	if keyDir != keyDirPublic {
+		store, err = filesystemV1.NewFilesystemKeyStoreTwoPath(keyDir, keyDirPublic, scellEncryptor)
 	} else {
-		store, err = filesystemV1.NewFilesystemKeyStore(params.KeyDir, scellEncryptor)
+		store, err = filesystemV1.NewFilesystemKeyStore(keyDir, scellEncryptor)
 	}
 	if err != nil {
 		log.WithError(err).Errorln("Failed to initialize key")
@@ -105,7 +109,7 @@ func openKeyStoreV1(params *CommandLineParams) (*filesystemV1.KeyStore, error) {
 	return store, nil
 }
 
-func openKeyStoreV2(params *CommandLineParams) (*keystoreV2.ServerKeyStore, error) {
+func openKeyStoreV2(params KeyStoreParameters) (*keystoreV2.ServerKeyStore, error) {
 	encryption, signature, err := keystoreV2.GetMasterKeysFromEnvironment()
 	if err != nil {
 		log.WithError(err).Error("Cannot read master keys from environment")
@@ -116,9 +120,10 @@ func openKeyStoreV2(params *CommandLineParams) (*keystoreV2.ServerKeyStore, erro
 		log.WithError(err).Error("Failed to initialize Secure Cell crypto suite")
 		return nil, err
 	}
-	keyDir, err := filesystemV2.OpenDirectoryRW(params.KeyDir, suite)
+	path := params.KeyDir()
+	keyDir, err := filesystemV2.OpenDirectoryRW(path, suite)
 	if err != nil {
-		log.WithError(err).WithField("path", params.KeyDir).Error("Cannot open key directory")
+		log.WithError(err).WithField("path", path).Error("Cannot open key directory")
 		return nil, err
 	}
 	return keystoreV2.NewServerKeyStore(keyDir), nil
