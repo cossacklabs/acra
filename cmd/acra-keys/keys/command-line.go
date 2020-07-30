@@ -100,7 +100,7 @@ type CommandLineParams struct {
 	ExportKeysFile string
 	ExportPrivate  bool
 
-	UseJSON bool
+	useJSON bool
 
 	exportFlags  *flag.FlagSet
 	importFlags  *flag.FlagSet
@@ -118,7 +118,7 @@ func (params *CommandLineParams) Register() {
 	flag.StringVar(&params.keyDirPublic, "keys_dir_public", "", "path to key directory for public keys")
 	flag.StringVar(&params.ClientID, "client_id", "", "client ID for which to retrieve key")
 	flag.StringVar(&params.ZoneID, "zone_id", "", "zone ID for which to retrieve key")
-	flag.BoolVar(&params.UseJSON, "json", false, "use machine-readable JSON output")
+	flag.BoolVar(&params.useJSON, "json", false, "use machine-readable JSON output")
 
 	params.listFlags = flag.NewFlagSet(CmdListKeys, flag.ContinueOnError)
 	params.listFlags.Usage = func() {
@@ -195,6 +195,11 @@ func (params *CommandLineParams) KeyDir() string {
 // KeyDirPublic returns path to public key directory (if different from key directory).
 func (params *CommandLineParams) KeyDirPublic() string {
 	return params.keyDirPublic
+}
+
+// UseJSON tells if machine-readable JSON should be used.
+func (params *CommandLineParams) UseJSON() bool {
+	return params.useJSON
 }
 
 // Parse parses complete command-line.

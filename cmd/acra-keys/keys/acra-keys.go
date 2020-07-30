@@ -81,7 +81,7 @@ func warnKeystoreV2Only(command string) {
 }
 
 // ListKeysCommand implements the "list" command.
-func ListKeysCommand(params *CommandLineParams, keyStore keystore.ServerKeyStore) {
+func ListKeysCommand(params ListKeysParams, keyStore keystore.ServerKeyStore) {
 	keyDescriptions, err := keyStore.ListKeys()
 	if err != nil {
 		if err == ErrNotImplementedV1 {

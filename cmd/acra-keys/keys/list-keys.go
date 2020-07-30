@@ -25,9 +25,14 @@ import (
 	"github.com/cossacklabs/acra/utils"
 )
 
+// ListKeysParams ara parameters of "acra-keys list" subcommand.
+type ListKeysParams interface {
+	UseJSON() bool
+}
+
 // PrintKeys prints key list prettily into the given writer.
-func PrintKeys(keys []keystore.KeyDescription, writer io.Writer, params *CommandLineParams) error {
-	if params.UseJSON {
+func PrintKeys(keys []keystore.KeyDescription, writer io.Writer, params ListKeysParams) error {
+	if params.UseJSON() {
 		return printKeysJSON(keys, writer)
 	}
 	return printKeysTable(keys, writer)
