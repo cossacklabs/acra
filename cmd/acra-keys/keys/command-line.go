@@ -86,12 +86,12 @@ type CommandLineParams struct {
 	keyDir       string
 	keyDirPublic string
 
-	ClientID string
-	ZoneID   string
+	clientID string
+	zoneID   string
 
 	Command string
 
-	ReadKeyKind    string
+	readKeyKind    string
 	DestroyKeyKind string
 
 	exportIDs      []string
@@ -116,8 +116,8 @@ var Params *CommandLineParams = &CommandLineParams{}
 func (params *CommandLineParams) Register() {
 	flag.StringVar(&params.keyDir, "keys_dir", DefaultKeyDirectory, "path to key directory")
 	flag.StringVar(&params.keyDirPublic, "keys_dir_public", "", "path to key directory for public keys")
-	flag.StringVar(&params.ClientID, "client_id", "", "client ID for which to retrieve key")
-	flag.StringVar(&params.ZoneID, "zone_id", "", "zone ID for which to retrieve key")
+	flag.StringVar(&params.clientID, "client_id", "", "client ID for which to retrieve key")
+	flag.StringVar(&params.zoneID, "zone_id", "", "zone ID for which to retrieve key")
 	flag.BoolVar(&params.useJSON, "json", false, "use machine-readable JSON output")
 
 	params.listFlags = flag.NewFlagSet(CmdListKeys, flag.ContinueOnError)
@@ -156,8 +156,8 @@ func (params *CommandLineParams) Register() {
 	}
 
 	params.destroyFlags = flag.NewFlagSet(CmdDestroyKey, flag.ContinueOnError)
-	params.destroyFlags.StringVar(&params.ClientID, "client_id", "", "client ID for which to destroy key")
-	params.destroyFlags.StringVar(&params.ZoneID, "zone_id", "", "zone ID for which to destroy key")
+	params.destroyFlags.StringVar(&params.clientID, "client_id", "", "client ID for which to destroy key")
+	params.destroyFlags.StringVar(&params.zoneID, "zone_id", "", "zone ID for which to destroy key")
 	params.destroyFlags.Usage = func() {
 		fmt.Fprintf(os.Stderr, "Command \"%s\": destroy key material\n", CmdDestroyKey)
 		fmt.Fprintf(os.Stderr, "\n\t%s %s [options...] <key-kind>\n\n", os.Args[0], CmdDestroyKey)
@@ -225,6 +225,21 @@ func (params *CommandLineParams) ExportKeysFile() string {
 // ExportDataFile returns path to file with encrypted exported key data.
 func (params *CommandLineParams) ExportDataFile() string {
 	return params.exportDataFile
+}
+
+// ReadKeyKind returns kind of the requested key.
+func (params *CommandLineParams) ReadKeyKind() string {
+	return params.readKeyKind
+}
+
+// ClientID returns client ID of the requested key.
+func (params *CommandLineParams) ClientID() []byte {
+	return []byte(params.clientID)
+}
+
+// ZoneID returns zone ID of the requested key.
+func (params *CommandLineParams) ZoneID() []byte {
+	return []byte(params.zoneID)
 }
 
 // Parse parses complete command-line.
@@ -305,8 +320,8 @@ func (params *CommandLineParams) ParseSubCommand() error {
 			log.Errorf("\"%s\" command does not support more than one key kind", CmdReadKey)
 			return ErrMultipleKeyKinds
 		}
-		params.ReadKeyKind = args[0]
-		return params.CheckForKeyKind(params.ReadKeyKind)
+		params.readKeyKind = args[0]
+		return params.CheckForKeyKind(params.readKeyKind)
 
 	case CmdDestroyKey:
 		err := params.destroyFlags.Parse(args[1:])
@@ -343,11 +358,11 @@ func (params *CommandLineParams) SetDefaults() {
 
 // Check command-line for consistency. Exit the process on error.
 func (params *CommandLineParams) Check() {
-	if params.ClientID != "" && params.ZoneID != "" {
+	if params.clientID != "" && params.zoneID != "" {
 		log.Fatal("--client_id and --zone_id cannot be used simultaneously")
 	}
 
-	if params.ReadKeyKind != "" && params.DestroyKeyKind != "" {
+	if params.readKeyKind != "" && params.DestroyKeyKind != "" {
 		log.Fatal("--read_key and --destroy_key cannot be used simultaneously")
 	}
 }
@@ -356,12 +371,12 @@ func (params *CommandLineParams) Check() {
 func (params *CommandLineParams) CheckForKeyKind(keyKind string) error {
 	switch keyKind {
 	case KeyTransportConnector, KeyTransportServer, KeyTransportTranslator, KeyStoragePublic, KeyStoragePrivate:
-		if params.ClientID == "" {
+		if params.clientID == "" {
 			log.Errorf("\"%s\" key requires --client_id", keyKind)
 			return ErrMissingClientID
 		}
 	case KeyZonePublic, KeyZonePrivate:
-		if Params.ZoneID == "" {
+		if Params.zoneID == "" {
 			log.Errorf("\"%s\" key requires --zone_id", keyKind)
 			return ErrMissingZoneID
 		}

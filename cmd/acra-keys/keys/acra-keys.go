@@ -146,7 +146,7 @@ func ImportKeysCommand(params ImportKeysParams, keyStore api.MutableKeyStore) {
 }
 
 // PrintKeyCommand implements the "read" command.
-func PrintKeyCommand(params *CommandLineParams, keyStore keystore.ServerKeyStore) {
+func PrintKeyCommand(params ReadKeyParams, keyStore keystore.ServerKeyStore) {
 	keyBytes, err := ReadKeyBytes(params, keyStore)
 	if err != nil {
 		log.WithError(err).Fatal("Failed to read key")
