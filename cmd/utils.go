@@ -281,12 +281,17 @@ func checkVersion(config map[string]interface{}) error {
 	return nil
 }
 
-// Parse loads CLI params from yaml config and cli
+// Parse parses flag settings from YAML config file and command line.
 func Parse(configPath, serviceName string) error {
+	return ParseFlagsWithConfig(flag_.CommandLine, os.Args[1:], configPath, serviceName)
+}
+
+// ParseFlagsWithConfig parses flag settings from YAML config file and command line.
+func ParseFlagsWithConfig(flags *flag_.FlagSet, arguments []string, configPath, serviceName string) error {
 	/*load from yaml config and cli. if dumpconfig option pass than generate config and exit*/
 	log.Debugf("Parsing config from path %v", configPath)
 	// first parse using bultin flag
-	err := flag_.CommandLine.Parse(os.Args[1:])
+	err := flags.Parse(arguments)
 	if err != nil {
 		return err
 	}
@@ -295,7 +300,7 @@ func Parse(configPath, serviceName string) error {
 		configPath = *config
 	}
 	var yamlConfig map[string]interface{}
-	var args []string
+	var extraArgs []string
 	// parse yaml and add params that wasn't passed from cli
 	if configPath != "" {
 
@@ -321,13 +326,12 @@ func Parse(configPath, serviceName string) error {
 				setArgs[flag.Name] = true
 			})
 			// generate args list for flag.Parse as it was from cli args
-			args = make([]string, 0)
 			flag_.VisitAll(func(flag *flag_.Flag) {
 				// generate only args that wasn't set from cli
 				if _, alreadySet := setArgs[flag.Name]; !alreadySet {
 					if value, yamlOk := yamlConfig[flag.Name]; yamlOk {
 						if value != nil {
-							args = append(args, fmt.Sprintf("--%v=%v", flag.Name, value))
+							extraArgs = append(extraArgs, fmt.Sprintf("--%v=%v", flag.Name, value))
 						}
 					}
 				}
@@ -335,14 +339,14 @@ func Parse(configPath, serviceName string) error {
 		}
 	}
 	// Set global options from config that wasn't set by CLI, if there are any.
-	if len(args) != 0 {
-		err = flag_.CommandLine.Parse(args)
+	if len(extraArgs) != 0 {
+		err = flags.Parse(extraArgs)
 		if err != nil {
 			return err
 		}
 		// Parse the command-line options again so that flag.Args() returns
 		// whatever was left on the actual command-line, not the config values.
-		flag_.CommandLine.Parse(os.Args[1:])
+		flags.Parse(arguments)
 	}
 	if *dumpconfig {
 		DumpConfig(configPath, serviceName, true)
