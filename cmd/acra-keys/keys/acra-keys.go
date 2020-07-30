@@ -160,7 +160,7 @@ func PrintKeyCommand(params ReadKeyParams, keyStore keystore.ServerKeyStore) {
 }
 
 // DestroyKeyCommand implements the "destroy" command.
-func DestroyKeyCommand(params *CommandLineParams, keyStore keystore.KeyMaking) {
+func DestroyKeyCommand(params DestroyKeyParams, keyStore keystore.KeyMaking) {
 	err := DestroyKey(params, keyStore)
 	if err != nil {
 		log.WithError(err).Fatal("Failed to destroy key")

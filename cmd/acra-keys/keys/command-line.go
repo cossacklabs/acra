@@ -92,7 +92,7 @@ type CommandLineParams struct {
 	Command string
 
 	readKeyKind    string
-	DestroyKeyKind string
+	destroyKeyKind string
 
 	exportIDs      []string
 	exportAll      bool
@@ -242,6 +242,11 @@ func (params *CommandLineParams) ZoneID() []byte {
 	return []byte(params.zoneID)
 }
 
+// DestroyKeyKind returns requested kind of the key to destroy.
+func (params *CommandLineParams) DestroyKeyKind() string {
+	return params.destroyKeyKind
+}
+
 // Parse parses complete command-line.
 func (params *CommandLineParams) Parse() error {
 	err := cmd.Parse(DefaultConfigPath, ServiceName)
@@ -339,8 +344,8 @@ func (params *CommandLineParams) ParseSubCommand() error {
 			log.Errorf("\"%s\" command does not support more than one key kind", CmdDestroyKey)
 			return ErrMultipleKeyKinds
 		}
-		params.DestroyKeyKind = args[0]
-		return params.CheckForKeyKind(params.DestroyKeyKind)
+		params.destroyKeyKind = args[0]
+		return params.CheckForKeyKind(params.destroyKeyKind)
 
 	default:
 		log.WithField("expected", SupportedSubCommands).
@@ -362,7 +367,7 @@ func (params *CommandLineParams) Check() {
 		log.Fatal("--client_id and --zone_id cannot be used simultaneously")
 	}
 
-	if params.readKeyKind != "" && params.DestroyKeyKind != "" {
+	if params.readKeyKind != "" && params.destroyKeyKind != "" {
 		log.Fatal("--read_key and --destroy_key cannot be used simultaneously")
 	}
 }
