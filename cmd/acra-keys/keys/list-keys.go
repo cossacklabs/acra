@@ -55,6 +55,11 @@ type ListKeySubcommand struct {
 	FlagSet *flag.FlagSet
 }
 
+// Name returns the same of this subcommand.
+func (p *ListKeySubcommand) Name() string {
+	return CmdListKeys
+}
+
 // RegisterFlags registers command-line flags of "acra-keys list".
 func (p *ListKeySubcommand) RegisterFlags() {
 	p.FlagSet = flag.NewFlagSet(CmdListKeys, flag.ContinueOnError)

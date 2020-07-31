@@ -28,9 +28,10 @@ import (
 )
 
 // ExecuteCommand executes the command requsted on the command line
-func ExecuteCommand(params *CommandLineParams) {
-	switch params.Command {
+func ExecuteCommand(command Subcommand) {
+	switch command.Name() {
 	case CmdListKeys:
+		params := command.(*ListKeySubcommand)
 		keyStore, err := OpenKeyStoreForReading(params)
 		if err != nil {
 			log.WithError(err).Fatal("Failed to open key store")
@@ -38,6 +39,7 @@ func ExecuteCommand(params *CommandLineParams) {
 		ListKeysCommand(params, keyStore)
 
 	case CmdExportKeys:
+		params := command.(*ExportKeysSubcommand)
 		keyStore, err := OpenKeyStoreForExport(params)
 		if err != nil {
 			if err == ErrNotImplementedV1 {
@@ -48,6 +50,7 @@ func ExecuteCommand(params *CommandLineParams) {
 		ExportKeysCommand(params, keyStore)
 
 	case CmdImportKeys:
+		params := command.(*ImportKeysSubcommand)
 		keyStore, err := OpenKeyStoreForImport(params)
 		if err != nil {
 			if err == ErrNotImplementedV1 {
@@ -58,6 +61,7 @@ func ExecuteCommand(params *CommandLineParams) {
 		ImportKeysCommand(params, keyStore)
 
 	case CmdReadKey:
+		params := command.(*ReadKeySubcommand)
 		keyStore, err := OpenKeyStoreForReading(params)
 		if err != nil {
 			log.WithError(err).Fatal("Failed to open key store")
@@ -65,6 +69,7 @@ func ExecuteCommand(params *CommandLineParams) {
 		PrintKeyCommand(params, keyStore)
 
 	case CmdDestroyKey:
+		params := command.(*DestroyKeySubcommand)
 		keyStore, err := OpenKeyStoreForWriting(params)
 		if err != nil {
 			log.WithError(err).Fatal("Failed to open key store")

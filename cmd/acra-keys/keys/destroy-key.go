@@ -49,6 +49,11 @@ type DestroyKeySubcommand struct {
 	clientID       string
 }
 
+// Name returns the same of this subcommand.
+func (p *DestroyKeySubcommand) Name() string {
+	return CmdDestroyKey
+}
+
 // RegisterFlags registers command-line flags of "acra-keys read".
 func (p *DestroyKeySubcommand) RegisterFlags() {
 	p.FlagSet = flag.NewFlagSet(CmdReadKey, flag.ContinueOnError)

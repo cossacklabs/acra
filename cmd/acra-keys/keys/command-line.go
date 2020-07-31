@@ -409,3 +409,64 @@ func ParseParams() {
 	Params.SetDefaults()
 	Params.Check()
 }
+
+// Subcommand is "acra-keys" subcommand, like "acra-keys export".
+type Subcommand interface {
+	Name() string
+	RegisterFlags()
+	Parse(arguments []string) error
+}
+
+// ParseParameters parses command-line parameters and returns the selected subcommand.
+// There may be no subcommand selected, in which case nil is returned.
+// It terminates the process on error.
+func ParseParameters(subcommands []Subcommand) Subcommand {
+	flag.CommandLine.Usage = func() {
+		fmt.Fprintf(os.Stderr, "Usage:\n\t%s [options...] <command> [arguments...]\n", os.Args[0])
+		fmt.Fprintf(os.Stderr, "\nGlobal options:\n")
+		cmd.PrintFlags(flag.CommandLine)
+		names := make([]string, len(subcommands))
+		for i, c := range subcommands {
+			names[i] = c.Name()
+		}
+		fmt.Fprintf(os.Stderr, "\nSupported commands:\n  %s\n", strings.Join(names, ", "))
+	}
+	for _, c := range subcommands {
+		c.RegisterFlags()
+	}
+
+	subcommand, err := parseParameters(subcommands)
+	if err == flag.ErrHelp {
+		os.Exit(0)
+	}
+	if err != nil {
+		log.WithError(err).
+			WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantReadServiceConfig).
+			Fatal("Cannot parse arguments")
+	}
+	return subcommand
+}
+
+func parseParameters(subcommands []Subcommand) (Subcommand, error) {
+	err := cmd.Parse(DefaultConfigPath, ServiceName)
+	if err != nil {
+		return nil, err
+	}
+	args := flag.CommandLine.Args()
+	if len(args) == 0 {
+		log.WithField("supported", SupportedSubCommands).Info("No command specified")
+		return nil, nil
+	}
+	subcommandName := args[0]
+	for _, c := range subcommands {
+		if c.Name() == subcommandName {
+			err = c.Parse(args[1:])
+			if err != nil {
+				return c, err
+			}
+			return c, nil
+		}
+	}
+	log.WithField("expected", SupportedSubCommands).Errorf("Unknown command: %s", args[0])
+	return nil, ErrUnknownSubCommand
+}

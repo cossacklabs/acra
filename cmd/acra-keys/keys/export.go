@@ -107,6 +107,11 @@ type ExportKeysSubcommand struct {
 	exportPrivate bool
 }
 
+// Name returns the same of this subcommand.
+func (p *ExportKeysSubcommand) Name() string {
+	return CmdExportKeys
+}
+
 // RegisterFlags registers command-line flags of "acra-keys export".
 func (p *ExportKeysSubcommand) RegisterFlags() {
 	p.FlagSet = flag.NewFlagSet(CmdExportKeys, flag.ContinueOnError)
@@ -169,6 +174,11 @@ type ImportKeysSubcommand struct {
 	CommonExportImportParameters
 	CommonKeyListingParameters
 	FlagSet *flag.FlagSet
+}
+
+// Name returns the same of this subcommand.
+func (p *ImportKeysSubcommand) Name() string {
+	return CmdImportKeys
 }
 
 // RegisterFlags registers command-line flags of "acra-keys import".
