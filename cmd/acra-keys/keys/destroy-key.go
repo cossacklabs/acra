@@ -63,6 +63,33 @@ func (p *DestroyKeySubcommand) RegisterFlags() {
 	}
 }
 
+// Parse command-line parameters of the subcommand.
+func (p *DestroyKeySubcommand) Parse(arguments []string) error {
+	err := cmd.ParseFlagsWithConfig(p.FlagSet, arguments, DefaultConfigPath, ServiceName)
+	if err != nil {
+		return err
+	}
+	args := p.FlagSet.Args()
+	if len(args) < 1 {
+		log.Errorf("\"%s\" command requires key kind", CmdDestroyKey)
+		return ErrMissingKeyKind
+	}
+	// It makes sense to allow multiple keys, but currently we don't allow it.
+	if len(args) > 1 {
+		log.Errorf("\"%s\" command does not support more than one key kind", CmdDestroyKey)
+		return ErrMultipleKeyKinds
+	}
+	p.destroyKeyKind = args[0]
+	switch p.destroyKeyKind {
+	case KeyTransportConnector, KeyTransportServer, KeyTransportTranslator, KeyStoragePublic, KeyStoragePrivate:
+		if p.clientID == "" {
+			log.Errorf("\"%s\" key requires --client_id", p.destroyKeyKind)
+			return ErrMissingClientID
+		}
+	}
+	return nil
+}
+
 // DestroyKeyKind returns requested kind of the key to destroy.
 func (p *DestroyKeySubcommand) DestroyKeyKind() string {
 	return p.destroyKeyKind
