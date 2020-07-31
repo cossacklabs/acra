@@ -19,9 +19,12 @@ package keys
 import (
 	"encoding/json"
 	"errors"
+	"flag"
+	"fmt"
 	"io/ioutil"
 	"os"
 
+	"github.com/cossacklabs/acra/cmd"
 	"github.com/cossacklabs/acra/keystore"
 	keystoreV2 "github.com/cossacklabs/acra/keystore/v2/keystore"
 	"github.com/cossacklabs/acra/keystore/v2/keystore/api"
@@ -49,6 +52,29 @@ type ExportImportCommonParams interface {
 	ExportDataFile() string
 }
 
+// CommonExportImportParameters are common parameters of "acra-keys export" and "acra-keys import" subcommand.
+type CommonExportImportParameters struct {
+	exportKeysFile string
+	exportDataFile string
+}
+
+// ExportKeysFile returns path to file with encryption keys for export.
+func (p *CommonExportImportParameters) ExportKeysFile() string {
+	return p.exportKeysFile
+}
+
+// ExportDataFile returns path to file with encrypted exported key data.
+func (p *CommonExportImportParameters) ExportDataFile() string {
+	return p.exportDataFile
+}
+
+// Register registers key store flags with the given flag set.
+func (p *CommonExportImportParameters) Register(flags *flag.FlagSet, filePurspose string) {
+	// The purpose is either "output" or "output". This is not very localizable, but we don't care about it at this point.
+	flags.StringVar(&p.exportDataFile, "key_bundle_file", "", "path to "+filePurspose+" file for exported key bundle")
+	flags.StringVar(&p.exportKeysFile, "key_bundle_secret", "", "path to "+filePurspose+" file for key encryption keys")
+}
+
 // ExportKeysParams are parameters of "acra-keys export" subcommand.
 type ExportKeysParams interface {
 	ExportImportCommonParams
@@ -57,10 +83,73 @@ type ExportKeysParams interface {
 	ExportPrivate() bool
 }
 
+// ExportKeysSubcommand is the "acra-keys export" subcommand.
+type ExportKeysSubcommand struct {
+	CommonKeyStoreParameters
+	CommonExportImportParameters
+	FlagSet *flag.FlagSet
+
+	exportIDs     []string
+	exportAll     bool
+	exportPrivate bool
+}
+
+// RegisterFlags registers command-line flags of "acra-keys export".
+func (p *ExportKeysSubcommand) RegisterFlags() {
+	p.FlagSet = flag.NewFlagSet(CmdExportKeys, flag.ContinueOnError)
+	p.CommonKeyStoreParameters.Register(p.FlagSet)
+	p.CommonExportImportParameters.Register(p.FlagSet, "output")
+	p.FlagSet.BoolVar(&p.exportAll, "all", false, "export all keys")
+	p.FlagSet.BoolVar(&p.exportPrivate, "private_keys", false, "export private key data")
+	p.FlagSet.Usage = func() {
+		fmt.Fprintf(os.Stderr, "Command \"%s\": export keys from the key store\n", CmdExportKeys)
+		fmt.Fprintf(os.Stderr, "\n\t%s %s [options...] --key_bundle_file <file> --key_bundle_secret <file> <key-ID...>\n", os.Args[0], CmdExportKeys)
+		fmt.Fprintf(os.Stderr, "\nOptions:\n")
+		cmd.PrintFlags(p.FlagSet)
+	}
+}
+
+// ExportIDs returns key IDs to export.
+func (p *ExportKeysSubcommand) ExportIDs() []string {
+	return p.exportIDs
+}
+
+// ExportAll returns true if all keys should be exported, regardless of ExportIDs() value.
+func (p *ExportKeysSubcommand) ExportAll() bool {
+	return p.exportAll
+}
+
+// ExportPrivate returns true if private keys should be included into exported data.
+func (p *ExportKeysSubcommand) ExportPrivate() bool {
+	return p.exportPrivate
+}
+
 // ImportKeysParams are parameters of "acra-keys import" subcommand.
 type ImportKeysParams interface {
 	ExportImportCommonParams
 	ListKeysParams
+}
+
+// ImportKeysSubcommand is the "acra-keys import" subcommand.
+type ImportKeysSubcommand struct {
+	CommonKeyStoreParameters
+	CommonExportImportParameters
+	CommonKeyListingParameters
+	FlagSet *flag.FlagSet
+}
+
+// RegisterFlags registers command-line flags of "acra-keys import".
+func (p *ImportKeysSubcommand) RegisterFlags() {
+	p.FlagSet = flag.NewFlagSet(CmdImportKeys, flag.ContinueOnError)
+	p.CommonKeyStoreParameters.Register(p.FlagSet)
+	p.CommonExportImportParameters.Register(p.FlagSet, "input")
+	p.CommonKeyListingParameters.Register(p.FlagSet)
+	p.FlagSet.Usage = func() {
+		fmt.Fprintf(os.Stderr, "Command \"%s\": import keys into the key store\n", CmdImportKeys)
+		fmt.Fprintf(os.Stderr, "\n\t%s %s [options...] --key_bundle_file <file> --key_bundle_secret <file>\n", os.Args[0], CmdImportKeys)
+		fmt.Fprintf(os.Stderr, "\nOptions:\n")
+		cmd.PrintFlags(p.FlagSet)
+	}
 }
 
 // PrepareExportEncryptionKeys generates new ephemeral keys for key export operation.
