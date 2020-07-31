@@ -17,6 +17,12 @@
 package keys
 
 import (
+	"flag"
+	"fmt"
+	"os"
+	"strings"
+
+	"github.com/cossacklabs/acra/cmd"
 	"github.com/cossacklabs/acra/keystore"
 	log "github.com/sirupsen/logrus"
 )
@@ -32,6 +38,39 @@ var SupportedDestroyKeyKinds = []string{
 type DestroyKeyParams interface {
 	DestroyKeyKind() string
 	ClientID() []byte
+}
+
+// DestroyKeySubcommand is the "acra-keys destroy" subcommand.
+type DestroyKeySubcommand struct {
+	CommonKeyStoreParameters
+	FlagSet *flag.FlagSet
+
+	destroyKeyKind string
+	clientID       string
+}
+
+// RegisterFlags registers command-line flags of "acra-keys read".
+func (p *DestroyKeySubcommand) RegisterFlags() {
+	p.FlagSet = flag.NewFlagSet(CmdReadKey, flag.ContinueOnError)
+	p.CommonKeyStoreParameters.Register(p.FlagSet)
+	p.FlagSet.StringVar(&p.clientID, "client_id", "", "client ID for which to destroy key")
+	p.FlagSet.Usage = func() {
+		fmt.Fprintf(os.Stderr, "Command \"%s\": destroy key material\n", CmdDestroyKey)
+		fmt.Fprintf(os.Stderr, "\n\t%s %s [options...] <key-kind>\n\n", os.Args[0], CmdDestroyKey)
+		fmt.Fprintf(os.Stderr, "Supported key kinds:\n  %s\n", strings.Join(SupportedDestroyKeyKinds, ", "))
+		fmt.Fprintf(os.Stderr, "\nOptions:\n")
+		cmd.PrintFlags(p.FlagSet)
+	}
+}
+
+// DestroyKeyKind returns requested kind of the key to destroy.
+func (p *DestroyKeySubcommand) DestroyKeyKind() string {
+	return p.destroyKeyKind
+}
+
+// ClientID returns client ID of the requested key.
+func (p *DestroyKeySubcommand) ClientID() []byte {
+	return []byte(p.clientID)
 }
 
 // DestroyKey destroys data of the requsted key.
