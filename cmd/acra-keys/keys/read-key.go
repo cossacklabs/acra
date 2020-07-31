@@ -77,6 +77,43 @@ func (p *ReadKeySubcommand) RegisterFlags() {
 	}
 }
 
+// Parse command-line parameters of the subcommand.
+func (p *ReadKeySubcommand) Parse(arguments []string) error {
+	err := cmd.ParseFlagsWithConfig(p.FlagSet, arguments, DefaultConfigPath, ServiceName)
+	if err != nil {
+		return err
+	}
+	args := p.FlagSet.Args()
+	if len(args) < 1 {
+		log.Errorf("\"%s\" command requires key kind", CmdReadKey)
+		return ErrMissingKeyKind
+	}
+	// It makes sense to allow multiple keys, but we can't think of a useful
+	// output format for that, so we currently don't allow it.
+	if len(args) > 1 {
+		log.Errorf("\"%s\" command does not support more than one key kind", CmdReadKey)
+		return ErrMultipleKeyKinds
+	}
+	p.readKeyKind = args[0]
+	switch p.readKeyKind {
+	case KeyTransportConnector, KeyTransportServer, KeyTransportTranslator, KeyStoragePublic, KeyStoragePrivate:
+		if p.clientID == "" {
+			log.Errorf("\"%s\" key requires --client_id", p.readKeyKind)
+			return ErrMissingClientID
+		}
+	case KeyZonePublic, KeyZonePrivate:
+		if p.zoneID == "" {
+			log.Errorf("\"%s\" key requires --zone_id", p.readKeyKind)
+			return ErrMissingZoneID
+		}
+	}
+	if p.clientID != "" && p.zoneID != "" {
+		log.Errorf("--client_id and --zone_id cannot be used simultaneously")
+		return ErrMultipleKeyKinds
+	}
+	return nil
+}
+
 // ReadKeyKind returns kind of the requested key.
 func (p *ReadKeySubcommand) ReadKeyKind() string {
 	return p.readKeyKind
