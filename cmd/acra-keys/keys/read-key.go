@@ -18,7 +18,12 @@ package keys
 
 import (
 	"errors"
+	"flag"
+	"fmt"
+	"os"
+	"strings"
 
+	"github.com/cossacklabs/acra/cmd"
 	"github.com/cossacklabs/acra/keystore"
 	log "github.com/sirupsen/logrus"
 )
@@ -45,6 +50,46 @@ type ReadKeyParams interface {
 	ReadKeyKind() string
 	ClientID() []byte
 	ZoneID() []byte
+}
+
+// ReadKeySubcommand is the "acra-keys read" subcommand.
+type ReadKeySubcommand struct {
+	CommonKeyStoreParameters
+	FlagSet *flag.FlagSet
+
+	readKeyKind string
+	clientID    string
+	zoneID      string
+}
+
+// RegisterFlags registers command-line flags of "acra-keys read".
+func (p *ReadKeySubcommand) RegisterFlags() {
+	p.FlagSet = flag.NewFlagSet(CmdReadKey, flag.ContinueOnError)
+	p.CommonKeyStoreParameters.Register(p.FlagSet)
+	p.FlagSet.StringVar(&p.clientID, "client_id", "", "client ID for which to retrieve key")
+	p.FlagSet.StringVar(&p.zoneID, "zone_id", "", "zone ID for which to retrieve key")
+	p.FlagSet.Usage = func() {
+		fmt.Fprintf(os.Stderr, "Command \"%s\": read and print key material in plaintext\n", CmdReadKey)
+		fmt.Fprintf(os.Stderr, "\n\t%s %s [options...] <key-kind>\n\n", os.Args[0], CmdReadKey)
+		fmt.Fprintf(os.Stderr, "Supported key kinds:\n  %s\n", strings.Join(SupportedReadKeyKinds, ", "))
+		fmt.Fprintf(os.Stderr, "\nOptions:\n")
+		cmd.PrintFlags(p.FlagSet)
+	}
+}
+
+// ReadKeyKind returns kind of the requested key.
+func (p *ReadKeySubcommand) ReadKeyKind() string {
+	return p.readKeyKind
+}
+
+// ClientID returns client ID of the requested key.
+func (p *ReadKeySubcommand) ClientID() []byte {
+	return []byte(p.clientID)
+}
+
+// ZoneID returns zone ID of the requested key.
+func (p *ReadKeySubcommand) ZoneID() []byte {
+	return []byte(p.zoneID)
 }
 
 // ReadKeyBytes returns plaintext bytes of the requsted key.
