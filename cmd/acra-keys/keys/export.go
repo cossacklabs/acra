@@ -75,6 +75,19 @@ func (p *CommonExportImportParameters) Register(flags *flag.FlagSet, filePurspos
 	flags.StringVar(&p.exportKeysFile, "key_bundle_secret", "", "path to "+filePurspose+" file for key encryption keys")
 }
 
+func (p *CommonExportImportParameters) validate() error {
+	if p.exportDataFile == "" || p.exportKeysFile == "" {
+		log.Errorf("\"--key_bundle_file\" and \"--key_bundle_secret\" options are required")
+		return ErrMissingOutputFile
+	}
+	// We do not account for people getting creative with ".." and links.
+	if p.exportDataFile == p.exportKeysFile {
+		log.Errorf("\"--key_bundle_file\" and \"--key_bundle_secret\" must not be the same file")
+		return ErrOutputSame
+	}
+	return nil
+}
+
 // ExportKeysParams are parameters of "acra-keys export" subcommand.
 type ExportKeysParams interface {
 	ExportImportCommonParams
@@ -107,6 +120,26 @@ func (p *ExportKeysSubcommand) RegisterFlags() {
 		fmt.Fprintf(os.Stderr, "\nOptions:\n")
 		cmd.PrintFlags(p.FlagSet)
 	}
+}
+
+// Parse command-line parameters of the subcommand.
+func (p *ExportKeysSubcommand) Parse(arguments []string) error {
+	err := cmd.ParseFlagsWithConfig(p.FlagSet, arguments, DefaultConfigPath, ServiceName)
+	if err != nil {
+		return err
+	}
+	err = p.CommonExportImportParameters.validate()
+	if err != nil {
+		return err
+	}
+	args := p.FlagSet.Args()
+	if len(args) < 1 && !p.exportAll {
+		log.Errorf("\"%s\" command requires at least one key ID", CmdExportKeys)
+		log.Infoln("Use \"--all\" to export all keys")
+		return ErrMissingKeyID
+	}
+	p.exportIDs = args
+	return nil
 }
 
 // ExportIDs returns key IDs to export.
