@@ -185,6 +185,19 @@ func (p *ImportKeysSubcommand) RegisterFlags() {
 	}
 }
 
+// Parse command-line parameters of the subcommand.
+func (p *ImportKeysSubcommand) Parse(arguments []string) error {
+	err := cmd.ParseFlagsWithConfig(p.FlagSet, arguments, DefaultConfigPath, ServiceName)
+	if err != nil {
+		return err
+	}
+	err = p.CommonExportImportParameters.validate()
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
 // PrepareExportEncryptionKeys generates new ephemeral keys for key export operation.
 func PrepareExportEncryptionKeys() ([]byte, *crypto.KeyStoreSuite, error) {
 	encryptionKey, err := keystore.GenerateSymmetricKey()
