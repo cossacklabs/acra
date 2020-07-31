@@ -68,6 +68,11 @@ func (p *ListKeySubcommand) RegisterFlags() {
 	}
 }
 
+// Parse command-line parameters of the subcommand.
+func (p *ListKeySubcommand) Parse(arguments []string) error {
+	return cmd.ParseFlagsWithConfig(p.FlagSet, arguments, DefaultConfigPath, ServiceName)
+}
+
 // PrintKeys prints key list prettily into the given writer.
 func PrintKeys(keys []keystore.KeyDescription, writer io.Writer, params ListKeysParams) error {
 	if params.UseJSON() {
