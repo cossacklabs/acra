@@ -81,7 +81,7 @@ func warnKeystoreV2Only(command string) {
 }
 
 // ListKeysCommand implements the "list" command.
-func ListKeysCommand(params *CommandLineParams, keyStore keystore.ServerKeyStore) {
+func ListKeysCommand(params ListKeysParams, keyStore keystore.ServerKeyStore) {
 	keyDescriptions, err := keyStore.ListKeys()
 	if err != nil {
 		if err == ErrNotImplementedV1 {
@@ -97,7 +97,7 @@ func ListKeysCommand(params *CommandLineParams, keyStore keystore.ServerKeyStore
 }
 
 // ExportKeysCommand implements the "export" command.
-func ExportKeysCommand(params *CommandLineParams, keyStore api.KeyStore) {
+func ExportKeysCommand(params ExportKeysParams, keyStore api.KeyStore) {
 	encryptionKeyData, cryptosuite, err := PrepareExportEncryptionKeys()
 	if err != nil {
 		log.WithError(err).Fatal("Failed to prepare encryption keys")
@@ -114,14 +114,14 @@ func ExportKeysCommand(params *CommandLineParams, keyStore api.KeyStore) {
 		log.WithError(err).Fatal("Failed to write exported data")
 	}
 
-	log.Infof("Exported key data is encrypted and saved here: %s", params.ExportDataFile)
-	log.Infof("New encryption keys for import generated here: %s", params.ExportKeysFile)
+	log.Infof("Exported key data is encrypted and saved here: %s", params.ExportDataFile())
+	log.Infof("New encryption keys for import generated here: %s", params.ExportKeysFile())
 	log.Infof("DO NOT transport or store these files together")
-	log.Infof("Import the keys into another key store like this:\n\tacra-keys import --key_bundle_file \"%s\" --key_bundle_secret \"%s\"", params.ExportDataFile, params.ExportKeysFile)
+	log.Infof("Import the keys into another key store like this:\n\tacra-keys import --key_bundle_file \"%s\" --key_bundle_secret \"%s\"", params.ExportDataFile(), params.ExportKeysFile())
 }
 
 // ImportKeysCommand implements the "import" command.
-func ImportKeysCommand(params *CommandLineParams, keyStore api.MutableKeyStore) {
+func ImportKeysCommand(params ImportKeysParams, keyStore api.MutableKeyStore) {
 	exportedData, err := ReadExportedData(params)
 	if err != nil {
 		log.WithError(err).Fatal("Failed to read exported data")
@@ -146,7 +146,7 @@ func ImportKeysCommand(params *CommandLineParams, keyStore api.MutableKeyStore) 
 }
 
 // PrintKeyCommand implements the "read" command.
-func PrintKeyCommand(params *CommandLineParams, keyStore keystore.ServerKeyStore) {
+func PrintKeyCommand(params ReadKeyParams, keyStore keystore.ServerKeyStore) {
 	keyBytes, err := ReadKeyBytes(params, keyStore)
 	if err != nil {
 		log.WithError(err).Fatal("Failed to read key")
@@ -160,7 +160,7 @@ func PrintKeyCommand(params *CommandLineParams, keyStore keystore.ServerKeyStore
 }
 
 // DestroyKeyCommand implements the "destroy" command.
-func DestroyKeyCommand(params *CommandLineParams, keyStore keystore.KeyMaking) {
+func DestroyKeyCommand(params DestroyKeyParams, keyStore keystore.KeyMaking) {
 	err := DestroyKey(params, keyStore)
 	if err != nil {
 		log.WithError(err).Fatal("Failed to destroy key")

@@ -39,7 +39,7 @@ func TestPrintKeysDefault(t *testing.T) {
 	}
 
 	output := strings.Builder{}
-	err := PrintKeys(keys, &output, &CommandLineParams{UseJSON: false})
+	err := PrintKeys(keys, &output, &CommandLineParams{useJSON: false})
 	if err != nil {
 		t.Fatalf("Failed to print keys: %v", err)
 	}
@@ -69,7 +69,7 @@ func TestPrintKeysJSON(t *testing.T) {
 	}
 
 	output := bytes.Buffer{}
-	err := PrintKeys(keys, &output, &CommandLineParams{UseJSON: true})
+	err := PrintKeys(keys, &output, &CommandLineParams{useJSON: true})
 	if err != nil {
 		t.Fatalf("Failed to print keys: %v", err)
 	}

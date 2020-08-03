@@ -86,21 +86,21 @@ type CommandLineParams struct {
 	keyDir       string
 	keyDirPublic string
 
-	ClientID string
-	ZoneID   string
+	clientID string
+	zoneID   string
 
 	Command string
 
-	ReadKeyKind    string
-	DestroyKeyKind string
+	readKeyKind    string
+	destroyKeyKind string
 
-	ExportIDs      []string
-	ExportAll      bool
-	ExportDataFile string
-	ExportKeysFile string
-	ExportPrivate  bool
+	exportIDs      []string
+	exportAll      bool
+	exportDataFile string
+	exportKeysFile string
+	exportPrivate  bool
 
-	UseJSON bool
+	useJSON bool
 
 	exportFlags  *flag.FlagSet
 	importFlags  *flag.FlagSet
@@ -116,9 +116,9 @@ var Params *CommandLineParams = &CommandLineParams{}
 func (params *CommandLineParams) Register() {
 	flag.StringVar(&params.keyDir, "keys_dir", DefaultKeyDirectory, "path to key directory")
 	flag.StringVar(&params.keyDirPublic, "keys_dir_public", "", "path to key directory for public keys")
-	flag.StringVar(&params.ClientID, "client_id", "", "client ID for which to retrieve key")
-	flag.StringVar(&params.ZoneID, "zone_id", "", "zone ID for which to retrieve key")
-	flag.BoolVar(&params.UseJSON, "json", false, "use machine-readable JSON output")
+	flag.StringVar(&params.clientID, "client_id", "", "client ID for which to retrieve key")
+	flag.StringVar(&params.zoneID, "zone_id", "", "zone ID for which to retrieve key")
+	flag.BoolVar(&params.useJSON, "json", false, "use machine-readable JSON output")
 
 	params.listFlags = flag.NewFlagSet(CmdListKeys, flag.ContinueOnError)
 	params.listFlags.Usage = func() {
@@ -127,10 +127,10 @@ func (params *CommandLineParams) Register() {
 	}
 
 	params.exportFlags = flag.NewFlagSet(CmdListKeys, flag.ContinueOnError)
-	params.exportFlags.BoolVar(&params.ExportAll, "all", false, "export all keys")
-	params.exportFlags.StringVar(&params.ExportDataFile, "key_bundle_file", "", "path to output file for exported key bundle")
-	params.exportFlags.StringVar(&params.ExportKeysFile, "key_bundle_secret", "", "path to output file for key encryption keys")
-	params.exportFlags.BoolVar(&params.ExportPrivate, "private_keys", false, "export private key data")
+	params.exportFlags.BoolVar(&params.exportAll, "all", false, "export all keys")
+	params.exportFlags.StringVar(&params.exportDataFile, "key_bundle_file", "", "path to output file for exported key bundle")
+	params.exportFlags.StringVar(&params.exportKeysFile, "key_bundle_secret", "", "path to output file for key encryption keys")
+	params.exportFlags.BoolVar(&params.exportPrivate, "private_keys", false, "export private key data")
 	params.exportFlags.Usage = func() {
 		fmt.Fprintf(os.Stderr, "Command \"%s\": export keys from the key store\n", CmdExportKeys)
 		fmt.Fprintf(os.Stderr, "\n\t%s %s [options...] --key_bundle_file <file> --key_bundle_secret <file> <key-ID...>\n", os.Args[0], CmdExportKeys)
@@ -139,8 +139,8 @@ func (params *CommandLineParams) Register() {
 	}
 
 	params.importFlags = flag.NewFlagSet(CmdListKeys, flag.ContinueOnError)
-	params.importFlags.StringVar(&params.ExportDataFile, "key_bundle_file", "", "path to input file with exported key bundle")
-	params.importFlags.StringVar(&params.ExportKeysFile, "key_bundle_secret", "", "path to input file with key encryption keys")
+	params.importFlags.StringVar(&params.exportDataFile, "key_bundle_file", "", "path to input file with exported key bundle")
+	params.importFlags.StringVar(&params.exportKeysFile, "key_bundle_secret", "", "path to input file with key encryption keys")
 	params.importFlags.Usage = func() {
 		fmt.Fprintf(os.Stderr, "Command \"%s\": import keys into the key store\n", CmdImportKeys)
 		fmt.Fprintf(os.Stderr, "\n\t%s %s [options...] --key_bundle_file <file> --key_bundle_secret <file>\n", os.Args[0], CmdImportKeys)
@@ -156,8 +156,8 @@ func (params *CommandLineParams) Register() {
 	}
 
 	params.destroyFlags = flag.NewFlagSet(CmdDestroyKey, flag.ContinueOnError)
-	params.destroyFlags.StringVar(&params.ClientID, "client_id", "", "client ID for which to destroy key")
-	params.destroyFlags.StringVar(&params.ZoneID, "zone_id", "", "zone ID for which to destroy key")
+	params.destroyFlags.StringVar(&params.clientID, "client_id", "", "client ID for which to destroy key")
+	params.destroyFlags.StringVar(&params.zoneID, "zone_id", "", "zone ID for which to destroy key")
 	params.destroyFlags.Usage = func() {
 		fmt.Fprintf(os.Stderr, "Command \"%s\": destroy key material\n", CmdDestroyKey)
 		fmt.Fprintf(os.Stderr, "\n\t%s %s [options...] <key-kind>\n\n", os.Args[0], CmdDestroyKey)
@@ -197,6 +197,56 @@ func (params *CommandLineParams) KeyDirPublic() string {
 	return params.keyDirPublic
 }
 
+// UseJSON tells if machine-readable JSON should be used.
+func (params *CommandLineParams) UseJSON() bool {
+	return params.useJSON
+}
+
+//ExportIDs returns key IDs to export.
+func (params *CommandLineParams) ExportIDs() []string {
+	return params.exportIDs
+}
+
+//ExportAll returns true if all keys should be exported, regardless of ExportIDs() value.
+func (params *CommandLineParams) ExportAll() bool {
+	return params.exportAll
+}
+
+// ExportPrivate returns true if private keys should be included into exported data.
+func (params *CommandLineParams) ExportPrivate() bool {
+	return params.exportPrivate
+}
+
+// ExportKeysFile returns path to file with encryption keys for export.
+func (params *CommandLineParams) ExportKeysFile() string {
+	return params.exportKeysFile
+}
+
+// ExportDataFile returns path to file with encrypted exported key data.
+func (params *CommandLineParams) ExportDataFile() string {
+	return params.exportDataFile
+}
+
+// ReadKeyKind returns kind of the requested key.
+func (params *CommandLineParams) ReadKeyKind() string {
+	return params.readKeyKind
+}
+
+// ClientID returns client ID of the requested key.
+func (params *CommandLineParams) ClientID() []byte {
+	return []byte(params.clientID)
+}
+
+// ZoneID returns zone ID of the requested key.
+func (params *CommandLineParams) ZoneID() []byte {
+	return []byte(params.zoneID)
+}
+
+// DestroyKeyKind returns requested kind of the key to destroy.
+func (params *CommandLineParams) DestroyKeyKind() string {
+	return params.destroyKeyKind
+}
+
 // Parse parses complete command-line.
 func (params *CommandLineParams) Parse() error {
 	err := cmd.Parse(DefaultConfigPath, ServiceName)
@@ -229,23 +279,23 @@ func (params *CommandLineParams) ParseSubCommand() error {
 			return err
 		}
 
-		if params.ExportDataFile == "" || params.ExportKeysFile == "" {
+		if params.exportDataFile == "" || params.exportKeysFile == "" {
 			log.Errorf("\"%s\" command requires output files specified with \"--key_bundle_file\" and \"--key_bundle_secret\"", CmdExportKeys)
 			return ErrMissingOutputFile
 		}
 		// We do not account for people getting creative with ".." and links.
-		if params.ExportDataFile == params.ExportKeysFile {
+		if params.exportDataFile == params.exportKeysFile {
 			log.Errorf("\"--key_bundle_file\" and \"--key_bundle_secret\" must not be the same file")
 			return ErrOutputSame
 		}
 
 		args := params.exportFlags.Args()
-		if len(args) < 1 && !params.ExportAll {
+		if len(args) < 1 && !params.exportAll {
 			log.Errorf("\"%s\" command requires at least one key ID", CmdExportKeys)
 			log.Infoln("Use \"--all\" to export all keys")
 			return ErrMissingKeyID
 		}
-		params.ExportIDs = args
+		params.exportIDs = args
 		return nil
 
 	case CmdImportKeys:
@@ -253,7 +303,7 @@ func (params *CommandLineParams) ParseSubCommand() error {
 		if err != nil {
 			return err
 		}
-		if params.ExportDataFile == "" || params.ExportKeysFile == "" {
+		if params.exportDataFile == "" || params.exportKeysFile == "" {
 			log.Errorf("\"%s\" command requires input files specified with \"--key_bundle_file\" and \"--key_bundle_secret\"", CmdImportKeys)
 			return ErrMissingOutputFile
 		}
@@ -275,8 +325,8 @@ func (params *CommandLineParams) ParseSubCommand() error {
 			log.Errorf("\"%s\" command does not support more than one key kind", CmdReadKey)
 			return ErrMultipleKeyKinds
 		}
-		params.ReadKeyKind = args[0]
-		return params.CheckForKeyKind(params.ReadKeyKind)
+		params.readKeyKind = args[0]
+		return params.CheckForKeyKind(params.readKeyKind)
 
 	case CmdDestroyKey:
 		err := params.destroyFlags.Parse(args[1:])
@@ -294,8 +344,8 @@ func (params *CommandLineParams) ParseSubCommand() error {
 			log.Errorf("\"%s\" command does not support more than one key kind", CmdDestroyKey)
 			return ErrMultipleKeyKinds
 		}
-		params.DestroyKeyKind = args[0]
-		return params.CheckForKeyKind(params.DestroyKeyKind)
+		params.destroyKeyKind = args[0]
+		return params.CheckForKeyKind(params.destroyKeyKind)
 
 	default:
 		log.WithField("expected", SupportedSubCommands).
@@ -313,11 +363,11 @@ func (params *CommandLineParams) SetDefaults() {
 
 // Check command-line for consistency. Exit the process on error.
 func (params *CommandLineParams) Check() {
-	if params.ClientID != "" && params.ZoneID != "" {
+	if params.clientID != "" && params.zoneID != "" {
 		log.Fatal("--client_id and --zone_id cannot be used simultaneously")
 	}
 
-	if params.ReadKeyKind != "" && params.DestroyKeyKind != "" {
+	if params.readKeyKind != "" && params.destroyKeyKind != "" {
 		log.Fatal("--read_key and --destroy_key cannot be used simultaneously")
 	}
 }
@@ -326,12 +376,12 @@ func (params *CommandLineParams) Check() {
 func (params *CommandLineParams) CheckForKeyKind(keyKind string) error {
 	switch keyKind {
 	case KeyTransportConnector, KeyTransportServer, KeyTransportTranslator, KeyStoragePublic, KeyStoragePrivate:
-		if params.ClientID == "" {
+		if params.clientID == "" {
 			log.Errorf("\"%s\" key requires --client_id", keyKind)
 			return ErrMissingClientID
 		}
 	case KeyZonePublic, KeyZonePrivate:
-		if Params.ZoneID == "" {
+		if Params.zoneID == "" {
 			log.Errorf("\"%s\" key requires --zone_id", keyKind)
 			return ErrMissingZoneID
 		}

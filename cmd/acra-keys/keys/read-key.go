@@ -40,9 +40,17 @@ var (
 	ErrUnknownKeyKind  = errors.New("unknown key kind")
 )
 
+// ReadKeyParams are parameters of "acra-keys read" subcommand.
+type ReadKeyParams interface {
+	ReadKeyKind() string
+	ClientID() []byte
+	ZoneID() []byte
+}
+
 // ReadKeyBytes returns plaintext bytes of the requsted key.
-func ReadKeyBytes(params *CommandLineParams, keyStore keystore.ServerKeyStore) ([]byte, error) {
-	switch params.ReadKeyKind {
+func ReadKeyBytes(params ReadKeyParams, keyStore keystore.ServerKeyStore) ([]byte, error) {
+	kind := params.ReadKeyKind()
+	switch kind {
 	case KeyPoisonPublic:
 		keypair, err := keyStore.GetPoisonKeyPair()
 		if err != nil {
@@ -60,7 +68,7 @@ func ReadKeyBytes(params *CommandLineParams, keyStore keystore.ServerKeyStore) (
 		return keypair.Private.Value, nil
 
 	case KeyStoragePublic:
-		key, err := keyStore.GetClientIDEncryptionPublicKey([]byte(Params.ClientID))
+		key, err := keyStore.GetClientIDEncryptionPublicKey(params.ClientID())
 		if err != nil {
 			log.WithError(err).Error("Cannot read client storage public key")
 			return nil, err
@@ -68,7 +76,7 @@ func ReadKeyBytes(params *CommandLineParams, keyStore keystore.ServerKeyStore) (
 		return key.Value, nil
 
 	case KeyStoragePrivate:
-		key, err := keyStore.GetServerDecryptionPrivateKey([]byte(Params.ClientID))
+		key, err := keyStore.GetServerDecryptionPrivateKey(params.ClientID())
 		if err != nil {
 			log.WithError(err).Error("Cannot read client storage private key")
 			return nil, err
@@ -76,7 +84,7 @@ func ReadKeyBytes(params *CommandLineParams, keyStore keystore.ServerKeyStore) (
 		return key.Value, nil
 
 	case KeyZonePublic:
-		key, err := keyStore.GetZonePublicKey([]byte(Params.ZoneID))
+		key, err := keyStore.GetZonePublicKey(params.ZoneID())
 		if err != nil {
 			log.WithError(err).Error("Cannot read zone storage public key")
 			return nil, err
@@ -84,7 +92,7 @@ func ReadKeyBytes(params *CommandLineParams, keyStore keystore.ServerKeyStore) (
 		return key.Value, nil
 
 	case KeyZonePrivate:
-		key, err := keyStore.GetZonePrivateKey([]byte(Params.ZoneID))
+		key, err := keyStore.GetZonePrivateKey(params.ZoneID())
 		if err != nil {
 			log.WithError(err).Error("Cannot read zone storage private key")
 			return nil, err
@@ -92,8 +100,7 @@ func ReadKeyBytes(params *CommandLineParams, keyStore keystore.ServerKeyStore) (
 		return key.Value, nil
 
 	default:
-		log.WithField("expected", SupportedReadKeyKinds).
-			Errorf("Unknown key kind: %s", Params.ReadKeyKind)
+		log.WithField("expected", SupportedReadKeyKinds).Errorf("Unknown key kind: %s", kind)
 		return nil, ErrUnknownKeyKind
 	}
 }
