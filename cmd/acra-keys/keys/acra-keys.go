@@ -21,23 +21,55 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/cossacklabs/acra/keystore"
+	"github.com/cossacklabs/acra/keystore/v2/keystore/api"
 	"github.com/cossacklabs/acra/utils"
 	log "github.com/sirupsen/logrus"
 )
 
 // ExecuteCommand executes the command requsted on the command line
-func ExecuteCommand(params *CommandLineParams, factory KeyStoreFactory) {
+func ExecuteCommand(params *CommandLineParams) {
 	switch params.Command {
 	case CmdListKeys:
-		ListKeysCommand(params, factory)
+		keyStore, err := OpenKeyStoreForReading(params)
+		if err != nil {
+			log.WithError(err).Fatal("Failed to open key store")
+		}
+		ListKeysCommand(params, keyStore)
+
 	case CmdExportKeys:
-		ExportKeysCommand(params, factory)
+		keyStore, err := OpenKeyStoreForExport(params)
+		if err != nil {
+			if err == ErrNotImplementedV1 {
+				warnKeystoreV2Only(CmdExportKeys)
+			}
+			log.WithError(err).Fatal("Failed to open key store")
+		}
+		ExportKeysCommand(params, keyStore)
+
 	case CmdImportKeys:
-		ImportKeysCommand(params, factory)
+		keyStore, err := OpenKeyStoreForImport(params)
+		if err != nil {
+			if err == ErrNotImplementedV1 {
+				warnKeystoreV2Only(CmdExportKeys)
+			}
+			log.WithError(err).Fatal("Failed to open key store")
+		}
+		ImportKeysCommand(params, keyStore)
+
 	case CmdReadKey:
-		PrintKeyCommand(params, factory)
+		keyStore, err := OpenKeyStoreForReading(params)
+		if err != nil {
+			log.WithError(err).Fatal("Failed to open key store")
+		}
+		PrintKeyCommand(params, keyStore)
+
 	case CmdDestroyKey:
-		DestroyKeyCommand(params, factory)
+		keyStore, err := OpenKeyStoreForWriting(params)
+		if err != nil {
+			log.WithError(err).Fatal("Failed to open key store")
+		}
+		DestroyKeyCommand(params, keyStore)
 	}
 }
 
@@ -49,12 +81,7 @@ func warnKeystoreV2Only(command string) {
 }
 
 // ListKeysCommand implements the "list" command.
-func ListKeysCommand(params *CommandLineParams, factory KeyStoreFactory) {
-	keyStore, err := factory.OpenKeyStoreForReading(params)
-	if err != nil {
-		log.WithError(err).Fatal("Failed to open key store")
-	}
-
+func ListKeysCommand(params *CommandLineParams, keyStore keystore.ServerKeyStore) {
 	keyDescriptions, err := keyStore.ListKeys()
 	if err != nil {
 		if err == ErrNotImplementedV1 {
@@ -70,15 +97,7 @@ func ListKeysCommand(params *CommandLineParams, factory KeyStoreFactory) {
 }
 
 // ExportKeysCommand implements the "export" command.
-func ExportKeysCommand(params *CommandLineParams, factory KeyStoreFactory) {
-	keyStore, err := factory.OpenKeyStoreForExport(params)
-	if err != nil {
-		if err == ErrNotImplementedV1 {
-			warnKeystoreV2Only(CmdExportKeys)
-		}
-		log.WithError(err).Fatal("Failed to open key store")
-	}
-
+func ExportKeysCommand(params *CommandLineParams, keyStore api.KeyStore) {
 	encryptionKeyData, cryptosuite, err := PrepareExportEncryptionKeys()
 	if err != nil {
 		log.WithError(err).Fatal("Failed to prepare encryption keys")
@@ -102,15 +121,7 @@ func ExportKeysCommand(params *CommandLineParams, factory KeyStoreFactory) {
 }
 
 // ImportKeysCommand implements the "import" command.
-func ImportKeysCommand(params *CommandLineParams, factory KeyStoreFactory) {
-	keyStore, err := factory.OpenKeyStoreForImport(params)
-	if err != nil {
-		if err == ErrNotImplementedV1 {
-			warnKeystoreV2Only(CmdExportKeys)
-		}
-		log.WithError(err).Fatal("Failed to open key store")
-	}
-
+func ImportKeysCommand(params *CommandLineParams, keyStore api.MutableKeyStore) {
 	exportedData, err := ReadExportedData(params)
 	if err != nil {
 		log.WithError(err).Fatal("Failed to read exported data")
@@ -135,12 +146,7 @@ func ImportKeysCommand(params *CommandLineParams, factory KeyStoreFactory) {
 }
 
 // PrintKeyCommand implements the "read" command.
-func PrintKeyCommand(params *CommandLineParams, factory KeyStoreFactory) {
-	keyStore, err := factory.OpenKeyStoreForReading(params)
-	if err != nil {
-		log.WithError(err).Fatal("Failed to open key store")
-	}
-
+func PrintKeyCommand(params *CommandLineParams, keyStore keystore.ServerKeyStore) {
 	keyBytes, err := ReadKeyBytes(params, keyStore)
 	if err != nil {
 		log.WithError(err).Fatal("Failed to read key")
@@ -154,13 +160,8 @@ func PrintKeyCommand(params *CommandLineParams, factory KeyStoreFactory) {
 }
 
 // DestroyKeyCommand implements the "destroy" command.
-func DestroyKeyCommand(params *CommandLineParams, factory KeyStoreFactory) {
-	keyStore, err := factory.OpenKeyStoreForWriting(params)
-	if err != nil {
-		log.WithError(err).Fatal("Failed to open key store")
-	}
-
-	err = DestroyKey(params, keyStore)
+func DestroyKeyCommand(params *CommandLineParams, keyStore keystore.KeyMaking) {
+	err := DestroyKey(params, keyStore)
 	if err != nil {
 		log.WithError(err).Fatal("Failed to destroy key")
 	}

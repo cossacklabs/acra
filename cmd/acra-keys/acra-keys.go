@@ -31,7 +31,5 @@ import (
 
 func main() {
 	keys.ParseParams()
-
-	factory := &keys.DefaultKeyStoreFactory{}
-	keys.ExecuteCommand(keys.Params, factory)
+	keys.ExecuteCommand(keys.Params)
 }
