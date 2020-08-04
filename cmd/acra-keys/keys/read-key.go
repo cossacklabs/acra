@@ -119,6 +119,15 @@ func (p *ReadKeySubcommand) Parse(arguments []string) error {
 	return nil
 }
 
+// Execute this subcommand.
+func (p *ReadKeySubcommand) Execute() {
+	keyStore, err := OpenKeyStoreForReading(p)
+	if err != nil {
+		log.WithError(err).Fatal("Failed to open key store")
+	}
+	PrintKeyCommand(p, keyStore)
+}
+
 // ReadKeyKind returns kind of the requested key.
 func (p *ReadKeySubcommand) ReadKeyKind() string {
 	return p.readKeyKind

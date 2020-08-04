@@ -39,6 +39,6 @@ func main() {
 	}
 	subcommand := keys.ParseParameters(subcommands)
 	if subcommand != nil {
-		keys.ExecuteCommand(subcommand)
+		subcommand.Execute()
 	}
 }

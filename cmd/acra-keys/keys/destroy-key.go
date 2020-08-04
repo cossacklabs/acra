@@ -95,6 +95,15 @@ func (p *DestroyKeySubcommand) Parse(arguments []string) error {
 	return nil
 }
 
+// Execute this subcommand.
+func (p *DestroyKeySubcommand) Execute() {
+	keyStore, err := OpenKeyStoreForWriting(p)
+	if err != nil {
+		log.WithError(err).Fatal("Failed to open key store")
+	}
+	DestroyKeyCommand(p, keyStore)
+}
+
 // DestroyKeyKind returns requested kind of the key to destroy.
 func (p *DestroyKeySubcommand) DestroyKeyKind() string {
 	return p.destroyKeyKind

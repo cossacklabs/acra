@@ -147,6 +147,18 @@ func (p *ExportKeysSubcommand) Parse(arguments []string) error {
 	return nil
 }
 
+// Execute this subcommand.
+func (p *ExportKeysSubcommand) Execute() {
+	keyStore, err := OpenKeyStoreForExport(p)
+	if err != nil {
+		if err == ErrNotImplementedV1 {
+			warnKeystoreV2Only(CmdExportKeys)
+		}
+		log.WithError(err).Fatal("Failed to open key store")
+	}
+	ExportKeysCommand(p, keyStore)
+}
+
 // ExportIDs returns key IDs to export.
 func (p *ExportKeysSubcommand) ExportIDs() []string {
 	return p.exportIDs
@@ -206,6 +218,18 @@ func (p *ImportKeysSubcommand) Parse(arguments []string) error {
 		return err
 	}
 	return nil
+}
+
+// Execute this subcommand.
+func (p *ImportKeysSubcommand) Execute() {
+	keyStore, err := OpenKeyStoreForImport(p)
+	if err != nil {
+		if err == ErrNotImplementedV1 {
+			warnKeystoreV2Only(CmdExportKeys)
+		}
+		log.WithError(err).Fatal("Failed to open key store")
+	}
+	ImportKeysCommand(p, keyStore)
 }
 
 // PrepareExportEncryptionKeys generates new ephemeral keys for key export operation.

@@ -27,57 +27,6 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
-// ExecuteCommand executes the command requsted on the command line
-func ExecuteCommand(command Subcommand) {
-	switch command.Name() {
-	case CmdListKeys:
-		params := command.(*ListKeySubcommand)
-		keyStore, err := OpenKeyStoreForReading(params)
-		if err != nil {
-			log.WithError(err).Fatal("Failed to open key store")
-		}
-		ListKeysCommand(params, keyStore)
-
-	case CmdExportKeys:
-		params := command.(*ExportKeysSubcommand)
-		keyStore, err := OpenKeyStoreForExport(params)
-		if err != nil {
-			if err == ErrNotImplementedV1 {
-				warnKeystoreV2Only(CmdExportKeys)
-			}
-			log.WithError(err).Fatal("Failed to open key store")
-		}
-		ExportKeysCommand(params, keyStore)
-
-	case CmdImportKeys:
-		params := command.(*ImportKeysSubcommand)
-		keyStore, err := OpenKeyStoreForImport(params)
-		if err != nil {
-			if err == ErrNotImplementedV1 {
-				warnKeystoreV2Only(CmdExportKeys)
-			}
-			log.WithError(err).Fatal("Failed to open key store")
-		}
-		ImportKeysCommand(params, keyStore)
-
-	case CmdReadKey:
-		params := command.(*ReadKeySubcommand)
-		keyStore, err := OpenKeyStoreForReading(params)
-		if err != nil {
-			log.WithError(err).Fatal("Failed to open key store")
-		}
-		PrintKeyCommand(params, keyStore)
-
-	case CmdDestroyKey:
-		params := command.(*DestroyKeySubcommand)
-		keyStore, err := OpenKeyStoreForWriting(params)
-		if err != nil {
-			log.WithError(err).Fatal("Failed to open key store")
-		}
-		DestroyKeyCommand(params, keyStore)
-	}
-}
-
 func warnKeystoreV2Only(command string) {
 	log.Error(fmt.Sprintf("\"%s\" is not implemented for key store v1", command))
 	log.Info("You can convert key store v1 into v2 with \"acra-migrate-keys\"")

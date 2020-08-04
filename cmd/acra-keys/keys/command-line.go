@@ -86,6 +86,7 @@ type Subcommand interface {
 	Name() string
 	RegisterFlags()
 	Parse(arguments []string) error
+	Execute()
 }
 
 // ParseParameters parses command-line parameters and returns the selected subcommand.

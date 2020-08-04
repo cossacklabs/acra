@@ -26,6 +26,7 @@ import (
 	"github.com/cossacklabs/acra/cmd"
 	"github.com/cossacklabs/acra/keystore"
 	"github.com/cossacklabs/acra/utils"
+	log "github.com/sirupsen/logrus"
 )
 
 // ListKeysParams ara parameters of "acra-keys list" subcommand.
@@ -76,6 +77,15 @@ func (p *ListKeySubcommand) RegisterFlags() {
 // Parse command-line parameters of the subcommand.
 func (p *ListKeySubcommand) Parse(arguments []string) error {
 	return cmd.ParseFlagsWithConfig(p.FlagSet, arguments, DefaultConfigPath, ServiceName)
+}
+
+// Execute this subcommand.
+func (p *ListKeySubcommand) Execute() {
+	keyStore, err := OpenKeyStoreForReading(p)
+	if err != nil {
+		log.WithError(err).Fatal("Failed to open key store")
+	}
+	ListKeysCommand(p, keyStore)
 }
 
 // PrintKeys prints key list prettily into the given writer.
