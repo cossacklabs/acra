@@ -349,27 +349,27 @@ def exchange_client_public_keys(client, server_keys_dir, connector_keys_dir):
             secret = os.path.join(tmp_dir, 'key-bundle-secret')
 
             # Transfer AcraServer public key to AcraConnector
-            subprocess.call(['./acra-keys', '--keys_dir={}'.format(server_keys_dir),
-                             'export',
+            subprocess.call(['./acra-keys', 'export',
+                             '--keys_dir={}'.format(server_keys_dir),
                              '--key_bundle_file={}'.format(bundle),
                              '--key_bundle_secret={}'.format(secret),
                              'client/{}/transport/server'.format(client)],
                             timeout=PROCESS_CALL_TIMEOUT)
-            subprocess.call(['./acra-keys', '--keys_dir={}'.format(connector_keys_dir),
-                             'import',
+            subprocess.call(['./acra-keys', 'import',
+                             '--keys_dir={}'.format(connector_keys_dir),
                              '--key_bundle_file={}'.format(bundle),
                              '--key_bundle_secret={}'.format(secret)],
                             timeout=PROCESS_CALL_TIMEOUT)
 
             # Transfer AcraConnector public key to AcraServer
-            subprocess.call(['./acra-keys', '--keys_dir={}'.format(connector_keys_dir),
-                             'export',
+            subprocess.call(['./acra-keys', 'export',
+                             '--keys_dir={}'.format(connector_keys_dir),
                              '--key_bundle_file={}'.format(bundle),
                              '--key_bundle_secret={}'.format(secret),
                              'client/{}/transport/connector'.format(client)],
                             timeout=PROCESS_CALL_TIMEOUT)
-            subprocess.call(['./acra-keys', '--keys_dir={}'.format(server_keys_dir),
-                             'import',
+            subprocess.call(['./acra-keys', 'import',
+                             '--keys_dir={}'.format(server_keys_dir),
                              '--key_bundle_file={}'.format(bundle),
                              '--key_bundle_secret={}'.format(secret)],
                             timeout=PROCESS_CALL_TIMEOUT)
@@ -4769,7 +4769,7 @@ class TestOutdatedServiceConfigs(BaseTestCase, FailedRunProcessMixin):
                 'acra-server': ['-db_host=127.0.0.1'],
                 'acra-connector': ['-user_check_disable', '-acraserver_connection_host=127.0.0.1', '-client_id=keypair1'],
                 'acra-migrate-keys': ['--dry_run', '--src_keys_dir={}'.format(KEYS_FOLDER.name)],
-                'acra-keys': ['--keys_dir={}'.format(KEYS_FOLDER.name)],
+                'acra-keys': [],
             }
             for service in services:
                 config_param = '-config_file={}'.format(os.path.join(tmp_dir, '{}.yaml'.format(service)))
@@ -4793,7 +4793,7 @@ class TestOutdatedServiceConfigs(BaseTestCase, FailedRunProcessMixin):
                 'acra-server': ['-db_host=127.0.0.1'],
                 'acra-connector': ['-user_check_disable', '-acraserver_connection_host=127.0.0.1', '-client_id=keypair1'],
                 'acra-migrate-keys': ['--dry_run', '--src_keys_dir={}'.format(KEYS_FOLDER.name)],
-                'acra-keys': ['--keys_dir={}'.format(KEYS_FOLDER.name)],
+                'acra-keys': [],
             }
             for service in services:
                 config_param = '-config_file={}'.format(os.path.join(tmp_dir, '{}.yaml'.format(service)))
@@ -4829,7 +4829,7 @@ class TestOutdatedServiceConfigs(BaseTestCase, FailedRunProcessMixin):
                                   '-keys_public_output_dir={}'.format(tmp_dir),
                                   '--keystore={}'.format(KEYSTORE_VERSION)],
                 'acra-migrate-keys': ['--dry_run', '--src_keys_dir={}'.format(KEYS_FOLDER.name)],
-                'acra-keys': ['--keys_dir={}'.format(KEYS_FOLDER.name)],
+                'acra-keys': [],
                 'acra-poisonrecordmaker': ['-keys_dir={}'.format(tmp_dir)],
                 'acra-rollback': {'args': ['-keys_dir={}'.format(tmp_dir)],
                                   'status': 1},
@@ -4877,7 +4877,7 @@ class TestOutdatedServiceConfigs(BaseTestCase, FailedRunProcessMixin):
                                   '-keys_public_output_dir={}'.format(tmp_dir),
                                   '--keystore={}'.format(KEYSTORE_VERSION)],
                 'acra-migrate-keys': ['--dry_run', '--src_keys_dir={}'.format(KEYS_FOLDER.name)],
-                'acra-keys': ['--keys_dir={}'.format(KEYS_FOLDER.name)],
+                'acra-keys': [],
                 'acra-poisonrecordmaker': ['-keys_dir={}'.format(tmp_dir)],
                 'acra-rollback': {'args': ['-keys_dir={}'.format(tmp_dir)],
                                   'status': 1},
