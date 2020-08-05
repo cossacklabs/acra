@@ -65,12 +65,12 @@ func (p *CommonKeyStoreParameters) Register(flags *flag.FlagSet) {
 }
 
 // RegisterPrefixed registers key store flags with the given flag set, using given prefix and description.
-func (p *CommonKeyStoreParameters) RegisterPrefixed(flags *flag.FlagSet, flagPrefix, desciptionSuffix string) {
-	if desciptionSuffix != "" {
-		desciptionSuffix = " " + desciptionSuffix
+func (p *CommonKeyStoreParameters) RegisterPrefixed(flags *flag.FlagSet, flagPrefix, descriptionSuffix string) {
+	if descriptionSuffix != "" {
+		descriptionSuffix = " " + descriptionSuffix
 	}
-	flags.StringVar(&p.keyDir, flagPrefix+"keys_dir", DefaultKeyDirectory, "path to key directory"+desciptionSuffix)
-	flags.StringVar(&p.keyDirPublic, flagPrefix+"keys_dir_public", "", "path to key directory for public keys"+desciptionSuffix)
+	flags.StringVar(&p.keyDir, flagPrefix+"keys_dir", DefaultKeyDirectory, "path to key directory"+descriptionSuffix)
+	flags.StringVar(&p.keyDirPublic, flagPrefix+"keys_dir_public", "", "path to key directory for public keys"+descriptionSuffix)
 }
 
 // OpenKeyStoreForReading opens a key store suitable for reading keys.
