@@ -47,6 +47,11 @@ var (
 	generateMarkdownArgTable = flag_.Bool("generate_markdown_args_table", false, "Generate with yaml config markdown text file with descriptions of all args")
 )
 
+// Argument and configuration parsing errors.
+var (
+	ErrDumpRequested = errors.New("configurtion dump requested")
+)
+
 func init() {
 	// override default usage message by ours
 	flag_.CommandLine.Usage = func() {
@@ -283,7 +288,12 @@ func checkVersion(config map[string]interface{}) error {
 
 // Parse parses flag settings from YAML config file and command line.
 func Parse(configPath, serviceName string) error {
-	return ParseFlagsWithConfig(flag_.CommandLine, os.Args[1:], configPath, serviceName)
+	err := ParseFlagsWithConfig(flag_.CommandLine, os.Args[1:], configPath, serviceName)
+	if err == ErrDumpRequested {
+		DumpConfig(configPath, serviceName, true)
+		os.Exit(0)
+	}
+	return err
 }
 
 // ParseFlagsWithConfig parses flag settings from YAML config file and command line.
@@ -349,8 +359,7 @@ func ParseFlagsWithConfig(flags *flag_.FlagSet, arguments []string, configPath, 
 		flags.Parse(arguments)
 	}
 	if *dumpconfig {
-		DumpConfig(configPath, serviceName, true)
-		os.Exit(0)
+		return ErrDumpRequested
 	}
 	if err = checkVersion(yamlConfig); err != nil {
 		return err
