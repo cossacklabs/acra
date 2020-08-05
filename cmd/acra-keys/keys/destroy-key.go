@@ -54,6 +54,11 @@ func (p *DestroyKeySubcommand) Name() string {
 	return CmdDestroyKey
 }
 
+// GetFlagSet returns flag set of this subcommand.
+func (p *DestroyKeySubcommand) GetFlagSet() *flag.FlagSet {
+	return p.FlagSet
+}
+
 // RegisterFlags registers command-line flags of "acra-keys read".
 func (p *DestroyKeySubcommand) RegisterFlags() {
 	p.FlagSet = flag.NewFlagSet(CmdReadKey, flag.ContinueOnError)

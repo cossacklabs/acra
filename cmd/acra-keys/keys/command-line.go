@@ -85,6 +85,7 @@ var (
 type Subcommand interface {
 	Name() string
 	RegisterFlags()
+	GetFlagSet() *flag.FlagSet
 	Parse(arguments []string) error
 	Execute()
 }
