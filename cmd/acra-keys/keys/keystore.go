@@ -18,6 +18,7 @@ package keys
 
 import (
 	"errors"
+	"flag"
 
 	"github.com/cossacklabs/acra/keystore"
 	keystoreV1 "github.com/cossacklabs/acra/keystore"
@@ -37,6 +38,39 @@ var (
 type KeyStoreParameters interface {
 	KeyDir() string
 	KeyDirPublic() string
+}
+
+// CommonKeyStoreParameters is a mix-in of command line parameters for key store construction.
+type CommonKeyStoreParameters struct {
+	keyDir       string
+	keyDirPublic string
+}
+
+// KeyDir returns path to key directory.
+func (p *CommonKeyStoreParameters) KeyDir() string {
+	return p.keyDir
+}
+
+// KeyDirPublic returns path to public key directory (if different from key directory).
+func (p *CommonKeyStoreParameters) KeyDirPublic() string {
+	if p.keyDirPublic == "" {
+		return p.keyDir
+	}
+	return p.keyDirPublic
+}
+
+// Register registers key store flags with the given flag set.
+func (p *CommonKeyStoreParameters) Register(flags *flag.FlagSet) {
+	p.RegisterPrefixed(flags, "", "")
+}
+
+// RegisterPrefixed registers key store flags with the given flag set, using given prefix and description.
+func (p *CommonKeyStoreParameters) RegisterPrefixed(flags *flag.FlagSet, flagPrefix, descriptionSuffix string) {
+	if descriptionSuffix != "" {
+		descriptionSuffix = " " + descriptionSuffix
+	}
+	flags.StringVar(&p.keyDir, flagPrefix+"keys_dir", DefaultKeyDirectory, "path to key directory"+descriptionSuffix)
+	flags.StringVar(&p.keyDirPublic, flagPrefix+"keys_dir_public", "", "path to key directory for public keys"+descriptionSuffix)
 }
 
 // OpenKeyStoreForReading opens a key store suitable for reading keys.

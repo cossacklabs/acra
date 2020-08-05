@@ -19,9 +19,12 @@ package keys
 import (
 	"encoding/json"
 	"errors"
+	"flag"
+	"fmt"
 	"io/ioutil"
 	"os"
 
+	"github.com/cossacklabs/acra/cmd"
 	"github.com/cossacklabs/acra/keystore"
 	keystoreV2 "github.com/cossacklabs/acra/keystore/v2/keystore"
 	"github.com/cossacklabs/acra/keystore/v2/keystore/api"
@@ -49,6 +52,42 @@ type ExportImportCommonParams interface {
 	ExportDataFile() string
 }
 
+// CommonExportImportParameters are common parameters of "acra-keys export" and "acra-keys import" subcommand.
+type CommonExportImportParameters struct {
+	exportKeysFile string
+	exportDataFile string
+}
+
+// ExportKeysFile returns path to file with encryption keys for export.
+func (p *CommonExportImportParameters) ExportKeysFile() string {
+	return p.exportKeysFile
+}
+
+// ExportDataFile returns path to file with encrypted exported key data.
+func (p *CommonExportImportParameters) ExportDataFile() string {
+	return p.exportDataFile
+}
+
+// Register registers key store flags with the given flag set.
+func (p *CommonExportImportParameters) Register(flags *flag.FlagSet, filePurspose string) {
+	// The purpose is either "output" or "output". This is not very localizable, but we don't care about it at this point.
+	flags.StringVar(&p.exportDataFile, "key_bundle_file", "", "path to "+filePurspose+" file for exported key bundle")
+	flags.StringVar(&p.exportKeysFile, "key_bundle_secret", "", "path to "+filePurspose+" file for key encryption keys")
+}
+
+func (p *CommonExportImportParameters) validate() error {
+	if p.exportDataFile == "" || p.exportKeysFile == "" {
+		log.Errorf("\"--key_bundle_file\" and \"--key_bundle_secret\" options are required")
+		return ErrMissingOutputFile
+	}
+	// We do not account for people getting creative with ".." and links.
+	if p.exportDataFile == p.exportKeysFile {
+		log.Errorf("\"--key_bundle_file\" and \"--key_bundle_secret\" must not be the same file")
+		return ErrOutputSame
+	}
+	return nil
+}
+
 // ExportKeysParams are parameters of "acra-keys export" subcommand.
 type ExportKeysParams interface {
 	ExportImportCommonParams
@@ -57,10 +96,140 @@ type ExportKeysParams interface {
 	ExportPrivate() bool
 }
 
+// ExportKeysSubcommand is the "acra-keys export" subcommand.
+type ExportKeysSubcommand struct {
+	CommonKeyStoreParameters
+	CommonExportImportParameters
+	FlagSet *flag.FlagSet
+
+	exportIDs     []string
+	exportAll     bool
+	exportPrivate bool
+}
+
+// Name returns the same of this subcommand.
+func (p *ExportKeysSubcommand) Name() string {
+	return CmdExportKeys
+}
+
+// RegisterFlags registers command-line flags of "acra-keys export".
+func (p *ExportKeysSubcommand) RegisterFlags() {
+	p.FlagSet = flag.NewFlagSet(CmdExportKeys, flag.ContinueOnError)
+	p.CommonKeyStoreParameters.Register(p.FlagSet)
+	p.CommonExportImportParameters.Register(p.FlagSet, "output")
+	p.FlagSet.BoolVar(&p.exportAll, "all", false, "export all keys")
+	p.FlagSet.BoolVar(&p.exportPrivate, "private_keys", false, "export private key data")
+	p.FlagSet.Usage = func() {
+		fmt.Fprintf(os.Stderr, "Command \"%s\": export keys from the key store\n", CmdExportKeys)
+		fmt.Fprintf(os.Stderr, "\n\t%s %s [options...] --key_bundle_file <file> --key_bundle_secret <file> <key-ID...>\n", os.Args[0], CmdExportKeys)
+		fmt.Fprintf(os.Stderr, "\nOptions:\n")
+		cmd.PrintFlags(p.FlagSet)
+	}
+}
+
+// Parse command-line parameters of the subcommand.
+func (p *ExportKeysSubcommand) Parse(arguments []string) error {
+	err := cmd.ParseFlagsWithConfig(p.FlagSet, arguments, DefaultConfigPath, ServiceName)
+	if err != nil {
+		return err
+	}
+	err = p.CommonExportImportParameters.validate()
+	if err != nil {
+		return err
+	}
+	args := p.FlagSet.Args()
+	if len(args) < 1 && !p.exportAll {
+		log.Errorf("\"%s\" command requires at least one key ID", CmdExportKeys)
+		log.Infoln("Use \"--all\" to export all keys")
+		return ErrMissingKeyID
+	}
+	p.exportIDs = args
+	return nil
+}
+
+// Execute this subcommand.
+func (p *ExportKeysSubcommand) Execute() {
+	keyStore, err := OpenKeyStoreForExport(p)
+	if err != nil {
+		if err == ErrNotImplementedV1 {
+			warnKeystoreV2Only(CmdExportKeys)
+		}
+		log.WithError(err).Fatal("Failed to open key store")
+	}
+	ExportKeysCommand(p, keyStore)
+}
+
+// ExportIDs returns key IDs to export.
+func (p *ExportKeysSubcommand) ExportIDs() []string {
+	return p.exportIDs
+}
+
+// ExportAll returns true if all keys should be exported, regardless of ExportIDs() value.
+func (p *ExportKeysSubcommand) ExportAll() bool {
+	return p.exportAll
+}
+
+// ExportPrivate returns true if private keys should be included into exported data.
+func (p *ExportKeysSubcommand) ExportPrivate() bool {
+	return p.exportPrivate
+}
+
 // ImportKeysParams are parameters of "acra-keys import" subcommand.
 type ImportKeysParams interface {
 	ExportImportCommonParams
 	ListKeysParams
+}
+
+// ImportKeysSubcommand is the "acra-keys import" subcommand.
+type ImportKeysSubcommand struct {
+	CommonKeyStoreParameters
+	CommonExportImportParameters
+	CommonKeyListingParameters
+	FlagSet *flag.FlagSet
+}
+
+// Name returns the same of this subcommand.
+func (p *ImportKeysSubcommand) Name() string {
+	return CmdImportKeys
+}
+
+// RegisterFlags registers command-line flags of "acra-keys import".
+func (p *ImportKeysSubcommand) RegisterFlags() {
+	p.FlagSet = flag.NewFlagSet(CmdImportKeys, flag.ContinueOnError)
+	p.CommonKeyStoreParameters.Register(p.FlagSet)
+	p.CommonExportImportParameters.Register(p.FlagSet, "input")
+	p.CommonKeyListingParameters.Register(p.FlagSet)
+	p.FlagSet.Usage = func() {
+		fmt.Fprintf(os.Stderr, "Command \"%s\": import keys into the key store\n", CmdImportKeys)
+		fmt.Fprintf(os.Stderr, "\n\t%s %s [options...] --key_bundle_file <file> --key_bundle_secret <file>\n", os.Args[0], CmdImportKeys)
+		fmt.Fprintf(os.Stderr, "\nOptions:\n")
+		cmd.PrintFlags(p.FlagSet)
+	}
+}
+
+// Parse command-line parameters of the subcommand.
+func (p *ImportKeysSubcommand) Parse(arguments []string) error {
+	err := cmd.ParseFlagsWithConfig(p.FlagSet, arguments, DefaultConfigPath, ServiceName)
+	if err != nil {
+		return err
+	}
+	err = p.CommonExportImportParameters.validate()
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+// Execute this subcommand.
+func (p *ImportKeysSubcommand) Execute() {
+	keyStore, err := OpenKeyStoreForImport(p)
+	if err != nil {
+		if err == ErrNotImplementedV1 {
+			warnKeystoreV2Only(CmdExportKeys)
+		}
+		log.WithError(err).Fatal("Failed to open key store")
+	}
+	ImportKeysCommand(p, keyStore)
 }
 
 // PrepareExportEncryptionKeys generates new ephemeral keys for key export operation.

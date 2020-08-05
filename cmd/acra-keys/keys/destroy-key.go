@@ -17,6 +17,12 @@
 package keys
 
 import (
+	"flag"
+	"fmt"
+	"os"
+	"strings"
+
+	"github.com/cossacklabs/acra/cmd"
 	"github.com/cossacklabs/acra/keystore"
 	log "github.com/sirupsen/logrus"
 )
@@ -32,6 +38,80 @@ var SupportedDestroyKeyKinds = []string{
 type DestroyKeyParams interface {
 	DestroyKeyKind() string
 	ClientID() []byte
+}
+
+// DestroyKeySubcommand is the "acra-keys destroy" subcommand.
+type DestroyKeySubcommand struct {
+	CommonKeyStoreParameters
+	FlagSet *flag.FlagSet
+
+	destroyKeyKind string
+	clientID       string
+}
+
+// Name returns the same of this subcommand.
+func (p *DestroyKeySubcommand) Name() string {
+	return CmdDestroyKey
+}
+
+// RegisterFlags registers command-line flags of "acra-keys read".
+func (p *DestroyKeySubcommand) RegisterFlags() {
+	p.FlagSet = flag.NewFlagSet(CmdReadKey, flag.ContinueOnError)
+	p.CommonKeyStoreParameters.Register(p.FlagSet)
+	p.FlagSet.StringVar(&p.clientID, "client_id", "", "client ID for which to destroy key")
+	p.FlagSet.Usage = func() {
+		fmt.Fprintf(os.Stderr, "Command \"%s\": destroy key material\n", CmdDestroyKey)
+		fmt.Fprintf(os.Stderr, "\n\t%s %s [options...] <key-kind>\n\n", os.Args[0], CmdDestroyKey)
+		fmt.Fprintf(os.Stderr, "Supported key kinds:\n  %s\n", strings.Join(SupportedDestroyKeyKinds, ", "))
+		fmt.Fprintf(os.Stderr, "\nOptions:\n")
+		cmd.PrintFlags(p.FlagSet)
+	}
+}
+
+// Parse command-line parameters of the subcommand.
+func (p *DestroyKeySubcommand) Parse(arguments []string) error {
+	err := cmd.ParseFlagsWithConfig(p.FlagSet, arguments, DefaultConfigPath, ServiceName)
+	if err != nil {
+		return err
+	}
+	args := p.FlagSet.Args()
+	if len(args) < 1 {
+		log.Errorf("\"%s\" command requires key kind", CmdDestroyKey)
+		return ErrMissingKeyKind
+	}
+	// It makes sense to allow multiple keys, but currently we don't allow it.
+	if len(args) > 1 {
+		log.Errorf("\"%s\" command does not support more than one key kind", CmdDestroyKey)
+		return ErrMultipleKeyKinds
+	}
+	p.destroyKeyKind = args[0]
+	switch p.destroyKeyKind {
+	case KeyTransportConnector, KeyTransportServer, KeyTransportTranslator, KeyStoragePublic, KeyStoragePrivate:
+		if p.clientID == "" {
+			log.Errorf("\"%s\" key requires --client_id", p.destroyKeyKind)
+			return ErrMissingClientID
+		}
+	}
+	return nil
+}
+
+// Execute this subcommand.
+func (p *DestroyKeySubcommand) Execute() {
+	keyStore, err := OpenKeyStoreForWriting(p)
+	if err != nil {
+		log.WithError(err).Fatal("Failed to open key store")
+	}
+	DestroyKeyCommand(p, keyStore)
+}
+
+// DestroyKeyKind returns requested kind of the key to destroy.
+func (p *DestroyKeySubcommand) DestroyKeyKind() string {
+	return p.destroyKeyKind
+}
+
+// ClientID returns client ID of the requested key.
+func (p *DestroyKeySubcommand) ClientID() []byte {
+	return []byte(p.clientID)
 }
 
 // DestroyKey destroys data of the requsted key.

@@ -30,6 +30,15 @@ import (
 )
 
 func main() {
-	keys.ParseParams()
-	keys.ExecuteCommand(keys.Params)
+	subcommands := []keys.Subcommand{
+		&keys.ListKeySubcommand{},
+		&keys.ExportKeysSubcommand{},
+		&keys.ImportKeysSubcommand{},
+		&keys.ReadKeySubcommand{},
+		&keys.DestroyKeySubcommand{},
+	}
+	subcommand := keys.ParseParameters(subcommands)
+	if subcommand != nil {
+		subcommand.Execute()
+	}
 }

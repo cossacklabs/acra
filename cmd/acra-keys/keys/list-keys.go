@@ -18,16 +18,74 @@ package keys
 
 import (
 	"encoding/json"
+	"flag"
 	"fmt"
 	"io"
+	"os"
 
+	"github.com/cossacklabs/acra/cmd"
 	"github.com/cossacklabs/acra/keystore"
 	"github.com/cossacklabs/acra/utils"
+	log "github.com/sirupsen/logrus"
 )
 
 // ListKeysParams ara parameters of "acra-keys list" subcommand.
 type ListKeysParams interface {
 	UseJSON() bool
+}
+
+// CommonKeyListingParameters is a mix-in of command line parameters for key store listing.
+type CommonKeyListingParameters struct {
+	useJSON bool
+}
+
+// UseJSON tells if machine-readable JSON should be used.
+func (p *CommonKeyListingParameters) UseJSON() bool {
+	return p.useJSON
+}
+
+// Register registers key formatting flags with the given flag set.
+func (p *CommonKeyListingParameters) Register(flags *flag.FlagSet) {
+	flags.BoolVar(&p.useJSON, "json", false, "use machine-readable JSON output")
+}
+
+// ListKeySubcommand is the "acra-keys list" subcommand.
+type ListKeySubcommand struct {
+	CommonKeyStoreParameters
+	CommonKeyListingParameters
+	FlagSet *flag.FlagSet
+}
+
+// Name returns the same of this subcommand.
+func (p *ListKeySubcommand) Name() string {
+	return CmdListKeys
+}
+
+// RegisterFlags registers command-line flags of "acra-keys list".
+func (p *ListKeySubcommand) RegisterFlags() {
+	p.FlagSet = flag.NewFlagSet(CmdListKeys, flag.ContinueOnError)
+	p.CommonKeyStoreParameters.Register(p.FlagSet)
+	p.CommonKeyListingParameters.Register(p.FlagSet)
+	p.FlagSet.Usage = func() {
+		fmt.Fprintf(os.Stderr, "Command \"%s\": list available keys in the key store\n", CmdListKeys)
+		fmt.Fprintf(os.Stderr, "\n\t%s %s [options...]\n", os.Args[0], CmdListKeys)
+		fmt.Fprintf(os.Stderr, "\nOptions:\n")
+		cmd.PrintFlags(p.FlagSet)
+	}
+}
+
+// Parse command-line parameters of the subcommand.
+func (p *ListKeySubcommand) Parse(arguments []string) error {
+	return cmd.ParseFlagsWithConfig(p.FlagSet, arguments, DefaultConfigPath, ServiceName)
+}
+
+// Execute this subcommand.
+func (p *ListKeySubcommand) Execute() {
+	keyStore, err := OpenKeyStoreForReading(p)
+	if err != nil {
+		log.WithError(err).Fatal("Failed to open key store")
+	}
+	ListKeysCommand(p, keyStore)
 }
 
 // PrintKeys prints key list prettily into the given writer.
