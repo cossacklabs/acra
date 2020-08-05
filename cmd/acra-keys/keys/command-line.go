@@ -121,7 +121,18 @@ func ParseParameters(subcommands []Subcommand) Subcommand {
 }
 
 func parseParameters(subcommands []Subcommand) (Subcommand, error) {
-	err := cmd.Parse(DefaultConfigPath, ServiceName)
+	err := cmd.ParseFlagsWithConfig(flag.CommandLine, os.Args[1:], DefaultConfigPath, ServiceName)
+	// If there is "--dump_config" on the command line,
+	// dump configuration for all subcommand and immediately exit.
+	if err == cmd.ErrDumpRequested {
+		flagSets := make([]*flag.FlagSet, len(subcommands)+1)
+		flagSets[0] = flag.CommandLine
+		for i, command := range subcommands {
+			flagSets[i+1] = command.GetFlagSet()
+		}
+		cmd.DumpConfigFromFlagSets(flagSets, DefaultConfigPath, ServiceName, true)
+		os.Exit(0)
+	}
 	if err != nil {
 		return nil, err
 	}
