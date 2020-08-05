@@ -322,11 +322,11 @@ func ParseFlagsWithConfig(flags *flag_.FlagSet, arguments []string, configPath, 
 				return err
 			}
 			setArgs := make(map[string]bool)
-			flag_.Visit(func(flag *flag_.Flag) {
+			flags.Visit(func(flag *flag_.Flag) {
 				setArgs[flag.Name] = true
 			})
 			// generate args list for flag.Parse as it was from cli args
-			flag_.VisitAll(func(flag *flag_.Flag) {
+			flags.VisitAll(func(flag *flag_.Flag) {
 				// generate only args that wasn't set from cli
 				if _, alreadySet := setArgs[flag.Name]; !alreadySet {
 					if value, yamlOk := yamlConfig[flag.Name]; yamlOk {
