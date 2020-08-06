@@ -67,6 +67,11 @@ func (p *ReadKeySubcommand) Name() string {
 	return CmdReadKey
 }
 
+// GetFlagSet returns flag set of this subcommand.
+func (p *ReadKeySubcommand) GetFlagSet() *flag.FlagSet {
+	return p.FlagSet
+}
+
 // RegisterFlags registers command-line flags of "acra-keys read".
 func (p *ReadKeySubcommand) RegisterFlags() {
 	p.FlagSet = flag.NewFlagSet(CmdReadKey, flag.ContinueOnError)

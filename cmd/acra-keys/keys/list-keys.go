@@ -61,6 +61,11 @@ func (p *ListKeySubcommand) Name() string {
 	return CmdListKeys
 }
 
+// GetFlagSet returns flag set of this subcommand.
+func (p *ListKeySubcommand) GetFlagSet() *flag.FlagSet {
+	return p.FlagSet
+}
+
 // RegisterFlags registers command-line flags of "acra-keys list".
 func (p *ListKeySubcommand) RegisterFlags() {
 	p.FlagSet = flag.NewFlagSet(CmdListKeys, flag.ContinueOnError)

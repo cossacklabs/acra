@@ -112,6 +112,11 @@ func (p *ExportKeysSubcommand) Name() string {
 	return CmdExportKeys
 }
 
+// GetFlagSet returns flag set of this subcommand.
+func (p *ExportKeysSubcommand) GetFlagSet() *flag.FlagSet {
+	return p.FlagSet
+}
+
 // RegisterFlags registers command-line flags of "acra-keys export".
 func (p *ExportKeysSubcommand) RegisterFlags() {
 	p.FlagSet = flag.NewFlagSet(CmdExportKeys, flag.ContinueOnError)
@@ -191,6 +196,11 @@ type ImportKeysSubcommand struct {
 // Name returns the same of this subcommand.
 func (p *ImportKeysSubcommand) Name() string {
 	return CmdImportKeys
+}
+
+// GetFlagSet returns flag set of this subcommand.
+func (p *ImportKeysSubcommand) GetFlagSet() *flag.FlagSet {
+	return p.FlagSet
 }
 
 // RegisterFlags registers command-line flags of "acra-keys import".
