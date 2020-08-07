@@ -484,6 +484,12 @@ func (handler *Handler) processBinaryDataRow(ctx context.Context, rowData []byte
 					Errorln("Can't handle length encoded string binary value")
 				return nil, err
 			}
+			value, err = handler.onColumnDecryption(ctx, i, value)
+			if err != nil {
+				handler.logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorGeneral).
+					WithField("field_index", i).WithError(err).Errorln("Failed to process column data")
+				return nil, err
+			}
 			decryptedValue, err := handler.decryptor.DecryptBlock(value)
 			if err != nil {
 				if err != errPlainData {
@@ -496,7 +502,7 @@ func (handler *Handler) processBinaryDataRow(ctx context.Context, rowData []byte
 				base.AcrastructDecryptionCounter.WithLabelValues(base.DecryptionTypeSuccess).Inc()
 				output = append(output, PutLengthEncodedString(decryptedValue)...)
 			} else {
-				output = append(output, rowData[pos:pos+n]...)
+				output = append(output, PutLengthEncodedString(value)...)
 			}
 
 			pos += n
