@@ -415,26 +415,29 @@ func (handler *Handler) processTextDataRow(ctx context.Context, rowData []byte, 
 		if err != nil {
 			return nil, err
 		}
+		value, err = handler.onColumnDecryption(ctx, i, value)
+		if err != nil {
+			fieldLogger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorGeneral).
+				WithError(err).Errorln("Failed to process column data")
+			return nil, err
+		}
 		if handler.isFieldToDecrypt(fields[i]) {
 			decryptedValue, err := handler.decryptor.DecryptBlock(value)
 			if err == nil && decryptedValue != nil && len(decryptedValue) != len(value) {
 				base.AcrastructDecryptionCounter.WithLabelValues(base.DecryptionTypeSuccess).Inc()
 				fieldLogger.Debugln("Update with decrypted value")
-				output = append(output, PutLengthEncodedString(decryptedValue)...)
+				value = decryptedValue
 			} else {
 				if err != errPlainData {
 					span.AddAttributes(trace.BoolAttribute("failed_decryption", true))
 					base.AcrastructDecryptionCounter.WithLabelValues(base.DecryptionTypeFail).Inc()
 				}
 				fieldLogger.Debugln("Leave value as is")
-				output = append(output, rowData[pos:pos+n]...)
 			}
-			pos += n
-			continue
+		} else {
+			fieldLogger.Debugln("Field is not binary")
 		}
-		fieldLogger.Debugln("Field is not binary")
-
-		output = append(output, rowData[pos:pos+n]...)
+		output = append(output, PutLengthEncodedString(value)...)
 		pos += n
 	}
 	handler.logger.Debugln("Finish processing text data row")
