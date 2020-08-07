@@ -152,6 +152,7 @@ type Handler struct {
 	logger                 *logrus.Entry
 	ctx                    context.Context
 	queryObserverManager   base.QueryObserverManager
+	decryptionObserver     base.ColumnDecryptionObserver
 }
 
 // NewMysqlProxy returns new Handler
@@ -179,7 +180,31 @@ func NewMysqlProxy(ctx context.Context, decryptor base.Decryptor, dbConnection, 
 		ctx:                    ctx,
 		logger:                 logging.GetLoggerFromContext(ctx),
 		queryObserverManager:   observerManager,
+		decryptionObserver:     base.NewColumnDecryptionObserver(),
 	}, nil
+}
+
+// SubscribeOnColumnDecryption subscribes for OnColumn notifications about the column, indexed from left to right starting with zero.
+func (handler *Handler) SubscribeOnColumnDecryption(i int, subscriber base.DecryptionSubscriber) {
+	handler.decryptionObserver.SubscribeOnColumnDecryption(i, subscriber)
+}
+
+// SubscribeOnAllColumnsDecryption subscribes for OnColumn notifications on each column.
+func (handler *Handler) SubscribeOnAllColumnsDecryption(subscriber base.DecryptionSubscriber) {
+	handler.decryptionObserver.SubscribeOnAllColumnsDecryption(subscriber)
+}
+
+// Unsubscribe a subscriber from all OnColumn notifications.
+func (handler *Handler) Unsubscribe(subscriber base.DecryptionSubscriber) {
+	handler.decryptionObserver.Unsubscribe(subscriber)
+}
+
+func (handler *Handler) onColumnDecryption(ctx context.Context, column int, data []byte) ([]byte, error) {
+	// create new context for current decryption operation
+	ctx = base.NewContextWithColumnInfo(ctx, base.NewColumnInfo(column, ""))
+	// todo refactor this and pass client/zone id to ctx from other place
+	ctx = base.NewContextWithClientZoneInfo(ctx, handler.decryptor.(*Decryptor).clientID, handler.decryptor.GetMatchedZoneID(), handler.decryptor.IsWithZone())
+	return handler.decryptionObserver.OnColumnDecryption(ctx, column, data)
 }
 
 // AddQueryObserver implement QueryObservable interface and proxy call to ObserverManager
