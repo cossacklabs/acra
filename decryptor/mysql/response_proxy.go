@@ -17,13 +17,16 @@ limitations under the License.
 package mysql
 
 import (
+	"bytes"
 	"context"
 	"crypto/tls"
+	"encoding/binary"
 	"errors"
 	"fmt"
 	"go.opencensus.io/trace"
 	"io"
 	"net"
+	"strconv"
 	"time"
 
 	"github.com/cossacklabs/acra/acra-censor"
@@ -511,35 +514,63 @@ func (handler *Handler) processBinaryDataRow(ctx context.Context, rowData []byte
 		// https://dev.mysql.com/doc/internals/en/binary-protocol-value.html
 		switch fields[i].Type {
 		case TypeNull:
+			_, err = handler.processFixedSizeNumberField(ctx, i, fields[i], nil)
+			if err != nil {
+				return nil, err
+			}
 			continue
 
 		case TypeTiny:
-			output = append(output, rowData[pos])
+			value, err = handler.processFixedSizeNumberField(ctx, i, fields[i], rowData[pos:pos+1])
+			if err != nil {
+				return nil, err
+			}
+			output = append(output, value...)
 			pos++
 			continue
 
 		case TypeShort, TypeYear:
-			output = append(output, rowData[pos:pos+2]...)
+			value, err = handler.processFixedSizeNumberField(ctx, i, fields[i], rowData[pos:pos+2])
+			if err != nil {
+				return nil, err
+			}
+			output = append(output, value...)
 			pos += 2
 			continue
 
 		case TypeInt24, TypeLong:
-			output = append(output, rowData[pos:pos+4]...)
+			value, err = handler.processFixedSizeNumberField(ctx, i, fields[i], rowData[pos:pos+4])
+			if err != nil {
+				return nil, err
+			}
+			output = append(output, value...)
 			pos += 4
 			continue
 
 		case TypeLongLong:
-			output = append(output, rowData[pos:pos+8]...)
+			value, err = handler.processFixedSizeNumberField(ctx, i, fields[i], rowData[pos:pos+8])
+			if err != nil {
+				return nil, err
+			}
+			output = append(output, value...)
 			pos += 8
 			continue
 
 		case TypeFloat:
-			output = append(output, rowData[pos:pos+4]...)
+			value, err = handler.processFixedSizeNumberField(ctx, i, fields[i], rowData[pos:pos+4])
+			if err != nil {
+				return nil, err
+			}
+			output = append(output, value...)
 			pos += 4
 			continue
 
 		case TypeDouble:
-			output = append(output, rowData[pos:pos+8]...)
+			value, err = handler.processFixedSizeNumberField(ctx, i, fields[i], rowData[pos:pos+8])
+			if err != nil {
+				return nil, err
+			}
+			output = append(output, value...)
 			pos += 8
 			continue
 
@@ -565,6 +596,146 @@ func (handler *Handler) processBinaryDataRow(ctx context.Context, rowData []byte
 		}
 	}
 	return output, nil
+}
+
+func (handler *Handler) processFixedSizeNumberField(ctx context.Context, columnIndex int, column *ColumnDescription, encoded []byte) ([]byte, error) {
+	var value []byte
+	var err error
+	// Parse encoded number value into ASCII string (because that's what subscribers expect).
+	// See https://dev.mysql.com/doc/internals/en/binary-protocol-value.html for binary formats.
+	// Integers are little-endian binary. Real numbers are little-endian IEEE 754. NULL is "nil".
+	switch column.Type {
+	case TypeNull:
+		// do nothing
+
+	case TypeTiny:
+		var numericValue int8
+		err = binary.Read(bytes.NewReader(encoded), binary.LittleEndian, &numericValue)
+		if err != nil {
+			break
+		}
+		value = []byte(strconv.FormatInt(int64(numericValue), 10))
+
+	case TypeShort, TypeYear:
+		var numericValue int16
+		err = binary.Read(bytes.NewReader(encoded), binary.LittleEndian, &numericValue)
+		if err != nil {
+			break
+		}
+		value = []byte(strconv.FormatInt(int64(numericValue), 10))
+
+	case TypeInt24, TypeLong:
+		var numericValue int32
+		err = binary.Read(bytes.NewReader(encoded), binary.LittleEndian, &numericValue)
+		if err != nil {
+			break
+		}
+		value = []byte(strconv.FormatInt(int64(numericValue), 10))
+
+	case TypeLongLong:
+		var numericValue int64
+		err = binary.Read(bytes.NewReader(encoded), binary.LittleEndian, &numericValue)
+		if err != nil {
+			break
+		}
+		value = []byte(strconv.FormatInt(int64(numericValue), 10))
+
+	case TypeFloat:
+		var numericValue float32
+		err = binary.Read(bytes.NewReader(encoded), binary.LittleEndian, &numericValue)
+		if err != nil {
+			break
+		}
+		value = []byte(strconv.FormatFloat(float64(numericValue), 'G', -1, 32))
+
+	case TypeDouble:
+		var numericValue float64
+		err = binary.Read(bytes.NewReader(encoded), binary.LittleEndian, &numericValue)
+		if err != nil {
+			break
+		}
+		value = []byte(strconv.FormatFloat(float64(numericValue), 'G', -1, 64))
+
+	default:
+		err = fmt.Errorf("MySQL field type not supported: <type=%d> <name=%s>", column.Type, column.Name)
+	}
+	if err != nil {
+		handler.logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorDecryptorCantDecryptBinary).
+			WithError(err).WithField("field_index", columnIndex).
+			Errorln("Can't decode binary numeric value")
+		return nil, err
+	}
+
+	// Now show the value to the subscribers. Note that they might change it.
+	value, err = handler.onColumnDecryption(ctx, columnIndex, value)
+	if err != nil {
+		handler.logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorGeneral).
+			WithError(err).WithField("field_index", columnIndex).
+			Errorln("Failed to process column data")
+		return nil, err
+	}
+
+	// After processing, parse the value back and reencode it. Take care for the format to match.
+	// The result must have exact same format as it had. Overflows are unacceptable.
+	switch column.Type {
+	case TypeNull:
+		if value != nil {
+			err = errors.New("NULL not kept NULL")
+		}
+
+	case TypeTiny:
+		numericValue, err := strconv.ParseInt(string(value), 10, 8)
+		if err != nil {
+			break
+		}
+		err = binary.Write(bytes.NewBuffer(encoded[:0]), binary.LittleEndian, int8(numericValue))
+
+	case TypeShort, TypeYear:
+		numericValue, err := strconv.ParseInt(string(value), 10, 16)
+		if err != nil {
+			break
+		}
+		err = binary.Write(bytes.NewBuffer(encoded[:0]), binary.LittleEndian, int16(numericValue))
+
+	case TypeInt24, TypeLong:
+		numericValue, err := strconv.ParseInt(string(value), 10, 32)
+		if err != nil {
+			break
+		}
+		err = binary.Write(bytes.NewBuffer(encoded[:0]), binary.LittleEndian, int32(numericValue))
+
+	case TypeLongLong:
+		numericValue, err := strconv.ParseInt(string(value), 10, 64)
+		if err != nil {
+			break
+		}
+		err = binary.Write(bytes.NewBuffer(encoded[:0]), binary.LittleEndian, int64(numericValue))
+
+	case TypeFloat:
+		numericValue, err := strconv.ParseFloat(string(value), 32)
+		if err != nil {
+			break
+		}
+		err = binary.Write(bytes.NewBuffer(encoded[:0]), binary.LittleEndian, float32(numericValue))
+
+	case TypeDouble:
+		numericValue, err := strconv.ParseFloat(string(value), 64)
+		if err != nil {
+			break
+		}
+		err = binary.Write(bytes.NewBuffer(encoded[:0]), binary.LittleEndian, float64(numericValue))
+
+	default:
+		err = fmt.Errorf("MySQL field type not supported: <type=%d> <name=%s>", column.Type, column.Name)
+	}
+	if err != nil {
+		handler.logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorDecryptorCantDecryptBinary).
+			WithError(err).WithField("field_index", columnIndex).
+			Errorln("Can't encode binary numeric value back")
+		return nil, err
+	}
+
+	return encoded, nil
 }
 
 func (handler *Handler) expectEOFOnColumnDefinition() bool {
