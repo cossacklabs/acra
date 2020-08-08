@@ -1,6 +1,10 @@
 package base
 
-import "context"
+import (
+	"context"
+
+	"github.com/sirupsen/logrus"
+)
 
 // ColumnInfo interface describe available metadata for column
 type ColumnInfo interface {
@@ -95,6 +99,7 @@ func ColumnInfoFromContext(ctx context.Context) (ColumnInfo, bool) {
 // DecryptionSubscriber interface to subscribe on column's data in db responses
 type DecryptionSubscriber interface {
 	OnColumn(context.Context, []byte) (context.Context, []byte, error)
+	ID() string
 }
 
 // ColumnDecryptionNotifier interface to subscribe/unsubscribe on OnColumn events
@@ -168,12 +173,14 @@ func (o *ColumnDecryptionObserver) OnColumnDecryption(ctx context.Context, colum
 	for _, subscriber := range subscribers {
 		ctx, data, err = subscriber.OnColumn(ctx, data)
 		if err != nil {
+			logrus.WithField("subscriber", subscriber.ID()).WithError(err).Errorln("OnColumn error")
 			return data, err
 		}
 	}
 	for _, subscriber := range o.allColumns {
 		ctx, data, err = subscriber.OnColumn(ctx, data)
 		if err != nil {
+			logrus.WithField("subscriber", subscriber.ID()).WithError(err).Errorln("OnColumn error")
 			return data, err
 		}
 	}

@@ -46,6 +46,10 @@ func (t testDecryptor) GetTagBeginLength() int {
 	panic("implement me")
 }
 
+func (t testDecryptor) ID() string {
+	panic("implement me")
+}
+
 func (t testDecryptor) OnColumn(context.Context, []byte) (context.Context, []byte, error) {
 	panic("implement me")
 }
