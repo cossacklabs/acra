@@ -812,12 +812,8 @@ func (handler *Handler) QueryResponseHandler(ctx context.Context, packet *Packet
 						Debugln("Can't process binary data row")
 					return err
 				}
-				dataLength := fieldDataPacket.GetPacketPayloadLength()
-				// decrypted data always less than ecrypted
-				if len(newData) < dataLength {
-					handler.logger.WithFields(logrus.Fields{"oldLength": dataLength, "newLength": len(newData)}).Debugln("Update row data")
-					fieldDataPacket.SetData(newData)
-				}
+				handler.logger.WithFields(logrus.Fields{"oldLength": fieldDataPacket.GetPacketPayloadLength(), "newLength": len(newData)}).Debugln("Update row data")
+				fieldDataPacket.SetData(newData)
 			}
 		} else {
 			var dataLog *logrus.Entry
@@ -846,13 +842,8 @@ func (handler *Handler) QueryResponseHandler(ctx context.Context, packet *Packet
 						Debugln("Can't process text data row")
 					return err
 				}
-				dataLength := fieldDataPacket.GetPacketPayloadLength()
-				// decrypted data always less than ecrypted
-				if len(newData) < dataLength {
-					dataLog.WithFields(logrus.Fields{"oldLength": dataLength, "newLength": len(newData)}).Debugln("Update row data")
-					fieldDataPacket.SetData(newData)
-				}
-
+				dataLog.WithFields(logrus.Fields{"oldLength": fieldDataPacket.GetPacketPayloadLength(), "newLength": len(newData)}).Debugln("Update row data")
+				fieldDataPacket.SetData(newData)
 			}
 		}
 
