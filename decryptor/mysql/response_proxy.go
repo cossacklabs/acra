@@ -543,25 +543,23 @@ func (handler *Handler) processBinaryDataRow(ctx context.Context, rowData []byte
 			pos += 8
 			continue
 
-		case TypeDecimal, TypeNewDecimal,
-			TypeBit, TypeEnum, TypeSet, TypeGeometry:
+		case TypeDecimal, TypeNewDecimal, TypeBit, TypeEnum, TypeSet, TypeGeometry, TypeDate, TypeNewDate, TypeTimestamp, TypeDatetime, TypeTime:
 			value, _, n, err = LengthEncodedString(rowData[pos:])
-			output = append(output, rowData[pos:pos+n]...)
-			pos += n
 			if err != nil {
 				handler.logger.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorDecryptorCantDecryptBinary).
 					Errorln("Can't handle length encoded string non binary value")
 				return nil, err
 			}
-			continue
-		case TypeDate, TypeNewDate, TypeTimestamp, TypeDatetime, TypeTime:
-			_, _, n, err = LengthEncodedInt(rowData[pos:])
+			value, err = handler.onColumnDecryption(ctx, i, value)
 			if err != nil {
+				handler.logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorGeneral).
+					WithField("field_index", i).WithError(err).Errorln("Failed to process column data")
 				return nil, err
 			}
-			output = append(output, rowData[pos:pos+n]...)
+			output = append(output, PutLengthEncodedString(value)...)
 			pos += n
 			continue
+
 		default:
 			return nil, fmt.Errorf("found unknown FieldType <type=%d> <name=%s> in MySQL response packet", fields[i].Type, fields[i].Name)
 		}
