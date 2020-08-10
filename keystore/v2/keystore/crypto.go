@@ -75,12 +75,18 @@ func (k *SerializedKeys) Unmarshal(buffer []byte) error {
 	return json.Unmarshal(buffer, k)
 }
 
-// GetMasterKeysFromEnvironment reads master keys from default environment variables.
+// GetMasterKeysFromEnvironment reads master keys from default environment variable.
 // Returns encryption key, signature key, error.
 func GetMasterKeysFromEnvironment() ([]byte, []byte, error) {
-	keys, err := getMasterKeysFromEnvironment()
+	return GetMasterKeysFromEnvironmentVariable(keystoreV1.AcraMasterKeyVarName)
+}
+
+// GetMasterKeysFromEnvironmentVariable reads master keys from specified environment variable.
+// Returns encryption key, signature key, error.
+func GetMasterKeysFromEnvironmentVariable(varname string) ([]byte, []byte, error) {
+	keys, err := getMasterKeysFromEnvironment(varname)
 	if err != nil {
-		log.WithError(err).Warnf("Cannot read %v", keystoreV1.AcraMasterKeyVarName)
+		log.WithError(err).Warnf("Cannot read %v", varname)
 		return nil, nil, err
 	}
 
@@ -103,8 +109,8 @@ func GetMasterKeysFromEnvironment() ([]byte, []byte, error) {
 	return keys.Encryption, keys.Signature, nil
 }
 
-func getMasterKeysFromEnvironment() (*SerializedKeys, error) {
-	base64value := os.Getenv(keystoreV1.AcraMasterKeyVarName)
+func getMasterKeysFromEnvironment(varname string) (*SerializedKeys, error) {
+	base64value := os.Getenv(varname)
 	if len(base64value) == 0 {
 		return nil, keystoreV1.ErrEmptyMasterKey
 	}

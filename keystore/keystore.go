@@ -91,7 +91,12 @@ func ValidateMasterKey(key []byte) error {
 
 // GetMasterKeyFromEnvironment return master key from environment variable with name AcraMasterKeyVarName
 func GetMasterKeyFromEnvironment() (key []byte, err error) {
-	b64value := os.Getenv(AcraMasterKeyVarName)
+	return GetMasterKeyFromEnvironmentVariable(AcraMasterKeyVarName)
+}
+
+// GetMasterKeyFromEnvironmentVariable return master key from specified environment variable.
+func GetMasterKeyFromEnvironmentVariable(varname string) (key []byte, err error) {
+	b64value := os.Getenv(varname)
 	if len(b64value) == 0 {
 		return nil, ErrEmptyMasterKey
 	}
