@@ -414,7 +414,7 @@ func (handler *Handler) processTextDataRow(ctx context.Context, rowData []byte, 
 	handler.logger.Debugln("Process data rows in text protocol")
 	for i := range fields {
 		fieldLogger = handler.logger.WithField("field_index", i)
-		value, _, n, err = LengthEncodedString(rowData[pos:])
+		value, n, err = LengthEncodedString(rowData[pos:])
 		if err != nil {
 			return nil, err
 		}
@@ -481,7 +481,7 @@ func (handler *Handler) processBinaryDataRow(ctx context.Context, rowData []byte
 			continue
 		}
 		if handler.isFieldToDecrypt(fields[i]) {
-			value, _, n, err = LengthEncodedString(rowData[pos:])
+			value, n, err = LengthEncodedString(rowData[pos:])
 			if err != nil {
 				handler.logger.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorDecryptorCantDecryptBinary).
 					Errorln("Can't handle length encoded string binary value")
@@ -575,7 +575,7 @@ func (handler *Handler) processBinaryDataRow(ctx context.Context, rowData []byte
 			continue
 
 		case TypeDecimal, TypeNewDecimal, TypeBit, TypeEnum, TypeSet, TypeGeometry, TypeDate, TypeNewDate, TypeTimestamp, TypeDatetime, TypeTime:
-			value, _, n, err = LengthEncodedString(rowData[pos:])
+			value, n, err = LengthEncodedString(rowData[pos:])
 			if err != nil {
 				handler.logger.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorDecryptorCantDecryptBinary).
 					Errorln("Can't handle length encoded string non binary value")
