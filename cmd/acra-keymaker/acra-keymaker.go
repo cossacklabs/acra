@@ -71,6 +71,8 @@ func main() {
 		switch *keystoreVersion {
 		case "v1":
 			newKey, err = keystore.GenerateSymmetricKey()
+		case "v2":
+			newKey, err = keystoreV2.NewSerializedMasterKeys()
 		case "":
 			log.Errorf("Key store version is required: --keystore={v1|v2}")
 			os.Exit(1)

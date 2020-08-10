@@ -28,12 +28,6 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
-// Master key environment variable names:
-const (
-	AcraMasterEncryptionKeyVarName = "ACRA_MASTER_ENCRYPTION_KEY"
-	AcraMasterSignatureKeyVarName  = "ACRA_MASTER_SIGNATURE_KEY"
-)
-
 // Errors produced by master key validation:
 var (
 	ErrEqualMasterKeys = errors.New("encryption and signature master keys are equal")
@@ -58,6 +52,19 @@ func NewMasterKeys() (*SerializedKeys, error) {
 	return &SerializedKeys{Encryption: encryptionKey, Signature: signatureKey}, nil
 }
 
+// NewSerializedMasterKeys generates a new set of master keys, already serialized into bytes.
+func NewSerializedMasterKeys() ([]byte, error) {
+	keys, err := NewMasterKeys()
+	if err != nil {
+		return nil, err
+	}
+	bytes, err := keys.Marshal()
+	if err != nil {
+		return nil, err
+	}
+	return bytes, nil
+}
+
 // Marshal serializes master key into a byte buffer.
 func (k *SerializedKeys) Marshal() ([]byte, error) {
 	return json.Marshal(k)
@@ -71,43 +78,46 @@ func (k *SerializedKeys) Unmarshal(buffer []byte) error {
 // GetMasterKeysFromEnvironment reads master keys from default environment variables.
 // Returns encryption key, signature key, error.
 func GetMasterKeysFromEnvironment() ([]byte, []byte, error) {
-	encryptionKey, errE := getMasterKeyFromEnvironment(AcraMasterEncryptionKeyVarName)
-	if errE != nil {
-		log.WithError(errE).Warnf("cannot read %v", AcraMasterEncryptionKeyVarName)
-	}
-	signatureKey, errS := getMasterKeyFromEnvironment(AcraMasterSignatureKeyVarName)
-	if errS != nil {
-		log.WithError(errS).Warnf("cannot read %v", AcraMasterSignatureKeyVarName)
-	}
-	if errE != nil {
-		return nil, nil, errE
-	}
-	if errS != nil {
-		return nil, nil, errS
+	keys, err := getMasterKeysFromEnvironment()
+	if err != nil {
+		log.WithError(err).Warnf("Cannot read %v", keystoreV1.AcraMasterKeyVarName)
+		return nil, nil, err
 	}
 
-	if subtle.ConstantTimeCompare(encryptionKey, signatureKey) == 1 {
-		log.Warnf("%v and %v must not be the same", AcraMasterEncryptionKeyVarName, AcraMasterSignatureKeyVarName)
+	if subtle.ConstantTimeCompare(keys.Encryption, keys.Signature) == 1 {
+		log.Warnf("Master keys must not be the same")
 		return nil, nil, ErrEqualMasterKeys
 	}
 
-	return encryptionKey, signatureKey, nil
+	err = keystoreV1.ValidateMasterKey(keys.Encryption)
+	if err != nil {
+		log.WithError(err).Warnf("Invalid encryption key")
+		return nil, nil, err
+	}
+	err = keystoreV1.ValidateMasterKey(keys.Signature)
+	if err != nil {
+		log.WithError(err).Warnf("Invalid signature key")
+		return nil, nil, err
+	}
+
+	return keys.Encryption, keys.Signature, nil
 }
 
-func getMasterKeyFromEnvironment(name string) (key []byte, err error) {
-	base64value := os.Getenv(name)
+func getMasterKeysFromEnvironment() (*SerializedKeys, error) {
+	base64value := os.Getenv(keystoreV1.AcraMasterKeyVarName)
 	if len(base64value) == 0 {
 		return nil, keystoreV1.ErrEmptyMasterKey
 	}
-	key, err = base64.StdEncoding.DecodeString(base64value)
+	keyData, err := base64.StdEncoding.DecodeString(base64value)
 	if err != nil {
-		return
+		return nil, err
 	}
-	err = keystoreV1.ValidateMasterKey(key)
+	keys := &SerializedKeys{}
+	err = keys.Unmarshal(keyData)
 	if err != nil {
-		return
+		return nil, err
 	}
-	return
+	return keys, nil
 }
 
 // NewSCellSuite creates default cryptography suite for KeyStore:
