@@ -19,6 +19,7 @@ package keystore
 import (
 	"crypto/subtle"
 	"encoding/base64"
+	"encoding/json"
 	"errors"
 	"os"
 
@@ -37,6 +38,35 @@ const (
 var (
 	ErrEqualMasterKeys = errors.New("encryption and signature master keys are equal")
 )
+
+// SerializedKeys is the serialized form of master keys.
+type SerializedKeys struct {
+	Encryption []byte `json:"encryption"`
+	Signature  []byte `json:"signature"`
+}
+
+// NewMasterKeys generates a new set of master keys.
+func NewMasterKeys() (*SerializedKeys, error) {
+	encryptionKey, err := keystoreV1.GenerateSymmetricKey()
+	if err != nil {
+		return nil, err
+	}
+	signatureKey, err := keystoreV1.GenerateSymmetricKey()
+	if err != nil {
+		return nil, err
+	}
+	return &SerializedKeys{Encryption: encryptionKey, Signature: signatureKey}, nil
+}
+
+// Marshal serializes master key into a byte buffer.
+func (k *SerializedKeys) Marshal() ([]byte, error) {
+	return json.Marshal(k)
+}
+
+// Unmarshal deserializes master keys from a byte buffer.
+func (k *SerializedKeys) Unmarshal(buffer []byte) error {
+	return json.Unmarshal(buffer, k)
+}
 
 // GetMasterKeysFromEnvironment reads master keys from default environment variables.
 // Returns encryption key, signature key, error.
