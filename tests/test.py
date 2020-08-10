@@ -130,14 +130,10 @@ ZONE_PUBLIC_KEY = 'public_key'
 
 zones = []
 poison_record = None
-master_keys = None
+master_key = None
 KEYS_FOLDER = None
 ACRA_MASTER_KEY_VAR_NAME = 'ACRA_MASTER_KEY'
-ACRA_MASTER_ENCRYPTION_KEY_VAR_NAME = 'ACRA_MASTER_ENCRYPTION_KEY'
-ACRA_MASTER_SIGNATURE_KEY_VAR_NAME = 'ACRA_MASTER_SIGNATURE_KEY'
 MASTER_KEY_PATH = '/tmp/acra-test-master.key'
-MASTER_ENCRYPTION_KEY_PATH = '/tmp/acra-test-master-encryption.key'
-MASTER_SIGNATURE_KEY_PATH = '/tmp/acra-test-master-signature.key'
 
 ACRAWEBCONFIG_HTTP_PORT = 8022
 ACRAWEBCONFIG_AUTH_DB_PATH = 'auth.keys'
@@ -277,26 +273,18 @@ def get_connect_args(port=5432, sslmode=None, **kwargs):
 KEYSTORE_VERSION = os.environ.get('TEST_KEYSTORE', 'v1')
 
 
-def get_master_keys():
-    """Returns master key variable map: variable name => base64-encoded value."""
-    def obtain_key(env_var, key_file, keystore):
-        key = os.environ.get(env_var)
-        if not key:
+def get_master_key():
+    """Returns master key value (base64-encoded)."""
+    global master_key
+    if not master_key:
+        master_key = os.environ.get(ACRA_MASTER_KEY_VAR_NAME)
+        if not master_key:
             subprocess.check_output([
-                './acra-keymaker', '--keystore={}'.format(keystore),
-                '--generate_master_key={}'.format(key_file)])
-            with open(key_file, 'rb') as f:
-                key = b64encode(f.read()).decode('ascii')
-        return env_var, key
-
-    global master_keys
-    if not master_keys:
-        master_keys = dict([
-            obtain_key(ACRA_MASTER_KEY_VAR_NAME, MASTER_KEY_PATH, 'v1'),
-            obtain_key(ACRA_MASTER_ENCRYPTION_KEY_VAR_NAME, MASTER_ENCRYPTION_KEY_PATH, 'v2'),
-            obtain_key(ACRA_MASTER_SIGNATURE_KEY_VAR_NAME, MASTER_SIGNATURE_KEY_PATH, 'v2'),
-        ])
-    return master_keys
+                './acra-keymaker', '--keystore={}'.format(KEYSTORE_VERSION),
+                '--generate_master_key={}'.format(MASTER_KEY_PATH)])
+            with open(MASTER_KEY_PATH, 'rb') as f:
+                master_key = b64encode(f.read()).decode('ascii')
+    return master_key
 
 
 def get_poison_record():
@@ -566,8 +554,7 @@ def setUpModule():
                 continue
 
     # must be before any call of key generators or forks of acra/proxy servers
-    for key_var, value in get_master_keys().items():
-        os.environ.setdefault(key_var, value)
+    os.environ.setdefault(ACRA_MASTER_KEY_VAR_NAME, get_master_key())
 
     # first keypair for using without zones
     assert create_client_keypair('keypair1') == 0
@@ -789,8 +776,22 @@ class KeyMakerTest(unittest.TestCase):
         key_size = 32
 
         def random_keys(size):
-            return {var: b64encode(os.urandom(size))
-                    for var in get_master_keys().keys()}
+            if KEYSTORE_VERSION == 'v1':
+                # Key store v1 uses simple binary data for keys
+                value = os.urandom(size)
+            elif KEYSTORE_VERSION == 'v2':
+                # Key store v2 uses more complex JSON format
+                encryption = os.urandom(size)
+                signature = os.urandom(size)
+                keys = {
+                    'encryption': b64encode(encryption).decode('ascii'),
+                    'signature': b64encode(signature).decode('ascii'),
+                }
+                value = json.dumps(keys).encode('ascii')
+            else:
+                self.fail("key store version not supported")
+
+            return {ACRA_MASTER_KEY_VAR_NAME: b64encode(value)}
 
         with tempfile.TemporaryDirectory() as folder:
             with self.assertRaises(subprocess.CalledProcessError) as exc:
@@ -1197,7 +1198,7 @@ class BaseTestCase(PrometheusMixin, unittest.TestCase):
                 return 'unknown'
 
         log_entry = {
-            'master_keys': get_master_keys(),
+            'master_key': get_master_key(),
             'key_name': key_name(),
             'data': b64encode(data).decode('ascii'),
             'expected': b64encode(expected).decode('ascii'),
