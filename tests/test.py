@@ -2459,7 +2459,7 @@ class TestKeyStoreMigration(BaseTestCase):
                 '--dst_keystore={}'.format(new_version),
             ],
             env={'SRC_ACRA_MASTER_KEY': self.get_master_key(self.keystore_version),
-                 'DST_ACRA_MASTER_KEY': self.get_master_key(new_version)}
+                 'DST_ACRA_MASTER_KEY': self.get_master_key(new_version)},
             timeout=PROCESS_CALL_TIMEOUT)
 
         # Finalize the migration, replacing old key store with the new one.
