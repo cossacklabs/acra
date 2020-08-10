@@ -67,12 +67,24 @@ func main() {
 	cmd.ValidateClientID(*clientID)
 
 	if *masterKey != "" {
-		newKey, err := keystore.GenerateSymmetricKey()
+		var newKey []byte
+		switch *keystoreVersion {
+		case "v1":
+			newKey, err = keystore.GenerateSymmetricKey()
+		case "":
+			log.Errorf("Key store version is required: --keystore={v1|v2}")
+			os.Exit(1)
+		default:
+			log.Errorf("Unknown --keystore option: %v", *keystoreVersion)
+			os.Exit(1)
+		}
 		if err != nil {
-			panic(err)
+			log.WithError(err).Errorln("Failed to generate master key")
+			os.Exit(1)
 		}
 		if err := ioutil.WriteFile(*masterKey, newKey, 0600); err != nil {
-			panic(err)
+			log.WithError(err).WithField("path", *masterKey).Errorln("Failed to write master key")
+			os.Exit(1)
 		}
 		os.Exit(0)
 	}
