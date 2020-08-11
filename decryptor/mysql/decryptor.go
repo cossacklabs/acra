@@ -355,4 +355,5 @@ func (decryptor *Decryptor) DecryptBlock(block []byte) ([]byte, error) {
 // SetDataProcessor replace current with new processor
 func (decryptor *Decryptor) SetDataProcessor(processor base.DataProcessor) {
 	decryptor.dataProcessor = processor
+	decryptor.Decryptor.SetDataProcessor(processor)
 }
