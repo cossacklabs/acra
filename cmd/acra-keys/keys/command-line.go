@@ -41,11 +41,12 @@ var DefaultConfigPath = utils.GetConfigPathByName("acra-keys")
 
 // Sub-command names:
 const (
-	CmdListKeys   = "list"
-	CmdExportKeys = "export"
-	CmdImportKeys = "import"
-	CmdReadKey    = "read"
-	CmdDestroyKey = "destroy"
+	CmdListKeys    = "list"
+	CmdExportKeys  = "export"
+	CmdImportKeys  = "import"
+	CmdMigrateKeys = "migrate"
+	CmdReadKey     = "read"
+	CmdDestroyKey  = "destroy"
 )
 
 // Key kind constants:

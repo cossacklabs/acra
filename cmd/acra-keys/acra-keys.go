@@ -21,6 +21,7 @@
 //   - list keys
 //   - export keys
 //   - import keys
+//   - migrate key stores
 //   - read key data
 //   - destroy keys
 package main
@@ -34,6 +35,7 @@ func main() {
 		&keys.ListKeySubcommand{},
 		&keys.ExportKeysSubcommand{},
 		&keys.ImportKeysSubcommand{},
+		&keys.MigrateKeysSubcommand{},
 		&keys.ReadKeySubcommand{},
 		&keys.DestroyKeySubcommand{},
 	}
