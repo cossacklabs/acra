@@ -474,8 +474,6 @@ BINARIES = [
            build_args=DEFAULT_BUILD_ARGS),
     Binary(name='acra-keymaker', from_version=DEFAULT_VERSION,
            build_args=DEFAULT_BUILD_ARGS),
-    Binary(name='acra-migrate-keys', from_version=DEFAULT_VERSION,
-           build_args=DEFAULT_BUILD_ARGS),
     Binary(name='acra-keys', from_version=DEFAULT_VERSION,
            build_args=DEFAULT_BUILD_ARGS),
     Binary(name='acra-poisonrecordmaker', from_version=DEFAULT_VERSION,
@@ -4809,7 +4807,6 @@ class TestOutdatedServiceConfigs(BaseTestCase, FailedRunProcessMixin):
             default_args = {
                 'acra-server': ['-db_host=127.0.0.1'],
                 'acra-connector': ['-user_check_disable', '-acraserver_connection_host=127.0.0.1', '-client_id=keypair1'],
-                'acra-migrate-keys': ['--dry_run', '--src_keys_dir={}'.format(KEYS_FOLDER.name)],
                 'acra-keys': [],
             }
             for service in services:
@@ -4833,7 +4830,6 @@ class TestOutdatedServiceConfigs(BaseTestCase, FailedRunProcessMixin):
             default_args = {
                 'acra-server': ['-db_host=127.0.0.1'],
                 'acra-connector': ['-user_check_disable', '-acraserver_connection_host=127.0.0.1', '-client_id=keypair1'],
-                'acra-migrate-keys': ['--dry_run', '--src_keys_dir={}'.format(KEYS_FOLDER.name)],
                 'acra-keys': [],
             }
             for service in services:
@@ -4869,7 +4865,6 @@ class TestOutdatedServiceConfigs(BaseTestCase, FailedRunProcessMixin):
                 'acra-keymaker': ['-keys_output_dir={}'.format(tmp_dir),
                                   '-keys_public_output_dir={}'.format(tmp_dir),
                                   '--keystore={}'.format(KEYSTORE_VERSION)],
-                'acra-migrate-keys': ['--dry_run', '--src_keys_dir={}'.format(KEYS_FOLDER.name)],
                 'acra-keys': [],
                 'acra-poisonrecordmaker': ['-keys_dir={}'.format(tmp_dir)],
                 'acra-rollback': {'args': ['-keys_dir={}'.format(tmp_dir)],
@@ -4917,7 +4912,6 @@ class TestOutdatedServiceConfigs(BaseTestCase, FailedRunProcessMixin):
                 'acra-keymaker': ['-keys_output_dir={}'.format(tmp_dir),
                                   '-keys_public_output_dir={}'.format(tmp_dir),
                                   '--keystore={}'.format(KEYSTORE_VERSION)],
-                'acra-migrate-keys': ['--dry_run', '--src_keys_dir={}'.format(KEYS_FOLDER.name)],
                 'acra-keys': [],
                 'acra-poisonrecordmaker': ['-keys_dir={}'.format(tmp_dir)],
                 'acra-rollback': {'args': ['-keys_dir={}'.format(tmp_dir)],
