@@ -29,7 +29,7 @@ import (
 
 func warnKeystoreV2Only(command string) {
 	log.Error(fmt.Sprintf("\"%s\" is not implemented for key store v1", command))
-	log.Info("You can convert key store v1 into v2 with \"acra-migrate-keys\"")
+	log.Info("You can convert key store v1 into v2 with \"acra-keys migrate\"")
 	// TODO(ilammy, 2020-05-19): production documentation does not describe migration yet
 	log.Info("Read more: https://docs.cossacklabs.com/pages/documentation-acra/#key-management")
 }
