@@ -2374,7 +2374,7 @@ class TestKeyStorageClearing(BaseTestCase):
 
 
 class TestKeyStoreMigration(BaseTestCase):
-    """Test acra-migrate-keys utility."""
+    """Test "acra-keys migrate" utility."""
 
     # We need to test different key store formats so we can't touch
     # the global KEYS_FOLDER. We need to launch service instances
@@ -2450,7 +2450,7 @@ class TestKeyStoreMigration(BaseTestCase):
         """Migrate key store from current to given new version."""
         # Run the migration tool. New key store is in a new directory.
         subprocess.check_call([
-                './acra-migrate-keys',
+                './acra-keys', 'migrate',
                 '--src_keys_dir={}'.format(self.current_key_store_path()),
                 '--src_keys_dir_public={}'.format(self.current_key_store_path()),
                 '--src_keystore={}'.format(self.keystore_version),
