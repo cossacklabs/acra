@@ -164,6 +164,42 @@ func (m *MigrateKeysSubcommand) Parse(arguments []string) error {
 func (m *MigrateKeysSubcommand) Execute() {
 }
 
+// MigrateV1toV2 transfers keys from key store v1 to v2.
+func MigrateV1toV2(srcV1 filesystemV1.KeyExport, dstV2 keystoreV2.KeyFileImportV1) error {
+	log.Trace("Enumerating keys for export")
+	keys, err := filesystemV1.EnumerateExportedKeys(srcV1)
+	if err != nil {
+		log.WithError(err).Debug("Failed to enumerate exported keys")
+		return err
+	}
+	log.Trace("Key enumeration complete")
+
+	// We are going to import multiple keys. Some of them may not be successful.
+	// Since we cannot rollback partial import, go on with processing remaining
+	// keys on error. However, make sure that the operation as a whole fails if
+	// not all keys have been imported successfully.
+	actual := 0
+	expected := len(keys)
+
+	log.Tracef("Importing %d keys from keystore v1", expected)
+	for _, key := range keys {
+		log := log.WithField("purpose", key.Purpose).WithField("id", key.ID)
+		err := dstV2.ImportKeyFileV1(srcV1, key)
+		if err != nil {
+			log.WithError(err).Warn("Failed to import key")
+			continue
+		}
+		actual++
+	}
+	log.Tracef("Imported %d/%d keys from keystore v1", actual, expected)
+
+	if actual != expected {
+		return errors.New("Incomplete key import")
+	}
+
+	return nil
+}
+
 func (m *MigrateKeysSubcommand) openKeyStoreV1(keyVarName string, params KeyStoreParameters) (*filesystemV1.KeyStore, error) {
 	masterKey, err := keystoreV1.GetMasterKeyFromEnvironmentVariable(keyVarName)
 	if err != nil {
