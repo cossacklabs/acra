@@ -162,6 +162,30 @@ func (m *MigrateKeysSubcommand) Parse(arguments []string) error {
 
 // Execute this subcommand.
 func (m *MigrateKeysSubcommand) Execute() {
+	if m.SrcKeyStoreVersion() == "v1" && m.DstKeyStoreVersion() == "v2" {
+		keyStoreV1, err := m.openKeyStoreV1(SrcMasterKeyVarName, m.SrcKeyStoreParams())
+		if err != nil {
+			log.WithError(err).Fatal("Failed to open keystore v1 (src)")
+		}
+		keyStoreV2, err := m.openKeyStoreV2(DstMasterKeyVarName, m.DstKeyStoreParams())
+		if err != nil {
+			log.WithError(err).Fatal("Failed to open keystore v2 (dst)")
+		}
+		err = MigrateV1toV2(keyStoreV1, keyStoreV2)
+		if err != nil {
+			log.WithError(err).Fatal("Migration failed")
+		}
+		log.Infof("Migration complete")
+		log.Infof("Old key store: %s", m.SrcKeyStoreParams().KeyDir())
+		log.Infof("New key store: %s", m.DstKeyStoreParams().KeyDir())
+		if m.DryRun() {
+			log.Infof("Run without --dry_run to actually write key data")
+		}
+		return
+	}
+
+	log.WithFields(log.Fields{"src": m.SrcKeyStoreVersion(), "dst": m.DstKeyStoreVersion()}).
+		Fatal("Key store conversion not supported")
 }
 
 // MigrateV1toV2 transfers keys from key store v1 to v2.
