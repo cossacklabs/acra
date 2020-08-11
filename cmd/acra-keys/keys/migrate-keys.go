@@ -23,6 +23,11 @@ import (
 	"os"
 
 	"github.com/cossacklabs/acra/cmd"
+	keystoreV1 "github.com/cossacklabs/acra/keystore"
+	filesystemV1 "github.com/cossacklabs/acra/keystore/filesystem"
+	keystoreV2 "github.com/cossacklabs/acra/keystore/v2/keystore"
+	keystoreAPIV2 "github.com/cossacklabs/acra/keystore/v2/keystore/api"
+	filesystemV2 "github.com/cossacklabs/acra/keystore/v2/keystore/filesystem"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -45,6 +50,12 @@ type MigrateKeysSubcommand struct {
 	dryRun     bool
 	force      bool
 }
+
+// Environment variables from which master keys are read.
+const (
+	SrcMasterKeyVarName = "SRC_" + keystoreV1.AcraMasterKeyVarName
+	DstMasterKeyVarName = "DST_" + keystoreV1.AcraMasterKeyVarName
+)
 
 // Command-line errors for "acra-keys migrate":
 var (
@@ -151,4 +162,64 @@ func (m *MigrateKeysSubcommand) Parse(arguments []string) error {
 
 // Execute this subcommand.
 func (m *MigrateKeysSubcommand) Execute() {
+}
+
+func (m *MigrateKeysSubcommand) openKeyStoreV1(keyVarName string, params KeyStoreParameters) (*filesystemV1.KeyStore, error) {
+	masterKey, err := keystoreV1.GetMasterKeyFromEnvironmentVariable(keyVarName)
+	if err != nil {
+		log.WithError(err).Error("Cannot load master key")
+		return nil, err
+	}
+	encryptor, err := keystoreV1.NewSCellKeyEncryptor(masterKey)
+	if err != nil {
+		log.WithError(err).Error("Cannot init Secure Cell encryptor")
+		return nil, err
+	}
+	keyDir := params.KeyDir()
+	keyDirPublic := params.KeyDirPublic()
+	var keyStore *filesystemV1.KeyStore
+	if keyDir != keyDirPublic {
+		keyStore, err = filesystemV1.NewFilesystemKeyStoreTwoPath(keyDir, keyDirPublic, encryptor)
+	} else {
+		keyStore, err = filesystemV1.NewFilesystemKeyStore(keyDir, encryptor)
+	}
+	if err != nil {
+		log.WithError(err).Error("Cannot init key store")
+		return nil, err
+	}
+	return keyStore, nil
+}
+
+func (m *MigrateKeysSubcommand) openKeyStoreV2(keyVarName string, params KeyStoreParameters) (*keystoreV2.ServerKeyStore, error) {
+	encryption, signature, err := keystoreV2.GetMasterKeysFromEnvironmentVariable(keyVarName)
+	if err != nil {
+		log.WithError(err).Error("Cannot load master key")
+		return nil, err
+	}
+	suite, err := keystoreV2.NewSCellSuite(encryption, signature)
+	if err != nil {
+		log.WithError(err).Error("Failed to initialize Secure Cell crypto suite")
+		return nil, err
+	}
+	keyDirPath := params.KeyDir()
+	if filesystemV2.IsKeyDirectory(keyDirPath) && !m.ForceWrite() {
+		log.WithField("path", keyDirPath).Error("Key directory already exists")
+		log.Info("Run with --force to import into existing directory")
+		return nil, errors.New("destination exists")
+	}
+	var keyDir keystoreAPIV2.MutableKeyStore
+	if m.DryRun() {
+		keyDir, err = filesystemV2.NewInMemory(suite)
+		if err != nil {
+			log.WithError(err).Error("Cannot create in-memory key store")
+			return nil, err
+		}
+	} else {
+		keyDir, err = filesystemV2.OpenDirectoryRW(keyDirPath, suite)
+		if err != nil {
+			log.WithError(err).WithField("path", keyDirPath).Error("Cannot open key directory")
+			return nil, err
+		}
+	}
+	return keystoreV2.NewServerKeyStore(keyDir), nil
 }
