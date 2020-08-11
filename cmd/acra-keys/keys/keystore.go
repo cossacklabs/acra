@@ -61,15 +61,15 @@ func (p *CommonKeyStoreParameters) KeyDirPublic() string {
 
 // Register registers key store flags with the given flag set.
 func (p *CommonKeyStoreParameters) Register(flags *flag.FlagSet) {
-	p.RegisterPrefixed(flags, "", "")
+	p.RegisterPrefixed(flags, DefaultKeyDirectory, "", "")
 }
 
 // RegisterPrefixed registers key store flags with the given flag set, using given prefix and description.
-func (p *CommonKeyStoreParameters) RegisterPrefixed(flags *flag.FlagSet, flagPrefix, descriptionSuffix string) {
+func (p *CommonKeyStoreParameters) RegisterPrefixed(flags *flag.FlagSet, defaultKeysDir, flagPrefix, descriptionSuffix string) {
 	if descriptionSuffix != "" {
 		descriptionSuffix = " " + descriptionSuffix
 	}
-	flags.StringVar(&p.keyDir, flagPrefix+"keys_dir", DefaultKeyDirectory, "path to key directory"+descriptionSuffix)
+	flags.StringVar(&p.keyDir, flagPrefix+"keys_dir", defaultKeysDir, "path to key directory"+descriptionSuffix)
 	flags.StringVar(&p.keyDirPublic, flagPrefix+"keys_dir_public", "", "path to key directory for public keys"+descriptionSuffix)
 }
 
