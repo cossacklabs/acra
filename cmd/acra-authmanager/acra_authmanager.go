@@ -243,7 +243,7 @@ func main() {
 func openKeyStoreV1(keysDir string) keystore.WebConfigKeyStore {
 	masterKey, err := keystore.GetMasterKeyFromEnvironment()
 	if err != nil {
-		log.WithError(err).Errorln("Can't load master key")
+		log.WithError(err).Errorln("Cannot load master key")
 		os.Exit(1)
 	}
 	encryptor, err := keystore.NewSCellKeyEncryptor(masterKey)
@@ -262,7 +262,7 @@ func openKeyStoreV1(keysDir string) keystore.WebConfigKeyStore {
 func openKeyStoreV2(keyDirPath string) keystore.WebConfigKeyStore {
 	encryption, signature, err := keystoreV2.GetMasterKeysFromEnvironment()
 	if err != nil {
-		log.WithError(err).Error("cannot read master keys from environment")
+		log.WithError(err).Errorln("Cannot load master key")
 		os.Exit(1)
 	}
 	suite, err := keystoreV2.NewSCellSuite(encryption, signature)

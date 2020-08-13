@@ -199,7 +199,7 @@ func openKeyStoreV1(keysDir string, cacheSize int) keystore.TranslationKeyStore 
 	if err != nil {
 		log.WithError(err).
 			WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantLoadMasterKey).
-			Errorln("Can't load master key")
+			Errorln("Cannot load master key")
 		os.Exit(1)
 	}
 	scellEncryptor, err := keystore.NewSCellKeyEncryptor(masterKey)
@@ -224,7 +224,7 @@ func openKeyStoreV2(keyDirPath string) keystore.TranslationKeyStore {
 	if err != nil {
 		log.WithError(err).
 			WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantLoadMasterKey).
-			Error("cannot read master keys from environment")
+			Errorln("Cannot load master key")
 		os.Exit(1)
 	}
 	suite, err := keystoreV2.NewSCellSuite(encryption, signature)

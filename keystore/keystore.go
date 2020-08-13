@@ -29,6 +29,7 @@ import (
 
 	"github.com/cossacklabs/themis/gothemis/cell"
 	"github.com/cossacklabs/themis/gothemis/keys"
+	log "github.com/sirupsen/logrus"
 )
 
 // KeyStore-related constants.
@@ -95,19 +96,22 @@ func GetMasterKeyFromEnvironment() (key []byte, err error) {
 }
 
 // GetMasterKeyFromEnvironmentVariable return master key from specified environment variable.
-func GetMasterKeyFromEnvironmentVariable(varname string) (key []byte, err error) {
+func GetMasterKeyFromEnvironmentVariable(varname string) ([]byte, error) {
 	b64value := os.Getenv(varname)
 	if len(b64value) == 0 {
+		log.Warnf("%v environment variable is not set", varname)
 		return nil, ErrEmptyMasterKey
 	}
-	key, err = base64.StdEncoding.DecodeString(b64value)
+	key, err := base64.StdEncoding.DecodeString(b64value)
 	if err != nil {
-		return
+		log.WithError(err).Warnf("Failed to decode %s", varname)
+		return nil, err
 	}
-	if err = ValidateMasterKey(key); err != nil {
-		return
+	if err := ValidateMasterKey(key); err != nil {
+		log.WithError(err).Warnf("Failed to validate %s", varname)
+		return nil, err
 	}
-	return
+	return key, nil
 }
 
 // KeyEncryptor describes Encrypt and Decrypt interfaces.

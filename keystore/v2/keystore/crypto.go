@@ -86,23 +86,22 @@ func GetMasterKeysFromEnvironment() ([]byte, []byte, error) {
 func GetMasterKeysFromEnvironmentVariable(varname string) ([]byte, []byte, error) {
 	keys, err := getMasterKeysFromEnvironment(varname)
 	if err != nil {
-		log.WithError(err).Warnf("Cannot read %v", varname)
 		return nil, nil, err
 	}
 
 	if subtle.ConstantTimeCompare(keys.Encryption, keys.Signature) == 1 {
-		log.Warnf("Master keys must not be the same")
+		log.Warnf("%s: master keys must not be the same", varname)
 		return nil, nil, ErrEqualMasterKeys
 	}
 
 	err = keystoreV1.ValidateMasterKey(keys.Encryption)
 	if err != nil {
-		log.WithError(err).Warnf("Invalid encryption key")
+		log.WithError(err).Warnf("%s: invalid encryption key", varname)
 		return nil, nil, err
 	}
 	err = keystoreV1.ValidateMasterKey(keys.Signature)
 	if err != nil {
-		log.WithError(err).Warnf("Invalid signature key")
+		log.WithError(err).Warnf("%s: invalid signature key", varname)
 		return nil, nil, err
 	}
 
@@ -112,15 +111,18 @@ func GetMasterKeysFromEnvironmentVariable(varname string) ([]byte, []byte, error
 func getMasterKeysFromEnvironment(varname string) (*SerializedKeys, error) {
 	base64value := os.Getenv(varname)
 	if len(base64value) == 0 {
+		log.Warnf("%s environment variable is not set", varname)
 		return nil, keystoreV1.ErrEmptyMasterKey
 	}
 	keyData, err := base64.StdEncoding.DecodeString(base64value)
 	if err != nil {
+		log.WithError(err).Warnf("Failed to decode %s", varname)
 		return nil, err
 	}
 	keys := &SerializedKeys{}
 	err = keys.Unmarshal(keyData)
 	if err != nil {
+		log.WithError(err).Warnf("Failed to parse %s", varname)
 		return nil, err
 	}
 	return keys, nil

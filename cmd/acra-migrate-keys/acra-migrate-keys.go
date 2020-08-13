@@ -150,7 +150,7 @@ func OpenKeyStoreV1(mode migratekeys.OpenMode, store migratekeys.KeyStoreParams,
 func OpenKeyStoreV2(mode migratekeys.OpenMode, store migratekeys.KeyStoreParams, params migratekeys.MiscParams) (*keystoreV2.ServerKeyStore, error) {
 	encryption, signature, err := keystoreV2.GetMasterKeysFromEnvironmentVariable(keyVarName(mode))
 	if err != nil {
-		log.WithError(err).Error("Cannot read master keys from environment")
+		log.WithError(err).Errorln("Cannot load master key")
 		return nil, err
 	}
 	suite, err := keystoreV2.NewSCellSuite(encryption, signature)
