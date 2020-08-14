@@ -17,11 +17,15 @@
 package keys
 
 import (
+	"errors"
 	"flag"
 	"fmt"
+	"io/ioutil"
 	"os"
 
 	"github.com/cossacklabs/acra/cmd"
+	"github.com/cossacklabs/acra/keystore"
+	keystoreV2 "github.com/cossacklabs/acra/keystore/v2/keystore"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -39,6 +43,12 @@ type GenerateKeyParams interface {
 	GenerateAcraWriter() bool
 	GenerateAcraWebConfig() bool
 }
+
+// Key generation errors:
+var (
+	ErrMissingKeyStoreVersion = errors.New("key store version not specified")
+	ErrUnknownKeyStoreVersion = errors.New("unknown key store version")
+)
 
 // GenerateKeySubcommand is the "acra-keys generate" subcommand.
 type GenerateKeySubcommand struct {
@@ -151,9 +161,11 @@ func ValidateClientID(params GenerateKeyParams) error {
 	} else {
 		// Client ID is required to generate some of the keys.
 		// (Which are always generated on first launch, when --keystore is specified.)
+		// Unless we're only generating the master key.
+		masterKey := params.GenerateMasterKeyFile() != ""
 		firstGeneration := params.KeyStoreVersion() != ""
 		requestedClientKeys := params.GenerateAcraConnector() || params.GenerateAcraServer() || params.GenerateAcraTranslator() || params.GenerateAcraWriter()
-		if firstGeneration || requestedClientKeys {
+		if !masterKey && (firstGeneration || requestedClientKeys) {
 			log.Error("--client_id is required to generate keys")
 			return ErrMissingClientID
 		}
@@ -163,4 +175,42 @@ func ValidateClientID(params GenerateKeyParams) error {
 
 // Execute this subcommand.
 func (g *GenerateKeySubcommand) Execute() {
+	if g.GenerateMasterKeyFile() != "" {
+		err := GenerateMasterKey(g)
+		if err != nil {
+			log.WithError(err).Fatal("Failed to generate master key")
+		}
+		return
+	}
+}
+
+// GenerateMasterKey generates master key into output file.
+func GenerateMasterKey(params GenerateKeyParams) error {
+	var newKey []byte
+	var err error
+
+	version := params.KeyStoreVersion()
+	switch version {
+	case "v1":
+		newKey, err = keystore.GenerateSymmetricKey()
+	case "v2":
+		newKey, err = keystoreV2.NewSerializedMasterKeys()
+	case "":
+		log.Errorf("Key store version is required: --keystore={v1|v2}")
+		return ErrMissingKeyStoreVersion
+	default:
+		log.Errorf("Unknown --keystore option: %v", version)
+		return ErrUnknownKeyStoreVersion
+	}
+	if err != nil {
+		return err
+	}
+
+	masterKeyFile := params.GenerateMasterKeyFile()
+	if err := ioutil.WriteFile(masterKeyFile, newKey, 0600); err != nil {
+		log.WithError(err).WithField("path", masterKeyFile).Error("Failed to write master key")
+		return err
+	}
+
+	return nil
 }
