@@ -24,6 +24,7 @@
 //   - migrate keystores
 //   - read key data
 //   - destroy keys
+//   - generate keys
 package main
 
 import (
@@ -38,6 +39,7 @@ func main() {
 		&keys.MigrateKeysSubcommand{},
 		&keys.ReadKeySubcommand{},
 		&keys.DestroyKeySubcommand{},
+		&keys.GenerateKeySubcommand{},
 	}
 	subcommand := keys.ParseParameters(subcommands)
 	if subcommand != nil {
