@@ -59,3 +59,24 @@ client_id:
 # zone ID for which to retrieve key
 zone_id: 
 
+# Generate transport keypair for AcraConnector
+acraconnector_transport_key: false
+
+# Generate transport keypair for AcraServer
+acraserver_transport_key: false
+
+# Generate transport keypair for AcraTranslator
+acratranslator_transport_key: false
+
+# Generate symmetric key for AcraWebconfig's basic auth DB
+acrawebconfig_symmetric_key: false
+
+# Generate keypair for data encryption/decryption (for a client)
+client_storage_key: false
+
+# Key store format: v1 (current), v2 (new)
+keystore: 
+
+# Generate new random master key and save to file
+master_key_path: 
+
