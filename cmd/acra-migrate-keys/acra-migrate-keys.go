@@ -33,6 +33,12 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
+// Environment variables from which master keys are read.
+const (
+	SrcMasterKeyVarName = "SRC_" + keystoreV1.AcraMasterKeyVarName
+	DstMasterKeyVarName = "DST_" + keystoreV1.AcraMasterKeyVarName
+)
+
 func main() {
 	params := migratekeys.RegisterCommandLineParams()
 	err := params.Parse()
@@ -104,9 +110,20 @@ func MigrateV1toV2(srcV1 filesystemV1.KeyExport, dstV2 keystoreV2.KeyFileImportV
 	return nil
 }
 
+func keyVarName(mode migratekeys.OpenMode) string {
+	switch mode {
+	case migratekeys.OpenSrc:
+		return SrcMasterKeyVarName
+	case migratekeys.OpenDst:
+		return DstMasterKeyVarName
+	default:
+		panic("unknown mode")
+	}
+}
+
 // OpenKeyStoreV1 opens key store v1 for given purpose.
 func OpenKeyStoreV1(mode migratekeys.OpenMode, store migratekeys.KeyStoreParams, params migratekeys.MiscParams) (*filesystemV1.KeyStore, error) {
-	masterKey, err := keystoreV1.GetMasterKeyFromEnvironment()
+	masterKey, err := keystoreV1.GetMasterKeyFromEnvironmentVariable(keyVarName(mode))
 	if err != nil {
 		log.WithError(err).Error("Cannot load master key")
 		return nil, err
@@ -131,9 +148,9 @@ func OpenKeyStoreV1(mode migratekeys.OpenMode, store migratekeys.KeyStoreParams,
 
 // OpenKeyStoreV2 opens key store v2 for given purpose.
 func OpenKeyStoreV2(mode migratekeys.OpenMode, store migratekeys.KeyStoreParams, params migratekeys.MiscParams) (*keystoreV2.ServerKeyStore, error) {
-	encryption, signature, err := keystoreV2.GetMasterKeysFromEnvironment()
+	encryption, signature, err := keystoreV2.GetMasterKeysFromEnvironmentVariable(keyVarName(mode))
 	if err != nil {
-		log.WithError(err).Error("Cannot read master keys from environment")
+		log.WithError(err).Errorln("Cannot load master key")
 		return nil, err
 	}
 	suite, err := keystoreV2.NewSCellSuite(encryption, signature)

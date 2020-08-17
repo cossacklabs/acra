@@ -17,7 +17,6 @@
 package keys
 
 import (
-	"encoding/json"
 	"errors"
 	"flag"
 	"fmt"
@@ -40,11 +39,6 @@ const ExportKeyPerm = os.FileMode(0600)
 var (
 	ErrIncorrectPerm = errors.New("incorrect output file permissions")
 )
-
-type serializedKeys struct {
-	Encryption []byte `json:"encryption"`
-	Signature  []byte `json:"signature"`
-}
 
 // ExportImportCommonParams are common parameters of "acra-keys export" and "acra-keys import" subcommand.
 type ExportImportCommonParams interface {
@@ -244,19 +238,13 @@ func (p *ImportKeysSubcommand) Execute() {
 
 // PrepareExportEncryptionKeys generates new ephemeral keys for key export operation.
 func PrepareExportEncryptionKeys() ([]byte, *crypto.KeyStoreSuite, error) {
-	encryptionKey, err := keystore.GenerateSymmetricKey()
+	keys, err := keystoreV2.NewMasterKeys()
 	if err != nil {
-		log.WithError(err).Debug("Failed to generate symmetric key")
+		log.WithError(err).Debug("Failed to generate master keys")
 		return nil, nil, err
 	}
 
-	signatureKey, err := keystore.GenerateSymmetricKey()
-	if err != nil {
-		log.WithError(err).Debug("Failed to generate symmetric key")
-		return nil, nil, err
-	}
-
-	serializedKeys, err := json.Marshal(&serializedKeys{Encryption: encryptionKey, Signature: signatureKey})
+	serializedKeys, err := keys.Marshal()
 	if err != nil {
 		log.WithError(err).Debug("Failed to serialize keys in JSON")
 		return nil, nil, err
@@ -264,7 +252,7 @@ func PrepareExportEncryptionKeys() ([]byte, *crypto.KeyStoreSuite, error) {
 
 	// We do not zeroize the keys since a) they are stored by reference in the cryptosuite,
 	// b) they have not been used to encrypt anything yet.
-	cryptosuite, err := crypto.NewSCellSuite(encryptionKey, signatureKey)
+	cryptosuite, err := crypto.NewSCellSuite(keys.Encryption, keys.Signature)
 	if err != nil {
 		log.WithError(err).Debug("Failed to setup cryptosuite")
 		return nil, nil, err
@@ -283,8 +271,8 @@ func ReadImportEncryptionKeys(params ExportImportCommonParams) (*crypto.KeyStore
 	}
 	defer utils.ZeroizeSymmetricKey(importEncryptionKeyData)
 
-	var importEncryptionKeys serializedKeys
-	err = json.Unmarshal(importEncryptionKeyData, &importEncryptionKeys)
+	importEncryptionKeys := &keystoreV2.SerializedKeys{}
+	err = importEncryptionKeys.Unmarshal(importEncryptionKeyData)
 	if err != nil {
 		log.WithField("path", keysFile).WithError(err).Debug("Failed to parse key file content")
 		return nil, err

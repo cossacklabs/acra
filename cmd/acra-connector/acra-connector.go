@@ -505,7 +505,9 @@ func main() {
 func openKeyStoreV1(keysDir string, clientID []byte, connectorMode connector_mode.ConnectorMode) keystore.TransportKeyStore {
 	masterKey, err := keystore.GetMasterKeyFromEnvironment()
 	if err != nil {
-		log.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantLoadMasterKey).WithError(err).Errorln("Can't load master key")
+		log.WithError(err).
+			WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantLoadMasterKey).
+			Errorln("Cannot load master key")
 		os.Exit(1)
 	}
 	scellEncryptor, err := keystore.NewSCellKeyEncryptor(masterKey)
@@ -527,7 +529,7 @@ func openKeyStoreV2(outputDir string, clientID []byte, mode connector_mode.Conne
 	if err != nil {
 		log.WithError(err).
 			WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantLoadMasterKey).
-			Error("cannot read master keys from environment")
+			Errorln("Cannot load master key")
 		os.Exit(1)
 	}
 	suite, err := keystoreV2.NewSCellSuite(encryption, signature)

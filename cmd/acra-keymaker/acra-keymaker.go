@@ -67,12 +67,26 @@ func main() {
 	cmd.ValidateClientID(*clientID)
 
 	if *masterKey != "" {
-		newKey, err := keystore.GenerateSymmetricKey()
+		var newKey []byte
+		switch *keystoreVersion {
+		case "v1":
+			newKey, err = keystore.GenerateSymmetricKey()
+		case "v2":
+			newKey, err = keystoreV2.NewSerializedMasterKeys()
+		case "":
+			log.Errorf("Key store version is required: --keystore={v1|v2}")
+			os.Exit(1)
+		default:
+			log.Errorf("Unknown --keystore option: %v", *keystoreVersion)
+			os.Exit(1)
+		}
 		if err != nil {
-			panic(err)
+			log.WithError(err).Errorln("Failed to generate master key")
+			os.Exit(1)
 		}
 		if err := ioutil.WriteFile(*masterKey, newKey, 0600); err != nil {
-			panic(err)
+			log.WithError(err).WithField("path", *masterKey).Errorln("Failed to write master key")
+			os.Exit(1)
 		}
 		os.Exit(0)
 	}
@@ -155,11 +169,7 @@ func main() {
 func openKeyStoreV1(outputDir, outputPublicKey string) keystore.KeyMaking {
 	symmetricKey, err := keystore.GetMasterKeyFromEnvironment()
 	if err != nil {
-		if err == keystore.ErrEmptyMasterKey {
-			log.Infof("You must pass master key via %v environment variable", keystore.AcraMasterKeyVarName)
-			os.Exit(1)
-		}
-		log.WithError(err).Errorln("Can't load master key")
+		log.WithError(err).Errorln("Cannot load master key")
 		os.Exit(1)
 	}
 	scellEncryptor, err := keystore.NewSCellKeyEncryptor(symmetricKey)
@@ -183,7 +193,7 @@ func openKeyStoreV1(outputDir, outputPublicKey string) keystore.KeyMaking {
 func openKeyStoreV2(keyDirPath string) keystore.KeyMaking {
 	encryption, signature, err := keystoreV2.GetMasterKeysFromEnvironment()
 	if err != nil {
-		log.WithError(err).Error("cannot read master keys from environment")
+		log.WithError(err).Errorln("Cannot load master key")
 		os.Exit(1)
 	}
 	suite, err := keystoreV2.NewSCellSuite(encryption, signature)

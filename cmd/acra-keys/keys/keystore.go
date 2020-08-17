@@ -110,7 +110,7 @@ func OpenKeyStoreForImport(params KeyStoreParameters) (api.MutableKeyStore, erro
 func openKeyStoreV1(params KeyStoreParameters) (*filesystemV1.KeyStore, error) {
 	symmetricKey, err := keystoreV1.GetMasterKeyFromEnvironment()
 	if err != nil {
-		log.WithError(err).Errorln("Cannot read master keys from environment")
+		log.WithError(err).Errorln("Cannot load master key")
 		return nil, err
 	}
 	scellEncryptor, err := keystoreV1.NewSCellKeyEncryptor(symmetricKey)
@@ -136,7 +136,7 @@ func openKeyStoreV1(params KeyStoreParameters) (*filesystemV1.KeyStore, error) {
 func openKeyStoreV2(params KeyStoreParameters) (*keystoreV2.ServerKeyStore, error) {
 	encryption, signature, err := keystoreV2.GetMasterKeysFromEnvironment()
 	if err != nil {
-		log.WithError(err).Error("Cannot read master keys from environment")
+		log.WithError(err).Errorln("Cannot load master key")
 		return nil, err
 	}
 	suite, err := keystoreV2.NewSCellSuite(encryption, signature)

@@ -130,14 +130,10 @@ ZONE_PUBLIC_KEY = 'public_key'
 
 zones = []
 poison_record = None
-master_keys = None
+master_key = None
 KEYS_FOLDER = None
 ACRA_MASTER_KEY_VAR_NAME = 'ACRA_MASTER_KEY'
-ACRA_MASTER_ENCRYPTION_KEY_VAR_NAME = 'ACRA_MASTER_ENCRYPTION_KEY'
-ACRA_MASTER_SIGNATURE_KEY_VAR_NAME = 'ACRA_MASTER_SIGNATURE_KEY'
 MASTER_KEY_PATH = '/tmp/acra-test-master.key'
-MASTER_ENCRYPTION_KEY_PATH = '/tmp/acra-test-master-encryption.key'
-MASTER_SIGNATURE_KEY_PATH = '/tmp/acra-test-master-signature.key'
 
 ACRAWEBCONFIG_HTTP_PORT = 8022
 ACRAWEBCONFIG_AUTH_DB_PATH = 'auth.keys'
@@ -277,26 +273,18 @@ def get_connect_args(port=5432, sslmode=None, **kwargs):
 KEYSTORE_VERSION = os.environ.get('TEST_KEYSTORE', 'v1')
 
 
-def get_master_keys():
-    """Returns master key variable map: variable name => base64-encoded value."""
-    def obtain_key(env_var, key_file, keystore):
-        key = os.environ.get(env_var)
-        if not key:
+def get_master_key():
+    """Returns master key value (base64-encoded)."""
+    global master_key
+    if not master_key:
+        master_key = os.environ.get(ACRA_MASTER_KEY_VAR_NAME)
+        if not master_key:
             subprocess.check_output([
-                './acra-keymaker', '--keystore={}'.format(keystore),
-                '--generate_master_key={}'.format(key_file)])
-            with open(key_file, 'rb') as f:
-                key = b64encode(f.read()).decode('ascii')
-        return env_var, key
-
-    global master_keys
-    if not master_keys:
-        master_keys = dict([
-            obtain_key(ACRA_MASTER_KEY_VAR_NAME, MASTER_KEY_PATH, 'v1'),
-            obtain_key(ACRA_MASTER_ENCRYPTION_KEY_VAR_NAME, MASTER_ENCRYPTION_KEY_PATH, 'v2'),
-            obtain_key(ACRA_MASTER_SIGNATURE_KEY_VAR_NAME, MASTER_SIGNATURE_KEY_PATH, 'v2'),
-        ])
-    return master_keys
+                './acra-keymaker', '--keystore={}'.format(KEYSTORE_VERSION),
+                '--generate_master_key={}'.format(MASTER_KEY_PATH)])
+            with open(MASTER_KEY_PATH, 'rb') as f:
+                master_key = b64encode(f.read()).decode('ascii')
+    return master_key
 
 
 def get_poison_record():
@@ -566,8 +554,7 @@ def setUpModule():
                 continue
 
     # must be before any call of key generators or forks of acra/proxy servers
-    for key_var, value in get_master_keys().items():
-        os.environ.setdefault(key_var, value)
+    os.environ.setdefault(ACRA_MASTER_KEY_VAR_NAME, get_master_key())
 
     # first keypair for using without zones
     assert create_client_keypair('keypair1') == 0
@@ -789,8 +776,22 @@ class KeyMakerTest(unittest.TestCase):
         key_size = 32
 
         def random_keys(size):
-            return {var: b64encode(os.urandom(size))
-                    for var in get_master_keys().keys()}
+            if KEYSTORE_VERSION == 'v1':
+                # Key store v1 uses simple binary data for keys
+                value = os.urandom(size)
+            elif KEYSTORE_VERSION == 'v2':
+                # Key store v2 uses more complex JSON format
+                encryption = os.urandom(size)
+                signature = os.urandom(size)
+                keys = {
+                    'encryption': b64encode(encryption).decode('ascii'),
+                    'signature': b64encode(signature).decode('ascii'),
+                }
+                value = json.dumps(keys).encode('ascii')
+            else:
+                self.fail("key store version not supported")
+
+            return {ACRA_MASTER_KEY_VAR_NAME: b64encode(value)}
 
         with tempfile.TemporaryDirectory() as folder:
             with self.assertRaises(subprocess.CalledProcessError) as exc:
@@ -926,6 +927,7 @@ class BaseTestCase(PrometheusMixin, unittest.TestCase):
     def fork_connector(self, connector_port: int, acraserver_port: int,
                        client_id: str, api_port: int=None,
                        zone_mode: bool=False, check_connection: bool=True,
+                       popen_kwargs: dict=None,
                        **extra_options: dict):
         logging.info("fork connector with port {} and client_id={}".format(connector_port, client_id))
 
@@ -974,7 +976,10 @@ class BaseTestCase(PrometheusMixin, unittest.TestCase):
         cli_args = sorted(['--{}={}'.format(k, v) for k, v in args.items()])
         print('connector args: {}'.format(' '.join(cli_args)))
 
-        process = self.fork(lambda: subprocess.Popen(['./acra-connector'] + cli_args))
+        if not popen_kwargs:
+            popen_kwargs = {}
+        process = self.fork(lambda: subprocess.Popen(['./acra-connector'] + cli_args,
+                                                     **popen_kwargs))
         if check_connection:
             print('check connection {}'.format(connector_connection))
             try:
@@ -1197,7 +1202,7 @@ class BaseTestCase(PrometheusMixin, unittest.TestCase):
                 return 'unknown'
 
         log_entry = {
-            'master_keys': get_master_keys(),
+            'master_key': get_master_key(),
             'key_name': key_name(),
             'data': b64encode(data).decode('ascii'),
             'expected': b64encode(expected).decode('ascii'),
@@ -2384,6 +2389,7 @@ class TestKeyStoreMigration(BaseTestCase):
             connect_args=get_connect_args(DB_PORT))
         metadata.create_all(self.engine_raw)
         self.engine_raw.execute(test_table.delete())
+        self.master_keys = {}
 
     def tearDown(self):
         self.engine_raw.execute(test_table.delete())
@@ -2391,6 +2397,24 @@ class TestKeyStoreMigration(BaseTestCase):
         self.test_dir.cleanup()
 
     # Instead, use these methods according to individual test needs.
+
+    def get_master_key(self, version):
+        """Returns master key value for given version (base64-encoded)."""
+        if version not in self.master_keys:
+            temp_file = os.path.join(self.test_dir.name, 'master.key')
+
+            subprocess.check_output([
+                './acra-keymaker', '--keystore={}'.format(version),
+                '--generate_master_key={}'.format(temp_file)])
+
+            with open(temp_file, 'rb') as f:
+                master_key = b64encode(f.read()).decode('ascii')
+                self.master_keys[version] = master_key
+
+            os.remove(temp_file)
+
+        return self.master_keys[version]
+
 
     def create_key_store(self, version):
         """Create new key store of given version."""
@@ -2406,6 +2430,7 @@ class TestKeyStoreMigration(BaseTestCase):
                 '--keys_public_output_dir={}'.format(self.current_key_store_path()),
                 '--keystore={}'.format(version),
             ],
+            env={ACRA_MASTER_KEY_VAR_NAME: self.get_master_key(version)},
             timeout=PROCESS_CALL_TIMEOUT)
 
         # Then add some zones that we're going to test with.
@@ -2413,6 +2438,7 @@ class TestKeyStoreMigration(BaseTestCase):
                 './acra-addzone',
                 '--keys_output_dir={}'.format(self.current_key_store_path()),
             ],
+            env={ACRA_MASTER_KEY_VAR_NAME: self.get_master_key(version)},
             timeout=PROCESS_CALL_TIMEOUT)
         zone_config = json.loads(zone_output.decode('utf-8'))
         self.zone_id = zone_config[ZONE_ID]
@@ -2432,6 +2458,8 @@ class TestKeyStoreMigration(BaseTestCase):
                 '--dst_keys_dir_public={}'.format(self.new_key_store_path()),
                 '--dst_keystore={}'.format(new_version),
             ],
+            env={'SRC_ACRA_MASTER_KEY': self.get_master_key(self.keystore_version),
+                 'DST_ACRA_MASTER_KEY': self.get_master_key(new_version)},
             timeout=PROCESS_CALL_TIMEOUT)
 
         # Finalize the migration, replacing old key store with the new one.
@@ -2455,9 +2483,13 @@ class TestKeyStoreMigration(BaseTestCase):
 
     def start_services(self, zone_mode=False):
         """Start Acra services required for testing."""
+        master_key = self.get_master_key(self.keystore_version)
+        master_key_env = {ACRA_MASTER_KEY_VAR_NAME: master_key}
+
         self.acra_server = self.fork_acra(
             zonemode_enable='true' if zone_mode else 'false',
-            keys_dir=self.current_key_store_path())
+            keys_dir=self.current_key_store_path(),
+            popen_kwargs={'env': master_key_env})
 
         self.acra_connector = self.fork_connector(
             client_id=self.client_id,
@@ -2465,7 +2497,8 @@ class TestKeyStoreMigration(BaseTestCase):
             api_port=self.CONNECTOR_API_PORT_1,
             connector_port=self.CONNECTOR_PORT_1,
             acraserver_port=self.ACRASERVER_PORT,
-            keys_dir=self.current_key_store_path())
+            keys_dir=self.current_key_store_path(),
+            popen_kwargs={'env': master_key_env})
 
         self.engine = sa.create_engine(
             get_engine_connection_string(
@@ -2493,6 +2526,12 @@ class TestKeyStoreMigration(BaseTestCase):
 
     def insert_via_connector(self, data):
         """Encrypt and insert data via Acra Connector."""
+        # It's too bothersome to thread through the master key setting.
+        # Set it here and reset it back after reading the public key.
+        new_master_key = self.get_master_key(self.keystore_version)
+        old_master_key = os.environ[ACRA_MASTER_KEY_VAR_NAME]
+        os.environ[ACRA_MASTER_KEY_VAR_NAME] = new_master_key
+
         # Encryption depends on whether we're using zones or not.
         if self.zone_mode:
             acra_struct = create_acrastruct(
@@ -2507,6 +2546,8 @@ class TestKeyStoreMigration(BaseTestCase):
                 read_storage_public_key(
                     self.client_id,
                     self.current_key_store_path()))
+
+        os.environ[ACRA_MASTER_KEY_VAR_NAME] = old_master_key
 
         row_id = get_random_id()
         self.engine.execute(test_table.insert(), {
