@@ -404,7 +404,6 @@ func (handler *Handler) isFieldToDecrypt(field *ColumnDescription) bool {
 }
 
 func (handler *Handler) processTextDataRow(ctx context.Context, rowData []byte, fields []*ColumnDescription) ([]byte, error) {
-	span := trace.FromContext(ctx)
 	var err error
 	var value []byte
 	var pos int
@@ -424,22 +423,6 @@ func (handler *Handler) processTextDataRow(ctx context.Context, rowData []byte, 
 				WithError(err).Errorln("Failed to process column data")
 			return nil, err
 		}
-		if handler.isFieldToDecrypt(fields[i]) {
-			decryptedValue, err := handler.decryptor.DecryptBlock(value)
-			if err == nil && decryptedValue != nil && len(decryptedValue) != len(value) {
-				base.AcrastructDecryptionCounter.WithLabelValues(base.DecryptionTypeSuccess).Inc()
-				fieldLogger.Debugln("Update with decrypted value")
-				value = decryptedValue
-			} else {
-				if err != errPlainData {
-					span.AddAttributes(trace.BoolAttribute("failed_decryption", true))
-					base.AcrastructDecryptionCounter.WithLabelValues(base.DecryptionTypeFail).Inc()
-				}
-				fieldLogger.Debugln("Leave value as is")
-			}
-		} else {
-			fieldLogger.Debugln("Field is not binary")
-		}
 		output = append(output, PutLengthEncodedString(value)...)
 		pos += n
 	}
@@ -449,7 +432,6 @@ func (handler *Handler) processTextDataRow(ctx context.Context, rowData []byte, 
 }
 
 func (handler *Handler) processBinaryDataRow(ctx context.Context, rowData []byte, fields []*ColumnDescription) ([]byte, error) {
-	span := trace.FromContext(ctx)
 	pos := 0
 	var n int
 	var err error
@@ -493,21 +475,8 @@ func (handler *Handler) processBinaryDataRow(ctx context.Context, rowData []byte
 					WithField("field_index", i).WithError(err).Errorln("Failed to process column data")
 				return nil, err
 			}
-			decryptedValue, err := handler.decryptor.DecryptBlock(value)
-			if err != nil {
-				if err != errPlainData {
-					span.AddAttributes(trace.BoolAttribute("failed_decryption", true))
-					base.AcrastructDecryptionCounter.WithLabelValues(base.DecryptionTypeFail).Inc()
-				}
-				handler.logger.Debugln("Leave value as is")
-			}
-			if decryptedValue != nil && err == nil && len(value) != len(decryptedValue) {
-				base.AcrastructDecryptionCounter.WithLabelValues(base.DecryptionTypeSuccess).Inc()
-				output = append(output, PutLengthEncodedString(decryptedValue)...)
-			} else {
-				output = append(output, PutLengthEncodedString(value)...)
-			}
 
+			output = append(output, PutLengthEncodedString(value)...)
 			pos += n
 			continue
 		}
