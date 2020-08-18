@@ -109,7 +109,7 @@ type DataDecryptor interface {
 type Decryptor interface {
 	DataDecryptor
 	DecryptionSubscriber
-	// register key store that will be used for retrieving private keys
+	// register keystore that will be used for retrieving private keys
 	SetKeyStore(keystore.DecryptionKeyStore)
 	// Return private keys for current connected client used to decrypt
 	// symmetric keys embedded in AcraStructs

@@ -63,7 +63,7 @@ func (p *proxySetting) TableSchemaStore() config.TableSchemaStore {
 	return p.tableSchemaStore
 }
 
-// KeyStore return key store
+// KeyStore return keystore
 func (p *proxySetting) KeyStore() keystore.DecryptionKeyStore {
 	return p.keystore
 }

@@ -207,7 +207,7 @@ type DecryptionKeyStore interface {
 	PoisonKeyStore
 }
 
-// KeyMaking enables key store initialization. It is used by acra-keymaker tool.
+// KeyMaking enables keystore initialization. It is used by acra-keymaker tool.
 type KeyMaking interface {
 	StorageKeyCreation
 	TransportKeyCreation
@@ -238,9 +238,9 @@ type ServerKeyStore interface {
 	Reset()
 }
 
-// KeyDescription describes a key in the key store.
+// KeyDescription describes a key in the keystore.
 //
-// "ID" is unique string that can be used to identify this key set in the key store.
+// "ID" is unique string that can be used to identify this key set in the keystore.
 // "Purpose" is short human-readable description of the key purpose.
 // "ClientID" and "ZoneID" are filled in where relevant.
 type KeyDescription struct {

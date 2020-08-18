@@ -38,7 +38,7 @@ var (
 )
 
 func TestImportKeyStoreV1(t *testing.T) {
-	// Prepare root key store directory (for both versions)
+	// Prepare root keystore directory (for both versions)
 	rootDirectory, err := ioutil.TempDir(os.TempDir(), "import_test")
 	if err != nil {
 		t.Fatalf("failed to create key directory: %v", err)
@@ -47,26 +47,26 @@ func TestImportKeyStoreV1(t *testing.T) {
 	keyDirV1 := filepath.Join(rootDirectory, "v1")
 	keyDirV2 := filepath.Join(rootDirectory, "v2")
 
-	// Prepare key store v1
+	// Prepare keystore v1
 	encryptor, err := keystoreV1.NewSCellKeyEncryptor(testMasterKey)
 	if err != nil {
 		t.Fatalf("failed to initialize encryptor: %v", err)
 	}
 	keyStoreV1, err := filesystemV1.NewFilesystemKeyStore(keyDirV1, encryptor)
 	if err != nil {
-		t.Fatalf("failed to initialize key store v1: %v", err)
+		t.Fatalf("failed to initialize keystore v1: %v", err)
 	}
 
 	clientID := []byte("Tweedledee and Tweedledum")
 
-	// Prepare key store v2
+	// Prepare keystore v2
 	suite, err := cryptoV2.NewSCellSuite(testEncryptionKey, testSignatureKey)
 	if err != nil {
 		t.Fatalf("failed to initialize cryptosuite: %v", err)
 	}
 	keyDirectoryV2, err := filesystemV2.OpenDirectoryRW(keyDirV2, suite)
 	if err != nil {
-		t.Fatalf("failed to initialize key store v2: %v", err)
+		t.Fatalf("failed to initialize keystore v2: %v", err)
 	}
 	keyStoreV2 := NewServerKeyStore(keyDirectoryV2)
 	keyStoreV2connectorServer := NewConnectorKeyStore(keyDirectoryV2, clientID, connectorMode.AcraServerMode)
@@ -98,7 +98,7 @@ func TestImportKeyStoreV1(t *testing.T) {
 	if err != nil {
 		t.Errorf("GetZonePrivateKey() failed: %v", err)
 	}
-	// Since we cannot access all generated key pairs via AcraServer key store,
+	// Since we cannot access all generated key pairs via AcraServer keystore,
 	// we generate them here and use Save... API
 	connectorKeyPairV1, err := keys.New(keys.TypeEC)
 	err = keyStoreV1.SaveConnectorKeypair(clientID, connectorKeyPairV1)
@@ -153,7 +153,7 @@ func TestImportKeyStoreV1(t *testing.T) {
 		t.Errorf("poison record key pair corrupted")
 	}
 	// Pay close attention here, transport keys are a bit complicated.
-	// They cannot be all accessed via server key store alone.
+	// They cannot be all accessed via server keystore alone.
 	serverPeerPublicKeyV2, err := keyStoreV2.GetPeerPublicKey(clientID)
 	if err != nil {
 		t.Errorf("GetPeerPublicKey() failed: %v", err)

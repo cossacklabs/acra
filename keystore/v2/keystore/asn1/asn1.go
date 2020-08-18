@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-// Package asn1 contains descriptions of ASN.1 data structures used by Key Store.
+// Package asn1 contains descriptions of ASN.1 data structures used by Keystore.
 package asn1
 
 import (
@@ -34,7 +34,7 @@ var (
 	Sha256OID = asn1.ObjectIdentifier([]int{2, 16, 840, 1, 101, 3, 4, 2, 1})
 )
 
-// SignedContainer for a signed object. Every exported object of the key store
+// SignedContainer for a signed object. Every exported object of the keystore
 // is packed into a SignedContainer for storage. For example, file-based key
 // store keeps a file for each key directory. Every file contains a SignedContainer
 // with "ContentType" equal to 'TypeKeyDirectory' and a KeyDirectory stored
@@ -113,7 +113,7 @@ const (
 // Signature for SignedContainer. A container can have multiple signatures
 // made with different algorithms, enabling future-proofing, extensibility,
 // and collision resistance. Signatures are computed for the "Payload" of
-// SignedContainer, usually with HMAC keyed by the key store master key.
+// SignedContainer, usually with HMAC keyed by the keystore master key.
 // The signing algorithm is indicated by the "Algorithm" field.
 type Signature struct {
 	Algorithm asn1.ObjectIdentifier
@@ -231,7 +231,7 @@ func (r *KeyRing) KeyWithSeqnum(seqnum int) (*Key, int) {
 	return nil, NoKey
 }
 
-// Key stored in the key store. The key is identified by its content and can have
+// Key stored in the keystore. The key is identified by its content and can have
 // multiple representations. It also has some metadata pertaining to its usage
 // restrictions.
 type Key struct {

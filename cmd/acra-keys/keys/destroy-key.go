@@ -104,7 +104,7 @@ func (p *DestroyKeySubcommand) Parse(arguments []string) error {
 func (p *DestroyKeySubcommand) Execute() {
 	keyStore, err := OpenKeyStoreForWriting(p)
 	if err != nil {
-		log.WithError(err).Fatal("Failed to open key store")
+		log.WithError(err).Fatal("Failed to open keystore")
 	}
 	DestroyKeyCommand(p, keyStore)
 }

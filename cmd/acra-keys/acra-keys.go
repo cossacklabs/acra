@@ -16,12 +16,12 @@
 
 // Package main is entry point for `acra-keys` utility.
 //
-// It can access and maniplulate key stores:
+// It can access and maniplulate keystores:
 //
 //   - list keys
 //   - export keys
 //   - import keys
-//   - migrate key stores
+//   - migrate keystores
 //   - read key data
 //   - destroy keys
 package main

@@ -317,7 +317,7 @@ def create_client_keypair(name, only_server=False, only_connector=False, only_st
 
 def exchange_client_public_keys(client, server_keys_dir, connector_keys_dir):
     if KEYSTORE_VERSION == 'v1':
-        # Older key stores expect the administrator to manually copy
+        # Older keystores expect the administrator to manually copy
         # the following public key files. They are not encrypted or
         # authenticated in any way.
         connector_key = '{}.pub'.format(client)
@@ -331,7 +331,7 @@ def exchange_client_public_keys(client, server_keys_dir, connector_keys_dir):
         shutil.copy(os.path.join(connector_keys_dir, connector_key),
                     server_keys_dir)
     else:
-        # Newer key stores have a bit more involved key transfer process.
+        # Newer keystores have a bit more involved key transfer process.
         with tempfile.TemporaryDirectory() as tmp_dir:
             bundle = os.path.join(tmp_dir, 'key-bundle')
             secret = os.path.join(tmp_dir, 'key-bundle-secret')
@@ -775,10 +775,10 @@ class KeyMakerTest(unittest.TestCase):
 
         def random_keys(size):
             if KEYSTORE_VERSION == 'v1':
-                # Key store v1 uses simple binary data for keys
+                # Keystore v1 uses simple binary data for keys
                 value = os.urandom(size)
             elif KEYSTORE_VERSION == 'v2':
-                # Key store v2 uses more complex JSON format
+                # Keystore v2 uses more complex JSON format
                 encryption = os.urandom(size)
                 signature = os.urandom(size)
                 keys = {
@@ -787,7 +787,7 @@ class KeyMakerTest(unittest.TestCase):
                 }
                 value = json.dumps(keys).encode('ascii')
             else:
-                self.fail("key store version not supported")
+                self.fail("keystore version not supported")
 
             return {ACRA_MASTER_KEY_VAR_NAME: b64encode(value)}
 
@@ -2374,9 +2374,9 @@ class TestKeyStorageClearing(BaseTestCase):
 class TestKeyStoreMigration(BaseTestCase):
     """Test "acra-keys migrate" utility."""
 
-    # We need to test different key store formats so we can't touch
+    # We need to test different keystore formats so we can't touch
     # the global KEYS_FOLDER. We need to launch service instances
-    # with particular key store configuration. Ignore the usual
+    # with particular keystore configuration. Ignore the usual
     # setup and teardown routines that start Acra services.
 
     def setUp(self):
@@ -2415,7 +2415,7 @@ class TestKeyStoreMigration(BaseTestCase):
 
 
     def create_key_store(self, version):
-        """Create new key store of given version."""
+        """Create new keystore of given version."""
         # Start with service transport keys and client storage keys.
         self.client_id = 'test-client-please-ignore'
         subprocess.check_call([
@@ -2445,8 +2445,8 @@ class TestKeyStoreMigration(BaseTestCase):
         self.keystore_version = version
 
     def migrate_key_store(self, new_version):
-        """Migrate key store from current to given new version."""
-        # Run the migration tool. New key store is in a new directory.
+        """Migrate keystore from current to given new version."""
+        # Run the migration tool. New keystore is in a new directory.
         subprocess.check_call([
                 './acra-keys', 'migrate',
                 '--src_keys_dir={}'.format(self.current_key_store_path()),
@@ -2460,21 +2460,21 @@ class TestKeyStoreMigration(BaseTestCase):
                  'DST_ACRA_MASTER_KEY': self.get_master_key(new_version)},
             timeout=PROCESS_CALL_TIMEOUT)
 
-        # Finalize the migration, replacing old key store with the new one.
+        # Finalize the migration, replacing old keystore with the new one.
         # We assume the services to be not running at this moment.
         os.rename(self.current_key_store_path(), self.old_key_store_path())
         os.rename(self.new_key_store_path(), self.current_key_store_path())
         self.keystore_version = new_version
 
     def change_key_store_path(self):
-        """Change the absolute path of the key store directory."""
+        """Change the absolute path of the keystore directory."""
         # Swap the whole testing directory for a new one.
         old_key_store_path = self.current_key_store_path()
         old_test_dir = self.test_dir
         new_test_dir = tempfile.TemporaryDirectory()
         self.test_dir = new_test_dir
         new_key_store_path = self.current_key_store_path()
-        # Move the key store to the new location.
+        # Move the keystore to the new location.
         os.rename(old_key_store_path, new_key_store_path)
         # Remove the old, now unneeded directory.
         old_test_dir.cleanup()
@@ -2584,7 +2584,7 @@ class TestKeyStoreMigration(BaseTestCase):
     # Now we can proceed with the tests...
 
     def test_migrate_v1_to_v2(self):
-        """Verify v1 -> v2 key store migration."""
+        """Verify v1 -> v2 keystore migration."""
         data_1 = get_pregenerated_random_data()
         data_2 = get_pregenerated_random_data()
 
@@ -2657,7 +2657,7 @@ class TestKeyStoreMigration(BaseTestCase):
             self.assertEquals(selected['raw_data'], data_2)
 
     def test_moved_key_store(self):
-        """Verify that key store can be moved to a different absolute path."""
+        """Verify that keystore can be moved to a different absolute path."""
         self.create_key_store(KEYSTORE_VERSION)
 
         # Save some data, do a sanity check.
@@ -2667,11 +2667,11 @@ class TestKeyStoreMigration(BaseTestCase):
             selected = self.select_via_connector(row_id)
             self.assertEquals(selected['data'], data.encode('ascii'))
 
-        # Move the key store to a different (still temporary) location.
+        # Move the keystore to a different (still temporary) location.
         self.change_key_store_path()
 
-        # Check that key store path is not included into encryption context.
-        # We should still be able to access the data with the same key store
+        # Check that keystore path is not included into encryption context.
+        # We should still be able to access the data with the same keystore
         # but located at different path.
         with self.running_services():
             selected = self.select_via_connector(row_id)

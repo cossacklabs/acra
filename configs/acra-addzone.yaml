@@ -5,7 +5,7 @@ config_file:
 # dump config
 dump_config: false
 
-# Use filesystem key store (deprecated, ignored)
+# Use filesystem keystore (deprecated, ignored)
 fs_keystore_enable: true
 
 # Generate with yaml config markdown text file with descriptions of all args

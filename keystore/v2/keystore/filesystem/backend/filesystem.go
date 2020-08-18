@@ -42,7 +42,7 @@ const (
 var (
 	ErrNotDirectory       = errors.New("root key directory is not a directory")
 	ErrInvalidPermissions = errors.New("invalid key directory access permissions")
-	ErrInvalidVersion     = errors.New("invalid key store version file content")
+	ErrInvalidVersion     = errors.New("invalid keystore version file content")
 )
 
 // DirectoryBackend keeps data in filesystem directory hierarchy.
@@ -55,7 +55,7 @@ type DirectoryBackend struct {
 const (
 	lockFile      = ".lock"
 	versionFile   = "version"
-	versionString = "Acra Key Store v2"
+	versionString = "Acra Keystore v2"
 )
 
 // CreateDirectoryBackend opens a directory backend at given root path.
@@ -138,7 +138,7 @@ func OpenDirectoryBackend(root string) (*DirectoryBackend, error) {
 	}
 	err = CheckDirectoryVersion(root)
 	if err != nil {
-		errLog.WithError(err).Debug("not a key store")
+		errLog.WithError(err).Debug("not a keystore")
 		return nil, err
 	}
 	lock, err := newFileLock(filepath.Join(root, lockFile))
@@ -415,7 +415,7 @@ func (b *DirectoryBackend) doRenameNX(oldpath, newpath string) error {
 	// Not all filesystems support "exclusive" rename and "os" API does not export
 	// a function for such rename. We do not make atomicity promises in Backend,
 	// but do our best to avoid race conditions here. Hard links should succeed
-	// because key store should be located entirely on the same filesystem.
+	// because keystore should be located entirely on the same filesystem.
 	err := os.Link(oldpath, newpath)
 	if err != nil {
 		return err

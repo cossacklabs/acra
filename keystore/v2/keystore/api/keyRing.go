@@ -79,7 +79,7 @@ type KeyDescription struct {
 	Data       []KeyData
 }
 
-// KeyData contains plaintext key data to be added to key store.
+// KeyData contains plaintext key data to be added to keystore.
 // Only relevant fields are stored. They must be filled according to the format.
 type KeyData struct {
 	Format       KeyFormat

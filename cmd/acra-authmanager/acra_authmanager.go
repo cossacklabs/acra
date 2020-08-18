@@ -253,7 +253,7 @@ func openKeyStoreV1(keysDir string) keystore.WebConfigKeyStore {
 	}
 	keyStore, err := filesystem.NewFilesystemKeyStore(keysDir, encryptor)
 	if err != nil {
-		log.WithError(err).Errorln("Can't init key store")
+		log.WithError(err).Errorln("Can't init keystore")
 		os.Exit(1)
 	}
 	return keyStore

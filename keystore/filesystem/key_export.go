@@ -48,7 +48,7 @@ type KeyFileClassifier interface {
 	ClassifyExportedKey(path string) *ExportedKey
 }
 
-// ExportedKey describes a key that can be exported from key store.
+// ExportedKey describes a key that can be exported from keystore.
 //
 // `Purpose` describes the purpose of this key.
 // This is one of the `Purpose...` constants exported by this module.
@@ -181,7 +181,7 @@ func EnumerateExportedKeysByClass(enumerator KeyExportEnumerator, classifier Key
 	return exportedKeys, nil
 }
 
-// EnumerateExportedKeyPaths returns a list of key paths that can be exported from this key store.
+// EnumerateExportedKeyPaths returns a list of key paths that can be exported from this keystore.
 func (store *KeyStore) EnumerateExportedKeyPaths() ([]string, error) {
 	paths := make([]string, 0)
 

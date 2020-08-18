@@ -128,7 +128,7 @@ func (p *ReadKeySubcommand) Parse(arguments []string) error {
 func (p *ReadKeySubcommand) Execute() {
 	keyStore, err := OpenKeyStoreForReading(p)
 	if err != nil {
-		log.WithError(err).Fatal("Failed to open key store")
+		log.WithError(err).Fatal("Failed to open keystore")
 	}
 	PrintKeyCommand(p, keyStore)
 }

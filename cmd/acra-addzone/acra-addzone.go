@@ -53,7 +53,7 @@ var (
 
 func main() {
 	outputDir := flag.String("keys_output_dir", keystore.DefaultKeyDirShort, "Folder where will be saved generated zone keys")
-	flag.Bool("fs_keystore_enable", true, "Use filesystem key store (deprecated, ignored)")
+	flag.Bool("fs_keystore_enable", true, "Use filesystem keystore (deprecated, ignored)")
 
 	logging.SetLogLevel(logging.LogVerbose)
 
@@ -97,7 +97,7 @@ func openKeyStoreV1(output string) keystore.StorageKeyCreation {
 	}
 	keyStore, err := filesystem.NewFilesystemKeyStore(output, scellEncryptor)
 	if err != nil {
-		log.WithError(err).Errorln("Can't init key store")
+		log.WithError(err).Errorln("Can't init keystore")
 		os.Exit(1)
 	}
 	return keyStore

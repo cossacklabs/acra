@@ -315,7 +315,7 @@ func openKeyStoreV1(keysDir string) keystore.DecryptionKeyStore {
 	}
 	keystorage, err := filesystem.NewFilesystemKeyStore(keysDir, scellEncryptor)
 	if err != nil {
-		log.WithError(err).Errorln("Can't initialize key store")
+		log.WithError(err).Errorln("Can't initialize keystore")
 		os.Exit(1)
 	}
 	return keystorage

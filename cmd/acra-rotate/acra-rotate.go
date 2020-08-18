@@ -55,7 +55,7 @@ func openKeyStoreV1(dirPath string) keystore.RotateStorageKeyStore {
 	}
 	keystorage, err := filesystem.NewFilesystemKeyStore(dirPath, scellEncryptor)
 	if err != nil {
-		log.WithError(err).Errorln("can't initialize key store")
+		log.WithError(err).Errorln("can't initialize keystore")
 		os.Exit(1)
 	}
 	return keystorage
