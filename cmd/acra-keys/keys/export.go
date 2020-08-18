@@ -119,7 +119,7 @@ func (p *ExportKeysSubcommand) RegisterFlags() {
 	p.FlagSet.BoolVar(&p.exportAll, "all", false, "export all keys")
 	p.FlagSet.BoolVar(&p.exportPrivate, "private_keys", false, "export private key data")
 	p.FlagSet.Usage = func() {
-		fmt.Fprintf(os.Stderr, "Command \"%s\": export keys from the key store\n", CmdExportKeys)
+		fmt.Fprintf(os.Stderr, "Command \"%s\": export keys from the keystore\n", CmdExportKeys)
 		fmt.Fprintf(os.Stderr, "\n\t%s %s [options...] --key_bundle_file <file> --key_bundle_secret <file> <key-ID...>\n", os.Args[0], CmdExportKeys)
 		fmt.Fprintf(os.Stderr, "\nOptions:\n")
 		cmd.PrintFlags(p.FlagSet)
@@ -153,7 +153,7 @@ func (p *ExportKeysSubcommand) Execute() {
 		if err == ErrNotImplementedV1 {
 			warnKeystoreV2Only(CmdExportKeys)
 		}
-		log.WithError(err).Fatal("Failed to open key store")
+		log.WithError(err).Fatal("Failed to open keystore")
 	}
 	ExportKeysCommand(p, keyStore)
 }
@@ -204,7 +204,7 @@ func (p *ImportKeysSubcommand) RegisterFlags() {
 	p.CommonExportImportParameters.Register(p.FlagSet, "input")
 	p.CommonKeyListingParameters.Register(p.FlagSet)
 	p.FlagSet.Usage = func() {
-		fmt.Fprintf(os.Stderr, "Command \"%s\": import keys into the key store\n", CmdImportKeys)
+		fmt.Fprintf(os.Stderr, "Command \"%s\": import keys into the keystore\n", CmdImportKeys)
 		fmt.Fprintf(os.Stderr, "\n\t%s %s [options...] --key_bundle_file <file> --key_bundle_secret <file>\n", os.Args[0], CmdImportKeys)
 		fmt.Fprintf(os.Stderr, "\nOptions:\n")
 		cmd.PrintFlags(p.FlagSet)
@@ -231,7 +231,7 @@ func (p *ImportKeysSubcommand) Execute() {
 		if err == ErrNotImplementedV1 {
 			warnKeystoreV2Only(CmdExportKeys)
 		}
-		log.WithError(err).Fatal("Failed to open key store")
+		log.WithError(err).Fatal("Failed to open keystore")
 	}
 	ImportKeysCommand(p, keyStore)
 }

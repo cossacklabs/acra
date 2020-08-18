@@ -63,7 +63,7 @@ func testFilesystemKeyStore(t *testing.T) (func(t *testing.T) api.MutableKeyStor
 		}
 		store, err := OpenDirectoryRW(testDir, testKeyStoreSuite(t))
 		if err != nil {
-			t.Fatalf("failed to create key store: %v", err)
+			t.Fatalf("failed to create keystore: %v", err)
 		}
 		return store
 	}
@@ -85,7 +85,7 @@ func TestKeyStoreOpeningDir(t *testing.T) {
 
 	_, err = OpenDirectory(rootPath, testKeyStoreSuite(t))
 	if err != backendAPI.ErrNotExist {
-		t.Errorf("opened non-existant key store: %v", err)
+		t.Errorf("opened non-existant keystore: %v", err)
 	}
 
 	if IsKeyDirectory(rootPath) {
@@ -94,7 +94,7 @@ func TestKeyStoreOpeningDir(t *testing.T) {
 
 	_, err = OpenDirectoryRW(rootPath, testKeyStoreSuite(t))
 	if err != nil {
-		t.Fatalf("failed to create key store: %v", err)
+		t.Fatalf("failed to create keystore: %v", err)
 	}
 
 	fi, err := os.Stat(rootPath)
@@ -176,7 +176,7 @@ func TestKeyStorePersistence(t *testing.T) {
 
 	s1, err := OpenDirectoryRW(testDir, testKeyStoreSuite(t))
 	if err != nil {
-		t.Fatalf("failed to open key store: %v", err)
+		t.Fatalf("failed to open keystore: %v", err)
 	}
 	s1.OpenKeyRingRW("my-keyring")
 	if err != nil {
@@ -185,7 +185,7 @@ func TestKeyStorePersistence(t *testing.T) {
 
 	s2, err := OpenDirectory(testDir, testKeyStoreSuite(t))
 	if err != nil {
-		t.Fatalf("failed to open key store (read-only): %v", err)
+		t.Fatalf("failed to open keystore (read-only): %v", err)
 	}
 	s2.OpenKeyRing("my-keyring")
 	if err != nil {

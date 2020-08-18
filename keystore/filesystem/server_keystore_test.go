@@ -463,7 +463,7 @@ func TestFilesystemKeyStoreExport(t *testing.T) {
 	}
 	keyStore, err := NewFilesystemKeyStoreTwoPath(privateKeys, publicKeys, encryptor)
 	if err != nil {
-		t.Fatalf("failed to initialize key store: %v", err)
+		t.Fatalf("failed to initialize keystore: %v", err)
 	}
 
 	// Prepare various keys for testing.

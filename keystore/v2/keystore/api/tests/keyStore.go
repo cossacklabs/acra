@@ -557,7 +557,7 @@ func testKeyStoreListing(t *testing.T, newKeyStore NewKeyStore) {
 	}
 
 	if len(keyRingsBefore) != 0 {
-		t.Errorf("key store is not empty initially")
+		t.Errorf("keystore is not empty initially")
 	}
 
 	if len(keyRingsAfter) != 3 {

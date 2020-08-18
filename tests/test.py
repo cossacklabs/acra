@@ -787,7 +787,7 @@ class KeyMakerTest(unittest.TestCase):
                 }
                 value = json.dumps(keys).encode('ascii')
             else:
-                self.fail("key store version not supported")
+                self.fail("keystore version not supported")
 
             return {ACRA_MASTER_KEY_VAR_NAME: b64encode(value)}
 

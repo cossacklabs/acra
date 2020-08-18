@@ -32,7 +32,7 @@ type keyRingTX interface {
 
 // Errors returned by transactions:
 var (
-	errTxConcurrentModification = errors.New("concurrent key store modification")
+	errTxConcurrentModification = errors.New("concurrent keystore modification")
 	errTxKeyNotFound            = errors.New("no key with such seqnum in key ring")
 	errTxKeyExists              = errors.New("duplicate key with seqnum in key ring")
 )

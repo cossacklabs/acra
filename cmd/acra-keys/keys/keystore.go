@@ -31,7 +31,7 @@ import (
 
 // KeyStoreFactory should return one of those errors when it is not able to construct requested key store.
 var (
-	ErrNotImplementedV1 = errors.New("not implemented for key store v1")
+	ErrNotImplementedV1 = errors.New("not implemented for keystore v1")
 )
 
 // KeyStoreParameters are parameters for DefaultKeyStoreFactory.

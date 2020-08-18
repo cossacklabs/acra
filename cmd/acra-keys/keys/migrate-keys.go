@@ -59,8 +59,8 @@ const (
 
 // Command-line errors for "acra-keys migrate":
 var (
-	ErrMissingFormat = errors.New("key store format not specified")
-	ErrMissingKeyDir = errors.New("key directory not specified")
+	ErrMissingFormat = errors.New("keystore format not specified")
+	ErrMissingKeyDir = errors.New("keys directory not specified")
 )
 
 // SrcKeyStoreVersion returns source key store version.
@@ -106,14 +106,14 @@ func (m *MigrateKeysSubcommand) GetFlagSet() *flag.FlagSet {
 // RegisterFlags registers command-line flags of "acra-keys migrate".
 func (m *MigrateKeysSubcommand) RegisterFlags() {
 	m.flagSet = flag.NewFlagSet(CmdMigrateKeys, flag.ContinueOnError)
-	m.src.RegisterPrefixed(m.flagSet, "", "src_", "(old key store, source)")
-	m.dst.RegisterPrefixed(m.flagSet, "", "dst_", "(new key store, destination)")
-	m.flagSet.StringVar(&m.srcVersion, "src_keystore", "", "key store format to use: v1 (current), v2 (new)")
-	m.flagSet.StringVar(&m.dstVersion, "dst_keystore", "", "key store format to use: v1 (current), v2 (new)")
-	m.flagSet.BoolVar(&m.dryRun, "dry_run", false, "try migration without writing to the output key store")
-	m.flagSet.BoolVar(&m.force, "force", false, "write to output key store even if it exists")
+	m.src.RegisterPrefixed(m.flagSet, "", "src_", "(old keystore, source)")
+	m.dst.RegisterPrefixed(m.flagSet, "", "dst_", "(new keystore, destination)")
+	m.flagSet.StringVar(&m.srcVersion, "src_keystore", "", "keystore format to use: v1 (current), v2 (new)")
+	m.flagSet.StringVar(&m.dstVersion, "dst_keystore", "", "keystore format to use: v1 (current), v2 (new)")
+	m.flagSet.BoolVar(&m.dryRun, "dry_run", false, "try migration without writing to the output keystore")
+	m.flagSet.BoolVar(&m.force, "force", false, "write to output keystore even if it exists")
 	m.flagSet.Usage = func() {
-		fmt.Fprintf(os.Stderr, "Command \"%s\": migrate key store to a different format\n", CmdMigrateKeys)
+		fmt.Fprintf(os.Stderr, "Command \"%s\": migrate keystore to a different format\n", CmdMigrateKeys)
 		fmt.Fprintf(os.Stderr, "\n\t%s %s [options...] \\\n"+
 			"\t\t--src_keystore <src-version> --src_keys_dir <.acrakeys-src> \\\n"+
 			"\t\t--dst_keystore <dst-version> --dst_keys_dir <.acrakeys-dst>\n",
@@ -176,8 +176,8 @@ func (m *MigrateKeysSubcommand) Execute() {
 			log.WithError(err).Fatal("Migration failed")
 		}
 		log.Infof("Migration complete")
-		log.Infof("Old key store: %s", m.SrcKeyStoreParams().KeyDir())
-		log.Infof("New key store: %s", m.DstKeyStoreParams().KeyDir())
+		log.Infof("Old keystore: %s", m.SrcKeyStoreParams().KeyDir())
+		log.Infof("New keystore: %s", m.DstKeyStoreParams().KeyDir())
 		if m.DryRun() {
 			log.Infof("Run without --dry_run to actually write key data")
 		}
@@ -185,7 +185,7 @@ func (m *MigrateKeysSubcommand) Execute() {
 	}
 
 	log.WithFields(log.Fields{"src": m.SrcKeyStoreVersion(), "dst": m.DstKeyStoreVersion()}).
-		Fatal("Key store conversion not supported")
+		Fatal("Keystore conversion not supported")
 }
 
 // MigrateV1toV2 transfers keys from key store v1 to v2.
@@ -244,7 +244,7 @@ func (m *MigrateKeysSubcommand) openKeyStoreV1(keyVarName string, params KeyStor
 		keyStore, err = filesystemV1.NewFilesystemKeyStore(keyDir, encryptor)
 	}
 	if err != nil {
-		log.WithError(err).Error("Cannot init key store")
+		log.WithError(err).Error("Cannot init keystore")
 		return nil, err
 	}
 	return keyStore, nil
@@ -271,7 +271,7 @@ func (m *MigrateKeysSubcommand) openKeyStoreV2(keyVarName string, params KeyStor
 	if m.DryRun() {
 		keyDir, err = filesystemV2.NewInMemory(suite)
 		if err != nil {
-			log.WithError(err).Error("Cannot create in-memory key store")
+			log.WithError(err).Error("Cannot create in-memory keystore")
 			return nil, err
 		}
 	} else {

@@ -42,7 +42,7 @@ const (
 var (
 	ErrNotDirectory       = errors.New("root key directory is not a directory")
 	ErrInvalidPermissions = errors.New("invalid key directory access permissions")
-	ErrInvalidVersion     = errors.New("invalid key store version file content")
+	ErrInvalidVersion     = errors.New("invalid keystore version file content")
 )
 
 // DirectoryBackend keeps data in filesystem directory hierarchy.
@@ -138,7 +138,7 @@ func OpenDirectoryBackend(root string) (*DirectoryBackend, error) {
 	}
 	err = CheckDirectoryVersion(root)
 	if err != nil {
-		errLog.WithError(err).Debug("not a key store")
+		errLog.WithError(err).Debug("not a keystore")
 		return nil, err
 	}
 	lock, err := newFileLock(filepath.Join(root, lockFile))

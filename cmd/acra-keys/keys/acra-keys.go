@@ -28,8 +28,8 @@ import (
 )
 
 func warnKeystoreV2Only(command string) {
-	log.Error(fmt.Sprintf("\"%s\" is not implemented for key store v1", command))
-	log.Info("You can convert key store v1 into v2 with \"acra-keys migrate\"")
+	log.Error(fmt.Sprintf("\"%s\" is not implemented for keystore v1", command))
+	log.Info("You can convert keystore v1 into v2 with \"acra-keys migrate\"")
 	// TODO(ilammy, 2020-05-19): production documentation does not describe migration yet
 	log.Info("Read more: https://docs.cossacklabs.com/pages/documentation-acra/#key-management")
 }
@@ -71,7 +71,7 @@ func ExportKeysCommand(params ExportKeysParams, keyStore api.KeyStore) {
 	log.Infof("Exported key data is encrypted and saved here: %s", params.ExportDataFile())
 	log.Infof("New encryption keys for import generated here: %s", params.ExportKeysFile())
 	log.Infof("DO NOT transport or store these files together")
-	log.Infof("Import the keys into another key store like this:\n\tacra-keys import --key_bundle_file \"%s\" --key_bundle_secret \"%s\"", params.ExportDataFile(), params.ExportKeysFile())
+	log.Infof("Import the keys into another keystore like this:\n\tacra-keys import --key_bundle_file \"%s\" --key_bundle_secret \"%s\"", params.ExportDataFile(), params.ExportKeysFile())
 }
 
 // ImportKeysCommand implements the "import" command.

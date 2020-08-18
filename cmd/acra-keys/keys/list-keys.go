@@ -72,7 +72,7 @@ func (p *ListKeySubcommand) RegisterFlags() {
 	p.CommonKeyStoreParameters.Register(p.FlagSet)
 	p.CommonKeyListingParameters.Register(p.FlagSet)
 	p.FlagSet.Usage = func() {
-		fmt.Fprintf(os.Stderr, "Command \"%s\": list available keys in the key store\n", CmdListKeys)
+		fmt.Fprintf(os.Stderr, "Command \"%s\": list available keys in the keystore\n", CmdListKeys)
 		fmt.Fprintf(os.Stderr, "\n\t%s %s [options...]\n", os.Args[0], CmdListKeys)
 		fmt.Fprintf(os.Stderr, "\nOptions:\n")
 		cmd.PrintFlags(p.FlagSet)
@@ -88,7 +88,7 @@ func (p *ListKeySubcommand) Parse(arguments []string) error {
 func (p *ListKeySubcommand) Execute() {
 	keyStore, err := OpenKeyStoreForReading(p)
 	if err != nil {
-		log.WithError(err).Fatal("Failed to open key store")
+		log.WithError(err).Fatal("Failed to open keystore")
 	}
 	ListKeysCommand(p, keyStore)
 }

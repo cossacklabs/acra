@@ -53,7 +53,7 @@ func main() {
 	outputDir := flag.String("keys_output_dir", keystore.DefaultKeyDirShort, "Folder where will be saved keys")
 	outputPublicKey := flag.String("keys_public_output_dir", keystore.DefaultKeyDirShort, "Folder where will be saved public key")
 	masterKey := flag.String("generate_master_key", "", "Generate new random master key and save to file")
-	keystoreVersion := flag.String("keystore", "", "set key store format: v1 (current), v2 (new)")
+	keystoreVersion := flag.String("keystore", "", "set keystore format: v1 (current), v2 (new)")
 
 	logging.SetLogLevel(logging.LogVerbose)
 
@@ -74,7 +74,7 @@ func main() {
 		case "v2":
 			newKey, err = keystoreV2.NewSerializedMasterKeys()
 		case "":
-			log.Errorf("Key store version is required: --keystore={v1|v2}")
+			log.Errorf("Keystore version is required: --keystore={v1|v2}")
 			os.Exit(1)
 		default:
 			log.Errorf("Unknown --keystore option: %v", *keystoreVersion)
@@ -106,7 +106,7 @@ func main() {
 	case "v2":
 		store = openKeyStoreV2(*outputDir)
 	case "":
-		log.Errorf("Key store version is required: --keystore={v1|v2}")
+		log.Errorf("Keystore version is required: --keystore={v1|v2}")
 		os.Exit(1)
 	default:
 		log.Errorf("Unknown --keystore option: %v", *keystoreVersion)
@@ -184,7 +184,7 @@ func openKeyStoreV1(outputDir, outputPublicKey string) keystore.KeyMaking {
 		store, err = filesystem.NewFilesystemKeyStore(outputDir, scellEncryptor)
 	}
 	if err != nil {
-		log.WithError(err).Errorln("Can't init key store")
+		log.WithError(err).Errorln("Can't init keystore")
 		os.Exit(1)
 	}
 	return store

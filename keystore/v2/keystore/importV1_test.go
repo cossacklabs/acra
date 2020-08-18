@@ -54,7 +54,7 @@ func TestImportKeyStoreV1(t *testing.T) {
 	}
 	keyStoreV1, err := filesystemV1.NewFilesystemKeyStore(keyDirV1, encryptor)
 	if err != nil {
-		t.Fatalf("failed to initialize key store v1: %v", err)
+		t.Fatalf("failed to initialize keystore v1: %v", err)
 	}
 
 	clientID := []byte("Tweedledee and Tweedledum")
@@ -66,7 +66,7 @@ func TestImportKeyStoreV1(t *testing.T) {
 	}
 	keyDirectoryV2, err := filesystemV2.OpenDirectoryRW(keyDirV2, suite)
 	if err != nil {
-		t.Fatalf("failed to initialize key store v2: %v", err)
+		t.Fatalf("failed to initialize keystore v2: %v", err)
 	}
 	keyStoreV2 := NewServerKeyStore(keyDirectoryV2)
 	keyStoreV2connectorServer := NewConnectorKeyStore(keyDirectoryV2, clientID, connectorMode.AcraServerMode)
