@@ -4325,7 +4325,7 @@ class TestOutdatedServiceConfigs(BaseTestCase, FailedRunProcessMixin):
             }
 
             for service in services:
-                test_data = default_args.get(service)
+                test_data = default_args.get(service, [])
                 expected_status_code = 0
                 if isinstance(test_data, dict):
                     expected_status_code = test_data['status']
@@ -4370,7 +4370,7 @@ class TestOutdatedServiceConfigs(BaseTestCase, FailedRunProcessMixin):
             }
 
             for service in services:
-                test_data = default_args.get(service)
+                test_data = default_args.get(service, [])
                 expected_status_code = 0
                 if isinstance(test_data, dict):
                     expected_status_code = test_data['status']
