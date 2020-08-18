@@ -18,27 +18,40 @@ package config
 
 import (
 	"errors"
+
 	"gopkg.in/yaml.v2"
 )
 
-// TableSchemaStore interface to fetch schema for table
+// TableSchemaStore fetches schema for encryptable tables in the database.
 type TableSchemaStore interface {
-	GetTableSchema(tableName string) *TableSchema
+	// GetTableSchema returns schema for given table if configured, or nil otherwise.
+	GetTableSchema(tableName string) TableSchema
+	// IsEmpty returns true if the store does not have any schemas.
 	IsEmpty() bool
 }
 
+// TableSchema describes a table and its encryption settings per column.
+type TableSchema interface {
+	Name() string
+	Columns() []string
+	NeedToEncrypt(columnName string) bool
+	// GetColumnEncryptionSettings fetches encryption settings for given column,
+	// or returns nil if the column should not be encrypted.
+	GetColumnEncryptionSettings(columnName string) *ColumnEncryptionSetting
+}
+
 type storeConfig struct {
-	Schemas []*TableSchema
+	Schemas []*tableSchema
 }
 
 // MapTableSchemaStore store schemas per table name
 type MapTableSchemaStore struct {
-	schemas map[string]*TableSchema
+	schemas map[string]*tableSchema
 }
 
 // NewMapTableSchemaStore return new MapTableSchemaStore
 func NewMapTableSchemaStore() (*MapTableSchemaStore, error) {
-	return &MapTableSchemaStore{make(map[string]*TableSchema)}, nil
+	return &MapTableSchemaStore{make(map[string]*tableSchema)}, nil
 }
 
 // ErrInvalidTokenType error for invalid value of token_type parameter
@@ -53,7 +66,7 @@ func MapTableSchemaStoreFromConfig(config []byte) (*MapTableSchemaStore, error) 
 	if err := yaml.Unmarshal(config, &storeConfig); err != nil {
 		return nil, err
 	}
-	mapSchemas := make(map[string]*TableSchema, len(storeConfig.Schemas))
+	mapSchemas := make(map[string]*tableSchema, len(storeConfig.Schemas))
 	for _, schema := range storeConfig.Schemas {
 		for _, setting := range schema.EncryptionColumnSettings {
 			if setting.Tokenized {
@@ -71,7 +84,7 @@ func MapTableSchemaStoreFromConfig(config []byte) (*MapTableSchemaStore, error) 
 }
 
 // GetTableSchema return table schema if exists otherwise nil
-func (store *MapTableSchemaStore) GetTableSchema(tableName string) *TableSchema {
+func (store *MapTableSchemaStore) GetTableSchema(tableName string) TableSchema {
 	schema, ok := store.schemas[tableName]
 	if ok {
 		return schema
@@ -198,16 +211,25 @@ func (s *ColumnEncryptionSetting) IsEndMasking() bool {
 	return s.PlaintextSide == PlainTextSideLeft
 }
 
-// TableSchema store table schema and encryption settings per column
-type TableSchema struct {
+type tableSchema struct {
 	TableName                string                     `yaml:"table"`
-	Columns                  []string                   `yaml:"columns"`
+	TableColumns             []string                   `yaml:"columns"`
 	EncryptionColumnSettings []*ColumnEncryptionSetting `yaml:"encrypted"`
 	mapEncryptedColumns      map[string]*ColumnEncryptionSetting
 }
 
+// Name returns the name of the table.
+func (schema *tableSchema) Name() string {
+	return schema.TableName
+}
+
+// Columns returns a list of column names in this table.
+func (schema *tableSchema) Columns() []string {
+	return schema.TableColumns
+}
+
 // initMap create map of columns to encrypt from array
-func (schema *TableSchema) initMap() {
+func (schema *tableSchema) initMap() {
 	mapEncryptedColumns := make(map[string]*ColumnEncryptionSetting)
 	for _, column := range schema.EncryptionColumnSettings {
 		mapEncryptedColumns[column.Name] = column
@@ -216,7 +238,7 @@ func (schema *TableSchema) initMap() {
 }
 
 // NeedToEncrypt return true if columnName should be encrypted by config
-func (schema *TableSchema) NeedToEncrypt(columnName string) bool {
+func (schema *tableSchema) NeedToEncrypt(columnName string) bool {
 	if schema.mapEncryptedColumns == nil {
 		schema.initMap()
 	}
@@ -225,7 +247,7 @@ func (schema *TableSchema) NeedToEncrypt(columnName string) bool {
 }
 
 // GetColumnEncryptionSettings return setting or nil
-func (schema *TableSchema) GetColumnEncryptionSettings(columnName string) *ColumnEncryptionSetting {
+func (schema *tableSchema) GetColumnEncryptionSettings(columnName string) *ColumnEncryptionSetting {
 	if schema.mapEncryptedColumns == nil {
 		schema.initMap()
 	}

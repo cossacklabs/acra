@@ -75,8 +75,8 @@ func (encryptor *QueryDataEncryptor) encryptInsertQuery(insert *sqlparser.Insert
 		for _, col := range insert.Columns {
 			columnsName = append(columnsName, col.String())
 		}
-	} else if len(schema.Columns) > 0 {
-		columnsName = schema.Columns
+	} else if len(schema.Columns()) > 0 {
+		columnsName = schema.Columns()
 	}
 
 	changed := false
@@ -148,7 +148,7 @@ func UpdateExpressionValue(expr sqlparser.Expr, coder DBDataCoder, updateFunc fu
 }
 
 // encryptExpression check that expr is SQLVal and has Hexval then try to encrypt
-func (encryptor *QueryDataEncryptor) encryptExpression(expr sqlparser.Expr, schema *config.TableSchema, columnName string) (bool, error) {
+func (encryptor *QueryDataEncryptor) encryptExpression(expr sqlparser.Expr, schema config.TableSchema, columnName string) (bool, error) {
 	if schema.NeedToEncrypt(columnName) {
 		err := UpdateExpressionValue(expr, encryptor.dataCoder, func(data []byte) ([]byte, error) {
 			if len(data) == 0 {
@@ -212,7 +212,7 @@ func (encryptor *QueryDataEncryptor) hasTablesToEncrypt(tables []*AliasedTableNa
 
 // encryptUpdateExpressions try to encrypt all supported exprs. Use firstTable if column has not explicit table name because it's implicitly used in DBMSs
 func (encryptor *QueryDataEncryptor) encryptUpdateExpressions(exprs sqlparser.UpdateExprs, firstTable sqlparser.TableName, qualifierMap AliasToTableMap) (bool, error) {
-	var schema *config.TableSchema
+	var schema config.TableSchema
 	changed := false
 	for _, expr := range exprs {
 		// recognize table name of column
