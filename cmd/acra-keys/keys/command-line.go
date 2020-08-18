@@ -41,21 +41,13 @@ var DefaultConfigPath = utils.GetConfigPathByName("acra-keys")
 
 // Sub-command names:
 const (
-	CmdListKeys   = "list"
-	CmdExportKeys = "export"
-	CmdImportKeys = "import"
-	CmdReadKey    = "read"
-	CmdDestroyKey = "destroy"
+	CmdListKeys    = "list"
+	CmdExportKeys  = "export"
+	CmdImportKeys  = "import"
+	CmdMigrateKeys = "migrate"
+	CmdReadKey     = "read"
+	CmdDestroyKey  = "destroy"
 )
-
-// SupportedSubCommands lists supported sub-commands or CLI.
-var SupportedSubCommands = []string{
-	CmdListKeys,
-	CmdExportKeys,
-	CmdImportKeys,
-	CmdReadKey,
-	CmdDestroyKey,
-}
 
 // Key kind constants:
 const (
@@ -136,9 +128,13 @@ func parseParameters(subcommands []Subcommand) (Subcommand, error) {
 	if err != nil {
 		return nil, err
 	}
+	names := make([]string, len(subcommands))
+	for i, command := range subcommands {
+		names[i] = command.Name()
+	}
 	args := flag.CommandLine.Args()
 	if len(args) == 0 {
-		log.WithField("supported", SupportedSubCommands).Info("No command specified")
+		log.WithField("supported", names).Info("No command specified")
 		return nil, nil
 	}
 	subcommandName := args[0]
@@ -151,6 +147,6 @@ func parseParameters(subcommands []Subcommand) (Subcommand, error) {
 			return c, nil
 		}
 	}
-	log.WithField("expected", SupportedSubCommands).Errorf("Unknown command: %s", args[0])
+	log.WithField("expected", names).Errorf("Unknown command: %s", subcommandName)
 	return nil, ErrUnknownSubCommand
 }

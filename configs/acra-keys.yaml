@@ -29,6 +29,30 @@ key_bundle_secret:
 # export private key data
 private_keys: false
 
+# try migration without writing to the output key store
+dry_run: false
+
+# path to key directory (new key store, destination)
+dst_keys_dir: 
+
+# path to key directory for public keys (new key store, destination)
+dst_keys_dir_public: 
+
+# key store format to use: v1 (current), v2 (new)
+dst_keystore: 
+
+# write to output key store even if it exists
+force: false
+
+# path to key directory (old key store, source)
+src_keys_dir: 
+
+# path to key directory for public keys (old key store, source)
+src_keys_dir_public: 
+
+# key store format to use: v1 (current), v2 (new)
+src_keystore: 
+
 # client ID for which to retrieve key
 client_id: 
 
