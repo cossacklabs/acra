@@ -20,7 +20,6 @@ package postgresql
 import (
 	"bufio"
 	"bytes"
-	"container/list"
 	"context"
 	"crypto/tls"
 	"encoding/binary"
@@ -89,17 +88,16 @@ const (
 
 // PgProxy represents PgSQL database connection between client and database with TLS support
 type PgProxy struct {
-	clientConnection                     net.Conn
-	dbConnection                         net.Conn
-	TLSCh                                chan bool
-	ctx                                  context.Context
-	queryObserverManager                 base.QueryObserverManager
-	tlsConfig                            *tls.Config
-	censor                               acracensor.AcraCensorInterface
-	decryptor                            base.Decryptor
-	tlsSwitch                            bool
-	specificColumnsDecryptionSubscribers map[int]*list.List
-	allColumnsDecryptionSubscribers      *list.List
+	clientConnection     net.Conn
+	dbConnection         net.Conn
+	TLSCh                chan bool
+	ctx                  context.Context
+	queryObserverManager base.QueryObserverManager
+	tlsConfig            *tls.Config
+	censor               acracensor.AcraCensorInterface
+	decryptor            base.Decryptor
+	tlsSwitch            bool
+	decryptionObserver   base.ColumnDecryptionObserver
 }
 
 // NewPgProxy returns new PgProxy
@@ -117,66 +115,31 @@ func NewPgProxy(ctx context.Context, decryptor base.Decryptor, dbConnection, cli
 		tlsConfig:            tlsConfig,
 		censor:               censor,
 		decryptor:            decryptor,
-		// 10 predict that map will be at least 10 items
-		specificColumnsDecryptionSubscribers: make(map[int]*list.List, 10),
-		// 10 predict that map will be at least 5 items
-		allColumnsDecryptionSubscribers: list.New(),
+		decryptionObserver:   base.NewColumnDecryptionObserver(),
 	}, nil
 }
 
 // SubscribeOnColumnDecryption subscribe on i column data in db response indexed from left to right on a row
 func (proxy *PgProxy) SubscribeOnColumnDecryption(i int, subscriber base.DecryptionSubscriber) {
-	l, ok := proxy.specificColumnsDecryptionSubscribers[i]
-	if !ok {
-		proxy.specificColumnsDecryptionSubscribers[i] = list.New()
-		l = proxy.specificColumnsDecryptionSubscribers[i]
-	}
-	l.PushBack(subscriber)
+	proxy.decryptionObserver.SubscribeOnColumnDecryption(i, subscriber)
 }
 
 // SubscribeOnAllColumnsDecryption subscribe on each column data in db response
 func (proxy *PgProxy) SubscribeOnAllColumnsDecryption(subscriber base.DecryptionSubscriber) {
-	proxy.allColumnsDecryptionSubscribers.PushBack(subscriber)
+	proxy.decryptionObserver.SubscribeOnAllColumnsDecryption(subscriber)
 }
 
 // Unsubscribe subscriber from OnColumn events
 func (proxy *PgProxy) Unsubscribe(subscriber base.DecryptionSubscriber) {
-	for _, subscribers := range proxy.specificColumnsDecryptionSubscribers {
-		for e := subscribers.Front(); e != nil; e = e.Next() {
-			if e.Value.(base.DecryptionSubscriber) == subscriber {
-				subscribers.Remove(e)
-			}
-		}
-	}
-	for e := proxy.allColumnsDecryptionSubscribers.Front(); e != nil; e = e.Next() {
-		if e.Value.(base.DecryptionSubscriber) == subscriber {
-			proxy.allColumnsDecryptionSubscribers.Remove(e)
-		}
-	}
+	proxy.decryptionObserver.Unsubscribe(subscriber)
 }
 
 func (proxy *PgProxy) onColumnDecryption(ctx context.Context, i int, data []byte) ([]byte, error) {
-	var err error
 	// create new context for current decryption operation
 	ctx = base.NewContextWithColumnInfo(ctx, base.NewColumnInfo(i, ""))
 	// todo refactor this and pass client/zone id to ctx from other place
 	ctx = base.NewContextWithClientZoneInfo(ctx, proxy.decryptor.(*PgDecryptor).clientID, proxy.decryptor.GetMatchedZoneID(), proxy.decryptor.IsWithZone())
-	subscribers, ok := proxy.specificColumnsDecryptionSubscribers[i]
-	if ok {
-		for e := subscribers.Front(); e != nil; e = e.Next() {
-			ctx, data, err = e.Value.(base.DecryptionSubscriber).OnColumn(ctx, data)
-			if err != nil {
-				return data, err
-			}
-		}
-	}
-	for e := proxy.allColumnsDecryptionSubscribers.Front(); e != nil; e = e.Next() {
-		ctx, data, err = e.Value.(base.DecryptionSubscriber).OnColumn(ctx, data)
-		if err != nil {
-			return data, err
-		}
-	}
-	return data, nil
+	return proxy.decryptionObserver.OnColumnDecryption(ctx, i, data)
 }
 
 // AddQueryObserver implement QueryObservable interface and proxy call to ObserverManager

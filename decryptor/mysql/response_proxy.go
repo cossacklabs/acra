@@ -17,13 +17,16 @@ limitations under the License.
 package mysql
 
 import (
+	"bytes"
 	"context"
 	"crypto/tls"
+	"encoding/binary"
 	"errors"
 	"fmt"
 	"go.opencensus.io/trace"
 	"io"
 	"net"
+	"strconv"
 	"time"
 
 	"github.com/cossacklabs/acra/acra-censor"
@@ -152,6 +155,7 @@ type Handler struct {
 	logger                 *logrus.Entry
 	ctx                    context.Context
 	queryObserverManager   base.QueryObserverManager
+	decryptionObserver     base.ColumnDecryptionObserver
 }
 
 // NewMysqlProxy returns new Handler
@@ -179,7 +183,31 @@ func NewMysqlProxy(ctx context.Context, decryptor base.Decryptor, dbConnection, 
 		ctx:                    ctx,
 		logger:                 logging.GetLoggerFromContext(ctx),
 		queryObserverManager:   observerManager,
+		decryptionObserver:     base.NewColumnDecryptionObserver(),
 	}, nil
+}
+
+// SubscribeOnColumnDecryption subscribes for OnColumn notifications about the column, indexed from left to right starting with zero.
+func (handler *Handler) SubscribeOnColumnDecryption(i int, subscriber base.DecryptionSubscriber) {
+	handler.decryptionObserver.SubscribeOnColumnDecryption(i, subscriber)
+}
+
+// SubscribeOnAllColumnsDecryption subscribes for OnColumn notifications on each column.
+func (handler *Handler) SubscribeOnAllColumnsDecryption(subscriber base.DecryptionSubscriber) {
+	handler.decryptionObserver.SubscribeOnAllColumnsDecryption(subscriber)
+}
+
+// Unsubscribe a subscriber from all OnColumn notifications.
+func (handler *Handler) Unsubscribe(subscriber base.DecryptionSubscriber) {
+	handler.decryptionObserver.Unsubscribe(subscriber)
+}
+
+func (handler *Handler) onColumnDecryption(ctx context.Context, column int, data []byte) ([]byte, error) {
+	// create new context for current decryption operation
+	ctx = base.NewContextWithColumnInfo(ctx, base.NewColumnInfo(column, ""))
+	// todo refactor this and pass client/zone id to ctx from other place
+	ctx = base.NewContextWithClientZoneInfo(ctx, handler.decryptor.(*Decryptor).clientID, handler.decryptor.GetMatchedZoneID(), handler.decryptor.IsWithZone())
+	return handler.decryptionObserver.OnColumnDecryption(ctx, column, data)
 }
 
 // AddQueryObserver implement QueryObservable interface and proxy call to ObserverManager
@@ -376,7 +404,6 @@ func (handler *Handler) isFieldToDecrypt(field *ColumnDescription) bool {
 }
 
 func (handler *Handler) processTextDataRow(ctx context.Context, rowData []byte, fields []*ColumnDescription) ([]byte, error) {
-	span := trace.FromContext(ctx)
 	var err error
 	var value []byte
 	var pos int
@@ -386,30 +413,17 @@ func (handler *Handler) processTextDataRow(ctx context.Context, rowData []byte, 
 	handler.logger.Debugln("Process data rows in text protocol")
 	for i := range fields {
 		fieldLogger = handler.logger.WithField("field_index", i)
-		value, _, n, err = LengthEncodedString(rowData[pos:])
+		value, n, err = LengthEncodedString(rowData[pos:])
 		if err != nil {
 			return nil, err
 		}
-		if handler.isFieldToDecrypt(fields[i]) {
-			decryptedValue, err := handler.decryptor.DecryptBlock(value)
-			if err == nil && decryptedValue != nil && len(decryptedValue) != len(value) {
-				base.AcrastructDecryptionCounter.WithLabelValues(base.DecryptionTypeSuccess).Inc()
-				fieldLogger.Debugln("Update with decrypted value")
-				output = append(output, PutLengthEncodedString(decryptedValue)...)
-			} else {
-				if err != errPlainData {
-					span.AddAttributes(trace.BoolAttribute("failed_decryption", true))
-					base.AcrastructDecryptionCounter.WithLabelValues(base.DecryptionTypeFail).Inc()
-				}
-				fieldLogger.Debugln("Leave value as is")
-				output = append(output, rowData[pos:pos+n]...)
-			}
-			pos += n
-			continue
+		value, err = handler.onColumnDecryption(ctx, i, value)
+		if err != nil {
+			fieldLogger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorGeneral).
+				WithError(err).Errorln("Failed to process column data")
+			return nil, err
 		}
-		fieldLogger.Debugln("Field is not binary")
-
-		output = append(output, rowData[pos:pos+n]...)
+		output = append(output, PutLengthEncodedString(value)...)
 		pos += n
 	}
 	handler.logger.Debugln("Finish processing text data row")
@@ -418,7 +432,6 @@ func (handler *Handler) processTextDataRow(ctx context.Context, rowData []byte, 
 }
 
 func (handler *Handler) processBinaryDataRow(ctx context.Context, rowData []byte, fields []*ColumnDescription) ([]byte, error) {
-	span := trace.FromContext(ctx)
 	pos := 0
 	var n int
 	var err error
@@ -450,89 +463,248 @@ func (handler *Handler) processBinaryDataRow(ctx context.Context, rowData []byte
 			continue
 		}
 		if handler.isFieldToDecrypt(fields[i]) {
-			value, _, n, err = LengthEncodedString(rowData[pos:])
+			value, n, err = LengthEncodedString(rowData[pos:])
 			if err != nil {
 				handler.logger.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorDecryptorCantDecryptBinary).
 					Errorln("Can't handle length encoded string binary value")
 				return nil, err
 			}
-			decryptedValue, err := handler.decryptor.DecryptBlock(value)
+			value, err = handler.onColumnDecryption(ctx, i, value)
 			if err != nil {
-				if err != errPlainData {
-					span.AddAttributes(trace.BoolAttribute("failed_decryption", true))
-					base.AcrastructDecryptionCounter.WithLabelValues(base.DecryptionTypeFail).Inc()
-				}
-				handler.logger.Debugln("Leave value as is")
-			}
-			if decryptedValue != nil && err == nil && len(value) != len(decryptedValue) {
-				base.AcrastructDecryptionCounter.WithLabelValues(base.DecryptionTypeSuccess).Inc()
-				output = append(output, PutLengthEncodedString(decryptedValue)...)
-			} else {
-				output = append(output, rowData[pos:pos+n]...)
+				handler.logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorGeneral).
+					WithField("field_index", i).WithError(err).Errorln("Failed to process column data")
+				return nil, err
 			}
 
+			output = append(output, PutLengthEncodedString(value)...)
 			pos += n
 			continue
 		}
 		// https://dev.mysql.com/doc/internals/en/binary-protocol-value.html
 		switch fields[i].Type {
 		case TypeNull:
+			_, err = handler.processFixedSizeNumberField(ctx, i, fields[i], nil)
+			if err != nil {
+				return nil, err
+			}
 			continue
 
 		case TypeTiny:
-			output = append(output, rowData[pos])
+			value, err = handler.processFixedSizeNumberField(ctx, i, fields[i], rowData[pos:pos+1])
+			if err != nil {
+				return nil, err
+			}
+			output = append(output, value...)
 			pos++
 			continue
 
 		case TypeShort, TypeYear:
-			output = append(output, rowData[pos:pos+2]...)
+			value, err = handler.processFixedSizeNumberField(ctx, i, fields[i], rowData[pos:pos+2])
+			if err != nil {
+				return nil, err
+			}
+			output = append(output, value...)
 			pos += 2
 			continue
 
 		case TypeInt24, TypeLong:
-			output = append(output, rowData[pos:pos+4]...)
+			value, err = handler.processFixedSizeNumberField(ctx, i, fields[i], rowData[pos:pos+4])
+			if err != nil {
+				return nil, err
+			}
+			output = append(output, value...)
 			pos += 4
 			continue
 
 		case TypeLongLong:
-			output = append(output, rowData[pos:pos+8]...)
+			value, err = handler.processFixedSizeNumberField(ctx, i, fields[i], rowData[pos:pos+8])
+			if err != nil {
+				return nil, err
+			}
+			output = append(output, value...)
 			pos += 8
 			continue
 
 		case TypeFloat:
-			output = append(output, rowData[pos:pos+4]...)
+			value, err = handler.processFixedSizeNumberField(ctx, i, fields[i], rowData[pos:pos+4])
+			if err != nil {
+				return nil, err
+			}
+			output = append(output, value...)
 			pos += 4
 			continue
 
 		case TypeDouble:
-			output = append(output, rowData[pos:pos+8]...)
+			value, err = handler.processFixedSizeNumberField(ctx, i, fields[i], rowData[pos:pos+8])
+			if err != nil {
+				return nil, err
+			}
+			output = append(output, value...)
 			pos += 8
 			continue
 
-		case TypeDecimal, TypeNewDecimal,
-			TypeBit, TypeEnum, TypeSet, TypeGeometry:
-			value, _, n, err = LengthEncodedString(rowData[pos:])
-			output = append(output, rowData[pos:pos+n]...)
-			pos += n
+		case TypeDecimal, TypeNewDecimal, TypeBit, TypeEnum, TypeSet, TypeGeometry, TypeDate, TypeNewDate, TypeTimestamp, TypeDatetime, TypeTime:
+			value, n, err = LengthEncodedString(rowData[pos:])
 			if err != nil {
 				handler.logger.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorDecryptorCantDecryptBinary).
 					Errorln("Can't handle length encoded string non binary value")
 				return nil, err
 			}
-			continue
-		case TypeDate, TypeNewDate, TypeTimestamp, TypeDatetime, TypeTime:
-			_, _, n, err = LengthEncodedInt(rowData[pos:])
+			value, err = handler.onColumnDecryption(ctx, i, value)
 			if err != nil {
+				handler.logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorGeneral).
+					WithField("field_index", i).WithError(err).Errorln("Failed to process column data")
 				return nil, err
 			}
-			output = append(output, rowData[pos:pos+n]...)
+			output = append(output, PutLengthEncodedString(value)...)
 			pos += n
 			continue
+
 		default:
 			return nil, fmt.Errorf("found unknown FieldType <type=%d> <name=%s> in MySQL response packet", fields[i].Type, fields[i].Name)
 		}
 	}
 	return output, nil
+}
+
+func (handler *Handler) processFixedSizeNumberField(ctx context.Context, columnIndex int, column *ColumnDescription, encoded []byte) ([]byte, error) {
+	var value []byte
+	var err error
+	// Parse encoded number value into ASCII string (because that's what subscribers expect).
+	// See https://dev.mysql.com/doc/internals/en/binary-protocol-value.html for binary formats.
+	// Integers are little-endian binary. Real numbers are little-endian IEEE 754. NULL is "nil".
+	switch column.Type {
+	case TypeNull:
+		// do nothing
+
+	case TypeTiny:
+		var numericValue int8
+		err = binary.Read(bytes.NewReader(encoded), binary.LittleEndian, &numericValue)
+		if err != nil {
+			break
+		}
+		value = []byte(strconv.FormatInt(int64(numericValue), 10))
+
+	case TypeShort, TypeYear:
+		var numericValue int16
+		err = binary.Read(bytes.NewReader(encoded), binary.LittleEndian, &numericValue)
+		if err != nil {
+			break
+		}
+		value = []byte(strconv.FormatInt(int64(numericValue), 10))
+
+	case TypeInt24, TypeLong:
+		var numericValue int32
+		err = binary.Read(bytes.NewReader(encoded), binary.LittleEndian, &numericValue)
+		if err != nil {
+			break
+		}
+		value = []byte(strconv.FormatInt(int64(numericValue), 10))
+
+	case TypeLongLong:
+		var numericValue int64
+		err = binary.Read(bytes.NewReader(encoded), binary.LittleEndian, &numericValue)
+		if err != nil {
+			break
+		}
+		value = []byte(strconv.FormatInt(int64(numericValue), 10))
+
+	case TypeFloat:
+		var numericValue float32
+		err = binary.Read(bytes.NewReader(encoded), binary.LittleEndian, &numericValue)
+		if err != nil {
+			break
+		}
+		value = []byte(strconv.FormatFloat(float64(numericValue), 'G', -1, 32))
+
+	case TypeDouble:
+		var numericValue float64
+		err = binary.Read(bytes.NewReader(encoded), binary.LittleEndian, &numericValue)
+		if err != nil {
+			break
+		}
+		value = []byte(strconv.FormatFloat(float64(numericValue), 'G', -1, 64))
+
+	default:
+		err = fmt.Errorf("MySQL field type not supported: <type=%d> <name=%s>", column.Type, column.Name)
+	}
+	if err != nil {
+		handler.logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorDecryptorCantDecryptBinary).
+			WithError(err).WithField("field_index", columnIndex).
+			Errorln("Can't decode binary numeric value")
+		return nil, err
+	}
+
+	// Now show the value to the subscribers. Note that they might change it.
+	value, err = handler.onColumnDecryption(ctx, columnIndex, value)
+	if err != nil {
+		handler.logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorGeneral).
+			WithError(err).WithField("field_index", columnIndex).
+			Errorln("Failed to process column data")
+		return nil, err
+	}
+
+	// After processing, parse the value back and reencode it. Take care for the format to match.
+	// The result must have exact same format as it had. Overflows are unacceptable.
+	switch column.Type {
+	case TypeNull:
+		if value != nil {
+			err = errors.New("NULL not kept NULL")
+		}
+
+	case TypeTiny:
+		numericValue, err := strconv.ParseInt(string(value), 10, 8)
+		if err != nil {
+			break
+		}
+		err = binary.Write(bytes.NewBuffer(encoded[:0]), binary.LittleEndian, int8(numericValue))
+
+	case TypeShort, TypeYear:
+		numericValue, err := strconv.ParseInt(string(value), 10, 16)
+		if err != nil {
+			break
+		}
+		err = binary.Write(bytes.NewBuffer(encoded[:0]), binary.LittleEndian, int16(numericValue))
+
+	case TypeInt24, TypeLong:
+		numericValue, err := strconv.ParseInt(string(value), 10, 32)
+		if err != nil {
+			break
+		}
+		err = binary.Write(bytes.NewBuffer(encoded[:0]), binary.LittleEndian, int32(numericValue))
+
+	case TypeLongLong:
+		numericValue, err := strconv.ParseInt(string(value), 10, 64)
+		if err != nil {
+			break
+		}
+		err = binary.Write(bytes.NewBuffer(encoded[:0]), binary.LittleEndian, int64(numericValue))
+
+	case TypeFloat:
+		numericValue, err := strconv.ParseFloat(string(value), 32)
+		if err != nil {
+			break
+		}
+		err = binary.Write(bytes.NewBuffer(encoded[:0]), binary.LittleEndian, float32(numericValue))
+
+	case TypeDouble:
+		numericValue, err := strconv.ParseFloat(string(value), 64)
+		if err != nil {
+			break
+		}
+		err = binary.Write(bytes.NewBuffer(encoded[:0]), binary.LittleEndian, float64(numericValue))
+
+	default:
+		err = fmt.Errorf("MySQL field type not supported: <type=%d> <name=%s>", column.Type, column.Name)
+	}
+	if err != nil {
+		handler.logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorDecryptorCantDecryptBinary).
+			WithError(err).WithField("field_index", columnIndex).
+			Errorln("Can't encode binary numeric value back")
+		return nil, err
+	}
+
+	return encoded, nil
 }
 
 func (handler *Handler) expectEOFOnColumnDefinition() bool {
@@ -609,12 +781,8 @@ func (handler *Handler) QueryResponseHandler(ctx context.Context, packet *Packet
 						Debugln("Can't process binary data row")
 					return err
 				}
-				dataLength := fieldDataPacket.GetPacketPayloadLength()
-				// decrypted data always less than ecrypted
-				if len(newData) < dataLength {
-					handler.logger.WithFields(logrus.Fields{"oldLength": dataLength, "newLength": len(newData)}).Debugln("Update row data")
-					fieldDataPacket.SetData(newData)
-				}
+				handler.logger.WithFields(logrus.Fields{"oldLength": fieldDataPacket.GetPacketPayloadLength(), "newLength": len(newData)}).Debugln("Update row data")
+				fieldDataPacket.SetData(newData)
 			}
 		} else {
 			var dataLog *logrus.Entry
@@ -643,13 +811,8 @@ func (handler *Handler) QueryResponseHandler(ctx context.Context, packet *Packet
 						Debugln("Can't process text data row")
 					return err
 				}
-				dataLength := fieldDataPacket.GetPacketPayloadLength()
-				// decrypted data always less than ecrypted
-				if len(newData) < dataLength {
-					dataLog.WithFields(logrus.Fields{"oldLength": dataLength, "newLength": len(newData)}).Debugln("Update row data")
-					fieldDataPacket.SetData(newData)
-				}
-
+				dataLog.WithFields(logrus.Fields{"oldLength": fieldDataPacket.GetPacketPayloadLength(), "newLength": len(newData)}).Debugln("Update row data")
+				fieldDataPacket.SetData(newData)
 			}
 		}
 

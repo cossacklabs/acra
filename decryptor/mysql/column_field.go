@@ -59,35 +59,35 @@ func ParseResultField(data []byte) (*ColumnDescription, error) {
 	pos += n
 
 	//schema
-	field.Schema, _, n, err = LengthEncodedString(data[pos:])
+	field.Schema, n, err = LengthEncodedString(data[pos:])
 	if err != nil {
 		return nil, err
 	}
 	pos += n
 
 	//table
-	field.Table, _, n, err = LengthEncodedString(data[pos:])
+	field.Table, n, err = LengthEncodedString(data[pos:])
 	if err != nil {
 		return nil, err
 	}
 	pos += n
 
 	//org_table
-	field.OrgTable, _, n, err = LengthEncodedString(data[pos:])
+	field.OrgTable, n, err = LengthEncodedString(data[pos:])
 	if err != nil {
 		return nil, err
 	}
 	pos += n
 
 	//name
-	field.Name, _, n, err = LengthEncodedString(data[pos:])
+	field.Name, n, err = LengthEncodedString(data[pos:])
 	if err != nil {
 		return nil, err
 	}
 	pos += n
 
 	//org_name
-	field.OrgName, _, n, err = LengthEncodedString(data[pos:])
+	field.OrgName, n, err = LengthEncodedString(data[pos:])
 	if err != nil {
 		return nil, err
 	}

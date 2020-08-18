@@ -45,7 +45,7 @@ func (*MysqlDBDataCoder) Decode(expr sqlparser.Expr) ([]byte, error) {
 	switch val := expr.(type) {
 	case *sqlparser.SQLVal:
 		switch val.Type {
-		case sqlparser.StrVal:
+		case sqlparser.IntVal, sqlparser.StrVal:
 			return val.Val, nil
 		case sqlparser.HexVal:
 			binValue := make([]byte, hex.DecodedLen(len(val.Val)))
@@ -65,7 +65,7 @@ func (*MysqlDBDataCoder) Encode(expr sqlparser.Expr, data []byte) ([]byte, error
 	switch val := expr.(type) {
 	case *sqlparser.SQLVal:
 		switch val.Type {
-		case sqlparser.StrVal:
+		case sqlparser.IntVal, sqlparser.StrVal:
 			return data, nil
 		case sqlparser.HexVal:
 			output := make([]byte, hex.EncodedLen(len(data)))
