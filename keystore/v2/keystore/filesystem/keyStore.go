@@ -33,12 +33,12 @@ import (
 
 const serviceName = "keystore"
 
-// Errors returned by basuc key store.
+// Errors returned by basic keystore.
 var (
 	ErrNotImplemented = errors.New("not implemented")
 )
 
-// KeyStore is a filesystem-like key store which keeps key rings in files.
+// KeyStore is a filesystem-like keystore which keeps key rings in files.
 //
 // What exactly is the underlying filesystem is somewhat flexible and controlled by filesystem.Backend.
 // Normally this is an actual filesystem but there are alternative implementations.
@@ -49,7 +49,7 @@ type KeyStore struct {
 	fs        backend.Backend
 }
 
-// OpenDirectory opens a read-only key store located in given directory.
+// OpenDirectory opens a read-only keystore located in given directory.
 func OpenDirectory(rootDir string, cryptosuite *crypto.KeyStoreSuite) (api.KeyStore, error) {
 	backend, err := backend.OpenDirectoryBackend(rootDir)
 	if err != nil {
@@ -58,7 +58,7 @@ func OpenDirectory(rootDir string, cryptosuite *crypto.KeyStoreSuite) (api.KeySt
 	return CustomKeyStore(backend, cryptosuite)
 }
 
-// OpenDirectoryRW opens a key store located in given directory.
+// OpenDirectoryRW opens a keystore located in given directory.
 // If the directory does not exist it will be created.
 func OpenDirectoryRW(rootDir string, cryptosuite *crypto.KeyStoreSuite) (api.MutableKeyStore, error) {
 	backend, err := backend.CreateDirectoryBackend(rootDir)
@@ -68,26 +68,26 @@ func OpenDirectoryRW(rootDir string, cryptosuite *crypto.KeyStoreSuite) (api.Mut
 	return CustomKeyStore(backend, cryptosuite)
 }
 
-// IsKeyDirectory checks if the directory contains a key store.
+// IsKeyDirectory checks if the directory contains a keystore.
 // This is a conservative check.
-// That is, positive return value does not mean that the directory contains *a valid* key store.
-// However, false value means that the directory definitely is not a valid key store.
+// That is, positive return value does not mean that the directory contains *a valid* keystore.
+// However, false value means that the directory definitely is not a valid keystore.
 // In particular, false is returned if the directory does not exists or cannot be opened.
 func IsKeyDirectory(rootDir string) bool {
 	return backend.CheckDirectoryVersion(rootDir) == nil
 }
 
-// NewInMemory returns a new, empty in-memory key store.
+// NewInMemory returns a new, empty in-memory keystore.
 // This is mostly useful for testing.
 func NewInMemory(cryptosuite *crypto.KeyStoreSuite) (api.MutableKeyStore, error) {
 	return CustomKeyStore(backend.NewInMemory(), cryptosuite)
 }
 
-// CustomKeyStore returns a configurable filesystem-based key store.
+// CustomKeyStore returns a configurable filesystem-based keystore.
 // This constructor is useful if you want to provide a custom filesystem backend.
 //
-// The backend will be closed when this key store is closed,
-// so a backend instance generally cannot be shared between key stores.
+// The backend will be closed when this keystore is closed,
+// so a backend instance generally cannot be shared between keystores.
 func CustomKeyStore(backend backend.Backend, cryptosuite *crypto.KeyStoreSuite) (api.MutableKeyStore, error) {
 	notary, err := signature.NewNotary(cryptosuite.SignatureAlgorithms)
 	if err != nil {
@@ -145,7 +145,7 @@ func (s *KeyStore) OpenKeyRingRW(path string) (api.MutableKeyRing, error) {
 	return ring, nil
 }
 
-// ListKeyRings enumerates all key rings present in this key store.
+// ListKeyRings enumerates all key rings present in this keystore.
 func (s *KeyStore) ListKeyRings() (rings []string, err error) {
 	err = s.fs.RLock()
 	if err != nil {
@@ -175,14 +175,14 @@ func (s *KeyStore) ListKeyRings() (rings []string, err error) {
 
 // DescribeKeyRing describes key ring by its purpose path.
 func (s *KeyStore) DescribeKeyRing(path string) (*keystoreV1.KeyDescription, error) {
-	// This is basic key store which does not define any particular key rings.
-	// This method will be overridden by actual key store implementation.
+	// This is basic keystore which does not define any particular key rings.
+	// This method will be overridden by actual keystore implementation.
 	return nil, ErrNotImplemented
 }
 
 // ExportKeyRings packages specified key rings for export.
 // Key ring data is encrypted and signed using given cryptosuite.
-// Resulting container can be imported into existing or different key store with ImportKeyRings().
+// Resulting container can be imported into existing or different keystore with ImportKeyRings().
 func (s *KeyStore) ExportKeyRings(paths []string, cryptosuite *crypto.KeyStoreSuite, mode api.ExportMode) ([]byte, error) {
 	keyRings, err := s.exportKeyRings(paths, mode)
 	if err != nil {

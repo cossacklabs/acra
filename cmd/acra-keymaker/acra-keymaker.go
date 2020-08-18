@@ -92,7 +92,7 @@ func main() {
 	}
 
 	var store keystore.KeyMaking
-	// If the key store already exists, detect its version automatically and allow to not specify it.
+	// If the keystore already exists, detect its version automatically and allow to not specify it.
 	if *keystoreVersion == "" {
 		if filesystemV2.IsKeyDirectory(*outputDir) {
 			*keystoreVersion = "v2"

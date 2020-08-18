@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-// Package keystore implements Acra Key Store version 2.
+// Package keystore implements Acra Keystore version 2.
 package keystore
 
 import (
@@ -30,7 +30,7 @@ import (
 
 const serviceName = "keystore"
 
-// Errors in key store listing and export.
+// Errors in keystore listing and export.
 var (
 	ErrUnrecognizedKeyPurpose = errors.New("key purpose not recognized")
 )
@@ -46,7 +46,7 @@ const (
 	PurposeTransportTranslator = "AcraTranslator transport key"
 )
 
-// ServerKeyStore provides full access to Acra Key Store.
+// ServerKeyStore provides full access to Acra Keystore.
 //
 // It is intended to be used by AcraServer components and uses server transport keys.
 type ServerKeyStore struct {
@@ -54,7 +54,7 @@ type ServerKeyStore struct {
 	log *log.Entry
 }
 
-// ConnectorKeyStore provides access to Acra Key Store for AcraConnector.
+// ConnectorKeyStore provides access to Acra Keystore for AcraConnector.
 //
 // This is the same as ServerKeyStore, but with AcraConnector transport keys.
 type ConnectorKeyStore struct {
@@ -63,20 +63,20 @@ type ConnectorKeyStore struct {
 	mode     connector_mode.ConnectorMode
 }
 
-// TranslatorKeyStore provides access to Acra Key Store for AcraTranslator.
+// TranslatorKeyStore provides access to Acra Keystore for AcraTranslator.
 //
 // This is the same as ServerKeyStore, but with AcraTranslator transport keys.
 type TranslatorKeyStore struct {
 	ServerKeyStore
 }
 
-// NewServerKeyStore configures key store for AcraServer.
+// NewServerKeyStore configures keystore for AcraServer.
 func NewServerKeyStore(keyStore api.MutableKeyStore) *ServerKeyStore {
 	return &ServerKeyStore{keyStore, log.WithField("service", serviceName)}
 }
 
-// NewConnectorKeyStore configures key store for AcraConnector.
-// Aside from key store you need to provide connecting clientID and connection mode.
+// NewConnectorKeyStore configures keystore for AcraConnector.
+// Aside from keystore you need to provide connecting clientID and connection mode.
 func NewConnectorKeyStore(keyStore api.MutableKeyStore, clientID []byte, mode connector_mode.ConnectorMode) *ConnectorKeyStore {
 	return &ConnectorKeyStore{
 		ServerKeyStore: ServerKeyStore{keyStore, log.WithField("service", serviceName)},
@@ -85,14 +85,14 @@ func NewConnectorKeyStore(keyStore api.MutableKeyStore, clientID []byte, mode co
 	}
 }
 
-// NewTranslatorKeyStore configures key store for AcraTranslator
+// NewTranslatorKeyStore configures keystore for AcraTranslator
 func NewTranslatorKeyStore(keyStore api.MutableKeyStore) *TranslatorKeyStore {
 	return &TranslatorKeyStore{
 		ServerKeyStore{keyStore, log.WithField("service", serviceName)},
 	}
 }
 
-// ListKeys enumerates keys present in the key store.
+// ListKeys enumerates keys present in the keystore.
 func (s *ServerKeyStore) ListKeys() ([]keystore.KeyDescription, error) {
 	keyRings, err := s.ListKeyRings()
 	if err != nil {

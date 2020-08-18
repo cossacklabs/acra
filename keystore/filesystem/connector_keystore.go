@@ -34,7 +34,7 @@ type ConnectorFileSystemKeyStore struct {
 	connectorMode connector_mode.ConnectorMode
 }
 
-// ConnectorFileSystemKeyStoreBuilder allows to build a custom key store.
+// ConnectorFileSystemKeyStoreBuilder allows to build a custom keystore.
 type ConnectorFileSystemKeyStoreBuilder struct {
 	directory     string
 	clientID      []byte
@@ -43,7 +43,7 @@ type ConnectorFileSystemKeyStoreBuilder struct {
 	connectorMode connector_mode.ConnectorMode
 }
 
-// NewCustomConnectorFileSystemKeyStore allows to customize a translator key store.
+// NewCustomConnectorFileSystemKeyStore allows to customize a translator keystore.
 func NewCustomConnectorFileSystemKeyStore() *ConnectorFileSystemKeyStoreBuilder {
 	return &ConnectorFileSystemKeyStoreBuilder{
 		storage: &DummyStorage{},
@@ -85,7 +85,7 @@ func (b *ConnectorFileSystemKeyStoreBuilder) ConnectorMode(connectorMode connect
 	return b
 }
 
-// Build a key store.
+// Build a keystore.
 func (b *ConnectorFileSystemKeyStoreBuilder) Build() (*ConnectorFileSystemKeyStore, error) {
 	if b.directory == "" {
 		return nil, errNoPrivateKeyDir

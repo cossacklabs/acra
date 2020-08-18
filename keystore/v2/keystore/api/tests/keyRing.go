@@ -264,7 +264,7 @@ func testKeyRingDestroyingKeys(t *testing.T, newKeyStore NewKeyStore) {
 
 	var keyData []byte
 
-	// Do a health check on the key store. Make sure it keeps the data right now.
+	// Do a health check on the keystore. Make sure it keeps the data right now.
 	keyData, err = ring.PrivateKey(keyV1, api.ThemisKeyPairFormat)
 	if err != nil {
 		t.Fatalf("failed to get private key v1 data: %v", err)

@@ -29,7 +29,7 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
-// KeyStoreFactory should return one of those errors when it is not able to construct requested key store.
+// KeyStoreFactory should return one of those errors when it is not able to construct requested keystore.
 var (
 	ErrNotImplementedV1 = errors.New("not implemented for keystore v1")
 )
@@ -40,7 +40,7 @@ type KeyStoreParameters interface {
 	KeyDirPublic() string
 }
 
-// CommonKeyStoreParameters is a mix-in of command line parameters for key store construction.
+// CommonKeyStoreParameters is a mix-in of command line parameters for keystore construction.
 type CommonKeyStoreParameters struct {
 	keyDir       string
 	keyDirPublic string
@@ -59,12 +59,12 @@ func (p *CommonKeyStoreParameters) KeyDirPublic() string {
 	return p.keyDirPublic
 }
 
-// Register registers key store flags with the given flag set.
+// Register registers keystore flags with the given flag set.
 func (p *CommonKeyStoreParameters) Register(flags *flag.FlagSet) {
 	p.RegisterPrefixed(flags, DefaultKeyDirectory, "", "")
 }
 
-// RegisterPrefixed registers key store flags with the given flag set, using given prefix and description.
+// RegisterPrefixed registers keystore flags with the given flag set, using given prefix and description.
 func (p *CommonKeyStoreParameters) RegisterPrefixed(flags *flag.FlagSet, defaultKeysDir, flagPrefix, descriptionSuffix string) {
 	if descriptionSuffix != "" {
 		descriptionSuffix = " " + descriptionSuffix
@@ -73,7 +73,7 @@ func (p *CommonKeyStoreParameters) RegisterPrefixed(flags *flag.FlagSet, default
 	flags.StringVar(&p.keyDirPublic, flagPrefix+"keys_dir_public", "", "path to key directory for public keys"+descriptionSuffix)
 }
 
-// OpenKeyStoreForReading opens a key store suitable for reading keys.
+// OpenKeyStoreForReading opens a keystore suitable for reading keys.
 func OpenKeyStoreForReading(params KeyStoreParameters) (keystore.ServerKeyStore, error) {
 	if filesystemV2.IsKeyDirectory(params.KeyDir()) {
 		return openKeyStoreV2(params)
@@ -81,7 +81,7 @@ func OpenKeyStoreForReading(params KeyStoreParameters) (keystore.ServerKeyStore,
 	return openKeyStoreV1(params)
 }
 
-// OpenKeyStoreForWriting opens a key store suitable for modifications.
+// OpenKeyStoreForWriting opens a keystore suitable for modifications.
 func OpenKeyStoreForWriting(params KeyStoreParameters) (keystore.KeyMaking, error) {
 	if filesystemV2.IsKeyDirectory(params.KeyDir()) {
 		return openKeyStoreV2(params)
@@ -89,7 +89,7 @@ func OpenKeyStoreForWriting(params KeyStoreParameters) (keystore.KeyMaking, erro
 	return openKeyStoreV1(params)
 }
 
-// OpenKeyStoreForExport opens a key store suitable for export operations.
+// OpenKeyStoreForExport opens a keystore suitable for export operations.
 func OpenKeyStoreForExport(params KeyStoreParameters) (api.KeyStore, error) {
 	if filesystemV2.IsKeyDirectory(params.KeyDir()) {
 		return openKeyStoreV2(params)
@@ -98,7 +98,7 @@ func OpenKeyStoreForExport(params KeyStoreParameters) (api.KeyStore, error) {
 	return nil, ErrNotImplementedV1
 }
 
-// OpenKeyStoreForImport opens a key store suitable for import operations.
+// OpenKeyStoreForImport opens a keystore suitable for import operations.
 func OpenKeyStoreForImport(params KeyStoreParameters) (api.MutableKeyStore, error) {
 	if filesystemV2.IsKeyDirectory(params.KeyDir()) {
 		return openKeyStoreV2(params)

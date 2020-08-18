@@ -130,7 +130,7 @@ func getMasterKeysFromEnvironment(varname string) (*SerializedKeys, error) {
 
 // NewSCellSuite creates default cryptography suite for KeyStore:
 // - keys are encrypted by Themis Secure Cell in Seal mode
-// - key store is signed with HMAC-SHA-256
+// - keystore is signed with HMAC-SHA-256
 func NewSCellSuite(encryptionKey, signatureKey []byte) (*crypto.KeyStoreSuite, error) {
 	return crypto.NewSCellSuite(encryptionKey, signatureKey)
 }

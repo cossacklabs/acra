@@ -456,7 +456,7 @@ func TestFilesystemKeyStoreExport(t *testing.T) {
 	publicKeys := filepath.Join(keyDirectory, "public")
 	privateKeys := filepath.Join(keyDirectory, "private")
 
-	// Prepare key store
+	// Prepare keystore
 	encryptor, err := keystore.NewSCellKeyEncryptor([]byte("test key"))
 	if err != nil {
 		t.Fatalf("failed to initialize encryptor: %v", err)
@@ -493,7 +493,7 @@ func TestFilesystemKeyStoreExport(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GetZonePrivateKey() failed: %v", err)
 	}
-	// Since we cannot access all generated key pairs via AcraServer key store,
+	// Since we cannot access all generated key pairs via AcraServer keystore,
 	// we generate them here and use Save... API
 	connectorKeyPair, err := keys.New(keys.TypeEC)
 	err = keyStore.SaveConnectorKeypair(clientID, connectorKeyPair)

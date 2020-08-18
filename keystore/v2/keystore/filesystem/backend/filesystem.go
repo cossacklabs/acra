@@ -415,7 +415,7 @@ func (b *DirectoryBackend) doRenameNX(oldpath, newpath string) error {
 	// Not all filesystems support "exclusive" rename and "os" API does not export
 	// a function for such rename. We do not make atomicity promises in Backend,
 	// but do our best to avoid race conditions here. Hard links should succeed
-	// because key store should be located entirely on the same filesystem.
+	// because keystore should be located entirely on the same filesystem.
 	err := os.Link(oldpath, newpath)
 	if err != nil {
 		return err

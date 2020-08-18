@@ -34,7 +34,7 @@ type ListKeysParams interface {
 	UseJSON() bool
 }
 
-// CommonKeyListingParameters is a mix-in of command line parameters for key store listing.
+// CommonKeyListingParameters is a mix-in of command line parameters for keystore listing.
 type CommonKeyListingParameters struct {
 	useJSON bool
 }

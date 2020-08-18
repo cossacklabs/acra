@@ -75,7 +75,7 @@ func NewFilesystemKeyStoreTwoPath(privateKeyFolder, publicKeyFolder string, encr
 	return NewCustomFilesystemKeyStore().KeyDirectories(privateKeyFolder, publicKeyFolder).Encryptor(encryptor).Build()
 }
 
-// KeyStoreBuilder allows to build a custom key store.
+// KeyStoreBuilder allows to build a custom keystore.
 type KeyStoreBuilder struct {
 	privateKeyDir string
 	publicKeyDir  string
@@ -145,10 +145,10 @@ func (b *KeyStoreBuilder) Build() (*KeyStore, error) {
 	return newFilesystemKeyStore(b.privateKeyDir, b.publicKeyDir, b.storage, b.encryptor, b.cacheSize)
 }
 
-// IsKeyDirectory checks if the local directory contains a key store.
+// IsKeyDirectory checks if the local directory contains a keystore.
 // This is a conservative check.
-// That is, positive return value does not mean that the directory contains *a valid* key store.
-// However, false value means that the directory definitely is not a valid key store.
+// That is, positive return value does not mean that the directory contains *a valid* keystore.
+// However, false value means that the directory definitely is not a valid keystore.
 // In particular, false is returned if the directory does not exists or cannot be opened.
 func IsKeyDirectory(keyDirectory string) bool {
 	fi, err := os.Stat(keyDirectory)
@@ -631,9 +631,9 @@ func (store *KeyStore) GenerateDataEncryptionKeys(id []byte) error {
 	return nil
 }
 
-// ListKeys enumerates keys present in the key store.
+// ListKeys enumerates keys present in the keystore.
 func (store *KeyStore) ListKeys() ([]keystore.KeyDescription, error) {
-	// In Acra CE this method is implemented only for key store v2.
+	// In Acra CE this method is implemented only for keystore v2.
 	return nil, keystore.ErrNotImplemented
 }
 
@@ -738,7 +738,7 @@ func (store *KeyStore) destroyKeyWithFilename(filename string) error {
 	store.cache.Add(filename, nil)
 
 	// Remove key files. It's okay if they are already removed (or never existed).
-	// Key store v1 does not differentiate between 'destroying' and 'removing' keys
+	// Keystore v1 does not differentiate between 'destroying' and 'removing' keys
 	// because multiple functinons depend on the key file to be absent, not empty.
 	err := store.fs.Remove(store.GetPrivateKeyFilePath(filename))
 	if err != nil && !os.IsNotExist(err) {

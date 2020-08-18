@@ -28,7 +28,7 @@ var (
 	ErrUnknownPurpose = errors.New("unknown key purpose")
 )
 
-// KeyFileImportV1 defines how filesystem key store v1 keys are imported.
+// KeyFileImportV1 defines how filesystem keystore v1 keys are imported.
 type KeyFileImportV1 interface {
 	ImportKeyFileV1(oldKeyStore filesystemV1.KeyExport, key filesystemV1.ExportedKey) error
 }

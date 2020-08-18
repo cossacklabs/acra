@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-// Package api describes API of Acra Key Store version 2.
+// Package api describes API of Acra Keystore version 2.
 package api
 
 import (
@@ -32,12 +32,12 @@ type KeyStore interface {
 	// This generally renders opened KeyRings unusable.
 	Close() error
 
-	// ListKeyRings enumerates all key rings present in this key store.
+	// ListKeyRings enumerates all key rings present in this keystore.
 	ListKeyRings() ([]string, error)
 
 	// ExportKeyRings packages specified key rings for export.
 	// Key ring data is encrypted and signed using given cryptosuite.
-	// Resulting container can be imported into existing or different key store with ImportKeyRings().
+	// Resulting container can be imported into existing or different keystore with ImportKeyRings().
 	ExportKeyRings(paths []string, cryptosuite *crypto.KeyStoreSuite, mode ExportMode) ([]byte, error)
 
 	// DescribeKeyRing describes key ring by its purpose path.

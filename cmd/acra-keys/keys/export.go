@@ -62,7 +62,7 @@ func (p *CommonExportImportParameters) ExportDataFile() string {
 	return p.exportDataFile
 }
 
-// Register registers key store flags with the given flag set.
+// Register registers keystore flags with the given flag set.
 func (p *CommonExportImportParameters) Register(flags *flag.FlagSet, filePurspose string) {
 	// The purpose is either "output" or "output". This is not very localizable, but we don't care about it at this point.
 	flags.StringVar(&p.exportDataFile, "key_bundle_file", "", "path to "+filePurspose+" file for exported key bundle")

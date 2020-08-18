@@ -30,14 +30,14 @@ type TranslatorFileSystemKeyStore struct {
 	encryptor keystore.KeyEncryptor
 }
 
-// TranslatorFileSystemKeyStoreBuilder allows to build a custom key store.
+// TranslatorFileSystemKeyStoreBuilder allows to build a custom keystore.
 type TranslatorFileSystemKeyStoreBuilder struct {
 	keyStoreBuilder *KeyStoreBuilder
 	directory       string
 	encryptor       keystore.KeyEncryptor
 }
 
-// NewCustomTranslatorFileSystemKeyStore allows to customize a translator key store.
+// NewCustomTranslatorFileSystemKeyStore allows to customize a translator keystore.
 func NewCustomTranslatorFileSystemKeyStore() *TranslatorFileSystemKeyStoreBuilder {
 	return &TranslatorFileSystemKeyStoreBuilder{
 		keyStoreBuilder: NewCustomFilesystemKeyStore(),
@@ -64,7 +64,7 @@ func (b *TranslatorFileSystemKeyStoreBuilder) Storage(storage Storage) *Translat
 	return b
 }
 
-// Build a key store.
+// Build a keystore.
 func (b *TranslatorFileSystemKeyStoreBuilder) Build() (*TranslatorFileSystemKeyStore, error) {
 	if b.directory == "" {
 		return nil, errNoPrivateKeyDir

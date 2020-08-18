@@ -63,22 +63,22 @@ var (
 	ErrMissingKeyDir = errors.New("keys directory not specified")
 )
 
-// SrcKeyStoreVersion returns source key store version.
+// SrcKeyStoreVersion returns source keystore version.
 func (m *MigrateKeysSubcommand) SrcKeyStoreVersion() string {
 	return m.srcVersion
 }
 
-// SrcKeyStoreParams returns parameters of the source key store.
+// SrcKeyStoreParams returns parameters of the source keystore.
 func (m *MigrateKeysSubcommand) SrcKeyStoreParams() KeyStoreParameters {
 	return &m.src
 }
 
-// DstKeyStoreVersion returns destination key store version.
+// DstKeyStoreVersion returns destination keystore version.
 func (m *MigrateKeysSubcommand) DstKeyStoreVersion() string {
 	return m.dstVersion
 }
 
-// DstKeyStoreParams returns parameters of the destination key store.
+// DstKeyStoreParams returns parameters of the destination keystore.
 func (m *MigrateKeysSubcommand) DstKeyStoreParams() KeyStoreParameters {
 	return &m.dst
 }
@@ -88,7 +88,7 @@ func (m *MigrateKeysSubcommand) DryRun() bool {
 	return m.dryRun
 }
 
-// ForceWrite returns true if migration is allowed to overwrite existing destination key store.
+// ForceWrite returns true if migration is allowed to overwrite existing destination keystore.
 func (m *MigrateKeysSubcommand) ForceWrite() bool {
 	return m.force
 }
@@ -188,7 +188,7 @@ func (m *MigrateKeysSubcommand) Execute() {
 		Fatal("Keystore conversion not supported")
 }
 
-// MigrateV1toV2 transfers keys from key store v1 to v2.
+// MigrateV1toV2 transfers keys from keystore v1 to v2.
 func MigrateV1toV2(srcV1 filesystemV1.KeyExport, dstV2 keystoreV2.KeyFileImportV1) error {
 	log.Trace("Enumerating keys for export")
 	keys, err := filesystemV1.EnumerateExportedKeys(srcV1)
