@@ -55,7 +55,7 @@ type DirectoryBackend struct {
 const (
 	lockFile      = ".lock"
 	versionFile   = "version"
-	versionString = "Acra Key Store v2"
+	versionString = "Acra Keystore v2"
 )
 
 // CreateDirectoryBackend opens a directory backend at given root path.
