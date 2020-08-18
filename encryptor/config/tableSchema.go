@@ -37,7 +37,7 @@ type TableSchema interface {
 	NeedToEncrypt(columnName string) bool
 	// GetColumnEncryptionSettings fetches encryption settings for given column,
 	// or returns nil if the column should not be encrypted.
-	GetColumnEncryptionSettings(columnName string) *ColumnEncryptionSetting
+	GetColumnEncryptionSettings(columnName string) ColumnEncryptionSetting
 }
 
 type storeConfig struct {
@@ -85,6 +85,8 @@ func MapTableSchemaStoreFromConfig(config []byte) (*MapTableSchemaStore, error) 
 
 // GetTableSchema return table schema if exists otherwise nil
 func (store *MapTableSchemaStore) GetTableSchema(tableName string) TableSchema {
+	// Explicitly check for presence and return explicit "nil" value
+	// so that returned interface is "== nil".
 	schema, ok := store.schemas[tableName]
 	if ok {
 		return schema
@@ -100,11 +102,25 @@ func (store *MapTableSchemaStore) IsEmpty() bool {
 	return false
 }
 
-// ColumnEncryptionSetting describe how to encrypt column
-type ColumnEncryptionSetting struct {
+// ColumnEncryptionSetting describes how to encrypt a table column.
+type ColumnEncryptionSetting interface {
+	ColumnName() string
+	ClientID() []byte
+	ZoneID() []byte
+	IsSearchable() bool
+	IsTokenized() bool
+	IsConsistentTokenization() bool
+	GetTokenType() TokenType
+	GetMaskingPattern() string
+	GetPartialPlaintextLen() int
+	IsEndMasking() bool
+}
+
+// BasicColumnEncryptionSetting is a basic set of column encryption settings.
+type BasicColumnEncryptionSetting struct {
 	Name                     string        `yaml:"column"`
-	ClientID                 string        `yaml:"client_id"`
-	ZoneID                   string        `yaml:"zone_id"`
+	UsedClientID             string        `yaml:"client_id"`
+	UsedZoneID               string        `yaml:"zone_id"`
 	Searchable               bool          `yaml:"searchable"`
 	Masking                  string        `yaml:"masking"`
 	PartialPlaintextLenBytes int           `yaml:"plaintext_length"`
@@ -124,7 +140,7 @@ const (
 )
 
 // ValidateMaskingParams return true if setting has valid configuration for masking
-func ValidateMaskingParams(setting *ColumnEncryptionSetting) bool {
+func ValidateMaskingParams(setting *BasicColumnEncryptionSetting) bool {
 	if setting.Masking == "" {
 		return true
 	}
@@ -172,23 +188,38 @@ var tokenTypeMap = map[TokenType]TokenType{
 	TokenTypeString: TokenTypeString,
 }
 
+// ColumnName returns name of the column for which these settings are for.
+func (s *BasicColumnEncryptionSetting) ColumnName() string {
+	return s.Name
+}
+
+// ClientID returns client ID to use when encrypting this column.
+func (s *BasicColumnEncryptionSetting) ClientID() []byte {
+	return []byte(s.UsedClientID)
+}
+
+// ZoneID returns zone ID to use when encrypting this column.
+func (s *BasicColumnEncryptionSetting) ZoneID() []byte {
+	return []byte(s.UsedZoneID)
+}
+
 // IsSearchable return true if column should be searchable
-func (s *ColumnEncryptionSetting) IsSearchable() bool {
+func (s *BasicColumnEncryptionSetting) IsSearchable() bool {
 	return s.Searchable
 }
 
 // IsTokenized return true if column should be searchable
-func (s *ColumnEncryptionSetting) IsTokenized() bool {
+func (s *BasicColumnEncryptionSetting) IsTokenized() bool {
 	return s.Tokenized
 }
 
 // IsConsistentTokenization return true if tokens should be consistent
-func (s *ColumnEncryptionSetting) IsConsistentTokenization() bool {
+func (s *BasicColumnEncryptionSetting) IsConsistentTokenization() bool {
 	return s.ConsistentTokenization
 }
 
 // GetTokenType return true if column should be searchable
-func (s *ColumnEncryptionSetting) GetTokenType() TokenType {
+func (s *BasicColumnEncryptionSetting) GetTokenType() TokenType {
 	t, ok := tokenTypeMap[s.TokenType]
 	if ok {
 		return t
@@ -197,25 +228,25 @@ func (s *ColumnEncryptionSetting) GetTokenType() TokenType {
 }
 
 // GetMaskingPattern return string which should be used instead AcraStruct
-func (s *ColumnEncryptionSetting) GetMaskingPattern() string {
+func (s *BasicColumnEncryptionSetting) GetMaskingPattern() string {
 	return s.Masking
 }
 
 // GetPartialPlaintextLen return count of bytes which should be left untouched in masked value
-func (s *ColumnEncryptionSetting) GetPartialPlaintextLen() int {
+func (s *BasicColumnEncryptionSetting) GetPartialPlaintextLen() int {
 	return s.PartialPlaintextLenBytes
 }
 
 // IsEndMasking return true if value should be masked starting from left
-func (s *ColumnEncryptionSetting) IsEndMasking() bool {
+func (s *BasicColumnEncryptionSetting) IsEndMasking() bool {
 	return s.PlaintextSide == PlainTextSideLeft
 }
 
 type tableSchema struct {
-	TableName                string                     `yaml:"table"`
-	TableColumns             []string                   `yaml:"columns"`
-	EncryptionColumnSettings []*ColumnEncryptionSetting `yaml:"encrypted"`
-	mapEncryptedColumns      map[string]*ColumnEncryptionSetting
+	TableName                string                          `yaml:"table"`
+	TableColumns             []string                        `yaml:"columns"`
+	EncryptionColumnSettings []*BasicColumnEncryptionSetting `yaml:"encrypted"`
+	mapEncryptedColumns      map[string]*BasicColumnEncryptionSetting
 }
 
 // Name returns the name of the table.
@@ -230,7 +261,7 @@ func (schema *tableSchema) Columns() []string {
 
 // initMap create map of columns to encrypt from array
 func (schema *tableSchema) initMap() {
-	mapEncryptedColumns := make(map[string]*ColumnEncryptionSetting)
+	mapEncryptedColumns := make(map[string]*BasicColumnEncryptionSetting)
 	for _, column := range schema.EncryptionColumnSettings {
 		mapEncryptedColumns[column.Name] = column
 	}
@@ -247,9 +278,15 @@ func (schema *tableSchema) NeedToEncrypt(columnName string) bool {
 }
 
 // GetColumnEncryptionSettings return setting or nil
-func (schema *tableSchema) GetColumnEncryptionSettings(columnName string) *ColumnEncryptionSetting {
+func (schema *tableSchema) GetColumnEncryptionSettings(columnName string) ColumnEncryptionSetting {
 	if schema.mapEncryptedColumns == nil {
 		schema.initMap()
 	}
-	return schema.mapEncryptedColumns[columnName]
+	// Explicitly check for presence and return explicit "nil" value
+	// so that returned interface is "== nil".
+	setting, ok := schema.mapEncryptedColumns[columnName]
+	if ok {
+		return setting
+	}
+	return nil
 }

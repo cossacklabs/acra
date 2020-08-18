@@ -17,26 +17,18 @@ limitations under the License.
 package encryptor
 
 import (
-	"github.com/cossacklabs/acra/acra-writer"
+	acrawriter "github.com/cossacklabs/acra/acra-writer"
 	"github.com/cossacklabs/acra/decryptor/base"
+	"github.com/cossacklabs/acra/encryptor/config"
 	"github.com/cossacklabs/acra/keystore"
 )
-
-// EncryptionSetting provide interface to fetch data about encryption settings
-type EncryptionSetting interface {
-	IsSearchable() bool
-	GetMaskingPattern() string
-	GetPartialPlaintextLen() int
-	IsEndMasking() bool
-	IsConsistentTokenization() bool
-}
 
 // DataEncryptor replace raw data in queries with encrypted
 type DataEncryptor interface {
 	// EncryptWithZoneID encrypt with explicit zone id
-	EncryptWithZoneID(zoneID, data []byte, setting EncryptionSetting) ([]byte, error)
+	EncryptWithZoneID(zoneID, data []byte, setting config.ColumnEncryptionSetting) ([]byte, error)
 	// EncryptWithClientID encrypt with explicit client id
-	EncryptWithClientID(clientID, data []byte, setting EncryptionSetting) ([]byte, error)
+	EncryptWithClientID(clientID, data []byte, setting config.ColumnEncryptionSetting) ([]byte, error)
 }
 
 // AcrawriterDataEncryptor implement DataEncryptor and encrypt data with AcraStructs
@@ -50,7 +42,7 @@ func NewAcrawriterDataEncryptor(keystore keystore.PublicKeyStore) (*AcrawriterDa
 }
 
 // EncryptWithZoneID encrypt with explicit zone id
-func (encryptor *AcrawriterDataEncryptor) EncryptWithZoneID(zoneID, data []byte, setting EncryptionSetting) ([]byte, error) {
+func (encryptor *AcrawriterDataEncryptor) EncryptWithZoneID(zoneID, data []byte, setting config.ColumnEncryptionSetting) ([]byte, error) {
 	if err := base.ValidateAcraStructLength(data); err == nil {
 		return data, nil
 	}
@@ -62,7 +54,7 @@ func (encryptor *AcrawriterDataEncryptor) EncryptWithZoneID(zoneID, data []byte,
 }
 
 // EncryptWithClientID encrypt with explicit client id
-func (encryptor *AcrawriterDataEncryptor) EncryptWithClientID(clientID, data []byte, setting EncryptionSetting) ([]byte, error) {
+func (encryptor *AcrawriterDataEncryptor) EncryptWithClientID(clientID, data []byte, setting config.ColumnEncryptionSetting) ([]byte, error) {
 	if err := base.ValidateAcraStructLength(data); err == nil {
 		return data, nil
 	}

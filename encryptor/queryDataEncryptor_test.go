@@ -38,7 +38,7 @@ type testEncryptor struct {
 	fetchedIDs [][]byte
 }
 
-func (e *testEncryptor) EncryptWithZoneID(zoneIDdata, data []byte, setting EncryptionSetting) ([]byte, error) {
+func (e *testEncryptor) EncryptWithZoneID(zoneIDdata, data []byte, setting config.ColumnEncryptionSetting) ([]byte, error) {
 	if base.ValidateAcraStructLength(data) == nil {
 		return data, nil
 	}
@@ -49,7 +49,7 @@ func (e *testEncryptor) reset() {
 	e.fetchedIDs = [][]byte{}
 }
 
-func (e *testEncryptor) EncryptWithClientID(clientID, data []byte, setting EncryptionSetting) ([]byte, error) {
+func (e *testEncryptor) EncryptWithClientID(clientID, data []byte, setting config.ColumnEncryptionSetting) ([]byte, error) {
 	if base.ValidateAcraStructLength(data) == nil {
 		return data, nil
 	}
