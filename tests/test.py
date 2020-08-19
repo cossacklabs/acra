@@ -430,6 +430,30 @@ BINARIES = [
            build_args=DEFAULT_BUILD_ARGS)
 ]
 
+
+def build_binaries():
+    """Build Acra CE binaries for testing."""
+    builds = [
+        (binary.from_version, ['go', 'build'] + binary.build_args + ['github.com/cossacklabs/acra/cmd/{}'.format(binary.name)])
+        for binary in BINARIES
+    ]
+    go_version = get_go_version()
+    GREATER, EQUAL, LESS = (1, 0, -1)
+    for version, build in builds:
+        if semver.compare(go_version, version) == LESS:
+            continue
+        # try to build 3 times with timeout
+        build_count = 3
+        for i in range(build_count):
+            try:
+                subprocess.check_call(build, cwd=os.getcwd(), timeout=PROCESS_CALL_TIMEOUT)
+                break
+            except (AssertionError, subprocess.TimeoutExpired):
+                if i == (build_count-1):
+                    raise
+                continue
+
+
 def clean_binaries():
     for i in BINARIES:
         try:
@@ -464,32 +488,21 @@ def drop_tables():
     metadata.drop_all(engine_raw)
 
 
+# Set this to False to not rebuild binaries on setup.
+CLEAN_BINARIES = bool(os.environ.get('TEST_CLEAN_BINARIES', True))
+# Set this to False to not build binaries in principle.
+BUILD_BINARIES = True
+
+
 def setUpModule():
     global zones
     global KEYS_FOLDER
-    clean_binaries()
     clean_misc()
     KEYS_FOLDER = tempfile.TemporaryDirectory()
-    # build binaries
-    builds = [
-        (binary.from_version, ['go', 'build'] + binary.build_args + ['github.com/cossacklabs/acra/cmd/{}'.format(binary.name)])
-        for binary in BINARIES
-    ]
-    go_version = get_go_version()
-    GREATER, EQUAL, LESS = (1, 0, -1)
-    for version, build in builds:
-        if semver.compare(go_version, version) == LESS:
-            continue
-        # try to build 3 times with timeout
-        build_count = 3
-        for i in range(build_count):
-            try:
-                subprocess.check_call(build, cwd=os.getcwd(), timeout=PROCESS_CALL_TIMEOUT)
-                break
-            except (AssertionError, subprocess.TimeoutExpired):
-                if i == (build_count-1):
-                    raise
-                continue
+    if CLEAN_BINARIES:
+        clean_binaries()
+    if BUILD_BINARIES:
+        build_binaries()
 
     # must be before any call of key generators or forks of acra/proxy servers
     os.environ.setdefault(ACRA_MASTER_KEY_VAR_NAME, get_master_key())
@@ -509,7 +522,8 @@ def setUpModule():
 
 
 def tearDownModule():
-    clean_binaries()
+    if CLEAN_BINARIES:
+        clean_binaries()
     clean_misc()
     KEYS_FOLDER.cleanup()
     # use list.clear instead >>> zones = []; to avoid creation new variable with new address and allow to use it from
