@@ -490,7 +490,7 @@ def drop_tables():
 
 
 # Set this to False to not rebuild binaries on setup.
-CLEAN_BINARIES = bool(os.environ.get('TEST_CLEAN_BINARIES', True))
+CLEAN_BINARIES = utils.get_bool_env('TEST_CLEAN_BINARIES', default=True)
 # Set this to False to not build binaries in principle.
 BUILD_BINARIES = True
 
