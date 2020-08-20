@@ -16,6 +16,9 @@ for cmd in $(ls ./cmd/ | grep ^acra-); do
     if [[ $# == 1 ]]; then
         extra="--config_file=$1/${cmd}.yaml"
     fi
+    # If there is already a binary in the repository root then use it as is,
+    # otherwise use "go run" to compile and run it. The binaries are present
+    # during integration tests, not rebuilding every time speeds up the tests.
     if [[ -f ./$cmd ]]; then
         ./$cmd $args $extra
     else
