@@ -150,3 +150,17 @@ def prepare_encryptor_config(zone_id, config_path):
                 column['zone_id'] = zone_id
     with open(get_test_encryptor_config(config_path), 'w') as f:
         yaml.dump(config, f)
+
+
+def get_bool_env(var, default=False):
+    """Read a boolean value from environment variable."""
+    value = os.environ.get(var, None)
+    if not value:
+        return default
+    value = value.lower()
+    if value in ['no', 'n', 'false']:
+        return False
+    if value in ['yes', 'y', 'true']:
+        return True
+    # Dunno, maybe this is an integer, use C convention
+    return int(value) != 0
