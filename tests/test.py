@@ -4271,6 +4271,7 @@ class TestOutdatedServiceConfigs(BaseTestCase, FailedRunProcessMixin):
             default_args = {
                 'acra-server': ['-db_host=127.0.0.1'],
                 'acra-connector': ['-user_check_disable', '-acraserver_connection_host=127.0.0.1', '-client_id=keypair1'],
+                'acra-heartbeat': ['--logging_format=plaintext'],
             }
             for service in services:
                 config_param = '-config_file={}'.format(os.path.join(tmp_dir, '{}.yaml'.format(service)))
@@ -4293,6 +4294,7 @@ class TestOutdatedServiceConfigs(BaseTestCase, FailedRunProcessMixin):
             default_args = {
                 'acra-server': ['-db_host=127.0.0.1'],
                 'acra-connector': ['-user_check_disable', '-acraserver_connection_host=127.0.0.1', '-client_id=keypair1'],
+                'acra-heartbeat': ['--logging_format=plaintext'],
             }
             for service in services:
                 config_param = '-config_file={}'.format(os.path.join(tmp_dir, '{}.yaml'.format(service)))
@@ -4324,7 +4326,8 @@ class TestOutdatedServiceConfigs(BaseTestCase, FailedRunProcessMixin):
                 'acra-connector': {'connection': 'connection_string',
                                    'args': ['-keys_dir={}'.format(KEYS_FOLDER.name)],
                                    'status': 1},
-                'acra-heartbeat': {'args': ['--connection_string=please-fail'],
+                'acra-heartbeat': {'args': ['--logging_format=plaintext',
+                                            '--connection_string=please-fail'],
                                    'status': 1},
                 'acra-keymaker': ['-keys_output_dir={}'.format(tmp_dir),
                                   '-keys_public_output_dir={}'.format(tmp_dir)],
@@ -4371,7 +4374,8 @@ class TestOutdatedServiceConfigs(BaseTestCase, FailedRunProcessMixin):
                 'acra-connector': {'connection': 'connection_string',
                                    'args': ['-keys_dir={}'.format(KEYS_FOLDER.name)],
                                    'status': 1},
-                'acra-heartbeat': {'args': ['--connection_string=please-fail'],
+                'acra-heartbeat': {'args': ['--logging_format=plaintext',
+                                            '--connection_string=please-fail'],
                                    'status': 1},
                 'acra-keymaker': ['-keys_output_dir={}'.format(tmp_dir),
                                   '-keys_public_output_dir={}'.format(tmp_dir)],
