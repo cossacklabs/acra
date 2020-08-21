@@ -20,7 +20,6 @@ import (
 	"bytes"
 	"testing"
 
-	"github.com/cossacklabs/acra/encryptor/config"
 	"github.com/cossacklabs/themis/gothemis/keys"
 )
 
@@ -52,33 +51,6 @@ func (*emptyEncryptionSetting) ClientID() []byte {
 
 func (*emptyEncryptionSetting) ZoneID() []byte {
 	panic("implement me")
-}
-
-func (*emptyEncryptionSetting) IsTokenized() bool {
-	return false
-}
-
-func (*emptyEncryptionSetting) IsConsistentTokenization() bool {
-	panic("implement me")
-}
-
-func (*emptyEncryptionSetting) GetTokenType() config.TokenType {
-	panic("implement me")
-}
-
-func (*emptyEncryptionSetting) IsSearchable() bool {
-	return false
-}
-
-func (*emptyEncryptionSetting) GetPartialPlaintextLen() int {
-	return 0
-}
-
-func (*emptyEncryptionSetting) IsEndMasking() bool {
-	return false
-}
-func (*emptyEncryptionSetting) GetMaskingPattern() string {
-	return ""
 }
 
 func TestAcrawriterDataEncryptor_EncryptWithClientID(t *testing.T) {

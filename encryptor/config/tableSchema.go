@@ -17,8 +17,6 @@ limitations under the License.
 package config
 
 import (
-	"errors"
-
 	"gopkg.in/yaml.v2"
 )
 
@@ -54,12 +52,6 @@ func NewMapTableSchemaStore() (*MapTableSchemaStore, error) {
 	return &MapTableSchemaStore{make(map[string]*tableSchema)}, nil
 }
 
-// ErrInvalidTokenType error for invalid value of token_type parameter
-var ErrInvalidTokenType = errors.New("invalid token type")
-
-// ErrInvalidPlainTextSide error for invalid value of plaintext_side parameter
-var ErrInvalidPlainTextSide = errors.New("invalid plaintext_side")
-
 // MapTableSchemaStoreFromConfig parse config and return MapTableSchemaStore with data from config
 func MapTableSchemaStoreFromConfig(config []byte) (*MapTableSchemaStore, error) {
 	storeConfig := &storeConfig{}
@@ -68,16 +60,6 @@ func MapTableSchemaStoreFromConfig(config []byte) (*MapTableSchemaStore, error) 
 	}
 	mapSchemas := make(map[string]*tableSchema, len(storeConfig.Schemas))
 	for _, schema := range storeConfig.Schemas {
-		for _, setting := range schema.EncryptionColumnSettings {
-			if setting.Tokenized {
-				if !ValidateTokenType(setting.TokenType) {
-					return nil, ErrInvalidTokenType
-				}
-			}
-			if !ValidateMaskingParams(setting) {
-				return nil, ErrInvalidPlainTextSide
-			}
-		}
 		mapSchemas[schema.TableName] = schema
 	}
 	return &MapTableSchemaStore{mapSchemas}, nil
@@ -107,85 +89,13 @@ type ColumnEncryptionSetting interface {
 	ColumnName() string
 	ClientID() []byte
 	ZoneID() []byte
-	IsSearchable() bool
-	IsTokenized() bool
-	IsConsistentTokenization() bool
-	GetTokenType() TokenType
-	GetMaskingPattern() string
-	GetPartialPlaintextLen() int
-	IsEndMasking() bool
 }
 
 // BasicColumnEncryptionSetting is a basic set of column encryption settings.
 type BasicColumnEncryptionSetting struct {
-	Name                     string        `yaml:"column"`
-	UsedClientID             string        `yaml:"client_id"`
-	UsedZoneID               string        `yaml:"zone_id"`
-	Searchable               bool          `yaml:"searchable"`
-	Masking                  string        `yaml:"masking"`
-	PartialPlaintextLenBytes int           `yaml:"plaintext_length"`
-	PlaintextSide            PlainTextSide `yaml:"plaintext_side"`
-	Tokenized                bool          `yaml:"tokenized"`
-	ConsistentTokenization   bool          `yaml:"consistent_tokenization"`
-	TokenType                TokenType     `yaml:"token_type"`
-}
-
-// PlainTextSide type used to configure side where will be left plaintext, and where masking pattern
-type PlainTextSide string
-
-// Set of constants used to set plaintext side in masking
-const (
-	PlainTextSideLeft  PlainTextSide = "left"
-	PlainTextSideRight PlainTextSide = "right"
-)
-
-// ValidateMaskingParams return true if setting has valid configuration for masking
-func ValidateMaskingParams(setting *BasicColumnEncryptionSetting) bool {
-	if setting.Masking == "" {
-		return true
-	}
-	if setting.PartialPlaintextLenBytes < 0 {
-		return false
-	}
-	if setting.PlaintextSide != PlainTextSideRight && setting.PlaintextSide != PlainTextSideLeft {
-		return false
-	}
-	return true
-}
-
-var supportedTokenValues = map[TokenType]bool{
-	TokenTypeInt32:  true,
-	TokenTypeInt64:  true,
-	TokenTypeBytes:  true,
-	TokenTypeString: true,
-	TokenTypeEmail:  true,
-}
-
-// ValidateTokenType return true if value is supported TokenType
-func ValidateTokenType(value TokenType) bool {
-	_, ok := supportedTokenValues[value]
-	return ok
-}
-
-// TokenType used for constants of supported TokenTypes for tokenizator
-type TokenType string
-
-// Set of constants with supported TokenType
-const (
-	TokenTypeInt32   TokenType = "int32"
-	TokenTypeInt64   TokenType = "int64"
-	TokenTypeString  TokenType = "str"
-	TokenTypeBytes   TokenType = "bytes"
-	TokenTypeEmail   TokenType = "email"
-	defaultTokenType TokenType = TokenTypeBytes
-)
-
-var tokenTypeMap = map[TokenType]TokenType{
-	TokenTypeEmail:  TokenTypeEmail,
-	TokenTypeInt32:  TokenTypeInt32,
-	TokenTypeInt64:  TokenTypeInt64,
-	TokenTypeBytes:  TokenTypeBytes,
-	TokenTypeString: TokenTypeString,
+	Name         string `yaml:"column"`
+	UsedClientID string `yaml:"client_id"`
+	UsedZoneID   string `yaml:"zone_id"`
 }
 
 // ColumnName returns name of the column for which these settings are for.
@@ -201,45 +111,6 @@ func (s *BasicColumnEncryptionSetting) ClientID() []byte {
 // ZoneID returns zone ID to use when encrypting this column.
 func (s *BasicColumnEncryptionSetting) ZoneID() []byte {
 	return []byte(s.UsedZoneID)
-}
-
-// IsSearchable return true if column should be searchable
-func (s *BasicColumnEncryptionSetting) IsSearchable() bool {
-	return s.Searchable
-}
-
-// IsTokenized return true if column should be searchable
-func (s *BasicColumnEncryptionSetting) IsTokenized() bool {
-	return s.Tokenized
-}
-
-// IsConsistentTokenization return true if tokens should be consistent
-func (s *BasicColumnEncryptionSetting) IsConsistentTokenization() bool {
-	return s.ConsistentTokenization
-}
-
-// GetTokenType return true if column should be searchable
-func (s *BasicColumnEncryptionSetting) GetTokenType() TokenType {
-	t, ok := tokenTypeMap[s.TokenType]
-	if ok {
-		return t
-	}
-	return defaultTokenType
-}
-
-// GetMaskingPattern return string which should be used instead AcraStruct
-func (s *BasicColumnEncryptionSetting) GetMaskingPattern() string {
-	return s.Masking
-}
-
-// GetPartialPlaintextLen return count of bytes which should be left untouched in masked value
-func (s *BasicColumnEncryptionSetting) GetPartialPlaintextLen() int {
-	return s.PartialPlaintextLenBytes
-}
-
-// IsEndMasking return true if value should be masked starting from left
-func (s *BasicColumnEncryptionSetting) IsEndMasking() bool {
-	return s.PlaintextSide == PlainTextSideLeft
 }
 
 type tableSchema struct {
