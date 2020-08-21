@@ -18,8 +18,10 @@ package encryptor
 
 import (
 	"bytes"
-	"github.com/cossacklabs/themis/gothemis/keys"
 	"testing"
+
+	"github.com/cossacklabs/acra/encryptor/config"
+	"github.com/cossacklabs/themis/gothemis/keys"
 )
 
 type keyStore struct {
@@ -40,7 +42,27 @@ func (ks *keyStore) GetClientIDEncryptionPublicKey(clientID []byte) (*keys.Publi
 
 type emptyEncryptionSetting struct{}
 
+func (*emptyEncryptionSetting) ColumnName() string {
+	panic("implement me")
+}
+
+func (*emptyEncryptionSetting) ClientID() []byte {
+	panic("implement me")
+}
+
+func (*emptyEncryptionSetting) ZoneID() []byte {
+	panic("implement me")
+}
+
+func (*emptyEncryptionSetting) IsTokenized() bool {
+	return false
+}
+
 func (*emptyEncryptionSetting) IsConsistentTokenization() bool {
+	panic("implement me")
+}
+
+func (*emptyEncryptionSetting) GetTokenType() config.TokenType {
 	panic("implement me")
 }
 

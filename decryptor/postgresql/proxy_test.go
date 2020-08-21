@@ -154,7 +154,7 @@ func (*decryptorFactory) New(clientID []byte) (base.Decryptor, error) {
 
 type tableSchemaStore struct{ empty bool }
 
-func (*tableSchemaStore) GetTableSchema(tableName string) *config.TableSchema {
+func (*tableSchemaStore) GetTableSchema(tableName string) config.TableSchema {
 	panic("implement me")
 }
 
