@@ -77,20 +77,21 @@ func LengthEncodedInt(data []byte) (num uint64, isNull bool, n int, err error) {
 }
 
 // LengthEncodedString https://dev.mysql.com/doc/internals/en/string.html#packet-Protocol::LengthEncodedString
-func LengthEncodedString(data []byte) ([]byte, bool, int, error) {
+func LengthEncodedString(data []byte) ([]byte, int, error) {
 	// Get length
 	num, isNull, n, err := LengthEncodedInt(data)
-	if num < 1 {
-		return nil, isNull, n, err
+	// NULL values are encoded with special length values. Represent them with "nil" in Go.
+	if isNull {
+		return nil, n, err
 	}
 
 	n += int(num)
 
 	// Check data length
 	if len(data) >= n {
-		return data[n-int(num) : n], false, n, nil
+		return data[n-int(num) : n], n, nil
 	}
-	return nil, false, n, io.EOF
+	return nil, n, io.EOF
 }
 
 // SkipLengthEncodedString https://dev.mysql.com/doc/internals/en/string.html#packet-Protocol::LengthEncodedString
@@ -132,6 +133,10 @@ func PutLengthEncodedInt(n uint64) []byte {
 
 // PutLengthEncodedString https://dev.mysql.com/doc/internals/en/string.html#packet-Protocol::LengthEncodedString
 func PutLengthEncodedString(b []byte) []byte {
+	// Special case for NULL encoding, represented by "nil" values in Go.
+	if b == nil {
+		return []byte{0xFB}
+	}
 	data := make([]byte, 0, len(b)+9)
 	data = append(data, PutLengthEncodedInt(uint64(len(b)))...)
 	data = append(data, b...)

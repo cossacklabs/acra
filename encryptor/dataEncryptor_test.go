@@ -18,8 +18,9 @@ package encryptor
 
 import (
 	"bytes"
-	"github.com/cossacklabs/themis/gothemis/keys"
 	"testing"
+
+	"github.com/cossacklabs/themis/gothemis/keys"
 )
 
 type keyStore struct {
@@ -40,23 +41,16 @@ func (ks *keyStore) GetClientIDEncryptionPublicKey(clientID []byte) (*keys.Publi
 
 type emptyEncryptionSetting struct{}
 
-func (*emptyEncryptionSetting) IsConsistentTokenization() bool {
+func (*emptyEncryptionSetting) ColumnName() string {
 	panic("implement me")
 }
 
-func (*emptyEncryptionSetting) IsSearchable() bool {
-	return false
+func (*emptyEncryptionSetting) ClientID() []byte {
+	panic("implement me")
 }
 
-func (*emptyEncryptionSetting) GetPartialPlaintextLen() int {
-	return 0
-}
-
-func (*emptyEncryptionSetting) IsEndMasking() bool {
-	return false
-}
-func (*emptyEncryptionSetting) GetMaskingPattern() string {
-	return ""
+func (*emptyEncryptionSetting) ZoneID() []byte {
+	panic("implement me")
 }
 
 func TestAcrawriterDataEncryptor_EncryptWithClientID(t *testing.T) {

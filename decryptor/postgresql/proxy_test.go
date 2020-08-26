@@ -50,6 +50,10 @@ func (t testDecryptor) GetTagBeginLength() int {
 	panic("implement me")
 }
 
+func (t testDecryptor) ID() string {
+	panic("implement me")
+}
+
 func (t testDecryptor) OnColumn(context.Context, []byte) (context.Context, []byte, error) {
 	panic("implement me")
 }
@@ -158,7 +162,7 @@ func (*decryptorFactory) New(clientID []byte) (base.Decryptor, error) {
 
 type tableSchemaStore struct{ empty bool }
 
-func (*tableSchemaStore) GetTableSchema(tableName string) *config.TableSchema {
+func (*tableSchemaStore) GetTableSchema(tableName string) config.TableSchema {
 	panic("implement me")
 }
 

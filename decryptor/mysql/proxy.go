@@ -57,5 +57,6 @@ func (factory *proxyFactory) New(ctx context.Context, clientID []byte, dbConnect
 		}
 		proxy.AddQueryObserver(queryEncryptor)
 	}
+	proxy.SubscribeOnAllColumnsDecryption(decryptor)
 	return proxy, nil
 }

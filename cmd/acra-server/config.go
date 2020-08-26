@@ -49,7 +49,7 @@ type Config struct {
 	censor                  acracensor.AcraCensorInterface
 	withConnector           bool
 	TraceToLog              bool
-	tableSchema             *encryptorConfig.MapTableSchemaStore
+	tableSchema             encryptorConfig.TableSchemaStore
 	dataEncryptor           encryptor.DataEncryptor
 	keystore                keystore.ServerKeyStore
 	traceOptions            []trace.StartOption

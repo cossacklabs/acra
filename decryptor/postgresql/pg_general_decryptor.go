@@ -432,6 +432,11 @@ func (decryptor *PgDecryptor) SetDataProcessor(processor base.DataProcessor) {
 	decryptor.dataProcessor = processor
 }
 
+// ID returns decryption subscriber identification.
+func (decryptor *PgDecryptor) ID() string {
+	return "PgDecryptor"
+}
+
 // OnColumn handler which process column data on db response and try to decrypt/detect poison record
 func (decryptor *PgDecryptor) OnColumn(ctx context.Context, data []byte) (context.Context, []byte, error) {
 	logger := logging.GetLoggerFromContext(ctx)
