@@ -18,10 +18,11 @@ package server
 
 import (
 	"context"
-	"google.golang.org/grpc/credentials"
 	"net"
 	"os"
 	"time"
+
+	"google.golang.org/grpc/credentials"
 
 	"bufio"
 	"net/http"
@@ -41,7 +42,7 @@ import (
 // gRPC and HTTP request parsers.
 type ReaderServer struct {
 	config            *common.AcraTranslatorConfig
-	keystorage        keystore.MultiKeyStore
+	keystorage        keystore.TranslationKeyStore
 	connectionManager *network.ConnectionManager
 	grpcServer        *grpc.Server
 
@@ -54,7 +55,7 @@ type ReaderServer struct {
 }
 
 // NewReaderServer creates Reader server with provided params.
-func NewReaderServer(config *common.AcraTranslatorConfig, keystorage keystore.MultiKeyStore, grpcServerFactory common.GRPCServerFactory, waitTimeout time.Duration) (server *ReaderServer, err error) {
+func NewReaderServer(config *common.AcraTranslatorConfig, keystorage keystore.TranslationKeyStore, grpcServerFactory common.GRPCServerFactory, waitTimeout time.Duration) (server *ReaderServer, err error) {
 	return &ReaderServer{
 		grpcServerFactory: grpcServerFactory,
 		waitTimeout:       waitTimeout,

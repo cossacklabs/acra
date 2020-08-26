@@ -137,6 +137,32 @@ func FillSlice(value byte, data []byte) {
 	}
 }
 
+// ZeroizeSymmetricKey wipes a symmetric key from memory, filling it with zero bytes.
+func ZeroizeSymmetricKey(key []byte) {
+	FillSlice(0, key)
+}
+
+// ZeroizePrivateKey wipes a private key from memory, filling it with zero bytes.
+func ZeroizePrivateKey(privateKey *keys.PrivateKey) {
+	if privateKey != nil {
+		FillSlice(0, privateKey.Value)
+	}
+}
+
+// ZeroizePrivateKeys wipes a slice of private keys from memory, filling them with zero bytes.
+func ZeroizePrivateKeys(privateKeys []*keys.PrivateKey) {
+	for _, privateKey := range privateKeys {
+		ZeroizePrivateKey(privateKey)
+	}
+}
+
+// ZeroizeKeyPair wipes a private key of a key pair from memory, filling it with zero bytes.
+func ZeroizeKeyPair(keypair *keys.Keypair) {
+	if keypair != nil {
+		ZeroizePrivateKey(keypair.Private)
+	}
+}
+
 // FileExists returns true if file exists from path, path can be relative
 func FileExists(path string) (bool, error) {
 	absPath, err := filepath.Abs(path)

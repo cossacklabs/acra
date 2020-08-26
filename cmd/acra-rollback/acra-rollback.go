@@ -29,20 +29,21 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 
 	"github.com/cossacklabs/acra/cmd"
 	"github.com/cossacklabs/acra/decryptor/base"
 	"github.com/cossacklabs/acra/keystore"
+	"github.com/cossacklabs/acra/keystore/filesystem"
+	keystoreV2 "github.com/cossacklabs/acra/keystore/v2/keystore"
+	filesystemV2 "github.com/cossacklabs/acra/keystore/v2/keystore/filesystem"
+	"github.com/cossacklabs/acra/logging"
 	"github.com/cossacklabs/acra/utils"
 	"github.com/cossacklabs/themis/gothemis/keys"
-	//_ "github.com/ziutek/mymysql/godrv"
-	"github.com/cossacklabs/acra/keystore/filesystem"
-	"github.com/cossacklabs/acra/logging"
 	_ "github.com/go-sql-driver/mysql"
 	_ "github.com/lib/pq"
 	log "github.com/sirupsen/logrus"
-	"path/filepath"
 )
 
 // Constants used by AcraRollback
@@ -218,21 +219,14 @@ func main() {
 		log.Errorln("Output_file missing or execute flag")
 		os.Exit(1)
 	}
-	masterKey, err := keystore.GetMasterKeyFromEnvironment()
-	if err != nil {
-		log.WithError(err).Errorln("Can't load master key")
-		os.Exit(1)
+
+	var keystorage keystore.DecryptionKeyStore
+	if filesystemV2.IsKeyDirectory(*keysDir) {
+		keystorage = openKeyStoreV2(*keysDir)
+	} else {
+		keystorage = openKeyStoreV1(*keysDir)
 	}
-	scellEncryptor, err := keystore.NewSCellKeyEncryptor(masterKey)
-	if err != nil {
-		log.WithError(err).Errorln("Can't init scell encryptor")
-		os.Exit(1)
-	}
-	keystorage, err := filesystem.NewFilesystemKeyStore(*keysDir, scellEncryptor)
-	if err != nil {
-		log.WithError(err).Errorln("Can't create key store")
-		os.Exit(1)
-	}
+
 	db, err := sql.Open(dbDriverName, *connectionString)
 	if err != nil {
 		log.WithError(err).Errorln("Can't connect to db")
@@ -271,16 +265,15 @@ func main() {
 		defer executor.Close()
 	}
 
-	var data, zone []byte
-	var privateKey *keys.PrivateKey
-
 	for i := 0; rows.Next(); i++ {
+		var data, zone []byte
+		var privateKeys []*keys.PrivateKey
 		if *withZone {
 			err = rows.Scan(&zone, &data)
 			if err != nil {
 				ErrorExit("Can't read zone & data from row %v", err)
 			}
-			privateKey, err = keystorage.GetZonePrivateKey(zone)
+			privateKeys, err = keystorage.GetZonePrivateKeys(zone)
 			if err != nil {
 				log.WithError(err).Errorf("Can't get zone private key for row with number %v", i)
 				continue
@@ -290,13 +283,14 @@ func main() {
 			if err != nil {
 				ErrorExit("Can't read data from row", err)
 			}
-			privateKey, err = keystorage.GetServerDecryptionPrivateKey([]byte(*clientID))
+			privateKeys, err = keystorage.GetServerDecryptionPrivateKeys([]byte(*clientID))
 			if err != nil {
 				log.WithError(err).Errorf("Can't get private key for row with number %v", i)
 				continue
 			}
 		}
-		decrypted, err := base.DecryptAcrastruct(data, privateKey, zone)
+		defer utils.ZeroizePrivateKeys(privateKeys)
+		decrypted, err := base.DecryptRotatedAcrastruct(data, privateKeys, zone)
 		if err != nil {
 			log.WithError(err).Errorf("Can't decrypt acrastruct in row with number %v", i)
 			continue
@@ -306,4 +300,42 @@ func main() {
 			executor.Execute(decrypted)
 		}
 	}
+}
+
+func openKeyStoreV1(keysDir string) keystore.DecryptionKeyStore {
+	masterKey, err := keystore.GetMasterKeyFromEnvironment()
+	if err != nil {
+		log.WithError(err).Errorln("Cannot load master key")
+		os.Exit(1)
+	}
+	scellEncryptor, err := keystore.NewSCellKeyEncryptor(masterKey)
+	if err != nil {
+		log.WithError(err).Errorln("Can't init scell encryptor")
+		os.Exit(1)
+	}
+	keystorage, err := filesystem.NewFilesystemKeyStore(keysDir, scellEncryptor)
+	if err != nil {
+		log.WithError(err).Errorln("Can't initialize keystore")
+		os.Exit(1)
+	}
+	return keystorage
+}
+
+func openKeyStoreV2(keyDirPath string) keystore.DecryptionKeyStore {
+	encryption, signature, err := keystoreV2.GetMasterKeysFromEnvironment()
+	if err != nil {
+		log.WithError(err).Errorln("Cannot load master key")
+		os.Exit(1)
+	}
+	suite, err := keystoreV2.NewSCellSuite(encryption, signature)
+	if err != nil {
+		log.WithError(err).Error("failed to initialize Secure Cell crypto suite")
+		os.Exit(1)
+	}
+	keyDir, err := filesystemV2.OpenDirectoryRW(keyDirPath, suite)
+	if err != nil {
+		log.WithError(err).WithField("path", keyDirPath).Error("cannot open key directory")
+		os.Exit(1)
+	}
+	return keystoreV2.NewServerKeyStore(keyDir)
 }

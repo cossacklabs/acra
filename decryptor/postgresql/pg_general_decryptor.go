@@ -21,6 +21,10 @@ import (
 	"context"
 	"encoding/hex"
 	"errors"
+	"io"
+	"io/ioutil"
+	"os"
+
 	"github.com/cossacklabs/acra/decryptor/base"
 	"github.com/cossacklabs/acra/decryptor/binary"
 	"github.com/cossacklabs/acra/keystore"
@@ -30,9 +34,6 @@ import (
 	"github.com/cossacklabs/themis/gothemis/keys"
 	log "github.com/sirupsen/logrus"
 	"go.opencensus.io/trace"
-	"io"
-	"io/ioutil"
-	"os"
 )
 
 var errPlainData = errors.New("plain data without AcraStruct signature")
@@ -41,7 +42,7 @@ var errPlainData = errors.New("plain data without AcraStruct signature")
 type PgDecryptor struct {
 	isWithZone         bool
 	isWholeMatch       bool
-	keyStore           keystore.KeyStore
+	keyStore           keystore.DecryptionKeyStore
 	zoneMatcher        *zone.Matcher
 	binaryDecryptor    base.DataDecryptor
 	checkPoisonRecords bool
@@ -57,7 +58,7 @@ type PgDecryptor struct {
 
 // NewPgDecryptor returns new PgDecryptor hiding inner HEX decryptor or ESCAPE decryptor
 // by default checks poison recods and uses WholeMatch mode without zones
-func NewPgDecryptor(clientID []byte, decryptor base.DataDecryptor, withZone bool, keystore keystore.KeyStore) *PgDecryptor {
+func NewPgDecryptor(clientID []byte, decryptor base.DataDecryptor, withZone bool, keystore keystore.DecryptionKeyStore) *PgDecryptor {
 	logger := log.WithField("client_id", string(clientID))
 	decryptor.SetLogger(logger)
 	return &PgDecryptor{
@@ -164,6 +165,17 @@ func (decryptor *PgDecryptor) ReadSymmetricKey(privateKey *keys.PrivateKey, read
 	return symmetricKey, rawData, nil
 }
 
+// ReadSymmetricKeyRotated reads, decodes from database format block of data, decrypts symmetric key from
+// AcraStruct using Secure message
+// returns decrypted symmetric key or ErrFakeAcraStruct error if can't decrypt
+func (decryptor *PgDecryptor) ReadSymmetricKeyRotated(privateKeys []*keys.PrivateKey, reader io.Reader) ([]byte, []byte, error) {
+	symmetricKey, rawData, err := decryptor.binaryDecryptor.ReadSymmetricKeyRotated(privateKeys, reader)
+	if err != nil {
+		return symmetricKey, rawData, err
+	}
+	return symmetricKey, rawData, nil
+}
+
 // ReadData returns plaintext data, decrypting using SecureCell with ZoneID and symmetricKey
 func (decryptor *PgDecryptor) ReadData(symmetricKey, zoneID []byte, reader io.Reader) ([]byte, error) {
 	/* due to using two decryptors can be case when one decryptor match 2 bytes
@@ -212,17 +224,28 @@ func (decryptor *PgDecryptor) ReadData(symmetricKey, zoneID []byte, reader io.Re
 }
 
 // SetKeyStore sets keystore
-func (decryptor *PgDecryptor) SetKeyStore(store keystore.KeyStore) {
+func (decryptor *PgDecryptor) SetKeyStore(store keystore.DecryptionKeyStore) {
 	decryptor.keyStore = store
 }
 
-// GetPrivateKey returns either ZonePrivate key (if Zone mode enabled) or
-// Server Decryption private key otherwise
+// GetPrivateKey returns private key for decrypting AcraStructs.
+// This is either ZonePrivate key (if Zone mode enabled)
+// or Server Decryption private key otherwise.
 func (decryptor *PgDecryptor) GetPrivateKey() (*keys.PrivateKey, error) {
 	if decryptor.IsWithZone() {
 		return decryptor.keyStore.GetZonePrivateKey(decryptor.GetMatchedZoneID())
 	}
 	return decryptor.keyStore.GetServerDecryptionPrivateKey(decryptor.clientID)
+}
+
+// GetPrivateKeys returns private keys for decrypting AcraStructs.
+// These are either ZonePrivate keys (if Zone mode enabled)
+// or Server Decryption private key otherwise.
+func (decryptor *PgDecryptor) GetPrivateKeys() ([]*keys.PrivateKey, error) {
+	if decryptor.IsWithZone() {
+		return decryptor.keyStore.GetZonePrivateKeys(decryptor.GetMatchedZoneID())
+	}
+	return decryptor.keyStore.GetServerDecryptionPrivateKeys(decryptor.clientID)
 }
 
 // TurnOnPoisonRecordCheck turns on or off poison recods check

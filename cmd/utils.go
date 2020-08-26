@@ -47,9 +47,16 @@ var (
 	generateMarkdownArgTable = flag_.Bool("generate_markdown_args_table", false, "Generate with yaml config markdown text file with descriptions of all args")
 )
 
+// Argument and configuration parsing errors.
+var (
+	ErrDumpRequested = errors.New("configurtion dump requested")
+)
+
 func init() {
 	// override default usage message by ours
-	flag_.CommandLine.Usage = PrintDefaults
+	flag_.CommandLine.Usage = func() {
+		PrintFlags(flag_.CommandLine)
+	}
 }
 
 // SignalCallback callback function
@@ -141,10 +148,10 @@ func isZeroValue(flag *flag_.Flag, value string) bool {
 	return false
 }
 
-// PrintDefaults prints CLI params to console
-func PrintDefaults() {
+// PrintFlags pretty-prints CLI flag set with default values to stderr.
+func PrintFlags(flags *flag_.FlagSet) {
 	/* took from flag/flag.go and overrided arg display format (-/--) */
-	flag_.CommandLine.VisitAll(func(flag *flag_.Flag) {
+	flags.VisitAll(func(flag *flag_.Flag) {
 		var s string
 		if len(flag.Name) > 2 {
 			s = fmt.Sprintf("  --%s", flag.Name) // Two spaces before -; see next two comments.
@@ -179,13 +186,30 @@ func PrintDefaults() {
 	})
 }
 
+func visitFlagSets(flagSets []*flag_.FlagSet, visit func(flag *flag_.Flag)) {
+	seenNames := make(map[string]struct{})
+	for _, flags := range flagSets {
+		flags.VisitAll(func(flag *flag_.Flag) {
+			if _, visited := seenNames[flag.Name]; !visited {
+				visit(flag)
+				seenNames[flag.Name] = struct{}{}
+			}
+		})
+	}
+}
+
 // GenerateYaml generates YAML file from CLI params
 func GenerateYaml(output io.Writer, useDefault bool) {
+	GenerateYamlFromFlagSets([]*flag_.FlagSet{flag_.CommandLine}, output, useDefault)
+}
+
+// GenerateYamlFromFlagSets generates YAML file from CLI flag sets.
+func GenerateYamlFromFlagSets(flagSets []*flag_.FlagSet, output io.Writer, useDefault bool) {
 	// write version as first line in yaml format
 	if _, err := fmt.Fprintf(output, "version: %s\n", utils.VERSION); err != nil {
 		panic(err)
 	}
-	flag_.CommandLine.VisitAll(func(flag *flag_.Flag) {
+	visitFlagSets(flagSets, func(flag *flag_.Flag) {
 		var s string
 		if useDefault {
 			s = fmt.Sprintf("# %v\n%v: %v\n", flag.Usage, flag.Name, flag.DefValue)
@@ -198,6 +222,11 @@ func GenerateYaml(output io.Writer, useDefault bool) {
 
 // GenerateMarkdownDoc generates Markdown file from CLI params
 func GenerateMarkdownDoc(output io.Writer, serviceName string) {
+	GenerateMarkdownDocFromFlagSets([]*flag_.FlagSet{flag_.CommandLine}, output, serviceName)
+}
+
+// GenerateMarkdownDocFromFlagSets generates Markdown file from CLI flag sets.
+func GenerateMarkdownDocFromFlagSets(flagSets []*flag_.FlagSet, output io.Writer, serviceName string) {
 	// escape column separator symbol from text
 	escapeColumn := func(text string) string {
 		return strings.Replace(text, "|", "\\|", -1)
@@ -206,14 +235,18 @@ func GenerateMarkdownDoc(output io.Writer, serviceName string) {
 	// |serviceName | arg name | rename to | default value | description|
 	// |:-:         |:-:       |:-:        |:-:            |:-:         |
 	fmt.Fprintf(output, "|%v|||||\n|:-:|:-:|:-:|:-:|:-:|\n", serviceName)
-	flag_.CommandLine.VisitAll(func(flag *flag_.Flag) {
-
+	visitFlagSets(flagSets, func(flag *flag_.Flag) {
 		fmt.Fprintf(output, "||%v||%v|%v|\n", flag.Name, flag.DefValue, escapeColumn(flag.Usage))
 	})
 }
 
 // DumpConfig writes CLI params to configPath
 func DumpConfig(configPath, serviceName string, useDefault bool) error {
+	return DumpConfigFromFlagSets([]*flag_.FlagSet{flag_.CommandLine}, configPath, serviceName, useDefault)
+}
+
+// DumpConfigFromFlagSets writes CLI params to configPath
+func DumpConfigFromFlagSets(flagSets []*flag_.FlagSet, configPath, serviceName string, useDefault bool) error {
 	var absPath string
 	var err error
 
@@ -241,7 +274,7 @@ func DumpConfig(configPath, serviceName string, useDefault bool) error {
 	}
 	defer file.Close()
 
-	GenerateYaml(file, useDefault)
+	GenerateYamlFromFlagSets(flagSets, file, useDefault)
 
 	if *generateMarkdownArgTable {
 		file2, err := os.Create(fmt.Sprintf("%v/markdown_%v.md", dirPath, serviceName))
@@ -249,7 +282,7 @@ func DumpConfig(configPath, serviceName string, useDefault bool) error {
 			return err
 		}
 
-		GenerateMarkdownDoc(file2, serviceName)
+		GenerateMarkdownDocFromFlagSets(flagSets, file2, serviceName)
 	}
 	log.Infof("Config dumped to %s", configPath)
 	return nil
@@ -284,12 +317,22 @@ func checkVersion(config map[string]interface{}) error {
 	return nil
 }
 
-// Parse loads CLI params from yaml config and cli
+// Parse parses flag settings from YAML config file and command line.
 func Parse(configPath, serviceName string) error {
+	err := ParseFlagsWithConfig(flag_.CommandLine, os.Args[1:], configPath, serviceName)
+	if err == ErrDumpRequested {
+		DumpConfig(configPath, serviceName, true)
+		os.Exit(0)
+	}
+	return err
+}
+
+// ParseFlagsWithConfig parses flag settings from YAML config file and command line.
+func ParseFlagsWithConfig(flags *flag_.FlagSet, arguments []string, configPath, serviceName string) error {
 	/*load from yaml config and cli. if dumpconfig option pass than generate config and exit*/
 	log.Debugf("Parsing config from path %v", configPath)
 	// first parse using bultin flag
-	err := flag_.CommandLine.Parse(os.Args[1:])
+	err := flags.Parse(arguments)
 	if err != nil {
 		return err
 	}
@@ -298,7 +341,7 @@ func Parse(configPath, serviceName string) error {
 		configPath = *config
 	}
 	var yamlConfig map[string]interface{}
-	var args []string
+	var extraArgs []string
 	// parse yaml and add params that wasn't passed from cli
 	if configPath != "" {
 
@@ -320,31 +363,34 @@ func Parse(configPath, serviceName string) error {
 				return err
 			}
 			setArgs := make(map[string]bool)
-			flag_.Visit(func(flag *flag_.Flag) {
+			flags.Visit(func(flag *flag_.Flag) {
 				setArgs[flag.Name] = true
 			})
 			// generate args list for flag.Parse as it was from cli args
-			args = make([]string, 0)
-			flag_.VisitAll(func(flag *flag_.Flag) {
+			flags.VisitAll(func(flag *flag_.Flag) {
 				// generate only args that wasn't set from cli
 				if _, alreadySet := setArgs[flag.Name]; !alreadySet {
 					if value, yamlOk := yamlConfig[flag.Name]; yamlOk {
 						if value != nil {
-							args = append(args, fmt.Sprintf("--%v=%v", flag.Name, value))
+							extraArgs = append(extraArgs, fmt.Sprintf("--%v=%v", flag.Name, value))
 						}
 					}
 				}
 			})
 		}
 	}
-	// set options from config that wasn't set by cli
-	err = flag_.CommandLine.Parse(args)
-	if err != nil {
-		return err
+	// Set global options from config that wasn't set by CLI, if there are any.
+	if len(extraArgs) != 0 {
+		err = flags.Parse(extraArgs)
+		if err != nil {
+			return err
+		}
+		// Parse the command-line options again so that flag.Args() returns
+		// whatever was left on the actual command-line, not the config values.
+		flags.Parse(arguments)
 	}
 	if *dumpconfig {
-		DumpConfig(configPath, serviceName, true)
-		os.Exit(0)
+		return ErrDumpRequested
 	}
 	if err = checkVersion(yamlConfig); err != nil {
 		return err

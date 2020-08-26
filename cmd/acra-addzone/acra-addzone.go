@@ -35,6 +35,8 @@ import (
 	"github.com/cossacklabs/acra/cmd"
 	"github.com/cossacklabs/acra/keystore"
 	"github.com/cossacklabs/acra/keystore/filesystem"
+	keystoreV2 "github.com/cossacklabs/acra/keystore/v2/keystore"
+	filesystemV2 "github.com/cossacklabs/acra/keystore/v2/keystore/filesystem"
 	"github.com/cossacklabs/acra/logging"
 	"github.com/cossacklabs/acra/utils"
 	"github.com/cossacklabs/acra/zone"
@@ -51,7 +53,7 @@ var (
 
 func main() {
 	outputDir := flag.String("keys_output_dir", keystore.DefaultKeyDirShort, "Folder where will be saved generated zone keys")
-	fsKeystore := flag.Bool("fs_keystore_enable", true, "Use filesystem key store")
+	flag.Bool("fs_keystore_enable", true, "Use filesystem keystore (deprecated, ignored)")
 
 	logging.SetLogLevel(logging.LogVerbose)
 
@@ -62,26 +64,13 @@ func main() {
 		os.Exit(1)
 	}
 
-	var keyStore keystore.KeyStore
-	if *fsKeystore {
-		masterKey, err := keystore.GetMasterKeyFromEnvironment()
-		if err != nil {
-			log.WithError(err).Errorln("Can't load master key")
-			os.Exit(1)
-		}
-		scellEncryptor, err := keystore.NewSCellKeyEncryptor(masterKey)
-		if err != nil {
-			log.WithError(err).Errorln("Can't init scell encryptor")
-			os.Exit(1)
-		}
-		keyStore, err = filesystem.NewFilesystemKeyStore(*outputDir, scellEncryptor)
-		if err != nil {
-			log.WithError(err).Errorln("Can't create key store")
-			os.Exit(1)
-		}
+	var keyStore keystore.StorageKeyCreation
+	if filesystemV2.IsKeyDirectory(*outputDir) {
+		keyStore = openKeyStoreV2(*outputDir)
 	} else {
-		panic("No more supported keystores")
+		keyStore = openKeyStoreV1(*outputDir)
 	}
+
 	id, publicKey, err := keyStore.GenerateZoneKey()
 	if err != nil {
 		log.WithError(err).Errorln("Can't add zone")
@@ -93,4 +82,42 @@ func main() {
 		os.Exit(1)
 	}
 	fmt.Println(string(json))
+}
+
+func openKeyStoreV1(output string) keystore.StorageKeyCreation {
+	masterKey, err := keystore.GetMasterKeyFromEnvironment()
+	if err != nil {
+		log.WithError(err).Errorln("Cannot load master key")
+		os.Exit(1)
+	}
+	scellEncryptor, err := keystore.NewSCellKeyEncryptor(masterKey)
+	if err != nil {
+		log.WithError(err).Errorln("Can't init scell encryptor")
+		os.Exit(1)
+	}
+	keyStore, err := filesystem.NewFilesystemKeyStore(output, scellEncryptor)
+	if err != nil {
+		log.WithError(err).Errorln("Can't init keystore")
+		os.Exit(1)
+	}
+	return keyStore
+}
+
+func openKeyStoreV2(keyDirPath string) keystore.StorageKeyCreation {
+	encryption, signature, err := keystoreV2.GetMasterKeysFromEnvironment()
+	if err != nil {
+		log.WithError(err).Errorln("Cannot load master key")
+		os.Exit(1)
+	}
+	suite, err := keystoreV2.NewSCellSuite(encryption, signature)
+	if err != nil {
+		log.WithError(err).Error("failed to initialize Secure Cell crypto suite")
+		os.Exit(1)
+	}
+	keyDir, err := filesystemV2.OpenDirectoryRW(keyDirPath, suite)
+	if err != nil {
+		log.WithError(err).WithField("path", keyDirPath).Error("cannot open key directory")
+		os.Exit(1)
+	}
+	return keystoreV2.NewServerKeyStore(keyDir)
 }

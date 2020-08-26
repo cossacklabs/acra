@@ -36,7 +36,7 @@ const (
 )
 
 // CreatePoisonRecord generates AcraStruct encrypted with Poison Record public key
-func CreatePoisonRecord(keystore keystore.KeyStore, dataLength int) ([]byte, error) {
+func CreatePoisonRecord(keystore keystore.PoisonKeyStore, dataLength int) ([]byte, error) {
 	// data length can't be zero
 	if dataLength == UseDefaultDataLength {
 		math_rand.Seed(time.Now().UnixNano())

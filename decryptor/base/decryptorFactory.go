@@ -26,7 +26,7 @@ type DecryptorSetting struct {
 	withZone             bool
 	checkPoisonRecord    bool
 	wholeMatch           bool
-	keystore             keystore.KeyStore
+	keystore             keystore.DecryptionKeyStore
 	poisonCallbacks      *PoisonCallbackStorage
 	encryptorTableSchema config.TableSchemaStore
 }
@@ -42,7 +42,7 @@ func (setting *DecryptorSetting) PoisonCallbacks() *PoisonCallbackStorage {
 }
 
 // Keystore return keystore
-func (setting *DecryptorSetting) Keystore() keystore.KeyStore {
+func (setting *DecryptorSetting) Keystore() keystore.DecryptionKeyStore {
 	return setting.keystore
 }
 
@@ -62,7 +62,7 @@ func (setting *DecryptorSetting) WithZone() bool {
 }
 
 // NewDecryptorSetting return new initialized DecryptorSetting
-func NewDecryptorSetting(withZone, wholeMatch, checkPoisonRecord bool, poisonCallbacks *PoisonCallbackStorage, keystore keystore.KeyStore) *DecryptorSetting {
+func NewDecryptorSetting(withZone, wholeMatch, checkPoisonRecord bool, poisonCallbacks *PoisonCallbackStorage, keystore keystore.DecryptionKeyStore) *DecryptorSetting {
 	return &DecryptorSetting{
 		withZone:          withZone,
 		checkPoisonRecord: checkPoisonRecord,

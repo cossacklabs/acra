@@ -47,11 +47,11 @@ const (
 type ClientCommandsSession struct {
 	ClientSession
 	Server   *SServer
-	keystore keystore.KeyStore
+	keystore keystore.ServerKeyStore
 }
 
 // NewClientCommandsSession returns new ClientCommandsSession
-func NewClientCommandsSession(keystorage keystore.KeyStore, config *Config, connection net.Conn) (*ClientCommandsSession, error) {
+func NewClientCommandsSession(keystorage keystore.ServerKeyStore, config *Config, connection net.Conn) (*ClientCommandsSession, error) {
 	clientSession, err := NewClientSession(context.Background(), keystorage, config, connection)
 	if err != nil {
 		return nil, err

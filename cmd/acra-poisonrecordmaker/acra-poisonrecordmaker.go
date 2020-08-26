@@ -28,14 +28,17 @@ import (
 	"encoding/base64"
 	"flag"
 	"fmt"
+	"os"
+
 	"github.com/cossacklabs/acra/cmd"
 	"github.com/cossacklabs/acra/keystore"
 	"github.com/cossacklabs/acra/keystore/filesystem"
+	keystoreV2 "github.com/cossacklabs/acra/keystore/v2/keystore"
+	filesystemV2 "github.com/cossacklabs/acra/keystore/v2/keystore/filesystem"
 	"github.com/cossacklabs/acra/logging"
 	"github.com/cossacklabs/acra/poison"
 	"github.com/cossacklabs/acra/utils"
 	log "github.com/sirupsen/logrus"
-	"os"
 )
 
 // Constants used by AcraPoisonRecordsMaker
@@ -58,9 +61,25 @@ func main() {
 		os.Exit(1)
 	}
 
+	var store keystore.PoisonKeyStore
+	if filesystemV2.IsKeyDirectory(*keysDir) {
+		store = openKeyStoreV2(*keysDir)
+	} else {
+		store = openKeyStoreV1(*keysDir)
+	}
+
+	poisonRecord, err := poison.CreatePoisonRecord(store, *dataLength)
+	if err != nil {
+		log.WithError(err).Errorln("can't create poison record")
+		os.Exit(1)
+	}
+	fmt.Println(base64.StdEncoding.EncodeToString(poisonRecord))
+}
+
+func openKeyStoreV1(keysDir string) keystore.PoisonKeyStore {
 	masterKey, err := keystore.GetMasterKeyFromEnvironment()
 	if err != nil {
-		log.WithError(err).Errorln("can't load master key")
+		log.WithError(err).Errorln("Cannot load master key")
 		os.Exit(1)
 	}
 	scellEncryptor, err := keystore.NewSCellKeyEncryptor(masterKey)
@@ -68,15 +87,29 @@ func main() {
 		log.WithError(err).Errorln("can't init scell encryptor")
 		os.Exit(1)
 	}
-	store, err := filesystem.NewFilesystemKeyStore(*keysDir, scellEncryptor)
+	store, err := filesystem.NewFilesystemKeyStore(keysDir, scellEncryptor)
 	if err != nil {
-		log.WithError(err).Errorln("can't initialize key store")
+		log.WithError(err).Errorln("can't initialize keystore")
 		os.Exit(1)
 	}
-	poisonRecord, err := poison.CreatePoisonRecord(store, *dataLength)
+	return store
+}
+
+func openKeyStoreV2(keyDirPath string) keystore.PoisonKeyStore {
+	encryption, signature, err := keystoreV2.GetMasterKeysFromEnvironment()
 	if err != nil {
-		log.WithError(err).Errorln("can't create poison record")
+		log.WithError(err).Errorln("Cannot load master key")
 		os.Exit(1)
 	}
-	fmt.Println(base64.StdEncoding.EncodeToString(poisonRecord))
+	suite, err := keystoreV2.NewSCellSuite(encryption, signature)
+	if err != nil {
+		log.WithError(err).Error("failed to initialize Secure Cell crypto suite")
+		os.Exit(1)
+	}
+	keyDir, err := filesystemV2.OpenDirectoryRW(keyDirPath, suite)
+	if err != nil {
+		log.WithError(err).WithField("path", keyDirPath).Error("cannot open key directory")
+		os.Exit(1)
+	}
+	return keystoreV2.NewServerKeyStore(keyDir)
 }

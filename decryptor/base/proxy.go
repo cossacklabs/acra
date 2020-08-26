@@ -19,15 +19,16 @@ package base
 import (
 	"context"
 	"crypto/tls"
-	"github.com/cossacklabs/acra/acra-censor"
+	"net"
+
+	acracensor "github.com/cossacklabs/acra/acra-censor"
 	"github.com/cossacklabs/acra/encryptor/config"
 	"github.com/cossacklabs/acra/keystore"
-	"net"
 )
 
 // ProxySetting provide data access methods for proxy factories
 type ProxySetting interface {
-	KeyStore() keystore.KeyStore
+	KeyStore() keystore.DecryptionKeyStore
 	TableSchemaStore() config.TableSchemaStore
 	TLSConfig() *tls.Config
 	Censor() acracensor.AcraCensorInterface
@@ -35,7 +36,7 @@ type ProxySetting interface {
 }
 
 type proxySetting struct {
-	keystore         keystore.KeyStore
+	keystore         keystore.DecryptionKeyStore
 	tableSchemaStore config.TableSchemaStore
 	tlsConfig        *tls.Config
 	censor           acracensor.AcraCensorInterface
@@ -62,13 +63,13 @@ func (p *proxySetting) TableSchemaStore() config.TableSchemaStore {
 	return p.tableSchemaStore
 }
 
-// KeyStore return key store
-func (p *proxySetting) KeyStore() keystore.KeyStore {
+// KeyStore return keystore
+func (p *proxySetting) KeyStore() keystore.DecryptionKeyStore {
 	return p.keystore
 }
 
 // NewProxySetting return new ProxySetting implementation with data from params
-func NewProxySetting(decryptorFactory DecryptorFactory, tableSchema config.TableSchemaStore, keystore keystore.KeyStore, tlsConfig *tls.Config, censor acracensor.AcraCensorInterface) ProxySetting {
+func NewProxySetting(decryptorFactory DecryptorFactory, tableSchema config.TableSchemaStore, keystore keystore.DecryptionKeyStore, tlsConfig *tls.Config, censor acracensor.AcraCensorInterface) ProxySetting {
 	return &proxySetting{keystore: keystore, tableSchemaStore: tableSchema, tlsConfig: tlsConfig, censor: censor, decryptorFactory: decryptorFactory}
 }
 
