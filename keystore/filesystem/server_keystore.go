@@ -28,6 +28,7 @@ import (
 	"crypto/rand"
 	"errors"
 	"fmt"
+	"io/ioutil"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -74,7 +75,7 @@ func NewFilesystemKeyStoreTwoPath(privateKeyFolder, publicKeyFolder string, encr
 	return NewCustomFilesystemKeyStore().KeyDirectories(privateKeyFolder, publicKeyFolder).Encryptor(encryptor).Build()
 }
 
-// KeyStoreBuilder allows to build a custom key store.
+// KeyStoreBuilder allows to build a custom keystore.
 type KeyStoreBuilder struct {
 	privateKeyDir string
 	publicKeyDir  string
@@ -144,6 +145,33 @@ func (b *KeyStoreBuilder) Build() (*KeyStore, error) {
 	return newFilesystemKeyStore(b.privateKeyDir, b.publicKeyDir, b.storage, b.encryptor, b.cacheSize)
 }
 
+// IsKeyDirectory checks if the local directory contains a keystore.
+// This is a conservative check.
+// That is, positive return value does not mean that the directory contains *a valid* keystore.
+// However, false value means that the directory definitely is not a valid keystore.
+// In particular, false is returned if the directory does not exists or cannot be opened.
+func IsKeyDirectory(keyDirectory string) bool {
+	fi, err := os.Stat(keyDirectory)
+	if err != nil {
+		log.WithError(err).WithField("path", keyDirectory).Debug("Failed to stat a key directory")
+		return false
+	}
+	if !fi.IsDir() {
+		log.WithField("path", keyDirectory).Debug("Not a key directory")
+		return false
+	}
+	files, err := ioutil.ReadDir(keyDirectory)
+	if err != nil {
+		log.WithError(err).WithField("path", keyDirectory).Debug("Failed to read key directory")
+		return false
+	}
+	if len(files) == 0 {
+		log.WithField("path", keyDirectory).Debug("Key directory is empty")
+		return false
+	}
+	return true
+}
+
 func newFilesystemKeyStore(privateKeyFolder, publicKeyFolder string, storage Storage, encryptor keystore.KeyEncryptor, cacheSize int) (*KeyStore, error) {
 	fi, err := storage.Stat(privateKeyFolder)
 	if err != nil && !os.IsNotExist(err) {
@@ -152,8 +180,8 @@ func newFilesystemKeyStore(privateKeyFolder, publicKeyFolder string, storage Sto
 	if !os.IsNotExist(err) {
 		const expectedPermission = "-rwx------"
 		if runtime.GOOS == "linux" && fi.Mode().Perm().String() != expectedPermission {
-			log.Errorf("Key store folder has an incorrect permissions %s, expected: %s", fi.Mode().Perm().String(), expectedPermission)
-			return nil, errors.New("key store folder has an incorrect permissions")
+			log.Errorf("Keystore folder has an incorrect permissions %s, expected: %s", fi.Mode().Perm().String(), expectedPermission)
+			return nil, errors.New("keystore folder has an incorrect permissions")
 		}
 	}
 	_, err = storage.Stat(publicKeyFolder)
@@ -417,9 +445,7 @@ func (store *KeyStore) getPrivateKeysByFilenames(id []byte, filenames []string) 
 	for i, name := range filenames {
 		key, err := store.getPrivateKeyByFilename(id, name)
 		if err != nil {
-			for _, key := range privateKeys[:i] {
-				utils.FillSlice(0, key.Value)
-			}
+			utils.ZeroizePrivateKeys(privateKeys)
 			return nil, err
 		}
 		privateKeys[i] = key
@@ -605,6 +631,12 @@ func (store *KeyStore) GenerateDataEncryptionKeys(id []byte) error {
 	return nil
 }
 
+// ListKeys enumerates keys present in the keystore.
+func (store *KeyStore) ListKeys() ([]keystore.KeyDescription, error) {
+	// In Acra CE this method is implemented only for keystore v2.
+	return nil, keystore.ErrNotImplemented
+}
+
 // Reset clears all cached keys
 func (store *KeyStore) Reset() {
 	store.cache.Clear()
@@ -615,7 +647,7 @@ func (store *KeyStore) Reset() {
 // Returns keypair or error if generation/decryption failed.
 func (store *KeyStore) GetPoisonKeyPair() (*keys.Keypair, error) {
 	privatePath := store.GetPrivateKeyFilePath(PoisonKeyFilename)
-	publicPath := store.GetPublicKeyFilePath(fmt.Sprintf("%s.pub", PoisonKeyFilename))
+	publicPath := store.GetPublicKeyFilePath(poisonKeyFilenamePublic)
 	privateExists, err := store.fs.Exists(privatePath)
 	if err != nil {
 		return nil, err
@@ -698,6 +730,44 @@ func (store *KeyStore) SaveTranslatorKeypair(id []byte, keypair *keys.Keypair) e
 func (store *KeyStore) SaveDataEncryptionKeys(id []byte, keypair *keys.Keypair) error {
 	filename := GetServerDecryptionKeyFilename(id)
 	return store.SaveKeyPairWithFilename(keypair, filename, id)
+}
+
+// destroyKeyWithFilename removes private and public key with given filename.
+func (store *KeyStore) destroyKeyWithFilename(filename string) error {
+	// Purge private key data from cache too.
+	store.cache.Add(filename, nil)
+
+	// Remove key files. It's okay if they are already removed (or never existed).
+	// Keystore v1 does not differentiate between 'destroying' and 'removing' keys
+	// because multiple functinons depend on the key file to be absent, not empty.
+	err := store.fs.Remove(store.GetPrivateKeyFilePath(filename))
+	if err != nil && !os.IsNotExist(err) {
+		return err
+	}
+	err = store.fs.Remove(store.GetPublicKeyFilePath(filename + ".pub"))
+	if err != nil && !os.IsNotExist(err) {
+		return err
+	}
+
+	return nil
+}
+
+// DestroyConnectorKeypair destroys currently used AcraConnector transport keypair for given clientID.
+func (store *KeyStore) DestroyConnectorKeypair(id []byte) error {
+	filename := getConnectorKeyFilename(id)
+	return store.destroyKeyWithFilename(filename)
+}
+
+// DestroyServerKeypair destroys currently used AcraServer transport keypair for given clientID.
+func (store *KeyStore) DestroyServerKeypair(id []byte) error {
+	filename := getServerKeyFilename(id)
+	return store.destroyKeyWithFilename(filename)
+}
+
+// DestroyTranslatorKeypair destroys currently used AcraTranslator transport keypair for given clientID.
+func (store *KeyStore) DestroyTranslatorKeypair(id []byte) error {
+	filename := getTranslatorKeyFilename(id)
+	return store.destroyKeyWithFilename(filename)
 }
 
 // Add value to inner cache

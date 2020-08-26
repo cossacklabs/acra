@@ -48,6 +48,9 @@ func (*TestKeyStore) RotateZoneKey(zoneID []byte) ([]byte, error) {
 func (storage *TestKeyStore) GetZonePrivateKey(id []byte) (*keys.PrivateKey, error) {
 	return &keys.PrivateKey{Value: []byte{}}, nil
 }
+func (storage *TestKeyStore) GetZonePrivateKeys(id []byte) ([]*keys.PrivateKey, error) {
+	return nil, nil
+}
 func (storage *TestKeyStore) HasZonePrivateKey(id []byte) bool { return true }
 func (storage *TestKeyStore) GetPeerPublicKey(id []byte) (*keys.PublicKey, error) {
 	return &keys.PublicKey{Value: []byte{}}, nil
@@ -63,6 +66,9 @@ func (storage *TestKeyStore) GenerateServerKeys(id []byte) error         { retur
 func (storage *TestKeyStore) GenerateTranslatorKeys(id []byte) error     { return nil }
 func (storage *TestKeyStore) GenerateDataEncryptionKeys(id []byte) error { return nil }
 func (storage *TestKeyStore) GetServerDecryptionPrivateKey(id []byte) (*keys.PrivateKey, error) {
+	return nil, nil
+}
+func (storage *TestKeyStore) GetServerDecryptionPrivateKeys(id []byte) ([]*keys.PrivateKey, error) {
 	return nil, nil
 }
 func (keystore *TestKeyStore) GetAuthKey(remove bool) ([]byte, error) {
@@ -86,7 +92,7 @@ func (*TestKeyStore) GetClientIDEncryptionPublicKey(clientID []byte) (*keys.Publ
 }
 
 func testZoneIDMatcher(t *testing.T) {
-	var keystorage keystore.KeyStore = &TestKeyStore{}
+	var keystorage keystore.PrivateKeyStore = &TestKeyStore{}
 	matcherPool := zone.NewMatcherPool(zone.NewPgMatcherFactory())
 	zoneMatcher := zone.NewZoneMatcher(matcherPool, keystorage)
 

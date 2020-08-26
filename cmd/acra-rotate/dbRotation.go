@@ -20,13 +20,15 @@ import (
 	"database/sql"
 	"encoding/hex"
 	"fmt"
+	"reflect"
+
+	"github.com/cossacklabs/acra/keystore"
 	"github.com/cossacklabs/acra/utils"
 	log "github.com/sirupsen/logrus"
-	"reflect"
 )
 
 // rotateDb execute selectQuery to fetch AcraStructs with related zone ids, decrypt with rotated zone keys and
-func rotateDb(selectQuery, updateQuery string, db *sql.DB, keystore KeyStore, encoder utils.BinaryEncoder, zoneMode, dryRun bool) bool {
+func rotateDb(selectQuery, updateQuery string, db *sql.DB, keystore keystore.RotateStorageKeyStore, encoder utils.BinaryEncoder, zoneMode, dryRun bool) bool {
 	rotator, err := newRotator(keystore, zoneMode)
 	if err != nil {
 		return false

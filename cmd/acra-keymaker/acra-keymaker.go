@@ -23,14 +23,17 @@ package main
 
 import (
 	"flag"
+	"io/ioutil"
+	"os"
+
 	"github.com/cossacklabs/acra/cmd"
 	"github.com/cossacklabs/acra/keystore"
 	"github.com/cossacklabs/acra/keystore/filesystem"
+	keystoreV2 "github.com/cossacklabs/acra/keystore/v2/keystore"
+	filesystemV2 "github.com/cossacklabs/acra/keystore/v2/keystore/filesystem"
 	"github.com/cossacklabs/acra/logging"
 	"github.com/cossacklabs/acra/utils"
 	log "github.com/sirupsen/logrus"
-	"io/ioutil"
-	"os"
 )
 
 // Constants used by AcraKeymaker
@@ -50,6 +53,7 @@ func main() {
 	outputDir := flag.String("keys_output_dir", keystore.DefaultKeyDirShort, "Folder where will be saved keys")
 	outputPublicKey := flag.String("keys_public_output_dir", keystore.DefaultKeyDirShort, "Folder where will be saved public key")
 	masterKey := flag.String("generate_master_key", "", "Generate new random master key and save to file")
+	keystoreVersion := flag.String("keystore", "", "set keystore format: v1 (current), v2 (new)")
 
 	logging.SetLogLevel(logging.LogVerbose)
 
@@ -63,38 +67,50 @@ func main() {
 	cmd.ValidateClientID(*clientID)
 
 	if *masterKey != "" {
-		newKey, err := keystore.GenerateSymmetricKey()
+		var newKey []byte
+		switch *keystoreVersion {
+		case "v1":
+			newKey, err = keystore.GenerateSymmetricKey()
+		case "v2":
+			newKey, err = keystoreV2.NewSerializedMasterKeys()
+		case "":
+			log.Errorf("Keystore version is required: --keystore={v1|v2}")
+			os.Exit(1)
+		default:
+			log.Errorf("Unknown --keystore option: %v", *keystoreVersion)
+			os.Exit(1)
+		}
 		if err != nil {
-			panic(err)
+			log.WithError(err).Errorln("Failed to generate master key")
+			os.Exit(1)
 		}
 		if err := ioutil.WriteFile(*masterKey, newKey, 0600); err != nil {
-			panic(err)
+			log.WithError(err).WithField("path", *masterKey).Errorln("Failed to write master key")
+			os.Exit(1)
 		}
 		os.Exit(0)
 	}
 
-	symmetricKey, err := keystore.GetMasterKeyFromEnvironment()
-	if err != nil {
-		if err == keystore.ErrEmptyMasterKey {
-			log.Infof("You must pass master key via %v environment variable", keystore.AcraMasterKeyVarName)
-			os.Exit(1)
+	var store keystore.KeyMaking
+	// If the keystore already exists, detect its version automatically and allow to not specify it.
+	if *keystoreVersion == "" {
+		if filesystemV2.IsKeyDirectory(*outputDir) {
+			*keystoreVersion = "v2"
+		} else if filesystem.IsKeyDirectory(*outputDir) {
+			*keystoreVersion = "v1"
 		}
-		log.WithError(err).Errorln("Can't load master key")
+	}
+	switch *keystoreVersion {
+	case "v1":
+		store = openKeyStoreV1(*outputDir, *outputPublicKey)
+	case "v2":
+		store = openKeyStoreV2(*outputDir)
+	case "":
+		log.Errorf("Keystore version is required: --keystore={v1|v2}")
 		os.Exit(1)
-	}
-	scellEncryptor, err := keystore.NewSCellKeyEncryptor(symmetricKey)
-	if err != nil {
-		log.WithError(err).Errorln("Can't init scell encryptor")
+	default:
+		log.Errorf("Unknown --keystore option: %v", *keystoreVersion)
 		os.Exit(1)
-	}
-	var store keystore.KeyStore
-	if *outputPublicKey != *outputDir {
-		store, err = filesystem.NewFilesystemKeyStoreTwoPath(*outputDir, *outputPublicKey, scellEncryptor)
-	} else {
-		store, err = filesystem.NewFilesystemKeyStore(*outputDir, scellEncryptor)
-	}
-	if err != nil {
-		panic(err)
 	}
 
 	if *acraConnector {
@@ -148,4 +164,47 @@ func main() {
 			panic(err)
 		}
 	}
+}
+
+func openKeyStoreV1(outputDir, outputPublicKey string) keystore.KeyMaking {
+	symmetricKey, err := keystore.GetMasterKeyFromEnvironment()
+	if err != nil {
+		log.WithError(err).Errorln("Cannot load master key")
+		os.Exit(1)
+	}
+	scellEncryptor, err := keystore.NewSCellKeyEncryptor(symmetricKey)
+	if err != nil {
+		log.WithError(err).Errorln("Can't init scell encryptor")
+		os.Exit(1)
+	}
+	var store keystore.KeyMaking
+	if outputPublicKey != outputDir {
+		store, err = filesystem.NewFilesystemKeyStoreTwoPath(outputDir, outputPublicKey, scellEncryptor)
+	} else {
+		store, err = filesystem.NewFilesystemKeyStore(outputDir, scellEncryptor)
+	}
+	if err != nil {
+		log.WithError(err).Errorln("Can't init keystore")
+		os.Exit(1)
+	}
+	return store
+}
+
+func openKeyStoreV2(keyDirPath string) keystore.KeyMaking {
+	encryption, signature, err := keystoreV2.GetMasterKeysFromEnvironment()
+	if err != nil {
+		log.WithError(err).Errorln("Cannot load master key")
+		os.Exit(1)
+	}
+	suite, err := keystoreV2.NewSCellSuite(encryption, signature)
+	if err != nil {
+		log.WithError(err).Error("failed to initialize Secure Cell crypto suite")
+		os.Exit(1)
+	}
+	keyDir, err := filesystemV2.OpenDirectoryRW(keyDirPath, suite)
+	if err != nil {
+		log.WithError(err).WithField("path", keyDirPath).Error("cannot open key directory")
+		os.Exit(1)
+	}
+	return keystoreV2.NewServerKeyStore(keyDir)
 }

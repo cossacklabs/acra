@@ -35,3 +35,6 @@ keys_output_dir: .acrakeys
 # Folder where will be saved public key
 keys_public_output_dir: .acrakeys
 
+# set keystore format: v1 (current), v2 (new)
+keystore: 
+

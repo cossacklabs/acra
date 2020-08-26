@@ -34,10 +34,16 @@ func (keystore *testKeystore) GetPeerPublicKey(id []byte) (*keys.PublicKey, erro
 func (keystore *testKeystore) GetZonePrivateKey(id []byte) (*keys.PrivateKey, error) {
 	return nil, nil
 }
+func (keystore *testKeystore) GetZonePrivateKeys(id []byte) ([]*keys.PrivateKey, error) {
+	return nil, nil
+}
 func (keystore *testKeystore) HasZonePrivateKey(id []byte) bool {
 	return true
 }
 func (keystore *testKeystore) GetServerDecryptionPrivateKey(id []byte) (*keys.PrivateKey, error) {
+	return nil, nil
+}
+func (keystore *testKeystore) GetServerDecryptionPrivateKeys(id []byte) ([]*keys.PrivateKey, error) {
 	return nil, nil
 }
 func (keystore *testKeystore) GenerateZoneKey() ([]byte, []byte, error) {
@@ -75,7 +81,7 @@ func (*testKeystore) GetClientIDEncryptionPublicKey(clientID []byte) (*keys.Publ
 }
 func (*testKeystore) GetZonePublicKey(zoneID []byte) (*keys.PublicKey, error) { panic("implement me") }
 
-func getDecryptor(keystore keystore.KeyStore) *Decryptor {
+func getDecryptor(keystore keystore.DecryptionKeyStore) *Decryptor {
 	dataDecryptor := binary.NewBinaryDecryptor(logrus.NewEntry(logrus.StandardLogger()))
 	clientID := []byte("some id")
 	pgDecryptor := postgresql.NewPgDecryptor(clientID, dataDecryptor, false, keystore)

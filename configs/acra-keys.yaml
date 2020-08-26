@@ -1,0 +1,61 @@
+version: 0.85.0
+# path to config
+config_file: 
+
+# dump config
+dump_config: false
+
+# Generate with yaml config markdown text file with descriptions of all args
+generate_markdown_args_table: false
+
+# use machine-readable JSON output
+json: false
+
+# path to key directory
+keys_dir: .acrakeys
+
+# path to key directory for public keys
+keys_dir_public: 
+
+# export all keys
+all: false
+
+# path to output file for exported key bundle
+key_bundle_file: 
+
+# path to output file for key encryption keys
+key_bundle_secret: 
+
+# export private key data
+private_keys: false
+
+# try migration without writing to the output keystore
+dry_run: false
+
+# path to key directory (new keystore, destination)
+dst_keys_dir: 
+
+# path to key directory for public keys (new keystore, destination)
+dst_keys_dir_public: 
+
+# keystore format to use: v1 (current), v2 (new)
+dst_keystore: 
+
+# write to output keystore even if it exists
+force: false
+
+# path to key directory (old keystore, source)
+src_keys_dir: 
+
+# path to key directory for public keys (old keystore, source)
+src_keys_dir_public: 
+
+# keystore format to use: v1 (current), v2 (new)
+src_keystore: 
+
+# client ID for which to retrieve key
+client_id: 
+
+# zone ID for which to retrieve key
+zone_id: 
+

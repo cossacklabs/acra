@@ -59,8 +59,20 @@ jobs:
       # generate test data for integration tests
       - run: python3 tests/generate_random_data.py
       # each iteration pass to test different ports for forks to avoid problems with TCP TIME WAIT between tests
-      - run: .circleci/integration.sh
-      - run: if [ -f  $FILEPATH_ERROR_FLAG ]; then cat "$FILEPATH_ERROR_FLAG"; rm "$FILEPATH_ERROR_FLAG"; exit 1; fi
+      - run:
+          name: Integration tests (keystore v1)
+          environment:
+            TEST_KEYSTORE: v1
+          command: |
+            .circleci/integration.sh
+            if [ -f  $FILEPATH_ERROR_FLAG ]; then cat "$FILEPATH_ERROR_FLAG"; rm "$FILEPATH_ERROR_FLAG"; exit 1; fi
+      - run:
+          name: Integration tests (keystore v2)
+          environment:
+            TEST_KEYSTORE: v2
+          command: |
+            .circleci/integration.sh
+            if [ -f  $FILEPATH_ERROR_FLAG ]; then cat "$FILEPATH_ERROR_FLAG"; rm "$FILEPATH_ERROR_FLAG"; exit 1; fi
       - store_test_results:
           path: /home/user/tests_output
       - store_artifacts:
@@ -95,8 +107,20 @@ jobs:
       # generate test data for integration tests
       - run: python3 tests/generate_random_data.py
       # each iteration pass to test different ports for forks to avoid problems with TCP TIME WAIT between tests
-      - run: .circleci/integration.sh
-      - run: if [ -f  $FILEPATH_ERROR_FLAG ]; then cat "$FILEPATH_ERROR_FLAG"; rm "$FILEPATH_ERROR_FLAG"; exit 1; fi
+      - run:
+          name: Integration tests (keystore v1)
+          environment:
+            TEST_KEYSTORE: v1
+          command: |
+            .circleci/integration.sh
+            if [ -f  $FILEPATH_ERROR_FLAG ]; then cat "$FILEPATH_ERROR_FLAG"; rm "$FILEPATH_ERROR_FLAG"; exit 1; fi
+      - run:
+          name: Integration tests (keystore v2)
+          environment:
+            TEST_KEYSTORE: v2
+          command: |
+            .circleci/integration.sh
+            if [ -f  $FILEPATH_ERROR_FLAG ]; then cat "$FILEPATH_ERROR_FLAG"; rm "$FILEPATH_ERROR_FLAG"; exit 1; fi
       - store_test_results:
           path: /home/user/tests_output
       - store_artifacts:
@@ -136,8 +160,20 @@ jobs:
     # generate test data for integration tests
     - run: python3 tests/generate_random_data.py
     # each iteration pass to test different ports for forks to avoid problems with TCP TIME WAIT between tests
-    - run: .circleci/integration.sh
-    - run: if [ -f  $FILEPATH_ERROR_FLAG ]; then cat "$FILEPATH_ERROR_FLAG"; rm "$FILEPATH_ERROR_FLAG"; exit 1; fi
+    - run:
+        name: Integration tests (keystore v1)
+        environment:
+          TEST_KEYSTORE: v1
+        command: |
+          .circleci/integration.sh
+          if [ -f  $FILEPATH_ERROR_FLAG ]; then cat "$FILEPATH_ERROR_FLAG"; rm "$FILEPATH_ERROR_FLAG"; exit 1; fi
+    - run:
+        name: Integration tests (keystore v2)
+        environment:
+          TEST_KEYSTORE: v2
+        command: |
+          .circleci/integration.sh
+          if [ -f  $FILEPATH_ERROR_FLAG ]; then cat "$FILEPATH_ERROR_FLAG"; rm "$FILEPATH_ERROR_FLAG"; exit 1; fi
     - store_test_results:
         path: /home/user/tests_output
     - store_artifacts:
@@ -177,8 +213,20 @@ jobs:
       # generate test data for integration tests
       - run: python3 tests/generate_random_data.py
       # each iteration pass to test different ports for forks to avoid problems with TCP TIME WAIT between tests
-      - run: .circleci/integration.sh
-      - run: if [ -f  $FILEPATH_ERROR_FLAG ]; then cat "$FILEPATH_ERROR_FLAG"; rm "$FILEPATH_ERROR_FLAG"; exit 1; fi
+      - run:
+          name: Integration tests (keystore v1)
+          environment:
+            TEST_KEYSTORE: v1
+          command: |
+            .circleci/integration.sh
+            if [ -f  $FILEPATH_ERROR_FLAG ]; then cat "$FILEPATH_ERROR_FLAG"; rm "$FILEPATH_ERROR_FLAG"; exit 1; fi
+      - run:
+          name: Integration tests (keystore v2)
+          environment:
+            TEST_KEYSTORE: v2
+          command: |
+            .circleci/integration.sh
+            if [ -f  $FILEPATH_ERROR_FLAG ]; then cat "$FILEPATH_ERROR_FLAG"; rm "$FILEPATH_ERROR_FLAG"; exit 1; fi
       - store_test_results:
           path: /home/user/tests_output
       - store_artifacts:
@@ -218,8 +266,20 @@ jobs:
     # generate test data for integration tests
     - run: python3 tests/generate_random_data.py
     # each iteration pass to test different ports for forks to avoid problems with TCP TIME WAIT between tests
-    - run: .circleci/integration.sh
-    - run: if [ -f  $FILEPATH_ERROR_FLAG ]; then cat "$FILEPATH_ERROR_FLAG"; rm "$FILEPATH_ERROR_FLAG"; exit 1; fi
+    - run:
+        name: Integration tests (keystore v1)
+        environment:
+          TEST_KEYSTORE: v1
+        command: |
+          .circleci/integration.sh
+          if [ -f  $FILEPATH_ERROR_FLAG ]; then cat "$FILEPATH_ERROR_FLAG"; rm "$FILEPATH_ERROR_FLAG"; exit 1; fi
+    - run:
+        name: Integration tests (keystore v2)
+        environment:
+          TEST_KEYSTORE: v2
+        command: |
+          .circleci/integration.sh
+          if [ -f  $FILEPATH_ERROR_FLAG ]; then cat "$FILEPATH_ERROR_FLAG"; rm "$FILEPATH_ERROR_FLAG"; exit 1; fi
     - store_test_results:
         path: /home/user/tests_output
     - store_artifacts:
@@ -257,8 +317,20 @@ jobs:
       # generate test data for integration tests
       - run: python3 tests/generate_random_data.py
       # each iteration pass to test different ports for forks to avoid problems with TCP TIME WAIT between tests
-      - run: .circleci/integration.sh
-      - run: if [ -f  $FILEPATH_ERROR_FLAG ]; then cat "$FILEPATH_ERROR_FLAG"; rm "$FILEPATH_ERROR_FLAG"; exit 1; fi
+      - run:
+          name: Integration tests (keystore v1)
+          environment:
+            TEST_KEYSTORE: v1
+          command: |
+            .circleci/integration.sh
+            if [ -f  $FILEPATH_ERROR_FLAG ]; then cat "$FILEPATH_ERROR_FLAG"; rm "$FILEPATH_ERROR_FLAG"; exit 1; fi
+      - run:
+          name: Integration tests (keystore v2)
+          environment:
+            TEST_KEYSTORE: v2
+          command: |
+            .circleci/integration.sh
+            if [ -f  $FILEPATH_ERROR_FLAG ]; then cat "$FILEPATH_ERROR_FLAG"; rm "$FILEPATH_ERROR_FLAG"; exit 1; fi
       - store_test_results:
           path: /home/user/tests_output
       - store_artifacts:

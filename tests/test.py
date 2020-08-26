@@ -14,6 +14,7 @@
 # coding: utf-8
 import asyncio
 import contextlib
+from ddt import ddt, data
 import socket
 import json
 import logging
@@ -58,12 +59,15 @@ from sqlalchemy.dialects import mysql as mysql_dialect
 from sqlalchemy.dialects import postgresql as postgresql_dialect
 
 import utils
-from utils import (read_storage_public_key, decrypt_acrastruct,
-                   decrypt_private_key, read_zone_public_key,
+from utils import (read_storage_public_key, read_storage_private_key,
+                   read_zone_public_key, read_zone_private_key,
+                   read_poison_public_key, read_poison_private_key,
+                   destroy_key,
+                   decrypt_acrastruct,
                    load_random_data_config, get_random_data_files,
                    clean_test_data, safe_string, prepare_encryptor_config,
                    get_encryptor_config, abs_path, get_test_encryptor_config, send_signal_by_process_name,
-                   load_yaml_config, dump_yaml_config, read_storage_private_key, read_zone_private_key)
+                   load_yaml_config, dump_yaml_config)
 
 import sys
 # add to path our wrapper until not published to PYPI
@@ -223,9 +227,7 @@ def get_pregenerated_random_data():
 
 
 def create_acrastruct_with_client_id(data, client_id='keypair1'):
-    keyname = '{}_storage'.format(client_id)
-    with open('{}/{}.pub'.format(KEYS_FOLDER.name, keyname), 'rb') as f:
-        server_public1 = f.read()
+    server_public1 = read_storage_public_key(client_id, KEYS_FOLDER.name)
     if isinstance(data, str):
         data = data.encode('utf-8')
     acra_struct = create_acrastruct(data, server_public1)
@@ -269,18 +271,18 @@ def get_connect_args(port=5432, sslmode=None, **kwargs):
     return args
 
 
+KEYSTORE_VERSION = os.environ.get('TEST_KEYSTORE', 'v1')
+
+
 def get_master_key():
-    """
-    return master key in base64 format if generated or generate and return
-    """
+    """Returns master key value (base64-encoded)."""
     global master_key
     if not master_key:
         master_key = os.environ.get(ACRA_MASTER_KEY_VAR_NAME)
         if not master_key:
             subprocess.check_output([
-                './acra-keymaker', '--generate_master_key={}'.format(MASTER_KEY_PATH),
-                '--keys_output_dir={}'.format(KEYS_FOLDER.name),
-                '--keys_public_output_dir={}'.format(KEYS_FOLDER.name)])
+                './acra-keymaker', '--keystore={}'.format(KEYSTORE_VERSION),
+                '--generate_master_key={}'.format(MASTER_KEY_PATH)])
             with open(MASTER_KEY_PATH, 'rb') as f:
                 master_key = b64encode(f.read()).decode('ascii')
     return master_key
@@ -291,20 +293,76 @@ def get_poison_record():
     for new records"""
     global poison_record
     if not poison_record:
-        poison_record = b64decode(subprocess.check_output(
-            ['./acra-poisonrecordmaker', '--keys_dir={}'.format(KEYS_FOLDER.name)], timeout=PROCESS_CALL_TIMEOUT))
+        poison_record = b64decode(subprocess.check_output([
+            './acra-poisonrecordmaker', '--keys_dir={}'.format(KEYS_FOLDER.name),
+            ],
+            timeout=PROCESS_CALL_TIMEOUT))
     return poison_record
 
 
-def create_client_keypair(name, only_server=False, only_client=False):
+def create_client_keypair(name, only_server=False, only_connector=False, only_storage=False, keys_dir=None):
+    if not keys_dir:
+        keys_dir = KEYS_FOLDER.name
     args = ['./acra-keymaker', '-client_id={}'.format(name),
-            '-keys_output_dir={}'.format(KEYS_FOLDER.name),
-            '--keys_public_output_dir={}'.format(KEYS_FOLDER.name)]
+            '-keys_output_dir={}'.format(keys_dir),
+            '--keys_public_output_dir={}'.format(keys_dir),
+            '--keystore={}'.format(KEYSTORE_VERSION)]
     if only_server:
-        args.append('-acra-server')
-    elif only_client:
-        args.append('-acra-connector')
+        args.append('--generate_acraserver_keys')
+    if only_connector:
+        args.append('--generate_acraconnector_keys')
+    if only_storage:
+        args.append('--generate_acrawriter_keys')
     return subprocess.call(args, cwd=os.getcwd(), timeout=PROCESS_CALL_TIMEOUT)
+
+
+def exchange_client_public_keys(client, server_keys_dir, connector_keys_dir):
+    if KEYSTORE_VERSION == 'v1':
+        # Older keystores expect the administrator to manually copy
+        # the following public key files. They are not encrypted or
+        # authenticated in any way.
+        connector_key = '{}.pub'.format(client)
+        server_key = '{}_server.pub'.format(client)
+
+        # Transfer AcraServer public key to AcraConnector
+        shutil.copy(os.path.join(server_keys_dir, server_key),
+                    connector_keys_dir)
+
+        # Transfer AcraConnector public key to AcraServer
+        shutil.copy(os.path.join(connector_keys_dir, connector_key),
+                    server_keys_dir)
+    else:
+        # Newer keystores have a bit more involved key transfer process.
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            bundle = os.path.join(tmp_dir, 'key-bundle')
+            secret = os.path.join(tmp_dir, 'key-bundle-secret')
+
+            # Transfer AcraServer public key to AcraConnector
+            subprocess.call(['./acra-keys', 'export',
+                             '--keys_dir={}'.format(server_keys_dir),
+                             '--key_bundle_file={}'.format(bundle),
+                             '--key_bundle_secret={}'.format(secret),
+                             'client/{}/transport/server'.format(client)],
+                            timeout=PROCESS_CALL_TIMEOUT)
+            subprocess.call(['./acra-keys', 'import',
+                             '--keys_dir={}'.format(connector_keys_dir),
+                             '--key_bundle_file={}'.format(bundle),
+                             '--key_bundle_secret={}'.format(secret)],
+                            timeout=PROCESS_CALL_TIMEOUT)
+
+            # Transfer AcraConnector public key to AcraServer
+            subprocess.call(['./acra-keys', 'export',
+                             '--keys_dir={}'.format(connector_keys_dir),
+                             '--key_bundle_file={}'.format(bundle),
+                             '--key_bundle_secret={}'.format(secret),
+                             'client/{}/transport/connector'.format(client)],
+                            timeout=PROCESS_CALL_TIMEOUT)
+            subprocess.call(['./acra-keys', 'import',
+                             '--keys_dir={}'.format(server_keys_dir),
+                             '--key_bundle_file={}'.format(bundle),
+                             '--key_bundle_secret={}'.format(secret)],
+                            timeout=PROCESS_CALL_TIMEOUT)
+
 
 def manage_basic_auth_user(action, user_name, user_password):
     args = ['./acra-authmanager', '--{}'.format(action),
@@ -416,6 +474,8 @@ BINARIES = [
     Binary(name='acra-addzone', from_version=DEFAULT_VERSION,
            build_args=DEFAULT_BUILD_ARGS),
     Binary(name='acra-keymaker', from_version=DEFAULT_VERSION,
+           build_args=DEFAULT_BUILD_ARGS),
+    Binary(name='acra-keys', from_version=DEFAULT_VERSION,
            build_args=DEFAULT_BUILD_ARGS),
     Binary(name='acra-poisonrecordmaker', from_version=DEFAULT_VERSION,
            build_args=DEFAULT_BUILD_ARGS),
@@ -727,28 +787,46 @@ class Psycopg2Executor(QueryExecutor):
 class KeyMakerTest(unittest.TestCase):
     def test_key_length(self):
         key_size = 32
-        short_key = b64encode((key_size - 1)*b'a')
-        standard_key = b64encode(key_size * b'a')
-        long_key = b64encode((key_size * 2) * b'a')
+
+        def random_keys(size):
+            if KEYSTORE_VERSION == 'v1':
+                # Keystore v1 uses simple binary data for keys
+                value = os.urandom(size)
+            elif KEYSTORE_VERSION == 'v2':
+                # Keystore v2 uses more complex JSON format
+                encryption = os.urandom(size)
+                signature = os.urandom(size)
+                keys = {
+                    'encryption': b64encode(encryption).decode('ascii'),
+                    'signature': b64encode(signature).decode('ascii'),
+                }
+                value = json.dumps(keys).encode('ascii')
+            else:
+                self.fail("keystore version not supported")
+
+            return {ACRA_MASTER_KEY_VAR_NAME: b64encode(value)}
 
         with tempfile.TemporaryDirectory() as folder:
             with self.assertRaises(subprocess.CalledProcessError) as exc:
                 subprocess.check_output(
-                    ['./acra-keymaker', '--keys_output_dir={}'.format(folder),
+                    ['./acra-keymaker', '--keystore={}'.format(KEYSTORE_VERSION),
+                     '--keys_output_dir={}'.format(folder),
                      '--keys_public_output_dir={}'.format(folder)],
-                    env={'ACRA_MASTER_KEY': short_key})
+                    env=random_keys(key_size - 1))
 
         with tempfile.TemporaryDirectory() as folder:
             subprocess.check_output(
-                    ['./acra-keymaker', '--keys_output_dir={}'.format(folder),
+                    ['./acra-keymaker', '--keystore={}'.format(KEYSTORE_VERSION),
+                     '--keys_output_dir={}'.format(folder),
                      '--keys_public_output_dir={}'.format(folder)],
-                    env={'ACRA_MASTER_KEY': standard_key})
+                    env=random_keys(key_size))
 
         with tempfile.TemporaryDirectory() as folder:
             subprocess.check_output(
-                    ['./acra-keymaker', '--keys_output_dir={}'.format(folder),
+                    ['./acra-keymaker', '--keystore={}'.format(KEYSTORE_VERSION),
+                     '--keys_output_dir={}'.format(folder),
                      '--keys_public_output_dir={}'.format(folder)],
-                    env={'ACRA_MASTER_KEY': long_key})
+                    env=random_keys(key_size * 2))
 
 
 class PrometheusMixin(object):
@@ -851,15 +929,19 @@ class BaseTestCase(PrometheusMixin, unittest.TestCase):
         return process
 
     def get_connector_tls_params(self):
-        return [
-            '--acraserver_tls_transport_enable',
-            '--tls_acraserver_sni=acraserver',
-        ]
+        return {
+            'acraserver_tls_transport_enable': True,
+            'tls_acraserver_sni': 'acraserver',
+        }
 
     def get_connector_prometheus_port(self, port):
         return port+1
 
-    def fork_connector(self, connector_port: int, acraserver_port: int, client_id: str, api_port: int=None, zone_mode: bool=False, check_connection: bool=True):
+    def fork_connector(self, connector_port: int, acraserver_port: int,
+                       client_id: str, api_port: int=None,
+                       zone_mode: bool=False, check_connection: bool=True,
+                       popen_kwargs: dict=None,
+                       **extra_options: dict):
         logging.info("fork connector with port {} and client_id={}".format(connector_port, client_id))
 
         acraserver_connection = self.get_acraserver_connection_string(acraserver_port)
@@ -877,33 +959,40 @@ class BaseTestCase(PrometheusMixin, unittest.TestCase):
                 os.remove(path)
             except:
                 pass
-        args = [
-            './acra-connector',
-            '-acraserver_connection_string={}'.format(acraserver_connection),
-            '-acraserver_api_connection_string={}'.format(acraserver_api_connection),
-             '-client_id={}'.format(client_id),
-            '-incoming_connection_string={}'.format(connector_connection),
-            '-incoming_connection_api_string={}'.format(connector_api_connection),
-            '-user_check_disable=true',
-            '-keys_dir={}'.format(KEYS_FOLDER.name),
-            '-logging_format=cef',
-        ]
+        args = {
+            'acraserver_connection_string': acraserver_connection,
+            'acraserver_api_connection_string': acraserver_api_connection,
+            'client_id': client_id,
+            'incoming_connection_string': connector_connection,
+            'incoming_connection_api_string': connector_api_connection,
+            'user_check_disable': 'true',
+            'keys_dir': KEYS_FOLDER.name,
+            'logging_format': 'cef',
+        }
         if self.LOG_METRICS:
-            args.append('-incoming_connection_prometheus_metrics_string={}'.format(
+            args['incoming_connection_prometheus_metrics_string'] = \
                 self.get_prometheus_address(
-                    self.get_connector_prometheus_port(connector_port))))
+                    self.get_connector_prometheus_port(connector_port))
         if TEST_WITH_TRACING:
-            args.append('--tracing_log_enable')
+            args['tracing_log_enable'] = True
             if TEST_TRACE_TO_JAEGER:
-                args.append('--tracing_jaeger_enable')
+                args['tracing_jaeger_enable'] = True
         if self.DEBUG_LOG:
-            args.append('-d=true')
+            args['d'] = True
         if zone_mode:
-            args.append('--http_api_enable=true')
+            args['http_api_enable'] = True
         if self.CONNECTOR_TLS_TRANSPORT:
-            args.extend(self.get_connector_tls_params())
-        print('connector args: {}'.format(' '.join(sorted(args))))
-        process = self.fork(lambda: subprocess.Popen(args))
+            args.update(self.get_connector_tls_params())
+        if extra_options:
+            args.update(extra_options)
+
+        cli_args = sorted(['--{}={}'.format(k, v) for k, v in args.items()])
+        print('connector args: {}'.format(' '.join(cli_args)))
+
+        if not popen_kwargs:
+            popen_kwargs = {}
+        process = self.fork(lambda: subprocess.Popen(['./acra-connector'] + cli_args,
+                                                     **popen_kwargs))
         if check_connection:
             print('check connection {}'.format(connector_connection))
             try:
@@ -1107,31 +1196,52 @@ class BaseTestCase(PrometheusMixin, unittest.TestCase):
         send_signal_by_process_name('acra-server', signal.SIGKILL)
         send_signal_by_process_name('acra-connector', signal.SIGKILL)
 
-    def log(self, acra_key_name, data, expected):
+    def log(self, data, expected=b'<no expected value>',
+            storage_client_id=None, zone_id=None,
+            poison_key=False):
         """this function for printing data which used in test and for
         reproducing error with them if any error detected"""
         if not self.TEST_DATA_LOG:
             return
-        with open('{}/{}_zone'.format(KEYS_FOLDER.name, zones[0][ZONE_ID]), 'rb') as f:
-            zone_private = f.read()
-        with open('{}/{}'.format(KEYS_FOLDER.name, acra_key_name), 'rb') as f:
-            private_key = f.read()
-        with open('{}/{}.pub'.format(KEYS_FOLDER.name, acra_key_name), 'rb') as f:
-            public_key = f.read()
-        logging.debug("test log: {}".format(json.dumps(
-            {
-                'master_key': get_master_key(),
-                'key_name': acra_key_name,
-                'private_key': b64encode(private_key).decode('ascii'),
-                'public_key': b64encode(public_key).decode('ascii'),
-                'data': b64encode(data).decode('ascii'),
-                'expected': b64encode(expected).decode('ascii'),
-                'zone_private': b64encode(zone_private).decode('ascii'),
-                'zone_public': zones[0][ZONE_PUBLIC_KEY],
-                'zone_id': zones[0][ZONE_ID],
-                'poison_record': b64encode(get_poison_record()).decode('ascii'),
-            }
-        )))
+
+        def key_name():
+            if storage_client_id:
+                return 'client storage, id={}'.format(storage_client_id)
+            elif zone_id:
+                return 'zone storage, id={}'.format(zone_id)
+            elif poison_key:
+                return 'poison record key'
+            else:
+                return 'unknown'
+
+        log_entry = {
+            'master_key': get_master_key(),
+            'key_name': key_name(),
+            'data': b64encode(data).decode('ascii'),
+            'expected': b64encode(expected).decode('ascii'),
+        }
+
+        if storage_client_id:
+            public_key = read_storage_public_key(storage_client_id, KEYS_FOLDER.name)
+            private_key = read_storage_private_key(KEYS_FOLDER.name, storage_client_id)
+            log_entry['public_key'] = b64encode(public_key).decode('ascii')
+            log_entry['private_key'] = b64encode(private_key).decode('ascii')
+
+        if zone_id:
+            public_key = read_zone_public_key(storage_client_id, KEYS_FOLDER.name)
+            private_key = read_zone_private_key(KEYS_FOLDER.name, storage_client_id)
+            log_entry['zone_public'] = b64encode(public_key).decode('ascii')
+            log_entry['zone_private'] = b64encode(private_key).decode('ascii')
+            log_entry['zone_id'] = zone_id
+
+        if poison_key:
+            public_key = read_poison_public_key(KEYS_FOLDER.name)
+            private_key = read_poison_private_key(KEYS_FOLDER.name)
+            log_entry['public_key'] = b64encode(public_key).decode('ascii')
+            log_entry['private_key'] = b64encode(private_key).decode('ascii')
+            log_entry['poison_record'] = b64encode(get_poison_record()).decode('ascii')
+
+        logging.debug("test log: {}".format(json.dumps(log_entry)))
 
 
 class HexFormatTest(BaseTestCase):
@@ -1139,15 +1249,15 @@ class HexFormatTest(BaseTestCase):
     def testConnectorRead(self):
         """test decrypting with correct acra-connector and not decrypting with
         incorrect acra-connector or using direct connection to db"""
-        keyname = 'keypair1_storage'
-        with open('{}/{}.pub'.format(KEYS_FOLDER.name, keyname), 'rb') as f:
-            server_public1 = f.read()
+        client_id = 'keypair1'
+        server_public1 = read_storage_public_key(client_id, KEYS_FOLDER.name)
         data = get_pregenerated_random_data()
         acra_struct = create_acrastruct(
             data.encode('ascii'), server_public1)
         row_id = get_random_id()
 
-        self.log(keyname, acra_struct, data.encode('ascii'))
+        self.log(storage_client_id=client_id,
+                 data=acra_struct, expected=data.encode('ascii'))
 
         self.engine1.execute(
             test_table.insert(),
@@ -1178,9 +1288,8 @@ class HexFormatTest(BaseTestCase):
     def testReadAcrastructInAcrastruct(self):
         """test correct decrypting acrastruct when acrastruct concatenated to
         partial another acrastruct"""
-        keyname = 'keypair1_storage'
-        with open('{}/{}.pub'.format(KEYS_FOLDER.name, keyname), 'rb') as f:
-            server_public1 = f.read()
+        client_id = 'keypair1'
+        server_public1 = read_storage_public_key(client_id, KEYS_FOLDER.name)
         incorrect_data = get_pregenerated_random_data()
         correct_data = get_pregenerated_random_data()
         suffix_data = get_pregenerated_random_data()[:10]
@@ -1193,7 +1302,9 @@ class HexFormatTest(BaseTestCase):
         correct_data = correct_data + suffix_data
         row_id = get_random_id()
 
-        self.log(keyname, data, fake_acra_struct+correct_data.encode('ascii'))
+        self.log(storage_client_id=client_id,
+                 data=data,
+                 expected=fake_acra_struct+correct_data.encode('ascii'))
 
         self.engine1.execute(
             test_table.insert(),
@@ -1379,7 +1490,8 @@ class ZoneHexFormatTest(BaseTestCase):
             data.encode('ascii'), zone_public,
             context=zones[0][ZONE_ID].encode('ascii'))
         row_id = get_random_id()
-        self.log(zones[0][ZONE_ID]+'_zone', acra_struct, data.encode('ascii'))
+        self.log(zone_id=zones[0][ZONE_ID],
+                 data=acra_struct, expected=data.encode('ascii'))
         self.engine1.execute(
             test_table.insert(),
             {'id': row_id, 'data': acra_struct, 'raw_data': data})
@@ -1413,7 +1525,9 @@ class ZoneHexFormatTest(BaseTestCase):
             correct_data.encode('ascii'), zone_public, context=zones[0][ZONE_ID].encode('ascii'))
         data = fake_acra_struct + inner_acra_struct + suffix_data.encode('ascii')
         correct_data = correct_data + suffix_data
-        self.log(zones[0][ZONE_ID]+'_zone', data, fake_acra_struct+correct_data.encode('ascii'))
+        self.log(zone_id=zones[0][ZONE_ID],
+                 data=data,
+                 expected=fake_acra_struct+correct_data.encode('ascii'))
         row_id = get_random_id()
         self.engine1.execute(
             test_table.insert(),
@@ -1653,8 +1767,9 @@ class TestKeyNonExistence(BaseTestCase):
     def setUp(self):
         self.checkSkip()
         try:
+            self.init_key_stores()
             if not self.EXTERNAL_ACRA:
-                self.acra = self.fork_acra()
+                self.acra = self.fork_acra(keys_dir=self.server_keys_dir)
             self.dsn = get_connect_args(port=self.CONNECTOR_PORT_1, host=get_db_host())
         except:
             self.tearDown()
@@ -1665,19 +1780,30 @@ class TestKeyNonExistence(BaseTestCase):
             stop_process(self.acra)
         send_signal_by_process_name('acra-server', signal.SIGKILL)
         send_signal_by_process_name('acra-connector', signal.SIGKILL)
+        self.server_keystore.cleanup()
+        self.connector_keystore.cleanup()
 
-    def delete_key(self, filename):
-        os.remove('{dir}{sep}{name}'.format(
-            dir=KEYS_FOLDER.name, sep=os.path.sep, name=filename))
+    def init_key_stores(self):
+        self.client_id = 'test_client_ID'
+        self.server_keystore = tempfile.TemporaryDirectory()
+        self.server_keys_dir = os.path.join(self.server_keystore.name, '.acrakeys')
+        self.connector_keystore = tempfile.TemporaryDirectory()
+        self.connector_keys_dir = os.path.join(self.connector_keystore.name, '.acrakeys')
+
+        create_client_keypair(name=self.client_id, keys_dir=self.server_keys_dir,
+                              only_server=True, only_storage=True)
+        create_client_keypair(name=self.client_id, keys_dir=self.connector_keys_dir,
+                              only_connector=True)
+        exchange_client_public_keys(client=self.client_id,
+                                    server_keys_dir=self.server_keys_dir,
+                                    connector_keys_dir=self.connector_keys_dir)
 
     def test_without_acraconnector_public(self):
         """acra-server without acra-connector public key should drop connection
         from acra-connector than acra-connector should drop connection from psycopg2"""
-        keyname = 'without_acra-connector_public_test'
-        result = create_client_keypair(keyname)
-        if result != 0:
-            self.fail("can't create keypairs")
-        self.delete_key(keyname + '.pub')
+        destroy_key(kind='transport-connector',
+                    client_id=self.client_id,
+                    keys_dir=self.server_keys_dir)
         engine = None
         if TEST_MYSQL:
             expected_exception = pymysql.err.OperationalError
@@ -1686,7 +1812,10 @@ class TestKeyNonExistence(BaseTestCase):
 
         try:
             self.connector = self.fork_connector(
-                self.CONNECTOR_PORT_1, self.ACRASERVER_PORT, keyname)
+                connector_port=self.CONNECTOR_PORT_1,
+                acraserver_port=self.ACRASERVER_PORT,
+                client_id=self.client_id,
+                keys_dir=self.connector_keys_dir)
             self.assertIsNone(self.connector.poll())
             with self.assertRaises(sa.exc.OperationalError) as exc:
                 engine = sa.create_engine(
@@ -1713,15 +1842,16 @@ class TestKeyNonExistence(BaseTestCase):
 
     def test_without_acraconnector_private(self):
         """acra-connector shouldn't start without private key"""
-        keyname = 'without_acra-connector_private_test'
-        result = create_client_keypair(keyname)
-        if result != 0:
-            self.fail("can't create keypairs")
-        self.delete_key(keyname)
+        destroy_key(kind='transport-connector',
+                    client_id=self.client_id,
+                    keys_dir=self.connector_keys_dir)
         try:
             self.connector = self.fork_connector(
-                self.CONNECTOR_PORT_1, self.ACRASERVER_PORT, keyname,
-                check_connection=False)
+                connector_port=self.CONNECTOR_PORT_1,
+                acraserver_port=self.ACRASERVER_PORT,
+                client_id=self.client_id,
+                check_connection=False,
+                keys_dir=self.connector_keys_dir)
             self.checkShutdownAcraConnector(self.connector)
         finally:
             try:
@@ -1732,11 +1862,9 @@ class TestKeyNonExistence(BaseTestCase):
     def test_without_acraserver_private(self):
         """acra-server without private key should drop connection
         from acra-connector than acra-connector should drop connection from psycopg2"""
-        keyname = 'without_acraserver_private_test'
-        result = create_client_keypair(keyname)
-        if result != 0:
-            self.fail("can't create keypairs")
-        self.delete_key(keyname + '_server')
+        destroy_key(kind='transport-server',
+                    client_id=self.client_id,
+                    keys_dir=self.server_keys_dir)
         if TEST_MYSQL:
             expected_exception = pymysql.err.OperationalError
         elif TEST_POSTGRESQL:
@@ -1744,7 +1872,10 @@ class TestKeyNonExistence(BaseTestCase):
         engine = None
         try:
             self.connector = self.fork_connector(
-                self.CONNECTOR_PORT_1, self.ACRASERVER_PORT, keyname)
+                connector_port=self.CONNECTOR_PORT_1,
+                acraserver_port=self.ACRASERVER_PORT,
+                client_id=self.client_id,
+                keys_dir=self.connector_keys_dir)
             self.assertIsNone(self.connector.poll())
             with self.assertRaises(sa.exc.OperationalError) as exc:
                 engine = sa.create_engine(
@@ -1760,15 +1891,16 @@ class TestKeyNonExistence(BaseTestCase):
 
     def test_without_acraserver_public(self):
         """acra-connector shouldn't start without acra-server public key"""
-        keyname = 'without_acraserver_public_test'
-        result = create_client_keypair(keyname)
-        if result != 0:
-            self.fail("can't create keypairs")
-        self.delete_key(keyname + '_server.pub')
+        destroy_key(kind='transport-server',
+                    client_id=self.client_id,
+                    keys_dir=self.connector_keys_dir)
         try:
             self.connector = self.fork_connector(
-                self.CONNECTOR_PORT_1, self.ACRASERVER_PORT, keyname,
-                check_connection=False)
+                connector_port=self.CONNECTOR_PORT_1,
+                acraserver_port=self.ACRASERVER_PORT,
+                client_id=self.client_id,
+                check_connection=False,
+                keys_dir=self.connector_keys_dir)
             # time for start up connector and validation file existence.
             self.checkShutdownAcraConnector(self.connector)
         finally:
@@ -1786,8 +1918,7 @@ class BasePoisonRecordTest(BaseTestCase):
     def setUp(self):
         super(BasePoisonRecordTest, self).setUp()
         try:
-            self.log(POISON_KEY_PATH, get_poison_record(),
-                     b'no matter because poison record')
+            self.log(poison_key=True, data=get_poison_record())
         except:
             self.tearDown()
             raise
@@ -1957,7 +2088,7 @@ class TestShutdownPoisonRecordWithZone(TestPoisonRecordShutdown):
         begin_tag = poison_record[:4]
         # test with extra long begin tag
         data = os.urandom(100) + begin_tag + poison_record + os.urandom(100)
-        self.log(POISON_KEY_PATH, data, data)
+        self.log(poison_key=True, data=data, expected=data)
         self.engine1.execute(
             test_table.insert(),
             {'id': row_id, 'data': data, 'raw_data': 'poison_record'})
@@ -2025,7 +2156,7 @@ class TestShutdownPoisonRecordWithZoneOffStatus(TestPoisonRecordShutdown):
         begin_tag = poison_record[:4]
         # test with extra long begin tag
         testData = os.urandom(100) + begin_tag + poison_record + os.urandom(100)
-        self.log(POISON_KEY_PATH, testData, testData)
+        self.log(poison_key=True, data=testData, expected=testData)
         self.engine1.execute(
             test_table.insert(),
             {'id': row_id, 'data': testData, 'raw_data': 'poison_record'})
@@ -2172,14 +2303,19 @@ class TestKeyStorageClearing(BaseTestCase):
     def setUp(self):
         self.checkSkip()
         try:
-            self.key_name = 'clearing_keypair'
-            create_client_keypair(self.key_name)
+            self.init_key_stores()
             self.connector_1 = self.fork_connector(
-                self.CONNECTOR_PORT_1, self.ACRASERVER_PORT, self.key_name, self.CONNECTOR_API_PORT_1,
-                zone_mode=True)
+                connector_port=self.CONNECTOR_PORT_1,
+                acraserver_port=self.ACRASERVER_PORT,
+                client_id=self.client_id,
+                api_port=self.CONNECTOR_API_PORT_1,
+                zone_mode=True,
+                keys_dir=self.connector_keys_dir)
             if not self.EXTERNAL_ACRA:
                 self.acra = self.fork_acra(
-                    zonemode_enable='true', http_api_enable='true')
+                    zonemode_enable='true',
+                    http_api_enable='true',
+                    keys_dir=self.server_keys_dir)
 
             self.engine1 = sa.create_engine(
                 get_engine_connection_string(self.get_connector_connection_string(self.CONNECTOR_PORT_1), DB_NAME),
@@ -2215,6 +2351,23 @@ class TestKeyStorageClearing(BaseTestCase):
         stop_process(processes)
         send_signal_by_process_name('acra-server', signal.SIGKILL)
         send_signal_by_process_name('acra-connector', signal.SIGKILL)
+        self.server_keystore.cleanup()
+        self.connector_keystore.cleanup()
+
+    def init_key_stores(self):
+        self.client_id = 'clearing_keypair'
+        self.server_keystore = tempfile.TemporaryDirectory()
+        self.server_keys_dir = os.path.join(self.server_keystore.name, '.acrakeys')
+        self.connector_keystore = tempfile.TemporaryDirectory()
+        self.connector_keys_dir = os.path.join(self.connector_keystore.name, '.acrakeys')
+
+        create_client_keypair(name=self.client_id, keys_dir=self.server_keys_dir,
+                              only_server=True, only_storage=True)
+        create_client_keypair(name=self.client_id, keys_dir=self.connector_keys_dir,
+                              only_connector=True)
+        exchange_client_public_keys(client=self.client_id,
+                                    server_keys_dir=self.server_keys_dir,
+                                    connector_keys_dir=self.connector_keys_dir)
 
     def test_clearing(self):
         # execute any query for loading key by acra
@@ -2223,12 +2376,367 @@ class TestKeyStorageClearing(BaseTestCase):
         with urlopen('http://127.0.0.1:{}/resetKeyStorage'.format(self.CONNECTOR_API_PORT_1)) as response:
             self.assertEqual(response.status, 200)
         # delete key for excluding reloading from FS
-        os.remove('{}/{}.pub'.format(KEYS_FOLDER.name, self.key_name))
+        destroy_key(kind='transport-connector',
+                    client_id=self.client_id,
+                    keys_dir=self.server_keys_dir)
         # close connections in pool and reconnect to reinitiate secure session
         self.engine1.dispose()
         # acra-server should close connection when doesn't find key
         with self.assertRaises(DatabaseError):
             result = self.engine1.execute(test_table.select().limit(1))
+
+
+class TestKeyStoreMigration(BaseTestCase):
+    """Test "acra-keys migrate" utility."""
+
+    # We need to test different keystore formats so we can't touch
+    # the global KEYS_FOLDER. We need to launch service instances
+    # with particular keystore configuration. Ignore the usual
+    # setup and teardown routines that start Acra services.
+
+    def setUp(self):
+        self.checkSkip()
+        self.test_dir = tempfile.TemporaryDirectory()
+        self.engine_raw = sa.create_engine(
+            '{}://{}:{}/{}'.format(DB_DRIVER, DB_HOST, DB_PORT, DB_NAME),
+            connect_args=get_connect_args(DB_PORT))
+        metadata.create_all(self.engine_raw)
+        self.engine_raw.execute(test_table.delete())
+        self.master_keys = {}
+
+    def tearDown(self):
+        self.engine_raw.execute(test_table.delete())
+        self.engine_raw.dispose()
+        self.test_dir.cleanup()
+
+    # Instead, use these methods according to individual test needs.
+
+    def get_master_key(self, version):
+        """Returns master key value for given version (base64-encoded)."""
+        if version not in self.master_keys:
+            temp_file = os.path.join(self.test_dir.name, 'master.key')
+
+            subprocess.check_output([
+                './acra-keymaker', '--keystore={}'.format(version),
+                '--generate_master_key={}'.format(temp_file)])
+
+            with open(temp_file, 'rb') as f:
+                master_key = b64encode(f.read()).decode('ascii')
+                self.master_keys[version] = master_key
+
+            os.remove(temp_file)
+
+        return self.master_keys[version]
+
+
+    def create_key_store(self, version):
+        """Create new keystore of given version."""
+        # Start with service transport keys and client storage keys.
+        self.client_id = 'test-client-please-ignore'
+        subprocess.check_call([
+                './acra-keymaker',
+                '--generate_acraconnector_keys',
+                '--generate_acraserver_keys',
+                '--generate_acrawriter_keys',
+                '--client_id={}'.format(self.client_id),
+                '--keys_output_dir={}'.format(self.current_key_store_path()),
+                '--keys_public_output_dir={}'.format(self.current_key_store_path()),
+                '--keystore={}'.format(version),
+            ],
+            env={ACRA_MASTER_KEY_VAR_NAME: self.get_master_key(version)},
+            timeout=PROCESS_CALL_TIMEOUT)
+
+        # Then add some zones that we're going to test with.
+        zone_output = subprocess.check_output([
+                './acra-addzone',
+                '--keys_output_dir={}'.format(self.current_key_store_path()),
+            ],
+            env={ACRA_MASTER_KEY_VAR_NAME: self.get_master_key(version)},
+            timeout=PROCESS_CALL_TIMEOUT)
+        zone_config = json.loads(zone_output.decode('utf-8'))
+        self.zone_id = zone_config[ZONE_ID]
+
+        # Keep the current version around, we'll need it for migration.
+        self.keystore_version = version
+
+    def migrate_key_store(self, new_version):
+        """Migrate keystore from current to given new version."""
+        # Run the migration tool. New keystore is in a new directory.
+        subprocess.check_call([
+                './acra-keys', 'migrate',
+                '--src_keys_dir={}'.format(self.current_key_store_path()),
+                '--src_keys_dir_public={}'.format(self.current_key_store_path()),
+                '--src_keystore={}'.format(self.keystore_version),
+                '--dst_keys_dir={}'.format(self.new_key_store_path()),
+                '--dst_keys_dir_public={}'.format(self.new_key_store_path()),
+                '--dst_keystore={}'.format(new_version),
+            ],
+            env={'SRC_ACRA_MASTER_KEY': self.get_master_key(self.keystore_version),
+                 'DST_ACRA_MASTER_KEY': self.get_master_key(new_version)},
+            timeout=PROCESS_CALL_TIMEOUT)
+
+        # Finalize the migration, replacing old keystore with the new one.
+        # We assume the services to be not running at this moment.
+        os.rename(self.current_key_store_path(), self.old_key_store_path())
+        os.rename(self.new_key_store_path(), self.current_key_store_path())
+        self.keystore_version = new_version
+
+    def change_key_store_path(self):
+        """Change the absolute path of the keystore directory."""
+        # Swap the whole testing directory for a new one.
+        old_key_store_path = self.current_key_store_path()
+        old_test_dir = self.test_dir
+        new_test_dir = tempfile.TemporaryDirectory()
+        self.test_dir = new_test_dir
+        new_key_store_path = self.current_key_store_path()
+        # Move the keystore to the new location.
+        os.rename(old_key_store_path, new_key_store_path)
+        # Remove the old, now unneeded directory.
+        old_test_dir.cleanup()
+
+    def start_services(self, zone_mode=False):
+        """Start Acra services required for testing."""
+        master_key = self.get_master_key(self.keystore_version)
+        master_key_env = {ACRA_MASTER_KEY_VAR_NAME: master_key}
+
+        self.acra_server = self.fork_acra(
+            zonemode_enable='true' if zone_mode else 'false',
+            keys_dir=self.current_key_store_path(),
+            popen_kwargs={'env': master_key_env})
+
+        self.acra_connector = self.fork_connector(
+            client_id=self.client_id,
+            zone_mode=zone_mode,
+            api_port=self.CONNECTOR_API_PORT_1,
+            connector_port=self.CONNECTOR_PORT_1,
+            acraserver_port=self.ACRASERVER_PORT,
+            keys_dir=self.current_key_store_path(),
+            popen_kwargs={'env': master_key_env})
+
+        self.engine = sa.create_engine(
+            get_engine_connection_string(
+                self.get_connector_connection_string(self.CONNECTOR_PORT_1),
+                DB_NAME),
+            connect_args=get_connect_args(port=self.CONNECTOR_PORT_1))
+
+        # Remember whether we're running in zone mode. We need to know this
+        # to store and retrieve the data correctly.
+        self.zone_mode = zone_mode
+
+    def stop_services(self):
+        """Gracefully stop Acra services being tested."""
+        self.engine.dispose()
+        stop_process(self.acra_connector)
+        stop_process(self.acra_server)
+
+    @contextlib.contextmanager
+    def running_services(self, **kwargs):
+        self.start_services(**kwargs)
+        try:
+            yield
+        finally:
+            self.stop_services()
+
+    def insert_via_connector(self, data):
+        """Encrypt and insert data via Acra Connector."""
+        # It's too bothersome to thread through the master key setting.
+        # Set it here and reset it back after reading the public key.
+        new_master_key = self.get_master_key(self.keystore_version)
+        old_master_key = os.environ[ACRA_MASTER_KEY_VAR_NAME]
+        os.environ[ACRA_MASTER_KEY_VAR_NAME] = new_master_key
+
+        # Encryption depends on whether we're using zones or not.
+        if self.zone_mode:
+            acra_struct = create_acrastruct(
+                data.encode('ascii'),
+                read_zone_public_key(
+                    self.zone_id,
+                    self.current_key_store_path()),
+                context=self.zone_id.encode('ascii'))
+        else:
+            acra_struct = create_acrastruct(
+                data.encode('ascii'),
+                read_storage_public_key(
+                    self.client_id,
+                    self.current_key_store_path()))
+
+        os.environ[ACRA_MASTER_KEY_VAR_NAME] = old_master_key
+
+        row_id = get_random_id()
+        self.engine.execute(test_table.insert(), {
+            'id': row_id, 'data': acra_struct, 'raw_data': data,
+        })
+        return row_id
+
+    def select_via_connector(self, row_id):
+        """Select decrypted data via Acra Connector."""
+        # If we're using zones, zone ID should precede the encrypted data.
+        if self.zone_mode:
+            cols = [sa.cast(self.zone_id.encode('ascii'), BYTEA),
+                    test_table.c.data, test_table.c.raw_data]
+        else:
+            cols = [test_table.c.data, test_table.c.raw_data]
+
+        rows = self.engine.execute(
+            sa.select(cols).where(test_table.c.id == row_id))
+        return rows.first()
+
+    def select_directly(self, row_id):
+        """Select raw data directly from database."""
+        rows = self.engine_raw.execute(
+            sa.select([test_table.c.data]).where(test_table.c.id == row_id))
+        return rows.first()
+
+    def current_key_store_path(self):
+        return os.path.join(self.test_dir.name, '.acrakeys')
+
+    def new_key_store_path(self):
+        return os.path.join(self.test_dir.name, '.acrakeys.new')
+
+    def old_key_store_path(self):
+        return os.path.join(self.test_dir.name, '.acrakeys.old')
+
+    # Now we can proceed with the tests...
+
+    def test_migrate_v1_to_v2(self):
+        """Verify v1 -> v2 keystore migration."""
+        data_1 = get_pregenerated_random_data()
+        data_2 = get_pregenerated_random_data()
+
+        self.create_key_store('v1')
+
+        # Try saving some data with default zone
+        with self.running_services():
+            row_id_1 = self.insert_via_connector(data_1)
+
+            # Check that we're able to put and get data via Connector.
+            selected = self.select_via_connector(row_id_1)
+            self.assertEquals(selected['data'], data_1.encode('ascii'))
+            self.assertEquals(selected['raw_data'], data_1)
+
+            # Get encrypted data. It should really be encrypted.
+            encrypted_1 = self.select_directly(row_id_1)
+            self.assertNotEquals(encrypted_1['data'], data_1.encode('ascii'))
+
+        # Now do the same with a specific zone
+        with self.running_services(zone_mode=True):
+            row_id_1_zoned = self.insert_via_connector(data_1)
+
+            # Check that we're able to put and get data via Connector.
+            selected = self.select_via_connector(row_id_1_zoned)
+            self.assertEquals(selected['data'], data_1.encode('ascii'))
+            self.assertEquals(selected['raw_data'], data_1)
+
+            # Get encrypted data. It should really be encrypted.
+            encrypted_1_zoned = self.select_directly(row_id_1_zoned)
+            self.assertNotEquals(encrypted_1_zoned['data'], data_1.encode('ascii'))
+            # Also, it should be different from the default-zoned data.
+            self.assertNotEquals(encrypted_1_zoned['data'], encrypted_1['data'])
+
+        self.migrate_key_store('v2')
+
+        # After we have migrated the keys, check the setup again.
+        with self.running_services():
+            # Old data should still be there, accessible via Connector.
+            selected = self.select_via_connector(row_id_1)
+            self.assertEquals(selected['data'], data_1.encode('ascii'))
+            self.assertEquals(selected['raw_data'], data_1)
+
+            # Key migration does not change encrypted data.
+            encrypted_1_migrated = self.select_directly(row_id_1)
+            self.assertEquals(encrypted_1_migrated['data'],
+                              encrypted_1['data'])
+
+            # We're able to put some new data into the table and get it back.
+            row_id_2 = self.insert_via_connector(data_2)
+            selected = self.select_via_connector(row_id_2)
+            self.assertEquals(selected['data'], data_2.encode('ascii'))
+            self.assertEquals(selected['raw_data'], data_2)
+
+        # And again, this time with zones.
+        with self.running_services(zone_mode=True):
+            # Old data should still be there, accessible via Connector.
+            selected = self.select_via_connector(row_id_1_zoned)
+            self.assertEquals(selected['data'], data_1.encode('ascii'))
+            self.assertEquals(selected['raw_data'], data_1)
+
+            # Key migration does not change encrypted data.
+            encrypted_1_zoned_migrated = self.select_directly(row_id_1_zoned)
+            self.assertEquals(encrypted_1_zoned_migrated['data'],
+                              encrypted_1_zoned['data'])
+
+            # We're able to put some new data into the table and get it back.
+            row_id_2_zoned = self.insert_via_connector(data_2)
+            selected = self.select_via_connector(row_id_2_zoned)
+            self.assertEquals(selected['data'], data_2.encode('ascii'))
+            self.assertEquals(selected['raw_data'], data_2)
+
+    def test_moved_key_store(self):
+        """Verify that keystore can be moved to a different absolute path."""
+        self.create_key_store(KEYSTORE_VERSION)
+
+        # Save some data, do a sanity check.
+        data = get_pregenerated_random_data()
+        with self.running_services():
+            row_id = self.insert_via_connector(data)
+            selected = self.select_via_connector(row_id)
+            self.assertEquals(selected['data'], data.encode('ascii'))
+
+        # Move the keystore to a different (still temporary) location.
+        self.change_key_store_path()
+
+        # Check that keystore path is not included into encryption context.
+        # We should still be able to access the data with the same keystore
+        # but located at different path.
+        with self.running_services():
+            selected = self.select_via_connector(row_id)
+            self.assertEquals(selected['data'], data.encode('ascii'))
+
+
+class TestKeyRotation(BaseTestCase):
+    """Verify key rotation without data reencryption."""
+    # TODO(ilammy, 2020-03-13): test with rotated zone keys as well
+    # That is, as soon as it is possible to rotate them (T1581)
+
+    def test_read_via_connector_after_rotation(self):
+        """Verify that AcraServer can decrypt data with old keys."""
+        client_id = 'keypair1'
+
+        def insert_random_data():
+            row_id = get_random_id()
+            data = get_pregenerated_random_data()
+            public_key = read_storage_public_key(client_id, KEYS_FOLDER.name)
+            acra_struct = create_acrastruct(data.encode('ascii'), public_key)
+            self.engine1.execute(
+                test_table.insert(),
+                {'id': row_id, 'data': acra_struct, 'raw_data': data})
+            return row_id, data
+
+        # First, let's put some test data into the table.
+        row_id_1, raw_data_1 = insert_random_data()
+
+        # After that rotate the storage key for the client,
+        # but don't touch the encrypted data.
+        create_client_keypair(client_id, only_storage=True)
+
+        # Insert some more data encrypted with the new key.
+        row_id_2, raw_data_2 = insert_random_data()
+
+        # Request via AcraConnector should be successful.
+        # It should return expected decrypted data.
+        result = self.engine1.execute(
+            sa.select([test_table])
+            .where(test_table.c.id == row_id_1))
+        row = result.fetchone()
+        self.assertEqual(row['data'], raw_data_1.encode('utf-8'))
+        self.assertEqual(row['empty'], b'')
+
+        result = self.engine1.execute(
+            sa.select([test_table])
+            .where(test_table.c.id == row_id_2))
+        row = result.fetchone()
+        self.assertEqual(row['data'], raw_data_2.encode('utf-8'))
+        self.assertEqual(row['empty'], b'')
 
 
 class TestAcraRollback(BaseTestCase):
@@ -2247,6 +2755,7 @@ class TestAcraRollback(BaseTestCase):
             '{}://{}:{}/{}'.format(DB_DRIVER, DB_HOST, DB_PORT,
                                    DB_NAME),
             connect_args=connect_args)
+        metadata.create_all(self.engine_raw)
 
         self.output_filename = 'acra-rollback_output.txt'
         acrarollback_output_table.create(self.engine_raw, checkfirst=True)
@@ -2313,9 +2822,7 @@ class TestAcraRollback(BaseTestCase):
             raise
 
     def test_without_zone_to_file(self):
-        keyname = 'keypair1_storage'
-        with open('{}/{}.pub'.format(KEYS_FOLDER.name, keyname), 'rb') as f:
-            server_public1 = f.read()
+        server_public1 = read_storage_public_key('keypair1', KEYS_FOLDER.name)
 
         rows = []
         for _ in range(self.DATA_COUNT):
@@ -2385,9 +2892,7 @@ class TestAcraRollback(BaseTestCase):
             self.assertIn(data[0], source_data)
 
     def test_without_zone_execute(self):
-        keyname = 'keypair1_storage'
-        with open('{}/{}.pub'.format(KEYS_FOLDER.name, keyname), 'rb') as f:
-            server_public1 = f.read()
+        server_public1 = read_storage_public_key('keypair1', KEYS_FOLDER.name)
 
         rows = []
         for _ in range(self.DATA_COUNT):
@@ -2470,6 +2975,47 @@ class TestAcraRollback(BaseTestCase):
         stop_process(process)
 
         self.assertIn(b"SQL INSERT statement doesn't contain any placeholders", err)
+
+    def test_with_rotated_keys(self):
+        # TODO(ilammy, 2020-03-13): test with rotated zone keys as well
+        # That is, as soon as it is possible to rotate them (T1581)
+
+        def insert_random_data():
+            rows = []
+            public_key = read_storage_public_key('keypair1', KEYS_FOLDER.name)
+            for _ in range(self.DATA_COUNT):
+                data = get_pregenerated_random_data()
+                row = {
+                    'raw_data': data,
+                    'data': create_acrastruct(data.encode('ascii'), public_key),
+                    'id': get_random_id()
+                }
+                rows.append(row)
+            self.engine_raw.execute(test_table.insert(), rows)
+            return rows
+
+        # Insert some encrypted test data into the table
+        rows = insert_random_data()
+
+        # Rotate storage keys for 'keypair1'
+        create_client_keypair('keypair1', only_storage=True)
+
+        # Insert some more data encrypted with new key
+        rows = rows + insert_random_data()
+
+        # Run acra-rollback for the test table
+        self.run_acrarollback([
+            '--select=select data from {};'.format(test_table.name),
+            '--insert=insert into {} values({});'.format(
+                acrarollback_output_table.name, self.placeholder)
+        ])
+
+        # Rollback should successfuly use previous keys to decrypt data
+        source_data = set([i['raw_data'].encode('ascii') for i in rows])
+        result = self.engine_raw.execute(acrarollback_output_table.select())
+        result = result.fetchall()
+        for data in result:
+            self.assertIn(data[0], source_data)
 
 
 class TestAcraKeyMakers(unittest.TestCase):
@@ -2721,7 +3267,7 @@ class TLSBetweenConnectorAndServerMixin(object):
     def get_connector_tls_params(self):
         base_params = super(TLSBetweenConnectorAndServerMixin, self).get_connector_tls_params()
         # client side need CA cert to verify server's
-        base_params.append('--tls_ca={}'.format(TEST_TLS_CA))
+        base_params.update('tls_ca', TEST_TLS_CA)
         return base_params
 
     def setUp(self):
@@ -2832,15 +3378,15 @@ class BasePrepareStatementMixin:
     def testConnectorRead(self):
         """test decrypting with correct acra-connector and not decrypting with
         incorrect acra-connector or using direct connection to db"""
-        keyname = 'keypair1_storage'
-        with open('{}/{}.pub'.format(KEYS_FOLDER.name, keyname), 'rb') as f:
-            server_public1 = f.read()
+        client_id = 'keypair1'
+        server_public1 = read_storage_public_key(client_id, KEYS_FOLDER.name)
         data = get_pregenerated_random_data()
         acra_struct = create_acrastruct(
             data.encode('ascii'), server_public1)
         row_id = get_random_id()
 
-        self.log(keyname, acra_struct, data.encode('ascii'))
+        self.log(storage_client_id=client_id,
+                 data=acra_struct, expected=data.encode('ascii'))
 
         self.engine1.execute(
             test_table.insert(),
@@ -2871,9 +3417,8 @@ class BasePrepareStatementMixin:
     def testReadAcrastructInAcrastruct(self):
         """test correct decrypting acrastruct when acrastruct concatenated to
         partial another acrastruct"""
-        keyname = 'keypair1_storage'
-        with open('{}/{}.pub'.format(KEYS_FOLDER.name, keyname), 'rb') as f:
-            server_public1 = f.read()
+        client_id = 'keypair1'
+        server_public1 = read_storage_public_key(client_id, KEYS_FOLDER.name)
         incorrect_data = get_pregenerated_random_data()
         correct_data = get_pregenerated_random_data()
         suffix_data = get_pregenerated_random_data()[:10]
@@ -2886,7 +3431,9 @@ class BasePrepareStatementMixin:
         correct_data = correct_data + suffix_data
         row_id = get_random_id()
 
-        self.log(keyname, data, fake_acra_struct+correct_data.encode('ascii'))
+        self.log(storage_client_id=client_id,
+                 data=data,
+                 expected=fake_acra_struct+correct_data.encode('ascii'))
 
         self.engine1.execute(
             test_table.insert(),
@@ -3114,9 +3661,9 @@ class AcraTranslatorTest(AcraTranslatorMixin, BaseTestCase):
         connector_port2 = connector_port+1
         client_id = "keypair1"
         data = get_pregenerated_random_data().encode('ascii')
-        client_id_private_key = read_storage_private_key(KEYS_FOLDER.name, 'keypair1', get_master_key())
+        client_id_private_key = read_storage_private_key(KEYS_FOLDER.name, 'keypair1')
         zone = zones[0]
-        zone_private_key = read_zone_private_key(KEYS_FOLDER.name, zone['id'], get_master_key())
+        zone_private_key = read_zone_private_key(KEYS_FOLDER.name, zone['id'])
         connection_string = 'tcp://127.0.0.1:{}'.format(translator_port)
         translator_kwargs = {
             'incoming_connection_http_string': connection_string if use_http else '',
@@ -3380,12 +3927,7 @@ class TestAcraRotateWithZone(BaseTestCase):
                         for path in result[zone_id][FILES]:
                             with open(path, 'rb') as acrastruct_file:
                                 rotated_acrastruct = acrastruct_file.read()
-                            zone_private_key_path = '{}/{}_zone'.format(
-                                keys_folder, zone_id)
-                            with open(zone_private_key_path, 'rb') as f:
-                                zone_private = decrypt_private_key(
-                                    f.read(), zone_id.encode("ascii"),
-                                    b64decode(get_master_key()))
+                            zone_private = read_zone_private_key(keys_folder, zone_id)
                             decrypted_rotated = decrypt_acrastruct(
                                 rotated_acrastruct, zone_private,
                                 zone_id=zone_id.encode('ascii'))
@@ -3402,6 +3944,9 @@ class TestAcraRotateWithZone(BaseTestCase):
                                 decrypted_rotated, acrastructs[path].data)
 
     def testDatabaseRotation(self):
+        # TODO(ilammy, 2020-03-13): test with rotated zone keys
+        # That is, as soon as it is possible to rotate them (T1581)
+
         def load_zones_from_folder(keys_folder, zone_ids):
             """load zone public keys from filesystem"""
             output = {}
@@ -3566,6 +4111,7 @@ class TestAcraRotateWithZone(BaseTestCase):
                 data_before_rotate[row['id']] = row['data']
 
 
+@ddt
 class TestAcraRotate(TestAcraRotateWithZone):
     ZONE = False
 
@@ -3594,7 +4140,8 @@ class TestAcraRotate(TestAcraRotateWithZone):
                 ['./acra-keymaker',
                  '--client_id={}'.format(client_id),
                  '--keys_output_dir={}'.format(keys_folder),
-                 '--keys_public_output_dir={}'.format(keys_folder)],
+                 '--keys_public_output_dir={}'.format(keys_folder),
+                 '--keystore={}'.format(KEYSTORE_VERSION)],
                 cwd=os.getcwd(),
                 timeout=PROCESS_CALL_TIMEOUT).decode('utf-8')
             # create acrastructs with this client_id
@@ -3653,12 +4200,7 @@ class TestAcraRotate(TestAcraRotateWithZone):
                         for path in result[key_id][FILES]:
                             with open(path, 'rb') as acrastruct_file:
                                 rotated_acrastruct = acrastruct_file.read()
-                            private_key_path = '{}/{}_storage'.format(
-                                keys_folder, key_id)
-                            with open(private_key_path, 'rb') as f:
-                                client_id_private = decrypt_private_key(
-                                    f.read(), key_id.encode("ascii"),
-                                    b64decode(get_master_key()))
+                            client_id_private = read_storage_private_key(keys_folder, key_id)
                             decrypted_rotated = decrypt_acrastruct(
                                 rotated_acrastruct, client_id_private)
                             if dryRun:
@@ -3673,7 +4215,12 @@ class TestAcraRotate(TestAcraRotateWithZone):
                             self.assertEqual(
                                 decrypted_rotated, acrastructs[path].data)
 
+    # Skip inherited non-decorated test
     def testDatabaseRotation(self):
+        pass
+
+    @data(False, True)
+    def testDatabaseRotation2(self, rotate_storage_keys):
         def load_keys_from_folder(keys_folder, ids):
             """load public keys from filesystem"""
             output = {}
@@ -3688,6 +4235,7 @@ class TestAcraRotate(TestAcraRotateWithZone):
             sa.Column('key_id', sa.LargeBinary(length=COLUMN_DATA_SIZE)),
             sa.Column('data', sa.LargeBinary(length=COLUMN_DATA_SIZE)),
             sa.Column('raw_data', sa.Text),
+            keep_existing=True,
         )
         metadata.create_all(self.engine_raw)
         self.engine_raw.execute(sa.delete(rotate_test_table))
@@ -3703,6 +4251,9 @@ class TestAcraRotate(TestAcraRotateWithZone):
             rotate_test_table.insert(),
             {'id': row_id, 'data': acra_struct, 'raw_data': data,
              'key_id': client_id.encode('ascii')})
+
+        if rotate_storage_keys:
+            create_client_keypair(client_id, only_storage=True)
 
         if TEST_MYSQL:
             # test:test@tcp(127.0.0.1:3306)/test
@@ -4271,6 +4822,7 @@ class TestOutdatedServiceConfigs(BaseTestCase, FailedRunProcessMixin):
             default_args = {
                 'acra-server': ['-db_host=127.0.0.1'],
                 'acra-connector': ['-user_check_disable', '-acraserver_connection_host=127.0.0.1', '-client_id=keypair1'],
+                'acra-keys': [],
                 'acra-heartbeat': ['--logging_format=plaintext'],
             }
             for service in services:
@@ -4294,6 +4846,7 @@ class TestOutdatedServiceConfigs(BaseTestCase, FailedRunProcessMixin):
             default_args = {
                 'acra-server': ['-db_host=127.0.0.1'],
                 'acra-connector': ['-user_check_disable', '-acraserver_connection_host=127.0.0.1', '-client_id=keypair1'],
+                'acra-keys': [],
                 'acra-heartbeat': ['--logging_format=plaintext'],
             }
             for service in services:
@@ -4330,7 +4883,9 @@ class TestOutdatedServiceConfigs(BaseTestCase, FailedRunProcessMixin):
                                             '--connection_string=please-fail'],
                                    'status': 1},
                 'acra-keymaker': ['-keys_output_dir={}'.format(tmp_dir),
-                                  '-keys_public_output_dir={}'.format(tmp_dir)],
+                                  '-keys_public_output_dir={}'.format(tmp_dir),
+                                  '--keystore={}'.format(KEYSTORE_VERSION)],
+                'acra-keys': [],
                 'acra-poisonrecordmaker': ['-keys_dir={}'.format(tmp_dir)],
                 'acra-rollback': {'args': ['-keys_dir={}'.format(tmp_dir)],
                                   'status': 1},
@@ -4378,7 +4933,9 @@ class TestOutdatedServiceConfigs(BaseTestCase, FailedRunProcessMixin):
                                             '--connection_string=please-fail'],
                                    'status': 1},
                 'acra-keymaker': ['-keys_output_dir={}'.format(tmp_dir),
-                                  '-keys_public_output_dir={}'.format(tmp_dir)],
+                                  '-keys_public_output_dir={}'.format(tmp_dir),
+                                  '--keystore={}'.format(KEYSTORE_VERSION)],
+                'acra-keys': [],
                 'acra-poisonrecordmaker': ['-keys_dir={}'.format(tmp_dir)],
                 'acra-rollback': {'args': ['-keys_dir={}'.format(tmp_dir)],
                                   'status': 1},

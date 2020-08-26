@@ -25,6 +25,9 @@ import (
 
 	"github.com/cossacklabs/acra/cmd"
 	"github.com/cossacklabs/acra/keystore"
+	"github.com/cossacklabs/acra/keystore/filesystem"
+	keystoreV2 "github.com/cossacklabs/acra/keystore/v2/keystore"
+	filesystemV2 "github.com/cossacklabs/acra/keystore/v2/keystore/filesystem"
 	"github.com/cossacklabs/acra/logging"
 	"github.com/cossacklabs/acra/utils"
 	_ "github.com/go-sql-driver/mysql"
@@ -39,18 +42,42 @@ var (
 	ServiceName       = "acra-rotate"
 )
 
-func initKeyStore(dirPath string) (KeyStore, error) {
+func openKeyStoreV1(dirPath string) keystore.RotateStorageKeyStore {
 	masterKey, err := keystore.GetMasterKeyFromEnvironment()
 	if err != nil {
-		log.WithError(err).Errorln("Can't load master key")
-		return nil, err
+		log.WithError(err).Errorln("Cannot load master key")
+		os.Exit(1)
 	}
 	scellEncryptor, err := keystore.NewSCellKeyEncryptor(masterKey)
 	if err != nil {
 		log.WithError(err).Errorln("Can't init scell encryptor")
-		return nil, err
+		os.Exit(1)
 	}
-	return NewKeyStore(dirPath, scellEncryptor)
+	keystorage, err := filesystem.NewFilesystemKeyStore(dirPath, scellEncryptor)
+	if err != nil {
+		log.WithError(err).Errorln("can't initialize keystore")
+		os.Exit(1)
+	}
+	return keystorage
+}
+
+func openKeyStoreV2(keyDirPath string) keystore.RotateStorageKeyStore {
+	encryption, signature, err := keystoreV2.GetMasterKeysFromEnvironment()
+	if err != nil {
+		log.WithError(err).Errorln("Cannot load master key")
+		os.Exit(1)
+	}
+	suite, err := keystoreV2.NewSCellSuite(encryption, signature)
+	if err != nil {
+		log.WithError(err).Error("failed to initialize Secure Cell crypto suite")
+		os.Exit(1)
+	}
+	keyDir, err := filesystemV2.OpenDirectoryRW(keyDirPath, suite)
+	if err != nil {
+		log.WithError(err).WithField("path", keyDirPath).Error("cannot open key directory")
+		os.Exit(1)
+	}
+	return keystoreV2.NewServerKeyStore(keyDir)
 }
 
 func main() {
@@ -73,11 +100,13 @@ func main() {
 		os.Exit(1)
 	}
 
-	keystorage, err := initKeyStore(*keysDir)
-	if err != nil {
-		log.WithError(err).Errorln("Can't initialize keystore")
-		os.Exit(1)
+	var keystorage keystore.RotateStorageKeyStore
+	if filesystemV2.IsKeyDirectory(*keysDir) {
+		keystorage = openKeyStoreV2(*keysDir)
+	} else {
+		keystorage = openKeyStoreV1(*keysDir)
 	}
+
 	if *dryRun {
 		log.Infoln("Rotating in dry-run mode")
 	}

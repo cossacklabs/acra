@@ -31,6 +31,8 @@ import (
 	"github.com/cossacklabs/acra/cmd"
 	"github.com/cossacklabs/acra/keystore"
 	"github.com/cossacklabs/acra/keystore/filesystem"
+	keystoreV2 "github.com/cossacklabs/acra/keystore/v2/keystore"
+	filesystemV2 "github.com/cossacklabs/acra/keystore/v2/keystore/filesystem"
 	"github.com/cossacklabs/acra/logging"
 	"github.com/cossacklabs/acra/utils"
 	"github.com/cossacklabs/themis/gothemis/cell"
@@ -66,7 +68,7 @@ func (hp HashedPasswords) Bytes() (passwordBytes []byte) {
 }
 
 // WriteToFile writes encrypted names and password hashes to file
-func (hp HashedPasswords) WriteToFile(file string, keystore *filesystem.KeyStore) error {
+func (hp HashedPasswords) WriteToFile(file string, keystore keystore.WebConfigKeyStore) error {
 	key, err := keystore.GetAuthKey(false)
 	if err != nil {
 		return err
@@ -98,7 +100,7 @@ func (hp HashedPasswords) SetPassword(name, password string) (err error) {
 	return nil
 }
 
-func parseHtpasswdFile(file string, keystore *filesystem.KeyStore) (passwords HashedPasswords, err error) {
+func parseHtpasswdFile(file string, keystore keystore.WebConfigKeyStore) (passwords HashedPasswords, err error) {
 	htpasswdBytes, err := ioutil.ReadFile(file)
 	if err != nil {
 		return
@@ -141,7 +143,7 @@ func parseHtpasswd(htpasswdBytes []byte) (passwords HashedPasswords, err error) 
 	return
 }
 
-func removeUser(file, user string, keystore *filesystem.KeyStore) error {
+func removeUser(file, user string, keystore keystore.WebConfigKeyStore) error {
 	passwords, err := parseHtpasswdFile(file, keystore)
 	if err != nil {
 		return err
@@ -154,7 +156,7 @@ func removeUser(file, user string, keystore *filesystem.KeyStore) error {
 	return passwords.WriteToFile(file, keystore)
 }
 
-func setPassword(file, name, password string, keystore *filesystem.KeyStore) error {
+func setPassword(file, name, password string, keystore keystore.WebConfigKeyStore) error {
 	_, err := os.Stat(file)
 	passwords := HashedPasswords(map[string]string{})
 	if err == nil {
@@ -193,20 +195,11 @@ func main() {
 		logging.SetLogLevel(logging.LogVerbose)
 	}
 
-	masterKey, err := keystore.GetMasterKeyFromEnvironment()
-	if err != nil {
-		log.WithError(err).Errorln("Can't load master key")
-		os.Exit(1)
-	}
-	encryptor, err := keystore.NewSCellKeyEncryptor(masterKey)
-	if err != nil {
-		log.WithError(err).Errorln("Can't initialize scell encryptor")
-		os.Exit(1)
-	}
-	keyStore, err := filesystem.NewFilesystemKeyStore(*keysDir, encryptor)
-	if err != nil {
-		log.WithError(err).Errorln("NewFilesystemKeyStore")
-		os.Exit(1)
+	var keyStore keystore.WebConfigKeyStore
+	if filesystemV2.IsKeyDirectory(*keysDir) {
+		keyStore = openKeyStoreV2(*keysDir)
+	} else {
+		keyStore = openKeyStoreV1(*keysDir)
 	}
 
 	n := 0
@@ -245,5 +238,42 @@ func main() {
 			os.Exit(1)
 		}
 	}
+}
 
+func openKeyStoreV1(keysDir string) keystore.WebConfigKeyStore {
+	masterKey, err := keystore.GetMasterKeyFromEnvironment()
+	if err != nil {
+		log.WithError(err).Errorln("Cannot load master key")
+		os.Exit(1)
+	}
+	encryptor, err := keystore.NewSCellKeyEncryptor(masterKey)
+	if err != nil {
+		log.WithError(err).Errorln("Can't init scell encryptor")
+		os.Exit(1)
+	}
+	keyStore, err := filesystem.NewFilesystemKeyStore(keysDir, encryptor)
+	if err != nil {
+		log.WithError(err).Errorln("Can't init keystore")
+		os.Exit(1)
+	}
+	return keyStore
+}
+
+func openKeyStoreV2(keyDirPath string) keystore.WebConfigKeyStore {
+	encryption, signature, err := keystoreV2.GetMasterKeysFromEnvironment()
+	if err != nil {
+		log.WithError(err).Errorln("Cannot load master key")
+		os.Exit(1)
+	}
+	suite, err := keystoreV2.NewSCellSuite(encryption, signature)
+	if err != nil {
+		log.WithError(err).Error("failed to initialize Secure Cell crypto suite")
+		os.Exit(1)
+	}
+	keyDir, err := filesystemV2.OpenDirectoryRW(keyDirPath, suite)
+	if err != nil {
+		log.WithError(err).WithField("path", keyDirPath).Error("cannot open key directory")
+		os.Exit(1)
+	}
+	return keystoreV2.NewServerKeyStore(keyDir)
 }
