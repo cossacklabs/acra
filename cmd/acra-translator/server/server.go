@@ -18,7 +18,6 @@ package server
 
 import (
 	"context"
-	"errors"
 	"google.golang.org/grpc/credentials"
 	"net"
 	"os"
@@ -42,12 +41,12 @@ import (
 // ReaderServer represents AcraTranslator server, connects with KeyStorage, configuration file,
 // gRPC and HTTP request parsers.
 type ReaderServer struct {
-	config            *common.AcraTranslatorConfig
-	keystorage        keystore.MultiKeyStore
-	connectionManager *network.ConnectionManager
-	grpcServer        *grpc.Server
-	httpDecryptor *http_api.HTTPConnectionsDecryptor
-	waitTimeout time.Duration
+	config                 *common.AcraTranslatorConfig
+	keystorage             keystore.MultiKeyStore
+	connectionManager      *network.ConnectionManager
+	grpcServer             *grpc.Server
+	httpDecryptor          *http_api.HTTPConnectionsDecryptor
+	waitTimeout            time.Duration
 	listenersContextCancel []context.CancelFunc
 	grpcServerFactory      common.GRPCServerFactory
 	waitGroup              sync.WaitGroup
@@ -62,7 +61,7 @@ func NewReaderServer(config *common.AcraTranslatorConfig, keystorage keystore.Mu
 		config:            config,
 		keystorage:        keystorage,
 		connectionManager: network.NewConnectionManager(),
-		waitGroup: wg,
+		waitGroup:         wg,
 	}, nil
 }
 
@@ -298,22 +297,22 @@ func (server *ReaderServer) Start(parentContext context.Context) {
 
 			grpcServer, err := server.grpcServerFactory.New(decryptorData, opts...)
 
-			err = errors.New("syntetic error")
-
 			if err != nil {
 				logger.WithError(err).Errorln("Can't create new grpc server")
+				os.Exit(1)
 			}
 			server.grpcServer = grpcServer
 			if err := grpcServer.Serve(grpcListener); err != nil {
 				grpcLogger.Errorf("failed to serve: %v", err)
 				server.Stop()
+				os.Exit(1)
 				return
 			}
 		}()
 	}
 	<-parentContext.Done()
 
-	// global 'cancel' has been called called. Now we should wait (not more than specified duration) until all
+	// global 'cancel' has been called. Now we should wait (not more than specified duration) until all
 	// background goroutines spawned by readerServer will finish their execution
 	if timeoutExpired(&server.waitGroup, time.Second) {
 		log.Errorf("Couldn't stop all background goroutines spawned by readerServer. Exited by timeout")
