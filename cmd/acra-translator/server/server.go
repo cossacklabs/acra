@@ -18,9 +18,11 @@ package server
 
 import (
 	"context"
+	"errors"
 	"google.golang.org/grpc/credentials"
 	"net"
 	"os"
+	"sync"
 	"time"
 
 	"bufio"
@@ -44,23 +46,23 @@ type ReaderServer struct {
 	keystorage        keystore.MultiKeyStore
 	connectionManager *network.ConnectionManager
 	grpcServer        *grpc.Server
-
 	httpDecryptor *http_api.HTTPConnectionsDecryptor
-
 	waitTimeout time.Duration
-
 	listenersContextCancel []context.CancelFunc
 	grpcServerFactory      common.GRPCServerFactory
+	waitGroup              sync.WaitGroup
 }
 
 // NewReaderServer creates Reader server with provided params.
 func NewReaderServer(config *common.AcraTranslatorConfig, keystorage keystore.MultiKeyStore, grpcServerFactory common.GRPCServerFactory, waitTimeout time.Duration) (server *ReaderServer, err error) {
+	var wg sync.WaitGroup
 	return &ReaderServer{
 		grpcServerFactory: grpcServerFactory,
 		waitTimeout:       waitTimeout,
 		config:            config,
 		keystorage:        keystorage,
 		connectionManager: network.NewConnectionManager(),
+		waitGroup: wg,
 	}, nil
 }
 
@@ -73,7 +75,11 @@ func (server *ReaderServer) Stop() {
 	}
 	// non block stop
 	if server.grpcServer != nil {
-		go server.grpcServer.GracefulStop()
+		server.waitGroup.Add(1)
+		go func() {
+			defer server.waitGroup.Done()
+			server.grpcServer.GracefulStop()
+		}()
 	}
 
 	if server.connectionManager.Counter != 0 {
@@ -119,7 +125,9 @@ func (server *ReaderServer) HandleConnectionString(parentContext context.Context
 		return err
 	}
 	// use to send close packets to all unclosed connections at end
+	server.waitGroup.Add(1)
 	go func() {
+		defer server.waitGroup.Done()
 		logger.WithField("connection_string", connectionString).Debugln("Start wrap new connections")
 		for {
 			var connection net.Conn
@@ -155,6 +163,7 @@ func (server *ReaderServer) HandleConnectionString(parentContext context.Context
 			logger.Debugln("Pass wrapped connection to processing function")
 			logging.SetLoggerToContext(ctx, logger)
 
+			server.waitGroup.Add(1)
 			go func() {
 				defer func() {
 					span.End()
@@ -164,6 +173,7 @@ func (server *ReaderServer) HandleConnectionString(parentContext context.Context
 							Errorln("Can't close wrapped connection")
 					}
 					logger.Infoln("Connection closed")
+					server.waitGroup.Done()
 				}()
 
 				if err := server.connectionManager.AddConnection(wrappedConnection); err != nil {
@@ -232,7 +242,9 @@ func (server *ReaderServer) Start(parentContext context.Context) {
 	}
 	decryptorData := &common.TranslatorData{Keystorage: server.keystorage, PoisonRecordCallbacks: poisonCallbacks, CheckPoisonRecords: server.config.DetectPoisonRecords()}
 	if server.config.IncomingConnectionHTTPString() != "" {
+		server.waitGroup.Add(1)
 		go func() {
+			defer server.waitGroup.Done()
 			httpContext := logging.SetLoggerToContext(parentContext, logger.WithField(ConnectionTypeKey, HTTPConnectionType))
 			httpDecryptor, err := http_api.NewHTTPConnectionsDecryptor(decryptorData)
 			logger.WithField("connection_string", server.config.IncomingConnectionHTTPString()).Infof("Start process HTTP requests")
@@ -252,7 +264,9 @@ func (server *ReaderServer) Start(parentContext context.Context) {
 	}
 	// provide way to register new services and custom server
 	if server.config.IncomingConnectionGRPCString() != "" {
+		server.waitGroup.Add(1)
 		go func() {
+			defer server.waitGroup.Done()
 			grpcLogger := logger.WithField(ConnectionTypeKey, GRPCConnectionType)
 			logger.WithField("connection_string", server.config.IncomingConnectionGRPCString()).Infof("Start process gRPC requests")
 			var listener net.Listener
@@ -283,20 +297,44 @@ func (server *ReaderServer) Start(parentContext context.Context) {
 			grpcListener := common.WrapListenerWithMetrics(listener)
 
 			grpcServer, err := server.grpcServerFactory.New(decryptorData, opts...)
+
+			err = errors.New("syntetic error")
+
 			if err != nil {
 				logger.WithError(err).Errorln("Can't create new grpc server")
-				os.Exit(1)
 			}
 			server.grpcServer = grpcServer
 			if err := grpcServer.Serve(grpcListener); err != nil {
 				grpcLogger.Errorf("failed to serve: %v", err)
 				server.Stop()
-				os.Exit(1)
 				return
 			}
 		}()
 	}
 	<-parentContext.Done()
+
+	// global 'cancel' has been called called. Now we should wait (not more than specified duration) until all
+	// background goroutines spawned by readerServer will finish their execution
+	if timeoutExpired(&server.waitGroup, time.Second) {
+		log.Errorf("Couldn't stop all background goroutines spawned by readerServer. Exited by timeout")
+	}
+	return
+}
+
+// timeoutExpired waits for the waitgroup for the specified max timeout.
+// Returns true if waiting timed out.
+func timeoutExpired(wg *sync.WaitGroup, timeout time.Duration) bool {
+	c := make(chan struct{})
+	go func() {
+		defer close(c)
+		wg.Wait()
+	}()
+	select {
+	case <-c:
+		return false // completed normally
+	case <-time.After(timeout):
+		return true // timed out
+	}
 }
 
 // ProcessingFunc redirects processing of connection to HTTP handler or gRPC handler.
