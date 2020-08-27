@@ -18,6 +18,7 @@ package server
 
 import (
 	"context"
+	"github.com/cossacklabs/acra/utils"
 	"net"
 	"os"
 	"sync"
@@ -39,6 +40,10 @@ import (
 	"google.golang.org/grpc"
 )
 
+// defaultWaitGroupTimeoutDuration specifies how long should we wait
+// for background goroutines finishing while ReaderServer shutdown
+const defaultWaitGroupTimeoutDuration = time.Second
+
 // ReaderServer represents AcraTranslator server, connects with KeyStorage, configuration file,
 // gRPC and HTTP request parsers.
 type ReaderServer struct {
@@ -55,14 +60,12 @@ type ReaderServer struct {
 
 // NewReaderServer creates Reader server with provided params.
 func NewReaderServer(config *common.AcraTranslatorConfig, keystorage keystore.TranslationKeyStore, grpcServerFactory common.GRPCServerFactory, waitTimeout time.Duration) (server *ReaderServer, err error) {
-	var wg sync.WaitGroup
 	return &ReaderServer{
 		grpcServerFactory: grpcServerFactory,
 		waitTimeout:       waitTimeout,
 		config:            config,
 		keystorage:        keystorage,
 		connectionManager: network.NewConnectionManager(),
-		waitGroup:         wg,
 	}, nil
 }
 
@@ -315,26 +318,10 @@ func (server *ReaderServer) Start(parentContext context.Context) {
 
 	// global 'cancel' has been called. Now we should wait (not more than specified duration) until all
 	// background goroutines spawned by readerServer will finish their execution
-	if timeoutExpired(&server.waitGroup, time.Second) {
+	if utils.WaitWithTimeout(&server.waitGroup, defaultWaitGroupTimeoutDuration) {
 		log.Errorf("Couldn't stop all background goroutines spawned by readerServer. Exited by timeout")
 	}
 	return
-}
-
-// timeoutExpired waits for the waitgroup for the specified max timeout.
-// Returns true if waiting timed out.
-func timeoutExpired(wg *sync.WaitGroup, timeout time.Duration) bool {
-	c := make(chan struct{})
-	go func() {
-		defer close(c)
-		wg.Wait()
-	}()
-	select {
-	case <-c:
-		return false // completed normally
-	case <-time.After(timeout):
-		return true // timed out
-	}
 }
 
 // ProcessingFunc redirects processing of connection to HTTP handler or gRPC handler.
