@@ -29,6 +29,7 @@ import (
 	"os/signal"
 	"path/filepath"
 	"reflect"
+	"context"
 
 	"encoding/base64"
 	"github.com/cossacklabs/acra/keystore"
@@ -92,12 +93,6 @@ func (handler *SignalHandler) AddCallback(callback SignalCallback) {
 
 // Register should be called as goroutine
 func (handler *SignalHandler) Register() {
-	handler.RegisterWithoutExiting()
-	os.Exit(0)
-}
-
-// RegisterWithoutExiting is a no-exit version of Register function
-func (handler *SignalHandler) RegisterWithoutExiting() {
 	signal.Notify(handler.ch, handler.signals...)
 
 	<-handler.ch
@@ -107,6 +102,26 @@ func (handler *SignalHandler) RegisterWithoutExiting() {
 	}
 	for _, callback := range handler.callbacks {
 		callback()
+	}
+	os.Exit(0)
+}
+
+// RegisterWithContext is a no-exit version of Register function with context usage
+func (handler *SignalHandler) RegisterWithContext(globalContext context.Context) {
+	signal.Notify(handler.ch, handler.signals...)
+	for {
+		select {
+		case <-handler.ch:
+			for _, listener := range handler.listeners {
+				listener.Close()
+			}
+			for _, callback := range handler.callbacks {
+				callback()
+			}
+		case <-globalContext.Done():
+			// got signal for shutdown, so just return
+			return
+		}
 	}
 }
 
