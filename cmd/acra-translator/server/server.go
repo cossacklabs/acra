@@ -40,10 +40,6 @@ import (
 	"google.golang.org/grpc"
 )
 
-// defaultWaitGroupTimeoutDuration specifies how long should we wait
-// for background goroutines finishing while ReaderServer shutdown
-const defaultWaitGroupTimeoutDuration = time.Second
-
 // ReaderServer represents AcraTranslator server, connects with KeyStorage, configuration file,
 // gRPC and HTTP request parsers.
 type ReaderServer struct {
@@ -318,7 +314,7 @@ func (server *ReaderServer) Start(parentContext context.Context) {
 
 	// global 'cancel' has been called. Now we should wait (not more than specified duration) until all
 	// background goroutines spawned by readerServer will finish their execution
-	if utils.WaitWithTimeout(&server.waitGroup, defaultWaitGroupTimeoutDuration) {
+	if utils.WaitWithTimeout(&server.waitGroup, utils.DefaultWaitGroupTimeoutDuration) {
 		log.Errorf("Couldn't stop all background goroutines spawned by readerServer. Exited by timeout")
 	}
 	return
