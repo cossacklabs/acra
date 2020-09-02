@@ -58,7 +58,7 @@ func testKeyInitialState(t *testing.T, newKeyStore NewKeyStore) {
 		ValidSince: validSince,
 		ValidUntil: validUntil,
 		Data: []api.KeyData{
-			api.KeyData{
+			{
 				Format:     api.ThemisKeyPairFormat,
 				PublicKey:  publicKey,
 				PrivateKey: privateKey,
@@ -124,7 +124,7 @@ func testKeyFormatLookup(t *testing.T, newKeyStore NewKeyStore) {
 		ValidSince: time.Now(),
 		ValidUntil: time.Now().Add(time.Hour),
 		Data: []api.KeyData{
-			api.KeyData{
+			{
 				Format:    api.ThemisKeyPairFormat,
 				PublicKey: []byte("my public key"),
 			},
@@ -178,7 +178,7 @@ func testKeyInvalidInputs(t *testing.T, newKeyStore NewKeyStore) {
 		ValidSince: time.Now(),
 		ValidUntil: time.Now().Add(time.Hour),
 		Data: []api.KeyData{
-			api.KeyData{
+			{
 				Format:       api.KeyFormat(9000),
 				SymmetricKey: []byte("secret"),
 			},
@@ -192,7 +192,7 @@ func testKeyInvalidInputs(t *testing.T, newKeyStore NewKeyStore) {
 		ValidSince: time.Now(),
 		ValidUntil: time.Now().Add(time.Hour),
 		Data: []api.KeyData{
-			api.KeyData{
+			{
 				Format: api.ThemisKeyPairFormat,
 			},
 		},
@@ -205,7 +205,7 @@ func testKeyInvalidInputs(t *testing.T, newKeyStore NewKeyStore) {
 		ValidSince: time.Now(),
 		ValidUntil: time.Now().Add(time.Hour),
 		Data: []api.KeyData{
-			api.KeyData{
+			{
 				Format:     api.ThemisKeyPairFormat,
 				PublicKey:  []byte{},
 				PrivateKey: []byte("asdasdas"),
@@ -220,7 +220,7 @@ func testKeyInvalidInputs(t *testing.T, newKeyStore NewKeyStore) {
 		ValidSince: time.Now(),
 		ValidUntil: time.Now().Add(time.Hour),
 		Data: []api.KeyData{
-			api.KeyData{
+			{
 				Format:    api.ThemisKeyPairFormat,
 				PublicKey: []byte("it's okay to have no private key"),
 			},
@@ -234,7 +234,7 @@ func testKeyInvalidInputs(t *testing.T, newKeyStore NewKeyStore) {
 		ValidSince: time.Now(),
 		ValidUntil: time.Now().Add(time.Hour),
 		Data: []api.KeyData{
-			api.KeyData{
+			{
 				Format:     api.ThemisSymmetricKeyFormat,
 				PrivateKey: []byte("should use SymmetricKey"),
 			},
@@ -248,11 +248,11 @@ func testKeyInvalidInputs(t *testing.T, newKeyStore NewKeyStore) {
 		ValidSince: time.Now(),
 		ValidUntil: time.Now().Add(time.Hour),
 		Data: []api.KeyData{
-			api.KeyData{
+			{
 				Format:       api.ThemisSymmetricKeyFormat,
 				SymmetricKey: []byte("secret"),
 			},
-			api.KeyData{
+			{
 				Format:       api.ThemisSymmetricKeyFormat,
 				SymmetricKey: []byte("more"),
 			},
@@ -276,7 +276,7 @@ func testKeyStateSwitching(t *testing.T, newKeyStore NewKeyStore) {
 		ValidSince: time.Now(),
 		ValidUntil: time.Now().Add(time.Hour),
 		Data: []api.KeyData{
-			api.KeyData{
+			{
 				Format:       api.ThemisSymmetricKeyFormat,
 				SymmetricKey: []byte("secret"),
 			},

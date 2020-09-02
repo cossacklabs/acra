@@ -124,7 +124,7 @@ func TestHandleRangeCondition(t *testing.T) {
 	}
 	notMatchableQueries := [][]string{
 		// left side value placeholder
-		[]string{
+		{
 			"select 1 from t where param between 'value placeholder' and 3",
 			"select 1 from t where param between 'value placeholder' and 'qwe'",
 			"select 1 from t where param between 'value placeholder' and TRUE",
@@ -132,7 +132,7 @@ func TestHandleRangeCondition(t *testing.T) {
 			"select 1 from t where param between (select 1) and 2",
 		},
 		// right side value placeholder
-		[]string{
+		{
 			"select 1 from t where param between 2 and 'value placeholder'",
 			"select 1 from t where param between 'qwe' and 'value placeholder'",
 			"select 1 from t where param between TRUE and 'value placeholder'",
@@ -140,13 +140,13 @@ func TestHandleRangeCondition(t *testing.T) {
 			"select 1 from t where param between (select 1) and 'value placeholder'",
 		},
 		// two sides placeholder
-		[]string{
+		{
 			// incorrect column name
 			"select 1 from t where incorrect_column between NULL and 'value placeholder'",
 			"select 1 from t where param between (select 1) and (select 1)",
 		}, // all queries should match
 		// two explicit int values
-		[]string{
+		{
 			"select 1 from t where param between 1 and 3",
 			"select 1 from t where param between 2 and 2",
 			"select 1 from t where param between 1 and True",
@@ -155,32 +155,32 @@ func TestHandleRangeCondition(t *testing.T) {
 			"select 1 from t where param between 2 and 1",
 		},
 		// two explicit str values
-		[]string{
+		{
 			"select 1 from t where param between 'qwe' and 1",
 			"select 1 from t where param between 2 and 'asd'",
 			"select 1 from t where param between True and 'asd'",
 			"select 1 from t where param between 'qwe' and NULL",
 		},
 		// subqueries
-		[]string{
+		{
 			"select 1 from t where param between (select 1) and (select 1)",
 			"select 1 from t where param between (select 2) and (select 2)",
 		},
 		// subqueries with %%SUBQUERY%% placeholder
-		[]string{
+		{
 			"select 1 from t where param between 1 and (select 1)",
 			"select 1 from t where param between (select 1) and 1",
 			"select 1 from t where param between (select 1) and someFunc()",
 		},
 		// subqueries with %%SUBQUERY%% and %%VALUE%% placeholders
-		[]string{
+		{
 			"select 1 from t where param between 'some value' and (select 'some query')",
 			"select 1 from t where param between someFunc() and 'some value'",
 		},
 	}
 	matchableQueries := [][]string{
 		// left side value placeholder
-		[]string{
+		{
 			"SELECT 1 FROM t WHERE param BETWEEN 1 AND 2",
 			"SELECT 1 FROM t WHERE param BETWEEN 'qwe' AND 2",
 			"SELECT 1 FROM t WHERE param BETWEEN TRUE AND 2",
@@ -188,7 +188,7 @@ func TestHandleRangeCondition(t *testing.T) {
 			"SELECT 1 FROM t WHERE param BETWEEN NULL AND 2",
 		},
 		// right side value placeholder
-		[]string{
+		{
 			"SELECT 1 FROM t WHERE param BETWEEN 1 AND 2",
 			"SELECT 1 FROM t WHERE param BETWEEN 1 AND 'qwe'",
 			"SELECT 1 FROM t WHERE param BETWEEN 1 AND TRUE",
@@ -196,31 +196,31 @@ func TestHandleRangeCondition(t *testing.T) {
 			"SELECT 1 FROM t WHERE param BETWEEN 1 AND NULL",
 		},
 		// two sides placeholder
-		[]string{
+		{
 			"SELECT 1 FROM t WHERE param BETWEEN 1 AND 2",
 			"SELECT 1 FROM t WHERE param BETWEEN NULL AND 'qwe'",
 			"SELECT 1 FROM t WHERE param BETWEEN 'qwe' AND TRUE",
 			"SELECT 1 FROM t WHERE param BETWEEN FALSE AND NULL",
 		},
 		// two explicit int values
-		[]string{
+		{
 			"SELECT 1 FROM t WHERE param BETWEEN 1 AND 2",
 		},
 		// two explicit str values
-		[]string{
+		{
 			"SELECT 1 FROM t WHERE param BETWEEN 'qwe' and 'asd'",
 		},
 		// explicit subqueries
-		[]string{
+		{
 			"select 1 from t where param between (select 1) and (select 2)",
 		},
 		// subqueries with %%SUBQUERY%% placeholder
-		[]string{
+		{
 			"select 1 from t where param between (select 1) and (select 1)",
 			"select 1 from t where param between (select 1) and (select 1 from table1 union select 2 from table2)",
 		},
 		// subqueries with %%SUBQUERY%% and %%VALUE%% placeholders
-		[]string{
+		{
 			"select 1 from t where param between (select 'some query') and 'some value'",
 			"select 1 from t where param between (select 'some query') and 123",
 			"select 1 from t where param between (select 'some query') and FALSE",
@@ -331,14 +331,14 @@ func TestPatternsInWhereClauses(t *testing.T) {
 	}
 	notMatchableQueries := [][]string{
 		// left side value placeholder
-		[]string{
+		{
 			"select 1 from t where param between 'value placeholder' and 3",
 			"select 1 from t where param between 'value placeholder' and 'qwe'",
 			"select 1 from t where param between 'value placeholder' and TRUE",
 			"select 1 from t where param between 'value placeholder' and NULL",
 		},
 		// left side value placeholder with other conditions
-		[]string{
+		{
 			// incorrect param1
 			"select 1 from t where param1 = 1 and param between 'value placeholder' and 2 or param3='qwe'",
 			// incorrect right value
@@ -347,14 +347,14 @@ func TestPatternsInWhereClauses(t *testing.T) {
 			"select 1 from t where param1 = 2 and param between 'value placeholder' and 2 or param3='incorrect'",
 		},
 		// right side value placeholder
-		[]string{
+		{
 			"select 1 from t where param between 2 and 'value placeholder'",
 			"select 1 from t where param between 'qwe' and 'value placeholder'",
 			"select 1 from t where param between TRUE and 'value placeholder'",
 			"select 1 from t where param between NULL and 'value placeholder'",
 		},
 		// right side value placeholder with other conditions
-		[]string{
+		{
 			// incorrect param1
 			"select 1 from t where param1 = 1 and param between 1 and 1 or param1 = TRUE",
 			// incorrect param1
@@ -364,16 +364,16 @@ func TestPatternsInWhereClauses(t *testing.T) {
 		},
 
 		// two sides placeholder
-		[]string{}, // all queries should match
+		{}, // all queries should match
 		// two sides placeholder with other conditions
-		[]string{
+		{
 			// incorrect param1
 			"select 1 from t where param1 = 1 and param between 'asd' and 1 or param1 = TRUE",
 			// incorrect param1
 			"select 1 from t where param1 = 2 and param between 1 and 'qwe' or param1 = FALSE",
 		},
 		// two explicit int values
-		[]string{
+		{
 			"select 1 from t where param between 1 and 3",
 			"select 1 from t where param between 2 and 2",
 			"select 1 from t where param between 1 and 'qwe'",
@@ -381,7 +381,7 @@ func TestPatternsInWhereClauses(t *testing.T) {
 			"select 1 from t where param between 1 and TRUE",
 		},
 		// two explicit int values with other conditions
-		[]string{
+		{
 			// incorrect right condition
 			"select 1 from t where b=2 and param between 1 and 3 and True",
 			// incorrect left condition
@@ -392,7 +392,7 @@ func TestPatternsInWhereClauses(t *testing.T) {
 			"select 1 from t where b=1 and param between 1 and 2 and True",
 		},
 		// two explicit str values
-		[]string{
+		{
 			// incorrect right condition
 			"select 1 from t where param between 'qwe' and 'incorrect'",
 			// incorrect left condition
@@ -403,7 +403,7 @@ func TestPatternsInWhereClauses(t *testing.T) {
 			"select 1 from t where param between 1 and 'asd'",
 		},
 		// two explicit str values with other conditions
-		[]string{
+		{
 			// "select 1 from t where b='qwe' and param between 'qwe' and 'asd' and t in (1,2,3)",
 			// incorrect t in ()
 			"select 1 from t where b='qwe' and param between 'qwe' and 'asd' and t in (1,2,2)",
@@ -417,7 +417,7 @@ func TestPatternsInWhereClauses(t *testing.T) {
 			"select 1 from t where b='qwe' and incorrect_column between 'qwe' and 'asd' and t in (1,2,3)",
 		},
 		// IN clause with %%VALUE%% placeholders
-		[]string{
+		{
 			// incorrect specific value
 			"select 1 from t where b='qwe' and t IN (1, 'qwe', 2)",
 			// subquery instead value
@@ -426,9 +426,9 @@ func TestPatternsInWhereClauses(t *testing.T) {
 			"select 1 from t where b='qwe' and t IN (1, 2, 1, 1)",
 		},
 		// IN clause with %%LIST_OF_VALUES%% placeholders
-		[]string{}, // any length of list is acceptable
+		{}, // any length of list is acceptable
 		// IN clause with %%VALUE%% and %%LIST_OF_VALUES%% placeholders
-		[]string{
+		{
 			// incorrect specific value
 			"select 1 from t where b='qwe' and t IN (1, 2, 1)",
 			// subquery as value
@@ -438,30 +438,30 @@ func TestPatternsInWhereClauses(t *testing.T) {
 		},
 
 		// column IN (%%SUBQUERY%%)
-		[]string{
+		{
 			// anything except subquery
 			"select 1 from t where b='qwe' and t IN (1)",
 		},
 
 		// column IN (%%VALUE, %%SUBQUERY%%, 1, %%LIST_OF_VALUES%%)
-		[]string{
+		{
 			// anything except subquery on subquery placeholder
 			"select 1 from t where b='qwe' and t IN (1, 2, 1, 3)",
 		},
 		// age = (%%SUBQUERY%%)
-		[]string{
+		{
 			// not subquery
 			"select 1 from t where b='qwe' and a=1",
 			// func instead subquery
 			"select 1 from t where b='qwe' and a=someFunc(2)",
 		},
 		// exists without patterns
-		[]string{
+		{
 			// different query in exists
 			"select 1 from t where exists(select 2) and a=2",
 		},
 		// exists with %%SUBQUERY%%
-		[]string{
+		{
 			// func instead exists
 			"select 1 from t where someFunc(1) and a=2",
 			// another value in second param
@@ -470,28 +470,28 @@ func TestPatternsInWhereClauses(t *testing.T) {
 	}
 	matchableQueries := [][]string{
 		// left side value placeholder
-		[]string{
+		{
 			"SELECT 1 FROM t WHERE param BETWEEN 1 AND 2",
 			"SELECT 1 FROM t WHERE param BETWEEN 'qwe' AND 2",
 			"SELECT 1 FROM t WHERE param BETWEEN TRUE AND 2",
 			"SELECT 1 FROM t WHERE param BETWEEN NULL AND 2",
 		},
 		// left side value placeholder with other conditions
-		[]string{
+		{
 			"select 1 from t where param1 = 2 and param between 1 and 2 or param3='qwe'",
 			"select 1 from t where param1 = 2 and param between 'qwe' and 2 or param3='qwe'",
 			"select 1 from t where param1 = 2 and param between TRUE and 2 or param3='qwe'",
 			"select 1 from t where param1 = 2 and param between NULL and 2 or param3='qwe'",
 		},
 		// right side value placeholder
-		[]string{
+		{
 			"SELECT 1 FROM t WHERE param BETWEEN 1 AND 2",
 			"SELECT 1 FROM t WHERE param BETWEEN 1 AND 'qwe'",
 			"SELECT 1 FROM t WHERE param BETWEEN 1 AND TRUE",
 			"SELECT 1 FROM t WHERE param BETWEEN 1 AND NULL",
 		},
 		// right side value placeholder with other conditions
-		[]string{
+		{
 			// incorrect param1
 			"select 1 from t where param1 = 2 and param between 1 and 1 or param1 = TRUE",
 			// incorrect param1
@@ -500,44 +500,44 @@ func TestPatternsInWhereClauses(t *testing.T) {
 			"select 1 from t where param1 = 2 and param between 1 and TRUE or param1 = TRUE",
 		},
 		// two sides placeholder
-		[]string{
+		{
 			"select 1 from t where param between TRUE and 1",
 			"select 1 from t where param between TRUE and 'qwe'",
 			"select 1 from t where param between NULL and FALSE",
 			"select 1 from t where param between 'qwe' and 2",
 		},
 		// two sides placeholder with other conditions
-		[]string{
+		{
 			"select 1 from t where param1 = 2 and param between TRUE and 1 or param2 is NULL",
 			"select 1 from t where param1 = 2 and param between TRUE and 'qwe' or param2 is NULL",
 			"select 1 from t where param1 = 2 and param between NULL and FALSE or param2 is NULL",
 			"select 1 from t where param1 = 2 and param between 'qwe' and 2 or param2 is NULL",
 		},
 		// two explicit int values
-		[]string{
+		{
 			"SELECT 1 FROM t WHERE param BETWEEN 1 AND 2",
 		},
 		// two explicit int values with other conditions
-		[]string{
+		{
 			"select 1 from t where b=2 and param between 1 and 2 and True",
 		},
 		// two explicit str values
-		[]string{
+		{
 			"select 1 from t where param between 'qwe' and 'asd'",
 		},
 		// two explicit str values with other conditions
-		[]string{
+		{
 			"select 1 from t where b='qwe' and param between 'qwe' and 'asd' and t in (1,2,3)",
 		},
 		// IN clause with %%VALUE%% placeholders
-		[]string{
+		{
 			// int, str
 			"select 1 from t where b='qwe' and t IN (1, 'qwe', 1)",
 			// boolean, nullable
 			"select 1 from t where b='qwe' and t IN (FALSE, NULL, 1)",
 		},
 		// IN clause with %%LIST_OF_VALUES%% placeholders
-		[]string{
+		{
 			// one value
 			"select 1 from t where b='qwe' and t IN (1)",
 			// many values
@@ -545,7 +545,7 @@ func TestPatternsInWhereClauses(t *testing.T) {
 		},
 
 		// IN clause with %%VALUE%% and %%LIST_OF_VALUES%% placeholders
-		[]string{
+		{
 			// one value as list of values
 			"select 1 from t where b='qwe' and t IN ('qwe', 1, 1)",
 			// many values as list of values
@@ -553,30 +553,30 @@ func TestPatternsInWhereClauses(t *testing.T) {
 		},
 
 		// column IN (%%SUBQUERY%%)
-		[]string{
+		{
 			"select 1 from t where b='qwe' and t IN ((select 1))",
 			"select 1 from t where b='qwe' and t IN ((select 1 from table1))",
 			"select 1 from t where b='qwe' and t IN ((select column1 from table1 where a=1 union select column1 from table2 where b=1))",
 		},
 
 		// column IN (%%VALUE, %%SUBQUERY%%, 1, %%LIST_OF_VALUES%%)
-		[]string{
+		{
 			"select 1 from t where b='qwe' and t IN (1, (select 1), 1, 1, 2)",
 			"select 1 from t where b='qwe' and t IN (1, (select 1 from table1), 1, 1, 2)",
 			"select 1 from t where b='qwe' and t IN (1, (select column1 from table1 where a=1 union select column1 from table2 where b=1), 1, 1, 2)",
 		},
 		// age = (%%SUBQUERY%%)
-		[]string{
+		{
 			"select 1 from t where b='qwe' and a=(select 1)",
 			"select 1 from t where b='qwe' and a=(select 1 from table1 union select 2 from table2)",
 		},
 		// exists without patterns
-		[]string{
+		{
 			// different query in exists
 			"select 1 from t where exists(select 1) and a=2",
 		},
 		// exists with %%SUBQUERY%%
-		[]string{
+		{
 			// simple query
 			"select 1 from t where exists(select 1) and a=2",
 			// query with union
@@ -625,24 +625,24 @@ func TestGroupByWithColumnPattern(t *testing.T) {
 	}
 
 	matchableQueries := [][]string{
-		[]string{
+		{
 			"SELECT a1 FROM table1 GROUP BY column1",
 			"SELECT a1 FROM table1 GROUP BY 1",
 			"SELECT a1 FROM table1 GROUP BY (select priority from ordering o where o.val = e.name)",
 			"SELECT a1 FROM table1 GROUP BY Date()",
 			"SELECT a1 FROM table1 GROUP BY (case when f1 then 1 when f1 is null then 2 else 3 end)",
 		},
-		[]string{
+		{
 			"select a from b group by a, 2, 1, ABC",
 		},
 	}
 
 	notMatchableQueries := [][]string{
-		[]string{
+		{
 			// two columns
 			"SELECT a1 FROM table1 GROUP BY column1, column2",
 		},
-		[]string{
+		{
 			"SELECT a from b GROUP BY 1, abc, 1, abs",
 			"SELECT a from b GROUP BY a, abc, b, ABC",
 			"SELECT a from b GROUP BY a, abc, 1, ABC, ABC",
@@ -693,16 +693,16 @@ func TestHavingWithColumnAndValueMatch(t *testing.T) {
 	}
 
 	matchableQueries := [][]string{
-		[]string{
+		{
 			"SELECT a1 FROM table1 GROUP BY a2 HAVING COUNT(a) > 100",
 			"SELECT a1 FROM table1 GROUP BY a2 HAVING COUNT(*) > 100",
 		},
-		[]string{
+		{
 			"SELECT a1 FROM table1 GROUP BY a2 HAVING COUNT(a3) > 100",
 			"SELECT a1 FROM table1 GROUP BY a2 HAVING COUNT(a3) > 200.0",
 			"SELECT a1 FROM table1 GROUP BY a2 HAVING COUNT(a3) > NULL",
 		},
-		[]string{
+		{
 			"SELECT a1 FROM table1 GROUP BY a2 HAVING COUNT(a3) > 0",
 			"SELECT a1 FROM table1 GROUP BY a2 HAVING COUNT(a2) > 1000",
 			"SELECT a1 FROM table1 GROUP BY a2 HAVING COUNT(a1) > TRUE",
@@ -710,13 +710,13 @@ func TestHavingWithColumnAndValueMatch(t *testing.T) {
 	}
 
 	notMatchableQueries := [][]string{
-		[]string{
+		{
 			// GroupBy not match
 			"SELECT a1 FROM table1 GROUP BY a3 HAVING COUNT(a) > 100",
 			// Comparison inside Having not match
 			"SELECT a1 FROM table1 GROUP BY a2 HAVING COUNT(a) < 100",
 		},
-		[]string{
+		{
 			// Wrong ColName inside FuncExpr of Having
 			"SELECT a1 FROM table1 GROUP BY a2 HAVING COUNT(a1) > 100",
 			// Wrong ComparisonExpr inside Having
@@ -726,7 +726,7 @@ func TestHavingWithColumnAndValueMatch(t *testing.T) {
 			// Subquery as value
 			"SELECT a1 FROM table1 GROUP BY a2 HAVING COUNT(a3) > (select 1)",
 		},
-		[]string{
+		{
 			// 2 columns inside FuncExpr
 			"SELECT a1 FROM table1 GROUP BY a2 HAVING COUNT(a1, a2) > 10",
 			// Wrong FuncExpr name

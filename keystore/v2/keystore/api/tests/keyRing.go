@@ -80,7 +80,7 @@ func testKeyRingAddingKeys(t *testing.T, newKeyStore NewKeyStore) {
 		ValidSince: time.Now(),
 		ValidUntil: time.Now().Add(time.Hour),
 		Data: []api.KeyData{
-			api.KeyData{
+			{
 				Format:       api.ThemisSymmetricKeyFormat,
 				SymmetricKey: []byte("data v1"),
 			},
@@ -93,7 +93,7 @@ func testKeyRingAddingKeys(t *testing.T, newKeyStore NewKeyStore) {
 		ValidSince: time.Now(),
 		ValidUntil: time.Now().Add(time.Hour),
 		Data: []api.KeyData{
-			api.KeyData{
+			{
 				Format:       api.ThemisSymmetricKeyFormat,
 				SymmetricKey: []byte("data v2"),
 			},
@@ -133,7 +133,7 @@ func testKeyRingCurrent(t *testing.T, newKeyStore NewKeyStore) {
 		ValidSince: time.Now(),
 		ValidUntil: time.Now().Add(time.Hour),
 		Data: []api.KeyData{
-			api.KeyData{
+			{
 				Format:       api.ThemisSymmetricKeyFormat,
 				SymmetricKey: []byte("data v1"),
 			},
@@ -166,7 +166,7 @@ func testKeyRingCurrent(t *testing.T, newKeyStore NewKeyStore) {
 		ValidSince: time.Now(),
 		ValidUntil: time.Now().Add(time.Hour),
 		Data: []api.KeyData{
-			api.KeyData{
+			{
 				Format:       api.ThemisSymmetricKeyFormat,
 				SymmetricKey: []byte("data v2"),
 			},
@@ -233,7 +233,7 @@ func testKeyRingDestroyingKeys(t *testing.T, newKeyStore NewKeyStore) {
 		ValidSince: time.Now(),
 		ValidUntil: time.Now().Add(time.Hour),
 		Data: []api.KeyData{
-			api.KeyData{
+			{
 				Format:     api.ThemisKeyPairFormat,
 				PublicKey:  []byte("public key v1"),
 				PrivateKey: []byte("private key v1"),
@@ -247,7 +247,7 @@ func testKeyRingDestroyingKeys(t *testing.T, newKeyStore NewKeyStore) {
 		ValidSince: time.Now(),
 		ValidUntil: time.Now().Add(time.Hour),
 		Data: []api.KeyData{
-			api.KeyData{
+			{
 				Format:     api.ThemisKeyPairFormat,
 				PublicKey:  []byte("public key v2"),
 				PrivateKey: []byte("private key v2"),

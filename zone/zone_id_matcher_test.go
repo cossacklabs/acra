@@ -58,7 +58,9 @@ func (storage *TestKeyStore) GetPeerPublicKey(id []byte) (*keys.PublicKey, error
 func (storage *TestKeyStore) GetPrivateKey(id []byte) (*keys.PrivateKey, error) {
 	return &keys.PrivateKey{Value: []byte{}}, nil
 }
-func (storage *TestKeyStore) GenerateZoneKey() ([]byte, []byte, error) { return []byte{}, []byte{}, nil }
+func (storage *TestKeyStore) GenerateZoneKey() ([]byte, []byte, error) {
+	return []byte{}, []byte{}, nil
+}
 
 func (storage *TestKeyStore) Reset()                                     {}
 func (storage *TestKeyStore) GenerateConnectorKeys(id []byte) error      { return nil }

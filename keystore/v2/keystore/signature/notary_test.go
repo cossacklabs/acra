@@ -160,7 +160,7 @@ func TestUnknownSignature(t *testing.T) {
 		Payload: asn1.SignedPayload{
 			Data: 42,
 		},
-		Signatures: []asn1.Signature{asn1.Signature{
+		Signatures: []asn1.Signature{{
 			Algorithm: honestOID,
 			Signature: []byte("real thing, trust me"),
 		}},
