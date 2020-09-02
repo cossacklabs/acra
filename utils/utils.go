@@ -198,6 +198,10 @@ func GetConfigPathByName(name string) string {
 	return fmt.Sprintf("configs/%s.yaml", name)
 }
 
+// DefaultWaitGroupTimeoutDuration specifies how long should we wait
+// for background goroutines finishing while ReaderServer shutdown
+const DefaultWaitGroupTimeoutDuration = time.Second
+
 // WaitWithTimeout waits for the waitgroup for the specified max timeout.
 // Returns true if waiting timed out.
 func WaitWithTimeout(wg *sync.WaitGroup, timeout time.Duration) bool {
