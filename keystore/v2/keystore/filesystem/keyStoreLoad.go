@@ -104,7 +104,7 @@ func (s *KeyStore) openKeyRing(ring *KeyRing) (err error) {
 
 	err = s.pullRingUpdates(ring)
 	if err != nil {
-		// If we tried to pull non-existant key ring, create a new empty one instead.
+		// If we tried to pull non-existent key ring, create a new empty one instead.
 		if err == backend.ErrNotExist {
 			return s.pushNewRingState(ring)
 		}

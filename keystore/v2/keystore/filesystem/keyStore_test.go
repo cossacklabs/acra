@@ -85,7 +85,7 @@ func TestKeyStoreOpeningDir(t *testing.T) {
 
 	_, err = OpenDirectory(rootPath, testKeyStoreSuite(t))
 	if err != backendAPI.ErrNotExist {
-		t.Errorf("opened non-existant keystore: %v", err)
+		t.Errorf("opened non-existent keystore: %v", err)
 	}
 
 	if IsKeyDirectory(rootPath) {
@@ -153,7 +153,7 @@ func TestKeyStoreOpeningRings(t *testing.T) {
 
 	_, err = s.OpenKeyRing("some/keyring")
 	if err != backendAPI.ErrNotExist {
-		t.Errorf("opened non-existant key ring: %v", err)
+		t.Errorf("opened non-existent key ring: %v", err)
 	}
 
 	_, err = s.OpenKeyRingRW("some/keyring")
