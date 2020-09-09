@@ -25,7 +25,9 @@ import (
 
 	"github.com/cossacklabs/acra/cmd"
 	"github.com/cossacklabs/acra/keystore"
+	"github.com/cossacklabs/acra/keystore/filesystem"
 	keystoreV2 "github.com/cossacklabs/acra/keystore/v2/keystore"
+	filesystemV2 "github.com/cossacklabs/acra/keystore/v2/keystore/filesystem"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -182,6 +184,37 @@ func (g *GenerateKeySubcommand) Execute() {
 		}
 		return
 	}
+
+	// If the keystore already exists, detect its version automatically.
+	// Otherwise require the user to specify it. (Only during key generation.)
+	var keystore keystore.KeyMaking
+	var err error
+	keystoreVersion := g.KeyStoreVersion()
+	if keystoreVersion == "" {
+		if filesystemV2.IsKeyDirectory(g.KeyDir()) {
+			keystoreVersion = "v2"
+		} else if filesystem.IsKeyDirectory(g.KeyDir()) {
+			keystoreVersion = "v1"
+		}
+	}
+	switch keystoreVersion {
+	case "v1":
+		keystore, err = openKeyStoreV1(g)
+	case "v2":
+		keystore, err = openKeyStoreV2(g)
+	case "":
+		log.Fatalf("Keystore version is required: --keystore={v1|v2}")
+	default:
+		log.Fatalf("Unknown --keystore option: %v", keystoreVersion)
+	}
+	if err != nil {
+		log.WithError(err).Fatal("Failed to open keystore")
+	}
+
+	err = GenerateAcraKeys(g, keystore)
+	if err != nil {
+		log.WithError(err).Fatal("Failed to generate keys")
+	}
 }
 
 // GenerateMasterKey generates master key into output file.
@@ -210,6 +243,72 @@ func GenerateMasterKey(params GenerateKeyParams) error {
 	if err := ioutil.WriteFile(masterKeyFile, newKey, 0600); err != nil {
 		log.WithError(err).WithField("path", masterKeyFile).Error("Failed to write master key")
 		return err
+	}
+
+	return nil
+}
+
+// GenerateAcraKeys generates Acra CE keys as specified by the parameters.
+func GenerateAcraKeys(params GenerateKeyParams, keystore keystore.KeyMaking) error {
+	generateAcraConnector := params.GenerateAcraConnector()
+	generateAcraServer := params.GenerateAcraServer()
+	generateAcraTranslator := params.GenerateAcraTranslator()
+	generateAcraWriter := params.GenerateAcraWriter()
+
+	// If this is keystore initialization, allow the user to avoid specifying keys.
+	// They will need all of them so just generate the default set.
+	// However, if the keystore is already present then rotate only the specified keys.
+	firstGeneration := params.KeyStoreVersion() != ""
+	explictKeys := generateAcraConnector || generateAcraServer || generateAcraTranslator || generateAcraWriter
+	clientIDKnown := len(params.ClientID()) != 0
+	if firstGeneration && !explictKeys && clientIDKnown {
+		generateAcraConnector = true
+		generateAcraServer = true
+		generateAcraTranslator = true
+		generateAcraWriter = true
+	}
+
+	if generateAcraConnector {
+		err := keystore.GenerateConnectorKeys(params.ClientID())
+		if err != nil {
+			log.WithError(err).Error("Failed to generate AcraConnector transport key")
+			return err
+		}
+		log.Info("Generated AcraConnector transport key")
+	}
+	if generateAcraServer {
+		err := keystore.GenerateServerKeys(params.ClientID())
+		if err != nil {
+			log.WithError(err).Error("Failed to generate AcraServer transport key")
+			return err
+		}
+		log.Info("Generated AcraServer transport key")
+	}
+	if generateAcraTranslator {
+		err := keystore.GenerateTranslatorKeys(params.ClientID())
+		if err != nil {
+			log.WithError(err).Error("Failed to generate AcraTranslator transport key")
+			return err
+		}
+		log.Info("Generated AcraTranslator transport key")
+	}
+	if generateAcraWriter {
+		err := keystore.GenerateDataEncryptionKeys(params.ClientID())
+		if err != nil {
+			log.WithError(err).Error("Failed to generate client storage key")
+			return err
+		}
+		log.Info("Generated client storage key")
+	}
+
+	if params.GenerateAcraWebConfig() {
+		// Create the key if it does not exits.
+		_, err := keystore.GetAuthKey(true)
+		if err != nil {
+			log.WithError(err).Error("Failed to generate AcraWebConfig key")
+			return err
+		}
+		log.Info("Generated AcraWebConfig symmetric key")
 	}
 
 	return nil
