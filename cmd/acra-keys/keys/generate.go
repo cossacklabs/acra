@@ -28,6 +28,8 @@ import (
 	"github.com/cossacklabs/acra/keystore/filesystem"
 	keystoreV2 "github.com/cossacklabs/acra/keystore/v2/keystore"
 	filesystemV2 "github.com/cossacklabs/acra/keystore/v2/keystore/filesystem"
+	"github.com/cossacklabs/acra/zone"
+	"github.com/cossacklabs/themis/gothemis/keys"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -44,6 +46,10 @@ type GenerateKeyParams interface {
 	GenerateAcraTranslator() bool
 	GenerateAcraWriter() bool
 	GenerateAcraWebConfig() bool
+
+	ZoneID() []byte
+	GenerateNewZone() bool
+	GenerateZoneKeys() bool
 }
 
 // Key generation errors:
@@ -62,12 +68,15 @@ type GenerateKeySubcommand struct {
 	outKeyDir       string
 	outKeyDirPublic string
 	clientID        string
+	zoneID          string
 	masterKeyFile   string
 	acraConnector   bool
 	acraServer      bool
 	acraTranslator  bool
 	acraWriter      bool
 	acraWebConfig   bool
+	newZone         bool
+	rotateZone      bool
 }
 
 // KeyStoreVersion returns requested key store version.
@@ -111,6 +120,21 @@ func (g *GenerateKeySubcommand) GenerateAcraWebConfig() bool {
 	return g.acraWebConfig
 }
 
+// ZoneID returns zone ID.
+func (g *GenerateKeySubcommand) ZoneID() []byte {
+	return []byte(g.zoneID)
+}
+
+// GenerateNewZone returns true if a new zone was requested.
+func (g *GenerateKeySubcommand) GenerateNewZone() bool {
+	return g.newZone
+}
+
+// GenerateZoneKeys returns true if a new key for a zone was requested.
+func (g *GenerateKeySubcommand) GenerateZoneKeys() bool {
+	return g.rotateZone
+}
+
 // Name returns the same of this subcommand.
 func (g *GenerateKeySubcommand) Name() string {
 	return CmdGenerate
@@ -127,12 +151,15 @@ func (g *GenerateKeySubcommand) RegisterFlags() {
 	g.CommonKeyStoreParameters.Register(g.flagSet)
 	g.flagSet.StringVar(&g.keyStoreVersion, "keystore", "", "Key store format: v1 (current), v2 (new)")
 	g.flagSet.StringVar(&g.clientID, "client_id", "", "Client ID")
+	g.flagSet.StringVar(&g.zoneID, "zone_id", "", "Zone ID")
 	g.flagSet.StringVar(&g.masterKeyFile, "master_key_path", "", "Generate new random master key and save to file")
 	g.flagSet.BoolVar(&g.acraConnector, "acraconnector_transport_key", false, "Generate transport keypair for AcraConnector")
 	g.flagSet.BoolVar(&g.acraServer, "acraserver_transport_key", false, "Generate transport keypair for AcraServer")
 	g.flagSet.BoolVar(&g.acraTranslator, "acratranslator_transport_key", false, "Generate transport keypair for AcraTranslator")
 	g.flagSet.BoolVar(&g.acraWriter, "client_storage_key", false, "Generate keypair for data encryption/decryption (for a client)")
 	g.flagSet.BoolVar(&g.acraWebConfig, "acrawebconfig_symmetric_key", false, "Generate symmetric key for AcraWebconfig's basic auth DB")
+	g.flagSet.BoolVar(&g.newZone, "new_zone", false, "Generate new Acra storage zone")
+	g.flagSet.BoolVar(&g.rotateZone, "zone_storage_key", false, "Rotate existing Acra zone storagae keypair")
 	g.flagSet.Usage = func() {
 		fmt.Fprintf(os.Stderr, "Command \"%s\": generate new keys\n", CmdGenerate)
 		fmt.Fprintf(os.Stderr, "\n\t%s %s [options...]\n", os.Args[0], CmdGenerate)
@@ -148,6 +175,10 @@ func (g *GenerateKeySubcommand) Parse(arguments []string) error {
 		return err
 	}
 	err = ValidateClientID(g)
+	if err != nil {
+		return err
+	}
+	err = ValidateZoneID(g)
 	if err != nil {
 		return err
 	}
@@ -170,6 +201,19 @@ func ValidateClientID(params GenerateKeyParams) error {
 		if !masterKey && (firstGeneration || requestedClientKeys) {
 			log.Error("--client_id is required to generate keys")
 			return ErrMissingClientID
+		}
+	}
+	return nil
+}
+
+// ValidateZoneID checks that zone ID is specified correctly.
+func ValidateZoneID(params GenerateKeyParams) error {
+	zoneID := params.ZoneID()
+	// Zone ID is required to generate some of the keys.
+	if len(zoneID) == 0 {
+		if params.GenerateZoneKeys() {
+			log.Error("--zone_id is required to generate zone keys")
+			return ErrMissingZoneID
 		}
 	}
 	return nil
@@ -309,6 +353,36 @@ func GenerateAcraKeys(params GenerateKeyParams, keystore keystore.KeyMaking) err
 			return err
 		}
 		log.Info("Generated AcraWebConfig symmetric key")
+	}
+
+	if params.GenerateNewZone() {
+		id, publicKey, err := keystore.GenerateZoneKey()
+		if err != nil {
+			log.WithError(err).Error("Failed to generate new zone")
+			return err
+		}
+		json, err := zone.ZoneDataToJSON(id, &keys.PublicKey{Value: publicKey})
+		if err != nil {
+			log.WithError(err).Error("Failed to serialize new zone parameters")
+			return err
+		}
+		fmt.Println(string(json))
+		log.Info("Generated new Acra zone")
+	}
+	if params.GenerateZoneKeys() {
+		zoneID := params.ZoneID()
+		publicKey, err := keystore.RotateZoneKey(zoneID)
+		if err != nil {
+			log.WithError(err).Error("Failed to rotate zone key")
+			return err
+		}
+		json, err := zone.ZoneDataToJSON(zoneID, &keys.PublicKey{Value: publicKey})
+		if err != nil {
+			log.WithError(err).Error("Failed to serialize zone parameters")
+			return err
+		}
+		fmt.Println(string(json))
+		log.Info("Generated zone storage key")
 	}
 
 	return nil

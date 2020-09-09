@@ -80,3 +80,9 @@ keystore:
 # Generate new random master key and save to file
 master_key_path: 
 
+# Generate new Acra storage zone
+new_zone: false
+
+# Rotate existing Acra zone storagae keypair
+zone_storage_key: false
+
