@@ -255,9 +255,12 @@ func (g *GenerateKeySubcommand) Execute() {
 		log.WithError(err).Fatal("Failed to open keystore")
 	}
 
-	err = GenerateAcraKeys(g, keystore)
+	generatedKeys, err := GenerateAcraKeys(g, keystore)
 	if err != nil {
 		log.WithError(err).Fatal("Failed to generate keys")
+	}
+	if !generatedKeys {
+		log.Info("No keys were updated")
 	}
 }
 
@@ -293,7 +296,8 @@ func GenerateMasterKey(params GenerateKeyParams) error {
 }
 
 // GenerateAcraKeys generates Acra CE keys as specified by the parameters.
-func GenerateAcraKeys(params GenerateKeyParams, keystore keystore.KeyMaking) error {
+// Returns true if some keys have been generated.
+func GenerateAcraKeys(params GenerateKeyParams, keystore keystore.KeyMaking) (bool, error) {
 	generateAcraConnector := params.GenerateAcraConnector()
 	generateAcraServer := params.GenerateAcraServer()
 	generateAcraTranslator := params.GenerateAcraTranslator()
@@ -312,37 +316,47 @@ func GenerateAcraKeys(params GenerateKeyParams, keystore keystore.KeyMaking) err
 		generateAcraWriter = true
 	}
 
+	// If the user runs just "acra-keys generate" with no arguments and the configuration file
+	// does not tell us the action either, we end up not doing anything useful.
+	// Return this state to the caller so that we can at least tell the user than nothing changed
+	// instead of keeping an ominous silence.
+	didSomething := false
+
 	if generateAcraConnector {
 		err := keystore.GenerateConnectorKeys(params.ClientID())
 		if err != nil {
 			log.WithError(err).Error("Failed to generate AcraConnector transport key")
-			return err
+			return didSomething, err
 		}
 		log.Info("Generated AcraConnector transport key")
+		didSomething = true
 	}
 	if generateAcraServer {
 		err := keystore.GenerateServerKeys(params.ClientID())
 		if err != nil {
 			log.WithError(err).Error("Failed to generate AcraServer transport key")
-			return err
+			return didSomething, err
 		}
 		log.Info("Generated AcraServer transport key")
+		didSomething = true
 	}
 	if generateAcraTranslator {
 		err := keystore.GenerateTranslatorKeys(params.ClientID())
 		if err != nil {
 			log.WithError(err).Error("Failed to generate AcraTranslator transport key")
-			return err
+			return didSomething, err
 		}
 		log.Info("Generated AcraTranslator transport key")
+		didSomething = true
 	}
 	if generateAcraWriter {
 		err := keystore.GenerateDataEncryptionKeys(params.ClientID())
 		if err != nil {
 			log.WithError(err).Error("Failed to generate client storage key")
-			return err
+			return didSomething, err
 		}
 		log.Info("Generated client storage key")
+		didSomething = true
 	}
 
 	if params.GenerateAcraWebConfig() {
@@ -350,40 +364,43 @@ func GenerateAcraKeys(params GenerateKeyParams, keystore keystore.KeyMaking) err
 		_, err := keystore.GetAuthKey(true)
 		if err != nil {
 			log.WithError(err).Error("Failed to generate AcraWebConfig key")
-			return err
+			return didSomething, err
 		}
 		log.Info("Generated AcraWebConfig symmetric key")
+		didSomething = true
 	}
 
 	if params.GenerateNewZone() {
 		id, publicKey, err := keystore.GenerateZoneKey()
 		if err != nil {
 			log.WithError(err).Error("Failed to generate new zone")
-			return err
+			return didSomething, err
 		}
 		json, err := zone.ZoneDataToJSON(id, &keys.PublicKey{Value: publicKey})
 		if err != nil {
 			log.WithError(err).Error("Failed to serialize new zone parameters")
-			return err
+			return didSomething, err
 		}
 		fmt.Println(string(json))
 		log.Info("Generated new Acra zone")
+		didSomething = true
 	}
 	if params.GenerateZoneKeys() {
 		zoneID := params.ZoneID()
 		publicKey, err := keystore.RotateZoneKey(zoneID)
 		if err != nil {
 			log.WithError(err).Error("Failed to rotate zone key")
-			return err
+			return didSomething, err
 		}
 		json, err := zone.ZoneDataToJSON(zoneID, &keys.PublicKey{Value: publicKey})
 		if err != nil {
 			log.WithError(err).Error("Failed to serialize zone parameters")
-			return err
+			return didSomething, err
 		}
 		fmt.Println(string(json))
 		log.Info("Generated zone storage key")
+		didSomething = true
 	}
 
-	return nil
+	return didSomething, nil
 }
