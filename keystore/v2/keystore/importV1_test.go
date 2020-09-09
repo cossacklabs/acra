@@ -100,17 +100,17 @@ func TestImportKeyStoreV1(t *testing.T) {
 	}
 	// Since we cannot access all generated key pairs via AcraServer keystore,
 	// we generate them here and use Save... API
-	connectorKeyPairV1, err := keys.New(keys.TypeEC)
+	connectorKeyPairV1, _ := keys.New(keys.TypeEC)
 	err = keyStoreV1.SaveConnectorKeypair(clientID, connectorKeyPairV1)
 	if err != nil {
 		t.Errorf("SaveConnectorKeypair() failed: %v", err)
 	}
-	serverKeyPairV1, err := keys.New(keys.TypeEC)
+	serverKeyPairV1, _ := keys.New(keys.TypeEC)
 	err = keyStoreV1.SaveServerKeypair(clientID, serverKeyPairV1)
 	if err != nil {
 		t.Errorf("SaveServerKeypair() failed: %v", err)
 	}
-	translatorKeyPairV1, err := keys.New(keys.TypeEC)
+	translatorKeyPairV1, _ := keys.New(keys.TypeEC)
 	err = keyStoreV1.SaveTranslatorKeypair(clientID, translatorKeyPairV1)
 	if err != nil {
 		t.Errorf("SaveTranslatorKeypair() failed: %v", err)

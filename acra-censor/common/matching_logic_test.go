@@ -69,7 +69,7 @@ func testSingleTopLevelPlaceholder(t *testing.T, pattern string, indexOfMatchedQ
 	if err != nil {
 		t.Fatal(err)
 	}
-	match := false
+
 	for index := range testQueries {
 
 		stmt, err := sqlparser.Parse(testQueries[index])
@@ -77,7 +77,7 @@ func testSingleTopLevelPlaceholder(t *testing.T, pattern string, indexOfMatchedQ
 			t.Fatal(err)
 		}
 
-		match = CheckPatternsMatching(parsedPatterns, stmt)
+		match := CheckPatternsMatching(parsedPatterns, stmt)
 		if contains(indexOfMatchedQuery, index) {
 			if !match {
 				t.Fatalf("Expected match in query <%s> with pattern <%s>", testQueries[index], pattern)
