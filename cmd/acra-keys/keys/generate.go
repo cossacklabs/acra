@@ -36,7 +36,7 @@ import (
 // GenerateKeyParams are parameters of "acra-keys generate" subcommand.
 type GenerateKeyParams interface {
 	KeyStoreParameters
-	KeyStoreVersion() string
+	KeystoreVersion() string
 
 	GenerateMasterKeyFile() string
 
@@ -54,8 +54,8 @@ type GenerateKeyParams interface {
 
 // Key generation errors:
 var (
-	ErrMissingKeyStoreVersion = errors.New("key store version not specified")
-	ErrUnknownKeyStoreVersion = errors.New("unknown key store version")
+	ErrMissingKeystoreVersion = errors.New("keystore version not specified")
+	ErrUnknownKeystoreVersion = errors.New("unknown keystore version")
 )
 
 // GenerateKeySubcommand is the "acra-keys generate" subcommand.
@@ -63,7 +63,7 @@ type GenerateKeySubcommand struct {
 	flagSet *flag.FlagSet
 
 	CommonKeyStoreParameters
-	keyStoreVersion string
+	keystoreVersion string
 
 	outKeyDir       string
 	outKeyDirPublic string
@@ -79,9 +79,9 @@ type GenerateKeySubcommand struct {
 	rotateZone      bool
 }
 
-// KeyStoreVersion returns requested key store version.
-func (g *GenerateKeySubcommand) KeyStoreVersion() string {
-	return g.keyStoreVersion
+// KeystoreVersion returns requested keystore version.
+func (g *GenerateKeySubcommand) KeystoreVersion() string {
+	return g.keystoreVersion
 }
 
 // ClientID returns client ID.
@@ -149,7 +149,7 @@ func (g *GenerateKeySubcommand) GetFlagSet() *flag.FlagSet {
 func (g *GenerateKeySubcommand) RegisterFlags() {
 	g.flagSet = flag.NewFlagSet(CmdGenerate, flag.ContinueOnError)
 	g.CommonKeyStoreParameters.Register(g.flagSet)
-	g.flagSet.StringVar(&g.keyStoreVersion, "keystore", "", "Key store format: v1 (current), v2 (new)")
+	g.flagSet.StringVar(&g.keystoreVersion, "keystore", "", "Keystore format: v1 (current), v2 (new)")
 	g.flagSet.StringVar(&g.clientID, "client_id", "", "Client ID")
 	g.flagSet.StringVar(&g.zoneID, "zone_id", "", "Zone ID")
 	g.flagSet.StringVar(&g.masterKeyFile, "master_key_path", "", "Generate new random master key and save to file")
@@ -196,7 +196,7 @@ func ValidateClientID(params GenerateKeyParams) error {
 		// (Which are always generated on first launch, when --keystore is specified.)
 		// Unless we're only generating the master key.
 		masterKey := params.GenerateMasterKeyFile() != ""
-		firstGeneration := params.KeyStoreVersion() != ""
+		firstGeneration := params.KeystoreVersion() != ""
 		requestedClientKeys := params.GenerateAcraConnector() || params.GenerateAcraServer() || params.GenerateAcraTranslator() || params.GenerateAcraWriter()
 		if !masterKey && (firstGeneration || requestedClientKeys) {
 			log.Error("--client_id is required to generate keys")
@@ -233,7 +233,7 @@ func (g *GenerateKeySubcommand) Execute() {
 	// Otherwise require the user to specify it. (Only during key generation.)
 	var keystore keystore.KeyMaking
 	var err error
-	keystoreVersion := g.KeyStoreVersion()
+	keystoreVersion := g.KeystoreVersion()
 	if keystoreVersion == "" {
 		if filesystemV2.IsKeyDirectory(g.KeyDir()) {
 			keystoreVersion = "v2"
@@ -269,18 +269,18 @@ func GenerateMasterKey(params GenerateKeyParams) error {
 	var newKey []byte
 	var err error
 
-	version := params.KeyStoreVersion()
+	version := params.KeystoreVersion()
 	switch version {
 	case "v1":
 		newKey, err = keystore.GenerateSymmetricKey()
 	case "v2":
 		newKey, err = keystoreV2.NewSerializedMasterKeys()
 	case "":
-		log.Errorf("Key store version is required: --keystore={v1|v2}")
-		return ErrMissingKeyStoreVersion
+		log.Errorf("Keystore version is required: --keystore={v1|v2}")
+		return ErrMissingKeystoreVersion
 	default:
 		log.Errorf("Unknown --keystore option: %v", version)
-		return ErrUnknownKeyStoreVersion
+		return ErrUnknownKeystoreVersion
 	}
 	if err != nil {
 		return err
@@ -306,7 +306,7 @@ func GenerateAcraKeys(params GenerateKeyParams, keystore keystore.KeyMaking) (bo
 	// If this is keystore initialization, allow the user to avoid specifying keys.
 	// They will need all of them so just generate the default set.
 	// However, if the keystore is already present then rotate only the specified keys.
-	firstGeneration := params.KeyStoreVersion() != ""
+	firstGeneration := params.KeystoreVersion() != ""
 	explictKeys := generateAcraConnector || generateAcraServer || generateAcraTranslator || generateAcraWriter
 	clientIDKnown := len(params.ClientID()) != 0
 	if firstGeneration && !explictKeys && clientIDKnown {
