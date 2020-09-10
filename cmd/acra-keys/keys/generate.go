@@ -50,6 +50,8 @@ type GenerateKeyParams interface {
 	ZoneID() []byte
 	GenerateNewZone() bool
 	GenerateZoneKeys() bool
+
+	SpecificKeysRequested() bool
 }
 
 // Key generation errors:
@@ -133,6 +135,12 @@ func (g *GenerateKeySubcommand) GenerateNewZone() bool {
 // GenerateZoneKeys returns true if a new key for a zone was requested.
 func (g *GenerateKeySubcommand) GenerateZoneKeys() bool {
 	return g.rotateZone
+}
+
+// SpecificKeysRequested returns true if the user has requested any key specifically.
+// It returns false if no keys were requested.
+func (g *GenerateKeySubcommand) SpecificKeysRequested() bool {
+	return g.acraConnector || g.acraServer || g.acraTranslator || g.acraWriter || g.acraWebConfig || g.newZone || g.rotateZone
 }
 
 // Name returns the same of this subcommand.
@@ -324,7 +332,7 @@ func GenerateAcraKeys(params GenerateKeyParams, keystore keystore.KeyMaking, def
 	switch defaultKeys {
 	case GenerateOnInitialize:
 		firstGeneration := params.KeystoreVersion() != ""
-		explictKeys := generateAcraConnector || generateAcraServer || generateAcraTranslator || generateAcraWriter
+		explictKeys := params.SpecificKeysRequested()
 		clientIDKnown := len(params.ClientID()) != 0
 		overrideDefaultSet = firstGeneration && !explictKeys && clientIDKnown
 	case GenerateDefaultsOverride:
