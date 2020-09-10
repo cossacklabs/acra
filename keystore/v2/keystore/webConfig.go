@@ -36,12 +36,12 @@ func (s *ServerKeyStore) GetAuthKey(remove bool) ([]byte, error) {
 		return nil, err
 	}
 	if remove {
-		s.log.Info("new authentication key for AcraWebconfig requested")
+		s.log.Debug("New authentication key for AcraWebconfig requested")
 		return s.newCurrentSymmetricKey(ring)
 	}
 	key, err := s.currentSymmetricKey(ring)
 	if err == api.ErrNoCurrentKey {
-		s.log.Info("generate authentication key for AcraWebconfig")
+		s.log.Debug("Generate authentication key for AcraWebconfig")
 		return s.newCurrentSymmetricKey(ring)
 	}
 	if err != nil {

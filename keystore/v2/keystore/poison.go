@@ -38,7 +38,7 @@ func (s *ServerKeyStore) GetPoisonKeyPair() (*keys.Keypair, error) {
 	}
 	keypair, err := s.currentKeyPair(ring)
 	if err == api.ErrNoCurrentKey {
-		s.log.Info("generate poison record key pair")
+		s.log.Debug("Generate poison record key pair")
 		return s.newCurrentKeyPair(ring)
 	}
 	if err != nil {
