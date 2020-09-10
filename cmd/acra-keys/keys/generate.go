@@ -255,7 +255,7 @@ func (g *GenerateKeySubcommand) Execute() {
 		log.WithError(err).Fatal("Failed to open keystore")
 	}
 
-	generatedKeys, err := GenerateAcraKeys(g, keystore)
+	generatedKeys, err := GenerateAcraKeys(g, keystore, GenerateOnInitialize)
 	if err != nil {
 		log.WithError(err).Fatal("Failed to generate keys")
 	}
@@ -295,9 +295,22 @@ func GenerateMasterKey(params GenerateKeyParams) error {
 	return nil
 }
 
+// DefaultKeyAction defines how GenerateAcraKeys() handles the default key set.
+type DefaultKeyAction int
+
+// Allowed values of DefaultKeyAction.
+const (
+	// Automatically generate default set of keys if no keys were requested and the keystore is empty.
+	GenerateOnInitialize DefaultKeyAction = iota
+	// Generate only the explicitly requested keys.
+	GenerateAsRequested
+	// Generate default set of keys regardless of the requested keys.
+	GenerateDefaultsOverride
+)
+
 // GenerateAcraKeys generates Acra CE keys as specified by the parameters.
 // Returns true if some keys have been generated.
-func GenerateAcraKeys(params GenerateKeyParams, keystore keystore.KeyMaking) (bool, error) {
+func GenerateAcraKeys(params GenerateKeyParams, keystore keystore.KeyMaking, defaultKeys DefaultKeyAction) (bool, error) {
 	generateAcraConnector := params.GenerateAcraConnector()
 	generateAcraServer := params.GenerateAcraServer()
 	generateAcraTranslator := params.GenerateAcraTranslator()
@@ -306,10 +319,18 @@ func GenerateAcraKeys(params GenerateKeyParams, keystore keystore.KeyMaking) (bo
 	// If this is keystore initialization, allow the user to avoid specifying keys.
 	// They will need all of them so just generate the default set.
 	// However, if the keystore is already present then rotate only the specified keys.
-	firstGeneration := params.KeystoreVersion() != ""
-	explictKeys := generateAcraConnector || generateAcraServer || generateAcraTranslator || generateAcraWriter
-	clientIDKnown := len(params.ClientID()) != 0
-	if firstGeneration && !explictKeys && clientIDKnown {
+	// Allow Acra EE to override this behavior with the "defaultKeys" setting.
+	overrideDefaultSet := false
+	switch defaultKeys {
+	case GenerateOnInitialize:
+		firstGeneration := params.KeystoreVersion() != ""
+		explictKeys := generateAcraConnector || generateAcraServer || generateAcraTranslator || generateAcraWriter
+		clientIDKnown := len(params.ClientID()) != 0
+		overrideDefaultSet = firstGeneration && !explictKeys && clientIDKnown
+	case GenerateDefaultsOverride:
+		overrideDefaultSet = true
+	}
+	if overrideDefaultSet {
 		generateAcraConnector = true
 		generateAcraServer = true
 		generateAcraTranslator = true
