@@ -18,6 +18,7 @@ package network
 
 import "go.opencensus.io/trace"
 
+// ConnectionMetadataBuilder builds connection metadata
 type ConnectionMetadataBuilder struct {
 	clientID []byte
 	// opencensus uses and pass SpanContext by value everywhere to avoid problems with sharing state between thread

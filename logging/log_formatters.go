@@ -43,6 +43,7 @@ func TextFormatter() Formatter {
 	}
 }
 
+// JSONFormatter returns a default logrus.JSONFormatter with specific settings
 func JSONFormatter() Formatter {
 	return &AcraJSONFormatter{
 		Formatter: &logrus.JSONFormatter{
@@ -54,6 +55,7 @@ func JSONFormatter() Formatter {
 	}
 }
 
+// CEFFormatter returns a default CEFTextFormatter with specific settings
 func CEFFormatter() Formatter {
 	return &AcraCEFFormatter{
 		CEFTextFormatter: CEFTextFormatter{
@@ -106,14 +108,17 @@ type AcraTextFormatter struct {
 	Hooks []FormatterHook
 }
 
+// SetServiceName set service name
 func (f *AcraTextFormatter) SetServiceName(serviceName string) {
 	// service name is ignored by plaintext formatter, so just do nothing
 }
 
+// SetHooks set formatter hooks
 func (f *AcraTextFormatter) SetHooks(hooks []FormatterHook) {
 	f.Hooks = hooks
 }
 
+// GetHooks get formatter hooks
 func (f *AcraTextFormatter) GetHooks() []FormatterHook {
 	return f.Hooks
 }
@@ -132,6 +137,7 @@ type AcraJSONFormatter struct {
 	Hooks []FormatterHook
 }
 
+// SetServiceName set service name
 func (f *AcraJSONFormatter) SetServiceName(serviceName string) {
 	fields := log.Fields{FieldKeyProduct: serviceName}
 	for k, v := range extraJSONFields {
@@ -142,10 +148,12 @@ func (f *AcraJSONFormatter) SetServiceName(serviceName string) {
 	f.Fields = fields
 }
 
+// SetHooks set formatter hooks
 func (f *AcraJSONFormatter) SetHooks(hooks []FormatterHook) {
 	f.Hooks = hooks
 }
 
+// GetHooks get formatter hooks
 func (f *AcraJSONFormatter) GetHooks() []FormatterHook {
 	return f.Hooks
 }
@@ -159,6 +167,7 @@ type AcraCEFFormatter struct {
 	Hooks []FormatterHook
 }
 
+// SetServiceName set service name
 func (f *AcraCEFFormatter) SetServiceName(serviceName string) {
 	fields := log.Fields{FieldKeyProduct: serviceName}
 	for k, v := range extraJSONFields {
@@ -174,10 +183,12 @@ func (f *AcraCEFFormatter) SetServiceName(serviceName string) {
 	f.Fields = fields
 }
 
+// SetHooks set formatter hooks
 func (f *AcraCEFFormatter) SetHooks(hooks []FormatterHook) {
 	f.Hooks = hooks
 }
 
+// GetHooks get formatter hooks
 func (f *AcraCEFFormatter) GetHooks() []FormatterHook {
 	return f.Hooks
 }

@@ -37,6 +37,7 @@ const (
 	LogDiscard
 )
 
+// Log formats
 const (
 	PlaintextFormatString = "plaintext"
 	JsonFormatString      = "json"

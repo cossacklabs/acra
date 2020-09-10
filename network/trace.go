@@ -52,6 +52,7 @@ type traceWrapper struct {
 	wrapper ConnectionWrapper
 }
 
+// NewTraceConnectionWrapper creates traceWrapper from ConnectionWrapper
 func NewTraceConnectionWrapper(wrapper ConnectionWrapper) (*traceWrapper, error) {
 	return &traceWrapper{wrapper}, nil
 }
