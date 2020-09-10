@@ -166,7 +166,7 @@ func (g *GenerateKeySubcommand) RegisterFlags() {
 	g.flagSet.BoolVar(&g.acraTranslator, "acratranslator_transport_key", false, "Generate transport keypair for AcraTranslator")
 	g.flagSet.BoolVar(&g.acraWriter, "client_storage_key", false, "Generate keypair for data encryption/decryption (for a client)")
 	g.flagSet.BoolVar(&g.acraWebConfig, "acrawebconfig_symmetric_key", false, "Generate symmetric key for AcraWebconfig's basic auth DB")
-	g.flagSet.BoolVar(&g.newZone, "new_zone", false, "Generate new Acra storage zone")
+	g.flagSet.BoolVar(&g.newZone, "zone", false, "Generate new Acra storage zone")
 	g.flagSet.BoolVar(&g.rotateZone, "zone_storage_key", false, "Rotate existing Acra zone storagae keypair")
 	g.flagSet.Usage = func() {
 		fmt.Fprintf(os.Stderr, "Command \"%s\": generate new keys\n", CmdGenerate)
