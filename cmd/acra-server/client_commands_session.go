@@ -160,7 +160,7 @@ func (clientSession *ClientCommandsSession) HandleSession() {
 			logger.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorGeneral).
 				Warningln("Can't convert config from incoming")
 			response = Response500Error
-			return
+			break
 		}
 		// set config values
 		flag.Set("db_host", configFromUI.DbHost)
@@ -176,7 +176,7 @@ func (clientSession *ClientCommandsSession) HandleSession() {
 			logger.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantDumpConfig).
 				Errorln("DumpConfig failed")
 			response = Response500Error
-			return
+			break
 
 		}
 		logger.Infoln("Handled request correctly, restarting server")

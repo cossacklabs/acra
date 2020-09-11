@@ -71,7 +71,7 @@ func checkSinglePatternMatch(query, pattern sqlparser.Statement) bool {
 
 //SQL statemnent handlers
 func handleUnionStatement(query, pattern sqlparser.Statement) bool {
-	match := false
+	var match bool
 	queryUnionNode, ok := query.(*sqlparser.Union)
 	if !ok {
 		return false
@@ -110,7 +110,7 @@ func handleUnionStatement(query, pattern sqlparser.Statement) bool {
 	return true
 }
 func handleSelectStatement(query, pattern sqlparser.Statement) bool {
-	match := false
+	var match bool
 	querySelectNode, ok := query.(*sqlparser.Select)
 	if !ok {
 		return false
@@ -187,7 +187,7 @@ func handleStreamStatement(query, pattern sqlparser.Statement) bool {
 	return false
 }
 func handleInsertStatement(query, pattern sqlparser.Statement) bool {
-	match := false
+	var match bool
 	queryInsertNode, ok := query.(*sqlparser.Insert)
 	if !ok {
 		return false
@@ -237,7 +237,7 @@ func handleInsertStatement(query, pattern sqlparser.Statement) bool {
 	return false
 }
 func handleUpdateStatement(query, pattern sqlparser.Statement) bool {
-	match := false
+	var match bool
 	queryUpdateNode, ok := query.(*sqlparser.Update)
 	if !ok {
 		return false
@@ -279,7 +279,7 @@ func handleUpdateStatement(query, pattern sqlparser.Statement) bool {
 	return true
 }
 func handleDeleteStatement(query, pattern sqlparser.Statement) bool {
-	match := false
+	var match bool
 	queryDeleteNode, ok := query.(*sqlparser.Delete)
 	if !ok {
 		return false

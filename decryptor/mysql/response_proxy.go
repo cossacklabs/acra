@@ -644,6 +644,8 @@ func (handler *Handler) processFixedSizeNumberField(ctx context.Context, columnI
 		return nil, err
 	}
 
+	var intValue int64
+	var floatValue float64
 	// After processing, parse the value back and reencode it. Take care for the format to match.
 	// The result must have exact same format as it had. Overflows are unacceptable.
 	switch column.Type {
@@ -653,46 +655,46 @@ func (handler *Handler) processFixedSizeNumberField(ctx context.Context, columnI
 		}
 
 	case TypeTiny:
-		numericValue, err := strconv.ParseInt(string(value), 10, 8)
+		intValue, err = strconv.ParseInt(string(value), 10, 8)
 		if err != nil {
 			break
 		}
-		err = binary.Write(bytes.NewBuffer(encoded[:0]), binary.LittleEndian, int8(numericValue))
+		err = binary.Write(bytes.NewBuffer(encoded[:0]), binary.LittleEndian, int8(intValue))
 
 	case TypeShort, TypeYear:
-		numericValue, err := strconv.ParseInt(string(value), 10, 16)
+		intValue, err = strconv.ParseInt(string(value), 10, 16)
 		if err != nil {
 			break
 		}
-		err = binary.Write(bytes.NewBuffer(encoded[:0]), binary.LittleEndian, int16(numericValue))
+		err = binary.Write(bytes.NewBuffer(encoded[:0]), binary.LittleEndian, int16(intValue))
 
 	case TypeInt24, TypeLong:
-		numericValue, err := strconv.ParseInt(string(value), 10, 32)
+		intValue, err = strconv.ParseInt(string(value), 10, 32)
 		if err != nil {
 			break
 		}
-		err = binary.Write(bytes.NewBuffer(encoded[:0]), binary.LittleEndian, int32(numericValue))
+		err = binary.Write(bytes.NewBuffer(encoded[:0]), binary.LittleEndian, int32(intValue))
 
 	case TypeLongLong:
-		numericValue, err := strconv.ParseInt(string(value), 10, 64)
+		intValue, err = strconv.ParseInt(string(value), 10, 64)
 		if err != nil {
 			break
 		}
-		err = binary.Write(bytes.NewBuffer(encoded[:0]), binary.LittleEndian, int64(numericValue))
+		err = binary.Write(bytes.NewBuffer(encoded[:0]), binary.LittleEndian, int64(intValue))
 
 	case TypeFloat:
-		numericValue, err := strconv.ParseFloat(string(value), 32)
+		floatValue, err = strconv.ParseFloat(string(value), 32)
 		if err != nil {
 			break
 		}
-		err = binary.Write(bytes.NewBuffer(encoded[:0]), binary.LittleEndian, float32(numericValue))
+		err = binary.Write(bytes.NewBuffer(encoded[:0]), binary.LittleEndian, float32(floatValue))
 
 	case TypeDouble:
-		numericValue, err := strconv.ParseFloat(string(value), 64)
+		floatValue, err = strconv.ParseFloat(string(value), 64)
 		if err != nil {
 			break
 		}
-		err = binary.Write(bytes.NewBuffer(encoded[:0]), binary.LittleEndian, float64(numericValue))
+		err = binary.Write(bytes.NewBuffer(encoded[:0]), binary.LittleEndian, float64(floatValue))
 
 	default:
 		err = fmt.Errorf("MySQL field type not supported: <type=%d> <name=%s>", column.Type, column.Name)
