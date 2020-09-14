@@ -252,6 +252,8 @@ func (decryptor *PgHexDecryptor) ReadData(symmetricKey, zoneID []byte, reader io
 	scell := cell.New(symmetricKey, cell.ModeSeal)
 
 	decrypted, err := scell.Unprotect(data, nil, zoneID)
+	utils.FillSlice(0, data)
+	data = nil
 
 	// fill zero symmetric_key
 	utils.FillSlice(byte(0), symmetricKey)
@@ -262,6 +264,8 @@ func (decryptor *PgHexDecryptor) ReadData(symmetricKey, zoneID []byte, reader io
 	outputLength := hexEncodedLen(uint64(len(decrypted)))
 	decryptor.checkBuf(&decryptor.output, outputLength)
 	hex.Encode(decryptor.output[:outputLength], decrypted)
+	utils.FillSlice(0, decrypted)
+	decrypted = nil
 
 	return decryptor.output[:outputLength], nil
 }

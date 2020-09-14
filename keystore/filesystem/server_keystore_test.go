@@ -495,17 +495,26 @@ func TestFilesystemKeyStoreExport(t *testing.T) {
 	}
 	// Since we cannot access all generated key pairs via AcraServer keystore,
 	// we generate them here and use Save... API
-	connectorKeyPair, _ := keys.New(keys.TypeEC)
+	connectorKeyPair, err := keys.New(keys.TypeEC)
+	if err != nil {
+		t.Fatalf("keys.New() failed: %v", err)
+	}
 	err = keyStore.SaveConnectorKeypair(clientID, connectorKeyPair)
 	if err != nil {
 		t.Fatalf("SaveConnectorKeypair() failed: %v", err)
 	}
-	serverKeyPair, _ := keys.New(keys.TypeEC)
+	serverKeyPair, err := keys.New(keys.TypeEC)
+	if err != nil {
+		t.Fatalf("keys.New() failed: %v", err)
+	}
 	err = keyStore.SaveServerKeypair(clientID, serverKeyPair)
 	if err != nil {
 		t.Fatalf("SaveServerKeypair() failed: %v", err)
 	}
-	translatorKeyPair, _ := keys.New(keys.TypeEC)
+	translatorKeyPair, err := keys.New(keys.TypeEC)
+	if err != nil {
+		t.Fatalf("keys.New() failed: %v", err)
+	}
 	err = keyStore.SaveTranslatorKeypair(clientID, translatorKeyPair)
 	if err != nil {
 		t.Fatalf("SaveTranslatorKeypair() failed: %v", err)
