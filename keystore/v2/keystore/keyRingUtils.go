@@ -126,7 +126,7 @@ func (s *ServerKeyStore) describeNewKeyPair(keypair *keys.Keypair) api.KeyDescri
 		ValidSince: time.Now(),
 		ValidUntil: time.Now().Add(defaultKeyCryptoperiod),
 		Data: []api.KeyData{
-			api.KeyData{
+			{
 				Format:     api.ThemisKeyPairFormat,
 				PublicKey:  keypair.Public.Value,
 				PrivateKey: keypair.Private.Value,
@@ -188,7 +188,7 @@ func (s *ServerKeyStore) describeNewSymmetricKey(key []byte) api.KeyDescription 
 		ValidSince: time.Now(),
 		ValidUntil: time.Now().Add(defaultKeyCryptoperiod),
 		Data: []api.KeyData{
-			api.KeyData{
+			{
 				Format:       api.ThemisSymmetricKeyFormat,
 				SymmetricKey: key,
 			},

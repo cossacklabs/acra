@@ -27,6 +27,7 @@ type ConnectionTimeoutWrapper interface {
 	net.Conn
 }
 
+// ConnectionMetadata connection metadata
 type ConnectionMetadata interface {
 	SpanContext() (trace.SpanContext, bool)
 	ClientID() ([]byte, bool)

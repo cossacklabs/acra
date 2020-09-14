@@ -74,7 +74,7 @@ func (s *KeyStore) importKeyRing(newRingData *asn1.KeyRing, delegate api.KeyRing
 	err := s.readKeyRing(keyRing)
 	switch err {
 	case nil:
-		// If the keystore successfuly returned an existing key ring with the same name,
+		// If the keystore successfully returned an existing key ring with the same name,
 		// we have to resolve this conflict somehow. Present both current and new versions
 		// to the delegate and let it decide how to proceed.
 		decision, err := delegate.DecideKeyRingOverwrite(keyRing.data, newRingData)

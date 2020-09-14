@@ -169,7 +169,9 @@ func (decryptor *Decryptor) ReadData(symmetricKey, zoneID []byte, reader io.Read
 
 	scell := cell.New(symmetricKey, cell.ModeSeal)
 	decrypted, err := scell.Unprotect(data, nil, zoneID)
+	utils.FillSlice(0, data)
 	data = nil
+
 	// fill zero symmetric_key
 	utils.FillSlice(byte(0), symmetricKey)
 	if err != nil {

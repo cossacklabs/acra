@@ -93,7 +93,7 @@ func setupDemoKeyStore(s api.MutableKeyStore, t *testing.T) {
 		ValidSince: time.Now(),
 		ValidUntil: time.Now().Add(time.Hour),
 		Data: []api.KeyData{
-			api.KeyData{
+			{
 				Format:     api.ThemisKeyPairFormat,
 				PublicKey:  demoPublicKeyData,
 				PrivateKey: demoPrivateKeyData,
@@ -112,7 +112,7 @@ func setupDemoKeyStore(s api.MutableKeyStore, t *testing.T) {
 		ValidSince: time.Now(),
 		ValidUntil: time.Now().Add(time.Hour),
 		Data: []api.KeyData{
-			api.KeyData{
+			{
 				Format:    api.ThemisKeyPairFormat,
 				PublicKey: demoPublicKeyData,
 			},
@@ -130,7 +130,7 @@ func setupDemoKeyStore(s api.MutableKeyStore, t *testing.T) {
 		ValidSince: time.Now(),
 		ValidUntil: time.Now().Add(time.Hour),
 		Data: []api.KeyData{
-			api.KeyData{
+			{
 				Format:       api.ThemisSymmetricKeyFormat,
 				SymmetricKey: demoSymmetricKeyData,
 			},
@@ -486,7 +486,7 @@ func testKeyStoreDuplicateImportOverwrite(t *testing.T, newKeyStore NewKeyStore)
 		ValidSince: time.Now(),
 		ValidUntil: time.Now().Add(time.Hour),
 		Data: []api.KeyData{
-			api.KeyData{
+			{
 				Format:    api.ThemisKeyPairFormat,
 				PublicKey: []byte("another public key"),
 			},

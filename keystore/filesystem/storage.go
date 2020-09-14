@@ -39,11 +39,11 @@ type Storage interface {
 	Rename(oldpath, newpath string) error
 	// TempFile creates a new temporary file with given name pattern and access permissions.
 	// Name of the newly created file is returned.
-	// Caller is responsibile for removing the file once they are done with it.
+	// Caller is responsible for removing the file once they are done with it.
 	TempFile(pattern string, perm os.FileMode) (string, error)
 	// TempDir creates a new temporary directory with given name pattern and access permissions.
 	// Name of the newly created directory is returned.
-	// Caller is responsibile for removing the directory and its contents once they are done with it.
+	// Caller is responsible for removing the directory and its contents once they are done with it.
 	TempDir(pattern string, perm os.FileMode) (string, error)
 	// Link creates a hard link at newpath which refers to the same path as oldpath.
 	// Not all file systems support hard links, and there may be restrictions on hard links between different directories.
@@ -52,7 +52,7 @@ type Storage interface {
 	// It is an error if dst already exists.
 	// dst is an independent copy of src with initially identical content.
 	Copy(src, dst string) error
-	// ReadFile reads entire content of the specifed file.
+	// ReadFile reads entire content of the specified file.
 	ReadFile(path string) ([]byte, error)
 	// WriteAll replaces entire content of the specified file, creating it with specified mode if it does not exist.
 	WriteFile(path string, data []byte, perm os.FileMode) error

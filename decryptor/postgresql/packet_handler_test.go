@@ -28,7 +28,7 @@ func TestClientUnknownCommand(t *testing.T) {
 	unknownMessageType := byte(1)
 	lengthBuf := []byte{0, 0, 0, 7}
 	dataBuf := []byte{1, 2, 3}
-	packet := bytes.Join([][]byte{[]byte{unknownMessageType}, lengthBuf, dataBuf}, []byte{})
+	packet := bytes.Join([][]byte{{unknownMessageType}, lengthBuf, dataBuf}, []byte{})
 	reader := bytes.NewReader(packet)
 	output := make([]byte, 8)
 	writer := bufio.NewWriter(bytes.NewBuffer(output[:0]))

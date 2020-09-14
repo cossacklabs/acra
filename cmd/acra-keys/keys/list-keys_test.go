@@ -27,12 +27,12 @@ import (
 
 func TestPrintKeysDefault(t *testing.T) {
 	keys := []keystore.KeyDescription{
-		keystore.KeyDescription{
+		{
 			ID:      "Test ID Please Ignore",
 			Purpose: "no particular",
 			ZoneID:  []byte("Area51"),
 		},
-		keystore.KeyDescription{
+		{
 			ID:      "Another ID",
 			Purpose: "testing",
 		},
@@ -57,12 +57,12 @@ testing       |                | Another ID
 
 func TestPrintKeysJSON(t *testing.T) {
 	keys := []keystore.KeyDescription{
-		keystore.KeyDescription{
+		{
 			ID:      "Test ID Please Ignore",
 			Purpose: "no particular",
 			ZoneID:  []byte("Area51"),
 		},
-		keystore.KeyDescription{
+		{
 			ID:      "Another ID",
 			Purpose: "testing",
 		},

@@ -52,21 +52,21 @@ inner join table6 on table6.col1=t1.col1
 `
 	expectedValues := []columnInfo{
 		// column's alias is subquery alias with column and table without aliases in subquery
-		columnInfo{Alias: "t1", Table: "table1", Name: "col1"},
+		{Alias: "t1", Table: "table1", Name: "col1"},
 		// column's alias is subquery alias with column with AS expression and table without alias
-		columnInfo{Alias: "t1", Table: "table1", Name: "col22"},
+		{Alias: "t1", Table: "table1", Name: "col22"},
 		// column's alias is subquery alias and column name has alias in subquery to table with alias
-		columnInfo{Alias: "t2", Table: "table1", Name: "col1"},
+		{Alias: "t2", Table: "table1", Name: "col1"},
 		// column's alias is subquery alias and column name has alias in subquery to joined table with alias
-		columnInfo{Alias: "t2", Table: "table2", Name: "col3"},
+		{Alias: "t2", Table: "table2", Name: "col3"},
 		// column's alias is alias of joined table
-		columnInfo{Alias: "t3", Table: "table3", Name: "col1"},
+		{Alias: "t3", Table: "table3", Name: "col1"},
 		// column's alias is alias of joined table with AS expression
-		columnInfo{Alias: "t4", Table: "table4", Name: "col4"},
+		{Alias: "t4", Table: "table4", Name: "col4"},
 		// column without alias of table in FROM expression
-		columnInfo{Table: "table5", Name: "col5", Alias: "table5"},
+		{Table: "table5", Name: "col5", Alias: "table5"},
 		// column with alias as table name in FROM expression
-		columnInfo{Table: "table6", Name: "col6", Alias: "table6"},
+		{Table: "table6", Name: "col6", Alias: "table6"},
 	}
 	parsed, err := sqlparser.Parse(query)
 	if err != nil {

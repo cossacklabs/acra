@@ -518,7 +518,7 @@ func TestBindVariableToValue(t *testing.T) {
 		t.Errorf("BindVarToValue(1): %v, want %v", v, want)
 	}
 
-	v, err = BindVariableToValue(&querypb.BindVariable{Type: querypb.Type_TUPLE})
+	_, err = BindVariableToValue(&querypb.BindVariable{Type: querypb.Type_TUPLE})
 	wantErr := "cannot convert a TUPLE bind var into a value"
 	if err == nil || err.Error() != wantErr {
 		t.Errorf(" BindVarToValue(TUPLE): %v, want %s", err, wantErr)
