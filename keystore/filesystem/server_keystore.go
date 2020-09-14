@@ -670,7 +670,7 @@ func (store *KeyStore) GetPoisonKeyPair() (*keys.Keypair, error) {
 		}
 		return &keys.Keypair{Public: public, Private: private}, nil
 	}
-	log.Infoln("Generate poison key pair")
+	log.Debug("Generate poison key pair")
 	return store.generateKeyPair(PoisonKeyFilename, []byte(PoisonKeyFilename))
 }
 
@@ -692,7 +692,7 @@ func (store *KeyStore) GetAuthKey(remove bool) ([]byte, error) {
 		}
 		return key, nil
 	}
-	log.Infof("Generate basic auth key for AcraWebconfig to %v", keyPath)
+	log.Debugf("Generate basic auth key for AcraWebconfig to %v", keyPath)
 	return store.generateKey(BasicAuthKeyFilename, keystore.BasicAuthKeyLength)
 }
 
