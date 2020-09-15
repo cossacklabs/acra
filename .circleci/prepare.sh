@@ -30,5 +30,6 @@ cd mysql-connector-python
 sudo python3 setup.py clean build_py install_lib
 cd -
 rm -rf mysql-connector-python
+unset GOROOT
 GOPATH=$HOME/$GOPATH_FOLDER go get -u -v golang.org/x/lint/golint
 sudo ldconfig
