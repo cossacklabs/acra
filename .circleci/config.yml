@@ -23,6 +23,7 @@ jobs:
       - run: .circleci/check_gofmt.sh
       - run: .circleci/check_configs.sh | tee /home/user/tests_output
       - run: .circleci/check_golint.sh
+      - run: .circleci/check_misspell.sh
       - run: .circleci/check_gotest.sh
       # check python wrapper
       - run: PYTHONPATH=`pwd`/wrappers/python python3 wrappers/python/acrawriter/tests.py
