@@ -316,7 +316,7 @@ func testKeyStoreDuplicateImport(t *testing.T, newKeyStore NewKeyStore) {
 		t.Errorf("incorrect imported list: %v", imported1)
 	}
 
-	exported2, err := s.ExportKeyRings([]string{exportRingKeyPair, exportRingPublic, exportRingSymmetric}, cryptosuite, api.ExportPrivateKeys)
+	exported2, err := s.ExportKeyRings([]string{exportRingPublic}, cryptosuite, api.ExportPrivateKeys)
 	if err != nil {
 		t.Fatalf("failed to export key rings: %v", err)
 	}
@@ -334,24 +334,11 @@ func testKeyStoreDuplicateImport(t *testing.T, newKeyStore NewKeyStore) {
 		t.Errorf("incorrect imported list: %v", imported2)
 	}
 
-	// Note that key exported key pair has been imported successfully, the process aborted at public key
-	ringKeyPair, err := s2.OpenKeyRing(exportRingKeyPair)
-	if err != nil {
-		t.Errorf("cannot open key ring with key pair: %v", err)
-	} else {
-		checkDemoKeyRingKeyPair(t, ringKeyPair)
-	}
-
 	ringPublic, err := s2.OpenKeyRing(exportRingPublic)
 	if err != nil {
 		t.Errorf("cannot open key ring with public key: %v", err)
 	} else {
 		checkDemoKeyRingPublic(t, ringPublic)
-	}
-
-	_, err = s2.OpenKeyRing(exportRingSymmetric)
-	if err == nil {
-		t.Errorf("symmetric key should not be imported: %v", err)
 	}
 }
 
