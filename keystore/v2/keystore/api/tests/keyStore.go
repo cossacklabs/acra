@@ -20,6 +20,7 @@ package tests
 import (
 	"crypto/subtle"
 	"errors"
+	"sort"
 	"testing"
 	"time"
 
@@ -223,12 +224,21 @@ func checkDemoKeyRingSymmetric(t *testing.T, ring api.KeyRing) {
 	}
 }
 
-func equalStringList(a, b []string) bool {
+// This function is used to compare the names of imported key rings with exported ones.
+// ASN.1 serialization used for export does not preserve input order (since Go 1.15)
+// so check whether a and b are the same *set* of strings.
+func equalStringSet(a, b []string) bool {
 	if len(a) != len(b) {
 		return false
 	}
+	sortedA := make([]string, len(a))
+	sortedB := make([]string, len(b))
+	copy(sortedA, a)
+	copy(sortedB, b)
+	sort.Strings(sortedA)
+	sort.Strings(sortedB)
 	for i := range a {
-		if a[i] != b[i] {
+		if sortedA[i] != sortedB[i] {
 			return false
 		}
 	}
@@ -260,7 +270,7 @@ func testKeyStoreCleanImport(t *testing.T, newKeyStore NewKeyStore) {
 	if err != nil {
 		t.Fatalf("failed to import key rings: %v", err)
 	}
-	if !equalStringList(imported, exportRingAll) {
+	if !equalStringSet(imported, exportRingAll) {
 		t.Errorf("incorrect imported list: %v", imported)
 	}
 
@@ -302,11 +312,11 @@ func testKeyStoreDuplicateImport(t *testing.T, newKeyStore NewKeyStore) {
 	if err != nil {
 		t.Fatalf("failed to import public key ring: %v", err)
 	}
-	if !equalStringList(imported1, keyRingList) {
+	if !equalStringSet(imported1, keyRingList) {
 		t.Errorf("incorrect imported list: %v", imported1)
 	}
 
-	exported2, err := s.ExportKeyRings([]string{exportRingKeyPair, exportRingPublic, exportRingSymmetric}, cryptosuite, api.ExportPrivateKeys)
+	exported2, err := s.ExportKeyRings([]string{exportRingPublic}, cryptosuite, api.ExportPrivateKeys)
 	if err != nil {
 		t.Fatalf("failed to export key rings: %v", err)
 	}
@@ -320,16 +330,8 @@ func testKeyStoreDuplicateImport(t *testing.T, newKeyStore NewKeyStore) {
 	if err != duplicateError {
 		t.Fatalf("duplicate import should be aborted: %v", err)
 	}
-	if !equalStringList(imported2, nil) {
+	if !equalStringSet(imported2, nil) {
 		t.Errorf("incorrect imported list: %v", imported2)
-	}
-
-	// Note that key exported key pair has been imported successfully, the process aborted at public key
-	ringKeyPair, err := s2.OpenKeyRing(exportRingKeyPair)
-	if err != nil {
-		t.Errorf("cannot open key ring with key pair: %v", err)
-	} else {
-		checkDemoKeyRingKeyPair(t, ringKeyPair)
 	}
 
 	ringPublic, err := s2.OpenKeyRing(exportRingPublic)
@@ -337,11 +339,6 @@ func testKeyStoreDuplicateImport(t *testing.T, newKeyStore NewKeyStore) {
 		t.Errorf("cannot open key ring with public key: %v", err)
 	} else {
 		checkDemoKeyRingPublic(t, ringPublic)
-	}
-
-	_, err = s2.OpenKeyRing(exportRingSymmetric)
-	if err == nil {
-		t.Errorf("symmetric key should not be imported: %v", err)
 	}
 }
 
@@ -361,7 +358,7 @@ func testKeyStoreDuplicateImportSkip(t *testing.T, newKeyStore NewKeyStore) {
 	if err != nil {
 		t.Fatalf("failed to import public key ring: %v", err)
 	}
-	if !equalStringList(imported1, keyRingList1) {
+	if !equalStringSet(imported1, keyRingList1) {
 		t.Errorf("incorrect imported list: %v", imported1)
 	}
 
@@ -378,7 +375,7 @@ func testKeyStoreDuplicateImportSkip(t *testing.T, newKeyStore NewKeyStore) {
 	if err != nil {
 		t.Fatalf("duplicate import should be skipped: %v", err)
 	}
-	if !equalStringList(imported2, keyRingList2) {
+	if !equalStringSet(imported2, keyRingList2) {
 		t.Errorf("incorrect imported list: %v", imported2)
 	}
 
@@ -473,7 +470,7 @@ func testKeyStoreDuplicateImportOverwrite(t *testing.T, newKeyStore NewKeyStore)
 	if err != nil {
 		t.Fatalf("failed to import public key ring: %v", err)
 	}
-	if !equalStringList(imported1, keyRingList1) {
+	if !equalStringSet(imported1, keyRingList1) {
 		t.Errorf("incorrect imported list: %v", imported1)
 	}
 
@@ -513,7 +510,7 @@ func testKeyStoreDuplicateImportOverwrite(t *testing.T, newKeyStore NewKeyStore)
 	if err != nil {
 		t.Fatalf("duplicate import should be overwritten: %v", err)
 	}
-	if !equalStringList(imported2, keyRingList2) {
+	if !equalStringSet(imported2, keyRingList2) {
 		t.Errorf("incorrect imported list: %v", imported2)
 	}
 
@@ -584,7 +581,7 @@ func testKeyStoreExportPublicOnly(t *testing.T, newKeyStore NewKeyStore) {
 	if err != nil {
 		t.Fatalf("failed to import key rings: %v", err)
 	}
-	if !equalStringList(imported, []string{exportRingKeyPair, exportRingPublic}) {
+	if !equalStringSet(imported, []string{exportRingKeyPair, exportRingPublic}) {
 		t.Errorf("incorrect imported list: %v", imported)
 	}
 
