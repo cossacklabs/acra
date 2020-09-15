@@ -31,7 +31,11 @@ sudo python3 setup.py clean build_py install_lib
 cd -
 rm -rf mysql-connector-python
 unset GOROOT
+echo "==> Using $(go version) at $(which go)"
+echo "==> Running go get golint:"
 GOPATH=$HOME/$GOPATH_FOLDER go get -u -v golang.org/x/lint/golint
+echo "==> Running go get misspell:"
 GOPATH=$HOME/$GOPATH_FOLDER go get -u -v github.com/client9/misspell/cmd/misspell
+echo "==> Running go get ineffassign:"
 GOPATH=$HOME/$GOPATH_FOLDER go get -u -v github.com/gordonklaus/ineffassign
 sudo ldconfig
