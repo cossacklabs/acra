@@ -115,13 +115,21 @@ def read_key(key_id, public, keys_dir='.acrakeys'):
     return subprocess.check_output(args)
 
 
-def destroy_key(kind, client_id=None, keys_dir='.acrakeys'):
+def destroy_key(key_id, keys_dir='.acrakeys'):
     """Destroys key in the keystore with acra-keys."""
     args = ['./acra-keys', 'destroy', '--keys_dir={}'.format(keys_dir)]
-    if client_id:
-        args.append('--client_id={}'.format(client_id))
-    args.append(kind)
+    args.append(key_id)
     return subprocess.check_output(args)
+
+
+def destroy_connector_transport(client_id, keys_dir='.acrakeys'):
+    return destroy_key('client/{}/transport/connector'.format(client_id),
+                       keys_dir=keys_dir)
+
+
+def destroy_server_transport(client_id, keys_dir='.acrakeys'):
+    return destroy_key('client/{}/transport/server'.format(client_id),
+                       keys_dir=keys_dir)
 
 
 def read_storage_public_key(client_id, keys_dir='.acrakeys'):
