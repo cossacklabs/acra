@@ -33,4 +33,5 @@ rm -rf mysql-connector-python
 unset GOROOT
 GOPATH=$HOME/$GOPATH_FOLDER go get -u -v golang.org/x/lint/golint
 GOPATH=$HOME/$GOPATH_FOLDER go get -u -v github.com/client9/misspell/cmd/misspell
+GOPATH=$HOME/$GOPATH_FOLDER go get -u -v github.com/gordonklaus/ineffassign
 sudo ldconfig
