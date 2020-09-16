@@ -52,10 +52,13 @@ const (
 
 // Key kind constants:
 const (
+	KeyPoisonKeypair  = "poison-keypair"
 	KeyPoisonPublic   = "poison-public"
 	KeyPoisonPrivate  = "poison-private"
+	KeyStorageKeypair = "storage-keypair"
 	KeyStoragePublic  = "storage-public"
 	KeyStoragePrivate = "storage-private"
+	KeyZoneKeypair    = "zone-keypair"
 	KeyZonePublic     = "zone-public"
 	KeyZonePrivate    = "zone-private"
 
@@ -150,4 +153,44 @@ func parseParameters(subcommands []Subcommand) (Subcommand, error) {
 	}
 	log.WithField("expected", names).Errorf("Unknown command: %s", subcommandName)
 	return nil, ErrUnknownSubCommand
+}
+
+// ParseKeyKind parses key ID of form "client/Alice/storage" and returns key kind and possible ID.
+func ParseKeyKind(keyID string) (string, []byte, error) {
+	parts := strings.Split(keyID, "/")
+	if len(parts) == 1 {
+		switch parts[0] {
+		case "poison-record":
+			return KeyPoisonKeypair, nil, nil
+		}
+	}
+	if len(parts) == 3 {
+		id := []byte(parts[1])
+		if parts[0] == "client" {
+			switch parts[2] {
+			case "storage":
+				return KeyStorageKeypair, id, nil
+			}
+		}
+		if parts[0] == "zone" {
+			switch parts[2] {
+			case "storage":
+				return KeyZoneKeypair, id, nil
+			}
+		}
+	}
+	if len(parts) == 4 {
+		id := []byte(parts[1])
+		if parts[0] == "client" && parts[2] == "transport" {
+			switch parts[3] {
+			case "connector":
+				return KeyTransportConnector, id, nil
+			case "server":
+				return KeyTransportServer, id, nil
+			case "translator":
+				return KeyTransportTranslator, id, nil
+			}
+		}
+	}
+	return "", nil, ErrUnknownKeyKind
 }

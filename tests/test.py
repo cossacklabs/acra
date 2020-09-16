@@ -62,7 +62,7 @@ import utils
 from utils import (read_storage_public_key, read_storage_private_key,
                    read_zone_public_key, read_zone_private_key,
                    read_poison_public_key, read_poison_private_key,
-                   destroy_key,
+                   destroy_connector_transport, destroy_server_transport,
                    decrypt_acrastruct,
                    load_random_data_config, get_random_data_files,
                    clean_test_data, safe_string, prepare_encryptor_config,
@@ -1801,9 +1801,8 @@ class TestKeyNonExistence(BaseTestCase):
     def test_without_acraconnector_public(self):
         """acra-server without acra-connector public key should drop connection
         from acra-connector than acra-connector should drop connection from psycopg2"""
-        destroy_key(kind='transport-connector',
-                    client_id=self.client_id,
-                    keys_dir=self.server_keys_dir)
+        destroy_connector_transport(client_id=self.client_id,
+                                    keys_dir=self.server_keys_dir)
         engine = None
         if TEST_MYSQL:
             expected_exception = pymysql.err.OperationalError
@@ -1842,9 +1841,8 @@ class TestKeyNonExistence(BaseTestCase):
 
     def test_without_acraconnector_private(self):
         """acra-connector shouldn't start without private key"""
-        destroy_key(kind='transport-connector',
-                    client_id=self.client_id,
-                    keys_dir=self.connector_keys_dir)
+        destroy_connector_transport(client_id=self.client_id,
+                                    keys_dir=self.connector_keys_dir)
         try:
             self.connector = self.fork_connector(
                 connector_port=self.CONNECTOR_PORT_1,
@@ -1862,9 +1860,8 @@ class TestKeyNonExistence(BaseTestCase):
     def test_without_acraserver_private(self):
         """acra-server without private key should drop connection
         from acra-connector than acra-connector should drop connection from psycopg2"""
-        destroy_key(kind='transport-server',
-                    client_id=self.client_id,
-                    keys_dir=self.server_keys_dir)
+        destroy_server_transport(client_id=self.client_id,
+                                 keys_dir=self.server_keys_dir)
         if TEST_MYSQL:
             expected_exception = pymysql.err.OperationalError
         elif TEST_POSTGRESQL:
@@ -1891,9 +1888,8 @@ class TestKeyNonExistence(BaseTestCase):
 
     def test_without_acraserver_public(self):
         """acra-connector shouldn't start without acra-server public key"""
-        destroy_key(kind='transport-server',
-                    client_id=self.client_id,
-                    keys_dir=self.connector_keys_dir)
+        destroy_server_transport(client_id=self.client_id,
+                                 keys_dir=self.connector_keys_dir)
         try:
             self.connector = self.fork_connector(
                 connector_port=self.CONNECTOR_PORT_1,
@@ -2376,9 +2372,8 @@ class TestKeyStorageClearing(BaseTestCase):
         with urlopen('http://127.0.0.1:{}/resetKeyStorage'.format(self.CONNECTOR_API_PORT_1)) as response:
             self.assertEqual(response.status, 200)
         # delete key for excluding reloading from FS
-        destroy_key(kind='transport-connector',
-                    client_id=self.client_id,
-                    keys_dir=self.server_keys_dir)
+        destroy_connector_transport(client_id=self.client_id,
+                                    keys_dir=self.server_keys_dir)
         # close connections in pool and reconnect to reinitiate secure session
         self.engine1.dispose()
         # acra-server should close connection when doesn't find key
