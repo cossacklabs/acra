@@ -87,6 +87,9 @@ func (p *DestroyKeySubcommand) Parse(arguments []string) error {
 		return ErrMultipleKeyKinds
 	}
 	coarseKind, id, err := ParseKeyKind(args[0])
+	if err != nil {
+		return err
+	}
 	switch coarseKind {
 	case KeyTransportConnector, KeyTransportServer, KeyTransportTranslator:
 		p.destroyKeyKind = coarseKind

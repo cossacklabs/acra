@@ -5,7 +5,7 @@ jobs:
       - image: cossacklabs/android-build
     environment:
       FILEPATH_ERROR_FLAG: /tmp/test_fail
-      VERSIONS: 1.11.5 1.12
+      VERSIONS: 1.11.5 1.12 1.15.2
       TEST_DB_PORT: 5432
       GOPATH_FOLDER: gopath
       TEST_RANDOM_DATA_FOLDER: /tmp/test_data
@@ -23,6 +23,8 @@ jobs:
       - run: .circleci/check_gofmt.sh
       - run: .circleci/check_configs.sh | tee /home/user/tests_output
       - run: .circleci/check_golint.sh
+      - run: .circleci/check_misspell.sh
+      - run: .circleci/check_ineffassign.sh
       - run: .circleci/check_gotest.sh
       # check python wrapper
       - run: PYTHONPATH=`pwd`/wrappers/python python3 wrappers/python/acrawriter/tests.py

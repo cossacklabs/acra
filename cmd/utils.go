@@ -18,6 +18,7 @@ limitations under the License.
 package cmd
 
 import (
+	"context"
 	"errors"
 	flag_ "flag"
 	"fmt"
@@ -29,7 +30,6 @@ import (
 	"os/signal"
 	"path/filepath"
 	"reflect"
-	"context"
 
 	"encoding/base64"
 	"github.com/cossacklabs/acra/keystore"

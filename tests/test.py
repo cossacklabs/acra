@@ -3005,7 +3005,7 @@ class TestAcraRollback(BaseTestCase):
                 acrarollback_output_table.name, self.placeholder)
         ])
 
-        # Rollback should successfuly use previous keys to decrypt data
+        # Rollback should successfully use previous keys to decrypt data
         source_data = set([i['raw_data'].encode('ascii') for i in rows])
         result = self.engine_raw.execute(acrarollback_output_table.select())
         result = result.fetchall()
