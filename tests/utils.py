@@ -104,32 +104,42 @@ def load_default_config(service_name):
     return config
 
 
-def read_key(kind, client_id=None, zone_id=None, keys_dir='.acrakeys'):
+def read_key(key_id, public, keys_dir='.acrakeys'):
     """Reads key from keystore with acra-keys."""
     args = ['./acra-keys', 'read', '--keys_dir={}'.format(keys_dir)]
-    if client_id is not None:
-        args.append('--client_id={}'.format(client_id))
-    if zone_id is not None:
-        args.append('--zone_id={}'.format(zone_id))
-    args.append(kind)
+    if public:
+        args.append('--public')
+    else:
+        args.append('--private')
+    args.append(key_id)
     return subprocess.check_output(args)
 
 
-def destroy_key(kind, client_id=None, keys_dir='.acrakeys'):
+def destroy_key(key_id, keys_dir='.acrakeys'):
     """Destroys key in the keystore with acra-keys."""
     args = ['./acra-keys', 'destroy', '--keys_dir={}'.format(keys_dir)]
-    if client_id:
-        args.append('--client_id={}'.format(client_id))
-    args.append(kind)
+    args.append(key_id)
     return subprocess.check_output(args)
+
+
+def destroy_connector_transport(client_id, keys_dir='.acrakeys'):
+    return destroy_key('client/{}/transport/connector'.format(client_id),
+                       keys_dir=keys_dir)
+
+
+def destroy_server_transport(client_id, keys_dir='.acrakeys'):
+    return destroy_key('client/{}/transport/server'.format(client_id),
+                       keys_dir=keys_dir)
 
 
 def read_storage_public_key(client_id, keys_dir='.acrakeys'):
-    return read_key('storage-public', client_id=client_id, keys_dir=keys_dir)
+    return read_key('client/{}/storage'.format(client_id),
+                    public=True, keys_dir=keys_dir)
 
 
 def read_zone_public_key(zone_id, keys_dir='.acrakeys'):
-    return read_key('zone-public', zone_id=zone_id, keys_dir=keys_dir)
+    return read_key('zone/{}/storage'.format(zone_id),
+                    public=True, keys_dir=keys_dir)
 
 
 def decrypt_acrastruct(data, private_key, client_id=None, zone_id=None):
@@ -145,19 +155,21 @@ def decrypt_acrastruct(data, private_key, client_id=None, zone_id=None):
 
 
 def read_storage_private_key(keys_folder, key_id):
-    return read_key('storage-private', client_id=key_id, keys_dir=keys_folder)
+    return read_key('client/{}/storage'.format(key_id),
+                    public=False, keys_dir=keys_folder)
 
 
 def read_zone_private_key(keys_folder, key_id):
-    return read_key('zone-private', zone_id=key_id, keys_dir=keys_folder)
+    return read_key('zone/{}/storage'.format(key_id),
+                    public=False, keys_dir=keys_folder)
 
 
 def read_poison_public_key(keys_dir):
-    return read_key('poison-public', keys_dir=keys_dir)
+    return read_key('poison-record', public=True, keys_dir=keys_dir)
 
 
 def read_poison_private_key(keys_dir):
-    return read_key('poison-private', keys_dir=keys_dir)
+    return read_key('poison-record', public=False, keys_dir=keys_dir)
 
 
 def prepare_encryptor_config(zone_id, config_path):

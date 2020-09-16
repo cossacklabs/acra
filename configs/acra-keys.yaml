@@ -53,11 +53,11 @@ src_keys_dir_public:
 # keystore format to use: v1 (current), v2 (new)
 src_keystore: 
 
-# client ID for which to retrieve key
-client_id: 
+# read private key of the keypair
+private: false
 
-# zone ID for which to retrieve key
-zone_id: 
+# read public key of the keypair
+public: false
 
 # Generate transport keypair for AcraConnector
 acraconnector_transport_key: false
@@ -71,6 +71,9 @@ acratranslator_transport_key: false
 # Generate symmetric key for AcraWebconfig's basic auth DB
 acrawebconfig_symmetric_key: false
 
+# Client ID
+client_id: 
+
 # Generate keypair for data encryption/decryption (for a client)
 client_storage_key: false
 
@@ -82,6 +85,9 @@ master_key_path:
 
 # Generate new Acra storage zone
 zone: false
+
+# Zone ID
+zone_id: 
 
 # Rotate existing Acra zone storagae keypair
 zone_storage_key: false

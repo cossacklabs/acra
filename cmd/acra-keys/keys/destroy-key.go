@@ -20,7 +20,6 @@ import (
 	"flag"
 	"fmt"
 	"os"
-	"strings"
 
 	"github.com/cossacklabs/acra/cmd"
 	"github.com/cossacklabs/acra/keystore"
@@ -46,7 +45,7 @@ type DestroyKeySubcommand struct {
 	FlagSet *flag.FlagSet
 
 	destroyKeyKind string
-	clientID       string
+	contextID      []byte
 }
 
 // Name returns the same of this subcommand.
@@ -63,11 +62,9 @@ func (p *DestroyKeySubcommand) GetFlagSet() *flag.FlagSet {
 func (p *DestroyKeySubcommand) RegisterFlags() {
 	p.FlagSet = flag.NewFlagSet(CmdReadKey, flag.ContinueOnError)
 	p.CommonKeyStoreParameters.Register(p.FlagSet)
-	p.FlagSet.StringVar(&p.clientID, "client_id", "", "client ID for which to destroy key")
 	p.FlagSet.Usage = func() {
 		fmt.Fprintf(os.Stderr, "Command \"%s\": destroy key material\n", CmdDestroyKey)
-		fmt.Fprintf(os.Stderr, "\n\t%s %s [options...] <key-kind>\n\n", os.Args[0], CmdDestroyKey)
-		fmt.Fprintf(os.Stderr, "Supported key kinds:\n  %s\n", strings.Join(SupportedDestroyKeyKinds, ", "))
+		fmt.Fprintf(os.Stderr, "\n\t%s %s [options...] <key-ID>\n\n", os.Args[0], CmdDestroyKey)
 		fmt.Fprintf(os.Stderr, "\nOptions:\n")
 		cmd.PrintFlags(p.FlagSet)
 	}
@@ -89,13 +86,14 @@ func (p *DestroyKeySubcommand) Parse(arguments []string) error {
 		log.Errorf("\"%s\" command does not support more than one key kind", CmdDestroyKey)
 		return ErrMultipleKeyKinds
 	}
-	p.destroyKeyKind = args[0]
-	switch p.destroyKeyKind {
-	case KeyTransportConnector, KeyTransportServer, KeyTransportTranslator, KeyStoragePublic, KeyStoragePrivate:
-		if p.clientID == "" {
-			log.Errorf("\"%s\" key requires --client_id", p.destroyKeyKind)
-			return ErrMissingClientID
-		}
+	coarseKind, id, err := ParseKeyKind(args[0])
+	switch coarseKind {
+	case KeyTransportConnector, KeyTransportServer, KeyTransportTranslator:
+		p.destroyKeyKind = coarseKind
+		p.contextID = id
+
+	default:
+		return ErrUnknownKeyKind
 	}
 	return nil
 }
@@ -116,7 +114,7 @@ func (p *DestroyKeySubcommand) DestroyKeyKind() string {
 
 // ClientID returns client ID of the requested key.
 func (p *DestroyKeySubcommand) ClientID() []byte {
-	return []byte(p.clientID)
+	return p.contextID
 }
 
 // DestroyKey destroys data of the requsted key.

@@ -21,7 +21,6 @@ import (
 	"flag"
 	"fmt"
 	"os"
-	"strings"
 
 	"github.com/cossacklabs/acra/cmd"
 	"github.com/cossacklabs/acra/keystore"
@@ -43,6 +42,8 @@ var (
 	ErrMissingClientID = errors.New("client ID not specified")
 	ErrMissingZoneID   = errors.New("zone ID not specified")
 	ErrUnknownKeyKind  = errors.New("unknown key kind")
+	ErrMissingKeyPart  = errors.New("key part not specified")
+	ErrExtraKeyPart    = errors.New("both key parts specified")
 )
 
 // ReadKeyParams are parameters of "acra-keys read" subcommand.
@@ -57,9 +58,10 @@ type ReadKeySubcommand struct {
 	CommonKeyStoreParameters
 	FlagSet *flag.FlagSet
 
+	public, private bool
+
 	readKeyKind string
-	clientID    string
-	zoneID      string
+	contextID   []byte
 }
 
 // Name returns the same of this subcommand.
@@ -76,12 +78,11 @@ func (p *ReadKeySubcommand) GetFlagSet() *flag.FlagSet {
 func (p *ReadKeySubcommand) RegisterFlags() {
 	p.FlagSet = flag.NewFlagSet(CmdReadKey, flag.ContinueOnError)
 	p.CommonKeyStoreParameters.Register(p.FlagSet)
-	p.FlagSet.StringVar(&p.clientID, "client_id", "", "client ID for which to retrieve key")
-	p.FlagSet.StringVar(&p.zoneID, "zone_id", "", "zone ID for which to retrieve key")
+	p.FlagSet.BoolVar(&p.public, "public", false, "read public key of the keypair")
+	p.FlagSet.BoolVar(&p.private, "private", false, "read private key of the keypair")
 	p.FlagSet.Usage = func() {
 		fmt.Fprintf(os.Stderr, "Command \"%s\": read and print key material in plaintext\n", CmdReadKey)
-		fmt.Fprintf(os.Stderr, "\n\t%s %s [options...] <key-kind>\n\n", os.Args[0], CmdReadKey)
-		fmt.Fprintf(os.Stderr, "Supported key kinds:\n  %s\n", strings.Join(SupportedReadKeyKinds, ", "))
+		fmt.Fprintf(os.Stderr, "\n\t%s %s [options...] <key-ID>\n\n", os.Args[0], CmdReadKey)
 		fmt.Fprintf(os.Stderr, "\nOptions:\n")
 		cmd.PrintFlags(p.FlagSet)
 	}
@@ -104,22 +105,58 @@ func (p *ReadKeySubcommand) Parse(arguments []string) error {
 		log.Errorf("\"%s\" command does not support more than one key kind", CmdReadKey)
 		return ErrMultipleKeyKinds
 	}
-	p.readKeyKind = args[0]
-	switch p.readKeyKind {
-	case KeyTransportConnector, KeyTransportServer, KeyTransportTranslator, KeyStoragePublic, KeyStoragePrivate:
-		if p.clientID == "" {
-			log.Errorf("\"%s\" key requires --client_id", p.readKeyKind)
-			return ErrMissingClientID
+	coarseKind, id, err := ParseKeyKind(args[0])
+	switch coarseKind {
+	case KeyTransportConnector, KeyTransportServer, KeyTransportTranslator:
+		p.readKeyKind = coarseKind
+		p.contextID = id
+
+	case KeyPoisonKeypair:
+		if err := p.validateKeyParts(); err != nil {
+			return err
 		}
-	case KeyZonePublic, KeyZonePrivate:
-		if p.zoneID == "" {
-			log.Errorf("\"%s\" key requires --zone_id", p.readKeyKind)
-			return ErrMissingZoneID
+		if p.private {
+			p.readKeyKind = KeyPoisonPrivate
+		} else {
+			p.readKeyKind = KeyPoisonPublic
 		}
+
+	case KeyStorageKeypair:
+		if err := p.validateKeyParts(); err != nil {
+			return err
+		}
+		if p.private {
+			p.readKeyKind = KeyStoragePrivate
+		} else {
+			p.readKeyKind = KeyStoragePublic
+		}
+		p.contextID = id
+
+	case KeyZoneKeypair:
+		if err := p.validateKeyParts(); err != nil {
+			return err
+		}
+		if p.private {
+			p.readKeyKind = KeyZonePrivate
+		} else {
+			p.readKeyKind = KeyZonePublic
+		}
+		p.contextID = id
+
+	default:
+		return ErrUnknownKeyKind
 	}
-	if p.clientID != "" && p.zoneID != "" {
-		log.Errorf("--client_id and --zone_id cannot be used simultaneously")
-		return ErrMultipleKeyKinds
+	return nil
+}
+
+func (p *ReadKeySubcommand) validateKeyParts() error {
+	if p.private && p.public {
+		log.Warn("Options --private and --public cannot be used simultaneously")
+		return ErrExtraKeyPart
+	}
+	if !(p.private || p.public) {
+		log.Warn("Missing --private or --public for a key pair")
+		return ErrMissingKeyPart
 	}
 	return nil
 }
@@ -140,12 +177,12 @@ func (p *ReadKeySubcommand) ReadKeyKind() string {
 
 // ClientID returns client ID of the requested key.
 func (p *ReadKeySubcommand) ClientID() []byte {
-	return []byte(p.clientID)
+	return p.contextID
 }
 
 // ZoneID returns zone ID of the requested key.
 func (p *ReadKeySubcommand) ZoneID() []byte {
-	return []byte(p.zoneID)
+	return p.contextID
 }
 
 // ReadKeyBytes returns plaintext bytes of the requsted key.
