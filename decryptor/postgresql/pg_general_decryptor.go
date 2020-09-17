@@ -355,14 +355,15 @@ func (decryptor *PgDecryptor) CheckPoisonRecord(reader io.Reader) (bool, error) 
 		return false, err
 	}
 
-	// check poison record
-	poisonKeypair, err := decryptor.keyStore.GetPoisonKeyPair()
+	// If we fail to get poison record keys, propagate the error assuming it is a poison record.
+	poisonKeys, err := decryptor.keyStore.GetPoisonPrivateKeys()
 	if err != nil {
 		decryptor.logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantReadKeys).WithError(err).Errorln("Can't load poison keypair")
 		return true, err
 	}
+	defer utils.ZeroizePrivateKeys(poisonKeys)
 
-	_, err = base.DecryptAcrastruct(data, poisonKeypair.Private, nil)
+	_, err = base.DecryptRotatedAcrastruct(data, poisonKeys, nil)
 	if err == nil {
 		decryptor.logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorDecryptorRecognizedPoisonRecord).Warningln("Recognized poison record")
 		if decryptor.GetPoisonCallbackStorage().HasCallbacks() {

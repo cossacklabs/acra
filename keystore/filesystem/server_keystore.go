@@ -415,9 +415,6 @@ func (store *KeyStore) loadPublicKey(path string) (*keys.PublicKey, error) {
 }
 
 func (store *KeyStore) getPrivateKeyByFilename(id []byte, filename string) (*keys.PrivateKey, error) {
-	if !keystore.ValidateID(id) {
-		return nil, keystore.ErrInvalidClientID
-	}
 	store.lock.Lock()
 	defer store.lock.Unlock()
 	encryptedKey, ok := store.cache.Get(filename)
@@ -672,6 +669,31 @@ func (store *KeyStore) GetPoisonKeyPair() (*keys.Keypair, error) {
 	}
 	log.Debug("Generate poison key pair")
 	return store.generateKeyPair(PoisonKeyFilename, []byte(PoisonKeyFilename))
+}
+
+// GetPoisonPrivateKeys returns all private keys used to decrypt poison records, from newest to oldest.
+// If a poison record does not exist, it is created and its sole private key is returned.
+// Returns a list of private poison keys (possibly empty), or an error if decryption fails.
+func (store *KeyStore) GetPoisonPrivateKeys() ([]*keys.PrivateKey, error) {
+	poisonKeyExists, err := store.fs.Exists(store.GetPrivateKeyFilePath(PoisonKeyFilename))
+	if err != nil {
+		return nil, err
+	}
+	// If there is no poison record keypair, generated one and returns its private key.
+	if !poisonKeyExists {
+		log.Debug("Generate poison key pair")
+		keypair, err := store.generateKeyPair(PoisonKeyFilename, []byte(PoisonKeyFilename))
+		if err != nil {
+			return nil, err
+		}
+		return []*keys.PrivateKey{keypair.Private}, nil
+	}
+	// If some poison keypairs exist, pull their private keys.
+	filenames, err := store.GetHistoricalPrivateKeyFilenames(PoisonKeyFilename)
+	if err != nil {
+		return nil, err
+	}
+	return store.getPrivateKeysByFilenames([]byte(PoisonKeyFilename), filenames)
 }
 
 // GetAuthKey generates basic auth key for acraWebconfig, and writes it encrypted to fs,

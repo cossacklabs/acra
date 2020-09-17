@@ -76,7 +76,8 @@ func (storage *TestKeyStore) GetServerDecryptionPrivateKeys(id []byte) ([]*keys.
 func (keystore *TestKeyStore) GetAuthKey(remove bool) ([]byte, error) {
 	return nil, nil
 }
-func (storage *TestKeyStore) GetPoisonKeyPair() (*keys.Keypair, error) { return nil, nil }
+func (storage *TestKeyStore) GetPoisonKeyPair() (*keys.Keypair, error)          { return nil, nil }
+func (storage *TestKeyStore) GetPoisonPrivateKeys() ([]*keys.PrivateKey, error) { return nil, nil }
 func (*TestKeyStore) SaveDataEncryptionKeys(id []byte, keypair *keys.Keypair) error {
 	panic("implement me")
 }

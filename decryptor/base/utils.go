@@ -49,6 +49,9 @@ var (
 	ErrIncorrectAcraStructDataLength = errors.New("AcraStruct has incorrect data length value")
 )
 
+// ErrNoPrivateKeys is returned when DecryptRotatedAcrastruct is given an empty key list
+var ErrNoPrivateKeys = errors.New("cannot decrypt AcraStruct with empty key list")
+
 // ValidateAcraStructLength check that data has minimal length for AcraStruct and data block equal to data length in AcraStruct
 func ValidateAcraStructLength(data []byte) error {
 	baseLength := GetMinAcraStructLength()
@@ -99,7 +102,7 @@ func DecryptAcrastruct(data []byte, privateKey *keys.PrivateKey, zone []byte) ([
 // DecryptRotatedAcrastruct tries decrypting an AcraStruct with a set of rotated keys.
 // It either returns decrypted data if one of the keys succeeds, or an error if none is good.
 func DecryptRotatedAcrastruct(data []byte, privateKeys []*keys.PrivateKey, zone []byte) ([]byte, error) {
-	var err error
+	var err error = ErrNoPrivateKeys
 	var decryptedData []byte
 	for _, privateKey := range privateKeys {
 		decryptedData, err = DecryptAcrastruct(data, privateKey, zone)
@@ -114,16 +117,14 @@ func DecryptRotatedAcrastruct(data []byte, privateKeys []*keys.PrivateKey, zone 
 // Returns true if AcraStruct is poison record, returns false otherwise.
 // Returns error if Poison record key is not found.
 func CheckPoisonRecord(data []byte, keystorage keystore.PoisonKeyStore) (bool, error) {
-	poisonKeypair, err := keystorage.GetPoisonKeyPair()
+	// If we fail to get poison record keys, propagate the error assuming it is a poison record.
+	poisonKeys, err := keystorage.GetPoisonPrivateKeys()
 	if err != nil {
-		// we can't check on poisoning
 		return true, err
 	}
-	_, err = DecryptAcrastruct(data, poisonKeypair.Private, nil)
-	utils.FillSlice(byte(0), poisonKeypair.Private.Value)
-	if err == nil {
-		// decryption success so it was encrypted with private key for poison records
-		return true, nil
-	}
-	return false, nil
+	defer utils.ZeroizePrivateKeys(poisonKeys)
+
+	// Try decrypting the data. It is a poison record if it can be decrypted without an error.
+	_, err = DecryptRotatedAcrastruct(data, poisonKeys, nil)
+	return err == nil, nil
 }

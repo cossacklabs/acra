@@ -25,6 +25,14 @@ func (keystore *testKeystore) GetPoisonKeyPair() (*keys.Keypair, error) {
 	return keystore.PoisonKeypair, nil
 }
 
+func (keystore *testKeystore) GetPoisonPrivateKeys() ([]*keys.PrivateKey, error) {
+	keypair, err := keystore.GetPoisonKeyPair()
+	if err != nil || keypair == nil {
+		return nil, err
+	}
+	return []*keys.PrivateKey{keypair.Private}, nil
+}
+
 func (keystore *testKeystore) GetPrivateKey(id []byte) (*keys.PrivateKey, error) {
 	return nil, nil
 }

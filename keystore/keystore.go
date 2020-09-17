@@ -218,6 +218,7 @@ type KeyMaking interface {
 type PoisonKeyStore interface {
 	// Reads current poison record key pair, creating it if it does not exist yet.
 	GetPoisonKeyPair() (*keys.Keypair, error)
+	GetPoisonPrivateKeys() ([]*keys.PrivateKey, error)
 }
 
 // RotateStorageKeyStore enables storage key rotation. It is used by acra-rotate tool.
