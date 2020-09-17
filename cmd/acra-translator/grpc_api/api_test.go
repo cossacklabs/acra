@@ -104,6 +104,14 @@ func (keystore *testKeystore) GetPoisonKeyPair() (*keys.Keypair, error) {
 	return nil, nil
 }
 
+func (keystore *testKeystore) GetPoisonPrivateKeys() ([]*keys.PrivateKey, error) {
+	keypair, err := keystore.GetPoisonKeyPair()
+	if err != nil || keypair == nil {
+		return nil, err
+	}
+	return []*keys.PrivateKey{keypair.Private}, nil
+}
+
 func (*testKeystore) GetAuthKey(remove bool) ([]byte, error) { panic("implement me") }
 
 func (*testKeystore) Reset() { panic("implement me") }

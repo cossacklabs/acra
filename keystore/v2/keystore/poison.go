@@ -48,6 +48,31 @@ func (s *ServerKeyStore) GetPoisonKeyPair() (*keys.Keypair, error) {
 	return keypair, nil
 }
 
+// GetPoisonPrivateKeys returns all private keys used to decrypt poison records, from newest to oldest.
+// If a poison record does not exist, it is created and its sole private key is returned.
+// Returns a list of private poison keys (possibly empty), or an error if decryption fails.
+func (s *ServerKeyStore) GetPoisonPrivateKeys() ([]*keys.PrivateKey, error) {
+	ring, err := s.OpenKeyRingRW(poisonKeyPath)
+	if err != nil {
+		s.log.WithError(err).WithField("path", poisonKeyPath).
+			Debug("Failed to open poison key ring")
+		return nil, err
+	}
+	privateKeys, err := s.allPairPrivateKeys(ring)
+	if err != nil {
+		s.log.WithError(err).Debug("Failed to get poison record keys")
+		return nil, err
+	}
+	if len(privateKeys) == 0 {
+		keypair, err := s.newCurrentKeyPair(ring)
+		if err != nil {
+			s.log.WithError(err).Debug("Failed to generated poison record key")
+		}
+		privateKeys = []*keys.PrivateKey{keypair.Private}
+	}
+	return privateKeys, nil
+}
+
 func (s *ServerKeyStore) savePoisonKeyPair(keypair *keys.Keypair) error {
 	ring, err := s.OpenKeyRingRW(poisonKeyPath)
 	if err != nil {
