@@ -179,6 +179,7 @@ func (decryptor *Decryptor) checkPoisonRecord(block []byte) error {
 		decryptor.log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantReadKeys).Errorln("Can't load private key for poison records")
 		return err
 	}
+	defer utils.ZeroizePrivateKeys(poisonKeys)
 	_, err = decryptor.decryptBlock(bytes.NewReader(data), nil, poisonKeys)
 	if err == nil {
 		decryptor.log.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorDecryptorRecognizedPoisonRecord).Warningln("Recognized poison record")
