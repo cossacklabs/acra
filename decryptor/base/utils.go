@@ -49,6 +49,9 @@ var (
 	ErrIncorrectAcraStructDataLength = errors.New("AcraStruct has incorrect data length value")
 )
 
+// ErrNoPrivateKeys is returned when DecryptRotatedAcrastruct is given an empty key list
+var ErrNoPrivateKeys = errors.New("cannot decrypt AcraStruct with empty key list")
+
 // ValidateAcraStructLength check that data has minimal length for AcraStruct and data block equal to data length in AcraStruct
 func ValidateAcraStructLength(data []byte) error {
 	baseLength := GetMinAcraStructLength()
@@ -99,7 +102,7 @@ func DecryptAcrastruct(data []byte, privateKey *keys.PrivateKey, zone []byte) ([
 // DecryptRotatedAcrastruct tries decrypting an AcraStruct with a set of rotated keys.
 // It either returns decrypted data if one of the keys succeeds, or an error if none is good.
 func DecryptRotatedAcrastruct(data []byte, privateKeys []*keys.PrivateKey, zone []byte) ([]byte, error) {
-	var err error
+	var err error = ErrNoPrivateKeys
 	var decryptedData []byte
 	for _, privateKey := range privateKeys {
 		decryptedData, err = DecryptAcrastruct(data, privateKey, zone)
