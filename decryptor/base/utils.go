@@ -114,16 +114,14 @@ func DecryptRotatedAcrastruct(data []byte, privateKeys []*keys.PrivateKey, zone 
 // Returns true if AcraStruct is poison record, returns false otherwise.
 // Returns error if Poison record key is not found.
 func CheckPoisonRecord(data []byte, keystorage keystore.PoisonKeyStore) (bool, error) {
-	poisonKeypair, err := keystorage.GetPoisonKeyPair()
+	// If we fail to get poison record keys, propagate the error assuming it is a poison record.
+	poisonKeys, err := keystorage.GetPoisonPrivateKeys()
 	if err != nil {
-		// we can't check on poisoning
 		return true, err
 	}
-	_, err = DecryptAcrastruct(data, poisonKeypair.Private, nil)
-	utils.FillSlice(byte(0), poisonKeypair.Private.Value)
-	if err == nil {
-		// decryption success so it was encrypted with private key for poison records
-		return true, nil
-	}
-	return false, nil
+	defer utils.ZeroizePrivateKeys(poisonKeys)
+
+	// Try decrypting the data. It is a poison record if it can be decrypted without an error.
+	_, err = DecryptRotatedAcrastruct(data, poisonKeys, nil)
+	return err == nil, nil
 }

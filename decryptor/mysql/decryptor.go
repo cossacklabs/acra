@@ -145,14 +145,6 @@ func (decryptor *Decryptor) ReadSymmetricKeyRotated(privateKeys []*keys.PrivateK
 	return symmetricKey, rawData, nil
 }
 
-func (decryptor *Decryptor) getPoisonPrivateKey() (*keys.PrivateKey, error) {
-	keypair, err := decryptor.keyStore.GetPoisonKeyPair()
-	if err != nil {
-		return nil, err
-	}
-	return keypair.Private, nil
-}
-
 // CheckPoisonRecord check data from reader on poison records
 // added to implement base.Decryptor interface
 func (decryptor *Decryptor) CheckPoisonRecord(reader io.Reader) (bool, error) {
@@ -182,12 +174,12 @@ func (decryptor *Decryptor) checkPoisonRecord(block []byte) error {
 		return nil
 	}
 	decryptor.log.Debugln("Check block on poison")
-	privateKey, err := decryptor.getPoisonPrivateKey()
+	poisonKeys, err := decryptor.keyStore.GetPoisonPrivateKeys()
 	if err != nil {
 		decryptor.log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantReadKeys).Errorln("Can't load private key for poison records")
 		return err
 	}
-	_, err = decryptor.decryptBlock(bytes.NewReader(data), nil, []*keys.PrivateKey{privateKey})
+	_, err = decryptor.decryptBlock(bytes.NewReader(data), nil, poisonKeys)
 	if err == nil {
 		decryptor.log.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorDecryptorRecognizedPoisonRecord).Warningln("Recognized poison record")
 		if decryptor.GetPoisonCallbackStorage().HasCallbacks() {
