@@ -415,9 +415,6 @@ func (store *KeyStore) loadPublicKey(path string) (*keys.PublicKey, error) {
 }
 
 func (store *KeyStore) getPrivateKeyByFilename(id []byte, filename string) (*keys.PrivateKey, error) {
-	if !keystore.ValidateID(id) {
-		return nil, keystore.ErrInvalidClientID
-	}
 	store.lock.Lock()
 	defer store.lock.Unlock()
 	encryptedKey, ok := store.cache.Get(filename)
