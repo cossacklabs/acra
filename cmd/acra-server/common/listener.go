@@ -208,6 +208,16 @@ func (server *SServer) start(listener net.Listener, callback *callbackData, logg
 	}
 }
 
+// ListenerAcra returns listener for AcraServer database connections.
+func (server *SServer) ListenerAcra() net.Listener {
+	return server.listenerACRA
+}
+
+// ListenerAPI returns listener for AcraServer management API connections.
+func (server *SServer) ListenerAPI() net.Listener {
+	return server.listenerAPI
+}
+
 // Start listening connections from proxy
 func (server *SServer) Start() {
 	logger := log.WithFields(log.Fields{"connection_string": server.config.GetAcraConnectionString(), "from_descriptor": false})

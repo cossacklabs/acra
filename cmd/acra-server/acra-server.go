@@ -374,13 +374,13 @@ func main() {
 
 		// Get socket file descriptor to pass it to fork
 		var fdACRA, fdAPI uintptr
-		fdACRA, err = network.ListenerFileDescriptor(server.listenerACRA)
+		fdACRA, err = network.ListenerFileDescriptor(server.ListenerAcra())
 		if err != nil {
 			log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantGetFileDescriptor).
 				Fatalln("System error: failed to get acra-socket file descriptor:", err)
 		}
 		if *withZone || *enableHTTPAPI {
-			fdAPI, err = network.ListenerFileDescriptor(server.listenerAPI)
+			fdAPI, err = network.ListenerFileDescriptor(server.ListenerAPI())
 			if err != nil {
 				log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantGetFileDescriptor).
 					Fatalln("System error: failed to get api-socket file descriptor:", err)
