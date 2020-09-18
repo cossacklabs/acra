@@ -330,7 +330,11 @@ func main() {
 	}
 
 	if *prometheusAddress != "" {
-		registerMetrics()
+		version, err := utils.GetParsedVersion()
+		if err != nil {
+			log.WithError(err).Fatal("Invalid version string")
+		}
+		common.RegisterMetrics(ServiceName, version, utils.CommunityEdition)
 		_, prometheusHTTPServer, err := cmd.RunPrometheusHTTPHandler(*prometheusAddress)
 		if err != nil {
 			panic(err)

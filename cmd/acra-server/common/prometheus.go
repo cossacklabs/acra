@@ -47,17 +47,14 @@ var (
 
 var registerLock = sync.Once{}
 
-func registerMetrics() {
+// RegisterMetrics registers AcraServer metrics.
+func RegisterMetrics(serviceName string, version *utils.Version, edition utils.ProductEdition) {
 	registerLock.Do(func() {
 		prometheus.MustRegister(connectionCounter)
 		prometheus.MustRegister(connectionProcessingTimeHistogram)
 		base.RegisterAcraStructProcessingMetrics()
 		base.RegisterDbProcessingMetrics()
-		version, err := utils.GetParsedVersion()
-		if err != nil {
-			panic(err)
-		}
-		cmd.RegisterVersionMetrics(ServiceName, version)
-		cmd.RegisterBuildInfoMetrics(ServiceName, utils.CommunityEdition)
+		cmd.RegisterVersionMetrics(serviceName, version)
+		cmd.RegisterBuildInfoMetrics(serviceName, edition)
 	})
 }
