@@ -32,7 +32,6 @@ package main
 
 import (
 	"crypto/tls"
-	"errors"
 	"flag"
 	"net/http"
 	_ "net/http/pprof"
@@ -73,9 +72,6 @@ const (
 
 // defaultConfigPath relative path to config which will be parsed as default
 var defaultConfigPath = utils.GetConfigPathByName(ServiceName)
-
-// ErrWaitTimeout error indicates that server was shutdown and waited N seconds while shutting down all connections.
-var ErrWaitTimeout = errors.New("timeout")
 
 func main() {
 	loggingFormat := flag.String("logging_format", "plaintext", "Logging format: plaintext, json or CEF")
@@ -357,7 +353,7 @@ func main() {
 		server.StopListeners()
 		// Wait a maximum of N seconds for existing connections to finish
 		err := server.WaitWithTimeout(time.Duration(*closeConnectionTimeout) * time.Second)
-		if err == ErrWaitTimeout {
+		if err == common.ErrWaitTimeout {
 			log.Warningf("Server shutdown Timeout: %d active connections will be cut", server.ConnectionsCounter())
 			server.Close()
 			os.Exit(1)
@@ -411,7 +407,7 @@ func main() {
 
 		// Wait a maximum of N seconds for existing connections to finish
 		err = server.WaitWithTimeout(time.Duration(*closeConnectionTimeout) * time.Second)
-		if err == ErrWaitTimeout {
+		if err == common.ErrWaitTimeout {
 			log.Warningf("Server shutdown Timeout: %d active connections will be cut", server.ConnectionsCounter())
 			os.Exit(0)
 		}

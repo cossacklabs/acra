@@ -18,6 +18,7 @@ package common
 
 import (
 	"context"
+	"errors"
 	"net"
 	url_ "net/url"
 	"os"
@@ -46,6 +47,9 @@ type SServer struct {
 	restartSignalsChannel chan os.Signal
 	proxyFactory          base.ProxyFactory
 }
+
+// ErrWaitTimeout error indicates that server was shutdown and waited N seconds while shutting down all connections.
+var ErrWaitTimeout = errors.New("timeout")
 
 // NewServer creates new SServer.
 func NewServer(config *Config, proxyFactory base.ProxyFactory, errorChan chan os.Signal, restarChan chan os.Signal) (server *SServer, err error) {
