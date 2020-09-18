@@ -171,7 +171,7 @@ func main() {
 		flag.Usage()
 		os.Exit(1)
 	}
-	config.setDBConnectionSettings(*dbHost, *dbPort)
+	config.SetDBConnectionSettings(*dbHost, *dbPort)
 
 	if *encryptorConfig != "" {
 		log.Infof("Load encryptor configuration from %s ...", *encryptorConfig)
@@ -211,7 +211,7 @@ func main() {
 	} else {
 		keyStore = openKeyStoreV1(*keysDir, *keysCacheSize)
 	}
-	config.setKeyStore(keyStore)
+	config.SetKeyStore(keyStore)
 	log.Infof("Keystore init OK")
 
 	log.Infof("Configuring transport...")
@@ -234,7 +234,7 @@ func main() {
 			os.Exit(1)
 		}
 	} else if *noEncryptionTransport {
-		config.setWithConnector(false)
+		config.SetWithConnector(false)
 		if *clientID == "" && !*withZone {
 			log.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorTransportConfiguration).
 				Errorln("Configuration error: without zone mode and without encryption you must set <client_id> which will be used to connect from AcraConnector to AcraServer")
@@ -272,20 +272,20 @@ func main() {
 	poisonCallbacks := base.NewPoisonCallbackStorage()
 	if *scriptOnPoison != "" {
 		poisonCallbacks.AddCallback(base.NewExecuteScriptCallback(*scriptOnPoison))
-		config.scriptOnPoison = *scriptOnPoison
+		config.SetScriptOnPoison(*scriptOnPoison)
 	}
 	// should setup "stopOnPoison" as last poison record callback"
 	if *stopOnPoison {
 		poisonCallbacks.AddCallback(&base.StopCallback{})
-		config.stopOnPoison = *stopOnPoison
+		config.SetStopOnPoison(*stopOnPoison)
 	}
 
-	decryptorSetting := base.NewDecryptorSetting(config.withZone, config.GetWholeMatch(), *detectPoisonRecords, poisonCallbacks, keyStore)
+	decryptorSetting := base.NewDecryptorSetting(config.GetWithZone(), config.GetWholeMatch(), *detectPoisonRecords, poisonCallbacks, keyStore)
 	var decryptorFactory base.DecryptorFactory
 	var proxyFactory base.ProxyFactory
 	if *useMysql {
 		decryptorFactory = mysql.NewMysqlDecryptorFactory(decryptorSetting)
-		proxyFactory, err = mysql.NewProxyFactory(base.NewProxySetting(decryptorFactory, config.tableSchema, keyStore, tlsConfig, config.censor))
+		proxyFactory, err = mysql.NewProxyFactory(base.NewProxySetting(decryptorFactory, config.GetTableSchema(), keyStore, tlsConfig, config.GetCensor()))
 		if err != nil {
 			log.WithError(err).Errorln("Can't initialize proxy for connections")
 			os.Exit(1)
@@ -293,7 +293,7 @@ func main() {
 		sqlparser.SetDefaultDialect(mysqlDialect.NewMySQLDialect())
 	} else {
 		decryptorFactory = postgresql.NewDecryptorFactory(decryptorSetting)
-		proxyFactory, err = postgresql.NewProxyFactory(base.NewProxySetting(decryptorFactory, config.tableSchema, keyStore, tlsConfig, config.censor))
+		proxyFactory, err = postgresql.NewProxyFactory(base.NewProxySetting(decryptorFactory, config.GetTableSchema(), keyStore, tlsConfig, config.GetCensor()))
 		if err != nil {
 			log.WithError(err).Errorln("Can't initialize proxy for connections")
 			os.Exit(1)
@@ -301,8 +301,7 @@ func main() {
 		sqlparser.SetDefaultDialect(pgDialect.NewPostgreSQLDialect())
 	}
 
-	var server *SServer
-	server, err = NewServer(config, proxyFactory, errorSignalChannel, restartSignalsChannel)
+	server, err := common.NewServer(config, proxyFactory, errorSignalChannel, restartSignalsChannel)
 	if err != nil {
 		log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantStartService).
 			Errorf("System error: can't start %s", ServiceName)

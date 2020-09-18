@@ -83,7 +83,8 @@ func NewConfig() (*Config, error) {
 // ErrTwoDBSetup shows that AcraServer can connects only to one database at the same time
 var ErrTwoDBSetup = errors.New("only one db supported at one time")
 
-func (config *Config) setDBConnectionSettings(host string, port int) {
+// SetDBConnectionSettings sets address of the database.
+func (config *Config) SetDBConnectionSettings(host string, port int) {
 	config.dbHost = host
 	config.dbPort = port
 }
@@ -93,8 +94,8 @@ func (config *Config) WithConnector() bool {
 	return config.withConnector
 }
 
-// setWithConnector set that acra-server will or not accept connections from acra-connector
-func (config *Config) setWithConnector(v bool) {
+// SetWithConnector set that acra-server will or not accept connections from acra-connector
+func (config *Config) SetWithConnector(v bool) {
 	config.withConnector = v
 }
 
@@ -112,6 +113,11 @@ func (config *Config) LoadMapTableSchemaConfig(path string) error {
 	}
 	config.tableSchema = schema
 	return nil
+}
+
+// GetTableSchema returns table schema in use.
+func (config *Config) GetTableSchema() encryptorConfig.TableSchemaStore {
+	return config.tableSchema
 }
 
 // SetCensor creates AcraCensor and sets its configuration
@@ -269,8 +275,8 @@ func (config *Config) GetAcraAPIConnectionString() string {
 	return config.acraAPIConnectionString
 }
 
-// setKeyStore set keystore
-func (config *Config) setKeyStore(k keystore.ServerKeyStore) {
+// SetKeyStore sets keystore.
+func (config *Config) SetKeyStore(k keystore.ServerKeyStore) {
 	config.keystore = k
 }
 
@@ -302,4 +308,14 @@ func (config *Config) SetServiceName(name string) {
 // GetServiceName returns AcraServer service name.
 func (config *Config) GetServiceName() string {
 	return config.serviceName
+}
+
+// SetScriptOnPoison sets path to script to execute when poison record is triggered.
+func (config *Config) SetScriptOnPoison(script string) {
+	config.scriptOnPoison = script
+}
+
+// SetStopOnPoison tells AcraServer to shutdown when poison record is triggered.
+func (config *Config) SetStopOnPoison(stop bool) {
+	config.stopOnPoison = stop
 }
