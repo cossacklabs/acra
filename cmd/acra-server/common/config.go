@@ -56,6 +56,7 @@ type Config struct {
 	traceOptions            []trace.StartOption
 	authDataPath            string
 	serviceName             string
+	configPath              string
 }
 
 // UIEditableConfig describes which parts of AcraServer configuration can be changed from AcraWebconfig page
@@ -230,9 +231,14 @@ func (config *Config) SetWholeMatch(value bool) {
 	config.wholeMatch = value
 }
 
+// SetConfigPath sets AcraServer config path
+func (config *Config) SetConfigPath(path string) {
+	config.configPath = path
+}
+
 // GetConfigPath returns AcraServer config path
 func (config *Config) GetConfigPath() string {
-	return defaultConfigPath
+	return config.configPath
 }
 
 // ToJSON AcraServer editable config in JSON format

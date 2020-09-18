@@ -206,6 +206,7 @@ func main() {
 	config.SetDebug(*debug)
 	config.SetAuthDataPath(*authPath)
 	config.SetServiceName(ServiceName)
+	config.SetConfigPath(cmd.ConfigPath(defaultConfigPath))
 
 	log.Infof("Initialising keystore...")
 	var keyStore keystore.ServerKeyStore
