@@ -14,21 +14,18 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package main
+package common
 
 import (
 	"context"
-	"net"
-
-	"github.com/cossacklabs/acra/network"
-
-	log "github.com/sirupsen/logrus"
-
 	"io"
+	"net"
 
 	"github.com/cossacklabs/acra/decryptor/base"
 	"github.com/cossacklabs/acra/keystore"
 	"github.com/cossacklabs/acra/logging"
+	"github.com/cossacklabs/acra/network"
+	log "github.com/sirupsen/logrus"
 )
 
 // ClientSession handles connection between database and AcraServer.

@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package main
+package common
 
 import (
 	"bufio"
@@ -57,7 +57,6 @@ func NewClientCommandsSession(keystorage keystore.ServerKeyStore, config *Config
 		return nil, err
 	}
 	return &ClientCommandsSession{ClientSession: *clientSession, keystore: keystorage}, nil
-
 }
 
 // ConnectToDb should not be called, because command session must not connect to any DB
@@ -177,7 +176,6 @@ func (clientSession *ClientCommandsSession) HandleSession() {
 				Errorln("DumpConfig failed")
 			response = Response500Error
 			break
-
 		}
 		logger.Infoln("Handled request correctly, restarting server")
 		clientSession.Server.restartSignalsChannel <- syscall.SIGHUP

@@ -14,11 +14,10 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package main
+package common
 
 import (
 	"context"
-	"go.opencensus.io/trace"
 	"net"
 	url_ "net/url"
 	"os"
@@ -30,6 +29,7 @@ import (
 	"github.com/cossacklabs/acra/network"
 	"github.com/prometheus/client_golang/prometheus"
 	log "github.com/sirupsen/logrus"
+	"go.opencensus.io/trace"
 )
 
 // SServer represents AcraServer server, connects with KeyStorage, configuration file,

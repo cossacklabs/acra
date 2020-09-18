@@ -14,12 +14,14 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package main
+package common
 
 import (
 	"encoding/json"
 	"errors"
-	"github.com/cossacklabs/acra/acra-censor"
+	"io/ioutil"
+
+	acracensor "github.com/cossacklabs/acra/acra-censor"
 	"github.com/cossacklabs/acra/encryptor"
 	encryptorConfig "github.com/cossacklabs/acra/encryptor/config"
 	"github.com/cossacklabs/acra/keystore"
@@ -27,7 +29,6 @@ import (
 	"github.com/cossacklabs/acra/network"
 	log "github.com/sirupsen/logrus"
 	"go.opencensus.io/trace"
-	"io/ioutil"
 )
 
 // Config describes AcraServer configuration
