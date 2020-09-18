@@ -2,7 +2,7 @@
 
 # Run test in each go environment and log errors to $FILEPATH_ERROR_FLAG.
 # If all tests pass successfully then the file will not be created at all.
-export GOPATH=$HOME/$GOPATH_FOLDER;
+# export GOPATH=$HOME/$GOPATH_FOLDER
 # cd to code with go.mod file outside of GOPATH to work with module-based behaviour
 # https://github.com/golang/go/wiki/Modules#when-do-i-get-old-behavior-vs-new-module-based-behavior
 cd $HOME/project
@@ -11,7 +11,7 @@ OLD_PATH=$PATH
 
 for GOROOT in $(find /usr/lib/go -maxdepth 2 -path '*.*.*/go'); do
     # use OLD_PATH to avoid having PATH=/usr/lib/go/1.15.2/go/bin:/usr/lib/go/1.14.9/go/bin:...
-    export PATH=$GOROOT/bin:$OLD_PATH;
+    export PATH=$GOROOT/bin:$OLD_PATH
 
     echo GOROOT=$GOROOT PATH=$PATH
     

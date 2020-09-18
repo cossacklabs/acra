@@ -27,7 +27,7 @@ jobs:
 
   postgresql-ssl:
     docker:
-      - image: cossacklabs/android-build
+      - image: cossacklabs/ci-py-go-themis:T1776-new-docker-image-for-acra-ci
       - image: cossacklabs/postgresql-ssl:11-1
         environment:
           POSTGRES_PASSWORD: test
@@ -35,17 +35,15 @@ jobs:
           POSTGRES_DB: test
     environment:
       FILEPATH_ERROR_FLAG: /tmp/test_fail
-      VERSIONS: 1.13.15 1.14.9 1.15.2
       TEST_DB_PORT: "5432"
-      GOPATH_FOLDER: gopath
       TEST_RANDOM_DATA_FOLDER: /tmp/test_data
       TEST_TLS: "on"
-      GOPATH: /home/user/gopath
-    steps:
-    # prepare
+      # GOPATH: /home/user/gopath
+      GOROOT: /usr/lib/go/1.15.2/go
+    steps: &postgresql-ssl-steps
+      # prepare
       - checkout
-      - run: .circleci/prepare.sh
-      - run: sudo apt-get install -y postgresql-client
+      # - run: sudo apt-get install -y postgresql-client
       - run: pg_isready -U${POSTGRES_USER} -d${POSTGRES_DB} -h127.0.0.1
       # testing
       # generate test data for integration tests
@@ -72,7 +70,7 @@ jobs:
 
   postgresql:
     docker:
-      - image: cossacklabs/android-build
+      - image: cossacklabs/ci-py-go-themis:T1776-new-docker-image-for-acra-ci
       - image: postgres:11-alpine
         environment:
           POSTGRES_PASSWORD: test
@@ -80,39 +78,12 @@ jobs:
           POSTGRES_DB: test
     environment:
       FILEPATH_ERROR_FLAG: /tmp/test_fail
-      VERSIONS: 1.13.15 1.14.9 1.15.2
       TEST_DB_PORT: "5432"
-      GOPATH_FOLDER: gopath
       TEST_RANDOM_DATA_FOLDER: /tmp/test_data
       TEST_TLS: "off"
-      GOPATH: /home/user/gopath
-    steps:
-      # prepare
-      - checkout
-      - run: .circleci/prepare.sh
-      - run: sudo apt-get install -y postgresql-client
-      - run: pg_isready -U${POSTGRES_USER} -d${POSTGRES_DB} -h127.0.0.1
-      # generate test data for integration tests
-      - run: python3 tests/generate_random_data.py
-      # each iteration pass to test different ports for forks to avoid problems with TCP TIME WAIT between tests
-      - run:
-          name: Integration tests (keystore v1)
-          environment:
-            TEST_KEYSTORE: v1
-          command: |
-            .circleci/integration.sh
-            if [ -f  $FILEPATH_ERROR_FLAG ]; then cat "$FILEPATH_ERROR_FLAG"; rm "$FILEPATH_ERROR_FLAG"; exit 1; fi
-      - run:
-          name: Integration tests (keystore v2)
-          environment:
-            TEST_KEYSTORE: v2
-          command: |
-            .circleci/integration.sh
-            if [ -f  $FILEPATH_ERROR_FLAG ]; then cat "$FILEPATH_ERROR_FLAG"; rm "$FILEPATH_ERROR_FLAG"; exit 1; fi
-      - store_test_results:
-          path: /home/user/tests_output
-      - store_artifacts:
-          path: /home/user/tests_output
+      # GOPATH: /home/user/gopath
+      GOROOT: /usr/lib/go/1.15.2/go
+    steps: *postgresql-ssl-steps
 
   mariadb-ssl:
     docker:

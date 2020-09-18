@@ -13,6 +13,7 @@ RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get -y install \
     libpq-dev \
     libssl-dev \
     openssl \
+    postgresql-client \
     psmisc \
     python python-setuptools \
     python3 python3-setuptools python3-pip \
