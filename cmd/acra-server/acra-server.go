@@ -41,6 +41,7 @@ import (
 	"time"
 
 	"github.com/cossacklabs/acra/cmd"
+	"github.com/cossacklabs/acra/cmd/acra-server/common"
 	"github.com/cossacklabs/acra/decryptor/base"
 	"github.com/cossacklabs/acra/decryptor/mysql"
 	"github.com/cossacklabs/acra/decryptor/postgresql"
@@ -146,7 +147,7 @@ func main() {
 
 	log.WithField("version", utils.VERSION).Infof("Starting service %v [pid=%v]", ServiceName, os.Getpid())
 
-	config, err := NewConfig()
+	config, err := common.NewConfig()
 	if err != nil {
 		log.WithError(err).Errorln("Can't initialize config")
 		os.Exit(1)
@@ -203,6 +204,8 @@ func main() {
 	config.SetWholeMatch(!(*injectedcell))
 	config.SetEnableHTTPAPI(*enableHTTPAPI)
 	config.SetDebug(*debug)
+	config.SetAuthDataPath(*authPath)
+	config.SetServiceName(ServiceName)
 
 	log.Infof("Initialising keystore...")
 	var keyStore keystore.ServerKeyStore

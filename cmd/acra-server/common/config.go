@@ -54,6 +54,8 @@ type Config struct {
 	dataEncryptor           encryptor.DataEncryptor
 	keystore                keystore.ServerKeyStore
 	traceOptions            []trace.StartOption
+	authDataPath            string
+	serviceName             string
 }
 
 // UIEditableConfig describes which parts of AcraServer configuration can be changed from AcraWebconfig page
@@ -274,4 +276,24 @@ func (config *Config) GetKeyStore() keystore.ServerKeyStore {
 // GetTraceOptions return configured trace StartOptions
 func (config *Config) GetTraceOptions() []trace.StartOption {
 	return config.traceOptions
+}
+
+// SetAuthDataPath sets basic authentication data path.
+func (config *Config) SetAuthDataPath(path string) {
+	config.authDataPath = path
+}
+
+// GetAuthDataPath returns basic authentication data path.
+func (config *Config) GetAuthDataPath() string {
+	return config.authDataPath
+}
+
+// SetServiceName sets AcraServer service name.
+func (config *Config) SetServiceName(name string) {
+	config.serviceName = name
+}
+
+// GetServiceName returns AcraServer service name.
+func (config *Config) GetServiceName() string {
+	return config.serviceName
 }
