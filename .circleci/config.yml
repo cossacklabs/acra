@@ -36,7 +36,7 @@ jobs:
     environment:
       FILEPATH_ERROR_FLAG: /tmp/test_fail
       VERSIONS: 1.13.15 1.14.9 1.15.2
-      TEST_DB_PORT: 5432
+      TEST_DB_PORT: "5432"
       GOPATH_FOLDER: gopath
       TEST_RANDOM_DATA_FOLDER: /tmp/test_data
       TEST_TLS: "on"
@@ -81,7 +81,7 @@ jobs:
     environment:
       FILEPATH_ERROR_FLAG: /tmp/test_fail
       VERSIONS: 1.13.15 1.14.9 1.15.2
-      TEST_DB_PORT: 5432
+      TEST_DB_PORT: "5432"
       GOPATH_FOLDER: gopath
       TEST_RANDOM_DATA_FOLDER: /tmp/test_data
       TEST_TLS: "off"
@@ -128,8 +128,8 @@ jobs:
     environment:
       FILEPATH_ERROR_FLAG: /tmp/test_fail
       VERSIONS: 1.13.15 1.14.9 1.15.2
-      TEST_MYSQL: true
-      TEST_DB_PORT: 3306
+      TEST_MYSQL: "true"
+      TEST_DB_PORT: "3306"
       GOPATH_FOLDER: gopath
       TEST_RANDOM_DATA_FOLDER: /tmp/test_data
       TEST_TLS: "on"
@@ -177,8 +177,8 @@ jobs:
     environment:
       FILEPATH_ERROR_FLAG: /tmp/test_fail
       VERSIONS: 1.13.15 1.14.9 1.15.2
-      TEST_MYSQL: true
-      TEST_DB_PORT: 3306
+      TEST_MYSQL: "true"
+      TEST_DB_PORT: "3306"
       GOPATH_FOLDER: gopath
       TEST_RANDOM_DATA_FOLDER: /tmp/test_data
       TEST_TLS: "off"
@@ -226,8 +226,8 @@ jobs:
     environment:
       FILEPATH_ERROR_FLAG: /tmp/test_fail
       VERSIONS: 1.13.15 1.14.9 1.15.2
-      TEST_MYSQL: true
-      TEST_DB_PORT: 3306
+      TEST_MYSQL: "true"
+      TEST_DB_PORT: "3306"
       GOPATH_FOLDER: gopath
       TEST_RANDOM_DATA_FOLDER: /tmp/test_data
       TEST_TLS: "on"
@@ -273,8 +273,8 @@ jobs:
     environment:
       FILEPATH_ERROR_FLAG: /tmp/test_fail
       VERSIONS: 1.13.15 1.14.9 1.15.2
-      TEST_MYSQL: true
-      TEST_DB_PORT: 3306
+      TEST_MYSQL: "true"
+      TEST_DB_PORT: "3306"
       GOPATH_FOLDER: gopath
       TEST_RANDOM_DATA_FOLDER: /tmp/test_data
       TEST_TLS: "off"
