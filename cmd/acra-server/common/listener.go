@@ -39,8 +39,6 @@ type SServer struct {
 	config                *Config
 	listenerACRA          net.Listener
 	listenerAPI           net.Listener
-	fddACRA               uintptr
-	fdAPI                 uintptr
 	connectionManager     *network.ConnectionManager
 	listeners             []net.Listener
 	errorSignalChannel    chan os.Signal

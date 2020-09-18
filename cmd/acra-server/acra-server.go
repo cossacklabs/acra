@@ -309,8 +309,6 @@ func main() {
 	}
 
 	if os.Getenv(gracefulEnv) == "true" {
-		server.fddACRA = descriptorAcra
-		server.fdAPI = descriptorAPI
 		log.Debugf("Will be using GRACEFUL_RESTART if configured from WebUI")
 	}
 
