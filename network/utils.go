@@ -18,6 +18,7 @@ package network
 
 import (
 	"fmt"
+	"github.com/cossacklabs/themis/gothemis/errors"
 	"net"
 	url_ "net/url"
 	"os"
@@ -103,8 +104,11 @@ func (listener *safeCloseListener) Close() error {
 
 // Accept proxy call to wrapped listener and wrapp accepted connection with safeCloseConnection
 func (listener *safeCloseListener) Accept() (net.Conn, error) {
-	conn, err := listener.Listener.Accept()
-	return newSafeCloseConnection(conn), err
+	if listener.Listener != nil {
+		conn, err := listener.Listener.Accept()
+		return newSafeCloseConnection(conn), err
+	}
+	return nil, errors.New("nil listener")
 }
 
 // Dial connectionString like protocol://path where protocol is any supported via net.Dial (tcp|unix)

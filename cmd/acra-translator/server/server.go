@@ -18,6 +18,7 @@ package server
 
 import (
 	"context"
+	"errors"
 	"github.com/cossacklabs/acra/utils"
 	"net"
 	"os"
@@ -43,15 +44,16 @@ import (
 // ReaderServer represents AcraTranslator server, connects with KeyStorage, configuration file,
 // gRPC and HTTP request parsers.
 type ReaderServer struct {
-	config                 *common.AcraTranslatorConfig
-	keystorage             keystore.TranslationKeyStore
-	connectionManager      *network.ConnectionManager
-	grpcServer             *grpc.Server
-	httpDecryptor          *http_api.HTTPConnectionsDecryptor
-	waitTimeout            time.Duration
-	listenersContextCancel []context.CancelFunc
-	grpcServerFactory      common.GRPCServerFactory
-	waitGroup              sync.WaitGroup
+	config                *common.AcraTranslatorConfig
+	keystorage            keystore.TranslationKeyStore
+	connectionManager     *network.ConnectionManager
+	grpcServer            *grpc.Server
+	httpDecryptor         *http_api.HTTPConnectionsDecryptor
+	waitTimeout           time.Duration
+	grpcServerFactory     common.GRPCServerFactory
+	backgroundWorkersSync sync.WaitGroup
+	listenerHTTP          net.Listener
+	listenerGRPC          net.Listener
 }
 
 // NewReaderServer creates Reader server with provided params.
@@ -68,15 +70,13 @@ func NewReaderServer(config *common.AcraTranslatorConfig, keystorage keystore.Tr
 // Stop stops AcraTranslator from accepting new connections, and gracefully close existing ones.
 func (server *ReaderServer) Stop() {
 	log.Infoln("Stop accepting new connections")
-	// stop all listeners
-	for _, cancelFunc := range server.listenersContextCancel {
-		cancelFunc()
-	}
+	server.StopListeners()
+
 	// non block stop
 	if server.grpcServer != nil {
-		server.waitGroup.Add(1)
+		server.backgroundWorkersSync.Add(1)
 		go func() {
-			defer server.waitGroup.Done()
+			defer server.backgroundWorkersSync.Done()
 			server.grpcServer.GracefulStop()
 		}()
 	}
@@ -98,15 +98,8 @@ func (server *ReaderServer) Stop() {
 	}
 }
 
-func (server *ReaderServer) listenerContext(parentContext context.Context) context.Context {
-	ctx, cancel := context.WithCancel(parentContext)
-	server.listenersContextCancel = append(server.listenersContextCancel, cancel)
-	return ctx
-}
-
-// HandleConnectionString handles each connection with gRPC request handler or HTTP request handler
-// depending on connection string.
-func (server *ReaderServer) HandleConnectionString(parentContext context.Context, connectionString string, processingFunc ProcessingFunc) error {
+// HandleHTTPConnection handles each connection with HTTP request handler
+func (server *ReaderServer) HandleHTTPConnection(parentContext context.Context, listener net.Listener, connectionString string, processingFunc ProcessingFunc) error {
 	logger := logging.GetLoggerFromContext(parentContext)
 	if logger == nil {
 		logger = log.NewEntry(log.StandardLogger())
@@ -115,18 +108,16 @@ func (server *ReaderServer) HandleConnectionString(parentContext context.Context
 
 	errCh := make(chan error)
 
-	listenerContext := server.listenerContext(parentContext)
-
 	// start accept new connections from connectionString
-	connectionChannel, err := common.AcceptConnections(listenerContext, connectionString, errCh)
+	connectionChannel, err := common.AcceptConnections(parentContext, listener, errCh)
 	if err != nil {
 		logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantAcceptNewConnections).WithError(err).Errorf("Can't start to handle connection string %v", connectionString)
 		return err
 	}
 	// use to send close packets to all unclosed connections at end
-	server.waitGroup.Add(1)
+	server.backgroundWorkersSync.Add(1)
 	go func() {
-		defer server.waitGroup.Done()
+		defer server.backgroundWorkersSync.Done()
 		logger.WithField("connection_string", connectionString).Debugln("Start wrap new connections")
 		for {
 			var connection net.Conn
@@ -134,11 +125,14 @@ func (server *ReaderServer) HandleConnectionString(parentContext context.Context
 			case connection = <-connectionChannel:
 				break
 			case <-parentContext.Done():
-				logger.WithError(parentContext.Err()).Debugln("Stop wrapping new connections")
+				if !errors.As(parentContext.Err(), &context.Canceled) {
+					logger.WithError(parentContext.Err()).Debugln("Stop wrapping new connections")
+				}
 				return
 			}
 
-			wrappedConnection, clientID, err := server.config.ConnectionWrapper.WrapServer(context.TODO(), connection)
+			connectionContext := context.TODO()
+			wrappedConnection, clientID, err := server.config.ConnectionWrapper.WrapServer(connectionContext, connection)
 			if err != nil {
 				logger.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorTranslatorCantWrapConnectionToSS).
 					Errorln("Can't wrap new connection")
@@ -158,11 +152,11 @@ func (server *ReaderServer) HandleConnectionString(parentContext context.Context
 				}
 				continue
 			}
-			ctx, span := trace.StartSpanWithRemoteParent(listenerContext, getHandlerName(listenerContext), spanContext, server.config.GetTraceOptions()...)
+			ctx, span := trace.StartSpanWithRemoteParent(connectionContext, connection.RemoteAddr().String(), spanContext, server.config.GetTraceOptions()...)
 			logger.Debugln("Pass wrapped connection to processing function")
 			logging.SetLoggerToContext(ctx, logger)
 
-			server.waitGroup.Add(1)
+			server.backgroundWorkersSync.Add(1)
 			go func() {
 				defer func() {
 					span.End()
@@ -172,7 +166,7 @@ func (server *ReaderServer) HandleConnectionString(parentContext context.Context
 							Errorln("Can't close wrapped connection")
 					}
 					logger.Infoln("Connection closed")
-					server.waitGroup.Done()
+					server.backgroundWorkersSync.Done()
 				}()
 
 				if err := server.connectionManager.AddConnection(wrappedConnection); err != nil {
@@ -193,129 +187,216 @@ func (server *ReaderServer) HandleConnectionString(parentContext context.Context
 	var outErr error
 	select {
 	case <-parentContext.Done():
-		log.WithError(parentContext.Err()).Debugln("Exit from handling connection string. Close all connections")
 		outErr = parentContext.Err()
 	case outErr = <-errCh:
 		log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorTranslatorCantAcceptNewHTTPConnection).
 			Errorln("Error on accepting new connections")
-		server.Stop()
 	}
 	return outErr
 }
 
-// Constants show possible connection types.
-const (
-	ConnectionTypeKey  = "connection_type"
-	HTTPConnectionType = "http"
-	GRPCConnectionType = "grpc"
-)
-
-type handlerName struct{}
-
-func withHandlerName(ctx context.Context, name string) context.Context {
-	return context.WithValue(ctx, handlerName{}, name)
-}
-
-func getHandlerName(ctx context.Context) string {
-	if s, ok := ctx.Value(handlerName{}).(string); ok {
-		return s
-	}
-	return "undefined"
-}
-
 // Start setups gRPC handler or HTTP handler, poison records callbacks and starts listening to connections.
 func (server *ReaderServer) Start(parentContext context.Context) {
+	defer server.exitWithTimeout()
+
 	logger := logging.GetLoggerFromContext(parentContext)
 	poisonCallbacks := base.NewPoisonCallbackStorage()
+	server.detectPoisonRecords(poisonCallbacks)
+	errCh := make(chan error)
+
+	decryptorData := &common.TranslatorData{Keystorage: server.keystorage, PoisonRecordCallbacks: poisonCallbacks, CheckPoisonRecords: server.config.DetectPoisonRecords()}
+	if server.config.IncomingConnectionHTTPString() != "" {
+		listener, err := network.Listen(server.config.IncomingConnectionHTTPString())
+		if err != nil {
+			log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorTranslatorCantAcceptNewHTTPConnection).
+				Errorln("Can't create HTTP listener from specified connection string")
+			return
+		}
+		server.listenerHTTP = listener
+		server.startHTTP(parentContext, logger, decryptorData, errCh, listener)
+	}
+
+	// provide way to register new services and custom server
+	if server.config.IncomingConnectionGRPCString() != "" {
+		listener, err := network.Listen(server.config.IncomingConnectionGRPCString())
+		if err != nil {
+			log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorTranslatorCantAcceptNewHTTPConnection).
+				Errorln("Can't create HTTP listener from specified connection string")
+			return
+		}
+		server.listenerGRPC = listener
+		server.startGrpc(logger, decryptorData, errCh, listener)
+	}
+
+	select {
+	case <-parentContext.Done():
+		break
+	case <-errCh:
+		// error that occurred in background goroutines will be logged, so just break and exit with timeout,
+		// according to defer func
+		break
+	}
+	return
+}
+
+func (server *ReaderServer) startHTTP(parentContext context.Context, logger *log.Entry, decryptorData *common.TranslatorData, errCh chan<- error, listener net.Listener) {
+	server.backgroundWorkersSync.Add(1)
+	go func() {
+		defer server.backgroundWorkersSync.Done()
+		httpContext := logging.SetLoggerToContext(parentContext, logger.WithField(ConnectionTypeKey, HTTPConnectionType))
+		httpDecryptor, err := http_api.NewHTTPConnectionsDecryptor(decryptorData)
+		logger.WithField("connection_string", server.config.IncomingConnectionHTTPString()).Infof("Start process HTTP requests")
+		if err != nil {
+			log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorTranslatorCantHandleHTTPConnection).
+				Errorln("Can't create HTTP decryptor")
+			errCh <- err
+			return
+		}
+		server.httpDecryptor = httpDecryptor
+		err = server.HandleHTTPConnection(httpContext, listener, server.config.IncomingConnectionHTTPString(), server.processHTTPConnection)
+		if err != nil {
+			// It is a "normal" case, when we shutdown service - we call 'cancel' on main level in SIGTERM/SIGINT handlers,
+			// so let's avoid treating context.Canceled as error here
+			if !errors.As(err, &context.Canceled) {
+				log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorTranslatorCantHandleHTTPConnection).
+					Errorln("Took error on handling HTTP requests")
+				server.Stop()
+				errCh <- err
+			}
+			return
+		}
+	}()
+}
+
+func (server *ReaderServer) startGrpc(logger *log.Entry, decryptorData *common.TranslatorData, errCh chan<- error, listener net.Listener) {
+	server.backgroundWorkersSync.Add(1)
+	go func() {
+		defer server.backgroundWorkersSync.Done()
+		grpcLogger := logger.WithField(ConnectionTypeKey, GRPCConnectionType)
+		logger.WithField("connection_string", server.config.IncomingConnectionGRPCString()).Infof("Start process gRPC requests")
+		var err error
+		var opts []grpc.ServerOption
+		if server.config.WithTLS() {
+			opts = append(opts, grpc.Creds(credentials.NewTLS(server.config.GetTLSConfig())))
+		} else {
+			wrapper, err := network.NewSecureSessionConnectionWrapper(server.config.ServerID(), server.keystorage)
+			if err != nil {
+				grpcLogger.WithError(err).Errorln("Can't initialize Secure Session wrapper")
+				errCh <- err
+				return
+			}
+			opts = append(opts, grpc.Creds(wrapper))
+		}
+
+		server.listenerGRPC = listener
+		grpcListener := common.WrapListenerWithMetrics(listener)
+		grpcServer, err := server.grpcServerFactory.New(decryptorData, opts...)
+		if err != nil {
+			logger.WithError(err).Errorln("Can't create new grpc server")
+			errCh <- err
+			return
+		}
+		server.grpcServer = grpcServer
+		if err := grpcServer.Serve(grpcListener); err != nil {
+			grpcLogger.Errorf("failed to serve: %v", err)
+			server.Stop()
+			errCh <- err
+			return
+		}
+	}()
+}
+
+func (server *ReaderServer) detectPoisonRecords(poisonCallbackStorage *base.PoisonCallbackStorage) {
 	if server.config.DetectPoisonRecords() {
 		if server.config.ScriptOnPoison() != "" {
 			log.Infof("Add poison record callback with script execution %v", server.config.ScriptOnPoison())
-			poisonCallbacks.AddCallback(base.NewExecuteScriptCallback(server.config.ScriptOnPoison()))
+			poisonCallbackStorage.AddCallback(base.NewExecuteScriptCallback(server.config.ScriptOnPoison()))
 		}
 
 		// must be last
 		if server.config.StopOnPoison() {
 			log.Infoln("Add poison record callback with AcraTranslator termination")
-			poisonCallbacks.AddCallback(&base.StopCallback{})
+			poisonCallbackStorage.AddCallback(&base.StopCallback{})
 		}
 	}
+}
+
+func (server *ReaderServer) exitWithTimeout() {
+	// We should use this function when shutdown service as a defer. In this case global 'cancel'
+	// has been called. Now we should wait (not more than specified duration) until all
+	// background goroutines spawned by readerServer will finish their execution or force their closing.
+	// Another case is error while initialization of http/grpc (while creating listeners)
+	if utils.WaitWithTimeout(&server.backgroundWorkersSync, utils.DefaultWaitGroupTimeoutDuration) {
+		log.Errorf("Couldn't stop all background goroutines spawned by readerServer. Exited by timeout")
+	}
+}
+
+// StartFromFileDescriptor starts listening commands connections from file descriptor.
+func (server *ReaderServer) StartFromFileDescriptor(parentContext context.Context, fdHTTP, fdGRPC uintptr) {
+	defer server.exitWithTimeout()
+
+	logger := logging.GetLoggerFromContext(parentContext)
+	poisonCallbacks := base.NewPoisonCallbackStorage()
+	server.detectPoisonRecords(poisonCallbacks)
+	errCh := make(chan error)
+
 	decryptorData := &common.TranslatorData{Keystorage: server.keystorage, PoisonRecordCallbacks: poisonCallbacks, CheckPoisonRecords: server.config.DetectPoisonRecords()}
 	if server.config.IncomingConnectionHTTPString() != "" {
-		server.waitGroup.Add(1)
-		go func() {
-			defer server.waitGroup.Done()
-			httpContext := logging.SetLoggerToContext(parentContext, logger.WithField(ConnectionTypeKey, HTTPConnectionType))
-			httpDecryptor, err := http_api.NewHTTPConnectionsDecryptor(decryptorData)
-			logger.WithField("connection_string", server.config.IncomingConnectionHTTPString()).Infof("Start process HTTP requests")
-			if err != nil {
-				log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorTranslatorCantHandleHTTPConnection).
-					Errorln("Can't create HTTP decryptor")
-			}
-			server.httpDecryptor = httpDecryptor
-			err = server.HandleConnectionString(withHandlerName(httpContext, "processHTTPConnection"), server.config.IncomingConnectionHTTPString(), server.processHTTPConnection)
-			if err != nil {
-				log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorTranslatorCantHandleHTTPConnection).
-					Errorln("Took error on handling HTTP requests")
-				server.Stop()
-				os.Exit(1)
-			}
-		}()
+		// create HTTP listener from correspondent file descriptor
+		file := os.NewFile(fdHTTP, "/tmp/acra-translator_http")
+		if file == nil {
+			logger.Errorln("Can't create new file from descriptor for acra listener")
+			return
+		}
+		listenerFile, err := net.FileListener(file)
+		if err != nil {
+			logger.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantOpenFileByDescriptor).
+				Errorln("System error: can't start listen for file descriptor")
+			return
+		}
+
+		listenerWithFileDescriptor, ok := listenerFile.(network.ListenerWithFileDescriptor)
+		if !ok {
+			logger.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorFileDescriptionIsNotValid).
+				Errorf("System error: file descriptor %d is not a valid socket", fdHTTP)
+			return
+		}
+		server.listenerHTTP = listenerWithFileDescriptor
+		server.startHTTP(parentContext, logger, decryptorData, errCh, listenerWithFileDescriptor)
 	}
+
 	// provide way to register new services and custom server
 	if server.config.IncomingConnectionGRPCString() != "" {
-		server.waitGroup.Add(1)
-		go func() {
-			defer server.waitGroup.Done()
-			grpcLogger := logger.WithField(ConnectionTypeKey, GRPCConnectionType)
-			logger.WithField("connection_string", server.config.IncomingConnectionGRPCString()).Infof("Start process gRPC requests")
-			var listener net.Listener
-			var err error
-			var opts []grpc.ServerOption
-			if server.config.WithTLS() {
-				listener, err = network.Listen(server.config.IncomingConnectionGRPCString())
-				if err != nil {
-					grpcLogger.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorTranslatorCantHandleGRPCConnection).
-						Errorln("Can't create gRPC connection listener")
-					return
-				}
-				opts = append(opts, grpc.Creds(credentials.NewTLS(server.config.GetTLSConfig())))
-			} else {
-				listener, err = network.Listen(server.config.IncomingConnectionGRPCString())
-				if err != nil {
-					grpcLogger.WithError(err).Errorln("Can't initialize connection listener")
-					return
-				}
-				wrapper, err := network.NewSecureSessionConnectionWrapper(server.config.ServerID(), server.keystorage)
-				if err != nil {
-					grpcLogger.WithError(err).Errorln("Can't initialize Secure Session wrapper")
-					return
-				}
-				opts = append(opts, grpc.Creds(wrapper))
-			}
+		// load gRPC listener from correspondent file descriptor
+		file := os.NewFile(fdGRPC, "/tmp/acra-translator_grpc")
+		if file == nil {
+			logger.Errorln("Can't create new file from descriptor for acra listener")
+			return
+		}
+		listenerFile, err := net.FileListener(file)
+		if err != nil {
+			logger.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantOpenFileByDescriptor).
+				Errorln("System error: can't start listen for file descriptor")
+			return
+		}
 
-			grpcListener := common.WrapListenerWithMetrics(listener)
-
-			grpcServer, err := server.grpcServerFactory.New(decryptorData, opts...)
-
-			if err != nil {
-				logger.WithError(err).Errorln("Can't create new grpc server")
-				os.Exit(1)
-			}
-			server.grpcServer = grpcServer
-			if err := grpcServer.Serve(grpcListener); err != nil {
-				grpcLogger.Errorf("failed to serve: %v", err)
-				server.Stop()
-				os.Exit(1)
-				return
-			}
-		}()
+		listenerWithFileDescriptor, ok := listenerFile.(network.ListenerWithFileDescriptor)
+		if !ok {
+			logger.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorFileDescriptionIsNotValid).
+				Errorf("System error: file descriptor %d is not a valid socket", fdGRPC)
+			return
+		}
+		server.listenerGRPC = listenerWithFileDescriptor
+		server.startGrpc(logger, decryptorData, errCh, listenerWithFileDescriptor)
 	}
-	<-parentContext.Done()
 
-	// global 'cancel' has been called. Now we should wait (not more than specified duration) until all
-	// background goroutines spawned by readerServer will finish their execution
-	if utils.WaitWithTimeout(&server.waitGroup, utils.DefaultWaitGroupTimeoutDuration) {
-		log.Errorf("Couldn't stop all background goroutines spawned by readerServer. Exited by timeout")
+	select {
+	case <-parentContext.Done():
+		break
+	case <-errCh:
+		// occurred error will be logged, so just break and exit with timeout,
+		// according to defer func
+		break
 	}
 	return
 }
@@ -350,4 +431,68 @@ func (server *ReaderServer) processHTTPConnection(parentContext context.Context,
 
 	response := server.httpDecryptor.ParseRequestPrepareResponse(logger, request, clientID)
 	server.httpDecryptor.SendResponse(logger, response, connection)
+}
+
+// Constants show possible connection types.
+const (
+	ConnectionTypeKey  = "connection_type"
+	HTTPConnectionType = "http"
+	GRPCConnectionType = "grpc"
+)
+
+func stopAcceptConnections(listener network.DeadlineListener) (err error) {
+	if listener != nil {
+		err = listener.SetDeadline(time.Now())
+		if err != nil {
+			log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantStopListenConnections).
+				Errorln("Unable to SetDeadLine for listener")
+		}
+	} else {
+		log.Warningln("Can't set deadline for server listener")
+	}
+	return
+}
+
+// StopListeners stops our HTTP/GRPC listeners from accepting new connections
+func (server *ReaderServer) StopListeners() {
+	log.Debugln("Stopping listeners")
+	if server.listenerHTTP != nil {
+		err := stopListener(server.listenerHTTP)
+		if err != nil {
+			log.WithError(err).Warningln("Error occured while stopping HTTP listener")
+		}
+	}
+	if server.listenerGRPC != nil {
+		err := stopListener(server.listenerGRPC)
+		if err != nil {
+			log.WithError(err).Warningln("Error occured while stopping GRPC listener")
+		}
+	}
+	log.Debugln("Listeners have been stopped")
+}
+
+func stopListener(listener net.Listener) error {
+	deadlineListener, err := network.CastListenerToDeadline(listener)
+	if err != nil {
+		return err
+	}
+	if err = stopAcceptConnections(deadlineListener); err != nil {
+		return err
+	}
+	return nil
+}
+
+// GetHTTPListener returns HTTP listener object
+func (server *ReaderServer) GetHTTPListener() net.Listener {
+	return server.listenerHTTP
+}
+
+// GetGRPCListener returns GRPC listener object
+func (server *ReaderServer) GetGRPCListener() net.Listener {
+	return server.listenerGRPC
+}
+
+// GetConnectionManager returns ConnectionManager object
+func (server *ReaderServer) GetConnectionManager() *network.ConnectionManager {
+	return server.connectionManager
 }

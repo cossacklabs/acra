@@ -18,55 +18,47 @@ package common
 
 import (
 	"context"
-	"net"
-
-	"github.com/cossacklabs/acra/logging"
-	"github.com/cossacklabs/acra/network"
+	logging "github.com/cossacklabs/acra/logging"
 	"github.com/prometheus/client_golang/prometheus"
+	"net"
 )
 
 // AcceptConnections return channel which will produce new connections from listener in background goroutine
-func AcceptConnections(parentContext context.Context, connectionString string, errCh chan<- error) (<-chan net.Conn, error) {
+func AcceptConnections(parentContext context.Context, listener net.Listener, errCh chan<- error) (<-chan net.Conn, error) {
 	logger := logging.GetLoggerFromContext(parentContext)
-	listenContext, cancel := context.WithCancel(parentContext)
 	connectionChannel := make(chan net.Conn)
-	listener, err := network.Listen(connectionString)
-	if err != nil {
-		cancel()
-		return nil, err
-	}
 
-	// run goroutine that just accept connections and return them and stop on error. you can stop it by closing listener
+	// Run goroutine that just accept connections and return them and stop on error.
+	// We need to have a control under this goroutine while shutdown process but we can't rely on
+	// parentContext.Done since this event comes later that closing listener that accepts (we use listener
+	// provided by caller, and caller is responsible for closing it).
+	// For this reason we assume that *net.OpError == "accept" in case of accepting error
+	// is normal case when shutdown is invoked
+
 	go func() {
 		for {
 			conn, err := listener.Accept()
 			if err != nil {
-				logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantAcceptNewConnections).WithError(err).Errorln("Error on accept connection")
-				errCh <- err
-				cancel()
+				// https://stackoverflow.com/questions/13417095/how-do-i-stop-a-listening-server-in-go
+				if operationalError, ok := err.(*net.OpError); ok && operationalError.Op == "accept" {
+					// This is a normal case, when listener is closed while it accepts, so just return
+					logger.Infoln("Listener has been stopped by caller while accepting")
+				} else {
+					logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantAcceptNewConnections).WithError(err).Errorln("Error on accept connection")
+					errCh <- err
+				}
 				return
 			}
 			conn, err = wrapHTTPConnectionWithTimer(conn)
 			if err != nil {
 				logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantWrapConnectionWithTimer).WithError(err).Errorln("Can't wrap connection with metric")
 				errCh <- err
-				cancel()
 				return
 			}
 			connectionChannel <- conn
 		}
 	}()
 
-	// wait Done signal from caller or from "accept" goroutine and stop listener
-	go func() {
-		<-listenContext.Done()
-		logger.WithError(listenContext.Err()).Infoln("Close listener")
-		// stop listener and goroutine that produce connections from listener
-		err := listener.Close()
-		if err != nil {
-			logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantStopListenConnections).WithError(err).Errorln("Error on closing listener")
-		}
-	}()
 	return connectionChannel, nil
 }
 
