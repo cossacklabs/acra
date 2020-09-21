@@ -8,6 +8,7 @@ RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get -y install \
     build-essential \
     ca-certificates \
     curl \
+    default-mysql-client \
     git \
     gnupg \
     libpq-dev \

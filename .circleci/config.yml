@@ -87,7 +87,7 @@ jobs:
 
   mariadb-ssl:
     docker:
-    - image: cossacklabs/android-build
+    - image: cossacklabs/ci-py-go-themis:T1776-new-docker-image-for-acra-ci
     # use the same credentials for mysql db as for postgresql (which support was added first)
     # has latest tag on 2018.03.29
     - image: cossacklabs/mariadb-ssl:10.3-1
@@ -98,45 +98,42 @@ jobs:
         MYSQL_ROOT_PASSWORD: root
     environment:
       FILEPATH_ERROR_FLAG: /tmp/test_fail
-      VERSIONS: 1.13.15 1.14.9 1.15.2
       TEST_MYSQL: "true"
       TEST_DB_PORT: "3306"
-      GOPATH_FOLDER: gopath
       TEST_RANDOM_DATA_FOLDER: /tmp/test_data
       TEST_TLS: "on"
-      GOPATH: /home/user/gopath
-    steps:
-    # prepare
-    - checkout
-    - run: .circleci/prepare.sh
-    - run: sudo apt-get install -y mysql-client
-    - run: mysqladmin ping -h127.0.0.1
-    # testing
-    # generate test data for integration tests
-    - run: python3 tests/generate_random_data.py
-    # each iteration pass to test different ports for forks to avoid problems with TCP TIME WAIT between tests
-    - run:
-        name: Integration tests (keystore v1)
-        environment:
-          TEST_KEYSTORE: v1
-        command: |
-          .circleci/integration.sh
-          if [ -f  $FILEPATH_ERROR_FLAG ]; then cat "$FILEPATH_ERROR_FLAG"; rm "$FILEPATH_ERROR_FLAG"; exit 1; fi
-    - run:
-        name: Integration tests (keystore v2)
-        environment:
-          TEST_KEYSTORE: v2
-        command: |
-          .circleci/integration.sh
-          if [ -f  $FILEPATH_ERROR_FLAG ]; then cat "$FILEPATH_ERROR_FLAG"; rm "$FILEPATH_ERROR_FLAG"; exit 1; fi
-    - store_test_results:
-        path: /home/user/tests_output
-    - store_artifacts:
-        path: /home/user/tests_output
+      # GOPATH: /home/user/gopath
+      GOROOT: /usr/lib/go/1.15.2/go
+    steps: &mariadb-ssl-steps
+      # prepare
+      - checkout
+      - run: mysqladmin ping -h127.0.0.1
+      # testing
+      # generate test data for integration tests
+      - run: python3 tests/generate_random_data.py
+      # each iteration pass to test different ports for forks to avoid problems with TCP TIME WAIT between tests
+      - run:
+          name: Integration tests (keystore v1)
+          environment:
+            TEST_KEYSTORE: v1
+          command: |
+            .circleci/integration.sh
+            if [ -f  $FILEPATH_ERROR_FLAG ]; then cat "$FILEPATH_ERROR_FLAG"; rm "$FILEPATH_ERROR_FLAG"; exit 1; fi
+      - run:
+          name: Integration tests (keystore v2)
+          environment:
+            TEST_KEYSTORE: v2
+          command: |
+            .circleci/integration.sh
+            if [ -f  $FILEPATH_ERROR_FLAG ]; then cat "$FILEPATH_ERROR_FLAG"; rm "$FILEPATH_ERROR_FLAG"; exit 1; fi
+      - store_test_results:
+          path: /home/user/tests_output
+      - store_artifacts:
+          path: /home/user/tests_output
 
   mariadb:
     docker:
-      - image: cossacklabs/android-build
+      - image: cossacklabs/ci-py-go-themis:T1776-new-docker-image-for-acra-ci
       # use the same credentials for mysql db as for postgresql (which support was added first)
       # has latest tag on 2018.03.29
       - image: mariadb:latest
@@ -147,18 +144,36 @@ jobs:
           MYSQL_ROOT_PASSWORD: root
     environment:
       FILEPATH_ERROR_FLAG: /tmp/test_fail
-      VERSIONS: 1.13.15 1.14.9 1.15.2
       TEST_MYSQL: "true"
       TEST_DB_PORT: "3306"
-      GOPATH_FOLDER: gopath
       TEST_RANDOM_DATA_FOLDER: /tmp/test_data
       TEST_TLS: "off"
+      # GOPATH: /home/user/gopath
+      GOROOT: /usr/lib/go/1.15.2/go
+    steps: *mariadb-ssl-steps
+
+  mysql-ssl:
+    docker:
+      - image: cossacklabs/ci-py-go-themis:T1776-new-docker-image-for-acra-ci
+      # use the same credentials for mysql db as for postgresql (which support was added first)
+      # has latest tag on 2018.03.29
+      - image: cossacklabs/mysql-ssl:5.7.25-1
+        environment:
+          MYSQL_DATABASE: test
+          MYSQL_USER: test
+          MYSQL_PASSWORD: test
+          MYSQL_ROOT_PASSWORD: root
+    environment:
+      FILEPATH_ERROR_FLAG: /tmp/test_fail
+      TEST_MYSQL: "true"
+      TEST_DB_PORT: "3306"
+      TEST_RANDOM_DATA_FOLDER: /tmp/test_data
+      TEST_TLS: "on"
       GOPATH: /home/user/gopath
-    steps:
+      GOROOT: /usr/lib/go/1.15.2/go
+    steps: &mysql-ssl-steps
       # prepare
       - checkout
-      - run: .circleci/prepare.sh
-      - run: sudo apt-get install -y mysql-client
       - run: mysqladmin ping -h127.0.0.1
       # testing
       # generate test data for integration tests
@@ -183,58 +198,9 @@ jobs:
       - store_artifacts:
           path: /home/user/tests_output
 
-  mysql-ssl:
-    docker:
-    - image: cossacklabs/android-build
-    # use the same credentials for mysql db as for postgresql (which support was added first)
-    # has latest tag on 2018.03.29
-    - image: cossacklabs/mysql-ssl:5.7.25-1
-      environment:
-        MYSQL_DATABASE: test
-        MYSQL_USER: test
-        MYSQL_PASSWORD: test
-        MYSQL_ROOT_PASSWORD: root
-    environment:
-      FILEPATH_ERROR_FLAG: /tmp/test_fail
-      VERSIONS: 1.13.15 1.14.9 1.15.2
-      TEST_MYSQL: "true"
-      TEST_DB_PORT: "3306"
-      GOPATH_FOLDER: gopath
-      TEST_RANDOM_DATA_FOLDER: /tmp/test_data
-      TEST_TLS: "on"
-      GOPATH: /home/user/gopath
-    steps:
-    # prepare
-    - checkout
-    - run: .circleci/prepare.sh
-    - run: sudo apt-get install -y mysql-client
-    - run: mysqladmin ping -h127.0.0.1
-    # testing
-    # generate test data for integration tests
-    - run: python3 tests/generate_random_data.py
-    # each iteration pass to test different ports for forks to avoid problems with TCP TIME WAIT between tests
-    - run:
-        name: Integration tests (keystore v1)
-        environment:
-          TEST_KEYSTORE: v1
-        command: |
-          .circleci/integration.sh
-          if [ -f  $FILEPATH_ERROR_FLAG ]; then cat "$FILEPATH_ERROR_FLAG"; rm "$FILEPATH_ERROR_FLAG"; exit 1; fi
-    - run:
-        name: Integration tests (keystore v2)
-        environment:
-          TEST_KEYSTORE: v2
-        command: |
-          .circleci/integration.sh
-          if [ -f  $FILEPATH_ERROR_FLAG ]; then cat "$FILEPATH_ERROR_FLAG"; rm "$FILEPATH_ERROR_FLAG"; exit 1; fi
-    - store_test_results:
-        path: /home/user/tests_output
-    - store_artifacts:
-        path: /home/user/tests_output
-
   mysql:
     docker:
-      - image: cossacklabs/android-build
+      - image: cossacklabs/ci-py-go-themis:T1776-new-docker-image-for-acra-ci
       - image: mysql:5.7.25
         environment:
           MYSQL_DATABASE: test
@@ -243,41 +209,13 @@ jobs:
           MYSQL_ROOT_PASSWORD: root
     environment:
       FILEPATH_ERROR_FLAG: /tmp/test_fail
-      VERSIONS: 1.13.15 1.14.9 1.15.2
       TEST_MYSQL: "true"
       TEST_DB_PORT: "3306"
-      GOPATH_FOLDER: gopath
       TEST_RANDOM_DATA_FOLDER: /tmp/test_data
       TEST_TLS: "off"
       GOPATH: /home/user/gopath
-    steps:
-      # prepare
-      - checkout
-      - run: .circleci/prepare.sh
-      - run: sudo apt-get install -y mysql-client
-      - run: mysqladmin ping -h127.0.0.1
-      # testing
-      # generate test data for integration tests
-      - run: python3 tests/generate_random_data.py
-      # each iteration pass to test different ports for forks to avoid problems with TCP TIME WAIT between tests
-      - run:
-          name: Integration tests (keystore v1)
-          environment:
-            TEST_KEYSTORE: v1
-          command: |
-            .circleci/integration.sh
-            if [ -f  $FILEPATH_ERROR_FLAG ]; then cat "$FILEPATH_ERROR_FLAG"; rm "$FILEPATH_ERROR_FLAG"; exit 1; fi
-      - run:
-          name: Integration tests (keystore v2)
-          environment:
-            TEST_KEYSTORE: v2
-          command: |
-            .circleci/integration.sh
-            if [ -f  $FILEPATH_ERROR_FLAG ]; then cat "$FILEPATH_ERROR_FLAG"; rm "$FILEPATH_ERROR_FLAG"; exit 1; fi
-      - store_test_results:
-          path: /home/user/tests_output
-      - store_artifacts:
-          path: /home/user/tests_output
+      GOROOT: /usr/lib/go/1.15.2/go
+    steps: *mysql-ssl-steps
 
 workflows:
   version: 2
