@@ -56,6 +56,11 @@ type ReaderServer struct {
 	listenerGRPC          net.Listener
 }
 
+const (
+	grpcFilenamePlaceholder = "tmp/acra_translator_grpc"
+	httpFilenamePlaceholder = "tmp/acra_translator_http"
+)
+
 // NewReaderServer creates Reader server with provided params.
 func NewReaderServer(config *common.AcraTranslatorConfig, keystorage keystore.TranslationKeyStore, grpcServerFactory common.GRPCServerFactory, waitTimeout time.Duration) (server *ReaderServer, err error) {
 	return &ReaderServer{
@@ -125,7 +130,7 @@ func (server *ReaderServer) HandleHTTPConnection(parentContext context.Context, 
 			case connection = <-connectionChannel:
 				break
 			case <-parentContext.Done():
-				if !errors.As(parentContext.Err(), &context.Canceled) {
+				if !errors.Is(parentContext.Err(), context.Canceled) {
 					logger.WithError(parentContext.Err()).Debugln("Stop wrapping new connections")
 				}
 				return
@@ -189,15 +194,17 @@ func (server *ReaderServer) HandleHTTPConnection(parentContext context.Context, 
 	case <-parentContext.Done():
 		outErr = parentContext.Err()
 	case outErr = <-errCh:
-		log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorTranslatorCantAcceptNewHTTPConnection).
-			Errorln("Error on accepting new connections")
+		if outErr != nil {
+			log.WithError(outErr).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorTranslatorCantAcceptNewHTTPConnection).
+				Errorln("Error on accepting new connections")
+		}
 	}
 	return outErr
 }
 
 // Start setups gRPC handler or HTTP handler, poison records callbacks and starts listening to connections.
 func (server *ReaderServer) Start(parentContext context.Context) {
-	defer server.exitWithTimeout()
+	defer server.waitForExitTimeout()
 
 	logger := logging.GetLoggerFromContext(parentContext)
 	poisonCallbacks := base.NewPoisonCallbackStorage()
@@ -225,15 +232,16 @@ func (server *ReaderServer) Start(parentContext context.Context) {
 			return
 		}
 		server.listenerGRPC = listener
-		server.startGrpc(logger, decryptorData, errCh, listener)
+		server.startGRPC(logger, decryptorData, errCh, listener)
 	}
 
 	select {
 	case <-parentContext.Done():
 		break
-	case <-errCh:
-		// error that occurred in background goroutines will be logged, so just break and exit with timeout,
-		// according to defer func
+	case outErr := <-errCh:
+		if outErr != nil {
+			log.WithError(outErr).Errorln("Can't correctly exit from readerServer component")
+		}
 		break
 	}
 	return
@@ -257,7 +265,7 @@ func (server *ReaderServer) startHTTP(parentContext context.Context, logger *log
 		if err != nil {
 			// It is a "normal" case, when we shutdown service - we call 'cancel' on main level in SIGTERM/SIGINT handlers,
 			// so let's avoid treating context.Canceled as error here
-			if !errors.As(err, &context.Canceled) {
+			if !errors.Is(err, context.Canceled) {
 				log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorTranslatorCantHandleHTTPConnection).
 					Errorln("Took error on handling HTTP requests")
 				server.Stop()
@@ -268,7 +276,7 @@ func (server *ReaderServer) startHTTP(parentContext context.Context, logger *log
 	}()
 }
 
-func (server *ReaderServer) startGrpc(logger *log.Entry, decryptorData *common.TranslatorData, errCh chan<- error, listener net.Listener) {
+func (server *ReaderServer) startGRPC(logger *log.Entry, decryptorData *common.TranslatorData, errCh chan<- error, listener net.Listener) {
 	server.backgroundWorkersSync.Add(1)
 	go func() {
 		defer server.backgroundWorkersSync.Done()
@@ -292,7 +300,7 @@ func (server *ReaderServer) startGrpc(logger *log.Entry, decryptorData *common.T
 		grpcListener := common.WrapListenerWithMetrics(listener)
 		grpcServer, err := server.grpcServerFactory.New(decryptorData, opts...)
 		if err != nil {
-			logger.WithError(err).Errorln("Can't create new grpc server")
+			logger.WithError(err).Errorln("Can't create new gRPC server")
 			errCh <- err
 			return
 		}
@@ -321,7 +329,7 @@ func (server *ReaderServer) detectPoisonRecords(poisonCallbackStorage *base.Pois
 	}
 }
 
-func (server *ReaderServer) exitWithTimeout() {
+func (server *ReaderServer) waitForExitTimeout() {
 	// We should use this function when shutdown service as a defer. In this case global 'cancel'
 	// has been called. Now we should wait (not more than specified duration) until all
 	// background goroutines spawned by readerServer will finish their execution or force their closing.
@@ -333,7 +341,7 @@ func (server *ReaderServer) exitWithTimeout() {
 
 // StartFromFileDescriptor starts listening commands connections from file descriptor.
 func (server *ReaderServer) StartFromFileDescriptor(parentContext context.Context, fdHTTP, fdGRPC uintptr) {
-	defer server.exitWithTimeout()
+	defer server.waitForExitTimeout()
 
 	logger := logging.GetLoggerFromContext(parentContext)
 	poisonCallbacks := base.NewPoisonCallbackStorage()
@@ -343,9 +351,9 @@ func (server *ReaderServer) StartFromFileDescriptor(parentContext context.Contex
 	decryptorData := &common.TranslatorData{Keystorage: server.keystorage, PoisonRecordCallbacks: poisonCallbacks, CheckPoisonRecords: server.config.DetectPoisonRecords()}
 	if server.config.IncomingConnectionHTTPString() != "" {
 		// create HTTP listener from correspondent file descriptor
-		file := os.NewFile(fdHTTP, "/tmp/acra-translator_http")
+		file := os.NewFile(fdHTTP, httpFilenamePlaceholder)
 		if file == nil {
-			logger.Errorln("Can't create new file from descriptor for acra listener")
+			logger.Errorln("Can't create new file from descriptor for Acra HTTP listener")
 			return
 		}
 		listenerFile, err := net.FileListener(file)
@@ -368,9 +376,9 @@ func (server *ReaderServer) StartFromFileDescriptor(parentContext context.Contex
 	// provide way to register new services and custom server
 	if server.config.IncomingConnectionGRPCString() != "" {
 		// load gRPC listener from correspondent file descriptor
-		file := os.NewFile(fdGRPC, "/tmp/acra-translator_grpc")
+		file := os.NewFile(fdGRPC, grpcFilenamePlaceholder)
 		if file == nil {
-			logger.Errorln("Can't create new file from descriptor for acra listener")
+			logger.Errorln("Can't create new file from descriptor for Acra gRPC listener")
 			return
 		}
 		listenerFile, err := net.FileListener(file)
@@ -387,15 +395,16 @@ func (server *ReaderServer) StartFromFileDescriptor(parentContext context.Contex
 			return
 		}
 		server.listenerGRPC = listenerWithFileDescriptor
-		server.startGrpc(logger, decryptorData, errCh, listenerWithFileDescriptor)
+		server.startGRPC(logger, decryptorData, errCh, listenerWithFileDescriptor)
 	}
 
 	select {
 	case <-parentContext.Done():
 		break
-	case <-errCh:
-		// occurred error will be logged, so just break and exit with timeout,
-		// according to defer func
+	case outErr := <-errCh:
+		if outErr != nil {
+			log.WithError(outErr).Errorln("Can't correctly exit from readerServer component")
+		}
 		break
 	}
 	return
@@ -465,7 +474,7 @@ func (server *ReaderServer) StopListeners() {
 	if server.listenerGRPC != nil {
 		err := stopListener(server.listenerGRPC)
 		if err != nil {
-			log.WithError(err).Warningln("Error occured while stopping GRPC listener")
+			log.WithError(err).Warningln("Error occured while stopping gRPC listener")
 		}
 	}
 	log.Debugln("Listeners have been stopped")

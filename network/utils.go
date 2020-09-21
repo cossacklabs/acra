@@ -102,13 +102,15 @@ func (listener *safeCloseListener) Close() error {
 	return listener.err
 }
 
+var ErrNilListener = errors.New("nil listener")
+
 // Accept proxy call to wrapped listener and wrapp accepted connection with safeCloseConnection
 func (listener *safeCloseListener) Accept() (net.Conn, error) {
 	if listener.Listener != nil {
 		conn, err := listener.Listener.Accept()
 		return newSafeCloseConnection(conn), err
 	}
-	return nil, errors.New("nil listener")
+	return nil, ErrNilListener
 }
 
 // Dial connectionString like protocol://path where protocol is any supported via net.Dial (tcp|unix)
