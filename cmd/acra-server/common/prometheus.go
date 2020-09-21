@@ -13,14 +13,16 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
-package main
+
+package common
 
 import (
+	"sync"
+
 	"github.com/cossacklabs/acra/cmd"
 	"github.com/cossacklabs/acra/decryptor/base"
 	"github.com/cossacklabs/acra/utils"
 	"github.com/prometheus/client_golang/prometheus"
-	"sync"
 )
 
 const (
@@ -45,17 +47,14 @@ var (
 
 var registerLock = sync.Once{}
 
-func registerMetrics() {
+// RegisterMetrics registers AcraServer metrics.
+func RegisterMetrics(serviceName string, version *utils.Version, edition utils.ProductEdition) {
 	registerLock.Do(func() {
 		prometheus.MustRegister(connectionCounter)
 		prometheus.MustRegister(connectionProcessingTimeHistogram)
 		base.RegisterAcraStructProcessingMetrics()
 		base.RegisterDbProcessingMetrics()
-		version, err := utils.GetParsedVersion()
-		if err != nil {
-			panic(err)
-		}
-		cmd.RegisterVersionMetrics(ServiceName, version)
-		cmd.RegisterBuildInfoMetrics(ServiceName, utils.CommunityEdition)
+		cmd.RegisterVersionMetrics(serviceName, version)
+		cmd.RegisterBuildInfoMetrics(serviceName, edition)
 	})
 }

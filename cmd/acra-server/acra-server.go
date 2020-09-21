@@ -32,7 +32,6 @@ package main
 
 import (
 	"crypto/tls"
-	"errors"
 	"flag"
 	"net/http"
 	_ "net/http/pprof"
@@ -41,6 +40,7 @@ import (
 	"time"
 
 	"github.com/cossacklabs/acra/cmd"
+	"github.com/cossacklabs/acra/cmd/acra-server/common"
 	"github.com/cossacklabs/acra/decryptor/base"
 	"github.com/cossacklabs/acra/decryptor/mysql"
 	"github.com/cossacklabs/acra/decryptor/postgresql"
@@ -72,9 +72,6 @@ const (
 
 // defaultConfigPath relative path to config which will be parsed as default
 var defaultConfigPath = utils.GetConfigPathByName(ServiceName)
-
-// ErrWaitTimeout error indicates that server was shutdown and waited N seconds while shutting down all connections.
-var ErrWaitTimeout = errors.New("timeout")
 
 func main() {
 	loggingFormat := flag.String("logging_format", "plaintext", "Logging format: plaintext, json or CEF")
@@ -146,7 +143,7 @@ func main() {
 
 	log.WithField("version", utils.VERSION).Infof("Starting service %v [pid=%v]", ServiceName, os.Getpid())
 
-	config, err := NewConfig()
+	config, err := common.NewConfig()
 	if err != nil {
 		log.WithError(err).Errorln("Can't initialize config")
 		os.Exit(1)
@@ -174,7 +171,7 @@ func main() {
 		flag.Usage()
 		os.Exit(1)
 	}
-	config.setDBConnectionSettings(*dbHost, *dbPort)
+	config.SetDBConnectionSettings(*dbHost, *dbPort)
 
 	if *encryptorConfig != "" {
 		log.Infof("Load encryptor configuration from %s ...", *encryptorConfig)
@@ -203,6 +200,9 @@ func main() {
 	config.SetWholeMatch(!(*injectedcell))
 	config.SetEnableHTTPAPI(*enableHTTPAPI)
 	config.SetDebug(*debug)
+	config.SetAuthDataPath(*authPath)
+	config.SetServiceName(ServiceName)
+	config.SetConfigPath(cmd.ConfigPath(defaultConfigPath))
 
 	log.Infof("Initialising keystore...")
 	var keyStore keystore.ServerKeyStore
@@ -211,7 +211,7 @@ func main() {
 	} else {
 		keyStore = openKeyStoreV1(*keysDir, *keysCacheSize)
 	}
-	config.setKeyStore(keyStore)
+	config.SetKeyStore(keyStore)
 	log.Infof("Keystore init OK")
 
 	log.Infof("Configuring transport...")
@@ -234,7 +234,7 @@ func main() {
 			os.Exit(1)
 		}
 	} else if *noEncryptionTransport {
-		config.setWithConnector(false)
+		config.SetWithConnector(false)
 		if *clientID == "" && !*withZone {
 			log.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorTransportConfiguration).
 				Errorln("Configuration error: without zone mode and without encryption you must set <client_id> which will be used to connect from AcraConnector to AcraServer")
@@ -272,20 +272,20 @@ func main() {
 	poisonCallbacks := base.NewPoisonCallbackStorage()
 	if *scriptOnPoison != "" {
 		poisonCallbacks.AddCallback(base.NewExecuteScriptCallback(*scriptOnPoison))
-		config.scriptOnPoison = *scriptOnPoison
+		config.SetScriptOnPoison(*scriptOnPoison)
 	}
 	// should setup "stopOnPoison" as last poison record callback"
 	if *stopOnPoison {
 		poisonCallbacks.AddCallback(&base.StopCallback{})
-		config.stopOnPoison = *stopOnPoison
+		config.SetStopOnPoison(*stopOnPoison)
 	}
 
-	decryptorSetting := base.NewDecryptorSetting(config.withZone, config.GetWholeMatch(), *detectPoisonRecords, poisonCallbacks, keyStore)
+	decryptorSetting := base.NewDecryptorSetting(config.GetWithZone(), config.GetWholeMatch(), *detectPoisonRecords, poisonCallbacks, keyStore)
 	var decryptorFactory base.DecryptorFactory
 	var proxyFactory base.ProxyFactory
 	if *useMysql {
 		decryptorFactory = mysql.NewMysqlDecryptorFactory(decryptorSetting)
-		proxyFactory, err = mysql.NewProxyFactory(base.NewProxySetting(decryptorFactory, config.tableSchema, keyStore, tlsConfig, config.censor))
+		proxyFactory, err = mysql.NewProxyFactory(base.NewProxySetting(decryptorFactory, config.GetTableSchema(), keyStore, tlsConfig, config.GetCensor()))
 		if err != nil {
 			log.WithError(err).Errorln("Can't initialize proxy for connections")
 			os.Exit(1)
@@ -293,7 +293,7 @@ func main() {
 		sqlparser.SetDefaultDialect(mysqlDialect.NewMySQLDialect())
 	} else {
 		decryptorFactory = postgresql.NewDecryptorFactory(decryptorSetting)
-		proxyFactory, err = postgresql.NewProxyFactory(base.NewProxySetting(decryptorFactory, config.tableSchema, keyStore, tlsConfig, config.censor))
+		proxyFactory, err = postgresql.NewProxyFactory(base.NewProxySetting(decryptorFactory, config.GetTableSchema(), keyStore, tlsConfig, config.GetCensor()))
 		if err != nil {
 			log.WithError(err).Errorln("Can't initialize proxy for connections")
 			os.Exit(1)
@@ -301,8 +301,7 @@ func main() {
 		sqlparser.SetDefaultDialect(pgDialect.NewPostgreSQLDialect())
 	}
 
-	var server *SServer
-	server, err = NewServer(config, proxyFactory, errorSignalChannel, restartSignalsChannel)
+	server, err := common.NewServer(config, proxyFactory, errorSignalChannel, restartSignalsChannel)
 	if err != nil {
 		log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantStartService).
 			Errorf("System error: can't start %s", ServiceName)
@@ -310,8 +309,6 @@ func main() {
 	}
 
 	if os.Getenv(gracefulEnv) == "true" {
-		server.fddACRA = descriptorAcra
-		server.fdAPI = descriptorAPI
 		log.Debugf("Will be using GRACEFUL_RESTART if configured from WebUI")
 	}
 
@@ -330,7 +327,11 @@ func main() {
 	}
 
 	if *prometheusAddress != "" {
-		registerMetrics()
+		version, err := utils.GetParsedVersion()
+		if err != nil {
+			log.WithError(err).Fatal("Invalid version string")
+		}
+		common.RegisterMetrics(ServiceName, version, utils.CommunityEdition)
 		_, prometheusHTTPServer, err := cmd.RunPrometheusHTTPHandler(*prometheusAddress)
 		if err != nil {
 			panic(err)
@@ -353,7 +354,7 @@ func main() {
 		server.StopListeners()
 		// Wait a maximum of N seconds for existing connections to finish
 		err := server.WaitWithTimeout(time.Duration(*closeConnectionTimeout) * time.Second)
-		if err == ErrWaitTimeout {
+		if err == common.ErrWaitTimeout {
 			log.Warningf("Server shutdown Timeout: %d active connections will be cut", server.ConnectionsCounter())
 			server.Close()
 			os.Exit(1)
@@ -373,13 +374,13 @@ func main() {
 
 		// Get socket file descriptor to pass it to fork
 		var fdACRA, fdAPI uintptr
-		fdACRA, err = network.ListenerFileDescriptor(server.listenerACRA)
+		fdACRA, err = network.ListenerFileDescriptor(server.ListenerAcra())
 		if err != nil {
 			log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantGetFileDescriptor).
 				Fatalln("System error: failed to get acra-socket file descriptor:", err)
 		}
 		if *withZone || *enableHTTPAPI {
-			fdAPI, err = network.ListenerFileDescriptor(server.listenerAPI)
+			fdAPI, err = network.ListenerFileDescriptor(server.ListenerAPI())
 			if err != nil {
 				log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantGetFileDescriptor).
 					Fatalln("System error: failed to get api-socket file descriptor:", err)
@@ -407,7 +408,7 @@ func main() {
 
 		// Wait a maximum of N seconds for existing connections to finish
 		err = server.WaitWithTimeout(time.Duration(*closeConnectionTimeout) * time.Second)
-		if err == ErrWaitTimeout {
+		if err == common.ErrWaitTimeout {
 			log.Warningf("Server shutdown Timeout: %d active connections will be cut", server.ConnectionsCounter())
 			os.Exit(0)
 		}

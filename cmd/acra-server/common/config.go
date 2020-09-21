@@ -14,12 +14,14 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package main
+package common
 
 import (
 	"encoding/json"
 	"errors"
-	"github.com/cossacklabs/acra/acra-censor"
+	"io/ioutil"
+
+	acracensor "github.com/cossacklabs/acra/acra-censor"
 	"github.com/cossacklabs/acra/encryptor"
 	encryptorConfig "github.com/cossacklabs/acra/encryptor/config"
 	"github.com/cossacklabs/acra/keystore"
@@ -27,7 +29,6 @@ import (
 	"github.com/cossacklabs/acra/network"
 	log "github.com/sirupsen/logrus"
 	"go.opencensus.io/trace"
-	"io/ioutil"
 )
 
 // Config describes AcraServer configuration
@@ -53,6 +54,9 @@ type Config struct {
 	dataEncryptor           encryptor.DataEncryptor
 	keystore                keystore.ServerKeyStore
 	traceOptions            []trace.StartOption
+	authDataPath            string
+	serviceName             string
+	configPath              string
 }
 
 // UIEditableConfig describes which parts of AcraServer configuration can be changed from AcraWebconfig page
@@ -79,7 +83,8 @@ func NewConfig() (*Config, error) {
 // ErrTwoDBSetup shows that AcraServer can connects only to one database at the same time
 var ErrTwoDBSetup = errors.New("only one db supported at one time")
 
-func (config *Config) setDBConnectionSettings(host string, port int) {
+// SetDBConnectionSettings sets address of the database.
+func (config *Config) SetDBConnectionSettings(host string, port int) {
 	config.dbHost = host
 	config.dbPort = port
 }
@@ -89,8 +94,8 @@ func (config *Config) WithConnector() bool {
 	return config.withConnector
 }
 
-// setWithConnector set that acra-server will or not accept connections from acra-connector
-func (config *Config) setWithConnector(v bool) {
+// SetWithConnector set that acra-server will or not accept connections from acra-connector
+func (config *Config) SetWithConnector(v bool) {
 	config.withConnector = v
 }
 
@@ -108,6 +113,11 @@ func (config *Config) LoadMapTableSchemaConfig(path string) error {
 	}
 	config.tableSchema = schema
 	return nil
+}
+
+// GetTableSchema returns table schema in use.
+func (config *Config) GetTableSchema() encryptorConfig.TableSchemaStore {
+	return config.tableSchema
 }
 
 // SetCensor creates AcraCensor and sets its configuration
@@ -227,9 +237,14 @@ func (config *Config) SetWholeMatch(value bool) {
 	config.wholeMatch = value
 }
 
+// SetConfigPath sets AcraServer config path
+func (config *Config) SetConfigPath(path string) {
+	config.configPath = path
+}
+
 // GetConfigPath returns AcraServer config path
 func (config *Config) GetConfigPath() string {
-	return defaultConfigPath
+	return config.configPath
 }
 
 // ToJSON AcraServer editable config in JSON format
@@ -260,8 +275,8 @@ func (config *Config) GetAcraAPIConnectionString() string {
 	return config.acraAPIConnectionString
 }
 
-// setKeyStore set keystore
-func (config *Config) setKeyStore(k keystore.ServerKeyStore) {
+// SetKeyStore sets keystore.
+func (config *Config) SetKeyStore(k keystore.ServerKeyStore) {
 	config.keystore = k
 }
 
@@ -273,4 +288,34 @@ func (config *Config) GetKeyStore() keystore.ServerKeyStore {
 // GetTraceOptions return configured trace StartOptions
 func (config *Config) GetTraceOptions() []trace.StartOption {
 	return config.traceOptions
+}
+
+// SetAuthDataPath sets basic authentication data path.
+func (config *Config) SetAuthDataPath(path string) {
+	config.authDataPath = path
+}
+
+// GetAuthDataPath returns basic authentication data path.
+func (config *Config) GetAuthDataPath() string {
+	return config.authDataPath
+}
+
+// SetServiceName sets AcraServer service name.
+func (config *Config) SetServiceName(name string) {
+	config.serviceName = name
+}
+
+// GetServiceName returns AcraServer service name.
+func (config *Config) GetServiceName() string {
+	return config.serviceName
+}
+
+// SetScriptOnPoison sets path to script to execute when poison record is triggered.
+func (config *Config) SetScriptOnPoison(script string) {
+	config.scriptOnPoison = script
+}
+
+// SetStopOnPoison tells AcraServer to shutdown when poison record is triggered.
+func (config *Config) SetStopOnPoison(stop bool) {
+	config.stopOnPoison = stop
 }

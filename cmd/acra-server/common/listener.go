@@ -14,11 +14,11 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package main
+package common
 
 import (
 	"context"
-	"go.opencensus.io/trace"
+	"errors"
 	"net"
 	url_ "net/url"
 	"os"
@@ -30,6 +30,7 @@ import (
 	"github.com/cossacklabs/acra/network"
 	"github.com/prometheus/client_golang/prometheus"
 	log "github.com/sirupsen/logrus"
+	"go.opencensus.io/trace"
 )
 
 // SServer represents AcraServer server, connects with KeyStorage, configuration file,
@@ -38,14 +39,15 @@ type SServer struct {
 	config                *Config
 	listenerACRA          net.Listener
 	listenerAPI           net.Listener
-	fddACRA               uintptr
-	fdAPI                 uintptr
 	connectionManager     *network.ConnectionManager
 	listeners             []net.Listener
 	errorSignalChannel    chan os.Signal
 	restartSignalsChannel chan os.Signal
 	proxyFactory          base.ProxyFactory
 }
+
+// ErrWaitTimeout error indicates that server was shutdown and waited N seconds while shutting down all connections.
+var ErrWaitTimeout = errors.New("timeout")
 
 // NewServer creates new SServer.
 func NewServer(config *Config, proxyFactory base.ProxyFactory, errorChan chan os.Signal, restarChan chan os.Signal) (server *SServer, err error) {
@@ -204,6 +206,16 @@ func (server *SServer) start(listener net.Listener, callback *callbackData, logg
 			server.connectionManager.RemoveConnection(connection)
 		}()
 	}
+}
+
+// ListenerAcra returns listener for AcraServer database connections.
+func (server *SServer) ListenerAcra() net.Listener {
+	return server.listenerACRA
+}
+
+// ListenerAPI returns listener for AcraServer management API connections.
+func (server *SServer) ListenerAPI() net.Listener {
+	return server.listenerAPI
 }
 
 // Start listening connections from proxy

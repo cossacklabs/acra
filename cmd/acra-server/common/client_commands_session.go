@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package main
+package common
 
 import (
 	"bufio"
@@ -57,7 +57,6 @@ func NewClientCommandsSession(keystorage keystore.ServerKeyStore, config *Config
 		return nil, err
 	}
 	return &ClientCommandsSession{ClientSession: *clientSession, keystore: keystorage}, nil
-
 }
 
 // ConnectToDb should not be called, because command session must not connect to any DB
@@ -125,7 +124,8 @@ func (clientSession *ClientCommandsSession) HandleSession() {
 			response = Response500Error
 			break
 		}
-		authDataCrypted, err := utils.ReadFile(*authPath)
+		authDataPath := clientSession.Server.config.GetAuthDataPath()
+		authDataCrypted, err := utils.ReadFile(authDataPath)
 		if err != nil {
 			logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorHTTPAPICantLoadAuthData).WithError(err).Warningln("loadAuthData: no auth data")
 			response = Response500Error
@@ -171,13 +171,14 @@ func (clientSession *ClientCommandsSession) HandleSession() {
 		flag.Set("poison_shutdown_enable", fmt.Sprintf("%v", configFromUI.StopOnPoison))
 		flag.Set("zonemode_enable", fmt.Sprintf("%v", configFromUI.WithZone))
 
-		err = cmd.DumpConfig(clientSession.Server.config.GetConfigPath(), ServiceName, false)
+		configPath := clientSession.Server.config.GetConfigPath()
+		serviceName := clientSession.config.GetServiceName()
+		err = cmd.DumpConfig(configPath, serviceName, false)
 		if err != nil {
 			logger.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantDumpConfig).
 				Errorln("DumpConfig failed")
 			response = Response500Error
 			break
-
 		}
 		logger.Infoln("Handled request correctly, restarting server")
 		clientSession.Server.restartSignalsChannel <- syscall.SIGHUP
