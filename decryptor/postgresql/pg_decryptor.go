@@ -24,12 +24,11 @@ import (
 	"crypto/tls"
 	"encoding/binary"
 	"errors"
-	"go.opencensus.io/trace"
 	"io"
 	"net"
 	"time"
 
-	"github.com/cossacklabs/acra/acra-censor"
+	acracensor "github.com/cossacklabs/acra/acra-censor"
 	"github.com/cossacklabs/acra/acra-censor/common"
 	"github.com/cossacklabs/acra/decryptor/base"
 	"github.com/cossacklabs/acra/logging"
@@ -37,6 +36,7 @@ import (
 	"github.com/cossacklabs/acra/utils"
 	"github.com/prometheus/client_golang/prometheus"
 	log "github.com/sirupsen/logrus"
+	"go.opencensus.io/trace"
 )
 
 // ReadyForQueryPacket - 'Z' ReadyForQuery, 0 0 0 5 length, 'I' idle status
@@ -119,17 +119,17 @@ func NewPgProxy(ctx context.Context, decryptor base.Decryptor, dbConnection, cli
 	}, nil
 }
 
-// SubscribeOnColumnDecryption subscribe on i column data in db response indexed from left to right on a row
-func (proxy *PgProxy) SubscribeOnColumnDecryption(i int, subscriber base.DecryptionSubscriber) {
-	proxy.decryptionObserver.SubscribeOnColumnDecryption(i, subscriber)
+// SubscribeOnColumnDecryption subscribes for notifications about the column, indexed from left to right starting with zero.
+func (proxy *PgProxy) SubscribeOnColumnDecryption(column int, subscriber base.DecryptionSubscriber) {
+	proxy.decryptionObserver.SubscribeOnColumnDecryption(column, subscriber)
 }
 
-// SubscribeOnAllColumnsDecryption subscribe on each column data in db response
+// SubscribeOnAllColumnsDecryption subscribes for notifications on each column.
 func (proxy *PgProxy) SubscribeOnAllColumnsDecryption(subscriber base.DecryptionSubscriber) {
 	proxy.decryptionObserver.SubscribeOnAllColumnsDecryption(subscriber)
 }
 
-// Unsubscribe subscriber from OnColumn events
+// Unsubscribe a subscriber from all notifications.
 func (proxy *PgProxy) Unsubscribe(subscriber base.DecryptionSubscriber) {
 	proxy.decryptionObserver.Unsubscribe(subscriber)
 }
