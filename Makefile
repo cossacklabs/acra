@@ -237,6 +237,10 @@ docker-build:
 		--filter label=com.cossacklabs.product.name="$(APP_NAME)" \
 		--filter label=com.cossacklabs.docker.container.type="build"
 
+## Docker : build CI-related images
+docker-build-ci:
+	$(call docker_build,ci-py-go-themis)
+
 ## Docker : tag and push image to remote registry
 docker-push:
 	$(call docker_push,acra-server)
@@ -246,6 +250,10 @@ docker-push:
 	$(call docker_push,acra-tools)
 	$(call docker_push,acra-webconfig)
 	$(call docker_push,acra-authmanager)
+
+## Docker : tag and push CI-related images to remote registry
+docker-push-ci:
+	$(call docker_push,ci-py-go-themis)
 
 ## Docker : remove stopped containers and dangling images
 docker-clean:
