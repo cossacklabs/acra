@@ -345,33 +345,6 @@ func checkWholePoisonRecord(block []byte, decryptor base.Decryptor, logger *log.
 	return checkErr
 }
 
-// processWholeBlockDecryption try to decrypt data of column as whole AcraStruct and replace with decrypted data on success
-func (proxy *PgProxy) processWholeBlockDecryption(ctx context.Context, packet *PacketHandler, column *ColumnData, decryptor base.Decryptor, logger *log.Entry) error {
-	span := trace.FromContext(ctx)
-	decryptor.Reset()
-	decrypted, err := decryptor.DecryptBlock(column.GetData())
-	if err == errPlainData {
-		// it's not AcraStruct
-		return nil
-	}
-	if err != nil {
-		span.AddAttributes(trace.BoolAttribute("failed_decryption", true))
-		// check poison records on failed decryption
-		logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorDecryptorCantDecryptBinary).WithError(err).Warningln("Can't decrypt AcraStruct: can't unwrap symmetric key")
-		base.AcrastructDecryptionCounter.WithLabelValues(base.DecryptionTypeFail).Inc()
-		if decryptor.IsPoisonRecordCheckOn() {
-			decryptor.Reset()
-			if err := checkWholePoisonRecord(column.GetData(), decryptor, logger); err != nil {
-				return err
-			}
-		}
-		return nil
-	}
-	base.AcrastructDecryptionCounter.WithLabelValues(base.DecryptionTypeSuccess).Inc()
-	column.SetData(decrypted)
-	return nil
-}
-
 // handleSSLRequest return wrapped with tls (client's, db's connections, nil) or (nil, nil, error)
 func (proxy *PgProxy) handleSSLRequest(packet *PacketHandler, tlsConfig *tls.Config, logger *log.Entry) (net.Conn, net.Conn, error) {
 	// if server allow SSLRequest than we wrap our connections with tls
@@ -428,87 +401,6 @@ func (proxy *PgProxy) handleSSLRequest(packet *PacketHandler, tlsConfig *tls.Con
 		return nil, nil, err
 	}
 	return tlsClientConnection, dbTLSConnection, nil
-}
-
-func (proxy *PgProxy) processInlineBlockDecryption(ctx context.Context, packet *PacketHandler, column *ColumnData, decryptor base.Decryptor, logger *log.Entry) error {
-	span := trace.FromContext(ctx)
-	// inline mode
-	currentIndex := 0
-	outputBlock := bytes.NewBuffer(make([]byte, 0, column.Length()))
-	hasDecryptedData := false
-	for {
-		// search AcraStruct's begin tags through all block of data and try to decrypt
-		beginTagIndex, tagLength := decryptor.BeginTagIndex(column.GetData()[currentIndex:])
-		if beginTagIndex == utils.NotFound {
-			outputBlock.Write(column.GetData()[currentIndex:])
-			// no AcraStructs in column decryptedData
-			break
-		}
-		// convert to absolute index
-		beginTagIndex += currentIndex
-		// write data before start of AcraStruct
-		outputBlock.Write(column.GetData()[currentIndex:beginTagIndex])
-		currentIndex = beginTagIndex
-
-		keys, err := decryptor.GetPrivateKeys()
-		if err != nil {
-			logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantReadKeys).WithError(err).Warningln("Can't read private key for matched client_id/zone_id")
-			if decryptor.IsPoisonRecordCheckOn() {
-				logger.Infoln("Check poison records")
-				blockReader := bytes.NewReader(column.GetData()[beginTagIndex+tagLength:])
-				poisoned, err := decryptor.CheckPoisonRecord(blockReader)
-				if err = handlePoisonCheckResult(decryptor, poisoned, err, logger); err != nil {
-					return err
-				}
-			}
-			currentIndex++
-			continue
-		}
-		blockReader := bytes.NewReader(column.GetData()[currentIndex+tagLength:])
-		symKey, _, err := decryptor.ReadSymmetricKeyRotated(keys, blockReader)
-		if err != nil {
-			span.AddAttributes(trace.BoolAttribute("failed_decryption", true))
-			base.AcrastructDecryptionCounter.WithLabelValues(base.DecryptionTypeFail).Inc()
-			logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorDecryptorCantDecryptBinary).WithError(err).Warningln("Can't decrypt AcraStruct: can't unwrap symmetric key")
-			if decryptor.IsPoisonRecordCheckOn() {
-				logger.Infoln("Check poison records")
-				blockReader = bytes.NewReader(column.GetData()[beginTagIndex+tagLength:])
-				poisoned, err := decryptor.CheckPoisonRecord(blockReader)
-				if err = handlePoisonCheckResult(decryptor, poisoned, err, logger); err != nil {
-					return err
-				}
-			}
-
-			// write current read byte to not process him in next iteration
-			outputBlock.Write([]byte{column.GetData()[currentIndex]})
-			currentIndex++
-			continue
-		}
-		decryptedData, err := decryptor.ReadData(symKey, decryptor.GetMatchedZoneID(), blockReader)
-		if err != nil {
-			span.AddAttributes(trace.BoolAttribute("failed_decryption", true))
-			base.AcrastructDecryptionCounter.WithLabelValues(base.DecryptionTypeFail).Inc()
-			logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorDecryptorCantDecryptBinary).WithError(err).Warningln("Can't decrypt AcraStruct: can't decrypt data with unwrapped symmetric key")
-			// write current read byte to not process him in next iteration
-			outputBlock.Write([]byte{column.GetData()[currentIndex]})
-			currentIndex++
-			continue
-		}
-		logger.Infoln("Decrypted AcraStruct")
-		base.AcrastructDecryptionCounter.WithLabelValues(base.DecryptionTypeSuccess).Inc()
-		outputBlock.Write(decryptedData)
-		currentIndex += tagLength + (len(column.GetData()[beginTagIndex+tagLength:]) - blockReader.Len())
-		hasDecryptedData = true
-	}
-	if hasDecryptedData {
-		logger.WithFields(log.Fields{"old_size": column.Length(), "new_size": outputBlock.Len()}).Debugln("Result was changed")
-		column.SetData(outputBlock.Bytes())
-		decryptor.ResetZoneMatch()
-		decryptor.Reset()
-	} else {
-		logger.Debugln("Result was not changed")
-	}
-	return nil
 }
 
 // ProxyDatabaseConnection process data rows from database
