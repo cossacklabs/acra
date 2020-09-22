@@ -18,6 +18,7 @@ package common
 
 import (
 	"context"
+	"errors"
 	logging "github.com/cossacklabs/acra/logging"
 	"github.com/prometheus/client_golang/prometheus"
 	"net"
@@ -27,35 +28,31 @@ import (
 func AcceptConnections(parentContext context.Context, listener net.Listener, errCh chan<- error) (<-chan net.Conn, error) {
 	logger := logging.GetLoggerFromContext(parentContext)
 	connectionChannel := make(chan net.Conn)
-
-	// Run goroutine that just accept connections and return them and stop on error.
-	// We need to have a control under this goroutine while shutdown process but we can't rely on
-	// parentContext.Done since this event comes later that closing listener that accepts (we use listener
-	// provided by caller, and caller is responsible for closing it).
-	// For this reason we assume that *net.OpError == "accept" in case of accepting error
-	// is normal case when shutdown is invoked
-
 	go func() {
 		for {
-			conn, err := listener.Accept()
-			if err != nil {
-				// https://stackoverflow.com/questions/13417095/how-do-i-stop-a-listening-server-in-go
-				if operationalError, ok := err.(*net.OpError); ok && operationalError.Op == "accept" {
-					// This is a normal case, when listener is closed while it accepts, so just return
-					logger.Infoln("Listener has been stopped by caller while accepting")
-				} else {
+			if parentContext.Err() == nil {
+				conn, err := listener.Accept()
+				if err != nil {
 					logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantAcceptNewConnections).WithError(err).Errorln("Error on accept connection")
+					errCh <- err
+					return
+				}
+				conn, err = wrapHTTPConnectionWithTimer(conn)
+				if err != nil {
+					logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantWrapConnectionWithTimer).WithError(err).Errorln("Can't wrap connection with metric")
+					errCh <- err
+					return
+				}
+				connectionChannel <- conn
+			} else {
+				// exit from this background goroutine if parentContext is Done
+				err := parentContext.Err()
+				if !errors.Is(err, context.Canceled) {
+					logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantWrapConnectionWithTimer).WithError(err).Errorln("Got error from parent context")
 					errCh <- err
 				}
 				return
 			}
-			conn, err = wrapHTTPConnectionWithTimer(conn)
-			if err != nil {
-				logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantWrapConnectionWithTimer).WithError(err).Errorln("Can't wrap connection with metric")
-				errCh <- err
-				return
-			}
-			connectionChannel <- conn
 		}
 	}()
 

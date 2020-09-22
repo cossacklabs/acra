@@ -185,7 +185,7 @@ func main() {
 
 		// Set env flag for forked process
 		if err := os.Setenv(GracefulRestartEnv, "true"); err != nil {
-			log.WithError(err).Errorf("Unexpected error on os.Setenv, graceful restart won't work. Please check env variables, especially %s", GracefulRestartEnv)
+			log.WithError(err).Fatalf("Unexpected error on os.Setenv, graceful restart won't work. Please check env variables, especially %s", GracefulRestartEnv)
 		}
 
 		var fdHTTP, fdGRPC uintptr
@@ -262,16 +262,7 @@ func main() {
 	}
 
 	if os.Getenv(GracefulRestartEnv) == "true" {
-		if *incomingConnectionGRPCString != "" && *incomingConnectionHTTPString != "" {
-			readerServer.StartFromFileDescriptor(mainContext, DescriptorHTTP, DescriptorGRPC)
-		} else {
-			if *incomingConnectionHTTPString != "" {
-				readerServer.StartFromFileDescriptor(mainContext, DescriptorHTTP, 0)
-			}
-			if *incomingConnectionGRPCString != "" {
-				readerServer.StartFromFileDescriptor(mainContext, 0, DescriptorGRPC)
-			}
-		}
+		readerServer.StartFromFileDescriptor(mainContext, DescriptorHTTP, DescriptorGRPC)
 	} else {
 		readerServer.Start(mainContext)
 	}
