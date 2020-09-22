@@ -34,7 +34,7 @@ jobs:
   postgresql-ssl:
     docker:
       - image: cossacklabs/android-build
-      - image: cossacklabs/postgresql-ssl:11
+      - image: cossacklabs/postgresql-ssl:11-1
         environment:
           POSTGRES_PASSWORD: test
           POSTGRES_USER: test
@@ -133,7 +133,7 @@ jobs:
     - image: cossacklabs/android-build
     # use the same credentials for mysql db as for postgresql (which support was added first)
     # has latest tag on 2018.03.29
-    - image: cossacklabs/mariadb-ssl:10.3
+    - image: cossacklabs/mariadb-ssl:10.3-1
       environment:
         MYSQL_DATABASE: test
         MYSQL_USER: test
@@ -239,7 +239,7 @@ jobs:
     - image: cossacklabs/android-build
     # use the same credentials for mysql db as for postgresql (which support was added first)
     # has latest tag on 2018.03.29
-    - image: cossacklabs/mysql-ssl:5.7.25
+    - image: cossacklabs/mysql-ssl:5.7.25-1
       environment:
         MYSQL_DATABASE: test
         MYSQL_USER: test
