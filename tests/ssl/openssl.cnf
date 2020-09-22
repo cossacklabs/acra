@@ -1,0 +1,23 @@
+#
+# OpenSSL CA configuration file for issuing testing certificates
+#
+
+# This section is required by OpenSSL, but we specify DN on the command line,
+# so here an empty placeholder is used.
+[ req ]
+distinguished_name = req_dn
+
+[ req_dn ]
+
+# X.509 v3 extensions for issued certificates, required by RFC 3280
+[ v3_req ]
+basicConstraints = CA:false
+keyUsage = nonRepudiation, digitalSignature, keyEncipherment
+subjectAltName = DNS:localhost
+
+# X.509 v3 extensions for CA certificate, required by RFC 3280
+[ v3_ca ]
+basicConstraints = critical,CA:true
+subjectAltName = DNS:localhost
+subjectKeyIdentifier=hash
+authorityKeyIdentifier=keyid:always,issuer
