@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
 
+export PATH=$GOROOT/bin:$PATH
+
 function compare_configs() {
     folder_a=$1
     folder_b=$2
@@ -12,8 +14,7 @@ function compare_configs() {
      fi
     done
 }
-# use go from GOROOT instead installed in system
-PATH=$GOROOT/bin:$PATH
+
 temp_configs=`mktemp -d`
 bash configs/regenerate.sh ${temp_configs}
 

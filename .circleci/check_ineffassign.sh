@@ -1,8 +1,10 @@
 #!/usr/bin/env bash
 
+export PATH=$GOROOT/bin:$PATH
+
 # ignore protobuf-generated code, as well as yacc (.y) parser files
 # duplicate output to stderr so we can see it in console while `wc` is counting the lines
-result=$($GOPATH/bin/ineffassign . | grep -v "\.pb\.go\|\.y" | tee /dev/stderr | wc -l)
+result=$(ineffassign . | grep -v "\.pb\.go\|\.y" | tee /dev/stderr | wc -l)
 
 if [[ $result -gt 3 ]]; then
   echo "Too many ineffassign issues: $result"

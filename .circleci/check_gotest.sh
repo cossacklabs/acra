@@ -7,9 +7,14 @@ export GOPATH=$HOME/$GOPATH_FOLDER;
 # https://github.com/golang/go/wiki/Modules#when-do-i-get-old-behavior-vs-new-module-based-behavior
 cd $HOME/project
 
-for version in $VERSIONS; do
-    export GOROOT=$HOME/go_root_$version/go;
-    export PATH=$GOROOT/bin/:$PATH;
+OLD_PATH=$PATH
+
+for GOROOT in $(find /usr/lib/go -maxdepth 2 -path '*.*.*/go'); do
+    # use OLD_PATH to avoid having PATH=/usr/lib/go/1.15.2/go/bin:/usr/lib/go/1.14.9/go/bin:...
+    export PATH=$GOROOT/bin:$OLD_PATH;
+
+    echo GOROOT=$GOROOT PATH=$PATH
+    
     go test -v ./...;
     status="$?"
     if [[ "${status}" != "0" ]]; then

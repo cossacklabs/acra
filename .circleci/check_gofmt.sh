@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
 
+export PATH=$GOROOT/bin:$PATH
+
 # run go fmt and count output lines
 # gofmt print file names which was formatted and nothing if none was formatted
 # count lines with wc and check that 0 lines was in output

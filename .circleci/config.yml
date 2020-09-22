@@ -2,21 +2,17 @@ version: 2
 jobs:
   general_validation:
     docker:
-      - image: cossacklabs/android-build
+      - image: cossacklabs/ci-py-go-themis:T1776-new-docker-image-for-acra-ci
     environment:
       FILEPATH_ERROR_FLAG: /tmp/test_fail
-      VERSIONS: 1.13.15 1.14.9 1.15.2
-      TEST_DB_PORT: 5432
-      GOPATH_FOLDER: gopath
+      TEST_DB_PORT: "5432"
       TEST_RANDOM_DATA_FOLDER: /tmp/test_data
       TEST_TLS: "on"
-      GOPATH: /home/user/gopath
-      # set default goroot instead system available
-      GOROOT: /home/user/go_root_1.15.2/go
+      # GOPATH: /home/user/gopath
+      GOROOT: /usr/lib/go/1.15.2/go
     steps:
       # prepare
       - checkout
-      - run: .circleci/prepare.sh
       # validation
       - run: .circleci/check_gofmt.sh
       - run: .circleci/check_configs.sh | tee /home/user/tests_output

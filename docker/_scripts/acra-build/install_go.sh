@@ -27,6 +27,7 @@ if [ "$(sha256sum "$GO_TARBALL_TMP_PATH" | awk '{print $1}')" != "$GO_TARBALL_DI
     exit 1
 fi
 
+mkdir -p "$GO_PREFIX_DIR"
 tar -C "$GO_PREFIX_DIR" -xzf "$GO_TARBALL_TMP_PATH"
 if [[ $GO_TARBALL_CLEAN == '1' ]]; then
     rm -f "$GO_TARBALL_TMP_PATH"
