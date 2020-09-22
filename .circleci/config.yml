@@ -49,7 +49,7 @@ jobs:
       # $HOME/$GOPATH_FOLDER
       GOPATH: /home/user/gopath
       # set default goroot instead system available
-      GOROOT: /home/user/go_root_1.15.2/go
+      GOROOT: /home/user/go_root_1.11.5/go
       GO111MODULE: "on"
     steps:
     # prepare
@@ -98,7 +98,7 @@ jobs:
       # $HOME/$GOPATH_FOLDER
       GOPATH: /home/user/gopath
       # set default goroot instead system available
-      GOROOT: /home/user/go_root_1.15.2/go
+      GOROOT: /home/user/go_root_1.11.5/go
       GO111MODULE: "on"
     steps:
       # prepare
@@ -150,7 +150,7 @@ jobs:
       # $HOME/$GOPATH_FOLDER
       GOPATH: /home/user/gopath
       # set default goroot instead system available
-      GOROOT: /home/user/go_root_1.15.2/go
+      GOROOT: /home/user/go_root_1.11.5/go
       GO111MODULE: "on"
     steps:
     # prepare
@@ -203,7 +203,7 @@ jobs:
       # $HOME/$GOPATH_FOLDER
       GOPATH: /home/user/gopath
       # set default goroot instead system available
-      GOROOT: /home/user/go_root_1.15.2/go
+      GOROOT: /home/user/go_root_1.11.5/go
       GO111MODULE: "on"
     steps:
       # prepare
@@ -256,7 +256,7 @@ jobs:
       # $HOME/$GOPATH_FOLDER
       GOPATH: /home/user/gopath
       # set default goroot instead system available
-      GOROOT: /home/user/go_root_1.15.2/go
+      GOROOT: /home/user/go_root_1.11.5/go
       GO111MODULE: "on"
     steps:
     # prepare
@@ -307,7 +307,7 @@ jobs:
       # $HOME/$GOPATH_FOLDER
       GOPATH: /home/user/gopath
       # set default goroot instead system available
-      GOROOT: /home/user/go_root_1.15.2/go
+      GOROOT: /home/user/go_root_1.11.5/go
       GO111MODULE: "on"
     steps:
       # prepare
