@@ -24,6 +24,15 @@ BUILD_DATE := $(shell date -u +'%Y-%m-%dT%H:%M:%SZ')
 ## Absolute or relative GOPATH for the 'build' target
 BUILD_DIR ?= build
 BUILD_DIR_ABS := $(abspath $(BUILD_DIR))
+ifeq ($(DOCKER_BUILD_CACHE),true)
+DOCKER_BUILD_FLAGS += --no-cache=false
+else ifeq ($(DOCKER_BUILD_CACHE),false)
+DOCKER_BUILD_FLAGS += --no-cache=true
+else ifneq ($(DOCKER_BUILD_CACHE),)
+$(error DOCKER_BUILD_CACHE should be either true or false)
+else
+DOCKER_BUILD_FLAGS += --no-cache=true
+endif
 
 #----- Git ---------------------------------------------------------------------
 
@@ -111,9 +120,10 @@ endif
 
 #===== Functions ===============================================================
 
+# set BUILD_CACHE to anything to enable caching
 define docker_build
 	@$(DOCKER_BIN) image build \
-		--no-cache=true \
+		$(DOCKER_BUILD_FLAGS) \
 		--build-arg APP_NAME=$(APP_NAME) \
 		--build-arg VERSION='$(APP_VERSION)' \
 		--build-arg VCS_URL='$(VCS_URL)' \
