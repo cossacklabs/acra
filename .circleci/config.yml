@@ -8,8 +8,6 @@ jobs:
       TEST_DB_PORT: "5432"
       TEST_RANDOM_DATA_FOLDER: /tmp/test_data
       TEST_TLS: "on"
-      # GOPATH: /home/user/gopath
-      GOROOT: /usr/lib/go/1.15.2/go
     steps:
       # prepare
       - checkout
@@ -38,12 +36,9 @@ jobs:
       TEST_DB_PORT: "5432"
       TEST_RANDOM_DATA_FOLDER: /tmp/test_data
       TEST_TLS: "on"
-      # GOPATH: /home/user/gopath
-      GOROOT: /usr/lib/go/1.15.2/go
     steps: &postgresql-ssl-steps
       # prepare
       - checkout
-      # - run: sudo apt-get install -y postgresql-client
       - run: pg_isready -U${POSTGRES_USER} -d${POSTGRES_DB} -h127.0.0.1
       # testing
       # generate test data for integration tests
@@ -81,8 +76,6 @@ jobs:
       TEST_DB_PORT: "5432"
       TEST_RANDOM_DATA_FOLDER: /tmp/test_data
       TEST_TLS: "off"
-      # GOPATH: /home/user/gopath
-      GOROOT: /usr/lib/go/1.15.2/go
     steps: *postgresql-ssl-steps
 
   mariadb-ssl:
@@ -102,8 +95,6 @@ jobs:
       TEST_DB_PORT: "3306"
       TEST_RANDOM_DATA_FOLDER: /tmp/test_data
       TEST_TLS: "on"
-      # GOPATH: /home/user/gopath
-      GOROOT: /usr/lib/go/1.15.2/go
     steps: &mariadb-ssl-steps
       # prepare
       - checkout
@@ -148,8 +139,6 @@ jobs:
       TEST_DB_PORT: "3306"
       TEST_RANDOM_DATA_FOLDER: /tmp/test_data
       TEST_TLS: "off"
-      # GOPATH: /home/user/gopath
-      GOROOT: /usr/lib/go/1.15.2/go
     steps: *mariadb-ssl-steps
 
   mysql-ssl:
@@ -169,8 +158,6 @@ jobs:
       TEST_DB_PORT: "3306"
       TEST_RANDOM_DATA_FOLDER: /tmp/test_data
       TEST_TLS: "on"
-      GOPATH: /home/user/gopath
-      GOROOT: /usr/lib/go/1.15.2/go
     steps: &mysql-ssl-steps
       # prepare
       - checkout
@@ -213,8 +200,6 @@ jobs:
       TEST_DB_PORT: "3306"
       TEST_RANDOM_DATA_FOLDER: /tmp/test_data
       TEST_TLS: "off"
-      GOPATH: /home/user/gopath
-      GOROOT: /usr/lib/go/1.15.2/go
     steps: *mysql-ssl-steps
 
 workflows:

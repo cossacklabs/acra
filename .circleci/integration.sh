@@ -28,11 +28,6 @@ for GOROOT in $(find /usr/lib/go -maxdepth 2 -path '*.*.*/go'); do
     version="$(echo $GOROOT | sed -E 's|^/usr/lib/go/([0-9]+\.[0-9]+\.[0-9]+)/go$|\1|')"
     echo "-------------------- Testing Go version $version at $GOROOT"
 
-    if [ $TEST_TLS = on ] && [[ "$version" == *1.15* ]]; then
-        echo "SKIPPING TEST WITH TLS ENABLED AND GO $version"
-        continue
-    fi
-
     export PATH=$GOROOT/bin:$OLD_PATH
     export TEST_ACRASERVER_PORT=$(expr ${TEST_ACRASERVER_PORT} + 1);
     export TEST_CONNECTOR_PORT=$(expr ${TEST_CONNECTOR_PORT} + 1);
