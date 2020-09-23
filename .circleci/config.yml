@@ -5,7 +5,7 @@ jobs:
       - image: cossacklabs/android-build
     environment:
       FILEPATH_ERROR_FLAG: /tmp/test_fail
-      VERSIONS: 1.11.5 1.12 1.15.2
+      VERSIONS: 1.13.15 1.14.9 1.15.2
       TEST_DB_PORT: 5432
       GOPATH_FOLDER: gopath
       TEST_RANDOM_DATA_FOLDER: /tmp/test_data
@@ -13,7 +13,7 @@ jobs:
       # $HOME/$GOPATH_FOLDER
       GOPATH: /home/user/gopath
       # set default goroot instead system available
-      GOROOT: /home/user/go_root_1.11.5/go
+      GOROOT: /home/user/go_root_1.15.2/go
       GO111MODULE: "on"
     steps:
       # prepare
@@ -34,14 +34,14 @@ jobs:
   postgresql-ssl:
     docker:
       - image: cossacklabs/android-build
-      - image: cossacklabs/postgresql-ssl:11
+      - image: cossacklabs/postgresql-ssl:11-1
         environment:
           POSTGRES_PASSWORD: test
           POSTGRES_USER: test
           POSTGRES_DB: test
     environment:
       FILEPATH_ERROR_FLAG: /tmp/test_fail
-      VERSIONS: 1.11.5 1.12
+      VERSIONS: 1.13.15 1.14.9 1.15.2
       TEST_DB_PORT: 5432
       GOPATH_FOLDER: gopath
       TEST_RANDOM_DATA_FOLDER: /tmp/test_data
@@ -90,7 +90,7 @@ jobs:
           POSTGRES_DB: test
     environment:
       FILEPATH_ERROR_FLAG: /tmp/test_fail
-      VERSIONS: 1.11.5 1.12
+      VERSIONS: 1.13.15 1.14.9 1.15.2
       TEST_DB_PORT: 5432
       GOPATH_FOLDER: gopath
       TEST_RANDOM_DATA_FOLDER: /tmp/test_data
@@ -133,7 +133,7 @@ jobs:
     - image: cossacklabs/android-build
     # use the same credentials for mysql db as for postgresql (which support was added first)
     # has latest tag on 2018.03.29
-    - image: cossacklabs/mariadb-ssl:10.3
+    - image: cossacklabs/mariadb-ssl:10.3-1
       environment:
         MYSQL_DATABASE: test
         MYSQL_USER: test
@@ -141,7 +141,7 @@ jobs:
         MYSQL_ROOT_PASSWORD: root
     environment:
       FILEPATH_ERROR_FLAG: /tmp/test_fail
-      VERSIONS: 1.11.5 1.12
+      VERSIONS: 1.13.15 1.14.9 1.15.2
       TEST_MYSQL: true
       TEST_DB_PORT: 3306
       GOPATH_FOLDER: gopath
@@ -194,7 +194,7 @@ jobs:
           MYSQL_ROOT_PASSWORD: root
     environment:
       FILEPATH_ERROR_FLAG: /tmp/test_fail
-      VERSIONS: 1.11.5 1.12
+      VERSIONS: 1.13.15 1.14.9 1.15.2
       TEST_MYSQL: true
       TEST_DB_PORT: 3306
       GOPATH_FOLDER: gopath
@@ -239,7 +239,7 @@ jobs:
     - image: cossacklabs/android-build
     # use the same credentials for mysql db as for postgresql (which support was added first)
     # has latest tag on 2018.03.29
-    - image: cossacklabs/mysql-ssl:5.7.25
+    - image: cossacklabs/mysql-ssl:5.7.25-1
       environment:
         MYSQL_DATABASE: test
         MYSQL_USER: test
@@ -247,7 +247,7 @@ jobs:
         MYSQL_ROOT_PASSWORD: root
     environment:
       FILEPATH_ERROR_FLAG: /tmp/test_fail
-      VERSIONS: 1.11.5 1.12
+      VERSIONS: 1.13.15 1.14.9 1.15.2
       TEST_MYSQL: true
       TEST_DB_PORT: 3306
       GOPATH_FOLDER: gopath
@@ -298,7 +298,7 @@ jobs:
           MYSQL_ROOT_PASSWORD: root
     environment:
       FILEPATH_ERROR_FLAG: /tmp/test_fail
-      VERSIONS: 1.11.5 1.12
+      VERSIONS: 1.13.15 1.14.9 1.15.2
       TEST_MYSQL: true
       TEST_DB_PORT: 3306
       GOPATH_FOLDER: gopath
