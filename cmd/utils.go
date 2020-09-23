@@ -255,6 +255,15 @@ func GenerateMarkdownDocFromFlagSets(flagSets []*flag_.FlagSet, output io.Writer
 	})
 }
 
+// ConfigPath returns path to configuration file.
+// The given default value is used, unless it has been overridden on the command line.
+func ConfigPath(defaultPath string) string {
+	if *config == "" {
+		return defaultPath
+	}
+	return *config
+}
+
 // DumpConfig writes CLI params to configPath
 func DumpConfig(configPath, serviceName string, useDefault bool) error {
 	return DumpConfigFromFlagSets([]*flag_.FlagSet{flag_.CommandLine}, configPath, serviceName, useDefault)
@@ -262,19 +271,9 @@ func DumpConfig(configPath, serviceName string, useDefault bool) error {
 
 // DumpConfigFromFlagSets writes CLI params to configPath
 func DumpConfigFromFlagSets(flagSets []*flag_.FlagSet, configPath, serviceName string, useDefault bool) error {
-	var absPath string
-	var err error
-
-	if *config == "" {
-		absPath, err = filepath.Abs(configPath)
-		if err != nil {
-			return err
-		}
-	} else {
-		absPath, err = filepath.Abs(*config)
-		if err != nil {
-			return err
-		}
+	absPath, err := filepath.Abs(ConfigPath(configPath))
+	if err != nil {
+		return err
 	}
 
 	dirPath := filepath.Dir(absPath)
@@ -352,9 +351,7 @@ func ParseFlagsWithConfig(flags *flag_.FlagSet, arguments []string, configPath, 
 		return err
 	}
 
-	if *config != "" {
-		configPath = *config
-	}
+	configPath = ConfigPath(configPath)
 	var yamlConfig map[string]interface{}
 	var extraArgs []string
 	// parse yaml and add params that wasn't passed from cli
