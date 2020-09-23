@@ -18,55 +18,44 @@ package common
 
 import (
 	"context"
-	"net"
-
-	"github.com/cossacklabs/acra/logging"
-	"github.com/cossacklabs/acra/network"
+	"errors"
+	logging "github.com/cossacklabs/acra/logging"
 	"github.com/prometheus/client_golang/prometheus"
+	"net"
 )
 
 // AcceptConnections return channel which will produce new connections from listener in background goroutine
-func AcceptConnections(parentContext context.Context, connectionString string, errCh chan<- error) (<-chan net.Conn, error) {
+func AcceptConnections(parentContext context.Context, listener net.Listener, errCh chan<- error) (<-chan net.Conn, error) {
 	logger := logging.GetLoggerFromContext(parentContext)
-	listenContext, cancel := context.WithCancel(parentContext)
 	connectionChannel := make(chan net.Conn)
-	listener, err := network.Listen(connectionString)
-	if err != nil {
-		cancel()
-		return nil, err
-	}
-
-	// run goroutine that just accept connections and return them and stop on error. you can stop it by closing listener
 	go func() {
 		for {
-			conn, err := listener.Accept()
-			if err != nil {
-				logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantAcceptNewConnections).WithError(err).Errorln("Error on accept connection")
-				errCh <- err
-				cancel()
+			if parentContext.Err() == nil {
+				conn, err := listener.Accept()
+				if err != nil {
+					logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantAcceptNewConnections).WithError(err).Errorln("Error on accept connection")
+					errCh <- err
+					return
+				}
+				conn, err = wrapHTTPConnectionWithTimer(conn)
+				if err != nil {
+					logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantWrapConnectionWithTimer).WithError(err).Errorln("Can't wrap connection with metric")
+					errCh <- err
+					return
+				}
+				connectionChannel <- conn
+			} else {
+				// exit from this background goroutine if parentContext is Done
+				err := parentContext.Err()
+				if !errors.Is(err, context.Canceled) {
+					logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantWrapConnectionWithTimer).WithError(err).Errorln("Got error from parent context")
+					errCh <- err
+				}
 				return
 			}
-			conn, err = wrapHTTPConnectionWithTimer(conn)
-			if err != nil {
-				logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantWrapConnectionWithTimer).WithError(err).Errorln("Can't wrap connection with metric")
-				errCh <- err
-				cancel()
-				return
-			}
-			connectionChannel <- conn
 		}
 	}()
 
-	// wait Done signal from caller or from "accept" goroutine and stop listener
-	go func() {
-		<-listenContext.Done()
-		logger.WithError(listenContext.Err()).Infoln("Close listener")
-		// stop listener and goroutine that produce connections from listener
-		err := listener.Close()
-		if err != nil {
-			logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantStopListenConnections).WithError(err).Errorln("Error on closing listener")
-		}
-	}()
 	return connectionChannel, nil
 }
 

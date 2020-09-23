@@ -46,6 +46,14 @@ import (
 const (
 	ServiceName        = "acra-translator"
 	defaultWaitTimeout = 10
+	GracefulRestartEnv = "GRACEFUL_RESTART"
+	// We use this values as a file descriptors pointers on SIGHUP signal processing.
+	// We definitely know (because we implement this), that new forked process starts
+	// with three descriptors in mind - stdin (0), stdout (1), stderr(2). And then we
+	// use HTTP (3) and gRPC (4) descriptors. Take a look at callback function that is
+	// called on SIGHUP event for more details
+	DescriptorHTTP = 3
+	DescriptorGRPC = 4
 )
 
 // DefaultConfigPath relative path to config which will be parsed as default
@@ -139,6 +147,13 @@ func main() {
 			Errorln("System error: can't register SIGTERM handler")
 		os.Exit(1)
 	}
+	sigHandlerSIGHUP, err := cmd.NewSignalHandler([]os.Signal{syscall.SIGHUP})
+	if err != nil {
+		log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantRegisterSignalHandler).
+			Errorln("System error: can't register SIGHUP handler")
+		os.Exit(1)
+	}
+
 	var readerServer *server.ReaderServer
 	waitTimeout := time.Duration(*closeConnectionTimeout) * time.Second
 	readerServer, err = server.NewReaderServer(config, keyStore, &grpc_api.GRPCServerFactory{}, waitTimeout)
@@ -151,7 +166,7 @@ func main() {
 	mainContext, cancel := context.WithCancel(context.Background())
 	mainContext = logging.SetLoggerToContext(mainContext, log.NewEntry(log.StandardLogger()))
 
-	go sigHandlerSIGTERM.Register()
+	go sigHandlerSIGTERM.RegisterWithContext(mainContext)
 	sigHandlerSIGTERM.AddCallback(func() {
 		log.Infof("Received incoming SIGTERM or SIGINT signal")
 		readerServer.Stop()
@@ -159,6 +174,57 @@ func main() {
 		cancel()
 
 		log.Infof("Server graceful shutdown completed, bye PID: %v", os.Getpid())
+		os.Exit(0)
+	})
+
+	go sigHandlerSIGHUP.RegisterWithContext(mainContext)
+	sigHandlerSIGHUP.AddCallback(func() {
+		log.Infof("Received incoming SIGHUP signal")
+		log.Debugf("Stop accepting new connections, waiting until current connections close")
+		readerServer.StopListeners()
+
+		// Set env flag for forked process
+		if err := os.Setenv(GracefulRestartEnv, "true"); err != nil {
+			log.WithError(err).Fatalf("Unexpected error on os.Setenv, graceful restart won't work. Please check env variables, especially %s", GracefulRestartEnv)
+		}
+
+		var fdHTTP, fdGRPC uintptr
+		if listener := readerServer.GetHTTPListener(); listener != nil {
+			fdHTTP, err = network.ListenerFileDescriptor(listener)
+			if err != nil {
+				log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantGetFileDescriptor).
+					Fatalln("System error: failed to get Acra HTTP file descriptor:", err)
+
+			}
+		}
+		if listener := readerServer.GetGRPCListener(); listener != nil {
+			fdGRPC, err = network.ListenerFileDescriptor(listener)
+			if err != nil {
+				log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantGetFileDescriptor).
+					Fatalln("System error: failed to get Acra gRPC file descriptor:", err)
+
+			}
+		}
+		execSpec := &syscall.ProcAttr{
+			Env:   os.Environ(),
+			Files: []uintptr{os.Stdin.Fd(), os.Stdout.Fd(), os.Stderr.Fd(), fdHTTP, fdGRPC},
+		}
+		log.Debugf("Forking new process of %s", ServiceName)
+
+		// Fork new process
+		fork, err := syscall.ForkExec(os.Args[0], os.Args, execSpec)
+		if err != nil {
+			log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantForkProcess).
+				Fatalln("System error: failed to fork new process", err)
+		}
+
+		log.Infof("%s process forked to PID: %v", ServiceName, fork)
+
+		// Wait a maximum of N seconds for existing connections to finish
+		if utils.WaitWithTimeout(readerServer.GetConnectionManager().WaitGroup, time.Duration(*closeConnectionTimeout)*time.Second) {
+			log.Warningf("Server shutdown timeout: %d active connections will be cut", readerServer.GetConnectionManager().Counter)
+		}
+		log.Infof("Server graceful restart completed, bye PID: %v", os.Getpid())
 		os.Exit(0)
 	})
 
@@ -170,10 +236,14 @@ func main() {
 			os.Exit(1)
 		}
 		log.Infof("Configured to send metrics and stats to `incoming_connection_prometheus_metrics_string`")
-		sigHandlerSIGTERM.AddCallback(func() {
+		prometheusClose := func() {
 			log.Infoln("Stop prometheus HTTP exporter")
-			prometheusHTTPServer.Close()
-		})
+			if err := prometheusHTTPServer.Close(); err != nil {
+				log.WithError(err).Errorln("Error on prometheus server close")
+			}
+		}
+		sigHandlerSIGTERM.AddCallback(prometheusClose)
+		sigHandlerSIGHUP.AddCallback(prometheusClose)
 	}
 
 	// -------- START -----------
@@ -191,7 +261,11 @@ func main() {
 		logging.SetLogLevel(logging.LogDiscard)
 	}
 
-	readerServer.Start(mainContext)
+	if os.Getenv(GracefulRestartEnv) == "true" {
+		readerServer.StartFromFileDescriptor(mainContext, DescriptorHTTP, DescriptorGRPC)
+	} else {
+		readerServer.Start(mainContext)
+	}
 }
 
 func openKeyStoreV1(keysDir string, cacheSize int) keystore.TranslationKeyStore {

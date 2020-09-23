@@ -127,6 +127,7 @@ const (
 	EventCodeErrorTranslatorCantAcceptNewHTTPConnection = 712
 	EventCodeErrorTranslatorCantHandleGRPCConnection    = 713
 	EventCodeErrorTranslatorClientIDMissing             = 714
+	EventCodeErrorTranslatorCantAcceptNewGRPCConnection = 715
 
 	// tracing
 	EventCodeErrorTracingCantSendTrace    = 800
