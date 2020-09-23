@@ -146,7 +146,7 @@ jobs:
       - image: cossacklabs/ci-py-go-themis:T1776-new-docker-image-for-acra-ci
       # use the same credentials for mysql db as for postgresql (which support was added first)
       # has latest tag on 2018.03.29
-      - image: cossacklabs/mysql-ssl:5.7.25-1
+      - image: cossacklabs/mysql-ssl:5.7.31-1
         environment:
           MYSQL_DATABASE: test
           MYSQL_USER: test

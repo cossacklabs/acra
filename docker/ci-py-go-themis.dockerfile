@@ -35,6 +35,12 @@ COPY docker/_scripts/acra-build/install_go.sh /image.scripts/
 RUN chmod +x /image.scripts/*.sh
 
 # Install Go
+RUN GO_PREFIX_DIR=/usr/lib/go/1.13.15 \
+    GO_VERSION=1.13.15 \
+    GO_TARBALL_DIGEST=01cc3ddf6273900eba3e2bf311238828b7168b822bb57a9ccab4d7aa2acd6028 \
+    GO_TARBALL_CLEAN=1 \
+    /image.scripts/install_go.sh
+
 RUN GO_PREFIX_DIR=/usr/lib/go/1.14.9 \
     GO_VERSION=1.14.9 \
     GO_TARBALL_DIGEST=f0d26ff572c72c9823ae752d3c81819a81a60c753201f51f89637482531c110a \
