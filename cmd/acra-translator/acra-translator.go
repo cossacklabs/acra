@@ -222,7 +222,7 @@ func main() {
 
 		// Wait a maximum of N seconds for existing connections to finish
 		if utils.WaitWithTimeout(readerServer.GetConnectionManager().WaitGroup, time.Duration(*closeConnectionTimeout)*time.Second) {
-			log.Warningf("Server shutdown Timeout: %d active connections will be cut", readerServer.GetConnectionManager().Counter)
+			log.Warningf("Server shutdown timeout: %d active connections will be cut", readerServer.GetConnectionManager().Counter)
 		}
 		log.Infof("Server graceful restart completed, bye PID: %v", os.Getpid())
 		os.Exit(0)

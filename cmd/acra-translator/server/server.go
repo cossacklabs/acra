@@ -228,7 +228,7 @@ func (server *ReaderServer) Start(parentContext context.Context) {
 		listener, err := network.Listen(server.config.IncomingConnectionGRPCString())
 		if err != nil {
 			log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorTranslatorCantAcceptNewHTTPConnection).
-				Errorln("Can't create HTTP listener from specified connection string")
+				Errorln("Can't create gRPC listener from specified connection string")
 			return
 		}
 		server.listenerGRPC = listener
