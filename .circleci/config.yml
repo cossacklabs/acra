@@ -2,7 +2,7 @@ version: 2
 jobs:
   general_validation:
     docker:
-      - image: cossacklabs/ci-py-go-themis:T1776-new-docker-image-for-acra-ci
+      - image: cossacklabs/ci-py-go-themis:latest
     environment:
       FILEPATH_ERROR_FLAG: /tmp/test_fail
       TEST_DB_PORT: "5432"
@@ -25,7 +25,7 @@ jobs:
 
   postgresql-ssl:
     docker:
-      - image: cossacklabs/ci-py-go-themis:T1776-new-docker-image-for-acra-ci
+      - image: cossacklabs/ci-py-go-themis:latest
       - image: cossacklabs/postgresql-ssl:11-1
         environment:
           POSTGRES_PASSWORD: test
@@ -65,7 +65,7 @@ jobs:
 
   postgresql:
     docker:
-      - image: cossacklabs/ci-py-go-themis:T1776-new-docker-image-for-acra-ci
+      - image: cossacklabs/ci-py-go-themis:latest
       - image: postgres:11-alpine
         environment:
           POSTGRES_PASSWORD: test
@@ -80,7 +80,7 @@ jobs:
 
   mariadb-ssl:
     docker:
-    - image: cossacklabs/ci-py-go-themis:T1776-new-docker-image-for-acra-ci
+    - image: cossacklabs/ci-py-go-themis:latest
     # use the same credentials for mysql db as for postgresql (which support was added first)
     # has latest tag on 2018.03.29
     - image: cossacklabs/mariadb-ssl:10.3-1
@@ -124,7 +124,7 @@ jobs:
 
   mariadb:
     docker:
-      - image: cossacklabs/ci-py-go-themis:T1776-new-docker-image-for-acra-ci
+      - image: cossacklabs/ci-py-go-themis:latest
       # use the same credentials for mysql db as for postgresql (which support was added first)
       # has latest tag on 2018.03.29
       - image: mariadb:latest
@@ -143,7 +143,7 @@ jobs:
 
   mysql-ssl:
     docker:
-      - image: cossacklabs/ci-py-go-themis:T1776-new-docker-image-for-acra-ci
+      - image: cossacklabs/ci-py-go-themis:latest
       # use the same credentials for mysql db as for postgresql (which support was added first)
       # has latest tag on 2018.03.29
       - image: cossacklabs/mysql-ssl:5.7.31-1
@@ -187,7 +187,7 @@ jobs:
 
   mysql:
     docker:
-      - image: cossacklabs/ci-py-go-themis:T1776-new-docker-image-for-acra-ci
+      - image: cossacklabs/ci-py-go-themis:latest
       - image: mysql:5.7.25
         environment:
           MYSQL_DATABASE: test
