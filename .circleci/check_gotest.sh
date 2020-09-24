@@ -2,7 +2,6 @@
 
 # Run test in each go environment and log errors to $FILEPATH_ERROR_FLAG.
 # If all tests pass successfully then the file will not be created at all.
-# export GOPATH=$HOME/$GOPATH_FOLDER
 # cd to code with go.mod file outside of GOPATH to work with module-based behaviour
 # https://github.com/golang/go/wiki/Modules#when-do-i-get-old-behavior-vs-new-module-based-behavior
 cd $HOME/project

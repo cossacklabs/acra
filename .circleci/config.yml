@@ -41,7 +41,14 @@ jobs:
     steps:
       # prepare
       - checkout
-      - run: "set +eo pipefail; for try in {0..15}; do pg_isready -U${POSTGRES_USER} -d${POSTGRES_DB} -h127.0.0.1; [ $? -eq 0 ] && exit 0 || sleep 1; done; exit 1"
+      # database in neighbor container need some time to start
+      # wait for the DB to be reachable, up to 15 pings with 1 second interval
+      - run: |
+          set +eo pipefail;
+          for try in {0..15}; do
+            pg_isready -U${POSTGRES_USER} -d${POSTGRES_DB} -h127.0.0.1; [ $? -eq 0 ] && exit 0 || sleep 1;
+          done;
+          exit 1;
       # testing
       # generate test data for integration tests
       - run: python3 tests/generate_random_data.py
@@ -82,7 +89,14 @@ jobs:
     steps:
       # prepare
       - checkout
-      - run: "set +eo pipefail; for try in {0..15}; do pg_isready -U${POSTGRES_USER} -d${POSTGRES_DB} -h127.0.0.1; [ $? -eq 0 ] && exit 0 || sleep 1; done; exit 1"
+      # database in neighbor container need some time to start
+      # wait for the DB to be reachable, up to 15 pings with 1 second interval
+      - run: |
+          set +eo pipefail;
+          for try in {0..15}; do
+            pg_isready -U${POSTGRES_USER} -d${POSTGRES_DB} -h127.0.0.1; [ $? -eq 0 ] && exit 0 || sleep 1;
+          done;
+          exit 1;
       # testing
       # generate test data for integration tests
       - run: python3 tests/generate_random_data.py
@@ -126,7 +140,14 @@ jobs:
     steps:
       # prepare
       - checkout
-      - run: "set +eo pipefail; for try in {0..15}; do mysqladmin ping -h127.0.0.1 -utest -ptest --protocol=TCP; [ $? -eq 0 ] && exit 0 || sleep 1; done; exit 1"
+      # database in neighbor container need some time to start
+      # wait for the DB to be reachable, up to 15 pings with 1 second interval
+      - run: |
+          set +eo pipefail;
+          for try in {0..15}; do
+            mysqladmin ping -h127.0.0.1 -utest -ptest --protocol=TCP; [ $? -eq 0 ] && exit 0 || sleep 1;
+          done;
+          exit 1;
       # testing
       # generate test data for integration tests
       - run: python3 tests/generate_random_data.py
@@ -171,7 +192,14 @@ jobs:
     steps:
       # prepare
       - checkout
-      - run: "set +eo pipefail; for try in {0..15}; do mysqladmin ping -h127.0.0.1 -utest -ptest --protocol=TCP; [ $? -eq 0 ] && exit 0 || sleep 1; done; exit 1"
+      # database in neighbor container need some time to start
+      # wait for the DB to be reachable, up to 15 pings with 1 second interval
+      - run: |
+          set +eo pipefail;
+          for try in {0..15}; do
+            mysqladmin ping -h127.0.0.1 -utest -ptest --protocol=TCP; [ $? -eq 0 ] && exit 0 || sleep 1;
+          done;
+          exit 1;
       # testing
       # generate test data for integration tests
       - run: python3 tests/generate_random_data.py
@@ -215,7 +243,14 @@ jobs:
     steps:
       # prepare
       - checkout
-      - run: "set +eo pipefail; for try in {0..15}; do mysqladmin ping -h127.0.0.1 -utest -ptest --protocol=TCP; [ $? -eq 0 ] && exit 0 || sleep 1; done; exit 1"
+      # database in neighbor container need some time to start
+      # wait for the DB to be reachable, up to 15 pings with 1 second interval
+      - run: |
+          set +eo pipefail;
+          for try in {0..15}; do
+            mysqladmin ping -h127.0.0.1 -utest -ptest --protocol=TCP; [ $? -eq 0 ] && exit 0 || sleep 1;
+          done;
+          exit 1;
       # testing
       # generate test data for integration tests
       - run: python3 tests/generate_random_data.py
@@ -258,7 +293,14 @@ jobs:
     steps:
       # prepare
       - checkout
-      - run: "set +eo pipefail; for try in {0..15}; do mysqladmin ping -h127.0.0.1 -utest -ptest --protocol=TCP; [ $? -eq 0 ] && exit 0 || sleep 1; done; exit 1"
+      # database in neighbor container need some time to start
+      # wait for the DB to be reachable, up to 15 pings with 1 second interval
+      - run: |
+          set +eo pipefail;
+          for try in {0..15}; do
+            mysqladmin ping -h127.0.0.1 -utest -ptest --protocol=TCP; [ $? -eq 0 ] && exit 0 || sleep 1;
+          done;
+          exit 1;
       # testing
       # generate test data for integration tests
       - run: python3 tests/generate_random_data.py
