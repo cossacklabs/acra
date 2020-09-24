@@ -5,6 +5,7 @@ jobs:
       - image: cossacklabs/ci-py-go-themis:latest
     environment:
       FILEPATH_ERROR_FLAG: /tmp/test_fail
+      GO_VERSIONS: 1.13.15 1.14.9 1.15.2
       TEST_DB_PORT: "5432"
       TEST_RANDOM_DATA_FOLDER: /tmp/test_data
       TEST_TLS: "on"
@@ -33,10 +34,11 @@ jobs:
           POSTGRES_DB: test
     environment:
       FILEPATH_ERROR_FLAG: /tmp/test_fail
+      GO_VERSIONS: 1.13.15 1.14.9 1.15.2
       TEST_DB_PORT: "5432"
       TEST_RANDOM_DATA_FOLDER: /tmp/test_data
       TEST_TLS: "on"
-    steps: &postgresql-ssl-steps
+    steps:
       # prepare
       - checkout
       - run: pg_isready -U${POSTGRES_USER} -d${POSTGRES_DB} -h127.0.0.1
@@ -73,10 +75,36 @@ jobs:
           POSTGRES_DB: test
     environment:
       FILEPATH_ERROR_FLAG: /tmp/test_fail
+      GO_VERSIONS: 1.13.15 1.14.9 1.15.2
       TEST_DB_PORT: "5432"
       TEST_RANDOM_DATA_FOLDER: /tmp/test_data
       TEST_TLS: "off"
-    steps: *postgresql-ssl-steps
+    steps:
+      # prepare
+      - checkout
+      - run: pg_isready -U${POSTGRES_USER} -d${POSTGRES_DB} -h127.0.0.1
+      # testing
+      # generate test data for integration tests
+      - run: python3 tests/generate_random_data.py
+      # each iteration pass to test different ports for forks to avoid problems with TCP TIME WAIT between tests
+      - run:
+          name: Integration tests (keystore v1)
+          environment:
+            TEST_KEYSTORE: v1
+          command: |
+            .circleci/integration.sh
+            if [ -f  $FILEPATH_ERROR_FLAG ]; then cat "$FILEPATH_ERROR_FLAG"; rm "$FILEPATH_ERROR_FLAG"; exit 1; fi
+      - run:
+          name: Integration tests (keystore v2)
+          environment:
+            TEST_KEYSTORE: v2
+          command: |
+            .circleci/integration.sh
+            if [ -f  $FILEPATH_ERROR_FLAG ]; then cat "$FILEPATH_ERROR_FLAG"; rm "$FILEPATH_ERROR_FLAG"; exit 1; fi
+      - store_test_results:
+          path: /home/user/tests_output
+      - store_artifacts:
+          path: /home/user/tests_output
 
   mariadb-ssl:
     docker:
@@ -95,7 +123,7 @@ jobs:
       TEST_DB_PORT: "3306"
       TEST_RANDOM_DATA_FOLDER: /tmp/test_data
       TEST_TLS: "on"
-    steps: &mariadb-ssl-steps
+    steps:
       # prepare
       - checkout
       - run: mysqladmin ping -h127.0.0.1
@@ -135,11 +163,37 @@ jobs:
           MYSQL_ROOT_PASSWORD: root
     environment:
       FILEPATH_ERROR_FLAG: /tmp/test_fail
+      GO_VERSIONS: 1.13.15 1.14.9 1.15.2
       TEST_MYSQL: "true"
       TEST_DB_PORT: "3306"
       TEST_RANDOM_DATA_FOLDER: /tmp/test_data
       TEST_TLS: "off"
-    steps: *mariadb-ssl-steps
+    steps:
+      # prepare
+      - checkout
+      - run: mysqladmin ping -h127.0.0.1
+      # testing
+      # generate test data for integration tests
+      - run: python3 tests/generate_random_data.py
+      # each iteration pass to test different ports for forks to avoid problems with TCP TIME WAIT between tests
+      - run:
+          name: Integration tests (keystore v1)
+          environment:
+            TEST_KEYSTORE: v1
+          command: |
+            .circleci/integration.sh
+            if [ -f  $FILEPATH_ERROR_FLAG ]; then cat "$FILEPATH_ERROR_FLAG"; rm "$FILEPATH_ERROR_FLAG"; exit 1; fi
+      - run:
+          name: Integration tests (keystore v2)
+          environment:
+            TEST_KEYSTORE: v2
+          command: |
+            .circleci/integration.sh
+            if [ -f  $FILEPATH_ERROR_FLAG ]; then cat "$FILEPATH_ERROR_FLAG"; rm "$FILEPATH_ERROR_FLAG"; exit 1; fi
+      - store_test_results:
+          path: /home/user/tests_output
+      - store_artifacts:
+          path: /home/user/tests_output
 
   mysql-ssl:
     docker:
@@ -158,7 +212,7 @@ jobs:
       TEST_DB_PORT: "3306"
       TEST_RANDOM_DATA_FOLDER: /tmp/test_data
       TEST_TLS: "on"
-    steps: &mysql-ssl-steps
+    steps:
       # prepare
       - checkout
       - run: mysqladmin ping -h127.0.0.1
@@ -196,11 +250,37 @@ jobs:
           MYSQL_ROOT_PASSWORD: root
     environment:
       FILEPATH_ERROR_FLAG: /tmp/test_fail
+      GO_VERSIONS: 1.13.15 1.14.9 1.15.2
       TEST_MYSQL: "true"
       TEST_DB_PORT: "3306"
       TEST_RANDOM_DATA_FOLDER: /tmp/test_data
       TEST_TLS: "off"
-    steps: *mysql-ssl-steps
+    steps:
+      # prepare
+      - checkout
+      - run: mysqladmin ping -h127.0.0.1
+      # testing
+      # generate test data for integration tests
+      - run: python3 tests/generate_random_data.py
+      # each iteration pass to test different ports for forks to avoid problems with TCP TIME WAIT between tests
+      - run:
+          name: Integration tests (keystore v1)
+          environment:
+            TEST_KEYSTORE: v1
+          command: |
+            .circleci/integration.sh
+            if [ -f  $FILEPATH_ERROR_FLAG ]; then cat "$FILEPATH_ERROR_FLAG"; rm "$FILEPATH_ERROR_FLAG"; exit 1; fi
+      - run:
+          name: Integration tests (keystore v2)
+          environment:
+            TEST_KEYSTORE: v2
+          command: |
+            .circleci/integration.sh
+            if [ -f  $FILEPATH_ERROR_FLAG ]; then cat "$FILEPATH_ERROR_FLAG"; rm "$FILEPATH_ERROR_FLAG"; exit 1; fi
+      - store_test_results:
+          path: /home/user/tests_output
+      - store_artifacts:
+          path: /home/user/tests_output
 
 workflows:
   version: 2

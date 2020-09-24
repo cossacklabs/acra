@@ -17,16 +17,26 @@ mkdir -p ${TEST_OUTPUT_FOLDER}
 
 cd $HOME/project
 
-OLD_PATH=$PATH
-
 # set correct permissions for ssl keys here because git by default recognize changing only executable bit
 # http://git.661346.n2.nabble.com/file-mode-td6467904.html#a6469081
 # https://stackoverflow.com/questions/11230171/git-is-changing-my-files-permissions-when-i-push-to-server/11231682#11231682
 find tests/ssl -name "*.key" -type f -exec chmod 0600 {} \;
 
-for GOROOT in $(find /usr/lib/go -maxdepth 2 -path '*.*.*/go'); do
-    version="$(echo $GOROOT | sed -E 's|^/usr/lib/go/([0-9]+\.[0-9]+\.[0-9]+)/go$|\1|')"
-    echo "-------------------- Testing Go version $version at $GOROOT"
+OLD_PATH=$PATH
+
+if [ -z "$GO_VERSIONS" ]; then
+    GO_VERSIONS="$(echo $GOROOT | sed -E 's|^/usr/lib/go/([0-9]+\.[0-9]+(\.[0-9]+)?)/go$|\1|')"
+fi
+
+for go_version in $GO_VERSIONS; do
+    export GOROOT=/usr/lib/go/$go_version/go
+
+    if [ ! -d $GOROOT ]; then
+        echo "Error: Go $go_version is not installed, $GOROOT does not exist"
+        exit 1
+    fi
+
+    echo "-------------------- Testing Go version $go_version at $GOROOT"
 
     export PATH=$GOROOT/bin:$OLD_PATH
     export TEST_ACRASERVER_PORT=$(expr ${TEST_ACRASERVER_PORT} + 1);
@@ -41,7 +51,7 @@ for GOROOT in $(find /usr/lib/go -maxdepth 2 -path '*.*.*/go'); do
     echo "-------------------- Testing with TEST_TLS=${TEST_TLS}"
 
     for iteration in {1..3}; do
-        context="${iteration}-golang-${version}-tls-${TEST_TLS}"
+        context="${iteration}-golang-${go_version}-tls-${TEST_TLS}"
         export TEST_XMLOUTPUT="${TEST_OUTPUT_FOLDER}/${context}.xml"
         LOG_OUTPUT="${TEST_OUTPUT_FOLDER}/${context}.log"
         timeout ${TEST_RUN_TIMEOUT} python3 tests/test.py -v | tee "${LOG_OUTPUT}";

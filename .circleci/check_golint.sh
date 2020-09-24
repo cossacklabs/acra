@@ -1,7 +1,5 @@
 #!/usr/bin/env bash
 
-export PATH=$GOROOT/bin:$PATH
-
 # run golint and count output lines
 # golint print issues it found in source files
 # count lines with wc and check that N lines was in output

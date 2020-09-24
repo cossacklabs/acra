@@ -1,7 +1,5 @@
 #!/usr/bin/env bash
 
-export PATH=$GOROOT/bin:$PATH
-
 function compare_configs() {
     folder_a=$1
     folder_b=$2

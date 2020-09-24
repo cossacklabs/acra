@@ -54,8 +54,6 @@ RUN GO_PREFIX_DIR=/usr/lib/go/1.15.2 \
     /image.scripts/install_go.sh
 
 ENV GOROOT="/usr/lib/go/1.15.2/go" GOPATH="/home/user/gopath" GO111MODULE="auto"
-# if you need Go, put `export PATH=$GOROOT/bin:$PATH` in you scripts
-# if you need a different Go version, set GOROOT to another /usr/lib/go/*/go before setting PATH
 
 # Create the user and allow using `sudo` without password
 RUN useradd -m user && \
@@ -70,12 +68,12 @@ WORKDIR /home/user
 
 # `go get` installs binaries into $GOPATH/bin, thus into ~/gopath/bin
 # `pip` installs binaries into ~/.local/bin
-ENV PATH="/home/user/gopath/bin:/home/user/.local/bin:$PATH"
+ENV PATH="$GOROOT/bin:/home/user/gopath/bin:/home/user/.local/bin:$PATH"
 
 # Install some Go linters
-RUN PATH=$GOROOT/bin:$PATH go get -u -v golang.org/x/lint/golint
-RUN PATH=$GOROOT/bin:$PATH go get -u -v github.com/client9/misspell/cmd/misspell
-RUN PATH=$GOROOT/bin:$PATH go get -u -v github.com/gordonklaus/ineffassign
+RUN go get -u -v golang.org/x/lint/golint
+RUN go get -u -v github.com/client9/misspell/cmd/misspell
+RUN go get -u -v github.com/gordonklaus/ineffassign
 
 # Install Python tests dependencies
 

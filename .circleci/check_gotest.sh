@@ -9,11 +9,22 @@ cd $HOME/project
 
 OLD_PATH=$PATH
 
-for GOROOT in $(find /usr/lib/go -maxdepth 2 -path '*.*.*/go'); do
-    # use OLD_PATH to avoid having PATH=/usr/lib/go/1.15.2/go/bin:/usr/lib/go/1.14.9/go/bin:...
+if [ -z "$GO_VERSIONS" ]; then
+    GO_VERSIONS="$(echo $GOROOT | sed -E 's|^/usr/lib/go/([0-9]+\.[0-9]+(\.[0-9]+)?)/go$|\1|')"
+fi
+
+for go_version in $GO_VERSIONS; do
+    export GOROOT=/usr/lib/go/$go_version/go
+
+    if [ ! -d $GOROOT ]; then
+        echo "Error: Go $go_version is not installed, $GOROOT does not exist"
+        exit 1
+    fi
+
     export PATH=$GOROOT/bin:$OLD_PATH
 
-    echo GOROOT=$GOROOT PATH=$PATH
+    echo "Using Go $go_version at $GOROOT"
+    echo PATH=$PATH
     
     go test -v ./...;
     status="$?"

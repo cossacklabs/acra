@@ -120,7 +120,6 @@ endif
 
 #===== Functions ===============================================================
 
-# set BUILD_CACHE to anything to enable caching
 define docker_build
 	@$(DOCKER_BIN) image build \
 		$(DOCKER_BUILD_FLAGS) \
