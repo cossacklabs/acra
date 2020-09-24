@@ -126,7 +126,7 @@ jobs:
     steps:
       # prepare
       - checkout
-      - run: mysqladmin ping -h127.0.0.1
+      - run: mysqladmin ping -h127.0.0.1 -utest -ptest --protocol=TCP
       # testing
       # generate test data for integration tests
       - run: python3 tests/generate_random_data.py
@@ -171,7 +171,7 @@ jobs:
     steps:
       # prepare
       - checkout
-      - run: mysqladmin ping -h127.0.0.1
+      - run: mysqladmin ping -h127.0.0.1 -utest -ptest --protocol=TCP
       # testing
       # generate test data for integration tests
       - run: python3 tests/generate_random_data.py
@@ -215,7 +215,7 @@ jobs:
     steps:
       # prepare
       - checkout
-      - run: mysqladmin ping -h127.0.0.1
+      - run: mysqladmin ping -h127.0.0.1 -utest -ptest --protocol=TCP
       # testing
       # generate test data for integration tests
       - run: python3 tests/generate_random_data.py
@@ -258,7 +258,7 @@ jobs:
     steps:
       # prepare
       - checkout
-      - run: mysqladmin ping -h127.0.0.1
+      - run: mysqladmin ping -h127.0.0.1 -utest -ptest --protocol=TCP
       # testing
       # generate test data for integration tests
       - run: python3 tests/generate_random_data.py
