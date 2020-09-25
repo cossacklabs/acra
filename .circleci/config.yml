@@ -45,12 +45,7 @@ jobs:
       - checkout
       # database in neighbor container need some time to start
       # wait for the DB to be reachable, up to 15 pings with 1 second interval
-      - run: |
-          set +o pipefail
-          for try in {0..15}; do
-            pg_isready -U${POSTGRES_USER} -d${POSTGRES_DB} -h127.0.0.1 && exit 0 || sleep 1
-          done
-          exit 1
+      - run: NUM_PINGS=15 DELAY=1 .circleci/check_postgresql_connection.sh
       # testing
       # generate test data for integration tests
       - run: python3 tests/generate_random_data.py
@@ -95,12 +90,7 @@ jobs:
       - checkout
       # database in neighbor container need some time to start
       # wait for the DB to be reachable, up to 15 pings with 1 second interval
-      - run: |
-          set +o pipefail
-          for try in {0..15}; do
-            pg_isready -U${POSTGRES_USER} -d${POSTGRES_DB} -h127.0.0.1 && exit 0 || sleep 1
-          done
-          exit 1
+      - run: NUM_PINGS=15 DELAY=1 .circleci/check_postgresql_connection.sh
       # testing
       # generate test data for integration tests
       - run: python3 tests/generate_random_data.py
@@ -148,12 +138,7 @@ jobs:
       - checkout
       # database in neighbor container need some time to start
       # wait for the DB to be reachable, up to 15 pings with 1 second interval
-      - run: |
-          set +o pipefail
-          for try in {0..15}; do
-            mysqladmin ping -h127.0.0.1 -u${MYSQL_USER} -p${MYSQL_PASSWORD} --protocol=TCP && exit 0 || sleep 1
-          done
-          exit 1
+      - run: NUM_PINGS=15 DELAY=1 .circleci/check_mysql_connection.sh
       # testing
       # generate test data for integration tests
       - run: python3 tests/generate_random_data.py
@@ -202,12 +187,7 @@ jobs:
       - checkout
       # database in neighbor container need some time to start
       # wait for the DB to be reachable, up to 15 pings with 1 second interval
-      - run: |
-          set +o pipefail
-          for try in {0..15}; do
-            mysqladmin ping -h127.0.0.1 -u${MYSQL_USER} -p${MYSQL_PASSWORD} --protocol=TCP && exit 0 || sleep 1
-          done
-          exit 1
+      - run: NUM_PINGS=15 DELAY=1 .circleci/check_mysql_connection.sh
       # testing
       # generate test data for integration tests
       - run: python3 tests/generate_random_data.py
@@ -255,12 +235,7 @@ jobs:
       - checkout
       # database in neighbor container need some time to start
       # wait for the DB to be reachable, up to 15 pings with 1 second interval
-      - run: |
-          set +o pipefail
-          for try in {0..15}; do
-            mysqladmin ping -h127.0.0.1 -u${MYSQL_USER} -p${MYSQL_PASSWORD} --protocol=TCP && exit 0 || sleep 1
-          done
-          exit 1
+      - run: NUM_PINGS=15 DELAY=1 .circleci/check_mysql_connection.sh
       # testing
       # generate test data for integration tests
       - run: python3 tests/generate_random_data.py
@@ -307,12 +282,7 @@ jobs:
       - checkout
       # database in neighbor container need some time to start
       # wait for the DB to be reachable, up to 15 pings with 1 second interval
-      - run: |
-          set +o pipefail
-          for try in {0..15}; do
-            mysqladmin ping -h127.0.0.1 -u${MYSQL_USER} -p${MYSQL_PASSWORD} --protocol=TCP && exit 0 || sleep 1
-          done
-          exit 1
+      - run: NUM_PINGS=15 DELAY=1 .circleci/check_mysql_connection.sh
       # testing
       # generate test data for integration tests
       - run: python3 tests/generate_random_data.py
