@@ -151,7 +151,8 @@ type Handler struct {
 	dbTLSHandshakeFinished chan bool
 	clientConnection       net.Conn
 	dbConnection           net.Conn
-	tlsConfig              *tls.Config
+	clientTLSConfig        *tls.Config
+	dbTLSConfig            *tls.Config
 	logger                 *logrus.Entry
 	ctx                    context.Context
 	queryObserverManager   base.QueryObserverManager
@@ -160,12 +161,6 @@ type Handler struct {
 
 // NewMysqlProxy returns new Handler
 func NewMysqlProxy(ctx context.Context, decryptor base.Decryptor, dbConnection, clientConnection net.Conn, setting base.ProxySetting) (*Handler, error) {
-	tlsConfig := setting.TLSConfig()
-	if tlsConfig != nil {
-		// use less secure protocol versions because some drivers and db images doesn't support secure and modern options
-		tlsConfig = tlsConfig.Clone()
-		network.SetMySQLCompatibleTLSSettings(tlsConfig)
-	}
 	observerManager, err := base.NewArrayQueryObserverableManager(ctx)
 	if err != nil {
 		return nil, err
@@ -179,12 +174,22 @@ func NewMysqlProxy(ctx context.Context, decryptor base.Decryptor, dbConnection, 
 		acracensor:             setting.Censor(),
 		clientConnection:       clientConnection,
 		dbConnection:           dbConnection,
-		tlsConfig:              tlsConfig,
+		clientTLSConfig:        tweakTLSConfigForMySQL(setting.ClientTLSConfig()),
+		dbTLSConfig:            tweakTLSConfigForMySQL(setting.DatabaseTLSConfig()),
 		ctx:                    ctx,
 		logger:                 logging.GetLoggerFromContext(ctx),
 		queryObserverManager:   observerManager,
 		decryptionObserver:     base.NewColumnDecryptionObserver(),
 	}, nil
+}
+
+func tweakTLSConfigForMySQL(config *tls.Config) *tls.Config {
+	if config != nil {
+		// use less secure protocol versions because some drivers and db images doesn't support secure and modern options
+		config = config.Clone()
+		network.SetMySQLCompatibleTLSSettings(config)
+	}
+	return config
 }
 
 // SubscribeOnColumnDecryption subscribes for OnColumn notifications about the column, indexed from left to right starting with zero.
@@ -273,7 +278,7 @@ func (handler *Handler) ProxyClientConnection(errCh chan<- error) {
 			handler.clientDeprecateEOF = packet.IsClientDeprecateEOF()
 			clientLog = clientLog.WithField("deprecate_eof", handler.clientDeprecateEOF)
 			if packet.IsSSLRequest() {
-				if handler.tlsConfig == nil {
+				if handler.clientTLSConfig == nil {
 					handler.logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorDecryptorCantInitializeTLS).Errorln("To support TLS connections you must pass TLS key and certificate for AcraServer that will be used " +
 						"for connections AcraServer->Database and CA certificate which will be used to verify certificate " +
 						"from database")
@@ -287,7 +292,7 @@ func (handler *Handler) ProxyClientConnection(errCh chan<- error) {
 					errCh <- network.ErrEmptyTLSConfig
 					return
 				}
-				tlsConnection := tls.Server(handler.clientConnection, handler.tlsConfig)
+				tlsConnection := tls.Server(handler.clientConnection, handler.clientTLSConfig)
 				if err := tlsConnection.Handshake(); err != nil {
 					handler.logger.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorDecryptorCantInitializeTLS).
 						Errorln("Error in tls handshake with client")
@@ -871,7 +876,7 @@ func (handler *Handler) ProxyDatabaseConnection(errCh chan<- error) {
 				if netErr.Timeout() && handler.isTLSHandshake {
 					// reset deadline
 					handler.dbConnection.SetReadDeadline(time.Time{})
-					tlsConnection := tls.Client(handler.dbConnection, handler.tlsConfig)
+					tlsConnection := tls.Client(handler.dbConnection, handler.dbTLSConfig)
 					if err = tlsConnection.Handshake(); err != nil {
 						handler.logger.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorDecryptorCantInitializeTLS).
 							Errorln("Error in tls handshake with db")

@@ -30,7 +30,8 @@ import (
 type ProxySetting interface {
 	KeyStore() keystore.DecryptionKeyStore
 	TableSchemaStore() config.TableSchemaStore
-	TLSConfig() *tls.Config
+	ClientTLSConfig() *tls.Config
+	DatabaseTLSConfig() *tls.Config
 	Censor() acracensor.AcraCensorInterface
 	DecryptorFactory() DecryptorFactory
 }
@@ -53,8 +54,13 @@ func (p *proxySetting) Censor() acracensor.AcraCensorInterface {
 	return p.censor
 }
 
-// TLSConfig return tls.Config
-func (p *proxySetting) TLSConfig() *tls.Config {
+// ClientTLSConfig return tls.Config to use for database connection, if any.
+func (p *proxySetting) ClientTLSConfig() *tls.Config {
+	return p.tlsConfig
+}
+
+// DatabaseTLSConfig return tls.Config to use for database connection, if any.
+func (p *proxySetting) DatabaseTLSConfig() *tls.Config {
 	return p.tlsConfig
 }
 
