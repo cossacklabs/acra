@@ -101,7 +101,7 @@ type PgProxy struct {
 }
 
 // NewPgProxy returns new PgProxy
-func NewPgProxy(ctx context.Context, decryptor base.Decryptor, dbConnection, clientConnection net.Conn, tlsConfig *tls.Config, censor acracensor.AcraCensorInterface) (*PgProxy, error) {
+func NewPgProxy(ctx context.Context, decryptor base.Decryptor, dbConnection, clientConnection net.Conn, setting base.ProxySetting) (*PgProxy, error) {
 	observerManager, err := base.NewArrayQueryObserverableManager(ctx)
 	if err != nil {
 		return nil, err
@@ -112,8 +112,8 @@ func NewPgProxy(ctx context.Context, decryptor base.Decryptor, dbConnection, cli
 		TLSCh:                make(chan bool),
 		ctx:                  ctx,
 		queryObserverManager: observerManager,
-		tlsConfig:            tlsConfig,
-		censor:               censor,
+		tlsConfig:            setting.TLSConfig(),
+		censor:               setting.Censor(),
 		decryptor:            decryptor,
 		decryptionObserver:   base.NewColumnDecryptionObserver(),
 	}, nil

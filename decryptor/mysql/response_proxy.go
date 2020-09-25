@@ -159,12 +159,12 @@ type Handler struct {
 }
 
 // NewMysqlProxy returns new Handler
-func NewMysqlProxy(ctx context.Context, decryptor base.Decryptor, dbConnection, clientConnection net.Conn, tlsConfig *tls.Config, censor acracensor.AcraCensorInterface) (*Handler, error) {
-	var newTLSConfig *tls.Config
+func NewMysqlProxy(ctx context.Context, decryptor base.Decryptor, dbConnection, clientConnection net.Conn, setting base.ProxySetting) (*Handler, error) {
+	tlsConfig := setting.TLSConfig()
 	if tlsConfig != nil {
 		// use less secure protocol versions because some drivers and db images doesn't support secure and modern options
-		newTLSConfig = tlsConfig.Clone()
-		network.SetMySQLCompatibleTLSSettings(newTLSConfig)
+		tlsConfig = tlsConfig.Clone()
+		network.SetMySQLCompatibleTLSSettings(tlsConfig)
 	}
 	observerManager, err := base.NewArrayQueryObserverableManager(ctx)
 	if err != nil {
@@ -176,10 +176,10 @@ func NewMysqlProxy(ctx context.Context, decryptor base.Decryptor, dbConnection, 
 		clientDeprecateEOF:     false,
 		decryptor:              decryptor,
 		responseHandler:        defaultResponseHandler,
-		acracensor:             censor,
+		acracensor:             setting.Censor(),
 		clientConnection:       clientConnection,
 		dbConnection:           dbConnection,
-		tlsConfig:              newTLSConfig,
+		tlsConfig:              tlsConfig,
 		ctx:                    ctx,
 		logger:                 logging.GetLoggerFromContext(ctx),
 		queryObserverManager:   observerManager,
