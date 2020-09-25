@@ -116,8 +116,14 @@ securesession_id: acra_server
 # Set authentication mode that will be used in TLS connection with AcraConnector. Values in range 0-4 that set auth type (https://golang.org/pkg/crypto/tls/#ClientAuthType). Default is tls.RequireAndVerifyClientCert
 tls_auth: 4
 
-# Path to root certificate which will be used with system root certificates to validate Postgresql's and AcraConnector's certificate
+# Path to additional CA certificate for AcraConnector and database certificate validation
 tls_ca: 
+
+# Path to additional CA certificate for AcraConnector certificate validation (if different from database CA)
+tls_ca_client: 
+
+# Path to additional CA certificate for database certificate validation (if different from AcraConnector CA)
+tls_ca_database: 
 
 # Path to tls certificate
 tls_cert: 

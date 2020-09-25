@@ -108,7 +108,9 @@ func main() {
 	useTLS := flag.Bool("acraconnector_tls_transport_enable", false, "Use tls to encrypt transport between AcraServer and AcraConnector/client")
 	tlsKey := flag.String("tls_key", "", "Path to private key that will be used in AcraServer's TLS handshake with AcraConnector as server's key and database as client's key")
 	tlsCert := flag.String("tls_cert", "", "Path to tls certificate")
-	tlsCA := flag.String("tls_ca", "", "Path to root certificate which will be used with system root certificates to validate Postgresql's and AcraConnector's certificate")
+	tlsCA := flag.String("tls_ca", "", "Path to additional CA certificate for AcraConnector and database certificate validation")
+	tlsClientCA := flag.String("tls_ca_client", "", "Path to additional CA certificate for AcraConnector certificate validation (if different from database CA)")
+	tlsDbCA := flag.String("tls_ca_database", "", "Path to additional CA certificate for database certificate validation (if different from AcraConnector CA)")
 	tlsDbSNI := flag.String("tls_db_sni", "", "Expected Server Name (SNI) from database")
 	tlsAuthType := flag.Int("tls_auth", int(tls.RequireAndVerifyClientCert), "Set authentication mode that will be used in TLS connection with AcraConnector. Values in range 0-4 that set auth type (https://golang.org/pkg/crypto/tls/#ClientAuthType). Default is tls.RequireAndVerifyClientCert")
 	noEncryptionTransport := flag.Bool("acraconnector_transport_encryption_disable", false, "Use raw transport (tcp/unix socket) between AcraServer and AcraConnector/client (don't use this flag if you not connect to database with SSL/TLS")
@@ -215,19 +217,32 @@ func main() {
 	log.Infof("Keystore init OK")
 
 	log.Infof("Configuring transport...")
-	var tlsConfig *tls.Config
+	var clientTLSConfig, dbTLSConfig *tls.Config
 	if *useTLS || *tlsKey != "" {
-		tlsConfig, err = network.NewTLSConfig(network.SNIOrHostname(*tlsDbSNI, *dbHost), *tlsCA, *tlsKey, *tlsCert, tls.ClientAuthType(*tlsAuthType))
+		// Use common CA, unless the user requests specific ones
+		if *tlsClientCA == "" {
+			*tlsClientCA = *tlsCA
+		}
+		if *tlsDbCA == "" {
+			*tlsDbCA = *tlsCA
+		}
+		clientTLSConfig, err = network.NewTLSConfig(network.SNIOrHostname(*tlsDbSNI, *dbHost), *tlsClientCA, *tlsKey, *tlsCert, tls.ClientAuthType(*tlsAuthType))
 		if err != nil {
 			log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorTransportConfiguration).
-				Errorln("Configuration error: can't get config for TLS")
+				Errorln("Configuration error: can't create AcraConnector TLS config")
 			os.Exit(1)
 		}
-		log.Infoln("Loaded tls config")
+		dbTLSConfig, err = network.NewTLSConfig(network.SNIOrHostname(*tlsDbSNI, *dbHost), *tlsDbCA, *tlsKey, *tlsCert, tls.ClientAuthType(*tlsAuthType))
+		if err != nil {
+			log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorTransportConfiguration).
+				Errorln("Configuration error: can't create database TLS config")
+			os.Exit(1)
+		}
+		log.Infoln("Loaded TLS configuration")
 	}
 	if *useTLS {
 		log.Println("Selecting transport: use TLS transport wrapper")
-		config.ConnectionWrapper, err = network.NewTLSConnectionWrapper([]byte(*clientID), tlsConfig)
+		config.ConnectionWrapper, err = network.NewTLSConnectionWrapper([]byte(*clientID), clientTLSConfig)
 		if err != nil {
 			log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorTransportConfiguration).
 				Errorln("Configuration error: can't initialise TLS connection wrapper")
@@ -285,7 +300,7 @@ func main() {
 	var proxyFactory base.ProxyFactory
 	if *useMysql {
 		decryptorFactory = mysql.NewMysqlDecryptorFactory(decryptorSetting)
-		proxyFactory, err = mysql.NewProxyFactory(base.NewProxySetting(decryptorFactory, config.GetTableSchema(), keyStore, tlsConfig, tlsConfig, config.GetCensor()))
+		proxyFactory, err = mysql.NewProxyFactory(base.NewProxySetting(decryptorFactory, config.GetTableSchema(), keyStore, clientTLSConfig, dbTLSConfig, config.GetCensor()))
 		if err != nil {
 			log.WithError(err).Errorln("Can't initialize proxy for connections")
 			os.Exit(1)
@@ -293,7 +308,7 @@ func main() {
 		sqlparser.SetDefaultDialect(mysqlDialect.NewMySQLDialect())
 	} else {
 		decryptorFactory = postgresql.NewDecryptorFactory(decryptorSetting)
-		proxyFactory, err = postgresql.NewProxyFactory(base.NewProxySetting(decryptorFactory, config.GetTableSchema(), keyStore, tlsConfig, tlsConfig, config.GetCensor()))
+		proxyFactory, err = postgresql.NewProxyFactory(base.NewProxySetting(decryptorFactory, config.GetTableSchema(), keyStore, clientTLSConfig, dbTLSConfig, config.GetCensor()))
 		if err != nil {
 			log.WithError(err).Errorln("Can't initialize proxy for connections")
 			os.Exit(1)

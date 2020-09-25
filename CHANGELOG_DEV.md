@@ -1,3 +1,9 @@
+## 0.85.0 - 2020-09-28
+
+### Added
+
+- New CA configuration options: `tls_ca_client` and `tls_ca_database` (more specific than `tls_ca`)
+
 ## 0.85.0 - 2020-04-02
 ### Added
 - Support of RHEL >= 7
