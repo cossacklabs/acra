@@ -285,7 +285,7 @@ func main() {
 	var proxyFactory base.ProxyFactory
 	if *useMysql {
 		decryptorFactory = mysql.NewMysqlDecryptorFactory(decryptorSetting)
-		proxyFactory, err = mysql.NewProxyFactory(base.NewProxySetting(decryptorFactory, config.GetTableSchema(), keyStore, tlsConfig, config.GetCensor()))
+		proxyFactory, err = mysql.NewProxyFactory(base.NewProxySetting(decryptorFactory, config.GetTableSchema(), keyStore, tlsConfig, tlsConfig, config.GetCensor()))
 		if err != nil {
 			log.WithError(err).Errorln("Can't initialize proxy for connections")
 			os.Exit(1)
@@ -293,7 +293,7 @@ func main() {
 		sqlparser.SetDefaultDialect(mysqlDialect.NewMySQLDialect())
 	} else {
 		decryptorFactory = postgresql.NewDecryptorFactory(decryptorSetting)
-		proxyFactory, err = postgresql.NewProxyFactory(base.NewProxySetting(decryptorFactory, config.GetTableSchema(), keyStore, tlsConfig, config.GetCensor()))
+		proxyFactory, err = postgresql.NewProxyFactory(base.NewProxySetting(decryptorFactory, config.GetTableSchema(), keyStore, tlsConfig, tlsConfig, config.GetCensor()))
 		if err != nil {
 			log.WithError(err).Errorln("Can't initialize proxy for connections")
 			os.Exit(1)

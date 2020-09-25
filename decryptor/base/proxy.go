@@ -39,7 +39,8 @@ type ProxySetting interface {
 type proxySetting struct {
 	keystore         keystore.DecryptionKeyStore
 	tableSchemaStore config.TableSchemaStore
-	tlsConfig        *tls.Config
+	clientTLSConfig  *tls.Config
+	dbTLSConfig      *tls.Config
 	censor           acracensor.AcraCensorInterface
 	decryptorFactory DecryptorFactory
 }
@@ -56,12 +57,12 @@ func (p *proxySetting) Censor() acracensor.AcraCensorInterface {
 
 // ClientTLSConfig return tls.Config to use for database connection, if any.
 func (p *proxySetting) ClientTLSConfig() *tls.Config {
-	return p.tlsConfig
+	return p.clientTLSConfig
 }
 
 // DatabaseTLSConfig return tls.Config to use for database connection, if any.
 func (p *proxySetting) DatabaseTLSConfig() *tls.Config {
-	return p.tlsConfig
+	return p.dbTLSConfig
 }
 
 // TableSchemaStore return table schema store
@@ -75,8 +76,8 @@ func (p *proxySetting) KeyStore() keystore.DecryptionKeyStore {
 }
 
 // NewProxySetting return new ProxySetting implementation with data from params
-func NewProxySetting(decryptorFactory DecryptorFactory, tableSchema config.TableSchemaStore, keystore keystore.DecryptionKeyStore, tlsConfig *tls.Config, censor acracensor.AcraCensorInterface) ProxySetting {
-	return &proxySetting{keystore: keystore, tableSchemaStore: tableSchema, tlsConfig: tlsConfig, censor: censor, decryptorFactory: decryptorFactory}
+func NewProxySetting(decryptorFactory DecryptorFactory, tableSchema config.TableSchemaStore, keystore keystore.DecryptionKeyStore, clientTLSConfig, dbTLSConfig *tls.Config, censor acracensor.AcraCensorInterface) ProxySetting {
+	return &proxySetting{keystore: keystore, tableSchemaStore: tableSchema, clientTLSConfig: clientTLSConfig, dbTLSConfig: dbTLSConfig, censor: censor, decryptorFactory: decryptorFactory}
 }
 
 // Proxy interface to process client's requests to database and responses
