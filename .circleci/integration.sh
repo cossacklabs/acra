@@ -15,30 +15,32 @@ export TEST_RUN_TIMEOUT=480 # 8 minutes (8 * 60)
 export TEST_OUTPUT_FOLDER="${HOME}/tests_output"
 mkdir -p ${TEST_OUTPUT_FOLDER}
 
-cd $HOME/project
-
 # set correct permissions for ssl keys here because git by default recognize changing only executable bit
 # http://git.661346.n2.nabble.com/file-mode-td6467904.html#a6469081
 # https://stackoverflow.com/questions/11230171/git-is-changing-my-files-permissions-when-i-push-to-server/11231682#11231682
 find tests/ssl -name "*.key" -type f -exec chmod 0600 {} \;
 
-OLD_PATH=$PATH
+OLD_PATH="$PATH"
 
 if [ -z "$GO_VERSIONS" ]; then
+    # extract default Go version from $GOROOT
     GO_VERSIONS="$(echo $GOROOT | sed -E 's|^/usr/lib/go/([0-9]+\.[0-9]+(\.[0-9]+)?)/go$|\1|')"
 fi
 
 for go_version in $GO_VERSIONS; do
-    export GOROOT=/usr/lib/go/$go_version/go
+    export GOROOT="/usr/lib/go/$go_version/go"
 
     if [ ! -d $GOROOT ]; then
         echo "Error: Go $go_version is not installed, $GOROOT does not exist"
         exit 1
     fi
 
-    echo "-------------------- Testing Go version $go_version at $GOROOT"
+    export PATH="$GOROOT/bin:$OLD_PATH"
 
-    export PATH=$GOROOT/bin:$OLD_PATH
+    echo "-------------------- Testing $(go version) at $(which go)"
+    echo "GOROOT=$GOROOT"
+    echo "PATH=$PATH"
+
     export TEST_ACRASERVER_PORT=$(expr ${TEST_ACRASERVER_PORT} + 1);
     export TEST_CONNECTOR_PORT=$(expr ${TEST_CONNECTOR_PORT} + 1);
     export TEST_CONNECTOR_COMMAND_PORT=$(expr ${TEST_CONNECTOR_COMMAND_PORT} + 1);

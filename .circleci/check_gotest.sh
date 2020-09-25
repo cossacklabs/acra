@@ -4,26 +4,27 @@
 # If all tests pass successfully then the file will not be created at all.
 # cd to code with go.mod file outside of GOPATH to work with module-based behaviour
 # https://github.com/golang/go/wiki/Modules#when-do-i-get-old-behavior-vs-new-module-based-behavior
-cd $HOME/project
 
-OLD_PATH=$PATH
+OLD_PATH="$PATH"
 
 if [ -z "$GO_VERSIONS" ]; then
+    # extract default Go version from $GOROOT
     GO_VERSIONS="$(echo $GOROOT | sed -E 's|^/usr/lib/go/([0-9]+\.[0-9]+(\.[0-9]+)?)/go$|\1|')"
 fi
 
 for go_version in $GO_VERSIONS; do
-    export GOROOT=/usr/lib/go/$go_version/go
+    export GOROOT="/usr/lib/go/$go_version/go"
 
     if [ ! -d $GOROOT ]; then
         echo "Error: Go $go_version is not installed, $GOROOT does not exist"
         exit 1
     fi
 
-    export PATH=$GOROOT/bin:$OLD_PATH
+    export PATH="$GOROOT/bin:$OLD_PATH"
 
-    echo "Using Go $go_version at $GOROOT"
-    echo PATH=$PATH
+    echo "Using $(go version) at $(which go)"
+    echo "GOROOT=$GOROOT"
+    echo "PATH=$PATH"
     
     go test -v ./...;
     status="$?"

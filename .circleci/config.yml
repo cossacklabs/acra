@@ -33,6 +33,8 @@ jobs:
           POSTGRES_USER: test
           POSTGRES_DB: test
     environment:
+      POSTGRES_USER: test
+      POSTGRES_DB: test
       FILEPATH_ERROR_FLAG: /tmp/test_fail
       GO_VERSIONS: 1.13.15 1.14.9 1.15.2
       TEST_DB_PORT: "5432"
@@ -44,11 +46,11 @@ jobs:
       # database in neighbor container need some time to start
       # wait for the DB to be reachable, up to 15 pings with 1 second interval
       - run: |
-          set +eo pipefail;
+          set +o pipefail
           for try in {0..15}; do
-            pg_isready -U${POSTGRES_USER} -d${POSTGRES_DB} -h127.0.0.1; [ $? -eq 0 ] && exit 0 || sleep 1;
-          done;
-          exit 1;
+            pg_isready -U${POSTGRES_USER} -d${POSTGRES_DB} -h127.0.0.1 && exit 0 || sleep 1
+          done
+          exit 1
       # testing
       # generate test data for integration tests
       - run: python3 tests/generate_random_data.py
@@ -81,6 +83,8 @@ jobs:
           POSTGRES_USER: test
           POSTGRES_DB: test
     environment:
+      POSTGRES_USER: test
+      POSTGRES_DB: test
       FILEPATH_ERROR_FLAG: /tmp/test_fail
       GO_VERSIONS: 1.13.15 1.14.9 1.15.2
       TEST_DB_PORT: "5432"
@@ -92,11 +96,11 @@ jobs:
       # database in neighbor container need some time to start
       # wait for the DB to be reachable, up to 15 pings with 1 second interval
       - run: |
-          set +eo pipefail;
+          set +o pipefail
           for try in {0..15}; do
-            pg_isready -U${POSTGRES_USER} -d${POSTGRES_DB} -h127.0.0.1; [ $? -eq 0 ] && exit 0 || sleep 1;
-          done;
-          exit 1;
+            pg_isready -U${POSTGRES_USER} -d${POSTGRES_DB} -h127.0.0.1 && exit 0 || sleep 1
+          done
+          exit 1
       # testing
       # generate test data for integration tests
       - run: python3 tests/generate_random_data.py
@@ -132,6 +136,8 @@ jobs:
         MYSQL_PASSWORD: test
         MYSQL_ROOT_PASSWORD: root
     environment:
+      MYSQL_USER: test
+      MYSQL_PASSWORD: test
       FILEPATH_ERROR_FLAG: /tmp/test_fail
       TEST_MYSQL: "true"
       TEST_DB_PORT: "3306"
@@ -143,11 +149,11 @@ jobs:
       # database in neighbor container need some time to start
       # wait for the DB to be reachable, up to 15 pings with 1 second interval
       - run: |
-          set +eo pipefail;
+          set +o pipefail
           for try in {0..15}; do
-            mysqladmin ping -h127.0.0.1 -utest -ptest --protocol=TCP; [ $? -eq 0 ] && exit 0 || sleep 1;
-          done;
-          exit 1;
+            mysqladmin ping -h127.0.0.1 -u${MYSQL_USER} -p${MYSQL_PASSWORD} --protocol=TCP && exit 0 || sleep 1
+          done
+          exit 1
       # testing
       # generate test data for integration tests
       - run: python3 tests/generate_random_data.py
@@ -183,6 +189,8 @@ jobs:
           MYSQL_PASSWORD: test
           MYSQL_ROOT_PASSWORD: root
     environment:
+      MYSQL_USER: test
+      MYSQL_PASSWORD: test
       FILEPATH_ERROR_FLAG: /tmp/test_fail
       GO_VERSIONS: 1.13.15 1.14.9 1.15.2
       TEST_MYSQL: "true"
@@ -195,11 +203,11 @@ jobs:
       # database in neighbor container need some time to start
       # wait for the DB to be reachable, up to 15 pings with 1 second interval
       - run: |
-          set +eo pipefail;
+          set +o pipefail
           for try in {0..15}; do
-            mysqladmin ping -h127.0.0.1 -utest -ptest --protocol=TCP; [ $? -eq 0 ] && exit 0 || sleep 1;
-          done;
-          exit 1;
+            mysqladmin ping -h127.0.0.1 -u${MYSQL_USER} -p${MYSQL_PASSWORD} --protocol=TCP && exit 0 || sleep 1
+          done
+          exit 1
       # testing
       # generate test data for integration tests
       - run: python3 tests/generate_random_data.py
@@ -235,6 +243,8 @@ jobs:
           MYSQL_PASSWORD: test
           MYSQL_ROOT_PASSWORD: root
     environment:
+      MYSQL_USER: test
+      MYSQL_PASSWORD: test
       FILEPATH_ERROR_FLAG: /tmp/test_fail
       TEST_MYSQL: "true"
       TEST_DB_PORT: "3306"
@@ -246,11 +256,11 @@ jobs:
       # database in neighbor container need some time to start
       # wait for the DB to be reachable, up to 15 pings with 1 second interval
       - run: |
-          set +eo pipefail;
+          set +o pipefail
           for try in {0..15}; do
-            mysqladmin ping -h127.0.0.1 -utest -ptest --protocol=TCP; [ $? -eq 0 ] && exit 0 || sleep 1;
-          done;
-          exit 1;
+            mysqladmin ping -h127.0.0.1 -u${MYSQL_USER} -p${MYSQL_PASSWORD} --protocol=TCP && exit 0 || sleep 1
+          done
+          exit 1
       # testing
       # generate test data for integration tests
       - run: python3 tests/generate_random_data.py
@@ -284,6 +294,8 @@ jobs:
           MYSQL_PASSWORD: test
           MYSQL_ROOT_PASSWORD: root
     environment:
+      MYSQL_USER: test
+      MYSQL_PASSWORD: test
       FILEPATH_ERROR_FLAG: /tmp/test_fail
       GO_VERSIONS: 1.13.15 1.14.9 1.15.2
       TEST_MYSQL: "true"
@@ -296,11 +308,11 @@ jobs:
       # database in neighbor container need some time to start
       # wait for the DB to be reachable, up to 15 pings with 1 second interval
       - run: |
-          set +eo pipefail;
+          set +o pipefail
           for try in {0..15}; do
-            mysqladmin ping -h127.0.0.1 -utest -ptest --protocol=TCP; [ $? -eq 0 ] && exit 0 || sleep 1;
-          done;
-          exit 1;
+            mysqladmin ping -h127.0.0.1 -u${MYSQL_USER} -p${MYSQL_PASSWORD} --protocol=TCP && exit 0 || sleep 1
+          done
+          exit 1
       # testing
       # generate test data for integration tests
       - run: python3 tests/generate_random_data.py
