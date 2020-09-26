@@ -73,6 +73,8 @@ const (
 // defaultConfigPath relative path to config which will be parsed as default
 var defaultConfigPath = utils.GetConfigPathByName(ServiceName)
 
+const tlsAuthNotSet = -1
+
 func main() {
 	loggingFormat := flag.String("logging_format", "plaintext", "Logging format: plaintext, json or CEF")
 	dbHost := flag.String("db_host", "", "Host to db")
@@ -112,7 +114,9 @@ func main() {
 	tlsClientCA := flag.String("tls_ca_client", "", "Path to additional CA certificate for AcraConnector certificate validation (if different from database CA)")
 	tlsDbCA := flag.String("tls_ca_database", "", "Path to additional CA certificate for database certificate validation (if different from AcraConnector CA)")
 	tlsDbSNI := flag.String("tls_db_sni", "", "Expected Server Name (SNI) from database")
-	tlsAuthType := flag.Int("tls_auth", int(tls.RequireAndVerifyClientCert), "Set authentication mode that will be used in TLS connection with AcraConnector. Values in range 0-4 that set auth type (https://golang.org/pkg/crypto/tls/#ClientAuthType). Default is tls.RequireAndVerifyClientCert")
+	tlsAuthType := flag.Int("tls_auth", int(tls.RequireAndVerifyClientCert), "Set authentication mode that will be used in TLS connection with AcraConnector and database. Values in range 0-4 that set auth type (https://golang.org/pkg/crypto/tls/#ClientAuthType). Default is tls.RequireAndVerifyClientCert")
+	tlsClientAuthType := flag.Int("tls_auth_client", tlsAuthNotSet, "Set authentication mode that will be used in TLS connection with AcraConnector. Overrides the \"tls_auth\" setting.")
+	tlsDbAuthType := flag.Int("tls_auth_database", tlsAuthNotSet, "Set authentication mode that will be used in TLS connection with database. Overrides the \"tls_auth\" setting.")
 	noEncryptionTransport := flag.Bool("acraconnector_transport_encryption_disable", false, "Use raw transport (tcp/unix socket) between AcraServer and AcraConnector/client (don't use this flag if you not connect to database with SSL/TLS")
 	clientID := flag.String("client_id", "", "Expected client ID of AcraConnector in mode without encryption")
 	acraConnectionString := flag.String("incoming_connection_string", network.BuildConnectionString(cmd.DefaultAcraServerConnectionProtocol, cmd.DefaultAcraServerHost, cmd.DefaultAcraServerPort, ""), "Connection string like tcp://x.x.x.x:yyyy or unix:///path/to/socket")
@@ -219,20 +223,26 @@ func main() {
 	log.Infof("Configuring transport...")
 	var clientTLSConfig, dbTLSConfig *tls.Config
 	if *useTLS || *tlsKey != "" {
-		// Use common CA, unless the user requests specific ones
+		// Use common CA and auth settings, unless the user requests specific ones
 		if *tlsClientCA == "" {
 			*tlsClientCA = *tlsCA
 		}
 		if *tlsDbCA == "" {
 			*tlsDbCA = *tlsCA
 		}
-		clientTLSConfig, err = network.NewTLSConfig(network.SNIOrHostname(*tlsDbSNI, *dbHost), *tlsClientCA, *tlsKey, *tlsCert, tls.ClientAuthType(*tlsAuthType))
+		if *tlsClientAuthType == tlsAuthNotSet {
+			*tlsClientAuthType = *tlsAuthType
+		}
+		if *tlsDbAuthType == tlsAuthNotSet {
+			*tlsDbAuthType = *tlsAuthType
+		}
+		clientTLSConfig, err = network.NewTLSConfig(network.SNIOrHostname(*tlsDbSNI, *dbHost), *tlsClientCA, *tlsKey, *tlsCert, tls.ClientAuthType(*tlsClientAuthType))
 		if err != nil {
 			log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorTransportConfiguration).
 				Errorln("Configuration error: can't create AcraConnector TLS config")
 			os.Exit(1)
 		}
-		dbTLSConfig, err = network.NewTLSConfig(network.SNIOrHostname(*tlsDbSNI, *dbHost), *tlsDbCA, *tlsKey, *tlsCert, tls.ClientAuthType(*tlsAuthType))
+		dbTLSConfig, err = network.NewTLSConfig(network.SNIOrHostname(*tlsDbSNI, *dbHost), *tlsDbCA, *tlsKey, *tlsCert, tls.ClientAuthType(*tlsDbAuthType))
 		if err != nil {
 			log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorTransportConfiguration).
 				Errorln("Configuration error: can't create database TLS config")

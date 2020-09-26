@@ -113,8 +113,14 @@ postgresql_enable: false
 # Id that will be sent in secure session
 securesession_id: acra_server
 
-# Set authentication mode that will be used in TLS connection with AcraConnector. Values in range 0-4 that set auth type (https://golang.org/pkg/crypto/tls/#ClientAuthType). Default is tls.RequireAndVerifyClientCert
+# Set authentication mode that will be used in TLS connection with AcraConnector and database. Values in range 0-4 that set auth type (https://golang.org/pkg/crypto/tls/#ClientAuthType). Default is tls.RequireAndVerifyClientCert
 tls_auth: 4
+
+# Set authentication mode that will be used in TLS connection with AcraConnector. Overrides the "tls_auth" setting.
+tls_auth_client: -1
+
+# Set authentication mode that will be used in TLS connection with database. Overrides the "tls_auth" setting.
+tls_auth_database: -1
 
 # Path to additional CA certificate for AcraConnector and database certificate validation
 tls_ca: 
