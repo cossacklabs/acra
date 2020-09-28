@@ -135,6 +135,9 @@ tls_database_auth: -1
 tls_database_ca: 
 
 # Expected Server Name (SNI) from database
+tls_database_sni: 
+
+# Expected Server Name (SNI) from database (deprecated, use "tls_database_sni" instead)
 tls_db_sni: 
 
 # Path to private key that will be used in AcraServer's TLS handshake with AcraConnector as server's key and database as client's key

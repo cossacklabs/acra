@@ -5,6 +5,7 @@
 - More specific TLS configuration options:
   - CA certificate path: `tls_client_ca` and `tls_database_ca` (override `tls_ca`)
   - TLS authentication: `tls_client_auth` and `tls_database_auth` (override `tls_auth`)
+- Renamed database SNI option: `tls_db_sni` => `tls_database_sni`
 
 ## 0.85.0 - 2020-04-02
 ### Added
