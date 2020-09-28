@@ -42,7 +42,7 @@ func (factory *proxyFactory) New(ctx context.Context, clientID []byte, dbConnect
 		return nil, err
 	}
 	decryptor.SetDataProcessor(base.DecryptProcessor{})
-	proxy, err := NewPgProxy(ctx, decryptor, dbConnection, clientConnection, factory.setting.TLSConfig(), factory.setting.Censor())
+	proxy, err := NewPgProxy(ctx, decryptor, dbConnection, clientConnection, factory.setting)
 	if err != nil {
 		return nil, err
 	}

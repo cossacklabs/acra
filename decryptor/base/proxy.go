@@ -30,7 +30,8 @@ import (
 type ProxySetting interface {
 	KeyStore() keystore.DecryptionKeyStore
 	TableSchemaStore() config.TableSchemaStore
-	TLSConfig() *tls.Config
+	ClientTLSConfig() *tls.Config
+	DatabaseTLSConfig() *tls.Config
 	Censor() acracensor.AcraCensorInterface
 	DecryptorFactory() DecryptorFactory
 }
@@ -38,7 +39,8 @@ type ProxySetting interface {
 type proxySetting struct {
 	keystore         keystore.DecryptionKeyStore
 	tableSchemaStore config.TableSchemaStore
-	tlsConfig        *tls.Config
+	clientTLSConfig  *tls.Config
+	dbTLSConfig      *tls.Config
 	censor           acracensor.AcraCensorInterface
 	decryptorFactory DecryptorFactory
 }
@@ -53,9 +55,14 @@ func (p *proxySetting) Censor() acracensor.AcraCensorInterface {
 	return p.censor
 }
 
-// TLSConfig return tls.Config
-func (p *proxySetting) TLSConfig() *tls.Config {
-	return p.tlsConfig
+// ClientTLSConfig return tls.Config to use when accepting connections from AcraConnectors.
+func (p *proxySetting) ClientTLSConfig() *tls.Config {
+	return p.clientTLSConfig
+}
+
+// DatabaseTLSConfig return tls.Config to use when connecting to the database.
+func (p *proxySetting) DatabaseTLSConfig() *tls.Config {
+	return p.dbTLSConfig
 }
 
 // TableSchemaStore return table schema store
@@ -69,8 +76,8 @@ func (p *proxySetting) KeyStore() keystore.DecryptionKeyStore {
 }
 
 // NewProxySetting return new ProxySetting implementation with data from params
-func NewProxySetting(decryptorFactory DecryptorFactory, tableSchema config.TableSchemaStore, keystore keystore.DecryptionKeyStore, tlsConfig *tls.Config, censor acracensor.AcraCensorInterface) ProxySetting {
-	return &proxySetting{keystore: keystore, tableSchemaStore: tableSchema, tlsConfig: tlsConfig, censor: censor, decryptorFactory: decryptorFactory}
+func NewProxySetting(decryptorFactory DecryptorFactory, tableSchema config.TableSchemaStore, keystore keystore.DecryptionKeyStore, clientTLSConfig, dbTLSConfig *tls.Config, censor acracensor.AcraCensorInterface) ProxySetting {
+	return &proxySetting{keystore: keystore, tableSchemaStore: tableSchema, clientTLSConfig: clientTLSConfig, dbTLSConfig: dbTLSConfig, censor: censor, decryptorFactory: decryptorFactory}
 }
 
 // Proxy interface to process client's requests to database and responses

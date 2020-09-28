@@ -113,16 +113,43 @@ postgresql_enable: false
 # Id that will be sent in secure session
 securesession_id: acra_server
 
-# Set authentication mode that will be used in TLS connection with AcraConnector. Values in range 0-4 that set auth type (https://golang.org/pkg/crypto/tls/#ClientAuthType). Default is tls.RequireAndVerifyClientCert
+# Set authentication mode that will be used in TLS connection with AcraConnector and database. Values in range 0-4 that set auth type (https://golang.org/pkg/crypto/tls/#ClientAuthType). Default is tls.RequireAndVerifyClientCert
 tls_auth: 4
 
-# Path to root certificate which will be used with system root certificates to validate Postgresql's and AcraConnector's certificate
+# Path to additional CA certificate for AcraConnector and database certificate validation
 tls_ca: 
 
 # Path to tls certificate
 tls_cert: 
 
+# Set authentication mode that will be used in TLS connection with AcraConnector. Overrides the "tls_auth" setting.
+tls_client_auth: -1
+
+# Path to additional CA certificate for AcraConnector certificate validation (setup if AcraConnector certificate CA is different from database certificate CA)
+tls_client_ca: 
+
+# Path to server TLS certificate presented to AcraConnectors (overrides "tls_cert")
+tls_client_cert: 
+
+# Path to private key of the TLS certificate presented to AcraConnectors (see "tls_client_cert")
+tls_client_key: 
+
+# Set authentication mode that will be used in TLS connection with database. Overrides the "tls_auth" setting.
+tls_database_auth: -1
+
+# Path to additional CA certificate for database certificate validation (setup if database certificate CA is different from AcraConnector certificate CA)
+tls_database_ca: 
+
+# Path to client TLS certificate shown to database during TLS handshake (overrides "tls_cert")
+tls_database_cert: 
+
+# Path to private key of the TLS certificate used to connect to database (see "tls_database_cert")
+tls_database_key: 
+
 # Expected Server Name (SNI) from database
+tls_database_sni: 
+
+# Expected Server Name (SNI) from database (deprecated, use "tls_database_sni" instead)
 tls_db_sni: 
 
 # Path to private key that will be used in AcraServer's TLS handshake with AcraConnector as server's key and database as client's key

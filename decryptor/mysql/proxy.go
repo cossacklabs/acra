@@ -46,7 +46,7 @@ func (factory *proxyFactory) New(ctx context.Context, clientID []byte, dbConnect
 	if err != nil {
 		return nil, err
 	}
-	proxy, err := NewMysqlProxy(ctx, decryptor, dbConnection, clientConnection, factory.setting.TLSConfig(), factory.setting.Censor())
+	proxy, err := NewMysqlProxy(ctx, decryptor, dbConnection, clientConnection, factory.setting)
 	if err != nil {
 		return nil, err
 	}

@@ -93,7 +93,8 @@ type PgProxy struct {
 	TLSCh                chan bool
 	ctx                  context.Context
 	queryObserverManager base.QueryObserverManager
-	tlsConfig            *tls.Config
+	clientTLSConfig      *tls.Config
+	dbTLSConfig          *tls.Config
 	censor               acracensor.AcraCensorInterface
 	decryptor            base.Decryptor
 	tlsSwitch            bool
@@ -101,7 +102,7 @@ type PgProxy struct {
 }
 
 // NewPgProxy returns new PgProxy
-func NewPgProxy(ctx context.Context, decryptor base.Decryptor, dbConnection, clientConnection net.Conn, tlsConfig *tls.Config, censor acracensor.AcraCensorInterface) (*PgProxy, error) {
+func NewPgProxy(ctx context.Context, decryptor base.Decryptor, dbConnection, clientConnection net.Conn, setting base.ProxySetting) (*PgProxy, error) {
 	observerManager, err := base.NewArrayQueryObserverableManager(ctx)
 	if err != nil {
 		return nil, err
@@ -112,8 +113,9 @@ func NewPgProxy(ctx context.Context, decryptor base.Decryptor, dbConnection, cli
 		TLSCh:                make(chan bool),
 		ctx:                  ctx,
 		queryObserverManager: observerManager,
-		tlsConfig:            tlsConfig,
-		censor:               censor,
+		clientTLSConfig:      setting.ClientTLSConfig(),
+		dbTLSConfig:          setting.DatabaseTLSConfig(),
+		censor:               setting.Censor(),
 		decryptor:            decryptor,
 		decryptionObserver:   base.NewColumnDecryptionObserver(),
 	}, nil
@@ -346,9 +348,9 @@ func checkWholePoisonRecord(block []byte, decryptor base.Decryptor, logger *log.
 }
 
 // handleSSLRequest return wrapped with tls (client's, db's connections, nil) or (nil, nil, error)
-func (proxy *PgProxy) handleSSLRequest(packet *PacketHandler, tlsConfig *tls.Config, logger *log.Entry) (net.Conn, net.Conn, error) {
+func (proxy *PgProxy) handleSSLRequest(packet *PacketHandler, logger *log.Entry) (net.Conn, net.Conn, error) {
 	// if server allow SSLRequest than we wrap our connections with tls
-	if tlsConfig == nil {
+	if proxy.dbTLSConfig == nil {
 		logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorDecryptorCantInitializeTLS).Errorln("To support TLS connections you must pass TLS key and certificate for AcraServer that will be used " +
 			"for connections AcraServer->Database and CA certificate which will be used to verify certificate " +
 			"from database")
@@ -378,7 +380,7 @@ func (proxy *PgProxy) handleSSLRequest(packet *PacketHandler, tlsConfig *tls.Con
 	}
 	logger.Debugln("Init tls with client")
 	// convert to tls connection
-	tlsClientConnection := tls.Server(proxy.clientConnection, tlsConfig)
+	tlsClientConnection := tls.Server(proxy.clientConnection, proxy.clientTLSConfig)
 
 	// send server's response only after successful interrupting background goroutine that process client's connection
 	// to take control over connection and avoid two places that communicate with one connection
@@ -394,7 +396,7 @@ func (proxy *PgProxy) handleSSLRequest(packet *PacketHandler, tlsConfig *tls.Con
 	}
 
 	logger.Debugln("Init tls with db")
-	dbTLSConnection := tls.Client(proxy.dbConnection, tlsConfig)
+	dbTLSConnection := tls.Client(proxy.dbConnection, proxy.dbTLSConfig)
 	if err := dbTLSConnection.Handshake(); err != nil {
 		logger.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorDecryptorCantInitializeTLS).
 			Errorln("Can't initialize tls connection with db")
@@ -467,7 +469,7 @@ func (proxy *PgProxy) ProxyDatabaseConnection(errCh chan<- error) {
 				//firstByte = true
 				continue
 			} else if packetHandler.IsSSLRequestAllowed() {
-				tlsClientConnection, dbTLSConnection, err := proxy.handleSSLRequest(packetHandler, proxy.tlsConfig, logger)
+				tlsClientConnection, dbTLSConnection, err := proxy.handleSSLRequest(packetHandler, logger)
 				if err != nil {
 					logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorDecryptorCantInitializeTLS).WithError(err).Errorln("Can't process SSL request")
 					errCh <- err
