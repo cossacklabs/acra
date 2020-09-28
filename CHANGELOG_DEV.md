@@ -2,8 +2,9 @@
 
 ### Added
 
-- New CA configuration options: `tls_ca_client` and `tls_ca_database` (more specific than `tls_ca`)
-- New TLS auth configuration options: `tls_auth_client` and `tls_auth_database` (more specific than `tls_auth`)
+- More specific TLS configuration options:
+  - CA certificate path: `tls_client_ca` and `tls_database_ca` (override `tls_ca`)
+  - TLS authentication: `tls_client_auth` and `tls_database_auth` (override `tls_auth`)
 
 ## 0.85.0 - 2020-04-02
 ### Added
