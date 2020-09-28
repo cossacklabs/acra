@@ -240,7 +240,7 @@ func main() {
 		if *tlsDbSNI == "" && *tlsDbSNIOld != "" {
 			*tlsDbSNI = *tlsDbSNIOld
 		}
-		clientTLSConfig, err = network.NewTLSConfig(network.SNIOrHostname(*tlsDbSNI, *dbHost), *tlsClientCA, *tlsKey, *tlsCert, tls.ClientAuthType(*tlsClientAuthType))
+		clientTLSConfig, err = network.NewTLSConfig("", *tlsClientCA, *tlsKey, *tlsCert, tls.ClientAuthType(*tlsClientAuthType))
 		if err != nil {
 			log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorTransportConfiguration).
 				Errorln("Configuration error: can't create AcraConnector TLS config")
