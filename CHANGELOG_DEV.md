@@ -3,6 +3,8 @@
 ### Added
 
 - More specific TLS configuration options:
+  - AcraServer certificate: `tls_client_cert` and `tls_database_cert` (override `tls_cert`)
+  - AcraServer key: `tls_client_key` and `tls_database_key` (override `tls_key`)
   - CA certificate path: `tls_client_ca` and `tls_database_ca` (override `tls_ca`)
   - TLS authentication: `tls_client_auth` and `tls_database_auth` (override `tls_auth`)
 - Renamed database SNI option: `tls_db_sni` => `tls_database_sni`
