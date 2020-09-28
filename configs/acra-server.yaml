@@ -125,10 +125,10 @@ tls_auth_database: -1
 # Path to additional CA certificate for AcraConnector and database certificate validation
 tls_ca: 
 
-# Path to additional CA certificate for AcraConnector certificate validation (if different from database CA)
+# Path to additional CA certificate for AcraConnector certificate validation (setup if AcraConnector certificate CA is different from database certificate CA)
 tls_ca_client: 
 
-# Path to additional CA certificate for database certificate validation (if different from AcraConnector CA)
+# Path to additional CA certificate for database certificate validation (setup if database certificate CA is different from AcraConnector certificate CA)
 tls_ca_database: 
 
 # Path to tls certificate
