@@ -2,7 +2,7 @@
 
 ### Added
 
-- More specific TLS configuration options:
+- More specific TLS configuration options that allow to configure separate TLS settings between client app and AcraServer, and between AcraServer and database:
   - AcraServer certificate: `tls_client_cert` and `tls_database_cert` (override `tls_cert`)
   - AcraServer key: `tls_client_key` and `tls_database_key` (override `tls_key`)
   - CA certificate path: `tls_client_ca` and `tls_database_ca` (override `tls_ca`)
