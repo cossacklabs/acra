@@ -55,12 +55,12 @@ func (p *proxySetting) Censor() acracensor.AcraCensorInterface {
 	return p.censor
 }
 
-// ClientTLSConfig return tls.Config to use for database connection, if any.
+// ClientTLSConfig return tls.Config to use when accepting connections from AcraConnectors.
 func (p *proxySetting) ClientTLSConfig() *tls.Config {
 	return p.clientTLSConfig
 }
 
-// DatabaseTLSConfig return tls.Config to use for database connection, if any.
+// DatabaseTLSConfig return tls.Config to use when connecting to the database.
 func (p *proxySetting) DatabaseTLSConfig() *tls.Config {
 	return p.dbTLSConfig
 }
