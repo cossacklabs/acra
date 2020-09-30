@@ -162,7 +162,7 @@ func (server *SServer) handleClientSession(clientID []byte, clientSession *Clien
 			Errorln("Can't initialize data encryptor to encrypt data in queries")
 		return
 	}
-	proxy, err := proxyFactory.New(clientSession.Context(), clientID, clientSession.ClientConnection(), clientSession.DatabaseConnection())
+	proxy, err := proxyFactory.New(clientID, clientSession)
 	if err != nil {
 		log.WithError(err).Errorln("Can't create new proxy for connection")
 		return

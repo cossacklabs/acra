@@ -87,7 +87,14 @@ type Proxy interface {
 	ProxyDatabaseConnection(chan<- error)
 }
 
+// ClientSession is a connection between the client and the database, mediated by AcraServer.
+type ClientSession interface {
+	Context() context.Context
+	ClientConnection() net.Conn
+	DatabaseConnection() net.Conn
+}
+
 // ProxyFactory create new Proxy for specific database
 type ProxyFactory interface {
-	New(ctx context.Context, clientID []byte, dbConnection, clientConnection net.Conn) (Proxy, error)
+	New(clientID []byte, clientSession ClientSession) (Proxy, error)
 }

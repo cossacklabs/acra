@@ -160,8 +160,8 @@ type Handler struct {
 }
 
 // NewMysqlProxy returns new Handler
-func NewMysqlProxy(ctx context.Context, decryptor base.Decryptor, dbConnection, clientConnection net.Conn, setting base.ProxySetting) (*Handler, error) {
-	observerManager, err := base.NewArrayQueryObserverableManager(ctx)
+func NewMysqlProxy(session base.ClientSession, decryptor base.Decryptor, setting base.ProxySetting) (*Handler, error) {
+	observerManager, err := base.NewArrayQueryObserverableManager(session.Context())
 	if err != nil {
 		return nil, err
 	}
@@ -172,12 +172,12 @@ func NewMysqlProxy(ctx context.Context, decryptor base.Decryptor, dbConnection, 
 		decryptor:              decryptor,
 		responseHandler:        defaultResponseHandler,
 		acracensor:             setting.Censor(),
-		clientConnection:       clientConnection,
-		dbConnection:           dbConnection,
+		clientConnection:       session.ClientConnection(),
+		dbConnection:           session.DatabaseConnection(),
 		clientTLSConfig:        tweakTLSConfigForMySQL(setting.ClientTLSConfig()),
 		dbTLSConfig:            tweakTLSConfigForMySQL(setting.DatabaseTLSConfig()),
-		ctx:                    ctx,
-		logger:                 logging.GetLoggerFromContext(ctx),
+		ctx:                    session.Context(),
+		logger:                 logging.GetLoggerFromContext(session.Context()),
 		queryObserverManager:   observerManager,
 		decryptionObserver:     base.NewColumnDecryptionObserver(),
 	}, nil
