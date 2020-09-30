@@ -149,7 +149,7 @@ func (server *SServer) handleClientSession(clientID []byte, clientSession *Clien
 			Errorln("Can't connect to db")
 
 		log.Debugln("Close connection with acra-connector")
-		err = clientSession.connection.Close()
+		err = clientSession.ClientConnection().Close()
 		if err != nil {
 			log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantCloseConnectionToService).
 				Errorln("Error with closing connection to acra-connector")
@@ -162,7 +162,7 @@ func (server *SServer) handleClientSession(clientID []byte, clientSession *Clien
 			Errorln("Can't initialize data encryptor to encrypt data in queries")
 		return
 	}
-	proxy, err := proxyFactory.New(clientSession.ctx, clientID, clientSession.connectionToDb, clientSession.connection)
+	proxy, err := proxyFactory.New(clientSession.Context(), clientID, clientSession.ClientConnection(), clientSession.DatabaseConnection())
 	if err != nil {
 		log.WithError(err).Errorln("Can't create new proxy for connection")
 		return

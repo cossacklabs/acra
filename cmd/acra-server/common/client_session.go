@@ -44,6 +44,22 @@ func (clientSession *ClientSession) Logger() *log.Entry {
 	return clientSession.logger
 }
 
+// Context returns session's context.
+func (clientSession *ClientSession) Context() context.Context {
+	return clientSession.ctx
+}
+
+// ClientConnection returns connection to AcraConnector.
+func (clientSession *ClientSession) ClientConnection() net.Conn {
+	return clientSession.connection
+}
+
+// DatabaseConnection returns connection to database.
+// It must be established first by ConnectToDb().
+func (clientSession *ClientSession) DatabaseConnection() net.Conn {
+	return clientSession.connectionToDb
+}
+
 // ConnectToDb connects to the database via tcp using Host and Port from config.
 func (clientSession *ClientSession) ConnectToDb() error {
 	conn, err := network.Dial(network.BuildConnectionString("tcp", clientSession.config.GetDBHost(), clientSession.config.GetDBPort(), ""))
