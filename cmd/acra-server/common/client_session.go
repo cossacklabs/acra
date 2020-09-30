@@ -49,7 +49,8 @@ func (clientSession *ClientSession) ConnectToDb() error {
 	return nil
 }
 
-func (clientSession *ClientSession) close() {
+// Close session connections to AcraConnector and database.
+func (clientSession *ClientSession) Close() {
 	clientSession.logger.Debugln("Close acra-connector connection")
 
 	err := clientSession.connection.Close()

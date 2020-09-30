@@ -201,7 +201,7 @@ func (server *SServer) handleClientSession(clientID []byte, clientSession *Clien
 	}
 
 	clientSession.logger.Infof("Closing client's connection")
-	clientSession.close()
+	clientSession.Close()
 
 	// wait second error from closed second connection
 	clientSession.logger.WithError(<-channelToWait).Debugln("Second proxy goroutine stopped")
