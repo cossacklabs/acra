@@ -2,6 +2,7 @@
 set -e
 
 TEST_DB_HOST="${TEST_DB_HOST:-127.0.0.1}"
+TEST_DB_PORT="${TEST_DB_PORT:-3306}"
 TEST_DB_USER="${TEST_DB_USER:-test}"
 TEST_DB_USER_PASSWORD="${TEST_DB_USER_PASSWORD:-test}"
 
@@ -10,9 +11,10 @@ DELAY="${DELAY:-1}"
 
 for try in $(seq $NUM_PINGS); do
     mysqladmin ping \
-        -h"$TEST_DB_HOST" \
-        -u"$TEST_DB_USER" \
-        -p"$TEST_DB_USER_PASSWORD" \
+        --host="$TEST_DB_HOST" \
+        --port="$TEST_DB_PORT" \
+        --user="$TEST_DB_USER" \
+        --password="$TEST_DB_USER_PASSWORD" \
         --protocol=TCP \
         && exit 0 || sleep $DELAY
 done
