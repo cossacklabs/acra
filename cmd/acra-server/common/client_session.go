@@ -39,6 +39,11 @@ func NewClientSession(ctx context.Context, config *Config, connection net.Conn) 
 	return &ClientSession{connection: connection, config: config, ctx: ctx, logger: logging.GetLoggerFromContext(ctx)}, nil
 }
 
+// Logger returns session's logger.
+func (clientSession *ClientSession) Logger() *log.Entry {
+	return clientSession.logger
+}
+
 // ConnectToDb connects to the database via tcp using Host and Port from config.
 func (clientSession *ClientSession) ConnectToDb() error {
 	conn, err := network.Dial(network.BuildConnectionString("tcp", clientSession.config.GetDBHost(), clientSession.config.GetDBPort(), ""))
