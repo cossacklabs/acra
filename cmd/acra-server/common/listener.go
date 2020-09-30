@@ -133,10 +133,10 @@ func (server *SServer) handleConnection(ctx context.Context, clientID []byte, co
 		}
 		return
 	}
-	server.handleClientSession(clientID, clientSession, server.proxyFactory)
+	server.handleClientSession(clientID, clientSession)
 }
 
-func (server *SServer) handleClientSession(clientID []byte, clientSession *ClientSession, proxyFactory base.ProxyFactory) {
+func (server *SServer) handleClientSession(clientID []byte, clientSession *ClientSession) {
 	log := clientSession.Logger()
 	log.Infof("Handle client's connection")
 	clientProxyErrorCh := make(chan error, 1)
@@ -162,7 +162,7 @@ func (server *SServer) handleClientSession(clientID []byte, clientSession *Clien
 			Errorln("Can't initialize data encryptor to encrypt data in queries")
 		return
 	}
-	proxy, err := proxyFactory.New(clientID, clientSession)
+	proxy, err := server.proxyFactory.New(clientID, clientSession)
 	if err != nil {
 		log.WithError(err).Errorln("Can't create new proxy for connection")
 		return
