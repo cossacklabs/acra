@@ -24,12 +24,10 @@ BUILD_DATE := $(shell date -u +'%Y-%m-%dT%H:%M:%SZ')
 ## Absolute or relative GOPATH for the 'build' target
 BUILD_DIR ?= build
 BUILD_DIR_ABS := $(abspath $(BUILD_DIR))
+## Enable Docker build cache (true|false)
+DOCKER_BUILD_CACHE ?= false
 ifeq ($(DOCKER_BUILD_CACHE),true)
 DOCKER_BUILD_FLAGS += --no-cache=false
-else ifeq ($(DOCKER_BUILD_CACHE),false)
-DOCKER_BUILD_FLAGS += --no-cache=true
-else ifneq ($(DOCKER_BUILD_CACHE),)
-$(error DOCKER_BUILD_CACHE should be either true or false)
 else
 DOCKER_BUILD_FLAGS += --no-cache=true
 endif
