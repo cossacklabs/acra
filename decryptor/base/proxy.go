@@ -24,6 +24,7 @@ import (
 	acracensor "github.com/cossacklabs/acra/acra-censor"
 	"github.com/cossacklabs/acra/encryptor/config"
 	"github.com/cossacklabs/acra/keystore"
+	"github.com/cossacklabs/acra/sqlparser"
 )
 
 // ProxySetting provide data access methods for proxy factories
@@ -92,9 +93,26 @@ type ClientSession interface {
 	Context() context.Context
 	ClientConnection() net.Conn
 	DatabaseConnection() net.Conn
+
+	PreparedStatementRegistry() PreparedStatementRegistry
+	SetPreparedStatementRegistry(registry PreparedStatementRegistry)
 }
 
 // ProxyFactory create new Proxy for specific database
 type ProxyFactory interface {
 	New(clientID []byte, clientSession ClientSession) (Proxy, error)
+}
+
+// PreparedStatementRegistry keeps track of active prepared statements within a ClientSession.
+type PreparedStatementRegistry interface {
+	Add(statement PreparedStatement) (bool, error)
+	StatementByName(name string) (PreparedStatement, error)
+}
+
+// PreparedStatement is a prepared statement, ready to be executed.
+// It can be either a textual SQL statement from "PREPARE", or a database protocol equivalent.
+type PreparedStatement interface {
+	Name() string
+	Query() sqlparser.Statement
+	QueryText() string
 }
