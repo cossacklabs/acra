@@ -52,7 +52,7 @@ type ClientCommandsSession struct {
 
 // NewClientCommandsSession returns new ClientCommandsSession
 func NewClientCommandsSession(keystorage keystore.ServerKeyStore, config *Config, connection net.Conn) (*ClientCommandsSession, error) {
-	clientSession, err := NewClientSession(context.Background(), keystorage, config, connection)
+	clientSession, err := NewClientSession(context.Background(), config, connection)
 	if err != nil {
 		return nil, err
 	}
@@ -99,7 +99,7 @@ func (clientSession *ClientCommandsSession) HandleSession() {
 	switch req.URL.Path {
 	case "/getNewZone":
 		logger.Debugln("Got /getNewZone request")
-		id, publicKey, err := clientSession.keystorage.GenerateZoneKey()
+		id, publicKey, err := clientSession.keystore.GenerateZoneKey()
 		if err != nil {
 			logger.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorHTTPAPICantGenerateZone).Errorln("Can't generate zone key")
 		} else {
@@ -113,7 +113,7 @@ func (clientSession *ClientCommandsSession) HandleSession() {
 		}
 	case "/resetKeyStorage":
 		logger.Debugln("Got /resetKeyStorage request")
-		clientSession.keystorage.Reset()
+		clientSession.keystore.Reset()
 		response = "HTTP/1.1 200 OK Found\r\n\r\n"
 		logger.Debugln("Cleared key storage cache")
 	case "/loadAuthData":

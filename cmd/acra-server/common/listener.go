@@ -122,8 +122,7 @@ to db and decrypting responses from db
 func (server *SServer) handleConnection(ctx context.Context, clientID []byte, connection net.Conn) {
 	logger := logging.NewLoggerWithTrace(ctx)
 	logging.SetLoggerToContext(ctx, logger)
-	clientSession, err := NewClientSession(ctx, server.config.GetKeyStore(), server.config, connection)
-	clientSession.Server = server
+	clientSession, err := NewClientSession(ctx, server.config, connection)
 	if err != nil {
 		logger.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantInitClientSession).
 			Errorln("Can't initialize client session")
