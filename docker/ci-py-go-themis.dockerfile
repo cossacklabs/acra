@@ -31,28 +31,15 @@ RUN set -o pipefail && \
 # Include helpful scripts
 RUN mkdir /image.scripts
 COPY docker/_scripts/acra-build/install_go.sh /image.scripts/
+COPY docker/_scripts/acra-build/install_go.csums /image.scripts/
 RUN chmod +x /image.scripts/*.sh
 
 # Install Go
-RUN GO_PREFIX_DIR=/usr/lib/go/1.13.15 \
-    GO_VERSION=1.13.15 \
-    GO_TARBALL_DIGEST=01cc3ddf6273900eba3e2bf311238828b7168b822bb57a9ccab4d7aa2acd6028 \
+RUN GO_VERSIONS='1.13.15 1.14.9 1.15.2' \
     GO_TARBALL_CLEAN=1 \
     /image.scripts/install_go.sh
 
-RUN GO_PREFIX_DIR=/usr/lib/go/1.14.9 \
-    GO_VERSION=1.14.9 \
-    GO_TARBALL_DIGEST=f0d26ff572c72c9823ae752d3c81819a81a60c753201f51f89637482531c110a \
-    GO_TARBALL_CLEAN=1 \
-    /image.scripts/install_go.sh
-
-RUN GO_PREFIX_DIR=/usr/lib/go/1.15.2 \
-    GO_VERSION=1.15.2 \
-    GO_TARBALL_DIGEST=b49fda1ca29a1946d6bb2a5a6982cf07ccd2aba849289508ee0f9918f6bb4552 \
-    GO_TARBALL_CLEAN=1 \
-    /image.scripts/install_go.sh
-
-ENV GOROOT="/usr/lib/go/1.15.2/go" GOPATH="/home/user/gopath" GO111MODULE="auto"
+ENV GOROOT="/usr/local/lib/go/latest" GOPATH="/home/user/gopath" GO111MODULE="auto"
 
 # Create the user and allow using `sudo` without password
 RUN useradd -m user && \
@@ -70,20 +57,20 @@ WORKDIR /home/user
 ENV PATH="$GOROOT/bin:/home/user/gopath/bin:/home/user/.local/bin:$PATH"
 
 # Install some Go linters
-RUN go get -u -v golang.org/x/lint/golint
-RUN go get -u -v github.com/client9/misspell/cmd/misspell
-RUN go get -u -v github.com/gordonklaus/ineffassign
+RUN go get -u -v golang.org/x/lint/golint && \
+    go get -u -v github.com/client9/misspell/cmd/misspell && \
+    go get -u -v github.com/gordonklaus/ineffassign
 
 # Install Python tests dependencies
 
 COPY tests/requirements.txt /home/user/python_tests_requirements.txt
 COPY wrappers/python/acrawriter/test-requirements.txt /home/user/python_acrawriter_tests_requirements.txt
 
-RUN pip3 install --user -r /home/user/python_tests_requirements.txt 
-# run as separate command due to same dependency 'sqlalchemy' to avoid duplicated requirement and error
-RUN pip3 install --user -r $HOME/python_acrawriter_tests_requirements.txt 
-# install from sources because pip install git+https://github.com/mysql/mysql-connector-python not support recursive submodules
-RUN git clone https://github.com/Lagovas/mysql-connector-python && \
+RUN pip3 install --user -r /home/user/python_tests_requirements.txt && \
+    # run as separate command due to same dependency 'sqlalchemy' to avoid duplicated requirement and error \
+    pip3 install --user -r $HOME/python_acrawriter_tests_requirements.txt && \
+    # install from sources because pip install git+https://... not support recursive submodules \
+    git clone https://github.com/Lagovas/mysql-connector-python && \
     cd mysql-connector-python && \
     python3 setup.py clean build_py && \
     sudo python3 setup.py install_lib && \

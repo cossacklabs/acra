@@ -9,11 +9,11 @@ OLD_PATH="$PATH"
 
 if [ -z "$GO_VERSIONS" ]; then
     # extract default Go version from $GOROOT
-    GO_VERSIONS="$(echo $GOROOT | sed -E 's|^/usr/lib/go/([0-9]+\.[0-9]+(\.[0-9]+)?)/go$|\1|')"
+    GO_VERSIONS="$(readlink $GOROOT)"
 fi
 
 for go_version in $GO_VERSIONS; do
-    export GOROOT="/usr/lib/go/$go_version/go"
+    export GOROOT="/usr/local/lib/go/$go_version"
 
     if [ ! -d $GOROOT ]; then
         echo "Error: Go $go_version is not installed, $GOROOT does not exist"
