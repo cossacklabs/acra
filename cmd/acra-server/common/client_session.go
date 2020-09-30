@@ -19,6 +19,7 @@ package common
 import (
 	"context"
 	"net"
+	"sync/atomic"
 
 	"github.com/cossacklabs/acra/logging"
 	"github.com/cossacklabs/acra/network"
@@ -34,9 +35,17 @@ type ClientSession struct {
 	logger         *log.Entry
 }
 
+var sessionCounter uint32
+
 // NewClientSession creates new ClientSession object.
 func NewClientSession(ctx context.Context, config *Config, connection net.Conn) (*ClientSession, error) {
-	return &ClientSession{connection: connection, config: config, ctx: ctx, logger: logging.GetLoggerFromContext(ctx)}, nil
+	// Give each client session a unique ID (within an AcraServer instance).
+	// This greatly simplifies tracking session activity across the logs.
+	sessionID := atomic.AddUint32(&sessionCounter, 1)
+	logger := logging.GetLoggerFromContext(ctx)
+	logger = logger.WithField("session_id", sessionID)
+	ctx = logging.SetLoggerToContext(ctx, logger)
+	return &ClientSession{connection: connection, config: config, ctx: ctx, logger: logger}, nil
 }
 
 // Logger returns session's logger.
