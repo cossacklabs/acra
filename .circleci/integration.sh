@@ -4,9 +4,9 @@ set -o pipefail
 export TEST_ACRASERVER_PORT=6000
 export TEST_CONNECTOR_PORT=7000
 export TEST_CONNECTOR_COMMAND_PORT=8000
-export TEST_DB_USER=test
-export TEST_DB_USER_PASSWORD=test
-export TEST_DB_NAME=test
+echo "Using TEST_DB_USER=$TEST_DB_USER"
+echo "Using TEST_DB_USER_PASSWORD=$TEST_DB_USER_PASSWORD"
+echo "Using TEST_DB_NAME=$TEST_DB_NAME"
 
 # cirecle ci has timeout 10 minutes without output after that it stop execution
 # set timeout 8 minutes to give a time to re-start tests execution

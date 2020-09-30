@@ -33,8 +33,9 @@ jobs:
           POSTGRES_USER: test
           POSTGRES_DB: test
     environment:
-      POSTGRES_USER: test
-      POSTGRES_DB: test
+      TEST_DB_USER: test
+      TEST_DB_USER_PASSWORD: test
+      TEST_DB_NAME: test
       FILEPATH_ERROR_FLAG: /tmp/test_fail
       GO_VERSIONS: 1.13.15 1.14.9 1.15.2
       TEST_DB_PORT: "5432"
@@ -78,8 +79,9 @@ jobs:
           POSTGRES_USER: test
           POSTGRES_DB: test
     environment:
-      POSTGRES_USER: test
-      POSTGRES_DB: test
+      TEST_DB_USER: test
+      TEST_DB_USER_PASSWORD: test
+      TEST_DB_NAME: test
       FILEPATH_ERROR_FLAG: /tmp/test_fail
       GO_VERSIONS: 1.13.15 1.14.9 1.15.2
       TEST_DB_PORT: "5432"
@@ -126,8 +128,9 @@ jobs:
         MYSQL_PASSWORD: test
         MYSQL_ROOT_PASSWORD: root
     environment:
-      MYSQL_USER: test
-      MYSQL_PASSWORD: test
+      TEST_DB_USER: test
+      TEST_DB_USER_PASSWORD: test
+      TEST_DB_NAME: test
       FILEPATH_ERROR_FLAG: /tmp/test_fail
       TEST_MYSQL: "true"
       TEST_DB_PORT: "3306"
@@ -174,8 +177,9 @@ jobs:
           MYSQL_PASSWORD: test
           MYSQL_ROOT_PASSWORD: root
     environment:
-      MYSQL_USER: test
-      MYSQL_PASSWORD: test
+      TEST_DB_USER: test
+      TEST_DB_USER_PASSWORD: test
+      TEST_DB_NAME: test
       FILEPATH_ERROR_FLAG: /tmp/test_fail
       GO_VERSIONS: 1.13.15 1.14.9 1.15.2
       TEST_MYSQL: "true"
@@ -223,8 +227,9 @@ jobs:
           MYSQL_PASSWORD: test
           MYSQL_ROOT_PASSWORD: root
     environment:
-      MYSQL_USER: test
-      MYSQL_PASSWORD: test
+      TEST_DB_USER: test
+      TEST_DB_USER_PASSWORD: test
+      TEST_DB_NAME: test
       FILEPATH_ERROR_FLAG: /tmp/test_fail
       TEST_MYSQL: "true"
       TEST_DB_PORT: "3306"
@@ -269,8 +274,9 @@ jobs:
           MYSQL_PASSWORD: test
           MYSQL_ROOT_PASSWORD: root
     environment:
-      MYSQL_USER: test
-      MYSQL_PASSWORD: test
+      TEST_DB_USER: test
+      TEST_DB_USER_PASSWORD: test
+      TEST_DB_NAME: test
       FILEPATH_ERROR_FLAG: /tmp/test_fail
       GO_VERSIONS: 1.13.15 1.14.9 1.15.2
       TEST_MYSQL: "true"
