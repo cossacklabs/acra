@@ -73,6 +73,11 @@ func NewPgError(message string) ([]byte, error) {
 	return output, nil
 }
 
+// Errors returned when initializing session registries.
+var (
+	ErrInvalidPreparedStatementRegistry = errors.New("ClientSession contains invalid PreparedStatementRegistry")
+)
+
 // PgSQL constant sizes and types.
 const (
 	// DataRowLengthBufSize each postgresql packet contain 4 byte that store length of message contents in bytes, including self
@@ -99,6 +104,7 @@ type PgProxy struct {
 	decryptor            base.Decryptor
 	tlsSwitch            bool
 	decryptionObserver   base.ColumnDecryptionObserver
+	statementRegistry    *PgPreparedStatementRegistry
 }
 
 // NewPgProxy returns new PgProxy
@@ -106,6 +112,14 @@ func NewPgProxy(session base.ClientSession, decryptor base.Decryptor, setting ba
 	observerManager, err := base.NewArrayQueryObserverableManager(session.Context())
 	if err != nil {
 		return nil, err
+	}
+	statementRegistry, ok := session.PreparedStatementRegistry().(*PgPreparedStatementRegistry)
+	if !ok {
+		return nil, ErrInvalidPreparedStatementRegistry
+	}
+	if statementRegistry == nil {
+		statementRegistry = NewPreparedStatementRegistry()
+		session.SetPreparedStatementRegistry(statementRegistry)
 	}
 	return &PgProxy{
 		clientConnection:     session.ClientConnection(),
@@ -118,6 +132,7 @@ func NewPgProxy(session base.ClientSession, decryptor base.Decryptor, setting ba
 		censor:               setting.Censor(),
 		decryptor:            decryptor,
 		decryptionObserver:   base.NewColumnDecryptionObserver(),
+		statementRegistry:    statementRegistry,
 	}, nil
 }
 
