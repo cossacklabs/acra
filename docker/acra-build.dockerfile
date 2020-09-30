@@ -61,12 +61,13 @@ RUN mkdir /image.scripts
 COPY docker/_scripts/acra-build/add_component.sh /image.scripts/
 COPY docker/_scripts/acra-build/collect_dependencies.sh /image.scripts/
 COPY docker/_scripts/acra-build/install_go.sh /image.scripts/
+COPY docker/_scripts/acra-build/install_go.csums /image.scripts/
 RUN chmod +x /image.scripts/*.sh
 
 # Install Go
-RUN GO_TARBALL_CLEAN=1 GO_PREFIX_DIR=/usr/local /image.scripts/install_go.sh
-ENV GOROOT="/usr/local/go" GOPATH="/root/gopath" GO111MODULE="auto"
-ENV PATH="$PATH:/usr/local/go/bin"
+RUN GO_TARBALL_CLEAN=1 /image.scripts/install_go.sh
+ENV GOROOT="/usr/local/lib/go/latest" GOPATH="/root/gopath" GO111MODULE="auto"
+ENV PATH="$PATH:/usr/local/lib/go/latest/bin"
 
 # Copy Acra sources
 ENV PATH_ACRA="/acra"
