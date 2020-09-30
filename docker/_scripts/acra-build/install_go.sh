@@ -31,10 +31,10 @@ install_go() {
     exit 1
   fi
 
-  mkdir -p /usr/local/lib/go/tmp
-  tar -C /usr/local/lib/go/tmp -xzf "$GO_TARBALL_TMP_PATH"
-  mv /usr/local/lib/go/tmp/go "$GO_PREFIX_DIR"
-  rm -r /usr/local/lib/go/tmp
+  tmpdir="$(mktemp -d /tmp/go-install.XXXXXX)"
+  tar -C "$tmpdir" -xzf "$GO_TARBALL_TMP_PATH"
+  mv "$tmpdir/go" "$GO_PREFIX_DIR"
+  rm -r "$tmpdir"
 
   if [[ $GO_TARBALL_CLEAN == '1' ]]; then
     rm -f "$GO_TARBALL_TMP_PATH"
@@ -63,6 +63,7 @@ for GO_VERSION in $GO_VERSIONS; do
     exit 1
   fi
 
+  mkdir -p /usr/local/lib/go
   GO_PREFIX_DIR="/usr/local/lib/go/$GO_VERSION"
 
   echo "Installing Go $GO_VERSION into $GO_PREFIX_DIR"
