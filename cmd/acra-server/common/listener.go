@@ -330,8 +330,7 @@ to db and decrypting responses from db
 */
 func (server *SServer) handleCommandsConnection(ctx context.Context, clientID []byte, connection net.Conn) {
 	logger := logging.NewLoggerWithTrace(ctx)
-	clientSession, err := NewClientCommandsSession(server.config.GetKeyStore(), server.config, connection)
-	clientSession.Server = server
+	clientSession, err := NewClientCommandsSession(ctx, server, server.config, connection)
 	if err != nil {
 		logger.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantStartConnection).
 			Errorln("Can't init API session")
