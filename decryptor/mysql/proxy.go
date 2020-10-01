@@ -17,10 +17,8 @@ limitations under the License.
 package mysql
 
 import (
-	"context"
 	"github.com/cossacklabs/acra/decryptor/base"
 	"github.com/cossacklabs/acra/encryptor"
-	"net"
 )
 
 type proxyFactory struct {
@@ -41,12 +39,12 @@ func NewProxyFactory(proxySetting base.ProxySetting) (base.ProxyFactory, error) 
 }
 
 // New return mysql proxy implementation
-func (factory *proxyFactory) New(ctx context.Context, clientID []byte, dbConnection, clientConnection net.Conn) (base.Proxy, error) {
+func (factory *proxyFactory) New(clientID []byte, clientSession base.ClientSession) (base.Proxy, error) {
 	decryptor, err := factory.setting.DecryptorFactory().New(clientID)
 	if err != nil {
 		return nil, err
 	}
-	proxy, err := NewMysqlProxy(ctx, decryptor, dbConnection, clientConnection, factory.setting)
+	proxy, err := NewMysqlProxy(clientSession, decryptor, factory.setting)
 	if err != nil {
 		return nil, err
 	}

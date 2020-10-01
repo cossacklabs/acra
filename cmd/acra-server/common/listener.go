@@ -19,6 +19,7 @@ package common
 import (
 	"context"
 	"errors"
+	"io"
 	"net"
 	url_ "net/url"
 	"os"
@@ -122,8 +123,7 @@ to db and decrypting responses from db
 func (server *SServer) handleConnection(ctx context.Context, clientID []byte, connection net.Conn) {
 	logger := logging.NewLoggerWithTrace(ctx)
 	logging.SetLoggerToContext(ctx, logger)
-	clientSession, err := NewClientSession(ctx, server.config.GetKeyStore(), server.config, connection)
-	clientSession.Server = server
+	clientSession, err := NewClientSession(ctx, server.config, connection)
 	if err != nil {
 		logger.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantInitClientSession).
 			Errorln("Can't initialize client session")
@@ -133,7 +133,80 @@ func (server *SServer) handleConnection(ctx context.Context, clientID []byte, co
 		}
 		return
 	}
-	clientSession.HandleClientConnection(clientID, server.proxyFactory)
+	server.handleClientSession(clientID, clientSession)
+}
+
+func (server *SServer) handleClientSession(clientID []byte, clientSession *ClientSession) {
+	log := clientSession.Logger()
+	log.Infof("Handle client's connection")
+	clientProxyErrorCh := make(chan error, 1)
+	dbProxyErrorCh := make(chan error, 1)
+
+	log.Debugf("Connecting to db")
+	err := clientSession.ConnectToDb()
+	if err != nil {
+		log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantConnectToDB).
+			Errorln("Can't connect to db")
+
+		log.Debugln("Close connection with acra-connector")
+		err = clientSession.ClientConnection().Close()
+		if err != nil {
+			log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantCloseConnectionToService).
+				Errorln("Error with closing connection to acra-connector")
+		}
+		return
+	}
+
+	if err != nil {
+		log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorDataEncryptorInitialization).
+			Errorln("Can't initialize data encryptor to encrypt data in queries")
+		return
+	}
+	proxy, err := server.proxyFactory.New(clientID, clientSession)
+	if err != nil {
+		log.WithError(err).Errorln("Can't create new proxy for connection")
+		return
+	}
+	go proxy.ProxyClientConnection(clientProxyErrorCh)
+	go proxy.ProxyDatabaseConnection(dbProxyErrorCh)
+
+	var channelToWait chan error
+	const (
+		acraDbSide     = "AcraServer<->Database"
+		clientAcraSide = "Client/Connector<->Database"
+	)
+	var interruptSide string
+
+	select {
+	case err = <-dbProxyErrorCh:
+		log.Debugln("Stop to proxy Database -> AcraServer")
+		interruptSide = acraDbSide
+		channelToWait = clientProxyErrorCh
+	case err = <-clientProxyErrorCh:
+		interruptSide = clientAcraSide
+		log.Debugln("Stop to proxy AcraServer -> Client")
+		channelToWait = dbProxyErrorCh
+	}
+	log = log.WithField("interrupt_side", interruptSide)
+	if err == io.EOF {
+		log.Debugln("EOF connection closed")
+	} else if err == nil {
+		log.Debugln("Err == nil from proxy goroutine")
+	} else if netErr, ok := err.(net.Error); ok {
+		log.WithError(netErr).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorGeneralConnectionProcessing).
+			Errorln("Network error")
+	} else if opErr, ok := err.(*net.OpError); ok {
+		log.WithError(opErr).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorGeneralConnectionProcessing).Errorln("Network error")
+	} else {
+		log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorGeneralConnectionProcessing).Errorln("Unexpected error")
+	}
+
+	log.Infof("Closing client's connection")
+	clientSession.Close()
+
+	// wait second error from closed second connection
+	log.WithError(<-channelToWait).Debugln("Second proxy goroutine stopped")
+	log.Infoln("Finished processing client's connection")
 }
 
 func (server *SServer) processConnection(connection net.Conn, callback *callbackData) {
@@ -331,8 +404,7 @@ to db and decrypting responses from db
 */
 func (server *SServer) handleCommandsConnection(ctx context.Context, clientID []byte, connection net.Conn) {
 	logger := logging.NewLoggerWithTrace(ctx)
-	clientSession, err := NewClientCommandsSession(server.config.GetKeyStore(), server.config, connection)
-	clientSession.Server = server
+	clientSession, err := NewClientCommandsSession(ctx, server, server.config, connection)
 	if err != nil {
 		logger.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantStartConnection).
 			Errorln("Can't init API session")

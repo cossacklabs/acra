@@ -102,16 +102,16 @@ type PgProxy struct {
 }
 
 // NewPgProxy returns new PgProxy
-func NewPgProxy(ctx context.Context, decryptor base.Decryptor, dbConnection, clientConnection net.Conn, setting base.ProxySetting) (*PgProxy, error) {
-	observerManager, err := base.NewArrayQueryObserverableManager(ctx)
+func NewPgProxy(session base.ClientSession, decryptor base.Decryptor, setting base.ProxySetting) (*PgProxy, error) {
+	observerManager, err := base.NewArrayQueryObserverableManager(session.Context())
 	if err != nil {
 		return nil, err
 	}
 	return &PgProxy{
-		clientConnection:     clientConnection,
-		dbConnection:         dbConnection,
+		clientConnection:     session.ClientConnection(),
+		dbConnection:         session.DatabaseConnection(),
 		TLSCh:                make(chan bool),
-		ctx:                  ctx,
+		ctx:                  session.Context(),
 		queryObserverManager: observerManager,
 		clientTLSConfig:      setting.ClientTLSConfig(),
 		dbTLSConfig:          setting.DatabaseTLSConfig(),

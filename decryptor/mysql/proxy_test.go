@@ -2,9 +2,11 @@ package mysql
 
 import (
 	"context"
+	"net"
+	"testing"
+
 	"github.com/cossacklabs/acra/decryptor/base"
 	"github.com/cossacklabs/acra/encryptor/config"
-	"testing"
 )
 
 type decryptorFactory struct{}
@@ -23,6 +25,20 @@ func (store *tableSchemaStore) IsEmpty() bool {
 	return store.empty
 }
 
+type stubSession struct{}
+
+func (stubSession) Context() context.Context {
+	return context.TODO()
+}
+
+func (stubSession) ClientConnection() net.Conn {
+	return nil
+}
+
+func (stubSession) DatabaseConnection() net.Conn {
+	return nil
+}
+
 func TestEncryptorTurnOnOff(t *testing.T) {
 	emptyStore := &tableSchemaStore{true}
 	nonEmptyStore := &tableSchemaStore{false}
@@ -31,7 +47,7 @@ func TestEncryptorTurnOnOff(t *testing.T) {
 	if err != nil {
 		t.Fatal(setting)
 	}
-	proxy, err := proxyFactory.New(context.TODO(), nil, nil, nil)
+	proxy, err := proxyFactory.New(nil, &stubSession{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -44,7 +60,7 @@ func TestEncryptorTurnOnOff(t *testing.T) {
 	if err != nil {
 		t.Fatal(setting)
 	}
-	proxy, err = proxyFactory.New(context.TODO(), nil, nil, nil)
+	proxy, err = proxyFactory.New(nil, &stubSession{})
 	if err != nil {
 		t.Fatal(err)
 	}

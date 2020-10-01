@@ -17,11 +17,10 @@ limitations under the License.
 package postgresql
 
 import (
-	"context"
 	"errors"
+
 	"github.com/cossacklabs/acra/decryptor/base"
 	"github.com/cossacklabs/acra/encryptor"
-	"net"
 )
 
 type proxyFactory struct {
@@ -36,13 +35,13 @@ func NewProxyFactory(proxySetting base.ProxySetting) (base.ProxyFactory, error) 
 }
 
 // New return postgresql proxy implementation
-func (factory *proxyFactory) New(ctx context.Context, clientID []byte, dbConnection, clientConnection net.Conn) (base.Proxy, error) {
+func (factory *proxyFactory) New(clientID []byte, clientSession base.ClientSession) (base.Proxy, error) {
 	decryptor, err := factory.setting.DecryptorFactory().New(clientID)
 	if err != nil {
 		return nil, err
 	}
 	decryptor.SetDataProcessor(base.DecryptProcessor{})
-	proxy, err := NewPgProxy(ctx, decryptor, dbConnection, clientConnection, factory.setting)
+	proxy, err := NewPgProxy(clientSession, decryptor, factory.setting)
 	if err != nil {
 		return nil, err
 	}

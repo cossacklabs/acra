@@ -45,18 +45,16 @@ const (
 
 // ClientCommandsSession handles Secure Session for client commands API
 type ClientCommandsSession struct {
-	ClientSession
-	Server   *SServer
-	keystore keystore.ServerKeyStore
+	ctx        context.Context
+	server     *SServer
+	config     *Config
+	keystore   keystore.ServerKeyStore
+	connection net.Conn
 }
 
 // NewClientCommandsSession returns new ClientCommandsSession
-func NewClientCommandsSession(keystorage keystore.ServerKeyStore, config *Config, connection net.Conn) (*ClientCommandsSession, error) {
-	clientSession, err := NewClientSession(context.Background(), keystorage, config, connection)
-	if err != nil {
-		return nil, err
-	}
-	return &ClientCommandsSession{ClientSession: *clientSession, keystore: keystorage}, nil
+func NewClientCommandsSession(ctx context.Context, server *SServer, config *Config, connection net.Conn) (*ClientCommandsSession, error) {
+	return &ClientCommandsSession{ctx: ctx, server: server, config: config, keystore: config.GetKeyStore(), connection: connection}, nil
 }
 
 // ConnectToDb should not be called, because command session must not connect to any DB
@@ -99,7 +97,7 @@ func (clientSession *ClientCommandsSession) HandleSession() {
 	switch req.URL.Path {
 	case "/getNewZone":
 		logger.Debugln("Got /getNewZone request")
-		id, publicKey, err := clientSession.keystorage.GenerateZoneKey()
+		id, publicKey, err := clientSession.keystore.GenerateZoneKey()
 		if err != nil {
 			logger.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorHTTPAPICantGenerateZone).Errorln("Can't generate zone key")
 		} else {
@@ -113,7 +111,7 @@ func (clientSession *ClientCommandsSession) HandleSession() {
 		}
 	case "/resetKeyStorage":
 		logger.Debugln("Got /resetKeyStorage request")
-		clientSession.keystorage.Reset()
+		clientSession.keystore.Reset()
 		response = "HTTP/1.1 200 OK Found\r\n\r\n"
 		logger.Debugln("Cleared key storage cache")
 	case "/loadAuthData":
@@ -124,7 +122,7 @@ func (clientSession *ClientCommandsSession) HandleSession() {
 			response = Response500Error
 			break
 		}
-		authDataPath := clientSession.Server.config.GetAuthDataPath()
+		authDataPath := clientSession.config.GetAuthDataPath()
 		authDataCrypted, err := utils.ReadFile(authDataPath)
 		if err != nil {
 			logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorHTTPAPICantLoadAuthData).WithError(err).Warningln("loadAuthData: no auth data")
@@ -171,7 +169,7 @@ func (clientSession *ClientCommandsSession) HandleSession() {
 		flag.Set("poison_shutdown_enable", fmt.Sprintf("%v", configFromUI.StopOnPoison))
 		flag.Set("zonemode_enable", fmt.Sprintf("%v", configFromUI.WithZone))
 
-		configPath := clientSession.Server.config.GetConfigPath()
+		configPath := clientSession.config.GetConfigPath()
 		serviceName := clientSession.config.GetServiceName()
 		err = cmd.DumpConfig(configPath, serviceName, false)
 		if err != nil {
@@ -181,7 +179,7 @@ func (clientSession *ClientCommandsSession) HandleSession() {
 			break
 		}
 		logger.Infoln("Handled request correctly, restarting server")
-		clientSession.Server.restartSignalsChannel <- syscall.SIGHUP
+		clientSession.server.restartSignalsChannel <- syscall.SIGHUP
 	default:
 		requestSpan.AddAttributes(trace.StringAttribute("http.url", "undefined"))
 	}
