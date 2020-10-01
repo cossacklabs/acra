@@ -94,6 +94,7 @@ const (
 
 // PgProxy represents PgSQL database connection between client and database with TLS support
 type PgProxy struct {
+	session              base.ClientSession
 	clientConnection     net.Conn
 	dbConnection         net.Conn
 	TLSCh                chan bool
@@ -105,8 +106,6 @@ type PgProxy struct {
 	decryptor            base.Decryptor
 	tlsSwitch            bool
 	decryptionObserver   base.ColumnDecryptionObserver
-	statementRegistry    *PgPreparedStatementRegistry
-	portalRegistry       *PgPortalRegistry
 }
 
 // NewPgProxy returns new PgProxy
@@ -115,23 +114,14 @@ func NewPgProxy(session base.ClientSession, decryptor base.Decryptor, setting ba
 	if err != nil {
 		return nil, err
 	}
-	statementRegistry, ok := session.PreparedStatementRegistry().(*PgPreparedStatementRegistry)
-	if !ok {
-		return nil, ErrInvalidPreparedStatementRegistry
+	if session.PreparedStatementRegistry() == nil {
+		session.SetPreparedStatementRegistry(NewPreparedStatementRegistry())
 	}
-	if statementRegistry == nil {
-		statementRegistry = NewPreparedStatementRegistry()
-		session.SetPreparedStatementRegistry(statementRegistry)
-	}
-	portalRegistry, ok := session.CursorRegistry().(*PgPortalRegistry)
-	if !ok {
-		return nil, ErrInvalidCursorRegistry
-	}
-	if portalRegistry == nil {
-		portalRegistry = NewPortalRegistry()
-		session.SetCursorRegistry(portalRegistry)
+	if session.CursorRegistry() == nil {
+		session.SetCursorRegistry(NewPortalRegistry())
 	}
 	return &PgProxy{
+		session:              session,
 		clientConnection:     session.ClientConnection(),
 		dbConnection:         session.DatabaseConnection(),
 		TLSCh:                make(chan bool),
@@ -142,8 +132,6 @@ func NewPgProxy(session base.ClientSession, decryptor base.Decryptor, setting ba
 		censor:               setting.Censor(),
 		decryptor:            decryptor,
 		decryptionObserver:   base.NewColumnDecryptionObserver(),
-		statementRegistry:    statementRegistry,
-		portalRegistry:       portalRegistry,
 	}, nil
 }
 
