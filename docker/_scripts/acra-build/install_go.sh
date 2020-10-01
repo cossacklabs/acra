@@ -70,5 +70,7 @@ for GO_VERSION in $GO_VERSIONS; do
   install_go
 done
 
-# symlink /usr/local/lib/go/latest -> /usr/local/lib/go/whatever_version_was_installed_last
-ln -s "$GO_VERSION" /usr/local/lib/go/latest
+latest_version="$(echo "$GO_VERSIONS" | tr ' ' '\n' | sort --version-sort --reverse | head -1)"
+
+# symlink /usr/local/lib/go/latest -> /usr/local/lib/go/whatever_version_is_the_newest
+ln -s "$latest_version" /usr/local/lib/go/latest
