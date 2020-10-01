@@ -193,6 +193,13 @@ func (stubSession) PreparedStatementRegistry() base.PreparedStatementRegistry {
 func (stubSession) SetPreparedStatementRegistry(registry base.PreparedStatementRegistry) {
 }
 
+func (stubSession) CursorRegistry() base.CursorRegistry {
+	return nil
+}
+
+func (stubSession) SetCursorRegistry(registry base.CursorRegistry) {
+}
+
 func TestEncryptorTurnOnOff(t *testing.T) {
 	emptyStore := &tableSchemaStore{true}
 	nonEmptyStore := &tableSchemaStore{false}

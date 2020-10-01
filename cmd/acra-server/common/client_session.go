@@ -35,6 +35,7 @@ type ClientSession struct {
 	ctx            context.Context
 	logger         *log.Entry
 	statements     base.PreparedStatementRegistry
+	cursors        base.CursorRegistry
 }
 
 var sessionCounter uint32
@@ -80,6 +81,17 @@ func (clientSession *ClientSession) PreparedStatementRegistry() base.PreparedSta
 // SetPreparedStatementRegistry sets prepared statement registry for this session.
 func (clientSession *ClientSession) SetPreparedStatementRegistry(registry base.PreparedStatementRegistry) {
 	clientSession.statements = registry
+}
+
+// CursorRegistry returns cursor registry of this session.
+// The session does not have a registry by default, it must be set with SetCursorRegistry.
+func (clientSession *ClientSession) CursorRegistry() base.CursorRegistry {
+	return clientSession.cursors
+}
+
+// SetCursorRegistry sets cursor registry for this session.
+func (clientSession *ClientSession) SetCursorRegistry(registry base.CursorRegistry) {
+	clientSession.cursors = registry
 }
 
 // ConnectToDb connects to the database via tcp using Host and Port from config.
