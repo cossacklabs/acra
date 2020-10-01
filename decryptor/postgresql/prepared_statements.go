@@ -26,6 +26,7 @@ import (
 // Errors returned by prepared statement registry.
 var (
 	ErrStatementNotFound = errors.New("no prepared statement with given name")
+	ErrCursorNotFound    = errors.New("no cursor with given name")
 )
 
 // PgPreparedStatementRegistry is a PostgreSQL PreparedStatementRegistry.
@@ -81,4 +82,55 @@ func (s *PgPreparedStatement) Query() sqlparser.Statement {
 // QueryText returns text of the prepared query, as provided by the client.
 func (s *PgPreparedStatement) QueryText() string {
 	return s.text
+}
+
+// PgPortalRegistry is a PostgreSQL CursorRegistry.
+// Cursors are called "portals" in PostgreSQL protocol specs.
+type PgPortalRegistry struct {
+	registry map[string]base.Cursor
+}
+
+// NewPortalRegistry makes a new empty portal registry.
+func NewPortalRegistry() *PgPortalRegistry {
+	return &PgPortalRegistry{registry: make(map[string]base.Cursor)}
+}
+
+// CursorByName returns a cursor from the registry by its name, if it exists.
+func (r *PgPortalRegistry) CursorByName(name string) (base.Cursor, error) {
+	s, ok := r.registry[name]
+	if ok {
+		return s, nil
+	}
+	return nil, ErrCursorNotFound
+}
+
+// Add a portal to the registry. If an existing portal with the same name exists,
+// it is replaced with the new one. Returns "true" if portal has been replaced.
+func (r *PgPortalRegistry) Add(portal base.Cursor) (bool, error) {
+	name := portal.Name()
+	_, exists := r.registry[name]
+	r.registry[name] = portal
+	return exists, nil
+}
+
+// PgPortal is a PostgreSQL Cursor.
+// Cursors are called "portals" in PostgreSQL protocol specs.
+type PgPortal struct {
+	name      string
+	statement *PgPreparedStatement
+}
+
+// NewPortal makes a new portal.
+func NewPortal(name string, statement *PgPreparedStatement) *PgPortal {
+	return &PgPortal{name, statement}
+}
+
+// Name returns the name of the cursor.
+func (p *PgPortal) Name() string {
+	return p.name
+}
+
+// PreparedStatement returns the prepared statement this cursor is associated with.
+func (p *PgPortal) PreparedStatement() base.PreparedStatement {
+	return p.statement
 }
