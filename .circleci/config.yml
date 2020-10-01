@@ -2,21 +2,16 @@ version: 2
 jobs:
   general_validation:
     docker:
-      - image: cossacklabs/android-build
+      - image: cossacklabs/ci-py-go-themis:latest
     environment:
       FILEPATH_ERROR_FLAG: /tmp/test_fail
-      VERSIONS: 1.13.15 1.14.9 1.15.2
-      TEST_DB_PORT: 5432
-      GOPATH_FOLDER: gopath
+      GO_VERSIONS: 1.13.15 1.14.9 1.15.2
+      TEST_DB_PORT: "5432"
       TEST_RANDOM_DATA_FOLDER: /tmp/test_data
       TEST_TLS: "on"
-      GOPATH: /home/user/gopath
-      # set default goroot instead system available
-      GOROOT: /home/user/go_root_1.15.2/go
     steps:
       # prepare
       - checkout
-      - run: .circleci/prepare.sh
       # validation
       - run: .circleci/check_gofmt.sh
       - run: .circleci/check_configs.sh | tee /home/user/tests_output
@@ -31,26 +26,27 @@ jobs:
 
   postgresql-ssl:
     docker:
-      - image: cossacklabs/android-build
+      - image: cossacklabs/ci-py-go-themis:latest
       - image: cossacklabs/postgresql-ssl:11-1
         environment:
           POSTGRES_PASSWORD: test
           POSTGRES_USER: test
           POSTGRES_DB: test
     environment:
+      TEST_DB_USER: test
+      TEST_DB_USER_PASSWORD: test
+      TEST_DB_NAME: test
+      TEST_DB_PORT: "5432"
       FILEPATH_ERROR_FLAG: /tmp/test_fail
-      VERSIONS: 1.13.15 1.14.9 1.15.2
-      TEST_DB_PORT: 5432
-      GOPATH_FOLDER: gopath
+      GO_VERSIONS: 1.13.15 1.14.9 1.15.2
       TEST_RANDOM_DATA_FOLDER: /tmp/test_data
       TEST_TLS: "on"
-      GOPATH: /home/user/gopath
     steps:
-    # prepare
+      # prepare
       - checkout
-      - run: .circleci/prepare.sh
-      - run: sudo apt-get install -y postgresql-client
-      - run: pg_isready -U${POSTGRES_USER} -d${POSTGRES_DB} -h127.0.0.1
+      # database in neighbor container need some time to start
+      # wait for the DB to be reachable, up to 15 pings with 1 second interval
+      - run: NUM_PINGS=15 DELAY=1 .circleci/check_postgresql_connection.sh
       # testing
       # generate test data for integration tests
       - run: python3 tests/generate_random_data.py
@@ -76,26 +72,28 @@ jobs:
 
   postgresql:
     docker:
-      - image: cossacklabs/android-build
+      - image: cossacklabs/ci-py-go-themis:latest
       - image: postgres:11-alpine
         environment:
           POSTGRES_PASSWORD: test
           POSTGRES_USER: test
           POSTGRES_DB: test
     environment:
+      TEST_DB_USER: test
+      TEST_DB_USER_PASSWORD: test
+      TEST_DB_NAME: test
+      TEST_DB_PORT: "5432"
       FILEPATH_ERROR_FLAG: /tmp/test_fail
-      VERSIONS: 1.13.15 1.14.9 1.15.2
-      TEST_DB_PORT: 5432
-      GOPATH_FOLDER: gopath
+      GO_VERSIONS: 1.13.15 1.14.9 1.15.2
       TEST_RANDOM_DATA_FOLDER: /tmp/test_data
       TEST_TLS: "off"
-      GOPATH: /home/user/gopath
     steps:
       # prepare
       - checkout
-      - run: .circleci/prepare.sh
-      - run: sudo apt-get install -y postgresql-client
-      - run: pg_isready -U${POSTGRES_USER} -d${POSTGRES_DB} -h127.0.0.1
+      # database in neighbor container need some time to start
+      # wait for the DB to be reachable, up to 15 pings with 1 second interval
+      - run: NUM_PINGS=15 DELAY=1 .circleci/check_postgresql_connection.sh
+      # testing
       # generate test data for integration tests
       - run: python3 tests/generate_random_data.py
       # each iteration pass to test different ports for forks to avoid problems with TCP TIME WAIT between tests
@@ -120,7 +118,7 @@ jobs:
 
   mariadb-ssl:
     docker:
-    - image: cossacklabs/android-build
+    - image: cossacklabs/ci-py-go-themis:latest
     # use the same credentials for mysql db as for postgresql (which support was added first)
     # has latest tag on 2018.03.29
     - image: cossacklabs/mariadb-ssl:10.3-1
@@ -130,46 +128,46 @@ jobs:
         MYSQL_PASSWORD: test
         MYSQL_ROOT_PASSWORD: root
     environment:
+      TEST_DB_USER: test
+      TEST_DB_USER_PASSWORD: test
+      TEST_DB_NAME: test
+      TEST_DB_PORT: "3306"
       FILEPATH_ERROR_FLAG: /tmp/test_fail
-      VERSIONS: 1.13.15 1.14.9 1.15.2
-      TEST_MYSQL: true
-      TEST_DB_PORT: 3306
-      GOPATH_FOLDER: gopath
+      TEST_MYSQL: "true"
       TEST_RANDOM_DATA_FOLDER: /tmp/test_data
       TEST_TLS: "on"
-      GOPATH: /home/user/gopath
     steps:
-    # prepare
-    - checkout
-    - run: .circleci/prepare.sh
-    - run: sudo apt-get install -y mysql-client
-    - run: mysqladmin ping -h127.0.0.1
-    # testing
-    # generate test data for integration tests
-    - run: python3 tests/generate_random_data.py
-    # each iteration pass to test different ports for forks to avoid problems with TCP TIME WAIT between tests
-    - run:
-        name: Integration tests (keystore v1)
-        environment:
-          TEST_KEYSTORE: v1
-        command: |
-          .circleci/integration.sh
-          if [ -f  $FILEPATH_ERROR_FLAG ]; then cat "$FILEPATH_ERROR_FLAG"; rm "$FILEPATH_ERROR_FLAG"; exit 1; fi
-    - run:
-        name: Integration tests (keystore v2)
-        environment:
-          TEST_KEYSTORE: v2
-        command: |
-          .circleci/integration.sh
-          if [ -f  $FILEPATH_ERROR_FLAG ]; then cat "$FILEPATH_ERROR_FLAG"; rm "$FILEPATH_ERROR_FLAG"; exit 1; fi
-    - store_test_results:
-        path: /home/user/tests_output
-    - store_artifacts:
-        path: /home/user/tests_output
+      # prepare
+      - checkout
+      # database in neighbor container need some time to start
+      # wait for the DB to be reachable, up to 15 pings with 1 second interval
+      - run: NUM_PINGS=15 DELAY=1 .circleci/check_mysql_connection.sh
+      # testing
+      # generate test data for integration tests
+      - run: python3 tests/generate_random_data.py
+      # each iteration pass to test different ports for forks to avoid problems with TCP TIME WAIT between tests
+      - run:
+          name: Integration tests (keystore v1)
+          environment:
+            TEST_KEYSTORE: v1
+          command: |
+            .circleci/integration.sh
+            if [ -f  $FILEPATH_ERROR_FLAG ]; then cat "$FILEPATH_ERROR_FLAG"; rm "$FILEPATH_ERROR_FLAG"; exit 1; fi
+      - run:
+          name: Integration tests (keystore v2)
+          environment:
+            TEST_KEYSTORE: v2
+          command: |
+            .circleci/integration.sh
+            if [ -f  $FILEPATH_ERROR_FLAG ]; then cat "$FILEPATH_ERROR_FLAG"; rm "$FILEPATH_ERROR_FLAG"; exit 1; fi
+      - store_test_results:
+          path: /home/user/tests_output
+      - store_artifacts:
+          path: /home/user/tests_output
 
   mariadb:
     docker:
-      - image: cossacklabs/android-build
+      - image: cossacklabs/ci-py-go-themis:latest
       # use the same credentials for mysql db as for postgresql (which support was added first)
       # has latest tag on 2018.03.29
       - image: mariadb:latest
@@ -179,20 +177,21 @@ jobs:
           MYSQL_PASSWORD: test
           MYSQL_ROOT_PASSWORD: root
     environment:
+      TEST_DB_USER: test
+      TEST_DB_USER_PASSWORD: test
+      TEST_DB_NAME: test
+      TEST_DB_PORT: "3306"
       FILEPATH_ERROR_FLAG: /tmp/test_fail
-      VERSIONS: 1.13.15 1.14.9 1.15.2
-      TEST_MYSQL: true
-      TEST_DB_PORT: 3306
-      GOPATH_FOLDER: gopath
+      GO_VERSIONS: 1.13.15 1.14.9 1.15.2
+      TEST_MYSQL: "true"
       TEST_RANDOM_DATA_FOLDER: /tmp/test_data
       TEST_TLS: "off"
-      GOPATH: /home/user/gopath
     steps:
       # prepare
       - checkout
-      - run: .circleci/prepare.sh
-      - run: sudo apt-get install -y mysql-client
-      - run: mysqladmin ping -h127.0.0.1
+      # database in neighbor container need some time to start
+      # wait for the DB to be reachable, up to 15 pings with 1 second interval
+      - run: NUM_PINGS=15 DELAY=1 .circleci/check_mysql_connection.sh
       # testing
       # generate test data for integration tests
       - run: python3 tests/generate_random_data.py
@@ -218,56 +217,56 @@ jobs:
 
   mysql-ssl:
     docker:
-    - image: cossacklabs/android-build
-    # use the same credentials for mysql db as for postgresql (which support was added first)
-    # has latest tag on 2018.03.29
-    - image: cossacklabs/mysql-ssl:5.7.25-1
-      environment:
-        MYSQL_DATABASE: test
-        MYSQL_USER: test
-        MYSQL_PASSWORD: test
-        MYSQL_ROOT_PASSWORD: root
+      - image: cossacklabs/ci-py-go-themis:latest
+      # use the same credentials for mysql db as for postgresql (which support was added first)
+      # has latest tag on 2018.03.29
+      - image: cossacklabs/mysql-ssl:5.7.31-1
+        environment:
+          MYSQL_DATABASE: test
+          MYSQL_USER: test
+          MYSQL_PASSWORD: test
+          MYSQL_ROOT_PASSWORD: root
     environment:
+      TEST_DB_USER: test
+      TEST_DB_USER_PASSWORD: test
+      TEST_DB_NAME: test
+      TEST_DB_PORT: "3306"
       FILEPATH_ERROR_FLAG: /tmp/test_fail
-      VERSIONS: 1.13.15 1.14.9 1.15.2
-      TEST_MYSQL: true
-      TEST_DB_PORT: 3306
-      GOPATH_FOLDER: gopath
+      TEST_MYSQL: "true"
       TEST_RANDOM_DATA_FOLDER: /tmp/test_data
       TEST_TLS: "on"
-      GOPATH: /home/user/gopath
     steps:
-    # prepare
-    - checkout
-    - run: .circleci/prepare.sh
-    - run: sudo apt-get install -y mysql-client
-    - run: mysqladmin ping -h127.0.0.1
-    # testing
-    # generate test data for integration tests
-    - run: python3 tests/generate_random_data.py
-    # each iteration pass to test different ports for forks to avoid problems with TCP TIME WAIT between tests
-    - run:
-        name: Integration tests (keystore v1)
-        environment:
-          TEST_KEYSTORE: v1
-        command: |
-          .circleci/integration.sh
-          if [ -f  $FILEPATH_ERROR_FLAG ]; then cat "$FILEPATH_ERROR_FLAG"; rm "$FILEPATH_ERROR_FLAG"; exit 1; fi
-    - run:
-        name: Integration tests (keystore v2)
-        environment:
-          TEST_KEYSTORE: v2
-        command: |
-          .circleci/integration.sh
-          if [ -f  $FILEPATH_ERROR_FLAG ]; then cat "$FILEPATH_ERROR_FLAG"; rm "$FILEPATH_ERROR_FLAG"; exit 1; fi
-    - store_test_results:
-        path: /home/user/tests_output
-    - store_artifacts:
-        path: /home/user/tests_output
+      # prepare
+      - checkout
+      # database in neighbor container need some time to start
+      # wait for the DB to be reachable, up to 15 pings with 1 second interval
+      - run: NUM_PINGS=15 DELAY=1 .circleci/check_mysql_connection.sh
+      # testing
+      # generate test data for integration tests
+      - run: python3 tests/generate_random_data.py
+      # each iteration pass to test different ports for forks to avoid problems with TCP TIME WAIT between tests
+      - run:
+          name: Integration tests (keystore v1)
+          environment:
+            TEST_KEYSTORE: v1
+          command: |
+            .circleci/integration.sh
+            if [ -f  $FILEPATH_ERROR_FLAG ]; then cat "$FILEPATH_ERROR_FLAG"; rm "$FILEPATH_ERROR_FLAG"; exit 1; fi
+      - run:
+          name: Integration tests (keystore v2)
+          environment:
+            TEST_KEYSTORE: v2
+          command: |
+            .circleci/integration.sh
+            if [ -f  $FILEPATH_ERROR_FLAG ]; then cat "$FILEPATH_ERROR_FLAG"; rm "$FILEPATH_ERROR_FLAG"; exit 1; fi
+      - store_test_results:
+          path: /home/user/tests_output
+      - store_artifacts:
+          path: /home/user/tests_output
 
   mysql:
     docker:
-      - image: cossacklabs/android-build
+      - image: cossacklabs/ci-py-go-themis:latest
       - image: mysql:5.7.25
         environment:
           MYSQL_DATABASE: test
@@ -275,20 +274,21 @@ jobs:
           MYSQL_PASSWORD: test
           MYSQL_ROOT_PASSWORD: root
     environment:
+      TEST_DB_USER: test
+      TEST_DB_USER_PASSWORD: test
+      TEST_DB_NAME: test
+      TEST_DB_PORT: "3306"
       FILEPATH_ERROR_FLAG: /tmp/test_fail
-      VERSIONS: 1.13.15 1.14.9 1.15.2
-      TEST_MYSQL: true
-      TEST_DB_PORT: 3306
-      GOPATH_FOLDER: gopath
+      GO_VERSIONS: 1.13.15 1.14.9 1.15.2
+      TEST_MYSQL: "true"
       TEST_RANDOM_DATA_FOLDER: /tmp/test_data
       TEST_TLS: "off"
-      GOPATH: /home/user/gopath
     steps:
       # prepare
       - checkout
-      - run: .circleci/prepare.sh
-      - run: sudo apt-get install -y mysql-client
-      - run: mysqladmin ping -h127.0.0.1
+      # database in neighbor container need some time to start
+      # wait for the DB to be reachable, up to 15 pings with 1 second interval
+      - run: NUM_PINGS=15 DELAY=1 .circleci/check_mysql_connection.sh
       # testing
       # generate test data for integration tests
       - run: python3 tests/generate_random_data.py

@@ -12,8 +12,7 @@ function compare_configs() {
      fi
     done
 }
-# use go from GOROOT instead installed in system
-PATH=$GOROOT/bin:$PATH
+
 temp_configs=`mktemp -d`
 bash configs/regenerate.sh ${temp_configs}
 

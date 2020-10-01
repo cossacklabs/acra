@@ -2,14 +2,30 @@
 
 # Run test in each go environment and log errors to $FILEPATH_ERROR_FLAG.
 # If all tests pass successfully then the file will not be created at all.
-export GOPATH=$HOME/$GOPATH_FOLDER;
 # cd to code with go.mod file outside of GOPATH to work with module-based behaviour
 # https://github.com/golang/go/wiki/Modules#when-do-i-get-old-behavior-vs-new-module-based-behavior
-cd $HOME/project
 
-for version in $VERSIONS; do
-    export GOROOT=$HOME/go_root_$version/go;
-    export PATH=$GOROOT/bin/:$PATH;
+OLD_PATH="$PATH"
+
+if [ -z "$GO_VERSIONS" ]; then
+    # extract default Go version from $GOROOT
+    GO_VERSIONS="$(readlink $GOROOT)"
+fi
+
+for go_version in $GO_VERSIONS; do
+    export GOROOT="/usr/local/lib/go/$go_version"
+
+    if [ ! -d $GOROOT ]; then
+        echo "Error: Go $go_version is not installed, $GOROOT does not exist"
+        exit 1
+    fi
+
+    export PATH="$GOROOT/bin:$OLD_PATH"
+
+    echo "Using $(go version) at $(which go)"
+    echo "GOROOT=$GOROOT"
+    echo "PATH=$PATH"
+    
     go test -v ./...;
     status="$?"
     if [[ "${status}" != "0" ]]; then
