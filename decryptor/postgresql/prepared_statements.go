@@ -32,14 +32,14 @@ var (
 // PgPreparedStatementRegistry is a PostgreSQL PreparedStatementRegistry.
 type PgPreparedStatementRegistry struct {
 	statements map[string]base.PreparedStatement
-	portals    map[string]base.Cursor
+	cursors    map[string]base.Cursor
 }
 
 // NewPreparedStatementRegistry makes a new empty prepared statement registry.
 func NewPreparedStatementRegistry() *PgPreparedStatementRegistry {
 	return &PgPreparedStatementRegistry{
 		statements: make(map[string]base.PreparedStatement),
-		portals:    make(map[string]base.Cursor),
+		cursors:    make(map[string]base.Cursor),
 	}
 }
 
@@ -54,7 +54,7 @@ func (r *PgPreparedStatementRegistry) StatementByName(name string) (base.Prepare
 
 // CursorByName returns a cursor from the registry by its name, if it exists.
 func (r *PgPreparedStatementRegistry) CursorByName(name string) (base.Cursor, error) {
-	s, ok := r.portals[name]
+	s, ok := r.cursors[name]
 	if ok {
 		return s, nil
 	}
@@ -73,15 +73,15 @@ func (r *PgPreparedStatementRegistry) AddStatement(statement base.PreparedStatem
 	return nil
 }
 
-// AddCursor adds a portal to the registry.
-// If an existing portal with the same name exists, it is replaced with the new one.
-func (r *PgPreparedStatementRegistry) AddCursor(portal base.Cursor) error {
-	// TODO(ilammy, 2020-10-02): allow updates only for unnamed portals
+// AddCursor adds a cursor to the registry.
+// If an existing cursor with the same name exists, it is replaced with the new one.
+func (r *PgPreparedStatementRegistry) AddCursor(cursor base.Cursor) error {
+	// TODO(ilammy, 2020-10-02): allow updates only for unnamed cursors
 	// PostgreSQL protocol allows repeated Bind messages (without matching Close)
-	// only for unnamed portals. SQL DECLARE CURSOR cannot be repeated too.
+	// only for unnamed cursors. SQL DECLARE CURSOR cannot be repeated too.
 	// Currently, Delete() is not called so we allow updates, but we shouldn't.
-	name := portal.Name()
-	r.portals[name] = portal
+	name := cursor.Name()
+	r.cursors[name] = cursor
 	return nil
 }
 
@@ -116,11 +116,11 @@ func (s *PgPreparedStatement) QueryText() string {
 // Cursors are called "portals" in PostgreSQL protocol specs.
 type PgPortal struct {
 	name      string
-	statement *PgPreparedStatement
+	statement base.PreparedStatement
 }
 
 // NewPortal makes a new portal.
-func NewPortal(name string, statement *PgPreparedStatement) *PgPortal {
+func NewPortal(name string, statement base.PreparedStatement) *PgPortal {
 	return &PgPortal{name, statement}
 }
 
