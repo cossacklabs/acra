@@ -50,11 +50,14 @@ func (r *PgPreparedStatementRegistry) StatementByName(name string) (base.Prepare
 
 // Add a statement to the registry. If an existing statement with the same name exists,
 // it is replaced with the new one. Returns "true" if statement has been replaced.
-func (r *PgPreparedStatementRegistry) Add(statement base.PreparedStatement) (bool, error) {
+func (r *PgPreparedStatementRegistry) Add(statement base.PreparedStatement) error {
+	// TODO(ilammy, 2020-10-02): allow updates only for unnamed statements
+	// PostgreSQL protocol allows repeated Parse messages (without matching Close)
+	// only for unnamed prepared statements. SQL PREPARE cannot be repeated too.
+	// Currently, Delete() is not called so we allow updates, but we shouldn't.
 	name := statement.Name()
-	_, exists := r.registry[name]
 	r.registry[name] = statement
-	return exists, nil
+	return nil
 }
 
 // PgPreparedStatement is a PostgreSQL PreparedStatement.
@@ -106,11 +109,14 @@ func (r *PgPortalRegistry) CursorByName(name string) (base.Cursor, error) {
 
 // Add a portal to the registry. If an existing portal with the same name exists,
 // it is replaced with the new one. Returns "true" if portal has been replaced.
-func (r *PgPortalRegistry) Add(portal base.Cursor) (bool, error) {
+func (r *PgPortalRegistry) Add(portal base.Cursor) error {
+	// TODO(ilammy, 2020-10-02): allow updates only for unnamed portals
+	// PostgreSQL protocol allows repeated Bind messages (without matching Close)
+	// only for unnamed portals. SQL DECLARE CURSOR cannot be repeated too.
+	// Currently, Delete() is not called so we allow updates, but we shouldn't.
 	name := portal.Name()
-	_, exists := r.registry[name]
 	r.registry[name] = portal
-	return exists, nil
+	return nil
 }
 
 // PgPortal is a PostgreSQL Cursor.
