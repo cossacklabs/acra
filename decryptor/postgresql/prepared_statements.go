@@ -118,7 +118,7 @@ func (r *PgPreparedStatementRegistry) DeleteStatement(name string) error {
 		return nil
 	}
 	// First, remove all cursors over the statement.
-	cursors, ok := r.cursorsOfStatement[name]
+	cursors := r.cursorsOfStatement[name]
 	for cursor := range cursors {
 		delete(r.cursors, cursor)
 	}
