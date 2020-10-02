@@ -31,15 +31,17 @@ var (
 
 // PgPreparedStatementRegistry is a PostgreSQL PreparedStatementRegistry.
 type PgPreparedStatementRegistry struct {
-	statements map[string]base.PreparedStatement
-	cursors    map[string]base.Cursor
+	statements         map[string]base.PreparedStatement
+	cursors            map[string]base.Cursor
+	cursorsOfStatement map[string]map[string]base.Cursor
 }
 
 // NewPreparedStatementRegistry makes a new empty prepared statement registry.
 func NewPreparedStatementRegistry() *PgPreparedStatementRegistry {
 	return &PgPreparedStatementRegistry{
-		statements: make(map[string]base.PreparedStatement),
-		cursors:    make(map[string]base.Cursor),
+		statements:         make(map[string]base.PreparedStatement),
+		cursors:            make(map[string]base.Cursor),
+		cursorsOfStatement: make(map[string]map[string]base.Cursor),
 	}
 }
 
@@ -81,6 +83,23 @@ func (r *PgPreparedStatementRegistry) AddCursor(cursor base.Cursor) error {
 	// only for unnamed cursors. SQL DECLARE CURSOR cannot be repeated too.
 	// Currently, Delete() is not called so we allow updates, but we shouldn't.
 	name := cursor.Name()
+	prepared := cursor.PreparedStatement()
+	preparedName := prepared.Name()
+
+	// It is an error to add a cursor for a statement which is not in the registry
+	if expectedPrepared, ok := r.statements[preparedName]; !ok || expectedPrepared != prepared {
+		return ErrStatementNotFound
+	}
+
+	// Add the cursor into the list of cursors for a given prepared statement.
+	cursors := r.cursorsOfStatement[preparedName]
+	if cursors == nil {
+		cursors = make(map[string]base.Cursor)
+	}
+	cursors[name] = cursor
+	r.cursorsOfStatement[preparedName] = cursors
+
+	// Then enter it into the list of cursors.
 	r.cursors[name] = cursor
 	return nil
 }
