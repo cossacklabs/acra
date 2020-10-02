@@ -478,7 +478,7 @@ func main() {
 		logging.SetLogLevel(logging.LogDiscard)
 	}
 
-	ctx := context.TODO()
+	ctx := context.Background()
 	if os.Getenv(gracefulEnv) == "true" {
 		if *withZone || *enableHTTPAPI {
 			go server.StartCommandsFromFileDescriptor(ctx, descriptorAPI)
