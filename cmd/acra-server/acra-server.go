@@ -31,6 +31,7 @@ limitations under the License.
 package main
 
 import (
+	"context"
 	"crypto/tls"
 	"flag"
 	"net/http"
@@ -477,16 +478,17 @@ func main() {
 		logging.SetLogLevel(logging.LogDiscard)
 	}
 
+	ctx := context.Background()
 	if os.Getenv(gracefulEnv) == "true" {
 		if *withZone || *enableHTTPAPI {
-			go server.StartCommandsFromFileDescriptor(descriptorAPI)
+			go server.StartCommandsFromFileDescriptor(ctx, descriptorAPI)
 		}
-		go server.StartFromFileDescriptor(descriptorAcra)
+		go server.StartFromFileDescriptor(ctx, descriptorAcra)
 	} else {
 		if *withZone || *enableHTTPAPI {
-			go server.StartCommands()
+			go server.StartCommands(ctx)
 		}
-		go server.Start()
+		go server.Start(ctx)
 	}
 
 	// on sighup we run callback that stop all listeners (that stop background goroutine of server.Start())
