@@ -106,9 +106,11 @@ type ProxyFactory interface {
 // PreparedStatementRegistry keeps track of active prepared statements and cursors within a ClientSession.
 type PreparedStatementRegistry interface {
 	AddStatement(statement PreparedStatement) error
+	DeleteStatement(name string) error
 	StatementByName(name string) (PreparedStatement, error)
 
 	AddCursor(cursor Cursor) error
+	DeleteCursor(name string) error
 	CursorByName(name string) (Cursor, error)
 }
 

@@ -71,6 +71,11 @@ func (r *PgPreparedStatementRegistry) AddStatement(statement base.PreparedStatem
 	// only for unnamed prepared statements. SQL PREPARE cannot be repeated too.
 	// Currently, Delete() is not called so we allow updates, but we shouldn't.
 	name := statement.Name()
+	// Remove everything associated with the old statement, like its cursors.
+	err := r.DeleteStatement(name)
+	if err != nil {
+		return err
+	}
 	r.statements[name] = statement
 	return nil
 }
@@ -101,6 +106,45 @@ func (r *PgPreparedStatementRegistry) AddCursor(cursor base.Cursor) error {
 
 	// Then enter it into the list of cursors.
 	r.cursors[name] = cursor
+	return nil
+}
+
+// DeleteStatement removes a statement with given name from the registry.
+// It is not an error to remove nonexistent statements. In this case no error is returned and no action is taken.
+// Removing a prepared statements removes all cursors associated with it.
+func (r *PgPreparedStatementRegistry) DeleteStatement(name string) error {
+	_, ok := r.statements[name]
+	if !ok {
+		return nil
+	}
+	// First, remove all cursors over the statement.
+	cursors, ok := r.cursorsOfStatement[name]
+	for cursor := range cursors {
+		delete(r.cursors, cursor)
+	}
+	// Then drop the cursor list of the statement.
+	delete(r.cursorsOfStatement, name)
+	// Followed by the statement itself
+	delete(r.statements, name)
+	return nil
+}
+
+// DeleteCursor removes a portals with given name from the registry.
+// It is not an error to remove nonexistent portals. In this case no error is returned and no action is taken.
+func (r *PgPreparedStatementRegistry) DeleteCursor(name string) error {
+	cursor, ok := r.cursors[name]
+	if !ok {
+		return nil
+	}
+	// Remove the cursor from the list of its cursors.
+	preparedName := cursor.PreparedStatement().Name()
+	cursors, ok := r.cursorsOfStatement[preparedName]
+	if !ok {
+		return ErrStatementNotFound
+	}
+	delete(cursors, name)
+	// Then remove it from the overall list of cursors.
+	delete(r.cursors, name)
 	return nil
 }
 
