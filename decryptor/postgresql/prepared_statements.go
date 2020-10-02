@@ -31,32 +31,57 @@ var (
 
 // PgPreparedStatementRegistry is a PostgreSQL PreparedStatementRegistry.
 type PgPreparedStatementRegistry struct {
-	registry map[string]base.PreparedStatement
+	statements map[string]base.PreparedStatement
+	portals    map[string]base.Cursor
 }
 
 // NewPreparedStatementRegistry makes a new empty prepared statement registry.
 func NewPreparedStatementRegistry() *PgPreparedStatementRegistry {
-	return &PgPreparedStatementRegistry{registry: make(map[string]base.PreparedStatement)}
+	return &PgPreparedStatementRegistry{
+		statements: make(map[string]base.PreparedStatement),
+		portals:    make(map[string]base.Cursor),
+	}
 }
 
 // StatementByName returns a prepared statement from the registry by its name, if it exists.
 func (r *PgPreparedStatementRegistry) StatementByName(name string) (base.PreparedStatement, error) {
-	s, ok := r.registry[name]
+	s, ok := r.statements[name]
 	if ok {
 		return s, nil
 	}
 	return nil, ErrStatementNotFound
 }
 
-// Add a statement to the registry. If an existing statement with the same name exists,
-// it is replaced with the new one. Returns "true" if statement has been replaced.
-func (r *PgPreparedStatementRegistry) Add(statement base.PreparedStatement) error {
+// CursorByName returns a cursor from the registry by its name, if it exists.
+func (r *PgPreparedStatementRegistry) CursorByName(name string) (base.Cursor, error) {
+	s, ok := r.portals[name]
+	if ok {
+		return s, nil
+	}
+	return nil, ErrCursorNotFound
+}
+
+// AddStatement adds a prepared statement to the registry.
+// If an existing statement with the same name exists, it is replaced with the new one.
+func (r *PgPreparedStatementRegistry) AddStatement(statement base.PreparedStatement) error {
 	// TODO(ilammy, 2020-10-02): allow updates only for unnamed statements
 	// PostgreSQL protocol allows repeated Parse messages (without matching Close)
 	// only for unnamed prepared statements. SQL PREPARE cannot be repeated too.
 	// Currently, Delete() is not called so we allow updates, but we shouldn't.
 	name := statement.Name()
-	r.registry[name] = statement
+	r.statements[name] = statement
+	return nil
+}
+
+// AddCursor adds a portal to the registry.
+// If an existing portal with the same name exists, it is replaced with the new one.
+func (r *PgPreparedStatementRegistry) AddCursor(portal base.Cursor) error {
+	// TODO(ilammy, 2020-10-02): allow updates only for unnamed portals
+	// PostgreSQL protocol allows repeated Bind messages (without matching Close)
+	// only for unnamed portals. SQL DECLARE CURSOR cannot be repeated too.
+	// Currently, Delete() is not called so we allow updates, but we shouldn't.
+	name := portal.Name()
+	r.portals[name] = portal
 	return nil
 }
 
@@ -85,38 +110,6 @@ func (s *PgPreparedStatement) Query() sqlparser.Statement {
 // QueryText returns text of the prepared query, as provided by the client.
 func (s *PgPreparedStatement) QueryText() string {
 	return s.text
-}
-
-// PgPortalRegistry is a PostgreSQL CursorRegistry.
-// Cursors are called "portals" in PostgreSQL protocol specs.
-type PgPortalRegistry struct {
-	registry map[string]base.Cursor
-}
-
-// NewPortalRegistry makes a new empty portal registry.
-func NewPortalRegistry() *PgPortalRegistry {
-	return &PgPortalRegistry{registry: make(map[string]base.Cursor)}
-}
-
-// CursorByName returns a cursor from the registry by its name, if it exists.
-func (r *PgPortalRegistry) CursorByName(name string) (base.Cursor, error) {
-	s, ok := r.registry[name]
-	if ok {
-		return s, nil
-	}
-	return nil, ErrCursorNotFound
-}
-
-// Add a portal to the registry. If an existing portal with the same name exists,
-// it is replaced with the new one. Returns "true" if portal has been replaced.
-func (r *PgPortalRegistry) Add(portal base.Cursor) error {
-	// TODO(ilammy, 2020-10-02): allow updates only for unnamed portals
-	// PostgreSQL protocol allows repeated Bind messages (without matching Close)
-	// only for unnamed portals. SQL DECLARE CURSOR cannot be repeated too.
-	// Currently, Delete() is not called so we allow updates, but we shouldn't.
-	name := portal.Name()
-	r.registry[name] = portal
-	return nil
 }
 
 // PgPortal is a PostgreSQL Cursor.

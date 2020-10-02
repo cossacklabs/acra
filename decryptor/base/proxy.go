@@ -96,8 +96,6 @@ type ClientSession interface {
 
 	PreparedStatementRegistry() PreparedStatementRegistry
 	SetPreparedStatementRegistry(registry PreparedStatementRegistry)
-	CursorRegistry() CursorRegistry
-	SetCursorRegistry(registry CursorRegistry)
 }
 
 // ProxyFactory create new Proxy for specific database
@@ -105,10 +103,13 @@ type ProxyFactory interface {
 	New(clientID []byte, clientSession ClientSession) (Proxy, error)
 }
 
-// PreparedStatementRegistry keeps track of active prepared statements within a ClientSession.
+// PreparedStatementRegistry keeps track of active prepared statements and cursors within a ClientSession.
 type PreparedStatementRegistry interface {
-	Add(statement PreparedStatement) error
+	AddStatement(statement PreparedStatement) error
 	StatementByName(name string) (PreparedStatement, error)
+
+	AddCursor(cursor Cursor) error
+	CursorByName(name string) (Cursor, error)
 }
 
 // PreparedStatement is a prepared statement, ready to be executed.
@@ -117,12 +118,6 @@ type PreparedStatement interface {
 	Name() string
 	Query() sqlparser.Statement
 	QueryText() string
-}
-
-// CursorRegistry keeps track of active cursors within a ClientSession.
-type CursorRegistry interface {
-	Add(cursor Cursor) error
-	CursorByName(name string) (Cursor, error)
 }
 
 // Cursor is used to iterate over a prepared statement.

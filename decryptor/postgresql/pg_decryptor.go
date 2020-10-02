@@ -117,9 +117,6 @@ func NewPgProxy(session base.ClientSession, decryptor base.Decryptor, setting ba
 	if session.PreparedStatementRegistry() == nil {
 		session.SetPreparedStatementRegistry(NewPreparedStatementRegistry())
 	}
-	if session.CursorRegistry() == nil {
-		session.SetCursorRegistry(NewPortalRegistry())
-	}
 	return &PgProxy{
 		session:              session,
 		clientConnection:     session.ClientConnection(),
