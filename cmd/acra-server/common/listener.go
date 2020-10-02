@@ -56,14 +56,13 @@ var ErrWaitTimeout = errors.New("timeout")
 
 // NewServer creates new SServer.
 func NewServer(config *Config, proxyFactory base.ProxyFactory, errorChan chan os.Signal, restarChan chan os.Signal) (server *SServer, err error) {
-	stopListenersSignal := make(chan bool)
 	return &SServer{
 		config:                config,
 		connectionManager:     network.NewConnectionManager(),
 		errorSignalChannel:    errorChan,
 		restartSignalsChannel: restarChan,
 		proxyFactory:          proxyFactory,
-		stopListenersSignal:   stopListenersSignal,
+		stopListenersSignal:   make(chan bool),
 	}, nil
 }
 
@@ -267,44 +266,45 @@ func (server *SServer) processConnection(connection net.Conn, callback *callback
 func (server *SServer) start(parentContext context.Context, listener net.Listener, callback *callbackData, logger *log.Entry, errCh chan<- error) {
 	logger.Infof("Start listening connections")
 	for {
-		if err := parentContext.Err(); err != nil {
-			// this means that parentContext is Done.
-			// And here we are not interesting in particular reasons of it, so just return
+		select {
+		case <-parentContext.Done():
 			return
-		} else {
-			connection, err := listener.Accept()
-			if err != nil {
-				select {
-				case <-server.stopListenersSignal:
-					// situation when listener is stopped while accepting.
-					// This is typical for shutdown that invokes StopListeners functions, which closes signalling channel, just skip
-				default:
-					if nerr, ok := err.(net.Error); ok && nerr.Timeout() {
-						logger.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorConnectionDroppedByTimeout).
-							Errorln("Stop accepting new connections due net.Timeout")
-					} else {
-						logger.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantAcceptNewConnections).
-							Errorln("Can't accept new connection")
-					}
-					errCh <- err
-				}
-				return
-			}
-			// unix socket and value == '@'
-			if len(connection.RemoteAddr().String()) == 1 {
-				logger.Infof("Got new connection to AcraServer: %v", connection.LocalAddr())
-			} else {
-				logger.Infof("Got new connection to AcraServer: %v", connection.RemoteAddr())
-			}
-
-			server.backgroundWorkersSync.Add(1)
-			go func() {
-				defer server.backgroundWorkersSync.Done()
-				_ = server.connectionManager.AddConnection(connection)
-				server.processConnection(connection, callback)
-				_ = server.connectionManager.RemoveConnection(connection)
-			}()
+		default:
+			break
 		}
+
+		connection, err := listener.Accept()
+		if err != nil {
+			select {
+			case <-server.stopListenersSignal:
+				// situation when listener is stopped while accepting.
+				// This is typical for shutdown that invokes StopListeners functions, which closes signalling channel, just skip
+			default:
+				if nerr, ok := err.(net.Error); ok && nerr.Timeout() {
+					logger.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorConnectionDroppedByTimeout).
+						Errorln("Stop accepting new connections due net.Timeout")
+				} else {
+					logger.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantAcceptNewConnections).
+						Errorln("Can't accept new connection")
+				}
+				errCh <- err
+			}
+			return
+		}
+		// unix socket and value == '@'
+		if len(connection.RemoteAddr().String()) == 1 {
+			logger.Infof("Got new connection to AcraServer: %v", connection.LocalAddr())
+		} else {
+			logger.Infof("Got new connection to AcraServer: %v", connection.RemoteAddr())
+		}
+
+		server.backgroundWorkersSync.Add(1)
+		go func() {
+			defer server.backgroundWorkersSync.Done()
+			_ = server.connectionManager.AddConnection(connection)
+			server.processConnection(connection, callback)
+			_ = server.connectionManager.RemoveConnection(connection)
+		}()
 	}
 }
 
@@ -329,8 +329,6 @@ func (server *SServer) waitForExitTimeout() {
 
 // Start listening connections from proxy
 func (server *SServer) Start(parentContext context.Context) {
-	defer server.waitForExitTimeout()
-
 	logger := log.WithFields(log.Fields{"connection_string": server.config.GetAcraConnectionString(), "from_descriptor": false})
 	logger.Infoln("Create listener")
 	var listener, err = network.Listen(server.config.GetAcraConnectionString())
@@ -347,8 +345,6 @@ func (server *SServer) Start(parentContext context.Context) {
 
 // StartFromFileDescriptor starts listening Acra data connections from file descriptor.
 func (server *SServer) StartFromFileDescriptor(parentContext context.Context, fd uintptr) {
-	defer server.waitForExitTimeout()
-
 	logger := log.WithFields(log.Fields{"connection_string": server.config.GetAcraConnectionString(), "from_descriptor": true})
 	file := os.NewFile(fd, "/tmp/acra-server")
 	if file == nil {
@@ -368,6 +364,7 @@ func (server *SServer) StartFromFileDescriptor(parentContext context.Context, fd
 	if !ok {
 		logger.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorFileDescriptionIsNotValid).
 			Errorf("System error: file descriptor %d is not a valid socket", fd)
+		server.errorSignalChannel <- syscall.SIGTERM
 		return
 	}
 	server.listenerACRA = listenerWithFileDescriptor
@@ -458,8 +455,6 @@ func (server *SServer) handleCommandsConnection(ctx context.Context, clientID []
 
 // StartCommands starts listening commands connections from proxy.
 func (server *SServer) StartCommands(parentContext context.Context) {
-	defer server.waitForExitTimeout()
-
 	logger := log.WithFields(log.Fields{"connection_string": server.config.GetAcraAPIConnectionString(), "from_descriptor": false})
 	var listener, err = network.Listen(server.config.GetAcraAPIConnectionString())
 	if err != nil {
@@ -475,8 +470,6 @@ func (server *SServer) StartCommands(parentContext context.Context) {
 
 // StartCommandsFromFileDescriptor starts listening commands connections from file descriptor.
 func (server *SServer) StartCommandsFromFileDescriptor(parentContext context.Context, fd uintptr) {
-	defer server.waitForExitTimeout()
-
 	logger := log.WithFields(log.Fields{"connection_string": server.config.GetAcraConnectionString(), "from_descriptor": true})
 	file := os.NewFile(fd, "/tmp/acra-server_http_api")
 	if file == nil {
@@ -488,6 +481,7 @@ func (server *SServer) StartCommandsFromFileDescriptor(parentContext context.Con
 	if err != nil {
 		logger.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantOpenFileByDescriptor).
 			Errorln("System error: can't start listen for file descriptor")
+		server.errorSignalChannel <- syscall.SIGTERM
 		return
 	}
 	listenerWithFileDescriptor, ok := listenerFile.(network.ListenerWithFileDescriptor)
@@ -503,6 +497,8 @@ func (server *SServer) StartCommandsFromFileDescriptor(parentContext context.Con
 }
 
 func (server *SServer) run(parentContext context.Context, listener net.Listener, data *callbackData, logger *log.Entry) {
+	defer server.waitForExitTimeout()
+
 	var errCh = make(chan error)
 	server.backgroundWorkersSync.Add(1)
 	go func() {
