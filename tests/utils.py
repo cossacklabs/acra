@@ -2,6 +2,7 @@
 import json
 import os
 import subprocess
+import sys
 import tempfile
 import shutil
 from base64 import b64decode
@@ -64,7 +65,7 @@ def get_random_data_files():
               "folder and removed at end".format(
                   TEMP_DATA_FOLDER_VARNAME, folder))
     if not os.path.exists(folder) or len(os.listdir(folder)) == 0:
-        command = ['python', abs_path('tests/generate_random_data.py')]
+        command = [sys.executable, abs_path('tests/generate_random_data.py')]
         print('call {}'.format(' '.join(command)))
         subprocess.check_call(command, env=os.environ, cwd=os.getcwd())
     return [os.path.join(folder, i) for i in os.listdir(folder)]
