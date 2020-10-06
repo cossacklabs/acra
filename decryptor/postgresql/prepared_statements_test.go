@@ -148,7 +148,7 @@ func TestCursorUpdateNamed(t *testing.T) {
 		t.Error("did not find the same cursor")
 	}
 
-	// Now, the same should work just find if a cursor for different statement reuses the same name,
+	// Now, the same should work just fine if a cursor for different statement reuses the same name,
 	// provided that the statement is in the registry and all.
 	statement2 := NewPreparedStatement("statement", "SELECT 2", nil)
 	cursor3 := NewPortal("cursor", statement2)
@@ -186,7 +186,7 @@ func TestStatementRemoval(t *testing.T) {
 		t.Fatal("cannot remove statement", err)
 	}
 
-	// There should no statement now.
+	// There should be no statement now.
 	notFoundStatement, err := registry.StatementByName("statement")
 	if err != ErrStatementNotFound {
 		t.Error("unexpected error when looking for removed statement", err)
