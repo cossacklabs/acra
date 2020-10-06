@@ -92,6 +92,13 @@ func (p *PgProtocolState) HandleDatabasePacket(packet *PacketHandler) (PacketTyp
 		return DataPacket, nil
 	}
 
+	// ReadyForQuery starts a new query processing. Forget pending queries.
+	// There is nothing interesting in the packet otherwise.
+	if packet.IsReadyForQuery() {
+		p.pendingQuery = nil
+		return PassthroughPacket, nil
+	}
+
 	// We are not interested in other packets, just pass them through.
 	return PassthroughPacket, nil
 }

@@ -87,10 +87,11 @@ const (
 	// random chosen
 	OutputDefaultSize = 1024
 	// https://www.postgresql.org/docs/9.4/static/protocol-message-formats.html
-	DataRowMessageType byte = 'D'
-	QueryMessageType   byte = 'Q'
-	ParseMessageType   byte = 'P'
-	TLSTimeout              = time.Second * 2
+	DataRowMessageType       byte = 'D'
+	QueryMessageType         byte = 'Q'
+	ParseMessageType         byte = 'P'
+	ReadyForQueryMessageType byte = 'Z'
+	TLSTimeout                    = time.Second * 2
 )
 
 // PgProxy represents PgSQL database connection between client and database with TLS support
