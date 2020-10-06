@@ -535,7 +535,18 @@ func (proxy *PgProxy) ProxyDatabaseConnection(errCh chan<- error) {
 		}
 		proxy.clientConnection.SetWriteDeadline(time.Now().Add(network.DefaultNetworkTimeout))
 
-		if !packetHandler.IsDataRow() {
+		// Let the protocol observer take a look at the packet, keeping note of it.
+		action, err := proxy.protocolState.HandleDatabasePacket(packetHandler)
+		if err != nil {
+			errCh <- err
+			return
+		}
+		switch action {
+		case DataPacket:
+			// If that's some sort of a packet with response data inside it, go on...
+
+		default:
+			// Pass all other uninteresting packets through to the database without processing.
 			if err = packetHandler.sendPacket(); err != nil {
 				logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorNetworkWrite).WithError(err).Errorln("Can't forward packet")
 				errCh <- err

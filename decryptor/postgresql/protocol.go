@@ -32,6 +32,7 @@ type PacketType int
 // Possible PacketType values.
 const (
 	QueryPacket PacketType = iota
+	DataPacket
 	PassthroughPacket
 	TerminationPacket
 )
@@ -80,5 +81,17 @@ func (p *PgProtocolState) HandleClientPacket(packet *PacketHandler) (PacketType,
 	if packet.terminatePacket {
 		return TerminationPacket, nil
 	}
+	return PassthroughPacket, nil
+}
+
+// HandleDatabasePacket observes a packet with database response,
+// extracts useful information from it, and confirms client requests.
+func (p *PgProtocolState) HandleDatabasePacket(packet *PacketHandler) (PacketType, error) {
+	// This is data response to the previously issued query.
+	if packet.IsDataRow() {
+		return DataPacket, nil
+	}
+
+	// We are not interested in other packets, just pass them through.
 	return PassthroughPacket, nil
 }
