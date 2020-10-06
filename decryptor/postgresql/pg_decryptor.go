@@ -228,44 +228,38 @@ func (proxy *PgProxy) ProxyClientConnection(errCh chan<- error) {
 			return
 		}
 		proxy.dbConnection.SetWriteDeadline(time.Now().Add(network.DefaultNetworkTimeout))
-		// we are interested only in requests that contains sql queries
-		if !(packet.IsSimpleQuery() || packet.IsParse()) {
-			if err = packet.sendPacket(); err != nil {
+
+		_, censorSpan := trace.StartSpan(packetSpanCtx, "censor")
+
+		// Let the protocol observer take a look at the packet, keeping note of it.
+		action, err := proxy.protocolState.HandleClientPacket(packet)
+		if err != nil {
+			errCh <- err
+			return
+		}
+		switch action {
+		case QueryPacket:
+			// If that's some sort of a packet with query data inside it, go on...
+
+		default:
+			// Pass all other uninteresting packets through to the database without processing.
+			if err := packet.sendPacket(); err != nil {
 				logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorNetworkWrite).WithError(err).Errorln("Can't forward packet to db")
 				errCh <- err
 				return
 			}
-			if packet.terminatePacket {
+			// If this should be the last packet, signal about it and stop listening.
+			if action == TerminationPacket {
 				errCh <- io.EOF
 				return
 			}
 			continue
 		}
-		_, censorSpan := trace.StartSpan(packetSpanCtx, "censor")
-		var query string
-		if packet.IsSimpleQuery() {
-			query, err = packet.GetSimpleQuery()
-			if err != nil {
-				logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCodingPostgresqlCantExtractQueryString).WithError(err).Errorln("Can't fetch query string from Query packet")
-				errCh <- err
-				return
-			}
-		} else if packet.IsParse() {
-			query, err = packet.GetParseQuery()
-			if err != nil {
-				logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCodingPostgresqlCantExtractQueryString).WithError(err).Errorln("Can't fetch query string from Parse packet")
-				errCh <- err
-				return
-			}
-		} else {
-			logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCodingPostgresqlUnexpectedPacket).Errorf("Unhandled message type <%v>", packet.messageType[0])
-			errCh <- errors.New("unhandled message type")
-			return
-		}
+		query := proxy.protocolState.PendingQuery()
 
 		// log query with hidden values for debug mode
 		if logging.GetLogLevel() == logging.LogDebug {
-			_, queryWithHiddenValues, _, err := common.HandleRawSQLQuery(query)
+			_, queryWithHiddenValues, _, err := common.HandleRawSQLQuery(query.Query())
 			if err == common.ErrQuerySyntaxError {
 				logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCensorQueryParseError).WithError(err).Debugf("Parsing error on query: %s", queryWithHiddenValues)
 			} else {
@@ -273,7 +267,9 @@ func (proxy *PgProxy) ProxyClientConnection(errCh chan<- error) {
 			}
 		}
 
-		if censorErr := proxy.censor.HandleQuery(query); censorErr != nil {
+		// Let AcraCensor take a look at the query text. If it's not okay (and we're still alive),
+		// don't let the database see the query and send the client an error instead of the reply.
+		if censorErr := proxy.censor.HandleQuery(query.Query()); censorErr != nil {
 			censorSpan.End()
 			logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCensorQueryIsNotAllowed).WithError(censorErr).Errorln("AcraCensor blocked query")
 			errorMessage, err := NewPgError("AcraCensor blocked this query")
@@ -295,7 +291,8 @@ func (proxy *PgProxy) ProxyClientConnection(errCh chan<- error) {
 			continue
 		}
 
-		newQuery, changed, err := proxy.queryObserverManager.OnQuery(base.NewOnQueryObjectFromQuery(query))
+		// Let the registered observers observe the query, potentially modifying it (e.g., transparent encryption).
+		newQuery, changed, err := proxy.queryObserverManager.OnQuery(query)
 		if err != nil {
 			logger.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorEncryptQueryData).Errorln("Error occurred on query handler")
 		}
@@ -305,6 +302,7 @@ func (proxy *PgProxy) ProxyClientConnection(errCh chan<- error) {
 
 		censorSpan.End()
 
+		// Forwared the (modified) query to the database.
 		if err := packet.sendPacket(); err != nil {
 			logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorNetworkWrite).WithError(err).Errorln("Can't send packet")
 			errCh <- err
