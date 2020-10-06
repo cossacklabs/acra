@@ -77,6 +77,7 @@ func NewPgError(message string) ([]byte, error) {
 var (
 	ErrInvalidPreparedStatementRegistry = errors.New("ClientSession contains invalid PreparedStatementRegistry")
 	ErrInvalidCursorRegistry            = errors.New("ClientSession contains invalid CursorRegistry")
+	ErrInvalidProtocolState             = errors.New("ClientSession contains invalid ProtocolState")
 )
 
 // PgSQL constant sizes and types.
@@ -106,6 +107,7 @@ type PgProxy struct {
 	decryptor            base.Decryptor
 	tlsSwitch            bool
 	decryptionObserver   base.ColumnDecryptionObserver
+	protocolState        *PgProtocolState
 }
 
 // NewPgProxy returns new PgProxy
@@ -116,6 +118,17 @@ func NewPgProxy(session base.ClientSession, decryptor base.Decryptor, setting ba
 	}
 	if session.PreparedStatementRegistry() == nil {
 		session.SetPreparedStatementRegistry(NewPreparedStatementRegistry())
+	}
+	var protocolState *PgProtocolState
+	if session.ProtocolState() != nil {
+		var ok bool
+		protocolState, ok = session.ProtocolState().(*PgProtocolState)
+		if !ok {
+			return nil, ErrInvalidProtocolState
+		}
+	} else {
+		protocolState = NewPgProtocolState()
+		session.SetProtocolState(protocolState)
 	}
 	return &PgProxy{
 		session:              session,
@@ -129,6 +142,7 @@ func NewPgProxy(session base.ClientSession, decryptor base.Decryptor, setting ba
 		censor:               setting.Censor(),
 		decryptor:            decryptor,
 		decryptionObserver:   base.NewColumnDecryptionObserver(),
+		protocolState:        protocolState,
 	}, nil
 }
 

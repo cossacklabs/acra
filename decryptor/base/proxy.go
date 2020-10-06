@@ -96,6 +96,9 @@ type ClientSession interface {
 
 	PreparedStatementRegistry() PreparedStatementRegistry
 	SetPreparedStatementRegistry(registry PreparedStatementRegistry)
+
+	ProtocolState() interface{}
+	SetProtocolState(state interface{})
 }
 
 // ProxyFactory create new Proxy for specific database

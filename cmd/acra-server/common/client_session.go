@@ -35,6 +35,7 @@ type ClientSession struct {
 	ctx            context.Context
 	logger         *log.Entry
 	statements     base.PreparedStatementRegistry
+	protocolState  interface{}
 }
 
 var sessionCounter uint32
@@ -80,6 +81,17 @@ func (clientSession *ClientSession) PreparedStatementRegistry() base.PreparedSta
 // SetPreparedStatementRegistry sets prepared statement registry for this session.
 func (clientSession *ClientSession) SetPreparedStatementRegistry(registry base.PreparedStatementRegistry) {
 	clientSession.statements = registry
+}
+
+// ProtocolState returns private protocol state of this session.
+// The session does not have any state by default, it must be set with SetProtocolState.
+func (clientSession *ClientSession) ProtocolState() interface{} {
+	return clientSession.protocolState
+}
+
+// SetProtocolState sets protocol state for this session.
+func (clientSession *ClientSession) SetProtocolState(state interface{}) {
+	clientSession.protocolState = state
 }
 
 // ConnectToDb connects to the database via tcp using Host and Port from config.
