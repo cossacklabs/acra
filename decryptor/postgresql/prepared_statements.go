@@ -31,17 +31,15 @@ var (
 
 // PgPreparedStatementRegistry is a PostgreSQL PreparedStatementRegistry.
 type PgPreparedStatementRegistry struct {
-	statements         map[string]base.PreparedStatement
-	cursors            map[string]base.Cursor
-	cursorsOfStatement map[string]map[string]base.Cursor
+	statements map[string]base.PreparedStatement
+	cursors    map[string]base.Cursor
 }
 
 // NewPreparedStatementRegistry makes a new empty prepared statement registry.
 func NewPreparedStatementRegistry() *PgPreparedStatementRegistry {
 	return &PgPreparedStatementRegistry{
-		statements:         make(map[string]base.PreparedStatement),
-		cursors:            make(map[string]base.Cursor),
-		cursorsOfStatement: make(map[string]map[string]base.Cursor),
+		statements: make(map[string]base.PreparedStatement),
+		cursors:    make(map[string]base.Cursor),
 	}
 }
 
@@ -96,15 +94,9 @@ func (r *PgPreparedStatementRegistry) AddCursor(cursor base.Cursor) error {
 		return ErrStatementNotFound
 	}
 
-	// Add the cursor into the list of cursors for a given prepared statement.
-	cursors := r.cursorsOfStatement[preparedName]
-	if cursors == nil {
-		cursors = make(map[string]base.Cursor)
-	}
-	cursors[name] = cursor
-	r.cursorsOfStatement[preparedName] = cursors
-
-	// Then enter it into the list of cursors.
+	// Add the cursor into the list of cursors for its prepared statement
+	// and simultaneously enter it into the cursor registry.
+	prepared.(*PgPreparedStatement).cursors[name] = cursor
 	r.cursors[name] = cursor
 	return nil
 }
@@ -113,17 +105,18 @@ func (r *PgPreparedStatementRegistry) AddCursor(cursor base.Cursor) error {
 // It is not an error to remove nonexistent statements. In this case no error is returned and no action is taken.
 // Removing a prepared statements removes all cursors associated with it.
 func (r *PgPreparedStatementRegistry) DeleteStatement(name string) error {
-	_, ok := r.statements[name]
+	preparedGeneric, ok := r.statements[name]
 	if !ok {
 		return nil
 	}
-	// First, remove all cursors over the statement.
-	cursors := r.cursorsOfStatement[name]
-	for cursor := range cursors {
+	prepared := preparedGeneric.(*PgPreparedStatement)
+
+	// First, remove all cursors over the statement from the registry.
+	for cursor := range prepared.cursors {
 		delete(r.cursors, cursor)
 	}
 	// Then drop the cursor list of the statement.
-	delete(r.cursorsOfStatement, name)
+	prepared.cursors = make(map[string]base.Cursor)
 	// Followed by the statement itself
 	delete(r.statements, name)
 	return nil
@@ -136,13 +129,9 @@ func (r *PgPreparedStatementRegistry) DeleteCursor(name string) error {
 	if !ok {
 		return nil
 	}
-	// Remove the cursor from the list of its cursors.
-	preparedName := cursor.PreparedStatement().Name()
-	cursors, ok := r.cursorsOfStatement[preparedName]
-	if !ok {
-		return ErrStatementNotFound
-	}
-	delete(cursors, name)
+	// Remove the cursor from its prepared statement.
+	prepared := cursor.PreparedStatement().(*PgPreparedStatement)
+	delete(prepared.cursors, name)
 	// Then remove it from the overall list of cursors.
 	delete(r.cursors, name)
 	return nil
@@ -153,11 +142,18 @@ type PgPreparedStatement struct {
 	name string
 	text string
 	sql  sqlparser.Statement
+
+	cursors map[string]base.Cursor
 }
 
 // NewPreparedStatement makes a new prepared statement.
 func NewPreparedStatement(name string, text string, sql sqlparser.Statement) *PgPreparedStatement {
-	return &PgPreparedStatement{name, text, sql}
+	return &PgPreparedStatement{
+		name:    name,
+		text:    text,
+		sql:     sql,
+		cursors: make(map[string]base.Cursor),
+	}
 }
 
 // Name returns the name of the prepared statement.
