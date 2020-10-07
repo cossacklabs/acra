@@ -33,7 +33,7 @@ type PacketType int
 const (
 	QueryPacket PacketType = iota
 	DataPacket
-	PassthroughPacket
+	OtherPacket
 )
 
 // NewPgProtocolState makes an initial PostgreSQL state, awaiting for queries.
@@ -76,7 +76,7 @@ func (p *PgProtocolState) HandleClientPacket(packet *PacketHandler) (PacketType,
 	}
 
 	// We are not interested in other packets, just pass them through.
-	return PassthroughPacket, nil
+	return OtherPacket, nil
 }
 
 // HandleDatabasePacket observes a packet with database response,
@@ -91,9 +91,9 @@ func (p *PgProtocolState) HandleDatabasePacket(packet *PacketHandler) (PacketTyp
 	// There is nothing interesting in the packet otherwise.
 	if packet.IsReadyForQuery() {
 		p.pendingQuery = nil
-		return PassthroughPacket, nil
+		return OtherPacket, nil
 	}
 
 	// We are not interested in other packets, just pass them through.
-	return PassthroughPacket, nil
+	return OtherPacket, nil
 }
