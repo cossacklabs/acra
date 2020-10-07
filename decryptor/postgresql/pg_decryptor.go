@@ -557,65 +557,66 @@ func (proxy *PgProxy) ProxyDatabaseConnection(errCh chan<- error) {
 		}
 		proxy.clientConnection.SetWriteDeadline(time.Now().Add(network.DefaultNetworkTimeout))
 
-		// Let the protocol observer take a look at the packet, keeping note of it.
-		action, err := proxy.protocolState.HandleDatabasePacket(packetHandler)
+		// Massage the packet. This should not normally fail. If it does, the client will not receive the packet.
+		err := proxy.handleDatabasePacket(packetCtx, packetHandler, logger)
 		if err != nil {
 			errCh <- err
 			return
 		}
-		switch action {
-		case DataPacket:
-			// If that's some sort of a packet with response data inside it, go on...
 
-		default:
-			// Pass all other uninteresting packets through to the client without processing.
-			if err = packetHandler.sendPacket(); err != nil {
-				logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorNetworkWrite).WithError(err).Errorln("Can't forward packet")
-				errCh <- err
-				return
-			}
-			timer.ObserveDuration()
-			continue
-		}
-
-		logger.Debugln("Matched data row packet")
-		if err = packetHandler.parseColumns(); err != nil {
-			logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCodingPostgresqlCantParseColumnsDescription).WithError(err).Errorln("Can't parse columns in packet")
-			errCh <- err
-			return
-		}
-
-		if packetHandler.columnCount == 0 {
-			if err = packetHandler.sendPacket(); err != nil {
-				logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorNetworkWrite).WithError(err).Errorln("Can't send packet on column count 0")
-				errCh <- err
-				return
-			}
-			timer.ObserveDuration()
-			continue
-		}
-
-		logger.Debugf("Process columns data")
-		for i := 0; i < packetHandler.columnCount; i++ {
-			column := packetHandler.Columns[i]
-			if column.IsNull() {
-				continue
-			}
-			newData, err := proxy.onColumnDecryption(packetCtx, i, column.GetData())
-			if err != nil {
-				logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorGeneral).WithError(err).Errorln("Error on column data processing")
-				errCh <- err
-				return
-			}
-			column.SetData(newData)
-		}
-		proxy.decryptor.ResetZoneMatch()
-		packetHandler.updateDataFromColumns()
+		// After tha packet has been observed and possibly modified, forward it to the client.
 		if err = packetHandler.sendPacket(); err != nil {
-			logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorNetworkWrite).WithError(err).Errorln("Can't send packet")
+			logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorNetworkWrite).
+				WithError(err).Errorln("Can't send packet")
 			errCh <- err
 			return
 		}
 		timer.ObserveDuration()
 	}
+}
+
+func (proxy *PgProxy) handleDatabasePacket(ctx context.Context, packet *PacketHandler, logger *log.Entry) error {
+	// Let the protocol observer take a look at the packet, keeping note of it.
+	packetType, err := proxy.protocolState.HandleDatabasePacket(packet)
+	if err != nil {
+		return err
+	}
+	switch packetType {
+	case DataPacket:
+		// If that's some sort of a packet with response data inside it, go on...
+
+	default:
+		// Forward all other uninteresting packets to the client without processing.
+		return nil
+	}
+
+	logger.Debugln("Matched data row packet")
+	if err = packet.parseColumns(); err != nil {
+		logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCodingPostgresqlCantParseColumnsDescription).
+			WithError(err).Errorln("Can't parse columns in packet")
+		return err
+	}
+	// If the packet does not contain columns to decrypt, we have nothing more to do here.
+	if packet.columnCount == 0 {
+		return nil
+	}
+
+	logger.Debugf("Process columns data")
+	for i := 0; i < packet.columnCount; i++ {
+		column := packet.Columns[i]
+		if column.IsNull() {
+			continue
+		}
+		newData, err := proxy.onColumnDecryption(ctx, i, column.GetData())
+		if err != nil {
+			logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorGeneral).
+				WithError(err).Errorln("Error on column data processing")
+			return err
+		}
+		column.SetData(newData)
+	}
+	// After we're done processing the columns, update the actual packet data from them.
+	proxy.decryptor.ResetZoneMatch()
+	packet.updateDataFromColumns()
+	return nil
 }
