@@ -267,15 +267,16 @@ func (packet *PacketHandler) IsParse() bool {
 	return packet.messageType[0] == ParseMessageType
 }
 
-//GetParseQuery return query string from Parse packet or error
-func (packet *PacketHandler) GetParseQuery() (string, error) {
-	packet.logger.Debugln("GetParseQuery")
+// GetParseData returns parsed Parse packet data.
+// Use this only if IsParse() is true.
+func (packet *PacketHandler) GetParseData() (*ParsePacket, error) {
+	packet.logger.Debugln("GetParseData")
 	parse, err := NewParsePacket(packet.descriptionBuf.Bytes())
 	if err != nil {
-		packet.logger.Debugln("GetParseQuery error")
-		return "", err
+		packet.logger.Debugln("Failed to parse Parse packet")
+		return nil, err
 	}
-	return parse.QueryString(), nil
+	return parse, nil
 }
 
 // ReplaceQuery query in packet with new query and update packet length

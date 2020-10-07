@@ -84,8 +84,16 @@ func (packet *ParsePacket) Length() int {
 	return len(packet.name) + len(packet.query) + len(packet.paramsNum) + (4 * len(packet.params))
 }
 
+// Name returns requested prepared statement name.
+// Note that empty string is a valid value indicating unnamed prepared statement.
+func (packet *ParsePacket) Name() string {
+	// Trailing null byte is included into the slice for faster Marshal().
+	return string(packet.name[:len(packet.name)-1])
+}
+
 // QueryString return query as string
 func (packet *ParsePacket) QueryString() string {
+	// Trailing null byte is included into the slice for faster Marshal().
 	return string(packet.query[:len(packet.query)-1])
 }
 
