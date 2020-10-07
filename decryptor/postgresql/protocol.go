@@ -34,7 +34,6 @@ const (
 	QueryPacket PacketType = iota
 	DataPacket
 	PassthroughPacket
-	TerminationPacket
 )
 
 // NewPgProtocolState makes an initial PostgreSQL state, awaiting for queries.
@@ -77,10 +76,6 @@ func (p *PgProtocolState) HandleClientPacket(packet *PacketHandler) (PacketType,
 	}
 
 	// We are not interested in other packets, just pass them through.
-	// If that's a termination packet, ask for connection termination.
-	if packet.terminatePacket {
-		return TerminationPacket, nil
-	}
 	return PassthroughPacket, nil
 }
 
