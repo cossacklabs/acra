@@ -33,7 +33,8 @@ type PacketType int
 
 // Possible PacketType values.
 const (
-	QueryPacket PacketType = iota
+	SimpleQueryPacket PacketType = iota
+	ParseStatementPacket
 	DataPacket
 	OtherPacket
 )
@@ -71,7 +72,7 @@ func (p *PgProtocolState) HandleClientPacket(packet *PacketHandler) error {
 				WithError(err).Errorln("Can't fetch query string from Query packet")
 			return err
 		}
-		p.lastPacketType = QueryPacket
+		p.lastPacketType = SimpleQueryPacket
 		p.pendingQuery = base.NewOnQueryObjectFromQuery(query)
 		return nil
 	}
@@ -84,7 +85,7 @@ func (p *PgProtocolState) HandleClientPacket(packet *PacketHandler) error {
 				WithError(err).Errorln("Can't fetch query string from Parse packet")
 			return err
 		}
-		p.lastPacketType = QueryPacket
+		p.lastPacketType = ParseStatementPacket
 		p.pendingQuery = base.NewOnQueryObjectFromQuery(parsePacket.QueryString())
 		p.pendingParse = parsePacket
 		return nil

@@ -274,7 +274,7 @@ func (proxy *PgProxy) handleClientPacket(packet *PacketHandler, logger *log.Entr
 		return false, err
 	}
 	switch proxy.protocolState.LastPacketType() {
-	case QueryPacket:
+	case SimpleQueryPacket, ParseStatementPacket:
 		// If that's some sort of a packet with a query inside it,
 		// process inline data if necessary and remember the query to handle future response.
 		return proxy.handleQueryPacket(packet, logger)
@@ -296,7 +296,12 @@ func (proxy *PgProxy) handleQueryPacket(packet *PacketHandler, logger *log.Entry
 			logger.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCensorQueryParseError).
 				Debugf("Parsing error on query: %s", queryWithHiddenValues)
 		} else {
-			logger.WithField("sql", queryWithHiddenValues).Debugln("New query")
+			log := logger.WithField("sql", queryWithHiddenValues)
+			if proxy.protocolState.LastPacketType() == ParseStatementPacket {
+				preparedStatement := proxy.protocolState.PendingParse()
+				log = log.WithField("prepared_name", preparedStatement.Name())
+			}
+			log.Debugln("New query")
 		}
 	}
 
