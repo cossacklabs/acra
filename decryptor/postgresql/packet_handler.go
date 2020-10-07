@@ -272,6 +272,16 @@ func (packet *PacketHandler) IsParseComplete() bool {
 	return packet.messageType[0] == ParseCompleteMessageType
 }
 
+// IsBind return true if packet has Bind type
+func (packet *PacketHandler) IsBind() bool {
+	return packet.messageType[0] == BindMessageType
+}
+
+// IsBindComplete return true if packet has BindComplete type
+func (packet *PacketHandler) IsBindComplete() bool {
+	return packet.messageType[0] == BindCompleteMessageType
+}
+
 // GetParseData returns parsed Parse packet data.
 // Use this only if IsParse() is true.
 func (packet *PacketHandler) GetParseData() (*ParsePacket, error) {
@@ -282,6 +292,18 @@ func (packet *PacketHandler) GetParseData() (*ParsePacket, error) {
 		return nil, err
 	}
 	return parse, nil
+}
+
+// GetBindData returns parsed Bind packet data.
+// Use this only if IsBind() is true.
+func (packet *PacketHandler) GetBindData() (*BindPacket, error) {
+	packet.logger.Debugln("GetBindData")
+	bind, err := NewBindPacket(packet.descriptionBuf.Bytes())
+	if err != nil {
+		packet.logger.Debugln("Failed to parse Bind packet")
+		return nil, err
+	}
+	return bind, nil
 }
 
 // ReplaceQuery query in packet with new query and update packet length

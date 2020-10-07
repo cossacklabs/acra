@@ -27,6 +27,9 @@ var terminator = []byte{0}
 // ErrTerminatorNotFound not found terminator for string value
 var ErrTerminatorNotFound = errors.New("invalid string, terminator not found")
 
+// ErrPacketTruncated signals that the packet is too short and cannot be parsed
+var ErrPacketTruncated = errors.New("invalid packet, too short")
+
 // FetchQueryFromParse return Query value from Parse packet payload (without message type and length of packet)
 //
 // Find first null terminator as end of prepared statement name and find next which terminate query string
@@ -134,4 +137,122 @@ func NewParsePacket(data []byte) (*ParsePacket, error) {
 		params:    params,
 	}, nil
 
+}
+
+// BindPacket represents "Bind" packet of the PostgreSQL protocol,
+// containing bound parameters of a prepared statement.
+// See https://www.postgresql.org/docs/current/protocol-message-formats.html
+type BindPacket struct {
+	portal        string
+	statement     string
+	paramFormats  []uint16
+	paramValues   [][]byte
+	resultFormats []uint16
+}
+
+// PortalName returns the name of the portal created by this request.
+// An empty name means unnamed portal.
+func (p *BindPacket) PortalName() string {
+	return p.portal
+}
+
+// StatementName returns the name of the statement bound by this request.
+// An empty name means unnamed statement.
+func (p *BindPacket) StatementName() string {
+	return p.statement
+}
+
+// NewBindPacket parses Bind packet from data.
+func NewBindPacket(data []byte) (*BindPacket, error) {
+	portal, data, err := readString(data)
+	if err != nil {
+		return nil, err
+	}
+	statement, data, err := readString(data)
+	if err != nil {
+		return nil, err
+	}
+	paramFormats, data, err := readUint16Array(data)
+	if err != nil {
+		return nil, err
+	}
+	paramValues, data, err := readParameterArray(data)
+	if err != nil {
+		return nil, err
+	}
+	resultFormats, data, err := readUint16Array(data)
+	if err != nil {
+		return nil, err
+	}
+	return &BindPacket{
+		portal:        portal,
+		statement:     statement,
+		paramFormats:  paramFormats,
+		paramValues:   paramValues,
+		resultFormats: resultFormats,
+	}, nil
+}
+
+func readString(data []byte) (string, []byte, error) {
+	// Read null-terminated string, don't include the terminator into value.
+	end := bytes.Index(data, terminator)
+	if end == -1 {
+		return "", data, ErrTerminatorNotFound
+	}
+	return string(data[:end]), data[end+1:], nil
+}
+
+func readUint16Array(data []byte) ([]uint16, []byte, error) {
+	remaining := data
+	// The []uint16 array is prefixed with a number of its items, also a uint16.
+	if len(remaining) < 2 {
+		return nil, data, ErrPacketTruncated
+	}
+	itemCount := int(binary.BigEndian.Uint16(remaining[:2]))
+	remaining = remaining[2:]
+
+	if len(remaining) < 2*itemCount {
+		return nil, data, ErrPacketTruncated
+	}
+	items := make([]uint16, itemCount)
+	for i := range items {
+		items[i] = binary.BigEndian.Uint16(remaining[:2])
+		remaining = remaining[2:]
+	}
+
+	return items, remaining, nil
+}
+
+func readParameterArray(data []byte) ([][]byte, []byte, error) {
+	remaining := data
+	// The array is prefixed with a number of its items, a uint16.
+	if len(remaining) < 2 {
+		return nil, data, ErrPacketTruncated
+	}
+	parameterCount := int(binary.BigEndian.Uint16(remaining[:2]))
+	remaining = remaining[2:]
+
+	// Each parameter is a pair of value length (uint32) followed by value bytes.
+	parameters := make([][]byte, parameterCount)
+	for i := range parameters {
+		if len(remaining) < 4 {
+			return nil, data, ErrPacketTruncated
+		}
+		parameterLen := int(binary.BigEndian.Uint32(remaining[:4]))
+		remaining = remaining[4:]
+
+		// NULL value is a special case. No parameter bytes follow it.
+		// The length is actually -1 but we read two's complement as uint32.
+		if parameterLen == 0xFFFFFFFF {
+			continue
+		}
+
+		if len(remaining) < parameterLen {
+			return nil, data, ErrPacketTruncated
+		}
+		parameters[i] = remaining[:parameterLen]
+		remaining = remaining[parameterLen:]
+	}
+
+	return parameters, remaining, nil
 }
