@@ -547,7 +547,7 @@ func (proxy *PgProxy) ProxyDatabaseConnection(errCh chan<- error) {
 			// If that's some sort of a packet with response data inside it, go on...
 
 		default:
-			// Pass all other uninteresting packets through to the database without processing.
+			// Pass all other uninteresting packets through to the client without processing.
 			if err = packetHandler.sendPacket(); err != nil {
 				logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorNetworkWrite).WithError(err).Errorln("Can't forward packet")
 				errCh <- err
