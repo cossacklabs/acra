@@ -267,6 +267,11 @@ func (packet *PacketHandler) IsParse() bool {
 	return packet.messageType[0] == ParseMessageType
 }
 
+// IsParseComplete return true if packet has ParseComplete type
+func (packet *PacketHandler) IsParseComplete() bool {
+	return packet.messageType[0] == ParseCompleteMessageType
+}
+
 // GetParseData returns parsed Parse packet data.
 // Use this only if IsParse() is true.
 func (packet *PacketHandler) GetParseData() (*ParsePacket, error) {

@@ -33,6 +33,7 @@ import (
 	"github.com/cossacklabs/acra/decryptor/base"
 	"github.com/cossacklabs/acra/logging"
 	"github.com/cossacklabs/acra/network"
+	"github.com/cossacklabs/acra/sqlparser"
 	"github.com/cossacklabs/acra/utils"
 	"github.com/prometheus/client_golang/prometheus"
 	log "github.com/sirupsen/logrus"
@@ -90,6 +91,7 @@ const (
 	DataRowMessageType       byte = 'D'
 	QueryMessageType         byte = 'Q'
 	ParseMessageType         byte = 'P'
+	ParseCompleteMessageType byte = '1'
 	ReadyForQueryMessageType byte = 'Z'
 	TLSTimeout                    = time.Second * 2
 )
@@ -597,6 +599,11 @@ func (proxy *PgProxy) handleDatabasePacket(ctx context.Context, packet *PacketHa
 		// decrypt and process the data in it.
 		return proxy.handleQueryDataPacket(ctx, packet, logger)
 
+	case ParseCompletePacket:
+		// Previously requested prepared statement has been confirmed by the database, register it.
+		preparedStatement := proxy.protocolState.PendingParse()
+		return proxy.registerPreparedStatement(preparedStatement, logger)
+
 	default:
 		// Forward all other uninteresting packets to the client without processing.
 		return nil
@@ -632,5 +639,27 @@ func (proxy *PgProxy) handleQueryDataPacket(ctx context.Context, packet *PacketH
 	// After we're done processing the columns, update the actual packet data from them.
 	proxy.decryptor.ResetZoneMatch()
 	packet.updateDataFromColumns()
+	return nil
+}
+
+func (proxy *PgProxy) registerPreparedStatement(preparedStatement *ParsePacket, logger *log.Entry) error {
+	name := preparedStatement.Name()
+	queryText := preparedStatement.QueryString()
+	// This should be always successful since the database filters invalid queries.
+	query, err := sqlparser.Parse(queryText)
+	if err != nil {
+		logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorGeneral).
+			WithError(err).Errorln("Can't parse SQL from Parse packet")
+		return err
+	}
+	statement := NewPreparedStatement(name, queryText, query)
+	registry := proxy.session.PreparedStatementRegistry()
+	err = registry.AddStatement(statement)
+	if err != nil {
+		logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorGeneral).
+			WithError(err).Errorln("Failed to add prepared statement")
+		return err
+	}
+	logger.WithField("prepared_name", name).Debug("Registered new prepared statement")
 	return nil
 }

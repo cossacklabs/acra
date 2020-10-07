@@ -35,6 +35,7 @@ type PacketType int
 const (
 	SimpleQueryPacket PacketType = iota
 	ParseStatementPacket
+	ParseCompletePacket
 	DataPacket
 	OtherPacket
 )
@@ -102,6 +103,11 @@ func (p *PgProtocolState) HandleDatabasePacket(packet *PacketHandler) error {
 	// This is data response to the previously issued query.
 	if packet.IsDataRow() {
 		p.lastPacketType = DataPacket
+		return nil
+	}
+
+	if packet.IsParseComplete() {
+		p.lastPacketType = ParseCompletePacket
 		return nil
 	}
 
