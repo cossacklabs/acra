@@ -232,84 +232,105 @@ func (proxy *PgProxy) ProxyClientConnection(errCh chan<- error) {
 
 		_, censorSpan := trace.StartSpan(packetSpanCtx, "censor")
 
-		// Let the protocol observer take a look at the packet, keeping note of it.
-		action, err := proxy.protocolState.HandleClientPacket(packet)
+		// Massage the packet. This should not normally fail. If it does, the database will not receive the packet.
+		censored, err := proxy.handleClientPacket(packet, logger)
 		if err != nil {
 			errCh <- err
 			return
-		}
-		switch action {
-		case QueryPacket:
-			// If that's some sort of a packet with query data inside it, go on...
-
-		default:
-			// Pass all other uninteresting packets through to the database without processing.
-			if err := packet.sendPacket(); err != nil {
-				logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorNetworkWrite).WithError(err).Errorln("Can't forward packet to db")
-				errCh <- err
-				return
-			}
-			// If this should be the last packet, signal about it and stop listening.
-			if action == TerminationPacket {
-				errCh <- io.EOF
-				return
-			}
-			continue
-		}
-		query := proxy.protocolState.PendingQuery()
-
-		// log query with hidden values for debug mode
-		if logging.GetLogLevel() == logging.LogDebug {
-			_, queryWithHiddenValues, _, err := common.HandleRawSQLQuery(query.Query())
-			if err == common.ErrQuerySyntaxError {
-				logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCensorQueryParseError).WithError(err).Debugf("Parsing error on query: %s", queryWithHiddenValues)
-			} else {
-				logger.WithField("sql", queryWithHiddenValues).Debugln("New query")
-			}
-		}
-
-		// Let AcraCensor take a look at the query text. If it's not okay (and we're still alive),
-		// don't let the database see the query and send the client an error instead of the reply.
-		if censorErr := proxy.censor.HandleQuery(query.Query()); censorErr != nil {
-			censorSpan.End()
-			logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCensorQueryIsNotAllowed).WithError(censorErr).Errorln("AcraCensor blocked query")
-			errorMessage, err := NewPgError("AcraCensor blocked this query")
-			if err != nil {
-				logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCodingPostgresqlCantGenerateErrorPacket).WithError(err).Errorln("Can't create PostgreSQL error message")
-				errCh <- err
-				return
-			}
-			n, err := proxy.clientConnection.Write(errorMessage)
-			if err := base.CheckReadWrite(n, len(errorMessage), err); err != nil {
-				errCh <- err
-				return
-			}
-			n, err = proxy.clientConnection.Write(ReadyForQueryPacket)
-			if err := base.CheckReadWrite(n, len(ReadyForQueryPacket), err); err != nil {
-				errCh <- err
-				return
-			}
-			continue
-		}
-
-		// Let the registered observers observe the query, potentially modifying it (e.g., transparent encryption).
-		newQuery, changed, err := proxy.queryObserverManager.OnQuery(query)
-		if err != nil {
-			logger.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorEncryptQueryData).Errorln("Error occurred on query handler")
-		}
-		if changed {
-			packet.ReplaceQuery(newQuery.Query())
 		}
 
 		censorSpan.End()
 
-		// Forwared the (modified) query to the database.
+		// If the packet has been rejected by AcraCensor, stop here and don't send it to the database.
+		// Also, craft and send the client an error so that they know their query has been rejected.
+		if censored {
+			err := proxy.sendClientAcraCensorError(logger)
+			if err != nil {
+				errCh <- err
+				return
+			}
+			continue
+		}
+
+		// After tha packet has been observed and possibly modified, forward it to the database.
 		if err := packet.sendPacket(); err != nil {
-			logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorNetworkWrite).WithError(err).Errorln("Can't send packet")
+			logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorNetworkWrite).
+				WithError(err).Errorln("Can't send packet")
 			errCh <- err
 			return
 		}
+		// If this is a termination packet, we're done here. Signal EOF and stop the proxy.
+		if packet.terminatePacket {
+			errCh <- io.EOF
+			return
+		}
 	}
+}
+
+func (proxy *PgProxy) handleClientPacket(packet *PacketHandler, logger *log.Entry) (bool, error) {
+	// Let the protocol observer take a look at the packet, keeping note of it.
+	packetType, err := proxy.protocolState.HandleClientPacket(packet)
+	if err != nil {
+		return false, err
+	}
+	switch packetType {
+	case QueryPacket:
+		// If that's some sort of a packet with query data inside it, go on...
+
+	default:
+		// Forward all other uninteresting packets to the database without processing.
+		return false, nil
+	}
+	query := proxy.protocolState.PendingQuery()
+
+	// Log query text -- if and only if we're in debug mode -- without inserted value data.
+	// The query can still be sensitive though, so only in debug mode can we do this.
+	if logging.GetLogLevel() == logging.LogDebug {
+		_, queryWithHiddenValues, _, err := common.HandleRawSQLQuery(query.Query())
+		if err == common.ErrQuerySyntaxError {
+			logger.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCensorQueryParseError).
+				Debugf("Parsing error on query: %s", queryWithHiddenValues)
+		} else {
+			logger.WithField("sql", queryWithHiddenValues).Debugln("New query")
+		}
+	}
+
+	// Let AcraCensor take a look at the query text.
+	// If it's not okay (and we're still alive), don't let the database see the query.
+	if censorErr := proxy.censor.HandleQuery(query.Query()); censorErr != nil {
+		logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCensorQueryIsNotAllowed).
+			WithError(censorErr).Errorln("AcraCensor blocked query")
+		return true, nil
+	}
+
+	// Let the registered observers observe the query, potentially modifying it (e.g., transparent encryption).
+	newQuery, changed, err := proxy.queryObserverManager.OnQuery(query)
+	if err != nil {
+		logger.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorEncryptQueryData).
+			Errorln("Error occurred on query handler")
+	}
+	if changed {
+		packet.ReplaceQuery(newQuery.Query())
+	}
+	return false, nil
+}
+
+func (proxy *PgProxy) sendClientAcraCensorError(logger *log.Entry) error {
+	errorMessage, err := NewPgError("AcraCensor blocked this query")
+	if err != nil {
+		logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCodingPostgresqlCantGenerateErrorPacket).
+			WithError(err).Errorln("Can't create PostgreSQL error message")
+		return err
+	}
+	n, err := proxy.clientConnection.Write(errorMessage)
+	if err := base.CheckReadWrite(n, len(errorMessage), err); err != nil {
+		return err
+	}
+	n, err = proxy.clientConnection.Write(ReadyForQueryPacket)
+	if err := base.CheckReadWrite(n, len(ReadyForQueryPacket), err); err != nil {
+		return err
+	}
+	return nil
 }
 
 // handlePoisonCheckResult return error err != nil, if can't check on poison record or any callback on poison record
