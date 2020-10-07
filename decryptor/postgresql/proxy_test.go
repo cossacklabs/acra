@@ -186,6 +186,13 @@ func (stubSession) DatabaseConnection() net.Conn {
 	return nil
 }
 
+func (stubSession) PreparedStatementRegistry() base.PreparedStatementRegistry {
+	return nil
+}
+
+func (stubSession) SetPreparedStatementRegistry(registry base.PreparedStatementRegistry) {
+}
+
 func TestEncryptorTurnOnOff(t *testing.T) {
 	emptyStore := &tableSchemaStore{true}
 	nonEmptyStore := &tableSchemaStore{false}
