@@ -4785,6 +4785,69 @@ class TestEmptyValues(BaseTestCase):
         self.assertEqual(row['binary'], b'')
 
 
+class TestEncryptionWithIntFields(BaseTestCase):
+    temp_table = sa.Table('test_integer_data_fields', metadata,
+                          sa.Column('id', sa.Integer, primary_key=True),
+                          sa.Column('data', sa.LargeBinary(length=10), nullable=True),
+                          sa.Column('number', sa.Integer),
+                          sa.Column('binary', sa.LargeBinary(length=10), nullable=True),
+                          )
+
+    def testEncryptWithIntFields(self):
+        value_id = get_random_id()
+        data = b'42 is the answer'
+        number = 8800
+        binary = b'some\x00binary\x01data'
+
+        data_encrypted = create_acrastruct(
+            data,
+            read_storage_public_key('keypair1', KEYS_FOLDER.name)
+        )
+
+        # insert some data
+        self.engine1.execute(
+            self.temp_table.insert(),
+            {'id': value_id, 'data': data_encrypted, 'number': number, 'binary': binary})
+
+        # check values (select all)
+        result = self.engine1.execute(sa.select([self.temp_table]).where(self.temp_table.c.id == value_id))
+        row = result.fetchone()
+        self.assertEqual(row['id'], value_id)
+        self.assertEqual(row['data'], data)
+        self.assertEqual(row['number'], number)
+        self.assertEquals(row['binary'], binary)
+
+        # check values (select numbers only)
+        result = self.engine1.execute(
+            sa
+                .select([self.temp_table.columns.id, self.temp_table.columns.number])
+                .where(self.temp_table.c.id == value_id)
+        )
+        row = result.fetchone()
+        self.assertEqual(row['id'], value_id)
+        self.assertEqual(row['number'], number)
+
+        # check values (select encrypted only)
+        result = self.engine1.execute(
+            sa
+                .select([self.temp_table.columns.data])
+                .where(self.temp_table.c.id == value_id)
+        )
+        row = result.fetchone()
+        self.assertEqual(row['data'], data)
+
+        # check values (select everything except encrypted)
+        result = self.engine1.execute(
+            sa
+                .select([self.temp_table.columns.id, self.temp_table.columns.number, self.temp_table.columns.binary])
+                .where(self.temp_table.c.id == value_id)
+        )
+        row = result.fetchone()
+        self.assertEqual(row['id'], value_id)
+        self.assertEqual(row['number'], number)
+        self.assertEquals(row['binary'], binary)
+
+
 class TestOutdatedServiceConfigs(BaseTestCase, FailedRunProcessMixin):
     def setUp(self):
         return
