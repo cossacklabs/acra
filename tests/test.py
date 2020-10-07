@@ -4848,6 +4848,65 @@ class TestEncryptionWithIntFields(BaseTestCase):
         self.assertEquals(row['binary'], binary)
 
 
+class TestTransparentEncryptionWithIntFieldsAndZone(TestTransparentEncryption):
+    ZONE = True
+    encryptor_table = sa.Table('test_transparent_encryption_int_fields', metadata,
+        sa.Column('id', sa.Integer, primary_key=True),
+        sa.Column('specified_client_id',
+                  sa.LargeBinary(length=COLUMN_DATA_SIZE)),
+        sa.Column('default_client_id',
+                  sa.LargeBinary(length=COLUMN_DATA_SIZE)),
+
+        sa.Column('number', sa.Integer),
+        sa.Column('zone_id', sa.LargeBinary(length=COLUMN_DATA_SIZE)),
+        sa.Column('raw_data', sa.LargeBinary(length=COLUMN_DATA_SIZE)),
+        sa.Column('nullable', sa.Text, nullable=True),
+        sa.Column('empty', sa.LargeBinary(length=COLUMN_DATA_SIZE), nullable=False, default=b''),
+    )
+
+    def get_context_data(self):
+        context = {
+            'id': get_random_id(),
+            'default_client_id': get_pregenerated_random_data().encode('ascii'),
+            'number': 3301,
+            'zone_id': get_pregenerated_random_data().encode('ascii'),
+            'specified_client_id': get_pregenerated_random_data().encode('ascii'),
+            'raw_data': get_pregenerated_random_data().encode('ascii'),
+            'zone': zones[0],
+            'empty': b'',
+        }
+        return context
+
+    def checkZoneIdEncryption(self, zone, id, default_client_id,
+                              specified_client_id, number, zone_id, raw_data,
+                              *args, **kwargs):
+        result = self.engine1.execute(
+            sa.select([self.encryptor_table.c.default_client_id,
+                       self.encryptor_table.c.specified_client_id,
+                       sa.cast(zone[ZONE_ID].encode('ascii'), BYTEA),
+                       self.encryptor_table.c.number,
+                       self.encryptor_table.c.zone_id,
+                       self.encryptor_table.c.raw_data,
+                       self.encryptor_table.c.nullable,
+                       self.encryptor_table.c.empty])
+            .where(self.encryptor_table.c.id == id))
+        row = result.fetchone()
+        self.assertIsNotNone(row)
+
+        self.assertEqual(row['number'], number)
+        # should be decrypted
+        self.assertEqual(row['zone_id'], zone_id)
+        # should be as is
+        self.assertEqual(row['raw_data'], raw_data)
+        # other data should be encrypted
+        self.assertNotEqual(row['default_client_id'], default_client_id)
+        self.assertNotEqual(row['specified_client_id'], specified_client_id)
+        self.assertEqual(row['empty'], b'')
+
+    def check_all_decryptions(self, **context):
+        self.checkZoneIdEncryption(**context)
+
+
 class TestOutdatedServiceConfigs(BaseTestCase, FailedRunProcessMixin):
     def setUp(self):
         return
