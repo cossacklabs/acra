@@ -283,6 +283,11 @@ func (proxy *PgProxy) handleClientPacket(packet *PacketHandler, logger *log.Entr
 		// process inline data if necessary and remember the query to handle future response.
 		return proxy.handleQueryPacket(packet, logger)
 
+	case BindStatementPacket:
+		// Bound query parameters may contain inline data that we need to process.
+		// Also, remember the requested portal name for future data queries.
+		return proxy.handleBindPacket(packet, logger)
+
 	default:
 		// Forward all other uninteresting packets to the database without processing.
 		return false, nil
@@ -326,6 +331,17 @@ func (proxy *PgProxy) handleQueryPacket(packet *PacketHandler, logger *log.Entry
 	if changed {
 		packet.ReplaceQuery(newQuery.Query())
 	}
+	return false, nil
+}
+
+func (proxy *PgProxy) handleBindPacket(packet *PacketHandler, logger *log.Entry) (bool, error) {
+	bind := proxy.protocolState.PendingBind()
+	logger.WithField("portal", bind.PortalName()).WithField("statement", bind.StatementName()).
+		Debug("Bind packet")
+	// TODO(ilammy, 2020-10-07): process bound query paremeters
+	// Find the prepared statement in the registry, match the parameters to the prepared query,
+	// and let query observers process and modify them, if necessary.
+	// Take care to avoid double encryption of data from the original prepared query.
 	return false, nil
 }
 
