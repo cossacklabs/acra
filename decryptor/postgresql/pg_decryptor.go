@@ -275,12 +275,17 @@ func (proxy *PgProxy) handleClientPacket(packet *PacketHandler, logger *log.Entr
 	}
 	switch packetType {
 	case QueryPacket:
-		// If that's some sort of a packet with query data inside it, go on...
+		// If that's some sort of a packet with a query inside it,
+		// process inline data if necessary and remember the query to handle future response.
+		return proxy.handleQueryPacket(packet, logger)
 
 	default:
 		// Forward all other uninteresting packets to the database without processing.
 		return false, nil
 	}
+}
+
+func (proxy *PgProxy) handleQueryPacket(packet *PacketHandler, logger *log.Entry) (bool, error) {
 	query := proxy.protocolState.PendingQuery()
 
 	// Log query text -- if and only if we're in debug mode -- without inserted value data.
@@ -583,15 +588,19 @@ func (proxy *PgProxy) handleDatabasePacket(ctx context.Context, packet *PacketHa
 	}
 	switch packetType {
 	case DataPacket:
-		// If that's some sort of a packet with response data inside it, go on...
+		// If that's some sort of a packet with a query response inside it,
+		// decrypt and process the data in it.
+		return proxy.handleQueryDataPacket(ctx, packet, logger)
 
 	default:
 		// Forward all other uninteresting packets to the client without processing.
 		return nil
 	}
+}
 
+func (proxy *PgProxy) handleQueryDataPacket(ctx context.Context, packet *PacketHandler, logger *log.Entry) error {
 	logger.Debugln("Matched data row packet")
-	if err = packet.parseColumns(); err != nil {
+	if err := packet.parseColumns(); err != nil {
 		logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCodingPostgresqlCantParseColumnsDescription).
 			WithError(err).Errorln("Can't parse columns in packet")
 		return err
