@@ -193,6 +193,30 @@ func NewBindPacket(data []byte) (*BindPacket, error) {
 	}, nil
 }
 
+// ExecutePacket represents "Execute" packet of the PostgreSQL protocol,
+// containing the name of the portal to query for data.
+// See https://www.postgresql.org/docs/current/protocol-message-formats.html
+type ExecutePacket struct {
+	portal  string
+	maxRows uint32
+}
+
+// PortalName returns the name of the portal queried by this request.
+// An empty name means unnamed portal.
+func (p *ExecutePacket) PortalName() string {
+	return p.portal
+}
+
+// NewExecutePacket parses Executre packet from data.
+func NewExecutePacket(data []byte) (*ExecutePacket, error) {
+	portal, data, err := readString(data)
+	if err != nil {
+		return nil, err
+	}
+	maxRows := binary.BigEndian.Uint32(data)
+	return &ExecutePacket{portal, maxRows}, nil
+}
+
 func readString(data []byte) (string, []byte, error) {
 	// Read null-terminated string, don't include the terminator into value.
 	end := bytes.Index(data, terminator)

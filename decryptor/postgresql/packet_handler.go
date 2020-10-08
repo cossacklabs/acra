@@ -288,6 +288,11 @@ func (packet *PacketHandler) IsBindComplete() bool {
 	return packet.messageType[0] == BindCompleteMessageType
 }
 
+// IsExecute return true if packet has Execute type
+func (packet *PacketHandler) IsExecute() bool {
+	return packet.messageType[0] == ExecuteMessageType
+}
+
 // GetParseData returns parsed Parse packet data.
 // Use this only if IsParse() is true.
 func (packet *PacketHandler) GetParseData() (*ParsePacket, error) {
@@ -310,6 +315,18 @@ func (packet *PacketHandler) GetBindData() (*BindPacket, error) {
 		return nil, err
 	}
 	return bind, nil
+}
+
+// GetExecuteData returns parsed Execute packet data.
+// Use this only if IsExecute() is true.
+func (packet *PacketHandler) GetExecuteData() (*ExecutePacket, error) {
+	packet.logger.Debugln("GetExecuteData")
+	execute, err := NewExecutePacket(packet.descriptionBufferCopy())
+	if err != nil {
+		packet.logger.Debugln("Failed to parse Bind packet")
+		return nil, err
+	}
+	return execute, nil
 }
 
 // ReplaceQuery query in packet with new query and update packet length

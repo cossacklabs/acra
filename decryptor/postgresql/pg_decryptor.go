@@ -92,6 +92,7 @@ const (
 	QueryMessageType         byte = 'Q'
 	ParseMessageType         byte = 'P'
 	BindMessageType          byte = 'B'
+	ExecuteMessageType       byte = 'E'
 	ParseCompleteMessageType byte = '1'
 	BindCompleteMessageType  byte = '2'
 	ReadyForQueryMessageType byte = 'Z'
