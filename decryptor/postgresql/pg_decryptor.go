@@ -622,6 +622,11 @@ func (proxy *PgProxy) handleDatabasePacket(ctx context.Context, packet *PacketHa
 		preparedStatement := proxy.protocolState.PendingParse()
 		return proxy.registerPreparedStatement(preparedStatement, logger)
 
+	case BindCompletePacket:
+		// Previously requested cursor has been confirmed by the database, register it.
+		bindPacket := proxy.protocolState.PendingBind()
+		return proxy.registerCursor(bindPacket, logger)
+
 	default:
 		// Forward all other uninteresting packets to the client without processing.
 		return nil
@@ -679,5 +684,29 @@ func (proxy *PgProxy) registerPreparedStatement(preparedStatement *ParsePacket, 
 		return err
 	}
 	logger.WithField("prepared_name", name).Debug("Registered new prepared statement")
+	return nil
+}
+
+func (proxy *PgProxy) registerCursor(bindPacket *BindPacket, logger *log.Entry) error {
+	registry := proxy.session.PreparedStatementRegistry()
+	// There should be a statement with the specified name, the database confirmed it.
+	statementName := bindPacket.StatementName()
+	preparedStatement, err := registry.StatementByName(statementName)
+	if err != nil {
+		logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorGeneral).
+			WithError(err).Errorln("Failed to add cursor")
+		return err
+	}
+	// Cursors are called portals in PostgreSQL.
+	cursorName := bindPacket.PortalName()
+	cursor := NewPortal(cursorName, preparedStatement)
+	err = registry.AddCursor(cursor)
+	if err != nil {
+		logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorGeneral).
+			WithError(err).Errorln("Failed to add cursor")
+		return err
+	}
+	logger.WithField("cursor_name", cursorName).WithField("prepared_name", statementName).
+		Debug("Registered new cursor")
 	return nil
 }
