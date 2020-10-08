@@ -4554,7 +4554,7 @@ class TestTransparentEncryption(BaseTestCase):
         context = {
             'id': get_random_id(),
             'default_client_id': get_pregenerated_random_data().encode('ascii'),
-            'number': 123456,
+            'number': get_random_id(),
             'zone_id': get_pregenerated_random_data().encode('ascii'),
             'specified_client_id': get_pregenerated_random_data().encode('ascii'),
             'raw_data': get_pregenerated_random_data().encode('ascii'),
@@ -4631,8 +4631,9 @@ class TestTransparentEncryption(BaseTestCase):
 
         # generate new data
         new_context = self.get_context_data()
-        # use same id
+        # use same id and integer
         new_context['id'] = context['id']
+        new_context['number'] = context['number']
         # update with not encrypted raw data
         self.update_data(new_context)
 
