@@ -242,6 +242,12 @@ func (packet *PacketHandler) Reset() {
 	packet.messageType[0] = 0
 }
 
+func (packet *PacketHandler) descriptionBufferCopy() []byte {
+	buffer := make([]byte, packet.descriptionBuf.Len())
+	copy(buffer, packet.descriptionBuf.Bytes())
+	return buffer
+}
+
 func (packet *PacketHandler) readMessageType() error {
 	n, err := io.ReadFull(packet.reader, packet.messageType[:])
 	return base.CheckReadWrite(n, 1, err)
@@ -286,7 +292,7 @@ func (packet *PacketHandler) IsBindComplete() bool {
 // Use this only if IsParse() is true.
 func (packet *PacketHandler) GetParseData() (*ParsePacket, error) {
 	packet.logger.Debugln("GetParseData")
-	parse, err := NewParsePacket(packet.descriptionBuf.Bytes())
+	parse, err := NewParsePacket(packet.descriptionBufferCopy())
 	if err != nil {
 		packet.logger.Debugln("Failed to parse Parse packet")
 		return nil, err
@@ -298,7 +304,7 @@ func (packet *PacketHandler) GetParseData() (*ParsePacket, error) {
 // Use this only if IsBind() is true.
 func (packet *PacketHandler) GetBindData() (*BindPacket, error) {
 	packet.logger.Debugln("GetBindData")
-	bind, err := NewBindPacket(packet.descriptionBuf.Bytes())
+	bind, err := NewBindPacket(packet.descriptionBufferCopy())
 	if err != nil {
 		packet.logger.Debugln("Failed to parse Bind packet")
 		return nil, err
