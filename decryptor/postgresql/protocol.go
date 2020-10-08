@@ -160,6 +160,8 @@ func (p *PgProtocolState) HandleDatabasePacket(packet *PacketHandler) error {
 	// ReadyForQuery starts a new query processing. Forget pending queries.
 	// There is nothing interesting in the packet otherwise.
 	if packet.IsReadyForQuery() {
+		// TODO(ilammy, 2020-10-08): zeroize, not just drop
+		// Query content is sensitive so we should clean it out really good.
 		p.pendingQuery = nil
 		p.pendingParse = nil
 		p.pendingBind = nil
