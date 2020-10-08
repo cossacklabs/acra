@@ -23,7 +23,8 @@ import (
 
 // PgProtocolState keeps track of PostgreSQL protocol state.
 type PgProtocolState struct {
-	pendingQuery base.OnQueryObject
+	lastPacketType PacketType
+	pendingQuery   base.OnQueryObject
 }
 
 // PacketType describes how to handle a message packet.
@@ -38,7 +39,12 @@ const (
 
 // NewPgProtocolState makes an initial PostgreSQL state, awaiting for queries.
 func NewPgProtocolState() *PgProtocolState {
-	return &PgProtocolState{}
+	return &PgProtocolState{lastPacketType: OtherPacket}
+}
+
+// LastPacketType returns type of the last seen packet.
+func (p *PgProtocolState) LastPacketType() PacketType {
+	return p.lastPacketType
 }
 
 // PendingQuery returns a query object pending response from the database.
@@ -48,7 +54,7 @@ func (p *PgProtocolState) PendingQuery() base.OnQueryObject {
 
 // HandleClientPacket observes a packet from client to the database,
 // extracts query information from it, and anticipates future database responses.
-func (p *PgProtocolState) HandleClientPacket(packet *PacketHandler) (PacketType, error) {
+func (p *PgProtocolState) HandleClientPacket(packet *PacketHandler) error {
 	logger := packet.logger
 
 	// Query packets are easy, that's a simple query protocol.
@@ -57,10 +63,11 @@ func (p *PgProtocolState) HandleClientPacket(packet *PacketHandler) (PacketType,
 		if err != nil {
 			logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCodingPostgresqlCantExtractQueryString).
 				WithError(err).Errorln("Can't fetch query string from Query packet")
-			return QueryPacket, err
+			return err
 		}
+		p.lastPacketType = QueryPacket
 		p.pendingQuery = base.NewOnQueryObjectFromQuery(query)
-		return QueryPacket, nil
+		return nil
 	}
 
 	// Parse packets initiate extended query protocol.
@@ -69,31 +76,36 @@ func (p *PgProtocolState) HandleClientPacket(packet *PacketHandler) (PacketType,
 		if err != nil {
 			logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCodingPostgresqlCantExtractQueryString).
 				WithError(err).Errorln("Can't fetch query string from Parse packet")
-			return QueryPacket, err
+			return err
 		}
+		p.lastPacketType = QueryPacket
 		p.pendingQuery = base.NewOnQueryObjectFromQuery(query)
-		return QueryPacket, nil
+		return nil
 	}
 
 	// We are not interested in other packets, just pass them through.
-	return OtherPacket, nil
+	p.lastPacketType = OtherPacket
+	return nil
 }
 
 // HandleDatabasePacket observes a packet with database response,
 // extracts useful information from it, and confirms client requests.
-func (p *PgProtocolState) HandleDatabasePacket(packet *PacketHandler) (PacketType, error) {
+func (p *PgProtocolState) HandleDatabasePacket(packet *PacketHandler) error {
 	// This is data response to the previously issued query.
 	if packet.IsDataRow() {
-		return DataPacket, nil
+		p.lastPacketType = DataPacket
+		return nil
 	}
 
 	// ReadyForQuery starts a new query processing. Forget pending queries.
 	// There is nothing interesting in the packet otherwise.
 	if packet.IsReadyForQuery() {
 		p.pendingQuery = nil
-		return OtherPacket, nil
+		p.lastPacketType = OtherPacket
+		return nil
 	}
 
 	// We are not interested in other packets, just pass them through.
-	return OtherPacket, nil
+	p.lastPacketType = OtherPacket
+	return nil
 }

@@ -269,11 +269,11 @@ func (proxy *PgProxy) ProxyClientConnection(errCh chan<- error) {
 
 func (proxy *PgProxy) handleClientPacket(packet *PacketHandler, logger *log.Entry) (bool, error) {
 	// Let the protocol observer take a look at the packet, keeping note of it.
-	packetType, err := proxy.protocolState.HandleClientPacket(packet)
+	err := proxy.protocolState.HandleClientPacket(packet)
 	if err != nil {
 		return false, err
 	}
-	switch packetType {
+	switch proxy.protocolState.LastPacketType() {
 	case QueryPacket:
 		// If that's some sort of a packet with a query inside it,
 		// process inline data if necessary and remember the query to handle future response.
@@ -582,11 +582,11 @@ func (proxy *PgProxy) ProxyDatabaseConnection(errCh chan<- error) {
 
 func (proxy *PgProxy) handleDatabasePacket(ctx context.Context, packet *PacketHandler, logger *log.Entry) error {
 	// Let the protocol observer take a look at the packet, keeping note of it.
-	packetType, err := proxy.protocolState.HandleDatabasePacket(packet)
+	err := proxy.protocolState.HandleDatabasePacket(packet)
 	if err != nil {
 		return err
 	}
-	switch packetType {
+	switch proxy.protocolState.LastPacketType() {
 	case DataPacket:
 		// If that's some sort of a packet with a query response inside it,
 		// decrypt and process the data in it.
