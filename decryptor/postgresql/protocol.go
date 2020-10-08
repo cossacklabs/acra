@@ -27,6 +27,7 @@ type PgProtocolState struct {
 	pendingQuery   base.OnQueryObject
 	pendingParse   *ParsePacket
 	pendingBind    *BindPacket
+	pendingExecute *ExecutePacket
 }
 
 // PacketType describes how to handle a message packet.
@@ -66,6 +67,11 @@ func (p *PgProtocolState) PendingParse() *ParsePacket {
 // PendingBind returns the pending query parameters, if any.
 func (p *PgProtocolState) PendingBind() *BindPacket {
 	return p.pendingBind
+}
+
+// PendingExecute returns the pending query parameters, if any.
+func (p *PgProtocolState) PendingExecute() *ExecutePacket {
+	return p.pendingExecute
 }
 
 // HandleClientPacket observes a packet from client to the database,
@@ -113,6 +119,20 @@ func (p *PgProtocolState) HandleClientPacket(packet *PacketHandler) error {
 		return nil
 	}
 
+	// Execute packets initiate data retrieval from portals.
+	if packet.IsExecute() {
+		executePacket, err := packet.GetExecuteData()
+		if err != nil {
+			logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCodingPostgresqlCantExtractQueryString).
+				WithError(err).Errorln("Can't fetch executed query from Execute packet")
+			return err
+		}
+		// There is nothing in the packet to process when we receive it,
+		// but we'd like to keep it around while the data responses are flowing.
+		p.lastPacketType = OtherPacket
+		p.pendingExecute = executePacket
+	}
+
 	// We are not interested in other packets, just pass them through.
 	p.lastPacketType = OtherPacket
 	return nil
@@ -143,6 +163,7 @@ func (p *PgProtocolState) HandleDatabasePacket(packet *PacketHandler) error {
 		p.pendingQuery = nil
 		p.pendingParse = nil
 		p.pendingBind = nil
+		p.pendingExecute = nil
 		p.lastPacketType = OtherPacket
 		return nil
 	}
