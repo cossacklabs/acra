@@ -80,6 +80,9 @@ var (
 	ErrInvalidProtocolState             = errors.New("ClientSession contains invalid ProtocolState")
 )
 
+// ErrBlockedByCensor is returned when a query has been denied by AcraCensor.
+var ErrBlockedByCensor = NewPgError("AcraCensor blocked this query")
+
 // PgSQL constant sizes and types.
 const (
 	// DataRowLengthBufSize each postgresql packet contain 4 byte that store length of message contents in bytes, including self
@@ -321,7 +324,7 @@ func (proxy *PgProxy) handleQueryPacket(packet *PacketHandler, logger *log.Entry
 }
 
 func (proxy *PgProxy) sendClientAcraCensorError(logger *log.Entry) error {
-	errorMessage, err := NewPgError("AcraCensor blocked this query")
+	errorMessage, err := ErrBlockedByCensor
 	if err != nil {
 		logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCodingPostgresqlCantGenerateErrorPacket).
 			WithError(err).Errorln("Can't create PostgreSQL error message")
