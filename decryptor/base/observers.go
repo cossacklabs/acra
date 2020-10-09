@@ -63,6 +63,7 @@ func NewOnQueryObjectFromQuery(query string) OnQueryObject {
 
 // QueryObserver will be used to notify about coming new query
 type QueryObserver interface {
+	ID() string
 	// OnQuery return true if output query was changed otherwise false
 	OnQuery(data OnQueryObject) (OnQueryObject, bool, error)
 }
@@ -98,6 +99,11 @@ func (manager *ArrayQueryObserverableManager) AddQueryObserver(obs QueryObserver
 // RegisteredObserversCount return count of registered observers
 func (manager *ArrayQueryObserverableManager) RegisteredObserversCount() int {
 	return len(manager.subscribers)
+}
+
+// ID returns name of this QueryObserver.
+func (manager *ArrayQueryObserverableManager) ID() string {
+	return "ArrayQueryObserverableManager"
 }
 
 // OnQuery would be called for each added observer to manager

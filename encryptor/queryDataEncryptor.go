@@ -54,6 +54,11 @@ func NewPostgresqlQueryEncryptor(schema config.TableSchemaStore, clientID []byte
 	return &QueryDataEncryptor{schemaStore: schema, clientID: clientID, encryptor: dataEncryptor, dataCoder: &PostgresqlDBDataCoder{}}, nil
 }
 
+// ID returns name of this QueryObserver.
+func (encryptor *QueryDataEncryptor) ID() string {
+	return "QueryDataEncryptor"
+}
+
 // encryptInsertQuery encrypt data in insert query in VALUES and ON DUPLICATE KEY UPDATE statements
 func (encryptor *QueryDataEncryptor) encryptInsertQuery(insert *sqlparser.Insert) (bool, error) {
 	tableName := insert.Table.Name
