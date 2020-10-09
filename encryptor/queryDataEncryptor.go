@@ -313,6 +313,33 @@ func (encryptor *QueryDataEncryptor) OnQuery(query base.OnQueryObject) (base.OnQ
 	return query, false, nil
 }
 
+// OnBind process bound values for prepared statement based on TableSchemaStore.
+func (encryptor *QueryDataEncryptor) OnBind(statement sqlparser.Statement, values []base.BoundValue) ([]base.BoundValue, bool, error) {
+	newValues := values
+	changed := false
+	var err error
+	switch statement := statement.(type) {
+	case *sqlparser.Insert:
+		newValues, changed, err = encryptor.encryptInsertValues(statement, values)
+	case *sqlparser.Update:
+		newValues, changed, err = encryptor.encryptUpdateValues(statement, values)
+	}
+	if err != nil {
+		return values, false, err
+	}
+	return newValues, changed, nil
+}
+
+func (encryptor *QueryDataEncryptor) encryptInsertValues(insert *sqlparser.Insert, values []base.BoundValue) ([]base.BoundValue, bool, error) {
+	logrus.Debugln("QueryDataEncryptor.encryptInsertValues")
+	return values, false, nil
+}
+
+func (encryptor *QueryDataEncryptor) encryptUpdateValues(update *sqlparser.Update, values []base.BoundValue) ([]base.BoundValue, bool, error) {
+	logrus.Debugln("QueryDataEncryptor.encryptUpdateValues")
+	return values, false, nil
+}
+
 // encryptWithColumnSettings encrypt data and use ZoneId or ClientID from ColumnEncryptionSetting if not empty otherwise static ClientID that passed to parser
 func (encryptor *QueryDataEncryptor) encryptWithColumnSettings(columnSetting config.ColumnEncryptionSetting, data []byte) ([]byte, error) {
 	logger := logrus.WithFields(logrus.Fields{"column": columnSetting.ColumnName()})
