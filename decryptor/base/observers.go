@@ -108,16 +108,17 @@ func (manager *ArrayQueryObserverableManager) ID() string {
 
 // OnQuery would be called for each added observer to manager
 func (manager *ArrayQueryObserverableManager) OnQuery(query OnQueryObject) (OnQueryObject, bool, error) {
-	changedOut := false
-	for _, obs := range manager.subscribers {
-		newQuery, changed, err := obs.OnQuery(query)
+	currentQuery := query
+	changedQuery := false
+	for _, observer := range manager.subscribers {
+		newQuery, changed, err := observer.OnQuery(currentQuery)
 		if err != nil {
 			return query, false, err
 		}
 		if changed {
-			changedOut = changed
-			query = newQuery
+			currentQuery = newQuery
+			changedQuery = true
 		}
 	}
-	return query, changedOut, nil
+	return currentQuery, changedQuery, nil
 }
