@@ -4521,6 +4521,7 @@ class TestTransparentEncryption(BaseTestCase):
         sa.Column('default_client_id',
                   sa.LargeBinary(length=COLUMN_DATA_SIZE)),
 
+        sa.Column('number', sa.Integer),
         sa.Column('zone_id', sa.LargeBinary(length=COLUMN_DATA_SIZE)),
         sa.Column('raw_data', sa.LargeBinary(length=COLUMN_DATA_SIZE)),
         sa.Column('nullable', sa.Text, nullable=True),
@@ -4553,6 +4554,7 @@ class TestTransparentEncryption(BaseTestCase):
         context = {
             'id': get_random_id(),
             'default_client_id': get_pregenerated_random_data().encode('ascii'),
+            'number': get_random_id(),
             'zone_id': get_pregenerated_random_data().encode('ascii'),
             'specified_client_id': get_pregenerated_random_data().encode('ascii'),
             'raw_data': get_pregenerated_random_data().encode('ascii'),
@@ -4562,7 +4564,7 @@ class TestTransparentEncryption(BaseTestCase):
         return context
 
     def checkDefaultIdEncryption(self, id, default_client_id,
-                                 specified_client_id, zone_id, zone, raw_data,
+                                 specified_client_id, number, zone_id, zone, raw_data,
                                  *args, **kwargs):
         result = self.engine2.execute(
             sa.select([self.encryptor_table])
@@ -4573,6 +4575,7 @@ class TestTransparentEncryption(BaseTestCase):
         # should be decrypted
         self.assertEqual(row['default_client_id'], default_client_id)
         # should be as is
+        self.assertEqual(row['number'], number)
         self.assertEqual(row['raw_data'], raw_data)
         # other data should be encrypted
         self.assertNotEqual(row['specified_client_id'], specified_client_id)
@@ -4628,8 +4631,9 @@ class TestTransparentEncryption(BaseTestCase):
 
         # generate new data
         new_context = self.get_context_data()
-        # use same id
+        # use same id and integer
         new_context['id'] = context['id']
+        new_context['number'] = context['number']
         # update with not encrypted raw data
         self.update_data(new_context)
 
@@ -4660,6 +4664,7 @@ class TestTransparentEncryption(BaseTestCase):
             sa.select([self.encryptor_table.c.default_client_id,
                        self.encryptor_table.c.specified_client_id,
                        sa.cast(context['zone'][ZONE_ID].encode('ascii'), BYTEA),
+                       self.encryptor_table.c.number,
                        self.encryptor_table.c.zone_id,
                        self.encryptor_table.c.raw_data,
                        self.encryptor_table.c.nullable,
@@ -4679,12 +4684,13 @@ class TestTransparentEncryptionWithZone(TestTransparentEncryption):
         self.skipTest("searching with encryption with zones not supported yet")
 
     def checkZoneIdEncryption(self, zone, id, default_client_id,
-                              specified_client_id, zone_id, raw_data,
+                              specified_client_id, number, zone_id, raw_data,
                               *args, **kwargs):
         result = self.engine1.execute(
             sa.select([self.encryptor_table.c.default_client_id,
                        self.encryptor_table.c.specified_client_id,
                        sa.cast(zone[ZONE_ID].encode('ascii'), BYTEA),
+                       self.encryptor_table.c.number,
                        self.encryptor_table.c.zone_id,
                        self.encryptor_table.c.raw_data,
                        self.encryptor_table.c.nullable,
@@ -4696,6 +4702,7 @@ class TestTransparentEncryptionWithZone(TestTransparentEncryption):
         # should be decrypted
         self.assertEqual(row['zone_id'], zone_id)
         # should be as is
+        self.assertEqual(row['number'], number)
         self.assertEqual(row['raw_data'], raw_data)
         # other data should be encrypted
         self.assertNotEqual(row['default_client_id'], default_client_id)
@@ -4783,6 +4790,69 @@ class TestEmptyValues(BaseTestCase):
         row = result.fetchone()
         self.assertEqual(row['text'], '')
         self.assertEqual(row['binary'], b'')
+
+
+class TestEncryptionWithIntFields(BaseTestCase):
+    temp_table = sa.Table('test_integer_data_fields', metadata,
+                          sa.Column('id', sa.Integer, primary_key=True),
+                          sa.Column('data', sa.LargeBinary(length=10), nullable=True),
+                          sa.Column('number', sa.Integer),
+                          sa.Column('binary', sa.LargeBinary(length=10), nullable=True),
+                          )
+
+    def testEncryptWithIntFields(self):
+        value_id = get_random_id()
+        data = b'42 is the answer'
+        number = 8800
+        binary = b'some\x00binary\x01data'
+
+        data_encrypted = create_acrastruct(
+            data,
+            read_storage_public_key('keypair1', KEYS_FOLDER.name)
+        )
+
+        # insert some data
+        self.engine1.execute(
+            self.temp_table.insert(),
+            {'id': value_id, 'data': data_encrypted, 'number': number, 'binary': binary})
+
+        # check values (select all)
+        result = self.engine1.execute(sa.select([self.temp_table]).where(self.temp_table.c.id == value_id))
+        row = result.fetchone()
+        self.assertEqual(row['id'], value_id)
+        self.assertEqual(row['data'], data)
+        self.assertEqual(row['number'], number)
+        self.assertEqual(row['binary'], binary)
+
+        # check values (select numbers only)
+        result = self.engine1.execute(
+            sa
+                .select([self.temp_table.columns.id, self.temp_table.columns.number])
+                .where(self.temp_table.c.id == value_id)
+        )
+        row = result.fetchone()
+        self.assertEqual(row['id'], value_id)
+        self.assertEqual(row['number'], number)
+
+        # check values (select encrypted only)
+        result = self.engine1.execute(
+            sa
+                .select([self.temp_table.columns.data])
+                .where(self.temp_table.c.id == value_id)
+        )
+        row = result.fetchone()
+        self.assertEqual(row['data'], data)
+
+        # check values (select everything except encrypted)
+        result = self.engine1.execute(
+            sa
+                .select([self.temp_table.columns.id, self.temp_table.columns.number, self.temp_table.columns.binary])
+                .where(self.temp_table.c.id == value_id)
+        )
+        row = result.fetchone()
+        self.assertEqual(row['id'], value_id)
+        self.assertEqual(row['number'], number)
+        self.assertEqual(row['binary'], binary)
 
 
 class TestOutdatedServiceConfigs(BaseTestCase, FailedRunProcessMixin):

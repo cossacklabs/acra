@@ -5,6 +5,7 @@ schemas:
   - id
   - specified_client_id
   - default_client_id
+  - number
   - zone_id
   - nullable
 
