@@ -139,15 +139,20 @@ func FillSlice(value byte, data []byte) {
 	}
 }
 
+// ZeroizeBytes wipes a byte slice from memory, filling it with zeros.
+func ZeroizeBytes(data []byte) {
+	FillSlice(0, data)
+}
+
 // ZeroizeSymmetricKey wipes a symmetric key from memory, filling it with zero bytes.
 func ZeroizeSymmetricKey(key []byte) {
-	FillSlice(0, key)
+	ZeroizeBytes(key)
 }
 
 // ZeroizePrivateKey wipes a private key from memory, filling it with zero bytes.
 func ZeroizePrivateKey(privateKey *keys.PrivateKey) {
 	if privateKey != nil {
-		FillSlice(0, privateKey.Value)
+		ZeroizeBytes(privateKey.Value)
 	}
 }
 
