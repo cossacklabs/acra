@@ -77,6 +77,7 @@ func NewPgError(message string) ([]byte, error) {
 var (
 	ErrInvalidPreparedStatementRegistry = errors.New("ClientSession contains invalid PreparedStatementRegistry")
 	ErrInvalidCursorRegistry            = errors.New("ClientSession contains invalid CursorRegistry")
+	ErrInvalidProtocolState             = errors.New("ClientSession contains invalid ProtocolState")
 )
 
 // PgSQL constant sizes and types.
@@ -86,10 +87,11 @@ const (
 	// random chosen
 	OutputDefaultSize = 1024
 	// https://www.postgresql.org/docs/9.4/static/protocol-message-formats.html
-	DataRowMessageType byte = 'D'
-	QueryMessageType   byte = 'Q'
-	ParseMessageType   byte = 'P'
-	TLSTimeout              = time.Second * 2
+	DataRowMessageType       byte = 'D'
+	QueryMessageType         byte = 'Q'
+	ParseMessageType         byte = 'P'
+	ReadyForQueryMessageType byte = 'Z'
+	TLSTimeout                    = time.Second * 2
 )
 
 // PgProxy represents PgSQL database connection between client and database with TLS support
@@ -106,6 +108,7 @@ type PgProxy struct {
 	decryptor            base.Decryptor
 	tlsSwitch            bool
 	decryptionObserver   base.ColumnDecryptionObserver
+	protocolState        *PgProtocolState
 }
 
 // NewPgProxy returns new PgProxy
@@ -116,6 +119,17 @@ func NewPgProxy(session base.ClientSession, decryptor base.Decryptor, setting ba
 	}
 	if session.PreparedStatementRegistry() == nil {
 		session.SetPreparedStatementRegistry(NewPreparedStatementRegistry())
+	}
+	var protocolState *PgProtocolState
+	if session.ProtocolState() != nil {
+		var ok bool
+		protocolState, ok = session.ProtocolState().(*PgProtocolState)
+		if !ok {
+			return nil, ErrInvalidProtocolState
+		}
+	} else {
+		protocolState = NewPgProtocolState()
+		session.SetProtocolState(protocolState)
 	}
 	return &PgProxy{
 		session:              session,
@@ -129,6 +143,7 @@ func NewPgProxy(session base.ClientSession, decryptor base.Decryptor, setting ba
 		censor:               setting.Censor(),
 		decryptor:            decryptor,
 		decryptionObserver:   base.NewColumnDecryptionObserver(),
+		protocolState:        protocolState,
 	}, nil
 }
 
@@ -214,89 +229,113 @@ func (proxy *PgProxy) ProxyClientConnection(errCh chan<- error) {
 			return
 		}
 		proxy.dbConnection.SetWriteDeadline(time.Now().Add(network.DefaultNetworkTimeout))
-		// we are interested only in requests that contains sql queries
-		if !(packet.IsSimpleQuery() || packet.IsParse()) {
-			if err = packet.sendPacket(); err != nil {
-				logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorNetworkWrite).WithError(err).Errorln("Can't forward packet to db")
-				errCh <- err
-				return
-			}
-			if packet.terminatePacket {
-				errCh <- io.EOF
-				return
-			}
-			continue
-		}
+
 		_, censorSpan := trace.StartSpan(packetSpanCtx, "censor")
-		var query string
-		if packet.IsSimpleQuery() {
-			query, err = packet.GetSimpleQuery()
-			if err != nil {
-				logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCodingPostgresqlCantExtractQueryString).WithError(err).Errorln("Can't fetch query string from Query packet")
-				errCh <- err
-				return
-			}
-		} else if packet.IsParse() {
-			query, err = packet.GetParseQuery()
-			if err != nil {
-				logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCodingPostgresqlCantExtractQueryString).WithError(err).Errorln("Can't fetch query string from Parse packet")
-				errCh <- err
-				return
-			}
-		} else {
-			logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCodingPostgresqlUnexpectedPacket).Errorf("Unhandled message type <%v>", packet.messageType[0])
-			errCh <- errors.New("unhandled message type")
-			return
-		}
 
-		// log query with hidden values for debug mode
-		if logging.GetLogLevel() == logging.LogDebug {
-			_, queryWithHiddenValues, _, err := common.HandleRawSQLQuery(query)
-			if err == common.ErrQuerySyntaxError {
-				logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCensorQueryParseError).WithError(err).Debugf("Parsing error on query: %s", queryWithHiddenValues)
-			} else {
-				logger.WithField("sql", queryWithHiddenValues).Debugln("New query")
-			}
-		}
-
-		if censorErr := proxy.censor.HandleQuery(query); censorErr != nil {
-			censorSpan.End()
-			logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCensorQueryIsNotAllowed).WithError(censorErr).Errorln("AcraCensor blocked query")
-			errorMessage, err := NewPgError("AcraCensor blocked this query")
-			if err != nil {
-				logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCodingPostgresqlCantGenerateErrorPacket).WithError(err).Errorln("Can't create PostgreSQL error message")
-				errCh <- err
-				return
-			}
-			n, err := proxy.clientConnection.Write(errorMessage)
-			if err := base.CheckReadWrite(n, len(errorMessage), err); err != nil {
-				errCh <- err
-				return
-			}
-			n, err = proxy.clientConnection.Write(ReadyForQueryPacket)
-			if err := base.CheckReadWrite(n, len(ReadyForQueryPacket), err); err != nil {
-				errCh <- err
-				return
-			}
-			continue
-		}
-
-		newQuery, changed, err := proxy.queryObserverManager.OnQuery(base.NewOnQueryObjectFromQuery(query))
+		// Massage the packet. This should not normally fail. If it does, the database will not receive the packet.
+		censored, err := proxy.handleClientPacket(packet, logger)
 		if err != nil {
-			logger.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorEncryptQueryData).Errorln("Error occurred on query handler")
-		}
-		if changed {
-			packet.ReplaceQuery(newQuery.Query())
+			errCh <- err
+			return
 		}
 
 		censorSpan.End()
 
+		// If the packet has been rejected by AcraCensor, stop here and don't send it to the database.
+		// Also, craft and send the client an error so that they know their query has been rejected.
+		if censored {
+			err := proxy.sendClientAcraCensorError(logger)
+			if err != nil {
+				errCh <- err
+				return
+			}
+			continue
+		}
+
+		// After tha packet has been observed and possibly modified, forward it to the database.
 		if err := packet.sendPacket(); err != nil {
-			logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorNetworkWrite).WithError(err).Errorln("Can't send packet")
+			logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorNetworkWrite).
+				WithError(err).Errorln("Can't send packet")
 			errCh <- err
 			return
 		}
+		// If this is a termination packet, we're done here. Signal EOF and stop the proxy.
+		if packet.terminatePacket {
+			errCh <- io.EOF
+			return
+		}
 	}
+}
+
+func (proxy *PgProxy) handleClientPacket(packet *PacketHandler, logger *log.Entry) (bool, error) {
+	// Let the protocol observer take a look at the packet, keeping note of it.
+	err := proxy.protocolState.HandleClientPacket(packet)
+	if err != nil {
+		return false, err
+	}
+	switch proxy.protocolState.LastPacketType() {
+	case QueryPacket:
+		// If that's some sort of a packet with a query inside it,
+		// process inline data if necessary and remember the query to handle future response.
+		return proxy.handleQueryPacket(packet, logger)
+
+	default:
+		// Forward all other uninteresting packets to the database without processing.
+		return false, nil
+	}
+}
+
+func (proxy *PgProxy) handleQueryPacket(packet *PacketHandler, logger *log.Entry) (bool, error) {
+	query := proxy.protocolState.PendingQuery()
+
+	// Log query text -- if and only if we're in debug mode -- without inserted value data.
+	// The query can still be sensitive though, so only in debug mode can we do this.
+	if logging.GetLogLevel() == logging.LogDebug {
+		_, queryWithHiddenValues, _, err := common.HandleRawSQLQuery(query.Query())
+		if err == common.ErrQuerySyntaxError {
+			logger.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCensorQueryParseError).
+				Debugf("Parsing error on query: %s", queryWithHiddenValues)
+		} else {
+			logger.WithField("sql", queryWithHiddenValues).Debugln("New query")
+		}
+	}
+
+	// Let AcraCensor take a look at the query text.
+	// If it's not okay (and we're still alive), don't let the database see the query.
+	if censorErr := proxy.censor.HandleQuery(query.Query()); censorErr != nil {
+		logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCensorQueryIsNotAllowed).
+			WithError(censorErr).Errorln("AcraCensor blocked query")
+		return true, nil
+	}
+
+	// Let the registered observers observe the query, potentially modifying it (e.g., transparent encryption).
+	newQuery, changed, err := proxy.queryObserverManager.OnQuery(query)
+	if err != nil {
+		logger.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorEncryptQueryData).
+			Errorln("Error occurred on query handler")
+	}
+	if changed {
+		packet.ReplaceQuery(newQuery.Query())
+	}
+	return false, nil
+}
+
+func (proxy *PgProxy) sendClientAcraCensorError(logger *log.Entry) error {
+	errorMessage, err := NewPgError("AcraCensor blocked this query")
+	if err != nil {
+		logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCodingPostgresqlCantGenerateErrorPacket).
+			WithError(err).Errorln("Can't create PostgreSQL error message")
+		return err
+	}
+	n, err := proxy.clientConnection.Write(errorMessage)
+	if err := base.CheckReadWrite(n, len(errorMessage), err); err != nil {
+		return err
+	}
+	n, err = proxy.clientConnection.Write(ReadyForQueryPacket)
+	if err := base.CheckReadWrite(n, len(ReadyForQueryPacket), err); err != nil {
+		return err
+	}
+	return nil
 }
 
 // handlePoisonCheckResult return error err != nil, if can't check on poison record or any callback on poison record
@@ -523,54 +562,70 @@ func (proxy *PgProxy) ProxyDatabaseConnection(errCh chan<- error) {
 		}
 		proxy.clientConnection.SetWriteDeadline(time.Now().Add(network.DefaultNetworkTimeout))
 
-		if !packetHandler.IsDataRow() {
-			if err = packetHandler.sendPacket(); err != nil {
-				logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorNetworkWrite).WithError(err).Errorln("Can't forward packet")
-				errCh <- err
-				return
-			}
-			timer.ObserveDuration()
-			continue
-		}
-
-		logger.Debugln("Matched data row packet")
-		if err = packetHandler.parseColumns(); err != nil {
-			logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCodingPostgresqlCantParseColumnsDescription).WithError(err).Errorln("Can't parse columns in packet")
+		// Massage the packet. This should not normally fail. If it does, the client will not receive the packet.
+		err := proxy.handleDatabasePacket(packetCtx, packetHandler, logger)
+		if err != nil {
 			errCh <- err
 			return
 		}
 
-		if packetHandler.columnCount == 0 {
-			if err = packetHandler.sendPacket(); err != nil {
-				logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorNetworkWrite).WithError(err).Errorln("Can't send packet on column count 0")
-				errCh <- err
-				return
-			}
-			timer.ObserveDuration()
-			continue
-		}
-
-		logger.Debugf("Process columns data")
-		for i := 0; i < packetHandler.columnCount; i++ {
-			column := packetHandler.Columns[i]
-			if column.IsNull() {
-				continue
-			}
-			newData, err := proxy.onColumnDecryption(packetCtx, i, column.GetData())
-			if err != nil {
-				logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorGeneral).WithError(err).Errorln("Error on column data processing")
-				errCh <- err
-				return
-			}
-			column.SetData(newData)
-		}
-		proxy.decryptor.ResetZoneMatch()
-		packetHandler.updateDataFromColumns()
+		// After tha packet has been observed and possibly modified, forward it to the client.
 		if err = packetHandler.sendPacket(); err != nil {
-			logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorNetworkWrite).WithError(err).Errorln("Can't send packet")
+			logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorNetworkWrite).
+				WithError(err).Errorln("Can't send packet")
 			errCh <- err
 			return
 		}
 		timer.ObserveDuration()
 	}
+}
+
+func (proxy *PgProxy) handleDatabasePacket(ctx context.Context, packet *PacketHandler, logger *log.Entry) error {
+	// Let the protocol observer take a look at the packet, keeping note of it.
+	err := proxy.protocolState.HandleDatabasePacket(packet)
+	if err != nil {
+		return err
+	}
+	switch proxy.protocolState.LastPacketType() {
+	case DataPacket:
+		// If that's some sort of a packet with a query response inside it,
+		// decrypt and process the data in it.
+		return proxy.handleQueryDataPacket(ctx, packet, logger)
+
+	default:
+		// Forward all other uninteresting packets to the client without processing.
+		return nil
+	}
+}
+
+func (proxy *PgProxy) handleQueryDataPacket(ctx context.Context, packet *PacketHandler, logger *log.Entry) error {
+	logger.Debugln("Matched data row packet")
+	if err := packet.parseColumns(); err != nil {
+		logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCodingPostgresqlCantParseColumnsDescription).
+			WithError(err).Errorln("Can't parse columns in packet")
+		return err
+	}
+	// If the packet does not contain columns to decrypt, we have nothing more to do here.
+	if packet.columnCount == 0 {
+		return nil
+	}
+
+	logger.Debugf("Process columns data")
+	for i := 0; i < packet.columnCount; i++ {
+		column := packet.Columns[i]
+		if column.IsNull() {
+			continue
+		}
+		newData, err := proxy.onColumnDecryption(ctx, i, column.GetData())
+		if err != nil {
+			logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorGeneral).
+				WithError(err).Errorln("Error on column data processing")
+			return err
+		}
+		column.SetData(newData)
+	}
+	// After we're done processing the columns, update the actual packet data from them.
+	proxy.decryptor.ResetZoneMatch()
+	packet.updateDataFromColumns()
+	return nil
 }

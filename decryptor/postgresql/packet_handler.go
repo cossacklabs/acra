@@ -252,6 +252,11 @@ func (packet *PacketHandler) IsDataRow() bool {
 	return packet.messageType[0] == DataRowMessageType
 }
 
+// IsReadyForQuery returns true if packet has ReadyForQuery type.
+func (packet *PacketHandler) IsReadyForQuery() bool {
+	return packet.messageType[0] == ReadyForQueryMessageType
+}
+
 // IsSimpleQuery return true if packet has SimpleQuery type
 func (packet *PacketHandler) IsSimpleQuery() bool {
 	return packet.messageType[0] == QueryMessageType

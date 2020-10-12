@@ -46,6 +46,13 @@ func (stubSession) PreparedStatementRegistry() base.PreparedStatementRegistry {
 func (stubSession) SetPreparedStatementRegistry(registry base.PreparedStatementRegistry) {
 }
 
+func (stubSession) ProtocolState() interface{} {
+	return nil
+}
+
+func (stubSession) SetProtocolState(state interface{}) {
+}
+
 func TestEncryptorTurnOnOff(t *testing.T) {
 	emptyStore := &tableSchemaStore{true}
 	nonEmptyStore := &tableSchemaStore{false}
