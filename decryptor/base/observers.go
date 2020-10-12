@@ -63,6 +63,7 @@ func NewOnQueryObjectFromQuery(query string) OnQueryObject {
 
 // QueryObserver will be used to notify about coming new query
 type QueryObserver interface {
+	ID() string
 	// OnQuery return true if output query was changed otherwise false
 	OnQuery(data OnQueryObject) (OnQueryObject, bool, error)
 }
@@ -100,19 +101,25 @@ func (manager *ArrayQueryObserverableManager) RegisteredObserversCount() int {
 	return len(manager.subscribers)
 }
 
+// ID returns name of this QueryObserver.
+func (manager *ArrayQueryObserverableManager) ID() string {
+	return "ArrayQueryObserverableManager"
+}
+
 // OnQuery would be called for each added observer to manager
 func (manager *ArrayQueryObserverableManager) OnQuery(query OnQueryObject) (OnQueryObject, bool, error) {
-	manager.logger.Debugf("Handlers: %d; OnQuery for %s", len(manager.subscribers), query.Query())
-	changedOut := false
-	for _, obs := range manager.subscribers {
-		newQuery, changed, err := obs.OnQuery(query)
+	currentQuery := query
+	changedQuery := false
+	for _, observer := range manager.subscribers {
+		newQuery, changed, err := observer.OnQuery(currentQuery)
 		if err != nil {
+			manager.logger.WithField("observer", observer.ID()).WithError(err).Errorln("OnQuery failed")
 			return query, false, err
 		}
 		if changed {
-			changedOut = changed
-			query = newQuery
+			currentQuery = newQuery
+			changedQuery = true
 		}
 	}
-	return query, changedOut, nil
+	return currentQuery, changedQuery, nil
 }
