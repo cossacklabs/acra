@@ -194,7 +194,7 @@ func NewBindPacket(data []byte) (*BindPacket, error) {
 	if err != nil {
 		return nil, err
 	}
-	resultFormats, data, err := readUint16Array(data)
+	resultFormats, _, err := readUint16Array(data)
 	if err != nil {
 		return nil, err
 	}
