@@ -160,12 +160,7 @@ func (p *PgProtocolState) HandleDatabasePacket(packet *PacketHandler) error {
 	// ReadyForQuery starts a new query processing. Forget pending queries.
 	// There is nothing interesting in the packet otherwise.
 	if packet.IsReadyForQuery() {
-		// TODO(ilammy, 2020-10-08): zeroize, not just drop
-		// Query content is sensitive so we should clean it out really good.
-		p.pendingQuery = nil
-		p.pendingParse = nil
-		p.pendingBind = nil
-		p.pendingExecute = nil
+		p.forgetQueryState()
 		p.lastPacketType = OtherPacket
 		return nil
 	}
@@ -173,4 +168,26 @@ func (p *PgProtocolState) HandleDatabasePacket(packet *PacketHandler) error {
 	// We are not interested in other packets, just pass them through.
 	p.lastPacketType = OtherPacket
 	return nil
+}
+
+func (p *PgProtocolState) forgetQueryState() {
+	// Query content is sensitive so we should securely remove it from memory
+	// once we're sure that it's not needed anymore.
+	if p.pendingParse != nil {
+		p.pendingParse.Zeroize()
+	}
+	p.pendingParse = nil
+
+	if p.pendingBind != nil {
+		p.pendingBind.Zeroize()
+	}
+	p.pendingBind = nil
+
+	if p.pendingExecute != nil {
+		p.pendingExecute.Zeroize()
+	}
+	p.pendingExecute = nil
+
+	// OnQuery uses "string" values and those can't be safely zeroized :(
+	p.pendingQuery = nil
 }

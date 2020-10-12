@@ -20,6 +20,8 @@ import (
 	"bytes"
 	"encoding/binary"
 	"errors"
+
+	"github.com/cossacklabs/acra/utils"
 )
 
 var terminator = []byte{0}
@@ -105,6 +107,11 @@ func (packet *ParsePacket) ReplaceQuery(newQuery string) {
 	packet.query = append([]byte(newQuery), 0)
 }
 
+// Zeroize sensitive data in the packet.
+func (packet *ParsePacket) Zeroize() {
+	utils.ZeroizeBytes(packet.query)
+}
+
 // NewParsePacket parse data and return as ParsePacket or error
 func NewParsePacket(data []byte) (*ParsePacket, error) {
 	startIndex := bytes.Index(data, terminator)
@@ -162,6 +169,13 @@ func (p *BindPacket) StatementName() string {
 	return p.statement
 }
 
+// Zeroize sensitive data in the packet.
+func (p *BindPacket) Zeroize() {
+	for _, value := range p.paramValues {
+		utils.ZeroizeBytes(value)
+	}
+}
+
 // NewBindPacket parses Bind packet from data.
 func NewBindPacket(data []byte) (*BindPacket, error) {
 	portal, data, err := readString(data)
@@ -205,6 +219,10 @@ type ExecutePacket struct {
 // An empty name means unnamed portal.
 func (p *ExecutePacket) PortalName() string {
 	return p.portal
+}
+
+// Zeroize sensitive data in the packet.
+func (p *ExecutePacket) Zeroize() {
 }
 
 // NewExecutePacket parses Executre packet from data.
