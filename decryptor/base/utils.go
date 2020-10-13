@@ -92,7 +92,7 @@ func DecryptAcrastruct(data []byte, privateKey *keys.PrivateKey, zone []byte) ([
 	scell := cell.New(symmetricKey, cell.ModeSeal)
 	decrypted, err := scell.Unprotect(innerData[KeyBlockLength+DataLengthSize:], nil, zone)
 	// fill zero symmetric_key
-	utils.FillSlice(byte(0), symmetricKey)
+	utils.ZeroizeSymmetricKey(symmetricKey)
 	if err != nil {
 		return []byte{}, err
 	}

@@ -119,7 +119,7 @@ func (s *KeyStore) encryptAndSignKeyRings(rings []asn1.KeyRing, cryptosuite *cry
 	if err != nil {
 		return nil, err
 	}
-	defer utils.FillSlice(0, keysBytes)
+	defer utils.ZeroizeBytes(keysBytes)
 
 	encryptedKeyBytes, err := cryptosuite.KeyEncryptor.Encrypt(keysBytes, exportKeyContext)
 	if err != nil {
@@ -163,7 +163,7 @@ func (s *KeyStore) decryptAndVerifyKeyRings(ringData []byte, cryptosuite *crypto
 	if err != nil {
 		return nil, err
 	}
-	defer utils.FillSlice(0, decryptedKeyBytes)
+	defer utils.ZeroizeBytes(decryptedKeyBytes)
 
 	keys, err := asn1.UnmarshalEncryptedKeys(decryptedKeyBytes)
 	if err != nil {
@@ -273,8 +273,8 @@ func zeroizeKeyRing(ring *asn1.KeyRing) {
 
 func zeroizeKeyData(data []asn1.KeyData) {
 	for i := range data {
-		utils.FillSlice(0, data[i].PrivateKey)
-		utils.FillSlice(0, data[i].PublicKey)
-		utils.FillSlice(0, data[i].SymmetricKey)
+		utils.ZeroizeBytes(data[i].PrivateKey)
+		utils.ZeroizeBytes(data[i].PublicKey)
+		utils.ZeroizeBytes(data[i].SymmetricKey)
 	}
 }

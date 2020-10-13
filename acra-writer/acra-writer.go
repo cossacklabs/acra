@@ -56,7 +56,7 @@ func CreateAcrastruct(data []byte, acraPublic *keys.PublicKey, context []byte) (
 	if err != nil {
 		return nil, err
 	}
-	utils.FillSlice('0', randomKeyPair.Private.Value)
+	utils.ZeroizePrivateKey(randomKeyPair.Private)
 
 	// create scell for encrypting data
 	scell := cell.New(randomKey, cell.ModeSeal)
@@ -64,7 +64,7 @@ func CreateAcrastruct(data []byte, acraPublic *keys.PublicKey, context []byte) (
 	if err != nil {
 		return nil, err
 	}
-	utils.FillSlice('0', randomKey)
+	utils.ZeroizeSymmetricKey(randomKey)
 
 	// pack acrastruct
 	dateLength := make([]byte, base.DataLengthSize)

@@ -33,11 +33,11 @@ type Cache struct {
 
 // clearCacheValue callback for lru.Cache that called on value remove operation
 func clearCacheValue(key lru.Key, value interface{}) {
-	switch value.(type) {
+	switch value := value.(type) {
 	case []byte:
-		utils.FillSlice(byte(0), value.([]byte))
+		utils.ZeroizeBytes(value)
 	case *keys.PrivateKey:
-		utils.FillSlice(byte(0), value.(*keys.PrivateKey).Value)
+		utils.ZeroizePrivateKey(value)
 	}
 }
 
