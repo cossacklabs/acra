@@ -141,7 +141,9 @@ func FillSlice(value byte, data []byte) {
 
 // ZeroizeBytes wipes a byte slice from memory, filling it with zeros.
 func ZeroizeBytes(data []byte) {
-	FillSlice(0, data)
+	for i := range data {
+		data[i] = 0
+	}
 }
 
 // ZeroizeSymmetricKey wipes a symmetric key from memory, filling it with zero bytes.
