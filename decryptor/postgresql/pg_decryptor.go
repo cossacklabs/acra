@@ -337,12 +337,34 @@ func (proxy *PgProxy) handleQueryPacket(packet *PacketHandler, logger *log.Entry
 
 func (proxy *PgProxy) handleBindPacket(packet *PacketHandler, logger *log.Entry) (bool, error) {
 	bind := proxy.protocolState.PendingBind()
-	logger.WithField("portal", bind.PortalName()).WithField("statement", bind.StatementName()).
-		Debug("Bind packet")
-	// TODO(ilammy, 2020-10-07): process bound query paremeters
-	// Find the prepared statement in the registry, match the parameters to the prepared query,
-	// and let query observers process and modify them, if necessary.
-	// Take care to avoid double encryption of data from the original prepared query.
+	log := logger.WithField("portal", bind.PortalName()).WithField("statement", bind.StatementName())
+	log.Debug("Bind packet")
+	// There must be previously registered prepared statement with requested name. If there isn't
+	// it's likely due to a client error. Print a warning and let the packet through as is.
+	// We can't do anything with it and the database should respond with an error.
+	registry := proxy.session.PreparedStatementRegistry()
+	statement, err := registry.StatementByName(bind.StatementName())
+	if err != nil {
+		log.WithError(err).Error("Failed to handle Bind packet: can't find prepared statement")
+		return false, nil
+	}
+	// Now, repackage the parameters for processing... If that fails, let the packet through too.
+	parameters, err := bind.GetParameters()
+	if err != nil {
+		log.WithError(err).Error("Failed to handle Bind packet: can't extract parameters")
+		return false, nil
+	}
+	// Process parameter values. If we can't -- you guessed it -- leave the packet unchanged.
+	// Note that the new parameter set might have different number of items.
+	newParameters, changed, err := proxy.queryObserverManager.OnBind(statement.Query(), parameters)
+	if err != nil {
+		log.WithError(err).Error("Failed to handle Bind packet")
+		return false, nil
+	}
+	// Finally, if the parameter values have been changed, update the packet.
+	if changed {
+		bind.SetParameters(newParameters)
+	}
 	return false, nil
 }
 
