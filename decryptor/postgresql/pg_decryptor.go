@@ -362,8 +362,14 @@ func (proxy *PgProxy) handleBindPacket(packet *PacketHandler, logger *log.Entry)
 		return false, nil
 	}
 	// Finally, if the parameter values have been changed, update the packet.
+	// If that fails, send the packet unchanged, as usual.
 	if changed {
 		bind.SetParameters(newParameters)
+		err = packet.ReplaceBind(bind)
+		if err != nil {
+			log.WithError(err).Error("Failed to update Bind packet")
+		}
+		return false, nil
 	}
 	return false, nil
 }

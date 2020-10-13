@@ -34,6 +34,9 @@ var ErrTerminatorNotFound = errors.New("invalid string, terminator not found")
 // ErrPacketTruncated signals that the packet is too short and cannot be parsed
 var ErrPacketTruncated = errors.New("invalid packet, too short")
 
+// ErrArrayTooBig signals that an array it too big to fit into a packet.
+var ErrArrayTooBig = errors.New("array too big")
+
 // FetchQueryFromParse return Query value from Parse packet payload (without message type and length of packet)
 //
 // Find first null terminator as end of prepared statement name and find next which terminate query string
@@ -279,6 +282,49 @@ func (p *BindPacket) updateParameterValues(values []base.BoundValue) {
 	}
 }
 
+// MarshalInto packet contents into packet protocol data buffer.
+func (p *BindPacket) MarshalInto(buffer *bytes.Buffer) (int, error) {
+	var total int
+	oldLength := buffer.Len()
+
+	n, err := writeString(buffer, p.portal)
+	if err != nil {
+		buffer.Truncate(oldLength)
+		return 0, err
+	}
+	total += n
+
+	n, err = writeString(buffer, p.statement)
+	if err != nil {
+		buffer.Truncate(oldLength)
+		return 0, err
+	}
+	total += n
+
+	n, err = writeUint16Array(buffer, p.paramFormats)
+	if err != nil {
+		buffer.Truncate(oldLength)
+		return 0, err
+	}
+	total += n
+
+	n, err = writeParameterArray(buffer, p.paramValues)
+	if err != nil {
+		buffer.Truncate(oldLength)
+		return 0, err
+	}
+	total += n
+
+	n, err = writeUint16Array(buffer, p.resultFormats)
+	if err != nil {
+		buffer.Truncate(oldLength)
+		return 0, err
+	}
+	total += n
+
+	return total, nil
+}
+
 // NewBindPacket parses Bind packet from data.
 func NewBindPacket(data []byte) (*BindPacket, error) {
 	portal, data, err := readString(data)
@@ -341,6 +387,9 @@ func NewExecutePacket(data []byte) (*ExecutePacket, error) {
 	return &ExecutePacket{portal, maxRows}, nil
 }
 
+const maxUint16 = 1<<16 - 1
+const maxUint32 = 1<<32 - 1
+
 func readString(data []byte) (string, []byte, error) {
 	// Read null-terminated string, don't include the terminator into value.
 	end := bytes.Index(data, terminator)
@@ -348,6 +397,13 @@ func readString(data []byte) (string, []byte, error) {
 		return "", data, ErrTerminatorNotFound
 	}
 	return string(data[:end]), data[end+1:], nil
+}
+
+func writeString(buf *bytes.Buffer, s string) (int, error) {
+	buf.Grow(len(s) + 1)
+	buf.WriteString(s)
+	buf.WriteByte(0)
+	return len(s) + 1, nil
 }
 
 func readUint16Array(data []byte) ([]uint16, []byte, error) {
@@ -369,6 +425,25 @@ func readUint16Array(data []byte) ([]uint16, []byte, error) {
 	}
 
 	return items, remaining, nil
+}
+
+func writeUint16Array(buf *bytes.Buffer, values []uint16) (int, error) {
+	totalLength := 2 + len(values)*2
+	buf.Grow(totalLength)
+
+	tmp := make([]byte, 2)
+	if len(values) > maxUint16 {
+		return 0, ErrArrayTooBig
+	}
+	binary.BigEndian.PutUint16(tmp, uint16(len(values)))
+	buf.Write(tmp)
+
+	for _, value := range values {
+		binary.BigEndian.PutUint16(tmp, value)
+		buf.Write(tmp)
+	}
+
+	return totalLength, nil
 }
 
 func readParameterArray(data []byte) ([][]byte, []byte, error) {
@@ -403,4 +478,30 @@ func readParameterArray(data []byte) ([][]byte, []byte, error) {
 	}
 
 	return parameters, remaining, nil
+}
+
+func writeParameterArray(buf *bytes.Buffer, parameters [][]byte) (int, error) {
+	totalLength := 2
+	for _, parameter := range parameters {
+		totalLength += 4 + len(parameter)
+	}
+	buf.Grow(totalLength)
+
+	tmp := make([]byte, 4)
+	if len(parameters) > maxUint16 {
+		return 0, ErrArrayTooBig
+	}
+	binary.BigEndian.PutUint16(tmp[0:2], uint16(len(parameters)))
+	buf.Write(tmp[0:2])
+
+	for _, parameter := range parameters {
+		if len(parameter) > maxUint32 {
+			return 0, ErrArrayTooBig
+		}
+		binary.BigEndian.PutUint32(tmp[0:4], uint32(len(parameter)))
+		buf.Write(tmp[0:4])
+		buf.Write(parameter)
+	}
+
+	return totalLength, nil
 }
