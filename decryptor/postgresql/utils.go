@@ -225,11 +225,14 @@ func (p *ExecutePacket) PortalName() string {
 func (p *ExecutePacket) Zeroize() {
 }
 
-// NewExecutePacket parses Executre packet from data.
+// NewExecutePacket parses Execute packet from data.
 func NewExecutePacket(data []byte) (*ExecutePacket, error) {
 	portal, data, err := readString(data)
 	if err != nil {
 		return nil, err
+	}
+	if len(data) < 4 {
+		return nil, ErrPacketTruncated
 	}
 	maxRows := binary.BigEndian.Uint32(data)
 	return &ExecutePacket{portal, maxRows}, nil
