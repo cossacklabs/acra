@@ -21,7 +21,9 @@ import (
 	"encoding/binary"
 	"errors"
 
+	"github.com/cossacklabs/acra/decryptor/base"
 	"github.com/cossacklabs/acra/utils"
+	log "github.com/sirupsen/logrus"
 )
 
 var terminator = []byte{0}
@@ -157,6 +159,14 @@ type BindPacket struct {
 	resultFormats []uint16
 }
 
+// ErrUnknownFormat is returned when Bind packet contains a value format that we don't recognize.
+var ErrUnknownFormat = errors.New("unknown Bind packet format")
+
+const (
+	bindFormatText   = 0
+	bindFormatBinary = 1
+)
+
 // PortalName returns the name of the portal created by this request.
 // An empty name means unnamed portal.
 func (p *BindPacket) PortalName() string {
@@ -173,6 +183,99 @@ func (p *BindPacket) StatementName() string {
 func (p *BindPacket) Zeroize() {
 	for _, value := range p.paramValues {
 		utils.ZeroizeBytes(value)
+	}
+}
+
+// GetParameters extracts statement parameters from Bind packet.
+func (p *BindPacket) GetParameters() ([]base.BoundValue, error) {
+	values := make([]base.BoundValue, len(p.paramValues))
+	for i := range values {
+		encoding, err := p.parameterEncoding(i)
+		if err != nil {
+			return nil, err
+		}
+		values[i] = base.NewBoundValue(p.paramValues[i], encoding)
+	}
+	return values, nil
+}
+
+func (p *BindPacket) parameterEncoding(i int) (base.BoundValueEncoding, error) {
+	// See "Bind" description in https://www.postgresql.org/docs/current/protocol-message-formats.html
+	// If there are no formats then all values use the default: text.
+	if len(p.paramFormats) == 0 {
+		return base.BindText, nil
+	}
+	// If there is only one format then it is used for all values.
+	var format uint16
+	if len(p.paramFormats) == 1 {
+		format = p.paramFormats[0]
+	} else {
+		format = p.paramFormats[i]
+	}
+	// Options currently include text and binary formats.
+	switch format {
+	case bindFormatText:
+		return base.BindText, nil
+	case bindFormatBinary:
+		return base.BindBinary, nil
+	default:
+		log.WithField("index", i).WithField("format", format).Debug("Unknown Bind format")
+		return base.BindText, ErrUnknownFormat
+	}
+}
+
+// SetParameters updates statement parameters from Bind packet.
+func (p *BindPacket) SetParameters(values []base.BoundValue) {
+	p.updateParameterFormats(values)
+	p.updateParameterValues(values)
+}
+
+func (p *BindPacket) updateParameterFormats(values []base.BoundValue) {
+	// See "Bind" description in https://www.postgresql.org/docs/current/protocol-message-formats.html
+	// If there are no parameters then don't bother.
+	if len(values) == 0 {
+		p.paramFormats = nil
+		return
+	}
+	// Check if all parameters have the same format. We can optimize storage if that's true.
+	allSame := true
+	encoding := base.BindText
+	if len(values) > 0 {
+		encoding = values[0].Encoding()
+		for _, value := range values[1:] {
+			if value.Encoding() != encoding {
+				allSame = false
+				break
+			}
+		}
+	}
+	// If all parameters have the same encoding then mention it only once.
+	// Otherwise, we need to explicitly specify formats.
+	if allSame {
+		p.paramFormats = make([]uint16, 1)
+		switch encoding {
+		case base.BindText:
+			p.paramFormats[0] = bindFormatText
+		case base.BindBinary:
+			p.paramFormats[0] = bindFormatBinary
+		}
+	} else {
+		p.paramFormats = make([]uint16, len(values))
+		for i := range p.paramFormats {
+			switch values[i].Encoding() {
+			case base.BindText:
+				p.paramFormats[i] = bindFormatText
+			case base.BindBinary:
+				p.paramFormats[i] = bindFormatBinary
+			}
+		}
+	}
+}
+
+func (p *BindPacket) updateParameterValues(values []base.BoundValue) {
+	p.paramValues = make([][]byte, len(values))
+	for i := range p.paramValues {
+		p.paramValues[i] = values[i].Data()
 	}
 }
 
