@@ -426,6 +426,74 @@ func (encryptor *QueryDataEncryptor) encryptInsertValues(insert *sqlparser.Inser
 
 func (encryptor *QueryDataEncryptor) encryptUpdateValues(update *sqlparser.Update, values []base.BoundValue) ([]base.BoundValue, bool, error) {
 	logrus.Debugln("QueryDataEncryptor.encryptUpdateValues")
+	// Get all tables involved in UPDATE with their aliases.
+	// Column names in the queries might refer to the updated table in a different manner:
+	//
+	//     UPDATE table AS tbl SET tbl.col1 = $1, table.col2 = $2, `tbl2.col3` = $3 FROM tbl2 ...
+	//
+	// and we need to take all of that into account. But we're interested only in the first table.
+	// If the updated table does not have a schema entry, there is nothing to encrypt here.
+	tables := GetTablesWithAliases(update.TableExprs)
+	tableName := tables[0].TableName.Name.String()
+	schema := encryptor.schemaStore.GetTableSchema(tableName)
+	if schema == nil {
+		logrus.WithField("table", tableName).Debugln("No encryption schema")
+		return values, false, nil
+	}
+
+	changed := false
+	newValues := make([]base.BoundValue, len(values))
+	copy(newValues, values)
+
+	// We can only process simple queries of the form
+	//
+	//     UPDATE table SET column1 = $1, column2 = $2, column3 = 'static value' ...
+	//
+	// That is, where placeholders uniquely identify the column and used directly
+	// as new values. We don't support functions, casts, updating tables based o
+	// query results, etc.
+	//
+	// Walk through SET clauses to find out which placeholders stand for which columns.
+	placeholders := make(map[int]string)
+	for _, expr := range update.Exprs {
+		columnName := expr.Name.Name.String()
+		switch value := expr.Expr.(type) {
+		case *sqlparser.SQLVal:
+			if value.Type == sqlparser.PgPlaceholder {
+				// PostgreSQL placeholders look like "$1". Parse the number out of them.
+				idx, err := strconv.Atoi(strings.TrimPrefix(string(value.Val), "$"))
+				if err != nil {
+					logrus.WithField("placeholder", string(value.Val)).WithError(err).Warning("Invalid placeholder, skipping")
+				}
+				// Placeholders use 1-based indexing and "values" (Go slice) are 0-based.
+				placeholders[idx-1] = columnName
+			}
+		}
+	}
+
+	// Now that we know the placeholder mapping,
+	// encrypt the values set into encrypted columns.
+	for i, columnName := range placeholders {
+		if !schema.NeedToEncrypt(columnName) {
+			continue
+		}
+		settings := schema.GetColumnEncryptionSettings(columnName)
+		switch values[i].Encoding() {
+		case base.BindBinary:
+			changed = true
+			encryptedData, err := encryptor.encryptWithColumnSettings(settings, values[i].Data())
+			if err == ErrUpdateLeaveDataUnchanged {
+				return values, false, nil
+			}
+			newValues[i] = base.NewBoundValue(encryptedData, base.BindBinary)
+		default:
+			// Not supported at the moment.
+		}
+	}
+
+	if changed {
+		return newValues, true, nil
+	}
 	return values, false, nil
 }
 
