@@ -19,13 +19,16 @@ package encryptor
 import (
 	"bytes"
 	"errors"
+	"reflect"
+	"strconv"
+	"strings"
+
 	"github.com/cossacklabs/acra/decryptor/base"
 	"github.com/cossacklabs/acra/encryptor/config"
 	"github.com/cossacklabs/acra/logging"
 	"github.com/cossacklabs/acra/sqlparser"
 	"github.com/cossacklabs/acra/utils"
 	"github.com/sirupsen/logrus"
-	"reflect"
 )
 
 type querySelectSetting struct {
@@ -332,6 +335,92 @@ func (encryptor *QueryDataEncryptor) OnBind(statement sqlparser.Statement, value
 
 func (encryptor *QueryDataEncryptor) encryptInsertValues(insert *sqlparser.Insert, values []base.BoundValue) ([]base.BoundValue, bool, error) {
 	logrus.Debugln("QueryDataEncryptor.encryptInsertValues")
+	tableName := insert.Table.Name
+	// Look for the schema of the table where the INSERT happens.
+	// If we don't have a schema then we don't know what to encrypt, so do nothing.
+	schema := encryptor.schemaStore.GetTableSchema(tableName.String())
+	if schema == nil {
+		logrus.WithField("table", tableName).Debugln("No encryption schema")
+		return values, false, nil
+	}
+
+	// Gather column names from the INSERT query. If there are no columns in the query,
+	// expect a complete list of colums to be available in the schema.
+	var columns []string
+	if len(insert.Columns) > 0 {
+		columns = make([]string, len(insert.Columns))
+		for i, column := range insert.Columns {
+			columns[i] = column.String()
+		}
+	} else if cols := schema.Columns(); len(cols) > 0 {
+		columns = cols
+	}
+
+	changed := false
+	newValues := make([]base.BoundValue, len(values))
+	copy(newValues, values)
+
+	// If there is no column schema available, we can't encrypt values.
+	if len(columns) > 0 {
+		// We can also only process simple queries of the form
+		//
+		//     INSERT INTO table(column...) VALUES ($1, $2, 'static value'...);
+		//
+		// That is, where placeholders uniquely identify the column and used directly
+		// as inserted values of a single row. We don't support functions, casts,
+		// inserting multiple values and query results, etc.
+		//
+		// Walk through the query to find out which placeholders stand for which columns.
+		placeholders := make(map[int]string)
+		switch rows := insert.Rows.(type) {
+		case sqlparser.Values:
+			if len(rows) == 1 {
+				for i, value := range rows[0] {
+					switch value := value.(type) {
+					case *sqlparser.SQLVal:
+						if value.Type == sqlparser.PgPlaceholder {
+							// PostgreSQL placeholders look like "$1". Parse the number out of them.
+							idx, err := strconv.Atoi(strings.TrimPrefix(string(value.Val), "$"))
+							if err != nil {
+								logrus.WithField("placeholder", string(value.Val)).WithError(err).Warning("Invalid placeholder, skipping")
+							}
+							// Placeholders use 1-based indexing and "values" (Go slice) are 0-based.
+							placeholders[idx-1] = columns[i]
+						}
+					}
+				}
+			}
+		}
+
+		// Now that we know the placeholder mapping,
+		// encrypt the values inserted into encrypted columns.
+		for i, columnName := range placeholders {
+			if !schema.NeedToEncrypt(columnName) {
+				continue
+			}
+			settings := schema.GetColumnEncryptionSettings(columnName)
+			switch values[i].Encoding() {
+			case base.BindBinary:
+				changed = true
+				encryptedData, err := encryptor.encryptWithColumnSettings(settings, values[i].Data())
+				if err == ErrUpdateLeaveDataUnchanged {
+					return values, false, nil
+				}
+				newValues[i] = base.NewBoundValue(encryptedData, base.BindBinary)
+			default:
+				// Not supported at the moment.
+			}
+		}
+	}
+
+	// TODO(ilammy, 2020-10-13): handle ON DUPLICATE KEY UPDATE clauses
+	// These clauses are handled for textual queries. It would be nice to encrypt
+	// any prepared statement parameters that are used there as well.
+	// See "encryptInsertQuery" for reference.
+
+	if changed {
+		return newValues, true, nil
+	}
 	return values, false, nil
 }
 
