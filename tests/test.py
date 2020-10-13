@@ -4713,6 +4713,55 @@ class TestTransparentEncryptionWithZone(TestTransparentEncryption):
         self.checkZoneIdEncryption(**context)
 
 
+class TestPostgresqlBinaryPreparedTransparentEncryption(TestTransparentEncryption):
+    """Testing transparent encryption of prepared statements in PostgreSQL."""
+
+    def checkSkip(self):
+        if not TEST_POSTGRESQL:
+            self.skipTest("test only PostgreSQL")
+
+    def setUp(self):
+        super().setUp()
+        # Make sure to use AcraConnector with "keypair2".
+        self.executor = AsyncpgExecutor(
+            ConnectionArgs(host=get_db_host(), port=self.CONNECTOR_PORT_2,
+                           user=DB_USER, password=DB_USER_PASSWORD,
+                           dbname=DB_NAME,
+                           ssl_ca=TEST_TLS_CA,
+                           ssl_key=TEST_TLS_CLIENT_KEY,
+                           ssl_cert=TEST_TLS_CLIENT_CERT)
+        )
+
+    # It does not seem that SQLAlchemy can compile the query the way
+    # asyncpg wants it (that is, using PostgreSQL syntax). Therefore,
+    # we have to cook the prepared queries ourselves.
+
+    def insertRow(self, context):
+        table = self.encryptor_table.name
+        # Skip the "nullable" column, it's always automatically filled with NULL
+        columns = [column.name for column in self.encryptor_table.columns
+                   if column.name != 'nullable']
+        placholders = ['${}'.format(i+1) for i in range(len(columns))]
+        query = 'INSERT INTO {}({}) VALUES ({})'.format(
+            table,
+            ', '.join(columns),
+            ', '.join(placholders),
+        )
+        parameters = [context[column] for column in columns]
+        self.executor.execute_prepared_statement(query, parameters)
+
+    def update_data(self, context):
+        table = self.encryptor_table.name
+        # Make sure that "id" column goes first. We need that in query.
+        # Also, filter out "zone" which is included into context, but is not a column.
+        columns = [column for column in context if column not in ['id', 'zone']]
+        clauses = ['{} = ${}'.format(column, i+2) for i, column in enumerate(columns)]
+        query = 'UPDATE {} SET {} WHERE id = $1'.format(table, ', '.join(clauses))
+        parameters = [context[column] for column in columns]
+        parameters.insert(0, context['id'])
+        self.executor.execute_prepared_statement(query, parameters)
+
+
 class TestSetupCustomApiPort(BaseTestCase):
     def setUp(self):
         pass
