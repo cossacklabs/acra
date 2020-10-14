@@ -25,6 +25,9 @@ import (
 type PgProtocolState struct {
 	lastPacketType PacketType
 	pendingQuery   base.OnQueryObject
+	pendingParse   *ParsePacket
+	pendingBind    *BindPacket
+	pendingExecute *ExecutePacket
 }
 
 // PacketType describes how to handle a message packet.
@@ -32,7 +35,11 @@ type PacketType int
 
 // Possible PacketType values.
 const (
-	QueryPacket PacketType = iota
+	SimpleQueryPacket PacketType = iota
+	ParseStatementPacket
+	ParseCompletePacket
+	BindStatementPacket
+	BindCompletePacket
 	DataPacket
 	OtherPacket
 )
@@ -52,6 +59,21 @@ func (p *PgProtocolState) PendingQuery() base.OnQueryObject {
 	return p.pendingQuery
 }
 
+// PendingParse returns the pending prepared statement, if any.
+func (p *PgProtocolState) PendingParse() *ParsePacket {
+	return p.pendingParse
+}
+
+// PendingBind returns the pending query parameters, if any.
+func (p *PgProtocolState) PendingBind() *BindPacket {
+	return p.pendingBind
+}
+
+// PendingExecute returns the pending query parameters, if any.
+func (p *PgProtocolState) PendingExecute() *ExecutePacket {
+	return p.pendingExecute
+}
+
 // HandleClientPacket observes a packet from client to the database,
 // extracts query information from it, and anticipates future database responses.
 func (p *PgProtocolState) HandleClientPacket(packet *PacketHandler) error {
@@ -65,22 +87,50 @@ func (p *PgProtocolState) HandleClientPacket(packet *PacketHandler) error {
 				WithError(err).Errorln("Can't fetch query string from Query packet")
 			return err
 		}
-		p.lastPacketType = QueryPacket
+		p.lastPacketType = SimpleQueryPacket
 		p.pendingQuery = base.NewOnQueryObjectFromQuery(query)
 		return nil
 	}
 
 	// Parse packets initiate extended query protocol.
 	if packet.IsParse() {
-		query, err := packet.GetParseQuery()
+		parsePacket, err := packet.GetParseData()
 		if err != nil {
 			logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCodingPostgresqlCantExtractQueryString).
 				WithError(err).Errorln("Can't fetch query string from Parse packet")
 			return err
 		}
-		p.lastPacketType = QueryPacket
-		p.pendingQuery = base.NewOnQueryObjectFromQuery(query)
+		p.lastPacketType = ParseStatementPacket
+		p.pendingQuery = base.NewOnQueryObjectFromQuery(parsePacket.QueryString())
+		p.pendingParse = parsePacket
 		return nil
+	}
+
+	// Bind packets carry bound parameters for extended queries.
+	if packet.IsBind() {
+		bindPacket, err := packet.GetBindData()
+		if err != nil {
+			logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCodingPostgresqlCantExtractQueryString).
+				WithError(err).Errorln("Can't fetch query parameters from Bind packet")
+			return err
+		}
+		p.lastPacketType = BindStatementPacket
+		p.pendingBind = bindPacket
+		return nil
+	}
+
+	// Execute packets initiate data retrieval from portals.
+	if packet.IsExecute() {
+		executePacket, err := packet.GetExecuteData()
+		if err != nil {
+			logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCodingPostgresqlCantExtractQueryString).
+				WithError(err).Errorln("Can't fetch executed query from Execute packet")
+			return err
+		}
+		// There is nothing in the packet to process when we receive it,
+		// but we'd like to keep it around while the data responses are flowing.
+		p.lastPacketType = OtherPacket
+		p.pendingExecute = executePacket
 	}
 
 	// We are not interested in other packets, just pass them through.
@@ -97,10 +147,20 @@ func (p *PgProtocolState) HandleDatabasePacket(packet *PacketHandler) error {
 		return nil
 	}
 
+	if packet.IsParseComplete() {
+		p.lastPacketType = ParseCompletePacket
+		return nil
+	}
+
+	if packet.IsBindComplete() {
+		p.lastPacketType = BindCompletePacket
+		return nil
+	}
+
 	// ReadyForQuery starts a new query processing. Forget pending queries.
 	// There is nothing interesting in the packet otherwise.
 	if packet.IsReadyForQuery() {
-		p.pendingQuery = nil
+		p.forgetQueryState()
 		p.lastPacketType = OtherPacket
 		return nil
 	}
@@ -108,4 +168,26 @@ func (p *PgProtocolState) HandleDatabasePacket(packet *PacketHandler) error {
 	// We are not interested in other packets, just pass them through.
 	p.lastPacketType = OtherPacket
 	return nil
+}
+
+func (p *PgProtocolState) forgetQueryState() {
+	// Query content is sensitive so we should securely remove it from memory
+	// once we're sure that it's not needed anymore.
+	if p.pendingParse != nil {
+		p.pendingParse.Zeroize()
+	}
+	p.pendingParse = nil
+
+	if p.pendingBind != nil {
+		p.pendingBind.Zeroize()
+	}
+	p.pendingBind = nil
+
+	if p.pendingExecute != nil {
+		p.pendingExecute.Zeroize()
+	}
+	p.pendingExecute = nil
+
+	// OnQuery uses "string" values and those can't be safely zeroized :(
+	p.pendingQuery = nil
 }

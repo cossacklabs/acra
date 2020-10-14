@@ -33,6 +33,7 @@ import (
 	"github.com/cossacklabs/acra/decryptor/base"
 	"github.com/cossacklabs/acra/logging"
 	"github.com/cossacklabs/acra/network"
+	"github.com/cossacklabs/acra/sqlparser"
 	"github.com/cossacklabs/acra/utils"
 	"github.com/prometheus/client_golang/prometheus"
 	log "github.com/sirupsen/logrus"
@@ -90,6 +91,10 @@ const (
 	DataRowMessageType       byte = 'D'
 	QueryMessageType         byte = 'Q'
 	ParseMessageType         byte = 'P'
+	BindMessageType          byte = 'B'
+	ExecuteMessageType       byte = 'E'
+	ParseCompleteMessageType byte = '1'
+	BindCompleteMessageType  byte = '2'
 	ReadyForQueryMessageType byte = 'Z'
 	TLSTimeout                    = time.Second * 2
 )
@@ -274,10 +279,15 @@ func (proxy *PgProxy) handleClientPacket(packet *PacketHandler, logger *log.Entr
 		return false, err
 	}
 	switch proxy.protocolState.LastPacketType() {
-	case QueryPacket:
+	case SimpleQueryPacket, ParseStatementPacket:
 		// If that's some sort of a packet with a query inside it,
 		// process inline data if necessary and remember the query to handle future response.
 		return proxy.handleQueryPacket(packet, logger)
+
+	case BindStatementPacket:
+		// Bound query parameters may contain inline data that we need to process.
+		// Also, remember the requested portal name for future data queries.
+		return proxy.handleBindPacket(packet, logger)
 
 	default:
 		// Forward all other uninteresting packets to the database without processing.
@@ -296,7 +306,12 @@ func (proxy *PgProxy) handleQueryPacket(packet *PacketHandler, logger *log.Entry
 			logger.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCensorQueryParseError).
 				Debugf("Parsing error on query: %s", queryWithHiddenValues)
 		} else {
-			logger.WithField("sql", queryWithHiddenValues).Debugln("New query")
+			log := logger.WithField("sql", queryWithHiddenValues)
+			if proxy.protocolState.LastPacketType() == ParseStatementPacket {
+				preparedStatement := proxy.protocolState.PendingParse()
+				log = log.WithField("prepared_name", preparedStatement.Name())
+			}
+			log.Debugln("New query")
 		}
 	}
 
@@ -317,6 +332,17 @@ func (proxy *PgProxy) handleQueryPacket(packet *PacketHandler, logger *log.Entry
 	if changed {
 		packet.ReplaceQuery(newQuery.Query())
 	}
+	return false, nil
+}
+
+func (proxy *PgProxy) handleBindPacket(packet *PacketHandler, logger *log.Entry) (bool, error) {
+	bind := proxy.protocolState.PendingBind()
+	logger.WithField("portal", bind.PortalName()).WithField("statement", bind.StatementName()).
+		Debug("Bind packet")
+	// TODO(ilammy, 2020-10-07): process bound query paremeters
+	// Find the prepared statement in the registry, match the parameters to the prepared query,
+	// and let query observers process and modify them, if necessary.
+	// Take care to avoid double encryption of data from the original prepared query.
 	return false, nil
 }
 
@@ -592,6 +618,16 @@ func (proxy *PgProxy) handleDatabasePacket(ctx context.Context, packet *PacketHa
 		// decrypt and process the data in it.
 		return proxy.handleQueryDataPacket(ctx, packet, logger)
 
+	case ParseCompletePacket:
+		// Previously requested prepared statement has been confirmed by the database, register it.
+		preparedStatement := proxy.protocolState.PendingParse()
+		return proxy.registerPreparedStatement(preparedStatement, logger)
+
+	case BindCompletePacket:
+		// Previously requested cursor has been confirmed by the database, register it.
+		bindPacket := proxy.protocolState.PendingBind()
+		return proxy.registerCursor(bindPacket, logger)
+
 	default:
 		// Forward all other uninteresting packets to the client without processing.
 		return nil
@@ -627,5 +663,51 @@ func (proxy *PgProxy) handleQueryDataPacket(ctx context.Context, packet *PacketH
 	// After we're done processing the columns, update the actual packet data from them.
 	proxy.decryptor.ResetZoneMatch()
 	packet.updateDataFromColumns()
+	return nil
+}
+
+func (proxy *PgProxy) registerPreparedStatement(preparedStatement *ParsePacket, logger *log.Entry) error {
+	name := preparedStatement.Name()
+	queryText := preparedStatement.QueryString()
+	// This should be always successful since the database filters invalid queries.
+	query, err := sqlparser.Parse(queryText)
+	if err != nil {
+		logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorGeneral).
+			WithError(err).Errorln("Can't parse SQL from Parse packet")
+		return err
+	}
+	statement := NewPreparedStatement(name, queryText, query)
+	registry := proxy.session.PreparedStatementRegistry()
+	err = registry.AddStatement(statement)
+	if err != nil {
+		logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorGeneral).
+			WithError(err).Errorln("Failed to add prepared statement")
+		return err
+	}
+	logger.WithField("prepared_name", name).Debug("Registered new prepared statement")
+	return nil
+}
+
+func (proxy *PgProxy) registerCursor(bindPacket *BindPacket, logger *log.Entry) error {
+	registry := proxy.session.PreparedStatementRegistry()
+	// There should be a statement with the specified name, the database confirmed it.
+	statementName := bindPacket.StatementName()
+	preparedStatement, err := registry.StatementByName(statementName)
+	if err != nil {
+		logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorGeneral).
+			WithError(err).Errorln("Failed to add cursor")
+		return err
+	}
+	// Cursors are called portals in PostgreSQL.
+	cursorName := bindPacket.PortalName()
+	cursor := NewPortal(cursorName, preparedStatement)
+	err = registry.AddCursor(cursor)
+	if err != nil {
+		logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorGeneral).
+			WithError(err).Errorln("Failed to add cursor")
+		return err
+	}
+	logger.WithField("cursor_name", cursorName).WithField("prepared_name", statementName).
+		Debug("Registered new cursor")
 	return nil
 }

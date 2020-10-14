@@ -242,6 +242,12 @@ func (packet *PacketHandler) Reset() {
 	packet.messageType[0] = 0
 }
 
+func (packet *PacketHandler) descriptionBufferCopy() []byte {
+	buffer := make([]byte, packet.descriptionBuf.Len())
+	copy(buffer, packet.descriptionBuf.Bytes())
+	return buffer
+}
+
 func (packet *PacketHandler) readMessageType() error {
 	n, err := io.ReadFull(packet.reader, packet.messageType[:])
 	return base.CheckReadWrite(n, 1, err)
@@ -267,15 +273,60 @@ func (packet *PacketHandler) IsParse() bool {
 	return packet.messageType[0] == ParseMessageType
 }
 
-//GetParseQuery return query string from Parse packet or error
-func (packet *PacketHandler) GetParseQuery() (string, error) {
-	packet.logger.Debugln("GetParseQuery")
-	parse, err := NewParsePacket(packet.descriptionBuf.Bytes())
+// IsParseComplete return true if packet has ParseComplete type
+func (packet *PacketHandler) IsParseComplete() bool {
+	return packet.messageType[0] == ParseCompleteMessageType
+}
+
+// IsBind return true if packet has Bind type
+func (packet *PacketHandler) IsBind() bool {
+	return packet.messageType[0] == BindMessageType
+}
+
+// IsBindComplete return true if packet has BindComplete type
+func (packet *PacketHandler) IsBindComplete() bool {
+	return packet.messageType[0] == BindCompleteMessageType
+}
+
+// IsExecute return true if packet has Execute type
+func (packet *PacketHandler) IsExecute() bool {
+	return packet.messageType[0] == ExecuteMessageType
+}
+
+// GetParseData returns parsed Parse packet data.
+// Use this only if IsParse() is true.
+func (packet *PacketHandler) GetParseData() (*ParsePacket, error) {
+	packet.logger.Debugln("GetParseData")
+	parse, err := NewParsePacket(packet.descriptionBufferCopy())
 	if err != nil {
-		packet.logger.Debugln("GetParseQuery error")
-		return "", err
+		packet.logger.Debugln("Failed to parse Parse packet")
+		return nil, err
 	}
-	return parse.QueryString(), nil
+	return parse, nil
+}
+
+// GetBindData returns parsed Bind packet data.
+// Use this only if IsBind() is true.
+func (packet *PacketHandler) GetBindData() (*BindPacket, error) {
+	packet.logger.Debugln("GetBindData")
+	bind, err := NewBindPacket(packet.descriptionBufferCopy())
+	if err != nil {
+		packet.logger.Debugln("Failed to parse Bind packet")
+		return nil, err
+	}
+	return bind, nil
+}
+
+// GetExecuteData returns parsed Execute packet data.
+// Use this only if IsExecute() is true.
+func (packet *PacketHandler) GetExecuteData() (*ExecutePacket, error) {
+	packet.logger.Debugln("GetExecuteData")
+	execute, err := NewExecutePacket(packet.descriptionBufferCopy())
+	if err != nil {
+		packet.logger.Debugln("Failed to parse Bind packet")
+		return nil, err
+	}
+	return execute, nil
 }
 
 // ReplaceQuery query in packet with new query and update packet length
