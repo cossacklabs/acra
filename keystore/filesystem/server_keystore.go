@@ -338,7 +338,7 @@ func (store *KeyStore) generateZoneKey(id []byte) ([]byte, []byte, error) {
 	if err != nil {
 		return nil, nil, nil
 	}
-	utils.FillSlice(byte(0), keypair.Private.Value)
+	utils.ZeroizePrivateKey(keypair.Private)
 	// cache key
 	store.cache.Add(GetZoneKeyFilename(id), encryptedKey)
 	return id, keypair.Public.Value, nil

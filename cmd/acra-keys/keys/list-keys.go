@@ -25,7 +25,6 @@ import (
 
 	"github.com/cossacklabs/acra/cmd"
 	"github.com/cossacklabs/acra/keystore"
-	"github.com/cossacklabs/acra/utils"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -139,7 +138,9 @@ func printKeysTable(keys []keystore.KeyDescription, writer io.Writer) error {
 	fmt.Fprintf(writer, "%-*s | %-*s | %s\n", maxPurposeLen, purposeHeader, maxExtraIDLen, extraIDHeader, idHeader)
 
 	separator := make([]byte, maxPurposeLen+maxExtraIDLen+maxKeyIDLen+6)
-	utils.FillSlice(byte('-'), separator)
+	for i := range separator {
+		separator[i] = '-'
+	}
 	separator[maxPurposeLen+1] = byte('+')
 	separator[maxPurposeLen+maxExtraIDLen+4] = byte('+')
 	fmt.Fprintln(writer, string(separator))

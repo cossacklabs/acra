@@ -122,7 +122,7 @@ func (s *ServerKeyStore) GenerateZoneKey() ([]byte, []byte, error) {
 		log.WithError(err).Debug("failed to generate storage key pair for zone")
 		return nil, nil, err
 	}
-	utils.FillSlice(0, pair.Private.Value)
+	utils.ZeroizePrivateKey(pair.Private)
 	return zoneID, pair.Public.Value, nil
 }
 
@@ -156,6 +156,6 @@ func (s *ServerKeyStore) RotateZoneKey(zoneID []byte) ([]byte, error) {
 		log.WithError(err).Debug("failed to rotate storage key pair for zone")
 		return nil, err
 	}
-	utils.FillSlice(0, pair.Private.Value)
+	utils.ZeroizePrivateKey(pair.Private)
 	return pair.Public.Value, nil
 }

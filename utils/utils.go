@@ -132,13 +132,6 @@ func LoadPrivateKey(path string) (*keys.PrivateKey, error) {
 	return &keys.PrivateKey{Value: key}, nil
 }
 
-// FillSlice fills bytes with value, used for filling bytes with zeros
-func FillSlice(value byte, data []byte) {
-	for i := range data {
-		data[i] = value
-	}
-}
-
 // ZeroizeBytes wipes a byte slice from memory, filling it with zeros.
 func ZeroizeBytes(data []byte) {
 	for i := range data {

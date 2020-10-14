@@ -65,7 +65,7 @@ func (rotator *keyRotator) rotateAcrastructWithZone(zoneID, acrastruct []byte) (
 		logger.WithField("acrastruct", hex.EncodeToString(acrastruct)).WithError(err).Errorln("Can't decrypt AcraStruct")
 		return nil, err
 	}
-	defer utils.FillSlice(0, decrypted)
+	defer utils.ZeroizeBytes(decrypted)
 	publicKey, err := rotator.getRotatedPublicKey(zoneID)
 	if err != nil {
 		logger.WithField("acrastruct", hex.EncodeToString(acrastruct)).WithError(err).Errorln("Can't load public key")
@@ -101,7 +101,7 @@ func (rotator *keyRotator) rotateAcrastructWithClientID(clientID, acrastruct []b
 		logger.WithField("acrastruct", hex.EncodeToString(acrastruct)).WithError(err).Errorln("Can't decrypt AcraStruct")
 		return nil, err
 	}
-	defer utils.FillSlice(0, decrypted)
+	defer utils.ZeroizeBytes(decrypted)
 	publicKey, err := rotator.getRotatedPublicKey(clientID)
 	if err != nil {
 		logger.WithField("acrastruct", hex.EncodeToString(acrastruct)).WithError(err).Errorln("Can't load public key")
@@ -136,7 +136,7 @@ func (rotator *keyRotator) saveRotatedKeys() error {
 
 func (rotator *keyRotator) clearKeys() {
 	for _, keypair := range rotator.newKeypairs {
-		utils.FillSlice(0, keypair.Private.Value)
+		utils.ZeroizePrivateKey(keypair.Private)
 	}
 }
 

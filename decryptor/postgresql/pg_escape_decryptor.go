@@ -229,8 +229,7 @@ func (decryptor *PgEscapeDecryptor) ReadData(symmetricKey, zoneID []byte, reader
 
 	scell := cell.New(symmetricKey, cell.ModeSeal)
 	decrypted, err := scell.Unprotect(data, nil, zoneID)
-	// fill zero symmetric_key
-	utils.FillSlice(byte(0), symmetricKey[:])
+	utils.ZeroizeSymmetricKey(symmetricKey)
 	if err != nil {
 		return append(hexLengthBuf, octData...), base.ErrFakeAcraStruct
 	}
