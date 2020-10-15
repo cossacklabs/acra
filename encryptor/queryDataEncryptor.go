@@ -319,8 +319,8 @@ func (encryptor *QueryDataEncryptor) OnQuery(query base.OnQueryObject) (base.OnQ
 // ErrInvalidPlaceholder is returned when Acra cannot parse SQL placeholder expression.
 var ErrInvalidPlaceholder = errors.New("invalid placeholder value")
 
-// ErrInconsistentPlacholder is returned when a placeholder refers to multiple different columns.
-var ErrInconsistentPlacholder = errors.New("inconsistent placeholder usage")
+// ErrInconsistentPlaceholder is returned when a placeholder refers to multiple different columns.
+var ErrInconsistentPlaceholder = errors.New("inconsistent placeholder usage")
 
 // OnBind process bound values for prepared statement based on TableSchemaStore.
 func (encryptor *QueryDataEncryptor) OnBind(statement sqlparser.Statement, values []base.BoundValue) ([]base.BoundValue, bool, error) {
@@ -477,7 +477,7 @@ func (encryptor *QueryDataEncryptor) updatePlaceholderMap(values []base.BoundVal
 		if exists && name != columnName {
 			logrus.WithFields(logrus.Fields{"placeholder": text, "old_column": name, "new_column": columnName}).
 				Warning("Inconsistent placeholder mapping")
-			return ErrInconsistentPlacholder
+			return ErrInconsistentPlaceholder
 		}
 		placeholders[index] = columnName
 	default:
