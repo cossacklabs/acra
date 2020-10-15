@@ -193,7 +193,7 @@ func (p *BindPacket) Zeroize() {
 func (p *BindPacket) GetParameters() ([]base.BoundValue, error) {
 	values := make([]base.BoundValue, len(p.paramValues))
 	for i := range values {
-		encoding, err := p.parameterEncoding(i)
+		encoding, err := p.parameterEncodingByIndex(i)
 		if err != nil {
 			return nil, err
 		}
@@ -202,7 +202,7 @@ func (p *BindPacket) GetParameters() ([]base.BoundValue, error) {
 	return values, nil
 }
 
-func (p *BindPacket) parameterEncoding(i int) (base.BoundValueEncoding, error) {
+func (p *BindPacket) parameterEncodingByIndex(i int) (base.BoundValueEncoding, error) {
 	// See "Bind" description in https://www.postgresql.org/docs/current/protocol-message-formats.html
 	// If there are no formats then all values use the default: text.
 	if len(p.paramFormats) == 0 {
