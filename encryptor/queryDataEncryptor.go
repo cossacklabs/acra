@@ -514,7 +514,9 @@ func (encryptor *QueryDataEncryptor) encryptValuesWithPlaceholders(values []base
 			encryptedData, err := encryptor.encryptWithColumnSettings(settings, data)
 			// If the data turns out to be already encrypted then it's fatal. Otherwise, bail out.
 			if err != nil && err != ErrUpdateLeaveDataUnchanged {
-				return oldValues, false, nil
+				logrus.WithError(err).WithFields(logrus.Fields{"index": valueIndex, "column": columnName}).
+					Debug("Failed to encrypt column")
+				return oldValues, false, err
 			}
 			values[valueIndex] = base.NewBoundValue(encryptedData, base.BindBinary)
 
