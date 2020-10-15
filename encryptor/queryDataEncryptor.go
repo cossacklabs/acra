@@ -374,14 +374,13 @@ func (encryptor *QueryDataEncryptor) encryptInsertValues(insert *sqlparser.Inser
 	//     INSERT INTO table(column...) VALUES ($1, $2, 'static value'...);
 	//
 	// That is, where placeholders uniquely identify the column and used directly
-	// as inserted values of a single row. We don't support functions, casts,
-	// inserting multiple values and query results, etc.
+	// as inserted values. We don't support functions, casts, inserting query results, etc.
 	//
 	// Walk through the query to find out which placeholders stand for which columns.
 	switch rows := insert.Rows.(type) {
 	case sqlparser.Values:
-		if len(rows) == 1 {
-			for i, value := range rows[0] {
+		for _, row := range rows {
+			for i, value := range row {
 				switch value := value.(type) {
 				case *sqlparser.SQLVal:
 					err := encryptor.updatePlaceholderMap(values, placeholders, value, columns[i])
