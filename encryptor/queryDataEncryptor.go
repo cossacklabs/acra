@@ -472,16 +472,24 @@ func (encryptor *QueryDataEncryptor) encryptValuesWithPlaceholders(values []base
 		changed = true
 
 		settings := schema.GetColumnEncryptionSettings(columnName)
-		switch values[valueIndex].Encoding() {
+		encoding := values[valueIndex].Encoding()
+		data := values[valueIndex].Data()
+		switch encoding {
 		case base.BindBinary:
-			encryptedData, err := encryptor.encryptWithColumnSettings(settings, values[valueIndex].Data())
+			encryptedData, err := encryptor.encryptWithColumnSettings(settings, data)
 			// If the data turns out to be already encrypted then it's fatal. Otherwise, bail out.
 			if err != nil && err != ErrUpdateLeaveDataUnchanged {
 				return oldValues, false, nil
 			}
 			values[valueIndex] = base.NewBoundValue(encryptedData, base.BindBinary)
+
+		// TODO(ilammy, 2020-10-14): implement support for base.BindText format
+		// We should parse and decode the data, encrypt it, and then either force binary format,
+		// or reencode the data back into text.
+
 		default:
-			// Not supported at the moment.
+			logrus.WithFields(logrus.Fields{"encoding": encoding, "index": valueIndex, "column": columnName}).
+				Warning("Parameter encoding not supported, skipping")
 		}
 	}
 
