@@ -229,11 +229,6 @@ func (p *BindPacket) parameterEncodingByIndex(i int) (base.BoundValueEncoding, e
 
 // SetParameters updates statement parameters from Bind packet.
 func (p *BindPacket) SetParameters(values []base.BoundValue) {
-	p.updateParameterFormats(values)
-	p.updateParameterValues(values)
-}
-
-func (p *BindPacket) updateParameterFormats(values []base.BoundValue) {
 	// See "Bind" description in https://www.postgresql.org/docs/current/protocol-message-formats.html
 	// If there are no parameters then don't bother.
 	if len(values) == 0 {
@@ -273,10 +268,10 @@ func (p *BindPacket) updateParameterFormats(values []base.BoundValue) {
 			}
 		}
 	}
-}
-
-func (p *BindPacket) updateParameterValues(values []base.BoundValue) {
-	p.paramValues = make([][]byte, len(values))
+	// Finally, replace parameter values. Reuse the top-level array if we can.
+	if len(values) != len(p.paramValues) {
+		p.paramValues = make([][]byte, len(values))
+	}
 	for i := range p.paramValues {
 		p.paramValues[i] = values[i].Data()
 	}
