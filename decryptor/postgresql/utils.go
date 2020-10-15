@@ -165,6 +165,9 @@ type BindPacket struct {
 // ErrUnknownFormat is returned when Bind packet contains a value format that we don't recognize.
 var ErrUnknownFormat = errors.New("unknown Bind packet format")
 
+// ErrNotEnougFormats is returned when Bind packet is malformed and does not contain enough formats for values.
+var ErrNotEnougFormats = errors.New("format index out of range")
+
 const (
 	bindFormatText   = 0
 	bindFormatBinary = 1
@@ -212,8 +215,11 @@ func (p *BindPacket) parameterEncodingByIndex(i int) (base.BoundValueEncoding, e
 	var format uint16
 	if len(p.paramFormats) == 1 {
 		format = p.paramFormats[0]
-	} else {
+	} else if i < len(p.paramFormats) {
 		format = p.paramFormats[i]
+	} else {
+		log.WithField("index", i).WithField("max", len(p.paramFormats)).Debug("Bind format array too short")
+		return base.BindText, ErrNotEnougFormats
 	}
 	// Options currently include text and binary formats.
 	switch format {
