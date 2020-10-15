@@ -316,8 +316,8 @@ func (encryptor *QueryDataEncryptor) OnQuery(query base.OnQueryObject) (base.OnQ
 	return query, false, nil
 }
 
-// ErrInvalidPlacholder is returned when Acra cannot parse SQL placeholder expression.
-var ErrInvalidPlacholder = errors.New("invalid placeholder value")
+// ErrInvalidPlaceholder is returned when Acra cannot parse SQL placeholder expression.
+var ErrInvalidPlaceholder = errors.New("invalid placeholder value")
 
 // ErrInconsistentPlacholder is returned when a placeholder refers to multiple different columns.
 var ErrInconsistentPlacholder = errors.New("inconsistent placeholder usage")
@@ -468,7 +468,7 @@ func (encryptor *QueryDataEncryptor) updatePlaceholderMap(values []base.BoundVal
 		if index >= len(values) {
 			logrus.WithFields(logrus.Fields{"placeholder": text, "index": index, "values": len(values)}).
 				Warning("Invalid placeholder index")
-			return ErrInvalidPlacholder
+			return ErrInvalidPlaceholder
 		}
 		// Placeholders must map to columns uniquely.
 		// If there is already a column for given placholder and it's not the same,
