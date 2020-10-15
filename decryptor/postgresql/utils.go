@@ -20,6 +20,7 @@ import (
 	"bytes"
 	"encoding/binary"
 	"errors"
+	"math"
 
 	"github.com/cossacklabs/acra/decryptor/base"
 	"github.com/cossacklabs/acra/utils"
@@ -388,9 +389,6 @@ func NewExecutePacket(data []byte) (*ExecutePacket, error) {
 	return &ExecutePacket{portal, maxRows}, nil
 }
 
-const maxUint16 = 1<<16 - 1
-const maxUint32 = 1<<32 - 1
-
 func readString(data []byte) (string, []byte, error) {
 	// Read null-terminated string, don't include the terminator into value.
 	end := bytes.Index(data, terminator)
@@ -433,7 +431,7 @@ func writeUint16Array(buf *bytes.Buffer, values []uint16) (int, error) {
 	buf.Grow(totalLength)
 
 	tmp := make([]byte, 2)
-	if len(values) > maxUint16 {
+	if len(values) > math.MaxUint16 {
 		return 0, ErrArrayTooBig
 	}
 	binary.BigEndian.PutUint16(tmp, uint16(len(values)))
@@ -489,14 +487,14 @@ func writeParameterArray(buf *bytes.Buffer, parameters [][]byte) (int, error) {
 	buf.Grow(totalLength)
 
 	tmp := make([]byte, 4)
-	if len(parameters) > maxUint16 {
+	if len(parameters) > math.MaxUint16 {
 		return 0, ErrArrayTooBig
 	}
 	binary.BigEndian.PutUint16(tmp[0:2], uint16(len(parameters)))
 	buf.Write(tmp[0:2])
 
 	for _, parameter := range parameters {
-		if len(parameter) > maxUint32 {
+		if len(parameter) > math.MaxUint32 {
 			return 0, ErrArrayTooBig
 		}
 		binary.BigEndian.PutUint32(tmp[0:4], uint32(len(parameter)))
