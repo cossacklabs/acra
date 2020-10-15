@@ -316,6 +316,12 @@ func (encryptor *QueryDataEncryptor) OnQuery(query base.OnQueryObject) (base.OnQ
 	return query, false, nil
 }
 
+// ErrInvalidPlacholder is returned when Acra cannot parse SQL placeholder expression.
+var ErrInvalidPlacholder = errors.New("invalid placeholder value")
+
+// ErrInconsistentPlacholder is returned when a placeholder refers to multiple different columns.
+var ErrInconsistentPlacholder = errors.New("inconsistent placeholder usage")
+
 // OnBind process bound values for prepared statement based on TableSchemaStore.
 func (encryptor *QueryDataEncryptor) OnBind(statement sqlparser.Statement, values []base.BoundValue) ([]base.BoundValue, bool, error) {
 	newValues := values
@@ -378,14 +384,9 @@ func (encryptor *QueryDataEncryptor) encryptInsertValues(insert *sqlparser.Inser
 			for i, value := range rows[0] {
 				switch value := value.(type) {
 				case *sqlparser.SQLVal:
-					if value.Type == sqlparser.PgPlaceholder {
-						// PostgreSQL placeholders look like "$1". Parse the number out of them.
-						idx, err := strconv.Atoi(strings.TrimPrefix(string(value.Val), "$"))
-						if err != nil {
-							logrus.WithField("placeholder", string(value.Val)).WithError(err).Warning("Invalid placeholder, skipping")
-						}
-						// Placeholders use 1-based indexing and "values" (Go slice) are 0-based.
-						placeholders[idx-1] = columns[i]
+					err := encryptor.updatePlaceholderMap(values, placeholders, value, columns[i])
+					if err != nil {
+						return values, false, err
 					}
 				}
 			}
@@ -434,14 +435,9 @@ func (encryptor *QueryDataEncryptor) encryptUpdateValues(update *sqlparser.Updat
 		columnName := expr.Name.Name.String()
 		switch value := expr.Expr.(type) {
 		case *sqlparser.SQLVal:
-			if value.Type == sqlparser.PgPlaceholder {
-				// PostgreSQL placeholders look like "$1". Parse the number out of them.
-				idx, err := strconv.Atoi(strings.TrimPrefix(string(value.Val), "$"))
-				if err != nil {
-					logrus.WithField("placeholder", string(value.Val)).WithError(err).Warning("Invalid placeholder, skipping")
-				}
-				// Placeholders use 1-based indexing and "values" (Go slice) are 0-based.
-				placeholders[idx-1] = columnName
+			err := encryptor.updatePlaceholderMap(values, placeholders, value, columnName)
+			if err != nil {
+				return values, false, err
 			}
 		}
 	}
@@ -449,6 +445,43 @@ func (encryptor *QueryDataEncryptor) encryptUpdateValues(update *sqlparser.Updat
 	// Now that we know the placeholder mapping,
 	// encrypt the values set into encrypted columns.
 	return encryptor.encryptValuesWithPlaceholders(values, placeholders, schema)
+}
+
+// updatePlaceholderMap matches the placeholder of a value to its column and records this into the mapping.
+func (encryptor *QueryDataEncryptor) updatePlaceholderMap(values []base.BoundValue, placeholders map[int]string, placeholder *sqlparser.SQLVal, columnName string) error {
+	// TODO(ilammy, 2020-10-15): handle MySQL placeholders too
+	// MySQL placeholders do not contain indices, you just need to count them
+	// and sequentially assign to values and columns.
+	switch placeholder.Type {
+	case sqlparser.PgPlaceholder:
+		// PostgreSQL placeholders look like "$1". Parse the number out of them.
+		text := string(placeholder.Val)
+		index, err := strconv.Atoi(strings.TrimPrefix(text, "$"))
+		if err != nil {
+			logrus.WithField("placeholder", text).WithError(err).Warning("Cannot parse placeholder")
+			return err
+		}
+		// Placeholders use 1-based indexing and "values" (Go slice) are 0-based.
+		index--
+		if index >= len(values) {
+			logrus.WithFields(logrus.Fields{"placeholder": text, "index": index, "values": len(values)}).
+				Warning("Invalid placeholder index")
+			return ErrInvalidPlacholder
+		}
+		// Placeholders must map to columns uniquely.
+		// If there is already a column for given placholder and it's not the same,
+		// we can't handle such queries currently.
+		name, exists := placeholders[index]
+		if exists && name != columnName {
+			logrus.WithFields(logrus.Fields{"placeholder": text, "old_column": name, "new_column": columnName}).
+				Warning("Inconsistent placeholder mapping")
+			return ErrInconsistentPlacholder
+		}
+		placeholders[index] = columnName
+	default:
+		// Not a placeholder at all, ignore it.
+	}
+	return nil
 }
 
 // encryptValuesWithPlaceholders encrypts "values" of prepared statement parameters
