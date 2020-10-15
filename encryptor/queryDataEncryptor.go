@@ -396,6 +396,9 @@ func (encryptor *QueryDataEncryptor) encryptInsertValues(insert *sqlparser.Inser
 	// These clauses are handled for textual queries. It would be nice to encrypt
 	// any prepared statement parameters that are used there as well.
 	// See "encryptInsertQuery" for reference.
+	if len(insert.OnDup) > 0 {
+		logrus.Warning("ON DUPLICATE KEY UPDATE is not supported in prepared statements")
+	}
 
 	// Now that we know the placeholder mapping,
 	// encrypt the values inserted into encrypted columns.
