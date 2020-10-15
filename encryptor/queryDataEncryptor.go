@@ -456,31 +456,36 @@ func (encryptor *QueryDataEncryptor) encryptUpdateValues(update *sqlparser.Updat
 // If the database schema says that a column needs encryption, corresponding value is encrypted.
 func (encryptor *QueryDataEncryptor) encryptValuesWithPlaceholders(values []base.BoundValue, placeholders map[int]string, schema config.TableSchema) ([]base.BoundValue, bool, error) {
 	changed := false
-	newValues := make([]base.BoundValue, len(values))
-	copy(newValues, values)
+	oldValues := values
 
 	for valueIndex, columnName := range placeholders {
 		if !schema.NeedToEncrypt(columnName) {
 			continue
 		}
+
+		// Allocate the result slice only if there are some values that need encryption.
+		// Otherwise we'll just return the original old one.
+		if !changed {
+			values = make([]base.BoundValue, len(oldValues))
+			copy(values, oldValues)
+		}
+		changed = true
+
 		settings := schema.GetColumnEncryptionSettings(columnName)
 		switch values[valueIndex].Encoding() {
 		case base.BindBinary:
-			changed = true
 			encryptedData, err := encryptor.encryptWithColumnSettings(settings, values[valueIndex].Data())
-			if err == ErrUpdateLeaveDataUnchanged {
-				return values, false, nil
+			// If the data turns out to be already encrypted then it's fatal. Otherwise, bail out.
+			if err != nil && err != ErrUpdateLeaveDataUnchanged {
+				return oldValues, false, nil
 			}
-			newValues[valueIndex] = base.NewBoundValue(encryptedData, base.BindBinary)
+			values[valueIndex] = base.NewBoundValue(encryptedData, base.BindBinary)
 		default:
 			// Not supported at the moment.
 		}
 	}
 
-	if changed {
-		return newValues, true, nil
-	}
-	return values, false, nil
+	return values, changed, nil
 }
 
 // encryptWithColumnSettings encrypt data and use ZoneId or ClientID from ColumnEncryptionSetting if not empty otherwise static ClientID that passed to parser
