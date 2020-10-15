@@ -355,35 +355,37 @@ func (encryptor *QueryDataEncryptor) encryptInsertValues(insert *sqlparser.Inser
 	} else if cols := schema.Columns(); len(cols) > 0 {
 		columns = cols
 	}
+	// If there is no column schema available, we can't encrypt values.
+	if len(columns) == 0 {
+		logrus.WithField("table", tableName).Debugln("No column information")
+		return values, false, nil
+	}
 
 	placeholders := make(map[int]string, len(values))
 
-	// If there is no column schema available, we can't encrypt values.
-	if len(columns) > 0 {
-		// We can also only process simple queries of the form
-		//
-		//     INSERT INTO table(column...) VALUES ($1, $2, 'static value'...);
-		//
-		// That is, where placeholders uniquely identify the column and used directly
-		// as inserted values of a single row. We don't support functions, casts,
-		// inserting multiple values and query results, etc.
-		//
-		// Walk through the query to find out which placeholders stand for which columns.
-		switch rows := insert.Rows.(type) {
-		case sqlparser.Values:
-			if len(rows) == 1 {
-				for i, value := range rows[0] {
-					switch value := value.(type) {
-					case *sqlparser.SQLVal:
-						if value.Type == sqlparser.PgPlaceholder {
-							// PostgreSQL placeholders look like "$1". Parse the number out of them.
-							idx, err := strconv.Atoi(strings.TrimPrefix(string(value.Val), "$"))
-							if err != nil {
-								logrus.WithField("placeholder", string(value.Val)).WithError(err).Warning("Invalid placeholder, skipping")
-							}
-							// Placeholders use 1-based indexing and "values" (Go slice) are 0-based.
-							placeholders[idx-1] = columns[i]
+	// We can also only process simple queries of the form
+	//
+	//     INSERT INTO table(column...) VALUES ($1, $2, 'static value'...);
+	//
+	// That is, where placeholders uniquely identify the column and used directly
+	// as inserted values of a single row. We don't support functions, casts,
+	// inserting multiple values and query results, etc.
+	//
+	// Walk through the query to find out which placeholders stand for which columns.
+	switch rows := insert.Rows.(type) {
+	case sqlparser.Values:
+		if len(rows) == 1 {
+			for i, value := range rows[0] {
+				switch value := value.(type) {
+				case *sqlparser.SQLVal:
+					if value.Type == sqlparser.PgPlaceholder {
+						// PostgreSQL placeholders look like "$1". Parse the number out of them.
+						idx, err := strconv.Atoi(strings.TrimPrefix(string(value.Val), "$"))
+						if err != nil {
+							logrus.WithField("placeholder", string(value.Val)).WithError(err).Warning("Invalid placeholder, skipping")
 						}
+						// Placeholders use 1-based indexing and "values" (Go slice) are 0-based.
+						placeholders[idx-1] = columns[i]
 					}
 				}
 			}
