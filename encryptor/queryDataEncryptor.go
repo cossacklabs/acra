@@ -356,9 +356,7 @@ func (encryptor *QueryDataEncryptor) encryptInsertValues(insert *sqlparser.Inser
 		columns = cols
 	}
 
-	changed := false
-	newValues := make([]base.BoundValue, len(values))
-	copy(newValues, values)
+	placeholders := make(map[int]string, len(values))
 
 	// If there is no column schema available, we can't encrypt values.
 	if len(columns) > 0 {
@@ -371,7 +369,6 @@ func (encryptor *QueryDataEncryptor) encryptInsertValues(insert *sqlparser.Inser
 		// inserting multiple values and query results, etc.
 		//
 		// Walk through the query to find out which placeholders stand for which columns.
-		placeholders := make(map[int]string)
 		switch rows := insert.Rows.(type) {
 		case sqlparser.Values:
 			if len(rows) == 1 {
@@ -391,26 +388,6 @@ func (encryptor *QueryDataEncryptor) encryptInsertValues(insert *sqlparser.Inser
 				}
 			}
 		}
-
-		// Now that we know the placeholder mapping,
-		// encrypt the values inserted into encrypted columns.
-		for i, columnName := range placeholders {
-			if !schema.NeedToEncrypt(columnName) {
-				continue
-			}
-			settings := schema.GetColumnEncryptionSettings(columnName)
-			switch values[i].Encoding() {
-			case base.BindBinary:
-				changed = true
-				encryptedData, err := encryptor.encryptWithColumnSettings(settings, values[i].Data())
-				if err == ErrUpdateLeaveDataUnchanged {
-					return values, false, nil
-				}
-				newValues[i] = base.NewBoundValue(encryptedData, base.BindBinary)
-			default:
-				// Not supported at the moment.
-			}
-		}
 	}
 
 	// TODO(ilammy, 2020-10-13): handle ON DUPLICATE KEY UPDATE clauses
@@ -418,10 +395,9 @@ func (encryptor *QueryDataEncryptor) encryptInsertValues(insert *sqlparser.Inser
 	// any prepared statement parameters that are used there as well.
 	// See "encryptInsertQuery" for reference.
 
-	if changed {
-		return newValues, true, nil
-	}
-	return values, false, nil
+	// Now that we know the placeholder mapping,
+	// encrypt the values inserted into encrypted columns.
+	return encryptor.encryptValuesWithPlaceholders(values, placeholders, schema)
 }
 
 func (encryptor *QueryDataEncryptor) encryptUpdateValues(update *sqlparser.Update, values []base.BoundValue) ([]base.BoundValue, bool, error) {
@@ -441,9 +417,7 @@ func (encryptor *QueryDataEncryptor) encryptUpdateValues(update *sqlparser.Updat
 		return values, false, nil
 	}
 
-	changed := false
-	newValues := make([]base.BoundValue, len(values))
-	copy(newValues, values)
+	placeholders := make(map[int]string, len(values))
 
 	// We can only process simple queries of the form
 	//
@@ -454,7 +428,6 @@ func (encryptor *QueryDataEncryptor) encryptUpdateValues(update *sqlparser.Updat
 	// query results, etc.
 	//
 	// Walk through SET clauses to find out which placeholders stand for which columns.
-	placeholders := make(map[int]string)
 	for _, expr := range update.Exprs {
 		columnName := expr.Name.Name.String()
 		switch value := expr.Expr.(type) {
@@ -473,19 +446,30 @@ func (encryptor *QueryDataEncryptor) encryptUpdateValues(update *sqlparser.Updat
 
 	// Now that we know the placeholder mapping,
 	// encrypt the values set into encrypted columns.
-	for i, columnName := range placeholders {
+	return encryptor.encryptValuesWithPlaceholders(values, placeholders, schema)
+}
+
+// encryptValuesWithPlaceholders encrypts "values" of prepared statement parameters
+// using the placeholder mapping which specifies the column which each value is mapped onto.
+// If the database schema says that a column needs encryption, corresponding value is encrypted.
+func (encryptor *QueryDataEncryptor) encryptValuesWithPlaceholders(values []base.BoundValue, placeholders map[int]string, schema config.TableSchema) ([]base.BoundValue, bool, error) {
+	changed := false
+	newValues := make([]base.BoundValue, len(values))
+	copy(newValues, values)
+
+	for valueIndex, columnName := range placeholders {
 		if !schema.NeedToEncrypt(columnName) {
 			continue
 		}
 		settings := schema.GetColumnEncryptionSettings(columnName)
-		switch values[i].Encoding() {
+		switch values[valueIndex].Encoding() {
 		case base.BindBinary:
 			changed = true
-			encryptedData, err := encryptor.encryptWithColumnSettings(settings, values[i].Data())
+			encryptedData, err := encryptor.encryptWithColumnSettings(settings, values[valueIndex].Data())
 			if err == ErrUpdateLeaveDataUnchanged {
 				return values, false, nil
 			}
-			newValues[i] = base.NewBoundValue(encryptedData, base.BindBinary)
+			newValues[valueIndex] = base.NewBoundValue(encryptedData, base.BindBinary)
 		default:
 			// Not supported at the moment.
 		}
