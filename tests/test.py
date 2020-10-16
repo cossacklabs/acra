@@ -1340,6 +1340,31 @@ class HexFormatTest(BaseTestCase):
         self.assertEqual(row['empty'], b'')
 
 
+class BaseBinaryPostgreSQLMixin(BaseTestCase):
+    """Setup test fixture for testing PostgreSQL extended protocol."""
+
+    def checkSkip(self):
+        super().checkSkip()
+        if not TEST_POSTGRESQL:
+            self.skipTest("test only PostgreSQL")
+
+    def setUp(self):
+        super().setUp()
+
+        def executor_with_port(port):
+            args = ConnectionArgs(
+                host=get_db_host(), port=port, dbname=DB_NAME,
+                user=DB_USER, password=DB_USER_PASSWORD,
+                ssl_ca=TEST_TLS_CA,
+                ssl_key=TEST_TLS_CLIENT_KEY,
+                ssl_cert=TEST_TLS_CLIENT_CERT,
+            )
+            return AsyncpgExecutor(args)
+
+        self.executor1 = executor_with_port(self.CONNECTOR_PORT_1)
+        self.executor2 = executor_with_port(self.CONNECTOR_PORT_2)
+
+
 class BaseCensorTest(BaseTestCase):
     CENSOR_CONFIG_FILE = 'default.yaml'
     def fork_acra(self, popen_kwargs: dict=None, **acra_kwargs: dict):
@@ -3527,21 +3552,10 @@ class TestPostgresqlTextPreparedStatementWholeCell(TestPostgresqlTextPreparedSta
     WHOLECELL_MODE = True
 
 
-class TestPostgresqlBinaryPreparedStatement(BasePrepareStatementMixin, BaseTestCase):
-    def checkSkip(self):
-        if not TEST_POSTGRESQL:
-            self.skipTest("run test only for postgresql")
+class TestPostgresqlBinaryPreparedStatement(BaseBinaryPostgreSQLMixin, BasePrepareStatementMixin, BaseTestCase):
 
     def executePreparedStatement(self, query):
-        return AsyncpgExecutor(
-            ConnectionArgs(host=get_db_host(), # asyncpg doesn't support ssl with unix socket
-                           port=self.CONNECTOR_PORT_1,
-                           user=DB_USER, password=DB_USER_PASSWORD,
-                           dbname=DB_NAME,
-                           ssl_ca=TEST_TLS_CA,
-                           ssl_key=TEST_TLS_CLIENT_KEY,
-                           ssl_cert=TEST_TLS_CLIENT_CERT)
-        ).execute_prepared_statement(query)
+        return self.executor1.execute_prepared_statement(query)
 
 
 class TestPostgresqlBinaryPreparedStatementWholeCell(TestPostgresqlBinaryPreparedStatement):
@@ -4713,24 +4727,8 @@ class TestTransparentEncryptionWithZone(TestTransparentEncryption):
         self.checkZoneIdEncryption(**context)
 
 
-class TestPostgresqlBinaryPreparedTransparentEncryption(TestTransparentEncryption):
+class TestPostgresqlBinaryPreparedTransparentEncryption(BaseBinaryPostgreSQLMixin, TestTransparentEncryption):
     """Testing transparent encryption of prepared statements in PostgreSQL."""
-
-    def checkSkip(self):
-        if not TEST_POSTGRESQL:
-            self.skipTest("test only PostgreSQL")
-
-    def setUp(self):
-        super().setUp()
-        # Make sure to use AcraConnector with "keypair2".
-        self.executor = AsyncpgExecutor(
-            ConnectionArgs(host=get_db_host(), port=self.CONNECTOR_PORT_2,
-                           user=DB_USER, password=DB_USER_PASSWORD,
-                           dbname=DB_NAME,
-                           ssl_ca=TEST_TLS_CA,
-                           ssl_key=TEST_TLS_CLIENT_KEY,
-                           ssl_cert=TEST_TLS_CLIENT_CERT)
-        )
 
     # It does not seem that SQLAlchemy can compile the query the way
     # asyncpg wants it (that is, using PostgreSQL syntax). Therefore,
@@ -4748,7 +4746,7 @@ class TestPostgresqlBinaryPreparedTransparentEncryption(TestTransparentEncryptio
             ', '.join(placholders),
         )
         parameters = [context[column] for column in columns]
-        self.executor.execute_prepared_statement(query, parameters)
+        self.executor2.execute_prepared_statement(query, parameters)
 
     def update_data(self, context):
         table = self.encryptor_table.name
@@ -4759,7 +4757,7 @@ class TestPostgresqlBinaryPreparedTransparentEncryption(TestTransparentEncryptio
         query = 'UPDATE {} SET {} WHERE id = $1'.format(table, ', '.join(clauses))
         parameters = [context[column] for column in columns]
         parameters.insert(0, context['id'])
-        self.executor.execute_prepared_statement(query, parameters)
+        self.executor2.execute_prepared_statement(query, parameters)
 
 
 class TestSetupCustomApiPort(BaseTestCase):
