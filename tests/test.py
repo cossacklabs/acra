@@ -1340,7 +1340,7 @@ class HexFormatTest(BaseTestCase):
         self.assertEqual(row['empty'], b'')
 
 
-class BaseBinaryPostgreSQLMixin(BaseTestCase):
+class BaseBinaryPostgreSQLTestCase(BaseTestCase):
     """Setup test fixture for testing PostgreSQL extended protocol."""
 
     def checkSkip(self):
@@ -3575,7 +3575,7 @@ class TestPostgresqlTextPreparedStatementWholeCell(TestPostgresqlTextPreparedSta
     WHOLECELL_MODE = True
 
 
-class TestPostgresqlBinaryPreparedStatement(BaseBinaryPostgreSQLMixin, BasePrepareStatementMixin, BaseTestCase):
+class TestPostgresqlBinaryPreparedStatement(BaseBinaryPostgreSQLTestCase, BasePrepareStatementMixin):
 
     def executePreparedStatement(self, query):
         return self.executor1.execute_prepared_statement(query)
@@ -4750,7 +4750,7 @@ class TestTransparentEncryptionWithZone(TestTransparentEncryption):
         self.checkZoneIdEncryption(**context)
 
 
-class TestPostgresqlBinaryPreparedTransparentEncryption(BaseBinaryPostgreSQLMixin, TestTransparentEncryption):
+class TestPostgresqlBinaryPreparedTransparentEncryption(BaseBinaryPostgreSQLTestCase, TestTransparentEncryption):
     """Testing transparent encryption of prepared statements in PostgreSQL."""
 
     def filterContext(self, context):
