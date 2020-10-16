@@ -197,20 +197,20 @@ func (p *BindPacket) Zeroize() {
 func (p *BindPacket) GetParameters() ([]base.BoundValue, error) {
 	values := make([]base.BoundValue, len(p.paramValues))
 	for i := range values {
-		encoding, err := p.parameterEncodingByIndex(i)
+		format, err := p.parameterFormatByIndex(i)
 		if err != nil {
 			return nil, err
 		}
-		values[i] = base.NewBoundValue(p.paramValues[i], encoding)
+		values[i] = base.NewBoundValue(p.paramValues[i], format)
 	}
 	return values, nil
 }
 
-func (p *BindPacket) parameterEncodingByIndex(i int) (base.BoundValueEncoding, error) {
+func (p *BindPacket) parameterFormatByIndex(i int) (base.BoundValueFormat, error) {
 	// See "Bind" description in https://www.postgresql.org/docs/current/protocol-message-formats.html
 	// If there are no formats then all values use the default: text.
 	if len(p.paramFormats) == 0 {
-		return base.BindText, nil
+		return base.TextFormat, nil
 	}
 	// If there is only one format then it is used for all values.
 	var format uint16
@@ -220,17 +220,17 @@ func (p *BindPacket) parameterEncodingByIndex(i int) (base.BoundValueEncoding, e
 		format = p.paramFormats[i]
 	} else {
 		log.WithField("index", i).WithField("max", len(p.paramFormats)).Debug("Bind format array too short")
-		return base.BindText, ErrNotEnoughFormats
+		return base.TextFormat, ErrNotEnoughFormats
 	}
 	// Options currently include text and binary formats.
 	switch format {
 	case bindFormatText:
-		return base.BindText, nil
+		return base.TextFormat, nil
 	case bindFormatBinary:
-		return base.BindBinary, nil
+		return base.BinaryFormat, nil
 	default:
 		log.WithField("index", i).WithField("format", format).Debug("Unknown Bind format")
-		return base.BindText, ErrUnknownFormat
+		return base.TextFormat, ErrUnknownFormat
 	}
 }
 
@@ -244,33 +244,33 @@ func (p *BindPacket) SetParameters(values []base.BoundValue) {
 	}
 	// Check if all parameters have the same format. We can optimize storage if that's true.
 	allSame := true
-	encoding := base.BindText
+	format := base.TextFormat
 	if len(values) > 0 {
-		encoding = values[0].Encoding()
+		format = values[0].Format()
 		for _, value := range values[1:] {
-			if value.Encoding() != encoding {
+			if value.Format() != format {
 				allSame = false
 				break
 			}
 		}
 	}
-	// If all parameters have the same encoding then mention it only once.
+	// If all parameters have the same format then mention it only once.
 	// Otherwise, we need to explicitly specify formats.
 	if allSame {
 		p.paramFormats = make([]uint16, 1)
-		switch encoding {
-		case base.BindText:
+		switch format {
+		case base.TextFormat:
 			p.paramFormats[0] = bindFormatText
-		case base.BindBinary:
+		case base.BinaryFormat:
 			p.paramFormats[0] = bindFormatBinary
 		}
 	} else {
 		p.paramFormats = make([]uint16, len(values))
 		for i := range p.paramFormats {
-			switch values[i].Encoding() {
-			case base.BindText:
+			switch values[i].Format() {
+			case base.TextFormat:
 				p.paramFormats[i] = bindFormatText
-			case base.BindBinary:
+			case base.BinaryFormat:
 				p.paramFormats[i] = bindFormatBinary
 			}
 		}

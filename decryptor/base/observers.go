@@ -66,21 +66,21 @@ func NewOnQueryObjectFromQuery(query string) OnQueryObject {
 // Its exact type and meaning depends on the corresponding query.
 type BoundValue interface {
 	Data() []byte
-	Encoding() BoundValueEncoding
+	Format() BoundValueFormat
 }
 
-// BoundValueEncoding specifies how to interpret the bound data.
-type BoundValueEncoding int
+// BoundValueFormat specifies how to interpret the bound data.
+type BoundValueFormat int
 
-// Supported values of BoundValueEncoding.
+// Supported values of BoundValueFormat.
 const (
-	BindText BoundValueEncoding = iota
-	BindBinary
+	TextFormat BoundValueFormat = iota
+	BinaryFormat
 )
 
 type boundValue struct {
-	data     []byte
-	encoding BoundValueEncoding
+	data   []byte
+	format BoundValueFormat
 }
 
 // Data of the bound value.
@@ -88,14 +88,14 @@ func (v *boundValue) Data() []byte {
 	return v.data
 }
 
-// Encoding of the bound value data.
-func (v *boundValue) Encoding() BoundValueEncoding {
-	return v.encoding
+// Format of the bound value data.
+func (v *boundValue) Format() BoundValueFormat {
+	return v.format
 }
 
 // NewBoundValue makes a standard BoundValue from value data.
-func NewBoundValue(data []byte, encoding BoundValueEncoding) BoundValue {
-	return &boundValue{data, encoding}
+func NewBoundValue(data []byte, format BoundValueFormat) BoundValue {
+	return &boundValue{data, format}
 }
 
 // QueryObserver observes database queries and is able to modify them.
