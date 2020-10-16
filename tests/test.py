@@ -1364,7 +1364,7 @@ class BaseBinaryPostgreSQLMixin(BaseTestCase):
         self.executor1 = executor_with_port(self.CONNECTOR_PORT_1)
         self.executor2 = executor_with_port(self.CONNECTOR_PORT_2)
 
-    def compileQuery(self, query, parameters={}):
+    def compileQuery(self, query, parameters={}, literal_binds=False):
         """
         Compile SQLAlchemy query and parameter dictionary
         into SQL text and parameter list for the executor.
@@ -1372,7 +1372,8 @@ class BaseBinaryPostgreSQLMixin(BaseTestCase):
         # Ask SQLAlchemy to compile the query in database-agnostic SQL.
         # After that manually replace placeholders in text. Unfortunately,
         # passing "dialect=postgresql_dialect" does not seem to work :(
-        query = str(query.compile())
+        compile_kwargs = {"literal_binds": literal_binds}
+        query = str(query.compile(compile_kwargs=compile_kwargs))
         values = []
         for placeholder, value in parameters.items():
             # SQLAlchemy default dialect has placeholders of form ":name".
