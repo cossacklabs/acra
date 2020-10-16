@@ -1364,6 +1364,28 @@ class BaseBinaryPostgreSQLMixin(BaseTestCase):
         self.executor1 = executor_with_port(self.CONNECTOR_PORT_1)
         self.executor2 = executor_with_port(self.CONNECTOR_PORT_2)
 
+    def compileQuery(self, query, parameters={}):
+        """
+        Compile SQLAlchemy query and parameter dictionary
+        into SQL text and parameter list for the executor.
+        """
+        # Ask SQLAlchemy to compile the query in database-agnostic SQL.
+        # After that manually replace placeholders in text. Unfortunately,
+        # passing "dialect=postgresql_dialect" does not seem to work :(
+        query = str(query.compile())
+        values = []
+        for placeholder, value in parameters.items():
+            # SQLAlchemy default dialect has placeholders of form ":name".
+            # PostgreSQL syntax is "$n", with 1-based sequential parameters.
+            saPlaceholder = ':' + placeholder
+            pgPlaceholder = '$' + str(len(values) + 1)
+            # Replace and keep values only for those placeholders which
+            # are actually used in the query.
+            if saPlaceholder in query:
+                values.append(value)
+                query = query.replace(saPlaceholder, pgPlaceholder)
+        return query, values
+
 
 class BaseCensorTest(BaseTestCase):
     CENSOR_CONFIG_FILE = 'default.yaml'
@@ -4730,33 +4752,31 @@ class TestTransparentEncryptionWithZone(TestTransparentEncryption):
 class TestPostgresqlBinaryPreparedTransparentEncryption(BaseBinaryPostgreSQLMixin, TestTransparentEncryption):
     """Testing transparent encryption of prepared statements in PostgreSQL."""
 
-    # It does not seem that SQLAlchemy can compile the query the way
-    # asyncpg wants it (that is, using PostgreSQL syntax). Therefore,
-    # we have to cook the prepared queries ourselves.
+    def filterContext(self, context):
+        # Context contains some extra fields which do not correspond
+        # to table columns. Remove them for prepared queries.
+        return {column: value for column, value in context.items()
+                if column in self.encryptor_table.columns}
 
     def insertRow(self, context):
-        table = self.encryptor_table.name
-        # Skip the "nullable" column, it's always automatically filled with NULL
-        columns = [column.name for column in self.encryptor_table.columns
-                   if column.name != 'nullable']
-        placholders = ['${}'.format(i+1) for i in range(len(columns))]
-        query = 'INSERT INTO {}({}) VALUES ({})'.format(
-            table,
-            ', '.join(columns),
-            ', '.join(placholders),
+        context = self.filterContext(context)
+        query, parameters = self.compileQuery(
+            self.encryptor_table.insert(context),
+            context,
         )
-        parameters = [context[column] for column in columns]
         self.executor2.execute_prepared_statement(query, parameters)
 
     def update_data(self, context):
-        table = self.encryptor_table.name
-        # Make sure that "id" column goes first. We need that in query.
-        # Also, filter out "zone" which is included into context, but is not a column.
-        columns = [column for column in context if column not in ['id', 'zone']]
-        clauses = ['{} = ${}'.format(column, i+2) for i, column in enumerate(columns)]
-        query = 'UPDATE {} SET {} WHERE id = $1'.format(table, ', '.join(clauses))
-        parameters = [context[column] for column in columns]
-        parameters.insert(0, context['id'])
+        context = self.filterContext(context)
+        # Exclude the "id" column which is a key.
+        dataColumns = {column: value for column, value in context.items()
+                       if column != 'id'}
+        query, parameters = self.compileQuery(
+            self.encryptor_table.update().
+                where(self.encryptor_table.c.id == sa.bindparam('id')).
+                values(dataColumns),
+            context,
+        )
         self.executor2.execute_prepared_statement(query, parameters)
 
 
