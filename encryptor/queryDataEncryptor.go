@@ -510,9 +510,11 @@ func (encryptor *QueryDataEncryptor) encryptValuesWithPlaceholders(values []base
 		format := values[valueIndex].Format()
 		data := values[valueIndex].Data()
 		switch format {
+		// TODO(ilammy, 2020-10-19): handle non-bytes binary data
+		// Encryptor expects binary data to be passed in raw bytes, but most non-byte-arrays
+		// are expected in text format. If we get binary parameters, we may need to recode them.
 		case base.BinaryFormat:
 			encryptedData, err := encryptor.encryptWithColumnSettings(settings, data)
-			// If the data turns out to be already encrypted then it's fatal. Otherwise, bail out.
 			if err != nil && err != ErrUpdateLeaveDataUnchanged {
 				logrus.WithError(err).WithFields(logrus.Fields{"index": valueIndex, "column": columnName}).
 					Debug("Failed to encrypt column")
@@ -520,9 +522,16 @@ func (encryptor *QueryDataEncryptor) encryptValuesWithPlaceholders(values []base
 			}
 			values[valueIndex] = base.NewBoundValue(encryptedData, base.BinaryFormat)
 
-		// TODO(ilammy, 2020-10-14): implement support for base.TextFormat
-		// We should parse and decode the data, encrypt it, and then either force binary format,
-		// or reencode the data back into text.
+		// We don't expect text format to be used with for encoded binary data (e.g., hex escapes),
+		// Thus, just pass text data as is to the encryptor.
+		case base.TextFormat:
+			encryptedData, err := encryptor.encryptWithColumnSettings(settings, data)
+			if err != nil && err != ErrUpdateLeaveDataUnchanged {
+				logrus.WithError(err).WithFields(logrus.Fields{"index": valueIndex, "column": columnName}).
+					Debug("Failed to encrypt column")
+				return oldValues, false, err
+			}
+			values[valueIndex] = base.NewBoundValue(encryptedData, base.TextFormat)
 
 		default:
 			logrus.WithFields(logrus.Fields{"format": format, "index": valueIndex, "column": columnName}).
