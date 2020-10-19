@@ -611,9 +611,11 @@ class ProcessStub(object):
         pass
 
 
-ConnectionArgs = collections.namedtuple(
-    "ConnectionArgs", ["user", "password", "host", "port", "dbname",
-                       "ssl_ca", "ssl_key", "ssl_cert"])
+ConnectionArgs = collections.namedtuple("ConnectionArgs",
+    field_names=["user", "password", "host", "port", "dbname",
+                 "ssl_ca", "ssl_key", "ssl_cert", "format"],
+    # 'format' is optional, other fields are required.
+    defaults=[None])
 
 
 class QueryExecutor(object):
@@ -719,11 +721,33 @@ class AsyncpgExecutor(QueryExecutor):
                 database=self.connection_args.dbname,
                 **asyncpg_connect_args))
 
+    def _set_text_format(self, conn):
+        """Force text format to numeric types."""
+        loop = asyncio.get_event_loop()
+        for pg_type in ['int2', 'int4', 'int8']:
+            loop.run_until_complete(
+                conn.set_type_codec(pg_type,
+                    schema='pg_catalog',
+                    encoder=str,
+                    decoder=int,
+                    format='text')
+            )
+        for pg_type in ['float4', 'float8']:
+            loop.run_until_complete(
+                conn.set_type_codec(pg_type,
+                    schema='pg_catalog',
+                    encoder=str,
+                    decoder=float,
+                    format='text')
+            )
+
     def execute_prepared_statement(self, query, args=None):
         if not args:
             args = []
         loop = asyncio.get_event_loop()
         conn = self._connect(loop)
+        if self.connection_args.format == 'text':
+            self._set_text_format(conn)
         try:
             stmt = loop.run_until_complete(
                 conn.prepare(query, timeout=STATEMENT_TIMEOUT))
@@ -738,6 +762,8 @@ class AsyncpgExecutor(QueryExecutor):
             args = []
         loop = asyncio.get_event_loop()
         conn = self._connect(loop)
+        if self.connection_args.format == 'text':
+            self._set_text_format(conn)
         try:
             result = loop.run_until_complete(
                 conn.fetch(query, *args, timeout=STATEMENT_TIMEOUT))
@@ -1348,6 +1374,8 @@ class BaseBinaryPostgreSQLTestCase(BaseTestCase):
         if not TEST_POSTGRESQL:
             self.skipTest("test only PostgreSQL")
 
+    FORMAT = 'binary'
+
     def setUp(self):
         super().setUp()
 
@@ -1358,6 +1386,7 @@ class BaseBinaryPostgreSQLTestCase(BaseTestCase):
                 ssl_ca=TEST_TLS_CA,
                 ssl_key=TEST_TLS_CLIENT_KEY,
                 ssl_cert=TEST_TLS_CLIENT_CERT,
+                format=self.FORMAT,
             )
             return AsyncpgExecutor(args)
 
