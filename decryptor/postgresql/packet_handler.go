@@ -353,6 +353,19 @@ func (packet *PacketHandler) ReplaceQuery(newQuery string) {
 	}
 }
 
+// ReplaceBind update Bind packet with new data, update packet length.
+func (packet *PacketHandler) ReplaceBind(bindPacket *BindPacket) error {
+	packet.logger.Debugln("ReplaceBind for prepared statement")
+	buffer := new(bytes.Buffer)
+	n, err := bindPacket.MarshalInto(buffer)
+	if err != nil {
+		return err
+	}
+	packet.descriptionBuf = buffer
+	packet.updatePacketLength(n)
+	return nil
+}
+
 // GetSimpleQuery return query value as string from Query packet
 func (packet *PacketHandler) GetSimpleQuery() (string, error) {
 	return string(packet.descriptionBuf.Bytes()[:packet.dataLength-1]), nil

@@ -20,8 +20,11 @@ import (
 	"bytes"
 	"encoding/binary"
 	"errors"
+	"math"
 
+	"github.com/cossacklabs/acra/decryptor/base"
 	"github.com/cossacklabs/acra/utils"
+	log "github.com/sirupsen/logrus"
 )
 
 var terminator = []byte{0}
@@ -31,6 +34,9 @@ var ErrTerminatorNotFound = errors.New("invalid string, terminator not found")
 
 // ErrPacketTruncated signals that the packet is too short and cannot be parsed
 var ErrPacketTruncated = errors.New("invalid packet, too short")
+
+// ErrArrayTooBig signals that an array it too big to fit into a packet.
+var ErrArrayTooBig = errors.New("array too big")
 
 // FetchQueryFromParse return Query value from Parse packet payload (without message type and length of packet)
 //
@@ -157,6 +163,17 @@ type BindPacket struct {
 	resultFormats []uint16
 }
 
+// ErrUnknownFormat is returned when Bind packet contains a value format that we don't recognize.
+var ErrUnknownFormat = errors.New("unknown Bind packet format")
+
+// ErrNotEnoughFormats is returned when Bind packet is malformed and does not contain enough formats for values.
+var ErrNotEnoughFormats = errors.New("format index out of range")
+
+const (
+	bindFormatText   = 0
+	bindFormatBinary = 1
+)
+
 // PortalName returns the name of the portal created by this request.
 // An empty name means unnamed portal.
 func (p *BindPacket) PortalName() string {
@@ -174,6 +191,140 @@ func (p *BindPacket) Zeroize() {
 	for _, value := range p.paramValues {
 		utils.ZeroizeBytes(value)
 	}
+}
+
+// GetParameters extracts statement parameters from Bind packet.
+func (p *BindPacket) GetParameters() ([]base.BoundValue, error) {
+	values := make([]base.BoundValue, len(p.paramValues))
+	for i := range values {
+		format, err := p.parameterFormatByIndex(i)
+		if err != nil {
+			return nil, err
+		}
+		values[i] = base.NewBoundValue(p.paramValues[i], format)
+	}
+	return values, nil
+}
+
+func (p *BindPacket) parameterFormatByIndex(i int) (base.BoundValueFormat, error) {
+	// See "Bind" description in https://www.postgresql.org/docs/current/protocol-message-formats.html
+	// If there are no formats then all values use the default: text.
+	if len(p.paramFormats) == 0 {
+		return base.TextFormat, nil
+	}
+	// If there is only one format then it is used for all values.
+	var format uint16
+	if len(p.paramFormats) == 1 {
+		format = p.paramFormats[0]
+	} else if i < len(p.paramFormats) {
+		format = p.paramFormats[i]
+	} else {
+		log.WithField("index", i).WithField("max", len(p.paramFormats)).Debug("Bind format array too short")
+		return base.TextFormat, ErrNotEnoughFormats
+	}
+	// Options currently include text and binary formats.
+	switch format {
+	case bindFormatText:
+		return base.TextFormat, nil
+	case bindFormatBinary:
+		return base.BinaryFormat, nil
+	default:
+		log.WithField("index", i).WithField("format", format).Debug("Unknown Bind format")
+		return base.TextFormat, ErrUnknownFormat
+	}
+}
+
+// SetParameters updates statement parameters from Bind packet.
+func (p *BindPacket) SetParameters(values []base.BoundValue) {
+	// See "Bind" description in https://www.postgresql.org/docs/current/protocol-message-formats.html
+	// If there are no parameters then don't bother.
+	if len(values) == 0 {
+		p.paramFormats = nil
+		return
+	}
+	// Check if all parameters have the same format. We can optimize storage if that's true.
+	allSame := true
+	format := base.TextFormat
+	if len(values) > 0 {
+		format = values[0].Format()
+		for _, value := range values[1:] {
+			if value.Format() != format {
+				allSame = false
+				break
+			}
+		}
+	}
+	// If all parameters have the same format then mention it only once.
+	// Otherwise, we need to explicitly specify formats.
+	if allSame {
+		p.paramFormats = make([]uint16, 1)
+		switch format {
+		case base.TextFormat:
+			p.paramFormats[0] = bindFormatText
+		case base.BinaryFormat:
+			p.paramFormats[0] = bindFormatBinary
+		}
+	} else {
+		p.paramFormats = make([]uint16, len(values))
+		for i := range p.paramFormats {
+			switch values[i].Format() {
+			case base.TextFormat:
+				p.paramFormats[i] = bindFormatText
+			case base.BinaryFormat:
+				p.paramFormats[i] = bindFormatBinary
+			}
+		}
+	}
+	// Finally, replace parameter values. Reuse the top-level array if we can.
+	if len(values) != len(p.paramValues) {
+		p.paramValues = make([][]byte, len(values))
+	}
+	for i := range p.paramValues {
+		p.paramValues[i] = values[i].Data()
+	}
+}
+
+// MarshalInto packet contents into packet protocol data buffer.
+func (p *BindPacket) MarshalInto(buffer *bytes.Buffer) (int, error) {
+	var total int
+	oldLength := buffer.Len()
+
+	n, err := writeString(buffer, p.portal)
+	if err != nil {
+		buffer.Truncate(oldLength)
+		return 0, err
+	}
+	total += n
+
+	n, err = writeString(buffer, p.statement)
+	if err != nil {
+		buffer.Truncate(oldLength)
+		return 0, err
+	}
+	total += n
+
+	n, err = writeUint16Array(buffer, p.paramFormats)
+	if err != nil {
+		buffer.Truncate(oldLength)
+		return 0, err
+	}
+	total += n
+
+	n, err = writeParameterArray(buffer, p.paramValues)
+	if err != nil {
+		buffer.Truncate(oldLength)
+		return 0, err
+	}
+	total += n
+
+	n, err = writeUint16Array(buffer, p.resultFormats)
+	if err != nil {
+		buffer.Truncate(oldLength)
+		return 0, err
+	}
+	total += n
+
+	return total, nil
 }
 
 // NewBindPacket parses Bind packet from data.
@@ -247,6 +398,13 @@ func readString(data []byte) (string, []byte, error) {
 	return string(data[:end]), data[end+1:], nil
 }
 
+func writeString(buf *bytes.Buffer, s string) (int, error) {
+	buf.Grow(len(s) + 1)
+	buf.WriteString(s)
+	buf.WriteByte(0)
+	return len(s) + 1, nil
+}
+
 func readUint16Array(data []byte) ([]uint16, []byte, error) {
 	remaining := data
 	// The []uint16 array is prefixed with a number of its items, also a uint16.
@@ -266,6 +424,25 @@ func readUint16Array(data []byte) ([]uint16, []byte, error) {
 	}
 
 	return items, remaining, nil
+}
+
+func writeUint16Array(buf *bytes.Buffer, values []uint16) (int, error) {
+	totalLength := 2 + len(values)*2
+	buf.Grow(totalLength)
+
+	tmp := make([]byte, 2)
+	if len(values) > math.MaxUint16 {
+		return 0, ErrArrayTooBig
+	}
+	binary.BigEndian.PutUint16(tmp, uint16(len(values)))
+	buf.Write(tmp)
+
+	for _, value := range values {
+		binary.BigEndian.PutUint16(tmp, value)
+		buf.Write(tmp)
+	}
+
+	return totalLength, nil
 }
 
 func readParameterArray(data []byte) ([][]byte, []byte, error) {
@@ -300,4 +477,30 @@ func readParameterArray(data []byte) ([][]byte, []byte, error) {
 	}
 
 	return parameters, remaining, nil
+}
+
+func writeParameterArray(buf *bytes.Buffer, parameters [][]byte) (int, error) {
+	totalLength := 2
+	for _, parameter := range parameters {
+		totalLength += 4 + len(parameter)
+	}
+	buf.Grow(totalLength)
+
+	tmp := make([]byte, 4)
+	if len(parameters) > math.MaxUint16 {
+		return 0, ErrArrayTooBig
+	}
+	binary.BigEndian.PutUint16(tmp[0:2], uint16(len(parameters)))
+	buf.Write(tmp[0:2])
+
+	for _, parameter := range parameters {
+		if len(parameter) > math.MaxUint32 {
+			return 0, ErrArrayTooBig
+		}
+		binary.BigEndian.PutUint32(tmp[0:4], uint32(len(parameter)))
+		buf.Write(tmp[0:4])
+		buf.Write(parameter)
+	}
+
+	return totalLength, nil
 }

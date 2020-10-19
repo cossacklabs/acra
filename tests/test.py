@@ -1340,6 +1340,54 @@ class HexFormatTest(BaseTestCase):
         self.assertEqual(row['empty'], b'')
 
 
+class BaseBinaryPostgreSQLTestCase(BaseTestCase):
+    """Setup test fixture for testing PostgreSQL extended protocol."""
+
+    def checkSkip(self):
+        super().checkSkip()
+        if not TEST_POSTGRESQL:
+            self.skipTest("test only PostgreSQL")
+
+    def setUp(self):
+        super().setUp()
+
+        def executor_with_port(port):
+            args = ConnectionArgs(
+                host=get_db_host(), port=port, dbname=DB_NAME,
+                user=DB_USER, password=DB_USER_PASSWORD,
+                ssl_ca=TEST_TLS_CA,
+                ssl_key=TEST_TLS_CLIENT_KEY,
+                ssl_cert=TEST_TLS_CLIENT_CERT,
+            )
+            return AsyncpgExecutor(args)
+
+        self.executor1 = executor_with_port(self.CONNECTOR_PORT_1)
+        self.executor2 = executor_with_port(self.CONNECTOR_PORT_2)
+
+    def compileQuery(self, query, parameters={}, literal_binds=False):
+        """
+        Compile SQLAlchemy query and parameter dictionary
+        into SQL text and parameter list for the executor.
+        """
+        # Ask SQLAlchemy to compile the query in database-agnostic SQL.
+        # After that manually replace placeholders in text. Unfortunately,
+        # passing "dialect=postgresql_dialect" does not seem to work :(
+        compile_kwargs = {"literal_binds": literal_binds}
+        query = str(query.compile(compile_kwargs=compile_kwargs))
+        values = []
+        for placeholder, value in parameters.items():
+            # SQLAlchemy default dialect has placeholders of form ":name".
+            # PostgreSQL syntax is "$n", with 1-based sequential parameters.
+            saPlaceholder = ':' + placeholder
+            pgPlaceholder = '$' + str(len(values) + 1)
+            # Replace and keep values only for those placeholders which
+            # are actually used in the query.
+            if saPlaceholder in query:
+                values.append(value)
+                query = query.replace(saPlaceholder, pgPlaceholder)
+        return query, values
+
+
 class BaseCensorTest(BaseTestCase):
     CENSOR_CONFIG_FILE = 'default.yaml'
     def fork_acra(self, popen_kwargs: dict=None, **acra_kwargs: dict):
@@ -3527,21 +3575,10 @@ class TestPostgresqlTextPreparedStatementWholeCell(TestPostgresqlTextPreparedSta
     WHOLECELL_MODE = True
 
 
-class TestPostgresqlBinaryPreparedStatement(BasePrepareStatementMixin, BaseTestCase):
-    def checkSkip(self):
-        if not TEST_POSTGRESQL:
-            self.skipTest("run test only for postgresql")
+class TestPostgresqlBinaryPreparedStatement(BaseBinaryPostgreSQLTestCase, BasePrepareStatementMixin):
 
     def executePreparedStatement(self, query):
-        return AsyncpgExecutor(
-            ConnectionArgs(host=get_db_host(), # asyncpg doesn't support ssl with unix socket
-                           port=self.CONNECTOR_PORT_1,
-                           user=DB_USER, password=DB_USER_PASSWORD,
-                           dbname=DB_NAME,
-                           ssl_ca=TEST_TLS_CA,
-                           ssl_key=TEST_TLS_CLIENT_KEY,
-                           ssl_cert=TEST_TLS_CLIENT_CERT)
-        ).execute_prepared_statement(query)
+        return self.executor1.execute_prepared_statement(query)
 
 
 class TestPostgresqlBinaryPreparedStatementWholeCell(TestPostgresqlBinaryPreparedStatement):
@@ -4711,6 +4748,37 @@ class TestTransparentEncryptionWithZone(TestTransparentEncryption):
 
     def check_all_decryptions(self, **context):
         self.checkZoneIdEncryption(**context)
+
+
+class TestPostgresqlBinaryPreparedTransparentEncryption(BaseBinaryPostgreSQLTestCase, TestTransparentEncryption):
+    """Testing transparent encryption of prepared statements in PostgreSQL."""
+
+    def filterContext(self, context):
+        # Context contains some extra fields which do not correspond
+        # to table columns. Remove them for prepared queries.
+        return {column: value for column, value in context.items()
+                if column in self.encryptor_table.columns}
+
+    def insertRow(self, context):
+        context = self.filterContext(context)
+        query, parameters = self.compileQuery(
+            self.encryptor_table.insert(context),
+            context,
+        )
+        self.executor2.execute_prepared_statement(query, parameters)
+
+    def update_data(self, context):
+        context = self.filterContext(context)
+        # Exclude the "id" column which is a key.
+        dataColumns = {column: value for column, value in context.items()
+                       if column != 'id'}
+        query, parameters = self.compileQuery(
+            self.encryptor_table.update().
+                where(self.encryptor_table.c.id == sa.bindparam('id')).
+                values(dataColumns),
+            context,
+        )
+        self.executor2.execute_prepared_statement(query, parameters)
 
 
 class TestSetupCustomApiPort(BaseTestCase):

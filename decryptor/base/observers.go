@@ -18,6 +18,7 @@ package base
 
 import (
 	"context"
+
 	"github.com/cossacklabs/acra/logging"
 	"github.com/cossacklabs/acra/sqlparser"
 	"github.com/sirupsen/logrus"
@@ -61,11 +62,50 @@ func NewOnQueryObjectFromQuery(query string) OnQueryObject {
 	return &onQueryObject{query: query}
 }
 
-// QueryObserver will be used to notify about coming new query
+// BoundValue is a value provided for prepared statement execution.
+// Its exact type and meaning depends on the corresponding query.
+type BoundValue interface {
+	Data() []byte
+	Format() BoundValueFormat
+}
+
+// BoundValueFormat specifies how to interpret the bound data.
+type BoundValueFormat int
+
+// Supported values of BoundValueFormat.
+const (
+	TextFormat BoundValueFormat = iota
+	BinaryFormat
+)
+
+type boundValue struct {
+	data   []byte
+	format BoundValueFormat
+}
+
+// Data of the bound value.
+func (v *boundValue) Data() []byte {
+	return v.data
+}
+
+// Format of the bound value data.
+func (v *boundValue) Format() BoundValueFormat {
+	return v.format
+}
+
+// NewBoundValue makes a standard BoundValue from value data.
+func NewBoundValue(data []byte, format BoundValueFormat) BoundValue {
+	return &boundValue{data, format}
+}
+
+// QueryObserver observes database queries and is able to modify them.
+// Methods should return "true" as their second bool result if the data has been modified.
 type QueryObserver interface {
 	ID() string
-	// OnQuery return true if output query was changed otherwise false
+	// Simple queries and prepared statements during preparation stage. SQL is modifiable.
 	OnQuery(data OnQueryObject) (OnQueryObject, bool, error)
+	// Prepared statement parameters during execution stage. Parameter values are modifiable.
+	OnBind(statement sqlparser.Statement, values []BoundValue) ([]BoundValue, bool, error)
 }
 
 // QueryObservable used to handle subscribers for new incoming queries
@@ -122,4 +162,21 @@ func (manager *ArrayQueryObserverableManager) OnQuery(query OnQueryObject) (OnQu
 		}
 	}
 	return currentQuery, changedQuery, nil
+}
+
+// OnBind would be called for each added observer to manager.
+func (manager *ArrayQueryObserverableManager) OnBind(statement sqlparser.Statement, values []BoundValue) ([]BoundValue, bool, error) {
+	currentValues := values
+	changedValues := false
+	for _, observer := range manager.subscribers {
+		newValues, changedNow, err := observer.OnBind(statement, currentValues)
+		if err != nil {
+			return values, false, err
+		}
+		if changedNow {
+			currentValues = newValues
+			changedValues = true
+		}
+	}
+	return currentValues, changedValues, nil
 }
