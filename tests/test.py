@@ -713,6 +713,10 @@ class MysqlExecutor(QueryExecutor):
 
 
 class AsyncpgExecutor(QueryExecutor):
+
+    TextFormat = 'text'
+    BinaryFormat = 'binary'
+
     def _connect(self, loop):
         return loop.run_until_complete(
             asyncpg.connect(
@@ -746,7 +750,7 @@ class AsyncpgExecutor(QueryExecutor):
             args = []
         loop = asyncio.get_event_loop()
         conn = self._connect(loop)
-        if self.connection_args.format == 'text':
+        if self.connection_args.format == self.TextFormat:
             self._set_text_format(conn)
         try:
             stmt = loop.run_until_complete(
@@ -762,7 +766,7 @@ class AsyncpgExecutor(QueryExecutor):
             args = []
         loop = asyncio.get_event_loop()
         conn = self._connect(loop)
-        if self.connection_args.format == 'text':
+        if self.connection_args.format == self.TextFormat:
             self._set_text_format(conn)
         try:
             result = loop.run_until_complete(
@@ -1374,7 +1378,7 @@ class BaseBinaryPostgreSQLTestCase(BaseTestCase):
         if not TEST_POSTGRESQL:
             self.skipTest("test only PostgreSQL")
 
-    FORMAT = 'binary'
+    FORMAT = AsyncpgExecutor.BinaryFormat
 
     def setUp(self):
         super().setUp()
