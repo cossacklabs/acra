@@ -4784,7 +4784,8 @@ class TestTransparentEncryptionWithZone(TestTransparentEncryption):
 
 
 class TestPostgresqlBinaryPreparedTransparentEncryption(BaseBinaryPostgreSQLTestCase, TestTransparentEncryption):
-    """Testing transparent encryption of prepared statements in PostgreSQL."""
+    """Testing transparent encryption of prepared statements in PostgreSQL (binary format)."""
+    FORMAT = AsyncpgExecutor.BinaryFormat
 
     def filterContext(self, context):
         # Context contains some extra fields which do not correspond
@@ -4812,6 +4813,11 @@ class TestPostgresqlBinaryPreparedTransparentEncryption(BaseBinaryPostgreSQLTest
             context,
         )
         self.executor2.execute_prepared_statement(query, parameters)
+
+
+class TestPostgresqlTextPreparedTransparentEncryption(TestPostgresqlBinaryPreparedTransparentEncryption):
+    """Testing transparent encryption of prepared statements in PostgreSQL (text format)."""
+    FORMAT = AsyncpgExecutor.TextFormat
 
 
 class TestSetupCustomApiPort(BaseTestCase):
