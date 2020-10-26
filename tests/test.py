@@ -95,6 +95,10 @@ TEST_TLS_SERVER_KEY = abs_path(os.environ.get('TEST_TLS_SERVER_KEY', 'tests/ssl/
 # db drivers prevent usage of keys with global rights
 TEST_TLS_CLIENT_CERT = abs_path(os.environ.get('TEST_TLS_CLIENT_CERT', 'tests/ssl/acra-writer/acra-writer.crt'))
 TEST_TLS_CLIENT_KEY = abs_path(os.environ.get('TEST_TLS_CLIENT_KEY', 'tests/ssl/acra-writer/acra-writer.key'))
+TEST_TLS_OCSP_CA = abs_path(os.environ.get('TEST_TLS_OCSP_CA', 'tests/ssl/ca/ca.crt'))
+TEST_TLS_OCSP_CERT = abs_path(os.environ.get('TEST_TLS_OCSP_CERT', 'tests/ssl/ocsp-responder/ocsp-responder.crt'))
+TEST_TLS_OCSP_KEY = abs_path(os.environ.get('TEST_TLS_OCSP_KEY', 'tests/ssl/ocsp-responder/ocsp-responder.key'))
+TEST_TLS_OCSP_INDEX = abs_path(os.environ.get('TEST_TLS_OCSP_INDEX', 'tests/ssl/index.txt'))
 TEST_WITH_TLS = os.environ.get('TEST_TLS', 'off').lower() == 'on'
 
 TEST_WITH_TRACING = os.environ.get('TEST_TRACE', 'off').lower() == 'on'
@@ -107,6 +111,8 @@ TEST_RANDOM_DATA_FILES = get_random_data_files()
 NoClientCert, RequestClientCert, RequireAnyClientCert, VerifyClientCertIfGiven, RequireAndVerifyClientCert = range(5)
 if TEST_WITH_TLS:
     ACRA_TLS_AUTH = RequireAndVerifyClientCert  # verify if provided https://golang.org/pkg/crypto/tls/#ClientAuthType
+    # Re-generate CRL so it is up-to-date when used in tests
+    os.system("SKIP_EXISTING=1 ./tests/ssl/generate_tls_keys.sh")
 else:
     ACRA_TLS_AUTH = VerifyClientCertIfGiven
 
@@ -389,6 +395,18 @@ def wait_connection(port, count=1000, sleep=0.001):
         time.sleep(sleep)
     raise Exception("can't wait connection")
 
+def wait_command_success(command, count=10, sleep=0.200):
+    """try executing `command` using `os.system()`
+    if exit code != 0 then sleep on and try again (<count> times)
+    if <count> times is failed than raise Exception
+    """
+    while count:
+        ret = os.system(command)
+        if ret == 0:
+            return
+        count -= 1
+        time.sleep(sleep)
+    raise Exception("can't wait command success")
 
 def wait_unix_socket(socket_path, count=1000, sleep=0.005):
     last_exc = Exception("can't wait unix socket")
@@ -905,6 +923,8 @@ class BaseTestCase(PrometheusMixin, unittest.TestCase):
     # for debugging with manually runned acra-server
     EXTERNAL_ACRA = False
     ACRASERVER_PORT = int(os.environ.get('TEST_ACRASERVER_PORT', 10003))
+    OCSP_SERVER_PORT = int(os.environ.get('TEST_OCSP_SERVER_PORT', 8888))
+    CRL_HTTP_SERVER_PORT = int(os.environ.get('TEST_HTTP_SERVER_PORT', 8889))
     ACRASERVER_PROMETHEUS_PORT = int(os.environ.get('TEST_ACRASERVER_PROMETHEUS_PORT', 10004))
     ACRA_BYTEA = 'pgsql_hex_bytea'
     DB_BYTEA = 'hex'
@@ -962,6 +982,7 @@ class BaseTestCase(PrometheusMixin, unittest.TestCase):
         return {
             'acraserver_tls_transport_enable': True,
             'tls_acraserver_sni': 'acraserver',
+            # 'ocsp_service': 'http://127.0.0.1:{}'.format(self.OCSPSERVER_PORT),
         }
 
     def get_connector_prometheus_port(self, port):
@@ -1036,6 +1057,58 @@ class BaseTestCase(PrometheusMixin, unittest.TestCase):
         logging.info("fork connector finished [pid={}]".format(process.pid))
         return process
 
+    def fork_ocsp_server(self, port: int, check_connection: bool=True):
+        logging.info("fork OpenSSL OCSP server with port {}".format(port))
+
+        ocsp_server_connection = self.get_ocsp_server_connection_string(port)
+
+        args = {
+            'port': port,
+            'index': TEST_TLS_OCSP_INDEX,
+            'rsigner': TEST_TLS_OCSP_CERT,
+            'rkey': TEST_TLS_OCSP_KEY,
+            'CA': TEST_TLS_CA,
+        }
+
+        cli_args = sorted(['-{}={}'.format(k, v) for k, v in args.items()])
+        print('openssl ocsp args: {}'.format(' '.join(cli_args)))
+
+        process = self.fork(lambda: subprocess.Popen(['openssl', 'ocsp'] + cli_args))
+
+        check_cmd = f"openssl ocsp -CAfile {TEST_TLS_CA} -issuer {TEST_TLS_CA} -cert {TEST_TLS_CLIENT_CERT} -url {ocsp_server_connection}"
+
+        if check_connection:
+            print('check OCSP server connection {}'.format(ocsp_server_connection))
+            try:
+                wait_command_success(check_cmd)
+            except:
+                stop_process(process)
+                raise
+
+        logging.info("fork openssl ocsp finished [pid={}]".format(process.pid))
+        return process
+
+    def fork_crl_http_server(self, port: int, check_connection: bool=True):
+        logging.info("fork HTTP server with port {}".format(port))
+
+        http_server_connection = self.get_crl_http_server_connection_string(port)
+
+        cli_args = ['--bind', '127.0.0.1', '--directory', 'tests/ssl', str(port)]
+        print('python HTTP server args: {}'.format(' '.join(cli_args)))
+
+        process = self.fork(lambda: subprocess.Popen(['python3', '-m', 'http.server'] + cli_args))
+
+        if check_connection:
+            print('check HTTP server connection {}'.format(http_server_connection))
+            try:
+                wait_connection(port)
+            except:
+                stop_process(process)
+                raise
+
+        logging.info("fork HTTP server finished [pid={}]".format(process.pid))
+        return process
+
     def get_acraserver_connection_string(self, port=None):
         if not port:
             port = self.ACRASERVER_PORT
@@ -1055,6 +1128,16 @@ class BaseTestCase(PrometheusMixin, unittest.TestCase):
         if not port:
             port = self.CONNECTOR_API_PORT_1
         return get_connector_connection_string(port)
+
+    def get_ocsp_server_connection_string(self, port=None):
+        if not port:
+            port = self.OCSP_SERVER_PORT
+        return 'http://127.0.0.1:{}'.format(port)
+
+    def get_crl_http_server_connection_string(self, port=None):
+        if not port:
+            port = self.CRL_HTTP_SERVER_PORT
+        return 'http://127.0.0.1:{}'.format(port)
 
     def get_acrawebconfig_connection_url(self):
         return 'http://{}:{}'.format('127.0.0.1', ACRAWEBCONFIG_HTTP_PORT)
@@ -1109,6 +1192,7 @@ class BaseTestCase(PrometheusMixin, unittest.TestCase):
             args['tls_cert'] = TEST_TLS_SERVER_CERT
             args['tls_ca'] = TEST_TLS_CA
             args['tls_auth'] = ACRA_TLS_AUTH
+            # args['ocsp_service'] = 'http://127.0.0.1:{}'.format(self.OCSPSERVER_PORT)
         if TEST_MYSQL:
             args['mysql_enable'] = 'true'
             args['postgresql_enable'] = 'false'
@@ -1168,6 +1252,10 @@ class BaseTestCase(PrometheusMixin, unittest.TestCase):
     def setUp(self):
         self.checkSkip()
         try:
+            if self.with_tls():
+                self.ocsp_server = self.fork_ocsp_server(self.OCSP_SERVER_PORT)
+                self.crl_http_server = self.fork_crl_http_server(self.CRL_HTTP_SERVER_PORT)
+
             if not self.EXTERNAL_ACRA:
                 self.acra = self.fork_acra()
             self.connector_1 = self.fork_connector(self.CONNECTOR_PORT_1, self.ACRASERVER_PORT, 'keypair1')
@@ -1222,6 +1310,11 @@ class BaseTestCase(PrometheusMixin, unittest.TestCase):
         processes = [getattr(self, 'connector_1', ProcessStub()),
                      getattr(self, 'connector_2', ProcessStub()),
                      getattr(self, 'acra', ProcessStub())]
+
+        if self.with_tls():
+            processes.append(getattr(self, 'ocsp_server', ProcessStub()))
+            processes.append(getattr(self, 'crl_http_server', ProcessStub()))
+
         stop_process(processes)
         send_signal_by_process_name('acra-server', signal.SIGKILL)
         send_signal_by_process_name('acra-connector', signal.SIGKILL)
