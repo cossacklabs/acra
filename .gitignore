@@ -159,3 +159,6 @@ examples/cpp/Testing
 examples/cpp/cmake-build-debug/*
 examples/cpp/cmake_install.cmake
 examples/cpp/cmake-build-debug
+
+# .old files made by openssl when certs are generated
+tests/ssl/*.old
