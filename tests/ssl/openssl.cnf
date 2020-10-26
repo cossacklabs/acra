@@ -14,6 +14,13 @@ distinguished_name = req_dn
 basicConstraints = CA:false
 keyUsage = nonRepudiation, digitalSignature, keyEncipherment
 subjectAltName = DNS:localhost
+authorityInfoAccess = OCSP;URI:http://127.0.0.1:8888
+crlDistributionPoints = URI:http://127.0.0.1:8889/crl.pem
+
+[ v3_OCSP ]
+basicConstraints = CA:false
+keyUsage = nonRepudiation, digitalSignature, keyEncipherment
+extendedKeyUsage = OCSPSigning
 
 # X.509 v3 extensions for CA certificate, required by RFC 3280
 [ v3_ca ]
@@ -21,3 +28,16 @@ basicConstraints = critical,CA:true
 subjectAltName = DNS:localhost
 subjectKeyIdentifier=hash
 authorityKeyIdentifier=keyid:always,issuer
+
+[ ca ]
+default_ca = CA_default
+
+[ CA_default ]
+dir = tests/ssl
+database = $dir/index.txt
+
+certificate = tests/ssl/ca/ca.crt
+private_key = tests/ssl/ca/ca.key
+
+default_md = sha256
+default_crl_days = 30
