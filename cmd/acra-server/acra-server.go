@@ -123,6 +123,7 @@ func main() {
 	tlsDbSNIOld := flag.String("tls_db_sni", "", "Expected Server Name (SNI) from database (deprecated, use \"tls_database_sni\" instead)")
 	tlsDbCert := flag.String("tls_database_cert", "", "Path to client TLS certificate shown to database during TLS handshake (overrides \"tls_cert\")")
 	tlsDbKey := flag.String("tls_database_key", "", "Path to private key of the TLS certificate used to connect to database (see \"tls_database_cert\")")
+	tlsOcspUrl := flag.String("tls_ocsp_url", "", "OCSP service URL")
 	noEncryptionTransport := flag.Bool("acraconnector_transport_encryption_disable", false, "Use raw transport (tcp/unix socket) between AcraServer and AcraConnector/client (don't use this flag if you not connect to database with SSL/TLS")
 	clientID := flag.String("client_id", "", "Expected client ID of AcraConnector in mode without encryption")
 	acraConnectionString := flag.String("incoming_connection_string", network.BuildConnectionString(cmd.DefaultAcraServerConnectionProtocol, cmd.DefaultAcraServerHost, cmd.DefaultAcraServerPort, ""), "Connection string like tcp://x.x.x.x:yyyy or unix:///path/to/socket")
@@ -154,6 +155,9 @@ func main() {
 	log.SetOutput(os.Stderr)
 
 	log.WithField("version", utils.VERSION).Infof("Starting service %v [pid=%v]", ServiceName, os.Getpid())
+	if len(*tlsOcspUrl) > 0 {
+		log.Infoln("acra-server: using OCSP server at", *tlsOcspUrl)
+	}
 
 	config, err := common.NewConfig()
 	if err != nil {

@@ -108,14 +108,45 @@ func NewTLSConfig(serverName string, caPath, keyPath, crtPath string, authType t
 		}
 		certificates = append(certificates, cer)
 	}
+
+	verifyPeerCertificate := func(rawCerts [][]byte, verifiedChains [][]*x509.Certificate) error {
+		for verifiedChainID := range verifiedChains {
+			for verifiedCertID := range verifiedChains[verifiedChainID] {
+				cert := verifiedChains[verifiedChainID][verifiedCertID]
+
+				log.WithField(logging.FieldKeyEventCode, logging.EventCodeGeneral).Println("verifyPeerCertificate", verifiedChainID, verifiedCertID, cert.Subject.CommonName)
+
+				if len(cert.CRLDistributionPoints) > 0 {
+					for i := range cert.CRLDistributionPoints {
+						log.WithField(logging.FieldKeyEventCode, logging.EventCodeGeneral).Println("verifyPeerCertificate CRL", cert.CRLDistributionPoints[i])
+					}
+				}
+
+				if len(cert.OCSPServer) > 0 {
+					log.WithField(logging.FieldKeyEventCode, logging.EventCodeGeneral).Println("verifyPeerCertificate OCSP", cert.OCSPServer)
+				}
+			}
+		}
+
+		revoked, err := isCertificateRevokedByOCSP("Test leaf certificate", verifiedChains[0][0], verifiedChains[0][1], "http://127.0.0.1:8888")
+		if err != nil {
+			log.WithField(logging.FieldKeyEventCode, logging.EventCodeGeneral).Println("verifyPeerCertificate error", err)
+		} else {
+			log.WithField(logging.FieldKeyEventCode, logging.EventCodeGeneral).Println("verifyPeerCertificate revoked", revoked)
+		}
+
+		return nil
+	}
+
 	return &tls.Config{
-		RootCAs:      roots,
-		ClientCAs:    roots,
-		Certificates: certificates,
-		ServerName:   serverName,
-		ClientAuth:   authType,
-		MinVersion:   tls.VersionTLS12,
-		CipherSuites: allowedCipherSuits,
+		RootCAs:               roots,
+		ClientCAs:             roots,
+		Certificates:          certificates,
+		ServerName:            serverName,
+		ClientAuth:            authType,
+		MinVersion:            tls.VersionTLS12,
+		CipherSuites:          allowedCipherSuits,
+		VerifyPeerCertificate: verifyPeerCertificate,
 	}, nil
 }
 

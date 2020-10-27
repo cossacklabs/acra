@@ -966,7 +966,7 @@ class BaseTestCase(PrometheusMixin, unittest.TestCase):
         return {
             'acraserver_tls_transport_enable': True,
             'tls_acraserver_sni': 'acraserver',
-            # 'ocsp_service': 'http://127.0.0.1:{}'.format(self.OCSPSERVER_PORT),
+            'tls_ocsp_url': 'http://127.0.0.1:{}'.format(self.OCSPSERVER_PORT),
         }
 
     def get_connector_prometheus_port(self, port):
@@ -1150,7 +1150,7 @@ class BaseTestCase(PrometheusMixin, unittest.TestCase):
             args['tls_cert'] = TEST_TLS_SERVER_CERT
             args['tls_ca'] = TEST_TLS_CA
             args['tls_auth'] = ACRA_TLS_AUTH
-            # args['ocsp_service'] = 'http://127.0.0.1:{}'.format(self.OCSPSERVER_PORT)
+            args['tls_ocsp_url'] = 'http://127.0.0.1:{}'.format(self.OCSPSERVER_PORT)
         if TEST_MYSQL:
             args['mysql_enable'] = 'true'
             args['postgresql_enable'] = 'false'
