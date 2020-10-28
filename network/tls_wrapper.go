@@ -49,19 +49,33 @@ type TLSConnectionWrapper struct {
 var ErrEmptyTLSConfig = errors.New("empty TLS config")
 
 var (
-	tlsCA         string
-	tlsKey        string
-	tlsCert       string
-	tlsAuthType   int
-	tlsServerName string
+	tlsCA            string
+	tlsKey           string
+	tlsCert          string
+	tlsAuthType      int
+	tlsServerName    string
+	tlsOcspUrl       string
+	tlsOcspClientUrl string
+	tlsOcspDbUrl     string
+	tlsOcspRequired  string
+	tlsOcspFromCert  string
+	tlsCrlUrl        string
+	tlsCrlFromCert   string
 )
 
-// RegisterTLSBaseArgs register CLI args tls_ca|tls_key|tls_cert|tls_auth which allow to get tls.Config by NewTLSConfigFromBaseArgs function
+// RegisterTLSBaseArgs register CLI args tls_ca|tls_key|tls_cert|tls_auth|tls_ocsp_url|tls_ocsp_client_url|tls_ocsp_db_url|tls_ocsp_required|tls_ocsp_from_cert|tls_crl_url|tls_crl_from_cert which allow to get tls.Config by NewTLSConfigFromBaseArgs function
 func RegisterTLSBaseArgs() {
 	flag.StringVar(&tlsCA, "tls_ca", "", "Path to root certificate which will be used with system root certificates to validate peer's certificate")
 	flag.StringVar(&tlsKey, "tls_key", "", "Path to private key that will be used for TLS connections")
 	flag.StringVar(&tlsCert, "tls_cert", "", "Path to certificate")
 	flag.IntVar(&tlsAuthType, "tls_auth", int(tls.RequireAndVerifyClientCert), "Set authentication mode that will be used in TLS connection. Values in range 0-4 that set auth type (https://golang.org/pkg/crypto/tls/#ClientAuthType). Default is tls.RequireAndVerifyClientCert")
+	flag.StringVar(&tlsOcspUrl, "tls_ocsp_url", "", "OCSP service URL")
+	flag.StringVar(&tlsOcspClientUrl, "tls_ocsp_client_url", "", "OCSP service URL, for client certificates only")
+	flag.StringVar(&tlsOcspDbUrl, "tls_ocsp_database_url", "", "OCSP service URL, for database certificates only")
+	flag.StringVar(&tlsOcspRequired, "tls_ocsp_required", "yes", "Whether we need OCSP response in order to accept certificate")
+	flag.StringVar(&tlsOcspFromCert, "tls_ocsp_from_cert", "prefer", "How should we threat OCSP server described in certificate itself")
+	flag.StringVar(&tlsCrlUrl, "tls_crl_url", "", "CRL URL")
+	flag.StringVar(&tlsCrlFromCert, "tls_crl_from_cert", "use", "How should we treat CRL URL described in certificate itself")
 }
 
 // RegisterTLSClientArgs register CLI args tls_server_sni used by TLS client's connection
@@ -71,11 +85,21 @@ func RegisterTLSClientArgs() {
 
 // NewTLSConfigFromBaseArgs return new tls config with params passed by cli params
 func NewTLSConfigFromBaseArgs() (*tls.Config, error) {
-	return NewTLSConfig(tlsServerName, tlsCA, tlsKey, tlsCert, tls.ClientAuthType(tlsAuthType))
+	ocspConfig, err := NewOCSPConfig(tlsOcspUrl, tlsOcspRequired, tlsOcspFromCert)
+	if err != nil {
+		return nil, err
+	}
+
+	crlConfig, err := NewCRLConfig(tlsCrlUrl, tlsCrlFromCert)
+	if err != nil {
+		return nil, err
+	}
+
+	return NewTLSConfig(tlsServerName, tlsCA, tlsKey, tlsCert, tls.ClientAuthType(tlsAuthType), ocspConfig, crlConfig)
 }
 
 // NewTLSConfig creates x509 TLS config from provided params, tried to load system CA certificate
-func NewTLSConfig(serverName string, caPath, keyPath, crtPath string, authType tls.ClientAuthType) (*tls.Config, error) {
+func NewTLSConfig(serverName string, caPath, keyPath, crtPath string, authType tls.ClientAuthType, ocspConfig *OCSPConfig, crlConfig *CRLConfig) (*tls.Config, error) {
 	var roots *x509.CertPool
 	var err error
 	// use system pool as default

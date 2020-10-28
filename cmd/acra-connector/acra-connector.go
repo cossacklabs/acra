@@ -229,7 +229,6 @@ func main() {
 	tlsCert := flag.String("tls_cert", "", "Path to certificate")
 	tlsAcraserverSNI := flag.String("tls_acraserver_sni", "", "Expected Server Name (SNI) from AcraServer")
 	tlsAuthType := flag.Int("tls_auth", int(tls.RequireAndVerifyClientCert), "Set authentication mode that will be used in TLS connection with AcraServer/AcraTranslator. Values in range 0-4 that set auth type (https://golang.org/pkg/crypto/tls/#ClientAuthType). Default is tls.RequireAndVerifyClientCert")
-	tlsOcspUrl := flag.String("tls_ocsp_url", "", "OCSP service URL")
 	noEncryptionTransport := flag.Bool("acraserver_transport_encryption_disable", false, "Enable this flag to omit AcraConnector and connect client app to AcraServer directly using raw transport (tcp/unix socket). From security perspective please use at least TLS encryption (over tcp socket) between AcraServer and client app.")
 	connectionString := flag.String("incoming_connection_string", network.BuildConnectionString(cmd.DefaultAcraConnectorConnectionProtocol, cmd.DefaultAcraConnectorHost, cmd.DefaultAcraConnectorPort, ""), "Connection string like tcp://x.x.x.x:yyyy or unix:///path/to/socket")
 	connectionAPIString := flag.String("incoming_connection_api_string", network.BuildConnectionString(cmd.DefaultAcraConnectorConnectionProtocol, cmd.DefaultAcraConnectorHost, cmd.DefaultAcraConnectorAPIPort, ""), "Connection string like tcp://x.x.x.x:yyyy or unix:///path/to/socket")
@@ -262,9 +261,6 @@ func main() {
 	log.SetOutput(os.Stderr)
 
 	log.WithField("version", utils.VERSION).Infof("Starting service %v [pid=%v]", ServiceName, os.Getpid())
-	if len(*tlsOcspUrl) > 0 {
-		log.Infoln("acra-connector: using OCSP server at", *tlsOcspUrl)
-	}
 	log.Infof("Validating service configuration...")
 
 	if err = checkDependencies(); err != nil {
@@ -401,7 +397,18 @@ func main() {
 	if connectorMode == connector_mode.AcraServerMode {
 		if *useTLS {
 			log.Infof("Selecting transport: use TLS transport wrapper")
-			tlsConfig, err := network.NewTLSConfig(network.SNIOrHostname(*tlsAcraserverSNI, *acraServerHost), *tlsCA, *tlsKey, *tlsCert, tls.ClientAuthType(*tlsAuthType))
+
+			ocspConfig, _ := network.NewOCSPConfig("", "yes", "prefer")
+			if err != nil {
+				panic("Cannot create OCSP config")
+			}
+
+			crlConfig, _ := network.NewCRLConfig("", "use")
+			if err != nil {
+				panic("Cannot create CRL config")
+			}
+
+			tlsConfig, err := network.NewTLSConfig(network.SNIOrHostname(*tlsAcraserverSNI, *acraServerHost), *tlsCA, *tlsKey, *tlsCert, tls.ClientAuthType(*tlsAuthType), ocspConfig, crlConfig)
 			if err != nil {
 				log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorTransportConfiguration).
 					Errorln("Configuration error: Can't get config for TLS")

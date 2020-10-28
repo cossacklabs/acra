@@ -124,6 +124,12 @@ func main() {
 	tlsDbCert := flag.String("tls_database_cert", "", "Path to client TLS certificate shown to database during TLS handshake (overrides \"tls_cert\")")
 	tlsDbKey := flag.String("tls_database_key", "", "Path to private key of the TLS certificate used to connect to database (see \"tls_database_cert\")")
 	tlsOcspUrl := flag.String("tls_ocsp_url", "", "OCSP service URL")
+	tlsOcspClientUrl := flag.String("tls_ocsp_client_url", "", "OCSP service URL, for client certificates only")
+	tlsOcspDbUrl := flag.String("tls_ocsp_database_url", "", "OCSP service URL, for database certificates only")
+	tlsOcspRequired := flag.String("tls_ocsp_required", "yes", "Whether we need OCSP response in order to accept certificate")
+	tlsOcspFromCert := flag.String("tls_ocsp_from_cert", "prefer", "How should we treat OCSP server described in certificate itself")
+	tlsCrlUrl := flag.String("tls_crl_url", "", "CRL URL")
+	tlsCrlFromCert := flag.String("tls_crl_from_cert", "use", "How should we treat CRL URL described in certificate itself")
 	noEncryptionTransport := flag.Bool("acraconnector_transport_encryption_disable", false, "Use raw transport (tcp/unix socket) between AcraServer and AcraConnector/client (don't use this flag if you not connect to database with SSL/TLS")
 	clientID := flag.String("client_id", "", "Expected client ID of AcraConnector in mode without encryption")
 	acraConnectionString := flag.String("incoming_connection_string", network.BuildConnectionString(cmd.DefaultAcraServerConnectionProtocol, cmd.DefaultAcraServerHost, cmd.DefaultAcraServerPort, ""), "Connection string like tcp://x.x.x.x:yyyy or unix:///path/to/socket")
@@ -155,9 +161,6 @@ func main() {
 	log.SetOutput(os.Stderr)
 
 	log.WithField("version", utils.VERSION).Infof("Starting service %v [pid=%v]", ServiceName, os.Getpid())
-	if len(*tlsOcspUrl) > 0 {
-		log.Infoln("acra-server: using OCSP server at", *tlsOcspUrl)
-	}
 
 	config, err := common.NewConfig()
 	if err != nil {
@@ -246,7 +249,28 @@ func main() {
 		if *tlsClientKey == "" {
 			*tlsClientKey = *tlsKey
 		}
-		clientTLSConfig, err = network.NewTLSConfig("", *tlsClientCA, *tlsClientKey, *tlsClientCert, tls.ClientAuthType(*tlsClientAuthType))
+
+		var ocspClientConfig *network.OCSPConfig
+		if len(*tlsOcspClientUrl) > 0 {
+			ocspClientConfig, err = network.NewOCSPConfig(*tlsOcspClientUrl, *tlsOcspRequired, *tlsOcspFromCert)
+		} else {
+			ocspClientConfig, err = network.NewOCSPConfig(*tlsOcspUrl, *tlsOcspRequired, *tlsOcspFromCert)
+		}
+		if err != nil {
+			log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorWrongConfiguration).
+				Errorf("Configuration error: invalid OCSP config")
+			os.Exit(1)
+		}
+		log.Infof("OCSP: client config: %s", ocspClientConfig.Describe())
+
+		crlConfig, err := network.NewCRLConfig(*tlsCrlUrl, *tlsCrlFromCert)
+		if err != nil {
+			log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorWrongConfiguration).
+				Errorln("Configuration error: invalid CRL config")
+			os.Exit(1)
+		}
+
+		clientTLSConfig, err = network.NewTLSConfig("", *tlsClientCA, *tlsClientKey, *tlsClientCert, tls.ClientAuthType(*tlsClientAuthType), ocspClientConfig, crlConfig)
 		if err != nil {
 			log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorTransportConfiguration).
 				Errorln("Configuration error: can't create AcraConnector TLS config")
@@ -269,7 +293,21 @@ func main() {
 		if *tlsDbKey == "" {
 			*tlsDbKey = *tlsKey
 		}
-		dbTLSConfig, err = network.NewTLSConfig(network.SNIOrHostname(*tlsDbSNI, *dbHost), *tlsDbCA, *tlsDbKey, *tlsDbCert, tls.ClientAuthType(*tlsDbAuthType))
+
+		var ocspDbConfig *network.OCSPConfig
+		if len(*tlsOcspDbUrl) > 0 {
+			ocspDbConfig, err = network.NewOCSPConfig(*tlsOcspDbUrl, *tlsOcspRequired, *tlsOcspFromCert)
+		} else {
+			ocspDbConfig, err = network.NewOCSPConfig(*tlsOcspUrl, *tlsOcspRequired, *tlsOcspFromCert)
+		}
+		if err != nil {
+			log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorWrongConfiguration).
+				Errorf("Configuration error: invalid OCSP config")
+			os.Exit(1)
+		}
+		log.Infof("OCSP: DB config: %s", ocspDbConfig.Describe())
+
+		dbTLSConfig, err = network.NewTLSConfig(network.SNIOrHostname(*tlsDbSNI, *dbHost), *tlsDbCA, *tlsDbKey, *tlsDbCert, tls.ClientAuthType(*tlsDbAuthType), ocspDbConfig, crlConfig)
 		if err != nil {
 			log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorTransportConfiguration).
 				Errorln("Configuration error: can't create database TLS config")
