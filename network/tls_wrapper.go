@@ -135,28 +135,32 @@ func NewTLSConfig(serverName string, caPath, keyPath, crtPath string, authType t
 
 	verifyPeerCertificate := func(rawCerts [][]byte, verifiedChains [][]*x509.Certificate) error {
 		for verifiedChainID := range verifiedChains {
-			for verifiedCertID := range verifiedChains[verifiedChainID] {
-				cert := verifiedChains[verifiedChainID][verifiedCertID]
+			verifiedChain := verifiedChains[verifiedChainID]
 
-				log.WithField(logging.FieldKeyEventCode, logging.EventCodeGeneral).Println("verifyPeerCertificate", verifiedChainID, verifiedCertID, cert.Subject.CommonName)
+			for verifiedCertID := range verifiedChain {
 
-				if len(cert.CRLDistributionPoints) > 0 {
-					for i := range cert.CRLDistributionPoints {
-						log.WithField(logging.FieldKeyEventCode, logging.EventCodeGeneral).Println("verifyPeerCertificate CRL", cert.CRLDistributionPoints[i])
-					}
-				}
+				cert := verifiedChain[verifiedCertID]
 
-				if len(cert.OCSPServer) > 0 {
-					log.WithField(logging.FieldKeyEventCode, logging.EventCodeGeneral).Println("verifyPeerCertificate OCSP", cert.OCSPServer)
+				for i := range cert.CRLDistributionPoints {
+					log.Infof("OCSP: certificate contains CRL URI: %s", cert.CRLDistributionPoints[i])
 				}
 			}
-		}
 
-		revoked, err := isCertificateRevokedByOCSP("Test leaf certificate", verifiedChains[0][0], verifiedChains[0][1], "http://127.0.0.1:8888")
-		if err != nil {
-			log.WithField(logging.FieldKeyEventCode, logging.EventCodeGeneral).Println("verifyPeerCertificate error", err)
-		} else {
-			log.WithField(logging.FieldKeyEventCode, logging.EventCodeGeneral).Println("verifyPeerCertificate revoked", revoked)
+			confirms, err := checkOCSP(verifiedChain, ocspConfig)
+			if err != nil {
+				return err
+			}
+
+			log.Debugf("OCSP: Got %d confirms about '%s'", confirms, verifiedChain[0].Subject.CommonName)
+
+			if len(crlConfig.uri) > 0 || crlConfig.fromCert == crlFromCertUse {
+				confirms, err = checkCRL(verifiedChain, crlConfig)
+				if err != nil {
+					return err
+				}
+
+				log.Debugf("CRL: Got %d confirms about '%s'", confirms, verifiedChain[0].Subject.CommonName)
+			}
 		}
 
 		return nil

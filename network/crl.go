@@ -17,7 +17,9 @@ limitations under the License.
 package network
 
 import (
+	"crypto/x509"
 	"errors"
+	log "github.com/sirupsen/logrus"
 	"net/url"
 )
 
@@ -48,4 +50,10 @@ func NewCRLConfig(uri, fromCert string) (*CRLConfig, error) {
 	}
 
 	return &CRLConfig{uri: uri, fromCert: fromCertVal}, nil
+}
+
+func checkCRL(chain []*x509.Certificate, config *CRLConfig) (int, error) {
+	log.Infof("CRL: checkCRL() > CN = %s", chain[0].Subject.CommonName)
+
+	return 0, nil
 }

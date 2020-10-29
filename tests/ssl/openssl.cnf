@@ -14,8 +14,8 @@ distinguished_name = req_dn
 basicConstraints = CA:false
 keyUsage = nonRepudiation, digitalSignature, keyEncipherment
 subjectAltName = DNS:localhost
-authorityInfoAccess = OCSP;URI:http://127.0.0.1:8888
-crlDistributionPoints = URI:http://127.0.0.1:8889/crl.pem
+authorityInfoAccess = @ocsp_section
+crlDistributionPoints = @crl_section
 
 [ v3_OCSP ]
 basicConstraints = CA:false
@@ -41,3 +41,11 @@ private_key = tests/ssl/ca/ca.key
 
 default_md = sha256
 default_crl_days = 30
+
+[ ocsp_section ]
+# some non-valid URL to make sure acra-server can try few servers
+OCSP;URI.0 = http://127.0.0.1:23456
+OCSP;URI.1 = http://127.0.0.1:8888
+
+[ crl_section ]
+URI.0 = http://127.0.0.1:8889/crl.pem

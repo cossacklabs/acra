@@ -113,19 +113,19 @@ func (c *OCSPConfig) Describe() string {
 	return fmt.Sprintf("url=%s, required=%d, fromCert=%d", c.url, c.required, c.fromCert)
 }
 
-func isCertificateRevokedByOCSP(commonName string, clientCert, issuerCert *x509.Certificate, ocspServer string) (bool, error) {
+func queryOCSP(commonName string, clientCert, issuerCert *x509.Certificate, ocspServer string) (*ocsp.Response, error) {
 	opts := &ocsp.RequestOptions{Hash: crypto.SHA256}
 	buffer, err := ocsp.CreateRequest(clientCert, issuerCert, opts)
 	if err != nil {
-		return false, err
+		return nil, err
 	}
 	httpRequest, err := http.NewRequest(http.MethodPost, ocspServer, bytes.NewBuffer(buffer))
 	if err != nil {
-		return false, err
+		return nil, err
 	}
 	ocspUrl, err := url.Parse(ocspServer)
 	if err != nil {
-		return false, err
+		return nil, err
 	}
 	httpRequest.Header.Add("Content-Type", "application/ocsp-request")
 	httpRequest.Header.Add("Accept", "application/ocsp-response")
@@ -133,20 +133,100 @@ func isCertificateRevokedByOCSP(commonName string, clientCert, issuerCert *x509.
 	httpClient := &http.Client{}
 	httpResponse, err := httpClient.Do(httpRequest)
 	if err != nil {
-		return false, err
+		return nil, err
 	}
 	defer httpResponse.Body.Close()
 	output, err := ioutil.ReadAll(httpResponse.Body)
 	if err != nil {
-		return false, err
+		return nil, err
 	}
 	ocspResponse, err := ocsp.ParseResponse(output, issuerCert)
-	if err != nil {
-		return false, err
-	}
-	if ocspResponse.Status == ocsp.Revoked {
-		return true, nil
+	return ocspResponse, err
+}
+
+// ocspServerToCheck is used to plan OCSP requests
+type ocspServerToCheck struct {
+	url      string
+	fromCert bool
+}
+
+// checkOCSP returns number of confirmations (one or zero) or error.
+// The error is returned only if it is critical, for example:
+// - the certificate was revoked
+// - the certificate is not known by OCSP server and we requested tls_ocsp_required == "yes" or "all"
+// - if we were unable to contact OCSP server(s) but we really need the response, tls_ocsp_required == "all"
+func checkOCSP(chain []*x509.Certificate, config *OCSPConfig) (int, error) {
+	log.Infof("OCSP: checkOCSP() > CN = %s", chain[0].Subject.CommonName)
+
+	cert := chain[0]
+	issuer := chain[1]
+
+	serversToCheck := []ocspServerToCheck{}
+
+	if config.fromCert != ocspFromCertIgnore {
+		for i := range cert.OCSPServer {
+			serverToCheck := ocspServerToCheck{url: cert.OCSPServer[i], fromCert: true}
+			log.Debugf("OCSP: appending server %s, from cert", serverToCheck.url)
+			serversToCheck = append(serversToCheck, serverToCheck)
+		}
 	} else {
-		return false, nil
+		if len(cert.OCSPServer) > 0 {
+			log.Debugf("OCSP: Ignoring %d OCSP servers from certificate", len(cert.OCSPServer))
+		}
 	}
+
+	if len(config.url) > 0 {
+		serverToCheck := ocspServerToCheck{url: config.url, fromCert: false}
+
+		if config.fromCert == ocspFromCertPrefer || config.fromCert == ocspFromCertTrust {
+			log.Debugf("OCSP: appending server %s, from config", serverToCheck.url)
+			serversToCheck = append(serversToCheck, serverToCheck)
+		} else {
+			log.Debugf("OCSP: prepending server %s, from config", serverToCheck.url)
+			serversToCheck = append([]ocspServerToCheck{serverToCheck}, serversToCheck...)
+		}
+	}
+
+	confirmsByConfigOCSP := 0
+	confirmsByCertOCSP := 0
+
+	for i := range serversToCheck {
+		log.Debugf("OCSP: Trying server %s", serversToCheck[i].url)
+
+		response, err := queryOCSP(cert.Issuer.CommonName, cert, issuer, serversToCheck[i].url)
+		if err != nil {
+			_ = response
+			log.WithError(err).Warnf("Cannot query OCSP server at %s", serversToCheck[i])
+
+			if config.required == ocspRequiredAll {
+				return 0, errors.New("Cannot query OCSP server, but --tls_ocsp_required=all was passed")
+			}
+
+			continue
+		}
+
+		switch response.Status {
+		case ocsp.Good:
+			if serversToCheck[i].fromCert {
+				confirmsByCertOCSP += 1
+			} else {
+				confirmsByConfigOCSP += 1
+			}
+
+			if config.required != ocspRequiredAll {
+				// One confirmation is enough if we don't require all OCSP servers to confirm the certificate validity
+				break
+			}
+		case ocsp.Revoked:
+			// If any OCSP server replies with "certificate was revoked", return error immediately
+			return 0, errors.New(fmt.Sprintf("Certificate 0x%s was revoked", cert.SerialNumber.Text(16)))
+		case ocsp.Unknown:
+			// Treat "Unknown" response as error if tls_ocsp_required is "yes" or "all"
+			if config.required != ocspRequiredNo {
+				return 0, errors.New(fmt.Sprintf("OCSP server %s doesn't know about certificate 0x%s", serversToCheck[i].url, cert.SerialNumber.Text(16)))
+			}
+		}
+	}
+
+	return confirmsByConfigOCSP + confirmsByCertOCSP, nil
 }
