@@ -398,12 +398,12 @@ func main() {
 		if *useTLS {
 			log.Infof("Selecting transport: use TLS transport wrapper")
 
-			ocspConfig, _ := network.NewOCSPConfig("", "yes", "prefer")
+			ocspConfig, err := network.NewOCSPConfig("", "yes", "prefer")
 			if err != nil {
 				panic("Cannot create OCSP config")
 			}
 
-			crlConfig, _ := network.NewCRLConfig("", "use")
+			crlConfig, err := network.NewCRLConfig("", "use")
 			if err != nil {
 				panic("Cannot create CRL config")
 			}
