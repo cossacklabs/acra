@@ -400,12 +400,14 @@ func main() {
 
 			ocspConfig, err := network.NewOCSPConfig("", "yes", "prefer")
 			if err != nil {
-				panic("Cannot create OCSP config")
+				// Using `Fatal` since NewOCSPConfig should never fail with passed arguments
+				log.WithError(err).Fatalln("Cannot create OCSP config")
 			}
 
 			crlConfig, err := network.NewCRLConfig("", "use")
 			if err != nil {
-				panic("Cannot create CRL config")
+				// Using `Fatal` since NewCRLConfig should never fail with passed arguments
+				log.WithError(err).Fatalln("Cannot create CRL config")
 			}
 
 			tlsConfig, err := network.NewTLSConfig(network.SNIOrHostname(*tlsAcraserverSNI, *acraServerHost), *tlsCA, *tlsKey, *tlsCert, tls.ClientAuthType(*tlsAuthType), ocspConfig, crlConfig)
