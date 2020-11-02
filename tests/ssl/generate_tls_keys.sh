@@ -93,4 +93,4 @@ openssl ca \
     -out "${OUT_DIR}/crl.pem"
 
 # remove redundant file with serial numbers of signed certificates
-rm -f ${OUT_DIR}/ca/ca.srl
+rm -f ${OUT_DIR}/ca/ca.srl ${OUT_DIR}/*.old
