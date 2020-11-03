@@ -187,7 +187,7 @@ _The dataflow of encrypted and plaintext data, AcraTranslator only decrypts data
 
 In some use cases, the application can store encrypted data as separate blobs (in NoSQL databases, or as files that are not in a database, i.e. in a S3 bucket, local file storage, etc.). In this case, you can use [**AcraTranslator**](http://docs.cossacklabs.com/pages/acratranslator/) — a lightweight server that receives [**AcraStructs**](https://docs.cossacklabs.com/pages/documentation-acra/#acrastruct) and returns the decrypted data.
 
-**Note:** since Q3 2020, AcraTranslator can both encrypt and decrypt data via REST API (HTTP, gRPC). You may use a combinator of AcraWriter+AcraTranslator for client-side encryption and Translator-side decryption; or AcraTranslator only for both encryption and decryption without changing app code.
+**Note:** since Q3 2020, AcraTranslator can both encrypt and decrypt data via REST API (HTTP, gRPC). You may use a combination of AcraWriter+AcraTranslator for client-side encryption and Translator-side decryption; or AcraTranslator only for both encryption and decryption without changing app code.
 
 This is what the process of encryption and decryption of data using AcraTranslator looks like:
 
@@ -390,4 +390,3 @@ If you want to ask a technical question, feel free to raise an [Issue](https://g
 To talk to the business wing of Cossack Labs Limited, drop us an email to [info@cossacklabs.com](mailto:info@cossacklabs.com).
    
 [![Blog](https://img.shields.io/badge/blog-cossacklabs.com-7a7c98.svg)](https://cossacklabs.com/) [![Twitter CossackLabs](https://img.shields.io/badge/twitter-cossacklabs-fbb03b.svg)](https://twitter.com/cossacklabs) [![Medium CossackLabs](https://img.shields.io/badge/medium-%40cossacklabs-orange.svg)](https://medium.com/@cossacklabs/)
-
