@@ -90,16 +90,20 @@ func NewTLSConfigFromBaseArgs() (*tls.Config, error) {
 		return nil, err
 	}
 
+	ocspVerifier := DefaultOCSPVerifier{Config: *ocspConfig, Client: &DefaultOCSPClient{}}
+
 	crlConfig, err := NewCRLConfig(tlsCrlUrl, tlsCrlFromCert)
 	if err != nil {
 		return nil, err
 	}
 
-	return NewTLSConfig(tlsServerName, tlsCA, tlsKey, tlsCert, tls.ClientAuthType(tlsAuthType), ocspConfig, crlConfig)
+	crlVerifier := DefaultCRLVerifier{Config: *crlConfig}
+
+	return NewTLSConfig(tlsServerName, tlsCA, tlsKey, tlsCert, tls.ClientAuthType(tlsAuthType), ocspVerifier, crlVerifier)
 }
 
 // NewTLSConfig creates x509 TLS config from provided params, tried to load system CA certificate
-func NewTLSConfig(serverName string, caPath, keyPath, crtPath string, authType tls.ClientAuthType, ocspConfig *OCSPConfig, crlConfig *CRLConfig) (*tls.Config, error) {
+func NewTLSConfig(serverName string, caPath, keyPath, crtPath string, authType tls.ClientAuthType, ocspVerifier OCSPVerifier, crlVerifier CRLVerifier) (*tls.Config, error) {
 	var roots *x509.CertPool
 	var err error
 	// use system pool as default
@@ -146,21 +150,19 @@ func NewTLSConfig(serverName string, caPath, keyPath, crtPath string, authType t
 				}
 			}
 
-			confirms, err := checkOCSP(verifiedChain, ocspConfig)
+			confirms, err := ocspVerifier.Verify(verifiedChain)
 			if err != nil {
 				return err
 			}
 
 			log.Debugf("OCSP: Got %d confirms about '%s'", confirms, verifiedChain[0].Subject.CommonName)
 
-			if len(crlConfig.uri) > 0 || crlConfig.fromCert == crlFromCertUse {
-				confirms, err = checkCRL(verifiedChain, crlConfig)
-				if err != nil {
-					return err
-				}
-
-				log.Debugf("CRL: Got %d confirms about '%s'", confirms, verifiedChain[0].Subject.CommonName)
+			confirms, err = crlVerifier.Verify(verifiedChain)
+			if err != nil {
+				return err
 			}
+
+			log.Debugf("CRL: Got %d confirms about '%s'", confirms, verifiedChain[0].Subject.CommonName)
 		}
 
 		return nil

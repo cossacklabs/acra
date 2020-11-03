@@ -410,7 +410,11 @@ func main() {
 				log.WithError(err).Fatalln("Cannot create CRL config")
 			}
 
-			tlsConfig, err := network.NewTLSConfig(network.SNIOrHostname(*tlsAcraserverSNI, *acraServerHost), *tlsCA, *tlsKey, *tlsCert, tls.ClientAuthType(*tlsAuthType), ocspConfig, crlConfig)
+			ocspVerifier := network.DefaultOCSPVerifier{Config: *ocspConfig, Client: &network.DefaultOCSPClient{}}
+
+			crlVerifier := network.DefaultCRLVerifier{Config: *crlConfig}
+
+			tlsConfig, err := network.NewTLSConfig(network.SNIOrHostname(*tlsAcraserverSNI, *acraServerHost), *tlsCA, *tlsKey, *tlsCert, tls.ClientAuthType(*tlsAuthType), ocspVerifier, crlVerifier)
 			if err != nil {
 				log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorTransportConfiguration).
 					Errorln("Configuration error: Can't get config for TLS")

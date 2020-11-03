@@ -48,12 +48,27 @@ func NewCRLConfig(uri, fromCert string) (*CRLConfig, error) {
 	default:
 		return nil, errors.New("Invalid `tls_crl_from_cert` value '" + fromCert + "', should be one of 'use', 'ignore'")
 	}
+	// TODO: Download CRL from `uri`, log error if failed
 
 	return &CRLConfig{uri: uri, fromCert: fromCertVal}, nil
 }
 
-func checkCRL(chain []*x509.Certificate, config *CRLConfig) (int, error) {
-	log.Infof("CRL: checkCRL() > CN = %s", chain[0].Subject.CommonName)
+type CRLVerifier interface {
+	// Verify returns number of confirmations (how many CRLs don't contain the certificate) or error.
+	// The error is returned only if the certificate was revoked.
+	Verify(chain []*x509.Certificate) (int, error)
+}
+
+type DefaultCRLVerifier struct {
+	Config CRLConfig
+}
+
+func (v DefaultCRLVerifier) Verify(chain []*x509.Certificate) (int, error) {
+	if len(v.Config.uri) == 0 && v.Config.fromCert == crlFromCertIgnore {
+		return 0, nil
+	}
+
+	log.Infof("CRL: Verify( %s )", chain[0].Subject.CommonName)
 
 	return 0, nil
 }

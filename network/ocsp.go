@@ -54,6 +54,8 @@ func NewOCSPConfig(uri, required, fromCert string) (*OCSPConfig, error) {
 		if err != nil {
 			return nil, err
 		}
+
+		// TODO: Do some request to `uri`, log warn if failed
 	}
 
 	var requiredVal int
@@ -113,17 +115,24 @@ func (c *OCSPConfig) Describe() string {
 	return fmt.Sprintf("url=%s, required=%d, fromCert=%d", c.url, c.required, c.fromCert)
 }
 
-func queryOCSP(commonName string, clientCert, issuerCert *x509.Certificate, ocspServer string) (*ocsp.Response, error) {
+type OCSPClient interface {
+	// Query generates OCSP request about specified certificate, sends it to server and returns the response
+	Query(commonName string, clientCert, issuerCert *x509.Certificate, ocspServerUrl string) (*ocsp.Response, error)
+}
+
+type DefaultOCSPClient struct{}
+
+func (c DefaultOCSPClient) Query(commonName string, clientCert, issuerCert *x509.Certificate, ocspServerUrl string) (*ocsp.Response, error) {
 	opts := &ocsp.RequestOptions{Hash: crypto.SHA256}
 	buffer, err := ocsp.CreateRequest(clientCert, issuerCert, opts)
 	if err != nil {
 		return nil, err
 	}
-	httpRequest, err := http.NewRequest(http.MethodPost, ocspServer, bytes.NewBuffer(buffer))
+	httpRequest, err := http.NewRequest(http.MethodPost, ocspServerUrl, bytes.NewBuffer(buffer))
 	if err != nil {
 		return nil, err
 	}
-	ocspUrl, err := url.Parse(ocspServer)
+	ocspUrl, err := url.Parse(ocspServerUrl)
 	if err != nil {
 		return nil, err
 	}
@@ -144,26 +153,35 @@ func queryOCSP(commonName string, clientCert, issuerCert *x509.Certificate, ocsp
 	return ocspResponse, err
 }
 
+type OCSPVerifier interface {
+	// Verify returns number of confirmations or error.
+	// The error is returned only if it is critical, for example:
+	// - the certificate was revoked
+	// - the certificate is not known by OCSP server and we requested tls_ocsp_required == "yes" or "all"
+	// - if we were unable to contact OCSP server(s) but we really need the response, tls_ocsp_required == "all"
+	Verify(chain []*x509.Certificate) (int, error)
+}
+
+type DefaultOCSPVerifier struct {
+	Config OCSPConfig
+	Client OCSPClient
+}
+
 // ocspServerToCheck is used to plan OCSP requests
 type ocspServerToCheck struct {
 	url      string
 	fromCert bool
 }
 
-// checkOCSP returns number of confirmations (one or zero) or error.
-// The error is returned only if it is critical, for example:
-// - the certificate was revoked
-// - the certificate is not known by OCSP server and we requested tls_ocsp_required == "yes" or "all"
-// - if we were unable to contact OCSP server(s) but we really need the response, tls_ocsp_required == "all"
-func checkOCSP(chain []*x509.Certificate, config *OCSPConfig) (int, error) {
-	log.Infof("OCSP: checkOCSP() > CN = %s", chain[0].Subject.CommonName)
+func (v DefaultOCSPVerifier) Verify(chain []*x509.Certificate) (int, error) {
+	log.Infof("OCSP: Verify( %s )", chain[0].Subject.CommonName)
 
 	cert := chain[0]
 	issuer := chain[1]
 
 	serversToCheck := []ocspServerToCheck{}
 
-	if config.fromCert != ocspFromCertIgnore {
+	if v.Config.fromCert != ocspFromCertIgnore {
 		for i := range cert.OCSPServer {
 			serverToCheck := ocspServerToCheck{url: cert.OCSPServer[i], fromCert: true}
 			log.Debugf("OCSP: appending server %s, from cert", serverToCheck.url)
@@ -175,10 +193,10 @@ func checkOCSP(chain []*x509.Certificate, config *OCSPConfig) (int, error) {
 		}
 	}
 
-	if len(config.url) > 0 {
-		serverToCheck := ocspServerToCheck{url: config.url, fromCert: false}
+	if len(v.Config.url) > 0 {
+		serverToCheck := ocspServerToCheck{url: v.Config.url, fromCert: false}
 
-		if config.fromCert == ocspFromCertPrefer || config.fromCert == ocspFromCertTrust {
+		if v.Config.fromCert == ocspFromCertPrefer || v.Config.fromCert == ocspFromCertTrust {
 			log.Debugf("OCSP: appending server %s, from config", serverToCheck.url)
 			serversToCheck = append(serversToCheck, serverToCheck)
 		} else {
@@ -193,12 +211,12 @@ func checkOCSP(chain []*x509.Certificate, config *OCSPConfig) (int, error) {
 	for i := range serversToCheck {
 		log.Debugf("OCSP: Trying server %s", serversToCheck[i].url)
 
-		response, err := queryOCSP(cert.Issuer.CommonName, cert, issuer, serversToCheck[i].url)
+		response, err := v.Client.Query(cert.Issuer.CommonName, cert, issuer, serversToCheck[i].url)
 		if err != nil {
 			_ = response
 			log.WithError(err).Warnf("Cannot query OCSP server at %s", serversToCheck[i])
 
-			if config.required == ocspRequiredAll {
+			if v.Config.required == ocspRequiredAll {
 				return 0, errors.New("Cannot query OCSP server, but --tls_ocsp_required=all was passed")
 			}
 
@@ -213,7 +231,7 @@ func checkOCSP(chain []*x509.Certificate, config *OCSPConfig) (int, error) {
 				confirmsByConfigOCSP += 1
 			}
 
-			if config.required != ocspRequiredAll {
+			if v.Config.required != ocspRequiredAll {
 				// One confirmation is enough if we don't require all OCSP servers to confirm the certificate validity
 				break
 			}
@@ -222,7 +240,7 @@ func checkOCSP(chain []*x509.Certificate, config *OCSPConfig) (int, error) {
 			return 0, errors.New(fmt.Sprintf("Certificate 0x%s was revoked", cert.SerialNumber.Text(16)))
 		case ocsp.Unknown:
 			// Treat "Unknown" response as error if tls_ocsp_required is "yes" or "all"
-			if config.required != ocspRequiredNo {
+			if v.Config.required != ocspRequiredNo {
 				return 0, errors.New(fmt.Sprintf("OCSP server %s doesn't know about certificate 0x%s", serversToCheck[i].url, cert.SerialNumber.Text(16)))
 			}
 		}

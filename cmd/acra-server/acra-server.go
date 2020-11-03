@@ -263,6 +263,8 @@ func main() {
 		}
 		log.Infof("OCSP: client config: %s", ocspClientConfig.Describe())
 
+		ocspClientVerifier := network.DefaultOCSPVerifier{Config: *ocspClientConfig, Client: &network.DefaultOCSPClient{}}
+
 		crlConfig, err := network.NewCRLConfig(*tlsCrlUrl, *tlsCrlFromCert)
 		if err != nil {
 			log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorWrongConfiguration).
@@ -270,7 +272,9 @@ func main() {
 			os.Exit(1)
 		}
 
-		clientTLSConfig, err = network.NewTLSConfig("", *tlsClientCA, *tlsClientKey, *tlsClientCert, tls.ClientAuthType(*tlsClientAuthType), ocspClientConfig, crlConfig)
+		crlVerifier := network.DefaultCRLVerifier{Config: *crlConfig}
+
+		clientTLSConfig, err = network.NewTLSConfig("", *tlsClientCA, *tlsClientKey, *tlsClientCert, tls.ClientAuthType(*tlsClientAuthType), ocspClientVerifier, crlVerifier)
 		if err != nil {
 			log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorTransportConfiguration).
 				Errorln("Configuration error: can't create AcraConnector TLS config")
@@ -307,7 +311,9 @@ func main() {
 		}
 		log.Infof("OCSP: DB config: %s", ocspDbConfig.Describe())
 
-		dbTLSConfig, err = network.NewTLSConfig(network.SNIOrHostname(*tlsDbSNI, *dbHost), *tlsDbCA, *tlsDbKey, *tlsDbCert, tls.ClientAuthType(*tlsDbAuthType), ocspDbConfig, crlConfig)
+		ocspDbVerifier := network.DefaultOCSPVerifier{Config: *ocspDbConfig, Client: &network.DefaultOCSPClient{}}
+
+		dbTLSConfig, err = network.NewTLSConfig(network.SNIOrHostname(*tlsDbSNI, *dbHost), *tlsDbCA, *tlsDbKey, *tlsDbCert, tls.ClientAuthType(*tlsDbAuthType), ocspDbVerifier, crlVerifier)
 		if err != nil {
 			log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorTransportConfiguration).
 				Errorln("Configuration error: can't create database TLS config")
