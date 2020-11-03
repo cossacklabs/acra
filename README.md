@@ -53,16 +53,15 @@ This is [Acra Community Edition](https://www.cossacklabs.com/acra/#pricing), it'
 
 <table><tbody><tr><tr><td><li>Cryptographic protection of data </li></td><td> field level encryption (client-side and/or proxy-side);<br/> each data record is encrypted using unique encryption keys</td>
 </tr><tr><td><li>Selective encryption </li></td><td> select which field/columns to encrypt to balance good security and performance </td>
-</tr><tr><td><li>Key management tools </li></td><td> built-in tools for key distribution, key rotation, and compartmentalisation</td>
+</tr><tr><td><li>Key management tools </li></td><td> built-in tools for key distribution, key rotation (with/without data re-encryption), and compartmentalisation</td>
 </tr><tr><td><li>Trust compartmentalisation </li></td><td> datastore and application components can be compromised, yet the data stays protected</td>
 </tr><tr><td><li>Prevention of SQL injections </li></td><td> through a built-in SQL firewall </td>
 </tr><tr><td><li>Intrusion detection system </li></td><td> using poison records (honey tokens) to warn about suspicious behaviour </td>
 </tr><tr><td><li>REST API (gRPC, HTTP) </li></td><td> encryption/decryption using AcraTranslator </td>
-</tr><tr><td><li>Searchable encryption ᵉ </li></td><td rowspan=5>available for <a href="https://www.cossacklabs.com/acra/#pricing" target="_blank">Acra Enterprise</a> users</td>
+</tr><tr><td><li>Searchable encryption ᵉ </li></td><td rowspan=4>available for <a href="https://www.cossacklabs.com/acra/#pricing" target="_blank">Acra Enterprise</a> users</td>
 </tr><tr><td><li>Masking / anonymization ᵉ </li></td>
 </tr><tr><td><li>Tokenization / Pseudonymization ᵉ </li></td>
 </tr><tr><td><li>Cryptographically protected audit log ᵉ </li></td>
-</tr><tr><td><li>Key rotation without data re-encryption ᵉ </li></td>
 </tr></tbody></table>
 
 Acra delivers different layers of defense for different parts and stages of the data lifecycle. This is what **defence in depth** is – an independent set of security controls aimed at mitigating multiple risks in case of an attacker crossing the outer perimeter. 
