@@ -18,9 +18,14 @@ package network
 
 import (
 	"crypto/x509"
+	"crypto/x509/pkix"
 	"errors"
+	"fmt"
 	log "github.com/sirupsen/logrus"
+	"io/ioutil"
+	"net/http"
 	"net/url"
+	"strings"
 )
 
 const (
@@ -53,6 +58,59 @@ func NewCRLConfig(uri, fromCert string) (*CRLConfig, error) {
 	return &CRLConfig{uri: uri, fromCert: fromCertVal}, nil
 }
 
+type CRLClient interface {
+	// Fetch fetches and parses CRL from passed URI (can be either http:// or file://)
+	Fetch(uri string) (*pkix.CertificateList, error)
+}
+
+type DefaultCRLClient struct{}
+
+func (c DefaultCRLClient) Fetch(uri string) (*pkix.CertificateList, error) {
+	if strings.HasPrefix(uri, "http://") {
+		httpRequest, err := http.NewRequest(http.MethodGet, uri, nil)
+		if err != nil {
+			return nil, err
+		}
+		ocspUrl, err := url.Parse(uri)
+		if err != nil {
+			return nil, err
+		}
+		httpRequest.Header.Add("Accept", "application/pkix-crl, application/pem-certificate-chain")
+		httpRequest.Header.Add("host", ocspUrl.Host)
+		httpClient := &http.Client{}
+		httpResponse, err := httpClient.Do(httpRequest)
+		if err != nil {
+			return nil, err
+		}
+		defer httpResponse.Body.Close()
+		content, err := ioutil.ReadAll(httpResponse.Body)
+		if err != nil {
+			return nil, err
+		}
+
+		crl, err := x509.ParseCRL(content)
+		if err != nil {
+			return nil, err
+		}
+
+		return crl, nil
+	} else if strings.HasPrefix(uri, "file://") {
+		content, err := ioutil.ReadFile(uri[7:])
+		if err != nil {
+			return nil, err
+		}
+
+		crl, err := x509.ParseCRL(content)
+		if err != nil {
+			return nil, err
+		}
+
+		return crl, nil
+	}
+
+	return nil, errors.New(fmt.Sprintf("Cannot fetch CRL from '%s', unsupported protocol", uri))
+}
+
 type CRLVerifier interface {
 	// Verify returns number of confirmations (how many CRLs don't contain the certificate) or error.
 	// The error is returned only if the certificate was revoked.
@@ -61,6 +119,11 @@ type CRLVerifier interface {
 
 type DefaultCRLVerifier struct {
 	Config CRLConfig
+	Client CRLClient
+	// key = URI of cached CRL
+	// value = parsed CRL
+	// XXX maybe hide it behind mutex?
+	cache map[string]*pkix.CertificateList
 }
 
 func (v DefaultCRLVerifier) Verify(chain []*x509.Certificate) (int, error) {
@@ -70,5 +133,6 @@ func (v DefaultCRLVerifier) Verify(chain []*x509.Certificate) (int, error) {
 
 	log.Infof("CRL: Verify( %s )", chain[0].Subject.CommonName)
 
+	// panic("not implemented")
 	return 0, nil
 }

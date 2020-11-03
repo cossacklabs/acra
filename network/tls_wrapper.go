@@ -97,7 +97,7 @@ func NewTLSConfigFromBaseArgs() (*tls.Config, error) {
 		return nil, err
 	}
 
-	crlVerifier := DefaultCRLVerifier{Config: *crlConfig}
+	crlVerifier := DefaultCRLVerifier{Config: *crlConfig, Client: DefaultCRLClient{}}
 
 	return NewTLSConfig(tlsServerName, tlsCA, tlsKey, tlsCert, tls.ClientAuthType(tlsAuthType), ocspVerifier, crlVerifier)
 }
