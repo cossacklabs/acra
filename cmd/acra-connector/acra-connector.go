@@ -412,7 +412,7 @@ func main() {
 
 			ocspVerifier := network.DefaultOCSPVerifier{Config: *ocspConfig, Client: &network.DefaultOCSPClient{}}
 
-			crlVerifier := network.DefaultCRLVerifier{Config: *crlConfig, Client: network.DefaultCRLClient{}}
+			crlVerifier := network.DefaultCRLVerifier{Config: *crlConfig, Client: network.DefaultCRLClient{}, Cache: &network.DefaultCRLCache{}}
 
 			tlsConfig, err := network.NewTLSConfig(network.SNIOrHostname(*tlsAcraserverSNI, *acraServerHost), *tlsCA, *tlsKey, *tlsCert, tls.ClientAuthType(*tlsAuthType), ocspVerifier, crlVerifier)
 			if err != nil {

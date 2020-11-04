@@ -18,7 +18,6 @@ package network
 
 import (
 	"crypto/x509"
-	"crypto/x509/pkix"
 	"errors"
 	"fmt"
 	log "github.com/sirupsen/logrus"
@@ -26,6 +25,7 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+	"sync"
 )
 
 const (
@@ -60,12 +60,12 @@ func NewCRLConfig(uri, fromCert string) (*CRLConfig, error) {
 
 type CRLClient interface {
 	// Fetch fetches and parses CRL from passed URI (can be either http:// or file://)
-	Fetch(uri string) (*pkix.CertificateList, error)
+	Fetch(uri string) ([]byte, error)
 }
 
 type DefaultCRLClient struct{}
 
-func (c DefaultCRLClient) Fetch(uri string) (*pkix.CertificateList, error) {
+func (c DefaultCRLClient) Fetch(uri string) ([]byte, error) {
 	if strings.HasPrefix(uri, "http://") {
 		httpRequest, err := http.NewRequest(http.MethodGet, uri, nil)
 		if err != nil {
@@ -88,27 +88,56 @@ func (c DefaultCRLClient) Fetch(uri string) (*pkix.CertificateList, error) {
 			return nil, err
 		}
 
-		crl, err := x509.ParseCRL(content)
-		if err != nil {
-			return nil, err
-		}
-
-		return crl, nil
+		return content, nil
 	} else if strings.HasPrefix(uri, "file://") {
 		content, err := ioutil.ReadFile(uri[7:])
 		if err != nil {
 			return nil, err
 		}
 
-		crl, err := x509.ParseCRL(content)
-		if err != nil {
-			return nil, err
-		}
-
-		return crl, nil
+		return content, nil
 	}
 
 	return nil, errors.New(fmt.Sprintf("Cannot fetch CRL from '%s', unsupported protocol", uri))
+}
+
+type CRLCache interface {
+	Get(key string) ([]byte, error)
+	Put(key string, value []byte) error
+	Remove(key string) error
+}
+
+type DefaultCRLCache struct {
+	cache sync.Map
+}
+
+func (c *DefaultCRLCache) Get(key string) ([]byte, error) {
+	log.Debugf("CRL: cache: loading '%s'", key)
+	value, ok := c.cache.Load(key)
+	if ok {
+		value, ok := value.([]byte)
+		if !ok {
+			// should never happen since Put() only inserts []byte
+			return nil, errors.New("Unexpected value of invalid type")
+		}
+		log.Debugf("CRL: cache: '%s' found", key)
+		return value, nil
+	} else {
+		log.Debugf("CRL: cache: '%s' not found", key)
+		return nil, errors.New("Key not found")
+	}
+}
+
+func (c *DefaultCRLCache) Put(key string, value []byte) error {
+	c.cache.Store(key, value)
+	log.Debugf("CRL: cache: inserted '%s'", key)
+	return nil
+}
+
+func (c *DefaultCRLCache) Remove(key string) error {
+	c.cache.Delete(key)
+	log.Debugf("CRL: cache: removed '%s'", key)
+	return nil
 }
 
 type CRLVerifier interface {
@@ -120,19 +149,124 @@ type CRLVerifier interface {
 type DefaultCRLVerifier struct {
 	Config CRLConfig
 	Client CRLClient
-	// key = URI of cached CRL
-	// value = parsed CRL
-	// XXX maybe hide it behind mutex?
-	cache map[string]*pkix.CertificateList
+	Cache  CRLCache
+}
+
+func (v DefaultCRLVerifier) getCachedOrFetch(uri string) ([]byte, error) {
+	crl, err := v.Cache.Get(v.Config.uri)
+	if crl != nil {
+		if err != nil {
+			return nil, err
+		} else {
+			return crl, nil
+		}
+	}
+
+	crl, err = v.Client.Fetch(uri)
+	if crl != nil {
+		err := v.Cache.Put(uri, crl)
+		if err != nil {
+			log.WithError(err).Warnf("Unable to store fetched '%s' in CRL cache", uri)
+		}
+
+		// TODO spawn goroutine to refresh CRL after some time,
+		//      using crl.TBSCertList.NextUpdate is probably a good idea
+
+		return crl, nil
+	}
+
+	return nil, err
 }
 
 func (v DefaultCRLVerifier) Verify(chain []*x509.Certificate) (int, error) {
+	log.Debugf("CRL: Verifying '%s'", chain[0].Subject.CommonName)
+
 	if len(v.Config.uri) == 0 && v.Config.fromCert == crlFromCertIgnore {
+		log.Debugln("CRL: Skipping check since no config URI specified and we were told to ignore URIs from certificate")
 		return 0, nil
 	}
 
-	log.Infof("CRL: Verify( %s )", chain[0].Subject.CommonName)
+	cert := chain[0]
+	issuer := chain[1]
 
-	// panic("not implemented")
-	return 0, nil
+	for i := range cert.CRLDistributionPoints {
+		log.Debugf("CRL: certificate contains CRL URI: %s", cert.CRLDistributionPoints[i])
+	}
+
+	confirmsByConfigCRL := 0
+	confirmsByCertCRL := 0
+
+	// TODO avoid querying same CRL more than once, maybe create some list of checked CRLs (based on URI)
+
+	for {
+		if len(v.Config.uri) > 0 {
+			rawCRL, err := v.getCachedOrFetch(v.Config.uri)
+			if err != nil {
+				log.WithError(err).Debugf("CRL: Cannot get CRL from '%s'", v.Config.uri)
+				// XXX return error instead?
+				break
+			}
+
+			crl, err := x509.ParseCRL(rawCRL)
+			if err != nil {
+				log.WithError(err).Debugf("CRL: Cannot parse CRL from '%s'", v.Config.uri)
+				// XXX return error instead?
+				break
+			}
+
+			err = issuer.CheckCRLSignature(crl)
+			if err != nil {
+				log.WithError(err).Warnf("CRL: Failed to check signature for CRL at %s", v.Config.uri)
+				// XXX return error instead?
+				break
+			}
+
+			for i := range crl.TBSCertList.RevokedCertificates {
+				if crl.TBSCertList.RevokedCertificates[i].SerialNumber.Cmp(cert.SerialNumber) == 0 {
+					log.Warnf("CRL: Certificate %v was revoked at %v", cert.SerialNumber, crl.TBSCertList.RevokedCertificates[i].RevocationTime)
+					return 0, errors.New(fmt.Sprintf("Certificate %v was revoked at %v", cert.SerialNumber, crl.TBSCertList.RevokedCertificates[i].RevocationTime))
+				}
+			}
+
+			confirmsByConfigCRL += 1
+		}
+		break
+	}
+
+	if len(cert.CRLDistributionPoints) > 0 {
+		for i := range cert.CRLDistributionPoints {
+			rawCRL, err := v.getCachedOrFetch(cert.CRLDistributionPoints[i])
+			if err != nil {
+				log.WithError(err).Debugf("CRL: Cannot get CRL from '%s'", cert.CRLDistributionPoints[i])
+				// XXX return error instead?
+				continue
+			}
+
+			crl, err := x509.ParseCRL(rawCRL)
+			if err != nil {
+				log.WithError(err).Debugf("CRL: Cannot parse CRL from '%s'", cert.CRLDistributionPoints[i])
+				// XXX return error instead?
+				continue
+			}
+
+			err = issuer.CheckCRLSignature(crl)
+			if err != nil {
+				log.WithError(err).Warnf("CRL: Failed to check signature for CRL at %s", cert.CRLDistributionPoints[i])
+				// XXX return error instead?
+				continue
+			}
+
+			if crl.TBSCertList.RevokedCertificates[i].SerialNumber.Cmp(cert.SerialNumber) == 0 {
+				log.Warnf("CRL: Certificate %v was revoked at %v", cert.SerialNumber, crl.TBSCertList.RevokedCertificates[i].RevocationTime)
+				return 0, errors.New(fmt.Sprintf("Certificate %v was revoked at %v", cert.SerialNumber, crl.TBSCertList.RevokedCertificates[i].RevocationTime))
+			}
+		}
+
+		confirmsByCertCRL += 1
+	}
+
+	// XXX with cache containing raw CRL, we have to parse and verify signature on every check,
+	//     maybe it's better to store parsed and verified CRL instead?
+
+	return confirmsByConfigCRL + confirmsByCertCRL, nil
 }

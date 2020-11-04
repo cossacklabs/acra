@@ -272,7 +272,7 @@ func main() {
 			os.Exit(1)
 		}
 
-		crlVerifier := network.DefaultCRLVerifier{Config: *crlConfig, Client: network.DefaultCRLClient{}}
+		crlVerifier := network.DefaultCRLVerifier{Config: *crlConfig, Client: network.DefaultCRLClient{}, Cache: &network.DefaultCRLCache{}}
 
 		clientTLSConfig, err = network.NewTLSConfig("", *tlsClientCA, *tlsClientKey, *tlsClientCert, tls.ClientAuthType(*tlsClientAuthType), ocspClientVerifier, crlVerifier)
 		if err != nil {

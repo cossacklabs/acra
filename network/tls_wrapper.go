@@ -141,15 +141,6 @@ func NewTLSConfig(serverName string, caPath, keyPath, crtPath string, authType t
 		for verifiedChainID := range verifiedChains {
 			verifiedChain := verifiedChains[verifiedChainID]
 
-			for verifiedCertID := range verifiedChain {
-
-				cert := verifiedChain[verifiedCertID]
-
-				for i := range cert.CRLDistributionPoints {
-					log.Infof("OCSP: certificate contains CRL URI: %s", cert.CRLDistributionPoints[i])
-				}
-			}
-
 			confirms, err := ocspVerifier.Verify(verifiedChain)
 			if err != nil {
 				return err

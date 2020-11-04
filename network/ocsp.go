@@ -174,10 +174,14 @@ type ocspServerToCheck struct {
 }
 
 func (v DefaultOCSPVerifier) Verify(chain []*x509.Certificate) (int, error) {
-	log.Infof("OCSP: Verify( %s )", chain[0].Subject.CommonName)
+	log.Debugf("OCSP: Verifying '%s'", chain[0].Subject.CommonName)
 
 	cert := chain[0]
 	issuer := chain[1]
+
+	for i := range cert.OCSPServer {
+		log.Debugf("OCSP: certificate contains OCSP URI: %s", cert.OCSPServer[i])
+	}
 
 	serversToCheck := []ocspServerToCheck{}
 
@@ -207,6 +211,8 @@ func (v DefaultOCSPVerifier) Verify(chain []*x509.Certificate) (int, error) {
 
 	confirmsByConfigOCSP := 0
 	confirmsByCertOCSP := 0
+
+	// TODO avoid querying same OCSP more than once
 
 	for i := range serversToCheck {
 		log.Debugf("OCSP: Trying server %s", serversToCheck[i].url)
