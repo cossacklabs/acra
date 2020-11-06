@@ -90,16 +90,12 @@ func NewTLSConfigFromBaseArgs() (*tls.Config, error) {
 		return nil, err
 	}
 
-	ocspVerifier := DefaultOCSPVerifier{Config: *ocspConfig, Client: &DefaultOCSPClient{}}
-
 	crlConfig, err := NewCRLConfig(tlsCrlURL, tlsCrlFromCert)
 	if err != nil {
 		return nil, err
 	}
 
-	crlVerifier := DefaultCRLVerifier{Config: *crlConfig, Client: DefaultCRLClient{}}
-
-	certVerifier, err := NewCertVerifierAtLeast(0, ocspVerifier, crlVerifier)
+	certVerifier, err := NewCertVerifierFromConfigs(ocspConfig, crlConfig)
 	if err != nil {
 		return nil, err
 	}

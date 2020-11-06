@@ -31,8 +31,7 @@ import (
 var TestClientID = []byte("client")
 var TestServerID = []byte("server")
 
-var TestOCSPVerifier OCSPVerifier
-var TestCRLVerifier CRLVerifier
+var TestCertVerifier CertVerifier
 
 func init() {
 	ocspConfig, err := NewOCSPConfig("", "yes", "prefer")
@@ -45,9 +44,10 @@ func init() {
 		panic("Cannot create CRL config")
 	}
 
-	TestOCSPVerifier = DefaultOCSPVerifier{Config: *ocspConfig, Client: &DefaultOCSPClient{}}
-
-	TestCRLVerifier = DefaultCRLVerifier{Config: *crlConfig, Client: DefaultCRLClient{}, Cache: &DefaultCRLCache{}}
+	TestCertVerifier, err = NewCertVerifierFromConfigs(ocspConfig, crlConfig)
+	if err != nil {
+		panic("Cannot create certificate verifier")
+	}
 }
 
 func wait(ch chan bool, t *testing.T) {
@@ -228,7 +228,7 @@ E0B2xKAzGuMumud6IbYpoIk3uj7bjfeejSyZPgxIOkEPAjEA+adYfhHGieUnnC26
 Mmsz2rgkLFqKpYS30+CYbzwIXMfHImhBX2kO9HkodBWvNApu
 -----END CERTIFICATE-----
 `)
-	clientConfig, err := NewTLSConfig("", "", "", "", tls.NoClientCert, TestOCSPVerifier, TestCRLVerifier)
+	clientConfig, err := NewTLSConfig("", "", "", "", tls.NoClientCert, TestCertVerifier)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -244,7 +244,7 @@ Mmsz2rgkLFqKpYS30+CYbzwIXMfHImhBX2kO9HkodBWvNApu
 		return
 	}
 
-	serverConfig, err := NewTLSConfig("", "", "", "", tls.NoClientCert, TestOCSPVerifier, TestCRLVerifier)
+	serverConfig, err := NewTLSConfig("", "", "", "", tls.NoClientCert, TestCertVerifier)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -307,7 +307,7 @@ func testTLSConfig(serverWrapper *TLSConnectionWrapper, t *testing.T) {
 
 	wrapErrorCh := make(chan bool)
 	// check not allowed cipher suit
-	config, err := NewTLSConfig("", "", "", "", tls.NoClientCert, TestOCSPVerifier, TestCRLVerifier)
+	config, err := NewTLSConfig("", "", "", "", tls.NoClientCert, TestCertVerifier)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -367,7 +367,7 @@ func testTLSConfig(serverWrapper *TLSConnectionWrapper, t *testing.T) {
 
 	// check not allowed protocol version
 	clientConn, serverConn = getConnectionPair(address, listener, t)
-	config, err = NewTLSConfig("", "", "", "", tls.NoClientCert, TestOCSPVerifier, TestCRLVerifier)
+	config, err = NewTLSConfig("", "", "", "", tls.NoClientCert, TestCertVerifier)
 	if err != nil {
 		t.Fatal(err)
 	}

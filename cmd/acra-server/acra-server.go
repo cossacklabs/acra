@@ -264,8 +264,6 @@ func main() {
 			os.Exit(1)
 		}
 
-		ocspClientVerifier := network.DefaultOCSPVerifier{Config: *ocspClientConfig, Client: &network.DefaultOCSPClient{}}
-
 		var crlClientConfig *network.CRLConfig
 		if *tlsCrlClientURL != "" {
 			crlClientConfig, err = network.NewCRLConfig(*tlsCrlClientURL, *tlsCrlFromCert)
@@ -278,9 +276,7 @@ func main() {
 			os.Exit(1)
 		}
 
-		crlClientVerifier := network.DefaultCRLVerifier{Config: *crlClientConfig, Client: network.DefaultCRLClient{}, Cache: &network.DefaultCRLCache{}}
-
-		certClientVerifier, err := network.NewCertVerifierAtLeast(0, ocspClientVerifier, crlClientVerifier)
+		certClientVerifier, err := network.NewCertVerifierFromConfigs(ocspClientConfig, crlClientConfig)
 		if err != nil {
 			log.WithError(err).Fatalln("Cannot create client certificate verifier")
 		}
@@ -321,8 +317,6 @@ func main() {
 			os.Exit(1)
 		}
 
-		ocspDbVerifier := network.DefaultOCSPVerifier{Config: *ocspDbConfig, Client: &network.DefaultOCSPClient{}}
-
 		var crlDbConfig *network.CRLConfig
 		if *tlsCrlDbURL != "" {
 			crlDbConfig, err = network.NewCRLConfig(*tlsCrlDbURL, *tlsCrlFromCert)
@@ -335,9 +329,7 @@ func main() {
 			os.Exit(1)
 		}
 
-		crlDbVerifier := network.DefaultCRLVerifier{Config: *crlDbConfig, Client: network.DefaultCRLClient{}, Cache: &network.DefaultCRLCache{}}
-
-		certDbVerifier, err := network.NewCertVerifierAtLeast(0, ocspDbVerifier, crlDbVerifier)
+		certDbVerifier, err := network.NewCertVerifierFromConfigs(ocspDbConfig, crlDbConfig)
 		if err != nil {
 			log.WithError(err).Fatalln("Cannot create database certificate verifier")
 		}

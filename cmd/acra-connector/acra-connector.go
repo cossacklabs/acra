@@ -410,11 +410,7 @@ func main() {
 				log.WithError(err).Fatalln("Cannot create CRL config")
 			}
 
-			ocspVerifier := network.DefaultOCSPVerifier{Config: *ocspConfig, Client: &network.DefaultOCSPClient{}}
-
-			crlVerifier := network.DefaultCRLVerifier{Config: *crlConfig, Client: network.DefaultCRLClient{}, Cache: &network.DefaultCRLCache{}}
-
-			certVerifier, err := network.NewCertVerifierAtLeast(0, ocspVerifier, crlVerifier)
+			certVerifier, err := network.NewCertVerifierFromConfigs(ocspConfig, crlConfig)
 			if err != nil {
 				log.WithError(err).Fatalln("Cannot create certificate verifier")
 			}
