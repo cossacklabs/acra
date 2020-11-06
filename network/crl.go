@@ -217,22 +217,19 @@ func (v DefaultCRLVerifier) Verify(chain []*x509.Certificate) (int, error) {
 			rawCRL, err := v.getCachedOrFetch(v.Config.uri)
 			if err != nil {
 				log.WithError(err).Debugf("CRL: Cannot get CRL from '%s'", v.Config.uri)
-				// XXX return error instead?
-				break
+				return 0, err
 			}
 
 			crl, err := x509.ParseCRL(rawCRL)
 			if err != nil {
 				log.WithError(err).Debugf("CRL: Cannot parse CRL from '%s'", v.Config.uri)
-				// XXX return error instead?
-				break
+				return 0, err
 			}
 
 			err = issuer.CheckCRLSignature(crl)
 			if err != nil {
 				log.WithError(err).Warnf("CRL: Failed to check signature for CRL at %s", v.Config.uri)
-				// XXX return error instead?
-				break
+				return 0, err
 			}
 
 			for i := range crl.TBSCertList.RevokedCertificates {
@@ -252,22 +249,19 @@ func (v DefaultCRLVerifier) Verify(chain []*x509.Certificate) (int, error) {
 			rawCRL, err := v.getCachedOrFetch(cert.CRLDistributionPoints[i])
 			if err != nil {
 				log.WithError(err).Debugf("CRL: Cannot get CRL from '%s'", cert.CRLDistributionPoints[i])
-				// XXX return error instead?
-				continue
+				return 0, err
 			}
 
 			crl, err := x509.ParseCRL(rawCRL)
 			if err != nil {
 				log.WithError(err).Debugf("CRL: Cannot parse CRL from '%s'", cert.CRLDistributionPoints[i])
-				// XXX return error instead?
-				continue
+				return 0, err
 			}
 
 			err = issuer.CheckCRLSignature(crl)
 			if err != nil {
 				log.WithError(err).Warnf("CRL: Failed to check signature for CRL at %s", cert.CRLDistributionPoints[i])
-				// XXX return error instead?
-				continue
+				return 0, err
 			}
 
 			if crl.TBSCertList.RevokedCertificates[i].SerialNumber.Cmp(cert.SerialNumber) == 0 {
