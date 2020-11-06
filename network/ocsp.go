@@ -220,7 +220,7 @@ func (v DefaultOCSPVerifier) Verify(chain []*x509.Certificate) (int, error) {
 		response, err := v.Client.Query(cert.Issuer.CommonName, cert, issuer, serversToCheck[i].url)
 		if err != nil {
 			_ = response
-			log.WithError(err).Warnf("Cannot query OCSP server at %s", serversToCheck[i])
+			log.WithError(err).Warnf("Cannot query OCSP server at %s", serversToCheck[i].url)
 
 			if v.Config.required == ocspRequiredAll {
 				return 0, errors.New("Cannot query OCSP server, but --tls_ocsp_required=all was passed")
