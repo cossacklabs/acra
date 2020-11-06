@@ -54,12 +54,12 @@ var (
 	tlsCert          string
 	tlsAuthType      int
 	tlsServerName    string
-	tlsOcspUrl       string
-	tlsOcspClientUrl string
-	tlsOcspDbUrl     string
+	tlsOcspURL       string
+	tlsOcspClientURL string
+	tlsOcspDbURL     string
 	tlsOcspRequired  string
 	tlsOcspFromCert  string
-	tlsCrlUrl        string
+	tlsCrlURL        string
 	tlsCrlFromCert   string
 )
 
@@ -69,12 +69,12 @@ func RegisterTLSBaseArgs() {
 	flag.StringVar(&tlsKey, "tls_key", "", "Path to private key that will be used for TLS connections")
 	flag.StringVar(&tlsCert, "tls_cert", "", "Path to certificate")
 	flag.IntVar(&tlsAuthType, "tls_auth", int(tls.RequireAndVerifyClientCert), "Set authentication mode that will be used in TLS connection. Values in range 0-4 that set auth type (https://golang.org/pkg/crypto/tls/#ClientAuthType). Default is tls.RequireAndVerifyClientCert")
-	flag.StringVar(&tlsOcspUrl, "tls_ocsp_url", "", "OCSP service URL")
-	flag.StringVar(&tlsOcspClientUrl, "tls_ocsp_client_url", "", "OCSP service URL, for client certificates only")
-	flag.StringVar(&tlsOcspDbUrl, "tls_ocsp_database_url", "", "OCSP service URL, for database certificates only")
+	flag.StringVar(&tlsOcspURL, "tls_ocsp_url", "", "OCSP service URL")
+	flag.StringVar(&tlsOcspClientURL, "tls_ocsp_client_url", "", "OCSP service URL, for client certificates only")
+	flag.StringVar(&tlsOcspDbURL, "tls_ocsp_database_url", "", "OCSP service URL, for database certificates only")
 	flag.StringVar(&tlsOcspRequired, "tls_ocsp_required", "yes", "Whether we need OCSP response in order to accept certificate")
 	flag.StringVar(&tlsOcspFromCert, "tls_ocsp_from_cert", "prefer", "How should we threat OCSP server described in certificate itself")
-	flag.StringVar(&tlsCrlUrl, "tls_crl_url", "", "CRL URL")
+	flag.StringVar(&tlsCrlURL, "tls_crl_url", "", "CRL URL")
 	flag.StringVar(&tlsCrlFromCert, "tls_crl_from_cert", "use", "How should we treat CRL URL described in certificate itself")
 }
 
@@ -85,14 +85,14 @@ func RegisterTLSClientArgs() {
 
 // NewTLSConfigFromBaseArgs return new tls config with params passed by cli params
 func NewTLSConfigFromBaseArgs() (*tls.Config, error) {
-	ocspConfig, err := NewOCSPConfig(tlsOcspUrl, tlsOcspRequired, tlsOcspFromCert)
+	ocspConfig, err := NewOCSPConfig(tlsOcspURL, tlsOcspRequired, tlsOcspFromCert)
 	if err != nil {
 		return nil, err
 	}
 
 	ocspVerifier := DefaultOCSPVerifier{Config: *ocspConfig, Client: &DefaultOCSPClient{}}
 
-	crlConfig, err := NewCRLConfig(tlsCrlUrl, tlsCrlFromCert)
+	crlConfig, err := NewCRLConfig(tlsCrlURL, tlsCrlFromCert)
 	if err != nil {
 		return nil, err
 	}

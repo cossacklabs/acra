@@ -42,12 +42,14 @@ const (
 	ocspFromCertIgnore
 )
 
+// OCSPConfig contains configuration related to certificate validation using OCSP
 type OCSPConfig struct {
 	url      string
 	required int // ocspRequired*
 	fromCert int // ocspFromCert*
 }
 
+// NewOCSPConfig creates new OCSPConfig
 func NewOCSPConfig(uri, required, fromCert string) (*OCSPConfig, error) {
 	if len(uri) > 0 {
 		_, err := url.Parse(uri)
@@ -111,34 +113,33 @@ func NewOCSPConfig(uri, required, fromCert string) (*OCSPConfig, error) {
 	return &OCSPConfig{url: uri, required: requiredVal, fromCert: fromCertVal}, nil
 }
 
-func (c *OCSPConfig) Describe() string {
-	return fmt.Sprintf("url=%s, required=%d, fromCert=%d", c.url, c.required, c.fromCert)
-}
-
+// OCSPClient is used to perform OCSP queries to some URI
 type OCSPClient interface {
 	// Query generates OCSP request about specified certificate, sends it to server and returns the response
-	Query(commonName string, clientCert, issuerCert *x509.Certificate, ocspServerUrl string) (*ocsp.Response, error)
+	Query(commonName string, clientCert, issuerCert *x509.Certificate, ocspServerURL string) (*ocsp.Response, error)
 }
 
+// DefaultOCSPClient is a default implementation of OCSPClient
 type DefaultOCSPClient struct{}
 
-func (c DefaultOCSPClient) Query(commonName string, clientCert, issuerCert *x509.Certificate, ocspServerUrl string) (*ocsp.Response, error) {
+// Query generates OCSP request about specified certificate, sends it to server and returns the response
+func (c DefaultOCSPClient) Query(commonName string, clientCert, issuerCert *x509.Certificate, ocspServerURL string) (*ocsp.Response, error) {
 	opts := &ocsp.RequestOptions{Hash: crypto.SHA256}
 	buffer, err := ocsp.CreateRequest(clientCert, issuerCert, opts)
 	if err != nil {
 		return nil, err
 	}
-	httpRequest, err := http.NewRequest(http.MethodPost, ocspServerUrl, bytes.NewBuffer(buffer))
+	httpRequest, err := http.NewRequest(http.MethodPost, ocspServerURL, bytes.NewBuffer(buffer))
 	if err != nil {
 		return nil, err
 	}
-	ocspUrl, err := url.Parse(ocspServerUrl)
+	ocspURL, err := url.Parse(ocspServerURL)
 	if err != nil {
 		return nil, err
 	}
 	httpRequest.Header.Add("Content-Type", "application/ocsp-request")
 	httpRequest.Header.Add("Accept", "application/ocsp-response")
-	httpRequest.Header.Add("host", ocspUrl.Host)
+	httpRequest.Header.Add("host", ocspURL.Host)
 	httpClient := &http.Client{}
 	httpResponse, err := httpClient.Do(httpRequest)
 	if err != nil {
@@ -153,6 +154,7 @@ func (c DefaultOCSPClient) Query(commonName string, clientCert, issuerCert *x509
 	return ocspResponse, err
 }
 
+// OCSPVerifier is used to implement different certificate verifiers that internally use OCSP protocol
 type OCSPVerifier interface {
 	// Verify returns number of confirmations or error.
 	// The error is returned only if it is critical, for example:
@@ -162,6 +164,7 @@ type OCSPVerifier interface {
 	Verify(chain []*x509.Certificate) (int, error)
 }
 
+// DefaultOCSPVerifier is a default OCSP verifier
 type DefaultOCSPVerifier struct {
 	Config OCSPConfig
 	Client OCSPClient
@@ -173,6 +176,7 @@ type ocspServerToCheck struct {
 	fromCert bool
 }
 
+// Verify ensures certificate is not revoked by querying configured OCSP servers
 func (v DefaultOCSPVerifier) Verify(chain []*x509.Certificate) (int, error) {
 	log.Debugf("OCSP: Verifying '%s'", chain[0].Subject.CommonName)
 
@@ -232,9 +236,9 @@ func (v DefaultOCSPVerifier) Verify(chain []*x509.Certificate) (int, error) {
 		switch response.Status {
 		case ocsp.Good:
 			if serversToCheck[i].fromCert {
-				confirmsByCertOCSP += 1
+				confirmsByCertOCSP++
 			} else {
-				confirmsByConfigOCSP += 1
+				confirmsByConfigOCSP++
 			}
 
 			if v.Config.required != ocspRequiredAll {
@@ -243,11 +247,11 @@ func (v DefaultOCSPVerifier) Verify(chain []*x509.Certificate) (int, error) {
 			}
 		case ocsp.Revoked:
 			// If any OCSP server replies with "certificate was revoked", return error immediately
-			return 0, errors.New(fmt.Sprintf("Certificate 0x%s was revoked", cert.SerialNumber.Text(16)))
+			return 0, fmt.Errorf("Certificate 0x%s was revoked", cert.SerialNumber.Text(16))
 		case ocsp.Unknown:
 			// Treat "Unknown" response as error if tls_ocsp_required is "yes" or "all"
 			if v.Config.required != ocspRequiredNo {
-				return 0, errors.New(fmt.Sprintf("OCSP server %s doesn't know about certificate 0x%s", serversToCheck[i].url, cert.SerialNumber.Text(16)))
+				return 0, fmt.Errorf("OCSP server %s doesn't know about certificate 0x%s", serversToCheck[i].url, cert.SerialNumber.Text(16))
 			}
 		}
 	}

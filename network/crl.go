@@ -33,11 +33,13 @@ const (
 	crlFromCertIgnore
 )
 
+// CRLConfig contains configuration related to certificate validation using CRL
 type CRLConfig struct {
 	uri      string
 	fromCert int // crlFromCert*
 }
 
+// NewCRLConfig creates new CRLConfig
 func NewCRLConfig(uri, fromCert string) (*CRLConfig, error) {
 	_, err := url.Parse(uri)
 	if err != nil {
@@ -58,25 +60,29 @@ func NewCRLConfig(uri, fromCert string) (*CRLConfig, error) {
 	return &CRLConfig{uri: uri, fromCert: fromCertVal}, nil
 }
 
+// CRLClient is used to fetch CRL from some URI
 type CRLClient interface {
-	// Fetch fetches and parses CRL from passed URI (can be either http:// or file://)
+	// Fetch fetches CRL from passed URI (can be either http:// or file://)
 	Fetch(uri string) ([]byte, error)
 }
 
+// DefaultCRLClient is a default implementation of CRLClient
+// (as opposed to stub ones used in tests)
 type DefaultCRLClient struct{}
 
+// Fetch fetches CRL from passed URI (can be either http:// or file://)
 func (c DefaultCRLClient) Fetch(uri string) ([]byte, error) {
 	if strings.HasPrefix(uri, "http://") {
 		httpRequest, err := http.NewRequest(http.MethodGet, uri, nil)
 		if err != nil {
 			return nil, err
 		}
-		ocspUrl, err := url.Parse(uri)
+		crlURL, err := url.Parse(uri)
 		if err != nil {
 			return nil, err
 		}
 		httpRequest.Header.Add("Accept", "application/pkix-crl, application/pem-certificate-chain")
-		httpRequest.Header.Add("host", ocspUrl.Host)
+		httpRequest.Header.Add("host", crlURL.Host)
 		httpClient := &http.Client{}
 		httpResponse, err := httpClient.Do(httpRequest)
 		if err != nil {
@@ -98,19 +104,22 @@ func (c DefaultCRLClient) Fetch(uri string) ([]byte, error) {
 		return content, nil
 	}
 
-	return nil, errors.New(fmt.Sprintf("Cannot fetch CRL from '%s', unsupported protocol", uri))
+	return nil, fmt.Errorf("Cannot fetch CRL from '%s', unsupported protocol", uri)
 }
 
+// CRLCache is used to store fetched CRLs to avoid downloading the same URI more than once
 type CRLCache interface {
 	Get(key string) ([]byte, error)
 	Put(key string, value []byte) error
 	Remove(key string) error
 }
 
+// DefaultCRLCache is a default implementation of CRLCache, internally stores items in sync.Map
 type DefaultCRLCache struct {
 	cache sync.Map
 }
 
+// Get tries to get CRL from cache, returns error if failed
 func (c *DefaultCRLCache) Get(key string) ([]byte, error) {
 	log.Debugf("CRL: cache: loading '%s'", key)
 	value, ok := c.cache.Load(key)
@@ -122,30 +131,34 @@ func (c *DefaultCRLCache) Get(key string) ([]byte, error) {
 		}
 		log.Debugf("CRL: cache: '%s' found", key)
 		return value, nil
-	} else {
-		log.Debugf("CRL: cache: '%s' not found", key)
-		return nil, errors.New("Key not found")
 	}
+
+	log.Debugf("CRL: cache: '%s' not found", key)
+	return nil, errors.New("Key not found")
 }
 
+// Put stores CRL in cache
 func (c *DefaultCRLCache) Put(key string, value []byte) error {
 	c.cache.Store(key, value)
 	log.Debugf("CRL: cache: inserted '%s'", key)
 	return nil
 }
 
+// Remove removes item from cache
 func (c *DefaultCRLCache) Remove(key string) error {
 	c.cache.Delete(key)
 	log.Debugf("CRL: cache: removed '%s'", key)
 	return nil
 }
 
+// CRLVerifier is used to implement different certificate verifiers that internally use CRLs
 type CRLVerifier interface {
 	// Verify returns number of confirmations (how many CRLs don't contain the certificate) or error.
 	// The error is returned only if the certificate was revoked.
 	Verify(chain []*x509.Certificate) (int, error)
 }
 
+// DefaultCRLVerifier is a default implementation of CRLVerifier
 type DefaultCRLVerifier struct {
 	Config CRLConfig
 	Client CRLClient
@@ -157,9 +170,9 @@ func (v DefaultCRLVerifier) getCachedOrFetch(uri string) ([]byte, error) {
 	if crl != nil {
 		if err != nil {
 			return nil, err
-		} else {
-			return crl, nil
 		}
+
+		return crl, nil
 	}
 
 	crl, err = v.Client.Fetch(uri)
@@ -178,6 +191,7 @@ func (v DefaultCRLVerifier) getCachedOrFetch(uri string) ([]byte, error) {
 	return nil, err
 }
 
+// Verify ensures configured CRLs do not contain certificate from passed chain
 func (v DefaultCRLVerifier) Verify(chain []*x509.Certificate) (int, error) {
 	log.Debugf("CRL: Verifying '%s'", chain[0].Subject.CommonName)
 
@@ -224,11 +238,11 @@ func (v DefaultCRLVerifier) Verify(chain []*x509.Certificate) (int, error) {
 			for i := range crl.TBSCertList.RevokedCertificates {
 				if crl.TBSCertList.RevokedCertificates[i].SerialNumber.Cmp(cert.SerialNumber) == 0 {
 					log.Warnf("CRL: Certificate %v was revoked at %v", cert.SerialNumber, crl.TBSCertList.RevokedCertificates[i].RevocationTime)
-					return 0, errors.New(fmt.Sprintf("Certificate %v was revoked at %v", cert.SerialNumber, crl.TBSCertList.RevokedCertificates[i].RevocationTime))
+					return 0, fmt.Errorf("Certificate %v was revoked at %v", cert.SerialNumber, crl.TBSCertList.RevokedCertificates[i].RevocationTime)
 				}
 			}
 
-			confirmsByConfigCRL += 1
+			confirmsByConfigCRL++
 		}
 		break
 	}
@@ -258,11 +272,11 @@ func (v DefaultCRLVerifier) Verify(chain []*x509.Certificate) (int, error) {
 
 			if crl.TBSCertList.RevokedCertificates[i].SerialNumber.Cmp(cert.SerialNumber) == 0 {
 				log.Warnf("CRL: Certificate %v was revoked at %v", cert.SerialNumber, crl.TBSCertList.RevokedCertificates[i].RevocationTime)
-				return 0, errors.New(fmt.Sprintf("Certificate %v was revoked at %v", cert.SerialNumber, crl.TBSCertList.RevokedCertificates[i].RevocationTime))
+				return 0, fmt.Errorf("Certificate %v was revoked at %v", cert.SerialNumber, crl.TBSCertList.RevokedCertificates[i].RevocationTime)
 			}
 		}
 
-		confirmsByCertCRL += 1
+		confirmsByCertCRL++
 	}
 
 	// XXX with cache containing raw CRL, we have to parse and verify signature on every check,

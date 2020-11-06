@@ -123,14 +123,14 @@ func main() {
 	tlsDbSNIOld := flag.String("tls_db_sni", "", "Expected Server Name (SNI) from database (deprecated, use \"tls_database_sni\" instead)")
 	tlsDbCert := flag.String("tls_database_cert", "", "Path to client TLS certificate shown to database during TLS handshake (overrides \"tls_cert\")")
 	tlsDbKey := flag.String("tls_database_key", "", "Path to private key of the TLS certificate used to connect to database (see \"tls_database_cert\")")
-	tlsOcspUrl := flag.String("tls_ocsp_url", "", "OCSP service URL")
-	tlsOcspClientUrl := flag.String("tls_ocsp_client_url", "", "OCSP service URL, for client certificates only")
-	tlsOcspDbUrl := flag.String("tls_ocsp_database_url", "", "OCSP service URL, for database certificates only")
+	tlsOcspURL := flag.String("tls_ocsp_url", "", "OCSP service URL")
+	tlsOcspClientURL := flag.String("tls_ocsp_client_url", "", "OCSP service URL, for client certificates only")
+	tlsOcspDbURL := flag.String("tls_ocsp_database_url", "", "OCSP service URL, for database certificates only")
 	tlsOcspRequired := flag.String("tls_ocsp_required", "yes", "Whether we need OCSP response in order to accept certificate")
 	tlsOcspFromCert := flag.String("tls_ocsp_from_cert", "prefer", "How should we treat OCSP server described in certificate itself")
-	tlsCrlUrl := flag.String("tls_crl_url", "", "CRL URL")
-	tlsCrlClientUrl := flag.String("tls_crl_client_url", "", "CRL URL, for client certificates only")
-	tlsCrlDbUrl := flag.String("tls_crl_database_url", "", "CRL URL, for database certificates only")
+	tlsCrlURL := flag.String("tls_crl_url", "", "CRL URL")
+	tlsCrlClientURL := flag.String("tls_crl_client_url", "", "CRL URL, for client certificates only")
+	tlsCrlDbURL := flag.String("tls_crl_database_url", "", "CRL URL, for database certificates only")
 	tlsCrlFromCert := flag.String("tls_crl_from_cert", "use", "How should we treat CRL URL described in certificate itself")
 	noEncryptionTransport := flag.Bool("acraconnector_transport_encryption_disable", false, "Use raw transport (tcp/unix socket) between AcraServer and AcraConnector/client (don't use this flag if you not connect to database with SSL/TLS")
 	clientID := flag.String("client_id", "", "Expected client ID of AcraConnector in mode without encryption")
@@ -253,25 +253,24 @@ func main() {
 		}
 
 		var ocspClientConfig *network.OCSPConfig
-		if len(*tlsOcspClientUrl) > 0 {
-			ocspClientConfig, err = network.NewOCSPConfig(*tlsOcspClientUrl, *tlsOcspRequired, *tlsOcspFromCert)
+		if len(*tlsOcspClientURL) > 0 {
+			ocspClientConfig, err = network.NewOCSPConfig(*tlsOcspClientURL, *tlsOcspRequired, *tlsOcspFromCert)
 		} else {
-			ocspClientConfig, err = network.NewOCSPConfig(*tlsOcspUrl, *tlsOcspRequired, *tlsOcspFromCert)
+			ocspClientConfig, err = network.NewOCSPConfig(*tlsOcspURL, *tlsOcspRequired, *tlsOcspFromCert)
 		}
 		if err != nil {
 			log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorWrongConfiguration).
 				Errorf("Configuration error: invalid OCSP config")
 			os.Exit(1)
 		}
-		log.Infof("OCSP: client config: %s", ocspClientConfig.Describe())
 
 		ocspClientVerifier := network.DefaultOCSPVerifier{Config: *ocspClientConfig, Client: &network.DefaultOCSPClient{}}
 
 		var crlClientConfig *network.CRLConfig
-		if len(*tlsCrlClientUrl) > 0 {
-			crlClientConfig, err = network.NewCRLConfig(*tlsCrlClientUrl, *tlsCrlFromCert)
+		if len(*tlsCrlClientURL) > 0 {
+			crlClientConfig, err = network.NewCRLConfig(*tlsCrlClientURL, *tlsCrlFromCert)
 		} else {
-			crlClientConfig, err = network.NewCRLConfig(*tlsCrlUrl, *tlsCrlFromCert)
+			crlClientConfig, err = network.NewCRLConfig(*tlsCrlURL, *tlsCrlFromCert)
 		}
 		if err != nil {
 			log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorWrongConfiguration).
@@ -306,25 +305,24 @@ func main() {
 		}
 
 		var ocspDbConfig *network.OCSPConfig
-		if len(*tlsOcspDbUrl) > 0 {
-			ocspDbConfig, err = network.NewOCSPConfig(*tlsOcspDbUrl, *tlsOcspRequired, *tlsOcspFromCert)
+		if len(*tlsOcspDbURL) > 0 {
+			ocspDbConfig, err = network.NewOCSPConfig(*tlsOcspDbURL, *tlsOcspRequired, *tlsOcspFromCert)
 		} else {
-			ocspDbConfig, err = network.NewOCSPConfig(*tlsOcspUrl, *tlsOcspRequired, *tlsOcspFromCert)
+			ocspDbConfig, err = network.NewOCSPConfig(*tlsOcspURL, *tlsOcspRequired, *tlsOcspFromCert)
 		}
 		if err != nil {
 			log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorWrongConfiguration).
 				Errorf("Configuration error: invalid OCSP config")
 			os.Exit(1)
 		}
-		log.Infof("OCSP: DB config: %s", ocspDbConfig.Describe())
 
 		ocspDbVerifier := network.DefaultOCSPVerifier{Config: *ocspDbConfig, Client: &network.DefaultOCSPClient{}}
 
 		var crlDbConfig *network.CRLConfig
-		if len(*tlsCrlDbUrl) > 0 {
-			crlDbConfig, err = network.NewCRLConfig(*tlsCrlDbUrl, *tlsCrlFromCert)
+		if len(*tlsCrlDbURL) > 0 {
+			crlDbConfig, err = network.NewCRLConfig(*tlsCrlDbURL, *tlsCrlFromCert)
 		} else {
-			crlDbConfig, err = network.NewCRLConfig(*tlsCrlUrl, *tlsCrlFromCert)
+			crlDbConfig, err = network.NewCRLConfig(*tlsCrlURL, *tlsCrlFromCert)
 		}
 		if err != nil {
 			log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorWrongConfiguration).
