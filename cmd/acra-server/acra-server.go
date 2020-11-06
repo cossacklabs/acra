@@ -280,7 +280,12 @@ func main() {
 
 		crlClientVerifier := network.DefaultCRLVerifier{Config: *crlClientConfig, Client: network.DefaultCRLClient{}, Cache: &network.DefaultCRLCache{}}
 
-		clientTLSConfig, err = network.NewTLSConfig("", *tlsClientCA, *tlsClientKey, *tlsClientCert, tls.ClientAuthType(*tlsClientAuthType), ocspClientVerifier, crlClientVerifier)
+		certClientVerifier, err := network.NewCertVerifierAtLeast(0, ocspClientVerifier, crlClientVerifier)
+		if err != nil {
+			log.WithError(err).Fatalln("Cannot create client certificate verifier")
+		}
+
+		clientTLSConfig, err = network.NewTLSConfig("", *tlsClientCA, *tlsClientKey, *tlsClientCert, tls.ClientAuthType(*tlsClientAuthType), certClientVerifier)
 		if err != nil {
 			log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorTransportConfiguration).
 				Errorln("Configuration error: can't create AcraConnector TLS config")
@@ -332,7 +337,12 @@ func main() {
 
 		crlDbVerifier := network.DefaultCRLVerifier{Config: *crlDbConfig, Client: network.DefaultCRLClient{}, Cache: &network.DefaultCRLCache{}}
 
-		dbTLSConfig, err = network.NewTLSConfig(network.SNIOrHostname(*tlsDbSNI, *dbHost), *tlsDbCA, *tlsDbKey, *tlsDbCert, tls.ClientAuthType(*tlsDbAuthType), ocspDbVerifier, crlDbVerifier)
+		certDbVerifier, err := network.NewCertVerifierAtLeast(0, ocspDbVerifier, crlDbVerifier)
+		if err != nil {
+			log.WithError(err).Fatalln("Cannot create database certificate verifier")
+		}
+
+		dbTLSConfig, err = network.NewTLSConfig(network.SNIOrHostname(*tlsDbSNI, *dbHost), *tlsDbCA, *tlsDbKey, *tlsDbCert, tls.ClientAuthType(*tlsDbAuthType), certDbVerifier)
 		if err != nil {
 			log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorTransportConfiguration).
 				Errorln("Configuration error: can't create database TLS config")

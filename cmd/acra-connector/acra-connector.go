@@ -414,7 +414,12 @@ func main() {
 
 			crlVerifier := network.DefaultCRLVerifier{Config: *crlConfig, Client: network.DefaultCRLClient{}, Cache: &network.DefaultCRLCache{}}
 
-			tlsConfig, err := network.NewTLSConfig(network.SNIOrHostname(*tlsAcraserverSNI, *acraServerHost), *tlsCA, *tlsKey, *tlsCert, tls.ClientAuthType(*tlsAuthType), ocspVerifier, crlVerifier)
+			certVerifier, err := network.NewCertVerifierAtLeast(0, ocspVerifier, crlVerifier)
+			if err != nil {
+				log.WithError(err).Fatalln("Cannot create certificate verifier")
+			}
+
+			tlsConfig, err := network.NewTLSConfig(network.SNIOrHostname(*tlsAcraserverSNI, *acraServerHost), *tlsCA, *tlsKey, *tlsCert, tls.ClientAuthType(*tlsAuthType), certVerifier)
 			if err != nil {
 				log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorTransportConfiguration).
 					Errorln("Configuration error: Can't get config for TLS")
