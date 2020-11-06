@@ -253,7 +253,7 @@ func main() {
 		}
 
 		var ocspClientConfig *network.OCSPConfig
-		if len(*tlsOcspClientURL) > 0 {
+		if *tlsOcspClientURL != "" {
 			ocspClientConfig, err = network.NewOCSPConfig(*tlsOcspClientURL, *tlsOcspRequired, *tlsOcspFromCert)
 		} else {
 			ocspClientConfig, err = network.NewOCSPConfig(*tlsOcspURL, *tlsOcspRequired, *tlsOcspFromCert)
@@ -267,7 +267,7 @@ func main() {
 		ocspClientVerifier := network.DefaultOCSPVerifier{Config: *ocspClientConfig, Client: &network.DefaultOCSPClient{}}
 
 		var crlClientConfig *network.CRLConfig
-		if len(*tlsCrlClientURL) > 0 {
+		if *tlsCrlClientURL != "" {
 			crlClientConfig, err = network.NewCRLConfig(*tlsCrlClientURL, *tlsCrlFromCert)
 		} else {
 			crlClientConfig, err = network.NewCRLConfig(*tlsCrlURL, *tlsCrlFromCert)
@@ -305,7 +305,7 @@ func main() {
 		}
 
 		var ocspDbConfig *network.OCSPConfig
-		if len(*tlsOcspDbURL) > 0 {
+		if *tlsOcspDbURL != "" {
 			ocspDbConfig, err = network.NewOCSPConfig(*tlsOcspDbURL, *tlsOcspRequired, *tlsOcspFromCert)
 		} else {
 			ocspDbConfig, err = network.NewOCSPConfig(*tlsOcspURL, *tlsOcspRequired, *tlsOcspFromCert)
@@ -319,7 +319,7 @@ func main() {
 		ocspDbVerifier := network.DefaultOCSPVerifier{Config: *ocspDbConfig, Client: &network.DefaultOCSPClient{}}
 
 		var crlDbConfig *network.CRLConfig
-		if len(*tlsCrlDbURL) > 0 {
+		if *tlsCrlDbURL != "" {
 			crlDbConfig, err = network.NewCRLConfig(*tlsCrlDbURL, *tlsCrlFromCert)
 		} else {
 			crlDbConfig, err = network.NewCRLConfig(*tlsCrlURL, *tlsCrlFromCert)

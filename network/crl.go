@@ -213,7 +213,7 @@ func (v DefaultCRLVerifier) Verify(chain []*x509.Certificate) (int, error) {
 	// TODO avoid querying same CRL more than once, maybe create some list of checked CRLs (based on URI)
 
 	for {
-		if len(v.Config.uri) > 0 {
+		if v.Config.uri != "" {
 			rawCRL, err := v.getCachedOrFetch(v.Config.uri)
 			if err != nil {
 				log.WithError(err).Debugf("CRL: Cannot get CRL from '%s'", v.Config.uri)

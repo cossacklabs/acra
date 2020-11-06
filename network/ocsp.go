@@ -51,7 +51,7 @@ type OCSPConfig struct {
 
 // NewOCSPConfig creates new OCSPConfig
 func NewOCSPConfig(uri, required, fromCert string) (*OCSPConfig, error) {
-	if len(uri) > 0 {
+	if uri != "" {
 		_, err := url.Parse(uri)
 		if err != nil {
 			return nil, err
@@ -86,7 +86,7 @@ func NewOCSPConfig(uri, required, fromCert string) (*OCSPConfig, error) {
 		return nil, errors.New("Invalid `ocsp_from_cert` value '" + fromCert + "', should be one of 'use', 'trust', 'prefer', 'ignore'")
 	}
 
-	if len(uri) > 0 {
+	if uri != "" {
 		log.Debugf("OCSP: Using server '%s'", uri)
 	}
 
@@ -201,7 +201,7 @@ func (v DefaultOCSPVerifier) Verify(chain []*x509.Certificate) (int, error) {
 		}
 	}
 
-	if len(v.Config.url) > 0 {
+	if v.Config.url != "" {
 		serverToCheck := ocspServerToCheck{url: v.Config.url, fromCert: false}
 
 		if v.Config.fromCert == ocspFromCertPrefer || v.Config.fromCert == ocspFromCertTrust {
