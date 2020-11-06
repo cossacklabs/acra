@@ -134,6 +134,18 @@ tls_client_cert:
 # Path to private key of the TLS certificate presented to AcraConnectors (see "tls_client_cert")
 tls_client_key: 
 
+# CRL URL, for client certificates only
+tls_crl_client_url: 
+
+# CRL URL, for database certificates only
+tls_crl_database_url: 
+
+# How should we treat CRL URL described in certificate itself
+tls_crl_from_cert: use
+
+# CRL URL
+tls_crl_url: 
+
 # Set authentication mode that will be used in TLS connection with database. Overrides the "tls_auth" setting.
 tls_database_auth: -1
 
@@ -154,6 +166,21 @@ tls_db_sni:
 
 # Path to private key that will be used in AcraServer's TLS handshake with AcraConnector as server's key and database as client's key
 tls_key: 
+
+# OCSP service URL, for client certificates only
+tls_ocsp_client_url: 
+
+# OCSP service URL, for database certificates only
+tls_ocsp_database_url: 
+
+# How should we treat OCSP server described in certificate itself
+tls_ocsp_from_cert: prefer
+
+# Whether we need OCSP response in order to accept certificate
+tls_ocsp_required: yes
+
+# OCSP service URL
+tls_ocsp_url: 
 
 # Export trace data to jaeger
 tracing_jaeger_enable: false

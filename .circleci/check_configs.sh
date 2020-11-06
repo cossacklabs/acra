@@ -9,6 +9,8 @@ function compare_configs() {
      cmp_status="$?"
      if [[ "${cmp_status}" != "0" ]]; then
         status=1
+        # Show diff in logs, easier to spot the difference
+        diff -U3 ${folder_a}/acra-${cmd}.yaml ${folder_b}/acra-${cmd}.yaml
      fi
     done
 }
