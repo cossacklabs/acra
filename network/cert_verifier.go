@@ -58,8 +58,8 @@ func NewCertVerifierAll(verifiers ...CertVerifier) (CertVerifier, error) {
 func (v CertVerifierAll) Verify(chain []*x509.Certificate) (int, error) {
 	confirmsTotal := 0
 
-	for i := range v.verifiers {
-		confirms, err := v.verifiers[i].Verify(chain)
+	for _, verifier := range v.verifiers {
+		confirms, err := verifier.Verify(chain)
 		if err != nil {
 			return confirmsTotal, err
 		}
@@ -94,8 +94,8 @@ func (v CertVerifierAtLeast) Verify(chain []*x509.Certificate) (int, error) {
 	// how many verifiers from v.verifiers gave >0 confirms
 	confirmsByVerifiers := 0
 
-	for i := range v.verifiers {
-		confirms, err := v.verifiers[i].Verify(chain)
+	for _, verifier := range v.verifiers {
+		confirms, err := verifier.Verify(chain)
 		if err != nil {
 			return confirmsTotal, err
 		}

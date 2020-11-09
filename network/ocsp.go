@@ -183,15 +183,15 @@ func (v DefaultOCSPVerifier) Verify(chain []*x509.Certificate) (int, error) {
 	cert := chain[0]
 	issuer := chain[1]
 
-	for i := range cert.OCSPServer {
-		log.Debugf("OCSP: certificate contains OCSP URI: %s", cert.OCSPServer[i])
+	for _, ocspServer := range cert.OCSPServer {
+		log.Debugf("OCSP: certificate contains OCSP URI: %s", ocspServer)
 	}
 
 	serversToCheck := []ocspServerToCheck{}
 
 	if v.Config.fromCert != ocspFromCertIgnore {
-		for i := range cert.OCSPServer {
-			serverToCheck := ocspServerToCheck{url: cert.OCSPServer[i], fromCert: true}
+		for _, ocspServer := range cert.OCSPServer {
+			serverToCheck := ocspServerToCheck{url: ocspServer, fromCert: true}
 			log.Debugf("OCSP: appending server %s, from cert", serverToCheck.url)
 			serversToCheck = append(serversToCheck, serverToCheck)
 		}
@@ -218,13 +218,12 @@ func (v DefaultOCSPVerifier) Verify(chain []*x509.Certificate) (int, error) {
 
 	// TODO avoid querying same OCSP more than once
 
-	for i := range serversToCheck {
-		log.Debugf("OCSP: Trying server %s", serversToCheck[i].url)
+	for _, serverToCheck := range serversToCheck {
+		log.Debugf("OCSP: Trying server %s", serverToCheck.url)
 
-		response, err := v.Client.Query(cert.Issuer.CommonName, cert, issuer, serversToCheck[i].url)
+		response, err := v.Client.Query(cert.Issuer.CommonName, cert, issuer, serverToCheck.url)
 		if err != nil {
-			_ = response
-			log.WithError(err).Warnf("Cannot query OCSP server at %s", serversToCheck[i].url)
+			log.WithError(err).Warnf("Cannot query OCSP server at %s", serverToCheck.url)
 
 			if v.Config.required == ocspRequiredAll {
 				return 0, errors.New("Cannot query OCSP server, but --tls_ocsp_required=all was passed")
@@ -235,7 +234,7 @@ func (v DefaultOCSPVerifier) Verify(chain []*x509.Certificate) (int, error) {
 
 		switch response.Status {
 		case ocsp.Good:
-			if serversToCheck[i].fromCert {
+			if serverToCheck.fromCert {
 				confirmsByCertOCSP++
 			} else {
 				confirmsByConfigOCSP++
@@ -251,7 +250,7 @@ func (v DefaultOCSPVerifier) Verify(chain []*x509.Certificate) (int, error) {
 		case ocsp.Unknown:
 			// Treat "Unknown" response as error if tls_ocsp_required is "yes" or "all"
 			if v.Config.required != ocspRequiredNo {
-				return 0, fmt.Errorf("OCSP server %s doesn't know about certificate 0x%s", serversToCheck[i].url, cert.SerialNumber.Text(16))
+				return 0, fmt.Errorf("OCSP server %s doesn't know about certificate 0x%s", serverToCheck.url, cert.SerialNumber.Text(16))
 			}
 		}
 	}

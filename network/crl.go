@@ -203,8 +203,8 @@ func (v DefaultCRLVerifier) Verify(chain []*x509.Certificate) (int, error) {
 	cert := chain[0]
 	issuer := chain[1]
 
-	for i := range cert.CRLDistributionPoints {
-		log.Debugf("CRL: certificate contains CRL URI: %s", cert.CRLDistributionPoints[i])
+	for _, crlDistributionPoint := range cert.CRLDistributionPoints {
+		log.Debugf("CRL: certificate contains CRL URI: %s", crlDistributionPoint)
 	}
 
 	confirmsByConfigCRL := 0
@@ -232,10 +232,10 @@ func (v DefaultCRLVerifier) Verify(chain []*x509.Certificate) (int, error) {
 				return 0, err
 			}
 
-			for i := range crl.TBSCertList.RevokedCertificates {
-				if crl.TBSCertList.RevokedCertificates[i].SerialNumber.Cmp(cert.SerialNumber) == 0 {
-					log.Warnf("CRL: Certificate %v was revoked at %v", cert.SerialNumber, crl.TBSCertList.RevokedCertificates[i].RevocationTime)
-					return 0, fmt.Errorf("Certificate %v was revoked at %v", cert.SerialNumber, crl.TBSCertList.RevokedCertificates[i].RevocationTime)
+			for _, revokedCertificate := range crl.TBSCertList.RevokedCertificates {
+				if revokedCertificate.SerialNumber.Cmp(cert.SerialNumber) == 0 {
+					log.Warnf("CRL: Certificate %v was revoked at %v", cert.SerialNumber, revokedCertificate.RevocationTime)
+					return 0, fmt.Errorf("Certificate %v was revoked at %v", cert.SerialNumber, revokedCertificate.RevocationTime)
 				}
 			}
 
@@ -245,28 +245,30 @@ func (v DefaultCRLVerifier) Verify(chain []*x509.Certificate) (int, error) {
 	}
 
 	if len(cert.CRLDistributionPoints) > 0 {
-		for i := range cert.CRLDistributionPoints {
-			rawCRL, err := v.getCachedOrFetch(cert.CRLDistributionPoints[i])
+		for _, crlDistributionPoint := range cert.CRLDistributionPoints {
+			rawCRL, err := v.getCachedOrFetch(crlDistributionPoint)
 			if err != nil {
-				log.WithError(err).Debugf("CRL: Cannot get CRL from '%s'", cert.CRLDistributionPoints[i])
+				log.WithError(err).Debugf("CRL: Cannot get CRL from '%s'", crlDistributionPoint)
 				return 0, err
 			}
 
 			crl, err := x509.ParseCRL(rawCRL)
 			if err != nil {
-				log.WithError(err).Debugf("CRL: Cannot parse CRL from '%s'", cert.CRLDistributionPoints[i])
+				log.WithError(err).Debugf("CRL: Cannot parse CRL from '%s'", crlDistributionPoint)
 				return 0, err
 			}
 
 			err = issuer.CheckCRLSignature(crl)
 			if err != nil {
-				log.WithError(err).Warnf("CRL: Failed to check signature for CRL at %s", cert.CRLDistributionPoints[i])
+				log.WithError(err).Warnf("CRL: Failed to check signature for CRL at %s", crlDistributionPoint)
 				return 0, err
 			}
 
-			if crl.TBSCertList.RevokedCertificates[i].SerialNumber.Cmp(cert.SerialNumber) == 0 {
-				log.Warnf("CRL: Certificate %v was revoked at %v", cert.SerialNumber, crl.TBSCertList.RevokedCertificates[i].RevocationTime)
-				return 0, fmt.Errorf("Certificate %v was revoked at %v", cert.SerialNumber, crl.TBSCertList.RevokedCertificates[i].RevocationTime)
+			for _, revokedCertificate := range crl.TBSCertList.RevokedCertificates {
+				if revokedCertificate.SerialNumber.Cmp(cert.SerialNumber) == 0 {
+					log.Warnf("CRL: Certificate %v was revoked at %v", cert.SerialNumber, revokedCertificate.RevocationTime)
+					return 0, fmt.Errorf("Certificate %v was revoked at %v", cert.SerialNumber, revokedCertificate.RevocationTime)
+				}
 			}
 		}
 
