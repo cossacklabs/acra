@@ -217,7 +217,8 @@ func (v DefaultCRLVerifier) Verify(chain []*x509.Certificate) (int, error) {
 			rawCRL, err := v.getCachedOrFetch(v.Config.uri)
 			if err != nil {
 				log.WithError(err).Debugf("CRL: Cannot get CRL from '%s'", v.Config.uri)
-				return 0, err
+				break // temporary
+				// return 0, err
 			}
 
 			crl, err := x509.ParseCRL(rawCRL)
@@ -249,7 +250,8 @@ func (v DefaultCRLVerifier) Verify(chain []*x509.Certificate) (int, error) {
 			rawCRL, err := v.getCachedOrFetch(crlDistributionPoint)
 			if err != nil {
 				log.WithError(err).Debugf("CRL: Cannot get CRL from '%s'", crlDistributionPoint)
-				return 0, err
+				continue // temporary
+				// return 0, err
 			}
 
 			crl, err := x509.ParseCRL(rawCRL)
