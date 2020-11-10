@@ -7,12 +7,12 @@ import (
 
 // CertVerifier is a generic certificate verifier
 type CertVerifier interface {
-	// Verify returns number of confirmations or error.
-	// The error is returned only if it is critical, for example:
+	// Verify checks whether the certificate is revoked.
+	// The error is returned if:
 	// - the certificate was revoked
 	// - (for OCSP) the certificate is not known by OCSP server and we requested tls_ocsp_required == "yes" or "all"
 	// - (for OCSP) if we were unable to contact OCSP server(s) but we really need the response, tls_ocsp_required == "all"
-	Verify(chain []*x509.Certificate) (int, error)
+	Verify(rawCerts [][]byte, verifiedChains [][]*x509.Certificate) error
 }
 
 // NewCertVerifierFromConfigs creates a CertVerifier based on passed OCSP and CRL configs
@@ -54,16 +54,13 @@ func (v *CertVerifierAll) Push(verifier CertVerifier) {
 }
 
 // Verify returns number of confirmations or error
-func (v CertVerifierAll) Verify(chain []*x509.Certificate) (int, error) {
-	confirmsTotal := 0
-
+func (v CertVerifierAll) Verify(rawCerts [][]byte, verifiedChains [][]*x509.Certificate) error {
 	for _, verifier := range v.verifiers {
-		confirms, err := verifier.Verify(chain)
+		err := verifier.Verify(rawCerts, verifiedChains)
 		if err != nil {
-			return confirmsTotal, err
+			return err
 		}
-		confirmsTotal += confirms
 	}
 
-	return confirmsTotal, nil
+	return nil
 }

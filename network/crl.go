@@ -185,93 +185,91 @@ func (v DefaultCRLVerifier) getCachedOrFetch(uri string) ([]byte, error) {
 }
 
 // Verify ensures configured CRLs do not contain certificate from passed chain
-func (v DefaultCRLVerifier) Verify(chain []*x509.Certificate) (int, error) {
-	log.Debugf("CRL: Verifying '%s'", chain[0].Subject.CommonName)
+func (v DefaultCRLVerifier) Verify(rawCerts [][]byte, verifiedChains [][]*x509.Certificate) error {
+	for _, chain := range verifiedChains {
+		log.Debugf("CRL: Verifying '%s'", chain[0].Subject.String())
 
-	if len(v.Config.uri) == 0 && v.Config.fromCert == crlFromCertIgnore {
-		log.Debugln("CRL: Skipping check since no config URI specified and we were told to ignore URIs from certificate")
-		return 0, nil
-	}
+		if len(v.Config.uri) == 0 && v.Config.fromCert == crlFromCertIgnore {
+			log.Debugln("CRL: Skipping check since no config URI specified and we were told to ignore URIs from certificate")
+			return nil
+		}
 
-	cert := chain[0]
-	issuer := chain[1]
+		cert := chain[0]
+		issuer := chain[1]
 
-	for _, crlDistributionPoint := range cert.CRLDistributionPoints {
-		log.Debugf("CRL: certificate contains CRL URI: %s", crlDistributionPoint)
-	}
+		for _, crlDistributionPoint := range cert.CRLDistributionPoints {
+			log.Debugf("CRL: certificate contains CRL URI: %s", crlDistributionPoint)
+		}
 
-	confirmsByConfigCRL := 0
-	confirmsByCertCRL := 0
+		// TODO avoid querying same CRL more than once, maybe create some list of checked CRLs (based on URI)
 
-	// TODO avoid querying same CRL more than once, maybe create some list of checked CRLs (based on URI)
-
-	for {
 		if v.Config.uri != "" {
 			rawCRL, err := v.getCachedOrFetch(v.Config.uri)
 			if err != nil {
 				log.WithError(err).Debugf("CRL: Cannot get CRL from '%s'", v.Config.uri)
-				break // temporary
-				// return 0, err
+				return nil // temporary
+				// return err
 			}
 
 			crl, err := x509.ParseCRL(rawCRL)
 			if err != nil {
 				log.WithError(err).Debugf("CRL: Cannot parse CRL from '%s'", v.Config.uri)
-				return 0, err
+				return err
 			}
 
 			err = issuer.CheckCRLSignature(crl)
 			if err != nil {
 				log.WithError(err).Warnf("CRL: Failed to check signature for CRL at %s", v.Config.uri)
-				return 0, err
+				return err
 			}
 
 			for _, revokedCertificate := range crl.TBSCertList.RevokedCertificates {
 				if revokedCertificate.SerialNumber.Cmp(cert.SerialNumber) == 0 {
 					log.Warnf("CRL: Certificate %v was revoked at %v", cert.SerialNumber, revokedCertificate.RevocationTime)
-					return 0, fmt.Errorf("Certificate %v was revoked at %v", cert.SerialNumber, revokedCertificate.RevocationTime)
+					return fmt.Errorf("Certificate %v was revoked at %v", cert.SerialNumber, revokedCertificate.RevocationTime)
 				}
 			}
 
-			confirmsByConfigCRL++
+			log.Debugln("CRL: OK, not found in list of revoked certificates")
 		}
-		break
-	}
 
-	if len(cert.CRLDistributionPoints) > 0 {
-		for _, crlDistributionPoint := range cert.CRLDistributionPoints {
-			rawCRL, err := v.getCachedOrFetch(crlDistributionPoint)
-			if err != nil {
-				log.WithError(err).Debugf("CRL: Cannot get CRL from '%s'", crlDistributionPoint)
-				continue // temporary
-				// return 0, err
-			}
+		if len(cert.CRLDistributionPoints) > 0 && v.Config.fromCert != crlFromCertIgnore {
+			for _, crlDistributionPoint := range cert.CRLDistributionPoints {
+				log.Debugln("CRL: using '%s' from certificate", crlDistributionPoint)
 
-			crl, err := x509.ParseCRL(rawCRL)
-			if err != nil {
-				log.WithError(err).Debugf("CRL: Cannot parse CRL from '%s'", crlDistributionPoint)
-				return 0, err
-			}
-
-			err = issuer.CheckCRLSignature(crl)
-			if err != nil {
-				log.WithError(err).Warnf("CRL: Failed to check signature for CRL at %s", crlDistributionPoint)
-				return 0, err
-			}
-
-			for _, revokedCertificate := range crl.TBSCertList.RevokedCertificates {
-				if revokedCertificate.SerialNumber.Cmp(cert.SerialNumber) == 0 {
-					log.Warnf("CRL: Certificate %v was revoked at %v", cert.SerialNumber, revokedCertificate.RevocationTime)
-					return 0, fmt.Errorf("Certificate %v was revoked at %v", cert.SerialNumber, revokedCertificate.RevocationTime)
+				rawCRL, err := v.getCachedOrFetch(crlDistributionPoint)
+				if err != nil {
+					log.WithError(err).Debugf("CRL: Cannot get CRL from '%s'", crlDistributionPoint)
+					continue // temporary
+					// return err
 				}
+
+				crl, err := x509.ParseCRL(rawCRL)
+				if err != nil {
+					log.WithError(err).Debugf("CRL: Cannot parse CRL from '%s'", crlDistributionPoint)
+					return err
+				}
+
+				err = issuer.CheckCRLSignature(crl)
+				if err != nil {
+					log.WithError(err).Warnf("CRL: Failed to check signature for CRL at %s", crlDistributionPoint)
+					return err
+				}
+
+				for _, revokedCertificate := range crl.TBSCertList.RevokedCertificates {
+					if revokedCertificate.SerialNumber.Cmp(cert.SerialNumber) == 0 {
+						log.Warnf("CRL: Certificate %v was revoked at %v", cert.SerialNumber, revokedCertificate.RevocationTime)
+						return fmt.Errorf("Certificate %v was revoked at %v", cert.SerialNumber, revokedCertificate.RevocationTime)
+					}
+				}
+
+				log.Debugln("CRL: OK, not found in list of revoked certificates")
 			}
 		}
 
-		confirmsByCertCRL++
+		// XXX with cache containing raw CRL, we have to parse and verify signature on every check,
+		//     maybe it's better to store parsed and verified CRL instead?
 	}
 
-	// XXX with cache containing raw CRL, we have to parse and verify signature on every check,
-	//     maybe it's better to store parsed and verified CRL instead?
-
-	return confirmsByConfigCRL + confirmsByCertCRL, nil
+	return nil
 }

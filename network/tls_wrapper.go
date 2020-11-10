@@ -139,16 +139,15 @@ func NewTLSConfig(serverName string, caPath, keyPath, crtPath string, authType t
 	}
 
 	verifyPeerCertificate := func(rawCerts [][]byte, verifiedChains [][]*x509.Certificate) error {
-		for _, verifiedChain := range verifiedChains {
-			confirms, err := certVerifier.Verify(verifiedChain)
-			if err != nil {
-				return err
-			}
+		err := certVerifier.Verify(rawCerts, verifiedChains)
 
-			log.Debugf("verifyPeerCertificate: Got %d confirms about '%s'", confirms, verifiedChain[0].Subject.CommonName)
+		if err != nil {
+			log.WithError(err).Debugln("verifyPeerCertificate: Error")
+		} else {
+			log.Debugln("verifyPeerCertificate: OK")
 		}
 
-		return nil
+		return err
 	}
 
 	return &tls.Config{
