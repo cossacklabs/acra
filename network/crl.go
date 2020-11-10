@@ -151,13 +151,6 @@ func (c *DefaultCRLCache) Remove(key string) error {
 	return nil
 }
 
-// CRLVerifier is used to implement different certificate verifiers that internally use CRLs
-type CRLVerifier interface {
-	// Verify returns number of confirmations (how many CRLs don't contain the certificate) or error.
-	// The error is returned only if the certificate was revoked.
-	Verify(chain []*x509.Certificate) (int, error)
-}
-
 // DefaultCRLVerifier is a default implementation of CRLVerifier
 type DefaultCRLVerifier struct {
 	Config CRLConfig

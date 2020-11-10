@@ -154,16 +154,6 @@ func (c DefaultOCSPClient) Query(commonName string, clientCert, issuerCert *x509
 	return ocspResponse, err
 }
 
-// OCSPVerifier is used to implement different certificate verifiers that internally use OCSP protocol
-type OCSPVerifier interface {
-	// Verify returns number of confirmations or error.
-	// The error is returned only if it is critical, for example:
-	// - the certificate was revoked
-	// - the certificate is not known by OCSP server and we requested tls_ocsp_required == "yes" or "all"
-	// - if we were unable to contact OCSP server(s) but we really need the response, tls_ocsp_required == "all"
-	Verify(chain []*x509.Certificate) (int, error)
-}
-
 // DefaultOCSPVerifier is a default OCSP verifier
 type DefaultOCSPVerifier struct {
 	Config OCSPConfig

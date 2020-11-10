@@ -31,25 +31,6 @@ import (
 var TestClientID = []byte("client")
 var TestServerID = []byte("server")
 
-var TestCertVerifier CertVerifier
-
-func init() {
-	ocspConfig, err := NewOCSPConfig("", "yes", "prefer")
-	if err != nil {
-		panic("Cannot create OCSP config")
-	}
-
-	crlConfig, err := NewCRLConfig("", "use")
-	if err != nil {
-		panic("Cannot create CRL config")
-	}
-
-	TestCertVerifier, err = NewCertVerifierFromConfigs(ocspConfig, crlConfig)
-	if err != nil {
-		panic("Cannot create certificate verifier")
-	}
-}
-
 func wait(ch chan bool, t *testing.T) {
 	select {
 	case val := <-ch:
@@ -228,7 +209,7 @@ E0B2xKAzGuMumud6IbYpoIk3uj7bjfeejSyZPgxIOkEPAjEA+adYfhHGieUnnC26
 Mmsz2rgkLFqKpYS30+CYbzwIXMfHImhBX2kO9HkodBWvNApu
 -----END CERTIFICATE-----
 `)
-	clientConfig, err := NewTLSConfig("", "", "", "", tls.NoClientCert, TestCertVerifier)
+	clientConfig, err := NewTLSConfig("", "", "", "", tls.NoClientCert, NewCertVerifierAll())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -244,7 +225,7 @@ Mmsz2rgkLFqKpYS30+CYbzwIXMfHImhBX2kO9HkodBWvNApu
 		return
 	}
 
-	serverConfig, err := NewTLSConfig("", "", "", "", tls.NoClientCert, TestCertVerifier)
+	serverConfig, err := NewTLSConfig("", "", "", "", tls.NoClientCert, NewCertVerifierAll())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -307,7 +288,7 @@ func testTLSConfig(serverWrapper *TLSConnectionWrapper, t *testing.T) {
 
 	wrapErrorCh := make(chan bool)
 	// check not allowed cipher suit
-	config, err := NewTLSConfig("", "", "", "", tls.NoClientCert, TestCertVerifier)
+	config, err := NewTLSConfig("", "", "", "", tls.NoClientCert, NewCertVerifierAll())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -367,7 +348,7 @@ func testTLSConfig(serverWrapper *TLSConnectionWrapper, t *testing.T) {
 
 	// check not allowed protocol version
 	clientConn, serverConn = getConnectionPair(address, listener, t)
-	config, err = NewTLSConfig("", "", "", "", tls.NoClientCert, TestCertVerifier)
+	config, err = NewTLSConfig("", "", "", "", tls.NoClientCert, NewCertVerifierAll())
 	if err != nil {
 		t.Fatal(err)
 	}
