@@ -94,6 +94,10 @@ func (c DefaultCRLClient) Fetch(uri string) ([]byte, error) {
 			return nil, err
 		}
 
+		if httpResponse.StatusCode != 200 {
+			return nil, fmt.Errorf("Server returned non-OK status: %s", httpResponse.Status)
+		}
+
 		return content, nil
 	} else if strings.HasPrefix(uri, "file://") {
 		content, err := ioutil.ReadFile(uri[7:])
@@ -235,7 +239,7 @@ func (v DefaultCRLVerifier) Verify(rawCerts [][]byte, verifiedChains [][]*x509.C
 
 		if len(cert.CRLDistributionPoints) > 0 && v.Config.fromCert != crlFromCertIgnore {
 			for _, crlDistributionPoint := range cert.CRLDistributionPoints {
-				log.Debugln("CRL: using '%s' from certificate", crlDistributionPoint)
+				log.Debugf("CRL: using '%s' from certificate", crlDistributionPoint)
 
 				rawCRL, err := v.getCachedOrFetch(crlDistributionPoint)
 				if err != nil {
