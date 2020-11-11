@@ -276,9 +276,51 @@ func TestDefaultCRLCache(t *testing.T) {
 	}
 }
 
+func TestLRUParsedCRLCache(t *testing.T) {
+	// Same as TestDefaultCRLCache, but with *pkix.CertificateList instead of []byte as value
+	cache := NewLRUParsedCRLCache(4)
+
+	crl, err := x509.ParseCRL(getTestCRL())
+	if err != nil {
+		t.Fatal("Failed to parse test CRL")
+	}
+
+	// we don't expect to see any items in cache when it's created
+	cachedCRL, err := cache.Get("test1")
+	if cachedCRL != nil {
+		t.Fatalf("Unexpected data while reading empty cache")
+	}
+	if err == nil {
+		t.Fatalf("No expected error while reading empty cache")
+	}
+
+	// let's insert something
+	cache.Put("test1", crl)
+	cachedCRL, err = cache.Get("test1")
+	if cachedCRL == nil {
+		t.Fatalf("Unexpected fail while reading recently inserted cache item")
+	}
+	if err != nil {
+		t.Fatalf("Unexpected error while reading recently inserted cache item")
+	}
+
+	// and test removal
+	err = cache.Remove("test1")
+	if err != nil {
+		t.Fatalf("Unexpected error while removing recently inserted cache item")
+	}
+	cachedCRL, err = cache.Get("test1")
+	if cachedCRL != nil {
+		t.Fatalf("Unexpected data while reading removed cache item")
+	}
+	if err == nil {
+		t.Fatalf("Unexpected error while reading removed cache item")
+	}
+}
+
 func TestDefaultCRLVerifier(t *testing.T) {
 	crlConfig := CRLConfig{uri: "http://127.0.0.1:8889/crl.pem", fromCert: crlFromCertIgnore}
-	crlVerifier := DefaultCRLVerifier{Config: crlConfig, Client: DefaultCRLClient{}, Cache: &DefaultCRLCache{}}
+	crlVerifier := DefaultCRLVerifier{Config: crlConfig, Client: DefaultCRLClient{}, Cache: &DefaultCRLCache{}, ParsedCache: NewLRUParsedCRLCache(16)}
 
 	// Fool crlVerifier into thinking the CRL is already in cache to avoid performing requests.
 	// CRLCache and CRLClient are tested separately anyway.

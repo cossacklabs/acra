@@ -18,6 +18,7 @@ package network
 
 import (
 	"crypto/x509"
+	"crypto/x509/pkix"
 	"errors"
 	"fmt"
 	log "github.com/sirupsen/logrus"
@@ -26,6 +27,8 @@ import (
 	"net/url"
 	"strings"
 	"sync"
+
+	"github.com/golang/groupcache/lru"
 )
 
 const (
@@ -55,7 +58,15 @@ func NewCRLConfig(uri, fromCert string) (*CRLConfig, error) {
 	default:
 		return nil, errors.New("Invalid `tls_crl_from_cert` value '" + fromCert + "', should be one of 'use', 'ignore'")
 	}
-	// TODO: Download CRL from `uri`, log error if failed
+
+	if uri != "" {
+		// Since this is CRL configuration alone, we don't have access to cache yet;
+		// so let's just download the CRL and forget about it
+		_, err = DefaultCRLClient.Fetch(DefaultCRLClient{}, uri)
+		if err != nil {
+			log.WithError(err).Warnf("CRL: Cannot fetch configured URI '%s'", uri)
+		}
+	}
 
 	return &CRLConfig{uri: uri, fromCert: fromCertVal}, nil
 }
@@ -155,32 +166,136 @@ func (c *DefaultCRLCache) Remove(key string) error {
 	return nil
 }
 
-// DefaultCRLVerifier is a default implementation of CRLVerifier
-type DefaultCRLVerifier struct {
-	Config CRLConfig
-	Client CRLClient
-	Cache  CRLCache
+// ParsedCRLCache is similar to CRLCache, but works on top of it and stores parsed and verified CRLs
+type ParsedCRLCache interface {
+	Get(key string) (*pkix.CertificateList, error)
+	Put(key string, value *pkix.CertificateList) error
+	Remove(key string) error
 }
 
-func (v DefaultCRLVerifier) getCachedOrFetch(uri string) ([]byte, error) {
-	crl, err := v.Cache.Get(v.Config.uri)
+// PRLRUParsedCRLCache is an implementation of ParsedCRLCache that uses LRU cache inside
+type LRUParsedCRLCache struct {
+	cache lru.Cache
+	mutex sync.RWMutex
+}
+
+// NewLRUParsedCRLCache creates new LRUParsedCRLCache, able to store at most maxEntries values
+func NewLRUParsedCRLCache(maxEntries int) *LRUParsedCRLCache {
+	return &LRUParsedCRLCache{cache: lru.Cache{MaxEntries: maxEntries}}
+}
+
+// Get tries to get CRL from cache, returns error if failed
+func (c *LRUParsedCRLCache) Get(key string) (*pkix.CertificateList, error) {
+	log.Debugf("CRL: LRU cache: loading '%s'", key)
+	c.mutex.RLock()
+	defer c.mutex.RUnlock()
+
+	value, ok := c.cache.Get(key)
+	if ok {
+		value, ok := value.(*pkix.CertificateList)
+		if !ok {
+			// should never happen since Put() only inserts *pkix.CertificateList
+			return nil, errors.New("Unexpected value of invalid type")
+		}
+		log.Debugf("CRL: LRU cache: '%s' found", key)
+		return value, nil
+	}
+
+	return nil, errors.New("Key not found")
+}
+
+// Put stores CRL in cache
+func (c *LRUParsedCRLCache) Put(key string, value *pkix.CertificateList) error {
+	c.mutex.Lock()
+	c.cache.Add(key, value)
+	c.mutex.Unlock()
+	log.Debugf("CRL: LRU cache: inserted '%s'", key)
+	return nil
+}
+
+// Remove removes item from cache
+func (c *LRUParsedCRLCache) Remove(key string) error {
+	c.mutex.Lock()
+	c.cache.Remove(key)
+	c.mutex.Unlock()
+	log.Debugf("CRL: LRU cache: removed '%s'", key)
+	return nil
+}
+
+// DefaultCRLVerifier is a default implementation of CRLVerifier
+type DefaultCRLVerifier struct {
+	Config      CRLConfig
+	Client      CRLClient
+	Cache       CRLCache
+	ParsedCache ParsedCRLCache
+}
+
+// Tries to find cached CRL, fetches using v.Client if not found, checks the signature of CRL using issuerCert
+func (v DefaultCRLVerifier) getCachedOrFetch(uri string, issuerCert *x509.Certificate) (*pkix.CertificateList, error) {
+	// First, try v.ParsedCache
+	crl, err := v.ParsedCache.Get(v.Config.uri)
 	if crl != nil {
 		if err != nil {
+			// non-empty result + error, should never happen
 			return nil, err
 		}
 
 		return crl, nil
 	}
 
-	crl, err = v.Client.Fetch(uri)
-	if crl != nil {
-		err := v.Cache.Put(uri, crl)
+	// If not found, search in v.Cache, if found then parse, verify and store in v.ParsedCache
+	rawCRL, err := v.Cache.Get(v.Config.uri)
+	if rawCRL != nil {
 		if err != nil {
-			log.WithError(err).Warnf("Unable to store fetched '%s' in CRL cache", uri)
+			// non-empty result + error, should never happen
+			return nil, err
 		}
 
-		// TODO spawn goroutine to refresh CRL after some time,
-		//      using crl.TBSCertList.NextUpdate is probably a good idea
+		crl, err := x509.ParseCRL(rawCRL)
+		if err != nil {
+			// Should never happen since we only store parse-able ones in v.Cache
+			log.WithError(err).Warnf("CRL: cache contains invalid CRL")
+			v.Cache.Remove(uri)
+			return nil, err
+		}
+
+		err = issuerCert.CheckCRLSignature(crl)
+		if err != nil {
+			// Should never happen since we only store verified ones in v.Cache;
+			// however, this may happen if wrong CA cert was passed, like first time we check with right
+			// one and store in v.ParsedCache and this time we use a different CA cert and signature check fails
+			log.WithError(err).Warnf("CRL: cache contains CRL with invalid signature")
+			v.Cache.Remove(uri)
+			return nil, err
+		}
+
+		v.ParsedCache.Put(uri, crl)
+
+		return crl, nil
+	}
+
+	// Not found in both caches, gotta fetch
+	rawCRL, err = v.Client.Fetch(uri)
+	if rawCRL != nil {
+		if err != nil {
+			// non-empty result + error, should never happen
+			return nil, err
+		}
+
+		crl, err := x509.ParseCRL(rawCRL)
+		if err != nil {
+			log.WithError(err).Debugf("CRL: Cannot parse CRL from '%s'", uri)
+			return nil, err
+		}
+
+		err = issuerCert.CheckCRLSignature(crl)
+		if err != nil {
+			log.WithError(err).Warnf("CRL: Failed to check signature for CRL at %s", uri)
+			return nil, err
+		}
+
+		v.Cache.Put(uri, rawCRL)
+		v.ParsedCache.Put(uri, crl)
 
 		return crl, nil
 	}
@@ -205,25 +320,12 @@ func (v DefaultCRLVerifier) Verify(rawCerts [][]byte, verifiedChains [][]*x509.C
 			log.Debugf("CRL: certificate contains CRL URI: %s", crlDistributionPoint)
 		}
 
-		// TODO avoid querying same CRL more than once, maybe create some list of checked CRLs (based on URI)
+		queriedCRLs := make(map[string]struct{})
 
 		if v.Config.uri != "" {
-			rawCRL, err := v.getCachedOrFetch(v.Config.uri)
+			crl, err := v.getCachedOrFetch(v.Config.uri, issuer)
 			if err != nil {
 				log.WithError(err).Debugf("CRL: Cannot get CRL from '%s'", v.Config.uri)
-				return nil // temporary
-				// return err
-			}
-
-			crl, err := x509.ParseCRL(rawCRL)
-			if err != nil {
-				log.WithError(err).Debugf("CRL: Cannot parse CRL from '%s'", v.Config.uri)
-				return err
-			}
-
-			err = issuer.CheckCRLSignature(crl)
-			if err != nil {
-				log.WithError(err).Warnf("CRL: Failed to check signature for CRL at %s", v.Config.uri)
 				return err
 			}
 
@@ -234,30 +336,23 @@ func (v DefaultCRLVerifier) Verify(rawCerts [][]byte, verifiedChains [][]*x509.C
 				}
 			}
 
+			queriedCRLs[v.Config.uri] = struct{}{}
 			log.Debugln("CRL: OK, not found in list of revoked certificates")
 		}
 
 		if len(cert.CRLDistributionPoints) > 0 && v.Config.fromCert != crlFromCertIgnore {
 			for _, crlDistributionPoint := range cert.CRLDistributionPoints {
+				if _, ok := queriedCRLs[crlDistributionPoint]; ok {
+					continue
+				}
+
 				log.Debugf("CRL: using '%s' from certificate", crlDistributionPoint)
 
-				rawCRL, err := v.getCachedOrFetch(crlDistributionPoint)
+				crl, err := v.getCachedOrFetch(crlDistributionPoint, issuer)
 				if err != nil {
 					log.WithError(err).Debugf("CRL: Cannot get CRL from '%s'", crlDistributionPoint)
 					continue // temporary
 					// return err
-				}
-
-				crl, err := x509.ParseCRL(rawCRL)
-				if err != nil {
-					log.WithError(err).Debugf("CRL: Cannot parse CRL from '%s'", crlDistributionPoint)
-					return err
-				}
-
-				err = issuer.CheckCRLSignature(crl)
-				if err != nil {
-					log.WithError(err).Warnf("CRL: Failed to check signature for CRL at %s", crlDistributionPoint)
-					return err
 				}
 
 				for _, revokedCertificate := range crl.TBSCertList.RevokedCertificates {
@@ -267,12 +362,10 @@ func (v DefaultCRLVerifier) Verify(rawCerts [][]byte, verifiedChains [][]*x509.C
 					}
 				}
 
+				queriedCRLs[v.Config.uri] = struct{}{}
 				log.Debugln("CRL: OK, not found in list of revoked certificates")
 			}
 		}
-
-		// XXX with cache containing raw CRL, we have to parse and verify signature on every check,
-		//     maybe it's better to store parsed and verified CRL instead?
 	}
 
 	return nil
