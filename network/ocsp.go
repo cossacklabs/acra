@@ -29,10 +29,35 @@ import (
 	"net/url"
 )
 
+// --tls_ocsp_required=<denyUnknown|allowUnknown|all>
+const (
+	// Deny certificates now known by OCSP server(s)
+	ocspRequiredYesStr = "denyUnknown"
+	// Allow certificates now known by OCSP server(s)
+	ocspRequiredNoStr = "allowUnknown"
+	// Effect of denyUnknown + all available OCSP servers (the one from config
+	// and those listed in certificate) should respond, otherwise deny the certificate
+	ocspRequiredAllStr = "all"
+)
+
 const (
 	ocspRequiredYes int = iota
 	ocspRequiredNo
 	ocspRequiredAll
+)
+
+// --tls_ocsp_from_cert=<use|trust|prefer|ignore>
+const (
+	// Use OCSP servers listed in certificate (if any), try them after the one
+	// configured from CLI/config
+	ocspFromCertUseStr = "use"
+	// Query servers listed in certificate and don't perform further requests
+	// if one respons with "ok, valid"
+	ocspFromCertTrustStr = "trust"
+	// Query servers listed in certificate before the one from config
+	ocspFromCertPreferStr = "prefer"
+	// Ignore OCSP servers listed in certificates
+	ocspFromCertIgnoreStr = "ignore"
 )
 
 const (
@@ -62,11 +87,11 @@ func NewOCSPConfig(uri, required, fromCert string) (*OCSPConfig, error) {
 
 	var requiredVal int
 	switch required {
-	case "yes", "true":
+	case ocspRequiredYesStr:
 		requiredVal = ocspRequiredYes
-	case "no", "false":
+	case ocspRequiredNoStr:
 		requiredVal = ocspRequiredNo
-	case "all":
+	case ocspRequiredAllStr:
 		requiredVal = ocspRequiredAll
 	default:
 		return nil, errors.New("Invalid `ocsp_required` value '" + required + "', should be one of 'yes', 'no', 'all'")
@@ -74,13 +99,13 @@ func NewOCSPConfig(uri, required, fromCert string) (*OCSPConfig, error) {
 
 	var fromCertVal int
 	switch fromCert {
-	case "use":
+	case ocspFromCertUseStr:
 		fromCertVal = ocspFromCertUse
-	case "trust":
+	case ocspFromCertTrustStr:
 		fromCertVal = ocspFromCertTrust
-	case "prefer":
+	case ocspFromCertPreferStr:
 		fromCertVal = ocspFromCertPrefer
-	case "ignore":
+	case ocspFromCertIgnoreStr:
 		fromCertVal = ocspFromCertIgnore
 	default:
 		return nil, errors.New("Invalid `ocsp_from_cert` value '" + fromCert + "', should be one of 'use', 'trust', 'prefer', 'ignore'")

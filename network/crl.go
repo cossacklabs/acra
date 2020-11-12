@@ -31,6 +31,14 @@ import (
 	"github.com/golang/groupcache/lru"
 )
 
+// --tls_crl_from_cert=<use|ignore>
+const (
+	// If certificate contains CRL distribution point(s), use them
+	crlFromCertUseStr = "use"
+	// Ignore CRL distribution points listed in certificate
+	crlFromCertIgnoreStr = "ignore"
+)
+
 const (
 	crlFromCertUse int = iota
 	crlFromCertIgnore
@@ -51,9 +59,9 @@ func NewCRLConfig(uri, fromCert string) (*CRLConfig, error) {
 
 	var fromCertVal int
 	switch fromCert {
-	case "use":
+	case crlFromCertUseStr:
 		fromCertVal = crlFromCertUse
-	case "ignore":
+	case crlFromCertIgnoreStr:
 		fromCertVal = crlFromCertIgnore
 	default:
 		return nil, errors.New("Invalid `tls_crl_from_cert` value '" + fromCert + "', should be one of 'use', 'ignore'")

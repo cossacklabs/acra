@@ -177,7 +177,7 @@ tls_ocsp_database_url:
 tls_ocsp_from_cert: prefer
 
 # Whether we need OCSP response in order to accept certificate
-tls_ocsp_required: yes
+tls_ocsp_required: denyUnknown
 
 # OCSP service URL
 tls_ocsp_url: 
