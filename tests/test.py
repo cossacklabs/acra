@@ -392,6 +392,18 @@ def wait_connection(port, count=1000, sleep=0.001):
         time.sleep(sleep)
     raise Exception("can't wait connection")
 
+def wait_command_success(command, count=10, sleep=0.200):
+    """try executing `command` using `os.system()`
+    if exit code != 0 then sleep on and try again (<count> times)
+    if <count> times is failed than raise Exception
+    """
+    while count:
+        ret = os.system(command)
+        if ret == 0:
+            return
+        count -= 1
+        time.sleep(sleep)
+    raise Exception("can't wait command success")
 
 def wait_unix_socket(socket_path, count=1000, sleep=0.005):
     last_exc = Exception("can't wait unix socket")
@@ -1061,15 +1073,15 @@ class BaseTestCase(PrometheusMixin, unittest.TestCase):
 
         process = self.fork(lambda: subprocess.Popen(['openssl', 'ocsp'] + cli_args))
 
-        # Openssl OCSP server exitx on first invalid request, let's skip connection check for now
-        # since opening and closing socket is considered an invalid request
-        # if check_connection:
-        #     print('check ocsp server connection {}'.format(ocsp_server_connection))
-        #     try:
-        #         wait_connection(port)
-        #     except:
-        #         stop_process(process)
-        #         raise
+        check_cmd = f"openssl ocsp -CAfile {TEST_TLS_CA} -issuer {TEST_TLS_CA} -cert {TEST_TLS_CLIENT_CERT} -url {ocsp_server_connection}"
+
+        if check_connection:
+            print('check OCSP server connection {}'.format(ocsp_server_connection))
+            try:
+                wait_command_success(check_cmd)
+            except:
+                stop_process(process)
+                raise
 
         logging.info("fork openssl ocsp finished [pid={}]".format(process.pid))
         return process
