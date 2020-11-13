@@ -23,8 +23,10 @@ import (
 	"errors"
 	"fmt"
 	"io/ioutil"
+	"net"
 	"net/http"
 	"os"
+	"strings"
 	"testing"
 	"time"
 )
@@ -160,9 +162,85 @@ func pemToX509Cert(data []byte) (*x509.Certificate, error) {
 	return cert, nil
 }
 
+// Starts HTTP server on some random port, uses `mux` to handle requests,
+// returns created server and IP:port of listening socket
+func getTestHTTPServer(t *testing.T, mux *http.ServeMux) (*http.Server, string) {
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("Cannot create TCP socket for HTTP server: %v", err)
+	}
+
+	addr := listener.Addr().String()
+
+	httpServer := &http.Server{
+		Handler: mux,
+	}
+	go func() {
+		httpServer.Serve(listener)
+	}()
+
+	// Give the server time to start, otherwise this test will fail sometimes
+	time.Sleep(time.Millisecond * 100)
+
+	return httpServer, addr
+}
+
+func getValidTestChain(t *testing.T) ([][]byte, [][]*x509.Certificate) {
+	validRawCerts := [][]byte{}
+	validRawCerts = append(validRawCerts, getTestValidCert())
+	validRawCerts = append(validRawCerts, getTestCACert())
+
+	validVerifiedChains := [][]*x509.Certificate{}
+	validVerifiedChains = append(validVerifiedChains, []*x509.Certificate{})
+	cert, err := pemToX509Cert(validRawCerts[0])
+	if err != nil {
+		t.Fatalf("Failed to parse test PEM certificate: %v", err)
+	}
+	validVerifiedChains[0] = append(validVerifiedChains[0], cert)
+	cert, err = pemToX509Cert(validRawCerts[1])
+	if err != nil {
+		t.Fatalf("Failed to parse test PEM certificate: %v", err)
+	}
+	validVerifiedChains[0] = append(validVerifiedChains[0], cert)
+
+	t.Logf("validVerifiedChains[0][0].Subject = %s", validVerifiedChains[0][0].Subject.String())
+	t.Logf("validVerifiedChains[0][1].Subject = %s", validVerifiedChains[0][1].Subject.String())
+	if err = validVerifiedChains[0][0].CheckSignatureFrom(validVerifiedChains[0][1]); err != nil {
+		t.Fatalf("Cert was not signed by CA: %v", err)
+	}
+
+	return validRawCerts, validVerifiedChains
+}
+
+func getInvalidTestChain(t *testing.T) ([][]byte, [][]*x509.Certificate) {
+	invalidRawCerts := [][]byte{}
+	invalidRawCerts = append(invalidRawCerts, getTestExpiredCert())
+	invalidRawCerts = append(invalidRawCerts, getTestCACert())
+
+	invalidVerifiedChains := [][]*x509.Certificate{}
+	invalidVerifiedChains = append(invalidVerifiedChains, []*x509.Certificate{})
+	cert, err := pemToX509Cert(invalidRawCerts[0])
+	if err != nil {
+		t.Fatalf("Failed to parse test PEM certificate: %v", err)
+	}
+	invalidVerifiedChains[0] = append(invalidVerifiedChains[0], cert)
+	cert, err = pemToX509Cert(invalidRawCerts[1])
+	if err != nil {
+		t.Fatalf("Failed to parse test PEM certificate: %v", err)
+	}
+	invalidVerifiedChains[0] = append(invalidVerifiedChains[0], cert)
+
+	t.Logf("invalidVerifiedChains[0][0].Subject = %s", invalidVerifiedChains[0][0].Subject.String())
+	t.Logf("invalidVerifiedChains[0][1].Subject = %s", invalidVerifiedChains[0][1].Subject.String())
+	if err = invalidVerifiedChains[0][0].CheckSignatureFrom(invalidVerifiedChains[0][1]); err != nil {
+		t.Fatalf("Cert was not signed by CA: %v", err)
+	}
+
+	return invalidRawCerts, invalidVerifiedChains
+}
+
 func TestDefaultCRLClientHTTP(t *testing.T) {
 	crl := getTestCRL()
-	addr := "127.0.0.1:45318"
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("/test_crl.pem", func(res http.ResponseWriter, req *http.Request) {
@@ -171,17 +249,8 @@ func TestDefaultCRLClientHTTP(t *testing.T) {
 		res.Write(crl)
 	})
 
-	httpServer := &http.Server{
-		Addr:    addr,
-		Handler: mux,
-	}
-	go func() {
-		httpServer.ListenAndServe()
-	}()
+	httpServer, addr := getTestHTTPServer(t, mux)
 	defer httpServer.Close()
-
-	// Give the server time to start, otherwise this test will fail sometimes
-	time.Sleep(time.Millisecond * 50)
 
 	crlClient := DefaultCRLClient{}
 
@@ -215,7 +284,7 @@ func TestDefaultCRLClientHTTP(t *testing.T) {
 func TestDefaultCRLClientFile(t *testing.T) {
 	crl := getTestCRL()
 
-	file, err := ioutil.TempFile("/tmp", "go_test_*.crl")
+	file, err := ioutil.TempFile("", "go_test_crl_*.pem")
 	if err != nil {
 		t.Fatalf("Cannot create temporary file to store CRL: %v", err)
 	}
@@ -329,30 +398,9 @@ func TestDefaultCRLVerifier(t *testing.T) {
 	//
 	// Test valid certificate chain
 	//
-	validRawCerts := [][]byte{}
-	validRawCerts = append(validRawCerts, getTestValidCert())
-	validRawCerts = append(validRawCerts, getTestCACert())
+	validRawCerts, validVerifiedChains := getValidTestChain(t)
 
-	validVerifiedChains := [][]*x509.Certificate{}
-	validVerifiedChains = append(validVerifiedChains, []*x509.Certificate{})
-	cert, err := pemToX509Cert(validRawCerts[0])
-	if err != nil {
-		t.Fatalf("Failed to parse test PEM certificate: %v", err)
-	}
-	validVerifiedChains[0] = append(validVerifiedChains[0], cert)
-	cert, err = pemToX509Cert(validRawCerts[1])
-	if err != nil {
-		t.Fatalf("Failed to parse test PEM certificate: %v", err)
-	}
-	validVerifiedChains[0] = append(validVerifiedChains[0], cert)
-
-	t.Logf("validVerifiedChains[0][0].Subject = %s", validVerifiedChains[0][0].Subject.String())
-	t.Logf("validVerifiedChains[0][1].Subject = %s", validVerifiedChains[0][1].Subject.String())
-	if err = validVerifiedChains[0][0].CheckSignatureFrom(validVerifiedChains[0][1]); err != nil {
-		t.Fatalf("Cert was not signed by CA: %v", err)
-	}
-
-	err = crlVerifier.Verify(validRawCerts, validVerifiedChains)
+	err := crlVerifier.Verify(validRawCerts, validVerifiedChains)
 	if err != nil {
 		t.Fatalf("Unexpected error for valid certificate: %v", err)
 	}
@@ -360,33 +408,15 @@ func TestDefaultCRLVerifier(t *testing.T) {
 	//
 	// Test invalid certificate chain that contains revoked certificate
 	//
-	invalidRawCerts := [][]byte{}
-	invalidRawCerts = append(invalidRawCerts, getTestExpiredCert())
-	invalidRawCerts = append(invalidRawCerts, getTestCACert())
-
-	invalidVerifiedChains := [][]*x509.Certificate{}
-	invalidVerifiedChains = append(invalidVerifiedChains, []*x509.Certificate{})
-	cert, err = pemToX509Cert(invalidRawCerts[0])
-	if err != nil {
-		t.Fatalf("Failed to parse test PEM certificate: %v", err)
-	}
-	invalidVerifiedChains[0] = append(invalidVerifiedChains[0], cert)
-	cert, err = pemToX509Cert(invalidRawCerts[1])
-	if err != nil {
-		t.Fatalf("Failed to parse test PEM certificate: %v", err)
-	}
-	invalidVerifiedChains[0] = append(invalidVerifiedChains[0], cert)
-
-	t.Logf("invalidVerifiedChains[0][0].Subject = %s", invalidVerifiedChains[0][0].Subject.String())
-	t.Logf("invalidVerifiedChains[0][1].Subject = %s", invalidVerifiedChains[0][1].Subject.String())
-	if err = invalidVerifiedChains[0][0].CheckSignatureFrom(invalidVerifiedChains[0][1]); err != nil {
-		t.Fatalf("Cert was not signed by CA: %v", err)
-	}
+	invalidRawCerts, invalidVerifiedChains := getInvalidTestChain(t)
 
 	err = crlVerifier.Verify(invalidRawCerts, invalidVerifiedChains)
 	if err == nil {
 		t.Fatal("Unexpected success when verifying revoked certificate")
-	} else {
-		t.Logf("(Expected) verify error: %v", err)
 	}
+	if !strings.Contains(err.Error(), "revoked") {
+		t.Logf("Verify error: %v", err)
+		t.Fatalf("Error does not contain 'revoked'")
+	}
+	t.Logf("(Expected) verify error: %v", err)
 }
