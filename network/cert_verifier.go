@@ -49,7 +49,6 @@ func NewCertVerifierFromConfigs(ocspConfig *OCSPConfig, crlConfig *CRLConfig) (C
 			crlVerifier := DefaultCRLVerifier{
 				Config:      *crlConfig,
 				Client:      NewDefaultCRLClient(),
-				Cache:       &DefaultCRLCache{},
 				ParsedCache: NewLRUParsedCRLCache(crlConfig.cacheSize),
 			}
 			certVerifier.Push(crlVerifier)

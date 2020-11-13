@@ -309,42 +309,6 @@ func TestDefaultCRLClientFile(t *testing.T) {
 	}
 }
 
-func TestDefaultCRLCache(t *testing.T) {
-	cache := DefaultCRLCache{}
-
-	// we don't expect to see any items in cache when it's created
-	data, err := cache.Get("test1")
-	if data != nil {
-		t.Fatalf("Unexpected data while reading empty cache")
-	}
-	if err == nil {
-		t.Fatalf("No expected error while reading empty cache")
-	}
-
-	// let's insert something
-	cache.Put("test1", []byte(`--- insert CRL content here ---`))
-	data, err = cache.Get("test1")
-	if data == nil {
-		t.Fatalf("Unexpected fail while reading recently inserted cache item")
-	}
-	if err != nil {
-		t.Fatalf("Unexpected error while reading recently inserted cache item")
-	}
-
-	// and test removal
-	err = cache.Remove("test1")
-	if err != nil {
-		t.Fatalf("Unexpected error while removing recently inserted cache item")
-	}
-	data, err = cache.Get("test1")
-	if data != nil {
-		t.Fatalf("Unexpected data while reading removed cache item")
-	}
-	if err == nil {
-		t.Fatalf("Unexpected error while reading removed cache item")
-	}
-}
-
 func TestLRUParsedCRLCache(t *testing.T) {
 	// Same as TestDefaultCRLCache, but with *pkix.CertificateList instead of []byte as value
 	cache := NewLRUParsedCRLCache(4)
@@ -389,18 +353,22 @@ func TestLRUParsedCRLCache(t *testing.T) {
 
 func TestDefaultCRLVerifier(t *testing.T) {
 	crlConfig := CRLConfig{uri: "http://127.0.0.1:8889/crl.pem", fromCert: crlFromCertIgnore}
-	crlVerifier := DefaultCRLVerifier{Config: crlConfig, Client: NewDefaultCRLClient(), Cache: &DefaultCRLCache{}, ParsedCache: NewLRUParsedCRLCache(16)}
+	crlVerifier := DefaultCRLVerifier{Config: crlConfig, Client: NewDefaultCRLClient(), ParsedCache: NewLRUParsedCRLCache(16)}
 
 	// Fool crlVerifier into thinking the CRL is already in cache to avoid performing requests.
 	// CRLCache and CRLClient are tested separately anyway.
-	crlVerifier.Cache.Put("http://127.0.0.1:8889/crl.pem", getTestCRL())
+	crl, err := x509.ParseCRL(getTestCRL())
+	if err != nil {
+		t.Fatalf("Unexpected error for valid CRL: %v", err)
+	}
+	crlVerifier.ParsedCache.Put("http://127.0.0.1:8889/crl.pem", crl)
 
 	//
 	// Test valid certificate chain
 	//
 	validRawCerts, validVerifiedChains := getValidTestChain(t)
 
-	err := crlVerifier.Verify(validRawCerts, validVerifiedChains)
+	err = crlVerifier.Verify(validRawCerts, validVerifiedChains)
 	if err != nil {
 		t.Fatalf("Unexpected error for valid certificate: %v", err)
 	}

@@ -139,51 +139,8 @@ func (c DefaultCRLClient) Fetch(uri string) ([]byte, error) {
 	return nil, fmt.Errorf("Cannot fetch CRL from '%s', unsupported protocol", uri)
 }
 
-// CRLCache is used to store fetched CRLs to avoid downloading the same URI more than once
-type CRLCache interface {
-	Get(key string) ([]byte, error)
-	Put(key string, value []byte) error
-	Remove(key string) error
-}
-
-// DefaultCRLCache is a default implementation of CRLCache, internally stores items in sync.Map
-type DefaultCRLCache struct {
-	cache sync.Map
-}
-
-// Get tries to get CRL from cache, returns error if failed
-func (c *DefaultCRLCache) Get(key string) ([]byte, error) {
-	log.Debugf("CRL: cache: loading '%s'", key)
-	value, ok := c.cache.Load(key)
-	if ok {
-		value, ok := value.([]byte)
-		if !ok {
-			// should never happen since Put() only inserts []byte
-			return nil, errors.New("Unexpected value of invalid type")
-		}
-		log.Debugf("CRL: cache: '%s' found", key)
-		return value, nil
-	}
-
-	log.Debugf("CRL: cache: '%s' not found", key)
-	return nil, errors.New("Key not found")
-}
-
-// Put stores CRL in cache
-func (c *DefaultCRLCache) Put(key string, value []byte) error {
-	c.cache.Store(key, value)
-	log.Debugf("CRL: cache: inserted '%s'", key)
-	return nil
-}
-
-// Remove removes item from cache
-func (c *DefaultCRLCache) Remove(key string) error {
-	c.cache.Delete(key)
-	log.Debugf("CRL: cache: removed '%s'", key)
-	return nil
-}
-
-// ParsedCRLCache is similar to CRLCache, but works on top of it and stores parsed and verified CRLs
+// ParsedCRLCache is used to store fetched CRLs to avoid downloading the same URI more than once,
+// stores parsed and verified CRLs
 type ParsedCRLCache interface {
 	Get(key string) (*pkix.CertificateList, error)
 	Put(key string, value *pkix.CertificateList) error
@@ -243,13 +200,12 @@ func (c *LRUParsedCRLCache) Remove(key string) error {
 type DefaultCRLVerifier struct {
 	Config      CRLConfig
 	Client      CRLClient
-	Cache       CRLCache
 	ParsedCache ParsedCRLCache
 }
 
 // Tries to find cached CRL, fetches using v.Client if not found, checks the signature of CRL using issuerCert
 func (v DefaultCRLVerifier) getCachedOrFetch(uri string, issuerCert *x509.Certificate) (*pkix.CertificateList, error) {
-	// First, try v.ParsedCache
+	// Try v.ParsedCache first
 	crl, err := v.ParsedCache.Get(v.Config.uri)
 	if crl != nil {
 		if err != nil {
@@ -260,64 +216,27 @@ func (v DefaultCRLVerifier) getCachedOrFetch(uri string, issuerCert *x509.Certif
 		return crl, nil
 	}
 
-	// If not found, search in v.Cache, if found then parse, verify and store in v.ParsedCache
-	rawCRL, err := v.Cache.Get(v.Config.uri)
-	if rawCRL != nil {
-		if err != nil {
-			// non-empty result + error, should never happen
-			return nil, err
-		}
-
-		crl, err := x509.ParseCRL(rawCRL)
-		if err != nil {
-			// Should never happen since we only store parse-able ones in v.Cache
-			log.WithError(err).Warnf("CRL: cache contains invalid CRL")
-			v.Cache.Remove(uri)
-			return nil, err
-		}
-
-		err = issuerCert.CheckCRLSignature(crl)
-		if err != nil {
-			// Should never happen since we only store verified ones in v.Cache;
-			// however, this may happen if wrong CA cert was passed, like first time we check with right
-			// one and store in v.ParsedCache and this time we use a different CA cert and signature check fails
-			log.WithError(err).Warnf("CRL: cache contains CRL with invalid signature")
-			v.Cache.Remove(uri)
-			return nil, err
-		}
-
-		v.ParsedCache.Put(uri, crl)
-
-		return crl, nil
+	// Not found in cache, gotta fetch
+	rawCRL, err := v.Client.Fetch(uri)
+	if err != nil {
+		return nil, err
 	}
 
-	// Not found in both caches, gotta fetch
-	rawCRL, err = v.Client.Fetch(uri)
-	if rawCRL != nil {
-		if err != nil {
-			// non-empty result + error, should never happen
-			return nil, err
-		}
-
-		crl, err := x509.ParseCRL(rawCRL)
-		if err != nil {
-			log.WithError(err).Debugf("CRL: Cannot parse CRL from '%s'", uri)
-			return nil, err
-		}
-
-		err = issuerCert.CheckCRLSignature(crl)
-		if err != nil {
-			log.WithError(err).Warnf("CRL: Failed to check signature for CRL at %s", uri)
-			return nil, err
-		}
-
-		v.Cache.Put(uri, rawCRL)
-		v.ParsedCache.Put(uri, crl)
-
-		return crl, nil
+	crl, err = x509.ParseCRL(rawCRL)
+	if err != nil {
+		log.WithError(err).Debugf("CRL: Cannot parse CRL from '%s'", uri)
+		return nil, err
 	}
 
-	return nil, err
+	err = issuerCert.CheckCRLSignature(crl)
+	if err != nil {
+		log.WithError(err).Warnf("CRL: Failed to check signature for CRL at %s", uri)
+		return nil, err
+	}
+
+	v.ParsedCache.Put(uri, crl)
+
+	return crl, nil
 }
 
 // Verify ensures configured CRLs do not contain certificate from passed chain
