@@ -228,6 +228,8 @@ func (v DefaultOCSPVerifier) Verify(rawCerts [][]byte, verifiedChains [][]*x509.
 
 		// TODO avoid querying same OCSP more than once
 
+		confirms := 0
+
 		for _, serverToCheck := range serversToCheck {
 			log.Debugf("OCSP: Trying server %s", serverToCheck.url)
 
@@ -244,6 +246,8 @@ func (v DefaultOCSPVerifier) Verify(rawCerts [][]byte, verifiedChains [][]*x509.
 
 			switch response.Status {
 			case ocsp.Good:
+				confirms++
+
 				if serverToCheck.fromCert {
 					log.Debugln("OCSP: confirmed by server from certificate")
 				} else {
@@ -263,6 +267,10 @@ func (v DefaultOCSPVerifier) Verify(rawCerts [][]byte, verifiedChains [][]*x509.
 					return fmt.Errorf("OCSP server %s doesn't know about certificate 0x%s", serverToCheck.url, cert.SerialNumber.Text(16))
 				}
 			}
+		}
+
+		if len(serversToCheck) > 0 && confirms == 0 {
+			return fmt.Errorf("None of %d OCSP servers confirmed the certificate", len(serversToCheck))
 		}
 	}
 
