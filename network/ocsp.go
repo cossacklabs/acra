@@ -85,54 +85,51 @@ func NewOCSPConfig(uri, required, fromCert string) (*OCSPConfig, error) {
 		// TODO: Do some request to `uri`, log warn if failed
 	}
 
-	var requiredVal int
-	switch required {
-	case ocspRequiredYesStr:
-		requiredVal = ocspRequiredYes
-	case ocspRequiredNoStr:
-		requiredVal = ocspRequiredNo
-	case ocspRequiredAllStr:
-		requiredVal = ocspRequiredAll
-	default:
-		return nil, errors.New("Invalid `ocsp_required` value '" + required + "', should be one of 'yes', 'no', 'all'")
+	requiredValValues := map[string]int{
+		ocspRequiredYesStr: ocspRequiredYes,
+		ocspRequiredNoStr:  ocspRequiredNo,
+		ocspRequiredAllStr: ocspRequiredNo,
 	}
 
-	var fromCertVal int
-	switch fromCert {
-	case ocspFromCertUseStr:
-		fromCertVal = ocspFromCertUse
-	case ocspFromCertTrustStr:
-		fromCertVal = ocspFromCertTrust
-	case ocspFromCertPreferStr:
-		fromCertVal = ocspFromCertPrefer
-	case ocspFromCertIgnoreStr:
-		fromCertVal = ocspFromCertIgnore
-	default:
-		return nil, errors.New("Invalid `ocsp_from_cert` value '" + fromCert + "', should be one of 'use', 'trust', 'prefer', 'ignore'")
+	requiredVal, ok := requiredValValues[required]
+	if !ok {
+		return nil, errors.New("Invalid `ocsp_required` value '" + required + "'")
+	}
+
+	fromCertValValues := map[string]int{
+		ocspFromCertUseStr:    ocspFromCertUse,
+		ocspFromCertTrustStr:  ocspFromCertTrust,
+		ocspFromCertPreferStr: ocspFromCertPrefer,
+		ocspFromCertIgnoreStr: ocspFromCertIgnore,
+	}
+
+	fromCertVal, ok := fromCertValValues[fromCert]
+	if !ok {
+		return nil, errors.New("Invalid `ocsp_from_cert` value '" + fromCert + "'")
 	}
 
 	if uri != "" {
 		log.Debugf("OCSP: Using server '%s'", uri)
 	}
 
-	switch required {
-	case "yes", "true":
-		log.Debugf("OCSP: At least one OCSP server should confirm certificate validity")
-	case "no", "false":
-		log.Debugf("OCSP: Allowing certificates not known by OCSP server")
-	case "all":
-		log.Debugf("OCSP: Requiring positive response from all OCSP servers")
+	switch requiredVal {
+	case ocspRequiredYes:
+		log.Debugln("OCSP: At least one OCSP server should confirm certificate validity")
+	case ocspRequiredNo:
+		log.Debugln("OCSP: Allowing certificates not known by OCSP server")
+	case ocspRequiredAll:
+		log.Debugln("OCSP: Requiring positive response from all OCSP servers")
 	}
 
-	switch fromCert {
-	case "use":
-		log.Debugf("OCSP: using servers described in certificates if nothing passed via command line")
-	case "trust":
-		log.Debugf("OCSP: trusting responses from OCSP servers listed in certificates")
-	case "prefer":
-		log.Debugf("OCSP: server from certificate will be prioritized over one from command line")
-	case "ignore":
-		log.Debugf("OCSP: ignoring OCSP servers described in certificates")
+	switch fromCertVal {
+	case ocspFromCertUse:
+		log.Debugln("OCSP: using servers described in certificates if nothing passed via command line")
+	case ocspFromCertTrust:
+		log.Debugln("OCSP: trusting responses from OCSP servers listed in certificates")
+	case ocspFromCertPrefer:
+		log.Debugln("OCSP: server from certificate will be prioritized over one from command line")
+	case ocspFromCertIgnore:
+		log.Debugln("OCSP: ignoring OCSP servers described in certificates")
 	}
 
 	return &OCSPConfig{url: uri, required: requiredVal, fromCert: fromCertVal}, nil

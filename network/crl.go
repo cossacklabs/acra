@@ -57,14 +57,14 @@ func NewCRLConfig(uri, fromCert string) (*CRLConfig, error) {
 		return nil, err
 	}
 
-	var fromCertVal int
-	switch fromCert {
-	case crlFromCertUseStr:
-		fromCertVal = crlFromCertUse
-	case crlFromCertIgnoreStr:
-		fromCertVal = crlFromCertIgnore
-	default:
-		return nil, errors.New("Invalid `tls_crl_from_cert` value '" + fromCert + "', should be one of 'use', 'ignore'")
+	fromCertValValues := map[string]int{
+		crlFromCertUseStr:    crlFromCertUse,
+		crlFromCertIgnoreStr: crlFromCertIgnore,
+	}
+
+	fromCertVal, ok := fromCertValValues[fromCert]
+	if !ok {
+		return nil, errors.New("Invalid `tls_crl_from_cert` value '" + fromCert + "'")
 	}
 
 	if uri != "" {
