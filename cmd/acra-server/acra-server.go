@@ -132,6 +132,7 @@ func main() {
 	tlsCrlClientURL := flag.String("tls_crl_client_url", "", "CRL URL, for client certificates only")
 	tlsCrlDbURL := flag.String("tls_crl_database_url", "", "CRL URL, for database certificates only")
 	tlsCrlFromCert := flag.String("tls_crl_from_cert", "use", "How should we treat CRL URL described in certificate itself")
+	tlsCrlCacheSize := flag.Int("tls_crl_cache_size", 16, "Size of in-memory LRU cache for storing fetched CRLs, 0 = unlimited")
 	noEncryptionTransport := flag.Bool("acraconnector_transport_encryption_disable", false, "Use raw transport (tcp/unix socket) between AcraServer and AcraConnector/client (don't use this flag if you not connect to database with SSL/TLS")
 	clientID := flag.String("client_id", "", "Expected client ID of AcraConnector in mode without encryption")
 	acraConnectionString := flag.String("incoming_connection_string", network.BuildConnectionString(cmd.DefaultAcraServerConnectionProtocol, cmd.DefaultAcraServerHost, cmd.DefaultAcraServerPort, ""), "Connection string like tcp://x.x.x.x:yyyy or unix:///path/to/socket")
@@ -266,9 +267,9 @@ func main() {
 
 		var crlClientConfig *network.CRLConfig
 		if *tlsCrlClientURL != "" {
-			crlClientConfig, err = network.NewCRLConfig(*tlsCrlClientURL, *tlsCrlFromCert)
+			crlClientConfig, err = network.NewCRLConfig(*tlsCrlClientURL, *tlsCrlFromCert, *tlsCrlCacheSize)
 		} else {
-			crlClientConfig, err = network.NewCRLConfig(*tlsCrlURL, *tlsCrlFromCert)
+			crlClientConfig, err = network.NewCRLConfig(*tlsCrlURL, *tlsCrlFromCert, *tlsCrlCacheSize)
 		}
 		if err != nil {
 			log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorWrongConfiguration).
@@ -319,9 +320,9 @@ func main() {
 
 		var crlDbConfig *network.CRLConfig
 		if *tlsCrlDbURL != "" {
-			crlDbConfig, err = network.NewCRLConfig(*tlsCrlDbURL, *tlsCrlFromCert)
+			crlDbConfig, err = network.NewCRLConfig(*tlsCrlDbURL, *tlsCrlFromCert, *tlsCrlCacheSize)
 		} else {
-			crlDbConfig, err = network.NewCRLConfig(*tlsCrlURL, *tlsCrlFromCert)
+			crlDbConfig, err = network.NewCRLConfig(*tlsCrlURL, *tlsCrlFromCert, *tlsCrlCacheSize)
 		}
 		if err != nil {
 			log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorWrongConfiguration).

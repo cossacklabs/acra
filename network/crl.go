@@ -46,12 +46,13 @@ const (
 
 // CRLConfig contains configuration related to certificate validation using CRL
 type CRLConfig struct {
-	uri      string
-	fromCert int // crlFromCert*
+	uri       string
+	fromCert  int // crlFromCert*
+	cacheSize int
 }
 
 // NewCRLConfig creates new CRLConfig
-func NewCRLConfig(uri, fromCert string) (*CRLConfig, error) {
+func NewCRLConfig(uri, fromCert string, cacheSize int) (*CRLConfig, error) {
 	_, err := url.Parse(uri)
 	if err != nil {
 		return nil, err

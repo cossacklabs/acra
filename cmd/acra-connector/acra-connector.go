@@ -404,7 +404,7 @@ func main() {
 				log.WithError(err).Fatalln("Cannot create OCSP config")
 			}
 
-			crlConfig, err := network.NewCRLConfig("", "use")
+			crlConfig, err := network.NewCRLConfig("", "use", 16)
 			if err != nil {
 				// Using `Fatal` since NewCRLConfig should never fail with passed arguments
 				log.WithError(err).Fatalln("Cannot create CRL config")

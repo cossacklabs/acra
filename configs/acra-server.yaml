@@ -134,6 +134,9 @@ tls_client_cert:
 # Path to private key of the TLS certificate presented to AcraConnectors (see "tls_client_cert")
 tls_client_key: 
 
+# Size of in-memory LRU cache for storing fetched CRLs, 0 = unlimited
+tls_crl_cache_size: 16
+
 # CRL URL, for client certificates only
 tls_crl_client_url: 
 
