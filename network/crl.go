@@ -44,15 +44,20 @@ const (
 	crlFromCertIgnore
 )
 
+const (
+	crlCacheTimeMax = 300
+)
+
 // CRLConfig contains configuration related to certificate validation using CRL
 type CRLConfig struct {
 	uri       string
 	fromCert  int // crlFromCert*
 	cacheSize int
+	cacheTime int
 }
 
 // NewCRLConfig creates new CRLConfig
-func NewCRLConfig(uri, fromCert string, cacheSize int) (*CRLConfig, error) {
+func NewCRLConfig(uri, fromCert string, cacheSize, cacheTime int) (*CRLConfig, error) {
 	_, err := url.Parse(uri)
 	if err != nil {
 		return nil, err
@@ -65,7 +70,11 @@ func NewCRLConfig(uri, fromCert string, cacheSize int) (*CRLConfig, error) {
 
 	fromCertVal, ok := fromCertValValues[fromCert]
 	if !ok {
-		return nil, errors.New("Invalid `tls_crl_from_cert` value '" + fromCert + "'")
+		return nil, fmt.Errorf("Invalid `tls_crl_from_cert` value '%s'", fromCert)
+	}
+
+	if cacheTime > crlCacheTimeMax {
+		return nil, fmt.Errorf("Invalid `tls_crl_cache_time` value %d, max is %d", cacheTime, crlCacheTimeMax)
 	}
 
 	if uri != "" {
@@ -80,7 +89,7 @@ func NewCRLConfig(uri, fromCert string, cacheSize int) (*CRLConfig, error) {
 		}
 	}
 
-	return &CRLConfig{uri: uri, fromCert: fromCertVal}, nil
+	return &CRLConfig{uri: uri, fromCert: fromCertVal, cacheSize: cacheSize, cacheTime: cacheTime}, nil
 }
 
 // CRLClient is used to fetch CRL from some URI
@@ -149,6 +158,7 @@ type CRLCache interface {
 
 // PRLRUCRLCache is an implementation of CRLCache that uses LRU cache inside
 type LRUCRLCache struct {
+	// TODO store fetch time along with parsed+verified CRL, use it to force fetch CRL if it's too old
 	cache lru.Cache
 	mutex sync.RWMutex
 }
@@ -198,9 +208,9 @@ func (c *LRUCRLCache) Remove(key string) error {
 
 // DefaultCRLVerifier is a default implementation of CRLVerifier
 type DefaultCRLVerifier struct {
-	Config      CRLConfig
-	Client      CRLClient
-	Cache CRLCache
+	Config CRLConfig
+	Client CRLClient
+	Cache  CRLCache
 }
 
 // Tries to find cached CRL, fetches using v.Client if not found, checks the signature of CRL using issuerCert
@@ -249,6 +259,7 @@ func (v DefaultCRLVerifier) Verify(rawCerts [][]byte, verifiedChains [][]*x509.C
 			return nil
 		}
 
+		// TODO handle situation when there's no chain[1]
 		cert := chain[0]
 		issuer := chain[1]
 

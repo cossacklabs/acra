@@ -62,6 +62,7 @@ var (
 	tlsCrlURL        string
 	tlsCrlFromCert   string
 	tlsCrlCacheSize  int
+	tlsCrlCacheTime  int
 )
 
 // RegisterTLSBaseArgs register CLI args tls_ca|tls_key|tls_cert|tls_auth|tls_ocsp_url|tls_ocsp_client_url|tls_ocsp_db_url|tls_ocsp_required|tls_ocsp_from_cert|tls_crl_url|tls_crl_from_cert which allow to get tls.Config by NewTLSConfigFromBaseArgs function
@@ -78,6 +79,7 @@ func RegisterTLSBaseArgs() {
 	flag.StringVar(&tlsCrlURL, "tls_crl_url", "", "CRL URL")
 	flag.StringVar(&tlsCrlFromCert, "tls_crl_from_cert", "use", "How should we treat CRL URL described in certificate itself")
 	flag.IntVar(&tlsCrlCacheSize, "tls_crl_cache_size", 16, "Size of in-memory LRU cache for storing fetched CRLs, 0 = unlimited")
+	flag.IntVar(&tlsCrlCacheTime, "tls_crl_cache_time", 60, "How long cached CRL is considerend valid, seconds, max = 300")
 }
 
 // RegisterTLSClientArgs register CLI args tls_server_sni used by TLS client's connection
@@ -92,7 +94,7 @@ func NewTLSConfigFromBaseArgs() (*tls.Config, error) {
 		return nil, err
 	}
 
-	crlConfig, err := NewCRLConfig(tlsCrlURL, tlsCrlFromCert, tlsCrlCacheSize)
+	crlConfig, err := NewCRLConfig(tlsCrlURL, tlsCrlFromCert, tlsCrlCacheSize, tlsCrlCacheTime)
 	if err != nil {
 		return nil, err
 	}
