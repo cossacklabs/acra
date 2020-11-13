@@ -252,7 +252,7 @@ func TestDefaultCRLClientHTTP(t *testing.T) {
 	httpServer, addr := getTestHTTPServer(t, mux)
 	defer httpServer.Close()
 
-	crlClient := DefaultCRLClient{}
+	crlClient := NewDefaultCRLClient()
 
 	//
 	// Test with valid URI
@@ -295,7 +295,7 @@ func TestDefaultCRLClientFile(t *testing.T) {
 		t.Fatalf("Cannot write CRL to temporary file: %v", err)
 	}
 
-	crlClient := DefaultCRLClient{}
+	crlClient := NewDefaultCRLClient()
 
 	uri := fmt.Sprintf("file://%s", file.Name())
 
@@ -389,7 +389,7 @@ func TestLRUParsedCRLCache(t *testing.T) {
 
 func TestDefaultCRLVerifier(t *testing.T) {
 	crlConfig := CRLConfig{uri: "http://127.0.0.1:8889/crl.pem", fromCert: crlFromCertIgnore}
-	crlVerifier := DefaultCRLVerifier{Config: crlConfig, Client: DefaultCRLClient{}, Cache: &DefaultCRLCache{}, ParsedCache: NewLRUParsedCRLCache(16)}
+	crlVerifier := DefaultCRLVerifier{Config: crlConfig, Client: NewDefaultCRLClient(), Cache: &DefaultCRLCache{}, ParsedCache: NewLRUParsedCRLCache(16)}
 
 	// Fool crlVerifier into thinking the CRL is already in cache to avoid performing requests.
 	// CRLCache and CRLClient are tested separately anyway.

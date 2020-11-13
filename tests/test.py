@@ -1251,14 +1251,14 @@ class BaseTestCase(PrometheusMixin, unittest.TestCase):
     def setUp(self):
         self.checkSkip()
         try:
+            if self.with_tls():
+                self.ocsp_server = self.fork_ocsp_server(self.OCSP_SERVER_PORT)
+                self.crl_http_server = self.fork_crl_http_server(self.CRL_HTTP_SERVER_PORT)
+
             if not self.EXTERNAL_ACRA:
                 self.acra = self.fork_acra()
             self.connector_1 = self.fork_connector(self.CONNECTOR_PORT_1, self.ACRASERVER_PORT, 'keypair1')
             self.connector_2 = self.fork_connector(self.CONNECTOR_PORT_2, self.ACRASERVER_PORT, 'keypair2')
-
-            if self.with_tls():
-                self.ocsp_server = self.fork_ocsp_server(self.OCSP_SERVER_PORT)
-                self.crl_http_server = self.fork_crl_http_server(self.CRL_HTTP_SERVER_PORT)
 
             self.engine1 = sa.create_engine(
                 get_engine_connection_string(self.get_connector_connection_string(self.CONNECTOR_PORT_1), DB_NAME), connect_args=get_connect_args(port=self.CONNECTOR_PORT_1))

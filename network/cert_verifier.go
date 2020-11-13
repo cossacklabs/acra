@@ -46,7 +46,7 @@ func NewCertVerifierFromConfigs(ocspConfig *OCSPConfig, crlConfig *CRLConfig) (C
 	if crlConfig != nil {
 		if crlConfig.uri != "" || crlConfig.fromCert != crlFromCertIgnore {
 			log.Debugln("NewCertVerifierFromConfigs(): adding CRL verifier")
-			crlVerifier := DefaultCRLVerifier{Config: *crlConfig, Client: DefaultCRLClient{}, Cache: &DefaultCRLCache{}, ParsedCache: NewLRUParsedCRLCache(16)}
+			crlVerifier := DefaultCRLVerifier{Config: *crlConfig, Client: NewDefaultCRLClient(), Cache: &DefaultCRLCache{}, ParsedCache: NewLRUParsedCRLCache(16)}
 			certVerifier.Push(crlVerifier)
 		}
 	}
@@ -74,6 +74,7 @@ func (v CertVerifierAll) Verify(rawCerts [][]byte, verifiedChains [][]*x509.Cert
 	for _, verifier := range v.verifiers {
 		err := verifier.Verify(rawCerts, verifiedChains)
 		if err != nil {
+			log.WithError(err).Debugln("Certificate verification failed")
 			return err
 		}
 	}

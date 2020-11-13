@@ -70,9 +70,12 @@ func NewCRLConfig(uri, fromCert string) (*CRLConfig, error) {
 	if uri != "" {
 		// Since this is CRL configuration alone, we don't have access to cache yet;
 		// so let's just download the CRL and forget about it
-		_, err = DefaultCRLClient.Fetch(DefaultCRLClient{}, uri)
+		crlClient := NewDefaultCRLClient()
+		_, err = crlClient.Fetch(uri)
 		if err != nil {
 			log.WithError(err).Warnf("CRL: Cannot fetch configured URI '%s'", uri)
+			// TODO return error after issues with failing tests are fixed
+			// return nil, fmt.Errorf("CRL: Cannot fetch configured URI '%s'", uri)
 		}
 	}
 
@@ -87,7 +90,13 @@ type CRLClient interface {
 
 // DefaultCRLClient is a default implementation of CRLClient
 // (as opposed to stub ones used in tests)
-type DefaultCRLClient struct{}
+type DefaultCRLClient struct {
+	httpClient *http.Client
+}
+
+func NewDefaultCRLClient() DefaultCRLClient {
+	return DefaultCRLClient{httpClient: &http.Client{}}
+}
 
 // Fetch fetches CRL from passed URI (can be either http:// or file://)
 func (c DefaultCRLClient) Fetch(uri string) ([]byte, error) {
@@ -102,8 +111,7 @@ func (c DefaultCRLClient) Fetch(uri string) ([]byte, error) {
 		}
 		httpRequest.Header.Add("Accept", "application/pkix-crl, application/pem-certificate-chain")
 		httpRequest.Header.Add("host", crlURL.Host)
-		httpClient := &http.Client{}
-		httpResponse, err := httpClient.Do(httpRequest)
+		httpResponse, err := c.httpClient.Do(httpRequest)
 		if err != nil {
 			return nil, err
 		}

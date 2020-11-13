@@ -126,7 +126,7 @@ func main() {
 	tlsOcspURL := flag.String("tls_ocsp_url", "", "OCSP service URL")
 	tlsOcspClientURL := flag.String("tls_ocsp_client_url", "", "OCSP service URL, for client certificates only")
 	tlsOcspDbURL := flag.String("tls_ocsp_database_url", "", "OCSP service URL, for database certificates only")
-	tlsOcspRequired := flag.String("tls_ocsp_required", "yes", "Whether we need OCSP response in order to accept certificate")
+	tlsOcspRequired := flag.String("tls_ocsp_required", "denyUnknown", "Whether we need OCSP response in order to accept certificate")
 	tlsOcspFromCert := flag.String("tls_ocsp_from_cert", "prefer", "How should we treat OCSP server described in certificate itself")
 	tlsCrlURL := flag.String("tls_crl_url", "", "CRL URL")
 	tlsCrlClientURL := flag.String("tls_crl_client_url", "", "CRL URL, for client certificates only")
@@ -260,7 +260,7 @@ func main() {
 		}
 		if err != nil {
 			log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorWrongConfiguration).
-				Errorf("Configuration error: invalid OCSP config")
+				Errorln("Configuration error: invalid OCSP config")
 			os.Exit(1)
 		}
 
@@ -272,7 +272,7 @@ func main() {
 		}
 		if err != nil {
 			log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorWrongConfiguration).
-				Errorf("Configuration error: invalid CRL config")
+				Errorln("Configuration error: invalid CRL config")
 			os.Exit(1)
 		}
 
@@ -313,7 +313,7 @@ func main() {
 		}
 		if err != nil {
 			log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorWrongConfiguration).
-				Errorf("Configuration error: invalid OCSP config")
+				Errorln("Configuration error: invalid OCSP config")
 			os.Exit(1)
 		}
 
@@ -325,7 +325,7 @@ func main() {
 		}
 		if err != nil {
 			log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorWrongConfiguration).
-				Errorf("Configuration error: invalid CRL config")
+				Errorln("Configuration error: invalid CRL config")
 			os.Exit(1)
 		}
 
