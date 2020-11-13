@@ -47,9 +47,9 @@ func NewCertVerifierFromConfigs(ocspConfig *OCSPConfig, crlConfig *CRLConfig) (C
 		if crlConfig.uri != "" || crlConfig.fromCert != crlFromCertIgnore {
 			log.Debugln("NewCertVerifierFromConfigs(): adding CRL verifier")
 			crlVerifier := DefaultCRLVerifier{
-				Config:      *crlConfig,
-				Client:      NewDefaultCRLClient(),
-				ParsedCache: NewLRUParsedCRLCache(crlConfig.cacheSize),
+				Config: *crlConfig,
+				Client: NewDefaultCRLClient(),
+				Cache:  NewLRUCRLCache(crlConfig.cacheSize),
 			}
 			certVerifier.Push(crlVerifier)
 		}

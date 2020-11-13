@@ -309,9 +309,9 @@ func TestDefaultCRLClientFile(t *testing.T) {
 	}
 }
 
-func TestLRUParsedCRLCache(t *testing.T) {
+func TestLRUCRLCache(t *testing.T) {
 	// Same as TestDefaultCRLCache, but with *pkix.CertificateList instead of []byte as value
-	cache := NewLRUParsedCRLCache(4)
+	cache := NewLRUCRLCache(4)
 
 	crl, err := x509.ParseCRL(getTestCRL())
 	if err != nil {
@@ -353,7 +353,7 @@ func TestLRUParsedCRLCache(t *testing.T) {
 
 func TestDefaultCRLVerifier(t *testing.T) {
 	crlConfig := CRLConfig{uri: "http://127.0.0.1:8889/crl.pem", fromCert: crlFromCertIgnore}
-	crlVerifier := DefaultCRLVerifier{Config: crlConfig, Client: NewDefaultCRLClient(), ParsedCache: NewLRUParsedCRLCache(16)}
+	crlVerifier := DefaultCRLVerifier{Config: crlConfig, Client: NewDefaultCRLClient(), Cache: NewLRUCRLCache(16)}
 
 	// Fool crlVerifier into thinking the CRL is already in cache to avoid performing requests.
 	// CRLCache and CRLClient are tested separately anyway.
@@ -361,7 +361,7 @@ func TestDefaultCRLVerifier(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Unexpected error for valid CRL: %v", err)
 	}
-	crlVerifier.ParsedCache.Put("http://127.0.0.1:8889/crl.pem", crl)
+	crlVerifier.Cache.Put("http://127.0.0.1:8889/crl.pem", crl)
 
 	//
 	// Test valid certificate chain

@@ -139,27 +139,27 @@ func (c DefaultCRLClient) Fetch(uri string) ([]byte, error) {
 	return nil, fmt.Errorf("Cannot fetch CRL from '%s', unsupported protocol", uri)
 }
 
-// ParsedCRLCache is used to store fetched CRLs to avoid downloading the same URI more than once,
+// CRLCache is used to store fetched CRLs to avoid downloading the same URI more than once,
 // stores parsed and verified CRLs
-type ParsedCRLCache interface {
+type CRLCache interface {
 	Get(key string) (*pkix.CertificateList, error)
 	Put(key string, value *pkix.CertificateList) error
 	Remove(key string) error
 }
 
-// PRLRUParsedCRLCache is an implementation of ParsedCRLCache that uses LRU cache inside
-type LRUParsedCRLCache struct {
+// PRLRUCRLCache is an implementation of CRLCache that uses LRU cache inside
+type LRUCRLCache struct {
 	cache lru.Cache
 	mutex sync.RWMutex
 }
 
-// NewLRUParsedCRLCache creates new LRUParsedCRLCache, able to store at most maxEntries values
-func NewLRUParsedCRLCache(maxEntries int) *LRUParsedCRLCache {
-	return &LRUParsedCRLCache{cache: lru.Cache{MaxEntries: maxEntries}}
+// NewLRUCRLCache creates new LRUCRLCache, able to store at most maxEntries values
+func NewLRUCRLCache(maxEntries int) *LRUCRLCache {
+	return &LRUCRLCache{cache: lru.Cache{MaxEntries: maxEntries}}
 }
 
 // Get tries to get CRL from cache, returns error if failed
-func (c *LRUParsedCRLCache) Get(key string) (*pkix.CertificateList, error) {
+func (c *LRUCRLCache) Get(key string) (*pkix.CertificateList, error) {
 	log.Debugf("CRL: LRU cache: loading '%s'", key)
 	c.mutex.RLock()
 	defer c.mutex.RUnlock()
@@ -179,7 +179,7 @@ func (c *LRUParsedCRLCache) Get(key string) (*pkix.CertificateList, error) {
 }
 
 // Put stores CRL in cache
-func (c *LRUParsedCRLCache) Put(key string, value *pkix.CertificateList) error {
+func (c *LRUCRLCache) Put(key string, value *pkix.CertificateList) error {
 	c.mutex.Lock()
 	c.cache.Add(key, value)
 	c.mutex.Unlock()
@@ -188,7 +188,7 @@ func (c *LRUParsedCRLCache) Put(key string, value *pkix.CertificateList) error {
 }
 
 // Remove removes item from cache
-func (c *LRUParsedCRLCache) Remove(key string) error {
+func (c *LRUCRLCache) Remove(key string) error {
 	c.mutex.Lock()
 	c.cache.Remove(key)
 	c.mutex.Unlock()
@@ -200,13 +200,13 @@ func (c *LRUParsedCRLCache) Remove(key string) error {
 type DefaultCRLVerifier struct {
 	Config      CRLConfig
 	Client      CRLClient
-	ParsedCache ParsedCRLCache
+	Cache CRLCache
 }
 
 // Tries to find cached CRL, fetches using v.Client if not found, checks the signature of CRL using issuerCert
 func (v DefaultCRLVerifier) getCachedOrFetch(uri string, issuerCert *x509.Certificate) (*pkix.CertificateList, error) {
-	// Try v.ParsedCache first
-	crl, err := v.ParsedCache.Get(v.Config.uri)
+	// Try v.Cache first
+	crl, err := v.Cache.Get(v.Config.uri)
 	if crl != nil {
 		if err != nil {
 			// non-empty result + error, should never happen
@@ -234,7 +234,7 @@ func (v DefaultCRLVerifier) getCachedOrFetch(uri string, issuerCert *x509.Certif
 		return nil, err
 	}
 
-	v.ParsedCache.Put(uri, crl)
+	v.Cache.Put(uri, crl)
 
 	return crl, nil
 }
