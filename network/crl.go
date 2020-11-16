@@ -27,6 +27,7 @@ import (
 	"net/url"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/golang/groupcache/lru"
 )
@@ -53,7 +54,7 @@ type CRLConfig struct {
 	uri       string
 	fromCert  int // crlFromCert*
 	cacheSize int
-	cacheTime int
+	cacheTime time.Duration
 }
 
 // NewCRLConfig creates new CRLConfig
@@ -89,7 +90,12 @@ func NewCRLConfig(uri, fromCert string, cacheSize, cacheTime int) (*CRLConfig, e
 		}
 	}
 
-	return &CRLConfig{uri: uri, fromCert: fromCertVal, cacheSize: cacheSize, cacheTime: cacheTime}, nil
+	return &CRLConfig{
+		uri:       uri,
+		fromCert:  fromCertVal,
+		cacheSize: cacheSize,
+		cacheTime: time.Second * time.Duration(cacheTime),
+	}, nil
 }
 
 // CRLClient is used to fetch CRL from some URI
@@ -148,17 +154,21 @@ func (c DefaultCRLClient) Fetch(uri string) ([]byte, error) {
 	return nil, fmt.Errorf("Cannot fetch CRL from '%s', unsupported protocol", uri)
 }
 
+type CRLCacheItem struct {
+	Fetched time.Time // When this CRL was fetched and cached
+	CRL     pkix.CertificateList
+}
+
 // CRLCache is used to store fetched CRLs to avoid downloading the same URI more than once,
 // stores parsed and verified CRLs
 type CRLCache interface {
-	Get(key string) (*pkix.CertificateList, error)
-	Put(key string, value *pkix.CertificateList) error
+	Get(key string) (*CRLCacheItem, error)
+	Put(key string, value *CRLCacheItem) error
 	Remove(key string) error
 }
 
 // PRLRUCRLCache is an implementation of CRLCache that uses LRU cache inside
 type LRUCRLCache struct {
-	// TODO store fetch time along with parsed+verified CRL, use it to force fetch CRL if it's too old
 	cache lru.Cache
 	mutex sync.RWMutex
 }
@@ -169,16 +179,16 @@ func NewLRUCRLCache(maxEntries int) *LRUCRLCache {
 }
 
 // Get tries to get CRL from cache, returns error if failed
-func (c *LRUCRLCache) Get(key string) (*pkix.CertificateList, error) {
+func (c *LRUCRLCache) Get(key string) (*CRLCacheItem, error) {
 	log.Debugf("CRL: LRU cache: loading '%s'", key)
 	c.mutex.RLock()
 	defer c.mutex.RUnlock()
 
 	value, ok := c.cache.Get(key)
 	if ok {
-		value, ok := value.(*pkix.CertificateList)
+		value, ok := value.(*CRLCacheItem)
 		if !ok {
-			// should never happen since Put() only inserts *pkix.CertificateList
+			// should never happen since Put() only inserts *CRLCacheItem
 			return nil, errors.New("Unexpected value of invalid type")
 		}
 		log.Debugf("CRL: LRU cache: '%s' found", key)
@@ -189,7 +199,7 @@ func (c *LRUCRLCache) Get(key string) (*pkix.CertificateList, error) {
 }
 
 // Put stores CRL in cache
-func (c *LRUCRLCache) Put(key string, value *pkix.CertificateList) error {
+func (c *LRUCRLCache) Put(key string, value *CRLCacheItem) error {
 	c.mutex.Lock()
 	c.cache.Add(key, value)
 	c.mutex.Unlock()
@@ -216,23 +226,25 @@ type DefaultCRLVerifier struct {
 // Tries to find cached CRL, fetches using v.Client if not found, checks the signature of CRL using issuerCert
 func (v DefaultCRLVerifier) getCachedOrFetch(uri string, issuerCert *x509.Certificate) (*pkix.CertificateList, error) {
 	// Try v.Cache first
-	crl, err := v.Cache.Get(v.Config.uri)
-	if crl != nil {
+	cacheItem, err := v.Cache.Get(v.Config.uri)
+	if cacheItem != nil {
 		if err != nil {
 			// non-empty result + error, should never happen
 			return nil, err
 		}
 
-		return crl, nil
+		if time.Now().Before(cacheItem.Fetched.Add(v.Config.cacheTime)) {
+			return &cacheItem.CRL, nil
+		}
 	}
 
-	// Not found in cache, gotta fetch
+	// Not found in cache (or the CRL was outdated), gotta fetch
 	rawCRL, err := v.Client.Fetch(uri)
 	if err != nil {
 		return nil, err
 	}
 
-	crl, err = x509.ParseCRL(rawCRL)
+	crl, err := x509.ParseCRL(rawCRL)
 	if err != nil {
 		log.WithError(err).Debugf("CRL: Cannot parse CRL from '%s'", uri)
 		return nil, err
@@ -244,7 +256,13 @@ func (v DefaultCRLVerifier) getCachedOrFetch(uri string, issuerCert *x509.Certif
 		return nil, err
 	}
 
-	v.Cache.Put(uri, crl)
+	if crl.TBSCertList.NextUpdate.Before(time.Now()) {
+		log.Warnf("CRL: CRL at %s is outdated", uri)
+		return nil, fmt.Errorf("CRL: CRL at %s is outdated", uri)
+	}
+
+	cacheItem = &CRLCacheItem{Fetched: time.Now(), CRL: *crl}
+	v.Cache.Put(uri, cacheItem)
 
 	return crl, nil
 }

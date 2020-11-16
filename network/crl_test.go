@@ -318,6 +318,8 @@ func TestLRUCRLCache(t *testing.T) {
 		t.Fatal("Failed to parse test CRL")
 	}
 
+	cacheItem := &CRLCacheItem{Fetched: time.Now(), CRL: *crl}
+
 	// we don't expect to see any items in cache when it's created
 	cachedCRL, err := cache.Get("test1")
 	if cachedCRL != nil {
@@ -328,7 +330,7 @@ func TestLRUCRLCache(t *testing.T) {
 	}
 
 	// let's insert something
-	cache.Put("test1", crl)
+	cache.Put("test1", cacheItem)
 	cachedCRL, err = cache.Get("test1")
 	if cachedCRL == nil {
 		t.Fatalf("Unexpected fail while reading recently inserted cache item")
@@ -361,7 +363,8 @@ func TestDefaultCRLVerifier(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Unexpected error for valid CRL: %v", err)
 	}
-	crlVerifier.Cache.Put("http://127.0.0.1:8889/crl.pem", crl)
+	cacheItem := &CRLCacheItem{Fetched: time.Now(), CRL: *crl}
+	crlVerifier.Cache.Put("http://127.0.0.1:8889/crl.pem", cacheItem)
 
 	//
 	// Test valid certificate chain
