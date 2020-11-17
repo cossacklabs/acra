@@ -354,24 +354,32 @@ func TestLRUCRLCache(t *testing.T) {
 }
 
 func TestDefaultCRLVerifier(t *testing.T) {
-	crlConfig := CRLConfig{uri: "http://127.0.0.1:8889/crl.pem", fromCert: crlFromCertIgnore}
-	crlVerifier := DefaultCRLVerifier{Config: crlConfig, Client: NewDefaultCRLClient(), Cache: NewLRUCRLCache(16)}
+	crl := getTestCRL()
 
-	// Fool crlVerifier into thinking the CRL is already in cache to avoid performing requests.
-	// CRLCache and CRLClient are tested separately anyway.
-	crl, err := x509.ParseCRL(getTestCRL())
-	if err != nil {
-		t.Fatalf("Unexpected error for valid CRL: %v", err)
-	}
-	cacheItem := &CRLCacheItem{Fetched: time.Now(), CRL: *crl}
-	crlVerifier.Cache.Put("http://127.0.0.1:8889/crl.pem", cacheItem)
+	mux := http.NewServeMux()
+	mux.HandleFunc("/test_crl.pem", func(res http.ResponseWriter, req *http.Request) {
+		res.WriteHeader(200)
+		res.Header().Add("Content-Type", "application/pem-certificate-chain")
+		res.Write(crl)
+	})
+
+	httpServer, addr := getTestHTTPServer(t, mux)
+	defer httpServer.Close()
+
+	//
+	// Test with valid URI
+	//
+	uri := fmt.Sprintf("http://%s/test_crl.pem", addr)
+
+	crlConfig := CRLConfig{uri: uri, fromCert: crlFromCertIgnore}
+	crlVerifier := DefaultCRLVerifier{Config: crlConfig, Client: NewDefaultCRLClient(), Cache: NewLRUCRLCache(16)}
 
 	//
 	// Test valid certificate chain
 	//
 	validRawCerts, validVerifiedChains := getValidTestChain(t)
 
-	err = crlVerifier.Verify(validRawCerts, validVerifiedChains)
+	err := crlVerifier.Verify(validRawCerts, validVerifiedChains)
 	if err != nil {
 		t.Fatalf("Unexpected error for valid certificate: %v", err)
 	}
