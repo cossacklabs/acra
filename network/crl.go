@@ -316,8 +316,7 @@ func (v DefaultCRLVerifier) Verify(rawCerts [][]byte, verifiedChains [][]*x509.C
 				crl, err := v.getCachedOrFetch(crlDistributionPoint, issuer)
 				if err != nil {
 					log.WithError(err).Debugf("CRL: Cannot get CRL from '%s'", crlDistributionPoint)
-					continue // temporary
-					// return err
+					return err
 				}
 
 				for _, revokedCertificate := range crl.TBSCertList.RevokedCertificates {
