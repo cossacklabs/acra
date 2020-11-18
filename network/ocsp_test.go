@@ -26,6 +26,7 @@ import (
 	"golang.org/x/crypto/ocsp"
 	"io/ioutil"
 	"net/http"
+	"strings"
 	"testing"
 	"time"
 )
@@ -33,6 +34,8 @@ import (
 // Defined in crl_test.go:
 //   func getTestHTTPServer(t *testing.T, mux *http.ServeMux) (*http.Server, string)
 //   func pemToX509Cert(data []byte) (*x509.Certificate, error)
+//   func getInvalidTestChain(t *testing.T) ([][]byte, [][]*x509.Certificate)
+//   func getValidTestChain(t *testing.T) ([][]byte, [][]*x509.Certificate)
 
 // Convert PEM-encoded private key into DER and parse it into rsa.PrivateKey
 func pemToRsaPrivateKey(data []byte) (*rsa.PrivateKey, error) {
@@ -256,6 +259,80 @@ func TestDefaultOCSPClient(t *testing.T) {
 	checkCase(t, revokedData)
 }
 
+func testWithConfigAndValidChain(t *testing.T, ocspConfig *OCSPConfig, rawCerts [][]byte, verifiedChains [][]*x509.Certificate) {
+	ocspClient := DefaultOCSPClient{}
+
+	ocspVerifier := DefaultOCSPVerifier{Config: *ocspConfig, Client: ocspClient}
+
+	err := ocspVerifier.Verify(rawCerts, verifiedChains)
+	if err != nil {
+		t.Fatalf("Unexpected error for valid certificate: %v", err)
+	}
+}
+
+func testWithConfigAndRevokedChain(t *testing.T, ocspConfig *OCSPConfig, rawCerts [][]byte, verifiedChains [][]*x509.Certificate) {
+	ocspClient := DefaultOCSPClient{}
+
+	ocspVerifier := DefaultOCSPVerifier{Config: *ocspConfig, Client: ocspClient}
+
+	err := ocspVerifier.Verify(rawCerts, verifiedChains)
+	if err == nil {
+		t.Fatal("Unexpected success when verifying revoked certificate")
+	}
+	if !strings.Contains(err.Error(), "revoked") {
+		t.Logf("Verify error: %v", err)
+		t.Fatalf("Error does not contain 'revoked'")
+	}
+	t.Logf("(Expected) verify error: %v", err)
+}
+
 func TestDefaultOCSPVerifier(t *testing.T) {
-	// TODO
+	goodData := getOCSPTestCase(t, "../tests/ssl/acra-writer/acra-writer", ocsp.Good)
+	revokedData := getOCSPTestCase(t, "../tests/ssl/acra-writer-revoked/acra-writer-revoked", ocsp.Revoked)
+	// TODO switch CA cert -> OCSP responder cert as soon as OCSPVerifier can handle that
+	ocspCertificate, ocspSigningKey := getTestOCSPCertAndKey(t, "../tests/ssl/ca/ca")
+
+	ocspServerConfig := ocspServerConfig{
+		issuerCert:    goodData.issuer,
+		responderCert: ocspCertificate,
+		responderKey:  ocspSigningKey,
+		testCases:     []*ocspTestCase{goodData, revokedData},
+	}
+
+	ocspServer, addr := getTestOCSPServer(t, ocspServerConfig)
+	defer ocspServer.Close()
+
+	uri := fmt.Sprintf("http://%s", addr)
+
+	// TODO generate these chains by reading files, like getOCSPTestCase() does
+	validRawCerts, validVerifiedChains := getValidTestChain(t)
+	invalidRawCerts, invalidVerifiedChains := getInvalidTestChain(t)
+
+	//
+	// Test with default config, certificates contain OCSP server inside
+	//
+	ocspConfig, err := NewOCSPConfig("", ocspRequiredYesStr, ocspFromCertUseStr)
+	if err != nil {
+		t.Fatalf("Failed to create OCSPConfig: %v", err)
+	}
+
+	validVerifiedChains[0][0].OCSPServer = []string{uri}
+	invalidVerifiedChains[0][0].OCSPServer = []string{uri}
+
+	testWithConfigAndValidChain(t, ocspConfig, validRawCerts, validVerifiedChains)
+	testWithConfigAndRevokedChain(t, ocspConfig, invalidRawCerts, invalidVerifiedChains)
+
+	//
+	// Test with URI in config only
+	//
+	ocspConfig, err = NewOCSPConfig(uri, ocspRequiredYesStr, ocspFromCertUseStr)
+	if err != nil {
+		t.Fatalf("Failed to create OCSPConfig: %v", err)
+	}
+
+	validVerifiedChains[0][0].OCSPServer = []string{}
+	invalidVerifiedChains[0][0].OCSPServer = []string{}
+
+	testWithConfigAndValidChain(t, ocspConfig, validRawCerts, validVerifiedChains)
+	testWithConfigAndRevokedChain(t, ocspConfig, invalidRawCerts, invalidVerifiedChains)
 }

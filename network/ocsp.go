@@ -234,6 +234,9 @@ func (v DefaultOCSPVerifier) Verify(rawCerts [][]byte, verifiedChains [][]*x509.
 			log.Debugf("OCSP: Trying server %s", serverToCheck.url)
 
 			response, err := v.Client.Query(cert.Issuer.CommonName, cert, issuer, serverToCheck.url)
+			// TODO put OCSP responder certificate here                   ^^^^^^
+			// Maybe we will need another TLS config just for fetching OCSP certificates,
+			// this config should have empty cert verifier, so only basic check based on root certs should be performed
 			if err != nil {
 				log.WithError(err).Warnf("Cannot query OCSP server at %s", serverToCheck.url)
 
