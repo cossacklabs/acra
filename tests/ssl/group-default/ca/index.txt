@@ -1,0 +1,6 @@
+V	700910190534Z		3B84C1A28A44D95F99AC0BD1EF19AF366BCBB34F	unknown	/C=GB/ST=London/L=London/O=Global Security/OU=IT/CN=Test leaf certificate (mysql)
+V	700910190534Z		3B84C1A28A44D95F99AC0BD1EF19AF366BCBB350	unknown	/C=GB/ST=London/L=London/O=Global Security/OU=IT/CN=Test leaf certificate (postgresql)
+V	20701108114400Z		5CF4505CD8470F34D8733AED12744905B4867F93	unknown	/C=GB/ST=London/O=Global Security/OU=IT/CN=Test leaf certificate (OCSP responder)
+V	20701108120947Z		26BA82D47531C82A184A177946E8E5A35D9436BE	unknown	/C=GB/ST=London/O=Global Security/OU=IT/CN=Test leaf certificate (acra-writer)
+V	20701108120948Z		351A8F58CDE41876B026365612292D704A3F68EE	unknown	/C=GB/ST=London/O=Global Security/OU=IT/CN=Test leaf certificate (acra-server)
+R	20701108120948Z	201120120948Z	74549E595062815AF931EFB62EF8ECC6E1E251BF	unknown	/C=GB/ST=London/O=Global Security/OU=IT/CN=Test leaf certificate (acra-writer-revoked)

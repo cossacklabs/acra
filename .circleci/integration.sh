@@ -12,6 +12,16 @@ echo "Using TEST_DB_NAME=$TEST_DB_NAME"
 echo "Using TEST_OCSP_SERVER_PORT=$TEST_OCSP_SERVER_PORT (for TLS only)"
 echo "Using TEST_CRL_HTTP_SERVER_PORT=$TEST_CRL_HTTP_SERVER_PORT (for TLS only)"
 
+export TEST_CERT_GROUP=group-default
+export TEST_TLS_CA=tests/ssl/$TEST_CERT_GROUP/ca/ca.crt
+export TEST_TLS_SERVER_CERT=tests/ssl/$TEST_CERT_GROUP/acra-server/acra-server.crt
+export TEST_TLS_SERVER_KEY=tests/ssl/$TEST_CERT_GROUP/acra-server/acra-server.key
+export TEST_TLS_CLIENT_CERT=tests/ssl/$TEST_CERT_GROUP/acra-writer/acra-writer.crt
+export TEST_TLS_CLIENT_KEY=tests/ssl/$TEST_CERT_GROUP/acra-writer/acra-writer.key
+export TEST_TLS_OCSP_CERT=tests/ssl/$TEST_CERT_GROUP/ocsp-responder/ocsp-responder.crt
+export TEST_TLS_OCSP_KEY=tests/ssl/$TEST_CERT_GROUP/ocsp-responder/ocsp-responder.key
+export TEST_TLS_OCSP_INDEX=tests/ssl/$TEST_CERT_GROUP/ca/index.txt
+
 # cirecle ci has timeout 10 minutes without output after that it stop execution
 # set timeout 8 minutes to give a time to re-start tests execution
 export TEST_RUN_TIMEOUT=480 # 8 minutes (8 * 60)

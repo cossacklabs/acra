@@ -1,0 +1,4 @@
+V	700910190534Z		3B84C1A28A44D95F99AC0BD1EF19AF366BCBB34F	unknown	/C=GB/ST=London/L=London/O=Global Security/OU=IT/CN=Test leaf certificate (mysql)
+V	700910190534Z		3B84C1A28A44D95F99AC0BD1EF19AF366BCBB350	unknown	/C=GB/ST=London/L=London/O=Global Security/OU=IT/CN=Test leaf certificate (postgresql)
+V	20701108114400Z		5CF4505CD8470F34D8733AED12744905B4867F93	unknown	/C=GB/ST=London/O=Global Security/OU=IT/CN=Test leaf certificate (OCSP responder)
+V	20701108122443Z		149B90AFC8EDF1F5B841BAE200EC4E8559BFCCFA	unknown	/C=GB/ST=London/O=Global Security/OU=IT/CN=Test certificate (intermediate-ca)

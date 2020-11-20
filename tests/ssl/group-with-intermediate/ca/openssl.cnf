@@ -1,0 +1,66 @@
+#
+# OpenSSL CA configuration file for issuing testing certificates
+#
+
+# This section is required by OpenSSL, but we specify DN on the command line,
+# so here an empty placeholder is used.
+[ req ]
+distinguished_name = req_dn
+
+[ req_dn ]
+
+# X.509 v3 extensions for issued certificates, required by RFC 3280
+[ v3_req ]
+basicConstraints = CA:false
+keyUsage = nonRepudiation, digitalSignature, keyEncipherment
+subjectAltName = DNS:localhost
+authorityInfoAccess = @ocsp_section
+crlDistributionPoints = @crl_section
+
+[ v3_OCSP ]
+basicConstraints = CA:false
+keyUsage = nonRepudiation, digitalSignature, keyEncipherment
+extendedKeyUsage = OCSPSigning
+
+# X.509 v3 extensions for CA certificate, required by RFC 3280
+[ v3_ca ]
+basicConstraints = critical,CA:true
+subjectAltName = DNS:localhost
+subjectKeyIdentifier=hash
+authorityKeyIdentifier=keyid:always,issuer
+
+[ v3_intermediate_ca ]
+basicConstraints = critical, CA:true, pathlen:0
+keyUsage = critical, digitalSignature, cRLSign, keyCertSign
+
+[ ca ]
+default_ca = CA_default
+
+[ CA_default ]
+dir = group-with-intermediate/ca
+database = group-with-intermediate/ca/index.txt
+serial = group-with-intermediate/ca/serial
+
+certificate = group-with-intermediate/ca/ca.crt
+private_key = group-with-intermediate/ca/ca.key
+
+default_md = sha256
+default_crl_days = 30
+policy = policy_anything
+
+[ policy_anything ]
+countryName             = optional
+stateOrProvinceName     = optional
+localityName            = optional
+organizationName        = optional
+organizationalUnitName  = optional
+commonName              = supplied
+emailAddress            = optional
+
+[ ocsp_section ]
+# some non-valid URL to make sure acra-server can try few servers
+OCSP;URI.0 = http://127.0.0.1:8888
+# OCSP;URI.1 = http://127.0.0.1:23456
+
+[ crl_section ]
+URI.0 = http://127.0.0.1:8889/crl.pem

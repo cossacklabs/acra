@@ -1,0 +1,4 @@
+V	20701108122443Z		2EB4407DC8A24AA3D4C01C3CD087022B75F3B2AD	unknown	/C=GB/ST=London/O=Global Security/OU=IT/CN=Test certificate (acra-writer)
+V	20701108122443Z		219633844F6B1658148FCBAE3B92027897EA750E	unknown	/C=GB/ST=London/O=Global Security/OU=IT/CN=Test certificate (acra-server)
+R	20701108122443Z	201120122443Z	5F47867392A5B214ACA6B6662682E6FDB56FBC51	unknown	/C=GB/ST=London/O=Global Security/OU=IT/CN=Test certificate (acra-writer-revoked)
+V	20701114084714Z		235CEE063F97398FC3457D3CD0157A378A5B22F2	unknown	/C=GB/ST=London/O=Global Security/OU=IT/CN=Test certificate (intermediate-ocsp-responder)
