@@ -18,392 +18,105 @@ package network
 import (
 	"bytes"
 	"context"
-	"crypto/tls"
+	"crypto/rand"
+	"errors"
+	"github.com/cossacklabs/acra/keystore"
+	"io/ioutil"
 	"net"
 	"os"
-	"strings"
 	"testing"
-	"time"
-
-	"github.com/cossacklabs/themis/gothemis/keys"
 )
 
-var TestClientID = []byte("client")
-var TestServerID = []byte("server")
+// wrapperCommunicationIterations base iterations count which may be used in a communication loop using client/server wrappers
+const wrapperCommunicationIterations = 10
 
-func wait(ch chan bool, t *testing.T) {
-	select {
-	case val := <-ch:
-		if !val {
-			t.Fatal("some err")
-			os.Exit(1)
-		}
-	case <-time.Tick(time.Second * 100):
-		t.Fatal("timeout")
-		os.Exit(1)
-	}
+
+// testWrapper wrapper over testWrapperWithError with onError callback which call t.Fatal on err value
+func testWrapper(clientWrapper, serverWrapper ConnectionWrapper, expectedClientID []byte, iterations int, t testing.TB)  {
+	onError := func(err error, t testing.TB){t.Fatal(err)}
+	testWrapperWithError(clientWrapper, serverWrapper, expectedClientID, iterations, onError, t)
 }
 
-func testWrapper(clientWrapper, serverWrapper ConnectionWrapper, t *testing.T) {
-	const iterations = 10
-	socket := "/tmp/testWrapper"
-	os.Remove(socket)
-	clientCh := make(chan bool)
-	serverCh := make(chan bool)
+
+// testWrapperWithError create unix socket, wrap it using clientWrapper and serverWrapper, verify received clientID on server side with expected
+// and exchange some data iterations times. On any unexpected error call onError callback
+func testWrapperWithError(clientWrapper, serverWrapper ConnectionWrapper, expectedClientID []byte, iterations int, onError func(error, testing.TB), t testing.TB)  {
+	f, err := ioutil.TempFile("", "")
+	if err != nil {
+		onError(err, t)
+	}
+	os.Remove(f.Name())
+	socket := f.Name()
+	listener, err := net.Listen("unix", socket)
+	if err != nil {
+		onError(err, t)
+	}
+	const bufSize = 1024
+	defer listener.Close()
 	go func() {
-		buf := make([]byte, 1000)
-		t.Log("listen")
-		listener, err := net.Listen("unix", socket)
-		if err != nil {
-			t.Fatal(err)
-		}
-		defer listener.Close()
-		clientCh <- true
-		t.Log("accept")
+		buf := make([]byte, bufSize)
 		conn, err := listener.Accept()
 		if err != nil {
 			conn.Close()
-			t.Fatal(err)
+			onError(err, t)
 			return
 		}
-		t.Log("wrap server")
-		conn, clientID, err := serverWrapper.WrapServer(context.TODO(), conn)
+		wrappedConn, clientID, err := serverWrapper.WrapServer(context.TODO(), conn)
 		if err != nil {
 			conn.Close()
-			t.Fatal(err)
+			onError(err, t)
 			return
 		}
-		if !bytes.Equal(clientID, TestClientID) {
-			t.Fatal("client id incorrect")
+		if !bytes.Equal(clientID, expectedClientID) {
+			conn.Close()
+			onError(keystore.ErrInvalidClientID, t)
+			return
 		}
 		for i := 0; i < iterations; i++ {
-			t.Log("wait server read")
-			wait(serverCh, t)
-			n, err := conn.Read(buf)
+			n, err := wrappedConn.Read(buf)
 			if err != nil {
-				conn.Close()
-				t.Fatal(err)
+				wrappedConn.Close()
+				onError(err, t)
 				return
 			}
-			t.Log("server write")
-			_, err = conn.Write(buf[:n])
+			_, err = wrappedConn.Write(buf[:n])
 			if err != nil {
-				clientCh <- false
-				conn.Close()
-				t.Fatal(err)
+				wrappedConn.Close()
+				onError(err, t)
 			}
-			clientCh <- true
-		}
-		t.Log("wait server to close")
-		// wait when client read last packet
-		if !<-serverCh {
-			return
 		}
 	}()
 
-	t.Log("client wait to connect")
-	wait(clientCh, t)
-	t.Log("client connect")
 	connection, err := net.Dial("unix", socket)
 	if err != nil {
-		t.Fatal(err)
+		onError(err, t)
 	}
 	defer connection.Close()
-	t.Log("wrap client")
 	connection, err = clientWrapper.WrapClient(context.TODO(), connection)
 	if err != nil {
-		connection.Close()
-		t.Fatal(err)
+		onError(err, t)
 	}
 
-	clientBuf := make([]byte, 1024)
+	clientBuf := make([]byte, bufSize)
+	dataBuf := make([]byte, bufSize)
 	for i := 0; i < iterations; i++ {
-		data := append([]byte("some data"), byte(i))
-		t.Log("client write")
-		_, err := connection.Write(data)
+		_, err := rand.Read(dataBuf)
+		if err != nil {
+			onError(err, t)
+		}
+		_, err = connection.Write(dataBuf)
 		if err != nil {
 			connection.Close()
-			t.Fatal(err)
+			onError(err, t)
 		}
-		serverCh <- true
-		t.Log("client wait to read")
-		wait(clientCh, t)
-		n, err := connection.Read(clientBuf)
+		_, err = connection.Read(clientBuf)
 		if err != nil {
 			connection.Close()
-			t.Fatal(err)
+			onError(err, t)
 		}
-		if !bytes.Equal(clientBuf[:n], data) {
+		if result := bytes.Compare(clientBuf, dataBuf); result != 0 {
 			connection.Close()
-			t.Fatal("data not equal")
+			onError(errors.New("data not equal"), t)
 		}
-	}
-	serverCh <- true
-}
-
-func TestRawConnectionWrapper(t *testing.T) {
-	testWrapper(&RawConnectionWrapper{}, &RawConnectionWrapper{ClientID: TestClientID}, t)
-}
-
-type SimpleKeyStore struct {
-	PrivateKey *keys.PrivateKey
-	PublicKey  *keys.PublicKey
-}
-
-func (keystore *SimpleKeyStore) GetPrivateKey(id []byte) (*keys.PrivateKey, error) {
-	return keystore.PrivateKey, nil
-}
-func (keystore *SimpleKeyStore) GetPeerPublicKey(id []byte) (*keys.PublicKey, error) {
-	return keystore.PublicKey, nil
-}
-
-func TestSessionWrapper(t *testing.T) {
-	clientPair, err := keys.New(keys.TypeEC)
-	if err != nil {
-		t.Fatal(err)
-	}
-	serverPair, err := keys.New(keys.TypeEC)
-	if err != nil {
-		t.Fatal(err)
-	}
-	clientWrapper, err := NewSecureSessionConnectionWrapperWithServerID(TestClientID, TestServerID, &SimpleKeyStore{PrivateKey: clientPair.Private, PublicKey: serverPair.Public})
-	if err != nil {
-		t.Fatal(err)
-	}
-	serverWrapper, err := NewSecureSessionConnectionWrapper(TestServerID, &SimpleKeyStore{PrivateKey: serverPair.Private, PublicKey: clientPair.Public})
-	if err != nil {
-		t.Fatal(err)
-	}
-	testWrapper(clientWrapper, serverWrapper, t)
-}
-
-func TestTLSWRapper(t *testing.T) {
-	// openssl ecparam -genkey -name secp384r1 -out server.key
-	// openssl req -new -x509 -sha256 -key server.key -out server.crt -days 3650
-	// cat server.key
-	// cat server.cert
-	key := []byte(`
------BEGIN EC PARAMETERS-----
-BgUrgQQAIg==
------END EC PARAMETERS-----
------BEGIN EC PRIVATE KEY-----
-MIGkAgEBBDAr0pCdkWNZrTUj+ps6Geykc+9XbMvJvt9SwLcZ4GlmUtF2d1bFSVE3
-53QpZSC3VUqgBwYFK4EEACKhZANiAARBt0OyuQE23jR6N7laliQcno2zUjQry8bL
-99YStj7fPELLSbW0usiOocLPx2dXrLquStjrsuzNNgJWtGfUttrZIYG3U9e4YxP2
-Om/FTC3VwwAePSjKCOpVLh2FUyXcIxE=
------END EC PRIVATE KEY-----
-`)
-	cert := []byte(`
------BEGIN CERTIFICATE-----
-MIICMDCCAbWgAwIBAgIJAIF7CJa9LIURMAoGCCqGSM49BAMCMFQxCzAJBgNVBAYT
-AkFVMRMwEQYDVQQIDApTb21lLVN0YXRlMSEwHwYDVQQKDBhJbnRlcm5ldCBXaWRn
-aXRzIFB0eSBMdGQxDTALBgNVBAMMBHRlc3QwHhcNMTgwMjE1MTMwNjAyWhcNMjgw
-MjEzMTMwNjAyWjBUMQswCQYDVQQGEwJBVTETMBEGA1UECAwKU29tZS1TdGF0ZTEh
-MB8GA1UECgwYSW50ZXJuZXQgV2lkZ2l0cyBQdHkgTHRkMQ0wCwYDVQQDDAR0ZXN0
-MHYwEAYHKoZIzj0CAQYFK4EEACIDYgAEQbdDsrkBNt40eje5WpYkHJ6Ns1I0K8vG
-y/fWErY+3zxCy0m1tLrIjqHCz8dnV6y6rkrY67LszTYCVrRn1Lba2SGBt1PXuGMT
-9jpvxUwt1cMAHj0oygjqVS4dhVMl3CMRo1MwUTAdBgNVHQ4EFgQURCzCHTN9WG1C
-BfEWHrAaZwCDAjkwHwYDVR0jBBgwFoAURCzCHTN9WG1CBfEWHrAaZwCDAjkwDwYD
-VR0TAQH/BAUwAwEB/zAKBggqhkjOPQQDAgNpADBmAjEA+2dZHMY3yI+0BPqytyCt
-E0B2xKAzGuMumud6IbYpoIk3uj7bjfeejSyZPgxIOkEPAjEA+adYfhHGieUnnC26
-Mmsz2rgkLFqKpYS30+CYbzwIXMfHImhBX2kO9HkodBWvNApu
------END CERTIFICATE-----
-`)
-	clientConfig, err := NewTLSConfig("", "", "", "", tls.NoClientCert)
-	if err != nil {
-		t.Fatal(err)
-	}
-	clientConfig.InsecureSkipVerify = true
-	clientWrapper, err := NewTLSConnectionWrapper(nil, clientConfig)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	cer, err := tls.X509KeyPair(cert, key)
-	if err != nil {
-		t.Fatal(err)
-		return
-	}
-
-	serverConfig, err := NewTLSConfig("", "", "", "", tls.NoClientCert)
-	if err != nil {
-		t.Fatal(err)
-	}
-	serverConfig.Certificates = []tls.Certificate{cer}
-	serverWrapper, err := NewTLSConnectionWrapper(TestClientID, serverConfig)
-	if err != nil {
-		t.Fatal(err)
-	}
-	testWrapper(clientWrapper, serverWrapper, t)
-
-	testTLSConfig(serverWrapper, t)
-}
-
-func getConnectionPair(address string, listener net.Listener, t *testing.T) (net.Conn, net.Conn) {
-	serverConnCh := make(chan net.Conn)
-	clientConnCh := make(chan net.Conn)
-	go func() {
-		conn, err := listener.Accept()
-		if err != nil {
-			t.Fatal(err)
-		}
-		serverConnCh <- conn
-	}()
-	go func() {
-		conn, err := net.Dial("tcp", address)
-		if err != nil {
-			t.Fatal(err)
-		}
-		clientConnCh <- conn
-	}()
-	// wait when client connect to server
-	var clientConn, serverConn net.Conn
-	for i := 0; i < 2; i++ {
-		select {
-		case clientConn = <-clientConnCh:
-			continue
-		case serverConn = <-serverConnCh:
-			continue
-		case <-time.NewTimer(time.Second / 2).C:
-			t.Fatal("Timeout on connection client with server")
-		}
-	}
-	return clientConn, serverConn
-}
-
-// isTLS13 return true if connection has version > tls12 constant value in ConnectionState after successful handshake
-func isTLS13(conn net.Conn) bool {
-	// check with GREATER comparison because golang versions < 1.2 have not constant VersionTLS13
-	return UnwrapSafeCloseConnection(conn).(*tls.Conn).ConnectionState().Version > tls.VersionTLS12
-}
-
-func testTLSConfig(serverWrapper *TLSConnectionWrapper, t *testing.T) {
-	const address = "127.0.0.1:4567"
-	listener, err := net.Listen("tcp", address)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	clientConn, serverConn := getConnectionPair(address, listener, t)
-
-	wrapErrorCh := make(chan bool)
-	// check not allowed cipher suit
-	config, err := NewTLSConfig("", "", "", "", tls.NoClientCert)
-	if err != nil {
-		t.Fatal(err)
-	}
-	config.InsecureSkipVerify = true
-	config.CipherSuites = []uint16{tls.TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA256}
-	clientWrapper, err := NewTLSConnectionWrapper([]byte("some client"), config)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	go func() {
-		conn, _, err := serverWrapper.WrapServer(context.TODO(), serverConn)
-		if err != nil {
-			if err.Error() != "tls: no cipher suite supported by both client and server" {
-				t.Fatal("Expected error with unsupported ciphersuits")
-			}
-			wrapErrorCh <- true
-			return
-		}
-		// tls1.3 in golang doesn't support ciphersuites configuration, so just return ok
-		if isTLS13(conn) {
-			wrapErrorCh <- true
-			return
-		}
-		t.Fatal("expected error")
-	}()
-	go func() {
-		conn, err := clientWrapper.WrapClient(context.TODO(), clientConn)
-		if err != nil {
-			if err.Error() != "remote error: tls: handshake failure" {
-				t.Fatal("Expected with handshake failure")
-			}
-			wrapErrorCh <- true
-			return
-		}
-		// tls1.3 in golang doesn't support ciphersuites configuration, so just return ok
-		if isTLS13(conn) {
-			wrapErrorCh <- true
-			return
-		}
-		t.Fatal("expected error")
-	}()
-	for i := 0; i < 2; i++ {
-		select {
-		case <-wrapErrorCh:
-			continue
-		case <-time.NewTimer(time.Second / 2).C:
-			t.Fatal("Timeout on wrap with incorrect cipher suits")
-		}
-	}
-	if err = clientConn.Close(); err != nil {
-		t.Fatal(err)
-	}
-	if err = serverConn.Close(); err != nil {
-		t.Fatal(err)
-	}
-
-	// check not allowed protocol version
-	clientConn, serverConn = getConnectionPair(address, listener, t)
-	config, err = NewTLSConfig("", "", "", "", tls.NoClientCert)
-	if err != nil {
-		t.Fatal(err)
-	}
-	config.InsecureSkipVerify = true
-	config.MinVersion = tls.VersionSSL30
-	config.MaxVersion = tls.VersionTLS11
-	clientWrapper, err = NewTLSConnectionWrapper([]byte("some client"), config)
-	if err != nil {
-		t.Fatal(err)
-	}
-	go func() {
-		_, _, err := serverWrapper.WrapServer(context.TODO(), serverConn)
-		if err != nil {
-			expectedMessages := []string{
-				// go < 1.12
-				"tls: client offered an unsupported, maximum protocol version of",
-				// go >= 1.12
-				"tls: client offered only unsupported versions"}
-			found := false
-			for _, msg := range expectedMessages {
-				if strings.HasPrefix(err.Error(), msg) {
-					found = true
-				}
-			}
-			if !found {
-				t.Fatalf("Expected error related with unsupported tls protocol version, took: '%s'\n", err.Error())
-			}
-			wrapErrorCh <- true
-			return
-		}
-		t.Fatal("expected error")
-	}()
-	go func() {
-		_, err := clientWrapper.WrapClient(context.TODO(), clientConn)
-		if err != nil {
-			if err.Error() != "remote error: tls: protocol version not supported" {
-				t.Fatal("Expected incorrect protocol version error")
-			}
-			wrapErrorCh <- true
-			return
-		}
-		t.Fatal("expected error")
-	}()
-	for i := 0; i < 2; i++ {
-		select {
-		case <-wrapErrorCh:
-			continue
-		case <-time.NewTimer(time.Second / 2).C:
-			t.Fatal("Timeout on wrap with unsupported protocol version")
-		}
-	}
-	if err = clientConn.Close(); err != nil {
-		t.Fatal(err)
-	}
-	if err = serverConn.Close(); err != nil {
-		t.Fatal(err)
 	}
 }
