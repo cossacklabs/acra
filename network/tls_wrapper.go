@@ -41,8 +41,10 @@ var allowedCipherSuits = []uint16{
 
 // TLSConnectionWrapper for wrapping connection into TLS encryption
 type TLSConnectionWrapper struct {
-	config   *tls.Config
-	clientID []byte
+	config      *tls.Config
+	clientID    []byte
+	idExtractor CertificateIdentifierExtractor
+	idConverter IdentifierConverter
 }
 
 // ErrEmptyTLSConfig if not TLS config found
@@ -124,6 +126,17 @@ func NewTLSConnectionWrapper(clientID []byte, config *tls.Config) (*TLSConnectio
 	return &TLSConnectionWrapper{config: config, clientID: clientID}, nil
 }
 
+// NewClientTLSConnectionWrapper returns new TLSConnectionWrapper for client side
+func NewClientTLSConnectionWrapper(config *tls.Config) (*TLSConnectionWrapper, error) {
+	return &TLSConnectionWrapper{config: config}, nil
+}
+
+// NewServerTLSConnectionWrapper returns new TLSConnectionWrapper for server side. Client's identifier will be fetched
+// with idExtractor and converter with idConverter
+func NewServerTLSConnectionWrapper(config *tls.Config, idExtractor CertificateIdentifierExtractor, idConverter IdentifierConverter) (*TLSConnectionWrapper, error) {
+	return &TLSConnectionWrapper{config: config, idExtractor: idExtractor, idConverter: idConverter}, nil
+}
+
 // WrapClient wraps client connection into TLS
 func (wrapper *TLSConnectionWrapper) WrapClient(ctx context.Context, conn net.Conn) (net.Conn, error) {
 	conn.SetDeadline(time.Now().Add(DefaultNetworkTimeout))
@@ -137,6 +150,18 @@ func (wrapper *TLSConnectionWrapper) WrapClient(ctx context.Context, conn net.Co
 	return newSafeCloseConnection(tlsConn), nil
 }
 
+func (wrapper *TLSConnectionWrapper) getClientIDFromCertificate(certificate *x509.Certificate)([]byte, error){
+	identifier, err := wrapper.idExtractor.GetCertificateIdentifier(certificate)
+	if err != nil {
+		return nil, err
+	}
+	clientID, err := wrapper.idConverter.Convert(identifier)
+	if err != nil {
+		return nil, err
+	}
+	return clientID, nil
+}
+
 // WrapServer wraps server connection into TLS
 func (wrapper *TLSConnectionWrapper) WrapServer(ctx context.Context, conn net.Conn) (net.Conn, []byte, error) {
 	conn.SetDeadline(time.Now().Add(DefaultNetworkTimeout))
@@ -147,7 +172,22 @@ func (wrapper *TLSConnectionWrapper) WrapServer(ctx context.Context, conn net.Co
 		return conn, nil, err
 	}
 	conn.SetDeadline(time.Time{})
-	return newSafeCloseConnection(tlsConn), wrapper.clientID, nil
+	if wrapper.clientID != nil {
+		return newSafeCloseConnection(tlsConn), wrapper.clientID, nil
+	}
+	connectionInfo := tlsConn.ConnectionState()
+	if len(connectionInfo.VerifiedChains) == 0 || len(connectionInfo.VerifiedChains[0]) == 0 {
+		return conn, nil, ErrNoPeerCertificate
+	}
+	certificate := connectionInfo.VerifiedChains[0][0]
+	if err := ValidateClientsAuthenticationCertificate(certificate); err != nil {
+		return conn, nil, err
+	}
+	clientID, err := wrapper.getClientIDFromCertificate(certificate)
+	if err != nil {
+		return conn, nil, err
+	}
+	return newSafeCloseConnection(tlsConn), clientID, nil
 }
 
 // SetMySQLCompatibleTLSSettings set minimal protocol version to TLSv1.1 and extend list of allowed cipher suits
