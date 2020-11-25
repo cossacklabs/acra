@@ -95,9 +95,11 @@ TEST_TLS_SERVER_KEY = abs_path(os.environ.get('TEST_TLS_SERVER_KEY', 'tests/ssl/
 # db drivers prevent usage of keys with global rights
 TEST_TLS_CLIENT_CERT = abs_path(os.environ.get('TEST_TLS_CLIENT_CERT', 'tests/ssl/acra-writer/acra-writer.crt'))
 TEST_TLS_CLIENT_KEY = abs_path(os.environ.get('TEST_TLS_CLIENT_KEY', 'tests/ssl/acra-writer/acra-writer.key'))
+TEST_TLS_OCSP_CA = abs_path(os.environ.get('TEST_TLS_OCSP_CA', 'tests/ssl/ca/ca.crt'))
 TEST_TLS_OCSP_CERT = abs_path(os.environ.get('TEST_TLS_OCSP_CERT', 'tests/ssl/ocsp/ocsp.crt'))
 TEST_TLS_OCSP_KEY = abs_path(os.environ.get('TEST_TLS_OCSP_KEY', 'tests/ssl/ocsp/ocsp.key'))
 TEST_TLS_OCSP_INDEX = abs_path(os.environ.get('TEST_TLS_OCSP_INDEX', 'tests/ssl/index.txt'))
+TEST_TLS_OCSP_CHECK_CERT = abs_path(os.environ.get('TEST_TLS_OCSP_CHECK_CERT', 'tests/ssl/acra-writer/acra-writer.crt'))
 TEST_WITH_TLS = os.environ.get('TEST_TLS', 'off').lower() == 'on'
 
 TEST_WITH_TRACING = os.environ.get('TEST_TRACE', 'off').lower() == 'on'
@@ -922,6 +924,7 @@ class BaseTestCase(PrometheusMixin, unittest.TestCase):
     ACRASERVER_PORT = int(os.environ.get('TEST_ACRASERVER_PORT', 10003))
     OCSP_SERVER_PORT = int(os.environ.get('TEST_OCSP_SERVER_PORT', 8888))
     CRL_HTTP_SERVER_PORT = int(os.environ.get('TEST_HTTP_SERVER_PORT', 8889))
+    CRL_PATH = abs_path(os.environ.get('TEST_CRL_PATH', 'tests/ssl'))
     ACRASERVER_PROMETHEUS_PORT = int(os.environ.get('TEST_ACRASERVER_PROMETHEUS_PORT', 10004))
     ACRA_BYTEA = 'pgsql_hex_bytea'
     DB_BYTEA = 'hex'
@@ -1073,7 +1076,7 @@ class BaseTestCase(PrometheusMixin, unittest.TestCase):
             'index': TEST_TLS_OCSP_INDEX,
             'rsigner': TEST_TLS_OCSP_CERT,
             'rkey': TEST_TLS_OCSP_KEY,
-            'CA': TEST_TLS_CA,
+            'CA': TEST_TLS_OCSP_CA,
         }
 
         cli_args = sorted(['-{}={}'.format(k, v) for k, v in args.items()])
@@ -1081,7 +1084,7 @@ class BaseTestCase(PrometheusMixin, unittest.TestCase):
 
         process = self.fork(lambda: subprocess.Popen(['openssl', 'ocsp'] + cli_args))
 
-        check_cmd = f"openssl ocsp -CAfile {TEST_TLS_CA} -issuer {TEST_TLS_CA} -cert {TEST_TLS_CLIENT_CERT} -url {ocsp_server_connection}"
+        check_cmd = f"openssl ocsp -CAfile {TEST_TLS_OCSP_CA} -issuer {TEST_TLS_OCSP_CA} -cert {TEST_TLS_OCSP_CHECK_CERT} -url {ocsp_server_connection}"
 
         if check_connection:
             print('check OCSP server connection {}'.format(ocsp_server_connection))
@@ -1099,7 +1102,7 @@ class BaseTestCase(PrometheusMixin, unittest.TestCase):
 
         http_server_connection = self.get_crl_http_server_connection_string(port)
 
-        cli_args = ['--bind', '127.0.0.1', '--directory', 'tests/ssl', str(port)]
+        cli_args = ['--bind', '127.0.0.1', '--directory', self.CRL_PATH, str(port)]
         print('python HTTP server args: {}'.format(' '.join(cli_args)))
 
         process = self.fork(lambda: subprocess.Popen(['python3', '-m', 'http.server'] + cli_args))
