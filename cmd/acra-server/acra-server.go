@@ -128,6 +128,7 @@ func main() {
 	tlsOcspDbURL := flag.String("tls_ocsp_database_url", "", "OCSP service URL, for database certificates only")
 	tlsOcspRequired := flag.String("tls_ocsp_required", "denyUnknown", "Whether we need OCSP response in order to accept certificate")
 	tlsOcspFromCert := flag.String("tls_ocsp_from_cert", "prefer", "How should we treat OCSP server described in certificate itself")
+	tlsOcspCheckWholeChain := flag.Bool("tls_ocsp_check_whole_chain", false, "Whether to check whole certificate chain, false = only end certificate")
 	tlsCrlURL := flag.String("tls_crl_url", "", "CRL URL")
 	tlsCrlClientURL := flag.String("tls_crl_client_url", "", "CRL URL, for client certificates only")
 	tlsCrlDbURL := flag.String("tls_crl_database_url", "", "CRL URL, for database certificates only")
@@ -256,9 +257,9 @@ func main() {
 
 		var ocspClientConfig *network.OCSPConfig
 		if *tlsOcspClientURL != "" {
-			ocspClientConfig, err = network.NewOCSPConfig(*tlsOcspClientURL, *tlsOcspRequired, *tlsOcspFromCert)
+			ocspClientConfig, err = network.NewOCSPConfig(*tlsOcspClientURL, *tlsOcspRequired, *tlsOcspFromCert, *tlsOcspCheckWholeChain)
 		} else {
-			ocspClientConfig, err = network.NewOCSPConfig(*tlsOcspURL, *tlsOcspRequired, *tlsOcspFromCert)
+			ocspClientConfig, err = network.NewOCSPConfig(*tlsOcspURL, *tlsOcspRequired, *tlsOcspFromCert, *tlsOcspCheckWholeChain)
 		}
 		if err != nil {
 			log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorWrongConfiguration).
@@ -309,9 +310,9 @@ func main() {
 
 		var ocspDbConfig *network.OCSPConfig
 		if *tlsOcspDbURL != "" {
-			ocspDbConfig, err = network.NewOCSPConfig(*tlsOcspDbURL, *tlsOcspRequired, *tlsOcspFromCert)
+			ocspDbConfig, err = network.NewOCSPConfig(*tlsOcspDbURL, *tlsOcspRequired, *tlsOcspFromCert, *tlsOcspCheckWholeChain)
 		} else {
-			ocspDbConfig, err = network.NewOCSPConfig(*tlsOcspURL, *tlsOcspRequired, *tlsOcspFromCert)
+			ocspDbConfig, err = network.NewOCSPConfig(*tlsOcspURL, *tlsOcspRequired, *tlsOcspFromCert, *tlsOcspCheckWholeChain)
 		}
 		if err != nil {
 			log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorWrongConfiguration).

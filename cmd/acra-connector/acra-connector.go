@@ -232,6 +232,7 @@ func main() {
 	tlsOcspURL := flag.String("tls_ocsp_url", "", "OCSP service URL")
 	tlsOcspRequired := flag.String("tls_ocsp_required", "denyUnknown", "Whether we need OCSP response in order to accept certificate")
 	tlsOcspFromCert := flag.String("tls_ocsp_from_cert", "prefer", "How should we treat OCSP server described in certificate itself")
+	tlsOcspCheckWholeChain := flag.Bool("tls_ocsp_check_whole_chain", false, "Whether to check whole certificate chain, false = only end certificate")
 	tlsCrlURL := flag.String("tls_crl_url", "", "CRL URL")
 	tlsCrlFromCert := flag.String("tls_crl_from_cert", "use", "How should we treat CRL URL described in certificate itself")
 	tlsCrlCacheSize := flag.Int("tls_crl_cache_size", 16, "Size of in-memory LRU cache for storing fetched CRLs, 0 = unlimited")
@@ -405,7 +406,7 @@ func main() {
 		if *useTLS {
 			log.Infof("Selecting transport: use TLS transport wrapper")
 
-			ocspConfig, err := network.NewOCSPConfig(*tlsOcspURL, *tlsOcspRequired, *tlsOcspFromCert)
+			ocspConfig, err := network.NewOCSPConfig(*tlsOcspURL, *tlsOcspRequired, *tlsOcspFromCert, *tlsOcspCheckWholeChain)
 			if err != nil {
 				log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorWrongConfiguration).
 					Errorln("Configuration error: invalid OCSP config")

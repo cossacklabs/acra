@@ -49,20 +49,21 @@ type TLSConnectionWrapper struct {
 var ErrEmptyTLSConfig = errors.New("empty TLS config")
 
 var (
-	tlsCA            string
-	tlsKey           string
-	tlsCert          string
-	tlsAuthType      int
-	tlsServerName    string
-	tlsOcspURL       string
-	tlsOcspClientURL string
-	tlsOcspDbURL     string
-	tlsOcspRequired  string
-	tlsOcspFromCert  string
-	tlsCrlURL        string
-	tlsCrlFromCert   string
-	tlsCrlCacheSize  int
-	tlsCrlCacheTime  int
+	tlsCA                  string
+	tlsKey                 string
+	tlsCert                string
+	tlsAuthType            int
+	tlsServerName          string
+	tlsOcspURL             string
+	tlsOcspClientURL       string
+	tlsOcspDbURL           string
+	tlsOcspRequired        string
+	tlsOcspFromCert        string
+	tlsOcspCheckWholeChain bool
+	tlsCrlURL              string
+	tlsCrlFromCert         string
+	tlsCrlCacheSize        int
+	tlsCrlCacheTime        int
 )
 
 // RegisterTLSBaseArgs register CLI args tls_ca|tls_key|tls_cert|tls_auth|tls_ocsp_url|tls_ocsp_client_url|tls_ocsp_db_url|tls_ocsp_required|tls_ocsp_from_cert|tls_crl_url|tls_crl_from_cert which allow to get tls.Config by NewTLSConfigFromBaseArgs function
@@ -76,6 +77,7 @@ func RegisterTLSBaseArgs() {
 	flag.StringVar(&tlsOcspDbURL, "tls_ocsp_database_url", "", "OCSP service URL, for database certificates only")
 	flag.StringVar(&tlsOcspRequired, "tls_ocsp_required", "yes", "Whether we need OCSP response in order to accept certificate")
 	flag.StringVar(&tlsOcspFromCert, "tls_ocsp_from_cert", "prefer", "How should we threat OCSP server described in certificate itself")
+	flag.BoolVar(&tlsOcspCheckWholeChain, "tls_ocsp_check_whole_chain", false, "Whether to check whole certificate chain, false = only end certificate")
 	flag.StringVar(&tlsCrlURL, "tls_crl_url", "", "CRL URL")
 	flag.StringVar(&tlsCrlFromCert, "tls_crl_from_cert", "use", "How should we treat CRL URL described in certificate itself")
 	flag.IntVar(&tlsCrlCacheSize, "tls_crl_cache_size", 16, "Size of in-memory LRU cache for storing fetched CRLs, 0 = unlimited")
@@ -89,7 +91,7 @@ func RegisterTLSClientArgs() {
 
 // NewTLSConfigFromBaseArgs return new tls config with params passed by cli params
 func NewTLSConfigFromBaseArgs() (*tls.Config, error) {
-	ocspConfig, err := NewOCSPConfig(tlsOcspURL, tlsOcspRequired, tlsOcspFromCert)
+	ocspConfig, err := NewOCSPConfig(tlsOcspURL, tlsOcspRequired, tlsOcspFromCert, tlsOcspCheckWholeChain)
 	if err != nil {
 		return nil, err
 	}

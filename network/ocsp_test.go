@@ -311,7 +311,7 @@ func TestDefaultOCSPVerifier(t *testing.T) {
 	//
 	// Test with default config, certificates contain OCSP server inside
 	//
-	ocspConfig, err := NewOCSPConfig("", ocspRequiredYesStr, ocspFromCertUseStr)
+	ocspConfig, err := NewOCSPConfig("", ocspRequiredYesStr, ocspFromCertUseStr, false)
 	if err != nil {
 		t.Fatalf("Failed to create OCSPConfig: %v", err)
 	}
@@ -325,7 +325,7 @@ func TestDefaultOCSPVerifier(t *testing.T) {
 	//
 	// Test with URI in config only
 	//
-	ocspConfig, err = NewOCSPConfig(uri, ocspRequiredYesStr, ocspFromCertUseStr)
+	ocspConfig, err = NewOCSPConfig(uri, ocspRequiredYesStr, ocspFromCertUseStr, false)
 	if err != nil {
 		t.Fatalf("Failed to create OCSPConfig: %v", err)
 	}

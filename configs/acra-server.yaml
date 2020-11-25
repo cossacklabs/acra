@@ -173,6 +173,9 @@ tls_db_sni:
 # Path to private key that will be used in AcraServer's TLS handshake with AcraConnector as server's key and database as client's key
 tls_key: 
 
+# Whether to check whole certificate chain, false = only end certificate
+tls_ocsp_check_whole_chain: false
+
 # OCSP service URL, for client certificates only
 tls_ocsp_client_url: 
 
