@@ -18,7 +18,7 @@ package base
 
 import (
 	"context"
-	"crypto/tls"
+	"github.com/cossacklabs/acra/network"
 	"net"
 
 	acracensor "github.com/cossacklabs/acra/acra-censor"
@@ -31,19 +31,17 @@ import (
 type ProxySetting interface {
 	KeyStore() keystore.DecryptionKeyStore
 	TableSchemaStore() config.TableSchemaStore
-	ClientTLSConfig() *tls.Config
-	DatabaseTLSConfig() *tls.Config
 	Censor() acracensor.AcraCensorInterface
 	DecryptorFactory() DecryptorFactory
+	TLSConnectionWrapper() TLSConnectionWrapper
 }
 
 type proxySetting struct {
-	keystore         keystore.DecryptionKeyStore
-	tableSchemaStore config.TableSchemaStore
-	clientTLSConfig  *tls.Config
-	dbTLSConfig      *tls.Config
-	censor           acracensor.AcraCensorInterface
-	decryptorFactory DecryptorFactory
+	keystore          keystore.DecryptionKeyStore
+	tableSchemaStore  config.TableSchemaStore
+	censor            acracensor.AcraCensorInterface
+	decryptorFactory  DecryptorFactory
+	connectionWrapper TLSConnectionWrapper
 }
 
 // DecryptorFactory return configure DecryptorFactory
@@ -56,16 +54,6 @@ func (p *proxySetting) Censor() acracensor.AcraCensorInterface {
 	return p.censor
 }
 
-// ClientTLSConfig return tls.Config to use when accepting connections from AcraConnectors.
-func (p *proxySetting) ClientTLSConfig() *tls.Config {
-	return p.clientTLSConfig
-}
-
-// DatabaseTLSConfig return tls.Config to use when connecting to the database.
-func (p *proxySetting) DatabaseTLSConfig() *tls.Config {
-	return p.dbTLSConfig
-}
-
 // TableSchemaStore return table schema store
 func (p *proxySetting) TableSchemaStore() config.TableSchemaStore {
 	return p.tableSchemaStore
@@ -76,9 +64,14 @@ func (p *proxySetting) KeyStore() keystore.DecryptionKeyStore {
 	return p.keystore
 }
 
+// TLSConnectionWrapper return TLSConnectionWrapper
+func (p *proxySetting) TLSConnectionWrapper() TLSConnectionWrapper {
+	return p.connectionWrapper
+}
+
 // NewProxySetting return new ProxySetting implementation with data from params
-func NewProxySetting(decryptorFactory DecryptorFactory, tableSchema config.TableSchemaStore, keystore keystore.DecryptionKeyStore, clientTLSConfig, dbTLSConfig *tls.Config, censor acracensor.AcraCensorInterface) ProxySetting {
-	return &proxySetting{keystore: keystore, tableSchemaStore: tableSchema, clientTLSConfig: clientTLSConfig, dbTLSConfig: dbTLSConfig, censor: censor, decryptorFactory: decryptorFactory}
+func NewProxySetting(decryptorFactory DecryptorFactory, tableSchema config.TableSchemaStore, keystore keystore.DecryptionKeyStore, wrapper TLSConnectionWrapper, censor acracensor.AcraCensorInterface) ProxySetting {
+	return &proxySetting{keystore: keystore, tableSchemaStore: tableSchema, censor: censor, decryptorFactory: decryptorFactory, connectionWrapper: wrapper}
 }
 
 // Proxy interface to process client's requests to database and responses
@@ -99,6 +92,34 @@ type ClientSession interface {
 
 	ProtocolState() interface{}
 	SetProtocolState(state interface{})
+}
+
+// TLSConnectionWrapper used by proxy to wrap raw connections to TLS when intercepts client/database request about switching to TLS
+// Reuse network.ConnectionWrapper to explicitly force TLS usage by name
+type TLSConnectionWrapper interface {
+	WrapDBConnection(ctx context.Context, conn net.Conn) (net.Conn, error)
+	WrapClientConnection(ctx context.Context, conn net.Conn) (net.Conn, []byte, error) // conn, ClientID, error
+	UseConnectionClientID() bool
+}
+
+type proxyTLSConnectionWrapper struct {
+	wrapper               network.ConnectionWrapper
+	useConnectionClientID bool
+}
+
+// NewTLSConnectionWrapper return wrapper over network.ConnectionWrapper to implement TLSConnectionWrapper interface
+func NewTLSConnectionWrapper(useClientID bool, wrapper network.ConnectionWrapper) TLSConnectionWrapper {
+	return &proxyTLSConnectionWrapper{wrapper: wrapper, useConnectionClientID: useClientID}
+}
+
+func (wrapper *proxyTLSConnectionWrapper) WrapDBConnection(ctx context.Context, conn net.Conn) (net.Conn, error) {
+	return wrapper.wrapper.WrapClient(ctx, conn)
+}
+func (wrapper *proxyTLSConnectionWrapper) WrapClientConnection(ctx context.Context, conn net.Conn) (net.Conn, []byte, error) {
+	return wrapper.wrapper.WrapServer(ctx, conn)
+}
+func (wrapper *proxyTLSConnectionWrapper) UseConnectionClientID() bool {
+	return wrapper.useConnectionClientID
 }
 
 // ProxyFactory create new Proxy for specific database

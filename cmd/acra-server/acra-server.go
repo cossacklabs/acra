@@ -227,6 +227,7 @@ func main() {
 	log.Infof("Keystore init OK")
 
 	log.Infof("Configuring transport...")
+	var proxyTLSWrapper base.TLSConnectionWrapper
 	var clientTLSConfig, dbTLSConfig *tls.Config
 	if *useTLS || *tlsKey != "" {
 		// Use common TLS settings, unless the user requests specific ones
@@ -271,6 +272,17 @@ func main() {
 				Errorln("Configuration error: can't create database TLS config")
 			os.Exit(1)
 		}
+		idConverter, err := network.NewDefaultHexIdentifierConverter()
+		if err != nil {
+			log.WithError(err).Errorln("Can't initialize identifier converter")
+			os.Exit(1)
+		}
+		tlsWrapper, err := network.NewTLSAuthenticationConnectionWrapper(clientTLSConfig, dbTLSConfig, network.CommonNameExtractor{}, idConverter)
+		if err != nil {
+			log.WithError(err).Errorln("Can't initialize TLS connection wrapper")
+			os.Exit(1)
+		}
+		proxyTLSWrapper = base.NewTLSConnectionWrapper(*clientID == "", tlsWrapper)
 		log.Infoln("Loaded TLS configuration")
 	}
 	if *useTLS {
@@ -333,7 +345,7 @@ func main() {
 	var proxyFactory base.ProxyFactory
 	if *useMysql {
 		decryptorFactory = mysql.NewMysqlDecryptorFactory(decryptorSetting)
-		proxyFactory, err = mysql.NewProxyFactory(base.NewProxySetting(decryptorFactory, config.GetTableSchema(), keyStore, clientTLSConfig, dbTLSConfig, config.GetCensor()))
+		proxyFactory, err = mysql.NewProxyFactory(base.NewProxySetting(decryptorFactory, config.GetTableSchema(), keyStore, proxyTLSWrapper, config.GetCensor()))
 		if err != nil {
 			log.WithError(err).Errorln("Can't initialize proxy for connections")
 			os.Exit(1)
@@ -341,7 +353,7 @@ func main() {
 		sqlparser.SetDefaultDialect(mysqlDialect.NewMySQLDialect())
 	} else {
 		decryptorFactory = postgresql.NewDecryptorFactory(decryptorSetting)
-		proxyFactory, err = postgresql.NewProxyFactory(base.NewProxySetting(decryptorFactory, config.GetTableSchema(), keyStore, clientTLSConfig, dbTLSConfig, config.GetCensor()))
+		proxyFactory, err = postgresql.NewProxyFactory(base.NewProxySetting(decryptorFactory, config.GetTableSchema(), keyStore, proxyTLSWrapper, config.GetCensor()))
 		if err != nil {
 			log.WithError(err).Errorln("Can't initialize proxy for connections")
 			os.Exit(1)

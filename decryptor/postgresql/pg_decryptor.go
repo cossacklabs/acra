@@ -114,6 +114,7 @@ type PgProxy struct {
 	tlsSwitch            bool
 	decryptionObserver   base.ColumnDecryptionObserver
 	protocolState        *PgProtocolState
+	setting              base.ProxySetting
 }
 
 // NewPgProxy returns new PgProxy
@@ -143,8 +144,7 @@ func NewPgProxy(session base.ClientSession, decryptor base.Decryptor, setting ba
 		TLSCh:                make(chan bool),
 		ctx:                  session.Context(),
 		queryObserverManager: observerManager,
-		clientTLSConfig:      setting.ClientTLSConfig(),
-		dbTLSConfig:          setting.DatabaseTLSConfig(),
+		setting:              setting,
 		censor:               setting.Censor(),
 		decryptor:            decryptor,
 		decryptionObserver:   base.NewColumnDecryptionObserver(),
@@ -483,9 +483,6 @@ func (proxy *PgProxy) handleSSLRequest(packet *PacketHandler, logger *log.Entry)
 		return nil, nil, err
 	}
 	logger.Debugln("Init tls with client")
-	// convert to tls connection
-	tlsClientConnection := tls.Server(proxy.clientConnection, proxy.clientTLSConfig)
-
 	// send server's response only after successful interrupting background goroutine that process client's connection
 	// to take control over connection and avoid two places that communicate with one connection
 	if err := packet.sendMessageType(); err != nil {
@@ -493,15 +490,17 @@ func (proxy *PgProxy) handleSSLRequest(packet *PacketHandler, logger *log.Entry)
 			Errorln("Can't send ssl allow packet")
 		return nil, nil, err
 	}
-	if err := tlsClientConnection.Handshake(); err != nil {
+	// convert to tls connection
+	tlsClientConnection, clientID, err := proxy.setting.TLSConnectionWrapper().WrapClientConnection(proxy.ctx, proxy.clientConnection)
+	if err != nil {
 		logger.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorDecryptorCantInitializeTLS).
-			Errorln("Can't initialize tls connection with client")
+			Errorln("Error in tls handshake with client")
 		return nil, nil, err
 	}
 
 	logger.Debugln("Init tls with db")
-	dbTLSConnection := tls.Client(proxy.dbConnection, proxy.dbTLSConfig)
-	if err := dbTLSConnection.Handshake(); err != nil {
+	dbTLSConnection, err := proxy.setting.TLSConnectionWrapper().WrapDBConnection(proxy.ctx, proxy.dbConnection)
+	if err != nil {
 		logger.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorDecryptorCantInitializeTLS).
 			Errorln("Can't initialize tls connection with db")
 		return nil, nil, err

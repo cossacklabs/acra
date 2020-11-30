@@ -56,7 +56,7 @@ func (stubSession) SetProtocolState(state interface{}) {
 func TestEncryptorTurnOnOff(t *testing.T) {
 	emptyStore := &tableSchemaStore{true}
 	nonEmptyStore := &tableSchemaStore{false}
-	setting := base.NewProxySetting(&decryptorFactory{}, emptyStore, nil, nil, nil, nil)
+	setting := base.NewProxySetting(&decryptorFactory{}, emptyStore, nil, nil, nil)
 	proxyFactory, err := NewProxyFactory(setting)
 	if err != nil {
 		t.Fatal(setting)
@@ -69,7 +69,7 @@ func TestEncryptorTurnOnOff(t *testing.T) {
 		t.Fatal("Unexpected observers count")
 	}
 
-	setting = base.NewProxySetting(&decryptorFactory{}, nonEmptyStore, nil, nil, nil, nil)
+	setting = base.NewProxySetting(&decryptorFactory{}, nonEmptyStore, nil, nil, nil)
 	proxyFactory, err = NewProxyFactory(setting)
 	if err != nil {
 		t.Fatal(setting)
