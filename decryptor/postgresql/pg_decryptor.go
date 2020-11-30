@@ -497,7 +497,9 @@ func (proxy *PgProxy) handleSSLRequest(packet *PacketHandler, logger *log.Entry)
 			Errorln("Error in tls handshake with client")
 		return nil, nil, err
 	}
-
+	if proxy.setting.TLSConnectionWrapper().UseConnectionClientID() {
+		proxy.decryptor.SetClientID(clientID)
+	}
 	logger.Debugln("Init tls with db")
 	dbTLSConnection, err := proxy.setting.TLSConnectionWrapper().WrapDBConnection(proxy.ctx, proxy.dbConnection)
 	if err != nil {

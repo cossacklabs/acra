@@ -298,6 +298,9 @@ func (handler *Handler) ProxyClientConnection(errCh chan<- error) {
 					errCh <- err
 					return
 				}
+				if handler.setting.TLSConnectionWrapper().UseConnectionClientID() {
+					handler.decryptor.SetClientID(clientID)
+				}
 				handler.logger.Debugln("Switched to tls with client. wait switching with db")
 				handler.isTLSHandshake = true
 				handler.clientConnection = tlsConnection

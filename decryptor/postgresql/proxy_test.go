@@ -16,6 +16,10 @@ import (
 
 type testDecryptor struct{}
 
+func (t testDecryptor) SetClientID([]byte) {
+	panic("implement me")
+}
+
 func (t testDecryptor) SetLogger(*logrus.Entry) {
 	panic("implement me")
 }
