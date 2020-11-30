@@ -29,7 +29,7 @@ import (
 	"time"
 )
 
-// allowedCipherSuits that set in default tls config
+// allowedCipherSuits that set in default tls clientConfig
 var allowedCipherSuits = []uint16{
 	tls.TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256,
 	tls.TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384,
@@ -41,14 +41,15 @@ var allowedCipherSuits = []uint16{
 
 // TLSConnectionWrapper for wrapping connection into TLS encryption
 type TLSConnectionWrapper struct {
-	config      *tls.Config
-	clientID    []byte
-	idExtractor CertificateIdentifierExtractor
-	idConverter IdentifierConverter
+	clientConfig *tls.Config
+	serverConfig *tls.Config
+	clientID     []byte
+	idExtractor  CertificateIdentifierExtractor
+	idConverter  IdentifierConverter
 }
 
-// ErrEmptyTLSConfig if not TLS config found
-var ErrEmptyTLSConfig = errors.New("empty TLS config")
+// ErrEmptyTLSConfig if not TLS clientConfig found
+var ErrEmptyTLSConfig = errors.New("empty TLS clientConfig")
 
 var (
 	tlsCA         string
@@ -71,12 +72,12 @@ func RegisterTLSClientArgs() {
 	flag.StringVar(&tlsServerName, "tls_server_sni", "", "Server name used as sni value")
 }
 
-// NewTLSConfigFromBaseArgs return new tls config with params passed by cli params
+// NewTLSConfigFromBaseArgs return new tls clientConfig with params passed by cli params
 func NewTLSConfigFromBaseArgs() (*tls.Config, error) {
 	return NewTLSConfig(tlsServerName, tlsCA, tlsKey, tlsCert, tls.ClientAuthType(tlsAuthType))
 }
 
-// NewTLSConfig creates x509 TLS config from provided params, tried to load system CA certificate
+// NewTLSConfig creates x509 TLS clientConfig from provided params, tried to load system CA certificate
 func NewTLSConfig(serverName string, caPath, keyPath, crtPath string, authType tls.ClientAuthType) (*tls.Config, error) {
 	var roots *x509.CertPool
 	var err error
@@ -123,24 +124,19 @@ func NewTLSConfig(serverName string, caPath, keyPath, crtPath string, authType t
 
 // NewTLSConnectionWrapper returns new TLSConnectionWrapper
 func NewTLSConnectionWrapper(clientID []byte, config *tls.Config) (*TLSConnectionWrapper, error) {
-	return &TLSConnectionWrapper{config: config, clientID: clientID}, nil
+	return &TLSConnectionWrapper{clientConfig: config, serverConfig: config, clientID: clientID}, nil
 }
 
-// NewClientTLSConnectionWrapper returns new TLSConnectionWrapper for client side
-func NewClientTLSConnectionWrapper(config *tls.Config) (*TLSConnectionWrapper, error) {
-	return &TLSConnectionWrapper{config: config}, nil
-}
-
-// NewServerTLSConnectionWrapper returns new TLSConnectionWrapper for server side. Client's identifier will be fetched
+// NewTLSAuthenticationConnectionWrapper returns new TLSConnectionWrapper which use separate TLS configs for each side. Client's identifier will be fetched
 // with idExtractor and converter with idConverter
-func NewServerTLSConnectionWrapper(config *tls.Config, idExtractor CertificateIdentifierExtractor, idConverter IdentifierConverter) (*TLSConnectionWrapper, error) {
-	return &TLSConnectionWrapper{config: config, idExtractor: idExtractor, idConverter: idConverter}, nil
+func NewTLSAuthenticationConnectionWrapper(clientConfig, serverConfig *tls.Config, idExtractor CertificateIdentifierExtractor, idConverter IdentifierConverter) (*TLSConnectionWrapper, error) {
+	return &TLSConnectionWrapper{clientConfig: clientConfig, serverConfig: serverConfig, idExtractor: idExtractor, idConverter: idConverter}, nil
 }
 
 // WrapClient wraps client connection into TLS
 func (wrapper *TLSConnectionWrapper) WrapClient(ctx context.Context, conn net.Conn) (net.Conn, error) {
 	conn.SetDeadline(time.Now().Add(DefaultNetworkTimeout))
-	tlsConn := tls.Client(conn, wrapper.config)
+	tlsConn := tls.Client(conn, wrapper.clientConfig)
 	err := tlsConn.Handshake()
 	if err != nil {
 		conn.SetDeadline(time.Time{})
@@ -165,7 +161,7 @@ func (wrapper *TLSConnectionWrapper) getClientIDFromCertificate(certificate *x50
 // WrapServer wraps server connection into TLS
 func (wrapper *TLSConnectionWrapper) WrapServer(ctx context.Context, conn net.Conn) (net.Conn, []byte, error) {
 	conn.SetDeadline(time.Now().Add(DefaultNetworkTimeout))
-	tlsConn := tls.Server(conn, wrapper.config)
+	tlsConn := tls.Server(conn, wrapper.serverConfig)
 	err := tlsConn.Handshake()
 	if err != nil {
 		conn.SetDeadline(time.Time{})

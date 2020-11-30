@@ -178,29 +178,21 @@ func TestValidateClientsAuthenticationCertificate(t *testing.T) {
 
 func TestHexIdentifierConverter_ConvertLength1(t *testing.T) {
 	identifier := []byte{1}
-	result, err := hexIdentifierConverter{}.Convert(identifier)
+	converter, err := NewDefaultHexIdentifierConverter()
 	if err != nil {
 		t.Fatal(err)
 	}
-	expectedResult := []byte(hex.EncodeToString(append(hexStaticPrefix, identifier...)))
+	result, err := converter.Convert(identifier)
+	if err != nil {
+		t.Fatal(err)
+	}
+	expectedSum := sha512.Sum512(identifier)
+	expectedResult := []byte(hex.EncodeToString(expectedSum[:]))
 	if !bytes.Equal(result, expectedResult) {
 		t.Fatal("Incorrect converted value for identifier with length==1")
 	}
 }
-func TestHexIdentifierConverter_ConvertLength128(t *testing.T) {
-	identifier := make([]byte, 128)
-	if _, err := rand.Read(identifier); err != nil {
-		t.Fatal(err)
-	}
-	result, err := hexIdentifierConverter{}.Convert(identifier)
-	if err != nil {
-		t.Fatal(err)
-	}
-	expectedResult := []byte(hex.EncodeToString(identifier))
-	if !bytes.Equal(result, expectedResult) {
-		t.Fatal("Incorrect converted value for identifier with length == 128, when should be the same value in hex format")
-	}
-}
+
 func TestHexIdentifierConverter_ConvertLengthLongerThan128(t *testing.T) {
 	identifier := make([]byte, 129)
 	if _, err := rand.Read(identifier); err != nil {

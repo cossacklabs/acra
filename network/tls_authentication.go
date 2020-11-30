@@ -5,7 +5,6 @@ import (
 	"crypto/x509"
 	"encoding/hex"
 	"errors"
-	"github.com/cossacklabs/acra/keystore"
 	"hash"
 )
 
@@ -62,26 +61,16 @@ func NewDefaultHexIdentifierConverter()(*hexIdentifierConverter, error){
 	return &hexIdentifierConverter{newHash: sha512.New}, nil
 }
 
-var hexStaticPrefix = []byte{0}
-
 // Convert identifier to hex value in lower case. If len(identifier) == 1 then 0 inserted as start of identifier to match minimal length
 // of clientID 4 bytes. If len(identifier) > (keystore.MaxClientIDLength / 2) than it longer than max acceptable length of clientID in hex format (256)
 // In such case identifier passed through SHA512 and then converted to hex with 128 (64 * 2) bytes length
 func (c hexIdentifierConverter) Convert(identifier []byte) ([]byte, error) {
-	var out []byte
-	if len(identifier) == 1 {
-		out = make([]byte, hex.EncodedLen(len(identifier)+len(hexStaticPrefix)))
-		identifier = append(hexStaticPrefix, identifier...)
-	} else if len(identifier) > (keystore.MaxClientIDLength / 2) {
-		out = make([]byte, hex.EncodedLen(sha512.Size))
-		h := c.newHash()
-		if _, err := h.Write(identifier); err != nil {
-			return nil, err
-		}
-		identifier = h.Sum(nil)
-	} else {
-		out = make([]byte, hex.EncodedLen(len(identifier)))
+	out := make([]byte, hex.EncodedLen(sha512.Size))
+	h := c.newHash()
+	if _, err := h.Write(identifier); err != nil {
+		return nil, err
 	}
+	identifier = h.Sum(nil)
 	hex.Encode(out, identifier)
 	return out, nil
 }
