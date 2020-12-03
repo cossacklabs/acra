@@ -49,19 +49,39 @@ type TLSConnectionWrapper struct {
 var ErrEmptyTLSConfig = errors.New("empty TLS config")
 
 var (
-	tlsCA         string
-	tlsKey        string
-	tlsCert       string
-	tlsAuthType   int
-	tlsServerName string
+	tlsCA                  string
+	tlsKey                 string
+	tlsCert                string
+	tlsAuthType            int
+	tlsServerName          string
+	tlsOcspURL             string
+	tlsOcspClientURL       string
+	tlsOcspDbURL           string
+	tlsOcspRequired        string
+	tlsOcspFromCert        string
+	tlsOcspCheckWholeChain bool
+	tlsCrlURL              string
+	tlsCrlFromCert         string
+	tlsCrlCacheSize        int
+	tlsCrlCacheTime        int
 )
 
-// RegisterTLSBaseArgs register CLI args tls_ca|tls_key|tls_cert|tls_auth which allow to get tls.Config by NewTLSConfigFromBaseArgs function
+// RegisterTLSBaseArgs register CLI args tls_ca|tls_key|tls_cert|tls_auth|tls_ocsp_url|tls_ocsp_client_url|tls_ocsp_db_url|tls_ocsp_required|tls_ocsp_from_cert|tls_crl_url|tls_crl_from_cert which allow to get tls.Config by NewTLSConfigFromBaseArgs function
 func RegisterTLSBaseArgs() {
 	flag.StringVar(&tlsCA, "tls_ca", "", "Path to root certificate which will be used with system root certificates to validate peer's certificate")
 	flag.StringVar(&tlsKey, "tls_key", "", "Path to private key that will be used for TLS connections")
 	flag.StringVar(&tlsCert, "tls_cert", "", "Path to certificate")
 	flag.IntVar(&tlsAuthType, "tls_auth", int(tls.RequireAndVerifyClientCert), "Set authentication mode that will be used in TLS connection. Values in range 0-4 that set auth type (https://golang.org/pkg/crypto/tls/#ClientAuthType). Default is tls.RequireAndVerifyClientCert")
+	flag.StringVar(&tlsOcspURL, "tls_ocsp_url", "", "OCSP service URL")
+	flag.StringVar(&tlsOcspClientURL, "tls_ocsp_client_url", "", "OCSP service URL, for client certificates only")
+	flag.StringVar(&tlsOcspDbURL, "tls_ocsp_database_url", "", "OCSP service URL, for database certificates only")
+	flag.StringVar(&tlsOcspRequired, "tls_ocsp_required", "yes", "Whether we need OCSP response in order to accept certificate")
+	flag.StringVar(&tlsOcspFromCert, "tls_ocsp_from_cert", "prefer", "How should we threat OCSP server described in certificate itself")
+	flag.BoolVar(&tlsOcspCheckWholeChain, "tls_ocsp_check_whole_chain", false, "Whether to check whole certificate chain, false = only end certificate")
+	flag.StringVar(&tlsCrlURL, "tls_crl_url", "", "CRL URL")
+	flag.StringVar(&tlsCrlFromCert, "tls_crl_from_cert", "use", "How should we treat CRL URL described in certificate itself")
+	flag.IntVar(&tlsCrlCacheSize, "tls_crl_cache_size", 16, "Size of in-memory LRU cache for storing fetched CRLs, 0 = unlimited")
+	flag.IntVar(&tlsCrlCacheTime, "tls_crl_cache_time", 60, "How long cached CRL is considerend valid, seconds, max = 300")
 }
 
 // RegisterTLSClientArgs register CLI args tls_server_sni used by TLS client's connection
@@ -71,11 +91,26 @@ func RegisterTLSClientArgs() {
 
 // NewTLSConfigFromBaseArgs return new tls config with params passed by cli params
 func NewTLSConfigFromBaseArgs() (*tls.Config, error) {
-	return NewTLSConfig(tlsServerName, tlsCA, tlsKey, tlsCert, tls.ClientAuthType(tlsAuthType))
+	ocspConfig, err := NewOCSPConfig(tlsOcspURL, tlsOcspRequired, tlsOcspFromCert, tlsOcspCheckWholeChain)
+	if err != nil {
+		return nil, err
+	}
+
+	crlConfig, err := NewCRLConfig(tlsCrlURL, tlsCrlFromCert, tlsCrlCacheSize, tlsCrlCacheTime)
+	if err != nil {
+		return nil, err
+	}
+
+	certVerifier, err := NewCertVerifierFromConfigs(ocspConfig, crlConfig)
+	if err != nil {
+		return nil, err
+	}
+
+	return NewTLSConfig(tlsServerName, tlsCA, tlsKey, tlsCert, tls.ClientAuthType(tlsAuthType), certVerifier)
 }
 
 // NewTLSConfig creates x509 TLS config from provided params, tried to load system CA certificate
-func NewTLSConfig(serverName string, caPath, keyPath, crtPath string, authType tls.ClientAuthType) (*tls.Config, error) {
+func NewTLSConfig(serverName string, caPath, keyPath, crtPath string, authType tls.ClientAuthType, certVerifier CertVerifier) (*tls.Config, error) {
 	var roots *x509.CertPool
 	var err error
 	// use system pool as default
@@ -108,14 +143,24 @@ func NewTLSConfig(serverName string, caPath, keyPath, crtPath string, authType t
 		}
 		certificates = append(certificates, cer)
 	}
+
+	verifyPeerCertificate := func(rawCerts [][]byte, verifiedChains [][]*x509.Certificate) error {
+		err := certVerifier.Verify(rawCerts, verifiedChains)
+
+		log.WithError(err).WithField("valid", err == nil).Debugln("verifyPeerCertificate")
+
+		return err
+	}
+
 	return &tls.Config{
-		RootCAs:      roots,
-		ClientCAs:    roots,
-		Certificates: certificates,
-		ServerName:   serverName,
-		ClientAuth:   authType,
-		MinVersion:   tls.VersionTLS12,
-		CipherSuites: allowedCipherSuits,
+		RootCAs:               roots,
+		ClientCAs:             roots,
+		Certificates:          certificates,
+		ServerName:            serverName,
+		ClientAuth:            authType,
+		MinVersion:            tls.VersionTLS12,
+		CipherSuites:          allowedCipherSuits,
+		VerifyPeerCertificate: verifyPeerCertificate,
 	}, nil
 }
 

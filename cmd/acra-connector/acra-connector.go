@@ -229,6 +229,14 @@ func main() {
 	tlsCert := flag.String("tls_cert", "", "Path to certificate")
 	tlsAcraserverSNI := flag.String("tls_acraserver_sni", "", "Expected Server Name (SNI) from AcraServer")
 	tlsAuthType := flag.Int("tls_auth", int(tls.RequireAndVerifyClientCert), "Set authentication mode that will be used in TLS connection with AcraServer/AcraTranslator. Values in range 0-4 that set auth type (https://golang.org/pkg/crypto/tls/#ClientAuthType). Default is tls.RequireAndVerifyClientCert")
+	tlsOcspURL := flag.String("tls_ocsp_url", "", "OCSP service URL")
+	tlsOcspRequired := flag.String("tls_ocsp_required", "denyUnknown", "Whether we need OCSP response in order to accept certificate")
+	tlsOcspFromCert := flag.String("tls_ocsp_from_cert", "prefer", "How should we treat OCSP server described in certificate itself")
+	tlsOcspCheckWholeChain := flag.Bool("tls_ocsp_check_whole_chain", false, "Whether to check whole certificate chain, false = only end certificate")
+	tlsCrlURL := flag.String("tls_crl_url", "", "CRL URL")
+	tlsCrlFromCert := flag.String("tls_crl_from_cert", "use", "How should we treat CRL URL described in certificate itself")
+	tlsCrlCacheSize := flag.Int("tls_crl_cache_size", 16, "Size of in-memory LRU cache for storing fetched CRLs, 0 = unlimited")
+	tlsCrlCacheTime := flag.Int("tls_crl_cache_time", 5, "How long cached CRL is considerend valid, seconds, max = 300")
 	noEncryptionTransport := flag.Bool("acraserver_transport_encryption_disable", false, "Enable this flag to omit AcraConnector and connect client app to AcraServer directly using raw transport (tcp/unix socket). From security perspective please use at least TLS encryption (over tcp socket) between AcraServer and client app.")
 	connectionString := flag.String("incoming_connection_string", network.BuildConnectionString(cmd.DefaultAcraConnectorConnectionProtocol, cmd.DefaultAcraConnectorHost, cmd.DefaultAcraConnectorPort, ""), "Connection string like tcp://x.x.x.x:yyyy or unix:///path/to/socket")
 	connectionAPIString := flag.String("incoming_connection_api_string", network.BuildConnectionString(cmd.DefaultAcraConnectorConnectionProtocol, cmd.DefaultAcraConnectorHost, cmd.DefaultAcraConnectorAPIPort, ""), "Connection string like tcp://x.x.x.x:yyyy or unix:///path/to/socket")
@@ -397,7 +405,27 @@ func main() {
 	if connectorMode == connector_mode.AcraServerMode {
 		if *useTLS {
 			log.Infof("Selecting transport: use TLS transport wrapper")
-			tlsConfig, err := network.NewTLSConfig(network.SNIOrHostname(*tlsAcraserverSNI, *acraServerHost), *tlsCA, *tlsKey, *tlsCert, tls.ClientAuthType(*tlsAuthType))
+
+			ocspConfig, err := network.NewOCSPConfig(*tlsOcspURL, *tlsOcspRequired, *tlsOcspFromCert, *tlsOcspCheckWholeChain)
+			if err != nil {
+				log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorWrongConfiguration).
+					Errorln("Configuration error: invalid OCSP config")
+				os.Exit(1)
+			}
+
+			crlConfig, err := network.NewCRLConfig(*tlsCrlURL, *tlsCrlFromCert, *tlsCrlCacheSize, *tlsCrlCacheTime)
+			if err != nil {
+				log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorWrongConfiguration).
+					Errorln("Configuration error: invalid CRL config")
+				os.Exit(1)
+			}
+
+			certVerifier, err := network.NewCertVerifierFromConfigs(ocspConfig, crlConfig)
+			if err != nil {
+				log.WithError(err).Fatalln("Cannot create client certificate verifier")
+			}
+
+			tlsConfig, err := network.NewTLSConfig(network.SNIOrHostname(*tlsAcraserverSNI, *acraServerHost), *tlsCA, *tlsKey, *tlsCert, tls.ClientAuthType(*tlsAuthType), certVerifier)
 			if err != nil {
 				log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorTransportConfiguration).
 					Errorln("Configuration error: Can't get config for TLS")

@@ -982,7 +982,10 @@ class BaseTestCase(PrometheusMixin, unittest.TestCase):
         return {
             'acraserver_tls_transport_enable': True,
             'tls_acraserver_sni': 'acraserver',
-            # 'ocsp_service': 'http://127.0.0.1:{}'.format(self.OCSPSERVER_PORT),
+            'tls_ocsp_url': 'http://127.0.0.1:{}'.format(self.OCSP_SERVER_PORT),
+            'tls_ocsp_from_cert': 'use',
+            'tls_crl_url': 'http://127.0.0.1:{}/crl.pem'.format(self.CRL_HTTP_SERVER_PORT),
+            'tls_crl_from_cert': 'use',
         }
 
     def get_connector_prometheus_port(self, port):
@@ -1019,6 +1022,12 @@ class BaseTestCase(PrometheusMixin, unittest.TestCase):
             'user_check_disable': 'true',
             'keys_dir': KEYS_FOLDER.name,
             'logging_format': 'cef',
+            # Explicitly disable certificate validation by default since otherwise we may end up
+            # in a situation when some certificate contains OCSP or CRL URI while corresponding
+            # services were not started by this script (because TLS testing was disabled)
+            # This behavior will be overridden with args.update(self.get_connector_tls_params())
+            'tls_ocsp_from_cert': 'ignore',
+            'tls_crl_from_cert': 'ignore',
         }
         if self.LOG_METRICS:
             args['incoming_connection_prometheus_metrics_string'] = \
@@ -1068,9 +1077,10 @@ class BaseTestCase(PrometheusMixin, unittest.TestCase):
             'rsigner': TEST_TLS_OCSP_CERT,
             'rkey': TEST_TLS_OCSP_KEY,
             'CA': TEST_TLS_CA,
+            'ignore_err': None,
         }
 
-        cli_args = sorted(['-{}={}'.format(k, v) for k, v in args.items()])
+        cli_args = sorted([f'-{k}={v}' if v is not None else f'-{k}' for k, v in args.items()])
         print('openssl ocsp args: {}'.format(' '.join(cli_args)))
 
         process = self.fork(lambda: subprocess.Popen(['openssl', 'ocsp'] + cli_args))
@@ -1192,7 +1202,16 @@ class BaseTestCase(PrometheusMixin, unittest.TestCase):
             args['tls_cert'] = TEST_TLS_SERVER_CERT
             args['tls_ca'] = TEST_TLS_CA
             args['tls_auth'] = ACRA_TLS_AUTH
-            # args['ocsp_service'] = 'http://127.0.0.1:{}'.format(self.OCSPSERVER_PORT)
+            args['tls_ocsp_url'] = 'http://127.0.0.1:{}'.format(self.OCSP_SERVER_PORT)
+            args['tls_ocsp_from_cert'] = 'use'
+            args['tls_crl_url'] = 'http://127.0.0.1:{}/crl.pem'.format(self.CRL_HTTP_SERVER_PORT)
+            args['tls_crl_from_cert'] = 'use'
+        else:
+            # Explicitly disable certificate validation by default since otherwise we may end up
+            # in a situation when some certificate contains OCSP or CRL URI while corresponding
+            # services were not started by this script (because TLS testing was disabled)
+            args['tls_ocsp_from_cert'] = 'ignore'
+            args['tls_crl_from_cert'] = 'ignore'
         if TEST_MYSQL:
             args['mysql_enable'] = 'true'
             args['postgresql_enable'] = 'false'

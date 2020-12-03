@@ -101,8 +101,32 @@ tls_ca:
 # Path to certificate
 tls_cert: 
 
+# Size of in-memory LRU cache for storing fetched CRLs, 0 = unlimited
+tls_crl_cache_size: 16
+
+# How long cached CRL is considerend valid, seconds, max = 300
+tls_crl_cache_time: 5
+
+# How should we treat CRL URL described in certificate itself
+tls_crl_from_cert: use
+
+# CRL URL
+tls_crl_url: 
+
 # Path to private key that will be used in TLS handshake with AcraServer
 tls_key: 
+
+# Whether to check whole certificate chain, false = only end certificate
+tls_ocsp_check_whole_chain: false
+
+# How should we treat OCSP server described in certificate itself
+tls_ocsp_from_cert: prefer
+
+# Whether we need OCSP response in order to accept certificate
+tls_ocsp_required: denyUnknown
+
+# OCSP service URL
+tls_ocsp_url: 
 
 # Export trace data to jaeger
 tracing_jaeger_enable: false

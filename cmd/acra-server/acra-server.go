@@ -123,6 +123,18 @@ func main() {
 	tlsDbSNIOld := flag.String("tls_db_sni", "", "Expected Server Name (SNI) from database (deprecated, use \"tls_database_sni\" instead)")
 	tlsDbCert := flag.String("tls_database_cert", "", "Path to client TLS certificate shown to database during TLS handshake (overrides \"tls_cert\")")
 	tlsDbKey := flag.String("tls_database_key", "", "Path to private key of the TLS certificate used to connect to database (see \"tls_database_cert\")")
+	tlsOcspURL := flag.String("tls_ocsp_url", "", "OCSP service URL")
+	tlsOcspClientURL := flag.String("tls_ocsp_client_url", "", "OCSP service URL, for client certificates only")
+	tlsOcspDbURL := flag.String("tls_ocsp_database_url", "", "OCSP service URL, for database certificates only")
+	tlsOcspRequired := flag.String("tls_ocsp_required", "denyUnknown", "Whether we need OCSP response in order to accept certificate")
+	tlsOcspFromCert := flag.String("tls_ocsp_from_cert", "prefer", "How should we treat OCSP server described in certificate itself")
+	tlsOcspCheckWholeChain := flag.Bool("tls_ocsp_check_whole_chain", false, "Whether to check whole certificate chain, false = only end certificate")
+	tlsCrlURL := flag.String("tls_crl_url", "", "CRL URL")
+	tlsCrlClientURL := flag.String("tls_crl_client_url", "", "CRL URL, for client certificates only")
+	tlsCrlDbURL := flag.String("tls_crl_database_url", "", "CRL URL, for database certificates only")
+	tlsCrlFromCert := flag.String("tls_crl_from_cert", "use", "How should we treat CRL URL described in certificate itself")
+	tlsCrlCacheSize := flag.Int("tls_crl_cache_size", 16, "Size of in-memory LRU cache for storing fetched CRLs, 0 = unlimited")
+	tlsCrlCacheTime := flag.Int("tls_crl_cache_time", 5, "How long cached CRL is considerend valid, seconds, max = 300")
 	noEncryptionTransport := flag.Bool("acraconnector_transport_encryption_disable", false, "Use raw transport (tcp/unix socket) between AcraServer and AcraConnector/client (don't use this flag if you not connect to database with SSL/TLS")
 	clientID := flag.String("client_id", "", "Expected client ID of AcraConnector in mode without encryption")
 	acraConnectionString := flag.String("incoming_connection_string", network.BuildConnectionString(cmd.DefaultAcraServerConnectionProtocol, cmd.DefaultAcraServerHost, cmd.DefaultAcraServerPort, ""), "Connection string like tcp://x.x.x.x:yyyy or unix:///path/to/socket")
@@ -242,7 +254,37 @@ func main() {
 		if *tlsClientKey == "" {
 			*tlsClientKey = *tlsKey
 		}
-		clientTLSConfig, err = network.NewTLSConfig("", *tlsClientCA, *tlsClientKey, *tlsClientCert, tls.ClientAuthType(*tlsClientAuthType))
+
+		var ocspClientConfig *network.OCSPConfig
+		if *tlsOcspClientURL != "" {
+			ocspClientConfig, err = network.NewOCSPConfig(*tlsOcspClientURL, *tlsOcspRequired, *tlsOcspFromCert, *tlsOcspCheckWholeChain)
+		} else {
+			ocspClientConfig, err = network.NewOCSPConfig(*tlsOcspURL, *tlsOcspRequired, *tlsOcspFromCert, *tlsOcspCheckWholeChain)
+		}
+		if err != nil {
+			log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorWrongConfiguration).
+				Errorln("Configuration error: invalid OCSP config")
+			os.Exit(1)
+		}
+
+		var crlClientConfig *network.CRLConfig
+		if *tlsCrlClientURL != "" {
+			crlClientConfig, err = network.NewCRLConfig(*tlsCrlClientURL, *tlsCrlFromCert, *tlsCrlCacheSize, *tlsCrlCacheTime)
+		} else {
+			crlClientConfig, err = network.NewCRLConfig(*tlsCrlURL, *tlsCrlFromCert, *tlsCrlCacheSize, *tlsCrlCacheTime)
+		}
+		if err != nil {
+			log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorWrongConfiguration).
+				Errorln("Configuration error: invalid CRL config")
+			os.Exit(1)
+		}
+
+		certClientVerifier, err := network.NewCertVerifierFromConfigs(ocspClientConfig, crlClientConfig)
+		if err != nil {
+			log.WithError(err).Fatalln("Cannot create client certificate verifier")
+		}
+
+		clientTLSConfig, err = network.NewTLSConfig("", *tlsClientCA, *tlsClientKey, *tlsClientCert, tls.ClientAuthType(*tlsClientAuthType), certClientVerifier)
 		if err != nil {
 			log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorTransportConfiguration).
 				Errorln("Configuration error: can't create AcraConnector TLS config")
@@ -265,7 +307,37 @@ func main() {
 		if *tlsDbKey == "" {
 			*tlsDbKey = *tlsKey
 		}
-		dbTLSConfig, err = network.NewTLSConfig(network.SNIOrHostname(*tlsDbSNI, *dbHost), *tlsDbCA, *tlsDbKey, *tlsDbCert, tls.ClientAuthType(*tlsDbAuthType))
+
+		var ocspDbConfig *network.OCSPConfig
+		if *tlsOcspDbURL != "" {
+			ocspDbConfig, err = network.NewOCSPConfig(*tlsOcspDbURL, *tlsOcspRequired, *tlsOcspFromCert, *tlsOcspCheckWholeChain)
+		} else {
+			ocspDbConfig, err = network.NewOCSPConfig(*tlsOcspURL, *tlsOcspRequired, *tlsOcspFromCert, *tlsOcspCheckWholeChain)
+		}
+		if err != nil {
+			log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorWrongConfiguration).
+				Errorln("Configuration error: invalid OCSP config")
+			os.Exit(1)
+		}
+
+		var crlDbConfig *network.CRLConfig
+		if *tlsCrlDbURL != "" {
+			crlDbConfig, err = network.NewCRLConfig(*tlsCrlDbURL, *tlsCrlFromCert, *tlsCrlCacheSize, *tlsCrlCacheTime)
+		} else {
+			crlDbConfig, err = network.NewCRLConfig(*tlsCrlURL, *tlsCrlFromCert, *tlsCrlCacheSize, *tlsCrlCacheTime)
+		}
+		if err != nil {
+			log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorWrongConfiguration).
+				Errorln("Configuration error: invalid CRL config")
+			os.Exit(1)
+		}
+
+		certDbVerifier, err := network.NewCertVerifierFromConfigs(ocspDbConfig, crlDbConfig)
+		if err != nil {
+			log.WithError(err).Fatalln("Cannot create database certificate verifier")
+		}
+
+		dbTLSConfig, err = network.NewTLSConfig(network.SNIOrHostname(*tlsDbSNI, *dbHost), *tlsDbCA, *tlsDbKey, *tlsDbCert, tls.ClientAuthType(*tlsDbAuthType), certDbVerifier)
 		if err != nil {
 			log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorTransportConfiguration).
 				Errorln("Configuration error: can't create database TLS config")

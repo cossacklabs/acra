@@ -1,0 +1,334 @@
+/*
+Copyright 2020, Cossack Labs Limited
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
+package network
+
+import (
+	"bytes"
+	"crypto"
+	"crypto/x509"
+	"errors"
+	log "github.com/sirupsen/logrus"
+	"golang.org/x/crypto/ocsp"
+	"io/ioutil"
+	"net/http"
+	"net/url"
+)
+
+// Errors returned by CRL verifier
+var (
+	ErrInvalidConfigOCSPRequired   = errors.New("Invalid `ocsp_required` value")
+	ErrInvalidConfigOCSPFromCert   = errors.New("Invalid `ocsp_from_cert` value")
+	ErrInvalidConfigAllRequiresURI = errors.New("When passing `--tls_ocsp_required=all`, URL is mandatory")
+	ErrOCSPRequiredAllButGotError  = errors.New("Cannot query OCSP server, but --tls_ocsp_required=all was passed")
+	ErrOCSPUnknownCertificate      = errors.New("OCSP server doesn't know about certificate")
+	ErrOCSPNoConfirms              = errors.New("None of OCSP servers confirmed the certificate")
+)
+
+// --tls_ocsp_required=<denyUnknown|allowUnknown|all>
+const (
+	// Deny certificates now known by OCSP server(s)
+	ocspRequiredYesStr = "denyUnknown"
+	// Allow certificates now known by OCSP server(s)
+	ocspRequiredNoStr = "allowUnknown"
+	// Effect of denyUnknown + all available OCSP servers (the one from config
+	// and those listed in certificate) should respond, otherwise deny the certificate
+	ocspRequiredAllStr = "all"
+)
+
+const (
+	ocspRequiredYes int = iota
+	ocspRequiredNo
+	ocspRequiredAll
+)
+
+// --tls_ocsp_from_cert=<use|trust|prefer|ignore>
+const (
+	// Use OCSP servers listed in certificate (if any), try them after the one
+	// configured from CLI/config
+	ocspFromCertUseStr = "use"
+	// Query servers listed in certificate and don't perform further requests
+	// if one respons with "ok, valid"
+	ocspFromCertTrustStr = "trust"
+	// Query servers listed in certificate before the one from config
+	ocspFromCertPreferStr = "prefer"
+	// Ignore OCSP servers listed in certificates
+	ocspFromCertIgnoreStr = "ignore"
+)
+
+const (
+	ocspFromCertUse int = iota
+	ocspFromCertTrust
+	ocspFromCertPrefer
+	ocspFromCertIgnore
+)
+
+// OCSPConfig contains configuration related to certificate validation using OCSP
+type OCSPConfig struct {
+	url             string
+	required        int // ocspRequired*
+	fromCert        int // ocspFromCert*
+	checkWholeChain bool
+}
+
+// NewOCSPConfig creates new OCSPConfig
+func NewOCSPConfig(uri, required, fromCert string, checkWholeChain bool) (*OCSPConfig, error) {
+	if uri != "" {
+		_, err := url.Parse(uri)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	requiredValValues := map[string]int{
+		ocspRequiredYesStr: ocspRequiredYes,
+		ocspRequiredNoStr:  ocspRequiredNo,
+		ocspRequiredAllStr: ocspRequiredAll,
+	}
+
+	requiredVal, ok := requiredValValues[required]
+	if !ok {
+		return nil, ErrInvalidConfigOCSPRequired
+	}
+
+	fromCertValValues := map[string]int{
+		ocspFromCertUseStr:    ocspFromCertUse,
+		ocspFromCertTrustStr:  ocspFromCertTrust,
+		ocspFromCertPreferStr: ocspFromCertPrefer,
+		ocspFromCertIgnoreStr: ocspFromCertIgnore,
+	}
+
+	fromCertVal, ok := fromCertValValues[fromCert]
+	if !ok {
+		return nil, ErrInvalidConfigOCSPFromCert
+	}
+
+	if requiredVal == ocspRequiredAll && uri == "" {
+		return nil, ErrInvalidConfigAllRequiresURI
+	}
+
+	if uri != "" {
+		log.Debugf("OCSP: Using server '%s'", uri)
+
+		httpClient := &http.Client{}
+		_, err := httpClient.Head(uri)
+		if err != nil {
+			log.WithError(err).WithField("uri", uri).Warnln("OCSP: Cannot reach configured server")
+			// TODO return error after issues with failing tests are fixed;
+			//      the issue is the same as in NewCRLConfig()
+			// return nil, errors.New("Cannot reach configured OCSP server")
+		}
+	}
+
+	switch requiredVal {
+	case ocspRequiredYes:
+		log.Debugln("OCSP: At least one OCSP server should confirm certificate validity")
+	case ocspRequiredNo:
+		log.Debugln("OCSP: Allowing certificates not known by OCSP server")
+	case ocspRequiredAll:
+		log.Debugln("OCSP: Requiring positive response from all OCSP servers")
+	}
+
+	switch fromCertVal {
+	case ocspFromCertUse:
+		log.Debugln("OCSP: using servers described in certificates if nothing passed via command line")
+	case ocspFromCertTrust:
+		log.Debugln("OCSP: trusting responses from OCSP servers listed in certificates")
+	case ocspFromCertPrefer:
+		log.Debugln("OCSP: server from certificate will be prioritized over one from command line")
+	case ocspFromCertIgnore:
+		log.Debugln("OCSP: ignoring OCSP servers described in certificates")
+	}
+
+	return &OCSPConfig{url: uri, required: requiredVal, fromCert: fromCertVal}, nil
+}
+
+// OCSPClient is used to perform OCSP queries to some URI
+type OCSPClient interface {
+	// Query generates OCSP request about specified certificate, sends it to server and returns the response
+	Query(commonName string, clientCert, issuerCert *x509.Certificate, ocspServerURL string) (*ocsp.Response, error)
+}
+
+// DefaultOCSPClient is a default implementation of OCSPClient
+type DefaultOCSPClient struct{}
+
+// Query generates OCSP request about specified certificate, sends it to server and returns the response
+func (c DefaultOCSPClient) Query(commonName string, clientCert, issuerCert *x509.Certificate, ocspServerURL string) (*ocsp.Response, error) {
+	opts := &ocsp.RequestOptions{Hash: crypto.SHA256}
+	buffer, err := ocsp.CreateRequest(clientCert, issuerCert, opts)
+	if err != nil {
+		return nil, err
+	}
+	httpRequest, err := http.NewRequest(http.MethodPost, ocspServerURL, bytes.NewBuffer(buffer))
+	if err != nil {
+		return nil, err
+	}
+	ocspURL, err := url.Parse(ocspServerURL)
+	if err != nil {
+		return nil, err
+	}
+	httpRequest.Header.Add("Content-Type", "application/ocsp-request")
+	httpRequest.Header.Add("Accept", "application/ocsp-response")
+	httpRequest.Header.Add("host", ocspURL.Host)
+	httpClient := &http.Client{}
+	httpResponse, err := httpClient.Do(httpRequest)
+	if err != nil {
+		return nil, err
+	}
+	defer httpResponse.Body.Close()
+	output, err := ioutil.ReadAll(httpResponse.Body)
+	if err != nil {
+		return nil, err
+	}
+	ocspResponse, err := ocsp.ParseResponse(output, issuerCert)
+	return ocspResponse, err
+}
+
+// DefaultOCSPVerifier is a default OCSP verifier
+type DefaultOCSPVerifier struct {
+	Config OCSPConfig
+	Client OCSPClient
+}
+
+// ocspServerToCheck is used to plan OCSP requests
+type ocspServerToCheck struct {
+	url      string
+	fromCert bool
+}
+
+func (v DefaultOCSPVerifier) verifyCertWithIssuer(cert, issuer *x509.Certificate) error {
+	log.Debugf("OCSP: Verifying '%s'", cert.Subject.String())
+
+	for _, ocspServer := range cert.OCSPServer {
+		log.Debugf("OCSP: certificate contains OCSP URI: %s", ocspServer)
+	}
+
+	serversToCheck := []ocspServerToCheck{}
+
+	if v.Config.fromCert != ocspFromCertIgnore {
+		for _, ocspServer := range cert.OCSPServer {
+			serverToCheck := ocspServerToCheck{url: ocspServer, fromCert: true}
+			log.Debugf("OCSP: appending server %s, from cert", serverToCheck.url)
+			serversToCheck = append(serversToCheck, serverToCheck)
+		}
+	} else {
+		if len(cert.OCSPServer) > 0 {
+			log.Debugf("OCSP: Ignoring %d OCSP servers from certificate", len(cert.OCSPServer))
+		}
+	}
+
+	if v.Config.url != "" {
+		serverToCheck := ocspServerToCheck{url: v.Config.url, fromCert: false}
+
+		if v.Config.fromCert == ocspFromCertPrefer || v.Config.fromCert == ocspFromCertTrust {
+			log.Debugf("OCSP: appending server %s, from config", serverToCheck.url)
+			serversToCheck = append(serversToCheck, serverToCheck)
+		} else {
+			log.Debugf("OCSP: prepending server %s, from config", serverToCheck.url)
+			serversToCheck = append([]ocspServerToCheck{serverToCheck}, serversToCheck...)
+		}
+	}
+
+	queriedOCSPs := make(map[string]struct{})
+
+	confirms := 0
+
+	for _, serverToCheck := range serversToCheck {
+		log.Debugf("OCSP: Trying server %s", serverToCheck.url)
+
+		if _, ok := queriedOCSPs[serverToCheck.url]; ok {
+			log.Debugln("OCSP: Skipping, already queried")
+			continue
+		}
+
+		response, err := v.Client.Query(cert.Issuer.CommonName, cert, issuer, serverToCheck.url)
+		if err != nil {
+			log.WithError(err).WithField("uri", serverToCheck.url).Warnln("Cannot query OCSP server")
+
+			if v.Config.required == ocspRequiredAll {
+				return ErrOCSPRequiredAllButGotError
+			}
+
+			continue
+		}
+
+		switch response.Status {
+		case ocsp.Good:
+			confirms++
+
+			if serverToCheck.fromCert {
+				log.Debugln("OCSP: confirmed by server from certificate")
+			} else {
+				log.Debugln("OCSP: confirmed by server from config")
+			}
+
+			if v.Config.required != ocspRequiredAll {
+				// One confirmation is enough if we don't require all OCSP servers to confirm the certificate validity
+				break
+			}
+
+			if serverToCheck.fromCert && v.Config.fromCert == ocspFromCertTrust {
+				// If this OCSP server came from certificate and `--tls_ocsp_from_cert=trust`, don't perform further checks
+				break
+			}
+		case ocsp.Revoked:
+			// If any OCSP server replies with "certificate was revoked", return error immediately
+			log.WithField("serial", cert.SerialNumber).WithField("revoked_at", response.RevokedAt).Warnln("OCSP: Certificate was revoked")
+			return ErrCertWasRevoked
+		case ocsp.Unknown:
+			// Treat "Unknown" response as error if tls_ocsp_required is "yes" or "all"
+			if v.Config.required != ocspRequiredNo {
+				log.WithField("uri", serverToCheck.url).WithField("serial", cert.SerialNumber).Warnln("OCSP server doesn't know about certificate")
+				return ErrOCSPUnknownCertificate
+			}
+		}
+
+		queriedOCSPs[serverToCheck.url] = struct{}{}
+	}
+
+	if len(serversToCheck) > 0 && confirms == 0 {
+		return ErrOCSPNoConfirms
+	}
+	return nil
+}
+
+// Verify ensures certificate is not revoked by querying configured OCSP servers
+func (v DefaultOCSPVerifier) Verify(rawCerts [][]byte, verifiedChains [][]*x509.Certificate) error {
+	for _, chain := range verifiedChains {
+		if len(chain) == 1 {
+			// This one cert[0] must be trusted since it was allowed by more basic verifying routines.
+			// If we are at this point, we have nothing to do, and no CA means no OCSP.
+			log.Debugln("OCSP: Certificate chain contains one certificate, nothing to do")
+			return nil
+		}
+
+		for i := 0; i < len(chain)-1; i++ {
+			cert := chain[i]
+			issuer := chain[i+1]
+
+			err := v.verifyCertWithIssuer(cert, issuer)
+			if err != nil {
+				return err
+			}
+
+			if !v.Config.checkWholeChain {
+				break
+			}
+		}
+	}
+
+	return nil
+}

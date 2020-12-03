@@ -5,6 +5,9 @@
 # cd to code with go.mod file outside of GOPATH to work with module-based behaviour
 # https://github.com/golang/go/wiki/Modules#when-do-i-get-old-behavior-vs-new-module-based-behavior
 
+# Re-generate CRL so it is up-to-date when used in tests
+SKIP_EXISTING=1 ./tests/ssl/generate_tls_keys.sh
+
 OLD_PATH="$PATH"
 
 if [ -z "$GO_VERSIONS" ]; then
