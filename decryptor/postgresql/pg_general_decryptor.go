@@ -79,6 +79,7 @@ func NewPgDecryptor(clientID []byte, decryptor base.DataDecryptor, withZone bool
 // SetClientID set new clientID
 func (decryptor *PgDecryptor) SetClientID(clientID []byte){
 	decryptor.clientID = clientID
+	decryptor.dataProcessorContext.ClientID = clientID
 }
 
 // SetLogger set logger

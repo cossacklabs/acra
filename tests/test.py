@@ -95,6 +95,8 @@ TEST_TLS_SERVER_KEY = abs_path(os.environ.get('TEST_TLS_SERVER_KEY', 'tests/ssl/
 # db drivers prevent usage of keys with global rights
 TEST_TLS_CLIENT_CERT = abs_path(os.environ.get('TEST_TLS_CLIENT_CERT', 'tests/ssl/acra-writer/acra-writer.crt'))
 TEST_TLS_CLIENT_KEY = abs_path(os.environ.get('TEST_TLS_CLIENT_KEY', 'tests/ssl/acra-writer/acra-writer.key'))
+TEST_TLS_CLIENT_2_CERT = abs_path(os.environ.get('TEST_TLS_CLIENT_CERT', 'tests/ssl/acra-writer-2/acra-writer-2.crt'))
+TEST_TLS_CLIENT_2_KEY = abs_path(os.environ.get('TEST_TLS_CLIENT_KEY', 'tests/ssl/acra-writer-2/acra-writer-2.key'))
 TEST_WITH_TLS = os.environ.get('TEST_TLS', 'off').lower() == 'on'
 
 TEST_WITH_TRACING = os.environ.get('TEST_TRACE', 'off').lower() == 'on'
@@ -214,6 +216,43 @@ else:
         ssl_context.load_cert_chain(TEST_TLS_CLIENT_CERT, TEST_TLS_CLIENT_KEY)
         ssl_context.check_hostname = False
         asyncpg_connect_args['ssl'] = ssl_context
+
+
+def get_tls_connection_args(client_key, client_cert, for_mysql=TEST_MYSQL):
+    if for_mysql:
+        connect_args = {
+            'user': DB_USER, 'password': DB_USER_PASSWORD,
+            'read_timeout': SOCKET_CONNECT_TIMEOUT,
+            'write_timeout': SOCKET_CONNECT_TIMEOUT,
+        }
+        pymysql_tls_args = {}
+        pymysql_tls_args.update(
+            ssl={
+                "ca": TEST_TLS_CA,
+                "cert": client_cert,
+                "key": client_key,
+                'check_hostname': False,
+            }
+        )
+        connect_args.update(pymysql_tls_args)
+    else:
+        connect_args = {
+            'connect_timeout': SOCKET_CONNECT_TIMEOUT,
+            'user': DB_USER, 'password': DB_USER_PASSWORD,
+            "options": "-c statement_timeout={}".format(STATEMENT_TIMEOUT),
+            'sslmode': 'disable',
+            'application_name': 'acra-tests'
+        }
+
+        connect_args.update({
+            # for psycopg2 key names took from
+            # https://www.postgresql.org/docs/current/libpq-connect.html#LIBPQ-CONNECT-SSLCERT
+            'sslcert': client_cert,
+            'sslkey': client_key,
+            'sslrootcert': TEST_TLS_CA,
+            'sslmode': 'require',
+        })
+    return connect_args
 
 
 def get_random_id():
@@ -421,13 +460,16 @@ def get_engine_connection_string(connection_string, dbname):
     if connection_string.startswith('tcp'):
         return get_postgresql_tcp_connection_string(port, dbname)
     else:
+        port = re.search(r'\.s\.PGSQL\.(\d+)', addr.path)
+        if port:
+            port = port.group(1)
         return get_postgresql_unix_connection_string(port, dbname)
 
 def get_postgresql_unix_connection_string(port, dbname):
-    return '{}:///{}?host={}'.format(DB_DRIVER, dbname, PG_UNIX_HOST)
+    return '{}:///{}?host={}&port={}'.format(DB_DRIVER, dbname, PG_UNIX_HOST, port)
 
 def get_postgresql_tcp_connection_string(port, dbname):
-    return '{}://{}:{}/{}'.format(DB_DRIVER, get_db_host(), port, dbname)
+    return '{}://localhost:{}/{}'.format(DB_DRIVER, port, dbname)
 
 def get_acraserver_unix_connection_string(port):
     return "unix://{}".format("{}/unix_socket_{}".format(PG_UNIX_HOST, port))
@@ -445,7 +487,7 @@ def get_connector_connection_string(port):
             return 'unix://{}/.s.PGSQL.{}'.format(PG_UNIX_HOST, port)
 
 def get_tcp_connection_string(port):
-    return 'tcp://127.0.0.1:{}'.format(port)
+    return 'tcp://localhost:{}'.format(port)
 
 def socket_path_from_connection_string(connection_string):
     if '://' in connection_string:
@@ -961,7 +1003,10 @@ class BaseTestCase(PrometheusMixin, unittest.TestCase):
     def get_connector_tls_params(self):
         return {
             'acraserver_tls_transport_enable': True,
-            'tls_acraserver_sni': 'acraserver',
+            'tls_acraserver_sni': 'localhost',
+            'tls_ca': TEST_TLS_CA,
+            'tls_key': TEST_TLS_CLIENT_KEY,
+            'tls_cert': TEST_TLS_CLIENT_CERT,
         }
 
     def get_connector_prometheus_port(self, port):
@@ -1198,7 +1243,7 @@ class BaseTestCase(PrometheusMixin, unittest.TestCase):
                                 "UPDATE pg_settings SET setting = '{}' "
                                 "WHERE name = 'bytea_output'".format(self.DB_BYTEA))
                         break
-                    except Exception:
+                    except Exception as e:
                         time.sleep(SETUP_SQL_COMMAND_TIMEOUT)
                         count += 1
                         if count == SQL_EXECUTE_TRY_COUNT:
@@ -5165,6 +5210,376 @@ class TestPgPlaceholders(BaseTestCase):
         executor.execute_prepared_statement(query, [test_data])
         self.assertEqual(len(data), 1)
         self.assertEqual(data[0][0], test_data)
+
+
+class TestTLSAuthenticationWithConnector(BaseTestCase):
+    """
+    Tests environment when connector and acra connected with tls and acra-server extracts clientID from connector's certificate
+    instead using from --clientID CLI param
+    """
+    CONNECTOR_TLS_TRANSPORT = True
+
+    def get_acraserver_connection_string(self, port=None):
+        """use similar to connector unix socket connection string to allow connect directory to acra by db driver"""
+        if not port:
+            port = self.ACRASERVER_PORT
+        return self.get_connector_connection_string(port)
+
+    def setUp(self):
+        if not TEST_WITH_TLS:
+            self.skipTest("Test works only with TLS support on db side")
+        self.key_folder = tempfile.TemporaryDirectory()
+        # converted data from certificate "CN=Test leaf certificate (acra-writer),OU=IT,O=Global Security,L=London,ST=London,C=GB"
+        self.acra_writer_id ='fadfa2d83b7545cdc737e88304e7d642115bc77bf7c9ef376fcd206810efac2e8566a1fb54829a051330dd45032de45d822cf4dbdca70ee4989643c8e5274010'
+        self.assertEqual(create_client_keypair(name=self.acra_writer_id, keys_dir=self.key_folder.name), 0)
+        try:
+            if not self.EXTERNAL_ACRA:
+                self.acra = self.fork_acra(tls_client_id_from_cert=True,
+                                           tls_key=abs_path(TEST_TLS_SERVER_KEY),
+                                           tls_cert=abs_path(TEST_TLS_SERVER_CERT),
+                                           tls_ca=TEST_TLS_CA,
+                                           keys_dir=self.key_folder.name)
+            # use different tls key/certificate for connectors
+            self.connector_1 = self.fork_connector(self.CONNECTOR_PORT_1, self.ACRASERVER_PORT, 'keypair1',
+                                                   tls_cert=TEST_TLS_CLIENT_CERT, tls_key=TEST_TLS_CLIENT_KEY)
+            self.connector_2 = self.fork_connector(self.CONNECTOR_PORT_2, self.ACRASERVER_PORT, 'keypair2',
+                                                   tls_cert=TEST_TLS_CLIENT_2_CERT, tls_key=TEST_TLS_CLIENT_2_KEY)
+
+            self.engine1 = sa.create_engine(
+                get_engine_connection_string(self.get_connector_connection_string(self.CONNECTOR_PORT_1), DB_NAME),
+                connect_args=get_connect_args(port=self.CONNECTOR_PORT_1))
+            self.engine2 = sa.create_engine(
+                get_engine_connection_string(
+                    self.get_connector_connection_string(self.CONNECTOR_PORT_2), DB_NAME),
+                connect_args=get_connect_args(port=self.CONNECTOR_PORT_2))
+            self.engine_raw = sa.create_engine(
+                '{}://{}:{}/{}'.format(DB_DRIVER, DB_HOST, DB_PORT, DB_NAME),
+                connect_args=connect_args)
+
+            self.engines = [self.engine1, self.engine2, self.engine_raw]
+
+            metadata.create_all(self.engine_raw)
+            self.engine_raw.execute('delete from test;')
+            for engine in self.engines:
+                count = 0
+                # try with sleep if acra not up yet
+                while True:
+                    try:
+                        if TEST_MYSQL:
+                            engine.execute("select 1;")
+                        else:
+                            engine.execute(
+                                "UPDATE pg_settings SET setting = '{}' "
+                                "WHERE name = 'bytea_output'".format(self.DB_BYTEA))
+                        break
+                    except Exception as e:
+                        time.sleep(SETUP_SQL_COMMAND_TIMEOUT)
+                        count += 1
+                        if count == SQL_EXECUTE_TRY_COUNT:
+                            raise
+        except:
+            self.tearDown()
+            raise
+
+    def tearDown(self):
+        try:
+            self.log_prometheus_metrics()
+            self.clear_prometheus_addresses()
+        except:
+            pass
+        try:
+            self.engine_raw.execute('delete from test;')
+        except:
+            pass
+        shutil.rmtree(self.key_folder.name)
+        for engine in getattr(self, 'engines', []):
+            engine.dispose()
+        processes = [getattr(self, 'connector_1', ProcessStub()),
+                     getattr(self, 'connector_2', ProcessStub()),
+                     getattr(self, 'acra', ProcessStub())]
+        stop_process(processes)
+        send_signal_by_process_name('acra-server', signal.SIGKILL)
+        send_signal_by_process_name('acra-connector', signal.SIGKILL)
+
+    def testConnectorRead(self):
+        """test decrypting with correct acra-connector and not decrypting with
+        incorrect acra-connector or using direct connection to db"""
+        self.assertEqual(create_client_keypair(name=self.acra_writer_id, keys_dir=self.key_folder.name), 0)
+        server_public1 = read_storage_public_key(self.acra_writer_id, self.key_folder.name)
+        data = get_pregenerated_random_data()
+        acra_struct = create_acrastruct(
+            data.encode('ascii'), server_public1)
+        row_id = get_random_id()
+
+        self.log(storage_client_id=self.acra_writer_id,
+                 data=acra_struct, expected=data.encode('ascii'))
+
+        self.engine1.execute(
+            test_table.insert(),
+            {'id': row_id, 'data': acra_struct, 'raw_data': data})
+        result = self.engine1.execute(
+            sa.select([test_table])
+                .where(test_table.c.id == row_id))
+        row = result.fetchone()
+        self.assertEqual(row['data'], row['raw_data'].encode('utf-8'))
+        self.assertEqual(row['empty'], b'')
+
+        result = self.engine2.execute(
+            sa.select([test_table])
+                .where(test_table.c.id == row_id))
+        row = result.fetchone()
+        self.assertNotEqual(row['data'].decode('ascii', errors='ignore'),
+                            row['raw_data'])
+        self.assertEqual(row['empty'], b'')
+
+        result = self.engine_raw.execute(
+            sa.select([test_table])
+                .where(test_table.c.id == row_id))
+        row = result.fetchone()
+        self.assertNotEqual(row['data'].decode('ascii', errors='ignore'),
+                            row['raw_data'])
+        self.assertEqual(row['empty'], b'')
+
+
+    def testReadAcrastructInAcrastruct(self):
+        """test correct decrypting acrastruct when acrastruct concatenated to
+        partial another acrastruct"""
+        server_public1 = read_storage_public_key(self.acra_writer_id, self.key_folder.name)
+        incorrect_data = get_pregenerated_random_data()
+        correct_data = get_pregenerated_random_data()
+        suffix_data = get_pregenerated_random_data()[:10]
+        fake_offset = (3+45+84) - 4
+        fake_acra_struct = create_acrastruct(
+            incorrect_data.encode('ascii'), server_public1)[:fake_offset]
+        inner_acra_struct = create_acrastruct(
+            correct_data.encode('ascii'), server_public1)
+        data = fake_acra_struct + inner_acra_struct + suffix_data.encode('ascii')
+        correct_data = correct_data + suffix_data
+        row_id = get_random_id()
+
+        self.log(storage_client_id=self.acra_writer_id,
+                 data=data,
+                 expected=fake_acra_struct+correct_data.encode('ascii'))
+
+        self.engine1.execute(
+            test_table.insert(),
+            {'id': row_id, 'data': data, 'raw_data': correct_data})
+        result = self.engine1.execute(
+            sa.select([test_table])
+                .where(test_table.c.id == row_id))
+        row = result.fetchone()
+        try:
+            self.assertEqual(row['data'][fake_offset:],
+                             row['raw_data'].encode('utf-8'))
+            self.assertEqual(row['data'][:fake_offset], fake_acra_struct[:fake_offset])
+        except:
+            print('incorrect data: {}\ncorrect data: {}\ndata: {}\n data len: {}'.format(
+                incorrect_data, correct_data, row['data'], len(row['data'])))
+            raise
+        self.assertEqual(row['empty'], b'')
+
+        result = self.engine2.execute(
+            sa.select([test_table])
+                .where(test_table.c.id == row_id))
+        row = result.fetchone()
+        self.assertNotEqual(row['data'][fake_offset:].decode('ascii', errors='ignore'),
+                            row['raw_data'])
+        self.assertEqual(row['empty'], b'')
+
+        result = self.engine_raw.execute(
+            sa.select([test_table])
+                .where(test_table.c.id == row_id))
+        row = result.fetchone()
+        self.assertNotEqual(row['data'][fake_offset:].decode('ascii', errors='ignore'),
+                            row['raw_data'])
+        self.assertEqual(row['empty'], b'')
+
+
+class TestTLSAuthenticationDirectlyToAcra(BaseTestCase):
+    """
+    Tests environment without connector, when client's app connect to db through acra-server with TLS and acra-server extracts clientID from client's certificate
+    instead using from --clientID CLI param
+    """
+
+    def get_acraserver_connection_string(self, port=None):
+        """use similar to connector unix socket connection string to allow connect directory to acra by db driver"""
+        if not port:
+            port = self.ACRASERVER_PORT
+        return get_tcp_connection_string(port)
+
+    def setUp(self):
+        if not TEST_WITH_TLS:
+            self.skipTest("Test works only with TLS support on db side")
+        self.key_folder = tempfile.TemporaryDirectory()
+        # converted data from certificate "CN=Test leaf certificate (acra-writer),OU=IT,O=Global Security,L=London,ST=London,C=GB"
+        self.acra_writer_id ='fadfa2d83b7545cdc737e88304e7d642115bc77bf7c9ef376fcd206810efac2e8566a1fb54829a051330dd45032de45d822cf4dbdca70ee4989643c8e5274010'
+        self.assertEqual(create_client_keypair(name=self.acra_writer_id, keys_dir=self.key_folder.name), 0)
+        try:
+            if not self.EXTERNAL_ACRA:
+                # start acra without acra-connector with configured TLS
+                self.acra = self.fork_acra(
+                    tls_key=abs_path(TEST_TLS_SERVER_KEY),
+                    tls_cert=abs_path(TEST_TLS_SERVER_CERT),
+                    tls_ca=TEST_TLS_CA,
+                    keys_dir=self.key_folder.name,
+                    tls_client_id_from_cert=True,
+                    acraconnector_transport_encryption_disable=True)
+
+            # create two engines which should use different client's certificates for authentication
+            base_args = get_connect_args(port=self.ACRASERVER_PORT, sslmode='require')
+            tls_args_1 = base_args.copy()
+            tls_args_1.update(get_tls_connection_args(TEST_TLS_CLIENT_KEY, TEST_TLS_CLIENT_CERT))
+            self.engine1 = sa.create_engine(
+                get_engine_connection_string(self.get_acraserver_connection_string(self.ACRASERVER_PORT), DB_NAME),
+                connect_args=tls_args_1)
+
+            tls_args_2 = base_args.copy()
+            tls_args_2.update(get_tls_connection_args(TEST_TLS_CLIENT_2_KEY, TEST_TLS_CLIENT_2_CERT))
+            self.engine2 = sa.create_engine(
+                get_engine_connection_string(self.get_acraserver_connection_string(self.ACRASERVER_PORT), DB_NAME),
+                connect_args=tls_args_2)
+
+            self.engine_raw = sa.create_engine(
+                '{}://{}:{}/{}'.format(DB_DRIVER, DB_HOST, DB_PORT, DB_NAME),
+                connect_args=connect_args)
+
+            self.engines = [self.engine1, self.engine2, self.engine_raw]
+
+            metadata.create_all(self.engine_raw)
+            self.engine_raw.execute('delete from test;')
+            for engine in self.engines:
+                count = 0
+                # try with sleep if acra not up yet
+                while True:
+                    try:
+                        if TEST_MYSQL:
+                            engine.execute("select 1;")
+                        else:
+                            engine.execute(
+                                "UPDATE pg_settings SET setting = '{}' "
+                                "WHERE name = 'bytea_output'".format(self.DB_BYTEA))
+                        break
+                    except Exception as e:
+                        time.sleep(SETUP_SQL_COMMAND_TIMEOUT)
+                        count += 1
+                        if count == SQL_EXECUTE_TRY_COUNT:
+                            raise
+        except:
+            self.tearDown()
+            raise
+
+    def tearDown(self):
+        try:
+            self.log_prometheus_metrics()
+            self.clear_prometheus_addresses()
+        except:
+            pass
+        try:
+            self.engine_raw.execute('delete from test;')
+        except:
+            pass
+        shutil.rmtree(self.key_folder.name)
+        for engine in getattr(self, 'engines', []):
+            engine.dispose()
+        processes = [getattr(self, 'connector_1', ProcessStub()),
+                     getattr(self, 'connector_2', ProcessStub()),
+                     getattr(self, 'acra', ProcessStub())]
+        stop_process(processes)
+        send_signal_by_process_name('acra-server', signal.SIGKILL)
+        send_signal_by_process_name('acra-connector', signal.SIGKILL)
+
+    def testAcrastructRead(self):
+        """test decrypting with correct acra-connector and not decrypting with
+        incorrect acra-connector or using direct connection to db"""
+        server_public1 = read_storage_public_key(self.acra_writer_id, self.key_folder.name)
+        data = get_pregenerated_random_data()
+        acra_struct = create_acrastruct(
+            data.encode('ascii'), server_public1)
+        row_id = get_random_id()
+
+        self.log(storage_client_id=self.acra_writer_id,
+                 data=acra_struct, expected=data.encode('ascii'))
+
+        self.engine1.execute(
+            test_table.insert(),
+            {'id': row_id, 'data': acra_struct, 'raw_data': data})
+        result = self.engine1.execute(
+            sa.select([test_table])
+                .where(test_table.c.id == row_id))
+        row = result.fetchone()
+        self.assertEqual(row['data'], row['raw_data'].encode('utf-8'))
+        self.assertEqual(row['empty'], b'')
+
+        result = self.engine2.execute(
+            sa.select([test_table])
+                .where(test_table.c.id == row_id))
+        row = result.fetchone()
+        self.assertNotEqual(row['data'].decode('ascii', errors='ignore'),
+                            row['raw_data'])
+        self.assertEqual(row['empty'], b'')
+
+        result = self.engine_raw.execute(
+            sa.select([test_table])
+                .where(test_table.c.id == row_id))
+        row = result.fetchone()
+        self.assertNotEqual(row['data'].decode('ascii', errors='ignore'),
+                            row['raw_data'])
+        self.assertEqual(row['empty'], b'')
+
+
+    def testReadAcrastructInAcrastruct(self):
+        """test correct decrypting acrastruct when acrastruct concatenated to
+        partial another acrastruct"""
+        # converted data from certificate "CN=Test leaf certificate (acra-writer),OU=IT,O=Global Security,L=London,ST=London,C=GB"
+        server_public1 = read_storage_public_key(self.acra_writer_id, self.key_folder.name)
+        incorrect_data = get_pregenerated_random_data()
+        correct_data = get_pregenerated_random_data()
+        suffix_data = get_pregenerated_random_data()[:10]
+        fake_offset = (3+45+84) - 4
+        fake_acra_struct = create_acrastruct(
+            incorrect_data.encode('ascii'), server_public1)[:fake_offset]
+        inner_acra_struct = create_acrastruct(
+            correct_data.encode('ascii'), server_public1)
+        data = fake_acra_struct + inner_acra_struct + suffix_data.encode('ascii')
+        correct_data = correct_data + suffix_data
+        row_id = get_random_id()
+
+        self.log(storage_client_id=self.acra_writer_id,
+                 data=data,
+                 expected=fake_acra_struct+correct_data.encode('ascii'))
+
+        self.engine1.execute(
+            test_table.insert(),
+            {'id': row_id, 'data': data, 'raw_data': correct_data})
+        result = self.engine1.execute(
+            sa.select([test_table])
+                .where(test_table.c.id == row_id))
+        row = result.fetchone()
+        try:
+            self.assertEqual(row['data'][fake_offset:],
+                             row['raw_data'].encode('utf-8'))
+            self.assertEqual(row['data'][:fake_offset], fake_acra_struct[:fake_offset])
+        except:
+            print('incorrect data: {}\ncorrect data: {}\ndata: {}\n data len: {}'.format(
+                incorrect_data, correct_data, row['data'], len(row['data'])))
+            raise
+        self.assertEqual(row['empty'], b'')
+
+        result = self.engine2.execute(
+            sa.select([test_table])
+                .where(test_table.c.id == row_id))
+        row = result.fetchone()
+        self.assertNotEqual(row['data'][fake_offset:].decode('ascii', errors='ignore'),
+                            row['raw_data'])
+        self.assertEqual(row['empty'], b'')
+
+        result = self.engine_raw.execute(
+            sa.select([test_table])
+                .where(test_table.c.id == row_id))
+        row = result.fetchone()
+        self.assertNotEqual(row['data'][fake_offset:].decode('ascii', errors='ignore'),
+                            row['raw_data'])
+        self.assertEqual(row['empty'], b'')
 
 
 if __name__ == '__main__':

@@ -151,10 +151,12 @@ func (wrapper *TLSConnectionWrapper) getClientIDFromCertificate(certificate *x50
 	if err != nil {
 		return nil, err
 	}
+	log.WithField("identifier", string(identifier)).Debugln("ID from certificate")
 	clientID, err := wrapper.idConverter.Convert(identifier)
 	if err != nil {
 		return nil, err
 	}
+	log.WithField("clientID", string(clientID)).Debugln("ClientID from certificate")
 	return clientID, nil
 }
 

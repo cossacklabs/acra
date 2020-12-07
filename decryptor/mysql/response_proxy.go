@@ -299,6 +299,7 @@ func (handler *Handler) ProxyClientConnection(errCh chan<- error) {
 					return
 				}
 				if handler.setting.TLSConnectionWrapper().UseConnectionClientID() {
+					handler.logger.WithField("client_id", clientID).Debugln("Set new clientID")
 					handler.decryptor.SetClientID(clientID)
 				}
 				handler.logger.Debugln("Switched to tls with client. wait switching with db")
@@ -316,7 +317,6 @@ func (handler *Handler) ProxyClientConnection(errCh chan<- error) {
 				select {
 				case <-handler.dbTLSHandshakeFinished:
 					handler.logger.Debugln("Switch to tls complete on client proxy side")
-
 					continue
 				case <-time.NewTicker(time.Second * ClientWaitDbTLSHandshake).C:
 					clientLog.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorDecryptorCantInitializeTLS).Errorln("Timeout on tls handshake with db")
