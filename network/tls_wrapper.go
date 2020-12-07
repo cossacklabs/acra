@@ -146,7 +146,7 @@ func (wrapper *TLSConnectionWrapper) WrapClient(ctx context.Context, conn net.Co
 	return newSafeCloseConnection(tlsConn), nil
 }
 
-func (wrapper *TLSConnectionWrapper) getClientIDFromCertificate(certificate *x509.Certificate)([]byte, error){
+func (wrapper *TLSConnectionWrapper) getClientIDFromCertificate(certificate *x509.Certificate) ([]byte, error) {
 	identifier, err := wrapper.idExtractor.GetCertificateIdentifier(certificate)
 	if err != nil {
 		return nil, err

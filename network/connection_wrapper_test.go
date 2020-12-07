@@ -30,17 +30,15 @@ import (
 // wrapperCommunicationIterations base iterations count which may be used in a communication loop using client/server wrappers
 const wrapperCommunicationIterations = 10
 
-
 // testWrapper wrapper over testWrapperWithError with onError callback which call t.Fatal on err value
-func testWrapper(clientWrapper, serverWrapper ConnectionWrapper, expectedClientID []byte, iterations int, t testing.TB)  {
-	onError := func(err error, t testing.TB){t.Fatal(err)}
+func testWrapper(clientWrapper, serverWrapper ConnectionWrapper, expectedClientID []byte, iterations int, t testing.TB) {
+	onError := func(err error, t testing.TB) { t.Fatal(err) }
 	testWrapperWithError(clientWrapper, serverWrapper, expectedClientID, iterations, onError, t)
 }
 
-
 // testWrapperWithError create unix socket, wrap it using clientWrapper and serverWrapper, verify received clientID on server side with expected
 // and exchange some data iterations times. On any unexpected error call onError callback
-func testWrapperWithError(clientWrapper, serverWrapper ConnectionWrapper, expectedClientID []byte, iterations int, onError func(error, testing.TB), t testing.TB)  {
+func testWrapperWithError(clientWrapper, serverWrapper ConnectionWrapper, expectedClientID []byte, iterations int, onError func(error, testing.TB), t testing.TB) {
 	f, err := ioutil.TempFile("", "")
 	if err != nil {
 		onError(err, t)

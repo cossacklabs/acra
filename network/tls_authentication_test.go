@@ -215,14 +215,14 @@ func TestHexIdentifierConverter_ConvertLengthLongerThan128(t *testing.T) {
 }
 
 // errorHash used to use as hash implementation which return error on Write operation
-type errorHash struct{err error}
+type errorHash struct{ err error }
 
 func (e errorHash) Write(p []byte) (n int, err error) {
 	return 0, e.err
 }
-func (e errorHash) Sum(b []byte) []byte {panic("not implemented")}
-func (e errorHash) Reset() {panic("not implemented")}
-func (e errorHash) Size() int {panic("not implemented")}
+func (e errorHash) Sum(b []byte) []byte { panic("not implemented") }
+func (e errorHash) Reset()              { panic("not implemented") }
+func (e errorHash) Size() int           { panic("not implemented") }
 
 func (e errorHash) BlockSize() int {
 	panic("implement me")
@@ -236,7 +236,7 @@ func TestHexIdentifierConverter_HashError(t *testing.T) {
 	}
 	testErr := errors.New("test error")
 	converter := hexIdentifierConverter{
-		newHash: func() hash.Hash{return errorHash{err: testErr}},
+		newHash: func() hash.Hash { return errorHash{err: testErr} },
 	}
 	_, err := converter.Convert(identifier)
 	if err != testErr {

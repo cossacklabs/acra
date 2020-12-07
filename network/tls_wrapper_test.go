@@ -231,7 +231,7 @@ func TestTLSConfigWeakVersion(t *testing.T) {
 	clientWrapper.clientConfig.MinVersion = tls.VersionSSL30
 	clientWrapper.clientConfig.MaxVersion = tls.VersionTLS11
 
-	matchedServerSideError := func(err error)bool {
+	matchedServerSideError := func(err error) bool {
 		expectedMessages := []string{
 			// go < 1.12
 			"tls: client offered an unsupported, maximum protocol version of",
@@ -257,10 +257,10 @@ func TestTLSConfigWeakVersion(t *testing.T) {
 		if matchedServerSide && matchedClientSide {
 			return
 		}
-		if matchedClientSideError(err){
+		if matchedClientSideError(err) {
 			matchedClientSide = true
 		}
-		if matchedServerSideError(err){
+		if matchedServerSideError(err) {
 			matchedServerSide = true
 		}
 		if !(matchedServerSide || matchedClientSide) {
@@ -407,8 +407,9 @@ func TestClientsCertificateDenyOnValidation(t *testing.T) {
 	testWrapperWithError(clientWrapper, serverWrapper, expectedClientID, 1, onError, t)
 }
 
-type testExtractor struct{err error}
-func (e testExtractor) GetCertificateIdentifier(certificate *x509.Certificate) ([]byte, error){
+type testExtractor struct{ err error }
+
+func (e testExtractor) GetCertificateIdentifier(certificate *x509.Certificate) ([]byte, error) {
 	return nil, e.err
 }
 
@@ -454,7 +455,7 @@ func TestClientsCertificateDenyOnClientIDExtraction(t *testing.T) {
 	testWrapperWithError(clientWrapper, serverWrapper, expectedClientID, 1, onError, t)
 }
 
-type testConvertor struct{err error}
+type testConvertor struct{ err error }
 
 func (t testConvertor) Convert(identifier []byte) ([]byte, error) {
 	return nil, t.err
@@ -509,7 +510,6 @@ func generateTLSCA(t testing.TB) tls.Certificate {
 	caTemplate.KeyUsage = x509.KeyUsageDigitalSignature | x509.KeyUsageCertSign
 	return generateTLSCAFromTemplate(caTemplate, t)
 }
-
 
 func generateTLSCAFromTemplate(caTemplate *x509.Certificate, t testing.TB) tls.Certificate {
 	// create our private and public key
@@ -594,11 +594,11 @@ func generateCertificateTemplate(t testing.TB) *x509.Certificate {
 	return &x509.Certificate{
 		SerialNumber: serialNumber,
 		Subject: pkix.Name{
-			Country:       []string{"GB"},
-			Locality:      []string{"London"},
-			Organization:  []string{"Global Security"},
+			Country:            []string{"GB"},
+			Locality:           []string{"London"},
+			Organization:       []string{"Global Security"},
 			OrganizationalUnit: []string{"IT"},
-			CommonName:    "CA certificate",
+			CommonName:         "CA certificate",
 		},
 		DNSNames:              []string{"localhost"},
 		SubjectKeyId:          []byte{1, 2, 3, 4, 5},

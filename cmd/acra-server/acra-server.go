@@ -296,7 +296,7 @@ func main() {
 		log.WithField("use_client_id_from_cert", useForClientID).Infoln("Loaded TLS configuration")
 	}
 	if *useTLS {
-		if *tlsUseClientIDFromCertificate{
+		if *tlsUseClientIDFromCertificate {
 			config.ConnectionWrapper = tlsWrapper
 			log.Println("Selecting transport: use TLS transport wrapper with clientID from certificates")
 		} else {
