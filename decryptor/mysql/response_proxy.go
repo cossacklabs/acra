@@ -19,7 +19,6 @@ package mysql
 import (
 	"bytes"
 	"context"
-	"crypto/tls"
 	"encoding/binary"
 	"errors"
 	"fmt"
@@ -179,15 +178,6 @@ func NewMysqlProxy(session base.ClientSession, decryptor base.Decryptor, setting
 		queryObserverManager:   observerManager,
 		decryptionObserver:     base.NewColumnDecryptionObserver(),
 	}, nil
-}
-
-func tweakTLSConfigForMySQL(config *tls.Config) *tls.Config {
-	if config != nil {
-		// use less secure protocol versions because some drivers and db images doesn't support secure and modern options
-		config = config.Clone()
-		network.SetMySQLCompatibleTLSSettings(config)
-	}
-	return config
 }
 
 // SubscribeOnColumnDecryption subscribes for OnColumn notifications about the column, indexed from left to right starting with zero.
