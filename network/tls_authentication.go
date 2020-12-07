@@ -115,20 +115,19 @@ func ValidateClientsAuthenticationCertificate(certificate *x509.Certificate) err
 	// do we found any authentication keyUsage from KeyUsage field or from ExtKeyUsage parameters
 	// certificate may define any of them or both
 	definedAnyAuthenticationKeyUsage := false
-	keyUsageDefined := certificate.KeyUsage != 0
+
 	authenticationKeyUsage := certificate.KeyUsage&x509.KeyUsageDigitalSignature == 1
-	if keyUsageDefined && authenticationKeyUsage {
+	if authenticationKeyUsage {
 		definedAnyAuthenticationKeyUsage = true
 	}
-	extKeyUsageDefined := len(certificate.ExtKeyUsage) != 0
-	if extKeyUsageDefined {
-		for _, usage := range certificate.ExtKeyUsage {
-			if usage == x509.ExtKeyUsageClientAuth {
-				definedAnyAuthenticationKeyUsage = true
-				break
-			}
+
+	for _, usage := range certificate.ExtKeyUsage {
+		if usage == x509.ExtKeyUsageClientAuth {
+			definedAnyAuthenticationKeyUsage = true
+			break
 		}
 	}
+
 	if !definedAnyAuthenticationKeyUsage {
 		return ErrMissedAuthenticationKeyUsage
 	}
