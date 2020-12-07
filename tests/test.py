@@ -111,8 +111,6 @@ TEST_RANDOM_DATA_FILES = get_random_data_files()
 NoClientCert, RequestClientCert, RequireAnyClientCert, VerifyClientCertIfGiven, RequireAndVerifyClientCert = range(5)
 if TEST_WITH_TLS:
     ACRA_TLS_AUTH = RequireAndVerifyClientCert  # verify if provided https://golang.org/pkg/crypto/tls/#ClientAuthType
-    # Re-generate CRL so it is up-to-date when used in tests
-    os.system("SKIP_EXISTING=1 ./tests/ssl/generate_tls_keys.sh")
 else:
     ACRA_TLS_AUTH = VerifyClientCertIfGiven
 

@@ -90,6 +90,7 @@ done
 openssl ca \
     -gencrl \
     -config "$(dirname $0)/openssl.cnf" \
+    -crldays "${EXPIRE}" \
     -out "${OUT_DIR}/crl.pem"
 
 # remove redundant file with serial numbers of signed certificates
