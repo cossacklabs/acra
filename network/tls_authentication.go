@@ -5,24 +5,8 @@ import (
 	"crypto/x509"
 	"encoding/hex"
 	"errors"
-	"flag"
-	"fmt"
 	"hash"
 )
-
-var (
-	identifierExtractorType string
-)
-
-// RegisterTLSAuthenticationParams register cli params related with TLS authentication and mapping to clientID used for decryption/encryption
-func RegisterTLSAuthenticationParams() {
-	flag.StringVar(&identifierExtractorType, "tls_identifier_extractor_type", IdentifierExtractorTypeDistinguishedName, fmt.Sprintf("Type of identifier extractor from TLS certificate to use as ClientID (%s|%s)", IdentifierExtractorTypeDistinguishedName, IdentifierExtractorTypeSerialNumber))
-}
-
-// NewIdentifierExtractorFromCLIParams return CertificateIdentifierExtractor by type from CLI
-func NewIdentifierExtractorFromCLIParams() (CertificateIdentifierExtractor, error) {
-	return NewIdentifierExtractorByType(identifierExtractorType)
-}
 
 // Set of constants with
 const (

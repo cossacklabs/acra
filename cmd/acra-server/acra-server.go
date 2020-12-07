@@ -34,6 +34,7 @@ import (
 	"context"
 	"crypto/tls"
 	"flag"
+	"fmt"
 	"net/http"
 	_ "net/http/pprof"
 	"os"
@@ -124,6 +125,7 @@ func main() {
 	tlsDbCert := flag.String("tls_database_cert", "", "Path to client TLS certificate shown to database during TLS handshake (overrides \"tls_cert\")")
 	tlsDbKey := flag.String("tls_database_key", "", "Path to private key of the TLS certificate used to connect to database (see \"tls_database_cert\")")
 	tlsUseClientIDFromCertificate := flag.Bool("tls_client_id_from_cert", false, "Use certificate info as clientID for encryption/decryption when used. Use certificate from connector's connection if acraconnector_tls_transport_enable used or from client's connection if acraconnector_transport_encryption_disable used")
+	tlsIdentifierExtractorType := flag.String("tls_identifier_extractor_type", network.IdentifierExtractorTypeDistinguishedName, fmt.Sprintf("Type of identifier extractor from TLS certificate to use as ClientID (%s|%s)", network.IdentifierExtractorTypeDistinguishedName, network.IdentifierExtractorTypeSerialNumber))
 	noEncryptionTransport := flag.Bool("acraconnector_transport_encryption_disable", false, "Use raw transport (tcp/unix socket) between AcraServer and AcraConnector/client (don't use this flag if you not connect to database with SSL/TLS")
 	clientID := flag.String("client_id", "", "Expected client ID of AcraConnector in mode without encryption")
 	acraConnectionString := flag.String("incoming_connection_string", network.BuildConnectionString(cmd.DefaultAcraServerConnectionProtocol, cmd.DefaultAcraServerHost, cmd.DefaultAcraServerPort, ""), "Connection string like tcp://x.x.x.x:yyyy or unix:///path/to/socket")
@@ -138,7 +140,6 @@ func main() {
 
 	cmd.RegisterTracingCmdParameters()
 	cmd.RegisterJaegerCmdParameters()
-	network.RegisterTLSAuthenticationParams()
 
 	verbose := flag.Bool("v", false, "Log to stderr all INFO, WARNING and ERROR logs")
 	debug := flag.Bool("d", false, "Log everything to stderr")
@@ -280,9 +281,9 @@ func main() {
 			log.WithError(err).Errorln("Can't initialize identifier converter")
 			os.Exit(1)
 		}
-		identifierExtractor, err := network.NewIdentifierExtractorFromCLIParams()
+		identifierExtractor, err := network.NewIdentifierExtractorByType(*tlsIdentifierExtractorType)
 		if err != nil {
-			log.WithError(err).Errorln("Can't initialize identifier extractor")
+			log.WithField("type", *tlsIdentifierExtractorType).WithError(err).Errorln("Can't initialize identifier extractor")
 			os.Exit(1)
 		}
 		tlsWrapper, err = network.NewTLSAuthenticationConnectionWrapper(dbTLSConfig, clientTLSConfig, identifierExtractor, idConverter)

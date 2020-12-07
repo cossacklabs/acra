@@ -38,6 +38,7 @@ from urllib.parse import urlparse
 import collections
 import collections.abc
 import shutil
+import hashlib
 
 import requests
 import psycopg2
@@ -57,6 +58,10 @@ from sqlalchemy.exc import DatabaseError
 from sqlalchemy.dialects.postgresql import BYTEA
 from sqlalchemy.dialects import mysql as mysql_dialect
 from sqlalchemy.dialects import postgresql as postgresql_dialect
+
+from cryptography import x509
+from cryptography.hazmat.backends import default_backend
+
 
 import utils
 from utils import (read_storage_public_key, read_storage_private_key,
@@ -5212,25 +5217,52 @@ class TestPgPlaceholders(BaseTestCase):
         self.assertEqual(data[0][0], test_data)
 
 
-class TestTLSAuthenticationWithConnector(BaseTestCase):
-    """
-    Tests environment when connector and acra connected with tls and acra-server extracts clientID from connector's certificate
-    instead using from --clientID CLI param
-    """
-    CONNECTOR_TLS_TRANSPORT = True
-
+class TLSAuthenticationByDistinguishedNameMixin(object):
     def get_acraserver_connection_string(self, port=None):
         """use similar to connector unix socket connection string to allow connect directory to acra by db driver"""
         if not port:
             port = self.ACRASERVER_PORT
         return self.get_connector_connection_string(port)
 
+    def get_identifier_extractor_type(self):
+        return "distinguished_name"
+
+    def get_valid_certificate_identifier(self):
+        # converted data from certificate "CN=Test leaf certificate (acra-writer),OU=IT,O=Global Security,L=London,ST=London,C=GB"
+        with open('tests/ssl/acra-writer/acra-writer.crt', 'rb') as f:
+            pem = f.read()
+        cert = x509.load_pem_x509_certificate(pem, default_backend())
+        sha512 = hashlib.sha512()
+        sha512.update(cert.subject.rfc4514_string().encode('utf-8'))
+        return sha512.hexdigest().lower()
+
+
+class TLSAuthenticationBySerialNumberMixin(TLSAuthenticationByDistinguishedNameMixin):
+    def get_identifier_extractor_type(self):
+        return "serial_number"
+
+    def get_valid_certificate_identifier(self):
+        # converted data from certificate "CN=Test leaf certificate (acra-writer),OU=IT,O=Global Security,L=London,ST=London,C=GB"
+        with open('tests/ssl/acra-writer/acra-writer.crt', 'rb') as f:
+            pem = f.read()
+        cert = x509.load_pem_x509_certificate(pem, default_backend())
+        sha512 = hashlib.sha512()
+        sha512.update(cert.serial_number.to_bytes(20, 'big'))
+        return sha512.hexdigest().lower()
+
+
+class TestTLSAuthenticationWithConnectorByDistinguishedName(TLSAuthenticationByDistinguishedNameMixin, BaseTestCase):
+    """
+    Tests environment when connector and acra connected with tls and acra-server extracts clientID from connector's certificate
+    instead using from --clientID CLI param
+    """
+    CONNECTOR_TLS_TRANSPORT = True
+
     def setUp(self):
         if not TEST_WITH_TLS:
             self.skipTest("Test works only with TLS support on db side")
         self.key_folder = tempfile.TemporaryDirectory()
-        # converted data from certificate "CN=Test leaf certificate (acra-writer),OU=IT,O=Global Security,L=London,ST=London,C=GB"
-        self.acra_writer_id ='fadfa2d83b7545cdc737e88304e7d642115bc77bf7c9ef376fcd206810efac2e8566a1fb54829a051330dd45032de45d822cf4dbdca70ee4989643c8e5274010'
+        self.acra_writer_id = self.get_valid_certificate_identifier()
         self.assertEqual(create_client_keypair(name=self.acra_writer_id, keys_dir=self.key_folder.name), 0)
         try:
             if not self.EXTERNAL_ACRA:
@@ -5238,7 +5270,8 @@ class TestTLSAuthenticationWithConnector(BaseTestCase):
                                            tls_key=abs_path(TEST_TLS_SERVER_KEY),
                                            tls_cert=abs_path(TEST_TLS_SERVER_CERT),
                                            tls_ca=TEST_TLS_CA,
-                                           keys_dir=self.key_folder.name)
+                                           keys_dir=self.key_folder.name,
+                                           tls_identifier_extractor_type=self.get_identifier_extractor_type())
             # use different tls key/certificate for connectors
             self.connector_1 = self.fork_connector(self.CONNECTOR_PORT_1, self.ACRASERVER_PORT, 'keypair1',
                                                    tls_cert=TEST_TLS_CLIENT_CERT, tls_key=TEST_TLS_CLIENT_KEY)
@@ -5395,24 +5428,22 @@ class TestTLSAuthenticationWithConnector(BaseTestCase):
         self.assertEqual(row['empty'], b'')
 
 
-class TestTLSAuthenticationDirectlyToAcra(BaseTestCase):
+class TestTLSAuthenticationWithConnectorBySerialNumber(TLSAuthenticationBySerialNumberMixin,
+                                                       TestTLSAuthenticationWithConnectorByDistinguishedName):
+    pass
+
+
+class TestTLSAuthenticationDirectlyToAcraByDistinguishedName(TLSAuthenticationByDistinguishedNameMixin, BaseTestCase):
     """
     Tests environment without connector, when client's app connect to db through acra-server with TLS and acra-server extracts clientID from client's certificate
     instead using from --clientID CLI param
     """
 
-    def get_acraserver_connection_string(self, port=None):
-        """use similar to connector unix socket connection string to allow connect directory to acra by db driver"""
-        if not port:
-            port = self.ACRASERVER_PORT
-        return get_tcp_connection_string(port)
-
     def setUp(self):
         if not TEST_WITH_TLS:
             self.skipTest("Test works only with TLS support on db side")
         self.key_folder = tempfile.TemporaryDirectory()
-        # converted data from certificate "CN=Test leaf certificate (acra-writer),OU=IT,O=Global Security,L=London,ST=London,C=GB"
-        self.acra_writer_id ='fadfa2d83b7545cdc737e88304e7d642115bc77bf7c9ef376fcd206810efac2e8566a1fb54829a051330dd45032de45d822cf4dbdca70ee4989643c8e5274010'
+        self.acra_writer_id = self.get_valid_certificate_identifier()
         self.assertEqual(create_client_keypair(name=self.acra_writer_id, keys_dir=self.key_folder.name), 0)
         try:
             if not self.EXTERNAL_ACRA:
@@ -5423,7 +5454,8 @@ class TestTLSAuthenticationDirectlyToAcra(BaseTestCase):
                     tls_ca=TEST_TLS_CA,
                     keys_dir=self.key_folder.name,
                     tls_client_id_from_cert=True,
-                    acraconnector_transport_encryption_disable=True)
+                    acraconnector_transport_encryption_disable=True,
+                    tls_identifier_extractor_type=self.get_identifier_extractor_type())
 
             # create two engines which should use different client's certificates for authentication
             base_args = get_connect_args(port=self.ACRASERVER_PORT, sslmode='require')
@@ -5580,6 +5612,11 @@ class TestTLSAuthenticationDirectlyToAcra(BaseTestCase):
         self.assertNotEqual(row['data'][fake_offset:].decode('ascii', errors='ignore'),
                             row['raw_data'])
         self.assertEqual(row['empty'], b'')
+
+
+class TestTLSAuthenticationDirectlyToAcraBySerialNumber(TLSAuthenticationBySerialNumberMixin,
+                                                        TestTLSAuthenticationDirectlyToAcraByDistinguishedName):
+    pass
 
 
 if __name__ == '__main__':
