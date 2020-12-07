@@ -98,7 +98,7 @@ type ClientSession interface {
 // Reuse network.ConnectionWrapper to explicitly force TLS usage by name
 type TLSConnectionWrapper interface {
 	WrapDBConnection(ctx context.Context, conn net.Conn) (net.Conn, error)
-	WrapClientConnection(ctx context.Context, conn net.Conn) (net.Conn, []byte, error) // conn, ClientID, error
+	WrapClientConnection(ctx context.Context, conn net.Conn) (wrappedConnection net.Conn, clientID []byte, err error)
 	UseConnectionClientID() bool
 }
 
