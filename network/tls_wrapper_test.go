@@ -91,7 +91,7 @@ func TestTLSWrapperWithCertificateAuthentication(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	serverWrapper, err := NewTLSAuthenticationConnectionWrapper(nil, serverConfig, CommonNameExtractor{}, converter)
+	serverWrapper, err := NewTLSAuthenticationConnectionWrapper(nil, serverConfig, DistinguishedNameExtractor{}, converter)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -125,7 +125,7 @@ func BenchmarkTLSWrapper(t *testing.B) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	serverWrapper, err := NewTLSAuthenticationConnectionWrapper(nil, serverConfig, CommonNameExtractor{}, converter)
+	serverWrapper, err := NewTLSAuthenticationConnectionWrapper(nil, serverConfig, DistinguishedNameExtractor{}, converter)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -148,7 +148,7 @@ func TestTLSConfigWeakCipherSuitDeny(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	serverWrapper, err := NewTLSAuthenticationConnectionWrapper(nil, serverConfig, CommonNameExtractor{}, converter)
+	serverWrapper, err := NewTLSAuthenticationConnectionWrapper(nil, serverConfig, DistinguishedNameExtractor{}, converter)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -282,7 +282,7 @@ func TestTLSCertificateAuthenticationByCommonName(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	serverWrapper, err := NewTLSAuthenticationConnectionWrapper(nil, serverConfig, CommonNameExtractor{}, converter)
+	serverWrapper, err := NewTLSAuthenticationConnectionWrapper(nil, serverConfig, DistinguishedNameExtractor{}, converter)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -323,7 +323,7 @@ func TestEmptyCertificateChain(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	serverWrapper, err := NewTLSAuthenticationConnectionWrapper(nil, serverConfig, CommonNameExtractor{}, converter)
+	serverWrapper, err := NewTLSAuthenticationConnectionWrapper(nil, serverConfig, DistinguishedNameExtractor{}, converter)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -380,7 +380,7 @@ func TestClientsCertificateDenyOnValidation(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	serverWrapper, err := NewTLSAuthenticationConnectionWrapper(nil, serverConfig, CommonNameExtractor{}, converter)
+	serverWrapper, err := NewTLSAuthenticationConnectionWrapper(nil, serverConfig, DistinguishedNameExtractor{}, converter)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -422,7 +422,7 @@ func TestClientsCertificateDenyOnClientIDExtraction(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	serverWrapper, err := NewTLSAuthenticationConnectionWrapper(nil, serverConfig, CommonNameExtractor{}, converter)
+	serverWrapper, err := NewTLSAuthenticationConnectionWrapper(nil, serverConfig, DistinguishedNameExtractor{}, converter)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -470,7 +470,7 @@ func TestClientsCertificateDenyOnClientIDConvertation(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	serverWrapper, err := NewTLSAuthenticationConnectionWrapper(nil, serverConfig, CommonNameExtractor{}, converter)
+	serverWrapper, err := NewTLSAuthenticationConnectionWrapper(nil, serverConfig, DistinguishedNameExtractor{}, converter)
 	if err != nil {
 		t.Fatal(err)
 	}

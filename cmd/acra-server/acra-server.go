@@ -138,6 +138,7 @@ func main() {
 
 	cmd.RegisterTracingCmdParameters()
 	cmd.RegisterJaegerCmdParameters()
+	network.RegisterTLSAuthenticationParams()
 
 	verbose := flag.Bool("v", false, "Log to stderr all INFO, WARNING and ERROR logs")
 	debug := flag.Bool("d", false, "Log everything to stderr")
@@ -279,7 +280,12 @@ func main() {
 			log.WithError(err).Errorln("Can't initialize identifier converter")
 			os.Exit(1)
 		}
-		tlsWrapper, err = network.NewTLSAuthenticationConnectionWrapper(dbTLSConfig, clientTLSConfig, network.CommonNameExtractor{}, idConverter)
+		identifierExtractor, err := network.NewIdentifierExtractorFromCLIParams()
+		if err != nil {
+			log.WithError(err).Errorln("Can't initialize identifier extractor")
+			os.Exit(1)
+		}
+		tlsWrapper, err = network.NewTLSAuthenticationConnectionWrapper(dbTLSConfig, clientTLSConfig, identifierExtractor, idConverter)
 		if err != nil {
 			log.WithError(err).Errorln("Can't initialize TLS connection wrapper")
 			os.Exit(1)

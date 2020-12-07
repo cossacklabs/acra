@@ -5,20 +5,57 @@ import (
 	"crypto/x509"
 	"encoding/hex"
 	"errors"
+	"flag"
+	"fmt"
 	"hash"
 )
+
+var (
+	identifierExtractorType string
+)
+
+// RegisterTLSAuthenticationParams register cli params related with TLS authentication and mapping to clientID used for decryption/encryption
+func RegisterTLSAuthenticationParams() {
+	flag.StringVar(&identifierExtractorType, "tls_identifier_extractor_type", IdentifierExtractorTypeDistinguishedName, fmt.Sprintf("Type of identifier extractor from TLS certificate to use as ClientID (%s|%s)", IdentifierExtractorTypeDistinguishedName, IdentifierExtractorTypeSerialNumber))
+}
+
+// NewIdentifierExtractorFromCLIParams return CertificateIdentifierExtractor by type from CLI
+func NewIdentifierExtractorFromCLIParams() (CertificateIdentifierExtractor, error) {
+	return NewIdentifierExtractorByType(identifierExtractorType)
+}
+
+// Set of constants with
+const (
+	IdentifierExtractorTypeDistinguishedName = "distinguished_name"
+	IdentifierExtractorTypeSerialNumber      = "serial_number"
+)
+
+// ErrInvalidIdentifierExtractorType return when used invalid value of identifier extractor type
+var ErrInvalidIdentifierExtractorType = errors.New("invalid identifier extractor type")
+
+// NewIdentifierExtractorByType return new CertificateIdentifierExtractor by type
+func NewIdentifierExtractorByType(extractorType string) (CertificateIdentifierExtractor, error) {
+	switch extractorType {
+	case IdentifierExtractorTypeDistinguishedName:
+		return DistinguishedNameExtractor{}, nil
+	case IdentifierExtractorTypeSerialNumber:
+		return SerialNumberExtractor{}, nil
+	default:
+		return nil, ErrInvalidIdentifierExtractorType
+	}
+}
 
 // CertificateIdentifierExtractor interface for implementations which should return identifier used for client's identification
 type CertificateIdentifierExtractor interface {
 	GetCertificateIdentifier(certificate *x509.Certificate) ([]byte, error)
 }
 
-// CommonNameExtractor implementation for CertificateIdentifierExtractor interface, which return CommonName as client's identifier
-type CommonNameExtractor struct{}
+// DistinguishedNameExtractor implementation for CertificateIdentifierExtractor interface, which return CommonName as client's identifier
+type DistinguishedNameExtractor struct{}
 
 // GetCertificateIdentifier return pkix.Name.String() which is DN in format according to RFC2253 (https://tools.ietf.org/html/rfc2253)
 // To get DN in CLI with openssl: openssl x509 -in client.crt -subject -noout -nameopt RFC2253  | sed 's/subject=//'
-func (e CommonNameExtractor) GetCertificateIdentifier(certificate *x509.Certificate) ([]byte, error) {
+func (e DistinguishedNameExtractor) GetCertificateIdentifier(certificate *x509.Certificate) ([]byte, error) {
 	if certificate == nil {
 		return nil, ErrNoPeerCertificate
 	}
@@ -52,12 +89,12 @@ type IdentifierConverter interface {
 }
 
 // hexIdentifierConverter converts identifiers to hex value as string in lower case
-type hexIdentifierConverter struct{
+type hexIdentifierConverter struct {
 	newHash func() hash.Hash
 }
 
 // NewDefaultHexIdentifierConverter return new hexIdentifierConverter with sha512 as hash function used to fit output into acceptable size
-func NewDefaultHexIdentifierConverter()(*hexIdentifierConverter, error){
+func NewDefaultHexIdentifierConverter() (*hexIdentifierConverter, error) {
 	return &hexIdentifierConverter{newHash: sha512.New}, nil
 }
 

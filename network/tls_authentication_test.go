@@ -93,7 +93,7 @@ func TestSerialNumberExtractor_GetCertificateIdentifier(t *testing.T) {
 	}
 }
 func TestCommonNameExtractor_GetCertificateIdentifier(t *testing.T) {
-	extractor := CommonNameExtractor{}
+	extractor := DistinguishedNameExtractor{}
 	_, err := extractor.GetCertificateIdentifier(nil)
 	if err != ErrNoPeerCertificate {
 		t.Fatal("Expected ErrNoPeerCertificate error")
@@ -109,7 +109,7 @@ func TestCommonNameExtractor_GetCertificateIdentifier(t *testing.T) {
 		t.Fatal(err)
 	}
 	if !bytes.Equal(commonName, identifier) {
-		t.Fatal("CommonNameExtractor return something else than Subject as DN as identifier")
+		t.Fatal("DistinguishedNameExtractor return something else than Subject as DN as identifier")
 	}
 }
 
