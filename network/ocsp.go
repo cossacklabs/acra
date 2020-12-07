@@ -49,6 +49,14 @@ const (
 	ocspRequiredAllStr = "all"
 )
 
+var (
+	ocspRequiredValValues = map[string]int{
+		ocspRequiredYesStr: ocspRequiredYes,
+		ocspRequiredNoStr:  ocspRequiredNo,
+		ocspRequiredAllStr: ocspRequiredAll,
+	}
+)
+
 const (
 	ocspRequiredYes int = iota
 	ocspRequiredNo
@@ -69,6 +77,15 @@ const (
 	ocspFromCertIgnoreStr = "ignore"
 )
 
+var (
+	ocspFromCertValValues = map[string]int{
+		ocspFromCertUseStr:    ocspFromCertUse,
+		ocspFromCertTrustStr:  ocspFromCertTrust,
+		ocspFromCertPreferStr: ocspFromCertPrefer,
+		ocspFromCertIgnoreStr: ocspFromCertIgnore,
+	}
+)
+
 const (
 	ocspFromCertUse int = iota
 	ocspFromCertTrust
@@ -86,32 +103,12 @@ type OCSPConfig struct {
 
 // NewOCSPConfig creates new OCSPConfig
 func NewOCSPConfig(uri, required, fromCert string, checkWholeChain bool) (*OCSPConfig, error) {
-	if uri != "" {
-		_, err := url.Parse(uri)
-		if err != nil {
-			return nil, err
-		}
-	}
-
-	requiredValValues := map[string]int{
-		ocspRequiredYesStr: ocspRequiredYes,
-		ocspRequiredNoStr:  ocspRequiredNo,
-		ocspRequiredAllStr: ocspRequiredAll,
-	}
-
-	requiredVal, ok := requiredValValues[required]
+	requiredVal, ok := ocspRequiredValValues[required]
 	if !ok {
 		return nil, ErrInvalidConfigOCSPRequired
 	}
 
-	fromCertValValues := map[string]int{
-		ocspFromCertUseStr:    ocspFromCertUse,
-		ocspFromCertTrustStr:  ocspFromCertTrust,
-		ocspFromCertPreferStr: ocspFromCertPrefer,
-		ocspFromCertIgnoreStr: ocspFromCertIgnore,
-	}
-
-	fromCertVal, ok := fromCertValValues[fromCert]
+	fromCertVal, ok := ocspFromCertValValues[fromCert]
 	if !ok {
 		return nil, ErrInvalidConfigOCSPFromCert
 	}
@@ -121,10 +118,15 @@ func NewOCSPConfig(uri, required, fromCert string, checkWholeChain bool) (*OCSPC
 	}
 
 	if uri != "" {
+		_, err := url.Parse(uri)
+		if err != nil {
+			return nil, err
+		}
+
 		log.Debugf("OCSP: Using server '%s'", uri)
 
 		httpClient := &http.Client{}
-		_, err := httpClient.Head(uri)
+		_, err = httpClient.Head(uri)
 		if err != nil {
 			log.WithError(err).WithField("uri", uri).Warnln("OCSP: Cannot reach configured server")
 			// TODO return error after issues with failing tests are fixed;
@@ -154,6 +156,14 @@ func NewOCSPConfig(uri, required, fromCert string, checkWholeChain bool) (*OCSPC
 	}
 
 	return &OCSPConfig{url: uri, required: requiredVal, fromCert: fromCertVal}, nil
+}
+
+// UseOSCP returns true if verification via OCSP is enabled
+func (c *OCSPConfig) UseOCSP() bool {
+	if c == nil {
+		return false
+	}
+	return c.url != "" || c.fromCert != ocspFromCertIgnore
 }
 
 // OCSPClient is used to perform OCSP queries to some URI

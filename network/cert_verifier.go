@@ -41,24 +41,20 @@ type CertVerifier interface {
 func NewCertVerifierFromConfigs(ocspConfig *OCSPConfig, crlConfig *CRLConfig) (CertVerifier, error) {
 	certVerifier := NewCertVerifierAll()
 
-	if ocspConfig != nil {
-		if ocspConfig.url != "" || ocspConfig.fromCert != ocspFromCertIgnore {
-			log.Debugln("NewCertVerifierFromConfigs(): adding OCSP verifier")
-			ocspVerifier := DefaultOCSPVerifier{Config: *ocspConfig, Client: &DefaultOCSPClient{}}
-			certVerifier.Push(ocspVerifier)
-		}
+	if ocspConfig.UseOCSP() {
+		log.Debugln("NewCertVerifierFromConfigs(): adding OCSP verifier")
+		ocspVerifier := DefaultOCSPVerifier{Config: *ocspConfig, Client: &DefaultOCSPClient{}}
+		certVerifier.Push(ocspVerifier)
 	}
 
-	if crlConfig != nil {
-		if crlConfig.uri != "" || crlConfig.fromCert != crlFromCertIgnore {
-			log.Debugln("NewCertVerifierFromConfigs(): adding CRL verifier")
-			crlVerifier := DefaultCRLVerifier{
-				Config: *crlConfig,
-				Client: NewDefaultCRLClient(),
-				Cache:  NewLRUCRLCache(crlConfig.cacheSize),
-			}
-			certVerifier.Push(crlVerifier)
+	if crlConfig.UseCRL() {
+		log.Debugln("NewCertVerifierFromConfigs(): adding CRL verifier")
+		crlVerifier := DefaultCRLVerifier{
+			Config: *crlConfig,
+			Client: NewDefaultCRLClient(),
+			Cache:  NewLRUCRLCache(crlConfig.cacheSize),
 		}
+		certVerifier.Push(crlVerifier)
 	}
 
 	return certVerifier, nil

@@ -59,8 +59,8 @@ const (
 type TestCertGroup struct {
 	prefix string
 
-	ca  string
-	ica string // may be empty (missing)
+	ca             string
+	intermediateCA string // may be empty (missing)
 
 	validCert   string
 	revokedCert string
@@ -84,7 +84,7 @@ func getTestCertGroup(t *testing.T) TestCertGroup {
 	return TestCertGroup{
 		prefix:                TestCertPrefix,
 		ca:                    TestCACertFilename,
-		ica:                   "",
+		intermediateCA:        "",
 		validCert:             TestCertFilename,
 		revokedCert:           TestRevokedCertFilename,
 		crl:                   TestCRLFilename,
@@ -104,7 +104,7 @@ func getTestCertGroup(t *testing.T) TestCertGroup {
 // 	return TestCertGroup{
 // 		prefix:                TestCertPrefix3,
 // 		ca:                    TestCACertFilename3,
-// 		ica:                   TestICACertFilename3,
+// 		intermediateCA:        TestICACertFilename3,
 // 		validCert:             TestCertFilename3,
 // 		revokedCert:           TestRevokedCertFilename3,
 // 		crl:                   TestCRLFilename3,
@@ -180,9 +180,6 @@ func getTestHTTPServer(t *testing.T, mux *http.ServeMux) (*http.Server, string) 
 	go func() {
 		httpServer.Serve(listener)
 	}()
-
-	// Give the server time to start, otherwise this test will fail sometimes
-	time.Sleep(time.Millisecond * 100)
 
 	return httpServer, addr
 }
