@@ -23,7 +23,7 @@ import (
 	log "github.com/sirupsen/logrus"
 	"io/ioutil"
 	"net/http"
-	"net/url"
+	url_ "net/url"
 	"sync"
 	"time"
 
@@ -36,8 +36,8 @@ var (
 	ErrInvalidConfigCRLCacheTime    = errors.New("Invalid `tls_crl_cache_time` value")
 	ErrHTTPServerReturnedError      = errors.New("Server returned non-OK status")
 	ErrFetchCRLUnsupportedURLScheme = errors.New("Cannot fetch CRL, unsupported URL scheme")
-	ErrCacheKeyNotFound             = errors.New("Cannot find cached CRL with given URI")
-	ErrOutdatedCRL                  = errors.New("Cannot find cached CRL with given URI")
+	ErrCacheKeyNotFound             = errors.New("Cannot find cached CRL with given URL")
+	ErrOutdatedCRL                  = errors.New("Cannot find cached CRL with given URL")
 )
 
 // --tls_crl_from_cert=<use|ignore>
@@ -66,14 +66,14 @@ const (
 
 // CRLConfig contains configuration related to certificate validation using CRL
 type CRLConfig struct {
-	uri       string
+	url       string
 	fromCert  int // crlFromCert*
 	cacheSize int
 	cacheTime time.Duration
 }
 
 // NewCRLConfig creates new CRLConfig
-func NewCRLConfig(uri, fromCert string, cacheSize, cacheTime int) (*CRLConfig, error) {
+func NewCRLConfig(url, fromCert string, cacheSize, cacheTime int) (*CRLConfig, error) {
 
 	fromCertVal, ok := crlFromCertValValues[fromCert]
 	if !ok {
@@ -84,8 +84,8 @@ func NewCRLConfig(uri, fromCert string, cacheSize, cacheTime int) (*CRLConfig, e
 		return nil, ErrInvalidConfigCRLCacheTime
 	}
 
-	if uri != "" {
-		_, err := url.Parse(uri)
+	if url != "" {
+		_, err := url_.Parse(url)
 		if err != nil {
 			return nil, err
 		}
@@ -93,20 +93,20 @@ func NewCRLConfig(uri, fromCert string, cacheSize, cacheTime int) (*CRLConfig, e
 		// Since this is CRL configuration alone, we don't have access to cache yet;
 		// so let's just download the CRL and forget about it
 		crlClient := NewDefaultCRLClient()
-		_, err = crlClient.Fetch(uri)
+		_, err = crlClient.Fetch(url)
 		if err != nil {
-			log.WithError(err).WithField("uri", uri).Warnln("CRL: Cannot fetch configured URI")
+			log.WithError(err).WithField("url", url).Warnln("CRL: Cannot fetch configured URL")
 			// TODO return error after issues with failing tests are fixed;
 			//      CRL HTTP server is starting, connection is checked, then Acra is starting
 			//      but somehow checking connection *here* fails thus failing the tests;
 			//      everything else seems working since real requests to configured server
 			//      are successful (when CRL verification is performed)
-			// return nil, errors.New("CRL: Cannot fetch configured URI")
+			// return nil, errors.New("CRL: Cannot fetch configured URL")
 		}
 	}
 
 	return &CRLConfig{
-		uri:       uri,
+		url:       url,
 		fromCert:  fromCertVal,
 		cacheSize: cacheSize,
 		cacheTime: time.Second * time.Duration(cacheTime),
@@ -118,17 +118,17 @@ func (c *CRLConfig) UseCRL() bool {
 	if c == nil {
 		return false
 	}
-	return c.uri != "" || c.fromCert != crlFromCertIgnore
+	return c.url != "" || c.fromCert != crlFromCertIgnore
 }
 
 func (c *CRLConfig) isCachingEnabled() bool {
 	return c.cacheTime > 0 && c.cacheSize > 0
 }
 
-// CRLClient is used to fetch CRL from some URI
+// CRLClient is used to fetch CRL from some URL
 type CRLClient interface {
-	// Fetch fetches CRL from passed URI (can be either http:// or file://)
-	Fetch(uri string) ([]byte, error)
+	// Fetch fetches CRL from passed URL (can be either http:// or file://)
+	Fetch(url string) ([]byte, error)
 }
 
 // DefaultCRLClient is a default implementation of CRLClient
@@ -142,20 +142,20 @@ func NewDefaultCRLClient() DefaultCRLClient {
 	return DefaultCRLClient{httpClient: &http.Client{}}
 }
 
-// Fetch fetches CRL from passed URI (can be either http:// or file://)
-func (c DefaultCRLClient) Fetch(uri string) ([]byte, error) {
-	parsedURI, err := url.Parse(uri)
+// Fetch fetches CRL from passed URL (can be either http:// or file://)
+func (c DefaultCRLClient) Fetch(url string) ([]byte, error) {
+	parsedURL, err := url_.Parse(url)
 	if err != nil {
 		return nil, err
 	}
 
-	switch parsedURI.Scheme {
+	switch parsedURL.Scheme {
 	case "http":
-		httpRequest, err := http.NewRequest(http.MethodGet, uri, nil)
+		httpRequest, err := http.NewRequest(http.MethodGet, url, nil)
 		if err != nil {
 			return nil, err
 		}
-		crlURL, err := url.Parse(uri)
+		crlURL, err := url_.Parse(url)
 		if err != nil {
 			return nil, err
 		}
@@ -178,7 +178,7 @@ func (c DefaultCRLClient) Fetch(uri string) ([]byte, error) {
 
 		return content, nil
 	case "file":
-		content, err := ioutil.ReadFile(parsedURI.Path)
+		content, err := ioutil.ReadFile(parsedURL.Path)
 		if err != nil {
 			return nil, err
 		}
@@ -186,7 +186,7 @@ func (c DefaultCRLClient) Fetch(uri string) ([]byte, error) {
 		return content, nil
 	}
 
-	log.WithField("uri", uri).Warnln("Cannot fetch CRL")
+	log.WithField("url", url).Warnln("Cannot fetch CRL")
 	return nil, ErrFetchCRLUnsupportedURLScheme
 }
 
@@ -196,7 +196,7 @@ type CRLCacheItem struct {
 	CRL     pkix.CertificateList
 }
 
-// CRLCache is used to store fetched CRLs to avoid downloading the same URI more than once,
+// CRLCache is used to store fetched CRLs to avoid downloading the same URL more than once,
 // stores parsed and verified CRLs
 type CRLCache interface {
 	Get(key string) (*CRLCacheItem, error)
@@ -257,10 +257,10 @@ type DefaultCRLVerifier struct {
 }
 
 // Tries to find cached CRL, fetches using v.Client if not found, checks the signature of CRL using issuerCert
-func (v DefaultCRLVerifier) getCachedOrFetch(uri string, issuerCert *x509.Certificate) (*pkix.CertificateList, error) {
+func (v DefaultCRLVerifier) getCachedOrFetch(url string, issuerCert *x509.Certificate) (*pkix.CertificateList, error) {
 	// Try v.Cache first, but only if caching is enabled (cache time > 0)
 	if v.Config.isCachingEnabled() {
-		cacheItem, err := v.Cache.Get(v.Config.uri)
+		cacheItem, err := v.Cache.Get(v.Config.url)
 		if cacheItem != nil {
 			if err != nil {
 				// non-empty result + error, should never happen
@@ -274,31 +274,31 @@ func (v DefaultCRLVerifier) getCachedOrFetch(uri string, issuerCert *x509.Certif
 	}
 
 	// Not found in cache (or the CRL was outdated), gotta fetch
-	rawCRL, err := v.Client.Fetch(uri)
+	rawCRL, err := v.Client.Fetch(url)
 	if err != nil {
 		return nil, err
 	}
 
 	crl, err := x509.ParseCRL(rawCRL)
 	if err != nil {
-		log.WithError(err).Debugf("CRL: Cannot parse CRL from '%s'", uri)
+		log.WithError(err).Debugf("CRL: Cannot parse CRL from '%s'", url)
 		return nil, err
 	}
 
 	err = issuerCert.CheckCRLSignature(crl)
 	if err != nil {
-		log.WithError(err).Warnf("CRL: Failed to check signature for CRL at %s", uri)
+		log.WithError(err).Warnf("CRL: Failed to check signature for CRL at %s", url)
 		return nil, err
 	}
 
 	if crl.TBSCertList.NextUpdate.Before(time.Now()) {
-		log.Warnf("CRL: CRL at %s is outdated", uri)
+		log.Warnf("CRL: CRL at %s is outdated", url)
 		return nil, ErrOutdatedCRL
 	}
 
 	if v.Config.isCachingEnabled() {
 		cacheItem := &CRLCacheItem{Fetched: time.Now(), CRL: *crl}
-		v.Cache.Put(uri, cacheItem)
+		v.Cache.Put(url, cacheItem)
 	}
 
 	return crl, nil
@@ -307,32 +307,33 @@ func (v DefaultCRLVerifier) getCachedOrFetch(uri string, issuerCert *x509.Certif
 func (v DefaultCRLVerifier) verifyCertWithIssuer(cert, issuer *x509.Certificate) error {
 	log.Debugf("CRL: Verifying '%s'", cert.Subject.String())
 
-	if len(v.Config.uri) == 0 && v.Config.fromCert == crlFromCertIgnore {
-		log.Debugln("CRL: Skipping check since no config URI specified and we were told to ignore URIs from certificate")
+	if len(v.Config.url) == 0 && v.Config.fromCert == crlFromCertIgnore {
+		log.Debugln("CRL: Skipping check since no config URL specified and we were told to ignore URLs from certificate")
 		return nil
 	}
 
 	for _, crlDistributionPoint := range cert.CRLDistributionPoints {
-		log.Debugf("CRL: certificate contains CRL URI: %s", crlDistributionPoint)
+		log.Debugf("CRL: certificate contains CRL URL: %s", crlDistributionPoint)
 	}
 
 	queriedCRLs := make(map[string]struct{})
 
-	if v.Config.uri != "" {
-		crl, err := v.getCachedOrFetch(v.Config.uri, issuer)
+	if v.Config.url != "" {
+		crl, err := v.getCachedOrFetch(v.Config.url, issuer)
 		if err != nil {
-			log.WithError(err).Debugf("CRL: Cannot get CRL from '%s'", v.Config.uri)
+			log.WithError(err).Debugf("CRL: Cannot get CRL from '%s'", v.Config.url)
 			return err
 		}
 
 		for _, revokedCertificate := range crl.TBSCertList.RevokedCertificates {
+			log.WithField("extensions", revokedCertificate.Extensions).Warnln("Revoked certificate extensions")
 			if revokedCertificate.SerialNumber.Cmp(cert.SerialNumber) == 0 {
 				log.Warnf("CRL: Certificate %v was revoked at %v", cert.SerialNumber, revokedCertificate.RevocationTime)
 				return ErrCertWasRevoked
 			}
 		}
 
-		queriedCRLs[v.Config.uri] = struct{}{}
+		queriedCRLs[v.Config.url] = struct{}{}
 		log.Debugln("CRL: OK, not found in list of revoked certificates")
 	}
 
@@ -357,7 +358,7 @@ func (v DefaultCRLVerifier) verifyCertWithIssuer(cert, issuer *x509.Certificate)
 				}
 			}
 
-			queriedCRLs[v.Config.uri] = struct{}{}
+			queriedCRLs[v.Config.url] = struct{}{}
 			log.Debugln("CRL: OK, not found in list of revoked certificates")
 		}
 	}

@@ -272,19 +272,19 @@ func getInvalidTestChain(t *testing.T) ([][]byte, [][]*x509.Certificate) {
 // }
 
 func TestCRLConfig(t *testing.T) {
-	expectOk := func(uri, fromCert string, cacheSize, cacheTime int) {
-		config, err := NewCRLConfig(uri, fromCert, cacheSize, cacheTime)
+	expectOk := func(url, fromCert string, cacheSize, cacheTime int) {
+		config, err := NewCRLConfig(url, fromCert, cacheSize, cacheTime)
 		if config == nil || err != nil {
-			t.Logf("uri=%v, fromCert=%v, cacheSize=%v, cacheTime=%v\n", uri, fromCert, cacheSize, cacheTime)
+			t.Logf("url=%v, fromCert=%v, cacheSize=%v, cacheTime=%v\n", url, fromCert, cacheSize, cacheTime)
 			t.Logf("config=%v, err=%v\n", config, err)
 			t.Fatal("Got `nil` result or unexpected error")
 		}
 	}
 
-	expectErr := func(uri, fromCert string, cacheSize, cacheTime int) {
-		config, err := NewCRLConfig(uri, fromCert, cacheSize, cacheTime)
+	expectErr := func(url, fromCert string, cacheSize, cacheTime int) {
+		config, err := NewCRLConfig(url, fromCert, cacheSize, cacheTime)
 		if config != nil || err == nil {
-			t.Logf("uri=%v, fromCert=%v, cacheSize=%v, cacheTime=%v\n", uri, fromCert, cacheSize, cacheTime)
+			t.Logf("url=%v, fromCert=%v, cacheSize=%v, cacheTime=%v\n", url, fromCert, cacheSize, cacheTime)
 			t.Logf("config=%v, err=%v\n", config, err)
 			t.Fatal("Got unexpected result or `nil` error")
 		}
@@ -321,13 +321,13 @@ func TestDefaultCRLClientHTTP(t *testing.T) {
 	crlClient := NewDefaultCRLClient()
 
 	//
-	// Test with valid URI
+	// Test with valid URL
 	//
-	uri := fmt.Sprintf("http://%s/test_crl.pem", addr)
+	url := fmt.Sprintf("http://%s/test_crl.pem", addr)
 
-	fetchedCRL, err := crlClient.Fetch(uri)
+	fetchedCRL, err := crlClient.Fetch(url)
 	if err != nil {
-		t.Fatalf("Unexpected error during reading %s: %v\n", uri, err)
+		t.Fatalf("Unexpected error durlng reading %s: %v\n", url, err)
 	}
 
 	if !bytes.Equal(rawCRL, fetchedCRL) {
@@ -335,13 +335,13 @@ func TestDefaultCRLClientHTTP(t *testing.T) {
 	}
 
 	//
-	// Test with invalid URI (i.e. when server returns 404 not found or any other error)
+	// Test with invalid URL (i.e. when server returns 404 not found or any other error)
 	//
-	uri = fmt.Sprintf("http://%s/wrong_filename.pem", addr)
+	url = fmt.Sprintf("http://%s/wrong_filename.pem", addr)
 
-	fetchedCRL, err = crlClient.Fetch(uri)
+	fetchedCRL, err = crlClient.Fetch(url)
 	if err == nil {
-		t.Fatal("Unexpected success during reading CRL from wrong URI\n")
+		t.Fatal("Unexpected success durlng reading CRL from wrong URL\n")
 	} else {
 		t.Logf("(Expected) fetch error: %v\n", err)
 	}
@@ -367,11 +367,11 @@ func TestDefaultCRLClientFile(t *testing.T) {
 
 	crlClient := NewDefaultCRLClient()
 
-	uri := fmt.Sprintf("file://%s", file.Name())
+	url := fmt.Sprintf("file://%s", file.Name())
 
-	fetchedCRL, err := crlClient.Fetch(uri)
+	fetchedCRL, err := crlClient.Fetch(url)
 	if err != nil {
-		t.Fatalf("Unexpected error during reading %s: %v\n", uri, err)
+		t.Fatalf("Unexpected error durlng reading %s: %v\n", url, err)
 	}
 
 	if !bytes.Equal(rawCRL, fetchedCRL) {
@@ -433,10 +433,10 @@ func testDefaultCRLVerifierWithGroup(t *testing.T, certGroup TestCertGroup) {
 	httpServer, addr := getTestHTTPServer(t, mux)
 	defer httpServer.Close()
 
-	// Test with valid URI
-	uri := fmt.Sprintf("http://%s/test_crl.pem", addr)
+	// Test with valid URL
+	url := fmt.Sprintf("http://%s/test_crl.pem", addr)
 
-	crlConfig := CRLConfig{uri: uri, fromCert: crlFromCertIgnore}
+	crlConfig := CRLConfig{url: url, fromCert: crlFromCertIgnore}
 	crlVerifier := DefaultCRLVerifier{Config: crlConfig, Client: NewDefaultCRLClient(), Cache: NewLRUCRLCache(16)}
 
 	// Test valid certificate chain

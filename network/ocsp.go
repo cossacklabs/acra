@@ -25,14 +25,14 @@ import (
 	"golang.org/x/crypto/ocsp"
 	"io/ioutil"
 	"net/http"
-	"net/url"
+	url_ "net/url"
 )
 
 // Errors returned by CRL verifier
 var (
 	ErrInvalidConfigOCSPRequired   = errors.New("Invalid `ocsp_required` value")
 	ErrInvalidConfigOCSPFromCert   = errors.New("Invalid `ocsp_from_cert` value")
-	ErrInvalidConfigAllRequiresURI = errors.New("When passing `--tls_ocsp_required=all`, URL is mandatory")
+	ErrInvalidConfigAllRequiresURL = errors.New("When passing `--tls_ocsp_required=all`, URL is mandatory")
 	ErrOCSPRequiredAllButGotError  = errors.New("Cannot query OCSP server, but --tls_ocsp_required=all was passed")
 	ErrOCSPUnknownCertificate      = errors.New("OCSP server doesn't know about certificate")
 	ErrOCSPNoConfirms              = errors.New("None of OCSP servers confirmed the certificate")
@@ -102,7 +102,7 @@ type OCSPConfig struct {
 }
 
 // NewOCSPConfig creates new OCSPConfig
-func NewOCSPConfig(uri, required, fromCert string, checkWholeChain bool) (*OCSPConfig, error) {
+func NewOCSPConfig(url, required, fromCert string, checkWholeChain bool) (*OCSPConfig, error) {
 	requiredVal, ok := ocspRequiredValValues[required]
 	if !ok {
 		return nil, ErrInvalidConfigOCSPRequired
@@ -113,22 +113,22 @@ func NewOCSPConfig(uri, required, fromCert string, checkWholeChain bool) (*OCSPC
 		return nil, ErrInvalidConfigOCSPFromCert
 	}
 
-	if requiredVal == ocspRequiredAll && uri == "" {
-		return nil, ErrInvalidConfigAllRequiresURI
+	if requiredVal == ocspRequiredAll && url == "" {
+		return nil, ErrInvalidConfigAllRequiresURL
 	}
 
-	if uri != "" {
-		_, err := url.Parse(uri)
+	if url != "" {
+		_, err := url_.Parse(url)
 		if err != nil {
 			return nil, err
 		}
 
-		log.Debugf("OCSP: Using server '%s'", uri)
+		log.Debugf("OCSP: Using server '%s'", url)
 
 		httpClient := &http.Client{}
-		_, err = httpClient.Head(uri)
+		_, err = httpClient.Head(url)
 		if err != nil {
-			log.WithError(err).WithField("uri", uri).Warnln("OCSP: Cannot reach configured server")
+			log.WithError(err).WithField("url", url).Warnln("OCSP: Cannot reach configured server")
 			// TODO return error after issues with failing tests are fixed;
 			//      the issue is the same as in NewCRLConfig()
 			// return nil, errors.New("Cannot reach configured OCSP server")
@@ -155,7 +155,7 @@ func NewOCSPConfig(uri, required, fromCert string, checkWholeChain bool) (*OCSPC
 		log.Debugln("OCSP: ignoring OCSP servers described in certificates")
 	}
 
-	return &OCSPConfig{url: uri, required: requiredVal, fromCert: fromCertVal}, nil
+	return &OCSPConfig{url: url, required: requiredVal, fromCert: fromCertVal}, nil
 }
 
 // UseOSCP returns true if verification via OCSP is enabled
@@ -166,7 +166,7 @@ func (c *OCSPConfig) UseOCSP() bool {
 	return c.url != "" || c.fromCert != ocspFromCertIgnore
 }
 
-// OCSPClient is used to perform OCSP queries to some URI
+// OCSPClient is used to perform OCSP queries to some URL
 type OCSPClient interface {
 	// Query generates OCSP request about specified certificate, sends it to server and returns the response
 	Query(commonName string, clientCert, issuerCert *x509.Certificate, ocspServerURL string) (*ocsp.Response, error)
@@ -186,7 +186,7 @@ func (c DefaultOCSPClient) Query(commonName string, clientCert, issuerCert *x509
 	if err != nil {
 		return nil, err
 	}
-	ocspURL, err := url.Parse(ocspServerURL)
+	ocspURL, err := url_.Parse(ocspServerURL)
 	if err != nil {
 		return nil, err
 	}
@@ -223,7 +223,7 @@ func (v DefaultOCSPVerifier) verifyCertWithIssuer(cert, issuer *x509.Certificate
 	log.Debugf("OCSP: Verifying '%s'", cert.Subject.String())
 
 	for _, ocspServer := range cert.OCSPServer {
-		log.Debugf("OCSP: certificate contains OCSP URI: %s", ocspServer)
+		log.Debugf("OCSP: certificate contains OCSP URL: %s", ocspServer)
 	}
 
 	serversToCheck := []ocspServerToCheck{}
@@ -266,7 +266,7 @@ func (v DefaultOCSPVerifier) verifyCertWithIssuer(cert, issuer *x509.Certificate
 
 		response, err := v.Client.Query(cert.Issuer.CommonName, cert, issuer, serverToCheck.url)
 		if err != nil {
-			log.WithError(err).WithField("uri", serverToCheck.url).Warnln("Cannot query OCSP server")
+			log.WithError(err).WithField("url", serverToCheck.url).Warnln("Cannot query OCSP server")
 
 			if v.Config.required == ocspRequiredAll {
 				return ErrOCSPRequiredAllButGotError
@@ -301,7 +301,7 @@ func (v DefaultOCSPVerifier) verifyCertWithIssuer(cert, issuer *x509.Certificate
 		case ocsp.Unknown:
 			// Treat "Unknown" response as error if tls_ocsp_required is "yes" or "all"
 			if v.Config.required != ocspRequiredNo {
-				log.WithField("uri", serverToCheck.url).WithField("serial", cert.SerialNumber).Warnln("OCSP server doesn't know about certificate")
+				log.WithField("url", serverToCheck.url).WithField("serial", cert.SerialNumber).Warnln("OCSP server doesn't know about certificate")
 				return ErrOCSPUnknownCertificate
 			}
 		}

@@ -211,19 +211,19 @@ func getTestOCSPCertAndKey(t *testing.T, prefix, certFilename, keyFilename strin
 }
 
 func TestOCSPConfig(t *testing.T) {
-	expectOk := func(uri, required, fromCert string, checkWholeChain bool) {
-		config, err := NewOCSPConfig(uri, required, fromCert, checkWholeChain)
+	expectOk := func(url, required, fromCert string, checkWholeChain bool) {
+		config, err := NewOCSPConfig(url, required, fromCert, checkWholeChain)
 		if config == nil || err != nil {
-			t.Logf("uri=%v, required=%v, fromCert=%v, checkWholeChain=%v\n", uri, required, fromCert, checkWholeChain)
+			t.Logf("url=%v, required=%v, fromCert=%v, checkWholeChain=%v\n", url, required, fromCert, checkWholeChain)
 			t.Logf("config=%v, err=%v\n", config, err)
 			t.Fatal("Got `nil` result or unexpected error")
 		}
 	}
 
-	expectErr := func(uri, required, fromCert string, checkWholeChain bool) {
-		config, err := NewOCSPConfig(uri, required, fromCert, checkWholeChain)
+	expectErr := func(url, required, fromCert string, checkWholeChain bool) {
+		config, err := NewOCSPConfig(url, required, fromCert, checkWholeChain)
 		if config != nil || err == nil {
-			t.Logf("uri=%v, required=%v, fromCert=%v, checkWholeChain=%v\n", uri, required, fromCert, checkWholeChain)
+			t.Logf("url=%v, required=%v, fromCert=%v, checkWholeChain=%v\n", url, required, fromCert, checkWholeChain)
 			t.Logf("config=%v, err=%v\n", config, err)
 			t.Fatal("Got unexpected result or `nil` error")
 		}
@@ -274,12 +274,12 @@ func testDefaultOCSPClientWithGroup(t *testing.T, certGroup TestCertGroup) {
 
 	ocspClient := DefaultOCSPClient{}
 
-	uri := fmt.Sprintf("http://%s", addr)
+	url := fmt.Sprintf("http://%s", addr)
 
 	checkCase := func(t *testing.T, data *ocspTestCase) {
-		ocspResponse, err := ocspClient.Query(data.cert.Subject.CommonName, data.cert, ocspServerConfig.issuerCert, uri)
+		ocspResponse, err := ocspClient.Query(data.cert.Subject.CommonName, data.cert, ocspServerConfig.issuerCert, url)
 		if err != nil {
-			t.Fatalf("Unexpected error during reading %s: %v\n", uri, err)
+			t.Fatalf("Unexpected error durlng reading %s: %v\n", url, err)
 		}
 
 		if data.cert.SerialNumber.Cmp(ocspResponse.SerialNumber) != 0 {
@@ -358,7 +358,7 @@ func testDefaultOCSPVerifierWithGroup(t *testing.T, certGroup TestCertGroup) {
 	ocspServer, addr := getTestOCSPServer(t, ocspServerConfig)
 	defer ocspServer.Close()
 
-	uri := fmt.Sprintf("http://%s", addr)
+	url := fmt.Sprintf("http://%s", addr)
 
 	validRawCerts, validVerifiedChains := certGroup.validRawCerts, certGroup.validVerifiedChains
 	invalidRawCerts, invalidVerifiedChains := certGroup.invalidRawCerts, certGroup.invalidVerifiedChains
@@ -371,16 +371,16 @@ func testDefaultOCSPVerifierWithGroup(t *testing.T, certGroup TestCertGroup) {
 		t.Fatalf("Failed to create OCSPConfig: %v\n", err)
 	}
 
-	validVerifiedChains[0][0].OCSPServer = []string{uri}
-	invalidVerifiedChains[0][0].OCSPServer = []string{uri}
+	validVerifiedChains[0][0].OCSPServer = []string{url}
+	invalidVerifiedChains[0][0].OCSPServer = []string{url}
 
 	testWithConfigAndValidChain(t, ocspConfig, validRawCerts, validVerifiedChains)
 	testWithConfigAndRevokedChain(t, ocspConfig, invalidRawCerts, invalidVerifiedChains)
 
 	//
-	// Test with URI in config only
+	// Test with URL in config only
 	//
-	ocspConfig, err = NewOCSPConfig(uri, ocspRequiredYesStr, ocspFromCertUseStr, false)
+	ocspConfig, err = NewOCSPConfig(url, ocspRequiredYesStr, ocspFromCertUseStr, false)
 	if err != nil {
 		t.Fatalf("Failed to create OCSPConfig: %v\n", err)
 	}
