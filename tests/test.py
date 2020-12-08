@@ -5433,11 +5433,12 @@ class TestTLSAuthenticationWithConnectorBySerialNumber(TLSAuthenticationBySerial
     pass
 
 
-class TestTLSAuthenticationDirectlyToAcraByDistinguishedName(TLSAuthenticationByDistinguishedNameMixin, BaseTestCase):
+class TestTLSAuthenticationDirectlyToAcraByDistinguishedName(TestTLSAuthenticationWithConnectorByDistinguishedName):
     """
     Tests environment without connector, when client's app connect to db through acra-server with TLS and acra-server extracts clientID from client's certificate
     instead using from --clientID CLI param
     """
+    CONNECTOR_TLS_TRANSPORT = False
 
     def setUp(self):
         if not TEST_WITH_TLS:
@@ -5519,99 +5520,6 @@ class TestTLSAuthenticationDirectlyToAcraByDistinguishedName(TLSAuthenticationBy
         stop_process(processes)
         send_signal_by_process_name('acra-server', signal.SIGKILL)
         send_signal_by_process_name('acra-connector', signal.SIGKILL)
-
-    def testAcrastructRead(self):
-        """test decrypting with correct acra-connector and not decrypting with
-        incorrect acra-connector or using direct connection to db"""
-        server_public1 = read_storage_public_key(self.acra_writer_id, self.key_folder.name)
-        data = get_pregenerated_random_data()
-        acra_struct = create_acrastruct(
-            data.encode('ascii'), server_public1)
-        row_id = get_random_id()
-
-        self.log(storage_client_id=self.acra_writer_id,
-                 data=acra_struct, expected=data.encode('ascii'))
-
-        self.engine1.execute(
-            test_table.insert(),
-            {'id': row_id, 'data': acra_struct, 'raw_data': data})
-        result = self.engine1.execute(
-            sa.select([test_table])
-                .where(test_table.c.id == row_id))
-        row = result.fetchone()
-        self.assertEqual(row['data'], row['raw_data'].encode('utf-8'))
-        self.assertEqual(row['empty'], b'')
-
-        result = self.engine2.execute(
-            sa.select([test_table])
-                .where(test_table.c.id == row_id))
-        row = result.fetchone()
-        self.assertNotEqual(row['data'].decode('ascii', errors='ignore'),
-                            row['raw_data'])
-        self.assertEqual(row['empty'], b'')
-
-        result = self.engine_raw.execute(
-            sa.select([test_table])
-                .where(test_table.c.id == row_id))
-        row = result.fetchone()
-        self.assertNotEqual(row['data'].decode('ascii', errors='ignore'),
-                            row['raw_data'])
-        self.assertEqual(row['empty'], b'')
-
-
-    def testReadAcrastructInAcrastruct(self):
-        """test correct decrypting acrastruct when acrastruct concatenated to
-        partial another acrastruct"""
-        # converted data from certificate "CN=Test leaf certificate (acra-writer),OU=IT,O=Global Security,L=London,ST=London,C=GB"
-        server_public1 = read_storage_public_key(self.acra_writer_id, self.key_folder.name)
-        incorrect_data = get_pregenerated_random_data()
-        correct_data = get_pregenerated_random_data()
-        suffix_data = get_pregenerated_random_data()[:10]
-        fake_offset = (3+45+84) - 4
-        fake_acra_struct = create_acrastruct(
-            incorrect_data.encode('ascii'), server_public1)[:fake_offset]
-        inner_acra_struct = create_acrastruct(
-            correct_data.encode('ascii'), server_public1)
-        data = fake_acra_struct + inner_acra_struct + suffix_data.encode('ascii')
-        correct_data = correct_data + suffix_data
-        row_id = get_random_id()
-
-        self.log(storage_client_id=self.acra_writer_id,
-                 data=data,
-                 expected=fake_acra_struct+correct_data.encode('ascii'))
-
-        self.engine1.execute(
-            test_table.insert(),
-            {'id': row_id, 'data': data, 'raw_data': correct_data})
-        result = self.engine1.execute(
-            sa.select([test_table])
-                .where(test_table.c.id == row_id))
-        row = result.fetchone()
-        try:
-            self.assertEqual(row['data'][fake_offset:],
-                             row['raw_data'].encode('utf-8'))
-            self.assertEqual(row['data'][:fake_offset], fake_acra_struct[:fake_offset])
-        except:
-            print('incorrect data: {}\ncorrect data: {}\ndata: {}\n data len: {}'.format(
-                incorrect_data, correct_data, row['data'], len(row['data'])))
-            raise
-        self.assertEqual(row['empty'], b'')
-
-        result = self.engine2.execute(
-            sa.select([test_table])
-                .where(test_table.c.id == row_id))
-        row = result.fetchone()
-        self.assertNotEqual(row['data'][fake_offset:].decode('ascii', errors='ignore'),
-                            row['raw_data'])
-        self.assertEqual(row['empty'], b'')
-
-        result = self.engine_raw.execute(
-            sa.select([test_table])
-                .where(test_table.c.id == row_id))
-        row = result.fetchone()
-        self.assertNotEqual(row['data'][fake_offset:].decode('ascii', errors='ignore'),
-                            row['raw_data'])
-        self.assertEqual(row['empty'], b'')
 
 
 class TestTLSAuthenticationDirectlyToAcraBySerialNumber(TLSAuthenticationBySerialNumberMixin,
