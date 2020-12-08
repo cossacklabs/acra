@@ -14,6 +14,12 @@ const (
 	IdentifierExtractorTypeSerialNumber      = "serial_number"
 )
 
+// IdentifierExtractorTypesList list of all acceptable types for IdentifierExtractor
+var IdentifierExtractorTypesList = []string{
+	IdentifierExtractorTypeDistinguishedName,
+	IdentifierExtractorTypeSerialNumber,
+}
+
 // ErrInvalidIdentifierExtractorType return when used invalid value of identifier extractor type
 var ErrInvalidIdentifierExtractorType = errors.New("invalid identifier extractor type")
 
