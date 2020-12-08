@@ -301,6 +301,10 @@ func main() {
 			log.Println("Selecting transport: use TLS transport wrapper with clientID from certificates")
 		} else {
 			log.Println("Selecting transport: use TLS transport wrapper with static clientID")
+			if *clientID == "" {
+				log.Errorln("You must provide non-empty --client_id parameter with --acraconnector_tls_transport_enable.")
+				os.Exit(1)
+			}
 			config.ConnectionWrapper, err = network.NewTLSConnectionWrapper([]byte(*clientID), clientTLSConfig)
 			if err != nil {
 				log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorTransportConfiguration).
