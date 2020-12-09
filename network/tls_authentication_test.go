@@ -94,17 +94,17 @@ func TestSerialNumberExtractor_GetCertificateIdentifier(t *testing.T) {
 }
 func TestCommonNameExtractor_GetCertificateIdentifier(t *testing.T) {
 	extractor := DistinguishedNameExtractor{}
-	identifier, err := extractor.GetCertificateIdentifier(nil)
+	_, err := extractor.GetCertificateIdentifier(nil)
 	if err != ErrNoPeerCertificate {
 		t.Fatal("Expected ErrNoPeerCertificate error")
 	}
-	identifier, err = extractor.GetCertificateIdentifier(&x509.Certificate{})
+	_, err = extractor.GetCertificateIdentifier(&x509.Certificate{})
 	if err != ErrEmptyIdentifier {
 		t.Fatal("Expected ErrEmptyIdentifier error")
 	}
 	certificate := getAcraWriterTestx509Certificate(t)
 	commonName := []byte(certificate.Subject.String())
-	identifier, err = extractor.GetCertificateIdentifier(certificate)
+	identifier, err := extractor.GetCertificateIdentifier(certificate)
 	if err != nil {
 		t.Fatal(err)
 	}
