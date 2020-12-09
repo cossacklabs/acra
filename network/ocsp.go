@@ -219,7 +219,7 @@ type ocspServerToCheck struct {
 	fromCert bool
 }
 
-func (v DefaultOCSPVerifier) verifyCertWithIssuer(cert, issuer *x509.Certificate) error {
+func (v DefaultOCSPVerifier) verifyCertWithIssuer(cert, issuer *x509.Certificate, useConfigURL bool) error {
 	log.Debugf("OCSP: Verifying '%s'", cert.Subject.String())
 
 	for _, ocspServer := range cert.OCSPServer {
@@ -238,7 +238,7 @@ func (v DefaultOCSPVerifier) verifyCertWithIssuer(cert, issuer *x509.Certificate
 		log.Debugf("OCSP: Ignoring %d OCSP servers from certificate", len(cert.OCSPServer))
 	}
 
-	if v.Config.url != "" {
+	if v.Config.url != "" && useConfigURL {
 		serverToCheck := ocspServerToCheck{url: v.Config.url, fromCert: false}
 
 		if v.Config.fromCert == ocspFromCertPrefer || v.Config.fromCert == ocspFromCertTrust {
@@ -327,7 +327,10 @@ func (v DefaultOCSPVerifier) Verify(rawCerts [][]byte, verifiedChains [][]*x509.
 			cert := chain[i]
 			issuer := chain[i+1]
 
-			err := v.verifyCertWithIssuer(cert, issuer)
+			// 3rd argument, useConfigURL, whether to use OCSP server URL from configuration (if set),
+			// don't use it for other certificates except end one (i.e. don't use it when checking intermediate
+			// certificates because v.Config.checkWholeChain == true)
+			err := v.verifyCertWithIssuer(cert, issuer, i == 0)
 			if err != nil {
 				return err
 			}

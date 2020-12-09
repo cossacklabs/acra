@@ -74,14 +74,15 @@ const (
 
 // CRLConfig contains configuration related to certificate validation using CRL
 type CRLConfig struct {
-	url       string
-	fromCert  int // crlFromCert*
-	cacheSize int
-	cacheTime time.Duration
+	url             string
+	fromCert        int // crlFromCert*
+	checkWholeChain bool
+	cacheSize       int
+	cacheTime       time.Duration
 }
 
 // NewCRLConfig creates new CRLConfig
-func NewCRLConfig(url, fromCert string, cacheSize, cacheTime int) (*CRLConfig, error) {
+func NewCRLConfig(url, fromCert string, checkWholeChain bool, cacheSize, cacheTime int) (*CRLConfig, error) {
 	fromCertVal, ok := crlFromCertValValues[fromCert]
 	if !ok {
 		return nil, ErrInvalidConfigCRLFromCert
@@ -113,10 +114,11 @@ func NewCRLConfig(url, fromCert string, cacheSize, cacheTime int) (*CRLConfig, e
 	}
 
 	return &CRLConfig{
-		url:       url,
-		fromCert:  fromCertVal,
-		cacheSize: cacheSize,
-		cacheTime: time.Second * time.Duration(cacheTime),
+		url:             url,
+		fromCert:        fromCertVal,
+		checkWholeChain: checkWholeChain,
+		cacheSize:       cacheSize,
+		cacheTime:       time.Second * time.Duration(cacheTime),
 	}, nil
 }
 
@@ -374,7 +376,7 @@ type crlToCheck struct {
 	fromCert bool
 }
 
-func (v DefaultCRLVerifier) verifyCertWithIssuer(cert, issuer *x509.Certificate) error {
+func (v DefaultCRLVerifier) verifyCertWithIssuer(cert, issuer *x509.Certificate, useConfigURL bool) error {
 	log.Debugf("CRL: Verifying '%s'", cert.Subject.String())
 
 	for _, crlDistributionPoint := range cert.CRLDistributionPoints {
@@ -393,7 +395,7 @@ func (v DefaultCRLVerifier) verifyCertWithIssuer(cert, issuer *x509.Certificate)
 		log.Debugf("CRL: Ignoring %d CRL distribution points from certificate", len(cert.CRLDistributionPoints))
 	}
 
-	if v.Config.url != "" {
+	if v.Config.url != "" && useConfigURL {
 		crlDistributionPointToCheck := crlToCheck{url: v.Config.url, fromCert: false}
 
 		if v.Config.fromCert == crlFromCertPrefer || v.Config.fromCert == crlFromCertTrust {
@@ -448,12 +450,21 @@ func (v DefaultCRLVerifier) Verify(rawCerts [][]byte, verifiedChains [][]*x509.C
 			return nil
 		}
 
-		cert := chain[0]
-		issuer := chain[1]
+		for i := 0; i < len(chain)-1; i++ {
+			cert := chain[i]
+			issuer := chain[i+1]
 
-		err := v.verifyCertWithIssuer(cert, issuer)
-		if err != nil {
-			return err
+			// 3rd argument, useConfigURL, whether to use OCSP server URL from configuration (if set),
+			// don't use it for other certificates except end one (i.e. don't use it when checking intermediate
+			// certificates because v.Config.checkWholeChain == true)
+			err := v.verifyCertWithIssuer(cert, issuer, i == 0)
+			if err != nil {
+				return err
+			}
+
+			if !v.Config.checkWholeChain {
+				break
+			}
 		}
 	}
 

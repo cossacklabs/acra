@@ -62,6 +62,7 @@ var (
 	tlsOcspCheckWholeChain bool
 	tlsCrlURL              string
 	tlsCrlFromCert         string
+	tlsCrlCheckWholeChain  bool
 	tlsCrlCacheSize        int
 	tlsCrlCacheTime        int
 )
@@ -80,6 +81,7 @@ func RegisterTLSBaseArgs() {
 	flag.BoolVar(&tlsOcspCheckWholeChain, "tls_ocsp_check_whole_chain", false, "Whether to check whole certificate chain, false = only end certificate")
 	flag.StringVar(&tlsCrlURL, "tls_crl_url", "", "URL of the Certificate Revocation List (CRL) to use")
 	flag.StringVar(&tlsCrlFromCert, "tls_crl_from_cert", "use", "How should we treat CRL URL described in certificate itself; <use|trust|prefer|ignore>")
+	flag.BoolVar(&tlsCrlCheckWholeChain, "tls_crl_check_whole_chain", false, "Whether to check whole certificate chain, false = only end certificate")
 	flag.IntVar(&tlsCrlCacheSize, "tls_crl_cache_size", 16, "How many CRLs to cache in memory (use 0 to disable caching)")
 	flag.IntVar(&tlsCrlCacheTime, "tls_crl_cache_time", 0, "How long to keep CRLs cached, in seconds (use 0 to disable caching, maximum: 300 s)")
 }
@@ -96,7 +98,7 @@ func NewTLSConfigFromBaseArgs() (*tls.Config, error) {
 		return nil, err
 	}
 
-	crlConfig, err := NewCRLConfig(tlsCrlURL, tlsCrlFromCert, tlsCrlCacheSize, tlsCrlCacheTime)
+	crlConfig, err := NewCRLConfig(tlsCrlURL, tlsCrlFromCert, tlsCrlCheckWholeChain, tlsCrlCacheSize, tlsCrlCacheTime)
 	if err != nil {
 		return nil, err
 	}

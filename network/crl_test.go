@@ -272,39 +272,41 @@ func getInvalidTestChain(t *testing.T) ([][]byte, [][]*x509.Certificate) {
 // }
 
 func TestCRLConfig(t *testing.T) {
-	expectOk := func(url, fromCert string, cacheSize, cacheTime int) {
-		config, err := NewCRLConfig(url, fromCert, cacheSize, cacheTime)
+	expectOk := func(url, fromCert string, checkWholeChain bool, cacheSize, cacheTime int) {
+		config, err := NewCRLConfig(url, fromCert, checkWholeChain, cacheSize, cacheTime)
 		if config == nil || err != nil {
-			t.Logf("url=%v, fromCert=%v, cacheSize=%v, cacheTime=%v\n", url, fromCert, cacheSize, cacheTime)
+			t.Logf("url=%v, fromCert=%v, checkWholeChain=%v, cacheSize=%v, cacheTime=%v\n",
+				url, fromCert, checkWholeChain, cacheSize, cacheTime)
 			t.Logf("config=%v, err=%v\n", config, err)
 			t.Fatal("Got `nil` result or unexpected error")
 		}
 	}
 
-	expectErr := func(url, fromCert string, cacheSize, cacheTime int) {
-		config, err := NewCRLConfig(url, fromCert, cacheSize, cacheTime)
+	expectErr := func(url, fromCert string, checkWholeChain bool, cacheSize, cacheTime int) {
+		config, err := NewCRLConfig(url, fromCert, checkWholeChain, cacheSize, cacheTime)
 		if config != nil || err == nil {
-			t.Logf("url=%v, fromCert=%v, cacheSize=%v, cacheTime=%v\n", url, fromCert, cacheSize, cacheTime)
+			t.Logf("url=%v, fromCert=%v, checkWholeChain=%v, cacheSize=%v, cacheTime=%v\n",
+				url, fromCert, checkWholeChain, cacheSize, cacheTime)
 			t.Logf("config=%v, err=%v\n", config, err)
 			t.Fatal("Got unexpected result or `nil` error")
 		}
 	}
 
-	expectOk("", crlFromCertUseStr, 1, 5)
-	expectOk("", crlFromCertIgnoreStr, 1, 5)
-	expectOk("http://127.0.0.1/main_crl.pem", crlFromCertUseStr, 1, 5)
-	expectOk("", crlFromCertUseStr, 1, 0)
-	expectOk("", crlFromCertUseStr, 1, 1)
-	expectOk("", crlFromCertUseStr, 1, 300)
-	expectOk("", crlFromCertTrustStr, 1, 0)
-	expectOk("", crlFromCertPreferStr, 1, 0)
+	expectOk("", crlFromCertUseStr, false, 1, 5)
+	expectOk("", crlFromCertIgnoreStr, false, 1, 5)
+	expectOk("http://127.0.0.1/main_crl.pem", crlFromCertUseStr, false, 1, 5)
+	expectOk("", crlFromCertUseStr, false, 1, 0)
+	expectOk("", crlFromCertUseStr, true, 1, 1)
+	expectOk("", crlFromCertUseStr, false, 1, 300)
+	expectOk("", crlFromCertTrustStr, true, 1, 0)
+	expectOk("", crlFromCertPreferStr, false, 1, 0)
 
-	expectErr("htt://invalid url", crlFromCertUseStr, 1, 5)
-	expectErr("", "IgNoRe", 1, 5)
-	expectErr("", crlFromCertUseStr, 1, -1)
-	expectErr("", crlFromCertUseStr, 1, -10)
-	expectErr("", crlFromCertUseStr, 1, 301)
-	expectErr("", crlFromCertUseStr, 1, 9000)
+	expectErr("htt://invalid url", crlFromCertUseStr, false, 1, 5)
+	expectErr("", "IgNoRe", false, 1, 5)
+	expectErr("", crlFromCertUseStr, false, 1, -1)
+	expectErr("", crlFromCertUseStr, false, 1, -10)
+	expectErr("", crlFromCertUseStr, false, 1, 301)
+	expectErr("", crlFromCertUseStr, false, 1, 9000)
 }
 
 func TestDefaultCRLClientHTTP(t *testing.T) {

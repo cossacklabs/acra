@@ -235,6 +235,7 @@ func main() {
 	tlsOcspCheckWholeChain := flag.Bool("tls_ocsp_check_whole_chain", false, "Whether to check whole certificate chain, false = only end certificate")
 	tlsCrlURL := flag.String("tls_crl_url", "", "URL of the Certificate Revocation List (CRL) to use")
 	tlsCrlFromCert := flag.String("tls_crl_from_cert", "prefer", "How should we treat CRL URL described in certificate itself; <use|trust|prefer|ignore>")
+	tlsCrlCheckWholeChain := flag.Bool("tls_crl_check_whole_chain", false, "Whether to check whole certificate chain, false = only end certificate")
 	tlsCrlCacheSize := flag.Int("tls_crl_cache_size", 16, "How many CRLs to cache in memory (use 0 to disable caching)")
 	tlsCrlCacheTime := flag.Int("tls_crl_cache_time", 0, "How long to keep CRLs cached, in seconds (use 0 to disable caching, maximum: 300 s)")
 	noEncryptionTransport := flag.Bool("acraserver_transport_encryption_disable", false, "Enable this flag to omit AcraConnector and connect client app to AcraServer directly using raw transport (tcp/unix socket). From security perspective please use at least TLS encryption (over tcp socket) between AcraServer and client app.")
@@ -413,7 +414,7 @@ func main() {
 				os.Exit(1)
 			}
 
-			crlConfig, err := network.NewCRLConfig(*tlsCrlURL, *tlsCrlFromCert, *tlsCrlCacheSize, *tlsCrlCacheTime)
+			crlConfig, err := network.NewCRLConfig(*tlsCrlURL, *tlsCrlFromCert, *tlsCrlCheckWholeChain, *tlsCrlCacheSize, *tlsCrlCacheTime)
 			if err != nil {
 				log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorWrongConfiguration).
 					Errorln("Configuration error: invalid CRL config")
