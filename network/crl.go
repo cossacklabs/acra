@@ -42,8 +42,12 @@ var (
 
 // --tls_crl_from_cert=<use|ignore>
 const (
-	// If certificate contains CRL distribution point(s), use them
+	// If certificate contains CRL distribution point(s), use them, _after_ trying configured URL
 	crlFromCertUseStr = "use"
+	// If certificate contains CRL distribution point(s), use them, and don't use configured URL in this case
+	crlFromCertTrustStr = "trust"
+	// If certificate contains CRL distribution point(s), use them, _before_ trying configured URL
+	crlFromCertPreferStr = "prefer"
 	// Ignore CRL distribution points listed in certificate
 	crlFromCertIgnoreStr = "ignore"
 )
@@ -51,12 +55,16 @@ const (
 var (
 	crlFromCertValValues = map[string]int{
 		crlFromCertUseStr:    crlFromCertUse,
+		crlFromCertTrustStr:  crlFromCertTrust,
+		crlFromCertPreferStr: crlFromCertPrefer,
 		crlFromCertIgnoreStr: crlFromCertIgnore,
 	}
 )
 
 const (
 	crlFromCertUse int = iota
+	crlFromCertTrust
+	crlFromCertPrefer
 	crlFromCertIgnore
 )
 
@@ -74,7 +82,6 @@ type CRLConfig struct {
 
 // NewCRLConfig creates new CRLConfig
 func NewCRLConfig(url, fromCert string, cacheSize, cacheTime int) (*CRLConfig, error) {
-
 	fromCertVal, ok := crlFromCertValValues[fromCert]
 	if !ok {
 		return nil, ErrInvalidConfigCRLFromCert
@@ -304,63 +311,128 @@ func (v DefaultCRLVerifier) getCachedOrFetch(url string, issuerCert *x509.Certif
 	return crl, nil
 }
 
+// Returns `nil` if certificate was not cound in CRL, returns error if it was there
+// or if there was unknown Object ID in revoked certificate extensions
+func checkCertWithCRL(cert *x509.Certificate, crl *pkix.CertificateList) error {
+	for _, revokedCertificate := range crl.TBSCertList.RevokedCertificates {
+		if revokedCertificate.SerialNumber.Cmp(cert.SerialNumber) == 0 {
+			log.WithField("extensions", revokedCertificate.Extensions).Warnln("Revoked certificate extensions")
+			for _, extension := range revokedCertificate.Extensions {
+				// One can use https://www.alvestrand.no/objectid/top.html to convert string OIDs (like id-ce-keyUsage)
+				// into numerical format (like 2.5.29.15), though RFC also allows easy reconstruction of OIDs.
+
+				// Some of these extensions values may be ignored, but we still have to
+				// include them (their OIDs) here so that we're not blindly ignoring them.
+				// Convert to string to be able to use switch.
+				switch extension.Id.String() {
+				// As per RFC 5280 section 4.2, aplications MUST recognize following extensions:
+				case "2.5.29.15":
+					// section 4.2.1.3, id-ce-keyUsage
+				case "2.5.29.32":
+					// section 4.2.1.4, id-ce-certificatePolicies
+				case "2.5.29.17":
+					// section 4.2.1.6, id-ce-subjectAltName
+				case "2.5.29.19":
+					// section 4.2.1.9, id-ce-basicConstraints
+				case "2.5.29.30":
+					// section 4.2.1.10, id-ce-nameConstraints
+				case "2.5.29.36":
+					// section 4.2.1.11, id-ce-policyConstraints
+				case "2.5.29.37":
+					// section 4.2.1.12, id-ce-extKeyUsage
+				case "2.5.29.54":
+					// section 4.2.1.14, id-ce-inhibitAnyPolicy
+
+				// As per RFC 5280 section 4.2, aplications SHOULD recognize following extensions:
+				case "2.5.29.35":
+					// section 4.2.1.1, id-ce-authorityKeyIdentifier
+				case "2.5.29.14":
+					// section 4.2.1.2, id-ce-subjectKeyIdentifier
+				case "2.5.29.33":
+					// section 4.2.1.5, id-ce-policyMappings
+
+				default:
+					if extension.Critical {
+						log.WithField("oid", extension.Id.String()).Warnln("CRL: Unable to process critical extension with unknown Object ID")
+						return ErrUnknownCRLExtensionOID
+					}
+					log.WithField("oid", extension.Id.String()).Debugln("CRL: Unable to process non-critical extension with unknown Object ID")
+				}
+			}
+
+			log.WithField("serial", cert.SerialNumber).WithField("revoked_at", revokedCertificate.RevocationTime).Warnln("CRL: Certificate was revoked")
+			return ErrCertWasRevoked
+		}
+	}
+
+	return nil
+}
+
+// crlToCheck is used to plan CRL requests
+type crlToCheck struct {
+	url      string
+	fromCert bool
+}
+
 func (v DefaultCRLVerifier) verifyCertWithIssuer(cert, issuer *x509.Certificate) error {
 	log.Debugf("CRL: Verifying '%s'", cert.Subject.String())
-
-	if len(v.Config.url) == 0 && v.Config.fromCert == crlFromCertIgnore {
-		log.Debugln("CRL: Skipping check since no config URL specified and we were told to ignore URLs from certificate")
-		return nil
-	}
 
 	for _, crlDistributionPoint := range cert.CRLDistributionPoints {
 		log.Debugf("CRL: certificate contains CRL URL: %s", crlDistributionPoint)
 	}
 
-	queriedCRLs := make(map[string]struct{})
+	crlsToCheck := []crlToCheck{}
+
+	if v.Config.fromCert != crlFromCertIgnore {
+		for _, crlDistributionPoint := range cert.CRLDistributionPoints {
+			serverToCheck := crlToCheck{url: crlDistributionPoint, fromCert: true}
+			log.Debugf("CRL: appending server %s, from cert", serverToCheck.url)
+			crlsToCheck = append(crlsToCheck, serverToCheck)
+		}
+	} else if len(cert.CRLDistributionPoints) > 0 {
+		log.Debugf("CRL: Ignoring %d CRL distribution points from certificate", len(cert.CRLDistributionPoints))
+	}
 
 	if v.Config.url != "" {
-		crl, err := v.getCachedOrFetch(v.Config.url, issuer)
+		crlDistributionPointToCheck := crlToCheck{url: v.Config.url, fromCert: false}
+
+		if v.Config.fromCert == crlFromCertPrefer || v.Config.fromCert == crlFromCertTrust {
+			log.Debugf("CRL: appending server %s, from config", crlDistributionPointToCheck.url)
+			crlsToCheck = append(crlsToCheck, crlDistributionPointToCheck)
+		} else {
+			log.Debugf("CRL: prepending server %s, from config", crlDistributionPointToCheck.url)
+			crlsToCheck = append([]crlToCheck{crlDistributionPointToCheck}, crlsToCheck...)
+		}
+	}
+
+	queriedCRLs := make(map[string]struct{})
+
+	for _, crlToCheck := range crlsToCheck {
+		log.Debugf("CRL: Trying URL %s", crlToCheck.url)
+
+		if _, ok := queriedCRLs[crlToCheck.url]; ok {
+			log.Debugln("CRL: Skipping, already queried")
+			continue
+		}
+
+		crl, err := v.getCachedOrFetch(crlToCheck.url, issuer)
 		if err != nil {
-			log.WithError(err).Debugf("CRL: Cannot get CRL from '%s'", v.Config.url)
+			log.WithError(err).WithField("url", crlToCheck.url).Debugf("CRL: Cannot get CRL")
 			return err
 		}
 
-		for _, revokedCertificate := range crl.TBSCertList.RevokedCertificates {
-			log.WithField("extensions", revokedCertificate.Extensions).Warnln("Revoked certificate extensions")
-			if revokedCertificate.SerialNumber.Cmp(cert.SerialNumber) == 0 {
-				log.Warnf("CRL: Certificate %v was revoked at %v", cert.SerialNumber, revokedCertificate.RevocationTime)
-				return ErrCertWasRevoked
-			}
+		err = checkCertWithCRL(cert, crl)
+		if err != nil {
+			return err
 		}
 
-		queriedCRLs[v.Config.url] = struct{}{}
+		if crlToCheck.fromCert && v.Config.fromCert == crlFromCertTrust {
+			// If this CRL distribution point came from certificate and `--tls_crl_from_cert=trust`, don't perform further checks
+			break
+		}
+
+		queriedCRLs[crlToCheck.url] = struct{}{}
 		log.Debugln("CRL: OK, not found in list of revoked certificates")
-	}
-
-	if len(cert.CRLDistributionPoints) > 0 && v.Config.fromCert != crlFromCertIgnore {
-		for _, crlDistributionPoint := range cert.CRLDistributionPoints {
-			if _, ok := queriedCRLs[crlDistributionPoint]; ok {
-				continue
-			}
-
-			log.Debugf("CRL: using '%s' from certificate", crlDistributionPoint)
-
-			crl, err := v.getCachedOrFetch(crlDistributionPoint, issuer)
-			if err != nil {
-				log.WithError(err).Debugf("CRL: Cannot get CRL from '%s'", crlDistributionPoint)
-				return err
-			}
-
-			for _, revokedCertificate := range crl.TBSCertList.RevokedCertificates {
-				if revokedCertificate.SerialNumber.Cmp(cert.SerialNumber) == 0 {
-					log.Warnf("CRL: Certificate %v was revoked at %v", cert.SerialNumber, revokedCertificate.RevocationTime)
-					return ErrCertWasRevoked
-				}
-			}
-
-			queriedCRLs[v.Config.url] = struct{}{}
-			log.Debugln("CRL: OK, not found in list of revoked certificates")
-		}
 	}
 
 	return nil

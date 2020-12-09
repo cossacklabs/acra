@@ -41,26 +41,26 @@ var (
 // --tls_ocsp_required=<denyUnknown|allowUnknown|all>
 const (
 	// Deny certificates now known by OCSP server(s)
-	ocspRequiredYesStr = "denyUnknown"
+	ocspRequiredDenyUnknownStr = "denyUnknown"
 	// Allow certificates now known by OCSP server(s)
-	ocspRequiredNoStr = "allowUnknown"
+	ocspRequiredAllowUnknownStr = "allowUnknown"
 	// Effect of denyUnknown + all available OCSP servers (the one from config
 	// and those listed in certificate) should respond, otherwise deny the certificate
-	ocspRequiredAllStr = "all"
+	ocspRequiredRequireGoodStr = "requireGood"
 )
 
 var (
 	ocspRequiredValValues = map[string]int{
-		ocspRequiredYesStr: ocspRequiredYes,
-		ocspRequiredNoStr:  ocspRequiredNo,
-		ocspRequiredAllStr: ocspRequiredAll,
+		ocspRequiredDenyUnknownStr:  ocspRequiredDenyUnknown,
+		ocspRequiredAllowUnknownStr: ocspRequiredAllowUnknown,
+		ocspRequiredRequireGoodStr:  ocspRequiredReuireGood,
 	}
 )
 
 const (
-	ocspRequiredYes int = iota
-	ocspRequiredNo
-	ocspRequiredAll
+	ocspRequiredDenyUnknown int = iota
+	ocspRequiredAllowUnknown
+	ocspRequiredReuireGood
 )
 
 // --tls_ocsp_from_cert=<use|trust|prefer|ignore>
@@ -113,7 +113,7 @@ func NewOCSPConfig(url, required, fromCert string, checkWholeChain bool) (*OCSPC
 		return nil, ErrInvalidConfigOCSPFromCert
 	}
 
-	if requiredVal == ocspRequiredAll && url == "" {
+	if requiredVal == ocspRequiredReuireGood && url == "" {
 		return nil, ErrInvalidConfigAllRequiresURL
 	}
 
@@ -136,11 +136,11 @@ func NewOCSPConfig(url, required, fromCert string, checkWholeChain bool) (*OCSPC
 	}
 
 	switch requiredVal {
-	case ocspRequiredYes:
+	case ocspRequiredDenyUnknown:
 		log.Debugln("OCSP: At least one OCSP server should confirm certificate validity")
-	case ocspRequiredNo:
+	case ocspRequiredAllowUnknown:
 		log.Debugln("OCSP: Allowing certificates not known by OCSP server")
-	case ocspRequiredAll:
+	case ocspRequiredReuireGood:
 		log.Debugln("OCSP: Requiring positive response from all OCSP servers")
 	}
 
@@ -158,7 +158,7 @@ func NewOCSPConfig(url, required, fromCert string, checkWholeChain bool) (*OCSPC
 	return &OCSPConfig{url: url, required: requiredVal, fromCert: fromCertVal}, nil
 }
 
-// UseOSCP returns true if verification via OCSP is enabled
+// UseOCSP returns true if verification via OCSP is enabled
 func (c *OCSPConfig) UseOCSP() bool {
 	if c == nil {
 		return false
@@ -234,10 +234,8 @@ func (v DefaultOCSPVerifier) verifyCertWithIssuer(cert, issuer *x509.Certificate
 			log.Debugf("OCSP: appending server %s, from cert", serverToCheck.url)
 			serversToCheck = append(serversToCheck, serverToCheck)
 		}
-	} else {
-		if len(cert.OCSPServer) > 0 {
-			log.Debugf("OCSP: Ignoring %d OCSP servers from certificate", len(cert.OCSPServer))
-		}
+	} else if len(cert.OCSPServer) > 0 {
+		log.Debugf("OCSP: Ignoring %d OCSP servers from certificate", len(cert.OCSPServer))
 	}
 
 	if v.Config.url != "" {
@@ -268,7 +266,7 @@ func (v DefaultOCSPVerifier) verifyCertWithIssuer(cert, issuer *x509.Certificate
 		if err != nil {
 			log.WithError(err).WithField("url", serverToCheck.url).Warnln("Cannot query OCSP server")
 
-			if v.Config.required == ocspRequiredAll {
+			if v.Config.required == ocspRequiredReuireGood {
 				return ErrOCSPRequiredAllButGotError
 			}
 
@@ -285,7 +283,7 @@ func (v DefaultOCSPVerifier) verifyCertWithIssuer(cert, issuer *x509.Certificate
 				log.Debugln("OCSP: confirmed by server from config")
 			}
 
-			if v.Config.required != ocspRequiredAll {
+			if v.Config.required != ocspRequiredReuireGood {
 				// One confirmation is enough if we don't require all OCSP servers to confirm the certificate validity
 				break
 			}
@@ -300,7 +298,7 @@ func (v DefaultOCSPVerifier) verifyCertWithIssuer(cert, issuer *x509.Certificate
 			return ErrCertWasRevoked
 		case ocsp.Unknown:
 			// Treat "Unknown" response as error if tls_ocsp_required is "yes" or "all"
-			if v.Config.required != ocspRequiredNo {
+			if v.Config.required != ocspRequiredAllowUnknown {
 				log.WithField("url", serverToCheck.url).WithField("serial", cert.SerialNumber).Warnln("OCSP server doesn't know about certificate")
 				return ErrOCSPUnknownCertificate
 			}

@@ -290,19 +290,21 @@ func TestCRLConfig(t *testing.T) {
 		}
 	}
 
-	expectOk("", "use", 1, 5)
-	expectOk("", "ignore", 1, 5)
-	expectOk("http://127.0.0.1/main_crl.pem", "use", 1, 5)
-	expectOk("", "use", 1, 0)
-	expectOk("", "use", 1, 1)
-	expectOk("", "use", 1, 300)
+	expectOk("", crlFromCertUseStr, 1, 5)
+	expectOk("", crlFromCertIgnoreStr, 1, 5)
+	expectOk("http://127.0.0.1/main_crl.pem", crlFromCertUseStr, 1, 5)
+	expectOk("", crlFromCertUseStr, 1, 0)
+	expectOk("", crlFromCertUseStr, 1, 1)
+	expectOk("", crlFromCertUseStr, 1, 300)
+	expectOk("", crlFromCertTrustStr, 1, 0)
+	expectOk("", crlFromCertPreferStr, 1, 0)
 
-	expectErr("htt://invalid url", "use", 1, 5)
+	expectErr("htt://invalid url", crlFromCertUseStr, 1, 5)
 	expectErr("", "IgNoRe", 1, 5)
-	expectErr("", "use", 1, -1)
-	expectErr("", "use", 1, -10)
-	expectErr("", "use", 1, 301)
-	expectErr("", "use", 1, 9000)
+	expectErr("", crlFromCertUseStr, 1, -1)
+	expectErr("", crlFromCertUseStr, 1, -10)
+	expectErr("", crlFromCertUseStr, 1, 301)
+	expectErr("", crlFromCertUseStr, 1, 9000)
 }
 
 func TestDefaultCRLClientHTTP(t *testing.T) {
@@ -462,4 +464,64 @@ func testDefaultCRLVerifierWithGroup(t *testing.T, certGroup TestCertGroup) {
 func TestDefaultCRLVerifier(t *testing.T) {
 	testDefaultCRLVerifierWithGroup(t, getTestCertGroup(t))
 	// testDefaultCRLVerifierWithGroup(t, getTestCertGroup3(t))
+}
+
+func TestCheckCertWithCRL(t *testing.T) {
+	// Test function checkCertWithCRL() used inside DefaultCRLVerifier.verifyCertWithIssuer(),
+	// to be precise, test handling of different extensions in CRL
+
+	// Extension processing is only done if revoked certificate S/N matches, so we gotta use revoked one,
+	// thus, tested function should either return ErrCertWasRevoked or ErrUnknownCRLExtensionOID;
+	// this behavior may be extended in future
+
+	expectOk := func(cert *x509.Certificate, crl *pkix.CertificateList) {
+		err := checkCertWithCRL(cert, crl)
+		if err != ErrCertWasRevoked {
+			t.Logf("err=%v\n", err)
+			t.Fatal("Got unexpected error")
+		}
+	}
+
+	expectErr := func(cert *x509.Certificate, crl *pkix.CertificateList) {
+		err := checkCertWithCRL(cert, crl)
+		if err == ErrCertWasRevoked {
+			t.Fatal("Got ErrCertWasRevoked, but expected error about extensions")
+		} else {
+			t.Logf("(Expected) err=%v\n", err)
+		}
+	}
+
+	certGroup := getTestCertGroup(t)
+	cert := certGroup.invalidVerifiedChains[0][0]
+	_, crl := getTestCRL(t, path.Join(certGroup.prefix, certGroup.crl))
+
+	// Test with empty extensions lists in revoked certificates
+	for revokedCertID := range crl.TBSCertList.RevokedCertificates {
+		crl.TBSCertList.RevokedCertificates[revokedCertID].Extensions = []pkix.Extension{}
+	}
+	expectOk(cert, crl)
+
+	// Test with some known critical extension
+	crl.TBSCertList.RevokedCertificates[0].Extensions = []pkix.Extension{
+		{Id: []int{2, 5, 29, 15}, Critical: true, Value: []byte{}},
+	}
+	expectOk(cert, crl)
+
+	// Test with some known non-critical extension
+	crl.TBSCertList.RevokedCertificates[0].Extensions = []pkix.Extension{
+		{Id: []int{2, 5, 29, 35}, Critical: false, Value: []byte{}},
+	}
+	expectOk(cert, crl)
+
+	// Test with some unknown critical extension
+	crl.TBSCertList.RevokedCertificates[0].Extensions = []pkix.Extension{
+		{Id: []int{25, 100, 41}, Critical: true, Value: []byte{}},
+	}
+	expectErr(cert, crl)
+
+	// Test with some unknown non-critical extension
+	crl.TBSCertList.RevokedCertificates[0].Extensions = []pkix.Extension{
+		{Id: []int{70, 1, 2, 3, 4}, Critical: false, Value: []byte{}},
+	}
+	expectOk(cert, crl)
 }

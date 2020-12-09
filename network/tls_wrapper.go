@@ -73,15 +73,15 @@ func RegisterTLSBaseArgs() {
 	flag.StringVar(&tlsCert, "tls_cert", "", "Path to certificate")
 	flag.IntVar(&tlsAuthType, "tls_auth", int(tls.RequireAndVerifyClientCert), "Set authentication mode that will be used in TLS connection. Values in range 0-4 that set auth type (https://golang.org/pkg/crypto/tls/#ClientAuthType). Default is tls.RequireAndVerifyClientCert")
 	flag.StringVar(&tlsOcspURL, "tls_ocsp_url", "", "OCSP service URL")
-	flag.StringVar(&tlsOcspClientURL, "tls_ocsp_client_url", "", "OCSP service URL, for client certificates only")
+	flag.StringVar(&tlsOcspClientURL, "tls_ocsp_client_url", "", "OCSP service URL, for client/connector certificates only")
 	flag.StringVar(&tlsOcspDbURL, "tls_ocsp_database_url", "", "OCSP service URL, for database certificates only")
-	flag.StringVar(&tlsOcspRequired, "tls_ocsp_required", "yes", "Whether we need OCSP response in order to accept certificate")
-	flag.StringVar(&tlsOcspFromCert, "tls_ocsp_from_cert", "prefer", "How should we threat OCSP server described in certificate itself")
+	flag.StringVar(&tlsOcspRequired, "tls_ocsp_required", "denyUnknown", "How to treat certificates unknown to OCSP: <denyUnknown|allowUnknown|requireGood>")
+	flag.StringVar(&tlsOcspFromCert, "tls_ocsp_from_cert", "prefer", "How should we treat OCSP server described in certificate itself; <use|trust|prefer|ignore>")
 	flag.BoolVar(&tlsOcspCheckWholeChain, "tls_ocsp_check_whole_chain", false, "Whether to check whole certificate chain, false = only end certificate")
-	flag.StringVar(&tlsCrlURL, "tls_crl_url", "", "CRL URL")
-	flag.StringVar(&tlsCrlFromCert, "tls_crl_from_cert", "use", "How should we treat CRL URL described in certificate itself")
-	flag.IntVar(&tlsCrlCacheSize, "tls_crl_cache_size", 16, "Size of in-memory LRU cache for storing fetched CRLs, 0 = unlimited")
-	flag.IntVar(&tlsCrlCacheTime, "tls_crl_cache_time", 60, "How long cached CRL is considerend valid, seconds, max = 300")
+	flag.StringVar(&tlsCrlURL, "tls_crl_url", "", "URL of the Certificate Revocation List (CRL) to use")
+	flag.StringVar(&tlsCrlFromCert, "tls_crl_from_cert", "use", "How should we treat CRL URL described in certificate itself; <use|trust|prefer|ignore>")
+	flag.IntVar(&tlsCrlCacheSize, "tls_crl_cache_size", 16, "How many CRLs to cache in memory (use 0 to disable caching)")
+	flag.IntVar(&tlsCrlCacheTime, "tls_crl_cache_time", 0, "How long to keep CRLs cached, in seconds (use 0 to disable caching, maximum: 300 s)")
 }
 
 // RegisterTLSClientArgs register CLI args tls_server_sni used by TLS client's connection

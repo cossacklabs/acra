@@ -101,16 +101,19 @@ tls_ca:
 # Path to certificate
 tls_cert: 
 
-# Size of in-memory LRU cache for storing fetched CRLs, 0 = unlimited
+# How many CRLs to cache in memory (use 0 to disable caching)
 tls_crl_cache_size: 16
 
-# How long cached CRL is considerend valid, seconds, max = 300
-tls_crl_cache_time: 5
+# How long to keep CRLs cached, in seconds (use 0 to disable caching, maximum: 300 s)
+tls_crl_cache_time: 0
 
-# How should we treat CRL URL described in certificate itself
-tls_crl_from_cert: use
+# Whether to check whole certificate chain, false = only end certificate
+tls_crl_check_whole_chain: false
 
-# CRL URL
+# How should we treat CRL URL described in certificate itself; <use|trust|prefer|ignore>
+tls_crl_from_cert: prefer
+
+# URL of the Certificate Revocation List (CRL) to use
 tls_crl_url: 
 
 # Path to private key that will be used in TLS handshake with AcraServer
@@ -119,10 +122,10 @@ tls_key:
 # Whether to check whole certificate chain, false = only end certificate
 tls_ocsp_check_whole_chain: false
 
-# How should we treat OCSP server described in certificate itself
+# How should we treat OCSP server described in certificate itself; <use|trust|prefer|ignore>
 tls_ocsp_from_cert: prefer
 
-# Whether we need OCSP response in order to accept certificate
+# How to treat certificates unknown to OCSP: <denyUnknown|allowUnknown|requireGood>
 tls_ocsp_required: denyUnknown
 
 # OCSP service URL
