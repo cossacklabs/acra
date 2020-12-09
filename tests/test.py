@@ -404,7 +404,7 @@ def wait_command_success(command, count=10, sleep=0.200):
             return
         count -= 1
         time.sleep(sleep)
-    raise Exception("can't wait command success")
+    raise Exception(f"can't wait command success: {command}")
 
 def wait_unix_socket(socket_path, count=1000, sleep=0.005):
     last_exc = Exception("can't wait unix socket")

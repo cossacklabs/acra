@@ -30,12 +30,12 @@ import (
 
 // Errors returned by CRL verifier
 var (
-	ErrInvalidConfigOCSPRequired   = errors.New("Invalid `ocsp_required` value")
-	ErrInvalidConfigOCSPFromCert   = errors.New("Invalid `ocsp_from_cert` value")
-	ErrInvalidConfigAllRequiresURL = errors.New("When passing `--tls_ocsp_required=all`, URL is mandatory")
-	ErrOCSPRequiredAllButGotError  = errors.New("Cannot query OCSP server, but --tls_ocsp_required=all was passed")
+	ErrInvalidConfigOCSPRequired   = errors.New("invalid `ocsp_required` value")
+	ErrInvalidConfigOCSPFromCert   = errors.New("invalid `ocsp_from_cert` value")
+	ErrInvalidConfigAllRequiresURL = errors.New("when passing `--tls_ocsp_required=all`, URL is mandatory")
+	ErrOCSPRequiredAllButGotError  = errors.New("cannot query OCSP server, but --tls_ocsp_required=all was passed")
 	ErrOCSPUnknownCertificate      = errors.New("OCSP server doesn't know about certificate")
-	ErrOCSPNoConfirms              = errors.New("None of OCSP servers confirmed the certificate")
+	ErrOCSPNoConfirms              = errors.New("none of OCSP servers confirmed the certificate")
 )
 
 // --tls_ocsp_required=<denyUnknown|allowUnknown|all>

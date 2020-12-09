@@ -32,12 +32,13 @@ import (
 
 // Errors returned by CRL verifier
 var (
-	ErrInvalidConfigCRLFromCert     = errors.New("Invalid `tls_crl_from_cert` value")
-	ErrInvalidConfigCRLCacheTime    = errors.New("Invalid `tls_crl_cache_time` value")
-	ErrHTTPServerReturnedError      = errors.New("Server returned non-OK status")
-	ErrFetchCRLUnsupportedURLScheme = errors.New("Cannot fetch CRL, unsupported URL scheme")
-	ErrCacheKeyNotFound             = errors.New("Cannot find cached CRL with given URL")
-	ErrOutdatedCRL                  = errors.New("Cannot find cached CRL with given URL")
+	ErrInvalidConfigCRLFromCert     = errors.New("invalid `tls_crl_from_cert` value")
+	ErrInvalidConfigCRLCacheTime    = errors.New("invalid `tls_crl_cache_time` value")
+	ErrHTTPServerReturnedError      = errors.New("server returned non-OK status")
+	ErrFetchCRLUnsupportedURLScheme = errors.New("cannot fetch CRL, unsupported URL scheme")
+	ErrCacheKeyNotFound             = errors.New("cannot find cached CRL with given URL")
+	ErrOutdatedCRL                  = errors.New("fetched CRLs NextUpdate is behind current time")
+	ErrUnknownCRLExtensionOID       = errors.New("unable to process unknown critical extension inside CRL")
 )
 
 // --tls_crl_from_cert=<use|ignore>
@@ -164,12 +165,8 @@ func (c DefaultCRLClient) Fetch(url string) ([]byte, error) {
 		if err != nil {
 			return nil, err
 		}
-		crlURL, err := url_.Parse(url)
-		if err != nil {
-			return nil, err
-		}
 		httpRequest.Header.Add("Accept", "application/pkix-crl, application/pem-certificate-chain")
-		httpRequest.Header.Add("host", crlURL.Host)
+		httpRequest.Header.Add("host", parsedURL.Host)
 		httpResponse, err := c.httpClient.Do(httpRequest)
 		if err != nil {
 			return nil, err
@@ -180,7 +177,7 @@ func (c DefaultCRLClient) Fetch(url string) ([]byte, error) {
 			return nil, err
 		}
 
-		if httpResponse.StatusCode != 200 {
+		if httpResponse.StatusCode != http.StatusOK {
 			log.WithField("status", httpResponse.Status).Warnln("Server returned non-OK status")
 			return nil, ErrHTTPServerReturnedError
 		}
