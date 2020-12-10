@@ -272,7 +272,7 @@ func getInvalidTestChain(t *testing.T) ([][]byte, [][]*x509.Certificate) {
 // }
 
 func TestCRLConfig(t *testing.T) {
-	expectOk := func(url, fromCert string, checkWholeChain bool, cacheSize, cacheTime int) {
+	expectOk := func(url, fromCert string, checkWholeChain bool, cacheSize, cacheTime uint) {
 		config, err := NewCRLConfig(url, fromCert, checkWholeChain, cacheSize, cacheTime)
 		if config == nil || err != nil {
 			t.Logf("url=%v, fromCert=%v, checkWholeChain=%v, cacheSize=%v, cacheTime=%v\n",
@@ -282,7 +282,7 @@ func TestCRLConfig(t *testing.T) {
 		}
 	}
 
-	expectErr := func(url, fromCert string, checkWholeChain bool, cacheSize, cacheTime int) {
+	expectErr := func(url, fromCert string, checkWholeChain bool, cacheSize, cacheTime uint) {
 		config, err := NewCRLConfig(url, fromCert, checkWholeChain, cacheSize, cacheTime)
 		if config != nil || err == nil {
 			t.Logf("url=%v, fromCert=%v, checkWholeChain=%v, cacheSize=%v, cacheTime=%v\n",
@@ -292,19 +292,22 @@ func TestCRLConfig(t *testing.T) {
 		}
 	}
 
+	// Here we test valid and invalid URLs, all possible values for
+	// `--tls_crl_from_cert`, and some invalid ones too,
+	// valid and invalid uint values for `--tls_crl_cache_size`
+
 	expectOk("", crlFromCertUseStr, false, 1, 5)
-	expectOk("", crlFromCertIgnoreStr, false, 1, 5)
+	expectOk("", crlFromCertIgnoreStr, false, 2, 5)
 	expectOk("http://127.0.0.1/main_crl.pem", crlFromCertUseStr, false, 1, 5)
-	expectOk("", crlFromCertUseStr, false, 1, 0)
-	expectOk("", crlFromCertUseStr, true, 1, 1)
+	expectOk("", crlFromCertUseStr, false, 100, 0)
+	expectOk("", crlFromCertUseStr, true, 0, 1)
 	expectOk("", crlFromCertUseStr, false, 1, 300)
 	expectOk("", crlFromCertTrustStr, true, 1, 0)
 	expectOk("", crlFromCertPreferStr, false, 1, 0)
 
 	expectErr("htt://invalid url", crlFromCertUseStr, false, 1, 5)
 	expectErr("", "IgNoRe", false, 1, 5)
-	expectErr("", crlFromCertUseStr, false, 1, -1)
-	expectErr("", crlFromCertUseStr, false, 1, -10)
+	expectErr("", crlFromCertUseStr, false, 2147483648, 5)
 	expectErr("", crlFromCertUseStr, false, 1, 301)
 	expectErr("", crlFromCertUseStr, false, 1, 9000)
 }

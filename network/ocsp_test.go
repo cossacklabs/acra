@@ -229,6 +229,9 @@ func TestOCSPConfig(t *testing.T) {
 		}
 	}
 
+	// Here we test valid and invalid URLs, all possible values for
+	// `--tls_ocsp_required`, `--tls_ocsp_from_cert`, and some invalid ones too
+
 	expectOk("", ocspRequiredDenyUnknownStr, ocspFromCertUseStr, false)
 	expectOk("http://127.0.0.1", ocspRequiredDenyUnknownStr, ocspFromCertUseStr, false)
 	expectOk("http://127.0.0.1:12345", ocspRequiredDenyUnknownStr, ocspFromCertUseStr, false)

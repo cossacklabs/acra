@@ -33,6 +33,7 @@ import (
 // Errors returned by CRL verifier
 var (
 	ErrInvalidConfigCRLFromCert     = errors.New("invalid `tls_crl_from_cert` value")
+	ErrInvalidConfigCRLCacheSize    = errors.New("invalid `tls_crl_cache_size` value")
 	ErrInvalidConfigCRLCacheTime    = errors.New("invalid `tls_crl_cache_time` value")
 	ErrHTTPServerReturnedError      = errors.New("server returned non-OK status")
 	ErrFetchCRLUnsupportedURLScheme = errors.New("cannot fetch CRL, unsupported URL scheme")
@@ -41,7 +42,7 @@ var (
 	ErrUnknownCRLExtensionOID       = errors.New("unable to process unknown critical extension inside CRL")
 )
 
-// --tls_crl_from_cert=<use|ignore>
+// --tls_crl_from_cert=<use|truet|prefer|ignore>
 const (
 	// If certificate contains CRL distribution point(s), use them, _after_ trying configured URL
 	crlFromCertUseStr = "use"
@@ -70,6 +71,8 @@ const (
 )
 
 const (
+	// Max int value, because cache implementation uses `int` for setting capacity
+	crlCacheSizeMax = 2147483647
 	crlCacheTimeMax = 300
 )
 
@@ -78,18 +81,22 @@ type CRLConfig struct {
 	url             string
 	fromCert        int // crlFromCert*
 	checkWholeChain bool
-	cacheSize       int
+	cacheSize       uint
 	cacheTime       time.Duration
 }
 
 // NewCRLConfig creates new CRLConfig
-func NewCRLConfig(url, fromCert string, checkWholeChain bool, cacheSize, cacheTime int) (*CRLConfig, error) {
+func NewCRLConfig(url, fromCert string, checkWholeChain bool, cacheSize, cacheTime uint) (*CRLConfig, error) {
 	fromCertVal, ok := crlFromCertValValues[fromCert]
 	if !ok {
 		return nil, ErrInvalidConfigCRLFromCert
 	}
 
-	if cacheTime < 0 || cacheTime > crlCacheTimeMax {
+	if cacheSize > crlCacheSizeMax {
+		return nil, ErrInvalidConfigCRLCacheSize
+	}
+
+	if cacheTime > crlCacheTimeMax {
 		return nil, ErrInvalidConfigCRLCacheTime
 	}
 
@@ -217,8 +224,8 @@ type LRUCRLCache struct {
 }
 
 // NewLRUCRLCache creates new LRUCRLCache, able to store at most maxEntries values
-func NewLRUCRLCache(maxEntries int) *LRUCRLCache {
-	return &LRUCRLCache{cache: lru.Cache{MaxEntries: maxEntries}}
+func NewLRUCRLCache(maxEntries uint) *LRUCRLCache {
+	return &LRUCRLCache{cache: lru.Cache{MaxEntries: int(maxEntries)}}
 }
 
 // Get tries to get CRL from cache, returns error if failed
