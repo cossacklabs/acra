@@ -29,23 +29,36 @@ subjectAltName = DNS:localhost
 subjectKeyIdentifier=hash
 authorityKeyIdentifier=keyid:always,issuer
 
+[ v3_intermediate_ca ]
+basicConstraints = critical, CA:true, pathlen:0
+keyUsage = critical, digitalSignature, cRLSign, keyCertSign
+
 [ ca ]
 default_ca = CA_default
 
 [ CA_default ]
 dir = tests/ssl
-database = $dir/index.txt
+database = $dir/ca/index.txt
+serial = $dir/ca/serial
 
-certificate = tests/ssl/ca/ca.crt
-private_key = tests/ssl/ca/ca.key
+certificate = $dir/ca/ca.crt
+private_key = $dir/ca/ca.key
 
 default_md = sha256
 default_crl_days = 30
+policy = policy_anything
+
+[ policy_anything ]
+countryName             = optional
+stateOrProvinceName     = optional
+localityName            = optional
+organizationName        = optional
+organizationalUnitName  = optional
+commonName              = supplied
+emailAddress            = optional
 
 [ ocsp_section ]
-# some non-valid URL to make sure acra-server can try few servers
-OCSP;URI.0 = http://127.0.0.1:23456
-OCSP;URI.1 = http://127.0.0.1:8888
+OCSP;URI.0 = http://127.0.0.1:8888
 
 [ crl_section ]
 URI.0 = http://127.0.0.1:8889/crl.pem

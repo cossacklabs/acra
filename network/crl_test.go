@@ -38,20 +38,19 @@ const (
 	TestCACertFilename      = "ca/ca.crt"
 	TestCertFilename        = "acra-writer/acra-writer.crt"
 	TestRevokedCertFilename = "acra-writer-revoked/acra-writer-revoked.crt"
-	TestCRLFilename         = "crl.pem"
+	TestCRLFilename         = "ca/crl.pem"
 	TestOCSPCertFilename    = "ocsp-responder/ocsp-responder.crt"
 	TestOCSPKeyFilename     = "ocsp-responder/ocsp-responder.key"
 
-	// TODO add certificates for this group, fix paths, uncomment related code
 	// A different group, uses intermediate CA
-	// TestCertPrefix3          = "../tests/ssl/group-with-intermediate"
-	// TestCACertFilename3      = "ca/ca.crt"
-	// TestICACertFilename3     = "intermediate-ca/intermediate-ca.crt"
-	// TestCertFilename3        = "acra-writer/acra-writer.crt"
-	// TestRevokedCertFilename3 = "acra-writer-revoked/acra-writer-revoked.crt"
-	// TestCRLFilename3         = "intermediate-ca/crl.pem"
-	// TestOCSPCertFilename3    = "intermediate-ocsp-responder/intermediate-ocsp-responder.crt"
-	// TestOCSPKeyFilename3     = "intermediate-ocsp-responder/intermediate-ocsp-responder.key"
+	TestCertPrefix3          = "../tests/ssl"
+	TestCACertFilename3      = "ca/ca.crt"
+	TestICACertFilename3     = "intermediate-ca/intermediate-ca.crt"
+	TestCertFilename3        = "intermediate-acra-writer/intermediate-acra-writer.crt"
+	TestRevokedCertFilename3 = "intermediate-acra-writer-revoked/intermediate-acra-writer-revoked.crt"
+	TestCRLFilename3         = "intermediate-ca/crl.pem"
+	TestOCSPCertFilename3    = "intermediate-ocsp-responder/intermediate-ocsp-responder.crt"
+	TestOCSPKeyFilename3     = "intermediate-ocsp-responder/intermediate-ocsp-responder.key"
 
 	// Make sure you use either of these groups and don't mix their components
 )
@@ -97,25 +96,25 @@ func getTestCertGroup(t *testing.T) TestCertGroup {
 	}
 }
 
-// func getTestCertGroup3(t *testing.T) TestCertGroup {
-// 	validRawCerts, validVerifiedChains := getValidTestChain3(t)
-// 	invalidRawCerts, invalidVerifiedChains := getInvalidTestChain3(t)
-//
-// 	return TestCertGroup{
-// 		prefix:                TestCertPrefix3,
-// 		ca:                    TestCACertFilename3,
-// 		intermediateCA:        TestICACertFilename3,
-// 		validCert:             TestCertFilename3,
-// 		revokedCert:           TestRevokedCertFilename3,
-// 		crl:                   TestCRLFilename3,
-// 		ocspCert:              TestOCSPCertFilename3,
-// 		ocspKey:               TestOCSPKeyFilename3,
-// 		validRawCerts:         validRawCerts,
-// 		validVerifiedChains:   validVerifiedChains,
-// 		invalidRawCerts:       invalidRawCerts,
-// 		invalidVerifiedChains: invalidVerifiedChains,
-// 	}
-// }
+func getTestCertGroup3(t *testing.T) TestCertGroup {
+	validRawCerts, validVerifiedChains := getValidTestChain3(t)
+	invalidRawCerts, invalidVerifiedChains := getInvalidTestChain3(t)
+
+	return TestCertGroup{
+		prefix:                TestCertPrefix3,
+		ca:                    TestCACertFilename3,
+		intermediateCA:        TestICACertFilename3,
+		validCert:             TestCertFilename3,
+		revokedCert:           TestRevokedCertFilename3,
+		crl:                   TestCRLFilename3,
+		ocspCert:              TestOCSPCertFilename3,
+		ocspKey:               TestOCSPKeyFilename3,
+		validRawCerts:         validRawCerts,
+		validVerifiedChains:   validVerifiedChains,
+		invalidRawCerts:       invalidRawCerts,
+		invalidVerifiedChains: invalidVerifiedChains,
+	}
+}
 
 func getTestCert(t *testing.T, filename string) ([]byte, *x509.Certificate) {
 	rawCert, err := ioutil.ReadFile(filename)
@@ -245,14 +244,14 @@ func getValidTestChain(t *testing.T) ([][]byte, [][]*x509.Certificate) {
 		TestCACertFilename)
 }
 
-// func getValidTestChain3(t *testing.T) ([][]byte, [][]*x509.Certificate) {
-// 	return getTestChain(
-// 		t,
-// 		TestCertPrefix3,
-// 		TestCertFilename3,
-// 		TestICACertFilename3,
-// 		TestCACertFilename3)
-// }
+func getValidTestChain3(t *testing.T) ([][]byte, [][]*x509.Certificate) {
+	return getTestChain(
+		t,
+		TestCertPrefix3,
+		TestCertFilename3,
+		TestICACertFilename3,
+		TestCACertFilename3)
+}
 
 func getInvalidTestChain(t *testing.T) ([][]byte, [][]*x509.Certificate) {
 	return getTestChain(
@@ -262,14 +261,14 @@ func getInvalidTestChain(t *testing.T) ([][]byte, [][]*x509.Certificate) {
 		TestCACertFilename)
 }
 
-// func getInvalidTestChain3(t *testing.T) ([][]byte, [][]*x509.Certificate) {
-// 	return getTestChain(
-// 		t,
-// 		TestCertPrefix3,
-// 		TestRevokedCertFilename3,
-// 		TestICACertFilename3,
-// 		TestCACertFilename3)
-// }
+func getInvalidTestChain3(t *testing.T) ([][]byte, [][]*x509.Certificate) {
+	return getTestChain(
+		t,
+		TestCertPrefix3,
+		TestRevokedCertFilename3,
+		TestICACertFilename3,
+		TestCACertFilename3)
+}
 
 func TestCRLConfig(t *testing.T) {
 	expectOk := func(url, fromCert string, checkWholeChain bool, cacheSize, cacheTime uint) {
@@ -468,7 +467,7 @@ func testDefaultCRLVerifierWithGroup(t *testing.T, certGroup TestCertGroup) {
 
 func TestDefaultCRLVerifier(t *testing.T) {
 	testDefaultCRLVerifierWithGroup(t, getTestCertGroup(t))
-	// testDefaultCRLVerifierWithGroup(t, getTestCertGroup3(t))
+	testDefaultCRLVerifierWithGroup(t, getTestCertGroup3(t))
 }
 
 func TestCheckCertWithCRL(t *testing.T) {

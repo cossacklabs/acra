@@ -303,7 +303,7 @@ func testDefaultOCSPClientWithGroup(t *testing.T, certGroup TestCertGroup) {
 
 func TestDefaultOCSPClient(t *testing.T) {
 	testDefaultOCSPClientWithGroup(t, getTestCertGroup(t))
-	// testDefaultOCSPClientWithGroup(t, getTestCertGroup3(t))
+	testDefaultOCSPClientWithGroup(t, getTestCertGroup3(t))
 }
 
 func testWithConfigAndValidChain(t *testing.T, ocspConfig *OCSPConfig, rawCerts [][]byte, verifiedChains [][]*x509.Certificate) {
@@ -397,5 +397,5 @@ func testDefaultOCSPVerifierWithGroup(t *testing.T, certGroup TestCertGroup) {
 
 func TestDefaultOCSPVerifier(t *testing.T) {
 	testDefaultOCSPVerifierWithGroup(t, getTestCertGroup(t))
-	// testDefaultOCSPVerifierWithGroup(t, getTestCertGroup3(t))
+	testDefaultOCSPVerifierWithGroup(t, getTestCertGroup3(t))
 }

@@ -4,3 +4,4 @@ V	701015022705Z		07EA07475C85EC5549B3444218085EA76A301D4D	unknown	/C=GB/ST=Londo
 R	701015022705Z	201207195835Z	07EA07475C85EC5549B3444218085EA76A301D4E	unknown	/C=GB/ST=London/L=London/O=Global Security/OU=IT/CN=Test leaf certificate (acra-writer-revoked)
 V	701015022706Z		07EA07475C85EC5549B3444218085EA76A301D4F	unknown	/C=GB/ST=London/L=London/O=Global Security/OU=IT/CN=Test leaf certificate (acra-server)
 V	701015022706Z		07EA07475C85EC5549B3444218085EA76A301D50	unknown	/C=GB/ST=London/L=London/O=Global Security/OU=IT/CN=Test leaf certificate (ocsp-responder)
+V	20701202061028Z		34AC74D1AFC77318770CBBCF64A6F8C6F4D015A9	unknown	/C=GB/ST=London/L=London/O=Global Security/OU=IT/CN=Test CA certificate (intermediate-ca)

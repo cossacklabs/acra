@@ -98,7 +98,8 @@ TEST_TLS_CLIENT_KEY = abs_path(os.environ.get('TEST_TLS_CLIENT_KEY', 'tests/ssl/
 TEST_TLS_OCSP_CA = abs_path(os.environ.get('TEST_TLS_OCSP_CA', 'tests/ssl/ca/ca.crt'))
 TEST_TLS_OCSP_CERT = abs_path(os.environ.get('TEST_TLS_OCSP_CERT', 'tests/ssl/ocsp-responder/ocsp-responder.crt'))
 TEST_TLS_OCSP_KEY = abs_path(os.environ.get('TEST_TLS_OCSP_KEY', 'tests/ssl/ocsp-responder/ocsp-responder.key'))
-TEST_TLS_OCSP_INDEX = abs_path(os.environ.get('TEST_TLS_OCSP_INDEX', 'tests/ssl/index.txt'))
+TEST_TLS_OCSP_INDEX = abs_path(os.environ.get('TEST_TLS_OCSP_INDEX', 'tests/ssl/ca/index.txt'))
+TEST_TLS_CRL_PATH = abs_path(os.environ.get('TEST_TLS_CRL_PATH', 'tests/ssl/ca'))
 TEST_WITH_TLS = os.environ.get('TEST_TLS', 'off').lower() == 'on'
 
 TEST_WITH_TRACING = os.environ.get('TEST_TRACE', 'off').lower() == 'on'
@@ -1101,7 +1102,7 @@ class BaseTestCase(PrometheusMixin, unittest.TestCase):
 
         http_server_connection = self.get_crl_http_server_connection_string(port)
 
-        cli_args = ['--bind', '127.0.0.1', '--directory', 'tests/ssl', str(port)]
+        cli_args = ['--bind', '127.0.0.1', '--directory', TEST_TLS_CRL_PATH, str(port)]
         print('python HTTP server args: {}'.format(' '.join(cli_args)))
 
         process = self.fork(lambda: subprocess.Popen(['python3', '-m', 'http.server'] + cli_args))
