@@ -1,7 +1,7 @@
 ## 0.85.0 - 2020-12-08
 
 - Extended TLS support and mapping to clientID for client's key selection purposes
-  - Strategy of extraction metadata from certificates for mapping to clientID: `tls_identifier_extractor_type` (default: `distinguished_name` and `serial_number`)
+  - Strategy of extraction metadata from certificates for mapping to clientID: `tls_identifier_extractor_type` (default: `distinguished_name`, another option: `serial_number`)
   - Switching to new mode with clientID extraction from certificates: `tls_client_id_from_cert`
 
 ## 0.85.0 - 2020-09-28
