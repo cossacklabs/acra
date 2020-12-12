@@ -19,6 +19,7 @@ package network
 import (
 	"fmt"
 	"github.com/cossacklabs/themis/gothemis/errors"
+	log "github.com/sirupsen/logrus"
 	"net"
 	url_ "net/url"
 	"os"
@@ -175,6 +176,7 @@ func SNIOrHostname(sni, hostname string) string {
 	if colonPos == -1 {
 		colonPos = len(hostname)
 	}
+	log.WithField("sni", hostname[:colonPos]).Infoln("Use sni")
 	return hostname[:colonPos]
 }
 

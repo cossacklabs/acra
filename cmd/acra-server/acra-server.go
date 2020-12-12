@@ -34,9 +34,11 @@ import (
 	"context"
 	"crypto/tls"
 	"flag"
+	"fmt"
 	"net/http"
 	_ "net/http/pprof"
 	"os"
+	"strings"
 	"syscall"
 	"time"
 
@@ -123,6 +125,8 @@ func main() {
 	tlsDbSNIOld := flag.String("tls_db_sni", "", "Expected Server Name (SNI) from database (deprecated, use \"tls_database_sni\" instead)")
 	tlsDbCert := flag.String("tls_database_cert", "", "Path to client TLS certificate shown to database during TLS handshake (overrides \"tls_cert\")")
 	tlsDbKey := flag.String("tls_database_key", "", "Path to private key of the TLS certificate used to connect to database (see \"tls_database_cert\")")
+	tlsUseClientIDFromCertificate := flag.Bool("tls_client_id_from_cert", false, "Extract clientID from TLS certificate. Take TLS certificate from AcraConnector's connection if acraconnector_tls_transport_enable is TRUE; otherwise take TLS certificate from application's connection if acraconnector_transport_encryption_disable is TRUE")
+	tlsIdentifierExtractorType := flag.String("tls_identifier_extractor_type", network.IdentifierExtractorTypeDistinguishedName, fmt.Sprintf("Decide which field of TLS certificate to use as ClientID (%s)", strings.Join(network.IdentifierExtractorTypesList, "|")))
 	noEncryptionTransport := flag.Bool("acraconnector_transport_encryption_disable", false, "Use raw transport (tcp/unix socket) between AcraServer and AcraConnector/client (don't use this flag if you not connect to database with SSL/TLS")
 	clientID := flag.String("client_id", "", "Expected client ID of AcraConnector in mode without encryption")
 	acraConnectionString := flag.String("incoming_connection_string", network.BuildConnectionString(cmd.DefaultAcraServerConnectionProtocol, cmd.DefaultAcraServerHost, cmd.DefaultAcraServerPort, ""), "Connection string like tcp://x.x.x.x:yyyy or unix:///path/to/socket")
@@ -227,6 +231,8 @@ func main() {
 	log.Infof("Keystore init OK")
 
 	log.Infof("Configuring transport...")
+	var proxyTLSWrapper base.TLSConnectionWrapper
+	var tlsWrapper network.ConnectionWrapper
 	var clientTLSConfig, dbTLSConfig *tls.Config
 	if *useTLS || *tlsKey != "" {
 		// Use common TLS settings, unless the user requests specific ones
@@ -271,19 +277,45 @@ func main() {
 				Errorln("Configuration error: can't create database TLS config")
 			os.Exit(1)
 		}
-		log.Infoln("Loaded TLS configuration")
+		idConverter, err := network.NewDefaultHexIdentifierConverter()
+		if err != nil {
+			log.WithError(err).Errorln("Can't initialize identifier converter")
+			os.Exit(1)
+		}
+		identifierExtractor, err := network.NewIdentifierExtractorByType(*tlsIdentifierExtractorType)
+		if err != nil {
+			log.WithField("type", *tlsIdentifierExtractorType).WithError(err).Errorln("Can't initialize identifier extractor")
+			os.Exit(1)
+		}
+		tlsWrapper, err = network.NewTLSAuthenticationConnectionWrapper(dbTLSConfig, clientTLSConfig, identifierExtractor, idConverter)
+		if err != nil {
+			log.WithError(err).Errorln("Can't initialize TLS connection wrapper")
+			os.Exit(1)
+		}
+		useForClientID := *tlsUseClientIDFromCertificate && *noEncryptionTransport
+		proxyTLSWrapper = base.NewTLSConnectionWrapper(useForClientID, tlsWrapper)
+		log.WithField("use_client_id_from_cert", useForClientID).Infoln("Loaded TLS configuration")
 	}
 	if *useTLS {
-		log.Println("Selecting transport: use TLS transport wrapper")
-		config.ConnectionWrapper, err = network.NewTLSConnectionWrapper([]byte(*clientID), clientTLSConfig)
-		if err != nil {
-			log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorTransportConfiguration).
-				Errorln("Configuration error: can't initialise TLS connection wrapper")
-			os.Exit(1)
+		if *tlsUseClientIDFromCertificate {
+			config.ConnectionWrapper = tlsWrapper
+			log.Println("Selecting transport: use TLS transport wrapper, extract clientID from TLS certificate")
+		} else {
+			log.Println("Selecting transport: use TLS transport wrapper with static clientID, provided as parameter")
+			if *clientID == "" {
+				log.Errorln("You must provide non-empty --client_id parameter with --acraconnector_tls_transport_enable.")
+				os.Exit(1)
+			}
+			config.ConnectionWrapper, err = network.NewTLSConnectionWrapper([]byte(*clientID), clientTLSConfig)
+			if err != nil {
+				log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorTransportConfiguration).
+					Errorln("Configuration error: can't initialise TLS connection wrapper")
+				os.Exit(1)
+			}
 		}
 	} else if *noEncryptionTransport {
 		config.SetWithConnector(false)
-		if *clientID == "" && !*withZone {
+		if (*clientID == "" && !*withZone) && *tlsKey == "" {
 			log.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorTransportConfiguration).
 				Errorln("Configuration error: without zone mode and without encryption you must set <client_id> which will be used to connect from AcraConnector to AcraServer")
 			os.Exit(1)
@@ -333,7 +365,7 @@ func main() {
 	var proxyFactory base.ProxyFactory
 	if *useMysql {
 		decryptorFactory = mysql.NewMysqlDecryptorFactory(decryptorSetting)
-		proxyFactory, err = mysql.NewProxyFactory(base.NewProxySetting(decryptorFactory, config.GetTableSchema(), keyStore, clientTLSConfig, dbTLSConfig, config.GetCensor()))
+		proxyFactory, err = mysql.NewProxyFactory(base.NewProxySetting(decryptorFactory, config.GetTableSchema(), keyStore, proxyTLSWrapper, config.GetCensor()))
 		if err != nil {
 			log.WithError(err).Errorln("Can't initialize proxy for connections")
 			os.Exit(1)
@@ -341,7 +373,7 @@ func main() {
 		sqlparser.SetDefaultDialect(mysqlDialect.NewMySQLDialect())
 	} else {
 		decryptorFactory = postgresql.NewDecryptorFactory(decryptorSetting)
-		proxyFactory, err = postgresql.NewProxyFactory(base.NewProxySetting(decryptorFactory, config.GetTableSchema(), keyStore, clientTLSConfig, dbTLSConfig, config.GetCensor()))
+		proxyFactory, err = postgresql.NewProxyFactory(base.NewProxySetting(decryptorFactory, config.GetTableSchema(), keyStore, proxyTLSWrapper, config.GetCensor()))
 		if err != nil {
 			log.WithError(err).Errorln("Can't initialize proxy for connections")
 			os.Exit(1)
