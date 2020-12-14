@@ -42,24 +42,32 @@ var (
 	ErrUnknownCRLExtensionOID       = errors.New("unable to process unknown critical extension inside CRL")
 )
 
-// --tls_crl_from_cert=<use|truet|prefer|ignore>
+// --tls_crl_from_cert=<use|trust|prefer|ignore>
 const (
 	// If certificate contains CRL distribution point(s), use them, _after_ trying configured URL
-	crlFromCertUseStr = "use"
+	CrlFromCertUseStr = "use"
 	// If certificate contains CRL distribution point(s), use them, and don't use configured URL in this case
-	crlFromCertTrustStr = "trust"
+	CrlFromCertTrustStr = "trust"
 	// If certificate contains CRL distribution point(s), use them, _before_ trying configured URL
-	crlFromCertPreferStr = "prefer"
+	CrlFromCertPreferStr = "prefer"
 	// Ignore CRL distribution points listed in certificate
-	crlFromCertIgnoreStr = "ignore"
+	CrlFromCertIgnoreStr = "ignore"
 )
+
+// CrlFromCertValuesList contains all possible values for flag `--tls_crl_from_cert`
+var CrlFromCertValuesList = []string{
+	CrlFromCertUseStr,
+	CrlFromCertTrustStr,
+	CrlFromCertPreferStr,
+	CrlFromCertIgnoreStr,
+}
 
 var (
 	crlFromCertValValues = map[string]int{
-		crlFromCertUseStr:    crlFromCertUse,
-		crlFromCertTrustStr:  crlFromCertTrust,
-		crlFromCertPreferStr: crlFromCertPrefer,
-		crlFromCertIgnoreStr: crlFromCertIgnore,
+		CrlFromCertUseStr:    crlFromCertUse,
+		CrlFromCertTrustStr:  crlFromCertTrust,
+		CrlFromCertPreferStr: crlFromCertPrefer,
+		CrlFromCertIgnoreStr: crlFromCertIgnore,
 	}
 )
 
@@ -72,8 +80,8 @@ const (
 
 const (
 	// Max int value, because cache implementation uses `int` for setting capacity
-	crlCacheSizeMax = 2147483647
-	crlCacheTimeMax = 300
+	CrlCacheSizeMax = 2147483647
+	CrlCacheTimeMax = 300
 )
 
 // CRLConfig contains configuration related to certificate validation using CRL
@@ -92,11 +100,11 @@ func NewCRLConfig(url, fromCert string, checkWholeChain bool, cacheSize, cacheTi
 		return nil, ErrInvalidConfigCRLFromCert
 	}
 
-	if cacheSize > crlCacheSizeMax {
+	if cacheSize > CrlCacheSizeMax {
 		return nil, ErrInvalidConfigCRLCacheSize
 	}
 
-	if cacheTime > crlCacheTimeMax {
+	if cacheTime > CrlCacheTimeMax {
 		return nil, ErrInvalidConfigCRLCacheTime
 	}
 

@@ -38,51 +38,66 @@ var (
 	ErrOCSPNoConfirms              = errors.New("none of OCSP servers confirmed the certificate")
 )
 
-// --tls_ocsp_required=<denyUnknown|allowUnknown|all>
+// Possible values for flag `--tls_ocsp_required`
 const (
 	// Deny certificates now known by OCSP server(s)
-	ocspRequiredDenyUnknownStr = "denyUnknown"
+	OcspRequiredDenyUnknownStr = "denyUnknown"
 	// Allow certificates now known by OCSP server(s)
-	ocspRequiredAllowUnknownStr = "allowUnknown"
+	OcspRequiredAllowUnknownStr = "allowUnknown"
 	// Effect of denyUnknown + all available OCSP servers (the one from config
 	// and those listed in certificate) should respond, otherwise deny the certificate
-	ocspRequiredRequireGoodStr = "requireGood"
+	OcspRequiredRequireGoodStr = "requireGood"
 )
+
+// OcspRequiredValuesList contains all possible values for flag `--tls_ocsp_required`
+var OcspRequiredValuesList = []string{
+	OcspRequiredDenyUnknownStr,
+	OcspRequiredAllowUnknownStr,
+	OcspRequiredRequireGoodStr,
+}
 
 var (
 	ocspRequiredValValues = map[string]int{
-		ocspRequiredDenyUnknownStr:  ocspRequiredDenyUnknown,
-		ocspRequiredAllowUnknownStr: ocspRequiredAllowUnknown,
-		ocspRequiredRequireGoodStr:  ocspRequiredReuireGood,
+		OcspRequiredDenyUnknownStr:  ocspRequiredDenyUnknown,
+		OcspRequiredAllowUnknownStr: ocspRequiredAllowUnknown,
+		OcspRequiredRequireGoodStr:  ocspRequiredGood,
 	}
 )
 
 const (
 	ocspRequiredDenyUnknown int = iota
 	ocspRequiredAllowUnknown
-	ocspRequiredReuireGood
+	ocspRequiredGood
 )
 
-// --tls_ocsp_from_cert=<use|trust|prefer|ignore>
+// Possible values for flag `--tls_ocsp_from_cert`
 const (
 	// Use OCSP servers listed in certificate (if any), try them after the one
 	// configured from CLI/config
-	ocspFromCertUseStr = "use"
+	OcspFromCertUseStr = "use"
 	// Query servers listed in certificate and don't perform further requests
 	// if one respons with "ok, valid"
-	ocspFromCertTrustStr = "trust"
+	OcspFromCertTrustStr = "trust"
 	// Query servers listed in certificate before the one from config
-	ocspFromCertPreferStr = "prefer"
+	OcspFromCertPreferStr = "prefer"
 	// Ignore OCSP servers listed in certificates
-	ocspFromCertIgnoreStr = "ignore"
+	OcspFromCertIgnoreStr = "ignore"
 )
+
+// OcspFromCertValuesList contains all possible values for flag `--tls_ocsp_from_cert`
+var OcspFromCertValuesList = []string{
+	OcspFromCertUseStr,
+	OcspFromCertTrustStr,
+	OcspFromCertPreferStr,
+	OcspFromCertIgnoreStr,
+}
 
 var (
 	ocspFromCertValValues = map[string]int{
-		ocspFromCertUseStr:    ocspFromCertUse,
-		ocspFromCertTrustStr:  ocspFromCertTrust,
-		ocspFromCertPreferStr: ocspFromCertPrefer,
-		ocspFromCertIgnoreStr: ocspFromCertIgnore,
+		OcspFromCertUseStr:    ocspFromCertUse,
+		OcspFromCertTrustStr:  ocspFromCertTrust,
+		OcspFromCertPreferStr: ocspFromCertPrefer,
+		OcspFromCertIgnoreStr: ocspFromCertIgnore,
 	}
 )
 
@@ -113,7 +128,7 @@ func NewOCSPConfig(url, required, fromCert string, checkWholeChain bool) (*OCSPC
 		return nil, ErrInvalidConfigOCSPFromCert
 	}
 
-	if requiredVal == ocspRequiredReuireGood && url == "" {
+	if requiredVal == ocspRequiredGood && url == "" {
 		return nil, ErrInvalidConfigAllRequiresURL
 	}
 
@@ -140,7 +155,7 @@ func NewOCSPConfig(url, required, fromCert string, checkWholeChain bool) (*OCSPC
 		log.Debugln("OCSP: At least one OCSP server should confirm certificate validity")
 	case ocspRequiredAllowUnknown:
 		log.Debugln("OCSP: Allowing certificates not known by OCSP server")
-	case ocspRequiredReuireGood:
+	case ocspRequiredGood:
 		log.Debugln("OCSP: Requiring positive response from all OCSP servers")
 	}
 
@@ -266,7 +281,7 @@ func (v DefaultOCSPVerifier) verifyCertWithIssuer(cert, issuer *x509.Certificate
 		if err != nil {
 			log.WithError(err).WithField("url", serverToCheck.url).Warnln("Cannot query OCSP server")
 
-			if v.Config.required == ocspRequiredReuireGood {
+			if v.Config.required == ocspRequiredGood {
 				return ErrOCSPRequiredAllButGotError
 			}
 
@@ -283,7 +298,7 @@ func (v DefaultOCSPVerifier) verifyCertWithIssuer(cert, issuer *x509.Certificate
 				log.Debugln("OCSP: confirmed by server from config")
 			}
 
-			if v.Config.required != ocspRequiredReuireGood {
+			if v.Config.required != ocspRequiredGood {
 				// One confirmation is enough if we don't require all OCSP servers to confirm the certificate validity
 				break
 			}

@@ -18,6 +18,7 @@ package network
 
 import (
 	"context"
+	"fmt"
 	"crypto/tls"
 	"crypto/x509"
 	"errors"
@@ -26,6 +27,7 @@ import (
 	log "github.com/sirupsen/logrus"
 	"io/ioutil"
 	"net"
+	"strings"
 	"time"
 )
 
@@ -76,14 +78,18 @@ func RegisterTLSBaseArgs() {
 	flag.StringVar(&tlsOcspURL, "tls_ocsp_url", "", "OCSP service URL")
 	flag.StringVar(&tlsOcspClientURL, "tls_ocsp_client_url", "", "OCSP service URL, for client/connector certificates only")
 	flag.StringVar(&tlsOcspDbURL, "tls_ocsp_database_url", "", "OCSP service URL, for database certificates only")
-	flag.StringVar(&tlsOcspRequired, "tls_ocsp_required", "denyUnknown", "How to treat certificates unknown to OCSP: <denyUnknown|allowUnknown|requireGood>")
-	flag.StringVar(&tlsOcspFromCert, "tls_ocsp_from_cert", "prefer", "How to treat OCSP server described in certificate itself: <use|trust|prefer|ignore>")
+	flag.StringVar(&tlsOcspRequired, "tls_ocsp_required", OcspRequiredDenyUnknownStr,
+		fmt.Sprintf("How to treat certificates unknown to OCSP: <%s>", strings.Join(OcspRequiredValuesList, "|")))
+	flag.StringVar(&tlsOcspFromCert, "tls_ocsp_from_cert", OcspFromCertPreferStr,
+		fmt.Sprintf("How to treat OCSP server described in certificate itself: <%s>", strings.Join(OcspFromCertValuesList, "|")))
 	flag.BoolVar(&tlsOcspCheckWholeChain, "tls_ocsp_check_whole_chain", false, "Put 'true' to check the whole certificate chain using OCSP, or 'false' to check only final/last certificate")
 	flag.StringVar(&tlsCrlURL, "tls_crl_url", "", "URL of the Certificate Revocation List (CRL) to use")
-	flag.StringVar(&tlsCrlFromCert, "tls_crl_from_cert", "use", "How to treat CRL URL described in certificate itself: <use|trust|prefer|ignore>")
+	flag.StringVar(&tlsCrlFromCert, "tls_crl_from_cert", CrlFromCertPreferStr,
+		fmt.Sprintf("How to treat CRL URL described in certificate itself: <%s>", strings.Join(CrlFromCertValuesList, "|")))
 	flag.BoolVar(&tlsCrlCheckWholeChain, "tls_crl_check_whole_chain", false, "Put 'true' to check the whole certificate chain using CRL, or 'false' to check only final/last certificate")
 	flag.UintVar(&tlsCrlCacheSize, "tls_crl_cache_size", 16, "How many CRLs to cache in memory (use 0 to disable caching)")
-	flag.UintVar(&tlsCrlCacheTime, "tls_crl_cache_time", 0, "How long to keep CRLs cached, in seconds (use 0 to disable caching, maximum: 300 s)")
+	flag.UintVar(&tlsCrlCacheTime, "tls_crl_cache_time", 0,
+		fmt.Sprintf("How long to keep CRLs cached, in seconds (use 0 to disable caching, maximum: %d s)", CrlCacheTimeMax))
 }
 
 // RegisterTLSClientArgs register CLI args tls_server_sni used by TLS client's connection

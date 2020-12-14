@@ -295,20 +295,20 @@ func TestCRLConfig(t *testing.T) {
 	// `--tls_crl_from_cert`, and some invalid ones too,
 	// valid and invalid uint values for `--tls_crl_cache_size`
 
-	expectOk("", crlFromCertUseStr, false, 1, 5)
-	expectOk("", crlFromCertIgnoreStr, false, 2, 5)
-	expectOk("http://127.0.0.1/main_crl.pem", crlFromCertUseStr, false, 1, 5)
-	expectOk("", crlFromCertUseStr, false, 100, 0)
-	expectOk("", crlFromCertUseStr, true, 0, 1)
-	expectOk("", crlFromCertUseStr, false, 1, 300)
-	expectOk("", crlFromCertTrustStr, true, 1, 0)
-	expectOk("", crlFromCertPreferStr, false, 1, 0)
+	expectOk("", CrlFromCertUseStr, false, 1, 5)
+	expectOk("", CrlFromCertIgnoreStr, false, 2, 5)
+	expectOk("http://127.0.0.1/main_crl.pem", CrlFromCertUseStr, false, 1, 5)
+	expectOk("", CrlFromCertUseStr, false, 100, 0)
+	expectOk("", CrlFromCertUseStr, true, 0, 1)
+	expectOk("", CrlFromCertUseStr, false, 1, 300)
+	expectOk("", CrlFromCertTrustStr, true, 1, 0)
+	expectOk("", CrlFromCertPreferStr, false, 1, 0)
 
-	expectErr("htt://invalid url", crlFromCertUseStr, false, 1, 5)
+	expectErr("htt://invalid url", CrlFromCertUseStr, false, 1, 5)
 	expectErr("", "IgNoRe", false, 1, 5)
-	expectErr("", crlFromCertUseStr, false, 2147483648, 5)
-	expectErr("", crlFromCertUseStr, false, 1, 301)
-	expectErr("", crlFromCertUseStr, false, 1, 9000)
+	expectErr("", CrlFromCertUseStr, false, 2147483648, 5)
+	expectErr("", CrlFromCertUseStr, false, 1, 301)
+	expectErr("", CrlFromCertUseStr, false, 1, 9000)
 }
 
 func TestDefaultCRLClientHTTP(t *testing.T) {
@@ -333,7 +333,7 @@ func TestDefaultCRLClientHTTP(t *testing.T) {
 
 	fetchedCRL, err := crlClient.Fetch(url)
 	if err != nil {
-		t.Fatalf("Unexpected error durlng reading %s: %v\n", url, err)
+		t.Fatalf("Unexpected error during reading %s: %v\n", url, err)
 	}
 
 	if !bytes.Equal(rawCRL, fetchedCRL) {
@@ -347,7 +347,7 @@ func TestDefaultCRLClientHTTP(t *testing.T) {
 
 	fetchedCRL, err = crlClient.Fetch(url)
 	if err == nil {
-		t.Fatal("Unexpected success durlng reading CRL from wrong URL\n")
+		t.Fatal("Unexpected success during reading CRL from wrong URL\n")
 	} else {
 		t.Logf("(Expected) fetch error: %v\n", err)
 	}
@@ -377,7 +377,7 @@ func TestDefaultCRLClientFile(t *testing.T) {
 
 	fetchedCRL, err := crlClient.Fetch(url)
 	if err != nil {
-		t.Fatalf("Unexpected error durlng reading %s: %v\n", url, err)
+		t.Fatalf("Unexpected error during reading %s: %v\n", url, err)
 	}
 
 	if !bytes.Equal(rawCRL, fetchedCRL) {
