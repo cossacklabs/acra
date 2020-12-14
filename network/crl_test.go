@@ -331,7 +331,7 @@ func TestDefaultCRLClientHTTP(t *testing.T) {
 	//
 	url := fmt.Sprintf("http://%s/test_crl.pem", addr)
 
-	fetchedCRL, err := crlClient.Fetch(url)
+	fetchedCRL, err := crlClient.Fetch(url, false)
 	if err != nil {
 		t.Fatalf("Unexpected error during reading %s: %v\n", url, err)
 	}
@@ -345,7 +345,7 @@ func TestDefaultCRLClientHTTP(t *testing.T) {
 	//
 	url = fmt.Sprintf("http://%s/wrong_filename.pem", addr)
 
-	fetchedCRL, err = crlClient.Fetch(url)
+	fetchedCRL, err = crlClient.Fetch(url, false)
 	if err == nil {
 		t.Fatal("Unexpected success during reading CRL from wrong URL\n")
 	} else {
@@ -375,7 +375,7 @@ func TestDefaultCRLClientFile(t *testing.T) {
 
 	url := fmt.Sprintf("file://%s", file.Name())
 
-	fetchedCRL, err := crlClient.Fetch(url)
+	fetchedCRL, err := crlClient.Fetch(url, true)
 	if err != nil {
 		t.Fatalf("Unexpected error during reading %s: %v\n", url, err)
 	}

@@ -36,6 +36,7 @@ var (
 	ErrInvalidConfigCRLCacheSize    = errors.New("invalid `tls_crl_cache_size` value")
 	ErrInvalidConfigCRLCacheTime    = errors.New("invalid `tls_crl_cache_time` value")
 	ErrHTTPServerReturnedError      = errors.New("server returned non-OK status")
+	ErrFetchDeniedForLocalURL       = errors.New("not allowed to fetch from local (file://) URLs")
 	ErrFetchCRLUnsupportedURLScheme = errors.New("cannot fetch CRL, unsupported URL scheme")
 	ErrCacheKeyNotFound             = errors.New("cannot find cached CRL with given URL")
 	ErrOutdatedCRL                  = errors.New("fetched CRLs NextUpdate is behind current time")
@@ -117,7 +118,7 @@ func NewCRLConfig(url, fromCert string, checkWholeChain bool, cacheSize, cacheTi
 		// Since this is CRL configuration alone, we don't have access to cache yet;
 		// so let's just download the CRL and forget about it
 		crlClient := NewDefaultCRLClient()
-		_, err = crlClient.Fetch(url)
+		_, err = crlClient.Fetch(url, true)
 		if err != nil {
 			log.WithError(err).WithField("url", url).Warnln("CRL: Cannot fetch configured URL")
 			// TODO return error after issues with failing tests are fixed;
@@ -152,8 +153,9 @@ func (c *CRLConfig) isCachingEnabled() bool {
 
 // CRLClient is used to fetch CRL from some URL
 type CRLClient interface {
-	// Fetch fetches CRL from passed URL (can be either http:// or file://)
-	Fetch(url string) ([]byte, error)
+	// Fetch fetches CRL from passed URL (can be either http:// or file://),
+	// allowLocal controls whether file:// will be handled (should not be allowed for URLs from certificates)
+	Fetch(url string, allowLocal bool) ([]byte, error)
 }
 
 // DefaultCRLClient is a default implementation of CRLClient
@@ -167,8 +169,9 @@ func NewDefaultCRLClient() DefaultCRLClient {
 	return DefaultCRLClient{httpClient: &http.Client{}}
 }
 
-// Fetch fetches CRL from passed URL (can be either http:// or file://)
-func (c DefaultCRLClient) Fetch(url string) ([]byte, error) {
+// Fetch fetches CRL from passed URL (can be either http:// or file://),
+// allowLocal controls whether file:// will be handled (should not be allowed for URLs from certificates)
+func (c DefaultCRLClient) Fetch(url string, allowLocal bool) ([]byte, error) {
 	parsedURL, err := url_.Parse(url)
 	if err != nil {
 		return nil, err
@@ -199,6 +202,10 @@ func (c DefaultCRLClient) Fetch(url string) ([]byte, error) {
 
 		return content, nil
 	case "file":
+		if !allowLocal {
+			return nil, ErrFetchDeniedForLocalURL
+		}
+
 		content, err := ioutil.ReadFile(parsedURL.Path)
 		if err != nil {
 			return nil, err
@@ -278,7 +285,7 @@ type DefaultCRLVerifier struct {
 }
 
 // Tries to find cached CRL, fetches using v.Client if not found, checks the signature of CRL using issuerCert
-func (v DefaultCRLVerifier) getCachedOrFetch(url string, issuerCert *x509.Certificate) (*pkix.CertificateList, error) {
+func (v DefaultCRLVerifier) getCachedOrFetch(url string, allowLocal bool, issuerCert *x509.Certificate) (*pkix.CertificateList, error) {
 	// Try v.Cache first, but only if caching is enabled (cache time > 0)
 	if v.Config.isCachingEnabled() {
 		cacheItem, err := v.Cache.Get(v.Config.url)
@@ -295,7 +302,7 @@ func (v DefaultCRLVerifier) getCachedOrFetch(url string, issuerCert *x509.Certif
 	}
 
 	// Not found in cache (or the CRL was outdated), gotta fetch
-	rawCRL, err := v.Client.Fetch(url)
+	rawCRL, err := v.Client.Fetch(url, allowLocal)
 	if err != nil {
 		return nil, err
 	}
@@ -429,7 +436,9 @@ func (v DefaultCRLVerifier) verifyCertWithIssuer(cert, issuer *x509.Certificate,
 			continue
 		}
 
-		crl, err := v.getCachedOrFetch(crlToCheck.url, issuer)
+		// if crlToCheck.fromCert == false, then URL comes from config, then allowLocal = true
+		// if crlToCheck.fromCert == true, CRLClient should reject file:// URLs
+		crl, err := v.getCachedOrFetch(crlToCheck.url, !crlToCheck.fromCert, issuer)
 		if err != nil {
 			log.WithError(err).WithField("url", crlToCheck.url).Debugf("CRL: Cannot get CRL")
 			return err
