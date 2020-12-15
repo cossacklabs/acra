@@ -131,6 +131,9 @@ tls_client_ca:
 # Path to server TLS certificate presented to AcraConnectors (overrides "tls_cert")
 tls_client_cert: 
 
+# Extract clientID from TLS certificate. Take TLS certificate from AcraConnector's connection if acraconnector_tls_transport_enable is TRUE; otherwise take TLS certificate from application's connection if acraconnector_transport_encryption_disable is TRUE
+tls_client_id_from_cert: false
+
 # Path to private key of the TLS certificate presented to AcraConnectors (see "tls_client_cert")
 tls_client_key: 
 
@@ -172,6 +175,9 @@ tls_database_sni:
 
 # Expected Server Name (SNI) from database (deprecated, use "tls_database_sni" instead)
 tls_db_sni: 
+
+# Decide which field of TLS certificate to use as ClientID (distinguished_name|serial_number)
+tls_identifier_extractor_type: distinguished_name
 
 # Path to private key that will be used in AcraServer's TLS handshake with AcraConnector as server's key and database as client's key
 tls_key: 

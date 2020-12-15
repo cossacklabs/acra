@@ -19,7 +19,6 @@ package mysql
 import (
 	"bytes"
 	"context"
-	"crypto/tls"
 	"encoding/binary"
 	"errors"
 	"fmt"
@@ -151,12 +150,11 @@ type Handler struct {
 	dbTLSHandshakeFinished chan bool
 	clientConnection       net.Conn
 	dbConnection           net.Conn
-	clientTLSConfig        *tls.Config
-	dbTLSConfig            *tls.Config
 	logger                 *logrus.Entry
 	ctx                    context.Context
 	queryObserverManager   base.QueryObserverManager
 	decryptionObserver     base.ColumnDecryptionObserver
+	setting                base.ProxySetting
 }
 
 // NewMysqlProxy returns new Handler
@@ -174,22 +172,12 @@ func NewMysqlProxy(session base.ClientSession, decryptor base.Decryptor, setting
 		acracensor:             setting.Censor(),
 		clientConnection:       session.ClientConnection(),
 		dbConnection:           session.DatabaseConnection(),
-		clientTLSConfig:        tweakTLSConfigForMySQL(setting.ClientTLSConfig()),
-		dbTLSConfig:            tweakTLSConfigForMySQL(setting.DatabaseTLSConfig()),
+		setting:                setting,
 		ctx:                    session.Context(),
 		logger:                 logging.GetLoggerFromContext(session.Context()),
 		queryObserverManager:   observerManager,
 		decryptionObserver:     base.NewColumnDecryptionObserver(),
 	}, nil
-}
-
-func tweakTLSConfigForMySQL(config *tls.Config) *tls.Config {
-	if config != nil {
-		// use less secure protocol versions because some drivers and db images doesn't support secure and modern options
-		config = config.Clone()
-		network.SetMySQLCompatibleTLSSettings(config)
-	}
-	return config
 }
 
 // SubscribeOnColumnDecryption subscribes for OnColumn notifications about the column, indexed from left to right starting with zero.
@@ -278,7 +266,7 @@ func (handler *Handler) ProxyClientConnection(errCh chan<- error) {
 			handler.clientDeprecateEOF = packet.IsClientDeprecateEOF()
 			clientLog = clientLog.WithField("deprecate_eof", handler.clientDeprecateEOF)
 			if packet.IsSSLRequest() {
-				if handler.clientTLSConfig == nil {
+				if handler.setting.TLSConnectionWrapper() == nil {
 					handler.logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorDecryptorCantInitializeTLS).Errorln("To support TLS connections you must pass TLS key and certificate for AcraServer that will be used " +
 						"for connections AcraServer->Database and CA certificate which will be used to verify certificate " +
 						"from database")
@@ -292,12 +280,17 @@ func (handler *Handler) ProxyClientConnection(errCh chan<- error) {
 					errCh <- network.ErrEmptyTLSConfig
 					return
 				}
-				tlsConnection := tls.Server(handler.clientConnection, handler.clientTLSConfig)
-				if err := tlsConnection.Handshake(); err != nil {
+
+				tlsConnection, clientID, err := handler.setting.TLSConnectionWrapper().WrapClientConnection(handler.ctx, handler.clientConnection)
+				if err != nil {
 					handler.logger.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorDecryptorCantInitializeTLS).
 						Errorln("Error in tls handshake with client")
 					errCh <- err
 					return
+				}
+				if handler.setting.TLSConnectionWrapper().UseConnectionClientID() {
+					handler.logger.WithField("client_id", clientID).Debugln("Set new clientID")
+					handler.decryptor.SetClientID(clientID)
 				}
 				handler.logger.Debugln("Switched to tls with client. wait switching with db")
 				handler.isTLSHandshake = true
@@ -314,7 +307,6 @@ func (handler *Handler) ProxyClientConnection(errCh chan<- error) {
 				select {
 				case <-handler.dbTLSHandshakeFinished:
 					handler.logger.Debugln("Switch to tls complete on client proxy side")
-
 					continue
 				case <-time.NewTicker(time.Second * ClientWaitDbTLSHandshake).C:
 					clientLog.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorDecryptorCantInitializeTLS).Errorln("Timeout on tls handshake with db")
@@ -876,10 +868,10 @@ func (handler *Handler) ProxyDatabaseConnection(errCh chan<- error) {
 				if netErr.Timeout() && handler.isTLSHandshake {
 					// reset deadline
 					handler.dbConnection.SetReadDeadline(time.Time{})
-					tlsConnection := tls.Client(handler.dbConnection, handler.dbTLSConfig)
-					if err = tlsConnection.Handshake(); err != nil {
+					tlsConnection, err := handler.setting.TLSConnectionWrapper().WrapDBConnection(handler.ctx, handler.dbConnection)
+					if err != nil {
 						handler.logger.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorDecryptorCantInitializeTLS).
-							Errorln("Error in tls handshake with db")
+							Errorln("Can't initialize tls connection with db")
 						errCh <- err
 						return
 					}

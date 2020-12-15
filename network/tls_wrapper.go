@@ -31,7 +31,7 @@ import (
 	"time"
 )
 
-// allowedCipherSuits that set in default tls config
+// allowedCipherSuits that set in default tls clientConfig
 var allowedCipherSuits = []uint16{
 	tls.TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256,
 	tls.TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384,
@@ -43,12 +43,15 @@ var allowedCipherSuits = []uint16{
 
 // TLSConnectionWrapper for wrapping connection into TLS encryption
 type TLSConnectionWrapper struct {
-	config   *tls.Config
-	clientID []byte
+	clientConfig *tls.Config
+	serverConfig *tls.Config
+	clientID     []byte
+	idExtractor  CertificateIdentifierExtractor
+	idConverter  IdentifierConverter
 }
 
-// ErrEmptyTLSConfig if not TLS config found
-var ErrEmptyTLSConfig = errors.New("empty TLS config")
+// ErrEmptyTLSConfig if not TLS clientConfig found
+var ErrEmptyTLSConfig = errors.New("empty TLS clientConfig")
 
 var (
 	tlsCA                  string
@@ -97,7 +100,7 @@ func RegisterTLSClientArgs() {
 	flag.StringVar(&tlsServerName, "tls_server_sni", "", "Server name used as sni value")
 }
 
-// NewTLSConfigFromBaseArgs return new tls config with params passed by cli params
+// NewTLSConfigFromBaseArgs return new tls clientConfig with params passed by cli params
 func NewTLSConfigFromBaseArgs() (*tls.Config, error) {
 	ocspConfig, err := NewOCSPConfig(tlsOcspURL, tlsOcspRequired, tlsOcspFromCert, tlsOcspCheckWholeChain)
 	if err != nil {
@@ -117,7 +120,7 @@ func NewTLSConfigFromBaseArgs() (*tls.Config, error) {
 	return NewTLSConfig(tlsServerName, tlsCA, tlsKey, tlsCert, tls.ClientAuthType(tlsAuthType), certVerifier)
 }
 
-// NewTLSConfig creates x509 TLS config from provided params, tried to load system CA certificate
+// NewTLSConfig creates x509 TLS clientConfig from provided params, tried to load system CA certificate
 func NewTLSConfig(serverName string, caPath, keyPath, crtPath string, authType tls.ClientAuthType, certVerifier CertVerifier) (*tls.Config, error) {
 	var roots *x509.CertPool
 	var err error
@@ -174,13 +177,19 @@ func NewTLSConfig(serverName string, caPath, keyPath, crtPath string, authType t
 
 // NewTLSConnectionWrapper returns new TLSConnectionWrapper
 func NewTLSConnectionWrapper(clientID []byte, config *tls.Config) (*TLSConnectionWrapper, error) {
-	return &TLSConnectionWrapper{config: config, clientID: clientID}, nil
+	return &TLSConnectionWrapper{clientConfig: config, serverConfig: config, clientID: clientID}, nil
+}
+
+// NewTLSAuthenticationConnectionWrapper returns new TLSConnectionWrapper which use separate TLS configs for each side. Client's identifier will be fetched
+// with idExtractor and converter with idConverter
+func NewTLSAuthenticationConnectionWrapper(clientConfig, serverConfig *tls.Config, idExtractor CertificateIdentifierExtractor, idConverter IdentifierConverter) (*TLSConnectionWrapper, error) {
+	return &TLSConnectionWrapper{clientConfig: clientConfig, serverConfig: serverConfig, idExtractor: idExtractor, idConverter: idConverter}, nil
 }
 
 // WrapClient wraps client connection into TLS
 func (wrapper *TLSConnectionWrapper) WrapClient(ctx context.Context, conn net.Conn) (net.Conn, error) {
 	conn.SetDeadline(time.Now().Add(DefaultNetworkTimeout))
-	tlsConn := tls.Client(conn, wrapper.config)
+	tlsConn := tls.Client(conn, wrapper.clientConfig)
 	err := tlsConn.Handshake()
 	if err != nil {
 		conn.SetDeadline(time.Time{})
@@ -190,45 +199,44 @@ func (wrapper *TLSConnectionWrapper) WrapClient(ctx context.Context, conn net.Co
 	return newSafeCloseConnection(tlsConn), nil
 }
 
+func (wrapper *TLSConnectionWrapper) getClientIDFromCertificate(certificate *x509.Certificate) ([]byte, error) {
+	identifier, err := wrapper.idExtractor.GetCertificateIdentifier(certificate)
+	if err != nil {
+		return nil, err
+	}
+	log.WithField("identifier", string(identifier)).Debugln("ID from certificate")
+	clientID, err := wrapper.idConverter.Convert(identifier)
+	if err != nil {
+		return nil, err
+	}
+	log.WithField("clientID", string(clientID)).Debugln("ClientID from certificate")
+	return clientID, nil
+}
+
 // WrapServer wraps server connection into TLS
 func (wrapper *TLSConnectionWrapper) WrapServer(ctx context.Context, conn net.Conn) (net.Conn, []byte, error) {
 	conn.SetDeadline(time.Now().Add(DefaultNetworkTimeout))
-	tlsConn := tls.Server(conn, wrapper.config)
+	tlsConn := tls.Server(conn, wrapper.serverConfig)
 	err := tlsConn.Handshake()
 	if err != nil {
 		conn.SetDeadline(time.Time{})
 		return conn, nil, err
 	}
 	conn.SetDeadline(time.Time{})
-	return newSafeCloseConnection(tlsConn), wrapper.clientID, nil
-}
-
-// SetMySQLCompatibleTLSSettings set minimal protocol version to TLSv1.1 and extend list of allowed cipher suits
-func SetMySQLCompatibleTLSSettings(config *tls.Config) {
-	log.Infoln("Use less secure TLS options to connect to MySQL")
-	config.MinVersion = tls.VersionTLS10
-	// took from golang sources crypto/tls/cipher_suites.go:71 and order with most secure top, less - bottom,
-	// prefer ecdsa to rsa
-	config.CipherSuites = []uint16{
-		tls.TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256,
-		tls.TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384,
-		tls.TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305,
-		tls.TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256,
-		tls.TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384,
-		tls.TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305,
-
-		tls.TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA256,
-		tls.TLS_ECDHE_ECDSA_WITH_AES_256_CBC_SHA,
-		tls.TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA,
-
-		tls.TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA256,
-		tls.TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA,
-		tls.TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA,
-
-		tls.TLS_RSA_WITH_AES_256_GCM_SHA384,
-		tls.TLS_RSA_WITH_AES_128_GCM_SHA256,
-		tls.TLS_RSA_WITH_AES_128_CBC_SHA256,
-		tls.TLS_RSA_WITH_AES_256_CBC_SHA,
-		tls.TLS_RSA_WITH_AES_128_CBC_SHA,
+	if wrapper.clientID != nil {
+		return newSafeCloseConnection(tlsConn), wrapper.clientID, nil
 	}
+	connectionInfo := tlsConn.ConnectionState()
+	if len(connectionInfo.VerifiedChains) == 0 || len(connectionInfo.VerifiedChains[0]) == 0 {
+		return conn, nil, ErrNoPeerCertificate
+	}
+	certificate := connectionInfo.VerifiedChains[0][0]
+	if err := ValidateClientsAuthenticationCertificate(certificate); err != nil {
+		return conn, nil, err
+	}
+	clientID, err := wrapper.getClientIDFromCertificate(certificate)
+	if err != nil {
+		return conn, nil, err
+	}
+	return newSafeCloseConnection(tlsConn), clientID, nil
 }

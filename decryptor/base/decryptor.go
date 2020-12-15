@@ -139,6 +139,7 @@ type Decryptor interface {
 	BeginTagIndex([]byte) (int, int)
 	MatchZoneInBlock([]byte)
 	SetDataProcessor(processor DataProcessor)
+	SetClientID([]byte)
 }
 
 // NeedMatchZone return True is enabled zone mode and zone not matched yet
