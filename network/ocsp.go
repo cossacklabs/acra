@@ -26,6 +26,7 @@ import (
 	"io/ioutil"
 	"net/http"
 	url_ "net/url"
+	"time"
 )
 
 // Errors returned by CRL verifier
@@ -188,7 +189,16 @@ type OCSPClient interface {
 }
 
 // DefaultOCSPClient is a default implementation of OCSPClient
-type DefaultOCSPClient struct{}
+type DefaultOCSPClient struct{
+	httpClient *http.Client
+}
+
+// NewDefaultOCSPClient creates new DefaultOCSPClient
+func NewDefaultOCSPClient() DefaultOCSPClient {
+	return DefaultOCSPClient{httpClient: &http.Client{
+		Timeout: time.Second * time.Duration(15),
+	}}
+}
 
 // Query generates OCSP request about specified certificate, sends it to server and returns the response
 func (c DefaultOCSPClient) Query(commonName string, clientCert, issuerCert *x509.Certificate, ocspServerURL string) (*ocsp.Response, error) {
@@ -208,8 +218,7 @@ func (c DefaultOCSPClient) Query(commonName string, clientCert, issuerCert *x509
 	httpRequest.Header.Add("Content-Type", "application/ocsp-request")
 	httpRequest.Header.Add("Accept", "application/ocsp-response")
 	httpRequest.Header.Add("host", ocspURL.Host)
-	httpClient := &http.Client{}
-	httpResponse, err := httpClient.Do(httpRequest)
+	httpResponse, err := c.httpClient.Do(httpRequest)
 	if err != nil {
 		return nil, err
 	}
@@ -331,10 +340,16 @@ func (v DefaultOCSPVerifier) verifyCertWithIssuer(cert, issuer *x509.Certificate
 // Verify ensures certificate is not revoked by querying configured OCSP servers
 func (v DefaultOCSPVerifier) Verify(rawCerts [][]byte, verifiedChains [][]*x509.Certificate) error {
 	for _, chain := range verifiedChains {
+		if len(chain) == 0 {
+			// Should never happen, but better handle this case explicitly than get panic in loop below some day
+			return ErrEmptyCertChain
+		}
+
 		if len(chain) == 1 {
 			// This one cert[0] must be trusted since it was allowed by more basic verifying routines.
 			// If we are at this point, we have nothing to do, and no CA means no OCSP.
-			log.Debugln("OCSP: Certificate chain contains one certificate, nothing to do")
+			log.WithField("serial", chain[0].SerialNumber).WithField("subject", chain[0].Subject).
+				Infoln("OCSP: Certificate chain consists of one already trusted certificate, nothing to do")
 			return nil
 		}
 

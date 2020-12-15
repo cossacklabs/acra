@@ -166,7 +166,9 @@ type DefaultCRLClient struct {
 
 // NewDefaultCRLClient creates new DefaultCRLClient
 func NewDefaultCRLClient() DefaultCRLClient {
-	return DefaultCRLClient{httpClient: &http.Client{}}
+	return DefaultCRLClient{httpClient: &http.Client{
+		Timeout: time.Second * time.Duration(20),
+	}}
 }
 
 // Fetch fetches CRL from passed URL (can be either http:// or file://),
@@ -464,10 +466,16 @@ func (v DefaultCRLVerifier) verifyCertWithIssuer(cert, issuer *x509.Certificate,
 // Verify ensures configured CRLs do not contain certificate from passed chain
 func (v DefaultCRLVerifier) Verify(rawCerts [][]byte, verifiedChains [][]*x509.Certificate) error {
 	for _, chain := range verifiedChains {
+		if len(chain) == 0 {
+			// Should never happen, but better handle this case explicitly than get panic in loop below some day
+			return ErrEmptyCertChain
+		}
+
 		if len(chain) == 1 {
 			// This one cert[0] must be trusted since it was allowed by more basic verifying routines.
 			// If we are at this point, we have nothing to do, and no CA means no CRL.
-			log.Debugln("CRL: Certificate chain contains one certificate, nothing to do")
+			log.WithField("serial", chain[0].SerialNumber).WithField("subject", chain[0].Subject).
+				Infoln("CRL: Certificate chain consists of one already trusted certificate, nothing to do")
 			return nil
 		}
 

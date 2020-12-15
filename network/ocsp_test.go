@@ -275,7 +275,7 @@ func testDefaultOCSPClientWithGroup(t *testing.T, certGroup TestCertGroup) {
 	ocspServer, addr := getTestOCSPServer(t, ocspServerConfig)
 	defer ocspServer.Close()
 
-	ocspClient := DefaultOCSPClient{}
+	ocspClient := NewDefaultOCSPClient()
 
 	url := fmt.Sprintf("http://%s", addr)
 
@@ -307,7 +307,7 @@ func TestDefaultOCSPClient(t *testing.T) {
 }
 
 func testWithConfigAndValidChain(t *testing.T, ocspConfig *OCSPConfig, rawCerts [][]byte, verifiedChains [][]*x509.Certificate) {
-	ocspClient := DefaultOCSPClient{}
+	ocspClient := NewDefaultOCSPClient()
 
 	ocspVerifier := DefaultOCSPVerifier{Config: *ocspConfig, Client: ocspClient}
 
@@ -318,7 +318,7 @@ func testWithConfigAndValidChain(t *testing.T, ocspConfig *OCSPConfig, rawCerts 
 }
 
 func testWithConfigAndRevokedChain(t *testing.T, ocspConfig *OCSPConfig, rawCerts [][]byte, verifiedChains [][]*x509.Certificate) {
-	ocspClient := DefaultOCSPClient{}
+	ocspClient := NewDefaultOCSPClient()
 
 	ocspVerifier := DefaultOCSPVerifier{Config: *ocspConfig, Client: ocspClient}
 

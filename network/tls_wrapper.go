@@ -18,11 +18,11 @@ package network
 
 import (
 	"context"
-	"fmt"
 	"crypto/tls"
 	"crypto/x509"
 	"errors"
 	"flag"
+	"fmt"
 	"github.com/cossacklabs/acra/logging"
 	log "github.com/sirupsen/logrus"
 	"io/ioutil"

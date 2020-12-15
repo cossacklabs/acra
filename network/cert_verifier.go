@@ -24,7 +24,8 @@ import (
 
 // Errors common for OCSP and CRL verifiers
 var (
-	ErrCertWasRevoked = errors.New("Certificate was revoked")
+	ErrCertWasRevoked = errors.New("certificate was revoked")
+	ErrEmptyCertChain = errors.New("empty certificate chain")
 )
 
 // CertVerifier is a generic certificate verifier
@@ -43,7 +44,10 @@ func NewCertVerifierFromConfigs(ocspConfig *OCSPConfig, crlConfig *CRLConfig) (C
 
 	if ocspConfig.UseOCSP() {
 		log.Debugln("NewCertVerifierFromConfigs(): adding OCSP verifier")
-		ocspVerifier := DefaultOCSPVerifier{Config: *ocspConfig, Client: &DefaultOCSPClient{}}
+		ocspVerifier := DefaultOCSPVerifier{
+			Config: *ocspConfig,
+			Client: NewDefaultOCSPClient(),
+		}
 		certVerifier.Push(ocspVerifier)
 	}
 
