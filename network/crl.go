@@ -88,16 +88,16 @@ const (
 
 // CRLConfig contains configuration related to certificate validation using CRL
 type CRLConfig struct {
-	url             string
-	fromCert        int // crlFromCert*
-	checkWholeChain bool
-	cacheSize       uint
-	cacheTime       time.Duration
-	ClientAuthType  tls.ClientAuthType
+	url                      string
+	fromCert                 int // crlFromCert*
+	checkOnlyLeafCertificate bool
+	cacheSize                uint
+	cacheTime                time.Duration
+	ClientAuthType           tls.ClientAuthType
 }
 
 // NewCRLConfig creates new CRLConfig
-func NewCRLConfig(url, fromCert string, checkWholeChain bool, cacheSize, cacheTime uint) (*CRLConfig, error) {
+func NewCRLConfig(url, fromCert string, checkOnlyLeafCertificate bool, cacheSize, cacheTime uint) (*CRLConfig, error) {
 	fromCertVal, ok := crlFromCertValValues[fromCert]
 	if !ok {
 		return nil, ErrInvalidConfigCRLFromCert
@@ -127,12 +127,12 @@ func NewCRLConfig(url, fromCert string, checkWholeChain bool, cacheSize, cacheTi
 	}
 
 	return &CRLConfig{
-		url:             url,
-		fromCert:        fromCertVal,
-		checkWholeChain: checkWholeChain,
-		cacheSize:       cacheSize,
-		cacheTime:       time.Second * time.Duration(cacheTime),
-		ClientAuthType:  tls.RequireAndVerifyClientCert,
+		url:                      url,
+		fromCert:                 fromCertVal,
+		checkOnlyLeafCertificate: checkOnlyLeafCertificate,
+		cacheSize:                cacheSize,
+		cacheTime:                time.Second * time.Duration(cacheTime),
+		ClientAuthType:           tls.RequireAndVerifyClientCert,
 	}, nil
 }
 
@@ -487,13 +487,13 @@ func (v DefaultCRLVerifier) Verify(rawCerts [][]byte, verifiedChains [][]*x509.C
 
 			// 3rd argument, useConfigURL, whether to use OCSP server URL from configuration (if set),
 			// don't use it for other certificates except end one (i.e. don't use it when checking intermediate
-			// certificates because v.Config.checkWholeChain == true)
+			// certificates because v.Config.checkOnlyLeafCertificate == false)
 			err := v.verifyCertWithIssuer(cert, issuer, i == 0)
 			if err != nil {
 				return err
 			}
 
-			if !v.Config.checkWholeChain {
+			if v.Config.checkOnlyLeafCertificate {
 				break
 			}
 		}

@@ -234,11 +234,11 @@ func main() {
 		fmt.Sprintf("How to treat certificates unknown to OCSP: <%s>", strings.Join(network.OcspRequiredValuesList, "|")))
 	tlsOcspFromCert := flag.String("tls_ocsp_from_cert", network.OcspFromCertPreferStr,
 		fmt.Sprintf("How to treat OCSP server described in certificate itself: <%s>", strings.Join(network.OcspFromCertValuesList, "|")))
-	tlsOcspCheckWholeChain := flag.Bool("tls_ocsp_check_whole_chain", false, "Put 'true' to check the whole certificate chain using OCSP, or 'false' to check only final/last certificate")
+	tlsOcspCheckOnlyLeafCertificate := flag.Bool("tls_ocsp_check_only_leaf_certificate", false, "Put 'true' to check only final/last certificate, or 'false' to check the whole certificate chain using OCSP")
 	tlsCrlURL := flag.String("tls_crl_url", "", "URL of the Certificate Revocation List (CRL) to use")
 	tlsCrlFromCert := flag.String("tls_crl_from_cert", network.CrlFromCertPreferStr,
 		fmt.Sprintf("How to treat CRL URL described in certificate itself: <%s>", strings.Join(network.CrlFromCertValuesList, "|")))
-	tlsCrlCheckWholeChain := flag.Bool("tls_crl_check_whole_chain", false, "Put 'true' to check the whole certificate chain using CRL, or 'false' to check only final/last certificate")
+	tlsCrlCheckOnlyLeafCertificate := flag.Bool("tls_crl_check_only_leaf_certificate", false, "Put 'true' to check only final/last certificate, or 'false' to check the whole certificate chain using CRL")
 	tlsCrlCacheSize := flag.Uint("tls_crl_cache_size", 16, "How many CRLs to cache in memory (use 0 to disable caching)")
 	tlsCrlCacheTime := flag.Uint("tls_crl_cache_time", 0,
 		fmt.Sprintf("How long to keep CRLs cached, in seconds (use 0 to disable caching, maximum: %d s)", network.CrlCacheTimeMax))
@@ -411,14 +411,14 @@ func main() {
 		if *useTLS {
 			log.Infof("Selecting transport: use TLS transport wrapper")
 
-			ocspConfig, err := network.NewOCSPConfig(*tlsOcspURL, *tlsOcspRequired, *tlsOcspFromCert, *tlsOcspCheckWholeChain)
+			ocspConfig, err := network.NewOCSPConfig(*tlsOcspURL, *tlsOcspRequired, *tlsOcspFromCert, *tlsOcspCheckOnlyLeafCertificate)
 			if err != nil {
 				log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorWrongConfiguration).
 					Errorln("Configuration error: invalid OCSP config")
 				os.Exit(1)
 			}
 
-			crlConfig, err := network.NewCRLConfig(*tlsCrlURL, *tlsCrlFromCert, *tlsCrlCheckWholeChain, *tlsCrlCacheSize, *tlsCrlCacheTime)
+			crlConfig, err := network.NewCRLConfig(*tlsCrlURL, *tlsCrlFromCert, *tlsCrlCheckOnlyLeafCertificate, *tlsCrlCacheSize, *tlsCrlCacheTime)
 			if err != nil {
 				log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorWrongConfiguration).
 					Errorln("Configuration error: invalid CRL config")

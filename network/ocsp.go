@@ -112,15 +112,15 @@ const (
 
 // OCSPConfig contains configuration related to certificate validation using OCSP
 type OCSPConfig struct {
-	url             string
-	required        int // ocspRequired*
-	fromCert        int // ocspFromCert*
-	checkWholeChain bool
-	ClientAuthType  tls.ClientAuthType
+	url                      string
+	required                 int // ocspRequired*
+	fromCert                 int // ocspFromCert*
+	checkOnlyLeafCertificate bool
+	ClientAuthType           tls.ClientAuthType
 }
 
 // NewOCSPConfig creates new OCSPConfig
-func NewOCSPConfig(url, required, fromCert string, checkWholeChain bool) (*OCSPConfig, error) {
+func NewOCSPConfig(url, required, fromCert string, checkOnlyLeafCertificate bool) (*OCSPConfig, error) {
 	requiredVal, ok := ocspRequiredValValues[required]
 	if !ok {
 		return nil, ErrInvalidConfigOCSPRequired
@@ -368,13 +368,13 @@ func (v DefaultOCSPVerifier) Verify(rawCerts [][]byte, verifiedChains [][]*x509.
 
 			// 3rd argument, useConfigURL, whether to use OCSP server URL from configuration (if set),
 			// don't use it for other certificates except end one (i.e. don't use it when checking intermediate
-			// certificates because v.Config.checkWholeChain == true)
+			// certificates because v.Config.checkOnlyLeafCertificate == false)
 			err := v.verifyCertWithIssuer(cert, issuer, i == 0)
 			if err != nil {
 				return err
 			}
 
-			if !v.Config.checkWholeChain {
+			if v.Config.checkOnlyLeafCertificate {
 				break
 			}
 		}

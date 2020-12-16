@@ -143,8 +143,8 @@ tls_crl_cache_size: 16
 # How long to keep CRLs cached, in seconds (use 0 to disable caching, maximum: 300 s)
 tls_crl_cache_time: 0
 
-# Put 'true' to check the whole certificate chain using CRL, or 'false' to check only final/last certificate
-tls_crl_check_whole_chain: false
+# Put 'true' to check only final/last certificate, or 'false' to check the whole certificate chain using CRL
+tls_crl_check_only_leaf_certificate: false
 
 # URL of the Certificate Revocation List (CRL) to use, for client/connector certificates only
 tls_crl_client_url: 
@@ -182,8 +182,8 @@ tls_identifier_extractor_type: distinguished_name
 # Path to private key that will be used in AcraServer's TLS handshake with AcraConnector as server's key and database as client's key
 tls_key: 
 
-# Put 'true' to check the whole certificate chain using OCSP, or 'false' to check only final/last certificate
-tls_ocsp_check_whole_chain: false
+# Put 'true' to check only final/last certificate, or 'false' to check the whole certificate chain using OCSP
+tls_ocsp_check_only_leaf_certificate: false
 
 # OCSP service URL, for client/connector certificates only
 tls_ocsp_client_url: 
