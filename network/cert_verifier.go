@@ -25,7 +25,7 @@ import (
 // Errors common for OCSP and CRL verifiers
 var (
 	ErrCertWasRevoked = errors.New("certificate was revoked")
-	ErrEmptyCertChain = errors.New("empty certificate chain")
+	ErrEmptyCertChain = errors.New("empty verified certificates chain")
 )
 
 // CertVerifier is a generic certificate verifier

@@ -383,6 +383,11 @@ func TestDefaultCRLClientFile(t *testing.T) {
 	if !bytes.Equal(rawCRL, fetchedCRL) {
 		t.Fatal("CRLClient returned mismatched data\n")
 	}
+
+	fetchedCRL, err = crlClient.Fetch(url, false)
+	if fetchedCRL != nil || err != ErrFetchDeniedForLocalURL {
+		t.Fatalf("Unexpected error when fetching file:// URL that should be denied: %v\n", err)
+	}
 }
 
 func TestLRUCRLCache(t *testing.T) {

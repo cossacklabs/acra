@@ -17,6 +17,7 @@ limitations under the License.
 package network
 
 import (
+	"crypto/tls"
 	"crypto/x509"
 	"crypto/x509/pkix"
 	"errors"
@@ -92,6 +93,7 @@ type CRLConfig struct {
 	checkWholeChain bool
 	cacheSize       uint
 	cacheTime       time.Duration
+	ClientAuthType  tls.ClientAuthType
 }
 
 // NewCRLConfig creates new CRLConfig
@@ -121,12 +123,6 @@ func NewCRLConfig(url, fromCert string, checkWholeChain bool, cacheSize, cacheTi
 		_, err = crlClient.Fetch(url, true)
 		if err != nil {
 			log.WithError(err).WithField("url", url).Warnln("CRL: Cannot fetch configured URL")
-			// TODO return error after issues with failing tests are fixed;
-			//      CRL HTTP server is starting, connection is checked, then Acra is starting
-			//      but somehow checking connection *here* fails thus failing the tests;
-			//      everything else seems working since real requests to configured server
-			//      are successful (when CRL verification is performed)
-			// return nil, errors.New("CRL: Cannot fetch configured URL")
 		}
 	}
 
@@ -136,6 +132,7 @@ func NewCRLConfig(url, fromCert string, checkWholeChain bool, cacheSize, cacheTi
 		checkWholeChain: checkWholeChain,
 		cacheSize:       cacheSize,
 		cacheTime:       time.Second * time.Duration(cacheTime),
+		ClientAuthType:  tls.RequireAndVerifyClientCert,
 	}, nil
 }
 
@@ -467,15 +464,20 @@ func (v DefaultCRLVerifier) verifyCertWithIssuer(cert, issuer *x509.Certificate,
 func (v DefaultCRLVerifier) Verify(rawCerts [][]byte, verifiedChains [][]*x509.Certificate) error {
 	for _, chain := range verifiedChains {
 		if len(chain) == 0 {
-			// Should never happen, but better handle this case explicitly than get panic in loop below some day
-			return ErrEmptyCertChain
+			switch v.Config.ClientAuthType {
+			case tls.NoClientCert, tls.RequestClientCert, tls.RequireAnyClientCert:
+				log.Infoln("OCSP: Empty verified certificates chain, nothing to do")
+				return nil
+			default: // tls.VerifyClientCertIfGiven, tls.RequireAndVerifyClientCert
+				return ErrEmptyCertChain
+			}
 		}
 
 		if len(chain) == 1 {
 			// This one cert[0] must be trusted since it was allowed by more basic verifying routines.
 			// If we are at this point, we have nothing to do, and no CA means no CRL.
-			log.WithField("serial", chain[0].SerialNumber).WithField("subject", chain[0].Subject).
-				Infoln("CRL: Certificate chain consists of one already trusted certificate, nothing to do")
+			log.WithField("serial", chain[0].SerialNumber).
+				Warnln("CRL: Certificate chain consists of one already trusted certificate, nothing to do, it is recommended to use non-root certificates for TLS handshake")
 			return nil
 		}
 

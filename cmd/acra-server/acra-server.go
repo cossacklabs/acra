@@ -277,6 +277,7 @@ func main() {
 				Errorln("Configuration error: invalid OCSP config")
 			os.Exit(1)
 		}
+		ocspClientConfig.ClientAuthType = tls.ClientAuthType(*tlsClientAuthType)
 
 		var crlClientConfig *network.CRLConfig
 		if *tlsCrlClientURL != "" {
@@ -289,6 +290,7 @@ func main() {
 				Errorln("Configuration error: invalid CRL config")
 			os.Exit(1)
 		}
+		crlClientConfig.ClientAuthType = tls.ClientAuthType(*tlsClientAuthType)
 
 		certClientVerifier, err := network.NewCertVerifierFromConfigs(ocspClientConfig, crlClientConfig)
 		if err != nil {

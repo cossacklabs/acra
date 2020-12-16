@@ -19,6 +19,7 @@ package network
 import (
 	"bytes"
 	"crypto"
+	"crypto/tls"
 	"crypto/x509"
 	"errors"
 	log "github.com/sirupsen/logrus"
@@ -115,6 +116,7 @@ type OCSPConfig struct {
 	required        int // ocspRequired*
 	fromCert        int // ocspFromCert*
 	checkWholeChain bool
+	ClientAuthType  tls.ClientAuthType
 }
 
 // NewOCSPConfig creates new OCSPConfig
@@ -145,9 +147,6 @@ func NewOCSPConfig(url, required, fromCert string, checkWholeChain bool) (*OCSPC
 		_, err = httpClient.Head(url)
 		if err != nil {
 			log.WithError(err).WithField("url", url).Warnln("OCSP: Cannot reach configured server")
-			// TODO return error after issues with failing tests are fixed;
-			//      the issue is the same as in NewCRLConfig()
-			// return nil, errors.New("Cannot reach configured OCSP server")
 		}
 	}
 
@@ -171,7 +170,12 @@ func NewOCSPConfig(url, required, fromCert string, checkWholeChain bool) (*OCSPC
 		log.Debugln("OCSP: ignoring OCSP servers described in certificates")
 	}
 
-	return &OCSPConfig{url: url, required: requiredVal, fromCert: fromCertVal}, nil
+	return &OCSPConfig{
+		url:            url,
+		required:       requiredVal,
+		fromCert:       fromCertVal,
+		ClientAuthType: tls.RequireAndVerifyClientCert,
+	}, nil
 }
 
 // UseOCSP returns true if verification via OCSP is enabled
@@ -189,7 +193,7 @@ type OCSPClient interface {
 }
 
 // DefaultOCSPClient is a default implementation of OCSPClient
-type DefaultOCSPClient struct{
+type DefaultOCSPClient struct {
 	httpClient *http.Client
 }
 
@@ -341,15 +345,20 @@ func (v DefaultOCSPVerifier) verifyCertWithIssuer(cert, issuer *x509.Certificate
 func (v DefaultOCSPVerifier) Verify(rawCerts [][]byte, verifiedChains [][]*x509.Certificate) error {
 	for _, chain := range verifiedChains {
 		if len(chain) == 0 {
-			// Should never happen, but better handle this case explicitly than get panic in loop below some day
-			return ErrEmptyCertChain
+			switch v.Config.ClientAuthType {
+			case tls.NoClientCert, tls.RequestClientCert, tls.RequireAnyClientCert:
+				log.Infoln("OCSP: Empty verified certificates chain, nothing to do")
+				return nil
+			default: // tls.VerifyClientCertIfGiven, tls.RequireAndVerifyClientCert
+				return ErrEmptyCertChain
+			}
 		}
 
 		if len(chain) == 1 {
 			// This one cert[0] must be trusted since it was allowed by more basic verifying routines.
 			// If we are at this point, we have nothing to do, and no CA means no OCSP.
-			log.WithField("serial", chain[0].SerialNumber).WithField("subject", chain[0].Subject).
-				Infoln("OCSP: Certificate chain consists of one already trusted certificate, nothing to do")
+			log.WithField("serial", chain[0].SerialNumber).
+				Warnln("OCSP: Certificate chain consists of one already trusted certificate, nothing to do, it is recommended to use non-root certificates for TLS handshake")
 			return nil
 		}
 
