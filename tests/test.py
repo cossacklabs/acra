@@ -1317,12 +1317,22 @@ class BaseTestCase(PrometheusMixin, unittest.TestCase):
             raise
         return translator
 
+    def fork_certificate_validation_services(self):
+        if self.with_tls():
+            self.ocsp_server = self.fork_ocsp_server(self.OCSP_SERVER_PORT)
+            self.crl_http_server = self.fork_crl_http_server(self.CRL_HTTP_SERVER_PORT)
+
+    def kill_certificate_validation_services(self):
+        if self.with_tls():
+            processes = [getattr(self, 'ocsp_server', ProcessStub()),
+                         getattr(self, 'crl_http_server', ProcessStub())]
+
+            stop_process(processes)
+
     def setUp(self):
         self.checkSkip()
         try:
-            if self.with_tls():
-                self.ocsp_server = self.fork_ocsp_server(self.OCSP_SERVER_PORT)
-                self.crl_http_server = self.fork_crl_http_server(self.CRL_HTTP_SERVER_PORT)
+            self.fork_certificate_validation_services()
 
             if not self.EXTERNAL_ACRA:
                 self.acra = self.fork_acra()
@@ -1378,14 +1388,11 @@ class BaseTestCase(PrometheusMixin, unittest.TestCase):
         processes = [getattr(self, 'connector_1', ProcessStub()),
                      getattr(self, 'connector_2', ProcessStub()),
                      getattr(self, 'acra', ProcessStub())]
-
-        if self.with_tls():
-            processes.append(getattr(self, 'ocsp_server', ProcessStub()))
-            processes.append(getattr(self, 'crl_http_server', ProcessStub()))
-
         stop_process(processes)
         send_signal_by_process_name('acra-server', signal.SIGKILL)
         send_signal_by_process_name('acra-connector', signal.SIGKILL)
+
+        self.kill_certificate_validation_services()
 
     def log(self, data, expected=b'<no expected value>',
             storage_client_id=None, zone_id=None,
@@ -5376,6 +5383,8 @@ class TestTLSAuthenticationWithConnectorByDistinguishedName(TLSAuthenticationByD
         self.acra_writer_id = self.get_valid_certificate_identifier()
         self.assertEqual(create_client_keypair(name=self.acra_writer_id, keys_dir=self.key_folder.name), 0)
         try:
+            self.fork_certificate_validation_services()
+
             if not self.EXTERNAL_ACRA:
                 self.acra = self.fork_acra(tls_client_id_from_cert=True,
                                            tls_key=abs_path(TEST_TLS_SERVER_KEY),
@@ -5444,6 +5453,8 @@ class TestTLSAuthenticationWithConnectorByDistinguishedName(TLSAuthenticationByD
         stop_process(processes)
         send_signal_by_process_name('acra-server', signal.SIGKILL)
         send_signal_by_process_name('acra-connector', signal.SIGKILL)
+
+        self.kill_certificate_validation_services()
 
     def testConnectorRead(self):
         """test decrypting with correct acra-connector and not decrypting with
@@ -5558,6 +5569,8 @@ class TestTLSAuthenticationDirectlyToAcraByDistinguishedName(TestTLSAuthenticati
         self.acra_writer_id = self.get_valid_certificate_identifier()
         self.assertEqual(create_client_keypair(name=self.acra_writer_id, keys_dir=self.key_folder.name), 0)
         try:
+            self.fork_certificate_validation_services()
+
             if not self.EXTERNAL_ACRA:
                 # start acra without acra-connector with configured TLS
                 self.acra = self.fork_acra(
@@ -5631,6 +5644,8 @@ class TestTLSAuthenticationDirectlyToAcraByDistinguishedName(TestTLSAuthenticati
         stop_process(processes)
         send_signal_by_process_name('acra-server', signal.SIGKILL)
         send_signal_by_process_name('acra-connector', signal.SIGKILL)
+
+        self.kill_certificate_validation_services()
 
 
 class TestTLSAuthenticationDirectlyToAcraBySerialNumber(TLSAuthenticationBySerialNumberMixin,
