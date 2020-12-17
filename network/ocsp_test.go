@@ -229,22 +229,28 @@ func TestOCSPConfig(t *testing.T) {
 		}
 	}
 
-	// Here we test valid and invalid URLs, all possible values for
-	// `--tls_ocsp_required`, `--tls_ocsp_from_cert`, and some invalid ones too
-
+	// Empty URL
 	expectOk("", OcspRequiredDenyUnknownStr, OcspFromCertUseStr, false)
+	// Valid URL
 	expectOk("http://127.0.0.1", OcspRequiredDenyUnknownStr, OcspFromCertUseStr, false)
+	// Valid URL with port
 	expectOk("http://127.0.0.1:12345", OcspRequiredDenyUnknownStr, OcspFromCertUseStr, false)
+	// Non-empty URL + `--tls_ocsp_required=requireGood`
+	expectOk("http://127.0.0.1", OcspRequiredGoodStr, OcspFromCertUseStr, false)
+	// Different valid values for `--tls_ocsp_required` and `--tls_ocsp_from_cert`
 	expectOk("", OcspRequiredDenyUnknownStr, OcspFromCertIgnoreStr, false)
-	expectOk("http://127.0.0.1", OcspRequiredRequireGoodStr, OcspFromCertUseStr, false)
 	expectOk("", OcspRequiredAllowUnknownStr, OcspFromCertIgnoreStr, false)
 	expectOk("", OcspRequiredAllowUnknownStr, OcspFromCertTrustStr, false)
 	expectOk("", OcspRequiredAllowUnknownStr, OcspFromCertPreferStr, false)
 
+	// Invalid URL
 	expectErr("http://random text", OcspRequiredDenyUnknownStr, OcspFromCertUseStr, false)
+	// Invalid value of `--tls_ocsp_required`
 	expectErr("http://127.0.0.1", "one two three", OcspFromCertUseStr, false)
-	expectErr("", OcspRequiredRequireGoodStr, OcspFromCertUseStr, false)
-	expectErr("", OcspRequiredRequireGoodStr, "invalid value", false)
+	// Empty URL + `--tls_ocsp_required=requireGood`, need non-empty URL in this case
+	expectErr("", OcspRequiredGoodStr, OcspFromCertUseStr, false)
+	// Invalid value of `--tls_ocsp_from_cert`
+	expectErr("", OcspRequiredGoodStr, "invalid value", false)
 }
 
 func testDefaultOCSPClientWithGroup(t *testing.T, certGroup TestCertGroup) {
@@ -369,7 +375,7 @@ func testDefaultOCSPVerifierWithGroup(t *testing.T, certGroup TestCertGroup) {
 	//
 	// Test with default config, certificates contain OCSP server inside
 	//
-	ocspConfig, err := NewOCSPConfig(url, OcspRequiredRequireGoodStr, OcspFromCertUseStr, false)
+	ocspConfig, err := NewOCSPConfig(url, OcspRequiredGoodStr, OcspFromCertUseStr, false)
 	if err != nil {
 		t.Fatalf("Failed to create OCSPConfig: %v\n", err)
 	}
@@ -383,7 +389,7 @@ func testDefaultOCSPVerifierWithGroup(t *testing.T, certGroup TestCertGroup) {
 	//
 	// Test with URL in config only
 	//
-	ocspConfig, err = NewOCSPConfig(url, OcspRequiredRequireGoodStr, OcspFromCertUseStr, false)
+	ocspConfig, err = NewOCSPConfig(url, OcspRequiredGoodStr, OcspFromCertUseStr, false)
 	if err != nil {
 		t.Fatalf("Failed to create OCSPConfig: %v\n", err)
 	}

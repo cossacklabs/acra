@@ -291,24 +291,26 @@ func TestCRLConfig(t *testing.T) {
 		}
 	}
 
-	// Here we test valid and invalid URLs, all possible values for
-	// `--tls_crl_from_cert`, and some invalid ones too,
-	// valid and invalid uint values for `--tls_crl_cache_size`
-
+	// Empty URL
 	expectOk("", CrlFromCertUseStr, false, 1, 5)
-	expectOk("", CrlFromCertIgnoreStr, false, 2, 5)
+	// Valid URL
 	expectOk("http://127.0.0.1/main_crl.pem", CrlFromCertUseStr, false, 1, 5)
+	// Different valid values for `--tls_crl_from_cert`, with different valid cache size/time
+	expectOk("", CrlFromCertIgnoreStr, false, 2, 5)
 	expectOk("", CrlFromCertUseStr, false, 100, 0)
 	expectOk("", CrlFromCertUseStr, true, 0, 1)
 	expectOk("", CrlFromCertUseStr, false, 1, 300)
 	expectOk("", CrlFromCertTrustStr, true, 1, 0)
 	expectOk("", CrlFromCertPreferStr, false, 1, 0)
 
+	// Invalid URL
 	expectErr("htt://invalid url", CrlFromCertUseStr, false, 1, 5)
+	// Invalid value of `--tls_crl_from_cert`
 	expectErr("", "IgNoRe", false, 1, 5)
-	expectErr("", CrlFromCertUseStr, false, 2147483648, 5)
-	expectErr("", CrlFromCertUseStr, false, 1, 301)
-	expectErr("", CrlFromCertUseStr, false, 1, 9000)
+	// Invalid value of `--tls_crl_cache_size` (too big)
+	expectErr("", CrlFromCertUseStr, false, CrlCacheSizeMax+1, 5)
+	// Invalid value of `--tls_crl_cache_time` (too big)
+	expectErr("", CrlFromCertUseStr, false, 1, CrlCacheTimeMax+1)
 }
 
 func TestDefaultCRLClientHTTP(t *testing.T) {

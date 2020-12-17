@@ -48,21 +48,21 @@ const (
 	OcspRequiredAllowUnknownStr = "allowUnknown"
 	// Effect of denyUnknown + all available OCSP servers (the one from config
 	// and those listed in certificate) should respond, otherwise deny the certificate
-	OcspRequiredRequireGoodStr = "requireGood"
+	OcspRequiredGoodStr = "requireGood"
 )
 
 // OcspRequiredValuesList contains all possible values for flag `--tls_ocsp_required`
 var OcspRequiredValuesList = []string{
 	OcspRequiredDenyUnknownStr,
 	OcspRequiredAllowUnknownStr,
-	OcspRequiredRequireGoodStr,
+	OcspRequiredGoodStr,
 }
 
 var (
 	ocspRequiredValValues = map[string]int{
 		OcspRequiredDenyUnknownStr:  ocspRequiredDenyUnknown,
 		OcspRequiredAllowUnknownStr: ocspRequiredAllowUnknown,
-		OcspRequiredRequireGoodStr:  ocspRequiredGood,
+		OcspRequiredGoodStr:         ocspRequiredGood,
 	}
 )
 
@@ -118,6 +118,11 @@ type OCSPConfig struct {
 	checkOnlyLeafCertificate bool
 	ClientAuthType           tls.ClientAuthType
 }
+
+const (
+	// OcspHttpClientDefaultTimeout is default timeout for HTTP client used to perform OCSP queries
+	OcspHttpClientDefaultTimeout = time.Second * time.Duration(15)
+)
 
 // NewOCSPConfig creates new OCSPConfig
 func NewOCSPConfig(url, required, fromCert string, checkOnlyLeafCertificate bool) (*OCSPConfig, error) {
@@ -200,7 +205,7 @@ type DefaultOCSPClient struct {
 // NewDefaultOCSPClient creates new DefaultOCSPClient
 func NewDefaultOCSPClient() DefaultOCSPClient {
 	return DefaultOCSPClient{httpClient: &http.Client{
-		Timeout: time.Second * time.Duration(15),
+		Timeout: OcspHttpClientDefaultTimeout,
 	}}
 }
 

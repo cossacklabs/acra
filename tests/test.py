@@ -1031,9 +1031,9 @@ class BaseTestCase(PrometheusMixin, unittest.TestCase):
             'tls_ca': TEST_TLS_CA,
             'tls_key': TEST_TLS_CLIENT_KEY,
             'tls_cert': TEST_TLS_CLIENT_CERT,
-            'tls_ocsp_url': 'http://127.0.0.1:{}'.format(self.OCSP_SERVER_PORT),
+            'tls_ocsp_url': 'http://localhost:{}'.format(self.OCSP_SERVER_PORT),
             'tls_ocsp_from_cert': 'use',
-            'tls_crl_url': 'http://127.0.0.1:{}/crl.pem'.format(self.CRL_HTTP_SERVER_PORT),
+            'tls_crl_url': 'http://localhost:{}/crl.pem'.format(self.CRL_HTTP_SERVER_PORT),
             'tls_crl_from_cert': 'use',
         }
 
@@ -1152,7 +1152,7 @@ class BaseTestCase(PrometheusMixin, unittest.TestCase):
 
         http_server_connection = self.get_crl_http_server_connection_string(port)
 
-        cli_args = ['--bind', '127.0.0.1', '--directory', TEST_TLS_CRL_PATH, str(port)]
+        cli_args = ['--bind', 'localhost', '--directory', TEST_TLS_CRL_PATH, str(port)]
         print('python HTTP server args: {}'.format(' '.join(cli_args)))
 
         process = self.fork(lambda: subprocess.Popen(['python3', '-m', 'http.server'] + cli_args))
@@ -1191,12 +1191,12 @@ class BaseTestCase(PrometheusMixin, unittest.TestCase):
     def get_ocsp_server_connection_string(self, port=None):
         if not port:
             port = self.OCSP_SERVER_PORT
-        return 'http://127.0.0.1:{}'.format(port)
+        return 'http://localhost:{}'.format(port)
 
     def get_crl_http_server_connection_string(self, port=None):
         if not port:
             port = self.CRL_HTTP_SERVER_PORT
-        return 'http://127.0.0.1:{}'.format(port)
+        return 'http://localhost:{}'.format(port)
 
     def get_acrawebconfig_connection_url(self):
         return 'http://{}:{}'.format('127.0.0.1', ACRAWEBCONFIG_HTTP_PORT)
@@ -1251,9 +1251,9 @@ class BaseTestCase(PrometheusMixin, unittest.TestCase):
             args['tls_cert'] = TEST_TLS_SERVER_CERT
             args['tls_ca'] = TEST_TLS_CA
             args['tls_auth'] = ACRA_TLS_AUTH
-            args['tls_ocsp_url'] = 'http://127.0.0.1:{}'.format(self.OCSP_SERVER_PORT)
+            args['tls_ocsp_url'] = 'http://localhost:{}'.format(self.OCSP_SERVER_PORT)
             args['tls_ocsp_from_cert'] = 'use'
-            args['tls_crl_url'] = 'http://127.0.0.1:{}/crl.pem'.format(self.CRL_HTTP_SERVER_PORT)
+            args['tls_crl_url'] = 'http://localhost:{}/crl.pem'.format(self.CRL_HTTP_SERVER_PORT)
             args['tls_crl_from_cert'] = 'use'
         else:
             # Explicitly disable certificate validation by default since otherwise we may end up

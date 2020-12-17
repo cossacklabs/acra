@@ -60,8 +60,6 @@ var (
 	tlsAuthType                     int
 	tlsServerName                   string
 	tlsOcspURL                      string
-	tlsOcspClientURL                string
-	tlsOcspDbURL                    string
 	tlsOcspRequired                 string
 	tlsOcspFromCert                 string
 	tlsOcspCheckOnlyLeafCertificate bool
@@ -72,15 +70,13 @@ var (
 	tlsCrlCacheTime                 uint
 )
 
-// RegisterTLSBaseArgs register CLI args tls_ca|tls_key|tls_cert|tls_auth|tls_ocsp_url|tls_ocsp_client_url|tls_ocsp_db_url|tls_ocsp_required|tls_ocsp_from_cert|tls_ocsp_check_only_leaf_certificate|tls_crl_url|tls_crl_from_cert|tls_crl_check_only_leaf_certificate|tls_crl_cache_size|tls_crl_cache_time which allow to get tls.Config by NewTLSConfigFromBaseArgs function
+// RegisterTLSBaseArgs register CLI args tls_ca|tls_key|tls_cert|tls_auth|tls_ocsp_url|tls_ocsp_required|tls_ocsp_from_cert|tls_ocsp_check_only_leaf_certificate|tls_crl_url|tls_crl_from_cert|tls_crl_check_only_leaf_certificate|tls_crl_cache_size|tls_crl_cache_time which allow to get tls.Config by NewTLSConfigFromBaseArgs function
 func RegisterTLSBaseArgs() {
 	flag.StringVar(&tlsCA, "tls_ca", "", "Path to root certificate which will be used with system root certificates to validate peer's certificate")
 	flag.StringVar(&tlsKey, "tls_key", "", "Path to private key that will be used for TLS connections")
 	flag.StringVar(&tlsCert, "tls_cert", "", "Path to certificate")
 	flag.IntVar(&tlsAuthType, "tls_auth", int(tls.RequireAndVerifyClientCert), "Set authentication mode that will be used in TLS connection. Values in range 0-4 that set auth type (https://golang.org/pkg/crypto/tls/#ClientAuthType). Default is tls.RequireAndVerifyClientCert")
 	flag.StringVar(&tlsOcspURL, "tls_ocsp_url", "", "OCSP service URL")
-	flag.StringVar(&tlsOcspClientURL, "tls_ocsp_client_url", "", "OCSP service URL, for client/connector certificates only")
-	flag.StringVar(&tlsOcspDbURL, "tls_ocsp_database_url", "", "OCSP service URL, for database certificates only")
 	flag.StringVar(&tlsOcspRequired, "tls_ocsp_required", OcspRequiredDenyUnknownStr,
 		fmt.Sprintf("How to treat certificates unknown to OCSP: <%s>", strings.Join(OcspRequiredValuesList, "|")))
 	flag.StringVar(&tlsOcspFromCert, "tls_ocsp_from_cert", OcspFromCertPreferStr,

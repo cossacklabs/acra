@@ -81,9 +81,14 @@ const (
 )
 
 const (
-	// Max int value, because cache implementation uses `int` for setting capacity
-	CrlCacheSizeMax = 2147483647
+	// CrlCacheSizeMax is max value for `--tls_crl_cache_size`
+	CrlCacheSizeMax = 1_000_000
+	// CrlDisableCacheSize will disable caching if set in `--tls_crl_cache_size`
+	CrlDisableCacheSize = 0
+	// CrlCacheTimeMax is max value for `--tls_crl_cache_time`
 	CrlCacheTimeMax = 300
+	// CrlDisableCacheTime will disable caching if set in `--tls_crl_cache_time`
+	CrlDisableCacheTime = 0
 )
 
 // CRLConfig contains configuration related to certificate validation using CRL
@@ -95,6 +100,11 @@ type CRLConfig struct {
 	cacheTime                time.Duration
 	ClientAuthType           tls.ClientAuthType
 }
+
+const (
+	// CrlHttpClientDefaultTimeout is default timeout for HTTP client used to fetch CRLs
+	CrlHttpClientDefaultTimeout = time.Second * time.Duration(20)
+)
 
 // NewCRLConfig creates new CRLConfig
 func NewCRLConfig(url, fromCert string, checkOnlyLeafCertificate bool, cacheSize, cacheTime uint) (*CRLConfig, error) {
@@ -145,7 +155,7 @@ func (c *CRLConfig) UseCRL() bool {
 }
 
 func (c *CRLConfig) isCachingEnabled() bool {
-	return c.cacheTime > 0 && c.cacheSize > 0
+	return c.cacheTime != CrlDisableCacheTime && c.cacheSize != CrlDisableCacheSize
 }
 
 // CRLClient is used to fetch CRL from some URL
@@ -164,7 +174,7 @@ type DefaultCRLClient struct {
 // NewDefaultCRLClient creates new DefaultCRLClient
 func NewDefaultCRLClient() DefaultCRLClient {
 	return DefaultCRLClient{httpClient: &http.Client{
-		Timeout: time.Second * time.Duration(20),
+		Timeout: CrlHttpClientDefaultTimeout,
 	}}
 }
 
