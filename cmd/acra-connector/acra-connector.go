@@ -239,8 +239,8 @@ func main() {
 	tlsCrlFromCert := flag.String("tls_crl_from_cert", network.CrlFromCertPreferStr,
 		fmt.Sprintf("How to treat CRL URL described in certificate itself: <%s>", strings.Join(network.CrlFromCertValuesList, "|")))
 	tlsCrlCheckOnlyLeafCertificate := flag.Bool("tls_crl_check_only_leaf_certificate", false, "Put 'true' to check only final/last certificate, or 'false' to check the whole certificate chain using CRL")
-	tlsCrlCacheSize := flag.Uint("tls_crl_cache_size", 16, "How many CRLs to cache in memory (use 0 to disable caching)")
-	tlsCrlCacheTime := flag.Uint("tls_crl_cache_time", 0,
+	tlsCrlCacheSize := flag.Uint("tls_crl_cache_size", network.CrlDefaultCacheSize, "How many CRLs to cache in memory (use 0 to disable caching)")
+	tlsCrlCacheTime := flag.Uint("tls_crl_cache_time", network.CrlDisableCacheTime,
 		fmt.Sprintf("How long to keep CRLs cached, in seconds (use 0 to disable caching, maximum: %d s)", network.CrlCacheTimeMax))
 	noEncryptionTransport := flag.Bool("acraserver_transport_encryption_disable", false, "Enable this flag to omit AcraConnector and connect client app to AcraServer directly using raw transport (tcp/unix socket). From security perspective please use at least TLS encryption (over tcp socket) between AcraServer and client app.")
 	connectionString := flag.String("incoming_connection_string", network.BuildConnectionString(cmd.DefaultAcraConnectorConnectionProtocol, cmd.DefaultAcraConnectorHost, cmd.DefaultAcraConnectorPort, ""), "Connection string like tcp://x.x.x.x:yyyy or unix:///path/to/socket")

@@ -81,6 +81,8 @@ const (
 )
 
 const (
+	// CrlDefaultCacheSize is default value for `--tls_crl_cache_size`
+	CrlDefaultCacheSize = 16
 	// CrlCacheSizeMax is max value for `--tls_crl_cache_size`
 	CrlCacheSizeMax = 1_000_000
 	// CrlDisableCacheSize will disable caching if set in `--tls_crl_cache_size`

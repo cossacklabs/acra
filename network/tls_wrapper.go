@@ -86,8 +86,8 @@ func RegisterTLSBaseArgs() {
 	flag.StringVar(&tlsCrlFromCert, "tls_crl_from_cert", CrlFromCertPreferStr,
 		fmt.Sprintf("How to treat CRL URL described in certificate itself: <%s>", strings.Join(CrlFromCertValuesList, "|")))
 	flag.BoolVar(&tlsCrlCheckOnlyLeafCertificate, "tls_crl_check_only_leaf_certificate", false, "Put 'true' to check only final/last certificate, or 'false' to check the whole certificate chain using CRL")
-	flag.UintVar(&tlsCrlCacheSize, "tls_crl_cache_size", 16, "How many CRLs to cache in memory (use 0 to disable caching)")
-	flag.UintVar(&tlsCrlCacheTime, "tls_crl_cache_time", 0,
+	flag.UintVar(&tlsCrlCacheSize, "tls_crl_cache_size", CrlDefaultCacheSize, "How many CRLs to cache in memory (use 0 to disable caching)")
+	flag.UintVar(&tlsCrlCacheTime, "tls_crl_cache_time", CrlDisableCacheTime,
 		fmt.Sprintf("How long to keep CRLs cached, in seconds (use 0 to disable caching, maximum: %d s)", CrlCacheTimeMax))
 }
 
