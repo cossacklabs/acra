@@ -17,6 +17,7 @@ import (
 	"math/big"
 	"net"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 )
@@ -252,8 +253,11 @@ func TestTLSConfigWeakVersion(t *testing.T) {
 
 	matchedServerSide := false
 	matchedClientSide := false
+	mutex := sync.Mutex{}
 	// we expects 2 errors, one from client side and from server side related with protocol version is unsupported
 	onError := func(err error, t testing.TB) {
+		mutex.Lock()
+		defer mutex.Unlock()
 		if matchedServerSide && matchedClientSide {
 			return
 		}
@@ -344,7 +348,10 @@ func TestEmptyCertificateChain(t *testing.T) {
 	}
 	// expect that first error will be ErrNoPeerCertificate
 	tested := false
+	mutex := sync.Mutex{}
 	onError := func(err error, t testing.TB) {
+		mutex.Lock()
+		defer mutex.Unlock()
 		if tested {
 			return
 		}
@@ -394,7 +401,10 @@ func TestClientsCertificateDenyOnValidation(t *testing.T) {
 	}
 	// expect that first error will be ErrCACertificateUsed
 	tested := false
+	mutex := sync.Mutex{}
 	onError := func(err error, t testing.TB) {
+		mutex.Lock()
+		defer mutex.Unlock()
 		if tested {
 			return
 		}
@@ -442,7 +452,10 @@ func TestClientsCertificateDenyOnClientIDExtraction(t *testing.T) {
 	serverWrapper.idExtractor = testExtractor{err: expectedErr}
 
 	tested := false
+	mutex := sync.Mutex{}
 	onError := func(err error, t testing.TB) {
+		mutex.Lock()
+		defer mutex.Unlock()
 		if tested {
 			return
 		}
@@ -490,7 +503,10 @@ func TestClientsCertificateDenyOnClientIDConvertation(t *testing.T) {
 	serverWrapper.idConverter = testConvertor{err: expectedErr}
 
 	tested := false
+	mutex := sync.Mutex{}
 	onError := func(err error, t testing.TB) {
+		mutex.Lock()
+		defer mutex.Unlock()
 		if tested {
 			return
 		}
