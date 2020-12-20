@@ -123,3 +123,8 @@ gen_crl intermediate-ca
 # remove temporary dir and redundant files
 rm -rf "$TMPDIR"
 find "$OUT_DIR" -name '*.old' -delete
+
+# To re-generate ca/crl_with_root.pem (used to test handling of self-revoked root cert), run from project root:
+# 1) openssl ca -config tests/ssl/openssl-ca.cnf -revoke tests/ssl/ca/ca.crt
+# 2) openssl ca -gencrl -config tests/ssl/openssl-ca.cnf -crldays 18250 -out tests/ssl/ca/crl_with_root.pem
+# this will also add revoked root cert to ca/index.txt, so you'll have to revert the change with git

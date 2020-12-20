@@ -334,22 +334,27 @@ func testWithConfigAndRevokedChain(t *testing.T, ocspConfig *OCSPConfig, rawCert
 	}
 	if err != ErrCertWasRevoked {
 		t.Logf("Verify error: %v\n", err)
-		t.Fatalf("Expected error: %d\n", ErrCertWasRevoked)
+		t.Fatalf("Expected error: %v\n", ErrCertWasRevoked)
 	}
 	t.Logf("(Expected) verify error: %v\n", err)
 }
 
-func testDefaultOCSPVerifierWithGroup(t *testing.T, certGroup TestCertGroup) {
-	goodData := &ocspTestCase{
-		cert:           certGroup.validVerifiedChains[0][0],
-		issuer:         certGroup.validVerifiedChains[0][1],
-		expectedStatus: ocsp.Good,
+func testDefaultOCSPVerifierWithGroupValid(t *testing.T, certGroup TestCertGroup) {
+	var issuer *x509.Certificate
+	if len(certGroup.validVerifiedChains[0]) > 1 {
+		issuer = certGroup.validVerifiedChains[0][1]
+	} else {
+		issuer = certGroup.validVerifiedChains[0][0]
+		if issuer.CheckSignatureFrom(issuer) != nil {
+			t.Logf("serial: %v, subject: %v\n", issuer.SerialNumber, issuer.Subject.String())
+			t.Fatal("Test verified chain consists of only one certificate that is not a self-signed cert")
+		}
 	}
 
-	revokedData := &ocspTestCase{
-		cert:           certGroup.invalidVerifiedChains[0][0],
-		issuer:         certGroup.invalidVerifiedChains[0][1],
-		expectedStatus: ocsp.Revoked,
+	goodData := &ocspTestCase{
+		cert:           certGroup.validVerifiedChains[0][0],
+		issuer:         issuer,
+		expectedStatus: ocsp.Good,
 	}
 
 	ocspCertificate, ocspSigningKey := getTestOCSPCertAndKey(t, certGroup.prefix, certGroup.ocspCert, certGroup.ocspKey)
@@ -358,10 +363,7 @@ func testDefaultOCSPVerifierWithGroup(t *testing.T, certGroup TestCertGroup) {
 		issuerCert:    goodData.issuer,
 		responderCert: ocspCertificate,
 		responderKey:  ocspSigningKey,
-		testCases: []*ocspTestCase{
-			goodData,
-			revokedData,
-		},
+		testCases:     []*ocspTestCase{goodData},
 	}
 
 	ocspServer, addr := getTestOCSPServer(t, ocspServerConfig)
@@ -370,7 +372,6 @@ func testDefaultOCSPVerifierWithGroup(t *testing.T, certGroup TestCertGroup) {
 	url := fmt.Sprintf("http://%s", addr)
 
 	validRawCerts, validVerifiedChains := certGroup.validRawCerts, certGroup.validVerifiedChains
-	invalidRawCerts, invalidVerifiedChains := certGroup.invalidRawCerts, certGroup.invalidVerifiedChains
 
 	//
 	// Test with default config, certificates contain OCSP server inside
@@ -381,10 +382,8 @@ func testDefaultOCSPVerifierWithGroup(t *testing.T, certGroup TestCertGroup) {
 	}
 
 	validVerifiedChains[0][0].OCSPServer = []string{url}
-	invalidVerifiedChains[0][0].OCSPServer = []string{url}
 
 	testWithConfigAndValidChain(t, ocspConfig, validRawCerts, validVerifiedChains)
-	testWithConfigAndRevokedChain(t, ocspConfig, invalidRawCerts, invalidVerifiedChains)
 
 	//
 	// Test with URL in config only
@@ -395,13 +394,79 @@ func testDefaultOCSPVerifierWithGroup(t *testing.T, certGroup TestCertGroup) {
 	}
 
 	validVerifiedChains[0][0].OCSPServer = []string{}
-	invalidVerifiedChains[0][0].OCSPServer = []string{}
 
 	testWithConfigAndValidChain(t, ocspConfig, validRawCerts, validVerifiedChains)
+}
+
+func testDefaultOCSPVerifierWithGroupRevoked(t *testing.T, certGroup TestCertGroup) {
+	var issuer *x509.Certificate
+	if len(certGroup.invalidVerifiedChains[0]) > 1 {
+		issuer = certGroup.invalidVerifiedChains[0][1]
+	} else {
+		issuer = certGroup.invalidVerifiedChains[0][0]
+		if issuer.CheckSignatureFrom(issuer) != nil {
+			t.Logf("serial: %v, subject: %v\n", issuer.SerialNumber, issuer.Subject.String())
+			t.Fatal("Test verified chain consists of only one certificate that is not a self-signed cert")
+		}
+	}
+
+	revokedData := &ocspTestCase{
+		cert:           certGroup.invalidVerifiedChains[0][0],
+		issuer:         issuer,
+		expectedStatus: ocsp.Revoked,
+	}
+
+	ocspCertificate, ocspSigningKey := getTestOCSPCertAndKey(t, certGroup.prefix, certGroup.ocspCert, certGroup.ocspKey)
+
+	ocspServerConfig := ocspServerConfig{
+		issuerCert:    revokedData.issuer,
+		responderCert: ocspCertificate,
+		responderKey:  ocspSigningKey,
+		testCases:     []*ocspTestCase{revokedData},
+	}
+
+	ocspServer, addr := getTestOCSPServer(t, ocspServerConfig)
+	defer ocspServer.Close()
+
+	url := fmt.Sprintf("http://%s", addr)
+
+	invalidRawCerts, invalidVerifiedChains := certGroup.invalidRawCerts, certGroup.invalidVerifiedChains
+
+	//
+	// Test with default config, certificates contain OCSP server inside
+	//
+	ocspConfig, err := NewOCSPConfig(url, OcspRequiredGoodStr, OcspFromCertUseStr, false)
+	if err != nil {
+		t.Fatalf("Failed to create OCSPConfig: %v\n", err)
+	}
+
+	invalidVerifiedChains[0][0].OCSPServer = []string{url}
+
 	testWithConfigAndRevokedChain(t, ocspConfig, invalidRawCerts, invalidVerifiedChains)
+
+	// If cert chain len > 1, if there is a leaf cert (not only root CA)
+	if len(invalidVerifiedChains[0]) > 1 {
+		//
+		// Test with URL in config only
+		//
+		ocspConfig, err = NewOCSPConfig(url, OcspRequiredGoodStr, OcspFromCertUseStr, false)
+		if err != nil {
+			t.Fatalf("Failed to create OCSPConfig: %v\n", err)
+		}
+
+		invalidVerifiedChains[0][0].OCSPServer = []string{}
+
+		testWithConfigAndRevokedChain(t, ocspConfig, invalidRawCerts, invalidVerifiedChains)
+	}
+}
+
+func testDefaultOCSPVerifierWithGroup(t *testing.T, certGroup TestCertGroup) {
+	testDefaultOCSPVerifierWithGroupValid(t, certGroup)
+	testDefaultOCSPVerifierWithGroupRevoked(t, certGroup)
 }
 
 func TestDefaultOCSPVerifier(t *testing.T) {
 	testDefaultOCSPVerifierWithGroup(t, getTestCertGroup(t))
-	// testDefaultOCSPVerifierWithGroup(t, getTestCertGroup3(t))
+	testDefaultOCSPVerifierWithGroup(t, getTestCertGroup3(t))
+	testDefaultOCSPVerifierWithGroup(t, getTestCertGroupOnlyRoot(t))
 }

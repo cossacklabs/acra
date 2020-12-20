@@ -348,7 +348,7 @@ func (v DefaultCRLVerifier) getCachedOrFetch(url string, allowLocal bool, issuer
 func checkCertWithCRL(cert *x509.Certificate, crl *pkix.CertificateList) error {
 	for _, revokedCertificate := range crl.TBSCertList.RevokedCertificates {
 		if revokedCertificate.SerialNumber.Cmp(cert.SerialNumber) == 0 {
-			log.WithField("extensions", revokedCertificate.Extensions).Warnln("Revoked certificate extensions")
+			log.WithField("extensions", revokedCertificate.Extensions).Debugln("Revoked certificate extensions")
 			for _, extension := range revokedCertificate.Extensions {
 				// One can use https://www.alvestrand.no/objectid/top.html to convert string OIDs (like id-ce-keyUsage)
 				// into numerical format (like 2.5.29.15), though RFC also allows easy reconstruction of OIDs.
@@ -486,11 +486,9 @@ func (v DefaultCRLVerifier) Verify(rawCerts [][]byte, verifiedChains [][]*x509.C
 		}
 
 		if len(chain) == 1 {
-			// This one cert[0] must be trusted since it was allowed by more basic verifying routines.
-			// If we are at this point, we have nothing to do, and no CA means no CRL.
 			log.WithField("serial", chain[0].SerialNumber).
-				Warnln("CRL: Certificate chain consists of one already trusted certificate, nothing to do, it is recommended to use non-root certificates for TLS handshake")
-			return nil
+				Warnln("CRL: Certificate chain consists of one root certificate, it is recommended to use dedicated non-root certificates for TLS handshake")
+			return v.verifyCertWithIssuer(chain[0], chain[0], false)
 		}
 
 		for i := 0; i < len(chain)-1; i++ {

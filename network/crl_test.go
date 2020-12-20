@@ -33,6 +33,8 @@ import (
 )
 
 const (
+	// Make sure you use either of these groups and don't mix their components
+
 	// Default group, without intermediate certificates
 	TestCertPrefix          = "../tests/ssl"
 	TestCACertFilename      = "ca/ca.crt"
@@ -52,7 +54,8 @@ const (
 	TestOCSPCertFilename3    = "intermediate-ocsp-responder/intermediate-ocsp-responder.crt"
 	TestOCSPKeyFilename3     = "intermediate-ocsp-responder/intermediate-ocsp-responder.key"
 
-	// Make sure you use either of these groups and don't mix their components
+	// CRL that contains self-revoked root CA
+	TestCRLFilenameRootSelfRevoked = "ca/crl_with_root.pem"
 )
 
 type TestCertGroup struct {
@@ -64,7 +67,9 @@ type TestCertGroup struct {
 	validCert   string
 	revokedCert string
 
-	crl string
+	crl        string
+	validCRL   string // if not empty, will be used instead of `crl` when checking valid chains
+	revokedCRL string // if not empty, will be used instead of `crl` when checking revoked chains
 
 	ocspCert string
 	ocspKey  string
@@ -109,6 +114,27 @@ func getTestCertGroup3(t *testing.T) TestCertGroup {
 		crl:                   TestCRLFilename3,
 		ocspCert:              TestOCSPCertFilename3,
 		ocspKey:               TestOCSPKeyFilename3,
+		validRawCerts:         validRawCerts,
+		validVerifiedChains:   validVerifiedChains,
+		invalidRawCerts:       invalidRawCerts,
+		invalidVerifiedChains: invalidVerifiedChains,
+	}
+}
+
+func getTestCertGroupOnlyRoot(t *testing.T) TestCertGroup {
+	validRawCerts, validVerifiedChains := getTestChain(t, TestCertPrefix, TestCACertFilename)
+	invalidRawCerts, invalidVerifiedChains := getTestChain(t, TestCertPrefix, TestCACertFilename)
+
+	return TestCertGroup{
+		prefix:                TestCertPrefix,
+		ca:                    TestCACertFilename,
+		intermediateCA:        "",
+		validCert:             TestCACertFilename,
+		revokedCert:           TestCACertFilename,
+		validCRL:              TestCRLFilename,                // when using single cert as chain, ensure this is valid chain
+		revokedCRL:            TestCRLFilenameRootSelfRevoked, // but also check that revocation works in this case
+		ocspCert:              TestOCSPCertFilename,
+		ocspKey:               TestOCSPKeyFilename,
 		validRawCerts:         validRawCerts,
 		validVerifiedChains:   validVerifiedChains,
 		invalidRawCerts:       invalidRawCerts,
@@ -184,8 +210,8 @@ func getTestHTTPServer(t *testing.T, mux *http.ServeMux) (*http.Server, string) 
 }
 
 func getTestChain(t *testing.T, prefix string, paths ...string) ([][]byte, [][]*x509.Certificate) {
-	if len(paths) < 2 {
-		t.Fatal("Certificate chain should contain at least two certificates\n")
+	if len(paths) < 1 {
+		t.Fatal("Certificate chain should contain at least one certificate\n")
 	}
 
 	rawCerts := [][]byte{}
@@ -216,7 +242,7 @@ func getTestChain(t *testing.T, prefix string, paths ...string) ([][]byte, [][]*
 		if i == 0 && cert.IsCA {
 			// Avoid situations where we got two CA certificates,
 			// first one should be used for authentication/encryption
-			t.Fatalf("First certificate in chain (`%s`) should not be CA", cert.Subject.String())
+			t.Logf("First certificate in chain (`%s`) should not be CA", cert.Subject.String())
 		}
 
 		var nextCert *x509.Certificate
@@ -433,8 +459,13 @@ func TestLRUCRLCache(t *testing.T) {
 	}
 }
 
-func testDefaultCRLVerifierWithGroup(t *testing.T, certGroup TestCertGroup) {
-	rawCRL, _ := getTestCRL(t, path.Join(certGroup.prefix, certGroup.crl))
+func testDefaultCRLVerifierWithGroupValid(t *testing.T, certGroup TestCertGroup) {
+	var rawCRL []byte
+	if certGroup.validCRL != "" {
+		rawCRL, _ = getTestCRL(t, path.Join(certGroup.prefix, certGroup.validCRL))
+	} else {
+		rawCRL, _ = getTestCRL(t, path.Join(certGroup.prefix, certGroup.crl))
+	}
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("/test_crl.pem", func(res http.ResponseWriter, req *http.Request) {
@@ -449,19 +480,48 @@ func testDefaultCRLVerifierWithGroup(t *testing.T, certGroup TestCertGroup) {
 	// Test with valid URL
 	url := fmt.Sprintf("http://%s/test_crl.pem", addr)
 
-	crlConfig := CRLConfig{url: url, fromCert: crlFromCertIgnore}
+	crlConfig := CRLConfig{fromCert: crlFromCertUse, cacheSize: 16, cacheTime: time.Second}
 	crlVerifier := DefaultCRLVerifier{Config: crlConfig, Client: NewDefaultCRLClient(), Cache: NewLRUCRLCache(16)}
 
 	// Test valid certificate chain
+
+	certGroup.validVerifiedChains[0][0].CRLDistributionPoints = []string{url}
 
 	err := crlVerifier.Verify(certGroup.validRawCerts, certGroup.validVerifiedChains)
 	if err != nil {
 		t.Fatalf("Unexpected error for valid certificate: %v\n", err)
 	}
+}
+
+func testDefaultCRLVerifierWithGroupRevoked(t *testing.T, certGroup TestCertGroup) {
+	var rawCRL []byte
+	if certGroup.revokedCRL != "" {
+		rawCRL, _ = getTestCRL(t, path.Join(certGroup.prefix, certGroup.revokedCRL))
+	} else {
+		rawCRL, _ = getTestCRL(t, path.Join(certGroup.prefix, certGroup.crl))
+	}
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("/test_crl.pem", func(res http.ResponseWriter, req *http.Request) {
+		res.WriteHeader(200)
+		res.Header().Add("Content-Type", "application/pem-certificate-chain")
+		res.Write(rawCRL)
+	})
+
+	httpServer, addr := getTestHTTPServer(t, mux)
+	defer httpServer.Close()
+
+	// Test with valid URL
+	url := fmt.Sprintf("http://%s/test_crl.pem", addr)
+
+	crlConfig := CRLConfig{fromCert: crlFromCertUse, cacheSize: 16, cacheTime: time.Second}
+	crlVerifier := DefaultCRLVerifier{Config: crlConfig, Client: NewDefaultCRLClient(), Cache: NewLRUCRLCache(16)}
 
 	// Test invalid certificate chain that contains revoked certificate
 
-	err = crlVerifier.Verify(certGroup.invalidRawCerts, certGroup.invalidVerifiedChains)
+	certGroup.invalidVerifiedChains[0][0].CRLDistributionPoints = []string{url}
+
+	err := crlVerifier.Verify(certGroup.invalidRawCerts, certGroup.invalidVerifiedChains)
 	if err == nil {
 		t.Fatal("Unexpected success when verifying revoked certificate\n")
 	}
@@ -472,9 +532,15 @@ func testDefaultCRLVerifierWithGroup(t *testing.T, certGroup TestCertGroup) {
 	t.Logf("(Expected) verify error: %v\n", err)
 }
 
+func testDefaultCRLVerifierWithGroup(t *testing.T, certGroup TestCertGroup) {
+	testDefaultCRLVerifierWithGroupValid(t, certGroup)
+	testDefaultCRLVerifierWithGroupRevoked(t, certGroup)
+}
+
 func TestDefaultCRLVerifier(t *testing.T) {
 	testDefaultCRLVerifierWithGroup(t, getTestCertGroup(t))
 	testDefaultCRLVerifierWithGroup(t, getTestCertGroup3(t))
+	testDefaultCRLVerifierWithGroup(t, getTestCertGroupOnlyRoot(t))
 }
 
 func TestCheckCertWithCRL(t *testing.T) {
