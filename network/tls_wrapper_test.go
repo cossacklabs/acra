@@ -17,6 +17,7 @@ import (
 	"math/big"
 	"net"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 )
@@ -59,7 +60,7 @@ func getTLSConfigs(t testing.TB) (*tls.Config, *tls.Config) {
 	serverTemplate.Subject.CommonName = "server"
 	serverCertificate := createLeafKey(ca, serverTemplate, t)
 	// generate tls clientConfig with default parameters but without CA/keys
-	serverTLSConfig, err := NewTLSConfig("localhost", "", "", "", tls.RequireAndVerifyClientCert)
+	serverTLSConfig, err := NewTLSConfig("localhost", "", "", "", tls.RequireAndVerifyClientCert, NewCertVerifierAll())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -73,7 +74,7 @@ func getTLSConfigs(t testing.TB) (*tls.Config, *tls.Config) {
 	clientTemplate := generateCertificateTemplate(t)
 	clientTemplate.Subject.CommonName = "client1"
 	clientCertificate := createLeafKey(ca, clientTemplate, t)
-	clientTLSConfig, err := NewTLSConfig("localhost", "", "", "", tls.RequireAndVerifyClientCert)
+	clientTLSConfig, err := NewTLSConfig("localhost", "", "", "", tls.RequireAndVerifyClientCert, NewCertVerifierAll())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -252,8 +253,11 @@ func TestTLSConfigWeakVersion(t *testing.T) {
 
 	matchedServerSide := false
 	matchedClientSide := false
+	mutex := sync.Mutex{}
 	// we expects 2 errors, one from client side and from server side related with protocol version is unsupported
 	onError := func(err error, t testing.TB) {
+		mutex.Lock()
+		defer mutex.Unlock()
 		if matchedServerSide && matchedClientSide {
 			return
 		}
@@ -344,7 +348,10 @@ func TestEmptyCertificateChain(t *testing.T) {
 	}
 	// expect that first error will be ErrNoPeerCertificate
 	tested := false
+	mutex := sync.Mutex{}
 	onError := func(err error, t testing.TB) {
+		mutex.Lock()
+		defer mutex.Unlock()
 		if tested {
 			return
 		}
@@ -394,7 +401,10 @@ func TestClientsCertificateDenyOnValidation(t *testing.T) {
 	}
 	// expect that first error will be ErrCACertificateUsed
 	tested := false
+	mutex := sync.Mutex{}
 	onError := func(err error, t testing.TB) {
+		mutex.Lock()
+		defer mutex.Unlock()
 		if tested {
 			return
 		}
@@ -442,7 +452,10 @@ func TestClientsCertificateDenyOnClientIDExtraction(t *testing.T) {
 	serverWrapper.idExtractor = testExtractor{err: expectedErr}
 
 	tested := false
+	mutex := sync.Mutex{}
 	onError := func(err error, t testing.TB) {
+		mutex.Lock()
+		defer mutex.Unlock()
 		if tested {
 			return
 		}
@@ -490,7 +503,10 @@ func TestClientsCertificateDenyOnClientIDConvertation(t *testing.T) {
 	serverWrapper.idConverter = testConvertor{err: expectedErr}
 
 	tested := false
+	mutex := sync.Mutex{}
 	onError := func(err error, t testing.TB) {
+		mutex.Lock()
+		defer mutex.Unlock()
 		if tested {
 			return
 		}

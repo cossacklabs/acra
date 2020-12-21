@@ -1,0 +1,4 @@
+V	20701202061456Z		10B099B25F21F55152E9210A5CF2DC300D2B4F89	unknown	/C=GB/ST=London/L=London/O=Global Security/OU=IT/CN=Test leaf certificate (intermediate-acra-writer)
+R	20701202061456Z	201214061456Z	4ABEE30008B744615039428B3BA984BC6CD83048	unknown	/C=GB/ST=London/L=London/O=Global Security/OU=IT/CN=Test leaf certificate (intermediate-acra-writer-revoked)
+V	20701202061456Z		68F7222086A4A5A1C2705FAF5FE766C3C784B63D	unknown	/C=GB/ST=London/L=London/O=Global Security/OU=IT/CN=Test leaf certificate (intermediate-acra-server)
+V	20701202061456Z		48BED1BDB843DEFB3DEC111F34AD674DE2C99617	unknown	/C=GB/ST=London/L=London/O=Global Security/OU=IT/CN=Test leaf certificate (intermediate-ocsp-responder)
