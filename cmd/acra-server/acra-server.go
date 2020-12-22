@@ -366,7 +366,12 @@ func main() {
 			log.WithField("type", *tlsIdentifierExtractorType).WithError(err).Errorln("Can't initialize identifier extractor")
 			os.Exit(1)
 		}
-		tlsWrapper, err = network.NewTLSAuthenticationConnectionWrapper(dbTLSConfig, clientTLSConfig, identifierExtractor, idConverter)
+		clientIDExtractor, err := network.NewTLSClientIDExtractor(identifierExtractor, idConverter)
+		if err != nil {
+			log.WithError(err).Errorln("Can't initialize clientID extractor")
+			os.Exit(1)
+		}
+		tlsWrapper, err = network.NewTLSAuthenticationConnectionWrapper(dbTLSConfig, clientTLSConfig, clientIDExtractor)
 		if err != nil {
 			log.WithError(err).Errorln("Can't initialize TLS connection wrapper")
 			os.Exit(1)

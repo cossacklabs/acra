@@ -43,9 +43,9 @@ var allowedCipherSuits = []uint16{
 
 // TLSConnectionWrapper for wrapping connection into TLS encryption
 type TLSConnectionWrapper struct {
-	clientConfig *tls.Config
-	serverConfig *tls.Config
-	clientID     []byte
+	clientConfig      *tls.Config
+	serverConfig      *tls.Config
+	clientID          []byte
 	clientIDExtractor TLSClientIDExtractor
 }
 
