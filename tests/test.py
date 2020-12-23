@@ -21,7 +21,7 @@ import logging
 import http
 import tempfile
 import time
-import os
+import os, os.path
 import random
 import subprocess
 import traceback
@@ -94,19 +94,19 @@ DB_NAME = os.environ.get('TEST_DB_NAME', 'postgres')
 DB_PORT = os.environ.get('TEST_DB_PORT', 5432)
 
 TEST_TLS_CA = abs_path(os.environ.get('TEST_TLS_CA', 'tests/ssl/ca/ca.crt'))
-TEST_TLS_SERVER_CERT = abs_path(os.environ.get('TEST_TLS_SERVER_CERT', 'tests/ssl/acra-server/acra-server.crt'))
-TEST_TLS_SERVER_KEY = abs_path(os.environ.get('TEST_TLS_SERVER_KEY', 'tests/ssl/acra-server/acra-server.key'))
+TEST_TLS_SERVER_CERT = abs_path(os.environ.get('TEST_TLS_SERVER_CERT', os.path.join(os.path.dirname(__file__), 'ssl/acra-server/acra-server.crt')))
+TEST_TLS_SERVER_KEY = abs_path(os.environ.get('TEST_TLS_SERVER_KEY', os.path.join(os.path.dirname(__file__), 'ssl/acra-server/acra-server.key')))
 # keys copied to tests/* with modified rights to 0400 because keys in docker/ssl/ has access from groups/other but some
 # db drivers prevent usage of keys with global rights
-TEST_TLS_CLIENT_CERT = abs_path(os.environ.get('TEST_TLS_CLIENT_CERT', 'tests/ssl/acra-writer/acra-writer.crt'))
-TEST_TLS_CLIENT_KEY = abs_path(os.environ.get('TEST_TLS_CLIENT_KEY', 'tests/ssl/acra-writer/acra-writer.key'))
-TEST_TLS_CLIENT_2_CERT = abs_path(os.environ.get('TEST_TLS_CLIENT_CERT', 'tests/ssl/acra-writer-2/acra-writer-2.crt'))
-TEST_TLS_CLIENT_2_KEY = abs_path(os.environ.get('TEST_TLS_CLIENT_KEY', 'tests/ssl/acra-writer-2/acra-writer-2.key'))
-TEST_TLS_OCSP_CA = abs_path(os.environ.get('TEST_TLS_OCSP_CA', 'tests/ssl/ca/ca.crt'))
-TEST_TLS_OCSP_CERT = abs_path(os.environ.get('TEST_TLS_OCSP_CERT', 'tests/ssl/ocsp-responder/ocsp-responder.crt'))
-TEST_TLS_OCSP_KEY = abs_path(os.environ.get('TEST_TLS_OCSP_KEY', 'tests/ssl/ocsp-responder/ocsp-responder.key'))
-TEST_TLS_OCSP_INDEX = abs_path(os.environ.get('TEST_TLS_OCSP_INDEX', 'tests/ssl/ca/index.txt'))
-TEST_TLS_CRL_PATH = abs_path(os.environ.get('TEST_TLS_CRL_PATH', 'tests/ssl/ca'))
+TEST_TLS_CLIENT_CERT = abs_path(os.environ.get('TEST_TLS_CLIENT_CERT', os.path.join(os.path.dirname(__file__), 'ssl/acra-writer/acra-writer.crt')))
+TEST_TLS_CLIENT_KEY = abs_path(os.environ.get('TEST_TLS_CLIENT_KEY', os.path.join(os.path.dirname(__file__), 'ssl/acra-writer/acra-writer.key')))
+TEST_TLS_CLIENT_2_CERT = abs_path(os.environ.get('TEST_TLS_CLIENT_CERT', os.path.join(os.path.dirname(__file__), 'ssl/acra-writer-2/acra-writer-2.crt')))
+TEST_TLS_CLIENT_2_KEY = abs_path(os.environ.get('TEST_TLS_CLIENT_KEY', os.path.join(os.path.dirname(__file__), 'ssl/acra-writer-2/acra-writer-2.key')))
+TEST_TLS_OCSP_CA = abs_path(os.environ.get('TEST_TLS_OCSP_CA', os.path.join(os.path.dirname(__file__), 'ssl/ca/ca.crt')))
+TEST_TLS_OCSP_CERT = abs_path(os.environ.get('TEST_TLS_OCSP_CERT', os.path.join(os.path.dirname(__file__), 'ssl/ocsp-responder/ocsp-responder.crt')))
+TEST_TLS_OCSP_KEY = abs_path(os.environ.get('TEST_TLS_OCSP_KEY', os.path.join(os.path.dirname(__file__), 'ssl/ocsp-responder/ocsp-responder.key')))
+TEST_TLS_OCSP_INDEX = abs_path(os.environ.get('TEST_TLS_OCSP_INDEX', os.path.join(os.path.dirname(__file__), 'ssl/ca/index.txt')))
+TEST_TLS_CRL_PATH = abs_path(os.environ.get('TEST_TLS_CRL_PATH', os.path.join(os.path.dirname(__file__), 'ssl/ca')))
 TEST_WITH_TLS = os.environ.get('TEST_TLS', 'off').lower() == 'on'
 
 TEST_WITH_TRACING = os.environ.get('TEST_TRACE', 'off').lower() == 'on'
@@ -5347,7 +5347,7 @@ class TLSAuthenticationByDistinguishedNameMixin(object):
 
     def get_valid_certificate_identifier(self):
         # converted data from certificate "CN=Test leaf certificate (acra-writer),OU=IT,O=Global Security,L=London,ST=London,C=GB"
-        with open('tests/ssl/acra-writer/acra-writer.crt', 'rb') as f:
+        with open(TEST_TLS_CLIENT_CERT, 'rb') as f:
             pem = f.read()
         cert = x509.load_pem_x509_certificate(pem, default_backend())
         sha512 = hashlib.sha512()
@@ -5361,7 +5361,7 @@ class TLSAuthenticationBySerialNumberMixin(TLSAuthenticationByDistinguishedNameM
 
     def get_valid_certificate_identifier(self):
         # converted data from certificate "CN=Test leaf certificate (acra-writer),OU=IT,O=Global Security,L=London,ST=London,C=GB"
-        with open('tests/ssl/acra-writer/acra-writer.crt', 'rb') as f:
+        with open(TEST_TLS_CLIENT_CERT, 'rb') as f:
             pem = f.read()
         cert = x509.load_pem_x509_certificate(pem, default_backend())
         sha512 = hashlib.sha512()
