@@ -43,11 +43,10 @@ var allowedCipherSuits = []uint16{
 
 // TLSConnectionWrapper for wrapping connection into TLS encryption
 type TLSConnectionWrapper struct {
-	clientConfig *tls.Config
-	serverConfig *tls.Config
-	clientID     []byte
-	idExtractor  CertificateIdentifierExtractor
-	idConverter  IdentifierConverter
+	clientConfig      *tls.Config
+	serverConfig      *tls.Config
+	clientID          []byte
+	clientIDExtractor TLSClientIDExtractor
 }
 
 // ErrEmptyTLSConfig if not TLS clientConfig found
@@ -178,8 +177,8 @@ func NewTLSConnectionWrapper(clientID []byte, config *tls.Config) (*TLSConnectio
 
 // NewTLSAuthenticationConnectionWrapper returns new TLSConnectionWrapper which use separate TLS configs for each side. Client's identifier will be fetched
 // with idExtractor and converter with idConverter
-func NewTLSAuthenticationConnectionWrapper(clientConfig, serverConfig *tls.Config, idExtractor CertificateIdentifierExtractor, idConverter IdentifierConverter) (*TLSConnectionWrapper, error) {
-	return &TLSConnectionWrapper{clientConfig: clientConfig, serverConfig: serverConfig, idExtractor: idExtractor, idConverter: idConverter}, nil
+func NewTLSAuthenticationConnectionWrapper(clientConfig, serverConfig *tls.Config, extractor TLSClientIDExtractor) (*TLSConnectionWrapper, error) {
+	return &TLSConnectionWrapper{clientConfig: clientConfig, serverConfig: serverConfig, clientIDExtractor: extractor}, nil
 }
 
 // WrapClient wraps client connection into TLS
@@ -196,12 +195,7 @@ func (wrapper *TLSConnectionWrapper) WrapClient(ctx context.Context, conn net.Co
 }
 
 func (wrapper *TLSConnectionWrapper) getClientIDFromCertificate(certificate *x509.Certificate) ([]byte, error) {
-	identifier, err := wrapper.idExtractor.GetCertificateIdentifier(certificate)
-	if err != nil {
-		return nil, err
-	}
-	log.WithField("identifier", string(identifier)).Debugln("ID from certificate")
-	clientID, err := wrapper.idConverter.Convert(identifier)
+	clientID, err := wrapper.clientIDExtractor.ExtractClientID(certificate)
 	if err != nil {
 		return nil, err
 	}

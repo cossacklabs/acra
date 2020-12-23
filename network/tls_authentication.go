@@ -5,6 +5,7 @@ import (
 	"crypto/x509"
 	"encoding/hex"
 	"errors"
+	log "github.com/sirupsen/logrus"
 	"hash"
 )
 
@@ -100,6 +101,36 @@ func (c hexIdentifierConverter) Convert(identifier []byte) ([]byte, error) {
 	identifier = h.Sum(nil)
 	hex.Encode(out, identifier)
 	return out, nil
+}
+
+// TLSClientIDExtractor complex component for extracting clientID from certificates using certificate identifier extractor and convertor
+type TLSClientIDExtractor interface {
+	ExtractClientID(certificate *x509.Certificate) ([]byte, error)
+}
+
+type tlsClientIDExtractor struct {
+	idExtractor CertificateIdentifierExtractor
+	idConverter IdentifierConverter
+}
+
+// NewTLSClientIDExtractor create new TLSClientIDExtractor implementation which use idExtractor and idConvertor to extract clientID
+func NewTLSClientIDExtractor(idExtractor CertificateIdentifierExtractor, idConverter IdentifierConverter) (*tlsClientIDExtractor, error) {
+	return &tlsClientIDExtractor{idExtractor, idConverter}, nil
+}
+
+// ExtractClientID extract clientID from certificate
+func (extractor *tlsClientIDExtractor) ExtractClientID(certificate *x509.Certificate) ([]byte, error) {
+	identifier, err := extractor.idExtractor.GetCertificateIdentifier(certificate)
+	if err != nil {
+		return nil, err
+	}
+	log.WithField("identifier", string(identifier)).Debugln("ID from certificate")
+	clientID, err := extractor.idConverter.Convert(identifier)
+	if err != nil {
+		return nil, err
+	}
+	log.WithField("clientID", string(clientID)).Debugln("ClientID from certificate")
+	return clientID, nil
 }
 
 // Set of errors related to peer certificate validation
