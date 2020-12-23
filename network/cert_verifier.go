@@ -48,8 +48,8 @@ var (
 	tlsCrlCacheTime                 uint
 )
 
-// RegisterCertVerifierArgs register CLI args tls_ocsp_url|tls_ocsp_client_url|tls_ocsp_database_url|tls_ocsp_required|tls_ocsp_from_cert|tls_ocsp_check_only_leaf_certificate|tls_crl_url|tls_crl_client_url|tls_crl_database_url|tls_crl_from_cert|tls_crl_check_only_leaf_certificate|tls_crl_cache_size|tls_crl_cache_time which allow to get CertVerifier by NewCertVerifierFromArgs|NewClientCertVerifierFromArgs|NewDatabaseCertVerifierFromArgs functions
-func RegisterCertVerifierArgs(separate_client_db_urls bool) {
+// registerCertVerifierArgs register CLI args tls_ocsp_url|tls_ocsp_client_url|tls_ocsp_database_url|tls_ocsp_required|tls_ocsp_from_cert|tls_ocsp_check_only_leaf_certificate|tls_crl_url|tls_crl_client_url|tls_crl_database_url|tls_crl_from_cert|tls_crl_check_only_leaf_certificate|tls_crl_cache_size|tls_crl_cache_time which allow to get CertVerifier by NewCertVerifier|NewClientCertVerifier|NewDatabaseCertVerifier functions
+func registerCertVerifierArgs(separate_client_db_urls bool) {
 	flag.StringVar(&tlsOcspURL, "tls_ocsp_url", "", "OCSP service URL")
 	if separate_client_db_urls {
 		flag.StringVar(&tlsOcspClientURL, "tls_ocsp_client_url", "", "OCSP service URL, for client/connector certificates only")
@@ -75,6 +75,16 @@ func RegisterCertVerifierArgs(separate_client_db_urls bool) {
 		fmt.Sprintf("How long to keep CRLs cached, in seconds (use 0 to disable caching, maximum: %d s)", CrlCacheTimeMax))
 }
 
+// RegisterCertVerifierArgs register CLI args which allow to get CertVerifier by NewCertVerifier()
+func RegisterCertVerifierArgs() {
+	registerCertVerifierArgs(false)
+}
+
+// RegisterCertVerifierArgsWithSeparateClientAndDatabase register CLI args which allow to get CertVerifier by NewClientCertVerifier() or NewDatabaseCertVerifier()
+func RegisterCertVerifierArgsWithSeparateClientAndDatabase() {
+	registerCertVerifierArgs(true)
+}
+
 // CertVerifier is a generic certificate verifier
 type CertVerifier interface {
 	// Verify checks whether the certificate is revoked.
@@ -85,9 +95,9 @@ type CertVerifier interface {
 	Verify(rawCerts [][]byte, verifiedChains [][]*x509.Certificate) error
 }
 
-// NewCertVerifierFromArgs creates a CertVerifier based on passed OCSP and CRL command line flags.
+// NewCertVerifier creates a CertVerifier based on passed OCSP and CRL command line flags.
 // Ignores `--tls_{ocsp,crl}_{client,database}_url` flags, only uses `--tls_{ocsp,crl}_url` as URL source.
-func NewCertVerifierFromArgs() (CertVerifier, error) {
+func NewCertVerifier() (CertVerifier, error) {
 	ocspConfig, err := NewOCSPConfig(tlsOcspURL, tlsOcspRequired, tlsOcspFromCert, tlsOcspCheckOnlyLeafCertificate)
 	if err != nil {
 		return nil, err
@@ -101,10 +111,10 @@ func NewCertVerifierFromArgs() (CertVerifier, error) {
 	return NewCertVerifierFromConfigs(ocspConfig, crlConfig)
 }
 
-// NewClientCertVerifierFromArgs creates a CertVerifier based on passed OCSP and CRL command line flags.
+// NewClientCertVerifier creates a CertVerifier based on passed OCSP and CRL command line flags.
 // Prioritizes `--tls_{ocsp,crl}_client_url` over `--tls_{ocsp,crl}_url`, ignores `--tls_{ocsp,crl}_database_url`.
 // For usage on server side, to verify certificates that come from clients.
-func NewClientCertVerifierFromArgs(clientAuthType int) (CertVerifier, error) {
+func NewClientCertVerifier(clientAuthType int) (CertVerifier, error) {
 	var ocspURL, crlURL string
 
 	if tlsOcspClientURL != "" {
@@ -134,10 +144,10 @@ func NewClientCertVerifierFromArgs(clientAuthType int) (CertVerifier, error) {
 	return NewCertVerifierFromConfigs(ocspConfig, crlConfig)
 }
 
-// NewDatabaseCertVerifierFromArgs creates a CertVerifier based on passed OCSP and CRL command line flags.
+// NewDatabaseCertVerifier creates a CertVerifier based on passed OCSP and CRL command line flags.
 // Prioritizes `--tls_{ocsp,crl}_database_url` over `--tls_{ocsp,crl}_url`, ignores `--tls_{ocsp,crl}_client_url`.
 // For usage on client side, to verify certificates that come from servers (i.e. database).
-func NewDatabaseCertVerifierFromArgs() (CertVerifier, error) {
+func NewDatabaseCertVerifier() (CertVerifier, error) {
 	var ocspURL, crlURL string
 
 	if tlsOcspDbURL != "" {

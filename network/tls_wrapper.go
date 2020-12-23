@@ -65,7 +65,7 @@ func RegisterTLSBaseArgs() {
 	flag.StringVar(&tlsKey, "tls_key", "", "Path to private key that will be used for TLS connections")
 	flag.StringVar(&tlsCert, "tls_cert", "", "Path to certificate")
 	flag.IntVar(&tlsAuthType, "tls_auth", int(tls.RequireAndVerifyClientCert), "Set authentication mode that will be used in TLS connection. Values in range 0-4 that set auth type (https://golang.org/pkg/crypto/tls/#ClientAuthType). Default is tls.RequireAndVerifyClientCert")
-	RegisterCertVerifierArgs(false)
+	RegisterCertVerifierArgs()
 }
 
 // RegisterTLSClientArgs register CLI args tls_server_sni used by TLS client's connection
@@ -75,7 +75,7 @@ func RegisterTLSClientArgs() {
 
 // NewTLSConfigFromBaseArgs return new tls clientConfig with params passed by cli params
 func NewTLSConfigFromBaseArgs() (*tls.Config, error) {
-	certVerifier, err := NewCertVerifierFromArgs()
+	certVerifier, err := NewCertVerifier()
 	if err != nil {
 		return nil, err
 	}

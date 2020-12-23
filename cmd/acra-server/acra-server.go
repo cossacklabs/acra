@@ -127,7 +127,7 @@ func main() {
 	tlsDbKey := flag.String("tls_database_key", "", "Path to private key of the TLS certificate used to connect to database (see \"tls_database_cert\")")
 	tlsUseClientIDFromCertificate := flag.Bool("tls_client_id_from_cert", false, "Extract clientID from TLS certificate. Take TLS certificate from AcraConnector's connection if acraconnector_tls_transport_enable is TRUE; otherwise take TLS certificate from application's connection if acraconnector_transport_encryption_disable is TRUE")
 	tlsIdentifierExtractorType := flag.String("tls_identifier_extractor_type", network.IdentifierExtractorTypeDistinguishedName, fmt.Sprintf("Decide which field of TLS certificate to use as ClientID (%s)", strings.Join(network.IdentifierExtractorTypesList, "|")))
-	network.RegisterCertVerifierArgs(true)
+	network.RegisterCertVerifierArgsWithSeparateClientAndDatabase()
 	noEncryptionTransport := flag.Bool("acraconnector_transport_encryption_disable", false, "Use raw transport (tcp/unix socket) between AcraServer and AcraConnector/client (don't use this flag if you not connect to database with SSL/TLS")
 	clientID := flag.String("client_id", "", "Expected client ID of AcraConnector in mode without encryption")
 	acraConnectionString := flag.String("incoming_connection_string", network.BuildConnectionString(cmd.DefaultAcraServerConnectionProtocol, cmd.DefaultAcraServerHost, cmd.DefaultAcraServerPort, ""), "Connection string like tcp://x.x.x.x:yyyy or unix:///path/to/socket")
@@ -250,14 +250,14 @@ func main() {
 			*tlsClientKey = *tlsKey
 		}
 
-		certClientVerifier, err := network.NewClientCertVerifierFromArgs(*tlsAuthType)
+		clientCertVerifier, err := network.NewClientCertVerifier(*tlsAuthType)
 		if err != nil {
 			log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorWrongConfiguration).
 				Errorln("Cannot create client certificate verifier")
 			os.Exit(1)
 		}
 
-		clientTLSConfig, err = network.NewTLSConfig("", *tlsClientCA, *tlsClientKey, *tlsClientCert, tls.ClientAuthType(*tlsClientAuthType), certClientVerifier)
+		clientTLSConfig, err = network.NewTLSConfig("", *tlsClientCA, *tlsClientKey, *tlsClientCert, tls.ClientAuthType(*tlsClientAuthType), clientCertVerifier)
 		if err != nil {
 			log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorTransportConfiguration).
 				Errorln("Configuration error: can't create AcraConnector TLS config")
@@ -281,14 +281,14 @@ func main() {
 			*tlsDbKey = *tlsKey
 		}
 
-		certDbVerifier, err := network.NewDatabaseCertVerifierFromArgs()
+		dbCertVerifier, err := network.NewDatabaseCertVerifier()
 		if err != nil {
 			log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorWrongConfiguration).
 				Errorln("Cannot create database certificate verifier")
 			os.Exit(1)
 		}
 
-		dbTLSConfig, err = network.NewTLSConfig(network.SNIOrHostname(*tlsDbSNI, *dbHost), *tlsDbCA, *tlsDbKey, *tlsDbCert, tls.ClientAuthType(*tlsDbAuthType), certDbVerifier)
+		dbTLSConfig, err = network.NewTLSConfig(network.SNIOrHostname(*tlsDbSNI, *dbHost), *tlsDbCA, *tlsDbKey, *tlsDbCert, tls.ClientAuthType(*tlsDbAuthType), dbCertVerifier)
 		if err != nil {
 			log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorTransportConfiguration).
 				Errorln("Configuration error: can't create database TLS config")
