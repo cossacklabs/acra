@@ -104,8 +104,8 @@ type CRLConfig struct {
 }
 
 const (
-	// CrlHttpClientDefaultTimeout is default timeout for HTTP client used to fetch CRLs
-	CrlHttpClientDefaultTimeout = time.Second * time.Duration(20)
+	// CrlHTTPClientDefaultTimeout is default timeout for HTTP client used to fetch CRLs
+	CrlHTTPClientDefaultTimeout = time.Second * time.Duration(20)
 )
 
 // NewCRLConfig creates new CRLConfig
@@ -176,7 +176,7 @@ type DefaultCRLClient struct {
 // NewDefaultCRLClient creates new DefaultCRLClient
 func NewDefaultCRLClient() DefaultCRLClient {
 	return DefaultCRLClient{httpClient: &http.Client{
-		Timeout: CrlHttpClientDefaultTimeout,
+		Timeout: CrlHTTPClientDefaultTimeout,
 	}}
 }
 

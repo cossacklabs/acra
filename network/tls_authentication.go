@@ -114,7 +114,7 @@ type tlsClientIDExtractor struct {
 }
 
 // NewTLSClientIDExtractor create new TLSClientIDExtractor implementation which use idExtractor and idConvertor to extract clientID
-func NewTLSClientIDExtractor(idExtractor CertificateIdentifierExtractor, idConverter IdentifierConverter) (*tlsClientIDExtractor, error) {
+func NewTLSClientIDExtractor(idExtractor CertificateIdentifierExtractor, idConverter IdentifierConverter) (TLSClientIDExtractor, error) {
 	return &tlsClientIDExtractor{idExtractor, idConverter}, nil
 }
 

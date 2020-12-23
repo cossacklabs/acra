@@ -120,8 +120,8 @@ type OCSPConfig struct {
 }
 
 const (
-	// OcspHttpClientDefaultTimeout is default timeout for HTTP client used to perform OCSP queries
-	OcspHttpClientDefaultTimeout = time.Second * time.Duration(15)
+	// OcspHTTPClientDefaultTimeout is default timeout for HTTP client used to perform OCSP queries
+	OcspHTTPClientDefaultTimeout = time.Second * time.Duration(15)
 )
 
 // NewOCSPConfig creates new OCSPConfig
@@ -205,7 +205,7 @@ type DefaultOCSPClient struct {
 // NewDefaultOCSPClient creates new DefaultOCSPClient
 func NewDefaultOCSPClient() DefaultOCSPClient {
 	return DefaultOCSPClient{httpClient: &http.Client{
-		Timeout: OcspHttpClientDefaultTimeout,
+		Timeout: OcspHTTPClientDefaultTimeout,
 	}}
 }
 

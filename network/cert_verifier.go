@@ -49,9 +49,9 @@ var (
 )
 
 // registerCertVerifierArgs register CLI args tls_ocsp_url|tls_ocsp_client_url|tls_ocsp_database_url|tls_ocsp_required|tls_ocsp_from_cert|tls_ocsp_check_only_leaf_certificate|tls_crl_url|tls_crl_client_url|tls_crl_database_url|tls_crl_from_cert|tls_crl_check_only_leaf_certificate|tls_crl_cache_size|tls_crl_cache_time which allow to get CertVerifier by NewCertVerifier|NewClientCertVerifier|NewDatabaseCertVerifier functions
-func registerCertVerifierArgs(separate_client_db_urls bool) {
+func registerCertVerifierArgs(separateClientDBUrls bool) {
 	flag.StringVar(&tlsOcspURL, "tls_ocsp_url", "", "OCSP service URL")
-	if separate_client_db_urls {
+	if separateClientDBUrls {
 		flag.StringVar(&tlsOcspClientURL, "tls_ocsp_client_url", "", "OCSP service URL, for client/connector certificates only")
 		flag.StringVar(&tlsOcspDbURL, "tls_ocsp_database_url", "", "OCSP service URL, for database certificates only")
 	}
@@ -62,7 +62,7 @@ func registerCertVerifierArgs(separate_client_db_urls bool) {
 	flag.BoolVar(&tlsOcspCheckOnlyLeafCertificate, "tls_ocsp_check_only_leaf_certificate", false,
 		"Put 'true' to check only final/last certificate, or 'false' to check the whole certificate chain using OCSP")
 	flag.StringVar(&tlsCrlURL, "tls_crl_url", "", "URL of the Certificate Revocation List (CRL) to use")
-	if separate_client_db_urls {
+	if separateClientDBUrls {
 		flag.StringVar(&tlsCrlClientURL, "tls_crl_client_url", "", "URL of the Certificate Revocation List (CRL) to use, for client/connector certificates only")
 		flag.StringVar(&tlsCrlDbURL, "tls_crl_database_url", "", "URL of the Certificate Revocation List (CRL) to use, for database certificates only")
 	}
