@@ -236,7 +236,7 @@ func (c DefaultOCSPClient) Query(commonName string, clientCert, issuerCert *x509
 	if err != nil {
 		return nil, err
 	}
-	ocspResponse, err := ocsp.ParseResponse(output, issuerCert)
+	ocspResponse, err := ocsp.ParseResponseForCert(output, clientCert, issuerCert)
 	return ocspResponse, err
 }
 
