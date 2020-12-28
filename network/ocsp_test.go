@@ -438,6 +438,30 @@ func testWithConfigAndRevokedChain(t *testing.T, ocspConfig *OCSPConfig, rawCert
 	t.Logf("(Expected) verify error: %v\n", err)
 }
 
+func testWithConfigAndUnreachableOCSPServer(t *testing.T, ocspConfig *OCSPConfig, rawCerts [][]byte, verifiedChains [][]*x509.Certificate) {
+	ocspClient := NewDefaultOCSPClient()
+
+	ocspVerifier := DefaultOCSPVerifier{Config: *ocspConfig, Client: ocspClient}
+
+	err := ocspVerifier.Verify(rawCerts, verifiedChains)
+	if err == nil {
+		t.Fatal("Unexpected success when using unreachable OCSP server\n")
+	}
+	switch ocspConfig.required {
+	case ocspRequiredGood:
+		if err != ErrOCSPRequiredAllButGotError {
+			t.Logf("Verify error: %v\n", err)
+			t.Fatalf("Expected error: %v\n", ErrOCSPRequiredAllButGotError)
+		}
+	case ocspRequiredAllowUnknown, ocspRequiredDenyUnknown:
+		if err != ErrOCSPNoConfirms {
+			t.Logf("Verify error: %v\n", err)
+			t.Fatalf("Expected error: %v\n", ErrOCSPNoConfirms)
+		}
+	}
+	t.Logf("(Expected) verify error: %v\n", err)
+}
+
 func testDefaultOCSPVerifierWithGroupValid(t *testing.T, certGroup TestCertGroup) {
 	goodData := &ocspTestCase{
 		cert:           certGroup.validVerifiedChains[0][0],
@@ -537,6 +561,26 @@ func testDefaultOCSPVerifierWithGroupRevoked(t *testing.T, certGroup TestCertGro
 	}
 }
 
+func testDefaultOCSPVerifierWithUnreachableOCSPServer(t *testing.T, certGroup TestCertGroup) {
+	url := "http://127.0.0.2:34567"
+
+	validRawCerts, validVerifiedChains := certGroup.validRawCerts, certGroup.validVerifiedChains
+
+	ocspConfig, err := NewOCSPConfig(url, OcspRequiredGoodStr, OcspFromCertUseStr, false)
+	if err != nil {
+		t.Fatalf("Failed to create OCSPConfig: %v\n", err)
+	}
+
+	testWithConfigAndUnreachableOCSPServer(t, ocspConfig, validRawCerts, validVerifiedChains)
+
+	ocspConfig, err = NewOCSPConfig(url, OcspRequiredDenyUnknownStr, OcspFromCertUseStr, false)
+	if err != nil {
+		t.Fatalf("Failed to create OCSPConfig: %v\n", err)
+	}
+
+	testWithConfigAndUnreachableOCSPServer(t, ocspConfig, validRawCerts, validVerifiedChains)
+}
+
 func testDefaultOCSPVerifierWithGroup(t *testing.T, certGroup TestCertGroup) {
 	testDefaultOCSPVerifierWithGroupValid(t, certGroup)
 	testDefaultOCSPVerifierWithGroupRevoked(t, certGroup)
@@ -546,4 +590,5 @@ func TestDefaultOCSPVerifier(t *testing.T) {
 	testDefaultOCSPVerifierWithGroup(t, getTestCertGroup(t))
 	testDefaultOCSPVerifierWithGroup(t, getTestCertGroup3(t))
 	testDefaultOCSPVerifierWithGroup(t, getTestCertGroupOnlyRoot(t))
+	testDefaultOCSPVerifierWithUnreachableOCSPServer(t, getTestCertGroup(t))
 }
