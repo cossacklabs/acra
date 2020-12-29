@@ -478,7 +478,7 @@ func (v DefaultCRLVerifier) Verify(rawCerts [][]byte, verifiedChains [][]*x509.C
 		if len(chain) == 0 {
 			switch v.Config.ClientAuthType {
 			case tls.NoClientCert, tls.RequestClientCert, tls.RequireAnyClientCert:
-				log.Infoln("OCSP: Empty verified certificates chain, nothing to do")
+				log.Infoln("CRL: Empty verified certificates chain, nothing to do")
 				return nil
 			default: // tls.VerifyClientCertIfGiven, tls.RequireAndVerifyClientCert
 				return ErrEmptyCertChain
@@ -495,7 +495,7 @@ func (v DefaultCRLVerifier) Verify(rawCerts [][]byte, verifiedChains [][]*x509.C
 			cert := chain[i]
 			issuer := chain[i+1]
 
-			// 3rd argument, useConfigURL, whether to use OCSP server URL from configuration (if set),
+			// 3rd argument, useConfigURL, whether to use CRL URL from configuration (if set),
 			// don't use it for other certificates except end one (i.e. don't use it when checking intermediate
 			// certificates because v.Config.checkOnlyLeafCertificate == false)
 			err := v.verifyCertWithIssuer(cert, issuer, i == 0)
