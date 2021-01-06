@@ -42,6 +42,7 @@ var (
 	ErrCacheKeyNotFound             = errors.New("cannot find cached CRL with given URL")
 	ErrOutdatedCRL                  = errors.New("fetched CRLs NextUpdate is behind current time")
 	ErrUnknownCRLExtensionOID       = errors.New("unable to process unknown critical extension inside CRL")
+	ErrUnimplementedCRLExtension    = errors.New("handling of CRL extension is not yet implemented")
 )
 
 // --tls_crl_from_cert=<use|trust|prefer|ignore>
@@ -346,6 +347,35 @@ func (v DefaultCRLVerifier) getCachedOrFetch(url string, allowLocal bool, issuer
 // Returns `nil` if certificate was not cound in CRL, returns error if it was there
 // or if there was unknown Object ID in revoked certificate extensions
 func checkCertWithCRL(cert *x509.Certificate, crl *pkix.CertificateList) error {
+	for _, extension := range crl.TBSCertList.Extensions {
+		// For CRL v2 (RFC 5280 section 5.2), CRL issuers are REQUIRED to include
+		// the authority key identifier (Section 5.2.1) and the CRL number (Section 5.2.3).
+		// This means we also have to handle these extensions.
+		switch extension.Id.String() {
+		case "2.5.29.35":
+			// section 5.2.1 (4.2.1.1), id-ce-authorityKeyIdentifier
+
+		case "2.5.29.18":
+			// section 5.2.2 (4.2.1.7), id-ce-issuerAltName
+
+		case "2.5.29.20":
+			// section 5.2.3, id-ce-cRLNumber
+
+		case "2.5.29.27":
+			// section 5.2.4, id-ce-deltaCRLIndicator
+			// > The delta CRL indicator is a critical CRL extension that identifies a CRL as being a delta CRL
+			log.WithField("oid", extension.Id.String()).Warnln("CRL: handling of CRL extension is not yet implemented")
+			return ErrUnimplementedCRLExtension
+
+		default:
+			if extension.Critical {
+				log.WithField("oid", extension.Id.String()).Warnln("CRL: Unable to process critical extension with unknown Object ID")
+				return ErrUnknownCRLExtensionOID
+			}
+			log.WithField("oid", extension.Id.String()).Debugln("CRL: Unable to process non-critical extension with unknown Object ID")
+		}
+	}
+
 	for _, revokedCertificate := range crl.TBSCertList.RevokedCertificates {
 		if revokedCertificate.SerialNumber.Cmp(cert.SerialNumber) == 0 {
 			log.WithField("extensions", revokedCertificate.Extensions).Debugln("Revoked certificate extensions")

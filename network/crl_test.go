@@ -572,6 +572,28 @@ func TestCheckCertWithCRL(t *testing.T) {
 	cert := certGroup.invalidVerifiedChains[0][0]
 	_, crl := getTestCRL(t, path.Join(certGroup.prefix, certGroup.crl))
 
+	// Test with empty extensions lists in CRL
+	crl.TBSCertList.Extensions = []pkix.Extension{}
+	expectOk(cert, crl)
+
+	// Test with some known extension
+	crl.TBSCertList.Extensions = []pkix.Extension{
+		{Id: []int{2, 5, 29, 35}, Critical: true, Value: []byte{}},
+	}
+	expectOk(cert, crl)
+
+	// Test with some unknown critical extension
+	crl.TBSCertList.Extensions = []pkix.Extension{
+		{Id: []int{25, 100, 41}, Critical: true, Value: []byte{}},
+	}
+	expectErr(cert, crl)
+
+	// Test with some unknown non-critical extension
+	crl.TBSCertList.Extensions = []pkix.Extension{
+		{Id: []int{70, 1, 2, 3, 4}, Critical: false, Value: []byte{}},
+	}
+	expectOk(cert, crl)
+
 	// Test with empty extensions lists in revoked certificates
 	for revokedCertID := range crl.TBSCertList.RevokedCertificates {
 		crl.TBSCertList.RevokedCertificates[revokedCertID].Extensions = []pkix.Extension{}
