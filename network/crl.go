@@ -350,7 +350,10 @@ func checkCertWithCRL(cert *x509.Certificate, crl *pkix.CertificateList) error {
 	for _, extension := range crl.TBSCertList.Extensions {
 		// For CRL v2 (RFC 5280 section 5.2), CRL issuers are REQUIRED to include
 		// the authority key identifier (Section 5.2.1) and the CRL number (Section 5.2.3).
-		// This means we also have to handle these extensions.
+		// TODO handle all these extensions; this will require some refactoring:
+		//      create DB with revoked certificates, update it from delta CRL or rewrite from usual CRL;
+		//      these extensions cannot exist in older CRL v1 though
+		//      (like the one generated with `openssl ca -gencrl ...` without `-crlexts` option)
 		switch extension.Id.String() {
 		case "2.5.29.35":
 			// section 5.2.1 (4.2.1.1), id-ce-authorityKeyIdentifier
