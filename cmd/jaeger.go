@@ -19,6 +19,7 @@ package cmd
 import (
 	"errors"
 	"flag"
+
 	"contrib.go.opencensus.io/exporter/jaeger"
 )
 
