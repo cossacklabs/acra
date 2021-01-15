@@ -19,7 +19,7 @@ package cmd
 import (
 	"errors"
 	"flag"
-	"go.opencensus.io/exporter/jaeger"
+	"contrib.go.opencensus.io/exporter/jaeger"
 )
 
 var options = jaeger.Options{
