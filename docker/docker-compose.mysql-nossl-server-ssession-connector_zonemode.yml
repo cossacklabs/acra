@@ -75,7 +75,7 @@ services:
 
     # MySQL container
     mysql:
-        image: mariadb:10.3
+        image: mariadb:10.5
         # INSECURE!!! You MUST define your own DB name and credentials
         environment:
             MYSQL_ONETIME_PASSWORD: ${MYSQL_ONETIME_PASSWORD:-urLK7YJPndDWsnJC}
