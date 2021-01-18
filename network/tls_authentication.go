@@ -108,13 +108,27 @@ type TLSClientIDExtractor interface {
 	ExtractClientID(certificate *x509.Certificate) ([]byte, error)
 }
 
+type tlsStaticClientIDExtractor struct {
+	clientID []byte
+}
+
+// NewTLSStaticClientIDExtractor return TLSClientIDExtractor implementation which will return configured clientID always
+func NewTLSStaticClientIDExtractor(clientID[]byte)(*tlsStaticClientIDExtractor, error){
+	return &tlsStaticClientIDExtractor{clientID: clientID}, nil
+}
+
+// ExtractClientID returns configured static clientID
+func (extractor *tlsStaticClientIDExtractor) ExtractClientID(certificate *x509.Certificate) ([]byte, error) {
+	return extractor.clientID, nil
+}
+
 type tlsClientIDExtractor struct {
 	idExtractor CertificateIdentifierExtractor
 	idConverter IdentifierConverter
 }
 
 // NewTLSClientIDExtractor create new TLSClientIDExtractor implementation which use idExtractor and idConvertor to extract clientID
-func NewTLSClientIDExtractor(idExtractor CertificateIdentifierExtractor, idConverter IdentifierConverter) (*tlsClientIDExtractor, error) {
+func NewTLSClientIDExtractor(idExtractor CertificateIdentifierExtractor, idConverter IdentifierConverter) (TLSClientIDExtractor, error) {
 	return &tlsClientIDExtractor{idExtractor, idConverter}, nil
 }
 

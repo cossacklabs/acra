@@ -23,11 +23,13 @@ package main
 import (
 	"context"
 	"flag"
+	"fmt"
 	"github.com/cossacklabs/acra/cmd/acra-translator/common"
 	"github.com/cossacklabs/acra/cmd/acra-translator/grpc_api"
 	"github.com/cossacklabs/acra/cmd/acra-translator/server"
 	_ "net/http/pprof"
 	"os"
+	"strings"
 	"syscall"
 	"time"
 
@@ -54,6 +56,7 @@ const (
 	// called on SIGHUP event for more details
 	DescriptorHTTP = 3
 	DescriptorGRPC = 4
+	tlsAuthNotSet  = -1
 )
 
 // DefaultConfigPath relative path to config which will be parsed as default
@@ -79,6 +82,12 @@ func main() {
 	closeConnectionTimeout := flag.Int("incoming_connection_close_timeout", defaultWaitTimeout, "Time that AcraTranslator will wait (in seconds) on stop signal before closing all connections")
 
 	prometheusAddress := flag.String("incoming_connection_prometheus_metrics_string", "", "URL which will be used to expose Prometheus metrics (use <URL>/metrics address to pull metrics)")
+
+	useTLS := flag.Bool("acratranslator_tls_transport_enable", false, "Use tls to encrypt transport between AcraServer and AcraConnector/client")
+	tlsIdentifierExtractorType := flag.String("tls_identifier_extractor_type", network.IdentifierExtractorTypeDistinguishedName, fmt.Sprintf("Decide which field of TLS certificate to use as ClientID (%s)", strings.Join(network.IdentifierExtractorTypesList, "|")))
+	useClientIDFromConnection := flag.Bool("acratranslator_client_id_from_connection_enable", false, "Use clientID from TLS certificates or secure session handshake instead directly passed values in grpc methods")
+	noEncryptionTransport := flag.Bool("acraconnector_transport_encryption_disable", false, "Use raw transport (tcp/unix socket) between AcraTranslator and client. It turns off reading trace from client's side which usually sent by AcraConnector")
+	network.RegisterTLSBaseArgs()
 
 	cmd.RegisterTracingCmdParameters()
 	cmd.RegisterJaegerCmdParameters()
@@ -118,6 +127,8 @@ func main() {
 	config.SetConfigPath(DefaultConfigPath)
 	config.SetDebug(*debug)
 	config.SetTraceToLog(cmd.IsTraceToLogOn())
+	config.SetUseClientIDFromConnection(*useClientIDFromConnection)
+	config.SetWithConnector(!*noEncryptionTransport)
 
 	cmd.SetupTracing(ServiceName)
 
@@ -131,13 +142,62 @@ func main() {
 	log.Infof("Keystore init OK")
 
 	// --------- Config  -----------
+	var grpcClientIDExtractor network.GRPCConnectionClientIDExtractor
 	log.Infof("Configuring transport...")
-	log.Infof("Selecting transport: use Secure Session transport wrapper")
-	config.ConnectionWrapper, err = network.NewSecureSessionConnectionWrapper([]byte(*secureSessionID), keyStore)
-	if err != nil {
-		log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorTransportConfiguration).
-			Errorln("Configuration error: can't initialize secure session connection wrapper")
-		os.Exit(1)
+	if *useTLS  {
+		log.WithField("client_id_from_connection", *useClientIDFromConnection).Infoln("Selecting transport: use TLS transport wrapper")
+		tlsConfig, err := network.NewTLSConfigFromBaseArgs()
+		if err != nil {
+			log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorTransportConfiguration).
+				Errorln("Configuration error: can't create AcraConnector TLS config")
+			os.Exit(1)
+		}
+		var clientIDExtractor network.TLSClientIDExtractor
+		idConverter, err := network.NewDefaultHexIdentifierConverter()
+		if err != nil {
+			log.WithError(err).Errorln("Can't initialize identifier converter")
+			os.Exit(1)
+		}
+		identifierExtractor, err := network.NewIdentifierExtractorByType(*tlsIdentifierExtractorType)
+		if err != nil {
+			log.WithField("type", *tlsIdentifierExtractorType).WithError(err).Errorln("Can't initialize identifier extractor")
+			os.Exit(1)
+		}
+		clientIDExtractor, err = network.NewTLSClientIDExtractor(identifierExtractor, idConverter)
+		if err != nil {
+			log.WithError(err).Errorln("Can't initialize clientID extractor")
+			os.Exit(1)
+		}
+		grpcClientIDExtractor, err = network.NewTLSGRPCClientIDExtractor(clientIDExtractor)
+		if err != nil {
+			log.WithError(err).Errorln("Can't initialize grpc client id extractor")
+			os.Exit(1)
+		}
+
+		// client's config nil because we don't need to establish tls connection with database or any third side
+		config.ConnectionWrapper, err = network.NewTLSAuthenticationConnectionWrapper(nil, tlsConfig, clientIDExtractor)
+		if err != nil {
+			log.WithError(err).Errorln("Can't initialize TLS connection wrapper")
+			os.Exit(1)
+		}
+		config.SetGRPCClientIDExtractor(grpcClientIDExtractor)
+		config.SetTLSConfig(tlsConfig)
+	} else {
+		log.WithField("client_id_from_connection", *useClientIDFromConnection).Infof("Selecting transport: use Secure Session transport wrapper")
+		secureSessionWrapper, err := network.NewSecureSessionConnectionWrapper([]byte(*secureSessionID), keyStore)
+		if err != nil {
+			log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorTransportConfiguration).
+				Errorln("Configuration error: can't initialize secure session connection wrapper")
+			os.Exit(1)
+		}
+		secureSessionWrapper.UseClientIDFromConnection(true)
+		secureSessionClientIDExtractor, err := network.NewSecureSessionGRPCClientIDExtractor()
+		if err != nil {
+			log.WithError(err).Errorln("Can't initialize secure session client id extractor")
+			os.Exit(1)
+		}
+		config.SetGRPCClientIDExtractor(secureSessionClientIDExtractor)
+		config.ConnectionWrapper = secureSessionWrapper
 	}
 
 	log.Debugf("Registering process signal handlers")

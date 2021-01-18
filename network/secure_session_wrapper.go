@@ -21,6 +21,7 @@ import (
 	"context"
 	"go.opencensus.io/trace"
 	"google.golang.org/grpc/credentials"
+	"google.golang.org/grpc/peer"
 	"io"
 	"net"
 	"sync"
@@ -40,6 +41,24 @@ const (
 	// chosen manually
 	sessionInitTimeout = time.Second * 5
 )
+
+type secureSessionGRPCClientIDExtractor struct{}
+
+func NewSecureSessionGRPCClientIDExtractor() (secureSessionGRPCClientIDExtractor, error) {
+	return secureSessionGRPCClientIDExtractor{}, nil
+}
+
+func (extractor secureSessionGRPCClientIDExtractor) ExtractClientID(ctx context.Context) ([]byte, error) {
+	info, ok := peer.FromContext(ctx)
+	if !ok {
+		return nil, ErrCantExtractClientID
+	}
+	authInfo, ok := info.AuthInfo.(SecureSessionInfo)
+	if !ok {
+		return nil, ErrIncorrectGRPCConnectionAuthInfo
+	}
+	return authInfo.ClientID(), nil
+}
 
 // SessionCallback used for wrapping connection into SecureSession using SecureSession transport keys
 type SessionCallback struct {
@@ -216,10 +235,16 @@ func (s SecureSessionInfo) AuthType() string {
 
 // SecureSessionConnectionWrapper adds SecureSession encryption above connection
 type SecureSessionConnectionWrapper struct {
-	keystore         keystore.SecureSessionKeyStore
-	handshakeTimeout time.Duration
-	id               []byte
-	serverID         []byte
+	keystore            keystore.SecureSessionKeyStore
+	handshakeTimeout    time.Duration
+	id                  []byte
+	serverID            []byte
+	useIDFromConnection bool
+}
+
+// UseClientIDFromConnection set do wrapper should return clientID from peer or statically configured
+func (wrapper *SecureSessionConnectionWrapper) UseClientIDFromConnection(v bool) {
+	wrapper.useIDFromConnection = v
 }
 
 // ClientHandshake wrap outcoming client's connection to server with secure session as gRPC transport
