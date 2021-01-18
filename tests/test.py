@@ -4269,7 +4269,7 @@ class TestAcraTranslatorClientIDFromTLSByDistinguishedName(TLSAuthenticationByDi
             shutil.rmtree(key_folder.name)
 
 
-class TestAcraTranslatorClientIDFromTLSBySerialNumber(TLSAuthenticationBySerialNumberMixin, AcraTranslatorTest):
+class TestAcraTranslatorClientIDFromTLSBySerialNumber(TLSAuthenticationBySerialNumberMixin, TestAcraTranslatorClientIDFromTLSByDistinguishedName):
     pass
 
 

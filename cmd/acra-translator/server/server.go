@@ -152,7 +152,7 @@ func (server *ReaderServer) HandleHTTPConnection(parentContext context.Context, 
 			var span *trace.Span
 			var ctx context.Context
 			if server.config.GetWithConnector() {
-				logger.Debugln("Read trace")
+				logger.WithField("with_connector", server.config.GetWithConnector()).Debugln("Read trace")
 				spanContext, err := network.ReadTrace(wrappedConnection)
 				if err != nil {
 					log.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorTracingCantReadTrace).WithError(err).Errorln("Can't read trace from AcraConnector")
