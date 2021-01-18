@@ -36,6 +36,9 @@ type AcraTranslatorConfig struct {
 	debug                        bool
 	traceToLog                   bool
 	tlsConfig                    *tls.Config
+	grpcClientIDExtractor        network.GRPCConnectionClientIDExtractor
+	useClientIDFromConnection    bool
+	withConnector bool
 }
 
 // NewConfig creates new AcraTranslatorConfig.
