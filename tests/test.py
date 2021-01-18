@@ -955,6 +955,40 @@ class PrometheusMixin(object):
                     [address])
 
 
+class TLSAuthenticationByDistinguishedNameMixin(object):
+    def get_acraserver_connection_string(self, port=None):
+        """use similar to connector unix socket connection string to allow connect directory to acra by db driver"""
+        if not port:
+            port = self.ACRASERVER_PORT
+        return self.get_connector_connection_string(port)
+
+    def get_identifier_extractor_type(self):
+        return "distinguished_name"
+
+    def get_valid_certificate_identifier(self):
+        # converted data from certificate "CN=Test leaf certificate (acra-writer),OU=IT,O=Global Security,L=London,ST=London,C=GB"
+        with open(TEST_TLS_CLIENT_CERT, 'rb') as f:
+            pem = f.read()
+        cert = x509.load_pem_x509_certificate(pem, default_backend())
+        sha512 = hashlib.sha512()
+        sha512.update(cert.subject.rfc4514_string().encode('utf-8'))
+        return sha512.hexdigest().lower()
+
+
+class TLSAuthenticationBySerialNumberMixin(TLSAuthenticationByDistinguishedNameMixin):
+    def get_identifier_extractor_type(self):
+        return "serial_number"
+
+    def get_valid_certificate_identifier(self):
+        # converted data from certificate "CN=Test leaf certificate (acra-writer),OU=IT,O=Global Security,L=London,ST=London,C=GB"
+        with open(TEST_TLS_CLIENT_CERT, 'rb') as f:
+            pem = f.read()
+        cert = x509.load_pem_x509_certificate(pem, default_backend())
+        sha512 = hashlib.sha512()
+        sha512.update(cert.serial_number.to_bytes(20, 'big'))
+        return sha512.hexdigest().lower()
+
+
 class BaseTestCase(PrometheusMixin, unittest.TestCase):
     DEBUG_LOG = os.environ.get('DEBUG_LOG', True)
 
@@ -994,7 +1028,7 @@ class BaseTestCase(PrometheusMixin, unittest.TestCase):
         count = 0
         while count <= 3:
             if process.poll() is None:
-                print('forked')
+                logging.info("forked %s [%s]", process.args[0], process.pid)
                 return process
             count += 1
             time.sleep(FORK_FAIL_SLEEP)
@@ -3802,12 +3836,79 @@ class ProcessContextManager(object):
 
 class AcraTranslatorMixin(object):
 
+    def get_http_default_kwargs(self):
+        return {
+            'timeout': REQUEST_TIMEOUT,
+        }
+
+    def get_http_schema(self):
+        return 'http'
+
+    def http_decrypt_request(self, port, client_id, zone_id, acrastruct):
+        api_url = '{}://localhost:{}/v1/decrypt'.format(self.get_http_schema(), port)
+        if zone_id:
+            api_url = '{}?zone_id={}'.format(api_url, zone_id)
+        kwargs = self.get_http_default_kwargs()
+        kwargs['data'] = acrastruct
+        with requests.post(api_url, **kwargs) as response:
+            return response.content
+
+    def http_encrypt_request(self, port, client_id, zone_id, data):
+        api_url = '{}://localhost:{}/v1/encrypt'.format(self.get_http_schema(), port)
+        if zone_id:
+            api_url = '{}?zone_id={}'.format(api_url, zone_id)
+        kwargs = self.get_http_default_kwargs()
+        kwargs['data'] = data
+        with requests.post(api_url, **kwargs) as response:
+            return response.content
+
+    def get_grpc_channel(self, port):
+        return grpc.insecure_channel('localhost:{}'.format(port))
+
+    def grpc_encrypt_request(self, port, client_id, zone_id, data):
+        channel = self.get_grpc_channel(port)
+        stub = api_pb2_grpc.WriterStub(channel)
+        try:
+            if zone_id:
+                response = stub.Encrypt(api_pb2.EncryptRequest(
+                    zone_id=zone_id.encode('ascii'), data=data,
+                    client_id=client_id.encode('ascii')),
+                    timeout=SOCKET_CONNECT_TIMEOUT)
+            else:
+                response = stub.Encrypt(api_pb2.EncryptRequest(
+                    client_id=client_id.encode('ascii'), data=data),
+                    timeout=SOCKET_CONNECT_TIMEOUT)
+        except grpc.RpcError as exc:
+            logging.info(exc)
+            return b''
+        return response.acrastruct
+
+    def grpc_decrypt_request(self, port, client_id, zone_id, acrastruct):
+        channel = self.get_grpc_channel(port)
+        stub = api_pb2_grpc.ReaderStub(channel)
+        try:
+            if zone_id:
+                response = stub.Decrypt(api_pb2.DecryptRequest(
+                    zone_id=zone_id.encode('ascii'), acrastruct=acrastruct,
+                    client_id=client_id.encode('ascii')),
+                    timeout=SOCKET_CONNECT_TIMEOUT)
+            else:
+                response = stub.Decrypt(api_pb2.DecryptRequest(
+                    client_id=client_id.encode('ascii'), acrastruct=acrastruct),
+                    timeout=SOCKET_CONNECT_TIMEOUT)
+        except grpc.RpcError as exc:
+            logging.info(exc)
+            return b''
+        return response.data
+
     def fork_connector_for_translator(self, connector_port: int, server_port: int, client_id: str, check_connection: bool=True):
         logging.info("fork connector for translator")
         server_connection = get_tcp_connection_string(server_port)
         connector_connection = get_tcp_connection_string(connector_port)
         args = [
             './acra-connector',
+            '-d',
+            '-logging_format=cef',
             '-acratranslator_connection_string={}'.format(server_connection),
             '-mode=acratranslator',
             '-client_id={}'.format(client_id),
@@ -3836,55 +3937,7 @@ class AcraTranslatorTest(AcraTranslatorMixin, BaseTestCase):
     def setUp(self):
         self.checkSkip()
 
-    def grpc_decrypt_request(self, port, client_id, zone_id, acrastruct):
-        channel = grpc.insecure_channel('127.0.0.1:{}'.format(port))
-        stub = api_pb2_grpc.ReaderStub(channel)
-        try:
-            if zone_id:
-                response = stub.Decrypt(api_pb2.DecryptRequest(
-                    zone_id=zone_id.encode('ascii'), acrastruct=acrastruct,
-                    client_id=client_id.encode('ascii')),
-                    timeout=SOCKET_CONNECT_TIMEOUT)
-            else:
-                response = stub.Decrypt(api_pb2.DecryptRequest(
-                    client_id=client_id.encode('ascii'), acrastruct=acrastruct),
-                    timeout=SOCKET_CONNECT_TIMEOUT)
-        except grpc.RpcError:
-            return b''
-        return response.data
-
-    def http_decrypt_request(self, port, client_id, zone_id, acrastruct):
-        api_url = 'http://127.0.0.1:{}/v1/decrypt'.format(port)
-        if zone_id:
-            api_url = '{}?zone_id={}'.format(api_url, zone_id)
-        with requests.post(api_url, data=acrastruct, timeout=REQUEST_TIMEOUT) as response:
-            return response.content
-
-    def grpc_encrypt_request(self, port, client_id, zone_id, data):
-        channel = grpc.insecure_channel('127.0.0.1:{}'.format(port))
-        stub = api_pb2_grpc.WriterStub(channel)
-        try:
-            if zone_id:
-                response = stub.Encrypt(api_pb2.EncryptRequest(
-                    zone_id=zone_id.encode('ascii'), data=data,
-                    client_id=client_id.encode('ascii')),
-                    timeout=SOCKET_CONNECT_TIMEOUT)
-            else:
-                response = stub.Encrypt(api_pb2.EncryptRequest(
-                    client_id=client_id.encode('ascii'), data=data),
-                    timeout=SOCKET_CONNECT_TIMEOUT)
-        except grpc.RpcError:
-            return b''
-        return response.acrastruct
-
-    def http_encrypt_request(self, port, client_id, zone_id, data):
-        api_url = 'http://127.0.0.1:{}/v1/encrypt'.format(port)
-        if zone_id:
-            api_url = '{}?zone_id={}'.format(api_url, zone_id)
-        with requests.post(api_url, data=data, timeout=REQUEST_TIMEOUT) as response:
-            return response.content
-
-    def _testApiEncryption(self, request_func, use_http=False, use_grpc=False):
+    def apiEncryptionTest(self, request_func, use_http=False, use_grpc=False):
         # one is set
         self.assertTrue(use_http or use_grpc)
         # two is not acceptable
@@ -3922,7 +3975,7 @@ class AcraTranslatorTest(AcraTranslatorMixin, BaseTestCase):
                 response = request_func(connector_port2, incorrect_client_id, None, None)
                 self.assertNotEqual(data, response)
 
-    def _testApiDecryption(self, request_func, use_http=False, use_grpc=False):
+    def apiDecryptionTest(self, request_func, use_http=False, use_grpc=False):
         # one is set
         self.assertTrue(use_http or use_grpc)
         # two is not acceptable
@@ -4045,12 +4098,179 @@ class AcraTranslatorTest(AcraTranslatorMixin, BaseTestCase):
                                  'application/octet-stream')
 
     def testGRPCApi(self):
-        self._testApiDecryption(self.grpc_decrypt_request, use_grpc=True)
-        self._testApiEncryption(self.grpc_encrypt_request, use_grpc=True)
+        self.apiDecryptionTest(self.grpc_decrypt_request, use_grpc=True)
+        self.apiEncryptionTest(self.grpc_encrypt_request, use_grpc=True)
 
     def testHTTPApi(self):
-        self._testApiDecryption(self.http_decrypt_request, use_http=True)
-        self._testApiEncryption(self.http_encrypt_request, use_http=True)
+        self.apiDecryptionTest(self.http_decrypt_request, use_http=True)
+        self.apiEncryptionTest(self.http_encrypt_request, use_http=True)
+
+
+class TestAcraTranslatorGRPCClientIDFromSecureSession(AcraTranslatorTest):
+    def testHTTPApi(self):
+        self.skipTest("not allowable")
+
+    def testHTTPApiResponses(self):
+        self.skipTest("not allowable")
+
+    def apiEncryptionTest(self, request_func, use_http=False, use_grpc=False):
+        # one is set
+        self.assertTrue(use_http or use_grpc)
+        # two is not acceptable
+        self.assertFalse(use_http and use_grpc)
+        translator_port = 3456
+        connector_port = 12345
+        client_id = "keypair1"
+        data = get_pregenerated_random_data().encode('ascii')
+        client_id_private_key = read_storage_private_key(KEYS_FOLDER.name, client_id)
+        connection_string = 'tcp://127.0.0.1:{}'.format(translator_port)
+        translator_kwargs = {
+            'incoming_connection_http_string': connection_string if use_http else '',
+            # turn off grpc to avoid check connection to it without acra-connector
+            'incoming_connection_grpc_string': connection_string if use_grpc else '',
+            'acratranslator_client_id_from_connection_enable': 'true',
+        }
+
+        correct_client_id = 'keypair1'
+        incorrect_client_id = 'keypair2'
+        with ProcessContextManager(self.fork_translator(translator_kwargs)):
+            with ProcessContextManager(self.fork_connector_for_translator(connector_port, translator_port, client_id)):
+                # use incorrect client id in request
+                response = request_func(connector_port, incorrect_client_id, None, data)
+                decrypted = decrypt_acrastruct(response, client_id_private_key, correct_client_id)
+                self.assertEqual(data, decrypted)
+
+    def apiDecryptionTest(self, request_func, use_http=False, use_grpc=False):
+        # one is set
+        self.assertTrue(use_http or use_grpc)
+        # two is not acceptable
+        self.assertFalse(use_http and use_grpc)
+        translator_port = 3456
+        connector_port = 12345
+        client_id = "keypair1"
+        data = get_pregenerated_random_data().encode('ascii')
+        encryption_key = read_storage_public_key(
+            client_id, keys_dir=KEYS_FOLDER.name)
+        acrastruct = create_acrastruct(data, encryption_key)
+        connection_string = 'tcp://127.0.0.1:{}'.format(translator_port)
+        translator_kwargs = {
+            'incoming_connection_http_string': connection_string if use_http else '',
+            # turn off grpc to avoid check connection to it without acra-connector
+            'incoming_connection_grpc_string': connection_string if use_grpc else '',
+            'acratranslator_client_id_from_connection_enable': 'true',
+        }
+
+        correct_client_id = 'keypair1'
+        incorrect_client_id = 'keypair2'
+        with ProcessContextManager(self.fork_translator(translator_kwargs)):
+            with ProcessContextManager(self.fork_connector_for_translator(connector_port, translator_port, client_id)):
+                # use incorrect client id in request
+                response = request_func(connector_port, incorrect_client_id, None, acrastruct)
+                self.assertEqual(data, response)
+
+
+class TestAcraTranslatorClientIDFromTLSByDistinguishedName(TLSAuthenticationByDistinguishedNameMixin, AcraTranslatorTest):
+    def testHTTPApiResponses(self):
+        self.skipTest("unnecessary")
+
+    def get_http_schema(self):
+        return 'https'
+
+    def get_grpc_channel(self, port):
+        '''setup grpc to use tls client authentication'''
+        with open(TEST_TLS_CA, 'rb') as ca_file, open(TEST_TLS_CLIENT_KEY, 'rb') as key_file, open(TEST_TLS_CLIENT_CERT, 'rb') as cert_file:
+            ca_bytes = ca_file.read()
+            key_bytes = key_file.read()
+            cert_bytes = cert_file.read()
+        tls_credentials = grpc.ssl_channel_credentials(ca_bytes, key_bytes, cert_bytes)
+        return grpc.secure_channel('localhost:{}'.format(port), tls_credentials)
+
+    def get_http_default_kwargs(self):
+        '''setup requests to use client's certificates'''
+        kwargs = super().get_http_default_kwargs()
+        kwargs['verify'] = TEST_TLS_CA
+        # https://requests.readthedocs.io/en/master/user/advanced/#client-side-certificates
+        # first crt, second key
+        kwargs['cert'] = (TEST_TLS_CLIENT_CERT, TEST_TLS_CLIENT_KEY)
+        return kwargs
+
+    def apiEncryptionTest(self, request_func, use_http=False, use_grpc=False):
+        # one is set
+        self.assertTrue(use_http or use_grpc)
+        # two is not acceptable
+        self.assertFalse(use_http and use_grpc)
+        translator_port = 3456
+        key_folder = tempfile.TemporaryDirectory()
+        try:
+            client_id = self.get_valid_certificate_identifier()
+            self.assertEqual(create_client_keypair(name=client_id, keys_dir=key_folder.name), 0)
+            data = get_pregenerated_random_data().encode('ascii')
+            client_id_private_key = read_storage_private_key(key_folder.name, client_id)
+            connection_string = 'tcp://127.0.0.1:{}'.format(translator_port)
+            translator_kwargs = {
+                'incoming_connection_http_string': connection_string if use_http else '',
+                # turn off grpc to avoid check connection to it without acra-connector
+                'incoming_connection_grpc_string': connection_string if use_grpc else '',
+                'tls_key': abs_path(TEST_TLS_SERVER_KEY),
+                'tls_cert': abs_path(TEST_TLS_SERVER_CERT),
+                'tls_ca': TEST_TLS_CA,
+                'keys_dir': key_folder.name,
+                'tls_identifier_extractor_type': self.get_identifier_extractor_type(),
+                'acratranslator_client_id_from_connection_enable': 'true',
+                'acratranslator_tls_transport_enable': 'true',
+                'tls_ocsp_from_cert': 'ignore',
+                'tls_crl_from_cert': 'ignore',
+                'acraconnector_transport_encryption_disable': 'true',
+            }
+
+            incorrect_client_id = 'keypair2'
+            with ProcessContextManager(self.fork_translator(translator_kwargs)):
+                    response = request_func(translator_port, incorrect_client_id, None, data)
+                    decrypted = decrypt_acrastruct(response, client_id_private_key, client_id)
+                    self.assertEqual(data, decrypted)
+        finally:
+            shutil.rmtree(key_folder.name)
+
+    def apiDecryptionTest(self, request_func, use_http=False, use_grpc=False):
+        # one is set
+        self.assertTrue(use_http or use_grpc)
+        # two is not acceptable
+        self.assertFalse(use_http and use_grpc)
+        translator_port = 3456
+        key_folder = tempfile.TemporaryDirectory()
+        try:
+            client_id = self.get_valid_certificate_identifier()
+            self.assertEqual(create_client_keypair(name=client_id, keys_dir=key_folder.name), 0)
+            data = get_pregenerated_random_data().encode('ascii')
+            encryption_key = read_storage_public_key(client_id, keys_dir=key_folder.name)
+            acrastruct = create_acrastruct(data, encryption_key)
+            connection_string = 'tcp://127.0.0.1:{}'.format(translator_port)
+            translator_kwargs = {
+                'incoming_connection_http_string': connection_string if use_http else '',
+                # turn off grpc to avoid check connection to it without acra-connector
+                'incoming_connection_grpc_string': connection_string if use_grpc else '',
+                'tls_key': abs_path(TEST_TLS_SERVER_KEY),
+                'tls_cert': abs_path(TEST_TLS_SERVER_CERT),
+                'tls_ca': TEST_TLS_CA,
+                'keys_dir': key_folder.name,
+                'tls_identifier_extractor_type': self.get_identifier_extractor_type(),
+                'acratranslator_client_id_from_connection_enable': 'true',
+                'acratranslator_tls_transport_enable': 'true',
+                'tls_ocsp_from_cert': 'ignore',
+                'tls_crl_from_cert': 'ignore',
+                'acraconnector_transport_encryption_disable': 'true',
+            }
+
+            incorrect_client_id = 'keypair2'
+            with ProcessContextManager(self.fork_translator(translator_kwargs)):
+                    response = request_func(translator_port, incorrect_client_id, None, acrastruct)
+                    self.assertEqual(data, response)
+        finally:
+            shutil.rmtree(key_folder.name)
+
+
+class TestAcraTranslatorClientIDFromTLSBySerialNumber(TLSAuthenticationBySerialNumberMixin, AcraTranslatorTest):
+    pass
 
 
 class TestAcraRotateWithZone(BaseTestCase):
@@ -5333,40 +5553,6 @@ class TestPgPlaceholders(BaseTestCase):
         executor.execute_prepared_statement(query, [test_data])
         self.assertEqual(len(data), 1)
         self.assertEqual(data[0][0], test_data)
-
-
-class TLSAuthenticationByDistinguishedNameMixin(object):
-    def get_acraserver_connection_string(self, port=None):
-        """use similar to connector unix socket connection string to allow connect directory to acra by db driver"""
-        if not port:
-            port = self.ACRASERVER_PORT
-        return self.get_connector_connection_string(port)
-
-    def get_identifier_extractor_type(self):
-        return "distinguished_name"
-
-    def get_valid_certificate_identifier(self):
-        # converted data from certificate "CN=Test leaf certificate (acra-writer),OU=IT,O=Global Security,L=London,ST=London,C=GB"
-        with open(TEST_TLS_CLIENT_CERT, 'rb') as f:
-            pem = f.read()
-        cert = x509.load_pem_x509_certificate(pem, default_backend())
-        sha512 = hashlib.sha512()
-        sha512.update(cert.subject.rfc4514_string().encode('utf-8'))
-        return sha512.hexdigest().lower()
-
-
-class TLSAuthenticationBySerialNumberMixin(TLSAuthenticationByDistinguishedNameMixin):
-    def get_identifier_extractor_type(self):
-        return "serial_number"
-
-    def get_valid_certificate_identifier(self):
-        # converted data from certificate "CN=Test leaf certificate (acra-writer),OU=IT,O=Global Security,L=London,ST=London,C=GB"
-        with open(TEST_TLS_CLIENT_CERT, 'rb') as f:
-            pem = f.read()
-        cert = x509.load_pem_x509_certificate(pem, default_backend())
-        sha512 = hashlib.sha512()
-        sha512.update(cert.serial_number.to_bytes(20, 'big'))
-        return sha512.hexdigest().lower()
 
 
 class TestTLSAuthenticationWithConnectorByDistinguishedName(TLSAuthenticationByDistinguishedNameMixin, BaseTestCase):
