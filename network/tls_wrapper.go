@@ -203,13 +203,14 @@ func (wrapper *TLSConnectionWrapper) WrapServer(ctx context.Context, conn net.Co
 type tlsGRPCClientIDExtractor struct {
 	extractor TLSClientIDExtractor
 }
+
 // NewTLSGRPCClientIDExtractor return GRPCConnectionClientIDExtractor implementation which extracts info from peer's tls certificate
-func NewTLSGRPCClientIDExtractor(extractor TLSClientIDExtractor)(*tlsGRPCClientIDExtractor, error){
+func NewTLSGRPCClientIDExtractor(extractor TLSClientIDExtractor) (*tlsGRPCClientIDExtractor, error) {
 	return &tlsGRPCClientIDExtractor{extractor: extractor}, nil
 }
 
 // ExtractClientID from connection state of tls connection and peer's certificate
-func (extractor *tlsGRPCClientIDExtractor) ExtractClientID(ctx context.Context)([]byte, error){
+func (extractor *tlsGRPCClientIDExtractor) ExtractClientID(ctx context.Context) ([]byte, error) {
 	info, ok := peer.FromContext(ctx)
 	if !ok {
 		return nil, ErrCantExtractClientID

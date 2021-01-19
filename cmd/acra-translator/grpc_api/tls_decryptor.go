@@ -37,7 +37,7 @@ func (wrapper *TLSDecryptServiceWrapper) Decrypt(ctx context.Context, request *D
 	return wrapper.decryptor.Decrypt(ctx, request)
 }
 
-// TLSDecryptServiceWrapper return new service wrapper which use clientID from TLS certificates
+// NewTLSDecryptServiceWrapper return new service wrapper which use clientID from TLS certificates
 func NewTLSDecryptServiceWrapper(clientIDExtractor network.GRPCConnectionClientIDExtractor, service DecryptService) (*TLSDecryptServiceWrapper, error) {
 	return &TLSDecryptServiceWrapper{service, clientIDExtractor}, nil
 }

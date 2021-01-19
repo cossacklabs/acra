@@ -113,7 +113,7 @@ type tlsStaticClientIDExtractor struct {
 }
 
 // NewTLSStaticClientIDExtractor return TLSClientIDExtractor implementation which will return configured clientID always
-func NewTLSStaticClientIDExtractor(clientID[]byte)(*tlsStaticClientIDExtractor, error){
+func NewTLSStaticClientIDExtractor(clientID []byte) (*tlsStaticClientIDExtractor, error) {
 	return &tlsStaticClientIDExtractor{clientID: clientID}, nil
 }
 

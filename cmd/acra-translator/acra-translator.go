@@ -144,7 +144,7 @@ func main() {
 	// --------- Config  -----------
 	var grpcClientIDExtractor network.GRPCConnectionClientIDExtractor
 	log.Infof("Configuring transport...")
-	if *useTLS  {
+	if *useTLS {
 		log.WithField("client_id_from_connection", *useClientIDFromConnection).Infoln("Selecting transport: use TLS transport wrapper")
 		tlsConfig, err := network.NewTLSConfigFromBaseArgs()
 		if err != nil {
@@ -190,7 +190,6 @@ func main() {
 				Errorln("Configuration error: can't initialize secure session connection wrapper")
 			os.Exit(1)
 		}
-		secureSessionWrapper.UseClientIDFromConnection(true)
 		secureSessionClientIDExtractor, err := network.NewSecureSessionGRPCClientIDExtractor()
 		if err != nil {
 			log.WithError(err).Errorln("Can't initialize secure session client id extractor")

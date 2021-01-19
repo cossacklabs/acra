@@ -292,7 +292,7 @@ func (server *ReaderServer) startGRPC(logger *log.Entry, decryptorData *common.T
 			opts = append(opts, grpc.Creds(credentials.NewTLS(server.config.GetTLSConfig())))
 		} else {
 			secureSessionWrapper, ok := server.config.ConnectionWrapper.(*network.SecureSessionConnectionWrapper)
-			if !ok{
+			if !ok {
 				grpcLogger.WithError(err).Errorln("Can't cast connection wrapper to Secure Session wrapper")
 				errCh <- err
 				return

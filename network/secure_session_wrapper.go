@@ -235,16 +235,10 @@ func (s SecureSessionInfo) AuthType() string {
 
 // SecureSessionConnectionWrapper adds SecureSession encryption above connection
 type SecureSessionConnectionWrapper struct {
-	keystore            keystore.SecureSessionKeyStore
-	handshakeTimeout    time.Duration
-	id                  []byte
-	serverID            []byte
-	useIDFromConnection bool
-}
-
-// UseClientIDFromConnection set do wrapper should return clientID from peer or statically configured
-func (wrapper *SecureSessionConnectionWrapper) UseClientIDFromConnection(v bool) {
-	wrapper.useIDFromConnection = v
+	keystore         keystore.SecureSessionKeyStore
+	handshakeTimeout time.Duration
+	id               []byte
+	serverID         []byte
 }
 
 // ClientHandshake wrap outcoming client's connection to server with secure session as gRPC transport

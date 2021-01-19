@@ -38,7 +38,7 @@ type AcraTranslatorConfig struct {
 	tlsConfig                    *tls.Config
 	grpcClientIDExtractor        network.GRPCConnectionClientIDExtractor
 	useClientIDFromConnection    bool
-	withConnector bool
+	withConnector                bool
 }
 
 // NewConfig creates new AcraTranslatorConfig.
@@ -47,33 +47,33 @@ func NewConfig() *AcraTranslatorConfig {
 }
 
 // SetWithConnector set WithConnector
-func (e *AcraTranslatorConfig) SetWithConnector(v bool) {
-	e.withConnector = v
+func (a *AcraTranslatorConfig) SetWithConnector(v bool) {
+	a.withConnector = v
 }
 
 // GetWithConnector return WithConnector
-func (e *AcraTranslatorConfig) GetWithConnector() bool {
-	return e.withConnector
+func (a *AcraTranslatorConfig) GetWithConnector() bool {
+	return a.withConnector
 }
 
 // SetGRPCClientIDExtractor set GRPCConnectionClientIDExtractor
-func (e *AcraTranslatorConfig) SetGRPCClientIDExtractor(extractor network.GRPCConnectionClientIDExtractor) {
-	e.grpcClientIDExtractor = extractor
+func (a *AcraTranslatorConfig) SetGRPCClientIDExtractor(extractor network.GRPCConnectionClientIDExtractor) {
+	a.grpcClientIDExtractor = extractor
 }
 
 // GetGRPCClientIDExtractor return GRPCConnectionClientIDExtractor
-func (e *AcraTranslatorConfig) GetGRPCClientIDExtractor() network.GRPCConnectionClientIDExtractor {
-	return e.grpcClientIDExtractor
+func (a *AcraTranslatorConfig) GetGRPCClientIDExtractor() network.GRPCConnectionClientIDExtractor {
+	return a.grpcClientIDExtractor
 }
 
 // SetUseClientIDFromConnection use ClientID from connection metadata instead request arguments
-func (e *AcraTranslatorConfig) SetUseClientIDFromConnection(v bool) {
-	e.useClientIDFromConnection = v
+func (a *AcraTranslatorConfig) SetUseClientIDFromConnection(v bool) {
+	a.useClientIDFromConnection = v
 }
 
 // GetUseClientIDFromConnection return true if translator should use clientID from connection
-func (e *AcraTranslatorConfig) GetUseClientIDFromConnection() bool {
-	return e.useClientIDFromConnection
+func (a *AcraTranslatorConfig) GetUseClientIDFromConnection() bool {
+	return a.useClientIDFromConnection
 }
 
 // WithTLS true if server should use TLS connections to gRPC/HTTP server
