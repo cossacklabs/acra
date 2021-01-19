@@ -37,15 +37,15 @@ func (factory *GRPCServerFactory) New(data *common.TranslatorData, opts ...grpc.
 	service, err = NewDecryptGRPCService(data)
 	if err != nil {
 		logrus.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorTranslatorCantHandleGRPCConnection).
-			Errorln("Can't create grpc service")
+			Errorln("Can't create gRPC service")
 		return nil, err
 	}
 	if data.UseConnectionClientID {
-		logrus.Infoln("Wrap grpc service to use clientID from connection")
+		logrus.Infoln("Wrap gRPC service to use clientID from connection")
 		service, err = NewTLSDecryptServiceWrapper(data.ConnectionClientIDExtractor, service)
 		if err != nil {
 			logrus.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorTranslatorCantHandleGRPCConnection).
-				Errorln("Can't wrap grpc service with TLS wrapper")
+				Errorln("Can't wrap gRPC service with TLS wrapper")
 			return nil, err
 		}
 	}
