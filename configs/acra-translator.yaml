@@ -1,11 +1,11 @@
 version: 0.85.0
-# Use raw transport (tcp/unix socket) between AcraTranslator and client. It turns off reading trace from client's side which usually sent by AcraConnector
+# Use raw transport (tcp/unix socket) between AcraTranslator and client app. It turns off reading trace from client app's side which usually sent by AcraConnector
 acraconnector_transport_encryption_disable: false
 
-# Use clientID from TLS certificates or secure session handshake instead directly passed values in grpc methods
+# Use clientID from TLS certificates or secure session handshake instead directly passed values in gRPC methods
 acratranslator_client_id_from_connection_enable: false
 
-# Use tls to encrypt transport between AcraServer and AcraConnector/client
+# Use TLS to encrypt transport between AcraServer and AcraConnector/client app
 acratranslator_tls_transport_enable: false
 
 # path to config
