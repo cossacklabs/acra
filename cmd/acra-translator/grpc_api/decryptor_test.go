@@ -6,7 +6,7 @@ import (
 	"crypto/x509"
 	"github.com/cossacklabs/acra/cmd/acra-translator/common"
 	"github.com/cossacklabs/acra/network"
-	"github.com/cossacklabs/acra/network/tests"
+	"github.com/cossacklabs/acra/utils/tests"
 	"github.com/cossacklabs/themis/gothemis/keys"
 	"github.com/stretchr/testify/assert"
 	"go.opencensus.io/trace"

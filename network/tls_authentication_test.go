@@ -8,7 +8,7 @@ import (
 	"encoding/hex"
 	"encoding/pem"
 	"errors"
-	"github.com/cossacklabs/acra/network/tests"
+	"github.com/cossacklabs/acra/utils/tests"
 	"hash"
 	"io/ioutil"
 	"path/filepath"
