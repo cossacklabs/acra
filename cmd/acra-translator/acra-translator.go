@@ -83,7 +83,7 @@ func main() {
 
 	prometheusAddress := flag.String("incoming_connection_prometheus_metrics_string", "", "URL which will be used to expose Prometheus metrics (use <URL>/metrics address to pull metrics)")
 
-	useTLS := flag.Bool("acratranslator_tls_transport_enable", false, "Use TLS to encrypt transport between AcraServer and AcraConnector/client app")
+	useTLS := flag.Bool("acratranslator_tls_transport_enable", false, "Use TLS to encrypt transport between AcraTranslator and AcraConnector/client app")
 	tlsIdentifierExtractorType := flag.String("tls_identifier_extractor_type", network.IdentifierExtractorTypeDistinguishedName, fmt.Sprintf("Decide which field of TLS certificate to use as ClientID (%s)", strings.Join(network.IdentifierExtractorTypesList, "|")))
 	useClientIDFromConnection := flag.Bool("acratranslator_client_id_from_connection_enable", false, "Use clientID from TLS certificates or secure session handshake instead directly passed values in gRPC methods")
 	noEncryptionTransport := flag.Bool("acraconnector_transport_encryption_disable", false, "Use raw transport (tcp/unix socket) between AcraTranslator and client app. It turns off reading trace from client app's side which usually sent by AcraConnector")
