@@ -21,6 +21,7 @@ import (
 	"crypto/rand"
 	"errors"
 	"github.com/cossacklabs/acra/keystore"
+	"google.golang.org/grpc/peer"
 	"io/ioutil"
 	"net"
 	"os"
@@ -116,5 +117,33 @@ func testWrapperWithError(clientWrapper, serverWrapper ConnectionWrapper, expect
 			connection.Close()
 			onError(errors.New("data not equal"), t)
 		}
+	}
+}
+
+func testRPCClientIDExtractorInvalidContext(extractor GRPCConnectionClientIDExtractor, t *testing.T){
+	resultClientID, err := extractor.ExtractClientID(context.Background())
+	if err != ErrCantExtractClientID {
+		t.Fatal(err)
+	}
+	if resultClientID != nil {
+		t.Fatal("ClientID != nil")
+	}
+}
+
+type invalidAuthInfo struct {}
+
+func (i invalidAuthInfo) AuthType() string {
+	panic("implement me")
+}
+
+func testTLSGRPCClientIDExtractorIncorrectAuthInfo(extractor GRPCConnectionClientIDExtractor, t *testing.T){
+	ctx := context.Background()
+	ctx = peer.NewContext(ctx, &peer.Peer{AuthInfo: invalidAuthInfo{}})
+	resultClientID, err := extractor.ExtractClientID(ctx)
+	if err != ErrIncorrectGRPCConnectionAuthInfo {
+		t.Fatal(err)
+	}
+	if resultClientID != nil {
+		t.Fatal("ClientID != nil")
 	}
 }

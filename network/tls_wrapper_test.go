@@ -14,6 +14,9 @@ import (
 	"encoding/pem"
 	"errors"
 	"fmt"
+	"github.com/stretchr/testify/assert"
+	"google.golang.org/grpc/credentials"
+	"google.golang.org/grpc/peer"
 	"math/big"
 	"net"
 	"strings"
@@ -669,4 +672,56 @@ func generateCertificateTemplate(t testing.TB) *x509.Certificate {
 		KeyUsage:              x509.KeyUsageDigitalSignature | x509.KeyUsageKeyEncipherment | x509.KeyUsageContentCommitment,
 		BasicConstraintsValid: true,
 	}
+}
+
+func TestTLSGRPCClientIDExtractorSuccess(t *testing.T){
+	clientCert := generateCertificateTemplate(t)
+	testClientID := "client1"
+	clientCert.Subject.CommonName = testClientID
+	authInfo := credentials.TLSInfo{State: tls.ConnectionState{VerifiedChains: [][]*x509.Certificate{{clientCert}}}}
+	ctx := context.Background()
+	ctx = peer.NewContext(ctx, &peer.Peer{AuthInfo: authInfo})
+	idConverter, err := NewDefaultHexIdentifierConverter()
+	if err != nil {
+		t.Fatal(err)
+	}
+	tlsClientIDExtractor, err := NewTLSClientIDExtractor(DistinguishedNameExtractor{}, idConverter)
+	if err != nil {
+		t.Fatal(err)
+	}
+	expectedClientID, err := tlsClientIDExtractor.ExtractClientID(clientCert)
+	if err != nil {
+		t.Fatal(err)
+	}
+	newTLSClientIDExtractor, err := NewTLSGRPCClientIDExtractor(tlsClientIDExtractor)
+	if err != nil {
+		t.Fatal(err)
+	}
+	resultClientID, err := newTLSClientIDExtractor.ExtractClientID(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	assert.Equal(t, resultClientID, expectedClientID)
+}
+
+func TestGRPCClientIDExtractorInvalidContext(t *testing.T){
+	extractor, err := NewTLSGRPCClientIDExtractor(nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	testRPCClientIDExtractorInvalidContext(extractor, t)
+}
+
+func TestTLSGRPCClientIDExtractorIncorrectAuthInfo(t *testing.T){
+	ctx := context.Background()
+	ctx = peer.NewContext(ctx, &peer.Peer{AuthInfo: SecureSessionInfo{}})
+	tlsClientIDExtractor, err := NewTLSClientIDExtractor(DistinguishedNameExtractor{}, &hexIdentifierConverter{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	extractor, err := NewTLSGRPCClientIDExtractor(tlsClientIDExtractor)
+	if err != nil {
+		t.Fatal(err)
+	}
+	testTLSGRPCClientIDExtractorIncorrectAuthInfo(extractor, t)
 }

@@ -16,9 +16,11 @@ import (
 type testKeystore struct {
 	PoisonKey         *keys.Keypair
 	EncryptionKeypair *keys.Keypair
+	UsedID []byte
 }
 
 func (keystore *testKeystore) GetZonePrivateKeys(id []byte) ([]*keys.PrivateKey, error) {
+	keystore.UsedID = id
 	if keystore.EncryptionKeypair != nil {
 		return []*keys.PrivateKey{{Value: append([]byte{}, keystore.EncryptionKeypair.Private.Value...)}}, nil
 	}
@@ -32,16 +34,18 @@ func (keystore *testKeystore) GetServerDecryptionPrivateKeys(id []byte) ([]*keys
 	return nil, ErrKeyNotFound
 }
 
-func (*testKeystore) RotateZoneKey(zoneID []byte) ([]byte, error) {
+func (keystore *testKeystore) RotateZoneKey(zoneID []byte) ([]byte, error) {
 	panic("implement me")
 }
 
-func (*testKeystore) GetPrivateKey(id []byte) (*keys.PrivateKey, error) {
-	panic("implement me")
+func (keystore *testKeystore) GetPrivateKey(id []byte) (*keys.PrivateKey, error) {
+	keystore.UsedID = id
+	return keystore.EncryptionKeypair.Private, nil
 }
 
-func (*testKeystore) GetPeerPublicKey(id []byte) (*keys.PublicKey, error) {
-	panic("implement me")
+func (keystore *testKeystore) GetPeerPublicKey(id []byte) (*keys.PublicKey, error) {
+	keystore.UsedID = id
+	return keystore.EncryptionKeypair.Public, nil
 }
 
 func (*testKeystore) SaveDataEncryptionKeys(id []byte, keypair *keys.Keypair) error {
@@ -124,6 +128,7 @@ func (keystore *testKeystore) GetZonePublicKey(zoneID []byte) (*keys.PublicKey, 
 }
 
 func (keystore *testKeystore) GetClientIDEncryptionPublicKey(clientID []byte) (*keys.PublicKey, error) {
+	keystore.UsedID = clientID
 	if keystore.EncryptionKeypair != nil {
 		return &keys.PublicKey{Value: keystore.EncryptionKeypair.Public.Value}, nil
 	}
