@@ -94,14 +94,14 @@ func (server *testgRPCServer) Stop() {
 	server.listener.Close()
 }
 
-func getgRPCUnixDialer()grpc.DialOption {
+func getgRPCUnixDialer() grpc.DialOption {
 	return grpc.WithContextDialer(func(ctx context.Context, addr string) (net.Conn, error) {
 		return net.Dial("unix", addr)
 	})
 }
 func getSecureSessionDialer(wrapper *network.SecureSessionConnectionWrapper) grpc.DialOption {
 	return grpc.WithContextDialer(func(ctx context.Context, addr string) (net.Conn, error) {
-		conn, err :=  net.Dial("unix", addr)
+		conn, err := net.Dial("unix", addr)
 		if err != nil {
 			return nil, err
 		}
@@ -161,18 +161,18 @@ func TestNewFactoryWithClientIDFromTLSConnection(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	expectedClientId, err := idExtractor.ExtractClientID(x509ClientCert)
+	expectedClientID, err := idExtractor.ExtractClientID(x509ClientCert)
 	if err != nil {
 		t.Fatal(err)
 	}
-	assert.Equal(t, expectedClientId, keystorage.UsedID)
+	assert.Equal(t, expectedClientID, keystorage.UsedID)
 
 	readerClient := NewReaderClient(conn)
 	decryptResponse, err := readerClient.Decrypt(ctx, &DecryptRequest{Acrastruct: encryptResponse.Acrastruct})
 	if err != nil {
 		t.Fatal(err)
 	}
-	assert.Equal(t, expectedClientId, keystorage.UsedID)
+	assert.Equal(t, expectedClientID, keystorage.UsedID)
 	assert.Equal(t, testdata, decryptResponse.Data)
 }
 
@@ -237,7 +237,7 @@ func TestNewFactoryWithClientIDFromSecureSessionConnectionInvalidAuthInfo(t *tes
 	if !ok {
 		t.Fatal("incorrect error type, expected gRPC error")
 	}
-	if !strings.EqualFold(grpcErr.Message(), network.ErrIncorrectGRPCConnectionAuthInfo.Error()){
+	if !strings.EqualFold(grpcErr.Message(), network.ErrIncorrectGRPCConnectionAuthInfo.Error()) {
 		t.Fatalf("incorrect error from gRPC request. took: %s, expects: %s\n", grpcErr.Message(), network.ErrCantExtractClientID)
 	}
 
@@ -247,7 +247,7 @@ func TestNewFactoryWithClientIDFromSecureSessionConnectionInvalidAuthInfo(t *tes
 	if !ok {
 		t.Fatal("incorrect error type, expected gRPC error")
 	}
-	if !strings.EqualFold(grpcErr.Message(), network.ErrIncorrectGRPCConnectionAuthInfo.Error()){
+	if !strings.EqualFold(grpcErr.Message(), network.ErrIncorrectGRPCConnectionAuthInfo.Error()) {
 		t.Fatalf("incorrect error from gRPC request. took: %s, expects: %s\n", grpcErr.Message(), network.ErrCantExtractClientID)
 	}
 }

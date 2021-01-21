@@ -15,7 +15,6 @@ import (
 	"testing"
 )
 
-
 func getAcraWriterTestx509Certificate(t *testing.T) *x509.Certificate {
 	certPath := filepath.Join(tests.GetSourceRootDirectory(t), "tests/ssl/acra-writer/acra-writer.crt")
 	certificateData, err := ioutil.ReadFile(certPath)

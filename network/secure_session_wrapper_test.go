@@ -64,7 +64,7 @@ func BenchmarkSessionWrapper(t *testing.B) {
 	testWrapper(clientWrapper, serverWrapper, testClientID, t.N, t)
 }
 
-func TestSecureSessionGRPCClientIDExtractorSuccess(t *testing.T){
+func TestSecureSessionGRPCClientIDExtractorSuccess(t *testing.T) {
 	expectedClientID := []byte("client id")
 	authInfo := SecureSessionInfo{clientID: expectedClientID}
 	ctx := context.Background()
@@ -80,7 +80,7 @@ func TestSecureSessionGRPCClientIDExtractorSuccess(t *testing.T){
 	assert.Equal(t, resultClientID, expectedClientID)
 }
 
-func TestSecureSessionClientIDExtractorInvalidContext(t *testing.T){
+func TestSecureSessionClientIDExtractorInvalidContext(t *testing.T) {
 	extractor, err := NewSecureSessionGRPCClientIDExtractor()
 	if err != nil {
 		t.Fatal(err)
@@ -88,9 +88,7 @@ func TestSecureSessionClientIDExtractorInvalidContext(t *testing.T){
 	testRPCClientIDExtractorInvalidContext(extractor, t)
 }
 
-func TestSecureSessionClientIDExtractorIncorrectAuthInfo(t *testing.T){
-	ctx := context.Background()
-	ctx = peer.NewContext(ctx, &peer.Peer{AuthInfo: SecureSessionInfo{}})
+func TestSecureSessionClientIDExtractorIncorrectAuthInfo(t *testing.T) {
 	extractor, err := NewSecureSessionGRPCClientIDExtractor()
 	if err != nil {
 		t.Fatal(err)

@@ -674,7 +674,7 @@ func generateCertificateTemplate(t testing.TB) *x509.Certificate {
 	}
 }
 
-func TestTLSGRPCClientIDExtractorSuccess(t *testing.T){
+func TestTLSGRPCClientIDExtractorSuccess(t *testing.T) {
 	clientCert := generateCertificateTemplate(t)
 	testClientID := "client1"
 	clientCert.Subject.CommonName = testClientID
@@ -704,7 +704,7 @@ func TestTLSGRPCClientIDExtractorSuccess(t *testing.T){
 	assert.Equal(t, resultClientID, expectedClientID)
 }
 
-func TestGRPCClientIDExtractorInvalidContext(t *testing.T){
+func TestGRPCClientIDExtractorInvalidContext(t *testing.T) {
 	extractor, err := NewTLSGRPCClientIDExtractor(nil)
 	if err != nil {
 		t.Fatal(err)
@@ -712,9 +712,7 @@ func TestGRPCClientIDExtractorInvalidContext(t *testing.T){
 	testRPCClientIDExtractorInvalidContext(extractor, t)
 }
 
-func TestTLSGRPCClientIDExtractorIncorrectAuthInfo(t *testing.T){
-	ctx := context.Background()
-	ctx = peer.NewContext(ctx, &peer.Peer{AuthInfo: SecureSessionInfo{}})
+func TestTLSGRPCClientIDExtractorIncorrectAuthInfo(t *testing.T) {
 	tlsClientIDExtractor, err := NewTLSClientIDExtractor(DistinguishedNameExtractor{}, &hexIdentifierConverter{})
 	if err != nil {
 		t.Fatal(err)

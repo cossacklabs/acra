@@ -120,7 +120,7 @@ func testWrapperWithError(clientWrapper, serverWrapper ConnectionWrapper, expect
 	}
 }
 
-func testRPCClientIDExtractorInvalidContext(extractor GRPCConnectionClientIDExtractor, t *testing.T){
+func testRPCClientIDExtractorInvalidContext(extractor GRPCConnectionClientIDExtractor, t *testing.T) {
 	resultClientID, err := extractor.ExtractClientID(context.Background())
 	if err != ErrCantExtractClientID {
 		t.Fatal(err)
@@ -130,13 +130,13 @@ func testRPCClientIDExtractorInvalidContext(extractor GRPCConnectionClientIDExtr
 	}
 }
 
-type invalidAuthInfo struct {}
+type invalidAuthInfo struct{}
 
 func (i invalidAuthInfo) AuthType() string {
 	panic("implement me")
 }
 
-func testTLSGRPCClientIDExtractorIncorrectAuthInfo(extractor GRPCConnectionClientIDExtractor, t *testing.T){
+func testTLSGRPCClientIDExtractorIncorrectAuthInfo(extractor GRPCConnectionClientIDExtractor, t *testing.T) {
 	ctx := context.Background()
 	ctx = peer.NewContext(ctx, &peer.Peer{AuthInfo: invalidAuthInfo{}})
 	resultClientID, err := extractor.ExtractClientID(ctx)

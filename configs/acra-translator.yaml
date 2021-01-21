@@ -5,7 +5,7 @@ acraconnector_transport_encryption_disable: false
 # Use clientID from TLS certificates or secure session handshake instead directly passed values in gRPC methods
 acratranslator_client_id_from_connection_enable: false
 
-# Use TLS to encrypt transport between AcraServer and AcraConnector/client app
+# Use TLS to encrypt transport between AcraTranslator and AcraConnector/client app
 acratranslator_tls_transport_enable: false
 
 # path to config

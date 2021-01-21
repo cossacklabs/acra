@@ -16,7 +16,7 @@ import (
 type testKeystore struct {
 	PoisonKey         *keys.Keypair
 	EncryptionKeypair *keys.Keypair
-	UsedID []byte
+	UsedID            []byte
 }
 
 func (keystore *testKeystore) GetZonePrivateKeys(id []byte) ([]*keys.PrivateKey, error) {
