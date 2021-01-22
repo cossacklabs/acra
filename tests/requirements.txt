@@ -10,8 +10,8 @@ requests==2.22.0
 #mysql-connector-python==8.0.11
 pyyaml==5.1.2
 # https://grpc.io/docs/quickstart/python.html
-grpcio==1.26.0
-grpcio-tools==1.26.0
+grpcio==1.34.1
+grpcio-tools==1.34.1
 googleapis-common-protos==1.5.3
 prometheus_client==0.6.0
 unittest-xml-reporting==2.2.1

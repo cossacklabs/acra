@@ -24,6 +24,8 @@ import (
 	"flag"
 	"github.com/cossacklabs/acra/logging"
 	log "github.com/sirupsen/logrus"
+	"google.golang.org/grpc/credentials"
+	"google.golang.org/grpc/peer"
 	"io/ioutil"
 	"net"
 	"time"
@@ -196,4 +198,30 @@ func (wrapper *TLSConnectionWrapper) WrapServer(ctx context.Context, conn net.Co
 		return conn, nil, err
 	}
 	return newSafeCloseConnection(tlsConn), clientID, nil
+}
+
+type tlsGRPCClientIDExtractor struct {
+	extractor TLSClientIDExtractor
+}
+
+// NewTLSGRPCClientIDExtractor return GRPCConnectionClientIDExtractor implementation which extracts info from peer's tls certificate
+func NewTLSGRPCClientIDExtractor(extractor TLSClientIDExtractor) (*tlsGRPCClientIDExtractor, error) {
+	return &tlsGRPCClientIDExtractor{extractor: extractor}, nil
+}
+
+// ExtractClientID from connection state of tls connection and peer's certificate
+func (extractor *tlsGRPCClientIDExtractor) ExtractClientID(ctx context.Context) ([]byte, error) {
+	info, ok := peer.FromContext(ctx)
+	if !ok {
+		return nil, ErrCantExtractClientID
+	}
+	authInfo, ok := info.AuthInfo.(credentials.TLSInfo)
+	if !ok {
+		return nil, ErrIncorrectGRPCConnectionAuthInfo
+	}
+	if len(authInfo.State.VerifiedChains) == 0 || len(authInfo.State.VerifiedChains[0]) == 0 {
+		return nil, ErrNoPeerCertificate
+	}
+	certificate := authInfo.State.VerifiedChains[0][0]
+	return extractor.extractor.ExtractClientID(certificate)
 }

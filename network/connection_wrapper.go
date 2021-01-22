@@ -18,6 +18,7 @@ package network
 
 import (
 	"context"
+	"errors"
 	"go.opencensus.io/trace"
 	"net"
 )
@@ -37,4 +38,16 @@ type ConnectionMetadata interface {
 type ConnectionWrapper interface {
 	WrapClient(ctx context.Context, conn net.Conn) (net.Conn, error)
 	WrapServer(ctx context.Context, conn net.Conn) (net.Conn, []byte, error) // conn, ClientID, error
+}
+
+var (
+	// ErrCantExtractClientID used when can't extract ClientID from gRPC connection handshake
+	ErrCantExtractClientID = errors.New("can't extract ClientID from gRPC connection")
+	// ErrIncorrectGRPCConnectionAuthInfo used if gRPC connection AuthState has unsupported type
+	ErrIncorrectGRPCConnectionAuthInfo = errors.New("incorrect auth info from gRPC connection")
+)
+
+// GRPCConnectionClientIDExtractor extract clientID from connection AuthInfo encapsulated in request context
+type GRPCConnectionClientIDExtractor interface {
+	ExtractClientID(context.Context) ([]byte, error)
 }

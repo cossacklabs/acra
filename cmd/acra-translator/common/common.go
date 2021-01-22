@@ -19,6 +19,7 @@ package common
 
 import (
 	"errors"
+	"github.com/cossacklabs/acra/network"
 
 	"github.com/cossacklabs/acra/decryptor/base"
 	"github.com/cossacklabs/acra/keystore"
@@ -26,9 +27,11 @@ import (
 
 // TranslatorData connects KeyStorage and Poison records settings for HTTP and gRPC decryptors.
 type TranslatorData struct {
-	Keystorage            keystore.TranslationKeyStore
-	PoisonRecordCallbacks *base.PoisonCallbackStorage
-	CheckPoisonRecords    bool
+	Keystorage                  keystore.TranslationKeyStore
+	PoisonRecordCallbacks       *base.PoisonCallbackStorage
+	CheckPoisonRecords          bool
+	ConnectionClientIDExtractor network.GRPCConnectionClientIDExtractor
+	UseConnectionClientID       bool
 }
 
 var (

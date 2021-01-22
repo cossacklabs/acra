@@ -21,6 +21,7 @@ import (
 	"context"
 	"go.opencensus.io/trace"
 	"google.golang.org/grpc/credentials"
+	"google.golang.org/grpc/peer"
 	"io"
 	"net"
 	"sync"
@@ -40,6 +41,24 @@ const (
 	// chosen manually
 	sessionInitTimeout = time.Second * 5
 )
+
+type secureSessionGRPCClientIDExtractor struct{}
+
+func NewSecureSessionGRPCClientIDExtractor() (secureSessionGRPCClientIDExtractor, error) {
+	return secureSessionGRPCClientIDExtractor{}, nil
+}
+
+func (extractor secureSessionGRPCClientIDExtractor) ExtractClientID(ctx context.Context) ([]byte, error) {
+	info, ok := peer.FromContext(ctx)
+	if !ok {
+		return nil, ErrCantExtractClientID
+	}
+	authInfo, ok := info.AuthInfo.(SecureSessionInfo)
+	if !ok {
+		return nil, ErrIncorrectGRPCConnectionAuthInfo
+	}
+	return authInfo.ClientID(), nil
+}
 
 // SessionCallback used for wrapping connection into SecureSession using SecureSession transport keys
 type SessionCallback struct {

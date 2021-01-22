@@ -36,11 +36,44 @@ type AcraTranslatorConfig struct {
 	debug                        bool
 	traceToLog                   bool
 	tlsConfig                    *tls.Config
+	grpcClientIDExtractor        network.GRPCConnectionClientIDExtractor
+	useClientIDFromConnection    bool
+	withConnector                bool
 }
 
 // NewConfig creates new AcraTranslatorConfig.
 func NewConfig() *AcraTranslatorConfig {
 	return &AcraTranslatorConfig{stopOnPoison: false}
+}
+
+// SetWithConnector set WithConnector
+func (a *AcraTranslatorConfig) SetWithConnector(v bool) {
+	a.withConnector = v
+}
+
+// GetWithConnector return WithConnector
+func (a *AcraTranslatorConfig) GetWithConnector() bool {
+	return a.withConnector
+}
+
+// SetGRPCClientIDExtractor set GRPCConnectionClientIDExtractor
+func (a *AcraTranslatorConfig) SetGRPCClientIDExtractor(extractor network.GRPCConnectionClientIDExtractor) {
+	a.grpcClientIDExtractor = extractor
+}
+
+// GetGRPCClientIDExtractor return GRPCConnectionClientIDExtractor
+func (a *AcraTranslatorConfig) GetGRPCClientIDExtractor() network.GRPCConnectionClientIDExtractor {
+	return a.grpcClientIDExtractor
+}
+
+// SetUseClientIDFromConnection use ClientID from connection metadata instead request arguments
+func (a *AcraTranslatorConfig) SetUseClientIDFromConnection(v bool) {
+	a.useClientIDFromConnection = v
+}
+
+// GetUseClientIDFromConnection return true if translator should use clientID from connection
+func (a *AcraTranslatorConfig) GetUseClientIDFromConnection() bool {
+	return a.useClientIDFromConnection
 }
 
 // WithTLS true if server should use TLS connections to gRPC/HTTP server

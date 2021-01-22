@@ -148,18 +148,22 @@ func (server *ReaderServer) HandleHTTPConnection(parentContext context.Context, 
 				continue
 			}
 			logger = logger.WithField("client_id", string(clientID))
-			logger.Debugln("Read trace")
-			spanContext, err := network.ReadTrace(wrappedConnection)
-			if err != nil {
-				logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorTracingCantReadTrace).WithError(err).Errorln("Can't read trace from wrapped connection")
-				if err := wrappedConnection.Close(); err != nil {
-					log.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantWrapConnection).WithError(err).Errorln("Can't close wrapped connection")
+
+			var span *trace.Span
+			var ctx context.Context
+			if server.config.GetWithConnector() {
+				logger.WithField("with_connector", server.config.GetWithConnector()).Debugln("Read trace")
+				spanContext, err := network.ReadTrace(wrappedConnection)
+				if err != nil {
+					log.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorTracingCantReadTrace).WithError(err).Errorln("Can't read trace from AcraConnector")
+					return
 				}
-				continue
+				ctx, span = trace.StartSpanWithRemoteParent(parentContext, "HandleHTTPConnection", spanContext, server.config.GetTraceOptions()...)
+			} else {
+				ctx, span = trace.StartSpan(parentContext, "HandleHTTPConnection", server.config.GetTraceOptions()...)
 			}
-			ctx, span := trace.StartSpanWithRemoteParent(connectionContext, connection.RemoteAddr().String(), spanContext, server.config.GetTraceOptions()...)
+			ctx = logging.SetLoggerToContext(ctx, logger)
 			logger.Debugln("Pass wrapped connection to processing function")
-			logging.SetLoggerToContext(ctx, logger)
 
 			server.backgroundWorkersSync.Add(1)
 			go func() {
@@ -211,7 +215,13 @@ func (server *ReaderServer) Start(parentContext context.Context) {
 	server.detectPoisonRecords(poisonCallbacks)
 	errCh := make(chan error)
 
-	decryptorData := &common.TranslatorData{Keystorage: server.keystorage, PoisonRecordCallbacks: poisonCallbacks, CheckPoisonRecords: server.config.DetectPoisonRecords()}
+	decryptorData := &common.TranslatorData{
+		Keystorage:                  server.keystorage,
+		PoisonRecordCallbacks:       poisonCallbacks,
+		CheckPoisonRecords:          server.config.DetectPoisonRecords(),
+		UseConnectionClientID:       server.config.GetUseClientIDFromConnection(),
+		ConnectionClientIDExtractor: server.config.GetGRPCClientIDExtractor(),
+	}
 	if server.config.IncomingConnectionHTTPString() != "" {
 		listener, err := network.Listen(server.config.IncomingConnectionHTTPString())
 		if err != nil {
@@ -287,13 +297,13 @@ func (server *ReaderServer) startGRPC(logger *log.Entry, decryptorData *common.T
 		if server.config.WithTLS() {
 			opts = append(opts, grpc.Creds(credentials.NewTLS(server.config.GetTLSConfig())))
 		} else {
-			wrapper, err := network.NewSecureSessionConnectionWrapper(server.config.ServerID(), server.keystorage)
-			if err != nil {
-				grpcLogger.WithError(err).Errorln("Can't initialize Secure Session wrapper")
+			secureSessionWrapper, ok := server.config.ConnectionWrapper.(*network.SecureSessionConnectionWrapper)
+			if !ok {
+				grpcLogger.WithError(err).Errorln("Can't cast connection wrapper to Secure Session wrapper")
 				errCh <- err
 				return
 			}
-			opts = append(opts, grpc.Creds(wrapper))
+			opts = append(opts, grpc.Creds(secureSessionWrapper))
 		}
 
 		server.listenerGRPC = listener
@@ -348,7 +358,13 @@ func (server *ReaderServer) StartFromFileDescriptor(parentContext context.Contex
 	server.detectPoisonRecords(poisonCallbacks)
 	errCh := make(chan error)
 
-	decryptorData := &common.TranslatorData{Keystorage: server.keystorage, PoisonRecordCallbacks: poisonCallbacks, CheckPoisonRecords: server.config.DetectPoisonRecords()}
+	decryptorData := &common.TranslatorData{
+		Keystorage:                  server.keystorage,
+		PoisonRecordCallbacks:       poisonCallbacks,
+		CheckPoisonRecords:          server.config.DetectPoisonRecords(),
+		UseConnectionClientID:       server.config.GetUseClientIDFromConnection(),
+		ConnectionClientIDExtractor: server.config.GetGRPCClientIDExtractor(),
+	}
 	if server.config.IncomingConnectionHTTPString() != "" {
 		// create HTTP listener from correspondent file descriptor
 		file := os.NewFile(fdHTTP, httpFilenamePlaceholder)

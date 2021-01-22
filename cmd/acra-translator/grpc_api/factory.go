@@ -32,11 +32,22 @@ type GRPCServerFactory struct{}
 func (factory *GRPCServerFactory) New(data *common.TranslatorData, opts ...grpc.ServerOption) (*grpc.Server, error) {
 	opts = append(opts, grpc.ConnectionTimeout(network.DefaultNetworkTimeout))
 	grpcServer := grpc.NewServer(opts...)
-	service, err := NewDecryptGRPCService(data)
+	var service DecryptService
+	var err error
+	service, err = NewDecryptGRPCService(data)
 	if err != nil {
 		logrus.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorTranslatorCantHandleGRPCConnection).
-			Errorln("Can't create grpc service")
+			Errorln("Can't create gRPC service")
 		return nil, err
+	}
+	if data.UseConnectionClientID {
+		logrus.Infoln("Wrap gRPC service to use clientID from connection")
+		service, err = NewTLSDecryptServiceWrapper(data.ConnectionClientIDExtractor, service)
+		if err != nil {
+			logrus.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorTranslatorCantHandleGRPCConnection).
+				Errorln("Can't wrap gRPC service with TLS wrapper")
+			return nil, err
+		}
 	}
 	RegisterReaderServer(grpcServer, service)
 	RegisterWriterServer(grpcServer, service)

@@ -103,6 +103,7 @@ func (listener *safeCloseListener) Close() error {
 	return listener.err
 }
 
+// ErrNilListener used if listener is nil
 var ErrNilListener = errors.New("nil listener")
 
 // Accept proxy call to wrapped listener and wrap accepted connection with safeCloseConnection

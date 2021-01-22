@@ -11,6 +11,7 @@ require (
 	github.com/lib/pq v1.0.0
 	github.com/prometheus/client_golang v0.9.3-0.20190127221311-3c4408c8b829
 	github.com/sirupsen/logrus v1.4.0
+	github.com/stretchr/testify v1.4.0
 	go.opencensus.io v0.22.4
 	golang.org/x/crypto v0.0.0-20191011191535-87dc89f01550
 	golang.org/x/net v0.0.0-20200324143707-d3edc9973b7e

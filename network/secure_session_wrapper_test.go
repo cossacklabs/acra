@@ -1,7 +1,10 @@
 package network
 
 import (
+	"context"
 	"github.com/cossacklabs/themis/gothemis/keys"
+	"github.com/stretchr/testify/assert"
+	"google.golang.org/grpc/peer"
 	"testing"
 )
 
@@ -59,4 +62,36 @@ func BenchmarkSessionWrapper(t *testing.B) {
 		t.Fatal(err)
 	}
 	testWrapper(clientWrapper, serverWrapper, testClientID, t.N, t)
+}
+
+func TestSecureSessionGRPCClientIDExtractorSuccess(t *testing.T) {
+	expectedClientID := []byte("client id")
+	authInfo := SecureSessionInfo{clientID: expectedClientID}
+	ctx := context.Background()
+	ctx = peer.NewContext(ctx, &peer.Peer{AuthInfo: authInfo})
+	secureSessionExtractor, err := NewSecureSessionGRPCClientIDExtractor()
+	if err != nil {
+		t.Fatal(err)
+	}
+	resultClientID, err := secureSessionExtractor.ExtractClientID(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	assert.Equal(t, resultClientID, expectedClientID)
+}
+
+func TestSecureSessionClientIDExtractorInvalidContext(t *testing.T) {
+	extractor, err := NewSecureSessionGRPCClientIDExtractor()
+	if err != nil {
+		t.Fatal(err)
+	}
+	testRPCClientIDExtractorInvalidContext(extractor, t)
+}
+
+func TestSecureSessionClientIDExtractorIncorrectAuthInfo(t *testing.T) {
+	extractor, err := NewSecureSessionGRPCClientIDExtractor()
+	if err != nil {
+		t.Fatal(err)
+	}
+	testTLSGRPCClientIDExtractorIncorrectAuthInfo(extractor, t)
 }

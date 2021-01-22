@@ -1,4 +1,13 @@
 version: 0.85.0
+# Use raw transport (tcp/unix socket) between AcraTranslator and client app. It turns off reading trace from client app's side which usually sent by AcraConnector
+acraconnector_transport_encryption_disable: false
+
+# Use clientID from TLS certificates or secure session handshake instead directly passed values in gRPC methods
+acratranslator_client_id_from_connection_enable: false
+
+# Use TLS to encrypt transport between AcraTranslator and AcraConnector/client app
+acratranslator_tls_transport_enable: false
+
 # path to config
 config_file: 
 
@@ -55,6 +64,48 @@ poison_shutdown_enable: false
 
 # Id that will be sent in secure session
 securesession_id: acra_translator
+
+# Set authentication mode that will be used in TLS connection. Values in range 0-4 that set auth type (https://golang.org/pkg/crypto/tls/#ClientAuthType). Default is tls.RequireAndVerifyClientCert
+tls_auth: 4
+
+# Path to root certificate which will be used with system root certificates to validate peer's certificate
+tls_ca: 
+
+# Path to certificate
+tls_cert: 
+
+# How many CRLs to cache in memory (use 0 to disable caching)
+tls_crl_cache_size: 16
+
+# How long to keep CRLs cached, in seconds (use 0 to disable caching, maximum: 300 s)
+tls_crl_cache_time: 0
+
+# Put 'true' to check only final/last certificate, or 'false' to check the whole certificate chain using CRL
+tls_crl_check_only_leaf_certificate: false
+
+# How to treat CRL URL described in certificate itself: <use|trust|prefer|ignore>
+tls_crl_from_cert: prefer
+
+# URL of the Certificate Revocation List (CRL) to use
+tls_crl_url: 
+
+# Decide which field of TLS certificate to use as ClientID (distinguished_name|serial_number)
+tls_identifier_extractor_type: distinguished_name
+
+# Path to private key that will be used for TLS connections
+tls_key: 
+
+# Put 'true' to check only final/last certificate, or 'false' to check the whole certificate chain using OCSP
+tls_ocsp_check_only_leaf_certificate: false
+
+# How to treat OCSP server described in certificate itself: <use|trust|prefer|ignore>
+tls_ocsp_from_cert: prefer
+
+# How to treat certificates unknown to OCSP: <denyUnknown|allowUnknown|requireGood>
+tls_ocsp_required: denyUnknown
+
+# OCSP service URL
+tls_ocsp_url: 
 
 # Export trace data to jaeger
 tracing_jaeger_enable: false
