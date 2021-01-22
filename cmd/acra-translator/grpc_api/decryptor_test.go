@@ -68,7 +68,13 @@ func newServer(data *common.TranslatorData, opts []grpc.ServerOption, t *testing
 func newServerTLSgRPCOpts(t *testing.T) []grpc.ServerOption {
 	verifier := network.NewCertVerifierAll()
 	workingDirectory := tests.GetSourceRootDirectory(t)
-	serverConfig, err := network.NewTLSConfig("localhost", filepath.Join(workingDirectory, "tests/ssl/ca/ca.crt"), filepath.Join(workingDirectory, "tests/ssl/acra-server/acra-server.key"), filepath.Join(workingDirectory, "tests/ssl/acra-server/acra-server.crt"), 4, verifier)
+	serverConfig, err := network.NewTLSConfig(
+		"localhost",
+		filepath.Join(workingDirectory, "tests/ssl/ca/ca.crt"),
+		filepath.Join(workingDirectory, "tests/ssl/acra-server/acra-server.key"),
+		filepath.Join(workingDirectory, "tests/ssl/acra-server/acra-server.crt"),
+		tls.RequireAndVerifyClientCert,
+		verifier)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -78,7 +84,13 @@ func newServerTLSgRPCOpts(t *testing.T) []grpc.ServerOption {
 func newClientTLSConfig(t *testing.T) *tls.Config {
 	verifier := network.NewCertVerifierAll()
 	workingDirectory := tests.GetSourceRootDirectory(t)
-	clientConfig, err := network.NewTLSConfig("localhost", filepath.Join(workingDirectory, "tests/ssl/ca/ca.crt"), filepath.Join(workingDirectory, "tests/ssl/acra-writer/acra-writer.key"), filepath.Join(workingDirectory, "tests/ssl/acra-writer/acra-writer.crt"), 4, verifier)
+	clientConfig, err := network.NewTLSConfig(
+		"localhost",
+		filepath.Join(workingDirectory, "tests/ssl/ca/ca.crt"),
+		filepath.Join(workingDirectory, "tests/ssl/acra-writer/acra-writer.key"),
+		filepath.Join(workingDirectory, "tests/ssl/acra-writer/acra-writer.crt"),
+		tls.RequireAndVerifyClientCert,
+		verifier)
 	if err != nil {
 		t.Fatal(err)
 	}

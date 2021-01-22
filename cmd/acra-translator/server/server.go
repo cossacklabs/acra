@@ -215,7 +215,13 @@ func (server *ReaderServer) Start(parentContext context.Context) {
 	server.detectPoisonRecords(poisonCallbacks)
 	errCh := make(chan error)
 
-	decryptorData := &common.TranslatorData{Keystorage: server.keystorage, PoisonRecordCallbacks: poisonCallbacks, CheckPoisonRecords: server.config.DetectPoisonRecords(), UseConnectionClientID: server.config.GetUseClientIDFromConnection(), ConnectionClientIDExtractor: server.config.GetGRPCClientIDExtractor()}
+	decryptorData := &common.TranslatorData{
+		Keystorage:                  server.keystorage,
+		PoisonRecordCallbacks:       poisonCallbacks,
+		CheckPoisonRecords:          server.config.DetectPoisonRecords(),
+		UseConnectionClientID:       server.config.GetUseClientIDFromConnection(),
+		ConnectionClientIDExtractor: server.config.GetGRPCClientIDExtractor(),
+	}
 	if server.config.IncomingConnectionHTTPString() != "" {
 		listener, err := network.Listen(server.config.IncomingConnectionHTTPString())
 		if err != nil {
@@ -352,7 +358,13 @@ func (server *ReaderServer) StartFromFileDescriptor(parentContext context.Contex
 	server.detectPoisonRecords(poisonCallbacks)
 	errCh := make(chan error)
 
-	decryptorData := &common.TranslatorData{Keystorage: server.keystorage, PoisonRecordCallbacks: poisonCallbacks, CheckPoisonRecords: server.config.DetectPoisonRecords(), UseConnectionClientID: server.config.GetUseClientIDFromConnection(), ConnectionClientIDExtractor: server.config.GetGRPCClientIDExtractor()}
+	decryptorData := &common.TranslatorData{
+		Keystorage:                  server.keystorage,
+		PoisonRecordCallbacks:       poisonCallbacks,
+		CheckPoisonRecords:          server.config.DetectPoisonRecords(),
+		UseConnectionClientID:       server.config.GetUseClientIDFromConnection(),
+		ConnectionClientIDExtractor: server.config.GetGRPCClientIDExtractor(),
+	}
 	if server.config.IncomingConnectionHTTPString() != "" {
 		// create HTTP listener from correspondent file descriptor
 		file := os.NewFile(fdHTTP, httpFilenamePlaceholder)
