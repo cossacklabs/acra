@@ -30,12 +30,12 @@ import (
 	"time"
 )
 
-// Errors returned by CRL verifier
+// Errors returned by OCSP verifier
 var (
 	ErrInvalidConfigOCSPRequired   = errors.New("invalid `ocsp_required` value")
 	ErrInvalidConfigOCSPFromCert   = errors.New("invalid `ocsp_from_cert` value")
-	ErrInvalidConfigAllRequiresURL = errors.New("when passing `--tls_ocsp_required=all`, URL is mandatory")
-	ErrOCSPRequiredAllButGotError  = errors.New("cannot query OCSP server, but --tls_ocsp_required=all was passed")
+	ErrInvalidConfigAllRequiresURL = errors.New("when passing `--tls_ocsp_required=" + OcspRequiredGoodStr + "`, URL is mandatory")
+	ErrOCSPRequiredAllButGotError  = errors.New("cannot query OCSP server, but --tls_ocsp_required=" + OcspRequiredGoodStr + " was passed")
 	ErrOCSPUnknownCertificate      = errors.New("OCSP server doesn't know about certificate")
 	ErrOCSPNoConfirms              = errors.New("none of OCSP servers confirmed the certificate")
 )
@@ -236,7 +236,7 @@ func (c DefaultOCSPClient) Query(commonName string, clientCert, issuerCert *x509
 	if err != nil {
 		return nil, err
 	}
-	ocspResponse, err := ocsp.ParseResponse(output, issuerCert)
+	ocspResponse, err := ocsp.ParseResponseForCert(output, clientCert, issuerCert)
 	return ocspResponse, err
 }
 
