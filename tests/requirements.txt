@@ -15,4 +15,4 @@ grpcio-tools==1.34.1
 googleapis-common-protos==1.5.3
 prometheus_client==0.6.0
 unittest-xml-reporting==2.2.1
-cryptography==3.2.1
+cryptography==3.3.2
