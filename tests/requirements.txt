@@ -8,7 +8,7 @@ semver==2.7.9
 requests==2.22.0
 # driver with binary prepared statements support
 #mysql-connector-python==8.0.11
-pyyaml==5.1.2
+pyyaml==5.4
 # https://grpc.io/docs/quickstart/python.html
 grpcio==1.34.1
 grpcio-tools==1.34.1
