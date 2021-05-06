@@ -20,7 +20,7 @@
 <br>
 
 | [Acra Engineering Examples](https://github.com/cossacklabs/acra-engineering-demo) | [Documentation](https://docs.cossacklabs.com/products/acra/) | [Installation](https://github.com/cossacklabs/acra#installation-and-launch) | [Examples and tutorials](https://github.com/cossacklabs/acra#documentation-and-tutorials) |
-| ---- | ---- | ---- | --- | --- |
+| ---- | ---- | ---- | --- |
 
 
 ## What is Acra
