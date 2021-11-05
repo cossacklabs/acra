@@ -34,28 +34,28 @@ func TestNormalize(t *testing.T) {
 	}{{
 		// str val
 		in:      "select * from t where v1 = 'aa'",
-		outstmt: "select * from t where v1 = :bv1",
+		outstmt: "select * from t where v1 = ?",
 		outbv: map[string]*querypb.BindVariable{
 			"bv1": sqltypes.BytesBindVariable([]byte("aa")),
 		},
 	}, {
 		// int val
 		in:      "select * from t where v1 = 1",
-		outstmt: "select * from t where v1 = :bv1",
+		outstmt: "select * from t where v1 = ?",
 		outbv: map[string]*querypb.BindVariable{
 			"bv1": sqltypes.Int64BindVariable(1),
 		},
 	}, {
 		// float val
 		in:      "select * from t where v1 = 1.2",
-		outstmt: "select * from t where v1 = :bv1",
+		outstmt: "select * from t where v1 = ?",
 		outbv: map[string]*querypb.BindVariable{
 			"bv1": sqltypes.Float64BindVariable(1.2),
 		},
 	}, {
 		// multiple vals
 		in:      "select * from t where v1 = 1.2 and v2 = 2",
-		outstmt: "select * from t where v1 = :bv1 and v2 = :bv2",
+		outstmt: "select * from t where v1 = ? and v2 = ?",
 		outbv: map[string]*querypb.BindVariable{
 			"bv1": sqltypes.Float64BindVariable(1.2),
 			"bv2": sqltypes.Int64BindVariable(2),
@@ -63,21 +63,21 @@ func TestNormalize(t *testing.T) {
 	}, {
 		// bv collision
 		in:      "select * from t where v1 = :bv1 and v2 = 1",
-		outstmt: "select * from t where v1 = :bv1 and v2 = :bv2",
+		outstmt: "select * from t where v1 = ? and v2 = ?",
 		outbv: map[string]*querypb.BindVariable{
 			"bv2": sqltypes.Int64BindVariable(1),
 		},
 	}, {
 		// val reuse
 		in:      "select * from t where v1 = 1 and v2 = 1",
-		outstmt: "select * from t where v1 = :bv1 and v2 = :bv1",
+		outstmt: "select * from t where v1 = ? and v2 = ?",
 		outbv: map[string]*querypb.BindVariable{
 			"bv1": sqltypes.Int64BindVariable(1),
 		},
 	}, {
 		// ints and strings are different
 		in:      "select * from t where v1 = 1 and v2 = '1'",
-		outstmt: "select * from t where v1 = :bv1 and v2 = :bv2",
+		outstmt: "select * from t where v1 = ? and v2 = ?",
 		outbv: map[string]*querypb.BindVariable{
 			"bv1": sqltypes.Int64BindVariable(1),
 			"bv2": sqltypes.BytesBindVariable([]byte("1")),
@@ -85,7 +85,7 @@ func TestNormalize(t *testing.T) {
 	}, {
 		// val should not be reused for non-select statements
 		in:      "insert into a values(1, 1)",
-		outstmt: "insert into a values (:bv1, :bv2)",
+		outstmt: "insert into a values (?, ?)",
 		outbv: map[string]*querypb.BindVariable{
 			"bv1": sqltypes.Int64BindVariable(1),
 			"bv2": sqltypes.Int64BindVariable(1),
@@ -93,7 +93,7 @@ func TestNormalize(t *testing.T) {
 	}, {
 		// val should be reused only in subqueries of DMLs
 		in:      "update a set v1=(select 5 from t), v2=5, v3=(select 5 from t), v4=5",
-		outstmt: "update a set v1 = (select :bv1 from t), v2 = :bv2, v3 = (select :bv1 from t), v4 = :bv3",
+		outstmt: "update a set v1 = (select ? from t), v2 = ?, v3 = (select ? from t), v4 = ?",
 		outbv: map[string]*querypb.BindVariable{
 			"bv1": sqltypes.Int64BindVariable(5),
 			"bv2": sqltypes.Int64BindVariable(5),
@@ -102,7 +102,7 @@ func TestNormalize(t *testing.T) {
 	}, {
 		// list vars should work for DMLs also
 		in:      "update a set v1=5 where v2 in (1, 4, 5)",
-		outstmt: "update a set v1 = :bv1 where v2 in ::bv2",
+		outstmt: "update a set v1 = ? where v2 in ::bv2",
 		outbv: map[string]*querypb.BindVariable{
 			"bv1": sqltypes.Int64BindVariable(5),
 			"bv2": sqltypes.TestBindVariable([]interface{}{1, 4, 5}),
@@ -120,14 +120,14 @@ func TestNormalize(t *testing.T) {
 	}, {
 		// Values up to len 256 will reuse.
 		in:      fmt.Sprintf("select * from t where v1 = '%256s' and v2 = '%256s'", "a", "a"),
-		outstmt: "select * from t where v1 = :bv1 and v2 = :bv1",
+		outstmt: "select * from t where v1 = ? and v2 = ?",
 		outbv: map[string]*querypb.BindVariable{
 			"bv1": sqltypes.BytesBindVariable([]byte(fmt.Sprintf("%256s", "a"))),
 		},
 	}, {
 		// Values greater than len 256 will not reuse.
 		in:      fmt.Sprintf("select * from t where v1 = '%257s' and v2 = '%257s'", "b", "b"),
-		outstmt: "select * from t where v1 = :bv1 and v2 = :bv2",
+		outstmt: "select * from t where v1 = ? and v2 = ?",
 		outbv: map[string]*querypb.BindVariable{
 			"bv1": sqltypes.BytesBindVariable([]byte(fmt.Sprintf("%257s", "b"))),
 			"bv2": sqltypes.BytesBindVariable([]byte(fmt.Sprintf("%257s", "b"))),
@@ -150,7 +150,7 @@ func TestNormalize(t *testing.T) {
 	}, {
 		// IN clause with non-val values
 		in:      "select * from t where v1 in (1, a)",
-		outstmt: "select * from t where v1 in (:bv1, a)",
+		outstmt: "select * from t where v1 in (?, a)",
 		outbv: map[string]*querypb.BindVariable{
 			"bv1": sqltypes.Int64BindVariable(1),
 		},
@@ -169,8 +169,10 @@ func TestNormalize(t *testing.T) {
 			"bv1": sqltypes.TestBindVariable([]interface{}{1, []byte("2")}),
 		},
 	}}
+
+	parser := New(ModeStrict)
 	for _, tc := range testcases {
-		stmt, err := Parse(tc.in)
+		stmt, err := parser.Parse(tc.in)
 		if err != nil {
 			t.Error(err)
 			continue
@@ -188,7 +190,7 @@ func TestNormalize(t *testing.T) {
 }
 
 func TestGetBindVars(t *testing.T) {
-	stmt, err := Parse("select * from t where :v1 = :v2 and :v2 = :v3 and :v4 in ::v5")
+	stmt, err := New(ModeStrict).Parse("select * from t where :v1 = :v2 and :v2 = :v3 and :v4 in ::v5")
 	if err != nil {
 		t.Fatal(err)
 	}

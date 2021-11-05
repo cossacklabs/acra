@@ -47,7 +47,7 @@ If you use MySQL database then you should pass `--mysql` parameter in each examp
 ## Printing decrypted data
 To see decrypted data you must use port of AcraConnector (default 9494). If you will print using databases port then you will see encrypted data
 
-# Without zone
+# Encryption/decryption without zone
 
 ## Insert data
 ```
@@ -69,7 +69,7 @@ id  - data                 - raw_data
 ```
 *Use AcraConnector's host:port to see decrypted data and databases host:port to see encrypted data*
 
-# With zone
+# Encryption/decryption with zone
 
 ## Insert data
 ```
@@ -117,4 +117,82 @@ id  - zone - data - raw_data
 7   - DDDDDDDDKbYPUFOEyryvaQda -  """"""""UEC2-[x[iUîZB_OcWUVs&YQK^@Su`t5@yPF(q^?yNCSX/ - some data2
 ```
 
-Row with `id=7` will contain binary unprintable data in output. 
+Row with `id=7` will contain binary unprintable data in output.
+
+# Encryption/decryption/masking/tokenization without zone
+
+# # Insert
+At first setup your data row in `examples/python/data.json`
+Run acra-server with configured encryptor config by argument: `--encryptor_config_file=examples/python/encryptor_config_without_zone.yaml`
+
+Run command to add data to db:
+```
+python examples/python/extended_example_without_zone.py --host=${ACRA_CONNECTOR_HOST} --port=${ACRA_CONNECTOR_PORT} --data=examples/python/data.json
+```
+Output:
+```
+DB driver: postgresql
+data: [{'token_i32': 1234, 'token_i64': 645664, 'token_str': '078-05-1111', 'token_bytes': 'byt13es', 'token_email': 'john_wed@cl.com', 'data': 'John Wed, Senior Relationshop Manager', 'masking': '$112000', 'searchable': 'john_wed@cl.com'}, {'token_i32': 1235, 'token_i64': 645665, 'token_str': '078-05-1112', 'token_bytes': 'byt13es2', 'token_email': 'april_cassini@cl.com', 'data': 'April Cassini, Marketing Manager', 'masking': '$168000', 'searchable': 'april_cassini@cl.com'}, {'token_i32': 1236, 'token_i64': 645667, 'token_str': '078-05-1117', 'token_bytes': 'byt13es3', 'token_email': 'george_clooney@cl.com', 'data': 'George Clooney, Famous Actor', 'masking': '$780000', 'searchable': 'george_clooney@cl.com'}]
+```
+
+Run command to print data from db:
+```
+python examples/python/extended_example_without_zone.py --host=${ACRA_CONNECTOR_HOST} --port=${ACRA_CONNECTOR_PORT} --print
+```
+Output:
+```
+DB driver: postgresql
+Fetch data by query {}
+ SELECT test.id, test.data, test.masking, test.token_i32, test.token_i64, test.token_str, test.token_bytes, test.token_email 
+FROM test
+3
+id  - data - masking - token_i32 - token_i64 - token_str - token_bytes - token_email
+1   - John Wed, Senior Relationshop Manager - xxxx - 1234 - 645664 - 078-05-1111 - byt13es - john_wed@cl.com
+2   - April Cassini, Marketing Manager - xxxx - 1235 - 645665 - 078-05-1112 - byt13es2 - april_cassini@cl.com
+3   - George Clooney, Famous Actor - xxxx - 1236 - 645667 - 078-05-1117 - byt13es3 - george_clooney@cl.com
+```
+
+# Encryption/decryption/masking/tokenization with zone
+
+# # Insert
+At first setup your data row in `examples/python/data.json`
+Run acra-server with configured database for tokens (we will use BoltDB to save tokens between restarts), zonemode and encryptor config by arguments: `--encryptor_config_file=examples/python/encryptor_config_with_zone.yaml --zonemode_enable --token_db=tokens.db`
+
+Generate zone:
+```
+python examples/python/extended_example_with_zone.py --host=${ACRA_CONNECTOR_HOST} --port=${ACRA_CONNECTOR_PORT} --generate_zone
+```
+Output:
+```
+DB driver: postgresql
+zone_id: DDDDDDDDHHNqiSYFXkpxopYZ
+zone public key in base64: VUVDMgAAAC1XDf9OA7b/4F1ROk0HVd/mXZC6amyGRA1fBiMQfjmOYtQT2c4h
+```
+Copy zone_id from output and change zone_id values in `examples/python/encryptor_config_with_zone.yaml` to new generated `DDDDDDDDHHNqiSYFXkpxopYZ` and restart acra-server.
+
+Run command to add data to db:
+```
+python examples/python/extended_example_with_zone.py --host=${ACRA_CONNECTOR_HOST} --port=${ACRA_CONNECTOR_PORT} --data=examples/python/data.json
+```
+Output:
+```
+DB driver: postgresql
+data: [{'token_i32': 1234, 'token_i64': 645664, 'token_str': '078-05-1111', 'token_bytes': 'byt13es', 'token_email': 'john_wed@cl.com', 'data': 'John Wed, Senior Relationshop Manager', 'masking': '$112000', 'searchable': 'john_wed@cl.com'}, {'token_i32': 1235, 'token_i64': 645665, 'token_str': '078-05-1112', 'token_bytes': 'byt13es2', 'token_email': 'april_cassini@cl.com', 'data': 'April Cassini, Marketing Manager', 'masking': '$168000', 'searchable': 'april_cassini@cl.com'}, {'token_i32': 1236, 'token_i64': 645667, 'token_str': '078-05-1117', 'token_bytes': 'byt13es3', 'token_email': 'george_clooney@cl.com', 'data': 'George Clooney, Famous Actor', 'masking': '$780000', 'searchable': 'george_clooney@cl.com'}]
+```
+
+Run command to print data from db and pass parameter `--zone_id=DDDDDDDDpjuwkLwASiLdxcnG` (but with your zone_id):
+```
+python examples/python/extended_example_with_zone.py --host=${ACRA_CONNECTOR_HOST} --port=${ACRA_CONNECTOR_PORT} --print --zone_id=DDDDDDDDHHNqiSYFXkpxopYZ
+```
+Output:
+```
+DB driver: postgresql
+Fetch data by query {}
+ SELECT test.id, 'DDDDDDDDHHNqiSYFXkpxopYZ' AS anon_1, test.data, test.masking, test.token_i32, test.token_i64, test.token_str, test.token_bytes, test.token_email 
+FROM test
+3
+id  - zone_id - data - masking - token_i32 - token_i64 - token_str - token_bytes - token_email
+1   - DDDDDDDDHHNqiSYFXkpxopYZ - John Wed, Senior Relationshop Manager - xxxx - 1234 - 645664 - 078-05-1111 - byt13es - john_wed@cl.com
+2   - DDDDDDDDHHNqiSYFXkpxopYZ - April Cassini, Marketing Manager - xxxx - 1235 - 645665 - 078-05-1112 - byt13es2 - april_cassini@cl.com
+3   - DDDDDDDDHHNqiSYFXkpxopYZ - George Clooney, Famous Actor - xxxx - 1236 - 645667 - 078-05-1117 - byt13es3 - george_clooney@cl.com
+```

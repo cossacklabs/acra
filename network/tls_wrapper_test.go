@@ -1,21 +1,18 @@
 package network
 
 import (
-	"bytes"
 	"context"
-	"crypto/ecdsa"
-	"crypto/elliptic"
-	"crypto/rand"
 	"crypto/sha512"
 	tls "crypto/tls"
 	"crypto/x509"
-	"crypto/x509/pkix"
 	"encoding/hex"
-	"encoding/pem"
 	"errors"
 	"fmt"
-	"math/big"
+	"github.com/cossacklabs/acra/network/testutils"
+	"github.com/stretchr/testify/assert"
+	"google.golang.org/grpc/credentials"
 	"net"
+	"runtime/debug"
 	"strings"
 	"sync"
 	"testing"
@@ -55,32 +52,19 @@ func getConnectionPair(address string, listener net.Listener, t testing.TB) (net
 }
 
 func getTLSConfigs(t testing.TB) (*tls.Config, *tls.Config) {
-	ca := generateTLSCA(t)
-	serverTemplate := generateCertificateTemplate(t)
-	serverTemplate.Subject.CommonName = "server"
-	serverCertificate := createLeafKey(ca, serverTemplate, t)
-	// generate tls clientConfig with default parameters but without CA/keys
 	serverTLSConfig, err := NewTLSConfig("localhost", "", "", "", tls.RequireAndVerifyClientCert, NewCertVerifierAll())
 	if err != nil {
 		t.Fatal(err)
 	}
-	serverTLSConfig.Certificates = []tls.Certificate{serverCertificate}
-	caCert, err := x509.ParseCertificate(ca.Certificate[0])
-	if err != nil {
-		t.Fatal(err)
-	}
-	serverTLSConfig.ClientCAs.AddCert(caCert)
-
-	clientTemplate := generateCertificateTemplate(t)
-	clientTemplate.Subject.CommonName = "client1"
-	clientCertificate := createLeafKey(ca, clientTemplate, t)
 	clientTLSConfig, err := NewTLSConfig("localhost", "", "", "", tls.RequireAndVerifyClientCert, NewCertVerifierAll())
 	if err != nil {
 		t.Fatal(err)
 	}
-	clientTLSConfig.Certificates = []tls.Certificate{clientCertificate}
-	clientTLSConfig.RootCAs.AddCert(caCert)
-	return clientTLSConfig, serverTLSConfig
+	clientConfig, serverConfig, err := testutils.GetTestTLSConfigs(func() *tls.Config { return clientTLSConfig }, func() *tls.Config { return serverTLSConfig })
+	if err != nil {
+		t.Fatal(err)
+	}
+	return clientConfig, serverConfig
 }
 
 func TestTLSWrapperWithCertificateAuthentication(t *testing.T) {
@@ -96,11 +80,11 @@ func TestTLSWrapperWithCertificateAuthentication(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	serverWrapper, err := NewTLSAuthenticationConnectionWrapper(nil, serverConfig, extractor)
+	serverWrapper, err := NewTLSAuthenticationConnectionWrapper(true, nil, serverConfig, extractor)
 	if err != nil {
 		t.Fatal(err)
 	}
-	clientWrapper, err := NewTLSAuthenticationConnectionWrapper(clientConfig, nil, nil)
+	clientWrapper, err := NewTLSAuthenticationConnectionWrapper(false, clientConfig, nil, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -134,11 +118,11 @@ func BenchmarkTLSWrapper(t *testing.B) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	serverWrapper, err := NewTLSAuthenticationConnectionWrapper(nil, serverConfig, extractor)
+	serverWrapper, err := NewTLSAuthenticationConnectionWrapper(true, nil, serverConfig, extractor)
 	if err != nil {
 		t.Fatal(err)
 	}
-	clientWrapper, err := NewTLSAuthenticationConnectionWrapper(clientConfig, nil, nil)
+	clientWrapper, err := NewTLSAuthenticationConnectionWrapper(true, clientConfig, nil, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -161,11 +145,11 @@ func TestTLSConfigWeakCipherSuitDeny(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	serverWrapper, err := NewTLSAuthenticationConnectionWrapper(nil, serverConfig, extractor)
+	serverWrapper, err := NewTLSAuthenticationConnectionWrapper(true, nil, serverConfig, extractor)
 	if err != nil {
 		t.Fatal(err)
 	}
-	clientWrapper, err := NewTLSAuthenticationConnectionWrapper(clientConfig, nil, nil)
+	clientWrapper, err := NewTLSAuthenticationConnectionWrapper(false, clientConfig, nil, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -302,11 +286,11 @@ func TestTLSCertificateAuthenticationByCommonName(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	serverWrapper, err := NewTLSAuthenticationConnectionWrapper(nil, serverConfig, extractor)
+	serverWrapper, err := NewTLSAuthenticationConnectionWrapper(true, nil, serverConfig, extractor)
 	if err != nil {
 		t.Fatal(err)
 	}
-	clientWrapper, err := NewTLSAuthenticationConnectionWrapper(clientConfig, nil, nil)
+	clientWrapper, err := NewTLSAuthenticationConnectionWrapper(false, clientConfig, nil, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -323,11 +307,11 @@ func TestTLSCertificateAuthenticationBySerialNumber(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	serverWrapper, err := NewTLSAuthenticationConnectionWrapper(nil, serverConfig, extractor)
+	serverWrapper, err := NewTLSAuthenticationConnectionWrapper(true, nil, serverConfig, extractor)
 	if err != nil {
 		t.Fatal(err)
 	}
-	clientWrapper, err := NewTLSAuthenticationConnectionWrapper(clientConfig, nil, nil)
+	clientWrapper, err := NewTLSAuthenticationConnectionWrapper(false, clientConfig, nil, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -351,14 +335,14 @@ func TestEmptyCertificateChain(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	serverWrapper, err := NewTLSAuthenticationConnectionWrapper(nil, serverConfig, extractor)
+	serverWrapper, err := NewTLSAuthenticationConnectionWrapper(true, nil, serverConfig, extractor)
 	if err != nil {
 		t.Fatal(err)
 	}
 	// remove client's CA to not pass verification to check that empty VerifiedChain not pass
 	serverWrapper.serverConfig.ClientCAs = x509.NewCertPool()
 	serverWrapper.serverConfig.ClientAuth = tls.RequireAnyClientCert
-	clientWrapper, err := NewTLSAuthenticationConnectionWrapper(clientConfig, nil, nil)
+	clientWrapper, err := NewTLSAuthenticationConnectionWrapper(false, clientConfig, nil, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -366,7 +350,7 @@ func TestEmptyCertificateChain(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	expectedClientID, err := serverWrapper.getClientIDFromCertificate(clientCertificate)
+	expectedClientID, err := getClientIDFromCertificate(clientCertificate, extractor)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -402,7 +386,7 @@ func TestClientsCertificateDenyOnValidation(t *testing.T) {
 	}
 	serverConfig.ClientCAs.AddCert(caCrt)
 
-	clientWrapper, err := NewTLSAuthenticationConnectionWrapper(clientConfig, nil, nil)
+	clientWrapper, err := NewTLSAuthenticationConnectionWrapper(false, clientConfig, nil, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -415,7 +399,7 @@ func TestClientsCertificateDenyOnValidation(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	serverWrapper, err := NewTLSAuthenticationConnectionWrapper(nil, serverConfig, extractor)
+	serverWrapper, err := NewTLSAuthenticationConnectionWrapper(true, nil, serverConfig, extractor)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -423,7 +407,7 @@ func TestClientsCertificateDenyOnValidation(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	expectedClientID, err := serverWrapper.getClientIDFromCertificate(clientCrt)
+	expectedClientID, err := extractor.ExtractClientID(clientCrt)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -440,6 +424,8 @@ func TestClientsCertificateDenyOnValidation(t *testing.T) {
 			tested = true
 			return
 		}
+		// need to print stack because hard to clarify where exactly was error in communication of client with server side
+		debug.PrintStack()
 		t.Fatalf("Expected error ErrCACertificateUsed, took %s\n", err)
 	}
 	testWrapperWithError(clientWrapper, serverWrapper, expectedClientID, 1, onError, t)
@@ -453,7 +439,7 @@ func (e testExtractor) GetCertificateIdentifier(certificate *x509.Certificate) (
 
 func TestClientsCertificateDenyOnClientIDExtraction(t *testing.T) {
 	clientConfig, serverConfig := getTLSConfigs(t)
-	clientWrapper, err := NewTLSAuthenticationConnectionWrapper(clientConfig, nil, nil)
+	clientWrapper, err := NewTLSAuthenticationConnectionWrapper(false, clientConfig, nil, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -465,7 +451,7 @@ func TestClientsCertificateDenyOnClientIDExtraction(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	serverWrapper, err := NewTLSAuthenticationConnectionWrapper(nil, serverConfig, extractor)
+	serverWrapper, err := NewTLSAuthenticationConnectionWrapper(true, nil, serverConfig, extractor)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -474,7 +460,7 @@ func TestClientsCertificateDenyOnClientIDExtraction(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	expectedClientID, err := serverWrapper.getClientIDFromCertificate(clientCrt)
+	expectedClientID, err := getClientIDFromCertificate(clientCrt, extractor)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -512,7 +498,7 @@ func (t testConvertor) Convert(identifier []byte) ([]byte, error) {
 
 func TestClientsCertificateDenyOnClientIDConvertation(t *testing.T) {
 	clientConfig, serverConfig := getTLSConfigs(t)
-	clientWrapper, err := NewTLSAuthenticationConnectionWrapper(clientConfig, nil, nil)
+	clientWrapper, err := NewTLSAuthenticationConnectionWrapper(false, clientConfig, nil, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -524,7 +510,7 @@ func TestClientsCertificateDenyOnClientIDConvertation(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	serverWrapper, err := NewTLSAuthenticationConnectionWrapper(nil, serverConfig, extractor)
+	serverWrapper, err := NewTLSAuthenticationConnectionWrapper(true, nil, serverConfig, extractor)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -533,7 +519,7 @@ func TestClientsCertificateDenyOnClientIDConvertation(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	expectedClientID, err := serverWrapper.getClientIDFromCertificate(clientCrt)
+	expectedClientID, err := getClientIDFromCertificate(clientCrt, extractor)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -564,109 +550,70 @@ func TestClientsCertificateDenyOnClientIDConvertation(t *testing.T) {
 }
 
 func generateTLSCA(t testing.TB) tls.Certificate {
-	// set up our CA certificate
-	caTemplate := generateCertificateTemplate(t)
-	caTemplate.IsCA = true
-	caTemplate.KeyUsage = x509.KeyUsageDigitalSignature | x509.KeyUsageCertSign
-	return generateTLSCAFromTemplate(caTemplate, t)
+	ca, err := testutils.GenerateTLSCA()
+	if err != nil {
+		t.Fatal(err)
+	}
+	return ca
 }
 
 func generateTLSCAFromTemplate(caTemplate *x509.Certificate, t testing.TB) tls.Certificate {
-	// create our private and public key
-	privateKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	ca, err := testutils.GenerateTLSCAFromTemplate(caTemplate)
 	if err != nil {
 		t.Fatal(err)
 	}
-	privateKeyBytes, err := x509.MarshalECPrivateKey(privateKey)
-	if err != nil {
-		t.Fatal(err)
-	}
-	privateBlock := &pem.Block{
-		Type:  "PRIVATE KEY",
-		Bytes: privateKeyBytes,
-	}
-	privateKeyPEM := new(bytes.Buffer)
-	pem.Encode(privateKeyPEM, privateBlock)
-
-	// create the CA
-	certificateBytes, err := x509.CreateCertificate(rand.Reader, caTemplate, caTemplate, &privateKey.PublicKey, privateKey)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	certificatePEM := new(bytes.Buffer)
-	certificateBlock := &pem.Block{
-		Type:  "CERTIFICATE",
-		Bytes: certificateBytes,
-	}
-	pem.Encode(certificatePEM, certificateBlock)
-
-	tlsCertificate, err := tls.X509KeyPair(certificatePEM.Bytes(), privateKeyPEM.Bytes())
-	if err != nil {
-		t.Fatal(err)
-	}
-	return tlsCertificate
+	return ca
 }
 func createLeafKey(caCert tls.Certificate, templateCertificate *x509.Certificate, t testing.TB) tls.Certificate {
-	privateKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	leafKey, err := testutils.CreateLeafKey(caCert, templateCertificate)
 	if err != nil {
 		t.Fatal(err)
 	}
-	caCrt, err := x509.ParseCertificate(caCert.Certificate[0])
-	if err != nil {
-		t.Fatal(err)
-	}
-	certificateBytes, err := x509.CreateCertificate(rand.Reader, templateCertificate, caCrt, &privateKey.PublicKey, caCert.PrivateKey)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	certificatePEMBytes := new(bytes.Buffer)
-	certificateBlock := &pem.Block{
-		Type:  "CERTIFICATE",
-		Bytes: certificateBytes,
-	}
-	pem.Encode(certificatePEMBytes, certificateBlock)
-
-	privateKeyBytes, err := x509.MarshalECPrivateKey(privateKey)
-	if err != nil {
-		t.Fatal(err)
-	}
-	privateKeyBlock := &pem.Block{
-		Type:  "PRIVATE KEY",
-		Bytes: privateKeyBytes,
-	}
-	privateKeyPEMBytes := new(bytes.Buffer)
-	pem.Encode(privateKeyPEMBytes, privateKeyBlock)
-
-	tlsCertificate, err := tls.X509KeyPair(certificatePEMBytes.Bytes(), privateKeyPEMBytes.Bytes())
-	if err != nil {
-		t.Fatal(err)
-	}
-	return tlsCertificate
+	return leafKey
 }
 func generateCertificateTemplate(t testing.TB) *x509.Certificate {
-	serialNumberLimit := new(big.Int).Lsh(big.NewInt(1), 128)
-	serialNumber, err := rand.Int(rand.Reader, serialNumberLimit)
+	template, err := testutils.GenerateCertificateTemplate()
 	if err != nil {
 		t.Fatal(err)
 	}
-	return &x509.Certificate{
-		SerialNumber: serialNumber,
-		Subject: pkix.Name{
-			Country:            []string{"GB"},
-			Locality:           []string{"London"},
-			Organization:       []string{"Global Security"},
-			OrganizationalUnit: []string{"IT"},
-			CommonName:         "CA certificate",
-		},
-		DNSNames:              []string{"localhost"},
-		SubjectKeyId:          []byte{1, 2, 3, 4, 5},
-		IPAddresses:           []net.IP{net.IPv4(127, 0, 0, 1), net.IPv6loopback},
-		NotBefore:             time.Now(),
-		NotAfter:              time.Now().AddDate(10, 0, 0),
-		ExtKeyUsage:           []x509.ExtKeyUsage{x509.ExtKeyUsageClientAuth, x509.ExtKeyUsageServerAuth},
-		KeyUsage:              x509.KeyUsageDigitalSignature | x509.KeyUsageKeyEncipherment | x509.KeyUsageContentCommitment,
-		BasicConstraintsValid: true,
+	return template
+
+}
+
+func TestTLSGRPCClientIDExtractorSuccess(t *testing.T) {
+	clientCert := generateCertificateTemplate(t)
+	testClientID := "client1"
+	clientCert.Subject.CommonName = testClientID
+	idConverter, err := NewDefaultHexIdentifierConverter()
+	if err != nil {
+		t.Fatal(err)
+	}
+	tlsClientIDExtractor, err := NewTLSClientIDExtractor(DistinguishedNameExtractor{}, idConverter)
+	if err != nil {
+		t.Fatal(err)
+	}
+	expectedClientID, err := tlsClientIDExtractor.ExtractClientID(clientCert)
+	if err != nil {
+		t.Fatal(err)
+	}
+	authInfo := &wrappedTLSAuthInfo{
+		TLSInfo: credentials.TLSInfo{State: tls.ConnectionState{VerifiedChains: [][]*x509.Certificate{{clientCert}}}},
+		conn:    newClientIDConnection(&testConnection{}, []byte(expectedClientID)),
+	}
+	resultClientID, err := GetClientIDFromAuthInfo(authInfo, tlsClientIDExtractor)
+	if err != nil {
+		t.Fatal(err)
+	}
+	assert.Equal(t, resultClientID, expectedClientID)
+}
+
+func TestTLSGRPCClientIDExtractorIncorrectAuthInfo(t *testing.T) {
+	testTLSGRPCClientIDExtractorIncorrectAuthInfo(t)
+}
+
+func TestClientAuth0WithClientIDExtraction(t *testing.T) {
+	_, err := NewTLSAuthenticationConnectionWrapper(true, nil, &tls.Config{}, nil)
+	if err != ErrInvalidTLSConfiguration {
+		t.Fatalf("Expect ErrInvalidTLSConfiguration, took %s\n", err.Error())
 	}
 }

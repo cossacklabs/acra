@@ -38,7 +38,10 @@ GIT_VERSION := $(shell if [ -d ".git" ]; then git version; fi 2>/dev/null)
 ifdef GIT_VERSION
     APP_VERSION := $(shell git describe --tags HEAD 2>/dev/null || printf '0.0.0' | cut -b 1-)
     VCS_HASH := $(shell git rev-parse --verify HEAD)
-    VCS_BRANCH := $(shell git branch | grep \* | cut -d ' ' -f2)
+    # CircleCI likes to perform builds in detached branches so usual approaches
+    # for determining the current branch fail. Instead, query all 'head refs'
+    # (i.e., branches) and see which one references the HEAD commit.
+    VCS_BRANCH := $(shell git show-ref --heads | awk -v head=$(VCS_HASH) '$$1 == head { sub(/^refs\/heads\//, "", $$2); branch=$$2; print(branch); exit(0); } END { if (!branch) {print "undefined"} }')
 else
     APP_VERSION := $(shell date +%s)
     VCS_HASH := 00000000
@@ -48,7 +51,7 @@ endif
 #----- Packages ----------------------------------------------------------------
 
 ## Application components to include
-PKG_COMPONENTS ?= addzone authmanager connector keymaker poisonrecordmaker rollback rotate server translator webconfig
+PKG_COMPONENTS ?= addzone authmanager backup connector keymaker keys poisonrecordmaker rollback rotate server translator tokens webconfig
 
 ## Installation path prefix for packages
 PKG_INSTALL_PREFIX ?= /usr
@@ -180,6 +183,13 @@ help:
 	  make DOCKER_EXTRA_BUILD_TAGS='staging' DOCKER_REGISTRY_HOST=registry.example.com docker-build"
 
 ##---- Application -------------------------------------------------------------
+
+## Update protobuf dependencies and regenerate .pb.go from .proto,
+## use this target only when it is really needed, not for usual builds
+build_protobuf:
+	go get -u github.com/golang/protobuf/proto github.com/golang/protobuf/protoc-gen-go
+	go get -u google.golang.org/grpc
+	protoc --go_out=plugins=grpc:. cmd/acra-translator/grpc_api/*.proto
 
 ## Build the application in the subdirectory (default)
 build:

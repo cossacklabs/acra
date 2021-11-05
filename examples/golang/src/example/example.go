@@ -17,9 +17,9 @@ import (
 	"database/sql"
 	"flag"
 	"fmt"
+	acrastruct2 "github.com/cossacklabs/acra/acrastruct"
 	"math/rand"
 
-	"github.com/cossacklabs/acra/acra-writer"
 	"github.com/cossacklabs/acra/utils"
 	_ "github.com/go-sql-driver/mysql"
 	_ "github.com/lib/pq"
@@ -78,7 +78,7 @@ func main() {
 	}
 
 	if *data != "" {
-		acrastruct, err := acrawriter.CreateAcrastruct([]byte(*data), acraPublic, nil)
+		acrastruct, err := acrastruct2.CreateAcrastruct([]byte(*data), acraPublic, nil)
 		if err != nil {
 			log.Fatal("can't create acrastruct - ", err)
 		}

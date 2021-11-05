@@ -19,7 +19,9 @@ package postgresql
 import (
 	"bufio"
 	"bytes"
+	"encoding/binary"
 	"encoding/hex"
+	"github.com/cossacklabs/acra/decryptor/base"
 	"github.com/sirupsen/logrus"
 	"testing"
 )
@@ -114,5 +116,70 @@ func TestClientStartupMessageWithData(t *testing.T) {
 	}
 	if !bytes.Equal(output.Bytes(), packet) {
 		t.Fatal("Output not equal to correct packet")
+	}
+}
+
+func TestColumnData_readData(t *testing.T) {
+	type testCase struct {
+		data         []byte
+		decoded      []byte
+		expected     []byte
+		columnLength uint32
+		format       base.BoundValueFormat
+	}
+	t.Run("Binary encoding", func(t *testing.T) {
+		testCases := []testCase{
+			// valid hex encoded value
+			{[]byte("\\xaabb"), []byte("\\xaabb"), []byte("\\xaabb"), 6, base.BinaryFormat},
+			// valid octal value
+			{[]byte("\\111"), []byte("\\111"), []byte("\\111"), 4, base.BinaryFormat},
+			// full binary value
+			{[]byte{1, 2, 3}, []byte{1, 2, 3}, []byte{1, 2, 3}, 3, base.BinaryFormat},
+
+			// valid hex encoded value decoded to 2 digits
+			{[]byte("\\xaabb"), []byte{170, 187}, []byte("\\xaabb"), 6, base.TextFormat},
+			// valid hex encoded value decoded to 2 digits
+			{[]byte("\\x"), []byte{}, []byte("\\x"), 2, base.TextFormat},
+			// valid octal value decoded to 1 digit
+			{[]byte("\\001"), []byte{1}, []byte("\\001"), 4, base.TextFormat},
+			// full binary value that should be as is
+			{[]byte{1, 2, 3}, []byte{1, 2, 3}, []byte{1, 2, 3}, 3, base.TextFormat},
+		}
+		column := &ColumnData{}
+		for i, testcase := range testCases {
+			binary.BigEndian.PutUint32(column.LengthBuf[:], testcase.columnLength)
+			if err := column.readData(bytes.NewReader(testcase.data), testcase.format); err != nil {
+				t.Fatal(i, "Error on read data by column", err)
+			}
+			if !bytes.Equal(column.data.Encoded(), testcase.expected) {
+				t.Fatalf("Incorrectly encoded data, %v != %v\n",
+					column.data.Encoded(), testcase.expected)
+			}
+			if !bytes.Equal(column.data.Data(), testcase.decoded) {
+				t.Fatalf("Decoded data not equal to expected, %s != %s\n", column.data.Data(), testcase.decoded)
+			}
+		}
+	})
+}
+
+func TestParseColumns(t *testing.T) {
+	buffer := make([]byte, 10)
+	// column count, 2 bytes field, 1 column
+	binary.BigEndian.PutUint16(buffer[:2], 1)
+	// column length, 4 bytes field, 4 bytes length of column
+	binary.BigEndian.PutUint32(buffer[2:6], 4)
+	// column length, 4 bytes value of "\111"
+	testData := []byte("\\111")
+	copy(buffer[6:], testData)
+
+	handler := &PacketHandler{descriptionBuf: bytes.NewBuffer(buffer), logger: logrus.NewEntry(logrus.New())}
+	if err := handler.parseColumns([]uint16{uint16(base.BinaryFormat)}); err != nil {
+		t.Fatal(err)
+	}
+	if len(handler.Columns) != 1 {
+		t.Fatal("Incorrect length of columns")
+	}
+	if !bytes.Equal(handler.Columns[0].data.Encoded(), testData) {
+		t.Fatal("Incorrect ")
 	}
 }

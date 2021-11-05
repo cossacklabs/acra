@@ -19,13 +19,6 @@ const (
 	EncryptionTypeFail    = "fail"
 )
 
-// Labels and values about AcraStruct processing modes
-const (
-	DecryptionModeLabel  = "mode"
-	DecryptionModeWhole  = "wholecell"
-	DecryptionModeInline = "inlinecell"
-)
-
 // Labels and values about db type in processing
 const (
 	DecryptionDBLabel      = "db"
@@ -52,14 +45,14 @@ var (
 	ResponseProcessingTimeHistogram = prometheus.NewHistogramVec(prometheus.HistogramOpts{
 		Name:    "acraserver_response_processing_seconds",
 		Help:    "Time of response processing",
-		Buckets: []float64{0.000001, 0.00001, 0.00002, 0.00003, 0.00004, 0.00005, 0.00006, 0.00007, 0.00008, 0.00009, 0.0001, 0.0005, 0.001, 0.005, 0.01, 1},
-	}, []string{DecryptionDBLabel, DecryptionModeLabel})
+		Buckets: []float64{0.000001, 0.00001, 0.00002, 0.00003, 0.00004, 0.00005, 0.00006, 0.00007, 0.00008, 0.00009, 0.0001, 0.0005, 0.001, 0.005, 0.01, 1, 3, 5, 10},
+	}, []string{DecryptionDBLabel})
 
 	// RequestProcessingTimeHistogram collect metrics about request processing time
 	RequestProcessingTimeHistogram = prometheus.NewHistogramVec(prometheus.HistogramOpts{
 		Name:    "acraserver_request_processing_seconds",
 		Help:    "Time of response processing",
-		Buckets: []float64{0.000001, 0.00001, 0.00002, 0.00003, 0.00004, 0.00005, 0.00006, 0.00007, 0.00008, 0.00009, 0.0001, 0.0005, 0.001, 0.005, 0.01, 1},
+		Buckets: []float64{0.000001, 0.00001, 0.00002, 0.00003, 0.00004, 0.00005, 0.00006, 0.00007, 0.00008, 0.00009, 0.0001, 0.0005, 0.001, 0.005, 0.01, 1, 3, 5, 10},
 	}, []string{DecryptionDBLabel})
 )
 

@@ -23,7 +23,6 @@ import (
 	"github.com/cossacklabs/acra/sqlparser"
 	"github.com/cossacklabs/acra/utils"
 	"github.com/sirupsen/logrus"
-	"unicode/utf8"
 )
 
 var pgHexStringPrefix = []byte{'\\', 'x'}
@@ -127,7 +126,7 @@ func (*PostgresqlDBDataCoder) Encode(expr sqlparser.Expr, data []byte) ([]byte, 
 			hex.Encode(output, data)
 			return output, nil
 		case sqlparser.PgEscapeString, sqlparser.StrVal:
-			if utf8.Valid(data) {
+			if utils.IsPrintableASCIIArray(data) {
 				return data, nil
 			}
 			newVal := make([]byte, len(pgHexStringPrefix)+hex.EncodedLen(len(data)))

@@ -16,7 +16,11 @@
 
 package postgresql
 
-import "testing"
+import (
+	"github.com/cossacklabs/acra/decryptor/base"
+	"reflect"
+	"testing"
+)
 
 func TestStatementInsert(t *testing.T) {
 	registry := NewPreparedStatementRegistry()
@@ -304,4 +308,26 @@ func TestCursorRemovalWithStatement(t *testing.T) {
 	if notFoundCursor2 != nil {
 		t.Error("unexpected non-nil removed cursor", notFoundCursor2)
 	}
+}
+
+func TestNewPgBoundValue(t *testing.T) {
+	t.Run("textData not equals - success", func(t *testing.T) {
+		sourceData := []byte("test-data")
+		boundValue := NewPgBoundValue(sourceData, base.BinaryFormat)
+
+		sourceData[0] = 22
+
+		if reflect.DeepEqual(sourceData, boundValue.GetData(nil)) {
+			t.Fatal("BoundValue data should not be equal to sourceData")
+		}
+	})
+
+	t.Run("nil data provided", func(t *testing.T) {
+		boundValue := NewPgBoundValue(nil, base.BinaryFormat)
+
+		// we need to validate that textData is nil if nil was provided - required for handling NULL values
+		if boundValue.GetData(nil) != nil {
+			t.Fatal("BoundValue data should be nil")
+		}
+	})
 }

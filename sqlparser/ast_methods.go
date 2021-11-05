@@ -1,17 +1,81 @@
 package sqlparser
 
 import (
+	"errors"
 	"fmt"
-	"github.com/cossacklabs/acra/sqlparser/dependency/sqltypes"
-	"github.com/cossacklabs/acra/sqlparser/dialect"
 	"io"
 	"log"
 	"strings"
+
+	"github.com/cossacklabs/acra/sqlparser/dependency/querypb"
+	"github.com/cossacklabs/acra/sqlparser/dependency/sqltypes"
+	"github.com/cossacklabs/acra/sqlparser/dialect"
 )
 
+//Mode enum type used for sqlparser.Parser mode definition
+type Mode string
+
+//Mode enum consts for sqlparser.Parser
+const (
+	ModeDefault Mode = "default"
+	ModeStrict  Mode = "strict"
+)
+
+// ValueMask is used to mask real Values from SQL queries before logging to syslog.
+const ValueMask = "replaced"
+
+// ErrQuerySyntaxError error returned by sqlparser.Parser
+var ErrQuerySyntaxError = errors.New("fail to parse specified query")
+
+//Parser object used to handle strict/non-strict flow for any sql parse errors
+type Parser struct {
+	parseQueryErrorMode Mode
+}
+
+//New sqlparser.Parser constructor
+func New(mode Mode) *Parser {
+	return &Parser{
+		parseQueryErrorMode: mode,
+	}
+}
+
+// Mode return Parser parseQueryErrorMode
+func (p Parser) Mode() Mode {
+	return p.parseQueryErrorMode
+}
+
+// HandleRawSQLQuery returns a normalized (lowercases SQL commands) SQL string,
+// and redacted SQL string with the params stripped out for display.
+// Taken from sqlparser package
+func (p Parser) HandleRawSQLQuery(sql string) (normalizedQuery, redactedQuery string, parsedQuery Statement, err error) {
+	bv := map[string]*querypb.BindVariable{}
+	sqlStripped, _ := SplitMarginComments(sql)
+
+	// sometimes queries might have ; at the end, that should be stripped
+	sqlStripped = strings.TrimSuffix(sqlStripped, ";")
+
+	stmt, err := p.Parse(sqlStripped)
+	if err != nil {
+		return "", "", nil, ErrQuerySyntaxError
+	}
+	outputStmt, _ := p.Parse(sqlStripped)
+
+	normalizedQ := String(stmt)
+
+	// redact and mask VALUES
+	Normalize(stmt, bv, ValueMask)
+
+	return normalizedQ, String(stmt), outputStmt, nil
+}
+
 // Parse using default dialect MySQl (for backward compatibility)
-func Parse(sql string) (Statement, error) {
-	return ParseWithDialect(defaultDialect, sql)
+func (p Parser) Parse(sql string) (Statement, error) {
+	statement, err := ParseWithDialect(defaultDialect, sql)
+	if err != nil && p.parseQueryErrorMode == ModeDefault {
+		log.Println("ignoring error of non parsed sql statement")
+		return NotParsedStatement{Query: sql}, nil
+	}
+	return statement, err
 }
 
 // ParseWithDialect parses the SQL in full withc specified dialect and returns a Statement, which
@@ -19,6 +83,14 @@ func Parse(sql string) (Statement, error) {
 // is partially parsed but still contains a syntax error, the
 // error is ignored and the DDL is returned anyway.
 func ParseWithDialect(dialect dialect.Dialect, sql string) (Statement, error) {
+	// Postgresql extended query protocol allow empty queries and doesn't allow in simple query protocol
+	// MySQL doesn't allow in any protocol empty queries and return error
+	// To not break our prepared statement processing in server we use EmptyStatement for that and extend sqlparser.
+	// So we avoid query interruption on acra-server side and pass it to DBMS as is to decide do they accept it or not
+	if sql == "" {
+		return EmptyStatement{}, nil
+	}
+
 	tokenizer := NewStringTokenizerWithDialect(dialect, sql)
 	if yyParse(tokenizer) != 0 {
 		if tokenizer.partialDDL != nil {
@@ -117,6 +189,14 @@ func SplitStatementToPieces(blob string) (pieces []string, err error) {
 	err = tokenizer.LastError
 	return
 }
+
+// Format actually do nothing
+func (EmptyStatement) Format(*TrackedBuffer)   {}
+func (EmptyStatement) walkSubtree(Visit) error { return nil }
+
+//Format format NotParsedStatement method
+func (s NotParsedStatement) Format(buf *TrackedBuffer) { buf.WriteString(s.Query) }
+func (NotParsedStatement) walkSubtree(Visit) error     { return nil }
 
 // Format formats the node.
 func (node *Select) Format(buf *TrackedBuffer) {
@@ -1242,7 +1322,19 @@ func (node *SQLVal) Format(buf *TrackedBuffer) {
 	case BitVal:
 		buf.Myprintf("B'%s'", []byte(node.Val))
 	case ValArg:
-		buf.WriteArg(string(node.Val))
+		val := string(node.Val)
+
+		// we should return actual node.Val in case ValueMask provided to save backward compatibility of displaying
+		// queries with hidden values processed by Acra
+		isValueMaskArg := len(val) >= 2 && strings.HasPrefix(string(node.Val)[1:], ValueMask)
+
+		if !isValueMaskArg && strings.HasPrefix(val, ":") {
+			// this is custom replacement required for backward compatibility of converting queries;
+			// without this change on string Query conversion of sqlparser.Statement will return placeholders as ':v1'
+			// but MySQL accept '?' as placeholder
+			val = "?"
+		}
+		buf.WriteArg(val)
 	case PgEscapeString:
 		buf.Myprintf("E'%s'", sqltypes.EncodeBytesSQLWithoutQuotes(node.Val))
 	case PgPlaceholder:

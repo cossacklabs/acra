@@ -128,6 +128,7 @@ const (
 	EventCodeErrorTranslatorCantHandleGRPCConnection    = 713
 	EventCodeErrorTranslatorClientIDMissing             = 714
 	EventCodeErrorTranslatorCantAcceptNewGRPCConnection = 715
+	EventCodeErrorTranslatorCantDecryptAcraBlock        = 716
 
 	// tracing
 	EventCodeErrorTracingCantSendTrace    = 800

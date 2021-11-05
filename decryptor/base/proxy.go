@@ -18,6 +18,7 @@ package base
 
 import (
 	"context"
+	"fmt"
 	"github.com/cossacklabs/acra/network"
 	"net"
 
@@ -27,26 +28,48 @@ import (
 	"github.com/cossacklabs/acra/sqlparser"
 )
 
+// Callback represents function to call on detecting poison record
+type Callback interface {
+	Call() error
+}
+
+// PoisonRecordCallbackStorage stores all callbacks, on Call iterates
+// and calls each callbacks until error or end of iterating
+type PoisonRecordCallbackStorage interface {
+	Callback
+	AddCallback(callback Callback)
+	HasCallbacks() bool
+}
+
 // ProxySetting provide data access methods for proxy factories
 type ProxySetting interface {
+	PoisonRecordCallbackStorage() PoisonRecordCallbackStorage
+	SQLParser() *sqlparser.Parser
 	KeyStore() keystore.DecryptionKeyStore
 	TableSchemaStore() config.TableSchemaStore
 	Censor() acracensor.AcraCensorInterface
-	DecryptorFactory() DecryptorFactory
 	TLSConnectionWrapper() TLSConnectionWrapper
+	WithZone() bool
 }
 
 type proxySetting struct {
-	keystore          keystore.DecryptionKeyStore
-	tableSchemaStore  config.TableSchemaStore
-	censor            acracensor.AcraCensorInterface
-	decryptorFactory  DecryptorFactory
-	connectionWrapper TLSConnectionWrapper
+	keystore                    keystore.DecryptionKeyStore
+	tableSchemaStore            config.TableSchemaStore
+	censor                      acracensor.AcraCensorInterface
+	connectionWrapper           TLSConnectionWrapper
+	poisonRecordCallbackStorage PoisonRecordCallbackStorage
+	parser                      *sqlparser.Parser
+	withZone                    bool
 }
 
-// DecryptorFactory return configure DecryptorFactory
-func (p *proxySetting) DecryptorFactory() DecryptorFactory {
-	return p.decryptorFactory
+// SQLParser return sqlparser.Parser
+func (p *proxySetting) SQLParser() *sqlparser.Parser {
+	return p.parser
+}
+
+// PoisonRecordCallbackStorage return CallbackStorage
+func (p *proxySetting) PoisonRecordCallbackStorage() PoisonRecordCallbackStorage {
+	return p.poisonRecordCallbackStorage
 }
 
 // Censor return AcraCensorInterface implementation
@@ -69,16 +92,22 @@ func (p *proxySetting) TLSConnectionWrapper() TLSConnectionWrapper {
 	return p.connectionWrapper
 }
 
+// WithZone return is turned on zonemode or not
+func (p *proxySetting) WithZone() bool {
+	return p.withZone
+}
+
 // NewProxySetting return new ProxySetting implementation with data from params
-func NewProxySetting(decryptorFactory DecryptorFactory, tableSchema config.TableSchemaStore, keystore keystore.DecryptionKeyStore, wrapper TLSConnectionWrapper, censor acracensor.AcraCensorInterface) ProxySetting {
-	return &proxySetting{keystore: keystore, tableSchemaStore: tableSchema, censor: censor, decryptorFactory: decryptorFactory, connectionWrapper: wrapper}
+func NewProxySetting(parser *sqlparser.Parser, tableSchema config.TableSchemaStore, keystore keystore.DecryptionKeyStore, wrapper TLSConnectionWrapper, censor acracensor.AcraCensorInterface, callbackStorage PoisonRecordCallbackStorage, zoneMode bool) ProxySetting {
+	return &proxySetting{keystore: keystore, parser: parser, tableSchemaStore: tableSchema, censor: censor, connectionWrapper: wrapper, poisonRecordCallbackStorage: callbackStorage, withZone: zoneMode}
 }
 
 // Proxy interface to process client's requests to database and responses
 type Proxy interface {
 	QueryObservable
-	ProxyClientConnection(chan<- error)
-	ProxyDatabaseConnection(chan<- error)
+	ClientIDObservable
+	ProxyClientConnection(context.Context, chan<- ProxyError)
+	ProxyDatabaseConnection(context.Context, chan<- ProxyError)
 }
 
 // ClientSession is a connection between the client and the database, mediated by AcraServer.
@@ -144,6 +173,7 @@ type PreparedStatement interface {
 	Name() string
 	Query() sqlparser.Statement
 	QueryText() string
+	ParamsNum() int
 }
 
 // Cursor is used to iterate over a prepared statement.
@@ -151,4 +181,45 @@ type PreparedStatement interface {
 type Cursor interface {
 	Name() string
 	PreparedStatement() PreparedStatement
+}
+
+const (
+	acraDBProxyErrSide     = "AcraServer-Database"
+	acraClientProxyErrSide = "Client/Connector-Database"
+)
+
+// ProxyError custom error type for handling all related errors on Client/DB proxies
+type ProxyError struct {
+	sourceErr     error
+	interruptSide string
+}
+
+// NewClientProxyError construct ProxyError object with Client interrupt side
+func NewClientProxyError(err error) ProxyError {
+	return ProxyError{
+		sourceErr:     err,
+		interruptSide: acraClientProxyErrSide,
+	}
+}
+
+// NewDBProxyError construct ProxyError object with DB interrupt side
+func NewDBProxyError(err error) ProxyError {
+	return ProxyError{
+		sourceErr:     err,
+		interruptSide: acraDBProxyErrSide,
+	}
+}
+
+func (p ProxyError) Error() string {
+	return fmt.Sprintf("%s:%s", p.interruptSide, p.sourceErr.Error())
+}
+
+// Unwrap return the source error
+func (p ProxyError) Unwrap() error {
+	return p.sourceErr
+}
+
+// InterruptSide return interruption side where error happened
+func (p ProxyError) InterruptSide() string {
+	return p.interruptSide
 }

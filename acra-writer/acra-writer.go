@@ -22,58 +22,15 @@ limitations under the License.
 package acrawriter
 
 import (
-	"crypto/rand"
-	"encoding/binary"
-	"errors"
+	"github.com/cossacklabs/acra/acrastruct"
 
-	"github.com/cossacklabs/acra/decryptor/base"
-	"github.com/cossacklabs/acra/utils"
-	"github.com/cossacklabs/themis/gothemis/cell"
 	"github.com/cossacklabs/themis/gothemis/keys"
-	"github.com/cossacklabs/themis/gothemis/message"
 )
 
 // CreateAcrastruct encrypt your data using acra_public key and context (optional)
 // and pack into correct Acrastruct format
 func CreateAcrastruct(data []byte, acraPublic *keys.PublicKey, context []byte) ([]byte, error) {
-	randomKeyPair, err := keys.New(keys.TypeEC)
-	if err != nil {
-		return nil, err
-	}
-	// generate random symmetric key
-	randomKey := make([]byte, base.SymmetricKeySize)
-	n, err := rand.Read(randomKey)
-	if err != nil {
-		return nil, err
-	}
-	if n != base.SymmetricKeySize {
-		return nil, errors.New("read incorrect num of random bytes")
-	}
-
-	// create smessage for encrypting symmetric key
-	smessage := message.New(randomKeyPair.Private, acraPublic)
-	encryptedKey, err := smessage.Wrap(randomKey)
-	if err != nil {
-		return nil, err
-	}
-	utils.ZeroizePrivateKey(randomKeyPair.Private)
-
-	// create scell for encrypting data
-	scell := cell.New(randomKey, cell.ModeSeal)
-	encryptedData, _, err := scell.Protect(data, context)
-	if err != nil {
-		return nil, err
-	}
-	utils.ZeroizeSymmetricKey(randomKey)
-
-	// pack acrastruct
-	dateLength := make([]byte, base.DataLengthSize)
-	binary.LittleEndian.PutUint64(dateLength, uint64(len(encryptedData)))
-	output := make([]byte, len(base.TagBegin)+base.KeyBlockLength+base.DataLengthSize+len(encryptedData))
-	output = append(output[:0], base.TagBegin...)
-	output = append(output, randomKeyPair.Public.Value...)
-	output = append(output, encryptedKey...)
-	output = append(output, dateLength...)
-	output = append(output, encryptedData...)
-	return output, nil
+	// due to moving AcraStruct creation to separate package to fix import cycle and aggregate all related functions together
+	// there left same function CreateAcrastruct for backward compatibility and call moved implementation
+	return acrastruct.CreateAcrastruct(data, acraPublic, context)
 }

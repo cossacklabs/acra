@@ -19,7 +19,6 @@ package network
 import (
 	"bytes"
 	"context"
-	"go.opencensus.io/trace"
 	"google.golang.org/grpc/credentials"
 	"io"
 	"net"
@@ -195,18 +194,12 @@ var ErrClientIDPacketToBig = errors.New("packet with ClientID too big")
 // SecureSessionInfo struct used to store metadata between connector<->server/translator and implement credentials.AuthInfo [grpc] interface
 // to pass these to end handlers
 type SecureSessionInfo struct {
-	clientID    []byte
-	spanContext trace.SpanContext
+	conn net.Conn
 }
 
-// ClientID return cliendID
-func (s SecureSessionInfo) ClientID() []byte {
-	return s.clientID
-}
-
-// SpanContext return context from connector
-func (s SecureSessionInfo) SpanContext() trace.SpanContext {
-	return s.spanContext
+// Connection return wrapped connection
+func (s SecureSessionInfo) Connection() net.Conn {
+	return s.conn
 }
 
 // AuthType return acra-connector's AuthType identifier for gRPC transport
@@ -216,10 +209,27 @@ func (s SecureSessionInfo) AuthType() string {
 
 // SecureSessionConnectionWrapper adds SecureSession encryption above connection
 type SecureSessionConnectionWrapper struct {
-	keystore         keystore.SecureSessionKeyStore
-	handshakeTimeout time.Duration
-	id               []byte
-	serverID         []byte
+	keystore                   keystore.SecureSessionKeyStore
+	handshakeTimeout           time.Duration
+	id                         []byte
+	serverID                   []byte
+	onServerHandshakeCallbacks []OnServerHandshakeCallback
+}
+
+// AddOnServerHandshakeCallback register callback that will be called on ServerHandshake call from grpc connection handler
+func (wrapper *SecureSessionConnectionWrapper) AddOnServerHandshakeCallback(callback OnServerHandshakeCallback) {
+	wrapper.onServerHandshakeCallbacks = append(wrapper.onServerHandshakeCallbacks, callback)
+}
+
+// OnConnection implements OnConnectionCallback interface and wraps connection with SecureSession
+// Used for ListenerWrapper in Accept method to wrap all new incoming connections
+func (wrapper *SecureSessionConnectionWrapper) OnConnection(conn net.Conn) (net.Conn, error) {
+	log.Debugln("Wrap connection with secure session")
+	wrapped, clientID, err := wrapper.wrap(conn, true)
+	if err != nil {
+		return conn, err
+	}
+	return newClientIDConnection(wrapped, clientID), nil
 }
 
 // ClientHandshake wrap outcoming client's connection to server with secure session as gRPC transport
@@ -229,7 +239,8 @@ func (wrapper *SecureSessionConnectionWrapper) ClientHandshake(ctx context.Conte
 		log.WithError(err).Errorln("Can't wrap server's connection")
 		return conn, nil, err
 	}
-	return wrappedConn, SecureSessionInfo{clientID: wrapper.id}, nil
+	wrappedConn = newClientIDConnection(wrappedConn, wrapper.id)
+	return wrappedConn, SecureSessionInfo{conn: wrappedConn}, nil
 }
 
 // ServerHandshake wrap incoming client's connection with secure session as gRPC transport
@@ -239,11 +250,15 @@ func (wrapper *SecureSessionConnectionWrapper) ServerHandshake(conn net.Conn) (n
 		log.WithError(err).Errorln("Can't wrap client's connection")
 		return conn, nil, err
 	}
-	spnCtx, err := ReadTrace(wrappedConn)
-	if err != nil {
-		return wrappedConn, nil, err
+	newConn := wrappedConn
+	for _, callback := range wrapper.onServerHandshakeCallbacks {
+		newConn, err = callback.OnServerHandshake(newConn)
+		if err != nil {
+			return wrappedConn, SecureSessionInfo{}, err
+		}
 	}
-	return wrappedConn, SecureSessionInfo{clientID: clientID, spanContext: spnCtx}, nil
+	clientIDConn := newClientIDConnection(newConn, clientID)
+	return clientIDConn, SecureSessionInfo{conn: clientIDConn}, nil
 }
 
 // Info return protocol info for Secure Session
@@ -270,12 +285,14 @@ func (wrapper *SecureSessionConnectionWrapper) OverrideServerName(name string) e
 
 // NewSecureSessionConnectionWrapper returns new SecureSessionConnectionWrapper with default handlshake timeout
 func NewSecureSessionConnectionWrapper(id []byte, keystore keystore.SecureSessionKeyStore) (*SecureSessionConnectionWrapper, error) {
-	return &SecureSessionConnectionWrapper{keystore: keystore, id: id, serverID: id, handshakeTimeout: SecureSessionEstablishingTimeout}, nil
+	return &SecureSessionConnectionWrapper{keystore: keystore, id: id, serverID: id, handshakeTimeout: SecureSessionEstablishingTimeout,
+		onServerHandshakeCallbacks: make([]OnServerHandshakeCallback, 0, 4)}, nil
 }
 
 // NewSecureSessionConnectionWrapperWithServerID returns new SecureSessionConnectionWrapper with default handlshake timeout and configured server id
 func NewSecureSessionConnectionWrapperWithServerID(id, serverID []byte, keystore keystore.SecureSessionKeyStore) (*SecureSessionConnectionWrapper, error) {
-	return &SecureSessionConnectionWrapper{keystore: keystore, id: id, serverID: serverID, handshakeTimeout: SecureSessionEstablishingTimeout}, nil
+	return &SecureSessionConnectionWrapper{keystore: keystore, id: id, serverID: serverID, handshakeTimeout: SecureSessionEstablishingTimeout,
+		onServerHandshakeCallbacks: make([]OnServerHandshakeCallback, 0, 4)}, nil
 }
 
 // SetHandshakeTimeout set handshakeTimeout that will be used for secure session handshake. 0 - without handshakeTimeout
@@ -409,13 +426,14 @@ func (wrapper *SecureSessionConnectionWrapper) WrapServer(ctx context.Context, c
 	newConn, clientID, err := wrapper.wrap(conn, true)
 	if wrapper.hasHandshakeTimeout() {
 		// reset deadline
-		if err := conn.SetDeadline(time.Time{}); err != nil {
+		if errDeadline := conn.SetDeadline(time.Time{}); errDeadline != nil {
 			logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantHandleSecureSession).WithError(err).Errorln("Can't reset deadline after secure session handshake")
-			return nil, nil, err
+			return nil, nil, errDeadline
 		}
 	}
 	if err != nil {
 		logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantHandleSecureSession).WithError(err).Errorln("Can't wrap client's connection")
+		return nil, nil, err
 	}
 	logger.Debugln("Wrap server connection with secure session finished")
 	return newSafeCloseConnection(newConn), clientID, NewConnectionWrapError(err)

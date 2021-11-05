@@ -3,9 +3,17 @@ package postgresql
 import (
 	"bufio"
 	"bytes"
+	"context"
 	"encoding/hex"
+	acracensor "github.com/cossacklabs/acra/acra-censor"
+	"github.com/cossacklabs/acra/cmd/acra-server/common"
+	"github.com/cossacklabs/acra/decryptor/base"
+	"github.com/cossacklabs/acra/sqlparser"
 	"github.com/sirupsen/logrus"
+	"io"
+	"net"
 	"testing"
+	"time"
 )
 
 func TestDataRowLastEmptyColumn(t *testing.T) {
@@ -31,8 +39,140 @@ func TestDataRowLastEmptyColumn(t *testing.T) {
 		t.Fatal("Must be data row")
 	}
 
-	if err := packetHandler.parseColumns(); err != nil {
+	if err := packetHandler.parseColumns(nil); err != nil {
 		t.Fatal(err)
 	}
+}
 
+type testConnection struct {
+	buf io.Reader
+}
+
+func newTestConn(buf []byte) *testConnection {
+	return &testConnection{bytes.NewReader(buf)}
+}
+
+func (t *testConnection) Read(b []byte) (n int, err error) {
+	return t.buf.Read(b)
+}
+
+func (t *testConnection) Write(b []byte) (n int, err error) {
+	panic("implement me")
+}
+
+func (t *testConnection) Close() error {
+	panic("implement me")
+}
+
+func (t *testConnection) LocalAddr() net.Addr {
+	panic("implement me")
+}
+
+func (t *testConnection) RemoteAddr() net.Addr {
+	panic("implement me")
+}
+
+func (t *testConnection) SetDeadline(time.Time) error {
+	panic("implement me")
+}
+
+func (t *testConnection) SetReadDeadline(time.Time) error {
+	panic("implement me")
+}
+
+func (t *testConnection) SetWriteDeadline(time.Time) error {
+	panic("implement me")
+}
+
+type testOnBindHandler struct {
+	query string
+	bind  string
+}
+
+func (t *testOnBindHandler) ID() string {
+	panic("implement me")
+}
+
+func (t *testOnBindHandler) OnQuery(ctx context.Context, data base.OnQueryObject) (base.OnQueryObject, bool, error) {
+	t.query = data.Query()
+	return data, false, nil
+}
+
+func (t *testOnBindHandler) OnBind(ctx context.Context, statement sqlparser.Statement, values []base.BoundValue) ([]base.BoundValue, bool, error) {
+	t.bind = sqlparser.String(statement)
+	return values, false, nil
+}
+
+func TestPreparedStatementRegistering(t *testing.T) {
+	parser := sqlparser.New(sqlparser.ModeDefault)
+	ctx := context.Background()
+	// this query encoded in parsePacket below
+	parseQuery := "SELECT t.*, CTID\nFROM public.bla t\nLIMIT 501"
+	parseQueryStatement, err := parser.Parse(parseQuery)
+	if err != nil {
+		t.Fatal(err)
+	}
+	parsePacketHex := `50000000340053454c45435420742e2a2c20435449440a46524f4d207075626c69632e626c6120740a4c494d495420353031000000`
+	bindPacketHex := `420000000c0000000000000000`
+	testPackets, err := hex.DecodeString(parsePacketHex + bindPacketHex)
+	if err != nil {
+		t.Fatal(err)
+	}
+	buffer := bytes.NewBuffer(testPackets)
+	connectionSession, err := common.NewClientSession(ctx, nil, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	proxySetting := base.NewProxySetting(parser, nil, nil, nil, acracensor.NewAcraCensor(), nil, false)
+	proxy, err := NewPgProxy(connectionSession, parser, proxySetting)
+	if err != nil {
+		t.Fatal(err)
+	}
+	queryObserver := &testOnBindHandler{}
+	proxy.AddQueryObserver(queryObserver)
+	pgRegistry, ok := proxy.session.PreparedStatementRegistry().(*PgPreparedStatementRegistry)
+	if !ok {
+		t.Fatal("Unexpected type of registry")
+	}
+	if len(pgRegistry.statements) != 0 {
+		t.Fatal("Invalid length of registered statements")
+	}
+	logger := logrus.NewEntry(logrus.New())
+	packet, err := NewClientSidePacketHandler(buffer, nil, logger)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err = packet.ReadClientPacket(); err != nil {
+		t.Fatal(err)
+	}
+	_, err = proxy.handleClientPacket(ctx, packet, logger)
+	if err != nil {
+		t.Fatal(err)
+	}
+	statement, err := proxy.session.PreparedStatementRegistry().StatementByName("")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if parseQuery != statement.QueryText() {
+		t.Fatalf("'%s' != '%s'\n", parseQuery, statement.QueryText())
+	}
+	if queryObserver.query != parseQuery {
+		t.Fatalf("'%s' != '%s'\n", parseQuery, statement.QueryText())
+	}
+	// check that after ParsePacket without ParseComplete query already registered
+	if len(pgRegistry.statements) != 1 {
+		t.Fatal("Invalid length of registered statements")
+	}
+
+	if err = packet.ReadClientPacket(); err != nil {
+		t.Fatal(err)
+	}
+	_, err = proxy.handleClientPacket(ctx, packet, logger)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// check that same statement was passed as onbind query
+	if queryObserver.bind != sqlparser.String(parseQueryStatement) {
+		t.Fatalf("'%s' != '%s'\n", parseQuery, statement.QueryText())
+	}
 }

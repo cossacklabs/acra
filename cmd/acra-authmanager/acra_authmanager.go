@@ -24,6 +24,8 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"github.com/cossacklabs/acra/keystore/keyloader"
+	"github.com/cossacklabs/acra/keystore/keyloader/hashicorp"
 	"io/ioutil"
 	"os"
 	"strings"
@@ -181,6 +183,8 @@ func main() {
 	keysDir := flag.String("keys_dir", keystore.DefaultKeyDirShort, "Folder from which will be loaded keys")
 	debug := flag.Bool("d", false, "Turn on debug logging")
 
+	hashicorp.RegisterVaultCLIParameters()
+
 	if err := cmd.Parse(defaultConfigPath, serviceName); err != nil {
 		log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantReadServiceConfig).
 			Errorln("Can't parse cmd args")
@@ -195,11 +199,17 @@ func main() {
 		logging.SetLogLevel(logging.LogVerbose)
 	}
 
+	keyLoader, err := keyloader.GetInitializedMasterKeyLoader(hashicorp.GetVaultCLIParameters())
+	if err != nil {
+		log.WithError(err).Errorln("Can't initialize ACRA_MASTER_KEY loader")
+		os.Exit(1)
+	}
+
 	var keyStore keystore.WebConfigKeyStore
 	if filesystemV2.IsKeyDirectory(*keysDir) {
-		keyStore = openKeyStoreV2(*keysDir)
+		keyStore = openKeyStoreV2(*keysDir, keyLoader)
 	} else {
-		keyStore = openKeyStoreV1(*keysDir)
+		keyStore = openKeyStoreV1(*keysDir, keyLoader)
 	}
 
 	n := 0
@@ -240,8 +250,8 @@ func main() {
 	}
 }
 
-func openKeyStoreV1(keysDir string) keystore.WebConfigKeyStore {
-	masterKey, err := keystore.GetMasterKeyFromEnvironment()
+func openKeyStoreV1(keysDir string, loader keyloader.MasterKeyLoader) keystore.WebConfigKeyStore {
+	masterKey, err := loader.LoadMasterKey()
 	if err != nil {
 		log.WithError(err).Errorln("Cannot load master key")
 		os.Exit(1)
@@ -259,8 +269,8 @@ func openKeyStoreV1(keysDir string) keystore.WebConfigKeyStore {
 	return keyStore
 }
 
-func openKeyStoreV2(keyDirPath string) keystore.WebConfigKeyStore {
-	encryption, signature, err := keystoreV2.GetMasterKeysFromEnvironment()
+func openKeyStoreV2(keyDirPath string, loader keyloader.MasterKeyLoader) keystore.WebConfigKeyStore {
+	encryption, signature, err := loader.LoadMasterKeys()
 	if err != nil {
 		log.WithError(err).Errorln("Cannot load master key")
 		os.Exit(1)

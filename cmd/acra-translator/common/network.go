@@ -17,66 +17,29 @@ limitations under the License.
 package common
 
 import (
-	"context"
-	"errors"
-	logging "github.com/cossacklabs/acra/logging"
 	"github.com/prometheus/client_golang/prometheus"
 	"net"
 )
 
-// AcceptConnections return channel which will produce new connections from listener in background goroutine
-func AcceptConnections(parentContext context.Context, listener net.Listener, errCh chan<- error) (<-chan net.Conn, error) {
-	logger := logging.GetLoggerFromContext(parentContext)
-	connectionChannel := make(chan net.Conn)
-	go func() {
-		for {
-			if parentContext.Err() == nil {
-				conn, err := listener.Accept()
-				if err != nil {
-					logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantAcceptNewConnections).WithError(err).Errorln("Error on accept connection")
-					errCh <- err
-					return
-				}
-				conn, err = wrapHTTPConnectionWithTimer(conn)
-				if err != nil {
-					logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantWrapConnectionWithTimer).WithError(err).Errorln("Can't wrap connection with metric")
-					errCh <- err
-					return
-				}
-				connectionChannel <- conn
-			} else {
-				// exit from this background goroutine if parentContext is Done
-				err := parentContext.Err()
-				if !errors.Is(err, context.Canceled) {
-					logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantWrapConnectionWithTimer).WithError(err).Errorln("Got error from parent context")
-					errCh <- err
-				}
-				return
-			}
-		}
-	}()
-
-	return connectionChannel, nil
+// MetricConnectionCallback callback used for new incoming connections from gRPC or http.Server connection handlers and wraps
+// new connections with time tracking of lifetime on Close calls
+type MetricConnectionCallback struct {
+	connectionType string
 }
 
-// SecureSessionListenerWithMetrics wrap SecureSessionListener and collect metrics from accepted connections
-type SecureSessionListenerWithMetrics struct {
-	net.Listener
+// NewMetricConnectionCallback return initialized MetricConnectionCallback with proper connectionType
+func NewMetricConnectionCallback(connectionType string) *MetricConnectionCallback {
+	return &MetricConnectionCallback{connectionType: connectionType}
 }
 
-// WrapListenerWithMetrics wraps SecureSessionListener to collect metrics from connections
-func WrapListenerWithMetrics(listener net.Listener) net.Listener {
-	return &SecureSessionListenerWithMetrics{Listener: listener}
+// OnConnection callback for new connections for HTTPConnectionWrapper and http.Server connections
+func (conn *MetricConnectionCallback) OnConnection(newConn net.Conn) (net.Conn, error) {
+	return newConnectionMetric(conn.connectionType, newConn), nil
 }
 
-// Accept new connection and wrap with secure session and collecting metrics
-// return ConnectionWrapError if error wa
-func (listener *SecureSessionListenerWithMetrics) Accept() (net.Conn, error) {
-	conn, err := listener.Listener.Accept()
-	if err != nil {
-		return nil, err
-	}
-	return wrapGrpcConnectionWithTimer(conn)
+// OnServerHandshake callback for new connections for HTTPConnectionWrapper and gRPC connections
+func (conn *MetricConnectionCallback) OnServerHandshake(newConn net.Conn) (net.Conn, error) {
+	return newConnectionMetric(conn.connectionType, newConn), nil
 }
 
 // ConnectionMetric used to track connection time of life
@@ -87,23 +50,17 @@ type ConnectionMetric struct {
 
 // newConnectionMetric wrap connection with metric and specific label
 func newConnectionMetric(connectionType string, conn net.Conn) *ConnectionMetric {
+	connectionCounter.WithLabelValues(connectionType).Inc()
 	return &ConnectionMetric{Conn: conn, timer: prometheus.NewTimer(prometheus.ObserverFunc(connectionProcessingTimeHistogram.WithLabelValues(connectionType).Observe))}
-}
-
-// wrapGrpcConnectionWithTimer wrap conn with ConnectionMetric and grpcConnectionType label value
-func wrapGrpcConnectionWithTimer(conn net.Conn) (net.Conn, error) {
-	connectionCounter.WithLabelValues(grpcConnectionType).Inc()
-	return newConnectionMetric(grpcConnectionType, conn), nil
-}
-
-// wrapHTTPConnectionWithTimer wrap conn with ConnectionMetric and httpConnectionType label value
-func wrapHTTPConnectionWithTimer(conn net.Conn) (net.Conn, error) {
-	connectionCounter.WithLabelValues(httpConnectionType).Inc()
-	return newConnectionMetric(httpConnectionType, conn), nil
 }
 
 // Close call Close() of wrapped connection and track time of connection life
 func (conn *ConnectionMetric) Close() error {
 	conn.timer.ObserveDuration()
 	return conn.Conn.Close()
+}
+
+// Unwrap returns wrapped connection
+func (conn *ConnectionMetric) Unwrap() net.Conn {
+	return conn.Conn
 }

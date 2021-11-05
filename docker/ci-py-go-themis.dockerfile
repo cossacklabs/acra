@@ -1,4 +1,4 @@
-FROM debian:buster
+FROM debian:bullseye
 
 SHELL ["/bin/bash", "-c"]
 
@@ -19,6 +19,7 @@ RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get -y install \
     python3 python3-setuptools python3-pip \
     rsync \
     sudo \
+    rustc \
     wget
 
 WORKDIR /root
@@ -35,7 +36,7 @@ COPY docker/_scripts/acra-build/install_go.csums /image.scripts/
 RUN chmod +x /image.scripts/*.sh
 
 # Install Go
-RUN GO_VERSIONS='1.13.15 1.14.9 1.15.2' \
+RUN GO_VERSIONS='1.14.9 1.15.2 1.16.9' \
     GO_TARBALL_CLEAN=1 \
     /image.scripts/install_go.sh
 

@@ -96,7 +96,7 @@ func (acraCensor *AcraCensor) LoadConfiguration(configuration []byte) error {
 	for _, handlerConfiguration := range censorConfiguration.Handlers {
 		switch handlerConfiguration.Handler {
 		case AllowConfigStr:
-			allow := handlers.NewAllowHandler()
+			allow := handlers.NewAllowHandler(acraCensor.parser)
 			err = allow.AddQueries(handlerConfiguration.Queries)
 			if err != nil {
 				return err
@@ -108,7 +108,7 @@ func (acraCensor *AcraCensor) LoadConfiguration(configuration []byte) error {
 			}
 			acraCensor.AddHandler(allow)
 		case DenyConfigStr:
-			deny := handlers.NewDenyHandler()
+			deny := handlers.NewDenyHandler(acraCensor.parser)
 			err = deny.AddQueries(handlerConfiguration.Queries)
 			if err != nil {
 				return err
@@ -126,11 +126,11 @@ func (acraCensor *AcraCensor) LoadConfiguration(configuration []byte) error {
 			denyAll := handlers.NewDenyallHandler()
 			acraCensor.AddHandler(denyAll)
 		case QueryIgnoreConfigStr:
-			queryIgnoreHandler := handlers.NewQueryIgnoreHandler()
+			queryIgnoreHandler := handlers.NewQueryIgnoreHandler(acraCensor.parser)
 			queryIgnoreHandler.AddQueries(handlerConfiguration.Queries)
 			acraCensor.AddHandler(queryIgnoreHandler)
 		case QueryCaptureConfigStr:
-			queryCaptureHandler, err := handlers.NewQueryCaptureHandler(handlerConfiguration.FilePath)
+			queryCaptureHandler, err := handlers.NewQueryCaptureHandler(handlerConfiguration.FilePath, acraCensor.parser)
 			if err != nil {
 				return err
 			}

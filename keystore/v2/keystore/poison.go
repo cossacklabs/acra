@@ -24,8 +24,10 @@ import (
 //
 // PoisonKeyStore interface
 //
-
-const poisonKeyPath = "poison-record"
+const (
+	poisonSymmetricKeyPath = "poison-record-sym"
+	poisonKeyPath          = "poison-record"
+)
 
 // GetPoisonKeyPair retrieves current poison record key pair.
 // The keypair is created if it does not exist yet.
@@ -73,6 +75,28 @@ func (s *ServerKeyStore) GetPoisonPrivateKeys() ([]*keys.PrivateKey, error) {
 	return privateKeys, nil
 }
 
+// GetPoisonSymmetricKeys returns all symmetric keys used to decrypt poison records with AcraBlock, from newest to oldest.
+// If a poison record does not exist, it is created and its sole symmetric key is returned.
+// Returns a list of symmetric poison keys (possibly empty), or an error if decryption fails.
+func (s *ServerKeyStore) GetPoisonSymmetricKeys() ([][]byte, error) {
+	ring, err := s.OpenKeyRingRW(poisonSymmetricKeyPath)
+	if err != nil {
+		s.log.WithError(err).WithField("path", poisonSymmetricKeyPath).
+			Debug("Failed to open poison key ring")
+		return nil, err
+	}
+
+	symmetricKeys, err := s.allSymmetricKeys(ring)
+	if err != nil {
+		s.log.WithError(err).Debug("Failed to get poison record symmetric keys")
+		if err := s.GeneratePoisonRecordSymmetricKey(); err != nil {
+			return nil, err
+		}
+		return s.allSymmetricKeys(ring)
+	}
+	return symmetricKeys, nil
+}
+
 func (s *ServerKeyStore) savePoisonKeyPair(keypair *keys.Keypair) error {
 	ring, err := s.OpenKeyRingRW(poisonKeyPath)
 	if err != nil {
@@ -83,6 +107,37 @@ func (s *ServerKeyStore) savePoisonKeyPair(keypair *keys.Keypair) error {
 	err = s.addCurrentKeyPair(ring, keypair)
 	if err != nil {
 		s.log.WithError(err).Debug("failed to set current poison record key pair")
+		return err
+	}
+	return nil
+}
+
+// GeneratePoisonRecordSymmetricKey generates new poison record symmetric key.
+func (s *ServerKeyStore) GeneratePoisonRecordSymmetricKey() error {
+	log := s.log
+	ring, err := s.OpenKeyRingRW(poisonSymmetricKeyPath)
+	if err != nil {
+		log.WithError(err).Debug("Failed to open symmetric poison record key ring")
+		return err
+	}
+	_, err = s.newCurrentSymmetricKey(ring)
+	if err != nil {
+		log.WithError(err).Debug("Failed to generate poison record symmetric key")
+		return err
+	}
+	return nil
+}
+
+func (s *ServerKeyStore) importPoisonRecordSymmetricKey(poisonKey []byte) error {
+	log := s.log
+	ring, err := s.OpenKeyRingRW(poisonSymmetricKeyPath)
+	if err != nil {
+		log.WithError(err).Debug("Failed to open symmetric poison record key ring")
+		return err
+	}
+	err = s.addCurrentSymmetricKey(ring, poisonKey)
+	if err != nil {
+		log.WithError(err).Debug("Failed to add poison record symmetric key")
 		return err
 	}
 	return nil

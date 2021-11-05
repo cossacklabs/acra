@@ -16,15 +16,20 @@ limitations under the License.
 
 package utils
 
-const (
-	// SlashChar ASCII code
-	SlashChar = 92
-)
-
 // IsPrintableEscapeChar returns true if character is ASCII printable (code between 32 and 126)
 func IsPrintableEscapeChar(c byte) bool {
 	if c >= 32 && c <= 126 {
 		return true
 	}
 	return false
+}
+
+// IsPrintableASCIIArray return true if all symbols in data are ASCII printable symbols
+func IsPrintableASCIIArray(data []byte) bool {
+	for _, c := range data {
+		if !IsPrintableEscapeChar(c) {
+			return false
+		}
+	}
+	return true
 }

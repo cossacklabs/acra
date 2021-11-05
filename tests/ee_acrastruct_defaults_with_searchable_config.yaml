@@ -1,0 +1,38 @@
+defaults:
+  crypto_envelope: acrastruct
+
+schemas:
+  # used in test.py
+  - table: test_searchable_transparent_encryption
+    columns:
+      - id
+      - specified_client_id
+      - default_client_id
+      - number
+      - zone_id
+      - raw_data
+      - nullable
+      - searchable
+      - searchable_acrablock
+      - empty
+      - token_i32
+      - token_i64
+      - token_str
+      - token_bytes
+      - token_email
+      - masking
+    encrypted:
+      - column: specified_client_id
+        client_id: keypair1
+
+      - column: default_client_id
+
+      - column: zone_id
+        zone_id: DDDDDDDDMatNOMYjqVOuhACC
+
+      - column: searchable
+        searchable: true
+
+      - column: searchable_acrablock
+        searchable: true
+        crypto_envelope: acrablock

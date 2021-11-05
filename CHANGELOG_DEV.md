@@ -1,3 +1,19 @@
+## 0.85.0 - 2021-04-30
+### Added
+- Transparent searchable encryption with AcraBlocks as crypto envelope
+- Transparent masking with AcraBlocks as crypto envelope
+- Improved encryptor config validation
+- Extended acra-keys with new command `extract-client-id` that return ClientID according to TLS certificate data
+
+## 0.85.0 - 2021-03-11
+### Added
+- Generation keys by acra-keymaker by providing TLS certificate instead specific client_id. Added new CLI parameters:
+  - `tls_identifier_extractor_type` - identifier extractor type which will use to extract client_id from TLS certificate
+  - `tls_cert` - path to TLS certificate which metadata will be used as keys identifier
+  
+### Changed
+- Allow empty SQL queries for binary protocols
+
 ## 0.85.0 - 2020-12-17
 
 - Implemented support of TLS certificate validation using OCSP and CRL (Certificate Revocation Lists)

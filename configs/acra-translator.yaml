@@ -1,4 +1,16 @@
-version: 0.85.0
+version: 0.90.0
+# Use raw transport (tcp/unix socket) between AcraTranslator and client app. It turns off reading trace from client app's side which usually sent by AcraConnector
+acraconnector_transport_encryption_disable: false
+
+# Use clientID from TLS certificates or secure session handshake instead directly passed values in gRPC methods
+acratranslator_client_id_from_connection_enable: false
+
+# Use TLS to encrypt transport between AcraTranslator and AcraConnector/client app
+acratranslator_tls_transport_enable: false
+
+# Enable audit log functionality
+audit_log_enable: false
+
 # path to config
 config_file: 
 
@@ -41,6 +53,12 @@ keys_dir: .acrakeys
 # Count of keys that will be stored in in-memory LRU cache in encrypted form. 0 - no limits, -1 - turn off cache
 keystore_cache_size: 0
 
+# Log to stderr if true
+log_to_console: true
+
+# Log to file if pass not empty value
+log_to_file: 
+
 # Logging format: plaintext, json or CEF
 logging_format: plaintext
 
@@ -53,8 +71,65 @@ poison_run_script_file:
 # On detecting poison record: log about poison record detection, stop and shutdown
 poison_shutdown_enable: false
 
+# Number of Redis database for keys
+redis_db_keys: -1
+
+# Number of Redis database for tokens
+redis_db_tokens: -1
+
+# <host>:<port> used to connect to Redis
+redis_host_port: 
+
+# Password to Redis database
+redis_password: 
+
 # Id that will be sent in secure session
 securesession_id: acra_translator
+
+# Set authentication mode that will be used in TLS connection. Values in range 0-4 that set auth type (https://golang.org/pkg/crypto/tls/#ClientAuthType). Default is tls.RequireAndVerifyClientCert
+tls_auth: 4
+
+# Path to root certificate which will be used with system root certificates to validate peer's certificate
+tls_ca: 
+
+# Path to certificate
+tls_cert: 
+
+# How many CRLs to cache in memory (use 0 to disable caching)
+tls_crl_cache_size: 16
+
+# How long to keep CRLs cached, in seconds (use 0 to disable caching, maximum: 300 s)
+tls_crl_cache_time: 0
+
+# Put 'true' to check only final/last certificate, or 'false' to check the whole certificate chain using CRL
+tls_crl_check_only_leaf_certificate: false
+
+# How to treat CRL URL described in certificate itself: <use|trust|prefer|ignore>
+tls_crl_from_cert: prefer
+
+# URL of the Certificate Revocation List (CRL) to use
+tls_crl_url: 
+
+# Decide which field of TLS certificate to use as ClientID (distinguished_name|serial_number). Default is distinguished_name.
+tls_identifier_extractor_type: distinguished_name
+
+# Path to private key that will be used for TLS connections
+tls_key: 
+
+# Put 'true' to check only final/last certificate, or 'false' to check the whole certificate chain using OCSP
+tls_ocsp_check_only_leaf_certificate: false
+
+# How to treat OCSP server described in certificate itself: <use|trust|prefer|ignore>
+tls_ocsp_from_cert: prefer
+
+# How to treat certificates unknown to OCSP: <denyUnknown|allowUnknown|requireGood>
+tls_ocsp_required: denyUnknown
+
+# OCSP service URL
+tls_ocsp_url: 
+
+# Path to BoltDB database file to store tokens
+token_db: 
 
 # Export trace data to jaeger
 tracing_jaeger_enable: false
@@ -64,4 +139,22 @@ tracing_log_enable: false
 
 # Log to stderr all INFO, WARNING and ERROR logs
 v: false
+
+# Connection string (http://x.x.x.x:yyyy) for loading ACRA_MASTER_KEY from HashiCorp Vault
+vault_connection_api_string: 
+
+# KV Secret Path (secret/) for reading ACRA_MASTER_KEY from HashiCorp Vault
+vault_secrets_path: secret/
+
+# Path to CA certificate for HashiCorp Vault certificate validation
+vault_tls_ca_path: 
+
+# Path to client TLS certificate for reading ACRA_MASTER_KEY from HashiCorp Vault
+vault_tls_client_cert: 
+
+# Path to private key of the client TLS certificate for reading ACRA_MASTER_KEY from HashiCorp Vault
+vault_tls_client_key: 
+
+# Use TLS to encrypt transport with HashiCorp Vault
+vault_tls_transport_enable: false
 

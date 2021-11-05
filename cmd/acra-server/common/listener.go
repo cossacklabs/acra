@@ -19,6 +19,7 @@ package common
 import (
 	"context"
 	"errors"
+	"github.com/cossacklabs/acra/keystore/filesystem"
 	"github.com/cossacklabs/acra/utils"
 	"io"
 	"net"
@@ -36,6 +37,27 @@ import (
 	"go.opencensus.io/trace"
 )
 
+type closer func()
+
+func (c closer) Close() error {
+	c()
+	return nil
+}
+
+// sessionCloseToCloser converts Close() to io.Closer Close() error
+func sessionCloseToCloser(close func()) io.Closer {
+	return closer(close)
+}
+
+func recoverConnection(logger *log.Entry, session io.Closer) {
+	if recMsg := recover(); recMsg != nil {
+		logger.WithField("error", recMsg).Errorln("Panic in connection processing, close connection")
+		if err := session.Close(); err != nil {
+			logger.WithError(err).Errorln("Error on Close() callback in panic handler")
+		}
+	}
+}
+
 // SServer represents AcraServer server, connects with KeyStorage, configuration file,
 // data and command connections (listeners, managers, file descriptors), and signals.
 type SServer struct {
@@ -49,22 +71,11 @@ type SServer struct {
 	proxyFactory          base.ProxyFactory
 	backgroundWorkersSync sync.WaitGroup
 	stopListenersSignal   chan bool
+	errCh                 chan error
 }
 
 // ErrWaitTimeout error indicates that server was shutdown and waited N seconds while shutting down all connections.
 var ErrWaitTimeout = errors.New("timeout")
-
-// NewServer creates new SServer.
-func NewServer(config *Config, proxyFactory base.ProxyFactory, errorChan chan os.Signal, restarChan chan os.Signal) (server *SServer, err error) {
-	return &SServer{
-		config:                config,
-		connectionManager:     network.NewConnectionManager(),
-		errorSignalChannel:    errorChan,
-		restartSignalsChannel: restarChan,
-		proxyFactory:          proxyFactory,
-		stopListenersSignal:   make(chan bool),
-	}, nil
-}
 
 // Close all listeners and return first error
 func (server *SServer) Close() {
@@ -144,8 +155,7 @@ func (server *SServer) handleConnection(ctx context.Context, clientID []byte, co
 func (server *SServer) handleClientSession(clientID []byte, clientSession *ClientSession) {
 	sessionLogger := clientSession.Logger()
 	sessionLogger.Infof("Handle client's connection")
-	clientProxyErrorCh := make(chan error, 1)
-	dbProxyErrorCh := make(chan error, 1)
+	proxyErrCh := make(chan base.ProxyError)
 
 	sessionLogger.Debugf("Connecting to db")
 	err := clientSession.ConnectToDb()
@@ -161,52 +171,43 @@ func (server *SServer) handleClientSession(clientID []byte, clientSession *Clien
 		}
 		return
 	}
-
 	proxy, err := server.proxyFactory.New(clientID, clientSession)
 	if err != nil {
 		sessionLogger.WithError(err).Errorln("Can't create new proxy for connection")
 		return
 	}
+	accessContext := base.NewAccessContext(base.WithClientID(clientID), base.WithZoneMode(server.config.GetWithZone()))
+	// subscribe on clientID changes after switching connection to TLS and using ClientID from TLS certificates
+	proxy.AddClientIDObserver(accessContext)
 
 	server.backgroundWorkersSync.Add(1)
 	go func() {
 		defer server.backgroundWorkersSync.Done()
-		proxy.ProxyClientConnection(clientProxyErrorCh)
+		defer recoverConnection(sessionLogger.WithField("function", "ProxyClientConnection"), sessionCloseToCloser(clientSession.Close))
+		proxy.ProxyClientConnection(base.SetAccessContextToContext(clientSession.ctx, accessContext), proxyErrCh)
 	}()
-
 	server.backgroundWorkersSync.Add(1)
 	go func() {
 		defer server.backgroundWorkersSync.Done()
-		proxy.ProxyDatabaseConnection(dbProxyErrorCh)
+		defer recoverConnection(sessionLogger.WithField("function", "ProxyDatabaseConnection"), sessionCloseToCloser(clientSession.Close))
+		proxy.ProxyDatabaseConnection(base.SetAccessContextToContext(clientSession.ctx, accessContext), proxyErrCh)
 	}()
 
-	var channelToWait chan error
-	const (
-		acraDbSide     = "AcraServer<->Database"
-		clientAcraSide = "Client/Connector<->Database"
-	)
-	var interruptSide string
+	proxyErr := <-proxyErrCh
+	sessionLogger = sessionLogger.WithField("interrupt_side", proxyErr.InterruptSide())
+	sessionLogger.Debugln("Stop to proxy")
 
-	select {
-	case err = <-dbProxyErrorCh:
-		sessionLogger.Debugln("Stop to proxy Database -> AcraServer")
-		interruptSide = acraDbSide
-		channelToWait = clientProxyErrorCh
-	case err = <-clientProxyErrorCh:
-		interruptSide = clientAcraSide
-		sessionLogger.Debugln("Stop to proxy AcraServer -> Client")
-		channelToWait = dbProxyErrorCh
-	}
-	sessionLogger = sessionLogger.WithField("interrupt_side", interruptSide)
+	err = errors.Unwrap(proxyErr)
 	if err == io.EOF {
 		sessionLogger.Debugln("EOF connection closed")
 	} else if err == nil {
 		sessionLogger.Debugln("Err == nil from proxy goroutine")
 	} else if netErr, ok := err.(net.Error); ok {
-		sessionLogger.WithError(netErr).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorGeneralConnectionProcessing).
-			Errorln("Network error")
+		sessionLogger.WithError(netErr).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorGeneralConnectionProcessing).Errorln("Network error")
 	} else if opErr, ok := err.(*net.OpError); ok {
 		sessionLogger.WithError(opErr).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorGeneralConnectionProcessing).Errorln("Network error")
+	} else if filesystem.IsKeyReadError(err) {
+		sessionLogger.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorGeneralConnectionProcessing).Errorln("Key found error")
 	} else {
 		sessionLogger.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorGeneralConnectionProcessing).Errorln("Unexpected error")
 	}
@@ -215,16 +216,16 @@ func (server *SServer) handleClientSession(clientID []byte, clientSession *Clien
 	clientSession.Close()
 
 	// wait second error from closed second connection
-	sessionLogger.WithError(<-channelToWait).Debugln("Second proxy goroutine stopped")
+	sessionLogger.WithError(<-proxyErrCh).Debugln("Second proxy goroutine stopped")
 	sessionLogger.Infoln("Finished processing client's connection")
 }
 
-func (server *SServer) processConnection(connection net.Conn, callback *callbackData) {
+func (server *SServer) processConnection(parentContext context.Context, connection net.Conn, callback *callbackData) {
 	connectionCounter.WithLabelValues(callback.connectionType).Inc()
 	timer := prometheus.NewTimer(prometheus.ObserverFunc(connectionProcessingTimeHistogram.WithLabelValues(callback.connectionType).Observe))
 	defer timer.ObserveDuration()
 
-	ctx := logging.SetTraceStatus(context.Background(), server.config.TraceToLog)
+	ctx := logging.SetTraceStatus(parentContext, server.config.TraceToLog)
 
 	wrapCtx, wrapSpan := trace.StartSpan(ctx, "WrapServer", server.config.GetTraceOptions()...)
 	logger := logging.NewLoggerWithTrace(wrapCtx)
@@ -301,8 +302,11 @@ func (server *SServer) start(parentContext context.Context, listener net.Listene
 		server.backgroundWorkersSync.Add(1)
 		go func() {
 			defer server.backgroundWorkersSync.Done()
+			defer recoverConnection(logger.WithFields(
+				log.Fields{"connection_type": callback.connectionType, "function": callback.funcName}), connection)
+
 			_ = server.connectionManager.AddConnection(connection)
-			server.processConnection(connection, callback)
+			server.processConnection(parentContext, connection, callback)
 			_ = server.connectionManager.RemoveConnection(connection)
 		}()
 	}

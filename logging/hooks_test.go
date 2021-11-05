@@ -19,6 +19,7 @@ package logging
 import (
 	"bytes"
 	"fmt"
+	"github.com/cossacklabs/acra/utils"
 	"strings"
 	"testing"
 	"time"
@@ -107,8 +108,10 @@ func TestHooksCEF(t *testing.T) {
 	}
 
 	logLine := strings.TrimSpace(string(serialized))
-	if logLine != `CEF:0|cossacklabs|add one more field to cef formatter|0.85.0|100|test error please ignore|6|a-field=value A extra=field unixTime=528854399.000 z-field=value Z  (total: 8 fields)` {
-		t.Errorf("incorrect log line: %v", logLine)
+	expectedLine := `CEF:0|cossacklabs|add one more field to cef formatter|x.xx.x|100|test error please ignore|6|a-field=value A extra=field unixTime=528854399.000 z-field=value Z  (total: 8 fields)`
+	expectedLine = strings.Replace(expectedLine, "x.xx.x", utils.VERSION, 1)
+	if logLine != expectedLine {
+		t.Errorf("incorrect log line: %v != %v\n", logLine, expectedLine)
 	}
 }
 
@@ -122,8 +125,10 @@ func TestHooksJSON(t *testing.T) {
 	}
 
 	logLine := strings.TrimSpace(string(serialized))
-	if logLine != `{"a-field":"value A","extra":"field","level":"error","msg":"test error please ignore","product":"add one more field to json formatter","timestamp":"1986-10-04T23:59:59Z","unixTime":"528854399.000","version":"0.85.0","z-field":"value Z"} (total: 6 fields)` {
-		t.Errorf("incorrect log line: %v", logLine)
+	expectedLine := `{"a-field":"value A","extra":"field","level":"error","msg":"test error please ignore","product":"add one more field to json formatter","timestamp":"1986-10-04T23:59:59Z","unixTime":"528854399.000","version":"x.xx.x","z-field":"value Z"} (total: 6 fields)`
+	expectedLine = strings.Replace(expectedLine, "x.xx.x", utils.VERSION, 1)
+	if logLine != expectedLine {
+		t.Errorf("incorrect log line: %v != %v\n", logLine, expectedLine)
 	}
 }
 

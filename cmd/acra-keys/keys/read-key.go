@@ -39,11 +39,13 @@ var SupportedReadKeyKinds = []string{
 
 // Key parameter errors:
 var (
-	ErrMissingClientID = errors.New("client ID not specified")
-	ErrMissingZoneID   = errors.New("zone ID not specified")
-	ErrUnknownKeyKind  = errors.New("unknown key kind")
-	ErrMissingKeyPart  = errors.New("key part not specified")
-	ErrExtraKeyPart    = errors.New("both key parts specified")
+	ErrMissingClientID             = errors.New("client ID not specified")
+	ErrMissingZoneID               = errors.New("zone ID not specified")
+	ErrUnknownKeyKind              = errors.New("unknown key kind")
+	ErrMissingKeyPart              = errors.New("key part not specified")
+	ErrExtraKeyPart                = errors.New("both key parts specified")
+	ErrMissingTLSCertPath          = errors.New("TLS certificate path not specified")
+	ErrClientIDWithTLSCertProvided = errors.New("client ID and TLS certificate path are both provided")
 )
 
 // ReadKeyParams are parameters of "acra-keys read" subcommand.

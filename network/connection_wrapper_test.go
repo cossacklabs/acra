@@ -43,15 +43,21 @@ func testWrapperWithError(clientWrapper, serverWrapper ConnectionWrapper, expect
 	if err != nil {
 		onError(err, t)
 	}
-	os.Remove(f.Name())
+	if err = os.Remove(f.Name()); err != nil {
+		onError(err, t)
+	}
 	socket := f.Name()
+	// use ctx to force background listener in goroutine wait finishing this function
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 	listener, err := net.Listen("unix", socket)
 	if err != nil {
 		onError(err, t)
 	}
 	const bufSize = 1024
 	defer listener.Close()
-	go func() {
+	defer os.Remove(f.Name())
+	go func(ctx context.Context) {
 		buf := make([]byte, bufSize)
 		conn, err := listener.Accept()
 		if err != nil {
@@ -59,31 +65,31 @@ func testWrapperWithError(clientWrapper, serverWrapper ConnectionWrapper, expect
 			onError(err, t)
 			return
 		}
+		defer conn.Close()
 		wrappedConn, clientID, err := serverWrapper.WrapServer(context.TODO(), conn)
 		if err != nil {
-			conn.Close()
 			onError(err, t)
 			return
 		}
+		defer wrappedConn.Close()
 		if !bytes.Equal(clientID, expectedClientID) {
-			conn.Close()
 			onError(keystore.ErrInvalidClientID, t)
 			return
 		}
 		for i := 0; i < iterations; i++ {
 			n, err := wrappedConn.Read(buf)
 			if err != nil {
-				wrappedConn.Close()
 				onError(err, t)
 				return
 			}
 			_, err = wrappedConn.Write(buf[:n])
 			if err != nil {
-				wrappedConn.Close()
 				onError(err, t)
+				return
 			}
 		}
-	}()
+		<-ctx.Done()
+	}(ctx)
 
 	connection, err := net.Dial("unix", socket)
 	if err != nil {
@@ -116,5 +122,21 @@ func testWrapperWithError(clientWrapper, serverWrapper ConnectionWrapper, expect
 			connection.Close()
 			onError(errors.New("data not equal"), t)
 		}
+	}
+}
+
+type invalidAuthInfo struct{}
+
+func (i invalidAuthInfo) AuthType() string {
+	panic("implement me")
+}
+
+func testTLSGRPCClientIDExtractorIncorrectAuthInfo(t *testing.T) {
+	resultClientID, err := GetClientIDFromAuthInfo(invalidAuthInfo{}, nil)
+	if err != ErrCantExtractClientID {
+		t.Fatal(err)
+	}
+	if resultClientID != nil {
+		t.Fatal("ClientID != nil")
 	}
 }

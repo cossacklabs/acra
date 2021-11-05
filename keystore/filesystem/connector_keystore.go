@@ -23,10 +23,14 @@ import (
 	connector_mode "github.com/cossacklabs/acra/cmd/acra-connector/connector-mode"
 	"github.com/cossacklabs/acra/keystore"
 	"github.com/cossacklabs/themis/gothemis/keys"
+
+	"github.com/prometheus/common/log"
 )
 
 // ConnectorFileSystemKeyStore stores AcraConnector keys configuration
 type ConnectorFileSystemKeyStore struct {
+	storageKeyStore *KeyStore
+
 	directory     string
 	clientID      []byte
 	storage       Storage
@@ -99,12 +103,25 @@ func (b *ConnectorFileSystemKeyStoreBuilder) Build() (*ConnectorFileSystemKeySto
 	if b.connectorMode == "" {
 		return nil, errNoConnectorMode
 	}
+
+	// Build storage KeyStore
+	storageKeyStore, err := NewCustomFilesystemKeyStore().
+		KeyDirectory(b.directory).
+		Storage(b.storage).
+		Encryptor(b.encryptor).
+		Build()
+
+	if err != nil {
+		return nil, err
+	}
+
 	return &ConnectorFileSystemKeyStore{
-		directory:     b.directory,
-		clientID:      b.clientID,
-		storage:       b.storage,
-		encryptor:     b.encryptor,
-		connectorMode: b.connectorMode,
+		directory:       b.directory,
+		clientID:        b.clientID,
+		storage:         b.storage,
+		encryptor:       b.encryptor,
+		connectorMode:   b.connectorMode,
+		storageKeyStore: storageKeyStore,
 	}, nil
 }
 
@@ -152,4 +169,24 @@ func (store *ConnectorFileSystemKeyStore) GetPeerPublicKey(id []byte) (*keys.Pub
 		return nil, err
 	}
 	return &keys.PublicKey{Value: key}, nil
+}
+
+// GetLogSecretKey return key for log integrity checks
+func (store *ConnectorFileSystemKeyStore) GetLogSecretKey() ([]byte, error) {
+	filename := getLogKeyFilename()
+	var err error
+	encryptedKey, ok := store.storageKeyStore.Get(filename)
+	if !ok {
+		encryptedKey, err = store.storageKeyStore.ReadKeyFile(store.storageKeyStore.GetPrivateKeyFilePath(filename))
+		if err != nil {
+			return nil, err
+		}
+	}
+	decryptedKey, err := store.encryptor.Decrypt(encryptedKey, []byte(SecureLogKeyFilename))
+	if err != nil {
+		return nil, err
+	}
+	log.Debugf("Load key from fs: %s", filename)
+	store.storageKeyStore.Add(filename, encryptedKey)
+	return decryptedKey, nil
 }

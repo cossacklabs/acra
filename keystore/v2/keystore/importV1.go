@@ -121,6 +121,70 @@ func (s *ServerKeyStore) ImportKeyFileV1(oldKeyStore filesystemV1.KeyExport, key
 			log.WithError(err).Debug("failed to import AcraServer transport key pair")
 			return err
 		}
+	case filesystemV1.PurposeAuditLog:
+		symkey, err := oldKeyStore.ExportSymmetricKey(key)
+		if err != nil {
+			log.WithError(err).Debug("Failed to export audit log key")
+			return err
+		}
+		defer utils.ZeroizeSymmetricKey(symkey)
+		err = s.importLogKey(symkey)
+		if err != nil {
+			log.WithError(err).Debug("Failed to import audit log key")
+			return err
+		}
+
+	case filesystemV1.PurposeSearchHMAC:
+		symkey, err := oldKeyStore.ExportSymmetricKey(key)
+		if err != nil {
+			log.WithError(err).Debug("Failed to export search HMAC key")
+			return err
+		}
+		defer utils.ZeroizeSymmetricKey(symkey)
+		err = s.importHmacKey(key.ID, symkey)
+		if err != nil {
+			log.WithError(err).Debug("Failed to import search HMAC key")
+			return err
+		}
+
+	case filesystemV1.PurposePoisonRecordSymmetricKey:
+		symkey, err := oldKeyStore.ExportSymmetricKey(key)
+		if err != nil {
+			log.WithError(err).Debug("Failed to export poison record symmetric key")
+			return err
+		}
+		defer utils.ZeroizeSymmetricKey(symkey)
+		err = s.importPoisonRecordSymmetricKey(symkey)
+		if err != nil {
+			log.WithError(err).Debug("Failed to import poison record symmetric key")
+			return err
+		}
+
+	case filesystemV1.PurposeStorageClientSymmetricKey:
+		symkey, err := oldKeyStore.ExportSymmetricKey(key)
+		if err != nil {
+			log.WithError(err).Debug("Failed to export client storage symmetric key")
+			return err
+		}
+		defer utils.ZeroizeSymmetricKey(symkey)
+		err = s.importClientIDSymmetricKey(key.ID, symkey)
+		if err != nil {
+			log.WithError(err).Debug("Failed to import client storage symmetric key")
+			return err
+		}
+
+	case filesystemV1.PurposeStorageZoneSymmetricKey:
+		symkey, err := oldKeyStore.ExportSymmetricKey(key)
+		if err != nil {
+			log.WithError(err).Debug("Failed to export zone storage symmetric key")
+			return err
+		}
+		defer utils.ZeroizeSymmetricKey(symkey)
+		err = s.importZoneIDSymmetricKey(key.ID, symkey)
+		if err != nil {
+			log.WithError(err).Debug("Failed to import zone storage symmetric key")
+			return err
+		}
 	default:
 		log.Debug("unknown key purpose")
 		return ErrUnknownPurpose

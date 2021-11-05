@@ -19,6 +19,7 @@ package common
 import (
 	"crypto/tls"
 	"github.com/cossacklabs/acra/network"
+	"github.com/cossacklabs/acra/pseudonymization/common"
 	"go.opencensus.io/trace"
 )
 
@@ -31,16 +32,61 @@ type AcraTranslatorConfig struct {
 	serverID                     []byte
 	incomingConnectionHTTPString string
 	incomingConnectionGRPCString string
-	ConnectionWrapper            network.ConnectionWrapper
+	HTTPConnectionWrapper        network.HTTPServerConnectionWrapper
+	GRPCConnectionWrapper        network.GRPCConnectionWrapper
 	configPath                   string
 	debug                        bool
 	traceToLog                   bool
 	tlsConfig                    *tls.Config
+	useClientIDFromConnection    bool
+	withConnector                bool
+	tokenizer                    common.Pseudoanonymizer
+	tlsClientIDExtractor         network.TLSClientIDExtractor
 }
 
 // NewConfig creates new AcraTranslatorConfig.
 func NewConfig() *AcraTranslatorConfig {
 	return &AcraTranslatorConfig{stopOnPoison: false}
+}
+
+// SetWithConnector set WithConnector
+func (a *AcraTranslatorConfig) SetWithConnector(v bool) {
+	a.withConnector = v
+}
+
+// SetTLSClientIDExtractor set clientID extractor from TLS metadata
+func (a *AcraTranslatorConfig) SetTLSClientIDExtractor(tlsClientIDExtractor network.TLSClientIDExtractor) {
+	a.tlsClientIDExtractor = tlsClientIDExtractor
+}
+
+// GetTLSClientIDExtractor return configured TLSClietIDExtractor
+func (a *AcraTranslatorConfig) GetTLSClientIDExtractor() network.TLSClientIDExtractor {
+	return a.tlsClientIDExtractor
+}
+
+// SetTokenizer set configured tokenizer
+func (a *AcraTranslatorConfig) SetTokenizer(tokenizer common.Pseudoanonymizer) {
+	a.tokenizer = tokenizer
+}
+
+// GetTokenizer return configure tokenizer
+func (a *AcraTranslatorConfig) GetTokenizer() common.Pseudoanonymizer {
+	return a.tokenizer
+}
+
+// GetWithConnector return WithConnector
+func (a *AcraTranslatorConfig) GetWithConnector() bool {
+	return a.withConnector
+}
+
+// SetUseClientIDFromConnection use ClientID from connection metadata instead request arguments
+func (a *AcraTranslatorConfig) SetUseClientIDFromConnection(v bool) {
+	a.useClientIDFromConnection = v
+}
+
+// GetUseClientIDFromConnection return true if translator should use clientID from connection
+func (a *AcraTranslatorConfig) GetUseClientIDFromConnection() bool {
+	return a.useClientIDFromConnection
 }
 
 // WithTLS true if server should use TLS connections to gRPC/HTTP server

@@ -1,4 +1,4 @@
-version: 0.85.0
+version: 0.90.0
 # Path to AcraCensor configuration file
 acracensor_config_file: 
 
@@ -8,11 +8,14 @@ acraconnector_tls_transport_enable: false
 # Use raw transport (tcp/unix socket) between AcraServer and AcraConnector/client (don't use this flag if you not connect to database with SSL/TLS
 acraconnector_transport_encryption_disable: false
 
-# Acrastruct may be injected into any place of data cell
+# Acrastruct may be injected into any place of data cell (deprecated, ignored)
 acrastruct_injectedcell_enable: false
 
-# Acrastruct will stored in whole data cell
-acrastruct_wholecell_enable: true
+# Acrastruct will stored in whole data cell (deprecated, ignored)
+acrastruct_wholecell_enable: false
+
+# Enable audit log functionality
+audit_log_enable: false
 
 # Path to basic auth passwords. To add user, use: `./acra-authmanager --set --user <user> --pwd <pwd>`
 auth_keys: configs/auth.keys
@@ -86,6 +89,12 @@ keys_dir: .acrakeys
 # Maximum number of keys stored in in-memory LRU cache in encrypted form. 0 - no limits, -1 - turn off cache
 keystore_cache_size: 0
 
+# Log to stderr if true
+log_to_console: true
+
+# Log to file if pass not empty value
+log_to_file: 
+
 # Logging format: plaintext, json or CEF
 logging_format: plaintext
 
@@ -110,8 +119,23 @@ poison_shutdown_enable: false
 # Handle Postgresql connections (default true)
 postgresql_enable: false
 
+# Number of Redis database for keys
+redis_db_keys: -1
+
+# Number of Redis database for tokens
+redis_db_tokens: -1
+
+# <host>:<port> used to connect to Redis
+redis_host_port: 
+
+# Password to Redis database
+redis_password: 
+
 # Id that will be sent in secure session
 securesession_id: acra_server
+
+# Stop AcraServer execution in case of SQL query parse error. Default is false
+sql_parse_on_error_exit_enable: false
 
 # Set authentication mode that will be used in TLS connection with AcraConnector and database. Values in range 0-4 that set auth type (https://golang.org/pkg/crypto/tls/#ClientAuthType). Default is tls.RequireAndVerifyClientCert
 tls_auth: 4
@@ -131,7 +155,7 @@ tls_client_ca:
 # Path to server TLS certificate presented to AcraConnectors (overrides "tls_cert")
 tls_client_cert: 
 
-# Extract clientID from TLS certificate. Take TLS certificate from AcraConnector's connection if acraconnector_tls_transport_enable is TRUE; otherwise take TLS certificate from application's connection if acraconnector_transport_encryption_disable is TRUE
+# Extract clientID from TLS certificate. Take TLS certificate from AcraConnector's connection if acraconnector_tls_transport_enable is TRUE; otherwise take TLS certificate from application's connection if acraconnector_transport_encryption_disable is TRUE. Can't be used with --tls_client_auth=0 or --tls_auth=0
 tls_client_id_from_cert: false
 
 # Path to private key of the TLS certificate presented to AcraConnectors (see "tls_client_cert")
@@ -176,7 +200,7 @@ tls_database_sni:
 # Expected Server Name (SNI) from database (deprecated, use "tls_database_sni" instead)
 tls_db_sni: 
 
-# Decide which field of TLS certificate to use as ClientID (distinguished_name|serial_number)
+# Decide which field of TLS certificate to use as ClientID (distinguished_name|serial_number). Default is distinguished_name.
 tls_identifier_extractor_type: distinguished_name
 
 # Path to private key that will be used in AcraServer's TLS handshake with AcraConnector as server's key and database as client's key
@@ -200,6 +224,9 @@ tls_ocsp_required: denyUnknown
 # OCSP service URL
 tls_ocsp_url: 
 
+# Path to BoltDB database file to store tokens
+token_db: 
+
 # Export trace data to jaeger
 tracing_jaeger_enable: false
 
@@ -208,6 +235,24 @@ tracing_log_enable: false
 
 # Log to stderr all INFO, WARNING and ERROR logs
 v: false
+
+# Connection string (http://x.x.x.x:yyyy) for loading ACRA_MASTER_KEY from HashiCorp Vault
+vault_connection_api_string: 
+
+# KV Secret Path (secret/) for reading ACRA_MASTER_KEY from HashiCorp Vault
+vault_secrets_path: secret/
+
+# Path to CA certificate for HashiCorp Vault certificate validation
+vault_tls_ca_path: 
+
+# Path to client TLS certificate for reading ACRA_MASTER_KEY from HashiCorp Vault
+vault_tls_client_cert: 
+
+# Path to private key of the client TLS certificate for reading ACRA_MASTER_KEY from HashiCorp Vault
+vault_tls_client_key: 
+
+# Use TLS to encrypt transport with HashiCorp Vault
+vault_tls_transport_enable: false
 
 # Turn on zone mode
 zonemode_enable: false

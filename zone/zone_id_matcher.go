@@ -17,7 +17,24 @@ limitations under the License.
 package zone
 
 import (
-	"container/list"
+	"bytes"
+	"context"
+	"github.com/cossacklabs/acra/decryptor/base"
+	"github.com/sirupsen/logrus"
+)
+
+// should be used ascii symbols as prefix/suffix for using as output and filenames
+
+// were chosen upper symbols because if data is text than it's less possible to
+// catch three upper consonants in a row
+//var ZoneIDBegin = []byte{'Z', 'X', 'C'}
+//'44' - D - 68 - 0b1000100
+var (
+	ZoneTagSymbol     byte = 'D'
+	ZoneIDBegin            = []byte{ZoneTagSymbol, ZoneTagSymbol, ZoneTagSymbol, ZoneTagSymbol, ZoneTagSymbol, ZoneTagSymbol, ZoneTagSymbol, ZoneTagSymbol}
+	ZoneTagLength          = len(ZoneIDBegin)
+	ZoneIDLength           = 16
+	ZoneIDBlockLength      = int(ZoneTagLength + ZoneIDLength)
 )
 
 // KeyChecker checks if Zone Private key is available
@@ -27,120 +44,64 @@ type KeyChecker interface {
 
 // Matcher represents exact binary matcher
 type Matcher struct {
-	matched     bool
-	matchers    *list.List
-	zoneID      []byte
-	matcherPool *MatcherPool
-	keychecker  KeyChecker
+	zoneID     []byte
+	keychecker KeyChecker
 }
 
 // NewZoneMatcher returns new Matcher for exact zoneID
 // with keychecker and empty matchers
-func NewZoneMatcher(matcherPool *MatcherPool, keychecker KeyChecker) *Matcher {
+func NewZoneMatcher(keychecker KeyChecker) *Matcher {
 	matcher := &Matcher{
-		matchers:    list.New(),
-		matcherPool: matcherPool,
-		matched:     false,
-		keychecker:  keychecker,
+		keychecker: keychecker,
 	}
-	matcher.addEmptyMatcher()
 	return matcher
 }
 
 // IsMatched returns true if zoneID found
 func (zoneMatcher *Matcher) IsMatched() bool {
-	return zoneMatcher.matched
+	return zoneMatcher.zoneID != nil
 }
 
 // Reset clears matchers and reset matching state
 func (zoneMatcher *Matcher) Reset() {
-	zoneMatcher.matched = false
-	zoneMatcher.clearMatchers()
+	zoneMatcher.zoneID = nil
 }
 
 // GetZoneID returns zoneID if matched found it
 // return empty bytes otherwise
 func (zoneMatcher *Matcher) GetZoneID() []byte {
-	if zoneMatcher.IsMatched() {
-		return zoneMatcher.zoneID
-	}
-	return []byte{}
+	return zoneMatcher.zoneID
 }
 
 // SetMatched sets that matcher has found zoneID – id
 func (zoneMatcher *Matcher) SetMatched(id []byte) {
 	zoneMatcher.zoneID = id
-	zoneMatcher.matched = true
 }
 
 // Match returns true if zoneID found inside c bytes
 // checks using different matchers from the loop
-func (zoneMatcher *Matcher) Match(c byte) bool {
-	currentElement := zoneMatcher.matchers.Front()
-	var toRemove *list.Element
-	var matcherImpl matcher
-	isMatched := false
-	for {
-		matcherImpl = currentElement.Value.(matcher)
-		if matcherImpl.Match(c) {
-			if matcherImpl.IsMatched() {
-				if zoneMatcher.keychecker.HasZonePrivateKey(matcherImpl.GetZoneID()) {
-					zoneMatcher.zoneID = matcherImpl.GetZoneID()
-					zoneMatcher.matched = true
-					isMatched = true
-				}
-				toRemove = currentElement
-			} else {
-				isMatched = true
-			}
-		} else {
-			// if no match and it's not last matcher, delete him
-			if currentElement != zoneMatcher.matchers.Back() {
-				toRemove = currentElement
-			}
-		}
-		// if last matcher (previously was empty) has match, add empty matcher and quit
-		if currentElement == zoneMatcher.matchers.Back() && matcherImpl.HasAnyMatch() {
-			zoneMatcher.addEmptyMatcher()
-			if toRemove != nil {
-				zoneMatcher.remove(toRemove)
-			}
-			break
-		}
-
-		currentElement = currentElement.Next()
-		if toRemove != nil {
-			zoneMatcher.remove(toRemove)
-			toRemove = nil
-		}
-		if currentElement == nil {
-			break
-		}
+func (zoneMatcher *Matcher) Match(data []byte) bool {
+	if !bytes.HasPrefix(data, ZoneIDBegin) {
+		return false
 	}
-	return isMatched
-}
-
-func (zoneMatcher *Matcher) remove(element *list.Element) {
-	zoneMatcher.matchers.Remove(element)
-	zoneMatcher.matcherPool.release(element.Value.(matcher))
-}
-
-func (zoneMatcher *Matcher) clearMatchers() {
-	/* delete all matcher except the last that should be emptyMatcher */
-	var previous *list.Element
-	element := zoneMatcher.matchers.Front()
-	for {
-		if element.Next() != nil {
-			previous = element
-			element = element.Next()
-			zoneMatcher.remove(previous)
-		} else {
-			return
-		}
+	if zoneMatcher.keychecker.HasZonePrivateKey(data) {
+		zoneMatcher.zoneID = data
+		return true
 	}
+	return false
 }
 
-func (zoneMatcher *Matcher) addEmptyMatcher() {
-	matcher := zoneMatcher.matcherPool.acquire()
-	zoneMatcher.matchers.PushBack(matcher)
+// OnColumn try to match ZoneID in data and set it to AccessContext on success
+func (zoneMatcher *Matcher) OnColumn(ctx context.Context, data []byte) (context.Context, []byte, error) {
+	if zoneMatcher.Match(data) {
+		accessContext := base.AccessContextFromContext(ctx)
+		accessContext.SetZoneID(zoneMatcher.zoneID)
+		logrus.Debugln("Matched in zonematcher")
+	}
+	return ctx, data, nil
+}
+
+// ID return Matcher's ID
+func (zoneMatcher *Matcher) ID() string {
+	return "ZoneIDMatcher"
 }

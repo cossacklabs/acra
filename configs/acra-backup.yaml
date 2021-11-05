@@ -1,0 +1,52 @@
+version: 0.90.0
+# import|export values are accepted
+action: 
+
+# path to config
+config_file: 
+
+# dump config
+dump_config: false
+
+# path to file which will be used for import|export action
+file: 
+
+# Generate with yaml config markdown text file with descriptions of all args
+generate_markdown_args_table: false
+
+# Folder with private keys
+keys_private_dir: .acrakeys
+
+# Folder with public keys. Leave empty if keys stored in same folder as keys_private_dir
+keys_public_dir: 
+
+# Logging format: plaintext, json or CEF
+logging_format: plaintext
+
+# Number of Redis database for keys
+redis_db_keys: 0
+
+# <host>:<port> used to connect to Redis
+redis_host_port: 
+
+# Password to Redis database
+redis_password: 
+
+# Connection string (http://x.x.x.x:yyyy) for loading ACRA_MASTER_KEY from HashiCorp Vault
+vault_connection_api_string: 
+
+# KV Secret Path (secret/) for reading ACRA_MASTER_KEY from HashiCorp Vault
+vault_secrets_path: secret/
+
+# Path to CA certificate for HashiCorp Vault certificate validation
+vault_tls_ca_path: 
+
+# Path to client TLS certificate for reading ACRA_MASTER_KEY from HashiCorp Vault
+vault_tls_client_cert: 
+
+# Path to private key of the client TLS certificate for reading ACRA_MASTER_KEY from HashiCorp Vault
+vault_tls_client_key: 
+
+# Use TLS to encrypt transport with HashiCorp Vault
+vault_tls_transport_enable: false
+

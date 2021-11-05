@@ -32,34 +32,145 @@ type columnInfo struct {
 
 var errEmptyTableExprs = errors.New("empty table exprs")
 
+// parseJoinTablesInfo recursively read and save sql join structure info, aliases map is used to save association between tables and its aliases,
+// tables slice is used to collect certain order of tables (saved in reverse order of declaration).
+// JoinTableExpr structure represent a recursive tree where RightExpr and LeftExpr are corresponded leaf node
+// recursive processing starts from RightExpr leaf to the LeftExpr one, and when cast LeftExpr to AliasedTableExpr is successful
+// it means that we reach last leaf in the tree.
+func parseJoinTablesInfo(joinExp *sqlparser.JoinTableExpr, tables *[]string, aliases map[string]string) bool {
+	aliased, ok := joinExp.LeftExpr.(*sqlparser.AliasedTableExpr)
+	if ok {
+		// here we reach the last leaf in the JoinTableExpr recursive tree, processing SHOULD be stopped in this block.
+		// and we should process remaining RightExpr and LeftExpr leafs more before exit.
+		name, alias, ok := getRightJoinTableInfo(joinExp)
+		if !ok {
+			return false
+		}
+		*tables = append(*tables, name)
+		aliases[alias] = name
+
+		tableName, ok := aliased.Expr.(sqlparser.TableName)
+		if !ok {
+			return false
+		}
+
+		alias = aliased.As.RawValue()
+		if aliased.As.RawValue() == "" {
+			alias = tableName.Name.RawValue()
+		}
+
+		*tables = append(*tables, tableName.Name.RawValue())
+		aliases[alias] = tableName.Name.RawValue()
+		return true
+	}
+
+	name, alias, ok := getRightJoinTableInfo(joinExp)
+	if !ok {
+		return false
+	}
+	*tables = append(*tables, name)
+	aliases[alias] = name
+
+	joinExp, ok = joinExp.LeftExpr.(*sqlparser.JoinTableExpr)
+	if !ok {
+		return false
+	}
+
+	return parseJoinTablesInfo(joinExp, tables, aliases)
+}
+
+// getRightJoinTableInfo return tableName and its alias for right join table
+func getRightJoinTableInfo(joinExp *sqlparser.JoinTableExpr) (string, string, bool) {
+	rAliased, ok := joinExp.RightExpr.(*sqlparser.AliasedTableExpr)
+	if !ok {
+		return "", "", false
+	}
+
+	tableName, ok := rAliased.Expr.(sqlparser.TableName)
+	if !ok {
+		return "", "", false
+	}
+
+	alias := rAliased.As.RawValue()
+	if rAliased.As.RawValue() == "" {
+		alias = tableName.Name.RawValue()
+	}
+
+	return tableName.Name.RawValue(), alias, true
+}
+
+// getJoinFirstTableWithoutAlias recursively process JoinTableExpr tree until it reaches the first table in JOIN declarations
+// used to handle queries like this `select table1.column1, column2, column3 from table1 join table2 as t2` and match column2 to table1
+func getJoinFirstTableWithoutAlias(joinExp *sqlparser.JoinTableExpr) (string, bool) {
+	aliased, ok := joinExp.LeftExpr.(*sqlparser.AliasedTableExpr)
+	if ok {
+		return getNonAliasedName(aliased)
+	}
+
+	joinExp, ok = joinExp.LeftExpr.(*sqlparser.JoinTableExpr)
+	if !ok {
+		return "", false
+	}
+	return getJoinFirstTableWithoutAlias(joinExp)
+}
+
 // getFirstTableWithoutAlias search table name from "FROM" expression which has not any alias
 // if more than one table specified without alias then return errNotFoundTable
 func getFirstTableWithoutAlias(fromExpr sqlparser.TableExprs) (string, error) {
 	if len(fromExpr) == 0 {
 		return "", errEmptyTableExprs
 	}
+
+	if joinExp, ok := fromExpr[0].(*sqlparser.JoinTableExpr); ok {
+		tableName, ok := getJoinFirstTableWithoutAlias(joinExp)
+		if !ok {
+			return "", errNotFoundtable
+		}
+		return tableName, nil
+	}
+
 	var name string
 	for _, tblExpr := range fromExpr {
 		aliased, ok := tblExpr.(*sqlparser.AliasedTableExpr)
 		if !ok {
 			continue
 		}
-		if !aliased.As.IsEmpty() {
-			continue
-		}
-		tableName, ok := aliased.Expr.(sqlparser.TableName)
+		tName, ok := getNonAliasedName(aliased)
 		if !ok {
 			continue
 		}
 		if name != "" {
 			return "", errors.New("more than 1 table without alias")
 		}
-		name = tableName.Name.RawValue()
+		name = tName
 	}
 	if name == "" {
 		return "", errNotFoundtable
 	}
 	return name, nil
+}
+
+func getNonAliasedName(aliased *sqlparser.AliasedTableExpr) (string, bool) {
+	if !aliased.As.IsEmpty() {
+		return "", false
+	}
+	tableName, ok := aliased.Expr.(sqlparser.TableName)
+	if !ok {
+		return "", false
+	}
+	return tableName.Name.RawValue(), true
+}
+
+func getTableNameWithoutAliases(expr sqlparser.TableExpr) (string, error) {
+	aliased, ok := expr.(*sqlparser.AliasedTableExpr)
+	if !ok {
+		return "", errNotFoundtable
+	}
+	tableName, ok := aliased.Expr.(sqlparser.TableName)
+	if !ok {
+		return "", errNotFoundtable
+	}
+	return tableName.Name.RawValue(), nil
 }
 
 func findTableName(alias, columnName string, expr sqlparser.SQLNode) (columnInfo, error) {
@@ -127,10 +238,8 @@ func findTableName(alias, columnName string, expr sqlparser.SQLNode) (columnInfo
 								return columnInfo{}, err
 							}
 							return findTableName(firstTable, aliasVal.Name.String(), val.From)
-						} else {
-							return findTableName(aliasVal.Qualifier.Name.RawValue(), aliasVal.Name.String(), val.From)
 						}
-
+						return findTableName(aliasVal.Qualifier.Name.RawValue(), aliasVal.Name.String(), val.From)
 					}
 				}
 			}
@@ -150,16 +259,20 @@ func findTableName(alias, columnName string, expr sqlparser.SQLNode) (columnInfo
 	return columnInfo{}, errNotFoundtable
 }
 
-func mapColumnsToAliases(selectQuery *sqlparser.Select) []*columnInfo {
-	searchTables := make(map[string]bool, len(selectQuery.SelectExprs))
-	for _, expr := range selectQuery.SelectExprs {
-		if alias, ok := expr.(*sqlparser.AliasedExpr); ok {
-			if colName, ok := alias.Expr.(*sqlparser.ColName); ok {
-				searchTables[colName.Qualifier.Name.RawValue()] = true
-			}
+func mapColumnsToAliases(selectQuery *sqlparser.Select) ([]*columnInfo, error) {
+	out := make([]*columnInfo, 0, len(selectQuery.SelectExprs))
+	var joinTables []string
+	var joinAliases map[string]string
+
+	if joinExp, ok := selectQuery.From[0].(*sqlparser.JoinTableExpr); ok {
+		joinTables = make([]string, 0)
+		joinAliases = make(map[string]string)
+
+		if ok := parseJoinTablesInfo(joinExp, &joinTables, joinAliases); !ok {
+			return nil, errUnsupportedExpression
 		}
 	}
-	out := make([]*columnInfo, 0, len(selectQuery.SelectExprs))
+
 	for _, expr := range selectQuery.SelectExprs {
 		aliased, ok := expr.(*sqlparser.AliasedExpr)
 		if ok {
@@ -187,7 +300,45 @@ func mapColumnsToAliases(selectQuery *sqlparser.Select) []*columnInfo {
 				}
 			}
 		}
+		starExpr, ok := expr.(*sqlparser.StarExpr)
+		if ok {
+			if len(joinTables) > 0 {
+				if !starExpr.TableName.Name.IsEmpty() {
+					joinTable, ok := joinAliases[starExpr.TableName.Name.String()]
+					if !ok {
+						return nil, errUnsupportedExpression
+					}
+					out = append(out, &columnInfo{Table: joinTable, Name: allColumnsName, Alias: allColumnsName})
+					continue
+				}
+
+				for i := len(joinTables) - 1; i >= 0; i-- {
+					out = append(out, &columnInfo{Table: joinTables[i], Name: allColumnsName, Alias: allColumnsName})
+				}
+				continue
+			}
+
+			tableName, err := getFirstTableWithoutAlias(selectQuery.From)
+			if err == nil {
+				out = append(out, &columnInfo{Table: tableName, Name: allColumnsName, Alias: allColumnsName})
+			} else {
+				if len(selectQuery.From) == 1 {
+					tableNameStr, err := getTableNameWithoutAliases(selectQuery.From[0])
+					if err != nil {
+						return nil, err
+					}
+					out = append(out, &columnInfo{Table: tableNameStr, Name: allColumnsName, Alias: allColumnsName})
+					continue
+				}
+				tableNameStr, err := findTableName(starExpr.TableName.Name.RawValue(), starExpr.TableName.Name.RawValue(), selectQuery.From)
+				if err != nil {
+					return nil, err
+				}
+				out = append(out, &columnInfo{Table: tableNameStr.Table, Name: allColumnsName, Alias: allColumnsName})
+			}
+			continue
+		}
 		out = append(out, nil)
 	}
-	return out
+	return out, nil
 }

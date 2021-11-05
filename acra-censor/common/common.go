@@ -20,7 +20,6 @@ import (
 	"errors"
 	"github.com/cossacklabs/acra/logging"
 	"github.com/cossacklabs/acra/sqlparser"
-	"github.com/cossacklabs/acra/sqlparser/dependency/querypb"
 	log "github.com/sirupsen/logrus"
 	"strings"
 )
@@ -37,19 +36,14 @@ var (
 	ErrDenyByPatternError              = errors.New("deny by pattern")
 	ErrPatternSyntaxError              = errors.New("fail to parse specified pattern")
 	ErrPatternCheckError               = errors.New("failed to check specified pattern match")
-	ErrQuerySyntaxError                = errors.New("fail to parse specified query")
 	ErrCantReadQueriesFromStorageError = errors.New("can't read queries from storage")
 	ErrUnexpectedTypeError             = errors.New("should never appear")
 	ErrDenyAllError                    = errors.New("deny all queries error")
 	ErrCensorConfigurationError        = errors.New("configuration error")
 )
 
-const (
-	// LogQueryLength is maximum query length for logging to syslog.
-	LogQueryLength = 100
-	// ValueMask is used to mask real Values from SQL queries before logging to syslog.
-	ValueMask = "replaced"
-)
+// LogQueryLength is maximum query length for logging to syslog.
+const LogQueryLength = 100
 
 const (
 	// UnionPlaceholder is used when matching %%UNION%% pattern
@@ -107,27 +101,29 @@ const (
 	ColumnReplacer = "column_443112402399486586659464580"
 )
 
+var sqlParser = sqlparser.New(sqlparser.ModeStrict)
+
 // UnionPatternStatement is used while comparison with %%UNION%% pattern
-var UnionPatternStatement, _ = sqlparser.Parse(UnionReplacer)
+var UnionPatternStatement, _ = sqlParser.Parse(UnionReplacer)
 
 // SelectPatternStatement is used while comparison with %%SELECT%% pattern
-var SelectPatternStatement, _ = sqlparser.Parse(SelectReplacer)
+var SelectPatternStatement, _ = sqlParser.Parse(SelectReplacer)
 
 // InsertPatternStatement is used while comparison with %%INSERT%% pattern
-var InsertPatternStatement, _ = sqlparser.Parse(InsertReplacer)
+var InsertPatternStatement, _ = sqlParser.Parse(InsertReplacer)
 
 // UpdatePatternStatement is used while comparison with %%UPDATE%% pattern
-var UpdatePatternStatement, _ = sqlparser.Parse(UpdateReplacer)
+var UpdatePatternStatement, _ = sqlParser.Parse(UpdateReplacer)
 
 // DeletePatternStatement is used while comparison with %%DELETE%% pattern
-var DeletePatternStatement, _ = sqlparser.Parse(DeleteReplacer)
+var DeletePatternStatement, _ = sqlParser.Parse(DeleteReplacer)
 
 // ValuePatternStatement is used while comparison with %%VALUE%% pattern
 // replacer is used without quotes
 var ValuePatternStatement = sqlparser.NewStrVal([]byte(ValueReplacer[1:34]))
 
 // SubqueryPatternStatement is used while comparison with %%SUBQUERY%% pattern
-var SubqueryPatternStatement, _ = sqlparser.Parse(SubqueryReplacer)
+var SubqueryPatternStatement, _ = sqlParser.Parse(SubqueryReplacer)
 
 // ListOfValuePatternStatement is used while comparison with %%LIST_OF_VALUES%% pattern
 // replacer is used without quotes
@@ -137,7 +133,7 @@ var ListOfValuePatternStatement = sqlparser.NewStrVal([]byte(ListOfValuesReplace
 var ColumnPatternStatement = sqlparser.NewColIdent(ColumnReplacer)
 
 // WherePatternStatement is used while comparison with %%WHERE%% pattern
-var WherePatternStatement, _ = sqlparser.Parse("SELECT * FROM table_883909268 " + WhereReplacer)
+var WherePatternStatement, _ = sqlParser.Parse("SELECT * FROM table_883909268 " + WhereReplacer)
 
 var patterns = []pattern{
 	{SelectPlaceholder, SelectReplacer},
@@ -156,7 +152,7 @@ var patterns = []pattern{
 }
 
 // ParsePatterns replace placeholders with our values which used to match patterns and parse them with sqlparser
-func ParsePatterns(rawPatterns []string) ([]sqlparser.Statement, error) {
+func ParsePatterns(rawPatterns []string, parser *sqlparser.Parser) ([]sqlparser.Statement, error) {
 	patternValue := ""
 	var outputPatterns []sqlparser.Statement
 	for _, pattern := range rawPatterns {
@@ -164,7 +160,7 @@ func ParsePatterns(rawPatterns []string) ([]sqlparser.Statement, error) {
 		for _, pattern := range patterns {
 			patternValue = strings.Replace(patternValue, pattern.placeholder, pattern.replacer, -1)
 		}
-		statement, err := sqlparser.Parse(patternValue)
+		statement, err := parser.Parse(patternValue)
 		if err != nil {
 			log.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCensorQueryParseError).WithField("pattern", patternValue).WithError(err).Errorln("Can't parse specified pattern")
 			return nil, ErrPatternSyntaxError
@@ -180,31 +176,6 @@ func TrimStringToN(query string, n int) string {
 		return query
 	}
 	return query[:n]
-}
-
-// HandleRawSQLQuery returns a normalized (lowercases SQL commands) SQL string,
-// and redacted SQL string with the params stripped out for display.
-// Taken from sqlparser package
-func HandleRawSQLQuery(sql string) (normalizedQuery, redactedQuery string, parsedQuery sqlparser.Statement, err error) {
-	bv := map[string]*querypb.BindVariable{}
-	sqlStripped, _ := sqlparser.SplitMarginComments(sql)
-
-	// sometimes queries might have ; at the end, that should be stripped
-	sqlStripped = strings.TrimSuffix(sqlStripped, ";")
-
-	stmt, err := sqlparser.Parse(sqlStripped)
-	if err != nil {
-		return "", "", nil, ErrQuerySyntaxError
-	}
-	outputStmt, _ := sqlparser.Parse(sqlStripped)
-
-	normalizedQ := sqlparser.String(stmt)
-
-	// redact and mask VALUES
-	sqlparser.Normalize(stmt, bv, ValueMask)
-	redactedQ := sqlparser.String(stmt)
-
-	return normalizedQ, redactedQ, outputStmt, nil
 }
 
 // CheckPatternsMatching evaluates if parsed query matches specified set of patterns

@@ -35,6 +35,33 @@ func TestEncodeToOctal(t *testing.T) {
 	}
 }
 
+func TestDecodeEscaped(t *testing.T) {
+	type testcase struct {
+		data     []byte
+		expected []byte
+		err      error
+	}
+	testcases := []testcase{
+		{[]byte("\\x"), []byte{}, nil},
+		{[]byte{}, []byte{}, nil},
+		{[]byte("\\001"), []byte{1}, nil},
+		{[]byte("\\x01"), []byte{1}, nil},
+	}
+	for _, tcase := range testcases {
+		result, err := DecodeEscaped(tcase.data)
+		if err != tcase.err {
+			t.Fatalf("Incorrect error, took %s, expects %s\n", err, tcase.err)
+		}
+		if result == nil {
+			t.Fatal("Result is nil")
+		}
+		if !bytes.Equal(result.Data(), tcase.expected) {
+			t.Fatalf("Invalid result, took %v, expects %v\n", result, tcase.expected)
+		}
+	}
+
+}
+
 func BenchmarkEncodeToOctal(b *testing.B) {
 	data := make([]byte, 256)
 	for i := 0; i < len(data); i++ {

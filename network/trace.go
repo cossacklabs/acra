@@ -20,6 +20,7 @@ import (
 	"context"
 	"errors"
 	"github.com/cossacklabs/acra/utils"
+	log "github.com/sirupsen/logrus"
 	"go.opencensus.io/trace"
 	"go.opencensus.io/trace/propagation"
 	"net"
@@ -48,34 +49,52 @@ func ReadTrace(conn net.Conn) (trace.SpanContext, error) {
 	return spanContext, nil
 }
 
-type traceWrapper struct {
-	wrapper ConnectionWrapper
+type traceConnection struct {
+	net.Conn
+	spanContext trace.SpanContext
 }
 
-// NewTraceConnectionWrapper creates traceWrapper from ConnectionWrapper
-func NewTraceConnectionWrapper(wrapper ConnectionWrapper) (*traceWrapper, error) {
-	return &traceWrapper{wrapper}, nil
+// Unwrap return wrapped connection
+func (conn *traceConnection) Unwrap() net.Conn {
+	return conn.Conn
 }
 
-func (t *traceWrapper) WrapClient(ctx context.Context, conn net.Conn) (net.Conn, error) {
-	wrappedConn, err := t.wrapper.WrapClient(ctx, conn)
-	if err != nil {
-		return nil, err
+// GetSpanContextFromConnection extract trace.SpanContext from connections if it's safeCloseConnection otherwise trace.SpanContext{}, false
+func GetSpanContextFromConnection(conn net.Conn) (trace.SpanContext, bool) {
+	// unwrap until find connectionWithMetadata or return false if it's pure net.Conn
+	for {
+		unwrapped, ok := conn.(WrappedConnection)
+		if !ok {
+			return trace.SpanContext{}, false
+		}
+		if connWithMetadata, ok := unwrapped.(*traceConnection); ok {
+			return connWithMetadata.spanContext, true
+		}
+		conn = unwrapped.Unwrap()
 	}
-	if err := SendTrace(ctx, wrappedConn); err != nil {
-		return nil, err
-	}
-	return wrappedConn, nil
 }
 
-func (t *traceWrapper) WrapServer(ctx context.Context, conn net.Conn) (net.Conn, []byte, error) {
-	wrappedConn, id, err := t.wrapper.WrapServer(ctx, conn)
+// TraceConnectionCallback read and wrap connection with trace info
+type TraceConnectionCallback struct{}
+
+// OnConnectionContext read trace and store it in context
+func (cb TraceConnectionCallback) OnConnectionContext(ctx context.Context, c net.Conn) (context.Context, error) {
+	log.Debugln("Wrap connection with trace info")
+	traceCtx, err := ReadTrace(c)
 	if err != nil {
-		return nil, nil, err
+		return ctx, err
 	}
-	_, err = ReadTrace(wrappedConn)
+	// same options as for acra-server
+	options := []trace.StartOption{trace.WithSpanKind(trace.SpanKindServer), trace.WithSampler(trace.AlwaysSample())}
+	ctx, _ = trace.StartSpanWithRemoteParent(ctx, "HTTPApiConnection", traceCtx, options...)
+	return ctx, nil
+}
+
+// OnServerHandshake wrap conn with trace information
+func (TraceConnectionCallback) OnServerHandshake(conn net.Conn) (net.Conn, error) {
+	ctx, err := ReadTrace(conn)
 	if err != nil {
-		return nil, nil, err
+		return conn, err
 	}
-	return wrappedConn, id, nil
+	return &traceConnection{Conn: conn, spanContext: ctx}, nil
 }

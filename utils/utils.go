@@ -144,6 +144,13 @@ func ZeroizeSymmetricKey(key []byte) {
 	ZeroizeBytes(key)
 }
 
+// ZeroizeSymmetricKeys wipes a symmetric keys from memory, filling it with zero bytes.
+func ZeroizeSymmetricKeys(keys [][]byte) {
+	for _, key := range keys {
+		ZeroizeBytes(key)
+	}
+}
+
 // ZeroizePrivateKey wipes a private key from memory, filling it with zero bytes.
 func ZeroizePrivateKey(privateKey *keys.PrivateKey) {
 	if privateKey != nil {

@@ -1,0 +1,405 @@
+basePath: /v2
+definitions:
+  http_api.HTTPError:
+    properties:
+      code:
+        example: 400
+        type: integer
+      message:
+        example: invalid request body
+        type: string
+    type: object
+  http_api.encryptionHTTPResponse:
+    properties:
+      data:
+        example: ZGF0YQo=
+        format: base64
+        type: string
+    type: object
+  http_api.tokenizationHTTPResponse:
+    properties:
+      data:
+        type: string
+    type: object
+info:
+  contact:
+    email: dev@cossacklabs.com
+    name: Cossack Labs dev team
+    url: cossacklabs.com
+  description: AcraTranslator is a lightweight server that receives AcraStructs/AcraBlocks
+    and returns the decrypted data
+  license:
+    name: Acra Evaluation license
+    url: https://www.cossacklabs.com/acra/
+  termsOfService: https://www.cossacklabs.com/acra/
+  title: Acra-Translator
+paths:
+  /v2/decrypt:
+    get:
+      consumes:
+      - application/json
+      description: Decrypt AcraStruct with specified ZoneID or ClientID from connection
+      parameters:
+      - description: Binary data encoded as Base64 string
+        in: body
+        name: data
+        required: true
+        schema:
+          type: string
+      - description: ZoneID
+        in: body
+        name: zone_id
+        schema:
+          type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/http_api.encryptionHTTPResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/http_api.HTTPError'
+        "422":
+          description: Unprocessable Entity
+          schema:
+            $ref: '#/definitions/http_api.HTTPError'
+      summary: Decrypt AcraStruct
+  /v2/decryptSearchable:
+    get:
+      consumes:
+      - application/json
+      description: Decrypt searchable AcraStruct with specified ZoneID or ClientID
+        from connection
+      parameters:
+      - description: Binary data encoded as Base64 string
+        in: body
+        name: data
+        required: true
+        schema:
+          type: string
+      - description: ZoneID
+        in: body
+        name: zone_id
+        schema:
+          type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/http_api.encryptionHTTPResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/http_api.HTTPError'
+        "422":
+          description: Unprocessable Entity
+          schema:
+            $ref: '#/definitions/http_api.HTTPError'
+      summary: Decrypt searchable AcraStruct
+  /v2/decryptSym:
+    get:
+      consumes:
+      - application/json
+      description: Decrypt AcraBlock with specified ZoneID or ClientID from connection
+      parameters:
+      - description: Binary data encoded as Base64 string
+        in: body
+        name: data
+        required: true
+        schema:
+          type: string
+      - description: ZoneID
+        in: body
+        name: zone_id
+        schema:
+          type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/http_api.encryptionHTTPResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/http_api.HTTPError'
+        "422":
+          description: Unprocessable Entity
+          schema:
+            $ref: '#/definitions/http_api.HTTPError'
+      summary: Decrypt AcraBlock
+  /v2/decryptSymSearchable:
+    get:
+      consumes:
+      - application/json
+      description: Decrypt searchable AcraBlock with specified ZoneID or ClientID
+        from connection
+      parameters:
+      - description: Binary data encoded as Base64 string
+        in: body
+        name: data
+        required: true
+        schema:
+          type: string
+      - description: ZoneID
+        in: body
+        name: zone_id
+        schema:
+          type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/http_api.encryptionHTTPResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/http_api.HTTPError'
+        "422":
+          description: Unprocessable Entity
+          schema:
+            $ref: '#/definitions/http_api.HTTPError'
+      summary: Decrypt searchable AcraBlock
+  /v2/detokenize:
+    get:
+      consumes:
+      - application/json
+      description: Detokenize data according to data type
+      parameters:
+      - description: String or Base64 encoded binary value, or integer
+        in: body
+        name: data
+        required: true
+        schema:
+          type: string
+      - description: ZoneID
+        in: body
+        name: zone_id
+        schema:
+          type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/http_api.tokenizationHTTPResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/http_api.HTTPError'
+        "422":
+          description: Unprocessable Entity
+          schema:
+            $ref: '#/definitions/http_api.HTTPError'
+      summary: Detokenize data
+  /v2/encrypt:
+    get:
+      consumes:
+      - application/json
+      description: Encrypt data with specified ZoneID or ClientID from connection
+      parameters:
+      - description: Binary data encoded as Base64 string
+        in: body
+        name: data
+        required: true
+        schema:
+          type: string
+      - description: ZoneID
+        in: body
+        name: zone_id
+        schema:
+          type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/http_api.encryptionHTTPResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/http_api.HTTPError'
+        "422":
+          description: Unprocessable Entity
+          schema:
+            $ref: '#/definitions/http_api.HTTPError'
+      summary: Encrypt with AcraStruct
+  /v2/encryptSearchable:
+    get:
+      consumes:
+      - application/json
+      description: Encrypt data with searchable AcraStruct with specified ZoneID or
+        ClientID from connection
+      parameters:
+      - description: Binary data encoded as Base64 string
+        in: body
+        name: data
+        required: true
+        schema:
+          type: string
+      - description: ZoneID
+        in: body
+        name: zone_id
+        schema:
+          type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/http_api.encryptionHTTPResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/http_api.HTTPError'
+        "422":
+          description: Unprocessable Entity
+          schema:
+            $ref: '#/definitions/http_api.HTTPError'
+      summary: Encrypt with searchable AcraStruct
+  /v2/encryptSym:
+    get:
+      consumes:
+      - application/json
+      description: Encrypt data with AcraBlock with specified ZoneID or ClientID from
+        connection
+      parameters:
+      - description: Binary data encoded as Base64 string
+        in: body
+        name: data
+        required: true
+        schema:
+          type: string
+      - description: ZoneID
+        in: body
+        name: zone_id
+        schema:
+          type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/http_api.encryptionHTTPResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/http_api.HTTPError'
+        "422":
+          description: Unprocessable Entity
+          schema:
+            $ref: '#/definitions/http_api.HTTPError'
+      summary: Encrypt with AcraBlock
+  /v2/encryptSymSearchable:
+    get:
+      consumes:
+      - application/json
+      description: Encrypt data with searchable AcraBlock with specified ZoneID or
+        ClientID from connection
+      parameters:
+      - description: Binary data encoded as Base64 string
+        in: body
+        name: data
+        required: true
+        schema:
+          type: string
+      - description: ZoneID
+        in: body
+        name: zone_id
+        schema:
+          type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/http_api.encryptionHTTPResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/http_api.HTTPError'
+        "422":
+          description: Unprocessable Entity
+          schema:
+            $ref: '#/definitions/http_api.HTTPError'
+      summary: Encrypt with searchable AcraBlock
+  /v2/generateQueryHash:
+    get:
+      consumes:
+      - application/json
+      description: generates hash for data that may be used as blind index
+      parameters:
+      - description: Binary data encoded as Base64 string
+        in: body
+        name: data
+        required: true
+        schema:
+          type: string
+      - description: ZoneID
+        in: body
+        name: zone_id
+        schema:
+          type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/http_api.encryptionHTTPResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/http_api.HTTPError'
+        "422":
+          description: Unprocessable Entity
+          schema:
+            $ref: '#/definitions/http_api.HTTPError'
+      summary: Generates hash
+  /v2/tokenize:
+    get:
+      consumes:
+      - application/json
+      description: Tokenize data according to data type
+      parameters:
+      - description: String or Base64 encoded binary value, or integer
+        in: body
+        name: data
+        required: true
+        schema:
+          type: string
+      - description: ZoneID
+        in: body
+        name: zone_id
+        schema:
+          type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/http_api.tokenizationHTTPResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/http_api.HTTPError'
+        "422":
+          description: Unprocessable Entity
+          schema:
+            $ref: '#/definitions/http_api.HTTPError'
+      summary: Tokenize data
+swagger: "2.0"

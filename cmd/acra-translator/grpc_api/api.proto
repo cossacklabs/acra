@@ -2,6 +2,8 @@ syntax = "proto3";
 
 package grpc_api;
 
+option go_package = "cmd/acra-translator/grpc_api";
+
 message DecryptRequest {
     bytes client_id = 1;
     bytes zone_id = 2;
@@ -28,4 +30,130 @@ message EncryptResponse {
 
 service Writer {
     rpc Encrypt(EncryptRequest) returns (EncryptResponse) {}
+}
+
+message TokenizeRequest {
+    bytes client_id = 1;
+    bytes zone_id = 2;
+    oneof value {
+        string str_value = 3;
+        string email_value = 4;
+        int32 int32_value = 5;
+        int64 int64_value = 6;
+        bytes bytes_value = 7;
+    }
+}
+
+message TokenizeResponse {
+    oneof response {
+        string str_token = 1;
+        string email_token = 2;
+        int32 int32_token = 3;
+        int64 int64_token = 4;
+        bytes bytes_token = 5;
+    };
+}
+
+service Tokenizator {
+    rpc Tokenize (TokenizeRequest) returns (TokenizeResponse) {
+    }
+    rpc Detokenize (TokenizeRequest) returns (TokenizeResponse) {
+    }
+}
+
+message SearchableEncryptionRequest {
+    bytes client_id = 1;
+    bytes zone_id = 2;
+    bytes data = 3;
+}
+
+message SearchableEncryptionResponse {
+    bytes hash = 1;
+    bytes acrastruct = 2;
+}
+
+message SearchableDecryptionRequest {
+    bytes client_id = 1;
+    bytes zone_id = 2;
+    bytes data = 3;
+    bytes hash = 4;
+}
+
+message SearchableDecryptionResponse {
+    bytes data = 1;
+}
+
+message SearchableSymEncryptionRequest {
+    bytes client_id = 1;
+    bytes zone_id = 2;
+    bytes data = 3;
+}
+
+message SearchableSymEncryptionResponse {
+    bytes hash = 1;
+    bytes acrablock = 2;
+}
+
+message SearchableSymDecryptionRequest {
+    bytes client_id = 1;
+    bytes zone_id = 2;
+    bytes data = 3;
+    bytes hash = 4;
+}
+
+message SearchableSymDecryptionResponse {
+    bytes data = 1;
+}
+
+message QueryHashRequest {
+    bytes client_id = 1;
+    bytes zone_id = 2;
+    bytes data = 3;
+}
+
+message QueryHashResponse {
+    bytes hash = 1;
+}
+
+message DecryptSymRequest {
+    bytes client_id = 1;
+    bytes zone_id = 2;
+    bytes acrablock = 3;
+}
+
+message DecryptSymResponse {
+    bytes data = 1;
+}
+
+service ReaderSym {
+    rpc DecryptSym (DecryptSymRequest) returns (DecryptSymResponse) {
+    }
+}
+
+message EncryptSymRequest {
+    bytes client_id = 1;
+    bytes zone_id = 2;
+    bytes data = 3;
+}
+
+message EncryptSymResponse {
+    bytes acrablock = 1;
+}
+
+service WriterSym {
+    rpc EncryptSym (EncryptSymRequest) returns (EncryptSymResponse) {
+    }
+}
+
+service SearchableEncryption {
+    rpc EncryptSearchable (SearchableEncryptionRequest) returns (SearchableEncryptionResponse) {
+    }
+    rpc DecryptSearchable (SearchableDecryptionRequest) returns (SearchableDecryptionResponse) {
+    }
+    rpc EncryptSymSearchable (SearchableSymEncryptionRequest) returns (SearchableSymEncryptionResponse) {
+    }
+    rpc DecryptSymSearchable (SearchableSymDecryptionRequest) returns (SearchableSymDecryptionResponse) {
+    }
+    rpc GenerateQueryHash (QueryHashRequest) returns (QueryHashResponse) {
+    }
 }

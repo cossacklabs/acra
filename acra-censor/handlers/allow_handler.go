@@ -29,15 +29,17 @@ type AllowHandler struct {
 	tables   map[string]bool
 	patterns []sqlparser.Statement
 	logger   *log.Entry
+	parser   *sqlparser.Parser
 }
 
 // NewAllowHandler creates new whitelist instance
-func NewAllowHandler() *AllowHandler {
+func NewAllowHandler(parser *sqlparser.Parser) *AllowHandler {
 	handler := &AllowHandler{}
 	handler.queries = make(map[string]bool)
 	handler.tables = make(map[string]bool)
 	handler.patterns = make([]sqlparser.Statement, 0)
 	handler.logger = log.WithField("handler", "allow")
+	handler.parser = parser
 	return handler
 }
 
@@ -87,7 +89,7 @@ func (handler *AllowHandler) Release() {
 // AddQueries normalizes and adds queries to the list that should be whitelisted
 func (handler *AllowHandler) AddQueries(queries []string) error {
 	for _, query := range queries {
-		normalizedQuery, _, _, err := common.HandleRawSQLQuery(query)
+		normalizedQuery, _, _, err := handler.parser.HandleRawSQLQuery(query)
 		if err != nil {
 			handler.logger.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCensorQueryParseError).Errorln("Can't add queries")
 			return err
@@ -100,7 +102,7 @@ func (handler *AllowHandler) AddQueries(queries []string) error {
 // RemoveQueries removes queries from the list that should be whitelisted
 func (handler *AllowHandler) RemoveQueries(queries []string) error {
 	for _, query := range queries {
-		normalizedQuery, _, _, err := common.HandleRawSQLQuery(query)
+		normalizedQuery, _, _, err := handler.parser.HandleRawSQLQuery(query)
 		if err != nil {
 			handler.logger.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCensorQueryParseError).Errorln("Can't remove queries")
 			return err
@@ -126,7 +128,7 @@ func (handler *AllowHandler) RemoveTables(tableNames []string) {
 
 // AddPatterns adds patterns that should be whitelisted
 func (handler *AllowHandler) AddPatterns(patterns []string) error {
-	parsedPatterns, err := common.ParsePatterns(patterns)
+	parsedPatterns, err := common.ParsePatterns(patterns, handler.parser)
 	if err != nil {
 		handler.logger.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCensorQueryParseError).Errorln("Can't add patterns")
 		return err

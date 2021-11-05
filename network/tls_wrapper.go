@@ -24,6 +24,7 @@ import (
 	"flag"
 	"github.com/cossacklabs/acra/logging"
 	log "github.com/sirupsen/logrus"
+	"google.golang.org/grpc/credentials"
 	"io/ioutil"
 	"net"
 	"time"
@@ -41,10 +42,13 @@ var allowedCipherSuits = []uint16{
 
 // TLSConnectionWrapper for wrapping connection into TLS encryption
 type TLSConnectionWrapper struct {
-	clientConfig      *tls.Config
-	serverConfig      *tls.Config
-	clientID          []byte
-	clientIDExtractor TLSClientIDExtractor
+	credentials.TransportCredentials
+	clientConfig               *tls.Config
+	serverConfig               *tls.Config
+	clientID                   []byte
+	clientIDExtractor          TLSClientIDExtractor
+	useClientIDFromCertificate bool
+	onServerHandshakeCallbacks []OnServerHandshakeCallback
 }
 
 // ErrEmptyTLSConfig if not TLS clientConfig found
@@ -124,7 +128,6 @@ func NewTLSConfig(serverName string, caPath, keyPath, crtPath string, authType t
 
 		return err
 	}
-
 	return &tls.Config{
 		RootCAs:               roots,
 		ClientCAs:             roots,
@@ -137,15 +140,105 @@ func NewTLSConfig(serverName string, caPath, keyPath, crtPath string, authType t
 	}, nil
 }
 
+// wrappedTLSAuthInfo wraps credentials.TLSInfo and store connection for future access to retrieve connection metadata
+type wrappedTLSAuthInfo struct {
+	credentials.TLSInfo
+	conn net.Conn
+}
+
+// Connection return wrapped connection
+func (authInfo *wrappedTLSAuthInfo) Connection() net.Conn {
+	return authInfo.conn
+}
+
 // NewTLSConnectionWrapper returns new TLSConnectionWrapper
 func NewTLSConnectionWrapper(clientID []byte, config *tls.Config) (*TLSConnectionWrapper, error) {
-	return &TLSConnectionWrapper{clientConfig: config, serverConfig: config, clientID: clientID}, nil
+	return &TLSConnectionWrapper{clientConfig: config, serverConfig: config, clientID: clientID, TransportCredentials: credentials.NewTLS(config)}, nil
 }
+
+// ErrInvalidTLSConfiguration used for invalid configurations for TLS connections
+var ErrInvalidTLSConfiguration = errors.New("invalid auth_type for TLS config")
 
 // NewTLSAuthenticationConnectionWrapper returns new TLSConnectionWrapper which use separate TLS configs for each side. Client's identifier will be fetched
 // with idExtractor and converter with idConverter
-func NewTLSAuthenticationConnectionWrapper(clientConfig, serverConfig *tls.Config, extractor TLSClientIDExtractor) (*TLSConnectionWrapper, error) {
-	return &TLSConnectionWrapper{clientConfig: clientConfig, serverConfig: serverConfig, clientIDExtractor: extractor}, nil
+func NewTLSAuthenticationConnectionWrapper(useClientIDFromCertificate bool, clientConfig, serverConfig *tls.Config, extractor TLSClientIDExtractor) (*TLSConnectionWrapper, error) {
+	// we can't extract clientID metadata without client's certificates
+	if useClientIDFromCertificate && (serverConfig == nil || serverConfig.ClientAuth == tls.NoClientCert) {
+		return nil, ErrInvalidTLSConfiguration
+	}
+	if serverConfig != nil && !strSliceContains(serverConfig.NextProtos, http2NextProtoTLS) {
+		tlsCopy := serverConfig.Clone()
+		tlsCopy.NextProtos = append(tlsCopy.NextProtos, http2NextProtoTLS)
+		serverConfig = tlsCopy
+	}
+	return &TLSConnectionWrapper{clientConfig: clientConfig, serverConfig: serverConfig, clientIDExtractor: extractor,
+		useClientIDFromCertificate: useClientIDFromCertificate, TransportCredentials: credentials.NewTLS(serverConfig)}, nil
+}
+
+// strSliceContains return true if stringSlice contains string value
+func strSliceContains(stringSlice []string, value string) bool {
+	for _, v := range stringSlice {
+		if v == value {
+			return true
+		}
+	}
+	return false
+}
+
+// NextProtoTLS is the NPN/ALPN protocol negotiated during
+// HTTP/2's TLS setup.
+const http2NextProtoTLS = "h2"
+
+// NewTLSAuthenticationHTTP2ConnectionWrapper returns new TLSConnectionWrapper which use separate TLS configs for each side. Client's identifier will be fetched
+// with idExtractor and converter with idConverter. Additionally extends serverConfig with NextProtos = []string{"h2"} to support HTTP2
+func NewTLSAuthenticationHTTP2ConnectionWrapper(useClientIDFromCertificate bool, clientConfig, serverConfig *tls.Config, extractor TLSClientIDExtractor) (*TLSConnectionWrapper, error) {
+	// we can't extract clientID metadata without client's certificates
+	if useClientIDFromCertificate && (serverConfig == nil || serverConfig.ClientAuth == tls.NoClientCert) {
+		return nil, ErrInvalidTLSConfiguration
+	}
+	if !strSliceContains(serverConfig.NextProtos, http2NextProtoTLS) {
+		tlsCopy := serverConfig.Clone()
+		tlsCopy.NextProtos = append(tlsCopy.NextProtos, http2NextProtoTLS)
+		serverConfig = tlsCopy
+	}
+
+	return &TLSConnectionWrapper{clientConfig: clientConfig, serverConfig: serverConfig, clientIDExtractor: extractor,
+		useClientIDFromCertificate: useClientIDFromCertificate, TransportCredentials: credentials.NewTLS(serverConfig)}, nil
+}
+
+// AddOnServerHandshakeCallback register callback that will be called on ServerHandshake call from grpc connection handler
+func (wrapper *TLSConnectionWrapper) AddOnServerHandshakeCallback(callback OnServerHandshakeCallback) {
+	wrapper.onServerHandshakeCallbacks = append(wrapper.onServerHandshakeCallbacks, callback)
+}
+
+// ServerHandshake wraps connection with grpc's implementation of ServerHandshake and call all registered OnServerHandshakeCallbacks and return extended AuthInfo with wrapped connection
+// with clientID information
+func (wrapper *TLSConnectionWrapper) ServerHandshake(conn net.Conn) (net.Conn, credentials.AuthInfo, error) {
+	newConn, authInfo, err := wrapper.TransportCredentials.ServerHandshake(conn)
+	if err != nil {
+		return newConn, authInfo, err
+	}
+	wrappedConn := newConn
+	for _, callback := range wrapper.onServerHandshakeCallbacks {
+		wrappedConn, err = callback.OnServerHandshake(wrappedConn)
+		if err != nil {
+			return newConn, authInfo, err
+		}
+	}
+	tlsAuthInfo, ok := authInfo.(credentials.TLSInfo)
+	if !ok {
+		return wrappedConn, authInfo, ErrIncorrectGRPCConnectionAuthInfo
+	}
+	if len(tlsAuthInfo.State.VerifiedChains) == 0 || len(tlsAuthInfo.State.VerifiedChains[0]) == 0 {
+		return wrappedConn, authInfo, ErrNoPeerCertificate
+	}
+	certificate := tlsAuthInfo.State.VerifiedChains[0][0]
+	clientID, err := wrapper.clientIDExtractor.ExtractClientID(certificate)
+	if err != nil {
+		return wrappedConn, authInfo, err
+	}
+	clientIDConn := newClientIDConnection(wrappedConn, clientID)
+	return clientIDConn, &wrappedTLSAuthInfo{TLSInfo: tlsAuthInfo, conn: clientIDConn}, nil
 }
 
 // WrapClient wraps client connection into TLS
@@ -161,15 +254,6 @@ func (wrapper *TLSConnectionWrapper) WrapClient(ctx context.Context, conn net.Co
 	return newSafeCloseConnection(tlsConn), nil
 }
 
-func (wrapper *TLSConnectionWrapper) getClientIDFromCertificate(certificate *x509.Certificate) ([]byte, error) {
-	clientID, err := wrapper.clientIDExtractor.ExtractClientID(certificate)
-	if err != nil {
-		return nil, err
-	}
-	log.WithField("clientID", string(clientID)).Debugln("ClientID from certificate")
-	return clientID, nil
-}
-
 // WrapServer wraps server connection into TLS
 func (wrapper *TLSConnectionWrapper) WrapServer(ctx context.Context, conn net.Conn) (net.Conn, []byte, error) {
 	conn.SetDeadline(time.Now().Add(DefaultNetworkTimeout))
@@ -180,20 +264,47 @@ func (wrapper *TLSConnectionWrapper) WrapServer(ctx context.Context, conn net.Co
 		return conn, nil, err
 	}
 	conn.SetDeadline(time.Time{})
-	if wrapper.clientID != nil {
-		return newSafeCloseConnection(tlsConn), wrapper.clientID, nil
+	var clientID []byte
+	// extract clientID from certificate only if auth_type require any certificate
+	if wrapper.useClientIDFromCertificate {
+		clientID, err = GetClientIDFromTLSConn(tlsConn, wrapper.clientIDExtractor)
+		if err != nil {
+			return conn, nil, err
+		}
+		return tlsConn, clientID, nil
 	}
-	connectionInfo := tlsConn.ConnectionState()
+	return tlsConn, wrapper.clientID, nil
+}
+
+// OnConnection callback that wraps connection with tls encryption and return ClientIDConnection
+func (wrapper *TLSConnectionWrapper) OnConnection(conn net.Conn) (net.Conn, error) {
+	log.Debugln("Wrap connection with TLS")
+	wrappedConn, _, err := wrapper.WrapServer(context.Background(), conn)
+	if err != nil {
+		return conn, err
+	}
+	return wrappedConn, nil
+}
+
+// getClientIDFromCertificate validate certificate and extract clientID from certificate
+func getClientIDFromCertificate(certificate *x509.Certificate, extractor TLSClientIDExtractor) ([]byte, error) {
+	if err := ValidateClientsAuthenticationCertificate(certificate); err != nil {
+		return nil, err
+	}
+	clientID, err := extractor.ExtractClientID(certificate)
+	if err != nil {
+		return nil, err
+	}
+	log.WithField("clientID", string(clientID)).Debugln("ClientID from certificate")
+	return clientID, nil
+}
+
+// GetClientIDFromTLSConn extracts clientID from tls.Conn metadata using extractor
+func GetClientIDFromTLSConn(conn *tls.Conn, extractor TLSClientIDExtractor) ([]byte, error) {
+	connectionInfo := conn.ConnectionState()
 	if len(connectionInfo.VerifiedChains) == 0 || len(connectionInfo.VerifiedChains[0]) == 0 {
-		return conn, nil, ErrNoPeerCertificate
+		return nil, ErrNoPeerCertificate
 	}
 	certificate := connectionInfo.VerifiedChains[0][0]
-	if err := ValidateClientsAuthenticationCertificate(certificate); err != nil {
-		return conn, nil, err
-	}
-	clientID, err := wrapper.getClientIDFromCertificate(certificate)
-	if err != nil {
-		return conn, nil, err
-	}
-	return newSafeCloseConnection(tlsConn), clientID, nil
+	return getClientIDFromCertificate(certificate, extractor)
 }

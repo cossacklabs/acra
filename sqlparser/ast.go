@@ -156,6 +156,18 @@ func (*Select) iSelectStatement()      {}
 func (*Union) iSelectStatement()       {}
 func (*ParenSelect) iSelectStatement() {}
 
+// EmptyStatement represent empty query passed in Postgresql ExtendedProtocol with empty Query field
+// Should not be used and expected from MySQL. MySQL doesn't allow empty query and returns:
+// error_code=1065 sql_state=42000 error_message="Query was empty"
+type EmptyStatement struct{}
+
+func (EmptyStatement) iStatement() {}
+
+// NotParsedStatement represent query that can't be parsed by current sqlparser
+type NotParsedStatement struct{ Query string }
+
+func (NotParsedStatement) iStatement() {}
+
 // Select represents a SELECT statement.
 type Select struct {
 	Cache       string
@@ -764,7 +776,7 @@ func (*Update) iPreparedQuery()    {}
 
 // NewPreparedQueryFromString creates typed statement based on query inside Prepare statement
 func NewPreparedQueryFromString(query string) (PreparedQuery, error) {
-	statement, err := Parse(query)
+	statement, err := New(ModeStrict).Parse(query)
 	if err != nil {
 		return nil, err
 	}

@@ -23,7 +23,6 @@ import (
 	"io/ioutil"
 	"os"
 
-	"github.com/cossacklabs/acra/keystore"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -46,7 +45,7 @@ type ZoneRotateData struct {
 type ZoneRotateResult map[string]*ZoneRotateData
 
 // rotateFiles generate new key pair for each zone in KeyIDFileMap and re-encrypt all files encrypted with each zone
-func rotateFiles(fileMap KeyIDFileMap, keyStore keystore.RotateStorageKeyStore, zoneMode, dryRun bool) (ZoneRotateResult, error) {
+func rotateFiles(fileMap KeyIDFileMap, keyStore RotateStorageKeyStore, zoneMode, dryRun bool) (ZoneRotateResult, error) {
 	rotator, err := newRotator(keyStore, zoneMode)
 	if err != nil {
 		return nil, err
@@ -101,7 +100,7 @@ func rotateFiles(fileMap KeyIDFileMap, keyStore keystore.RotateStorageKeyStore, 
 }
 
 // runFileRotation read map zones to files, re-generate zone key pairs and re-encrypt files
-func runFileRotation(fileMapConfigPath string, keystorage keystore.RotateStorageKeyStore, zoneMode, dryRun bool) {
+func runFileRotation(fileMapConfigPath string, keystorage RotateStorageKeyStore, zoneMode, dryRun bool) {
 	fileMap, err := loadFileMap(fileMapConfigPath)
 	if err != nil {
 		log.WithError(err).Errorln("Can't load config with map <ZoneId>: <FilePath>")

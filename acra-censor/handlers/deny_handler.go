@@ -29,15 +29,17 @@ type DenyHandler struct {
 	tables   map[string]bool
 	patterns []sqlparser.Statement
 	logger   *log.Entry
+	parser   *sqlparser.Parser
 }
 
 // NewDenyHandler creates new blacklist instance
-func NewDenyHandler() *DenyHandler {
+func NewDenyHandler(parser *sqlparser.Parser) *DenyHandler {
 	handler := &DenyHandler{}
 	handler.queries = make(map[string]bool)
 	handler.tables = make(map[string]bool)
 	handler.patterns = make([]sqlparser.Statement, 0)
 	handler.logger = log.WithField("handler", "blacklist")
+	handler.parser = parser
 	return handler
 }
 
@@ -91,7 +93,7 @@ func (handler *DenyHandler) Release() {
 // AddQueries normalizes and adds queries to the list that should be blacklisted
 func (handler *DenyHandler) AddQueries(queries []string) error {
 	for _, query := range queries {
-		normalizedQuery, _, _, err := common.HandleRawSQLQuery(query)
+		normalizedQuery, _, _, err := handler.parser.HandleRawSQLQuery(query)
 		if err != nil {
 			return err
 		}
@@ -103,7 +105,7 @@ func (handler *DenyHandler) AddQueries(queries []string) error {
 // RemoveQueries removes queries from the list that should be blacklisted
 func (handler *DenyHandler) RemoveQueries(queries []string) error {
 	for _, query := range queries {
-		normalizedQuery, _, _, err := common.HandleRawSQLQuery(query)
+		normalizedQuery, _, _, err := handler.parser.HandleRawSQLQuery(query)
 		if err != nil {
 			return err
 		}
@@ -128,7 +130,7 @@ func (handler *DenyHandler) RemoveTables(tableNames []string) {
 
 // AddPatterns adds patterns that should be blacklisted
 func (handler *DenyHandler) AddPatterns(patterns []string) error {
-	parsedPatterns, err := common.ParsePatterns(patterns)
+	parsedPatterns, err := common.ParsePatterns(patterns, handler.parser)
 	if err != nil {
 		return err
 	}

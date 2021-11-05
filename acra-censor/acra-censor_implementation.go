@@ -33,6 +33,7 @@ type AcraCensor struct {
 	ignoreParseError      bool
 	unparsedQueriesWriter *common.QueryWriter
 	logger                *log.Entry
+	parser                *sqlparser.Parser
 }
 
 // NewAcraCensor creates new censor object.
@@ -40,7 +41,11 @@ func NewAcraCensor() *AcraCensor {
 	acraCensor := &AcraCensor{}
 	acraCensor.logger = log.WithField("service", ServiceName)
 	acraCensor.ignoreParseError = false
-	return acraCensor
+	return &AcraCensor{
+		logger:           log.WithField("service", ServiceName),
+		ignoreParseError: false,
+		parser:           sqlparser.New(sqlparser.ModeStrict),
+	}
 }
 
 // AddHandler adds handler to the list of Censor handlers.
@@ -75,9 +80,9 @@ func (acraCensor *AcraCensor) HandleQuery(rawQuery string) error {
 		// no handlers, AcraCensor won't work
 		return nil
 	}
-	normalizedQuery, queryWithHiddenValues, parsedQuery, err := common.HandleRawSQLQuery(rawQuery)
+	normalizedQuery, queryWithHiddenValues, parsedQuery, err := acraCensor.parser.HandleRawSQLQuery(rawQuery)
 	// Unparsed query handling
-	if err == common.ErrQuerySyntaxError {
+	if err == sqlparser.ErrQuerySyntaxError {
 		acraCensor.saveUnparsedQuery(rawQuery)
 		if acraCensor.ignoreParseError {
 			// log warning if we ignore such errors

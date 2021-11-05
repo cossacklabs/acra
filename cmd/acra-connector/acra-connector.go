@@ -1,5 +1,5 @@
 /*
-Copyright 2016, Cossack Labs Limited
+Copyright 2020, Cossack Labs Limited
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -32,6 +32,7 @@ import (
 	"net"
 	"os"
 	"os/exec"
+	"os/signal"
 	"os/user"
 	"runtime"
 	"strconv"
@@ -39,14 +40,18 @@ import (
 	"syscall"
 
 	"github.com/cossacklabs/acra/cmd"
-	connector_mode "github.com/cossacklabs/acra/cmd/acra-connector/connector-mode"
+	"github.com/cossacklabs/acra/cmd/acra-connector/connector-mode"
 	"github.com/cossacklabs/acra/keystore"
 	"github.com/cossacklabs/acra/keystore/filesystem"
+	"github.com/cossacklabs/acra/keystore/keyloader"
+	"github.com/cossacklabs/acra/keystore/keyloader/hashicorp"
 	keystoreV2 "github.com/cossacklabs/acra/keystore/v2/keystore"
 	filesystemV2 "github.com/cossacklabs/acra/keystore/v2/keystore/filesystem"
+	filesystemBackendV2 "github.com/cossacklabs/acra/keystore/v2/keystore/filesystem/backend"
 	"github.com/cossacklabs/acra/logging"
 	"github.com/cossacklabs/acra/network"
 	"github.com/cossacklabs/acra/utils"
+
 	"github.com/prometheus/client_golang/prometheus"
 	log "github.com/sirupsen/logrus"
 	"go.opencensus.io/trace"
@@ -59,6 +64,12 @@ var (
 	DefaultConfigPath = utils.GetConfigPathByName(ServiceName)
 )
 
+func recoverConnection(logger *log.Entry) {
+	if recMsg := recover(); recMsg != nil {
+		logger.WithField("error", recMsg).Errorln("Recovered connection")
+	}
+}
+
 func checkDependencies() error {
 	for _, toolName := range []string{"netstat", "awk"} {
 		if _, err := exec.LookPath(toolName); os.IsNotExist(err) {
@@ -69,12 +80,14 @@ func checkDependencies() error {
 }
 
 func handleClientConnection(config *Config, connection net.Conn) {
+	defer recoverConnection(log.WithField("type", "client_connection"))
 	timer := prometheus.NewTimer(prometheus.ObserverFunc(connectionProcessingTimeHistogram.WithLabelValues(dbConnectionType).Observe))
 	handleConnection(config, connection)
 	timer.ObserveDuration()
 }
 
 func handleAPIConnection(config *Config, connection net.Conn) {
+	defer recoverConnection(log.WithField("type", "client_connection"))
 	timer := prometheus.NewTimer(prometheus.ObserverFunc(connectionProcessingTimeHistogram.WithLabelValues(apiConnectionType).Observe))
 	handleConnection(config, connection)
 	timer.ObserveDuration()
@@ -213,6 +226,8 @@ type Config struct {
 func main() {
 	loggingFormat := flag.String("logging_format", "plaintext", "Logging format: plaintext, json or CEF")
 	keysDir := flag.String("keys_dir", keystore.DefaultKeyDirShort, "Folder from which will be loaded keys")
+	cmd.RegisterRedisKeyStoreParameters()
+
 	clientID := flag.String("client_id", "", "Client ID")
 	acraServerHost := flag.String("acraserver_connection_host", "", "IP or domain to AcraServer daemon")
 	acraServerAPIPort := flag.Int("acraserver_api_connection_port", cmd.DefaultAcraServerAPIPort, "Port of Acra HTTP API")
@@ -223,6 +238,7 @@ func main() {
 	acraConnectorAPIPort := flag.Int("incoming_connection_api_port", cmd.DefaultAcraConnectorAPIPort, "Port for AcraConnector HTTP API")
 	acraServerEnableHTTPAPI := flag.Bool("http_api_enable", false, "Enable connection to AcraServer via HTTP API")
 	disableUserCheck := flag.Bool("user_check_disable", false, "Disable checking that connections from app running from another user")
+	enableAuditLog := flag.Bool("audit_log_enable", false, "Enable audit log functionality")
 	useTLS := flag.Bool("acraserver_tls_transport_enable", false, "Use tls to encrypt transport between AcraServer and AcraConnector/client")
 	tlsCA := flag.String("tls_ca", "", "Path to root certificate which will be used with system root certificates to validate AcraServer's certificate")
 	tlsKey := flag.String("tls_key", "", "Path to private key that will be used in TLS handshake with AcraServer")
@@ -243,8 +259,10 @@ func main() {
 	acraTranslatorConnectionString := flag.String("acratranslator_connection_string", "", "Connection string to AcraTranslator like grpc://0.0.0.0:9696 or http://0.0.0.0:9595")
 	acraTranslatorID := flag.String("acratranslator_securesession_id", "acra_translator", "Expected id from AcraTranslator for Secure Session")
 
+	hashicorp.RegisterVaultCLIParameters()
 	cmd.RegisterTracingCmdParameters()
 	cmd.RegisterJaegerCmdParameters()
+	logging.RegisterCLIArgs()
 
 	verbose := flag.Bool("v", false, "Log to stderr all INFO, WARNING and ERROR logs")
 	debug := flag.Bool("d", false, "Log everything to stderr")
@@ -257,9 +275,19 @@ func main() {
 	}
 
 	// Start customizing logs here (directly after command line arguments parsing)
-	formatter := logging.CreateFormatter(*loggingFormat)
+	formatter := logging.CreateCryptoFormatter(*loggingFormat)
+	// Set formatter early in order to have consistent format for further logs
 	formatter.SetServiceName(ServiceName)
-	log.SetOutput(os.Stderr)
+	log.SetFormatter(formatter)
+
+	writer, logFinalize, err := logging.NewWriter()
+	if err != nil {
+		log.WithError(err).Errorln("Can't initialise output writer for logging customization")
+		os.Exit(1)
+	}
+
+	defer logFinalize()
+	log.SetOutput(writer)
 
 	log.WithField("version", utils.VERSION).Infof("Starting service %v [pid=%v]", ServiceName, os.Getpid())
 	log.Infof("Validating service configuration...")
@@ -288,7 +316,7 @@ func main() {
 				Errorln("Configuration error: you must pass acratranslator_connection_host or acratranslator_connection_string parameter")
 			os.Exit(1)
 		}
-		if *acraTranslatorPort != cmd.DefaultAcraTranslatorGRPCPort {
+		if *acraTranslatorPort != cmd.DefaultAcraTranslatorGRPCPort || *acraTranslatorHost != cmd.DefaultAcraTranslatorGRPCHost {
 			*acraTranslatorConnectionString = network.BuildConnectionString(cmd.DefaultAcraConnectorConnectionProtocol, *acraTranslatorHost, *acraTranslatorPort, "")
 		}
 		outgoingConnectionString = *acraTranslatorConnectionString
@@ -332,15 +360,65 @@ func main() {
 		log.Infof("Disabling user check, because OS is not Linux")
 	}
 
+	keyLoader, err := keyloader.GetInitializedMasterKeyLoader(hashicorp.GetVaultCLIParameters())
+	if err != nil {
+		log.WithError(err).Errorln("Can't initialize ACRA_MASTER_KEY loader")
+		os.Exit(1)
+	}
+
 	// --------- keystore  -----------
 	log.Infof("Initializing keystore...")
 	var keyStore keystore.TransportKeyStore
 	if filesystemV2.IsKeyDirectory(*keysDir) {
-		keyStore = openKeyStoreV2(*keysDir, []byte(*clientID), connectorMode)
+		keyStore = openKeyStoreV2(*keysDir, []byte(*clientID), connectorMode, keyLoader)
 	} else {
-		keyStore = openKeyStoreV1(*keysDir, []byte(*clientID), connectorMode)
+		keyStore = openKeyStoreV1(*keysDir, []byte(*clientID), connectorMode, keyLoader)
 	}
-	log.Infof("Keystore init OK")
+
+	var auditLogHandler *logging.AuditLogHandler
+	if *enableAuditLog {
+		auditLogKey, err := keyStore.GetLogSecretKey()
+		if err != nil {
+			log.WithError(err).Errorln("Can't fetch log key from keystore")
+			os.Exit(1)
+		}
+		hooks, err := logging.NewHooks(auditLogKey, *loggingFormat)
+		if err != nil {
+			log.WithError(err).Errorln("Can't create hooks")
+			os.Exit(1)
+		}
+		// zeroing key after initializing crypto-hook
+		utils.ZeroizeSymmetricKey(auditLogKey)
+		formatter.SetHooks(hooks)
+
+		auditLogHandler, err = logging.NewAuditLogHandler(formatter, writer)
+		if err != nil {
+			log.WithError(err).Errorln("Can't create handler")
+			os.Exit(1)
+		}
+		// Set updated formatter for audit log
+		log.SetFormatter(auditLogHandler)
+
+		// handle SIGUSR1 signal (we use it for force refreshing of audit log chain)
+		sigHandlerSIGUSR1 := make(chan os.Signal, 1)
+		go func() {
+			signal.Notify(sigHandlerSIGUSR1, syscall.SIGUSR1)
+			for c := range sigHandlerSIGUSR1 {
+				switch c {
+				case syscall.SIGUSR1:
+					log.Infoln("Received incoming SIGUSR1 signal")
+					auditLogKey, err = keyStore.GetLogSecretKey()
+					if err != nil {
+						log.WithError(err).Errorln("Can't fetch log key from keystore")
+						os.Exit(1)
+					}
+					auditLogHandler.ResetChain(auditLogKey)
+					// zeroing key after resetting chain
+					utils.ZeroizeSymmetricKey(auditLogKey)
+				}
+			}
+		}()
+	}
 
 	// --------- check keys -----------
 	cmd.ValidateClientID(*clientID)
@@ -511,8 +589,8 @@ func main() {
 	}
 }
 
-func openKeyStoreV1(keysDir string, clientID []byte, connectorMode connector_mode.ConnectorMode) keystore.TransportKeyStore {
-	masterKey, err := keystore.GetMasterKeyFromEnvironment()
+func openKeyStoreV1(keysDir string, clientID []byte, connectorMode connector_mode.ConnectorMode, loader keyloader.MasterKeyLoader) keystore.TransportKeyStore {
+	masterKey, err := loader.LoadMasterKey()
 	if err != nil {
 		log.WithError(err).
 			WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantLoadMasterKey).
@@ -524,17 +602,31 @@ func openKeyStoreV1(keysDir string, clientID []byte, connectorMode connector_mod
 		log.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantInitPrivateKeysEncryptor).WithError(err).Errorln("Can't init scell encryptor")
 		os.Exit(1)
 	}
-	keyStore, err := filesystem.NewConnectorFileSystemKeyStore(keysDir, clientID, scellEncryptor, connectorMode)
+	keyStore := filesystem.NewCustomConnectorFileSystemKeyStore()
+	keyStore.KeyDirectory(keysDir)
+	keyStore.ClientID(clientID)
+	keyStore.Encryptor(scellEncryptor)
+	keyStore.ConnectorMode(connectorMode)
+	redis := cmd.GetRedisParameters()
+	if redis.KeysConfigured() {
+		keyStorage, err := filesystem.NewRedisStorage(redis.HostPort, redis.Password, redis.DBKeys, nil)
+		if err != nil {
+			log.WithError(err).Errorln("Can't initialize Redis client")
+			os.Exit(1)
+		}
+		keyStore.Storage(keyStorage)
+	}
+	keyStoreV1, err := keyStore.Build()
 	if err != nil {
 		log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantInitKeyStore).
 			Errorln("Can't initialize keystore")
 		os.Exit(1)
 	}
-	return keyStore
+	return keyStoreV1
 }
 
-func openKeyStoreV2(outputDir string, clientID []byte, mode connector_mode.ConnectorMode) keystore.TransportKeyStore {
-	encryption, signature, err := keystoreV2.GetMasterKeysFromEnvironment()
+func openKeyStoreV2(keysDir string, clientID []byte, connectorMode connector_mode.ConnectorMode, loader keyloader.MasterKeyLoader) keystore.TransportKeyStore {
+	encryption, signature, err := loader.LoadMasterKeys()
 	if err != nil {
 		log.WithError(err).
 			WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantLoadMasterKey).
@@ -543,17 +635,32 @@ func openKeyStoreV2(outputDir string, clientID []byte, mode connector_mode.Conne
 	}
 	suite, err := keystoreV2.NewSCellSuite(encryption, signature)
 	if err != nil {
-		log.WithError(err).
-			WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantInitPrivateKeysEncryptor).
-			Error("failed to initialize Secure Cell crypto suite")
+		log.WithError(err).Error("Failed to initialize Secure Cell crypto suite")
 		os.Exit(1)
 	}
-	keyDir, err := filesystemV2.OpenDirectoryRW(outputDir, suite)
+	var backend filesystemBackendV2.Backend
+	redis := cmd.GetRedisParameters()
+	if redis.KeysConfigured() {
+		config := &filesystemBackendV2.RedisConfig{
+			RootDir: keysDir,
+			Options: redis.KeysOptions(),
+		}
+		backend, err = filesystemBackendV2.OpenRedisBackend(config)
+		if err != nil {
+			log.WithError(err).Error("Cannot connect to Redis keystore")
+			os.Exit(1)
+		}
+	} else {
+		backend, err = filesystemBackendV2.OpenDirectoryBackend(keysDir)
+		if err != nil {
+			log.WithError(err).Error("Cannot open key directory")
+			os.Exit(1)
+		}
+	}
+	keyDirectory, err := filesystemV2.CustomKeyStore(backend, suite)
 	if err != nil {
-		log.WithError(err).
-			WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantInitKeyStore).
-			WithField("path", outputDir).Error("cannot open key directory")
+		log.WithError(err).Error("Failed to initialize key directory")
 		os.Exit(1)
 	}
-	return keystoreV2.NewConnectorKeyStore(keyDir, clientID, mode)
+	return keystoreV2.NewConnectorKeyStore(keyDirectory, clientID, connectorMode)
 }

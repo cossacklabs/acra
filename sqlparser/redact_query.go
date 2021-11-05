@@ -7,13 +7,12 @@ func RedactSQLQuery(sql string) (string, error) {
 	bv := map[string]*querypb.BindVariable{}
 	sqlStripped, comments := SplitMarginComments(sql)
 
-	stmt, err := Parse(sqlStripped)
+	stmt, err := New(ModeStrict).Parse(sqlStripped)
 	if err != nil {
 		return "", err
 	}
 
-	prefix := "redacted"
-	Normalize(stmt, bv, prefix)
+	Normalize(stmt, bv, ValueMask)
 
 	return comments.Leading + String(stmt) + comments.Trailing, nil
 }

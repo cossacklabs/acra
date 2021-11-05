@@ -17,7 +17,6 @@
 package filesystem
 
 import (
-	"io/ioutil"
 	"path/filepath"
 	"strings"
 
@@ -69,6 +68,11 @@ type ExportedKey struct {
 
 // Exported key purpose constants:
 const (
+	PurposeSearchHMAC                 = "search_hmac"
+	PurposeAuditLog                   = "audit_log"
+	PurposePoisonRecordSymmetricKey   = "poison_sym_key"
+	PurposeStorageClientSymmetricKey  = "storage_sym_key"
+	PurposeStorageZoneSymmetricKey    = "zone_sym_key"
 	PurposeAuthenticationSymKey       = "auth_key"
 	PurposePoisonRecordKeyPair        = "poison_key"
 	PurposeStorageClientKeyPair       = "storage"
@@ -189,8 +193,9 @@ func (store *KeyStore) EnumerateExportedKeyPaths() ([]string, error) {
 	if store.publicKeyDirectory != store.privateKeyDirectory {
 		directories = append(directories, store.publicKeyDirectory)
 	}
+
 	for i := 0; i < len(directories); i++ {
-		files, err := ioutil.ReadDir(directories[i])
+		files, err := store.fs.ReadDir(directories[i])
 		if err != nil {
 			return nil, err
 		}
@@ -268,6 +273,32 @@ func NewExportedPrivateKey(privatePath string, id []byte, purpose string) *Expor
 
 // ClassifyExportedKey tells how a key at given path should be exported.
 func (*DefaultKeyFileClassifier) ClassifyExportedKey(path string) *ExportedKey {
+	filename := filepath.Base(path)
+
+	if filename == SecureLogKeyFilename {
+		return NewExportedSymmetricKey(path, []byte(SecureLogKeyFilename), PurposeAuditLog)
+	}
+
+	// Poison key is in ".poison_key" subdirectory, we can't look at filename alone.
+	if strings.HasSuffix(path, "/"+getSymmetricKeyName(PoisonKeyFilename)) {
+		return NewExportedSymmetricKey(path, []byte(PoisonKeyFilename), PurposePoisonRecordSymmetricKey)
+	}
+
+	if strings.HasSuffix(filename, "_hmac") {
+		id := []byte(strings.TrimSuffix(filename, "_hmac"))
+		return NewExportedSymmetricKey(path, id, PurposeSearchHMAC)
+	}
+
+	if strings.HasSuffix(filename, "_storage_sym") {
+		id := []byte(strings.TrimSuffix(filename, "_storage_sym"))
+		return NewExportedSymmetricKey(path, id, PurposeStorageClientSymmetricKey)
+	}
+
+	if strings.HasSuffix(filename, "_zone_sym") {
+		id := []byte(strings.TrimSuffix(filename, "_zone_sym"))
+		return NewExportedSymmetricKey(path, id, PurposeStorageZoneSymmetricKey)
+	}
+
 	if strings.HasSuffix(path, BasicAuthKeyFilename) {
 		return NewExportedPlaintextSymmetricKey(path, PurposeAuthenticationSymKey)
 	}
@@ -281,8 +312,6 @@ func (*DefaultKeyFileClassifier) ClassifyExportedKey(path string) *ExportedKey {
 		id := []byte(PoisonKeyFilename)
 		return NewExportedPrivateKey(path, id, PurposePoisonRecordKeyPair)
 	}
-
-	filename := filepath.Base(path)
 
 	if strings.HasSuffix(filename, "_storage.pub") {
 		id := []byte(strings.TrimSuffix(filename, "_storage.pub"))

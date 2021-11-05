@@ -40,7 +40,6 @@ type Config struct {
 	scriptOnPoison          string
 	withZone                bool
 	withAPI                 bool
-	wholeMatch              bool
 	acraConnectionString    string
 	acraAPIConnectionString string
 	ConnectionWrapper       network.ConnectionWrapper
@@ -77,7 +76,7 @@ func NewConfig() (*Config, error) {
 		return nil, err
 	}
 	traceOptions := []trace.StartOption{trace.WithSpanKind(trace.SpanKindServer), trace.WithSampler(trace.AlwaysSample())}
-	return &Config{withZone: false, wholeMatch: true, mysql: false, postgresql: false, withConnector: true, tableSchema: schemaStore, traceOptions: traceOptions}, nil
+	return &Config{withZone: false, mysql: false, postgresql: false, withConnector: true, tableSchema: schemaStore, traceOptions: traceOptions}, nil
 }
 
 // ErrTwoDBSetup shows that AcraServer can connects only to one database at the same time
@@ -225,16 +224,6 @@ func (config *Config) GetDBHost() string {
 // GetDBPort returns AcraServer database port
 func (config *Config) GetDBPort() int {
 	return config.dbPort
-}
-
-// GetWholeMatch returns if AcraServer assumes that whole database cell has one AcraStruct
-func (config *Config) GetWholeMatch() bool {
-	return config.wholeMatch
-}
-
-// SetWholeMatch sets that AcraServer assumes that whole database cell has one AcraStruct
-func (config *Config) SetWholeMatch(value bool) {
-	config.wholeMatch = value
 }
 
 // SetConfigPath sets AcraServer config path

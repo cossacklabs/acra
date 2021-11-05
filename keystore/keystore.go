@@ -43,6 +43,7 @@ const (
 	AcraMasterKeyVarName = "ACRA_MASTER_KEY"
 	// SymmetricKeyLength in bytes for master key
 	SymmetricKeyLength = 32
+	NoKeyFoundExit     = true
 )
 
 // Errors returned during accessing to client id or master key.
@@ -52,6 +53,76 @@ var (
 	ErrMasterKeyIncorrectLength = fmt.Errorf("master key must have %v length in bytes", SymmetricKeyLength)
 	ErrNotImplemented           = errors.New("not implemented")
 )
+
+// Key struct store content of keypair or some symmetric key
+type Key struct {
+	Name    string
+	Content []byte
+}
+
+// KeysBackup struct that store keys for poison records and all client's/zone's keys
+type KeysBackup struct {
+	MasterKey []byte
+	Keys      []byte
+}
+
+// Backup interface for export/import KeyStore
+type Backup interface {
+	Export() (*KeysBackup, error)
+	Import(*KeysBackup) error
+}
+
+// KeyOwnerType define type key owners. Defined to avoid function overrides for clientID/zoneID keys and allow to
+// define one function for several key owners
+type KeyOwnerType int
+
+// Set of values for KeyOwnerType
+const (
+	KeyOwnerTypeClient = iota
+	KeyOwnerTypeZone   = iota
+)
+
+// ErrKeysNotFound used if can't find key or keys
+var ErrKeysNotFound = errors.New("keys not found")
+
+// TokenKeystore method related with key management used by tokenization components
+type TokenKeystore interface {
+	GetEncryptionTokenSymmetricKey(id []byte, ownerType KeyOwnerType) ([]byte, error)
+	GetDecryptionTokenSymmetricKeys(id []byte, ownerType KeyOwnerType) ([][]byte, error)
+}
+
+// HmacKeyStore interface to fetch keys for hma calculation
+type HmacKeyStore interface {
+	GetHMACSecretKey(id []byte) ([]byte, error)
+}
+
+// HmacKeyGenerator is able to generate keys for HmacKeyStore.
+type HmacKeyGenerator interface {
+	GenerateHmacKey(id []byte) error
+}
+
+// SymmetricEncryptionKeyStore interface describe access methods to encryption symmetric keys
+type SymmetricEncryptionKeyStore interface {
+	GetClientIDSymmetricKeys(id []byte) ([][]byte, error)
+	GetZoneIDSymmetricKeys(id []byte) ([][]byte, error)
+}
+
+// SymmetricEncryptionKeyStoreGenerator interface methods responsible for generation encryption symmetric keys
+type SymmetricEncryptionKeyStoreGenerator interface {
+	GenerateClientIDSymmetricKey(id []byte) error
+	GenerateZoneIDSymmetricKey(id []byte) error
+	GeneratePoisonRecordSymmetricKey() error
+}
+
+// AuditLogKeyStore keeps symmetric keys for audit log signtures.
+type AuditLogKeyStore interface {
+	GetLogSecretKey() ([]byte, error)
+}
+
+// AuditLogKeyGenerator is able to generate keys for AuditLogKeyStore.
+type AuditLogKeyGenerator interface {
+	GenerateLogKey() error
+}
 
 // GenerateSymmetricKey return new generated symmetric key that must used in keystore as master key and will comply
 // our requirements.
@@ -150,7 +221,7 @@ type SecureSessionKeyStore interface {
 // TransportKeyStore provides access to transport keys. It is used by acra-connector tool.
 type TransportKeyStore interface {
 	SecureSessionKeyStore
-
+	AuditLogKeyStore
 	CheckIfPrivateKeyExists(clientID []byte) (bool, error)
 }
 
@@ -175,8 +246,21 @@ type PublicKeyStore interface {
 	GetClientIDEncryptionPublicKey(clientID []byte) (*keys.PublicKey, error)
 }
 
+// RecordProcessorKeyStore interface with required methods for RecordProcessor
+type RecordProcessorKeyStore interface {
+	GetPoisonPrivateKeys() ([]*keys.PrivateKey, error)
+	GetPoisonSymmetricKeys() ([][]byte, error)
+}
+
+// DataEncryptorKeyStore interface with required methods for CryptoHandlers
+type DataEncryptorKeyStore interface {
+	PrivateKeyStore
+	PublicKeyStore
+}
+
 // PrivateKeyStore provides access to storage private keys, used to decrypt stored data.
 type PrivateKeyStore interface {
+	SymmetricEncryptionKeyStore
 	HasZonePrivateKey(id []byte) bool
 	GetZonePrivateKey(id []byte) (*keys.PrivateKey, error)
 	GetZonePrivateKeys(id []byte) ([]*keys.PrivateKey, error)
@@ -205,6 +289,13 @@ type DecryptionKeyStore interface {
 	PublicKeyStore
 	PrivateKeyStore
 	PoisonKeyStore
+	HmacKeyStore
+}
+
+// StorageKeyGenerator is able to generate keys for Acra CE and Acra EE.
+type StorageKeyGenerator interface {
+	StorageKeyCreation
+	SymmetricEncryptionKeyStoreGenerator
 }
 
 // KeyMaking enables keystore initialization. It is used by acra-keymaker tool.
@@ -212,6 +303,10 @@ type KeyMaking interface {
 	StorageKeyCreation
 	TransportKeyCreation
 	WebConfigKeyStore
+	PoisonKeyStore
+	AuditLogKeyGenerator
+	HmacKeyGenerator
+	SymmetricEncryptionKeyStoreGenerator
 }
 
 // PoisonKeyStore provides access to poison record key pairs.
@@ -219,12 +314,7 @@ type PoisonKeyStore interface {
 	// Reads current poison record key pair, creating it if it does not exist yet.
 	GetPoisonKeyPair() (*keys.Keypair, error)
 	GetPoisonPrivateKeys() ([]*keys.PrivateKey, error)
-}
-
-// RotateStorageKeyStore enables storage key rotation. It is used by acra-rotate tool.
-type RotateStorageKeyStore interface {
-	StorageKeyCreation
-	PrivateKeyStore
+	GetPoisonSymmetricKeys() ([][]byte, error)
 }
 
 // ServerKeyStore enables AcraStruct encryption, decryption,
@@ -234,6 +324,8 @@ type ServerKeyStore interface {
 	SecureSessionKeyStore
 	StorageKeyCreation
 	WebConfigKeyStore
+	AuditLogKeyStore
+	SymmetricEncryptionKeyStoreGenerator
 
 	ListKeys() ([]KeyDescription, error)
 	Reset()
@@ -255,6 +347,7 @@ type KeyDescription struct {
 type TranslationKeyStore interface {
 	DecryptionKeyStore
 	SecureSessionKeyStore
+	AuditLogKeyStore
 }
 
 // WebConfigKeyStore provides access to Acra Web Config.

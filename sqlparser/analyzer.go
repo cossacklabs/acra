@@ -289,7 +289,7 @@ type SetKey struct {
 // Since set variable names are case insensitive, all keys are returned
 // as lower case.
 func ExtractSetValues(sql string) (keyValues map[SetKey]interface{}, scope string, err error) {
-	stmt, err := Parse(sql)
+	stmt, err := New(ModeStrict).Parse(sql)
 	if err != nil {
 		return nil, "", err
 	}

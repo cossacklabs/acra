@@ -34,6 +34,20 @@ const (
 	HTTPScheme = "http"
 )
 
+// SafeCloseConnectionCallback callback that wraps connections with connection that call Close only once
+type SafeCloseConnectionCallback struct{}
+
+// OnConnection wraps connection with connection that call Close only once
+func (SafeCloseConnectionCallback) OnConnection(conn net.Conn) (net.Conn, error) {
+	log.Debugln("Wrap connection with safe close connection")
+	return newSafeCloseConnection(conn), nil
+}
+
+// OnServerHandshake wrap conn with SafeCloseeConnection
+func (SafeCloseConnectionCallback) OnServerHandshake(conn net.Conn) (net.Conn, error) {
+	return newSafeCloseConnection(conn), nil
+}
+
 func customSchemeToBaseGolangScheme(scheme string) string {
 	if scheme == GRPCScheme || scheme == HTTPScheme {
 		return "tcp"
@@ -41,11 +55,17 @@ func customSchemeToBaseGolangScheme(scheme string) string {
 	return scheme
 }
 
-// safeCloseConnection wrap connection and ensure that net.Conn.Close will be called only once
+// safeCloseConnection wrap connection and ensure that net.Conn.Close will be called only once, allow to store clientID
+// and transferred SpanContext
 type safeCloseConnection struct {
 	net.Conn
 	once sync.Once
 	err  error
+}
+
+// Unwrap returns wrapped connection
+func (conn *safeCloseConnection) Unwrap() net.Conn {
+	return conn.Conn
 }
 
 // close proxy Close call and store error
@@ -86,10 +106,22 @@ func newSafeCloseListener(l net.Listener) net.Listener {
 
 // UnwrapSafeCloseListener return wrapped listener or listener from parameter as is
 func UnwrapSafeCloseListener(listener net.Listener) net.Listener {
-	if safeListener, ok := listener.(*safeCloseListener); ok {
-		return safeListener.Listener
+	for {
+		if safeListener, ok := listener.(*safeCloseListener); ok {
+			return safeListener.Listener
+		}
+		unwrapped, ok := listener.(ListenerWrapper)
+		if ok {
+			listener = unwrapped.Unwrap()
+			continue
+		}
+		return listener
 	}
-	return listener
+}
+
+// Unwrap returns wrapped listener
+func (listener *safeCloseListener) Unwrap() net.Listener {
+	return listener.Listener
 }
 
 // close proxy Close call and store error
@@ -103,6 +135,7 @@ func (listener *safeCloseListener) Close() error {
 	return listener.err
 }
 
+// ErrNilListener used if listener is nil
 var ErrNilListener = errors.New("nil listener")
 
 // Accept proxy call to wrapped listener and wrap accepted connection with safeCloseConnection

@@ -28,13 +28,14 @@ import (
 	"crypto/rand"
 	"errors"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"runtime"
 	"sync"
 
+	"github.com/cossacklabs/acra/cmd"
 	"github.com/cossacklabs/acra/keystore"
+	keystore2 "github.com/cossacklabs/acra/keystore"
 	"github.com/cossacklabs/acra/keystore/lru"
 	"github.com/cossacklabs/acra/utils"
 	"github.com/cossacklabs/acra/zone"
@@ -88,7 +89,7 @@ type KeyStoreBuilder struct {
 // You must set at least root key directories and provide a KeyEncryptor.
 func NewCustomFilesystemKeyStore() *KeyStoreBuilder {
 	return &KeyStoreBuilder{
-		storage:   &fileStorage{},
+		storage:   &DummyStorage{},
 		cacheSize: keystore.InfiniteCacheSize,
 	}
 }
@@ -145,24 +146,29 @@ func (b *KeyStoreBuilder) Build() (*KeyStore, error) {
 	return newFilesystemKeyStore(b.privateKeyDir, b.publicKeyDir, b.storage, b.encryptor, b.cacheSize)
 }
 
-// IsKeyDirectory checks if the local directory contains a keystore.
+// IsKeyDirectory checks if the local directory contains a keystore v1.
 // This is a conservative check.
 // That is, positive return value does not mean that the directory contains *a valid* keystore.
-// However, false value means that the directory definitely is not a valid keystore.
+// However, false value means that the directory is definitely not a valid keystore.
 // In particular, false is returned if the directory does not exists or cannot be opened.
 func IsKeyDirectory(keyDirectory string) bool {
-	fi, err := os.Stat(keyDirectory)
+	storage, err := openKeyStorage()
 	if err != nil {
-		log.WithError(err).WithField("path", keyDirectory).Debug("Failed to stat a key directory")
+		log.WithError(err).Debug("Failed to open key storage for version check")
+		return false
+	}
+	fi, err := storage.Stat(keyDirectory)
+	if err != nil {
+		log.WithError(err).WithField("path", keyDirectory).Debug("Failed to stat key directory for version check")
 		return false
 	}
 	if !fi.IsDir() {
-		log.WithField("path", keyDirectory).Debug("Not a key directory")
+		log.WithField("path", keyDirectory).Debug("Key directory is not a directory")
 		return false
 	}
-	files, err := ioutil.ReadDir(keyDirectory)
+	files, err := storage.ReadDir(keyDirectory)
 	if err != nil {
-		log.WithError(err).WithField("path", keyDirectory).Debug("Failed to read key directory")
+		log.WithError(err).WithField("path", keyDirectory).Debug("Failed to read key directory for version check")
 		return false
 	}
 	if len(files) == 0 {
@@ -170,6 +176,14 @@ func IsKeyDirectory(keyDirectory string) bool {
 		return false
 	}
 	return true
+}
+
+func openKeyStorage() (Storage, error) {
+	redis := cmd.GetRedisParameters()
+	if redis.KeysConfigured() {
+		return NewRedisStorage(redis.HostPort, redis.Password, redis.DBKeys, nil)
+	}
+	return &DummyStorage{}, nil
 }
 
 func newFilesystemKeyStore(privateKeyFolder, publicKeyFolder string, storage Storage, encryptor keystore.KeyEncryptor, cacheSize int) (*KeyStore, error) {
@@ -696,6 +710,35 @@ func (store *KeyStore) GetPoisonPrivateKeys() ([]*keys.PrivateKey, error) {
 	return store.getPrivateKeysByFilenames([]byte(PoisonKeyFilename), filenames)
 }
 
+// GetPoisonSymmetricKeys returns all symmetric keys used to decrypt poison records with AcraBlock, from newest to oldest.
+// If a poison record does not exist, it is created and its sole symmetric key is returned.
+// Returns a list of symmetric poison keys (possibly empty), or an error if decryption fails.
+func (store *KeyStore) GetPoisonSymmetricKeys() ([][]byte, error) {
+	keyFileName := getSymmetricKeyName(PoisonKeyFilename)
+	poisonKeyExists, err := store.fs.Exists(store.GetPrivateKeyFilePath(keyFileName))
+	if err != nil {
+		log.Debug("Can't check poison key existence")
+		return nil, err
+	}
+	log.WithError(err).WithField("exists", poisonKeyExists).Debug("Get poison sym keys")
+	// If there is no poison record keypair, generated one and returns its private key.
+	if !poisonKeyExists {
+		log.Debugln("Generate poison symmetric key")
+
+		if err := store.fs.MkdirAll(filepath.Dir(store.GetPrivateKeyFilePath(keyFileName)), keyDirMode); err != nil {
+			log.Debug("Can't generate .poison_key directory")
+			return nil, err
+		}
+
+		err := store.generateAndSaveSymmetricKey([]byte(keyFileName), store.GetPrivateKeyFilePath(keyFileName))
+		if err != nil {
+			log.Debug("Can't generate new poison sym key")
+			return nil, err
+		}
+	}
+	return store.getSymmetricKeys([]byte(keyFileName), keyFileName)
+}
+
 // GetAuthKey generates basic auth key for acraWebconfig, and writes it encrypted to fs,
 // or reads existing key from fs.
 // Returns key or error of generation/decryption failed.
@@ -800,4 +843,203 @@ func (store *KeyStore) Add(keyID string, keyValue []byte) {
 // Get value from inner cache
 func (store *KeyStore) Get(keyID string) ([]byte, bool) {
 	return store.cache.Get(keyID)
+}
+
+// GetHMACSecretKey return key for hmac calculation according to id
+func (store *KeyStore) GetHMACSecretKey(id []byte) ([]byte, error) {
+	filename := getHmacKeyFilename(id)
+	var err error
+	encryptedKey, ok := store.Get(filename)
+	if !ok {
+		encryptedKey, err = store.ReadKeyFile(store.GetPrivateKeyFilePath(filename))
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	decryptedKey, err := store.encryptor.Decrypt(encryptedKey, id)
+	if err != nil {
+		return nil, err
+	}
+	log.Debugf("Load key from fs: %s", filename)
+	store.Add(filename, encryptedKey)
+	return decryptedKey, nil
+}
+
+// GenerateHmacKey key for hmac calculation in in folder for private keys
+func (store *KeyStore) GenerateHmacKey(id []byte) error {
+	log.Debugln("Generate HMAC")
+	key, err := keystore.GenerateSymmetricKey()
+	if err != nil {
+		return err
+	}
+	encryptedKey, err := store.encryptor.Encrypt(key, id)
+	if err != nil {
+		return err
+	}
+	utils.ZeroizeSymmetricKey(key)
+
+	path := store.GetPrivateKeyFilePath(getHmacKeyFilename(id))
+	err = store.WriteKeyFile(path, encryptedKey, PrivateFileMode)
+	if err != nil {
+		return err
+	}
+
+	store.Add(getHmacKeyFilename(id), encryptedKey)
+
+	return nil
+}
+
+// GenerateLogKey key for log integrity check calculation in folder for private keys
+func (store *KeyStore) GenerateLogKey() error {
+	log.Debugln("Generate secure log key")
+	key, err := keystore.GenerateSymmetricKey()
+	if err != nil {
+		return err
+	}
+	encryptedKey, err := store.encryptor.Encrypt(key, []byte(SecureLogKeyFilename))
+	if err != nil {
+		return err
+	}
+	utils.ZeroizeSymmetricKey(key)
+
+	path := store.GetPrivateKeyFilePath(getLogKeyFilename())
+	err = store.WriteKeyFile(path, encryptedKey, PrivateFileMode)
+	if err != nil {
+		return err
+	}
+
+	store.Add(getLogKeyFilename(), encryptedKey)
+
+	return nil
+}
+
+// GetLogSecretKey return key for log integrity checks
+func (store *KeyStore) GetLogSecretKey() ([]byte, error) {
+	filename := getLogKeyFilename()
+	var err error
+	encryptedKey, ok := store.Get(filename)
+	if !ok {
+		encryptedKey, err = store.ReadKeyFile(store.GetPrivateKeyFilePath(filename))
+		if err != nil {
+			return nil, err
+		}
+	}
+	decryptedKey, err := store.encryptor.Decrypt(encryptedKey, []byte(SecureLogKeyFilename))
+	if err != nil {
+		return nil, err
+	}
+	log.Debugf("Load key from fs: %s", filename)
+	store.Add(filename, encryptedKey)
+	return decryptedKey, nil
+}
+
+// generateSymmetricKey generate symmetric key with specific identifier
+func (store *KeyStore) generateAndSaveSymmetricKey(id []byte, filename string) error {
+	symKey, err := keystore.GenerateSymmetricKey()
+	if err != nil {
+		return err
+	}
+	encryptedSymKey, err := store.encryptor.Encrypt(symKey, id)
+	if err != nil {
+		return err
+	}
+	return store.WritePrivateKey(filename, encryptedSymKey)
+}
+
+// GetSymmetricKey return symmetric key with specific identifier
+func (store *KeyStore) readEncryptedKey(id []byte, filename string) ([]byte, error) {
+	encryptedSymKey, err := store.ReadKeyFile(filename)
+	if err != nil {
+		return nil, err
+	}
+	return store.encryptor.Decrypt(encryptedSymKey, id)
+}
+
+// GenerateClientIDSymmetricKey generate symmetric key for specified client id
+func (store *KeyStore) GenerateClientIDSymmetricKey(id []byte) error {
+	keyName := getClientIDSymmetricKeyName(id)
+	return store.generateAndSaveSymmetricKey(id, store.GetPrivateKeyFilePath(keyName))
+}
+
+// GenerateZoneIDSymmetricKey generate symmetric key for specified zone id
+func (store *KeyStore) GenerateZoneIDSymmetricKey(id []byte) error {
+	keyName := getZoneIDSymmetricKeyName(id)
+	return store.generateAndSaveSymmetricKey(id, store.GetPrivateKeyFilePath(keyName))
+}
+
+// GeneratePoisonRecordSymmetricKey generate symmetric key for poison records
+func (store *KeyStore) GeneratePoisonRecordSymmetricKey() error {
+	keyName := getSymmetricKeyName(PoisonKeyFilename)
+	exists, err := store.fs.Exists(keyName)
+	if err != nil {
+		return err
+	}
+	if exists {
+		return nil
+	}
+	if err := store.fs.MkdirAll(filepath.Dir(store.GetPrivateKeyFilePath(keyName)), keyDirMode); err != nil {
+		return err
+	}
+	return store.generateAndSaveSymmetricKey([]byte(keyName), store.GetPrivateKeyFilePath(keyName))
+}
+
+func (store *KeyStore) getSymmetricKeys(id []byte, keyname string) ([][]byte, error) {
+	keys := make([][]byte, 0, 1)
+	historicalKeys, err := store.GetHistoricalPrivateKeyFilenames(keyname)
+	if err != nil {
+		log.Debug("Can't get historical private key filenames")
+		for _, key := range keys {
+			utils.ZeroizeSymmetricKey(key)
+		}
+		return nil, err
+	}
+	for _, path := range historicalKeys {
+		key, err := store.readEncryptedKey(id, store.GetPrivateKeyFilePath(path))
+		if err != nil {
+			for _, key := range keys {
+				utils.ZeroizeSymmetricKey(key)
+			}
+			return nil, err
+		}
+		keys = append(keys, key)
+	}
+	return keys, nil
+}
+
+// GetClientIDSymmetricKeys return symmetric key for specified client id
+func (store *KeyStore) GetClientIDSymmetricKeys(id []byte) ([][]byte, error) {
+	keyName := getClientIDSymmetricKeyName(id)
+	return store.getSymmetricKeys(id, keyName)
+}
+
+// GetZoneIDSymmetricKeys return symmetric key for specified zone id
+func (store *KeyStore) GetZoneIDSymmetricKeys(id []byte) ([][]byte, error) {
+	keyName := getZoneIDSymmetricKeyName(id)
+	return store.getSymmetricKeys(id, keyName)
+}
+
+// GetDecryptionTokenSymmetricKeys return symmetric keys which may be used to decrypt encrypted token
+func (store *KeyStore) GetDecryptionTokenSymmetricKeys(id []byte, ownerType keystore2.KeyOwnerType) ([][]byte, error) {
+	keyName := getTokenSymmetricKeyName(id, ownerType)
+	return store.getSymmetricKeys(id, keyName)
+}
+
+// GetEncryptionTokenSymmetricKey return symmetric key which should be used to encrypt tokens
+func (store *KeyStore) GetEncryptionTokenSymmetricKey(id []byte, ownerType keystore2.KeyOwnerType) ([]byte, error) {
+	keyName := getTokenSymmetricKeyName(id, ownerType)
+	keys, err := store.getSymmetricKeys(id, keyName)
+	if err != nil {
+		return nil, err
+	}
+	if len(keys) == 0 {
+		return nil, keystore2.ErrKeysNotFound
+	}
+	return keys[0], nil
+}
+
+// GenerateTokenSymmetricKey new symmetric key in keystore
+func (store *KeyStore) GenerateTokenSymmetricKey(id []byte, ownerType keystore2.KeyOwnerType) error {
+	keyName := getTokenSymmetricKeyName(id, ownerType)
+	return store.generateAndSaveSymmetricKey(id, store.GetPrivateKeyFilePath(keyName))
 }

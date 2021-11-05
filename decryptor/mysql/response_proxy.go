@@ -22,6 +22,8 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
+	"github.com/cossacklabs/acra/keystore/filesystem"
+	"github.com/cossacklabs/acra/sqlparser"
 	"go.opencensus.io/trace"
 	"io"
 	"net"
@@ -29,7 +31,6 @@ import (
 	"time"
 
 	"github.com/cossacklabs/acra/acra-censor"
-	"github.com/cossacklabs/acra/acra-censor/common"
 	"github.com/cossacklabs/acra/decryptor/base"
 	"github.com/cossacklabs/acra/logging"
 	"github.com/cossacklabs/acra/network"
@@ -83,9 +84,40 @@ const (
 	_ // CommandResetConnection
 )
 
+// Type used for defining MySQL types
+type Type byte
+
+// StorageByte represent amount of bytes need to store MySQL type
+type StorageByte int
+
+// NumericTypesStorageBytes return association between numeric types and amount of bytes used for their storing
+var NumericTypesStorageBytes = map[Type]StorageByte{
+	TypeTiny:     StorageByte(1),
+	TypeShort:    StorageByte(2),
+	TypeYear:     StorageByte(2),
+	TypeLong:     StorageByte(4),
+	TypeFloat:    StorageByte(4),
+	TypeInt24:    StorageByte(4),
+	TypeDouble:   StorageByte(8),
+	TypeLongLong: StorageByte(8),
+	TypeNull:     StorageByte(0),
+}
+
+// Bits return number of bits of the StorageByte
+func (s StorageByte) Bits() int {
+	return int(s) * 8
+}
+
+// IsBinaryType true if field type is binary
+func (t Type) IsBinaryType() bool {
+	isBlob := t >= TypeTinyBlob && t <= TypeBlob
+	isString := t == TypeVarString || t == TypeString
+	return isString || isBlob || t == TypeVarchar
+}
+
 // Binary ColumnTypes https://dev.mysql.com/doc/internals/en/com-query-response.html#column-type
 const (
-	TypeDecimal byte = iota
+	TypeDecimal Type = iota
 	TypeTiny
 	TypeShort
 	TypeLong
@@ -106,7 +138,7 @@ const (
 
 // MySQL types
 const (
-	TypeNewDecimal byte = iota + 0xf6
+	TypeNewDecimal Type = iota + 0xf6
 	TypeEnum
 	TypeSet
 	TypeTinyBlob
@@ -117,13 +149,6 @@ const (
 	TypeString
 	TypeGeometry
 )
-
-// IsBinaryColumn returns if column is binary data
-func IsBinaryColumn(value byte) bool {
-	isBlob := value >= TypeTinyBlob && value <= TypeBlob
-	isString := value == TypeVarString || value == TypeString
-	return isString || isBlob || value == TypeVarchar
-}
 
 // ResponseHandler database response header
 type ResponseHandler func(ctx context.Context, packet *Packet, dbConnection, clientConnection net.Conn) error
@@ -143,40 +168,50 @@ type Handler struct {
 	serverProtocol41     bool
 	currentCommand       byte
 	// clientDeprecateEOF  if false then expect EOF on response result as terminator otherwise not
-	clientDeprecateEOF     bool
-	decryptor              base.Decryptor
-	acracensor             acracensor.AcraCensorInterface
-	isTLSHandshake         bool
-	dbTLSHandshakeFinished chan bool
-	clientConnection       net.Conn
-	dbConnection           net.Conn
-	logger                 *logrus.Entry
-	ctx                    context.Context
-	queryObserverManager   base.QueryObserverManager
-	decryptionObserver     base.ColumnDecryptionObserver
-	setting                base.ProxySetting
+	clientDeprecateEOF      bool
+	acracensor              acracensor.AcraCensorInterface
+	isTLSHandshake          bool
+	dbTLSHandshakeFinished  chan bool
+	clientConnection        net.Conn
+	dbConnection            net.Conn
+	logger                  *logrus.Entry
+	ctx                     context.Context
+	queryObserverManager    base.QueryObserverManager
+	decryptionObserver      base.ColumnDecryptionObserver
+	setting                 base.ProxySetting
+	clientIDObserverManager base.ClientIDObservableManager
+	parser                  *sqlparser.Parser
+	protocolState           *ProtocolState
+	registry                *PreparedStatementRegistry
 }
 
 // NewMysqlProxy returns new Handler
-func NewMysqlProxy(session base.ClientSession, decryptor base.Decryptor, setting base.ProxySetting) (*Handler, error) {
-	observerManager, err := base.NewArrayQueryObserverableManager(session.Context())
+func NewMysqlProxy(session base.ClientSession, parser *sqlparser.Parser, setting base.ProxySetting) (*Handler, error) {
+	observerManager, err := base.NewArrayQueryObservableManager(session.Context())
+	if err != nil {
+		return nil, err
+	}
+	clientIDManager, err := base.NewArrayClientIDObservableManager(session.Context())
 	if err != nil {
 		return nil, err
 	}
 	return &Handler{
-		isTLSHandshake:         false,
-		dbTLSHandshakeFinished: make(chan bool),
-		clientDeprecateEOF:     false,
-		decryptor:              decryptor,
-		responseHandler:        defaultResponseHandler,
-		acracensor:             setting.Censor(),
-		clientConnection:       session.ClientConnection(),
-		dbConnection:           session.DatabaseConnection(),
-		setting:                setting,
-		ctx:                    session.Context(),
-		logger:                 logging.GetLoggerFromContext(session.Context()),
-		queryObserverManager:   observerManager,
-		decryptionObserver:     base.NewColumnDecryptionObserver(),
+		isTLSHandshake:          false,
+		dbTLSHandshakeFinished:  make(chan bool),
+		clientDeprecateEOF:      false,
+		responseHandler:         defaultResponseHandler,
+		acracensor:              setting.Censor(),
+		clientConnection:        session.ClientConnection(),
+		dbConnection:            session.DatabaseConnection(),
+		setting:                 setting,
+		ctx:                     session.Context(),
+		logger:                  logging.GetLoggerFromContext(session.Context()),
+		queryObserverManager:    observerManager,
+		decryptionObserver:      base.NewColumnDecryptionObserver(),
+		clientIDObserverManager: clientIDManager,
+		parser:                  parser,
+		protocolState:           NewProtocolState(),
+		registry:                NewPreparedStatementRegistry(),
 	}, nil
 }
 
@@ -195,12 +230,10 @@ func (handler *Handler) Unsubscribe(subscriber base.DecryptionSubscriber) {
 	handler.decryptionObserver.Unsubscribe(subscriber)
 }
 
-func (handler *Handler) onColumnDecryption(ctx context.Context, column int, data []byte) ([]byte, error) {
-	// create new context for current decryption operation
-	ctx = base.NewContextWithColumnInfo(ctx, base.NewColumnInfo(column, ""))
-	// todo refactor this and pass client/zone id to ctx from other place
-	ctx = base.NewContextWithClientZoneInfo(ctx, handler.decryptor.(*Decryptor).clientID, handler.decryptor.GetMatchedZoneID(), handler.decryptor.IsWithZone())
-	return handler.decryptionObserver.OnColumnDecryption(ctx, column, data)
+func (handler *Handler) onColumnDecryption(parentCtx context.Context, column int, data []byte) ([]byte, error) {
+	accessContext := base.AccessContextFromContext(parentCtx)
+	accessContext.SetColumnInfo(base.NewColumnInfo(column, "", false, len(data)))
+	return handler.decryptionObserver.OnColumnDecryption(parentCtx, column, data)
 }
 
 // AddQueryObserver implement QueryObservable interface and proxy call to ObserverManager
@@ -225,8 +258,8 @@ func (handler *Handler) getResponseHandler() ResponseHandler {
 }
 
 // ProxyClientConnection connects to database, writes data and executes DB commands
-func (handler *Handler) ProxyClientConnection(errCh chan<- error) {
-	ctx, span := trace.StartSpan(handler.ctx, "ProxyClientConnection")
+func (handler *Handler) ProxyClientConnection(ctx context.Context, errCh chan<- base.ProxyError) {
+	ctx, span := trace.StartSpan(ctx, "ProxyClientConnection")
 	defer span.End()
 	clientLog := handler.logger.WithField("proxy", "client")
 	clientLog.Debugln("Start proxy client's requests")
@@ -237,27 +270,25 @@ func (handler *Handler) ProxyClientConnection(errCh chan<- error) {
 	var timerObserveFunc = func() time.Duration { return 0 }
 	var packetSpanEndFunc = func() {}
 	var censorSpanEndFunc = func() {}
-	defer func() {
-		timerObserveFunc()
-		packetSpanEndFunc()
-	}()
 	for {
 		censorSpanEndFunc()
 		timerObserveFunc()
-		timer := prometheus.NewTimer(prometheus.ObserverFunc(base.RequestProcessingTimeHistogram.WithLabelValues(prometheusLabels...).Observe))
-		timerObserveFunc = timer.ObserveDuration
-
 		packetSpanEndFunc()
-		packetSpanCtx, packetSpan := trace.StartSpan(ctx, "ProxyClientConnectionLoop")
-		packetSpanEndFunc = packetSpan.End
 
 		packet, err := ReadPacket(handler.clientConnection)
 		if err != nil {
 			handler.logger.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorResponseConnectorCantReadFromClient).
 				Debugln("Can't read packet from client")
-			errCh <- err
+			errCh <- base.NewClientProxyError(err)
 			return
 		}
+
+		timer := prometheus.NewTimer(prometheus.ObserverFunc(base.RequestProcessingTimeHistogram.WithLabelValues(prometheusLabels...).Observe))
+		timerObserveFunc = timer.ObserveDuration
+
+		packetSpanCtx, packetSpan := trace.StartSpan(ctx, "ProxyClientConnectionLoop")
+		packetSpanEndFunc = packetSpan.End
+
 		// after reading client's packet we start deadline on write to db side
 		handler.dbConnection.SetWriteDeadline(time.Now().Add(network.DefaultNetworkTimeout))
 		if firstPacket {
@@ -277,7 +308,7 @@ func (handler *Handler) ProxyClientConnection(errCh chan<- error) {
 						handler.logger.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorResponseConnectorCantWriteToClient).
 							Debugln("Can't write response with error to client")
 					}
-					errCh <- network.ErrEmptyTLSConfig
+					errCh <- base.NewClientProxyError(network.ErrEmptyTLSConfig)
 					return
 				}
 
@@ -285,19 +316,19 @@ func (handler *Handler) ProxyClientConnection(errCh chan<- error) {
 				if err != nil {
 					handler.logger.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorDecryptorCantInitializeTLS).
 						Errorln("Error in tls handshake with client")
-					errCh <- err
+					errCh <- base.NewClientProxyError(err)
 					return
 				}
 				if handler.setting.TLSConnectionWrapper().UseConnectionClientID() {
 					handler.logger.WithField("client_id", clientID).Debugln("Set new clientID")
-					handler.decryptor.SetClientID(clientID)
+					handler.clientIDObserverManager.OnNewClientID(clientID)
 				}
 				handler.logger.Debugln("Switched to tls with client. wait switching with db")
 				handler.isTLSHandshake = true
 				handler.clientConnection = tlsConnection
 				if _, err := handler.dbConnection.Write(packet.Dump()); err != nil {
 					clientLog.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorNetworkWrite).WithError(err).Debugln("Can't write send packet to db")
-					errCh <- err
+					errCh <- base.NewClientProxyError(err)
 					return
 				}
 				// stop reading and init switching to tls
@@ -310,7 +341,7 @@ func (handler *Handler) ProxyClientConnection(errCh chan<- error) {
 					continue
 				case <-time.NewTicker(time.Second * ClientWaitDbTLSHandshake).C:
 					clientLog.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorDecryptorCantInitializeTLS).Errorln("Timeout on tls handshake with db")
-					errCh <- errors.New("handshake timeout")
+					errCh <- base.NewClientProxyError(errors.New("handshake timeout"))
 					return
 				}
 			}
@@ -328,12 +359,12 @@ func (handler *Handler) ProxyClientConnection(errCh chan<- error) {
 			if _, err := handler.dbConnection.Write(packet.Dump()); err != nil {
 				clientLog.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorResponseConnectorCantWriteToDB).
 					Debugln("Can't write send packet to db")
-				errCh <- err
+				errCh <- base.NewClientProxyError(err)
 				return
 			}
 			handler.clientConnection.Close()
 			handler.dbConnection.Close()
-			errCh <- io.EOF
+			errCh <- base.NewClientProxyError(io.EOF)
 			return
 		case CommandQuery, CommandStatementPrepare:
 			_, censorSpan := trace.StartSpan(packetSpanCtx, "censor")
@@ -341,11 +372,15 @@ func (handler *Handler) ProxyClientConnection(errCh chan<- error) {
 
 			// log query with hidden values for debug mode
 			if logging.GetLogLevel() == logging.LogDebug {
-				_, queryWithHiddenValues, _, err := common.HandleRawSQLQuery(query)
-				if err == common.ErrQuerySyntaxError {
+				_, queryWithHiddenValues, _, err := handler.parser.HandleRawSQLQuery(query)
+				if err == sqlparser.ErrQuerySyntaxError {
 					clientLog.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCensorQueryParseError).Debugf("Parsing error on query: %s", queryWithHiddenValues)
 				} else {
-					clientLog.WithFields(logrus.Fields{"sql": queryWithHiddenValues, "command": cmd}).Debugln("Query command")
+					debugCmd := "Query command"
+					if cmd == CommandStatementPrepare {
+						debugCmd = "Prepared Statement command"
+					}
+					clientLog.WithFields(logrus.Fields{"sql": queryWithHiddenValues, "command": cmd}).Debugln(debugCmd)
 				}
 			}
 
@@ -361,19 +396,34 @@ func (handler *Handler) ProxyClientConnection(errCh chan<- error) {
 				continue
 			}
 
-			newQuery, changed, err := handler.queryObserverManager.OnQuery(base.NewOnQueryObjectFromQuery(query))
+			queryObj := base.NewOnQueryObjectFromQuery(query, handler.parser)
+			newQuery, changed, err := handler.queryObserverManager.OnQuery(ctx, queryObj)
 			if err != nil {
+				if filesystem.IsKeyReadError(err) {
+					errCh <- base.NewClientProxyError(err)
+					return
+				}
 				clientLog.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorEncryptQueryData).Errorln("Error occurred on query handler")
 			} else if changed {
 				packet.replaceQuery(newQuery.Query())
 			}
 
-			if cmd == CommandQuery {
+			switch cmd {
+			case CommandQuery:
 				handler.setQueryHandler(handler.QueryResponseHandler)
+			case CommandStatementPrepare:
+				handler.protocolState.SetPendingParse(queryObj)
+				handler.setQueryHandler(handler.PreparedStatementResponseHandler)
 			}
+
 			censorSpan.End()
 			break
 		case CommandStatementExecute:
+			if err = handler.handleStatementExecute(ctx, packet); err != nil {
+				errCh <- base.NewClientProxyError(err)
+				return
+			}
+
 			handler.setQueryHandler(handler.QueryResponseHandler)
 			break
 		case CommandStatementClose, CommandStatementSendLongData, CommandStatementReset:
@@ -384,16 +434,58 @@ func (handler *Handler) ProxyClientConnection(errCh chan<- error) {
 		if _, err := handler.dbConnection.Write(packet.Dump()); err != nil {
 			clientLog.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorNetworkWrite).
 				Debugln("Can't write send packet to db")
-			errCh <- err
+			errCh <- base.NewClientProxyError(err)
 			return
 		}
 	}
 }
 
+func (handler *Handler) handleStatementExecute(ctx context.Context, packet *Packet) error {
+	stmtID := binary.LittleEndian.Uint32(packet.GetData()[1:])
+
+	log := handler.logger.WithField("proxy", "client").WithField("statement", stmtID)
+	log.Debug("Statement Execute")
+
+	statement, err := handler.registry.StatementByID(strconv.FormatUint(uint64(stmtID), 10))
+	if err != nil {
+		log.WithError(err).Error("Can't find prepared statement in registry")
+		return nil
+	}
+
+	parameters, err := packet.GetBindParameters(statement.ParamsNum())
+	if err != nil {
+		log.WithError(err).Error("Can't parse OnBind parameters")
+		return nil
+	}
+
+	newParameters, changed, err := handler.queryObserverManager.OnBind(ctx, statement.Query(), parameters)
+	if err != nil {
+		// Security: here we should interrupt proxying in case of any keys read related errors
+		// in other cases we just stop the processing to let db protocol handle the error.
+		if filesystem.IsKeyReadError(err) {
+			return err
+		}
+
+		log.WithError(err).Error("Failed to handle Bind packet")
+		return nil
+	}
+
+	// Finally, if the parameter values have been changed, update the packet.
+	// If that fails, send the packet unchanged, as usual.
+	if changed {
+		err := packet.SetParameters(newParameters)
+		if err != nil {
+			log.WithError(err).Error("Failed to update Bind packet")
+			return nil
+		}
+	}
+
+	return nil
+}
+
 func (handler *Handler) isFieldToDecrypt(field *ColumnDescription) bool {
 	switch field.Type {
-	case TypeVarchar, TypeTinyBlob, TypeMediumBlob, TypeLongBlob, TypeBlob,
-		TypeVarString, TypeString:
+	case TypeVarchar, TypeTinyBlob, TypeMediumBlob, TypeLongBlob, TypeBlob, TypeVarString, TypeString:
 		return true
 	default:
 		return false
@@ -717,8 +809,6 @@ func (handler *Handler) isPreparedStatementResult() bool {
 // QueryResponseHandler parses data from database response
 func (handler *Handler) QueryResponseHandler(ctx context.Context, packet *Packet, dbConnection, clientConnection net.Conn) (err error) {
 	handler.resetQueryHandler()
-	handler.decryptor.Reset()
-	handler.decryptor.ResetZoneMatch()
 	// read fields
 	var fields []*ColumnDescription
 	var binaryFieldIndexes []int
@@ -752,7 +842,7 @@ func (handler *Handler) QueryResponseHandler(ctx context.Context, packet *Packet
 				handler.logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorProtocolProcessing).WithError(err).Errorln("Can't parse result field")
 				return err
 			}
-			if field.IsBinary() {
+			if field.Type.IsBinaryType() {
 				handler.logger.WithField("column_index", i).Debugln("Binary field")
 				binaryFieldIndexes = append(binaryFieldIndexes, i)
 			}
@@ -831,36 +921,50 @@ func (handler *Handler) QueryResponseHandler(ctx context.Context, packet *Packet
 	return nil
 }
 
+// PreparedStatementResponseHandler handles PreparedStatements response from DB
+func (handler *Handler) PreparedStatementResponseHandler(ctx context.Context, packet *Packet, dbConnection, clientConnection net.Conn) (err error) {
+	response, err := ParsePrepareStatementResponse(packet.GetData())
+	if err != nil {
+		handler.logger.WithError(err).Error("Failed to handle prepared statement response packet: can't parse prepared statement DB response")
+		return err
+	}
+
+	queryObj := handler.protocolState.PendingParse()
+	statement, err := queryObj.Statement()
+	if err != nil {
+		handler.logger.WithError(err).Error("Failed to handle prepared statement response packet: can't find prepared statement")
+		return err
+	}
+	handler.registry.AddStatement(NewPreparedStatement(response, queryObj.Query(), statement))
+
+	// proxy output
+	handler.logger.Debugln("Proxy output")
+	if _, err := clientConnection.Write(packet.Dump()); err != nil {
+		handler.logger.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorNetworkWrite).
+			Debugln("Can't proxy output")
+		return err
+	}
+
+	handler.resetQueryHandler()
+	handler.logger.Debugln("Prepared Statement registered successfully")
+	return nil
+}
+
 // ProxyDatabaseConnection handles connection from database, returns data to client
-func (handler *Handler) ProxyDatabaseConnection(errCh chan<- error) {
-	ctx, span := trace.StartSpan(handler.ctx, "ProxyDatabaseConnection")
+func (handler *Handler) ProxyDatabaseConnection(ctx context.Context, errCh chan<- base.ProxyError) {
+	ctx, span := trace.StartSpan(ctx, "ProxyDatabaseConnection")
 	defer span.End()
 	serverLog := handler.logger.WithField("proxy", "server")
 	serverLog.Debugln("Start proxy db responses")
 	firstPacket := true
 	var responseHandler ResponseHandler
-	prometheusLabels := []string{base.DecryptionDBMysql}
-	if handler.decryptor.IsWholeMatch() {
-		prometheusLabels = append(prometheusLabels, base.DecryptionModeWhole)
-	} else {
-		prometheusLabels = append(prometheusLabels, base.DecryptionModeInline)
-	}
 	// use pointers to function where should be stored some function that should be called if code return error and interrupt loop
 	// default value empty func to avoid != nil check
 	var packetSpanEndFunc = func() {}
 	var timerObserveFunc = func() time.Duration { return 0 }
-	defer func() {
-		timerObserveFunc()
-		packetSpanEndFunc()
-	}()
 	for {
 		packetSpanEndFunc()
-		_, packetSpan := trace.StartSpan(ctx, "ProxyDatabaseConnectionLoop")
-		packetSpanEndFunc = packetSpan.End
-
 		timerObserveFunc()
-		timer := prometheus.NewTimer(prometheus.ObserverFunc(base.ResponseProcessingTimeHistogram.WithLabelValues(prometheusLabels...).Observe))
-		timerObserveFunc = timer.ObserveDuration
 
 		packet, err := ReadPacket(handler.dbConnection)
 		if err != nil {
@@ -872,7 +976,7 @@ func (handler *Handler) ProxyDatabaseConnection(errCh chan<- error) {
 					if err != nil {
 						handler.logger.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorDecryptorCantInitializeTLS).
 							Errorln("Can't initialize tls connection with db")
-						errCh <- err
+						errCh <- base.NewDBProxyError(err)
 						return
 					}
 					handler.logger.Debugln("Switched to tls with db")
@@ -882,9 +986,16 @@ func (handler *Handler) ProxyDatabaseConnection(errCh chan<- error) {
 				}
 			}
 			handler.logger.Debugln("Can't read packet from server")
-			errCh <- err
+			errCh <- base.NewDBProxyError(err)
 			return
 		}
+
+		_, packetSpan := trace.StartSpan(ctx, "ProxyDatabaseConnectionLoop")
+		packetSpanEndFunc = packetSpan.End
+
+		timer := prometheus.NewTimer(prometheus.ObserverFunc(base.ResponseProcessingTimeHistogram.WithLabelValues(base.DecryptionDBMysql).Observe))
+		timerObserveFunc = timer.ObserveDuration
+
 		// after reading response from db response set deadline on writing data to client
 		handler.clientConnection.SetWriteDeadline(time.Now().Add(network.DefaultNetworkTimeout))
 		handler.logger.WithField("sequence_number", packet.GetSequenceNumber()).Debugln("New packet from db to client")
@@ -896,12 +1007,20 @@ func (handler *Handler) ProxyDatabaseConnection(errCh chan<- error) {
 			handler.serverProtocol41 = packet.ServerSupportProtocol41()
 			serverLog.Debugf("Set support protocol 41 %v", handler.serverProtocol41)
 		}
+		// reset previously matched zoneID
+		accessContext := base.AccessContextFromContext(ctx)
+		accessContext.SetZoneID(nil)
 		responseHandler = handler.getResponseHandler()
 		err = responseHandler(ctx, packet, handler.dbConnection, handler.clientConnection)
 		if err != nil {
 			handler.resetQueryHandler()
-			errCh <- err
+			errCh <- base.NewDBProxyError(err)
 			return
 		}
 	}
+}
+
+// AddClientIDObserver subscribe new observer for clientID changes
+func (handler *Handler) AddClientIDObserver(observer base.ClientIDObserver) {
+	handler.clientIDObserverManager.AddClientIDObserver(observer)
 }

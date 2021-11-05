@@ -2,6 +2,7 @@ package network
 
 import (
 	"github.com/cossacklabs/themis/gothemis/keys"
+	"github.com/stretchr/testify/assert"
 	"testing"
 )
 
@@ -59,4 +60,18 @@ func BenchmarkSessionWrapper(t *testing.B) {
 		t.Fatal(err)
 	}
 	testWrapper(clientWrapper, serverWrapper, testClientID, t.N, t)
+}
+
+func TestSecureSessionGRPCClientIDExtractorSuccess(t *testing.T) {
+	expectedClientID := []byte("client id")
+	authInfo := SecureSessionInfo{newClientIDConnection(&testConnection{}, expectedClientID)}
+	resultClientID, err := GetClientIDFromAuthInfo(authInfo, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	assert.Equal(t, resultClientID, expectedClientID)
+}
+
+func TestSecureSessionClientIDExtractorIncorrectAuthInfo(t *testing.T) {
+	testTLSGRPCClientIDExtractorIncorrectAuthInfo(t)
 }

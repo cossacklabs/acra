@@ -18,6 +18,7 @@ package encryptor
 
 import (
 	"bytes"
+	"context"
 	"errors"
 	"reflect"
 	"strconv"
@@ -42,19 +43,19 @@ type querySelectSetting struct {
 type QueryDataEncryptor struct {
 	schemaStore         config.TableSchemaStore
 	encryptor           DataEncryptor
-	clientID            []byte
 	dataCoder           DBDataCoder
 	querySelectSettings []*querySelectSetting
+	parser              *sqlparser.Parser
 }
 
 // NewMysqlQueryEncryptor create QueryDataEncryptor with MySQLDBDataCoder
-func NewMysqlQueryEncryptor(schema config.TableSchemaStore, clientID []byte, dataEncryptor DataEncryptor) (*QueryDataEncryptor, error) {
-	return &QueryDataEncryptor{schemaStore: schema, clientID: clientID, encryptor: dataEncryptor, dataCoder: &MysqlDBDataCoder{}}, nil
+func NewMysqlQueryEncryptor(schema config.TableSchemaStore, parser *sqlparser.Parser, dataEncryptor DataEncryptor) (*QueryDataEncryptor, error) {
+	return &QueryDataEncryptor{schemaStore: schema, parser: parser, encryptor: dataEncryptor, dataCoder: &MysqlDBDataCoder{}}, nil
 }
 
 // NewPostgresqlQueryEncryptor create QueryDataEncryptor with PostgresqlDBDataCoder
-func NewPostgresqlQueryEncryptor(schema config.TableSchemaStore, clientID []byte, dataEncryptor DataEncryptor) (*QueryDataEncryptor, error) {
-	return &QueryDataEncryptor{schemaStore: schema, clientID: clientID, encryptor: dataEncryptor, dataCoder: &PostgresqlDBDataCoder{}}, nil
+func NewPostgresqlQueryEncryptor(schema config.TableSchemaStore, parser *sqlparser.Parser, dataEncryptor DataEncryptor) (*QueryDataEncryptor, error) {
+	return &QueryDataEncryptor{schemaStore: schema, parser: parser, encryptor: dataEncryptor, dataCoder: &PostgresqlDBDataCoder{}}, nil
 }
 
 // ID returns name of this QueryObserver.
@@ -63,13 +64,17 @@ func (encryptor *QueryDataEncryptor) ID() string {
 }
 
 // encryptInsertQuery encrypt data in insert query in VALUES and ON DUPLICATE KEY UPDATE statements
-func (encryptor *QueryDataEncryptor) encryptInsertQuery(insert *sqlparser.Insert) (bool, error) {
+func (encryptor *QueryDataEncryptor) encryptInsertQuery(ctx context.Context, insert *sqlparser.Insert) (bool, error) {
 	tableName := insert.Table.Name
 	schema := encryptor.schemaStore.GetTableSchema(tableName.String())
 	if schema == nil {
 		// unsupported table, we have not schema and query hasn't columns description
 		logrus.Debugf("Hasn't schema for table %s", tableName)
 		return false, nil
+	}
+
+	if encryptor.encryptor == nil {
+		return false, encryptor.onReturning(insert.Returning, tableName.RawValue())
 	}
 
 	var columnsName []string
@@ -91,7 +96,7 @@ func (encryptor *QueryDataEncryptor) encryptInsertQuery(insert *sqlparser.Insert
 				// collect values per column
 				for j, value := range valTuple {
 					columnName := columnsName[j]
-					if changedValue, err := encryptor.encryptExpression(value, schema, columnName); err != nil {
+					if changedValue, err := encryptor.encryptExpression(ctx, value, schema, columnName); err != nil {
 						logrus.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorEncryptorCantEncryptExpression).WithError(err).Errorln("Can't encrypt expression")
 						return changed, err
 					} else if changedValue {
@@ -103,7 +108,7 @@ func (encryptor *QueryDataEncryptor) encryptInsertQuery(insert *sqlparser.Insert
 	}
 
 	if len(insert.OnDup) > 0 {
-		onDupChanged, err := encryptor.encryptUpdateExpressions(sqlparser.UpdateExprs(insert.OnDup), insert.Table, AliasToTableMap{insert.Table.Name.String(): insert.Table.Name.String()})
+		onDupChanged, err := encryptor.encryptUpdateExpressions(ctx, sqlparser.UpdateExprs(insert.OnDup), insert.Table, AliasToTableMap{insert.Table.Name.String(): insert.Table.Name.String()})
 		if err != nil {
 			return changed, err
 		}
@@ -117,7 +122,7 @@ func (encryptor *QueryDataEncryptor) encryptInsertQuery(insert *sqlparser.Insert
 var ErrUpdateLeaveDataUnchanged = errors.New("updateFunc didn't change data")
 
 // UpdateExpressionValue decode value from DB related string to binary format, call updateFunc, encode to DB string format and replace value in expression with new
-func UpdateExpressionValue(expr sqlparser.Expr, coder DBDataCoder, updateFunc func([]byte) ([]byte, error)) error {
+func UpdateExpressionValue(ctx context.Context, expr sqlparser.Expr, coder DBDataCoder, updateFunc func(context.Context, []byte) ([]byte, error)) error {
 	switch val := expr.(type) {
 	case *sqlparser.SQLVal:
 		switch val.Type {
@@ -133,7 +138,7 @@ func UpdateExpressionValue(expr sqlparser.Expr, coder DBDataCoder, updateFunc fu
 				return err
 			}
 
-			newData, err := updateFunc(rawData)
+			newData, err := updateFunc(ctx, rawData)
 			if err != nil {
 				return err
 			}
@@ -151,13 +156,13 @@ func UpdateExpressionValue(expr sqlparser.Expr, coder DBDataCoder, updateFunc fu
 }
 
 // encryptExpression check that expr is SQLVal and has Hexval then try to encrypt
-func (encryptor *QueryDataEncryptor) encryptExpression(expr sqlparser.Expr, schema config.TableSchema, columnName string) (bool, error) {
+func (encryptor *QueryDataEncryptor) encryptExpression(ctx context.Context, expr sqlparser.Expr, schema config.TableSchema, columnName string) (bool, error) {
 	if schema.NeedToEncrypt(columnName) {
-		err := UpdateExpressionValue(expr, encryptor.dataCoder, func(data []byte) ([]byte, error) {
+		err := UpdateExpressionValue(ctx, expr, encryptor.dataCoder, func(ctx context.Context, data []byte) ([]byte, error) {
 			if len(data) == 0 {
 				return data, nil
 			}
-			return encryptor.encryptWithColumnSettings(schema.GetColumnEncryptionSettings(columnName), data)
+			return encryptor.encryptWithColumnSettings(ctx, schema.GetColumnEncryptionSettings(columnName), data)
 		})
 		// didn't change anything because it already encrypted
 		if err == ErrUpdateLeaveDataUnchanged {
@@ -214,7 +219,7 @@ func (encryptor *QueryDataEncryptor) hasTablesToEncrypt(tables []*AliasedTableNa
 }
 
 // encryptUpdateExpressions try to encrypt all supported exprs. Use firstTable if column has not explicit table name because it's implicitly used in DBMSs
-func (encryptor *QueryDataEncryptor) encryptUpdateExpressions(exprs sqlparser.UpdateExprs, firstTable sqlparser.TableName, qualifierMap AliasToTableMap) (bool, error) {
+func (encryptor *QueryDataEncryptor) encryptUpdateExpressions(ctx context.Context, exprs sqlparser.UpdateExprs, firstTable sqlparser.TableName, qualifierMap AliasToTableMap) (bool, error) {
 	var schema config.TableSchema
 	changed := false
 	for _, expr := range exprs {
@@ -229,7 +234,7 @@ func (encryptor *QueryDataEncryptor) encryptUpdateExpressions(exprs sqlparser.Up
 			continue
 		}
 		columnName := expr.Name.Name.String()
-		if changedExpr, err := encryptor.encryptExpression(expr.Expr, schema, columnName); err != nil {
+		if changedExpr, err := encryptor.encryptExpression(ctx, expr.Expr, schema, columnName); err != nil {
 			logrus.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorEncryptorCantEncryptExpression).WithError(err).Errorln("Can't update expression with encrypted sql value")
 			return changed, err
 		} else if changedExpr {
@@ -256,7 +261,7 @@ func NewAliasToTableMapFromTables(tables []*AliasedTableName) AliasToTableMap {
 }
 
 // encryptUpdateQuery encrypt data in Update query and return true if any fields was encrypted, false if wasn't and error if error occurred
-func (encryptor *QueryDataEncryptor) encryptUpdateQuery(update *sqlparser.Update) (bool, error) {
+func (encryptor *QueryDataEncryptor) encryptUpdateQuery(ctx context.Context, update *sqlparser.Update) (bool, error) {
 	tables := GetTablesWithAliases(update.TableExprs)
 	if !encryptor.hasTablesToEncrypt(tables) {
 		return false, nil
@@ -266,24 +271,63 @@ func (encryptor *QueryDataEncryptor) encryptUpdateQuery(update *sqlparser.Update
 	}
 	qualifierMap := NewAliasToTableMapFromTables(tables)
 	firstTable := tables[0].TableName
-	return encryptor.encryptUpdateExpressions(update.Exprs, firstTable, qualifierMap)
+	return encryptor.encryptUpdateExpressions(ctx, update.Exprs, firstTable, qualifierMap)
 }
 
+// OnColumn return new encryption setting context if info exist, otherwise column data and passed context will be returned
+func (encryptor *QueryDataEncryptor) OnColumn(ctx context.Context, data []byte) (context.Context, []byte, error) {
+	columnInfo, ok := base.ColumnInfoFromContext(ctx)
+	if ok {
+		// return context with encryption setting
+		if columnInfo.Index() < len(encryptor.querySelectSettings) {
+			selectSetting := encryptor.querySelectSettings[columnInfo.Index()]
+			if selectSetting != nil {
+				return NewContextWithEncryptionSetting(ctx, selectSetting.setting), data, nil
+			}
+		}
+
+	}
+	return ctx, data, nil
+}
+
+const allColumnsName = "*"
+
 func (encryptor *QueryDataEncryptor) onSelect(statement *sqlparser.Select) (bool, error) {
-	columns := mapColumnsToAliases(statement)
+	columns, err := mapColumnsToAliases(statement)
+	if err != nil {
+		logrus.WithError(err).Errorln("Can't extract columns from SELECT statement")
+		return false, err
+	}
 	querySelectSettings := make([]*querySelectSetting, 0, len(columns))
 	for _, data := range columns {
 		if data != nil {
 			if schema := encryptor.schemaStore.GetTableSchema(data.Table); schema != nil {
-				if columnSetting := schema.GetColumnEncryptionSettings(data.Name); columnSetting != nil {
-					querySelectSettings = append(querySelectSettings, &querySelectSetting{
-						setting:     columnSetting,
-						tableName:   data.Table,
-						columnName:  data.Name,
-						columnAlias: data.Alias,
-					})
-					continue
+				var setting *querySelectSetting = nil
+				if data.Name == allColumnsName {
+					for _, name := range schema.Columns() {
+						setting = nil
+						if columnSetting := schema.GetColumnEncryptionSettings(name); columnSetting != nil {
+							setting = &querySelectSetting{
+								setting:     columnSetting,
+								tableName:   data.Table,
+								columnName:  name,
+								columnAlias: "",
+							}
+						}
+						querySelectSettings = append(querySelectSettings, setting)
+					}
+				} else {
+					if columnSetting := schema.GetColumnEncryptionSettings(data.Name); columnSetting != nil {
+						setting = &querySelectSetting{
+							setting:     columnSetting,
+							tableName:   data.Table,
+							columnName:  data.Name,
+							columnAlias: data.Alias,
+						}
+					}
+					querySelectSettings = append(querySelectSettings, setting)
 				}
+				continue
 			}
 		}
 		querySelectSettings = append(querySelectSettings, nil)
@@ -292,8 +336,54 @@ func (encryptor *QueryDataEncryptor) onSelect(statement *sqlparser.Select) (bool
 	return false, nil
 }
 
+func (encryptor *QueryDataEncryptor) onReturning(returning sqlparser.Returning, tableName string) error {
+	if len(returning) == 0 {
+		return nil
+	}
+
+	schema := encryptor.schemaStore.GetTableSchema(tableName)
+	querySelectSettings := make([]*querySelectSetting, 0, 8)
+
+	if _, ok := returning[0].(*sqlparser.StarExpr); ok {
+		for _, name := range schema.Columns() {
+			if columnSetting := schema.GetColumnEncryptionSettings(name); columnSetting != nil {
+				querySelectSettings = append(querySelectSettings, &querySelectSetting{
+					setting:    columnSetting,
+					tableName:  tableName,
+					columnName: name,
+				})
+				continue
+			}
+			querySelectSettings = append(querySelectSettings, nil)
+		}
+		encryptor.querySelectSettings = querySelectSettings
+		return nil
+	}
+
+	for _, col := range returning {
+		colName, ok := col.(*sqlparser.ColName)
+		if !ok {
+			return errors.New("invalid returning format provided")
+		}
+
+		rawColName := colName.Name.String()
+		if columnSetting := schema.GetColumnEncryptionSettings(rawColName); columnSetting != nil {
+			querySelectSettings = append(querySelectSettings, &querySelectSetting{
+				setting:    columnSetting,
+				tableName:  tableName,
+				columnName: rawColName,
+			})
+			continue
+		}
+		querySelectSettings = append(querySelectSettings, nil)
+	}
+
+	encryptor.querySelectSettings = querySelectSettings
+	return nil
+}
+
 // OnQuery raw data in query according to TableSchemaStore
-func (encryptor *QueryDataEncryptor) OnQuery(query base.OnQueryObject) (base.OnQueryObject, bool, error) {
+func (encryptor *QueryDataEncryptor) OnQuery(ctx context.Context, query base.OnQueryObject) (base.OnQueryObject, bool, error) {
 	statement, err := query.Statement()
 	if err != nil {
 		return query, false, err
@@ -303,15 +393,17 @@ func (encryptor *QueryDataEncryptor) OnQuery(query base.OnQueryObject) (base.OnQ
 	case *sqlparser.Select:
 		changed, err = encryptor.onSelect(statement)
 	case *sqlparser.Insert:
-		changed, err = encryptor.encryptInsertQuery(statement)
+		changed, err = encryptor.encryptInsertQuery(ctx, statement)
 	case *sqlparser.Update:
-		changed, err = encryptor.encryptUpdateQuery(statement)
+		if encryptor.encryptor != nil {
+			changed, err = encryptor.encryptUpdateQuery(ctx, statement)
+		}
 	}
 	if err != nil {
 		return query, false, err
 	}
 	if changed {
-		return base.NewOnQueryObjectFromStatement(statement), true, nil
+		return base.NewOnQueryObjectFromStatement(statement, encryptor.parser), true, nil
 	}
 	return query, false, nil
 }
@@ -323,15 +415,18 @@ var ErrInvalidPlaceholder = errors.New("invalid placeholder value")
 var ErrInconsistentPlaceholder = errors.New("inconsistent placeholder usage")
 
 // OnBind process bound values for prepared statement based on TableSchemaStore.
-func (encryptor *QueryDataEncryptor) OnBind(statement sqlparser.Statement, values []base.BoundValue) ([]base.BoundValue, bool, error) {
+func (encryptor *QueryDataEncryptor) OnBind(ctx context.Context, statement sqlparser.Statement, values []base.BoundValue) ([]base.BoundValue, bool, error) {
+	if encryptor.encryptor == nil {
+		return values, false, nil
+	}
 	newValues := values
 	changed := false
 	var err error
 	switch statement := statement.(type) {
 	case *sqlparser.Insert:
-		newValues, changed, err = encryptor.encryptInsertValues(statement, values)
+		newValues, changed, err = encryptor.encryptInsertValues(ctx, statement, values)
 	case *sqlparser.Update:
-		newValues, changed, err = encryptor.encryptUpdateValues(statement, values)
+		newValues, changed, err = encryptor.encryptUpdateValues(ctx, statement, values)
 	}
 	if err != nil {
 		return values, false, err
@@ -339,7 +434,7 @@ func (encryptor *QueryDataEncryptor) OnBind(statement sqlparser.Statement, value
 	return newValues, changed, nil
 }
 
-func (encryptor *QueryDataEncryptor) encryptInsertValues(insert *sqlparser.Insert, values []base.BoundValue) ([]base.BoundValue, bool, error) {
+func (encryptor *QueryDataEncryptor) encryptInsertValues(ctx context.Context, insert *sqlparser.Insert, values []base.BoundValue) ([]base.BoundValue, bool, error) {
 	logrus.Debugln("QueryDataEncryptor.encryptInsertValues")
 	tableName := insert.Table.Name
 	// Look for the schema of the table where the INSERT happens.
@@ -402,10 +497,10 @@ func (encryptor *QueryDataEncryptor) encryptInsertValues(insert *sqlparser.Inser
 
 	// Now that we know the placeholder mapping,
 	// encrypt the values inserted into encrypted columns.
-	return encryptor.encryptValuesWithPlaceholders(values, placeholders, schema)
+	return encryptor.encryptValuesWithPlaceholders(ctx, values, placeholders, schema)
 }
 
-func (encryptor *QueryDataEncryptor) encryptUpdateValues(update *sqlparser.Update, values []base.BoundValue) ([]base.BoundValue, bool, error) {
+func (encryptor *QueryDataEncryptor) encryptUpdateValues(ctx context.Context, update *sqlparser.Update, values []base.BoundValue) ([]base.BoundValue, bool, error) {
 	logrus.Debugln("QueryDataEncryptor.encryptUpdateValues")
 	// Get all tables involved in UPDATE with their aliases.
 	// Column names in the queries might refer to the updated table in a different manner:
@@ -446,19 +541,14 @@ func (encryptor *QueryDataEncryptor) encryptUpdateValues(update *sqlparser.Updat
 
 	// Now that we know the placeholder mapping,
 	// encrypt the values set into encrypted columns.
-	return encryptor.encryptValuesWithPlaceholders(values, placeholders, schema)
+	return encryptor.encryptValuesWithPlaceholders(ctx, values, placeholders, schema)
 }
 
 // updatePlaceholderMap matches the placeholder of a value to its column and records this into the mapping.
 func (encryptor *QueryDataEncryptor) updatePlaceholderMap(values []base.BoundValue, placeholders map[int]string, placeholder *sqlparser.SQLVal, columnName string) error {
-	// TODO(ilammy, 2020-10-15): handle MySQL placeholders too
-	// MySQL placeholders do not contain indices, you just need to count them
-	// and sequentially assign to values and columns.
-	switch placeholder.Type {
-	case sqlparser.PgPlaceholder:
-		// PostgreSQL placeholders look like "$1". Parse the number out of them.
+	updateMapByPlaceholderPart := func(part string) error {
 		text := string(placeholder.Val)
-		index, err := strconv.Atoi(strings.TrimPrefix(text, "$"))
+		index, err := strconv.Atoi(strings.TrimPrefix(text, part))
 		if err != nil {
 			logrus.WithField("placeholder", text).WithError(err).Warning("Cannot parse placeholder")
 			return err
@@ -480,8 +570,17 @@ func (encryptor *QueryDataEncryptor) updatePlaceholderMap(values []base.BoundVal
 			return ErrInconsistentPlaceholder
 		}
 		placeholders[index] = columnName
-	default:
-		// Not a placeholder at all, ignore it.
+		return nil
+	}
+
+	switch placeholder.Type {
+	case sqlparser.ValArg:
+		// MySQL placeholders look like ":v1". Parse the number out of them.
+		return updateMapByPlaceholderPart(":v")
+
+	case sqlparser.PgPlaceholder:
+		// PostgreSQL placeholders look like "$1". Parse the number out of them.
+		return updateMapByPlaceholderPart("$")
 	}
 	return nil
 }
@@ -489,9 +588,12 @@ func (encryptor *QueryDataEncryptor) updatePlaceholderMap(values []base.BoundVal
 // encryptValuesWithPlaceholders encrypts "values" of prepared statement parameters
 // using the placeholder mapping which specifies the column which each value is mapped onto.
 // If the database schema says that a column needs encryption, corresponding value is encrypted.
-func (encryptor *QueryDataEncryptor) encryptValuesWithPlaceholders(values []base.BoundValue, placeholders map[int]string, schema config.TableSchema) ([]base.BoundValue, bool, error) {
+func (encryptor *QueryDataEncryptor) encryptValuesWithPlaceholders(ctx context.Context, values []base.BoundValue, placeholders map[int]string, schema config.TableSchema) ([]base.BoundValue, bool, error) {
 	changed := false
-	oldValues := values
+	oldValues := make([]base.BoundValue, len(values))
+	for index, value := range values {
+		oldValues[index] = value.Copy()
+	}
 
 	for valueIndex, columnName := range placeholders {
 		if !schema.NeedToEncrypt(columnName) {
@@ -505,37 +607,20 @@ func (encryptor *QueryDataEncryptor) encryptValuesWithPlaceholders(values []base
 			copy(values, oldValues)
 		}
 		changed = true
-
 		settings := schema.GetColumnEncryptionSettings(columnName)
-		format := values[valueIndex].Format()
-		data := values[valueIndex].Data()
-		switch format {
-		// TODO(ilammy, 2020-10-19): handle non-bytes binary data
-		// Encryptor expects binary data to be passed in raw bytes, but most non-byte-arrays
-		// are expected in text format. If we get binary parameters, we may need to recode them.
-		case base.BinaryFormat:
-			encryptedData, err := encryptor.encryptWithColumnSettings(settings, data)
-			if err != nil && err != ErrUpdateLeaveDataUnchanged {
-				logrus.WithError(err).WithFields(logrus.Fields{"index": valueIndex, "column": columnName}).
-					Debug("Failed to encrypt column")
-				return oldValues, false, err
-			}
-			values[valueIndex] = base.NewBoundValue(encryptedData, base.BinaryFormat)
 
-		// We don't expect text format to be used with for encoded binary data (e.g., hex escapes),
-		// Thus, just pass text data as is to the encryptor.
-		case base.TextFormat:
-			encryptedData, err := encryptor.encryptWithColumnSettings(settings, data)
-			if err != nil && err != ErrUpdateLeaveDataUnchanged {
-				logrus.WithError(err).WithFields(logrus.Fields{"index": valueIndex, "column": columnName}).
-					Debug("Failed to encrypt column")
-				return oldValues, false, err
-			}
-			values[valueIndex] = base.NewBoundValue(encryptedData, base.TextFormat)
+		encryptedData, err := encryptor.encryptWithColumnSettings(ctx, settings, values[valueIndex].GetData(settings))
+		if err != nil && err != ErrUpdateLeaveDataUnchanged {
+			logrus.WithError(err).WithFields(logrus.Fields{"index": valueIndex, "column": columnName}).
+				Debug("Failed to encrypt column")
+			return oldValues, false, err
+		}
 
-		default:
-			logrus.WithFields(logrus.Fields{"format": format, "index": valueIndex, "column": columnName}).
-				Warning("Parameter format not supported, skipping")
+		err = values[valueIndex].SetData(encryptedData, settings)
+		if err != nil {
+			logrus.WithError(err).WithFields(logrus.Fields{"index": valueIndex, "column": columnName}).
+				Debug("Failed to set encrypted value")
+			return nil, false, err
 		}
 	}
 
@@ -543,7 +628,7 @@ func (encryptor *QueryDataEncryptor) encryptValuesWithPlaceholders(values []base
 }
 
 // encryptWithColumnSettings encrypt data and use ZoneId or ClientID from ColumnEncryptionSetting if not empty otherwise static ClientID that passed to parser
-func (encryptor *QueryDataEncryptor) encryptWithColumnSettings(columnSetting config.ColumnEncryptionSetting, data []byte) ([]byte, error) {
+func (encryptor *QueryDataEncryptor) encryptWithColumnSettings(ctx context.Context, columnSetting config.ColumnEncryptionSetting, data []byte) ([]byte, error) {
 	logger := logrus.WithFields(logrus.Fields{"column": columnSetting.ColumnName()})
 	logger.Debugln("QueryDataEncryptor.encryptWithColumnSettings")
 	zoneID := columnSetting.ZoneID()
@@ -551,12 +636,13 @@ func (encryptor *QueryDataEncryptor) encryptWithColumnSettings(columnSetting con
 		logger.WithField("zone_id", string(zoneID)).Debugln("Encrypt with specific ZoneID for column")
 		return encryptor.encryptor.EncryptWithZoneID(zoneID, data, columnSetting)
 	}
+	accessContext := base.AccessContextFromContext(ctx)
 	clientID := columnSetting.ClientID()
 	if len(clientID) > 0 {
 		logger.WithField("client_id", string(clientID)).Debugln("Encrypt with specific ClientID for column")
 	} else {
-		logger.WithField("client_id", string(encryptor.clientID)).Debugln("Encrypt with ClientID from connection")
-		clientID = encryptor.clientID
+		logger.WithField("client_id", string(accessContext.GetClientID())).Debugln("Encrypt with ClientID from connection")
+		clientID = accessContext.GetClientID()
 	}
 	return encryptor.encryptor.EncryptWithClientID(clientID, data, columnSetting)
 }

@@ -40,6 +40,7 @@ func main() {
 		&keys.ReadKeySubcommand{},
 		&keys.DestroyKeySubcommand{},
 		&keys.GenerateKeySubcommand{},
+		&keys.ExtractClientIDSubcommand{},
 	}
 	subcommand := keys.ParseParameters(subcommands)
 	if subcommand != nil {

@@ -19,21 +19,18 @@ package postgresql
 
 import (
 	"bufio"
-	"bytes"
 	"context"
 	"encoding/binary"
 	"errors"
-	"io"
 	"net"
 	"time"
 
 	acracensor "github.com/cossacklabs/acra/acra-censor"
-	"github.com/cossacklabs/acra/acra-censor/common"
 	"github.com/cossacklabs/acra/decryptor/base"
+	"github.com/cossacklabs/acra/keystore/filesystem"
 	"github.com/cossacklabs/acra/logging"
 	"github.com/cossacklabs/acra/network"
 	"github.com/cossacklabs/acra/sqlparser"
-	"github.com/cossacklabs/acra/utils"
 	"github.com/prometheus/client_golang/prometheus"
 	log "github.com/sirupsen/logrus"
 	"go.opencensus.io/trace"
@@ -98,25 +95,37 @@ const (
 	TLSTimeout                    = time.Second * 2
 )
 
+// Specific for PgSQL values of data format
+// https://www.postgresql.org/docs/9.3/protocol-message-formats.html
+const (
+	dataFormatText   = 0
+	dataFormatBinary = 1
+)
+
 // PgProxy represents PgSQL database connection between client and database with TLS support
 type PgProxy struct {
-	session              base.ClientSession
-	clientConnection     net.Conn
-	dbConnection         net.Conn
-	TLSCh                chan bool
-	ctx                  context.Context
-	queryObserverManager base.QueryObserverManager
-	censor               acracensor.AcraCensorInterface
-	decryptor            base.Decryptor
-	tlsSwitch            bool
-	decryptionObserver   base.ColumnDecryptionObserver
-	protocolState        *PgProtocolState
-	setting              base.ProxySetting
+	session                 base.ClientSession
+	clientConnection        net.Conn
+	dbConnection            net.Conn
+	TLSCh                   chan bool
+	ctx                     context.Context
+	queryObserverManager    base.QueryObserverManager
+	censor                  acracensor.AcraCensorInterface
+	tlsSwitch               bool
+	decryptionObserver      base.ColumnDecryptionObserver
+	protocolState           *PgProtocolState
+	setting                 base.ProxySetting
+	clientIDObserverManager base.ClientIDObservableManager
+	parser                  *sqlparser.Parser
 }
 
 // NewPgProxy returns new PgProxy
-func NewPgProxy(session base.ClientSession, decryptor base.Decryptor, setting base.ProxySetting) (*PgProxy, error) {
-	observerManager, err := base.NewArrayQueryObserverableManager(session.Context())
+func NewPgProxy(session base.ClientSession, parser *sqlparser.Parser, setting base.ProxySetting) (*PgProxy, error) {
+	observerManager, err := base.NewArrayQueryObservableManager(session.Context())
+	if err != nil {
+		return nil, err
+	}
+	clientIDObserverManager, err := base.NewArrayClientIDObservableManager(session.Context())
 	if err != nil {
 		return nil, err
 	}
@@ -131,21 +140,22 @@ func NewPgProxy(session base.ClientSession, decryptor base.Decryptor, setting ba
 			return nil, ErrInvalidProtocolState
 		}
 	} else {
-		protocolState = NewPgProtocolState()
+		protocolState = NewPgProtocolState(parser)
 		session.SetProtocolState(protocolState)
 	}
 	return &PgProxy{
-		session:              session,
-		clientConnection:     session.ClientConnection(),
-		dbConnection:         session.DatabaseConnection(),
-		TLSCh:                make(chan bool),
-		ctx:                  session.Context(),
-		queryObserverManager: observerManager,
-		setting:              setting,
-		censor:               setting.Censor(),
-		decryptor:            decryptor,
-		decryptionObserver:   base.NewColumnDecryptionObserver(),
-		protocolState:        protocolState,
+		session:                 session,
+		clientConnection:        session.ClientConnection(),
+		dbConnection:            session.DatabaseConnection(),
+		TLSCh:                   make(chan bool),
+		ctx:                     session.Context(),
+		queryObserverManager:    observerManager,
+		setting:                 setting,
+		censor:                  setting.Censor(),
+		decryptionObserver:      base.NewColumnDecryptionObserver(),
+		protocolState:           protocolState,
+		clientIDObserverManager: clientIDObserverManager,
+		parser:                  parser,
 	}, nil
 }
 
@@ -164,13 +174,10 @@ func (proxy *PgProxy) Unsubscribe(subscriber base.DecryptionSubscriber) {
 	proxy.decryptionObserver.Unsubscribe(subscriber)
 }
 
-func (proxy *PgProxy) onColumnDecryption(ctx context.Context, i int, data []byte) ([]byte, error) {
-	// create new context for current decryption operation
-	ctx = base.NewContextWithColumnInfo(ctx, base.NewColumnInfo(i, ""))
-	// todo refactor this and pass client/zone id to ctx from other place
-	log.WithField("client_id", string(proxy.decryptor.(*PgDecryptor).clientID)).Debugln("Create context")
-	ctx = base.NewContextWithClientZoneInfo(ctx, proxy.decryptor.(*PgDecryptor).clientID, proxy.decryptor.GetMatchedZoneID(), proxy.decryptor.IsWithZone())
-	return proxy.decryptionObserver.OnColumnDecryption(ctx, i, data)
+func (proxy *PgProxy) onColumnDecryption(parentCtx context.Context, i int, data []byte, binaryFormat bool) ([]byte, error) {
+	accessContext := base.AccessContextFromContext(parentCtx)
+	accessContext.SetColumnInfo(base.NewColumnInfo(i, "", binaryFormat, len(data)))
+	return proxy.decryptionObserver.OnColumnDecryption(parentCtx, i, data)
 }
 
 // AddQueryObserver implement QueryObservable interface and proxy call to ObserverManager
@@ -185,8 +192,8 @@ func (proxy *PgProxy) RegisteredObserversCount() int {
 
 // ProxyClientConnection checks every client request using AcraCensor,
 // if request is allowed, sends it to the Pg database
-func (proxy *PgProxy) ProxyClientConnection(errCh chan<- error) {
-	ctx, span := trace.StartSpan(proxy.ctx, "ProxyClientConnection")
+func (proxy *PgProxy) ProxyClientConnection(ctx context.Context, errCh chan<- base.ProxyError) {
+	ctx, span := trace.StartSpan(ctx, "ProxyClientConnection")
 	defer span.End()
 	logger := logging.NewLoggerWithTrace(ctx).WithField("proxy", "client")
 	logger.Debugln("ProxyClientConnection")
@@ -196,7 +203,7 @@ func (proxy *PgProxy) ProxyClientConnection(errCh chan<- error) {
 	packet, err := NewClientSidePacketHandler(reader, writer, logger)
 	if err != nil {
 		logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCodingPostgresqlPacketHandlerInitiailization).WithError(err).Errorln("Can't initialize packet handler object")
-		errCh <- err
+		errCh <- base.NewClientProxyError(err)
 		return
 	}
 	prometheusLabels := []string{base.DecryptionDBPostgresql}
@@ -204,21 +211,10 @@ func (proxy *PgProxy) ProxyClientConnection(errCh chan<- error) {
 	// default value empty func to avoid != nil check
 	var spanEndFunc = func() {}
 	var timerObserveFunc = func() time.Duration { return 0 }
-	// always call span.End for case if was error
-	defer func() {
-		spanEndFunc()
-		timerObserveFunc()
-	}()
 	for {
 		timerObserveFunc()
-		timer := prometheus.NewTimer(prometheus.ObserverFunc(base.RequestProcessingTimeHistogram.WithLabelValues(prometheusLabels...).Observe))
-		timerObserveFunc = timer.ObserveDuration
-
 		packet.Reset()
-
 		spanEndFunc()
-		packetSpanCtx, packetSpan := trace.StartSpan(ctx, "ProxyClientConnectionLoop")
-		spanEndFunc = packetSpan.End
 
 		if err = packet.ReadClientPacket(); err != nil {
 			if proxy.tlsSwitch {
@@ -228,17 +224,23 @@ func (proxy *PgProxy) ProxyClientConnection(errCh chan<- error) {
 			}
 			// log message with debug level because only here we expect and can meet errors with closed connections io.EOF
 			logger.WithError(err).Debugln("Can't read packet from client to database")
-			errCh <- err
+			errCh <- base.NewClientProxyError(err)
 			return
 		}
+		timer := prometheus.NewTimer(prometheus.ObserverFunc(base.RequestProcessingTimeHistogram.WithLabelValues(prometheusLabels...).Observe))
+		timerObserveFunc = timer.ObserveDuration
+
+		packetSpanCtx, packetSpan := trace.StartSpan(ctx, "ProxyClientConnectionLoop")
+		spanEndFunc = packetSpan.End
+
 		proxy.dbConnection.SetWriteDeadline(time.Now().Add(network.DefaultNetworkTimeout))
 
 		_, censorSpan := trace.StartSpan(packetSpanCtx, "censor")
 
 		// Massage the packet. This should not normally fail. If it does, the database will not receive the packet.
-		censored, err := proxy.handleClientPacket(packet, logger)
+		censored, err := proxy.handleClientPacket(ctx, packet, logger)
 		if err != nil {
-			errCh <- err
+			errCh <- base.NewClientProxyError(err)
 			return
 		}
 
@@ -249,7 +251,7 @@ func (proxy *PgProxy) ProxyClientConnection(errCh chan<- error) {
 		if censored {
 			err := proxy.sendClientAcraCensorError(logger)
 			if err != nil {
-				errCh <- err
+				errCh <- base.NewClientProxyError(err)
 				return
 			}
 			continue
@@ -259,33 +261,38 @@ func (proxy *PgProxy) ProxyClientConnection(errCh chan<- error) {
 		if err := packet.sendPacket(); err != nil {
 			logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorNetworkWrite).
 				WithError(err).Errorln("Can't send packet")
-			errCh <- err
+			errCh <- base.NewClientProxyError(err)
 			return
 		}
 		// If this is a termination packet, we're done here. Signal EOF and stop the proxy.
 		if packet.terminatePacket {
-			errCh <- io.EOF
+			errCh <- base.NewClientProxyError(err)
 			return
 		}
 	}
 }
 
-func (proxy *PgProxy) handleClientPacket(packet *PacketHandler, logger *log.Entry) (bool, error) {
+func (proxy *PgProxy) handleClientPacket(ctx context.Context, packet *PacketHandler, logger *log.Entry) (bool, error) {
 	// Let the protocol observer take a look at the packet, keeping note of it.
 	err := proxy.protocolState.HandleClientPacket(packet)
 	if err != nil {
 		return false, err
 	}
 	switch proxy.protocolState.LastPacketType() {
-	case SimpleQueryPacket, ParseStatementPacket:
+	case ParseStatementPacket:
+		if err := proxy.registerPreparedStatement(proxy.protocolState.pendingParse, logger); err != nil {
+			return false, err
+		}
+		fallthrough
+	case SimpleQueryPacket:
 		// If that's some sort of a packet with a query inside it,
 		// process inline data if necessary and remember the query to handle future response.
-		return proxy.handleQueryPacket(packet, logger)
+		return proxy.handleQueryPacket(ctx, packet, logger)
 
 	case BindStatementPacket:
 		// Bound query parameters may contain inline data that we need to process.
 		// Also, remember the requested portal name for future data queries.
-		return proxy.handleBindPacket(packet, logger)
+		return proxy.handleBindPacket(ctx, packet, logger)
 
 	default:
 		// Forward all other uninteresting packets to the database without processing.
@@ -293,14 +300,14 @@ func (proxy *PgProxy) handleClientPacket(packet *PacketHandler, logger *log.Entr
 	}
 }
 
-func (proxy *PgProxy) handleQueryPacket(packet *PacketHandler, logger *log.Entry) (bool, error) {
+func (proxy *PgProxy) handleQueryPacket(ctx context.Context, packet *PacketHandler, logger *log.Entry) (bool, error) {
 	query := proxy.protocolState.PendingQuery()
 
 	// Log query text -- if and only if we're in debug mode -- without inserted value data.
 	// The query can still be sensitive though, so only in debug mode can we do this.
 	if logging.GetLogLevel() == logging.LogDebug {
-		_, queryWithHiddenValues, _, err := common.HandleRawSQLQuery(query.Query())
-		if err == common.ErrQuerySyntaxError {
+		_, queryWithHiddenValues, _, err := proxy.parser.HandleRawSQLQuery(query.Query())
+		if err == sqlparser.ErrQuerySyntaxError {
 			logger.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCensorQueryParseError).
 				Debugf("Parsing error on query: %s", queryWithHiddenValues)
 		} else {
@@ -322,8 +329,12 @@ func (proxy *PgProxy) handleQueryPacket(packet *PacketHandler, logger *log.Entry
 	}
 
 	// Let the registered observers observe the query, potentially modifying it (e.g., transparent encryption).
-	newQuery, changed, err := proxy.queryObserverManager.OnQuery(query)
+	newQuery, changed, err := proxy.queryObserverManager.OnQuery(ctx, query)
 	if err != nil {
+		if filesystem.IsKeyReadError(err) {
+			return false, err
+		}
+
 		logger.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorEncryptQueryData).
 			Errorln("Error occurred on query handler")
 	}
@@ -333,7 +344,7 @@ func (proxy *PgProxy) handleQueryPacket(packet *PacketHandler, logger *log.Entry
 	return false, nil
 }
 
-func (proxy *PgProxy) handleBindPacket(packet *PacketHandler, logger *log.Entry) (bool, error) {
+func (proxy *PgProxy) handleBindPacket(ctx context.Context, packet *PacketHandler, logger *log.Entry) (bool, error) {
 	bind := proxy.protocolState.PendingBind()
 	log := logger.WithField("portal", bind.PortalName()).WithField("statement", bind.StatementName())
 	log.Debug("Bind packet")
@@ -354,8 +365,12 @@ func (proxy *PgProxy) handleBindPacket(packet *PacketHandler, logger *log.Entry)
 	}
 	// Process parameter values. If we can't -- you guessed it -- leave the packet unchanged.
 	// Note that the new parameter set might have different number of items.
-	newParameters, changed, err := proxy.queryObserverManager.OnBind(statement.Query(), parameters)
+	newParameters, changed, err := proxy.queryObserverManager.OnBind(ctx, statement.Query(), parameters)
 	if err != nil {
+		if filesystem.IsKeyReadError(err) {
+			return false, err
+		}
+
 		log.WithError(err).Error("Failed to handle Bind packet")
 		return false, nil
 	}
@@ -388,65 +403,6 @@ func (proxy *PgProxy) sendClientAcraCensorError(logger *log.Entry) error {
 		return err
 	}
 	return nil
-}
-
-// handlePoisonCheckResult return error err != nil, if can't check on poison record or any callback on poison record
-// return error
-func handlePoisonCheckResult(decryptor base.Decryptor, poisoned bool, err error, logger *log.Entry) error {
-	if err != nil {
-		logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorDecryptorCantCheckPoisonRecord).WithError(err).Errorln("Can't check on poison record")
-		return err
-	}
-
-	if poisoned {
-		logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorDecryptorRecognizedPoisonRecord).Warningln("Recognized poison record")
-		callbacks := decryptor.GetPoisonCallbackStorage()
-		if callbacks.HasCallbacks() {
-			return callbacks.Call()
-		}
-	}
-	return nil
-}
-
-// checkInlinePoisonRecordInBlock check block on poison record as whole AcraStruct block (only when IsPoisonRecordCheckOn() == true)
-func checkInlinePoisonRecordInBlock(block []byte, decryptor base.Decryptor, logger *log.Entry) error {
-	// check is it Poison Record
-	if decryptor.IsPoisonRecordCheckOn() && len(block) > base.GetMinAcraStructLength() {
-		logger.Debugln("Check poison records")
-		currentIndex := 0
-		for {
-			index, _ := decryptor.BeginTagIndex(block[currentIndex:])
-			if index == utils.NotFound {
-				return nil
-			}
-			if len(block[index:]) < base.GetMinAcraStructLength() {
-				break
-			}
-			acrastructLength := base.GetDataLengthFromAcraStruct(block[currentIndex:]) + base.GetMinAcraStructLength()
-			if acrastructLength > 0 && acrastructLength <= len(block[currentIndex:]) {
-				currentIndex += index
-				endIndex := currentIndex + acrastructLength
-				if err := checkWholePoisonRecord(block[currentIndex:endIndex], decryptor, logger); err != nil {
-					return err
-				}
-			}
-			currentIndex++
-		}
-	}
-	return nil
-}
-
-func checkWholePoisonRecord(block []byte, decryptor base.Decryptor, logger *log.Entry) error {
-	if !decryptor.IsPoisonRecordCheckOn() && len(block) < base.GetMinAcraStructLength() {
-		return nil
-	}
-	decryptor.Reset()
-	poisoned, checkErr := decryptor.CheckPoisonRecord(bytes.NewReader(block))
-	if innerErr := handlePoisonCheckResult(decryptor, poisoned, checkErr, logger); innerErr != nil {
-		logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorDecryptorCantCheckPoisonRecord).WithError(innerErr).Errorln("Error on poison record check")
-		return innerErr
-	}
-	return checkErr
 }
 
 // handleSSLRequest return wrapped with tls (client's, db's connections, nil) or (nil, nil, error)
@@ -498,7 +454,7 @@ func (proxy *PgProxy) handleSSLRequest(packet *PacketHandler, logger *log.Entry)
 	logger.WithField("use_client_id", proxy.setting.TLSConnectionWrapper().UseConnectionClientID()).Infoln("TLS connection to db")
 	if proxy.setting.TLSConnectionWrapper().UseConnectionClientID() {
 		logger.WithField("client_id", string(clientID)).Infoln("Set new clientID")
-		proxy.decryptor.SetClientID(clientID)
+		proxy.clientIDObserverManager.OnNewClientID(clientID)
 	}
 	logger.Debugln("Init tls with db")
 	dbTLSConnection, err := proxy.setting.TLSConnectionWrapper().WrapDBConnection(proxy.ctx, proxy.dbConnection)
@@ -511,15 +467,10 @@ func (proxy *PgProxy) handleSSLRequest(packet *PacketHandler, logger *log.Entry)
 }
 
 // ProxyDatabaseConnection process data rows from database
-func (proxy *PgProxy) ProxyDatabaseConnection(errCh chan<- error) {
-	ctx, span := trace.StartSpan(proxy.ctx, "PgDecryptStream")
+func (proxy *PgProxy) ProxyDatabaseConnection(ctx context.Context, errCh chan<- base.ProxyError) {
+	ctx, span := trace.StartSpan(ctx, "PgDecryptStream")
 	defer span.End()
 	logger := logging.NewLoggerWithTrace(ctx).WithField("proxy", "server")
-	if proxy.decryptor.IsWholeMatch() {
-		logger = logger.WithField("decrypt_mode", "wholecell")
-	} else {
-		logger = logger.WithField("decrypt_mode", "inline")
-	}
 	logger.Debugln("Pg db proxy")
 	// use buffered writer because we generate response by parts
 	writer := bufio.NewWriter(proxy.clientConnection)
@@ -527,33 +478,26 @@ func (proxy *PgProxy) ProxyDatabaseConnection(errCh chan<- error) {
 	reader := bufio.NewReader(proxy.dbConnection)
 	packetHandler, err := NewDbSidePacketHandler(reader, writer, logger)
 	if err != nil {
-		errCh <- err
+		errCh <- base.NewDBProxyError(err)
 		return
 	}
 
-	prometheusLabels := []string{base.DecryptionDBPostgresql}
-	if proxy.decryptor.IsWholeMatch() {
-		prometheusLabels = append(prometheusLabels, base.DecryptionModeWhole)
-	} else {
-		prometheusLabels = append(prometheusLabels, base.DecryptionModeInline)
-	}
 	firstByte := true
 	// use pointer to function where should be stored some function that should be called if code return error and interrupt loop
 	// default value empty func to avoid != nil check
 	var endLoopSpanFunc = func() {}
-	defer func() {
-		endLoopSpanFunc()
-	}()
+	var packetCtx context.Context
+	var packetSpan *trace.Span
 	for {
 		// end span of previous iteration
 		endLoopSpanFunc()
-		packetCtx, packetSpan := trace.StartSpan(ctx, "PgDecryptStreamLoop")
-		endLoopSpanFunc = packetSpan.End
 
 		packetHandler.Reset()
 		if firstByte {
+			_, packetSpan = trace.StartSpan(ctx, "PgDecryptStreamLoop")
+			endLoopSpanFunc = packetSpan.End
+
 			packetSpan.AddAttributes(trace.BoolAttribute("startup", true))
-			timer := prometheus.NewTimer(prometheus.ObserverFunc(base.ResponseProcessingTimeHistogram.WithLabelValues(prometheusLabels...).Observe))
 			// https://www.postgresql.org/docs/9.1/static/protocol-flow.html#AEN92112
 			// we should know that we shouldn't read anymore bytes
 			// first response from server may contain only one byte of response on SSLRequest
@@ -561,13 +505,15 @@ func (proxy *PgProxy) ProxyDatabaseConnection(errCh chan<- error) {
 			logger.Debugln("Read startup message")
 			if err = packetHandler.readMessageType(); err != nil {
 				logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorDecryptorReadPacket).WithError(err).Debugln("Can't read first message type")
-				errCh <- err
+				errCh <- base.NewDBProxyError(err)
 				return
 			}
+			timer := prometheus.NewTimer(prometheus.ObserverFunc(base.ResponseProcessingTimeHistogram.WithLabelValues(base.DecryptionDBPostgresql).Observe))
+
 			if packetHandler.IsSSLRequestDeny() {
 				logger.Debugln("Deny ssl request")
 				if err = packetHandler.sendMessageType(); err != nil {
-					errCh <- err
+					errCh <- base.NewDBProxyError(err)
 					return
 				}
 				timer.ObserveDuration()
@@ -577,13 +523,13 @@ func (proxy *PgProxy) ProxyDatabaseConnection(errCh chan<- error) {
 				tlsClientConnection, dbTLSConnection, err := proxy.handleSSLRequest(packetHandler, logger)
 				if err != nil {
 					logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorDecryptorCantInitializeTLS).WithError(err).Errorln("Can't process SSL request")
-					errCh <- err
+					errCh <- base.NewDBProxyError(err)
 					return
 				}
 				proxy.clientConnection = tlsClientConnection
 				proxy.dbConnection = dbTLSConnection
 				// restart proxing client's requests
-				go proxy.ProxyClientConnection(errCh)
+				go proxy.ProxyClientConnection(ctx, errCh)
 				reader = bufio.NewReader(dbTLSConnection)
 				writer = bufio.NewWriter(tlsClientConnection)
 				firstByte = true
@@ -598,29 +544,32 @@ func (proxy *PgProxy) ProxyDatabaseConnection(errCh chan<- error) {
 			// if it is not ssl request than we just forward it to client
 			if err = packetHandler.readData(true); err != nil {
 				logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorDecryptorReadPacket).WithError(err).Errorln("Can't read data of packet")
-				errCh <- err
+				errCh <- base.NewDBProxyError(err)
 				return
 			}
 			if err = packetHandler.sendPacket(); err != nil {
 				logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorNetworkWrite).WithError(err).Errorln("Can't forward first packet")
-				errCh <- err
+				errCh <- base.NewDBProxyError(err)
 				return
 			}
 			timer.ObserveDuration()
 			continue
 		}
-		timer := prometheus.NewTimer(prometheus.ObserverFunc(base.ResponseProcessingTimeHistogram.WithLabelValues(prometheusLabels...).Observe))
 		if err = packetHandler.ReadPacket(); err != nil {
 			logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorDecryptorReadPacket).WithError(err).Debugln("Can't read packet")
-			errCh <- err
+			errCh <- base.NewDBProxyError(err)
 			return
 		}
+		timer := prometheus.NewTimer(prometheus.ObserverFunc(base.ResponseProcessingTimeHistogram.WithLabelValues(base.DecryptionDBPostgresql).Observe))
+		packetCtx, packetSpan = trace.StartSpan(ctx, "PgDecryptStreamLoop")
+		endLoopSpanFunc = packetSpan.End
+
 		proxy.clientConnection.SetWriteDeadline(time.Now().Add(network.DefaultNetworkTimeout))
 
 		// Massage the packet. This should not normally fail. If it does, the client will not receive the packet.
 		err := proxy.handleDatabasePacket(packetCtx, packetHandler, logger)
 		if err != nil {
-			errCh <- err
+			errCh <- base.NewDBProxyError(err)
 			return
 		}
 
@@ -628,7 +577,7 @@ func (proxy *PgProxy) ProxyDatabaseConnection(errCh chan<- error) {
 		if err = packetHandler.sendPacket(); err != nil {
 			logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorNetworkWrite).
 				WithError(err).Errorln("Can't send packet")
-			errCh <- err
+			errCh <- base.NewDBProxyError(err)
 			return
 		}
 		timer.ObserveDuration()
@@ -636,6 +585,8 @@ func (proxy *PgProxy) ProxyDatabaseConnection(errCh chan<- error) {
 }
 
 func (proxy *PgProxy) handleDatabasePacket(ctx context.Context, packet *PacketHandler, logger *log.Entry) error {
+	// reset previously matched zone
+	base.AccessContextFromContext(ctx).SetZoneID(nil)
 	// Let the protocol observer take a look at the packet, keeping note of it.
 	err := proxy.protocolState.HandleDatabasePacket(packet)
 	if err != nil {
@@ -665,7 +616,18 @@ func (proxy *PgProxy) handleDatabasePacket(ctx context.Context, packet *PacketHa
 
 func (proxy *PgProxy) handleQueryDataPacket(ctx context.Context, packet *PacketHandler, logger *log.Entry) error {
 	logger.Debugln("Matched data row packet")
-	if err := packet.parseColumns(); err != nil {
+	// by default it's text format
+	columnFormats := []uint16{uint16(base.TextFormat)}
+	var err error
+	if bindPacket := proxy.protocolState.PendingBind(); bindPacket != nil {
+		columnFormats, err = bindPacket.GetResultFormats()
+		if err != nil {
+			logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCodingPostgresqlCantParseColumnsDescription).
+				WithError(err).Errorln("Can't get result formats from Bind packet")
+			return err
+		}
+	}
+	if err := packet.parseColumns(columnFormats); err != nil {
 		logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCodingPostgresqlCantParseColumnsDescription).
 			WithError(err).Errorln("Can't parse columns in packet")
 		return err
@@ -674,14 +636,25 @@ func (proxy *PgProxy) handleQueryDataPacket(ctx context.Context, packet *PacketH
 	if packet.columnCount == 0 {
 		return nil
 	}
-
 	logger.Debugf("Process columns data")
 	for i := 0; i < packet.columnCount; i++ {
 		column := packet.Columns[i]
 		if column.IsNull() {
 			continue
 		}
-		newData, err := proxy.onColumnDecryption(ctx, i, column.GetData())
+		// default values Text
+		format := 0
+		if proxy.protocolState.pendingBind != nil {
+			boundFormat, err := GetParameterFormatByIndex(i, proxy.protocolState.pendingBind.resultFormats)
+			if err != nil {
+				logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCodingPostgresqlCantParseColumnsDescription).
+					WithError(err).Errorln("Can't get format for column")
+				return err
+			}
+			format = int(boundFormat)
+		}
+
+		newData, err := proxy.onColumnDecryption(ctx, i, column.GetData(), format == dataFormatBinary)
 		if err != nil {
 			logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorGeneral).
 				WithError(err).Errorln("Error on column data processing")
@@ -689,8 +662,7 @@ func (proxy *PgProxy) handleQueryDataPacket(ctx context.Context, packet *PacketH
 		}
 		column.SetData(newData)
 	}
-	// After we're done processing the columns, update the actual packet data from them.
-	proxy.decryptor.ResetZoneMatch()
+	// After we're done processing the columns, update the actual packet data from them
 	packet.updateDataFromColumns()
 	return nil
 }
@@ -699,7 +671,7 @@ func (proxy *PgProxy) registerPreparedStatement(preparedStatement *ParsePacket, 
 	name := preparedStatement.Name()
 	queryText := preparedStatement.QueryString()
 	// This should be always successful since the database filters invalid queries.
-	query, err := sqlparser.Parse(queryText)
+	query, err := proxy.parser.Parse(queryText)
 	if err != nil {
 		logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorGeneral).
 			WithError(err).Errorln("Can't parse SQL from Parse packet")
@@ -739,4 +711,9 @@ func (proxy *PgProxy) registerCursor(bindPacket *BindPacket, logger *log.Entry) 
 	logger.WithField("cursor_name", cursorName).WithField("prepared_name", statementName).
 		Debug("Registered new cursor")
 	return nil
+}
+
+// AddClientIDObserver subscribe new observer for clientID changes
+func (proxy *PgProxy) AddClientIDObserver(observer base.ClientIDObserver) {
+	proxy.clientIDObserverManager.AddClientIDObserver(observer)
 }

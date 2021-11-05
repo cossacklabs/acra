@@ -26,6 +26,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"github.com/cossacklabs/acra/acra-censor/common"
+	"github.com/cossacklabs/acra/sqlparser"
 	"io/ioutil"
 	"os"
 	"path/filepath"
@@ -67,7 +68,8 @@ func TestAllowQueries(t *testing.T) {
 		"INSERT INTO dbo.Points (Type, PointValue) VALUES ('Point', '1,5');",
 		"INSERT INTO dbo.Points (PointValue) VALUES ('1,99');",
 	}
-	whitelistHandler := handlers.NewAllowHandler()
+
+	whitelistHandler := handlers.NewAllowHandler(sqlparser.New(sqlparser.ModeStrict))
 	whitelistHandler.AddQueries(sqlSelectQueries)
 	whitelistHandler.AddQueries(sqlInsertQueries)
 	acraCensor := NewAcraCensor()
@@ -123,7 +125,8 @@ func TestAllowTables(t *testing.T) {
 
 	censor := NewAcraCensor()
 	defer censor.ReleaseAll()
-	whitelistHandler := handlers.NewAllowHandler()
+
+	whitelistHandler := handlers.NewAllowHandler(sqlparser.New(sqlparser.ModeStrict))
 	censor.AddHandler(whitelistHandler)
 	censor.AddHandler(handlers.NewDenyallHandler())
 
@@ -201,7 +204,7 @@ func TestAllowSelectPattern(t *testing.T) {
 
 	censor := NewAcraCensor()
 	defer censor.ReleaseAll()
-	whitelist := handlers.NewAllowHandler()
+	whitelist := handlers.NewAllowHandler(sqlparser.New(sqlparser.ModeStrict))
 	censor.AddHandler(whitelist)
 	censor.AddHandler(handlers.NewDenyallHandler())
 
@@ -229,7 +232,7 @@ func TestAllowColumnsPattern(t *testing.T) {
 
 	censor := NewAcraCensor()
 	defer censor.ReleaseAll()
-	whitelist := handlers.NewAllowHandler()
+	whitelist := handlers.NewAllowHandler(sqlparser.New(sqlparser.ModeStrict))
 	censor.AddHandler(whitelist)
 	censor.AddHandler(handlers.NewDenyallHandler())
 
@@ -432,7 +435,7 @@ func TestAllowWherePattern(t *testing.T) {
 
 	censor := NewAcraCensor()
 	defer censor.ReleaseAll()
-	whitelist := handlers.NewAllowHandler()
+	whitelist := handlers.NewAllowHandler(sqlparser.New(sqlparser.ModeStrict))
 	censor.AddHandler(whitelist)
 	censor.AddHandler(handlers.NewDenyallHandler())
 
@@ -489,7 +492,7 @@ func TestAllowValuePattern(t *testing.T) {
 
 	censor := NewAcraCensor()
 	defer censor.ReleaseAll()
-	whitelist := handlers.NewAllowHandler()
+	whitelist := handlers.NewAllowHandler(sqlparser.New(sqlparser.ModeStrict))
 	censor.AddHandler(whitelist)
 	censor.AddHandler(handlers.NewDenyallHandler())
 
@@ -705,7 +708,7 @@ func TestAllowStarPattern(t *testing.T) {
 
 	censor := NewAcraCensor()
 	defer censor.ReleaseAll()
-	whitelist := handlers.NewAllowHandler()
+	whitelist := handlers.NewAllowHandler(sqlparser.New(sqlparser.ModeStrict))
 	censor.AddHandler(whitelist)
 	censor.AddHandler(handlers.NewDenyallHandler())
 
@@ -790,7 +793,7 @@ func TestDenyQueries(t *testing.T) {
 		"INSERT INTO SalesStaff1 VALUES (1, 'Stephen', 'Jiang');",
 		"SELECT AVG(Price) FROM Products;",
 	}
-	blacklist := handlers.NewDenyHandler()
+	blacklist := handlers.NewDenyHandler(sqlparser.New(sqlparser.ModeStrict))
 	blacklist.AddQueries(blackList)
 	acraCensor := NewAcraCensor()
 	defer acraCensor.ReleaseAll()
@@ -842,7 +845,7 @@ func TestDenyTables(t *testing.T) {
 
 	censor := NewAcraCensor()
 	defer censor.ReleaseAll()
-	blacklist := handlers.NewDenyHandler()
+	blacklist := handlers.NewDenyHandler(sqlparser.New(sqlparser.ModeStrict))
 	censor.AddHandler(blacklist)
 
 	testQueries := []string{
@@ -906,7 +909,7 @@ func TestDenySelectPattern(t *testing.T) {
 	}
 	censor := NewAcraCensor()
 	defer censor.ReleaseAll()
-	blacklist := handlers.NewDenyHandler()
+	blacklist := handlers.NewDenyHandler(sqlparser.New(sqlparser.ModeStrict))
 	censor.AddHandler(blacklist)
 
 	blacklistPattern := "%%SELECT%%"
@@ -933,7 +936,7 @@ func TestDenyColumnsPattern(t *testing.T) {
 
 	censor := NewAcraCensor()
 	defer censor.ReleaseAll()
-	blacklist := handlers.NewDenyHandler()
+	blacklist := handlers.NewDenyHandler(sqlparser.New(sqlparser.ModeStrict))
 	censor.AddHandler(blacklist)
 
 	blacklistPattern := "SELECT %%COLUMN%%, %%COLUMN%%"
@@ -1139,7 +1142,7 @@ func TestDenyWherePattern(t *testing.T) {
 
 	censor := NewAcraCensor()
 	defer censor.ReleaseAll()
-	blacklist := handlers.NewDenyHandler()
+	blacklist := handlers.NewDenyHandler(sqlparser.New(sqlparser.ModeStrict))
 	censor.AddHandler(blacklist)
 
 	blacklistPattern := "SELECT a, b, c FROM z %%WHERE%%"
@@ -1198,7 +1201,7 @@ func TestDenyValuePattern(t *testing.T) {
 
 	censor := NewAcraCensor()
 	defer censor.ReleaseAll()
-	blacklist := handlers.NewDenyHandler()
+	blacklist := handlers.NewDenyHandler(sqlparser.New(sqlparser.ModeStrict))
 	censor.AddHandler(blacklist)
 
 	blacklistPattern := "SELECT a, b from t where ID = %%VALUE%%"
@@ -1301,7 +1304,7 @@ func TestDenyStarPattern(t *testing.T) {
 
 	censor := NewAcraCensor()
 	defer censor.ReleaseAll()
-	blacklist := handlers.NewDenyHandler()
+	blacklist := handlers.NewDenyHandler(sqlparser.New(sqlparser.ModeStrict))
 	censor.AddHandler(blacklist)
 
 	blacklistPattern := "SELECT * from company %%WHERE%%"
@@ -1371,13 +1374,15 @@ func TestAddingCapturedQueriesIntoBlacklist(t *testing.T) {
 	if err = tmpFile.Close(); err != nil {
 		t.Fatal(err)
 	}
-	queryCaptureHandler, err := handlers.NewQueryCaptureHandler(tmpFile.Name())
+
+	parser := sqlparser.New(sqlparser.ModeStrict)
+	queryCaptureHandler, err := handlers.NewQueryCaptureHandler(tmpFile.Name(), parser)
 	if err != nil {
 		t.Fatal(err)
 	}
 	go queryCaptureHandler.Start()
 
-	blacklist := handlers.NewDenyHandler()
+	blacklist := handlers.NewDenyHandler(parser)
 	acraCensor := NewAcraCensor()
 	defer func() {
 		acraCensor.ReleaseAll()
@@ -1453,10 +1458,12 @@ func TestQueryIgnoring(t *testing.T) {
 		"INSERT INTO dbo.Points (Type, PointValue) VALUES ('Point', '1,5');",
 		"INSERT INTO dbo.Points (PointValue) VALUES ('1,99');",
 	}
-	blacklist := handlers.NewDenyHandler()
+
+	parser := sqlparser.New(sqlparser.ModeStrict)
+	blacklist := handlers.NewDenyHandler(parser)
 	blacklist.AddQueries(testQueries)
 
-	ignoreQueryHandler := handlers.NewQueryIgnoreHandler()
+	ignoreQueryHandler := handlers.NewQueryIgnoreHandler(parser)
 	ignoreQueryHandler.AddQueries(testQueries)
 
 	acraCensor := NewAcraCensor()
@@ -1494,7 +1501,7 @@ func TestQueryIgnoring(t *testing.T) {
 	acraCensor.ignoreParseError = false
 	for _, query := range testUnparsableQueries {
 		err = acraCensor.HandleQuery(query)
-		if err != common.ErrQuerySyntaxError {
+		if err != sqlparser.ErrQuerySyntaxError {
 			t.Fatal(err)
 		}
 	}
@@ -1607,7 +1614,8 @@ func TestDifferentTablesParsing(t *testing.T) {
 			"INNER JOIN Customers ON Orders.CustomerID = Customers.CustomerID) " +
 			"INNER JOIN Shippers ON Orders.ShipperID = Shippers.ShipperID);"
 
-	denyHandler := handlers.NewDenyHandler()
+	parser := sqlparser.New(sqlparser.ModeStrict)
+	denyHandler := handlers.NewDenyHandler(parser)
 	denyHandler.AddTables([]string{"x", "y"})
 
 	acraCensor := NewAcraCensor()
@@ -1627,7 +1635,7 @@ func TestDifferentTablesParsing(t *testing.T) {
 
 	acraCensor.RemoveHandler(denyHandler)
 
-	allowHandler := handlers.NewAllowHandler()
+	allowHandler := handlers.NewAllowHandler(parser)
 	allowHandler.AddTables([]string{"Orders", "Customers", "NotShippers"})
 
 	//set our acracensor to use allowHandler for query evaluating
@@ -1649,9 +1657,11 @@ func TestIgnoringQueryParseErrors(t *testing.T) {
 	}
 	acraCensor := NewAcraCensor()
 	defer acraCensor.ReleaseAll()
-	whitelist := handlers.NewAllowHandler()
+
+	parser := sqlparser.New(sqlparser.ModeStrict)
+	whitelist := handlers.NewAllowHandler(parser)
 	whitelist.AddTables([]string{"some table"})
-	blacklist := handlers.NewDenyHandler()
+	blacklist := handlers.NewDenyHandler(parser)
 	blacklist.AddTables([]string{"some table"})
 	checkHandler := func(queryHandlers []QueryHandlerInterface, expectedError error) {
 		for _, handler := range queryHandlers {
@@ -1667,10 +1677,10 @@ func TestIgnoringQueryParseErrors(t *testing.T) {
 			acraCensor.RemoveHandler(handler)
 		}
 	}
-	checkHandler([]QueryHandlerInterface{whitelist}, common.ErrQuerySyntaxError)
-	checkHandler([]QueryHandlerInterface{blacklist}, common.ErrQuerySyntaxError)
+	checkHandler([]QueryHandlerInterface{whitelist}, sqlparser.ErrQuerySyntaxError)
+	checkHandler([]QueryHandlerInterface{blacklist}, sqlparser.ErrQuerySyntaxError)
 	// check when censor with two handlers and each one will return query parse error
-	checkHandler([]QueryHandlerInterface{whitelist, blacklist}, common.ErrQuerySyntaxError)
+	checkHandler([]QueryHandlerInterface{whitelist, blacklist}, sqlparser.ErrQuerySyntaxError)
 	acraCensor.ignoreParseError = true
 	checkHandler([]QueryHandlerInterface{whitelist}, nil)
 	checkHandler([]QueryHandlerInterface{blacklist}, nil)
@@ -1717,7 +1727,7 @@ handlers:
 		}
 	}
 	//wait until goroutine handles complex serialization
-	time.Sleep(common.DefaultSerializationTimeout + 100*time.Millisecond)
+	time.Sleep(common.DefaultSerializationTimeout + 200*time.Millisecond)
 	bufferBytes, err := ioutil.ReadFile("unparsed_queries.log")
 	if err != nil {
 		t.Fatal(err)
@@ -1734,6 +1744,9 @@ handlers:
 			}
 			queries = append(queries, &oneQuery)
 		}
+	}
+	if len(queries) != len(testQueries) {
+		t.Fatal("Not dumped all queries")
 	}
 	for index, query := range testQueries {
 		if !strings.EqualFold(query, queries[index].RawQuery) {

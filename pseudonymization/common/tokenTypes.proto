@@ -1,0 +1,23 @@
+syntax = "proto3";
+
+package common;
+
+option go_package = "github.com/cossacklabs/acra/pseudonymization/common";
+
+// TokenType defines tokenization type.
+enum TokenType {
+    Unknown  = 0;
+    Int32    = 1;
+    Int64    = 2;
+    String   = 3;
+    Bytes    = 4;
+    Email    = 5;
+    Int32Str = 6;
+    Int64Str = 7;
+}
+
+// TokenValue keeps serialized token value.
+message TokenValue {
+    bytes     value = 1;
+    TokenType type  = 2;
+}

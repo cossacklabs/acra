@@ -108,9 +108,15 @@ gen_crl() {
         -out "${OUT_DIR}/$signer/crl.pem"
 }
 
-declare -a names=("mysql" "postgresql" "acra-writer" "acra-writer-2" "acra-writer-revoked" "acra-server" "ocsp-responder" "intermediate-ca")
+declare -a names=("mysql" "postgresql" "acra-writer" "acra-writer-2" "acra-writer-revoked" "acra-server" "ocsp-responder" "intermediate-ca", "vault")
 for name in "${names[@]}"; do
     gen_cert ca $name
+
+    if [[ "$name" = "vault" ]]; then
+        openssl x509 -in "${OUT_DIR}/${name}/${name}.crt" -out "${OUT_DIR}/${name}/${name}_crt.pem" -outform PEM
+        openssl rsa -in "${OUT_DIR}/${name}/${name}.key" -out "${OUT_DIR}/${name}/${name}_key.pem" -outform PEM
+    fi
+
 done
 gen_crl ca
 

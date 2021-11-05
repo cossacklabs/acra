@@ -19,7 +19,7 @@ package write
 import (
 	"database/sql"
 	"fmt"
-	"github.com/cossacklabs/acra/acra-writer"
+	"github.com/cossacklabs/acra/acrastruct"
 	"github.com/cossacklabs/acra/benchmarks/common"
 	"github.com/cossacklabs/acra/benchmarks/config"
 	"github.com/cossacklabs/acra/utils"
@@ -67,7 +67,7 @@ func GenerateAcrastructRowsOneKey(publicKey *keys.PublicKey, db *sql.DB) {
 			panic(err)
 		}
 
-		acrastruct, err := acrawriter.CreateAcrastruct(data, publicKey, nil)
+		acrastruct, err := acrastruct.CreateAcrastruct(data, publicKey, nil)
 		if err != nil {
 			panic(err)
 		}
@@ -103,11 +103,11 @@ func GenerateAcrastructWithZone(db *sql.DB) {
 		}
 
 		zoneData := zones[count%config.ZoneCount]
-		acrastruct, err := acrawriter.CreateAcrastruct(data, &keys.PublicKey{Value: zoneData.PublicKey}, zoneData.ID)
+		acraStruct, err := acrastruct.CreateAcrastruct(data, &keys.PublicKey{Value: zoneData.PublicKey}, zoneData.ID)
 		if err != nil {
 			panic(err)
 		}
-		_, err = db.Exec("INSERT INTO test_with_zone(zone, data) VALUES ($1, $2);", &zoneData.ID, &acrastruct)
+		_, err = db.Exec("INSERT INTO test_with_zone(zone, data) VALUES ($1, $2);", &zoneData.ID, &acraStruct)
 		if err != nil {
 			panic(err)
 		}

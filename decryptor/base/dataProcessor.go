@@ -18,7 +18,8 @@ package base
 
 import (
 	"context"
-
+	"fmt"
+	"github.com/cossacklabs/acra/acrastruct"
 	"github.com/cossacklabs/acra/keystore"
 	"github.com/cossacklabs/acra/logging"
 	"github.com/cossacklabs/acra/utils"
@@ -26,9 +27,18 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
+// OldContainerDetectionOn is a stub for CLI/buildFlags configuration for containers detection
+const OldContainerDetectionOn = true
+
 // DataProcessor for data from database with AcraStructs
 type DataProcessor interface {
 	Process(data []byte, context *DataProcessorContext) ([]byte, error)
+}
+
+// ExtendedDataProcessor extended with MatchDataSignature method to filter incoming data and skip extra processing
+type ExtendedDataProcessor interface {
+	DataProcessor
+	MatchDataSignature([]byte) bool
 }
 
 // ProcessorFunc cast function to cast function as DataProcessor
@@ -39,6 +49,37 @@ func (f ProcessorFunc) Process(data []byte, ctx *DataProcessorContext) ([]byte, 
 	return f(data, ctx)
 }
 
+// ChainProcessorWrapper chain of processors which store all processors and call all of them until one return decrypted data
+type ChainProcessorWrapper struct {
+	processors []ExtendedDataProcessor
+}
+
+// NewChainProcessorWrapper return wrapped processor
+func NewChainProcessorWrapper(processors ...ExtendedDataProcessor) *ChainProcessorWrapper {
+	return &ChainProcessorWrapper{processors}
+}
+
+// Process cast ProcessorFunc to DataProcessor interface
+func (d *ChainProcessorWrapper) Process(inData []byte, ctx *DataProcessorContext) (data []byte, err error) {
+	for _, p := range d.processors {
+		data, err = p.Process(inData, ctx)
+		if err == nil {
+			return data, nil
+		}
+	}
+	return inData, err
+}
+
+// MatchDataSignature call MatchDataSignature for all wrapped processors and return true if any of them return true otherwise false
+func (d *ChainProcessorWrapper) MatchDataSignature(data []byte) bool {
+	for _, p := range d.processors {
+		if p.MatchDataSignature(data) {
+			return true
+		}
+	}
+	return false
+}
+
 // ProcessorWrapper interface for wrappers of DataProcessor
 type ProcessorWrapper interface {
 	Wrap(DataProcessor) DataProcessor
@@ -47,64 +88,59 @@ type ProcessorWrapper interface {
 // DecryptProcessor default implementation of DataProcessor with AcraStruct decryption
 type DecryptProcessor struct{}
 
-// NewDecryptProcessor return DataProcessor which wrap processor
-func NewDecryptProcessor(processor DataProcessor) DataProcessor {
-	return ProcessorFunc(func(data []byte, context *DataProcessorContext) ([]byte, error) {
-		data, err := processor.Process(data, context)
-		if err != nil {
-			return data, err
-		}
-		return DecryptProcessor{}.Process(data, context)
-	})
-}
-
 // Process implement DataProcessor with AcraStruct decryption
-func (DecryptProcessor) Process(data []byte, context *DataProcessorContext) ([]byte, error) {
+func (p DecryptProcessor) Process(data []byte, context *DataProcessorContext) ([]byte, error) {
+	if err := acrastruct.ValidateAcraStructLength(data); err != nil {
+		return data, err
+	}
 	var privateKeys []*keys.PrivateKey
 	var err error
-	if context.WithZone {
-		privateKeys, err = context.Keystore.GetZonePrivateKeys(context.ZoneID)
+	accessContext := AccessContextFromContext(context.Context)
+	var zoneID []byte
+	if accessContext.IsWithZone() {
+		privateKeys, err = context.Keystore.GetZonePrivateKeys(accessContext.GetZoneID())
+		zoneID = accessContext.GetZoneID()
 	} else {
-		privateKeys, err = context.Keystore.GetServerDecryptionPrivateKeys(context.ClientID)
+		privateKeys, err = context.Keystore.GetServerDecryptionPrivateKeys(accessContext.GetClientID())
 	}
 	defer utils.ZeroizePrivateKeys(privateKeys)
 	if err != nil {
 		logging.GetLoggerFromContext(context.Context).WithError(err).WithFields(
-			logrus.Fields{"client_id": string(context.ClientID), "zone_id": context.ZoneID}).Warningln("Can't read private key for matched client_id/zone_id")
+			logrus.Fields{"client_id": string(accessContext.GetClientID()), "zone_id": string(accessContext.GetZoneID())}).Warningln("Can't read private key for matched client_id/zone_id")
 		return []byte{}, err
 	}
-	return DecryptRotatedAcrastruct(data, privateKeys, context.ZoneID)
+	return acrastruct.DecryptRotatedAcrastruct(data, privateKeys, zoneID)
+}
+
+// MatchDataSignature return true if data has valid AcraStruct signature
+func (DecryptProcessor) MatchDataSignature(data []byte) bool {
+	return acrastruct.ValidateAcraStructLength(data) == nil
 }
 
 // DataProcessorContext store data for DataProcessor
 type DataProcessorContext struct {
-	ClientID []byte
-	ZoneID   []byte
-	WithZone bool
-	Keystore keystore.PrivateKeyStore
+	Keystore keystore.DataEncryptorKeyStore
 	Context  context.Context
 }
 
 // NewDataProcessorContext return context with initialized static data
-func NewDataProcessorContext(clientID []byte, withZone bool, keystore keystore.PrivateKeyStore) *DataProcessorContext {
-	return &DataProcessorContext{ClientID: clientID, WithZone: withZone, Keystore: keystore, Context: context.Background()}
-}
-
-// Reset ZoneID and context and return itself
-func (ctx *DataProcessorContext) Reset() *DataProcessorContext {
-	ctx.ZoneID = nil
-	ctx.Context = context.Background()
-	return ctx
-}
-
-// UseZoneID replace ZoneID and return itself
-func (ctx *DataProcessorContext) UseZoneID(id []byte) *DataProcessorContext {
-	ctx.ZoneID = id
-	return ctx
+func NewDataProcessorContext(keystore keystore.DataEncryptorKeyStore) *DataProcessorContext {
+	return &DataProcessorContext{Keystore: keystore, Context: context.Background()}
 }
 
 // UseContext replace context and return itself
 func (ctx *DataProcessorContext) UseContext(newContext context.Context) *DataProcessorContext {
 	ctx.Context = newContext
 	return ctx
+}
+
+// CheckReadWrite check that n == expectedN and err != nil
+func CheckReadWrite(n, expectedN int, err error) error {
+	if err != nil {
+		return err
+	}
+	if n != expectedN {
+		return fmt.Errorf("incorrect read/write count. %d != %d", n, expectedN)
+	}
+	return nil
 }

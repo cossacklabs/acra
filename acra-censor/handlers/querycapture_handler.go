@@ -12,11 +12,15 @@ import (
 type QueryCaptureHandler struct {
 	writer *common.QueryWriter
 	logger *log.Entry
+	parser *sqlparser.Parser
 }
 
 // NewQueryCaptureHandler is a constructor of QueryCaptureHandler instance
-func NewQueryCaptureHandler(filePath string) (*QueryCaptureHandler, error) {
-	queryCaptureHandler := &QueryCaptureHandler{logger: log.WithField("handler", "query-capture")}
+func NewQueryCaptureHandler(filePath string, parser *sqlparser.Parser) (*QueryCaptureHandler, error) {
+	queryCaptureHandler := &QueryCaptureHandler{
+		logger: log.WithField("handler", "query-capture"),
+		parser: parser,
+	}
 	writer, err := common.NewFileQueryWriter(filePath)
 	if err != nil {
 		return nil, err
@@ -59,7 +63,7 @@ func (handler *QueryCaptureHandler) DumpQueries() error {
 // MarkQueryAsForbidden marks particular query as forbidden.
 // Expects redacted query
 func (handler *QueryCaptureHandler) MarkQueryAsForbidden(query string) error {
-	_, queryWithHiddenValues, _, err := common.HandleRawSQLQuery(query)
+	_, queryWithHiddenValues, _, err := handler.parser.HandleRawSQLQuery(query)
 	if err != nil {
 		handler.logger.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCensorQueryParseError).Errorln("Can't mark query as forbidden")
 		return err

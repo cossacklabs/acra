@@ -79,20 +79,20 @@ type IdentifierConverter interface {
 	Convert(identifier []byte) ([]byte, error)
 }
 
-// hexIdentifierConverter converts identifiers to hex value as string in lower case
-type hexIdentifierConverter struct {
+// HexIdentifierConverter converts identifiers to hex value as string in lower case
+type HexIdentifierConverter struct {
 	newHash func() hash.Hash
 }
 
-// NewDefaultHexIdentifierConverter return new hexIdentifierConverter with sha512 as hash function used to fit output into acceptable size
-func NewDefaultHexIdentifierConverter() (*hexIdentifierConverter, error) {
-	return &hexIdentifierConverter{newHash: sha512.New}, nil
+// NewDefaultHexIdentifierConverter return new HexIdentifierConverter with sha512 as hash function used to fit output into acceptable size
+func NewDefaultHexIdentifierConverter() (*HexIdentifierConverter, error) {
+	return &HexIdentifierConverter{newHash: sha512.New}, nil
 }
 
 // Convert identifier to hex value in lower case. If len(identifier) == 1 then 0 inserted as start of identifier to match minimal length
 // of clientID 4 bytes. If len(identifier) > (keystore.MaxClientIDLength / 2) than it longer than max acceptable length of clientID in hex format (256)
 // In such case identifier passed through SHA512 and then converted to hex with 128 (64 * 2) bytes length
-func (c hexIdentifierConverter) Convert(identifier []byte) ([]byte, error) {
+func (c HexIdentifierConverter) Convert(identifier []byte) ([]byte, error) {
 	out := make([]byte, hex.EncodedLen(sha512.Size))
 	h := c.newHash()
 	if _, err := h.Write(identifier); err != nil {

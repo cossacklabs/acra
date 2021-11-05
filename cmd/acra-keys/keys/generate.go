@@ -26,6 +26,7 @@ import (
 	"github.com/cossacklabs/acra/cmd"
 	"github.com/cossacklabs/acra/keystore"
 	"github.com/cossacklabs/acra/keystore/filesystem"
+	"github.com/cossacklabs/acra/keystore/keyloader"
 	keystoreV2 "github.com/cossacklabs/acra/keystore/v2/keystore"
 	filesystemV2 "github.com/cossacklabs/acra/keystore/v2/keystore/filesystem"
 	"github.com/cossacklabs/acra/zone"
@@ -46,6 +47,13 @@ type GenerateKeyParams interface {
 	GenerateAcraTranslator() bool
 	GenerateAcraWriter() bool
 	GenerateAcraWebConfig() bool
+	GenerateAcraBlocks() bool
+	GenerateSearchHMAC() bool
+	GeneratePoisonRecord() bool
+	GenerateAuditLog() bool
+	SetClientID(clientID string)
+	TLSClientCert() string
+	TLSIdentifierExtractorType() string
 
 	ZoneID() []byte
 	GenerateNewZone() bool
@@ -64,7 +72,9 @@ var (
 type GenerateKeySubcommand struct {
 	flagSet *flag.FlagSet
 
+	CommonExtractClientIDParameters
 	CommonKeyStoreParameters
+
 	keystoreVersion string
 
 	outKeyDir       string
@@ -79,11 +89,30 @@ type GenerateKeySubcommand struct {
 	acraWebConfig   bool
 	newZone         bool
 	rotateZone      bool
+	acraBlocks      bool
+	auditLog        bool
+	searchHMAC      bool
+	poisonRecord    bool
+}
+
+//GenerateAuditLog get auditLog flag
+func (g *GenerateKeySubcommand) GenerateAuditLog() bool {
+	return g.auditLog
+}
+
+//GeneratePoisonRecord get poisonRecord flag
+func (g *GenerateKeySubcommand) GeneratePoisonRecord() bool {
+	return g.poisonRecord
 }
 
 // KeystoreVersion returns requested keystore version.
 func (g *GenerateKeySubcommand) KeystoreVersion() string {
 	return g.keystoreVersion
+}
+
+// SetClientID set specific client ID.
+func (g *GenerateKeySubcommand) SetClientID(clientID string) {
+	g.clientID = clientID
 }
 
 // ClientID returns client ID.
@@ -122,6 +151,16 @@ func (g *GenerateKeySubcommand) GenerateAcraWebConfig() bool {
 	return g.acraWebConfig
 }
 
+//GenerateAcraBlocks get acraBlocks flag
+func (g *GenerateKeySubcommand) GenerateAcraBlocks() bool {
+	return g.acraBlocks
+}
+
+//GenerateSearchHMAC get searchHMAC flag
+func (g *GenerateKeySubcommand) GenerateSearchHMAC() bool {
+	return g.searchHMAC
+}
+
 // ZoneID returns zone ID.
 func (g *GenerateKeySubcommand) ZoneID() []byte {
 	return []byte(g.zoneID)
@@ -140,7 +179,8 @@ func (g *GenerateKeySubcommand) GenerateZoneKeys() bool {
 // SpecificKeysRequested returns true if the user has requested any key specifically.
 // It returns false if no keys were requested.
 func (g *GenerateKeySubcommand) SpecificKeysRequested() bool {
-	return g.acraConnector || g.acraServer || g.acraTranslator || g.acraWriter || g.acraWebConfig || g.newZone || g.rotateZone
+	return g.acraConnector || g.acraServer || g.acraTranslator || g.acraWriter || g.acraWebConfig || g.newZone ||
+		g.rotateZone || g.acraBlocks || g.auditLog || g.searchHMAC || g.poisonRecord
 }
 
 // Name returns the same of this subcommand.
@@ -157,6 +197,7 @@ func (g *GenerateKeySubcommand) GetFlagSet() *flag.FlagSet {
 func (g *GenerateKeySubcommand) RegisterFlags() {
 	g.flagSet = flag.NewFlagSet(CmdGenerate, flag.ContinueOnError)
 	g.CommonKeyStoreParameters.Register(g.flagSet)
+	g.CommonExtractClientIDParameters.Register(g.flagSet)
 	g.flagSet.StringVar(&g.keystoreVersion, "keystore", "", "Keystore format: v1 (current), v2 (new)")
 	g.flagSet.StringVar(&g.clientID, "client_id", "", "Client ID")
 	g.flagSet.StringVar(&g.zoneID, "zone_id", "", "Zone ID")
@@ -168,6 +209,10 @@ func (g *GenerateKeySubcommand) RegisterFlags() {
 	g.flagSet.BoolVar(&g.acraWebConfig, "acrawebconfig_symmetric_key", false, "Generate symmetric key for AcraWebconfig's basic auth DB")
 	g.flagSet.BoolVar(&g.newZone, "zone", false, "Generate new Acra storage zone")
 	g.flagSet.BoolVar(&g.rotateZone, "zone_storage_key", false, "Rotate existing Acra zone storagae keypair")
+	g.flagSet.BoolVar(&g.acraBlocks, "client_storage_symmetric_key", false, "Generate symmetric key for data encryption (using AcraBlocks)")
+	g.flagSet.BoolVar(&g.auditLog, "audit_log_symmetric_key", false, "Generate symmetric key for log integrity checks")
+	g.flagSet.BoolVar(&g.searchHMAC, "search_hmac_symmetric_key", false, "Generate symmetric key for searchable encryption HMAC")
+	g.flagSet.BoolVar(&g.poisonRecord, "poison_record_keys", false, "Generate keypair and symmetric key for poison records")
 	g.flagSet.Usage = func() {
 		fmt.Fprintf(os.Stderr, "Command \"%s\": generate new keys\n", CmdGenerate)
 		fmt.Fprintf(os.Stderr, "\n\t%s %s [options...]\n", os.Args[0], CmdGenerate)
@@ -195,9 +240,21 @@ func (g *GenerateKeySubcommand) Parse(arguments []string) error {
 
 // ValidateClientID checks that client ID is specified correctly.
 func ValidateClientID(params GenerateKeyParams) error {
+	// If we are asked to get a master key we don't care for the client ID.
+	if params.GenerateMasterKeyFile() != "" {
+		return nil
+	}
+
 	clientID := params.ClientID()
+	tlsClientCert := params.TLSClientCert()
+
 	// If the client ID is specified then it must be a valid one.
 	if len(clientID) != 0 {
+		if tlsClientCert != "" {
+			log.Errorln("You can either specify identifier for keys via specific clientID by --client_id parameter or via TLS certificate by --tls_cert parameter.")
+			return ErrClientIDWithTLSCertProvided
+		}
+
 		cmd.ValidateClientID(string(clientID))
 	} else {
 		// Client ID is required to generate some of the keys.
@@ -205,9 +262,21 @@ func ValidateClientID(params GenerateKeyParams) error {
 		// Unless we're only generating the master key.
 		masterKey := params.GenerateMasterKeyFile() != ""
 		firstGeneration := params.KeystoreVersion() != ""
-		requestedClientKeys := params.GenerateAcraConnector() || params.GenerateAcraServer() || params.GenerateAcraTranslator() || params.GenerateAcraWriter()
+		requestedClientKeys := params.GenerateAcraConnector() || params.GenerateAcraServer() ||
+			params.GenerateAcraTranslator() || params.GenerateAcraWriter() || params.GenerateAcraBlocks() || params.GenerateSearchHMAC()
+
 		if !masterKey && (firstGeneration || requestedClientKeys) {
-			log.Error("--client_id is required to generate keys")
+			if tlsClientCert != "" {
+				clientIDFromCert, err := ExtractClientID(params)
+				if err != nil {
+					log.WithError(err).Fatal("Failed to generate clientID from cert")
+					return err
+				}
+				params.SetClientID(clientIDFromCert)
+				return nil
+			}
+
+			log.Error("--client_id or --tls_cert is required to generate keys")
 			return ErrMissingClientID
 		}
 	}
@@ -239,7 +308,7 @@ func (g *GenerateKeySubcommand) Execute() {
 
 	// If the keystore already exists, detect its version automatically.
 	// Otherwise require the user to specify it. (Only during key generation.)
-	var keystore keystore.KeyMaking
+	var keyStore keystore.KeyMaking
 	var err error
 	keystoreVersion := g.KeystoreVersion()
 	if keystoreVersion == "" {
@@ -249,11 +318,17 @@ func (g *GenerateKeySubcommand) Execute() {
 			keystoreVersion = "v1"
 		}
 	}
+
+	keyLoader, err := keyloader.GetInitializedMasterKeyLoader(g.CommonKeyStoreParameters.VaultCLIOptions())
+	if err != nil {
+		return
+	}
+
 	switch keystoreVersion {
 	case "v1":
-		keystore, err = openKeyStoreV1(g)
+		keyStore, err = openKeyStoreV1(g, keyLoader)
 	case "v2":
-		keystore, err = openKeyStoreV2(g)
+		keyStore, err = openKeyStoreV2(g, keyLoader)
 	case "":
 		log.Fatalf("Keystore version is required: --keystore={v1|v2}")
 	default:
@@ -263,7 +338,7 @@ func (g *GenerateKeySubcommand) Execute() {
 		log.WithError(err).Fatal("Failed to open keystore")
 	}
 
-	generatedKeys, err := GenerateAcraKeys(g, keystore, GenerateOnInitialize)
+	generatedKeys, err := GenerateAcraKeys(g, keyStore, GenerateOnInitialize)
 	if err != nil {
 		log.WithError(err).Fatal("Failed to generate keys")
 	}
@@ -318,11 +393,16 @@ const (
 
 // GenerateAcraKeys generates Acra CE keys as specified by the parameters.
 // Returns true if some keys have been generated.
-func GenerateAcraKeys(params GenerateKeyParams, keystore keystore.KeyMaking, defaultKeys DefaultKeyAction) (bool, error) {
+func GenerateAcraKeys(params GenerateKeyParams, keyStore keystore.KeyMaking, defaultKeys DefaultKeyAction) (bool, error) {
 	generateAcraConnector := params.GenerateAcraConnector()
 	generateAcraServer := params.GenerateAcraServer()
 	generateAcraTranslator := params.GenerateAcraTranslator()
 	generateAcraWriter := params.GenerateAcraWriter()
+
+	generateAcraBlocks := params.GenerateAcraBlocks()
+	generateSearchHMAC := params.GenerateSearchHMAC()
+	generatePoisonKeys := params.GeneratePoisonRecord()
+	generateAuditLogKey := params.GenerateAuditLog()
 
 	// If this is keystore initialization, allow the user to avoid specifying keys.
 	// They will need all of them so just generate the default set.
@@ -343,6 +423,10 @@ func GenerateAcraKeys(params GenerateKeyParams, keystore keystore.KeyMaking, def
 		generateAcraServer = true
 		generateAcraTranslator = true
 		generateAcraWriter = true
+		generateAcraBlocks = true
+		generateSearchHMAC = true
+		generatePoisonKeys = true
+		generateAuditLogKey = true
 	}
 
 	// If the user runs just "acra-keys generate" with no arguments and the configuration file
@@ -352,7 +436,7 @@ func GenerateAcraKeys(params GenerateKeyParams, keystore keystore.KeyMaking, def
 	didSomething := false
 
 	if generateAcraConnector {
-		err := keystore.GenerateConnectorKeys(params.ClientID())
+		err := keyStore.GenerateConnectorKeys(params.ClientID())
 		if err != nil {
 			log.WithError(err).Error("Failed to generate AcraConnector transport key")
 			return didSomething, err
@@ -361,7 +445,7 @@ func GenerateAcraKeys(params GenerateKeyParams, keystore keystore.KeyMaking, def
 		didSomething = true
 	}
 	if generateAcraServer {
-		err := keystore.GenerateServerKeys(params.ClientID())
+		err := keyStore.GenerateServerKeys(params.ClientID())
 		if err != nil {
 			log.WithError(err).Error("Failed to generate AcraServer transport key")
 			return didSomething, err
@@ -370,7 +454,7 @@ func GenerateAcraKeys(params GenerateKeyParams, keystore keystore.KeyMaking, def
 		didSomething = true
 	}
 	if generateAcraTranslator {
-		err := keystore.GenerateTranslatorKeys(params.ClientID())
+		err := keyStore.GenerateTranslatorKeys(params.ClientID())
 		if err != nil {
 			log.WithError(err).Error("Failed to generate AcraTranslator transport key")
 			return didSomething, err
@@ -379,7 +463,7 @@ func GenerateAcraKeys(params GenerateKeyParams, keystore keystore.KeyMaking, def
 		didSomething = true
 	}
 	if generateAcraWriter {
-		err := keystore.GenerateDataEncryptionKeys(params.ClientID())
+		err := keyStore.GenerateDataEncryptionKeys(params.ClientID())
 		if err != nil {
 			log.WithError(err).Error("Failed to generate client storage key")
 			return didSomething, err
@@ -390,7 +474,7 @@ func GenerateAcraKeys(params GenerateKeyParams, keystore keystore.KeyMaking, def
 
 	if params.GenerateAcraWebConfig() {
 		// Create the key if it does not exits.
-		_, err := keystore.GetAuthKey(true)
+		_, err := keyStore.GetAuthKey(true)
 		if err != nil {
 			log.WithError(err).Error("Failed to generate AcraWebConfig key")
 			return didSomething, err
@@ -400,12 +484,12 @@ func GenerateAcraKeys(params GenerateKeyParams, keystore keystore.KeyMaking, def
 	}
 
 	if params.GenerateNewZone() {
-		id, publicKey, err := keystore.GenerateZoneKey()
+		id, publicKey, err := keyStore.GenerateZoneKey()
 		if err != nil {
 			log.WithError(err).Error("Failed to generate new zone")
 			return didSomething, err
 		}
-		json, err := zone.ZoneDataToJSON(id, &keys.PublicKey{Value: publicKey})
+		json, err := zone.DataToJSON(id, &keys.PublicKey{Value: publicKey})
 		if err != nil {
 			log.WithError(err).Error("Failed to serialize new zone parameters")
 			return didSomething, err
@@ -416,12 +500,12 @@ func GenerateAcraKeys(params GenerateKeyParams, keystore keystore.KeyMaking, def
 	}
 	if params.GenerateZoneKeys() {
 		zoneID := params.ZoneID()
-		publicKey, err := keystore.RotateZoneKey(zoneID)
+		publicKey, err := keyStore.RotateZoneKey(zoneID)
 		if err != nil {
 			log.WithError(err).Error("Failed to rotate zone key")
 			return didSomething, err
 		}
-		json, err := zone.ZoneDataToJSON(zoneID, &keys.PublicKey{Value: publicKey})
+		json, err := zone.DataToJSON(zoneID, &keys.PublicKey{Value: publicKey})
 		if err != nil {
 			log.WithError(err).Error("Failed to serialize zone parameters")
 			return didSomething, err
@@ -429,6 +513,52 @@ func GenerateAcraKeys(params GenerateKeyParams, keystore keystore.KeyMaking, def
 		fmt.Println(string(json))
 		log.Info("Generated zone storage key")
 		didSomething = true
+	}
+	if generateAcraBlocks {
+		err := keyStore.GenerateClientIDSymmetricKey(params.ClientID())
+		if err != nil {
+			log.WithError(err).Error("Failed to generate client storage symmetric key")
+			return didSomething, err
+		}
+		log.Info("Generated client storage symmetric key")
+		didSomething = true
+	}
+
+	if generateAuditLogKey {
+		err := keyStore.GenerateLogKey()
+		if err != nil {
+			log.WithError(err).Error("Failed to generate HMAC key for audit log")
+			return didSomething, err
+		}
+		log.Info("Generated HMAC key for audit log")
+		didSomething = true
+	}
+
+	if generateSearchHMAC {
+		err := keyStore.GenerateHmacKey(params.ClientID())
+		if err != nil {
+			log.WithError(err).Error("Failed to generate HMAC key for searchable encryption")
+			return didSomething, err
+		}
+		log.Info("Generated HMAC key for searchable encryption")
+		didSomething = true
+	}
+
+	if generatePoisonKeys {
+		err := keyStore.GeneratePoisonRecordSymmetricKey()
+		if err != nil {
+			log.WithError(err).Error("Failed to generate symmetric key for poison records")
+			return didSomething, err
+		}
+		log.Info("Generated symmetric key for poison records")
+		didSomething = true
+
+		_, err = keyStore.GetPoisonKeyPair()
+		if err != nil {
+			log.WithError(err).Error("Failed to generate keypair for poison records")
+			return didSomething, err
+		}
+		log.Info("Generated keypair for poison records")
 	}
 
 	return didSomething, nil

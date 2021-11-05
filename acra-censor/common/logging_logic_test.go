@@ -3,12 +3,16 @@ package common
 import (
 	"bytes"
 	"fmt"
+	"github.com/cossacklabs/acra/sqlparser"
 	"io/ioutil"
 	"os"
 	"strings"
 	"testing"
 	"time"
 )
+
+// extraWaitTime provide extra time to serialize in background goroutine before check
+const extraWaitTime = 200 * time.Millisecond
 
 func TestSerializationOnUniqueQueries(t *testing.T) {
 	testQueries := []string{
@@ -54,8 +58,9 @@ func TestSerializationOnUniqueQueries(t *testing.T) {
 	go writer.Start()
 	defer writer.Free()
 
+	parser := sqlparser.New(sqlparser.ModeStrict)
 	for _, query := range testQueries {
-		_, queryWithHiddenValues, _, err := HandleRawSQLQuery(query)
+		_, queryWithHiddenValues, _, err := parser.HandleRawSQLQuery(query)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -64,7 +69,7 @@ func TestSerializationOnUniqueQueries(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	time.Sleep(DefaultSerializationTimeout + 100*time.Millisecond)
+	time.Sleep(DefaultSerializationTimeout + extraWaitTime)
 	if len(writer.Queries) != len(testQueries) {
 		t.Fatal("Expected: " + strings.Join(testQueries, " | ") + "\nGot: " + strings.Join(rawStrings(writer.Queries), " | "))
 	}
@@ -180,8 +185,9 @@ func TestSerializationOnSameQueries(t *testing.T) {
 
 	go writer.Start()
 
+	parser := sqlparser.New(sqlparser.ModeStrict)
 	for _, query := range testQueries {
-		_, queryWithHiddenValues, _, err := HandleRawSQLQuery(query)
+		_, queryWithHiddenValues, _, err := parser.HandleRawSQLQuery(query)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -191,7 +197,7 @@ func TestSerializationOnSameQueries(t *testing.T) {
 		}
 	}
 
-	time.Sleep(DefaultSerializationTimeout + 100*time.Millisecond)
+	time.Sleep(DefaultSerializationTimeout + extraWaitTime)
 
 	if len(writer.Queries) != numOfUniqueQueries {
 		t.Fatal("Expected to have " + fmt.Sprint(numOfUniqueQueries) + " unique queries. \n Got:" + strings.Join(rawStrings(writer.Queries), " | "))
@@ -218,8 +224,6 @@ func TestSerializationOnSameQueries(t *testing.T) {
 	}
 }
 func TestQueryCaptureOnDuplicates(t *testing.T) {
-	// extraWaitTime provide extra time to serialize in background goroutine before check
-	const extraWaitTime = 100 * time.Millisecond
 	tmpFile, err := ioutil.TempFile("", "censor_log")
 	if err != nil {
 		t.Fatal(err)

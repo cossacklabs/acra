@@ -197,29 +197,44 @@ func (p *BindPacket) Zeroize() {
 func (p *BindPacket) GetParameters() ([]base.BoundValue, error) {
 	values := make([]base.BoundValue, len(p.paramValues))
 	for i := range values {
-		format, err := p.parameterFormatByIndex(i)
+		format, err := GetParameterFormatByIndex(i, p.paramFormats)
 		if err != nil {
 			return nil, err
 		}
-		values[i] = base.NewBoundValue(p.paramValues[i], format)
+		values[i] = NewPgBoundValue(p.paramValues[i], format)
 	}
 	return values, nil
 }
 
-func (p *BindPacket) parameterFormatByIndex(i int) (base.BoundValueFormat, error) {
+// GetResultFormats return formats expected in result data rows on Bind + Execute
+func (p *BindPacket) GetResultFormats() ([]uint16, error) {
+	values := make([]uint16, len(p.resultFormats))
+	for i := range values {
+		format, err := GetParameterFormatByIndex(i, p.resultFormats)
+		if err != nil {
+			return nil, err
+		}
+		values[i] = uint16(format)
+	}
+	return values, nil
+}
+
+// GetParameterFormatByIndex return parameter format according to PostgreSQL rules. If only one parameter passed then
+// it propagated for every next parameter. If no params then by default it is TextFormat
+func GetParameterFormatByIndex(i int, params []uint16) (base.BoundValueFormat, error) {
 	// See "Bind" description in https://www.postgresql.org/docs/current/protocol-message-formats.html
 	// If there are no formats then all values use the default: text.
-	if len(p.paramFormats) == 0 {
+	if len(params) == 0 {
 		return base.TextFormat, nil
 	}
 	// If there is only one format then it is used for all values.
 	var format uint16
-	if len(p.paramFormats) == 1 {
-		format = p.paramFormats[0]
-	} else if i < len(p.paramFormats) {
-		format = p.paramFormats[i]
+	if len(params) == 1 {
+		format = params[0]
+	} else if i < len(params) {
+		format = params[i]
 	} else {
-		log.WithField("index", i).WithField("max", len(p.paramFormats)).Debug("Bind format array too short")
+		log.WithField("index", i).WithField("max", len(params)).Debug("Bind format array too short")
 		return base.TextFormat, ErrNotEnoughFormats
 	}
 	// Options currently include text and binary formats.
@@ -280,7 +295,7 @@ func (p *BindPacket) SetParameters(values []base.BoundValue) {
 		p.paramValues = make([][]byte, len(values))
 	}
 	for i := range p.paramValues {
-		p.paramValues[i] = values[i].Data()
+		p.paramValues[i] = values[i].GetData(nil)
 	}
 }
 

@@ -18,11 +18,13 @@ package encryptor
 
 import (
 	"bytes"
+	"context"
 	"encoding/hex"
 	"fmt"
+	"github.com/cossacklabs/acra/acrastruct"
+	"strings"
 	"testing"
 
-	acrawriter "github.com/cossacklabs/acra/acra-writer"
 	"github.com/cossacklabs/acra/decryptor/base"
 	"github.com/cossacklabs/acra/encryptor/config"
 	"github.com/cossacklabs/acra/sqlparser"
@@ -39,7 +41,7 @@ type testEncryptor struct {
 }
 
 func (e *testEncryptor) EncryptWithZoneID(zoneIDdata, data []byte, setting config.ColumnEncryptionSetting) ([]byte, error) {
-	if base.ValidateAcraStructLength(data) == nil {
+	if acrastruct.ValidateAcraStructLength(data) == nil {
 		return data, nil
 	}
 	e.fetchedIDs = append(e.fetchedIDs, zoneIDdata)
@@ -50,7 +52,7 @@ func (e *testEncryptor) reset() {
 }
 
 func (e *testEncryptor) EncryptWithClientID(clientID, data []byte, setting config.ColumnEncryptionSetting) ([]byte, error) {
-	if base.ValidateAcraStructLength(data) == nil {
+	if acrastruct.ValidateAcraStructLength(data) == nil {
 		return data, nil
 	}
 	e.fetchedIDs = append(e.fetchedIDs, clientID)
@@ -78,7 +80,7 @@ func TestGeneralQueryParser_Parse(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	acrastruct, err := acrawriter.CreateAcrastruct([]byte("some data"), keypair.Public, nil)
+	acrastruct, err := acrastruct.CreateAcrastruct([]byte("some data"), keypair.Public, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -398,7 +400,8 @@ schemas:
 		},
 	}
 	encryptor := &testEncryptor{value: encryptedValue}
-	mysqlParser, err := NewMysqlQueryEncryptor(schemaStore, defaultClientID, encryptor)
+	parser := sqlparser.New(sqlparser.ModeStrict)
+	mysqlParser, err := NewMysqlQueryEncryptor(schemaStore, parser, encryptor)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -423,7 +426,8 @@ schemas:
 				t.Fatalf("%v. Can't normalize query: %s - %s", i, err.Error(), query)
 			}
 		}
-		data, changed, err := mysqlParser.OnQuery(base.NewOnQueryObjectFromQuery(query))
+		ctx := base.SetAccessContextToContext(context.Background(), base.NewAccessContext(base.WithClientID(defaultClientID)))
+		data, changed, err := mysqlParser.OnQuery(ctx, base.NewOnQueryObjectFromQuery(query, parser))
 		if err != nil {
 			t.Fatalf("%v. %s", i, err.Error())
 		}
@@ -444,4 +448,338 @@ schemas:
 	}
 	// avoid side effect for other tests with configuring default dialect
 	sqlparser.SetDefaultDialect(mysql.NewMySQLDialect())
+}
+
+func TestOnReturning(t *testing.T) {
+	zoneIDStr := string(zone.GenerateZoneID())
+	clientIDStr := "specified_client_id"
+	defaultClientID := []byte("default_client_id")
+	columns := []string{"other_column", "default_client_id", "specified_client_id", "zone_id"}
+
+	configStr := fmt.Sprintf(`
+schemas:
+  - table: TableWithColumnSchema
+    columns: ["other_column", "default_client_id", "specified_client_id", "zone_id"]
+    encrypted: 
+      - column: "default_client_id"
+      - column: specified_client_id
+        client_id: %s
+      - column: zone_id
+        zone_id: %s
+`, clientIDStr, zoneIDStr)
+	schemaStore, err := config.MapTableSchemaStoreFromConfig([]byte(configStr))
+	if err != nil {
+		t.Fatalf("Can't parse config: %s", err.Error())
+	}
+
+	parser := sqlparser.New(sqlparser.ModeStrict)
+	mysqlParser, err := NewMysqlQueryEncryptor(schemaStore, parser, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	ctx := base.SetAccessContextToContext(context.Background(), base.NewAccessContext(base.WithClientID(defaultClientID)))
+
+	t.Run("RETURNING *", func(t *testing.T) {
+		query := `INSERT INTO TableWithColumnSchema ('zone_id', 'specified_client_id', 'other_column', 'default_client_id') VALUES (1, 1, 1, 1) RETURNING *`
+
+		_, _, err := mysqlParser.OnQuery(ctx, base.NewOnQueryObjectFromQuery(query, parser))
+		if err != nil {
+			t.Fatalf("%s", err.Error())
+		}
+
+		if len(columns) != len(mysqlParser.querySelectSettings) {
+			t.Fatalf("Incorrect mysqlParser.querySelectSettings length")
+		}
+
+		expectedNilColumns := map[int]struct{}{
+			0: {},
+		}
+
+		for i := range columns {
+			if _, ok := expectedNilColumns[i]; ok {
+				continue
+			}
+			setting := mysqlParser.querySelectSettings[i]
+
+			if columns[i] != setting.columnName {
+				t.Fatalf("%v. Incorrect querySelectSetting \nTook: %v\nExpected: %v", i, setting.columnName, columns[i])
+			}
+		}
+	})
+
+	t.Run("RETURNING columns", func(t *testing.T) {
+		returning := "zone_id, specified_client_id, other_column, default_client_id"
+		query := fmt.Sprintf(`INSERT INTO TableWithColumnSchema 
+('zone_id', 'specified_client_id', 'other_column', 'default_client_id') VALUES (1, 1, 1, 1) RETURNING %s`, returning)
+
+		_, _, err := mysqlParser.OnQuery(ctx, base.NewOnQueryObjectFromQuery(query, parser))
+		if err != nil {
+			t.Fatalf("%s", err.Error())
+		}
+
+		returningColumns := strings.Split(returning, ", ")
+		if len(columns) != len(returningColumns) {
+			t.Fatalf("Incorrect mysqlParser.querySelectSettings length")
+		}
+
+		expectedNilColumns := map[int]struct{}{
+			2: {},
+		}
+
+		for i := range returningColumns {
+			if _, ok := expectedNilColumns[i]; ok {
+				continue
+			}
+
+			setting := mysqlParser.querySelectSettings[i]
+
+			if returningColumns[i] != setting.columnName {
+				t.Fatalf("%v. Incorrect querySelectSetting \nTook: %v\nExpected: %v", i, setting.columnName, columns[i])
+			}
+		}
+	})
+}
+
+func TestEncryptionSettingCollection(t *testing.T) {
+	type testcase struct {
+		config   string
+		settings []*querySelectSetting
+		query    string
+	}
+	testcases := []testcase{
+		// directly specified columns
+		{config: `schemas:
+  - table: test_table
+    columns:
+      - data1
+      - data2
+      - data3
+    encrypted:
+      - column: data1
+      - column: data2
+        crypto_envelope: acrablock`,
+			query: `select data1, data2, data3 from test_table`,
+			settings: []*querySelectSetting{
+				{setting: &config.BasicColumnEncryptionSetting{Name: "data1"}, tableName: "test_table", columnName: "data1", columnAlias: "test_table"},
+				{setting: &config.BasicColumnEncryptionSetting{Name: "data2"}, tableName: "test_table", columnName: "data2", columnAlias: "test_table"},
+				nil,
+			},
+		},
+		// no columns
+		{config: `schemas:
+  - table: test_table
+    columns:
+      - data1
+      - data2
+      - data3
+    encrypted:
+      - column: data1
+      - column: data2
+        crypto_envelope: acrablock`,
+			query: `select 1 from test_table`,
+			settings: []*querySelectSetting{
+				nil,
+			},
+		},
+		// simple query with Star
+		{config: `schemas:
+  - table: test_table
+    columns:
+      - data1
+      - data2
+      - data3
+    encrypted:
+      - column: data1
+      - column: data2
+        crypto_envelope: acrablock`,
+			query: `select * from test_table`,
+			settings: []*querySelectSetting{
+				{setting: &config.BasicColumnEncryptionSetting{Name: "data1"}, tableName: "test_table", columnName: "data1", columnAlias: ""},
+				{setting: &config.BasicColumnEncryptionSetting{Name: "data2"}, tableName: "test_table", columnName: "data2", columnAlias: ""},
+				nil,
+			},
+		},
+		// simple query with Star and literal
+		{config: `schemas:
+  - table: test_table
+    columns:
+      - data1
+      - data2
+      - data3
+    encrypted:
+      - column: data1
+      - column: data2
+        crypto_envelope: acrablock`,
+			query: `select 'some string', * from test_table`,
+			settings: []*querySelectSetting{
+				nil,
+				{setting: &config.BasicColumnEncryptionSetting{Name: "data1"}, tableName: "test_table", columnName: "data1", columnAlias: ""},
+				{setting: &config.BasicColumnEncryptionSetting{Name: "data2"}, tableName: "test_table", columnName: "data2", columnAlias: ""},
+				nil,
+			},
+		},
+		// query contains table with alias
+		{config: `schemas:
+  - table: test_table
+    columns:
+      - data1
+      - data2
+      - data3
+    encrypted:
+      - column: data1
+      - column: data2
+        crypto_envelope: acrablock`,
+			query: `select * from test_table t1`,
+			settings: []*querySelectSetting{
+				{setting: &config.BasicColumnEncryptionSetting{Name: "data1"}, tableName: "test_table", columnName: "data1", columnAlias: ""},
+				{setting: &config.BasicColumnEncryptionSetting{Name: "data2"}, tableName: "test_table", columnName: "data2", columnAlias: ""},
+				nil,
+			},
+		},
+		// query has StarExpr with specified table
+		{config: `schemas:
+  - table: test_table
+    columns:
+      - data1
+      - data2
+      - data3
+    encrypted:
+      - column: data1
+      - column: data2
+        crypto_envelope: acrablock`,
+			query: `select t1.* from test_table t1`,
+			settings: []*querySelectSetting{
+				{setting: &config.BasicColumnEncryptionSetting{Name: "data1"}, tableName: "test_table", columnName: "data1", columnAlias: ""},
+				{setting: &config.BasicColumnEncryptionSetting{Name: "data2"}, tableName: "test_table", columnName: "data2", columnAlias: ""},
+				nil,
+			},
+		},
+		// query has StarExpr with several tables
+		{config: `schemas:
+  - table: test_table
+    columns:
+      - data1
+      - data2
+      - data3
+    encrypted:
+      - column: data1
+      - column: data2
+        crypto_envelope: acrablock
+  - table: test_table2
+    columns:
+      - data1
+      - data2
+      - data3
+    encrypted:
+      - column: data1
+      - column: data2
+        crypto_envelope: acrablock`,
+			query: `select t1.*, t2.* from test_table t1, test_table2 t2`,
+			settings: []*querySelectSetting{
+				{setting: &config.BasicColumnEncryptionSetting{Name: "data1"}, tableName: "test_table", columnName: "data1", columnAlias: ""},
+				{setting: &config.BasicColumnEncryptionSetting{Name: "data2"}, tableName: "test_table", columnName: "data2", columnAlias: ""},
+				nil,
+				{setting: &config.BasicColumnEncryptionSetting{Name: "data1"}, tableName: "test_table2", columnName: "data1", columnAlias: ""},
+				{setting: &config.BasicColumnEncryptionSetting{Name: "data2"}, tableName: "test_table2", columnName: "data2", columnAlias: ""},
+				nil,
+			},
+		},
+	}
+	parser := sqlparser.New(sqlparser.ModeDefault)
+	encryptor, err := NewPostgresqlQueryEncryptor(nil, parser, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for i, tcase := range testcases {
+		t.Logf("Test tcase %d\n", i)
+		schemaStore, err := config.MapTableSchemaStoreFromConfig([]byte(tcase.config))
+		if err != nil {
+			t.Fatal(err)
+		}
+		encryptor.schemaStore = schemaStore
+		statement, err := parser.Parse(tcase.query)
+		if err != nil {
+			t.Fatal(err)
+		}
+		selectExpr, ok := statement.(*sqlparser.Select)
+		if !ok {
+			t.Fatalf("[%d] Test query should be SELECT query, took %s\n", i, tcase.query)
+		}
+		_, err = encryptor.onSelect(selectExpr)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(encryptor.querySelectSettings) != len(tcase.settings) {
+			t.Fatalf("Invalid count of settings. Expect %d, took %d\n", len(tcase.settings), len(encryptor.querySelectSettings))
+		}
+		for j := 0; j < len(tcase.settings); j++ {
+			// check case if one of them is nil and another is not
+			if (tcase.settings[j] == nil && encryptor.querySelectSettings[j] != nil) || (tcase.settings[j] != nil && encryptor.querySelectSettings[j] == nil) {
+				t.Fatalf("[%d] Query select setting not equal to expected. Expect %v, took %v\n", i, tcase.settings[j], encryptor.querySelectSettings[j])
+			}
+			// we already compared and don't need to compare fields because nil
+			if tcase.settings[j] == nil {
+				continue
+			}
+			selectSettingEqual := encryptor.querySelectSettings[j].columnAlias != tcase.settings[j].columnAlias ||
+				encryptor.querySelectSettings[j].tableName != tcase.settings[j].tableName ||
+				encryptor.querySelectSettings[j].columnName != tcase.settings[j].columnName
+			if selectSettingEqual {
+				t.Fatalf("[%d] Query select setting not equal to expected. Expect %v, took %v\n", i, tcase.settings[j], encryptor.querySelectSettings[j])
+			}
+			if encryptor.querySelectSettings[j].setting.ColumnName() != tcase.settings[j].setting.ColumnName() {
+				t.Fatalf("[%d] Encryption setting column names not equal to expected. Expect %v, took %v\n", i, tcase.settings[j].setting.ColumnName(), encryptor.querySelectSettings[j].setting.ColumnName())
+			}
+		}
+	}
+}
+
+func TestEncryptionSettingCollectionFailures(t *testing.T) {
+	type testcase struct {
+		config string
+		err    error
+		query  string
+	}
+	testcases := []testcase{
+		// unsupported aliased tables from expressions
+		{config: `schemas:
+  - table: test_table
+    columns:
+      - data1
+      - data2
+      - data3
+    encrypted:
+      - column: data1
+      - column: data2
+        crypto_envelope: acrablock`,
+			query: `select * from (select * from test_table) as f`,
+			err:   errNotFoundtable,
+		},
+	}
+	parser := sqlparser.New(sqlparser.ModeDefault)
+	encryptor, err := NewPostgresqlQueryEncryptor(nil, parser, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for i, tcase := range testcases {
+		t.Logf("Test tcase %d\n", i)
+		schemaStore, err := config.MapTableSchemaStoreFromConfig([]byte(tcase.config))
+		if err != nil {
+			t.Fatal(err)
+		}
+		encryptor.schemaStore = schemaStore
+		statement, err := parser.Parse(tcase.query)
+		if err != nil {
+			t.Fatal(err)
+		}
+		selectExpr, ok := statement.(*sqlparser.Select)
+		if !ok {
+			t.Fatalf("[%d] Test query should be SELECT query, took %s\n", i, tcase.query)
+		}
+		_, err = encryptor.onSelect(selectExpr)
+		if err != tcase.err {
+			t.Fatalf("Expect error %s, took %s\n", tcase.err, err)
+		}
+	}
 }

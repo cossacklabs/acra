@@ -23,6 +23,9 @@ import (
 	"time"
 )
 
+// SecureLogKeyFilename represent context for secure log key
+const SecureLogKeyFilename = "secure_log_key"
+
 // Default key folders' filenames
 const (
 	PoisonKeyFilename       = ".poison_key/poison_key"
@@ -110,4 +113,14 @@ func getHistoricalFilePaths(current string, storage Storage) ([]string, error) {
 		filenames = append(filenames, filepath.Join(historyDir, file.Name()))
 	}
 	return filenames, nil
+}
+
+// getHmacKeyFilename return filename with correct suffix for hmac secret keys
+func getHmacKeyFilename(id []byte) string {
+	return fmt.Sprintf("%s_hmac", string(id))
+}
+
+// getLogKeyFilename return filename with correct suffix for secure logging key
+func getLogKeyFilename() string {
+	return SecureLogKeyFilename
 }

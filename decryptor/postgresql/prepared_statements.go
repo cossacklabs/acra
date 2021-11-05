@@ -17,9 +17,13 @@
 package postgresql
 
 import (
+	"encoding/binary"
 	"errors"
+	"strconv"
 
 	"github.com/cossacklabs/acra/decryptor/base"
+	"github.com/cossacklabs/acra/encryptor/config"
+	tokens "github.com/cossacklabs/acra/pseudonymization/common"
 	"github.com/cossacklabs/acra/sqlparser"
 )
 
@@ -171,6 +175,11 @@ func (s *PgPreparedStatement) QueryText() string {
 	return s.text
 }
 
+// ParamsNum return numbers of prepared statement params
+func (s *PgPreparedStatement) ParamsNum() int {
+	return 0
+}
+
 // PgPortal is a PostgreSQL Cursor.
 // Cursors are called "portals" in PostgreSQL protocol specs.
 type PgPortal struct {
@@ -191,4 +200,105 @@ func (p *PgPortal) Name() string {
 // PreparedStatement returns the prepared statement this cursor is associated with.
 func (p *PgPortal) PreparedStatement() base.PreparedStatement {
 	return p.statement
+}
+
+type pgBoundValue struct {
+	data   []byte
+	format base.BoundValueFormat
+}
+
+// NewPgBoundValue makes a pgsql BoundValue from copied input data.
+func NewPgBoundValue(data []byte, format base.BoundValueFormat) base.BoundValue {
+	var newData []byte
+	if data != nil {
+		newData = make([]byte, len(data))
+		copy(newData, data)
+	}
+
+	return &pgBoundValue{newData, format}
+}
+
+// Copy create new base.BoundValue with copied data
+func (p *pgBoundValue) Copy() base.BoundValue {
+	return NewPgBoundValue(p.data, p.format)
+}
+
+// Format return BoundValue format
+func (p *pgBoundValue) Format() base.BoundValueFormat {
+	return p.format
+}
+
+// GetType stub for base.BoundValue method
+func (p *pgBoundValue) GetType() byte {
+	panic("implement me")
+}
+
+// SetData set new value to BoundValue using ColumnEncryptionSetting if provided
+func (p *pgBoundValue) SetData(newData []byte, setting config.ColumnEncryptionSetting) error {
+	p.data = newData
+
+	if setting == nil {
+		return nil
+	}
+
+	switch p.format {
+	case base.BinaryFormat:
+		switch setting.GetTokenType() {
+		case tokens.TokenType_Int32:
+			newVal, err := strconv.ParseInt(string(newData), 10, 32)
+			if err != nil {
+				return err
+			}
+			output := make([]byte, 4)
+			binary.BigEndian.PutUint32(output[:], uint32(newVal))
+			p.data = output
+		case tokens.TokenType_Int64:
+			newVal, err := strconv.ParseInt(string(newData), 10, 64)
+			if err != nil {
+				return err
+			}
+			output := make([]byte, 8)
+			binary.BigEndian.PutUint64(output[:], uint64(newVal))
+			p.data = output
+		}
+	}
+	return nil
+}
+
+// GetData return BoundValue using ColumnEncryptionSetting if provided
+func (p *pgBoundValue) GetData(setting config.ColumnEncryptionSetting) []byte {
+	if setting == nil {
+		return p.data
+	}
+
+	decodedData := p.data
+
+	switch p.format {
+	// TODO(ilammy, 2020-10-19): handle non-bytes binary data
+	// Encryptor expects binary data to be passed in raw bytes, but most non-byte-arrays
+	// are expected in text format. If we get binary parameters, we may need to recode them.
+	case base.BinaryFormat:
+		if setting.IsTokenized() {
+			switch setting.GetTokenType() {
+			case tokens.TokenType_Int32:
+				value := binary.BigEndian.Uint32(p.data)
+				strValue := strconv.FormatInt(int64(value), 10)
+				decodedData = []byte(strValue)
+			case tokens.TokenType_Int64:
+				// if passed int32 as int64, just extend array and fill by zeroes
+				if len(p.data) == 4 {
+					p.data = append([]byte{0, 0, 0, 0}, p.data...)
+				}
+				value := binary.BigEndian.Uint64(p.data)
+				strValue := strconv.FormatInt(int64(value), 10)
+				decodedData = []byte(strValue)
+			}
+		}
+	}
+	return decodedData
+}
+
+// Encode format result BoundValue data
+func (p pgBoundValue) Encode() ([]byte, error) {
+	panic("implement me")
 }

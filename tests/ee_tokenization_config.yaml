@@ -1,0 +1,124 @@
+schemas:
+  - table: test_tokenization_default_client_id
+    columns:
+      - id
+      - nullable
+      - empty
+      - token_i32
+      - token_i64
+      - token_str
+      - token_bytes
+      - token_email
+    encrypted:
+      - column: token_i32
+        token_type: int32
+        tokenized: true
+      - column: token_i64
+        token_type: int64
+        tokenized: true
+      - column: token_str
+        token_type: str
+        tokenized: true
+      - column: token_bytes
+        token_type: bytes
+        tokenized: true
+      - column: token_email
+        token_type: email
+        tokenized: true
+
+  - table: test_tokenization_specific_client_id
+    columns:
+      - id
+      - nullable_column
+      - empty
+      - token_i32
+      - token_i64
+      - token_str
+      - token_bytes
+      - token_email
+    encrypted:
+      - column: token_i32
+        token_type: int32
+        client_id: keypair2
+        tokenized: true
+      - column: token_i64
+        token_type: int64
+        client_id: keypair2
+        tokenized: true
+      - column: token_str
+        token_type: str
+        client_id: keypair2
+        tokenized: true
+      - column: token_bytes
+        token_type: bytes
+        client_id: keypair2
+        tokenized: true
+      - column: token_email
+        token_type: email
+        client_id: keypair2
+        tokenized: true
+
+  - table: test_tokenization_specific_zone_id
+    columns:
+      - id
+      - zone_id
+      - nullable_column
+      - empty
+      - token_i32
+      - token_i64
+      - token_str
+      - token_bytes
+      - token_email
+    encrypted:
+      - column: token_i32
+        token_type: int32
+        zone_id: DDDDDDDDFOaTvAcGyqZPaqWQ
+        tokenized: true
+      - column: token_i64
+        token_type: int64
+        zone_id: DDDDDDDDFOaTvAcGyqZPaqWQ
+        tokenized: true
+      - column: token_str
+        token_type: str
+        zone_id: DDDDDDDDFOaTvAcGyqZPaqWQ
+        tokenized: true
+      - column: token_bytes
+        token_type: bytes
+        zone_id: DDDDDDDDFOaTvAcGyqZPaqWQ
+        tokenized: true
+      - column: token_email
+        token_type: email
+        zone_id: DDDDDDDDFOaTvAcGyqZPaqWQ
+        tokenized: true
+
+  - table: test_tokenization_specific_zone_id_star_expression
+    columns:
+      - id
+      - nullable_column
+      - empty
+      - token_i32
+      - token_i64
+      - token_str
+      - token_bytes
+      - token_email
+    encrypted:
+      - column: token_i32
+        token_type: int32
+        zone_id: DDDDDDDDFOaTvAcGyqZPaqWQ
+        tokenized: true
+      - column: token_i64
+        token_type: int64
+        zone_id: DDDDDDDDFOaTvAcGyqZPaqWQ
+        tokenized: true
+      - column: token_str
+        token_type: str
+        zone_id: DDDDDDDDFOaTvAcGyqZPaqWQ
+        tokenized: true
+      - column: token_bytes
+        token_type: bytes
+        zone_id: DDDDDDDDFOaTvAcGyqZPaqWQ
+        tokenized: true
+      - column: token_email
+        token_type: email
+        zone_id: DDDDDDDDFOaTvAcGyqZPaqWQ
+        tokenized: true

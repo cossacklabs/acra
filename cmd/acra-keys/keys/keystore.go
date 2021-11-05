@@ -20,12 +20,17 @@ import (
 	"errors"
 	"flag"
 
+	"github.com/cossacklabs/acra/cmd"
 	"github.com/cossacklabs/acra/keystore"
-	keystoreV1 "github.com/cossacklabs/acra/keystore"
-	filesystemV1 "github.com/cossacklabs/acra/keystore/filesystem"
+	"github.com/cossacklabs/acra/keystore/filesystem"
+	"github.com/cossacklabs/acra/keystore/keyloader"
+	"github.com/cossacklabs/acra/keystore/keyloader/hashicorp"
 	keystoreV2 "github.com/cossacklabs/acra/keystore/v2/keystore"
 	"github.com/cossacklabs/acra/keystore/v2/keystore/api"
 	filesystemV2 "github.com/cossacklabs/acra/keystore/v2/keystore/filesystem"
+	filesystemBackendV2 "github.com/cossacklabs/acra/keystore/v2/keystore/filesystem/backend"
+
+	"github.com/go-redis/redis/v7"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -38,12 +43,19 @@ var (
 type KeyStoreParameters interface {
 	KeyDir() string
 	KeyDirPublic() string
+
+	RedisConfigured() bool
+	RedisOptions() *redis.Options
+	VaultCLIOptions() hashicorp.VaultCLIOptions
 }
 
 // CommonKeyStoreParameters is a mix-in of command line parameters for keystore construction.
 type CommonKeyStoreParameters struct {
 	keyDir       string
 	keyDirPublic string
+
+	redisOptions cmd.RedisOptions
+	vaultOptions hashicorp.VaultCLIOptions
 }
 
 // KeyDir returns path to key directory.
@@ -59,9 +71,36 @@ func (p *CommonKeyStoreParameters) KeyDirPublic() string {
 	return p.keyDirPublic
 }
 
+// RedisConfigured returns true is Redis keystore has been configured.
+func (p *CommonKeyStoreParameters) RedisConfigured() bool {
+	return p.redisOptions.KeysConfigured()
+}
+
+// RedisOptions returns Redis configuration options for keystore.
+func (p *CommonKeyStoreParameters) RedisOptions() *redis.Options {
+	return p.redisOptions.KeysOptions()
+}
+
+// VaultCLIOptions returns Hashicorp Vault configuration options for ACRA_MASTER_KEY loading.
+func (p *CommonKeyStoreParameters) VaultCLIOptions() hashicorp.VaultCLIOptions {
+	return p.vaultOptions
+}
+
+// RegisterRedisWithPrefix registers redis options in given flag set, using additional prefix.
+func (p *CommonKeyStoreParameters) RegisterRedisWithPrefix(flags *flag.FlagSet, prefix, description string) {
+	p.redisOptions.RegisterKeyStoreParameters(flags, prefix, description)
+}
+
+// RegisterVaultWithPrefix registers HashiCorp vault options in given flag set, using additional prefix.
+func (p *CommonKeyStoreParameters) RegisterVaultWithPrefix(flags *flag.FlagSet, prefix, description string) {
+	p.vaultOptions.RegisterCLIParameters(flags, prefix, description)
+}
+
 // Register registers keystore flags with the given flag set.
 func (p *CommonKeyStoreParameters) Register(flags *flag.FlagSet) {
 	p.RegisterPrefixed(flags, DefaultKeyDirectory, "", "")
+	p.redisOptions.RegisterKeyStoreParameters(flags, "", "")
+	p.vaultOptions.RegisterCLIParameters(flags, "", "")
 }
 
 // RegisterPrefixed registers keystore flags with the given flag set, using given prefix and description.
@@ -75,66 +114,101 @@ func (p *CommonKeyStoreParameters) RegisterPrefixed(flags *flag.FlagSet, default
 
 // OpenKeyStoreForReading opens a keystore suitable for reading keys.
 func OpenKeyStoreForReading(params KeyStoreParameters) (keystore.ServerKeyStore, error) {
-	if filesystemV2.IsKeyDirectory(params.KeyDir()) {
-		return openKeyStoreV2(params)
+	keyLoader, err := keyloader.GetInitializedMasterKeyLoader(params.VaultCLIOptions())
+	if err != nil {
+		return nil, err
 	}
-	return openKeyStoreV1(params)
+
+	if filesystemV2.IsKeyDirectory(params.KeyDir()) {
+		return openKeyStoreV2(params, keyLoader)
+	}
+	return openKeyStoreV1(params, keyLoader)
 }
 
 // OpenKeyStoreForWriting opens a keystore suitable for modifications.
-func OpenKeyStoreForWriting(params KeyStoreParameters) (keystore.KeyMaking, error) {
-	if filesystemV2.IsKeyDirectory(params.KeyDir()) {
-		return openKeyStoreV2(params)
+func OpenKeyStoreForWriting(params KeyStoreParameters) (keyStore keystore.KeyMaking, err error) {
+	keyLoader, err := keyloader.GetInitializedMasterKeyLoader(params.VaultCLIOptions())
+	if err != nil {
+		return nil, err
 	}
-	return openKeyStoreV1(params)
+
+	if filesystemV2.IsKeyDirectory(params.KeyDir()) {
+		return openKeyStoreV2(params, keyLoader)
+	}
+	return openKeyStoreV1(params, keyLoader)
 }
 
 // OpenKeyStoreForExport opens a keystore suitable for export operations.
 func OpenKeyStoreForExport(params KeyStoreParameters) (api.KeyStore, error) {
-	if filesystemV2.IsKeyDirectory(params.KeyDir()) {
-		return openKeyStoreV2(params)
+	keyLoader, err := keyloader.GetInitializedMasterKeyLoader(params.VaultCLIOptions())
+	if err != nil {
+		return nil, err
 	}
-	// Not supported in Acra CE
+
+	if filesystemV2.IsKeyDirectory(params.KeyDir()) {
+		return openKeyStoreV2(params, keyLoader)
+	}
+	// Export from keystore v1 is not supported right now
 	return nil, ErrNotImplementedV1
 }
 
 // OpenKeyStoreForImport opens a keystore suitable for import operations.
 func OpenKeyStoreForImport(params KeyStoreParameters) (api.MutableKeyStore, error) {
-	if filesystemV2.IsKeyDirectory(params.KeyDir()) {
-		return openKeyStoreV2(params)
+	keyLoader, err := keyloader.GetInitializedMasterKeyLoader(params.VaultCLIOptions())
+	if err != nil {
+		return nil, err
 	}
-	// Not supported in Acra CE
+
+	if filesystemV2.IsKeyDirectory(params.KeyDir()) {
+		return openKeyStoreV2(params, keyLoader)
+	}
+	// Export from keystore v1 is not supported right now
 	return nil, ErrNotImplementedV1
 }
 
-func openKeyStoreV1(params KeyStoreParameters) (*filesystemV1.KeyStore, error) {
-	symmetricKey, err := keystoreV1.GetMasterKeyFromEnvironment()
+func openKeyStoreV1(params KeyStoreParameters, loader keyloader.MasterKeyLoader) (*filesystem.KeyStore, error) {
+	masterKey, err := loader.LoadMasterKey()
 	if err != nil {
 		log.WithError(err).Errorln("Cannot load master key")
 		return nil, err
 	}
-	scellEncryptor, err := keystoreV1.NewSCellKeyEncryptor(symmetricKey)
+	scellEncryptor, err := keystore.NewSCellKeyEncryptor(masterKey)
 	if err != nil {
-		log.WithError(err).Errorln("Failed to initialize Secure Cell encryptor")
+		log.WithError(err).Errorln("Failed to initialise Secure Cell encryptor")
 		return nil, err
 	}
-	var store *filesystemV1.KeyStore
+
+	keyStore := filesystem.NewCustomFilesystemKeyStore()
+	keyStore.Encryptor(scellEncryptor)
+
 	keyDir := params.KeyDir()
 	keyDirPublic := params.KeyDirPublic()
 	if keyDir != keyDirPublic {
-		store, err = filesystemV1.NewFilesystemKeyStoreTwoPath(keyDir, keyDirPublic, scellEncryptor)
+		keyStore.KeyDirectories(keyDir, keyDirPublic)
 	} else {
-		store, err = filesystemV1.NewFilesystemKeyStore(keyDir, scellEncryptor)
+		keyStore.KeyDirectory(keyDir)
 	}
+
+	if params.RedisConfigured() {
+		redis := params.RedisOptions()
+		keyStorage, err := filesystem.NewRedisStorage(redis.Addr, redis.Password, redis.DB, nil)
+		if err != nil {
+			log.WithError(err).Errorln("Failed to initialise Redis storage")
+			return nil, err
+		}
+		keyStore.Storage(keyStorage)
+	}
+
+	keyStoreV1, err := keyStore.Build()
 	if err != nil {
-		log.WithError(err).Errorln("Failed to initialize key")
+		log.WithError(err).Errorln("Failed to initialise keystore v1")
 		return nil, err
 	}
-	return store, nil
+	return keyStoreV1, nil
 }
 
-func openKeyStoreV2(params KeyStoreParameters) (*keystoreV2.ServerKeyStore, error) {
-	encryption, signature, err := keystoreV2.GetMasterKeysFromEnvironment()
+func openKeyStoreV2(params KeyStoreParameters, loader keyloader.MasterKeyLoader) (*keystoreV2.ServerKeyStore, error) {
+	encryption, signature, err := loader.LoadMasterKeys()
 	if err != nil {
 		log.WithError(err).Errorln("Cannot load master key")
 		return nil, err
@@ -144,11 +218,30 @@ func openKeyStoreV2(params KeyStoreParameters) (*keystoreV2.ServerKeyStore, erro
 		log.WithError(err).Error("Failed to initialize Secure Cell crypto suite")
 		return nil, err
 	}
-	path := params.KeyDir()
-	keyDir, err := filesystemV2.OpenDirectoryRW(path, suite)
+
+	var backend filesystemBackendV2.Backend
+	if params.RedisConfigured() {
+		config := &filesystemBackendV2.RedisConfig{
+			RootDir: params.KeyDir(),
+			Options: params.RedisOptions(),
+		}
+		backend, err = filesystemBackendV2.CreateRedisBackend(config)
+		if err != nil {
+			log.WithError(err).Error("Cannot connect to Redis keystore")
+			return nil, err
+		}
+	} else {
+		backend, err = filesystemBackendV2.CreateDirectoryBackend(params.KeyDir())
+		if err != nil {
+			log.WithError(err).Error("Cannot open key directory")
+			return nil, err
+		}
+	}
+
+	keyDirectory, err := filesystemV2.CustomKeyStore(backend, suite)
 	if err != nil {
-		log.WithError(err).WithField("path", path).Error("Cannot open key directory")
+		log.WithError(err).Error("Failed to initialize key directory")
 		return nil, err
 	}
-	return keystoreV2.NewServerKeyStore(keyDir), nil
+	return keystoreV2.NewServerKeyStore(keyDirectory), nil
 }

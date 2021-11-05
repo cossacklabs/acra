@@ -256,17 +256,3 @@ func equalKeyPairs(a, b *keys.Keypair) bool {
 	}
 	return a == nil && b == nil
 }
-
-func equalPublicKeys(a, b *keys.PublicKey) bool {
-	if a != nil && b != nil {
-		return bytes.Equal(a.Value, b.Value)
-	}
-	return a == nil && b == nil
-}
-
-func equalPrivateKeys(a, b *keys.PrivateKey) bool {
-	if a != nil && b != nil {
-		return bytes.Equal(a.Value, b.Value)
-	}
-	return a == nil && b == nil
-}

@@ -44,7 +44,7 @@ func TestParsing(t *testing.T) {
 			continue
 		}
 
-		if _, err := Parse(test.sql); err != nil {
+		if _, err := New(ModeStrict).Parse(test.sql); err != nil {
 			t.Errorf("https://github.com/cossacklabs/acra/sqlparser/issues/%d:\nParse(%q) err = %s, want nil", test.id, test.sql, err)
 		}
 	}
@@ -53,7 +53,7 @@ func TestParsing(t *testing.T) {
 // ExampleParse is the first example from the README.md.
 func ExampleParse() {
 	sql := "SELECT * FROM table WHERE a = 'abc'"
-	stmt, err := Parse(sql)
+	stmt, err := New(ModeStrict).Parse(sql)
 	if err != nil {
 		// Do something with the err
 	}

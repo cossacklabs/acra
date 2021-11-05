@@ -74,3 +74,9 @@ or just use default database settings (connecting to PostgreSQL by default):
 ```console
 python3 tests/test.py
 ```
+
+To run test with HashiCorp Vault ACRA_MASTER_KEY loader
+
+```console
+VAULT_API_TOKEN=root_token TEST_WITH_VAULT=on VAULT_KV_ENGINE_VERSION={v1/v2} python3 tests/test.py
+```

@@ -126,7 +126,7 @@ func WrapRawDataAsDecoded(data []byte) *DecodedData {
 
 // DecodeEscaped with hex or octal encodings
 func DecodeEscaped(data []byte) (*DecodedData, error) {
-	if len(data) > 2 && bytes.Equal(data[:2], []byte{'\\', 'x'}) {
+	if len(data) >= 2 && bytes.Equal(data[:2], []byte{'\\', 'x'}) {
 		hexdata := data[2:]
 		output := make([]byte, hex.DecodedLen(len(hexdata)))
 		_, err := hex.Decode(output, hexdata)

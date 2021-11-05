@@ -3,3 +3,4 @@ ssl
 ssl-ca=/tmp.ssl/ca.crt
 ssl-cert=/tmp.ssl/mysql.crt
 ssl-key=/tmp.ssl/mysql.key
+require_secure_transport=ON

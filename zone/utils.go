@@ -36,8 +36,8 @@ func GenerateZoneID() []byte {
 	return append(ZoneIDBegin, b...)
 }
 
-// ZoneDataToJSON creates JSON representation of Zone with zone id and public key as fields.
-func ZoneDataToJSON(id []byte, publicKey *keys.PublicKey) ([]byte, error) {
+// DataToJSON creates JSON representation of Zone with zone id and public key as fields.
+func DataToJSON(id []byte, publicKey *keys.PublicKey) ([]byte, error) {
 	response := make(map[string]string)
 	response["id"] = string(id)
 	response["public_key"] = base64.StdEncoding.EncodeToString(publicKey.Value)

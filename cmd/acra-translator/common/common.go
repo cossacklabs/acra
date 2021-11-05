@@ -18,20 +18,15 @@ limitations under the License.
 package common
 
 import (
-	"errors"
-
 	"github.com/cossacklabs/acra/decryptor/base"
 	"github.com/cossacklabs/acra/keystore"
+	"github.com/cossacklabs/acra/network"
 )
 
 // TranslatorData connects KeyStorage and Poison records settings for HTTP and gRPC decryptors.
 type TranslatorData struct {
+	PoisonRecordCallbacks base.PoisonRecordCallbackStorage
 	Keystorage            keystore.TranslationKeyStore
-	PoisonRecordCallbacks *base.PoisonCallbackStorage
-	CheckPoisonRecords    bool
+	UseConnectionClientID bool
+	TLSClientIDExtractor  network.TLSClientIDExtractor
 }
-
-var (
-	// ErrEmptyClientAndZoneID errors for case when wasn't provided clientID and zoneID in api call
-	ErrEmptyClientAndZoneID = errors.New("empty clientID and zoneID")
-)

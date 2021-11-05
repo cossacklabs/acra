@@ -16,10 +16,11 @@ limitations under the License.
 package main
 
 import (
+	"sync"
+
 	"github.com/cossacklabs/acra/cmd"
 	"github.com/cossacklabs/acra/utils"
 	"github.com/prometheus/client_golang/prometheus"
-	"sync"
 )
 
 const (

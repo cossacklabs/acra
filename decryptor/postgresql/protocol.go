@@ -19,10 +19,13 @@ package postgresql
 import (
 	"github.com/cossacklabs/acra/decryptor/base"
 	"github.com/cossacklabs/acra/logging"
+	"github.com/cossacklabs/acra/sqlparser"
 )
 
 // PgProtocolState keeps track of PostgreSQL protocol state.
 type PgProtocolState struct {
+	parser *sqlparser.Parser
+
 	lastPacketType PacketType
 	pendingQuery   base.OnQueryObject
 	pendingParse   *ParsePacket
@@ -45,8 +48,8 @@ const (
 )
 
 // NewPgProtocolState makes an initial PostgreSQL state, awaiting for queries.
-func NewPgProtocolState() *PgProtocolState {
-	return &PgProtocolState{lastPacketType: OtherPacket}
+func NewPgProtocolState(parser *sqlparser.Parser) *PgProtocolState {
+	return &PgProtocolState{lastPacketType: OtherPacket, parser: parser}
 }
 
 // LastPacketType returns type of the last seen packet.
@@ -88,7 +91,7 @@ func (p *PgProtocolState) HandleClientPacket(packet *PacketHandler) error {
 			return err
 		}
 		p.lastPacketType = SimpleQueryPacket
-		p.pendingQuery = base.NewOnQueryObjectFromQuery(query)
+		p.pendingQuery = base.NewOnQueryObjectFromQuery(query, p.parser)
 		return nil
 	}
 
@@ -101,7 +104,7 @@ func (p *PgProtocolState) HandleClientPacket(packet *PacketHandler) error {
 			return err
 		}
 		p.lastPacketType = ParseStatementPacket
-		p.pendingQuery = base.NewOnQueryObjectFromQuery(parsePacket.QueryString())
+		p.pendingQuery = base.NewOnQueryObjectFromQuery(parsePacket.QueryString(), p.parser)
 		p.pendingParse = parsePacket
 		return nil
 	}

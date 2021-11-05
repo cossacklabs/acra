@@ -47,8 +47,10 @@ func TestAndOrPrecedence(t *testing.T) {
 		input:  "select * from a where a=b or c=d and e=f",
 		output: "(a = b or (c = d and e = f))",
 	}}
+
+	parser := New(ModeStrict)
 	for _, tcase := range validSQL {
-		tree, err := Parse(tcase.input)
+		tree, err := parser.Parse(tcase.input)
 		if err != nil {
 			t.Error(err)
 			continue
@@ -71,8 +73,10 @@ func TestPlusStarPrecedence(t *testing.T) {
 		input:  "select 1*2+3 from a",
 		output: "((1 * 2) + 3)",
 	}}
+
+	parser := New(ModeStrict)
 	for _, tcase := range validSQL {
-		tree, err := Parse(tcase.input)
+		tree, err := parser.Parse(tcase.input)
 		if err != nil {
 			t.Error(err)
 			continue
@@ -98,8 +102,10 @@ func TestIsPrecedence(t *testing.T) {
 		input:  "select * from a where (a=1 and b=2) is true",
 		output: "((a = 1 and b = 2) is true)",
 	}}
+
+	parser := New(ModeStrict)
 	for _, tcase := range validSQL {
-		tree, err := Parse(tcase.input)
+		tree, err := parser.Parse(tcase.input)
 		if err != nil {
 			t.Error(err)
 			continue

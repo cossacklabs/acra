@@ -23,6 +23,9 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"strconv"
+
+	"github.com/cossacklabs/acra/decryptor/base"
 )
 
 // MySQL protocol capability flags https://dev.mysql.com/doc/internals/en/capability-flags.html
@@ -49,6 +52,14 @@ const (
 	PacketHeaderSize = 4
 	// SequenceIDIndex last byte of header https://dev.mysql.com/doc/internals/en/mysql-packet.html#idm140406396409840
 	SequenceIDIndex = 3
+)
+
+// Describe values that represent signed/unsigned identifier for MySQL numeric type inside packet.
+// https://dev.mysql.com/doc/internals/en/com-stmt-execute.html
+const (
+	signedBinaryValue = 0
+	// flag byte which has the highest bit set if the type is unsigned.
+	unsignedBinaryValue = 0b1000_0000
 )
 
 // ErrPacketHasNotExtendedCapabilities if packet has capability flags
@@ -95,6 +106,108 @@ func (packet *Packet) GetSequenceNumber() byte {
 // GetData returns packet payload
 func (packet *Packet) GetData() []byte {
 	return packet.data
+}
+
+// GetBindParameters returns packet Bind parameters
+func (packet *Packet) GetBindParameters(paramNum int) ([]base.BoundValue, error) {
+	// https://dev.mysql.com/doc/internals/en/com-stmt-execute.html#packet-COM_STMT_EXECUTE
+	// 1 - packet header
+	// 4 - stmt-id
+	// 1 - flags
+	// 4 - iteration-count
+	pos := 10
+	if paramNum > 0 {
+		// 7 + num-params offset from docs
+		pos = 10 + ((paramNum + 7) >> 3)
+	}
+
+	values := make([]base.BoundValue, paramNum)
+	// new-params-bound-flag
+	if packet.data[pos] != 1 {
+		return values, nil
+	}
+	pos += +1
+
+	//here we need to gather all provided param types
+	paramTypes := make([]byte, paramNum)
+	for i := 0; i < paramNum; i++ {
+		paramTypes[i] = packet.data[pos]
+		pos += 2
+	}
+
+	for i := 0; i < paramNum; i++ {
+		boundValue, n, err := NewMysqlBoundValue(packet.data[pos:], base.BinaryFormat, Type(paramTypes[i]))
+		if err != nil {
+			return nil, err
+		}
+		values[i] = boundValue
+		pos += n
+	}
+
+	return values, nil
+}
+
+// SetParameters updates statement parameters from Bind packet.
+func (packet *Packet) SetParameters(values []base.BoundValue) (err error) {
+	// If there are no parameters then don't bother.
+	if len(values) == 0 {
+		return nil
+	}
+
+	// https://dev.mysql.com/doc/internals/en/com-stmt-execute.html#packet-COM_STMT_EXECUTE
+	// 1 - packet header
+	// 4 - stmt-id
+	// 1 - flags
+	// 4 - iteration-count
+	pos := 10
+
+	// NULL-bitmap, length: (num-params+7)/8
+	// new-params-bound-flag
+	pos += (len(values)+7)>>3 + 1
+
+	resultData := make([]byte, len(packet.data[:pos]), len(packet.data))
+	copy(resultData, packet.data[:pos])
+
+	// params amount shift
+	for i := 0; i < len(values); i++ {
+		paramType := packet.data[pos : pos+2]
+		boundType := values[i].GetType()
+
+		// we need to check if the type was changed during tokenization
+		if paramType[0] != boundType {
+			paramType[0] = boundType
+		}
+
+		// potential tokenization happened before
+		// and we need to get result tokenization value to set signed/unsigned byte
+		switch Type(boundType) {
+		case TypeLong, TypeLongLong:
+			intValue, err := strconv.ParseInt(string(values[i].GetData(nil)), 10, 64)
+			if err != nil {
+				return err
+			}
+
+			paramType[1] = unsignedBinaryValue
+			if intValue < 0 {
+				paramType[1] = signedBinaryValue
+			}
+		}
+
+		resultData = append(resultData, paramType...)
+		pos += 2
+	}
+
+	for i := 0; i < len(values); i++ {
+		encoded, err := values[i].Encode()
+		if err != nil {
+			return err
+		}
+
+		resultData = append(resultData, encoded...)
+	}
+
+	packet.SetData(resultData)
+	return nil
 }
 
 // SetData replace packet data with newData and update payload length in header

@@ -1,0 +1,17 @@
+version: '3.6'
+services:
+  vault:
+    image: cossacklabs/vault-ssl:1.6.2
+    container_name: vault
+    restart: on-failure:10
+    ports:
+      - "8201:8201"
+    environment:
+      VAULT_LOCAL_CONFIG: '{"listener": [{"tcp":{"address": "0.0.0.0:8201","tls_disable":"0", "tls_cert_file":"/data/vault-volume/vault_crt.pem", "tls_key_file":"/data/vault-volume/vault_key.pem"}}], "default_lease_ttl": "168h", "max_lease_ttl": "720h"}, "ui": true, "storage":{"file":{"path":"/vault/data"}}}'
+      VAULT_DEV_ROOT_TOKEN_ID: 'root_token'
+      VAULT_TOKEN: 'root_token'
+    cap_add:
+      - IPC_LOCK
+    healthcheck:
+      retries: 5
+    command: server -dev -dev-root-token-id="root_token"

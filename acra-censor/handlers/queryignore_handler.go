@@ -17,7 +17,6 @@ limitations under the License.
 package handlers
 
 import (
-	"github.com/cossacklabs/acra/acra-censor/common"
 	"github.com/cossacklabs/acra/sqlparser"
 	log "github.com/sirupsen/logrus"
 )
@@ -26,12 +25,16 @@ import (
 type QueryIgnoreHandler struct {
 	ignoredQueries map[string]bool
 	logger         *log.Entry
+	parser         *sqlparser.Parser
 }
 
 // NewQueryIgnoreHandler creates new ignore handler
-func NewQueryIgnoreHandler() *QueryIgnoreHandler {
-	handler := &QueryIgnoreHandler{ignoredQueries: make(map[string]bool), logger: log.WithField("handler", "query-ignore")}
-	return handler
+func NewQueryIgnoreHandler(parser *sqlparser.Parser) *QueryIgnoreHandler {
+	return &QueryIgnoreHandler{
+		ignoredQueries: make(map[string]bool),
+		logger:         log.WithField("handler", "query-ignore"),
+		parser:         parser,
+	}
 }
 
 // CheckQuery checks each query, returns false if query handling should be ignored.
@@ -58,7 +61,7 @@ func (handler *QueryIgnoreHandler) Release() {
 func (handler *QueryIgnoreHandler) AddQueries(queries []string) {
 	for _, query := range queries {
 		handler.ignoredQueries[query] = true
-		normalizedQuery, _, _, err := common.HandleRawSQLQuery(query)
+		normalizedQuery, _, _, err := handler.parser.HandleRawSQLQuery(query)
 		if err == nil {
 			handler.ignoredQueries[normalizedQuery] = true
 		} else {
@@ -71,7 +74,7 @@ func (handler *QueryIgnoreHandler) AddQueries(queries []string) {
 func (handler *QueryIgnoreHandler) RemoveQueries(queries []string) {
 	for _, query := range queries {
 		delete(handler.ignoredQueries, query)
-		normalizedQuery, _, _, err := common.HandleRawSQLQuery(query)
+		normalizedQuery, _, _, err := handler.parser.HandleRawSQLQuery(query)
 		if err == nil {
 			delete(handler.ignoredQueries, normalizedQuery)
 		}

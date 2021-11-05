@@ -18,12 +18,12 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
+	acrastruct2 "github.com/cossacklabs/acra/acrastruct"
 	"io/ioutil"
 	"math/rand"
 	"net/http"
 	"time"
 
-	"github.com/cossacklabs/acra/acra-writer"
 	"github.com/cossacklabs/themis/gothemis/keys"
 	_ "github.com/go-sql-driver/mysql"
 	_ "github.com/lib/pq"
@@ -104,7 +104,7 @@ func main() {
 		zonePublic := parsedZoneData.PublicKey
 		zoneID := []byte(parsedZoneData.ID)
 
-		acrastruct, err := acrawriter.CreateAcrastruct([]byte(*data), &keys.PublicKey{Value: zonePublic}, zoneID)
+		acrastruct, err := acrastruct2.CreateAcrastruct([]byte(*data), &keys.PublicKey{Value: zonePublic}, zoneID)
 		if err != nil {
 			panic(err)
 		}

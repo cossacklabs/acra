@@ -72,8 +72,27 @@ func (clientSession *ClientCommandsSession) close() {
 	log.Debugln("All connections closed")
 }
 
+func (clientSession *ClientCommandsSession) generateZoneKeys() ([]byte, []byte, error) {
+	id, publicKey, err := clientSession.keystore.GenerateZoneKey()
+	if err != nil {
+		return nil, nil, err
+	}
+	if err = clientSession.keystore.GenerateZoneIDSymmetricKey(id); err != nil {
+		return nil, nil, err
+	}
+	return id, publicKey, nil
+}
+
 // HandleSession gets, parses and executes each client HTTP request, writes response to the connection
 func (clientSession *ClientCommandsSession) HandleSession() {
+	defer func() {
+		if recMsg := recover(); recMsg != nil {
+			log.WithField("error", recMsg).WithFields(
+				log.Fields{"connection_type": "http_api"}).
+				Errorln("Panic in connection processing, close connection")
+			clientSession.close()
+		}
+	}()
 	_, requestSpan := trace.StartSpan(clientSession.ctx, "HandleSession")
 	defer requestSpan.End()
 
@@ -97,11 +116,11 @@ func (clientSession *ClientCommandsSession) HandleSession() {
 	switch req.URL.Path {
 	case "/getNewZone":
 		logger.Debugln("Got /getNewZone request")
-		id, publicKey, err := clientSession.keystore.GenerateZoneKey()
+		id, publicKey, err := clientSession.generateZoneKeys()
 		if err != nil {
 			logger.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorHTTPAPICantGenerateZone).Errorln("Can't generate zone key")
 		} else {
-			zoneData, err := zone.ZoneDataToJSON(id, &keys.PublicKey{Value: publicKey})
+			zoneData, err := zone.DataToJSON(id, &keys.PublicKey{Value: publicKey})
 			if err != nil {
 				logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorHTTPAPICantGenerateZone).WithError(err).Errorln("Can't create json with zone key")
 			} else {

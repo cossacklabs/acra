@@ -27,7 +27,7 @@ import (
 	"database/sql"
 	"encoding/base64"
 	"fmt"
-	"github.com/cossacklabs/acra/acra-writer"
+	acrastruct2 "github.com/cossacklabs/acra/acrastruct"
 	"github.com/cossacklabs/themis/gothemis/keys"
 	_ "github.com/lib/pq" // pq
 	log "github.com/sirupsen/logrus"
@@ -62,7 +62,7 @@ func Fuzz(data []byte) int {
 		data = []byte("0")
 	}
 
-	acrastruct, err := acrawriter.CreateAcrastruct(data, &keys.PublicKey{Value: zoneKey}, zone)
+	acrastruct, err := acrastruct2.CreateAcrastruct(data, &keys.PublicKey{Value: zoneKey}, zone)
 	if err != nil {
 		panic(err)
 	}

@@ -17,7 +17,7 @@ ARG BUILD_DATE
 LABEL org.label-schema.schema-version="1.0" \
     org.label-schema.vendor="Cossack Labs" \
     org.label-schema.url="https://cossacklabs.com" \
-    org.label-schema.name="Acra CE build image" \
+    org.label-schema.name="Acra build image" \
     org.label-schema.description="Acra helps you easily secure your databases in distributed, microservice-rich environments" \
     org.label-schema.version="$VERSION" \
     org.label-schema.vcs-url="$VCS_URL" \
@@ -79,7 +79,7 @@ RUN cd "${PATH_ACRA}" && go install ./cmd/...
 RUN for component in authmanager connector keymaker server tools translator webconfig; do \
         ADD_COMPONENTS=(); \
         if [ "$component" == 'tools' ]; then \
-            ADD_COMPONENTS+=('addzone' 'authmanager' 'keymaker' 'poisonrecordmaker' 'rollback' 'rotate'); \
+            ADD_COMPONENTS+=('addzone' 'authmanager' 'backup' 'keymaker' 'keys' 'poisonrecordmaker' 'rollback' 'rotate' 'tokens'); \
         else \
             ADD_COMPONENTS+=("$component"); \
         fi; \

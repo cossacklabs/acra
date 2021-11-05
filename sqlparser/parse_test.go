@@ -168,7 +168,7 @@ var (
 	}, {
 		input: "select next 10 values from t",
 	}, {
-		input: "select next :a values from t",
+		input: "select next ? values from t",
 	}, {
 		input: "select /* `By`.* */ `By`.* from t",
 	}, {
@@ -470,17 +470,15 @@ var (
 	}, {
 		input: "select /* unescaped backslash */ '\\n' from t",
 	}, {
-		input: "select /* value argument */ :a from t",
+		input: "select /* value argument */ ? from t",
 	}, {
-		input: "select /* value argument with digit */ :a1 from t",
+		input: "select /* value argument with digit */ ? from t",
 	}, {
-		input: "select /* value argument with dot */ :a.b from t",
+		input: "select /* value argument with dot */ ? from t",
 	}, {
-		input:  "select /* positional argument */ ? from t",
-		output: "select /* positional argument */ :v1 from t",
+		input: "select /* positional argument */ ? from t",
 	}, {
-		input:  "select /* multiple positional arguments */ ?, ? from t",
-		output: "select /* multiple positional arguments */ :v1, :v2 from t",
+		input: "select /* multiple positional arguments */ ?, ? from t",
 	}, {
 		input: "select /* list arg */ * from t where a in ::list",
 	}, {
@@ -834,8 +832,7 @@ var (
 		input:  "alter table e comment = 'hello'",
 		output: "alter table e",
 	}, {
-		input:  "alter table a reorganize partition b into (partition c values less than (?), partition d values less than (maxvalue))",
-		output: "alter table a reorganize partition b into (partition c values less than (:v1), partition d values less than (maxvalue))",
+		input: "alter table a reorganize partition b into (partition c values less than (?), partition d values less than (maxvalue))",
 	}, {
 		input:  "alter table a partition by range (id) (partition p0 values less than (10), partition p1 values less than (maxvalue))",
 		output: "alter table a",
@@ -1326,7 +1323,7 @@ func TestValid(t *testing.T) {
 		if tcase.output == "" {
 			tcase.output = tcase.input
 		}
-		tree, err := Parse(tcase.input)
+		tree, err := New(ModeStrict).Parse(tcase.input)
 		if err != nil {
 			t.Errorf("Parse(%q) err: %v, want nil", tcase.input, err)
 			continue
@@ -1433,11 +1430,13 @@ func TestCaseSensitivity(t *testing.T) {
 	}, {
 		input: "select /* use */ 1 from t1 use index (A) where b = 1",
 	}}
+
+	parser := New(ModeStrict)
 	for _, tcase := range validSQL {
 		if tcase.output == "" {
 			tcase.output = tcase.input
 		}
-		tree, err := Parse(tcase.input)
+		tree, err := parser.Parse(tcase.input)
 		if err != nil {
 			t.Errorf("input: %s, err: %v", tcase.input, err)
 			continue
@@ -1603,11 +1602,12 @@ func TestConvert(t *testing.T) {
 		input: "select $1::integer::bytea from dual where test = $2::varchar::bytea",
 	}}
 
+	parser := New(ModeStrict)
 	for _, tcase := range validSQL {
 		if tcase.output == "" {
 			tcase.output = tcase.input
 		}
-		tree, err := Parse(tcase.input)
+		tree, err := parser.Parse(tcase.input)
 		if err != nil {
 			t.Errorf("input: %s, err: %v", tcase.input, err)
 			continue
@@ -1676,11 +1676,12 @@ func TestSubStr(t *testing.T) {
 		output: "select substr(a, 1, 6) from t",
 	}}
 
+	parser := New(ModeStrict)
 	for _, tcase := range validSQL {
 		if tcase.output == "" {
 			tcase.output = tcase.input
 		}
-		tree, err := Parse(tcase.input)
+		tree, err := parser.Parse(tcase.input)
 		if err != nil {
 			t.Errorf("input: %s, err: %v", tcase.input, err)
 			continue
@@ -1895,7 +1896,7 @@ func TestCreateTable(t *testing.T) {
 	}
 
 	sql := "create table t garbage"
-	_, err := Parse(sql)
+	_, err := New(ModeStrict).Parse(sql)
 	if err != nil {
 		t.Errorf("input: %s, err: %v", sql, err)
 	}
@@ -1995,8 +1996,9 @@ func TestPreparedStatements(t *testing.T) {
 		`PREPARE fooplan (int, text, bool, numeric) AS INSERT INTO foo VALUES($1, $2, $3, $4);`,
 	}
 
+	parser := New(ModeStrict)
 	for _, query := range testQueries {
-		_, err := Parse(query)
+		_, err := parser.Parse(query)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -2171,8 +2173,9 @@ func TestErrors(t *testing.T) {
 
 func BenchmarkParse1(b *testing.B) {
 	sql := "select 'abcd', 20, 30.0, eid from a where 1=eid and name='3'"
+	parser := New(ModeStrict)
 	for i := 0; i < b.N; i++ {
-		ast, err := Parse(sql)
+		ast, err := parser.Parse(sql)
 		if err != nil {
 			b.Fatal(err)
 		}
@@ -2182,8 +2185,9 @@ func BenchmarkParse1(b *testing.B) {
 
 func BenchmarkParse2(b *testing.B) {
 	sql := "select aaaa, bbb, ccc, ddd, eeee, ffff, gggg, hhhh, iiii from tttt, ttt1, ttt3 where aaaa = bbbb and bbbb = cccc and dddd+1 = eeee group by fff, gggg having hhhh = iiii and iiii = jjjj order by kkkk, llll limit 3, 4"
+	parser := New(ModeStrict)
 	for i := 0; i < b.N; i++ {
-		ast, err := Parse(sql)
+		ast, err := parser.Parse(sql)
 		if err != nil {
 			b.Fatal(err)
 		}
@@ -2216,8 +2220,9 @@ func init() {
 }
 
 func BenchmarkParse3(b *testing.B) {
+	parser := New(ModeStrict)
 	for i := 0; i < b.N; i++ {
-		if _, err := Parse(benchQuery); err != nil {
+		if _, err := parser.Parse(benchQuery); err != nil {
 			b.Fatal(err)
 		}
 	}

@@ -65,14 +65,15 @@ func TestMatchTopLevelPlaceholders(t *testing.T) {
 
 }
 func testSingleTopLevelPlaceholder(t *testing.T, pattern string, indexOfMatchedQuery ...int) {
-	parsedPatterns, err := ParsePatterns([]string{pattern})
+	parser := sqlparser.New(sqlparser.ModeStrict)
+	parsedPatterns, err := ParsePatterns([]string{pattern}, parser)
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	for index := range testQueries {
 
-		stmt, err := sqlparser.Parse(testQueries[index])
+		stmt, err := parser.Parse(testQueries[index])
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -118,7 +119,9 @@ func TestHandleRangeCondition(t *testing.T) {
 		// subqueries with %%SUBQUERY%% and %%VALUE%% placeholders
 		fmt.Sprintf("select 1 from t where param between (%s) and %s", SubqueryPlaceholder, ValuePlaceholder),
 	}
-	parsedPatterns, err := ParsePatterns(patterns)
+
+	parser := sqlparser.New(sqlparser.ModeStrict)
+	parsedPatterns, err := ParsePatterns(patterns, parser)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -232,7 +235,7 @@ func TestHandleRangeCondition(t *testing.T) {
 	for i := 0; i < len(parsedPatterns); i++ {
 		pattern := parsedPatterns[i]
 		for _, query := range matchableQueries[i] {
-			parsedQuery, err := sqlparser.Parse(query)
+			parsedQuery, err := parser.Parse(query)
 			if err != nil {
 				t.Fatalf("Can't parse query <%s> with error <%s>", query, err.Error())
 			}
@@ -242,7 +245,7 @@ func TestHandleRangeCondition(t *testing.T) {
 		}
 
 		for _, query := range notMatchableQueries[i] {
-			parsedQuery, err := sqlparser.Parse(query)
+			parsedQuery, err := parser.Parse(query)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -255,9 +258,10 @@ func TestHandleRangeCondition(t *testing.T) {
 
 // TestSkipSubqueryValuePattern test a=(%%SUBQUERY%%) pattern
 func TestSkipSubqueryValuePattern(t *testing.T) {
+	parser := sqlparser.New(sqlparser.ModeStrict)
 	parsedPatterns, err := ParsePatterns([]string{
 		fmt.Sprintf("select 1 from t where a=(%s)", SubqueryPlaceholder),
-	})
+	}, parser)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -271,7 +275,7 @@ func TestSkipSubqueryValuePattern(t *testing.T) {
 		"Select 1 from t where a=(select column1, column2 from table1 where a=1 union select column1, column2 from table2)",
 	}
 	for _, query := range queries {
-		parsedQuery, err := sqlparser.Parse(query)
+		parsedQuery, err := parser.Parse(query)
 		if err != nil {
 			t.Fatalf("Can't parse query %s with error %s", query, err.Error())
 		}
@@ -325,7 +329,9 @@ func TestPatternsInWhereClauses(t *testing.T) {
 		// exists with %%SUBQUERY%%
 		fmt.Sprintf("select 1 from t where exists(%s) and a=2", SubqueryPlaceholder),
 	}
-	parsedPatterns, err := ParsePatterns(patterns)
+
+	parser := sqlparser.New(sqlparser.ModeStrict)
+	parsedPatterns, err := ParsePatterns(patterns, parser)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -590,7 +596,7 @@ func TestPatternsInWhereClauses(t *testing.T) {
 	for i := 0; i < len(parsedPatterns); i++ {
 		pattern := parsedPatterns[i]
 		for _, query := range matchableQueries[i] {
-			parsedQuery, err := sqlparser.Parse(query)
+			parsedQuery, err := parser.Parse(query)
 			if err != nil {
 				t.Fatalf("Can't parse query <%s> with error <%s>", query, err.Error())
 			}
@@ -600,7 +606,7 @@ func TestPatternsInWhereClauses(t *testing.T) {
 		}
 
 		for _, query := range notMatchableQueries[i] {
-			parsedQuery, err := sqlparser.Parse(query)
+			parsedQuery, err := parser.Parse(query)
 			if err != nil {
 				t.Fatalf("Error <%s> with query <%s>", err.Error(), query)
 			}
@@ -619,7 +625,8 @@ func TestGroupByWithColumnPattern(t *testing.T) {
 		fmt.Sprintf("SELECT a FROM b GROUP BY a, %s, 1, %s", ColumnPlaceholder, ColumnPlaceholder),
 	}
 
-	parsedPatterns, err := ParsePatterns(patterns)
+	parser := sqlparser.New(sqlparser.ModeStrict)
+	parsedPatterns, err := ParsePatterns(patterns, parser)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -656,7 +663,7 @@ func TestGroupByWithColumnPattern(t *testing.T) {
 	for i := 0; i < len(parsedPatterns); i++ {
 		patternGroupBy := parsedPatterns[i].(*sqlparser.Select).GroupBy
 		for _, query := range matchableQueries[i] {
-			parsedQuery, err := sqlparser.Parse(query)
+			parsedQuery, err := parser.Parse(query)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -667,7 +674,7 @@ func TestGroupByWithColumnPattern(t *testing.T) {
 		}
 
 		for _, query := range notMatchableQueries[i] {
-			parsedQuery, err := sqlparser.Parse(query)
+			parsedQuery, err := parser.Parse(query)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -687,7 +694,8 @@ func TestHavingWithColumnAndValueMatch(t *testing.T) {
 		fmt.Sprintf("SELECT a1 FROM table1 GROUP BY a2 HAVING COUNT(%s) > %s", ColumnPlaceholder, ValuePlaceholder),
 	}
 
-	parsedPatterns, err := ParsePatterns(patterns)
+	parser := sqlparser.New(sqlparser.ModeStrict)
+	parsedPatterns, err := ParsePatterns(patterns, parser)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -744,7 +752,7 @@ func TestHavingWithColumnAndValueMatch(t *testing.T) {
 
 	for i := 0; i < len(parsedPatterns); i++ {
 		for _, query := range matchableQueries[i] {
-			parsedQuery, err := sqlparser.Parse(query)
+			parsedQuery, err := parser.Parse(query)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -755,7 +763,7 @@ func TestHavingWithColumnAndValueMatch(t *testing.T) {
 		}
 
 		for _, query := range notMatchableQueries[i] {
-			parsedQuery, err := sqlparser.Parse(query)
+			parsedQuery, err := parser.Parse(query)
 			if err != nil {
 				t.Fatal(err)
 			}

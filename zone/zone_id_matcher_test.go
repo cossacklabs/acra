@@ -25,120 +25,66 @@ limitations under the License.
 // to the protected data.
 //
 // https://github.com/cossacklabs/acra/wiki/Zones
-package zone_test
+package zone
 
 import (
-	"github.com/cossacklabs/acra/keystore"
-	"github.com/cossacklabs/acra/zone"
-	"github.com/cossacklabs/themis/gothemis/keys"
+	"bytes"
+	"crypto/rand"
 	"testing"
 )
 
-func assertZoneMatchNotFail(c byte, matcher *zone.Matcher, t *testing.T) {
-	if !matcher.Match(c) {
-		t.Fatal("Unexpected unmatch")
-	}
-}
+type TestKeyStore struct{ ZoneID []byte }
 
-type TestKeyStore struct{}
-
-func (*TestKeyStore) RotateZoneKey(zoneID []byte) ([]byte, error) {
-	panic("implement me")
-}
-func (storage *TestKeyStore) GetZonePrivateKey(id []byte) (*keys.PrivateKey, error) {
-	return &keys.PrivateKey{Value: []byte{}}, nil
-}
-func (storage *TestKeyStore) GetZonePrivateKeys(id []byte) ([]*keys.PrivateKey, error) {
-	return nil, nil
-}
-func (storage *TestKeyStore) HasZonePrivateKey(id []byte) bool { return true }
-func (storage *TestKeyStore) GetPeerPublicKey(id []byte) (*keys.PublicKey, error) {
-	return &keys.PublicKey{Value: []byte{}}, nil
-}
-func (storage *TestKeyStore) GetPrivateKey(id []byte) (*keys.PrivateKey, error) {
-	return &keys.PrivateKey{Value: []byte{}}, nil
-}
-func (storage *TestKeyStore) GenerateZoneKey() ([]byte, []byte, error) {
-	return []byte{}, []byte{}, nil
-}
-
-func (storage *TestKeyStore) Reset()                                     {}
-func (storage *TestKeyStore) GenerateConnectorKeys(id []byte) error      { return nil }
-func (storage *TestKeyStore) GenerateServerKeys(id []byte) error         { return nil }
-func (storage *TestKeyStore) GenerateTranslatorKeys(id []byte) error     { return nil }
-func (storage *TestKeyStore) GenerateDataEncryptionKeys(id []byte) error { return nil }
-func (storage *TestKeyStore) GetServerDecryptionPrivateKey(id []byte) (*keys.PrivateKey, error) {
-	return nil, nil
-}
-func (storage *TestKeyStore) GetServerDecryptionPrivateKeys(id []byte) ([]*keys.PrivateKey, error) {
-	return nil, nil
-}
-func (keystore *TestKeyStore) GetAuthKey(remove bool) ([]byte, error) {
-	return nil, nil
-}
-func (storage *TestKeyStore) GetPoisonKeyPair() (*keys.Keypair, error)          { return nil, nil }
-func (storage *TestKeyStore) GetPoisonPrivateKeys() ([]*keys.PrivateKey, error) { return nil, nil }
-func (*TestKeyStore) SaveDataEncryptionKeys(id []byte, keypair *keys.Keypair) error {
-	panic("implement me")
-}
-func (*TestKeyStore) SaveTranslatorKeypair(id []byte, keypair *keys.Keypair) error {
-	panic("implement me")
-}
-func (*TestKeyStore) SaveServerKeypair(id []byte, keypair *keys.Keypair) error { panic("implement me") }
-func (*TestKeyStore) SaveConnectorKeypair(id []byte, keypair *keys.Keypair) error {
-	panic("implement me")
-}
-func (*TestKeyStore) SaveZoneKeypair(id []byte, keypair *keys.Keypair) error  { panic("implement me") }
-func (*TestKeyStore) GetZonePublicKey(zoneID []byte) (*keys.PublicKey, error) { panic("implement me") }
-func (*TestKeyStore) GetClientIDEncryptionPublicKey(clientID []byte) (*keys.PublicKey, error) {
-	panic("implement me")
+func (storage *TestKeyStore) HasZonePrivateKey(id []byte) bool {
+	return bytes.Equal(id, storage.ZoneID)
 }
 
 func testZoneIDMatcher(t *testing.T) {
-	var keystorage keystore.PrivateKeyStore = &TestKeyStore{}
-	matcherPool := zone.NewMatcherPool(zone.NewPgMatcherFactory())
-	zoneMatcher := zone.NewZoneMatcher(matcherPool, keystorage)
+	testZoneID := GenerateZoneID()
+	keychecker := &TestKeyStore{ZoneID: testZoneID}
+	zoneMatcher := NewZoneMatcher(keychecker)
 
-	// test correct matching
-	t.Log("Check zone id")
-	for _, c := range zone.ZoneIDBegin {
-		assertZoneMatchNotFail(byte(c), zoneMatcher, t)
+	if zoneMatcher.Match(ZoneIDBegin) {
+		t.Fatal("Unexpected match of begin tag only")
 	}
-	// fill zone id
-	for i := 0; i < (zone.ZoneIDLength); i++ {
-		assertZoneMatchNotFail('a', zoneMatcher, t)
+	if zoneMatcher.IsMatched() {
+		t.Fatal("Invalid matched flag")
+	}
+	if zoneMatcher.GetZoneID() != nil {
+		t.Fatal("Returns invalid ZoneID")
+	}
+	fakeZone := make([]byte, 0, ZoneIDLength)
+	fakeZone = append(fakeZone, ZoneIDBegin...)
+	rand.Read(fakeZone)
+	if zoneMatcher.Match(fakeZone) {
+		t.Fatal("Unexpected match of fake ZoneID with correct begin tag")
+	}
+	if zoneMatcher.IsMatched() {
+		t.Fatal("Invalid matched flag")
+	}
+	if zoneMatcher.GetZoneID() != nil {
+		t.Fatal("Returns invalid ZoneID")
 	}
 
+	// test correct match
+	if !zoneMatcher.Match(testZoneID) {
+		t.Fatal("Not matched correct ZoneID")
+	}
 	if !zoneMatcher.IsMatched() {
-		t.Fatal("Expected matched status")
-		return
+		t.Fatal("Return false for IsMatched after correct ZoneID")
 	}
+	if !bytes.Equal(zoneMatcher.GetZoneID(), testZoneID) {
+		t.Fatal("Returns invalid ZoneID")
+	}
+
 	zoneMatcher.Reset()
-
-	// test correct matching inner zone id
-	t.Log("Check inner zone id")
-	// feed correct tag begin
-	for _, c := range zone.ZoneIDBegin {
-		assertZoneMatchNotFail(byte(c), zoneMatcher, t)
+	if zoneMatcher.GetZoneID() != nil {
+		t.Fatal("Returns invalid ZoneID")
 	}
-	// feed half of correct zone id
-	for i := 0; i < zone.ZoneIDLength; i++ {
-		assertZoneMatchNotFail('a', zoneMatcher, t)
+	if zoneMatcher.IsMatched() {
+		t.Fatal("Return true for IsMatched after Reset")
 	}
 
-	// feed second correct tag begin in zone_id block
-	for _, c := range zone.ZoneIDBegin {
-		assertZoneMatchNotFail(byte(c), zoneMatcher, t)
-	}
-	// feed correct zone id
-	for i := 0; i < (zone.ZoneIDLength); i++ {
-		assertZoneMatchNotFail('a', zoneMatcher, t)
-	}
-
-	if !zoneMatcher.IsMatched() {
-		t.Fatal("Expected matched status")
-		return
-	}
 }
 
 func TestZoneIDMatcher(t *testing.T) {

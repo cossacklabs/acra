@@ -159,6 +159,22 @@ func (s *ServerKeyStore) currentSymmetricKey(ring api.KeyRing) ([]byte, error) {
 	return key, nil
 }
 
+func (s *ServerKeyStore) allSymmetricKeys(ring api.KeyRing) ([][]byte, error) {
+	seqnums, err := ring.AllKeys()
+	if err != nil {
+		return nil, err
+	}
+	symmetricKeys := make([][]byte, len(seqnums))
+	for i, seqnum := range seqnums {
+		symmetricKey, err := ring.SymmetricKey(seqnum, api.ThemisSymmetricKeyFormat)
+		if err != nil {
+			return nil, err
+		}
+		symmetricKeys[i] = symmetricKey
+	}
+	return symmetricKeys, nil
+}
+
 func (s *ServerKeyStore) newCurrentSymmetricKey(ring api.MutableKeyRing) ([]byte, error) {
 	key, err := s.newSymmetricKey()
 	if err != nil {

@@ -128,7 +128,7 @@ func TestGetTableName(t *testing.T) {
 	}}
 
 	for _, tc := range testcases {
-		tree, err := Parse(tc.in)
+		tree, err := New(ModeStrict).Parse(tc.in)
 		if err != nil {
 			t.Error(err)
 			continue

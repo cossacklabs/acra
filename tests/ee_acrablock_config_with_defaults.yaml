@@ -1,0 +1,86 @@
+defaults:
+  crypto_envelope: acrablock
+
+schemas:
+  # used in test.py
+  - table: test_transparent_acrablock_encryption
+    columns:
+      - id
+      - specified_client_id
+      - default_client_id
+      - number
+      - zone_id
+      - raw_data
+      - nullable
+      - empty
+      - token_i64
+      - token_str
+      - token_bytes
+      - masked_prefix
+    encrypted:
+      - column: specified_client_id
+        client_id: keypair1
+
+      - column: default_client_id
+
+      - column: zone_id
+        zone_id: DDDDDDDDMatNOMYjqVOuhACC
+
+      - column: token_i64
+        token_type: int64
+        tokenized: true
+      - column: token_str
+        token_type: str
+        tokenized: true
+      - column: token_bytes
+        token_type: bytes
+        tokenized: true
+
+      - column: masked_prefix
+        masking: "xxxx"
+        plaintext_length: 9
+        plaintext_side: "right"
+        crypto_envelope: acrastruct
+
+  - table: test_transparent_acrablock_encryption_with_zone
+    columns:
+      - id
+      - specified_client_id
+      - default_client_id
+      - number
+      - zone_id
+      - raw_data
+      - nullable
+      - empty
+      - token_i64
+      - token_str
+      - token_bytes
+      - masked_prefix
+    encrypted:
+      - column: specified_client_id
+        client_id: keypair1
+
+      - column: default_client_id
+
+      - column: zone_id
+        zone_id: DDDDDDDDMatNOMYjqVOuhACC
+
+      - column: token_i64
+        token_type: int64
+        tokenized: true
+        zone_id: DDDDDDDDMatNOMYjqVOuhACC
+      - column: token_str
+        token_type: str
+        tokenized: true
+        zone_id: DDDDDDDDMatNOMYjqVOuhACC
+      - column: token_bytes
+        token_type: bytes
+        tokenized: true
+        zone_id: DDDDDDDDMatNOMYjqVOuhACC
+
+      - column: masked_prefix
+        masking: "xxxx"
+        plaintext_length: 9
+        plaintext_side: "right"
+        zone_id: DDDDDDDDMatNOMYjqVOuhACC
+        crypto_envelope: acrastruct

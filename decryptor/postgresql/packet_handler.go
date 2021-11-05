@@ -166,7 +166,7 @@ const (
 )
 
 // readData read column length and then data from reader
-func (column *ColumnData) readData(reader io.Reader) error {
+func (column *ColumnData) readData(reader io.Reader, format base.BoundValueFormat) error {
 	length := column.Length()
 	if int32(length) == NullColumnValue {
 		column.data = utils.WrapRawDataAsDecoded(nil)
@@ -175,12 +175,7 @@ func (column *ColumnData) readData(reader io.Reader) error {
 	}
 	column.isNull = false
 	if length == 0 {
-		var err error
-		column.data, err = utils.DecodeEscaped(nil)
-		if err != nil && err != utils.ErrDecodeOctalString {
-			return err
-		}
-		// ignore utils.ErrDecodeOctalString
+		column.data = utils.WrapRawDataAsDecoded(nil)
 		return nil
 	}
 	data := make([]byte, length)
@@ -191,10 +186,16 @@ func (column *ColumnData) readData(reader io.Reader) error {
 	if err != nil {
 		return err
 	}
-	column.data, err = utils.DecodeEscaped(data)
-	if err != nil && err != utils.ErrDecodeOctalString {
-		return err
+	if format == base.TextFormat {
+		column.data, err = utils.DecodeEscaped(data)
+		if err != nil && err != utils.ErrDecodeOctalString {
+			return err
+		}
+	} else {
+		// do nothing with binary data
+		column.data = utils.WrapRawDataAsDecoded(data)
 	}
+
 	// ignore utils.ErrDecodeOctalString
 	err = nil
 	return base.CheckReadWrite(n, length, err)
@@ -211,7 +212,7 @@ func (column *ColumnData) SetData(newData []byte) {
 }
 
 // parseColumns split whole data row packet into separate columns data
-func (packet *PacketHandler) parseColumns() error {
+func (packet *PacketHandler) parseColumns(columnFormats []uint16) error {
 	packet.columnCount = int(binary.BigEndian.Uint16(packet.descriptionBuf.Bytes()[:2]))
 
 	if packet.columnCount == 0 {
@@ -224,7 +225,11 @@ func (packet *PacketHandler) parseColumns() error {
 		if err := column.ReadLength(columnReader); err != nil {
 			return err
 		}
-		if err := column.readData(columnReader); err != nil {
+		format, err := GetParameterFormatByIndex(i, columnFormats)
+		if err != nil {
+			return err
+		}
+		if err := column.readData(columnReader, format); err != nil {
 			return err
 		}
 		columns = append(columns, column)

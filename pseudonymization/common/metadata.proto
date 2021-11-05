@@ -1,0 +1,13 @@
+syntax = "proto3";
+
+package common;
+
+option go_package = "github.com/cossacklabs/acra/pseudonymization/common";
+
+// MetadataContainer is Protobuf container for TokenMetadata.
+message MetadataContainer {
+    bytes data     = 1;
+    int64 created  = 2;
+    int64 accessed = 3;
+    bool  disabled = 4;
+}

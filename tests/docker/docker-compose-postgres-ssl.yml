@@ -2,7 +2,7 @@ version: '3'
 
 services:
   mydb:
-    image: cossacklabs/postgresql-ssl:11
+    image: cossacklabs/postgresql-ssl:11-1
     environment:
       POSTGRES_DB: test
       POSTGRES_USER: test

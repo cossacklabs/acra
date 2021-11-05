@@ -20,14 +20,16 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"github.com/cossacklabs/acra/keystore/keyloader"
 	"os"
 
 	"github.com/cossacklabs/acra/cmd"
-	keystoreV1 "github.com/cossacklabs/acra/keystore"
-	filesystemV1 "github.com/cossacklabs/acra/keystore/filesystem"
+	"github.com/cossacklabs/acra/keystore"
+	"github.com/cossacklabs/acra/keystore/filesystem"
 	keystoreV2 "github.com/cossacklabs/acra/keystore/v2/keystore"
-	keystoreAPIV2 "github.com/cossacklabs/acra/keystore/v2/keystore/api"
 	filesystemV2 "github.com/cossacklabs/acra/keystore/v2/keystore/filesystem"
+	filesystemBackendV2 "github.com/cossacklabs/acra/keystore/v2/keystore/filesystem/backend"
+
 	log "github.com/sirupsen/logrus"
 )
 
@@ -53,8 +55,8 @@ type MigrateKeysSubcommand struct {
 
 // Environment variables from which master keys are read.
 const (
-	SrcMasterKeyVarName = "SRC_" + keystoreV1.AcraMasterKeyVarName
-	DstMasterKeyVarName = "DST_" + keystoreV1.AcraMasterKeyVarName
+	SrcMasterKeyVarName = "SRC_" + keystore.AcraMasterKeyVarName
+	DstMasterKeyVarName = "DST_" + keystore.AcraMasterKeyVarName
 )
 
 // Command-line errors for "acra-keys migrate":
@@ -112,6 +114,11 @@ func (m *MigrateKeysSubcommand) RegisterFlags() {
 	m.flagSet.StringVar(&m.dstVersion, "dst_keystore", "", "keystore format to use: v1 (current), v2 (new)")
 	m.flagSet.BoolVar(&m.dryRun, "dry_run", false, "try migration without writing to the output keystore")
 	m.flagSet.BoolVar(&m.force, "force", false, "write to output keystore even if it exists")
+	m.src.RegisterRedisWithPrefix(m.flagSet, "src_", "old keystore, source")
+	m.dst.RegisterRedisWithPrefix(m.flagSet, "dst_", "new keystore, destination")
+	m.src.RegisterVaultWithPrefix(m.flagSet, "src_", "old keystore, source ACRA_MASTER_KEY")
+	m.dst.RegisterVaultWithPrefix(m.flagSet, "dst_", "new keystore, destination ACRA_MASTER_KEY")
+
 	m.flagSet.Usage = func() {
 		fmt.Fprintf(os.Stderr, "Command \"%s\": migrate keystore to a different format\n", CmdMigrateKeys)
 		fmt.Fprintf(os.Stderr, "\n\t%s %s [options...] \\\n"+
@@ -162,36 +169,48 @@ func (m *MigrateKeysSubcommand) Parse(arguments []string) error {
 
 // Execute this subcommand.
 func (m *MigrateKeysSubcommand) Execute() {
-	if m.SrcKeyStoreVersion() == "v1" && m.DstKeyStoreVersion() == "v2" {
-		keyStoreV1, err := m.openKeyStoreV1(SrcMasterKeyVarName, m.SrcKeyStoreParams())
-		if err != nil {
-			log.WithError(err).Fatal("Failed to open keystore v1 (src)")
-		}
-		keyStoreV2, err := m.openKeyStoreV2(DstMasterKeyVarName, m.DstKeyStoreParams())
-		if err != nil {
-			log.WithError(err).Fatal("Failed to open keystore v2 (dst)")
-		}
-		err = MigrateV1toV2(keyStoreV1, keyStoreV2)
-		if err != nil {
-			log.WithError(err).Fatal("Migration failed")
-		}
-		log.Infof("Migration complete")
-		log.Infof("Old keystore: %s", m.SrcKeyStoreParams().KeyDir())
-		log.Infof("New keystore: %s", m.DstKeyStoreParams().KeyDir())
-		if m.DryRun() {
-			log.Infof("Run without --dry_run to actually write key data")
-		}
+	if m.SrcKeyStoreVersion() != "v1" || m.DstKeyStoreVersion() != "v2" {
+		log.WithFields(log.Fields{"src": m.SrcKeyStoreVersion(), "dst": m.DstKeyStoreVersion()}).
+			Fatal("Keystore conversion not supported")
 		return
 	}
 
-	log.WithFields(log.Fields{"src": m.SrcKeyStoreVersion(), "dst": m.DstKeyStoreVersion()}).
-		Fatal("Keystore conversion not supported")
+	keyLoaderV1, err := keyloader.GetInitializedMasterKeyLoaderWithEnv(SrcMasterKeyVarName, m.src.VaultCLIOptions())
+	if err != nil {
+		return
+	}
+
+	keyLoaderV2, err := keyloader.GetInitializedMasterKeyLoaderWithEnv(DstMasterKeyVarName, m.dst.VaultCLIOptions())
+	if err != nil {
+		return
+	}
+
+	keyStoreV1, err := m.openKeyStoreV1(m.SrcKeyStoreParams(), keyLoaderV1)
+	if err != nil {
+		log.WithError(err).Fatal("Failed to open keystore v1 (src)")
+	}
+	keyStoreV2, err := m.openKeyStoreV2(m.DstKeyStoreParams(), keyLoaderV2)
+	if err != nil {
+		log.WithError(err).Fatal("Failed to open keystore v2 (dst)")
+	}
+	err = MigrateV1toV2(keyStoreV1, keyStoreV2)
+	if err != nil {
+		log.WithError(err).Fatal("Migration failed")
+	}
+	log.Infof("Migration complete")
+	log.Infof("Old keystore: %s", m.SrcKeyStoreParams().KeyDir())
+	log.Infof("New keystore: %s", m.DstKeyStoreParams().KeyDir())
+	if m.DryRun() {
+		log.Infof("Run without --dry_run to actually write key data")
+	}
+	return
+
 }
 
 // MigrateV1toV2 transfers keys from keystore v1 to v2.
-func MigrateV1toV2(srcV1 filesystemV1.KeyExport, dstV2 keystoreV2.KeyFileImportV1) error {
+func MigrateV1toV2(srcV1 filesystem.KeyExport, dstV2 keystoreV2.KeyFileImportV1) error {
 	log.Trace("Enumerating keys for export")
-	keys, err := filesystemV1.EnumerateExportedKeys(srcV1)
+	keys, err := filesystem.EnumerateExportedKeys(srcV1)
 	if err != nil {
 		log.WithError(err).Debug("Failed to enumerate exported keys")
 		return err
@@ -224,34 +243,49 @@ func MigrateV1toV2(srcV1 filesystemV1.KeyExport, dstV2 keystoreV2.KeyFileImportV
 	return nil
 }
 
-func (m *MigrateKeysSubcommand) openKeyStoreV1(keyVarName string, params KeyStoreParameters) (*filesystemV1.KeyStore, error) {
-	masterKey, err := keystoreV1.GetMasterKeyFromEnvironmentVariable(keyVarName)
+func (m *MigrateKeysSubcommand) openKeyStoreV1(params KeyStoreParameters, loader keyloader.MasterKeyLoader) (*filesystem.KeyStore, error) {
+	masterKey, err := loader.LoadMasterKey()
 	if err != nil {
 		log.WithError(err).Error("Cannot load master key")
 		return nil, err
 	}
-	encryptor, err := keystoreV1.NewSCellKeyEncryptor(masterKey)
+	encryptor, err := keystore.NewSCellKeyEncryptor(masterKey)
 	if err != nil {
 		log.WithError(err).Error("Cannot init Secure Cell encryptor")
 		return nil, err
 	}
+
+	keyStore := filesystem.NewCustomFilesystemKeyStore()
+	keyStore.Encryptor(encryptor)
+
 	keyDir := params.KeyDir()
 	keyDirPublic := params.KeyDirPublic()
-	var keyStore *filesystemV1.KeyStore
 	if keyDir != keyDirPublic {
-		keyStore, err = filesystemV1.NewFilesystemKeyStoreTwoPath(keyDir, keyDirPublic, encryptor)
+		keyStore.KeyDirectories(keyDir, keyDirPublic)
 	} else {
-		keyStore, err = filesystemV1.NewFilesystemKeyStore(keyDir, encryptor)
+		keyStore.KeyDirectory(keyDir)
 	}
+
+	if params.RedisConfigured() {
+		redis := params.RedisOptions()
+		keyStorage, err := filesystem.NewRedisStorage(redis.Addr, redis.Password, redis.DB, nil)
+		if err != nil {
+			log.WithError(err).Errorln("Failed to initialise Redis storage")
+			return nil, err
+		}
+		keyStore.Storage(keyStorage)
+	}
+
+	keyStoreV1, err := keyStore.Build()
 	if err != nil {
-		log.WithError(err).Error("Cannot init keystore")
+		log.WithError(err).Errorln("Failed to initialise keystore v1")
 		return nil, err
 	}
-	return keyStore, nil
+	return keyStoreV1, nil
 }
 
-func (m *MigrateKeysSubcommand) openKeyStoreV2(keyVarName string, params KeyStoreParameters) (*keystoreV2.ServerKeyStore, error) {
-	encryption, signature, err := keystoreV2.GetMasterKeysFromEnvironmentVariable(keyVarName)
+func (m *MigrateKeysSubcommand) openKeyStoreV2(params KeyStoreParameters, loader keyloader.MasterKeyLoader) (*keystoreV2.ServerKeyStore, error) {
+	encryption, signature, err := loader.LoadMasterKeys()
 	if err != nil {
 		log.WithError(err).Error("Cannot load master key")
 		return nil, err
@@ -267,19 +301,32 @@ func (m *MigrateKeysSubcommand) openKeyStoreV2(keyVarName string, params KeyStor
 		log.Info("Run with --force to import into existing directory")
 		return nil, errors.New("destination exists")
 	}
-	var keyDir keystoreAPIV2.MutableKeyStore
+
+	var backend filesystemBackendV2.Backend
 	if m.DryRun() {
-		keyDir, err = filesystemV2.NewInMemory(suite)
+		backend = filesystemBackendV2.NewInMemory()
+	} else if params.RedisConfigured() {
+		config := &filesystemBackendV2.RedisConfig{
+			RootDir: params.KeyDir(),
+			Options: params.RedisOptions(),
+		}
+		backend, err = filesystemBackendV2.CreateRedisBackend(config)
 		if err != nil {
-			log.WithError(err).Error("Cannot create in-memory keystore")
+			log.WithError(err).Error("Cannot connect to Redis keystore")
 			return nil, err
 		}
 	} else {
-		keyDir, err = filesystemV2.OpenDirectoryRW(keyDirPath, suite)
+		backend, err = filesystemBackendV2.CreateDirectoryBackend(params.KeyDir())
 		if err != nil {
-			log.WithError(err).WithField("path", keyDirPath).Error("Cannot open key directory")
+			log.WithError(err).Error("Cannot open key directory")
 			return nil, err
 		}
 	}
-	return keystoreV2.NewServerKeyStore(keyDir), nil
+
+	keyDirectory, err := filesystemV2.CustomKeyStore(backend, suite)
+	if err != nil {
+		log.WithError(err).Error("Failed to initialize key directory")
+		return nil, err
+	}
+	return keystoreV2.NewServerKeyStore(keyDirectory), nil
 }

@@ -19,6 +19,9 @@ package sqlparser
 import (
 	"bytes"
 	"encoding/json"
+	"github.com/cossacklabs/acra/sqlparser/dialect"
+	"github.com/cossacklabs/acra/sqlparser/dialect/mysql"
+	"github.com/cossacklabs/acra/sqlparser/dialect/postgresql"
 	"reflect"
 	"strings"
 	"testing"
@@ -29,7 +32,7 @@ import (
 
 func TestAppend(t *testing.T) {
 	query := "select * from t where a = 1"
-	tree, err := Parse(query)
+	tree, err := New(ModeStrict).Parse(query)
 	if err != nil {
 		t.Error(err)
 	}
@@ -48,8 +51,33 @@ func TestAppend(t *testing.T) {
 	}
 }
 
+func TestParseQueryErrorExit(t *testing.T) {
+	query := "WITH test AS (SELECT * FROM t) SELECT * FROM t WHERE id < 20"
+
+	t.Run("parseQueryErrorExit - false", func(t *testing.T) {
+		statement, err := New(ModeDefault).Parse(query)
+		if err != nil {
+			t.Error(err)
+		}
+		if _, ok := statement.(NotParsedStatement); !ok {
+			t.Error("invalid statement type")
+		}
+	})
+
+	t.Run("parseQueryErrorExit - true", func(t *testing.T) {
+		statement, err := New(ModeStrict).Parse(query)
+		if err == nil {
+			t.Error(err)
+		}
+		if statement != nil {
+			t.Error("statement should be nil in case of parse query error")
+		}
+	})
+}
+
 func TestSelect(t *testing.T) {
-	tree, err := Parse("select * from t where a = 1")
+	parser := New(ModeStrict)
+	tree, err := parser.Parse("select * from t where a = 1")
 	if err != nil {
 		t.Error(err)
 	}
@@ -87,7 +115,7 @@ func TestSelect(t *testing.T) {
 	}
 
 	// OR clauses must be parenthesized.
-	tree, err = Parse("select * from t where a = 1 or b = 1")
+	tree, err = parser.Parse("select * from t where a = 1 or b = 1")
 	if err != nil {
 		t.Error(err)
 	}
@@ -115,7 +143,7 @@ func TestRemoveHints(t *testing.T) {
 		"select * from t use index (i)",
 		"select * from t force index (i)",
 	} {
-		tree, err := Parse(query)
+		tree, err := New(ModeStrict).Parse(query)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -132,12 +160,13 @@ func TestRemoveHints(t *testing.T) {
 }
 
 func TestAddOrder(t *testing.T) {
-	src, err := Parse("select foo, bar from baz order by foo")
+	parser := New(ModeStrict)
+	src, err := parser.Parse("select foo, bar from baz order by foo")
 	if err != nil {
 		t.Error(err)
 	}
 	order := src.(*Select).OrderBy[0]
-	dst, err := Parse("select * from t")
+	dst, err := New(ModeStrict).Parse("select * from t")
 	if err != nil {
 		t.Error(err)
 	}
@@ -148,7 +177,7 @@ func TestAddOrder(t *testing.T) {
 	if buf.String() != want {
 		t.Errorf("order: %q, want %s", buf.String(), want)
 	}
-	dst, err = Parse("select * from t union select * from s")
+	dst, err = parser.Parse("select * from t union select * from s")
 	if err != nil {
 		t.Error(err)
 	}
@@ -162,12 +191,14 @@ func TestAddOrder(t *testing.T) {
 }
 
 func TestSetLimit(t *testing.T) {
-	src, err := Parse("select foo, bar from baz limit 4")
+	parser := New(ModeStrict)
+
+	src, err := parser.Parse("select foo, bar from baz limit 4")
 	if err != nil {
 		t.Error(err)
 	}
 	limit := src.(*Select).Limit
-	dst, err := Parse("select * from t")
+	dst, err := parser.Parse("select * from t")
 	if err != nil {
 		t.Error(err)
 	}
@@ -178,7 +209,7 @@ func TestSetLimit(t *testing.T) {
 	if buf.String() != want {
 		t.Errorf("limit: %q, want %s", buf.String(), want)
 	}
-	dst, err = Parse("select * from t union select * from s")
+	dst, err = parser.Parse("select * from t union select * from s")
 	if err != nil {
 		t.Error(err)
 	}
@@ -228,126 +259,126 @@ func TestReplaceExpr(t *testing.T) {
 		in, out string
 	}{{
 		in:  "select * from t where (select a from b)",
-		out: ":a",
+		out: "?",
 	}, {
 		in:  "select * from t where (select a from b) and b",
-		out: ":a and b",
+		out: "? and b",
 	}, {
 		in:  "select * from t where a and (select a from b)",
-		out: "a and :a",
+		out: "a and ?",
 	}, {
 		in:  "select * from t where (select a from b) or b",
-		out: ":a or b",
+		out: "? or b",
 	}, {
 		in:  "select * from t where a or (select a from b)",
-		out: "a or :a",
+		out: "a or ?",
 	}, {
 		in:  "select * from t where not (select a from b)",
-		out: "not :a",
+		out: "not ?",
 	}, {
 		in:  "select * from t where ((select a from b))",
-		out: "(:a)",
+		out: "(?)",
 	}, {
 		in:  "select * from t where (select a from b) = 1",
-		out: ":a = 1",
+		out: "? = 1",
 	}, {
 		in:  "select * from t where a = (select a from b)",
-		out: "a = :a",
+		out: "a = ?",
 	}, {
 		in:  "select * from t where a like b escape (select a from b)",
-		out: "a like b escape :a",
+		out: "a like b escape ?",
 	}, {
 		in:  "select * from t where (select a from b) between a and b",
-		out: ":a between a and b",
+		out: "? between a and b",
 	}, {
 		in:  "select * from t where a between (select a from b) and b",
-		out: "a between :a and b",
+		out: "a between ? and b",
 	}, {
 		in:  "select * from t where a between b and (select a from b)",
-		out: "a between b and :a",
+		out: "a between b and ?",
 	}, {
 		in:  "select * from t where (select a from b) is null",
-		out: ":a is null",
+		out: "? is null",
 	}, {
 		// exists should not replace.
 		in:  "select * from t where exists (select a from b)",
 		out: "exists (select a from b)",
 	}, {
 		in:  "select * from t where a in ((select a from b), 1)",
-		out: "a in (:a, 1)",
+		out: "a in (?, 1)",
 	}, {
 		in:  "select * from t where a in (0, (select a from b), 1)",
-		out: "a in (0, :a, 1)",
+		out: "a in (0, ?, 1)",
 	}, {
 		in:  "select * from t where (select a from b) + 1",
-		out: ":a + 1",
+		out: "? + 1",
 	}, {
 		in:  "select * from t where 1+(select a from b)",
-		out: "1 + :a",
+		out: "1 + ?",
 	}, {
 		in:  "select * from t where -(select a from b)",
-		out: "-:a",
+		out: "-?",
 	}, {
 		in:  "select * from t where interval (select a from b) day",
-		out: "interval :a day",
+		out: "interval ? day",
 	}, {
 		in:  "select * from t where (select a from b) collate utf8",
-		out: ":a collate utf8",
+		out: "? collate utf8",
 	}, {
 		in:  "select * from t where func((select a from b), 1)",
-		out: "func(:a, 1)",
+		out: "func(?, 1)",
 	}, {
 		in:  "select * from t where func(1, (select a from b), 1)",
-		out: "func(1, :a, 1)",
+		out: "func(1, ?, 1)",
 	}, {
 		in:  "select * from t where group_concat((select a from b), 1 order by a)",
-		out: "group_concat(:a, 1 order by a asc)",
+		out: "group_concat(?, 1 order by a asc)",
 	}, {
 		in:  "select * from t where group_concat(1 order by (select a from b), a)",
-		out: "group_concat(1 order by :a asc, a asc)",
+		out: "group_concat(1 order by ? asc, a asc)",
 	}, {
 		in:  "select * from t where group_concat(1 order by a, (select a from b))",
-		out: "group_concat(1 order by a asc, :a asc)",
+		out: "group_concat(1 order by a asc, ? asc)",
 	}, {
 		in:  "select * from t where substr(a, (select a from b), b)",
-		out: "substr(a, :a, b)",
+		out: "substr(a, ?, b)",
 	}, {
 		in:  "select * from t where substr(a, b, (select a from b))",
-		out: "substr(a, b, :a)",
+		out: "substr(a, b, ?)",
 	}, {
 		in:  "select * from t where convert((select a from b), json)",
-		out: "convert(:a, json)",
+		out: "convert(?, json)",
 	}, {
 		in:  "select * from t where convert((select a from b) using utf8)",
-		out: "convert(:a using utf8)",
+		out: "convert(? using utf8)",
 	}, {
 		in:  "select * from t where match((select a from b), 1) against (a)",
-		out: "match(:a, 1) against (a)",
+		out: "match(?, 1) against (a)",
 	}, {
 		in:  "select * from t where match(1, (select a from b), 1) against (a)",
-		out: "match(1, :a, 1) against (a)",
+		out: "match(1, ?, 1) against (a)",
 	}, {
 		in:  "select * from t where match(1, a, 1) against ((select a from b))",
-		out: "match(1, a, 1) against (:a)",
+		out: "match(1, a, 1) against (?)",
 	}, {
 		in:  "select * from t where case (select a from b) when a then b when b then c else d end",
-		out: "case :a when a then b when b then c else d end",
+		out: "case ? when a then b when b then c else d end",
 	}, {
 		in:  "select * from t where case a when (select a from b) then b when b then c else d end",
-		out: "case a when :a then b when b then c else d end",
+		out: "case a when ? then b when b then c else d end",
 	}, {
 		in:  "select * from t where case a when b then (select a from b) when b then c else d end",
-		out: "case a when b then :a when b then c else d end",
+		out: "case a when b then ? when b then c else d end",
 	}, {
 		in:  "select * from t where case a when b then c when (select a from b) then c else d end",
-		out: "case a when b then c when :a then c else d end",
+		out: "case a when b then c when ? then c else d end",
 	}, {
 		in:  "select * from t where case a when b then c when d then c else (select a from b) end",
-		out: "case a when b then c when d then c else :a end",
+		out: "case a when b then c when d then c else ? end",
 	}}
 	to := NewValArg([]byte(":a"))
 	for _, tcase := range tcases {
-		tree, err := Parse(tcase.in)
+		tree, err := New(ModeStrict).Parse(tcase.in)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -633,6 +664,18 @@ func TestSplitStatementToPieces(t *testing.T) {
 		out := strings.Join(stmtPieces, ";")
 		if out != tcase.output {
 			t.Errorf("out: %s, want %s", out, tcase.output)
+		}
+	}
+}
+
+func TestEmptyQuery(t *testing.T) {
+	for _, dialect := range []dialect.Dialect{postgresql.NewPostgreSQLDialect(), mysql.NewANSIMySQLDialect(), mysql.NewMySQLDialect()} {
+		statement, err := ParseWithDialect(dialect, "")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, ok := statement.(EmptyStatement); !ok {
+			t.Fatal("Expects EmptyStatement")
 		}
 	}
 }

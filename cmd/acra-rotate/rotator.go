@@ -17,10 +17,11 @@ limitations under the License.
 package main
 
 import (
+	"context"
 	"encoding/hex"
 	"encoding/json"
-
-	acrawriter "github.com/cossacklabs/acra/acra-writer"
+	acrastruct2 "github.com/cossacklabs/acra/acrastruct"
+	"github.com/cossacklabs/acra/crypto"
 	"github.com/cossacklabs/acra/decryptor/base"
 	"github.com/cossacklabs/acra/keystore"
 	"github.com/cossacklabs/acra/utils"
@@ -28,13 +29,19 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
+// RotateStorageKeyStore enables storage key rotation. It is used by acra-rotate tool.
+type RotateStorageKeyStore interface {
+	keystore.StorageKeyCreation
+	keystore.DataEncryptorKeyStore
+}
+
 type keyRotator struct {
-	keystore    keystore.RotateStorageKeyStore
+	keystore    RotateStorageKeyStore
 	newKeypairs map[string]*keys.Keypair
 	zoneMode    bool
 }
 
-func newRotator(store keystore.RotateStorageKeyStore, zoneMode bool) (*keyRotator, error) {
+func newRotator(store RotateStorageKeyStore, zoneMode bool) (*keyRotator, error) {
 	return &keyRotator{keystore: store, newKeypairs: make(map[string]*keys.Keypair), zoneMode: zoneMode}, nil
 }
 func (rotator *keyRotator) getRotatedPublicKey(keyID []byte) (*keys.PublicKey, error) {
@@ -50,17 +57,29 @@ func (rotator *keyRotator) getRotatedPublicKey(keyID []byte) (*keys.PublicKey, e
 	return newKeypair.Public, nil
 }
 
-func (rotator *keyRotator) rotateAcrastructWithZone(zoneID, acrastruct []byte) ([]byte, error) {
+func (rotator *keyRotator) rotateAcrastructWithZone(zoneID, data []byte) ([]byte, error) {
 	logger := log.WithFields(log.Fields{"ZoneId": string(zoneID)})
 	logger.Infof("Rotate AcraStruct")
 	// rotate
-	privateKeys, err := rotator.keystore.GetZonePrivateKeys(zoneID)
+	handler, err := crypto.GetHandlerByEnvelopeID(crypto.AcraStructEnvelopeID)
 	if err != nil {
-		logger.WithField("acrastruct", hex.EncodeToString(acrastruct)).WithError(err).Errorln("Can't get private key")
+		log.WithError(err).Errorln("Can't load handler by envelope ID")
 		return nil, err
 	}
-	defer utils.ZeroizePrivateKeys(privateKeys)
-	decrypted, err := base.DecryptRotatedAcrastruct(acrastruct, privateKeys, zoneID)
+	accessContext := base.NewAccessContext(base.WithZoneMode(true))
+	accessContext.SetZoneID(zoneID)
+	dataContext := &base.DataProcessorContext{Keystore: rotator.keystore,
+		Context: base.SetAccessContextToContext(context.Background(), accessContext)}
+	acrastruct, envelopeID, err := crypto.DeserializeEncryptedData(data)
+	if err != nil {
+		logger.WithError(err).Errorln("Can't deserialize container")
+		return nil, err
+	}
+	if envelopeID != crypto.AcraStructEnvelopeID {
+		logger.WithField("envelope_id", envelopeID).WithError(err).Errorln("Incorrect envelope ID in container, not AcraStruct")
+		return nil, err
+	}
+	decrypted, err := handler.Decrypt(acrastruct, dataContext)
 	if err != nil {
 		logger.WithField("acrastruct", hex.EncodeToString(acrastruct)).WithError(err).Errorln("Can't decrypt AcraStruct")
 		return nil, err
@@ -71,9 +90,14 @@ func (rotator *keyRotator) rotateAcrastructWithZone(zoneID, acrastruct []byte) (
 		logger.WithField("acrastruct", hex.EncodeToString(acrastruct)).WithError(err).Errorln("Can't load public key")
 		return nil, err
 	}
-	rotated, err := acrawriter.CreateAcrastruct(decrypted, publicKey, zoneID)
+	rotated, err := acrastruct2.CreateAcrastruct(decrypted, publicKey, zoneID)
 	if err != nil {
 		logger.WithField("acrastruct", hex.EncodeToString(acrastruct)).WithError(err).Errorln("Can't rotate data")
+		return nil, err
+	}
+	rotated, err = crypto.SerializeEncryptedData(rotated, crypto.AcraStructEnvelopeID)
+	if err != nil {
+		logger.WithField("acrastruct", hex.EncodeToString(acrastruct)).WithError(err).Errorln("Can't serialize data")
 		return nil, err
 	}
 	return rotated, nil
@@ -86,17 +110,28 @@ func (rotator *keyRotator) rotateAcrastruct(id, acrastruct []byte) ([]byte, erro
 	return rotator.rotateAcrastructWithClientID(id, acrastruct)
 }
 
-func (rotator *keyRotator) rotateAcrastructWithClientID(clientID, acrastruct []byte) ([]byte, error) {
+func (rotator *keyRotator) rotateAcrastructWithClientID(clientID, data []byte) ([]byte, error) {
 	logger := log.WithFields(log.Fields{"KeyID": string(clientID)})
 	logger.Infof("Rotate AcraStruct")
 	// rotate
-	privateKeys, err := rotator.keystore.GetServerDecryptionPrivateKeys(clientID)
+	handler, err := crypto.GetHandlerByEnvelopeID(crypto.AcraStructEnvelopeID)
 	if err != nil {
-		logger.WithField("acrastruct", hex.EncodeToString(acrastruct)).WithError(err).Errorln("Can't get private key")
+		log.WithError(err).Errorln("Can't load handler by envelope ID")
 		return nil, err
 	}
-	defer utils.ZeroizePrivateKeys(privateKeys)
-	decrypted, err := base.DecryptRotatedAcrastruct(acrastruct, privateKeys, nil)
+	accessContext := base.NewAccessContext(base.WithClientID(clientID))
+	dataContext := &base.DataProcessorContext{Keystore: rotator.keystore,
+		Context: base.SetAccessContextToContext(context.Background(), accessContext)}
+	acrastruct, envelopeID, err := crypto.DeserializeEncryptedData(data)
+	if err != nil {
+		logger.WithError(err).Errorln("Can't deserialize container")
+		return nil, err
+	}
+	if envelopeID != crypto.AcraStructEnvelopeID {
+		logger.WithField("envelope_id", envelopeID).WithError(err).Errorln("Incorrect envelope ID in container, not AcraStruct")
+		return nil, err
+	}
+	decrypted, err := handler.Decrypt(acrastruct, dataContext)
 	if err != nil {
 		logger.WithField("acrastruct", hex.EncodeToString(acrastruct)).WithError(err).Errorln("Can't decrypt AcraStruct")
 		return nil, err
@@ -107,9 +142,14 @@ func (rotator *keyRotator) rotateAcrastructWithClientID(clientID, acrastruct []b
 		logger.WithField("acrastruct", hex.EncodeToString(acrastruct)).WithError(err).Errorln("Can't load public key")
 		return nil, err
 	}
-	rotated, err := acrawriter.CreateAcrastruct(decrypted, publicKey, nil)
+	rotated, err := acrastruct2.CreateAcrastruct(decrypted, publicKey, nil)
 	if err != nil {
 		logger.WithField("acrastruct", hex.EncodeToString(acrastruct)).WithError(err).Errorln("Can't rotate data")
+		return nil, err
+	}
+	rotated, err = crypto.SerializeEncryptedData(rotated, crypto.AcraStructEnvelopeID)
+	if err != nil {
+		logger.WithField("acrastruct", hex.EncodeToString(acrastruct)).WithError(err).Errorln("Can't serialize data")
 		return nil, err
 	}
 	return rotated, nil

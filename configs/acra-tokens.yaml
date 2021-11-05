@@ -1,0 +1,43 @@
+version: 0.90.0
+# path to config
+config_file: 
+
+# dump config
+dump_config: false
+
+# Generate with yaml config markdown text file with descriptions of all args
+generate_markdown_args_table: false
+
+# limit action to tokens accessed after specified date
+accessed_after: 
+
+# limit action to tokens accessed before specified date
+accessed_before: 
+
+# limit action to tokens created after specified date
+created_after: 
+
+# limit action to tokens created before specified date
+created_before: 
+
+# Number of Redis database for tokens
+redis_db_tokens: 0
+
+# <host>:<port> used to connect to Redis
+redis_host_port: 
+
+# Password to Redis database
+redis_password: 
+
+# path to BoltDB used for token data
+token_db: 
+
+# remove all requested tokens within specified date range, regardless of their state (enabled and disabled)
+all: false
+
+# do not actually remove tokens, only output status
+dry_run: false
+
+# remove only disabled tokens within specified date range
+only_disabled: false
+

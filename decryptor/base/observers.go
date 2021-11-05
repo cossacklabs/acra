@@ -18,6 +18,7 @@ package base
 
 import (
 	"context"
+	"github.com/cossacklabs/acra/encryptor/config"
 
 	"github.com/cossacklabs/acra/logging"
 	"github.com/cossacklabs/acra/sqlparser"
@@ -33,6 +34,7 @@ type OnQueryObject interface {
 // onQueryObject store result of QueryObserver.OnQuery call to reuse statements/queries between calls and do not parse/encode queries/statements
 type onQueryObject struct {
 	statement sqlparser.Statement
+	parser    *sqlparser.Parser
 	query     string
 }
 
@@ -41,7 +43,7 @@ func (obj *onQueryObject) Statement() (sqlparser.Statement, error) {
 	if obj.statement != nil {
 		return obj.statement, nil
 	}
-	return sqlparser.Parse(obj.query)
+	return obj.parser.Parse(obj.query)
 }
 
 // Query return stored query or encode statement to string
@@ -53,24 +55,28 @@ func (obj *onQueryObject) Query() string {
 }
 
 // NewOnQueryObjectFromStatement return OnQueryObject with Statement as value
-func NewOnQueryObjectFromStatement(stmt sqlparser.Statement) OnQueryObject {
-	return &onQueryObject{statement: stmt}
+func NewOnQueryObjectFromStatement(stmt sqlparser.Statement, parser *sqlparser.Parser) OnQueryObject {
+	return &onQueryObject{statement: stmt, parser: parser}
 }
 
 // NewOnQueryObjectFromQuery return OnQueryObject with query string as value
-func NewOnQueryObjectFromQuery(query string) OnQueryObject {
-	return &onQueryObject{query: query}
+func NewOnQueryObjectFromQuery(query string, parser *sqlparser.Parser) OnQueryObject {
+	return &onQueryObject{query: query, parser: parser}
 }
 
 // BoundValue is a value provided for prepared statement execution.
 // Its exact type and meaning depends on the corresponding query.
 type BoundValue interface {
-	Data() []byte
 	Format() BoundValueFormat
+	Copy() BoundValue
+	SetData(newData []byte, setting config.ColumnEncryptionSetting) error
+	GetData(setting config.ColumnEncryptionSetting) []byte
+	Encode() ([]byte, error)
+	GetType() byte
 }
 
 // BoundValueFormat specifies how to interpret the bound data.
-type BoundValueFormat int
+type BoundValueFormat uint16
 
 // Supported values of BoundValueFormat.
 const (
@@ -78,34 +84,14 @@ const (
 	BinaryFormat
 )
 
-type boundValue struct {
-	data   []byte
-	format BoundValueFormat
-}
-
-// Data of the bound value.
-func (v *boundValue) Data() []byte {
-	return v.data
-}
-
-// Format of the bound value data.
-func (v *boundValue) Format() BoundValueFormat {
-	return v.format
-}
-
-// NewBoundValue makes a standard BoundValue from value data.
-func NewBoundValue(data []byte, format BoundValueFormat) BoundValue {
-	return &boundValue{data, format}
-}
-
 // QueryObserver observes database queries and is able to modify them.
 // Methods should return "true" as their second bool result if the data has been modified.
 type QueryObserver interface {
 	ID() string
 	// Simple queries and prepared statements during preparation stage. SQL is modifiable.
-	OnQuery(data OnQueryObject) (OnQueryObject, bool, error)
+	OnQuery(ctx context.Context, data OnQueryObject) (OnQueryObject, bool, error)
 	// Prepared statement parameters during execution stage. Parameter values are modifiable.
-	OnBind(statement sqlparser.Statement, values []BoundValue) ([]BoundValue, bool, error)
+	OnBind(ctx context.Context, statement sqlparser.Statement, values []BoundValue) ([]BoundValue, bool, error)
 }
 
 // QueryObservable used to handle subscribers for new incoming queries
@@ -120,38 +106,38 @@ type QueryObserverManager interface {
 	QueryObservable
 }
 
-// ArrayQueryObserverableManager store all subscribed observes and call sequentially OnQuery on each observer
-type ArrayQueryObserverableManager struct {
+// ArrayQueryObservableManager store all subscribed observes and call sequentially OnQuery on each observer
+type ArrayQueryObservableManager struct {
 	subscribers []QueryObserver
 	logger      *logrus.Entry
 }
 
-// NewArrayQueryObserverableManager create new ArrayQueryObserverableManager
-func NewArrayQueryObserverableManager(ctx context.Context) (*ArrayQueryObserverableManager, error) {
-	return &ArrayQueryObserverableManager{logger: logging.GetLoggerFromContext(ctx)}, nil
+// NewArrayQueryObservableManager create new ArrayQueryObservableManager
+func NewArrayQueryObservableManager(ctx context.Context) (*ArrayQueryObservableManager, error) {
+	return &ArrayQueryObservableManager{logger: logging.GetLoggerFromContext(ctx)}, nil
 }
 
 // AddQueryObserver observer to array
-func (manager *ArrayQueryObserverableManager) AddQueryObserver(obs QueryObserver) {
+func (manager *ArrayQueryObservableManager) AddQueryObserver(obs QueryObserver) {
 	manager.subscribers = append(manager.subscribers, obs)
 }
 
 // RegisteredObserversCount return count of registered observers
-func (manager *ArrayQueryObserverableManager) RegisteredObserversCount() int {
+func (manager *ArrayQueryObservableManager) RegisteredObserversCount() int {
 	return len(manager.subscribers)
 }
 
 // ID returns name of this QueryObserver.
-func (manager *ArrayQueryObserverableManager) ID() string {
-	return "ArrayQueryObserverableManager"
+func (manager *ArrayQueryObservableManager) ID() string {
+	return "ArrayQueryObservableManager"
 }
 
 // OnQuery would be called for each added observer to manager
-func (manager *ArrayQueryObserverableManager) OnQuery(query OnQueryObject) (OnQueryObject, bool, error) {
+func (manager *ArrayQueryObservableManager) OnQuery(ctx context.Context, query OnQueryObject) (OnQueryObject, bool, error) {
 	currentQuery := query
 	changedQuery := false
 	for _, observer := range manager.subscribers {
-		newQuery, changed, err := observer.OnQuery(currentQuery)
+		newQuery, changed, err := observer.OnQuery(ctx, currentQuery)
 		if err != nil {
 			manager.logger.WithField("observer", observer.ID()).WithError(err).Errorln("OnQuery failed")
 			return query, false, err
@@ -165,11 +151,11 @@ func (manager *ArrayQueryObserverableManager) OnQuery(query OnQueryObject) (OnQu
 }
 
 // OnBind would be called for each added observer to manager.
-func (manager *ArrayQueryObserverableManager) OnBind(statement sqlparser.Statement, values []BoundValue) ([]BoundValue, bool, error) {
+func (manager *ArrayQueryObservableManager) OnBind(ctx context.Context, statement sqlparser.Statement, values []BoundValue) ([]BoundValue, bool, error) {
 	currentValues := values
 	changedValues := false
 	for _, observer := range manager.subscribers {
-		newValues, changedNow, err := observer.OnBind(statement, currentValues)
+		newValues, changedNow, err := observer.OnBind(ctx, statement, currentValues)
 		if err != nil {
 			return values, false, err
 		}
@@ -179,4 +165,43 @@ func (manager *ArrayQueryObserverableManager) OnBind(statement sqlparser.Stateme
 		}
 	}
 	return currentValues, changedValues, nil
+}
+
+// ClientIDObserver used to notify subscribers about changed ClientID in encryption/decryption context
+type ClientIDObserver interface {
+	OnNewClientID(clientID []byte)
+}
+
+//ClientIDObservable used to subscribe for clientID changes
+type ClientIDObservable interface {
+	AddClientIDObserver(ClientIDObserver)
+}
+
+// ClientIDObservableManager used to subscribe for clientID changes and notify about changes
+type ClientIDObservableManager interface {
+	ClientIDObservable
+	ClientIDObserver
+}
+
+// ArrayClientIDObservableManager store all subscribed observes and call sequentially OnQuery on each observer
+type ArrayClientIDObservableManager struct {
+	subscribers []ClientIDObserver
+	logger      *logrus.Entry
+}
+
+// NewArrayClientIDObservableManager create new ArrayClientIDObservableManager
+func NewArrayClientIDObservableManager(ctx context.Context) (*ArrayClientIDObservableManager, error) {
+	return &ArrayClientIDObservableManager{logger: logging.GetLoggerFromContext(ctx)}, nil
+}
+
+// AddClientIDObserver add new subscriber for clientID changes
+func (manager *ArrayClientIDObservableManager) AddClientIDObserver(observer ClientIDObserver) {
+	manager.subscribers = append(manager.subscribers, observer)
+}
+
+// OnNewClientID pass clientID to subscribers
+func (manager *ArrayClientIDObservableManager) OnNewClientID(clientID []byte) {
+	for _, subscriber := range manager.subscribers {
+		subscriber.OnNewClientID(clientID)
+	}
 }

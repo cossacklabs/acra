@@ -1,5 +1,164 @@
 # Acra ChangeLog
 
+## [0.90.0](https://github.com/cossacklabs/acra/releases/tag/0.90), November 05th 2021
+
+_New_:
+- **Updated documentation:**
+   
+   Acra's documentation is now open-source and updated for this release. Please find use cases, usage scenarios, data flows, descriptions of security controls, cryptography deep dive, scaling and load balancing, optimisations and many more. 
+   
+   Check out [the updated documentation](https://docs.cossacklabs.com/acra/what-is-acra/).
+- **Searchable encryption:**
+
+  Two components can provide searchable encryption functionality:
+  - **AcraServer** — transparent searchable encryption of fields marked as searchable in `encryptor_config` for `INSERT` and 
+    `UPDATE` queries, calculating hash and searching by hash for `SELECT` queries, with per column configuration.
+  - **AcraTranslator** — provides gRPC and HTTP API calls to encrypt data field into searchable form, and to generate 
+    searchable hash from the plaintext search query.
+
+  Read more details in the [Acra documentation](https://docs.cossacklabs.com/acra/security-controls/searchable-encryption/) 
+  section dedicated to Searchable encryption.
+
+- **Masking:**
+
+- **AcraServer** – provides masking functionality. It is transparent masking for `INSERT` and `UPDATE` queries, and transparent demasking for `SELECT` queries, 
+  with per column configuration.
+  Read more details in the [Acra documentation](https://docs.cossacklabs.com/acra/security-controls/masking/)
+  section dedicated to Masking.
+
+- **Tokenization (Pseudonymisation):**
+
+  Two components can provide tokenization functionality:
+  - **AcraServer** — transparent tokenization for INSERT and UPDATE queries, and transparent detokenization for SELECT queries, with per column configuration.
+  - **AcraTranslator** — provides gRPC and HTTP API to tokenize or detokenize the field.
+
+  Read more details in the [Acra documentation](https://docs.cossacklabs.com/acra/security-controls/tokenization/)
+  section dedicated to Tokenization.
+
+- **AcraBlock:**
+
+  AcraBlock is a symmetric cryptographic container and is faster and more compact than AcraStruct. It used on AcraServer side in 
+  transparent encryption, masking, tokenization, searchable encryption. 
+  
+  AcraTranslator supports AcraBlocks in encryption, searchable encryption and tokenization via gRPC and HTTP API.
+
+  Read more details in the [Acra documentation](https://docs.cossacklabs.com/acra/acra-in-depth/data-structures/acrablock/)
+  section dedicated to AcraBlock.
+
+- ** KeyStore v2**
+  Added new storage format for keys in KeyStore that cryptographically strong key integrity checks,
+  additional tracking metadata simplifying key management, KMS integrations.
+  Read more details in the [Acra documentation](https://docs.cossacklabs.com/acra/security-controls/key-management/versions/)
+  about difference between two versions.
+
+- **HashiCorp Vault integration:**
+
+  All Acra services that work with encryption/intermediate keys can load master key `ACRA_MASTER_KEY` from [HashiCorp Vault](https://www.vaultproject.io/). 
+  Previously was supported only environment variables.
+
+  Read more details on our [KMS integration](https://docs.cossacklabs.com/acra/configuring-maintaining/key-storing/kms-integration/) 
+  page in the documentation.
+
+_Core_:
+
+- **AcraServer**:
+  - We recommend using AcraServer in transparent encryption mode, connecting to it via TLS from application side. Use AcraServer with AcraBlocks for faster & more efficient configuration. AcraConnector and AcraWriter are optional components, and can be omitted.
+  
+  Read more details on our [Integrating AcraServer into infrastructure](https://docs.cossacklabs.com/acra/guides/integrating-acra-server-into-infrastructure/).
+
+  - Added prepared statements support for MySQL. Now all transparent operations over the data works with prepared 
+    statements too.
+  - Extended and refactored TLS related CLI parameters.
+    - `tls_client_id_from_cert` - switching to new mode with clientID extraction from certificates instead of handshakes
+      with AcraConnector or static mode with `--client_id` parameter.
+    - OCSP-related:
+      - `tls_ocsp_url`, `tls_ocsp_client_url`, `tls_ocsp_database_url` - URL of OCSP server to use, for `acra-server` may be configured separately for both directions.
+      - `tls_ocsp_required` - whether to allow "unknown" responses, whether to query all known OCSP servers (including those from certificate).
+      - `tls_ocsp_from_cert` - how to treat URL listed in certificate (use or ignore, whether to prioritize over configured URL).
+      - `tls_ocsp_check_only_leaf_certificate` - whether to stop validation after checking first certificate in chain (the one used for TLS handshake).
+    - CRL-related:
+      - `tls_crl_url`, `tls_crl_client_url`, `tls_crl_database_url` - URL of CRL distribution point to use, for `acra-server` may be configured separately for both directions.
+      - `tls_crl_from_cert` - how to treat URL listed in certificate (use or ignore, whether to prioritize over configured URL).
+      - `tls_crl_check_only_leaf_certificate` - whether to stop validation after checking first certificate in chain (the one used for TLS handshake).
+      - `tls_crl_cache_size` - how many CRLs to cache in memory.
+      - `tls_crl_cache_time` - how long cached CRL is considered valid and won't be re-fetched.
+
+    Separated parameters for connections accepted from application/AcraConnector or established to database with TLS:
+      - `acra-server`'s certificate: `tls_client_cert` and `tls_database_cert` (overrides `tls_cert`).
+      - `acra-server`'s key: `tls_client_key` and `tls_database_key` (overrides `tls_key`).
+      - CA certificate path: `tls_client_ca` and `tls_database_ca` (overrides `tls_ca`).
+      - TLS authentication: `tls_client_auth` and `tls_database_auth` (overrides `tls_auth`).
+  - Supports `RETURNING` syntax in SQL queries with proper decryption data in the response.
+  - `--sql_parse_on_error_exit_enable` new flag that force `acra-server` to stop query execution if can't parse SQL query. 
+    By default, it is `false`.
+  - Improved encryptor config validation.
+  - **Deprecated** `--acrastruct_wholecell_enable` and `--acrastruct_injectedcell_enable` flags and will be ignored. 
+    Now `acra-server` works as in InjectedCell mode.
+  - **Deprecated** `--tls_db_sni` parameter and replaced with `tls_database_sni`.
+
+- **AcraTranslator**:
+
+  - We recommend using AcraTranslator as gRPC or HTTP API, connecting to it via TLS from application side. Use AcraTranslator with AcraBlocks for faster & more efficient configuration. 
+  
+  Read more details on our [Integrating AcraTranslator into infrastructure](https://docs.cossacklabs.com/acra/guides/integrating-acra-translator-into-new-infrastructure/).
+  - `--acratranslator_client_id_from_connection_enable` flag turns on mapping TLS certificates to encryption keys with .
+  - Extended HTTP API as version 2 and gRPC API with supporting all new features like Searchable encryption, Tokenization, 
+    symmetric key encryption with AcraBLock and synchronized with gRPC API.
+  - HTTP API version 2 with OpenAPI and Swagger support.
+
+- **AcraServer, AcraTranslator**
+  - `audit_log_enable` - new parameter turns on cryptographically signed audit logging. Read more in the 
+    [Acra documentation](https://docs.cossacklabs.com/acra/security-controls/security-logging-and-events/audit-logging/).
+  - Support direct TLS connections from applications without AcraConnector. `acra-server` and `acra-translator` will map
+    client's certificates to proper encryption keys in KeyStore. 
+  - `tls_identifier_extractor_type` - new parameter that configures strategy of extraction metadata from certificates for mapping to clientID
+    (default: `distinguished_name`, another option: `serial_number`).
+
+- **AcraServer, AcraTranslator, AcraConnector**
+  - TLS certificate validation using OCSP and CRL. All services and tools that accepts incoming connections can be configured
+    with new rules of connection validation.
+    Read more details in the [Acra documentation](https://docs.cossacklabs.com/acra/configuring-maintaining/tls/)
+    section dedicated to TLS configuration.
+  - `--log_to_console` - parameter turns on\off logging to stderr.
+  - `--log_to_file` - parameter specify path to file for logs. May be used together with logging to stderr.
+
+- **AcraKeymaker**
+  New flags to generate new kind of keys for new features:
+  - `--generate_hmac_key` - flag turns on generation symmetric key for HMAC used in searchable encryption.
+  - `--generate_log_key` - flag turns on generation symmetric key for cryptographically signed audit logging.
+  - `--generate_symmetric_storage_key` - flag turns on generation symmetric key for encryption with AcraBlocks.
+  - `--keystore` - specify version of KeyStore. Now supported `v1` (default) and `v2` (new) versions.
+
+  New flags to generate encryption keys for TLS certificates:
+  - `--tls_cert` - specify client's TLS certificate to generate encryption keys. Should be used instead `--client_id` flag.
+  - `--tls_identifier_extractor_type` - switch type of ClientID extraction from TLS certificate. Supports 
+    `distinguished_name` (default) and `serial_number` values.
+
+- **AcraAddZone**
+  - `--fs_keystore_enable` now is deprecated and ignored.
+
+- **AcraTokens**
+  `acra-tokens` is a new command-line utility used for managing generated tokens with turned on tokenization. Tokens may be stored in BoltDB or Redis for now.
+  Read more details in the [Acra documentation](https://docs.cossacklabs.com/acra/configuring-maintaining/general-configuration/acra-tokens/).
+
+- **AcraBackup**
+  `acra-backup` is a command-line utility used for storing and managing the keystore backups. Also, it helps to migrate
+  keys from one KeyStore to another one by `export` + `import` operations.
+  Read more details in the Acra documentation on [acra-backup page](https://docs.cossacklabs.com/acra/configuring-maintaining/general-configuration/acra-backup/).
+
+- **AcraKeys**
+  `acra-keys` is a command-line utility used for different keys operations especially for v2 keystore. It consists of 
+  several subcommands each of which is responsible for a separate functionality.
+
+- **Other**
+  - Support of RHEL >= 7
+  - Build image use Debian 10 instead of Debian 9
+  - Configurable build and install parameters in Makefile (see `make help`)
+  - Self-documented Makefile
+  - Makefile `pkg` target with automatic detection of OS (use it instead of `rpm` and `deb`)
+  - Makefile targets `dist`, `temp_copy`
+  - `docker_push` target replaced with `docker-push`
+
 ## [0.85.0](https://github.com/cossacklabs/acra/releases/tag/0.85), March 15th 2018
 
 _Core_:

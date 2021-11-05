@@ -2,6 +2,7 @@ package postgresql
 
 import (
 	"context"
+	"github.com/cossacklabs/acra/sqlparser"
 	"io"
 	"net"
 	"testing"
@@ -17,6 +18,10 @@ import (
 type testDecryptor struct{}
 
 func (t testDecryptor) SetClientID([]byte) {
+	panic("implement me")
+}
+
+func (t testDecryptor) OnNewClientID([]byte) {
 	panic("implement me")
 }
 
@@ -76,22 +81,6 @@ func (t testDecryptor) GetPrivateKeys() ([]*keys.PrivateKey, error) {
 	panic("implement me")
 }
 
-func (t testDecryptor) TurnOnPoisonRecordCheck(bool) {
-	panic("implement me")
-}
-
-func (t testDecryptor) IsPoisonRecordCheckOn() bool {
-	panic("implement me")
-}
-
-func (t testDecryptor) SetPoisonCallbackStorage(*base.PoisonCallbackStorage) {
-	panic("implement me")
-}
-
-func (t testDecryptor) GetPoisonCallbackStorage() *base.PoisonCallbackStorage {
-	panic("implement me")
-}
-
 func (t testDecryptor) SetZoneMatcher(*zone.Matcher) {
 	panic("implement me")
 }
@@ -144,10 +133,6 @@ func (t testDecryptor) MatchZoneBlock([]byte) {
 	panic("implement me")
 }
 
-func (t testDecryptor) CheckPoisonRecord(reader io.Reader) (bool, error) {
-	panic("implement me")
-}
-
 func (t testDecryptor) BeginTagIndex([]byte) (int, int) {
 	panic("implement me")
 }
@@ -160,20 +145,14 @@ func (t testDecryptor) SetDataProcessor(processor base.DataProcessor) {
 	return
 }
 
-type decryptorFactory struct{}
-
-func (*decryptorFactory) New(clientID []byte) (base.Decryptor, error) {
-	return &testDecryptor{}, nil
-}
-
 type tableSchemaStore struct{ empty bool }
 
 func (*tableSchemaStore) GetTableSchema(tableName string) config.TableSchema {
 	panic("implement me")
 }
 
-func (store *tableSchemaStore) IsEmpty() bool {
-	return store.empty
+func (*tableSchemaStore) GetGlobalSettingsMask() config.SettingMask {
+	return config.SettingMask(0)
 }
 
 type stubSession struct{}
@@ -207,8 +186,9 @@ func (stubSession) SetProtocolState(state interface{}) {
 func TestEncryptorTurnOnOff(t *testing.T) {
 	emptyStore := &tableSchemaStore{true}
 	nonEmptyStore := &tableSchemaStore{false}
-	setting := base.NewProxySetting(&decryptorFactory{}, emptyStore, nil, nil, nil)
-	proxyFactory, err := NewProxyFactory(setting)
+	parser := sqlparser.New(sqlparser.ModeStrict)
+	setting := base.NewProxySetting(parser, emptyStore, nil, nil, nil, nil, false)
+	proxyFactory, err := NewProxyFactory(setting, nil, nil)
 	if err != nil {
 		t.Fatal(setting)
 	}
@@ -216,12 +196,12 @@ func TestEncryptorTurnOnOff(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if proxy.RegisteredObserversCount() > 0 {
+	if proxy.RegisteredObserversCount() > 1 {
 		t.Fatal("Unexpected observers count")
 	}
 
-	setting = base.NewProxySetting(&decryptorFactory{}, nonEmptyStore, nil, nil, nil)
-	proxyFactory, err = NewProxyFactory(setting)
+	setting = base.NewProxySetting(parser, nonEmptyStore, nil, nil, nil, nil, false)
+	proxyFactory, err = NewProxyFactory(setting, nil, nil)
 	if err != nil {
 		t.Fatal(setting)
 	}

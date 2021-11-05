@@ -28,12 +28,14 @@ import (
 	"database/sql"
 	"flag"
 	"fmt"
+	"github.com/cossacklabs/acra/acrastruct"
+	"github.com/cossacklabs/acra/keystore/keyloader"
+	"github.com/cossacklabs/acra/keystore/keyloader/hashicorp"
 	"os"
 	"path/filepath"
 	"strings"
 
 	"github.com/cossacklabs/acra/cmd"
-	"github.com/cossacklabs/acra/decryptor/base"
 	"github.com/cossacklabs/acra/keystore"
 	"github.com/cossacklabs/acra/keystore/filesystem"
 	keystoreV2 "github.com/cossacklabs/acra/keystore/v2/keystore"
@@ -168,6 +170,7 @@ func main() {
 	useMysql := flag.Bool("mysql_enable", false, "Handle MySQL connections")
 	usePostgresql := flag.Bool("postgresql_enable", false, "Handle Postgresql connections")
 
+	hashicorp.RegisterVaultCLIParameters()
 	logging.SetLogLevel(logging.LogVerbose)
 
 	err := cmd.Parse(defaultConfigPath, serviceName)
@@ -220,11 +223,17 @@ func main() {
 		os.Exit(1)
 	}
 
+	keyLoader, err := keyloader.GetInitializedMasterKeyLoader(hashicorp.GetVaultCLIParameters())
+	if err != nil {
+		log.WithError(err).Errorln("Can't initialize ACRA_MASTER_KEY loader")
+		os.Exit(1)
+	}
+
 	var keystorage keystore.DecryptionKeyStore
 	if filesystemV2.IsKeyDirectory(*keysDir) {
-		keystorage = openKeyStoreV2(*keysDir)
+		keystorage = openKeyStoreV2(*keysDir, keyLoader)
 	} else {
-		keystorage = openKeyStoreV1(*keysDir)
+		keystorage = openKeyStoreV1(*keysDir, keyLoader)
 	}
 
 	db, err := sql.Open(dbDriverName, *connectionString)
@@ -290,7 +299,7 @@ func main() {
 			}
 		}
 		defer utils.ZeroizePrivateKeys(privateKeys)
-		decrypted, err := base.DecryptRotatedAcrastruct(data, privateKeys, zone)
+		decrypted, err := acrastruct.DecryptRotatedAcrastruct(data, privateKeys, zone)
 		if err != nil {
 			log.WithError(err).Errorf("Can't decrypt acrastruct in row with number %v", i)
 			continue
@@ -302,8 +311,8 @@ func main() {
 	}
 }
 
-func openKeyStoreV1(keysDir string) keystore.DecryptionKeyStore {
-	masterKey, err := keystore.GetMasterKeyFromEnvironment()
+func openKeyStoreV1(keysDir string, loader keyloader.MasterKeyLoader) keystore.DecryptionKeyStore {
+	masterKey, err := loader.LoadMasterKey()
 	if err != nil {
 		log.WithError(err).Errorln("Cannot load master key")
 		os.Exit(1)
@@ -321,8 +330,8 @@ func openKeyStoreV1(keysDir string) keystore.DecryptionKeyStore {
 	return keystorage
 }
 
-func openKeyStoreV2(keyDirPath string) keystore.DecryptionKeyStore {
-	encryption, signature, err := keystoreV2.GetMasterKeysFromEnvironment()
+func openKeyStoreV2(keyDirPath string, loader keyloader.MasterKeyLoader) keystore.DecryptionKeyStore {
+	encryption, signature, err := loader.LoadMasterKeys()
 	if err != nil {
 		log.WithError(err).Errorln("Cannot load master key")
 		os.Exit(1)

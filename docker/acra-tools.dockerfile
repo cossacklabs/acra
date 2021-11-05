@@ -22,7 +22,7 @@ ARG BUILD_DATE
 LABEL org.label-schema.schema-version="1.0" \
     org.label-schema.vendor="Cossack Labs" \
     org.label-schema.url="https://cossacklabs.com" \
-    org.label-schema.name="AcraTools CE" \
+    org.label-schema.name="AcraTools" \
     org.label-schema.description="Acra helps you easily secure your databases in distributed, microservice-rich environments" \
     org.label-schema.version="$VERSION" \
     org.label-schema.vcs-url="$VCS_URL" \

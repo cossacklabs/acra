@@ -18,6 +18,8 @@ package mysql
 
 import (
 	"encoding/binary"
+	"errors"
+
 	"github.com/cossacklabs/acra/logging"
 	log "github.com/sirupsen/logrus"
 )
@@ -34,12 +36,68 @@ type ColumnDescription struct {
 	OrgName      []byte
 	Charset      uint16
 	ColumnLength uint32
-	Type         uint8
+	Type         Type
 	Flag         uint16
 	Decimal      uint8
 
 	DefaultValueLength uint64
 	DefaultValue       []byte
+}
+
+// MySQL prepared statement response errors
+var (
+	ErrPreparedStatementNotSupported = errors.New("prepared statements are not used by DB server")
+	ErrInvalidResponseLength         = errors.New("invalid prepared statement response format")
+)
+
+// PreparedStatementResponseLength MySQL prepared statement response packet length
+const PreparedStatementResponseLength = 12
+
+// PrepareStatementResponse used for handling MySQL prepared statement response
+// https://dev.mysql.com/doc/internals/en/com-stmt-prepare-response.html
+// status(1) + statement_id(4) + num_columns(2) + num_params(2) + reserved_1(1) + warning_count(2)
+// status is ignored because of status checking on ProxyDatabaseConnection
+type PrepareStatementResponse struct {
+	StatementID                       uint32
+	ColumnsNum, ParamsNum, WarningNum uint16
+	Reserved                          uint8
+}
+
+// ParsePrepareStatementResponse parse prepared statement from packet data
+func ParsePrepareStatementResponse(data []byte) (*PrepareStatementResponse, error) {
+	if len(data) != PreparedStatementResponseLength {
+		return nil, ErrInvalidResponseLength
+	}
+
+	resp := &PrepareStatementResponse{}
+
+	//skipping response
+	pos := 1
+
+	//statement-id
+	resp.StatementID = binary.LittleEndian.Uint32(data[pos:])
+	if resp.StatementID == 0 {
+		// if statement-id is equals to zero meant that prepared statement are disabled on DB server
+		// https://dev.mysql.com/doc/refman/8.0/en/sql-prepared-statements.html
+		return nil, ErrPreparedStatementNotSupported
+	}
+	pos += 4
+
+	//num_columns
+	resp.ColumnsNum = binary.LittleEndian.Uint16(data[pos:])
+	pos += 2
+
+	//num_params
+	resp.ParamsNum = binary.LittleEndian.Uint16(data[pos:])
+	pos += 2
+
+	//reserved_1
+	resp.Reserved = data[pos]
+	pos++
+
+	//warning_count_2
+	resp.WarningNum = binary.LittleEndian.Uint16(data[pos:])
+	return resp, nil
 }
 
 // ParseResultField parses binary field and returns ColumnDescription
@@ -105,7 +163,7 @@ func ParseResultField(data []byte) (*ColumnDescription, error) {
 	pos += 4
 
 	//type
-	field.Type = data[pos]
+	field.Type = Type(data[pos])
 	pos++
 
 	//flag
@@ -142,11 +200,6 @@ func ParseResultField(data []byte) (*ColumnDescription, error) {
 	return field, nil
 }
 
-// IsBinary true if field type is binary
-func (field *ColumnDescription) IsBinary() bool {
-	return IsBinaryColumn(field.Type)
-}
-
 // Dump https://dev.mysql.com/doc/internals/en/com-query-response.html#packet-Protocol::ColumnDefinition41
 func (field *ColumnDescription) Dump() []byte {
 	if field.data != nil && !field.changed {
@@ -179,7 +232,7 @@ func (field *ColumnDescription) Dump() []byte {
 
 	data = append(data, Uint16ToBytes(field.Charset)...)
 	data = append(data, Uint32ToBytes(field.ColumnLength)...)
-	data = append(data, field.Type)
+	data = append(data, byte(field.Type))
 	data = append(data, Uint16ToBytes(field.Flag)...)
 	data = append(data, field.Decimal)
 	// filler

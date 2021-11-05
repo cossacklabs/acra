@@ -33,11 +33,15 @@ import (
 	"github.com/cossacklabs/acra/cmd"
 	"github.com/cossacklabs/acra/keystore"
 	"github.com/cossacklabs/acra/keystore/filesystem"
+	"github.com/cossacklabs/acra/keystore/keyloader"
+	"github.com/cossacklabs/acra/keystore/keyloader/hashicorp"
 	keystoreV2 "github.com/cossacklabs/acra/keystore/v2/keystore"
 	filesystemV2 "github.com/cossacklabs/acra/keystore/v2/keystore/filesystem"
+	filesystemBackendV2 "github.com/cossacklabs/acra/keystore/v2/keystore/filesystem/backend"
 	"github.com/cossacklabs/acra/logging"
 	"github.com/cossacklabs/acra/poison"
 	"github.com/cossacklabs/acra/utils"
+
 	log "github.com/sirupsen/logrus"
 )
 
@@ -48,9 +52,19 @@ var (
 	serviceName       = "acra-poisonrecordmaker"
 )
 
+// Types of crypto envelope of poison records
+const (
+	RecordTypeAcraStruct = "acrastruct"
+	RecordTypeAcraBlock  = "acrablock"
+)
+
 func main() {
 	keysDir := flag.String("keys_dir", keystore.DefaultKeyDirShort, "Folder from which will be loaded keys")
 	dataLength := flag.Int("data_length", poison.UseDefaultDataLength, fmt.Sprintf("Length of random data for data block in acrastruct. -1 is random in range 1..%v", poison.DefaultDataLength))
+	recordType := flag.String("type", RecordTypeAcraStruct, fmt.Sprintf("Type of poison record: \"%s\" | \"%s\"\n", RecordTypeAcraStruct, RecordTypeAcraBlock))
+
+	cmd.RegisterRedisKeyStoreParameters()
+	hashicorp.RegisterVaultCLIParameters()
 
 	logging.SetLogLevel(logging.LogDiscard)
 
@@ -61,55 +75,101 @@ func main() {
 		os.Exit(1)
 	}
 
-	var store keystore.PoisonKeyStore
-	if filesystemV2.IsKeyDirectory(*keysDir) {
-		store = openKeyStoreV2(*keysDir)
-	} else {
-		store = openKeyStoreV1(*keysDir)
+	keyLoader, err := keyloader.GetInitializedMasterKeyLoader(hashicorp.GetVaultCLIParameters())
+	if err != nil {
+		log.WithError(err).Errorln("Can't initialize ACRA_MASTER_KEY loader")
+		os.Exit(1)
 	}
 
-	poisonRecord, err := poison.CreatePoisonRecord(store, *dataLength)
+	var store keystore.PoisonKeyStore
+	if filesystemV2.IsKeyDirectory(*keysDir) {
+		store = openKeyStoreV2(*keysDir, keyLoader)
+	} else {
+		store = openKeyStoreV1(*keysDir, keyLoader)
+	}
+	var poisonRecord []byte
+	switch *recordType {
+	case RecordTypeAcraStruct:
+		poisonRecord, err = poison.CreatePoisonRecord(store, *dataLength)
+	case RecordTypeAcraBlock:
+		poisonRecord, err = poison.CreateSymmetricPoisonRecord(store, *dataLength)
+	default:
+		log.Errorf("Incorrect type of record. Should be used \"%s\" or \"%s\"\n", RecordTypeAcraStruct, RecordTypeAcraBlock)
+		os.Exit(1)
+	}
 	if err != nil {
-		log.WithError(err).Errorln("can't create poison record")
+		log.WithError(err).Errorln("Can't create poison record")
 		os.Exit(1)
 	}
 	fmt.Println(base64.StdEncoding.EncodeToString(poisonRecord))
 }
 
-func openKeyStoreV1(keysDir string) keystore.PoisonKeyStore {
-	masterKey, err := keystore.GetMasterKeyFromEnvironment()
+func openKeyStoreV1(output string, loader keyloader.MasterKeyLoader) keystore.PoisonKeyStore {
+	masterKey, err := loader.LoadMasterKey()
 	if err != nil {
 		log.WithError(err).Errorln("Cannot load master key")
 		os.Exit(1)
 	}
 	scellEncryptor, err := keystore.NewSCellKeyEncryptor(masterKey)
 	if err != nil {
-		log.WithError(err).Errorln("can't init scell encryptor")
+		log.WithError(err).Errorln("Can't init scell encryptor")
 		os.Exit(1)
 	}
-	store, err := filesystem.NewFilesystemKeyStore(keysDir, scellEncryptor)
+	keyStore := filesystem.NewCustomFilesystemKeyStore()
+	keyStore.KeyDirectory(output)
+	keyStore.Encryptor(scellEncryptor)
+	redis := cmd.GetRedisParameters()
+	if redis.KeysConfigured() {
+		keyStorage, err := filesystem.NewRedisStorage(redis.HostPort, redis.Password, redis.DBKeys, nil)
+		if err != nil {
+			log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantInitKeyStore).
+				Errorln("Can't initialize Redis client")
+			os.Exit(1)
+		}
+		keyStore.Storage(keyStorage)
+	}
+	keyStoreV1, err := keyStore.Build()
 	if err != nil {
-		log.WithError(err).Errorln("can't initialize keystore")
+		log.WithError(err).Errorln("Can't init keystore")
 		os.Exit(1)
 	}
-	return store
+	return keyStoreV1
 }
 
-func openKeyStoreV2(keyDirPath string) keystore.PoisonKeyStore {
-	encryption, signature, err := keystoreV2.GetMasterKeysFromEnvironment()
+func openKeyStoreV2(keyDirPath string, loader keyloader.MasterKeyLoader) keystore.PoisonKeyStore {
+	encryption, signature, err := loader.LoadMasterKeys()
 	if err != nil {
 		log.WithError(err).Errorln("Cannot load master key")
 		os.Exit(1)
 	}
 	suite, err := keystoreV2.NewSCellSuite(encryption, signature)
 	if err != nil {
-		log.WithError(err).Error("failed to initialize Secure Cell crypto suite")
+		log.WithError(err).Error("Failed to initialize Secure Cell crypto suite")
 		os.Exit(1)
 	}
-	keyDir, err := filesystemV2.OpenDirectoryRW(keyDirPath, suite)
+	var backend filesystemBackendV2.Backend
+	redis := cmd.GetRedisParameters()
+	if redis.KeysConfigured() {
+		config := &filesystemBackendV2.RedisConfig{
+			RootDir: keyDirPath,
+			Options: redis.KeysOptions(),
+		}
+		backend, err = filesystemBackendV2.OpenRedisBackend(config)
+		if err != nil {
+			log.WithError(err).Error("Cannot connect to Redis keystore")
+			os.Exit(1)
+		}
+	} else {
+		backend, err = filesystemBackendV2.OpenDirectoryBackend(keyDirPath)
+		if err != nil {
+			log.WithError(err).Error("Cannot open key directory")
+			os.Exit(1)
+		}
+	}
+	keyDirectory, err := filesystemV2.CustomKeyStore(backend, suite)
 	if err != nil {
-		log.WithError(err).WithField("path", keyDirPath).Error("cannot open key directory")
+		log.WithError(err).Error("Failed to initialize key directory")
 		os.Exit(1)
 	}
-	return keystoreV2.NewServerKeyStore(keyDir)
+	return keystoreV2.NewServerKeyStore(keyDirectory)
 }

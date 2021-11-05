@@ -3,11 +3,12 @@ package grpc_api
 import (
 	"bytes"
 	"errors"
+	acrastruct2 "github.com/cossacklabs/acra/acrastruct"
+	"github.com/cossacklabs/acra/crypto"
+	"github.com/cossacklabs/acra/keystore"
 	"testing"
 
-	"github.com/cossacklabs/acra/acra-writer"
 	"github.com/cossacklabs/acra/cmd/acra-translator/common"
-	"github.com/cossacklabs/acra/decryptor/base"
 	"github.com/cossacklabs/acra/poison"
 	"github.com/cossacklabs/themis/gothemis/keys"
 	"golang.org/x/net/context"
@@ -16,9 +17,35 @@ import (
 type testKeystore struct {
 	PoisonKey         *keys.Keypair
 	EncryptionKeypair *keys.Keypair
+	UsedID            []byte
+}
+
+func (keystore *testKeystore) GenerateClientIDSymmetricKey(id []byte) error {
+	panic("implement me")
+}
+
+func (keystore *testKeystore) GenerateZoneIDSymmetricKey(id []byte) error {
+	panic("implement me")
+}
+
+func (keystore *testKeystore) GeneratePoisonRecordSymmetricKey() error {
+	panic("implement me")
+}
+
+func (keystore *testKeystore) ListKeys() ([]keystore.KeyDescription, error) {
+	panic("implement me")
+}
+
+func (keystore *testKeystore) GetPoisonSymmetricKeys() ([][]byte, error) {
+	panic("implement me")
+}
+
+func (*testKeystore) GetLogSecretKey() ([]byte, error) {
+	panic("implement me")
 }
 
 func (keystore *testKeystore) GetZonePrivateKeys(id []byte) ([]*keys.PrivateKey, error) {
+	keystore.UsedID = id
 	if keystore.EncryptionKeypair != nil {
 		return []*keys.PrivateKey{{Value: append([]byte{}, keystore.EncryptionKeypair.Private.Value...)}}, nil
 	}
@@ -32,16 +59,30 @@ func (keystore *testKeystore) GetServerDecryptionPrivateKeys(id []byte) ([]*keys
 	return nil, ErrKeyNotFound
 }
 
+func (keystore *testKeystore) GetHMACSecretKey(id []byte) ([]byte, error) {
+	panic("implement me")
+}
+
+func (keystore *testKeystore) GetClientIDSymmetricKeys(id []byte) ([][]byte, error) {
+	panic("implement me")
+}
+
+func (keystore *testKeystore) GetZoneIDSymmetricKeys(id []byte) ([][]byte, error) {
+	panic("implement me")
+}
+
 func (*testKeystore) RotateZoneKey(zoneID []byte) ([]byte, error) {
 	panic("implement me")
 }
 
-func (*testKeystore) GetPrivateKey(id []byte) (*keys.PrivateKey, error) {
-	panic("implement me")
+func (keystore *testKeystore) GetPrivateKey(id []byte) (*keys.PrivateKey, error) {
+	keystore.UsedID = id
+	return keystore.EncryptionKeypair.Private, nil
 }
 
-func (*testKeystore) GetPeerPublicKey(id []byte) (*keys.PublicKey, error) {
-	panic("implement me")
+func (keystore *testKeystore) GetPeerPublicKey(id []byte) (*keys.PublicKey, error) {
+	keystore.UsedID = id
+	return keystore.EncryptionKeypair.Public, nil
 }
 
 func (*testKeystore) SaveDataEncryptionKeys(id []byte, keypair *keys.Keypair) error {
@@ -124,6 +165,7 @@ func (keystore *testKeystore) GetZonePublicKey(zoneID []byte) (*keys.PublicKey, 
 }
 
 func (keystore *testKeystore) GetClientIDEncryptionPublicKey(clientID []byte) (*keys.PublicKey, error) {
+	keystore.UsedID = clientID
 	if keystore.EncryptionKeypair != nil {
 		return &keys.PublicKey{Value: keystore.EncryptionKeypair.Public.Value}, nil
 	}
@@ -149,35 +191,43 @@ func TestDecryptGRPCService_Decrypt(t *testing.T) {
 	clientID := []byte("test client")
 	data := []byte("data")
 	keystore := &testKeystore{}
+	if err := crypto.InitRegistry(keystore); err != nil {
+		t.Fatal(err)
+	}
 	poisonKeypair, err := keys.New(keys.TypeEC)
 	if err != nil {
 		t.Fatal(err)
 	}
 	keystore.PoisonKey = poisonKeypair
 
-	poisonCallbacks := base.NewPoisonCallbackStorage()
-	translatorData := &common.TranslatorData{PoisonRecordCallbacks: poisonCallbacks, Keystorage: keystore, CheckPoisonRecords: true}
-	service, err := NewDecryptGRPCService(translatorData)
+	poisonCallbacks := poison.NewCallbackStorage()
+	poisonCallbacks.AddCallback(poison.EmptyCallback{})
+	translatorData := &common.TranslatorData{PoisonRecordCallbacks: poisonCallbacks, Keystorage: keystore}
+	serviceImplementation, err := common.NewTranslatorService(translatorData, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	service, err := NewTranslatorService(serviceImplementation, translatorData, nil, keystore)
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	// check that clientID is required
 	response, err := service.Decrypt(ctx, &DecryptRequest{ClientId: nil, Acrastruct: nil})
-	if response != nil || err != ErrClientIDRequired {
-		t.Fatal("expected key not found error")
+	if response != nil || err != common.ErrClientIDRequired {
+		t.Fatalf("expected %s, took %s\n", common.ErrClientIDRequired, err)
 	}
 
 	// error if key not found by clientID
 	response, err = service.Decrypt(ctx, &DecryptRequest{ClientId: clientID, Acrastruct: nil})
-	if response != nil || err != ErrCantDecrypt {
-		t.Fatal("expected key not found error")
+	if response != nil || err != common.ErrCantDecrypt {
+		t.Fatalf("expected %s, took %s\n", common.ErrCantDecrypt, err)
 	}
 
 	// error if key not found by zone id
 	response, err = service.Decrypt(ctx, &DecryptRequest{ClientId: clientID, ZoneId: clientID, Acrastruct: nil})
-	if response != nil || err != ErrCantDecrypt {
-		t.Fatal("expected key not found error")
+	if response != nil || err != common.ErrCantDecrypt {
+		t.Fatalf("expected %s, took %s\n", common.ErrCantDecrypt, err)
 	}
 
 	// set key
@@ -190,7 +240,7 @@ func TestDecryptGRPCService_Decrypt(t *testing.T) {
 	}
 
 	// test without zone
-	acrastruct, err := acrawriter.CreateAcrastruct(data, keypair.Public, nil)
+	acrastruct, err := acrastruct2.CreateAcrastruct(data, keypair.Public, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -204,7 +254,7 @@ func TestDecryptGRPCService_Decrypt(t *testing.T) {
 
 	// test with zone
 	zoneID := clientID // use client id as zone id because no matter what to use
-	acrastruct, err = acrawriter.CreateAcrastruct(data, keypair.Public, zoneID)
+	acrastruct, err = acrastruct2.CreateAcrastruct(data, keypair.Public, zoneID)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -231,10 +281,17 @@ func TestDecryptGRPCService_Decrypt(t *testing.T) {
 	}
 
 	// check that we can turn off poison record detection
-	translatorData.CheckPoisonRecords = false
+	// create processor without callbacks
+	poisonCallbacks = poison.NewCallbackStorage()
+	translatorData.PoisonRecordCallbacks = poisonCallbacks
+	serviceImplementation, err = common.NewTranslatorService(translatorData, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	service.service = serviceImplementation
 	callback.Called = false // reset
 	response, err = service.Decrypt(ctx, &DecryptRequest{ClientId: clientID, ZoneId: zoneID, Acrastruct: poisonRecord})
-	if err != ErrCantDecrypt {
+	if err != common.ErrCantDecrypt {
 		t.Fatal(err)
 	}
 	if callback.Called {
@@ -247,14 +304,21 @@ func TestDecryptGRPCService_Encrypt(t *testing.T) {
 	clientID := []byte("test client")
 	data := []byte("data")
 	keystore := &testKeystore{}
+	if err := crypto.InitRegistry(keystore); err != nil {
+		t.Fatal(err)
+	}
 	encryptionKey, err := keys.New(keys.TypeEC)
 	if err != nil {
 		t.Fatal(err)
 	}
 	keystore.EncryptionKeypair = encryptionKey
 
-	translatorData := &common.TranslatorData{Keystorage: keystore, CheckPoisonRecords: false}
-	service, err := NewDecryptGRPCService(translatorData)
+	translatorData := &common.TranslatorData{Keystorage: keystore}
+	serviceImplementation, err := common.NewTranslatorService(translatorData, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	service, err := NewTranslatorService(serviceImplementation, translatorData, nil, keystore)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -264,7 +328,16 @@ func TestDecryptGRPCService_Encrypt(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	decrypted, err := base.DecryptAcrastruct(response.Acrastruct, encryptionKey.Private, nil)
+
+	internalContainer, envelopeID, err := crypto.DeserializeEncryptedData(response.Acrastruct)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if envelopeID != crypto.AcraStructEnvelopeID {
+		t.Fatal("invalid crypto envelope id")
+	}
+
+	decrypted, err := acrastruct2.DecryptAcrastruct(internalContainer, encryptionKey.Private, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -278,7 +351,14 @@ func TestDecryptGRPCService_Encrypt(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	decrypted, err = base.DecryptAcrastruct(response.Acrastruct, encryptionKey.Private, zoneID)
+	internalContainer, envelopeID, err = crypto.DeserializeEncryptedData(response.Acrastruct)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if envelopeID != crypto.AcraStructEnvelopeID {
+		t.Fatal("invalid crypto envelope id")
+	}
+	decrypted, err = acrastruct2.DecryptAcrastruct(internalContainer, encryptionKey.Private, zoneID)
 	if err != nil {
 		t.Fatal(err)
 	}

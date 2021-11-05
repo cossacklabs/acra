@@ -18,6 +18,8 @@ package filesystem
 
 import (
 	"errors"
+	"github.com/cossacklabs/acra/cmd"
+	"github.com/go-redis/redis/v7"
 	"runtime"
 	"strings"
 	"time"
@@ -68,13 +70,32 @@ func OpenDirectoryRW(rootDir string, cryptosuite *crypto.KeyStoreSuite) (api.Mut
 	return CustomKeyStore(backend, cryptosuite)
 }
 
-// IsKeyDirectory checks if the directory contains a keystore.
+// IsKeyDirectory checks if the directory contains a keystore version 2.
 // This is a conservative check.
 // That is, positive return value does not mean that the directory contains *a valid* keystore.
-// However, false value means that the directory definitely is not a valid keystore.
+// However, false value means that the directory is definitely not a valid keystore.
 // In particular, false is returned if the directory does not exists or cannot be opened.
-func IsKeyDirectory(rootDir string) bool {
-	return backend.CheckDirectoryVersion(rootDir) == nil
+func IsKeyDirectory(keyDirPath string) bool {
+	redisParams := cmd.GetRedisParameters()
+	if redisParams.KeysConfigured() {
+		redisClient, err := backend.OpenRedisBackend(&backend.RedisConfig{
+			RootDir: keyDirPath,
+			Options: &redis.Options{
+				Addr:     redisParams.HostPort,
+				Password: redisParams.Password,
+				DB:       redisParams.DBKeys,
+			},
+		})
+		if err != nil {
+			log.WithError(err).Debug("Failed to find keystore v2 in Redis")
+			return false
+		}
+		// If the keystore has been opened successfully, it definitely exists.
+		redisClient.Close()
+		return true
+	}
+	// Otherwise, check the local filesystem storage provided by Acra CE.
+	return backend.CheckDirectoryVersion(keyDirPath) == nil
 }
 
 // NewInMemory returns a new, empty in-memory keystore.

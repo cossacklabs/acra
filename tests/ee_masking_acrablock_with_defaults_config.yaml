@@ -1,0 +1,134 @@
+defaults:
+  crypto_envelope: acrablock
+
+schemas:
+  - table: test_masking
+    columns:
+      - id
+      - test
+    encrypted:
+      - column: test
+        masking: "xxxx"
+        plaintext_length: 4
+        plaintext_side: "right"
+  - table: test_masking_default_client_id
+    columns:
+      - id
+      - nullable
+      - empty
+      - masked_prefix
+      - masked_suffix
+      - masked_without_plaintext
+      - exact_plaintext_length
+      - shorter_plaintext
+
+    encrypted:
+      - column: masked_prefix
+        masking: "xxxx"
+        plaintext_length: 9
+        plaintext_side: "right"
+
+      - column: masked_suffix
+        masking: "xxxx"
+        plaintext_length: 9
+        plaintext_side: "left"
+
+      - column: masked_without_plaintext
+        masking: "xxxx"
+        plaintext_length: 0
+        plaintext_side: "left"
+
+      - column: exact_plaintext_length
+        masking: "xxxx"
+        plaintext_length: 10
+        plaintext_side: "left"
+
+      - column: shorter_plaintext
+        masking: "xxxx"
+        plaintext_length: 10
+        plaintext_side: "left"
+
+
+  - table: test_masking_specific_client_id
+    columns:
+      - id
+      - nullable
+      - empty
+      - masked_prefix
+      - masked_suffix
+      - masked_without_plaintext
+      - exact_plaintext_length
+      - shorter_plaintext
+
+    encrypted:
+      - column: masked_prefix
+        masking: "xxxx"
+        plaintext_length: 9
+        plaintext_side: "right"
+        client_id: keypair2
+
+      - column: masked_suffix
+        masking: "xxxx"
+        plaintext_length: 9
+        plaintext_side: "left"
+        client_id: keypair2
+
+      - column: masked_without_plaintext
+        masking: "xxxx"
+        plaintext_length: 0
+        plaintext_side: "left"
+        client_id: keypair2
+
+      - column: exact_plaintext_length
+        masking: "xxxx"
+        plaintext_length: 10
+        plaintext_side: "left"
+        client_id: keypair2
+
+      - column: shorter_plaintext
+        masking: "xxxx"
+        plaintext_length: 10
+        plaintext_side: "left"
+        client_id: keypair2
+
+  - table: test_masking_specific_zone_id
+    columns:
+      - id
+      - nullable
+      - empty
+      - masked_prefix
+      - masked_suffix
+      - masked_without_plaintext
+      - exact_plaintext_length
+      - shorter_plaintext
+
+    encrypted:
+      - column: masked_prefix
+        masking: "xxxx"
+        plaintext_length: 9
+        plaintext_side: "right"
+        zone_id: DDDDDDDDFOaTvAcGyqZPaqWQ
+
+      - column: masked_suffix
+        masking: "xxxx"
+        plaintext_length: 9
+        plaintext_side: "left"
+        zone_id: DDDDDDDDFOaTvAcGyqZPaqWQ
+
+      - column: masked_without_plaintext
+        masking: "xxxx"
+        plaintext_length: 0
+        plaintext_side: "left"
+        zone_id: DDDDDDDDFOaTvAcGyqZPaqWQ
+
+      - column: exact_plaintext_length
+        masking: "xxxx"
+        plaintext_length: 10
+        plaintext_side: "left"
+        zone_id: DDDDDDDDFOaTvAcGyqZPaqWQ
+
+      - column: shorter_plaintext
+        masking: "xxxx"
+        plaintext_length: 10
+        plaintext_side: "left"
+        zone_id: DDDDDDDDFOaTvAcGyqZPaqWQ

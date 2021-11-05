@@ -44,7 +44,7 @@ var (
 const (
 	// Deny certificates now known by OCSP server(s)
 	OcspRequiredDenyUnknownStr = "denyUnknown"
-	// Allow certificates now known by OCSP server(s)
+	// Allow certificates not known by OCSP server(s)
 	OcspRequiredAllowUnknownStr = "allowUnknown"
 	// Effect of denyUnknown + all available OCSP servers (the one from config
 	// and those listed in certificate) should respond, otherwise deny the certificate

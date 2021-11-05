@@ -44,6 +44,11 @@ const (
 	PurposeTransportServer     = "AcraServer transport key"
 	PurposeTransportConnector  = "AcraConnector transport key"
 	PurposeTransportTranslator = "AcraTranslator transport key"
+	PurposeAuditLog            = "audit log signature key"
+	PurposePoisonSym           = "poison record symmetric key"
+	PurposeStorageClientSym    = "client storage symmetric key"
+	PurposeStorageZoneSym      = "zone storage symmetric key"
+	PurposeSearchHMAC          = "encrypted search HMAC key"
 )
 
 // ServerKeyStore provides full access to Acra Keystore.
@@ -129,6 +134,19 @@ func (s *ServerKeyStore) DescribeKeyRing(path string) (*keystore.KeyDescription,
 		}, nil
 	}
 
+	if path == auditLogSymmetricKeyPath {
+		return &keystore.KeyDescription{
+			ID:      path,
+			Purpose: PurposeAuditLog,
+		}, nil
+	}
+	if path == poisonSymmetricKeyPath {
+		return &keystore.KeyDescription{
+			ID:      path,
+			Purpose: PurposePoisonSym,
+		}, nil
+	}
+
 	// Paths which are not server-global symmetric keys look like this:
 	//
 	//     client/${client_id}/storage
@@ -151,6 +169,27 @@ func (s *ServerKeyStore) DescribeKeyRing(path string) (*keystore.KeyDescription,
 			return &keystore.KeyDescription{
 				ID:      path,
 				Purpose: PurposeStorageZone,
+				ZoneID:  []byte(components[1]),
+			}, nil
+		}
+		if components[0] == clientPrefix && components[2] == hmacSymmetricSuffix {
+			return &keystore.KeyDescription{
+				ID:       path,
+				Purpose:  PurposeSearchHMAC,
+				ClientID: []byte(components[1]),
+			}, nil
+		}
+		if components[0] == clientPrefix && components[2] == storageSymmetricSuffix {
+			return &keystore.KeyDescription{
+				ID:       path,
+				Purpose:  PurposeStorageClientSym,
+				ClientID: []byte(components[1]),
+			}, nil
+		}
+		if components[0] == zonePrefix && components[2] == storageSymmetricSuffix {
+			return &keystore.KeyDescription{
+				ID:      path,
+				Purpose: PurposeStorageZoneSym,
 				ZoneID:  []byte(components[1]),
 			}, nil
 		}
