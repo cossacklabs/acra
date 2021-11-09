@@ -1,6 +1,6 @@
 # Acra ChangeLog
 
-## [0.90.0](https://github.com/cossacklabs/acra/releases/tag/0.90), November 05th 2021
+## [0.90.0](https://github.com/cossacklabs/acra/releases/tag/0.90.0), November 05th 2021
 
 _New_:
 - **Updated documentation:**
