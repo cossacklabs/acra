@@ -36,7 +36,7 @@ COPY docker/_scripts/acra-build/install_go.csums /image.scripts/
 RUN chmod +x /image.scripts/*.sh
 
 # Install Go
-RUN GO_VERSIONS='1.14.9 1.15.2 1.16.9' \
+RUN GO_VERSIONS='1.15.2 1.16.9 1.17.3' \
     GO_TARBALL_CLEAN=1 \
     /image.scripts/install_go.sh
 
