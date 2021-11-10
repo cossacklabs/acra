@@ -2,7 +2,7 @@ version: 2
 jobs:
   general_validation:
     docker:
-      - image: cossacklabs/ci-py-go-themis:0.90.0
+      - image: cossacklabs/ci-py-go-themis:latest
       - image: cossacklabs/vault-ssl:1.6.2
         command: server -dev -dev-root-token-id="root_token"
         environment:
