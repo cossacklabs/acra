@@ -1,15 +1,15 @@
+//go:build integration && vault
+// +build integration,vault
+
 package hashicorp
 
 import (
 	"encoding/base64"
 	"fmt"
 	"github.com/cossacklabs/acra/keystore/v2/keystore"
-	kv "github.com/hashicorp/vault-plugin-secrets-kv"
 	"github.com/hashicorp/vault/api"
-	"github.com/hashicorp/vault/http"
-	"github.com/hashicorp/vault/sdk/logical"
-	"github.com/hashicorp/vault/vault"
 	"github.com/stretchr/testify/assert"
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -20,8 +20,7 @@ type (
 	tearDownState func(t *testing.T)
 
 	testVaultManager struct {
-		client  *api.Client
-		cluster *vault.TestCluster
+		client *api.Client
 	}
 )
 
@@ -30,20 +29,28 @@ const AllowSleepCounts = 10
 func newTestVaultManager(t *testing.T) testVaultManager {
 	t.Helper()
 
-	coreConfig := &vault.CoreConfig{
-		LogicalBackends: map[string]logical.Factory{
-			"kv": kv.Factory,
-		},
+	config := api.DefaultConfig()
+	port, ok := os.LookupEnv("TEST_VAULT_PORT")
+	if !ok {
+		port = "8200"
 	}
-
-	cluster := vault.NewTestCluster(t, coreConfig, &vault.TestClusterOptions{
-		HandlerFunc: http.Handler,
-	})
-	cluster.Start()
+	host, ok := os.LookupEnv("TEST_VAULT_HOST")
+	if !ok {
+		host = "localhost"
+	}
+	config.Address = fmt.Sprintf("https://%s:%s", host, port)
+	if err := config.ConfigureTLS(&api.TLSConfig{Insecure: true}); err != nil {
+		t.Fatal(err)
+	}
+	config.Timeout = time.Millisecond * 100
+	client, err := api.NewClient(config)
+	if err != nil {
+		t.Fatalf("Failed to initialize Vault client: %v", err)
+	}
+	client.SetToken("root_token")
 
 	return testVaultManager{
-		client:  cluster.Cores[0].Client,
-		cluster: cluster,
+		client: client,
 	}
 }
 
@@ -108,7 +115,6 @@ func (vaultManager testVaultManager) putSecretByPath(path, keyID string, value i
 
 func TestVaultLoader(t *testing.T) {
 	vaultManager := newTestVaultManager(t)
-	defer vaultManager.cluster.Cleanup()
 
 	vaultLoader := VaultLoader{
 		client: vaultManager.client,

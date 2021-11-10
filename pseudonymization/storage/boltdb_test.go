@@ -1,3 +1,4 @@
+//go:build integration && boltdb
 // +build integration,boltdb
 
 /*

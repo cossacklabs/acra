@@ -2,23 +2,38 @@ version: 2
 jobs:
   general_validation:
     docker:
-      - image: cossacklabs/ci-py-go-themis:latest
+      - image: cossacklabs/ci-py-go-themis:0.90.0
+      - image: cossacklabs/vault-ssl:1.6.2
+        command: server -dev -dev-root-token-id="root_token"
+        environment:
+          VAULT_LOCAL_CONFIG: '{"listener": [{"tcp":{"address": "0.0.0.0:8201","tls_disable":"0", "tls_cert_file":"/data/vault-volume/vault_crt.pem", "tls_key_file":"/data/vault-volume/vault_key.pem"}}], "default_lease_ttl": "168h", "max_lease_ttl": "720h"}, "ui": true, "storage":{"file":{"path":"/vault/data"}}}'
+          VAULT_DEV_ROOT_TOKEN_ID: 'root_token'
+          VAULT_TOKEN: 'root_token'
+      - image: redis:6.0.16-alpine
     environment:
       FILEPATH_ERROR_FLAG: /tmp/test_fail
-      GO_VERSIONS: 1.14.9 1.15.2 1.16.9
+      GO_VERSIONS: 1.15.2 1.16.9 1.17.3
       TEST_DB_PORT: "5432"
       TEST_RANDOM_DATA_FOLDER: /tmp/test_data
       TEST_TLS: "on"
+      TEST_VAULT_PORT: 8201
     steps:
       # prepare
       - checkout
+      # HashiCorp Vault and Redis are neighbor containers and need some time to start
+      # wait for the containers to be reachable, up to 15 pings with 1 second interval
+      - run: NUM_PINGS=15 DELAY=1 .circleci/check_vault_connection.sh
+      - run: NUM_PINGS=15 DELAY=1 .circleci/check_redis_connection.sh
       # validation
       - run: .circleci/check_gofmt.sh
       - run: .circleci/check_configs.sh | tee /home/user/tests_output
       - run: .circleci/check_golint.sh
       - run: .circleci/check_misspell.sh
       - run: .circleci/check_ineffassign.sh
-      - run: .circleci/check_gotest.sh
+      - run:
+          command: .circleci/check_gotest.sh
+          environment:
+            - TEST_BUILD_TAGS: "integration,boltdb,redis,vault"
       # check python wrapper
       - run: PYTHONPATH=`pwd`/wrappers/python python3 wrappers/python/acrawriter/tests.py
 
@@ -41,7 +56,7 @@ jobs:
       TEST_DB_NAME: test
       TEST_DB_PORT: "5432"
       FILEPATH_ERROR_FLAG: /tmp/test_fail
-      GO_VERSIONS: 1.14.9 1.15.2 1.16.9
+      GO_VERSIONS: 1.15.2 1.16.9 1.17.3
       TEST_RANDOM_DATA_FOLDER: /tmp/test_data
       TEST_TLS: "on"
     steps:
@@ -87,7 +102,7 @@ jobs:
       TEST_DB_NAME: test
       TEST_DB_PORT: "5432"
       FILEPATH_ERROR_FLAG: /tmp/test_fail
-      GO_VERSIONS: 1.14.9 1.15.2 1.16.9
+      GO_VERSIONS: 1.15.2 1.16.9 1.17.3
       TEST_RANDOM_DATA_FOLDER: /tmp/test_data
       TEST_TLS: "off"
     steps:
@@ -138,7 +153,7 @@ jobs:
       TEST_DB_NAME: test
       TEST_DB_PORT: "5432"
       FILEPATH_ERROR_FLAG: /tmp/test_fail
-      GO_VERSIONS: 1.14.9 1.15.2 1.16.9
+      GO_VERSIONS: 1.15.2 1.16.9 1.17.3
       TEST_RANDOM_DATA_FOLDER: /tmp/test_data
       TEST_TLS: "off"
       TEST_WITH_VAULT: "on"
@@ -189,7 +204,7 @@ jobs:
       TEST_DB_NAME: test
       TEST_DB_PORT: "5432"
       FILEPATH_ERROR_FLAG: /tmp/test_fail
-      GO_VERSIONS: 1.14.9 1.15.2 1.16.9
+      GO_VERSIONS: 1.15.2 1.16.9 1.17.3
       TEST_RANDOM_DATA_FOLDER: /tmp/test_data
       TEST_TLS: "off"
       TEST_WITH_VAULT: "on"
@@ -289,7 +304,7 @@ jobs:
       TEST_DB_NAME: test
       TEST_DB_PORT: "3306"
       FILEPATH_ERROR_FLAG: /tmp/test_fail
-      GO_VERSIONS: 1.14.9 1.15.2 1.16.9
+      GO_VERSIONS: 1.15.2 1.16.9 1.17.3
       TEST_MYSQL: "true"
       TEST_MARIADB: "true"
       TEST_RANDOM_DATA_FOLDER: /tmp/test_data
@@ -387,7 +402,7 @@ jobs:
       TEST_DB_NAME: test
       TEST_DB_PORT: "3306"
       FILEPATH_ERROR_FLAG: /tmp/test_fail
-      GO_VERSIONS: 1.14.9 1.15.2 1.16.9
+      GO_VERSIONS: 1.15.2 1.16.9 1.17.3
       TEST_MYSQL: "true"
       TEST_RANDOM_DATA_FOLDER: /tmp/test_data
       TEST_TLS: "off"
