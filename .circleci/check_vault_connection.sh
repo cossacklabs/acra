@@ -19,5 +19,5 @@ for try in $(seq $NUM_PINGS); do
   fi
 done
 
-echo "Cannot reach the HashiCorp Vault at $TEST_TEST_VAULT_HOST"
+echo "Cannot reach the HashiCorp Vault at $TEST_VAULT_HOST"
 exit 1
