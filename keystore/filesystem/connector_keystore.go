@@ -24,7 +24,7 @@ import (
 	"github.com/cossacklabs/acra/keystore"
 	"github.com/cossacklabs/themis/gothemis/keys"
 
-	"github.com/prometheus/common/log"
+	log "github.com/sirupsen/logrus"
 )
 
 // ConnectorFileSystemKeyStore stores AcraConnector keys configuration

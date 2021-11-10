@@ -1,3 +1,4 @@
+//go:build integration && redis
 // +build integration,redis
 
 /*

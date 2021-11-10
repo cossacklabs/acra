@@ -6,6 +6,7 @@
 # https://github.com/golang/go/wiki/Modules#when-do-i-get-old-behavior-vs-new-module-based-behavior
 
 OLD_PATH="$PATH"
+TEST_BUILD_TAGS=${TEST_BUILD_TAGS:-}
 
 if [ -z "$GO_VERSIONS" ]; then
     # extract default Go version from $GOROOT
@@ -26,14 +27,14 @@ for go_version in $GO_VERSIONS; do
     echo "GOROOT=$GOROOT"
     echo "PATH=$PATH"
     
-    go test -v ./...;
+    go test -v -tags="${TEST_BUILD_TAGS}" ./...;
     status="$?"
     if [[ "${status}" != "0" ]]; then
         echo "$version-tls12" >> "$FILEPATH_ERROR_FLAG";
     fi
 
     # test with supported tls1.3
-    GODEBUG="tls13=1" go test -v github.com/cossacklabs/acra/...;
+    GODEBUG="tls13=1" go test -v -tags="${TEST_BUILD_TAGS}" github.com/cossacklabs/acra/...;
     status="$?"
     if [[ "${status}" != "0" ]]; then
         echo "$version-tls13" >> "$FILEPATH_ERROR_FLAG";

@@ -1,3 +1,10 @@
+## 0.90.0 - 2021-11-10
+### Changed
+- Golang's test `keystore/keyloader/hashicorp/vault_loader_test.go` runs with tags `--tags=integration,vault` with 
+  dependency on running external Vault instance
+- .circleci/check_gotest.sh runs integration tests with Redis, Vault and BoltDB using `--tags=integration,redis,vault,boltdb`
+  and expects running Vault and Redis instances
+
 ## 0.85.0 - 2021-04-30
 ### Added
 - Transparent searchable encryption with AcraBlocks as crypto envelope
