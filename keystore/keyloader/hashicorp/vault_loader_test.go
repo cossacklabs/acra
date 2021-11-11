@@ -24,17 +24,21 @@ type (
 	}
 )
 
-const AllowSleepCounts = 10
+const (
+	AllowSleepCounts = 10
+	VaultV1          = "V1"
+	VaultV2          = "V2"
+)
 
-func newTestVaultManager(t *testing.T) testVaultManager {
+func newTestVaultManager(t *testing.T, vaultVersion string) testVaultManager {
 	t.Helper()
 
 	config := api.DefaultConfig()
-	port, ok := os.LookupEnv("TEST_VAULT_PORT")
+	port, ok := os.LookupEnv(fmt.Sprintf("TEST_VAULT_PORT_%s", vaultVersion))
 	if !ok {
 		port = "8200"
 	}
-	host, ok := os.LookupEnv("TEST_VAULT_HOST")
+	host, ok := os.LookupEnv(fmt.Sprintf("TEST_VAULT_HOST_%s", vaultVersion))
 	if !ok {
 		host = "localhost"
 	}
@@ -114,7 +118,7 @@ func (vaultManager testVaultManager) putSecretByPath(path, keyID string, value i
 }
 
 func TestVaultLoaderV1Engine(t *testing.T) {
-	vaultManager := newTestVaultManager(t)
+	vaultManager := newTestVaultManager(t, VaultV1)
 
 	vaultLoader := VaultLoader{
 		client: vaultManager.client,
@@ -191,7 +195,7 @@ func TestVaultLoaderV1Engine(t *testing.T) {
 }
 
 func TestVaultLoaderV2Engine(t *testing.T) {
-	vaultManager := newTestVaultManager(t)
+	vaultManager := newTestVaultManager(t, VaultV2)
 
 	vaultLoader := VaultLoader{
 		client: vaultManager.client,
