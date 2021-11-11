@@ -21,6 +21,7 @@ services:
             --generate_acraconnector_keys
             --keys_output_dir=/keys/acra-connector
             --keys_public_output_dir=/keys/acra-translator
+            --keystore=v1
     # Create keys:
     # - ./.acrakeys/acra-connector/${ACRA_CLIENT_ID}_translator.pub
     # - ./.acrakeys/acra-translator/${ACRA_CLIENT_ID}_translator
@@ -36,6 +37,7 @@ services:
             --generate_acratranslator_keys
             --keys_output_dir=/keys/acra-translator
             --keys_public_output_dir=/keys/acra-connector
+            --keystore=v1
     # Create keys:
     # - ./.acrakeys/acra-translator/${ACRA_CLIENT_ID}_storage
     # - ./.acrakeys/acra-writer/${ACRA_CLIENT_ID}_storage.pub
@@ -51,6 +53,7 @@ services:
             --generate_acrawriter_keys
             --keys_output_dir=/keys/acra-translator
             --keys_public_output_dir=/keys/acra-writer
+            --keystore=v1
 
     acra-translator:
         image: "cossacklabs/acra-translator:${ACRA_DOCKER_IMAGE_TAG:-latest}"

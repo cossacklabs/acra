@@ -73,7 +73,7 @@ ENV PATH="$PATH:/usr/local/lib/go/latest/bin"
 ENV PATH_ACRA="/acra"
 COPY ./ "${PATH_ACRA}/"
 # Fetch all dependencies and build all binaries in acra
-RUN cd "${PATH_ACRA}" && go install ./cmd/...
+RUN cd "${PATH_ACRA}" && go install -tags netgo ./cmd/...
 
 # Copy each product and its dependencies to resulting directories
 RUN for component in authmanager connector keymaker server tools translator webconfig; do \
