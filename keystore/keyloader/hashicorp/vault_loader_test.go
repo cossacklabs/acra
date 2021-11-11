@@ -46,7 +46,7 @@ func newTestVaultManager(t *testing.T, vaultVersion string) testVaultManager {
 	if err := config.ConfigureTLS(&api.TLSConfig{Insecure: true}); err != nil {
 		t.Fatal(err)
 	}
-	config.Timeout = time.Millisecond * 100
+	config.Timeout = time.Millisecond * 500
 	client, err := api.NewClient(config)
 	if err != nil {
 		t.Fatalf("Failed to initialize Vault client: %v", err)
