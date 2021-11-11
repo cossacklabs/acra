@@ -1007,7 +1007,7 @@ class KeyMakerTest(unittest.TestCase):
             subprocess.check_output(
                 ['./acra-keymaker', '--keystore={}'.format(KEYSTORE_VERSION),
                  '--keys_output_dir={}'.format(folder),
-                 '--client_id=""',
+                 "--client_id=''",
                  '--generate_poisonrecord_keys',
                  '--generate_log_key',
                  '--generate_acrawebconfig_keys',
@@ -1018,7 +1018,7 @@ class KeyMakerTest(unittest.TestCase):
                 subprocess.check_output(
                     ['./acra-keymaker', '--keystore={}'.format(KEYSTORE_VERSION),
                      '--keys_output_dir={}'.format(folder),
-                     '--client_id=''',
+                     "--client_id=''",
                      '--generate_acratranslator_keys',
                      '--keys_public_output_dir={}'.format(folder)])
 
