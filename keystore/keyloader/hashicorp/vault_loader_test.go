@@ -70,24 +70,6 @@ func (vaultManager testVaultManager) mountKVEngine(path, version string) (tearDo
 		return nil, err
 	}
 
-	var sleepCounts int
-	//Hashicorp Vault need some time to switch between secrets engines which may produce some fantom tests failures.
-	//* Upgrading from non-versioned to versioned data. This backend will be unavailable for a brief period and will resume service shortly.
-	for {
-		// Health - return code 400 or above it will automatically turn into an error,
-		_, err := vaultManager.client.Sys().Health()
-		if err == nil {
-			break
-		}
-
-		if sleepCounts == AllowSleepCounts {
-			return nil, fmt.Errorf("to many sleep counts - max value reached %d", AllowSleepCounts)
-		}
-
-		time.Sleep(time.Millisecond * 100)
-		sleepCounts++
-	}
-
 	return func(t *testing.T) {
 		if err := vaultManager.client.Sys().Unmount(path); err != nil {
 			t.Fatal(err)
