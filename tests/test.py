@@ -1001,6 +1001,27 @@ class KeyMakerTest(unittest.TestCase):
                      '--keys_public_output_dir={}'.format(folder)],
                     env=random_keys(key_size * 2))
 
+    def test_gen_keys_with_empty_client_id(self):
+        #keys not needed client_id for generation
+        with tempfile.TemporaryDirectory() as folder:
+            subprocess.check_output(
+                ['./acra-keymaker', '--keystore={}'.format(KEYSTORE_VERSION),
+                 '--keys_output_dir={}'.format(folder),
+                 '--client_id=""',
+                 '--generate_poisonrecord_keys',
+                 '--generate_log_key',
+                 '--generate_acrawebconfig_keys',
+                 '--keys_public_output_dir={}'.format(folder)])
+
+        with tempfile.TemporaryDirectory() as folder:
+            with self.assertRaises(subprocess.CalledProcessError) as exc:
+                subprocess.check_output(
+                    ['./acra-keymaker', '--keystore={}'.format(KEYSTORE_VERSION),
+                     '--keys_output_dir={}'.format(folder),
+                     '--client_id=''',
+                     '--generate_acratranslator_keys',
+                     '--keys_public_output_dir={}'.format(folder)])
+
 
 class PrometheusMixin(object):
     _prometheus_addresses_field_name = 'prometheus_addresses'

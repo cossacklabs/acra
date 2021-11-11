@@ -81,10 +81,7 @@ func main() {
 			Errorln("Can't parse args")
 		os.Exit(1)
 	}
-	if len(*clientID) != 0 && *tlsClientCert != "" {
-		log.Errorln("You can either specify identifier for keys via specific clientID by --client_id parameter or via TLS certificate by --tls_cert parameter.")
-		os.Exit(1)
-	}
+
 	if len(*clientID) == 0 && *tlsClientCert != "" {
 		idConverter, err := network.NewDefaultHexIdentifierConverter()
 		if err != nil {
@@ -124,7 +121,10 @@ func main() {
 		*clientID = string(tlsClientID)
 	}
 
-	cmd.ValidateClientID(*clientID)
+	// all keys required clientID for generation
+	if *acraConnector || *acraServer || *acraTranslator || *dataKeys || *hmac || *symStorageKey {
+		cmd.ValidateClientID(*clientID)
+	}
 
 	if *masterKey != "" {
 		var newKey []byte
