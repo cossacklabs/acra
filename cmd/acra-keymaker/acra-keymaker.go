@@ -82,6 +82,11 @@ func main() {
 		os.Exit(1)
 	}
 
+	if len(*clientID) != 0 && *tlsClientCert != "" {
+		log.Errorln("You can either specify identifier for keys via specific clientID by --client_id parameter or via TLS certificate by --tls_cert parameter.")
+		os.Exit(1)
+	}
+
 	if len(*clientID) == 0 && *tlsClientCert != "" {
 		idConverter, err := network.NewDefaultHexIdentifierConverter()
 		if err != nil {
@@ -251,6 +256,8 @@ func main() {
 	}
 
 	if !(*acraConnector || *acraServer || *acraTranslator || *dataKeys || *basicauth || *hmac || *poisonRecord || *symStorageKey || *logKey) {
+		cmd.ValidateClientID(*clientID)
+
 		err = store.GenerateConnectorKeys([]byte(*clientID))
 		if err != nil {
 			panic(err)
