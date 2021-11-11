@@ -3,7 +3,9 @@
 - Golang's test `keystore/keyloader/hashicorp/vault_loader_test.go` runs with tags `--tags=integration,vault` with 
   dependency on running external Vault instance
 - .circleci/check_gotest.sh runs integration tests with Redis, Vault and BoltDB using `--tags=integration,redis,vault,boltdb`
-  and expects running Vault and Redis instances
+  and expects running Vault and Redis 
+- actualize docker-compose files from `docker` directory with new Docker images/updated `acra-build` Dockerfile to build all Acra
+  binaries with `netgo` resolver
 
 ## 0.85.0 - 2021-04-30
 ### Added

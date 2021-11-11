@@ -158,7 +158,7 @@ def read_zone_public_key(zone_id, keys_dir='.acrakeys'):
 
 
 def deserialize_crypto_envelope_with_acrastruct(data):
-    if data[:3] == b'%%%' and data[3] != ord('%'):
+    if data[:3] == b'%%%':
         crypto_id = data[8+3]
         if crypto_id != 0xF1:
             raise ValueError("invalid CryptoEnvelope with AcraStruct")

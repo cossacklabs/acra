@@ -25,6 +25,7 @@ services:
             --generate_acraserver_keys
             --keys_output_dir=/keys/acra-server
             --keys_public_output_dir=/keys/acra-connector
+            --keystore=v1
     # Create keys:
     # - ./.acrakeys/acra-connector/${ACRA_CLIENT_ID}
     # - ./.acrakeys/acra-server/${ACRA_CLIENT_ID}.pub
@@ -40,6 +41,7 @@ services:
             --generate_acraconnector_keys
             --keys_output_dir=/keys/acra-connector
             --keys_public_output_dir=/keys/acra-server
+            --keystore=v1
     # Create keys:
     # - ./.acrakeys/acra-server/${ACRA_CLIENT_ID}_storage
     # - ./.acrakeys/acra-writer/${ACRA_CLIENT_ID}_storage.pub
@@ -55,6 +57,7 @@ services:
             --generate_acrawriter_keys
             --keys_output_dir=/keys/acra-server
             --keys_public_output_dir=/keys/acra-writer
+            --keystore=v1
 
     # Postgresql container
     postgresql:
