@@ -5,16 +5,8 @@ jobs:
       - image: cossacklabs/ci-py-go-themis:latest
       - image: cossacklabs/vault-ssl:1.6.2
         command: server -dev -dev-root-token-id="root_token"
-        name: vault-v1
         environment:
-          VAULT_LOCAL_CONFIG: '{"listener": [{"tcp":{"address": "0.0.0.0:8202","tls_disable":"0", "tls_cert_file":"/data/vault-volume/vault_crt.pem", "tls_key_file":"/data/vault-volume/vault_key.pem"}}], "default_lease_ttl": "168h", "max_lease_ttl": "720h"}, "ui": true, "storage":{"file":{"path":"/vault/data"}}}'
-          VAULT_DEV_ROOT_TOKEN_ID: 'root_token'
-          VAULT_TOKEN: 'root_token'
-      - image: cossacklabs/vault-ssl:1.6.2
-        name: vault-v2
-        command: server -dev -dev-root-token-id="root_token"
-        environment:
-          VAULT_LOCAL_CONFIG: '{"listener": [{"tcp":{"address": "0.0.0.0:8203","tls_disable":"0", "tls_cert_file":"/data/vault-volume/vault_crt.pem", "tls_key_file":"/data/vault-volume/vault_key.pem"}}], "default_lease_ttl": "168h", "max_lease_ttl": "720h"}, "ui": true, "storage":{"file":{"path":"/vault/data"}}}'
+          VAULT_LOCAL_CONFIG: '{"listener": [{"tcp":{"address": "0.0.0.0:8201","tls_disable":"0", "tls_cert_file":"/data/vault-volume/vault_crt.pem", "tls_key_file":"/data/vault-volume/vault_key.pem"}}], "default_lease_ttl": "168h", "max_lease_ttl": "720h"}, "ui": true, "storage":{"file":{"path":"/vault/data"}}}'
           VAULT_DEV_ROOT_TOKEN_ID: 'root_token'
           VAULT_TOKEN: 'root_token'
       - image: redis:6.0.16-alpine
@@ -24,17 +16,14 @@ jobs:
       TEST_DB_PORT: "5432"
       TEST_RANDOM_DATA_FOLDER: /tmp/test_data
       TEST_TLS: "on"
-      TEST_VAULT_PORT_V1: 8202
-      TEST_VAULT_HOST_V1: vault-v1
-      TEST_VAULT_PORT_V2: 8203
-      TEST_VAULT_HOST_V2: vault-v2
+      TEST_VAULT_PORT: 8201
+      TEST_VAULT_HOST: localhost
     steps:
       # prepare
       - checkout
       # HashiCorp Vault and Redis are neighbor containers and need some time to start
       # wait for the containers to be reachable, up to 15 pings with 1 second interval
-      - run: NUM_PINGS=15 DELAY=1 TEST_VAULT_PORT=8202 TEST_VAULT_HOST=vault-v1 .circleci/check_vault_connection.sh
-      - run: NUM_PINGS=15 DELAY=1 TEST_VAULT_PORT=8203 TEST_VAULT_HOST=vault-v2 .circleci/check_vault_connection.sh
+      - run: NUM_PINGS=15 DELAY=1 .circleci/check_vault_connection.sh
       - run: NUM_PINGS=15 DELAY=1 .circleci/check_redis_connection.sh
       # validation
       - run: .circleci/check_gofmt.sh
