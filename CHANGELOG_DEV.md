@@ -1,3 +1,13 @@
+## 0.90.0 - 2021-11-12
+### Removed
+- `acra-webconfig` package, related dockerfiles, updated docker-compose files.
+- `acra-authmanager`.
+- `--generate_acrawebconfig_keys` flag from `acra-keymaker`.
+- `--acrawebconfig_symmetric_key` flag from `acra-keys generate` command.
+- `--auth_keys` parameter from `acra-server`.
+- `/loadAuthData`, `/getConfig`, `/setConfig` endpoints from `acra-server`'s HTTP API.
+- `WebConfigKeyStore` interface and all implementations from `keystore` package (v1 and v2).
+
 ## 0.90.0 - 2021-11-10
 ### Changed
 - Golang's test `keystore/keyloader/hashicorp/vault_loader_test.go` runs with tags `--tags=integration,vault` with 
