@@ -59,23 +59,6 @@ services:
             --keys_public_output_dir=/keys/acra-writer
             --keystore=v1
 
-    # Create file with accounts for HTTP access and key for decrypt it
-    # - ./.acrakeys/acra-server/httpauth.accounts
-    # - ./.acrakeys/acra-server/auth_key
-    acra-authmanager:
-        image: "cossacklabs/acra-authmanager:${ACRA_DOCKER_IMAGE_TAG:-latest}"
-        network_mode: "none"
-        environment:
-            ACRA_MASTER_KEY: ${ACRA_SERVER_MASTER_KEY:-N0MyZEVCRGY1cHA4ODRSVHp3c3BNeGtDekxaV3BhTHI=}
-        volumes:
-            - ./.acrakeys:/keys
-        command: >-
-            --set
-            --user=${ACRA_HTTPAUTH_USER:-test}
-            --password=${ACRA_HTTPAUTH_PASSWORD:-test}
-            --file=/keys/acra-server/httpauth.accounts
-            --keys_dir=/keys/acra-server/
-
     # MySQL container
     mysql:
         image: mariadb:10.5
@@ -104,7 +87,6 @@ services:
             - acra-keymaker_server
             - acra-keymaker_connector
             - acra-keymaker_writer
-            - acra-authmanager
             - mysql
         environment:
             ACRA_MASTER_KEY: ${ACRA_SERVER_MASTER_KEY:-N0MyZEVCRGY1cHA4ODRSVHp3c3BNeGtDekxaV3BhTHI=}
@@ -126,7 +108,6 @@ services:
             --db_host=mysql
             --db_port=3306
             --keys_dir=/keys
-            --auth_keys=/keys/httpauth.accounts
             --http_api_enable
             --incoming_connection_api_string=tcp://0.0.0.0:9090
             --config_file=/config/acra-server.yaml
@@ -147,11 +128,9 @@ services:
             ACRA_MASTER_KEY: ${ACRA_CONNECTOR_MASTER_KEY:-MElBVnhEeTd3b29JMFVVcnhGMXJPT3BxZUVwWW5wS3E=}
         # We use internal networks:
         # - 'connector-server' - for interconnection with AcraServer
-        # - 'webconfig-connector' - for interconnection with AcraWebconfig
-        # and external network 'world' for port exposing
+        # - external network 'world' for port exposing
         networks:
             - connector-server
-            - webconfig-connector
             - world
         volumes:
             # Mount the directory with only the keys for this service
@@ -165,31 +144,9 @@ services:
             --incoming_connection_api_string=tcp://0.0.0.0:9191
             -v
 
-    # Optional lightweight HTTP web server for managing AcraServer's
-    # certain configuration options
-    acra-webconfig:
-        image: "cossacklabs/acra-webconfig:${ACRA_DOCKER_IMAGE_TAG:-latest}"
-        restart: on-failure
-        depends_on:
-            - acra-connector
-        # Open the port outside for client application
-        ports:
-            - "8000:8000"
-        # We use internal 'webconfig-connector' network for AcraConnector and
-        # AcraWebconfig interconnection and external network 'world' for
-        # port exposing
-        networks:
-            - webconfig-connector
-            - world
-        command: >-
-            --destination_host=acra-connector
-            --incoming_connection_host=0.0.0.0
-
 networks:
     world:
     connector-server:
         internal: true
     server-mysql:
-        internal: true
-    webconfig-connector:
         internal: true

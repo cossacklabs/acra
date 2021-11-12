@@ -130,29 +130,6 @@ func (_m *KeyStore) GenerateZoneKey() ([]byte, []byte, error) {
 	return r0, r1, r2
 }
 
-// GetAuthKey provides a mock function with given fields: remove
-func (_m *KeyStore) GetAuthKey(remove bool) ([]byte, error) {
-	ret := _m.Called(remove)
-
-	var r0 []byte
-	if rf, ok := ret.Get(0).(func(bool) []byte); ok {
-		r0 = rf(remove)
-	} else {
-		if ret.Get(0) != nil {
-			r0 = ret.Get(0).([]byte)
-		}
-	}
-
-	var r1 error
-	if rf, ok := ret.Get(1).(func(bool) error); ok {
-		r1 = rf(remove)
-	} else {
-		r1 = ret.Error(1)
-	}
-
-	return r0, r1
-}
-
 // GetClientIDEncryptionPublicKey provides a mock function with given fields: clientID
 func (_m *KeyStore) GetClientIDEncryptionPublicKey(clientID []byte) (*keys.PublicKey, error) {
 	ret := _m.Called(clientID)

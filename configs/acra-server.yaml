@@ -17,9 +17,6 @@ acrastruct_wholecell_enable: false
 # Enable audit log functionality
 audit_log_enable: false
 
-# Path to basic auth passwords. To add user, use: `./acra-authmanager --set --user <user> --pwd <pwd>`
-auth_keys: configs/auth.keys
-
 # Expected client ID of AcraConnector in mode without encryption
 client_id: 
 

@@ -519,11 +519,6 @@ func TestFilesystemKeyStoreExport(t *testing.T) {
 	if err != nil {
 		t.Fatalf("SaveTranslatorKeypair() failed: %v", err)
 	}
-	// And some finishing touches...
-	authenticationKey, err := keyStore.GetAuthKey(true)
-	if err != nil {
-		t.Fatalf("GetAuthKey() failed: %v", err)
-	}
 	poisonKeyPair, err := keyStore.GetPoisonKeyPair()
 	if err != nil {
 		t.Fatalf("GetPoisonKeyPair() failed: %v", err)
@@ -535,7 +530,6 @@ func TestFilesystemKeyStoreExport(t *testing.T) {
 		t.Errorf("EnumerateExportedKeys() failed: %v", err)
 	}
 
-	seenAuthenticationKey := false
 	seenPoisonKeyPair := false
 	seenStorageClientKeyPair := false
 	seenStorageZoneKeyPair := false
@@ -545,15 +539,6 @@ func TestFilesystemKeyStoreExport(t *testing.T) {
 
 	for i := range exportedKeys {
 		switch exportedKeys[i].Purpose {
-		case PurposeAuthenticationSymKey:
-			seenAuthenticationKey = true
-			storedValue, err := keyStore.ExportPlaintextSymmetricKey(exportedKeys[i])
-			if err != nil {
-				t.Errorf("ExportPlaintextSymmetricKey() failed: %v", err)
-			}
-			if !bytes.Equal(authenticationKey, storedValue) {
-				t.Error("incorrect authentication key value")
-			}
 		case PurposePoisonRecordKeyPair:
 			seenPoisonKeyPair = true
 			publicKey, err := keyStore.ExportPublicKey(exportedKeys[i])
@@ -655,9 +640,6 @@ func TestFilesystemKeyStoreExport(t *testing.T) {
 		}
 	}
 
-	if !seenAuthenticationKey {
-		t.Error("authentication key not exported")
-	}
 	if !seenPoisonKeyPair {
 		t.Error("poison record key pair not exported")
 	}

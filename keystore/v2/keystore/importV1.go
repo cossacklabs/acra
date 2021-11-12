@@ -37,18 +37,6 @@ type KeyFileImportV1 interface {
 func (s *ServerKeyStore) ImportKeyFileV1(oldKeyStore filesystemV1.KeyExport, key filesystemV1.ExportedKey) error {
 	log := s.log.WithField("purpose", key.Purpose).WithField("id", key.ID)
 	switch key.Purpose {
-	case filesystemV1.PurposeAuthenticationSymKey:
-		symkey, err := oldKeyStore.ExportPlaintextSymmetricKey(key)
-		if err != nil {
-			log.WithError(err).Debug("failed to export authentication key")
-			return err
-		}
-		defer utils.ZeroizeSymmetricKey(symkey)
-		err = s.saveAuthKey(symkey)
-		if err != nil {
-			log.WithError(err).Debug("failed to import authentication key")
-			return err
-		}
 	case filesystemV1.PurposePoisonRecordKeyPair:
 		keypair, err := oldKeyStore.ExportKeyPair(key)
 		if err != nil {
