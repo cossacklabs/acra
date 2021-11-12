@@ -66,6 +66,8 @@ func (vaultManager testVaultManager) mountKVEngine(path, version string) (tearDo
 			"version": version,
 		},
 	})
+	//added some sleep to finish mounting
+	time.Sleep(time.Second * 2)
 
 	if err != nil {
 		return nil, err
