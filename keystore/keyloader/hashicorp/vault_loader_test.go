@@ -1,3 +1,6 @@
+//go:build integration && vault
+// +build integration,vault
+
 package hashicorp
 
 import (
@@ -30,8 +33,8 @@ const (
 
 const (
 	VaultDefaultPort     = "8200"
-	ReadFailSleepTimeout = 100
 	VaultDefaultHost     = "localhost"
+	ReadFailSleepTimeout = 100
 )
 
 func newTestVaultManager(t *testing.T) testVaultManager {
