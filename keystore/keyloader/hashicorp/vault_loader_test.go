@@ -1,6 +1,3 @@
-//go:build integration && vault
-// +build integration,vault
-
 package hashicorp
 
 import (
@@ -37,7 +34,7 @@ func newTestVaultManager(t *testing.T) testVaultManager {
 	config := api.DefaultConfig()
 	port, ok := os.LookupEnv(EnvTestVaultPort)
 	if !ok {
-		port = "8200"
+		port = "8201"
 	}
 	host, ok := os.LookupEnv(EnvTestVaultHost)
 	if !ok {
@@ -66,13 +63,25 @@ func (vaultManager testVaultManager) mountKVEngine(path, version string) (tearDo
 			"version": version,
 		},
 	})
-	//added some sleep to finish mounting
-	time.Sleep(time.Second * 2)
-
 	if err != nil {
 		return nil, err
 	}
 
+	var sleepCounts int
+	// need to wait until proper mounting of the provided path
+	for {
+		_, err := vaultManager.client.Logical().Read(path)
+		if err == nil {
+			break
+		}
+
+		if sleepCounts == AllowSleepCounts {
+			return nil, fmt.Errorf("to many sleep counts - max value reached %d", AllowSleepCounts)
+		}
+
+		time.Sleep(time.Millisecond * 300)
+		sleepCounts++
+	}
 	return func(t *testing.T) {
 		if err := vaultManager.client.Sys().Unmount(path); err != nil {
 			t.Fatal(err)
