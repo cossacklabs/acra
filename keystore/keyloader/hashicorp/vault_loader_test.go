@@ -23,9 +23,15 @@ type (
 )
 
 const (
-	AllowSleepCounts = 10
+	AllowSleepCounts = 30
 	EnvTestVaultPort = "TEST_VAULT_PORT"
 	EnvTestVaultHost = "TEST_VAULT_HOST"
+)
+
+const (
+	VaultDefaultPort     = "8200"
+	ReadFailSleepTimeout = 100
+	VaultDefaultHost     = "localhost"
 )
 
 func newTestVaultManager(t *testing.T) testVaultManager {
@@ -34,11 +40,11 @@ func newTestVaultManager(t *testing.T) testVaultManager {
 	config := api.DefaultConfig()
 	port, ok := os.LookupEnv(EnvTestVaultPort)
 	if !ok {
-		port = "8201"
+		port = VaultDefaultPort
 	}
 	host, ok := os.LookupEnv(EnvTestVaultHost)
 	if !ok {
-		host = "localhost"
+		host = VaultDefaultHost
 	}
 	config.Address = fmt.Sprintf("https://%s:%s", host, port)
 	if err := config.ConfigureTLS(&api.TLSConfig{Insecure: true}); err != nil {
@@ -79,7 +85,7 @@ func (vaultManager testVaultManager) mountKVEngine(path, version string) (tearDo
 			return nil, fmt.Errorf("to many sleep counts - max value reached %d", AllowSleepCounts)
 		}
 
-		time.Sleep(time.Millisecond * 300)
+		time.Sleep(time.Millisecond * ReadFailSleepTimeout)
 		sleepCounts++
 	}
 	return func(t *testing.T) {
