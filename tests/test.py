@@ -3406,6 +3406,33 @@ class TestAcraKeysWithClientIDGeneration(unittest.TestCase):
         readKey = self.read_key_by_client_id('distinguished_name', self.dir_with_distinguished_name_client_id.name)
         self.assertTrue(readKey)
 
+    def test_non_client_id_keys_generation(self):
+        subprocess.check_call([
+            './acra-keys',
+            'generate',
+            '--audit_log_symmetric_key',
+            '--poison_record_keys',
+            '--keys_dir={}'.format(self.dir_with_distinguished_name_client_id.name),
+            '--keys_dir_public={}'.format(self.dir_with_distinguished_name_client_id.name),
+            '--keystore={}'.format(KEYSTORE_VERSION),
+        ],
+            env={ACRA_MASTER_KEY_VAR_NAME: self.master_key},
+            timeout=PROCESS_CALL_TIMEOUT)
+
+    def test_keys_generation_without_client_id(self):
+        with self.assertRaises(subprocess.CalledProcessError) as exc:
+            subprocess.check_call([
+                './acra-keys',
+                'generate',
+                '--acraserver_transport_key',
+                '--acratranslator_transport_key',
+                '--keys_dir={}'.format(self.dir_with_distinguished_name_client_id.name),
+                '--keys_dir_public={}'.format(self.dir_with_distinguished_name_client_id.name),
+                '--keystore={}'.format(KEYSTORE_VERSION),
+            ],
+                env={ACRA_MASTER_KEY_VAR_NAME: self.master_key},
+                timeout=PROCESS_CALL_TIMEOUT)
+
     def test_generate_client_id_from_serial_number(self):
         readKey = self.read_key_by_client_id('serial_number', self.dir_with_serial_number_client_id.name)
         self.assertTrue(readKey)
