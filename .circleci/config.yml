@@ -17,6 +17,7 @@ jobs:
       TEST_RANDOM_DATA_FOLDER: /tmp/test_data
       TEST_TLS: "on"
       TEST_VAULT_PORT: 8201
+      TEST_VAULT_HOST: localhost
     steps:
       # prepare
       - checkout
