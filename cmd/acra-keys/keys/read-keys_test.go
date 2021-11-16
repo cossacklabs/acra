@@ -1,3 +1,6 @@
+//go:build integration && redis
+// +build integration,redis
+
 /*
 Copyright 2020, Cossack Labs Limited
 
