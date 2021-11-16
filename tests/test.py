@@ -3406,6 +3406,70 @@ class TestAcraKeysWithClientIDGeneration(unittest.TestCase):
         readKey = self.read_key_by_client_id('distinguished_name', self.dir_with_distinguished_name_client_id.name)
         self.assertTrue(readKey)
 
+    def test_non_client_id_keys_generation(self):
+        subprocess.check_call([
+            './acra-keys',
+            'generate',
+            '--audit_log_symmetric_key',
+            '--poison_record_keys',
+            '--keys_dir={}'.format(self.dir_with_distinguished_name_client_id.name),
+            '--keys_dir_public={}'.format(self.dir_with_distinguished_name_client_id.name),
+            '--keystore={}'.format(KEYSTORE_VERSION),
+        ],
+            env={ACRA_MASTER_KEY_VAR_NAME: self.master_key},
+            timeout=PROCESS_CALL_TIMEOUT)
+
+    def test_keys_generation_without_client_id(self):
+        with self.assertRaises(subprocess.CalledProcessError) as exc:
+            subprocess.check_output([
+                './acra-keys',
+                'generate',
+                '--acraserver_transport_key',
+                '--acratranslator_transport_key',
+                '--keys_dir={}'.format(self.dir_with_distinguished_name_client_id.name),
+                '--keys_dir_public={}'.format(self.dir_with_distinguished_name_client_id.name),
+                '--keystore={}'.format(KEYSTORE_VERSION),
+            ],
+                env={ACRA_MASTER_KEY_VAR_NAME: self.master_key},
+                stderr=subprocess.STDOUT)
+        self.assertIn("--client_id or --tls_cert is required to generate keys".lower(), exc.exception.output.decode('utf8').lower())
+        self.assertEqual(exc.exception.returncode, 1)
+
+        with self.assertRaises(subprocess.CalledProcessError) as exc:
+            subprocess.check_output([
+                './acra-keys',
+                'generate',
+                "--client_id='test'",
+                '--acraserver_transport_key',
+                '--acratranslator_transport_key',
+                '--keys_dir={}'.format(self.dir_with_distinguished_name_client_id.name),
+                '--keys_dir_public={}'.format(self.dir_with_distinguished_name_client_id.name),
+                '--keystore={}'.format(KEYSTORE_VERSION),
+            ],
+                env={ACRA_MASTER_KEY_VAR_NAME: self.master_key},
+                stderr=subprocess.STDOUT)
+        self.assertIn("Invalid client ID".lower(), exc.exception.output.decode('utf8').lower())
+        self.assertEqual(exc.exception.returncode, 1)
+
+    def test_keys_generation_for_mixed_keys(self):
+        with self.assertRaises(subprocess.CalledProcessError) as exc:
+            subprocess.check_output([
+                './acra-keys',
+                'generate',
+                '--acraserver_transport_key',
+                '--acratranslator_transport_key',
+                '--poison_record_keys',
+                '--audit_log_symmetric_key',
+                '--keys_dir={}'.format(self.dir_with_distinguished_name_client_id.name),
+                '--keys_dir_public={}'.format(self.dir_with_distinguished_name_client_id.name),
+                '--keystore={}'.format(KEYSTORE_VERSION),
+            ],
+                env={ACRA_MASTER_KEY_VAR_NAME: self.master_key},
+                stderr=subprocess.STDOUT)
+        self.assertIn("--client_id or --tls_cert is required to generate keys".lower(), exc.exception.output.decode('utf8').lower())
+        self.assertEqual(exc.exception.returncode, 1)
+
+
     def test_generate_client_id_from_serial_number(self):
         readKey = self.read_key_by_client_id('serial_number', self.dir_with_serial_number_client_id.name)
         self.assertTrue(readKey)
