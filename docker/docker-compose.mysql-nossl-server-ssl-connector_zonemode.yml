@@ -110,6 +110,7 @@ services:
             --db_host=mysql
             --db_port=3306
             --keys_dir=/keys
+            --client_id=${ACRA_CLIENT_ID:-testclientid}
             --auth_keys=/keys/httpauth.accounts
             --http_api_enable
             --incoming_connection_api_string=tcp://0.0.0.0:9090
