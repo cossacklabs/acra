@@ -119,7 +119,7 @@ func OpenKeyStoreForReading(params KeyStoreParameters) (keystore.ServerKeyStore,
 		return nil, err
 	}
 
-	if IsKeyDirectory(params) {
+	if IsKeyStoreV2(params) {
 		return openKeyStoreV2(params, keyLoader)
 	}
 	return openKeyStoreV1(params, keyLoader)
@@ -132,7 +132,7 @@ func OpenKeyStoreForWriting(params KeyStoreParameters) (keyStore keystore.KeyMak
 		return nil, err
 	}
 
-	if IsKeyDirectory(params) {
+	if IsKeyStoreV2(params) {
 		return openKeyStoreV2(params, keyLoader)
 	}
 	return openKeyStoreV1(params, keyLoader)
@@ -145,7 +145,7 @@ func OpenKeyStoreForExport(params KeyStoreParameters) (api.KeyStore, error) {
 		return nil, err
 	}
 
-	if IsKeyDirectory(params) {
+	if IsKeyStoreV2(params) {
 		return openKeyStoreV2(params, keyLoader)
 	}
 	// Export from keystore v1 is not supported right now
@@ -159,7 +159,7 @@ func OpenKeyStoreForImport(params KeyStoreParameters) (api.MutableKeyStore, erro
 		return nil, err
 	}
 
-	if IsKeyDirectory(params) {
+	if IsKeyStoreV2(params) {
 		return openKeyStoreV2(params, keyLoader)
 	}
 	// Export from keystore v1 is not supported right now
@@ -246,8 +246,8 @@ func openKeyStoreV2(params KeyStoreParameters, loader keyloader.MasterKeyLoader)
 	return keystoreV2.NewServerKeyStore(keyDirectory), nil
 }
 
-// IsKeyDirectory checks if the directory contains a keystore version 2 from KeyStoreParameters
-func IsKeyDirectory(params KeyStoreParameters) bool {
+// IsKeyStoreV2 checks if the directory contains a keystore version 2 from KeyStoreParameters
+func IsKeyStoreV2(params KeyStoreParameters) bool {
 	redisOption := params.RedisOptions()
 	if params.RedisConfigured() {
 		redisClient, err := filesystemBackendV2.OpenRedisBackend(&filesystemBackendV2.RedisConfig{

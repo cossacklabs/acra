@@ -51,6 +51,7 @@ jobs:
           POSTGRES_PASSWORD: test
           POSTGRES_USER: test
           POSTGRES_DB: test
+      - image: redis:6.0.16-alpine
     environment:
       TEST_DB_USER: test
       TEST_DB_USER_PASSWORD: test
@@ -97,6 +98,7 @@ jobs:
           POSTGRES_PASSWORD: test
           POSTGRES_USER: test
           POSTGRES_DB: test
+      - image: redis:6.0.16-alpine
     environment:
       TEST_DB_USER: test
       TEST_DB_USER_PASSWORD: test
@@ -249,6 +251,7 @@ jobs:
           MYSQL_USER: test
           MYSQL_PASSWORD: test
           MYSQL_ROOT_PASSWORD: root
+      - image: redis:6.0.16-alpine
     environment:
       TEST_DB_USER: test
       TEST_DB_USER_PASSWORD: test
@@ -299,6 +302,7 @@ jobs:
           MYSQL_USER: test
           MYSQL_PASSWORD: test
           MYSQL_ROOT_PASSWORD: root
+      - image: redis:6.0.16-alpine
     environment:
       TEST_DB_USER: test
       TEST_DB_USER_PASSWORD: test
@@ -350,6 +354,7 @@ jobs:
           MYSQL_USER: test
           MYSQL_PASSWORD: test
           MYSQL_ROOT_PASSWORD: root
+      - image: redis:6.0.16-alpine
     environment:
       TEST_DB_USER: test
       TEST_DB_USER_PASSWORD: test
@@ -397,6 +402,7 @@ jobs:
           MYSQL_USER: test
           MYSQL_PASSWORD: test
           MYSQL_ROOT_PASSWORD: root
+      - image: redis:6.0.16-alpine
     environment:
       TEST_DB_USER: test
       TEST_DB_USER_PASSWORD: test

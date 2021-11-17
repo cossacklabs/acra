@@ -245,6 +245,7 @@ func realMain() error {
 
 	log.Infof("Validating service configuration...")
 	cmd.ValidateClientID(*secureSessionID)
+	cmd.ValidateRedisCLIOptions()
 
 	serverConfig.SetAcraConnectionString(*acraConnectionString)
 	if *host != cmd.DefaultAcraServerHost || *port != cmd.DefaultAcraServerPort {
@@ -876,7 +877,13 @@ func openKeyStoreV1(output string, cacheSize int, loader keyloader.MasterKeyLoad
 	keyStore.CacheSize(cacheSize)
 	keyStore.Encryptor(scellEncryptor)
 	redis := cmd.GetRedisParameters()
+	fmt.Println("redis params -----> ", redis.KeysOptions())
+	fmt.Println("redis params -----> ", redis.KeysConfigured())
+	fmt.Println("redis params hostport-----> ", redis.HostPort)
+	fmt.Println("redis params dbkeys-----> ", redis.DBKeys)
+	fmt.Println("redis params dbtokens-----> ", redis.DBTokens)
 	if redis.KeysConfigured() {
+		fmt.Println("Redis configured --------->", redis.KeysOptions())
 		keyStorage, err := filesystem.NewRedisStorage(redis.HostPort, redis.Password, redis.DBKeys, nil)
 		if err != nil {
 			log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantInitKeyStore).

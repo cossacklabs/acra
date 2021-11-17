@@ -3511,6 +3511,47 @@ class TestAcraKeysWithClientIDGeneration(unittest.TestCase):
             timeout=PROCESS_CALL_TIMEOUT)
 
 
+class TestAcraKeysWithRedis(unittest.TestCase):
+    def setUp(self):
+        self.master_key = get_master_key()
+        self.client_id = 'keypair1'
+
+    def test_read_command_keystore(self):
+        with tempfile.TemporaryDirectory() as keys_folder:
+            subprocess.check_call(
+                ['./acra-keymaker',
+                 '--client_id={}'.format(self.client_id),
+                 '--generate_acrawriter_keys',
+                 '--redis_host_port=localhost:6379',
+                 '--keys_output_dir={}'.format(keys_folder),
+                 '--keys_public_output_dir={}'.format(keys_folder),
+                 '--keystore={}'.format(KEYSTORE_VERSION)
+                 ],
+                env={ACRA_MASTER_KEY_VAR_NAME: self.master_key},
+                timeout=PROCESS_CALL_TIMEOUT)
+
+            subprocess.check_call([
+                './acra-keys',
+                'read',
+                '--public',
+                '--keys_dir={}'.format(keys_folder),
+                '--redis_host_port=localhost:6379',
+                'client/keypair1/storage'
+            ],
+                env={ACRA_MASTER_KEY_VAR_NAME: self.master_key},
+                timeout=PROCESS_CALL_TIMEOUT)
+
+            subprocess.check_call([
+                './acra-keys',
+                'read',
+                '--private',
+                '--keys_dir={}'.format(keys_folder),
+                '--redis_host_port=localhost:6379',
+                'client/keypair1/storage'
+            ],
+                env={ACRA_MASTER_KEY_VAR_NAME: self.master_key},
+                timeout=PROCESS_CALL_TIMEOUT)
+
 class TestPostgreSQLParseQueryErrorSkipExit(AcraCatchLogsMixin, BaseTestCase):
     """By default AcraServer skip any errors connected SQL parse queries failures.
         It can be changed by --sql_parse_error_exit=true cmd param."""
@@ -7182,6 +7223,7 @@ class BaseTokenizationWithRedis(BaseTokenization):
     def fork_acra(self, popen_kwargs: dict = None, **acra_kwargs: dict):
         acra_kwargs.update(
             redis_host_port='localhost:6379',
+            redis_db_tokens='0',
             encryptor_config_file=get_test_encryptor_config(self.ENCRYPTOR_CONFIG))
         return super(BaseTokenizationWithRedis, self).fork_acra(popen_kwargs, **acra_kwargs)
 
