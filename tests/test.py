@@ -984,7 +984,6 @@ class KeyMakerTest(unittest.TestCase):
                  "--client_id=''",
                  '--generate_poisonrecord_keys',
                  '--generate_log_key',
-                 '--generate_acrawebconfig_keys',
                  '--keys_public_output_dir={}'.format(folder)])
 
         with tempfile.TemporaryDirectory() as folder:
