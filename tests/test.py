@@ -114,9 +114,6 @@ TEST_WITH_TLS = os.environ.get('TEST_TLS', 'off').lower() == 'on'
 TEST_WITH_TRACING = os.environ.get('TEST_TRACE', 'off').lower() == 'on'
 TEST_TRACE_TO_JAEGER = os.environ.get('TEST_TRACE_JAEGER', 'off').lower() == 'on'
 
-
-
-
 TEST_RANDOM_DATA_CONFIG = load_random_data_config()
 TEST_RANDOM_DATA_FILES = get_random_data_files()
 
