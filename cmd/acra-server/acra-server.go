@@ -876,6 +876,7 @@ func openKeyStoreV1(output string, cacheSize int, loader keyloader.MasterKeyLoad
 	keyStore.KeyDirectory(output)
 	keyStore.CacheSize(cacheSize)
 	keyStore.Encryptor(scellEncryptor)
+
 	redis := cmd.GetRedisParameters()
 	if redis.KeysConfigured() {
 		keyStorage, err := filesystem.NewRedisStorage(redis.HostPort, redis.Password, redis.DBKeys, nil)
