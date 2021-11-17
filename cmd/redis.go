@@ -43,6 +43,7 @@ const (
 	redisUnspecifiedDB = -1
 )
 
+// ErrIdenticalRedisDBs redis DBs related error
 var ErrIdenticalRedisDBs = errors.New("redis db params are identical")
 
 var redisOptions RedisOptions
