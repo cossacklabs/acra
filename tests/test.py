@@ -113,8 +113,7 @@ TEST_WITH_TLS = os.environ.get('TEST_TLS', 'off').lower() == 'on'
 
 TEST_WITH_TRACING = os.environ.get('TEST_TRACE', 'off').lower() == 'on'
 TEST_TRACE_TO_JAEGER = os.environ.get('TEST_TRACE_JAEGER', 'off').lower() == 'on'
-TEST_REDIS_KEYS_DB = 0
-TEST_REDIS_TOKEN_DB = 1
+
 
 
 
@@ -3398,9 +3397,12 @@ class TestKeyStoreMigration(BaseTestCase):
 
 
 class RedisMixin:
+    TEST_REDIS_KEYS_DB = 0
+    TEST_REDIS_TOKEN_DB = 1
+
     def setUp(self):
-        self.redis_keys_client = redis.Redis(host='localhost', port=6379, db=TEST_REDIS_KEYS_DB)
-        self.redis_tokens_client = redis.Redis(host='localhost', port=6379, db=TEST_REDIS_TOKEN_DB)
+        self.redis_keys_client = redis.Redis(host='localhost', port=6379, db=self.TEST_REDIS_KEYS_DB)
+        self.redis_tokens_client = redis.Redis(host='localhost', port=6379, db=self.TEST_REDIS_TOKEN_DB)
         super().setUp()
 
     def tearDown(self):
@@ -7233,7 +7235,7 @@ class BaseTokenizationWithRedis(RedisMixin, BaseTokenization):
     def fork_acra(self, popen_kwargs: dict = None, **acra_kwargs: dict):
         acra_kwargs.update(
             redis_host_port='localhost:6379',
-            redis_db_tokens=TEST_REDIS_TOKEN_DB,
+            redis_db_tokens=self.TEST_REDIS_TOKEN_DB,
             encryptor_config_file=get_test_encryptor_config(self.ENCRYPTOR_CONFIG))
         return super(BaseTokenizationWithRedis, self).fork_acra(popen_kwargs, **acra_kwargs)
 
