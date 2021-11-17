@@ -257,6 +257,13 @@ func ValidateClientID(params GenerateKeyParams) error {
 		requestedClientKeys := params.GenerateAcraConnector() || params.GenerateAcraServer() ||
 			params.GenerateAcraTranslator() || params.GenerateAcraWriter() || params.GenerateAcraBlocks() || params.GenerateSearchHMAC()
 
+		requestedNonClientKeys := params.GeneratePoisonRecord() || params.GenerateAuditLog()
+
+		// skip clientID validation if only non-clientID based keys requested to generate
+		if requestedNonClientKeys && !requestedClientKeys {
+			return nil
+		}
+
 		if !masterKey && (firstGeneration || requestedClientKeys) {
 			if tlsClientCert != "" {
 				clientIDFromCert, err := ExtractClientID(params)

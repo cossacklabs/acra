@@ -6,14 +6,15 @@ package hashicorp
 import (
 	"encoding/base64"
 	"fmt"
-	"github.com/cossacklabs/acra/keystore/v2/keystore"
-	"github.com/hashicorp/vault/api"
-	"github.com/stretchr/testify/assert"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/cossacklabs/acra/keystore/v2/keystore"
+	"github.com/hashicorp/vault/api"
+	"github.com/stretchr/testify/assert"
 )
 
 type (
@@ -24,25 +25,35 @@ type (
 	}
 )
 
-const AllowSleepCounts = 10
+const (
+	AllowSleepCounts = 30
+	EnvTestVaultPort = "TEST_VAULT_PORT"
+	EnvTestVaultHost = "TEST_VAULT_HOST"
+)
+
+const (
+	VaultDefaultPort     = "8200"
+	VaultDefaultHost     = "localhost"
+	ReadFailSleepTimeout = 100
+)
 
 func newTestVaultManager(t *testing.T) testVaultManager {
 	t.Helper()
 
 	config := api.DefaultConfig()
-	port, ok := os.LookupEnv("TEST_VAULT_PORT")
+	port, ok := os.LookupEnv(EnvTestVaultPort)
 	if !ok {
-		port = "8200"
+		port = VaultDefaultPort
 	}
-	host, ok := os.LookupEnv("TEST_VAULT_HOST")
+	host, ok := os.LookupEnv(EnvTestVaultHost)
 	if !ok {
-		host = "localhost"
+		host = VaultDefaultHost
 	}
 	config.Address = fmt.Sprintf("https://%s:%s", host, port)
 	if err := config.ConfigureTLS(&api.TLSConfig{Insecure: true}); err != nil {
 		t.Fatal(err)
 	}
-	config.Timeout = time.Millisecond * 100
+	config.Timeout = time.Millisecond * 500
 	client, err := api.NewClient(config)
 	if err != nil {
 		t.Fatalf("Failed to initialize Vault client: %v", err)
@@ -61,17 +72,14 @@ func (vaultManager testVaultManager) mountKVEngine(path, version string) (tearDo
 			"version": version,
 		},
 	})
-
 	if err != nil {
 		return nil, err
 	}
 
 	var sleepCounts int
-	//Hashicorp Vault need some time to switch between secrets engines which may produce some fantom tests failures.
-	//* Upgrading from non-versioned to versioned data. This backend will be unavailable for a brief period and will resume service shortly.
+	// need to wait until proper mounting of the provided path
 	for {
-		// Health - return code 400 or above it will automatically turn into an error,
-		_, err := vaultManager.client.Sys().Health()
+		_, err := vaultManager.client.Logical().Read(path)
 		if err == nil {
 			break
 		}
@@ -80,10 +88,9 @@ func (vaultManager testVaultManager) mountKVEngine(path, version string) (tearDo
 			return nil, fmt.Errorf("to many sleep counts - max value reached %d", AllowSleepCounts)
 		}
 
-		time.Sleep(time.Millisecond * 100)
+		time.Sleep(time.Millisecond * ReadFailSleepTimeout)
 		sleepCounts++
 	}
-
 	return func(t *testing.T) {
 		if err := vaultManager.client.Sys().Unmount(path); err != nil {
 			t.Fatal(err)
@@ -120,73 +127,54 @@ func TestVaultLoaderV1Engine(t *testing.T) {
 		client: vaultManager.client,
 	}
 
-	t.Run("Test getKVVersion", func(t *testing.T) {
-		t.Run("Successfully get secret engine (version 1)", func(t *testing.T) {
-			path := "path"
-			tearDownMount, err := vaultManager.mountKVEngine(path, kvSecretEngineVersion1)
-			if err != nil {
-				t.Fatal(err)
-			}
-			defer tearDownMount(t)
+	path := "kv_path_v1/"
+	tearDownMount, err := vaultManager.mountKVEngine(path, kvSecretEngineVersion1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer tearDownMount(t)
 
-			vaultLoader.secretPath = path
+	t.Run("Successfully get secret engine", func(t *testing.T) {
+		vaultLoader.secretPath = path
 
-			engine, err := vaultLoader.getKVEngine()
-			assert.NoError(t, err)
-			assert.Equal(t, kvSecretEngineType, engine.secretType)
-			assert.Equal(t, kvSecretEngineVersion1, engine.version)
-			assert.Contains(t, engine.path, path)
-		})
+		engine, err := vaultLoader.getKVEngine()
+		assert.NoError(t, err)
+		assert.Equal(t, kvSecretEngineType, engine.secretType)
+		assert.Equal(t, kvSecretEngineVersion1, engine.version)
+		assert.Contains(t, engine.path, path)
 	})
 
-	t.Run("Test getSecretKey", func(t *testing.T) {
-		t.Run("masterKeySecretID not found error (version 1)", func(t *testing.T) {
-			path := "kv_path"
-			tearDownMount, err := vaultManager.mountKVEngine(path, kvSecretEngineVersion1)
-			if err != nil {
-				t.Fatal(err)
-			}
-			defer tearDownMount(t)
+	t.Run("masterKeySecretID not found error (version 1)", func(t *testing.T) {
+		writePath := filepath.Join(path, "test")
 
-			writePath := filepath.Join(path, "test")
+		tearDownPut, err := vaultManager.putSecretByPath(writePath, "invalid_key_id", "value")
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer tearDownPut(t)
 
-			tearDownPut, err := vaultManager.putSecretByPath(writePath, "invalid_key_id", "value")
-			if err != nil {
-				t.Fatal(err)
-			}
-			defer tearDownPut(t)
+		vaultLoader.secretPath = writePath
 
-			vaultLoader.secretPath = writePath
+		key, err := vaultLoader.getSecretKey()
+		assert.Equal(t, ErrMasterKeyNotFound, err)
+		assert.Equal(t, "", key)
+	})
 
-			key, err := vaultLoader.getSecretKey()
-			assert.Equal(t, ErrMasterKeyNotFound, err)
-			assert.Equal(t, "", key)
-		})
+	t.Run("getSecretKey() success", func(t *testing.T) {
+		writePath := filepath.Join(path, "key")
 
-		t.Run("getSecretKey() success", func(t *testing.T) {
-			path := "kv_path/"
-			tearDownMount, err := vaultManager.mountKVEngine(path, kvSecretEngineVersion1)
-			if err != nil {
-				t.Fatal(err)
-			}
-			defer tearDownMount(t)
+		masterKey := "master_key_value"
+		tearDownPut, err := vaultManager.putSecretByPath(writePath, masterKeySecretID, masterKey)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer tearDownPut(t)
 
-			writePath := filepath.Join(path, "key")
+		vaultLoader.secretPath = writePath
 
-			masterKey := "master_key_value"
-			tearDownPut, err := vaultManager.putSecretByPath(writePath, masterKeySecretID, masterKey)
-			if err != nil {
-				t.Fatal(err)
-			}
-			defer tearDownPut(t)
-
-			vaultLoader.secretPath = writePath
-
-			key, err := vaultLoader.getSecretKey()
-			assert.NoError(t, err)
-			assert.Equal(t, masterKey, key)
-		})
-
+		key, err := vaultLoader.getSecretKey()
+		assert.NoError(t, err)
+		assert.Equal(t, masterKey, key)
 	})
 }
 
@@ -197,193 +185,133 @@ func TestVaultLoaderV2Engine(t *testing.T) {
 		client: vaultManager.client,
 	}
 
-	t.Run("Test getKVVersion", func(t *testing.T) {
-		t.Run("Successfully get secret engine", func(t *testing.T) {
-			path := "path"
-			tearDownMount, err := vaultManager.mountKVEngine(path, kvSecretEngineVersion2)
-			if err != nil {
-				t.Fatal(err)
-			}
-			defer tearDownMount(t)
+	var expectedNil *keystore.SerializedKeys
 
-			vaultLoader.secretPath = path
+	path := "kv_path_v2/"
+	tearDown, err := vaultManager.mountKVEngine(path, kvSecretEngineVersion2)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer tearDown(t)
 
-			engine, err := vaultLoader.getKVEngine()
-			assert.NoError(t, err)
-			assert.Equal(t, kvSecretEngineType, engine.secretType)
-			assert.Equal(t, kvSecretEngineVersion2, engine.version)
-			assert.Contains(t, engine.path, path)
-		})
+	t.Run("Successfully get secret engine", func(t *testing.T) {
+		vaultLoader.secretPath = path
 
-		t.Run("Search unmount path error", func(t *testing.T) {
-			path := "kv_path"
-			tearDownMount, err := vaultManager.mountKVEngine(path, kvSecretEngineVersion2)
-			if err != nil {
-				t.Fatal(err)
-			}
-			defer tearDownMount(t)
-
-			vaultLoader.secretPath = "test_path"
-
-			engine, err := vaultLoader.getKVEngine()
-			assert.Equal(t, ErrEngineNotFound, err)
-			assert.Equal(t, engine, secretEngine{})
-		})
+		engine, err := vaultLoader.getKVEngine()
+		assert.NoError(t, err)
+		assert.Equal(t, kvSecretEngineType, engine.secretType)
+		assert.Equal(t, kvSecretEngineVersion2, engine.version)
+		assert.Contains(t, engine.path, path)
 	})
 
-	t.Run("Test getSecretKey", func(t *testing.T) {
-		t.Run("getKVEngine() error", func(t *testing.T) {
-			vaultLoader.secretPath = "test_path"
+	t.Run("Search unmount path error", func(t *testing.T) {
+		vaultLoader.secretPath = "test_path"
 
-			key, err := vaultLoader.getSecretKey()
-			assert.Equal(t, ErrEngineNotFound, err)
-			assert.Equal(t, "", key)
-		})
-
-		t.Run("No key found error", func(t *testing.T) {
-			path := "kv_path"
-			tearDownMount, err := vaultManager.mountKVEngine(path, kvSecretEngineVersion2)
-			if err != nil {
-				t.Fatal(err)
-			}
-			defer tearDownMount(t)
-
-			vaultLoader.secretPath = "kv_path/foo"
-
-			key, err := vaultLoader.getSecretKey()
-			assert.Equal(t, ErrSecretNotFound, err)
-			assert.Equal(t, "", key)
-		})
-
-		t.Run("masterKeySecretID not found error (version 2)", func(t *testing.T) {
-			path := "kv_path"
-			tearDownMount, err := vaultManager.mountKVEngine(path, kvSecretEngineVersion2)
-			if err != nil {
-				t.Fatal(err)
-			}
-			defer tearDownMount(t)
-
-			writePath := filepath.Join(path, "data", "key")
-			secretPath := filepath.Join(path, "key")
-
-			tearDownPut, err := vaultManager.putSecretByPath(writePath, "invalid_key_id", "value")
-			if err != nil {
-				t.Fatal(err)
-			}
-			defer tearDownPut(t)
-
-			vaultLoader.secretPath = secretPath
-
-			key, err := vaultLoader.getSecretKey()
-			assert.Equal(t, ErrMasterKeyNotFound, err)
-			assert.Equal(t, "", key)
-		})
-
-		t.Run("convert ACRA_MASTER_KEY to string error", func(t *testing.T) {
-			path := "kv_path"
-			tearDownMount, err := vaultManager.mountKVEngine(path, kvSecretEngineVersion2)
-			if err != nil {
-				t.Fatal(err)
-			}
-			defer tearDownMount(t)
-
-			writePath := filepath.Join(path, "data", "key")
-			secretPath := filepath.Join(path, "key")
-
-			tearDownPut, err := vaultManager.putSecretByPath(writePath, masterKeySecretID, 444)
-			if err != nil {
-				t.Fatal(err)
-			}
-			defer tearDownPut(t)
-
-			vaultLoader.secretPath = secretPath
-
-			key, err := vaultLoader.getSecretKey()
-			assert.Equal(t, ErrMasterKeyConvert, err)
-			assert.Equal(t, "", key)
-		})
-
-		t.Run("getSecretKey() success (version 2)", func(t *testing.T) {
-			path := "kv_path/"
-			tearDownMount, err := vaultManager.mountKVEngine(path, kvSecretEngineVersion2)
-			if err != nil {
-				t.Fatal(err)
-			}
-			defer tearDownMount(t)
-
-			writePath := filepath.Join(path, "data", "key")
-			secretPath := filepath.Join(path, "key")
-
-			masterKey := "master_key_value"
-			tearDownPut, err := vaultManager.putSecretByPath(writePath, masterKeySecretID, masterKey)
-			if err != nil {
-				t.Fatal(err)
-			}
-			defer tearDownPut(t)
-
-			vaultLoader.secretPath = secretPath
-
-			key, err := vaultLoader.getSecretKey()
-			assert.NoError(t, err)
-			assert.Equal(t, masterKey, key)
-		})
+		engine, err := vaultLoader.getKVEngine()
+		assert.Equal(t, ErrEngineNotFound, err)
+		assert.Equal(t, engine, secretEngine{})
 	})
 
-	t.Run("Test getSecretKeys", func(t *testing.T) {
-		var expectedNil *keystore.SerializedKeys
+	t.Run("getKVEngine() error", func(t *testing.T) {
+		vaultLoader.secretPath = "test_path"
 
-		t.Run("getKVEngine() error", func(t *testing.T) {
-			keys, err := vaultLoader.getSecretKeys()
-			assert.Equal(t, ErrEngineNotFound, err)
-			assert.Equal(t, expectedNil, keys)
-		})
+		key, err := vaultLoader.getSecretKey()
+		assert.Equal(t, ErrEngineNotFound, err)
+		assert.Equal(t, "", key)
+	})
 
-		t.Run("base64 decode error", func(t *testing.T) {
-			path := "kv_path"
-			tearDownMount, err := vaultManager.mountKVEngine(path, kvSecretEngineVersion2)
-			if err != nil {
-				t.Fatal(err)
-			}
-			defer tearDownMount(t)
+	t.Run("No key found error", func(t *testing.T) {
+		vaultLoader.secretPath = "kv_path_v2/foo"
 
-			writePath := filepath.Join(path, "data", "foo")
+		key, err := vaultLoader.getSecretKey()
+		assert.Equal(t, ErrSecretNotFound, err)
+		assert.Equal(t, "", key)
+	})
 
-			masterKey := "master_key_value"
-			tearDownPut, err := vaultManager.putSecretByPath(writePath, masterKeySecretID, masterKey)
-			if err != nil {
-				t.Fatal(err)
-			}
-			defer tearDownPut(t)
+	t.Run("masterKeySecretID not found error (version 2)", func(t *testing.T) {
+		writePath := filepath.Join(path, "data", "key")
+		secretPath := filepath.Join(path, "key")
 
-			vaultLoader.secretPath = "kv_path/foo"
+		tearDownPut, err := vaultManager.putSecretByPath(writePath, "invalid_key_id", "value")
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer tearDownPut(t)
 
-			keys, err := vaultLoader.getSecretKeys()
-			assert.Equal(t, base64.CorruptInputError(6), err)
-			assert.Equal(t, expectedNil, keys)
-		})
+		vaultLoader.secretPath = secretPath
 
-		t.Run("deserialize to SerializedKeys error", func(t *testing.T) {
-			path := "kv_path"
-			tearDownMount, err := vaultManager.mountKVEngine(path, kvSecretEngineVersion2)
-			if err != nil {
-				t.Fatal(err)
-			}
-			defer tearDownMount(t)
+		key, err := vaultLoader.getSecretKey()
+		assert.Equal(t, ErrMasterKeyNotFound, err)
+		assert.Equal(t, "", key)
+	})
 
-			writePath := filepath.Join(path, "data", "foo")
+	t.Run("convert ACRA_MASTER_KEY to string error", func(t *testing.T) {
+		writePath := filepath.Join(path, "data", "key")
+		secretPath := filepath.Join(path, "key")
 
-			masterKey := base64.StdEncoding.EncodeToString([]byte("master_key_value"))
-			tearDownPut, err := vaultManager.putSecretByPath(writePath, masterKeySecretID, masterKey)
-			if err != nil {
-				t.Fatal(err)
-			}
-			defer tearDownPut(t)
+		tearDownPut, err := vaultManager.putSecretByPath(writePath, masterKeySecretID, 444)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer tearDownPut(t)
 
-			vaultLoader.secretPath = "kv_path/foo"
+		vaultLoader.secretPath = secretPath
 
-			keys, err := vaultLoader.getSecretKeys()
-			assert.Error(t, err)
-			assert.Equal(t, expectedNil, keys)
-		})
+		key, err := vaultLoader.getSecretKey()
+		assert.Equal(t, ErrMasterKeyConvert, err)
+		assert.Equal(t, "", key)
+	})
+
+	t.Run("getSecretKey() success (version 2)", func(t *testing.T) {
+		writePath := filepath.Join(path, "data", "key")
+		secretPath := filepath.Join(path, "key")
+
+		masterKey := "master_key_value"
+		tearDownPut, err := vaultManager.putSecretByPath(writePath, masterKeySecretID, masterKey)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer tearDownPut(t)
+
+		vaultLoader.secretPath = secretPath
+
+		key, err := vaultLoader.getSecretKey()
+		assert.NoError(t, err)
+		assert.Equal(t, masterKey, key)
+	})
+
+	t.Run("base64 decode error", func(t *testing.T) {
+		writePath := filepath.Join(path, "data", "foo")
+
+		masterKey := "master_key_value"
+		tearDownPut, err := vaultManager.putSecretByPath(writePath, masterKeySecretID, masterKey)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer tearDownPut(t)
+
+		vaultLoader.secretPath = "kv_path_v2/foo"
+
+		keys, err := vaultLoader.getSecretKeys()
+		assert.Equal(t, base64.CorruptInputError(6), err)
+		assert.Equal(t, expectedNil, keys)
+	})
+
+	t.Run("deserialize to SerializedKeys error", func(t *testing.T) {
+
+		writePath := filepath.Join(path, "data", "foo")
+
+		masterKey := base64.StdEncoding.EncodeToString([]byte("master_key_value"))
+		tearDownPut, err := vaultManager.putSecretByPath(writePath, masterKeySecretID, masterKey)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer tearDownPut(t)
+
+		vaultLoader.secretPath = "kv_path_v2/foo"
+
+		keys, err := vaultLoader.getSecretKeys()
+		assert.Error(t, err)
+		assert.Equal(t, expectedNil, keys)
 	})
 }
