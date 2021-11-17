@@ -2813,7 +2813,8 @@ class AcraCatchLogsMixin(object):
         popen_args = {
             'stderr': subprocess.STDOUT,
             'stdout': log_file,
-            'close_fds': True
+            'close_fds': True,
+            'bufsize': 0,
         }
         process = super(AcraCatchLogsMixin, self).fork_acra(
             popen_args, **acra_kwargs
