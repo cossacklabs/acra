@@ -46,6 +46,7 @@ import psycopg2.errors
 import psycopg2.extras
 import pymysql
 import requests
+import redis
 import semver
 import sqlalchemy as sa
 import sys
@@ -112,6 +113,9 @@ TEST_WITH_TLS = os.environ.get('TEST_TLS', 'off').lower() == 'on'
 
 TEST_WITH_TRACING = os.environ.get('TEST_TRACE', 'off').lower() == 'on'
 TEST_TRACE_TO_JAEGER = os.environ.get('TEST_TRACE_JAEGER', 'off').lower() == 'on'
+TEST_REDIS_KEYS_DB = 0
+TEST_REDIS_TOKEN_DB = 1
+
 
 
 TEST_RANDOM_DATA_CONFIG = load_random_data_config()
@@ -3393,6 +3397,18 @@ class TestKeyStoreMigration(BaseTestCase):
             self.assertEquals(selected['data'], data.encode('ascii'))
 
 
+class RedisMixin:
+    def setUp(self):
+        self.redis_keys_client = redis.Redis(host='localhost', port=6379, db=TEST_REDIS_KEYS_DB)
+        self.redis_tokens_client = redis.Redis(host='localhost', port=6379, db=TEST_REDIS_TOKEN_DB)
+        super().setUp()
+
+    def tearDown(self):
+        self.redis_keys_client.flushall()
+        self.redis_tokens_client.flushall()
+        super().tearDown()
+
+
 class TestAcraKeysWithClientIDGeneration(unittest.TestCase):
     def setUp(self):
         self.master_key = get_master_key()
@@ -3511,46 +3527,40 @@ class TestAcraKeysWithClientIDGeneration(unittest.TestCase):
             timeout=PROCESS_CALL_TIMEOUT)
 
 
-class TestAcraKeysWithRedis(unittest.TestCase):
-    def setUp(self):
-        self.master_key = get_master_key()
-        self.client_id = 'keypair1'
-
+class TestAcraKeysWithRedis(RedisMixin, unittest.TestCase):
     def test_read_command_keystore(self):
-        with tempfile.TemporaryDirectory() as keys_folder:
-            subprocess.check_call(
-                ['./acra-keymaker',
-                 '--client_id={}'.format(self.client_id),
-                 '--generate_acrawriter_keys',
-                 '--redis_host_port=localhost:6379',
-                 '--keys_output_dir={}'.format(keys_folder),
-                 '--keys_public_output_dir={}'.format(keys_folder),
-                 '--keystore={}'.format(KEYSTORE_VERSION)
-                 ],
-                env={ACRA_MASTER_KEY_VAR_NAME: self.master_key},
-                timeout=PROCESS_CALL_TIMEOUT)
+        master_key = get_master_key()
+        client_id = 'keypair1'
 
-            subprocess.check_call([
-                './acra-keys',
-                'read',
-                '--public',
-                '--keys_dir={}'.format(keys_folder),
-                '--redis_host_port=localhost:6379',
-                'client/keypair1/storage'
-            ],
-                env={ACRA_MASTER_KEY_VAR_NAME: self.master_key},
-                timeout=PROCESS_CALL_TIMEOUT)
+        subprocess.check_call(
+            ['./acra-keymaker',
+             '--client_id={}'.format(client_id),
+             '--generate_acrawriter_keys',
+             '--redis_host_port=localhost:6379',
+             '--keystore={}'.format(KEYSTORE_VERSION)
+             ],
+            env={ACRA_MASTER_KEY_VAR_NAME: master_key},
+            timeout=PROCESS_CALL_TIMEOUT)
 
-            subprocess.check_call([
-                './acra-keys',
-                'read',
-                '--private',
-                '--keys_dir={}'.format(keys_folder),
-                '--redis_host_port=localhost:6379',
-                'client/keypair1/storage'
-            ],
-                env={ACRA_MASTER_KEY_VAR_NAME: self.master_key},
-                timeout=PROCESS_CALL_TIMEOUT)
+        subprocess.check_call([
+            './acra-keys',
+            'read',
+            '--public',
+            '--redis_host_port=localhost:6379',
+            'client/keypair1/storage'
+        ],
+            env={ACRA_MASTER_KEY_VAR_NAME: master_key},
+            timeout=PROCESS_CALL_TIMEOUT)
+
+        subprocess.check_call([
+            './acra-keys',
+            'read',
+            '--private',
+            '--redis_host_port=localhost:6379',
+            'client/keypair1/storage'
+        ],
+            env={ACRA_MASTER_KEY_VAR_NAME: master_key},
+            timeout=PROCESS_CALL_TIMEOUT)
 
 class TestPostgreSQLParseQueryErrorSkipExit(AcraCatchLogsMixin, BaseTestCase):
     """By default AcraServer skip any errors connected SQL parse queries failures.
@@ -7219,11 +7229,11 @@ class BaseTokenizationWithBoltDB(BaseTokenization):
         os.remove('token1.db')
 
 
-class BaseTokenizationWithRedis(BaseTokenization):
+class BaseTokenizationWithRedis(RedisMixin, BaseTokenization):
     def fork_acra(self, popen_kwargs: dict = None, **acra_kwargs: dict):
         acra_kwargs.update(
             redis_host_port='localhost:6379',
-            redis_db_tokens='0',
+            redis_db_tokens=TEST_REDIS_TOKEN_DB,
             encryptor_config_file=get_test_encryptor_config(self.ENCRYPTOR_CONFIG))
         return super(BaseTokenizationWithRedis, self).fork_acra(popen_kwargs, **acra_kwargs)
 

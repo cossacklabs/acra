@@ -17,3 +17,5 @@ googleapis-common-protos==1.53.0
 prometheus_client==0.10.1
 unittest-xml-reporting==3.0.4
 cryptography==3.4.7
+redis==4.0.1
+hiredis==2.0.0
