@@ -56,7 +56,7 @@ func RegisterRedisKeyStoreParameters() {
 // ValidateRedisCLIOptions validate Redis CLI options.
 func ValidateRedisCLIOptions() {
 	if err := redisOptions.validateOptions(); err != nil {
-		log.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorWrongParam).Error(
+		log.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorWrongParam).Errorln(
 			"Identical Redis DB parameters, one of redis_db_tokens or redis_db_keys should be provided")
 		os.Exit(1)
 	}

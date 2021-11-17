@@ -259,7 +259,7 @@ func IsKeyStoreV2(params KeyStoreParameters) bool {
 			},
 		})
 		if err != nil {
-			log.WithError(err).Debug("Failed to find keystore v2 in Redis")
+			log.WithError(err).Debugln("Failed to find keystore v2 in Redis")
 			return false
 		}
 		// If the keystore has been opened successfully, it definitely exists.
