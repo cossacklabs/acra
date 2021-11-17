@@ -3,7 +3,7 @@
 function compare_configs() {
     folder_a=$1
     folder_b=$2
-    binaries=(server connector translator addzone webconfig rollback keymaker poisonrecordmaker authmanager rotate)
+    binaries=(server connector translator addzone rollback keymaker poisonrecordmaker rotate)
     for cmd in "${binaries[@]}"; do
      cmp ${folder_a}/acra-${cmd}.yaml ${folder_b}/acra-${cmd}.yaml
      cmp_status="$?"

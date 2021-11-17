@@ -39,7 +39,6 @@ const (
 	ValidChars           = "_- "
 	MaxClientIDLength    = 256
 	MinClientIDLength    = 5
-	BasicAuthKeyLength   = 32
 	AcraMasterKeyVarName = "ACRA_MASTER_KEY"
 	// SymmetricKeyLength in bytes for master key
 	SymmetricKeyLength = 32
@@ -302,7 +301,6 @@ type StorageKeyGenerator interface {
 type KeyMaking interface {
 	StorageKeyCreation
 	TransportKeyCreation
-	WebConfigKeyStore
 	PoisonKeyStore
 	AuditLogKeyGenerator
 	HmacKeyGenerator
@@ -323,7 +321,6 @@ type ServerKeyStore interface {
 	DecryptionKeyStore
 	SecureSessionKeyStore
 	StorageKeyCreation
-	WebConfigKeyStore
 	AuditLogKeyStore
 	SymmetricEncryptionKeyStoreGenerator
 
@@ -348,11 +345,4 @@ type TranslationKeyStore interface {
 	DecryptionKeyStore
 	SecureSessionKeyStore
 	AuditLogKeyStore
-}
-
-// WebConfigKeyStore provides access to Acra Web Config.
-type WebConfigKeyStore interface {
-	// Reads current symmetric key for Acra Web Config.
-	// The key is created it if it does not exist yet, or recreated if "remove" is true.
-	GetAuthKey(remove bool) ([]byte, error)
 }

@@ -76,10 +76,10 @@ COPY ./ "${PATH_ACRA}/"
 RUN cd "${PATH_ACRA}" && go install -tags netgo ./cmd/...
 
 # Copy each product and its dependencies to resulting directories
-RUN for component in authmanager connector keymaker server tools translator webconfig; do \
+RUN for component in connector keymaker server tools translator; do \
         ADD_COMPONENTS=(); \
         if [ "$component" == 'tools' ]; then \
-            ADD_COMPONENTS+=('addzone' 'authmanager' 'backup' 'keymaker' 'keys' 'poisonrecordmaker' 'rollback' 'rotate' 'tokens'); \
+            ADD_COMPONENTS+=('addzone' 'backup' 'keymaker' 'keys' 'poisonrecordmaker' 'rollback' 'rotate' 'tokens'); \
         else \
             ADD_COMPONENTS+=("$component"); \
         fi; \
@@ -93,6 +93,3 @@ RUN for component in authmanager connector keymaker server tools translator webc
             /image.scripts/add_component.sh "$c" "$component"; \
         done; \
     done
-# Copy static resources for acra-webconfig
-RUN cp -r "${PATH_ACRA}/cmd/acra-webconfig/static" \
-    "/container.acra-webconfig/"

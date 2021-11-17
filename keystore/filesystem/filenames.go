@@ -30,7 +30,6 @@ const SecureLogKeyFilename = "secure_log_key"
 const (
 	PoisonKeyFilename       = ".poison_key/poison_key"
 	poisonKeyFilenamePublic = ".poison_key/poison_key.pub"
-	BasicAuthKeyFilename    = "auth_key"
 	historyDirSuffix        = ".old"
 )
 

@@ -58,7 +58,6 @@ func main() {
 	acraServer := flag.Bool("generate_acraserver_keys", false, "Create keypair for AcraServer only")
 	acraTranslator := flag.Bool("generate_acratranslator_keys", false, "Create keypair for AcraTranslator only")
 	dataKeys := flag.Bool("generate_acrawriter_keys", false, "Create keypair for data encryption/decryption")
-	basicauth := flag.Bool("generate_acrawebconfig_keys", false, "Create symmetric key for AcraWebconfig's basic auth db")
 	outputDir := flag.String("keys_output_dir", keystore.DefaultKeyDirShort, "Folder where will be saved keys")
 	outputPublicKey := flag.String("keys_public_output_dir", keystore.DefaultKeyDirShort, "Folder where will be saved public key")
 	hmac := flag.Bool("generate_hmac_key", false, "Create key for HMAC calculation")
@@ -226,13 +225,6 @@ func main() {
 		}
 		fmt.Println("Generated storage encryption keypair")
 	}
-	if *basicauth {
-		_, err = store.GetAuthKey(true)
-		if err != nil {
-			panic(err)
-		}
-		fmt.Println("Generated key for basic auth for acra-webconfig")
-	}
 	if *hmac {
 		err = store.GenerateHmacKey([]byte(*clientID))
 		if err != nil {
@@ -255,7 +247,7 @@ func main() {
 		fmt.Println("Generated HMAC key for secure logging")
 	}
 
-	if !(*acraConnector || *acraServer || *acraTranslator || *dataKeys || *basicauth || *hmac || *poisonRecord || *symStorageKey || *logKey) {
+	if !(*acraConnector || *acraServer || *acraTranslator || *dataKeys || *hmac || *poisonRecord || *symStorageKey || *logKey) {
 		cmd.ValidateClientID(*clientID)
 
 		err = store.GenerateConnectorKeys([]byte(*clientID))
@@ -281,11 +273,6 @@ func main() {
 			panic(err)
 		}
 		fmt.Println("Generated storage encryption keypair")
-		_, err = store.GetAuthKey(true)
-		if err != nil {
-			panic(err)
-		}
-		fmt.Println("Generated key for basic auth for acra-webconfig")
 		err = store.GenerateHmacKey([]byte(*clientID))
 		if err != nil {
 			panic(err)

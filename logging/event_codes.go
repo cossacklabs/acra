@@ -61,17 +61,6 @@ const (
 	EventCodeErrorCantConnectToDB       = 540
 	EventCodeErrorCantCloseConnectionDB = 541
 
-	// AcraWebconfig
-	EventCodeErrorCantReadTemplate        = 550
-	EventCodeErrorRequestMethodNotAllowed = 551
-	EventCodeErrorCantParseRequestData    = 552
-	EventCodeErrorCantGetCurrentConfig    = 553
-	EventCodeErrorCantSetNewConfig        = 554
-	EventCodeErrorCantHashPassword        = 555
-	EventCodeErrorCantGetAuthData         = 556
-	EventCodeErrorCantParseAuthData       = 557
-	EventCodeErrorCantDumpConfig          = 558
-
 	// acracensor
 	EventCodeErrorCensorQueryIsNotAllowed   = 560
 	EventCodeErrorCensorSetupError          = 561

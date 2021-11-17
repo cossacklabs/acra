@@ -17,7 +17,6 @@ limitations under the License.
 package common
 
 import (
-	"encoding/json"
 	"errors"
 	"io/ioutil"
 
@@ -53,20 +52,8 @@ type Config struct {
 	dataEncryptor           encryptor.DataEncryptor
 	keystore                keystore.ServerKeyStore
 	traceOptions            []trace.StartOption
-	authDataPath            string
 	serviceName             string
 	configPath              string
-}
-
-// UIEditableConfig describes which parts of AcraServer configuration can be changed from AcraWebconfig page
-type UIEditableConfig struct {
-	DbHost           string `json:"db_host"`
-	DbPort           int    `json:"db_port"`
-	ConnectorAPIPort int    `json:"incoming_connection_api_port"`
-	Debug            bool   `json:"debug"`
-	ScriptOnPoison   string `json:"poison_run_script_file"`
-	StopOnPoison     bool   `json:"poison_shutdown_enable"`
-	WithZone         bool   `json:"zonemode_enable"`
 }
 
 // NewConfig returns new Config object
@@ -236,24 +223,6 @@ func (config *Config) GetConfigPath() string {
 	return config.configPath
 }
 
-// ToJSON AcraServer editable config in JSON format
-func (config *Config) ToJSON() ([]byte, error) {
-	var s UIEditableConfig
-	var err error
-	s.DbHost = config.dbHost
-	s.DbPort = config.dbPort
-	_, s.ConnectorAPIPort, err = network.SplitConnectionString(config.acraAPIConnectionString)
-	if err != nil {
-		return nil, err
-	}
-	s.Debug = config.GetDebug()
-	s.ScriptOnPoison = config.scriptOnPoison
-	s.StopOnPoison = config.stopOnPoison
-	s.WithZone = config.GetWithZone()
-	out, err := json.Marshal(s)
-	return out, err
-}
-
 // GetAcraConnectionString returns AcraServer data connection string
 func (config *Config) GetAcraConnectionString() string {
 	return config.acraConnectionString
@@ -277,16 +246,6 @@ func (config *Config) GetKeyStore() keystore.ServerKeyStore {
 // GetTraceOptions return configured trace StartOptions
 func (config *Config) GetTraceOptions() []trace.StartOption {
 	return config.traceOptions
-}
-
-// SetAuthDataPath sets basic authentication data path.
-func (config *Config) SetAuthDataPath(path string) {
-	config.authDataPath = path
-}
-
-// GetAuthDataPath returns basic authentication data path.
-func (config *Config) GetAuthDataPath() string {
-	return config.authDataPath
 }
 
 // SetServiceName sets AcraServer service name.
