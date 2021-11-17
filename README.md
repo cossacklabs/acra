@@ -15,35 +15,35 @@
   <a href='https://godoc.org/github.com/cossacklabs/acra'><img src='https://godoc.org/github.com/cossacklabs/acra?status.svg'  alt='godoc'/></a>
   <br/><a href="https://github.com/cossacklabs/acra/releases/latest"><img src="https://img.shields.io/badge/Server%20Platforms-Ubuntu%20%7C%20Debian%20%7C%20CentOS-green.svg" alt="Server platforms"></a>
   <a href="https://github.com/cossacklabs/acra/releases/latest"><img src="https://img.shields.io/badge/Client%20Platforms-Go%20%7C%20Ruby%20%7C%20Python%20%7C%20PHP%20%7C%20NodeJS%20%7C%20C++%20%7C%20iOS%20%7C%20Android-green.svg" alt="Client platforms"></a>
-  <a href="https://marketplace.digitalocean.com/apps/acra?action=deploy"><img src="https://img.shields.io/badge/install%20on-DigitalOcean-blue" alt="Install on DigitalOcean"></a>
+  <a href="https://marketplace.digitalocean.com/apps/acra?action=deploy"><img src="https://img.shields.io/badge/Install%20on-DigitalOcean-blue" alt="Install on DigitalOcean"></a>
 </p>
 <br>
 
-| [Acra Engineering Examples](https://github.com/cossacklabs/acra-engineering-demo) | [Documentation](https://docs.cossacklabs.com/products/acra/) | [Installation](https://github.com/cossacklabs/acra#installation-and-launch) | [Examples and tutorials](https://github.com/cossacklabs/acra#documentation-and-tutorials) |
-| ---- | ---- | ---- | --- |
+| [Acra Engineering Examples](https://github.com/cossacklabs/acra-engineering-demo) | [Documentation and tutorials](https://docs.cossacklabs.com/acra/) | [Installation](https://github.com/cossacklabs/acra#installation-and-launch) |
+| ---- | ---- | ---- |
 
 
 ## What is Acra
 Acra — database security suite for sensitive and personal data protection.
 
-Acra provides field level encryption (client-side or proxy-side), multi-layered access control, database leakage prevention, and intrusion detection capabilities in a convenient, developer-friendly package. Acra was specifically designed for web and mobile apps with centralised data storage, including with distributed, microservice-rich applications.
+Acra provides [application-level encryption](https://www.infoq.com/articles/ale-software-architects/) on field level (client-side or Acra-side), multi-layered access control, database leakage prevention, and intrusion detection capabilities in one suite. Acra was specifically designed for distributed apps (web, server-side and mobile) that store data in one or many databases / datastores.
 
 <table><thead><tr><th>Perfect Acra-compatible applications</th>
 <th>Typical industries</th></tr></thead>
 <tbody><tr><td>Web and mobile apps that store data in a centralised database or object storage</td>
 <td rowspan=3><ul>
-<li>Healthcare</li>
-<li>Finance</li>
-<li>E-commerce</li>
+<li>Healthcare, patient apps</li>
+<li>Finance, fintech, neobanking</li>
+<li>SaaS</li>
 <li>Critical infrastructures</li>
 <li>Apps with > 1000 users</li></ul></td>
 </tr><tr><td>IoT apps that collect telemetry and process data in the cloud</td>
 </tr><tr><td>High-load data processing apps</td>
 </tr></tbody></table>
 
-Acra gives you tools for encrypting the data records into special [cryptographic containers](https://docs.cossacklabs.com/pages/documentation-acra/#acrastruct), storing them in the database or file storage and then decrypting them in a secure compartmented area (separate virtual machine/container). Acra allows to encrypt data as early as possible and operate on encrypted data.
+Acra gives you tools for encrypting each sensitive data record (data field, database cell, json) before storing them in the database / file storage. And then decrypting them in a secure compartmented area (on Acra side). Acra allows to encrypt data as early as possible and operate on encrypted data.
 
-Acra's cryptographic design ensures that no secret (password, key, etc.) leaked from the application or database will be sufficient for decryption of the protected data chunks that originate from it. Acra minimises the leakage scope, detects unauthorised behavior, and prevents the leakage, informing operators of the incident underway.
+Acra's [cryptographic design](https://docs.cossacklabs.com/acra/acra-in-depth/security-design/) ensures that no secret (password, key, etc.) leaked from the application or database will be sufficient for decryption of the protected data. Acra minimises the leakage scope, detects unauthorised behavior, and prevents the leakage, informing operators of the incident underway.
 
 This is [Acra Community Edition](https://www.cossacklabs.com/acra/#pricing), it's free for commercial and non-commercial use, forever.
 
@@ -51,17 +51,20 @@ This is [Acra Community Edition](https://www.cossacklabs.com/acra/#pricing), it'
 
 ### Major security features
 
-<table><tbody><tr><tr><td><li>Cryptographic protection of data </li></td><td> field level encryption (client-side and/or proxy-side);<br/> each data record is encrypted using unique encryption keys</td>
-</tr><tr><td><li>Selective encryption </li></td><td> select which field/columns to encrypt to balance good security and performance </td>
-</tr><tr><td><li>Key management tools </li></td><td> built-in tools for key distribution, key rotation (with/without data re-encryption), and compartmentalisation</td>
-</tr><tr><td><li>Trust compartmentalisation </li></td><td> datastore and application components can be compromised, yet the data stays protected</td>
-</tr><tr><td><li>Prevention of SQL injections </li></td><td> through a built-in SQL firewall </td>
-</tr><tr><td><li>Intrusion detection system </li></td><td> using poison records (honey tokens) to warn about suspicious behaviour </td>
-</tr><tr><td><li>REST API (gRPC, HTTP) </li></td><td> encryption/decryption using AcraTranslator </td>
-</tr><tr><td><li>Searchable encryption ᵉ </li></td><td rowspan=4>available for <a href="https://www.cossacklabs.com/acra/#pricing" target="_blank">Acra Enterprise</a> users</td>
-</tr><tr><td><li>Masking / anonymization ᵉ </li></td>
-</tr><tr><td><li>Tokenization / Pseudonymization ᵉ </li></td>
-</tr><tr><td><li>Cryptographically protected audit log ᵉ </li></td>
+<table><tbody><tr><tr><td><li><a href="https://docs.cossacklabs.com/acra/security-controls/encryption/">Application-level encryption</a></li></td><td> encryption on client-side and Acra-side – each data record is encrypted using unique encryption keys.</td>
+</tr><tr><td><li>Selective encryption </li></td><td> select which field/columns to encrypt to balance good security and performance.</td>
+</tr><tr><td><li>Fast and reliable crypto</li></td><td>two crypto-envelopes: <a href="https://docs.cossacklabs.com/acra/acra-in-depth/data-structures/">AcraBlocks and AcraStructs</a>. AcraBlocks are fast symmetric containers, encrypted and decrypted on the Acra side, AES-256-GCM. AcraStructs are asymmetric containers, suit best for client-side encryption and Acra-side decryption, AES-256-GCM + ECDH.</td>
+</tr><tr><td><li><a href="https://docs.cossacklabs.com/acra/security-controls/searchable-encryption/">Searchable encryption</a></li></td><td>search by query without decryption. Designed for exact queries, based on AES-GCM and blind index approach.</td>
+</tr><tr><td><li><a href="https://docs.cossacklabs.com/acra/security-controls/masking/">Masking / anonymization</a></li></td><td>use full or partial masking to remove or mask sensitive data.</td>
+</tr><tr><td><li><a href="https://docs.cossacklabs.com/acra/security-controls/tokenization/">Tokenization</a></li></td><td>substitute sensitive data with a token and match it to original only when needed.</td>
+</tr><tr><td><li><a href="https://docs.cossacklabs.com/acra/security-controls/key-management/">Basic key management tools</a></li></td><td>built-in tools for key generation, export, backup, rotation, etc.</td>
+</tr><tr><td><li><a href="https://docs.cossacklabs.com/acra/security-controls/sql-firewall/">Prevention of SQL injections</a></li></td><td>through a built-in SQL firewall.</td>
+</tr><tr><td><li><a href="https://docs.cossacklabs.com/acra/security-controls/intrusion-detection/">Intrusion detection</a></li></td><td> using poison records (honey tokens) to warn about suspicious behaviour.</td>
+</tr><tr><td><li>REST API (gRPC, HTTP) </li></td><td>encryption, decryption and tokenization using AcraTranslator.</td>
+</tr><tr><td><li><a href="https://docs.cossacklabs.com/acra/security-controls/key-management/operations/rotation/">Key rotation without data re-encryption</a> ᵉ </li></td><td rowspan=4>available for <a href="https://www.cossacklabs.com/acra/#pricing" target="_blank">Acra Enterprise</a> users</td>
+</tr><tr><td><li><a href="https://docs.cossacklabs.com/acra/configuring-maintaining/key-storing/kms-integration/">KMS support</a> ᵉ </li></td>
+</tr><tr><td><li>Bulk API for AcraTranslator ᵉ </li></td>
+</tr><tr><td><li><a href="https://docs.cossacklabs.com/acra/security-controls/security-logging-and-events/audit-logging/">Cryptographically protected audit log</a> ᵉ </li></td>
 </tr></tbody></table>
 
 Acra delivers different layers of defense for different parts and stages of the data lifecycle. This is what **defence in depth** is – an independent set of security controls aimed at mitigating multiple risks in case of an attacker crossing the outer perimeter. 
