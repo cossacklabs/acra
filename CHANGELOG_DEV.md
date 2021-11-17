@@ -1,4 +1,4 @@
-## 0.90.0 - 2021-11-12
+## 0.91.0 - 2021-11-12
 ### Removed
 - `acra-webconfig` package, related dockerfiles, updated docker-compose files.
 - `acra-authmanager`.
