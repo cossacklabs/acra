@@ -739,28 +739,6 @@ func (store *KeyStore) GetPoisonSymmetricKeys() ([][]byte, error) {
 	return store.getSymmetricKeys([]byte(keyFileName), keyFileName)
 }
 
-// GetAuthKey generates basic auth key for acraWebconfig, and writes it encrypted to fs,
-// or reads existing key from fs.
-// Returns key or error of generation/decryption failed.
-func (store *KeyStore) GetAuthKey(remove bool) ([]byte, error) {
-	keyPath := store.GetPrivateKeyFilePath(BasicAuthKeyFilename)
-	keyExists, err := store.fs.Exists(keyPath)
-	if err != nil {
-		log.Error(err)
-		return nil, err
-	}
-	if keyExists && !remove {
-		key, err := store.fs.ReadFile(keyPath)
-		if err != nil {
-			log.Error(err)
-			return nil, err
-		}
-		return key, nil
-	}
-	log.Debugf("Generate basic auth key for AcraWebconfig to %v", keyPath)
-	return store.generateKey(BasicAuthKeyFilename, keystore.BasicAuthKeyLength)
-}
-
 // RotateZoneKey generate new key pair for ZoneId, overwrite private key with new and return new public key
 func (store *KeyStore) RotateZoneKey(zoneID []byte) ([]byte, error) {
 	_, public, err := store.generateZoneKey(zoneID)

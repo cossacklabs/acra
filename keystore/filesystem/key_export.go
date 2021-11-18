@@ -73,7 +73,6 @@ const (
 	PurposePoisonRecordSymmetricKey   = "poison_sym_key"
 	PurposeStorageClientSymmetricKey  = "storage_sym_key"
 	PurposeStorageZoneSymmetricKey    = "zone_sym_key"
-	PurposeAuthenticationSymKey       = "auth_key"
 	PurposePoisonRecordKeyPair        = "poison_key"
 	PurposeStorageClientKeyPair       = "storage"
 	PurposeStorageZoneKeyPair         = "zone"
@@ -297,10 +296,6 @@ func (*DefaultKeyFileClassifier) ClassifyExportedKey(path string) *ExportedKey {
 	if strings.HasSuffix(filename, "_zone_sym") {
 		id := []byte(strings.TrimSuffix(filename, "_zone_sym"))
 		return NewExportedSymmetricKey(path, id, PurposeStorageZoneSymmetricKey)
-	}
-
-	if strings.HasSuffix(path, BasicAuthKeyFilename) {
-		return NewExportedPlaintextSymmetricKey(path, PurposeAuthenticationSymKey)
 	}
 
 	// Poison key pairs use PoisonKeyFilename as context for encryption.

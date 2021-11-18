@@ -17,9 +17,6 @@ generate_acraserver_keys: false
 # Create keypair for AcraTranslator only
 generate_acratranslator_keys: false
 
-# Create symmetric key for AcraWebconfig's basic auth db
-generate_acrawebconfig_keys: false
-
 # Create keypair for data encryption/decryption
 generate_acrawriter_keys: false
 

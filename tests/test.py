@@ -57,7 +57,6 @@ from cryptography.hazmat.backends import default_backend
 from ddt import ddt, data
 from hvac import Client
 from prometheus_client.parser import text_string_to_metric_families
-from requests.auth import HTTPBasicAuth
 from sqlalchemy.dialects import mysql as mysql_dialect
 from sqlalchemy.dialects import postgresql as postgresql_dialect
 from sqlalchemy.dialects.postgresql import BYTEA
@@ -155,15 +154,6 @@ TEST_SSL_VAULT = os.environ.get('TEST_SSL_VAULT', 'off').lower() == 'on'
 TEST_VAULT_TLS_CA = abs_path(os.environ.get('TEST_VAULT_TLS_CA', 'tests/ssl/ca/ca.crt'))
 VAULT_KV_ENGINE_VERSION=os.environ.get('VAULT_KV_ENGINE_VERSION', 'v1')
 CRYPTO_ENVELOPE_HEADER = b'%%%'
-
-ACRAWEBCONFIG_HTTP_PORT = 8022
-ACRAWEBCONFIG_AUTH_DB_PATH = 'auth.keys'
-ACRAWEBCONFIG_BASIC_AUTH = dict(
-    user='test_user',
-    password='test_user_password'
-)
-ACRAWEBCONFIG_STATIC_PATH = 'cmd/acra-webconfig/static/'
-ACRAWEBCONFIG_HTTP_TIMEOUT = 3
 
 POISON_KEY_PATH = '.poison_key/poison_key'
 
@@ -474,15 +464,6 @@ def exchange_client_public_keys(client, server_keys_dir, connector_keys_dir):
                             timeout=PROCESS_CALL_TIMEOUT)
 
 
-def manage_basic_auth_user(action, user_name, user_password):
-    args = ['./acra-authmanager', '--{}'.format(action),
-            '--file={}'.format(ACRAWEBCONFIG_AUTH_DB_PATH),
-            '--user={}'.format(user_name),
-            '--keys_dir={}'.format(KEYS_FOLDER.name),
-            '--password={}'.format(user_password)]
-    return subprocess.call(args, cwd=os.getcwd(), timeout=PROCESS_CALL_TIMEOUT)
-
-
 def wait_connection(port, count=1000, sleep=0.001):
     """try connect to 127.0.0.1:port and close connection
     if can't then sleep on and try again (<count> times)
@@ -610,10 +591,6 @@ BINARIES = [
            build_args=DEFAULT_BUILD_ARGS),
     Binary(name='acra-rollback', from_version=ACRAROLLBACK_MIN_VERSION,
            build_args=DEFAULT_BUILD_ARGS),
-    Binary(name='acra-authmanager', from_version=DEFAULT_VERSION,
-           build_args=DEFAULT_BUILD_ARGS),
-    Binary(name='acra-webconfig', from_version=DEFAULT_VERSION,
-           build_args=DEFAULT_BUILD_ARGS),
     Binary(name='acra-translator', from_version=DEFAULT_VERSION,
            build_args=DEFAULT_BUILD_ARGS),
     Binary(name='acra-rotate', from_version=DEFAULT_VERSION,
@@ -656,10 +633,7 @@ def clean_binaries():
             pass
 
 def clean_misc():
-    try:
-        os.unlink('./{}'.format(ACRAWEBCONFIG_AUTH_DB_PATH))
-    except:
-        pass
+    pass
 
 
 PROCESS_CALL_TIMEOUT = 120
@@ -1011,7 +985,6 @@ class KeyMakerTest(unittest.TestCase):
                  "--client_id=''",
                  '--generate_poisonrecord_keys',
                  '--generate_log_key',
-                 '--generate_acrawebconfig_keys',
                  '--keys_public_output_dir={}'.format(folder)])
 
         with tempfile.TemporaryDirectory() as folder:
@@ -1162,7 +1135,6 @@ class BaseTestCase(PrometheusMixin, unittest.TestCase):
     CONNECTOR_PROMETHEUS_PORT_2 = int(os.environ.get('TEST_CONNECTOR_PORT', CONNECTOR_PORT_2+1))
 
     CONNECTOR_API_PORT_1 = int(os.environ.get('TEST_CONNECTOR_API_PORT', 9696))
-    ACRAWEBCONFIG_HTTP_PORT = int(os.environ.get('TEST_CONFIG_UI_HTTP_PORT', ACRAWEBCONFIG_HTTP_PORT))
     # for debugging with manually runned acra-server
     EXTERNAL_ACRA = False
     ACRASERVER_PORT = int(os.environ.get('TEST_ACRASERVER_PORT', 10003))
@@ -1172,7 +1144,6 @@ class BaseTestCase(PrometheusMixin, unittest.TestCase):
     ACRA_BYTEA = 'pgsql_hex_bytea'
     DB_BYTEA = 'hex'
     WHOLECELL_MODE = False
-    ACRAWEBCONFIG_AUTH_KEYS_PATH = os.environ.get('TEST_CONFIG_UI_AUTH_DB_PATH', ACRAWEBCONFIG_AUTH_DB_PATH)
     ZONE = False
     TEST_DATA_LOG = False
     CONNECTOR_TLS_TRANSPORT = False
@@ -1205,22 +1176,6 @@ class BaseTestCase(PrometheusMixin, unittest.TestCase):
                 *args, **kwargs)
         else:
             return wait_connection(connection_string.split(':')[-1])
-
-    def fork_webconfig(self, connector_port: int, http_port: int):
-        logging.info("fork acra-webconfig")
-        args = [
-            './acra-webconfig',
-            '-incoming_connection_port={}'.format(http_port),
-            '-destination_host=localhost',
-            '-destination_port={}'.format(connector_port),
-            '-static_path={}'.format(ACRAWEBCONFIG_STATIC_PATH)
-        ]
-        if self.DEBUG_LOG:
-            args.append('-d=true')
-        print('webconfig args: {}'.format(' '.join(args)))
-        process = self.fork(lambda: subprocess.Popen(args))
-        wait_connection(http_port)
-        return process
 
     def get_connector_tls_params(self):
         return {
@@ -1396,9 +1351,6 @@ class BaseTestCase(PrometheusMixin, unittest.TestCase):
             port = self.CRL_HTTP_SERVER_PORT
         return 'http://localhost:{}'.format(port)
 
-    def get_acrawebconfig_connection_url(self):
-        return 'http://{}:{}'.format('127.0.0.1', ACRAWEBCONFIG_HTTP_PORT)
-
     def get_acraserver_bin_path(self):
         return './acra-server'
 
@@ -1432,7 +1384,6 @@ class BaseTestCase(PrometheusMixin, unittest.TestCase):
             'd': 'true' if self.DEBUG_LOG else 'false',
             'zonemode_enable': 'true' if self.ZONE else 'false',
             'http_api_enable': 'true' if self.ZONE else 'true',
-            'auth_keys': self.ACRAWEBCONFIG_AUTH_KEYS_PATH,
             'keys_dir': KEYS_FOLDER.name,
         }
         if TEST_WITH_TRACING:
@@ -2863,7 +2814,8 @@ class AcraCatchLogsMixin(object):
         popen_args = {
             'stderr': subprocess.STDOUT,
             'stdout': log_file,
-            'close_fds': True
+            'close_fds': True,
+            'bufsize': 0,
         }
         process = super(AcraCatchLogsMixin, self).fork_acra(
             popen_args, **acra_kwargs
@@ -3988,128 +3940,6 @@ class TestAcraKeyMakers(unittest.TestCase):
     def test_only_alpha_client_id(self):
         # call with directory separator in key name
         self.assertEqual(create_client_keypair(POISON_KEY_PATH), 1)
-
-
-class TestAcraWebconfigAcraAuthManager(unittest.TestCase):
-    def testUIGenAuth(self):
-        self.assertEqual(manage_basic_auth_user('set', 'test', 'test'), 0)
-        self.assertEqual(manage_basic_auth_user('set', ACRAWEBCONFIG_BASIC_AUTH['user'], ACRAWEBCONFIG_BASIC_AUTH['password']), 0)
-        self.assertEqual(manage_basic_auth_user('remove', 'test', 'test'), 0)
-        self.assertEqual(manage_basic_auth_user('remove', 'test_unknown', 'test_unknown'), 1)
-
-
-class TestAcraWebconfigWeb(AcraCatchLogsMixin, BaseTestCase):
-    def get_acraserver_connection_string(self, port=None):
-        return get_tcp_connection_string(port or self.ACRASERVER_PORT)
-
-    def get_acraserver_api_connection_string(self, port=None):
-        if not port:
-            port = self.ACRASERVER_PORT
-        return get_tcp_connection_string(port+1)
-
-    def setUp(self):
-        try:
-            base_config = load_yaml_config('configs/acra-server.yaml')
-            base_config['zonemode_enable'] = True
-            base_config['http_api_enable'] = True
-            base_config['db_host'] = DB_HOST
-            base_config['db_port'] = DB_PORT
-            self.config = NamedTemporaryFile(delete=False)
-            with self.config as f:
-                dump_yaml_config(base_config, f.name)
-
-            # create auth file with default correct user
-            manage_basic_auth_user('set', ACRAWEBCONFIG_BASIC_AUTH['user'], ACRAWEBCONFIG_BASIC_AUTH['password'])
-            # don't pass these args as cli params because they will have higher priority than config file
-            # so pass them with None value which will exclude them in fork_acra method
-            empty_overridable_args = {
-                i: None for i in ('db_host', 'db_port', 'zonemode_enable',  'incoming_connection_api_port',
-                                'd', 'poison_run_script_file', 'poison_shutdown_enable')
-            }
-            self.acra = self.fork_acra(
-                popen_kwargs={'stderr': subprocess.STDOUT, 'stdout': subprocess.PIPE, 'close_fds': True},
-                config_file=self.config.name, **empty_overridable_args)
-            self.connector_1 = self.fork_connector(
-                self.CONNECTOR_PORT_1, self.ACRASERVER_PORT, 'keypair1', zone_mode=True, api_port=self.CONNECTOR_API_PORT_1)
-            self.webconfig = self.fork_webconfig(connector_port=self.CONNECTOR_API_PORT_1, http_port=self.ACRAWEBCONFIG_HTTP_PORT)
-        except Exception:
-            self.tearDown()
-            raise
-
-    def tearDown(self):
-        self.config.close()
-        os.remove(self.config.name)
-        super(TestAcraWebconfigWeb, self).tearDown()
-        stop_process(getattr(self, 'webconfig', ProcessStub()))
-        send_signal_by_process_name('acra-webconfig', signal.SIGKILL)
-
-    def testAuthAndSubmitSettings(self):
-        base_config = load_yaml_config('configs/acra-server.yaml')
-        shutil.copy('configs/acra-server.yaml', 'configs/acra-server.yaml.backup')
-        try:
-            # test wrong auth
-            with requests.post(
-                    self.get_acrawebconfig_connection_url(), data={}, timeout=ACRAWEBCONFIG_HTTP_TIMEOUT,
-                    auth=HTTPBasicAuth('wrong_user_name', 'wrong_password')) as req:
-                self.assertEqual(req.status_code, 401)
-
-
-            # test correct auth
-            with requests.post(
-                    self.get_acrawebconfig_connection_url(), data={}, timeout=ACRAWEBCONFIG_HTTP_TIMEOUT,
-                    auth=HTTPBasicAuth(ACRAWEBCONFIG_BASIC_AUTH['user'], ACRAWEBCONFIG_BASIC_AUTH['password'])) as req:
-                self.assertEqual(req.status_code, 200)
-
-            # test settings that inverse or extend existing values to diff changes after
-            new_settings = dict(
-                db_host=base_config.get('db_host') or '' + 'test',
-                db_port=int(base_config['db_port'])+1,
-                incoming_connection_api_port=int(base_config['incoming_connection_api_port'])+1,
-                debug=not base_config['d'],
-                poison_run_script_file=base_config.get('poison_run_script_file') or '' + 'test',
-                poison_shutdown_enable=base_config['poison_shutdown_enable'],
-                zonemode_enable=base_config['zonemode_enable']
-            )
-            with requests.post(
-                    "{}/acra-server/submit_setting".format(self.get_acrawebconfig_connection_url()),
-                    data=new_settings,
-                    timeout=ACRAWEBCONFIG_HTTP_TIMEOUT,
-                    auth=HTTPBasicAuth(ACRAWEBCONFIG_BASIC_AUTH['user'], ACRAWEBCONFIG_BASIC_AUTH['password'])) as req:
-                self.assertEqual(req.status_code, 200)
-
-            connection_string = self.get_acraserver_connection_string(self.ACRASERVER_PORT)
-            # wait restarted acra-server after submitting new config
-            self.wait_acraserver_connection(connection_string)
-            # check for new config after acra-server's graceful restart
-            with requests.post(
-                    self.get_acrawebconfig_connection_url(), data={}, timeout=ACRAWEBCONFIG_HTTP_TIMEOUT,
-                    auth=HTTPBasicAuth(ACRAWEBCONFIG_BASIC_AUTH['user'], ACRAWEBCONFIG_BASIC_AUTH['password'])) as req:
-                self.assertEqual(req.status_code, 200)
-                config_regex = r'currentConfig\s*=\s*(.+?);'
-                match = re.search(config_regex, req.text)
-                if not match:
-                    self.fail("Can't find config in output html")
-                loaded_config = json.loads(match.group(1))
-                for key in new_settings.keys():
-                    self.assertEqual(new_settings[key], loaded_config[key])
-        finally:
-            # search pid of forked acra-server process to kill
-            out = self.read_log(self.acra)
-            print(out)
-            # acra-server process forked to PID: 56946
-            if out and 'process forked to PID' in out:
-                pids = re.findall(r'process forked to PID: (\d+)', out)
-                if pids:
-                    pid = pids[0]
-                    try:
-                        os.kill(int(pid), signal.SIGKILL)
-                    except ProcessLookupError:
-                        pass
-            send_signal_by_process_name('acra-server', signal.SIGKILL)
-
-            # restore changed config
-            os.rename('configs/acra-server.yaml.backup',
-                      'configs/acra-server.yaml')
 
 
 class SSLPostgresqlMixin(AcraCatchLogsMixin):
@@ -6216,8 +6046,6 @@ class TestOutdatedServiceConfigs(BaseTestCase, FailedRunProcessMixin):
 
             default_args = {
                 'acra-addzone': ['-keys_output_dir={}'.format(KEYS_FOLDER.name)],
-                'acra-authmanager': {'args': ['-keys_dir={}'.format(KEYS_FOLDER.name)],
-                                     'status': 1},
                 'acra-connector': {'connection': 'connection_string',
                                    'args': ['-keys_dir={}'.format(KEYS_FOLDER.name)],
                                    'status': 1},
@@ -6240,8 +6068,6 @@ class TestOutdatedServiceConfigs(BaseTestCase, FailedRunProcessMixin):
                                    'status': 1},
                 'acra-server': {'args': ['-keys_dir={}'.format(KEYS_FOLDER.name)],
                                 'status': 1},
-                'acra-webconfig': {'args': ['-static_path={}'.format('/not/existed/path')],
-                                   'status': 1},
             }
 
             for service in services:
@@ -6266,8 +6092,6 @@ class TestOutdatedServiceConfigs(BaseTestCase, FailedRunProcessMixin):
         with tempfile.TemporaryDirectory() as tmp_dir:
             default_args = {
                 'acra-addzone': ['-keys_output_dir={}'.format(KEYS_FOLDER.name)],
-                'acra-authmanager': {'args': ['-keys_dir={}'.format(KEYS_FOLDER.name)],
-                                     'status': 1},
                 'acra-connector': {'connection': 'connection_string',
                                    'args': ['-keys_dir={}'.format(KEYS_FOLDER.name)],
                                    'status': 1},
@@ -6290,8 +6114,6 @@ class TestOutdatedServiceConfigs(BaseTestCase, FailedRunProcessMixin):
                                     'status': 1},
                 'acra-server': {'args': ['-keys_dir={}'.format(KEYS_FOLDER.name)],
                                 'status': 1},
-                'acra-webconfig': {'args': ['-static_path={}'.format('/not/existed/path')],
-                                   'status': 1},
             }
 
             for service in services:

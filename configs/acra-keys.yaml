@@ -149,9 +149,6 @@ acraserver_transport_key: false
 # Generate transport keypair for AcraTranslator
 acratranslator_transport_key: false
 
-# Generate symmetric key for AcraWebconfig's basic auth DB
-acrawebconfig_symmetric_key: false
-
 # Generate symmetric key for log integrity checks
 audit_log_symmetric_key: false
 

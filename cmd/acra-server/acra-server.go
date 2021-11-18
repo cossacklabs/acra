@@ -76,7 +76,6 @@ import (
 
 var restartSignalsChannel chan os.Signal
 var errorSignalChannel chan os.Signal
-var authPath *string
 
 // Constants used by AcraServer.
 const (
@@ -173,7 +172,6 @@ func realMain() error {
 	clientID := flag.String("client_id", "", "Expected client ID of AcraConnector in mode without encryption")
 	acraConnectionString := flag.String("incoming_connection_string", network.BuildConnectionString(cmd.DefaultAcraServerConnectionProtocol, cmd.DefaultAcraServerHost, cmd.DefaultAcraServerPort, ""), "Connection string like tcp://x.x.x.x:yyyy or unix:///path/to/socket")
 	acraAPIConnectionString := flag.String("incoming_connection_api_string", network.BuildConnectionString(cmd.DefaultAcraServerConnectionProtocol, cmd.DefaultAcraServerHost, cmd.DefaultAcraServerAPIPort, ""), "Connection string for api like tcp://x.x.x.x:yyyy or unix:///path/to/socket")
-	authPath = flag.String("auth_keys", cmd.DefaultAcraServerAuthPath, "Path to basic auth passwords. To add user, use: `./acra-authmanager --set --user <user> --pwd <pwd>`")
 	sqlParseErrorExitEnable := flag.Bool("sql_parse_on_error_exit_enable", false, "Stop AcraServer execution in case of SQL query parse error. Default is false")
 
 	useMysql := flag.Bool("mysql_enable", false, "Handle MySQL connections")
@@ -290,7 +288,6 @@ func realMain() error {
 	serverConfig.SetWithZone(*withZone)
 	serverConfig.SetEnableHTTPAPI(*enableHTTPAPI)
 	serverConfig.SetDebug(*debug)
-	serverConfig.SetAuthDataPath(*authPath)
 	serverConfig.SetServiceName(ServiceName)
 	serverConfig.SetConfigPath(cmd.ConfigPath(DefaultConfigPath))
 
