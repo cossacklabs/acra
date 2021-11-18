@@ -7,6 +7,8 @@
 - `--auth_keys` parameter from `acra-server`.
 - `/loadAuthData`, `/getConfig`, `/setConfig` endpoints from `acra-server`'s HTTP API.
 - `WebConfigKeyStore` interface and all implementations from `keystore` package (v1 and v2).
+- Updated integration tests to run with Redis/added the ability of configurable run of integration tests with Redis
+  via `TEST_REDIS` env
 
 ## 0.90.0 - 2021-11-10
 ### Changed

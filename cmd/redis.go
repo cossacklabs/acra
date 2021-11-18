@@ -17,7 +17,11 @@
 package cmd
 
 import (
+	"errors"
 	"flag"
+	"github.com/cossacklabs/acra/logging"
+	log "github.com/sirupsen/logrus"
+	"os"
 	"strconv"
 
 	goRedis "github.com/go-redis/redis/v7"
@@ -39,11 +43,23 @@ const (
 	redisUnspecifiedDB = -1
 )
 
+// ErrIdenticalRedisDBs redis DBs related error
+var ErrIdenticalRedisDBs = errors.New("redis db params are identical")
+
 var redisOptions RedisOptions
 
 // RegisterRedisKeyStoreParameters registers CLI parameters for Redis (keystore).
 func RegisterRedisKeyStoreParameters() {
 	redisOptions.RegisterKeyStoreParametersWithPrefix("", "")
+}
+
+// ValidateRedisCLIOptions validate Redis CLI options.
+func ValidateRedisCLIOptions() {
+	if err := redisOptions.validateOptions(); err != nil {
+		log.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorWrongParam).Errorln(
+			"Identical Redis DB parameters, one of redis_db_tokens or redis_db_keys should be provided")
+		os.Exit(1)
+	}
 }
 
 // RegisterKeyStoreParametersWithPrefix registers Redis keystore parameters with given prefix.
@@ -95,6 +111,18 @@ func (redis *RedisOptions) checkBothKeyAndToken(prefix string, flags *flag.FlagS
 		redis.DBKeys = redisUnspecifiedDB
 		redis.DBTokens = redisUnspecifiedDB
 	}
+}
+
+// validateOptions check weather DBTokens and DBKeys are not similar
+func (redis *RedisOptions) validateOptions() error {
+	if redis.HostPort == "" {
+		return nil
+	}
+
+	if redis.DBTokens == redis.DBKeys {
+		return ErrIdenticalRedisDBs
+	}
+	return nil
 }
 
 // GetRedisParameters returns a copy of RedisOptions parsed from the command line.
