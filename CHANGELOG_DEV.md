@@ -1,3 +1,8 @@
+## 0.90.0 - 2021-12-18
+### Changed
+- updated integration tests to run with Redis/added the ability of configurable run of integration tests with Redis
+  via `TEST_REDIS` env
+
 ## 0.90.0 - 2021-11-10
 ### Changed
 - Golang's test `keystore/keyloader/hashicorp/vault_loader_test.go` runs with tags `--tags=integration,vault` with 

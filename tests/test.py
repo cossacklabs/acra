@@ -112,6 +112,7 @@ TEST_TLS_CRL_PATH = abs_path(os.environ.get('TEST_TLS_CRL_PATH', os.path.join(os
 TEST_WITH_TLS = os.environ.get('TEST_TLS', 'off').lower() == 'on'
 
 TEST_WITH_TRACING = os.environ.get('TEST_TRACE', 'off').lower() == 'on'
+TEST_WITH_REDIS = os.environ.get('TEST_REDIS', 'off').lower() == 'on'
 TEST_TRACE_TO_JAEGER = os.environ.get('TEST_TRACE_JAEGER', 'off').lower() == 'on'
 
 TEST_RANDOM_DATA_CONFIG = load_random_data_config()
@@ -3397,6 +3398,11 @@ class RedisMixin:
     TEST_REDIS_KEYS_DB = 0
     TEST_REDIS_TOKEN_DB = 1
 
+    def checkSkip(self):
+        super().checkSkip()
+        if not TEST_WITH_REDIS:
+            self.skipTest("test only with Redis")
+
     def setUp(self):
         self.redis_keys_client = redis.Redis(host='localhost', port=6379, db=self.TEST_REDIS_KEYS_DB)
         self.redis_tokens_client = redis.Redis(host='localhost', port=6379, db=self.TEST_REDIS_TOKEN_DB)
@@ -3527,6 +3533,15 @@ class TestAcraKeysWithClientIDGeneration(unittest.TestCase):
 
 
 class TestAcraKeysWithRedis(RedisMixin, unittest.TestCase):
+
+    def setUp(self):
+        self.checkSkip()
+        super().setUp()
+
+    def checkSkip(self):
+        if not TEST_WITH_REDIS:
+            self.skipTest("test only with Redis")
+
     def test_read_command_keystore(self):
         master_key = get_master_key()
         client_id = 'keypair1'
