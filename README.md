@@ -51,34 +51,45 @@ This is [Acra Community Edition](https://www.cossacklabs.com/acra/#pricing), it'
 
 ### Major security features
 
-<table><tbody><tr><tr><td><li><a href="https://docs.cossacklabs.com/acra/security-controls/encryption/">Application-level encryption</a></li></td><td> encryption on client-side and Acra-side – each data record is encrypted using unique encryption keys.</td>
-</tr><tr><td><li>Selective encryption </li></td><td> select which field/columns to encrypt to balance good security and performance.</td>
-</tr><tr><td><li>Fast and reliable crypto</li></td><td>two crypto-envelopes: <a href="https://docs.cossacklabs.com/acra/acra-in-depth/data-structures/">AcraBlocks and AcraStructs</a>. AcraBlocks are fast symmetric containers, encrypted and decrypted on the Acra side, AES-256-GCM. AcraStructs are asymmetric containers, suit best for client-side encryption and Acra-side decryption, AES-256-GCM + ECDH.</td>
-</tr><tr><td><li><a href="https://docs.cossacklabs.com/acra/security-controls/searchable-encryption/">Searchable encryption</a></li></td><td>search by query without decryption. Designed for exact queries, based on AES-GCM and blind index approach.</td>
+<table><tbody><tr><tr><td><li><a href="https://docs.cossacklabs.com/acra/security-controls/encryption/">Application-level encryption</a></li></td><td> encryption on client-side and/or Acra-side – each data field is encrypted using unique encryption keys.</td>
+</tr><tr><td><li>Selective encryption </li></td><td>select which columns to encrypt to balance good security and performance.</td>
+</tr><tr><td><li>Fast and reliable crypto</li></td><td>two crypto-envelopes: <a href="https://docs.cossacklabs.com/acra/acra-in-depth/data-structures/">AcraBlocks and AcraStructs</a>.<br>AcraBlocks are fast symmetric containers, use them by default.<br>AcraStructs are asymmetric containers, use them for client-side encryption.</td>
+</tr><tr><td><li><a href="https://docs.cossacklabs.com/acra/security-controls/searchable-encryption/">Searchable encryption</a></li></td><td>search by query without decryption. Designed for <i>exact</i> queries, based on AES-GCM and blind index.</td>
 </tr><tr><td><li><a href="https://docs.cossacklabs.com/acra/security-controls/masking/">Masking / anonymization</a></li></td><td>use full or partial masking to remove or mask sensitive data.</td>
 </tr><tr><td><li><a href="https://docs.cossacklabs.com/acra/security-controls/tokenization/">Tokenization</a></li></td><td>substitute sensitive data with a token and match it to original only when needed.</td>
 </tr><tr><td><li><a href="https://docs.cossacklabs.com/acra/security-controls/key-management/">Basic key management tools</a></li></td><td>built-in tools for key generation, export, backup, rotation, etc.</td>
 </tr><tr><td><li><a href="https://docs.cossacklabs.com/acra/security-controls/sql-firewall/">Prevention of SQL injections</a></li></td><td>through a built-in SQL firewall.</td>
 </tr><tr><td><li><a href="https://docs.cossacklabs.com/acra/security-controls/intrusion-detection/">Intrusion detection</a></li></td><td> using poison records (honey tokens) to warn about suspicious behaviour.</td>
-</tr><tr><td><li>REST API (gRPC, HTTP) </li></td><td>encryption, decryption and tokenization using AcraTranslator.</td>
-</tr><tr><td><li><a href="https://docs.cossacklabs.com/acra/security-controls/key-management/operations/rotation/">Key rotation without data re-encryption</a> ᵉ </li></td><td rowspan=4>available for <a href="https://www.cossacklabs.com/acra/#pricing" target="_blank">Acra Enterprise</a> users</td>
+</tr><tr><td><li><a href="https://docs.cossacklabs.com/acra/security-controls/key-management/operations/rotation/">Key rotation without data re-encryption</a> ᵉ </li></td><td rowspan=3>available for <a href="https://www.cossacklabs.com/acra/#pricing" target="_blank">Acra Enterprise</a> users.</td>
 </tr><tr><td><li><a href="https://docs.cossacklabs.com/acra/configuring-maintaining/key-storing/kms-integration/">KMS support</a> ᵉ </li></td>
-</tr><tr><td><li>Bulk API for AcraTranslator ᵉ </li></td>
 </tr><tr><td><li><a href="https://docs.cossacklabs.com/acra/security-controls/security-logging-and-events/audit-logging/">Cryptographically protected audit log</a> ᵉ </li></td>
 </tr></tbody></table>
 
 Acra delivers different layers of defense for different parts and stages of the data lifecycle. This is what **defence in depth** is – an independent set of security controls aimed at mitigating multiple risks in case of an attacker crossing the outer perimeter. 
 
+### API form factors
+
+<table><tbody>
+<tr><td><li> <a href="https://docs.cossacklabs.com/acra/acra-in-depth/architecture/acraserver/" target=_blank>AcraServer</a>: transparent SQL proxy </li></td><td> all Acra features packed into a database proxy that parses traffic between an app and a database and applies security functions where appropriate. </td></tr>
+<tr><td><li> <a href="https://docs.cossacklabs.com/acra/acra-in-depth/architecture/acratranslator/" target=_blank>AcraTranslator</a>: HTTP/gRPC encryption API </li></td><td> API server, that exposes most of Acra’s features as HTTP / gRPC API. </td></tr>
+<tr><td><li> <a href="https://docs.cossacklabs.com/acra/security-controls/transport-security/acra-connector/" target=_blank>AcraConnector</a>: transport authentication and encryption </li></td><td> optional client-side service for authentication and transport encryption.</td></tr>
+<tr><td><li> <a href="https://docs.cossacklabs.com/acra/acra-in-depth/architecture/anyproxy/" target=_blank>AnyProxy</a>: orchestrated API suite of security controls ᵉ </li></td><td rowspan=5>available for <a href="https://www.cossacklabs.com/acra/#pricing" target="_blank">Acra Enterprise</a> users.</td></tr>
+<tr><td><li> <a href="https://docs.cossacklabs.com/acra/acra-in-depth/architecture/sdks/acrawriter/" target=_blank>AcraWriter</a>: SDK for client-side encryption ᵉ</li></td>
+<tr><td><li> <a href="https://docs.cossacklabs.com/acra/acra-in-depth/architecture/sdks/acrareader/" target=_blank>AcraReader</a>: SDK for client-side decryption ᵉ</li></td></tr>
+<tr><td><li> <a href="https://docs.cossacklabs.com/acra/acra-in-depth/architecture/sdks/acratranslator-sdk/" target=_blank>SDK for AcraTranslator</a> ᵉ </li></td></tr>
+<tr><td><li> <a href="https://docs.cossacklabs.com/acra/guides/integrating-acra-translator-into-new-infrastructure/http_api/#bulk-processing-api-enterprise" target=_blank>Bulk API for AcraTranslator</a> ᵉ </li></td></tr>
+</tbody></table>
+
 ### Developer and DevOps friendly
 
 <table><tbody>
-<tr><td><li> Secure default settings </li></td><td> your infrastructure is secure from the start without additional configuring </td></tr>
-<tr><td><li> Cryptography is hidden<br/>under the hood </li></td><td> no risk of selecting the wrong key length or algorithm padding </td></tr>
-<tr><td><li> Automation-friendly </li></td><td> easy to configure and automate </td></tr>
-<tr><td><li> Quick infrastructure integration </li></td><td> via binary packages or Docker images </td></tr>
-<tr><td><li> Easy client-side integration </li></td><td> client-side encryption libraries support ~11 languages </td></tr>
-<tr><td><li> Code-less client-side integration </li></td><td> available for server-side encryption in AcraServer's Transparent proxy mode</td></tr>
-<tr><td><li> Logging, metrics, tracing </li></td><td> throughout all Acra components;<br/>compatible with ELK stack, Prometheus, Jaeger </td></tr>
+<tr><td><li> Secure default settings </li></td><td> your infrastructure is secure from the start without additional configuring. </td></tr>
+<tr><td><li> Cryptography is hidden<br/>under the hood </li></td><td> no risk of selecting the wrong key length or algorithm padding. </td></tr>
+<tr><td><li> Automation-friendly </li></td><td> easy to configure and automate. </td></tr>
+<tr><td><li> Quick infrastructure integration </li></td><td> via binary packages or Docker images. </td></tr>
+<tr><td><li> Easy client-side integration </li></td><td> when used with SDKs or AcraTranslator</td></tr>
+<tr><td><li> Code-less client-side integration </li></td><td> when used with AcraServer</td></tr>
+<tr><td><li> <a href="https://docs.cossacklabs.com/acra/security-controls/security-logging-and-events/" target=_blank>Logging, metrics, tracing<a> </li></td><td> throughout all Acra components;<br/>compatible with ELK stack, Prometheus, Jaeger </td></tr>
 <tr><td><li> No vendor lock </li></td><td> rollback utilities to decrypt database into plaintext </td></tr>
 <tr><td><li> Demos, examples, simulators </li></td><td> numerous web-based and Docker-based example projects available </td></tr>
 <tr><td><li> <a href="https://marketplace.digitalocean.com/apps/acra?action=deploy" target="_blank">DigitalOcean Acra 1-Click App</a> </li></td><td> run AcraServer in your DigitalOcean cloud </td></tr>
@@ -87,50 +98,40 @@ Acra delivers different layers of defense for different parts and stages of the 
 
 ## Cryptography
 
-Acra relies on our cryptographic library [Themis](https://www.cossacklabs.com/themis/), which implements high-level cryptosystems based on the best available [open-source implementations](https://docs.cossacklabs.com/pages/themis-cryptographic-donors/) of the [most reliable ciphers](https://docs.cossacklabs.com/pages/soter/). Acra strictly doesn't contain self-made cryptographic primitives or obscure ciphers. To deliver its unique guarantees, Acra relies on the combination of well-known ciphers and smart key management scheme.
+Acra relies on our cryptographic library [Themis](https://www.cossacklabs.com/themis/), which implements high-level cryptosystems based on the best available [open-source implementations](https://docs.cossacklabs.com/themis/crypto-theory/cryptography-donors/) of the [most reliable ciphers](https://docs.cossacklabs.com/themis/architecture/soter/). Acra strictly doesn't contain self-made cryptographic primitives or obscure ciphers. To deliver its unique guarantees, Acra relies on the combination of well-known ciphers and smart key management scheme. See [Cryptography and key management](https://docs.cossacklabs.com/acra/acra-in-depth/cryptography-and-key-management/).
 
 <table><tbody>
 <tr><td> Default crypto-primitive source </td><td> OpenSSL </td></tr>
 <tr><td> Supported crypto-primitive sources ᵉ<td> BoringSSL, LibreSSL, FIPS-compliant, GOST-compliant, HSM</td></tr>
-<tr><td> Storage encryption </td><td> AES-256-GCM + ECDH </td></tr>
-<tr><td> Transport encryption </td><td> TLS v1.2+ / Themis Secure Session </td></tr>
-<tr><td> KMS integration ᵉ</td><td> Amazon KMS, Google Cloud Platform KMS, Hashicorp Vault, Keywhiz </td></tr>
+<tr><td> Storage encryption (<a href="https://docs.cossacklabs.com/acra/acra-in-depth/data-structures/acrablock/" target=_blank>AcraBlocks</a>) </td><td> AES-256-GCM </td></tr>
+<tr><td> Storage encryption (<a href="https://docs.cossacklabs.com/acra/acra-in-depth/data-structures/acrastruct/" target=_blank>AcraStructs</a>) </td><td> AES-256-GCM + ECDH </td></tr>
+<tr><td> (<a href="https://docs.cossacklabs.com/acra/security-controls/transport-security/" target=_blank>Transport encryption</a> </td><td> TLS v1.2+ or Themis Secure Session </td></tr>
+<tr><td> (<a href="https://docs.cossacklabs.com/acra/acra-in-depth/architecture/key-storage-and-kms/" target=_blank>KMS integration</a> ᵉ</td><td> Amazon KMS, Google Cloud Platform KMS, Hashicorp Vault, Keywhiz </td></tr>
 </tbody></table>
 
 ᵉ — available in the [Enterprise version of Acra](https://www.cossacklabs.com/acra/#pricing/) only. [Drop us an email](mailto:sales@cossacklabs.com) to get a full list of features and a quote.
 
 ## Try Acra without writing code
 
-<!--
-### Acra Live Demo (see Acra in action in one click)
+[Acra Example Projects](https://github.com/cossacklabs/acra-engineering-demo) illustrate the integration of Acra data protection suite into existing applications: web applications based on Django and Ruby on Rails frameworks, and simple CLI applications. We took well-known apps, detected sensitive data there and added the encryption layer. Protecting the data is completely transparent for the users and requires minimal changes in the infrastructure and application code.
 
-[Acra Live Demo](https://acra.cossacklabs.com/) is a web-based demo of protecting data in a typical web-infrastructure (deployed on our servers for your convenience).
+<img src="https://github.com/cossacklabs/acra/wiki/Images/readme/AcraEngDemo.png" width="600">
+ 
+Developers and Ops friendly:
+* run a single command to deploy the application, database, Acra's components, logs, and dashboards;
+* read the code changes and see how little it takes to integrate encryption into the client application;
+* learn how Acra works by reading logs, monitoring metrics in Prometheus, checking tracers in Jaeger and watching Grafana dashboards;
+* inspect Docker-compose files, architecture schemes, database tables, and much more.
 
-<img src="https://github.com/cossacklabs/acra/wiki/Images/readme/AcraLiveDemo.png" width="600">
-Acra Live Demo infrastructure contains: Django-based application, PostgreSQL database, AcraServer with AcraCensor, log monitor. Sensitive data is encrypted in a Django application, stored in a database, and decrypted through Acra. 
+Requirements: Linux or macOS with installed Docker.
 
-From the users' perspective, the website's work is unchanged. However, the data is securely protected so that even hacking the web application won't lead to data leakage.
-
-The available actions include:
-* adding new rows to the database (in plaintext and encrypted form);
-* watching the database content change in real-time;
-* running malicious SQL queries that will be [blocked by AcraCensor](https://docs.cossacklabs.com/pages/documentation-acra/#acracensor-acra-s-firewall);
-* [rolling back](https://docs.cossacklabs.com/pages/acrarollback/) the encrypted data;
-* [intrusion detection](http://docs.cossacklabs.com/pages/intrusion-detection/).
-
-Requirements: Chrome, Firefox, or Safari browser.
-
-> Note: We create separate playground for each user, that's why we ask for your email; you'll receive the invitation link.
-
-| 🖥 [Request Acra Live Demo](https://www.cossacklabs.com/acra/#acralivedemo) 🖥 |
+| ⚙️ [Run Acra Example Projects](https://github.com/cossacklabs/acra-engineering-demo) ⚙️ |
 |---|
-
--->
 
 
 ## How does Acra work?
 
-To better understand the architecture and data flow in Acra, please refer to the [Architecture and data flow](https://docs.cossacklabs.com/pages/documentation-acra/#architecture-and-data-flow) section in the documentation.
+To better understand the architecture and data flow in Acra, please refer to the [Architecture](https://docs.cossacklabs.com/acra/acra-in-depth/architecture/) section in the documentation.
 
 ### Protecting data in SQL databases using AcraServer
 
@@ -360,13 +361,13 @@ Acra can help you comply with the current privacy regulations, such as:
 * [DPA (Data Protection Act)](http://www.legislation.gov.uk/ukpga/2018/12/contents/enacted)     
 * [CCPA (California Consumer Privacy Act)](https://en.wikipedia.org/wiki/California_Consumer_Privacy_Act)    
 
-Configuring and using Acra in a designated form will cover most of the demands described in articles 25, 32, 33, and 34 of GDPR and the PII data protection demands of HIPAA. Read more about [Acra and GDPR compliance here](http://docs.cossacklabs.com/pages/acra-and-gdpr-compliance/).
+Configuring and using Acra in a designated form will cover most of the demands described in articles 25, 32, 33, and 34 of GDPR and the PII data protection demands of HIPAA. Read more about [Acra and Regulations](https://docs.cossacklabs.com/acra/regulations/).
 
 ## Open source vs Pro vs Enterprise
 
 This is Acra Community Edition, the open source version of Acra, which is 💯 free for commercial and non-commercial usage. Please let us know in the [Issues](https://www.github.com/cossacklabs/acra/issues) if you stumble upon a bug, see a possible enhancement, or have a comment on security design.
 
-There are also [Pro and Enterprise versions of Acra](https://www.cossacklabs.com/acra/#pricing) available. Those versions provide better performance, redundancy/load balancing, come pre-configured with crypto-primitives of your choice (FIPS, GOST), have integration with key/secret management tools in your stack, provide unique security features like search through encrypted data, and have plenty of utils and tools for your Ops and SREs to operate Acra conveniently – deployment automation, scaling, monitoring, and logging. [Talk to us](mailto:sales@cossacklabs.com) to get full feature lists and a quote.
+There are also [Acra Enterprise Edition](https://www.cossacklabs.com/acra/#pricing) available. It provides better performance, redundancy/load balancing, comes pre-configured with crypto-primitives of your choice (FIPS, GOST), has integration with key/secret management tools in your stack, provides unique security features like search through encrypted data, and have plenty of utils and tools for your Ops and SREs to operate Acra conveniently – deployment automation, scaling, monitoring, and logging. [Talk to us](mailto:sales@cossacklabs.com) to get full feature lists and a quote.
 
 ## Security consulting
 
