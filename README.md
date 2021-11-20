@@ -76,7 +76,7 @@ Acra delivers different layers of defense for different parts and stages of the 
 <tr><td><li> <a href="https://docs.cossacklabs.com/acra/acra-in-depth/architecture/anyproxy/" target=_blank>AnyProxy</a>: orchestrated API suite of security controls ᵉ </li></td><td rowspan=5>available for <a href="https://www.cossacklabs.com/acra/#pricing" target="_blank">Acra Enterprise</a> users.</td></tr>
 <tr><td><li> <a href="https://docs.cossacklabs.com/acra/acra-in-depth/architecture/sdks/acrawriter/" target=_blank>AcraWriter</a>: SDK for client-side encryption ᵉ</li></td>
 <tr><td><li> <a href="https://docs.cossacklabs.com/acra/acra-in-depth/architecture/sdks/acrareader/" target=_blank>AcraReader</a>: SDK for client-side decryption ᵉ</li></td></tr>
-<tr><td><li> <a href="https://docs.cossacklabs.com/acra/acra-in-depth/architecture/sdks/acratranslator-sdk/" target=_blank>SDK for AcraTranslator</a> ᵉ </li></td></tr>
+<tr><td><li> <a href="https://docs.cossacklabs.com/acra/acra-in-depth/architecture/sdks/acratranslator-sdk/" target=_blank>SDK for AcraTranslator</a>: client-side SDK for API encapsulation ᵉ </li></td></tr>
 <tr><td><li> <a href="https://docs.cossacklabs.com/acra/guides/integrating-acra-translator-into-new-infrastructure/http_api/#bulk-processing-api-enterprise" target=_blank>Bulk API for AcraTranslator</a> ᵉ </li></td></tr>
 </tbody></table>
 
@@ -205,24 +205,19 @@ AcraTranslator and AcraServer are fully independent server-side components and c
 
 ### Client-side
 
-[AcraWriter](https://docs.cossacklabs.com/pages/documentation-acra/#client-side-acraconnector-and-acrawriter) is a client-side library that encrypts data into a special binary format called [AcraStruct](https://docs.cossacklabs.com/pages/documentation-acra/#acrastruct). AcraWriter is available for Ruby, Python, Go, C++, Node.js, iOS, Android/Java and PHP, but you can easily [generate AcraStruct containers](https://github.com/cossacklabs/acra/wiki/Acrawriter-installation) with [Themis](https://github.com/cossacklabs/themis) for any platform you want.
+Acra is a set of tools that works with any client applications. No matter what languages you use to write your apps, you can connect them to AcraServer (via SQL) and AcraTranslator (via API) to encrypt, decrypt, tokenise and mask the data.
 
-AcraWriter is required only for the client-side encryption dataflow. If you use AcraServer in Transparent encryption mode, or use AcraTranslator for both encryption and decryption, you don't need AcraWriter at all.
+Acra provides a set of client-side SDKs which are useful only in specific use cases:
 
-| Client platform |  Documentation and guides | Examples | Package manager |
-| :----- | :----- | :------ | :---- |
-| 🐹 Go | [Installation guide](https://docs.cossacklabs.com/pages/documentation-acra/#building-acrawriter-for-go) | [examples/golang](https://github.com/cossacklabs/acra/tree/master/examples/golang) ||
-| 🐍 Python | [Installation guide](https://docs.cossacklabs.com/pages/documentation-acra/#building-acrawriter-for-python) | [examples/python](https://github.com/cossacklabs/acra/tree/master/examples/python) | [![PyPI](https://img.shields.io/pypi/v/acrawriter.svg)](https://pypi.org/project/acrawriter/) |
-| ♦️ Ruby | [Installation guide](https://docs.cossacklabs.com/pages/documentation-acra/#building-acrawriter-for-ruby) | [examples/ruby](https://github.com/cossacklabs/acra/tree/master/examples/ruby) | [![Gem](https://img.shields.io/gem/v/acrawriter.svg)](https://rubygems.org/gems/acrawriter) |
-| ➕ C++ | [Installation guide](https://docs.cossacklabs.com/pages/documentation-acra/#building-acrawriter-for-c-) | [examples/cpp](https://github.com/cossacklabs/acra/tree/master/examples/cpp) ||
-| 📱 iOS (Swift / Objective-C) | [Installation guide](https://docs.cossacklabs.com/pages/documentation-acra/#building-acrawriter-for-ios) | [examples/objc](https://github.com/cossacklabs/acra/tree/master/examples/objc) | [![CocoaPods](https://img.shields.io/cocoapods/v/acrawriter.svg)](https://cocoapods.org/pods/acrawriter) |
-| ☎️ Android (Java / Kotlin) | [Installation guide](https://docs.cossacklabs.com/pages/documentation-acra/#building-acrawriter-for-android) | [examples/android_java](https://github.com/cossacklabs/acra/tree/master/examples/android_java) |[ ![maven](https://api.bintray.com/packages/cossacklabs/maven/acrawriter/images/download.svg) ](https://bintray.com/cossacklabs/maven/acrawriter/_latestVersion)|
-| 🐘 PHP | [Installation guide](https://docs.cossacklabs.com/pages/documentation-acra/#building-acrawriter-for-php) | [examples/php](https://github.com/cossacklabs/acra/tree/master/examples/php) ||
-| 🍭 Node.js | [Installation guide](https://docs.cossacklabs.com/pages/documentation-acra/#building-acrawriter-for-nodejs) | [examples/nodejs](https://github.com/cossacklabs/acra/tree/master/examples/nodejs) | [![npm](https://img.shields.io/npm/v/acrawriter.svg)](https://www.npmjs.com/package/acrawriter) |
+- <a href="https://docs.cossacklabs.com/acra/acra-in-depth/architecture/sdks/acrawriter/" target=_blank>AcraWriter</a> – SDK to encrypt data fields into AcraStructs. Use it when encrypting data on the app side is important (for building end-to-end encrypted dataflows or in hostile environments).
+- <a href="https://docs.cossacklabs.com/acra/acra-in-depth/architecture/sdks/acrareader/" target=_blank>AcraReader</a> – SDK to decrypt data fields from AcraStructs. Use it when decrypting data on the app side is important (for building end-to-end encrypted dataflows or in hostile environments).
+- <a href="https://docs.cossacklabs.com/acra/acra-in-depth/architecture/sdks/acratranslator-sdk/" target=_blank>SDK for AcraTranslator</a> – SDK that encapsulates AcraTranslator's API for more convenient usage.
+
+These SDKs are available for Ruby, Python, Go, C++, Node.js, iOS (Swift, ObjC), Android (Java, Kotlin), desktop Java and PHP.
 
 ### Server-side
 
-The Server-side Acra components (AcraServer, AcraTranslator) should run as separate services/servers/VMs. Key management utils and database helpers are usually run on the same server as AcraServer/AcraTranslator.
+The server-side Acra components (AcraServer, AcraTranslator, AnyProxy) should run as separate services/servers/VMs. Key management utils and database helpers are usually run on the same server as AcraServer/AcraTranslator/AnyProxy.
 
 * There are several possible ways to install and launch Acra components in your infrastructures:
   - [download and run our Docker-based demo stand](https://docs.cossacklabs.com/pages/trying-acra-with-docker/) to deploy everything you need using a single command.
