@@ -155,7 +155,7 @@ Refer to [Acra-in-depth / Data flow](https://docs.cossacklabs.com/acra/acra-in-d
 
 Let's see the simplest dataflow with AcraServer. AcraServer works as transparent encryption/decryption proxy with SQL databases. The application doesn't know that the data is encrypted before it gets to the database, the database also doesn't know that someone has encrypted the data. That's why we often call this mode a "transparent encryption".
 
-<p align="center"><img src="https://github.com/cossacklabs/acra/wiki/Images/readme/acra-server-proxy.png" alt="Server-side encryption and decryption using AcraServer" width="1600"></p>
+<p align="center"><img src="https://github.com/cossacklabs/acra/wiki/Images/readme/app-as-db.png" alt="Server-side encryption and decryption using AcraServer" width="1600"></p>
 
 | TLDR: You have a client-side application that talks to the SQL database. You add AcraServer in the middle, working as SQL proxy, and point application to it. |
 |----|
@@ -177,7 +177,7 @@ Check out the [Guide: Integrating AcraServer into infrastructure](https://docs.c
 
 Let's see the simplest dataflow with AcraTranslator. AcraTranslator works as Encryption-as-a-Service using HTTP and gRPC API. The application sends API request to the AcraTranslator with data fields and operations. The application is responsible to store encrypted data in the database (NoSQL, KV store, SQL, AWS S3 – any) and sends API call to decrypt it back.
 
-<p align="center"><img src="https://github.com/cossacklabs/acra/wiki/Images/readme/acra-translator.png" alt="Server-side encryption and decryption using AcraTranslator" width="700"></p>
+<p align="center"><img src="https://github.com/cossacklabs/acra/wiki/Images/readme/app-at-app-db.png" alt="Server-side encryption and decryption using AcraTranslator" width="700"></p>
 
 | TLDR: You have a client-side application that knows which fields to encrypt, decrypt, tokenise, and where to store them. You add AcraTranslator, and teach the application to perform API calls to use it. |
 |----|
