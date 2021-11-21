@@ -112,94 +112,88 @@ To deliver its unique guarantees, Acra relies on the combination of well-known c
 
 ᵉ — available in the [Enterprise version of Acra](https://www.cossacklabs.com/acra/#pricing/) only. [Drop us an email](mailto:sales@cossacklabs.com) to get a full list of features and a quote.
 
-## Try Acra without writing code
-
-[Acra Example Projects](https://github.com/cossacklabs/acra-engineering-demo) illustrate the integration of Acra data protection suite into existing applications: web applications based on Django and Ruby on Rails frameworks, and simple CLI applications. We took well-known apps, detected sensitive data there and added the encryption layer. Protecting the data is completely transparent for the users and requires minimal changes in the infrastructure and application code.
-
-<img src="https://github.com/cossacklabs/acra/wiki/Images/readme/AcraEngDemo.png" width="600">
- 
-Developers and Ops friendly:
-* run a single command to deploy the application, database, Acra's components, logs, and dashboards;
-* read the code changes and see how little it takes to integrate encryption into the client application;
-* learn how Acra works by reading logs, monitoring metrics in Prometheus, checking tracers in Jaeger and watching Grafana dashboards;
-* inspect Docker-compose files, architecture schemes, database tables, and much more.
-
-Requirements: Linux or macOS with installed Docker.
-
-| ⚙️ [Run Acra Example Projects](https://github.com/cossacklabs/acra-engineering-demo) ⚙️ |
-|---|
-
-<!-- PLs update me -->
-
 ## How does Acra work?
 
-To better understand the architecture and data flow in Acra, please refer to the [Architecture](https://docs.cossacklabs.com/acra/acra-in-depth/architecture/) section in the documentation.
+Acra consists of several services and utilities. Depending on your architecture and use case, you might need to deploy only basic services or all of them.
+
+* **Security enforcement components**: services where "encryption happens". One of them is required.
+* **Key storage:** datastores where Acra keeps encrypted keys: Redis, table in your database, any KV store. One of them is required.
+* **Master key storage:** KMS, Vault. One of them is strongly recommended.
+* **Additional services and utils:** key management utils, data migration scripts, transport security service, policy management tools. Any of them are optional.
+
+Acra provides security enforcement components in different shapes: 
+
+* [AcraServer](https://docs.cossacklabs.com/acra/acra-in-depth/architecture/acraserver/), also known as SQL Proxy. It's a database proxy that exposes Acra’s functionality by parsing SQL traffic between an app and a database and applying security functions where appropriate.
+
+* [AcraTranslator](https://docs.cossacklabs.com/acra/acra-in-depth/architecture/acratranslator/), also known as API service. It's an API server, that exposes most of Acra’s features as HTTP / gRPC API with client SDKs and traffic protection.
+
+* [AnyProxy](https://docs.cossacklabs.com/acra/acra-in-depth/architecture/anyproxy/). It's an API server that works between several API-driven microservices/applications. AnyProxy can transparently forward requests/responses so your applications stay "thin clients".
+
+* [Client-side SDKs](https://docs.cossacklabs.com/acra/acra-in-depth/architecture/sdks/). Acra provides optional SDKs for encrypting data (AcraWriter), for decrypting data (AcraReader), or for working with AcraTranslator.
+
+Acra services allow you to construct infinitely sophisticated data flows that are perfectly suited to your exact infrastructure.
+
+Refer to [Acra-in-depth / Architecture](https://docs.cossacklabs.com/acra/acra-in-depth/architecture/) to learn more about Acra components and data flows.
+
+
+### Typical deployment architectures
+
+So, which Acra services and components you need? Depends on your use case!
+
+1. If you are using SQL database and want to integrate Acra "transparently" for your app – use AcraServer and Key storage. See the [simplest dataflow with AcraServer](https://docs.cossacklabs.com/acra/acra-in-depth/data-flow/#simplest-version-with-sql-proxy).
+
+2. If you are using NoSQL / KV datastore, and your application speaks to API to encrypt/decrypt data – use AcraTranslator and Key storage. See the [simplest dataflow with AcraTranslator](https://docs.cossacklabs.com/acra/acra-in-depth/data-flow/#simplest-version-with-api-service).
+
+3. If you have many applications and want to encapsulate their communication with sensitive data, try DAO approach (data access object). Use AnyProxy, see [AnyProxy dataflow](https://docs.cossacklabs.com/acra/acra-in-depth/data-flow/#anyproxy).
+
+4. If you are building end-to-end encrypted dataflow, use Acra's SDKs: AcraWriter, AcraReader, and combine them with AcraServer and AcraTranslator. See the [End-to-end encrypted dataflow](https://docs.cossacklabs.com/acra/acra-in-depth/data-flow/#end-to-end-encrypted-dataflow).
+
+Refer to [Acra-in-depth / Data flow](https://docs.cossacklabs.com/acra/acra-in-depth/data-flow/) to see more examples of Acra-based dataflows.
+
 
 ### Protecting data in SQL databases using AcraServer
 
-AcraServer works as transparent encryption/decryption proxy with SQL databases. Depending on your app architecture, it's possible to use client-side encryption or server-side encryption, or both simultaneously.
+Let's see the simplest dataflow with AcraServer. AcraServer works as transparent encryption/decryption proxy with SQL databases. The application doesn't know that the data is encrypted before it gets to the database, the database also doesn't know that someone has encrypted the data. That's why we often call this mode a "transparent encryption".
 
-#### Integrating client-side encryption using AcraWriter
+<p align="center"><img src="https://github.com/cossacklabs/acra/wiki/Images/readme/acra-server-proxy.png" alt="Server-side encryption and decryption using AcraServer" width="1600"></p>
 
-<p align="center"><img src="https://github.com/cossacklabs/acra/wiki/Images/readme/acra-server-acra-writer.png" alt="Client-side encryption using AcraServer and AcraWriter" width="1600"></p>
+| TLDR: You have a client-side application that talks to the SQL database. You add AcraServer in the middle, working as SQL proxy, and point application to it. |
+|----|
 
-_The typical infrastructure with AcraConnector and AcraServer, data is encrypted on the client side (web backend or mobile app) using AcraWriter, decrypted on the AcraServer side, that works as transparent database proxy._
+This is what the process of writing and reading the data to/from a database looks like:
 
-<p align="center"><img src="https://github.com/cossacklabs/acra/wiki/Images/readme/AcraArchi-Readme.png" alt="Client-side encryption using AcraServer and AcraWriter" width="400"></p>
+1. You deploy AcraServer in your infrastructure and configure it: how to connect to the database, which TLS certificate to use, which fields to encrypt, mask or tokenise, whether to use SQL request firewall or not, and so on.
+2. Once AcraServer is deployed, it is ready to accept SQL requests.
+3. You point the client-side application to AcraServer instead of the SQL database. The application sends CRUD SQL requests to the AcraServer.
+4. On receiving SQL queries, AcraServer parses each query and performs security operations: encryption, masking, tokenisation. To know which values to change, AcraServer uses a particular configuration file (known as `encryptor_config_file`) where you have described which columns in which tables should be encrypted, masked, tokenised.
+5. After performing the operation, AcraServer passes the modified queries to the database and the database response – back to the client application. If you select to encrypt the field, it means that original data (f.e. "string") is encrypted into [cryptographic container](https://docs.cossacklabs.com/acra/acra-in-depth/data-structures/) and sent to the database as binary data.
+6. When the client application wants to read the data, it sends a SELECT query to the AcraServer, which sends it to the database. Upon retrieving the database response, AcraServer looks into the `encryptor_config_file` file, tries to decrypt, demask, detokenise specified fields, and returns them to the application.
 
-_The dataflow of encrypted and plaintext data. Note: it's possible to write encrypted data directly to the database, omitting the AcraServer._
+Except for data processing operations, AcraServer also analyses SQL queries: blocks the unwanted ones using the built-in configurable SQL firewall, detect SQL injections using poison records, sends logs and metrics, and alerts your Ops team in suspicious cases.
 
-This is what the process of encryption and decryption of data in a database looks like:
+Check out the [Guide: Integrating AcraServer into infrastructure](https://docs.cossacklabs.com/acra/guides/integrating-acra-server-into-infrastructure/) to learn more about AcraServer features and how to use them.
 
-- Your application encrypts some data through [**AcraWriter**](https://docs.cossacklabs.com/pages/documentation-acra/#client-side-acraconnector-and-acrawriter) by generating an [**AcraStruct**](https://docs.cossacklabs.com/pages/documentation-acra/#acrastruct) using Acra storage public key and then updates the database. AcraStructs generated by AcraWriter can't be decrypted by it — only the Acra's server side has the keys for decryption.    
-- To retrieve the decrypted data, your application talks to [**AcraServer**](https://docs.cossacklabs.com/pages/documentation-acra/#server-side-acraserver). It is a server-side service that works as a database proxy: it transparently sits between your application and the database and silently listens to all the traffic coming to and from the database.     
-- AcraServer monitors the incoming SQL requests and blocks the unwanted ones using the built-in configurable SQL firewall called [**AcraCensor**](https://docs.cossacklabs.com/pages/documentation-acra/#acracensor-acra-s-firewall). AcraServer only sends allowed requests to the database.  
-- Upon receiving the database response, AcraServer tries to detect AcraStructs, decrypts them, and returns the decrypted data to the application.    
-- AcraConnector is a client-side daemon responsible for providing encrypted and authenticated connection between the application and AcraServer. [**AcraConnector**](https://docs.cossacklabs.com/pages/documentation-acra/#client-side-acraconnector-and-acrawriter) runs under a separate user/in a separate container and acts as middleware. AcraConnector accepts connections from the application, adds an extra transport encryption layer using TLS or [Themis Secure Session](http://docs.cossacklabs.com/pages/secure-session-cryptosystem/), sends the data to AcraServer, receives the result, and sends it back to the application.
+### Protecting data in any file storage using AcraTranslator
 
-#### Integrating proxy-side encryption using AcraServer in Transparent proxy mode
+Let's see the simplest dataflow with AcraTranslator. AcraTranslator works as Encryption-as-a-Service using HTTP and gRPC API. The application sends API request to the AcraTranslator with data fields and operations. The application is responsible to store encrypted data in the database (NoSQL, KV store, SQL, AWS S3 – any) and sends API call to decrypt it back.
 
-<p align="center"><img src="https://github.com/cossacklabs/acra/wiki/Images/readme/acra-server-proxy.png" alt="Server-side encryption using AcraServer" width="1600"></p>
+<p align="center"><img src="https://github.com/cossacklabs/acra/wiki/Images/readme/acra-translator.png" alt="Server-side encryption and decryption using AcraTranslator" width="700"></p>
 
-_The typical infrastructure with AcraConnector and AcraServer, data is encrypted and decrypted by AcraServer, that works as transparent database proxy._
+| TLDR: You have a client-side application that knows which fields to encrypt, decrypt, tokenise, and where to store them. You add AcraTranslator, and teach the application to perform API calls to use it. |
+|----|
 
-<p align="center"><img src="https://github.com/cossacklabs/acra/wiki/Images/readme/AcraArchi-TransparentMode-Readme-2.png" alt="Server-side encryption using AcraServer" width="200"></p>
+This is what the process of writing and reading the data to/from a database looks like:
 
-_The dataflow of encrypted and plaintext data, AcraServer it encrypts and decrypts data._
+1. You deploy AcraTranslator in your infrastructure and configure TLS certificates.
+2. Once AcraTranslator is deployed, it is ready to accept API requests.
+3. Your application calls AcraTranslator and sends data fields and operations on them (encryption, decryption, tokenisation, detokenisation).
+4. On receiving API requests, AcraTranslator performs the required operation and sends the result back to the app. Suppose the app sends the "email" field and "encrypt" operation. In that case, the original data ("string") is encrypted into [cryptographic container](https://docs.cossacklabs.com/acra/acra-in-depth/data-structures/) and sent back to the app as binary data.
+5. The application takes encrypted data and stores it in the database/datastore.
+6. Once the application needs to get plaintext data, it reads encrypted data from the database/datastore, and sends an API request to the AcraTranslator. Suppose the app sends the "email" field and "decrypt" operation. In that case, the original data (binary blob) is decrypted to a string and sent to the app back. 
 
-[Transparent proxy mode](https://docs.cossacklabs.com/pages/documentation-acra/#transparent-proxy-mode) allows you to configure [**AcraServer**](https://docs.cossacklabs.com/pages/documentation-acra/#server-side-acraserver) to encrypt records in specific database columns without altering the application code. Basically, AcraServer here performs AcraWriter's duties. 
+Except for data processing operations, AcraTranslator also analyses API queries: detects intrusions using poison records, sends logs and metrics, and alerts your Ops team in suspicious cases.
 
-This mode is useful for large distributed applications, where separate updating of the source code for each client app is complicated.
-
-- Imagine that the client application wants to update some data in the database. The application logic doesn't need to change because there's no need to integrate AcraWriter library into the application code. The application sends SQL requests with plaintext data through [**AcraConnector**](https://docs.cossacklabs.com/pages/documentation-acra/#client-side-acraconnector-and-acrawriter) and AcraServer to the database, as described above. There's a secure transport layer between AcraConnector and AcraServer (via TLS or Themis Secure Session), so data from client app is transmitted via a secure channel.
-- On receiving SQL queries, AcraServer parses each query and encrypts the desired values into [**AcraStructs**](https://docs.cossacklabs.com/pages/documentation-acra/#acrastruct). To know which values to encrypt, AcraServer uses a special configuration file (known as `encryptor_config_file`) that describes which columns in which tables should be encrypted. AcraServer uses AcraStruct encryption key just as AcraWriter would.
-- After encrypting the values into AcraStructs, AcraServer passes the modified queries to the database and the database response – back to the client application via AcraConnector.
-- When the client application wants to read the data, it sends a read query to the database (via AcraConnector and AcraServer). Upon retrieving the database response, AcraServer tries to detect AcraStructs, decrypts them, and returns the decrypted data to the application.
-
-Transparent mode has the same features as the "usual" mode – including SQL firewall, intrusion detection based on poison records, Zone support, etc.
-
-Check out the [detailed documentation](https://docs.cossacklabs.com/pages/documentation-acra/#transparent-proxy-mode) on using and configuring the Transparent proxy mode.
-
-### Protecting data in any file storage using AcraWriter and AcraTranslator
-
-<p align="center"><img src="https://github.com/cossacklabs/acra/wiki/Images/readme/acra-translator.png" alt="Client-side encryption and standalone decryption using AcraTranslator" width="700"></p>
-
-_The typical infrastructure with AcraConnector and AcraTranslator, data is encrypted on the client side (web backend or mobile app) using AcraWriter, decrypted on the AcraTranslator side, that works as standalone decryption service._
-
-<p align="center"><img src="https://github.com/cossacklabs/acra/wiki/Images/readme/AcraArchi-AT-Readme.png" alt="Acra Translator: simplified architecture" width="500"></p>
-
-_The dataflow of encrypted and plaintext data, AcraTranslator only decrypts data on demand._
-
-In some use cases, the application can store encrypted data as separate blobs (in NoSQL databases, or as files that are not in a database, i.e. in a S3 bucket, local file storage, etc.). In this case, you can use [**AcraTranslator**](http://docs.cossacklabs.com/pages/acratranslator/) — a lightweight server that receives [**AcraStructs**](https://docs.cossacklabs.com/pages/documentation-acra/#acrastruct) and returns the decrypted data.
-
-**Note:** since Q3 2020, AcraTranslator can both encrypt and decrypt data via REST API (HTTP, gRPC). You may use a combination of AcraWriter+AcraTranslator for client-side encryption and Translator-side decryption; or AcraTranslator only for both encryption and decryption without changing app code.
-
-This is what the process of encryption and decryption of data using AcraTranslator looks like:
-
-- Your application encrypts some data using [**AcraWriter**](https://docs.cossacklabs.com/pages/documentation-acra/#client-side-acraconnector-and-acrawriter), generating an AcraStruct using Acra storage public key and puts the data into any file storage. AcraStructs generated by AcraWriter can't be decrypted by it — only the Acra's server side has the right keys for decrypting it. Otherwise, you might decide not to use AcraWriter, but use AcraTranslator for encrypting data – application sends plaintext, AcraTranslator returns AcraStructs.
-- To decrypt an AcraStruct, your application sends it to [**AcraTranslator**](http://docs.cossacklabs.com/pages/acratranslator/) as a binary blob via HTTP or gRPC API. AcraTranslator doesn’t care about the source of the data, it is responsible for holding all the secrets required for data decryption and for actually decrypting the data.     
-- AcraTranslator decrypts AcraStructs and returns the decrypted data to the application.       
-- To avoid sending plaintext via an unsecured channel, AcraTranslator requires the use of [**AcraConnector**](https://docs.cossacklabs.com/pages/documentation-acra/#client-side-acraconnector-and-acrawriter), a client-side daemon responsible for providing encrypted and authenticated connection between the application and AcraServer. AcraConnector runs under a separate user/in a separate container and acts as middleware. It accepts connections from the application, adds transport encryption layer using TLS or [Themis Secure Session](http://docs.cossacklabs.com/pages/secure-session-cryptosystem/), sends data to AcraServer, receives the result, and sends it back to the application.
+Check out the [Guide: Integrating AcraTranslator into infrastructure](https://docs.cossacklabs.com/acra/guides/integrating-acra-translator-into-new-infrastructure/) to learn more about AcraServer features and how to use them.
 
 AcraTranslator and AcraServer are fully independent server-side components and can be used together or separately depending on your infrastructure.
 
@@ -247,6 +241,23 @@ These SDKs are available for Ruby, Python, Go, C++, Node.js, iOS (Swift, ObjC), 
 See [Getting started](https://docs.cossacklabs.com/acra/getting-started/) to learn how to [install Acra](https://docs.cossacklabs.com/acra/getting-started/installing/) or to [try Acra without coding](https://docs.cossacklabs.com/acra/getting-started/trying/).
 
 
+## Try Acra without writing code
+
+[Acra Example Projects](https://github.com/cossacklabs/acra-engineering-demo) illustrate the integration of Acra data protection suite into existing applications: web applications based on Django and Ruby on Rails frameworks, and simple CLI applications. We took well-known apps, detected sensitive data there and added the encryption layer. Protecting the data is completely transparent for the users and requires minimal changes in the infrastructure and application code.
+
+<img src="https://github.com/cossacklabs/acra/wiki/Images/readme/AcraEngDemo.png" width="600">
+ 
+Developers and Ops friendly:
+* run a single command to deploy the application, database, Acra's components, logs, and dashboards;
+* read the code changes and see how little it takes to integrate encryption into the client application;
+* learn how Acra works by reading logs, monitoring metrics in Prometheus, checking tracers in Jaeger and watching Grafana dashboards;
+* inspect Docker-compose files, architecture schemes, database tables, and much more.
+
+Requirements: Linux or macOS with installed Docker.
+
+| ⚙️ [Run Acra Example Projects](https://github.com/cossacklabs/acra-engineering-demo) ⚙️ |
+|---|
+
 ## Documentation and tutorials
 
 The most recent versions of the documentation, tutorials, and demos for Acra are available on the official [Cossack Labs Documentation Server](https://docs.cossacklabs.com/acra/).
@@ -263,7 +274,7 @@ You can also check out the speaker slides for the following talks by Cossack Lab
 - ["Data encryption for Ruby web applications"](https://speakerdeck.com/shad/data-encryption-for-ruby-web-applications) by [Dmytro Shapovalov](https://github.com/shadinua).
 - ["Building SQL firewall(AcraCensor): insights from developers"](https://speakerdeck.com/storojs72/building-sql-firewall-insights-from-developers) by [Artem Storozhuk](https://github.com/storojs72).
 
-## Demo projects
+## Example projects
 
 | ⚙️ [Run Acra Example Projects](https://github.com/cossacklabs/acra-engineering-demo) ⚙️ |
 |---|
