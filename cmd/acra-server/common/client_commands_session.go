@@ -19,23 +19,16 @@ package common
 import (
 	"bufio"
 	"context"
-	"encoding/json"
 	"errors"
-	"flag"
 	"fmt"
-	"net"
-	"net/http"
-	"syscall"
-
-	"github.com/cossacklabs/acra/cmd"
 	"github.com/cossacklabs/acra/keystore"
 	"github.com/cossacklabs/acra/logging"
-	"github.com/cossacklabs/acra/utils"
 	"github.com/cossacklabs/acra/zone"
-	"github.com/cossacklabs/themis/gothemis/cell"
 	"github.com/cossacklabs/themis/gothemis/keys"
 	log "github.com/sirupsen/logrus"
 	"go.opencensus.io/trace"
+	"net"
+	"net/http"
 )
 
 // HTTP 500 response
@@ -133,72 +126,6 @@ func (clientSession *ClientCommandsSession) HandleSession() {
 		clientSession.keystore.Reset()
 		response = "HTTP/1.1 200 OK Found\r\n\r\n"
 		logger.Debugln("Cleared key storage cache")
-	case "/loadAuthData":
-		response = Response500Error
-		key, err := clientSession.keystore.GetAuthKey(false)
-		if err != nil {
-			logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorHTTPAPICantLoadAuthKey).WithError(err).Error("loadAuthData: keystore.GetAuthKey()")
-			response = Response500Error
-			break
-		}
-		authDataPath := clientSession.config.GetAuthDataPath()
-		authDataCrypted, err := utils.ReadFile(authDataPath)
-		if err != nil {
-			logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorHTTPAPICantLoadAuthData).WithError(err).Warningln("loadAuthData: no auth data")
-			response = Response500Error
-			break
-		}
-		SecureCell := cell.New(key, cell.ModeSeal)
-		authData, err := SecureCell.Unprotect(authDataCrypted, nil, nil)
-		if err != nil {
-			logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorHTTPAPICantDecryptAuthData).WithError(err).Error("loadAuthData: SecureCell.Unprotect")
-
-			break
-		}
-		response = fmt.Sprintf("HTTP/1.1 200 OK Found\r\n\r\n%s\r\n\r\n", authData)
-	case "/getConfig":
-		logger.Debugln("Got /getConfig request")
-		jsonOutput, err := clientSession.config.ToJSON()
-		if err != nil {
-			logger.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorGeneral).
-				Warningln("Can't convert config to JSON")
-			response = Response500Error
-		} else {
-			logger.Debugln("Handled request correctly")
-			logger.Debugln(string(jsonOutput))
-			response = fmt.Sprintf("HTTP/1.1 200 OK Found\r\n\r\n%s\r\n\r\n", string(jsonOutput))
-		}
-	case "/setConfig":
-		logger.Debugln("Got /setConfig request")
-		decoder := json.NewDecoder(req.Body)
-		var configFromUI UIEditableConfig
-		err = decoder.Decode(&configFromUI)
-		if err != nil {
-			logger.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorGeneral).
-				Warningln("Can't convert config from incoming")
-			response = Response500Error
-			break
-		}
-		// set config values
-		flag.Set("db_host", configFromUI.DbHost)
-		flag.Set("db_port", fmt.Sprintf("%v", configFromUI.DbPort))
-		flag.Set("incoming_connection_api_port", fmt.Sprintf("%v", configFromUI.ConnectorAPIPort))
-		flag.Set("d", fmt.Sprintf("%v", configFromUI.Debug))
-		flag.Set("poison_run_script_file", fmt.Sprintf("%v", configFromUI.ScriptOnPoison))
-		flag.Set("poison_shutdown_enable", fmt.Sprintf("%v", configFromUI.StopOnPoison))
-		flag.Set("zonemode_enable", fmt.Sprintf("%v", configFromUI.WithZone))
-
-		configPath := clientSession.config.GetConfigPath()
-		serviceName := clientSession.config.GetServiceName()
-		err = cmd.DumpConfig(configPath, serviceName, false)
-		if err != nil {
-			logger.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantDumpConfig).
-				Errorln("DumpConfig failed")
-			response = Response500Error
-			break
-		}
-		logger.Infoln("Handled request correctly, restarting server")
-		clientSession.server.restartSignalsChannel <- syscall.SIGHUP
 	default:
 		requestSpan.AddAttributes(trace.StringAttribute("http.url", "undefined"))
 	}

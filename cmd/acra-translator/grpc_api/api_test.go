@@ -153,8 +153,6 @@ func (keystore *testKeystore) GetPoisonPrivateKeys() ([]*keys.PrivateKey, error)
 	return []*keys.PrivateKey{keypair.Private}, nil
 }
 
-func (*testKeystore) GetAuthKey(remove bool) ([]byte, error) { panic("implement me") }
-
 func (*testKeystore) Reset() { panic("implement me") }
 
 func (keystore *testKeystore) GetZonePublicKey(zoneID []byte) (*keys.PublicKey, error) {

@@ -19,6 +19,7 @@ package keys
 import (
 	"errors"
 	"flag"
+	filesystemV2 "github.com/cossacklabs/acra/keystore/v2/keystore/filesystem"
 
 	"github.com/cossacklabs/acra/cmd"
 	"github.com/cossacklabs/acra/keystore"
@@ -27,7 +28,6 @@ import (
 	"github.com/cossacklabs/acra/keystore/keyloader/hashicorp"
 	keystoreV2 "github.com/cossacklabs/acra/keystore/v2/keystore"
 	"github.com/cossacklabs/acra/keystore/v2/keystore/api"
-	filesystemV2 "github.com/cossacklabs/acra/keystore/v2/keystore/filesystem"
 	filesystemBackendV2 "github.com/cossacklabs/acra/keystore/v2/keystore/filesystem/backend"
 
 	"github.com/go-redis/redis/v7"
@@ -119,7 +119,7 @@ func OpenKeyStoreForReading(params KeyStoreParameters) (keystore.ServerKeyStore,
 		return nil, err
 	}
 
-	if filesystemV2.IsKeyDirectory(params.KeyDir()) {
+	if IsKeyStoreV2(params) {
 		return openKeyStoreV2(params, keyLoader)
 	}
 	return openKeyStoreV1(params, keyLoader)
@@ -132,7 +132,7 @@ func OpenKeyStoreForWriting(params KeyStoreParameters) (keyStore keystore.KeyMak
 		return nil, err
 	}
 
-	if filesystemV2.IsKeyDirectory(params.KeyDir()) {
+	if IsKeyStoreV2(params) {
 		return openKeyStoreV2(params, keyLoader)
 	}
 	return openKeyStoreV1(params, keyLoader)
@@ -145,7 +145,7 @@ func OpenKeyStoreForExport(params KeyStoreParameters) (api.KeyStore, error) {
 		return nil, err
 	}
 
-	if filesystemV2.IsKeyDirectory(params.KeyDir()) {
+	if IsKeyStoreV2(params) {
 		return openKeyStoreV2(params, keyLoader)
 	}
 	// Export from keystore v1 is not supported right now
@@ -159,7 +159,7 @@ func OpenKeyStoreForImport(params KeyStoreParameters) (api.MutableKeyStore, erro
 		return nil, err
 	}
 
-	if filesystemV2.IsKeyDirectory(params.KeyDir()) {
+	if IsKeyStoreV2(params) {
 		return openKeyStoreV2(params, keyLoader)
 	}
 	// Export from keystore v1 is not supported right now
@@ -244,4 +244,28 @@ func openKeyStoreV2(params KeyStoreParameters, loader keyloader.MasterKeyLoader)
 		return nil, err
 	}
 	return keystoreV2.NewServerKeyStore(keyDirectory), nil
+}
+
+// IsKeyStoreV2 checks if the directory contains a keystore version 2 from KeyStoreParameters
+func IsKeyStoreV2(params KeyStoreParameters) bool {
+	redisOption := params.RedisOptions()
+	if params.RedisConfigured() {
+		redisClient, err := filesystemBackendV2.OpenRedisBackend(&filesystemBackendV2.RedisConfig{
+			RootDir: params.KeyDir(),
+			Options: &redis.Options{
+				Addr:     redisOption.Addr,
+				Password: redisOption.Password,
+				DB:       redisOption.DB,
+			},
+		})
+		if err != nil {
+			log.WithError(err).Debugln("Failed to find keystore v2 in Redis")
+			return false
+		}
+		// If the keystore has been opened successfully, it definitely exists.
+		redisClient.Close()
+		return true
+	}
+	// Otherwise, check the local filesystem storage provided by Acra CE.
+	return filesystemBackendV2.CheckDirectoryVersion(params.KeyDir()) == nil
 }

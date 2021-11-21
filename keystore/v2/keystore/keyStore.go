@@ -38,7 +38,6 @@ var (
 // Key purpose constants.
 const (
 	PurposePoisonRecord        = "poison record key"
-	PurposeAuthentication      = "authentication key"
 	PurposeStorageClient       = "client storage key"
 	PurposeStorageZone         = "zone storage key"
 	PurposeTransportServer     = "AcraServer transport key"
@@ -125,12 +124,6 @@ func (s *ServerKeyStore) DescribeKeyRing(path string) (*keystore.KeyDescription,
 		return &keystore.KeyDescription{
 			ID:      path,
 			Purpose: PurposePoisonRecord,
-		}, nil
-	}
-	if path == authKeyPath {
-		return &keystore.KeyDescription{
-			ID:      path,
-			Purpose: PurposeAuthentication,
 		}, nil
 	}
 

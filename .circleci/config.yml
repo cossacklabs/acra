@@ -51,6 +51,7 @@ jobs:
           POSTGRES_PASSWORD: test
           POSTGRES_USER: test
           POSTGRES_DB: test
+      - image: redis:6.0.16-alpine
     environment:
       TEST_DB_USER: test
       TEST_DB_USER_PASSWORD: test
@@ -60,6 +61,7 @@ jobs:
       GO_VERSIONS: 1.15.2 1.16.9 1.17.3
       TEST_RANDOM_DATA_FOLDER: /tmp/test_data
       TEST_TLS: "on"
+      TEST_REDIS: "on"
     steps:
       # prepare
       - checkout
@@ -97,6 +99,7 @@ jobs:
           POSTGRES_PASSWORD: test
           POSTGRES_USER: test
           POSTGRES_DB: test
+      - image: redis:6.0.16-alpine
     environment:
       TEST_DB_USER: test
       TEST_DB_USER_PASSWORD: test
@@ -106,6 +109,7 @@ jobs:
       GO_VERSIONS: 1.15.2 1.16.9 1.17.3
       TEST_RANDOM_DATA_FOLDER: /tmp/test_data
       TEST_TLS: "off"
+      TEST_REDIS: "on"
     steps:
       # prepare
       - checkout
@@ -249,6 +253,7 @@ jobs:
           MYSQL_USER: test
           MYSQL_PASSWORD: test
           MYSQL_ROOT_PASSWORD: root
+      - image: redis:6.0.16-alpine
     environment:
       TEST_DB_USER: test
       TEST_DB_USER_PASSWORD: test
@@ -259,6 +264,7 @@ jobs:
       TEST_MARIADB: "true"
       TEST_RANDOM_DATA_FOLDER: /tmp/test_data
       TEST_TLS: "on"
+      TEST_REDIS: "on"
     steps:
       # prepare
       - checkout
@@ -299,6 +305,7 @@ jobs:
           MYSQL_USER: test
           MYSQL_PASSWORD: test
           MYSQL_ROOT_PASSWORD: root
+      - image: redis:6.0.16-alpine
     environment:
       TEST_DB_USER: test
       TEST_DB_USER_PASSWORD: test
@@ -310,6 +317,7 @@ jobs:
       TEST_MARIADB: "true"
       TEST_RANDOM_DATA_FOLDER: /tmp/test_data
       TEST_TLS: "off"
+      TEST_REDIS: "on"
     steps:
       # prepare
       - checkout
@@ -350,6 +358,7 @@ jobs:
           MYSQL_USER: test
           MYSQL_PASSWORD: test
           MYSQL_ROOT_PASSWORD: root
+      - image: redis:6.0.16-alpine
     environment:
       TEST_DB_USER: test
       TEST_DB_USER_PASSWORD: test
@@ -359,6 +368,7 @@ jobs:
       TEST_MYSQL: "true"
       TEST_RANDOM_DATA_FOLDER: /tmp/test_data
       TEST_TLS: "on"
+      TEST_REDIS: "on"
     steps:
       # prepare
       - checkout
@@ -397,6 +407,7 @@ jobs:
           MYSQL_USER: test
           MYSQL_PASSWORD: test
           MYSQL_ROOT_PASSWORD: root
+      - image: redis:6.0.16-alpine
     environment:
       TEST_DB_USER: test
       TEST_DB_USER_PASSWORD: test
@@ -407,6 +418,7 @@ jobs:
       TEST_MYSQL: "true"
       TEST_RANDOM_DATA_FOLDER: /tmp/test_data
       TEST_TLS: "off"
+      TEST_REDIS: "on"
     steps:
       # prepare
       - checkout

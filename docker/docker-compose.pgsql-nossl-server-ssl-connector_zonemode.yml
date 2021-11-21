@@ -107,7 +107,6 @@ services:
             --zonemode_enable
             --db_host=postgresql
             --keys_dir=/keys
-            --auth_keys=/keys/httpauth.accounts
             --http_api_enable
             --client_id=${ACRA_CLIENT_ID:-testclientid}
             --incoming_connection_api_string=tcp://0.0.0.0:9090

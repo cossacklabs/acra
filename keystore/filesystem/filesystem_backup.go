@@ -73,16 +73,10 @@ func isPrivate(fname string) bool {
 	if fname == PoisonKeyFilename {
 		return true
 	}
-	if strings.HasSuffix(fname, BasicAuthKeyFilename+".old") {
-		return false
-	}
 	if strings.HasSuffix(fname, ".pub") {
 		return false
 	}
 	if strings.HasSuffix(fname, ".pub.old") {
-		return false
-	}
-	if fname == BasicAuthKeyFilename {
 		return false
 	}
 	return true
@@ -127,9 +121,6 @@ func getIDFromFilename(fname string) []byte {
 		return []byte(fname[:len(fname)-len("_sym")])
 	}
 
-	if fname == BasicAuthKeyFilename {
-		return []byte(BasicAuthKeyFilename)
-	}
 	return []byte(fname)
 }
 

@@ -25,16 +25,7 @@ const (
 	DefaultAcraServerHost                  = "0.0.0.0"
 	DefaultAcraServerPort                  = 9393
 	DefaultAcraServerAPIPort               = 9090
-	DefaultAcraServerAuthPath              = "configs/auth.keys"
 	DefaultAcraServerConnectionProtocol    = "tcp"
-	DefaultWebConfigHost                   = "127.0.0.1"
-	DefaultWebConfigPort                   = 8000
-	DefaultWebConfigStatic                 = "cmd/acra-webconfig/static"
-	DefaultWebConfigAuthMode               = "auth_on"
-	DefaultWebConfigAuthArgon2Length       = 32
-	DefaultWebConfigAuthArgon2Memory       = 8 * 1024
-	DefaultWebConfigAuthArgon2Time         = 3
-	DefaultWebConfigAuthArgon2Threads      = 2
 	DefaultAcraTranslatorGRPCHost          = "0.0.0.0"
 	DefaultAcraTranslatorGRPCPort          = 9696
 )

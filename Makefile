@@ -51,7 +51,7 @@ endif
 #----- Packages ----------------------------------------------------------------
 
 ## Application components to include
-PKG_COMPONENTS ?= addzone authmanager backup connector keymaker keys poisonrecordmaker rollback rotate server translator tokens webconfig
+PKG_COMPONENTS ?= addzone backup connector keymaker keys poisonrecordmaker rollback rotate server translator tokens
 
 ## Installation path prefix for packages
 PKG_INSTALL_PREFIX ?= /usr
@@ -238,8 +238,6 @@ docker-build:
 	$(call docker_build,acra-translator)
 	$(call docker_build,acra-keymaker)
 	$(call docker_build,acra-tools)
-	$(call docker_build,acra-webconfig)
-	$(call docker_build,acra-authmanager)
 	$(DOCKER_BIN) image prune --force -a \
 		--filter label=com.cossacklabs.product.name="$(APP_NAME)" \
 		--filter label=com.cossacklabs.docker.container.type="build"
@@ -255,8 +253,6 @@ docker-push:
 	$(call docker_push,acra-translator)
 	$(call docker_push,acra-keymaker)
 	$(call docker_push,acra-tools)
-	$(call docker_push,acra-webconfig)
-	$(call docker_push,acra-authmanager)
 
 ## Docker : tag and push CI-related images to remote registry
 docker-push-ci:

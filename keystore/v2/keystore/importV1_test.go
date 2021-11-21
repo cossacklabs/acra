@@ -17,7 +17,6 @@
 package keystore
 
 import (
-	"bytes"
 	"io/ioutil"
 	"os"
 	"path/filepath"
@@ -124,11 +123,6 @@ func TestImportKeyStoreV1(t *testing.T) {
 	if err != nil {
 		t.Errorf("SaveTranslatorKeypair() failed: %v", err)
 	}
-	// And some finishing touches...
-	authenticationKeyV1, err := keyStoreV1.GetAuthKey(true)
-	if err != nil {
-		t.Errorf("GetAuthKey() failed: %v", err)
-	}
 	poisonKeyPairV1, err := keyStoreV1.GetPoisonKeyPair()
 	if err != nil {
 		t.Errorf("GetPoisonKeyPair() failed: %v", err)
@@ -146,14 +140,6 @@ func TestImportKeyStoreV1(t *testing.T) {
 		}
 	}
 
-	// Now, if this has been successful, verify keystore v2 contents.
-	authenticationKeyV2, err := keyStoreV2.GetAuthKey(false)
-	if err != nil {
-		t.Errorf("GetAuthKey() failed: %v", err)
-	}
-	if !bytes.Equal(authenticationKeyV1, authenticationKeyV2) {
-		t.Errorf("authentication key corrupted")
-	}
 	poisonKeyPairV2, err := keyStoreV2.GetPoisonKeyPair()
 	if err != nil {
 		t.Errorf("GetPoisonKeyPair() failed: %v", err)
