@@ -2,31 +2,19 @@ package grpc_api
 
 import (
 	"github.com/cossacklabs/acra/cmd/acra-translator/common"
-	keystore2 "github.com/cossacklabs/acra/keystore"
 	"github.com/cossacklabs/acra/logging"
 	"github.com/cossacklabs/acra/network"
-	tokenCommon "github.com/cossacklabs/acra/pseudonymization/common"
 	"github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/reflection"
 )
 
-// GRPCServerFactory used to create new grpc.Server instances configured to implement AcraTranslator methods
-type GRPCServerFactory struct {
-	tokenizer tokenCommon.Pseudoanonymizer
-	keystore  keystore2.TranslationKeyStore
-}
-
-// NewgRPCServerFactory return new GRPCServerFactory
-func NewgRPCServerFactory(tokenizer tokenCommon.Pseudoanonymizer, keystore keystore2.TranslationKeyStore) (*GRPCServerFactory, error) {
-	return &GRPCServerFactory{tokenizer: tokenizer, keystore: keystore}, nil
-}
-
-// New return new grpc.Server with AcraTranslator methods as gRPC service
-func (g *GRPCServerFactory) New(data *common.TranslatorData, opts ...grpc.ServerOption) (*grpc.Server, error) {
+// NewServer return new grpc.Server with AcraTranslator methods as gRPC service
+func NewServer(data *common.TranslatorData, connectionWrapper network.GRPCConnectionWrapper) (*grpc.Server, error) {
+	opts := []grpc.ServerOption{grpc.Creds(connectionWrapper)}
 	var newService DecryptService
 	var err error
-	serviceImplementation, err := common.NewTranslatorService(data, g.tokenizer)
+	serviceImplementation, err := common.NewTranslatorService(data)
 	if err != nil {
 		logrus.WithError(err).Errorln("Can't initialize service implementation")
 		return nil, err
@@ -37,7 +25,7 @@ func (g *GRPCServerFactory) New(data *common.TranslatorData, opts ...grpc.Server
 		return nil, err
 	}
 
-	newService, err = NewTranslatorService(serviceWithMetrics, data, g.tokenizer, g.keystore)
+	newService, err = NewTranslatorService(serviceWithMetrics, data)
 	if err != nil {
 		return nil, err
 	}

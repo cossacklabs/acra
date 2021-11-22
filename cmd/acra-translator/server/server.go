@@ -18,7 +18,6 @@ package server
 
 import (
 	"context"
-	"github.com/cossacklabs/acra/poison"
 	"github.com/cossacklabs/acra/utils"
 	"net"
 	"os"
@@ -27,7 +26,6 @@ import (
 
 	"github.com/cossacklabs/acra/cmd/acra-translator/common"
 	"github.com/cossacklabs/acra/cmd/acra-translator/http_api"
-	"github.com/cossacklabs/acra/keystore"
 	"github.com/cossacklabs/acra/logging"
 	"github.com/cossacklabs/acra/network"
 	log "github.com/sirupsen/logrus"
@@ -37,16 +35,13 @@ import (
 // ReaderServer represents AcraTranslator server, connects with KeyStorage, configuration file,
 // gRPC and HTTP request parsers.
 type ReaderServer struct {
-	config                *common.AcraTranslatorConfig
-	keystorage            keystore.TranslationKeyStore
+	translatorData        *common.TranslatorData
 	connectionManager     *network.ConnectionManager
 	grpcServer            *grpc.Server
 	waitTimeout           time.Duration
-	grpcServerFactory     common.GRPCServerFactory
 	backgroundWorkersSync sync.WaitGroup
 	listenerHTTP          net.Listener
 	listenerGRPC          net.Listener
-	poisonRecordCallbacks *poison.CallbackStorage
 }
 
 const (
@@ -55,26 +50,12 @@ const (
 )
 
 // NewReaderServer creates Reader server with provided params.
-func NewReaderServer(config *common.AcraTranslatorConfig, keystorage keystore.TranslationKeyStore, grpcServerFactory common.GRPCServerFactory, waitTimeout time.Duration) (server *ReaderServer, err error) {
-	poisonCallbacks := poison.NewCallbackStorage()
-	if config.DetectPoisonRecords() {
-		// used to turn off poison record detection which rely on HasCallbacks
-		poisonCallbacks.AddCallback(poison.EmptyCallback{})
-		if config.ScriptOnPoison() != "" {
-			poisonCallbacks.AddCallback(poison.NewExecuteScriptCallback(config.ScriptOnPoison()))
-		}
-		// should setup "stopOnPoison" as last poison record callback"
-		if config.StopOnPoison() {
-			poisonCallbacks.AddCallback(&poison.StopCallback{})
-		}
-	}
+func NewReaderServer(translatorData *common.TranslatorData, grpcServer *grpc.Server, waitTimeout time.Duration) (server *ReaderServer, err error) {
 	return &ReaderServer{
-		grpcServerFactory:     grpcServerFactory,
-		waitTimeout:           waitTimeout,
-		config:                config,
-		keystorage:            keystorage,
-		connectionManager:     network.NewConnectionManager(),
-		poisonRecordCallbacks: poisonCallbacks,
+		grpcServer:        grpcServer,
+		translatorData:    translatorData,
+		waitTimeout:       waitTimeout,
+		connectionManager: network.NewConnectionManager(),
 	}, nil
 }
 
@@ -116,34 +97,28 @@ func (server *ReaderServer) Start(parentContext context.Context) {
 	logger := logging.GetLoggerFromContext(parentContext)
 	errCh := make(chan error)
 
-	decryptorData := &common.TranslatorData{
-		Keystorage:            server.keystorage,
-		PoisonRecordCallbacks: server.poisonRecordCallbacks,
-		UseConnectionClientID: server.config.GetUseClientIDFromConnection(),
-		TLSClientIDExtractor:  server.config.GetTLSClientIDExtractor(),
-	}
-	if server.config.IncomingConnectionHTTPString() != "" {
-		listener, err := network.Listen(server.config.IncomingConnectionHTTPString())
+	if server.translatorData.Config.IncomingConnectionHTTPString() != "" {
+		listener, err := network.Listen(server.translatorData.Config.IncomingConnectionHTTPString())
 		if err != nil {
 			log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorTranslatorCantAcceptNewHTTPConnection).
 				Errorln("Can't create HTTP listener from specified connection string")
 			return
 		}
-		server.config.HTTPConnectionWrapper.SetListener(listener)
-		server.listenerHTTP = server.config.HTTPConnectionWrapper
-		server.startHTTP(parentContext, logger, decryptorData, errCh, server.config.HTTPConnectionWrapper)
+		server.translatorData.Config.HTTPConnectionWrapper.SetListener(listener)
+		server.listenerHTTP = server.translatorData.Config.HTTPConnectionWrapper
+		server.startHTTP(parentContext, logger, server.translatorData, errCh, server.translatorData.Config.HTTPConnectionWrapper)
 	}
 
 	// provide way to register new services and custom server
-	if server.config.IncomingConnectionGRPCString() != "" {
-		listener, err := network.Listen(server.config.IncomingConnectionGRPCString())
+	if server.translatorData.Config.IncomingConnectionGRPCString() != "" {
+		listener, err := network.Listen(server.translatorData.Config.IncomingConnectionGRPCString())
 		if err != nil {
 			log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorTranslatorCantAcceptNewGRPCConnection).
 				Errorln("Can't create gRPC listener from specified connection string")
 			return
 		}
 		server.listenerGRPC = listener
-		server.startGRPC(parentContext, logger, decryptorData, errCh, listener)
+		server.startGRPC(parentContext, logger, server.translatorData, errCh, listener)
 	}
 
 	select {
@@ -163,15 +138,15 @@ func (server *ReaderServer) startHTTP(parentContext context.Context, logger *log
 	go func() {
 		defer server.backgroundWorkersSync.Done()
 		httpContext := logging.SetLoggerToContext(parentContext, logger.WithField(ConnectionTypeKey, HTTPConnectionType))
-		logger.WithField("connection_string", server.config.IncomingConnectionHTTPString()).Infof("Start process HTTP requests")
-		translatorService, err := common.NewTranslatorService(decryptorData, server.config.GetTokenizer())
+		logger.WithField("connection_string", server.translatorData.Config.IncomingConnectionHTTPString()).Infof("Start process HTTP requests")
+		translatorService, err := common.NewTranslatorService(decryptorData)
 		if err != nil {
 			log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorTranslatorCantHandleHTTPConnection).
 				Errorln("Can't initialize translator service")
 			errCh <- err
 			return
 		}
-		options := []http_api.ServiceOption{http_api.WithContext(httpContext), http_api.WithConnectionContextHandler(server.config.HTTPConnectionWrapper.OnConnectionContext)}
+		options := []http_api.ServiceOption{http_api.WithContext(httpContext), http_api.WithConnectionContextHandler(server.translatorData.Config.HTTPConnectionWrapper.OnConnectionContext)}
 		httpService, err := http_api.NewHTTPService(translatorService, decryptorData, options...)
 		if err != nil {
 			log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorTranslatorCantHandleHTTPConnection).
@@ -194,17 +169,9 @@ func (server *ReaderServer) startGRPC(ctx context.Context, logger *log.Entry, de
 	go func() {
 		defer server.backgroundWorkersSync.Done()
 		grpcLogger := logger.WithField(ConnectionTypeKey, GRPCConnectionType)
-		logger.WithField("connection_string", server.config.IncomingConnectionGRPCString()).Infof("Start process gRPC requests")
-		opts := []grpc.ServerOption{grpc.Creds(server.config.GRPCConnectionWrapper)}
+		logger.WithField("connection_string", server.translatorData.Config.IncomingConnectionGRPCString()).Infof("Start process gRPC requests")
 		server.listenerGRPC = listener
-		grpcServer, err := server.grpcServerFactory.New(decryptorData, opts...)
-		if err != nil {
-			logger.WithError(err).Errorln("Can't create new gRPC server")
-			errCh <- err
-			return
-		}
-		server.grpcServer = grpcServer
-		if err := grpcServer.Serve(listener); err != nil {
+		if err := server.grpcServer.Serve(listener); err != nil {
 			grpcLogger.Errorf("failed to serve: %v", err)
 			server.Stop()
 			errCh <- err
@@ -230,12 +197,7 @@ func (server *ReaderServer) StartFromFileDescriptor(parentContext context.Contex
 	logger := logging.GetLoggerFromContext(parentContext)
 	errCh := make(chan error)
 
-	decryptorData := &common.TranslatorData{
-		Keystorage:            server.keystorage,
-		PoisonRecordCallbacks: server.poisonRecordCallbacks,
-		UseConnectionClientID: server.config.GetUseClientIDFromConnection(),
-	}
-	if server.config.IncomingConnectionHTTPString() != "" {
+	if server.translatorData.Config.IncomingConnectionHTTPString() != "" {
 		// create HTTP listener from correspondent file descriptor
 		file := os.NewFile(fdHTTP, httpFilenamePlaceholder)
 		if file == nil {
@@ -256,11 +218,11 @@ func (server *ReaderServer) StartFromFileDescriptor(parentContext context.Contex
 			return
 		}
 		server.listenerHTTP = listenerWithFileDescriptor
-		server.startHTTP(parentContext, logger, decryptorData, errCh, listenerWithFileDescriptor)
+		server.startHTTP(parentContext, logger, server.translatorData, errCh, listenerWithFileDescriptor)
 	}
 
 	// provide way to register new services and custom server
-	if server.config.IncomingConnectionGRPCString() != "" {
+	if server.translatorData.Config.IncomingConnectionGRPCString() != "" {
 		// load gRPC listener from correspondent file descriptor
 		file := os.NewFile(fdGRPC, grpcFilenamePlaceholder)
 		if file == nil {
@@ -281,7 +243,7 @@ func (server *ReaderServer) StartFromFileDescriptor(parentContext context.Contex
 			return
 		}
 		server.listenerGRPC = listenerWithFileDescriptor
-		server.startGRPC(parentContext, logger, decryptorData, errCh, listenerWithFileDescriptor)
+		server.startGRPC(parentContext, logger, server.translatorData, errCh, listenerWithFileDescriptor)
 	}
 
 	select {

@@ -22,7 +22,6 @@ import (
 	"github.com/cossacklabs/acra/cmd/acra-translator/common"
 	"github.com/cossacklabs/acra/decryptor/base"
 	"github.com/cossacklabs/acra/hmac"
-	"github.com/cossacklabs/acra/keystore"
 	"github.com/cossacklabs/acra/logging"
 	tokenCommon "github.com/cossacklabs/acra/pseudonymization/common"
 	"github.com/sirupsen/logrus"
@@ -37,20 +36,18 @@ var ErrNoTranslatorData = errors.New("passed nil TranslatorData")
 
 // TranslatorService implements gRPC service
 type TranslatorService struct {
-	data      *common.TranslatorData
-	logger    *logrus.Entry
-	tokenizer tokenCommon.Pseudoanonymizer
-	keystore  keystore.TranslationKeyStore
-	service   common.ITranslatorService
+	data    *common.TranslatorData
+	logger  *logrus.Entry
+	service common.ITranslatorService
 }
 
 // NewTranslatorService return new TranslatorService instance
-func NewTranslatorService(service common.ITranslatorService, translatorData *common.TranslatorData, tokenizer tokenCommon.Pseudoanonymizer, keystore keystore.TranslationKeyStore) (*TranslatorService, error) {
+func NewTranslatorService(service common.ITranslatorService, translatorData *common.TranslatorData) (*TranslatorService, error) {
 	logger := logrus.WithField("service", "grpc_service")
 	if translatorData == nil {
 		return nil, ErrNoTranslatorData
 	}
-	return &TranslatorService{translatorData, logger, tokenizer, keystore, service}, nil
+	return &TranslatorService{translatorData, logger, service}, nil
 }
 
 // Errors possible during decrypting AcraStructs.
@@ -252,9 +249,9 @@ func (service *TranslatorService) EncryptSymSearchable(ctx context.Context, requ
 	var err error
 	logger.Debugln("Load encryption symmetric key from KeyStore")
 	if request.ZoneId != nil {
-		symKeys, err = service.keystore.GetZoneIDSymmetricKeys(request.ZoneId)
+		symKeys, err = service.data.Keystorage.GetZoneIDSymmetricKeys(request.ZoneId)
 	} else {
-		symKeys, err = service.keystore.GetClientIDSymmetricKeys(request.ClientId)
+		symKeys, err = service.data.Keystorage.GetClientIDSymmetricKeys(request.ClientId)
 	}
 	if err != nil {
 		logger.WithError(err).Errorln("Can't load symmetric keys")
@@ -264,7 +261,7 @@ func (service *TranslatorService) EncryptSymSearchable(ctx context.Context, requ
 		return nil, ErrKeysNotFound
 	}
 	logger.Debugln("Load secret key for HMAC from KeyStore")
-	hmacKey, err := service.keystore.GetHMACSecretKey(request.ClientId)
+	hmacKey, err := service.data.Keystorage.GetHMACSecretKey(request.ClientId)
 	if err != nil {
 		logger.WithError(err).Errorln("Can't load HMAC key")
 		return nil, ErrKeysNotFound
