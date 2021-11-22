@@ -206,6 +206,7 @@ func NewHTTPService(service common.ITranslatorService, translatorData *common.Tr
 		// export json for swagger
 		v2.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler, confs...))
 	}
+	OnHTTPServerInit(newHTTPService.ctx, engine, translatorData, newHTTPService)
 
 	server := &http.Server{
 		Handler:      engine,

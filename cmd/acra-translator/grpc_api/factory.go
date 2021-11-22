@@ -48,6 +48,7 @@ func NewServer(data *common.TranslatorData, connectionWrapper network.GRPCConnec
 	RegisterSearchableEncryptionServer(grpcServer, newService)
 	RegisterReaderSymServer(grpcServer, newService)
 	RegisterWriterSymServer(grpcServer, newService)
+	OngRPCServerInit(grpcServer, data, newService)
 	// Register reflection service on gRPC server.
 	reflection.Register(grpcServer)
 	return grpcServer, nil
