@@ -83,7 +83,7 @@ func responseToRequest(resp *TokenizeResponse) isTokenizeRequest_Value {
 		panic("invalid value")
 	}
 }
-func isEqualDataWithResponse(data1 interface{}, resp *TokenizeResponse) bool {
+func isEqualDataWithTokenizeResponse(data1 interface{}, resp *TokenizeResponse) bool {
 	switch val := resp.Response.(type) {
 	case *TokenizeResponse_BytesToken:
 		d, ok := data1.([]byte)
@@ -160,7 +160,7 @@ func testTranslatorService(storage common.TokenStorage, t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if !isEqualDataWithResponse(data, detokenized) {
+			if !isEqualDataWithTokenizeResponse(data, detokenized) {
 				t.Fatal("Incorrect tokenization/detokenization")
 			}
 		}
@@ -461,7 +461,7 @@ type testgRPCServer struct {
 	unixPath string
 }
 
-func newServer(data *translatorCommon.TranslatorData, wrapper network.GRPCConnectionWrapper, t *testing.T) *testgRPCServer {
+func newTokenizer(t *testing.T) common.Pseudoanonymizer {
 	tokenStore, err := storage2.NewMemoryTokenStorage()
 	if err != nil {
 		t.Fatal(err)
@@ -470,7 +470,10 @@ func newServer(data *translatorCommon.TranslatorData, wrapper network.GRPCConnec
 	if err != nil {
 		t.Fatal(err)
 	}
-	data.Tokenizer = tokenizer
+	return tokenizer
+}
+
+func newServer(data *translatorCommon.TranslatorData, wrapper network.GRPCConnectionWrapper, t *testing.T) *testgRPCServer {
 	server, err := NewServer(data, wrapper)
 	if err != nil {
 		t.Fatal(err)
@@ -568,7 +571,7 @@ func TestNewFactoryWithClientIDFromTLSConnection(t *testing.T) {
 
 	ctx, cancel := context.WithTimeout(context.Background(), connectionTimeout*5)
 	defer cancel()
-	data := &translatorCommon.TranslatorData{UseConnectionClientID: true, Keystorage: keystorage}
+	data := &translatorCommon.TranslatorData{UseConnectionClientID: true, Keystorage: keystorage, Tokenizer: newTokenizer(t)}
 	wrapper := newServerTLSgRPCOpts(t, idExtractor)
 	server := newServer(data, wrapper, t)
 	defer server.Stop()
@@ -677,7 +680,7 @@ func TestNewFactoryWithClientIDFromSecureSessionConnectionSuccess(t *testing.T) 
 	ctx, cancel := context.WithTimeout(context.Background(), connectionTimeout*5)
 	defer cancel()
 
-	data := &translatorCommon.TranslatorData{UseConnectionClientID: true, Keystorage: keystorage}
+	data := &translatorCommon.TranslatorData{UseConnectionClientID: true, Keystorage: keystorage, Tokenizer: newTokenizer(t)}
 	secureSessionWrapper, err := network.NewSecureSessionConnectionWrapper(expectedClientID, keystorage)
 	if err != nil {
 		t.Fatal(err)
@@ -697,7 +700,7 @@ func TestNewFactoryWithClientIDFromSecureSessionConnectionSuccess(t *testing.T) 
 
 func TestNewFactoryWithClientIDFromSecureSessionConnectionInvalidAuthInfo(t *testing.T) {
 	keystorage := &mocks.TranslationKeyStore{}
-	data := &translatorCommon.TranslatorData{UseConnectionClientID: true, Keystorage: keystorage}
+	data := &translatorCommon.TranslatorData{UseConnectionClientID: true, Keystorage: keystorage, Tokenizer: newTokenizer(t)}
 	server := newServer(data, nil, t)
 	defer server.Stop()
 	clientOpts := []grpc.DialOption{grpc.WithInsecure(), getgRPCUnixDialer()}
