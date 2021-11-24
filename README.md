@@ -67,11 +67,11 @@ This is [Acra Community Edition](https://www.cossacklabs.com/acra/#pricing), it'
 
 Acra delivers different layers of defense for different parts and stages of the data lifecycle. This is what **defence in depth** is – an independent set of security controls aimed at mitigating multiple risks in case of an attacker crossing the outer perimeter. 
 
-### API form factors
+### Multiple ways to integrate
 
 <table><tbody>
 <tr><td><li> <a href="https://docs.cossacklabs.com/acra/acra-in-depth/architecture/acraserver/" target=_blank>AcraServer</a>: transparent SQL proxy </li></td><td> all Acra features packed into a database proxy that parses traffic between an app and a database and applies security functions where appropriate. </td></tr>
-<tr><td><li> <a href="https://docs.cossacklabs.com/acra/acra-in-depth/architecture/acratranslator/" target=_blank>AcraTranslator</a>: HTTP/gRPC encryption API </li></td><td> API server, that exposes most of Acra’s features as HTTP / gRPC API. </td></tr>
+<tr><td><li> <a href="https://docs.cossacklabs.com/acra/acra-in-depth/architecture/acratranslator/" target=_blank>AcraTranslator</a>: encryption-as-a-service API </li></td><td> API server, that exposes most of Acra’s features as HTTP / gRPC API with traffic protection. </td></tr>
 <tr><td><li> <a href="https://docs.cossacklabs.com/acra/security-controls/transport-security/acra-connector/" target=_blank>AcraConnector</a>: transport authentication and encryption </li></td><td> optional client-side service for authentication and transport encryption.</td></tr>
 <tr><td><li> <a href="https://docs.cossacklabs.com/acra/acra-in-depth/architecture/anyproxy/" target=_blank>AnyProxy</a>: use Acra with any database / datastore via SDK ᵉ </li></td><td rowspan=5>available for <a href="https://www.cossacklabs.com/acra/#pricing" target="_blank">Acra Enterprise</a> users.</td></tr>
 <tr><td><li> <a href="https://docs.cossacklabs.com/acra/acra-in-depth/architecture/sdks/acrawriter/" target=_blank>AcraWriter</a>: SDK for client-side encryption ᵉ</li></td>
