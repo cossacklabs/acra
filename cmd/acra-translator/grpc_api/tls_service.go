@@ -20,6 +20,12 @@ type DecryptService interface {
 type TLSDecryptServiceWrapper struct {
 	decryptor            DecryptService
 	tlsClientIDExtractor network.TLSClientIDExtractor
+	UnimplementedReaderServer
+	UnimplementedReaderSymServer
+	UnimplementedTokenizatorServer
+	UnimplementedSearchableEncryptionServer
+	UnimplementedWriterServer
+	UnimplementedWriterSymServer
 }
 
 func getClientID(ctx context.Context, extractor network.TLSClientIDExtractor) ([]byte, error) {
@@ -142,5 +148,7 @@ func (wrapper *TLSDecryptServiceWrapper) GenerateQueryHash(ctx context.Context, 
 
 // NewTLSDecryptServiceWrapper return new service wrapper which use clientID from TLS certificates
 func NewTLSDecryptServiceWrapper(service DecryptService, tlsClientIDExtractor network.TLSClientIDExtractor) (*TLSDecryptServiceWrapper, error) {
-	return &TLSDecryptServiceWrapper{service, tlsClientIDExtractor}, nil
+	return &TLSDecryptServiceWrapper{service, tlsClientIDExtractor,
+		UnimplementedReaderServer{}, UnimplementedReaderSymServer{}, UnimplementedTokenizatorServer{},
+		UnimplementedSearchableEncryptionServer{}, UnimplementedWriterServer{}, UnimplementedWriterSymServer{}}, nil
 }

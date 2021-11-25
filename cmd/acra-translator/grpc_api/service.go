@@ -39,6 +39,12 @@ type TranslatorService struct {
 	data    *common.TranslatorData
 	logger  *logrus.Entry
 	service common.ITranslatorService
+	UnimplementedReaderServer
+	UnimplementedReaderSymServer
+	UnimplementedTokenizatorServer
+	UnimplementedSearchableEncryptionServer
+	UnimplementedWriterServer
+	UnimplementedWriterSymServer
 }
 
 // NewTranslatorService return new TranslatorService instance
@@ -47,7 +53,9 @@ func NewTranslatorService(service common.ITranslatorService, translatorData *com
 	if translatorData == nil {
 		return nil, ErrNoTranslatorData
 	}
-	return &TranslatorService{translatorData, logger, service}, nil
+	return &TranslatorService{translatorData, logger, service,
+		UnimplementedReaderServer{}, UnimplementedReaderSymServer{}, UnimplementedTokenizatorServer{},
+		UnimplementedSearchableEncryptionServer{}, UnimplementedWriterServer{}, UnimplementedWriterSymServer{}}, nil
 }
 
 // Errors possible during decrypting AcraStructs.
