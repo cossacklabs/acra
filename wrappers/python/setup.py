@@ -15,7 +15,7 @@
 from setuptools import setup
 
 setup(name='acrawriter',
-      version='1.0.2',
+      version='1.0.3',
       description='AcraWriter library for Python: encrypts data into AcraStructs, allowing Acra to decrypt it',
       author='Cossack Labs',
       author_email='dev@cossacklabs.com',
