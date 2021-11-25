@@ -7,12 +7,23 @@ import (
 	"io/ioutil"
 	"os"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 )
 
 // extraWaitTime provide extra time to serialize in background goroutine before check
-const extraWaitTime = 200 * time.Millisecond
+const extraWaitTime = 50 * time.Millisecond
+
+func syncStorage(writer *QueryWriter, t *testing.T) {
+	storage, ok := writer.logStorage.(*FileLogStorage)
+	if !ok {
+		t.Fatal("Unexpected type of storage")
+	}
+	if err := storage.file.Sync(); err != nil {
+		t.Fatal(err)
+	}
+}
 
 func TestSerializationOnUniqueQueries(t *testing.T) {
 	testQueries := []string{
@@ -65,9 +76,6 @@ func TestSerializationOnUniqueQueries(t *testing.T) {
 			t.Fatal(err)
 		}
 		writer.captureQuery(queryWithHiddenValues)
-		if err != nil {
-			t.Fatal(err)
-		}
 	}
 	time.Sleep(DefaultSerializationTimeout + extraWaitTime)
 	if len(writer.Queries) != len(testQueries) {
@@ -84,6 +92,8 @@ func TestSerializationOnUniqueQueries(t *testing.T) {
 	if writer.queryIndex != 0 {
 		t.Fatalf("Expected queryIndex == 0 but queryIndex = %d", writer.queryIndex)
 	}
+
+	syncStorage(writer, t)
 	err = writer.readStoredQueries()
 	if err != nil {
 		t.Fatal(err)
@@ -123,6 +133,7 @@ func TestOutputFileAfterDumpStoredQueries(t *testing.T) {
 	}
 	writer.reset()
 
+	syncStorage(writer, t)
 	if err = writer.readStoredQueries(); err != nil {
 		t.Fatal(err)
 	}
@@ -135,6 +146,7 @@ func TestOutputFileAfterDumpStoredQueries(t *testing.T) {
 	if err = writer.dumpBufferedQueries(); err != nil {
 		t.Fatal(err)
 	}
+	syncStorage(writer, t)
 	dumpedLines, err := ioutil.ReadFile(tmpFile.Name())
 	if err != nil {
 		t.Fatal(err)
@@ -192,9 +204,6 @@ func TestSerializationOnSameQueries(t *testing.T) {
 			t.Fatal(err)
 		}
 		writer.captureQuery(queryWithHiddenValues)
-		if err != nil {
-			t.Fatal(err)
-		}
 	}
 
 	time.Sleep(DefaultSerializationTimeout + extraWaitTime)
@@ -210,6 +219,7 @@ func TestSerializationOnSameQueries(t *testing.T) {
 	if len(writer.Queries) != 0 {
 		t.Fatal("Expected no queries \nGot: " + strings.Join(rawStrings(writer.Queries), " | "))
 	}
+	syncStorage(writer, t)
 	err = writer.readStoredQueries()
 	if err != nil {
 		t.Fatal(err)
@@ -258,8 +268,11 @@ func TestQueryCaptureOnDuplicates(t *testing.T) {
 	expected := "{\"raw_query\":\"SELECT Student_ID FROM STUDENT;\",\"_blacklisted_by_web_config\":false}\n" +
 		"{\"raw_query\":\"SELECT * FROM STUDENT;\",\"_blacklisted_by_web_config\":false}\n" +
 		"{\"raw_query\":\"SELECT * FROM X;\",\"_blacklisted_by_web_config\":false}\n"
-
+	if writer.skippedQueryCount > 0 {
+		t.Fatal("Detected unexpected skipping queries")
+	}
 	time.Sleep(DefaultSerializationTimeout + extraWaitTime)
+	syncStorage(writer, t)
 	result, err := ioutil.ReadFile(tmpFile.Name())
 	if err != nil {
 		t.Fatal(err)
@@ -273,7 +286,11 @@ func TestQueryCaptureOnDuplicates(t *testing.T) {
 		"{\"raw_query\":\"SELECT * FROM STUDENT;\",\"_blacklisted_by_web_config\":false}\n" +
 		"{\"raw_query\":\"SELECT * FROM X;\",\"_blacklisted_by_web_config\":false}\n" +
 		"{\"raw_query\":\"SELECT * FROM Z;\",\"_blacklisted_by_web_config\":false}\n"
+	if writer.skippedQueryCount > 0 {
+		t.Fatal("Detected unexpected skipping queries")
+	}
 	time.Sleep(DefaultSerializationTimeout + extraWaitTime)
+	syncStorage(writer, t)
 	result, err = ioutil.ReadFile(tmpFile.Name())
 	if err != nil {
 		t.Fatal(err)
@@ -285,9 +302,12 @@ func TestQueryCaptureOnDuplicates(t *testing.T) {
 	//Check that values are hidden while logging
 	testQuery = "select songName from t where personName in ('Ryan', 'Holly') group by songName having count(distinct personName) = 10"
 	writer.WriteQuery(testQuery)
+	if writer.skippedQueryCount > 0 {
+		t.Fatal("Detected unexpected skipping queries")
+	}
 	//wait until serialization completes
 	time.Sleep(DefaultSerializationTimeout + extraWaitTime)
-
+	syncStorage(writer, t)
 	result, err = ioutil.ReadFile(tmpFile.Name())
 	if err != nil {
 		t.Fatal(err)
@@ -303,10 +323,117 @@ func TestQueryCaptureOnDuplicates(t *testing.T) {
 	}
 }
 
+// TestConcurrentQueryWrite run several background goroutines that write queries at same time.
+// Check that nothing blocked and works as expected
+func TestConcurrentQueryWrite(t *testing.T) {
+	tmpFile, err := ioutil.TempFile("", "censor_log")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err = tmpFile.Close(); err != nil {
+		t.Fatal(err)
+	}
+	writer, err := NewFileQueryWriter(tmpFile.Name())
+	defer func() {
+		writer.Free()
+		err = os.Remove(tmpFile.Name())
+		if err != nil {
+			t.Fatal(err)
+		}
+	}()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	go writer.Start()
+
+	testQueries := []string{
+		"SELECT Student_ID FROM STUDENT;",
+		"SELECT * FROM STUDENT;",
+		"SELECT * FROM X;",
+		"SELECT * FROM X;",
+	}
+
+	goroutineCount := 10
+	writeLoopCount := 10
+	// notify all goroutines to start writing at same time
+	condition := sync.NewCond(&sync.Mutex{})
+	// wait until all finished
+	waitGroup := &sync.WaitGroup{}
+	// wait when goroutines ready to start
+	run := make(chan struct{}, goroutineCount)
+	for i := 0; i < goroutineCount; i++ {
+		waitGroup.Add(1)
+		// start X background goroutines
+		go func(data []string) {
+			condition.L.Lock()
+			// notify that ready to wait
+			run <- struct{}{}
+			condition.Wait()
+
+			for i := 0; i < writeLoopCount; i++ {
+				for _, query := range data {
+					writer.WriteQuery(query)
+				}
+			}
+			condition.L.Unlock()
+			waitGroup.Done()
+		}(testQueries)
+	}
+
+	// wait when all goroutines ready to start before sending broadcast signal
+	for i := 0; i < goroutineCount; i++ {
+		select {
+		case <-run:
+			break
+		case <-time.NewTimer(time.Millisecond * 100).C:
+			t.Fatal("Time out of waiting goroutine start")
+		}
+	}
+	condition.L.Lock()
+	condition.Broadcast()
+	condition.L.Unlock()
+
+	// wait when all goroutines finished or timeout
+	waitFinished := make(chan struct{})
+	go func() {
+		waitGroup.Wait()
+		waitFinished <- struct{}{}
+	}()
+	select {
+	case <-waitFinished:
+		break
+	case <-time.NewTimer(time.Second * 5).C:
+		t.Fatal("Timeout of waiting background goroutines")
+	}
+
+	if writer.skippedQueryCount > 0 {
+		t.Fatal("Detected unexpected skipping queries")
+	}
+	// wait when background goroutine dump all queries to the file
+	time.Sleep(DefaultSerializationTimeout + extraWaitTime)
+	syncStorage(writer, t)
+
+	result, err := ioutil.ReadFile(tmpFile.Name())
+	if err != nil {
+		t.Fatal(err)
+	}
+	lines := strings.Split(string(result), "\n")
+	// we don't sum goroutine count because should be written only unique queries
+	expectedCount := len(testQueries)
+	if len(lines) != expectedCount {
+		t.Fatalf("Incorrect amount of queries, %v != %v\n", len(lines), expectedCount)
+	}
+}
+
 func rawStrings(input []*QueryInfo) []string {
 	var result []string
 	for _, queryInfo := range input {
 		result = append(result, queryInfo.RawQuery)
 	}
 	return result
+}
+
+func init() {
+	DefaultSerializationTimeout = 100 * time.Millisecond
 }

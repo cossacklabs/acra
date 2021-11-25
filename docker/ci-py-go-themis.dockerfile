@@ -33,6 +33,7 @@ RUN set -o pipefail && \
 RUN mkdir /image.scripts
 COPY docker/_scripts/acra-build/install_go.sh /image.scripts/
 COPY docker/_scripts/acra-build/install_go.csums /image.scripts/
+COPY go.mod /image.scripts/
 RUN chmod +x /image.scripts/*.sh
 
 # Install Go
@@ -61,6 +62,9 @@ ENV PATH="$GOROOT/bin:/home/user/gopath/bin:/home/user/.local/bin:$PATH"
 RUN go get -u -v golang.org/x/lint/golint && \
     go get -u -v github.com/client9/misspell/cmd/misspell && \
     go get -u -v github.com/gordonklaus/ineffassign
+
+# download dependencies to avoid next downloads in tests
+RUN cp /image.scripts/go.mod . && go mod download && rm go.mod go.sum
 
 # Install Python tests dependencies
 
