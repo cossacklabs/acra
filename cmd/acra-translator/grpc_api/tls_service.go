@@ -20,19 +20,25 @@ type DecryptService interface {
 type TLSDecryptServiceWrapper struct {
 	decryptor            DecryptService
 	tlsClientIDExtractor network.TLSClientIDExtractor
+	UnimplementedReaderServer
+	UnimplementedReaderSymServer
+	UnimplementedTokenizatorServer
+	UnimplementedSearchableEncryptionServer
+	UnimplementedWriterServer
+	UnimplementedWriterSymServer
 }
 
-func (wrapper *TLSDecryptServiceWrapper) getClientID(ctx context.Context) ([]byte, error) {
+func getClientID(ctx context.Context, extractor network.TLSClientIDExtractor) ([]byte, error) {
 	peerInfo, ok := peer.FromContext(ctx)
 	if !ok {
 		return nil, network.ErrCantExtractClientID
 	}
-	return network.GetClientIDFromAuthInfo(peerInfo.AuthInfo, wrapper.tlsClientIDExtractor)
+	return network.GetClientIDFromAuthInfo(peerInfo.AuthInfo, extractor)
 }
 
 // Encrypt encrypt with clientID from connection info
 func (wrapper *TLSDecryptServiceWrapper) Encrypt(ctx context.Context, request *EncryptRequest) (*EncryptResponse, error) {
-	clientID, err := wrapper.getClientID(ctx)
+	clientID, err := getClientID(ctx, wrapper.tlsClientIDExtractor)
 	if err != nil {
 		return nil, err
 	}
@@ -42,7 +48,7 @@ func (wrapper *TLSDecryptServiceWrapper) Encrypt(ctx context.Context, request *E
 
 // Decrypt encrypt with clientID from connection info
 func (wrapper *TLSDecryptServiceWrapper) Decrypt(ctx context.Context, request *DecryptRequest) (*DecryptResponse, error) {
-	clientID, err := wrapper.getClientID(ctx)
+	clientID, err := getClientID(ctx, wrapper.tlsClientIDExtractor)
 	if err != nil {
 		return nil, err
 	}
@@ -52,7 +58,7 @@ func (wrapper *TLSDecryptServiceWrapper) Decrypt(ctx context.Context, request *D
 
 // Tokenize encrypt with clientID from connection info
 func (wrapper *TLSDecryptServiceWrapper) Tokenize(ctx context.Context, request *TokenizeRequest) (*TokenizeResponse, error) {
-	clientID, err := wrapper.getClientID(ctx)
+	clientID, err := getClientID(ctx, wrapper.tlsClientIDExtractor)
 	if err != nil {
 		return nil, err
 	}
@@ -62,7 +68,7 @@ func (wrapper *TLSDecryptServiceWrapper) Tokenize(ctx context.Context, request *
 
 // Detokenize encrypt with clientID from connection info
 func (wrapper *TLSDecryptServiceWrapper) Detokenize(ctx context.Context, request *TokenizeRequest) (*TokenizeResponse, error) {
-	clientID, err := wrapper.getClientID(ctx)
+	clientID, err := getClientID(ctx, wrapper.tlsClientIDExtractor)
 	if err != nil {
 		return nil, err
 	}
@@ -72,7 +78,7 @@ func (wrapper *TLSDecryptServiceWrapper) Detokenize(ctx context.Context, request
 
 // DecryptSym encrypt with clientID from connection info
 func (wrapper *TLSDecryptServiceWrapper) DecryptSym(ctx context.Context, request *DecryptSymRequest) (*DecryptSymResponse, error) {
-	clientID, err := wrapper.getClientID(ctx)
+	clientID, err := getClientID(ctx, wrapper.tlsClientIDExtractor)
 	if err != nil {
 		return nil, err
 	}
@@ -82,7 +88,7 @@ func (wrapper *TLSDecryptServiceWrapper) DecryptSym(ctx context.Context, request
 
 // EncryptSym encrypt with clientID from connection info
 func (wrapper *TLSDecryptServiceWrapper) EncryptSym(ctx context.Context, request *EncryptSymRequest) (*EncryptSymResponse, error) {
-	clientID, err := wrapper.getClientID(ctx)
+	clientID, err := getClientID(ctx, wrapper.tlsClientIDExtractor)
 	if err != nil {
 		return nil, err
 	}
@@ -92,7 +98,7 @@ func (wrapper *TLSDecryptServiceWrapper) EncryptSym(ctx context.Context, request
 
 // EncryptSearchable encrypt with clientID from connection info
 func (wrapper *TLSDecryptServiceWrapper) EncryptSearchable(ctx context.Context, request *SearchableEncryptionRequest) (*SearchableEncryptionResponse, error) {
-	clientID, err := wrapper.getClientID(ctx)
+	clientID, err := getClientID(ctx, wrapper.tlsClientIDExtractor)
 	if err != nil {
 		return nil, err
 	}
@@ -102,7 +108,7 @@ func (wrapper *TLSDecryptServiceWrapper) EncryptSearchable(ctx context.Context, 
 
 // DecryptSearchable encrypt with clientID from connection info
 func (wrapper *TLSDecryptServiceWrapper) DecryptSearchable(ctx context.Context, request *SearchableDecryptionRequest) (*SearchableDecryptionResponse, error) {
-	clientID, err := wrapper.getClientID(ctx)
+	clientID, err := getClientID(ctx, wrapper.tlsClientIDExtractor)
 	if err != nil {
 		return nil, err
 	}
@@ -112,7 +118,7 @@ func (wrapper *TLSDecryptServiceWrapper) DecryptSearchable(ctx context.Context, 
 
 // EncryptSymSearchable encrypt with clientID from connection info
 func (wrapper *TLSDecryptServiceWrapper) EncryptSymSearchable(ctx context.Context, request *SearchableSymEncryptionRequest) (*SearchableSymEncryptionResponse, error) {
-	clientID, err := wrapper.getClientID(ctx)
+	clientID, err := getClientID(ctx, wrapper.tlsClientIDExtractor)
 	if err != nil {
 		return nil, err
 	}
@@ -122,7 +128,7 @@ func (wrapper *TLSDecryptServiceWrapper) EncryptSymSearchable(ctx context.Contex
 
 // DecryptSymSearchable encrypt with clientID from connection info
 func (wrapper *TLSDecryptServiceWrapper) DecryptSymSearchable(ctx context.Context, request *SearchableSymDecryptionRequest) (*SearchableSymDecryptionResponse, error) {
-	clientID, err := wrapper.getClientID(ctx)
+	clientID, err := getClientID(ctx, wrapper.tlsClientIDExtractor)
 	if err != nil {
 		return nil, err
 	}
@@ -132,7 +138,7 @@ func (wrapper *TLSDecryptServiceWrapper) DecryptSymSearchable(ctx context.Contex
 
 // GenerateQueryHash encrypt with clientID from connection info
 func (wrapper *TLSDecryptServiceWrapper) GenerateQueryHash(ctx context.Context, request *QueryHashRequest) (*QueryHashResponse, error) {
-	clientID, err := wrapper.getClientID(ctx)
+	clientID, err := getClientID(ctx, wrapper.tlsClientIDExtractor)
 	if err != nil {
 		return nil, err
 	}
@@ -142,5 +148,7 @@ func (wrapper *TLSDecryptServiceWrapper) GenerateQueryHash(ctx context.Context, 
 
 // NewTLSDecryptServiceWrapper return new service wrapper which use clientID from TLS certificates
 func NewTLSDecryptServiceWrapper(service DecryptService, tlsClientIDExtractor network.TLSClientIDExtractor) (*TLSDecryptServiceWrapper, error) {
-	return &TLSDecryptServiceWrapper{service, tlsClientIDExtractor}, nil
+	return &TLSDecryptServiceWrapper{service, tlsClientIDExtractor,
+		UnimplementedReaderServer{}, UnimplementedReaderSymServer{}, UnimplementedTokenizatorServer{},
+		UnimplementedSearchableEncryptionServer{}, UnimplementedWriterServer{}, UnimplementedWriterSymServer{}}, nil
 }

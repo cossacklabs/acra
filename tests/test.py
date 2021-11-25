@@ -601,11 +601,12 @@ BINARIES = [
            build_args=DEFAULT_BUILD_ARGS),
 ]
 
+BUILD_TAGS = os.environ.get("TEST_BUILD_TAGS", '')
 
 def build_binaries():
     """Build Acra CE binaries for testing."""
     builds = [
-        (binary.from_version, ['go', 'build'] + binary.build_args + ['github.com/cossacklabs/acra/cmd/{}'.format(binary.name)])
+        (binary.from_version, ['go', 'build', '-tags={}'.format(BUILD_TAGS)] + binary.build_args + ['github.com/cossacklabs/acra/cmd/{}'.format(binary.name)])
         for binary in BINARIES
     ]
     go_version = get_go_version()
@@ -2757,7 +2758,7 @@ class TestPoisonRecordWholeCellStatusOff(TestPoisonRecordOffStatus):
         return
 
 
-class TestPoisonRecordWholeCellStatusOff(TestPoisonRecordOffStatusWithAcraBlock):
+class TestPoisonRecordWholeCellStatusOffWithAcraBlock(TestPoisonRecordOffStatusWithAcraBlock):
     WHOLECELL_MODE = True
     SHUTDOWN = True
 

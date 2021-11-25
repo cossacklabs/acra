@@ -2,7 +2,7 @@ syntax = "proto3";
 
 package grpc_api;
 
-option go_package = "cmd/acra-translator/grpc_api";
+option go_package = "github.com/cossacklabs/acra/cmd/acra-translator/grpc_api";
 
 message DecryptRequest {
     bytes client_id = 1;

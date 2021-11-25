@@ -29,13 +29,12 @@ type ITranslatorService interface {
 // TranslatorService service that implements all Acra-Translator functions
 type TranslatorService struct {
 	data           *TranslatorData
-	tokenizer      tokenCommon.Pseudoanonymizer
 	handler        crypto.RegistryHandler
 	poisonDetector *crypto.EnvelopeDetector
 }
 
 // NewTranslatorService return new initialized TranslatorService
-func NewTranslatorService(translatorData *TranslatorData, tokenizer tokenCommon.Pseudoanonymizer) (*TranslatorService, error) {
+func NewTranslatorService(translatorData *TranslatorData) (*TranslatorService, error) {
 	registryHandler := crypto.NewRegistryHandler(translatorData.Keystorage)
 	poisonEnvelopeDetector := crypto.NewEnvelopeDetector()
 	if translatorData.PoisonRecordCallbacks != nil && translatorData.PoisonRecordCallbacks.HasCallbacks() {
@@ -44,7 +43,7 @@ func NewTranslatorService(translatorData *TranslatorData, tokenizer tokenCommon.
 		poisonDetector.SetPoisonRecordCallbacks(translatorData.PoisonRecordCallbacks)
 		poisonEnvelopeDetector.AddCallback(poisonDetector)
 	}
-	return &TranslatorService{data: translatorData, tokenizer: tokenizer, handler: registryHandler, poisonDetector: poisonEnvelopeDetector}, nil
+	return &TranslatorService{data: translatorData, handler: registryHandler, poisonDetector: poisonEnvelopeDetector}, nil
 }
 
 // Errors possible during decrypting AcraStructs.
@@ -257,7 +256,7 @@ func (service *TranslatorService) Tokenize(ctx context.Context, data interface{}
 	if len(zoneID) > 0 {
 		tokenContext = tokenCommon.TokenContext{ZoneID: zoneID}
 	}
-	response, err := service.tokenizer.AnonymizeConsistently(data, tokenContext, dataType)
+	response, err := service.data.Tokenizer.AnonymizeConsistently(data, tokenContext, dataType)
 	if err != nil {
 		logger.WithError(err).Errorln("Can't tokenize")
 		return nil, ErrTokenize
@@ -277,7 +276,7 @@ func (service *TranslatorService) Detokenize(ctx context.Context, data interface
 	}
 	switch dataType {
 	case tokenCommon.TokenType_Bytes, tokenCommon.TokenType_Email, tokenCommon.TokenType_Int32, tokenCommon.TokenType_Int64, tokenCommon.TokenType_String:
-		sourceData, err := service.tokenizer.Deanonymize(data, tokenContext, dataType)
+		sourceData, err := service.data.Tokenizer.Deanonymize(data, tokenContext, dataType)
 		if err != nil {
 			logger.WithField("type", dataType).WithError(err).Errorln("Can't tokenize data")
 			return nil, ErrDetokenize

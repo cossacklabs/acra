@@ -201,11 +201,11 @@ func TestDecryptGRPCService_Decrypt(t *testing.T) {
 	poisonCallbacks := poison.NewCallbackStorage()
 	poisonCallbacks.AddCallback(poison.EmptyCallback{})
 	translatorData := &common.TranslatorData{PoisonRecordCallbacks: poisonCallbacks, Keystorage: keystore}
-	serviceImplementation, err := common.NewTranslatorService(translatorData, nil)
+	serviceImplementation, err := common.NewTranslatorService(translatorData)
 	if err != nil {
 		t.Fatal(err)
 	}
-	service, err := NewTranslatorService(serviceImplementation, translatorData, nil, keystore)
+	service, err := NewTranslatorService(serviceImplementation, translatorData)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -282,7 +282,7 @@ func TestDecryptGRPCService_Decrypt(t *testing.T) {
 	// create processor without callbacks
 	poisonCallbacks = poison.NewCallbackStorage()
 	translatorData.PoisonRecordCallbacks = poisonCallbacks
-	serviceImplementation, err = common.NewTranslatorService(translatorData, nil)
+	serviceImplementation, err = common.NewTranslatorService(translatorData)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -312,11 +312,11 @@ func TestDecryptGRPCService_Encrypt(t *testing.T) {
 	keystore.EncryptionKeypair = encryptionKey
 
 	translatorData := &common.TranslatorData{Keystorage: keystore}
-	serviceImplementation, err := common.NewTranslatorService(translatorData, nil)
+	serviceImplementation, err := common.NewTranslatorService(translatorData)
 	if err != nil {
 		t.Fatal(err)
 	}
-	service, err := NewTranslatorService(serviceImplementation, translatorData, nil, keystore)
+	service, err := NewTranslatorService(serviceImplementation, translatorData)
 	if err != nil {
 		t.Fatal(err)
 	}

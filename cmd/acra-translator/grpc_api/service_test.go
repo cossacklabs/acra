@@ -83,7 +83,7 @@ func responseToRequest(resp *TokenizeResponse) isTokenizeRequest_Value {
 		panic("invalid value")
 	}
 }
-func isEqualDataWithResponse(data1 interface{}, resp *TokenizeResponse) bool {
+func isEqualDataWithTokenizeResponse(data1 interface{}, resp *TokenizeResponse) bool {
 	switch val := resp.Response.(type) {
 	case *TokenizeResponse_BytesToken:
 		d, ok := data1.([]byte)
@@ -133,12 +133,12 @@ func testTranslatorService(storage common.TokenStorage, t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	translatorData := &translatorCommon.TranslatorData{nil, nil, false, nil}
-	serviceImplementation, err := translatorCommon.NewTranslatorService(translatorData, tokenizer)
+	translatorData := &translatorCommon.TranslatorData{tokenizer, nil, nil, nil, false, nil}
+	serviceImplementation, err := translatorCommon.NewTranslatorService(translatorData)
 	if err != nil {
 		t.Fatal(err)
 	}
-	service := &TranslatorService{service: serviceImplementation, tokenizer: tokenizer, logger: logrus.NewEntry(logrus.StandardLogger())}
+	service := &TranslatorService{service: serviceImplementation, logger: logrus.NewEntry(logrus.StandardLogger())}
 	testValues := []interface{}{
 		[]byte(`test data`),
 		"test data",
@@ -160,7 +160,7 @@ func testTranslatorService(storage common.TokenStorage, t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if !isEqualDataWithResponse(data, detokenized) {
+			if !isEqualDataWithTokenizeResponse(data, detokenized) {
 				t.Fatal("Incorrect tokenization/detokenization")
 			}
 		}
@@ -202,11 +202,11 @@ func TestTranslatorService_Search(t *testing.T) {
 	keystore.On("GetZonePublicKey", mock.MatchedBy(func([]byte) bool { return true })).Return(zoneIDKeypair.Public, nil)
 	keystore.On("GetClientIDEncryptionPublicKey", mock.MatchedBy(func([]byte) bool { return true })).Return(clientIDKeypair.Public, nil)
 	translatorData := &translatorCommon.TranslatorData{PoisonRecordCallbacks: poison.NewCallbackStorage(), Keystorage: keystore}
-	serviceImplementation, err := translatorCommon.NewTranslatorService(translatorData, nil)
+	serviceImplementation, err := translatorCommon.NewTranslatorService(translatorData)
 	if err != nil {
 		t.Fatal(err)
 	}
-	service, err := NewTranslatorService(serviceImplementation, translatorData, nil, keystore)
+	service, err := NewTranslatorService(serviceImplementation, translatorData)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -287,11 +287,11 @@ func TestTranslatorService_SearchSym(t *testing.T) {
 		nil)
 
 	translatorData := &translatorCommon.TranslatorData{Keystorage: keystore}
-	serviceImplementation, err := translatorCommon.NewTranslatorService(translatorData, nil)
+	serviceImplementation, err := translatorCommon.NewTranslatorService(translatorData)
 	if err != nil {
 		t.Fatal(err)
 	}
-	service, err := NewTranslatorService(serviceImplementation, translatorData, nil, keystore)
+	service, err := NewTranslatorService(serviceImplementation, translatorData)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -374,11 +374,11 @@ func TestTranslatorService_DecryptionPoisonRecord(t *testing.T) {
 	callback := &testPoisonCallback{}
 	callbackStorage.AddCallback(callback)
 	translatorData := &translatorCommon.TranslatorData{PoisonRecordCallbacks: callbackStorage, Keystorage: keyStorage}
-	serviceImplementation, err := translatorCommon.NewTranslatorService(translatorData, nil)
+	serviceImplementation, err := translatorCommon.NewTranslatorService(translatorData)
 	if err != nil {
 		t.Fatal(err)
 	}
-	service, err := NewTranslatorService(serviceImplementation, translatorData, nil, keyStorage)
+	service, err := NewTranslatorService(serviceImplementation, translatorData)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -461,11 +461,7 @@ type testgRPCServer struct {
 	unixPath string
 }
 
-type TestgRPCKeystore interface {
-	keystore.TranslationKeyStore
-}
-
-func newServer(storage TestgRPCKeystore, data *translatorCommon.TranslatorData, opts []grpc.ServerOption, t *testing.T) *testgRPCServer {
+func newTokenizer(t *testing.T) common.Pseudoanonymizer {
 	tokenStore, err := storage2.NewMemoryTokenStorage()
 	if err != nil {
 		t.Fatal(err)
@@ -474,11 +470,11 @@ func newServer(storage TestgRPCKeystore, data *translatorCommon.TranslatorData, 
 	if err != nil {
 		t.Fatal(err)
 	}
-	factory, err := NewgRPCServerFactory(tokenizer, storage)
-	if err != nil {
-		t.Fatal(err)
-	}
-	server, err := factory.New(data, opts...)
+	return tokenizer
+}
+
+func newServer(data *translatorCommon.TranslatorData, wrapper network.GRPCConnectionWrapper, t *testing.T) *testgRPCServer {
+	server, err := NewServer(data, wrapper)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -496,7 +492,7 @@ func newServer(storage TestgRPCKeystore, data *translatorCommon.TranslatorData, 
 }
 
 // newServerTLSgRPCOpts returns server options to use TLS as transport using keys from tests/ssl/[ca|acra-server]
-func newServerTLSgRPCOpts(t *testing.T, idExtractor network.TLSClientIDExtractor) []grpc.ServerOption {
+func newServerTLSgRPCOpts(t *testing.T, idExtractor network.TLSClientIDExtractor) network.GRPCConnectionWrapper {
 	verifier := network.NewCertVerifierAll()
 	workingDirectory := tests.GetSourceRootDirectory(t)
 	serverConfig, err := network.NewTLSConfig("localhost", filepath.Join(workingDirectory, "tests/ssl/ca/ca.crt"), filepath.Join(workingDirectory, "tests/ssl/acra-server/acra-server.key"), filepath.Join(workingDirectory, "tests/ssl/acra-server/acra-server.crt"), 4, verifier)
@@ -507,7 +503,7 @@ func newServerTLSgRPCOpts(t *testing.T, idExtractor network.TLSClientIDExtractor
 	if err != nil {
 		t.Fatal(err)
 	}
-	return []grpc.ServerOption{grpc.Creds(wrapper)}
+	return wrapper
 }
 
 func newClientTLSConfig(t *testing.T) *tls.Config {
@@ -575,9 +571,9 @@ func TestNewFactoryWithClientIDFromTLSConnection(t *testing.T) {
 
 	ctx, cancel := context.WithTimeout(context.Background(), connectionTimeout*5)
 	defer cancel()
-	data := &translatorCommon.TranslatorData{UseConnectionClientID: true, Keystorage: keystorage}
-	serverOpts := newServerTLSgRPCOpts(t, idExtractor)
-	server := newServer(keystorage, data, serverOpts, t)
+	data := &translatorCommon.TranslatorData{UseConnectionClientID: true, Keystorage: keystorage, Tokenizer: newTokenizer(t)}
+	wrapper := newServerTLSgRPCOpts(t, idExtractor)
+	server := newServer(data, wrapper, t)
 	defer server.Stop()
 	clientConfig := newClientTLSConfig(t)
 	clientOpts := newClientTLSgRPCOpts(clientConfig, t)
@@ -684,14 +680,13 @@ func TestNewFactoryWithClientIDFromSecureSessionConnectionSuccess(t *testing.T) 
 	ctx, cancel := context.WithTimeout(context.Background(), connectionTimeout*5)
 	defer cancel()
 
-	data := &translatorCommon.TranslatorData{UseConnectionClientID: true, Keystorage: keystorage}
+	data := &translatorCommon.TranslatorData{UseConnectionClientID: true, Keystorage: keystorage, Tokenizer: newTokenizer(t)}
 	secureSessionWrapper, err := network.NewSecureSessionConnectionWrapper(expectedClientID, keystorage)
 	if err != nil {
 		t.Fatal(err)
 	}
 	secureSessionWrapper.AddOnServerHandshakeCallback(network.TraceConnectionCallback{})
-	serverOpts := []grpc.ServerOption{grpc.Creds(secureSessionWrapper)}
-	server := newServer(keystorage, data, serverOpts, t)
+	server := newServer(data, secureSessionWrapper, t)
 	defer server.Stop()
 	clientOpts := []grpc.DialOption{getSecureSessionDialer(secureSessionWrapper), grpc.WithInsecure()}
 
@@ -705,9 +700,8 @@ func TestNewFactoryWithClientIDFromSecureSessionConnectionSuccess(t *testing.T) 
 
 func TestNewFactoryWithClientIDFromSecureSessionConnectionInvalidAuthInfo(t *testing.T) {
 	keystorage := &mocks.TranslationKeyStore{}
-	data := &translatorCommon.TranslatorData{UseConnectionClientID: true, Keystorage: keystorage}
-	serverOpts := []grpc.ServerOption{}
-	server := newServer(keystorage, data, serverOpts, t)
+	data := &translatorCommon.TranslatorData{UseConnectionClientID: true, Keystorage: keystorage, Tokenizer: newTokenizer(t)}
+	server := newServer(data, nil, t)
 	defer server.Stop()
 	clientOpts := []grpc.DialOption{grpc.WithInsecure(), getgRPCUnixDialer()}
 	conn := server.NewConnection(clientOpts, t)

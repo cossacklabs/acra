@@ -42,6 +42,7 @@ import (
 	filesystemBackendV2CE "github.com/cossacklabs/acra/keystore/v2/keystore/filesystem/backend"
 	"github.com/cossacklabs/acra/logging"
 	"github.com/cossacklabs/acra/network"
+	"github.com/cossacklabs/acra/poison"
 	"github.com/cossacklabs/acra/pseudonymization"
 	common2 "github.com/cossacklabs/acra/pseudonymization/common"
 	"github.com/cossacklabs/acra/pseudonymization/storage"
@@ -377,15 +378,34 @@ func realMain() error {
 		return err
 	}
 	config.SetTokenizer(tokenizer)
-	serviceFactory, err := grpc_api.NewgRPCServerFactory(tokenizer, keyStore)
+	poisonCallbacks := poison.NewCallbackStorage()
+	if config.DetectPoisonRecords() {
+		// used to turn off poison record detection which rely on HasCallbacks
+		poisonCallbacks.AddCallback(poison.EmptyCallback{})
+		if config.ScriptOnPoison() != "" {
+			poisonCallbacks.AddCallback(poison.NewExecuteScriptCallback(config.ScriptOnPoison()))
+		}
+		// should setup "stopOnPoison" as last poison record callback"
+		if config.StopOnPoison() {
+			poisonCallbacks.AddCallback(&poison.StopCallback{})
+		}
+	}
+	translatorData := &common.TranslatorData{
+		Tokenizer:             tokenizer,
+		Config:                config,
+		Keystorage:            transportKeystore,
+		PoisonRecordCallbacks: poisonCallbacks,
+		UseConnectionClientID: config.GetUseClientIDFromConnection(),
+		TLSClientIDExtractor:  config.GetTLSClientIDExtractor(),
+	}
+	grpcServer, err := grpc_api.NewServer(translatorData, config.GRPCConnectionWrapper)
 	if err != nil {
 		log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorGeneral).Errorln("Can't initialize gRPC service factory")
 		return err
 	}
 
-	var readerServer *server.ReaderServer
 	waitTimeout := time.Duration(*closeConnectionTimeout) * time.Second
-	readerServer, err = server.NewReaderServer(config, transportKeystore, serviceFactory, waitTimeout)
+	readerServer, err := server.NewReaderServer(translatorData, grpcServer, waitTimeout)
 	if err != nil {
 		log.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCantStartService).
 			Errorf("System error: can't start %s", ServiceName)

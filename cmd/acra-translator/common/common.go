@@ -21,10 +21,13 @@ import (
 	"github.com/cossacklabs/acra/decryptor/base"
 	"github.com/cossacklabs/acra/keystore"
 	"github.com/cossacklabs/acra/network"
+	tokenCommon "github.com/cossacklabs/acra/pseudonymization/common"
 )
 
 // TranslatorData connects KeyStorage and Poison records settings for HTTP and gRPC decryptors.
 type TranslatorData struct {
+	Tokenizer             tokenCommon.Pseudoanonymizer
+	Config                *AcraTranslatorConfig
 	PoisonRecordCallbacks base.PoisonRecordCallbackStorage
 	Keystorage            keystore.TranslationKeyStore
 	UseConnectionClientID bool
