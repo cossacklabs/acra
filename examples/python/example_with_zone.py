@@ -142,11 +142,9 @@ if __name__ == '__main__':
     if args.mysql:
         driver = 'mysql+pymysql'
         ssl_args = {
-            "ssl": {
-                "ssl_ca": args.ssl_root_cert,
-                "ssl_cert": args.ssl_cert,
-                "ssl_key":  args.ssl_key
-            }
+            'ssl_ca': args.ssl_root_cert,
+            'ssl_cert': args.ssl_cert,
+            'ssl_key': args.ssl_key
         }
 
     metadata = MetaData()
