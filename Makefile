@@ -187,9 +187,10 @@ help:
 ## Update protobuf dependencies and regenerate .pb.go from .proto,
 ## use this target only when it is really needed, not for usual builds
 build_protobuf:
-	go get -u github.com/golang/protobuf/proto github.com/golang/protobuf/protoc-gen-go
-	go get -u google.golang.org/grpc
-	protoc --go_out=plugins=grpc:. cmd/acra-translator/grpc_api/*.proto
+	@go get -u github.com/golang/protobuf/proto github.com/golang/protobuf/protoc-gen-go
+	@go get -u google.golang.org/grpc
+	@protoc --go_out=plugins=grpc:. -Icmd/acra-translator/grpc_api --go_opt=module=github.com/cossacklabs/acra  cmd/acra-translator/grpc_api/*.proto
+	@python3 -m grpc_tools.protoc -Icmd/acra-translator/grpc_api --proto_path=. --python_out=tests/ --grpc_python_out=tests/ cmd/acra-translator/grpc_api/*.proto
 
 ## Build the application in the subdirectory (default)
 build:
