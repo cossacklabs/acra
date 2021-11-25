@@ -140,15 +140,15 @@ if __name__ == '__main__':
     parser.add_argument('--ssl_mode', action='store_true',
                         default=get_default('ssl_mode', False),
                         help='SSL connection mode')
-    parser.add_argument('--ssl_root_cert', action='store_true',
-                        default=get_default('ssl_root_cert', False),
-                        help='Path to root certificate used in SSL connection')
-    parser.add_argument('--ssl_key', action='store_true',
-                        default=get_default('ssl_key', False),
-                        help='Path to client ssl key used in SSL connection')
-    parser.add_argument('--ssl_cert', action='store_true',
-                        default=get_default('ssl_cert', False),
-                        help='Path to client ssl cert used in SSL connection')
+    parser.add_argument('--tls_root_cert', action='store_true',
+                        default=get_default('tls_root_cert', False),
+                        help='Path to root certificate used in TLS connection')
+    parser.add_argument('--tls_key', action='store_true',
+                        default=get_default('tls_key', False),
+                        help='Path to client TLS key used in TLS connection')
+    parser.add_argument('--tls_cert', action='store_true',
+                        default=get_default('tls_cert', False),
+                        help='Path to client TLS certificate used in TLS connection')
     parser.add_argument('-v', '--verbose', dest='verbose', action='store_true',
                         default=get_default('verbose', False), help='verbose')
     parser.add_argument('-c', '--columns', nargs='+', dest='columns',
@@ -168,9 +168,9 @@ if __name__ == '__main__':
     driver = 'postgresql'
     ssl_args = {
         'sslmode': args.ssl_mode,
-        'sslrootcert': args.ssl_root_cert,
-        'sslkey': args.ssl_key,
-        'sslcert': args.ssl_cert,
+        'sslrootcert': args.tls_root_cert,
+        'sslkey': args.tls_key,
+        'sslcert': args.tls_cert,
     }
 
     engine = create_engine(
