@@ -14,13 +14,10 @@
 # coding: utf-8
 import argparse
 import os
-import string
-from random import randint, choice
-
-from sqlalchemy import (Table, Column, Integer, MetaData, create_engine,
-                        select, Text)
 
 from acrawriter.sqlalchemy import AcraBinary
+from sqlalchemy import (Table, Column, Integer, MetaData, create_engine,
+                        select, Text)
 
 
 def get_default(name, value):
@@ -54,7 +51,7 @@ if __name__ == '__main__':
                         default=get_default('db_name', 'acra'),
                         help='Database name')
     parser.add_argument('--db_user', type=str,
-                        default=get_default('db_user','test'),
+                        default=get_default('db_user', 'test'),
                         help='Database user')
     parser.add_argument('--db_password', type=str,
                         default=get_default('db_password', 'test'),
@@ -68,6 +65,18 @@ if __name__ == '__main__':
     parser.add_argument('--data', type=str,
                         default=get_default('data', ''),
                         help='data to save in ascii. default random data')
+    parser.add_argument('--ssl_mode', action='store_true',
+                        default=get_default('ssl_mode', False),
+                        help='SSL connection mode')
+    parser.add_argument('--tls_root_cert', action='store_true',
+                        default=get_default('tls_root_cert', False),
+                        help='Path to root certificate used in TLS connection')
+    parser.add_argument('--tls_key', action='store_true',
+                        default=get_default('tls_key', False),
+                        help='Path to client TLS key used in TLS connection')
+    parser.add_argument('--tls_cert', action='store_true',
+                        default=get_default('tls_cert', False),
+                        help='Path to client TLS certificate used in TLS connection')
     parser.add_argument('--print', action='store_true',
                         default=get_default('print', False),
                         help='Print data (use --zone_id to set specific ZoneId '
@@ -85,8 +94,19 @@ if __name__ == '__main__':
 
     # default driver
     driver = 'postgresql'
+    ssl_args = {
+        'sslmode': args.ssl_mode,
+        'sslrootcert': args.tls_root_cert,
+        'sslkey': args.tls_key,
+        'sslcert': args.tls_cert,
+    }
     if args.mysql:
         driver = 'mysql+pymysql'
+        ssl_args = {
+            'ssl_ca': args.tls_root_cert,
+            'ssl_cert': args.tls_cert,
+            'ssl_key': args.tls_key
+        }
 
     metadata = MetaData()
     # here we load public key for AcraStructs
@@ -104,6 +124,7 @@ if __name__ == '__main__':
         '{}://{}:{}@{}:{}/{}'.format(
             driver, args.db_user, args.db_password, args.host, args.port,
             args.db_name),
+        connect_args=ssl_args,
         echo=bool(args.verbose))
     metadata.create_all(engine)
     connection = engine.connect()
