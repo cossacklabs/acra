@@ -21,7 +21,7 @@ __all__ = ('AcraBinary', 'AcraString')
 
 
 class AcraBinary(types.TypeDecorator):
-    impl = types.Binary
+    impl = types.LargeBinary
 
     def __init__(self, public_key, *args, **kwargs):
         super(AcraBinary, self).__init__(*args, **kwargs)

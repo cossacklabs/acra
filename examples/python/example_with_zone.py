@@ -25,7 +25,7 @@ except ImportError:
     from urllib2 import urlopen
 
 from sqlalchemy import (Table, Column, Integer, MetaData, create_engine,
-                        select, Binary, Text, cast)
+                        select, LargeBinary, Text, cast)
 from sqlalchemy.dialects.postgresql import BYTEA
 
 from acrawriter import create_acrastruct
@@ -106,6 +106,18 @@ if __name__ == '__main__':
                         default=get_default('print', False),
                         help='Print data (use --zone_id to set specific ZoneId '
                              'which will be used to fetch data)')
+    parser.add_argument('--ssl_mode', action='store_true',
+                        default=get_default('ssl_mode', False),
+                        help='SSL connection mode')
+    parser.add_argument('--ssl_root_cert', action='store_true',
+                        default=get_default('ssl_root_cert', False),
+                        help='Path to root certificate used in SSL connection')
+    parser.add_argument('--ssl_key', action='store_true',
+                        default=get_default('ssl_key', False),
+                        help='Path to client ssl key used in SSL connection')
+    parser.add_argument('--ssl_cert', action='store_true',
+                        default=get_default('ssl_cert', False),
+                        help='Path to client ssl cert used in SSL connection')
     parser.add_argument('-v', '--verbose', dest='verbose', action='store_true',
                         default=get_default('verbose', False), help='verbose')
     parser.add_argument('--postgresql', action='store_true',
@@ -121,21 +133,35 @@ if __name__ == '__main__':
         'acra_connector_api_address', 'http://127.0.0.1:9191')
     # default driver
     driver = 'postgresql'
+    ssl_args = {
+        'sslmode': args.ssl_mode,
+        'sslrootcert': args.ssl_root_cert,
+        'sslkey': args.ssl_key,
+        'sslcert': args.ssl_cert,
+    }
     if args.mysql:
         driver = 'mysql+pymysql'
+        ssl_args = {
+            "ssl": {
+                "ssl_ca": args.ssl_root_cert,
+                "ssl_cert": args.ssl_cert,
+                "ssl_key":  args.ssl_key
+            }
+        }
 
     metadata = MetaData()
     test_table = Table(
         'test_example_with_zone', metadata,
         Column('id', Integer, primary_key=True, nullable=False),
-        Column('zone_id', Binary, nullable=True),
-        Column('data', Binary, nullable=False),
+        Column('zone_id', LargeBinary, nullable=True),
+        Column('data', LargeBinary, nullable=False),
         Column('raw_data', Text, nullable=False),
     )
     engine = create_engine(
         '{}://{}:{}@{}:{}/{}'.format(
             driver, args.db_user, args.db_password, args.host, args.port,
             args.db_name),
+        connect_args=ssl_args,
         echo=bool(args.verbose))
     connection = engine.connect()
     metadata.create_all(engine)
