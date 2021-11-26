@@ -49,9 +49,8 @@ for go_version in $GO_VERSIONS; do
     export TEST_CONNECTOR_PORT=$(expr ${TEST_CONNECTOR_PORT} + 1);
     export TEST_CONNECTOR_COMMAND_PORT=$(expr ${TEST_CONNECTOR_COMMAND_PORT} + 1);
 
-    # remove built packages with another golang version and force to rebuild
-    go clean -i -cache -testcache | true
-    go mod download
+    # download dependencies
+    go mod tidy
 
 
     echo "-------------------- Testing with TEST_TLS=${TEST_TLS}"

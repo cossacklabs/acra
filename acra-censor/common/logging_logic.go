@@ -10,15 +10,20 @@ import (
 	"os/signal"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"syscall"
 	"time"
 )
 
+const defaultSerializationTimeout = time.Second
+
 // DefaultSerializationTimeout defines a default ticker' timeout
-const DefaultSerializationTimeout = time.Second
+var DefaultSerializationTimeout = defaultSerializationTimeout
+
+const defaultWriteQueryChannelSize = 500
 
 // DefaultWriteQueryChannelSize defines size of channel used for writing input queries
-const DefaultWriteQueryChannelSize = 50
+var DefaultWriteQueryChannelSize = defaultWriteQueryChannelSize
 
 // QueryInfo defines format of exporting query into file
 type QueryInfo struct {
@@ -47,6 +52,8 @@ type QueryWriter struct {
 	serializationTimeout time.Duration
 	serializationTicker  *time.Ticker
 	logger               *log.Entry
+	// may be used for metrics and useful for tests
+	skippedQueryCount uint64
 }
 
 // NewFileQueryWriter creates QueryWriter instance
@@ -155,7 +162,9 @@ func (queryWriter *QueryWriter) WriteQuery(query string) {
 	case queryWriter.signalWriteQuery <- query:
 		break
 	default:
-		queryWriter.logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCensorBackgroundError).Warningln("Too much input queries")
+		count := atomic.AddUint64(&queryWriter.skippedQueryCount, 1)
+		queryWriter.logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCensorBackgroundError).
+			WithField("skipped", count).Warningln("Too much input queries")
 	}
 }
 
