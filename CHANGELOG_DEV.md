@@ -2,6 +2,15 @@
 ### Changed
 - `acra-translator`'s HTTP API methods support `POST` method additionally to `GET`. `GET` method is marked as deprecated
   and log the warning about it.
+  
+## 0.91.0 - 2021-11-25
+### Changed
+- `acra-censor's` query writer now can track amount of skipped queries and allows configuration of serialization 
+  frequency for tests. Fixed flaky tests related to not flushed data to a file before read.
+- Reduced time of tests by:
+  - removing redundant cache deletion 
+  - building base docker image with pre-downloaded golang dependencies
+  - increasing serialization frequency and decreasing `time.Sleep` time in `acra-censor's` tests
 
 ## 0.91.0 - 2021-11-12
 ### Removed
