@@ -227,9 +227,9 @@ func TestHTTPAPI(t *testing.T) {
 		client := &http.Client{Transport: transport}
 		testContext := apiTestContext{
 			endpoint: fmt.Sprintf("http://%s", newListener.Addr()),
-			zoneID: zoneID,
+			zoneID:   zoneID,
 			listener: newListener,
-			client: client,
+			client:   client,
 		}
 		testHTTPAPIEndpoints(testContext, t)
 		// stop server
@@ -285,9 +285,9 @@ func TestHTTPAPI(t *testing.T) {
 		client := &http.Client{Transport: transport}
 		testContext := apiTestContext{
 			endpoint: fmt.Sprintf("https://%s", newListener.Addr()),
-			zoneID: zoneID,
+			zoneID:   zoneID,
 			listener: newListener,
-			client: client,
+			client:   client,
 		}
 		testHTTPAPIEndpoints(testContext, t)
 		cancel()
@@ -342,22 +342,22 @@ func TestHTTPAPI(t *testing.T) {
 		client := &http.Client{Transport: transport}
 		testContext := apiTestContext{
 			endpoint: fmt.Sprintf("http://%s", newListener.Addr()),
-			zoneID: zoneID,
+			zoneID:   zoneID,
 			listener: newListener,
-			client: client,
+			client:   client,
 		}
 		testHTTPAPIEndpoints(testContext, t)
 	})
 }
 
 type apiTestContext struct {
-	zoneID []byte
-	client *http.Client
+	zoneID   []byte
+	client   *http.Client
 	listener net.Listener
 	endpoint string
 }
 
-func testHTTPAPIEndpoints(testContext apiTestContext, t *testing.T){
+func testHTTPAPIEndpoints(testContext apiTestContext, t *testing.T) {
 	expectedData := encryptData{testBytes: []byte("some bytes")}
 	testOperationPairs := []struct {
 		forwardOperation  string
@@ -380,11 +380,11 @@ func testHTTPAPIEndpoints(testContext apiTestContext, t *testing.T){
 		testEncryptDecrypt(testContext.endpoint, http.MethodPost, testPair.forwardOperation, testPair.backwardOperation, expectedData, testContext.client, t)
 	}
 	b64binaryData := base64.StdEncoding.EncodeToString([]byte(`some binary datadata`))
-	b64BinaryJsonData := fmt.Sprintf(`"%s"`, b64binaryData)
+	b64BinaryJSONData := fmt.Sprintf(`"%s"`, b64binaryData)
 	testTokenizeData := []tokenData{
 		// string literals
 		{nil, []byte(`"some json string"`), pseudonymizationCommon.TokenType_String},
-		{nil, []byte(b64BinaryJsonData), pseudonymizationCommon.TokenType_Bytes},
+		{nil, []byte(b64BinaryJSONData), pseudonymizationCommon.TokenType_Bytes},
 		{nil, []byte(`"some@email.com"`), pseudonymizationCommon.TokenType_Email},
 		// int json literals
 		{nil, []byte(`123`), pseudonymizationCommon.TokenType_Int32},
@@ -408,7 +408,7 @@ type encryptData struct {
 	zoneID    []byte
 }
 
-func testEncryptDecrypt(endpoint, method, encryptOperationUrl, decryptOperationUrl string, data encryptData, client *http.Client, t *testing.T) {
+func testEncryptDecrypt(endpoint, method, encryptOperationURL, decryptOperationURL string, data encryptData, client *http.Client, t *testing.T) {
 	switch method {
 	case http.MethodGet, http.MethodPost:
 		break
@@ -435,7 +435,7 @@ func testEncryptDecrypt(endpoint, method, encryptOperationUrl, decryptOperationU
 		t.Fatal(err)
 	}
 
-	request, err := http.NewRequest(method, fmt.Sprintf("%s/v2/%s", endpoint, encryptOperationUrl), &outputBuffer)
+	request, err := http.NewRequest(method, fmt.Sprintf("%s/v2/%s", endpoint, encryptOperationURL), &outputBuffer)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -455,7 +455,7 @@ func testEncryptDecrypt(endpoint, method, encryptOperationUrl, decryptOperationU
 	if err := json.Unmarshal(responseBody, &responseObject); err != nil {
 		t.Fatal(err)
 	}
-	if bytes.Equal(data.testBytes, responseObject.Data){
+	if bytes.Equal(data.testBytes, responseObject.Data) {
 		t.Fatal("Encrypted data equal to source data")
 	}
 	outputBuffer.Reset()
@@ -464,7 +464,7 @@ func testEncryptDecrypt(endpoint, method, encryptOperationUrl, decryptOperationU
 	}); err != nil {
 		t.Fatal(err)
 	}
-	request, err = http.NewRequest(method, fmt.Sprintf("%s/v2/%s", endpoint, decryptOperationUrl), &outputBuffer)
+	request, err = http.NewRequest(method, fmt.Sprintf("%s/v2/%s", endpoint, decryptOperationURL), &outputBuffer)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -484,7 +484,7 @@ func testEncryptDecrypt(endpoint, method, encryptOperationUrl, decryptOperationU
 	if err := json.Unmarshal(responseBody, &responseObject); err != nil {
 		t.Fatal(err)
 	}
-	if !bytes.Equal(data.testBytes, responseObject.Data){
+	if !bytes.Equal(data.testBytes, responseObject.Data) {
 		t.Fatal("Decrypted data not equal to source data")
 	}
 }
@@ -526,12 +526,12 @@ func testTokenizeDetokenize(endpoint, method string, data tokenData, client *htt
 	if err := response.Body.Close(); err != nil {
 		t.Fatal(err)
 	}
-	type rawResponse struct{Data json.RawMessage}
+	type rawResponse struct{ Data json.RawMessage }
 	rawResponseObject := rawResponse{}
 	if err := json.Unmarshal(responseBody, &rawResponseObject); err != nil {
 		t.Fatal(err)
 	}
-	if bytes.Equal(rawResponseObject.Data, data.Data){
+	if bytes.Equal(rawResponseObject.Data, data.Data) {
 		t.Fatal("Tokenized data equal to source data")
 	}
 
@@ -562,7 +562,7 @@ func testTokenizeDetokenize(endpoint, method string, data tokenData, client *htt
 	if err := json.Unmarshal(responseBody, &rawResponseObject); err != nil {
 		t.Fatal(err)
 	}
-	if !bytes.Equal(data.Data, rawResponseObject.Data){
+	if !bytes.Equal(data.Data, rawResponseObject.Data) {
 		t.Fatal("Detokenized data not equal to source data")
 	}
 }
