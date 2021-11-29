@@ -1,3 +1,8 @@
+## 0.91.0 - 2021-11-29
+### Changed
+- `acra-translator`'s HTTP API methods support `POST` method additionally to `GET`. `GET` method is marked as deprecated
+  and log the warning about it.
+
 ## 0.91.0 - 2021-11-12
 ### Removed
 - `acra-webconfig` package, related dockerfiles, updated docker-compose files.
