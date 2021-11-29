@@ -182,6 +182,7 @@ func NewHTTPService(service common.ITranslatorService, translatorData *common.Tr
 	}
 	v2 := engine.Group("/v2")
 	{
+		// OLD with GET method
 		// AcraStructs
 		v2.GET("/decrypt", newHTTPService.decrypt)
 		v2.GET("/encrypt", newHTTPService.encrypt)
@@ -196,6 +197,21 @@ func NewHTTPService(service common.ITranslatorService, translatorData *common.Tr
 		v2.GET("/generateQueryHash", newHTTPService.generateQueryHash)
 		v2.GET("/tokenize", newHTTPService.tokenize)
 		v2.GET("/detokenize", newHTTPService.detokenize)
+
+		// new with POST method
+		v2.POST("/decrypt", newHTTPService.decrypt)
+		v2.POST("/encrypt", newHTTPService.encrypt)
+		v2.POST("/encryptSearchable", newHTTPService.encryptSearchable)
+		v2.POST("/decryptSearchable", newHTTPService.decryptSearchable)
+
+		// AcraBlocks
+		v2.POST("/decryptSym", newHTTPService.decryptSym)
+		v2.POST("/encryptSym", newHTTPService.encryptSym)
+		v2.POST("/encryptSymSearchable", newHTTPService.encryptSymSearchable)
+		v2.POST("/decryptSymSearchable", newHTTPService.decryptSymSearchable)
+		v2.POST("/generateQueryHash", newHTTPService.generateQueryHash)
+		v2.POST("/tokenize", newHTTPService.tokenize)
+		v2.POST("/detokenize", newHTTPService.detokenize)
 
 		var confs []func(config *ginSwagger.Config)
 		if url, ok := os.LookupEnv("ACRA_TRANSLATOR_SWAGGER_SCHEMA_URL"); ok {
@@ -368,6 +384,9 @@ func (service *HTTPService) encryptOld(ctx *gin.Context) {
 // callOperationImplementation read body payload, pass it to implementation and render response
 func callOperationImplementation(ctx *gin.Context, f func(*gin.Context, []byte) (interface{}, HTTPError)) {
 	logger := logging.GetLoggerFromContext(ctx.Request.Context())
+	if ctx.Request.Method == http.MethodGet {
+		logger.Warningln("Has used deprecated method GET. Use method POST instead.")
+	}
 	data, err := ctx.GetRawData()
 	if err != nil {
 		logger.WithError(err).Errorln("Can't read body payload")
