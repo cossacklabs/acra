@@ -216,11 +216,11 @@ func TestHTTPAPI(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		go func(service *HTTPService, listener net.Listener) {
-			err := service.Start(listener)
-			t.Log(err)
+		outErr := make(chan error)
+		go func(service *HTTPService, listener net.Listener, errCh chan error) {
+			errCh <- service.Start(listener)
+		}(service, newListener, outErr)
 
-		}(service, newListener)
 		waitConnection(newListener.Addr().Network(), newListener.Addr().String(), t)
 		transport := http.DefaultTransport.(*http.Transport).Clone()
 		transport.DialContext = newDialer
@@ -234,6 +234,14 @@ func TestHTTPAPI(t *testing.T) {
 		testHTTPAPIEndpoints(testContext, t)
 		// stop server
 		cancel()
+		select {
+		case err := <-outErr:
+			if err != http.ErrServerClosed {
+				t.Fatal(err)
+			}
+		case <-time.NewTimer(time.Millisecond * 10).C:
+			t.Fatal("Can't wait server stop")
+		}
 	})
 	t.Run("test with direct TLS connections", func(t *testing.T) {
 		serverTLSConfig, err := network.NewTLSConfig("localhost", "", "", "", tls.RequireAndVerifyClientCert, network.NewCertVerifierAll())
@@ -274,11 +282,11 @@ func TestHTTPAPI(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		go func(service *HTTPService, listener net.Listener) {
-			err := service.Start(listener)
-			t.Log(err)
+		outErr := make(chan error)
+		go func(service *HTTPService, listener net.Listener, errCh chan error) {
+			errCh <- service.Start(listener)
+		}(service, newListener, outErr)
 
-		}(service, newListener)
 		waitConnection(newListener.Addr().Network(), newListener.Addr().String(), t)
 		transport := http.DefaultTransport.(*http.Transport).Clone()
 		transport.TLSClientConfig = clientConfig
@@ -291,6 +299,15 @@ func TestHTTPAPI(t *testing.T) {
 		}
 		testHTTPAPIEndpoints(testContext, t)
 		cancel()
+
+		select {
+		case err := <-outErr:
+			if err != http.ErrServerClosed {
+				t.Fatal(err)
+			}
+		case <-time.NewTimer(time.Millisecond * 10).C:
+			t.Fatal("Can't wait server stop")
+		}
 	})
 	t.Run("test with TLS connections over wrapper", func(t *testing.T) {
 		serverTLSConfig, err := network.NewTLSConfig("localhost", "", "", "", tls.RequireAndVerifyClientCert, network.NewCertVerifierAll())
@@ -330,12 +347,10 @@ func TestHTTPAPI(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-
-		go func(service *HTTPService, listener net.Listener) {
-			err := service.Start(listener)
-			t.Log(err)
-
-		}(service, newListener)
+		outErr := make(chan error)
+		go func(service *HTTPService, listener net.Listener, errCh chan error) {
+			errCh <- service.Start(listener)
+		}(service, newListener, outErr)
 		waitConnection(newListener.Addr().Network(), newListener.Addr().String(), t)
 		transport := http.DefaultTransport.(*http.Transport).Clone()
 		transport.DialContext = newDialer
@@ -347,6 +362,15 @@ func TestHTTPAPI(t *testing.T) {
 			client:   client,
 		}
 		testHTTPAPIEndpoints(testContext, t)
+		cancel()
+		select {
+		case err := <-outErr:
+			if err != http.ErrServerClosed {
+				t.Fatal(err)
+			}
+		case <-time.NewTimer(time.Millisecond * 10).C:
+			t.Fatal("Can't wait server stop")
+		}
 	})
 }
 
