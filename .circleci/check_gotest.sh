@@ -7,6 +7,7 @@
 
 OLD_PATH="$PATH"
 TEST_BUILD_TAGS=${TEST_BUILD_TAGS:-}
+TEST_EXTRA_BUILD_FLAGS=${TEST_EXTRA_BUILD_FLAGS:-}
 
 if [ -z "$GO_VERSIONS" ]; then
     # extract default Go version from $GOROOT
@@ -27,17 +28,10 @@ for go_version in $GO_VERSIONS; do
     echo "GOROOT=$GOROOT"
     echo "PATH=$PATH"
     
-    go test -v -tags="${TEST_BUILD_TAGS}" ./...;
+    go test -v -tags="${TEST_BUILD_TAGS}" ${TEST_EXTRA_BUILD_FLAGS} ./...;
     status="$?"
     if [[ "${status}" != "0" ]]; then
-        echo "$version-tls12" >> "$FILEPATH_ERROR_FLAG";
-    fi
-
-    # test with supported tls1.3
-    GODEBUG="tls13=1" go test -v -tags="${TEST_BUILD_TAGS}" github.com/cossacklabs/acra/...;
-    status="$?"
-    if [[ "${status}" != "0" ]]; then
-        echo "$version-tls13" >> "$FILEPATH_ERROR_FLAG";
+        echo "$version" >> "$FILEPATH_ERROR_FLAG";
     fi
 done
 
