@@ -90,8 +90,8 @@ func NewFileQueryWriter(filePath string) (*QueryWriter, error) {
 
 // WalkQueries walks through each query and perform some action on it
 func (queryWriter *QueryWriter) WalkQueries(visitor func(query *QueryInfo) error) error {
-	queryWriter.mutex.Lock()
-	defer queryWriter.mutex.Unlock()
+	queryWriter.mutex.RLock()
+	defer queryWriter.mutex.RUnlock()
 	for _, query := range queryWriter.Queries {
 		if err := visitor(query); err != nil {
 			return err
@@ -102,9 +102,9 @@ func (queryWriter *QueryWriter) WalkQueries(visitor func(query *QueryInfo) error
 
 // DumpQueries writes all queries into file
 func (queryWriter *QueryWriter) DumpQueries() error {
-	queryWriter.mutex.Lock()
+	queryWriter.mutex.RLock()
 	rawData := queryWriter.serializeQueries(queryWriter.Queries)
-	queryWriter.mutex.Unlock()
+	queryWriter.mutex.RUnlock()
 	if err := queryWriter.logStorage.WriteAll(rawData); err != nil {
 		queryWriter.logger.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCensorIOError).Errorln("Can't dump queries to storage")
 		return err
@@ -181,14 +181,16 @@ func (queryWriter *QueryWriter) readStoredQueries() error {
 		queryWriter.logger.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCensorIOError).Errorln("Can't read stored queries")
 		return err
 	}
+	queryWriter.mutex.Lock()
 	queryWriter.Queries = q
 	queryWriter.queryIndex = len(q)
+	queryWriter.mutex.Unlock()
 	return nil
 }
 
 func (queryWriter *QueryWriter) dumpBufferedQueries() error {
-	queryWriter.mutex.Lock()
-	defer queryWriter.mutex.Unlock()
+	queryWriter.mutex.RLock()
+	defer queryWriter.mutex.RUnlock()
 
 	if len(queryWriter.Queries) != 0 {
 		partialRawData := queryWriter.serializeQueries(queryWriter.Queries[queryWriter.queryIndex:])
@@ -240,6 +242,8 @@ func (queryWriter *QueryWriter) serializeQueries(queries []*QueryInfo) []byte {
 }
 
 func (queryWriter *QueryWriter) captureQuery(query string) {
+	queryWriter.mutex.Lock()
+	defer queryWriter.mutex.Unlock()
 	//skip already captured queries
 	for _, queryInfo := range queryWriter.Queries {
 		if strings.EqualFold(queryInfo.RawQuery, query) {
