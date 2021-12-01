@@ -1,3 +1,10 @@
+## 0.91.0 - 2021-12-01
+### Changed
+- wrap `acra-censor`'s query writers' manipulations of cached queries with a mutex to avoid race conditions
+- tests run with `-race` flag to detect race conditions
+- changed BoltDB dependency from old `github.com/boltdb/boltdb` to `go.etcd.io/bbolt` that doesn't have race condition
+  issues related to updated memory checks in go1.14
+
 ## 0.91.0 - 2021-11-29
 ### Changed
 - `acra-translator`'s HTTP API methods support `POST` method additionally to `GET`. `GET` method is marked as deprecated

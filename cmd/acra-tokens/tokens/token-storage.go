@@ -21,11 +21,11 @@ import (
 	"flag"
 	"os"
 
-	"github.com/boltdb/bolt"
 	"github.com/cossacklabs/acra/cmd"
 	tokenCommon "github.com/cossacklabs/acra/pseudonymization/common"
 	tokenStorage "github.com/cossacklabs/acra/pseudonymization/storage"
 	log "github.com/sirupsen/logrus"
+	bolt "go.etcd.io/bbolt"
 )
 
 // CommonTokenStorageParameters is a mix-in of command line parameters for token storage construction.

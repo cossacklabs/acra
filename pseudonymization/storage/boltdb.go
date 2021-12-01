@@ -19,8 +19,8 @@ package storage
 import (
 	"time"
 
-	"github.com/boltdb/bolt"
 	"github.com/cossacklabs/acra/pseudonymization/common"
+	bolt "go.etcd.io/bbolt"
 )
 
 type boltdbStorage struct {

@@ -5,7 +5,6 @@ go 1.14
 require (
 	contrib.go.opencensus.io/exporter/jaeger v0.2.1
 	github.com/alecthomas/template v0.0.0-20190718012654-fb15b899a751
-	github.com/boltdb/bolt v1.3.1
 	github.com/cossacklabs/themis/gothemis v0.13.1
 	github.com/gin-gonic/gin v1.7.2
 	github.com/go-redis/redis/v7 v7.0.1
@@ -21,6 +20,7 @@ require (
 	github.com/swaggo/files v0.0.0-20190704085106-630677cd5c14
 	github.com/swaggo/gin-swagger v1.3.0
 	github.com/swaggo/swag v1.5.1
+	go.etcd.io/bbolt v1.3.6
 	go.opencensus.io v0.22.4
 	golang.org/x/crypto v0.0.0-20210711020723-a769d52b0f97
 	golang.org/x/net v0.0.0-20211123203042-d83791d6bcd9
