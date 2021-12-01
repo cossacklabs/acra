@@ -385,7 +385,7 @@ func (service *HTTPService) encryptOld(ctx *gin.Context) {
 func callOperationImplementation(ctx *gin.Context, f func(*gin.Context, []byte) (interface{}, HTTPError)) {
 	logger := logging.GetLoggerFromContext(ctx.Request.Context())
 	if ctx.Request.Method == http.MethodGet {
-		logger.Warningln("Has used deprecated method GET. Use method POST instead.")
+		logger.Warningln("Deprecated HTTP GET method was used. Please use HTTP POST method instead.")
 	}
 	data, err := ctx.GetRawData()
 	if err != nil {
