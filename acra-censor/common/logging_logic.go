@@ -45,7 +45,7 @@ type QueryWriter struct {
 	Queries              []*QueryInfo
 	logStorage           LogStorage
 	queryIndex           int
-	mutex                *sync.RWMutex
+	mutex                sync.RWMutex
 	signalBackgroundExit chan bool
 	signalWriteQuery     chan string
 	signalShutdown       chan os.Signal
@@ -61,7 +61,6 @@ func NewFileQueryWriter(filePath string) (*QueryWriter, error) {
 	// create writer
 	writer := &QueryWriter{
 		queryIndex:           0,
-		mutex:                &sync.RWMutex{},
 		serializationTimeout: DefaultSerializationTimeout,
 		serializationTicker:  time.NewTicker(DefaultSerializationTimeout),
 		logger:               log.WithField("internal_object", "querywriter"),
