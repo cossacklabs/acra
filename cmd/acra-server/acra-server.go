@@ -70,8 +70,8 @@ import (
 	pgDialect "github.com/cossacklabs/acra/sqlparser/dialect/postgresql"
 	"github.com/cossacklabs/acra/utils"
 
-	"github.com/boltdb/bolt"
 	log "github.com/sirupsen/logrus"
+	bolt "go.etcd.io/bbolt"
 )
 
 var restartSignalsChannel chan os.Signal

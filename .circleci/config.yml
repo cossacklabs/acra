@@ -31,9 +31,19 @@ jobs:
       - run: .circleci/check_golint.sh
       - run: .circleci/check_misspell.sh
       - run: .circleci/check_ineffassign.sh
+        # run go test with race detector only with latest version because it is slower and we expect that latest version
+        # has the newest and all existing algorithms for race detection
       - run:
           command: .circleci/check_gotest.sh
           environment:
+            - TEST_BUILD_TAGS: "integration,boltdb,redis,vault"
+            - TEST_EXTRA_BUILD_FLAGS: "-race"
+            - GO_VERSIONS: 1.17.3
+        # and run all other versions without race detector
+      - run:
+          command: .circleci/check_gotest.sh
+          environment:
+            - GO_VERSIONS: 1.15.2 1.16.9
             - TEST_BUILD_TAGS: "integration,boltdb,redis,vault"
       # check python wrapper
       - run: PYTHONPATH=`pwd`/wrappers/python python3 wrappers/python/acrawriter/tests.py
