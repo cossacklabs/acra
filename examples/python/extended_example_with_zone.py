@@ -48,7 +48,7 @@ def get_zone():
     """make http response to AcraServer api to generate new zone and return tuple
     of zone id and public key
     """
-    response = urlopen('{}/getNewZone'.format(ACRA_CONNECTOR_API_ADDRESS))
+    response = urlopen('{}/getNewZone'.format(ACRA_SERVER_API_ADDRESS))
     json_data = response.read().decode('utf-8')
     zone_data = json.loads(json_data)
     return zone_data['id'], zone_data['public_key']
@@ -162,8 +162,8 @@ if __name__ == '__main__':
 
     args = parser.parse_args()
 
-    ACRA_CONNECTOR_API_ADDRESS = get_default(
-        'acra_connector_api_address', 'http://127.0.0.1:9191')
+    ACRA_SERVER_API_ADDRESS = get_default(
+        'acra_server_api_address', 'http://127.0.0.1:9191')
     # default driver
     driver = 'postgresql'
     ssl_args = {
