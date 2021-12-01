@@ -5,7 +5,11 @@
 - changed BoltDB dependency from old `github.com/boltdb/boltdb` to `go.etcd.io/bbolt` that doesn't have race condition
   issues related to updated memory checks in go1.14
 
-
+## 0.91.0 - 2021-11-29
+### Changed
+- `acra-translator`'s HTTP API methods support `POST` method additionally to `GET`. `GET` method is marked as deprecated
+  and log the warning about it.
+  
 ## 0.91.0 - 2021-11-25
 ### Changed
 - `acra-censor's` query writer now can track amount of skipped queries and allows configuration of serialization 

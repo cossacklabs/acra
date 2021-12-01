@@ -214,8 +214,13 @@ func (service *TranslatorService) DecryptSearchable(ctx context.Context, data, h
 
 	decrypted, err := service.handler.DecryptWithHandler(handler, containerData, dataContext)
 	if err != nil {
-		logger.WithError(err).Errorln("Can't decrypt AcraStruct")
-		return nil, ErrDecryptionFailed
+		logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorTranslatorCantDecryptAcraStruct).WithError(err).Errorln("Can't decrypt AcraStruct")
+		_, _, poisonErr := service.poisonDetector.OnColumn(dataCtx, containerData)
+		if poisonErr != nil {
+			logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorDecryptorCantCheckPoisonRecord).WithError(err).Errorln("Can't check for poison record with AcraStruct, possible missing Poison record decryption key")
+			return nil, ErrDecryptionFailed
+		}
+		return data, ErrDecryptionFailed
 	}
 	// validate hash
 	if !hashPart.IsEqual(decrypted, clientID, service.data.Keystorage) {
@@ -384,7 +389,7 @@ func (service *TranslatorService) DecryptSymSearchable(ctx context.Context, data
 			logger.WithField(logging.FieldKeyEventCode, logging.EventCodeErrorDecryptorCantCheckPoisonRecord).WithError(err).Errorln("Can't check for poison record with AcraBlock, possible missing Poison record decryption key")
 			return nil, ErrCantDecrypt
 		}
-		return nil, ErrCantDecrypt
+		return data, ErrCantDecrypt
 	}
 	// validate hash
 	if !hashPart.IsEqual(decrypted, clientID, service.data.Keystorage) {
