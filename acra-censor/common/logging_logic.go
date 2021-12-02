@@ -233,7 +233,7 @@ func (queryWriter *QueryWriter) serializeQueries(queries []*QueryInfo) []byte {
 
 func (queryWriter *QueryWriter) captureQuery(query string) {
 	queryWriter.mutex.Lock()
-	defer func(){
+	defer func() {
 		queryWriter.mutex.Unlock()
 	}()
 	//skip already captured queries

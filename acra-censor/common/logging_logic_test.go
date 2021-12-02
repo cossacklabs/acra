@@ -70,7 +70,7 @@ func TestSerializationOnUniqueQueries(t *testing.T) {
 		writer.captureQuery(queryWithHiddenValues)
 	}
 	// wait serializationTicker and dumpBufferedQueries call
-	time.Sleep(DefaultSerializationTimeout+extraWaitTime)
+	time.Sleep(DefaultSerializationTimeout + extraWaitTime)
 	if len(writer.Queries) != len(testQueries) {
 		t.Fatal("Expected: " + strings.Join(testQueries, " | ") + "\nGot: " + strings.Join(rawStrings(writer.Queries), " | "))
 	}
@@ -198,7 +198,7 @@ func TestSerializationOnSameQueries(t *testing.T) {
 		writer.captureQuery(queryWithHiddenValues)
 	}
 	// wait serializationTicker and dumpBufferedQueries call
-	time.Sleep(DefaultSerializationTimeout+extraWaitTime)
+	time.Sleep(DefaultSerializationTimeout + extraWaitTime)
 	if len(writer.Queries) != numOfUniqueQueries {
 		t.Fatal("Expected to have " + fmt.Sprint(numOfUniqueQueries) + " unique queries. \n Got:" + strings.Join(rawStrings(writer.Queries), " | "))
 	}
@@ -263,7 +263,7 @@ func TestQueryCaptureOnDuplicates(t *testing.T) {
 		t.Fatal("Detected unexpected skipping queries")
 	}
 	// wait serializationTicker and dumpBufferedQueries call
-	time.Sleep(DefaultSerializationTimeout+extraWaitTime)
+	time.Sleep(DefaultSerializationTimeout + extraWaitTime)
 
 	result, err := ioutil.ReadFile(tmpFile.Name())
 	if err != nil {
@@ -282,7 +282,7 @@ func TestQueryCaptureOnDuplicates(t *testing.T) {
 		t.Fatal("Detected unexpected skipping queries")
 	}
 	// wait serializationTicker and dumpBufferedQueries call
-	time.Sleep(DefaultSerializationTimeout+extraWaitTime)
+	time.Sleep(DefaultSerializationTimeout + extraWaitTime)
 
 	result, err = ioutil.ReadFile(tmpFile.Name())
 	if err != nil {
@@ -300,7 +300,7 @@ func TestQueryCaptureOnDuplicates(t *testing.T) {
 	}
 	//wait until serialization completes
 	// wait serializationTicker and dumpBufferedQueries call
-	time.Sleep(DefaultSerializationTimeout+extraWaitTime)
+	time.Sleep(DefaultSerializationTimeout + extraWaitTime)
 	result, err = ioutil.ReadFile(tmpFile.Name())
 	if err != nil {
 		t.Fatal(err)
@@ -405,7 +405,7 @@ func TestConcurrentQueryWrite(t *testing.T) {
 		t.Fatal("Detected unexpected skipping queries")
 	}
 	// wait when background goroutine dump all queries to the file
-	time.Sleep(DefaultSerializationTimeout+extraWaitTime)
+	time.Sleep(DefaultSerializationTimeout + extraWaitTime)
 	if err := writer.dumpBufferedQueries(); err != nil {
 		t.Fatal(err)
 	}

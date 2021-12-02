@@ -82,7 +82,6 @@ func testWrapper(clientWrapper, serverWrapper ConnectionWrapper, expectedClientI
 	testWrapperWithSpecifiedProtocol(tcpListener, tcpConnection, clientWrapper, serverWrapper, expectedClientID, iterations, onError, t)
 }
 
-
 func testWrapperWithError(clientWrapper, serverWrapper ConnectionWrapper, expectedClientID []byte, iterations int, onError func(error, testing.TB), t testing.TB) {
 	unixListener, unixConnection := getUnixListenerAndConnection(t)
 	testWrapperWithSpecifiedProtocol(unixListener, unixConnection, clientWrapper, serverWrapper, expectedClientID, iterations, onError, t)
