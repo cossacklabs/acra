@@ -13,19 +13,11 @@ import (
 )
 
 // extraWaitTime provide extra time to serialize in background goroutine before check
-const extraWaitTime = 50 * time.Millisecond
-
-func syncStorage(writer *QueryWriter, t *testing.T) {
-	storage, ok := writer.logStorage.(*FileLogStorage)
-	if !ok {
-		t.Fatal("Unexpected type of storage")
-	}
-	if err := storage.file.Sync(); err != nil {
-		t.Fatal(err)
-	}
-}
+// default value that will be changed for tests in init function
+var extraWaitTime = DefaultSerializationTimeout
 
 func TestSerializationOnUniqueQueries(t *testing.T) {
+	t.Parallel()
 	testQueries := []string{
 		"SELECT Student_ID FROM STUDENT;",
 		"SELECT * FROM STUDENT;",
@@ -77,7 +69,8 @@ func TestSerializationOnUniqueQueries(t *testing.T) {
 		}
 		writer.captureQuery(queryWithHiddenValues)
 	}
-	time.Sleep(DefaultSerializationTimeout + extraWaitTime)
+	// wait serializationTicker and dumpBufferedQueries call
+	time.Sleep(DefaultSerializationTimeout+extraWaitTime)
 	if len(writer.Queries) != len(testQueries) {
 		t.Fatal("Expected: " + strings.Join(testQueries, " | ") + "\nGot: " + strings.Join(rawStrings(writer.Queries), " | "))
 	}
@@ -93,7 +86,6 @@ func TestSerializationOnUniqueQueries(t *testing.T) {
 		t.Fatalf("Expected queryIndex == 0 but queryIndex = %d", writer.queryIndex)
 	}
 
-	syncStorage(writer, t)
 	err = writer.readStoredQueries()
 	if err != nil {
 		t.Fatal(err)
@@ -109,6 +101,7 @@ func TestSerializationOnUniqueQueries(t *testing.T) {
 }
 
 func TestOutputFileAfterDumpStoredQueries(t *testing.T) {
+	t.Parallel()
 	tmpFile, err := ioutil.TempFile("", "censor_log")
 	if err != nil {
 		t.Fatal(err)
@@ -133,7 +126,6 @@ func TestOutputFileAfterDumpStoredQueries(t *testing.T) {
 	}
 	writer.reset()
 
-	syncStorage(writer, t)
 	if err = writer.readStoredQueries(); err != nil {
 		t.Fatal(err)
 	}
@@ -146,7 +138,6 @@ func TestOutputFileAfterDumpStoredQueries(t *testing.T) {
 	if err = writer.dumpBufferedQueries(); err != nil {
 		t.Fatal(err)
 	}
-	syncStorage(writer, t)
 	dumpedLines, err := ioutil.ReadFile(tmpFile.Name())
 	if err != nil {
 		t.Fatal(err)
@@ -160,6 +151,7 @@ func TestOutputFileAfterDumpStoredQueries(t *testing.T) {
 }
 
 func TestSerializationOnSameQueries(t *testing.T) {
+	t.Parallel()
 	// 5 queries, 3 unique redacted queries
 	numOfUniqueQueries := 3
 	testQueries := []string{
@@ -205,9 +197,8 @@ func TestSerializationOnSameQueries(t *testing.T) {
 		}
 		writer.captureQuery(queryWithHiddenValues)
 	}
-
-	time.Sleep(DefaultSerializationTimeout + extraWaitTime)
-
+	// wait serializationTicker and dumpBufferedQueries call
+	time.Sleep(DefaultSerializationTimeout+extraWaitTime)
 	if len(writer.Queries) != numOfUniqueQueries {
 		t.Fatal("Expected to have " + fmt.Sprint(numOfUniqueQueries) + " unique queries. \n Got:" + strings.Join(rawStrings(writer.Queries), " | "))
 	}
@@ -219,7 +210,6 @@ func TestSerializationOnSameQueries(t *testing.T) {
 	if len(writer.Queries) != 0 {
 		t.Fatal("Expected no queries \nGot: " + strings.Join(rawStrings(writer.Queries), " | "))
 	}
-	syncStorage(writer, t)
 	err = writer.readStoredQueries()
 	if err != nil {
 		t.Fatal(err)
@@ -234,6 +224,7 @@ func TestSerializationOnSameQueries(t *testing.T) {
 	}
 }
 func TestQueryCaptureOnDuplicates(t *testing.T) {
+	t.Parallel()
 	tmpFile, err := ioutil.TempFile("", "censor_log")
 	if err != nil {
 		t.Fatal(err)
@@ -271,8 +262,9 @@ func TestQueryCaptureOnDuplicates(t *testing.T) {
 	if writer.skippedQueryCount > 0 {
 		t.Fatal("Detected unexpected skipping queries")
 	}
-	time.Sleep(DefaultSerializationTimeout + extraWaitTime)
-	syncStorage(writer, t)
+	// wait serializationTicker and dumpBufferedQueries call
+	time.Sleep(DefaultSerializationTimeout+extraWaitTime)
+
 	result, err := ioutil.ReadFile(tmpFile.Name())
 	if err != nil {
 		t.Fatal(err)
@@ -289,8 +281,9 @@ func TestQueryCaptureOnDuplicates(t *testing.T) {
 	if writer.skippedQueryCount > 0 {
 		t.Fatal("Detected unexpected skipping queries")
 	}
-	time.Sleep(DefaultSerializationTimeout + extraWaitTime)
-	syncStorage(writer, t)
+	// wait serializationTicker and dumpBufferedQueries call
+	time.Sleep(DefaultSerializationTimeout+extraWaitTime)
+
 	result, err = ioutil.ReadFile(tmpFile.Name())
 	if err != nil {
 		t.Fatal(err)
@@ -306,8 +299,8 @@ func TestQueryCaptureOnDuplicates(t *testing.T) {
 		t.Fatal("Detected unexpected skipping queries")
 	}
 	//wait until serialization completes
-	time.Sleep(DefaultSerializationTimeout + extraWaitTime)
-	syncStorage(writer, t)
+	// wait serializationTicker and dumpBufferedQueries call
+	time.Sleep(DefaultSerializationTimeout+extraWaitTime)
 	result, err = ioutil.ReadFile(tmpFile.Name())
 	if err != nil {
 		t.Fatal(err)
@@ -326,6 +319,7 @@ func TestQueryCaptureOnDuplicates(t *testing.T) {
 // TestConcurrentQueryWrite run several background goroutines that write queries at same time.
 // Check that nothing blocked and works as expected
 func TestConcurrentQueryWrite(t *testing.T) {
+	t.Parallel()
 	tmpFile, err := ioutil.TempFile("", "censor_log")
 	if err != nil {
 		t.Fatal(err)
@@ -411,9 +405,10 @@ func TestConcurrentQueryWrite(t *testing.T) {
 		t.Fatal("Detected unexpected skipping queries")
 	}
 	// wait when background goroutine dump all queries to the file
-	time.Sleep(DefaultSerializationTimeout + extraWaitTime)
-	syncStorage(writer, t)
-
+	time.Sleep(DefaultSerializationTimeout+extraWaitTime)
+	if err := writer.dumpBufferedQueries(); err != nil {
+		t.Fatal(err)
+	}
 	result, err := ioutil.ReadFile(tmpFile.Name())
 	if err != nil {
 		t.Fatal(err)
@@ -435,5 +430,6 @@ func rawStrings(input []*QueryInfo) []string {
 }
 
 func init() {
-	DefaultSerializationTimeout = 100 * time.Millisecond
+	DefaultSerializationTimeout = 10 * time.Millisecond
+	extraWaitTime = DefaultSerializationTimeout * 3
 }
