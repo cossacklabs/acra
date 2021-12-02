@@ -431,6 +431,9 @@ func TestConcurrentQueryWrite(t *testing.T) {
 		t.Log(lines)
 		t.Fatalf("Incorrect amount of queries, %v != %v\n", len(lines), expectedCount)
 	}
+	if lines[len(lines)-1] != "" {
+		t.Fatal("Incorrect last line")
+	}
 }
 
 func waitQueryProcessing(expectedCount int, writer *QueryWriter, t testing.TB) {
