@@ -437,7 +437,7 @@ func TestConcurrentQueryWrite(t *testing.T) {
 }
 
 func waitQueryProcessing(expectedCount int, writer *QueryWriter, t testing.TB) {
-	timeout := time.NewTimer(time.Second*5)
+	timeout := time.NewTimer(time.Second * 5)
 	for {
 		select {
 		case <-timeout.C:
@@ -445,7 +445,7 @@ func waitQueryProcessing(expectedCount int, writer *QueryWriter, t testing.TB) {
 		default:
 			break
 		}
-		if len(writer.Queries) == expectedCount{
+		if len(writer.Queries) == expectedCount {
 			return
 		}
 		// give some time to process channel
