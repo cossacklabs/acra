@@ -85,6 +85,14 @@ func NewFileQueryWriter(filePath string) (*QueryWriter, error) {
 	return writer, nil
 }
 
+// GetQueries return cached queries
+func (queryWriter *QueryWriter) GetQueries() []*QueryInfo {
+	queryWriter.mutex.RLock()
+	result := queryWriter.Queries
+	queryWriter.mutex.RUnlock()
+	return result
+}
+
 // WalkQueries walks through each query and perform some action on it
 func (queryWriter *QueryWriter) WalkQueries(visitor func(query *QueryInfo) error) error {
 	queryWriter.mutex.RLock()
@@ -233,9 +241,8 @@ func (queryWriter *QueryWriter) serializeQueries(queries []*QueryInfo) []byte {
 
 func (queryWriter *QueryWriter) captureQuery(query string) {
 	queryWriter.mutex.Lock()
-	defer func() {
-		queryWriter.mutex.Unlock()
-	}()
+	defer queryWriter.mutex.Unlock()
+
 	//skip already captured queries
 	for _, queryInfo := range queryWriter.Queries {
 		if strings.EqualFold(queryInfo.RawQuery, query) {

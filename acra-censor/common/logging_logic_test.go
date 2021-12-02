@@ -445,7 +445,7 @@ func waitQueryProcessing(expectedCount int, writer *QueryWriter, t testing.TB) {
 		default:
 			break
 		}
-		if len(writer.Queries) == expectedCount {
+		if len(writer.GetQueries()) == expectedCount {
 			return
 		}
 		// give some time to process channel
