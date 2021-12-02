@@ -393,6 +393,7 @@ func callOperationImplementation(ctx *gin.Context, f func(*gin.Context, []byte) 
 		RespondWithError(ctx, NewHTTPError(http.StatusBadRequest, "invalid request body"))
 		return
 	}
+	defer ctx.Request.Body.Close()
 	response, httpErr := f(ctx, data)
 	if !httpErr.Empty() {
 		RespondWithError(ctx, httpErr)
