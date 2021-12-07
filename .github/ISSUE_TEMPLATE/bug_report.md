@@ -28,6 +28,7 @@ For AcraTranslator:
     - [ ] configuration file or CLI params that you use to start AcraTranslator.
 
 **Environment (please complete the following information):**
+- Acra version: [e.g. 0.90.0]
 - Database server and its version: [e.g. PostgreSQL 11, MySQL 7 ..]
 - Installed components:
    - [ ] AcraServer
