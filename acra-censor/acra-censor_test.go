@@ -1687,11 +1687,40 @@ func TestIgnoringQueryParseErrors(t *testing.T) {
 	// check when censor with two handlers and each one will return query parse error
 	checkHandler([]QueryHandlerInterface{whitelist, blacklist}, nil)
 }
+
+func waitQueryProcessing(expectedCount int, writer *common.QueryWriter, t testing.TB) {
+	timeout := time.NewTimer(time.Second * 5)
+	for {
+		select {
+		case <-timeout.C:
+			t.Fatal("Haven't waited expected amount of queries")
+		default:
+			break
+		}
+		if len(writer.GetQueries()) == expectedCount {
+			return
+		}
+		// give some time to process channel
+		time.Sleep(common.DefaultSerializationTimeout)
+	}
+}
+
 func TestLogUnparsedQueries(t *testing.T) {
-	var err error
+	tmpFile, err := ioutil.TempFile("", "censor_log")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() {
+		if err := os.Remove(tmpFile.Name()); err != nil {
+			t.Fatal(err)
+		}
+	}()
+	if err = tmpFile.Close(); err != nil {
+		t.Fatal(err)
+	}
 	configuration := fmt.Sprintf(`ignore_parse_error: true
 version: %s
-parse_errors_log: unparsed_queries.log
+parse_errors_log: %s
 handlers:
   - handler: deny
     queries:
@@ -1701,15 +1730,11 @@ handlers:
       - EMPLOYEE_TBL
       - Customers
     patterns:
-      - SELECT EMP_ID, LAST_NAME FROM EMPLOYEE %%%%WHERE%%%%;`, MinimalCensorConfigVersion)
+      - SELECT EMP_ID, LAST_NAME FROM EMPLOYEE %%%%WHERE%%%%;`, MinimalCensorConfigVersion, tmpFile.Name())
 
 	acraCensor := NewAcraCensor()
 	defer func() {
 		acraCensor.ReleaseAll()
-		err = os.Remove("unparsed_queries.log")
-		if err != nil {
-			t.Fatal(err)
-		}
 	}()
 	err = acraCensor.LoadConfiguration([]byte(configuration))
 	if err != nil {
@@ -1726,9 +1751,10 @@ handlers:
 			t.Fatal(err)
 		}
 	}
+	waitQueryProcessing(len(testQueries), acraCensor.unparsedQueriesWriter, t)
 	//wait until goroutine handles complex serialization
-	time.Sleep(common.DefaultSerializationTimeout + 200*time.Millisecond)
-	bufferBytes, err := ioutil.ReadFile("unparsed_queries.log")
+	time.Sleep(common.DefaultSerializationTimeout * 2)
+	bufferBytes, err := ioutil.ReadFile(tmpFile.Name())
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -46,7 +46,6 @@ type QueryWriter struct {
 	logStorage           LogStorage
 	queryIndex           int
 	mutex                sync.RWMutex
-	signalBackgroundExit chan bool
 	signalWriteQuery     chan string
 	signalShutdown       chan os.Signal
 	serializationTimeout time.Duration
@@ -64,7 +63,6 @@ func NewFileQueryWriter(filePath string) (*QueryWriter, error) {
 		serializationTimeout: DefaultSerializationTimeout,
 		serializationTicker:  time.NewTicker(DefaultSerializationTimeout),
 		logger:               log.WithField("internal_object", "querywriter"),
-		signalBackgroundExit: make(chan bool),
 		signalWriteQuery:     make(chan string, DefaultWriteQueryChannelSize),
 		signalShutdown:       make(chan os.Signal, 2),
 	}
@@ -87,6 +85,14 @@ func NewFileQueryWriter(filePath string) (*QueryWriter, error) {
 	return writer, nil
 }
 
+// GetQueries return cached queries
+func (queryWriter *QueryWriter) GetQueries() []*QueryInfo {
+	queryWriter.mutex.RLock()
+	result := queryWriter.Queries
+	queryWriter.mutex.RUnlock()
+	return result
+}
+
 // WalkQueries walks through each query and perform some action on it
 func (queryWriter *QueryWriter) WalkQueries(visitor func(query *QueryInfo) error) error {
 	queryWriter.mutex.RLock()
@@ -101,21 +107,21 @@ func (queryWriter *QueryWriter) WalkQueries(visitor func(query *QueryInfo) error
 
 // DumpQueries writes all queries into file
 func (queryWriter *QueryWriter) DumpQueries() error {
-	queryWriter.mutex.RLock()
+	queryWriter.mutex.Lock()
+	defer queryWriter.mutex.Unlock()
 	rawData := queryWriter.serializeQueries(queryWriter.Queries)
-	queryWriter.mutex.RUnlock()
+
 	if err := queryWriter.logStorage.WriteAll(rawData); err != nil {
 		queryWriter.logger.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCensorIOError).Errorln("Can't dump queries to storage")
 		return err
 	}
+	queryWriter.queryIndex = len(queryWriter.Queries)
 	return nil
 }
 
-// Free dumps all Captured queries to file and resets captured queries list
+// Free dumps all Captured queries to file, and stops background processing. QueryWriter mustn't be used after that
 func (queryWriter *QueryWriter) Free() {
-	queryWriter.DumpQueries()
-	queryWriter.signalBackgroundExit <- true
-	queryWriter.reset()
+	queryWriter.signalShutdown <- os.Interrupt
 }
 
 // Start starts background logging of input queries. Should be called in separate goroutine
@@ -130,24 +136,17 @@ func (queryWriter *QueryWriter) Start() {
 			if err != nil {
 				queryWriter.logger.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCensorIOError).Errorln("Can't dump buffered queries")
 			}
-			queryWriter.serializationTicker.Stop()
-			queryWriter.serializationTicker = time.NewTicker(queryWriter.serializationTimeout)
 			break
-		case <-queryWriter.signalBackgroundExit:
-			queryWriter.serializationTicker.Stop()
-			queryWriter.DumpQueries()
-			err := queryWriter.logStorage.Close()
-			if err != nil {
-				queryWriter.logger.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCensorIOError).Errorln("Error occurred on exit QueryWriter instance")
-			}
-			return
 		case <-queryWriter.signalShutdown:
 			queryWriter.serializationTicker.Stop()
-			queryWriter.DumpQueries()
+			if err := queryWriter.DumpQueries(); err != nil {
+				queryWriter.logger.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCensorIOError).Errorln("Error occurred on DumpQueries")
+			}
 			err := queryWriter.logStorage.Close()
 			if err != nil {
 				queryWriter.logger.WithError(err).WithField(logging.FieldKeyEventCode, logging.EventCodeErrorCensorIOError).Errorln("Error occurred on shutdown QueryWriter instance")
 			}
+			queryWriter.reset()
 			return
 		default:
 			//do nothing. This means that channel has no data to read yet
@@ -188,8 +187,8 @@ func (queryWriter *QueryWriter) readStoredQueries() error {
 }
 
 func (queryWriter *QueryWriter) dumpBufferedQueries() error {
-	queryWriter.mutex.RLock()
-	defer queryWriter.mutex.RUnlock()
+	queryWriter.mutex.Lock()
+	defer queryWriter.mutex.Unlock()
 
 	if len(queryWriter.Queries) != 0 {
 		partialRawData := queryWriter.serializeQueries(queryWriter.Queries[queryWriter.queryIndex:])
@@ -243,6 +242,7 @@ func (queryWriter *QueryWriter) serializeQueries(queries []*QueryInfo) []byte {
 func (queryWriter *QueryWriter) captureQuery(query string) {
 	queryWriter.mutex.Lock()
 	defer queryWriter.mutex.Unlock()
+
 	//skip already captured queries
 	for _, queryInfo := range queryWriter.Queries {
 		if strings.EqualFold(queryInfo.RawQuery, query) {

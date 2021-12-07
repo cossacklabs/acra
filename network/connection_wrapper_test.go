@@ -22,41 +22,81 @@ import (
 	"errors"
 	"github.com/cossacklabs/acra/keystore"
 	"io/ioutil"
+	math_rand "math/rand"
 	"net"
 	"os"
 	"testing"
+	"time"
 )
 
 // wrapperCommunicationIterations base iterations count which may be used in a communication loop using client/server wrappers
 const wrapperCommunicationIterations = 10
 
+func getUnixListenerAndConnection(t testing.TB) (net.Listener, net.Conn) {
+	f, err := ioutil.TempFile("", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err = os.Remove(f.Name()); err != nil {
+		t.Fatal(err)
+	}
+	socket := f.Name()
+	listener, err := net.Listen("unix", socket)
+	if err != nil {
+		t.Fatal(err)
+	}
+	connection, err := net.Dial("unix", socket)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		connection.Close()
+		os.Remove(f.Name())
+		listener.Close()
+	})
+	return listener, connection
+}
+
+func getTCPListenerAndConnection(t testing.TB) (net.Listener, net.Conn) {
+	listener, err := net.ListenTCP("tcp", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	conn, err := net.Dial("tcp", listener.Addr().String())
+	if err != nil {
+		t.Fatal()
+	}
+	t.Cleanup(func() {
+		listener.Close()
+		conn.Close()
+	})
+	return listener, conn
+}
+
 // testWrapper wrapper over testWrapperWithError with onError callback which call t.Fatal on err value
 func testWrapper(clientWrapper, serverWrapper ConnectionWrapper, expectedClientID []byte, iterations int, t testing.TB) {
 	onError := func(err error, t testing.TB) { t.Fatal(err) }
-	testWrapperWithError(clientWrapper, serverWrapper, expectedClientID, iterations, onError, t)
+	unixListener, unixConnection := getUnixListenerAndConnection(t)
+	testWrapperWithSpecifiedProtocol(unixListener, unixConnection, clientWrapper, serverWrapper, expectedClientID, iterations, onError, t)
+	tcpListener, tcpConnection := getTCPListenerAndConnection(t)
+	testWrapperWithSpecifiedProtocol(tcpListener, tcpConnection, clientWrapper, serverWrapper, expectedClientID, iterations, onError, t)
 }
 
-// testWrapperWithError create unix socket, wrap it using clientWrapper and serverWrapper, verify received clientID on server side with expected
-// and exchange some data iterations times. On any unexpected error call onError callback
 func testWrapperWithError(clientWrapper, serverWrapper ConnectionWrapper, expectedClientID []byte, iterations int, onError func(error, testing.TB), t testing.TB) {
-	f, err := ioutil.TempFile("", "")
-	if err != nil {
-		onError(err, t)
-	}
-	if err = os.Remove(f.Name()); err != nil {
-		onError(err, t)
-	}
-	socket := f.Name()
+	unixListener, unixConnection := getUnixListenerAndConnection(t)
+	testWrapperWithSpecifiedProtocol(unixListener, unixConnection, clientWrapper, serverWrapper, expectedClientID, iterations, onError, t)
+}
+
+// testWrapperWithSpecifiedProtocol use provided listener and connection, wrap them using clientWrapper and serverWrapper,
+// verify received clientID on server side with expected and exchange some data iterations times.
+// On any unexpected error call onError callback
+func testWrapperWithSpecifiedProtocol(listener net.Listener, connection net.Conn, clientWrapper, serverWrapper ConnectionWrapper, expectedClientID []byte, iterations int, onError func(error, testing.TB), t testing.TB) {
 	// use ctx to force background listener in goroutine wait finishing this function
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	listener, err := net.Listen("unix", socket)
-	if err != nil {
-		onError(err, t)
-	}
+
 	const bufSize = 1024
-	defer listener.Close()
-	defer os.Remove(f.Name())
+
 	go func(ctx context.Context) {
 		buf := make([]byte, bufSize)
 		conn, err := listener.Accept()
@@ -90,12 +130,7 @@ func testWrapperWithError(clientWrapper, serverWrapper ConnectionWrapper, expect
 		}
 		<-ctx.Done()
 	}(ctx)
-
-	connection, err := net.Dial("unix", socket)
-	if err != nil {
-		onError(err, t)
-	}
-	defer connection.Close()
+	var err error
 	connection, err = clientWrapper.WrapClient(context.TODO(), connection)
 	if err != nil {
 		onError(err, t)
@@ -103,22 +138,25 @@ func testWrapperWithError(clientWrapper, serverWrapper ConnectionWrapper, expect
 
 	clientBuf := make([]byte, bufSize)
 	dataBuf := make([]byte, bufSize)
+	math_rand.Seed(time.Now().UnixNano())
 	for i := 0; i < iterations; i++ {
-		_, err := rand.Read(dataBuf)
+		// always write different amount of data
+		dataLength := 1 + (math_rand.Int31() % (bufSize - 1))
+		_, err := rand.Read(dataBuf[:dataLength])
 		if err != nil {
 			onError(err, t)
 		}
-		_, err = connection.Write(dataBuf)
-		if err != nil {
-			connection.Close()
-			onError(err, t)
-		}
-		_, err = connection.Read(clientBuf)
+		_, err = connection.Write(dataBuf[:dataLength])
 		if err != nil {
 			connection.Close()
 			onError(err, t)
 		}
-		if result := bytes.Compare(clientBuf, dataBuf); result != 0 {
+		n, err := connection.Read(clientBuf)
+		if err != nil {
+			connection.Close()
+			onError(err, t)
+		}
+		if result := bytes.Compare(clientBuf[:n], dataBuf[:dataLength]); result != 0 {
 			connection.Close()
 			onError(errors.New("data not equal"), t)
 		}

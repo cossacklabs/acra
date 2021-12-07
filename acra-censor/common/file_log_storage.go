@@ -1,6 +1,7 @@
 package common
 
 import (
+	"io"
 	"io/ioutil"
 	"os"
 	"sync"
@@ -44,9 +45,12 @@ func (storage *FileLogStorage) WriteAll(p []byte) error {
 func (storage *FileLogStorage) Append(p []byte) error {
 	storage.mutex.Lock()
 	defer storage.mutex.Unlock()
-	_, err := storage.file.Write(p)
+	n, err := storage.file.Write(p)
 	if err != nil {
 		return err
+	}
+	if n != len(p) {
+		return io.ErrShortWrite
 	}
 	return nil
 }

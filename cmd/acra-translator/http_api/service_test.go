@@ -41,7 +41,7 @@ func getDialer(wrapper network.ConnectionWrapper, t *testing.T) dialer {
 		if err != nil {
 			t.Fatal(err)
 		}
-		ctx, _ = context.WithDeadline(ctx, time.Now().Add(time.Second*5))
+		ctx, _ = context.WithDeadline(ctx, time.Now().Add(time.Second*2))
 		conn, err = wrapper.WrapClient(ctx, conn)
 		if err != nil {
 			t.Fatal(err)
@@ -209,6 +209,7 @@ func TestHTTPAPI(t *testing.T) {
 			t.Fatal(err)
 		}
 		newListener, newDialer := getListenerAndDialer(clientWrapper, serverWrapper, t)
+		defer newListener.Close()
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 		service, err := NewHTTPService(serviceImplementation, translatorData, WithContext(ctx), WithConnectionContextHandler(listenerWrapper.OnConnectionContext))
@@ -224,7 +225,13 @@ func TestHTTPAPI(t *testing.T) {
 		waitConnection(newListener.Addr().Network(), newListener.Addr().String(), t)
 		transport := http.DefaultTransport.(*http.Transport).Clone()
 		transport.DialContext = newDialer
-		client := &http.Client{Transport: transport}
+		// secure session has issue with connection re-usage by HTTP server
+		// @lagovas && @vixentael decided to leave it as it due to future
+		// plans to remove acra-connector and secure session as transport.
+		// disabling re-usage connections don't cause errors with deadlines
+		// and already closed connections
+		transport.DisableKeepAlives = true
+		client := &http.Client{Transport: transport, Timeout: time.Second * 2}
 		testContext := apiTestContext{
 			endpoint: fmt.Sprintf("http://%s", newListener.Addr()),
 			zoneID:   zoneID,
@@ -275,6 +282,7 @@ func TestHTTPAPI(t *testing.T) {
 		}
 		initKeyStore(expectedClientID, zoneID, keyStorage, t)
 		newListener, _ := getListenerAndDialer(clientWrapper, serverWrapper, t)
+		defer newListener.Close()
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 		service, err := NewHTTPService(serviceImplementation, translatorData, WithContext(ctx), WithConnectionContextHandler(listenerWrapper.OnConnectionContext))
@@ -341,6 +349,7 @@ func TestHTTPAPI(t *testing.T) {
 		}
 		initKeyStore(expectedClientID, zoneID, keyStorage, t)
 		newListener, newDialer := getListenerAndDialer(clientWrapper, serverWrapper, t)
+		defer newListener.Close()
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 		service, err := NewHTTPService(serviceImplementation, translatorData, WithContext(ctx), WithConnectionContextHandler(listenerWrapper.OnConnectionContext))
@@ -397,7 +406,6 @@ func testHTTPAPIEndpoints(testContext apiTestContext, t *testing.T) {
 		// test without zoneID
 		testEncryptDecrypt(testContext.endpoint, http.MethodGet, testPair.forwardOperation, testPair.backwardOperation, expectedData, testContext.client, t)
 		testEncryptDecrypt(testContext.endpoint, http.MethodPost, testPair.forwardOperation, testPair.backwardOperation, expectedData, testContext.client, t)
-
 		// test with ZoneID
 		expectedData.zoneID = testContext.zoneID
 		testEncryptDecrypt(testContext.endpoint, http.MethodGet, testPair.forwardOperation, testPair.backwardOperation, expectedData, testContext.client, t)
@@ -472,9 +480,11 @@ func testEncryptDecrypt(endpoint, method, encryptOperationURL, decryptOperationU
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	if err := response.Body.Close(); err != nil {
 		t.Fatal(err)
 	}
+
 	responseObject := encryptionHTTPResponse{}
 	if err := json.Unmarshal(responseBody, &responseObject); err != nil {
 		t.Fatal(err)
@@ -547,9 +557,11 @@ func testTokenizeDetokenize(endpoint, method string, data tokenData, client *htt
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	if err := response.Body.Close(); err != nil {
 		t.Fatal(err)
 	}
+
 	type rawResponse struct{ Data json.RawMessage }
 	rawResponseObject := rawResponse{}
 	if err := json.Unmarshal(responseBody, &rawResponseObject); err != nil {
