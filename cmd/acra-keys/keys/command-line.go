@@ -63,6 +63,8 @@ const (
 	KeyZonePublic     = "zone-public"
 	KeyZonePrivate    = "zone-private"
 
+	KeySymmetric = "symmetric-key"
+
 	KeyTransportConnector  = "transport-connector"
 	KeyTransportServer     = "transport-server"
 	KeyTransportTranslator = "transport-translator"
@@ -169,6 +171,8 @@ func ParseKeyKind(keyID string) (string, []byte, error) {
 		id := []byte(parts[1])
 		if parts[0] == "client" {
 			switch parts[2] {
+			case "symmetric":
+				return KeySymmetric, id, nil
 			case "storage":
 				return KeyStorageKeypair, id, nil
 			}

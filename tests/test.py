@@ -3503,6 +3503,7 @@ class TestAcraKeysWithRedis(RedisMixin, unittest.TestCase):
             ['./acra-keymaker',
              '--client_id={}'.format(client_id),
              '--generate_acrawriter_keys',
+             '--generate_symmetric_storage_key',
              '--redis_host_port=localhost:6379',
              '--keystore={}'.format(KEYSTORE_VERSION)
              ],
@@ -3515,6 +3516,15 @@ class TestAcraKeysWithRedis(RedisMixin, unittest.TestCase):
             '--public',
             '--redis_host_port=localhost:6379',
             'client/keypair1/storage'
+        ],
+            env={ACRA_MASTER_KEY_VAR_NAME: master_key},
+            timeout=PROCESS_CALL_TIMEOUT)
+
+        subprocess.check_call([
+            './acra-keys',
+            'read',
+            '--redis_host_port=localhost:6379',
+            'client/keypair1/symmetric'
         ],
             env={ACRA_MASTER_KEY_VAR_NAME: master_key},
             timeout=PROCESS_CALL_TIMEOUT)

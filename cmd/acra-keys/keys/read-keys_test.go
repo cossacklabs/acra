@@ -1,6 +1,3 @@
-//go:build integration && redis
-// +build integration,redis
-
 /*
 Copyright 2020, Cossack Labs Limited
 
@@ -50,27 +47,53 @@ func TestReadCMD_Redis_V2(t *testing.T) {
 
 	os.Setenv(keystore.AcraMasterKeyVarName, base64.StdEncoding.EncodeToString(masterKey))
 
-	readCmd := &ReadKeySubcommand{
-		CommonKeyStoreParameters: CommonKeyStoreParameters{
-			redisOptions: cmd.RedisOptions{
-				HostPort: "127.0.0.1:6379",
+	t.Run("read storage-public key", func(t *testing.T) {
+		readCmd := &ReadKeySubcommand{
+			CommonKeyStoreParameters: CommonKeyStoreParameters{
+				redisOptions: cmd.RedisOptions{
+					HostPort: "127.0.0.1:6379",
+				},
 			},
-		},
-		contextID:   clientID,
-		readKeyKind: KeyStoragePublic,
-	}
+			contextID:   clientID,
+			readKeyKind: KeyStoragePublic,
+		}
 
-	store, err := openKeyStoreV2(readCmd, keyLoader)
-	if err != nil {
-		t.Fatal(err)
-	}
+		store, err := openKeyStoreV2(readCmd, keyLoader)
+		if err != nil {
+			t.Fatal(err)
+		}
 
-	err = store.GenerateDataEncryptionKeys(clientID)
-	if err != nil {
-		t.Fatal(err)
-	}
+		err = store.GenerateDataEncryptionKeys(clientID)
+		if err != nil {
+			t.Fatal(err)
+		}
 
-	readCmd.Execute()
+		readCmd.Execute()
+	})
+
+	t.Run("read symmetric-key", func(t *testing.T) {
+		readCmd := &ReadKeySubcommand{
+			CommonKeyStoreParameters: CommonKeyStoreParameters{
+				redisOptions: cmd.RedisOptions{
+					HostPort: "127.0.0.1:6379",
+				},
+			},
+			contextID:   clientID,
+			readKeyKind: KeySymmetric,
+		}
+
+		store, err := openKeyStoreV2(readCmd, keyLoader)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		err = store.GenerateClientIDSymmetricKey(clientID)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		readCmd.Execute()
+	})
 }
 
 func TestReadCMD_Redis_V1(t *testing.T) {
@@ -96,26 +119,53 @@ func TestReadCMD_Redis_V1(t *testing.T) {
 	}
 	defer os.RemoveAll(dirName)
 
-	readCmd := &ReadKeySubcommand{
-		CommonKeyStoreParameters: CommonKeyStoreParameters{
-			redisOptions: cmd.RedisOptions{
-				HostPort: "127.0.0.1:6379",
+	t.Run("read storage-public key", func(t *testing.T) {
+		readCmd := &ReadKeySubcommand{
+			CommonKeyStoreParameters: CommonKeyStoreParameters{
+				redisOptions: cmd.RedisOptions{
+					HostPort: "127.0.0.1:6379",
+				},
+				keyDir: dirName,
 			},
-			keyDir: dirName,
-		},
-		contextID:   clientID,
-		readKeyKind: KeyStoragePublic,
-	}
+			contextID:   clientID,
+			readKeyKind: KeyStoragePublic,
+		}
 
-	store, err := openKeyStoreV1(readCmd, keyLoader)
-	if err != nil {
-		t.Fatal(err)
-	}
+		store, err := openKeyStoreV1(readCmd, keyLoader)
+		if err != nil {
+			t.Fatal(err)
+		}
 
-	err = store.GenerateDataEncryptionKeys(clientID)
-	if err != nil {
-		t.Fatal(err)
-	}
+		err = store.GenerateDataEncryptionKeys(clientID)
+		if err != nil {
+			t.Fatal(err)
+		}
 
-	readCmd.Execute()
+		readCmd.Execute()
+	})
+
+	t.Run("read symmetric-key", func(t *testing.T) {
+		readCmd := &ReadKeySubcommand{
+			CommonKeyStoreParameters: CommonKeyStoreParameters{
+				redisOptions: cmd.RedisOptions{
+					HostPort: "127.0.0.1:6379",
+				},
+				keyDir: dirName,
+			},
+			contextID:   clientID,
+			readKeyKind: KeySymmetric,
+		}
+
+		store, err := openKeyStoreV1(readCmd, keyLoader)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		err = store.GenerateClientIDSymmetricKey(clientID)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		readCmd.Execute()
+	})
 }

@@ -25,10 +25,8 @@ import (
 
 	"github.com/cossacklabs/acra/cmd"
 	"github.com/cossacklabs/acra/keystore"
-	"github.com/cossacklabs/acra/keystore/filesystem"
 	"github.com/cossacklabs/acra/keystore/keyloader"
 	keystoreV2 "github.com/cossacklabs/acra/keystore/v2/keystore"
-	filesystemV2 "github.com/cossacklabs/acra/keystore/v2/keystore/filesystem"
 	"github.com/cossacklabs/acra/zone"
 	"github.com/cossacklabs/themis/gothemis/keys"
 	log "github.com/sirupsen/logrus"
@@ -311,9 +309,9 @@ func (g *GenerateKeySubcommand) Execute() {
 	var err error
 	keystoreVersion := g.KeystoreVersion()
 	if keystoreVersion == "" {
-		if filesystemV2.IsKeyDirectory(g.KeyDir()) {
+		if IsKeyStoreV2(g) {
 			keystoreVersion = "v2"
-		} else if filesystem.IsKeyDirectory(g.KeyDir()) {
+		} else if IsKeyStoreV1(g) {
 			keystoreVersion = "v1"
 		}
 	}

@@ -1,3 +1,7 @@
+## 0.91.0 - 2021-12-13
+### Changed
+- updated `acra-keys` `read` to support work with symmetric storage keys
+
 ## 0.91.0 - 2021-12-01
 ### Changed
 - wrap `acra-censor`'s query writers' manipulations of cached queries with a mutex to avoid race conditions
