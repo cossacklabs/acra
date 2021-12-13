@@ -392,7 +392,7 @@ func TestConcurrentQueryWrite(t *testing.T) {
 		select {
 		case <-run:
 			break
-		case <-time.NewTimer(time.Millisecond * 100).C:
+		case <-time.NewTimer(time.Millisecond * 500).C:
 			t.Fatal("Time out of waiting goroutine start")
 		}
 	}
