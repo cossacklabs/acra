@@ -3425,6 +3425,29 @@ class TestAcraKeysWithClientIDGeneration(unittest.TestCase):
         self.assertIn("Invalid client ID".lower(), exc.exception.output.decode('utf8').lower())
         self.assertEqual(exc.exception.returncode, 1)
 
+    def test_read_keys_symmetric(self):
+        subprocess.check_call([
+            './acra-keys',
+            'generate',
+            '--client_id={}'.format("testclientid"),
+            '--client_storage_symmetric_key',
+            '--keys_dir={}'.format(self.dir_with_distinguished_name_client_id.name),
+            '--keys_dir_public={}'.format(self.dir_with_distinguished_name_client_id.name),
+            '--keystore={}'.format(KEYSTORE_VERSION),
+        ],
+            env={ACRA_MASTER_KEY_VAR_NAME: self.master_key},
+            timeout=PROCESS_CALL_TIMEOUT)
+
+        subprocess.check_call([
+            './acra-keys',
+            'read',
+            '--keys_dir={}'.format(self.dir_with_distinguished_name_client_id.name),
+            '--keys_dir_public={}'.format(self.dir_with_distinguished_name_client_id.name),
+            'client/testclientid/symmetric'
+        ],
+            env={ACRA_MASTER_KEY_VAR_NAME: self.master_key},
+            timeout=PROCESS_CALL_TIMEOUT)
+
     def test_keys_generation_for_mixed_keys(self):
         with self.assertRaises(subprocess.CalledProcessError) as exc:
             subprocess.check_output([
