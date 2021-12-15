@@ -2,10 +2,10 @@ version: 0.90.0
 # Path to AcraCensor configuration file
 acracensor_config_file: 
 
-# Use tls to encrypt transport between AcraServer and AcraConnector/application (deprecated since 0.91.0, will be ignored soon)
+# Use tls to encrypt transport between AcraServer and AcraConnector/application (deprecated since 0.91.0, will be removed soon)
 acraconnector_tls_transport_enable: false
 
-# Use raw transport (tcp/unix socket) between AcraServer and AcraConnector/application. Don't use this flag if you not connect to database with SSL/TLS. (deprecated since 0.91.0, will be ignored soon)
+# Use raw transport (tcp/unix socket) between AcraServer and AcraConnector/application. Don't use this flag if you not connect to database with SSL/TLS. (deprecated since 0.91.0, will be removed soon)
 acraconnector_transport_encryption_disable: false
 
 # Acrastruct may be injected into any place of data cell (deprecated, ignored)
@@ -128,7 +128,7 @@ redis_host_port:
 # Password to Redis database
 redis_password: 
 
-# Id that will be sent in secure session (deprecated since 0.91.0, will be ignored soon)
+# Id that will be sent in secure session (deprecated since 0.91.0, will be removed soon)
 securesession_id: acra_server
 
 # Stop AcraServer execution in case of SQL query parse error. Default is false
