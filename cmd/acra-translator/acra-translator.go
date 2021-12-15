@@ -117,7 +117,7 @@ func realMain() error {
 	keysDir := flag.String("keys_dir", keystore.DefaultKeyDirShort, "Folder from which will be loaded keys")
 	keysCacheSize := flag.Int("keystore_cache_size", keystore.InfiniteCacheSize, "Count of keys that will be stored in in-memory LRU cache in encrypted form. 0 - no limits, -1 - turn off cache")
 
-	secureSessionID := flag.String("securesession_id", "acra_translator", "Id that will be sent in secure session (deprecated since 0.91.0, will be ignored soon)")
+	secureSessionID := flag.String("securesession_id", "acra_translator", "Id that will be sent in secure session (deprecated since 0.91.0, will be removed soon)")
 
 	detectPoisonRecords := flag.Bool("poison_detect_enable", true, "Turn on poison record detection, if server shutdown is disabled, AcraTranslator logs the poison record detection and returns error")
 	stopOnPoison := flag.Bool("poison_shutdown_enable", false, "On detecting poison record: log about poison record detection, stop and shutdown")
@@ -130,10 +130,10 @@ func realMain() error {
 	cmd.RegisterRedisKeyStoreParameters()
 	cmd.RegisterRedisTokenStoreParameters()
 
-	useTLS := flag.Bool("acratranslator_tls_transport_enable", false, "Use TLS to encrypt transport between AcraTranslator and AcraConnector/client app (deprecated since 0.91.0, will be ignored soon and processed as \"true\" by default).")
+	useTLS := flag.Bool("acratranslator_tls_transport_enable", false, "Use TLS to encrypt transport between AcraTranslator and AcraConnector/client app (deprecated since 0.91.0, will be removed soon).")
 	tlsIdentifierExtractorType := flag.String("tls_identifier_extractor_type", network.IdentifierExtractorTypeDistinguishedName, fmt.Sprintf("Decide which field of TLS certificate to use as ClientID (%s). Default is %s.", strings.Join(network.IdentifierExtractorTypesList, "|"), network.IdentifierExtractorTypeDistinguishedName))
 	useClientIDFromConnection := flag.Bool("acratranslator_client_id_from_connection_enable", false, "Use clientID from TLS certificates or secure session handshake instead directly passed values in gRPC methods")
-	noEncryptionTransport := flag.Bool("acraconnector_transport_encryption_disable", false, "Use raw transport (tcp/unix socket) between AcraTranslator and client app. It turns off reading trace from client app's side which usually sent by AcraConnector (deprecated since 0.91.0, will be ignored soon).")
+	noEncryptionTransport := flag.Bool("acraconnector_transport_encryption_disable", false, "Use raw transport (tcp/unix socket) between AcraTranslator and client app. It turns off reading trace from client app's side which usually sent by AcraConnector (deprecated since 0.91.0, will be removed soon).")
 	enableAuditLog := flag.Bool("audit_log_enable", false, "Enable audit log functionality")
 
 	hashicorp.RegisterVaultCLIParameters()

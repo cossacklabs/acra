@@ -135,7 +135,7 @@ func realMain() error {
 	_ = flag.Bool("pgsql_hex_bytea", false, "Hex format for Postgresql bytea data (deprecated, ignored)")
 	flag.Bool("pgsql_escape_bytea", false, "Escape format for Postgresql bytea data (deprecated, ignored)")
 
-	secureSessionID := flag.String("securesession_id", "acra_server", "Id that will be sent in secure session (deprecated since 0.91.0, will be ignored soon)")
+	secureSessionID := flag.String("securesession_id", "acra_server", "Id that will be sent in secure session (deprecated since 0.91.0, will be removed soon)")
 
 	flag.Bool("acrastruct_wholecell_enable", false, "Acrastruct will stored in whole data cell (deprecated, ignored)")
 	flag.Bool("acrastruct_injectedcell_enable", false, "Acrastruct may be injected into any place of data cell (deprecated, ignored)")
@@ -150,7 +150,7 @@ func realMain() error {
 	withZone := flag.Bool("zonemode_enable", false, "Turn on zone mode")
 	enableHTTPAPI := flag.Bool("http_api_enable", false, "Enable HTTP API")
 
-	tlsWithConnector := flag.Bool("acraconnector_tls_transport_enable", false, "Use tls to encrypt transport between AcraServer and AcraConnector/application (deprecated since 0.91.0, will be ignored soon)")
+	tlsWithConnector := flag.Bool("acraconnector_tls_transport_enable", false, "Use tls to encrypt transport between AcraServer and AcraConnector/application (deprecated since 0.91.0, will be removed soon)")
 	tlsKey := flag.String("tls_key", "", "Path to private key that will be used in AcraServer's TLS handshake with AcraConnector as server's key and database as client's key")
 	tlsCert := flag.String("tls_cert", "", "Path to tls certificate")
 	tlsCA := flag.String("tls_ca", "", "Path to additional CA certificate for application/AcraConnector and database certificate validation")
@@ -168,7 +168,7 @@ func realMain() error {
 	tlsUseClientIDFromCertificate := flag.Bool("tls_client_id_from_cert", false, "Extract clientID from TLS certificate. Take TLS certificate from application/AcraConnector's connection if acraconnector_tls_transport_enable is TRUE; otherwise take TLS certificate from application's connection if acraconnector_transport_encryption_disable is TRUE. Can't be used with --tls_client_auth=0 or --tls_auth=0")
 	tlsIdentifierExtractorType := flag.String("tls_identifier_extractor_type", network.IdentifierExtractorTypeDistinguishedName, fmt.Sprintf("Decide which field of TLS certificate to use as ClientID (%s). Default is %s.", strings.Join(network.IdentifierExtractorTypesList, "|"), network.IdentifierExtractorTypeDistinguishedName))
 	network.RegisterCertVerifierArgsWithSeparateClientAndDatabase()
-	noEncryptionTransport := flag.Bool("acraconnector_transport_encryption_disable", false, "Use raw transport (tcp/unix socket) between AcraServer and AcraConnector/application. Don't use this flag if you not connect to database with SSL/TLS. (deprecated since 0.91.0, will be ignored soon)")
+	noEncryptionTransport := flag.Bool("acraconnector_transport_encryption_disable", false, "Use raw transport (tcp/unix socket) between AcraServer and AcraConnector/application. Don't use this flag if you not connect to database with SSL/TLS. (deprecated since 0.91.0, will be removed soon)")
 	clientID := flag.String("client_id", "", "Static ClientID used by AcraServer for data protection operations")
 	acraConnectionString := flag.String("incoming_connection_string", network.BuildConnectionString(cmd.DefaultAcraServerConnectionProtocol, cmd.DefaultAcraServerHost, cmd.DefaultAcraServerPort, ""), "Connection string like tcp://x.x.x.x:yyyy or unix:///path/to/socket")
 	acraAPIConnectionString := flag.String("incoming_connection_api_string", network.BuildConnectionString(cmd.DefaultAcraServerConnectionProtocol, cmd.DefaultAcraServerHost, cmd.DefaultAcraServerAPIPort, ""), "Connection string for api like tcp://x.x.x.x:yyyy or unix:///path/to/socket")
