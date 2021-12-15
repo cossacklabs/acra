@@ -5,6 +5,7 @@
 - `acra-server` CLI parameters: `--securesession_id`, `--acraconnector_tls_transport_enable`, `--acraconnector_transport_encryption_disable`
 - `acra-keymaker` CLI parameters: `--generate_acraconnector_keys`, `--generate_acraserver_keys`, `--generate_acratranslator_keys`
 - `acra-translator` CLI parameters: `--securesession_id`, `--acraconnector_transport_encryption_disable`, `--acratranslator_tls_transport_enable`
+- `acra-keys` CLI parameters for `generate` command: `--acraconnector_transport_key`, `--acraserver_transport_key`, `--acratranslator_transport_key`
 
 ## 0.91.0 - 2021-12-13
 ### Changed
