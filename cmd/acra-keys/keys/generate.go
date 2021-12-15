@@ -55,7 +55,7 @@ type GenerateKeyParams interface {
 	ZoneID() []byte
 	GenerateNewZone() bool
 	GenerateZoneKeys() bool
-	GenerateZoneSymKey() bool
+	GenerateZoneSymmetricKey() bool
 
 	SpecificKeysRequested() bool
 }
@@ -169,8 +169,8 @@ func (g *GenerateKeySubcommand) GenerateZoneKeys() bool {
 	return g.rotateZone
 }
 
-// GenerateZoneSymKey returns true if a new sym key for a zone was requested.
-func (g *GenerateKeySubcommand) GenerateZoneSymKey() bool {
+// GenerateZoneSymmetricKey returns true if a new sym key for a zone was requested.
+func (g *GenerateKeySubcommand) GenerateZoneSymmetricKey() bool {
 	return g.rotateZoneSym
 }
 
@@ -508,7 +508,7 @@ func GenerateAcraKeys(params GenerateKeyParams, keyStore keystore.KeyMaking, def
 		log.Info("Generated zone storage key")
 		didSomething = true
 	}
-	if params.GenerateZoneSymKey() {
+	if params.GenerateZoneSymmetricKey() {
 		err := keyStore.RotateSymZoneKey(params.ZoneID())
 		if err != nil {
 			log.WithError(err).Error("Failed to rotate zone key")
