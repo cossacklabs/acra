@@ -745,8 +745,8 @@ func (store *KeyStore) RotateZoneKey(zoneID []byte) ([]byte, error) {
 	return public, err
 }
 
-// RotateSymZoneKey generate new symmetric key for ZoneId, overwrite private key with new
-func (store *KeyStore) RotateSymZoneKey(zoneID []byte) error {
+// RotateSymmetricZoneKey generate new symmetric key for ZoneId, overwrite private key with new
+func (store *KeyStore) RotateSymmetricZoneKey(zoneID []byte) error {
 	keyName := getZoneIDSymmetricKeyName(zoneID)
 	return store.generateAndSaveSymmetricKey(zoneID, store.GetPrivateKeyFilePath(keyName))
 }

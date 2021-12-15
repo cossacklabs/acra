@@ -30,7 +30,7 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
-func TestRotateSymZoneKey(t *testing.T) {
+func TestRotateSymmetricZoneKey(t *testing.T) {
 	zoneID := "DDDDDDDDHCzqZAZNbBvybWLR"
 	keyLoader := keyloader.NewEnvLoader(keystore.AcraMasterKeyVarName)
 

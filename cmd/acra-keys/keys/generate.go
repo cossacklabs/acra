@@ -509,7 +509,7 @@ func GenerateAcraKeys(params GenerateKeyParams, keyStore keystore.KeyMaking, def
 		didSomething = true
 	}
 	if params.GenerateZoneSymmetricKey() {
-		err := keyStore.RotateSymZoneKey(params.ZoneID())
+		err := keyStore.RotateSymmetricZoneKey(params.ZoneID())
 		if err != nil {
 			log.WithError(err).Error("Failed to rotate zone key")
 			return didSomething, err

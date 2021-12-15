@@ -20,7 +20,7 @@ type testKeystore struct {
 	UsedID            []byte
 }
 
-func (keystore *testKeystore) RotateSymZoneKey(zoneID []byte) error {
+func (keystore *testKeystore) RotateSymmetricZoneKey(zoneID []byte) error {
 	panic("implement me")
 }
 
