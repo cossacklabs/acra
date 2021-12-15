@@ -1,3 +1,11 @@
+## 0.91.0 - 2021-12-15
+### Deprecated
+- `acra-connector` - deprecated and will be removed in next releases. All related flags in
+  `acra-server`/`acra-translator`/`acra-keymaker` deprecated too and will be ignored in next releases.
+- `acra-server` CLI parameters: `--securesession_id`, `--acraconnector_tls_transport_enable`, `--acraconnector_transport_encryption_disable`
+- `acra-keymaker` CLI parameters: `--generate_acraconnector_keys`, `--generate_acraserver_keys`, `--generate_acratranslator_keys`
+- `acra-translator` CLI parameters: `--securesession_id`, `--acraconnector_transport_encryption_disable`, `--acratranslator_tls_transport_enable`
+
 ## 0.91.0 - 2021-12-13
 ### Changed
 - updated `acra-keys` `read` to support work with symmetric storage keys;
