@@ -13,7 +13,7 @@ _Core_:
 - **AcraConnector**:
   - Has been deprecated and will be removed in next releases. AcraServer and AcraTranslator will accept only direct TLS
     connections from applications.
-  - Removed mentions and usage from [acra-engineering-demos](https://github.com/cossacklabs/acra-engineering-demo/tree/0.90.0).
+  - Removed mentions and usage from [acra-engineering-demo](https://github.com/cossacklabs/acra-engineering-demo/tree/0.90.0)s.
 - **AcraKeymaker**:
   - Don't require valid ClientID for key types not requires it [#454](https://github.com/cossacklabs/acra/pull/454).
   - Removed `--generate_acrawebconfig_keys` flag according to AcraWebConfig/AcraAuthManager deprecation [#456](https://github.com/cossacklabs/acra/pull/456).
