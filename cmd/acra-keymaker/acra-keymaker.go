@@ -54,9 +54,9 @@ var (
 
 func main() {
 	clientID := flag.String("client_id", "client", "Client ID")
-	acraConnector := flag.Bool("generate_acraconnector_keys", false, "Create keypair for AcraConnector only")
-	acraServer := flag.Bool("generate_acraserver_keys", false, "Create keypair for AcraServer only")
-	acraTranslator := flag.Bool("generate_acratranslator_keys", false, "Create keypair for AcraTranslator only")
+	acraConnector := flag.Bool("generate_acraconnector_keys", false, "Create keypair for AcraConnector only (deprecated since 0.91.0, will be ignored soon)")
+	acraServer := flag.Bool("generate_acraserver_keys", false, "Create keypair for AcraServer only (deprecated since 0.91.0, will be ignored soon)")
+	acraTranslator := flag.Bool("generate_acratranslator_keys", false, "Create keypair for AcraTranslator only (deprecated since 0.91.0, will be ignored soon)")
 	dataKeys := flag.Bool("generate_acrawriter_keys", false, "Create keypair for data encryption/decryption")
 	outputDir := flag.String("keys_output_dir", keystore.DefaultKeyDirShort, "Folder where will be saved keys")
 	outputPublicKey := flag.String("keys_public_output_dir", keystore.DefaultKeyDirShort, "Folder where will be saved public key")
