@@ -20,6 +20,10 @@ type testKeystore struct {
 	UsedID            []byte
 }
 
+func (keystore *testKeystore) RotateSymmetricZoneKey(zoneID []byte) error {
+	panic("implement me")
+}
+
 func (keystore *testKeystore) GenerateClientIDSymmetricKey(id []byte) error {
 	panic("implement me")
 }

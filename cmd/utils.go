@@ -370,7 +370,7 @@ func ParseFlagsWithConfig(flags *flag_.FlagSet, arguments []string, configPath, 
 			if err != nil {
 				return err
 			}
-			err = yaml.Unmarshal([]byte(data), &yamlConfig)
+			err = yaml.Unmarshal(data, &yamlConfig)
 			if err != nil {
 				return err
 			}
