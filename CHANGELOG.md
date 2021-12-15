@@ -19,8 +19,10 @@ _Core_:
   - Removed `--generate_acrawebconfig_keys` flag according to AcraWebConfig/AcraAuthManager deprecation [#456](https://github.com/cossacklabs/acra/pull/456).
 - **AcraKeys**:
   - `read` command supports symmetric encryption keys with ClientID and ZoneID [#472](https://github.com/cossacklabs/acra/pull/472/files).
-  - `generate` command supports rotation for symmetric encryption keys with ZoneID [#472](https://github.com/cossacklabs/acra/pull/472/files).
-  - Removed `--acrawebconfig_symmetric_key` flag according to AcraWebConfig/AcraAuthManager deprecation [#456](https://github.com/cossacklabs/acra/pull/456).
+  - `generate` command:
+    - supports rotation for symmetric encryption keys with ZoneID [#472](https://github.com/cossacklabs/acra/pull/472/files).
+    - deprecates next flags: `--acraconnector_transport_key`, `--acraserver_transport_key`, `--acratranslator_transport_key`.
+    - removed `--acrawebconfig_symmetric_key` flag according to AcraWebConfig/AcraAuthManager deprecation [#456](https://github.com/cossacklabs/acra/pull/456).
   - Fixed proper handling CLI parameters related to Redis [#459](https://github.com/cossacklabs/acra/pull/459).
 - **AcraServer**:
   - Removed `--auth_keys` parameter according to AcraWebConfig/AcraAuthManager deprecation [#456](https://github.com/cossacklabs/acra/pull/456).
