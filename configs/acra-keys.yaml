@@ -188,6 +188,9 @@ zone: false
 # Zone ID
 zone_id: 
 
-# Rotate existing Acra zone storagae keypair
+# Rotate existing Acra zone storage keypair
 zone_storage_key: false
+
+# Rotate existing Acra zone symmetric key
+zone_symmetric_key: false
 

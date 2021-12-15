@@ -3367,6 +3367,31 @@ class RedisMixin:
         super().tearDown()
 
 
+class TestAcraKeysWithZoneIDGeneration(unittest.TestCase):
+
+    def setUp(self):
+        self.master_key = get_master_key()
+        self.zone_dir = tempfile.TemporaryDirectory()
+
+    def test_rotate_symmetric_zone_key(self):
+        zone = json.loads(subprocess.check_output(
+            ['./acra-addzone', '--keys_output_dir={}'.format(self.zone_dir.name)],
+            cwd=os.getcwd(), timeout=PROCESS_CALL_TIMEOUT).decode('utf-8'))
+
+        subprocess.check_call([
+            './acra-keys',
+            'generate',
+            '--zone_symmetric_key',
+            '--keys_dir={}'.format(self.zone_dir.name),
+            '--keys_dir_public={}'.format(self.zone_dir.name),
+            '--zone_id={}'.format(zone['id'])
+        ],
+            env={ACRA_MASTER_KEY_VAR_NAME: self.master_key},
+            timeout=PROCESS_CALL_TIMEOUT)
+        path = '{}/{}_zone_sym.old'.format(self.zone_dir.name, zone['id'])
+        self.assertTrue(len(os.listdir(path)) != 0)
+
+
 class TestAcraKeysWithClientIDGeneration(unittest.TestCase):
     def setUp(self):
         self.master_key = get_master_key()
@@ -3424,6 +3449,44 @@ class TestAcraKeysWithClientIDGeneration(unittest.TestCase):
                 stderr=subprocess.STDOUT)
         self.assertIn("Invalid client ID".lower(), exc.exception.output.decode('utf8').lower())
         self.assertEqual(exc.exception.returncode, 1)
+
+    def test_read_keys_symmetric(self):
+        subprocess.check_call([
+            './acra-keys',
+            'generate',
+            '--client_id={}'.format("testclientid"),
+            '--client_storage_symmetric_key',
+            '--keys_dir={}'.format(self.dir_with_distinguished_name_client_id.name),
+            '--keys_dir_public={}'.format(self.dir_with_distinguished_name_client_id.name),
+            '--keystore={}'.format(KEYSTORE_VERSION),
+        ],
+            env={ACRA_MASTER_KEY_VAR_NAME: self.master_key},
+            timeout=PROCESS_CALL_TIMEOUT)
+
+        subprocess.check_call([
+            './acra-keys',
+            'read',
+            '--keys_dir={}'.format(self.dir_with_distinguished_name_client_id.name),
+            '--keys_dir_public={}'.format(self.dir_with_distinguished_name_client_id.name),
+            'client/testclientid/symmetric'
+        ],
+            env={ACRA_MASTER_KEY_VAR_NAME: self.master_key},
+            timeout=PROCESS_CALL_TIMEOUT)
+
+    def test_read_keys_symmetric_zone(self):
+        zone = json.loads(subprocess.check_output(
+            ['./acra-addzone', '--keys_output_dir={}'.format(self.dir_with_distinguished_name_client_id.name)],
+            cwd=os.getcwd(), timeout=PROCESS_CALL_TIMEOUT).decode('utf-8'))
+
+        subprocess.check_call([
+            './acra-keys',
+            'read',
+            '--keys_dir={}'.format(self.dir_with_distinguished_name_client_id.name),
+            '--keys_dir_public={}'.format(self.dir_with_distinguished_name_client_id.name),
+            'zone/{}/symmetric'.format(zone['id'])
+        ],
+            env={ACRA_MASTER_KEY_VAR_NAME: self.master_key},
+            timeout=PROCESS_CALL_TIMEOUT)
 
     def test_keys_generation_for_mixed_keys(self):
         with self.assertRaises(subprocess.CalledProcessError) as exc:
@@ -3503,6 +3566,7 @@ class TestAcraKeysWithRedis(RedisMixin, unittest.TestCase):
             ['./acra-keymaker',
              '--client_id={}'.format(client_id),
              '--generate_acrawriter_keys',
+             '--generate_symmetric_storage_key',
              '--redis_host_port=localhost:6379',
              '--keystore={}'.format(KEYSTORE_VERSION)
              ],
@@ -3515,6 +3579,15 @@ class TestAcraKeysWithRedis(RedisMixin, unittest.TestCase):
             '--public',
             '--redis_host_port=localhost:6379',
             'client/keypair1/storage'
+        ],
+            env={ACRA_MASTER_KEY_VAR_NAME: master_key},
+            timeout=PROCESS_CALL_TIMEOUT)
+
+        subprocess.check_call([
+            './acra-keys',
+            'read',
+            '--redis_host_port=localhost:6379',
+            'client/keypair1/symmetric'
         ],
             env={ACRA_MASTER_KEY_VAR_NAME: master_key},
             timeout=PROCESS_CALL_TIMEOUT)

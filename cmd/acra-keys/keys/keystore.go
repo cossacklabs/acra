@@ -19,8 +19,6 @@ package keys
 import (
 	"errors"
 	"flag"
-	filesystemV2 "github.com/cossacklabs/acra/keystore/v2/keystore/filesystem"
-
 	"github.com/cossacklabs/acra/cmd"
 	"github.com/cossacklabs/acra/keystore"
 	"github.com/cossacklabs/acra/keystore/filesystem"
@@ -28,6 +26,7 @@ import (
 	"github.com/cossacklabs/acra/keystore/keyloader/hashicorp"
 	keystoreV2 "github.com/cossacklabs/acra/keystore/v2/keystore"
 	"github.com/cossacklabs/acra/keystore/v2/keystore/api"
+	filesystemV2 "github.com/cossacklabs/acra/keystore/v2/keystore/filesystem"
 	filesystemBackendV2 "github.com/cossacklabs/acra/keystore/v2/keystore/filesystem/backend"
 
 	"github.com/go-redis/redis/v7"
@@ -248,8 +247,8 @@ func openKeyStoreV2(params KeyStoreParameters, loader keyloader.MasterKeyLoader)
 
 // IsKeyStoreV2 checks if the directory contains a keystore version 2 from KeyStoreParameters
 func IsKeyStoreV2(params KeyStoreParameters) bool {
-	redisOption := params.RedisOptions()
 	if params.RedisConfigured() {
+		redisOption := params.RedisOptions()
 		redisClient, err := filesystemBackendV2.OpenRedisBackend(&filesystemBackendV2.RedisConfig{
 			RootDir: params.KeyDir(),
 			Options: &redis.Options{
@@ -268,4 +267,39 @@ func IsKeyStoreV2(params KeyStoreParameters) bool {
 	}
 	// Otherwise, check the local filesystem storage provided by Acra CE.
 	return filesystemBackendV2.CheckDirectoryVersion(params.KeyDir()) == nil
+}
+
+// IsKeyStoreV1 checks if the directory contains a keystore version 1 from KeyStoreParameters
+func IsKeyStoreV1(params KeyStoreParameters) bool {
+	var fsStorage filesystem.Storage = &filesystem.DummyStorage{}
+	if params.RedisConfigured() {
+		redisOption := params.RedisOptions()
+		redisStorage, err := filesystem.NewRedisStorage(redisOption.Addr, redisOption.Password, redisOption.DB, nil)
+		if err != nil {
+			log.WithError(err).Debug("Failed to open redis storage for version check")
+			return false
+		}
+		fsStorage = redisStorage
+	}
+
+	keyDirectory := params.KeyDir()
+	fi, err := fsStorage.Stat(keyDirectory)
+	if err != nil {
+		log.WithError(err).WithField("path", keyDirectory).Debug("Failed to stat key directory for version check")
+		return false
+	}
+	if !fi.IsDir() {
+		log.WithField("path", keyDirectory).Debug("Key directory is not a directory")
+		return false
+	}
+	files, err := fsStorage.ReadDir(keyDirectory)
+	if err != nil {
+		log.WithError(err).WithField("path", keyDirectory).Debug("Failed to read key directory for version check")
+		return false
+	}
+	if len(files) == 0 {
+		log.WithField("path", keyDirectory).Debug("Key directory is empty")
+		return false
+	}
+	return true
 }
