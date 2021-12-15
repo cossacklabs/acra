@@ -55,6 +55,7 @@ type GenerateKeyParams interface {
 	ZoneID() []byte
 	GenerateNewZone() bool
 	GenerateZoneKeys() bool
+	GenerateZoneSymKey() bool
 
 	SpecificKeysRequested() bool
 }
@@ -85,6 +86,7 @@ type GenerateKeySubcommand struct {
 	acraWriter      bool
 	newZone         bool
 	rotateZone      bool
+	rotateZoneSym   bool
 	acraBlocks      bool
 	auditLog        bool
 	searchHMAC      bool
@@ -167,11 +169,16 @@ func (g *GenerateKeySubcommand) GenerateZoneKeys() bool {
 	return g.rotateZone
 }
 
+// GenerateZoneSymKey returns true if a new sym key for a zone was requested.
+func (g *GenerateKeySubcommand) GenerateZoneSymKey() bool {
+	return g.rotateZoneSym
+}
+
 // SpecificKeysRequested returns true if the user has requested any key specifically.
 // It returns false if no keys were requested.
 func (g *GenerateKeySubcommand) SpecificKeysRequested() bool {
 	return g.acraConnector || g.acraServer || g.acraTranslator || g.acraWriter || g.newZone ||
-		g.rotateZone || g.acraBlocks || g.auditLog || g.searchHMAC || g.poisonRecord
+		g.rotateZone || g.acraBlocks || g.auditLog || g.searchHMAC || g.poisonRecord || g.rotateZoneSym
 }
 
 // Name returns the same of this subcommand.
@@ -198,7 +205,8 @@ func (g *GenerateKeySubcommand) RegisterFlags() {
 	g.flagSet.BoolVar(&g.acraTranslator, "acratranslator_transport_key", false, "Generate transport keypair for AcraTranslator")
 	g.flagSet.BoolVar(&g.acraWriter, "client_storage_key", false, "Generate keypair for data encryption/decryption (for a client)")
 	g.flagSet.BoolVar(&g.newZone, "zone", false, "Generate new Acra storage zone")
-	g.flagSet.BoolVar(&g.rotateZone, "zone_storage_key", false, "Rotate existing Acra zone storagae keypair")
+	g.flagSet.BoolVar(&g.rotateZone, "zone_storage_key", false, "Rotate existing Acra zone storage keypair")
+	g.flagSet.BoolVar(&g.rotateZoneSym, "zone_symmetric_key", false, "Rotate existing Acra zone symmetric key")
 	g.flagSet.BoolVar(&g.acraBlocks, "client_storage_symmetric_key", false, "Generate symmetric key for data encryption (using AcraBlocks)")
 	g.flagSet.BoolVar(&g.auditLog, "audit_log_symmetric_key", false, "Generate symmetric key for log integrity checks")
 	g.flagSet.BoolVar(&g.searchHMAC, "search_hmac_symmetric_key", false, "Generate symmetric key for searchable encryption HMAC")
@@ -500,6 +508,16 @@ func GenerateAcraKeys(params GenerateKeyParams, keyStore keystore.KeyMaking, def
 		log.Info("Generated zone storage key")
 		didSomething = true
 	}
+	if params.GenerateZoneSymKey() {
+		err := keyStore.RotateSymZoneKey(params.ZoneID())
+		if err != nil {
+			log.WithError(err).Error("Failed to rotate zone key")
+			return didSomething, err
+		}
+		log.Info("Generated zone storage symmetric key")
+		didSomething = true
+	}
+
 	if generateAcraBlocks {
 		err := keyStore.GenerateClientIDSymmetricKey(params.ClientID())
 		if err != nil {

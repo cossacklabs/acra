@@ -40,6 +40,7 @@ func TestReadCMD_Redis_V2(t *testing.T) {
 	}
 	defer client.FlushAll()
 
+	zoneID := []byte("DDDDDDDDHCzqZAZNbBvybWLR")
 	clientID := []byte("testclientid")
 	keyLoader := keyloader.NewEnvLoader(keystore.AcraMasterKeyVarName)
 
@@ -97,6 +98,30 @@ func TestReadCMD_Redis_V2(t *testing.T) {
 
 		readCmd.Execute()
 	})
+
+	t.Run("read symmetric-zone-key", func(t *testing.T) {
+		readCmd := &ReadKeySubcommand{
+			CommonKeyStoreParameters: CommonKeyStoreParameters{
+				redisOptions: cmd.RedisOptions{
+					HostPort: "127.0.0.1:6379",
+				},
+			},
+			contextID:   zoneID,
+			readKeyKind: KeyZoneSymmetric,
+		}
+
+		store, err := openKeyStoreV2(readCmd, keyLoader)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		err = store.GenerateZoneIDSymmetricKey(zoneID)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		readCmd.Execute()
+	})
 }
 
 func TestReadCMD_Redis_V1(t *testing.T) {
@@ -106,6 +131,7 @@ func TestReadCMD_Redis_V1(t *testing.T) {
 	}
 	defer client.FlushAll()
 
+	zoneID := []byte("DDDDDDDDHCzqZAZNbBvybWLR")
 	clientID := []byte("testclientid")
 	keyLoader := keyloader.NewEnvLoader(keystore.AcraMasterKeyVarName)
 
@@ -165,6 +191,31 @@ func TestReadCMD_Redis_V1(t *testing.T) {
 		}
 
 		err = store.GenerateClientIDSymmetricKey(clientID)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		readCmd.Execute()
+	})
+
+	t.Run("read symmetric-zone-key", func(t *testing.T) {
+		readCmd := &ReadKeySubcommand{
+			CommonKeyStoreParameters: CommonKeyStoreParameters{
+				redisOptions: cmd.RedisOptions{
+					HostPort: "127.0.0.1:6379",
+				},
+				keyDir: dirName,
+			},
+			contextID:   zoneID,
+			readKeyKind: KeyZoneSymmetric,
+		}
+
+		store, err := openKeyStoreV1(readCmd, keyLoader)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		err = store.GenerateZoneIDSymmetricKey(zoneID)
 		if err != nil {
 			t.Fatal(err)
 		}

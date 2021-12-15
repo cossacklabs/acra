@@ -281,6 +281,9 @@ type StorageKeyCreation interface {
 	// Generates a new key pair and replaces the current key pair for given zone ID.
 	// Returns new publie key data, error.
 	RotateZoneKey(zoneID []byte) ([]byte, error)
+	// Generates a new symetric key and replaces the current key for given zone ID.
+	// Returns new key data, error.
+	RotateSymZoneKey(zoneID []byte) error
 }
 
 // DecryptionKeyStore enables AcraStruct decryption. It is used by acra-server.

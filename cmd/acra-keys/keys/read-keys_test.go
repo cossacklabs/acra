@@ -35,6 +35,7 @@ func TestReadCMD_FS_V2(t *testing.T) {
 	defer os.RemoveAll(dirName)
 
 	clientID := []byte("testclientid")
+	zoneID := []byte("DDDDDDDDHCzqZAZNbBvybWLR")
 	keyLoader := keyloader.NewEnvLoader(keystore.AcraMasterKeyVarName)
 
 	masterKey, err := keystoreV2.NewSerializedMasterKeys()
@@ -87,10 +88,33 @@ func TestReadCMD_FS_V2(t *testing.T) {
 
 		readCmd.Execute()
 	})
+
+	t.Run("read symmetric-zone-key", func(t *testing.T) {
+		readCmd := &ReadKeySubcommand{
+			CommonKeyStoreParameters: CommonKeyStoreParameters{
+				keyDir: dirName,
+			},
+			contextID:   zoneID,
+			readKeyKind: KeyZoneSymmetric,
+		}
+
+		store, err := openKeyStoreV2(readCmd, keyLoader)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		err = store.GenerateZoneIDSymmetricKey(zoneID)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		readCmd.Execute()
+	})
 }
 
 func TestReadCMD_FS_V1(t *testing.T) {
 	clientID := []byte("testclientid")
+	zoneID := []byte("DDDDDDDDHCzqZAZNbBvybWLR")
 	keyLoader := keyloader.NewEnvLoader(keystore.AcraMasterKeyVarName)
 
 	masterKey, err := keystore.GenerateSymmetricKey()
@@ -143,6 +167,28 @@ func TestReadCMD_FS_V1(t *testing.T) {
 		}
 
 		err = store.GenerateClientIDSymmetricKey(clientID)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		readCmd.Execute()
+	})
+
+	t.Run("read symmetric-zone-key", func(t *testing.T) {
+		readCmd := &ReadKeySubcommand{
+			CommonKeyStoreParameters: CommonKeyStoreParameters{
+				keyDir: dirName,
+			},
+			contextID:   zoneID,
+			readKeyKind: KeyZoneSymmetric,
+		}
+
+		store, err := openKeyStoreV1(readCmd, keyLoader)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		err = store.GenerateZoneIDSymmetricKey(zoneID)
 		if err != nil {
 			t.Fatal(err)
 		}

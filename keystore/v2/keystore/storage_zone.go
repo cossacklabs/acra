@@ -159,3 +159,19 @@ func (s *ServerKeyStore) RotateZoneKey(zoneID []byte) ([]byte, error) {
 	utils.ZeroizePrivateKey(pair.Private)
 	return pair.Public.Value, nil
 }
+
+// RotateSymZoneKey generates a new storage symmetric key for given zone.
+func (s *ServerKeyStore) RotateSymZoneKey(zoneID []byte) error {
+	log := s.log.WithField("zoneID", zoneID)
+	ring, err := s.OpenKeyRingRW(s.zoneStorageSymmetricKeyPath(zoneID))
+	if err != nil {
+		log.WithError(err).Debug("Failed to open symmetric storage key ring for zone")
+		return err
+	}
+	_, err = s.newCurrentSymmetricKey(ring)
+	if err != nil {
+		log.WithError(err).Debug("Failed to generate storage symmetric key for zone")
+		return err
+	}
+	return nil
+}

@@ -1,6 +1,7 @@
 ## 0.91.0 - 2021-12-13
 ### Changed
-- updated `acra-keys` `read` to support work with symmetric storage keys
+- updated `acra-keys` `read` to support work with symmetric storage keys;
+- extend `acra-keys` `generate` with `zone_symmetric_key` flag to support rotating zone symmetric keys
 
 ## 0.91.0 - 2021-12-01
 ### Changed
