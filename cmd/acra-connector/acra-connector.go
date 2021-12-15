@@ -20,7 +20,7 @@ limitations under the License.
 // To talk to AcraServer, you'll need to run AcraConnector on the same host as your application,
 // in a separate container or as a separate user. You'll also need to route database requests to its address.
 //
-// https://github.com/cossacklabs/acra/wiki/AcraConnector-and-AcraWriter
+// https://docs.cossacklabs.com/acra/configuring-maintaining/general-configuration/acra-connector/
 package main
 
 import (
