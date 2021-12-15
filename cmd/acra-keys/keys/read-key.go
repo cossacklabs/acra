@@ -36,6 +36,7 @@ var SupportedReadKeyKinds = []string{
 	KeyZonePublic,
 	KeyZonePrivate,
 	KeySymmetric,
+	KeyZoneSymmetric,
 }
 
 // Key parameter errors:
