@@ -1,5 +1,50 @@
 # Acra ChangeLog
 
+## [0.91.0](https://github.com/cossacklabs/acra/releases/tag/0.91.0), December 16th 2021
+
+_Core_:
+- **AcraWebConfig, AcraAuthManager**:
+  - Has been deprecated and not supported anymore [#456](https://github.com/cossacklabs/acra/pull/456). Has been removed:
+    - `docker/acra-authmanager.dockerfile`, `docker/acra-webconfig.dockerfile` files.
+    - building `acra-webconfig` and `acra-authmanager` in `docker/acra-build.dockerfile` file that is base image for all
+      other service's images.
+    - running `acra-webconfig` and `acra-authmanager` in all `docker/docker-compose.*.yml` files.
+    - reserving [event codes](https://github.com/cossacklabs/acra/blob/0.90.0/logging/event_codes.go#L64) for log entries in range [550, 558] related to AcraWebConfig.
+- **AcraConnector**:
+  - Has been deprecated and will be removed in next releases. AcraServer and AcraTranslator will accept only direct TLS
+    connections from applications.
+  - Removed mentions and usage from [acra-engineering-demos](https://github.com/cossacklabs/acra-engineering-demo/tree/0.90.0).
+- **AcraKeymaker**:
+  - Don't require valid ClientID for key types not requires it [#454](https://github.com/cossacklabs/acra/pull/454).
+  - Removed `--generate_acrawebconfig_keys` flag according to AcraWebConfig/AcraAuthManager deprecation [#456](https://github.com/cossacklabs/acra/pull/456).
+- **AcraKeys**:
+  - `read` command supports symmetric encryption keys with ClientID and ZoneID [#472](https://github.com/cossacklabs/acra/pull/472/files).
+  - `generate` command supports rotation for symmetric encryption keys with ZoneID [#472](https://github.com/cossacklabs/acra/pull/472/files).
+  - Removed `--acrawebconfig_symmetric_key` flag according to AcraWebConfig/AcraAuthManager deprecation [#456](https://github.com/cossacklabs/acra/pull/456).
+  - Fixed proper handling CLI parameters related to Redis [#459](https://github.com/cossacklabs/acra/pull/459).
+- **AcraServer**:
+  - Removed `--auth_keys` parameter according to AcraWebConfig/AcraAuthManager deprecation [#456](https://github.com/cossacklabs/acra/pull/456).
+  - Removed `/loadAuthData`, `/getConfig`, `/setConfig` endpoints from HTTP API according to AcraWebConfig/AcraAuthManager deprecation [#456](https://github.com/cossacklabs/acra/pull/456).
+- **AcraTranslator**:
+  - Accepts `POST` HTTP request method additionally to `GET` for v2 API. Method `GET` marked as deprecated and warns with log message.
+  `Deprecated HTTP GET method was used. Please use HTTP POST method instead.` if was used [#466](https://github.com/cossacklabs/acra/pull/466).
+
+_Infrastructure_:
+- Build binaries with `-tags netgo` flag, that forces usage of Go resolver to solve issues related to resolving hostnames. 
+  between Docker containers. Updated `acra-build.dockerfile` used as base image for all `cossacklabs/acra-*` images ([#452](https://github.com/cossacklabs/acra/pull/452)).
+- Added missing parameter `--keystore=v1` for existing docker-compose files that caused errors ([#452](https://github.com/cossacklabs/acra/pull/452)).
+
+_Documentation_:
+- Has been updated UI design.
+- Improved guide about [integration AcraTranslator](https://docs.cossacklabs.com/acra/guides/integrating-acra-translator-into-new-infrastructure/) into infrastructure.
+- Extended description for AcraTranslator's [HTTP API](https://docs.cossacklabs.com/acra/guides/integrating-acra-translator-into-new-infrastructure/http_api/).
+
+_Example projects and demos_:
+- [Python examples](https://github.com/cossacklabs/acra/tree/0.90.0/examples/python): now work with TLS connections to 
+  AcraServer/Database. Also has been updated sqlalchemy version and binary column type from `Binary` to `LargeBinary` [#463](https://github.com/cossacklabs/acra/pull/463).
+- [acra-engineering-demos](https://github.com/cossacklabs/acra-engineering-demo/tree/0.90.0): has been removed AcraConnector from 
+  every example. All applications and services connect to AcraServer directly.
+
 ## [0.90.0](https://github.com/cossacklabs/acra/releases/tag/0.90.0), November 05th 2021
 
 _New_:

@@ -1,4 +1,4 @@
-version: 0.90.0
+version: 0.91.0
 # Use raw transport (tcp/unix socket) between AcraTranslator and client app. It turns off reading trace from client app's side which usually sent by AcraConnector (deprecated since 0.91.0, will be removed soon).
 acraconnector_transport_encryption_disable: false
 

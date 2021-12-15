@@ -1,4 +1,4 @@
-version: 0.90.0
+version: 0.91.0
 # Path to AcraCensor configuration file
 acracensor_config_file: 
 
