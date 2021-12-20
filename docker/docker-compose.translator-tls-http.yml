@@ -1,0 +1,49 @@
+version: "3"
+
+services:
+    # Create keys:
+    # - ./.acrakeys/acra-translator/${ACRA_CLIENT_ID}_storage
+    # - ./.acrakeys/acra-writer/${ACRA_CLIENT_ID}_storage.pub
+    acra-keymaker_writer:
+        image: "cossacklabs/acra-keymaker:${ACRA_DOCKER_IMAGE_TAG:-latest}"
+        network_mode: "none"
+        environment:
+            ACRA_MASTER_KEY: ${ACRA_MASTER_KEY:-UHZ3VUNNeTJ0SEFhbWVjNkt4eDdVYkc2WnNpUTlYa0E=}
+        volumes:
+            - ./.acrakeys:/keys
+            - ./ssl/acra-client:/ssl:ro
+        command: >-
+            --client_id=""
+            --tls_cert=/ssl/acra-client.crt
+            --generate_acrawriter_keys
+            --keys_output_dir=/keys/acra-translator
+            --keys_public_output_dir=/keys/acra-translator
+            --keystore=v1
+
+
+    acra-translator:
+        image: "cossacklabs/acra-translator:${ACRA_DOCKER_IMAGE_TAG:-latest}"
+        restart: always
+        depends_on:
+            - acra-keymaker_writer
+        environment:
+            ACRA_MASTER_KEY: ${ACRA_MASTER_KEY:-UHZ3VUNNeTJ0SEFhbWVjNkt4eDdVYkc2WnNpUTlYa0E=}
+        ports:
+            - "9595:9595"
+        volumes:
+            # Mount the directory with only the keys for this service
+            - ./.acrakeys/acra-translator:/keys:ro
+            # Mount directories with SSL certificates
+            - ./ssl/ca:/ssl.ca:ro
+            - ./ssl/acra-translator:/ssl.translator:ro
+        command: >-
+            --incoming_connection_http_string=http://0.0.0.0:9595
+            --keys_dir=/keys
+            --keystore_cache_size=100
+            --acratranslator_tls_transport_enable
+            --acraconnector_transport_encryption_disable
+            --tls_auth=4
+            --tls_ca=/ssl.ca/example.cossacklabs.com.crt
+            --tls_cert=/ssl.translator/acra-translator.crt
+            --tls_key=/ssl.translator/acra-translator.key
+            -v
