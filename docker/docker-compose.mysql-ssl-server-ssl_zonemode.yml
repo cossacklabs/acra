@@ -1,10 +1,7 @@
 version: "3"
 
 services:
-    # Create keys:
-    # - ./.acrakeys/acra-server/${ACRA_CLIENT_ID}_storage
-    # - ./.acrakeys/acra-writer/${ACRA_CLIENT_ID}_storage.pub
-    acra-keymaker_writer:
+    acra-keymaker_client:
         # You can specify docker image tag in the environment
         # variable ACRA_DOCKER_IMAGE_TAG or run by default with 'latest' images
         image: "cossacklabs/acra-keymaker:${ACRA_DOCKER_IMAGE_TAG:-latest}"
@@ -49,7 +46,7 @@ services:
         image: "cossacklabs/acra-server:${ACRA_DOCKER_IMAGE_TAG:-latest}"
         restart: on-failure
         depends_on:
-            - acra-keymaker_writer
+            - acra-keymaker_client
             - mysql
         # Open the port outside for client application
         ports:

@@ -1,10 +1,7 @@
 version: "3"
 
 services:
-    # Create keys:
-    # - ./.acrakeys/acra-translator/${ACRA_CLIENT_ID}_storage
-    # - ./.acrakeys/acra-writer/${ACRA_CLIENT_ID}_storage.pub
-    acra-keymaker_writer:
+    acra-keymaker_client:
         image: "cossacklabs/acra-keymaker:${ACRA_DOCKER_IMAGE_TAG:-latest}"
         network_mode: "none"
         environment:
@@ -25,7 +22,7 @@ services:
         image: "cossacklabs/acra-translator:${ACRA_DOCKER_IMAGE_TAG:-latest}"
         restart: always
         depends_on:
-             - acra-keymaker_writer
+             - acra-keymaker_client
         environment:
             ACRA_MASTER_KEY: ${ACRA_MASTER_KEY:-UHZ3VUNNeTJ0SEFhbWVjNkt4eDdVYkc2WnNpUTlYa0E=}
         ports:
