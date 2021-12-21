@@ -51,7 +51,7 @@ endif
 #----- Packages ----------------------------------------------------------------
 
 ## Application components to include
-PKG_COMPONENTS ?= addzone backup connector keymaker keys poisonrecordmaker rollback rotate server translator tokens
+PKG_COMPONENTS ?= addzone backup keymaker keys poisonrecordmaker rollback rotate server translator tokens
 
 ## Installation path prefix for packages
 PKG_INSTALL_PREFIX ?= /usr
@@ -239,7 +239,6 @@ keys: install
 docker-build:
 	$(call docker_build,acra-build)
 	$(call docker_build,acra-server)
-	$(call docker_build,acra-connector)
 	$(call docker_build,acra-translator)
 	$(call docker_build,acra-keymaker)
 	$(call docker_build,acra-tools)
@@ -254,7 +253,6 @@ docker-build-ci:
 ## Docker : tag and push image to remote registry
 docker-push:
 	$(call docker_push,acra-server)
-	$(call docker_push,acra-connector)
 	$(call docker_push,acra-translator)
 	$(call docker_push,acra-keymaker)
 	$(call docker_push,acra-tools)
