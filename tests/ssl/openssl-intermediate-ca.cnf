@@ -13,7 +13,7 @@ distinguished_name = req_dn
 [ v3_req ]
 basicConstraints = CA:false
 keyUsage = nonRepudiation, digitalSignature, keyEncipherment
-subjectAltName = DNS:localhost
+subjectAltName = @alt_names
 authorityInfoAccess = @ocsp_section
 crlDistributionPoints = @crl_section
 
@@ -62,3 +62,8 @@ OCSP;URI.0 = http://127.0.0.1:8888
 
 [ crl_section ]
 URI.0 = http://127.0.0.1:8889/crl.pem
+
+# use service name as additional subjectAlternative name to use in docker-compose files and access via service names
+[ alt_names ]
+DNS.0 = localhost
+DNS.1 = ${ENV::SAN}
