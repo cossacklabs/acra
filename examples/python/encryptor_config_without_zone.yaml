@@ -11,7 +11,6 @@ schemas:
       - token_email
     encrypted:
       - column: data
-        client_id: client
       - column: masking
         masking: "xxxx"
         plaintext_length: 3

@@ -14,21 +14,11 @@
 # coding: utf-8
 import argparse
 import json
-import os
-from base64 import b64decode
 
 from sqlalchemy.dialects import postgresql
-from sqlalchemy.dialects.postgresql import BYTEA
+from sqlalchemy import (Table, Column, Integer, MetaData, select, LargeBinary, Text, BigInteger)
+from common import get_engine, get_default, register_common_cli_params
 
-try:
-    # For Python 3.0 and later
-    from urllib.request import urlopen
-except ImportError:
-    # Fall back to Python 2's urllib2
-    from urllib2 import urlopen
-
-from sqlalchemy import (Table, Column, Integer, MetaData, create_engine,
-                        select, LargeBinary, Text, BigInteger, cast, text, literal)
 
 metadata = MetaData()
 test_table = Table(
@@ -53,12 +43,6 @@ table_map = {
     test_table.name: test_table,
     rotation_test_table.name: rotation_test_table,
 }
-
-
-def get_default(name, value):
-    """return value from environment variables with name EXAMPLE_<name>
-    or value"""
-    return os.environ.get('EXAMPLE_{}'.format(name.upper()), value)
 
 
 def print_data(connection, columns, table=test_table):
@@ -117,64 +101,22 @@ def write_data(data, connection, table=test_table):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument('--db_name', type=str,
-                        default=get_default('db_name', 'acra'),
-                        help='Database name')
-    parser.add_argument('--db_user', type=str,
-                        default=get_default('db_user', 'test'),
-                        help='Database user')
-    parser.add_argument('--db_password', type=str,
-                        default=get_default('db_password', 'test'),
-                        help='Database user\'s password')
-    parser.add_argument('--port', type=int,
-                        default=get_default('port', 9494),
-                        help='Port of database or AcraConnector')
-    parser.add_argument('--host', type=str,
-                        default=get_default('host', 'localhost'),
-                        help='Host of database or AcraConnector')
+    register_common_cli_params(parser)
     parser.add_argument('--data', type=str,
                         default=get_default('data', ''),
                         help='data to save in ascii. default random data')
-    parser.add_argument('--print', action='store_true',
-                        default=get_default('print', False),
-                        help='Print data ')
-    parser.add_argument('--ssl_mode', action='store_true',
-                        default=get_default('ssl_mode', False),
-                        help='SSL connection mode')
-    parser.add_argument('--tls_root_cert', action='store_true',
-                        default=get_default('tls_root_cert', False),
-                        help='Path to root certificate used in TLS connection')
-    parser.add_argument('--tls_key', action='store_true',
-                        default=get_default('tls_key', False),
-                        help='Path to client TLS key used in TLS connection')
-    parser.add_argument('--tls_cert', action='store_true',
-                        default=get_default('tls_cert', False),
-                        help='Path to client TLS certificate used in TLS connection')
-    parser.add_argument('-v', '--verbose', dest='verbose', action='store_true',
-                        default=get_default('verbose', False), help='verbose')
     parser.add_argument('-c', '--columns', nargs='+', dest='columns',
                         default=get_default('columns', False), help='List of columns to display')
     parser.add_argument('--db_table', default=test_table.name, help='Table used to read/write data')
     args = parser.parse_args()
 
-    driver = 'postgresql'
-    ssl_args = {
-        'sslmode': args.ssl_mode,
-        'sslrootcert': args.tls_root_cert,
-        'sslkey': args.tls_key,
-        'sslcert': args.tls_cert,
-    }
-
-    engine = create_engine(
-        '{}://{}:{}@{}:{}/{}'.format(
-            driver, args.db_user, args.db_password, args.host, args.port,
-            args.db_name),
-        connect_args=ssl_args,
-        echo=bool(args.verbose))
+    engine = get_engine(
+        db_host=args.host, db_port=args.port, db_user=args.db_user, db_password=args.db_password,
+        db_name=args.db_name, is_mysql=args.mysql, is_postgresql=args.postgresql,
+        tls_ca=args.tls_root_cert, tls_key=args.tls_key, tls_crt=args.tls_cert,
+        sslmode=args.ssl_mode, verbose=args.verbose)
     connection = engine.connect()
     metadata.create_all(engine)
-
-    print('DB driver: {}'.format(driver))
 
     if args.print:
         print_data(connection, args.columns, table_map[args.db_table])

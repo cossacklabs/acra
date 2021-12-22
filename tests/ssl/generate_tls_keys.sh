@@ -43,8 +43,6 @@ gen_cert() {
     esac
 
     config="$(dirname $0)/openssl-$signer.cnf"
-    signer_crt="${OUT_DIR}/$signer/$signer.crt"
-    signer_key="${OUT_DIR}/$signer/$signer.key"
 
     [ -e "$OUT_DIR/$signer/index.txt" ] || touch "$OUT_DIR/$signer/index.txt"
     [ -e "$OUT_DIR/$signer/serial" ] || echo 01 > "$OUT_DIR/$signer/serial"
@@ -64,6 +62,9 @@ gen_cert() {
         -key "${OUT_DIR}/${name}/${name}.key" \
         -out "${OUT_DIR}/${name}/${name}.csr" \
         -subj "$subj"
+
+    # use service name as additional subjectAlternative name to use in docker-compose files and access via service names
+    export SAN="${name}"
 
     # Sign certificate with CA private key, adding appropriate extensions.
     # The extensions issue certificate for "localhost" which validates locally
@@ -108,7 +109,7 @@ gen_crl() {
         -out "${OUT_DIR}/$signer/crl.pem"
 }
 
-declare -a names=("mysql" "postgresql" "acra-writer" "acra-writer-2" "acra-writer-revoked" "acra-server" "ocsp-responder" "intermediate-ca", "vault")
+declare -a names=("mysql" "postgresql" "acra-writer" "acra-writer-2" "acra-writer-revoked" "acra-server" "ocsp-responder" "intermediate-ca" "vault" 'acra-client')
 for name in "${names[@]}"; do
     gen_cert ca $name
 
