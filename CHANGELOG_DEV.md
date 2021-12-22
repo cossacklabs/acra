@@ -1,3 +1,8 @@
+## 0.92.0 - 2021-12-22
+- Extend python examples, add mysql support
+- Generate certificates with service names as additional SAN for docker-compose files. Extend bash script to support several
+  SAN values.
+
 ## 0.91.0 - 2021-12-15
 ### Deprecated
 - `acra-connector` - deprecated and will be removed in next releases. All related flags in
