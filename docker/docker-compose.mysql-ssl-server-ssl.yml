@@ -1,10 +1,7 @@
 version: "3"
 
 services:
-    # Create keys:
-    # - ./.acrakeys/acra-server/${ACRA_CLIENT_ID}_storage
-    # - ./.acrakeys/acra-writer/${ACRA_CLIENT_ID}_storage.pub
-    acra-keymaker_writer:
+    acra-keymaker_client:
         # You can specify docker image tag in the environment
         # variable ACRA_DOCKER_IMAGE_TAG or run by default with 'latest' images
         image: "cossacklabs/acra-keymaker:${ACRA_DOCKER_IMAGE_TAG:-latest}"
@@ -18,13 +15,13 @@ services:
             # Mount the whole ./.acrakeys directory to be able generate keys and
             # place them in services' subdirectories
             - ./.acrakeys:/keys
-        # Please specify ACRA_CLIENT_ID environment variable, otherwise run with
-        # default 'testclientid' client id
+            - ./ssl/acra-client:/ssl:ro
         command: >-
-            --client_id=${ACRA_CLIENT_ID:-testclientid}
+            --client_id=""
+            --tls_cert=/ssl/acra-client.crt
             --generate_acrawriter_keys
             --keys_output_dir=/keys/acra-server
-            --keys_public_output_dir=/keys/acra-writer
+            --keys_public_output_dir=/keys/acra-server
             --keystore=v1
 
     # MySQL container
@@ -44,28 +41,18 @@ services:
         # Open the port outside for writer
         ports:
             - "3306:3306"
-        # We use internal 'server-mysql' network for AcraServer and
-        # DB interconnection and external network 'world' for port exposing
-        networks:
-            - server-mysql
-            - world
 
     acra-server:
         image: "cossacklabs/acra-server:${ACRA_DOCKER_IMAGE_TAG:-latest}"
         restart: on-failure
         depends_on:
-            - acra-keymaker_writer
+            - acra-keymaker_client
             - mysql
         # Open the port outside for client application
         ports:
             - "9393:9393"
         environment:
             ACRA_MASTER_KEY: ${ACRA_SERVER_MASTER_KEY:-N0MyZEVCRGY1cHA4ODRSVHp3c3BNeGtDekxaV3BhTHI=}
-        # We use internal network 'server-mysql' for AcraServer and
-        # DB interconnection and external network 'world' for port exposing
-        networks:
-            - server-mysql
-            - world
         volumes:
             # Mount the directory with only the keys for this service
             - ./.acrakeys/acra-server:/keys:ro
@@ -76,16 +63,13 @@ services:
             --mysql_enable
             --db_host=mysql
             --db_port=3306
-            --client_id=${ACRA_CLIENT_ID:-testclientid}
             --keys_dir=/keys
+            --tls_auth=4
+            --tls_client_id_from_cert
+            --tls_identifier_extractor_type=distinguished_name
+            --acraconnector_transport_encryption_disable
             --tls_ca=/ssl.ca/example.cossacklabs.com.crt
             --tls_cert=/ssl.server/acra-server.crt
             --tls_key=/ssl.server/acra-server.key
             --tls_db_sni=mysql
-            --acraconnector_transport_encryption_disable
             -v
-
-networks:
-    world:
-    server-mysql:
-        internal: true

@@ -76,7 +76,7 @@ COPY ./ "${PATH_ACRA}/"
 RUN cd "${PATH_ACRA}" && go install -tags netgo ./cmd/...
 
 # Copy each product and its dependencies to resulting directories
-RUN for component in connector keymaker server tools translator; do \
+RUN for component in keymaker server tools translator; do \
         ADD_COMPONENTS=(); \
         if [ "$component" == 'tools' ]; then \
             ADD_COMPONENTS+=('addzone' 'backup' 'keymaker' 'keys' 'poisonrecordmaker' 'rollback' 'rotate' 'tokens'); \
