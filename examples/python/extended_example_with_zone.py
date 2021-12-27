@@ -14,6 +14,8 @@
 # coding: utf-8
 import argparse
 import json
+import ssl
+
 from sqlalchemy.dialects import postgresql
 
 from sqlalchemy import (Table, Column, Integer, MetaData, select, LargeBinary, Text, BigInteger, literal)
@@ -116,7 +118,12 @@ if __name__ == '__main__':
             exit(1)
         print_data(connection, args.zone_id, args.columns)
     elif args.generate_zone:
-        zone_id, public = get_zone()
+        context = None
+        if args.tls_root_cert and args.tls_cert and args.tls_key:
+            context = ssl.create_default_context(ssl.Purpose.CLIENT_AUTH, cafile=args.tls_root_cert)
+            context.load_cert_chain(certfile=args.tls_cert, keyfile=args.tls_key)
+        # context is not used for now until we finish task 2418
+        zone_id, public = get_zone(sslcontext=None)
         print('zone_id: {}\nzone public key in base64: {}'.format(zone_id, public))
     elif args.data:
         write_data(args.data, connection)

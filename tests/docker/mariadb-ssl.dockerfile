@@ -1,4 +1,4 @@
-FROM mariadb:10.3
+FROM mariadb:10.7.1
 
 # Original init script expects empty /var/lib/mysql so we initially place
 # certificates to the intermediate directory
