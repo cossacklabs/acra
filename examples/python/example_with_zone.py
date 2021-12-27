@@ -13,6 +13,7 @@
 # limitations under the License.
 # coding: utf-8
 import argparse
+import ssl
 from sqlalchemy import (Table, Column, Integer, MetaData, select, LargeBinary, Text, cast)
 from sqlalchemy.dialects.postgresql import BYTEA
 from acrawriter import create_acrastruct
@@ -36,8 +37,8 @@ def print_data(zone_id, connection):
             row['data'].decode('utf-8', errors='ignore'), row['raw_data']))
 
 
-def write_data(data, connection):
-    zone_id, key = get_zone()
+def write_data(data, connection, sslcontext=None):
+    zone_id, key = get_zone(sslcontext=sslcontext)
     print("data: {}\nzone: {}".format(data, zone_id))
 
     # here we encrypt our data and wrap into AcraStruct
@@ -87,7 +88,12 @@ if __name__ == '__main__':
                   "zone id with public key after execution. Don't use "
                   "--zone_id option with --data option.")
             exit(1)
-        write_data(args.data, connection)
+        context = None
+        if args.tls_root_cert and args.tls_cert and args.tls_key:
+            context = ssl.create_default_context(ssl.Purpose.CLIENT_AUTH, cafile=args.tls_root_cert)
+            context.load_cert_chain(certfile=args.tls_cert, keyfile=args.tls_key)
+        # context is not used for now until we finish task 2418
+        write_data(args.data, connection, sslcontext=None)
     else:
         print('Use --print or --data options')
         exit(1)

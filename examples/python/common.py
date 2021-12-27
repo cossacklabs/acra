@@ -55,13 +55,13 @@ def get_default(name, value):
     return os.environ.get('EXAMPLE_{}'.format(name.upper()), value)
 
 
-def get_zone():
+def get_zone(sslcontext=None):
     """make http response to AcraServer api to generate new zone and return tuple
     of zone id and public key
     """
     ACRA_SERVER_API_ADDRESS = get_default(
         'acra_server_api_address', 'http://127.0.0.1:9191')
-    response = urlopen('{}/getNewZone'.format(ACRA_SERVER_API_ADDRESS))
+    response = urlopen('{}/getNewZone'.format(ACRA_SERVER_API_ADDRESS), context=sslcontext)
     json_data = response.read().decode('utf-8')
     zone_data = json.loads(json_data)
     return zone_data['id'], b64decode(zone_data['public_key'])
