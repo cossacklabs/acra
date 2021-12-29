@@ -679,3 +679,30 @@ func TestEmptyQuery(t *testing.T) {
 		}
 	}
 }
+
+func TestUnknownCastVal(t *testing.T) {
+	type testcase struct {
+		expr      Expr
+		castType  []byte
+		resultVal []byte
+	}
+	testcases := []testcase{
+		{
+			expr:      &NullVal{},
+			castType:  []byte(`::text`),
+			resultVal: nil,
+		},
+	}
+	for _, tcase := range testcases {
+		value := NewCastVal(tcase.expr, tcase.castType)
+		if value.unknown != tcase.expr {
+			t.Fatal("Unknown value != source expression")
+		}
+		if !bytes.Equal(value.Val, tcase.resultVal) {
+			t.Fatal("SQLVal.Val != expected value")
+		}
+		if !bytes.Equal(value.CastType, tcase.castType) {
+			t.Fatal("SQLVal.CastType != expected cast type")
+		}
+	}
+}

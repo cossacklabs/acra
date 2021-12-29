@@ -1339,6 +1339,8 @@ func (node *SQLVal) Format(buf *TrackedBuffer) {
 		buf.Myprintf("E'%s'", sqltypes.EncodeBytesSQLWithoutQuotes(node.Val))
 	case PgPlaceholder:
 		buf.Myprintf("%s", []byte(node.Val))
+	case UnknownVal:
+		node.unknown.Format(buf)
 	default:
 		panic("unexpected")
 	}

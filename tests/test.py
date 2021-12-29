@@ -8762,15 +8762,6 @@ class TestInvalidCryptoEnvelope(unittest.TestCase):
         self.assertTrue(found, "Not found any expected exception")
 
 
-class TestPanicRecover(AcraCatchLogsMixin, BaseTestCase):
-    def testRecovering(self):
-        with self.assertRaises(DatabaseError):
-            # call unsupported query by sqlparser
-            self.engine1.execute('select null::text from dual;')
-
-        self.assertIn('panic in connection processing, close connection', self.read_log(self.acra).lower())
-
-
 class TestRegressionInvalidOctalEncoding(BaseTokenizationWithBinaryPostgreSQL):
     def testOctalIntegerValue(self):
         default_client_id_table = sa.Table(
