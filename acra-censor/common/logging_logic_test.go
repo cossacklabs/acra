@@ -16,7 +16,7 @@ const testSerializationTime = 100 * time.Millisecond
 
 // sleepTime provide extra time to serialize in background goroutine before check
 // default value that will be changed for tests in init function
-const sleepTime = testSerializationTime * 2
+const sleepTime = testSerializationTime * 3
 
 func initTestWriter(queryWriter *QueryWriter) {
 	// change ticker

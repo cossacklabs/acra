@@ -61,6 +61,8 @@ ENV PATH="$GOROOT/bin:/home/user/gopath/bin:/home/user/.local/bin:$PATH"
 # Install some Go linters
 RUN go get -u -v golang.org/x/lint/golint && \
     go get -u -v github.com/client9/misspell/cmd/misspell && \
+    go install golang.org/x/tools/cmd/goyacc && \
+    go install github.com/swaggo/swag/cmd/swag@latest && \
     go get -u -v github.com/gordonklaus/ineffassign
 
 # download dependencies to avoid next downloads in tests
