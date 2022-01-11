@@ -1221,8 +1221,14 @@ const (
 	ValArg
 	BitVal
 	PgEscapeString
-	Casted
 	PgPlaceholder
+	// Use this type for casted values that are different from SQLVal.
+	// because we have existing logic of comparison and formatting SQLVal
+	// and it easier to extend this one instead of propagating postgresql value conversion
+	// to all kinds of Expr. Maybe in a future when we will know more cases when it useful for
+	// our data manipulation, we will refactor it. Now it's just to support generic queries and avoid
+	// a lot of refactoring of sql.y and SQL grammar
+	UnknownVal
 )
 
 // SQLVal represents a single value.
@@ -1230,12 +1236,17 @@ type SQLVal struct {
 	Type     ValType
 	Val      []byte
 	CastType []byte
+	unknown  Expr
 }
 
 // NewCastVal builds new CastVal
 func NewCastVal(val Expr, castType []byte) *SQLVal {
-	v := val.(*SQLVal)
-	return &SQLVal{Type: v.Type, Val: v.Val, CastType: castType}
+	switch v := val.(type) {
+	case *SQLVal:
+		return &SQLVal{Type: v.Type, Val: v.Val, CastType: castType}
+	default:
+		return &SQLVal{unknown: val, Type: UnknownVal, CastType: castType}
+	}
 }
 
 // ErrInvalidStringLiteralQuotes if used string token as literal with incorrect quotes

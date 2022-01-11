@@ -1,3 +1,6 @@
+## 0.92.0 - 2021-12-29
+- Improve sqlparser, support `null::text` type casts and avoid panics.
+
 ## 0.92.0 - 2021-12-22
 - Extend python examples, add mysql support
 - Generate certificates with service names as additional SAN for docker-compose files. Extend bash script to support several

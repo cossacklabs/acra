@@ -1315,6 +1315,9 @@ var (
 	}, {
 		input:  "drop database if exists test_db",
 		output: "drop database test_db",
+	}, {
+		input:  "select NULL::text from dual",
+		output: "select null::text from dual",
 	}}
 )
 
