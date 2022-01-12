@@ -18,6 +18,7 @@ package common
 
 import (
 	"errors"
+	"github.com/cossacklabs/acra/network"
 	"io/ioutil"
 
 	acracensor "github.com/cossacklabs/acra/acra-censor"
@@ -25,7 +26,6 @@ import (
 	encryptorConfig "github.com/cossacklabs/acra/encryptor/config"
 	"github.com/cossacklabs/acra/keystore"
 	"github.com/cossacklabs/acra/logging"
-	"github.com/cossacklabs/acra/network"
 	log "github.com/sirupsen/logrus"
 	"go.opencensus.io/trace"
 )
@@ -46,7 +46,6 @@ type Config struct {
 	postgresql              bool
 	debug                   bool
 	censor                  acracensor.AcraCensorInterface
-	withConnector           bool
 	TraceToLog              bool
 	tableSchema             encryptorConfig.TableSchemaStore
 	dataEncryptor           encryptor.DataEncryptor
@@ -63,7 +62,7 @@ func NewConfig() (*Config, error) {
 		return nil, err
 	}
 	traceOptions := []trace.StartOption{trace.WithSpanKind(trace.SpanKindServer), trace.WithSampler(trace.AlwaysSample())}
-	return &Config{withZone: false, mysql: false, postgresql: false, withConnector: true, tableSchema: schemaStore, traceOptions: traceOptions}, nil
+	return &Config{withZone: false, mysql: false, postgresql: false, tableSchema: schemaStore, traceOptions: traceOptions}, nil
 }
 
 // ErrTwoDBSetup shows that AcraServer can connects only to one database at the same time
@@ -73,16 +72,6 @@ var ErrTwoDBSetup = errors.New("only one db supported at one time")
 func (config *Config) SetDBConnectionSettings(host string, port int) {
 	config.dbHost = host
 	config.dbPort = port
-}
-
-// WithConnector shows that AcraServer expects connections from AcraConnector
-func (config *Config) WithConnector() bool {
-	return config.withConnector
-}
-
-// SetWithConnector set that acra-server will or not accept connections from acra-connector
-func (config *Config) SetWithConnector(v bool) {
-	config.withConnector = v
 }
 
 // LoadMapTableSchemaConfig load table schemas from config file
