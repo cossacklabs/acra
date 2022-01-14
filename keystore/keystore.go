@@ -211,32 +211,10 @@ func (encryptor *SCellKeyEncryptor) Decrypt(key, context []byte) ([]byte, error)
 	return encryptor.scell.Unprotect(key, nil, context)
 }
 
-// SecureSessionKeyStore provides access to transport keys, used for Themis Secure Session connections.
-type SecureSessionKeyStore interface {
-	GetPrivateKey(id []byte) (*keys.PrivateKey, error)
-	GetPeerPublicKey(id []byte) (*keys.PublicKey, error)
-}
-
 // TransportKeyStore provides access to transport keys. It is used by acra-connector tool.
 type TransportKeyStore interface {
-	SecureSessionKeyStore
 	AuditLogKeyStore
 	CheckIfPrivateKeyExists(clientID []byte) (bool, error)
-}
-
-// TransportKeyCreation enables creation of new transport key pairs and rotation of existing ones.
-type TransportKeyCreation interface {
-	GenerateConnectorKeys(id []byte) error
-	SaveConnectorKeypair(id []byte, keypair *keys.Keypair) error
-	DestroyConnectorKeypair(id []byte) error
-
-	GenerateServerKeys(id []byte) error
-	SaveServerKeypair(id []byte, keypair *keys.Keypair) error
-	DestroyServerKeypair(id []byte) error
-
-	GenerateTranslatorKeys(id []byte) error
-	SaveTranslatorKeypair(id []byte, keypair *keys.Keypair) error
-	DestroyTranslatorKeypair(id []byte) error
 }
 
 // PublicKeyStore provides access to storage public keys, used to encrypt data for storage.
@@ -303,7 +281,6 @@ type StorageKeyGenerator interface {
 // KeyMaking enables keystore initialization. It is used by acra-keymaker tool.
 type KeyMaking interface {
 	StorageKeyCreation
-	TransportKeyCreation
 	PoisonKeyStore
 	AuditLogKeyGenerator
 	HmacKeyGenerator
@@ -322,7 +299,6 @@ type PoisonKeyStore interface {
 // and secure communication of acra-server with other services.
 type ServerKeyStore interface {
 	DecryptionKeyStore
-	SecureSessionKeyStore
 	StorageKeyCreation
 	AuditLogKeyStore
 	SymmetricEncryptionKeyStoreGenerator
@@ -346,6 +322,5 @@ type KeyDescription struct {
 // TranslationKeyStore enables AcraStruct translation. It is used by acra-translator tool.
 type TranslationKeyStore interface {
 	DecryptionKeyStore
-	SecureSessionKeyStore
 	AuditLogKeyStore
 }

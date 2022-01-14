@@ -757,24 +757,6 @@ func (store *KeyStore) SaveZoneKeypair(id []byte, keypair *keys.Keypair) error {
 	return store.SaveKeyPairWithFilename(keypair, filename, id)
 }
 
-// SaveConnectorKeypair save or overwrite acra-connector keypair
-func (store *KeyStore) SaveConnectorKeypair(id []byte, keypair *keys.Keypair) error {
-	filename := getConnectorKeyFilename(id)
-	return store.SaveKeyPairWithFilename(keypair, filename, id)
-}
-
-// SaveServerKeypair save or overwrite acra-server keypair
-func (store *KeyStore) SaveServerKeypair(id []byte, keypair *keys.Keypair) error {
-	filename := getServerKeyFilename(id)
-	return store.SaveKeyPairWithFilename(keypair, filename, id)
-}
-
-// SaveTranslatorKeypair save or overwrite acra-translator keypair
-func (store *KeyStore) SaveTranslatorKeypair(id []byte, keypair *keys.Keypair) error {
-	filename := getTranslatorKeyFilename(id)
-	return store.SaveKeyPairWithFilename(keypair, filename, id)
-}
-
 // SaveDataEncryptionKeys save or overwrite decryption keypair for client id
 func (store *KeyStore) SaveDataEncryptionKeys(id []byte, keypair *keys.Keypair) error {
 	filename := GetServerDecryptionKeyFilename(id)

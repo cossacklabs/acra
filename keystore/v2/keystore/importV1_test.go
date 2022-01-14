@@ -17,12 +17,12 @@
 package keystore
 
 import (
+	"crypto/subtle"
 	"io/ioutil"
 	"os"
 	"path/filepath"
 	"testing"
 
-	connectorMode "github.com/cossacklabs/acra/cmd/acra-connector/connector-mode"
 	keystoreV1 "github.com/cossacklabs/acra/keystore"
 	filesystemV1 "github.com/cossacklabs/acra/keystore/filesystem"
 	cryptoV2 "github.com/cossacklabs/acra/keystore/v2/keystore/crypto"
@@ -35,6 +35,14 @@ var (
 	testEncryptionKey = []byte("test encryptionn key")
 	testSignatureKey  = []byte("test signature key")
 )
+
+func equalPrivateKeys(a, b *keys.PrivateKey) bool {
+	return subtle.ConstantTimeCompare(a.Value, b.Value) == 1
+}
+
+func equalPublicKeys(a, b *keys.PublicKey) bool {
+	return subtle.ConstantTimeCompare(a.Value, b.Value) == 1
+}
 
 func TestImportKeyStoreV1(t *testing.T) {
 	// Prepare root keystore directory (for both versions)
@@ -68,10 +76,6 @@ func TestImportKeyStoreV1(t *testing.T) {
 		t.Fatalf("failed to initialize keystore v2: %v", err)
 	}
 	keyStoreV2 := NewServerKeyStore(keyDirectoryV2)
-	keyStoreV2connectorServer := NewConnectorKeyStore(keyDirectoryV2, clientID, connectorMode.AcraServerMode)
-	keyStoreV2connectorTranslator := NewConnectorKeyStore(keyDirectoryV2, clientID, connectorMode.AcraTranslatorMode)
-	keyStoreV2translator := NewTranslatorKeyStore(keyDirectoryV2)
-
 	// Prepare various keys for testing.
 	err = keyStoreV1.GenerateDataEncryptionKeys(clientID)
 	if err != nil {
@@ -99,30 +103,6 @@ func TestImportKeyStoreV1(t *testing.T) {
 	}
 	// Since we cannot access all generated key pairs via AcraServer keystore,
 	// we generate them here and use Save... API
-	connectorKeyPairV1, err := keys.New(keys.TypeEC)
-	if err != nil {
-		t.Errorf("keys.New() failed: %v", err)
-	}
-	err = keyStoreV1.SaveConnectorKeypair(clientID, connectorKeyPairV1)
-	if err != nil {
-		t.Errorf("SaveConnectorKeypair() failed: %v", err)
-	}
-	serverKeyPairV1, err := keys.New(keys.TypeEC)
-	if err != nil {
-		t.Errorf("keys.New() failed: %v", err)
-	}
-	err = keyStoreV1.SaveServerKeypair(clientID, serverKeyPairV1)
-	if err != nil {
-		t.Errorf("SaveServerKeypair() failed: %v", err)
-	}
-	translatorKeyPairV1, err := keys.New(keys.TypeEC)
-	if err != nil {
-		t.Errorf("keys.New() failed: %v", err)
-	}
-	err = keyStoreV1.SaveTranslatorKeypair(clientID, translatorKeyPairV1)
-	if err != nil {
-		t.Errorf("SaveTranslatorKeypair() failed: %v", err)
-	}
 	poisonKeyPairV1, err := keyStoreV1.GetPoisonKeyPair()
 	if err != nil {
 		t.Errorf("GetPoisonKeyPair() failed: %v", err)
@@ -146,64 +126,6 @@ func TestImportKeyStoreV1(t *testing.T) {
 	}
 	if !equalKeyPairs(poisonKeyPairV1, poisonKeyPairV2) {
 		t.Errorf("poison record key pair corrupted")
-	}
-	// Pay close attention here, transport keys are a bit complicated.
-	// They cannot be all accessed via server keystore alone.
-	serverPeerPublicKeyV2, err := keyStoreV2.GetPeerPublicKey(clientID)
-	if err != nil {
-		t.Errorf("GetPeerPublicKey() failed: %v", err)
-	}
-	serverPrivateKeyV2, err := keyStoreV2.GetPrivateKey(clientID)
-	if err != nil {
-		t.Errorf("GetPrivateKey() failed: %v", err)
-	}
-	if !equalPublicKeys(connectorKeyPairV1.Public, serverPeerPublicKeyV2) {
-		t.Errorf("server peer public key corrupted")
-	}
-	if !equalPrivateKeys(serverKeyPairV1.Private, serverPrivateKeyV2) {
-		t.Errorf("server private key corrupted")
-	}
-	connectorServerPeerPublicKeyV2, err := keyStoreV2connectorServer.GetPeerPublicKey(clientID)
-	if err != nil {
-		t.Errorf("GetPeerPublicKey() failed: %v", err)
-	}
-	connectorServerPrivateKeyV2, err := keyStoreV2connectorServer.GetPrivateKey(clientID)
-	if err != nil {
-		t.Errorf("GetPrivateKey() failed: %v", err)
-	}
-	if !equalPublicKeys(serverKeyPairV1.Public, connectorServerPeerPublicKeyV2) {
-		t.Errorf("server peer public key corrupted")
-	}
-	if !equalPrivateKeys(connectorKeyPairV1.Private, connectorServerPrivateKeyV2) {
-		t.Errorf("server private key corrupted")
-	}
-	connectorTranslatorPeerPublicKeyV2, err := keyStoreV2connectorTranslator.GetPeerPublicKey(clientID)
-	if err != nil {
-		t.Errorf("GetPeerPublicKey() failed: %v", err)
-	}
-	connectorTranslatorPrivateKeyV2, err := keyStoreV2connectorTranslator.GetPrivateKey(clientID)
-	if err != nil {
-		t.Errorf("GetPrivateKey() failed: %v", err)
-	}
-	if !equalPublicKeys(translatorKeyPairV1.Public, connectorTranslatorPeerPublicKeyV2) {
-		t.Errorf("server peer public key corrupted")
-	}
-	if !equalPrivateKeys(connectorKeyPairV1.Private, connectorTranslatorPrivateKeyV2) {
-		t.Errorf("server private key corrupted")
-	}
-	translatorPeerPublicKeyV2, err := keyStoreV2translator.GetPeerPublicKey(clientID)
-	if err != nil {
-		t.Errorf("GetPeerPublicKey() failed: %v", err)
-	}
-	translatorPrivateKeyV2, err := keyStoreV2translator.GetPrivateKey(clientID)
-	if err != nil {
-		t.Errorf("GetPrivateKey() failed: %v", err)
-	}
-	if !equalPublicKeys(connectorKeyPairV1.Public, translatorPeerPublicKeyV2) {
-		t.Errorf("server peer public key corrupted")
-	}
-	if !equalPrivateKeys(translatorKeyPairV1.Private, translatorPrivateKeyV2) {
-		t.Errorf("server private key corrupted")
 	}
 	// Storage keys are easier to comprehend.
 	storagePublicKeyV2, err := keyStoreV2.GetClientIDEncryptionPublicKey(clientID)

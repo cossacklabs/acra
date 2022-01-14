@@ -40,9 +40,6 @@ type GenerateKeyParams interface {
 	GenerateMasterKeyFile() string
 
 	ClientID() []byte
-	GenerateAcraConnector() bool
-	GenerateAcraServer() bool
-	GenerateAcraTranslator() bool
 	GenerateAcraWriter() bool
 	GenerateAcraBlocks() bool
 	GenerateSearchHMAC() bool
@@ -260,8 +257,7 @@ func ValidateClientID(params GenerateKeyParams) error {
 		// Unless we're only generating the master key.
 		masterKey := params.GenerateMasterKeyFile() != ""
 		firstGeneration := params.KeystoreVersion() != ""
-		requestedClientKeys := params.GenerateAcraConnector() || params.GenerateAcraServer() ||
-			params.GenerateAcraTranslator() || params.GenerateAcraWriter() || params.GenerateAcraBlocks() || params.GenerateSearchHMAC()
+		requestedClientKeys := params.GenerateAcraWriter() || params.GenerateAcraBlocks() || params.GenerateSearchHMAC()
 
 		requestedNonClientKeys := params.GeneratePoisonRecord() || params.GenerateAuditLog()
 
@@ -399,9 +395,6 @@ const (
 // GenerateAcraKeys generates Acra CE keys as specified by the parameters.
 // Returns true if some keys have been generated.
 func GenerateAcraKeys(params GenerateKeyParams, keyStore keystore.KeyMaking, defaultKeys DefaultKeyAction) (bool, error) {
-	generateAcraConnector := params.GenerateAcraConnector()
-	generateAcraServer := params.GenerateAcraServer()
-	generateAcraTranslator := params.GenerateAcraTranslator()
 	generateAcraWriter := params.GenerateAcraWriter()
 
 	generateAcraBlocks := params.GenerateAcraBlocks()
@@ -424,9 +417,6 @@ func GenerateAcraKeys(params GenerateKeyParams, keyStore keystore.KeyMaking, def
 		overrideDefaultSet = true
 	}
 	if overrideDefaultSet {
-		generateAcraConnector = true
-		generateAcraServer = true
-		generateAcraTranslator = true
 		generateAcraWriter = true
 		generateAcraBlocks = true
 		generateSearchHMAC = true
@@ -440,33 +430,6 @@ func GenerateAcraKeys(params GenerateKeyParams, keyStore keystore.KeyMaking, def
 	// instead of keeping an ominous silence.
 	didSomething := false
 
-	if generateAcraConnector {
-		err := keyStore.GenerateConnectorKeys(params.ClientID())
-		if err != nil {
-			log.WithError(err).Error("Failed to generate AcraConnector transport key")
-			return didSomething, err
-		}
-		log.Info("Generated AcraConnector transport key")
-		didSomething = true
-	}
-	if generateAcraServer {
-		err := keyStore.GenerateServerKeys(params.ClientID())
-		if err != nil {
-			log.WithError(err).Error("Failed to generate AcraServer transport key")
-			return didSomething, err
-		}
-		log.Info("Generated AcraServer transport key")
-		didSomething = true
-	}
-	if generateAcraTranslator {
-		err := keyStore.GenerateTranslatorKeys(params.ClientID())
-		if err != nil {
-			log.WithError(err).Error("Failed to generate AcraTranslator transport key")
-			return didSomething, err
-		}
-		log.Info("Generated AcraTranslator transport key")
-		didSomething = true
-	}
 	if generateAcraWriter {
 		err := keyStore.GenerateDataEncryptionKeys(params.ClientID())
 		if err != nil {

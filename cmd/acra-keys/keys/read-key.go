@@ -114,7 +114,7 @@ func (p *ReadKeySubcommand) Parse(arguments []string) error {
 		return err
 	}
 	switch coarseKind {
-	case KeyTransportConnector, KeyTransportServer, KeyTransportTranslator, KeySymmetric, KeyZoneSymmetric:
+	case KeySymmetric, KeyZoneSymmetric:
 		p.readKeyKind = coarseKind
 		p.contextID = id
 

@@ -65,10 +65,6 @@ const (
 
 	KeySymmetric     = "symmetric-key"
 	KeyZoneSymmetric = "symmetric-zone-key"
-
-	KeyTransportConnector  = "transport-connector"
-	KeyTransportServer     = "transport-server"
-	KeyTransportTranslator = "transport-translator"
 )
 
 // Comman-line parsing errors:
@@ -184,19 +180,6 @@ func ParseKeyKind(keyID string) (string, []byte, error) {
 				return KeyZoneSymmetric, id, nil
 			case "storage":
 				return KeyZoneKeypair, id, nil
-			}
-		}
-	}
-	if len(parts) == 4 {
-		id := []byte(parts[1])
-		if parts[0] == "client" && parts[2] == "transport" {
-			switch parts[3] {
-			case "connector":
-				return KeyTransportConnector, id, nil
-			case "server":
-				return KeyTransportServer, id, nil
-			case "translator":
-				return KeyTransportTranslator, id, nil
 			}
 		}
 	}

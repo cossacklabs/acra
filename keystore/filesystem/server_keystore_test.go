@@ -495,30 +495,6 @@ func TestFilesystemKeyStoreExport(t *testing.T) {
 	}
 	// Since we cannot access all generated key pairs via AcraServer keystore,
 	// we generate them here and use Save... API
-	connectorKeyPair, err := keys.New(keys.TypeEC)
-	if err != nil {
-		t.Fatalf("keys.New() failed: %v", err)
-	}
-	err = keyStore.SaveConnectorKeypair(clientID, connectorKeyPair)
-	if err != nil {
-		t.Fatalf("SaveConnectorKeypair() failed: %v", err)
-	}
-	serverKeyPair, err := keys.New(keys.TypeEC)
-	if err != nil {
-		t.Fatalf("keys.New() failed: %v", err)
-	}
-	err = keyStore.SaveServerKeypair(clientID, serverKeyPair)
-	if err != nil {
-		t.Fatalf("SaveServerKeypair() failed: %v", err)
-	}
-	translatorKeyPair, err := keys.New(keys.TypeEC)
-	if err != nil {
-		t.Fatalf("keys.New() failed: %v", err)
-	}
-	err = keyStore.SaveTranslatorKeypair(clientID, translatorKeyPair)
-	if err != nil {
-		t.Fatalf("SaveTranslatorKeypair() failed: %v", err)
-	}
 	poisonKeyPair, err := keyStore.GetPoisonKeyPair()
 	if err != nil {
 		t.Fatalf("GetPoisonKeyPair() failed: %v", err)
@@ -533,9 +509,6 @@ func TestFilesystemKeyStoreExport(t *testing.T) {
 	seenPoisonKeyPair := false
 	seenStorageClientKeyPair := false
 	seenStorageZoneKeyPair := false
-	seenTransportConnectorKeyPair := false
-	seenTransportTranslatorKeyPair := false
-	seenTransportServerKeyPair := false
 
 	for i := range exportedKeys {
 		switch exportedKeys[i].Purpose {
@@ -587,54 +560,6 @@ func TestFilesystemKeyStoreExport(t *testing.T) {
 			if !bytes.Equal(zonePrivateKey.Value, privateKey.Value) {
 				t.Error("incorrect zone storage private key value")
 			}
-		case PurposeTransportConnectorKeyPair:
-			seenTransportConnectorKeyPair = true
-			publicKey, err := keyStore.ExportPublicKey(exportedKeys[i])
-			if err != nil {
-				t.Errorf("ExportPublicKey() failed: %v", err)
-			}
-			privateKey, err := keyStore.ExportPrivateKey(exportedKeys[i])
-			if err != nil {
-				t.Errorf("ExportPrivateKey() failed: %v", err)
-			}
-			if !bytes.Equal(connectorKeyPair.Public.Value, publicKey.Value) {
-				t.Error("incorrect AcraConnector transport public key value")
-			}
-			if !bytes.Equal(connectorKeyPair.Private.Value, privateKey.Value) {
-				t.Error("incorrect AcraConnector transport private key value")
-			}
-		case PurposeTransportTranslatorKeyPair:
-			seenTransportTranslatorKeyPair = true
-			publicKey, err := keyStore.ExportPublicKey(exportedKeys[i])
-			if err != nil {
-				t.Errorf("ExportPublicKey() failed: %v", err)
-			}
-			privateKey, err := keyStore.ExportPrivateKey(exportedKeys[i])
-			if err != nil {
-				t.Errorf("ExportPrivateKey() failed: %v", err)
-			}
-			if !bytes.Equal(translatorKeyPair.Public.Value, publicKey.Value) {
-				t.Error("incorrect AcraTranslator transport public key value")
-			}
-			if !bytes.Equal(translatorKeyPair.Private.Value, privateKey.Value) {
-				t.Error("incorrect AcraTranslator transport private key value")
-			}
-		case PurposeTransportServerKeyPair:
-			seenTransportServerKeyPair = true
-			publicKey, err := keyStore.ExportPublicKey(exportedKeys[i])
-			if err != nil {
-				t.Errorf("ExportPublicKey() failed: %v", err)
-			}
-			privateKey, err := keyStore.ExportPrivateKey(exportedKeys[i])
-			if err != nil {
-				t.Errorf("ExportPrivateKey() failed: %v", err)
-			}
-			if !bytes.Equal(serverKeyPair.Public.Value, publicKey.Value) {
-				t.Error("incorrect AcraServer transport public key value")
-			}
-			if !bytes.Equal(serverKeyPair.Private.Value, privateKey.Value) {
-				t.Error("incorrect AcraServer transport private key value")
-			}
 		default:
 			t.Errorf("unknow key purpose: %s", exportedKeys[i].Purpose)
 		}
@@ -648,15 +573,6 @@ func TestFilesystemKeyStoreExport(t *testing.T) {
 	}
 	if !seenStorageZoneKeyPair {
 		t.Error("storage key for zone not exported")
-	}
-	if !seenTransportConnectorKeyPair {
-		t.Error("transport key for AcraConnector not exported")
-	}
-	if !seenTransportTranslatorKeyPair {
-		t.Error("transport key for AcraTranslator not exported")
-	}
-	if !seenTransportServerKeyPair {
-		t.Error("transport key for AcraServer not exported")
 	}
 }
 
