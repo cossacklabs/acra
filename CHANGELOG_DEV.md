@@ -1,3 +1,6 @@
+## 0.92.0 - 2022-01-18
+- Improve acra-censor, remove infinite empty loop in `querycapture` handler
+
 ## 0.92.0 - 2021-12-29
 - Improve sqlparser, support `null::text` type casts and avoid panics.
 
