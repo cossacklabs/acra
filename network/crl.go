@@ -235,8 +235,8 @@ func (c DefaultCRLClient) Fetch(url string, allowLocal bool) ([]byte, error) {
 // CRLCacheItem is combination of fetched+parsed+verified CRL with fetch time
 type CRLCacheItem struct {
 	Fetched             time.Time                            // When this CRL was fetched and cached
-	Extensions          []pkix.Extension                     // Copy of crl.TBSCertList.Extensions
-	RevokedCertificates map[*big.Int]pkix.RevokedCertificate // Copy of crl.TBSCertList.RevokedCertificates with SerialNumber as key
+	CRL                 pkix.CertificateList                 // Parsed CRL itself
+	RevokedCertificates map[*big.Int]pkix.RevokedCertificate // Copy of CRL.TBSCertList.RevokedCertificates with SerialNumber as key
 }
 
 // CRLCache is used to store fetched CRLs to avoid downloading the same URL more than once,
@@ -310,7 +310,7 @@ func (v DefaultCRLVerifier) getCachedOrFetch(url string, allowLocal bool, issuer
 				return nil, err
 			}
 
-			if time.Now().Before(cacheItem.Fetched.Add(v.Config.cacheTime)) /* && crl.TBSCertList.NextUpdate.After(time.Now()) */ {
+			if time.Now().Before(cacheItem.Fetched.Add(v.Config.cacheTime)) && time.Now().Before(cacheItem.CRL.TBSCertList.NextUpdate) {
 				return cacheItem, nil
 			}
 		}
@@ -344,9 +344,12 @@ func (v DefaultCRLVerifier) getCachedOrFetch(url string, allowLocal bool, issuer
 		return nil, ErrOutdatedCRL
 	}
 
+	// We don't need this array anymore as all revoked certificates are now inside the `map`
+	crl.TBSCertList.RevokedCertificates = make([]pkix.RevokedCertificate, 0)
+
 	cacheItem := &CRLCacheItem{
 		Fetched:             time.Now(),
-		Extensions:          crl.TBSCertList.Extensions,
+		CRL:                 *crl,
 		RevokedCertificates: revokedCertificates,
 	}
 
@@ -359,8 +362,8 @@ func (v DefaultCRLVerifier) getCachedOrFetch(url string, allowLocal bool, issuer
 
 // Returns `nil` if certificate was not cound in CRL, returns error if it was there
 // or if there was unknown Object ID in revoked certificate extensions
-func checkCertWithCRL(cert *x509.Certificate, crl *CRLCacheItem) error {
-	for _, extension := range crl.Extensions {
+func checkCertWithCRL(cert *x509.Certificate, cacheItem *CRLCacheItem) error {
+	for _, extension := range cacheItem.CRL.TBSCertList.Extensions {
 		// For CRL v2 (RFC 5280 section 5.2), CRL issuers are REQUIRED to include
 		// the authority key identifier (Section 5.2.1) and the CRL number (Section 5.2.3).
 		// TODO handle all these extensions; this will require some refactoring:
@@ -392,7 +395,7 @@ func checkCertWithCRL(cert *x509.Certificate, crl *CRLCacheItem) error {
 		}
 	}
 
-	revokedCertificate, ok := crl.RevokedCertificates[cert.SerialNumber]
+	revokedCertificate, ok := cacheItem.RevokedCertificates[cert.SerialNumber]
 	if ok {
 		log.WithField("extensions", revokedCertificate.Extensions).Debugln("Revoked certificate extensions")
 		for _, extension := range revokedCertificate.Extensions {
