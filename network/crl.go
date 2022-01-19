@@ -234,7 +234,7 @@ func (c DefaultCRLClient) Fetch(url string, allowLocal bool) ([]byte, error) {
 // CRLCacheItem is combination of fetched+parsed+verified CRL with fetch time
 type CRLCacheItem struct {
 	Fetched             time.Time                           // When this CRL was fetched and cached
-	CRL                 pkix.CertificateList                // Parsed CRL itself
+	CRL                 *pkix.CertificateList               // Parsed CRL itself
 	RevokedCertificates map[string]*pkix.RevokedCertificate // Copy of CRL.TBSCertList.RevokedCertificates with SerialNumber as key
 }
 
@@ -349,7 +349,7 @@ func (v DefaultCRLVerifier) getCachedOrFetch(url string, allowLocal bool, issuer
 
 	cacheItem := &CRLCacheItem{
 		Fetched:             time.Now(),
-		CRL:                 *crl,
+		CRL:                 crl,
 		RevokedCertificates: revokedCertificates,
 	}
 

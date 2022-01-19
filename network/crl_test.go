@@ -172,7 +172,7 @@ func getTestCRL(t *testing.T, filename string) ([]byte, *CRLCacheItem) {
 		revokedCertificates[cert.SerialNumber.Text(16)] = &cert
 	}
 
-	cacheItem := &CRLCacheItem{Fetched: time.Now(), CRL: *crl, RevokedCertificates: revokedCertificates}
+	cacheItem := &CRLCacheItem{Fetched: time.Now(), CRL: crl, RevokedCertificates: revokedCertificates}
 
 	return rawCRL, cacheItem
 }
