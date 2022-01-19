@@ -24,7 +24,6 @@ import (
 	"errors"
 	"fmt"
 	"io/ioutil"
-	"math/big"
 	"net"
 	"net/http"
 	"os"
@@ -168,10 +167,9 @@ func getTestCRL(t *testing.T, filename string) ([]byte, *CRLCacheItem) {
 		t.Fatalf("Failed to parse CRL: %v\n", err)
 	}
 
-	revokedCertificates := make(map[*big.Int]pkix.RevokedCertificate, len(crl.TBSCertList.RevokedCertificates))
+	revokedCertificates := make(map[string]*pkix.RevokedCertificate, len(crl.TBSCertList.RevokedCertificates))
 	for _, cert := range crl.TBSCertList.RevokedCertificates {
-		t.Logf("getTestCRL: revokedCertificates[%v] = %v\n", cert.SerialNumber, cert)
-		revokedCertificates[cert.SerialNumber] = cert
+		revokedCertificates[cert.SerialNumber.Text(16)] = &cert
 	}
 
 	cacheItem := &CRLCacheItem{Fetched: time.Now(), CRL: *crl, RevokedCertificates: revokedCertificates}
@@ -545,9 +543,9 @@ func testDefaultCRLVerifierWithGroup(t *testing.T, certGroup TestCertGroup) {
 }
 
 func TestDefaultCRLVerifier(t *testing.T) {
-	// testDefaultCRLVerifierWithGroup(t, getTestCertGroup(t))
-	// testDefaultCRLVerifierWithGroup(t, getTestCertGroup3(t))
-	// testDefaultCRLVerifierWithGroup(t, getTestCertGroupOnlyRoot(t))
+	testDefaultCRLVerifierWithGroup(t, getTestCertGroup(t))
+	testDefaultCRLVerifierWithGroup(t, getTestCertGroup3(t))
+	testDefaultCRLVerifierWithGroup(t, getTestCertGroupOnlyRoot(t))
 }
 
 func TestCheckCertWithCRL(t *testing.T) {
@@ -558,82 +556,83 @@ func TestCheckCertWithCRL(t *testing.T) {
 	// thus, tested function should either return ErrCertWasRevoked or ErrUnknownCRLExtensionOID;
 	// this behavior may be extended in future
 
-	// setCertificateExtensions := func(cacheItem *CRLCacheItem, extensions []pkix.Extension) {
-	// 	for _, revokedCert := range cacheItem.RevokedCertificates {
-	// 		revokedCert.Extensions = extensions
-	// 	}
-	// }
+	setCertificateExtensions := func(cacheItem *CRLCacheItem, extensions []pkix.Extension) {
+		for serial, revokedCert := range cacheItem.RevokedCertificates {
+			revokedCert.Extensions = extensions
+			cacheItem.RevokedCertificates[serial] = revokedCert
+		}
+	}
 
-	// expectOk := func(cert *x509.Certificate, cacheItem *CRLCacheItem) {
-	// 	t.Logf("expectOk %v\n", cacheItem)
-	// 	err := checkCertWithCRL(cert, cacheItem)
-	// 	if err != ErrCertWasRevoked {
-	// 		t.Logf("err=%v\n", err)
-	// 		t.Fatal("Got unexpected error")
-	// 	}
-	// }
-	//
-	// expectErr := func(cert *x509.Certificate, cacheItem *CRLCacheItem) {
-	// 	t.Logf("expectErr %v\n", cacheItem)
-	// 	err := checkCertWithCRL(cert, cacheItem)
-	// 	if err == ErrCertWasRevoked {
-	// 		t.Fatal("Got ErrCertWasRevoked, but expected error about extensions")
-	// 	} else {
-	// 		t.Logf("(Expected) err=%v\n", err)
-	// 	}
-	// }
+	expectOk := func(cert *x509.Certificate, cacheItem *CRLCacheItem) {
+		// t.Logf("expectOk %v\n", cacheItem)
+		err := checkCertWithCRL(cert, cacheItem)
+		if err != ErrCertWasRevoked {
+			t.Logf("err=%v\n", err)
+			t.Fatal("Got unexpected error")
+		}
+	}
 
-	// certGroup := getTestCertGroup(t)
-	// cert := certGroup.invalidVerifiedChains[0][0]
-	// _, cacheItem := getTestCRL(t, path.Join(certGroup.prefix, certGroup.crl))
+	expectErr := func(cert *x509.Certificate, cacheItem *CRLCacheItem) {
+		// t.Logf("expectErr %v\n", cacheItem)
+		err := checkCertWithCRL(cert, cacheItem)
+		if err == ErrCertWasRevoked {
+			t.Fatal("Got ErrCertWasRevoked, but expected error about extensions")
+		} else {
+			t.Logf("(Expected) err=%v\n", err)
+		}
+	}
 
-	// // Test with empty extensions lists in CRL
-	// cacheItem.CRL.TBSCertList.Extensions = []pkix.Extension{}
-	// expectOk(cert, cacheItem)
-	//
-	// // Test with some known extension
-	// cacheItem.CRL.TBSCertList.Extensions = []pkix.Extension{
-	// 	{Id: []int{2, 5, 29, 35}, Critical: true, Value: []byte{}},
-	// }
-	// expectOk(cert, cacheItem)
-	//
-	// // Test with some unknown critical extension
-	// cacheItem.CRL.TBSCertList.Extensions = []pkix.Extension{
-	// 	{Id: []int{25, 100, 41}, Critical: true, Value: []byte{}},
-	// }
-	// expectErr(cert, cacheItem)
-	//
-	// // Test with some unknown non-critical extension
-	// cacheItem.extensions = []pkix.Extension{
-	// 	{Id: []int{70, 1, 2, 3, 4}, Critical: false, Value: []byte{}},
-	// }
-	// expectOk(cert, cacheItem)
-	//
-	// // Test with empty extensions lists in revoked certificates
-	// setCertificateExtensions(cacheItem, []pkix.Extension{})
-	// expectOk(cert, cacheItem)
-	//
-	// // Test with some known critical extension
-	// setCertificateExtensions(cacheItem, []pkix.Extension{
-	// 	{Id: []int{2, 5, 29, 15}, Critical: true, Value: []byte{}},
-	// })
-	// expectOk(cert, cacheItem)
-	//
-	// // Test with some known non-critical extension
-	// setCertificateExtensions(cacheItem, []pkix.Extension{
-	// 	{Id: []int{2, 5, 29, 35}, Critical: false, Value: []byte{}},
-	// })
-	// expectOk(cert, cacheItem)
-	//
-	// // Test with some unknown critical extension
-	// setCertificateExtensions(cacheItem, []pkix.Extension{
-	// 	{Id: []int{25, 100, 41}, Critical: true, Value: []byte{}},
-	// })
-	// expectErr(cert, cacheItem)
-	//
-	// // Test with some unknown non-critical extension
-	// setCertificateExtensions(cacheItem, []pkix.Extension{
-	// 	{Id: []int{70, 1, 2, 3, 4}, Critical: false, Value: []byte{}},
-	// })
-	// expectOk(cert, cacheItem)
+	certGroup := getTestCertGroup(t)
+	cert := certGroup.invalidVerifiedChains[0][0]
+	_, cacheItem := getTestCRL(t, path.Join(certGroup.prefix, certGroup.crl))
+
+	// Test with empty extensions lists in CRL
+	cacheItem.CRL.TBSCertList.Extensions = []pkix.Extension{}
+	expectOk(cert, cacheItem)
+
+	// Test with some known extension
+	cacheItem.CRL.TBSCertList.Extensions = []pkix.Extension{
+		{Id: []int{2, 5, 29, 35}, Critical: true, Value: []byte{}},
+	}
+	expectOk(cert, cacheItem)
+
+	// Test with some unknown critical extension
+	cacheItem.CRL.TBSCertList.Extensions = []pkix.Extension{
+		{Id: []int{25, 100, 41}, Critical: true, Value: []byte{}},
+	}
+	expectErr(cert, cacheItem)
+
+	// Test with some unknown non-critical extension
+	cacheItem.CRL.TBSCertList.Extensions = []pkix.Extension{
+		{Id: []int{70, 1, 2, 3, 4}, Critical: false, Value: []byte{}},
+	}
+	expectOk(cert, cacheItem)
+
+	// Test with empty extensions lists in revoked certificates
+	setCertificateExtensions(cacheItem, []pkix.Extension{})
+	expectOk(cert, cacheItem)
+
+	// Test with some known critical extension
+	setCertificateExtensions(cacheItem, []pkix.Extension{
+		{Id: []int{2, 5, 29, 15}, Critical: true, Value: []byte{}},
+	})
+	expectOk(cert, cacheItem)
+
+	// Test with some known non-critical extension
+	setCertificateExtensions(cacheItem, []pkix.Extension{
+		{Id: []int{2, 5, 29, 35}, Critical: false, Value: []byte{}},
+	})
+	expectOk(cert, cacheItem)
+
+	// Test with some unknown critical extension
+	setCertificateExtensions(cacheItem, []pkix.Extension{
+		{Id: []int{25, 100, 41}, Critical: true, Value: []byte{}},
+	})
+	expectErr(cert, cacheItem)
+
+	// Test with some unknown non-critical extension
+	setCertificateExtensions(cacheItem, []pkix.Extension{
+		{Id: []int{70, 1, 2, 3, 4}, Critical: false, Value: []byte{}},
+	})
+	expectOk(cert, cacheItem)
 }

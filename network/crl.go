@@ -22,7 +22,6 @@ import (
 	"crypto/x509/pkix"
 	"errors"
 	"io/ioutil"
-	"math/big"
 	"net/http"
 	url_ "net/url"
 	"sync"
@@ -234,9 +233,9 @@ func (c DefaultCRLClient) Fetch(url string, allowLocal bool) ([]byte, error) {
 
 // CRLCacheItem is combination of fetched+parsed+verified CRL with fetch time
 type CRLCacheItem struct {
-	Fetched             time.Time                            // When this CRL was fetched and cached
-	CRL                 pkix.CertificateList                 // Parsed CRL itself
-	RevokedCertificates map[*big.Int]pkix.RevokedCertificate // Copy of CRL.TBSCertList.RevokedCertificates with SerialNumber as key
+	Fetched             time.Time                           // When this CRL was fetched and cached
+	CRL                 pkix.CertificateList                // Parsed CRL itself
+	RevokedCertificates map[string]*pkix.RevokedCertificate // Copy of CRL.TBSCertList.RevokedCertificates with SerialNumber as key
 }
 
 // CRLCache is used to store fetched CRLs to avoid downloading the same URL more than once,
@@ -334,18 +333,19 @@ func (v DefaultCRLVerifier) getCachedOrFetch(url string, allowLocal bool, issuer
 		return nil, err
 	}
 
-	revokedCertificates := make(map[*big.Int]pkix.RevokedCertificate, len(crl.TBSCertList.RevokedCertificates))
-	for _, cert := range crl.TBSCertList.RevokedCertificates {
-		revokedCertificates[cert.SerialNumber] = cert
-	}
-
 	if crl.TBSCertList.NextUpdate.Before(time.Now()) {
 		log.Warnf("CRL: CRL at %s is outdated", url)
 		return nil, ErrOutdatedCRL
 	}
 
-	// We don't need this array anymore as all revoked certificates are now inside the `map`
-	crl.TBSCertList.RevokedCertificates = make([]pkix.RevokedCertificate, 0)
+	// Cannot use big.Int as map key unfortunately, using string with hex-encoded serial instead
+	revokedCertificates := make(map[string]*pkix.RevokedCertificate, len(crl.TBSCertList.RevokedCertificates))
+	for _, cert := range crl.TBSCertList.RevokedCertificates {
+		revokedCertificates[cert.SerialNumber.Text(16)] = &cert
+	}
+
+	// We don't need this array anymore as all revoked certificates are now inside the `revokedCertificates` map
+	crl.TBSCertList.RevokedCertificates = nil
 
 	cacheItem := &CRLCacheItem{
 		Fetched:             time.Now(),
@@ -395,57 +395,57 @@ func checkCertWithCRL(cert *x509.Certificate, cacheItem *CRLCacheItem) error {
 		}
 	}
 
-	revokedCertificate, ok := cacheItem.RevokedCertificates[cert.SerialNumber]
-	if ok {
-		log.WithField("extensions", revokedCertificate.Extensions).Debugln("Revoked certificate extensions")
-		for _, extension := range revokedCertificate.Extensions {
-			// One can use https://www.alvestrand.no/objectid/top.html to convert string OIDs (like id-ce-keyUsage)
-			// into numerical format (like 2.5.29.15), though RFC also allows easy reconstruction of OIDs.
-
-			// Some of these extensions values may be ignored, but we still have to
-			// include them (their OIDs) here so that we're not blindly ignoring them.
-			// Convert to string to be able to use switch.
-			switch extension.Id.String() {
-			// As per RFC 5280 section 4.2, aplications MUST recognize following extensions:
-			case "2.5.29.15":
-				// section 4.2.1.3, id-ce-keyUsage
-			case "2.5.29.32":
-				// section 4.2.1.4, id-ce-certificatePolicies
-			case "2.5.29.17":
-				// section 4.2.1.6, id-ce-subjectAltName
-			case "2.5.29.19":
-				// section 4.2.1.9, id-ce-basicConstraints
-			case "2.5.29.30":
-				// section 4.2.1.10, id-ce-nameConstraints
-			case "2.5.29.36":
-				// section 4.2.1.11, id-ce-policyConstraints
-			case "2.5.29.37":
-				// section 4.2.1.12, id-ce-extKeyUsage
-			case "2.5.29.54":
-				// section 4.2.1.14, id-ce-inhibitAnyPolicy
-
-			// As per RFC 5280 section 4.2, aplications SHOULD recognize following extensions:
-			case "2.5.29.35":
-				// section 4.2.1.1, id-ce-authorityKeyIdentifier
-			case "2.5.29.14":
-				// section 4.2.1.2, id-ce-subjectKeyIdentifier
-			case "2.5.29.33":
-				// section 4.2.1.5, id-ce-policyMappings
-
-			default:
-				if extension.Critical {
-					log.WithField("oid", extension.Id.String()).Warnln("CRL: Unable to process critical extension with unknown Object ID")
-					return ErrUnknownCRLExtensionOID
-				}
-				log.WithField("oid", extension.Id.String()).Debugln("CRL: Unable to process non-critical extension with unknown Object ID")
-			}
-		}
-
-		log.WithField("serial", cert.SerialNumber).WithField("revoked_at", revokedCertificate.RevocationTime).Warnln("CRL: Certificate was revoked")
-		return ErrCertWasRevoked
+	revokedCertificate, ok := cacheItem.RevokedCertificates[cert.SerialNumber.Text(16)]
+	if !ok {
+		return nil
 	}
 
-	return nil
+	log.WithField("extensions", revokedCertificate.Extensions).Debugln("Revoked certificate extensions")
+	for _, extension := range revokedCertificate.Extensions {
+		// One can use https://www.alvestrand.no/objectid/top.html to convert string OIDs (like id-ce-keyUsage)
+		// into numerical format (like 2.5.29.15), though RFC also allows easy reconstruction of OIDs.
+
+		// Some of these extensions values may be ignored, but we still have to
+		// include them (their OIDs) here so that we're not blindly ignoring them.
+		// Convert to string to be able to use switch.
+		switch extension.Id.String() {
+		// As per RFC 5280 section 4.2, aplications MUST recognize following extensions:
+		case "2.5.29.15":
+			// section 4.2.1.3, id-ce-keyUsage
+		case "2.5.29.32":
+			// section 4.2.1.4, id-ce-certificatePolicies
+		case "2.5.29.17":
+			// section 4.2.1.6, id-ce-subjectAltName
+		case "2.5.29.19":
+			// section 4.2.1.9, id-ce-basicConstraints
+		case "2.5.29.30":
+			// section 4.2.1.10, id-ce-nameConstraints
+		case "2.5.29.36":
+			// section 4.2.1.11, id-ce-policyConstraints
+		case "2.5.29.37":
+			// section 4.2.1.12, id-ce-extKeyUsage
+		case "2.5.29.54":
+			// section 4.2.1.14, id-ce-inhibitAnyPolicy
+
+		// As per RFC 5280 section 4.2, aplications SHOULD recognize following extensions:
+		case "2.5.29.35":
+			// section 4.2.1.1, id-ce-authorityKeyIdentifier
+		case "2.5.29.14":
+			// section 4.2.1.2, id-ce-subjectKeyIdentifier
+		case "2.5.29.33":
+			// section 4.2.1.5, id-ce-policyMappings
+
+		default:
+			if extension.Critical {
+				log.WithField("oid", extension.Id.String()).Warnln("CRL: Unable to process critical extension with unknown Object ID")
+				return ErrUnknownCRLExtensionOID
+			}
+			log.WithField("oid", extension.Id.String()).Debugln("CRL: Unable to process non-critical extension with unknown Object ID")
+		}
+	}
+
+	log.WithField("serial", cert.SerialNumber).WithField("revoked_at", revokedCertificate.RevocationTime).Warnln("CRL: Certificate was revoked")
+	return ErrCertWasRevoked
 }
 
 // crlToCheck is used to plan CRL requests
