@@ -169,7 +169,7 @@ func getTestCRL(t *testing.T, filename string) ([]byte, *CRLCacheItem) {
 
 	revokedCertificates := make(map[string]*pkix.RevokedCertificate, len(crl.TBSCertList.RevokedCertificates))
 	for _, cert := range crl.TBSCertList.RevokedCertificates {
-		revokedCertificates[cert.SerialNumber.Text(16)] = &cert
+		revokedCertificates[cert.SerialNumber.Text(SerialEncodeBase)] = &cert
 	}
 
 	cacheItem := &CRLCacheItem{Fetched: time.Now(), CRL: crl, RevokedCertificates: revokedCertificates}
@@ -557,9 +557,8 @@ func TestCheckCertWithCRL(t *testing.T) {
 	// this behavior may be extended in future
 
 	setCertificateExtensions := func(cacheItem *CRLCacheItem, extensions []pkix.Extension) {
-		for serial, revokedCert := range cacheItem.RevokedCertificates {
+		for _, revokedCert := range cacheItem.RevokedCertificates {
 			revokedCert.Extensions = extensions
-			cacheItem.RevokedCertificates[serial] = revokedCert
 		}
 	}
 

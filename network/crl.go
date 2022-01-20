@@ -108,6 +108,8 @@ type CRLConfig struct {
 const (
 	// CrlHTTPClientDefaultTimeout is default timeout for HTTP client used to fetch CRLs
 	CrlHTTPClientDefaultTimeout = time.Second * time.Duration(20)
+	// SerialEncodeBase is base in which certificate serial is encoded, for being a key in map of revoked certificates
+	SerialEncodeBase = 32
 )
 
 // NewCRLConfig creates new CRLConfig
@@ -341,7 +343,7 @@ func (v DefaultCRLVerifier) getCachedOrFetch(url string, allowLocal bool, issuer
 	// Cannot use big.Int as map key unfortunately, using string with hex-encoded serial instead
 	revokedCertificates := make(map[string]*pkix.RevokedCertificate, len(crl.TBSCertList.RevokedCertificates))
 	for _, cert := range crl.TBSCertList.RevokedCertificates {
-		revokedCertificates[cert.SerialNumber.Text(16)] = &cert
+		revokedCertificates[cert.SerialNumber.Text(SerialEncodeBase)] = &cert
 	}
 
 	// We don't need this array anymore as all revoked certificates are now inside the `revokedCertificates` map
@@ -395,7 +397,7 @@ func checkCertWithCRL(cert *x509.Certificate, cacheItem *CRLCacheItem) error {
 		}
 	}
 
-	revokedCertificate, ok := cacheItem.RevokedCertificates[cert.SerialNumber.Text(16)]
+	revokedCertificate, ok := cacheItem.RevokedCertificates[cert.SerialNumber.Text(SerialEncodeBase)]
 	if !ok {
 		return nil
 	}
