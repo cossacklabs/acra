@@ -77,9 +77,6 @@ type GenerateKeySubcommand struct {
 	clientID        string
 	zoneID          string
 	masterKeyFile   string
-	acraConnector   bool
-	acraServer      bool
-	acraTranslator  bool
 	acraWriter      bool
 	newZone         bool
 	rotateZone      bool
@@ -121,21 +118,6 @@ func (g *GenerateKeySubcommand) GenerateMasterKeyFile() string {
 	return g.masterKeyFile
 }
 
-// GenerateAcraConnector returns true if new AcraConnector key was requested.
-func (g *GenerateKeySubcommand) GenerateAcraConnector() bool {
-	return g.acraConnector
-}
-
-// GenerateAcraServer returns true if new AcraServer key was requested.
-func (g *GenerateKeySubcommand) GenerateAcraServer() bool {
-	return g.acraServer
-}
-
-// GenerateAcraTranslator returns true if new AcraTranslator key was requested.
-func (g *GenerateKeySubcommand) GenerateAcraTranslator() bool {
-	return g.acraTranslator
-}
-
 // GenerateAcraWriter returns true if new AcraWriter key was requested.
 func (g *GenerateKeySubcommand) GenerateAcraWriter() bool {
 	return g.acraWriter
@@ -174,7 +156,7 @@ func (g *GenerateKeySubcommand) GenerateZoneSymmetricKey() bool {
 // SpecificKeysRequested returns true if the user has requested any key specifically.
 // It returns false if no keys were requested.
 func (g *GenerateKeySubcommand) SpecificKeysRequested() bool {
-	return g.acraConnector || g.acraServer || g.acraTranslator || g.acraWriter || g.newZone ||
+	return g.acraWriter || g.newZone ||
 		g.rotateZone || g.acraBlocks || g.auditLog || g.searchHMAC || g.poisonRecord || g.rotateZoneSym
 }
 
@@ -196,10 +178,6 @@ func (g *GenerateKeySubcommand) RegisterFlags() {
 	g.flagSet.StringVar(&g.keystoreVersion, "keystore", "", "Keystore format: v1 (current), v2 (new)")
 	g.flagSet.StringVar(&g.clientID, "client_id", "", "Client ID")
 	g.flagSet.StringVar(&g.zoneID, "zone_id", "", "Zone ID")
-	g.flagSet.StringVar(&g.masterKeyFile, "master_key_path", "", "Generate new random master key and save to file")
-	g.flagSet.BoolVar(&g.acraConnector, "acraconnector_transport_key", false, "Generate transport keypair for AcraConnector (deprecated since 0.91.0, will be removed soon)")
-	g.flagSet.BoolVar(&g.acraServer, "acraserver_transport_key", false, "Generate transport keypair for AcraServer (deprecated since 0.91.0, will be removed soon)")
-	g.flagSet.BoolVar(&g.acraTranslator, "acratranslator_transport_key", false, "Generate transport keypair for AcraTranslator (deprecated since 0.91.0, will be removed soon)")
 	g.flagSet.BoolVar(&g.acraWriter, "client_storage_key", false, "Generate keypair for data encryption/decryption (for a client)")
 	g.flagSet.BoolVar(&g.newZone, "zone", false, "Generate new Acra storage zone")
 	g.flagSet.BoolVar(&g.rotateZone, "zone_storage_key", false, "Rotate existing Acra zone storage keypair")

@@ -27,8 +27,7 @@ import (
 )
 
 // SupportedDestroyKeyKinds is a list of keys supported by `destroy-key` subcommand.
-var SupportedDestroyKeyKinds = []string{
-}
+var SupportedDestroyKeyKinds = []string{}
 
 // DestroyKeyParams are parameters of "acra-keys destroy" subcommand.
 type DestroyKeyParams interface {

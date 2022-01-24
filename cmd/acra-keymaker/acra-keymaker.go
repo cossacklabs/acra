@@ -123,7 +123,7 @@ func main() {
 	}
 
 	// all keys required clientID for generation
-	if  *dataKeys || *hmac || *symStorageKey {
+	if *dataKeys || *hmac || *symStorageKey {
 		cmd.ValidateClientID(*clientID)
 	}
 
@@ -223,7 +223,7 @@ func main() {
 		fmt.Println("Generated HMAC key for secure logging")
 	}
 
-	if !( *dataKeys || *hmac || *poisonRecord || *symStorageKey || *logKey) {
+	if !(*dataKeys || *hmac || *poisonRecord || *symStorageKey || *logKey) {
 		cmd.ValidateClientID(*clientID)
 
 		err = store.GenerateDataEncryptionKeys([]byte(*clientID))
