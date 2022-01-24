@@ -652,6 +652,7 @@ def drop_tables():
     engine_raw = sa.create_engine(
                 '{}://{}:{}/{}'.format(DB_DRIVER, DB_HOST, DB_PORT, DB_NAME),
                 connect_args=connect_args)
+    print(connect_args)
     metadata.drop_all(engine_raw)
 
 
@@ -1709,18 +1710,18 @@ class BaseBinaryMySQLTestCase(BaseTestCase):
     def setUp(self):
         super().setUp()
 
-        def executor_with_port(port):
+        def executor_with_port(ssl_key, ssl_cert):
             args = ConnectionArgs(
-                host=get_db_host(), port=port, dbname=DB_NAME,
+                host=get_db_host(), port=self.ACRASERVER_PORT, dbname=DB_NAME,
                 user=DB_USER, password=DB_USER_PASSWORD,
                 ssl_ca=TEST_TLS_CA,
-                ssl_key=TEST_TLS_CLIENT_KEY,
-                ssl_cert=TEST_TLS_CLIENT_CERT,
+                ssl_key=ssl_key,
+                ssl_cert=ssl_cert,
             )
             return MysqlExecutor(args)
 
-        self.executor1 = executor_with_port(self.CONNECTOR_PORT_1)
-        self.executor2 = executor_with_port(self.CONNECTOR_PORT_2)
+        self.executor1 = executor_with_port(TEST_TLS_CLIENT_KEY, TEST_TLS_CLIENT_CERT)
+        self.executor2 = executor_with_port(TEST_TLS_CLIENT_2_KEY, TEST_TLS_CLIENT_2_CERT)
 
     def compileInsertQuery(self, query, parameters={}, literal_binds=False):
         """
@@ -4087,7 +4088,7 @@ class TestMysqlTextPreparedStatement(BasePrepareStatementMixin, BaseTestCase):
 
     def executePreparedStatement(self, query):
         return PyMysqlExecutor(
-            ConnectionArgs(host=get_db_host(), port=self.CONNECTOR_PORT_1,
+            ConnectionArgs(host=get_db_host(), port=self.ACRASERVER_PORT,
                            user=DB_USER, password=DB_USER_PASSWORD,
                            dbname=DB_NAME, ssl_ca=TEST_TLS_CA,
                            ssl_key=TEST_TLS_CLIENT_KEY,
@@ -4106,7 +4107,7 @@ class TestMysqlBinaryPreparedStatement(BasePrepareStatementMixin, BaseTestCase):
 
     def executePreparedStatement(self, query, args=None):
         return MysqlExecutor(
-            ConnectionArgs(host=get_db_host(), port=self.CONNECTOR_PORT_1,
+            ConnectionArgs(host=get_db_host(), port=self.ACRASERVER_PORT,
                            user=DB_USER, password=DB_USER_PASSWORD,
                            dbname=DB_NAME, ssl_ca=TEST_TLS_CA,
                            ssl_key=TEST_TLS_CLIENT_KEY,
@@ -6608,22 +6609,22 @@ class BaseTokenizationWithBinaryMySQL(BaseTokenization):
             self.skipTest('this test is only for MySQL')
 
     def fetch_from_1(self, query):
-        return self.execute(query, port=self.CONNECTOR_PORT_1)
+        return self.execute(query, TEST_TLS_CLIENT_KEY, TEST_TLS_CLIENT_CERT)
 
     def fetch_from_2(self, query):
-        return self.execute(query, port=self.CONNECTOR_PORT_2)
+        return self.execute(query, TEST_TLS_CLIENT_2_KEY, TEST_TLS_CLIENT_2_CERT)
 
-    def execute(self, query, port):
+    def execute(self, query, ssl_key, ssl_cert):
         # We need a rendered SQL query here. It will be converted into
         # a prepared statement (without arguments) to use MySQL binary
         # protocol on the wire.
         query = query.compile(compile_kwargs={"literal_binds": True}).string
         args = ConnectionArgs(
-            host=get_db_host(), port=port, dbname=DB_NAME,
+            host=get_db_host(), port=self.ACRASERVER_PORT, dbname=DB_NAME,
             user=DB_USER, password=DB_USER_PASSWORD,
             ssl_ca=TEST_TLS_CA,
-            ssl_key=TEST_TLS_CLIENT_KEY,
-            ssl_cert=TEST_TLS_CLIENT_CERT)
+            ssl_key=ssl_key,
+            ssl_cert=ssl_cert)
         result = MysqlExecutor(args).execute_prepared_statement(query)
         # For some weird reason MySQL connector in prepared statement mode
         # does not decode TEXT columns into Python strings. In text mode
