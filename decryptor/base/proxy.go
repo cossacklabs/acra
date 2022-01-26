@@ -121,6 +121,10 @@ type ClientSession interface {
 
 	ProtocolState() interface{}
 	SetProtocolState(state interface{})
+	GetData(string) (interface{}, bool)
+	SetData(string, interface{})
+	DeleteData(string)
+	HasData(string) bool
 }
 
 // TLSConnectionWrapper used by proxy to wrap raw connections to TLS when intercepts client/database request about switching to TLS

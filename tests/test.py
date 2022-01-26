@@ -1305,8 +1305,8 @@ class BaseTestCase(PrometheusMixin, unittest.TestCase):
         logging.info("fork HTTP server with port {}".format(port))
 
         http_server_connection = self.get_crl_http_server_connection_string(port)
-
-        cli_args = ['--bind', 'localhost', '--directory', TEST_TLS_CRL_PATH, str(port)]
+        # use explicitly 127.0.0.1 instead of localhost to avoid ipv6 usage by python http server
+        cli_args = ['--bind', '127.0.0.1', '--directory', TEST_TLS_CRL_PATH, str(port)]
         print('python HTTP server args: {}'.format(' '.join(cli_args)))
 
         process = self.fork(lambda: subprocess.Popen(['python3', '-m', 'http.server'] + cli_args))
