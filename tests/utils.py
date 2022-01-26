@@ -126,16 +126,6 @@ def destroy_key(key_id, keys_dir='.acrakeys'):
     return subprocess.check_output(args)
 
 
-def destroy_connector_transport(client_id, keys_dir='.acrakeys'):
-    return destroy_key('client/{}/transport/connector'.format(client_id),
-                       keys_dir=keys_dir)
-
-
-def destroy_server_transport(client_id, keys_dir='.acrakeys'):
-    return destroy_key('client/{}/transport/connector'.format(client_id),
-                       keys_dir=keys_dir)
-
-
 def destroy_server_storage_key(client_id, public=True, keys_dir='.acrakeys', keystore_version='v1'):
     if keystore_version == 'v1':
         key_path = '{}/{}_storage'.format(keys_dir, client_id)

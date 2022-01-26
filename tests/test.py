@@ -69,7 +69,7 @@ from random_utils import random_bytes, random_email, random_int32, random_int64,
 from utils import (read_storage_public_key, read_storage_private_key,
                    read_zone_public_key, read_zone_private_key,
                    read_poison_public_key, read_poison_private_key,
-                   destroy_connector_transport, destroy_server_storage_key, destroy_server_transport,
+                   destroy_server_storage_key,
                    decrypt_acrastruct, deserialize_and_decrypt_acrastruct,
                    load_random_data_config, get_random_data_files,
                    clean_test_data, safe_string, prepare_encryptor_config,
@@ -154,6 +154,8 @@ TEST_SSL_VAULT = os.environ.get('TEST_SSL_VAULT', 'off').lower() == 'on'
 TEST_VAULT_TLS_CA = abs_path(os.environ.get('TEST_VAULT_TLS_CA', 'tests/ssl/ca/ca.crt'))
 VAULT_KV_ENGINE_VERSION=os.environ.get('VAULT_KV_ENGINE_VERSION', 'v1')
 CRYPTO_ENVELOPE_HEADER = b'%%%'
+
+# TLS_CERT_CLIENT_* represent two different ClientIDs are used in tests, initialized in setupModule function
 TLS_CERT_CLIENT_ID_1 = None
 TLS_CERT_CLIENT_ID_2 = None
 
@@ -530,13 +532,7 @@ def get_postgresql_tcp_connection_string(port, dbname):
     return '{}://localhost:{}/{}'.format(DB_DRIVER, port, dbname)
 
 def get_acraserver_unix_connection_string(port):
-    if TEST_MYSQL:
         return get_tcp_connection_string(port)
-    else:
-        if TEST_WITH_TLS:
-            return get_tcp_connection_string(port)
-        else:
-            return 'unix://{}/.s.PGSQL.{}'.format(PG_UNIX_HOST, port)
 
 def get_acraserver_tcp_connection_string(port):
     return get_tcp_connection_string(port)
@@ -862,7 +858,7 @@ class AsyncpgExecutor(QueryExecutor):
     def _connect(self, loop):
         ssl_context = ssl.create_default_context(cafile=self.connection_args.ssl_ca)
         ssl_context.load_cert_chain(self.connection_args.ssl_cert, self.connection_args.ssl_key)
-        ssl_context.check_hostname = False
+        ssl_context.check_hostname = True
         return loop.run_until_complete(
             asyncpg.connect(
                 host=self.connection_args.host, port=self.connection_args.port,
@@ -1308,6 +1304,10 @@ class BaseTestCase(PrometheusMixin, unittest.TestCase):
             args['tls_cert'] = TEST_TLS_SERVER_CERT
             args['tls_ca'] = TEST_TLS_CA
             args['tls_auth'] = ACRA_TLS_AUTH
+            args['tls_ocsp_url'] = 'http://localhost:{}'.format(self.OCSP_SERVER_PORT)
+            args['tls_ocsp_from_cert'] = 'use'
+            args['tls_crl_url'] = 'http://localhost:{}/crl.pem'.format(self.CRL_HTTP_SERVER_PORT)
+            args['tls_crl_from_cert'] = 'use'
         else:
             # Explicitly disable certificate validation by default since otherwise we may end up
             # in a situation when some certificate contains OCSP or CRL URI while corresponding
@@ -1358,7 +1358,6 @@ class BaseTestCase(PrometheusMixin, unittest.TestCase):
 
         cli_args = ['--{}={}'.format(k, v) for k, v in default_config.items()]
 
-        print(cli_args)
         translator = self.fork(lambda: subprocess.Popen(['./acra-translator'] + cli_args,
                                                      **popen_kwargs))
         try:
@@ -1608,7 +1607,7 @@ class BaseBinaryPostgreSQLTestCase(BaseTestCase):
     def setUp(self):
         super().setUp()
 
-        def executor_with_port(ssl_key, ssl_cert):
+        def executor_with_ssl(ssl_key, ssl_cert):
             args = ConnectionArgs(
                 host=get_db_host(), port=self.ACRASERVER_PORT, dbname=DB_NAME,
                 user=DB_USER, password=DB_USER_PASSWORD,
@@ -1619,8 +1618,8 @@ class BaseBinaryPostgreSQLTestCase(BaseTestCase):
             )
             return AsyncpgExecutor(args)
 
-        self.executor1 = executor_with_port(TEST_TLS_CLIENT_KEY, TEST_TLS_CLIENT_CERT)
-        self.executor2 = executor_with_port(TEST_TLS_CLIENT_2_KEY, TEST_TLS_CLIENT_2_CERT)
+        self.executor1 = executor_with_ssl(TEST_TLS_CLIENT_KEY, TEST_TLS_CLIENT_CERT)
+        self.executor2 = executor_with_ssl(TEST_TLS_CLIENT_2_KEY, TEST_TLS_CLIENT_2_CERT)
 
     def compileQuery(self, query, parameters={}, literal_binds=False):
         """
@@ -1710,7 +1709,7 @@ class BaseBinaryMySQLTestCase(BaseTestCase):
     def setUp(self):
         super().setUp()
 
-        def executor_with_port(ssl_key, ssl_cert):
+        def executor_with_ssl(ssl_key, ssl_cert):
             args = ConnectionArgs(
                 host=get_db_host(), port=self.ACRASERVER_PORT, dbname=DB_NAME,
                 user=DB_USER, password=DB_USER_PASSWORD,
@@ -1720,8 +1719,8 @@ class BaseBinaryMySQLTestCase(BaseTestCase):
             )
             return MysqlExecutor(args)
 
-        self.executor1 = executor_with_port(TEST_TLS_CLIENT_KEY, TEST_TLS_CLIENT_CERT)
-        self.executor2 = executor_with_port(TEST_TLS_CLIENT_2_KEY, TEST_TLS_CLIENT_2_CERT)
+        self.executor1 = executor_with_ssl(TEST_TLS_CLIENT_KEY, TEST_TLS_CLIENT_CERT)
+        self.executor2 = executor_with_ssl(TEST_TLS_CLIENT_2_KEY, TEST_TLS_CLIENT_2_CERT)
 
     def compileInsertQuery(self, query, parameters={}, literal_binds=False):
         """
@@ -3426,15 +3425,14 @@ class TestKeyRotation(BaseTestCase):
     """Verify key rotation without data reencryption."""
     # TODO(ilammy, 2020-03-13): test with rotated zone keys as well
     # That is, as soon as it is possible to rotate them (T1581)
-    client_id = 'keypair1'
 
     def read_rotation_public_key(self,  extra_kwargs: dict = None):
-        return read_storage_public_key(self.client_id, KEYS_FOLDER.name, extra_kwargs=extra_kwargs)
+        return read_storage_public_key(TLS_CERT_CLIENT_ID_1, KEYS_FOLDER.name, extra_kwargs=extra_kwargs)
 
     def create_keypair(self, extra_kwargs: dict = None):
-        create_client_keypair(self.client_id, only_storage=True, extra_kwargs=extra_kwargs)
+        create_client_keypair(TLS_CERT_CLIENT_ID_1, only_storage=True, extra_kwargs=extra_kwargs)
 
-    def test_read_via_connector_after_rotation(self):
+    def test_read_after_rotation(self):
         """Verify that AcraServer can decrypt data with old keys."""
 
         def insert_random_data():
@@ -3456,7 +3454,6 @@ class TestKeyRotation(BaseTestCase):
         # Insert some more data encrypted with the new key.
         row_id_2, raw_data_2 = insert_random_data()
 
-        # Request via AcraConnector should be successful.
         # It should return expected decrypted data.
         result = self.engine1.execute(
             sa.select([test_table])
@@ -4246,15 +4243,6 @@ class AcraTranslatorTest(AcraTranslatorMixin, BaseTestCase):
     def get_http_schema(self):
         return 'https'
 
-    def get_grpc_channel(self, port):
-        '''setup grpc to use tls client authentication'''
-        with open(TEST_TLS_CA, 'rb') as ca_file, open(TEST_TLS_CLIENT_KEY, 'rb') as key_file, open(TEST_TLS_CLIENT_CERT, 'rb') as cert_file:
-            ca_bytes = ca_file.read()
-            key_bytes = key_file.read()
-            cert_bytes = cert_file.read()
-        tls_credentials = grpc.ssl_channel_credentials(ca_bytes, key_bytes, cert_bytes)
-        return grpc.secure_channel('localhost:{}'.format(port), tls_credentials)
-
     def get_http_default_kwargs(self):
         '''setup requests to use client's certificates'''
         kwargs = super().get_http_default_kwargs()
@@ -4291,7 +4279,7 @@ class AcraTranslatorTest(AcraTranslatorMixin, BaseTestCase):
                 'tls_crl_from_cert': 'ignore',
             }
 
-            incorrect_client_id = 'keypair2'
+            incorrect_client_id = TLS_CERT_CLIENT_ID_2
             with ProcessContextManager(self.fork_translator(translator_kwargs)):
                 response = request_func(translator_port, incorrect_client_id, None, data)
                 decrypted = deserialize_and_decrypt_acrastruct(response, client_id_private_key, client_id)
@@ -4334,6 +4322,83 @@ class AcraTranslatorTest(AcraTranslatorMixin, BaseTestCase):
         finally:
             shutil.rmtree(key_folder.name)
 
+    def testHTTPSApiResponses(self):
+        translator_port = 3456
+        data = get_pregenerated_random_data().encode('ascii')
+        encryption_key = read_storage_public_key(
+            TLS_CERT_CLIENT_ID_1, keys_dir=KEYS_FOLDER.name)
+        acrastruct = create_acrastruct(data, encryption_key)
+        connection_string = 'tcp://127.0.0.1:{}'.format(translator_port)
+        translator_kwargs = {
+            'incoming_connection_http_string': connection_string,
+            'tls_key': abs_path(TEST_TLS_SERVER_KEY),
+            'tls_cert': abs_path(TEST_TLS_SERVER_CERT),
+            'tls_ca': TEST_TLS_CA,
+            'tls_identifier_extractor_type': 'distinguished_name',
+            'acratranslator_client_id_from_connection_enable': 'true',
+            'tls_ocsp_from_cert': 'ignore',
+            'tls_crl_from_cert': 'ignore',
+        }
+
+        api_url = 'https://localhost:{}/v1/decrypt'.format(translator_port)
+        with ProcessContextManager(self.fork_translator(translator_kwargs)):
+                cert = (TEST_TLS_CLIENT_CERT, TEST_TLS_CLIENT_KEY)
+
+                # test incorrect HTTP method
+                response = requests.get(api_url, data=acrastruct, cert=cert, verify=TEST_TLS_CA,
+                                        timeout=REQUEST_TIMEOUT)
+                self.assertEqual(
+                    response.status_code, http.HTTPStatus.METHOD_NOT_ALLOWED)
+                self.assertIn('405 method not allowed'.lower(),
+                              response.text.lower())
+                self.assertEqual(response.headers['Content-Type'], 'text/plain')
+
+                # test without api version
+                without_version_api_url = api_url.replace('v1/', '')
+                response = requests.post(
+                    without_version_api_url, data=acrastruct, cert=cert, verify=TEST_TLS_CA,
+                    timeout=REQUEST_TIMEOUT)
+                self.assertEqual(response.status_code, http.HTTPStatus.NOT_FOUND)
+                self.assertIn('404 Page Not Found'.lower(), response.text.lower())
+                self.assertEqual(response.headers['Content-Type'], 'text/plain')
+
+                # incorrect version
+                without_version_api_url = api_url.replace('v1/', 'v3/')
+                response = requests.post(
+                    without_version_api_url, data=acrastruct, cert=cert, verify=TEST_TLS_CA,
+                    timeout=REQUEST_TIMEOUT)
+                self.assertEqual(response.status_code,
+                                 http.HTTPStatus.NOT_FOUND)
+                self.assertIn('404 Page Not Found'.lower(), response.text.lower())
+                self.assertEqual(response.headers['Content-Type'], 'text/plain')
+
+                # incorrect url
+                incorrect_url = 'https://localhost:{}/v1/someurl'.format(translator_port)
+                response = requests.post(
+                    incorrect_url, data=acrastruct, cert=cert, verify=TEST_TLS_CA, timeout=REQUEST_TIMEOUT)
+                self.assertEqual(
+                    response.status_code, http.HTTPStatus.NOT_FOUND)
+                self.assertEqual('404 Page Not Found'.lower(), response.text.lower())
+                self.assertEqual(response.headers['Content-Type'], 'text/plain')
+
+
+                # without acrastruct (http body), pass empty byte array as data
+                response = requests.post(api_url, data=b'', cert=cert, verify=TEST_TLS_CA,
+                                         timeout=REQUEST_TIMEOUT)
+                self.assertEqual(response.status_code,
+                                 http.HTTPStatus.UNPROCESSABLE_ENTITY)
+                self.assertIn("Can't decrypt AcraStruct".lower(),
+                              response.text.lower())
+                self.assertEqual(response.headers['Content-Type'], 'text/plain; charset=utf-8')
+
+                # test with correct acrastruct
+                response = requests.post(api_url, data=acrastruct, cert=cert, verify=TEST_TLS_CA,
+                                         timeout=REQUEST_TIMEOUT)
+                self.assertEqual(data, response.content)
+                self.assertEqual(response.status_code, http.HTTPStatus.OK)
+                self.assertEqual(response.headers['Content-Type'],
+                                 'application/octet-stream')
+
     def testGRPCApi(self):
         self.apiDecryptionTest(self.grpc_decrypt_request, use_grpc=True)
         self.apiEncryptionTest(self.grpc_encrypt_request, use_grpc=True)
@@ -4343,7 +4408,13 @@ class AcraTranslatorTest(AcraTranslatorMixin, BaseTestCase):
         self.apiEncryptionTest(self.http_encrypt_request, use_http=True)
 
 
-class TestAcraTranslatorWithVaultMasterKeyLoader(HashiCorpVaultMasterKeyLoaderMixin, AcraTranslatorTest):
+class TestAcraTranslatorWithVaultMasterKeyLoaderByDistinguishedName(HashiCorpVaultMasterKeyLoaderMixin,
+                                                 TLSAuthenticationByDistinguishedNameMixin, AcraTranslatorTest):
+    pass
+
+
+class TestAcraTranslatorWithVaultMasterKeyLoaderBySerialNumber(HashiCorpVaultMasterKeyLoaderMixin,
+                                                                    TLSAuthenticationBySerialNumberMixin, AcraTranslatorTest):
     pass
 
 
@@ -5038,13 +5109,13 @@ class TestPrometheusMetrics(AcraTranslatorMixin, BaseTestCase):
         }
         metrics_url = 'http://localhost:{}/metrics'.format(metrics_port)
         api_url = 'https://localhost:{}/v1/decrypt'.format(translator_port)
-        # with ProcessContextManager(self.fork_translator(base_translator_kwargs)):
-        #         # test with correct acrastruct
-        #         cert = (TEST_TLS_CLIENT_CERT, TEST_TLS_CLIENT_KEY)
-        #         response = requests.post(api_url, data=acrastruct, cert=cert, verify=TEST_TLS_CA,
-        #                                  timeout=REQUEST_TIMEOUT)
-        #         self.assertEqual(response.status_code, http.HTTPStatus.OK)
-        #         self.checkMetrics(metrics_url, labels)
+        with ProcessContextManager(self.fork_translator(base_translator_kwargs)):
+                # test with correct acrastruct
+                cert = (TEST_TLS_CLIENT_CERT, TEST_TLS_CLIENT_KEY)
+                response = requests.post(api_url, data=acrastruct, cert=cert, verify=TEST_TLS_CA,
+                                         timeout=REQUEST_TIMEOUT)
+                self.assertEqual(response.status_code, http.HTTPStatus.OK)
+                self.checkMetrics(metrics_url, labels)
 
         grpc_translator_kwargs = {
             'incoming_connection_grpc_string': connection_string,
