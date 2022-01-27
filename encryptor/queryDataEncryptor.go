@@ -32,6 +32,14 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
+// QueryDataItem store information about result item in Select queries
+type QueryDataItem interface {
+	Setting() config.ColumnEncryptionSetting
+	TableName() string
+	ColumnName() string
+	ColumnAlias() string
+}
+
 type querySelectSetting struct {
 	setting     config.ColumnEncryptionSetting
 	tableName   string
@@ -39,12 +47,31 @@ type querySelectSetting struct {
 	columnAlias string
 }
 
+// Setting return associated ColumnEncryptionSetting or nil if not found
+func (q *querySelectSetting) Setting() config.ColumnEncryptionSetting {
+	return q.setting
+}
+
+// TableName return table name associated with item or empty string if it is not related to any table, or not recognized
+func (q *querySelectSetting) TableName() string {
+	return q.tableName
+}
+
+// ColumnName return column name if it was matched to any
+func (q *querySelectSetting) ColumnName() string {
+	return q.columnName
+}
+// ColumnAlias if matched as alias to any data item
+func (q *querySelectSetting) ColumnAlias() string {
+	return q.columnAlias
+}
+
 // QueryDataEncryptor parse query and encrypt raw data according to TableSchemaStore
 type QueryDataEncryptor struct {
 	schemaStore         config.TableSchemaStore
 	encryptor           DataEncryptor
 	dataCoder           DBDataCoder
-	querySelectSettings []*querySelectSetting
+	querySelectSettings []QueryDataItem
 	parser              *sqlparser.Parser
 }
 
@@ -282,7 +309,7 @@ func (encryptor *QueryDataEncryptor) OnColumn(ctx context.Context, data []byte) 
 		if columnInfo.Index() < len(encryptor.querySelectSettings) {
 			selectSetting := encryptor.querySelectSettings[columnInfo.Index()]
 			if selectSetting != nil {
-				return NewContextWithEncryptionSetting(ctx, selectSetting.setting), data, nil
+				return NewContextWithEncryptionSetting(ctx, selectSetting.Setting()), data, nil
 			}
 		}
 
@@ -292,13 +319,13 @@ func (encryptor *QueryDataEncryptor) OnColumn(ctx context.Context, data []byte) 
 
 const allColumnsName = "*"
 
-func (encryptor *QueryDataEncryptor) onSelect(statement *sqlparser.Select) (bool, error) {
+func (encryptor *QueryDataEncryptor) onSelect(ctx context.Context, statement *sqlparser.Select) (bool, error) {
 	columns, err := mapColumnsToAliases(statement)
 	if err != nil {
 		logrus.WithError(err).Errorln("Can't extract columns from SELECT statement")
 		return false, err
 	}
-	querySelectSettings := make([]*querySelectSetting, 0, len(columns))
+	querySelectSettings := make([]QueryDataItem, 0, len(columns))
 	for _, data := range columns {
 		if data != nil {
 			if schema := encryptor.schemaStore.GetTableSchema(data.Table); schema != nil {
@@ -332,6 +359,9 @@ func (encryptor *QueryDataEncryptor) onSelect(statement *sqlparser.Select) (bool
 		}
 		querySelectSettings = append(querySelectSettings, nil)
 	}
+	clientSession := base.ClientSessionFromContext(ctx)
+	SaveQueryDataItemsToClientSession(clientSession, querySelectSettings)
+
 	encryptor.querySelectSettings = querySelectSettings
 	return false, nil
 }
@@ -342,7 +372,7 @@ func (encryptor *QueryDataEncryptor) onReturning(returning sqlparser.Returning, 
 	}
 
 	schema := encryptor.schemaStore.GetTableSchema(tableName)
-	querySelectSettings := make([]*querySelectSetting, 0, 8)
+	querySelectSettings := make([]QueryDataItem, 0, 8)
 
 	if _, ok := returning[0].(*sqlparser.StarExpr); ok {
 		for _, name := range schema.Columns() {
@@ -391,7 +421,7 @@ func (encryptor *QueryDataEncryptor) OnQuery(ctx context.Context, query base.OnQ
 	changed := false
 	switch statement := statement.(type) {
 	case *sqlparser.Select:
-		changed, err = encryptor.onSelect(statement)
+		changed, err = encryptor.onSelect(ctx, statement)
 	case *sqlparser.Insert:
 		changed, err = encryptor.encryptInsertQuery(ctx, statement)
 	case *sqlparser.Update:
@@ -645,4 +675,29 @@ func (encryptor *QueryDataEncryptor) encryptWithColumnSettings(ctx context.Conte
 		clientID = accessContext.GetClientID()
 	}
 	return encryptor.encryptor.EncryptWithClientID(clientID, data, columnSetting)
+}
+
+const queryDataItemKey = "query_data_items"
+
+// SaveQueryDataItemsToClientSession save slice of QueryDataItem into ClientSession
+func SaveQueryDataItemsToClientSession(session base.ClientSession, items []QueryDataItem){
+	session.SetData(queryDataItemKey, items)
+}
+
+// DeleteQueryDataItemsToClientSession delete items from ClientSession
+func DeleteQueryDataItemsToClientSession(session base.ClientSession){
+	session.DeleteData(queryDataItemKey)
+}
+
+// QueryDataItemsFromClientSession return QueryDataItems from ClientSession if saved otherwise nil
+func QueryDataItemsFromClientSession(session base.ClientSession) []QueryDataItem{
+	data, ok := session.GetData(queryDataItemKey)
+	if !ok {
+		return nil
+	}
+	items, ok := data.([]QueryDataItem)
+	if ok {
+		return items
+	}
+	return nil
 }

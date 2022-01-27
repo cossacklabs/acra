@@ -110,23 +110,6 @@ type Proxy interface {
 	ProxyDatabaseConnection(context.Context, chan<- ProxyError)
 }
 
-// ClientSession is a connection between the client and the database, mediated by AcraServer.
-type ClientSession interface {
-	Context() context.Context
-	ClientConnection() net.Conn
-	DatabaseConnection() net.Conn
-
-	PreparedStatementRegistry() PreparedStatementRegistry
-	SetPreparedStatementRegistry(registry PreparedStatementRegistry)
-
-	ProtocolState() interface{}
-	SetProtocolState(state interface{})
-	GetData(string) (interface{}, bool)
-	SetData(string, interface{})
-	DeleteData(string)
-	HasData(string) bool
-}
-
 // TLSConnectionWrapper used by proxy to wrap raw connections to TLS when intercepts client/database request about switching to TLS
 // Reuse network.ConnectionWrapper to explicitly force TLS usage by name
 type TLSConnectionWrapper interface {
