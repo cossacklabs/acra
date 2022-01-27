@@ -145,3 +145,20 @@ func (clientSession *ClientSession) Close() {
 	}
 	clientSession.logger.Debugln("All connections closed")
 }
+
+type sessionContextKey struct{}
+
+// SetClientSessionToContext return context with saved ClientSession
+func SetClientSessionToContext(ctx context.Context, session *ClientSession) context.Context {
+	return context.WithValue(ctx, sessionContextKey{}, session)
+}
+
+// ClientSessionFromContext return saved ClientSession from context or nil
+func ClientSessionFromContext(ctx context.Context) *ClientSession {
+	value := ctx.Value(sessionContextKey{})
+	session, ok := value.(*ClientSession)
+	if ok {
+		return session
+	}
+	return nil
+}
